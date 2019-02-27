@@ -18,10 +18,19 @@
 
 #include <utils/RefBase.h>
 
-namespace android::compositionengine {
+namespace android {
+
+class Fence;
+
+namespace compositionengine {
 
 // Defines the interface used by the CompositionEngine to make requests
 // of the front-end layer
-class LayerFE : public virtual RefBase {};
+class LayerFE : public virtual RefBase {
+public:
+    // Called after the layer is displayed to update the presentation fence
+    virtual void onLayerDisplayed(const sp<Fence>&) = 0;
+};
 
-} // namespace android::compositionengine
+} // namespace compositionengine
+} // namespace android

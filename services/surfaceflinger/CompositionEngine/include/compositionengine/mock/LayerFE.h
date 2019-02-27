@@ -18,6 +18,7 @@
 
 #include <compositionengine/LayerFE.h>
 #include <gmock/gmock.h>
+#include <ui/Fence.h>
 
 namespace android::compositionengine::mock {
 
@@ -27,6 +28,8 @@ class LayerFE : public compositionengine::LayerFE {
 public:
     LayerFE();
     virtual ~LayerFE();
+
+    MOCK_METHOD1(onLayerDisplayed, void(const sp<Fence>&));
 };
 
 } // namespace android::compositionengine::mock

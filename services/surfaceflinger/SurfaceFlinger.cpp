@@ -1721,8 +1721,6 @@ void SurfaceFlinger::handleMessageRefresh() {
 
     mVsyncModulator.onRefreshed(mHadClientComposition);
 
-    getBE().mEndOfFrameCompositionInfo = std::move(getBE().mCompositionInfo);
-
     mLayersWithQueuedFrames.clear();
 }
 
@@ -1835,12 +1833,9 @@ void SurfaceFlinger::calculateWorkingSet() {
     for (const auto& [token, displayDevice] : mDisplays) {
         auto display = displayDevice->getCompositionDisplay();
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-            const auto displayId = display->getId();
             auto& layerState = layer->getCompositionLayer()->editState().frontEnd;
             layerState.compositionType = static_cast<Hwc2::IComposerClient::Composition>(
                     layer->getCompositionType(displayDevice));
-            layer->getBE().compositionInfo.hwc.displayId = *displayId;
-            getBE().mCompositionInfo[token].push_back(layer->getBE().compositionInfo);
         }
     }
 }
@@ -2215,17 +2210,6 @@ void SurfaceFlinger::rebuildLayerStacks() {
     ATRACE_CALL();
     ALOGV("rebuildLayerStacks");
 
-    // We need to clear these out now as these may be holding on to a
-    // HWC2::Layer reference at the same time as the LayerBE::HWCInfo structure
-    // also holds a reference. When the set of visible layers is recomputed,
-    // some layers may be destroyed if the only thing keeping them alive was
-    // that list of visible layers associated with each display. The layer
-    // destruction code asserts that the HWC2::Layer is properly destroyed, but
-    // that doesn't happen if SurfaceFlingerBE::mCompositionInfo keeps it alive.
-    for (const auto& [token, display] : mDisplays) {
-        getBE().mCompositionInfo[token].clear();
-    }
-
     // rebuild the visible layer list per screen
     if (CC_UNLIKELY(mVisibleRegionsDirty)) {
         ATRACE_NAME("rebuildLayerStacks VR Dirty");
@@ -2499,16 +2483,19 @@ void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& displayDevice) {
             getHwComposer().presentAndGetReleaseFences(*displayId);
         }
         display->getRenderSurface()->onPresentDisplayCompleted();
-        for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
+        for (auto& layer : display->getOutputLayersOrderedByZ()) {
             sp<Fence> releaseFence = Fence::NO_FENCE;
+            bool usedClientComposition = true;
 
             // The layer buffer from the previous frame (if any) is released
             // by HWC only when the release fence from this frame (if any) is
             // signaled.  Always get the release fence from HWC first.
-            if (displayId && layer->hasHwcLayer(displayDevice)) {
+            if (layer->getState().hwc) {
+                const auto& hwcState = *layer->getState().hwc;
                 releaseFence =
-                        getHwComposer().getLayerReleaseFence(*displayId,
-                                                             layer->getHwcLayer(displayDevice));
+                        getHwComposer().getLayerReleaseFence(*displayId, hwcState.hwcLayer.get());
+                usedClientComposition =
+                        hwcState.hwcCompositionType == Hwc2::IComposerClient::Composition::CLIENT;
             }
 
             // If the layer was client composited in the previous frame, we
@@ -2516,14 +2503,13 @@ void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& displayDevice) {
             // Since we do not track that, always merge with the current
             // client target acquire fence when it is available, even though
             // this is suboptimal.
-            if (layer->getCompositionType(displayDevice) ==
-                Hwc2::IComposerClient::Composition::CLIENT) {
+            if (usedClientComposition) {
                 releaseFence =
                         Fence::merge("LayerRelease", releaseFence,
                                      display->getRenderSurface()->getClientTargetAcquireFence());
             }
 
-            layer->getBE().onLayerDisplayed(releaseFence);
+            layer->getLayerFE().onLayerDisplayed(releaseFence);
         }
 
         // We've got a list of layers needing fences, that are disjoint with
@@ -2533,7 +2519,7 @@ void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& displayDevice) {
             sp<Fence> presentFence =
                     displayId ? getHwComposer().getPresentFence(*displayId) : Fence::NO_FENCE;
             for (auto& layer : displayDevice->getLayersNeedingFences()) {
-                layer->getBE().onLayerDisplayed(presentFence);
+                layer->getCompositionLayer()->getLayerFE()->onLayerDisplayed(presentFence);
             }
         }
 

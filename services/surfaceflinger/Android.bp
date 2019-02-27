@@ -134,7 +134,6 @@ filegroup {
         "EventLog/EventLog.cpp",
         "FrameTracker.cpp",
         "Layer.cpp",
-        "LayerBE.cpp",
         "LayerProtoHelper.cpp",
         "LayerRejecter.cpp",
         "LayerStats.cpp",

@@ -69,10 +69,7 @@ using base::StringAppendF;
 std::atomic<int32_t> Layer::sSequence{1};
 
 Layer::Layer(const LayerCreationArgs& args)
-      : mFlinger(args.flinger),
-        mName(args.name),
-        mClientRef(args.client),
-        mBE{this, args.name.string()} {
+      : mFlinger(args.flinger), mName(args.name), mClientRef(args.client) {
     mCurrentCrop.makeInvalid();
 
     uint32_t layerFlags = 0;

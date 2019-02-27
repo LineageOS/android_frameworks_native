@@ -55,7 +55,6 @@
 #include "DisplayHardware/HWComposer.h"
 #include "Effects/Daltonizer.h"
 #include "FrameTracker.h"
-#include "LayerBE.h"
 #include "LayerStats.h"
 #include "LayerVector.h"
 #include "RegionSamplingThread.h"
@@ -106,7 +105,6 @@ class Surface;
 class SurfaceFlingerBE;
 class TimeStats;
 class VSyncSource;
-struct CompositionInfo;
 
 namespace compositionengine {
 class DisplaySurface;
@@ -199,9 +197,6 @@ public:
     // use to differentiate callbacks from different hardware composer
     // instances. Each hardware composer instance gets a different sequence id.
     int32_t mComposerSequenceId;
-
-    std::map<wp<IBinder>, std::vector<CompositionInfo>> mCompositionInfo;
-    std::map<wp<IBinder>, std::vector<CompositionInfo>> mEndOfFrameCompositionInfo;
 };
 
 class SetInputWindowsListener : public BnSetInputWindowsListener {
