@@ -29,6 +29,8 @@
 
 #include <vkjson.h>
 
+#include "gpustats/GpuStats.h"
+
 namespace android {
 
 using base::StringAppendF;
@@ -42,7 +44,7 @@ const String16 sDump("android.permission.DUMP");
 
 const char* const GpuService::SERVICE_NAME = "gpu";
 
-GpuService::GpuService() = default;
+GpuService::GpuService() : mGpuStats(std::make_unique<GpuStats>()){};
 
 void GpuService::setGpuStats(const std::string& driverPackageName,
                              const std::string& driverVersionName, uint64_t driverVersionCode,
@@ -51,18 +53,8 @@ void GpuService::setGpuStats(const std::string& driverPackageName,
                              int64_t driverLoadingTime) {
     ATRACE_CALL();
 
-    std::lock_guard<std::mutex> lock(mStateLock);
-    ALOGV("Received:\n"
-          "\tdriverPackageName[%s]\n"
-          "\tdriverVersionName[%s]\n"
-          "\tdriverVersionCode[%" PRIu64 "]\n"
-          "\tdriverBuildTime[%" PRId64 "]\n"
-          "\tappPackageName[%s]\n"
-          "\tdriver[%d]\n"
-          "\tisDriverLoaded[%d]\n"
-          "\tdriverLoadingTime[%" PRId64 "]",
-          driverPackageName.c_str(), driverVersionName.c_str(), driverVersionCode, driverBuildTime,
-          appPackageName.c_str(), static_cast<int32_t>(driver), isDriverLoaded, driverLoadingTime);
+    mGpuStats->insert(driverPackageName, driverVersionName, driverVersionCode, driverBuildTime,
+                      appPackageName, driver, isDriverLoaded, driverLoadingTime);
 }
 
 status_t GpuService::shellCommand(int /*in*/, int out, int err, std::vector<String16>& args) {
@@ -81,7 +73,7 @@ status_t GpuService::shellCommand(int /*in*/, int out, int err, std::vector<Stri
     return BAD_VALUE;
 }
 
-status_t GpuService::doDump(int fd, const Vector<String16>& /*args*/, bool /*asProto*/) {
+status_t GpuService::doDump(int fd, const Vector<String16>& args, bool /*asProto*/) {
     std::string result;
 
     IPCThreadState* ipc = IPCThreadState::self();
@@ -91,7 +83,21 @@ status_t GpuService::doDump(int fd, const Vector<String16>& /*args*/, bool /*asP
     if ((uid != AID_SHELL) && !PermissionCache::checkPermission(sDump, pid, uid)) {
         StringAppendF(&result, "Permission Denial: can't dump gpu from pid=%d, uid=%d\n", pid, uid);
     } else {
-        result.append("Hello world from dumpsys gpu.\n");
+        bool dumpAll = true;
+        size_t index = 0;
+        size_t numArgs = args.size();
+
+        if (numArgs) {
+            if ((index < numArgs) && (args[index] == String16("--gpustats"))) {
+                index++;
+                mGpuStats->dump(args, &result);
+                dumpAll = false;
+            }
+        }
+
+        if (dumpAll) {
+            mGpuStats->dump(Vector<String16>(), &result);
+        }
     }
 
     write(fd, result.c_str(), result.size());

@@ -2,6 +2,7 @@ filegroup {
     name: "gpuservice_sources",
     srcs: [
         "GpuService.cpp",
+        "gpustats/GpuStats.cpp"
     ],
 }
 
