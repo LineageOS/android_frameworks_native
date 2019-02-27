@@ -97,6 +97,13 @@ DisplayEventReceiver::Event makeVSync(PhysicalDisplayId displayId, nsecs_t times
     return event;
 }
 
+DisplayEventReceiver::Event makeConfigChanged(uint32_t displayId, int32_t configId) {
+    DisplayEventReceiver::Event event;
+    event.header = {DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED, displayId, systemTime()};
+    event.config.configId = configId;
+    return event;
+}
+
 } // namespace
 
 EventThreadConnection::EventThreadConnection(EventThread* eventThread,
@@ -307,6 +314,13 @@ void EventThread::onHotplugReceived(PhysicalDisplayId displayId, bool connected)
     mCondition.notify_all();
 }
 
+void EventThread::onConfigChanged(PhysicalDisplayId displayId, int32_t configId) {
+    std::lock_guard<std::mutex> lock(mMutex);
+
+    mPendingEvents.push_back(makeConfigChanged(displayId, configId));
+    mCondition.notify_all();
+}
+
 void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
     DisplayEventConsumers consumers;
 
@@ -404,6 +418,7 @@ bool EventThread::shouldConsumeEvent(const DisplayEventReceiver::Event& event,
                                      const sp<EventThreadConnection>& connection) const {
     switch (event.header.type) {
         case DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG:
+        case DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED:
             return true;
 
         case DisplayEventReceiver::DISPLAY_EVENT_VSYNC:

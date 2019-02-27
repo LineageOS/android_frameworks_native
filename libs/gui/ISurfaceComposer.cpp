@@ -807,6 +807,32 @@ public:
         }
         return error;
     }
+
+    virtual status_t setAllowedDisplayConfigs(const sp<IBinder>& displayToken,
+                                              const std::vector<int32_t>& allowedConfigs) {
+        Parcel data, reply;
+        status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (result != NO_ERROR) {
+            ALOGE("setAllowedDisplayConfigs failed to writeInterfaceToken: %d", result);
+            return result;
+        }
+        result = data.writeStrongBinder(displayToken);
+        if (result != NO_ERROR) {
+            ALOGE("setAllowedDisplayConfigs failed to writeStrongBinder: %d", result);
+            return result;
+        }
+        result = data.writeInt32Vector(allowedConfigs);
+        if (result != NO_ERROR) {
+            ALOGE("setAllowedDisplayConfigs failed to writeInt32Vector: %d", result);
+            return result;
+        }
+        result = remote()->transact(BnSurfaceComposer::SET_ALLOWED_DISPLAY_CONFIGS, data, &reply);
+        if (result != NO_ERROR) {
+            ALOGE("setAllowedDisplayConfigs failed to transact: %d", result);
+            return result;
+        }
+        return reply.readInt32();
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -1318,6 +1344,15 @@ status_t BnSurfaceComposer::onTransact(
                 return result;
             }
             return removeRegionSamplingListener(listener);
+        }
+        case SET_ALLOWED_DISPLAY_CONFIGS: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IBinder> displayToken = data.readStrongBinder();
+            std::vector<int32_t> allowedConfigs;
+            data.readInt32Vector(&allowedConfigs);
+            status_t result = setAllowedDisplayConfigs(displayToken, allowedConfigs);
+            reply->writeInt32(result);
+            return result;
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);

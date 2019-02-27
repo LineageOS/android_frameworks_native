@@ -45,7 +45,6 @@
 
 #include "Client.h"
 #include "FrameTracker.h"
-#include "LayerBE.h"
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
@@ -67,7 +66,6 @@ class DisplayDevice;
 class GraphicBuffer;
 class SurfaceFlinger;
 class LayerDebugInfo;
-class LayerBE;
 
 namespace compositionengine {
 class Layer;
@@ -97,9 +95,6 @@ class Layer : public virtual compositionengine::LayerFE {
     static std::atomic<int32_t> sSequence;
 
 public:
-    friend class LayerBE;
-    LayerBE& getBE() { return mBE; }
-    LayerBE& getBE() const { return mBE; }
     mutable bool contentDirty{false};
     // regions below are in window-manager space
     Region visibleRegion;
@@ -440,6 +435,11 @@ protected:
                                     renderengine::LayerSettings& layer) = 0;
 
 public:
+    /*
+     * compositionengine::LayerFE overrides
+     */
+    void onLayerDisplayed(const sp<Fence>& releaseFence) override;
+
     virtual void setDefaultBufferSize(uint32_t /*w*/, uint32_t /*h*/) {}
 
     virtual bool isHdrY410() const { return false; }
@@ -459,11 +459,6 @@ public:
             const sp<const DisplayDevice>& display) const;
     bool getClearClientTarget(const sp<const DisplayDevice>& display) const;
     void updateCursorPosition(const sp<const DisplayDevice>& display);
-
-    /*
-     * called after page-flip
-     */
-    virtual void onLayerDisplayed(const sp<Fence>& releaseFence);
 
     virtual bool shouldPresentNow(nsecs_t /*expectedPresentTime*/) const { return false; }
     virtual void setTransformHint(uint32_t /*orientation*/) const { }
@@ -859,8 +854,6 @@ protected:
 
     wp<Layer> mCurrentParent;
     wp<Layer> mDrawingParent;
-
-    mutable LayerBE mBE;
 
     // Can only be accessed with the SF state lock held.
     bool mLayerDetached{false};

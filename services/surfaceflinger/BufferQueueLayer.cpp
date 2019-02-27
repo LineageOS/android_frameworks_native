@@ -199,7 +199,6 @@ bool BufferQueueLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
     bool sidebandStreamChanged = true;
     if (mSidebandStreamChanged.compare_exchange_strong(sidebandStreamChanged, false)) {
         // mSidebandStreamChanged was changed to false
-        // replicated in LayerBE until FE/BE is ready to be synchronized
         auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
         layerCompositionState.sidebandStream = mConsumer->getSidebandStream();
         if (layerCompositionState.sidebandStream != nullptr) {

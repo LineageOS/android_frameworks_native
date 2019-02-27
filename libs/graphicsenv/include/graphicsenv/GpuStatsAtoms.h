@@ -16,21 +16,27 @@
 
 #pragma once
 
-#include <utils/RefBase.h>
+#include <string>
+#include <vector>
 
 namespace android {
 
-class Fence;
-
-namespace compositionengine {
-
-// Defines the interface used by the CompositionEngine to make requests
-// of the front-end layer
-class LayerFE : public virtual RefBase {
-public:
-    // Called after the layer is displayed to update the presentation fence
-    virtual void onLayerDisplayed(const sp<Fence>&) = 0;
+struct GpuStatsGlobalAtom {
+    std::string driverPackageName = "";
+    std::string driverVersionName = "";
+    uint64_t driverVersionCode = 0;
+    int64_t driverBuildTime = 0;
+    int32_t glLoadingCount = 0;
+    int32_t glLoadingFailureCount = 0;
+    int32_t vkLoadingCount = 0;
+    int32_t vkLoadingFailureCount = 0;
 };
 
-} // namespace compositionengine
+struct GpuStatsAppAtom {
+    std::string appPackageName = "";
+    uint64_t driverVersionCode = 0;
+    std::vector<int64_t> glDriverLoadingTime = {};
+    std::vector<int64_t> vkDriverLoadingTime = {};
+};
+
 } // namespace android

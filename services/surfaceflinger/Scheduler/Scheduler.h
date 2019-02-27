@@ -105,6 +105,10 @@ public:
     // Should be called before the screen is turned off.
     void onScreenReleased(const sp<ConnectionHandle>& handle);
 
+    // Should be called when display config changed
+    void onConfigChanged(const sp<ConnectionHandle>& handle, PhysicalDisplayId displayId,
+                         int32_t configId);
+
     // Should be called when dumpsys command is received.
     void dump(const sp<ConnectionHandle>& handle, std::string& result) const;
 

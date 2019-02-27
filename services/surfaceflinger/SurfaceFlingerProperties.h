@@ -53,6 +53,8 @@ int64_t wcg_composition_dataspace(
 
 int32_t wcg_composition_pixel_format(
         android::hardware::graphics::common::V1_2::PixelFormat defaultValue);
+
+android::hardware::configstore::V1_2::DisplayPrimaries getDisplayNativePrimaries();
 } // namespace sysprop
 } // namespace android
 #endif // SURFACEFLINGERPROPERTIES_H_

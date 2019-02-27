@@ -210,7 +210,7 @@ struct RenderEngineTest : public ::testing::Test {
 };
 
 std::unique_ptr<renderengine::RenderEngine> RenderEngineTest::sRE =
-        renderengine::RenderEngine::create(static_cast<int32_t>(ui::PixelFormat::RGBA_8888), 0);
+        renderengine::RenderEngine::create(static_cast<int32_t>(ui::PixelFormat::RGBA_8888), 0, 1);
 
 struct ColorSourceVariant {
     static void fillColor(renderengine::LayerSettings& layer, half r, half g, half b,

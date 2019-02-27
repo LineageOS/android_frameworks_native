@@ -203,19 +203,6 @@ const String16 sAccessSurfaceFlinger("android.permission.ACCESS_SURFACE_FLINGER"
 const String16 sReadFramebuffer("android.permission.READ_FRAME_BUFFER");
 const String16 sDump("android.permission.DUMP");
 
-constexpr float kSrgbRedX = 0.4123f;
-constexpr float kSrgbRedY = 0.2126f;
-constexpr float kSrgbRedZ = 0.0193f;
-constexpr float kSrgbGreenX = 0.3576f;
-constexpr float kSrgbGreenY = 0.7152f;
-constexpr float kSrgbGreenZ = 0.1192f;
-constexpr float kSrgbBlueX = 0.1805f;
-constexpr float kSrgbBlueY = 0.0722f;
-constexpr float kSrgbBlueZ = 0.9506f;
-constexpr float kSrgbWhiteX = 0.9505f;
-constexpr float kSrgbWhiteY = 1.0000f;
-constexpr float kSrgbWhiteZ = 1.0891f;
-
 constexpr float kDefaultRefreshRate = 60.f;
 constexpr float kPerformanceRefreshRate = 90.f;
 
@@ -353,15 +340,7 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
     }
     ALOGV("Primary Display Orientation is set to %2d.", SurfaceFlinger::primaryDisplayOrientation);
 
-    auto surfaceFlingerConfigsServiceV1_2 = V1_2::ISurfaceFlingerConfigs::getService();
-    if (surfaceFlingerConfigsServiceV1_2) {
-        surfaceFlingerConfigsServiceV1_2->getDisplayNativePrimaries(
-                [&](auto tmpPrimaries) {
-                    memcpy(&mInternalDisplayPrimaries, &tmpPrimaries, sizeof(ui::DisplayPrimaries));
-                });
-    } else {
-        initDefaultDisplayNativePrimaries();
-    }
+    mInternalDisplayPrimaries = sysprop::getDisplayNativePrimaries();
 
     // debugging stuff...
     char value[PROPERTY_VALUE_MAX];
@@ -596,11 +575,11 @@ void SurfaceFlinger::bootFinished()
         if (mUse90Hz) {
             mPhaseOffsets->setRefreshRateType(
                     scheduler::RefreshRateConfigs::RefreshRateType::PERFORMANCE);
-            setRefreshRateTo(RefreshRateType::PERFORMANCE);
+            setRefreshRateTo(RefreshRateType::PERFORMANCE, ConfigEvent::None);
         } else {
             mPhaseOffsets->setRefreshRateType(
                     scheduler::RefreshRateConfigs::RefreshRateType::DEFAULT);
-            setRefreshRateTo(RefreshRateType::DEFAULT);
+            setRefreshRateTo(RefreshRateType::DEFAULT, ConfigEvent::None);
         }
     }));
 }
@@ -666,9 +645,10 @@ void SurfaceFlinger::init() {
                             renderengine::RenderEngine::USE_HIGH_PRIORITY_CONTEXT : 0);
 
     // TODO(b/77156734): We need to stop casting and use HAL types when possible.
+    // Sending maxFrameBufferAcquiredBuffers as the cache size is tightly tuned to single-display.
     mCompositionEngine->setRenderEngine(
             renderengine::RenderEngine::create(static_cast<int32_t>(defaultCompositionPixelFormat),
-                                               renderEngineFeature));
+                                               renderEngineFeature, maxFrameBufferAcquiredBuffers));
 
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
             "Starting with vr flinger active is not currently supported.");
@@ -726,11 +706,11 @@ void SurfaceFlinger::init() {
     if (mUse90Hz) {
         mScheduler->setExpiredIdleTimerCallback([this] {
             Mutex::Autolock lock(mStateLock);
-            setRefreshRateTo(RefreshRateType::DEFAULT);
+            setRefreshRateTo(RefreshRateType::DEFAULT, ConfigEvent::None);
         });
         mScheduler->setResetIdleTimerCallback([this] {
             Mutex::Autolock lock(mStateLock);
-            setRefreshRateTo(RefreshRateType::PERFORMANCE);
+            setRefreshRateTo(RefreshRateType::PERFORMANCE, ConfigEvent::None);
         });
     }
     mRefreshRateStats = std::make_unique<scheduler::RefreshRateStats>(getHwComposer().getConfigs(
@@ -938,7 +918,8 @@ int SurfaceFlinger::getActiveConfig(const sp<IBinder>& displayToken) {
     return display->getActiveConfig();
 }
 
-void SurfaceFlinger::setDesiredActiveConfig(const sp<IBinder>& displayToken, int mode) {
+void SurfaceFlinger::setDesiredActiveConfig(const sp<IBinder>& displayToken, int mode,
+                                            ConfigEvent event) {
     ATRACE_CALL();
 
     Vector<DisplayInfo> configs;
@@ -969,7 +950,7 @@ void SurfaceFlinger::setDesiredActiveConfig(const sp<IBinder>& displayToken, int
     // Don't check against the current mode yet. Worst case we set the desired
     // config twice.
     std::lock_guard<std::mutex> lock(mActiveConfigLock);
-    mDesiredActiveConfig = ActiveConfigInfo{mode, displayToken};
+    mDesiredActiveConfig = ActiveConfigInfo{mode, displayToken, event};
 
     if (!mDesiredActiveConfigChanged) {
         // This is the first time we set the desired
@@ -984,9 +965,11 @@ void SurfaceFlinger::setDesiredActiveConfig(const sp<IBinder>& displayToken, int
 
 status_t SurfaceFlinger::setActiveConfig(const sp<IBinder>& displayToken, int mode) {
     ATRACE_CALL();
-    postMessageSync(new LambdaMessage(
-            [&]() NO_THREAD_SAFETY_ANALYSIS { setDesiredActiveConfig(displayToken, mode); }));
-    return NO_ERROR;
+
+    std::vector<int32_t> allowedConfig;
+    allowedConfig.push_back(mode);
+
+    return setAllowedDisplayConfigs(displayToken, allowedConfig);
 }
 
 void SurfaceFlinger::setActiveConfigInternal() {
@@ -1000,6 +983,10 @@ void SurfaceFlinger::setActiveConfigInternal() {
 
     mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
     ATRACE_INT("ActiveConfigMode", mUpcomingActiveConfig.configId);
+    if (mUpcomingActiveConfig.event != ConfigEvent::None) {
+        mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value,
+                                    mUpcomingActiveConfig.configId);
+    }
 }
 
 bool SurfaceFlinger::performSetActiveConfig() NO_THREAD_SAFETY_ANALYSIS {
@@ -1048,7 +1035,14 @@ bool SurfaceFlinger::performSetActiveConfig() NO_THREAD_SAFETY_ANALYSIS {
         return false;
     }
 
-    // Desired active config was set, it is different than the config currently in use. Notify HWC.
+    // Desired active config was set, it is different than the config currently in use, however
+    // allowed configs might have change by the time we process the refresh.
+    // Make sure the desired config is still allowed
+    if (!isConfigAllowed(*display->getId(), desiredActiveConfig.configId)) {
+        std::lock_guard<std::mutex> lock(mActiveConfigLock);
+        mDesiredActiveConfig.configId = display->getActiveConfig();
+        return false;
+    }
     mUpcomingActiveConfig = desiredActiveConfig;
     const auto displayId = display->getId();
     LOG_ALWAYS_FATAL_IF(!displayId);
@@ -1416,7 +1410,18 @@ void SurfaceFlinger::getCompositorTiming(CompositorTiming* compositorTiming) {
     *compositorTiming = getBE().mCompositorTiming;
 }
 
-void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate) {
+bool SurfaceFlinger::isConfigAllowed(const DisplayId& displayId, int32_t config) {
+    std::lock_guard lock(mAllowedConfigsLock);
+
+    // if allowed configs are not set yet for this display, every config is considered allowed
+    if (mAllowedConfigs.find(displayId) == mAllowedConfigs.end()) {
+        return true;
+    }
+
+    return mAllowedConfigs[displayId]->isConfigAllowed(config);
+}
+
+void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate, ConfigEvent event) {
     mPhaseOffsets->setRefreshRateType(refreshRate);
 
     const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
@@ -1451,6 +1456,11 @@ void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate) {
 
     auto configs = getHwComposer().getConfigs(*displayId);
     for (int i = 0; i < configs.size(); i++) {
+        if (!isConfigAllowed(*displayId, i)) {
+            ALOGV("Skipping config %d as it is not part of allowed configs", i);
+            continue;
+        }
+
         const nsecs_t vsyncPeriod = configs.at(i)->getVsyncPeriod();
         if (vsyncPeriod == 0) {
             continue;
@@ -1459,7 +1469,7 @@ void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate) {
         // TODO(b/113612090): There should be a better way at determining which config
         // has the right refresh rate.
         if (std::abs(fps - newFps) <= 1) {
-            setDesiredActiveConfig(getInternalDisplayTokenLocked(), i);
+            setDesiredActiveConfig(getInternalDisplayTokenLocked(), i, event);
         }
     }
 }
@@ -1711,8 +1721,6 @@ void SurfaceFlinger::handleMessageRefresh() {
 
     mVsyncModulator.onRefreshed(mHadClientComposition);
 
-    getBE().mEndOfFrameCompositionInfo = std::move(getBE().mCompositionInfo);
-
     mLayersWithQueuedFrames.clear();
 }
 
@@ -1825,12 +1833,9 @@ void SurfaceFlinger::calculateWorkingSet() {
     for (const auto& [token, displayDevice] : mDisplays) {
         auto display = displayDevice->getCompositionDisplay();
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-            const auto displayId = display->getId();
             auto& layerState = layer->getCompositionLayer()->editState().frontEnd;
             layerState.compositionType = static_cast<Hwc2::IComposerClient::Composition>(
                     layer->getCompositionType(displayDevice));
-            layer->getBE().compositionInfo.hwc.displayId = *displayId;
-            getBE().mCompositionInfo[token].push_back(layer->getBE().compositionInfo);
         }
     }
 }
@@ -2205,17 +2210,6 @@ void SurfaceFlinger::rebuildLayerStacks() {
     ATRACE_CALL();
     ALOGV("rebuildLayerStacks");
 
-    // We need to clear these out now as these may be holding on to a
-    // HWC2::Layer reference at the same time as the LayerBE::HWCInfo structure
-    // also holds a reference. When the set of visible layers is recomputed,
-    // some layers may be destroyed if the only thing keeping them alive was
-    // that list of visible layers associated with each display. The layer
-    // destruction code asserts that the HWC2::Layer is properly destroyed, but
-    // that doesn't happen if SurfaceFlingerBE::mCompositionInfo keeps it alive.
-    for (const auto& [token, display] : mDisplays) {
-        getBE().mCompositionInfo[token].clear();
-    }
-
     // rebuild the visible layer list per screen
     if (CC_UNLIKELY(mVisibleRegionsDirty)) {
         ATRACE_NAME("rebuildLayerStacks VR Dirty");
@@ -2489,16 +2483,19 @@ void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& displayDevice) {
             getHwComposer().presentAndGetReleaseFences(*displayId);
         }
         display->getRenderSurface()->onPresentDisplayCompleted();
-        for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
+        for (auto& layer : display->getOutputLayersOrderedByZ()) {
             sp<Fence> releaseFence = Fence::NO_FENCE;
+            bool usedClientComposition = true;
 
             // The layer buffer from the previous frame (if any) is released
             // by HWC only when the release fence from this frame (if any) is
             // signaled.  Always get the release fence from HWC first.
-            if (displayId && layer->hasHwcLayer(displayDevice)) {
+            if (layer->getState().hwc) {
+                const auto& hwcState = *layer->getState().hwc;
                 releaseFence =
-                        getHwComposer().getLayerReleaseFence(*displayId,
-                                                             layer->getHwcLayer(displayDevice));
+                        getHwComposer().getLayerReleaseFence(*displayId, hwcState.hwcLayer.get());
+                usedClientComposition =
+                        hwcState.hwcCompositionType == Hwc2::IComposerClient::Composition::CLIENT;
             }
 
             // If the layer was client composited in the previous frame, we
@@ -2506,14 +2503,13 @@ void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& displayDevice) {
             // Since we do not track that, always merge with the current
             // client target acquire fence when it is available, even though
             // this is suboptimal.
-            if (layer->getCompositionType(displayDevice) ==
-                Hwc2::IComposerClient::Composition::CLIENT) {
+            if (usedClientComposition) {
                 releaseFence =
                         Fence::merge("LayerRelease", releaseFence,
                                      display->getRenderSurface()->getClientTargetAcquireFence());
             }
 
-            layer->getBE().onLayerDisplayed(releaseFence);
+            layer->getLayerFE().onLayerDisplayed(releaseFence);
         }
 
         // We've got a list of layers needing fences, that are disjoint with
@@ -2523,7 +2519,7 @@ void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& displayDevice) {
             sp<Fence> presentFence =
                     displayId ? getHwComposer().getPresentFence(*displayId) : Fence::NO_FENCE;
             for (auto& layer : displayDevice->getLayersNeedingFences()) {
-                layer->getBE().onLayerDisplayed(presentFence);
+                layer->getCompositionLayer()->getLayerFE()->onLayerDisplayed(presentFence);
             }
         }
 
@@ -3212,21 +3208,6 @@ void SurfaceFlinger::invalidateLayerStack(const sp<const Layer>& layer, const Re
             display->editState().dirtyRegion.orSelf(dirty);
         }
     }
-}
-
-void SurfaceFlinger::initDefaultDisplayNativePrimaries() {
-    mInternalDisplayPrimaries.red.X = kSrgbRedX;
-    mInternalDisplayPrimaries.red.Y = kSrgbRedY;
-    mInternalDisplayPrimaries.red.Z = kSrgbRedZ;
-    mInternalDisplayPrimaries.green.X = kSrgbGreenX;
-    mInternalDisplayPrimaries.green.Y = kSrgbGreenY;
-    mInternalDisplayPrimaries.green.Z = kSrgbGreenZ;
-    mInternalDisplayPrimaries.blue.X = kSrgbBlueX;
-    mInternalDisplayPrimaries.blue.Y = kSrgbBlueY;
-    mInternalDisplayPrimaries.blue.Z = kSrgbBlueZ;
-    mInternalDisplayPrimaries.white.X = kSrgbWhiteX;
-    mInternalDisplayPrimaries.white.Y = kSrgbWhiteY;
-    mInternalDisplayPrimaries.white.Z = kSrgbWhiteZ;
 }
 
 bool SurfaceFlinger::handlePageFlip()
@@ -4908,6 +4889,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_ANIMATION_FRAME_STATS:
         case GET_HDR_CAPABILITIES:
         case SET_ACTIVE_CONFIG:
+        case SET_ALLOWED_DISPLAY_CONFIGS:
         case SET_ACTIVE_COLOR_MODE:
         case INJECT_VSYNC:
         case SET_POWER_MODE:
@@ -5726,6 +5708,76 @@ void SurfaceFlinger::traverseLayersInDisplay(const sp<const DisplayDevice>& disp
             visitor(layer);
         });
     }
+}
+
+void SurfaceFlinger::setAllowedDisplayConfigsInternal(
+        const android::sp<android::IBinder>& displayToken,
+        std::unique_ptr<const AllowedDisplayConfigs>&& allowedConfigs) {
+    const auto displayId = getPhysicalDisplayIdLocked(displayToken);
+    if (!displayId) {
+        ALOGE("setAllowedDisplayConfigsInternal: getPhysicalDisplayId failed");
+        return;
+    }
+
+    ALOGV("Updating allowed configs");
+    {
+        std::lock_guard lock(mAllowedConfigsLock);
+        mAllowedConfigs[*displayId] = std::move(allowedConfigs);
+    }
+
+    // make sure that the current config is still allowed
+    int currentConfigIndex = getHwComposer().getActiveConfigIndex(*displayId);
+    if (!isConfigAllowed(*displayId, currentConfigIndex)) {
+        // TODO(b/122906558): stop querying HWC for the available configs and instead use the cached
+        // configs queried on boot
+        auto configs = getHwComposer().getConfigs(*displayId);
+
+        for (int i = 0; i < configs.size(); i++) {
+            if (isConfigAllowed(*displayId, i)) {
+                // TODO: we switch to the first allowed config. In the future
+                // we may want to enhance this logic to pick a similar config
+                // to the current one
+                ALOGV("Old config is not allowed - switching to config %d", i);
+                setDesiredActiveConfig(displayToken, i, ConfigEvent::Changed);
+                break;
+            }
+        }
+    }
+}
+
+status_t SurfaceFlinger::setAllowedDisplayConfigs(const android::sp<android::IBinder>& displayToken,
+                                                  const std::vector<int32_t>& allowedConfigs) {
+    ATRACE_CALL();
+
+    if (!displayToken) {
+        ALOGE("setAllowedDisplayConfigs: displayToken is null");
+        return BAD_VALUE;
+    }
+
+    if (!allowedConfigs.size()) {
+        ALOGE("setAllowedDisplayConfigs: empty config set provided");
+        return BAD_VALUE;
+    }
+
+    {
+        ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
+        const auto displayId = getPhysicalDisplayIdLocked(displayToken);
+        if (!displayId) {
+            ALOGE("setAllowedDisplayConfigs: display not found");
+            return NAME_NOT_FOUND;
+        }
+    }
+
+    auto allowedDisplayConfigsBuilder = AllowedDisplayConfigs::Builder();
+    for (int config : allowedConfigs) {
+        ALOGV("setAllowedDisplayConfigs: Adding config to the allowed configs = %d", config);
+        allowedDisplayConfigsBuilder.addConfig(config);
+    }
+    auto allowedDisplayConfigs = allowedDisplayConfigsBuilder.build();
+    postMessageSync(new LambdaMessage([&]() NO_THREAD_SAFETY_ANALYSIS {
+        setAllowedDisplayConfigsInternal(displayToken, std::move(allowedDisplayConfigs));
+    }));
+    return NO_ERROR;
 }
 
 // ----------------------------------------------------------------------------

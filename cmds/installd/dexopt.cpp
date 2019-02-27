@@ -45,6 +45,7 @@
 #include <private/android_filesystem_config.h>
 #include <processgroup/sched_policy.h>
 #include <selinux/android.h>
+#include <server_configurable_flags/get_flags.h>
 #include <system/thread_defs.h>
 
 #include "dexopt.h"
@@ -260,6 +261,13 @@ static std::string MapPropertyToArg(const std::string& property,
   return "";
 }
 
+// Namespace for Android Runtime flags applied during boot time.
+static const char* RUNTIME_NATIVE_BOOT_NAMESPACE = "runtime_native_boot";
+// Feature flag name for running the JIT in Zygote experiment, b/119800099.
+static const char* ENABLE_APEX_IMAGE = "enable_apex_image";
+// Location of the apex image.
+static const char* kApexImage = "/system/framework/apex.art";
+
 class RunDex2Oat : public ExecVHelper {
   public:
     RunDex2Oat(int zip_fd,
@@ -292,6 +300,14 @@ class RunDex2Oat : public ExecVHelper {
                 ? "dalvik.vm.dex2oat-threads"
                 : "dalvik.vm.boot-dex2oat-threads";
         std::string dex2oat_threads_arg = MapPropertyToArg(threads_property, "-j%s");
+
+        std::string bootclasspath;
+        char* dex2oat_bootclasspath = getenv("DEX2OATBOOTCLASSPATH");
+        if (dex2oat_bootclasspath != nullptr) {
+            bootclasspath = StringPrintf("-Xbootclasspath:%s", dex2oat_bootclasspath);
+        }
+        // If DEX2OATBOOTCLASSPATH is not in the environment, dex2oat is going to query
+        // BOOTCLASSPATH.
 
         const std::string dex2oat_isa_features_key =
                 StringPrintf("dalvik.vm.isa.%s.features", instruction_set);
@@ -352,7 +368,16 @@ class RunDex2Oat : public ExecVHelper {
         bool generate_minidebug_info = kEnableMinidebugInfo &&
                 GetBoolProperty(kMinidebugInfoSystemProperty, kMinidebugInfoSystemPropertyDefault);
 
-        std::string boot_image = MapPropertyToArg("dalvik.vm.boot-image", "-Ximage:%s");
+        std::string boot_image;
+        std::string use_apex_image =
+            server_configurable_flags::GetServerConfigurableFlag(RUNTIME_NATIVE_BOOT_NAMESPACE,
+                                                                 ENABLE_APEX_IMAGE,
+                                                                 /*default_value=*/ "");
+        if (use_apex_image == "true") {
+          boot_image = StringPrintf("-Ximage:%s", kApexImage);
+        } else {
+          boot_image = MapPropertyToArg("dalvik.vm.boot-image", "-Ximage:%s");
+        }
 
         // clang FORTIFY doesn't let us use strlen in constant array bounds, so we
         // use arraysize instead.
@@ -440,6 +465,7 @@ class RunDex2Oat : public ExecVHelper {
         AddArg(instruction_set_features_arg);
 
         AddRuntimeArg(boot_image);
+        AddRuntimeArg(bootclasspath);
         AddRuntimeArg(dex2oat_Xms_arg);
         AddRuntimeArg(dex2oat_Xmx_arg);
 
@@ -1960,11 +1986,6 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     if (pid == 0) {
         /* child -- drop privileges before continuing */
         drop_capabilities(uid);
-
-        // Clear BOOTCLASSPATH.
-        // Let dex2oat use the BCP from boot image, excluding updatable BCP
-        // modules for AOT to avoid app recompilation after their upgrades.
-        unsetenv("BOOTCLASSPATH");
 
         SetDex2OatScheduling(boot_complete);
         if (flock(out_oat_fd.get(), LOCK_EX | LOCK_NB) != 0) {

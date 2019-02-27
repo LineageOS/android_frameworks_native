@@ -65,7 +65,8 @@ public:
         USE_HIGH_PRIORITY_CONTEXT = 1 << 1, // Use high priority context
     };
 
-    static std::unique_ptr<impl::RenderEngine> create(int hwcFormat, uint32_t featureFlags);
+    static std::unique_ptr<impl::RenderEngine> create(int hwcFormat, uint32_t featureFlags,
+                                                      uint32_t imageCacheSize);
 
     virtual ~RenderEngine() = 0;
 

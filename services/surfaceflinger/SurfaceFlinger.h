@@ -47,6 +47,7 @@
 #include <utils/Trace.h>
 #include <utils/threads.h>
 
+#include "AllowedDisplayConfigs.h"
 #include "Barrier.h"
 #include "BufferStateLayerCache.h"
 #include "DisplayDevice.h"
@@ -54,7 +55,6 @@
 #include "DisplayHardware/HWComposer.h"
 #include "Effects/Daltonizer.h"
 #include "FrameTracker.h"
-#include "LayerBE.h"
 #include "LayerStats.h"
 #include "LayerVector.h"
 #include "RegionSamplingThread.h"
@@ -105,7 +105,6 @@ class Surface;
 class SurfaceFlingerBE;
 class TimeStats;
 class VSyncSource;
-struct CompositionInfo;
 
 namespace compositionengine {
 class DisplaySurface;
@@ -198,9 +197,6 @@ public:
     // use to differentiate callbacks from different hardware composer
     // instances. Each hardware composer instance gets a different sequence id.
     int32_t mComposerSequenceId;
-
-    std::map<wp<IBinder>, std::vector<CompositionInfo>> mCompositionInfo;
-    std::map<wp<IBinder>, std::vector<CompositionInfo>> mEndOfFrameCompositionInfo;
 };
 
 class SetInputWindowsListener : public BnSetInputWindowsListener {
@@ -491,6 +487,9 @@ private:
     status_t addRegionSamplingListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
                                        const sp<IRegionSamplingListener>& listener) override;
     status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) override;
+    status_t setAllowedDisplayConfigs(const sp<IBinder>& displayToken,
+                                      const std::vector<int32_t>& allowedConfigs) override;
+
     /* ------------------------------------------------------------------------
      * DeathRecipient interface
      */
@@ -520,10 +519,13 @@ private:
     void signalLayerUpdate();
     void signalRefresh();
 
+    enum class ConfigEvent { None, Changed };
+
     // called on the main thread in response to initializeDisplays()
     void onInitializeDisplays() REQUIRES(mStateLock);
     // Sets the desired active config bit. It obtains the lock, and sets mDesiredActiveConfig.
-    void setDesiredActiveConfig(const sp<IBinder>& displayToken, int mode) REQUIRES(mStateLock);
+    void setDesiredActiveConfig(const sp<IBinder>& displayToken, int mode, ConfigEvent event)
+            REQUIRES(mStateLock);
     // Once HWC has returned the present fence, this sets the active config and a new refresh
     // rate in SF. It also triggers HWC vsync.
     void setActiveConfigInternal() REQUIRES(mStateLock);
@@ -534,6 +536,11 @@ private:
     bool performSetActiveConfig();
     // called on the main thread in response to setPowerMode()
     void setPowerModeInternal(const sp<DisplayDevice>& display, int mode) REQUIRES(mStateLock);
+
+    // called on the main thread in response to setAllowedDisplayConfigs()
+    void setAllowedDisplayConfigsInternal(
+            const sp<IBinder>& displayToken,
+            std::unique_ptr<const AllowedDisplayConfigs>&& allowedConfigs) REQUIRES(mStateLock);
 
     // Returns whether the transaction actually modified any state
     bool handleMessageTransaction();
@@ -700,10 +707,6 @@ private:
     // region of all screens presenting this layer stack.
     void invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty);
 
-    // Initialize structures containing information about the internal
-    // display's native color coordinates using default data
-    void initDefaultDisplayNativePrimaries();
-
     /* ------------------------------------------------------------------------
      * H/W composer
      */
@@ -803,7 +806,10 @@ private:
 
     // Sets the refresh rate by switching active configs, if they are available for
     // the desired refresh rate.
-    void setRefreshRateTo(scheduler::RefreshRateConfigs::RefreshRateType) REQUIRES(mStateLock);
+    void setRefreshRateTo(scheduler::RefreshRateConfigs::RefreshRateType, ConfigEvent event)
+            REQUIRES(mStateLock);
+
+    bool isConfigAllowed(const DisplayId& displayId, int32_t config);
 
     /*
      * Display identification
@@ -1099,9 +1105,14 @@ private:
     sp<Scheduler::ConnectionHandle> mSfConnectionHandle;
     std::unique_ptr<scheduler::RefreshRateStats> mRefreshRateStats;
 
+    std::mutex mAllowedConfigsLock;
+    std::unordered_map<DisplayId, std::unique_ptr<const AllowedDisplayConfigs>> mAllowedConfigs
+            GUARDED_BY(mAllowedConfigsLock);
+
     struct ActiveConfigInfo {
         int configId;
         sp<IBinder> displayToken;
+        ConfigEvent event;
 
         bool operator!=(const ActiveConfigInfo& other) const {
             if (configId != other.configId) {

@@ -90,6 +90,10 @@ fi
 
 rm src/*.class
 
+# Add UnsupportedAppUsage.java to known sources.
+mkdir -p out/android/annotation
+cp ../../../../base/core/java/android/annotation/UnsupportedAppUsage.java out/android/annotation
+
 pushd out > /dev/null
 mkdir classes
 javac -d classes    android/opengl/EGL14.java \
@@ -109,7 +113,8 @@ javac -d classes    android/opengl/EGL14.java \
                     android/opengl/GLES30.java \
                     android/opengl/GLES31.java \
                     android/opengl/GLES31Ext.java \
-                    android/opengl/GLES32.java
+                    android/opengl/GLES32.java \
+                    android/annotation/UnsupportedAppUsage.java
 popd > /dev/null
 JAVA_RESULT=$?
 if [ $JAVA_RESULT -ne 0 ]; then
@@ -142,7 +147,7 @@ compareGenerated() {
             echo
             SAID_PLEASE=1
         fi
-        echo "    cp $2/$3 $1"
+        echo "    cp $2/$3 $1/$3"
         echo "    (cd $1; git add $3)"
         KEEP_GENERATED=1
     fi
