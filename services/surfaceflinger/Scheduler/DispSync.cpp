@@ -201,8 +201,26 @@ public:
         listener.mCallback = callback;
 
         // We want to allow the firstmost future event to fire without
-        // allowing any past events to fire
-        listener.mLastEventTime = systemTime() - mPeriod / 2 + mPhase - mWakeupLatency;
+        // allowing any past events to fire. To do this extrapolate from
+        // mReferenceTime the most recent hardware vsync, and pin the
+        // last event time there.
+        const nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
+        if (mPeriod != 0) {
+            const nsecs_t baseTime = now - mReferenceTime;
+            const nsecs_t numPeriodsSinceReference = baseTime / mPeriod;
+            const nsecs_t predictedReference = mReferenceTime + numPeriodsSinceReference * mPeriod;
+            const nsecs_t phaseCorrection = mPhase + listener.mPhase;
+            const nsecs_t predictedLastEventTime = predictedReference + phaseCorrection;
+            if (predictedLastEventTime > now) {
+                // Make sure that the last event time does not exceed the current time.
+                // If it would, then back the last event time by a period.
+                listener.mLastEventTime = predictedLastEventTime - mPeriod;
+            } else {
+                listener.mLastEventTime = predictedLastEventTime;
+            }
+        } else {
+            listener.mLastEventTime = now + mPhase - mWakeupLatency;
+        }
 
         mEventListeners.push_back(listener);
 
