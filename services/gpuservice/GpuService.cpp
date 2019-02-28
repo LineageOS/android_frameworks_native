@@ -23,6 +23,7 @@
 #include <binder/IResultReceiver.h>
 #include <binder/Parcel.h>
 #include <binder/PermissionCache.h>
+#include <cutils/properties.h>
 #include <private/android_filesystem_config.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
@@ -38,6 +39,7 @@ using base::StringAppendF;
 namespace {
 status_t cmdHelp(int out);
 status_t cmdVkjson(int out, int err);
+void dumpGameDriverInfo(std::string* result);
 } // namespace
 
 const String16 sDump("android.permission.DUMP");
@@ -96,7 +98,11 @@ status_t GpuService::doDump(int fd, const Vector<String16>& args, bool /*asProto
         }
 
         if (dumpAll) {
+            dumpGameDriverInfo(&result);
+            result.append("\n");
+
             mGpuStats->dump(Vector<String16>(), &result);
+            result.append("\n");
         }
     }
 
@@ -135,6 +141,18 @@ status_t cmdVkjson(int out, int /*err*/) {
     vkjsonPrint(outs);
     fclose(outs);
     return NO_ERROR;
+}
+
+void dumpGameDriverInfo(std::string* result) {
+    if (!result) return;
+
+    char stableGameDriver[PROPERTY_VALUE_MAX] = {};
+    property_get("ro.gfx.driver.0", stableGameDriver, "unsupported");
+    StringAppendF(result, "Stable Game Driver: %s\n", stableGameDriver);
+
+    char preReleaseGameDriver[PROPERTY_VALUE_MAX] = {};
+    property_get("ro.gfx.driver.1", preReleaseGameDriver, "unsupported");
+    StringAppendF(result, "Pre-release Game Driver: %s\n", preReleaseGameDriver);
 }
 
 } // anonymous namespace
