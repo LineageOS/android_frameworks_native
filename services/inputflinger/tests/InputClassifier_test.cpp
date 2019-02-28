@@ -29,20 +29,20 @@ namespace android {
 
 static NotifyMotionArgs generateBasicMotionArgs() {
     // Create a basic motion event for testing
-    constexpr size_t pointerCount = 1;
-    PointerProperties properties[pointerCount];
-    properties[0].id = 0;
-    properties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+    PointerProperties properties;
+    properties.id = 0;
+    properties.toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
 
-    PointerCoords coords[pointerCount];
-    coords[0].setAxisValue(AMOTION_EVENT_AXIS_X, 1);
-    coords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, 1);
+    PointerCoords coords;
+    coords.clear();
+    coords.setAxisValue(AMOTION_EVENT_AXIS_X, 1);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_Y, 1);
     static constexpr nsecs_t downTime = 2;
     NotifyMotionArgs motionArgs(1/*sequenceNum*/, downTime/*eventTime*/, 3/*deviceId*/,
             AINPUT_SOURCE_ANY, ADISPLAY_ID_DEFAULT, 4/*policyFlags*/, AMOTION_EVENT_ACTION_DOWN,
             0/*actionButton*/, 0/*flags*/, AMETA_NONE, 0/*buttonState*/, MotionClassification::NONE,
             AMOTION_EVENT_EDGE_FLAG_NONE, 5/*deviceTimestamp*/,
-            0/*pointerCount*/, properties, coords, 0/*xPrecision*/, 0/*yPrecision*/,
+            1/*pointerCount*/, &properties, &coords, 0/*xPrecision*/, 0/*yPrecision*/,
             downTime, {}/*videoFrames*/);
     return motionArgs;
 }
