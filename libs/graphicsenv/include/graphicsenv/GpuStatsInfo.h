@@ -19,9 +19,23 @@
 #include <string>
 #include <vector>
 
+#include <binder/Parcelable.h>
+
 namespace android {
 
-struct GpuStatsGlobalAtom {
+/*
+ * class for transporting gpu global stats from GpuService to authorized
+ * recipents. This class is intended to be a data container.
+ */
+class GpuStatsGlobalInfo : public Parcelable {
+public:
+    GpuStatsGlobalInfo() = default;
+    GpuStatsGlobalInfo(const GpuStatsGlobalInfo&) = default;
+    virtual ~GpuStatsGlobalInfo() = default;
+    virtual status_t writeToParcel(Parcel* parcel) const;
+    virtual status_t readFromParcel(const Parcel* parcel);
+    std::string toString() const;
+
     std::string driverPackageName = "";
     std::string driverVersionName = "";
     uint64_t driverVersionCode = 0;
@@ -32,7 +46,19 @@ struct GpuStatsGlobalAtom {
     int32_t vkLoadingFailureCount = 0;
 };
 
-struct GpuStatsAppAtom {
+/*
+ * class for transporting gpu app stats from GpuService to authorized recipents.
+ * This class is intended to be a data container.
+ */
+class GpuStatsAppInfo : public Parcelable {
+public:
+    GpuStatsAppInfo() = default;
+    GpuStatsAppInfo(const GpuStatsAppInfo&) = default;
+    virtual ~GpuStatsAppInfo() = default;
+    virtual status_t writeToParcel(Parcel* parcel) const;
+    virtual status_t readFromParcel(const Parcel* parcel);
+    std::string toString() const;
+
     std::string appPackageName = "";
     uint64_t driverVersionCode = 0;
     std::vector<int64_t> glDriverLoadingTime = {};
