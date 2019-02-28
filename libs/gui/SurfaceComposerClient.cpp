@@ -189,7 +189,7 @@ void TransactionCompletedListener::addSurfaceControlToCallbacks(
 }
 
 void TransactionCompletedListener::onTransactionCompleted(ListenerStats listenerStats) {
-    std::lock_guard lock(mMutex);
+    std::lock_guard<std::mutex> lock(mMutex);
 
     /* This listener knows all the sp<IBinder> to sp<SurfaceControl> for all its registered
      * callbackIds, except for when Transactions are merged together. This probably cannot be
@@ -242,7 +242,7 @@ public:
     }
 
     int32_t getId(const sp<GraphicBuffer>& buffer) {
-        std::lock_guard lock(mMutex);
+        std::lock_guard<std::mutex> lock(mMutex);
 
         auto itr = mBuffers.find(buffer);
         if (itr == mBuffers.end()) {
@@ -253,7 +253,7 @@ public:
     }
 
     int32_t cache(const sp<GraphicBuffer>& buffer) {
-        std::lock_guard lock(mMutex);
+        std::lock_guard<std::mutex> lock(mMutex);
 
         int32_t bufferId = getNextAvailableId();
 
