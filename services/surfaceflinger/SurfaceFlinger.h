@@ -901,9 +901,7 @@ private:
 
     status_t doDump(int fd, const DumpArgs& args, bool asProto);
 
-    status_t dumpCritical(int fd, const DumpArgs&, bool asProto) override {
-        return doDump(fd, DumpArgs(), asProto);
-    }
+    status_t dumpCritical(int fd, const DumpArgs&, bool asProto);
 
     status_t dumpAll(int fd, const DumpArgs& args, bool asProto) override {
         return doDump(fd, args, asProto);
