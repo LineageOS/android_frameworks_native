@@ -21,45 +21,31 @@
 namespace android::compositionengine::impl {
 
 HwcBufferCache::HwcBufferCache() {
-    std::fill(std::begin(mBuffers), std::end(mBuffers),
-              std::pair<uint64_t, wp<GraphicBuffer>>(0, nullptr));
+    mBuffers.reserve(BufferQueue::NUM_BUFFER_SLOTS);
 }
-int HwcBufferCache::getSlot(const sp<GraphicBuffer>& buffer) {
-    // search for cached buffer first
-    for (int i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
-        if (mBuffers[i].second == buffer) {
-            return i;
-        }
+
+void HwcBufferCache::getHwcBuffer(int slot, const sp<GraphicBuffer>& buffer, uint32_t* outSlot,
+                                  sp<GraphicBuffer>* outBuffer) {
+    if (slot == BufferQueue::INVALID_BUFFER_SLOT || slot < 0) {
+        // default to slot 0
+        slot = 0;
     }
 
-    // use the least-recently used slot
-    return getLeastRecentlyUsedSlot();
-}
+    if (static_cast<size_t>(slot) >= mBuffers.size()) {
+        mBuffers.resize(slot + 1);
+    }
 
-int HwcBufferCache::getLeastRecentlyUsedSlot() {
-    auto iter = std::min_element(std::begin(mBuffers), std::end(mBuffers));
-    return std::distance(std::begin(mBuffers), iter);
-}
+    *outSlot = slot;
 
-void HwcBufferCache::getHwcBuffer(const sp<GraphicBuffer>& buffer, uint32_t* outSlot,
-                                  sp<GraphicBuffer>* outBuffer) {
-    *outSlot = getSlot(buffer);
-
-    auto& [currentCounter, currentBuffer] = mBuffers[*outSlot];
-    if (currentBuffer == buffer) {
+    if (mBuffers[slot] == buffer) {
         // already cached in HWC, skip sending the buffer
         *outBuffer = nullptr;
-        currentCounter = getCounter();
     } else {
         *outBuffer = buffer;
 
         // update cache
-        currentBuffer = buffer;
-        currentCounter = getCounter();
+        mBuffers[slot] = buffer;
     }
 }
 
-uint64_t HwcBufferCache::getCounter() {
-    return mCounter++;
-}
 } // namespace android::compositionengine::impl
