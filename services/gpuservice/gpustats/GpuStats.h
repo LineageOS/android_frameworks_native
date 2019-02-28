@@ -20,7 +20,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include <graphicsenv/GpuStatsAtoms.h>
+#include <graphicsenv/GpuStatsInfo.h>
 #include <graphicsenv/GraphicsEnv.h>
 #include <utils/String16.h>
 #include <utils/Vector.h>
@@ -52,9 +52,9 @@ private:
     // GpuStats access should be guarded by mLock.
     std::mutex mLock;
     // Key is driver version code.
-    std::unordered_map<uint64_t, GpuStatsGlobalAtom> mGlobalStats;
+    std::unordered_map<uint64_t, GpuStatsGlobalInfo> mGlobalStats;
     // Key is <app package name>+<driver version code>.
-    std::unordered_map<std::string, GpuStatsAppAtom> mAppStats;
+    std::unordered_map<std::string, GpuStatsAppInfo> mAppStats;
 };
 
 } // namespace android
