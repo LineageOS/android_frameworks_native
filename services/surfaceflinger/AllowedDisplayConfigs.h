@@ -54,6 +54,12 @@ public:
         return (std::find(mConfigs.begin(), mConfigs.end(), config) != mConfigs.end());
     }
 
+    void getAllowedConfigs(std::vector<int32_t>* outConfigs) const {
+        if (outConfigs) {
+            *outConfigs = mConfigs;
+        }
+    }
+
 private:
     // add a config to the allowed config set
     void addConfig(int32_t config) { mConfigs.push_back(config); }
