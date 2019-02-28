@@ -792,18 +792,18 @@ public:
         Parcel data, reply;
         status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (error != NO_ERROR) {
-            ALOGE("addRegionSamplingListener: Failed to write interface token");
+            ALOGE("removeRegionSamplingListener: Failed to write interface token");
             return error;
         }
         error = data.writeStrongBinder(IInterface::asBinder(listener));
         if (error != NO_ERROR) {
-            ALOGE("addRegionSamplingListener: Failed to write listener");
+            ALOGE("removeRegionSamplingListener: Failed to write listener");
             return error;
         }
         error = remote()->transact(BnSurfaceComposer::REMOVE_REGION_SAMPLING_LISTENER, data,
                                    &reply);
         if (error != NO_ERROR) {
-            ALOGE("addRegionSamplingListener: Failed to transact");
+            ALOGE("removeRegionSamplingListener: Failed to transact");
         }
         return error;
     }
