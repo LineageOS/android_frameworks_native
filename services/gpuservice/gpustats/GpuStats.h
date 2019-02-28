@@ -39,6 +39,8 @@ public:
                 int64_t driverLoadingTime);
     // dumpsys interface
     void dump(const Vector<String16>& args, std::string* result);
+    // Pull gpu global stats
+    void pullGlobalStats(std::vector<GpuStatsGlobalInfo>* outStats);
 
 private:
     // Dump global stats

@@ -19,6 +19,7 @@
 
 #include <binder/IInterface.h>
 #include <cutils/compiler.h>
+#include <graphicsenv/GpuStatsInfo.h>
 #include <graphicsenv/IGpuService.h>
 #include <serviceutils/PriorityDumper.h>
 
@@ -45,7 +46,8 @@ private:
     void setGpuStats(const std::string& driverPackageName, const std::string& driverVersionName,
                      uint64_t driverVersionCode, int64_t driverBuildTime,
                      const std::string& appPackageName, GraphicsEnv::Driver driver,
-                     bool isDriverLoaded, int64_t driverLoadingTime);
+                     bool isDriverLoaded, int64_t driverLoadingTime) override;
+    status_t getGpuStatsGlobalInfo(std::vector<GpuStatsGlobalInfo>* outStats) const override;
 
     /*
      * IBinder interface

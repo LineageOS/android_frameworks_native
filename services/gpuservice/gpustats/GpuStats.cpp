@@ -184,4 +184,18 @@ void GpuStats::dumpAppLocked(std::string* result) {
     }
 }
 
+void GpuStats::pullGlobalStats(std::vector<GpuStatsGlobalInfo>* outStats) {
+    ATRACE_CALL();
+
+    std::lock_guard<std::mutex> lock(mLock);
+    outStats->clear();
+    outStats->reserve(mGlobalStats.size());
+
+    for (const auto& ele : mGlobalStats) {
+        outStats->emplace_back(ele.second);
+    }
+
+    mGlobalStats.clear();
+}
+
 } // namespace android

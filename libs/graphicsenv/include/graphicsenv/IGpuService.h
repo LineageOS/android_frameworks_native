@@ -16,11 +16,12 @@
 
 #pragma once
 
+#include <vector>
+
 #include <binder/IInterface.h>
 #include <cutils/compiler.h>
+#include <graphicsenv/GpuStatsInfo.h>
 #include <graphicsenv/GraphicsEnv.h>
-
-#include <vector>
 
 namespace android {
 
@@ -38,12 +39,16 @@ public:
                              int64_t driverBuildTime, const std::string& appPackageName,
                              GraphicsEnv::Driver driver, bool isDriverLoaded,
                              int64_t driverLoadingTime) = 0;
+
+    // get GPU global stats from GpuStats module.
+    virtual status_t getGpuStatsGlobalInfo(std::vector<GpuStatsGlobalInfo>* outStats) const = 0;
 };
 
 class BnGpuService : public BnInterface<IGpuService> {
 public:
     enum IGpuServiceTag {
         SET_GPU_STATS = IBinder::FIRST_CALL_TRANSACTION,
+        GET_GPU_STATS_GLOBAL_INFO,
         // Always append new enum to the end.
     };
 
