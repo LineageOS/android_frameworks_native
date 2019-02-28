@@ -432,7 +432,8 @@ public:
 protected:
     virtual bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
                                     bool useIdentityTransform, Region& clearRegion,
-                                    renderengine::LayerSettings& layer) = 0;
+                                    const bool supportProtectedContent,
+                                    renderengine::LayerSettings& layer);
 
 public:
     /*
@@ -489,9 +490,10 @@ public:
      * false otherwise.
      */
     bool prepareClientLayer(const RenderArea& renderArea, const Region& clip, Region& clearRegion,
-                            renderengine::LayerSettings& layer);
+                            const bool supportProtectedContent, renderengine::LayerSettings& layer);
     bool prepareClientLayer(const RenderArea& renderArea, bool useIdentityTransform,
-                            Region& clearRegion, renderengine::LayerSettings& layer);
+                            Region& clearRegion, const bool supportProtectedContent,
+                            renderengine::LayerSettings& layer);
 
     /*
      * doTransaction - process the transaction. This is a good place to figure

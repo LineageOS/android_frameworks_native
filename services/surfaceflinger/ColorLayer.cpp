@@ -50,8 +50,10 @@ ColorLayer::~ColorLayer() = default;
 
 bool ColorLayer::prepareClientLayer(const RenderArea& renderArea, const Region& clip,
                                     bool useIdentityTransform, Region& clearRegion,
+                                    const bool supportProtectedContent,
                                     renderengine::LayerSettings& layer) {
-    Layer::prepareClientLayer(renderArea, clip, useIdentityTransform, clearRegion, layer);
+    Layer::prepareClientLayer(renderArea, clip, useIdentityTransform, clearRegion,
+                              supportProtectedContent, layer);
     half4 color(getColor());
     half3 solidColor(color.r, color.g, color.b);
     layer.source.solidColor = solidColor;
