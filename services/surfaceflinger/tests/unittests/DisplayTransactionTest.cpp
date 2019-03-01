@@ -1926,6 +1926,10 @@ TEST_F(HandleTransactionLockedTest, processesVirtualDisplayAdded) {
     EXPECT_CALL(*mComposer, destroyVirtualDisplay(Case::Display::HWC_DISPLAY_ID))
             .WillOnce(Return(Error::NONE));
     EXPECT_CALL(*mConsumer, consumerDisconnect()).WillOnce(Return(NO_ERROR));
+
+    // Cleanup
+    mFlinger.mutableCurrentState().displays.removeItem(displayToken);
+    mFlinger.mutableDrawingState().displays.removeItem(displayToken);
 }
 
 TEST_F(HandleTransactionLockedTest, processesVirtualDisplayAddedWithNoSurface) {
