@@ -147,7 +147,7 @@ void Layer::onRemovedFromCurrentState() {
             strongRelative->removeZOrderRelative(this);
             mFlinger->setTransactionFlags(eTraversalNeeded);
         }
-        mCurrentState.zOrderRelativeOf = nullptr;
+        setZOrderRelativeOf(nullptr);
     }
 
     // Since we are no longer reachable from CurrentState SurfaceFlinger
@@ -1164,7 +1164,7 @@ bool Layer::setLayer(int32_t z) {
         if (strongRelative != nullptr) {
             strongRelative->removeZOrderRelative(this);
         }
-        mCurrentState.zOrderRelativeOf = nullptr;
+        setZOrderRelativeOf(nullptr);
     }
     setTransactionFlags(eTransactionNeeded);
     return true;
@@ -1181,6 +1181,13 @@ void Layer::addZOrderRelative(const wp<Layer>& relative) {
     mCurrentState.zOrderRelatives.add(relative);
     mCurrentState.modified = true;
     mCurrentState.sequence++;
+    setTransactionFlags(eTransactionNeeded);
+}
+
+void Layer::setZOrderRelativeOf(const wp<Layer>& relativeOf) {
+    mCurrentState.zOrderRelativeOf = relativeOf;
+    mCurrentState.sequence++;
+    mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
 }
 
@@ -1207,7 +1214,7 @@ bool Layer::setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relati
     if (oldZOrderRelativeOf != nullptr) {
         oldZOrderRelativeOf->removeZOrderRelative(this);
     }
-    mCurrentState.zOrderRelativeOf = relative;
+    setZOrderRelativeOf(relative);
     relative->addZOrderRelative(this);
 
     setTransactionFlags(eTransactionNeeded);
