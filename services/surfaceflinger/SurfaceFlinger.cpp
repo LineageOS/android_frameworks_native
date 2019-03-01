@@ -62,7 +62,6 @@
 #include <ui/GraphicBufferAllocator.h>
 #include <ui/PixelFormat.h>
 #include <ui/UiConfig.h>
-#include <utils/CallStack.h>
 #include <utils/StopWatch.h>
 #include <utils/String16.h>
 #include <utils/String8.h>
@@ -1994,78 +1993,22 @@ void SurfaceFlinger::setCompositorTimingSnapped(const DisplayStatInfo& stats,
     getBE().mCompositorTiming.presentLatency = snappedCompositeToPresentLatency;
 }
 
-// debug patch for b/119477596 - add stack guards to catch stack
-// corruptions and disable clang optimizations.
-// The code below is temporary and planned to be removed once stack
-// corruptions are found.
-#pragma clang optimize off
-class StackGuard {
-public:
-    StackGuard(const char* name, const char* func, int line) {
-        guarders.reserve(MIN_CAPACITY);
-        guarders.push_back({this, name, func, line});
-        validate();
-    }
-    ~StackGuard() {
-        for (auto i = guarders.end() - 1; i >= guarders.begin(); --i) {
-            if (i->guard == this) {
-                guarders.erase(i);
-                break;
-            }
-        }
-    }
-
-    static void validate() {
-        for (const auto& guard : guarders) {
-            if (guard.guard->cookie != COOKIE_VALUE) {
-                ALOGE("%s:%d: Stack corruption detected at %s", guard.func, guard.line, guard.name);
-                CallStack stack(LOG_TAG);
-                abort();
-            }
-        }
-    }
-
-private:
-    uint64_t cookie = COOKIE_VALUE;
-    static constexpr uint64_t COOKIE_VALUE = 0xc0febebedeadbeef;
-    static constexpr size_t MIN_CAPACITY = 16;
-
-    struct GuarderElement {
-        StackGuard* guard;
-        const char* name;
-        const char* func;
-        int line;
-    };
-
-    static std::vector<GuarderElement> guarders;
-};
-std::vector<StackGuard::GuarderElement> StackGuard::guarders;
-
-#define DEFINE_STACK_GUARD(__n) StackGuard __n##StackGuard(#__n, __FUNCTION__, __LINE__);
-
-#define ASSERT_ON_STACK_GUARD() StackGuard::validate();
 void SurfaceFlinger::postComposition()
 {
-    DEFINE_STACK_GUARD(begin);
     ATRACE_CALL();
     ALOGV("postComposition");
 
     // Release any buffers which were replaced this frame
     nsecs_t dequeueReadyTime = systemTime();
-    DEFINE_STACK_GUARD(dequeueReadyTime);
     for (auto& layer : mLayersWithQueuedFrames) {
         layer->releasePendingBuffer(dequeueReadyTime);
     }
-    ASSERT_ON_STACK_GUARD();
 
     // |mStateLock| not needed as we are on the main thread
     const auto displayDevice = getDefaultDisplayDeviceLocked();
-    DEFINE_STACK_GUARD(displayDevice);
 
     getBE().mGlCompositionDoneTimeline.updateSignalTimes();
     std::shared_ptr<FenceTime> glCompositionDoneFenceTime;
-    DEFINE_STACK_GUARD(glCompositionDoneFenceTime);
-
     if (displayDevice && getHwComposer().hasClientComposition(displayDevice->getId())) {
         glCompositionDoneFenceTime =
                 std::make_shared<FenceTime>(displayDevice->getCompositionDisplay()
@@ -2076,52 +2019,37 @@ void SurfaceFlinger::postComposition()
         glCompositionDoneFenceTime = FenceTime::NO_FENCE;
     }
 
-    ASSERT_ON_STACK_GUARD();
-
     getBE().mDisplayTimeline.updateSignalTimes();
     mPreviousPresentFence = displayDevice ? getHwComposer().getPresentFence(*displayDevice->getId())
                                           : Fence::NO_FENCE;
     auto presentFenceTime = std::make_shared<FenceTime>(mPreviousPresentFence);
-    DEFINE_STACK_GUARD(presentFenceTime);
     getBE().mDisplayTimeline.push(presentFenceTime);
 
     DisplayStatInfo stats;
-    DEFINE_STACK_GUARD(stats);
     mScheduler->getDisplayStatInfo(&stats);
-
-    ASSERT_ON_STACK_GUARD();
 
     // We use the mRefreshStartTime which might be sampled a little later than
     // when we started doing work for this frame, but that should be okay
     // since updateCompositorTiming has snapping logic.
     updateCompositorTiming(stats, mRefreshStartTime, presentFenceTime);
     CompositorTiming compositorTiming;
-    DEFINE_STACK_GUARD(compositorTiming);
-
     {
         std::lock_guard<std::mutex> lock(getBE().mCompositorTimingLock);
-        DEFINE_STACK_GUARD(lock);
         compositorTiming = getBE().mCompositorTiming;
-
-        ASSERT_ON_STACK_GUARD();
     }
 
     mDrawingState.traverseInZOrder([&](Layer* layer) {
         bool frameLatched =
                 layer->onPostComposition(displayDevice->getId(), glCompositionDoneFenceTime,
                                          presentFenceTime, compositorTiming);
-        DEFINE_STACK_GUARD(frameLatched);
         if (frameLatched) {
             recordBufferingStats(layer->getName().string(),
                     layer->getOccupancyHistory(false));
         }
-        ASSERT_ON_STACK_GUARD();
     });
 
     if (presentFenceTime->isValid()) {
-        ASSERT_ON_STACK_GUARD();
         mScheduler->addPresentFence(presentFenceTime);
-        ASSERT_ON_STACK_GUARD();
     }
 
     if (!hasSyncFramework) {
@@ -2131,41 +2059,28 @@ void SurfaceFlinger::postComposition()
         }
     }
 
-    ASSERT_ON_STACK_GUARD();
-
     if (mAnimCompositionPending) {
         mAnimCompositionPending = false;
 
         if (presentFenceTime->isValid()) {
             mAnimFrameTracker.setActualPresentFence(
                     std::move(presentFenceTime));
-
-            ASSERT_ON_STACK_GUARD();
         } else if (displayDevice && getHwComposer().isConnected(*displayDevice->getId())) {
             // The HWC doesn't support present fences, so use the refresh
             // timestamp instead.
             const nsecs_t presentTime =
                     getHwComposer().getRefreshTimestamp(*displayDevice->getId());
-            DEFINE_STACK_GUARD(presentTime);
-
             mAnimFrameTracker.setActualPresentTime(presentTime);
-            ASSERT_ON_STACK_GUARD();
         }
         mAnimFrameTracker.advanceFrame();
     }
-
-    ASSERT_ON_STACK_GUARD();
 
     mTimeStats->incrementTotalFrames();
     if (mHadClientComposition) {
         mTimeStats->incrementClientCompositionFrames();
     }
 
-    ASSERT_ON_STACK_GUARD();
-
     mTimeStats->setPresentFenceGlobal(presentFenceTime);
-
-    ASSERT_ON_STACK_GUARD();
 
     if (displayDevice && getHwComposer().isConnected(*displayDevice->getId()) &&
         !displayDevice->isPoweredOn()) {
@@ -2173,38 +2088,29 @@ void SurfaceFlinger::postComposition()
     }
 
     nsecs_t currentTime = systemTime();
-    DEFINE_STACK_GUARD(currentTime);
     if (mHasPoweredOff) {
         mHasPoweredOff = false;
     } else {
         nsecs_t elapsedTime = currentTime - getBE().mLastSwapTime;
-        DEFINE_STACK_GUARD(elapsedTime);
         size_t numPeriods = static_cast<size_t>(elapsedTime / stats.vsyncPeriod);
-        DEFINE_STACK_GUARD(numPeriods);
         if (numPeriods < SurfaceFlingerBE::NUM_BUCKETS - 1) {
             getBE().mFrameBuckets[numPeriods] += elapsedTime;
         } else {
             getBE().mFrameBuckets[SurfaceFlingerBE::NUM_BUCKETS - 1] += elapsedTime;
         }
         getBE().mTotalTime += elapsedTime;
-
-        ASSERT_ON_STACK_GUARD();
     }
     getBE().mLastSwapTime = currentTime;
-    ASSERT_ON_STACK_GUARD();
 
     {
         std::lock_guard lock(mTexturePoolMutex);
-        DEFINE_STACK_GUARD(lock);
         const size_t refillCount = mTexturePoolSize - mTexturePool.size();
-        DEFINE_STACK_GUARD(refillCount);
         if (refillCount > 0) {
             const size_t offset = mTexturePool.size();
             mTexturePool.resize(mTexturePoolSize);
             getRenderEngine().genTextures(refillCount, mTexturePool.data() + offset);
             ATRACE_INT("TexturePoolSize", mTexturePool.size());
         }
-        ASSERT_ON_STACK_GUARD();
     }
 
     mTransactionCompletedThread.addPresentFence(mPreviousPresentFence);
@@ -2213,10 +2119,7 @@ void SurfaceFlinger::postComposition()
     if (mLumaSampling) {
         mRegionSamplingThread->sampleNow();
     }
-
-    ASSERT_ON_STACK_GUARD();
 }
-#pragma clang optimize on // b/119477596
 
 void SurfaceFlinger::computeLayerBounds() {
     for (const auto& pair : mDisplays) {
