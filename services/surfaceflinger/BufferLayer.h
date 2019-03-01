@@ -161,10 +161,6 @@ protected:
 
     bool mRefreshPending{false};
 
-    // Returns true if, when drawing the active buffer during gpu compositon, we
-    // should use a cached buffer or not.
-    virtual bool useCachedBufferForClientComposition() const = 0;
-
     // prepareClientLayer - constructs a RenderEngine layer for GPU composition.
     bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
                             bool useIdentityTransform, Region& clearRegion,

@@ -48,7 +48,12 @@ BufferStateLayer::BufferStateLayer(const LayerCreationArgs& args) : BufferLayer(
     mOverrideScalingMode = NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
     mCurrentState.dataspace = ui::Dataspace::V0_SRGB;
 }
-BufferStateLayer::~BufferStateLayer() = default;
+BufferStateLayer::~BufferStateLayer() {
+    if (mActiveBuffer != nullptr) {
+        auto& engine(mFlinger->getRenderEngine());
+        engine.unbindExternalTextureBuffer(mActiveBuffer->getId());
+    }
+}
 
 // -----------------------------------------------------------------------
 // Interface implementation for Layer
@@ -468,7 +473,7 @@ status_t BufferStateLayer::bindTextureImage() {
     const State& s(getDrawingState());
     auto& engine(mFlinger->getRenderEngine());
 
-    return engine.bindExternalTextureBuffer(mTextureName, s.buffer, s.acquireFence, false);
+    return engine.bindExternalTextureBuffer(mTextureName, s.buffer, s.acquireFence);
 }
 
 status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nsecs_t latchTime) {
@@ -542,6 +547,11 @@ status_t BufferStateLayer::updateActiveBuffer() {
         return BAD_VALUE;
     }
 
+    if (mActiveBuffer != nullptr) {
+        // todo: get this to work with BufferStateLayerCache
+        auto& engine(mFlinger->getRenderEngine());
+        engine.unbindExternalTextureBuffer(mActiveBuffer->getId());
+    }
     mActiveBuffer = s.buffer;
     mActiveBufferFence = s.acquireFence;
     auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
@@ -549,11 +559,6 @@ status_t BufferStateLayer::updateActiveBuffer() {
     layerCompositionState.bufferSlot = 0;
 
     return NO_ERROR;
-}
-
-bool BufferStateLayer::useCachedBufferForClientComposition() const {
-    // TODO: Store a proper staleness bit to support EGLImage caching.
-    return false;
 }
 
 status_t BufferStateLayer::updateFrameNumber(nsecs_t /*latchTime*/) {

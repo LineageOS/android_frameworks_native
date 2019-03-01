@@ -74,8 +74,8 @@ public:
     void genTextures(size_t count, uint32_t* names) override;
     void deleteTextures(size_t count, uint32_t const* names) override;
     void bindExternalTextureImage(uint32_t texName, const Image& image) override;
-    status_t bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer, sp<Fence> fence,
-                                       bool readCache);
+    status_t bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer, sp<Fence> fence);
+    void unbindExternalTextureBuffer(uint64_t bufferId);
     status_t bindFrameBuffer(Framebuffer* framebuffer) override;
     void unbindFrameBuffer(Framebuffer* framebuffer) override;
     void checkErrors() const override;
@@ -143,8 +143,6 @@ private:
     // Defines the viewport, and sets the projection matrix to the projection
     // defined by the clip.
     void setViewportAndProjection(Rect viewport, Rect clip);
-    status_t bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer, sp<Fence> fence,
-                                       bool readCache, bool persistCache);
     // Evicts stale images from the buffer cache.
     void evictImages(const std::vector<LayerSettings>& layers);
     // Computes the cropping window for the layer and sets up cropping

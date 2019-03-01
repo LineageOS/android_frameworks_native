@@ -163,9 +163,6 @@ bool BufferLayer::prepareClientLayer(const RenderArea& renderArea, const Region&
         layer.source.buffer.buffer = mActiveBuffer;
         layer.source.buffer.isOpaque = isOpaque(s);
         layer.source.buffer.fence = mActiveBufferFence;
-        layer.source.buffer.cacheHint = useCachedBufferForClientComposition()
-                ? renderengine::Buffer::CachingHint::USE_CACHE
-                : renderengine::Buffer::CachingHint::NO_CACHE;
         layer.source.buffer.textureName = mTextureName;
         layer.source.buffer.usePremultipliedAlpha = getPremultipledAlpha();
         layer.source.buffer.isY410BT2020 = isHdrY410();
