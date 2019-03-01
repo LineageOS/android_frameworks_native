@@ -949,9 +949,11 @@ void SurfaceFlinger::setDesiredActiveConfig(const sp<IBinder>& displayToken, int
     }
 
     // Don't check against the current mode yet. Worst case we set the desired
-    // config twice.
+    // config twice. However event generation config might have changed so we need to update it
+    // accordingly
     std::lock_guard<std::mutex> lock(mActiveConfigLock);
-    mDesiredActiveConfig = ActiveConfigInfo{mode, displayToken, event};
+    const ConfigEvent desiredConfig = mDesiredActiveConfig.event | event;
+    mDesiredActiveConfig = ActiveConfigInfo{mode, displayToken, desiredConfig};
 
     if (!mDesiredActiveConfigChanged) {
         // This is the first time we set the desired

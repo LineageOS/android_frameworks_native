@@ -523,6 +523,13 @@ private:
 
     enum class ConfigEvent { None, Changed };
 
+    // logical or operator with the semantics of at least one of the events is Changed
+    friend ConfigEvent operator|(const ConfigEvent& first, const ConfigEvent& second) {
+        if (first == ConfigEvent::Changed) return ConfigEvent::Changed;
+        if (second == ConfigEvent::Changed) return ConfigEvent::Changed;
+        return ConfigEvent::None;
+    }
+
     // called on the main thread in response to initializeDisplays()
     void onInitializeDisplays() REQUIRES(mStateLock);
     // Sets the desired active config bit. It obtains the lock, and sets mDesiredActiveConfig.
