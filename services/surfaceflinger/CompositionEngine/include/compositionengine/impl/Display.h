@@ -46,6 +46,7 @@ public:
     bool getSkipColorTransform() const override;
     compositionengine::Output::FrameFences presentAndGetFrameFences() override;
     void setExpensiveRenderingExpected(bool) override;
+    void finishFrame(const compositionengine::CompositionRefreshArgs&) override;
 
     // compositionengine::Display overrides
     const std::optional<DisplayId>& getId() const override;

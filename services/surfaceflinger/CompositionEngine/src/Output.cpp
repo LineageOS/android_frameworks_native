@@ -313,7 +313,7 @@ void Output::devOptRepaintFlash(const compositionengine::CompositionRefreshArgs&
         if (!dirtyRegion.isEmpty()) {
             base::unique_fd readyFence;
             // redraw the whole screen
-            composeSurfaces(dirtyRegion, &readyFence);
+            static_cast<void>(composeSurfaces(dirtyRegion));
 
             mRenderSurface->queueBuffer(std::move(readyFence));
         }
@@ -326,14 +326,35 @@ void Output::devOptRepaintFlash(const compositionengine::CompositionRefreshArgs&
     prepareFrame();
 }
 
-bool Output::composeSurfaces(const Region& debugRegion, base::unique_fd* readyFence) {
+void Output::finishFrame(const compositionengine::CompositionRefreshArgs&) {
+    ATRACE_CALL();
+    ALOGV(__FUNCTION__);
+
+    if (!mState.isEnabled) {
+        return;
+    }
+
+    // Repaint the framebuffer (if needed), getting the optional fence for when
+    // the composition completes.
+    auto optReadyFence = composeSurfaces(Region::INVALID_REGION);
+    if (!optReadyFence) {
+        return;
+    }
+
+    // swap buffers (presentation)
+    mRenderSurface->queueBuffer(std::move(*optReadyFence));
+}
+
+std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion) {
     ATRACE_CALL();
     ALOGV(__FUNCTION__);
 
     const TracedOrdinal<bool> hasClientComposition = {"hasClientComposition",
                                                       mState.usesClientComposition};
+    base::unique_fd readyFence;
+
     if (!hasClientComposition) {
-        return true;
+        return readyFence;
     }
 
     ALOGV("hasClientComposition");
@@ -389,7 +410,7 @@ bool Output::composeSurfaces(const Region& debugRegion, base::unique_fd* readyFe
         ALOGW("Dequeuing buffer for display [%s] failed, bailing out of "
               "client composition for this frame",
               mName.c_str());
-        return false;
+        return std::nullopt;
     }
 
     // We boost GPU frequency here because there will be color spaces conversion
@@ -404,13 +425,13 @@ bool Output::composeSurfaces(const Region& debugRegion, base::unique_fd* readyFe
 
     renderEngine.drawLayers(clientCompositionDisplay, clientCompositionLayers,
                             buf->getNativeBuffer(), /*useFramebufferCache=*/true, std::move(fd),
-                            readyFence);
+                            &readyFence);
 
     if (expensiveRenderingExpected) {
         setExpensiveRenderingExpected(false);
     }
 
-    return true;
+    return readyFence;
 }
 
 std::vector<renderengine::LayerSettings> Output::generateClientCompositionRequests(
@@ -506,6 +527,9 @@ void Output::postFramebuffer() {
     if (!getState().isEnabled) {
         return;
     }
+
+    mState.dirtyRegion.clear();
+    mRenderSurface->flip();
 
     auto frame = presentAndGetFrameFences();
 

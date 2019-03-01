@@ -527,8 +527,8 @@ TEST_F(OutputComposeSurfacesTest, doesNothingIfNoClientComposition) {
     mOutput.editState().usesClientComposition = false;
 
     Region debugRegion;
-    base::unique_fd readyFence;
-    EXPECT_EQ(true, mOutput.composeSurfaces(debugRegion, &readyFence));
+    std::optional<base::unique_fd> readyFence = mOutput.composeSurfaces(debugRegion);
+    EXPECT_TRUE(readyFence);
 }
 
 TEST_F(OutputComposeSurfacesTest, worksIfNoClientLayersQueued) {
@@ -556,8 +556,8 @@ TEST_F(OutputComposeSurfacesTest, worksIfNoClientLayersQueued) {
     EXPECT_CALL(mOutput, setExpensiveRenderingExpected(true)).Times(1);
     EXPECT_CALL(mOutput, setExpensiveRenderingExpected(false)).Times(1);
 
-    base::unique_fd readyFence;
-    EXPECT_EQ(true, mOutput.composeSurfaces(kDebugRegion, &readyFence));
+    std::optional<base::unique_fd> readyFence = mOutput.composeSurfaces(kDebugRegion);
+    EXPECT_TRUE(readyFence);
 }
 
 /*

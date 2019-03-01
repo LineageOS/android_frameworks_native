@@ -537,5 +537,90 @@ TEST_F(DisplayTest, setExpensiveRenderingExpectedForwardsToPowerAdvisor) {
     mDisplay.setExpensiveRenderingExpected(false);
 }
 
+/*
+ * Display::finishFrame()
+ */
+
+TEST_F(DisplayTest, finishFrameDoesNotSkipCompositionIfNotDirtyOnHwcDisplay) {
+    mock::RenderSurface* renderSurface = new StrictMock<mock::RenderSurface>();
+    mDisplay.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(renderSurface));
+
+    // We expect no calls to queueBuffer if composition was skipped.
+    EXPECT_CALL(*renderSurface, queueBuffer(_)).Times(1);
+
+    mDisplay.editState().isEnabled = true;
+    mDisplay.editState().usesClientComposition = false;
+    mDisplay.editState().viewport = Rect(0, 0, 1, 1);
+    mDisplay.editState().dirtyRegion = Region::INVALID_REGION;
+
+    CompositionRefreshArgs refreshArgs;
+    refreshArgs.repaintEverything = false;
+
+    mDisplay.finishFrame(refreshArgs);
+}
+
+TEST_F(DisplayTest, finishFrameSkipsCompositionIfNotDirty) {
+    std::shared_ptr<impl::Display> nonHwcDisplay{
+            impl::createDisplay(mCompositionEngine, DisplayCreationArgsBuilder().build())};
+
+    mock::RenderSurface* renderSurface = new StrictMock<mock::RenderSurface>();
+    nonHwcDisplay->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(renderSurface));
+
+    // We expect no calls to queueBuffer if composition was skipped.
+    EXPECT_CALL(*renderSurface, queueBuffer(_)).Times(0);
+
+    nonHwcDisplay->editState().isEnabled = true;
+    nonHwcDisplay->editState().usesClientComposition = false;
+    nonHwcDisplay->editState().viewport = Rect(0, 0, 1, 1);
+    nonHwcDisplay->editState().dirtyRegion = Region::INVALID_REGION;
+
+    CompositionRefreshArgs refreshArgs;
+    refreshArgs.repaintEverything = false;
+
+    nonHwcDisplay->finishFrame(refreshArgs);
+}
+
+TEST_F(DisplayTest, finishFramePerformsCompositionIfDirty) {
+    std::shared_ptr<impl::Display> nonHwcDisplay{
+            impl::createDisplay(mCompositionEngine, DisplayCreationArgsBuilder().build())};
+
+    mock::RenderSurface* renderSurface = new StrictMock<mock::RenderSurface>();
+    nonHwcDisplay->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(renderSurface));
+
+    // We expect a single call to queueBuffer when composition is not skipped.
+    EXPECT_CALL(*renderSurface, queueBuffer(_)).Times(1);
+
+    nonHwcDisplay->editState().isEnabled = true;
+    nonHwcDisplay->editState().usesClientComposition = false;
+    nonHwcDisplay->editState().viewport = Rect(0, 0, 1, 1);
+    nonHwcDisplay->editState().dirtyRegion = Region(Rect(0, 0, 1, 1));
+
+    CompositionRefreshArgs refreshArgs;
+    refreshArgs.repaintEverything = false;
+
+    nonHwcDisplay->finishFrame(refreshArgs);
+}
+
+TEST_F(DisplayTest, finishFramePerformsCompositionIfRepaintEverything) {
+    std::shared_ptr<impl::Display> nonHwcDisplay{
+            impl::createDisplay(mCompositionEngine, DisplayCreationArgsBuilder().build())};
+
+    mock::RenderSurface* renderSurface = new StrictMock<mock::RenderSurface>();
+    nonHwcDisplay->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(renderSurface));
+
+    // We expect a single call to queueBuffer when composition is not skipped.
+    EXPECT_CALL(*renderSurface, queueBuffer(_)).Times(1);
+
+    nonHwcDisplay->editState().isEnabled = true;
+    nonHwcDisplay->editState().usesClientComposition = false;
+    nonHwcDisplay->editState().viewport = Rect(0, 0, 1, 1);
+    nonHwcDisplay->editState().dirtyRegion = Region::INVALID_REGION;
+
+    CompositionRefreshArgs refreshArgs;
+    refreshArgs.repaintEverything = true;
+
+    nonHwcDisplay->finishFrame(refreshArgs);
+}
+
 } // namespace
 } // namespace android::compositionengine

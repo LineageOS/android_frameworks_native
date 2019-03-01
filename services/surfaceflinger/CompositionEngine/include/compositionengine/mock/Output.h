@@ -80,7 +80,9 @@ public:
 
     MOCK_METHOD1(devOptRepaintFlash, void(const compositionengine::CompositionRefreshArgs&));
 
-    MOCK_METHOD2(composeSurfaces, bool(const Region&, base::unique_fd*));
+    MOCK_METHOD1(finishFrame, void(const compositionengine::CompositionRefreshArgs&));
+
+    MOCK_METHOD1(composeSurfaces, std::optional<base::unique_fd>(const Region&));
     MOCK_CONST_METHOD0(getSkipColorTransform, bool());
 
     MOCK_METHOD0(postFramebuffer, void());

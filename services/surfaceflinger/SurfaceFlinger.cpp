@@ -1801,7 +1801,8 @@ void SurfaceFlinger::handleMessageRefresh() {
         display->beginFrame();
         display->prepareFrame();
         display->devOptRepaintFlash(refreshArgs);
-        doComposition(displayDevice, refreshArgs.repaintEverything);
+        display->finishFrame(refreshArgs);
+        display->postFramebuffer();
     }
 
     postFrame();
@@ -2319,26 +2320,6 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& display, ColorMode* 
     }
 
     profile->getBestColorMode(bestDataSpace, intent, outDataSpace, outMode, outRenderIntent);
-}
-
-void SurfaceFlinger::doComposition(const sp<DisplayDevice>& displayDevice, bool repaintEverything) {
-    ATRACE_CALL();
-    ALOGV("doComposition");
-
-    auto display = displayDevice->getCompositionDisplay();
-    const auto& displayState = display->getState();
-
-    if (displayState.isEnabled) {
-        // transform the dirty region into this screen's coordinate space
-        const Region dirtyRegion = display->getDirtyRegion(repaintEverything);
-
-        // repaint the framebuffer (if needed)
-        doDisplayComposition(displayDevice, dirtyRegion);
-
-        display->editState().dirtyRegion.clear();
-        display->getRenderSurface()->flip();
-    }
-    displayDevice->getCompositionDisplay()->postFramebuffer();
 }
 
 void SurfaceFlinger::postFrame()
@@ -3160,26 +3141,6 @@ bool SurfaceFlinger::handlePageFlip()
 void SurfaceFlinger::invalidateHwcGeometry()
 {
     mGeometryInvalid = true;
-}
-
-void SurfaceFlinger::doDisplayComposition(const sp<DisplayDevice>& displayDevice,
-                                          const Region& inDirtyRegion) {
-    auto display = displayDevice->getCompositionDisplay();
-    // We only need to actually compose the display if:
-    // 1) It is being handled by hardware composer, which may need this to
-    //    keep its virtual display state machine in sync, or
-    // 2) There is work to be done (the dirty region isn't empty)
-    if (!displayDevice->getId() && inDirtyRegion.isEmpty()) {
-        ALOGV("Skipping display composition");
-        return;
-    }
-
-    ALOGV("doDisplayComposition");
-    base::unique_fd readyFence;
-    if (!display->composeSurfaces(Region::INVALID_REGION, &readyFence)) return;
-
-    // swap buffers (presentation)
-    display->getRenderSurface()->queueBuffer(std::move(readyFence));
 }
 
 status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
