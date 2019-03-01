@@ -1175,5 +1175,64 @@ TEST_F(BootProfileTest, CollectProfiles) {
     ASSERT_TRUE(std::find(profiles.begin(), profiles.end(), ref_prof) != profiles.end());
 }
 
+TEST_F(DexoptTest, select_execution_binary) {
+    LOG(INFO) << "DexoptTestselect_execution_binary";
+
+    std::string release_str = app_private_dir_ce_  + "/release";
+    std::string debug_str = app_private_dir_ce_  + "/debug";
+
+    // Setup the binaries. Note that we only need executable files to actually
+    // test the execution binary selection
+    run_cmd("touch " + release_str);
+    run_cmd("touch " + debug_str);
+    run_cmd("chmod 777 " + release_str);
+    run_cmd("chmod 777 " + debug_str);
+
+    const char* release = release_str.c_str();
+    const char* debug = debug_str.c_str();
+
+    ASSERT_STREQ(release, select_execution_binary(
+        release,
+        debug,
+        /*background_job_compile=*/ false,
+        /*is_debug_runtime=*/ false,
+        /*is_release=*/ false,
+        /*is_debuggable_build=*/ false));
+
+    ASSERT_STREQ(release, select_execution_binary(
+        release,
+        debug,
+        /*background_job_compile=*/ true,
+        /*is_debug_runtime=*/ false,
+        /*is_release=*/ true,
+        /*is_debuggable_build=*/ true));
+
+    ASSERT_STREQ(debug, select_execution_binary(
+        release,
+        debug,
+        /*background_job_compile=*/ false,
+        /*is_debug_runtime=*/ true,
+        /*is_release=*/ false,
+        /*is_debuggable_build=*/ false));
+
+    ASSERT_STREQ(debug, select_execution_binary(
+        release,
+        debug,
+        /*background_job_compile=*/ true,
+        /*is_debug_runtime=*/ false,
+        /*is_release=*/ false,
+        /*is_debuggable_build=*/ true));
+
+
+    // Select the release when the debug file is not there.
+    ASSERT_STREQ(release, select_execution_binary(
+        release,
+        "does_not_exist",
+        /*background_job_compile=*/ false,
+        /*is_debug_runtime=*/ true,
+        /*is_release=*/ false,
+        /*is_debuggable_build=*/ false));
+}
+
 }  // namespace installd
 }  // namespace android
