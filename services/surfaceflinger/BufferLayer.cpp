@@ -239,7 +239,8 @@ bool BufferLayer::isHdrY410() const {
 
 void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice,
                                   const ui::Transform& transform, const Rect& viewport,
-                                  int32_t supportedPerFrameMetadata) {
+                                  int32_t supportedPerFrameMetadata,
+                                  const ui::Dataspace targetDataspace) {
     RETURN_IF_NO_HWC_LAYER(displayDevice);
 
     // Apply this display's projection's viewport to the visible region
@@ -291,10 +292,10 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice,
         setCompositionType(displayDevice, Hwc2::IComposerClient::Composition::DEVICE);
     }
 
-    ALOGV("setPerFrameData: dataspace = %d", mCurrentDataSpace);
-    error = hwcLayer->setDataspace(mCurrentDataSpace);
+    ui::Dataspace dataspace = isColorSpaceAgnostic() ? targetDataspace : mCurrentDataSpace;
+    error = hwcLayer->setDataspace(dataspace);
     if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), mCurrentDataSpace,
+        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), dataspace,
               to_string(error).c_str(), static_cast<int32_t>(error));
     }
 

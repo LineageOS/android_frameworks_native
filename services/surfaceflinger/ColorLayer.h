@@ -36,7 +36,8 @@ public:
     bool setColor(const half3& color) override;
 
     void setPerFrameData(const sp<const DisplayDevice>& display, const ui::Transform& transform,
-                         const Rect& viewport, int32_t supportedPerFrameMetadata) override;
+                         const Rect& viewport, int32_t supportedPerFrameMetadata,
+                         const ui::Dataspace targetDataspace) override;
 
     bool onPreComposition(nsecs_t /*refreshStartTime*/) override { return false; }
 

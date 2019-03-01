@@ -1789,6 +1789,13 @@ void SurfaceFlinger::calculateWorkingSet() {
         if (mDrawingState.colorMatrixChanged) {
             display->setColorTransform(mDrawingState.colorMatrix);
         }
+        Dataspace targetDataspace = Dataspace::UNKNOWN;
+        if (useColorManagement) {
+            ColorMode colorMode;
+            RenderIntent renderIntent;
+            pickColorMode(displayDevice, &colorMode, &targetDataspace, &renderIntent);
+            display->setColorMode(colorMode, targetDataspace, renderIntent);
+        }
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
             if (layer->isHdrY410()) {
                 layer->forceClientComposition(displayDevice);
@@ -1820,15 +1827,7 @@ void SurfaceFlinger::calculateWorkingSet() {
 
             const auto& displayState = display->getState();
             layer->setPerFrameData(displayDevice, displayState.transform, displayState.viewport,
-                                   displayDevice->getSupportedPerFrameMetadata());
-        }
-
-        if (useColorManagement) {
-            ColorMode  colorMode;
-            Dataspace dataSpace;
-            RenderIntent renderIntent;
-            pickColorMode(displayDevice, &colorMode, &dataSpace, &renderIntent);
-            display->setColorMode(colorMode, dataSpace, renderIntent);
+                                   displayDevice->getSupportedPerFrameMetadata(), targetDataspace);
         }
     }
 
@@ -3905,6 +3904,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
     }
     if (what & layer_state_t::eMetadataChanged) {
         if (layer->setMetadata(s.metadata)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eColorSpaceAgnosticChanged) {
+        if (layer->setColorSpaceAgnostic(s.colorSpaceAgnostic)) {
+            flags |= eTraversalNeeded;
+        }
     }
     std::vector<sp<CallbackHandle>> callbackHandles;
     if ((what & layer_state_t::eListenerCallbacksChanged) && (!s.listenerCallbacks.empty())) {

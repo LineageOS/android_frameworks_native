@@ -103,6 +103,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.cornerRadius = 0.0f;
     mCurrentState.api = -1;
     mCurrentState.hasColorTransform = false;
+    mCurrentState.colorSpaceAgnostic = false;
 
     // drawing state & current state are identical
     mDrawingState = mCurrentState;
@@ -1350,6 +1351,17 @@ bool Layer::setLayerStack(uint32_t layerStack) {
     if (mCurrentState.layerStack == layerStack) return false;
     mCurrentState.sequence++;
     mCurrentState.layerStack = layerStack;
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
+bool Layer::setColorSpaceAgnostic(const bool agnostic) {
+    if (mCurrentState.colorSpaceAgnostic == agnostic) {
+        return false;
+    }
+    mCurrentState.sequence++;
+    mCurrentState.colorSpaceAgnostic = agnostic;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;

@@ -88,6 +88,7 @@ struct layer_state_t {
         eCachedBufferChanged = 0x2'00000000,
         eBackgroundColorChanged = 0x4'00000000,
         eMetadataChanged = 0x8'00000000,
+        eColorSpaceAgnosticChanged = 0x10'00000000,
     };
 
     layer_state_t()
@@ -115,7 +116,8 @@ struct layer_state_t {
             api(-1),
             colorTransform(mat4()),
             bgColorAlpha(0),
-            bgColorDataspace(ui::Dataspace::UNKNOWN) {
+            bgColorDataspace(ui::Dataspace::UNKNOWN),
+            colorSpaceAgnostic(false) {
         matrix.dsdx = matrix.dtdy = 1.0f;
         matrix.dsdy = matrix.dtdx = 0.0f;
         hdrMetadata.validTypes = 0;
@@ -192,6 +194,10 @@ struct layer_state_t {
     // the background color layer
     float bgColorAlpha;
     ui::Dataspace bgColorDataspace;
+
+    // A color space agnostic layer means the color of this layer can be
+    // interpreted in any color space.
+    bool colorSpaceAgnostic;
 };
 
 struct ComposerState {

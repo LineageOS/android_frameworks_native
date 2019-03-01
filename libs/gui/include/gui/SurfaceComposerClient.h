@@ -360,6 +360,7 @@ public:
         Transaction& setSidebandStream(const sp<SurfaceControl>& sc,
                                        const sp<NativeHandle>& sidebandStream);
         Transaction& setDesiredPresentTime(nsecs_t desiredPresentTime);
+        Transaction& setColorSpaceAgnostic(const sp<SurfaceControl>& sc, const bool agnostic);
 
         Transaction& addTransactionCompletedCallback(
                 TransactionCompletedCallbackTakesContext callback, void* callbackContext);
