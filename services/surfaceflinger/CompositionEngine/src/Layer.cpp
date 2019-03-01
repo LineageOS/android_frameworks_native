@@ -52,7 +52,9 @@ LayerCompositionState& Layer::editState() {
 }
 
 void Layer::dump(std::string& out) const {
-    android::base::StringAppendF(&out, "     Layer %p\n", this);
+    auto layerFE = getLayerFE();
+    android::base::StringAppendF(&out, "* compositionengine::Layer %p (%s)\n", this,
+                                 layerFE ? layerFE->getDebugName() : "<unknown>");
     mState.dump(out);
 }
 

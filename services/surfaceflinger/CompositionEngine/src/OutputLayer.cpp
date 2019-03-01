@@ -379,7 +379,8 @@ void OutputLayer::writeStateToHWC(bool includeGeometry) const {
 void OutputLayer::dump(std::string& out) const {
     using android::base::StringAppendF;
 
-    StringAppendF(&out, "     Output Layer %p\n", this);
+    StringAppendF(&out, "  - Output Layer %p (Composition layer %p) (%s)\n", this, mLayer.get(),
+                  mLayerFE->getDebugName());
     mState.dump(out);
 }
 

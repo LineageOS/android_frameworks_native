@@ -24,7 +24,7 @@ namespace android::compositionengine::impl {
 using android::base::StringAppendF;
 
 void dumpVal(std::string& out, const char* name, bool value) {
-    StringAppendF(&out, "%s=%c ", name, value ? 'T' : 'F');
+    StringAppendF(&out, "%s=%s ", name, value ? "true" : "false");
 }
 
 void dumpVal(std::string& out, const char* name, const void* value) {
@@ -56,7 +56,7 @@ void dumpVal(std::string& out, const char* name, const std::string& value) {
 }
 
 void dumpVal(std::string& out, const char* name, const char* valueName, int value) {
-    StringAppendF(&out, "%s=%s (%d)", name, valueName, value);
+    StringAppendF(&out, "%s=%s (%d) ", name, valueName, value);
 }
 
 void dumpVal(std::string& out, const char* name, const std::string& valueName, int value) {

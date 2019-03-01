@@ -147,7 +147,7 @@ void Output::dumpBase(std::string& out) const {
         out.append("    No render surface!\n");
     }
 
-    out.append("\n   %d Layers", mOutputLayersOrderedByZ.size());
+    android::base::StringAppendF(&out, "\n   %zu Layers\b", mOutputLayersOrderedByZ.size());
     for (const auto& outputLayer : mOutputLayersOrderedByZ) {
         if (!outputLayer) {
             continue;
