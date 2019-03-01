@@ -77,6 +77,7 @@ public:
 
     void beginFrame() override;
     void prepareFrame() override;
+    void devOptRepaintFlash(const compositionengine::CompositionRefreshArgs&) override;
     bool composeSurfaces(const Region&, base::unique_fd*) override;
     void postFramebuffer() override;
 

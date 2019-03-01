@@ -16,6 +16,9 @@
 
 #pragma once
 
+#include <chrono>
+#include <optional>
+
 #include <compositionengine/Display.h>
 #include <compositionengine/Layer.h>
 
@@ -35,6 +38,12 @@ struct CompositionRefreshArgs {
     // the layers is important, and should be in traversal order from back to
     // front.
     Layers layers;
+
+    // If true, forces the entire display to be considered dirty and repainted
+    bool repaintEverything{false};
+
+    // If set, causes the dirty regions to flash with the delay
+    std::optional<std::chrono::microseconds> devOptFlashDirtyRegionsDelay;
 };
 
 } // namespace android::compositionengine

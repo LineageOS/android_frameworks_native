@@ -1787,8 +1787,12 @@ void SurfaceFlinger::handleMessageRefresh() {
         auto compositionLayer = layer->getCompositionLayer();
         if (compositionLayer) refreshArgs.layers.push_back(compositionLayer);
     });
+    refreshArgs.repaintEverything = mRepaintEverything.exchange(false);
+    if (mDebugRegion != 0) {
+        refreshArgs.devOptFlashDirtyRegionsDelay =
+                std::chrono::milliseconds(mDebugRegion > 1 ? mDebugRegion : 0);
+    }
 
-    const bool repaintEverything = mRepaintEverything.exchange(false);
     mCompositionEngine->preComposition(refreshArgs);
     rebuildLayerStacks();
     calculateWorkingSet();
@@ -1796,8 +1800,8 @@ void SurfaceFlinger::handleMessageRefresh() {
         auto display = displayDevice->getCompositionDisplay();
         display->beginFrame();
         display->prepareFrame();
-        doDebugFlashRegions(displayDevice, repaintEverything);
-        doComposition(displayDevice, repaintEverything);
+        display->devOptRepaintFlash(refreshArgs);
+        doComposition(displayDevice, refreshArgs.repaintEverything);
     }
 
     postFrame();
@@ -1913,36 +1917,6 @@ void SurfaceFlinger::calculateWorkingSet() {
         }
         mDrawingState.colorMatrixChanged = false;
     }
-}
-
-void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& displayDevice,
-                                         bool repaintEverything) {
-    auto display = displayDevice->getCompositionDisplay();
-    const auto& displayState = display->getState();
-
-    // is debugging enabled
-    if (CC_LIKELY(!mDebugRegion))
-        return;
-
-    if (displayState.isEnabled) {
-        // transform the dirty region into this screen's coordinate space
-        const Region dirtyRegion = display->getDirtyRegion(repaintEverything);
-        if (!dirtyRegion.isEmpty()) {
-            base::unique_fd readyFence;
-            // redraw the whole screen
-            display->composeSurfaces(dirtyRegion, &readyFence);
-
-            display->getRenderSurface()->queueBuffer(std::move(readyFence));
-        }
-    }
-
-    displayDevice->getCompositionDisplay()->postFramebuffer();
-
-    if (mDebugRegion > 1) {
-        usleep(mDebugRegion * 1000);
-    }
-
-    displayDevice->getCompositionDisplay()->prepareFrame();
 }
 
 void SurfaceFlinger::updateCompositorTiming(const DisplayStatInfo& stats, nsecs_t compositeTime,

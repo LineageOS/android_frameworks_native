@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/DisplayColorProfile.h>
 #include <compositionengine/Layer.h>
 #include <compositionengine/LayerFE.h>
@@ -76,6 +77,8 @@ public:
     MOCK_METHOD0(beginFrame, void());
     MOCK_METHOD0(prepareFrame, void());
     MOCK_METHOD0(chooseCompositionStrategy, void());
+
+    MOCK_METHOD1(devOptRepaintFlash, void(const compositionengine::CompositionRefreshArgs&));
 
     MOCK_METHOD2(composeSurfaces, bool(const Region&, base::unique_fd*));
     MOCK_CONST_METHOD0(getSkipColorTransform, bool());

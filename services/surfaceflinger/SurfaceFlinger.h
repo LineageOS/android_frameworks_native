@@ -763,7 +763,6 @@ private:
 
     void calculateWorkingSet();
     void doComposition(const sp<DisplayDevice>& display, bool repainEverything);
-    void doDebugFlashRegions(const sp<DisplayDevice>& display, bool repaintEverything);
     void doDisplayComposition(const sp<DisplayDevice>& display, const Region& dirtyRegion);
 
     void postFrame();

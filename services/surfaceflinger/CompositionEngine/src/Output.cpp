@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
+#include <thread>
+
 #include <android-base/stringprintf.h>
 #include <compositionengine/CompositionEngine.h>
+#include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/DisplayColorProfile.h>
 #include <compositionengine/Layer.h>
 #include <compositionengine/LayerFE.h>
@@ -297,6 +300,30 @@ void Output::prepareFrame() {
     chooseCompositionStrategy();
 
     mRenderSurface->prepareFrame(mState.usesClientComposition, mState.usesDeviceComposition);
+}
+
+void Output::devOptRepaintFlash(const compositionengine::CompositionRefreshArgs& refreshArgs) {
+    if (CC_LIKELY(!refreshArgs.devOptFlashDirtyRegionsDelay)) {
+        return;
+    }
+
+    if (mState.isEnabled) {
+        // transform the dirty region into this screen's coordinate space
+        const Region dirtyRegion = getDirtyRegion(refreshArgs.repaintEverything);
+        if (!dirtyRegion.isEmpty()) {
+            base::unique_fd readyFence;
+            // redraw the whole screen
+            composeSurfaces(dirtyRegion, &readyFence);
+
+            mRenderSurface->queueBuffer(std::move(readyFence));
+        }
+    }
+
+    postFramebuffer();
+
+    std::this_thread::sleep_for(*refreshArgs.devOptFlashDirtyRegionsDelay);
+
+    prepareFrame();
 }
 
 bool Output::composeSurfaces(const Region& debugRegion, base::unique_fd* readyFence) {

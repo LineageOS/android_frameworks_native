@@ -43,6 +43,8 @@ class LayerFE;
 class RenderSurface;
 class OutputLayer;
 
+struct CompositionRefreshArgs;
+
 namespace impl {
 struct OutputCompositionState;
 } // namespace impl
@@ -156,6 +158,9 @@ public:
 
     // Prepares a frame for display
     virtual void prepareFrame() = 0;
+
+    // Performs any debug related screen flashing due to the update
+    virtual void devOptRepaintFlash(const CompositionRefreshArgs&) = 0;
 
     // Performs client composition as needed for layers on the output. The
     // output fence is set to a fence to signal when client composition is
