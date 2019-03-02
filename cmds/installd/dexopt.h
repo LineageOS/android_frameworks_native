@@ -36,7 +36,7 @@ static constexpr int DEX2OAT_FOR_FILTER          = 3;
 // Location of binaries in the Android Runtime APEX.
 static constexpr const char* kDex2oatPath = ANDROID_RUNTIME_APEX_BIN "/dex2oat";
 static constexpr const char* kDex2oatDebugPath = ANDROID_RUNTIME_APEX_BIN "/dex2oatd";
-static constexpr const char* kProfmanPath = ANDROID_RUNTIME_APEX_BIN "/profmand";
+static constexpr const char* kProfmanPath = ANDROID_RUNTIME_APEX_BIN "/profman";
 static constexpr const char* kProfmanDebugPath = ANDROID_RUNTIME_APEX_BIN "/profmand";
 static constexpr const char* kDexoptanalyzerPath = ANDROID_RUNTIME_APEX_BIN "/dexoptanalyzer";
 static constexpr const char* kDexoptanalyzerDebugPath = ANDROID_RUNTIME_APEX_BIN "/dexoptanalyzerd";
@@ -127,6 +127,14 @@ bool create_cache_path_default(char path[PKG_PATH_MAX], const char *src,
         const char *instruction_set);
 
 bool move_ab(const char* apk_path, const char* instruction_set, const char* output_path);
+
+const char* select_execution_binary(
+        const char* binary,
+        const char* debug_binary,
+        bool background_job_compile,
+        bool is_debug_runtime,
+        bool is_release,
+        bool is_debuggable_build);
 
 }  // namespace installd
 }  // namespace android

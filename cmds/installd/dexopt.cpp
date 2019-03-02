@@ -261,6 +261,40 @@ static std::string MapPropertyToArg(const std::string& property,
   return "";
 }
 
+// Determines which binary we should use for execution (the debug or non-debug version).
+// e.g. dex2oatd vs dex2oat
+static const char* select_execution_binary(const char* binary, const char* debug_binary,
+        bool background_job_compile) {
+    return select_execution_binary(
+        binary,
+        debug_binary,
+        background_job_compile,
+        is_debug_runtime(),
+        (android::base::GetProperty("ro.build.version.codename", "") == "REL"),
+        is_debuggable_build());
+}
+
+// Determines which binary we should use for execution (the debug or non-debug version).
+// e.g. dex2oatd vs dex2oat
+// This is convenient method which is much easier to test because it doesn't read
+// system properties.
+const char* select_execution_binary(
+        const char* binary,
+        const char* debug_binary,
+        bool background_job_compile,
+        bool is_debug_runtime,
+        bool is_release,
+        bool is_debuggable_build) {
+    // Do not use debug binaries for release candidates (to give more soak time).
+    bool is_debug_bg_job = background_job_compile && is_debuggable_build && !is_release;
+
+    // If the runtime was requested to use libartd.so, we'll run the debug version - assuming
+    // the file is present (it may not be on images with very little space available).
+    bool useDebug = (is_debug_runtime || is_debug_bg_job) && (access(debug_binary, X_OK) == 0);
+
+    return useDebug ? debug_binary : binary;
+}
+
 // Namespace for Android Runtime flags applied during boot time.
 static const char* RUNTIME_NATIVE_BOOT_NAMESPACE = "runtime_native_boot";
 // Feature flag name for running the JIT in Zygote experiment, b/119800099.
@@ -354,16 +388,9 @@ class RunDex2Oat : public ExecVHelper {
         std::string dex2oat_large_app_threshold_arg =
             MapPropertyToArg("dalvik.vm.dex2oat-very-large", "--very-large-app-threshold=%s");
 
-        // If the runtime was requested to use libartd.so, we'll run dex2oatd, otherwise dex2oat.
-        const char* dex2oat_bin = kDex2oatPath;
-        // Do not use dex2oatd for release candidates (give dex2oat more soak time).
-        bool is_release = android::base::GetProperty("ro.build.version.codename", "") == "REL";
-        if (is_debug_runtime() ||
-                (background_job_compile && is_debuggable_build() && !is_release)) {
-            if (access(kDex2oatDebugPath, X_OK) == 0) {
-                dex2oat_bin = kDex2oatDebugPath;
-            }
-        }
+
+        const char* dex2oat_bin = select_execution_binary(
+            kDex2oatPath, kDex2oatDebugPath, background_job_compile);
 
         bool generate_minidebug_info = kEnableMinidebugInfo &&
                 GetBoolProperty(kMinidebugInfoSystemProperty, kMinidebugInfoSystemPropertyDefault);
@@ -676,7 +703,12 @@ class RunProfman : public ExecVHelper {
                   const std::vector<std::string>& dex_locations,
                   bool copy_and_update,
                   bool store_aggregation_counters) {
-        const char* profman_bin = is_debug_runtime() ? kProfmanDebugPath: kProfmanPath;
+
+        // TODO(calin): Assume for now we run in the bg compile job (which is in
+        // most of the invocation). With the current data flow, is not very easy or
+        // clean to discover this in RunProfman (it will require quite a messy refactoring).
+        const char* profman_bin = select_execution_binary(
+            kProfmanPath, kProfmanDebugPath, /*background_job_compile=*/ true);
 
         if (copy_and_update) {
             CHECK_EQ(1u, profile_fds.size());
@@ -1491,8 +1523,10 @@ class RunDexoptAnalyzer : public ExecVHelper {
                     bool downgrade,
                     const char* class_loader_context) {
         CHECK_GE(zip_fd, 0);
-        const char* dexoptanalyzer_bin =
-            is_debug_runtime() ? kDexoptanalyzerDebugPath : kDexoptanalyzerPath;
+
+        // We always run the analyzer in the background job.
+        const char* dexoptanalyzer_bin = select_execution_binary(
+             kDexoptanalyzerPath, kDexoptanalyzerDebugPath, /*background_job_compile=*/ true);
 
         std::string dex_file_arg = "--dex-file=" + dex_file;
         std::string oat_fd_arg = "--oat-fd=" + std::to_string(oat_fd);
