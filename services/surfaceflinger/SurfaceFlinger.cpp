@@ -201,9 +201,6 @@ const String16 sAccessSurfaceFlinger("android.permission.ACCESS_SURFACE_FLINGER"
 const String16 sReadFramebuffer("android.permission.READ_FRAME_BUFFER");
 const String16 sDump("android.permission.DUMP");
 
-constexpr float kDefaultRefreshRate = 60.f;
-constexpr float kPerformanceRefreshRate = 90.f;
-
 // ---------------------------------------------------------------------------
 int64_t SurfaceFlinger::dispSyncPresentTimeOffset;
 bool SurfaceFlinger::useHwcForRgbToYuv;
@@ -712,9 +709,11 @@ void SurfaceFlinger::init() {
             setRefreshRateTo(RefreshRateType::PERFORMANCE, ConfigEvent::None);
         });
     }
-    mRefreshRateStats = std::make_unique<scheduler::RefreshRateStats>(getHwComposer().getConfigs(
-                                                                              *display->getId()),
-                                                                      mTimeStats);
+    mRefreshRateConfigs[*display->getId()] = std::make_shared<scheduler::RefreshRateConfigs>(
+            getHwComposer().getConfigs(*display->getId()));
+    mRefreshRateStats =
+            std::make_unique<scheduler::RefreshRateStats>(mRefreshRateConfigs[*display->getId()],
+                                                          mTimeStats);
 
     ALOGV("Done initializing");
 }
@@ -920,14 +919,6 @@ int SurfaceFlinger::getActiveConfig(const sp<IBinder>& displayToken) {
 void SurfaceFlinger::setDesiredActiveConfig(const sp<IBinder>& displayToken, int mode,
                                             ConfigEvent event) {
     ATRACE_CALL();
-
-    Vector<DisplayInfo> configs;
-    // Lock is acquired by setRefreshRateTo.
-    getDisplayConfigsLocked(displayToken, &configs);
-    if (mode < 0 || mode >= static_cast<int>(configs.size())) {
-        ALOGE("Attempt to set active config %d for display with %zu configs", mode, configs.size());
-        return;
-    }
 
     // Lock is acquired by setRefreshRateTo.
     const auto display = getDisplayDeviceLocked(displayToken);
@@ -1426,6 +1417,8 @@ bool SurfaceFlinger::isConfigAllowed(const DisplayId& displayId, int32_t config)
 }
 
 void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate, ConfigEvent event) {
+    ATRACE_CALL();
+
     mPhaseOffsets->setRefreshRateType(refreshRate);
 
     const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
@@ -1435,47 +1428,23 @@ void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate, ConfigEvent e
         return;
     }
 
-    // TODO(b/113612090): There should be a message queue flush here. Because this esentially
-    // runs on a mainthread, we cannot call postMessageSync. This can be resolved in a better
-    // manner, once the setActiveConfig is synchronous, and is executed at a known time in a
-    // refresh cycle.
-
     // Don't do any updating if the current fps is the same as the new one.
-    const nsecs_t currentVsyncPeriod = getVsyncPeriod();
-    if (currentVsyncPeriod == 0) {
-        return;
-    }
-
-    // TODO(b/113612090): Consider having an enum value for correct refresh rates, rather than
-    // floating numbers.
-    const float currentFps = 1e9 / currentVsyncPeriod;
-    const float newFps = refreshRate == RefreshRateType::PERFORMANCE ? kPerformanceRefreshRate
-                                                                     : kDefaultRefreshRate;
-    if (std::abs(currentFps - newFps) <= 1) {
-        return;
-    }
-
     const auto displayId = getInternalDisplayIdLocked();
     LOG_ALWAYS_FATAL_IF(!displayId);
+    const auto displayToken = getInternalDisplayTokenLocked();
 
-    auto configs = getHwComposer().getConfigs(*displayId);
-    for (int i = 0; i < configs.size(); i++) {
-        if (!isConfigAllowed(*displayId, i)) {
-            ALOGV("Skipping config %d as it is not part of allowed configs", i);
-            continue;
-        }
-
-        const nsecs_t vsyncPeriod = configs.at(i)->getVsyncPeriod();
-        if (vsyncPeriod == 0) {
-            continue;
-        }
-        const float fps = 1e9 / vsyncPeriod;
-        // TODO(b/113612090): There should be a better way at determining which config
-        // has the right refresh rate.
-        if (std::abs(fps - newFps) <= 1) {
-            setDesiredActiveConfig(getInternalDisplayTokenLocked(), i, event);
-        }
+    auto desiredConfigId = mRefreshRateConfigs[*displayId]->getRefreshRate(refreshRate).configId;
+    const auto display = getDisplayDeviceLocked(displayToken);
+    if (desiredConfigId == display->getActiveConfig()) {
+        return;
     }
+
+    if (!isConfigAllowed(*displayId, desiredConfigId)) {
+        ALOGV("Skipping config %d as it is not part of allowed configs", desiredConfigId);
+        return;
+    }
+
+    setDesiredActiveConfig(getInternalDisplayTokenLocked(), desiredConfigId, event);
 }
 
 void SurfaceFlinger::onHotplugReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId,
@@ -5664,17 +5633,13 @@ void SurfaceFlinger::setAllowedDisplayConfigsInternal(
     // make sure that the current config is still allowed
     int currentConfigIndex = getHwComposer().getActiveConfigIndex(*displayId);
     if (!isConfigAllowed(*displayId, currentConfigIndex)) {
-        // TODO(b/122906558): stop querying HWC for the available configs and instead use the cached
-        // configs queried on boot
-        auto configs = getHwComposer().getConfigs(*displayId);
-
-        for (int i = 0; i < configs.size(); i++) {
-            if (isConfigAllowed(*displayId, i)) {
+        for (const auto& [type, config] : mRefreshRateConfigs[*displayId]->getRefreshRates()) {
+            if (isConfigAllowed(*displayId, config.configId)) {
                 // TODO: we switch to the first allowed config. In the future
                 // we may want to enhance this logic to pick a similar config
                 // to the current one
-                ALOGV("Old config is not allowed - switching to config %d", i);
-                setDesiredActiveConfig(displayToken, i, ConfigEvent::Changed);
+                ALOGV("Old config is not allowed - switching to config %d", config.configId);
+                setDesiredActiveConfig(displayToken, config.configId, ConfigEvent::Changed);
                 break;
             }
         }
