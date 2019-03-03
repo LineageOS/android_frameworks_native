@@ -225,6 +225,11 @@ private:
     // consumer are controlled by the application.
     bool mDequeueBufferCannotBlock;
 
+    // mQueueBufferCanDrop indicates whether queueBuffer is allowd to drop
+    // buffers in non-async mode. This flag is set during connect when both the
+    // producer and consumer are controlled by application.
+    bool mQueueBufferCanDrop;
+
     // mDefaultBufferFormat can be set so it will override the buffer format
     // when it isn't specified in dequeueBuffer.
     PixelFormat mDefaultBufferFormat;
