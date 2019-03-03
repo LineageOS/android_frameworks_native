@@ -3364,6 +3364,16 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
     // Perform some cleanup steps if we used client composition.
     if (hasClientComposition) {
         clientCompositionDisplay.clearRegion = clearRegion;
+
+        // We boost GPU frequency here because there will be color spaces conversion
+        // and it's expensive. We boost the GPU frequency so that GPU composition can
+        // finish in time. We must reset GPU frequency afterwards, because high frequency
+        // consumes extra battery.
+        const bool expensiveRenderingExpected =
+                clientCompositionDisplay.outputDataspace == Dataspace::DISPLAY_P3;
+        if (expensiveRenderingExpected && displayId) {
+            mPowerAdvisor.setExpensiveRenderingExpected(*displayId, true);
+        }
         if (!debugRegion.isEmpty()) {
             Region::const_iterator it = debugRegion.begin();
             Region::const_iterator end = debugRegion.end();
@@ -3379,6 +3389,9 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
         }
         renderEngine.drawLayers(clientCompositionDisplay, clientCompositionLayers,
                                 buf->getNativeBuffer(), std::move(fd), readyFence);
+        if (expensiveRenderingExpected && displayId) {
+            mPowerAdvisor.setExpensiveRenderingExpected(*displayId, false);
+        }
     }
     return true;
 }

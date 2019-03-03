@@ -38,7 +38,7 @@ PowerAdvisor::~PowerAdvisor() = default;
 
 PowerAdvisor::PowerAdvisor() = default;
 
-void PowerAdvisor::setExpensiveRenderingExpected(hwc2_display_t displayId, bool expected) {
+void PowerAdvisor::setExpensiveRenderingExpected(DisplayId displayId, bool expected) {
     if (expected) {
         mExpensiveDisplays.insert(displayId);
     } else {

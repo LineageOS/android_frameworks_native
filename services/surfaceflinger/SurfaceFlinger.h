@@ -53,6 +53,7 @@
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/HWComposer.h"
+#include "DisplayHardware/PowerAdvisor.h"
 #include "Effects/Daltonizer.h"
 #include "FrameTracker.h"
 #include "LayerStats.h"
@@ -1150,11 +1151,11 @@ private:
     InputWindowCommands mPendingInputWindowCommands GUARDED_BY(mStateLock);
     // Should only be accessed by the main thread.
     InputWindowCommands mInputWindowCommands;
-
     ui::DisplayPrimaries mInternalDisplayPrimaries;
 
     sp<SetInputWindowsListener> mSetInputWindowsListener;
     bool mPendingSyncInputWindows GUARDED_BY(mStateLock);
+    Hwc2::impl::PowerAdvisor mPowerAdvisor;
 };
 }; // namespace android
 
