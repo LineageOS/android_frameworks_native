@@ -73,6 +73,7 @@ BufferQueueCore::BufferQueueCore() :
     mActiveBuffers(),
     mDequeueCondition(),
     mDequeueBufferCannotBlock(false),
+    mQueueBufferCanDrop(false),
     mDefaultBufferFormat(PIXEL_FORMAT_RGBA_8888),
     mDefaultWidth(1),
     mDefaultHeight(1),
