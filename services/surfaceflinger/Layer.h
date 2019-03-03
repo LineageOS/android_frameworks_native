@@ -899,6 +899,8 @@ private:
 
     // Layer bounds in screen space.
     FloatRect mScreenBounds;
+
+    void setZOrderRelativeOf(const wp<Layer>& relativeOf);
 };
 
 } // namespace android

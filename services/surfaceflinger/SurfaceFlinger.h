@@ -489,6 +489,8 @@ private:
     status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) override;
     status_t setAllowedDisplayConfigs(const sp<IBinder>& displayToken,
                                       const std::vector<int32_t>& allowedConfigs) override;
+    status_t getAllowedDisplayConfigs(const sp<IBinder>& displayToken,
+                                      std::vector<int32_t>* outAllowedConfigs) override;
 
     /* ------------------------------------------------------------------------
      * DeathRecipient interface
@@ -520,6 +522,13 @@ private:
     void signalRefresh();
 
     enum class ConfigEvent { None, Changed };
+
+    // logical or operator with the semantics of at least one of the events is Changed
+    friend ConfigEvent operator|(const ConfigEvent& first, const ConfigEvent& second) {
+        if (first == ConfigEvent::Changed) return ConfigEvent::Changed;
+        if (second == ConfigEvent::Changed) return ConfigEvent::Changed;
+        return ConfigEvent::None;
+    }
 
     // called on the main thread in response to initializeDisplays()
     void onInitializeDisplays() REQUIRES(mStateLock);

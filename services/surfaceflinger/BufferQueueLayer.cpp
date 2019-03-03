@@ -342,10 +342,6 @@ status_t BufferQueueLayer::updateActiveBuffer() {
     return NO_ERROR;
 }
 
-bool BufferQueueLayer::useCachedBufferForClientComposition() const {
-    return mConsumer->getAndSetCurrentBufferCacheHint();
-}
-
 status_t BufferQueueLayer::updateFrameNumber(nsecs_t latchTime) {
     mPreviousFrameNumber = mCurrentFrameNumber;
     mCurrentFrameNumber = mConsumer->getFrameNumber();

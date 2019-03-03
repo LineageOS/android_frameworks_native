@@ -16,14 +16,22 @@
 
 #pragma once
 
-#include <android/hardware/configstore/1.2/types.h>
-
 // android::ui::* in this header file will alias different types as
 // the HIDL interface is updated.
 namespace android {
 namespace ui {
 
-using android::hardware::configstore::V1_2::DisplayPrimaries;
+struct CieXyz {
+    float X;
+    float Y;
+    float Z;
+};
+struct DisplayPrimaries {
+    CieXyz red;
+    CieXyz green;
+    CieXyz blue;
+    CieXyz white;
+};
 
 }  // namespace ui
 }  // namespace android
