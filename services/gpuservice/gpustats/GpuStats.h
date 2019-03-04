@@ -41,6 +41,8 @@ public:
     void dump(const Vector<String16>& args, std::string* result);
     // Pull gpu global stats
     void pullGlobalStats(std::vector<GpuStatsGlobalInfo>* outStats);
+    // Pull gpu app stats
+    void pullAppStats(std::vector<GpuStatsAppInfo>* outStats);
 
 private:
     // Dump global stats

@@ -198,4 +198,18 @@ void GpuStats::pullGlobalStats(std::vector<GpuStatsGlobalInfo>* outStats) {
     mGlobalStats.clear();
 }
 
+void GpuStats::pullAppStats(std::vector<GpuStatsAppInfo>* outStats) {
+    ATRACE_CALL();
+
+    std::lock_guard<std::mutex> lock(mLock);
+    outStats->clear();
+    outStats->reserve(mAppStats.size());
+
+    for (const auto& ele : mAppStats) {
+        outStats->emplace_back(ele.second);
+    }
+
+    mAppStats.clear();
+}
+
 } // namespace android

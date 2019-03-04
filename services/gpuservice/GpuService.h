@@ -48,6 +48,7 @@ private:
                      const std::string& appPackageName, GraphicsEnv::Driver driver,
                      bool isDriverLoaded, int64_t driverLoadingTime) override;
     status_t getGpuStatsGlobalInfo(std::vector<GpuStatsGlobalInfo>* outStats) const override;
+    status_t getGpuStatsAppInfo(std::vector<GpuStatsAppInfo>* outStats) const override;
 
     /*
      * IBinder interface
