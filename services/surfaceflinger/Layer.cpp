@@ -1071,13 +1071,6 @@ uint32_t Layer::doTransaction(uint32_t flags) {
         mNeedsFiltering = (!getActiveTransform(c).preserveRects() || type >= ui::Transform::SCALE);
     }
 
-    // If the layer is hidden, signal and clear out all local sync points so
-    // that transactions for layers depending on this layer's frames becoming
-    // visible are not blocked
-    if (c.flags & layer_state_t::eLayerHidden) {
-        clearSyncPoints();
-    }
-
     if (mCurrentState.inputInfoChanged) {
         flags |= eInputInfoChanged;
         mCurrentState.inputInfoChanged = false;
@@ -1769,18 +1762,6 @@ bool Layer::isLegacyDataSpace() const {
 
 void Layer::setParent(const sp<Layer>& layer) {
     mCurrentParent = layer;
-}
-
-void Layer::clearSyncPoints() {
-    for (const auto& child : mCurrentChildren) {
-        child->clearSyncPoints();
-    }
-
-    Mutex::Autolock lock(mLocalSyncPointMutex);
-    for (auto& point : mLocalSyncPoints) {
-        point->setFrameAvailable();
-    }
-    mLocalSyncPoints.clear();
 }
 
 int32_t Layer::getZ() const {
