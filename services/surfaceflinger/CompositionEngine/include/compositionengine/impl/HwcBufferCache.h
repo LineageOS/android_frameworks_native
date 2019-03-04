@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <vector>
 
+#include <gui/BufferQueue.h>
 #include <utils/StrongPointer.h>
 
 namespace android {
@@ -39,19 +40,28 @@ namespace compositionengine::impl {
 class HwcBufferCache {
 public:
     HwcBufferCache();
-
-    // Given a buffer queue slot and buffer, return the HWC cache slot and
+    // Given a buffer, return the HWC cache slot and
     // buffer to be sent to HWC.
     //
     // outBuffer is set to buffer when buffer is not in the HWC cache;
     // otherwise, outBuffer is set to nullptr.
-    void getHwcBuffer(int slot, const sp<GraphicBuffer>& buffer, uint32_t* outSlot,
+    void getHwcBuffer(const sp<GraphicBuffer>& buffer, uint32_t* outSlot,
                       sp<GraphicBuffer>* outBuffer);
 
+protected:
+    bool getSlot(const sp<GraphicBuffer>& buffer, uint32_t* outSlot);
+    uint32_t getLeastRecentlyUsedSlot();
+    uint64_t getCounter();
+
 private:
-    // a vector as we expect "slot" to be in the range of [0, 63] (that is,
-    // less than BufferQueue::NUM_BUFFER_SLOTS).
-    std::vector<sp<GraphicBuffer>> mBuffers;
+    // an array where the index corresponds to a slot and the value corresponds to a (counter,
+    // buffer) pair. "counter" is a unique value that indicates the last time this slot was updated
+    // or used and allows us to keep track of the least-recently used buffer.
+    std::pair<uint64_t, wp<GraphicBuffer>> mBuffers[BufferQueue::NUM_BUFFER_SLOTS];
+
+    // The cache increments this counter value when a slot is updated or used.
+    // Used to track the least recently-used buffer
+    uint64_t mCounter = 1;
 };
 
 } // namespace compositionengine::impl

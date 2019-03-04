@@ -111,8 +111,7 @@ status_t FramebufferSurface::nextBuffer(uint32_t& outSlot,
     BufferItem item;
     status_t err = acquireBufferLocked(&item, 0);
     if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
-        mHwcBufferCache.getHwcBuffer(mCurrentBufferSlot, mCurrentBuffer,
-                &outSlot, &outBuffer);
+        mHwcBufferCache.getHwcBuffer(mCurrentBuffer, &outSlot, &outBuffer);
         return NO_ERROR;
     } else if (err != NO_ERROR) {
         ALOGE("error acquiring buffer: %s (%d)", strerror(-err), err);
@@ -138,8 +137,7 @@ status_t FramebufferSurface::nextBuffer(uint32_t& outSlot,
     mCurrentFence = item.mFence;
 
     outFence = item.mFence;
-    mHwcBufferCache.getHwcBuffer(mCurrentBufferSlot, mCurrentBuffer,
-            &outSlot, &outBuffer);
+    mHwcBufferCache.getHwcBuffer(mCurrentBuffer, &outSlot, &outBuffer);
     outDataspace = static_cast<Dataspace>(item.mDataSpace);
     status_t result = mHwc.setClientTarget(mDisplayId, outSlot, outFence, outBuffer, outDataspace);
     if (result != NO_ERROR) {
