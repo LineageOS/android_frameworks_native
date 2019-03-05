@@ -41,10 +41,9 @@ class RefreshRateStats {
     static constexpr int64_t MS_PER_DAY = 24 * MS_PER_HOUR;
 
 public:
-    explicit RefreshRateStats(
-            const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs,
-            const std::shared_ptr<TimeStats>& timeStats)
-          : mRefreshRateConfigs(std::make_unique<RefreshRateConfigs>(configs)),
+    explicit RefreshRateStats(const std::shared_ptr<RefreshRateConfigs>& refreshRateConfigs,
+                              const std::shared_ptr<TimeStats>& timeStats)
+          : mRefreshRateConfigs(refreshRateConfigs),
             mTimeStats(timeStats),
             mPreviousRecordedTime(systemTime()) {}
     ~RefreshRateStats() = default;
@@ -84,7 +83,7 @@ public:
         flushTime();
 
         std::unordered_map<std::string, int64_t> totalTime;
-        for (auto config : mRefreshRateConfigs->getRefreshRates()) {
+        for (auto [type, config] : mRefreshRateConfigs->getRefreshRates()) {
             int64_t totalTimeForConfig = 0;
             if (mConfigModesTotalTime.find(config.configId) != mConfigModesTotalTime.end()) {
                 totalTimeForConfig = mConfigModesTotalTime.at(config.configId);
@@ -124,7 +123,7 @@ private:
         mPreviousRecordedTime = currentTime;
 
         mConfigModesTotalTime[mode] += timeElapsedMs;
-        for (const auto& config : mRefreshRateConfigs->getRefreshRates()) {
+        for (const auto& [type, config] : mRefreshRateConfigs->getRefreshRates()) {
             if (config.configId == mode) {
                 mTimeStats->recordRefreshRate(config.fps, timeElapsed);
             }
@@ -143,7 +142,7 @@ private:
     }
 
     // Keeps information about refresh rate configs that device has.
-    std::unique_ptr<RefreshRateConfigs> mRefreshRateConfigs;
+    std::shared_ptr<RefreshRateConfigs> mRefreshRateConfigs;
 
     // Aggregate refresh rate statistics for telemetry.
     std::shared_ptr<TimeStats> mTimeStats;

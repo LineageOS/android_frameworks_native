@@ -45,6 +45,7 @@ protected:
 
     std::unique_ptr<RefreshRateStats> mRefreshRateStats;
     std::shared_ptr<android::mock::TimeStats> mTimeStats;
+    std::shared_ptr<RefreshRateConfigs> mRefreshRateConfigs;
 };
 
 RefreshRateStatsTest::RefreshRateStatsTest() {
@@ -61,7 +62,8 @@ RefreshRateStatsTest::~RefreshRateStatsTest() {
 
 void RefreshRateStatsTest::init(std::vector<std::shared_ptr<const HWC2::Display::Config>> configs) {
     mTimeStats = std::make_shared<android::mock::TimeStats>();
-    mRefreshRateStats = std::make_unique<RefreshRateStats>(configs, mTimeStats);
+    mRefreshRateConfigs = std::make_shared<RefreshRateConfigs>(configs);
+    mRefreshRateStats = std::make_unique<RefreshRateStats>(mRefreshRateConfigs, mTimeStats);
 }
 
 namespace {

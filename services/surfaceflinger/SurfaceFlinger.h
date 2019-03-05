@@ -1116,6 +1116,9 @@ private:
     sp<Scheduler::ConnectionHandle> mSfConnectionHandle;
     std::unique_ptr<scheduler::RefreshRateStats> mRefreshRateStats;
 
+    std::unordered_map<DisplayId, std::shared_ptr<scheduler::RefreshRateConfigs>>
+            mRefreshRateConfigs;
+
     std::mutex mAllowedConfigsLock;
     std::unordered_map<DisplayId, std::unique_ptr<const AllowedDisplayConfigs>> mAllowedConfigs
             GUARDED_BY(mAllowedConfigsLock);
