@@ -95,6 +95,7 @@ int main(int argc, char **argv)
         strncpy(ifr.ifr_name, interface, IFNAMSIZ);
         if (ioctl(s, SIOCSIFFLAGS, &ifr)) {
             ALOGE("Cannot bring up %s: %s", interface, strerror(errno));
+            fclose(state);
             return 1;
         }
 
@@ -102,6 +103,7 @@ int main(int argc, char **argv)
         if (!set_address(&ifr.ifr_addr, address) ||
                 ioctl(s, SIOCSIFADDR, &ifr)) {
             ALOGE("Cannot set address: %s", strerror(errno));
+            fclose(state);
             return 1;
         }
 
@@ -109,6 +111,7 @@ int main(int argc, char **argv)
         if (set_address(&ifr.ifr_netmask, env("INTERNAL_NETMASK4"))) {
             if (ioctl(s, SIOCSIFNETMASK, &ifr)) {
                 ALOGE("Cannot set netmask: %s", strerror(errno));
+                fclose(state);
                 return 1;
             }
         }
@@ -123,6 +126,7 @@ int main(int argc, char **argv)
         fprintf(state, "%s\n", env("REMOTE_ADDR"));
     } else {
         ALOGE("Cannot parse parameters");
+        fclose(state);
         return 1;
     }
 
