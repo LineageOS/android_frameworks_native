@@ -750,8 +750,6 @@ protected:
     virtual bool applyPendingStates(State* stateToCommit);
     virtual uint32_t doTransactionResize(uint32_t flags, Layer::State* stateToCommit);
 
-    void clearSyncPoints();
-
     // Returns mCurrentScaling mode (originating from the
     // Client) or mOverrideScalingMode mode (originating from
     // the Surface Controller) if set.

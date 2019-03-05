@@ -22,60 +22,80 @@
 namespace android::compositionengine {
 namespace {
 
+class TestableHwcBufferCache : public impl::HwcBufferCache {
+public:
+    void getHwcBuffer(const sp<GraphicBuffer>& buffer, uint32_t* outSlot,
+                      sp<GraphicBuffer>* outBuffer) {
+        HwcBufferCache::getHwcBuffer(buffer, outSlot, outBuffer);
+    }
+    bool getSlot(const sp<GraphicBuffer>& buffer, uint32_t* outSlot) {
+        return HwcBufferCache::getSlot(buffer, outSlot);
+    }
+    uint32_t getLeastRecentlyUsedSlot() { return HwcBufferCache::getLeastRecentlyUsedSlot(); }
+};
+
 class HwcBufferCacheTest : public testing::Test {
 public:
     ~HwcBufferCacheTest() override = default;
 
-    void testSlot(const int inSlot, const uint32_t expectedSlot) {
-        uint32_t outSlot;
-        sp<GraphicBuffer> outBuffer;
-
-        // The first time, the output  is the same as the input
-        mCache.getHwcBuffer(inSlot, mBuffer1, &outSlot, &outBuffer);
-        EXPECT_EQ(expectedSlot, outSlot);
-        EXPECT_EQ(mBuffer1, outBuffer);
-
-        // The second time with the same buffer, the outBuffer is nullptr.
-        mCache.getHwcBuffer(inSlot, mBuffer1, &outSlot, &outBuffer);
-        EXPECT_EQ(expectedSlot, outSlot);
-        EXPECT_EQ(nullptr, outBuffer.get());
-
-        // With a new buffer, the outBuffer is the input.
-        mCache.getHwcBuffer(inSlot, mBuffer2, &outSlot, &outBuffer);
-        EXPECT_EQ(expectedSlot, outSlot);
-        EXPECT_EQ(mBuffer2, outBuffer);
-
-        // Again, the second request with the same buffer sets outBuffer to nullptr.
-        mCache.getHwcBuffer(inSlot, mBuffer2, &outSlot, &outBuffer);
-        EXPECT_EQ(expectedSlot, outSlot);
-        EXPECT_EQ(nullptr, outBuffer.get());
-
-        // Setting a slot to use nullptr lookslike works, but note that
-        // the output values make it look like no new buffer is being set....
-        mCache.getHwcBuffer(inSlot, sp<GraphicBuffer>(), &outSlot, &outBuffer);
-        EXPECT_EQ(expectedSlot, outSlot);
-        EXPECT_EQ(nullptr, outBuffer.get());
-    }
-
-    impl::HwcBufferCache mCache;
+    TestableHwcBufferCache mCache;
     sp<GraphicBuffer> mBuffer1{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
     sp<GraphicBuffer> mBuffer2{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
 };
 
-TEST_F(HwcBufferCacheTest, cacheWorksForSlotZero) {
-    testSlot(0, 0);
+TEST_F(HwcBufferCacheTest, testSlot) {
+    uint32_t outSlot;
+    sp<GraphicBuffer> outBuffer;
+
+    // The first time, the output  is the same as the input
+    mCache.getHwcBuffer(mBuffer1, &outSlot, &outBuffer);
+    EXPECT_EQ(0, outSlot);
+    EXPECT_EQ(mBuffer1, outBuffer);
+
+    // The second time with the same buffer, the outBuffer is nullptr.
+    mCache.getHwcBuffer(mBuffer1, &outSlot, &outBuffer);
+    EXPECT_EQ(0, outSlot);
+    EXPECT_EQ(nullptr, outBuffer.get());
+
+    // With a new buffer, the outBuffer is the input.
+    mCache.getHwcBuffer(mBuffer2, &outSlot, &outBuffer);
+    EXPECT_EQ(1, outSlot);
+    EXPECT_EQ(mBuffer2, outBuffer);
+
+    // Again, the second request with the same buffer sets outBuffer to nullptr.
+    mCache.getHwcBuffer(mBuffer2, &outSlot, &outBuffer);
+    EXPECT_EQ(1, outSlot);
+    EXPECT_EQ(nullptr, outBuffer.get());
+
+    // Setting a slot to use nullptr lookslike works, but note that
+    // the output values make it look like no new buffer is being set....
+    mCache.getHwcBuffer(sp<GraphicBuffer>(), &outSlot, &outBuffer);
+    EXPECT_EQ(2, outSlot);
+    EXPECT_EQ(nullptr, outBuffer.get());
 }
 
-TEST_F(HwcBufferCacheTest, cacheWorksForMaxSlot) {
-    testSlot(BufferQueue::NUM_BUFFER_SLOTS - 1, BufferQueue::NUM_BUFFER_SLOTS - 1);
-}
+TEST_F(HwcBufferCacheTest, testGetLeastRecentlyUsedSlot) {
+    int slot;
+    uint32_t outSlot;
+    sp<GraphicBuffer> outBuffer;
 
-TEST_F(HwcBufferCacheTest, cacheMapsNegativeSlotToZero) {
-    testSlot(-123, 0);
-}
+    // fill up cache
+    for (int i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
+        sp<GraphicBuffer> buf{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
+        mCache.getHwcBuffer(buf, &outSlot, &outBuffer);
+        EXPECT_EQ(buf, outBuffer);
+        EXPECT_EQ(i, outSlot);
+    }
 
-TEST_F(HwcBufferCacheTest, cacheMapsInvalidBufferSlotToZero) {
-    testSlot(BufferQueue::INVALID_BUFFER_SLOT, 0);
+    slot = mCache.getLeastRecentlyUsedSlot();
+    EXPECT_EQ(0, slot);
+
+    mCache.getHwcBuffer(mBuffer1, &outSlot, &outBuffer);
+    EXPECT_EQ(0, outSlot);
+    EXPECT_EQ(mBuffer1, outBuffer);
+
+    slot = mCache.getLeastRecentlyUsedSlot();
+    EXPECT_EQ(1, slot);
 }
 
 } // namespace

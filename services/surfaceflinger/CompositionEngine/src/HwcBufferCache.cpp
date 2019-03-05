@@ -21,31 +21,52 @@
 namespace android::compositionengine::impl {
 
 HwcBufferCache::HwcBufferCache() {
-    mBuffers.reserve(BufferQueue::NUM_BUFFER_SLOTS);
+    std::fill(std::begin(mBuffers), std::end(mBuffers),
+              std::pair<uint64_t, wp<GraphicBuffer>>(0, nullptr));
+}
+bool HwcBufferCache::getSlot(const sp<GraphicBuffer>& buffer, uint32_t* outSlot) {
+    // search for cached buffer first
+    for (int i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
+        // Weak pointers in the cache may have had their object destroyed.
+        // Comparisons between weak pointers will accurately reflect this case,
+        // but comparisons between weak and strong may not.  Thus, we create a weak
+        // pointer from strong pointer buffer
+        wp<GraphicBuffer> weakCopy(buffer);
+        if (mBuffers[i].second == weakCopy) {
+            *outSlot = i;
+            return true;
+        }
+    }
+
+    // use the least-recently used slot
+    *outSlot = getLeastRecentlyUsedSlot();
+    return false;
 }
 
-void HwcBufferCache::getHwcBuffer(int slot, const sp<GraphicBuffer>& buffer, uint32_t* outSlot,
+uint32_t HwcBufferCache::getLeastRecentlyUsedSlot() {
+    auto iter = std::min_element(std::begin(mBuffers), std::end(mBuffers));
+    return std::distance(std::begin(mBuffers), iter);
+}
+
+void HwcBufferCache::getHwcBuffer(const sp<GraphicBuffer>& buffer, uint32_t* outSlot,
                                   sp<GraphicBuffer>* outBuffer) {
-    if (slot == BufferQueue::INVALID_BUFFER_SLOT || slot < 0) {
-        // default to slot 0
-        slot = 0;
-    }
+    bool cached = getSlot(buffer, outSlot);
 
-    if (static_cast<size_t>(slot) >= mBuffers.size()) {
-        mBuffers.resize(slot + 1);
-    }
-
-    *outSlot = slot;
-
-    if (mBuffers[slot] == buffer) {
+    auto& [currentCounter, currentBuffer] = mBuffers[*outSlot];
+    if (cached) {
         // already cached in HWC, skip sending the buffer
         *outBuffer = nullptr;
+        currentCounter = getCounter();
     } else {
         *outBuffer = buffer;
 
         // update cache
-        mBuffers[slot] = buffer;
+        currentBuffer = buffer;
+        currentCounter = getCounter();
     }
 }
 
+uint64_t HwcBufferCache::getCounter() {
+    return mCounter++;
+}
 } // namespace android::compositionengine::impl
