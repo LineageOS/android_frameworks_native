@@ -28,6 +28,7 @@
 #include "IdleTimer.h"
 #include "InjectVSyncSource.h"
 #include "LayerHistory.h"
+#include "RefreshRateConfigs.h"
 #include "SchedulerUtils.h"
 
 namespace android {
@@ -36,9 +37,19 @@ class EventControlThread;
 
 class Scheduler {
 public:
-    using ExpiredIdleTimerCallback = std::function<void()>;
+    // Enum to keep track of whether we trigger event to notify choreographer of config changes.
+    enum class ConfigEvent { None, Changed };
+
+    // logical or operator with the semantics of at least one of the events is Changed
+    friend ConfigEvent operator|(const ConfigEvent& first, const ConfigEvent& second) {
+        if (first == ConfigEvent::Changed) return ConfigEvent::Changed;
+        if (second == ConfigEvent::Changed) return ConfigEvent::Changed;
+        return ConfigEvent::None;
+    }
+
+    using RefreshRateType = scheduler::RefreshRateConfigs::RefreshRateType;
+    using ChangeRefreshRateCallback = std::function<void(RefreshRateType, ConfigEvent)>;
     using GetVsyncPeriod = std::function<nsecs_t()>;
-    using ResetIdleTimerCallback = std::function<void()>;
 
     // Enum to indicate whether to start the transaction early, or at vsync time.
     enum class TransactionStart { EARLY, NORMAL };
@@ -135,10 +146,8 @@ public:
                                      const std::string layerName);
     // Increments counter in the layer history to indicate that SF has started a new frame.
     void incrementFrameCounter();
-    // Callback that gets invoked once the idle timer expires.
-    void setExpiredIdleTimerCallback(const ExpiredIdleTimerCallback& expiredTimerCallback);
-    // Callback that gets invoked once the idle timer is reset.
-    void setResetIdleTimerCallback(const ResetIdleTimerCallback& resetTimerCallback);
+    // Callback that gets invoked when Scheduler wants to change the refresh rate.
+    void setChangeRefreshRateCallback(const ChangeRefreshRateCallback& changeRefreshRateCallback);
     // Returns relevant information about Scheduler for dumpsys purposes.
     std::string doDump();
 
@@ -216,8 +225,7 @@ private:
     std::unique_ptr<scheduler::IdleTimer> mIdleTimer;
 
     std::mutex mCallbackLock;
-    ExpiredIdleTimerCallback mExpiredTimerCallback GUARDED_BY(mCallbackLock);
-    ExpiredIdleTimerCallback mResetTimerCallback GUARDED_BY(mCallbackLock);
+    ChangeRefreshRateCallback mChangeRefreshRateCallback GUARDED_BY(mCallbackLock);
 };
 
 } // namespace android
