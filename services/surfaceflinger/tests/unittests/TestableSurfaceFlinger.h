@@ -341,6 +341,8 @@ public:
         // still be referenced by something despite our best efforts to destroy
         // it after each test is done.
         mutableDisplays().clear();
+        mutableCurrentState().displays.clear();
+        mutableDrawingState().displays.clear();
         mutableEventQueue().reset();
         mutableInterceptor().reset();
         mutableScheduler().reset();
