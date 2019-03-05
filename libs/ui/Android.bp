@@ -45,6 +45,8 @@ cc_library_shared {
 
         // Don't warn about struct padding
         "-Wno-padded",
+
+        "-Wno-switch-enum",
     ],
 
     sanitize: {
@@ -63,6 +65,7 @@ cc_library_shared {
         "GraphicBufferMapper.cpp",
         "HdrCapabilities.cpp",
         "PixelFormat.cpp",
+        "PublicFormat.cpp",
         "Rect.cpp",
         "Region.cpp",
         "UiConfig.cpp",
