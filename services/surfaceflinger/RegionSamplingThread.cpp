@@ -101,7 +101,7 @@ struct SamplingOffsetCallback : DispSync::Callback {
 
         mPhaseIntervalSetting = Phase::ZERO;
         mScheduler.withPrimaryDispSync([this](android::DispSync& sync) {
-            sync.addEventListener("SamplingThreadDispSyncListener", 0, this);
+            sync.addEventListener("SamplingThreadDispSyncListener", 0, this, mLastCallbackTime);
         });
         mVsyncListening = true;
     }
@@ -115,8 +115,9 @@ private:
     void stopVsyncListenerLocked() /*REQUIRES(mMutex)*/ {
         if (!mVsyncListening) return;
 
-        mScheduler.withPrimaryDispSync(
-                [this](android::DispSync& sync) { sync.removeEventListener(this); });
+        mScheduler.withPrimaryDispSync([this](android::DispSync& sync) {
+            sync.removeEventListener(this, &mLastCallbackTime);
+        });
         mVsyncListening = false;
     }
 
@@ -147,6 +148,7 @@ private:
     Scheduler& mScheduler;
     const std::chrono::nanoseconds mTargetSamplingOffset;
     mutable std::mutex mMutex;
+    nsecs_t mLastCallbackTime = 0;
     enum class Phase {
         ZERO,
         SAMPLING
