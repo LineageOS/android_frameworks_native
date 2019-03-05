@@ -166,11 +166,15 @@ bool use_color_management(bool defaultValue) {
     auto tmpuseColorManagement = SurfaceFlingerProperties::use_color_management();
     auto tmpHasHDRDisplay = SurfaceFlingerProperties::has_HDR_display();
     auto tmpHasWideColorDisplay = SurfaceFlingerProperties::has_wide_color_display();
-    if (tmpuseColorManagement.has_value() && tmpHasHDRDisplay.has_value() &&
-        tmpHasWideColorDisplay.has_value()) {
-        return *tmpuseColorManagement || *tmpHasHDRDisplay || *tmpHasWideColorDisplay;
-    }
-    return defaultValue;
+
+    auto tmpuseColorManagementVal = tmpuseColorManagement.has_value() ? *tmpuseColorManagement :
+        defaultValue;
+    auto tmpHasHDRDisplayVal = tmpHasHDRDisplay.has_value() ? *tmpHasHDRDisplay :
+        defaultValue;
+    auto tmpHasWideColorDisplayVal = tmpHasWideColorDisplay.has_value() ? *tmpHasWideColorDisplay :
+        defaultValue;
+
+    return tmpuseColorManagementVal || tmpHasHDRDisplayVal || tmpHasWideColorDisplayVal;
 }
 
 int64_t default_composition_dataspace(Dataspace defaultValue) {
