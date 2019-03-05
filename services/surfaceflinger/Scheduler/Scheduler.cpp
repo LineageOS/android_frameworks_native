@@ -67,9 +67,14 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function)
     mPrimaryDispSync = std::move(primaryDispSync);
     mEventControlThread = std::make_unique<impl::EventControlThread>(function);
 
+    mSetIdleTimerMs = set_idle_timer_ms(0);
+
     char value[PROPERTY_VALUE_MAX];
     property_get("debug.sf.set_idle_timer_ms", value, "0");
-    mSetIdleTimerMs = atoi(value);
+    int int_value = atoi(value);
+    if (int_value) {
+        mSetIdleTimerMs = atoi(value);
+    }
 
     if (mSetIdleTimerMs > 0) {
         mIdleTimer =

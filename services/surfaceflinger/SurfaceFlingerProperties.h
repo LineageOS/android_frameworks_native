@@ -55,6 +55,8 @@ int64_t wcg_composition_dataspace(
 int32_t wcg_composition_pixel_format(
         android::hardware::graphics::common::V1_2::PixelFormat defaultValue);
 
+int32_t set_idle_timer_ms(int32_t defaultValue);
+
 android::ui::DisplayPrimaries getDisplayNativePrimaries();
 } // namespace sysprop
 } // namespace android
