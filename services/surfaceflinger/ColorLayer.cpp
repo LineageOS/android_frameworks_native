@@ -81,7 +81,8 @@ bool ColorLayer::setColor(const half3& color) {
 
 void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& display,
                                  const ui::Transform& transform, const Rect& viewport,
-                                 int32_t /* supportedPerFrameMetadata */) {
+                                 int32_t /* supportedPerFrameMetadata */,
+                                 const ui::Dataspace targetDataspace) {
     RETURN_IF_NO_HWC_LAYER(display);
 
     Region visible = transform.transform(visibleRegion.intersect(viewport));
@@ -101,9 +102,10 @@ void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& display,
 
     setCompositionType(display, Hwc2::IComposerClient::Composition::SOLID_COLOR);
 
-    error = hwcLayer->setDataspace(mCurrentDataSpace);
+    const ui::Dataspace dataspace = isColorSpaceAgnostic() ? targetDataspace : mCurrentDataSpace;
+    error = hwcLayer->setDataspace(dataspace);
     if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), mCurrentDataSpace,
+        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), dataspace,
               to_string(error).c_str(), static_cast<int32_t>(error));
     }
 

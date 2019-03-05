@@ -40,6 +40,6 @@ bool ContainerLayer::canReceiveInput() const {
 }
 
 void ContainerLayer::setPerFrameData(const sp<const DisplayDevice>&, const ui::Transform&,
-                                     const Rect&, int32_t) {}
+                                     const Rect&, int32_t, const ui::Dataspace) {}
 
 } // namespace android
