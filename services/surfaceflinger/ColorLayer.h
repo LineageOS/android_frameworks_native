@@ -35,8 +35,12 @@ public:
 
     bool setColor(const half3& color) override;
 
+    bool setDataspace(ui::Dataspace dataspace) override;
+
     void setPerFrameData(const sp<const DisplayDevice>& display, const ui::Transform& transform,
                          const Rect& viewport, int32_t supportedPerFrameMetadata) override;
+
+    void commitTransaction(const State& stateToCommit) override;
 
     bool onPreComposition(nsecs_t /*refreshStartTime*/) override { return false; }
 

@@ -182,6 +182,9 @@ public:
         bool inputInfoChanged;
         InputWindowInfo inputInfo;
 
+        // dataspace is only used by BufferStateLayer and ColorLayer
+        ui::Dataspace dataspace;
+
         // The fields below this point are only used by BufferStateLayer
         Geometry active;
 
@@ -193,7 +196,6 @@ public:
 
         sp<GraphicBuffer> buffer;
         sp<Fence> acquireFence;
-        ui::Dataspace dataspace;
         HdrMetadata hdrMetadata;
         Region surfaceDamageRegion;
         int32_t api;
@@ -687,7 +689,7 @@ protected:
     // For unit tests
     friend class TestableSurfaceFlinger;
 
-    void commitTransaction(const State& stateToCommit);
+    virtual void commitTransaction(const State& stateToCommit);
 
     uint32_t getEffectiveUsage(uint32_t usage) const;
 

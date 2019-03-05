@@ -79,6 +79,18 @@ bool ColorLayer::setColor(const half3& color) {
     return true;
 }
 
+bool ColorLayer::setDataspace(ui::Dataspace dataspace) {
+    if (mCurrentState.dataspace == dataspace) {
+        return false;
+    }
+
+    mCurrentState.sequence++;
+    mCurrentState.dataspace = dataspace;
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
 void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& display,
                                  const ui::Transform& transform, const Rect& viewport,
                                  int32_t /* supportedPerFrameMetadata */) {
@@ -144,6 +156,11 @@ void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& display,
         surfaceDamageRegion.dump(LOG_TAG);
     }
     layerCompositionState.surfaceDamage = surfaceDamageRegion;
+}
+
+void ColorLayer::commitTransaction(const State& stateToCommit) {
+    Layer::commitTransaction(stateToCommit);
+    mCurrentDataSpace = mDrawingState.dataspace;
 }
 
 std::shared_ptr<compositionengine::Layer> ColorLayer::getCompositionLayer() const {
