@@ -571,11 +571,11 @@ void SurfaceFlinger::bootFinished()
         if (mUse90Hz) {
             mPhaseOffsets->setRefreshRateType(
                     scheduler::RefreshRateConfigs::RefreshRateType::PERFORMANCE);
-            setRefreshRateTo(RefreshRateType::PERFORMANCE, ConfigEvent::None);
+            setRefreshRateTo(RefreshRateType::PERFORMANCE, Scheduler::ConfigEvent::None);
         } else {
             mPhaseOffsets->setRefreshRateType(
                     scheduler::RefreshRateConfigs::RefreshRateType::DEFAULT);
-            setRefreshRateTo(RefreshRateType::DEFAULT, ConfigEvent::None);
+            setRefreshRateTo(RefreshRateType::DEFAULT, Scheduler::ConfigEvent::None);
         }
     }));
 }
@@ -700,14 +700,11 @@ void SurfaceFlinger::init() {
     }
 
     if (mUse90Hz) {
-        mScheduler->setExpiredIdleTimerCallback([this] {
-            Mutex::Autolock lock(mStateLock);
-            setRefreshRateTo(RefreshRateType::DEFAULT, ConfigEvent::None);
-        });
-        mScheduler->setResetIdleTimerCallback([this] {
-            Mutex::Autolock lock(mStateLock);
-            setRefreshRateTo(RefreshRateType::PERFORMANCE, ConfigEvent::None);
-        });
+        mScheduler->setChangeRefreshRateCallback(
+                [this](RefreshRateType type, Scheduler::ConfigEvent event) {
+                    Mutex::Autolock lock(mStateLock);
+                    setRefreshRateTo(type, event);
+                });
     }
     mRefreshRateConfigs[*display->getId()] = std::make_shared<scheduler::RefreshRateConfigs>(
             getHwComposer().getConfigs(*display->getId()));
@@ -917,7 +914,7 @@ int SurfaceFlinger::getActiveConfig(const sp<IBinder>& displayToken) {
 }
 
 void SurfaceFlinger::setDesiredActiveConfig(const sp<IBinder>& displayToken, int mode,
-                                            ConfigEvent event) {
+                                            Scheduler::ConfigEvent event) {
     ATRACE_CALL();
 
     // Lock is acquired by setRefreshRateTo.
@@ -941,7 +938,7 @@ void SurfaceFlinger::setDesiredActiveConfig(const sp<IBinder>& displayToken, int
     // config twice. However event generation config might have changed so we need to update it
     // accordingly
     std::lock_guard<std::mutex> lock(mActiveConfigLock);
-    const ConfigEvent desiredConfig = mDesiredActiveConfig.event | event;
+    const Scheduler::ConfigEvent desiredConfig = mDesiredActiveConfig.event | event;
     mDesiredActiveConfig = ActiveConfigInfo{mode, displayToken, desiredConfig};
 
     if (!mDesiredActiveConfigChanged) {
@@ -975,7 +972,7 @@ void SurfaceFlinger::setActiveConfigInternal() {
 
     mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
     ATRACE_INT("ActiveConfigMode", mUpcomingActiveConfig.configId);
-    if (mUpcomingActiveConfig.event != ConfigEvent::None) {
+    if (mUpcomingActiveConfig.event != Scheduler::ConfigEvent::None) {
         mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value,
                                     mUpcomingActiveConfig.configId);
     }
@@ -1416,9 +1413,8 @@ bool SurfaceFlinger::isConfigAllowed(const DisplayId& displayId, int32_t config)
     return mAllowedConfigs[displayId]->isConfigAllowed(config);
 }
 
-void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate, ConfigEvent event) {
+void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate, Scheduler::ConfigEvent event) {
     ATRACE_CALL();
-
     mPhaseOffsets->setRefreshRateType(refreshRate);
 
     const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
@@ -5656,7 +5652,8 @@ void SurfaceFlinger::setAllowedDisplayConfigsInternal(
                 // we may want to enhance this logic to pick a similar config
                 // to the current one
                 ALOGV("Old config is not allowed - switching to config %d", config.configId);
-                setDesiredActiveConfig(displayToken, config.configId, ConfigEvent::Changed);
+                setDesiredActiveConfig(displayToken, config.configId,
+                                       Scheduler::ConfigEvent::Changed);
                 break;
             }
         }
