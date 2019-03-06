@@ -180,6 +180,8 @@ private:
     // main thread.
     bool mBufferLatched{false}; // TODO: Use mActiveBuffer?
 
+    // BufferStateLayers can return Rect::INVALID_RECT if the layer does not have a display frame
+    // and its parent layer is not bounded
     Rect getBufferSize(const State& s) const override;
 
     std::shared_ptr<compositionengine::Layer> mCompositionLayer;

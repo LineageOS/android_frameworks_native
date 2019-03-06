@@ -285,6 +285,14 @@ ui::Transform Layer::getTransformWithScale() const {
         return mEffectiveTransform;
     }
 
+    // If the layer is a buffer state layer, the active width and height
+    // could be infinite. In that case, return the effective transform.
+    const uint32_t activeWidth = getActiveWidth(getDrawingState());
+    const uint32_t activeHeight = getActiveHeight(getDrawingState());
+    if (activeWidth >= UINT32_MAX && activeHeight >= UINT32_MAX) {
+        return mEffectiveTransform;
+    }
+
     int bufferWidth;
     int bufferHeight;
     if ((mCurrentTransform & NATIVE_WINDOW_TRANSFORM_ROT_90) == 0) {
@@ -294,8 +302,9 @@ ui::Transform Layer::getTransformWithScale() const {
         bufferHeight = mActiveBuffer->getWidth();
         bufferWidth = mActiveBuffer->getHeight();
     }
-    float sx = getActiveWidth(getDrawingState()) / static_cast<float>(bufferWidth);
-    float sy = getActiveHeight(getDrawingState()) / static_cast<float>(bufferHeight);
+    float sx = activeWidth / static_cast<float>(bufferWidth);
+    float sy = activeHeight / static_cast<float>(bufferHeight);
+
     ui::Transform extraParentScaling;
     extraParentScaling.set(sx, 0, 0, sy);
     return mEffectiveTransform * extraParentScaling;
@@ -399,6 +408,15 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& display) const {
     Rect activeCrop = computeInitialCrop(display);
     Rect bufferSize = getBufferSize(s);
 
+    int32_t winWidth = bufferSize.getWidth();
+    int32_t winHeight = bufferSize.getHeight();
+
+    // The bufferSize for buffer state layers can be unbounded ([0, 0, -1, -1]) if display frame
+    // hasn't been set and the parent is an unbounded layer.
+    if (winWidth < 0 && winHeight < 0) {
+        return crop;
+    }
+
     // Transform the window crop to match the buffer coordinate system,
     // which means using the inverse of the current transform set on the
     // SurfaceFlingerConsumer.
@@ -418,8 +436,6 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& display) const {
                         ui::Transform(invTransform)).getOrientation();
     }
 
-    int winWidth = bufferSize.getWidth();
-    int winHeight = bufferSize.getHeight();
     if (invTransform & NATIVE_WINDOW_TRANSFORM_ROT_90) {
         // If the activeCrop has been rotate the ends are rotated but not
         // the space itself so when transforming ends back we can't rely on
