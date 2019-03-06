@@ -69,21 +69,19 @@ static void failWithMessage(std::string message) {
 }
 
 struct Position {
-      nsecs_t time;
-      float x;
-      float y;
+    nsecs_t time;
+    float x;
+    float y;
 };
 
-
-static std::unique_ptr<MotionEvent> createSimpleMotionEvent(const Position* positions,
-        size_t numSamples) {
+static std::unique_ptr<MotionEvent> createSimpleMotionEvent(
+        const std::vector<Position>& positions) {
     /**
      * Only populate the basic fields of a MotionEvent, such as time and a single axis
      * Designed for use with manually-defined tests.
      */
-    if (numSamples < 1) {
-        failWithMessage(StringPrintf("Need at least 1 sample to create a MotionEvent."
-                " Received numSamples=%zu", numSamples));
+    if (positions.empty()) {
+        failWithMessage("Need at least 1 sample to create a MotionEvent. Received empty vector.");
     }
 
     std::unique_ptr<MotionEvent> event = std::make_unique<MotionEvent>();
@@ -102,7 +100,7 @@ static std::unique_ptr<MotionEvent> createSimpleMotionEvent(const Position* posi
     event->initialize(0 /*deviceId*/, AINPUT_SOURCE_TOUCHSCREEN, AMOTION_EVENT_ACTION_MOVE,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, positions[0].time, pointerCount, properties, coords);
 
-    for (size_t i = 1; i < numSamples; i++) {
+    for (size_t i = 1; i < positions.size(); i++) {
         coords[0].setAxisValue(AMOTION_EVENT_AXIS_X, positions[i].x);
         coords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, positions[i].y);
         event->addSample(positions[i].time, coords);
@@ -110,12 +108,12 @@ static std::unique_ptr<MotionEvent> createSimpleMotionEvent(const Position* posi
     return event;
 }
 
-static void computeAndCheckVelocity(const Position* positions, size_t numSamples,
+static void computeAndCheckVelocity(const std::vector<Position>& positions,
             int32_t axis, float targetVelocity) {
     VelocityTracker vt(nullptr);
     float Vx, Vy;
 
-    std::unique_ptr<MotionEvent> event = createSimpleMotionEvent(positions, numSamples);
+    std::unique_ptr<MotionEvent> event = createSimpleMotionEvent(positions);
     vt.addMovement(event.get());
 
     vt.getVelocity(DEFAULT_POINTER_ID, &Vx, &Vy);
@@ -132,10 +130,10 @@ static void computeAndCheckVelocity(const Position* positions, size_t numSamples
     }
 }
 
-static void computeAndCheckQuadraticEstimate(const Position* positions, size_t numSamples,
+static void computeAndCheckQuadraticEstimate(const std::vector<Position>& positions,
         const std::array<float, 3>& coefficients) {
     VelocityTracker vt("lsq2");
-    std::unique_ptr<MotionEvent> event = createSimpleMotionEvent(positions, numSamples);
+    std::unique_ptr<MotionEvent> event = createSimpleMotionEvent(positions);
     vt.addMovement(event.get());
     VelocityTracker::Estimator estimator;
     EXPECT_TRUE(vt.getEstimator(0, &estimator));
@@ -153,35 +151,32 @@ TEST_F(VelocityTrackerTest, DISABLED_ThreePointsPositiveVelocityTest) {
     // Same coordinate is reported 2 times in a row
     // It is difficult to determine the correct answer here, but at least the direction
     // of the reported velocity should be positive.
-    Position values[] = {
+    std::vector<Position> values = {
         { 0, 273, NAN },
         { 12585000, 293, NAN },
         { 14730000, 293, NAN },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, 1600);
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, 1600);
 }
 
 TEST_F(VelocityTrackerTest, ThreePointsZeroVelocityTest) {
     // Same coordinate is reported 3 times in a row
-    Position values[] = {
+    std::vector<Position> values = {
         { 0, 293, NAN },
         { 6132000, 293, NAN },
         { 11283000, 293, NAN },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, 0);
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, 0);
 }
 
 TEST_F(VelocityTrackerTest, ThreePointsLinearVelocityTest) {
     // Fixed velocity at 5 points per 10 milliseconds
-    Position values[] = {
+    std::vector<Position> values = {
         { 0, 0, NAN },
         { 10000000, 5, NAN },
         { 20000000, 10, NAN },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, 500);
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, 500);
 }
 
 
@@ -199,7 +194,7 @@ TEST_F(VelocityTrackerTest, ThreePointsLinearVelocityTest) {
 // @todo Currently disabled, enable when switching away from lsq2 VelocityTrackerStrategy
 TEST_F(VelocityTrackerTest, DISABLED_SwordfishFlingDown) {
     // Recording of a fling on Swordfish that could cause a fling in the wrong direction
-    Position values[] = {
+    std::vector<Position> values = {
         { 0, 271, 96 },
         { 16071042, 269.786346, 106.922775 },
         { 35648403, 267.983063, 156.660034 },
@@ -208,9 +203,8 @@ TEST_F(VelocityTrackerTest, DISABLED_SwordfishFlingDown) {
         { 85639375, 274.79245, 428.113159 },
         { 96948871, 274.79245, 428.113159 },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, 623.577637);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, 8523.348633);
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, 623.577637);
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, 8523.348633);
 }
 
 // --------------- Recorded by hand on sailfish, generated by a script -----------------------------
@@ -232,7 +226,7 @@ TEST_F(VelocityTrackerTest, DISABLED_SwordfishFlingDown) {
 
 TEST_F(VelocityTrackerTest, SailfishFlingUpSlow1) {
     // Sailfish - fling up - slow - 1
-    Position values[] = {
+    std::vector<Position> values = {
         { 235089067457000, 528.00, 983.00 },
         { 235089084684000, 527.00, 981.00 },
         { 235089093349000, 527.00, 977.00 },
@@ -250,17 +244,16 @@ TEST_F(VelocityTrackerTest, SailfishFlingUpSlow1) {
         { 235089160784000, 559.00, 851.00 },
         { 235089162955851, 560.66, 843.82 },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, 872.794617); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, 951.698181); // lsq2
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, -3604.819336); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, -3044.966064); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, 872.794617); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, 951.698181); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, -3604.819336); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, -3044.966064); // lsq2
 }
 
 
 TEST_F(VelocityTrackerTest, SailfishFlingUpSlow2) {
     // Sailfish - fling up - slow - 2
-    Position values[] = {
+    std::vector<Position> values = {
         { 235110560704000, 522.00, 1107.00 },
         { 235110575764000, 522.00, 1107.00 },
         { 235110584385000, 522.00, 1107.00 },
@@ -279,15 +272,14 @@ TEST_F(VelocityTrackerTest, SailfishFlingUpSlow2) {
         { 235110655089581, 525.54, 1000.19 },
         { 235110660368000, 530.00, 980.00 },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, -4096.583008); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, -3455.094238); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, -4096.583008); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, -3455.094238); // lsq2
 }
 
 
 TEST_F(VelocityTrackerTest, SailfishFlingUpSlow3) {
     // Sailfish - fling up - slow - 3
-    Position values[] = {
+    std::vector<Position> values = {
         { 792536237000, 580.00, 1317.00 },
         { 792541538987, 580.63, 1311.94 },
         { 792544613000, 581.00, 1309.00 },
@@ -307,17 +299,16 @@ TEST_F(VelocityTrackerTest, SailfishFlingUpSlow3) {
         { 792625653873, 617.32, 1121.73 },
         { 792629200000, 619.00, 1115.00 },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, 574.33429); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, 617.40564); // lsq2
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, -2361.982666); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, -2500.055664); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, 574.33429); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, 617.40564); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, -2361.982666); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, -2500.055664); // lsq2
 }
 
 
 TEST_F(VelocityTrackerTest, SailfishFlingUpFaster1) {
     // Sailfish - fling up - faster - 1
-    Position values[] = {
+    std::vector<Position> values = {
         { 235160420675000, 610.00, 1042.00 },
         { 235160428220000, 609.00, 1026.00 },
         { 235160436544000, 609.00, 1024.00 },
@@ -337,17 +328,16 @@ TEST_F(VelocityTrackerTest, SailfishFlingUpFaster1) {
         { 235160512603000, 670.00, 837.00 },
         { 235160520366000, 679.00, 814.00 },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, 1274.141724); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, 1438.53186); // lsq2
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, -3877.35498); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, -3695.859619); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, 1274.141724); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, 1438.53186); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, -3877.35498); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, -3695.859619); // lsq2
 }
 
 
 TEST_F(VelocityTrackerTest, SailfishFlingUpFaster2) {
     // Sailfish - fling up - faster - 2
-    Position values[] = {
+    std::vector<Position> values = {
         { 847153808000, 576.00, 1264.00 },
         { 847171174000, 576.00, 1262.00 },
         { 847179640000, 576.00, 1257.00 },
@@ -363,15 +353,14 @@ TEST_F(VelocityTrackerTest, SailfishFlingUpFaster2) {
         { 847235701400, 607.56, 1103.83 },
         { 847237986000, 610.00, 1095.00 },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, -4280.07959); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, -4241.004395); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, -4280.07959); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, -4241.004395); // lsq2
 }
 
 
 TEST_F(VelocityTrackerTest, SailfishFlingUpFaster3) {
     // Sailfish - fling up - faster - 3
-    Position values[] = {
+    std::vector<Position> values = {
         { 235200532789000, 507.00, 1084.00 },
         { 235200549221000, 507.00, 1083.00 },
         { 235200557841000, 507.00, 1081.00 },
@@ -387,15 +376,14 @@ TEST_F(VelocityTrackerTest, SailfishFlingUpFaster3) {
         { 235200608527086, 563.02, 910.94 },
         { 235200616933000, 590.00, 844.00 },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, -8715.686523); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, -7639.026367); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, -8715.686523); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, -7639.026367); // lsq2
 }
 
 
 TEST_F(VelocityTrackerTest, SailfishFlingUpFast1) {
     // Sailfish - fling up - fast - 1
-    Position values[] = {
+    std::vector<Position> values = {
         { 920922149000, 561.00, 1412.00 },
         { 920930185000, 559.00, 1377.00 },
         { 920930262463, 558.98, 1376.66 },
@@ -410,17 +398,16 @@ TEST_F(VelocityTrackerTest, SailfishFlingUpFast1) {
         { 920980906000, 672.00, 993.00 },
         { 920989261000, 715.00, 903.00 },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, 5670.329102); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, 5991.866699); // lsq2
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, -13021.101562); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, -15093.995117); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, 5670.329102); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, 5991.866699); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, -13021.101562); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, -15093.995117); // lsq2
 }
 
 
 TEST_F(VelocityTrackerTest, SailfishFlingUpFast2) {
     // Sailfish - fling up - fast - 2
-    Position values[] = {
+    std::vector<Position> values = {
         { 235247153233000, 518.00, 1168.00 },
         { 235247170452000, 517.00, 1167.00 },
         { 235247178908000, 515.00, 1159.00 },
@@ -433,15 +420,14 @@ TEST_F(VelocityTrackerTest, SailfishFlingUpFast2) {
         { 235247213222491, 574.72, 778.45 },
         { 235247220736000, 620.00, 641.00 },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, -20286.958984); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, -20494.587891); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, -20286.958984); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, -20494.587891); // lsq2
 }
 
 
 TEST_F(VelocityTrackerTest, SailfishFlingUpFast3) {
     // Sailfish - fling up - fast - 3
-    Position values[] = {
+    std::vector<Position> values = {
         { 235302568736000, 529.00, 1167.00 },
         { 235302576644000, 523.00, 1140.00 },
         { 235302579395063, 520.91, 1130.61 },
@@ -452,15 +438,14 @@ TEST_F(VelocityTrackerTest, SailfishFlingUpFast3) {
         { 235302610545000, 652.00, 605.00 },
         { 235302613019881, 679.26, 526.73 },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, -39295.941406); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, -36461.421875); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, -39295.941406); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, -36461.421875); // lsq2
 }
 
 
 TEST_F(VelocityTrackerTest, SailfishFlingDownSlow1) {
     // Sailfish - fling down - slow - 1
-    Position values[] = {
+    std::vector<Position> values = {
         { 235655749552755, 582.00, 432.49 },
         { 235655750638000, 582.00, 433.00 },
         { 235655758865000, 582.00, 440.00 },
@@ -480,17 +465,16 @@ TEST_F(VelocityTrackerTest, SailfishFlingDownSlow1) {
         { 235655834541000, 566.00, 623.00 },
         { 235655842893000, 563.00, 649.00 },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, -419.749695); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, -398.303894); // lsq2
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, 3309.016357); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, 3969.099854); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, -419.749695); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, -398.303894); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, 3309.016357); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, 3969.099854); // lsq2
 }
 
 
 TEST_F(VelocityTrackerTest, SailfishFlingDownSlow2) {
     // Sailfish - fling down - slow - 2
-    Position values[] = {
+    std::vector<Position> values = {
         { 235671152083370, 485.24, 558.28 },
         { 235671154126000, 485.00, 559.00 },
         { 235671162497000, 484.00, 566.00 },
@@ -510,17 +494,16 @@ TEST_F(VelocityTrackerTest, SailfishFlingDownSlow2) {
         { 235671238098000, 472.00, 765.00 },
         { 235671246532000, 470.00, 799.00 },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, -262.80426); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, -243.665344); // lsq2
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, 4215.682129); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, 4587.986816); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, -262.80426); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, -243.665344); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, 4215.682129); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, 4587.986816); // lsq2
 }
 
 
 TEST_F(VelocityTrackerTest, SailfishFlingDownSlow3) {
     // Sailfish - fling down - slow - 3
-    Position values[] = {
+    std::vector<Position> values = {
         { 170983201000, 557.00, 533.00 },
         { 171000668000, 556.00, 534.00 },
         { 171007359750, 554.73, 535.27 },
@@ -533,17 +516,16 @@ TEST_F(VelocityTrackerTest, SailfishFlingDownSlow3) {
         { 171043147000, 541.00, 571.00 },
         { 171051052000, 536.00, 586.00 },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, -723.413513); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, -651.038452); // lsq2
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, 2091.502441); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, 1934.517456); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, -723.413513); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, -651.038452); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, 2091.502441); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, 1934.517456); // lsq2
 }
 
 
 TEST_F(VelocityTrackerTest, SailfishFlingDownFaster1) {
     // Sailfish - fling down - faster - 1
-    Position values[] = {
+    std::vector<Position> values = {
         { 235695280333000, 558.00, 451.00 },
         { 235695283971237, 558.43, 454.45 },
         { 235695289038000, 559.00, 462.00 },
@@ -563,15 +545,14 @@ TEST_F(VelocityTrackerTest, SailfishFlingDownFaster1) {
         { 235695368118682, 562.24, 722.52 },
         { 235695373403000, 564.00, 744.00 },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, 4254.639648); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, 4698.415039); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, 4254.639648); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, 4698.415039); // lsq2
 }
 
 
 TEST_F(VelocityTrackerTest, SailfishFlingDownFaster2) {
     // Sailfish - fling down - faster - 2
-    Position values[] = {
+    std::vector<Position> values = {
         { 235709624766000, 535.00, 579.00 },
         { 235709642256000, 534.00, 580.00 },
         { 235709643350278, 533.94, 580.06 },
@@ -588,17 +569,16 @@ TEST_F(VelocityTrackerTest, SailfishFlingDownFaster2) {
         { 235709709830000, 512.00, 739.00 },
         { 235709710626776, 511.72, 741.85 },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, -430.440247); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, -447.600311); // lsq2
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, 3953.859375); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, 4316.155273); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, -430.440247); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, -447.600311); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, 3953.859375); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, 4316.155273); // lsq2
 }
 
 
 TEST_F(VelocityTrackerTest, SailfishFlingDownFaster3) {
     // Sailfish - fling down - faster - 3
-    Position values[] = {
+    std::vector<Position> values = {
         { 235727628927000, 540.00, 440.00 },
         { 235727636810000, 537.00, 454.00 },
         { 235727646176000, 536.00, 454.00 },
@@ -617,15 +597,14 @@ TEST_F(VelocityTrackerTest, SailfishFlingDownFaster3) {
         { 235727720880776, 516.33, 655.36 },
         { 235727721580000, 516.00, 658.00 },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, 4484.617676); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, 4927.92627); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, 4484.617676); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, 4927.92627); // lsq2
 }
 
 
 TEST_F(VelocityTrackerTest, SailfishFlingDownFast1) {
     // Sailfish - fling down - fast - 1
-    Position values[] = {
+    std::vector<Position> values = {
         { 235762352849000, 467.00, 286.00 },
         { 235762360250000, 443.00, 344.00 },
         { 235762362787412, 434.77, 363.89 },
@@ -636,15 +615,14 @@ TEST_F(VelocityTrackerTest, SailfishFlingDownFast1) {
         { 235762394133000, 406.00, 648.00 },
         { 235762396429369, 404.37, 680.67 },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, 19084.931641); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, 16064.685547); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, 19084.931641); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, 16064.685547); // lsq2
 }
 
 
 TEST_F(VelocityTrackerTest, SailfishFlingDownFast2) {
     // Sailfish - fling down - fast - 2
-    Position values[] = {
+    std::vector<Position> values = {
         { 235772487188000, 576.00, 204.00 },
         { 235772495159000, 553.00, 236.00 },
         { 235772503568000, 551.00, 240.00 },
@@ -655,15 +633,14 @@ TEST_F(VelocityTrackerTest, SailfishFlingDownFast2) {
         { 235772529174000, 498.00, 451.00 },
         { 235772537635000, 484.00, 589.00 },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, 18660.048828); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, 16918.439453); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, 18660.048828); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, 16918.439453); // lsq2
 }
 
 
 TEST_F(VelocityTrackerTest, SailfishFlingDownFast3) {
     // Sailfish - fling down - fast - 3
-    Position values[] = {
+    std::vector<Position> values = {
         { 507650295000, 628.00, 233.00 },
         { 507658234000, 605.00, 269.00 },
         { 507666784000, 601.00, 274.00 },
@@ -675,11 +652,10 @@ TEST_F(VelocityTrackerTest, SailfishFlingDownFast3) {
         { 507700707000, 454.00, 792.00 },
         { 507703352649, 443.71, 857.77 },
     };
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, -6772.508301); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_X, -6388.48877); // lsq2
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, 29765.908203); // impulse
-    computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, 28354.796875); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, -6772.508301); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_X, -6388.48877); // lsq2
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, 29765.908203); // impulse
+    computeAndCheckVelocity(values, AMOTION_EVENT_AXIS_Y, 28354.796875); // lsq2
 }
 
 /*
@@ -706,7 +682,7 @@ TEST_F(VelocityTrackerTest, SailfishFlingDownFast3) {
  * In the test, we would convert these coefficients to (0*(1E3)^0, 0*(1E3)^1, 1*(1E3)^2).
  */
 TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Constant) {
-    Position values[] = {
+    std::vector<Position> values = {
         { 0000000, 1, 1 }, // 0 s
         { 1000000, 1, 1 }, // 0.001 s
         { 2000000, 1, 1 }, // 0.002 s
@@ -716,15 +692,14 @@ TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Constan
     // -0.002, 1
     // -0.001, 1
     // -0.000, 1
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckQuadraticEstimate(values, count, std::array<float, 3>({1, 0, 0}));
+    computeAndCheckQuadraticEstimate(values, std::array<float, 3>({1, 0, 0}));
 }
 
 /*
  * Straight line y = x :: the constant and quadratic coefficients are zero.
  */
 TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Linear) {
-    Position values[] = {
+    std::vector<Position> values = {
         { 0000000, -2, -2 },
         { 1000000, -1, -1 },
         { 2000000, -0, -0 },
@@ -734,15 +709,14 @@ TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Linear)
     // -0.002, -2
     // -0.001, -1
     // -0.000,  0
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckQuadraticEstimate(values, count, std::array<float, 3>({0, 1E3, 0}));
+    computeAndCheckQuadraticEstimate(values, std::array<float, 3>({0, 1E3, 0}));
 }
 
 /*
  * Parabola
  */
 TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Parabolic) {
-    Position values[] = {
+    std::vector<Position> values = {
         { 0000000, 1, 1 },
         { 1000000, 4, 4 },
         { 2000000, 8, 8 },
@@ -752,15 +726,14 @@ TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Parabol
     // -0.002, 1
     // -0.001, 4
     // -0.000, 8
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckQuadraticEstimate(values, count, std::array<float, 3>({8, 4.5E3, 0.5E6}));
+    computeAndCheckQuadraticEstimate(values, std::array<float, 3>({8, 4.5E3, 0.5E6}));
 }
 
 /*
  * Parabola
  */
 TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Parabolic2) {
-    Position values[] = {
+    std::vector<Position> values = {
         { 0000000, 1, 1 },
         { 1000000, 4, 4 },
         { 2000000, 9, 9 },
@@ -770,15 +743,14 @@ TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Parabol
     // -0.002, 1
     // -0.001, 4
     // -0.000, 9
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckQuadraticEstimate(values, count, std::array<float, 3>({9, 6E3, 1E6}));
+    computeAndCheckQuadraticEstimate(values, std::array<float, 3>({9, 6E3, 1E6}));
 }
 
 /*
  * Parabola :: y = x^2 :: the constant and linear coefficients are zero.
  */
 TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Parabolic3) {
-    Position values[] = {
+    std::vector<Position> values = {
         { 0000000, 4, 4 },
         { 1000000, 1, 1 },
         { 2000000, 0, 0 },
@@ -788,8 +760,7 @@ TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Parabol
     // -0.002, 4
     // -0.001, 1
     // -0.000, 0
-    size_t count = sizeof(values) / sizeof(Position);
-    computeAndCheckQuadraticEstimate(values, count, std::array<float, 3>({0, 0E3, 1E6}));
+    computeAndCheckQuadraticEstimate(values, std::array<float, 3>({0, 0E3, 1E6}));
 }
 
 } // namespace android
