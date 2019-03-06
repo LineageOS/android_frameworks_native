@@ -44,15 +44,18 @@ public:
     // Pull gpu app stats
     void pullAppStats(std::vector<GpuStatsAppInfo>* outStats);
 
+    // This limits the worst case number of loading times tracked.
+    static const size_t MAX_NUM_LOADING_TIMES = 50;
+
 private:
     // Dump global stats
     void dumpGlobalLocked(std::string* result);
     // Dump app stats
     void dumpAppLocked(std::string* result);
 
-    // This limits the memory usage of GpuStats to be less than 30KB. This is
-    // the maximum atom size statsd could afford.
-    static const size_t MAX_NUM_APP_RECORDS = 300;
+    // Below limits the memory usage of GpuStats to be less than 10KB. This is
+    // the preferred number for statsd while maintaining nice data quality.
+    static const size_t MAX_NUM_APP_RECORDS = 100;
     // GpuStats access should be guarded by mLock.
     std::mutex mLock;
     // Key is driver version code.

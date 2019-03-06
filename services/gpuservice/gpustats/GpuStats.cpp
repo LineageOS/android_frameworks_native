@@ -53,10 +53,12 @@ static void addLoadingTime(GraphicsEnv::Driver driver, int64_t driverLoadingTime
     switch (driver) {
         case GraphicsEnv::Driver::GL:
         case GraphicsEnv::Driver::GL_UPDATED:
+            if (outAppInfo->glDriverLoadingTime.size() >= GpuStats::MAX_NUM_LOADING_TIMES) break;
             outAppInfo->glDriverLoadingTime.emplace_back(driverLoadingTime);
             break;
         case GraphicsEnv::Driver::VULKAN:
         case GraphicsEnv::Driver::VULKAN_UPDATED:
+            if (outAppInfo->vkDriverLoadingTime.size() >= GpuStats::MAX_NUM_LOADING_TIMES) break;
             outAppInfo->vkDriverLoadingTime.emplace_back(driverLoadingTime);
             break;
         default:
