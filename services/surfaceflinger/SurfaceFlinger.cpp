@@ -370,9 +370,6 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
     auto listSize = property_get_int32("debug.sf.max_igbp_list_size", int32_t(defaultListSize));
     mMaxGraphicBufferProducerListSize = (listSize > 0) ? size_t(listSize) : defaultListSize;
 
-    property_get("debug.sf.use_90Hz", value, "0");
-    mUse90Hz = atoi(value);
-
     property_get("debug.sf.use_smart_90_for_video", value, "0");
     mUseSmart90ForVideo = atoi(value);
 
@@ -563,12 +560,14 @@ void SurfaceFlinger::bootFinished()
         readPersistentProperties();
         mBootStage = BootStage::FINISHED;
 
-        // TODO(b/122905403): Once the display policy is completely integrated, this flag should go
-        // away and it should be controlled by flipping the switch in setting. The switch in
-        // settings should only be available to P19 devices, if they are opted into 90Hz fishfood.
-        // The boot must be complete before we can set the active config.
+        // set the refresh rate according to the policy
+        const auto displayId = getInternalDisplayIdLocked();
+        LOG_ALWAYS_FATAL_IF(!displayId);
 
-        if (mUse90Hz) {
+        const auto performanceRefreshRate =
+                mRefreshRateConfigs[*displayId]->getRefreshRate(RefreshRateType::PERFORMANCE);
+
+        if (isConfigAllowed(*displayId, performanceRefreshRate.configId)) {
             mPhaseOffsets->setRefreshRateType(
                     scheduler::RefreshRateConfigs::RefreshRateType::PERFORMANCE);
             setRefreshRateTo(RefreshRateType::PERFORMANCE, Scheduler::ConfigEvent::None);
@@ -699,7 +698,7 @@ void SurfaceFlinger::init() {
         ALOGE("Run StartPropertySetThread failed!");
     }
 
-    if (mUse90Hz) {
+    if (mScheduler->isIdleTimerEnabled()) {
         mScheduler->setChangeRefreshRateCallback(
                 [this](RefreshRateType type, Scheduler::ConfigEvent event) {
                     Mutex::Autolock lock(mStateLock);
@@ -1588,7 +1587,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
                 break;
             }
 
-            if (mUse90Hz && mUseSmart90ForVideo) {
+            if (mUseSmart90ForVideo) {
                 // This call is made each time SF wakes up and creates a new frame. It is part
                 // of video detection feature.
                 mScheduler->incrementFrameCounter();
@@ -4391,7 +4390,7 @@ void SurfaceFlinger::dumpVSync(std::string& result) const {
                   "    present offset: %9" PRId64 " ns\t     VSYNC period: %9" PRId64 " ns\n\n",
                   dispSyncPresentTimeOffset, getVsyncPeriod());
 
-    StringAppendF(&result, "Scheduler enabled. 90Hz feature: %s\n", mUse90Hz ? "on" : "off");
+    StringAppendF(&result, "Scheduler enabled.");
     StringAppendF(&result, "+  Smart 90 for video detection: %s\n\n",
                   mUseSmart90ForVideo ? "on" : "off");
     mScheduler->dump(mAppConnectionHandle, result);
@@ -5656,6 +5655,18 @@ void SurfaceFlinger::setAllowedDisplayConfigsInternal(
                                        Scheduler::ConfigEvent::Changed);
                 break;
             }
+        }
+    }
+
+    // If idle timer and fps detection are disabled and we are in RefreshRateType::DEFAULT,
+    // there is no trigger to move to RefreshRateType::PERFORMANCE, even if it is an allowed.
+    if (!mScheduler->isIdleTimerEnabled() && !mUseSmart90ForVideo) {
+        const auto performanceRefreshRate =
+                mRefreshRateConfigs[*displayId]->getRefreshRate(RefreshRateType::PERFORMANCE);
+        if (isConfigAllowed(*displayId, performanceRefreshRate.configId)) {
+            mPhaseOffsets->setRefreshRateType(
+                    scheduler::RefreshRateConfigs::RefreshRateType::PERFORMANCE);
+            setRefreshRateTo(RefreshRateType::PERFORMANCE, Scheduler::ConfigEvent::Changed);
         }
     }
 }
