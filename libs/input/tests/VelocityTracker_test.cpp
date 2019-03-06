@@ -64,7 +64,7 @@ static void checkCoefficient(float actual, float target) {
     EXPECT_NEAR_BY_FRACTION(actual, target, COEFFICIENT_TOLERANCE);
 }
 
-void failWithMessage(std::string message) {
+static void failWithMessage(std::string message) {
     FAIL() << message; // cannot do this directly from a non-void function
 }
 
@@ -75,36 +75,37 @@ struct Position {
 };
 
 
-MotionEvent* createSimpleMotionEvent(const Position* positions, size_t numSamples) {
+static std::unique_ptr<MotionEvent> createSimpleMotionEvent(const Position* positions,
+        size_t numSamples) {
     /**
      * Only populate the basic fields of a MotionEvent, such as time and a single axis
      * Designed for use with manually-defined tests.
-     * Create a new MotionEvent on the heap, caller responsible for destroying the object.
      */
     if (numSamples < 1) {
         failWithMessage(StringPrintf("Need at least 1 sample to create a MotionEvent."
                 " Received numSamples=%zu", numSamples));
     }
 
-    MotionEvent* event = new MotionEvent();
-    PointerCoords coords;
-    coords.clear();
-    constexpr size_t pointerCount = 1;
-    PointerProperties properties[pointerCount];
+    std::unique_ptr<MotionEvent> event = std::make_unique<MotionEvent>();
 
+    constexpr size_t pointerCount = 1;
+    PointerCoords coords[pointerCount];
+    coords[0].clear();
+
+    PointerProperties properties[pointerCount];
     properties[0].id = DEFAULT_POINTER_ID;
     properties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
 
     // First sample added separately with initialize
-    coords.setAxisValue(AMOTION_EVENT_AXIS_X, positions[0].x);
-    coords.setAxisValue(AMOTION_EVENT_AXIS_Y, positions[0].y);
-    event->initialize(0, AINPUT_SOURCE_TOUCHSCREEN, AMOTION_EVENT_ACTION_MOVE,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, positions[0].time, pointerCount, properties, &coords);
+    coords[0].setAxisValue(AMOTION_EVENT_AXIS_X, positions[0].x);
+    coords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, positions[0].y);
+    event->initialize(0 /*deviceId*/, AINPUT_SOURCE_TOUCHSCREEN, AMOTION_EVENT_ACTION_MOVE,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, positions[0].time, pointerCount, properties, coords);
 
     for (size_t i = 1; i < numSamples; i++) {
-        coords.setAxisValue(AMOTION_EVENT_AXIS_X, positions[i].x);
-        coords.setAxisValue(AMOTION_EVENT_AXIS_Y, positions[i].y);
-        event->addSample(positions[i].time, &coords);
+        coords[0].setAxisValue(AMOTION_EVENT_AXIS_X, positions[i].x);
+        coords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, positions[i].y);
+        event->addSample(positions[i].time, coords);
     }
     return event;
 }
@@ -114,8 +115,8 @@ static void computeAndCheckVelocity(const Position* positions, size_t numSamples
     VelocityTracker vt(nullptr);
     float Vx, Vy;
 
-    MotionEvent* event = createSimpleMotionEvent(positions, numSamples);
-    vt.addMovement(event);
+    std::unique_ptr<MotionEvent> event = createSimpleMotionEvent(positions, numSamples);
+    vt.addMovement(event.get());
 
     vt.getVelocity(DEFAULT_POINTER_ID, &Vx, &Vy);
 
@@ -129,14 +130,13 @@ static void computeAndCheckVelocity(const Position* positions, size_t numSamples
     default:
         FAIL() << "Axis must be either AMOTION_EVENT_AXIS_X or AMOTION_EVENT_AXIS_Y";
     }
-    delete event;
 }
 
 static void computeAndCheckQuadraticEstimate(const Position* positions, size_t numSamples,
         const std::array<float, 3>& coefficients) {
     VelocityTracker vt("lsq2");
-    MotionEvent* event = createSimpleMotionEvent(positions, numSamples);
-    vt.addMovement(event);
+    std::unique_ptr<MotionEvent> event = createSimpleMotionEvent(positions, numSamples);
+    vt.addMovement(event.get());
     VelocityTracker::Estimator estimator;
     EXPECT_TRUE(vt.getEstimator(0, &estimator));
     for (size_t i = 0; i< coefficients.size(); i++) {
