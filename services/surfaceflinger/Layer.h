@@ -210,6 +210,7 @@ public:
         // The deque of callback handles for this frame. The back of the deque contains the most
         // recent callback handle.
         std::deque<sp<CallbackHandle>> callbackHandles;
+        bool colorSpaceAgnostic;
     };
 
     explicit Layer(const LayerCreationArgs& args);
@@ -297,6 +298,7 @@ public:
     virtual bool setColorTransform(const mat4& matrix);
     virtual mat4 getColorTransform() const;
     virtual bool hasColorTransform() const;
+    virtual bool isColorSpaceAgnostic() const { return mDrawingState.colorSpaceAgnostic; }
 
     // Used only to set BufferStateLayer state
     virtual bool setTransform(uint32_t /*transform*/) { return false; };
@@ -315,6 +317,7 @@ public:
         return false;
     };
     virtual bool setBackgroundColor(const half3& color, float alpha, ui::Dataspace dataspace);
+    virtual bool setColorSpaceAgnostic(const bool agnostic);
 
     ui::Dataspace getDataSpace() const { return mCurrentDataSpace; }
 
@@ -450,7 +453,8 @@ public:
     bool getForceClientComposition(const sp<DisplayDevice>& display);
     virtual void setPerFrameData(const sp<const DisplayDevice>& display,
                                  const ui::Transform& transform, const Rect& viewport,
-                                 int32_t supportedPerFrameMetadata) = 0;
+                                 int32_t supportedPerFrameMetadata,
+                                 const ui::Dataspace targetDataspace) = 0;
 
     // callIntoHwc exists so we can update our local state and call
     // acceptDisplayChanges without unnecessarily updating the device's state

@@ -81,7 +81,8 @@ public:
     bool isHdrY410() const override;
 
     void setPerFrameData(const sp<const DisplayDevice>& display, const ui::Transform& transform,
-                         const Rect& viewport, int32_t supportedPerFrameMetadata) override;
+                         const Rect& viewport, int32_t supportedPerFrameMetadata,
+                         const ui::Dataspace targetDataspace) override;
 
     bool onPreComposition(nsecs_t refreshStartTime) override;
     bool onPostComposition(const std::optional<DisplayId>& displayId,

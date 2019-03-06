@@ -240,7 +240,7 @@ protected:
     float const luma_gray = 0.50;
 };
 
-TEST_F(RegionSamplingTest, CollectsLuma) {
+TEST_F(RegionSamplingTest, DISABLED_CollectsLuma) {
     fill_render(rgba_green);
 
     sp<ISurfaceComposer> composer = ComposerService::getComposerService();
@@ -254,7 +254,7 @@ TEST_F(RegionSamplingTest, CollectsLuma) {
     composer->removeRegionSamplingListener(listener);
 }
 
-TEST_F(RegionSamplingTest, CollectsChangingLuma) {
+TEST_F(RegionSamplingTest, DISABLED_CollectsChangingLuma) {
     fill_render(rgba_green);
 
     sp<ISurfaceComposer> composer = ComposerService::getComposerService();
@@ -275,7 +275,7 @@ TEST_F(RegionSamplingTest, CollectsChangingLuma) {
     composer->removeRegionSamplingListener(listener);
 }
 
-TEST_F(RegionSamplingTest, CollectsLumaFromTwoRegions) {
+TEST_F(RegionSamplingTest, DISABLED_CollectsLumaFromTwoRegions) {
     fill_render(rgba_green);
     sp<ISurfaceComposer> composer = ComposerService::getComposerService();
     sp<Listener> greenListener = new Listener();

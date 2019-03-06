@@ -308,14 +308,10 @@ void Scheduler::incrementFrameCounter() {
     mLayerHistory.incrementCounter();
 }
 
-void Scheduler::setExpiredIdleTimerCallback(const ExpiredIdleTimerCallback& expiredTimerCallback) {
+void Scheduler::setChangeRefreshRateCallback(
+        const ChangeRefreshRateCallback& changeRefreshRateCallback) {
     std::lock_guard<std::mutex> lock(mCallbackLock);
-    mExpiredTimerCallback = expiredTimerCallback;
-}
-
-void Scheduler::setResetIdleTimerCallback(const ResetIdleTimerCallback& resetTimerCallback) {
-    std::lock_guard<std::mutex> lock(mCallbackLock);
-    mResetTimerCallback = resetTimerCallback;
+    mChangeRefreshRateCallback = changeRefreshRateCallback;
 }
 
 void Scheduler::updateFrameSkipping(const int64_t skipCount) {
@@ -414,16 +410,18 @@ void Scheduler::resetIdleTimer() {
 
 void Scheduler::resetTimerCallback() {
     std::lock_guard<std::mutex> lock(mCallbackLock);
-    if (mResetTimerCallback) {
-        mResetTimerCallback();
+    if (mChangeRefreshRateCallback) {
+        // We do not notify the applications about config changes when idle timer is reset.
+        mChangeRefreshRateCallback(RefreshRateType::PERFORMANCE, ConfigEvent::None);
         ATRACE_INT("ExpiredIdleTimer", 0);
     }
 }
 
 void Scheduler::expiredTimerCallback() {
     std::lock_guard<std::mutex> lock(mCallbackLock);
-    if (mExpiredTimerCallback) {
-        mExpiredTimerCallback();
+    if (mChangeRefreshRateCallback) {
+        // We do not notify the applications about config changes when idle timer expires.
+        mChangeRefreshRateCallback(RefreshRateType::DEFAULT, ConfigEvent::None);
         ATRACE_INT("ExpiredIdleTimer", 1);
     }
 }

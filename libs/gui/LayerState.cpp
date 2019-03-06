@@ -100,6 +100,7 @@ status_t layer_state_t::write(Parcel& output) const
 
     output.writeFloat(bgColorAlpha);
     output.writeUint32(static_cast<uint32_t>(bgColorDataspace));
+    output.writeBool(colorSpaceAgnostic);
 
     return NO_ERROR;
 }
@@ -177,6 +178,7 @@ status_t layer_state_t::read(const Parcel& input)
 
     bgColorAlpha = input.readFloat();
     bgColorDataspace = static_cast<ui::Dataspace>(input.readUint32());
+    colorSpaceAgnostic = input.readBool();
 
     return NO_ERROR;
 }

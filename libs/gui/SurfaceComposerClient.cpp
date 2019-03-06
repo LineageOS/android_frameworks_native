@@ -989,6 +989,20 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setDesir
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setColorSpaceAgnostic(
+        const sp<SurfaceControl>& sc, const bool agnostic) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eColorSpaceAgnosticChanged;
+    s->colorSpaceAgnostic = agnostic;
+
+    registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
 SurfaceComposerClient::Transaction&
 SurfaceComposerClient::Transaction::addTransactionCompletedCallback(
         TransactionCompletedCallbackTakesContext callback, void* callbackContext) {
