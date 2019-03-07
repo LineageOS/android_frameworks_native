@@ -90,6 +90,7 @@ MotionEvent* createSimpleMotionEvent(const Position* positions, size_t numSample
 
     MotionEvent* event = new MotionEvent();
     PointerCoords coords;
+    coords.clear();
     constexpr size_t pointerCount = 1;
     PointerProperties properties[pointerCount];
 

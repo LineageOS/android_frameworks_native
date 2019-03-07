@@ -75,7 +75,7 @@ enum ADataSpace {
      * scRGB:
      *
      * The red, green, and blue components are stored in extended sRGB space,
-     * but are linear, not gamma-encoded.
+     * and gamma-encoded using the SRGB transfer function.
      * The RGB primaries and the white point are the same as BT.709.
      *
      * The values are floating point.

@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_DISPSYNC_H
-#define ANDROID_DISPSYNC_H
+#pragma once
 
 #include <stddef.h>
 
@@ -35,10 +34,16 @@ class DispSync {
 public:
     class Callback {
     public:
-        virtual ~Callback() = default;
+        Callback() = default;
+        virtual ~Callback();
         virtual void onDispSyncEvent(nsecs_t when) = 0;
+
+    protected:
+        Callback(Callback const&) = delete;
+        Callback& operator=(Callback const&) = delete;
     };
 
+    DispSync() = default;
     virtual ~DispSync();
 
     virtual void reset() = 0;
@@ -57,6 +62,10 @@ public:
     virtual nsecs_t expectedPresentTime() = 0;
 
     virtual void dump(std::string& result) const = 0;
+
+protected:
+    DispSync(DispSync const&) = delete;
+    DispSync& operator=(DispSync const&) = delete;
 };
 
 namespace impl {
@@ -239,5 +248,3 @@ private:
 } // namespace impl
 
 } // namespace android
-
-#endif // ANDROID_DISPSYNC_H

@@ -392,7 +392,7 @@ void BufferQueueLayer::fakeVsync() {
 void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
     // Add this buffer from our internal queue tracker
     { // Autolock scope
-        if (mFlinger->mUse90Hz && mFlinger->mUseSmart90ForVideo) {
+        if (mFlinger->mUseSmart90ForVideo) {
             // Report the requested present time to the Scheduler, if the feature is turned on.
             mFlinger->mScheduler->addFramePresentTimeForLayer(item.mTimestamp,
                                                               item.mIsAutoTimestamp, mName.c_str());

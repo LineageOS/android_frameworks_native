@@ -148,6 +148,9 @@ public:
     void incrementFrameCounter();
     // Callback that gets invoked when Scheduler wants to change the refresh rate.
     void setChangeRefreshRateCallback(const ChangeRefreshRateCallback& changeRefreshRateCallback);
+
+    // Returns whether idle timer is enabled or not
+    bool isIdleTimerEnabled() { return mSetIdleTimerMs > 0; }
     // Returns relevant information about Scheduler for dumpsys purposes.
     std::string doDump();
 
