@@ -370,8 +370,13 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
     auto listSize = property_get_int32("debug.sf.max_igbp_list_size", int32_t(defaultListSize));
     mMaxGraphicBufferProducerListSize = (listSize > 0) ? size_t(listSize) : defaultListSize;
 
+    mUseSmart90ForVideo = use_smart_90_for_video(false);
     property_get("debug.sf.use_smart_90_for_video", value, "0");
-    mUseSmart90ForVideo = atoi(value);
+
+    int int_value = atoi(value);
+    if (int_value) {
+        mUseSmart90ForVideo = true;
+    }
 
     property_get("debug.sf.luma_sampling", value, "1");
     mLumaSampling = atoi(value);

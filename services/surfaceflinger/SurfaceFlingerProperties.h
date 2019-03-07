@@ -57,6 +57,8 @@ int32_t wcg_composition_pixel_format(
 
 int32_t set_idle_timer_ms(int32_t defaultValue);
 
+bool use_smart_90_for_video(bool defaultValue);
+
 android::ui::DisplayPrimaries getDisplayNativePrimaries();
 } // namespace sysprop
 } // namespace android
