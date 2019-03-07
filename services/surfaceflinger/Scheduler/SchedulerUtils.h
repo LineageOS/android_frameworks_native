@@ -18,6 +18,7 @@
 
 #include <cinttypes>
 #include <numeric>
+#include <unordered_map>
 #include <vector>
 
 namespace android {
@@ -45,7 +46,24 @@ auto calculate_mean(const T& v) {
 int64_t calculate_median(std::vector<int64_t>* v);
 
 // Calculates the statistical mode in the vector. Return 0 if the vector is empty.
-int64_t calculate_mode(const std::vector<int64_t>& v);
+template <typename T>
+auto calculate_mode(const T& v) {
+    if (v.empty()) {
+        return 0;
+    }
+
+    // Create a map with all the counts for the indivicual values in the vector.
+    std::unordered_map<int64_t, int> counts;
+    for (int64_t value : v) {
+        counts[value]++;
+    }
+
+    // Sort the map, and return the number with the highest count. If two numbers have
+    // the same count, first one is returned.
+    using ValueType = const decltype(counts)::value_type&;
+    const auto compareCounts = [](ValueType l, ValueType r) { return l.second <= r.second; };
+    return static_cast<int>(std::max_element(counts.begin(), counts.end(), compareCounts)->first);
+}
 
 } // namespace scheduler
 } // namespace android

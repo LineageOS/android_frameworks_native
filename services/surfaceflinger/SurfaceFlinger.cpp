@@ -370,8 +370,13 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
     auto listSize = property_get_int32("debug.sf.max_igbp_list_size", int32_t(defaultListSize));
     mMaxGraphicBufferProducerListSize = (listSize > 0) ? size_t(listSize) : defaultListSize;
 
+    mUseSmart90ForVideo = use_smart_90_for_video(false);
     property_get("debug.sf.use_smart_90_for_video", value, "0");
-    mUseSmart90ForVideo = atoi(value);
+
+    int int_value = atoi(value);
+    if (int_value) {
+        mUseSmart90ForVideo = true;
+    }
 
     property_get("debug.sf.luma_sampling", value, "1");
     mLumaSampling = atoi(value);
@@ -1583,15 +1588,16 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
     ATRACE_CALL();
     switch (what) {
         case MessageQueue::INVALIDATE: {
+            if (mUseSmart90ForVideo) {
+                // This call is made each time SF wakes up and creates a new frame. It is part
+                // of video detection feature.
+                mScheduler->updateFpsBasedOnNativeWindowApi();
+            }
+
             if (performSetActiveConfig()) {
                 break;
             }
 
-            if (mUseSmart90ForVideo) {
-                // This call is made each time SF wakes up and creates a new frame. It is part
-                // of video detection feature.
-                mScheduler->incrementFrameCounter();
-            }
             bool frameMissed = mPreviousPresentFence != Fence::NO_FENCE &&
                     (mPreviousPresentFence->getStatus() == Fence::Status::Unsignaled);
             bool hwcFrameMissed = !mHadClientComposition && frameMissed;
@@ -4744,6 +4750,7 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
      */
     result.append("\nScheduler state:\n");
     result.append(mScheduler->doDump() + "\n");
+    StringAppendF(&result, "+  Smart video mode: %s\n\n", mUseSmart90ForVideo ? "on" : "off");
     result.append(mRefreshRateStats->doDump() + "\n");
 }
 

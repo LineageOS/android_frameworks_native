@@ -393,9 +393,8 @@ void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
     // Add this buffer from our internal queue tracker
     { // Autolock scope
         if (mFlinger->mUseSmart90ForVideo) {
-            // Report the requested present time to the Scheduler, if the feature is turned on.
-            mFlinger->mScheduler->addFramePresentTimeForLayer(item.mTimestamp,
-                                                              item.mIsAutoTimestamp, mName.c_str());
+            // Report mApi ID for each layer.
+            mFlinger->mScheduler->addNativeWindowApi(item.mApi);
         }
 
         Mutex::Autolock lock(mQueueItemLock);
