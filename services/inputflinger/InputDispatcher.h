@@ -17,6 +17,7 @@
 #ifndef _UI_INPUT_DISPATCHER_H
 #define _UI_INPUT_DISPATCHER_H
 
+#include <condition_variable>
 #include <input/Input.h>
 #include <input/InputApplication.h>
 #include <input/InputTransport.h>
@@ -884,9 +885,9 @@ private:
     sp<InputDispatcherPolicyInterface> mPolicy;
     InputDispatcherConfiguration mConfig;
 
-    Mutex mLock;
+    std::mutex mLock;
 
-    Condition mDispatcherIsAliveCondition;
+    std::condition_variable mDispatcherIsAlive;
 
     sp<Looper> mLooper;
 
@@ -944,11 +945,11 @@ private:
             GUARDED_BY(mLock);
 
     // Event injection and synchronization.
-    Condition mInjectionResultAvailableCondition;
+    std::condition_variable mInjectionResultAvailable;
     bool hasInjectionPermission(int32_t injectorPid, int32_t injectorUid);
     void setInjectionResultLocked(EventEntry* entry, int32_t injectionResult);
 
-    Condition mInjectionSyncFinishedCondition;
+    std::condition_variable mInjectionSyncFinished;
     void incrementPendingForegroundDispatches(EventEntry* entry);
     void decrementPendingForegroundDispatchesLocked(EventEntry* entry);
 
