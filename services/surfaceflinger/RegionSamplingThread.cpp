@@ -21,27 +21,168 @@
 
 #include "RegionSamplingThread.h"
 
+#include <cutils/properties.h>
 #include <gui/IRegionSamplingListener.h>
 #include <utils/Trace.h>
+#include <string>
 
 #include "DisplayDevice.h"
 #include "Layer.h"
 #include "SurfaceFlinger.h"
 
 namespace android {
+using namespace std::chrono_literals;
 
 template <typename T>
 struct SpHash {
     size_t operator()(const sp<T>& p) const { return std::hash<T*>()(p.get()); }
 };
 
-RegionSamplingThread::RegionSamplingThread(SurfaceFlinger& flinger) : mFlinger(flinger) {
-    std::lock_guard threadLock(mThreadMutex);
-    mThread = std::thread([this]() { threadMain(); });
-    pthread_setname_np(mThread.native_handle(), "RegionSamplingThread");
+constexpr auto lumaSamplingStepTag = "LumaSamplingStep";
+enum class samplingStep {
+    noWorkNeeded,
+    idleTimerWaiting,
+    waitForZeroPhase,
+    waitForSamplePhase,
+    sample
+};
+
+constexpr auto defaultRegionSamplingOffset = -3ms;
+constexpr auto defaultRegionSamplingPeriod = 100ms;
+constexpr auto defaultRegionSamplingTimerTimeout = 100ms;
+// TODO: (b/127403193) duration to string conversion could probably be constexpr
+template <typename Rep, typename Per>
+inline std::string toNsString(std::chrono::duration<Rep, Per> t) {
+    return std::to_string(std::chrono::duration_cast<std::chrono::nanoseconds>(t).count());
 }
 
+RegionSamplingThread::EnvironmentTimingTunables::EnvironmentTimingTunables() {
+    char value[PROPERTY_VALUE_MAX] = {};
+
+    property_get("debug.sf.region_sampling_offset_ns", value,
+                 toNsString(defaultRegionSamplingOffset).c_str());
+    int const samplingOffsetNsRaw = atoi(value);
+
+    property_get("debug.sf.region_sampling_period_ns", value,
+                 toNsString(defaultRegionSamplingPeriod).c_str());
+    int const samplingPeriodNsRaw = atoi(value);
+
+    property_get("debug.sf.region_sampling_timer_timeout_ns", value,
+                 toNsString(defaultRegionSamplingTimerTimeout).c_str());
+    int const samplingTimerTimeoutNsRaw = atoi(value);
+
+    if ((samplingPeriodNsRaw < 0) || (samplingTimerTimeoutNsRaw < 0)) {
+        ALOGW("User-specified sampling tuning options nonsensical. Using defaults");
+        mSamplingOffset = defaultRegionSamplingOffset;
+        mSamplingPeriod = defaultRegionSamplingPeriod;
+        mSamplingTimerTimeout = defaultRegionSamplingTimerTimeout;
+    } else {
+        mSamplingOffset = std::chrono::nanoseconds(samplingOffsetNsRaw);
+        mSamplingPeriod = std::chrono::nanoseconds(samplingPeriodNsRaw);
+        mSamplingTimerTimeout = std::chrono::nanoseconds(samplingTimerTimeoutNsRaw);
+    }
+}
+
+struct SamplingOffsetCallback : DispSync::Callback {
+    SamplingOffsetCallback(RegionSamplingThread& samplingThread, Scheduler& scheduler,
+                           std::chrono::nanoseconds targetSamplingOffset)
+          : mRegionSamplingThread(samplingThread),
+            mScheduler(scheduler),
+            mTargetSamplingOffset(targetSamplingOffset) {}
+
+    ~SamplingOffsetCallback() { stopVsyncListener(); }
+
+    SamplingOffsetCallback(const SamplingOffsetCallback&) = delete;
+    SamplingOffsetCallback& operator=(const SamplingOffsetCallback&) = delete;
+
+    void startVsyncListener() {
+        std::lock_guard lock(mMutex);
+        if (mVsyncListening) return;
+
+        mPhaseIntervalSetting = Phase::ZERO;
+        mScheduler.withPrimaryDispSync([this](android::DispSync& sync) {
+            sync.addEventListener("SamplingThreadDispSyncListener", 0, this);
+        });
+        mVsyncListening = true;
+    }
+
+    void stopVsyncListener() {
+        std::lock_guard lock(mMutex);
+        stopVsyncListenerLocked();
+    }
+
+private:
+    void stopVsyncListenerLocked() /*REQUIRES(mMutex)*/ {
+        if (!mVsyncListening) return;
+
+        mScheduler.withPrimaryDispSync(
+                [this](android::DispSync& sync) { sync.removeEventListener(this); });
+        mVsyncListening = false;
+    }
+
+    void onDispSyncEvent(nsecs_t /* when */) final {
+        std::unique_lock<decltype(mMutex)> lock(mMutex);
+
+        if (mPhaseIntervalSetting == Phase::ZERO) {
+            ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::waitForSamplePhase));
+            mPhaseIntervalSetting = Phase::SAMPLING;
+            mScheduler.withPrimaryDispSync([this](android::DispSync& sync) {
+                sync.changePhaseOffset(this, mTargetSamplingOffset.count());
+            });
+            return;
+        }
+
+        if (mPhaseIntervalSetting == Phase::SAMPLING) {
+            mPhaseIntervalSetting = Phase::ZERO;
+            mScheduler.withPrimaryDispSync(
+                    [this](android::DispSync& sync) { sync.changePhaseOffset(this, 0); });
+            stopVsyncListenerLocked();
+            lock.unlock();
+            mRegionSamplingThread.notifySamplingOffset();
+            return;
+        }
+    }
+
+    RegionSamplingThread& mRegionSamplingThread;
+    Scheduler& mScheduler;
+    const std::chrono::nanoseconds mTargetSamplingOffset;
+    mutable std::mutex mMutex;
+    enum class Phase {
+        ZERO,
+        SAMPLING
+    } mPhaseIntervalSetting /*GUARDED_BY(mMutex) macro doesnt work with unique_lock?*/
+            = Phase::ZERO;
+    bool mVsyncListening /*GUARDED_BY(mMutex)*/ = false;
+};
+
+RegionSamplingThread::RegionSamplingThread(SurfaceFlinger& flinger, Scheduler& scheduler,
+                                           const TimingTunables& tunables)
+      : mFlinger(flinger),
+        mScheduler(scheduler),
+        mTunables(tunables),
+        mIdleTimer(std::chrono::duration_cast<std::chrono::milliseconds>(
+                           mTunables.mSamplingTimerTimeout),
+                   [] {}, [this] { checkForStaleLuma(); }),
+        mPhaseCallback(std::make_unique<SamplingOffsetCallback>(*this, mScheduler,
+                                                                tunables.mSamplingOffset)),
+        lastSampleTime(0ns) {
+    {
+        std::lock_guard threadLock(mThreadMutex);
+        mThread = std::thread([this]() { threadMain(); });
+        pthread_setname_np(mThread.native_handle(), "RegionSamplingThread");
+    }
+    mIdleTimer.start();
+}
+
+RegionSamplingThread::RegionSamplingThread(SurfaceFlinger& flinger, Scheduler& scheduler)
+      : RegionSamplingThread(flinger, scheduler,
+                             TimingTunables{defaultRegionSamplingOffset,
+                                            defaultRegionSamplingPeriod,
+                                            defaultRegionSamplingTimerTimeout}) {}
+
 RegionSamplingThread::~RegionSamplingThread() {
+    mIdleTimer.stop();
+
     {
         std::lock_guard lock(mMutex);
         mRunning = false;
@@ -71,8 +212,41 @@ void RegionSamplingThread::removeListener(const sp<IRegionSamplingListener>& lis
     mDescriptors.erase(wp<IBinder>(IInterface::asBinder(listener)));
 }
 
-void RegionSamplingThread::sampleNow() {
+void RegionSamplingThread::checkForStaleLuma() {
     std::lock_guard lock(mMutex);
+
+    if (mDiscardedFrames) {
+        ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::waitForZeroPhase));
+        mDiscardedFrames = false;
+        mPhaseCallback->startVsyncListener();
+    }
+}
+
+void RegionSamplingThread::notifyNewContent() {
+    doSample();
+}
+
+void RegionSamplingThread::notifySamplingOffset() {
+    doSample();
+}
+
+void RegionSamplingThread::doSample() {
+    std::lock_guard lock(mMutex);
+    auto now = std::chrono::nanoseconds(systemTime(SYSTEM_TIME_MONOTONIC));
+    if (lastSampleTime + mTunables.mSamplingPeriod > now) {
+        ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::idleTimerWaiting));
+        mDiscardedFrames = true;
+        return;
+    }
+
+    ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::sample));
+
+    mDiscardedFrames = false;
+    lastSampleTime = now;
+
+    mIdleTimer.reset();
+    mPhaseCallback->stopVsyncListener();
+
     mSampleRequested = true;
     mCondition.notify_one();
 }
@@ -238,6 +412,7 @@ void RegionSamplingThread::captureSample() {
     for (size_t d = 0; d < activeDescriptors.size(); ++d) {
         activeDescriptors[d].listener->onSampleCollected(lumas[d]);
     }
+    ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::noWorkNeeded));
 }
 
 void RegionSamplingThread::threadMain() {

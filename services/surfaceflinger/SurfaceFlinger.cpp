@@ -637,6 +637,10 @@ void SurfaceFlinger::init() {
     mVsyncModulator.setSchedulerAndHandles(mScheduler.get(), mAppConnectionHandle.get(),
                                            mSfConnectionHandle.get());
 
+    mRegionSamplingThread =
+            new RegionSamplingThread(*this, *mScheduler,
+                                     RegionSamplingThread::EnvironmentTimingTunables());
+
     // Get a RenderEngine for the given display / config (can't fail)
     int32_t renderEngineFeature = 0;
     renderEngineFeature |= (useColorManagement ?
@@ -2063,8 +2067,8 @@ void SurfaceFlinger::postComposition()
     mTransactionCompletedThread.addPresentFence(mPreviousPresentFence);
     mTransactionCompletedThread.sendCallbacks();
 
-    if (mLumaSampling) {
-        mRegionSamplingThread->sampleNow();
+    if (mLumaSampling && mRegionSamplingThread) {
+        mRegionSamplingThread->notifyNewContent();
     }
 }
 

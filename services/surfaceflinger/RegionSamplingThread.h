@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -25,17 +26,42 @@
 #include <binder/IBinder.h>
 #include <ui/Rect.h>
 #include <utils/StrongPointer.h>
+#include "Scheduler/IdleTimer.h"
 
 namespace android {
 
 class GraphicBuffer;
 class IRegionSamplingListener;
 class Layer;
+class Scheduler;
 class SurfaceFlinger;
+struct SamplingOffsetCallback;
 
 class RegionSamplingThread : public IBinder::DeathRecipient {
 public:
-    explicit RegionSamplingThread(SurfaceFlinger& flinger);
+    struct TimingTunables {
+        // debug.sf.sampling_offset_ns
+        // When asynchronously collecting sample, the offset, from zero phase in the vsync timeline
+        // at which the sampling should start.
+        std::chrono::nanoseconds mSamplingOffset;
+        // debug.sf.sampling_period_ns
+        // This is the maximum amount of time the luma recieving client
+        // should have to wait for a new luma value after a frame is updated. The inverse of this is
+        // roughly the sampling rate. Sampling system rounds up sub-vsync sampling period to vsync
+        // period.
+        std::chrono::nanoseconds mSamplingPeriod;
+        // debug.sf.sampling_timer_timeout_ns
+        // This is the interval at which the luma sampling system will check that the luma clients
+        // have up to date information. It defaults to the mSamplingPeriod.
+        std::chrono::nanoseconds mSamplingTimerTimeout;
+    };
+    struct EnvironmentTimingTunables : TimingTunables {
+        EnvironmentTimingTunables();
+    };
+    explicit RegionSamplingThread(SurfaceFlinger& flinger, Scheduler& scheduler,
+                                  const TimingTunables& tunables);
+    explicit RegionSamplingThread(SurfaceFlinger& flinger, Scheduler& scheduler);
+
     ~RegionSamplingThread();
 
     // Add a listener to receive luma notifications. The luma reported via listener will
@@ -44,8 +70,13 @@ public:
                      const sp<IRegionSamplingListener>& listener);
     // Remove the listener to stop receiving median luma notifications.
     void removeListener(const sp<IRegionSamplingListener>& listener);
-    // Instruct the thread to perform a median luma sampling on the layers.
-    void sampleNow();
+
+    // Notifies sampling engine that new content is available. This will trigger a sampling
+    // pass at some point in the future.
+    void notifyNewContent();
+
+    // Notifies the sampling engine that it has a good timing window in which to sample.
+    void notifySamplingOffset();
 
 private:
     struct Descriptor {
@@ -63,12 +94,19 @@ private:
             const sp<GraphicBuffer>& buffer, const Point& leftTop,
             const std::vector<RegionSamplingThread::Descriptor>& descriptors);
 
+    void doSample();
     void binderDied(const wp<IBinder>& who) override;
+    void checkForStaleLuma();
 
     void captureSample() REQUIRES(mMutex);
     void threadMain();
 
     SurfaceFlinger& mFlinger;
+    Scheduler& mScheduler;
+    const TimingTunables mTunables;
+    scheduler::IdleTimer mIdleTimer;
+
+    std::unique_ptr<SamplingOffsetCallback> const mPhaseCallback;
 
     std::mutex mThreadMutex;
     std::thread mThread GUARDED_BY(mThreadMutex);
@@ -79,6 +117,8 @@ private:
     bool mSampleRequested GUARDED_BY(mMutex) = false;
 
     std::unordered_map<wp<IBinder>, Descriptor, WpHash> mDescriptors GUARDED_BY(mMutex);
+    std::chrono::nanoseconds lastSampleTime GUARDED_BY(mMutex);
+    bool mDiscardedFrames GUARDED_BY(mMutex) = false;
 };
 
 } // namespace android
