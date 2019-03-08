@@ -69,11 +69,15 @@ void Display::disconnect() {
     mId.reset();
 }
 
-void Display::setColorTransform(const mat4& transform) {
-    Output::setColorTransform(transform);
+void Display::setColorTransform(const compositionengine::CompositionRefreshArgs& args) {
+    Output::setColorTransform(args);
+
+    if (!mId || CC_LIKELY(!args.colorTransformMatrix)) {
+        return;
+    }
 
     auto& hwc = getCompositionEngine().getHwComposer();
-    status_t result = hwc.setColorTransform(*mId, transform);
+    status_t result = hwc.setColorTransform(*mId, *args.colorTransformMatrix);
     ALOGE_IF(result != NO_ERROR, "Failed to set color transform on display \"%s\": %d",
              mId ? to_string(*mId).c_str() : "", result);
 }

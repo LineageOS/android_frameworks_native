@@ -44,7 +44,7 @@ public:
     void setBounds(const ui::Size&) override;
     void setLayerStackFilter(uint32_t layerStackId, bool isInternal) override;
 
-    void setColorTransform(const mat4&) override;
+    void setColorTransform(const compositionengine::CompositionRefreshArgs&) override;
     void setColorProfile(const ColorProfile&) override;
 
     void dump(std::string&) const override;
@@ -75,10 +75,12 @@ public:
     void setReleasedLayers(ReleasedLayers&&) override;
     ReleasedLayers takeReleasedLayers() override;
 
+    void prepare(compositionengine::CompositionRefreshArgs&) override;
     void present(const compositionengine::CompositionRefreshArgs&) override;
 
+    void updateLayerStateFromFE(const CompositionRefreshArgs&) const override;
+    void updateAndWriteCompositionState(const compositionengine::CompositionRefreshArgs&) override;
     void updateColorProfile(const compositionengine::CompositionRefreshArgs&) override;
-
     void beginFrame() override;
     void prepareFrame() override;
     void devOptRepaintFlash(const compositionengine::CompositionRefreshArgs&) override;

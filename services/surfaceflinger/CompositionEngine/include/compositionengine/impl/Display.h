@@ -40,7 +40,7 @@ public:
 
     // compositionengine::Output overrides
     void dump(std::string&) const override;
-    void setColorTransform(const mat4&) override;
+    void setColorTransform(const compositionengine::CompositionRefreshArgs&) override;
     void setColorProfile(const ColorProfile&) override;
     void chooseCompositionStrategy() override;
     bool getSkipColorTransform() const override;
