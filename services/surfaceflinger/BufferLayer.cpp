@@ -158,7 +158,8 @@ std::optional<renderengine::LayerSettings> BufferLayer::prepareClientComposition
                 finished = true;
                 return;
             }
-            under.orSelf(layer->visibleRegion);
+
+            under.orSelf(layer->getScreenBounds());
         });
         // if not everything below us is covered, we plug the holes!
         Region holes(targetSettings.clip.subtract(under));

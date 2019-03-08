@@ -42,6 +42,15 @@ void OutputLayerCompositionState::dump(std::string& out) const {
     dumpVal(out, "visibleRegion", visibleRegion);
 
     out.append("      ");
+    dumpVal(out, "visibleNonTransparentRegion", visibleNonTransparentRegion);
+
+    out.append("      ");
+    dumpVal(out, "coveredRegion", coveredRegion);
+
+    out.append("      ");
+    dumpVal(out, "output visibleRegion", outputSpaceVisibleRegion);
+
+    out.append("      ");
     dumpVal(out, "forceClientComposition", forceClientComposition);
     dumpVal(out, "clearClientTarget", clearClientTarget);
     dumpVal(out, "displayFrame", displayFrame);

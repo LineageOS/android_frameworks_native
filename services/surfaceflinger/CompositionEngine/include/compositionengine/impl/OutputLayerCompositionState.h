@@ -40,8 +40,17 @@ class HWComposer;
 namespace compositionengine::impl {
 
 struct OutputLayerCompositionState {
-    // The region of this layer which is visible on this output
+    // The portion of the layer that is not obscured by opaque layers on top
     Region visibleRegion;
+
+    // The portion of the layer that is not obscured and is also opaque
+    Region visibleNonTransparentRegion;
+
+    // The portion of the layer that is obscured by opaque layers on top
+    Region coveredRegion;
+
+    // The visibleRegion transformed to output space
+    Region outputSpaceVisibleRegion;
 
     // If true, client composition will be used on this output
     bool forceClientComposition{false};
@@ -62,7 +71,7 @@ struct OutputLayerCompositionState {
     ui::Dataspace dataspace{ui::Dataspace::UNKNOWN};
 
     // The Z order index of this layer on this output
-    uint32_t z;
+    uint32_t z{0};
 
     /*
      * HWC state

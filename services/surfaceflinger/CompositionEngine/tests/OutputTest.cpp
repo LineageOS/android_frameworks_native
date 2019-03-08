@@ -661,9 +661,9 @@ TEST_F(GenerateClientCompositionRequestsTest, worksForLandscapeModeSplitScreen) 
 
     impl::OutputLayerCompositionState leftOutputLayerState;
     leftOutputLayerState.clearClientTarget = false;
+    leftOutputLayerState.visibleRegion = Region{Rect{0, 0, 1000, 1000}};
 
     impl::LayerCompositionState leftLayerState;
-    leftLayerState.frontEnd.geomVisibleRegion = Region{Rect{0, 0, 1000, 1000}};
     leftLayerState.frontEnd.isOpaque = true;
 
     const half3 leftLayerColor{1.f, 0.f, 0.f};
@@ -672,9 +672,9 @@ TEST_F(GenerateClientCompositionRequestsTest, worksForLandscapeModeSplitScreen) 
 
     impl::OutputLayerCompositionState rightOutputLayerState;
     rightOutputLayerState.clearClientTarget = false;
+    rightOutputLayerState.visibleRegion = Region{Rect{1000, 0, 2000, 1000}};
 
     impl::LayerCompositionState rightLayerState;
-    rightLayerState.frontEnd.geomVisibleRegion = Region{Rect{1000, 0, 2000, 1000}};
     rightLayerState.frontEnd.isOpaque = true;
 
     const half3 rightLayerColor{0.f, 1.f, 0.f};
@@ -735,9 +735,9 @@ TEST_F(GenerateClientCompositionRequestsTest, ignoresLayersThatDoNotIntersectWit
 
     impl::OutputLayerCompositionState outputLayerState;
     outputLayerState.clearClientTarget = false;
+    outputLayerState.visibleRegion = Region{Rect{3000, 0, 4000, 1000}};
 
     impl::LayerCompositionState layerState;
-    layerState.frontEnd.geomVisibleRegion = Region{Rect{3000, 0, 4000, 1000}};
     layerState.frontEnd.isOpaque = true;
 
     EXPECT_CALL(*outputLayer, getState()).WillRepeatedly(ReturnRef(outputLayerState));
@@ -790,16 +790,16 @@ TEST_F(GenerateClientCompositionRequestsTest, clearsDeviceLayesAfterFirst) {
 
     impl::OutputLayerCompositionState leftOutputLayerState;
     leftOutputLayerState.clearClientTarget = true;
+    leftOutputLayerState.visibleRegion = Region{Rect{0, 0, 1000, 1000}};
 
     impl::LayerCompositionState leftLayerState;
-    leftLayerState.frontEnd.geomVisibleRegion = Region{Rect{0, 0, 1000, 1000}};
     leftLayerState.frontEnd.isOpaque = true;
 
     impl::OutputLayerCompositionState rightOutputLayerState;
     rightOutputLayerState.clearClientTarget = true;
+    rightOutputLayerState.visibleRegion = Region{Rect{1000, 0, 2000, 1000}};
 
     impl::LayerCompositionState rightLayerState;
-    rightLayerState.frontEnd.geomVisibleRegion = Region{Rect{1000, 0, 2000, 1000}};
     rightLayerState.frontEnd.isOpaque = true;
 
     const half3 rightLayerColor{0.f, 1.f, 0.f};

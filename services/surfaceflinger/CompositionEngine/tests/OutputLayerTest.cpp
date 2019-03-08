@@ -574,7 +574,7 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
 
     static const half4 kColor;
     static const Rect kDisplayFrame;
-    static const Region kVisibleRegion;
+    static const Region kOutputSpaceVisibleRegion;
     static const mat4 kColorTransform;
     static const Region kSurfaceDamage;
     static const HdrMetadata kHdrMetadata;
@@ -590,7 +590,7 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
         outputLayerState.sourceCrop = kSourceCrop;
         outputLayerState.z = kZOrder;
         outputLayerState.bufferTransform = static_cast<Hwc2::Transform>(kBufferTransform);
-        outputLayerState.visibleRegion = kVisibleRegion;
+        outputLayerState.outputSpaceVisibleRegion = kOutputSpaceVisibleRegion;
         outputLayerState.dataspace = kDataspace;
 
         mLayerState.frontEnd.blendMode = kBlendMode;
@@ -629,7 +629,7 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
     }
 
     void expectPerFrameCommonCalls(SimulateUnsupported unsupported = SimulateUnsupported::None) {
-        EXPECT_CALL(*mHwcLayer, setVisibleRegion(RegionEq(kVisibleRegion)))
+        EXPECT_CALL(*mHwcLayer, setVisibleRegion(RegionEq(kOutputSpaceVisibleRegion)))
                 .WillOnce(Return(kError));
         EXPECT_CALL(*mHwcLayer, setDataspace(kDataspace)).WillOnce(Return(kError));
         EXPECT_CALL(*mHwcLayer, setColorTransform(kColorTransform))
@@ -673,7 +673,8 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
 const half4 OutputLayerWriteStateToHWCTest::kColor{81.f / 255.f, 82.f / 255.f, 83.f / 255.f,
                                                    84.f / 255.f};
 const Rect OutputLayerWriteStateToHWCTest::kDisplayFrame{1001, 1002, 1003, 10044};
-const Region OutputLayerWriteStateToHWCTest::kVisibleRegion{Rect{1005, 1006, 1007, 1008}};
+const Region OutputLayerWriteStateToHWCTest::kOutputSpaceVisibleRegion{
+        Rect{1005, 1006, 1007, 1008}};
 const mat4 OutputLayerWriteStateToHWCTest::kColorTransform{
         1009, 1010, 1011, 1012, 1013, 1014, 1015, 1016,
         1017, 1018, 1019, 1020, 1021, 1022, 1023, 1024,

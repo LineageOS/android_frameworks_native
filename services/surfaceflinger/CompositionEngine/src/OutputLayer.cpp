@@ -315,11 +315,6 @@ void OutputLayer::updateCompositionState(bool includeGeometry) {
             ? outputState.targetDataspace
             : layerFEState.dataspace;
 
-    // TODO(lpique): b/121291683 Remove this one we are sure we don't need the
-    // value recomputed / set every frame.
-    mState.visibleRegion = outputState.transform.transform(
-            layerFEState.geomVisibleRegion.intersect(outputState.viewport));
-
     // These are evaluated every frame as they can potentially change at any
     // time.
     if (layerFEState.forceClientComposition || !profile.isDataspaceSupported(mState.dataspace)) {
@@ -421,13 +416,13 @@ void OutputLayer::writeOutputIndependentGeometryStateToHWC(
 void OutputLayer::writeOutputDependentPerFrameStateToHWC(HWC2::Layer* hwcLayer) {
     const auto& outputDependentState = getState();
 
-    // TODO(lpique): b/121291683 visibleRegion is output-dependent geometry
+    // TODO(lpique): b/121291683 outputSpaceVisibleRegion is output-dependent geometry
     // state and should not change every frame.
-    if (auto error = hwcLayer->setVisibleRegion(outputDependentState.visibleRegion);
+    if (auto error = hwcLayer->setVisibleRegion(outputDependentState.outputSpaceVisibleRegion);
         error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set visible region: %s (%d)", mLayerFE->getDebugName(),
               to_string(error).c_str(), static_cast<int32_t>(error));
-        outputDependentState.visibleRegion.dump(LOG_TAG);
+        outputDependentState.outputSpaceVisibleRegion.dump(LOG_TAG);
     }
 
     if (auto error = hwcLayer->setDataspace(outputDependentState.dataspace);

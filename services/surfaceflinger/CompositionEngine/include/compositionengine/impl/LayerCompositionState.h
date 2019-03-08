@@ -21,6 +21,7 @@
 
 #include <compositionengine/LayerFECompositionState.h>
 #include <renderengine/Mesh.h>
+#include <ui/Region.h>
 
 namespace android {
 
@@ -28,7 +29,7 @@ namespace compositionengine::impl {
 
 struct LayerCompositionState {
     /*
-     * State intended to be set by LayerFE::getCompositionState
+     * State set by LayerFE::getCompositionState
      */
 
     LayerFECompositionState frontEnd;
