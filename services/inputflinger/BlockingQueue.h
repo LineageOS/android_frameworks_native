@@ -43,7 +43,7 @@ public:
      * Blocks execution while queue is empty.
      */
     T pop() {
-        std::unique_lock<std::mutex> lock(mLock);
+        std::unique_lock lock(mLock);
         android::base::ScopedLockAssertion assumeLock(mLock);
         mHasElements.wait(lock, [this]{
                 android::base::ScopedLockAssertion assumeLock(mLock);

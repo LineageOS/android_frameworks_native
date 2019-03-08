@@ -46,6 +46,7 @@
 #include "InputDispatcher.h"
 
 #include <errno.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <sstream>
 #include <stddef.h>
@@ -262,7 +263,7 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
 
 InputDispatcher::~InputDispatcher() {
     { // acquire lock
-        AutoMutex _l(mLock);
+        std::scoped_lock _l(mLock);
 
         resetKeyRepeatLocked();
         releasePendingEventLocked();
@@ -277,8 +278,8 @@ InputDispatcher::~InputDispatcher() {
 void InputDispatcher::dispatchOnce() {
     nsecs_t nextWakeupTime = LONG_LONG_MAX;
     { // acquire lock
-        AutoMutex _l(mLock);
-        mDispatcherIsAliveCondition.broadcast();
+        std::scoped_lock _l(mLock);
+        mDispatcherIsAlive.notify_all();
 
         // Run a dispatch loop if there are no pending commands.
         // The dispatch loop might enqueue commands to run afterwards.
@@ -2261,7 +2262,7 @@ int InputDispatcher::handleReceiveCallback(int fd, int events, void* data) {
     InputDispatcher* d = static_cast<InputDispatcher*>(data);
 
     { // acquire lock
-        AutoMutex _l(d->mLock);
+        std::scoped_lock _l(d->mLock);
 
         ssize_t connectionIndex = d->mConnectionsByFd.indexOfKey(fd);
         if (connectionIndex < 0) {
@@ -2509,7 +2510,7 @@ void InputDispatcher::notifyConfigurationChanged(const NotifyConfigurationChange
 
     bool needWake;
     { // acquire lock
-        AutoMutex _l(mLock);
+        std::scoped_lock _l(mLock);
 
         ConfigurationChangedEntry* newEntry =
                 new ConfigurationChangedEntry(args->sequenceNum, args->eventTime);
@@ -2537,7 +2538,7 @@ void InputDispatcher::accelerateMetaShortcuts(const int32_t deviceId, const int3
             newKeyCode = AKEYCODE_HOME;
         }
         if (newKeyCode != AKEYCODE_UNKNOWN) {
-            AutoMutex _l(mLock);
+            std::scoped_lock _l(mLock);
             struct KeyReplacement replacement = {keyCode, deviceId};
             mReplacedKeys.add(replacement, newKeyCode);
             keyCode = newKeyCode;
@@ -2547,7 +2548,7 @@ void InputDispatcher::accelerateMetaShortcuts(const int32_t deviceId, const int3
         // In order to maintain a consistent stream of up and down events, check to see if the key
         // going up is one we've replaced in a down event and haven't yet replaced in an up event,
         // even if the modifier was released between the down and the up events.
-        AutoMutex _l(mLock);
+        std::scoped_lock _l(mLock);
         struct KeyReplacement replacement = {keyCode, deviceId};
         ssize_t index = mReplacedKeys.indexOfKey(replacement);
         if (index >= 0) {
@@ -2742,7 +2743,7 @@ void InputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
 
     bool needWake;
     { // acquire lock
-        AutoMutex _l(mLock);
+        std::scoped_lock _l(mLock);
 
         DeviceResetEntry* newEntry =
                 new DeviceResetEntry(args->sequenceNum, args->eventTime, args->deviceId);
@@ -2896,7 +2897,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
 
     int32_t injectionResult;
     { // acquire lock
-        AutoMutex _l(mLock);
+        std::unique_lock _l(mLock);
 
         if (syncMode == INPUT_EVENT_INJECTION_SYNC_NONE) {
             injectionResult = INPUT_EVENT_INJECTION_SUCCEEDED;
@@ -2917,7 +2918,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
                     break;
                 }
 
-                mInjectionResultAvailableCondition.waitRelative(mLock, remainingTimeout);
+                mInjectionResultAvailable.wait_for(_l, std::chrono::nanoseconds(remainingTimeout));
             }
 
             if (injectionResult == INPUT_EVENT_INJECTION_SUCCEEDED
@@ -2937,7 +2938,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
                         break;
                     }
 
-                    mInjectionSyncFinishedCondition.waitRelative(mLock, remainingTimeout);
+                    mInjectionSyncFinished.wait_for(_l, std::chrono::nanoseconds(remainingTimeout));
                 }
             }
         }
@@ -2988,7 +2989,7 @@ void InputDispatcher::setInjectionResultLocked(EventEntry* entry, int32_t inject
         }
 
         injectionState->injectionResult = injectionResult;
-        mInjectionResultAvailableCondition.broadcast();
+        mInjectionResultAvailable.notify_all();
     }
 }
 
@@ -3005,7 +3006,7 @@ void InputDispatcher::decrementPendingForegroundDispatchesLocked(EventEntry* ent
         injectionState->pendingForegroundDispatches -= 1;
 
         if (injectionState->pendingForegroundDispatches == 0) {
-            mInjectionSyncFinishedCondition.broadcast();
+            mInjectionSyncFinished.notify_all();
         }
     }
 }
@@ -3077,7 +3078,7 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
     ALOGD("setInputWindows displayId=%" PRId32, displayId);
 #endif
     { // acquire lock
-        AutoMutex _l(mLock);
+        std::scoped_lock _l(mLock);
 
         // Copy old handles for release if they are no longer present.
         const Vector<sp<InputWindowHandle>> oldWindowHandles = getWindowHandlesLocked(displayId);
@@ -3234,7 +3235,7 @@ void InputDispatcher::setFocusedApplication(
     ALOGD("setFocusedApplication displayId=%" PRId32, displayId);
 #endif
     { // acquire lock
-        AutoMutex _l(mLock);
+        std::scoped_lock _l(mLock);
 
         sp<InputApplicationHandle> oldFocusedApplicationHandle =
                 getValueByKey(mFocusedApplicationHandlesByDisplay, displayId);
@@ -3276,7 +3277,7 @@ void InputDispatcher::setFocusedDisplay(int32_t displayId) {
     ALOGD("setFocusedDisplay displayId=%" PRId32, displayId);
 #endif
     { // acquire lock
-        AutoMutex _l(mLock);
+        std::scoped_lock _l(mLock);
 
         if (mFocusedDisplayId != displayId) {
             sp<InputWindowHandle> oldFocusedWindowHandle =
@@ -3328,7 +3329,7 @@ void InputDispatcher::setInputDispatchMode(bool enabled, bool frozen) {
 
     bool changed;
     { // acquire lock
-        AutoMutex _l(mLock);
+        std::scoped_lock _l(mLock);
 
         if (mDispatchEnabled != enabled || mDispatchFrozen != frozen) {
             if (mDispatchFrozen && !frozen) {
@@ -3363,7 +3364,7 @@ void InputDispatcher::setInputFilterEnabled(bool enabled) {
 #endif
 
     { // acquire lock
-        AutoMutex _l(mLock);
+        std::scoped_lock _l(mLock);
 
         if (mInputFilterEnabled == enabled) {
             return;
@@ -3386,7 +3387,7 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
     }
 
     { // acquire lock
-        AutoMutex _l(mLock);
+        std::scoped_lock _l(mLock);
 
         sp<InputWindowHandle> fromWindowHandle = getWindowHandleLocked(fromToken);
         sp<InputWindowHandle> toWindowHandle = getWindowHandleLocked(toToken);
@@ -3730,7 +3731,7 @@ status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChan
 #endif
 
     { // acquire lock
-        AutoMutex _l(mLock);
+        std::scoped_lock _l(mLock);
 
         // If InputWindowHandle is null and displayId is not ADISPLAY_ID_NONE,
         // treat inputChannel as monitor channel for displayId.
@@ -3772,7 +3773,7 @@ status_t InputDispatcher::unregisterInputChannel(const sp<InputChannel>& inputCh
 #endif
 
     { // acquire lock
-        AutoMutex _l(mLock);
+        std::scoped_lock _l(mLock);
 
         status_t status = unregisterInputChannelLocked(inputChannel, false /*notify*/);
         if (status) {
@@ -4271,7 +4272,7 @@ void InputDispatcher::traceWaitQueueLength(const sp<Connection>& connection) {
 }
 
 void InputDispatcher::dump(std::string& dump) {
-    AutoMutex _l(mLock);
+    std::scoped_lock _l(mLock);
 
     dump += "Input Dispatcher State:\n";
     dumpDispatchStateLocked(dump);
@@ -4284,10 +4285,9 @@ void InputDispatcher::dump(std::string& dump) {
 
 void InputDispatcher::monitor() {
     // Acquire and release the lock to ensure that the dispatcher has not deadlocked.
-    mLock.lock();
+    std::unique_lock _l(mLock);
     mLooper->wake();
-    mDispatcherIsAliveCondition.wait(mLock);
-    mLock.unlock();
+    mDispatcherIsAlive.wait(_l);
 }
 
 
