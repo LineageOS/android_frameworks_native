@@ -698,7 +698,7 @@ void InputDispatcher::releaseInboundEventLocked(EventEntry* entry) {
 #if DEBUG_DISPATCH_CYCLE
         ALOGD("Injected inbound event was dropped.");
 #endif
-        setInjectionResultLocked(entry, INPUT_EVENT_INJECTION_FAILED);
+        setInjectionResult(entry, INPUT_EVENT_INJECTION_FAILED);
     }
     if (entry == mNextUnblockedEvent) {
         mNextUnblockedEvent = nullptr;
@@ -852,7 +852,7 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
 
     // Clean up if dropping the event.
     if (*dropReason != DROP_REASON_NOT_DROPPED) {
-        setInjectionResultLocked(entry, *dropReason == DROP_REASON_POLICY
+        setInjectionResult(entry, *dropReason == DROP_REASON_POLICY
                 ? INPUT_EVENT_INJECTION_SUCCEEDED : INPUT_EVENT_INJECTION_FAILED);
         mReporter->reportDroppedKey(entry->sequenceNum);
         return true;
@@ -866,7 +866,7 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
         return false;
     }
 
-    setInjectionResultLocked(entry, injectionResult);
+    setInjectionResult(entry, injectionResult);
     if (injectionResult != INPUT_EVENT_INJECTION_SUCCEEDED) {
         return true;
     }
@@ -902,7 +902,7 @@ bool InputDispatcher::dispatchMotionLocked(
 
     // Clean up if dropping the event.
     if (*dropReason != DROP_REASON_NOT_DROPPED) {
-        setInjectionResultLocked(entry, *dropReason == DROP_REASON_POLICY
+        setInjectionResult(entry, *dropReason == DROP_REASON_POLICY
                 ? INPUT_EVENT_INJECTION_SUCCEEDED : INPUT_EVENT_INJECTION_FAILED);
         return true;
     }
@@ -927,7 +927,7 @@ bool InputDispatcher::dispatchMotionLocked(
         return false;
     }
 
-    setInjectionResultLocked(entry, injectionResult);
+    setInjectionResult(entry, injectionResult);
     if (injectionResult != INPUT_EVENT_INJECTION_SUCCEEDED) {
         if (injectionResult != INPUT_EVENT_INJECTION_PERMISSION_DENIED) {
             CancelationOptions::Mode mode(isPointerEvent ?
@@ -1973,17 +1973,17 @@ void InputDispatcher::enqueueDispatchEntriesLocked(nsecs_t currentTime,
     bool wasEmpty = connection->outboundQueue.isEmpty();
 
     // Enqueue dispatch entries for the requested modes.
-    enqueueDispatchEntryLocked(connection, eventEntry, inputTarget,
+    enqueueDispatchEntry(connection, eventEntry, inputTarget,
             InputTarget::FLAG_DISPATCH_AS_HOVER_EXIT);
-    enqueueDispatchEntryLocked(connection, eventEntry, inputTarget,
+    enqueueDispatchEntry(connection, eventEntry, inputTarget,
             InputTarget::FLAG_DISPATCH_AS_OUTSIDE);
-    enqueueDispatchEntryLocked(connection, eventEntry, inputTarget,
+    enqueueDispatchEntry(connection, eventEntry, inputTarget,
             InputTarget::FLAG_DISPATCH_AS_HOVER_ENTER);
-    enqueueDispatchEntryLocked(connection, eventEntry, inputTarget,
+    enqueueDispatchEntry(connection, eventEntry, inputTarget,
             InputTarget::FLAG_DISPATCH_AS_IS);
-    enqueueDispatchEntryLocked(connection, eventEntry, inputTarget,
+    enqueueDispatchEntry(connection, eventEntry, inputTarget,
             InputTarget::FLAG_DISPATCH_AS_SLIPPERY_EXIT);
-    enqueueDispatchEntryLocked(connection, eventEntry, inputTarget,
+    enqueueDispatchEntry(connection, eventEntry, inputTarget,
             InputTarget::FLAG_DISPATCH_AS_SLIPPERY_ENTER);
 
     // If the outbound queue was previously empty, start the dispatch cycle going.
@@ -1992,7 +1992,7 @@ void InputDispatcher::enqueueDispatchEntriesLocked(nsecs_t currentTime,
     }
 }
 
-void InputDispatcher::enqueueDispatchEntryLocked(
+void InputDispatcher::enqueueDispatchEntry(
         const sp<Connection>& connection, EventEntry* eventEntry, const InputTarget* inputTarget,
         int32_t dispatchMode) {
     int32_t inputTargetFlags = inputTarget->flags;
@@ -2227,9 +2227,9 @@ void InputDispatcher::abortBrokenDispatchCycleLocked(nsecs_t currentTime,
 #endif
 
     // Clear the dispatch queues.
-    drainDispatchQueueLocked(&connection->outboundQueue);
+    drainDispatchQueue(&connection->outboundQueue);
     traceOutboundQueueLength(connection);
-    drainDispatchQueueLocked(&connection->waitQueue);
+    drainDispatchQueue(&connection->waitQueue);
     traceWaitQueueLength(connection);
 
     // The connection appears to be unrecoverably broken.
@@ -2244,16 +2244,16 @@ void InputDispatcher::abortBrokenDispatchCycleLocked(nsecs_t currentTime,
     }
 }
 
-void InputDispatcher::drainDispatchQueueLocked(Queue<DispatchEntry>* queue) {
+void InputDispatcher::drainDispatchQueue(Queue<DispatchEntry>* queue) {
     while (!queue->isEmpty()) {
         DispatchEntry* dispatchEntry = queue->dequeueAtHead();
-        releaseDispatchEntryLocked(dispatchEntry);
+        releaseDispatchEntry(dispatchEntry);
     }
 }
 
-void InputDispatcher::releaseDispatchEntryLocked(DispatchEntry* dispatchEntry) {
+void InputDispatcher::releaseDispatchEntry(DispatchEntry* dispatchEntry) {
     if (dispatchEntry->hasForegroundTarget()) {
-        decrementPendingForegroundDispatchesLocked(dispatchEntry->eventEntry);
+        decrementPendingForegroundDispatches(dispatchEntry->eventEntry);
     }
     delete dispatchEntry;
 }
@@ -2400,7 +2400,7 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
             target.inputChannel = connection->inputChannel;
             target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
 
-            enqueueDispatchEntryLocked(connection, cancelationEventEntry, // increments ref
+            enqueueDispatchEntry(connection, cancelationEventEntry, // increments ref
                     &target, InputTarget::FLAG_DISPATCH_AS_IS);
 
             cancelationEventEntry->release();
@@ -2960,7 +2960,7 @@ bool InputDispatcher::hasInjectionPermission(int32_t injectorPid, int32_t inject
             || mPolicy->checkInjectEventsPermissionNonReentrant(injectorPid, injectorUid);
 }
 
-void InputDispatcher::setInjectionResultLocked(EventEntry* entry, int32_t injectionResult) {
+void InputDispatcher::setInjectionResult(EventEntry* entry, int32_t injectionResult) {
     InjectionState* injectionState = entry->injectionState;
     if (injectionState) {
 #if DEBUG_INJECTION
@@ -3000,7 +3000,7 @@ void InputDispatcher::incrementPendingForegroundDispatches(EventEntry* entry) {
     }
 }
 
-void InputDispatcher::decrementPendingForegroundDispatchesLocked(EventEntry* entry) {
+void InputDispatcher::decrementPendingForegroundDispatches(EventEntry* entry) {
     InjectionState* injectionState = entry->injectionState;
     if (injectionState) {
         injectionState->pendingForegroundDispatches -= 1;
@@ -4034,7 +4034,7 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(
                 connection->outboundQueue.enqueueAtHead(dispatchEntry);
                 traceOutboundQueueLength(connection);
             } else {
-                releaseDispatchEntryLocked(dispatchEntry);
+                releaseDispatchEntry(dispatchEntry);
             }
         }
 
