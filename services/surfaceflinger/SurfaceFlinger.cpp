@@ -2899,10 +2899,7 @@ void SurfaceFlinger::computeVisibleRegions(
             return;
         }
 
-        const auto displayId = displayDevice->getId();
-
-        outLayersSortedByZ.emplace_back(
-                display->getOrCreateOutputLayer(displayId, compositionLayer, layerFE));
+        outLayersSortedByZ.emplace_back(display->getOrCreateOutputLayer(compositionLayer, layerFE));
         auto& outputLayerState = outLayersSortedByZ.back()->editState();
         outputLayerState.visibleRegion = std::move(visibleRegion);
         outputLayerState.visibleNonTransparentRegion = std::move(visibleNonTransparentRegion);

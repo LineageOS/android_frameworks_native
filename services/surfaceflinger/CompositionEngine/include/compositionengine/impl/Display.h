@@ -40,6 +40,8 @@ public:
 
     // compositionengine::Output overrides
     void dump(std::string&) const override;
+    std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(
+            const std::shared_ptr<Layer>&, const sp<LayerFE>&) const override;
     void setColorTransform(const compositionengine::CompositionRefreshArgs&) override;
     void setColorProfile(const ColorProfile&) override;
     void chooseCompositionStrategy() override;

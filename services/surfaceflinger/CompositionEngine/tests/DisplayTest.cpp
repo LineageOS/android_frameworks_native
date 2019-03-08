@@ -23,6 +23,8 @@
 #include <compositionengine/impl/Display.h>
 #include <compositionengine/mock/CompositionEngine.h>
 #include <compositionengine/mock/DisplayColorProfile.h>
+#include <compositionengine/mock/Layer.h>
+#include <compositionengine/mock/LayerFE.h>
 #include <compositionengine/mock/NativeWindow.h>
 #include <compositionengine/mock/OutputLayer.h>
 #include <compositionengine/mock/RenderSurface.h>
@@ -253,6 +255,25 @@ TEST_F(DisplayTest, createRenderSurfaceSetsRenderSurface) {
     EXPECT_TRUE(mDisplay.getRenderSurface() == nullptr);
     mDisplay.createRenderSurface(RenderSurfaceCreationArgs{640, 480, mNativeWindow, nullptr});
     EXPECT_TRUE(mDisplay.getRenderSurface() != nullptr);
+}
+
+/*
+ * Display::createOutputLayer()
+ */
+
+TEST_F(DisplayTest, createOutputLayerSetsHwcLayer) {
+    sp<mock::LayerFE> layerFE = new StrictMock<mock::LayerFE>();
+    auto layer = std::make_shared<StrictMock<mock::Layer>>();
+    StrictMock<HWC2::mock::Layer> hwcLayer;
+
+    EXPECT_CALL(mHwComposer, createLayer(DEFAULT_DISPLAY_ID)).WillOnce(Return(&hwcLayer));
+
+    auto outputLayer = mDisplay.createOutputLayer(layer, layerFE);
+
+    EXPECT_EQ(&hwcLayer, outputLayer->getHwcLayer());
+
+    EXPECT_CALL(mHwComposer, destroyLayer(DEFAULT_DISPLAY_ID, &hwcLayer));
+    outputLayer.reset();
 }
 
 /*
