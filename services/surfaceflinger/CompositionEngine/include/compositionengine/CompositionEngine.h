@@ -58,6 +58,9 @@ public:
     virtual bool needsAnotherUpdate() const = 0;
     virtual nsecs_t getLastFrameRefreshTimestamp() const = 0;
 
+    // Presents the indicated outputs
+    virtual void present(CompositionRefreshArgs&) = 0;
+
     // Updates the cursor position for the indicated outputs.
     virtual void updateCursorAsync(CompositionRefreshArgs&) = 0;
 

@@ -44,6 +44,7 @@ public:
     MOCK_CONST_METHOD0(needsAnotherUpdate, bool());
     MOCK_CONST_METHOD0(getLastFrameRefreshTimestamp, nsecs_t());
 
+    MOCK_METHOD1(present, void(CompositionRefreshArgs&));
     MOCK_METHOD1(updateCursorAsync, void(CompositionRefreshArgs&));
     MOCK_METHOD1(preComposition, void(CompositionRefreshArgs&));
 };

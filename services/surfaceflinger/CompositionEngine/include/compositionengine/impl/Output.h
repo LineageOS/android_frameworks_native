@@ -75,6 +75,8 @@ public:
     void setReleasedLayers(ReleasedLayers&&) override;
     ReleasedLayers takeReleasedLayers() override;
 
+    void present(const compositionengine::CompositionRefreshArgs&) override;
+
     void updateColorProfile(const compositionengine::CompositionRefreshArgs&) override;
 
     void beginFrame() override;
