@@ -93,7 +93,7 @@ struct LayerCreationArgs {
     LayerMetadata metadata;
 };
 
-class Layer : public virtual compositionengine::LayerFE {
+class Layer : public compositionengine::LayerFE {
     static std::atomic<int32_t> sSequence;
 
 public:

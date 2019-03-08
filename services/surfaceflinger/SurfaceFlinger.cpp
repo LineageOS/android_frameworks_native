@@ -2085,6 +2085,12 @@ void SurfaceFlinger::rebuildLayerStacks() {
         ATRACE_NAME("rebuildLayerStacks VR Dirty");
         invalidateHwcGeometry();
 
+        std::vector<sp<compositionengine::LayerFE>> layersWithQueuedFrames;
+        layersWithQueuedFrames.reserve(mLayersWithQueuedFrames.size());
+        for (sp<Layer> layer : mLayersWithQueuedFrames) {
+            layersWithQueuedFrames.push_back(layer);
+        }
+
         for (const auto& pair : mDisplays) {
             const auto& displayDevice = pair.second;
             auto display = displayDevice->getCompositionDisplay();
@@ -2092,59 +2098,44 @@ void SurfaceFlinger::rebuildLayerStacks() {
             Region opaqueRegion;
             Region dirtyRegion;
             compositionengine::Output::OutputLayers layersSortedByZ;
-            compositionengine::Output::ReleasedLayers releasedLayers;
             const ui::Transform& tr = displayState.transform;
             const Rect bounds = displayState.bounds;
-            if (displayState.isEnabled) {
-                computeVisibleRegions(displayDevice, dirtyRegion, opaqueRegion);
-
-                mDrawingState.traverseInZOrder([&](Layer* layer) {
-                    auto compositionLayer = layer->getCompositionLayer();
-                    if (compositionLayer == nullptr) {
-                        return;
-                    }
-
-                    const auto displayId = displayDevice->getId();
-                    sp<compositionengine::LayerFE> layerFE = compositionLayer->getLayerFE();
-                    LOG_ALWAYS_FATAL_IF(layerFE.get() == nullptr);
-
-                    bool needsOutputLayer = false;
-
-                    if (display->belongsInOutput(layer->getLayerStack(),
-                                                 layer->getPrimaryDisplayOnly())) {
-                        Region drawRegion(tr.transform(
-                                layer->visibleNonTransparentRegion));
-                        drawRegion.andSelf(bounds);
-                        if (!drawRegion.isEmpty()) {
-                            needsOutputLayer = true;
-                        }
-                    }
-
-                    if (needsOutputLayer) {
-                        layersSortedByZ.emplace_back(
-                                display->getOrCreateOutputLayer(displayId, compositionLayer,
-                                                                layerFE));
-                        auto& outputLayerState = layersSortedByZ.back()->editState();
-                        outputLayerState.visibleRegion =
-                                tr.transform(layer->visibleRegion.intersect(displayState.viewport));
-                    } else if (displayId) {
-                        // For layers that are being removed from a HWC display,
-                        // and that have queued frames, add them to a a list of
-                        // released layers so we can properly set a fence.
-                        bool hasExistingOutputLayer =
-                                display->getOutputLayerForLayer(compositionLayer.get()) != nullptr;
-                        bool hasQueuedFrames = std::find(mLayersWithQueuedFrames.cbegin(),
-                                                         mLayersWithQueuedFrames.cend(),
-                                                         layer) != mLayersWithQueuedFrames.cend();
-
-                        if (hasExistingOutputLayer && hasQueuedFrames) {
-                            releasedLayers.push_back(layer);
-                        }
-                    }
-                });
+            if (!displayState.isEnabled) {
+                continue;
             }
 
+            computeVisibleRegions(displayDevice, dirtyRegion, opaqueRegion, layersSortedByZ);
+
+            // computeVisibleRegions walks the layers in reverse-Z order. Reverse
+            // to get a back-to-front ordering.
+            std::reverse(layersSortedByZ.begin(), layersSortedByZ.end());
+
             display->setOutputLayersOrderedByZ(std::move(layersSortedByZ));
+
+            compositionengine::Output::ReleasedLayers releasedLayers;
+            if (displayDevice->getId() && !layersWithQueuedFrames.empty()) {
+                // For layers that are being removed from a HWC display,
+                // and that have queued frames, add them to a a list of
+                // released layers so we can properly set a fence.
+
+                // Any non-null entries in the current list of layers are layers
+                // that are no longer going to be visible
+                for (auto& layer : display->getOutputLayersOrderedByZ()) {
+                    if (!layer) {
+                        continue;
+                    }
+
+                    sp<compositionengine::LayerFE> layerFE(&layer->getLayerFE());
+                    const bool hasQueuedFrames =
+                            std::find(layersWithQueuedFrames.cbegin(),
+                                      layersWithQueuedFrames.cend(),
+                                      layerFE) != layersWithQueuedFrames.cend();
+
+                    if (hasQueuedFrames) {
+                        releasedLayers.emplace_back(layerFE);
+                    }
+                }
+            }
             display->setReleasedLayers(std::move(releasedLayers));
 
             Region undefinedRegion{bounds};
@@ -2744,8 +2735,10 @@ void SurfaceFlinger::commitOffscreenLayers() {
     }
 }
 
-void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displayDevice,
-                                           Region& outDirtyRegion, Region& outOpaqueRegion) {
+void SurfaceFlinger::computeVisibleRegions(
+        const sp<const DisplayDevice>& displayDevice, Region& outDirtyRegion,
+        Region& outOpaqueRegion,
+        std::vector<std::unique_ptr<compositionengine::OutputLayer>>& outLayersSortedByZ) {
     ATRACE_CALL();
     ALOGV("computeVisibleRegions");
 
@@ -2758,6 +2751,11 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
     outDirtyRegion.clear();
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
+        auto compositionLayer = layer->getCompositionLayer();
+        if (compositionLayer == nullptr) {
+            return;
+        }
+
         // start with the whole surface at its current location
         const Layer::State& s(layer->getDrawingState());
 
@@ -2880,6 +2878,25 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
         layer->setCoveredRegion(coveredRegion);
         layer->setVisibleNonTransparentRegion(
                 visibleRegion.subtract(transparentRegion));
+
+        // Setup an output layer for this output if the layer is
+        // visible on this output
+        const auto& displayState = display->getState();
+        Region drawRegion(displayState.transform.transform(layer->visibleNonTransparentRegion));
+        drawRegion.andSelf(displayState.bounds);
+        if (drawRegion.isEmpty()) {
+            return;
+        }
+
+        const auto displayId = displayDevice->getId();
+        sp<compositionengine::LayerFE> layerFE = compositionLayer->getLayerFE();
+        LOG_ALWAYS_FATAL_IF(layerFE.get() == nullptr);
+
+        outLayersSortedByZ.emplace_back(
+                display->getOrCreateOutputLayer(displayId, compositionLayer, layerFE));
+        auto& outputLayerState = outLayersSortedByZ.back()->editState();
+        outputLayerState.visibleRegion = displayState.transform.transform(
+                layer->visibleRegion.intersect(displayState.viewport));
     });
 
     outOpaqueRegion = aboveOpaqueLayers;

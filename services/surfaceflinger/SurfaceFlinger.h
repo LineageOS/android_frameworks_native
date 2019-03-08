@@ -98,6 +98,7 @@ class TimeStats;
 
 namespace compositionengine {
 class DisplaySurface;
+class OutputLayer;
 
 struct CompositionRefreshArgs;
 } // namespace compositionengine
@@ -740,8 +741,9 @@ private:
      * Compositing
      */
     void invalidateHwcGeometry();
-    void computeVisibleRegions(const sp<const DisplayDevice>& display, Region& dirtyRegion,
-                               Region& opaqueRegion);
+    void computeVisibleRegions(
+            const sp<const DisplayDevice>& display, Region& dirtyRegion, Region& opaqueRegion,
+            std::vector<std::unique_ptr<compositionengine::OutputLayer>>& outputLayers);
 
     void postComposition();
     void getCompositorTiming(CompositorTiming* compositorTiming);
