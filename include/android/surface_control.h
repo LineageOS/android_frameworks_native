@@ -40,9 +40,9 @@ __BEGIN_DECLS
 struct ASurfaceControl;
 
 /**
- * The SurfaceControl API can be used to provide a heirarchy of surfaces for
+ * The SurfaceControl API can be used to provide a hierarchy of surfaces for
  * composition to the system compositor. ASurfaceControl represents a content node in
- * this heirarchy.
+ * this hierarchy.
  */
 typedef struct ASurfaceControl ASurfaceControl;
 
@@ -112,7 +112,7 @@ typedef struct ASurfaceTransactionStats ASurfaceTransactionStats;
  * the callback.
  *
  * |stats| is an opaque handle that can be passed to ASurfaceTransactionStats functions to query
- * information about the transaction. The handle is only valid during the the callback.
+ * information about the transaction. The handle is only valid during the callback.
  *
  * THREADING
  * The transaction completed callback can be invoked on any thread.
