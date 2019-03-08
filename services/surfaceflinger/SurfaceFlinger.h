@@ -572,6 +572,7 @@ private:
     void applyTransactionState(const Vector<ComposerState>& state,
                                const Vector<DisplayState>& displays, uint32_t flags,
                                const InputWindowCommands& inputWindowCommands,
+                               const int64_t desiredPresentTime, const int64_t postTime,
                                bool privileged) REQUIRES(mStateLock);
     bool flushTransactionQueues();
     uint32_t getTransactionFlags(uint32_t flags);
@@ -584,8 +585,8 @@ private:
     bool containsAnyInvalidClientState(const Vector<ComposerState>& states);
     bool transactionIsReadyToBeApplied(int64_t desiredPresentTime,
                                        const Vector<ComposerState>& states);
-    uint32_t setClientStateLocked(const ComposerState& composerState, bool privileged)
-            REQUIRES(mStateLock);
+    uint32_t setClientStateLocked(const ComposerState& composerState, int64_t desiredPresentTime,
+                                  int64_t postTime, bool privileged) REQUIRES(mStateLock);
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
     uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands)
             REQUIRES(mStateLock);
@@ -1047,18 +1048,19 @@ private:
     struct TransactionState {
         TransactionState(const Vector<ComposerState>& composerStates,
                          const Vector<DisplayState>& displayStates, uint32_t transactionFlags,
-                         int64_t desiredPresentTime,
-                         bool privileged)
+                         int64_t desiredPresentTime, int64_t postTime, bool privileged)
               : states(composerStates),
                 displays(displayStates),
                 flags(transactionFlags),
-                time(desiredPresentTime),
+                desiredPresentTime(desiredPresentTime),
+                postTime(postTime),
                 privileged(privileged) {}
 
         Vector<ComposerState> states;
         Vector<DisplayState> displays;
         uint32_t flags;
-        int64_t time;
+        const int64_t desiredPresentTime;
+        const int64_t postTime;
         bool privileged;
     };
     std::unordered_map<sp<IBinder>, std::queue<TransactionState>, IBinderHash> mTransactionQueues;

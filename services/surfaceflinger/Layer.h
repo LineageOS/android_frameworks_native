@@ -432,6 +432,9 @@ public:
     }
     virtual Rect getCrop(const Layer::State& s) const { return s.crop_legacy; }
 
+    virtual void setPostTime(nsecs_t /*postTime*/) {}
+    virtual void setDesiredPresentTime(nsecs_t /*desiredPresentTime*/) {}
+
 protected:
     virtual bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
                                     bool useIdentityTransform, Region& clearRegion,
