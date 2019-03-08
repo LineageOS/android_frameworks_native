@@ -33,6 +33,7 @@ public:
     MOCK_METHOD1(onPreComposition, bool(nsecs_t));
 
     MOCK_CONST_METHOD2(latchCompositionState, void(LayerFECompositionState&, bool));
+    MOCK_CONST_METHOD1(latchCursorCompositionState, void(LayerFECompositionState&));
     MOCK_METHOD1(prepareClientComposition,
                  std::optional<renderengine::LayerSettings>(
                          compositionengine::LayerFE::ClientCompositionTargetSettings&));

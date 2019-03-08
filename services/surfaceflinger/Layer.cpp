@@ -464,6 +464,21 @@ void Layer::latchPerFrameState(compositionengine::LayerFECompositionState& compo
     }
 }
 
+void Layer::latchCursorCompositionState(
+        compositionengine::LayerFECompositionState& compositionState) const {
+    // This gives us only the "orientation" component of the transform
+    const State& drawingState{getDrawingState()};
+
+    // Apply the layer's transform, followed by the display's global transform
+    // Here we're guaranteed that the layer's transform preserves rects
+    Rect win = getCroppedBufferSize(drawingState);
+    // Subtract the transparent region and snap to the bounds
+    Rect bounds = reduce(win, getActiveTransparentRegion(drawingState));
+    Rect frame(getTransform().transform(bounds));
+
+    compositionState.cursorFrame = frame;
+}
+
 bool Layer::onPreComposition(nsecs_t) {
     return false;
 }
@@ -479,38 +494,6 @@ void Layer::latchCompositionState(compositionengine::LayerFECompositionState& co
 
 const char* Layer::getDebugName() const {
     return mName.string();
-}
-
-void Layer::updateCursorPosition(const sp<const DisplayDevice>& display) {
-    const auto outputLayer = findOutputLayerForDisplay(display);
-    LOG_FATAL_IF(!outputLayer);
-
-    if (!outputLayer->getState().hwc ||
-        (*outputLayer->getState().hwc).hwcCompositionType !=
-                Hwc2::IComposerClient::Composition::CURSOR) {
-        return;
-    }
-
-    // This gives us only the "orientation" component of the transform
-    const State& s(getDrawingState());
-
-    // Apply the layer's transform, followed by the display's global transform
-    // Here we're guaranteed that the layer's transform preserves rects
-    Rect win = getCroppedBufferSize(s);
-    // Subtract the transparent region and snap to the bounds
-    Rect bounds = reduce(win, getActiveTransparentRegion(s));
-    Rect frame(getTransform().transform(bounds));
-    frame.intersect(display->getViewport(), &frame);
-    auto& displayTransform = display->getTransform();
-    auto position = displayTransform.transform(frame);
-
-    auto error =
-            (*outputLayer->getState().hwc).hwcLayer->setCursorPosition(position.left, position.top);
-    ALOGE_IF(error != HWC2::Error::None,
-             "[%s] Failed to set cursor position "
-             "to (%d, %d): %s (%d)",
-             mName.string(), position.left, position.top, to_string(error).c_str(),
-             static_cast<int32_t>(error));
 }
 
 // ---------------------------------------------------------------------------

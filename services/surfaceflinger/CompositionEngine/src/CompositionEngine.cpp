@@ -16,6 +16,7 @@
 
 #include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/LayerFE.h>
+#include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/CompositionEngine.h>
 #include <compositionengine/impl/Display.h>
 #include <compositionengine/impl/Layer.h>
@@ -68,6 +69,22 @@ bool CompositionEngine::needsAnotherUpdate() const {
 
 nsecs_t CompositionEngine::getLastFrameRefreshTimestamp() const {
     return mRefreshStartTime;
+}
+
+void CompositionEngine::updateCursorAsync(CompositionRefreshArgs& args) {
+    std::unordered_map<compositionengine::LayerFE*, compositionengine::LayerFECompositionState*>
+            uniqueVisibleLayers;
+
+    for (const auto& output : args.outputs) {
+        for (auto& layer : output->getOutputLayersOrderedByZ()) {
+            if (layer->isHardwareCursor()) {
+                // Latch the cursor composition state from each front-end layer.
+                layer->getLayerFE().latchCursorCompositionState(
+                        layer->getLayer().editState().frontEnd);
+                layer->writeCursorPositionToHWC();
+            }
+        }
+    }
 }
 
 void CompositionEngine::preComposition(CompositionRefreshArgs& args) {

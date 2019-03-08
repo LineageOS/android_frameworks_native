@@ -49,9 +49,11 @@ public:
 
     void updateCompositionState(bool) override;
     void writeStateToHWC(bool) override;
+    void writeCursorPositionToHWC() const override;
 
     HWC2::Layer* getHwcLayer() const override;
     bool requiresClientComposition() const override;
+    bool isHardwareCursor() const override;
     void applyDeviceCompositionTypeChange(Hwc2::IComposerClient::Composition) override;
     void prepareForDeviceLayerRequests() override;
     void applyDeviceLayerRequest(Hwc2::IComposerClient::LayerRequest request) override;

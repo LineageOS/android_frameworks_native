@@ -78,11 +78,17 @@ public:
     // skipped.
     virtual void writeStateToHWC(bool includeGeometry) = 0;
 
+    // Updates the cursor position with the HWC
+    virtual void writeCursorPositionToHWC() const = 0;
+
     // Returns the HWC2::Layer associated with this layer, if it exists
     virtual HWC2::Layer* getHwcLayer() const = 0;
 
     // Returns true if the current layer state requires client composition
     virtual bool requiresClientComposition() const = 0;
+
+    // Returns true if the current layer should be treated as a cursor layer
+    virtual bool isHardwareCursor() const = 0;
 
     // Applies a HWC device requested composition type change
     virtual void applyDeviceCompositionTypeChange(Hwc2::IComposerClient::Composition) = 0;

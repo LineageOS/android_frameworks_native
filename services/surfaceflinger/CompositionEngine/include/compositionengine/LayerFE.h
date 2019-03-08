@@ -43,6 +43,10 @@ public:
     // geometry state can be skipped.
     virtual void latchCompositionState(LayerFECompositionState&, bool includeGeometry) const = 0;
 
+    // Latches the minimal bit of state for the cursor for a fast asynchronous
+    // update.
+    virtual void latchCursorCompositionState(LayerFECompositionState&) const = 0;
+
     struct ClientCompositionTargetSettings {
         // The clip region, or visible region that is being rendered to
         const Region& clip;
