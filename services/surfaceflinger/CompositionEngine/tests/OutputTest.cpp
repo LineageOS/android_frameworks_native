@@ -376,6 +376,71 @@ TEST_F(OutputTest, belongsInOutputFiltersAsExpected) {
     EXPECT_FALSE(mOutput.belongsInOutput(layerStack2, false));
 }
 
+TEST_F(OutputTest, belongsInOutputFiltersLayersAsExpected) {
+    StrictMock<mock::Layer> layer;
+    impl::LayerCompositionState layerState;
+
+    EXPECT_CALL(layer, getState()).WillRepeatedly(ReturnRef(layerState));
+
+    const uint32_t layerStack1 = 123u;
+    const uint32_t layerStack2 = 456u;
+
+    // If the output accepts layerStack1 and internal-only layers....
+    mOutput.setLayerStackFilter(layerStack1, true);
+
+    // A null layer pointer does not belong to the output
+    EXPECT_FALSE(mOutput.belongsInOutput(nullptr));
+
+    // A layer with no layerStack does not belong to it, internal-only or not.
+    layerState.frontEnd.layerStackId = std::nullopt;
+    layerState.frontEnd.internalOnly = false;
+    EXPECT_FALSE(mOutput.belongsInOutput(&layer));
+
+    layerState.frontEnd.layerStackId = std::nullopt;
+    layerState.frontEnd.internalOnly = true;
+    EXPECT_FALSE(mOutput.belongsInOutput(&layer));
+
+    // Any layer with layerStack1 belongs to it, internal-only or not.
+    layerState.frontEnd.layerStackId = layerStack1;
+    layerState.frontEnd.internalOnly = false;
+    EXPECT_TRUE(mOutput.belongsInOutput(&layer));
+
+    layerState.frontEnd.layerStackId = layerStack1;
+    layerState.frontEnd.internalOnly = true;
+    EXPECT_TRUE(mOutput.belongsInOutput(&layer));
+
+    layerState.frontEnd.layerStackId = layerStack2;
+    layerState.frontEnd.internalOnly = true;
+    EXPECT_FALSE(mOutput.belongsInOutput(&layer));
+
+    layerState.frontEnd.layerStackId = layerStack2;
+    layerState.frontEnd.internalOnly = false;
+    EXPECT_FALSE(mOutput.belongsInOutput(&layer));
+
+    // If the output accepts layerStack1 but not internal-only layers...
+    mOutput.setLayerStackFilter(layerStack1, false);
+
+    // A null layer pointer does not belong to the output
+    EXPECT_FALSE(mOutput.belongsInOutput(nullptr));
+
+    // Only non-internal layers with layerStack1 belong to it.
+    layerState.frontEnd.layerStackId = layerStack1;
+    layerState.frontEnd.internalOnly = false;
+    EXPECT_TRUE(mOutput.belongsInOutput(&layer));
+
+    layerState.frontEnd.layerStackId = layerStack1;
+    layerState.frontEnd.internalOnly = true;
+    EXPECT_FALSE(mOutput.belongsInOutput(&layer));
+
+    layerState.frontEnd.layerStackId = layerStack2;
+    layerState.frontEnd.internalOnly = true;
+    EXPECT_FALSE(mOutput.belongsInOutput(&layer));
+
+    layerState.frontEnd.layerStackId = layerStack2;
+    layerState.frontEnd.internalOnly = false;
+    EXPECT_FALSE(mOutput.belongsInOutput(&layer));
+}
+
 /*
  * Output::getOutputLayerForLayer()
  */

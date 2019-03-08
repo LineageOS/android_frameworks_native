@@ -2773,7 +2773,7 @@ void SurfaceFlinger::computeVisibleRegions(
         const auto& layerFEState = compositionLayer->getState().frontEnd;
 
         // only consider the layers on the given layer stack
-        if (!display->belongsInOutput(layerFEState.layerStackId, layerFEState.internalOnly)) {
+        if (!display->belongsInOutput(compositionLayer.get())) {
             return;
         }
 
