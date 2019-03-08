@@ -573,12 +573,8 @@ void SurfaceFlinger::bootFinished()
                 mRefreshRateConfigs[*displayId]->getRefreshRate(RefreshRateType::PERFORMANCE);
 
         if (isConfigAllowed(*displayId, performanceRefreshRate.configId)) {
-            mPhaseOffsets->setRefreshRateType(
-                    scheduler::RefreshRateConfigs::RefreshRateType::PERFORMANCE);
             setRefreshRateTo(RefreshRateType::PERFORMANCE, Scheduler::ConfigEvent::None);
         } else {
-            mPhaseOffsets->setRefreshRateType(
-                    scheduler::RefreshRateConfigs::RefreshRateType::DEFAULT);
             setRefreshRateTo(RefreshRateType::DEFAULT, Scheduler::ConfigEvent::None);
         }
     }));
@@ -979,6 +975,8 @@ void SurfaceFlinger::setActiveConfigInternal() {
     display->setActiveConfig(mUpcomingActiveConfig.configId);
 
     mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
+    const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
+    mVsyncModulator.setPhaseOffsets(early, gl, late);
     ATRACE_INT("ActiveConfigMode", mUpcomingActiveConfig.configId);
     if (mUpcomingActiveConfig.event != Scheduler::ConfigEvent::None) {
         mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value,
@@ -1422,15 +1420,10 @@ bool SurfaceFlinger::isConfigAllowed(const DisplayId& displayId, int32_t config)
 }
 
 void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate, Scheduler::ConfigEvent event) {
-    ATRACE_CALL();
-    mPhaseOffsets->setRefreshRateType(refreshRate);
-
-    const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
-    mVsyncModulator.setPhaseOffsets(early, gl, late);
-
     if (mBootStage != BootStage::FINISHED) {
         return;
     }
+    ATRACE_CALL();
 
     // Don't do any updating if the current fps is the same as the new one.
     const auto displayId = getInternalDisplayIdLocked();
@@ -1448,6 +1441,7 @@ void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate, Scheduler::Co
         return;
     }
 
+    mPhaseOffsets->setRefreshRateType(refreshRate);
     setDesiredActiveConfig(getInternalDisplayTokenLocked(), desiredConfigId, event);
 }
 
@@ -5675,8 +5669,6 @@ void SurfaceFlinger::setAllowedDisplayConfigsInternal(
         const auto performanceRefreshRate =
                 mRefreshRateConfigs[*displayId]->getRefreshRate(RefreshRateType::PERFORMANCE);
         if (isConfigAllowed(*displayId, performanceRefreshRate.configId)) {
-            mPhaseOffsets->setRefreshRateType(
-                    scheduler::RefreshRateConfigs::RefreshRateType::PERFORMANCE);
             setRefreshRateTo(RefreshRateType::PERFORMANCE, Scheduler::ConfigEvent::Changed);
         }
     }
