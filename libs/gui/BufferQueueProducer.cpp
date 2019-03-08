@@ -35,6 +35,7 @@
 #include <gui/GLConsumer.h>
 #include <gui/IConsumerListener.h>
 #include <gui/IProducerListener.h>
+#include <private/gui/BufferQueueThreadState.h>
 
 #include <utils/Log.h>
 #include <utils/Trace.h>
@@ -1210,7 +1211,7 @@ status_t BufferQueueProducer::connect(const sp<IProducerListener>& listener,
             status = BAD_VALUE;
             break;
     }
-    mCore->mConnectedPid = IPCThreadState::self()->getCallingPid();
+    mCore->mConnectedPid = BufferQueueThreadState::getCallingPid();
     mCore->mBufferHasBeenQueued = false;
     mCore->mDequeueBufferCannotBlock = false;
     if (mDequeueTimeout < 0) {
@@ -1233,7 +1234,7 @@ status_t BufferQueueProducer::disconnect(int api, DisconnectMode mode) {
         Mutex::Autolock lock(mCore->mMutex);
 
         if (mode == DisconnectMode::AllLocal) {
-            if (IPCThreadState::self()->getCallingPid() != mCore->mConnectedPid) {
+            if (BufferQueueThreadState::getCallingPid() != mCore->mConnectedPid) {
                 return NO_ERROR;
             }
             api = BufferQueueCore::CURRENTLY_CONNECTED_API;
