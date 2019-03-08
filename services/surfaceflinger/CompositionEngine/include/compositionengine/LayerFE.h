@@ -39,9 +39,26 @@ public:
     // process.
     virtual bool onPreComposition(nsecs_t refreshStartTime) = 0;
 
-    // Latches the output-independent state. If includeGeometry is false, the
-    // geometry state can be skipped.
-    virtual void latchCompositionState(LayerFECompositionState&, bool includeGeometry) const = 0;
+    // Used with latchCompositionState()
+    enum class StateSubset {
+        // Gets the basic geometry (bounds, transparent region, visibility,
+        // transforms, alpha) for the layer, for computing visibility and
+        // coverage.
+        BasicGeometry,
+
+        // Gets the full geometry (crops, buffer transforms, metadata) and
+        // content (buffer or color) state for the layer.
+        GeometryAndContent,
+
+        // Gets the per frame content (buffer or color) state the layer.
+        Content,
+    };
+
+    // Latches the output-independent composition state for the layer. The
+    // StateSubset argument selects what portion of the state is actually needed
+    // by the CompositionEngine code, since computing everything may be
+    // expensive.
+    virtual void latchCompositionState(LayerFECompositionState&, StateSubset) const = 0;
 
     // Latches the minimal bit of state for the cursor for a fast asynchronous
     // update.

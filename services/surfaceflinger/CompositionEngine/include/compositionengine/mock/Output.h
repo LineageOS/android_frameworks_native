@@ -59,7 +59,7 @@ public:
     MOCK_METHOD0(editState, OutputCompositionState&());
 
     MOCK_CONST_METHOD1(getDirtyRegion, Region(bool));
-    MOCK_CONST_METHOD2(belongsInOutput, bool(uint32_t, bool));
+    MOCK_CONST_METHOD2(belongsInOutput, bool(std::optional<uint32_t>, bool));
 
     MOCK_CONST_METHOD1(getOutputLayerForLayer,
                        compositionengine::OutputLayer*(compositionengine::Layer*));

@@ -102,7 +102,7 @@ Rect OutputLayer::calculateInitialCrop() const {
     // pixels in the buffer.
 
     FloatRect activeCropFloat =
-            reduce(layerState.geomLayerBounds, layerState.geomActiveTransparentRegion);
+            reduce(layerState.geomLayerBounds, layerState.transparentRegionHint);
 
     const Rect& viewport = mOutput.getState().viewport;
     const ui::Transform& layerTransform = layerState.geomLayerTransform;
@@ -209,7 +209,7 @@ Rect OutputLayer::calculateOutputDisplayFrame() const {
 
     // apply the layer's transform, followed by the display's global transform
     // here we're guaranteed that the layer's transform preserves rects
-    Region activeTransparentRegion = layerState.geomActiveTransparentRegion;
+    Region activeTransparentRegion = layerState.transparentRegionHint;
     const ui::Transform& layerTransform = layerState.geomLayerTransform;
     const ui::Transform& inverseLayerTransform = layerState.geomInverseLayerTransform;
     const Rect& bufferSize = layerState.geomBufferSize;

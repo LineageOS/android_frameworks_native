@@ -417,14 +417,43 @@ void Layer::setupRoundedCornersCropCoordinates(Rect win,
     win.bottom -= roundedCornersCrop.top;
 }
 
+void Layer::latchBasicGeometry(compositionengine::LayerFECompositionState& compositionState) const {
+    const auto& drawingState{getDrawingState()};
+    const uint32_t layerStack = getLayerStack();
+    const auto alpha = static_cast<float>(getAlpha());
+    const bool opaque = isOpaque(drawingState);
+    const bool usesRoundedCorners = getRoundedCornerState().radius != 0.f;
+
+    auto blendMode = Hwc2::IComposerClient::BlendMode::NONE;
+    if (!opaque || alpha != 1.0f) {
+        blendMode = mPremultipliedAlpha ? Hwc2::IComposerClient::BlendMode::PREMULTIPLIED
+                                        : Hwc2::IComposerClient::BlendMode::COVERAGE;
+    }
+
+    // TODO(b/121291683): Instead of filling in a passed-in compositionState
+    // structure, switch to Layer owning the structure and have
+    // CompositionEngine be able to get a reference to it.
+
+    compositionState.layerStackId =
+            (layerStack != ~0u) ? std::make_optional(layerStack) : std::nullopt;
+    compositionState.internalOnly = getPrimaryDisplayOnly();
+    compositionState.isVisible = isVisible();
+    compositionState.isOpaque = opaque && !usesRoundedCorners && alpha == 1.f;
+
+    compositionState.contentDirty = contentDirty;
+    contentDirty = false;
+
+    compositionState.geomLayerBounds = mBounds;
+    compositionState.geomLayerTransform = getTransform();
+    compositionState.geomInverseLayerTransform = compositionState.geomLayerTransform.inverse();
+    compositionState.transparentRegionHint = getActiveTransparentRegion(drawingState);
+
+    compositionState.blendMode = static_cast<Hwc2::IComposerClient::BlendMode>(blendMode);
+    compositionState.alpha = alpha;
+}
+
 void Layer::latchGeometry(compositionengine::LayerFECompositionState& compositionState) const {
     const auto& drawingState{getDrawingState()};
-    auto alpha = static_cast<float>(getAlpha());
-    auto blendMode = HWC2::BlendMode::None;
-    if (!isOpaque(drawingState) || alpha != 1.0f) {
-        blendMode =
-                mPremultipliedAlpha ? HWC2::BlendMode::Premultiplied : HWC2::BlendMode::Coverage;
-    }
 
     int type = drawingState.metadata.getInt32(METADATA_WINDOW_TYPE, 0);
     int appId = drawingState.metadata.getInt32(METADATA_OWNER_UID, 0);
@@ -439,20 +468,14 @@ void Layer::latchGeometry(compositionengine::LayerFECompositionState& compositio
         }
     }
 
-    compositionState.geomLayerTransform = getTransform();
-    compositionState.geomInverseLayerTransform = compositionState.geomLayerTransform.inverse();
     compositionState.geomBufferSize = getBufferSize(drawingState);
     compositionState.geomContentCrop = getContentCrop();
     compositionState.geomCrop = getCrop(drawingState);
     compositionState.geomBufferTransform = mCurrentTransform;
     compositionState.geomBufferUsesDisplayInverseTransform = getTransformToDisplayInverse();
-    compositionState.geomActiveTransparentRegion = getActiveTransparentRegion(drawingState);
-    compositionState.geomLayerBounds = mBounds;
     compositionState.geomUsesSourceCrop = usesSourceCrop();
     compositionState.isSecure = isSecure();
 
-    compositionState.blendMode = static_cast<Hwc2::IComposerClient::BlendMode>(blendMode);
-    compositionState.alpha = alpha;
     compositionState.type = type;
     compositionState.appId = appId;
 }
@@ -498,12 +521,24 @@ bool Layer::onPreComposition(nsecs_t) {
 }
 
 void Layer::latchCompositionState(compositionengine::LayerFECompositionState& compositionState,
-                                  bool includeGeometry) const {
-    if (includeGeometry) {
-        latchGeometry(compositionState);
-    }
+                                  compositionengine::LayerFE::StateSubset subset) const {
+    using StateSubset = compositionengine::LayerFE::StateSubset;
 
-    latchPerFrameState(compositionState);
+    switch (subset) {
+        case StateSubset::BasicGeometry:
+            latchBasicGeometry(compositionState);
+            break;
+
+        case StateSubset::GeometryAndContent:
+            latchBasicGeometry(compositionState);
+            latchGeometry(compositionState);
+            latchPerFrameState(compositionState);
+            break;
+
+        case StateSubset::Content:
+            latchPerFrameState(compositionState);
+            break;
+    }
 }
 
 const char* Layer::getDebugName() const {

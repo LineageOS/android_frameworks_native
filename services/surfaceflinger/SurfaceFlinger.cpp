@@ -2757,11 +2757,22 @@ void SurfaceFlinger::computeVisibleRegions(
             return;
         }
 
-        // start with the whole surface at its current location
-        const Layer::State& s(layer->getDrawingState());
+        // Note: Converts a wp<LayerFE> to a sp<LayerFE>
+        auto layerFE = compositionLayer->getLayerFE();
+        if (layerFE == nullptr) {
+            return;
+        }
+
+        // Request a snapshot of the subset of state relevant to visibility
+        // determination
+        layerFE->latchCompositionState(compositionLayer->editState().frontEnd,
+                                       compositionengine::LayerFE::StateSubset::BasicGeometry);
+
+        // Work with a read-only copy of the snapshot
+        const auto& layerFEState = compositionLayer->getState().frontEnd;
 
         // only consider the layers on the given layer stack
-        if (!display->belongsInOutput(layer->getLayerStack(), layer->getPrimaryDisplayOnly())) {
+        if (!display->belongsInOutput(layerFEState.layerStackId, layerFEState.internalOnly)) {
             return;
         }
 
@@ -2795,18 +2806,17 @@ void SurfaceFlinger::computeVisibleRegions(
         Region transparentRegion;
 
         // handle hidden surfaces by setting the visible region to empty
-        if (CC_LIKELY(layer->isVisible())) {
-            const bool translucent = !layer->isOpaque(s);
-            Rect bounds(layer->getScreenBounds());
-
-            visibleRegion.set(bounds);
-            ui::Transform tr = layer->getTransform();
+        if (CC_LIKELY(layerFEState.isVisible)) {
+            // Get the visible region
+            visibleRegion.set(
+                    Rect(layerFEState.geomLayerTransform.transform(layerFEState.geomLayerBounds)));
+            const ui::Transform& tr = layerFEState.geomLayerTransform;
             if (!visibleRegion.isEmpty()) {
                 // Remove the transparent area from the visible region
-                if (translucent) {
+                if (!layerFEState.isOpaque) {
                     if (tr.preserveRects()) {
                         // transform the transparent region
-                        transparentRegion = tr.transform(layer->getActiveTransparentRegion(s));
+                        transparentRegion = tr.transform(layerFEState.transparentRegionHint);
                     } else {
                         // transformation too complex, can't do the
                         // transparent region optimization.
@@ -2816,9 +2826,8 @@ void SurfaceFlinger::computeVisibleRegions(
 
                 // compute the opaque region
                 const int32_t layerOrientation = tr.getOrientation();
-                if (layer->getAlpha() == 1.0f && !translucent &&
-                        layer->getRoundedCornerState().radius == 0.0f &&
-                        ((layerOrientation & ui::Transform::ROT_INVALID) == false)) {
+                if (layerFEState.isOpaque &&
+                    ((layerOrientation & ui::Transform::ROT_INVALID) == false)) {
                     // the opaque region is the layer's footprint
                     opaqueRegion = visibleRegion;
                 }
@@ -2848,12 +2857,11 @@ void SurfaceFlinger::computeVisibleRegions(
                 prevOutputLayer ? prevOutputLayer->getState().coveredRegion : kEmptyRegion;
 
         // compute this layer's dirty region
-        if (layer->contentDirty) {
+        if (layerFEState.contentDirty) {
             // we need to invalidate the whole region
             dirty = visibleRegion;
             // as well, as the old visible region
             dirty.orSelf(oldVisibleRegion);
-            layer->contentDirty = false;
         } else {
             /* compute the exposed region:
              *   the exposed region consists of two components:
@@ -2892,8 +2900,6 @@ void SurfaceFlinger::computeVisibleRegions(
         }
 
         const auto displayId = displayDevice->getId();
-        sp<compositionengine::LayerFE> layerFE = compositionLayer->getLayerFE();
-        LOG_ALWAYS_FATAL_IF(layerFE.get() == nullptr);
 
         outLayersSortedByZ.emplace_back(
                 display->getOrCreateOutputLayer(displayId, compositionLayer, layerFE));

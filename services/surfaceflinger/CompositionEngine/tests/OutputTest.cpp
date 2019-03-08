@@ -356,6 +356,10 @@ TEST_F(OutputTest, belongsInOutputFiltersAsExpected) {
     // If the output accepts layerStack1 and internal-only layers....
     mOutput.setLayerStackFilter(layerStack1, true);
 
+    // A layer with no layerStack does not belong to it, internal-only or not.
+    EXPECT_FALSE(mOutput.belongsInOutput(std::nullopt, false));
+    EXPECT_FALSE(mOutput.belongsInOutput(std::nullopt, true));
+
     // Any layer with layerStack1 belongs to it, internal-only or not.
     EXPECT_TRUE(mOutput.belongsInOutput(layerStack1, false));
     EXPECT_TRUE(mOutput.belongsInOutput(layerStack1, true));

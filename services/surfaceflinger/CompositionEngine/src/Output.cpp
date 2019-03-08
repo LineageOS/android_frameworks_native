@@ -212,10 +212,11 @@ Region Output::getDirtyRegion(bool repaintEverything) const {
     return dirty;
 }
 
-bool Output::belongsInOutput(uint32_t layerStackId, bool internalOnly) const {
+bool Output::belongsInOutput(std::optional<uint32_t> layerStackId, bool internalOnly) const {
     // The layerStackId's must match, and also the layer must not be internal
     // only when not on an internal output.
-    return (layerStackId == mState.layerStackId) && (!internalOnly || mState.layerStackInternal);
+    return layerStackId && (*layerStackId == mState.layerStackId) &&
+            (!internalOnly || mState.layerStackInternal);
 }
 
 compositionengine::OutputLayer* Output::getOutputLayerForLayer(
@@ -281,7 +282,9 @@ void Output::present(const compositionengine::CompositionRefreshArgs& refreshArg
 void Output::updateLayerStateFromFE(const CompositionRefreshArgs& args) const {
     for (auto& layer : mOutputLayersOrderedByZ) {
         layer->getLayerFE().latchCompositionState(layer->getLayer().editState().frontEnd,
-                                                  args.updatingGeometryThisFrame);
+                                                  args.updatingGeometryThisFrame
+                                                          ? LayerFE::StateSubset::GeometryAndContent
+                                                          : LayerFE::StateSubset::Content);
     }
 }
 

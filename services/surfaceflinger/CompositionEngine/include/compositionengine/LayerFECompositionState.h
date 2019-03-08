@@ -40,6 +40,45 @@ struct LayerFECompositionState {
     // the next geometry change.
     bool forceClientComposition{false};
 
+    // TODO(b/121291683): Reorganize and rename the contents of this structure
+
+    /*
+     * Visibility state
+     */
+    // the layer stack this layer belongs to
+    std::optional<uint32_t> layerStackId;
+
+    // If true, this layer should be only visible on the internal display
+    bool internalOnly{false};
+
+    // If false, this layer should not be considered visible
+    bool isVisible{true};
+
+    // True if the layer is completely opaque
+    bool isOpaque{true};
+
+    // If true, invalidates the entire visible region
+    bool contentDirty{false};
+
+    // The alpha value for this layer
+    float alpha{1.f};
+
+    // The transform from layer local coordinates to composition coordinates
+    ui::Transform geomLayerTransform;
+
+    // The inverse of the layer transform
+    ui::Transform geomInverseLayerTransform;
+
+    // The hint from the layer producer as to what portion of the layer is
+    // transparent.
+    Region transparentRegionHint;
+
+    // The blend mode for this layer
+    Hwc2::IComposerClient::BlendMode blendMode{Hwc2::IComposerClient::BlendMode::INVALID};
+
+    // The bounds of the layer in layer local coordinates
+    FloatRect geomLayerBounds;
+
     /*
      * Geometry state
      */
@@ -48,23 +87,9 @@ struct LayerFECompositionState {
     bool geomUsesSourceCrop{false};
     bool geomBufferUsesDisplayInverseTransform{false};
     uint32_t geomBufferTransform{0};
-    ui::Transform geomLayerTransform;
-    ui::Transform geomInverseLayerTransform;
     Rect geomBufferSize;
     Rect geomContentCrop;
     Rect geomCrop;
-    Region geomActiveTransparentRegion;
-    FloatRect geomLayerBounds;
-
-    /*
-     * Presentation
-     */
-
-    // The blend mode for this layer
-    Hwc2::IComposerClient::BlendMode blendMode{Hwc2::IComposerClient::BlendMode::INVALID};
-
-    // The alpha value for this layer
-    float alpha{1.f};
 
     /*
      * Extra metadata
@@ -112,9 +137,6 @@ struct LayerFECompositionState {
     // The color transform
     mat4 colorTransform;
     bool colorTransformIsIdentity{true};
-
-    // True if the layer is completely opaque
-    bool isOpaque{true};
 
     // True if the layer has protected content
     bool hasProtectedContent{false};
