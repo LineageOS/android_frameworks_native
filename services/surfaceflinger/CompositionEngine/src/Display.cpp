@@ -158,6 +158,39 @@ std::unique_ptr<compositionengine::OutputLayer> Display::createOutputLayer(
     return result;
 }
 
+void Display::setReleasedLayers(const compositionengine::CompositionRefreshArgs& refreshArgs) {
+    Output::setReleasedLayers(refreshArgs);
+
+    if (!mId || refreshArgs.layersWithQueuedFrames.empty()) {
+        return;
+    }
+
+    // For layers that are being removed from a HWC display, and that have
+    // queued frames, add them to a a list of released layers so we can properly
+    // set a fence.
+    compositionengine::Output::ReleasedLayers releasedLayers;
+
+    // Any non-null entries in the current list of layers are layers that are no
+    // longer going to be visible
+    for (auto& layer : getOutputLayersOrderedByZ()) {
+        if (!layer) {
+            continue;
+        }
+
+        sp<compositionengine::LayerFE> layerFE(&layer->getLayerFE());
+        const bool hasQueuedFrames =
+                std::find(refreshArgs.layersWithQueuedFrames.cbegin(),
+                          refreshArgs.layersWithQueuedFrames.cend(),
+                          &layer->getLayer()) != refreshArgs.layersWithQueuedFrames.cend();
+
+        if (hasQueuedFrames) {
+            releasedLayers.emplace_back(layerFE);
+        }
+    }
+
+    setReleasedLayers(std::move(releasedLayers));
+}
+
 void Display::chooseCompositionStrategy() {
     ATRACE_CALL();
     ALOGV(__FUNCTION__);

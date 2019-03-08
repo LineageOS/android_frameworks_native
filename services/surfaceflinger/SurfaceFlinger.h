@@ -745,9 +745,6 @@ private:
      * Compositing
      */
     void invalidateHwcGeometry();
-    void computeVisibleRegions(
-            const sp<const DisplayDevice>& display, Region& dirtyRegion, Region& opaqueRegion,
-            std::vector<std::unique_ptr<compositionengine::OutputLayer>>& outputLayers);
 
     void postComposition();
     void getCompositorTiming(CompositorTiming* compositorTiming);
@@ -755,7 +752,6 @@ private:
                                 std::shared_ptr<FenceTime>& presentFenceTime);
     void setCompositorTimingSnapped(const DisplayStatInfo& stats,
                                     nsecs_t compositeToPresentLatency);
-    void rebuildLayerStacks();
 
     void postFrame();
 

@@ -1784,6 +1784,7 @@ void SurfaceFlinger::handleMessageRefresh() {
     mRefreshPending = false;
 
     compositionengine::CompositionRefreshArgs refreshArgs;
+    refreshArgs.outputs.reserve(mDisplays.size());
     for (const auto& [_, display] : mDisplays) {
         refreshArgs.outputs.push_back(display->getCompositionDisplay());
     }
@@ -1791,13 +1792,21 @@ void SurfaceFlinger::handleMessageRefresh() {
         auto compositionLayer = layer->getCompositionLayer();
         if (compositionLayer) refreshArgs.layers.push_back(compositionLayer);
     });
+    refreshArgs.layersWithQueuedFrames.reserve(mLayersWithQueuedFrames.size());
+    for (sp<Layer> layer : mLayersWithQueuedFrames) {
+        auto compositionLayer = layer->getCompositionLayer();
+        if (compositionLayer) refreshArgs.layersWithQueuedFrames.push_back(compositionLayer.get());
+    }
+
     refreshArgs.repaintEverything = mRepaintEverything.exchange(false);
     refreshArgs.outputColorSetting = useColorManagement
             ? mDisplayColorSetting
             : compositionengine::OutputColorSetting::kUnmanaged;
     refreshArgs.colorSpaceAgnosticDataspace = mColorSpaceAgnosticDataspace;
     refreshArgs.forceOutputColorMode = mForceColorMode;
-    refreshArgs.updatingGeometryThisFrame = mGeometryInvalid;
+
+    refreshArgs.updatingOutputGeometryThisFrame = mVisibleRegionsDirty;
+    refreshArgs.updatingGeometryThisFrame = mGeometryInvalid || mVisibleRegionsDirty;
 
     if (CC_UNLIKELY(mDrawingState.colorMatrixChanged)) {
         refreshArgs.colorTransformMatrix = mDrawingState.colorMatrix;
@@ -1811,12 +1820,9 @@ void SurfaceFlinger::handleMessageRefresh() {
                 std::chrono::milliseconds(mDebugRegion > 1 ? mDebugRegion : 0);
     }
 
-    mCompositionEngine->preComposition(refreshArgs);
-    rebuildLayerStacks();
-    refreshArgs.updatingGeometryThisFrame = mGeometryInvalid; // Can be set by rebuildLayerStacks()
-    mCompositionEngine->present(refreshArgs);
-
     mGeometryInvalid = false;
+
+    mCompositionEngine->present(refreshArgs);
 
     postFrame();
     postComposition();
@@ -2075,77 +2081,6 @@ void SurfaceFlinger::computeLayerBounds() {
             }
 
             layer->computeBounds(displayDevice->getViewport().toFloatRect(), ui::Transform());
-        }
-    }
-}
-
-void SurfaceFlinger::rebuildLayerStacks() {
-    ATRACE_CALL();
-    ALOGV("rebuildLayerStacks");
-
-    // rebuild the visible layer list per screen
-    if (CC_UNLIKELY(mVisibleRegionsDirty)) {
-        ATRACE_NAME("rebuildLayerStacks VR Dirty");
-        invalidateHwcGeometry();
-
-        std::vector<sp<compositionengine::LayerFE>> layersWithQueuedFrames;
-        layersWithQueuedFrames.reserve(mLayersWithQueuedFrames.size());
-        for (sp<Layer> layer : mLayersWithQueuedFrames) {
-            layersWithQueuedFrames.push_back(layer);
-        }
-
-        for (const auto& pair : mDisplays) {
-            const auto& displayDevice = pair.second;
-            auto display = displayDevice->getCompositionDisplay();
-            const auto& displayState = display->getState();
-            Region opaqueRegion;
-            Region dirtyRegion;
-            compositionengine::Output::OutputLayers layersSortedByZ;
-            const ui::Transform& tr = displayState.transform;
-            const Rect bounds = displayState.bounds;
-            if (!displayState.isEnabled) {
-                continue;
-            }
-
-            computeVisibleRegions(displayDevice, dirtyRegion, opaqueRegion, layersSortedByZ);
-
-            // computeVisibleRegions walks the layers in reverse-Z order. Reverse
-            // to get a back-to-front ordering.
-            std::reverse(layersSortedByZ.begin(), layersSortedByZ.end());
-
-            display->setOutputLayersOrderedByZ(std::move(layersSortedByZ));
-
-            compositionengine::Output::ReleasedLayers releasedLayers;
-            if (displayDevice->getId() && !layersWithQueuedFrames.empty()) {
-                // For layers that are being removed from a HWC display,
-                // and that have queued frames, add them to a a list of
-                // released layers so we can properly set a fence.
-
-                // Any non-null entries in the current list of layers are layers
-                // that are no longer going to be visible
-                for (auto& layer : display->getOutputLayersOrderedByZ()) {
-                    if (!layer) {
-                        continue;
-                    }
-
-                    sp<compositionengine::LayerFE> layerFE(&layer->getLayerFE());
-                    const bool hasQueuedFrames =
-                            std::find(layersWithQueuedFrames.cbegin(),
-                                      layersWithQueuedFrames.cend(),
-                                      layerFE) != layersWithQueuedFrames.cend();
-
-                    if (hasQueuedFrames) {
-                        releasedLayers.emplace_back(layerFE);
-                    }
-                }
-            }
-            display->setReleasedLayers(std::move(releasedLayers));
-
-            Region undefinedRegion{bounds};
-            undefinedRegion.subtractSelf(tr.transform(opaqueRegion));
-
-            display->editState().undefinedRegion = undefinedRegion;
-            display->editState().dirtyRegion.orSelf(dirtyRegion);
         }
     }
 }
@@ -2506,7 +2441,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
         // display is used to calculate the hint, otherwise we use the
         // default display.
         //
-        // NOTE: we do this here, rather than in rebuildLayerStacks() so that
+        // NOTE: we do this here, rather than when presenting the display so that
         // the hint is set before we acquire a buffer from the surface texture.
         //
         // NOTE: layer transactions have taken place already, so we use their
@@ -2735,181 +2670,6 @@ void SurfaceFlinger::commitOffscreenLayers() {
             layer->commitChildList();
         });
     }
-}
-
-void SurfaceFlinger::computeVisibleRegions(
-        const sp<const DisplayDevice>& displayDevice, Region& outDirtyRegion,
-        Region& outOpaqueRegion,
-        std::vector<std::unique_ptr<compositionengine::OutputLayer>>& outLayersSortedByZ) {
-    ATRACE_CALL();
-    ALOGV("computeVisibleRegions");
-
-    auto display = displayDevice->getCompositionDisplay();
-
-    Region aboveOpaqueLayers;
-    Region aboveCoveredLayers;
-    Region dirty;
-
-    outDirtyRegion.clear();
-
-    mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
-        auto compositionLayer = layer->getCompositionLayer();
-        if (compositionLayer == nullptr) {
-            return;
-        }
-
-        // Note: Converts a wp<LayerFE> to a sp<LayerFE>
-        auto layerFE = compositionLayer->getLayerFE();
-        if (layerFE == nullptr) {
-            return;
-        }
-
-        // Request a snapshot of the subset of state relevant to visibility
-        // determination
-        layerFE->latchCompositionState(compositionLayer->editState().frontEnd,
-                                       compositionengine::LayerFE::StateSubset::BasicGeometry);
-
-        // Work with a read-only copy of the snapshot
-        const auto& layerFEState = compositionLayer->getState().frontEnd;
-
-        // only consider the layers on the given layer stack
-        if (!display->belongsInOutput(compositionLayer.get())) {
-            return;
-        }
-
-        /*
-         * opaqueRegion: area of a surface that is fully opaque.
-         */
-        Region opaqueRegion;
-
-        /*
-         * visibleRegion: area of a surface that is visible on screen
-         * and not fully transparent. This is essentially the layer's
-         * footprint minus the opaque regions above it.
-         * Areas covered by a translucent surface are considered visible.
-         */
-        Region visibleRegion;
-
-        /*
-         * coveredRegion: area of a surface that is covered by all
-         * visible regions above it (which includes the translucent areas).
-         */
-        Region coveredRegion;
-
-        /*
-         * transparentRegion: area of a surface that is hinted to be completely
-         * transparent. This is only used to tell when the layer has no visible
-         * non-transparent regions and can be removed from the layer list. It
-         * does not affect the visibleRegion of this layer or any layers
-         * beneath it. The hint may not be correct if apps don't respect the
-         * SurfaceView restrictions (which, sadly, some don't).
-         */
-        Region transparentRegion;
-
-        // handle hidden surfaces by setting the visible region to empty
-        if (CC_LIKELY(layerFEState.isVisible)) {
-            // Get the visible region
-            visibleRegion.set(
-                    Rect(layerFEState.geomLayerTransform.transform(layerFEState.geomLayerBounds)));
-            const ui::Transform& tr = layerFEState.geomLayerTransform;
-            if (!visibleRegion.isEmpty()) {
-                // Remove the transparent area from the visible region
-                if (!layerFEState.isOpaque) {
-                    if (tr.preserveRects()) {
-                        // transform the transparent region
-                        transparentRegion = tr.transform(layerFEState.transparentRegionHint);
-                    } else {
-                        // transformation too complex, can't do the
-                        // transparent region optimization.
-                        transparentRegion.clear();
-                    }
-                }
-
-                // compute the opaque region
-                const int32_t layerOrientation = tr.getOrientation();
-                if (layerFEState.isOpaque &&
-                    ((layerOrientation & ui::Transform::ROT_INVALID) == false)) {
-                    // the opaque region is the layer's footprint
-                    opaqueRegion = visibleRegion;
-                }
-            }
-        }
-
-        if (visibleRegion.isEmpty()) {
-            return;
-        }
-
-        // Clip the covered region to the visible region
-        coveredRegion = aboveCoveredLayers.intersect(visibleRegion);
-
-        // Update aboveCoveredLayers for next (lower) layer
-        aboveCoveredLayers.orSelf(visibleRegion);
-
-        // subtract the opaque region covered by the layers above us
-        visibleRegion.subtractSelf(aboveOpaqueLayers);
-
-        //  Get coverage information for the layer as previously displayed
-        auto prevOutputLayer = display->getOutputLayerForLayer(compositionLayer.get());
-        // TODO(b/121291683): Define this as a constant in Region.h
-        const Region kEmptyRegion;
-        const Region& oldVisibleRegion =
-                prevOutputLayer ? prevOutputLayer->getState().visibleRegion : kEmptyRegion;
-        const Region& oldCoveredRegion =
-                prevOutputLayer ? prevOutputLayer->getState().coveredRegion : kEmptyRegion;
-
-        // compute this layer's dirty region
-        if (layerFEState.contentDirty) {
-            // we need to invalidate the whole region
-            dirty = visibleRegion;
-            // as well, as the old visible region
-            dirty.orSelf(oldVisibleRegion);
-        } else {
-            /* compute the exposed region:
-             *   the exposed region consists of two components:
-             *   1) what's VISIBLE now and was COVERED before
-             *   2) what's EXPOSED now less what was EXPOSED before
-             *
-             * note that (1) is conservative, we start with the whole
-             * visible region but only keep what used to be covered by
-             * something -- which mean it may have been exposed.
-             *
-             * (2) handles areas that were not covered by anything but got
-             * exposed because of a resize.
-             */
-            const Region newExposed = visibleRegion - coveredRegion;
-            const Region oldExposed = oldVisibleRegion - oldCoveredRegion;
-            dirty = (visibleRegion&oldCoveredRegion) | (newExposed-oldExposed);
-        }
-        dirty.subtractSelf(aboveOpaqueLayers);
-
-        // accumulate to the screen dirty region
-        outDirtyRegion.orSelf(dirty);
-
-        // Update aboveOpaqueLayers for next (lower) layer
-        aboveOpaqueLayers.orSelf(opaqueRegion);
-
-        // Compute the visible non-transparent region
-        Region visibleNonTransparentRegion = visibleRegion.subtract(transparentRegion);
-
-        // Setup an output layer for this output if the layer is visible on this
-        // output
-        const auto& displayState = display->getState();
-        Region drawRegion(displayState.transform.transform(visibleNonTransparentRegion));
-        drawRegion.andSelf(displayState.bounds);
-        if (drawRegion.isEmpty()) {
-            return;
-        }
-
-        outLayersSortedByZ.emplace_back(display->getOrCreateOutputLayer(compositionLayer, layerFE));
-        auto& outputLayerState = outLayersSortedByZ.back()->editState();
-        outputLayerState.visibleRegion = std::move(visibleRegion);
-        outputLayerState.visibleNonTransparentRegion = std::move(visibleNonTransparentRegion);
-        outputLayerState.coveredRegion = std::move(coveredRegion);
-        outputLayerState.outputSpaceVisibleRegion = displayState.transform.transform(
-                outputLayerState.visibleRegion.intersect(displayState.viewport));
-    });
-
-    outOpaqueRegion = aboveOpaqueLayers;
 }
 
 void SurfaceFlinger::invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty) {

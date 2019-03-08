@@ -17,6 +17,7 @@
 #pragma once
 
 #include <optional>
+#include <unordered_set>
 
 #include <renderengine/LayerSettings.h>
 #include <utils/RefBase.h>
@@ -98,6 +99,14 @@ public:
     // Gets some kind of identifier for the layer for debug purposes.
     virtual const char* getDebugName() const = 0;
 };
+
+// TODO(b/121291683): Specialize std::hash<> for sp<T> so these and others can
+// be removed.
+struct LayerFESpHash {
+    size_t operator()(const sp<LayerFE>& p) const { return std::hash<LayerFE*>()(p.get()); }
+};
+
+using LayerFESet = std::unordered_set<sp<LayerFE>, LayerFESpHash>;
 
 } // namespace compositionengine
 } // namespace android

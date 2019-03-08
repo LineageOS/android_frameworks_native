@@ -18,6 +18,7 @@
 
 #include <chrono>
 #include <optional>
+#include <vector>
 
 #include <compositionengine/Display.h>
 #include <compositionengine/Layer.h>
@@ -28,6 +29,7 @@ namespace android::compositionengine {
 
 using Layers = std::vector<std::shared_ptr<compositionengine::Layer>>;
 using Outputs = std::vector<std::shared_ptr<compositionengine::Output>>;
+using RawLayers = std::vector<compositionengine::Layer*>;
 
 /**
  * A parameter object for refreshing a set of outputs
@@ -41,6 +43,9 @@ struct CompositionRefreshArgs {
     // front.
     Layers layers;
 
+    // All the layers that have queued updates.
+    RawLayers layersWithQueuedFrames;
+
     // If true, forces the entire display to be considered dirty and repainted
     bool repaintEverything{false};
 
@@ -52,6 +57,9 @@ struct CompositionRefreshArgs {
 
     // Forces a color mode on the outputs being refreshed
     ui::ColorMode forceOutputColorMode{ui::ColorMode::NATIVE};
+
+    // If true, the complete output geometry needs to be recomputed this frame
+    bool updatingOutputGeometryThisFrame{false};
 
     // If true, there was a geometry update this frame
     bool updatingGeometryThisFrame{false};
