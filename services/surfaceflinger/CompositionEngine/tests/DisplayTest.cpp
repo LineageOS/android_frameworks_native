@@ -162,6 +162,8 @@ TEST_F(DisplayTest, setColorTransformSetsTransform) {
  */
 
 TEST_F(DisplayTest, setColorModeSetsModeUnlessNoChange) {
+    using ColorProfile = Output::ColorProfile;
+
     mock::RenderSurface* renderSurface = new StrictMock<mock::RenderSurface>();
     mDisplay.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(renderSurface));
     mock::DisplayColorProfile* colorProfile = new StrictMock<mock::DisplayColorProfile>();
@@ -177,8 +179,8 @@ TEST_F(DisplayTest, setColorModeSetsModeUnlessNoChange) {
     ASSERT_EQ(ui::Dataspace::UNKNOWN, mDisplay.getState().targetDataspace);
 
     // If the set values are unchanged, nothing happens
-    mDisplay.setColorMode(ui::ColorMode::NATIVE, ui::Dataspace::UNKNOWN,
-                          ui::RenderIntent::COLORIMETRIC, ui::Dataspace::UNKNOWN);
+    mDisplay.setColorProfile(ColorProfile{ui::ColorMode::NATIVE, ui::Dataspace::UNKNOWN,
+                                          ui::RenderIntent::COLORIMETRIC, ui::Dataspace::UNKNOWN});
 
     EXPECT_EQ(ui::ColorMode::NATIVE, mDisplay.getState().colorMode);
     EXPECT_EQ(ui::Dataspace::UNKNOWN, mDisplay.getState().dataspace);
@@ -192,8 +194,9 @@ TEST_F(DisplayTest, setColorModeSetsModeUnlessNoChange) {
                                    ui::RenderIntent::TONE_MAP_COLORIMETRIC))
             .Times(1);
 
-    mDisplay.setColorMode(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
-                          ui::RenderIntent::TONE_MAP_COLORIMETRIC, ui::Dataspace::UNKNOWN);
+    mDisplay.setColorProfile(ColorProfile{ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
+                                          ui::RenderIntent::TONE_MAP_COLORIMETRIC,
+                                          ui::Dataspace::UNKNOWN});
 
     EXPECT_EQ(ui::ColorMode::DISPLAY_P3, mDisplay.getState().colorMode);
     EXPECT_EQ(ui::Dataspace::DISPLAY_P3, mDisplay.getState().dataspace);
@@ -202,6 +205,8 @@ TEST_F(DisplayTest, setColorModeSetsModeUnlessNoChange) {
 }
 
 TEST_F(DisplayTest, setColorModeDoesNothingForVirtualDisplay) {
+    using ColorProfile = Output::ColorProfile;
+
     impl::Display virtualDisplay{mCompositionEngine,
                                  DisplayCreationArgs{false, true, DEFAULT_DISPLAY_ID}};
 
@@ -214,8 +219,9 @@ TEST_F(DisplayTest, setColorModeDoesNothingForVirtualDisplay) {
                                    ui::Dataspace::UNKNOWN))
             .WillOnce(Return(ui::Dataspace::UNKNOWN));
 
-    virtualDisplay.setColorMode(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
-                                ui::RenderIntent::TONE_MAP_COLORIMETRIC, ui::Dataspace::UNKNOWN);
+    virtualDisplay.setColorProfile(
+            ColorProfile{ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
+                         ui::RenderIntent::TONE_MAP_COLORIMETRIC, ui::Dataspace::UNKNOWN});
 
     EXPECT_EQ(ui::ColorMode::NATIVE, virtualDisplay.getState().colorMode);
     EXPECT_EQ(ui::Dataspace::UNKNOWN, virtualDisplay.getState().dataspace);

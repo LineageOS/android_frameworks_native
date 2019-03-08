@@ -33,6 +33,7 @@ cc_test {
         "libutils",
     ],
     static_libs: [
+        "libcompositionengine",
         "libgmock",
         "libperfetto_client_experimental",
         "librenderengine",

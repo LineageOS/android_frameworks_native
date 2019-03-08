@@ -78,15 +78,15 @@ void Display::setColorTransform(const mat4& transform) {
              mId ? to_string(*mId).c_str() : "", result);
 }
 
-void Display::setColorMode(ui::ColorMode mode, ui::Dataspace dataspace,
-                           ui::RenderIntent renderIntent,
-                           ui::Dataspace colorSpaceAgnosticDataspace) {
-    ui::Dataspace targetDataspace =
-            getDisplayColorProfile()->getTargetDataspace(mode, dataspace,
-                                                         colorSpaceAgnosticDataspace);
+void Display::setColorProfile(const ColorProfile& colorProfile) {
+    const ui::Dataspace targetDataspace =
+            getDisplayColorProfile()->getTargetDataspace(colorProfile.mode, colorProfile.dataspace,
+                                                         colorProfile.colorSpaceAgnosticDataspace);
 
-    if (mode == getState().colorMode && dataspace == getState().dataspace &&
-        renderIntent == getState().renderIntent && targetDataspace == getState().targetDataspace) {
+    if (colorProfile.mode == getState().colorMode &&
+        colorProfile.dataspace == getState().dataspace &&
+        colorProfile.renderIntent == getState().renderIntent &&
+        targetDataspace == getState().targetDataspace) {
         return;
     }
 
@@ -95,10 +95,10 @@ void Display::setColorMode(ui::ColorMode mode, ui::Dataspace dataspace,
         return;
     }
 
-    Output::setColorMode(mode, dataspace, renderIntent, colorSpaceAgnosticDataspace);
+    Output::setColorProfile(colorProfile);
 
     auto& hwc = getCompositionEngine().getHwComposer();
-    hwc.setActiveColorMode(*mId, mode, renderIntent);
+    hwc.setActiveColorMode(*mId, colorProfile.mode, colorProfile.renderIntent);
 }
 
 void Display::dump(std::string& out) const {

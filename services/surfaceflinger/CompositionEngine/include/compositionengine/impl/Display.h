@@ -41,7 +41,7 @@ public:
     // compositionengine::Output overrides
     void dump(std::string&) const override;
     void setColorTransform(const mat4&) override;
-    void setColorMode(ui::ColorMode, ui::Dataspace, ui::RenderIntent, ui::Dataspace) override;
+    void setColorProfile(const ColorProfile&) override;
     void chooseCompositionStrategy() override;
     bool getSkipColorTransform() const override;
     compositionengine::Output::FrameFences presentAndGetFrameFences() override;

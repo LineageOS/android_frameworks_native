@@ -63,6 +63,13 @@ public:
         std::unordered_map<HWC2::Layer*, sp<Fence>> layerFences;
     };
 
+    struct ColorProfile {
+        ui::ColorMode mode{ui::ColorMode::NATIVE};
+        ui::Dataspace dataspace{ui::Dataspace::UNKNOWN};
+        ui::RenderIntent renderIntent{ui::RenderIntent::COLORIMETRIC};
+        ui::Dataspace colorSpaceAgnosticDataspace{ui::Dataspace::UNKNOWN};
+    };
+
     virtual ~Output();
 
     // Returns true if the output is valid. This is meant to be checked post-
@@ -87,8 +94,7 @@ public:
     virtual void setColorTransform(const mat4&) = 0;
 
     // Sets the output color mode
-    virtual void setColorMode(ui::ColorMode, ui::Dataspace, ui::RenderIntent,
-                              ui::Dataspace colorSpaceAgnosticDataspace) = 0;
+    virtual void setColorProfile(const ColorProfile&) = 0;
 
     // Outputs a string with a state dump
     virtual void dump(std::string&) const = 0;
@@ -152,6 +158,9 @@ public:
 
     // Takes (moves) the set of layers being released this frame.
     virtual ReleasedLayers takeReleasedLayers() = 0;
+
+    // Updates the color mode used on this output
+    virtual void updateColorProfile(const CompositionRefreshArgs&) = 0;
 
     // Signals that a frame is beginning on the output
     virtual void beginFrame() = 0;
