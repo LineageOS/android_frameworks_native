@@ -1691,13 +1691,13 @@ bool SensorService::isWhiteListedPackage(const String8& packageName) {
     return (packageName.contains(mWhiteListedPackage.string()));
 }
 
-bool SensorService::isOperationRestricted(const String16& opPackageName) {
+bool SensorService::isOperationPermitted(const String16& opPackageName) {
     Mutex::Autolock _l(mLock);
-    if (mCurrentOperatingMode != RESTRICTED) {
+    if (mCurrentOperatingMode == RESTRICTED) {
         String8 package(opPackageName);
-        return !isWhiteListedPackage(package);
+        return isWhiteListedPackage(package);
     }
-    return false;
+    return true;
 }
 
 void SensorService::UidPolicy::registerSelf() {
