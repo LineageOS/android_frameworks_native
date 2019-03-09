@@ -467,7 +467,15 @@ public:
         char message[64];
 
         std::lock_guard<std::mutex> lock(mMutex);
-        snprintf(message, sizeof(message), "Trace fence %u", mFencesQueued);
+        if (fence->getSignalTime() != Fence::SIGNAL_TIME_PENDING) {
+            snprintf(message, sizeof(message), "%s fence %u has signaled", mName, mFencesQueued);
+            ATRACE_NAME(message);
+            // Need an increment on both to make the trace number correct.
+            mFencesQueued++;
+            mFencesSignaled++;
+            return;
+        }
+        snprintf(message, sizeof(message), "Trace %s fence %u", mName, mFencesQueued);
         ATRACE_NAME(message);
 
         mQueue.push_back(fence);
