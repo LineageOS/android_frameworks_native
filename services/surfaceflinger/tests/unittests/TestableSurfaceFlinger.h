@@ -257,7 +257,10 @@ public:
         return mFlinger->onHotplugReceived(sequenceId, display, connection);
     }
 
-    auto setDisplayStateLocked(const DisplayState& s) { return mFlinger->setDisplayStateLocked(s); }
+    auto setDisplayStateLocked(const DisplayState& s) {
+        Mutex::Autolock _l(mFlinger->mStateLock);
+        return mFlinger->setDisplayStateLocked(s);
+    }
 
     // Allow reading display state without locking, as if called on the SF main thread.
     auto onInitializeDisplays() NO_THREAD_SAFETY_ANALYSIS {
