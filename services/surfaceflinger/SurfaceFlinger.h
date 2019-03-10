@@ -584,8 +584,9 @@ private:
     bool containsAnyInvalidClientState(const Vector<ComposerState>& states);
     bool transactionIsReadyToBeApplied(int64_t desiredPresentTime,
                                        const Vector<ComposerState>& states);
-    uint32_t setClientStateLocked(const ComposerState& composerState, bool privileged);
-    uint32_t setDisplayStateLocked(const DisplayState& s);
+    uint32_t setClientStateLocked(const ComposerState& composerState, bool privileged)
+            REQUIRES(mStateLock);
+    uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
     uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands)
             REQUIRES(mStateLock);
 
@@ -970,7 +971,12 @@ private:
     // Tracks layers that need to update a display's dirty region.
     std::vector<sp<Layer>> mLayersPendingRefresh;
     sp<Fence> mPreviousPresentFence = Fence::NO_FENCE;
+    // True if in the previous frame at least one layer was composed via the GPU.
     bool mHadClientComposition = false;
+    // True if in the previous frame at least one layer was composed via HW Composer.
+    // Note that it is possible for a frame to be composed via both client and device
+    // composition, for example in the case of overlays.
+    bool mHadDeviceComposition = false;
 
     enum class BootStage {
         BOOTLOADER,
@@ -1010,9 +1016,6 @@ private:
     std::atomic<uint32_t> mFrameMissedCount{0};
 
     TransactionCompletedThread mTransactionCompletedThread;
-
-    bool mLumaSampling = true;
-    sp<RegionSamplingThread> mRegionSamplingThread = new RegionSamplingThread(*this);
 
     // Restrict layers to use two buffers in their bufferqueues.
     bool mLayerTripleBufferingDisabled = false;
@@ -1135,10 +1138,12 @@ private:
 
     // below flags are set by main thread only
     bool mDesiredActiveConfigChanged GUARDED_BY(mActiveConfigLock) = false;
-    bool mWaitForNextInvalidate = false;
     bool mCheckPendingFence = false;
 
     /* ------------------------------------------------------------------------ */
+    bool mLumaSampling = true;
+    sp<RegionSamplingThread> mRegionSamplingThread;
+
     sp<IInputFlinger> mInputFlinger;
 
     InputWindowCommands mPendingInputWindowCommands GUARDED_BY(mStateLock);

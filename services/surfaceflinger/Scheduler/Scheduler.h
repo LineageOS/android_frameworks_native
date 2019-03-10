@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 
 #include <ui/DisplayStatInfo.h>
@@ -104,6 +105,9 @@ public:
     // Getter methods.
     EventThread* getEventThread(const sp<ConnectionHandle>& handle);
 
+    // Provides access to the DispSync object for the primary display.
+    void withPrimaryDispSync(std::function<void(DispSync&)> const& fn);
+
     sp<EventThreadConnection> getEventConnection(const sp<ConnectionHandle>& handle);
 
     // Should be called when receiving a hotplug event.
@@ -141,11 +145,11 @@ public:
     void addPresentFence(const std::shared_ptr<FenceTime>& fenceTime);
     void setIgnorePresentFences(bool ignore);
     nsecs_t expectedPresentTime();
-    // Adds the present time for given layer to the history of present times.
-    void addFramePresentTimeForLayer(const nsecs_t framePresentTime, bool isAutoTimestamp,
-                                     const std::string layerName);
-    // Increments counter in the layer history to indicate that SF has started a new frame.
-    void incrementFrameCounter();
+    // apiId indicates the API (NATIVE_WINDOW_API_xxx) that queues the buffer.
+    // TODO(b/123956502): Remove this call with V1 go/content-fps-detection-in-scheduler.
+    void addNativeWindowApi(int apiId);
+    // Updates FPS based on the most occured request for Native Window API.
+    void updateFpsBasedOnNativeWindowApi();
     // Callback that gets invoked when Scheduler wants to change the refresh rate.
     void setChangeRefreshRateCallback(const ChangeRefreshRateCallback& changeRefreshRateCallback);
 
@@ -165,17 +169,16 @@ protected:
 private:
     friend class TestableScheduler;
 
+    // In order to make sure that the features don't override themselves, we need a state machine
+    // to keep track which feature requested the config change.
+    enum class MediaFeatureState { MEDIA_PLAYING, MEDIA_OFF };
+    enum class IdleTimerState { EXPIRED, RESET };
+
     // Creates a connection on the given EventThread and forwards the given callbacks.
     sp<EventThreadConnection> createConnectionInternal(EventThread*, ResyncCallback&&);
 
     nsecs_t calculateAverage() const;
     void updateFrameSkipping(const int64_t skipCount);
-    // Collects the statistical mean (average) and median between timestamp
-    // intervals for each frame for each layer.
-    void determineLayerTimestampStats(const std::string layerName, const nsecs_t framePresentTime);
-    // Collects the average difference between timestamps for each frame regardless
-    // of which layer the timestamp came from.
-    void determineTimestampAverage(bool isAutoTimestamp, const nsecs_t framePresentTime);
     // Function that resets the idle timer.
     void resetIdleTimer();
     // Function that is called when the timer resets.
@@ -184,6 +187,12 @@ private:
     void expiredTimerCallback();
     // Sets vsync period.
     void setVsyncPeriod(const nsecs_t period);
+    // Media feature's function to change the refresh rate.
+    void mediaChangeRefreshRate(MediaFeatureState mediaFeatureState);
+    // Idle timer feature's function to change the refresh rate.
+    void timerChangeRefreshRate(IdleTimerState idleTimerState);
+    // Acquires a lock and calls the ChangeRefreshRateCallback() with given parameters.
+    void changeRefreshRate(RefreshRateType refreshRateType, ConfigEvent configEvent);
 
     // If fences from sync Framework are supported.
     const bool mHasSyncFramework;
@@ -217,10 +226,13 @@ private:
     std::array<int64_t, scheduler::ARRAY_SIZE> mTimeDifferences{};
     size_t mCounter = 0;
 
-    // DetermineLayerTimestampStats is called from BufferQueueLayer::onFrameAvailable which
-    // can run on any thread, and cause failure.
-    std::mutex mLayerHistoryLock;
-    LayerHistory mLayerHistory GUARDED_BY(mLayerHistoryLock);
+    // The following few fields follow native window api bits that come with buffers. If there are
+    // more buffers with NATIVE_WINDOW_API_MEDIA we render at 60Hz, otherwise we render at 90Hz.
+    // There is not dependency on timestamp for V0.
+    // TODO(b/123956502): Remove this when more robust logic for content fps detection is developed.
+    std::mutex mWindowApiHistoryLock;
+    std::array<int, scheduler::ARRAY_SIZE> mWindowApiHistory GUARDED_BY(mWindowApiHistoryLock);
+    int64_t mApiHistoryCounter = 0;
 
     // Timer that records time between requests for next vsync. If the time is higher than a given
     // interval, a callback is fired. Set this variable to >0 to use this feature.
@@ -229,6 +241,13 @@ private:
 
     std::mutex mCallbackLock;
     ChangeRefreshRateCallback mChangeRefreshRateCallback GUARDED_BY(mCallbackLock);
+
+    // In order to make sure that the features don't override themselves, we need a state machine
+    // to keep track which feature requested the config change.
+    std::mutex mFeatureStateLock;
+    MediaFeatureState mCurrentMediaFeatureState GUARDED_BY(mFeatureStateLock) =
+            MediaFeatureState::MEDIA_OFF;
+    IdleTimerState mCurrentIdleTimerState GUARDED_BY(mFeatureStateLock) = IdleTimerState::RESET;
 };
 
 } // namespace android

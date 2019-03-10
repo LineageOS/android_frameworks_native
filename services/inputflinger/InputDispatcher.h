@@ -17,6 +17,7 @@
 #ifndef _UI_INPUT_DISPATCHER_H
 #define _UI_INPUT_DISPATCHER_H
 
+#include <condition_variable>
 #include <input/Input.h>
 #include <input/InputApplication.h>
 #include <input/InputTransport.h>
@@ -884,9 +885,9 @@ private:
     sp<InputDispatcherPolicyInterface> mPolicy;
     InputDispatcherConfiguration mConfig;
 
-    Mutex mLock;
+    std::mutex mLock;
 
-    Condition mDispatcherIsAliveCondition;
+    std::condition_variable mDispatcherIsAlive;
 
     sp<Looper> mLooper;
 
@@ -944,13 +945,13 @@ private:
             GUARDED_BY(mLock);
 
     // Event injection and synchronization.
-    Condition mInjectionResultAvailableCondition;
+    std::condition_variable mInjectionResultAvailable;
     bool hasInjectionPermission(int32_t injectorPid, int32_t injectorUid);
-    void setInjectionResultLocked(EventEntry* entry, int32_t injectionResult);
+    void setInjectionResult(EventEntry* entry, int32_t injectionResult);
 
-    Condition mInjectionSyncFinishedCondition;
+    std::condition_variable mInjectionSyncFinished;
     void incrementPendingForegroundDispatches(EventEntry* entry);
-    void decrementPendingForegroundDispatchesLocked(EventEntry* entry);
+    void decrementPendingForegroundDispatches(EventEntry* entry);
 
     // Key repeat tracking.
     struct KeyRepeatState {
@@ -1136,7 +1137,7 @@ private:
             EventEntry* eventEntry, const InputTarget* inputTarget) REQUIRES(mLock);
     void enqueueDispatchEntriesLocked(nsecs_t currentTime, const sp<Connection>& connection,
             EventEntry* eventEntry, const InputTarget* inputTarget) REQUIRES(mLock);
-    void enqueueDispatchEntryLocked(const sp<Connection>& connection,
+    void enqueueDispatchEntry(const sp<Connection>& connection,
             EventEntry* eventEntry, const InputTarget* inputTarget, int32_t dispatchMode);
     void startDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection)
             REQUIRES(mLock);
@@ -1144,8 +1145,8 @@ private:
             uint32_t seq, bool handled) REQUIRES(mLock);
     void abortBrokenDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection,
             bool notify) REQUIRES(mLock);
-    void drainDispatchQueueLocked(Queue<DispatchEntry>* queue);
-    void releaseDispatchEntryLocked(DispatchEntry* dispatchEntry);
+    void drainDispatchQueue(Queue<DispatchEntry>* queue);
+    void releaseDispatchEntry(DispatchEntry* dispatchEntry);
     static int handleReceiveCallback(int fd, int events, void* data);
 
     void synthesizeCancelationEventsForAllConnectionsLocked(
@@ -1197,7 +1198,7 @@ private:
     bool afterKeyEventLockedInterruptible(const sp<Connection>& connection,
             DispatchEntry* dispatchEntry, KeyEntry* keyEntry, bool handled) REQUIRES(mLock);
     bool afterMotionEventLockedInterruptible(const sp<Connection>& connection,
-            DispatchEntry* dispatchEntry, MotionEntry* motionEntry, bool handled);
+            DispatchEntry* dispatchEntry, MotionEntry* motionEntry, bool handled) REQUIRES(mLock);
     void doPokeUserActivityLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     void initializeKeyEvent(KeyEvent* event, const KeyEntry* entry);
 

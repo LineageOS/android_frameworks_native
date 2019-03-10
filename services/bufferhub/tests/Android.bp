@@ -11,6 +11,7 @@ cc_test {
         "-Wall",
         "-Werror",
     ],
+    compile_multilib: "first",
     header_libs: [
         "libdvr_headers",
         "libnativewindow_headers",

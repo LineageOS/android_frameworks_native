@@ -92,12 +92,10 @@ void LayerProtoHelper::writeToProto(const half4 color, std::function<ColorProto*
 
 void LayerProtoHelper::writeToProto(const ui::Transform& transform,
                                     TransformProto* transformProto) {
-    const uint32_t type = transform.getType();
+    const uint32_t type = transform.getType() | (transform.getOrientation() << 8);
     transformProto->set_type(type);
 
-    if (type &
-        (ui::Transform::SCALE | ui::Transform::ROTATE | ui::Transform::TRANSLATE |
-         ui::Transform::UNKNOWN)) {
+    if (type & (ui::Transform::SCALE | ui::Transform::UNKNOWN)) {
         transformProto->set_dsdx(transform[0][0]);
         transformProto->set_dtdx(transform[0][1]);
         transformProto->set_dsdy(transform[1][0]);

@@ -370,8 +370,13 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
     auto listSize = property_get_int32("debug.sf.max_igbp_list_size", int32_t(defaultListSize));
     mMaxGraphicBufferProducerListSize = (listSize > 0) ? size_t(listSize) : defaultListSize;
 
+    mUseSmart90ForVideo = use_smart_90_for_video(false);
     property_get("debug.sf.use_smart_90_for_video", value, "0");
-    mUseSmart90ForVideo = atoi(value);
+
+    int int_value = atoi(value);
+    if (int_value) {
+        mUseSmart90ForVideo = true;
+    }
 
     property_get("debug.sf.luma_sampling", value, "1");
     mLumaSampling = atoi(value);
@@ -568,12 +573,8 @@ void SurfaceFlinger::bootFinished()
                 mRefreshRateConfigs[*displayId]->getRefreshRate(RefreshRateType::PERFORMANCE);
 
         if (isConfigAllowed(*displayId, performanceRefreshRate.configId)) {
-            mPhaseOffsets->setRefreshRateType(
-                    scheduler::RefreshRateConfigs::RefreshRateType::PERFORMANCE);
             setRefreshRateTo(RefreshRateType::PERFORMANCE, Scheduler::ConfigEvent::None);
         } else {
-            mPhaseOffsets->setRefreshRateType(
-                    scheduler::RefreshRateConfigs::RefreshRateType::DEFAULT);
             setRefreshRateTo(RefreshRateType::DEFAULT, Scheduler::ConfigEvent::None);
         }
     }));
@@ -631,6 +632,10 @@ void SurfaceFlinger::init() {
     mEventQueue->setEventConnection(mScheduler->getEventConnection(mSfConnectionHandle));
     mVsyncModulator.setSchedulerAndHandles(mScheduler.get(), mAppConnectionHandle.get(),
                                            mSfConnectionHandle.get());
+
+    mRegionSamplingThread =
+            new RegionSamplingThread(*this, *mScheduler,
+                                     RegionSamplingThread::EnvironmentTimingTunables());
 
     // Get a RenderEngine for the given display / config (can't fail)
     int32_t renderEngineFeature = 0;
@@ -970,6 +975,8 @@ void SurfaceFlinger::setActiveConfigInternal() {
     display->setActiveConfig(mUpcomingActiveConfig.configId);
 
     mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
+    const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
+    mVsyncModulator.setPhaseOffsets(early, gl, late);
     ATRACE_INT("ActiveConfigMode", mUpcomingActiveConfig.configId);
     if (mUpcomingActiveConfig.event != Scheduler::ConfigEvent::None) {
         mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value,
@@ -979,15 +986,6 @@ void SurfaceFlinger::setActiveConfigInternal() {
 
 bool SurfaceFlinger::performSetActiveConfig() NO_THREAD_SAFETY_ANALYSIS {
     ATRACE_CALL();
-    // we may be in the process of changing the active state
-    if (mWaitForNextInvalidate) {
-        mWaitForNextInvalidate = false;
-
-        repaintEverythingForHWC();
-        // We do not want to give another frame to HWC while we are transitioning.
-        return true;
-    }
-
     if (mCheckPendingFence) {
         if (mPreviousPresentFence != Fence::NO_FENCE &&
             (mPreviousPresentFence->getStatus() == Fence::Status::Unsignaled)) {
@@ -1039,7 +1037,6 @@ bool SurfaceFlinger::performSetActiveConfig() NO_THREAD_SAFETY_ANALYSIS {
     getHwComposer().setActiveConfig(*displayId, mUpcomingActiveConfig.configId);
 
     // we need to submit an empty frame to HWC to start the process
-    mWaitForNextInvalidate = true;
     mCheckPendingFence = true;
 
     return false;
@@ -1413,15 +1410,10 @@ bool SurfaceFlinger::isConfigAllowed(const DisplayId& displayId, int32_t config)
 }
 
 void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate, Scheduler::ConfigEvent event) {
-    ATRACE_CALL();
-    mPhaseOffsets->setRefreshRateType(refreshRate);
-
-    const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
-    mVsyncModulator.setPhaseOffsets(early, gl, late);
-
     if (mBootStage != BootStage::FINISHED) {
         return;
     }
+    ATRACE_CALL();
 
     // Don't do any updating if the current fps is the same as the new one.
     const auto displayId = getInternalDisplayIdLocked();
@@ -1439,6 +1431,7 @@ void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate, Scheduler::Co
         return;
     }
 
+    mPhaseOffsets->setRefreshRateType(refreshRate);
     setDesiredActiveConfig(getInternalDisplayTokenLocked(), desiredConfigId, event);
 }
 
@@ -1583,23 +1576,28 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
     ATRACE_CALL();
     switch (what) {
         case MessageQueue::INVALIDATE: {
-            if (performSetActiveConfig()) {
-                break;
+            bool frameMissed = mPreviousPresentFence != Fence::NO_FENCE &&
+                    (mPreviousPresentFence->getStatus() == Fence::Status::Unsignaled);
+            bool hwcFrameMissed = mHadDeviceComposition && frameMissed;
+            bool gpuFrameMissed = mHadClientComposition && frameMissed;
+            ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
+            ATRACE_INT("HwcFrameMissed", static_cast<int>(hwcFrameMissed));
+            ATRACE_INT("GpuFrameMissed", static_cast<int>(gpuFrameMissed));
+            if (frameMissed) {
+                mFrameMissedCount++;
+                mTimeStats->incrementMissedFrames();
             }
 
             if (mUseSmart90ForVideo) {
                 // This call is made each time SF wakes up and creates a new frame. It is part
                 // of video detection feature.
-                mScheduler->incrementFrameCounter();
+                mScheduler->updateFpsBasedOnNativeWindowApi();
             }
-            bool frameMissed = mPreviousPresentFence != Fence::NO_FENCE &&
-                    (mPreviousPresentFence->getStatus() == Fence::Status::Unsignaled);
-            bool hwcFrameMissed = !mHadClientComposition && frameMissed;
-            if (frameMissed) {
-                ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
-                mFrameMissedCount++;
-                mTimeStats->incrementMissedFrames();
+
+            if (performSetActiveConfig()) {
+                break;
             }
+
             // For now, only propagate backpressure when missing a hwc frame.
             if (hwcFrameMissed) {
                 if (mPropagateBackpressure) {
@@ -1680,11 +1678,14 @@ void SurfaceFlinger::handleMessageRefresh() {
     postComposition();
 
     mHadClientComposition = false;
+    mHadDeviceComposition = false;
     for (const auto& [token, displayDevice] : mDisplays) {
         auto display = displayDevice->getCompositionDisplay();
         const auto displayId = display->getId();
         mHadClientComposition =
                 mHadClientComposition || getHwComposer().hasClientComposition(displayId);
+        mHadDeviceComposition =
+                mHadDeviceComposition || getHwComposer().hasDeviceComposition(displayId);
     }
 
     mVsyncModulator.onRefreshed(mHadClientComposition);
@@ -2057,8 +2058,8 @@ void SurfaceFlinger::postComposition()
     mTransactionCompletedThread.addPresentFence(mPreviousPresentFence);
     mTransactionCompletedThread.sendCallbacks();
 
-    if (mLumaSampling) {
-        mRegionSamplingThread->sampleNow();
+    if (mLumaSampling && mRegionSamplingThread) {
+        mRegionSamplingThread->notifyNewContent();
     }
 }
 
@@ -3872,7 +3873,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
         if (layer->setSidebandStream(s.sidebandStream)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eInputInfoChanged) {
-        if (callingThreadHasUnscopedSurfaceFlingerAccess()) {
+        if (privileged) {
             layer->setInputInfo(s.inputInfo);
             flags |= eTraversalNeeded;
         } else {
@@ -4744,6 +4745,7 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
      */
     result.append("\nScheduler state:\n");
     result.append(mScheduler->doDump() + "\n");
+    StringAppendF(&result, "+  Smart video mode: %s\n\n", mUseSmart90ForVideo ? "on" : "off");
     result.append(mRefreshRateStats->doDump() + "\n");
 }
 
@@ -5664,8 +5666,6 @@ void SurfaceFlinger::setAllowedDisplayConfigsInternal(
         const auto performanceRefreshRate =
                 mRefreshRateConfigs[*displayId]->getRefreshRate(RefreshRateType::PERFORMANCE);
         if (isConfigAllowed(*displayId, performanceRefreshRate.configId)) {
-            mPhaseOffsets->setRefreshRateType(
-                    scheduler::RefreshRateConfigs::RefreshRateType::PERFORMANCE);
             setRefreshRateTo(RefreshRateType::PERFORMANCE, Scheduler::ConfigEvent::Changed);
         }
     }

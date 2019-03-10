@@ -496,7 +496,7 @@ void BufferLayerConsumer::dumpLocked(String8& result, const char* prefix) const 
 
 BufferLayerConsumer::Image::~Image() {
     if (mGraphicBuffer != nullptr) {
-        ALOGE("Destroying buffer: %" PRId64, mGraphicBuffer->getId());
+        ALOGV("Destroying buffer: %" PRId64, mGraphicBuffer->getId());
         mRE.unbindExternalTextureBuffer(mGraphicBuffer->getId());
     }
 }

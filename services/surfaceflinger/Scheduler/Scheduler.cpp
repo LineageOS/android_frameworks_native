@@ -28,6 +28,7 @@
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
 #include <cutils/properties.h>
+#include <system/window.h>
 #include <ui/DisplayStatInfo.h>
 #include <utils/Timers.h>
 #include <utils/Trace.h>
@@ -296,21 +297,33 @@ void Scheduler::dumpPrimaryDispSync(std::string& result) const {
     mPrimaryDispSync->dump(result);
 }
 
-void Scheduler::addFramePresentTimeForLayer(const nsecs_t framePresentTime, bool isAutoTimestamp,
-                                            const std::string layerName) {
-    // This is V1 logic. It calculates the average FPS based on the timestamp frequency
-    // regardless of which layer the timestamp came from.
-    // For now, the averages and FPS are recorded in the systrace.
-    determineTimestampAverage(isAutoTimestamp, framePresentTime);
-
-    // This is V2 logic. It calculates the average and median timestamp difference based on the
-    // individual layer history. The results are recorded in the systrace.
-    determineLayerTimestampStats(layerName, framePresentTime);
+void Scheduler::addNativeWindowApi(int apiId) {
+    std::lock_guard<std::mutex> lock(mWindowApiHistoryLock);
+    mWindowApiHistory[mApiHistoryCounter] = apiId;
+    mApiHistoryCounter++;
+    mApiHistoryCounter = mApiHistoryCounter % scheduler::ARRAY_SIZE;
 }
 
-void Scheduler::incrementFrameCounter() {
-    std::lock_guard<std::mutex> lock(mLayerHistoryLock);
-    mLayerHistory.incrementCounter();
+void Scheduler::withPrimaryDispSync(std::function<void(DispSync&)> const& fn) {
+    fn(*mPrimaryDispSync);
+}
+
+void Scheduler::updateFpsBasedOnNativeWindowApi() {
+    int mode;
+    {
+        std::lock_guard<std::mutex> lock(mWindowApiHistoryLock);
+        mode = scheduler::calculate_mode(mWindowApiHistory);
+    }
+    ATRACE_INT("NativeWindowApiMode", mode);
+
+    if (mode == NATIVE_WINDOW_API_MEDIA) {
+        // TODO(b/127365162): These callback names are not accurate anymore. Update.
+        mediaChangeRefreshRate(MediaFeatureState::MEDIA_PLAYING);
+        ATRACE_INT("DetectedVideo", 1);
+    } else {
+        mediaChangeRefreshRate(MediaFeatureState::MEDIA_OFF);
+        ATRACE_INT("DetectedVideo", 0);
+    }
 }
 
 void Scheduler::setChangeRefreshRateCallback(
@@ -328,85 +341,6 @@ void Scheduler::updateFrameSkipping(const int64_t skipCount) {
     }
 }
 
-void Scheduler::determineLayerTimestampStats(const std::string layerName,
-                                             const nsecs_t framePresentTime) {
-    std::vector<int64_t> differencesMs;
-    std::string differencesText = "";
-    {
-        std::lock_guard<std::mutex> lock(mLayerHistoryLock);
-        mLayerHistory.insert(layerName, framePresentTime);
-
-        // Traverse through the layer history, and determine the differences in present times.
-        nsecs_t newestPresentTime = framePresentTime;
-        for (int i = 1; i < mLayerHistory.getSize(); i++) {
-            std::unordered_map<std::string, nsecs_t> layers = mLayerHistory.get(i);
-            for (auto layer : layers) {
-                if (layer.first != layerName) {
-                    continue;
-                }
-                int64_t differenceMs = (newestPresentTime - layer.second) / 1000000;
-                // Dismiss noise.
-                if (differenceMs > 10 && differenceMs < 60) {
-                    differencesMs.push_back(differenceMs);
-                }
-                IF_ALOGV() { differencesText += (std::to_string(differenceMs) + " "); }
-                newestPresentTime = layer.second;
-            }
-        }
-    }
-    ALOGV("Layer %s timestamp intervals: %s", layerName.c_str(), differencesText.c_str());
-
-    if (!differencesMs.empty()) {
-        // Mean/Average is a good indicator for when 24fps videos are playing, because the frames
-        // come in 33, and 49 ms intervals with occasional 41ms.
-        const int64_t meanMs = scheduler::calculate_mean(differencesMs);
-        const auto tagMean = "TimestampMean_" + layerName;
-        ATRACE_INT(tagMean.c_str(), meanMs);
-
-        // Mode and median are good indicators for 30 and 60 fps videos, because the majority of
-        // frames come in 16, or 33 ms intervals.
-        const auto tagMedian = "TimestampMedian_" + layerName;
-        ATRACE_INT(tagMedian.c_str(), scheduler::calculate_median(&differencesMs));
-
-        const auto tagMode = "TimestampMode_" + layerName;
-        ATRACE_INT(tagMode.c_str(), scheduler::calculate_mode(differencesMs));
-    }
-}
-
-void Scheduler::determineTimestampAverage(bool isAutoTimestamp, const nsecs_t framePresentTime) {
-    ATRACE_INT("AutoTimestamp", isAutoTimestamp);
-
-    // Video does not have timestamp automatically set, so we discard timestamps that are
-    // coming in from other sources for now.
-    if (isAutoTimestamp) {
-        return;
-    }
-    int64_t differenceMs = (framePresentTime - mPreviousFrameTimestamp) / 1000000;
-    mPreviousFrameTimestamp = framePresentTime;
-
-    if (differenceMs < 10 || differenceMs > 100) {
-        // Dismiss noise.
-        return;
-    }
-    ATRACE_INT("TimestampDiff", differenceMs);
-
-    mTimeDifferences[mCounter % scheduler::ARRAY_SIZE] = differenceMs;
-    mCounter++;
-    int64_t mean = scheduler::calculate_mean(mTimeDifferences);
-    ATRACE_INT("AutoTimestampMean", mean);
-
-    // TODO(b/113612090): This are current numbers from trial and error while running videos
-    // from YouTube at 24, 30, and 60 fps.
-    if (mean > 14 && mean < 18) {
-        ATRACE_INT("MediaFPS", 60);
-    } else if (mean > 31 && mean < 34) {
-        ATRACE_INT("MediaFPS", 30);
-        return;
-    } else if (mean > 39 && mean < 42) {
-        ATRACE_INT("MediaFPS", 24);
-    }
-}
-
 void Scheduler::resetIdleTimer() {
     if (mIdleTimer) {
         mIdleTimer->reset();
@@ -414,27 +348,63 @@ void Scheduler::resetIdleTimer() {
 }
 
 void Scheduler::resetTimerCallback() {
-    std::lock_guard<std::mutex> lock(mCallbackLock);
-    if (mChangeRefreshRateCallback) {
-        // We do not notify the applications about config changes when idle timer is reset.
-        mChangeRefreshRateCallback(RefreshRateType::PERFORMANCE, ConfigEvent::None);
-        ATRACE_INT("ExpiredIdleTimer", 0);
-    }
+    // We do not notify the applications about config changes when idle timer is reset.
+    timerChangeRefreshRate(IdleTimerState::RESET);
+    ATRACE_INT("ExpiredIdleTimer", 0);
 }
 
 void Scheduler::expiredTimerCallback() {
-    std::lock_guard<std::mutex> lock(mCallbackLock);
-    if (mChangeRefreshRateCallback) {
-        // We do not notify the applications about config changes when idle timer expires.
-        mChangeRefreshRateCallback(RefreshRateType::DEFAULT, ConfigEvent::None);
-        ATRACE_INT("ExpiredIdleTimer", 1);
-    }
+    // We do not notify the applications about config changes when idle timer expires.
+    timerChangeRefreshRate(IdleTimerState::EXPIRED);
+    ATRACE_INT("ExpiredIdleTimer", 1);
 }
 
 std::string Scheduler::doDump() {
     std::ostringstream stream;
     stream << "+  Idle timer interval: " << mSetIdleTimerMs << " ms" << std::endl;
     return stream.str();
+}
+
+void Scheduler::mediaChangeRefreshRate(MediaFeatureState mediaFeatureState) {
+    // Default playback for media is DEFAULT when media is on.
+    RefreshRateType refreshRateType = RefreshRateType::DEFAULT;
+    ConfigEvent configEvent = ConfigEvent::None;
+
+    {
+        std::lock_guard<std::mutex> lock(mFeatureStateLock);
+        mCurrentMediaFeatureState = mediaFeatureState;
+        // Only switch to PERFORMANCE if idle timer was reset, when turning
+        // media off. If the timer is IDLE, stay at DEFAULT.
+        if (mediaFeatureState == MediaFeatureState::MEDIA_OFF &&
+            mCurrentIdleTimerState == IdleTimerState::RESET) {
+            refreshRateType = RefreshRateType::PERFORMANCE;
+        }
+    }
+    changeRefreshRate(refreshRateType, configEvent);
+}
+
+void Scheduler::timerChangeRefreshRate(IdleTimerState idleTimerState) {
+    RefreshRateType refreshRateType = RefreshRateType::DEFAULT;
+    ConfigEvent configEvent = ConfigEvent::None;
+
+    {
+        std::lock_guard<std::mutex> lock(mFeatureStateLock);
+        mCurrentIdleTimerState = idleTimerState;
+        // Only switch to PERFOMANCE if the idle timer was reset, and media is
+        // not playing. Otherwise, stay at DEFAULT.
+        if (idleTimerState == IdleTimerState::RESET &&
+            mCurrentMediaFeatureState == MediaFeatureState::MEDIA_OFF) {
+            refreshRateType = RefreshRateType::PERFORMANCE;
+        }
+    }
+    changeRefreshRate(refreshRateType, configEvent);
+}
+
+void Scheduler::changeRefreshRate(RefreshRateType refreshRateType, ConfigEvent configEvent) {
+    std::lock_guard<std::mutex> lock(mCallbackLock);
+    if (mChangeRefreshRateCallback) {
+        mChangeRefreshRateCallback(refreshRateType, configEvent);
+    }
 }
 
 } // namespace android
