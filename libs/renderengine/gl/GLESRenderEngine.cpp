@@ -627,6 +627,13 @@ void GLESRenderEngine::bindExternalTextureImage(uint32_t texName, const Image& i
 
 status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer,
                                                      sp<Fence> bufferFence) {
+    std::lock_guard<std::mutex> lock(mRenderingMutex);
+    return bindExternalTextureBufferLocked(texName, buffer, bufferFence);
+}
+
+status_t GLESRenderEngine::bindExternalTextureBufferLocked(uint32_t texName,
+                                                           sp<GraphicBuffer> buffer,
+                                                           sp<Fence> bufferFence) {
     ATRACE_CALL();
     auto cachedImage = mImageCache.find(buffer->getId());
 
@@ -675,6 +682,7 @@ status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName, sp<Graphi
 }
 
 void GLESRenderEngine::unbindExternalTextureBuffer(uint64_t bufferId) {
+    std::lock_guard<std::mutex> lock(mRenderingMutex);
     const auto& cachedImage = mImageCache.find(bufferId);
     if (cachedImage != mImageCache.end()) {
         ALOGV("Destroying image for buffer: %" PRIu64, bufferId);
@@ -810,114 +818,118 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
         sync_wait(bufferFence.get(), -1);
     }
 
-    BindNativeBufferAsFramebuffer fbo(*this, buffer);
+    {
+        std::lock_guard<std::mutex> lock(mRenderingMutex);
 
-    if (fbo.getStatus() != NO_ERROR) {
-        ALOGE("Failed to bind framebuffer! Aborting GPU composition for buffer (%p).",
-              buffer->handle);
-        checkErrors();
-        return fbo.getStatus();
-    }
+        BindNativeBufferAsFramebuffer fbo(*this, buffer);
 
-    // clear the entire buffer, sometimes when we reuse buffers we'd persist
-    // ghost images otherwise.
-    // we also require a full transparent framebuffer for overlays. This is
-    // probably not quite efficient on all GPUs, since we could filter out
-    // opaque layers.
-    clearWithColor(0.0, 0.0, 0.0, 0.0);
-
-    setViewportAndProjection(display.physicalDisplay, display.clip);
-
-    setOutputDataSpace(display.outputDataspace);
-    setDisplayMaxLuminance(display.maxLuminance);
-
-    mat4 projectionMatrix = mState.projectionMatrix * display.globalTransform;
-    mState.projectionMatrix = projectionMatrix;
-    if (!display.clearRegion.isEmpty()) {
-        glDisable(GL_BLEND);
-        fillRegionWithColor(display.clearRegion, 0.0, 0.0, 0.0, 1.0);
-    }
-
-    Mesh mesh(Mesh::TRIANGLE_FAN, 4, 2, 2);
-    for (auto layer : layers) {
-        mState.projectionMatrix = projectionMatrix * layer.geometry.positionTransform;
-
-        const FloatRect bounds = layer.geometry.boundaries;
-        Mesh::VertexArray<vec2> position(mesh.getPositionArray<vec2>());
-        position[0] = vec2(bounds.left, bounds.top);
-        position[1] = vec2(bounds.left, bounds.bottom);
-        position[2] = vec2(bounds.right, bounds.bottom);
-        position[3] = vec2(bounds.right, bounds.top);
-
-        setupLayerCropping(layer, mesh);
-        setColorTransform(display.colorTransform * layer.colorTransform);
-
-        bool usePremultipliedAlpha = true;
-        bool disableTexture = true;
-        bool isOpaque = false;
-
-        if (layer.source.buffer.buffer != nullptr) {
-            disableTexture = false;
-            isOpaque = layer.source.buffer.isOpaque;
-
-            sp<GraphicBuffer> gBuf = layer.source.buffer.buffer;
-            bindExternalTextureBuffer(layer.source.buffer.textureName, gBuf,
-                                      layer.source.buffer.fence);
-
-            usePremultipliedAlpha = layer.source.buffer.usePremultipliedAlpha;
-            Texture texture(Texture::TEXTURE_EXTERNAL, layer.source.buffer.textureName);
-            mat4 texMatrix = layer.source.buffer.textureTransform;
-
-            texture.setMatrix(texMatrix.asArray());
-            texture.setFiltering(layer.source.buffer.useTextureFiltering);
-
-            texture.setDimensions(gBuf->getWidth(), gBuf->getHeight());
-            setSourceY410BT2020(layer.source.buffer.isY410BT2020);
-
-            renderengine::Mesh::VertexArray<vec2> texCoords(mesh.getTexCoordArray<vec2>());
-            texCoords[0] = vec2(0.0, 0.0);
-            texCoords[1] = vec2(0.0, 1.0);
-            texCoords[2] = vec2(1.0, 1.0);
-            texCoords[3] = vec2(1.0, 0.0);
-            setupLayerTexturing(texture);
-        }
-
-        const half3 solidColor = layer.source.solidColor;
-        const half4 color = half4(solidColor.r, solidColor.g, solidColor.b, layer.alpha);
-        // Buffer sources will have a black solid color ignored in the shader,
-        // so in that scenario the solid color passed here is arbitrary.
-        setupLayerBlending(usePremultipliedAlpha, isOpaque, disableTexture, color,
-                           layer.geometry.roundedCornersRadius);
-        if (layer.disableBlending) {
-            glDisable(GL_BLEND);
-        }
-        setSourceDataSpace(layer.sourceDataspace);
-
-        drawMesh(mesh);
-
-        // Cleanup if there's a buffer source
-        if (layer.source.buffer.buffer != nullptr) {
-            disableBlending();
-            setSourceY410BT2020(false);
-            disableTexturing();
-        }
-    }
-
-    *drawFence = flush();
-    // If flush failed or we don't support native fences, we need to force the
-    // gl command stream to be executed.
-    if (drawFence->get() < 0) {
-        bool success = finish();
-        if (!success) {
-            ALOGE("Failed to flush RenderEngine commands");
+        if (fbo.getStatus() != NO_ERROR) {
+            ALOGE("Failed to bind framebuffer! Aborting GPU composition for buffer (%p).",
+                  buffer->handle);
             checkErrors();
-            // Chances are, something illegal happened (either the caller passed
-            // us bad parameters, or we messed up our shader generation).
-            return INVALID_OPERATION;
+            return fbo.getStatus();
         }
-    }
 
-    checkErrors();
+        // clear the entire buffer, sometimes when we reuse buffers we'd persist
+        // ghost images otherwise.
+        // we also require a full transparent framebuffer for overlays. This is
+        // probably not quite efficient on all GPUs, since we could filter out
+        // opaque layers.
+        clearWithColor(0.0, 0.0, 0.0, 0.0);
+
+        setViewportAndProjection(display.physicalDisplay, display.clip);
+
+        setOutputDataSpace(display.outputDataspace);
+        setDisplayMaxLuminance(display.maxLuminance);
+
+        mat4 projectionMatrix = mState.projectionMatrix * display.globalTransform;
+        mState.projectionMatrix = projectionMatrix;
+        if (!display.clearRegion.isEmpty()) {
+            glDisable(GL_BLEND);
+            fillRegionWithColor(display.clearRegion, 0.0, 0.0, 0.0, 1.0);
+        }
+
+        Mesh mesh(Mesh::TRIANGLE_FAN, 4, 2, 2);
+        for (auto layer : layers) {
+            mState.projectionMatrix = projectionMatrix * layer.geometry.positionTransform;
+
+            const FloatRect bounds = layer.geometry.boundaries;
+            Mesh::VertexArray<vec2> position(mesh.getPositionArray<vec2>());
+            position[0] = vec2(bounds.left, bounds.top);
+            position[1] = vec2(bounds.left, bounds.bottom);
+            position[2] = vec2(bounds.right, bounds.bottom);
+            position[3] = vec2(bounds.right, bounds.top);
+
+            setupLayerCropping(layer, mesh);
+            setColorTransform(display.colorTransform * layer.colorTransform);
+
+            bool usePremultipliedAlpha = true;
+            bool disableTexture = true;
+            bool isOpaque = false;
+
+            if (layer.source.buffer.buffer != nullptr) {
+                disableTexture = false;
+                isOpaque = layer.source.buffer.isOpaque;
+
+                sp<GraphicBuffer> gBuf = layer.source.buffer.buffer;
+                bindExternalTextureBufferLocked(layer.source.buffer.textureName, gBuf,
+                                                layer.source.buffer.fence);
+
+                usePremultipliedAlpha = layer.source.buffer.usePremultipliedAlpha;
+                Texture texture(Texture::TEXTURE_EXTERNAL, layer.source.buffer.textureName);
+                mat4 texMatrix = layer.source.buffer.textureTransform;
+
+                texture.setMatrix(texMatrix.asArray());
+                texture.setFiltering(layer.source.buffer.useTextureFiltering);
+
+                texture.setDimensions(gBuf->getWidth(), gBuf->getHeight());
+                setSourceY410BT2020(layer.source.buffer.isY410BT2020);
+
+                renderengine::Mesh::VertexArray<vec2> texCoords(mesh.getTexCoordArray<vec2>());
+                texCoords[0] = vec2(0.0, 0.0);
+                texCoords[1] = vec2(0.0, 1.0);
+                texCoords[2] = vec2(1.0, 1.0);
+                texCoords[3] = vec2(1.0, 0.0);
+                setupLayerTexturing(texture);
+            }
+
+            const half3 solidColor = layer.source.solidColor;
+            const half4 color = half4(solidColor.r, solidColor.g, solidColor.b, layer.alpha);
+            // Buffer sources will have a black solid color ignored in the shader,
+            // so in that scenario the solid color passed here is arbitrary.
+            setupLayerBlending(usePremultipliedAlpha, isOpaque, disableTexture, color,
+                               layer.geometry.roundedCornersRadius);
+            if (layer.disableBlending) {
+                glDisable(GL_BLEND);
+            }
+            setSourceDataSpace(layer.sourceDataspace);
+
+            drawMesh(mesh);
+
+            // Cleanup if there's a buffer source
+            if (layer.source.buffer.buffer != nullptr) {
+                disableBlending();
+                setSourceY410BT2020(false);
+                disableTexturing();
+            }
+        }
+
+        *drawFence = flush();
+        // If flush failed or we don't support native fences, we need to force the
+        // gl command stream to be executed.
+        if (drawFence->get() < 0) {
+            bool success = finish();
+            if (!success) {
+                ALOGE("Failed to flush RenderEngine commands");
+                checkErrors();
+                // Chances are, something illegal happened (either the caller passed
+                // us bad parameters, or we messed up our shader generation).
+                return INVALID_OPERATION;
+            }
+        }
+
+        checkErrors();
+    }
     return NO_ERROR;
 }
 
