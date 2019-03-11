@@ -54,7 +54,9 @@
 #include <android/os/IIncidentCompanion.h>
 #include <cutils/native_handle.h>
 #include <cutils/properties.h>
+#include <debuggerd/client.h>
 #include <dumpsys.h>
+#include <dumputils/dump_utils.h>
 #include <hidl/ServiceManagement.h>
 #include <openssl/sha.h>
 #include <private/android_filesystem_config.h>
@@ -1450,7 +1452,7 @@ static bool DumpstateDefault() {
     RunDumpsysCritical();
 
     /* collect stack traces from Dalvik and native processes (needs root) */
-    dump_traces_path = dump_traces();
+    dump_traces_path = ds.DumpTraces();
 
     /* Run some operations that require root. */
     ds.tombstone_data_ = GetDumpFds(TOMBSTONE_DIR, TOMBSTONE_FILE_PREFIX, !ds.IsZipping());
@@ -1585,6 +1587,114 @@ static void DumpstateWifiOnly() {
     printf("========================================================\n");
     printf("== dumpstate: done (id %d)\n", ds.id_);
     printf("========================================================\n");
+}
+
+const char* Dumpstate::DumpTraces() {
+    DurationReporter duration_reporter("DUMP TRACES");
+
+    const std::string temp_file_pattern = "/data/anr/dumptrace_XXXXXX";
+    const size_t buf_size = temp_file_pattern.length() + 1;
+    std::unique_ptr<char[]> file_name_buf(new char[buf_size]);
+    memcpy(file_name_buf.get(), temp_file_pattern.c_str(), buf_size);
+
+    // Create a new, empty file to receive all trace dumps.
+    //
+    // TODO: This can be simplified once we remove support for the old style
+    // dumps. We can have a file descriptor passed in to dump_traces instead
+    // of creating a file, closing it and then reopening it again.
+    android::base::unique_fd fd(mkostemp(file_name_buf.get(), O_APPEND | O_CLOEXEC));
+    if (fd < 0) {
+        MYLOGE("mkostemp on pattern %s: %s\n", file_name_buf.get(), strerror(errno));
+        return nullptr;
+    }
+
+    // Nobody should have access to this temporary file except dumpstate, but we
+    // temporarily grant 'read' to 'others' here because this file is created
+    // when tombstoned is still running as root, but dumped after dropping. This
+    // can go away once support for old style dumping has.
+    const int chmod_ret = fchmod(fd, 0666);
+    if (chmod_ret < 0) {
+        MYLOGE("fchmod on %s failed: %s\n", file_name_buf.get(), strerror(errno));
+        return nullptr;
+    }
+
+    std::unique_ptr<DIR, decltype(&closedir)> proc(opendir("/proc"), closedir);
+    if (proc.get() == nullptr) {
+        MYLOGE("opendir /proc failed: %s\n", strerror(errno));
+        return nullptr;
+    }
+
+    // Number of times process dumping has timed out. If we encounter too many
+    // failures, we'll give up.
+    int timeout_failures = 0;
+    bool dalvik_found = false;
+
+    const std::set<int> hal_pids = get_interesting_hal_pids();
+
+    struct dirent* d;
+    while ((d = readdir(proc.get()))) {
+        int pid = atoi(d->d_name);
+        if (pid <= 0) {
+            continue;
+        }
+
+        const std::string link_name = android::base::StringPrintf("/proc/%d/exe", pid);
+        std::string exe;
+        if (!android::base::Readlink(link_name, &exe)) {
+            continue;
+        }
+
+        bool is_java_process;
+        if (exe == "/system/bin/app_process32" || exe == "/system/bin/app_process64") {
+            // Don't bother dumping backtraces for the zygote.
+            if (IsZygote(pid)) {
+                continue;
+            }
+
+            dalvik_found = true;
+            is_java_process = true;
+        } else if (should_dump_native_traces(exe.c_str()) || hal_pids.find(pid) != hal_pids.end()) {
+            is_java_process = false;
+        } else {
+            // Probably a native process we don't care about, continue.
+            continue;
+        }
+
+        // If 3 backtrace dumps fail in a row, consider debuggerd dead.
+        if (timeout_failures == 3) {
+            dprintf(fd, "ERROR: Too many stack dump failures, exiting.\n");
+            break;
+        }
+
+        const uint64_t start = Nanotime();
+        const int ret = dump_backtrace_to_file_timeout(
+            pid, is_java_process ? kDebuggerdJavaBacktrace : kDebuggerdNativeBacktrace,
+            is_java_process ? 5 : 20, fd);
+
+        if (ret == -1) {
+            // For consistency, the header and footer to this message match those
+            // dumped by debuggerd in the success case.
+            dprintf(fd, "\n---- pid %d at [unknown] ----\n", pid);
+            dprintf(fd, "Dump failed, likely due to a timeout.\n");
+            dprintf(fd, "---- end %d ----", pid);
+            timeout_failures++;
+            continue;
+        }
+
+        // We've successfully dumped stack traces, reset the failure count
+        // and write a summary of the elapsed time to the file and continue with the
+        // next process.
+        timeout_failures = 0;
+
+        dprintf(fd, "[dump %s stack %d: %.3fs elapsed]\n", is_java_process ? "dalvik" : "native",
+                pid, (float)(Nanotime() - start) / NANOS_PER_SEC);
+    }
+
+    if (!dalvik_found) {
+        MYLOGE("Warning: no Dalvik processes found to dump stacks\n");
+    }
+
+    return file_name_buf.release();
 }
 
 void Dumpstate::DumpstateBoard() {
