@@ -73,13 +73,13 @@ extern "C" {
  */
 class DurationReporter {
   public:
-    explicit DurationReporter(const std::string& title, bool log_only = false);
+    explicit DurationReporter(const std::string& title, bool logcat_only = false);
 
     ~DurationReporter();
 
   private:
     std::string title_;
-    bool log_only_;
+    bool logcat_only_;
     uint64_t started_;
 
     DISALLOW_COPY_AND_ASSIGN(DurationReporter);
