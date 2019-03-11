@@ -232,7 +232,6 @@ int main(int argc, char* const argv[])
                         		else if (strcmp(key, "categories") == 0)
                         		{
                         			char* context2 = nullptr;
-                        			int categoryCount = 0;
                         			categories[categoryCount] = strtok_r(value, ",", &context2);
                         			
                         			while (categories[categoryCount] != nullptr)
