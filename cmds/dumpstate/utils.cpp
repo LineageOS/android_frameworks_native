@@ -93,8 +93,8 @@ Dumpstate& Dumpstate::GetInstance() {
     return singleton_;
 }
 
-DurationReporter::DurationReporter(const std::string& title, bool log_only)
-    : title_(title), log_only_(log_only) {
+DurationReporter::DurationReporter(const std::string& title, bool logcat_only)
+    : title_(title), logcat_only_(logcat_only) {
     if (!title_.empty()) {
         started_ = Nanotime();
     }
@@ -103,15 +103,13 @@ DurationReporter::DurationReporter(const std::string& title, bool log_only)
 DurationReporter::~DurationReporter() {
     if (!title_.empty()) {
         uint64_t elapsed = Nanotime() - started_;
-        if (log_only_) {
-            MYLOGD("Duration of '%s': %.3fs\n", title_.c_str(), (float)elapsed / NANOS_PER_SEC);
-        } else {
-            // TODO(124089395): Remove or rewrite when bugreport latency is fixed.
-            MYLOGD("Duration of '%s': %.3fs\n", title_.c_str(), (float)elapsed / NANOS_PER_SEC);
-            // Use "Yoda grammar" to make it easier to grep|sort sections.
-            printf("------ %.3fs was the duration of '%s' ------\n", (float)elapsed / NANOS_PER_SEC,
-                   title_.c_str());
+        MYLOGD("Duration of '%s': %.3fs\n", title_.c_str(), (float)elapsed / NANOS_PER_SEC);
+        if (logcat_only_) {
+            return;
         }
+        // Use "Yoda grammar" to make it easier to grep|sort sections.
+        printf("------ %.3fs was the duration of '%s' ------\n", (float)elapsed / NANOS_PER_SEC,
+               title_.c_str());
     }
 }
 
