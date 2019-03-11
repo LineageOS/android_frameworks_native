@@ -229,23 +229,23 @@ QueuedInputListener::~QueuedInputListener() {
 
 void QueuedInputListener::notifyConfigurationChanged(
         const NotifyConfigurationChangedArgs* args) {
-    mArgsQueue.push(new NotifyConfigurationChangedArgs(*args));
+    mArgsQueue.push_back(new NotifyConfigurationChangedArgs(*args));
 }
 
 void QueuedInputListener::notifyKey(const NotifyKeyArgs* args) {
-    mArgsQueue.push(new NotifyKeyArgs(*args));
+    mArgsQueue.push_back(new NotifyKeyArgs(*args));
 }
 
 void QueuedInputListener::notifyMotion(const NotifyMotionArgs* args) {
-    mArgsQueue.push(new NotifyMotionArgs(*args));
+    mArgsQueue.push_back(new NotifyMotionArgs(*args));
 }
 
 void QueuedInputListener::notifySwitch(const NotifySwitchArgs* args) {
-    mArgsQueue.push(new NotifySwitchArgs(*args));
+    mArgsQueue.push_back(new NotifySwitchArgs(*args));
 }
 
 void QueuedInputListener::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
-    mArgsQueue.push(new NotifyDeviceResetArgs(*args));
+    mArgsQueue.push_back(new NotifyDeviceResetArgs(*args));
 }
 
 void QueuedInputListener::flush() {

@@ -158,7 +158,7 @@ private:
 class FakeInputReaderPolicy : public InputReaderPolicyInterface {
     InputReaderConfiguration mConfig;
     KeyedVector<int32_t, sp<FakePointerController> > mPointerControllers;
-    Vector<InputDeviceInfo> mInputDevices;
+    std::vector<InputDeviceInfo> mInputDevices;
     std::vector<DisplayViewport> mViewports;
     TouchAffineTransformation transform;
 
@@ -226,7 +226,7 @@ public:
         return &mConfig;
     }
 
-    const Vector<InputDeviceInfo>& getInputDevices() const {
+    const std::vector<InputDeviceInfo>& getInputDevices() const {
         return mInputDevices;
     }
 
@@ -280,7 +280,7 @@ private:
         return mPointerControllers.valueFor(deviceId);
     }
 
-    virtual void notifyInputDevicesChanged(const Vector<InputDeviceInfo>& inputDevices) {
+    virtual void notifyInputDevicesChanged(const std::vector<InputDeviceInfo>& inputDevices) {
         mInputDevices = inputDevices;
     }
 
@@ -314,7 +314,7 @@ class FakeEventHub : public EventHubInterface {
         KeyedVector<int32_t, KeyInfo> keysByScanCode;
         KeyedVector<int32_t, KeyInfo> keysByUsageCode;
         KeyedVector<int32_t, bool> leds;
-        Vector<VirtualKeyDefinition> virtualKeys;
+        std::vector<VirtualKeyDefinition> virtualKeys;
         bool enabled;
 
         status_t enable() {
@@ -482,7 +482,7 @@ public:
 
     void addVirtualKeyDefinition(int32_t deviceId, const VirtualKeyDefinition& definition) {
         Device* device = getDevice(deviceId);
-        device->virtualKeys.push(definition);
+        device->virtualKeys.push_back(definition);
     }
 
     void enqueueEvent(nsecs_t when, int32_t deviceId, int32_t type,
@@ -728,12 +728,12 @@ private:
     }
 
     virtual void getVirtualKeyDefinitions(int32_t deviceId,
-            Vector<VirtualKeyDefinition>& outVirtualKeys) const {
+            std::vector<VirtualKeyDefinition>& outVirtualKeys) const {
         outVirtualKeys.clear();
 
         Device* device = getDevice(deviceId);
         if (device) {
-            outVirtualKeys.appendVector(device->virtualKeys);
+            outVirtualKeys = device->virtualKeys;
         }
     }
 
@@ -842,7 +842,7 @@ private:
         return ++mGeneration;
     }
 
-    virtual void getExternalStylusDevices(Vector<InputDeviceInfo>& outDevices) {
+    virtual void getExternalStylusDevices(std::vector<InputDeviceInfo>& outDevices) {
 
     }
 
@@ -865,7 +865,7 @@ class FakeInputMapper : public InputMapper {
     KeyedVector<int32_t, int32_t> mKeyCodeStates;
     KeyedVector<int32_t, int32_t> mScanCodeStates;
     KeyedVector<int32_t, int32_t> mSwitchStates;
-    Vector<int32_t> mSupportedKeyCodes;
+    std::vector<int32_t> mSupportedKeyCodes;
     RawEvent mLastEvent;
 
     bool mConfigureWasCalled;
@@ -925,7 +925,7 @@ public:
     }
 
     void addSupportedKeyCode(int32_t keyCode) {
-        mSupportedKeyCodes.add(keyCode);
+        mSupportedKeyCodes.push_back(keyCode);
     }
 
 private:
@@ -1309,7 +1309,7 @@ TEST_F(InputReaderTest, GetInputDevices) {
             0, nullptr)); // no classes so device will be ignored
 
 
-    Vector<InputDeviceInfo> inputDevices;
+    std::vector<InputDeviceInfo> inputDevices;
     mReader->getInputDevices(inputDevices);
 
     ASSERT_EQ(1U, inputDevices.size());
@@ -4436,7 +4436,7 @@ TEST_F(SingleTouchInputMapperTest, Process_ShouldHandleAllToolTypes) {
     ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
     ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_STYLUS, motionArgs.pointerProperties[0].toolType);
 
-    // airbrush
+    // air-brush
     processKey(mapper, BTN_TOOL_PENCIL, 0);
     processKey(mapper, BTN_TOOL_AIRBRUSH, 1);
     processSync(mapper);
@@ -5943,7 +5943,7 @@ TEST_F(MultiTouchInputMapperTest, Process_ShouldHandleAllToolTypes) {
     ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
     ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_STYLUS, motionArgs.pointerProperties[0].toolType);
 
-    // airbrush
+    // air-brush
     processKey(mapper, BTN_TOOL_PENCIL, 0);
     processKey(mapper, BTN_TOOL_AIRBRUSH, 1);
     processSync(mapper);

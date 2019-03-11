@@ -74,7 +74,7 @@ public:
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual void getInputDevices(Vector<InputDeviceInfo>& outInputDevices) = 0;
+    virtual void getInputDevices(std::vector<InputDeviceInfo>& outInputDevices) = 0;
 
     /* Query current input state. */
     virtual int32_t getScanCodeState(int32_t deviceId, uint32_t sourceMask,
@@ -333,7 +333,7 @@ public:
     /* Notifies the input reader policy that some input devices have changed
      * and provides information about all current input devices.
      */
-    virtual void notifyInputDevicesChanged(const Vector<InputDeviceInfo>& inputDevices) = 0;
+    virtual void notifyInputDevicesChanged(const std::vector<InputDeviceInfo>& inputDevices) = 0;
 
     /* Gets the keyboard layout for a particular input device. */
     virtual sp<KeyCharacterMap> getKeyboardLayoutOverlay(
