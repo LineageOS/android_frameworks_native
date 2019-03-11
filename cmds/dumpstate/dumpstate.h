@@ -291,6 +291,9 @@ class Dumpstate {
     // TODO: temporary method until Dumpstate object is properly set
     void SetProgress(std::unique_ptr<Progress> progress);
 
+    // Dumps Dalvik and native stack traces, return the trace file location (nullptr if none).
+    const char* DumpTraces();
+
     void DumpstateBoard();
 
     /*
@@ -542,9 +545,6 @@ bool redirect_to_existing_file(FILE* redirect, char* path);
 
 /* create leading directories, if necessary */
 void create_parent_dirs(const char *path);
-
-/* dump Dalvik and native stack traces, return the trace file location (NULL if none) */
-const char *dump_traces();
 
 /* for each process in the system, run the specified function */
 void for_each_pid(for_each_pid_func func, const char *header);
