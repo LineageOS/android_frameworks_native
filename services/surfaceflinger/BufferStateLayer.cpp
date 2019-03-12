@@ -345,6 +345,14 @@ FloatRect BufferStateLayer::computeSourceBounds(const FloatRect& parentBounds) c
     return parentBounds;
 }
 
+void BufferStateLayer::setPostTime(nsecs_t postTime) {
+    mFlinger->mTimeStats->setPostTime(getSequence(), getFrameNumber(), getName().c_str(), postTime);
+}
+
+void BufferStateLayer::setDesiredPresentTime(nsecs_t desiredPresentTime) {
+    mDesiredPresentTime = desiredPresentTime;
+}
+
 // -----------------------------------------------------------------------
 
 // -----------------------------------------------------------------------
@@ -359,8 +367,7 @@ bool BufferStateLayer::fenceHasSignaled() const {
 }
 
 nsecs_t BufferStateLayer::getDesiredPresentTime() {
-    // TODO(marissaw): support an equivalent to desiredPresentTime for timestats metrics
-    return 0;
+    return mDesiredPresentTime;
 }
 
 std::shared_ptr<FenceTime> BufferStateLayer::getCurrentFenceTime() const {
@@ -532,8 +539,6 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         }
     }
 
-    // TODO(marissaw): properly support mTimeStats
-    mFlinger->mTimeStats->setPostTime(layerID, getFrameNumber(), getName().c_str(), latchTime);
     mFlinger->mTimeStats->setAcquireFence(layerID, getFrameNumber(), getCurrentFenceTime());
     mFlinger->mTimeStats->setLatchTime(layerID, getFrameNumber(), latchTime);
 

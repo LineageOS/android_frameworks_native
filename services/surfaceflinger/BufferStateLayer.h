@@ -89,6 +89,9 @@ public:
 
     Rect getBufferSize(const State& s) const override;
     FloatRect computeSourceBounds(const FloatRect& parentBounds) const override;
+
+    void setPostTime(nsecs_t postTime) override;
+    void setDesiredPresentTime(nsecs_t desiredPresentTime) override;
     // -----------------------------------------------------------------------
 
     // -----------------------------------------------------------------------
@@ -148,6 +151,8 @@ private:
     bool mCurrentStateModified = false;
     bool mReleasePreviousBuffer = false;
     nsecs_t mCallbackHandleAcquireTime = -1;
+
+    nsecs_t mDesiredPresentTime = -1;
 
     // TODO(marissaw): support sticky transform for LEGACY camera mode
 };

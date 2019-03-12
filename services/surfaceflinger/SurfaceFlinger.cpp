@@ -3437,12 +3437,13 @@ bool SurfaceFlinger::flushTransactionQueues() {
         auto& [applyToken, transactionQueue] = *it;
 
         while (!transactionQueue.empty()) {
-            const auto& [states, displays, flags, desiredPresentTime, privileged] =
+            const auto& [states, displays, flags, desiredPresentTime, postTime, privileged] =
                     transactionQueue.front();
             if (!transactionIsReadyToBeApplied(desiredPresentTime, states)) {
                 break;
             }
-            applyTransactionState(states, displays, flags, mPendingInputWindowCommands, privileged);
+            applyTransactionState(states, displays, flags, mPendingInputWindowCommands,
+                                  desiredPresentTime, postTime, privileged);
             transactionQueue.pop();
         }
 
@@ -3502,6 +3503,8 @@ void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
                                          int64_t desiredPresentTime) {
     ATRACE_CALL();
 
+    const int64_t postTime = systemTime();
+
     bool privileged = callingThreadHasUnscopedSurfaceFlingerAccess();
 
     Mutex::Autolock _l(mStateLock);
@@ -3514,17 +3517,19 @@ void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
     if (mTransactionQueues.find(applyToken) != mTransactionQueues.end() ||
         !transactionIsReadyToBeApplied(desiredPresentTime, states)) {
         mTransactionQueues[applyToken].emplace(states, displays, flags, desiredPresentTime,
-                privileged);
+                                               postTime, privileged);
         setTransactionFlags(eTransactionNeeded);
         return;
     }
 
-    applyTransactionState(states, displays, flags, inputWindowCommands, privileged);
+    applyTransactionState(states, displays, flags, inputWindowCommands, desiredPresentTime,
+                          postTime, privileged);
 }
 
 void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
                                            const Vector<DisplayState>& displays, uint32_t flags,
                                            const InputWindowCommands& inputWindowCommands,
+                                           const int64_t desiredPresentTime, const int64_t postTime,
                                            bool privileged) {
     uint32_t transactionFlags = 0;
 
@@ -3550,7 +3555,7 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
 
     uint32_t clientStateFlags = 0;
     for (const ComposerState& state : states) {
-        clientStateFlags |= setClientStateLocked(state, privileged);
+        clientStateFlags |= setClientStateLocked(state, desiredPresentTime, postTime, privileged);
     }
     // If the state doesn't require a traversal and there are callbacks, send them now
     if (!(clientStateFlags & eTraversalNeeded)) {
@@ -3663,7 +3668,8 @@ bool SurfaceFlinger::callingThreadHasUnscopedSurfaceFlingerAccess() {
 }
 
 uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState,
-        bool privileged) {
+                                              int64_t desiredPresentTime, int64_t postTime,
+                                              bool privileged) {
     const layer_state_t& s = composerState.state;
     sp<Client> client(static_cast<Client*>(composerState.client.get()));
 
@@ -3905,7 +3911,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
         sp<GraphicBuffer> buffer =
                 BufferStateLayerCache::getInstance().get(s.cachedBuffer.token,
                                                          s.cachedBuffer.bufferId);
-        if (layer->setBuffer(buffer)) flags |= eTraversalNeeded;
+        if (layer->setBuffer(buffer)) {
+            flags |= eTraversalNeeded;
+            layer->setPostTime(postTime);
+            layer->setDesiredPresentTime(desiredPresentTime);
+        }
     }
     if (layer->setTransactionCompletedListeners(callbackHandles)) flags |= eTraversalNeeded;
     // Do not put anything that updates layer state or modifies flags after
