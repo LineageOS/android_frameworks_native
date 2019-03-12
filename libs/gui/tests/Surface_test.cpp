@@ -669,6 +669,14 @@ public:
     status_t getProtectedContentSupport(bool* /*outSupported*/) const override { return NO_ERROR; }
 
     status_t isWideColorDisplay(const sp<IBinder>&, bool*) const override { return NO_ERROR; }
+    status_t getDisplayBrightnessSupport(const sp<IBinder>& /*displayToken*/,
+                                         bool* /*outSupport*/) const override {
+        return NO_ERROR;
+    }
+    status_t setDisplayBrightness(const sp<IBinder>& /*displayToken*/,
+                                  float /*brightness*/) const override {
+        return NO_ERROR;
+    }
 
     status_t addRegionSamplingListener(const Rect& /*samplingArea*/,
                                        const sp<IBinder>& /*stopLayerHandle*/,

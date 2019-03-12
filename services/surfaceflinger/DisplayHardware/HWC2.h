@@ -264,6 +264,7 @@ public:
     [[clang::warn_unused_result]] virtual Error presentOrValidate(
             uint32_t* outNumTypes, uint32_t* outNumRequests,
             android::sp<android::Fence>* outPresentFence, uint32_t* state) = 0;
+    [[clang::warn_unused_result]] virtual Error setDisplayBrightness(float brightness) const = 0;
 };
 
 namespace impl {
@@ -322,6 +323,7 @@ public:
     Error validate(uint32_t* outNumTypes, uint32_t* outNumRequests) override;
     Error presentOrValidate(uint32_t* outNumTypes, uint32_t* outNumRequests,
                             android::sp<android::Fence>* outPresentFence, uint32_t* state) override;
+    Error setDisplayBrightness(float brightness) const override;
 
     // Other Display methods
     hwc2_display_t getId() const override { return mId; }
