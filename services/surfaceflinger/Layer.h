@@ -181,6 +181,7 @@ public:
 
         bool inputInfoChanged;
         InputWindowInfo inputInfo;
+        wp<Layer> touchableRegionCrop;
 
         // The fields below this point are only used by BufferStateLayer
         Geometry active;

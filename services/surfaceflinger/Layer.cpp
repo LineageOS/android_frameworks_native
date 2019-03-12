@@ -2009,8 +2009,24 @@ void Layer::commitChildList() {
     mDrawingParent = mCurrentParent;
 }
 
+static wp<Layer> extractLayerFromBinder(const wp<IBinder>& weakBinderHandle) {
+    if (weakBinderHandle == nullptr) {
+        return nullptr;
+    }
+    sp<IBinder> binderHandle = weakBinderHandle.promote();
+    if (binderHandle == nullptr) {
+        return nullptr;
+    }
+    sp<Layer::Handle> handle = static_cast<Layer::Handle*>(binderHandle.get());
+    if (handle == nullptr) {
+        return nullptr;
+    }
+    return handle->owner;
+}
+
 void Layer::setInputInfo(const InputWindowInfo& info) {
     mCurrentState.inputInfo = info;
+    mCurrentState.touchableRegionCrop = extractLayerFromBinder(info.touchableRegionCropHandle);
     mCurrentState.modified = true;
     mCurrentState.inputInfoChanged = true;
     setTransactionFlags(eTransactionNeeded);
@@ -2199,6 +2215,18 @@ InputWindowInfo Layer::fillInputInfo() {
     // bounds.
     info.touchableRegion = info.touchableRegion.translate(info.frameLeft, info.frameTop);
     info.visible = canReceiveInput();
+
+    auto cropLayer = mDrawingState.touchableRegionCrop.promote();
+    if (info.replaceTouchableRegionWithCrop) {
+        if (cropLayer == nullptr) {
+            info.touchableRegion = Region(Rect{mScreenBounds});
+        } else {
+            info.touchableRegion = Region(Rect{cropLayer->mScreenBounds});
+        }
+    } else if (cropLayer != nullptr) {
+        info.touchableRegion = info.touchableRegion.intersect(Rect{cropLayer->mScreenBounds});
+    }
+
     return info;
 }
 
