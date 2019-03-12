@@ -331,6 +331,13 @@ class Dumpstate {
     void SetOptions(std::unique_ptr<DumpOptions> options);
 
     /*
+     * Returns true if user consent is necessary and has been denied.
+     * Consent is only necessary if the caller has asked to copy over the bugreport to a file they
+     * provided.
+     */
+    bool IsUserConsentDenied() const;
+
+    /*
      * Structure to hold options that determine the behavior of dumpstate.
      */
     struct DumpOptions {
