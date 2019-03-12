@@ -4796,7 +4796,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case CREATE_DISPLAY:
         case DESTROY_DISPLAY:
         case ENABLE_VSYNC_INJECTIONS:
-        case GET_ACTIVE_COLOR_MODE:
         case GET_ANIMATION_FRAME_STATS:
         case GET_HDR_CAPABILITIES:
         case SET_ACTIVE_CONFIG:
@@ -4832,6 +4831,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         // request necessary permissions. However, they do not expose any secret
         // information, so it is OK to pass them.
         case AUTHENTICATE_SURFACE:
+        case GET_ACTIVE_COLOR_MODE:
         case GET_ACTIVE_CONFIG:
         case GET_PHYSICAL_DISPLAY_IDS:
         case GET_PHYSICAL_DISPLAY_TOKEN:
