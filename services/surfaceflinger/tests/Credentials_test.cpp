@@ -12,7 +12,6 @@
 
 #include <private/android_filesystem_config.h>
 #include <private/gui/ComposerService.h>
-
 #include <ui/DisplayInfo.h>
 #include <utils/String8.h>
 
@@ -354,6 +353,13 @@ TEST_F(CredentialsTest, IsWideColorDisplayWithPrivileges) {
         return SurfaceComposerClient::isWideColorDisplay(display, &result);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, NO_ERROR));
+}
+
+TEST_F(CredentialsTest, GetActiveColorModeBasicCorrectness) {
+    const auto display = SurfaceComposerClient::getInternalDisplayToken();
+    ASSERT_FALSE(display == nullptr);
+    ColorMode colorMode = SurfaceComposerClient::getActiveColorMode(display);
+    ASSERT_NE(static_cast<ColorMode>(BAD_VALUE), colorMode);
 }
 
 } // namespace android

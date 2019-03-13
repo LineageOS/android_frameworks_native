@@ -1186,6 +1186,15 @@ static void RunDumpsysNormal() {
 }
 
 static void DumpHals() {
+    if (!ds.IsZipping()) {
+        RunCommand("HARDWARE HALS", {"lshal", "-lVSietrpc", "--types=b,c,l,z", "--debug"},
+                   CommandOptions::WithTimeout(10).AsRootIfAvailable().Build());
+        return;
+    }
+    DurationReporter duration_reporter("DUMP HALS");
+    RunCommand("HARDWARE HALS", {"lshal", "-lVSietrpc", "--types=b,c,l,z"},
+               CommandOptions::WithTimeout(2).AsRootIfAvailable().Build());
+
     using android::hidl::manager::V1_0::IServiceManager;
     using android::hardware::defaultServiceManager;
 
@@ -1262,14 +1271,7 @@ static void dumpstate() {
                {"ps", "-A", "-T", "-Z", "-O", "pri,nice,rtprio,sched,pcy,time"});
     RunCommand("LIBRANK", {"librank"}, CommandOptions::AS_ROOT);
 
-    if (ds.IsZipping()) {
-        RunCommand("HARDWARE HALS", {"lshal", "-lVSietrpc", "--types=b,c,l,z"},
-                   CommandOptions::WithTimeout(2).AsRootIfAvailable().Build());
-        DumpHals();
-    } else {
-        RunCommand("HARDWARE HALS", {"lshal", "-lVSietrpc", "--types=b,c,l,z", "--debug"},
-                   CommandOptions::WithTimeout(10).AsRootIfAvailable().Build());
-    }
+    DumpHals();
 
     RunCommand("PRINTENV", {"printenv"});
     RunCommand("NETSTAT", {"netstat", "-nW"});
@@ -1575,14 +1577,7 @@ static void DumpstateWifiOnly() {
     RunDumpsys("DUMPSYS", {"wifi"}, CommandOptions::WithTimeout(90).Build(),
                SEC_TO_MSEC(10));
 
-    if (ds.IsZipping()) {
-        RunCommand("HARDWARE HALS", {"lshal", "-lVSietrpc", "--types=b,c,l,z"},
-                   CommandOptions::WithTimeout(2).AsRootIfAvailable().Build());
-        DumpHals();
-    } else {
-        RunCommand("HARDWARE HALS", {"lshal", "-lVSietrpc", "--types=b,c,l,z", "--debug"},
-                   CommandOptions::WithTimeout(10).AsRootIfAvailable().Build());
-    }
+    DumpHals();
 
     printf("========================================================\n");
     printf("== dumpstate: done (id %d)\n", ds.id_);

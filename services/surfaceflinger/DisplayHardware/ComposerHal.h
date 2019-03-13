@@ -203,6 +203,8 @@ public:
                                          std::vector<DisplayCapability>* outCapabilities) = 0;
     virtual Error setLayerPerFrameMetadataBlobs(
             Display display, Layer layer, const std::vector<PerFrameMetadataBlob>& metadata) = 0;
+    virtual Error getDisplayBrightnessSupport(Display display, bool* outSupport) = 0;
+    virtual Error setDisplayBrightness(Display display, float brightness) = 0;
 };
 
 namespace impl {
@@ -414,6 +416,8 @@ public:
     Error setLayerPerFrameMetadataBlobs(
             Display display, Layer layer,
             const std::vector<IComposerClient::PerFrameMetadataBlob>& metadata) override;
+    Error getDisplayBrightnessSupport(Display display, bool* outSupport) override;
+    Error setDisplayBrightness(Display display, float brightness) override;
 
 private:
     class CommandWriter : public CommandWriterBase {

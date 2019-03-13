@@ -140,6 +140,9 @@ public:
                                                uint64_t timestamp,
                                                DisplayedFrameStats* outStats) = 0;
 
+    // Sets the brightness of a display.
+    virtual status_t setDisplayBrightness(DisplayId displayId, float brightness) = 0;
+
     // Events handling ---------------------------------------------------------
 
     // Returns stable display ID (and display name on connection of new or previously disconnected
@@ -271,6 +274,7 @@ public:
                                               uint8_t componentMask, uint64_t maxFrames) override;
     status_t getDisplayedContentSample(DisplayId displayId, uint64_t maxFrames, uint64_t timestamp,
                                        DisplayedFrameStats* outStats) override;
+    status_t setDisplayBrightness(DisplayId displayId, float brightness) override;
 
     // Events handling ---------------------------------------------------------
 

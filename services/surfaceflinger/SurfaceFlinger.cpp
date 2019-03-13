@@ -1307,6 +1307,33 @@ status_t SurfaceFlinger::removeRegionSamplingListener(const sp<IRegionSamplingLi
     mRegionSamplingThread->removeListener(listener);
     return NO_ERROR;
 }
+
+status_t SurfaceFlinger::getDisplayBrightnessSupport(const sp<IBinder>& displayToken,
+                                                     bool* outSupport) const {
+    if (!displayToken || !outSupport) {
+        return BAD_VALUE;
+    }
+    const auto displayId = getPhysicalDisplayIdLocked(displayToken);
+    if (!displayId) {
+        return NAME_NOT_FOUND;
+    }
+    *outSupport =
+            getHwComposer().hasDisplayCapability(displayId, HWC2::DisplayCapability::Brightness);
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken,
+                                              float brightness) const {
+    if (!displayToken) {
+        return BAD_VALUE;
+    }
+    const auto displayId = getPhysicalDisplayIdLocked(displayToken);
+    if (!displayId) {
+        return NAME_NOT_FOUND;
+    }
+    return getHwComposer().setDisplayBrightness(*displayId, brightness);
+}
+
 // ----------------------------------------------------------------------------
 
 sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
@@ -3437,12 +3464,13 @@ bool SurfaceFlinger::flushTransactionQueues() {
         auto& [applyToken, transactionQueue] = *it;
 
         while (!transactionQueue.empty()) {
-            const auto& [states, displays, flags, desiredPresentTime, privileged] =
+            const auto& [states, displays, flags, desiredPresentTime, postTime, privileged] =
                     transactionQueue.front();
             if (!transactionIsReadyToBeApplied(desiredPresentTime, states)) {
                 break;
             }
-            applyTransactionState(states, displays, flags, mPendingInputWindowCommands, privileged);
+            applyTransactionState(states, displays, flags, mPendingInputWindowCommands,
+                                  desiredPresentTime, postTime, privileged);
             transactionQueue.pop();
         }
 
@@ -3502,6 +3530,8 @@ void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
                                          int64_t desiredPresentTime) {
     ATRACE_CALL();
 
+    const int64_t postTime = systemTime();
+
     bool privileged = callingThreadHasUnscopedSurfaceFlingerAccess();
 
     Mutex::Autolock _l(mStateLock);
@@ -3514,17 +3544,19 @@ void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
     if (mTransactionQueues.find(applyToken) != mTransactionQueues.end() ||
         !transactionIsReadyToBeApplied(desiredPresentTime, states)) {
         mTransactionQueues[applyToken].emplace(states, displays, flags, desiredPresentTime,
-                privileged);
+                                               postTime, privileged);
         setTransactionFlags(eTransactionNeeded);
         return;
     }
 
-    applyTransactionState(states, displays, flags, inputWindowCommands, privileged);
+    applyTransactionState(states, displays, flags, inputWindowCommands, desiredPresentTime,
+                          postTime, privileged);
 }
 
 void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
                                            const Vector<DisplayState>& displays, uint32_t flags,
                                            const InputWindowCommands& inputWindowCommands,
+                                           const int64_t desiredPresentTime, const int64_t postTime,
                                            bool privileged) {
     uint32_t transactionFlags = 0;
 
@@ -3550,7 +3582,7 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
 
     uint32_t clientStateFlags = 0;
     for (const ComposerState& state : states) {
-        clientStateFlags |= setClientStateLocked(state, privileged);
+        clientStateFlags |= setClientStateLocked(state, desiredPresentTime, postTime, privileged);
     }
     // If the state doesn't require a traversal and there are callbacks, send them now
     if (!(clientStateFlags & eTraversalNeeded)) {
@@ -3663,7 +3695,8 @@ bool SurfaceFlinger::callingThreadHasUnscopedSurfaceFlingerAccess() {
 }
 
 uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState,
-        bool privileged) {
+                                              int64_t desiredPresentTime, int64_t postTime,
+                                              bool privileged) {
     const layer_state_t& s = composerState.state;
     sp<Client> client(static_cast<Client*>(composerState.client.get()));
 
@@ -3905,7 +3938,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
         sp<GraphicBuffer> buffer =
                 BufferStateLayerCache::getInstance().get(s.cachedBuffer.token,
                                                          s.cachedBuffer.bufferId);
-        if (layer->setBuffer(buffer)) flags |= eTraversalNeeded;
+        if (layer->setBuffer(buffer)) {
+            flags |= eTraversalNeeded;
+            layer->setPostTime(postTime);
+            layer->setDesiredPresentTime(desiredPresentTime);
+        }
     }
     if (layer->setTransactionCompletedListeners(callbackHandles)) flags |= eTraversalNeeded;
     // Do not put anything that updates layer state or modifies flags after
@@ -4797,7 +4834,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case CREATE_DISPLAY:
         case DESTROY_DISPLAY:
         case ENABLE_VSYNC_INJECTIONS:
-        case GET_ACTIVE_COLOR_MODE:
         case GET_ANIMATION_FRAME_STATS:
         case GET_HDR_CAPABILITIES:
         case SET_ACTIVE_CONFIG:
@@ -4833,6 +4869,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         // request necessary permissions. However, they do not expose any secret
         // information, so it is OK to pass them.
         case AUTHENTICATE_SURFACE:
+        case GET_ACTIVE_COLOR_MODE:
         case GET_ACTIVE_CONFIG:
         case GET_PHYSICAL_DISPLAY_IDS:
         case GET_PHYSICAL_DISPLAY_TOKEN:
@@ -4848,7 +4885,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_COLOR_MANAGEMENT:
         case GET_COMPOSITION_PREFERENCE:
         case GET_PROTECTED_CONTENT_SUPPORT:
-        case IS_WIDE_COLOR_DISPLAY: {
+        case IS_WIDE_COLOR_DISPLAY:
+        case GET_DISPLAY_BRIGHTNESS_SUPPORT:
+        case SET_DISPLAY_BRIGHTNESS: {
             return OK;
         }
         case CAPTURE_LAYERS:

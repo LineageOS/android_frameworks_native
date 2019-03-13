@@ -76,18 +76,9 @@ public:
     void updateModel(nsecs_t period, nsecs_t phase, nsecs_t referenceTime) {
         if (mTraceDetailedInfo) ATRACE_CALL();
         Mutex::Autolock lock(mMutex);
-
+        mPeriod = period;
         mPhase = phase;
         mReferenceTime = referenceTime;
-        if (mPeriod != period && mReferenceTime != 0) {
-            // Inflate the reference time to be the most recent predicted
-            // vsync before the current time.
-            const nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
-            const nsecs_t baseTime = now - mReferenceTime;
-            const nsecs_t numOldPeriods = baseTime / mPeriod;
-            mReferenceTime = mReferenceTime + (numOldPeriods)*mPeriod;
-        }
-        mPeriod = period;
         if (mTraceDetailedInfo) {
             ATRACE_INT64("DispSync:Period", mPeriod);
             ATRACE_INT64("DispSync:Phase", mPhase + mPeriod / 2);
@@ -438,16 +429,8 @@ void DispSync::reset() {
 
 void DispSync::resetLocked() {
     mPhase = 0;
-    const size_t lastSampleIdx = (mFirstResyncSample + mNumResyncSamples - 1) % MAX_RESYNC_SAMPLES;
-    // Keep the most recent sample, when we resync to hardware we'll overwrite this
-    // with a more accurate signal
-    if (mResyncSamples[lastSampleIdx] != 0) {
-        mReferenceTime = mResyncSamples[lastSampleIdx];
-    }
+    mReferenceTime = 0;
     mModelUpdated = false;
-    for (size_t i = 0; i < MAX_RESYNC_SAMPLES; i++) {
-        mResyncSamples[i] = 0;
-    }
     mNumResyncSamples = 0;
     mFirstResyncSample = 0;
     mNumResyncSamplesSincePresent = 0;
@@ -547,6 +530,7 @@ void DispSync::setPeriod(nsecs_t period) {
     Mutex::Autolock lock(mMutex);
     mPeriod = period;
     mPhase = 0;
+    mReferenceTime = 0;
     mThread->updateModel(mPeriod, mPhase, mReferenceTime);
 }
 
