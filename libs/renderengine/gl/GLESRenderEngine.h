@@ -56,7 +56,7 @@ public:
                      EGLDisplay display, EGLConfig config, EGLContext ctxt, EGLSurface dummy,
                      EGLContext protectedContext, EGLSurface protectedDummy,
                      uint32_t imageCacheSize);
-    ~GLESRenderEngine() override;
+    ~GLESRenderEngine() override EXCLUDES(mRenderingMutex);
 
     std::unique_ptr<Framebuffer> createFramebuffer() override;
     std::unique_ptr<Image> createImage() override;
@@ -93,6 +93,12 @@ public:
     EGLConfig getEGLConfig() const { return mEGLConfig; }
     // Creates an output image for rendering to
     EGLImageKHR createFramebufferImageIfNeeded(ANativeWindowBuffer* nativeBuffer, bool isProtected);
+
+    // Test-only methods
+    // Returns true iff mImageCache contains an image keyed by bufferId
+    bool isImageCachedForTesting(uint64_t bufferId) EXCLUDES(mRenderingMutex);
+    // Returns true iff mFramebufferImageCache contains an image keyed by bufferId
+    bool isFramebufferImageCachedForTesting(uint64_t bufferId) EXCLUDES(mRenderingMutex);
 
 protected:
     Framebuffer* getFramebufferForDrawing() override;

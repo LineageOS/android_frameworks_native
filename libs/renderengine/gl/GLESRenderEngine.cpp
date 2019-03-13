@@ -432,10 +432,15 @@ GLESRenderEngine::GLESRenderEngine(uint32_t featureFlags, EGLDisplay display, EG
 }
 
 GLESRenderEngine::~GLESRenderEngine() {
-    for (const auto& image : mFramebufferImageCache) {
-        eglDestroyImageKHR(mEGLDisplay, image.second);
+    std::lock_guard<std::mutex> lock(mRenderingMutex);
+    unbindFrameBuffer(mDrawingBuffer.get());
+    mDrawingBuffer = nullptr;
+    while (!mFramebufferImageCache.empty()) {
+        EGLImageKHR expired = mFramebufferImageCache.front().second;
+        mFramebufferImageCache.pop_front();
+        eglDestroyImageKHR(mEGLDisplay, expired);
     }
-    mFramebufferImageCache.clear();
+    mImageCache.clear();
     eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     eglTerminate(mEGLDisplay);
 }
@@ -634,6 +639,9 @@ status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName, sp<Graphi
 status_t GLESRenderEngine::bindExternalTextureBufferLocked(uint32_t texName,
                                                            sp<GraphicBuffer> buffer,
                                                            sp<Fence> bufferFence) {
+    if (buffer == nullptr) {
+        return BAD_VALUE;
+    }
     ATRACE_CALL();
     auto cachedImage = mImageCache.find(buffer->getId());
 
@@ -779,7 +787,7 @@ bool GLESRenderEngine::useProtectedContext(bool useProtectedContext) {
 EGLImageKHR GLESRenderEngine::createFramebufferImageIfNeeded(ANativeWindowBuffer* nativeBuffer,
                                                              bool isProtected) {
     sp<GraphicBuffer> graphicBuffer = GraphicBuffer::from(nativeBuffer);
-    uint32_t bufferId = graphicBuffer->getId();
+    uint64_t bufferId = graphicBuffer->getId();
     for (const auto& image : mFramebufferImageCache) {
         if (image.first == bufferId) {
             return image.second;
@@ -816,6 +824,11 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
     if (bufferFence.get() >= 0 && !waitFence(std::move(bufferFence))) {
         ATRACE_NAME("Waiting before draw");
         sync_wait(bufferFence.get(), -1);
+    }
+
+    if (buffer == nullptr) {
+        ALOGE("No output buffer provided. Aborting GPU composition.");
+        return BAD_VALUE;
     }
 
     {
@@ -914,10 +927,12 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
             }
         }
 
-        *drawFence = flush();
+        if (drawFence != nullptr) {
+            *drawFence = flush();
+        }
         // If flush failed or we don't support native fences, we need to force the
         // gl command stream to be executed.
-        if (drawFence->get() < 0) {
+        if (drawFence == nullptr || drawFence->get() < 0) {
             bool success = finish();
             if (!success) {
                 ALOGE("Failed to flush RenderEngine commands");
@@ -1341,6 +1356,20 @@ bool GLESRenderEngine::needsXYZTransformMatrix() const {
             static_cast<Dataspace>(mOutputDataSpace & Dataspace::TRANSFER_MASK);
 
     return (isInputHdrDataSpace || isOutputHdrDataSpace) && inputTransfer != outputTransfer;
+}
+
+bool GLESRenderEngine::isImageCachedForTesting(uint64_t bufferId) {
+    std::lock_guard<std::mutex> lock(mRenderingMutex);
+    const auto& cachedImage = mImageCache.find(bufferId);
+    return cachedImage != mImageCache.end();
+}
+
+bool GLESRenderEngine::isFramebufferImageCachedForTesting(uint64_t bufferId) {
+    std::lock_guard<std::mutex> lock(mRenderingMutex);
+    return std::any_of(mFramebufferImageCache.cbegin(), mFramebufferImageCache.cend(),
+                       [=](std::pair<uint64_t, EGLImageKHR> image) {
+                           return image.first == bufferId;
+                       });
 }
 
 // FlushTracer implementation
