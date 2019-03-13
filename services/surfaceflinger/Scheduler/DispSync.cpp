@@ -76,9 +76,18 @@ public:
     void updateModel(nsecs_t period, nsecs_t phase, nsecs_t referenceTime) {
         if (mTraceDetailedInfo) ATRACE_CALL();
         Mutex::Autolock lock(mMutex);
-        mPeriod = period;
+
         mPhase = phase;
         mReferenceTime = referenceTime;
+        if (mPeriod != 0 && mPeriod != period && mReferenceTime != 0) {
+            // Inflate the reference time to be the most recent predicted
+            // vsync before the current time.
+            const nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
+            const nsecs_t baseTime = now - mReferenceTime;
+            const nsecs_t numOldPeriods = baseTime / mPeriod;
+            mReferenceTime = mReferenceTime + (numOldPeriods)*mPeriod;
+        }
+        mPeriod = period;
         if (mTraceDetailedInfo) {
             ATRACE_INT64("DispSync:Period", mPeriod);
             ATRACE_INT64("DispSync:Phase", mPhase + mPeriod / 2);
@@ -176,7 +185,8 @@ public:
         return false;
     }
 
-    status_t addEventListener(const char* name, nsecs_t phase, DispSync::Callback* callback) {
+    status_t addEventListener(const char* name, nsecs_t phase, DispSync::Callback* callback,
+                              nsecs_t lastCallbackTime) {
         if (mTraceDetailedInfo) ATRACE_CALL();
         Mutex::Autolock lock(mMutex);
 
@@ -192,8 +202,34 @@ public:
         listener.mCallback = callback;
 
         // We want to allow the firstmost future event to fire without
-        // allowing any past events to fire
-        listener.mLastEventTime = systemTime() - mPeriod / 2 + mPhase - mWakeupLatency;
+        // allowing any past events to fire. To do this extrapolate from
+        // mReferenceTime the most recent hardware vsync, and pin the
+        // last event time there.
+        const nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
+        if (mPeriod != 0) {
+            const nsecs_t baseTime = now - mReferenceTime;
+            const nsecs_t numPeriodsSinceReference = baseTime / mPeriod;
+            const nsecs_t predictedReference = mReferenceTime + numPeriodsSinceReference * mPeriod;
+            const nsecs_t phaseCorrection = mPhase + listener.mPhase;
+            const nsecs_t predictedLastEventTime = predictedReference + phaseCorrection;
+            if (predictedLastEventTime >= now) {
+                // Make sure that the last event time does not exceed the current time.
+                // If it would, then back the last event time by a period.
+                listener.mLastEventTime = predictedLastEventTime - mPeriod;
+            } else {
+                listener.mLastEventTime = predictedLastEventTime;
+            }
+        } else {
+            listener.mLastEventTime = now + mPhase - mWakeupLatency;
+        }
+
+        if (lastCallbackTime <= 0) {
+            // If there is no prior callback time, try to infer one based on the
+            // logical last event time.
+            listener.mLastCallbackTime = listener.mLastEventTime + mWakeupLatency;
+        } else {
+            listener.mLastCallbackTime = lastCallbackTime;
+        }
 
         mEventListeners.push_back(listener);
 
@@ -202,13 +238,14 @@ public:
         return NO_ERROR;
     }
 
-    status_t removeEventListener(DispSync::Callback* callback) {
+    status_t removeEventListener(DispSync::Callback* callback, nsecs_t* outLastCallback) {
         if (mTraceDetailedInfo) ATRACE_CALL();
         Mutex::Autolock lock(mMutex);
 
         for (std::vector<EventListener>::iterator it = mEventListeners.begin();
              it != mEventListeners.end(); ++it) {
             if (it->mCallback == callback) {
+                *outLastCallback = it->mLastCallbackTime;
                 mEventListeners.erase(it);
                 mCond.signal();
                 return NO_ERROR;
@@ -250,6 +287,7 @@ private:
         const char* mName;
         nsecs_t mPhase;
         nsecs_t mLastEventTime;
+        nsecs_t mLastCallbackTime;
         DispSync::Callback* mCallback;
     };
 
@@ -274,6 +312,13 @@ private:
         return nextEventTime;
     }
 
+    // Sanity check that the duration is close enough in length to a period without
+    // falling into double-rate vsyncs.
+    bool isCloseToPeriod(nsecs_t duration) {
+        // Ratio of 3/5 is arbitrary, but it must be greater than 1/2.
+        return duration < (3 * mPeriod) / 5;
+    }
+
     std::vector<CallbackInvocation> gatherCallbackInvocationsLocked(nsecs_t now) {
         if (mTraceDetailedInfo) ATRACE_CALL();
         ALOGV("[%s] gatherCallbackInvocationsLocked @ %" PRId64, mName, ns2us(now));
@@ -285,12 +330,21 @@ private:
             nsecs_t t = computeListenerNextEventTimeLocked(eventListener, onePeriodAgo);
 
             if (t < now) {
+                if (isCloseToPeriod(now - eventListener.mLastCallbackTime)) {
+                    eventListener.mLastEventTime = t;
+                    eventListener.mLastCallbackTime = now;
+                    ALOGV("[%s] [%s] Skipping event due to model error", mName,
+                          eventListener.mName);
+                    continue;
+                }
                 CallbackInvocation ci;
                 ci.mCallback = eventListener.mCallback;
                 ci.mEventTime = t;
-                ALOGV("[%s] [%s] Preparing to fire", mName, eventListener.mName);
+                ALOGV("[%s] [%s] Preparing to fire, latency: %" PRId64, mName, eventListener.mName,
+                      t - eventListener.mLastEventTime);
                 callbackInvocations.push_back(ci);
                 eventListener.mLastEventTime = t;
+                eventListener.mLastCallbackTime = now;
             }
         }
 
@@ -337,7 +391,7 @@ private:
 
         // Check that it's been slightly more than half a period since the last
         // event so that we don't accidentally fall into double-rate vsyncs
-        if (t - listener.mLastEventTime < (3 * mPeriod / 5)) {
+        if (isCloseToPeriod(t - listener.mLastEventTime)) {
             t += mPeriod;
             ALOGV("[%s] Modifying t -> %" PRId64, mName, ns2us(t));
         }
@@ -418,7 +472,7 @@ void DispSync::init(bool hasSyncFramework, int64_t dispSyncPresentTimeOffset) {
 
     if (mTraceDetailedInfo && kEnableZeroPhaseTracer) {
         mZeroPhaseTracer = std::make_unique<ZeroPhaseTracer>();
-        addEventListener("ZeroPhaseTracer", 0, mZeroPhaseTracer.get());
+        addEventListener("ZeroPhaseTracer", 0, mZeroPhaseTracer.get(), 0);
     }
 }
 
@@ -429,8 +483,16 @@ void DispSync::reset() {
 
 void DispSync::resetLocked() {
     mPhase = 0;
-    mReferenceTime = 0;
+    const size_t lastSampleIdx = (mFirstResyncSample + mNumResyncSamples - 1) % MAX_RESYNC_SAMPLES;
+    // Keep the most recent sample, when we resync to hardware we'll overwrite this
+    // with a more accurate signal
+    if (mResyncSamples[lastSampleIdx] != 0) {
+        mReferenceTime = mResyncSamples[lastSampleIdx];
+    }
     mModelUpdated = false;
+    for (size_t i = 0; i < MAX_RESYNC_SAMPLES; i++) {
+        mResyncSamples[i] = 0;
+    }
     mNumResyncSamples = 0;
     mFirstResyncSample = 0;
     mNumResyncSamplesSincePresent = 0;
@@ -504,9 +566,10 @@ bool DispSync::addResyncSample(nsecs_t timestamp) {
 
 void DispSync::endResync() {}
 
-status_t DispSync::addEventListener(const char* name, nsecs_t phase, Callback* callback) {
+status_t DispSync::addEventListener(const char* name, nsecs_t phase, Callback* callback,
+                                    nsecs_t lastCallbackTime) {
     Mutex::Autolock lock(mMutex);
-    return mThread->addEventListener(name, phase, callback);
+    return mThread->addEventListener(name, phase, callback, lastCallbackTime);
 }
 
 void DispSync::setRefreshSkipCount(int count) {
@@ -516,9 +579,9 @@ void DispSync::setRefreshSkipCount(int count) {
     updateModelLocked();
 }
 
-status_t DispSync::removeEventListener(Callback* callback) {
+status_t DispSync::removeEventListener(Callback* callback, nsecs_t* outLastCallbackTime) {
     Mutex::Autolock lock(mMutex);
-    return mThread->removeEventListener(callback);
+    return mThread->removeEventListener(callback, outLastCallbackTime);
 }
 
 status_t DispSync::changePhaseOffset(Callback* callback, nsecs_t phase) {
@@ -530,7 +593,6 @@ void DispSync::setPeriod(nsecs_t period) {
     Mutex::Autolock lock(mMutex);
     mPeriod = period;
     mPhase = 0;
-    mReferenceTime = 0;
     mThread->updateModel(mPeriod, mPhase, mReferenceTime);
 }
 

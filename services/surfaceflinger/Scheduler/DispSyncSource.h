@@ -45,6 +45,7 @@ private:
     const bool mTraceVsync;
     const std::string mVsyncOnLabel;
     const std::string mVsyncEventLabel;
+    nsecs_t mLastCallbackTime GUARDED_BY(mVsyncMutex) = 0;
 
     DispSync* mDispSync;
 
