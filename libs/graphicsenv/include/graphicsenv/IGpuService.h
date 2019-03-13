@@ -42,6 +42,9 @@ public:
 
     // get GPU global stats from GpuStats module.
     virtual status_t getGpuStatsGlobalInfo(std::vector<GpuStatsGlobalInfo>* outStats) const = 0;
+
+    // get GPU app stats from GpuStats module.
+    virtual status_t getGpuStatsAppInfo(std::vector<GpuStatsAppInfo>* outStats) const = 0;
 };
 
 class BnGpuService : public BnInterface<IGpuService> {
@@ -49,6 +52,7 @@ public:
     enum IGpuServiceTag {
         SET_GPU_STATS = IBinder::FIRST_CALL_TRANSACTION,
         GET_GPU_STATS_GLOBAL_INFO,
+        GET_GPU_STATS_APP_INFO,
         // Always append new enum to the end.
     };
 
