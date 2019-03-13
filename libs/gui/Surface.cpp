@@ -816,7 +816,7 @@ int Surface::queueBuffer(android_native_buffer_t* buffer, int fenceFd) {
         // The consumer doesn't send it back to prevent us from having two
         // file descriptors of the same fence.
         mFrameEventHistory->updateAcquireFence(mNextFrameNumber,
-                std::make_shared<FenceTime>(std::move(fence)));
+                std::make_shared<FenceTime>(fence));
 
         // Cache timestamps of signaled fences so we can close their file
         // descriptors.
