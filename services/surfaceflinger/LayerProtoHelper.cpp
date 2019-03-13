@@ -95,6 +95,9 @@ void LayerProtoHelper::writeToProto(const ui::Transform& transform,
     const uint32_t type = transform.getType() | (transform.getOrientation() << 8);
     transformProto->set_type(type);
 
+    // Rotations that are 90/180/270 have their own type so the transform matrix can be
+    // reconstructed later. All other rotation have the type UKNOWN so we need to save the transform
+    // values in that case.
     if (type & (ui::Transform::SCALE | ui::Transform::UNKNOWN)) {
         transformProto->set_dsdx(transform[0][0]);
         transformProto->set_dtdx(transform[0][1]);
