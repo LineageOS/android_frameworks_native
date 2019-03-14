@@ -570,10 +570,11 @@ void SurfaceFlinger::bootFinished()
         const auto displayId = getInternalDisplayIdLocked();
         LOG_ALWAYS_FATAL_IF(!displayId);
 
-        const auto performanceRefreshRate =
+        const auto& performanceRefreshRate =
                 mRefreshRateConfigs[*displayId]->getRefreshRate(RefreshRateType::PERFORMANCE);
 
-        if (isConfigAllowed(*displayId, performanceRefreshRate.configId)) {
+        if (performanceRefreshRate &&
+            isConfigAllowed(*displayId, performanceRefreshRate->configId)) {
             setRefreshRateTo(RefreshRateType::PERFORMANCE, Scheduler::ConfigEvent::None);
         } else {
             setRefreshRateTo(RefreshRateType::DEFAULT, Scheduler::ConfigEvent::None);
@@ -1448,14 +1449,21 @@ void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate, Scheduler::Co
     LOG_ALWAYS_FATAL_IF(!displayId);
     const auto displayToken = getInternalDisplayTokenLocked();
 
-    auto desiredConfigId = mRefreshRateConfigs[*displayId]->getRefreshRate(refreshRate).configId;
-    const auto display = getDisplayDeviceLocked(displayToken);
-    if (desiredConfigId == display->getActiveConfig()) {
+    const auto& refreshRateConfig = mRefreshRateConfigs[*displayId]->getRefreshRate(refreshRate);
+    if (!refreshRateConfig) {
+        ALOGV("Skipping refresh rate change request for unsupported rate.");
         return;
     }
 
+    const int desiredConfigId = refreshRateConfig->configId;
+
     if (!isConfigAllowed(*displayId, desiredConfigId)) {
         ALOGV("Skipping config %d as it is not part of allowed configs", desiredConfigId);
+        return;
+    }
+
+    const auto display = getDisplayDeviceLocked(displayToken);
+    if (desiredConfigId == display->getActiveConfig()) {
         return;
     }
 
@@ -5745,12 +5753,12 @@ void SurfaceFlinger::setAllowedDisplayConfigsInternal(
     int currentConfigIndex = getHwComposer().getActiveConfigIndex(*displayId);
     if (!isConfigAllowed(*displayId, currentConfigIndex)) {
         for (const auto& [type, config] : mRefreshRateConfigs[*displayId]->getRefreshRates()) {
-            if (isConfigAllowed(*displayId, config.configId)) {
+            if (config && isConfigAllowed(*displayId, config->configId)) {
                 // TODO: we switch to the first allowed config. In the future
                 // we may want to enhance this logic to pick a similar config
                 // to the current one
-                ALOGV("Old config is not allowed - switching to config %d", config.configId);
-                setDesiredActiveConfig(displayToken, config.configId,
+                ALOGV("Old config is not allowed - switching to config %d", config->configId);
+                setDesiredActiveConfig(displayToken, config->configId,
                                        Scheduler::ConfigEvent::Changed);
                 break;
             }
@@ -5760,9 +5768,10 @@ void SurfaceFlinger::setAllowedDisplayConfigsInternal(
     // If idle timer and fps detection are disabled and we are in RefreshRateType::DEFAULT,
     // there is no trigger to move to RefreshRateType::PERFORMANCE, even if it is an allowed.
     if (!mScheduler->isIdleTimerEnabled() && !mUseSmart90ForVideo) {
-        const auto performanceRefreshRate =
+        const auto& performanceRefreshRate =
                 mRefreshRateConfigs[*displayId]->getRefreshRate(RefreshRateType::PERFORMANCE);
-        if (isConfigAllowed(*displayId, performanceRefreshRate.configId)) {
+        if (performanceRefreshRate &&
+            isConfigAllowed(*displayId, performanceRefreshRate->configId)) {
             setRefreshRateTo(RefreshRateType::PERFORMANCE, Scheduler::ConfigEvent::Changed);
         }
     }

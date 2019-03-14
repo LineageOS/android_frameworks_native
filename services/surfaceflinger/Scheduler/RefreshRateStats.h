@@ -85,10 +85,13 @@ public:
         std::unordered_map<std::string, int64_t> totalTime;
         for (auto [type, config] : mRefreshRateConfigs->getRefreshRates()) {
             int64_t totalTimeForConfig = 0;
-            if (mConfigModesTotalTime.find(config.configId) != mConfigModesTotalTime.end()) {
-                totalTimeForConfig = mConfigModesTotalTime.at(config.configId);
+            if (!config) {
+                continue;
             }
-            totalTime[config.name] = totalTimeForConfig;
+            if (mConfigModesTotalTime.find(config->configId) != mConfigModesTotalTime.end()) {
+                totalTimeForConfig = mConfigModesTotalTime.at(config->configId);
+            }
+            totalTime[config->name] = totalTimeForConfig;
         }
         return totalTime;
     }
@@ -124,8 +127,11 @@ private:
 
         mConfigModesTotalTime[mode] += timeElapsedMs;
         for (const auto& [type, config] : mRefreshRateConfigs->getRefreshRates()) {
-            if (config.configId == mode) {
-                mTimeStats->recordRefreshRate(config.fps, timeElapsed);
+            if (!config) {
+                continue;
+            }
+            if (config->configId == mode) {
+                mTimeStats->recordRefreshRate(config->fps, timeElapsed);
             }
         }
     }
