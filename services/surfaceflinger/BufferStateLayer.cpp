@@ -156,9 +156,22 @@ bool BufferStateLayer::setTransformToDisplayInverse(bool transformToDisplayInver
 }
 
 bool BufferStateLayer::setCrop(const Rect& crop) {
-    if (mCurrentState.crop == crop) return false;
+    Rect c = crop;
+    if (c.left < 0) {
+        c.left = 0;
+    }
+    if (c.top < 0) {
+        c.top = 0;
+    }
+    // If the width and/or height are < 0, make it [0, 0, -1, -1] so the equality comparision below
+    // treats all invalid rectangles the same.
+    if (!c.isValid()) {
+        c.makeInvalid();
+    }
+
+    if (mCurrentState.crop == c) return false;
     mCurrentState.sequence++;
-    mCurrentState.crop = crop;
+    mCurrentState.crop = c;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
@@ -327,10 +340,6 @@ Rect BufferStateLayer::getBufferSize(const State& s) const {
         }
     }
 
-    // if there is no parent layer, use the buffer's bounds as the buffer size
-    if (s.buffer) {
-        return s.buffer->getBounds();
-    }
     return Rect::INVALID_RECT;
 }
 
