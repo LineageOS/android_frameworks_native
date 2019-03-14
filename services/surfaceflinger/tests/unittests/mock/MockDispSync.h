@@ -36,14 +36,27 @@ public:
     MOCK_METHOD1(setPeriod, void(nsecs_t));
     MOCK_METHOD0(getPeriod, nsecs_t());
     MOCK_METHOD1(setRefreshSkipCount, void(int));
-    MOCK_METHOD4(addEventListener, status_t(const char*, nsecs_t, Callback*, nsecs_t));
-    MOCK_METHOD2(removeEventListener, status_t(Callback*, nsecs_t*));
-    MOCK_METHOD2(changePhaseOffset, status_t(Callback*, nsecs_t));
     MOCK_CONST_METHOD1(computeNextRefresh, nsecs_t(int));
     MOCK_METHOD1(setIgnorePresentFences, void(bool));
     MOCK_METHOD0(expectedPresentTime, nsecs_t());
 
     MOCK_CONST_METHOD1(dump, void(std::string&));
+
+    status_t addEventListener(const char* name, nsecs_t phase, Callback* callback,
+                              nsecs_t lastCallbackTime) override;
+    status_t removeEventListener(Callback* callback, nsecs_t* outLastCallback) override;
+    status_t changePhaseOffset(Callback* callback, nsecs_t phase) override;
+
+    nsecs_t getCallbackPhase() { return mCallback.phase; }
+
+    void triggerCallback();
+
+private:
+    struct CallbackType {
+        Callback* callback = nullptr;
+        nsecs_t phase;
+    };
+    CallbackType mCallback;
 };
 
 } // namespace mock

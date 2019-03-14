@@ -37,6 +37,7 @@ cc_test {
         "libsurfaceflinger_unittest_main.cpp",
         "AllowedDisplayConfigsTest.cpp",
         "CompositionTest.cpp",
+        "DispSyncSourceTest.cpp",
         "DisplayIdentificationTest.cpp",
         "DisplayTransactionTest.cpp",
         "EventControlThreadTest.cpp",
