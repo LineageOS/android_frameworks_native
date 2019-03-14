@@ -291,8 +291,11 @@ class Dumpstate {
     // TODO: temporary method until Dumpstate object is properly set
     void SetProgress(std::unique_ptr<Progress> progress);
 
-    // Dumps Dalvik and native stack traces, return the trace file location (nullptr if none).
-    const char* DumpTraces();
+    // Dumps Dalvik and native stack traces, sets the trace file location to path
+    // if it succeeded.
+    // Note that it returns early if user consent is denied with status USER_CONSENT_DENIED.
+    // Returns OK in all other cases.
+    RunStatus DumpTraces(const char** path);
 
     void DumpstateBoard();
 
