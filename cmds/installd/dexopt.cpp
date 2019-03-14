@@ -608,7 +608,7 @@ static unique_fd create_profile(uid_t uid, const std::string& profile, int32_t f
     // the app uid. If we cannot do that, there's no point in returning the fd
     // since dex2oat/profman will fail with SElinux denials.
     if (fchown(fd.get(), uid, uid) < 0) {
-        PLOG(ERROR) << "Could not chwon profile " << profile;
+        PLOG(ERROR) << "Could not chown profile " << profile;
         return invalid_unique_fd();
     }
     return fd;
