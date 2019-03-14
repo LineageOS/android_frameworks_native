@@ -1615,6 +1615,14 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
                 mTimeStats->incrementMissedFrames();
             }
 
+            if (hwcFrameMissed) {
+                mHwcFrameMissedCount++;
+            }
+
+            if (gpuFrameMissed) {
+                mGpuFrameMissedCount++;
+            }
+
             if (mUseSmart90ForVideo) {
                 // This call is made each time SF wakes up and creates a new frame. It is part
                 // of video detection feature.
@@ -4663,7 +4671,9 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     dumpStaticScreenStats(result);
     result.append("\n");
 
-    StringAppendF(&result, "Missed frame count: %u\n\n", mFrameMissedCount.load());
+    StringAppendF(&result, "Total missed frame count: %u\n", mFrameMissedCount.load());
+    StringAppendF(&result, "HWC missed frame count: %u\n", mHwcFrameMissedCount.load());
+    StringAppendF(&result, "GPU missed frame count: %u\n\n", mGpuFrameMissedCount.load());
 
     dumpBufferingStats(result);
 

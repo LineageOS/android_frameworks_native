@@ -40,13 +40,15 @@ void DispSyncSource::setVSyncEnabled(bool enable) {
     std::lock_guard lock(mVsyncMutex);
     if (enable) {
         status_t err = mDispSync->addEventListener(mName, mPhaseOffset,
-                                                   static_cast<DispSync::Callback*>(this));
+                                                   static_cast<DispSync::Callback*>(this),
+                                                   mLastCallbackTime);
         if (err != NO_ERROR) {
             ALOGE("error registering vsync callback: %s (%d)", strerror(-err), err);
         }
         // ATRACE_INT(mVsyncOnLabel.c_str(), 1);
     } else {
-        status_t err = mDispSync->removeEventListener(static_cast<DispSync::Callback*>(this));
+        status_t err = mDispSync->removeEventListener(static_cast<DispSync::Callback*>(this),
+                                                      &mLastCallbackTime);
         if (err != NO_ERROR) {
             ALOGE("error unregistering vsync callback: %s (%d)", strerror(-err), err);
         }

@@ -67,6 +67,14 @@ status_t GpuService::getGpuStatsGlobalInfo(std::vector<GpuStatsGlobalInfo>* outS
     return OK;
 }
 
+status_t GpuService::getGpuStatsAppInfo(std::vector<GpuStatsAppInfo>* outStats) const {
+    ATRACE_CALL();
+
+    mGpuStats->pullAppStats(outStats);
+
+    return OK;
+}
+
 status_t GpuService::shellCommand(int /*in*/, int out, int err, std::vector<String16>& args) {
     ATRACE_CALL();
 
