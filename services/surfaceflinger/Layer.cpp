@@ -277,14 +277,12 @@ FloatRect Layer::getBounds(const Region& activeTransparentRegion) const {
     return reduce(mBounds, activeTransparentRegion);
 }
 
-ui::Transform Layer::getTransformWithScale() const {
+ui::Transform Layer::getBufferScaleTransform() const {
     // If the layer is not using NATIVE_WINDOW_SCALING_MODE_FREEZE (e.g.
     // it isFixedSize) then there may be additional scaling not accounted
-    // for in the transform. We need to mirror this scaling to child surfaces
-    // or we will break the contract where WM can treat child surfaces as
-    // pixels in the parent surface.
+    // for in the layer transform.
     if (!isFixedSize() || !mActiveBuffer) {
-        return mEffectiveTransform;
+        return {};
     }
 
     // If the layer is a buffer state layer, the active width and height
@@ -292,24 +290,40 @@ ui::Transform Layer::getTransformWithScale() const {
     const uint32_t activeWidth = getActiveWidth(getDrawingState());
     const uint32_t activeHeight = getActiveHeight(getDrawingState());
     if (activeWidth >= UINT32_MAX && activeHeight >= UINT32_MAX) {
-        return mEffectiveTransform;
+        return {};
     }
 
-    int bufferWidth;
-    int bufferHeight;
-    if ((mCurrentTransform & NATIVE_WINDOW_TRANSFORM_ROT_90) == 0) {
-        bufferWidth = mActiveBuffer->getWidth();
-        bufferHeight = mActiveBuffer->getHeight();
-    } else {
-        bufferHeight = mActiveBuffer->getWidth();
-        bufferWidth = mActiveBuffer->getHeight();
+    int bufferWidth = mActiveBuffer->getWidth();
+    int bufferHeight = mActiveBuffer->getHeight();
+
+    if (mCurrentTransform & NATIVE_WINDOW_TRANSFORM_ROT_90) {
+        std::swap(bufferWidth, bufferHeight);
     }
+
     float sx = activeWidth / static_cast<float>(bufferWidth);
     float sy = activeHeight / static_cast<float>(bufferHeight);
 
     ui::Transform extraParentScaling;
     extraParentScaling.set(sx, 0, 0, sy);
-    return mEffectiveTransform * extraParentScaling;
+    return extraParentScaling;
+}
+
+ui::Transform Layer::getTransformWithScale(const ui::Transform& bufferScaleTransform) const {
+    // We need to mirror this scaling to child surfaces or we will break the contract where WM can
+    // treat child surfaces as pixels in the parent surface.
+    if (!isFixedSize() || !mActiveBuffer) {
+        return mEffectiveTransform;
+    }
+    return mEffectiveTransform * bufferScaleTransform;
+}
+
+FloatRect Layer::getBoundsPreScaling(const ui::Transform& bufferScaleTransform) const {
+    // We need the pre scaled layer bounds when computing child bounds to make sure the child is
+    // cropped to its parent layer after any buffer transform scaling is applied.
+    if (!isFixedSize() || !mActiveBuffer) {
+        return mBounds;
+    }
+    return bufferScaleTransform.inverse().transform(mBounds);
 }
 
 void Layer::computeBounds(FloatRect parentBounds, ui::Transform parentTransform) {
@@ -321,7 +335,7 @@ void Layer::computeBounds(FloatRect parentBounds, ui::Transform parentTransform)
     // Transform parent bounds to layer space
     parentBounds = getActiveTransform(s).inverse().transform(parentBounds);
 
-    // Calculate display frame
+    // Calculate source bounds
     mSourceBounds = computeSourceBounds(parentBounds);
 
     // Calculate bounds by croping diplay frame with layer crop and parent bounds
@@ -334,12 +348,14 @@ void Layer::computeBounds(FloatRect parentBounds, ui::Transform parentTransform)
 
     mBounds = bounds;
     mScreenBounds = mEffectiveTransform.transform(mBounds);
+
+    // Add any buffer scaling to the layer's children.
+    ui::Transform bufferScaleTransform = getBufferScaleTransform();
     for (const sp<Layer>& child : mDrawingChildren) {
-        child->computeBounds(mBounds, getTransformWithScale());
+        child->computeBounds(getBoundsPreScaling(bufferScaleTransform),
+                             getTransformWithScale(bufferScaleTransform));
     }
 }
-
-
 
 Rect Layer::getCroppedBufferSize(const State& s) const {
     Rect size = getBufferSize(s);
@@ -1666,7 +1682,9 @@ bool Layer::reparentChildren(const sp<IBinder>& newParentHandle) {
 void Layer::setChildrenDrawingParent(const sp<Layer>& newParent) {
     for (const sp<Layer>& child : mDrawingChildren) {
         child->mDrawingParent = newParent;
-        child->computeBounds(newParent->mBounds, newParent->getTransformWithScale());
+        child->computeBounds(newParent->mBounds,
+                             newParent->getTransformWithScale(
+                                     newParent->getBufferScaleTransform()));
     }
 }
 
