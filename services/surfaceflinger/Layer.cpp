@@ -104,6 +104,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.api = -1;
     mCurrentState.hasColorTransform = false;
     mCurrentState.colorSpaceAgnostic = false;
+    mCurrentState.metadata = args.metadata;
 
     // drawing state & current state are identical
     mDrawingState = mCurrentState;
@@ -1266,8 +1267,8 @@ bool Layer::setBackgroundColor(const half3& color, float alpha, ui::Dataspace da
         // create background color layer if one does not yet exist
         uint32_t flags = ISurfaceComposerClient::eFXSurfaceColor;
         const String8& name = mName + "BackgroundColorLayer";
-        mCurrentState.bgColorLayer =
-                new ColorLayer(LayerCreationArgs(mFlinger.get(), nullptr, name, 0, 0, flags));
+        mCurrentState.bgColorLayer = new ColorLayer(
+                LayerCreationArgs(mFlinger.get(), nullptr, name, 0, 0, flags, LayerMetadata()));
 
         // add to child list
         addChild(mCurrentState.bgColorLayer);

@@ -80,8 +80,9 @@ class SurfaceInterceptor;
 
 struct LayerCreationArgs {
     LayerCreationArgs(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name,
-                      uint32_t w, uint32_t h, uint32_t flags)
-          : flinger(flinger), client(client), name(name), w(w), h(h), flags(flags) {}
+                      uint32_t w, uint32_t h, uint32_t flags, LayerMetadata metadata)
+          : flinger(flinger), client(client), name(name), w(w), h(h), flags(flags),
+            metadata(std::move(metadata)) {}
 
     SurfaceFlinger* flinger;
     const sp<Client>& client;
@@ -89,6 +90,7 @@ struct LayerCreationArgs {
     uint32_t w;
     uint32_t h;
     uint32_t flags;
+    LayerMetadata metadata;
 };
 
 class Layer : public virtual compositionengine::LayerFE {

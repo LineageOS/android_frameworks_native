@@ -604,21 +604,21 @@ private:
                          sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp, sp<Layer>* parent);
 
     status_t createBufferQueueLayer(const sp<Client>& client, const String8& name, uint32_t w,
-                                    uint32_t h, uint32_t flags, PixelFormat& format,
-                                    sp<IBinder>* outHandle, sp<IGraphicBufferProducer>* outGbp,
-                                    sp<Layer>* outLayer);
+                                    uint32_t h, uint32_t flags, LayerMetadata metadata,
+                                    PixelFormat& format, sp<IBinder>* outHandle,
+                                    sp<IGraphicBufferProducer>* outGbp, sp<Layer>* outLayer);
 
     status_t createBufferStateLayer(const sp<Client>& client, const String8& name, uint32_t w,
-                                    uint32_t h, uint32_t flags, sp<IBinder>* outHandle,
-                                    sp<Layer>* outLayer);
+                                    uint32_t h, uint32_t flags, LayerMetadata metadata,
+                                    sp<IBinder>* outHandle, sp<Layer>* outLayer);
 
-    status_t createColorLayer(const sp<Client>& client, const String8& name,
-            uint32_t w, uint32_t h, uint32_t flags, sp<IBinder>* outHandle,
-            sp<Layer>* outLayer);
+    status_t createColorLayer(const sp<Client>& client, const String8& name, uint32_t w, uint32_t h,
+                              uint32_t flags, LayerMetadata metadata, sp<IBinder>* outHandle,
+                              sp<Layer>* outLayer);
 
-    status_t createContainerLayer(const sp<Client>& client, const String8& name,
-            uint32_t w, uint32_t h, uint32_t flags, sp<IBinder>* outHandle,
-            sp<Layer>* outLayer);
+    status_t createContainerLayer(const sp<Client>& client, const String8& name, uint32_t w,
+                                  uint32_t h, uint32_t flags, LayerMetadata metadata,
+                                  sp<IBinder>* outHandle, sp<Layer>* outLayer);
 
     String8 getUniqueLayerName(const String8& name);
 
