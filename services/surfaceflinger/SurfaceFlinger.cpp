@@ -3508,13 +3508,15 @@ bool SurfaceFlinger::flushTransactionQueues() {
         auto& [applyToken, transactionQueue] = *it;
 
         while (!transactionQueue.empty()) {
-            const auto& [states, displays, flags, desiredPresentTime, postTime, privileged] =
-                    transactionQueue.front();
+            const auto&
+                    [states, displays, flags, desiredPresentTime, uncacheBuffer, postTime,
+                     privileged] = transactionQueue.front();
             if (!transactionIsReadyToBeApplied(desiredPresentTime, states)) {
                 break;
             }
             applyTransactionState(states, displays, flags, mPendingInputWindowCommands,
-                                  desiredPresentTime, postTime, privileged, /*isMainThread*/ true);
+                                  desiredPresentTime, uncacheBuffer, postTime, privileged,
+                                  /*isMainThread*/ true);
             transactionQueue.pop();
         }
 
@@ -3571,7 +3573,8 @@ void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
                                          const Vector<DisplayState>& displays, uint32_t flags,
                                          const sp<IBinder>& applyToken,
                                          const InputWindowCommands& inputWindowCommands,
-                                         int64_t desiredPresentTime) {
+                                         int64_t desiredPresentTime,
+                                         const cached_buffer_t& uncacheBuffer) {
     ATRACE_CALL();
 
     const int64_t postTime = systemTime();
@@ -3588,20 +3591,22 @@ void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
     if (mTransactionQueues.find(applyToken) != mTransactionQueues.end() ||
         !transactionIsReadyToBeApplied(desiredPresentTime, states)) {
         mTransactionQueues[applyToken].emplace(states, displays, flags, desiredPresentTime,
-                                               postTime, privileged);
+                                               uncacheBuffer, postTime, privileged);
         setTransactionFlags(eTransactionNeeded);
         return;
     }
 
     applyTransactionState(states, displays, flags, inputWindowCommands, desiredPresentTime,
-                          postTime, privileged);
+                          uncacheBuffer, postTime, privileged);
 }
 
 void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
                                            const Vector<DisplayState>& displays, uint32_t flags,
                                            const InputWindowCommands& inputWindowCommands,
-                                           const int64_t desiredPresentTime, const int64_t postTime,
-                                           bool privileged, bool isMainThread) {
+                                           const int64_t desiredPresentTime,
+                                           const cached_buffer_t& uncacheBuffer,
+                                           const int64_t postTime, bool privileged,
+                                           bool isMainThread) {
     uint32_t transactionFlags = 0;
 
     if (flags & eAnimation) {
@@ -3635,6 +3640,10 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
     transactionFlags |= clientStateFlags;
 
     transactionFlags |= addInputWindowCommands(inputWindowCommands);
+
+    if (uncacheBuffer.token) {
+        BufferStateLayerCache::getInstance().erase(uncacheBuffer.token, uncacheBuffer.cacheId);
+    }
 
     // If a synchronous transaction is explicitly requested without any changes, force a transaction
     // anyway. This can be used as a flush mechanism for previous async transactions.
@@ -3977,16 +3986,20 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
             callbackHandles.emplace_back(new CallbackHandle(listener, callbackIds, s.surface));
         }
     }
-
-    if (what & layer_state_t::eBufferChanged) {
-        // Add the new buffer to the cache. This should always come before eCachedBufferChanged.
-        BufferStateLayerCache::getInstance().add(s.cachedBuffer.token, s.cachedBuffer.bufferId,
+    bool bufferChanged = what & layer_state_t::eBufferChanged;
+    bool cacheIdChanged = what & layer_state_t::eCachedBufferChanged;
+    sp<GraphicBuffer> buffer;
+    if (bufferChanged && cacheIdChanged) {
+        BufferStateLayerCache::getInstance().add(s.cachedBuffer.token, s.cachedBuffer.cacheId,
                                                  s.buffer);
+        buffer = s.buffer;
+    } else if (cacheIdChanged) {
+        buffer = BufferStateLayerCache::getInstance().get(s.cachedBuffer.token,
+                                                          s.cachedBuffer.cacheId);
+    } else if (bufferChanged) {
+        buffer = s.buffer;
     }
-    if (what & layer_state_t::eCachedBufferChanged) {
-        sp<GraphicBuffer> buffer =
-                BufferStateLayerCache::getInstance().get(s.cachedBuffer.token,
-                                                         s.cachedBuffer.bufferId);
+    if (buffer) {
         if (layer->setBuffer(buffer)) {
             flags |= eTraversalNeeded;
             layer->setPostTime(postTime);
@@ -4230,7 +4243,7 @@ void SurfaceFlinger::onInitializeDisplays() {
     d.width = 0;
     d.height = 0;
     displays.add(d);
-    setTransactionState(state, displays, 0, nullptr, mPendingInputWindowCommands, -1);
+    setTransactionState(state, displays, 0, nullptr, mPendingInputWindowCommands, -1, {});
 
     setPowerModeInternal(display, HWC_POWER_MODE_NORMAL);
 

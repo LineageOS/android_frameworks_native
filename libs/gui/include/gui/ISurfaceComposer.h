@@ -40,6 +40,7 @@
 namespace android {
 // ----------------------------------------------------------------------------
 
+struct cached_buffer_t;
 struct ComposerState;
 struct DisplayState;
 struct DisplayInfo;
@@ -131,7 +132,8 @@ public:
                                      const Vector<DisplayState>& displays, uint32_t flags,
                                      const sp<IBinder>& applyToken,
                                      const InputWindowCommands& inputWindowCommands,
-                                     int64_t desiredPresentTime) = 0;
+                                     int64_t desiredPresentTime,
+                                     const cached_buffer_t& uncacheBuffer) = 0;
 
     /* signal that we're done booting.
      * Requires ACCESS_SURFACE_FLINGER permission

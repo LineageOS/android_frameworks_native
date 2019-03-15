@@ -165,6 +165,12 @@ public:
     static void doDropReferenceTransaction(const sp<IBinder>& handle,
             const sp<ISurfaceComposerClient>& client);
 
+    /**
+     * Uncaches a buffer in ISurfaceComposer. It must be uncached via a transaction so that it is
+     * in order with other transactions that use buffers.
+     */
+    static void doUncacheBufferTransaction(uint64_t cacheId);
+
     // Queries whether a given display is wide color display.
     static status_t isWideColorDisplay(const sp<IBinder>& display, bool* outIsWideColorDisplay);
 
@@ -279,6 +285,9 @@ public:
         bool                        mAnimation = false;
         bool                        mEarlyWakeup = false;
 
+        // Indicates that the Transaction contains a buffer that should be cached
+        bool mContainsBuffer = false;
+
         // mDesiredPresentTime is the time in nanoseconds that the client would like the transaction
         // to be presented. When it is not possible to present at exactly that time, it will be
         // presented after the time has passed.
@@ -297,6 +306,7 @@ public:
         layer_state_t* getLayerState(const sp<SurfaceControl>& sc);
         DisplayState& getDisplayState(const sp<IBinder>& token);
 
+        void cacheBuffers();
         void registerSurfaceControlForCallback(const sp<SurfaceControl>& sc);
 
     public:
