@@ -1495,14 +1495,12 @@ static Dumpstate::RunStatus DumpstateDefault() {
     // Try to dump anrd trace if the daemon is running.
     dump_anrd_trace();
 
-    // Invoking the following dumpsys calls before dump_traces() to try and
+    // Invoking the following dumpsys calls before DumpTraces() to try and
     // keep the system stats as close to its initial state as possible.
     RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(RunDumpsysCritical);
 
     /* collect stack traces from Dalvik and native processes (needs root) */
-    // TODO(128270426): Refactor to take output argument and wrap in
-    // RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK.
-    dump_traces_path = ds.DumpTraces();
+    RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(ds.DumpTraces, &dump_traces_path);
 
     /* Run some operations that require root. */
     ds.tombstone_data_ = GetDumpFds(TOMBSTONE_DIR, TOMBSTONE_FILE_PREFIX, !ds.IsZipping());
@@ -1632,7 +1630,7 @@ static void DumpstateWifiOnly() {
     printf("========================================================\n");
 }
 
-const char* Dumpstate::DumpTraces() {
+Dumpstate::RunStatus Dumpstate::DumpTraces(const char** path) {
     DurationReporter duration_reporter("DUMP TRACES");
 
     const std::string temp_file_pattern = "/data/anr/dumptrace_XXXXXX";
@@ -1648,7 +1646,7 @@ const char* Dumpstate::DumpTraces() {
     android::base::unique_fd fd(mkostemp(file_name_buf.get(), O_APPEND | O_CLOEXEC));
     if (fd < 0) {
         MYLOGE("mkostemp on pattern %s: %s\n", file_name_buf.get(), strerror(errno));
-        return nullptr;
+        return RunStatus::OK;
     }
 
     // Nobody should have access to this temporary file except dumpstate, but we
@@ -1658,13 +1656,13 @@ const char* Dumpstate::DumpTraces() {
     const int chmod_ret = fchmod(fd, 0666);
     if (chmod_ret < 0) {
         MYLOGE("fchmod on %s failed: %s\n", file_name_buf.get(), strerror(errno));
-        return nullptr;
+        return RunStatus::OK;
     }
 
     std::unique_ptr<DIR, decltype(&closedir)> proc(opendir("/proc"), closedir);
     if (proc.get() == nullptr) {
         MYLOGE("opendir /proc failed: %s\n", strerror(errno));
-        return nullptr;
+        return RunStatus::OK;
     }
 
     // Number of times process dumping has timed out. If we encounter too many
@@ -1676,6 +1674,7 @@ const char* Dumpstate::DumpTraces() {
 
     struct dirent* d;
     while ((d = readdir(proc.get()))) {
+        RETURN_IF_USER_DENIED_CONSENT();
         int pid = atoi(d->d_name);
         if (pid <= 0) {
             continue;
@@ -1737,7 +1736,8 @@ const char* Dumpstate::DumpTraces() {
         MYLOGE("Warning: no Dalvik processes found to dump stacks\n");
     }
 
-    return file_name_buf.release();
+    *path = file_name_buf.release();
+    return RunStatus::OK;
 }
 
 void Dumpstate::DumpstateBoard() {
