@@ -280,6 +280,12 @@ static void __for_each_pid(void (*helper)(int, const char *, void *), const char
 
     if (header) printf("\n------ %s ------\n", header);
     while ((de = readdir(d))) {
+        if (ds.IsUserConsentDenied()) {
+            MYLOGE(
+                "Returning early because user denied consent to share bugreport with calling app.");
+            closedir(d);
+            return;
+        }
         int pid;
         int fd;
         char cmdpath[255];
@@ -352,6 +358,12 @@ static void for_each_tid_helper(int pid, const char *cmdline, void *arg) {
     func(pid, pid, cmdline);
 
     while ((de = readdir(d))) {
+        if (ds.IsUserConsentDenied()) {
+            MYLOGE(
+                "Returning early because user denied consent to share bugreport with calling app.");
+            closedir(d);
+            return;
+        }
         int tid;
         int fd;
         char commpath[255];
