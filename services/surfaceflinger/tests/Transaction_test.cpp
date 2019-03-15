@@ -32,8 +32,9 @@
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
-#include <private/gui/ComposerService.h>
+#include <hardware/hwcomposer_defs.h>
 #include <private/android_filesystem_config.h>
+#include <private/gui/ComposerService.h>
 
 #include <ui/ColorSpace.h>
 #include <ui/DisplayInfo.h>
@@ -5520,6 +5521,66 @@ TEST_F(MultiDisplayLayerBoundsTest, RenderLayerInMirroredVirtualDisplay) {
     ScreenCapture::captureScreen(&sc, mVirtualDisplay);
     sc->expectColor(Rect(10, 10, 40, 50), mExpectedColor);
     sc->expectColor(Rect(0, 0, 9, 9), {0, 0, 0, 255});
+}
+
+class DisplayActiveConfigTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        mDisplayToken = SurfaceComposerClient::getInternalDisplayToken();
+        SurfaceComposerClient::getDisplayConfigs(mDisplayToken, &mDisplayconfigs);
+        EXPECT_GT(mDisplayconfigs.size(), 0);
+
+        // set display power to on to make sure config can be changed
+        SurfaceComposerClient::setDisplayPowerMode(mDisplayToken, HWC_POWER_MODE_NORMAL);
+    }
+
+    sp<IBinder> mDisplayToken;
+    Vector<DisplayInfo> mDisplayconfigs;
+};
+
+TEST_F(DisplayActiveConfigTest, allConfigsAllowed) {
+    std::vector<int32_t> allowedConfigs;
+
+    // Add all configs to the allowed configs
+    for (int i = 0; i < mDisplayconfigs.size(); i++) {
+        allowedConfigs.push_back(i);
+    }
+
+    status_t res = SurfaceComposerClient::setAllowedDisplayConfigs(mDisplayToken, allowedConfigs);
+    EXPECT_EQ(res, NO_ERROR);
+
+    std::vector<int32_t> outConfigs;
+    res = SurfaceComposerClient::getAllowedDisplayConfigs(mDisplayToken, &outConfigs);
+    EXPECT_EQ(res, NO_ERROR);
+    EXPECT_EQ(allowedConfigs, outConfigs);
+}
+
+TEST_F(DisplayActiveConfigTest, changeAllowedConfig) {
+    // we need at least 2 configs available for this test
+    if (mDisplayconfigs.size() <= 1) return;
+
+    int activeConfig = SurfaceComposerClient::getActiveConfig(mDisplayToken);
+
+    // We want to set the allowed config to everything but the active config
+    std::vector<int32_t> allowedConfigs;
+    for (int i = 0; i < mDisplayconfigs.size(); i++) {
+        if (i != activeConfig) {
+            allowedConfigs.push_back(i);
+        }
+    }
+
+    status_t res = SurfaceComposerClient::setAllowedDisplayConfigs(mDisplayToken, allowedConfigs);
+    EXPECT_EQ(res, NO_ERROR);
+
+    // Allow some time for the config change
+    std::this_thread::sleep_for(200ms);
+
+    int newActiveConfig = SurfaceComposerClient::getActiveConfig(mDisplayToken);
+    EXPECT_NE(activeConfig, newActiveConfig);
+
+    // Make sure the new config is part of allowed config
+    EXPECT_TRUE(std::find(allowedConfigs.begin(), allowedConfigs.end(), newActiveConfig) !=
+                allowedConfigs.end());
 }
 
 } // namespace android

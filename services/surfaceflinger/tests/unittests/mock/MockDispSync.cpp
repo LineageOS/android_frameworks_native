@@ -15,6 +15,7 @@
  */
 
 #include "mock/MockDispSync.h"
+#include <thread>
 
 namespace android {
 namespace mock {
@@ -22,6 +23,40 @@ namespace mock {
 // Explicit default instantiation is recommended.
 DispSync::DispSync() = default;
 DispSync::~DispSync() = default;
+
+status_t DispSync::addEventListener(const char* /*name*/, nsecs_t phase, Callback* callback,
+                                    nsecs_t /*lastCallbackTime*/) {
+    if (mCallback.callback != nullptr) {
+        return BAD_VALUE;
+    }
+
+    mCallback = {callback, phase};
+    return NO_ERROR;
+}
+status_t DispSync::removeEventListener(Callback* callback, nsecs_t* /*outLastCallback*/) {
+    if (mCallback.callback != callback) {
+        return BAD_VALUE;
+    }
+
+    mCallback = {nullptr, 0};
+    return NO_ERROR;
+}
+
+status_t DispSync::changePhaseOffset(Callback* callback, nsecs_t phase) {
+    if (mCallback.callback != callback) {
+        return BAD_VALUE;
+    }
+
+    mCallback.phase = phase;
+    return NO_ERROR;
+}
+
+void DispSync::triggerCallback() {
+    if (mCallback.callback == nullptr) return;
+
+    mCallback.callback->onDispSyncEvent(
+            std::chrono::steady_clock::now().time_since_epoch().count());
+}
 
 } // namespace mock
 } // namespace android

@@ -453,7 +453,10 @@ DispSync::DispSync(const char* name) : mName(name), mRefreshSkipCount(0) {
     mThread = new DispSyncThread(name, mTraceDetailedInfo);
 }
 
-DispSync::~DispSync() {}
+DispSync::~DispSync() {
+    mThread->stop();
+    mThread->requestExitAndWait();
+}
 
 void DispSync::init(bool hasSyncFramework, int64_t dispSyncPresentTimeOffset) {
     mIgnorePresentFences = !hasSyncFramework;
