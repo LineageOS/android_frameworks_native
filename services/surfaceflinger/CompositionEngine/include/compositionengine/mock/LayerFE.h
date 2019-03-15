@@ -17,6 +17,7 @@
 #pragma once
 
 #include <compositionengine/LayerFE.h>
+#include <compositionengine/LayerFECompositionState.h>
 #include <gmock/gmock.h>
 #include <ui/Fence.h>
 
@@ -29,7 +30,10 @@ public:
     LayerFE();
     virtual ~LayerFE();
 
+    MOCK_CONST_METHOD2(latchCompositionState, void(LayerFECompositionState&, bool));
     MOCK_METHOD1(onLayerDisplayed, void(const sp<Fence>&));
+
+    MOCK_CONST_METHOD0(getDebugName, const char*());
 };
 
 } // namespace android::compositionengine::mock

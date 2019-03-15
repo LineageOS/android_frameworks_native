@@ -31,6 +31,25 @@ void dumpVal(std::string& out, const char* name, Hwc2::IComposerClient::Color va
 
 void dumpFrontEnd(std::string& out, const LayerFECompositionState& state) {
     out.append("      ");
+    dumpVal(out, "isSecure", state.isSecure);
+    dumpVal(out, "geomUsesSourceCrop", state.geomUsesSourceCrop);
+    dumpVal(out, "geomBufferUsesDisplayInverseTransform",
+            state.geomBufferUsesDisplayInverseTransform);
+    dumpVal(out, "geomLayerTransform", state.geomLayerTransform);
+
+    out.append("\n      ");
+    dumpVal(out, "geomBufferSize", state.geomBufferSize);
+    dumpVal(out, "geomContentCrop", state.geomContentCrop);
+    dumpVal(out, "geomCrop", state.geomCrop);
+    dumpVal(out, "geomBufferTransform", state.geomBufferTransform);
+
+    out.append("\n      ");
+    dumpVal(out, "geomActiveTransparentRegion", state.geomActiveTransparentRegion);
+
+    out.append("      ");
+    dumpVal(out, "geomLayerBounds", state.geomLayerBounds);
+
+    out.append("\n      ");
     dumpVal(out, "blend", toString(state.blendMode), state.blendMode);
     dumpVal(out, "alpha", state.alpha);
 
@@ -61,7 +80,7 @@ void dumpFrontEnd(std::string& out, const LayerFECompositionState& state) {
 } // namespace
 
 void LayerCompositionState::dump(std::string& out) const {
-    out.append("      frontend:\n");
+    out.append("    frontend:\n");
     dumpFrontEnd(out, frontEnd);
 }
 

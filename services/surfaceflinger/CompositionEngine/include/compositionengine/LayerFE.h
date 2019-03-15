@@ -24,12 +24,21 @@ class Fence;
 
 namespace compositionengine {
 
+struct LayerFECompositionState;
+
 // Defines the interface used by the CompositionEngine to make requests
 // of the front-end layer
 class LayerFE : public virtual RefBase {
 public:
+    // Latches the output-independent state. If includeGeometry is false, the
+    // geometry state can be skipped.
+    virtual void latchCompositionState(LayerFECompositionState&, bool includeGeometry) const = 0;
+
     // Called after the layer is displayed to update the presentation fence
     virtual void onLayerDisplayed(const sp<Fence>&) = 0;
+
+    // Gets some kind of identifier for the layer for debug purposes.
+    virtual const char* getDebugName() const = 0;
 };
 
 } // namespace compositionengine

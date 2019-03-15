@@ -21,6 +21,8 @@
 
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
+#include <ui/FloatRect.h>
+#include <ui/Rect.h>
 
 #include "DisplayHardware/DisplayIdentification.h"
 
@@ -41,9 +43,18 @@ public:
     const OutputLayerCompositionState& getState() const override;
     OutputLayerCompositionState& editState() override;
 
+    void updateCompositionState(bool) override;
+    void writeStateToHWC(bool) const override;
+
     void dump(std::string& result) const override;
 
+    virtual FloatRect calculateOutputSourceCrop() const;
+    virtual Rect calculateOutputDisplayFrame() const;
+    virtual uint32_t calculateOutputRelativeBufferTransform() const;
+
 private:
+    Rect calculateInitialCrop() const;
+
     const compositionengine::Output& mOutput;
     std::shared_ptr<compositionengine::Layer> mLayer;
     sp<compositionengine::LayerFE> mLayerFE;

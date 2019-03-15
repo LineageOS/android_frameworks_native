@@ -78,6 +78,8 @@ public:
     // isFixedSize - true if content has a fixed size
     bool isFixedSize() const override;
 
+    bool usesSourceCrop() const override;
+
     bool isHdrY410() const override;
 
     void setPerFrameData(const sp<const DisplayDevice>& display, const ui::Transform& transform,

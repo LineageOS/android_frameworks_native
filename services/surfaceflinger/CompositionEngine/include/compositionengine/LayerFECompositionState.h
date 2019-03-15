@@ -41,6 +41,22 @@ struct LayerFECompositionState {
     Region geomVisibleRegion;
 
     /*
+     * Geometry state
+     */
+
+    bool isSecure{false};
+    bool geomUsesSourceCrop{false};
+    bool geomBufferUsesDisplayInverseTransform{false};
+    uint32_t geomBufferTransform{0};
+    ui::Transform geomLayerTransform;
+    ui::Transform geomInverseLayerTransform;
+    Rect geomBufferSize;
+    Rect geomContentCrop;
+    Rect geomCrop;
+    Region geomActiveTransparentRegion;
+    FloatRect geomLayerBounds;
+
+    /*
      * Presentation
      */
 
