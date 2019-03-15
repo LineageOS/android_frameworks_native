@@ -4398,6 +4398,14 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args,
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::dumpCritical(int fd, const DumpArgs&, bool asProto) {
+    if (asProto && mTracing.isEnabled()) {
+        mTracing.writeToFileAsync();
+    }
+
+    return doDump(fd, DumpArgs(), asProto);
+}
+
 void SurfaceFlinger::listLayersLocked(std::string& result) const {
     mCurrentState.traverseInZOrder(
             [&](Layer* layer) { StringAppendF(&result, "%s\n", layer->getName().string()); });
