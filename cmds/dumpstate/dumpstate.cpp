@@ -131,6 +131,19 @@ static const std::string ANR_FILE_PREFIX = "anr_";
 // TODO: temporary variables and functions used during C++ refactoring
 static Dumpstate& ds = Dumpstate::GetInstance();
 
+#define RETURN_IF_USER_DENIED_CONSENT()                                                        \
+    if (ds.IsUserConsentDenied()) {                                                            \
+        MYLOGE("Returning early as user denied consent to share bugreport with calling app."); \
+        return Dumpstate::RunStatus::USER_CONSENT_DENIED;                                      \
+    }
+
+// Runs func_ptr, but checks user consent before and after running it. Returns USER_CONSENT_DENIED
+// if consent is found to be denied.
+#define RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(func_ptr, ...) \
+    RETURN_IF_USER_DENIED_CONSENT();                        \
+    func_ptr(__VA_ARGS__);                                  \
+    RETURN_IF_USER_DENIED_CONSENT();
+
 namespace android {
 namespace os {
 namespace {
@@ -1054,9 +1067,9 @@ static void DumpIpAddrAndRules() {
     RunCommand("IP RULES v6", {"ip", "-6", "rule", "show"});
 }
 
-static void RunDumpsysTextByPriority(const std::string& title, int priority,
-                                     std::chrono::milliseconds timeout,
-                                     std::chrono::milliseconds service_timeout) {
+static Dumpstate::RunStatus RunDumpsysTextByPriority(const std::string& title, int priority,
+                                                     std::chrono::milliseconds timeout,
+                                                     std::chrono::milliseconds service_timeout) {
     auto start = std::chrono::steady_clock::now();
     sp<android::IServiceManager> sm = defaultServiceManager();
     Dumpsys dumpsys(sm.get());
@@ -1064,6 +1077,7 @@ static void RunDumpsysTextByPriority(const std::string& title, int priority,
     Dumpsys::setServiceArgs(args, /* asProto = */ false, priority);
     Vector<String16> services = dumpsys.listServices(priority, /* supports_proto = */ false);
     for (const String16& service : services) {
+        RETURN_IF_USER_DENIED_CONSENT();
         std::string path(title);
         path.append(" - ").append(String8(service).c_str());
         DumpstateSectionReporter section_reporter(path, ds.listener_, ds.report_section_);
@@ -1089,6 +1103,7 @@ static void RunDumpsysTextByPriority(const std::string& title, int priority,
             break;
         }
     }
+    return Dumpstate::RunStatus::OK;
 }
 
 static void RunDumpsysText(const std::string& title, int priority,
@@ -1101,24 +1116,27 @@ static void RunDumpsysText(const std::string& title, int priority,
 }
 
 /* Dump all services registered with Normal or Default priority. */
-static void RunDumpsysTextNormalPriority(const std::string& title,
-                                         std::chrono::milliseconds timeout,
-                                         std::chrono::milliseconds service_timeout) {
+static Dumpstate::RunStatus RunDumpsysTextNormalPriority(const std::string& title,
+                                                         std::chrono::milliseconds timeout,
+                                                         std::chrono::milliseconds service_timeout) {
     DurationReporter duration_reporter(title);
     dprintf(STDOUT_FILENO, "------ %s (/system/bin/dumpsys) ------\n", title.c_str());
     fsync(STDOUT_FILENO);
     RunDumpsysTextByPriority(title, IServiceManager::DUMP_FLAG_PRIORITY_NORMAL, timeout,
                              service_timeout);
-    RunDumpsysTextByPriority(title, IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT, timeout,
-                             service_timeout);
+
+    RETURN_IF_USER_DENIED_CONSENT();
+
+    return RunDumpsysTextByPriority(title, IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT, timeout,
+                                    service_timeout);
 }
 
-static void RunDumpsysProto(const std::string& title, int priority,
-                            std::chrono::milliseconds timeout,
-                            std::chrono::milliseconds service_timeout) {
+static Dumpstate::RunStatus RunDumpsysProto(const std::string& title, int priority,
+                                            std::chrono::milliseconds timeout,
+                                            std::chrono::milliseconds service_timeout) {
     if (!ds.IsZipping()) {
         MYLOGD("Not dumping %s because it's not a zipped bugreport\n", title.c_str());
-        return;
+        return Dumpstate::RunStatus::OK;
     }
     sp<android::IServiceManager> sm = defaultServiceManager();
     Dumpsys dumpsys(sm.get());
@@ -1129,6 +1147,7 @@ static void RunDumpsysProto(const std::string& title, int priority,
     auto start = std::chrono::steady_clock::now();
     Vector<String16> services = dumpsys.listServices(priority, /* supports_proto = */ true);
     for (const String16& service : services) {
+        RETURN_IF_USER_DENIED_CONSENT();
         std::string path(kProtoPath);
         path.append(String8(service).c_str());
         if (priority == IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL) {
@@ -1157,32 +1176,42 @@ static void RunDumpsysProto(const std::string& title, int priority,
             break;
         }
     }
+    return Dumpstate::RunStatus::OK;
 }
 
 // Runs dumpsys on services that must dump first and will take less than 100ms to dump.
-static void RunDumpsysCritical() {
+static Dumpstate::RunStatus RunDumpsysCritical() {
     RunDumpsysText("DUMPSYS CRITICAL", IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL,
                    /* timeout= */ 5s, /* service_timeout= */ 500ms);
-    RunDumpsysProto("DUMPSYS CRITICAL PROTO", IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL,
-                    /* timeout= */ 5s, /* service_timeout= */ 500ms);
+
+    RETURN_IF_USER_DENIED_CONSENT();
+
+    return RunDumpsysProto("DUMPSYS CRITICAL PROTO", IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL,
+                           /* timeout= */ 5s, /* service_timeout= */ 500ms);
 }
 
 // Runs dumpsys on services that must dump first but can take up to 250ms to dump.
-static void RunDumpsysHigh() {
+static Dumpstate::RunStatus RunDumpsysHigh() {
     // TODO meminfo takes ~10s, connectivity takes ~5sec to dump. They are both
     // high priority. Reduce timeout once they are able to dump in a shorter time or
     // moved to a parallel task.
     RunDumpsysText("DUMPSYS HIGH", IServiceManager::DUMP_FLAG_PRIORITY_HIGH,
                    /* timeout= */ 90s, /* service_timeout= */ 30s);
-    RunDumpsysProto("DUMPSYS HIGH PROTO", IServiceManager::DUMP_FLAG_PRIORITY_HIGH,
-                    /* timeout= */ 5s, /* service_timeout= */ 1s);
+
+    RETURN_IF_USER_DENIED_CONSENT();
+
+    return RunDumpsysProto("DUMPSYS HIGH PROTO", IServiceManager::DUMP_FLAG_PRIORITY_HIGH,
+                           /* timeout= */ 5s, /* service_timeout= */ 1s);
 }
 
 // Runs dumpsys on services that must dump but can take up to 10s to dump.
-static void RunDumpsysNormal() {
+static Dumpstate::RunStatus RunDumpsysNormal() {
     RunDumpsysTextNormalPriority("DUMPSYS", /* timeout= */ 90s, /* service_timeout= */ 10s);
-    RunDumpsysProto("DUMPSYS PROTO", IServiceManager::DUMP_FLAG_PRIORITY_NORMAL,
-                    /* timeout= */ 90s, /* service_timeout= */ 10s);
+
+    RETURN_IF_USER_DENIED_CONSENT();
+
+    return RunDumpsysProto("DUMPSYS PROTO", IServiceManager::DUMP_FLAG_PRIORITY_NORMAL,
+                           /* timeout= */ 90s, /* service_timeout= */ 10s);
 }
 
 static void DumpHals() {
@@ -1244,9 +1273,16 @@ static void DumpHals() {
     }
 }
 
-static void dumpstate() {
+// Dumps various things. Returns early with status USER_CONSENT_DENIED if user denies consent
+// via the consent they are shown. Ignores other errors that occur while running various
+// commands. The consent checking is currently done around long running tasks, which happen to
+// be distributed fairly evenly throughout the function.
+static Dumpstate::RunStatus dumpstate() {
     DurationReporter duration_reporter("DUMPSTATE");
 
+    // Dump various things. Note that anything that takes "long" (i.e. several seconds) should
+    // check intermittently (if it's intrerruptable like a foreach on pids) and/or should be wrapped
+    // in a consent check (via RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK).
     dump_dev_files("TRUSTY VERSION", "/sys/bus/platform/drivers/trusty", "trusty_version");
     RunCommand("UPTIME", {"uptime"});
     DumpBlockStatFiles();
@@ -1254,7 +1290,9 @@ static void dumpstate() {
     DumpFile("MEMORY INFO", "/proc/meminfo");
     RunCommand("CPU INFO", {"top", "-b", "-n", "1", "-H", "-s", "6", "-o",
                             "pid,tid,user,pr,ni,%cpu,s,virt,res,pcy,cmd,name"});
-    RunCommand("PROCRANK", {"procrank"}, AS_ROOT_20);
+
+    RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(RunCommand, "PROCRANK", {"procrank"}, AS_ROOT_20);
+
     DumpFile("VIRTUAL MEMORY STATS", "/proc/vmstat");
     DumpFile("VMALLOC INFO", "/proc/vmallocinfo");
     DumpFile("SLAB INFO", "/proc/slabinfo");
@@ -1269,7 +1307,9 @@ static void dumpstate() {
 
     RunCommand("PROCESSES AND THREADS",
                {"ps", "-A", "-T", "-Z", "-O", "pri,nice,rtprio,sched,pcy,time"});
-    RunCommand("LIBRANK", {"librank"}, CommandOptions::AS_ROOT);
+
+    RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(RunCommand, "LIBRANK", {"librank"},
+                                         CommandOptions::AS_ROOT);
 
     DumpHals();
 
@@ -1290,7 +1330,9 @@ static void dumpstate() {
     }
 
     RunCommand("LIST OF OPEN FILES", {"lsof"}, CommandOptions::AS_ROOT);
-    for_each_pid(do_showmap, "SMAPS OF ALL PROCESSES");
+
+    RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(for_each_pid, do_showmap, "SMAPS OF ALL PROCESSES");
+
     for_each_tid(show_wchan, "BLOCKED PROCESS WAIT-CHANNELS");
     for_each_pid(show_showtime, "PROCESS TIMES (pid cmd user system iowait+percentage)");
 
@@ -1328,7 +1370,7 @@ static void dumpstate() {
     RunCommand("IPv6 ND CACHE", {"ip", "-6", "neigh", "show"});
     RunCommand("MULTICAST ADDRESSES", {"ip", "maddr"});
 
-    RunDumpsysHigh();
+    RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(RunDumpsysHigh);
 
     RunCommand("SYSTEM PROPERTIES", {"getprop"});
 
@@ -1351,7 +1393,7 @@ static void dumpstate() {
         ds.AddDir(WMTRACE_DATA_DIR, false);
     }
 
-    ds.DumpstateBoard();
+    RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(ds.DumpstateBoard);
 
     /* Migrate the ril_dumpstate to a device specific dumpstate? */
     int rilDumpstateTimeout = android::base::GetIntProperty("ril.dumpstate.timeout", 0);
@@ -1371,14 +1413,16 @@ static void dumpstate() {
     printf("== Android Framework Services\n");
     printf("========================================================\n");
 
-    RunDumpsysNormal();
+    RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(RunDumpsysNormal);
 
     printf("========================================================\n");
     printf("== Checkins\n");
     printf("========================================================\n");
 
     RunDumpsys("CHECKIN BATTERYSTATS", {"batterystats", "-c"});
-    RunDumpsys("CHECKIN MEMINFO", {"meminfo", "--checkin"});
+
+    RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(RunDumpsys, "CHECKIN MEMINFO", {"meminfo", "--checkin"});
+
     RunDumpsys("CHECKIN NETSTATS", {"netstats", "--checkin"});
     RunDumpsys("CHECKIN PROCSTATS", {"procstats", "-c"});
     RunDumpsys("CHECKIN USAGESTATS", {"usagestats", "-c"});
@@ -1436,18 +1480,28 @@ static void dumpstate() {
     printf("========================================================\n");
     printf("== dumpstate: done (id %d)\n", ds.id_);
     printf("========================================================\n");
+    return Dumpstate::RunStatus::OK;
 }
 
-/* Dumps state for the default case. Returns true if everything went fine. */
-static bool DumpstateDefault() {
+/*
+ * Dumps state for the default case; drops root after it's no longer necessary.
+ *
+ * Returns RunStatus::OK if everything went fine.
+ * Returns RunStatus::ERROR if there was an error.
+ * Returns RunStatus::USER_DENIED_CONSENT if user explicitly denied consent to sharing the bugreport
+ * with the caller.
+ */
+static Dumpstate::RunStatus DumpstateDefault() {
     // Try to dump anrd trace if the daemon is running.
     dump_anrd_trace();
 
     // Invoking the following dumpsys calls before dump_traces() to try and
     // keep the system stats as close to its initial state as possible.
-    RunDumpsysCritical();
+    RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(RunDumpsysCritical);
 
     /* collect stack traces from Dalvik and native processes (needs root) */
+    // TODO(128270426): Refactor to take output argument and wrap in
+    // RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK.
     dump_traces_path = ds.DumpTraces();
 
     /* Run some operations that require root. */
@@ -1484,11 +1538,11 @@ static bool DumpstateDefault() {
     }
 
     if (!DropRootUser()) {
-        return false;
+        return Dumpstate::RunStatus::ERROR;
     }
 
-    dumpstate();
-    return true;
+    RETURN_IF_USER_DENIED_CONSENT();
+    return dumpstate();
 }
 
 // This method collects common dumpsys for telephony and wifi
@@ -1724,6 +1778,7 @@ void Dumpstate::DumpstateBoard() {
         return;
     }
 
+    // TODO(128270426): Check for consent in between?
     for (size_t i = 0; i < paths.size(); i++) {
         MYLOGI("Calling IDumpstateDevice implementation using path %s\n", paths[i].c_str());
 
@@ -2581,9 +2636,12 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
         DumpstateWifiOnly();
     } else {
         // Dump state for the default case. This also drops root.
-        if (!DumpstateDefault()) {
-            // Something went wrong.
-            return RunStatus::ERROR;
+        RunStatus s = DumpstateDefault();
+        if (s != RunStatus::OK) {
+            if (s == RunStatus::USER_CONSENT_TIMED_OUT) {
+                HandleUserConsentDenied();
+            }
+            return s;
         }
     }
 
@@ -2620,9 +2678,7 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
             MYLOGI(
                 "Did not receive user consent yet."
                 " Will not copy the bugreport artifacts to caller.\n");
-            // TODO(b/111441001):
-            // 1. cancel outstanding requests
-            // 2. check for result more frequently
+            // TODO(b/111441001): cancel outstanding requests
         }
     }
 
@@ -2675,6 +2731,11 @@ void Dumpstate::CheckUserConsent(int32_t calling_uid, const android::String16& c
     } else {
         MYLOGD("Unable to check user consent; incidentcompanion service unavailable\n");
     }
+}
+
+bool Dumpstate::IsUserConsentDenied() const {
+    return ds.consent_callback_ != nullptr &&
+           ds.consent_callback_->getResult() == UserConsentResult::DENIED;
 }
 
 void Dumpstate::CleanupFiles() {
