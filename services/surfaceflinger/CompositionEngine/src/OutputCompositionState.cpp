@@ -20,6 +20,7 @@
 namespace android::compositionengine::impl {
 
 void OutputCompositionState::dump(std::string& out) const {
+    out.append("   ");
     dumpVal(out, "isEnabled", isEnabled);
     dumpVal(out, "isSecure", isSecure);
 
@@ -37,7 +38,7 @@ void OutputCompositionState::dump(std::string& out) const {
     dumpVal(out, "scissor", scissor);
     dumpVal(out, "needsFiltering", needsFiltering);
 
-    out.append("\n");
+    out.append("\n   ");
 
     dumpVal(out, "colorMode", toString(colorMode), colorMode);
     dumpVal(out, "renderIntent", toString(renderIntent), renderIntent);
