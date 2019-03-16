@@ -46,11 +46,10 @@ public:
     bool onPreComposition(nsecs_t /*refreshStartTime*/) override { return false; }
 
 protected:
-    FloatRect computeCrop(const sp<const DisplayDevice>& /*display*/) const override { return {}; }
-    bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
-                            bool useIdentityTransform, Region& clearRegion,
-                            const bool supportProtectedContent,
-                            renderengine::LayerSettings& layer) override;
+    virtual bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
+                                    bool useIdentityTransform, Region& clearRegion,
+                                    const bool supportProtectedContent,
+                                    renderengine::LayerSettings& layer);
 
 private:
     std::shared_ptr<compositionengine::Layer> mCompositionLayer;

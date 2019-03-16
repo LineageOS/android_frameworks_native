@@ -32,8 +32,9 @@
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
-#include <private/gui/ComposerService.h>
+#include <hardware/hwcomposer_defs.h>
 #include <private/android_filesystem_config.h>
+#include <private/gui/ComposerService.h>
 
 #include <ui/ColorSpace.h>
 #include <ui/DisplayInfo.h>
@@ -2022,8 +2023,8 @@ TEST_P(LayerRenderTypeTransactionTest, SetCropBasic_BufferState) {
 
     Transaction().setCrop(layer, crop).apply();
     auto shot = getScreenCapture();
-    shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
-    shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    shot->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::RED);
+    shot->expectBorder(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::BLACK);
 }
 
 TEST_P(LayerRenderTypeTransactionTest, SetCropEmpty_BufferQueue) {
@@ -2053,13 +2054,13 @@ TEST_P(LayerRenderTypeTransactionTest, SetCropEmpty_BufferState) {
     {
         SCOPED_TRACE("empty rect");
         Transaction().setCrop(layer, Rect(8, 8, 8, 8)).apply();
-        getScreenCapture()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+        getScreenCapture()->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::RED);
     }
 
     {
         SCOPED_TRACE("negative rect");
         Transaction().setCrop(layer, Rect(8, 8, 0, 0)).apply();
-        getScreenCapture()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+        getScreenCapture()->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::RED);
     }
 }
 
@@ -2076,37 +2077,36 @@ TEST_P(LayerRenderTypeTransactionTest, SetCropOutOfBounds_BufferQueue) {
 
 TEST_P(LayerRenderTypeTransactionTest, SetCropOutOfBounds_BufferState) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", mDisplayWidth, mDisplayHeight / 2,
-                                                ISurfaceComposerClient::eFXSurfaceBufferState));
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 64, ISurfaceComposerClient::eFXSurfaceBufferState));
     sp<GraphicBuffer> buffer =
-            new GraphicBuffer(mDisplayWidth, mDisplayHeight / 2, PIXEL_FORMAT_RGBA_8888, 1,
+            new GraphicBuffer(32, 64, PIXEL_FORMAT_RGBA_8888, 1,
                               BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
                                       BufferUsage::COMPOSER_OVERLAY,
                               "test");
-    fillGraphicBufferColor(buffer, Rect(0, 0, mDisplayWidth, mDisplayHeight / 4), Color::BLUE);
-    fillGraphicBufferColor(buffer, Rect(0, mDisplayHeight / 4, mDisplayWidth, mDisplayHeight / 2),
-                           Color::RED);
+    fillGraphicBufferColor(buffer, Rect(0, 0, 32, 16), Color::BLUE);
+    fillGraphicBufferColor(buffer, Rect(0, 16, 32, 64), Color::RED);
+
+    Transaction().setFrame(layer, Rect(0, 0, 64, 64)).apply();
 
     Transaction().setBuffer(layer, buffer).apply();
 
     // Partially out of bounds in the negative (upper left) direction
-    Transaction().setCrop(layer, Rect(-128, -128, mDisplayWidth, mDisplayHeight / 4)).apply();
+    Transaction().setCrop(layer, Rect(-128, -128, 32, 16)).apply();
     {
         SCOPED_TRACE("out of bounds, negative (upper left) direction");
         auto shot = getScreenCapture();
-        shot->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight / 2), Color::BLUE);
-        shot->expectBorder(Rect(0, 0, mDisplayWidth, mDisplayHeight / 2), Color::BLACK);
+        shot->expectColor(Rect(0, 0, 64, 64), Color::BLUE);
+        shot->expectBorder(Rect(0, 0, 64, 64), Color::BLACK);
     }
 
     // Partially out of bounds in the positive (lower right) direction
-    Transaction()
-            .setCrop(layer, Rect(0, mDisplayHeight / 4, mDisplayWidth + 1, mDisplayHeight))
-            .apply();
+    Transaction().setCrop(layer, Rect(0, 16, 128, 128)).apply();
     {
         SCOPED_TRACE("out of bounds, positive (lower right) direction");
         auto shot = getScreenCapture();
-        shot->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight / 2), Color::RED);
-        shot->expectBorder(Rect(0, 0, mDisplayWidth, mDisplayHeight / 2), Color::BLACK);
+        shot->expectColor(Rect(0, 0, 64, 64), Color::RED);
+        shot->expectBorder(Rect(0, 0, 64, 64), Color::BLACK);
     }
 
     // Fully out of buffer space bounds
@@ -2114,9 +2114,9 @@ TEST_P(LayerRenderTypeTransactionTest, SetCropOutOfBounds_BufferState) {
     {
         SCOPED_TRACE("Fully out of bounds");
         auto shot = getScreenCapture();
-        shot->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight / 4), Color::BLUE);
-        shot->expectColor(Rect(0, mDisplayHeight / 4, mDisplayWidth, mDisplayHeight / 2),
-                          Color::RED);
+        shot->expectColor(Rect(0, 0, 64, 16), Color::BLUE);
+        shot->expectColor(Rect(0, 16, 64, 64), Color::RED);
+        shot->expectBorder(Rect(0, 0, 64, 64), Color::BLACK);
     }
 }
 
@@ -2293,8 +2293,8 @@ TEST_P(LayerRenderTypeTransactionTest, SetFrameDefaultParentless_BufferState) {
 
     // A parentless layer will default to a frame with the same size as the buffer
     auto shot = getScreenCapture();
-    shot->expectColor(Rect(0, 0, 10, 10), Color::RED);
-    shot->expectBorder(Rect(0, 0, 10, 10), Color::BLACK);
+    shot->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::RED);
+    shot->expectBorder(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::BLACK);
 }
 
 TEST_P(LayerRenderTypeTransactionTest, SetFrameDefaultBSParent_BufferState) {
@@ -2377,8 +2377,8 @@ TEST_P(LayerRenderTypeTransactionTest, SetBufferBasic_BufferState) {
     ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 32, 32));
 
     auto shot = getScreenCapture();
-    shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
-    shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    shot->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::RED);
+    shot->expectBorder(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::BLACK);
 }
 
 TEST_P(LayerRenderTypeTransactionTest, SetBufferMultipleBuffers_BufferState) {
@@ -2391,8 +2391,8 @@ TEST_P(LayerRenderTypeTransactionTest, SetBufferMultipleBuffers_BufferState) {
     {
         SCOPED_TRACE("set buffer 1");
         auto shot = getScreenCapture();
-        shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
-        shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+        shot->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::RED);
+        shot->expectBorder(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::BLACK);
     }
 
     ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::BLUE, 32, 32));
@@ -2400,8 +2400,8 @@ TEST_P(LayerRenderTypeTransactionTest, SetBufferMultipleBuffers_BufferState) {
     {
         SCOPED_TRACE("set buffer 2");
         auto shot = getScreenCapture();
-        shot->expectColor(Rect(0, 0, 32, 32), Color::BLUE);
-        shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+        shot->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::BLUE);
+        shot->expectBorder(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::BLACK);
     }
 
     ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 32, 32));
@@ -2409,8 +2409,8 @@ TEST_P(LayerRenderTypeTransactionTest, SetBufferMultipleBuffers_BufferState) {
     {
         SCOPED_TRACE("set buffer 3");
         auto shot = getScreenCapture();
-        shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
-        shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+        shot->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::RED);
+        shot->expectBorder(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::BLACK);
     }
 }
 
@@ -2492,8 +2492,8 @@ TEST_P(LayerRenderTypeTransactionTest, SetBufferCaching_BufferState) {
 
             Color color = colors[idx % colors.size()];
             auto shot = screenshot();
-            shot->expectColor(Rect(0, 0, 32, 32), color);
-            shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+            shot->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), color);
+            shot->expectBorder(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::BLACK);
         }
         idx++;
     }
@@ -2528,8 +2528,8 @@ TEST_P(LayerRenderTypeTransactionTest, SetBufferCaching_LeastRecentlyUsed_Buffer
 
             Color color = colors[idx % colors.size()];
             auto shot = screenshot();
-            shot->expectColor(Rect(0, 0, 32, 32), color);
-            shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+            shot->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), color);
+            shot->expectBorder(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::BLACK);
         }
         idx++;
     }
@@ -2564,8 +2564,8 @@ TEST_P(LayerRenderTypeTransactionTest, SetBufferCaching_DestroyedBuffer_BufferSt
 
             Color color = colors[idx % colors.size()];
             auto shot = screenshot();
-            shot->expectColor(Rect(0, 0, 32, 32), color);
-            shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+            shot->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), color);
+            shot->expectBorder(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::BLACK);
         }
         if (idx == 0) {
             buffers[0].clear();
@@ -2663,8 +2663,8 @@ TEST_P(LayerRenderTypeTransactionTest, SetFenceBasic_BufferState) {
     std::this_thread::sleep_for(200ms);
 
     auto shot = getScreenCapture();
-    shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
-    shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    shot->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::RED);
+    shot->expectBorder(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::BLACK);
 }
 
 TEST_P(LayerRenderTypeTransactionTest, SetFenceNull_BufferState) {
@@ -2687,8 +2687,8 @@ TEST_P(LayerRenderTypeTransactionTest, SetFenceNull_BufferState) {
             .apply();
 
     auto shot = getScreenCapture();
-    shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
-    shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    shot->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::RED);
+    shot->expectBorder(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::BLACK);
 }
 
 TEST_P(LayerRenderTypeTransactionTest, SetDataspaceBasic_BufferState) {
@@ -2709,8 +2709,8 @@ TEST_P(LayerRenderTypeTransactionTest, SetDataspaceBasic_BufferState) {
             .apply();
 
     auto shot = getScreenCapture();
-    shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
-    shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    shot->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::RED);
+    shot->expectBorder(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::BLACK);
 }
 
 TEST_P(LayerRenderTypeTransactionTest, SetHdrMetadataBasic_BufferState) {
@@ -2733,8 +2733,8 @@ TEST_P(LayerRenderTypeTransactionTest, SetHdrMetadataBasic_BufferState) {
             .apply();
 
     auto shot = getScreenCapture();
-    shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
-    shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    shot->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::RED);
+    shot->expectBorder(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::BLACK);
 }
 
 TEST_P(LayerRenderTypeTransactionTest, SetSurfaceDamageRegionBasic_BufferState) {
@@ -2757,8 +2757,8 @@ TEST_P(LayerRenderTypeTransactionTest, SetSurfaceDamageRegionBasic_BufferState) 
             .apply();
 
     auto shot = getScreenCapture();
-    shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
-    shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    shot->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::RED);
+    shot->expectBorder(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::BLACK);
 }
 
 TEST_P(LayerRenderTypeTransactionTest, SetApiBasic_BufferState) {
@@ -2779,8 +2779,8 @@ TEST_P(LayerRenderTypeTransactionTest, SetApiBasic_BufferState) {
             .apply();
 
     auto shot = getScreenCapture();
-    shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
-    shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    shot->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::RED);
+    shot->expectBorder(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::BLACK);
 }
 
 TEST_F(LayerTransactionTest, SetSidebandStreamNull_BufferState) {
@@ -5521,6 +5521,66 @@ TEST_F(MultiDisplayLayerBoundsTest, RenderLayerInMirroredVirtualDisplay) {
     ScreenCapture::captureScreen(&sc, mVirtualDisplay);
     sc->expectColor(Rect(10, 10, 40, 50), mExpectedColor);
     sc->expectColor(Rect(0, 0, 9, 9), {0, 0, 0, 255});
+}
+
+class DisplayActiveConfigTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        mDisplayToken = SurfaceComposerClient::getInternalDisplayToken();
+        SurfaceComposerClient::getDisplayConfigs(mDisplayToken, &mDisplayconfigs);
+        EXPECT_GT(mDisplayconfigs.size(), 0);
+
+        // set display power to on to make sure config can be changed
+        SurfaceComposerClient::setDisplayPowerMode(mDisplayToken, HWC_POWER_MODE_NORMAL);
+    }
+
+    sp<IBinder> mDisplayToken;
+    Vector<DisplayInfo> mDisplayconfigs;
+};
+
+TEST_F(DisplayActiveConfigTest, allConfigsAllowed) {
+    std::vector<int32_t> allowedConfigs;
+
+    // Add all configs to the allowed configs
+    for (int i = 0; i < mDisplayconfigs.size(); i++) {
+        allowedConfigs.push_back(i);
+    }
+
+    status_t res = SurfaceComposerClient::setAllowedDisplayConfigs(mDisplayToken, allowedConfigs);
+    EXPECT_EQ(res, NO_ERROR);
+
+    std::vector<int32_t> outConfigs;
+    res = SurfaceComposerClient::getAllowedDisplayConfigs(mDisplayToken, &outConfigs);
+    EXPECT_EQ(res, NO_ERROR);
+    EXPECT_EQ(allowedConfigs, outConfigs);
+}
+
+TEST_F(DisplayActiveConfigTest, changeAllowedConfig) {
+    // we need at least 2 configs available for this test
+    if (mDisplayconfigs.size() <= 1) return;
+
+    int activeConfig = SurfaceComposerClient::getActiveConfig(mDisplayToken);
+
+    // We want to set the allowed config to everything but the active config
+    std::vector<int32_t> allowedConfigs;
+    for (int i = 0; i < mDisplayconfigs.size(); i++) {
+        if (i != activeConfig) {
+            allowedConfigs.push_back(i);
+        }
+    }
+
+    status_t res = SurfaceComposerClient::setAllowedDisplayConfigs(mDisplayToken, allowedConfigs);
+    EXPECT_EQ(res, NO_ERROR);
+
+    // Allow some time for the config change
+    std::this_thread::sleep_for(200ms);
+
+    int newActiveConfig = SurfaceComposerClient::getActiveConfig(mDisplayToken);
+    EXPECT_NE(activeConfig, newActiveConfig);
+
+    // Make sure the new config is part of allowed config
+    EXPECT_TRUE(std::find(allowedConfigs.begin(), allowedConfigs.end(), newActiveConfig) !=
+                allowedConfigs.end());
 }
 
 } // namespace android

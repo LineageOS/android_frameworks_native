@@ -102,14 +102,16 @@ DurationReporter::DurationReporter(const std::string& title, bool logcat_only)
 
 DurationReporter::~DurationReporter() {
     if (!title_.empty()) {
-        uint64_t elapsed = Nanotime() - started_;
-        MYLOGD("Duration of '%s': %.3fs\n", title_.c_str(), (float)elapsed / NANOS_PER_SEC);
+        float elapsed = (float)(Nanotime() - started_) / NANOS_PER_SEC;
+        if (elapsed < .5f) {
+            return;
+        }
+        MYLOGD("Duration of '%s': %.2fs\n", title_.c_str(), elapsed);
         if (logcat_only_) {
             return;
         }
         // Use "Yoda grammar" to make it easier to grep|sort sections.
-        printf("------ %.3fs was the duration of '%s' ------\n", (float)elapsed / NANOS_PER_SEC,
-               title_.c_str());
+        printf("------ %.3fs was the duration of '%s' ------\n", elapsed, title_.c_str());
     }
 }
 
@@ -278,6 +280,12 @@ static void __for_each_pid(void (*helper)(int, const char *, void *), const char
 
     if (header) printf("\n------ %s ------\n", header);
     while ((de = readdir(d))) {
+        if (ds.IsUserConsentDenied()) {
+            MYLOGE(
+                "Returning early because user denied consent to share bugreport with calling app.");
+            closedir(d);
+            return;
+        }
         int pid;
         int fd;
         char cmdpath[255];
@@ -350,6 +358,12 @@ static void for_each_tid_helper(int pid, const char *cmdline, void *arg) {
     func(pid, pid, cmdline);
 
     while ((de = readdir(d))) {
+        if (ds.IsUserConsentDenied()) {
+            MYLOGE(
+                "Returning early because user denied consent to share bugreport with calling app.");
+            closedir(d);
+            return;
+        }
         int tid;
         int fd;
         char commpath[255];

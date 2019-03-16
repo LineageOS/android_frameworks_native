@@ -18,30 +18,38 @@
 
 #include <layerproto/LayerProtoHeader.h>
 #include <utils/Errors.h>
+#include <utils/StrongPointer.h>
 
+#include <android-base/thread_annotations.h>
+#include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <queue>
+#include <thread>
 
 using namespace android::surfaceflinger;
 
 namespace android {
 
+class SurfaceFlinger;
+
 constexpr auto operator""_MB(unsigned long long const num) {
     return num * 1024 * 1024;
 }
-
 /*
  * SurfaceTracing records layer states during surface flinging.
  */
 class SurfaceTracing {
 public:
-    void enable() { enable(kDefaultBufferCapInByte); }
-    void enable(size_t bufferSizeInByte);
-    status_t disable();
-    void traceLayers(const char* where, LayersProto);
-
+    SurfaceTracing(SurfaceFlinger& flinger) : mFlinger(flinger) {}
+    void enable();
+    bool disable();
+    status_t writeToFile();
     bool isEnabled() const;
+    void notify(const char* where);
+
+    void setBufferSize(size_t bufferSizeInByte);
+    void writeToFileAsync();
     void dump(std::string& result) const;
 
 private:
@@ -54,6 +62,7 @@ private:
         size_t used() const { return mUsedInBytes; }
         size_t frameCount() const { return mStorage.size(); }
 
+        void setSize(size_t newSize) { mSizeInBytes = newSize; }
         void reset(size_t newSize);
         void emplace(LayersTraceProto&& proto);
         void flush(LayersTraceFileProto* fileProto);
@@ -64,11 +73,23 @@ private:
         std::queue<LayersTraceProto> mStorage;
     };
 
-    status_t writeProtoFileLocked();
+    void mainLoop();
+    void traceLayers(const char* where);
+    LayersTraceProto traceLayersLocked(const char* where);
+    void writeProtoFileLocked() REQUIRES(mTraceLock);
 
-    bool mEnabled = false;
-    mutable std::mutex mTraceMutex;
-    LayersTraceBuffer mBuffer;
+    const SurfaceFlinger& mFlinger;
+
+    char* mWhere;
+    status_t mLastErr = NO_ERROR;
+    std::thread mThread;
+    std::condition_variable mConditionalVariable;
+    mutable std::mutex mTraceLock;
+
+    LayersTraceBuffer mBuffer GUARDED_BY(mTraceLock);
+    size_t mBufferSize GUARDED_BY(mTraceLock) = kDefaultBufferCapInByte;
+    bool mEnabled GUARDED_BY(mTraceLock) = false;
+    bool mWriteToFile GUARDED_BY(mTraceLock) = false;
 };
 
 } // namespace android

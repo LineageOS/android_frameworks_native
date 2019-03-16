@@ -38,6 +38,9 @@ public:
     MOCK_CONST_METHOD0(getState, const impl::OutputLayerCompositionState&());
     MOCK_METHOD0(editState, impl::OutputLayerCompositionState&());
 
+    MOCK_METHOD1(updateCompositionState, void(bool));
+    MOCK_CONST_METHOD1(writeStateToHWC, void(bool));
+
     MOCK_CONST_METHOD1(dump, void(std::string&));
 };
 

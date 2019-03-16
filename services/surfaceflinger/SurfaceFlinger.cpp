@@ -274,6 +274,7 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory,
         mDebugInTransaction(0),
         mLastTransactionTime(0),
         mForceFullDamage(false),
+        mTracing(*this),
         mTimeStats(factory.createTimeStats()),
         mRefreshStartTime(0),
         mHasPoweredOff(false),
@@ -1706,7 +1707,6 @@ void SurfaceFlinger::handleMessageRefresh() {
         doComposition(display, repaintEverything);
     }
 
-    doTracing("handleRefresh");
     logLayerStats();
 
     postFrame();
@@ -1735,6 +1735,9 @@ bool SurfaceFlinger::handleMessageInvalidate() {
 
     if (mVisibleRegionsDirty) {
         computeLayerBounds();
+        if (mTracingEnabled) {
+            mTracing.notify("visibleRegionsDirty");
+        }
     }
 
     for (auto& layer : mLayersPendingRefresh) {
@@ -1755,24 +1758,30 @@ void SurfaceFlinger::calculateWorkingSet() {
         mGeometryInvalid = false;
         for (const auto& [token, displayDevice] : mDisplays) {
             auto display = displayDevice->getCompositionDisplay();
-            const auto displayId = display->getId();
-            if (!displayId) {
-                continue;
-            }
 
-            const Vector<sp<Layer>>& currentLayers = displayDevice->getVisibleLayersSortedByZ();
-            for (size_t i = 0; i < currentLayers.size(); i++) {
-                const auto& layer = currentLayers[i];
+            uint32_t zOrder = 0;
 
-                if (!layer->hasHwcLayer(displayDevice)) {
-                    layer->forceClientComposition(displayDevice);
-                    continue;
+            for (auto& layer : display->getOutputLayersOrderedByZ()) {
+                auto& compositionState = layer->editState();
+                compositionState.forceClientComposition = false;
+                if (!compositionState.hwc || mDebugDisableHWC || mDebugRegion) {
+                    compositionState.forceClientComposition = true;
                 }
 
-                layer->setGeometry(displayDevice, i);
-                if (mDebugDisableHWC || mDebugRegion) {
-                    layer->forceClientComposition(displayDevice);
-                }
+                // The output Z order is set here based on a simple counter.
+                compositionState.z = zOrder++;
+
+                // Update the display independent composition state. This goes
+                // to the general composition layer state structure.
+                // TODO: Do this once per compositionengine::CompositionLayer.
+                layer->getLayerFE().latchCompositionState(layer->getLayer().editState().frontEnd,
+                                                          true);
+
+                // Recalculate the geometry state of the output layer.
+                layer->updateCompositionState(true);
+
+                // Write the updated geometry state to the HWC
+                layer->writeStateToHWC(true);
             }
         }
     }
@@ -1871,14 +1880,6 @@ void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& displayDevice,
     }
 
     prepareFrame(displayDevice);
-}
-
-void SurfaceFlinger::doTracing(const char* where) {
-    ATRACE_CALL();
-    ATRACE_NAME(where);
-    if (CC_UNLIKELY(mTracing.isEnabled())) {
-        mTracing.traceLayers(where, dumpProtoInfo(LayerVector::StateSet::Drawing));
-    }
 }
 
 void SurfaceFlinger::logLayerStats() {
@@ -2955,16 +2956,37 @@ void SurfaceFlinger::commitTransaction()
     // we composite should be considered an animation as well.
     mAnimCompositionPending = mAnimTransactionPending;
 
-    mDrawingState = mCurrentState;
-    // clear the "changed" flags in current state
-    mCurrentState.colorMatrixChanged = false;
+    withTracingLock([&]() {
+        mDrawingState = mCurrentState;
+        // clear the "changed" flags in current state
+        mCurrentState.colorMatrixChanged = false;
 
-    mDrawingState.traverseInZOrder([](Layer* layer) {
-        layer->commitChildList();
+        mDrawingState.traverseInZOrder([](Layer* layer) { layer->commitChildList(); });
     });
+
     mTransactionPending = false;
     mAnimTransactionPending = false;
     mTransactionCV.broadcast();
+}
+
+void SurfaceFlinger::withTracingLock(std::function<void()> lockedOperation) {
+    if (mTracingEnabledChanged) {
+        mTracingEnabled = mTracing.isEnabled();
+        mTracingEnabledChanged = false;
+    }
+
+    // Synchronize with Tracing thread
+    std::unique_lock<std::mutex> lock;
+    if (mTracingEnabled) {
+        lock = std::unique_lock<std::mutex>(mDrawingStateLock);
+    }
+
+    lockedOperation();
+
+    // Synchronize with Tracing thread
+    if (mTracingEnabled) {
+        lock.unlock();
+    }
 }
 
 void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displayDevice,
@@ -3988,14 +4010,27 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
 
     String8 uniqueName = getUniqueLayerName(name);
 
+    bool primaryDisplayOnly = false;
+
+    // window type is WINDOW_TYPE_DONT_SCREENSHOT from SurfaceControl.java
+    // TODO b/64227542
+    if (metadata.has(METADATA_WINDOW_TYPE)) {
+        int32_t windowType = metadata.getInt32(METADATA_WINDOW_TYPE, 0);
+        if (windowType == 441731) {
+            metadata.setInt32(METADATA_WINDOW_TYPE, 2024); // TYPE_NAVIGATION_BAR_PANEL
+            primaryDisplayOnly = true;
+        }
+    }
+
     switch (flags & ISurfaceComposerClient::eFXSurfaceMask) {
         case ISurfaceComposerClient::eFXSurfaceBufferQueue:
-            result = createBufferQueueLayer(client, uniqueName, w, h, flags, format, handle, gbp,
-                                            &layer);
+            result = createBufferQueueLayer(client, uniqueName, w, h, flags, std::move(metadata),
+                                            format, handle, gbp, &layer);
 
             break;
         case ISurfaceComposerClient::eFXSurfaceBufferState:
-            result = createBufferStateLayer(client, uniqueName, w, h, flags, handle, &layer);
+            result = createBufferStateLayer(client, uniqueName, w, h, flags, std::move(metadata),
+                                            handle, &layer);
             break;
         case ISurfaceComposerClient::eFXSurfaceColor:
             // check if buffer size is set for color layer.
@@ -4005,9 +4040,8 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
                 return BAD_VALUE;
             }
 
-            result = createColorLayer(client,
-                    uniqueName, w, h, flags,
-                    handle, &layer);
+            result = createColorLayer(client, uniqueName, w, h, flags, std::move(metadata), handle,
+                                      &layer);
             break;
         case ISurfaceComposerClient::eFXSurfaceContainer:
             // check if buffer size is set for container layer.
@@ -4016,9 +4050,8 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
                       int(w), int(h));
                 return BAD_VALUE;
             }
-            result = createContainerLayer(client,
-                    uniqueName, w, h, flags,
-                    handle, &layer);
+            result = createContainerLayer(client, uniqueName, w, h, flags, std::move(metadata),
+                                          handle, &layer);
             break;
         default:
             result = BAD_VALUE;
@@ -4029,17 +4062,9 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
         return result;
     }
 
-    // window type is WINDOW_TYPE_DONT_SCREENSHOT from SurfaceControl.java
-    // TODO b/64227542
-    if (metadata.has(METADATA_WINDOW_TYPE)) {
-        int32_t windowType = metadata.getInt32(METADATA_WINDOW_TYPE, 0);
-        if (windowType == 441731) {
-            metadata.setInt32(METADATA_WINDOW_TYPE, 2024); // TYPE_NAVIGATION_BAR_PANEL
-            layer->setPrimaryDisplayOnly();
-        }
+    if (primaryDisplayOnly) {
+        layer->setPrimaryDisplayOnly();
     }
-
-    layer->setMetadata(metadata);
 
     bool addToCurrentState = callingThreadHasUnscopedSurfaceFlingerAccess();
     result = addClientLayer(client, *handle, *gbp, layer, *parent,
@@ -4083,7 +4108,8 @@ String8 SurfaceFlinger::getUniqueLayerName(const String8& name)
 
 status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, const String8& name,
                                                 uint32_t w, uint32_t h, uint32_t flags,
-                                                PixelFormat& format, sp<IBinder>* handle,
+                                                LayerMetadata metadata, PixelFormat& format,
+                                                sp<IBinder>* handle,
                                                 sp<IGraphicBufferProducer>* gbp,
                                                 sp<Layer>* outLayer) {
     // initialize the surfaces
@@ -4097,8 +4123,8 @@ status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, const 
         break;
     }
 
-    sp<BufferQueueLayer> layer =
-            getFactory().createBufferQueueLayer(LayerCreationArgs(this, client, name, w, h, flags));
+    sp<BufferQueueLayer> layer = getFactory().createBufferQueueLayer(
+            LayerCreationArgs(this, client, name, w, h, flags, std::move(metadata)));
     status_t err = layer->setDefaultBufferProperties(w, h, format);
     if (err == NO_ERROR) {
         *handle = layer->getHandle();
@@ -4112,30 +4138,31 @@ status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, const 
 
 status_t SurfaceFlinger::createBufferStateLayer(const sp<Client>& client, const String8& name,
                                                 uint32_t w, uint32_t h, uint32_t flags,
-                                                sp<IBinder>* handle, sp<Layer>* outLayer) {
-    sp<BufferStateLayer> layer =
-            getFactory().createBufferStateLayer(LayerCreationArgs(this, client, name, w, h, flags));
+                                                LayerMetadata metadata, sp<IBinder>* handle,
+                                                sp<Layer>* outLayer) {
+    sp<BufferStateLayer> layer = getFactory().createBufferStateLayer(
+            LayerCreationArgs(this, client, name, w, h, flags, std::move(metadata)));
     *handle = layer->getHandle();
     *outLayer = layer;
 
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::createColorLayer(const sp<Client>& client,
-        const String8& name, uint32_t w, uint32_t h, uint32_t flags,
-        sp<IBinder>* handle, sp<Layer>* outLayer)
-{
-    *outLayer = getFactory().createColorLayer(LayerCreationArgs(this, client, name, w, h, flags));
+status_t SurfaceFlinger::createColorLayer(const sp<Client>& client, const String8& name, uint32_t w,
+                                          uint32_t h, uint32_t flags, LayerMetadata metadata,
+                                          sp<IBinder>* handle, sp<Layer>* outLayer) {
+    *outLayer = getFactory().createColorLayer(
+            LayerCreationArgs(this, client, name, w, h, flags, std::move(metadata)));
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::createContainerLayer(const sp<Client>& client,
-        const String8& name, uint32_t w, uint32_t h, uint32_t flags,
-        sp<IBinder>* handle, sp<Layer>* outLayer)
-{
-    *outLayer =
-            getFactory().createContainerLayer(LayerCreationArgs(this, client, name, w, h, flags));
+status_t SurfaceFlinger::createContainerLayer(const sp<Client>& client, const String8& name,
+                                              uint32_t w, uint32_t h, uint32_t flags,
+                                              LayerMetadata metadata, sp<IBinder>* handle,
+                                              sp<Layer>* outLayer) {
+    *outLayer = getFactory().createContainerLayer(
+            LayerCreationArgs(this, client, name, w, h, flags, std::move(metadata)));
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
 }
@@ -4369,6 +4396,14 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args,
     }
     write(fd, result.c_str(), result.size());
     return NO_ERROR;
+}
+
+status_t SurfaceFlinger::dumpCritical(int fd, const DumpArgs&, bool asProto) {
+    if (asProto && mTracing.isEnabled()) {
+        mTracing.writeToFileAsync();
+    }
+
+    return doDump(fd, DumpArgs(), asProto);
 }
 
 void SurfaceFlinger::listLayersLocked(std::string& result) const {
@@ -4691,6 +4726,14 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
         auto layerTree = LayerProtoParser::generateLayerTree(layersProto);
         result.append(LayerProtoParser::layerTreeToString(layerTree));
         result.append("\n");
+    }
+
+    {
+        StringAppendF(&result, "Composition layers\n");
+        mDrawingState.traverseInZOrder([&](Layer* layer) {
+            auto compositionLayer = layer->getCompositionLayer();
+            if (compositionLayer) compositionLayer->dump(result);
+        });
     }
 
     /*
@@ -5129,13 +5172,24 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 n = data.readInt32();
                 if (n) {
                     ALOGD("LayerTracing enabled");
+                    Mutex::Autolock lock(mStateLock);
+                    mTracingEnabledChanged = true;
                     mTracing.enable();
-                    doTracing("tracing.enable");
                     reply->writeInt32(NO_ERROR);
                 } else {
                     ALOGD("LayerTracing disabled");
-                    status_t err = mTracing.disable();
-                    reply->writeInt32(err);
+                    bool writeFile = false;
+                    {
+                        Mutex::Autolock lock(mStateLock);
+                        mTracingEnabledChanged = true;
+                        writeFile = mTracing.disable();
+                    }
+
+                    if (writeFile) {
+                        reply->writeInt32(mTracing.writeToFile());
+                    } else {
+                        reply->writeInt32(NO_ERROR);
+                    }
                 }
                 return NO_ERROR;
             }
@@ -5172,6 +5226,20 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             case 1028: {
                 Mutex::Autolock _l(mStateLock);
                 reply->writeBool(getHwComposer().isUsingVrComposer());
+                return NO_ERROR;
+            }
+            // Set buffer size for SF tracing (value in KB)
+            case 1029: {
+                n = data.readInt32();
+                if (n <= 0 || n > MAX_TRACING_MEMORY) {
+                    ALOGW("Invalid buffer size: %d KB", n);
+                    reply->writeInt32(BAD_VALUE);
+                    return BAD_VALUE;
+                }
+
+                ALOGD("Updating trace buffer to %d KB", n);
+                mTracing.setBufferSize(n * 1024);
+                reply->writeInt32(NO_ERROR);
                 return NO_ERROR;
             }
             // Is device color managed?
@@ -5347,7 +5415,8 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
                 Rect bounds = getBounds();
                 screenshotParentLayer = mFlinger->getFactory().createContainerLayer(
                         LayerCreationArgs(mFlinger, nullptr, String8("Screenshot Parent"),
-                                          bounds.getWidth(), bounds.getHeight(), 0));
+                                          bounds.getWidth(), bounds.getHeight(), 0,
+                                          LayerMetadata()));
 
                 ReparentForDrawing reparent(mLayer, screenshotParentLayer, sourceCrop);
                 drawLayers();

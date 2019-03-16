@@ -105,6 +105,10 @@ bool BufferLayer::isFixedSize() const {
     return getEffectiveScalingMode() != NATIVE_WINDOW_SCALING_MODE_FREEZE;
 }
 
+bool BufferLayer::usesSourceCrop() const {
+    return true;
+}
+
 static constexpr mat4 inverseOrientation(uint32_t transform) {
     const mat4 flipH(-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1);
     const mat4 flipV(1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1);
@@ -204,8 +208,16 @@ bool BufferLayer::prepareClientLayer(const RenderArea& renderArea, const Region&
         }
 
         const Rect win{getBounds()};
-        const float bufferWidth = getBufferSize(s).getWidth();
-        const float bufferHeight = getBufferSize(s).getHeight();
+        float bufferWidth = getBufferSize(s).getWidth();
+        float bufferHeight = getBufferSize(s).getHeight();
+
+        // BufferStateLayers can have a "buffer size" of [0, 0, -1, -1] when no display frame has
+        // been set and there is no parent layer bounds. In that case, the scale is meaningless so
+        // ignore them.
+        if (!getBufferSize(s).isValid()) {
+            bufferWidth = float(win.right) - float(win.left);
+            bufferHeight = float(win.bottom) - float(win.top);
+        }
 
         const float scaleHeight = (float(win.bottom) - float(win.top)) / bufferHeight;
         const float scaleWidth = (float(win.right) - float(win.left)) / bufferWidth;

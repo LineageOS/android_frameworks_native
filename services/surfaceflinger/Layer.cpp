@@ -29,6 +29,7 @@
 #include <android-base/stringprintf.h>
 #include <compositionengine/Display.h>
 #include <compositionengine/Layer.h>
+#include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/LayerCompositionState.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
@@ -104,6 +105,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.api = -1;
     mCurrentState.hasColorTransform = false;
     mCurrentState.colorSpaceAgnostic = false;
+    mCurrentState.metadata = args.metadata;
 
     // drawing state & current state are identical
     mDrawingState = mCurrentState;
@@ -286,6 +288,14 @@ ui::Transform Layer::getTransformWithScale() const {
         return mEffectiveTransform;
     }
 
+    // If the layer is a buffer state layer, the active width and height
+    // could be infinite. In that case, return the effective transform.
+    const uint32_t activeWidth = getActiveWidth(getDrawingState());
+    const uint32_t activeHeight = getActiveHeight(getDrawingState());
+    if (activeWidth >= UINT32_MAX && activeHeight >= UINT32_MAX) {
+        return mEffectiveTransform;
+    }
+
     int bufferWidth;
     int bufferHeight;
     if ((mCurrentTransform & NATIVE_WINDOW_TRANSFORM_ROT_90) == 0) {
@@ -295,8 +305,9 @@ ui::Transform Layer::getTransformWithScale() const {
         bufferHeight = mActiveBuffer->getWidth();
         bufferWidth = mActiveBuffer->getHeight();
     }
-    float sx = getActiveWidth(getDrawingState()) / static_cast<float>(bufferWidth);
-    float sy = getActiveHeight(getDrawingState()) / static_cast<float>(bufferHeight);
+    float sx = activeWidth / static_cast<float>(bufferWidth);
+    float sy = activeHeight / static_cast<float>(bufferHeight);
+
     ui::Transform extraParentScaling;
     extraParentScaling.set(sx, 0, 0, sy);
     return mEffectiveTransform * extraParentScaling;
@@ -329,8 +340,6 @@ void Layer::computeBounds(FloatRect parentBounds, ui::Transform parentTransform)
     }
 }
 
-
-
 Rect Layer::getCroppedBufferSize(const State& s) const {
     Rect size = getBufferSize(s);
     Rect crop = getCrop(s);
@@ -340,36 +349,6 @@ Rect Layer::getCroppedBufferSize(const State& s) const {
         size = crop;
     }
     return size;
-}
-
-Rect Layer::computeInitialCrop(const sp<const DisplayDevice>& display) const {
-    // the crop is the area of the window that gets cropped, but not
-    // scaled in any ways.
-    const State& s(getDrawingState());
-
-    // apply the projection's clipping to the window crop in
-    // layerstack space, and convert-back to layer space.
-    // if there are no window scaling involved, this operation will map to full
-    // pixels in the buffer.
-
-    FloatRect activeCropFloat = getBounds();
-    ui::Transform t = getTransform();
-    // Transform to screen space.
-    activeCropFloat = t.transform(activeCropFloat);
-    activeCropFloat = activeCropFloat.intersect(display->getViewport().toFloatRect());
-    // Back to layer space to work with the content crop.
-    activeCropFloat = t.inverse().transform(activeCropFloat);
-    // This needs to be here as transform.transform(Rect) computes the
-    // transformed rect and then takes the bounding box of the result before
-    // returning. This means
-    // transform.inverse().transform(transform.transform(Rect)) != Rect
-    // in which case we need to make sure the final rect is clipped to the
-    // display bounds.
-    Rect activeCrop{activeCropFloat};
-    if (!activeCrop.intersect(getBufferSize(s), &activeCrop)) {
-        activeCrop.clear();
-    }
-    return activeCrop;
 }
 
 void Layer::setupRoundedCornersCropCoordinates(Rect win,
@@ -389,182 +368,17 @@ void Layer::setupRoundedCornersCropCoordinates(Rect win,
     cropCoords[3] = vec2(win.right, win.top);
 }
 
-FloatRect Layer::computeCrop(const sp<const DisplayDevice>& display) const {
-    // the content crop is the area of the content that gets scaled to the
-    // layer's size. This is in buffer space.
-    FloatRect crop = getContentCrop().toFloatRect();
-
-    // In addition there is a WM-specified crop we pull from our drawing state.
-    const State& s(getDrawingState());
-
-    Rect activeCrop = computeInitialCrop(display);
-    Rect bufferSize = getBufferSize(s);
-
-    // Transform the window crop to match the buffer coordinate system,
-    // which means using the inverse of the current transform set on the
-    // SurfaceFlingerConsumer.
-    uint32_t invTransform = mCurrentTransform;
-    if (getTransformToDisplayInverse()) {
-        /*
-         * the code below applies the primary display's inverse transform to the
-         * buffer
-         */
-        uint32_t invTransformOrient = DisplayDevice::getPrimaryDisplayOrientationTransform();
-        // calculate the inverse transform
-        if (invTransformOrient & NATIVE_WINDOW_TRANSFORM_ROT_90) {
-            invTransformOrient ^= NATIVE_WINDOW_TRANSFORM_FLIP_V | NATIVE_WINDOW_TRANSFORM_FLIP_H;
-        }
-        // and apply to the current transform
-        invTransform = (ui::Transform(invTransformOrient) *
-                        ui::Transform(invTransform)).getOrientation();
-    }
-
-    int winWidth = bufferSize.getWidth();
-    int winHeight = bufferSize.getHeight();
-    if (invTransform & NATIVE_WINDOW_TRANSFORM_ROT_90) {
-        // If the activeCrop has been rotate the ends are rotated but not
-        // the space itself so when transforming ends back we can't rely on
-        // a modification of the axes of rotation. To account for this we
-        // need to reorient the inverse rotation in terms of the current
-        // axes of rotation.
-        bool is_h_flipped = (invTransform & NATIVE_WINDOW_TRANSFORM_FLIP_H) != 0;
-        bool is_v_flipped = (invTransform & NATIVE_WINDOW_TRANSFORM_FLIP_V) != 0;
-        if (is_h_flipped == is_v_flipped) {
-            invTransform ^= NATIVE_WINDOW_TRANSFORM_FLIP_V | NATIVE_WINDOW_TRANSFORM_FLIP_H;
-        }
-        std::swap(winWidth, winHeight);
-    }
-    const Rect winCrop =
-            activeCrop.transform(invTransform, bufferSize.getWidth(), bufferSize.getHeight());
-
-    // below, crop is intersected with winCrop expressed in crop's coordinate space
-    float xScale = crop.getWidth() / float(winWidth);
-    float yScale = crop.getHeight() / float(winHeight);
-
-    float insetL = winCrop.left * xScale;
-    float insetT = winCrop.top * yScale;
-    float insetR = (winWidth - winCrop.right) * xScale;
-    float insetB = (winHeight - winCrop.bottom) * yScale;
-
-    crop.left += insetL;
-    crop.top += insetT;
-    crop.right -= insetR;
-    crop.bottom -= insetB;
-
-    return crop;
-}
-
-void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
-    const auto outputLayer = findOutputLayerForDisplay(display);
-    LOG_FATAL_IF(!outputLayer);
-    LOG_FATAL_IF(!outputLayer->getState().hwc);
-    auto& hwcLayer = (*outputLayer->getState().hwc).hwcLayer;
-
-    if (!hasHwcLayer(display)) {
-        ALOGE("[%s] failed to setGeometry: no HWC layer found (%s)", mName.string(),
-              display->getDebugName().c_str());
-        return;
-    }
-
-    LOG_FATAL_IF(!getCompositionLayer());
-    auto& commonCompositionState = getCompositionLayer()->editState().frontEnd;
-    auto& compositionState = outputLayer->editState();
-
-    // enable this layer
-    compositionState.forceClientComposition = false;
-
-    if (isSecure() && !display->isSecure()) {
-        compositionState.forceClientComposition = true;
-    }
-
-    // this gives us only the "orientation" component of the transform
-    const State& s(getDrawingState());
-    const Rect bufferSize = getBufferSize(s);
+void Layer::latchGeometry(compositionengine::LayerFECompositionState& compositionState) const {
+    const auto& drawingState{getDrawingState()};
+    auto alpha = static_cast<float>(getAlpha());
     auto blendMode = HWC2::BlendMode::None;
-    if (!isOpaque(s) || getAlpha() != 1.0f) {
+    if (!isOpaque(drawingState) || alpha != 1.0f) {
         blendMode =
                 mPremultipliedAlpha ? HWC2::BlendMode::Premultiplied : HWC2::BlendMode::Coverage;
     }
-    auto error = hwcLayer->setBlendMode(blendMode);
-    ALOGE_IF(error != HWC2::Error::None,
-             "[%s] Failed to set blend mode %s:"
-             " %s (%d)",
-             mName.string(), to_string(blendMode).c_str(), to_string(error).c_str(),
-             static_cast<int32_t>(error));
-    commonCompositionState.blendMode = static_cast<Hwc2::IComposerClient::BlendMode>(blendMode);
 
-    // apply the layer's transform, followed by the display's global transform
-    // here we're guaranteed that the layer's transform preserves rects
-    Region activeTransparentRegion(getActiveTransparentRegion(s));
-    ui::Transform t = getTransform();
-    Rect activeCrop = getCrop(s);
-    if (!activeCrop.isEmpty() && bufferSize.isValid()) {
-        activeCrop = t.transform(activeCrop);
-        if (!activeCrop.intersect(display->getViewport(), &activeCrop)) {
-            activeCrop.clear();
-        }
-        activeCrop = t.inverse().transform(activeCrop, true);
-        // This needs to be here as transform.transform(Rect) computes the
-        // transformed rect and then takes the bounding box of the result before
-        // returning. This means
-        // transform.inverse().transform(transform.transform(Rect)) != Rect
-        // in which case we need to make sure the final rect is clipped to the
-        // display bounds.
-        if (!activeCrop.intersect(bufferSize, &activeCrop)) {
-            activeCrop.clear();
-        }
-        // mark regions outside the crop as transparent
-        activeTransparentRegion.orSelf(Rect(0, 0, bufferSize.getWidth(), activeCrop.top));
-        activeTransparentRegion.orSelf(
-                Rect(0, activeCrop.bottom, bufferSize.getWidth(), bufferSize.getHeight()));
-        activeTransparentRegion.orSelf(Rect(0, activeCrop.top, activeCrop.left, activeCrop.bottom));
-        activeTransparentRegion.orSelf(
-                Rect(activeCrop.right, activeCrop.top, bufferSize.getWidth(), activeCrop.bottom));
-    }
-
-    // getBounds returns a FloatRect to provide more accuracy during the
-    // transformation. We then round upon constructing 'frame'.
-    Rect frame{t.transform(getBounds(activeTransparentRegion))};
-    if (!frame.intersect(display->getViewport(), &frame)) {
-        frame.clear();
-    }
-    const ui::Transform& tr = display->getTransform();
-    Rect transformedFrame = tr.transform(frame);
-    error = hwcLayer->setDisplayFrame(transformedFrame);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set display frame [%d, %d, %d, %d]: %s (%d)", mName.string(),
-              transformedFrame.left, transformedFrame.top, transformedFrame.right,
-              transformedFrame.bottom, to_string(error).c_str(), static_cast<int32_t>(error));
-    } else {
-        compositionState.displayFrame = transformedFrame;
-    }
-
-    FloatRect sourceCrop = computeCrop(display);
-    error = hwcLayer->setSourceCrop(sourceCrop);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set source crop [%.3f, %.3f, %.3f, %.3f]: "
-              "%s (%d)",
-              mName.string(), sourceCrop.left, sourceCrop.top, sourceCrop.right, sourceCrop.bottom,
-              to_string(error).c_str(), static_cast<int32_t>(error));
-    } else {
-        compositionState.sourceCrop = sourceCrop;
-    }
-
-    float alpha = static_cast<float>(getAlpha());
-    error = hwcLayer->setPlaneAlpha(alpha);
-    ALOGE_IF(error != HWC2::Error::None,
-             "[%s] Failed to set plane alpha %.3f: "
-             "%s (%d)",
-             mName.string(), alpha, to_string(error).c_str(), static_cast<int32_t>(error));
-    commonCompositionState.alpha = alpha;
-
-    error = hwcLayer->setZOrder(z);
-    ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set Z %u: %s (%d)", mName.string(), z,
-             to_string(error).c_str(), static_cast<int32_t>(error));
-    compositionState.z = z;
-
-    int type = s.metadata.getInt32(METADATA_WINDOW_TYPE, 0);
-    int appId = s.metadata.getInt32(METADATA_OWNER_UID, 0);
+    int type = drawingState.metadata.getInt32(METADATA_WINDOW_TYPE, 0);
+    int appId = drawingState.metadata.getInt32(METADATA_OWNER_UID, 0);
     sp<Layer> parent = mDrawingParent.promote();
     if (parent.get()) {
         auto& parentState = parent->getDrawingState();
@@ -576,60 +390,33 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
         }
     }
 
-    error = hwcLayer->setInfo(type, appId);
-    ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set info (%d)", mName.string(),
-             static_cast<int32_t>(error));
+    compositionState.geomLayerTransform = getTransform();
+    compositionState.geomInverseLayerTransform = compositionState.geomLayerTransform.inverse();
+    compositionState.geomBufferSize = getBufferSize(drawingState);
+    compositionState.geomContentCrop = getContentCrop();
+    compositionState.geomCrop = getCrop(drawingState);
+    compositionState.geomBufferTransform = mCurrentTransform;
+    compositionState.geomBufferUsesDisplayInverseTransform = getTransformToDisplayInverse();
+    compositionState.geomActiveTransparentRegion = getActiveTransparentRegion(drawingState);
+    compositionState.geomLayerBounds = mBounds;
+    compositionState.geomUsesSourceCrop = usesSourceCrop();
+    compositionState.isSecure = isSecure();
 
-    commonCompositionState.type = type;
-    commonCompositionState.appId = appId;
+    compositionState.blendMode = static_cast<Hwc2::IComposerClient::BlendMode>(blendMode);
+    compositionState.alpha = alpha;
+    compositionState.type = type;
+    compositionState.appId = appId;
+}
 
-    /*
-     * Transformations are applied in this order:
-     * 1) buffer orientation/flip/mirror
-     * 2) state transformation (window manager)
-     * 3) layer orientation (screen orientation)
-     * (NOTE: the matrices are multiplied in reverse order)
-     */
-
-    const ui::Transform bufferOrientation(mCurrentTransform);
-    ui::Transform transform(tr * t * bufferOrientation);
-
-    if (getTransformToDisplayInverse()) {
-        /*
-         * the code below applies the primary display's inverse transform to the
-         * buffer
-         */
-        uint32_t invTransform = DisplayDevice::getPrimaryDisplayOrientationTransform();
-        // calculate the inverse transform
-        if (invTransform & NATIVE_WINDOW_TRANSFORM_ROT_90) {
-            invTransform ^= NATIVE_WINDOW_TRANSFORM_FLIP_V | NATIVE_WINDOW_TRANSFORM_FLIP_H;
-        }
-
-        /*
-         * Here we cancel out the orientation component of the WM transform.
-         * The scaling and translate components are already included in our bounds
-         * computation so it's enough to just omit it in the composition.
-         * See comment in BufferLayer::prepareClientLayer with ref to b/36727915 for why.
-         */
-        transform = ui::Transform(invTransform) * tr * bufferOrientation;
+void Layer::latchCompositionState(compositionengine::LayerFECompositionState& compositionState,
+                                  bool includeGeometry) const {
+    if (includeGeometry) {
+        latchGeometry(compositionState);
     }
+}
 
-    // this gives us only the "orientation" component of the transform
-    const uint32_t orientation = transform.getOrientation();
-    if (orientation & ui::Transform::ROT_INVALID) {
-        // we can only handle simple transformation
-        compositionState.forceClientComposition = true;
-        (*compositionState.hwc).hwcCompositionType = Hwc2::IComposerClient::Composition::CLIENT;
-    } else {
-        auto transform = static_cast<HWC2::Transform>(orientation);
-        auto error = hwcLayer->setTransform(transform);
-        ALOGE_IF(error != HWC2::Error::None,
-                 "[%s] Failed to set transform %s: "
-                 "%s (%d)",
-                 mName.string(), to_string(transform).c_str(), to_string(error).c_str(),
-                 static_cast<int32_t>(error));
-        compositionState.bufferTransform = static_cast<Hwc2::Transform>(transform);
-    }
+const char* Layer::getDebugName() const {
+    return mName.string();
 }
 
 void Layer::forceClientComposition(const sp<DisplayDevice>& display) {
@@ -1250,8 +1037,8 @@ bool Layer::setBackgroundColor(const half3& color, float alpha, ui::Dataspace da
         // create background color layer if one does not yet exist
         uint32_t flags = ISurfaceComposerClient::eFXSurfaceColor;
         const String8& name = mName + "BackgroundColorLayer";
-        mCurrentState.bgColorLayer =
-                new ColorLayer(LayerCreationArgs(mFlinger.get(), nullptr, name, 0, 0, flags));
+        mCurrentState.bgColorLayer = new ColorLayer(
+                LayerCreationArgs(mFlinger.get(), nullptr, name, 0, 0, flags, LayerMetadata()));
 
         // add to child list
         addChild(mCurrentState.bgColorLayer);

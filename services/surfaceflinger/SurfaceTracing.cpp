@@ -18,6 +18,7 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "SurfaceTracing.h"
+#include <SurfaceFlinger.h>
 
 #include <android-base/file.h>
 #include <android-base/stringprintf.h>
@@ -26,6 +27,48 @@
 #include <utils/Trace.h>
 
 namespace android {
+
+void SurfaceTracing::mainLoop() {
+    bool enabled = true;
+    // Upon activation, logs the first frame
+    traceLayers("tracing.enable");
+    do {
+        std::unique_lock<std::mutex> sfLock(mFlinger.mDrawingStateLock);
+        mConditionalVariable.wait(sfLock);
+        LayersTraceProto entry = traceLayersLocked(mWhere);
+        sfLock.unlock();
+        {
+            std::scoped_lock bufferLock(mTraceLock);
+            mBuffer.emplace(std::move(entry));
+            if (mWriteToFile) {
+                writeProtoFileLocked();
+                mWriteToFile = false;
+            }
+
+            enabled = mEnabled;
+        }
+    } while (enabled);
+}
+
+void SurfaceTracing::traceLayers(const char* where) {
+    std::unique_lock<std::mutex> sfLock(mFlinger.mDrawingStateLock);
+    LayersTraceProto entry = traceLayersLocked(where);
+    sfLock.unlock();
+    std::scoped_lock bufferLock(mTraceLock);
+    mBuffer.emplace(std::move(entry));
+}
+
+void SurfaceTracing::notify(const char* where) {
+    std::lock_guard<std::mutex> sfLock(mFlinger.mDrawingStateLock);
+    mWhere = strdup(where);
+    mConditionalVariable.notify_one();
+}
+
+void SurfaceTracing::writeToFileAsync() {
+    std::lock_guard<std::mutex> bufferLock(mTraceLock);
+    mWriteToFile = true;
+    mConditionalVariable.notify_one();
+}
 
 void SurfaceTracing::LayersTraceBuffer::reset(size_t newSize) {
     // use the swap trick to make sure memory is released
@@ -58,50 +101,60 @@ void SurfaceTracing::LayersTraceBuffer::flush(LayersTraceFileProto* fileProto) {
     }
 }
 
-void SurfaceTracing::enable(size_t bufferSizeInByte) {
-    std::lock_guard<std::mutex> protoGuard(mTraceMutex);
+void SurfaceTracing::enable() {
+    std::lock_guard<std::mutex> bufferLock(mTraceLock);
 
     if (mEnabled) {
         return;
     }
+
+    mBuffer.reset(mBufferSize);
     mEnabled = true;
-    mBuffer.reset(bufferSizeInByte);
+    mThread = std::thread(&SurfaceTracing::mainLoop, this);
 }
 
-status_t SurfaceTracing::disable() {
-    std::lock_guard<std::mutex> protoGuard(mTraceMutex);
+status_t SurfaceTracing::writeToFile() {
+    mThread.join();
+    return mLastErr;
+}
+
+bool SurfaceTracing::disable() {
+    std::lock_guard<std::mutex> bufferLock(mTraceLock);
 
     if (!mEnabled) {
-        return NO_ERROR;
+        return false;
     }
+
     mEnabled = false;
-    status_t err(writeProtoFileLocked());
-    ALOGE_IF(err == PERMISSION_DENIED, "Could not save the proto file! Permission denied");
-    ALOGE_IF(err == NOT_ENOUGH_DATA, "Could not save the proto file! There are missing fields");
-    mBuffer.reset(0);
-    return err;
+    mWriteToFile = true;
+    mConditionalVariable.notify_all();
+    return true;
 }
 
 bool SurfaceTracing::isEnabled() const {
-    std::lock_guard<std::mutex> protoGuard(mTraceMutex);
+    std::lock_guard<std::mutex> bufferLock(mTraceLock);
     return mEnabled;
 }
 
-void SurfaceTracing::traceLayers(const char* where, LayersProto layers) {
-    std::lock_guard<std::mutex> protoGuard(mTraceMutex);
-    if (!mEnabled) {
-        return;
-    }
+void SurfaceTracing::setBufferSize(size_t bufferSizeInByte) {
+    std::lock_guard<std::mutex> bufferLock(mTraceLock);
+    mBufferSize = bufferSizeInByte;
+    mBuffer.setSize(bufferSizeInByte);
+}
+
+LayersTraceProto SurfaceTracing::traceLayersLocked(const char* where) {
+    ATRACE_CALL();
 
     LayersTraceProto entry;
     entry.set_elapsed_realtime_nanos(elapsedRealtimeNano());
     entry.set_where(where);
+    LayersProto layers(mFlinger.dumpProtoInfo(LayerVector::StateSet::Drawing));
     entry.mutable_layers()->Swap(&layers);
 
-    mBuffer.emplace(std::move(entry));
+    return entry;
 }
 
-status_t SurfaceTracing::writeProtoFileLocked() {
+void SurfaceTracing::writeProtoFileLocked() {
     ATRACE_CALL();
 
     LayersTraceFileProto fileProto;
@@ -110,19 +163,23 @@ status_t SurfaceTracing::writeProtoFileLocked() {
     fileProto.set_magic_number(uint64_t(LayersTraceFileProto_MagicNumber_MAGIC_NUMBER_H) << 32 |
                                LayersTraceFileProto_MagicNumber_MAGIC_NUMBER_L);
     mBuffer.flush(&fileProto);
+    mBuffer.reset(mBufferSize);
 
     if (!fileProto.SerializeToString(&output)) {
-        return PERMISSION_DENIED;
+        ALOGE("Could not save the proto file! Permission denied");
+        mLastErr = PERMISSION_DENIED;
     }
-    if (!android::base::WriteStringToFile(output, kDefaultFileName, true)) {
-        return PERMISSION_DENIED;
+    if (!android::base::WriteStringToFile(output, kDefaultFileName, S_IRWXU | S_IRGRP, getuid(),
+                                          getgid(), true)) {
+        ALOGE("Could not save the proto file! There are missing fields");
+        mLastErr = PERMISSION_DENIED;
     }
 
-    return NO_ERROR;
+    mLastErr = NO_ERROR;
 }
 
 void SurfaceTracing::dump(std::string& result) const {
-    std::lock_guard<std::mutex> protoGuard(mTraceMutex);
+    std::lock_guard<std::mutex> bufferLock(mTraceLock);
 
     base::StringAppendF(&result, "Tracing state: %s\n", mEnabled ? "enabled" : "disabled");
     base::StringAppendF(&result, "  number of entries: %zu (%.2fMB / %.2fMB)\n",

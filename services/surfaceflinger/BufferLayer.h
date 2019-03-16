@@ -78,6 +78,8 @@ public:
     // isFixedSize - true if content has a fixed size
     bool isFixedSize() const override;
 
+    bool usesSourceCrop() const override;
+
     bool isHdrY410() const override;
 
     void setPerFrameData(const sp<const DisplayDevice>& display, const ui::Transform& transform,
@@ -181,6 +183,8 @@ private:
     // main thread.
     bool mBufferLatched{false}; // TODO: Use mActiveBuffer?
 
+    // BufferStateLayers can return Rect::INVALID_RECT if the layer does not have a display frame
+    // and its parent layer is not bounded
     Rect getBufferSize(const State& s) const override;
 
     std::shared_ptr<compositionengine::Layer> mCompositionLayer;
