@@ -98,7 +98,8 @@ status_t InputWindowInfo::write(Parcel& output) const {
     output.writeInt32(portalToDisplayId);
     applicationInfo.write(output);
     output.write(touchableRegion);
-
+    output.writeBool(replaceTouchableRegionWithCrop);
+    output.writeWeakBinder(touchableRegionCropHandle);
     return OK;
 }
 
@@ -140,6 +141,8 @@ InputWindowInfo InputWindowInfo::read(const Parcel& from) {
     ret.portalToDisplayId = from.readInt32();
     ret.applicationInfo = InputApplicationInfo::read(from);
     from.read(ret.touchableRegion);
+    ret.replaceTouchableRegionWithCrop = from.readBool();
+    ret.touchableRegionCropHandle = from.readWeakBinder();
 
     return ret;
 }

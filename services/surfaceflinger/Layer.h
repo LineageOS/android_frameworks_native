@@ -184,6 +184,7 @@ public:
 
         bool inputInfoChanged;
         InputWindowInfo inputInfo;
+        wp<Layer> touchableRegionCrop;
 
         // dataspace is only used by BufferStateLayer and ColorLayer
         ui::Dataspace dataspace;

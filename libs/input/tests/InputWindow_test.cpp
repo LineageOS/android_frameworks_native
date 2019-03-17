@@ -37,6 +37,7 @@ TEST(InputWindowInfo, ParcellingWithoutToken) {
 }
 
 TEST(InputWindowInfo, Parcelling) {
+    sp<IBinder> touchableRegionCropHandle = new BBinder();
     InputWindowInfo i;
     i.token = new BBinder();
     i.name = "Foobar";
@@ -62,6 +63,8 @@ TEST(InputWindowInfo, Parcelling) {
     i.inputFeatures = 29;
     i.displayId = 34;
     i.portalToDisplayId = 2;
+    i.replaceTouchableRegionWithCrop = true;
+    i.touchableRegionCropHandle = touchableRegionCropHandle;
 
     Parcel p;
     i.write(p);
@@ -92,6 +95,8 @@ TEST(InputWindowInfo, Parcelling) {
     ASSERT_EQ(i.inputFeatures, i2.inputFeatures);
     ASSERT_EQ(i.displayId, i2.displayId);
     ASSERT_EQ(i.portalToDisplayId, i2.portalToDisplayId);
+    ASSERT_EQ(i.replaceTouchableRegionWithCrop, i2.replaceTouchableRegionWithCrop);
+    ASSERT_EQ(i.touchableRegionCropHandle, i2.touchableRegionCropHandle);
 }
 
 } // namespace test

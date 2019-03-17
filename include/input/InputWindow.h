@@ -116,7 +116,7 @@ struct InputWindowInfo {
         INPUT_FEATURE_NO_INPUT_CHANNEL = 0x00000002,
         INPUT_FEATURE_DISABLE_USER_ACTIVITY = 0x00000004,
     };
-    
+
     /* These values are filled in by the WM and passed through SurfaceFlinger
      * unless specified otherwise.
      */
@@ -165,6 +165,8 @@ struct InputWindowInfo {
     int32_t displayId;
     int32_t portalToDisplayId = ADISPLAY_ID_NONE;
     InputApplicationInfo applicationInfo;
+    bool replaceTouchableRegionWithCrop;
+    wp<IBinder> touchableRegionCropHandle;
 
     void addTouchableRegion(const Rect& region);
 
