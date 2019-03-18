@@ -22,6 +22,7 @@
 #include <string>
 
 #include <hardware/hardware.h>
+#include <math/mat4.h>
 #include <math/vec2.h>
 #include <math/vec3.h>
 #include <ui/Point.h>
@@ -87,6 +88,9 @@ public:
     // assumes the last row is < 0 , 0 , 1 >
     vec2 transform(const vec2& v) const;
     vec3 transform(const vec3& v) const;
+
+    // Expands from the internal 3x3 matrix to an equivalent 4x4 matrix
+    mat4 asMatrix4() const;
 
     Transform inverse() const;
 
