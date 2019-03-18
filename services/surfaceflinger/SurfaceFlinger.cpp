@@ -1222,7 +1222,7 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
         auto resyncCallback =
                 mScheduler->makeResyncCallback(std::bind(&SurfaceFlinger::getVsyncPeriod, this));
 
-        // TODO(akrulec): Part of the Injector should be refactored, so that it
+        // TODO(b/128863962): Part of the Injector should be refactored, so that it
         // can be passed to Scheduler.
         if (enable) {
             ALOGV("VSync Injections enabled");

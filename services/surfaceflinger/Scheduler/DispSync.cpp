@@ -789,31 +789,6 @@ void DispSync::dump(std::string& result) const {
     StringAppendF(&result, "current monotonic time: %" PRId64 "\n", now);
 }
 
-// TODO(b/113612090): Figure out how much of this is still relevant.
-// We need to determine the time when a buffer acquired now will be
-// displayed.  This can be calculated:
-//   time when previous buffer's actual-present fence was signaled
-//    + current display refresh rate * HWC latency
-//    + a little extra padding
-//
-// Buffer producers are expected to set their desired presentation time
-// based on choreographer time stamps, which (coming from vsync events)
-// will be slightly later then the actual-present timing.  If we get a
-// desired-present time that is unintentionally a hair after the next
-// vsync, we'll hold the frame when we really want to display it.  We
-// need to take the offset between actual-present and reported-vsync
-// into account.
-//
-// If the system is configured without a DispSync phase offset for the app,
-// we also want to throw in a bit of padding to avoid edge cases where we
-// just barely miss.  We want to do it here, not in every app.  A major
-// source of trouble is the app's use of the display's ideal refresh time
-// (via Display.getRefreshRate()), which could be off of the actual refresh
-// by a few percent, with the error multiplied by the number of frames
-// between now and when the buffer should be displayed.
-//
-// If the refresh reported to the app has a phase offset, we shouldn't need
-// to tweak anything here.
 nsecs_t DispSync::expectedPresentTime() {
     // The HWC doesn't currently have a way to report additional latency.
     // Assume that whatever we submit now will appear right after the flip.
