@@ -68,6 +68,7 @@ std::unique_ptr<TouchVideoDevice> TouchVideoDevice::create(std::string devicePat
     std::string name = reinterpret_cast<const char*>(cap.card);
 
     struct v4l2_input v4l2_input_struct;
+    v4l2_input_struct.index = 0;
     result = ioctl(fd.get(), VIDIOC_ENUMINPUT, &v4l2_input_struct);
     if (result == -1) {
         ALOGE("VIDIOC_ENUMINPUT failed: %s", strerror(errno));
@@ -91,10 +92,11 @@ std::unique_ptr<TouchVideoDevice> TouchVideoDevice::create(std::string devicePat
     const uint32_t width = v4l2_fmt.fmt.pix.width;
     ALOGI("Frame dimensions: height = %" PRIu32 " width = %" PRIu32, height, width);
 
-    struct v4l2_requestbuffers req;
+    struct v4l2_requestbuffers req = {};
     req.count = NUM_BUFFERS;
     req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     req.memory = V4L2_MEMORY_MMAP;
+    // req.reserved is zeroed during initialization, which is required per v4l docs
     result = ioctl(fd.get(), VIDIOC_REQBUFS, &req);
     if (result == -1) {
         ALOGE("VIDIOC_REQBUFS failed: %s", strerror(errno));
@@ -108,6 +110,7 @@ std::unique_ptr<TouchVideoDevice> TouchVideoDevice::create(std::string devicePat
     struct v4l2_buffer buf = {};
     buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     buf.memory = V4L2_MEMORY_MMAP;
+    // buf.reserved and buf.reserved2 are zeroed during initialization, required per v4l docs
     std::array<const int16_t*, NUM_BUFFERS> readLocations;
     for (size_t i = 0; i < NUM_BUFFERS; i++) {
         buf.index = i;
