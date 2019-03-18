@@ -56,7 +56,7 @@ public:
                      EGLDisplay display, EGLConfig config, EGLContext ctxt, EGLSurface dummy,
                      EGLContext protectedContext, EGLSurface protectedDummy,
                      uint32_t imageCacheSize);
-    ~GLESRenderEngine() override;
+    ~GLESRenderEngine() override EXCLUDES(mRenderingMutex);
 
     std::unique_ptr<Framebuffer> createFramebuffer() override;
     std::unique_ptr<Image> createImage() override;
@@ -74,8 +74,9 @@ public:
     void genTextures(size_t count, uint32_t* names) override;
     void deleteTextures(size_t count, uint32_t const* names) override;
     void bindExternalTextureImage(uint32_t texName, const Image& image) override;
-    status_t bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer, sp<Fence> fence);
-    void unbindExternalTextureBuffer(uint64_t bufferId);
+    status_t bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer, sp<Fence> fence)
+            EXCLUDES(mRenderingMutex);
+    void unbindExternalTextureBuffer(uint64_t bufferId) EXCLUDES(mRenderingMutex);
     status_t bindFrameBuffer(Framebuffer* framebuffer) override;
     void unbindFrameBuffer(Framebuffer* framebuffer) override;
     void checkErrors() const override;
@@ -85,13 +86,19 @@ public:
     bool useProtectedContext(bool useProtectedContext) override;
     status_t drawLayers(const DisplaySettings& display, const std::vector<LayerSettings>& layers,
                         ANativeWindowBuffer* buffer, base::unique_fd&& bufferFence,
-                        base::unique_fd* drawFence) override;
+                        base::unique_fd* drawFence) EXCLUDES(mRenderingMutex) override;
 
     // internal to RenderEngine
     EGLDisplay getEGLDisplay() const { return mEGLDisplay; }
     EGLConfig getEGLConfig() const { return mEGLConfig; }
     // Creates an output image for rendering to
     EGLImageKHR createFramebufferImageIfNeeded(ANativeWindowBuffer* nativeBuffer, bool isProtected);
+
+    // Test-only methods
+    // Returns true iff mImageCache contains an image keyed by bufferId
+    bool isImageCachedForTesting(uint64_t bufferId) EXCLUDES(mRenderingMutex);
+    // Returns true iff mFramebufferImageCache contains an image keyed by bufferId
+    bool isFramebufferImageCachedForTesting(uint64_t bufferId) EXCLUDES(mRenderingMutex);
 
 protected:
     Framebuffer* getFramebufferForDrawing() override;
@@ -197,10 +204,17 @@ private:
     const bool mUseColorManagement = false;
 
     // Cache of GL images that we'll store per GraphicBuffer ID
-    // TODO: Layer should call back on destruction instead to clean this up,
-    // as it has better system utilization at the potential expense of a
-    // more complicated interface.
-    std::unordered_map<uint64_t, std::unique_ptr<Image>> mImageCache;
+    std::unordered_map<uint64_t, std::unique_ptr<Image>> mImageCache GUARDED_BY(mRenderingMutex);
+    // Mutex guarding rendering operations, so that:
+    // 1. GL operations aren't interleaved, and
+    // 2. Internal state related to rendering that is potentially modified by
+    // multiple threads is guaranteed thread-safe.
+    std::mutex mRenderingMutex;
+
+    // See bindExternalTextureBuffer above, but requiring that mRenderingMutex
+    // is held.
+    status_t bindExternalTextureBufferLocked(uint32_t texName, sp<GraphicBuffer> buffer,
+                                             sp<Fence> fence) REQUIRES(mRenderingMutex);
 
     std::unique_ptr<Framebuffer> mDrawingBuffer;
 

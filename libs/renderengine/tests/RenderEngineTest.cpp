@@ -19,6 +19,7 @@
 #include <renderengine/RenderEngine.h>
 #include <sync/sync.h>
 #include <ui/PixelFormat.h>
+#include "../gl/GLESRenderEngine.h"
 
 constexpr int DEFAULT_DISPLAY_WIDTH = 128;
 constexpr int DEFAULT_DISPLAY_HEIGHT = 256;
@@ -27,6 +28,19 @@ constexpr int DEFAULT_DISPLAY_OFFSET = 64;
 namespace android {
 
 struct RenderEngineTest : public ::testing::Test {
+    static void SetUpTestSuite() {
+        sRE = renderengine::gl::GLESRenderEngine::create(static_cast<int32_t>(
+                                                                 ui::PixelFormat::RGBA_8888),
+                                                         0, 1);
+    }
+
+    static void TearDownTestSuite() {
+        // The ordering here is important - sCurrentBuffer must live longer
+        // than RenderEngine to avoid a null reference on tear-down.
+        sRE = nullptr;
+        sCurrentBuffer = nullptr;
+    }
+
     static sp<GraphicBuffer> allocateDefaultBuffer() {
         return new GraphicBuffer(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT,
                                  HAL_PIXEL_FORMAT_RGBA_8888, 1,
@@ -101,12 +115,12 @@ struct RenderEngineTest : public ::testing::Test {
                     DEFAULT_DISPLAY_HEIGHT - DEFAULT_DISPLAY_OFFSET);
     }
 
-    static void invokeDraw(renderengine::DisplaySettings settings,
-                           std::vector<renderengine::LayerSettings> layers,
-                           sp<GraphicBuffer> buffer) {
+    void invokeDraw(renderengine::DisplaySettings settings,
+                    std::vector<renderengine::LayerSettings> layers, sp<GraphicBuffer> buffer) {
         base::unique_fd fence;
         status_t status = sRE->drawLayers(settings, layers, buffer->getNativeBuffer(),
                                           base::unique_fd(), &fence);
+        sCurrentBuffer = buffer;
 
         int fd = fence.release();
         if (fd >= 0) {
@@ -115,9 +129,12 @@ struct RenderEngineTest : public ::testing::Test {
         }
 
         ASSERT_EQ(NO_ERROR, status);
+        if (layers.size() > 0) {
+            ASSERT_TRUE(sRE->isFramebufferImageCachedForTesting(buffer->getId()));
+        }
     }
 
-    static void drawEmptyLayers() {
+    void drawEmptyLayers() {
         renderengine::DisplaySettings settings;
         std::vector<renderengine::LayerSettings> layers;
         // Meaningless buffer since we don't do any drawing
@@ -200,17 +217,22 @@ struct RenderEngineTest : public ::testing::Test {
 
     void clearRegion();
 
-    // Dumb hack to get aroud the fact that tear-down for renderengine isn't
-    // well defined right now, so we can't create multiple instances
-    static std::unique_ptr<renderengine::RenderEngine> sRE;
+    // Keep around the same renderengine object to save on initialization time.
+    // For now, exercise the GL backend directly so that some caching specifics
+    // can be tested without changing the interface.
+    static std::unique_ptr<renderengine::gl::GLESRenderEngine> sRE;
+    // Dumb hack to avoid NPE in the EGL driver: the GraphicBuffer needs to
+    // be freed *after* RenderEngine is destroyed, so that the EGL image is
+    // destroyed first.
+    static sp<GraphicBuffer> sCurrentBuffer;
 
     sp<GraphicBuffer> mBuffer;
 
     std::vector<uint32_t> mTexNames;
 };
 
-std::unique_ptr<renderengine::RenderEngine> RenderEngineTest::sRE =
-        renderengine::RenderEngine::create(static_cast<int32_t>(ui::PixelFormat::RGBA_8888), 0, 1);
+std::unique_ptr<renderengine::gl::GLESRenderEngine> RenderEngineTest::sRE = nullptr;
+sp<GraphicBuffer> RenderEngineTest::sCurrentBuffer = nullptr;
 
 struct ColorSourceVariant {
     static void fillColor(renderengine::LayerSettings& layer, half r, half g, half b,
@@ -245,7 +267,7 @@ struct BufferSourceVariant {
                           RenderEngineTest* fixture) {
         sp<GraphicBuffer> buf = RenderEngineTest::allocateSourceBuffer(1, 1);
         uint32_t texName;
-        RenderEngineTest::sRE->genTextures(1, &texName);
+        fixture->sRE->genTextures(1, &texName);
         fixture->mTexNames.push_back(texName);
 
         uint8_t* pixels;
@@ -740,6 +762,38 @@ TEST_F(RenderEngineTest, drawLayers_noLayersToDraw) {
     drawEmptyLayers();
 }
 
+TEST_F(RenderEngineTest, drawLayers_nullOutputBuffer) {
+    renderengine::DisplaySettings settings;
+    std::vector<renderengine::LayerSettings> layers;
+    renderengine::LayerSettings layer;
+    layer.geometry.boundaries = fullscreenRect().toFloatRect();
+    BufferSourceVariant<ForceOpaqueBufferVariant>::fillColor(layer, 1.0f, 0.0f, 0.0f, this);
+    layers.push_back(layer);
+    base::unique_fd fence;
+    status_t status = sRE->drawLayers(settings, layers, nullptr, base::unique_fd(), &fence);
+
+    ASSERT_EQ(BAD_VALUE, status);
+}
+
+TEST_F(RenderEngineTest, drawLayers_nullOutputFence) {
+    renderengine::DisplaySettings settings;
+    settings.physicalDisplay = fullscreenRect();
+    settings.clip = fullscreenRect();
+
+    std::vector<renderengine::LayerSettings> layers;
+    renderengine::LayerSettings layer;
+    layer.geometry.boundaries = fullscreenRect().toFloatRect();
+    BufferSourceVariant<ForceOpaqueBufferVariant>::fillColor(layer, 1.0f, 0.0f, 0.0f, this);
+    layer.alpha = 1.0;
+    layers.push_back(layer);
+
+    status_t status = sRE->drawLayers(settings, layers, mBuffer->getNativeBuffer(),
+                                      base::unique_fd(), nullptr);
+    sCurrentBuffer = mBuffer;
+    ASSERT_EQ(NO_ERROR, status);
+    expectBufferColor(fullscreenRect(), 255, 0, 0, 255);
+}
+
 TEST_F(RenderEngineTest, drawLayers_fillRedBuffer_colorSource) {
     fillRedBuffer<ColorSourceVariant>();
 }
@@ -910,6 +964,43 @@ TEST_F(RenderEngineTest, drawLayers_fillBuffer_withoutPremultiplyingAlpha) {
 
 TEST_F(RenderEngineTest, drawLayers_clearRegion) {
     clearRegion();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillsBufferAndCachesImages) {
+    renderengine::DisplaySettings settings;
+    settings.physicalDisplay = fullscreenRect();
+    settings.clip = fullscreenRect();
+
+    std::vector<renderengine::LayerSettings> layers;
+
+    renderengine::LayerSettings layer;
+    layer.geometry.boundaries = fullscreenRect().toFloatRect();
+    BufferSourceVariant<ForceOpaqueBufferVariant>::fillColor(layer, 1.0f, 0.0f, 0.0f, this);
+
+    layers.push_back(layer);
+    invokeDraw(settings, layers, mBuffer);
+    uint64_t bufferId = layer.source.buffer.buffer->getId();
+    EXPECT_TRUE(sRE->isImageCachedForTesting(bufferId));
+    sRE->unbindExternalTextureBuffer(bufferId);
+    EXPECT_FALSE(sRE->isImageCachedForTesting(bufferId));
+}
+
+TEST_F(RenderEngineTest, drawLayers_bindExternalBufferWithNullBuffer) {
+    status_t result = sRE->bindExternalTextureBuffer(0, nullptr, nullptr);
+    ASSERT_EQ(BAD_VALUE, result);
+}
+
+TEST_F(RenderEngineTest, drawLayers_bindExternalBufferCachesImages) {
+    sp<GraphicBuffer> buf = allocateSourceBuffer(1, 1);
+    uint32_t texName;
+    sRE->genTextures(1, &texName);
+    mTexNames.push_back(texName);
+
+    sRE->bindExternalTextureBuffer(texName, buf, nullptr);
+    uint64_t bufferId = buf->getId();
+    EXPECT_TRUE(sRE->isImageCachedForTesting(bufferId));
+    sRE->unbindExternalTextureBuffer(bufferId);
+    EXPECT_FALSE(sRE->isImageCachedForTesting(bufferId));
 }
 
 } // namespace android
