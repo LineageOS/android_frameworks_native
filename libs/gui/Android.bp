@@ -91,6 +91,7 @@ cc_library_shared {
         "BufferQueueConsumer.cpp",
         "BufferQueueCore.cpp",
         "BufferQueueProducer.cpp",
+        "BufferQueueThreadState.cpp",
         "BufferSlot.cpp",
         "ConsumerBase.cpp",
         "CpuConsumer.cpp",
@@ -128,6 +129,7 @@ cc_library_shared {
         "libbase",
         "libsync",
         "libbinder",
+        "libhwbinder",
         "libbufferhub",
         "libbufferhubqueue", // TODO(b/70046255): Remove this once BufferHub is integrated into libgui.
         "libpdx_default_transport",
@@ -143,12 +145,16 @@ cc_library_shared {
         "libhidltransport",
         "android.hidl.token@1.0-utils",
         "android.hardware.graphics.bufferqueue@1.0",
+        "libvndksupport",
     ],
 
     // bufferhub is not used when building libgui for vendors
     target: {
         vendor: {
-            cflags: ["-DNO_BUFFERHUB", "-DNO_INPUT"],
+            cflags: [
+                "-DNO_BUFFERHUB",
+                "-DNO_INPUT",
+            ],
             exclude_srcs: [
                 "BufferHubConsumer.cpp",
                 "BufferHubProducer.cpp",
@@ -158,7 +164,7 @@ cc_library_shared {
                 "libbufferhub",
                 "libbufferhubqueue",
                 "libpdx_default_transport",
-                "libinput"
+                "libinput",
             ],
         },
     },
