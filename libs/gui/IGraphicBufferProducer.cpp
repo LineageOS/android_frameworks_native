@@ -30,16 +30,21 @@
 #ifndef NO_BUFFERHUB
 #include <gui/BufferHubProducer.h>
 #endif
+
+#include <gui/bufferqueue/1.0/H2BGraphicBufferProducer.h>
+#include <gui/bufferqueue/2.0/H2BGraphicBufferProducer.h>
 #include <gui/BufferQueueDefs.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/IProducerListener.h>
 
-#include <gui/bufferqueue/1.0/H2BGraphicBufferProducer.h>
-
 namespace android {
 // ----------------------------------------------------------------------------
 
-using ::android::hardware::graphics::bufferqueue::V1_0::utils::
+using H2BGraphicBufferProducerV1_0 =
+        ::android::hardware::graphics::bufferqueue::V1_0::utils::
+        H2BGraphicBufferProducer;
+using H2BGraphicBufferProducerV2_0 =
+        ::android::hardware::graphics::bufferqueue::V2_0::utils::
         H2BGraphicBufferProducer;
 
 enum {
@@ -534,7 +539,9 @@ public:
 BpGraphicBufferProducer::~BpGraphicBufferProducer() {}
 
 class HpGraphicBufferProducer : public HpInterface<
-        BpGraphicBufferProducer, H2BGraphicBufferProducer> {
+        BpGraphicBufferProducer,
+        H2BGraphicBufferProducerV1_0,
+        H2BGraphicBufferProducerV2_0> {
 public:
     explicit HpGraphicBufferProducer(const sp<IBinder>& base) : PBase(base) {}
 

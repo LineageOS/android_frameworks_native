@@ -636,11 +636,11 @@ uint64_t AHardwareBuffer_convertFromGrallocUsageBits(uint64_t usage) {
 }
 
 const GraphicBuffer* AHardwareBuffer_to_GraphicBuffer(const AHardwareBuffer* buffer) {
-    return reinterpret_cast<const GraphicBuffer*>(buffer);
+    return GraphicBuffer::fromAHardwareBuffer(buffer);
 }
 
 GraphicBuffer* AHardwareBuffer_to_GraphicBuffer(AHardwareBuffer* buffer) {
-    return reinterpret_cast<GraphicBuffer*>(buffer);
+    return GraphicBuffer::fromAHardwareBuffer(buffer);
 }
 
 const ANativeWindowBuffer* AHardwareBuffer_to_ANativeWindowBuffer(const AHardwareBuffer* buffer) {
@@ -652,7 +652,7 @@ ANativeWindowBuffer* AHardwareBuffer_to_ANativeWindowBuffer(AHardwareBuffer* buf
 }
 
 AHardwareBuffer* AHardwareBuffer_from_GraphicBuffer(GraphicBuffer* buffer) {
-    return reinterpret_cast<AHardwareBuffer*>(buffer);
+    return buffer->toAHardwareBuffer();
 }
 
 } // namespace android
