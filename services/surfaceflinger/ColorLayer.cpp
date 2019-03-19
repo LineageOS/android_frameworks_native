@@ -114,7 +114,9 @@ void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& display,
 
     setCompositionType(display, Hwc2::IComposerClient::Composition::SOLID_COLOR);
 
-    const ui::Dataspace dataspace = isColorSpaceAgnostic() ? targetDataspace : mCurrentDataSpace;
+    const ui::Dataspace dataspace =
+            isColorSpaceAgnostic() && targetDataspace != ui::Dataspace::UNKNOWN ? targetDataspace
+                                                                                : mCurrentDataSpace;
     error = hwcLayer->setDataspace(dataspace);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), dataspace,

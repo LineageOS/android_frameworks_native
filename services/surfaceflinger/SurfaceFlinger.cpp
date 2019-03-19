@@ -157,6 +157,28 @@ bool isWideColorMode(const ColorMode colorMode) {
     return false;
 }
 
+bool isHdrColorMode(const ColorMode colorMode) {
+    switch (colorMode) {
+        case ColorMode::BT2100_PQ:
+        case ColorMode::BT2100_HLG:
+            return true;
+        case ColorMode::DISPLAY_P3:
+        case ColorMode::ADOBE_RGB:
+        case ColorMode::DCI_P3:
+        case ColorMode::BT2020:
+        case ColorMode::DISPLAY_BT2020:
+        case ColorMode::NATIVE:
+        case ColorMode::STANDARD_BT601_625:
+        case ColorMode::STANDARD_BT601_625_UNADJUSTED:
+        case ColorMode::STANDARD_BT601_525:
+        case ColorMode::STANDARD_BT601_525_UNADJUSTED:
+        case ColorMode::STANDARD_BT709:
+        case ColorMode::SRGB:
+            return false;
+    }
+    return false;
+}
+
 ui::Transform::orientation_flags fromSurfaceComposerRotation(ISurfaceComposer::Rotation rotation) {
     switch (rotation) {
         case ISurfaceComposer::eRotateNone:
@@ -1836,7 +1858,9 @@ void SurfaceFlinger::calculateWorkingSet() {
 
             const auto& displayState = display->getState();
             layer->setPerFrameData(displayDevice, displayState.transform, displayState.viewport,
-                                   displayDevice->getSupportedPerFrameMetadata(), targetDataspace);
+                                   displayDevice->getSupportedPerFrameMetadata(),
+                                   isHdrColorMode(displayState.colorMode) ? Dataspace::UNKNOWN
+                                                                          : targetDataspace);
         }
     }
 
@@ -3288,17 +3312,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
         clientCompositionDisplay.physicalDisplay = displayState.scissor;
         clientCompositionDisplay.clip = displayState.scissor;
         const ui::Transform& displayTransform = displayState.transform;
-        mat4 m;
-        m[0][0] = displayTransform[0][0];
-        m[0][1] = displayTransform[0][1];
-        m[0][3] = displayTransform[0][2];
-        m[1][0] = displayTransform[1][0];
-        m[1][1] = displayTransform[1][1];
-        m[1][3] = displayTransform[1][2];
-        m[3][0] = displayTransform[2][0];
-        m[3][1] = displayTransform[2][1];
-        m[3][3] = displayTransform[2][2];
-        clientCompositionDisplay.globalTransform = m;
+        clientCompositionDisplay.globalTransform = displayTransform.asMatrix4();
 
         const auto* profile = display->getDisplayColorProfile();
         Dataspace outputDataspace = Dataspace::UNKNOWN;
@@ -5591,18 +5605,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     // buffer bounds.
     clientCompositionDisplay.physicalDisplay = Rect(reqWidth, reqHeight);
     ui::Transform transform = renderArea.getTransform();
-    mat4 m;
-    m[0][0] = transform[0][0];
-    m[0][1] = transform[0][1];
-    m[0][3] = transform[0][2];
-    m[1][0] = transform[1][0];
-    m[1][1] = transform[1][1];
-    m[1][3] = transform[1][2];
-    m[3][0] = transform[2][0];
-    m[3][1] = transform[2][1];
-    m[3][3] = transform[2][2];
-
-    clientCompositionDisplay.globalTransform = m;
+    clientCompositionDisplay.globalTransform = transform.asMatrix4();
     mat4 rotMatrix;
     // Displacement for repositioning the clipping rectangle after rotating it
     // with the rotation hint.

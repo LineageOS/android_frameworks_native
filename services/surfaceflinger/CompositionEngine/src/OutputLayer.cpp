@@ -282,8 +282,7 @@ uint32_t OutputLayer::calculateOutputRelativeBufferTransform() const {
          * computation so it's enough to just omit it in the composition.
          * See comment in BufferLayer::prepareClientLayer with ref to b/36727915 for why.
          */
-        transform =
-                ui::Transform(invTransform) * displayTransform * layerTransform * bufferTransform;
+        transform = ui::Transform(invTransform) * displayTransform * bufferTransform;
     }
 
     // this gives us only the "orientation" component of the transform

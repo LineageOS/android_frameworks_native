@@ -80,7 +80,7 @@ private:
 
     const SurfaceFlinger& mFlinger;
 
-    char* mWhere;
+    const char* mWhere = "";
     status_t mLastErr = NO_ERROR;
     std::thread mThread;
     std::condition_variable mConditionalVariable;

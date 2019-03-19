@@ -34,9 +34,10 @@
 #include <gui/IConsumerListener.h>
 #include <gui/IProducerListener.h>
 
-#include <binder/IPCThreadState.h>
+#include <private/gui/BufferQueueThreadState.h>
 #ifndef __ANDROID_VNDK__
 #include <binder/PermissionCache.h>
+#include <vndksupport/linker.h>
 #endif
 
 #include <system/window.h>
@@ -758,19 +759,29 @@ status_t BufferQueueConsumer::dumpState(const String8& prefix, String8* outResul
         return savedErrno ? -savedErrno : UNKNOWN_ERROR;
     }
 
-    const IPCThreadState* ipc = IPCThreadState::self();
-    const uid_t uid = ipc->getCallingUid();
+    bool denied = false;
+    const uid_t uid = BufferQueueThreadState::getCallingUid();
 #ifndef __ANDROID_VNDK__
     // permission check can't be done for vendors as vendors have no access to
-    // the PermissionController
-    const pid_t pid = ipc->getCallingPid();
-    if ((uid != shellUid) &&
-        !PermissionCache::checkPermission(String16("android.permission.DUMP"), pid, uid)) {
-        outResult->appendFormat("Permission Denial: can't dump BufferQueueConsumer "
-                "from pid=%d, uid=%d\n", pid, uid);
+    // the PermissionController. We need to do a runtime check as well, since
+    // the system variant of libgui can be loaded in a vendor process. For eg:
+    // if a HAL uses an llndk library that depends on libgui (libmediandk etc).
+    if (!android_is_in_vendor_process()) {
+        const pid_t pid = BufferQueueThreadState::getCallingPid();
+        if ((uid != shellUid) &&
+            !PermissionCache::checkPermission(String16("android.permission.DUMP"), pid, uid)) {
+            outResult->appendFormat("Permission Denial: can't dump BufferQueueConsumer "
+                                    "from pid=%d, uid=%d\n",
+                                    pid, uid);
+            denied = true;
+        }
+    }
 #else
     if (uid != shellUid) {
+        denied = true;
+    }
 #endif
+    if (denied) {
         android_errorWriteWithInfoLog(0x534e4554, "27046057",
                 static_cast<int32_t>(uid), nullptr, 0);
         return PERMISSION_DENIED;

@@ -381,6 +381,37 @@ bool Transform::preserveRects() const
     return (getOrientation() & ROT_INVALID) ? false : true;
 }
 
+mat4 Transform::asMatrix4() const {
+    // Internally Transform uses a 3x3 matrix since the transform is meant for
+    // two-dimensional values. An equivalent 4x4 matrix means inserting an extra
+    // row and column which adds as an identity transform on the third
+    // dimension.
+
+    mat4 m = mat4{mat4::NO_INIT}; // NO_INIT since we explicitly set every element
+
+    m[0][0] = mMatrix[0][0];
+    m[0][1] = mMatrix[0][1];
+    m[0][2] = 0.f;
+    m[0][3] = mMatrix[0][2];
+
+    m[1][0] = mMatrix[1][0];
+    m[1][1] = mMatrix[1][1];
+    m[1][2] = 0.f;
+    m[1][3] = mMatrix[1][2];
+
+    m[2][0] = 0.f;
+    m[2][1] = 0.f;
+    m[2][2] = 1.f;
+    m[2][3] = 0.f;
+
+    m[3][0] = mMatrix[2][0];
+    m[3][1] = mMatrix[2][1];
+    m[3][2] = 0.f;
+    m[3][3] = mMatrix[2][2];
+
+    return m;
+}
+
 void Transform::dump(std::string& out, const char* name) const {
     using android::base::StringAppendF;
 

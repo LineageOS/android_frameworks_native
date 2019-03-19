@@ -60,7 +60,7 @@ void SurfaceTracing::traceLayers(const char* where) {
 
 void SurfaceTracing::notify(const char* where) {
     std::lock_guard<std::mutex> sfLock(mFlinger.mDrawingStateLock);
-    mWhere = strdup(where);
+    mWhere = where;
     mConditionalVariable.notify_one();
 }
 
