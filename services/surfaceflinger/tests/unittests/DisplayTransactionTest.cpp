@@ -2830,7 +2830,6 @@ struct EventThreadIsSupportedVariant : public EventThreadBaseSupportedVariant {
 
 struct DispSyncIsSupportedVariant {
     static void setupBeginResyncCallExpectations(DisplayTransactionTest* test) {
-        EXPECT_CALL(*test->mPrimaryDispSync, reset()).Times(1);
         EXPECT_CALL(*test->mPrimaryDispSync, setPeriod(DEFAULT_REFRESH_RATE)).Times(1);
         EXPECT_CALL(*test->mPrimaryDispSync, beginResync()).Times(1);
     }
