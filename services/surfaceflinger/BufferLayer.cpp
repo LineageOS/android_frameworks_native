@@ -304,7 +304,9 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice,
         setCompositionType(displayDevice, Hwc2::IComposerClient::Composition::DEVICE);
     }
 
-    ui::Dataspace dataspace = isColorSpaceAgnostic() ? targetDataspace : mCurrentDataSpace;
+    ui::Dataspace dataspace = isColorSpaceAgnostic() && targetDataspace != ui::Dataspace::UNKNOWN
+            ? targetDataspace
+            : mCurrentDataSpace;
     error = hwcLayer->setDataspace(dataspace);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), dataspace,

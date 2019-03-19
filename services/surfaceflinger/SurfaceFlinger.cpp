@@ -157,6 +157,28 @@ bool isWideColorMode(const ColorMode colorMode) {
     return false;
 }
 
+bool isHdrColorMode(const ColorMode colorMode) {
+    switch (colorMode) {
+        case ColorMode::BT2100_PQ:
+        case ColorMode::BT2100_HLG:
+            return true;
+        case ColorMode::DISPLAY_P3:
+        case ColorMode::ADOBE_RGB:
+        case ColorMode::DCI_P3:
+        case ColorMode::BT2020:
+        case ColorMode::DISPLAY_BT2020:
+        case ColorMode::NATIVE:
+        case ColorMode::STANDARD_BT601_625:
+        case ColorMode::STANDARD_BT601_625_UNADJUSTED:
+        case ColorMode::STANDARD_BT601_525:
+        case ColorMode::STANDARD_BT601_525_UNADJUSTED:
+        case ColorMode::STANDARD_BT709:
+        case ColorMode::SRGB:
+            return false;
+    }
+    return false;
+}
+
 ui::Transform::orientation_flags fromSurfaceComposerRotation(ISurfaceComposer::Rotation rotation) {
     switch (rotation) {
         case ISurfaceComposer::eRotateNone:
@@ -1836,7 +1858,9 @@ void SurfaceFlinger::calculateWorkingSet() {
 
             const auto& displayState = display->getState();
             layer->setPerFrameData(displayDevice, displayState.transform, displayState.viewport,
-                                   displayDevice->getSupportedPerFrameMetadata(), targetDataspace);
+                                   displayDevice->getSupportedPerFrameMetadata(),
+                                   isHdrColorMode(displayState.colorMode) ? Dataspace::UNKNOWN
+                                                                          : targetDataspace);
         }
     }
 
