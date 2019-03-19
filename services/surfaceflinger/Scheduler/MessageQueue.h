@@ -85,7 +85,7 @@ public:
     virtual ~MessageQueue();
 
     virtual void init(const sp<SurfaceFlinger>& flinger) = 0;
-    // TODO(akrulec): Remove this function once everything is migrated to Scheduler.
+    // TODO(b/128863962): Remove this function once everything is migrated to Scheduler.
     virtual void setEventThread(EventThread* events, ResyncCallback resyncCallback) = 0;
     virtual void setEventConnection(const sp<EventThreadConnection>& connection) = 0;
     virtual void waitMessage() = 0;
