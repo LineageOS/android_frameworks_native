@@ -3243,13 +3243,11 @@ void InputDispatcher::setFocusedApplication(
             if (oldFocusedApplicationHandle != inputApplicationHandle) {
                 if (oldFocusedApplicationHandle != nullptr) {
                     resetANRTimeoutsLocked();
-                    oldFocusedApplicationHandle->releaseInfo();
                 }
                 mFocusedApplicationHandlesByDisplay[displayId] = inputApplicationHandle;
             }
         } else if (oldFocusedApplicationHandle != nullptr) {
             resetANRTimeoutsLocked();
-            oldFocusedApplicationHandle->releaseInfo();
             oldFocusedApplicationHandle.clear();
             mFocusedApplicationHandlesByDisplay.erase(displayId);
         }

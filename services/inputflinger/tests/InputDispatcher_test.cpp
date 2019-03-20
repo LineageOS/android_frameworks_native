@@ -340,10 +340,7 @@ public:
     virtual ~FakeApplicationHandle() {}
 
     virtual bool updateInfo() {
-        if (!mInfo) {
-            mInfo = new InputApplicationInfo();
-        }
-        mInfo->dispatchingTimeout = DISPATCHING_TIMEOUT;
+        mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT;
         return true;
     }
 };
