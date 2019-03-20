@@ -61,7 +61,6 @@ interface IDumpstate {
     // Default mode.
     const int BUGREPORT_MODE_DEFAULT = 6;
 
-    // TODO(b/111441001): Should the args be for the consuming application rather than triggering?
     /*
      * Starts a bugreport in the background.
      *
