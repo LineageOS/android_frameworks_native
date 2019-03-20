@@ -250,8 +250,8 @@ public:
     // axis is thus already flipped
     // The source color space must define its values in the domain [0..1]
     // The generated LUT transforms from gamma space to gamma space
-    static std::unique_ptr<float3> createLUT(uint32_t size,
-            const ColorSpace& src, const ColorSpace& dst);
+    static std::unique_ptr<float3[]> createLUT(uint32_t size, const ColorSpace& src,
+                                               const ColorSpace& dst);
 
 private:
     static constexpr mat3 computeXYZMatrix(

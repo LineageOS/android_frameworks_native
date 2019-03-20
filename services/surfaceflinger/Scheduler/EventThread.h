@@ -135,7 +135,7 @@ class EventThread : public android::EventThread, private VSyncSource::Callback {
 public:
     using InterceptVSyncsCallback = std::function<void(nsecs_t)>;
 
-    // TODO(b/113612090): Once the Scheduler is complete this constructor will become obsolete.
+    // TODO(b/128863962): Once the Scheduler is complete this constructor will become obsolete.
     EventThread(VSyncSource*, InterceptVSyncsCallback, const char* threadName);
     EventThread(std::unique_ptr<VSyncSource>, InterceptVSyncsCallback, const char* threadName);
     ~EventThread();
@@ -169,7 +169,7 @@ private:
 
     using DisplayEventConsumers = std::vector<sp<EventThreadConnection>>;
 
-    // TODO(b/113612090): Once the Scheduler is complete this constructor will become obsolete.
+    // TODO(b/128863962): Once the Scheduler is complete this constructor will become obsolete.
     EventThread(VSyncSource* src, std::unique_ptr<VSyncSource> uniqueSrc,
                 InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName);
 
@@ -186,10 +186,7 @@ private:
     // Implements VSyncSource::Callback
     void onVSyncEvent(nsecs_t timestamp) override;
 
-    // Acquires mutex and requests next vsync.
-    void requestNextVsyncInternal(const sp<EventThreadConnection>& connection) EXCLUDES(mMutex);
-
-    // TODO(b/113612090): Once the Scheduler is complete this pointer will become obsolete.
+    // TODO(b/128863962): Once the Scheduler is complete this pointer will become obsolete.
     VSyncSource* mVSyncSource GUARDED_BY(mMutex) = nullptr;
     std::unique_ptr<VSyncSource> mVSyncSourceUnique GUARDED_BY(mMutex) = nullptr;
 

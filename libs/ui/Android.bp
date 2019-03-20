@@ -124,7 +124,6 @@ cc_library_shared {
             exclude_header_libs: [
                 "libbufferhub_headers",
                 "libdvr_headers",
-                "libnativewindow_headers",
             ],
             exclude_shared_libs: [
                 "android.frameworks.bufferhub@1.0",
@@ -152,6 +151,7 @@ cc_library_shared {
     export_header_lib_headers: [
         "libbase_headers",
         "libnativebase_headers",
+        "libnativewindow_headers",
         "libhardware_headers",
         "libui_headers",
     ],

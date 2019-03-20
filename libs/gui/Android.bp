@@ -31,44 +31,7 @@ cc_library_shared {
         "-Werror",
     ],
     cppflags: [
-        "-Weverything",
-
-        // The static constructors and destructors in this library have not been noted to
-        // introduce significant overheads
-        "-Wno-exit-time-destructors",
-        "-Wno-global-constructors",
-
-        // We only care about compiling as C++14
-        "-Wno-c++98-compat-pedantic",
-
-        // We don't need to enumerate every case in a switch as long as a default case
-        // is present
-        "-Wno-switch-enum",
-
-        // Allow calling variadic macros without a __VA_ARGS__ list
-        "-Wno-gnu-zero-variadic-macro-arguments",
-
-        // Don't warn about struct padding
-        "-Wno-padded",
-
-        // We are aware of the risks inherent in comparing floats for equality
-        "-Wno-float-equal",
-
-        // Pure abstract classes trigger this warning
-        "-Wno-weak-vtables",
-
-        // Allow four-character integer literals
-        "-Wno-four-char-constants",
-
-        // Allow documentation warnings
-        "-Wno-documentation",
-
-        // Allow implicit instantiation for templated class function
-        "-Wno-undefined-func-template",
-
-        // Allow explicitly marking struct as packed even when unnecessary
-        "-Wno-packed",
-
+        "-Wextra",
         "-DDEBUG_ONLY_CODE=0",
     ],
 
@@ -121,30 +84,38 @@ cc_library_shared {
         "view/Surface.cpp",
         "bufferqueue/1.0/B2HProducerListener.cpp",
         "bufferqueue/1.0/H2BGraphicBufferProducer.cpp",
+        "bufferqueue/1.0/H2BProducerListener.cpp",
+        "bufferqueue/2.0/B2HGraphicBufferProducer.cpp",
+        "bufferqueue/2.0/B2HProducerListener.cpp",
+        "bufferqueue/2.0/H2BGraphicBufferProducer.cpp",
+        "bufferqueue/2.0/H2BProducerListener.cpp",
+        "bufferqueue/2.0/types.cpp",
     ],
 
     shared_libs: [
         "android.frameworks.bufferhub@1.0",
+        "android.hardware.graphics.bufferqueue@1.0",
+        "android.hardware.graphics.bufferqueue@2.0",
         "android.hardware.graphics.common@1.1",
+        "android.hardware.graphics.common@1.2",
+        "android.hidl.token@1.0-utils",
         "libbase",
-        "libsync",
         "libbinder",
-        "libhwbinder",
         "libbufferhub",
         "libbufferhubqueue", // TODO(b/70046255): Remove this once BufferHub is integrated into libgui.
-        "libpdx_default_transport",
         "libcutils",
         "libEGL",
         "libGLESv2",
-        "libui",
-        "libutils",
-        "libnativewindow",
-        "liblog",
-        "libinput",
         "libhidlbase",
         "libhidltransport",
-        "android.hidl.token@1.0-utils",
-        "android.hardware.graphics.bufferqueue@1.0",
+        "libhwbinder",
+        "libinput",
+        "liblog",
+        "libnativewindow",
+        "libpdx_default_transport",
+        "libsync",
+        "libui",
+        "libutils",
         "libvndksupport",
     ],
 
@@ -163,16 +134,16 @@ cc_library_shared {
                 "android.frameworks.bufferhub@1.0",
                 "libbufferhub",
                 "libbufferhubqueue",
-                "libpdx_default_transport",
                 "libinput",
+                "libpdx_default_transport",
             ],
         },
     },
 
     header_libs: [
         "libdvr_headers",
-        "libnativebase_headers",
         "libgui_headers",
+        "libnativebase_headers",
         "libpdx_headers",
     ],
 
@@ -181,9 +152,11 @@ cc_library_shared {
         "libEGL",
         "libnativewindow",
         "libui",
-        "android.hidl.token@1.0-utils",
         "android.hardware.graphics.bufferqueue@1.0",
+        "android.hardware.graphics.bufferqueue@2.0",
         "android.hardware.graphics.common@1.1",
+        "android.hardware.graphics.common@1.2",
+        "android.hidl.token@1.0-utils",
     ],
 
     export_header_lib_headers: [

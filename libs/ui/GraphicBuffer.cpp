@@ -49,6 +49,22 @@ sp<GraphicBuffer> GraphicBuffer::from(ANativeWindowBuffer* anwb) {
     return static_cast<GraphicBuffer *>(anwb);
 }
 
+GraphicBuffer* GraphicBuffer::fromAHardwareBuffer(AHardwareBuffer* buffer) {
+    return reinterpret_cast<GraphicBuffer*>(buffer);
+}
+
+GraphicBuffer const* GraphicBuffer::fromAHardwareBuffer(AHardwareBuffer const* buffer) {
+    return reinterpret_cast<GraphicBuffer const*>(buffer);
+}
+
+AHardwareBuffer* GraphicBuffer::toAHardwareBuffer() {
+    return reinterpret_cast<AHardwareBuffer*>(this);
+}
+
+AHardwareBuffer const* GraphicBuffer::toAHardwareBuffer() const {
+    return reinterpret_cast<AHardwareBuffer const*>(this);
+}
+
 GraphicBuffer::GraphicBuffer()
     : BASE(), mOwner(ownData), mBufferMapper(GraphicBufferMapper::get()),
       mInitCheck(NO_ERROR), mId(getUniqueId()), mGenerationNumber(0)
