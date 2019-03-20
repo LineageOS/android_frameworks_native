@@ -551,6 +551,8 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
     mFlinger->mTimeStats->setAcquireFence(layerID, getFrameNumber(), getCurrentFenceTime());
     mFlinger->mTimeStats->setLatchTime(layerID, getFrameNumber(), latchTime);
 
+    mCurrentStateModified = false;
+
     return NO_ERROR;
 }
 
@@ -600,7 +602,6 @@ void BufferStateLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display)
               s.buffer->handle, to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
-    mCurrentStateModified = false;
     mFrameNumber++;
 }
 
