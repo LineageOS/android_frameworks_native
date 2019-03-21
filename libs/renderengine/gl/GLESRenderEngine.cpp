@@ -808,12 +808,14 @@ bool GLESRenderEngine::useProtectedContext(bool useProtectedContext) {
     return success;
 }
 EGLImageKHR GLESRenderEngine::createFramebufferImageIfNeeded(ANativeWindowBuffer* nativeBuffer,
-                                                             bool isProtected) {
+                                                             bool isProtected,
+                                                             bool useFramebufferCache) {
     sp<GraphicBuffer> graphicBuffer = GraphicBuffer::from(nativeBuffer);
-    uint64_t bufferId = graphicBuffer->getId();
-    for (const auto& image : mFramebufferImageCache) {
-        if (image.first == bufferId) {
-            return image.second;
+    if (useFramebufferCache) {
+        for (const auto& image : mFramebufferImageCache) {
+            if (image.first == graphicBuffer->getId()) {
+                return image.second;
+            }
         }
     }
     EGLint attributes[] = {
@@ -823,13 +825,15 @@ EGLImageKHR GLESRenderEngine::createFramebufferImageIfNeeded(ANativeWindowBuffer
     };
     EGLImageKHR image = eglCreateImageKHR(mEGLDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID,
                                           nativeBuffer, attributes);
-    if (image != EGL_NO_IMAGE_KHR) {
-        if (mFramebufferImageCache.size() >= mFramebufferImageCacheSize) {
-            EGLImageKHR expired = mFramebufferImageCache.front().second;
-            mFramebufferImageCache.pop_front();
-            eglDestroyImageKHR(mEGLDisplay, expired);
+    if (useFramebufferCache) {
+        if (image != EGL_NO_IMAGE_KHR) {
+            if (mFramebufferImageCache.size() >= mFramebufferImageCacheSize) {
+                EGLImageKHR expired = mFramebufferImageCache.front().second;
+                mFramebufferImageCache.pop_front();
+                eglDestroyImageKHR(mEGLDisplay, expired);
+            }
+            mFramebufferImageCache.push_back({graphicBuffer->getId(), image});
         }
-        mFramebufferImageCache.push_back({bufferId, image});
     }
     return image;
 }
@@ -837,7 +841,8 @@ EGLImageKHR GLESRenderEngine::createFramebufferImageIfNeeded(ANativeWindowBuffer
 status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
                                       const std::vector<LayerSettings>& layers,
                                       ANativeWindowBuffer* const buffer,
-                                      base::unique_fd&& bufferFence, base::unique_fd* drawFence) {
+                                      const bool useFramebufferCache, base::unique_fd&& bufferFence,
+                                      base::unique_fd* drawFence) {
     ATRACE_CALL();
     if (layers.empty()) {
         ALOGV("Drawing empty layer stack");
@@ -857,7 +862,7 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
     {
         std::lock_guard<std::mutex> lock(mRenderingMutex);
 
-        BindNativeBufferAsFramebuffer fbo(*this, buffer);
+        BindNativeBufferAsFramebuffer fbo(*this, buffer, useFramebufferCache);
 
         if (fbo.getStatus() != NO_ERROR) {
             ALOGE("Failed to bind framebuffer! Aborting GPU composition for buffer (%p).",

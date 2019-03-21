@@ -170,6 +170,9 @@ public:
     // @param layers The layers to draw onto the display, in Z-order.
     // @param buffer The buffer which will be drawn to. This buffer will be
     // ready once drawFence fires.
+    // @param useFramebufferCache True if the framebuffer cache should be used.
+    // If an implementation does not cache output framebuffers, then this
+    // parameter does nothing.
     // @param bufferFence Fence signalling that the buffer is ready to be drawn
     // to.
     // @param drawFence A pointer to a fence, which will fire when the buffer
@@ -180,8 +183,8 @@ public:
     // now, this always returns NO_ERROR.
     virtual status_t drawLayers(const DisplaySettings& display,
                                 const std::vector<LayerSettings>& layers,
-                                ANativeWindowBuffer* buffer, base::unique_fd&& bufferFence,
-                                base::unique_fd* drawFence) = 0;
+                                ANativeWindowBuffer* buffer, const bool useFramebufferCache,
+                                base::unique_fd&& bufferFence, base::unique_fd* drawFence) = 0;
 
 protected:
     // Gets a framebuffer to render to. This framebuffer may or may not be
@@ -195,14 +198,16 @@ protected:
 
 class BindNativeBufferAsFramebuffer {
 public:
-    BindNativeBufferAsFramebuffer(RenderEngine& engine, ANativeWindowBuffer* buffer)
+    BindNativeBufferAsFramebuffer(RenderEngine& engine, ANativeWindowBuffer* buffer,
+                                  const bool useFramebufferCache)
           : mEngine(engine), mFramebuffer(mEngine.getFramebufferForDrawing()), mStatus(NO_ERROR) {
-        mStatus = mFramebuffer->setNativeWindowBuffer(buffer, mEngine.isProtected())
+        mStatus = mFramebuffer->setNativeWindowBuffer(buffer, mEngine.isProtected(),
+                                                      useFramebufferCache)
                 ? mEngine.bindFrameBuffer(mFramebuffer)
                 : NO_MEMORY;
     }
     ~BindNativeBufferAsFramebuffer() {
-        mFramebuffer->setNativeWindowBuffer(nullptr, false);
+        mFramebuffer->setNativeWindowBuffer(nullptr, false, /*arbitrary*/ true);
         mEngine.unbindFrameBuffer(mFramebuffer);
     }
     status_t getStatus() const { return mStatus; }

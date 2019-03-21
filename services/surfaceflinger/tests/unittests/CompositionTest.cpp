@@ -175,7 +175,6 @@ public:
     renderengine::mock::RenderEngine* mRenderEngine = new renderengine::mock::RenderEngine();
     mock::MessageQueue* mMessageQueue = new mock::MessageQueue();
     mock::DispSync* mPrimaryDispSync = new mock::DispSync();
-    renderengine::mock::Framebuffer* mReFrameBuffer = new renderengine::mock::Framebuffer();
 
     sp<Fence> mClientTargetAcquireFence = Fence::NO_FENCE;
 
@@ -312,8 +311,8 @@ struct BaseDisplayVariant {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillRepeatedly(
                         [](const renderengine::DisplaySettings& displaySettings,
-                           const std::vector<renderengine::LayerSettings>& /*layerSettings*/,
-                           ANativeWindowBuffer*, base::unique_fd&&, base::unique_fd*) -> status_t {
+                           const std::vector<renderengine::LayerSettings>&, ANativeWindowBuffer*,
+                           const bool, base::unique_fd&&, base::unique_fd*) -> status_t {
                             EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                             EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                                       displaySettings.physicalDisplay);
@@ -351,8 +350,8 @@ struct BaseDisplayVariant {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillRepeatedly(
                         [](const renderengine::DisplaySettings& displaySettings,
-                           const std::vector<renderengine::LayerSettings>& /*layerSettings*/,
-                           ANativeWindowBuffer*, base::unique_fd&&, base::unique_fd*) -> status_t {
+                           const std::vector<renderengine::LayerSettings>&, ANativeWindowBuffer*,
+                           const bool, base::unique_fd&&, base::unique_fd*) -> status_t {
                             EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                             EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                                       displaySettings.physicalDisplay);
@@ -581,7 +580,7 @@ struct BaseLayerProperties {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillOnce([](const renderengine::DisplaySettings& displaySettings,
                              const std::vector<renderengine::LayerSettings>& layerSettings,
-                             ANativeWindowBuffer*, base::unique_fd&&,
+                             ANativeWindowBuffer*, const bool, base::unique_fd&&,
                              base::unique_fd*) -> status_t {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
@@ -624,7 +623,7 @@ struct BaseLayerProperties {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillOnce([](const renderengine::DisplaySettings& displaySettings,
                              const std::vector<renderengine::LayerSettings>& layerSettings,
-                             ANativeWindowBuffer*, base::unique_fd&&,
+                             ANativeWindowBuffer*, const bool, base::unique_fd&&,
                              base::unique_fd*) -> status_t {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
@@ -694,7 +693,7 @@ struct SecureLayerProperties : public BaseLayerProperties<SecureLayerProperties>
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillOnce([](const renderengine::DisplaySettings& displaySettings,
                              const std::vector<renderengine::LayerSettings>& layerSettings,
-                             ANativeWindowBuffer*, base::unique_fd&&,
+                             ANativeWindowBuffer*, const bool, base::unique_fd&&,
                              base::unique_fd*) -> status_t {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),

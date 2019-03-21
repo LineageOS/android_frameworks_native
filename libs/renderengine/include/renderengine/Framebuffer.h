@@ -27,7 +27,8 @@ class Framebuffer {
 public:
     virtual ~Framebuffer() = default;
 
-    virtual bool setNativeWindowBuffer(ANativeWindowBuffer* nativeBuffer, bool isProtected) = 0;
+    virtual bool setNativeWindowBuffer(ANativeWindowBuffer* nativeBuffer, bool isProtected,
+                                       const bool useFramebufferCache) = 0;
 };
 
 } // namespace renderengine
