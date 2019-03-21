@@ -576,7 +576,7 @@ TEST_F(DexoptTest, DexoptSecondaryStorageValidationError) {
     CompileSecondaryDex(secondary_dex_ce_, DEXOPT_STORAGE_DE,
         /*binder_ok*/ false,  /*compile_ok*/ false, &status);
     EXPECT_STREQ(status.toString8().c_str(),
-                 "Status(-8): '-1: Dexoptanalyzer path validation failed'");
+                 "Status(-8, EX_SERVICE_SPECIFIC): '-1: Dexoptanalyzer path validation failed'");
 }
 
 TEST_F(DexoptTest, DexoptSecondaryAppOwnershipValidationError) {
@@ -585,7 +585,7 @@ TEST_F(DexoptTest, DexoptSecondaryAppOwnershipValidationError) {
     CompileSecondaryDex("/data/data/random.app/secondary.jar", DEXOPT_STORAGE_CE,
         /*binder_ok*/ false,  /*compile_ok*/ false, &status);
     EXPECT_STREQ(status.toString8().c_str(),
-                 "Status(-8): '-1: Dexoptanalyzer path validation failed'");
+                 "Status(-8, EX_SERVICE_SPECIFIC): '-1: Dexoptanalyzer path validation failed'");
 }
 
 TEST_F(DexoptTest, DexoptSecondaryAcessViaDifferentUidError) {
@@ -593,7 +593,8 @@ TEST_F(DexoptTest, DexoptSecondaryAcessViaDifferentUidError) {
     binder::Status status;
     CompileSecondaryDex(secondary_dex_ce_, DEXOPT_STORAGE_CE,
         /*binder_ok*/ false,  /*compile_ok*/ false, &status, kSystemUid);
-    EXPECT_STREQ(status.toString8().c_str(), "Status(-8): '-1: Dexoptanalyzer open zip failed'");
+    EXPECT_STREQ(status.toString8().c_str(),
+                 "Status(-8, EX_SERVICE_SPECIFIC): '-1: Dexoptanalyzer open zip failed'");
 }
 
 TEST_F(DexoptTest, DexoptPrimaryPublic) {
@@ -615,7 +616,7 @@ TEST_F(DexoptTest, DexoptPrimaryFailedInvalidFilter) {
                           DEX2OAT_FROM_SCRATCH,
                           &status);
     EXPECT_STREQ(status.toString8().c_str(),
-                 "Status(-8): \'256: Dex2oat invocation for "
+                 "Status(-8, EX_SERVICE_SPECIFIC): \'256: Dex2oat invocation for "
                  "/data/app/com.installd.test.dexopt/base.jar failed: unspecified dex2oat error'");
 }
 
