@@ -106,8 +106,14 @@ public:
     virtual void genTextures(size_t count, uint32_t* names) = 0;
     virtual void deleteTextures(size_t count, uint32_t const* names) = 0;
     virtual void bindExternalTextureImage(uint32_t texName, const Image& image) = 0;
-    virtual status_t bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer,
-                                               sp<Fence> fence) = 0;
+    // Legacy public method used by devices that don't support native fence
+    // synchronization in their GPU driver, as this method provides implicit
+    // synchronization for latching buffers.
+    virtual status_t bindExternalTextureBuffer(uint32_t texName, const sp<GraphicBuffer>& buffer,
+                                               const sp<Fence>& fence) = 0;
+    // Caches Image resources for this buffer, but does not bind the buffer to
+    // a particular texture.
+    virtual status_t cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) = 0;
     // Removes internal resources referenced by the bufferId. This method should be
     // invoked when the caller will no longer hold a reference to a GraphicBuffer
     // and needs to clean up its resources.
