@@ -4,9 +4,8 @@
 #ifndef _BINDER_H_
 #define _BINDER_H_
 
+#include <linux/android/binder.h>
 #include <sys/ioctl.h>
-
-#include "binder_kernel.h"
 
 struct binder_state;
 
