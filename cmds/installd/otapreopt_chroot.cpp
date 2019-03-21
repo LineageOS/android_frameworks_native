@@ -77,6 +77,16 @@ static void DeactivateApexPackages(const std::vector<apex::ApexFile>& active_pac
     }
 }
 
+static void TryExtraMount(const char* name, const char* slot, const char* target) {
+    std::string block_device = StringPrintf("/dev/block/by-name/%s%s", name, slot);
+    int mount_result = mount(block_device.c_str(),
+                             target,
+                             "ext4",
+                             MS_RDONLY,
+                             /* data */ nullptr);
+    UNUSED(mount_result);
+}
+
 // Entry for otapreopt_chroot. Expected parameters are:
 //   [cmd] [status-fd] [target-slot] "dexopt" [dexopt-params]
 // The file descriptor denoted by status-fd will be closed. The rest of the parameters will
@@ -137,29 +147,11 @@ static int otapreopt_chroot(const int argc, char **arg) {
         LOG(ERROR) << "Target slot suffix not legal: " << arg[2];
         exit(207);
     }
-    {
-      std::string vendor_partition = StringPrintf("/dev/block/by-name/vendor%s",
-                                                  arg[2]);
-      int vendor_result = mount(vendor_partition.c_str(),
-                                "/postinstall/vendor",
-                                "ext4",
-                                MS_RDONLY,
-                                /* data */ nullptr);
-      UNUSED(vendor_result);
-    }
+    TryExtraMount("vendor", arg[2], "/postinstall/vendor");
 
     // Try to mount the product partition. update_engine doesn't do this for us, but we
     // want it for product APKs. Same notes as vendor above.
-    {
-      std::string product_partition = StringPrintf("/dev/block/by-name/product%s",
-                                                   arg[2]);
-      int product_result = mount(product_partition.c_str(),
-                                 "/postinstall/product",
-                                 "ext4",
-                                 MS_RDONLY,
-                                 /* data */ nullptr);
-      UNUSED(product_result);
-    }
+    TryExtraMount("product", arg[2], "/postinstall/product");
 
     // Setup APEX mount point and its security context.
     static constexpr const char* kPostinstallApexDir = "/postinstall/apex";
