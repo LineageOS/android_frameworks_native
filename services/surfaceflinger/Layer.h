@@ -907,6 +907,8 @@ private:
      */
     Rect getCroppedBufferSize(const Layer::State& s) const;
 
+    RoundedCornerState getRoundedCornerStateInternal(const FloatRect bounds) const;
+
     // Cached properties computed from drawing state
     // Effective transform taking into account parent transforms and any parent scaling.
     ui::Transform mEffectiveTransform;
