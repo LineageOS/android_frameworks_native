@@ -530,9 +530,6 @@ public:
     // -----------------------------------------------------------------------
 
     void clearWithOpenGL(const RenderArea& renderArea) const;
-    void setFiltering(bool filtering);
-    bool getFiltering() const;
-
 
     inline const State& getDrawingState() const { return mDrawingState; }
     inline const State& getCurrentState() const { return mCurrentState; }
@@ -755,8 +752,6 @@ protected:
     bool mCurrentOpacity;
     std::atomic<uint64_t> mCurrentFrameNumber;
     bool mFrameLatencyNeeded;
-    // Whether filtering is forced on or not
-    bool mFiltering;
     // Whether filtering is needed b/c of the drawingstate
     bool mNeedsFiltering;
 
