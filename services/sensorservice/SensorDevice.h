@@ -120,6 +120,8 @@ public:
         return mReconnecting;
     }
 
+    bool isSensorActive(int handle) const;
+
     // Dumpable
     virtual std::string dump() const;
 private:

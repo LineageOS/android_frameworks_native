@@ -441,12 +441,15 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
             }
 
             result.append("Active sensors:\n");
+            SensorDevice& dev = SensorDevice::getInstance();
             for (size_t i=0 ; i<mActiveSensors.size() ; i++) {
                 int handle = mActiveSensors.keyAt(i);
-                result.appendFormat("%s (handle=0x%08x, connections=%zu)\n",
-                        getSensorName(handle).string(),
-                        handle,
-                        mActiveSensors.valueAt(i)->getNumConnections());
+                if (dev.isSensorActive(handle)) {
+                    result.appendFormat("%s (handle=0x%08x, connections=%zu)\n",
+                            getSensorName(handle).string(),
+                            handle,
+                            mActiveSensors.valueAt(i)->getNumConnections());
+                }
             }
 
             result.appendFormat("Socket Buffer size = %zd events\n",
