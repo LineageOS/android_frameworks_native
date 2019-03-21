@@ -152,10 +152,24 @@ struct DisplayState {
     sp<IBinder> token;
     sp<IGraphicBufferProducer> surface;
     uint32_t layerStack;
+
+    // These states define how layers are projected onto the physical display.
+    //
+    // Layers are first clipped to `viewport'.  They are then translated and
+    // scaled from `viewport' to `frame'.  Finally, they are rotated according
+    // to `orientation', `width', and `height'.
+    //
+    // For example, assume viewport is Rect(0, 0, 200, 100), frame is Rect(20,
+    // 10, 420, 210), and the size of the display is WxH.  When orientation is
+    // 0, layers will be scaled by a factor of 2 and translated by (20, 10).
+    // When orientation is 1, layers will be additionally rotated by 90
+    // degrees around the origin clockwise and translated by (W, 0).
     uint32_t orientation;
     Rect viewport;
     Rect frame;
+
     uint32_t width, height;
+
     status_t write(Parcel& output) const;
     status_t read(const Parcel& input);
 };
