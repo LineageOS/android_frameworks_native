@@ -1648,7 +1648,8 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
 
     ATRACE_BEGIN("obb");
     for (const auto& packageName : packageNames) {
-        auto obbCodePath = create_data_media_obb_path(uuid_, packageName.c_str());
+        auto obbCodePath = create_data_media_package_path(uuid_, userId,
+                "obb", packageName.c_str());
         calculate_tree_size(obbCodePath, &extStats.codeSize);
     }
     ATRACE_END();
@@ -1982,7 +1983,8 @@ binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std:
         ATRACE_END();
 
         ATRACE_BEGIN("obb");
-        auto obbPath = create_data_media_obb_path(uuid_, "");
+        auto obbPath = StringPrintf("%s/Android/obb",
+                create_data_media_path(uuid_, userId).c_str());
         calculate_tree_size(obbPath, &obbSize);
         ATRACE_END();
     }
