@@ -314,6 +314,24 @@ EGLBoolean egl_display_t::initialize(EGLint *major, EGLint *minor) {
             }
         }
 
+        if (cnx->minor == 5) {
+            // full list in egl_entries.in
+            if (!cnx->egl.eglCreateImage ||
+                !cnx->egl.eglDestroyImage ||
+                !cnx->egl.eglGetPlatformDisplay ||
+                !cnx->egl.eglCreatePlatformWindowSurface ||
+                !cnx->egl.eglCreatePlatformPixmapSurface ||
+                !cnx->egl.eglCreateSync ||
+                !cnx->egl.eglDestroySync ||
+                !cnx->egl.eglClientWaitSync ||
+                !cnx->egl.eglGetSyncAttrib ||
+                !cnx->egl.eglWaitSync) {
+                ALOGE("Driver indicates EGL 1.5 support, but does not have "
+                      "a critical API");
+                cnx->minor = 4;
+            }
+        }
+
         // the query strings are per-display
         mVendorString = sVendorString;
         mVersionString.clear();
