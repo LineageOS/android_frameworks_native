@@ -25,6 +25,7 @@
 #include <android-base/logging.h>
 #include <android-base/macros.h>
 #include <android-base/stringprintf.h>
+#include <libdm/dm.h>
 #include <selinux/android.h>
 
 #include <apexd.h>
@@ -78,7 +79,28 @@ static void DeactivateApexPackages(const std::vector<apex::ApexFile>& active_pac
 }
 
 static void TryExtraMount(const char* name, const char* slot, const char* target) {
-    std::string block_device = StringPrintf("/dev/block/by-name/%s%s", name, slot);
+    std::string partition_name = StringPrintf("%s%s", name, slot);
+
+    // See whether update_engine mounted a logical partition.
+    {
+        auto& dm = dm::DeviceMapper::Instance();
+        if (dm.GetState(partition_name) != dm::DmDeviceState::INVALID) {
+            std::string path;
+            if (dm.GetDmDevicePathByName(partition_name, &path)) {
+                int mount_result = mount(path.c_str(),
+                                         target,
+                                         "ext4",
+                                         MS_RDONLY,
+                                         /* data */ nullptr);
+                if (mount_result == 0) {
+                    return;
+                }
+            }
+        }
+    }
+
+    // Fall back and attempt a direct mount.
+    std::string block_device = StringPrintf("/dev/block/by-name/%s", partition_name.c_str());
     int mount_result = mount(block_device.c_str(),
                              target,
                              "ext4",
