@@ -145,9 +145,11 @@ cc_binary {
     ],
     shared_libs: [
         "libbase",
+        "libbinder",
         "liblog",
         "libprotobuf-cpp-full",
         "libselinux",
+        "libutils",
         "libziparchive",
     ],
     static_libs: [
@@ -156,6 +158,7 @@ cc_binary {
         "lib_apex_manifest_proto",
         "libavb",
         "libdm",
+        "libvold_binder",
     ],
 }
 
