@@ -96,6 +96,8 @@ message LayerProto {
   FloatRectProto source_bounds = 44;
   FloatRectProto bounds = 45;
   FloatRectProto screen_bounds = 46;
+
+  InputWindowInfoProto input_window_info = 47;
 }
 
 message PositionProto {
@@ -154,4 +156,25 @@ message BarrierLayerProto {
   int32 id = 1;
   // frame number the barrier is waiting on.
   uint64 frame_number = 2;
+}
+
+message InputWindowInfoProto {
+    uint32 layout_params_flags = 1;
+    uint32 layout_params_type = 2;
+    RectProto frame = 3;
+    RegionProto touchable_region = 4;
+
+    uint32 surface_inset = 5;
+    bool visible = 6;
+    bool can_receive_keys = 7;
+    bool has_focus = 8;
+    bool has_wallpaper = 9;
+
+    float global_scale_factor = 10;
+    float window_x_scale = 11;
+    float window_y_scale = 12;
+
+    uint32 crop_layer_id = 13;
+    bool replace_touchable_region_with_crop = 14;
+    RectProto touchable_region_crop = 15;
 }
