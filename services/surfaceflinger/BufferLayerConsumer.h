@@ -253,6 +253,9 @@ private:
     // access the current texture buffer.
     status_t doFenceWaitLocked() const;
 
+    // getCurrentCropLocked returns the cropping rectangle of the current buffer.
+    Rect getCurrentCropLocked() const;
+
     // The default consumer usage flags that BufferLayerConsumer always sets on its
     // BufferQueue instance; these will be OR:d with any additional flags passed
     // from the BufferLayerConsumer user. In particular, BufferLayerConsumer will always
