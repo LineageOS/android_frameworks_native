@@ -120,6 +120,7 @@
 
 #include <layerproto/LayerProtoParser.h>
 #include "SurfaceFlingerProperties.h"
+#include "gralloc_priv.h"
 
 namespace android {
 
@@ -243,6 +244,7 @@ Dataspace SurfaceFlinger::defaultCompositionDataspace = Dataspace::V0_SRGB;
 ui::PixelFormat SurfaceFlinger::defaultCompositionPixelFormat = ui::PixelFormat::RGBA_8888;
 Dataspace SurfaceFlinger::wideColorGamutCompositionDataspace = Dataspace::V0_SRGB;
 ui::PixelFormat SurfaceFlinger::wideColorGamutCompositionPixelFormat = ui::PixelFormat::RGBA_8888;
+bool SurfaceFlinger::sDirectStreaming;
 
 std::string getHwcServiceName() {
     char value[PROPERTY_VALUE_MAX] = {};
@@ -2833,8 +2835,21 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                             ALOGE_IF(status != NO_ERROR, "Unable to query format (%d)", status);
                             auto format = static_cast<ui::PixelFormat>(intFormat);
 
-                            displayId =
-                                    getHwComposer().allocateVirtualDisplay(width, height, &format);
+                            if (maxVirtualDisplaySize == 0 ||
+                                ((uint64_t)width <= maxVirtualDisplaySize &&
+                                (uint64_t)height <= maxVirtualDisplaySize)) {
+                                uint64_t usage = 0;
+                                // Replace with native_window_get_consumer_usage ?
+                                status = state.surface->getConsumerUsage(&usage);
+                                ALOGW_IF(status != NO_ERROR, "Unable to query usage (%d)", status);
+                                displayId =
+                                getHwComposer().allocateVirtualDisplay(width, height, &format);
+                                ALOGW_IF(status != NO_ERROR, "Unable to query usage (%d)", status);
+                                if ((status == NO_ERROR) && canAllocateHwcDisplayIdForVDS(usage)) {
+                                     displayId =
+                                     getHwComposer().allocateVirtualDisplay(width, height, &format);
+                                }
+                            }
                         }
 
                         // TODO: Plumb requested format back up to consumer
@@ -3522,6 +3537,12 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
                 }
                 case Hwc2::IComposerClient::Composition::CLIENT: {
                     renderengine::LayerSettings layerSettings;
+                    if (displayDevice->isVirtual() &&
+                        skipColorLayer(layer->getTypeId())) {
+                        // We are not using h/w composer.
+                        // Skip color (dim) layer for WFD direct streaming.
+                        continue;
+                    }
                     bool prepared =
                             layer->prepareClientLayer(renderArea, clip, clearRegion,
                                                       supportProtectedContent, layerSettings);
@@ -6214,6 +6235,28 @@ void SurfaceFlinger::setAllowedDisplayConfigsInternal(const sp<DisplayDevice>& d
                                 display->getActiveConfig());
 
     setPreferredDisplayConfig();
+}
+
+bool SurfaceFlinger::canAllocateHwcDisplayIdForVDS(uint64_t usage) {
+    uint64_t flag_mask_pvt_wfd = ~0;
+    uint64_t flag_mask_hw_video = ~0;
+    char value[PROPERTY_VALUE_MAX] = {};
+    property_get("vendor.display.vds_allow_hwc", value, "0");
+    int allowHwcForVDS = atoi(value);
+    // Reserve hardware acceleration for WFD use-case
+    // GRALLOC_USAGE_PRIVATE_WFD + GRALLOC_USAGE_HW_VIDEO_ENCODER = WFD using HW composer.
+    flag_mask_pvt_wfd = GRALLOC_USAGE_PRIVATE_WFD;
+    flag_mask_hw_video = GRALLOC_USAGE_HW_VIDEO_ENCODER;
+    // GRALLOC_USAGE_PRIVATE_WFD + GRALLOC_USAGE_SW_READ_OFTEN
+    // WFD using GLES (directstreaming).
+    sDirectStreaming = ((usage & GRALLOC_USAGE_PRIVATE_WFD) &&
+                        (usage & GRALLOC_USAGE_SW_READ_OFTEN));
+    return (allowHwcForVDS || ((usage & flag_mask_pvt_wfd) &&
+            (usage & flag_mask_hw_video)));
+}
+
+bool SurfaceFlinger::skipColorLayer(const char* layerType) {
+    return (sDirectStreaming && !strncmp(layerType, "ColorLayer", strlen("ColorLayer")));
 }
 
 status_t SurfaceFlinger::setAllowedDisplayConfigs(const sp<IBinder>& displayToken,
