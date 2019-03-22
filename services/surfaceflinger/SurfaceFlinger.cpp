@@ -2519,6 +2519,9 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
                 state.displayName = info->name;
                 mCurrentState.displays.add(mPhysicalDisplayTokens[info->id], state);
                 mInterceptor->saveDisplayCreation(state);
+                // TODO(b/123715322): Removes the per-display state that was added to the scheduler.
+                mRefreshRateConfigs[info->id] = std::make_shared<scheduler::RefreshRateConfigs>(
+                        getHwComposer().getConfigs(info->id));
             }
         } else {
             ALOGV("Removing display %s", to_string(info->id).c_str());
@@ -2530,6 +2533,7 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
                 mCurrentState.displays.removeItemsAt(index);
             }
             mPhysicalDisplayTokens.erase(info->id);
+            mRefreshRateConfigs.erase(info->id);
         }
 
         processDisplayChangesLocked();
