@@ -578,7 +578,7 @@ private:
                                const Vector<DisplayState>& displays, uint32_t flags,
                                const InputWindowCommands& inputWindowCommands,
                                const int64_t desiredPresentTime, const int64_t postTime,
-                               bool privileged) REQUIRES(mStateLock);
+                               bool privileged, bool isMainThread = false) REQUIRES(mStateLock);
     bool flushTransactionQueues();
     uint32_t getTransactionFlags(uint32_t flags);
     uint32_t peekTransactionFlags();
