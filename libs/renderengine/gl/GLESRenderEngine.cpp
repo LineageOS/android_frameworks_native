@@ -595,11 +595,7 @@ void GLESRenderEngine::fillRegionWithColor(const Region& region, float red, floa
 }
 
 void GLESRenderEngine::setScissor(const Rect& region) {
-    // Invert y-coordinate to map to GL-space.
-    int32_t canvasHeight = mFboHeight;
-    int32_t glBottom = canvasHeight - region.bottom;
-
-    glScissor(region.left, glBottom, region.getWidth(), region.getHeight());
+    glScissor(region.left, region.top, region.getWidth(), region.getHeight());
     glEnable(GL_SCISSOR_TEST);
 }
 
@@ -719,6 +715,36 @@ FloatRect GLESRenderEngine::setupLayerCropping(const LayerSettings& layer, Mesh&
     return cropWin;
 }
 
+void GLESRenderEngine::handleRoundedCorners(const DisplaySettings& display,
+                                            const LayerSettings& layer, const Mesh& mesh) {
+    // We separate the layer into 3 parts essentially, such that we only turn on blending for the
+    // top rectangle and the bottom rectangle, and turn off blending for the middle rectangle.
+    FloatRect bounds = layer.geometry.roundedCornersCrop;
+    const auto transformMatrix = display.globalTransform * layer.geometry.positionTransform;
+    const vec4 leftTopCoordinate(bounds.left, bounds.top, 1.0, 1.0);
+    const vec4 rightBottomCoordinate(bounds.right, bounds.bottom, 1.0, 1.0);
+    const vec4 leftTopCoordinateInBuffer = transformMatrix * leftTopCoordinate;
+    const vec4 rightBottomCoordinateInBuffer = transformMatrix * rightBottomCoordinate;
+    bounds = FloatRect(leftTopCoordinateInBuffer[0], leftTopCoordinateInBuffer[1],
+                       rightBottomCoordinateInBuffer[0], rightBottomCoordinateInBuffer[1]);
+    const int32_t radius = ceil(layer.geometry.roundedCornersRadius);
+
+    const Rect topRect(bounds.left, bounds.top, bounds.right, bounds.top + radius);
+    setScissor(topRect);
+    drawMesh(mesh);
+    const Rect bottomRect(bounds.left, bounds.bottom - radius, bounds.right, bounds.bottom);
+    setScissor(bottomRect);
+    drawMesh(mesh);
+
+    // The middle part of the layer can turn off blending.
+    const Rect middleRect(bounds.left, bounds.top + radius, bounds.right, bounds.bottom - radius);
+    setScissor(middleRect);
+    mState.cornerRadius = 0.0;
+    disableBlending();
+    drawMesh(mesh);
+    disableScissor();
+}
+
 status_t GLESRenderEngine::bindFrameBuffer(Framebuffer* framebuffer) {
     ATRACE_CALL();
     GLFramebuffer* glFramebuffer = static_cast<GLFramebuffer*>(framebuffer);
@@ -738,8 +764,6 @@ status_t GLESRenderEngine::bindFrameBuffer(Framebuffer* framebuffer) {
     glBindFramebuffer(GL_FRAMEBUFFER, framebufferName);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureName, 0);
 
-    mFboHeight = glFramebuffer->getBufferHeight();
-
     uint32_t glStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 
     ALOGE_IF(glStatus != GL_FRAMEBUFFER_COMPLETE_OES, "glCheckFramebufferStatusOES error %d",
@@ -750,7 +774,6 @@ status_t GLESRenderEngine::bindFrameBuffer(Framebuffer* framebuffer) {
 
 void GLESRenderEngine::unbindFrameBuffer(Framebuffer* /* framebuffer */) {
     ATRACE_CALL();
-    mFboHeight = 0;
 
     // back to main framebuffer
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -917,7 +940,14 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
             }
             setSourceDataSpace(layer.sourceDataspace);
 
-            drawMesh(mesh);
+            // We only want to do a special handling for rounded corners when having rounded corners
+            // is the only reason it needs to turn on blending, otherwise, we handle it like the
+            // usual way since it needs to turn on blending anyway.
+            if (layer.geometry.roundedCornersRadius > 0.0 && color.a >= 1.0f && isOpaque) {
+                handleRoundedCorners(display, layer, mesh);
+            } else {
+                drawMesh(mesh);
+            }
 
             // Cleanup if there's a buffer source
             if (layer.source.buffer.buffer != nullptr) {

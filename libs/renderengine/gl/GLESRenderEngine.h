@@ -69,8 +69,6 @@ public:
     void clearWithColor(float red, float green, float blue, float alpha) override;
     void fillRegionWithColor(const Region& region, float red, float green, float blue,
                              float alpha) override;
-    void setScissor(const Rect& region) override;
-    void disableScissor() override;
     void genTextures(size_t count, uint32_t* names) override;
     void deleteTextures(size_t count, uint32_t const* names) override;
     void bindExternalTextureImage(uint32_t texName, const Image& image) override;
@@ -141,6 +139,8 @@ private:
                                        Protection protection);
     static EGLSurface createDummyEglPbufferSurface(EGLDisplay display, EGLConfig config,
                                                    int hwcFormat, Protection protection);
+    void setScissor(const Rect& region);
+    void disableScissor();
     bool waitSync(EGLSyncKHR sync, EGLint flags);
 
     // A data space is considered HDR data space if it has BT2020 color space
@@ -155,6 +155,13 @@ private:
     // Computes the cropping window for the layer and sets up cropping
     // coordinates for the mesh.
     FloatRect setupLayerCropping(const LayerSettings& layer, Mesh& mesh);
+
+    // We do a special handling for rounded corners when it's possible to turn off blending
+    // for the majority of the layer. The rounded corners needs to turn on blending such that
+    // we can set the alpha value correctly, however, only the corners need this, and since
+    // blending is an expensive operation, we want to turn off blending when it's not necessary.
+    void handleRoundedCorners(const DisplaySettings& display, const LayerSettings& layer,
+                              const Mesh& mesh);
 
     EGLDisplay mEGLDisplay;
     EGLConfig mEGLConfig;
@@ -185,7 +192,6 @@ private:
     bool mInProtectedContext = false;
     // If set to true, then enables tracing flush() and finish() to systrace.
     bool mTraceGpuCompletion = false;
-    int32_t mFboHeight = 0;
     // Maximum size of mFramebufferImageCache. If more images would be cached, then (approximately)
     // the last recently used buffer should be kicked out.
     uint32_t mFramebufferImageCacheSize = 0;
