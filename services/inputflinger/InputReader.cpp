@@ -4314,7 +4314,8 @@ void TouchInputMapper::reportEventForStatistics(nsecs_t evdevTime) {
     nsecs_t timeSinceLastReport = now - mStatistics.lastReportTime;
     if (timeSinceLastReport > STATISTICS_REPORT_FREQUENCY) {
         android::util::stats_write(android::util::TOUCH_EVENT_REPORTED,
-                mStatistics.min, mStatistics.max, mStatistics.mean(), mStatistics.stdev());
+                mStatistics.min, mStatistics.max,
+                mStatistics.mean(), mStatistics.stdev(), mStatistics.count);
         mStatistics.reset(now);
     }
 }
