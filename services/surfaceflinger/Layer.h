@@ -433,10 +433,11 @@ public:
 
     bool isRemovedFromCurrentState() const;
 
-    void writeToProto(LayerProto* layerInfo,
-                      LayerVector::StateSet stateSet = LayerVector::StateSet::Drawing);
+    void writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet,
+                      uint32_t traceFlags = SurfaceTracing::TRACE_ALL);
 
-    void writeToProto(LayerProto* layerInfo, const sp<DisplayDevice>& displayDevice);
+    void writeToProto(LayerProto* layerInfo, const sp<DisplayDevice>& displayDevice,
+                      uint32_t traceFlags = SurfaceTracing::TRACE_ALL);
 
     virtual Geometry getActiveGeometry(const Layer::State& s) const { return s.active_legacy; }
     virtual uint32_t getActiveWidth(const Layer::State& s) const { return s.active_legacy.w; }

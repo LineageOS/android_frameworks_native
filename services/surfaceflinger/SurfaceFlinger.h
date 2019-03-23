@@ -895,7 +895,8 @@ private:
     void dumpBufferingStats(std::string& result) const;
     void dumpDisplayIdentificationData(std::string& result) const;
     void dumpWideColorInfo(std::string& result) const;
-    LayersProto dumpProtoInfo(LayerVector::StateSet stateSet) const;
+    LayersProto dumpProtoInfo(LayerVector::StateSet stateSet,
+                              uint32_t traceFlags = SurfaceTracing::TRACE_ALL) const;
     void withTracingLock(std::function<void()> operation) REQUIRES(mStateLock);
     LayersProto dumpVisibleLayersProtoInfo(const sp<DisplayDevice>& display) const;
 

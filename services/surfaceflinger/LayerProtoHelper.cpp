@@ -119,5 +119,41 @@ void LayerProtoHelper::writeToProto(const sp<GraphicBuffer>& buffer,
     }
 }
 
+void LayerProtoHelper::writeToProto(
+        const InputWindowInfo& inputInfo, const wp<Layer>& touchableRegionBounds,
+        std::function<InputWindowInfoProto*()> getInputWindowInfoProto) {
+    if (inputInfo.token == nullptr) {
+        return;
+    }
+
+    InputWindowInfoProto* proto = getInputWindowInfoProto();
+    proto->set_layout_params_flags(inputInfo.layoutParamsFlags);
+    proto->set_layout_params_type(inputInfo.layoutParamsType);
+
+    LayerProtoHelper::writeToProto({inputInfo.frameLeft, inputInfo.frameTop, inputInfo.frameRight,
+                                    inputInfo.frameBottom},
+                                   [&]() { return proto->mutable_frame(); });
+    LayerProtoHelper::writeToProto(inputInfo.touchableRegion,
+                                   [&]() { return proto->mutable_touchable_region(); });
+
+    proto->set_surface_inset(inputInfo.surfaceInset);
+    proto->set_visible(inputInfo.visible);
+    proto->set_can_receive_keys(inputInfo.canReceiveKeys);
+    proto->set_has_focus(inputInfo.hasFocus);
+    proto->set_has_wallpaper(inputInfo.hasWallpaper);
+
+    proto->set_global_scale_factor(inputInfo.globalScaleFactor);
+    proto->set_window_x_scale(inputInfo.windowXScale);
+    proto->set_window_y_scale(inputInfo.windowYScale);
+    proto->set_replace_touchable_region_with_crop(inputInfo.replaceTouchableRegionWithCrop);
+    auto cropLayer = touchableRegionBounds.promote();
+    if (cropLayer != nullptr) {
+        proto->set_crop_layer_id(cropLayer->sequence);
+        LayerProtoHelper::writeToProto(cropLayer->getScreenBounds(
+                                               false /* reduceTransparentRegion */),
+                                       [&]() { return proto->mutable_touchable_region_crop(); });
+    }
+}
+
 } // namespace surfaceflinger
 } // namespace android
