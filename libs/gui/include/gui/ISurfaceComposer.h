@@ -194,8 +194,7 @@ public:
      * of the buffer. The caller should pick the data space and pixel format
      * that it can consume.
      *
-     * At the moment, sourceCrop is ignored and is always set to the visible
-     * region (projected display viewport) of the screen.
+     * sourceCrop is the crop on the logical display.
      *
      * reqWidth and reqHeight specifies the size of the buffer.  When either
      * of them is 0, they are set to the size of the logical display viewport.

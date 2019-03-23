@@ -415,14 +415,14 @@ int32_t EventHub::getKeyCodeState(int32_t deviceId, int32_t keyCode) const {
 
     Device* device = getDeviceLocked(deviceId);
     if (device && device->hasValidFd() && device->keyMap.haveKeyLayout()) {
-        Vector<int32_t> scanCodes;
+        std::vector<int32_t> scanCodes;
         device->keyMap.keyLayoutMap->findScanCodesForKey(keyCode, &scanCodes);
         if (scanCodes.size() != 0) {
             uint8_t keyState[sizeof_bit_array(KEY_MAX + 1)];
             memset(keyState, 0, sizeof(keyState));
             if (ioctl(device->fd, EVIOCGKEY(sizeof(keyState)), keyState) >= 0) {
                 for (size_t i = 0; i < scanCodes.size(); i++) {
-                    int32_t sc = scanCodes.itemAt(i);
+                    int32_t sc = scanCodes[i];
                     if (sc >= 0 && sc <= KEY_MAX && test_bit(sc, keyState)) {
                         return AKEY_STATE_DOWN;
                     }
@@ -478,7 +478,7 @@ bool EventHub::markSupportedKeyCodes(int32_t deviceId, size_t numCodes,
 
     Device* device = getDeviceLocked(deviceId);
     if (device && device->keyMap.haveKeyLayout()) {
-        Vector<int32_t> scanCodes;
+        std::vector<int32_t> scanCodes;
         for (size_t codeIndex = 0; codeIndex < numCodes; codeIndex++) {
             scanCodes.clear();
 
@@ -609,13 +609,15 @@ void EventHub::setLedStateLocked(Device* device, int32_t led, bool on) {
 }
 
 void EventHub::getVirtualKeyDefinitions(int32_t deviceId,
-        Vector<VirtualKeyDefinition>& outVirtualKeys) const {
+        std::vector<VirtualKeyDefinition>& outVirtualKeys) const {
     outVirtualKeys.clear();
 
     AutoMutex _l(mLock);
     Device* device = getDeviceLocked(deviceId);
     if (device && device->virtualKeyMap) {
-        outVirtualKeys.appendVector(device->virtualKeyMap->getVirtualKeys());
+        const std::vector<VirtualKeyDefinition> virtualKeys =
+                device->virtualKeyMap->getVirtualKeys();
+        outVirtualKeys.insert(outVirtualKeys.end(), virtualKeys.begin(), virtualKeys.end());
     }
 }
 
@@ -1680,11 +1682,11 @@ bool EventHub::hasKeycodeLocked(Device* device, int keycode) const {
         return false;
     }
 
-    Vector<int32_t> scanCodes;
+    std::vector<int32_t> scanCodes;
     device->keyMap.keyLayoutMap->findScanCodesForKey(keycode, &scanCodes);
     const size_t N = scanCodes.size();
     for (size_t i=0; i<N && i<=KEY_MAX; i++) {
-        int32_t sc = scanCodes.itemAt(i);
+        int32_t sc = scanCodes[i];
         if (sc >= 0 && sc <= KEY_MAX && test_bit(sc, device->keyBitmask)) {
             return true;
         }

@@ -112,7 +112,7 @@ status_t VirtualKeyMap::Parser::parse() {
                         "width=%d, height=%d",
                         defn.scanCode, defn.centerX, defn.centerY, defn.width, defn.height);
 #endif
-                mMap->mVirtualKeys.push(defn);
+                mMap->mVirtualKeys.push_back(defn);
             } while (consumeFieldDelimiterAndSkipWhitespace());
 
             if (!mTokenizer->isEol()) {

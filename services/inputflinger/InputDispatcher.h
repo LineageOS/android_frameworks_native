@@ -23,8 +23,6 @@
 #include <input/InputTransport.h>
 #include <input/InputWindow.h>
 #include <input/ISetInputWindowsListener.h>
-#include <utils/KeyedVector.h>
-#include <utils/Vector.h>
 #include <utils/threads.h>
 #include <utils/Timers.h>
 #include <utils/RefBase.h>
@@ -315,7 +313,7 @@ public:
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual void setInputWindows(const Vector<sp<InputWindowHandle> >& inputWindowHandles,
+    virtual void setInputWindows(const std::vector<sp<InputWindowHandle> >& inputWindowHandles,
             int32_t displayId,
             const sp<ISetInputWindowsListener>& setInputWindowsListener = nullptr) = 0;
 
@@ -407,7 +405,7 @@ public:
             int32_t injectorPid, int32_t injectorUid, int32_t syncMode, int32_t timeoutMillis,
             uint32_t policyFlags);
 
-    virtual void setInputWindows(const Vector<sp<InputWindowHandle> >& inputWindowHandles,
+    virtual void setInputWindows(const std::vector<sp<InputWindowHandle> >& inputWindowHandles,
             int32_t displayId,
             const sp<ISetInputWindowsListener>& setInputWindowsListener = nullptr);
     virtual void setFocusedApplication(int32_t displayId,
@@ -762,7 +760,7 @@ private:
 
         // Synthesizes cancelation events for the current state and resets the tracked state.
         void synthesizeCancelationEvents(nsecs_t currentTime,
-                Vector<EventEntry*>& outEvents, const CancelationOptions& options);
+                std::vector<EventEntry*>& outEvents, const CancelationOptions& options);
 
         // Clears the current state.
         void clear();
@@ -815,8 +813,8 @@ private:
             void setPointers(const MotionEntry* entry);
         };
 
-        Vector<KeyMemento> mKeyMementos;
-        Vector<MotionMemento> mMotionMementos;
+        std::vector<KeyMemento> mKeyMementos;
+        std::vector<MotionMemento> mMotionMementos;
         KeyedVector<int32_t, int32_t> mFallbackKeys;
 
         ssize_t findKeyMemento(const KeyEntry* entry) const;
@@ -941,7 +939,7 @@ private:
     ssize_t getConnectionIndexLocked(const sp<InputChannel>& inputChannel) REQUIRES(mLock);
 
     // Input channels that will receive a copy of all input events sent to the provided display.
-    std::unordered_map<int32_t, Vector<sp<InputChannel>>> mMonitoringChannelsByDisplay
+    std::unordered_map<int32_t, std::vector<sp<InputChannel>>> mMonitoringChannelsByDisplay
             GUARDED_BY(mLock);
 
     // Event injection and synchronization.
@@ -998,10 +996,11 @@ private:
     bool mDispatchFrozen GUARDED_BY(mLock);
     bool mInputFilterEnabled GUARDED_BY(mLock);
 
-    std::unordered_map<int32_t, Vector<sp<InputWindowHandle>>> mWindowHandlesByDisplay
+    std::unordered_map<int32_t, std::vector<sp<InputWindowHandle>>> mWindowHandlesByDisplay
             GUARDED_BY(mLock);
     // Get window handles by display, return an empty vector if not found.
-    Vector<sp<InputWindowHandle>> getWindowHandlesLocked(int32_t displayId) const REQUIRES(mLock);
+    std::vector<sp<InputWindowHandle>> getWindowHandlesLocked(int32_t displayId) const
+            REQUIRES(mLock);
     sp<InputWindowHandle> getWindowHandleLocked(const sp<IBinder>& windowHandleToken) const
             REQUIRES(mLock);
     sp<InputChannel> getInputChannelLocked(const sp<IBinder>& windowToken) const REQUIRES(mLock);
@@ -1023,12 +1022,12 @@ private:
         int32_t deviceId; // id of the device that is currently down, others are rejected
         uint32_t source;  // source of the device that is current down, others are rejected
         int32_t displayId; // id to the display that currently has a touch, others are rejected
-        Vector<TouchedWindow> windows;
+        std::vector<TouchedWindow> windows;
 
         // This collects the portal windows that the touch has gone through. Each portal window
         // targets a display (embedded display for most cases). With this info, we can add the
         // monitoring channels of the displays touched.
-        Vector<sp<InputWindowHandle>> portalWindows;
+        std::vector<sp<InputWindowHandle>> portalWindows;
 
         TouchState();
         ~TouchState();
@@ -1069,7 +1068,7 @@ private:
             nsecs_t currentTime, MotionEntry* entry,
             DropReason* dropReason, nsecs_t* nextWakeupTime) REQUIRES(mLock);
     void dispatchEventLocked(nsecs_t currentTime, EventEntry* entry,
-            const Vector<InputTarget>& inputTargets) REQUIRES(mLock);
+            const std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
 
     void logOutboundKeyDetails(const char* prefix, const KeyEntry* entry);
     void logOutboundMotionDetails(const char* prefix, const MotionEntry* entry);
@@ -1105,15 +1104,15 @@ private:
 
     int32_t getTargetDisplayId(const EventEntry* entry);
     int32_t findFocusedWindowTargetsLocked(nsecs_t currentTime, const EventEntry* entry,
-            Vector<InputTarget>& inputTargets, nsecs_t* nextWakeupTime) REQUIRES(mLock);
+            std::vector<InputTarget>& inputTargets, nsecs_t* nextWakeupTime) REQUIRES(mLock);
     int32_t findTouchedWindowTargetsLocked(nsecs_t currentTime, const MotionEntry* entry,
-            Vector<InputTarget>& inputTargets, nsecs_t* nextWakeupTime,
+            std::vector<InputTarget>& inputTargets, nsecs_t* nextWakeupTime,
             bool* outConflictingPointerActions) REQUIRES(mLock);
 
     void addWindowTargetLocked(const sp<InputWindowHandle>& windowHandle,
-            int32_t targetFlags, BitSet32 pointerIds, Vector<InputTarget>& inputTargets)
+            int32_t targetFlags, BitSet32 pointerIds, std::vector<InputTarget>& inputTargets)
             REQUIRES(mLock);
-    void addMonitoringTargetsLocked(Vector<InputTarget>& inputTargets, int32_t displayId,
+    void addMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets, int32_t displayId,
             float xOffset = 0, float yOffset = 0) REQUIRES(mLock);
 
     void pokeUserActivityLocked(const EventEntry* eventEntry) REQUIRES(mLock);

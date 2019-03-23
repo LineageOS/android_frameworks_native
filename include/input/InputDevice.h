@@ -19,6 +19,7 @@
 
 #include <input/Input.h>
 #include <input/KeyCharacterMap.h>
+#include <vector>
 
 namespace android {
 
@@ -121,7 +122,7 @@ public:
     inline void setButtonUnderPad(bool hasButton) { mHasButtonUnderPad = hasButton; }
     inline bool hasButtonUnderPad() const { return mHasButtonUnderPad; }
 
-    inline const Vector<MotionRange>& getMotionRanges() const {
+    inline const std::vector<MotionRange>& getMotionRanges() const {
         return mMotionRanges;
     }
 
@@ -139,7 +140,7 @@ private:
     bool mHasVibrator;
     bool mHasButtonUnderPad;
 
-    Vector<MotionRange> mMotionRanges;
+    std::vector<MotionRange> mMotionRanges;
 };
 
 /* Types of input device configuration files. */

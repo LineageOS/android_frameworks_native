@@ -2906,13 +2906,13 @@ void SurfaceFlinger::updateInputFlinger() {
 }
 
 void SurfaceFlinger::updateInputWindowInfo() {
-    Vector<InputWindowInfo> inputHandles;
+    std::vector<InputWindowInfo> inputHandles;
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
         if (layer->hasInput()) {
             // When calculating the screen bounds we ignore the transparent region since it may
             // result in an unwanted offset.
-            inputHandles.add(layer->fillInputInfo());
+            inputHandles.push_back(layer->fillInputInfo());
         }
     });
 
@@ -3514,7 +3514,7 @@ bool SurfaceFlinger::flushTransactionQueues() {
                 break;
             }
             applyTransactionState(states, displays, flags, mPendingInputWindowCommands,
-                                  desiredPresentTime, postTime, privileged);
+                                  desiredPresentTime, postTime, privileged, /*isMainThread*/ true);
             transactionQueue.pop();
         }
 
@@ -3601,7 +3601,7 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
                                            const Vector<DisplayState>& displays, uint32_t flags,
                                            const InputWindowCommands& inputWindowCommands,
                                            const int64_t desiredPresentTime, const int64_t postTime,
-                                           bool privileged) {
+                                           bool privileged, bool isMainThread) {
     uint32_t transactionFlags = 0;
 
     if (flags & eAnimation) {
@@ -3665,7 +3665,12 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
         }
 
         mPendingSyncInputWindows = mPendingInputWindowCommands.syncInputWindows;
-        while (mTransactionPending || mPendingSyncInputWindows) {
+
+        // applyTransactionState can be called by either the main SF thread or by
+        // another process through setTransactionState.  While a given process may wish
+        // to wait on synchronous transactions, the main SF thread should never
+        // be blocked.  Therefore, we only wait if isMainThread is false.
+        while (!isMainThread && (mTransactionPending || mPendingSyncInputWindows)) {
             status_t err = mTransactionCV.waitRelative(mStateLock, s2ns(5));
             if (CC_UNLIKELY(err != NO_ERROR)) {
                 // just in case something goes wrong in SF, return to the
@@ -4639,13 +4644,14 @@ void SurfaceFlinger::dumpWideColorInfo(std::string& result) const {
     result.append("\n");
 }
 
-LayersProto SurfaceFlinger::dumpProtoInfo(LayerVector::StateSet stateSet) const {
+LayersProto SurfaceFlinger::dumpProtoInfo(LayerVector::StateSet stateSet,
+                                          uint32_t traceFlags) const {
     LayersProto layersProto;
     const bool useDrawing = stateSet == LayerVector::StateSet::Drawing;
     const State& state = useDrawing ? mDrawingState : mCurrentState;
     state.traverseInZOrder([&](Layer* layer) {
         LayerProto* layerProto = layersProto.add_layers();
-        layer->writeToProto(layerProto, stateSet);
+        layer->writeToProto(layerProto, stateSet, traceFlags);
     });
 
     return layersProto;
@@ -4988,9 +4994,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         code == IBinder::SYSPROPS_TRANSACTION) {
         return OK;
     }
-    // Numbers from 1000 to 1032 are currently use for backdoors. The code
+    // Numbers from 1000 to 1033 are currently used for backdoors. The code
     // in onTransact verifies that the user is root, and has access to use SF.
-    if (code >= 1000 && code <= 1032) {
+    if (code >= 1000 && code <= 1033) {
         ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
         return OK;
     }
@@ -5296,6 +5302,14 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             case 1032: {
                 n = data.readInt32();
                 mDebugEnableProtectedContent = n;
+                return NO_ERROR;
+            }
+            // Set trace flags
+            case 1033: {
+                n = data.readUint32();
+                ALOGD("Updating trace flags to 0x%x", n);
+                mTracing.setTraceFlags(n);
+                reply->writeInt32(NO_ERROR);
                 return NO_ERROR;
             }
         }

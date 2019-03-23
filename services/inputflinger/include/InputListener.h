@@ -221,7 +221,7 @@ public:
 
 private:
     sp<InputListenerInterface> mInnerListener;
-    Vector<NotifyArgs*> mArgsQueue;
+    std::vector<NotifyArgs*> mArgsQueue;
 };
 
 } // namespace android

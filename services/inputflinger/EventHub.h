@@ -228,7 +228,7 @@ public:
     virtual void setLedState(int32_t deviceId, int32_t led, bool on) = 0;
 
     virtual void getVirtualKeyDefinitions(int32_t deviceId,
-            Vector<VirtualKeyDefinition>& outVirtualKeys) const = 0;
+            std::vector<VirtualKeyDefinition>& outVirtualKeys) const = 0;
 
     virtual sp<KeyCharacterMap> getKeyCharacterMap(int32_t deviceId) const = 0;
     virtual bool setKeyboardLayoutOverlay(int32_t deviceId, const sp<KeyCharacterMap>& map) = 0;
@@ -304,7 +304,7 @@ public:
     virtual void setLedState(int32_t deviceId, int32_t led, bool on);
 
     virtual void getVirtualKeyDefinitions(int32_t deviceId,
-            Vector<VirtualKeyDefinition>& outVirtualKeys) const;
+            std::vector<VirtualKeyDefinition>& outVirtualKeys) const;
 
     virtual sp<KeyCharacterMap> getKeyCharacterMap(int32_t deviceId) const;
     virtual bool setKeyboardLayoutOverlay(int32_t deviceId, const sp<KeyCharacterMap>& map);

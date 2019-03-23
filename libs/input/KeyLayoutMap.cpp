@@ -120,11 +120,12 @@ const KeyLayoutMap::Key* KeyLayoutMap::getKey(int32_t scanCode, int32_t usageCod
     return nullptr;
 }
 
-status_t KeyLayoutMap::findScanCodesForKey(int32_t keyCode, Vector<int32_t>* outScanCodes) const {
+status_t KeyLayoutMap::findScanCodesForKey(
+        int32_t keyCode, std::vector<int32_t>* outScanCodes) const {
     const size_t N = mKeysByScanCode.size();
     for (size_t i=0; i<N; i++) {
         if (mKeysByScanCode.valueAt(i).keyCode == keyCode) {
-            outScanCodes->add(mKeysByScanCode.keyAt(i));
+            outScanCodes->push_back(mKeysByScanCode.keyAt(i));
         }
     }
     return NO_ERROR;

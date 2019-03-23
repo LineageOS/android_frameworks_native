@@ -30,7 +30,7 @@ public:
     explicit BpInputFlinger(const sp<IBinder>& impl) :
             BpInterface<IInputFlinger>(impl) { }
 
-    virtual void setInputWindows(const Vector<InputWindowInfo>& inputInfo,
+    virtual void setInputWindows(const std::vector<InputWindowInfo>& inputInfo,
             const sp<ISetInputWindowsListener>& setInputWindowsListener) {
         Parcel data, reply;
         data.writeInterfaceToken(IInputFlinger::getInterfaceDescriptor());
@@ -81,10 +81,9 @@ status_t BnInputFlinger::onTransact(
         if (count > data.dataSize()) {
             return BAD_VALUE;
         }
-        Vector<InputWindowInfo> handles;
-        handles.setCapacity(count);
+        std::vector<InputWindowInfo> handles;
         for (size_t i = 0; i < count; i++) {
-            handles.add(InputWindowInfo(data));
+            handles.push_back(InputWindowInfo::read(data));
         }
         const sp<ISetInputWindowsListener> setInputWindowsListener =
                 ISetInputWindowsListener::asInterface(data.readStrongBinder());

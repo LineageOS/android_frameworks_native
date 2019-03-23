@@ -327,16 +327,21 @@ protected:
 
     void CompileSecondaryDex(const std::string& path, int32_t dex_storage_flag,
             bool should_binder_call_succeed, bool should_dex_be_compiled = true,
-            /*out */ binder::Status* binder_result = nullptr, int32_t uid = -1) {
+            /*out */ binder::Status* binder_result = nullptr, int32_t uid = -1,
+            const char* class_loader_context = nullptr) {
         if (uid == -1) {
             uid = kTestAppUid;
+        }
+        if (class_loader_context == nullptr) {
+            class_loader_context = "&";
         }
         std::unique_ptr<std::string> package_name_ptr(new std::string(package_name_));
         int32_t dexopt_needed = 0;  // does not matter;
         std::unique_ptr<std::string> out_path = nullptr;  // does not matter
         int32_t dex_flags = DEXOPT_SECONDARY_DEX | dex_storage_flag;
         std::string compiler_filter = "speed-profile";
-        std::unique_ptr<std::string> class_loader_context_ptr(new std::string("&"));
+        std::unique_ptr<std::string> class_loader_context_ptr(
+                new std::string(class_loader_context));
         std::unique_ptr<std::string> se_info_ptr(new std::string(se_info_));
         bool downgrade = false;
         int32_t target_sdk_version = 0;  // default
@@ -555,10 +560,24 @@ TEST_F(DexoptTest, DexoptSecondaryCeLink) {
         /*binder_ok*/ true, /*compile_ok*/ true);
 }
 
+TEST_F(DexoptTest, DexoptSecondaryCeWithContext) {
+    LOG(INFO) << "DexoptSecondaryCeWithContext";
+    std::string class_loader_context = "PCL[" + secondary_dex_ce_ + "]";
+    CompileSecondaryDex(secondary_dex_ce_, DEXOPT_STORAGE_CE,
+        /*binder_ok*/ true, /*compile_ok*/ true, nullptr, -1, class_loader_context.c_str());
+}
+
 TEST_F(DexoptTest, DexoptSecondaryDe) {
     LOG(INFO) << "DexoptSecondaryDe";
     CompileSecondaryDex(secondary_dex_de_, DEXOPT_STORAGE_DE,
         /*binder_ok*/ true, /*compile_ok*/ true);
+}
+
+TEST_F(DexoptTest, DexoptSecondaryDeWithContext) {
+    LOG(INFO) << "DexoptSecondaryDeWithContext";
+    std::string class_loader_context = "PCL[" + secondary_dex_de_ + "]";
+    CompileSecondaryDex(secondary_dex_de_, DEXOPT_STORAGE_DE,
+        /*binder_ok*/ true, /*compile_ok*/ true, nullptr, -1, class_loader_context.c_str());
 }
 
 TEST_F(DexoptTest, DexoptSecondaryDoesNotExist) {
@@ -576,7 +595,7 @@ TEST_F(DexoptTest, DexoptSecondaryStorageValidationError) {
     CompileSecondaryDex(secondary_dex_ce_, DEXOPT_STORAGE_DE,
         /*binder_ok*/ false,  /*compile_ok*/ false, &status);
     EXPECT_STREQ(status.toString8().c_str(),
-                 "Status(-8): '-1: Dexoptanalyzer path validation failed'");
+                 "Status(-8, EX_SERVICE_SPECIFIC): '-1: Dexoptanalyzer path validation failed'");
 }
 
 TEST_F(DexoptTest, DexoptSecondaryAppOwnershipValidationError) {
@@ -585,7 +604,7 @@ TEST_F(DexoptTest, DexoptSecondaryAppOwnershipValidationError) {
     CompileSecondaryDex("/data/data/random.app/secondary.jar", DEXOPT_STORAGE_CE,
         /*binder_ok*/ false,  /*compile_ok*/ false, &status);
     EXPECT_STREQ(status.toString8().c_str(),
-                 "Status(-8): '-1: Dexoptanalyzer path validation failed'");
+                 "Status(-8, EX_SERVICE_SPECIFIC): '-1: Dexoptanalyzer path validation failed'");
 }
 
 TEST_F(DexoptTest, DexoptSecondaryAcessViaDifferentUidError) {
@@ -593,7 +612,8 @@ TEST_F(DexoptTest, DexoptSecondaryAcessViaDifferentUidError) {
     binder::Status status;
     CompileSecondaryDex(secondary_dex_ce_, DEXOPT_STORAGE_CE,
         /*binder_ok*/ false,  /*compile_ok*/ false, &status, kSystemUid);
-    EXPECT_STREQ(status.toString8().c_str(), "Status(-8): '-1: Dexoptanalyzer open zip failed'");
+    EXPECT_STREQ(status.toString8().c_str(),
+                 "Status(-8, EX_SERVICE_SPECIFIC): '-1: Dexoptanalyzer open zip failed'");
 }
 
 TEST_F(DexoptTest, DexoptPrimaryPublic) {
@@ -615,7 +635,7 @@ TEST_F(DexoptTest, DexoptPrimaryFailedInvalidFilter) {
                           DEX2OAT_FROM_SCRATCH,
                           &status);
     EXPECT_STREQ(status.toString8().c_str(),
-                 "Status(-8): \'256: Dex2oat invocation for "
+                 "Status(-8, EX_SERVICE_SPECIFIC): \'256: Dex2oat invocation for "
                  "/data/app/com.installd.test.dexopt/base.jar failed: unspecified dex2oat error'");
 }
 

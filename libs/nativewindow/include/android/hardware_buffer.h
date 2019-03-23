@@ -506,6 +506,18 @@ int AHardwareBuffer_recvHandleFromUnixSocket(int socketFd, AHardwareBuffer** out
  */
 int AHardwareBuffer_isSupported(const AHardwareBuffer_Desc* desc) __INTRODUCED_IN(29);
 
+/**
+ * Lock an AHardwareBuffer for direct CPU access.
+ *
+ * This function is the same as the above lock function, but passes back
+ * additional information about the bytes per pixel and the bytes per stride
+ * of the locked buffer.  If the bytes per pixel or bytes per stride are unknown
+ * or variable, or if the underlying mapper implementation does not support returning
+ * additional information, then this call will fail with INVALID_OPERATION
+ */
+int AHardwareBuffer_lockAndGetInfo(AHardwareBuffer* buffer, uint64_t usage,
+        int32_t fence, const ARect* rect, void** outVirtualAddress,
+        int32_t* outBytesPerPixel, int32_t* outBytesPerStride) __INTRODUCED_IN(29);
 #endif // __ANDROID_API__ >= 29
 
 __END_DECLS

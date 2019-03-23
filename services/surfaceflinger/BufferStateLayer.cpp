@@ -139,7 +139,6 @@ Rect BufferStateLayer::getCrop(const Layer::State& /*s*/) const {
 
 bool BufferStateLayer::setTransform(uint32_t transform) {
     if (mCurrentState.transform == transform) return false;
-    mCurrentState.sequence++;
     mCurrentState.transform = transform;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
@@ -170,7 +169,6 @@ bool BufferStateLayer::setCrop(const Rect& crop) {
     }
 
     if (mCurrentState.crop == c) return false;
-    mCurrentState.sequence++;
     mCurrentState.crop = c;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
@@ -242,7 +240,6 @@ bool BufferStateLayer::setDataspace(ui::Dataspace dataspace) {
 
 bool BufferStateLayer::setHdrMetadata(const HdrMetadata& hdrMetadata) {
     if (mCurrentState.hdrMetadata == hdrMetadata) return false;
-    mCurrentState.sequence++;
     mCurrentState.hdrMetadata = hdrMetadata;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
@@ -250,7 +247,6 @@ bool BufferStateLayer::setHdrMetadata(const HdrMetadata& hdrMetadata) {
 }
 
 bool BufferStateLayer::setSurfaceDamageRegion(const Region& surfaceDamage) {
-    mCurrentState.sequence++;
     mCurrentState.surfaceDamageRegion = surfaceDamage;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
@@ -259,7 +255,6 @@ bool BufferStateLayer::setSurfaceDamageRegion(const Region& surfaceDamage) {
 
 bool BufferStateLayer::setApi(int32_t api) {
     if (mCurrentState.api == api) return false;
-    mCurrentState.sequence++;
     mCurrentState.api = api;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
@@ -268,7 +263,6 @@ bool BufferStateLayer::setApi(int32_t api) {
 
 bool BufferStateLayer::setSidebandStream(const sp<NativeHandle>& sidebandStream) {
     if (mCurrentState.sidebandStream == sidebandStream) return false;
-    mCurrentState.sequence++;
     mCurrentState.sidebandStream = sidebandStream;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
@@ -551,6 +545,8 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
     mFlinger->mTimeStats->setAcquireFence(layerID, getFrameNumber(), getCurrentFenceTime());
     mFlinger->mTimeStats->setLatchTime(layerID, getFrameNumber(), latchTime);
 
+    mCurrentStateModified = false;
+
     return NO_ERROR;
 }
 
@@ -600,7 +596,6 @@ void BufferStateLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display)
               s.buffer->handle, to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
-    mCurrentStateModified = false;
     mFrameNumber++;
 }
 

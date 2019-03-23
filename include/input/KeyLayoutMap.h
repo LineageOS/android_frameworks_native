@@ -66,7 +66,7 @@ public:
 
     status_t mapKey(int32_t scanCode, int32_t usageCode,
             int32_t* outKeyCode, uint32_t* outFlags) const;
-    status_t findScanCodesForKey(int32_t keyCode, Vector<int32_t>* outScanCodes) const;
+    status_t findScanCodesForKey(int32_t keyCode, std::vector<int32_t>* outScanCodes) const;
     status_t findScanCodeForLed(int32_t ledCode, int32_t* outScanCode) const;
     status_t findUsageCodeForLed(int32_t ledCode, int32_t* outUsageCode) const;
 
