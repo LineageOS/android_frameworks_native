@@ -76,7 +76,7 @@ GraphicBuffer::GraphicBuffer()
     usage_deprecated = 0;
     usage  = 0;
     layerCount = 0;
-    handle = NULL;
+    handle = nullptr;
 }
 
 // deprecated
@@ -143,7 +143,7 @@ void GraphicBuffer::free_handle()
         GraphicBufferAllocator& allocator(GraphicBufferAllocator::get());
         allocator.free(handle);
     }
-    handle = NULL;
+    handle = nullptr;
 }
 
 status_t GraphicBuffer::initCheck() const {
@@ -178,7 +178,7 @@ status_t GraphicBuffer::reallocate(uint32_t inWidth, uint32_t inHeight,
     if (handle) {
         GraphicBufferAllocator& allocator(GraphicBufferAllocator::get());
         allocator.free(handle);
-        handle = 0;
+        handle = nullptr;
     }
     return initWithSize(inWidth, inHeight, inFormat, inLayerCount, inUsage, "[Reallocation]");
 }
@@ -452,7 +452,7 @@ status_t GraphicBuffer::unflatten(
         width = height = stride = format = usage_deprecated = 0;
         layerCount = 0;
         usage = 0;
-        handle = NULL;
+        handle = nullptr;
         ALOGE("unflatten: numFds or numInts is too large: %zd, %zd", numFds, numInts);
         return BAD_VALUE;
     }
@@ -486,7 +486,7 @@ status_t GraphicBuffer::unflatten(
             width = height = stride = format = usage_deprecated = 0;
             layerCount = 0;
             usage = 0;
-            handle = NULL;
+            handle = nullptr;
             ALOGE("unflatten: native_handle_create failed");
             return NO_MEMORY;
         }
@@ -497,7 +497,7 @@ status_t GraphicBuffer::unflatten(
         width = height = stride = format = usage_deprecated = 0;
         layerCount = 0;
         usage = 0;
-        handle = NULL;
+        handle = nullptr;
     }
 
     mId = static_cast<uint64_t>(buf[7]) << 32;
@@ -507,7 +507,7 @@ status_t GraphicBuffer::unflatten(
 
     mOwner = ownHandle;
 
-    if (handle != 0) {
+    if (handle != nullptr) {
         buffer_handle_t importedHandle;
         status_t err = mBufferMapper.importBuffer(handle, uint32_t(width), uint32_t(height),
                 uint32_t(layerCount), format, usage, uint32_t(stride), &importedHandle);
@@ -515,7 +515,7 @@ status_t GraphicBuffer::unflatten(
             width = height = stride = format = usage_deprecated = 0;
             layerCount = 0;
             usage = 0;
-            handle = NULL;
+            handle = nullptr;
             ALOGE("unflatten: registerBuffer failed: %s (%d)", strerror(-err), err);
             return err;
         }
