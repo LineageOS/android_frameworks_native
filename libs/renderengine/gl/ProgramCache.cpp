@@ -102,14 +102,21 @@ void ProgramCache::primeCache(EGLContext context, bool useColorManagement) {
     // Prime for sRGB->P3 conversion
     if (useColorManagement) {
         Key shaderKey;
-        shaderKey.set(Key::BLEND_MASK | Key::TEXTURE_MASK | Key::OUTPUT_TRANSFORM_MATRIX_MASK |
-                              Key::INPUT_TF_MASK | Key::OUTPUT_TF_MASK,
-                      Key::BLEND_PREMULT | Key::TEXTURE_EXT | Key::OUTPUT_TRANSFORM_MATRIX_ON |
-                              Key::INPUT_TF_SRGB | Key::OUTPUT_TF_SRGB);
-        for (int i = 0; i < 4; i++) {
+        shaderKey.set(Key::BLEND_MASK | Key::OUTPUT_TRANSFORM_MATRIX_MASK | Key::INPUT_TF_MASK |
+                              Key::OUTPUT_TF_MASK,
+                      Key::BLEND_PREMULT | Key::OUTPUT_TRANSFORM_MATRIX_ON | Key::INPUT_TF_SRGB |
+                              Key::OUTPUT_TF_SRGB);
+        for (int i = 0; i < 16; i++) {
             shaderKey.set(Key::OPACITY_MASK,
                           (i & 1) ? Key::OPACITY_OPAQUE : Key::OPACITY_TRANSLUCENT);
             shaderKey.set(Key::ALPHA_MASK, (i & 2) ? Key::ALPHA_LT_ONE : Key::ALPHA_EQ_ONE);
+
+            // Cache rounded corners
+            shaderKey.set(Key::ROUNDED_CORNERS_MASK,
+                          (i & 4) ? Key::ROUNDED_CORNERS_ON : Key::ROUNDED_CORNERS_OFF);
+
+            // Cache texture off option for window transition
+            shaderKey.set(Key::TEXTURE_MASK, (i & 8) ? Key::TEXTURE_EXT : Key::TEXTURE_OFF);
             if (cache.count(shaderKey) == 0) {
                 cache.emplace(shaderKey, generateProgram(shaderKey));
                 shaderCount++;
