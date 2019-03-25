@@ -95,7 +95,7 @@ status_t layer_state_t::write(Parcel& output) const
     }
 
     output.writeStrongBinder(cachedBuffer.token);
-    output.writeInt32(cachedBuffer.bufferId);
+    output.writeUint64(cachedBuffer.cacheId);
     output.writeParcelable(metadata);
 
     output.writeFloat(bgColorAlpha);
@@ -173,7 +173,7 @@ status_t layer_state_t::read(const Parcel& input)
     }
 
     cachedBuffer.token = input.readStrongBinder();
-    cachedBuffer.bufferId = input.readInt32();
+    cachedBuffer.cacheId = input.readUint64();
     input.readParcelable(&metadata);
 
     bgColorAlpha = input.readFloat();

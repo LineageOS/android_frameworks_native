@@ -133,6 +133,9 @@ GraphicBuffer::~GraphicBuffer()
     if (handle) {
         free_handle();
     }
+    for (auto& [callback, context] : mDeathCallbacks) {
+        callback(context, mId);
+    }
 }
 
 void GraphicBuffer::free_handle()
@@ -551,6 +554,10 @@ status_t GraphicBuffer::unflatten(void const*& buffer, size_t& size, int const*&
     fds += numFds;
     count -= numFds;
     return NO_ERROR;
+}
+
+void GraphicBuffer::addDeathCallback(GraphicBufferDeathCallback deathCallback, void* context) {
+    mDeathCallbacks.emplace_back(deathCallback, context);
 }
 
 #ifndef LIBUI_IN_VNDK
