@@ -281,6 +281,18 @@ private:
     uint32_t mGenerationNumber;
 
 #ifndef LIBUI_IN_VNDK
+    // Flatten this GraphicBuffer object if backed by BufferHubBuffer.
+    status_t flattenBufferHubBuffer(void*& buffer, size_t& size, int*& fds, size_t& count) const;
+
+    // Unflatten into BufferHubBuffer backed GraphicBuffer.
+    // Unflatten will fail if the original GraphicBuffer object is destructed. For instance, a
+    // GraphicBuffer backed by BufferHubBuffer_1 flatten in process/thread A, transport the token
+    // to process/thread B through a socket, BufferHubBuffer_1 dies and bufferhub invalidated the
+    // token. Race condition occurs between the invalidation of the token in bufferhub process and
+    // process/thread B trying to unflatten and import the buffer with that token.
+    status_t unflattenBufferHubBuffer(void const*& buffer, size_t& size, int const*& fds,
+                                      size_t& count);
+
     // Stores a BufferHubBuffer that handles buffer signaling, identification.
     std::unique_ptr<BufferHubBuffer> mBufferHubBuffer;
 #endif // LIBUI_IN_VNDK
