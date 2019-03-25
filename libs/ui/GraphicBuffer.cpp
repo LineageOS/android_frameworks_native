@@ -394,7 +394,7 @@ size_t GraphicBuffer::getFdCount() const {
 status_t GraphicBuffer::flatten(void*& buffer, size_t& size, int*& fds, size_t& count) const {
 #ifndef LIBUI_IN_VNDK
     if (mBufferHubBuffer != nullptr) {
-        return flattenBufferHubBuffer(buffer, size, fds, count);
+        return flattenBufferHubBuffer(buffer, size);
     }
 #endif
     size_t sizeNeeded = GraphicBuffer::getFlattenedSize();
@@ -437,6 +437,11 @@ status_t GraphicBuffer::flatten(void*& buffer, size_t& size, int*& fds, size_t& 
 
 status_t GraphicBuffer::unflatten(void const*& buffer, size_t& size, int const*& fds,
                                   size_t& count) {
+    // Check if size is not smaller than buf[0] is supposed to take.
+    if (size < sizeof(int)) {
+        return NO_MEMORY;
+    }
+
     int const* buf = static_cast<int const*>(buffer);
 
     // NOTE: it turns out that some media code generates a flattened GraphicBuffer manually!!!!!
@@ -450,7 +455,7 @@ status_t GraphicBuffer::unflatten(void const*& buffer, size_t& size, int const*&
         flattenWordCount = 12;
     } else if (buf[0] == 'BHBB') { // BufferHub backed buffer.
 #ifndef LIBUI_IN_VNDK
-        return unflattenBufferHubBuffer(buffer, size, fds, count);
+        return unflattenBufferHubBuffer(buffer, size);
 #else
         return BAD_TYPE;
 #endif
@@ -561,8 +566,7 @@ void GraphicBuffer::addDeathCallback(GraphicBufferDeathCallback deathCallback, v
 }
 
 #ifndef LIBUI_IN_VNDK
-status_t GraphicBuffer::flattenBufferHubBuffer(void*& buffer, size_t& size, int*& fds,
-                                               size_t& count) const {
+status_t GraphicBuffer::flattenBufferHubBuffer(void*& buffer, size_t& size) const {
     sp<NativeHandle> tokenHandle = mBufferHubBuffer->duplicate();
     if (tokenHandle == nullptr || tokenHandle->handle() == nullptr ||
         tokenHandle->handle()->numFds != 0) {
@@ -586,14 +590,10 @@ status_t GraphicBuffer::flattenBufferHubBuffer(void*& buffer, size_t& size, int*
     memcpy(buf + 2, tokenHandle->handle()->data, static_cast<size_t>(numIntsInToken) * sizeof(int));
     buf[2 + numIntsInToken] = static_cast<int32_t>(mGenerationNumber);
 
-    // Do not pass fds if it is BufferHubBuffer backed GraphicBuffer. Not modifying fds or count.
-    fds += 0;
-    count -= 0;
     return NO_ERROR;
 }
 
-status_t GraphicBuffer::unflattenBufferHubBuffer(void const*& buffer, size_t& size, int const*& fds,
-                                                 size_t& count) {
+status_t GraphicBuffer::unflattenBufferHubBuffer(void const*& buffer, size_t& size) {
     const int* buf = static_cast<const int*>(buffer);
     int numIntsInToken = buf[1];
     // Size needed for one label, one number of ints inside the token, one generation number and
@@ -627,10 +627,6 @@ status_t GraphicBuffer::unflattenBufferHubBuffer(void const*& buffer, size_t& si
     mBufferId = bufferHubBuffer->id();
     mBufferHubBuffer.reset(std::move(bufferHubBuffer.get()));
 
-    // BufferHubBuffer backed GraphicBuffer does not have flattened handle. Not modifying fds or
-    // count.
-    fds += 0;
-    count -= 0;
     return NO_ERROR;
 }
 
