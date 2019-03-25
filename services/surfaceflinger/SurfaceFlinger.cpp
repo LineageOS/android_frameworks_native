@@ -738,6 +738,7 @@ void SurfaceFlinger::init() {
     mRefreshRateStats =
             std::make_unique<scheduler::RefreshRateStats>(mRefreshRateConfigs[*display->getId()],
                                                           mTimeStats);
+    mRefreshRateStats->setConfigMode(getHwComposer().getActiveConfigIndex(*display->getId()));
 
     ALOGV("Done initializing");
 }
