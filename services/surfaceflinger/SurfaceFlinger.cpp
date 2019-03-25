@@ -1041,6 +1041,7 @@ bool SurfaceFlinger::performSetActiveConfig() NO_THREAD_SAFETY_ANALYSIS {
         // on both cases there is nothing left to do
         std::lock_guard<std::mutex> lock(mActiveConfigLock);
         mScheduler->pauseVsyncCallback(mAppConnectionHandle, false);
+        mDesiredActiveConfig.event = Scheduler::ConfigEvent::None;
         mDesiredActiveConfigChanged = false;
         ATRACE_INT("DesiredActiveConfigChanged", mDesiredActiveConfigChanged);
         return false;
@@ -5805,30 +5806,14 @@ void SurfaceFlinger::setAllowedDisplayConfigsInternal(
         mAllowedConfigs[*displayId] = std::move(allowedConfigs);
     }
 
-    // make sure that the current config is still allowed
-    int currentConfigIndex = getHwComposer().getActiveConfigIndex(*displayId);
-    if (!isConfigAllowed(*displayId, currentConfigIndex)) {
-        for (const auto& [type, config] : mRefreshRateConfigs[*displayId]->getRefreshRates()) {
-            if (config && isConfigAllowed(*displayId, config->configId)) {
-                // TODO: we switch to the first allowed config. In the future
-                // we may want to enhance this logic to pick a similar config
-                // to the current one
-                ALOGV("Old config is not allowed - switching to config %d", config->configId);
-                setDesiredActiveConfig(displayToken, config->configId,
-                                       Scheduler::ConfigEvent::Changed);
-                break;
-            }
-        }
-    }
-
-    // If idle timer and fps detection are disabled and we are in RefreshRateType::DEFAULT,
-    // there is no trigger to move to RefreshRateType::PERFORMANCE, even if it is an allowed.
-    if (!mScheduler->isIdleTimerEnabled() && !mUseSmart90ForVideo) {
-        const auto& performanceRefreshRate =
-                mRefreshRateConfigs[*displayId]->getRefreshRate(RefreshRateType::PERFORMANCE);
-        if (performanceRefreshRate &&
-            isConfigAllowed(*displayId, performanceRefreshRate->configId)) {
-            setRefreshRateTo(RefreshRateType::PERFORMANCE, Scheduler::ConfigEvent::Changed);
+    // Set the highest allowed config by iterating backwards on available refresh rates
+    const auto& refreshRates = mRefreshRateConfigs[*displayId]->getRefreshRates();
+    for (auto iter = refreshRates.crbegin(); iter != refreshRates.crend(); ++iter) {
+        if (iter->second && isConfigAllowed(*displayId, iter->second->configId)) {
+            ALOGV("switching to config %d", iter->second->configId);
+            setDesiredActiveConfig(displayToken, iter->second->configId,
+                                   Scheduler::ConfigEvent::Changed);
+            break;
         }
     }
 }

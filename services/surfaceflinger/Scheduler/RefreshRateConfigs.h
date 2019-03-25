@@ -57,7 +57,7 @@ public:
     }
     ~RefreshRateConfigs() = default;
 
-    const std::unordered_map<RefreshRateType, std::shared_ptr<RefreshRate>>& getRefreshRates() {
+    const std::map<RefreshRateType, std::shared_ptr<RefreshRate>>& getRefreshRates() {
         return mRefreshRates;
     }
     std::shared_ptr<RefreshRate> getRefreshRate(RefreshRateType type) {
@@ -120,7 +120,7 @@ private:
         }
     }
 
-    std::unordered_map<RefreshRateType, std::shared_ptr<RefreshRate>> mRefreshRates;
+    std::map<RefreshRateType, std::shared_ptr<RefreshRate>> mRefreshRates;
 };
 
 } // namespace scheduler
