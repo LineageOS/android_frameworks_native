@@ -1958,17 +1958,17 @@ void InputDispatcher::enqueueDispatchEntriesLocked(nsecs_t currentTime,
     bool wasEmpty = connection->outboundQueue.isEmpty();
 
     // Enqueue dispatch entries for the requested modes.
-    enqueueDispatchEntry(connection, eventEntry, inputTarget,
+    enqueueDispatchEntryLocked(connection, eventEntry, inputTarget,
             InputTarget::FLAG_DISPATCH_AS_HOVER_EXIT);
-    enqueueDispatchEntry(connection, eventEntry, inputTarget,
+    enqueueDispatchEntryLocked(connection, eventEntry, inputTarget,
             InputTarget::FLAG_DISPATCH_AS_OUTSIDE);
-    enqueueDispatchEntry(connection, eventEntry, inputTarget,
+    enqueueDispatchEntryLocked(connection, eventEntry, inputTarget,
             InputTarget::FLAG_DISPATCH_AS_HOVER_ENTER);
-    enqueueDispatchEntry(connection, eventEntry, inputTarget,
+    enqueueDispatchEntryLocked(connection, eventEntry, inputTarget,
             InputTarget::FLAG_DISPATCH_AS_IS);
-    enqueueDispatchEntry(connection, eventEntry, inputTarget,
+    enqueueDispatchEntryLocked(connection, eventEntry, inputTarget,
             InputTarget::FLAG_DISPATCH_AS_SLIPPERY_EXIT);
-    enqueueDispatchEntry(connection, eventEntry, inputTarget,
+    enqueueDispatchEntryLocked(connection, eventEntry, inputTarget,
             InputTarget::FLAG_DISPATCH_AS_SLIPPERY_ENTER);
 
     // If the outbound queue was previously empty, start the dispatch cycle going.
@@ -1977,7 +1977,7 @@ void InputDispatcher::enqueueDispatchEntriesLocked(nsecs_t currentTime,
     }
 }
 
-void InputDispatcher::enqueueDispatchEntry(
+void InputDispatcher::enqueueDispatchEntryLocked(
         const sp<Connection>& connection, EventEntry* eventEntry, const InputTarget* inputTarget,
         int32_t dispatchMode) {
     int32_t inputTargetFlags = inputTarget->flags;
@@ -2054,6 +2054,10 @@ void InputDispatcher::enqueueDispatchEntry(
             delete dispatchEntry;
             return; // skip the inconsistent event
         }
+
+        dispatchPointerDownOutsideFocusIfNecessary(motionEntry->source,
+                dispatchEntry->resolvedAction, inputTarget->inputChannel->getToken());
+
         break;
     }
     }
@@ -2066,6 +2070,32 @@ void InputDispatcher::enqueueDispatchEntry(
     // Enqueue the dispatch entry.
     connection->outboundQueue.enqueueAtTail(dispatchEntry);
     traceOutboundQueueLength(connection);
+
+}
+
+void InputDispatcher::dispatchPointerDownOutsideFocusIfNecessary(uint32_t source, int32_t action,
+        const sp<IBinder>& newToken) {
+    int32_t maskedAction = action & AMOTION_EVENT_ACTION_MASK;
+    if (source != AINPUT_SOURCE_CLASS_POINTER || maskedAction != AMOTION_EVENT_ACTION_DOWN) {
+        return;
+    }
+
+    sp<InputWindowHandle> inputWindowHandle = getWindowHandleLocked(newToken);
+    if (inputWindowHandle == nullptr) {
+        return;
+    }
+
+    int32_t displayId = inputWindowHandle->getInfo()->displayId;
+    sp<InputWindowHandle> focusedWindowHandle =
+            getValueByKey(mFocusedWindowHandlesByDisplay, displayId);
+
+    bool hasFocusChanged = !focusedWindowHandle || focusedWindowHandle->getToken() != newToken;
+
+    if (!hasFocusChanged) {
+        return;
+    }
+
+    // Dispatch onPointerDownOutsideFocus to the policy.
 }
 
 void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
@@ -2385,7 +2415,7 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
             target.inputChannel = connection->inputChannel;
             target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
 
-            enqueueDispatchEntry(connection, cancelationEventEntry, // increments ref
+            enqueueDispatchEntryLocked(connection, cancelationEventEntry, // increments ref
                     &target, InputTarget::FLAG_DISPATCH_AS_IS);
 
             cancelationEventEntry->release();

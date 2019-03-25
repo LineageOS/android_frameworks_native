@@ -1136,8 +1136,9 @@ private:
             EventEntry* eventEntry, const InputTarget* inputTarget) REQUIRES(mLock);
     void enqueueDispatchEntriesLocked(nsecs_t currentTime, const sp<Connection>& connection,
             EventEntry* eventEntry, const InputTarget* inputTarget) REQUIRES(mLock);
-    void enqueueDispatchEntry(const sp<Connection>& connection,
-            EventEntry* eventEntry, const InputTarget* inputTarget, int32_t dispatchMode);
+    void enqueueDispatchEntryLocked(const sp<Connection>& connection,
+            EventEntry* eventEntry, const InputTarget* inputTarget, int32_t dispatchMode)
+            REQUIRES(mLock);
     void startDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection)
             REQUIRES(mLock);
     void finishDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection,
@@ -1147,6 +1148,9 @@ private:
     void drainDispatchQueue(Queue<DispatchEntry>* queue);
     void releaseDispatchEntry(DispatchEntry* dispatchEntry);
     static int handleReceiveCallback(int fd, int events, void* data);
+    // The action sent should only be of type AMOTION_EVENT_*
+    void dispatchPointerDownOutsideFocusIfNecessary(uint32_t source, int32_t action,
+            const sp<IBinder>& newToken) REQUIRES(mLock);
 
     void synthesizeCancelationEventsForAllConnectionsLocked(
             const CancelationOptions& options) REQUIRES(mLock);
