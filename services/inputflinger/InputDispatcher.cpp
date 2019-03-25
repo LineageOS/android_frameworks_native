@@ -2055,7 +2055,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(
             return; // skip the inconsistent event
         }
 
-        dispatchPointerDownOutsideFocusIfNecessary(motionEntry->source,
+        dispatchPointerDownOutsideFocus(motionEntry->source,
                 dispatchEntry->resolvedAction, inputTarget->inputChannel->getToken());
 
         break;
@@ -2073,10 +2073,11 @@ void InputDispatcher::enqueueDispatchEntryLocked(
 
 }
 
-void InputDispatcher::dispatchPointerDownOutsideFocusIfNecessary(uint32_t source, int32_t action,
+void InputDispatcher::dispatchPointerDownOutsideFocus(uint32_t source, int32_t action,
         const sp<IBinder>& newToken) {
     int32_t maskedAction = action & AMOTION_EVENT_ACTION_MASK;
-    if (source != AINPUT_SOURCE_CLASS_POINTER || maskedAction != AMOTION_EVENT_ACTION_DOWN) {
+    uint32_t maskedSource = source & AINPUT_SOURCE_CLASS_MASK;
+    if (maskedSource != AINPUT_SOURCE_CLASS_POINTER || maskedAction != AMOTION_EVENT_ACTION_DOWN) {
         return;
     }
 
@@ -2095,7 +2096,9 @@ void InputDispatcher::dispatchPointerDownOutsideFocusIfNecessary(uint32_t source
         return;
     }
 
-    // Dispatch onPointerDownOutsideFocus to the policy.
+    CommandEntry* commandEntry = postCommandLocked(
+            & InputDispatcher::doOnPointerDownOutsideFocusLockedInterruptible);
+    commandEntry->newToken = newToken;
 }
 
 void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
@@ -3995,6 +3998,12 @@ void InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible(
         entry->interceptKeyWakeupTime = now() + delay;
     }
     entry->release();
+}
+
+void InputDispatcher::doOnPointerDownOutsideFocusLockedInterruptible(CommandEntry* commandEntry) {
+    mLock.unlock();
+    mPolicy->onPointerDownOutsideFocus(commandEntry->newToken);
+    mLock.lock();
 }
 
 void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(
