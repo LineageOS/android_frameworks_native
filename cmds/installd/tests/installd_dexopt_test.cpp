@@ -936,8 +936,7 @@ class ProfileTest : public DexoptTest {
   protected:
     void TransitionToSystemServer() {
         ASSERT_TRUE(DropCapabilities(kSystemUid, kSystemGid));
-        int32_t res = selinux_android_setcontext(
-                kSystemUid, true, se_info_.c_str(), "system_server");
+        int32_t res = selinux_android_setcon("u:r:system_server:s0");
         ASSERT_EQ(0, res) << "Failed to setcon " << strerror(errno);
     }
 
