@@ -781,6 +781,10 @@ status_t BnGraphicBufferProducer::onTransact(
             int result = dequeueBuffer(&buf, &fence, width, height, format, usage, &bufferAge,
                                        getTimestamps ? &frameTimestamps : nullptr);
 
+            if (fence == nullptr) {
+                ALOGE("dequeueBuffer returned a NULL fence, setting to Fence::NO_FENCE");
+                fence = Fence::NO_FENCE;
+            }
             reply->writeInt32(buf);
             reply->write(*fence);
             reply->writeUint64(bufferAge);
@@ -962,6 +966,10 @@ status_t BnGraphicBufferProducer::onTransact(
             if (result != NO_ERROR) {
                 ALOGE("getLastQueuedBuffer failed to write buffer: %d", result);
                 return result;
+            }
+            if (fence == nullptr) {
+                ALOGE("getLastQueuedBuffer returned a NULL fence, setting to Fence::NO_FENCE");
+                fence = Fence::NO_FENCE;
             }
             result = reply->write(*fence);
             if (result != NO_ERROR) {
