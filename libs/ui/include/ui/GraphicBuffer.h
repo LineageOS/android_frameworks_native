@@ -302,7 +302,7 @@ private:
 
 #ifndef LIBUI_IN_VNDK
     // Flatten this GraphicBuffer object if backed by BufferHubBuffer.
-    status_t flattenBufferHubBuffer(void*& buffer, size_t& size, int*& fds, size_t& count) const;
+    status_t flattenBufferHubBuffer(void*& buffer, size_t& size) const;
 
     // Unflatten into BufferHubBuffer backed GraphicBuffer.
     // Unflatten will fail if the original GraphicBuffer object is destructed. For instance, a
@@ -310,8 +310,7 @@ private:
     // to process/thread B through a socket, BufferHubBuffer_1 dies and bufferhub invalidated the
     // token. Race condition occurs between the invalidation of the token in bufferhub process and
     // process/thread B trying to unflatten and import the buffer with that token.
-    status_t unflattenBufferHubBuffer(void const*& buffer, size_t& size, int const*& fds,
-                                      size_t& count);
+    status_t unflattenBufferHubBuffer(void const*& buffer, size_t& size);
 
     // Stores a BufferHubBuffer that handles buffer signaling, identification.
     std::unique_ptr<BufferHubBuffer> mBufferHubBuffer;
