@@ -78,7 +78,14 @@ void SensorService::SensorEventConnection::resetWakeLockRefCount() {
 
 void SensorService::SensorEventConnection::dump(String8& result) {
     Mutex::Autolock _l(mConnectionLock);
-    result.appendFormat("\tOperating Mode: %s\n",mDataInjectionMode ? "DATA_INJECTION" : "NORMAL");
+    result.appendFormat("\tOperating Mode: ");
+    if (!mService->isWhiteListedPackage(getPackageName())) {
+        result.append("RESTRICTED\n");
+    } else if (mDataInjectionMode) {
+        result.append("DATA_INJECTION\n");
+    } else {
+        result.append("NORMAL\n");
+    }
     result.appendFormat("\t %s | WakeLockRefCount %d | uid %d | cache size %d | "
             "max cache size %d\n", mPackageName.string(), mWakeLockRefCount, mUid, mCacheSize,
             mMaxCacheSize);
