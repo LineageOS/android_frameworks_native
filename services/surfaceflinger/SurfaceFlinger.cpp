@@ -922,9 +922,6 @@ void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
     mDesiredActiveConfig.event = mDesiredActiveConfig.event | prevConfig;
 
     if (!mDesiredActiveConfigChanged) {
-        // This is the first time we set the desired
-        mScheduler->pauseVsyncCallback(mAppConnectionHandle, true);
-
         // This will trigger HWC refresh without resetting the idle timer.
         repaintEverythingForHWC();
     }
@@ -1000,8 +997,6 @@ bool SurfaceFlinger::performSetActiveConfig() {
         // display is not valid or we are already in the requested mode
         // on both cases there is nothing left to do
         std::lock_guard<std::mutex> lock(mActiveConfigLock);
-        mScheduler->pauseVsyncCallback(mAppConnectionHandle, false);
-        mDesiredActiveConfig.event = Scheduler::ConfigEvent::None;
         mDesiredActiveConfigChanged = false;
         ATRACE_INT("DesiredActiveConfigChanged", mDesiredActiveConfigChanged);
         return false;
@@ -1012,6 +1007,7 @@ bool SurfaceFlinger::performSetActiveConfig() {
     // Make sure the desired config is still allowed
     if (!isDisplayConfigAllowed(desiredActiveConfig.configId)) {
         std::lock_guard<std::mutex> lock(mActiveConfigLock);
+        mDesiredActiveConfig.event = Scheduler::ConfigEvent::None;
         mDesiredActiveConfig.configId = display->getActiveConfig();
         return false;
     }
