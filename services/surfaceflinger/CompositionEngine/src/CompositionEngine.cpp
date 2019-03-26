@@ -103,8 +103,8 @@ void CompositionEngine::updateCursorAsync(CompositionRefreshArgs& args) {
         for (auto& layer : output->getOutputLayersOrderedByZ()) {
             if (layer->isHardwareCursor()) {
                 // Latch the cursor composition state from each front-end layer.
-                layer->getLayerFE().latchCursorCompositionState(
-                        layer->getLayer().editState().frontEnd);
+                layer->getLayerFE().latchCursorCompositionState(layer->getLayer().editFEState());
+
                 layer->writeCursorPositionToHWC();
             }
         }

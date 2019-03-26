@@ -22,8 +22,8 @@
 #include <compositionengine/DisplayColorProfile.h>
 #include <compositionengine/Layer.h>
 #include <compositionengine/LayerFE.h>
+#include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/RenderSurface.h>
-#include <compositionengine/impl/LayerCompositionState.h>
 #include <compositionengine/impl/Output.h>
 #include <compositionengine/impl/OutputLayer.h>
 #include <renderengine/DisplaySettings.h>
@@ -249,7 +249,7 @@ bool Output::belongsInOutput(const compositionengine::Layer* layer) const {
         return false;
     }
 
-    const auto& layerFEState = layer->getState().frontEnd;
+    const auto& layerFEState = layer->getFEState();
     return belongsInOutput(layerFEState.layerStackId, layerFEState.internalOnly);
 }
 
@@ -400,12 +400,12 @@ std::unique_ptr<compositionengine::OutputLayer> Output::getOutputLayerIfVisible(
     // appear on multiple outputs.
     if (!coverage.latchedLayers.count(layerFE)) {
         coverage.latchedLayers.insert(layerFE);
-        layerFE->latchCompositionState(layer->editState().frontEnd,
+        layerFE->latchCompositionState(layer->editFEState(),
                                        compositionengine::LayerFE::StateSubset::BasicGeometry);
     }
 
     // Obtain a read-only reference to the front-end layer state
-    const auto& layerFEState = layer->getState().frontEnd;
+    const auto& layerFEState = layer->getFEState();
 
     // Only consider the layers on the given layer stack
     if (!belongsInOutput(layer.get())) {
@@ -572,7 +572,7 @@ void Output::setReleasedLayers(const compositionengine::CompositionRefreshArgs&)
 
 void Output::updateLayerStateFromFE(const CompositionRefreshArgs& args) const {
     for (auto& layer : mOutputLayersOrderedByZ) {
-        layer->getLayerFE().latchCompositionState(layer->getLayer().editState().frontEnd,
+        layer->getLayerFE().latchCompositionState(layer->getLayer().editFEState(),
                                                   args.updatingGeometryThisFrame
                                                           ? LayerFE::StateSubset::GeometryAndContent
                                                           : LayerFE::StateSubset::Content);
@@ -615,7 +615,7 @@ ui::Dataspace Output::getBestDataspace(ui::Dataspace* outHdrDataSpace,
     *outHdrDataSpace = ui::Dataspace::UNKNOWN;
 
     for (const auto& layer : mOutputLayersOrderedByZ) {
-        switch (layer->getLayer().getState().frontEnd.dataspace) {
+        switch (layer->getLayer().getFEState().dataspace) {
             case ui::Dataspace::V0_SCRGB:
             case ui::Dataspace::V0_SCRGB_LINEAR:
             case ui::Dataspace::BT2020:
@@ -631,8 +631,7 @@ ui::Dataspace Output::getBestDataspace(ui::Dataspace* outHdrDataSpace,
             case ui::Dataspace::BT2020_ITU_PQ:
                 bestDataSpace = ui::Dataspace::DISPLAY_P3;
                 *outHdrDataSpace = ui::Dataspace::BT2020_PQ;
-                *outIsHdrClientComposition =
-                        layer->getLayer().getState().frontEnd.forceClientComposition;
+                *outIsHdrClientComposition = layer->getLayer().getFEState().forceClientComposition;
                 break;
             case ui::Dataspace::BT2020_HLG:
             case ui::Dataspace::BT2020_ITU_HLG:
@@ -838,7 +837,7 @@ std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion
         bool needsProtected =
                 std::any_of(mOutputLayersOrderedByZ.begin(), mOutputLayersOrderedByZ.end(),
                             [](auto& layer) {
-                                return layer->getLayer().getState().frontEnd.hasProtectedContent;
+                                return layer->getLayer().getFEState().hasProtectedContent;
                             });
         if (needsProtected != renderEngine.isProtected()) {
             renderEngine.useProtectedContext(needsProtected);
@@ -892,7 +891,7 @@ std::vector<renderengine::LayerSettings> Output::generateClientCompositionReques
 
     for (auto& layer : mOutputLayersOrderedByZ) {
         const auto& layerState = layer->getState();
-        const auto& layerFEState = layer->getLayer().getState().frontEnd;
+        const auto& layerFEState = layer->getLayer().getFEState();
         auto& layerFE = layer->getLayerFE();
 
         const Region clip(viewportRegion.intersect(layerState.visibleRegion));

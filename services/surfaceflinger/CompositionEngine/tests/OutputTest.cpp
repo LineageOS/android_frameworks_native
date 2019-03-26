@@ -16,7 +16,7 @@
 
 #include <cmath>
 
-#include <compositionengine/impl/LayerCompositionState.h>
+#include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/impl/Output.h>
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
@@ -378,9 +378,9 @@ TEST_F(OutputTest, belongsInOutputFiltersAsExpected) {
 
 TEST_F(OutputTest, belongsInOutputFiltersLayersAsExpected) {
     StrictMock<mock::Layer> layer;
-    impl::LayerCompositionState layerState;
+    LayerFECompositionState layerFEState;
 
-    EXPECT_CALL(layer, getState()).WillRepeatedly(ReturnRef(layerState));
+    EXPECT_CALL(layer, getFEState()).WillRepeatedly(ReturnRef(layerFEState));
 
     const uint32_t layerStack1 = 123u;
     const uint32_t layerStack2 = 456u;
@@ -392,29 +392,29 @@ TEST_F(OutputTest, belongsInOutputFiltersLayersAsExpected) {
     EXPECT_FALSE(mOutput.belongsInOutput(nullptr));
 
     // A layer with no layerStack does not belong to it, internal-only or not.
-    layerState.frontEnd.layerStackId = std::nullopt;
-    layerState.frontEnd.internalOnly = false;
+    layerFEState.layerStackId = std::nullopt;
+    layerFEState.internalOnly = false;
     EXPECT_FALSE(mOutput.belongsInOutput(&layer));
 
-    layerState.frontEnd.layerStackId = std::nullopt;
-    layerState.frontEnd.internalOnly = true;
+    layerFEState.layerStackId = std::nullopt;
+    layerFEState.internalOnly = true;
     EXPECT_FALSE(mOutput.belongsInOutput(&layer));
 
     // Any layer with layerStack1 belongs to it, internal-only or not.
-    layerState.frontEnd.layerStackId = layerStack1;
-    layerState.frontEnd.internalOnly = false;
+    layerFEState.layerStackId = layerStack1;
+    layerFEState.internalOnly = false;
     EXPECT_TRUE(mOutput.belongsInOutput(&layer));
 
-    layerState.frontEnd.layerStackId = layerStack1;
-    layerState.frontEnd.internalOnly = true;
+    layerFEState.layerStackId = layerStack1;
+    layerFEState.internalOnly = true;
     EXPECT_TRUE(mOutput.belongsInOutput(&layer));
 
-    layerState.frontEnd.layerStackId = layerStack2;
-    layerState.frontEnd.internalOnly = true;
+    layerFEState.layerStackId = layerStack2;
+    layerFEState.internalOnly = true;
     EXPECT_FALSE(mOutput.belongsInOutput(&layer));
 
-    layerState.frontEnd.layerStackId = layerStack2;
-    layerState.frontEnd.internalOnly = false;
+    layerFEState.layerStackId = layerStack2;
+    layerFEState.internalOnly = false;
     EXPECT_FALSE(mOutput.belongsInOutput(&layer));
 
     // If the output accepts layerStack1 but not internal-only layers...
@@ -424,20 +424,20 @@ TEST_F(OutputTest, belongsInOutputFiltersLayersAsExpected) {
     EXPECT_FALSE(mOutput.belongsInOutput(nullptr));
 
     // Only non-internal layers with layerStack1 belong to it.
-    layerState.frontEnd.layerStackId = layerStack1;
-    layerState.frontEnd.internalOnly = false;
+    layerFEState.layerStackId = layerStack1;
+    layerFEState.internalOnly = false;
     EXPECT_TRUE(mOutput.belongsInOutput(&layer));
 
-    layerState.frontEnd.layerStackId = layerStack1;
-    layerState.frontEnd.internalOnly = true;
+    layerFEState.layerStackId = layerStack1;
+    layerFEState.internalOnly = true;
     EXPECT_FALSE(mOutput.belongsInOutput(&layer));
 
-    layerState.frontEnd.layerStackId = layerStack2;
-    layerState.frontEnd.internalOnly = true;
+    layerFEState.layerStackId = layerStack2;
+    layerFEState.internalOnly = true;
     EXPECT_FALSE(mOutput.belongsInOutput(&layer));
 
-    layerState.frontEnd.layerStackId = layerStack2;
-    layerState.frontEnd.internalOnly = false;
+    layerFEState.layerStackId = layerStack2;
+    layerFEState.internalOnly = false;
     EXPECT_FALSE(mOutput.belongsInOutput(&layer));
 }
 
@@ -732,8 +732,8 @@ TEST_F(GenerateClientCompositionRequestsTest, worksForLandscapeModeSplitScreen) 
     leftOutputLayerState.clearClientTarget = false;
     leftOutputLayerState.visibleRegion = Region{Rect{0, 0, 1000, 1000}};
 
-    impl::LayerCompositionState leftLayerState;
-    leftLayerState.frontEnd.isOpaque = true;
+    LayerFECompositionState leftLayerFEState;
+    leftLayerFEState.isOpaque = true;
 
     const half3 leftLayerColor{1.f, 0.f, 0.f};
     renderengine::LayerSettings leftLayerRESettings;
@@ -743,8 +743,8 @@ TEST_F(GenerateClientCompositionRequestsTest, worksForLandscapeModeSplitScreen) 
     rightOutputLayerState.clearClientTarget = false;
     rightOutputLayerState.visibleRegion = Region{Rect{1000, 0, 2000, 1000}};
 
-    impl::LayerCompositionState rightLayerState;
-    rightLayerState.frontEnd.isOpaque = true;
+    LayerFECompositionState rightLayerFEState;
+    rightLayerFEState.isOpaque = true;
 
     const half3 rightLayerColor{0.f, 1.f, 0.f};
     renderengine::LayerSettings rightLayerRESettings;
@@ -755,7 +755,7 @@ TEST_F(GenerateClientCompositionRequestsTest, worksForLandscapeModeSplitScreen) 
     EXPECT_CALL(*leftOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(leftLayerFE));
     EXPECT_CALL(*leftOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
     EXPECT_CALL(*leftOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
-    EXPECT_CALL(leftLayer, getState()).WillRepeatedly(ReturnRef(leftLayerState));
+    EXPECT_CALL(leftLayer, getFEState()).WillRepeatedly(ReturnRef(leftLayerFEState));
     EXPECT_CALL(leftLayerFE, prepareClientComposition(_)).WillOnce(Return(leftLayerRESettings));
 
     EXPECT_CALL(*rightOutputLayer, getState()).WillRepeatedly(ReturnRef(rightOutputLayerState));
@@ -763,7 +763,7 @@ TEST_F(GenerateClientCompositionRequestsTest, worksForLandscapeModeSplitScreen) 
     EXPECT_CALL(*rightOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(rightLayerFE));
     EXPECT_CALL(*rightOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
     EXPECT_CALL(*rightOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
-    EXPECT_CALL(rightLayer, getState()).WillRepeatedly(ReturnRef(rightLayerState));
+    EXPECT_CALL(rightLayer, getFEState()).WillRepeatedly(ReturnRef(rightLayerFEState));
     EXPECT_CALL(rightLayerFE, prepareClientComposition(_)).WillOnce(Return(rightLayerRESettings));
 
     Output::OutputLayers outputLayers;
@@ -806,15 +806,15 @@ TEST_F(GenerateClientCompositionRequestsTest, ignoresLayersThatDoNotIntersectWit
     outputLayerState.clearClientTarget = false;
     outputLayerState.visibleRegion = Region{Rect{3000, 0, 4000, 1000}};
 
-    impl::LayerCompositionState layerState;
-    layerState.frontEnd.isOpaque = true;
+    LayerFECompositionState layerFEState;
+    layerFEState.isOpaque = true;
 
     EXPECT_CALL(*outputLayer, getState()).WillRepeatedly(ReturnRef(outputLayerState));
     EXPECT_CALL(*outputLayer, getLayer()).WillRepeatedly(ReturnRef(layer));
     EXPECT_CALL(*outputLayer, getLayerFE()).WillRepeatedly(ReturnRef(layerFE));
     EXPECT_CALL(*outputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
     EXPECT_CALL(*outputLayer, needsFiltering()).WillRepeatedly(Return(false));
-    EXPECT_CALL(layer, getState()).WillRepeatedly(ReturnRef(layerState));
+    EXPECT_CALL(layer, getFEState()).WillRepeatedly(ReturnRef(layerFEState));
     EXPECT_CALL(layerFE, prepareClientComposition(_)).Times(0);
 
     Output::OutputLayers outputLayers;
@@ -861,15 +861,15 @@ TEST_F(GenerateClientCompositionRequestsTest, clearsDeviceLayesAfterFirst) {
     leftOutputLayerState.clearClientTarget = true;
     leftOutputLayerState.visibleRegion = Region{Rect{0, 0, 1000, 1000}};
 
-    impl::LayerCompositionState leftLayerState;
-    leftLayerState.frontEnd.isOpaque = true;
+    LayerFECompositionState leftLayerFEState;
+    leftLayerFEState.isOpaque = true;
 
     impl::OutputLayerCompositionState rightOutputLayerState;
     rightOutputLayerState.clearClientTarget = true;
     rightOutputLayerState.visibleRegion = Region{Rect{1000, 0, 2000, 1000}};
 
-    impl::LayerCompositionState rightLayerState;
-    rightLayerState.frontEnd.isOpaque = true;
+    LayerFECompositionState rightLayerFEState;
+    rightLayerFEState.isOpaque = true;
 
     const half3 rightLayerColor{0.f, 1.f, 0.f};
     renderengine::LayerSettings rightLayerRESettings;
@@ -881,14 +881,14 @@ TEST_F(GenerateClientCompositionRequestsTest, clearsDeviceLayesAfterFirst) {
     EXPECT_CALL(*leftOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(leftLayerFE));
     EXPECT_CALL(*leftOutputLayer, requiresClientComposition()).WillRepeatedly(Return(false));
     EXPECT_CALL(*leftOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
-    EXPECT_CALL(leftLayer, getState()).WillRepeatedly(ReturnRef(leftLayerState));
+    EXPECT_CALL(leftLayer, getFEState()).WillRepeatedly(ReturnRef(leftLayerFEState));
 
     EXPECT_CALL(*rightOutputLayer, getState()).WillRepeatedly(ReturnRef(rightOutputLayerState));
     EXPECT_CALL(*rightOutputLayer, getLayer()).WillRepeatedly(ReturnRef(rightLayer));
     EXPECT_CALL(*rightOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(rightLayerFE));
     EXPECT_CALL(*rightOutputLayer, requiresClientComposition()).WillRepeatedly(Return(false));
     EXPECT_CALL(*rightOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
-    EXPECT_CALL(rightLayer, getState()).WillRepeatedly(ReturnRef(rightLayerState));
+    EXPECT_CALL(rightLayer, getFEState()).WillRepeatedly(ReturnRef(rightLayerFEState));
     EXPECT_CALL(rightLayerFE, prepareClientComposition(_)).WillOnce(Return(rightLayerRESettings));
 
     Output::OutputLayers outputLayers;

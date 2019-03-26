@@ -19,7 +19,7 @@
 #include <memory>
 
 #include <compositionengine/Layer.h>
-#include <compositionengine/impl/LayerCompositionState.h>
+#include <compositionengine/LayerFECompositionState.h>
 #include <utils/RefBase.h>
 #include <utils/StrongPointer.h>
 
@@ -41,8 +41,8 @@ public:
 
     sp<LayerFE> getLayerFE() const override;
 
-    const LayerCompositionState& getState() const override;
-    LayerCompositionState& editState() override;
+    const LayerFECompositionState& getFEState() const override;
+    LayerFECompositionState& editFEState() override;
 
     void dump(std::string& result) const override;
 
@@ -50,7 +50,8 @@ private:
     const compositionengine::CompositionEngine& mCompositionEngine;
     const wp<LayerFE> mLayerFE;
 
-    LayerCompositionState mState;
+    // State obtained from calls to LayerFE::getCompositionState
+    LayerFECompositionState mFrontEndState;
 };
 
 std::shared_ptr<compositionengine::Layer> createLayer(const compositionengine::CompositionEngine&,
