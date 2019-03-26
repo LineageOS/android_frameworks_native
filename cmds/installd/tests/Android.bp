@@ -15,6 +15,7 @@ cc_test {
         "libinstalld",
         "liblog",
     ],
+    test_config: "installd_utils_test.xml",
 }
 
 cc_test {
@@ -39,6 +40,7 @@ cc_test {
         "liblog",
         "liblogwrap",
     ],
+    test_config: "installd_cache_test.xml",
 }
 
 cc_test {
@@ -63,6 +65,7 @@ cc_test {
         "liblog",
         "liblogwrap",
     ],
+    test_config: "installd_service_test.xml",
 }
 
 cc_test {
@@ -87,6 +90,7 @@ cc_test {
         "liblog",
         "liblogwrap",
     ],
+    test_config: "installd_dexopt_test.xml",
 }
 
 cc_test {
