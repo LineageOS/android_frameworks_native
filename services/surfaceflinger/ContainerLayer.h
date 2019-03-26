@@ -40,6 +40,7 @@ public:
     bool isCreatedFromMainThread() const override { return true; }
 
     bool onPreComposition(nsecs_t /*refreshStartTime*/) override { return false; }
+    Layer::RoundedCornerState getRoundedCornerStateInternal(const FloatRect bounds) const override;
 
 protected:
     bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
