@@ -68,7 +68,8 @@ public:
                                      const Vector<DisplayState>& displays, uint32_t flags,
                                      const sp<IBinder>& applyToken,
                                      const InputWindowCommands& commands,
-                                     int64_t desiredPresentTime) {
+                                     int64_t desiredPresentTime,
+                                     const cached_buffer_t& uncacheBuffer) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
 
@@ -86,6 +87,8 @@ public:
         data.writeStrongBinder(applyToken);
         commands.write(data);
         data.writeInt64(desiredPresentTime);
+        data.writeStrongBinder(uncacheBuffer.token);
+        data.writeUint64(uncacheBuffer.cacheId);
         remote()->transact(BnSurfaceComposer::SET_TRANSACTION_STATE, data, &reply);
     }
 
@@ -970,8 +973,13 @@ status_t BnSurfaceComposer::onTransact(
             inputWindowCommands.read(data);
 
             int64_t desiredPresentTime = data.readInt64();
+
+            cached_buffer_t uncachedBuffer;
+            uncachedBuffer.token = data.readStrongBinder();
+            uncachedBuffer.cacheId = data.readUint64();
+
             setTransactionState(state, displays, stateFlags, applyToken, inputWindowCommands,
-                                desiredPresentTime);
+                                desiredPresentTime, uncachedBuffer);
             return NO_ERROR;
         }
         case BOOT_FINISHED: {

@@ -431,7 +431,8 @@ private:
                              const Vector<DisplayState>& displays, uint32_t flags,
                              const sp<IBinder>& applyToken,
                              const InputWindowCommands& inputWindowCommands,
-                             int64_t desiredPresentTime) override;
+                             int64_t desiredPresentTime,
+                             const cached_buffer_t& uncacheBuffer) override;
     void bootFinished() override;
     bool authenticateSurfaceTexture(
             const sp<IGraphicBufferProducer>& bufferProducer) const override;
@@ -577,7 +578,8 @@ private:
     void applyTransactionState(const Vector<ComposerState>& state,
                                const Vector<DisplayState>& displays, uint32_t flags,
                                const InputWindowCommands& inputWindowCommands,
-                               const int64_t desiredPresentTime, const int64_t postTime,
+                               const int64_t desiredPresentTime,
+                               const cached_buffer_t& uncacheBuffer, const int64_t postTime,
                                bool privileged, bool isMainThread = false) REQUIRES(mStateLock);
     bool flushTransactionQueues();
     uint32_t getTransactionFlags(uint32_t flags);
@@ -1059,11 +1061,13 @@ private:
     struct TransactionState {
         TransactionState(const Vector<ComposerState>& composerStates,
                          const Vector<DisplayState>& displayStates, uint32_t transactionFlags,
-                         int64_t desiredPresentTime, int64_t postTime, bool privileged)
+                         int64_t desiredPresentTime, const cached_buffer_t& uncacheBuffer,
+                         int64_t postTime, bool privileged)
               : states(composerStates),
                 displays(displayStates),
                 flags(transactionFlags),
                 desiredPresentTime(desiredPresentTime),
+                buffer(uncacheBuffer),
                 postTime(postTime),
                 privileged(privileged) {}
 
@@ -1071,6 +1075,7 @@ private:
         Vector<DisplayState> displays;
         uint32_t flags;
         const int64_t desiredPresentTime;
+        cached_buffer_t buffer;
         const int64_t postTime;
         bool privileged;
     };
