@@ -76,7 +76,11 @@ status_t SurfaceStats::readFromParcel(const Parcel* input) {
 }
 
 status_t TransactionStats::writeToParcel(Parcel* output) const {
-    status_t err = output->writeInt64(latchTime);
+    status_t err = output->writeInt64Vector(callbackIds);
+    if (err != NO_ERROR) {
+        return err;
+    }
+    err = output->writeInt64(latchTime);
     if (err != NO_ERROR) {
         return err;
     }
@@ -96,7 +100,11 @@ status_t TransactionStats::writeToParcel(Parcel* output) const {
 }
 
 status_t TransactionStats::readFromParcel(const Parcel* input) {
-    status_t err = input->readInt64(&latchTime);
+    status_t err = input->readInt64Vector(&callbackIds);
+    if (err != NO_ERROR) {
+        return err;
+    }
+    err = input->readInt64(&latchTime);
     if (err != NO_ERROR) {
         return err;
     }
@@ -120,13 +128,8 @@ status_t ListenerStats::writeToParcel(Parcel* output) const {
     if (err != NO_ERROR) {
         return err;
     }
-
-    for (const auto& [callbackIds, stats] : transactionStats) {
+    for (const auto& stats : transactionStats) {
         err = output->writeParcelable(stats);
-        if (err != NO_ERROR) {
-            return err;
-        }
-        err = output->writeInt64Vector(callbackIds);
         if (err != NO_ERROR) {
             return err;
         }
@@ -139,18 +142,11 @@ status_t ListenerStats::readFromParcel(const Parcel* input) {
 
     for (int i = 0; i < transactionStats_size; i++) {
         TransactionStats stats;
-        std::vector<CallbackId> callbackIds;
-
         status_t err = input->readParcelable(&stats);
         if (err != NO_ERROR) {
             return err;
         }
-        err = input->readInt64Vector(&callbackIds);
-        if (err != NO_ERROR) {
-            return err;
-        }
-
-        transactionStats.emplace(callbackIds, stats);
+        transactionStats.push_back(stats);
     }
     return NO_ERROR;
 }
@@ -159,11 +155,8 @@ ListenerStats ListenerStats::createEmpty(const sp<ITransactionCompletedListener>
                                          const std::unordered_set<CallbackId>& callbackIds) {
     ListenerStats listenerStats;
     listenerStats.listener = listener;
-    TransactionStats transactionStats;
-    listenerStats.transactionStats.emplace(std::piecewise_construct,
-                                           std::forward_as_tuple(callbackIds.begin(),
-                                                                 callbackIds.end()),
-                                           std::forward_as_tuple(transactionStats));
+    listenerStats.transactionStats.emplace_back(callbackIds);
+
     return listenerStats;
 }
 
