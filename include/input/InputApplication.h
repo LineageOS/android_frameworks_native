@@ -50,19 +50,19 @@ struct InputApplicationInfo {
 class InputApplicationHandle : public RefBase {
 public:
     inline const InputApplicationInfo* getInfo() const {
-        return mInfo;
+        return &mInfo;
     }
 
     inline std::string getName() const {
-        return mInfo ? mInfo->name : "<invalid>";
+        return !mInfo.name.empty() ? mInfo.name : "<invalid>";
     }
 
     inline nsecs_t getDispatchingTimeout(nsecs_t defaultValue) const {
-        return mInfo ? mInfo->dispatchingTimeout : defaultValue;
+        return mInfo.token ? mInfo.dispatchingTimeout : defaultValue;
     }
 
     inline sp<IBinder> getApplicationToken() const {
-        return mInfo ? mInfo->token : nullptr;
+        return mInfo.token;
     }
 
     /**
@@ -75,18 +75,11 @@ public:
      * Returns true on success, or false if the handle is no longer valid.
      */
     virtual bool updateInfo() = 0;
-
-    /**
-     * Releases the storage used by the associated information when it is
-     * no longer needed.
-     */
-    void releaseInfo();
-
 protected:
     InputApplicationHandle();
     virtual ~InputApplicationHandle();
 
-    InputApplicationInfo* mInfo;
+    InputApplicationInfo mInfo;
 };
 
 } // namespace android

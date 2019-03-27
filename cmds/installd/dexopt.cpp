@@ -1564,7 +1564,7 @@ class RunDexoptAnalyzer : public ExecVHelper {
         if (vdex_fd >= 0) {
             AddArg(vdex_fd_arg);
         }
-        AddArg(zip_fd_arg.c_str());
+        AddArg(zip_fd_arg);
         if (profile_was_updated) {
             AddArg(assume_profile_changed);
         }
@@ -1572,9 +1572,9 @@ class RunDexoptAnalyzer : public ExecVHelper {
             AddArg(downgrade_flag);
         }
         if (class_loader_context != nullptr) {
-            AddArg(class_loader_context_arg.c_str());
+            AddArg(class_loader_context_arg);
             if (!class_loader_context_fds.empty()) {
-                AddArg(class_loader_context_fds_arg.c_str());
+                AddArg(class_loader_context_fds_arg);
             }
         }
 
@@ -2259,7 +2259,7 @@ bool reconcile_secondary_dex_file(const std::string& dex_path,
         drop_capabilities(uid);
 
         const char* volume_uuid_cstr = volume_uuid == nullptr ? nullptr : volume_uuid->c_str();
-        if (!validate_secondary_dex_path(pkgname.c_str(), dex_path.c_str(), volume_uuid_cstr,
+        if (!validate_secondary_dex_path(pkgname, dex_path, volume_uuid_cstr,
                 uid, storage_flag)) {
             LOG(ERROR) << "Could not validate secondary dex path " << dex_path;
             _exit(kReconcileSecondaryDexValidationError);

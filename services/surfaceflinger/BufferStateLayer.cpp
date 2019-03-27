@@ -585,10 +585,10 @@ void BufferStateLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display)
 
     const State& s(getDrawingState());
 
-    // obtain slot
-    uint32_t hwcSlot = 0;
+    uint32_t hwcSlot;
     sp<GraphicBuffer> buffer;
-    hwcInfo.hwcBufferCache.getHwcBuffer(s.buffer, &hwcSlot, &buffer);
+    hwcInfo.hwcBufferCache.getHwcBuffer(BufferQueue::INVALID_BUFFER_SLOT, s.buffer, &hwcSlot,
+                                        &buffer);
 
     auto error = hwcLayer->setBuffer(hwcSlot, buffer, s.acquireFence);
     if (error != HWC2::Error::None) {

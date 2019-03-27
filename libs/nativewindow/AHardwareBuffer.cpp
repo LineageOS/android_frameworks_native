@@ -96,7 +96,12 @@ void AHardwareBuffer_describe(const AHardwareBuffer* buffer,
 int AHardwareBuffer_lockAndGetInfo(AHardwareBuffer* buffer, uint64_t usage,
         int32_t fence, const ARect* rect, void** outVirtualAddress,
         int32_t* outBytesPerPixel, int32_t* outBytesPerStride) {
-    if (!buffer) return BAD_VALUE;
+    if (outBytesPerPixel) *outBytesPerPixel = -1;
+    if (outBytesPerStride) *outBytesPerStride = -1;
+
+    if (!buffer) {
+        return BAD_VALUE;
+    }
 
     if (usage & ~(AHARDWAREBUFFER_USAGE_CPU_READ_MASK |
                   AHARDWAREBUFFER_USAGE_CPU_WRITE_MASK)) {
@@ -127,15 +132,19 @@ int AHardwareBuffer_lockAndGetInfo(AHardwareBuffer* buffer, uint64_t usage,
     } else {
         bounds.set(Rect(rect->left, rect->top, rect->right, rect->bottom));
     }
-    int result = gbuffer->lockAsync(usage, usage, bounds, outVirtualAddress, fence, outBytesPerPixel, outBytesPerStride);
+    int32_t bytesPerPixel;
+    int32_t bytesPerStride;
+    int result = gbuffer->lockAsync(usage, usage, bounds, outVirtualAddress, fence, &bytesPerPixel, &bytesPerStride);
 
     // if hardware returns -1 for bytes per pixel or bytes per stride, we fail
     // and unlock the buffer
-    if (*outBytesPerPixel == -1 || *outBytesPerStride == -1) {
+    if (bytesPerPixel == -1 || bytesPerStride == -1) {
         gbuffer->unlock();
         return INVALID_OPERATION;
     }
 
+    if (outBytesPerPixel) *outBytesPerPixel = bytesPerPixel;
+    if (outBytesPerStride) *outBytesPerStride = bytesPerStride;
     return result;
 }
 

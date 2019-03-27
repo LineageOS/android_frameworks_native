@@ -171,7 +171,7 @@ binder::Status checkArgumentUuidTestOrNull(const std::unique_ptr<std::string>& u
 }
 
 binder::Status checkArgumentPackageName(const std::string& packageName) {
-    if (is_valid_package_name(packageName.c_str())) {
+    if (is_valid_package_name(packageName)) {
         return ok();
     } else {
         return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
