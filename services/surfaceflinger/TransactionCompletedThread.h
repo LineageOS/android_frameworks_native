@@ -64,6 +64,11 @@ public:
     // presented this frame.
     void addUnpresentedCallbackHandle(const sp<CallbackHandle>& handle);
 
+    // Adds listener and callbackIds in case there are no SurfaceControls that are supposed
+    // to be included in the callback.
+    void addCallback(const sp<ITransactionCompletedListener>& transactionListener,
+                     const std::vector<CallbackId>& callbackIds);
+
     void addPresentFence(const sp<Fence>& presentFence);
 
     void sendCallbacks();
@@ -71,7 +76,9 @@ public:
 private:
     void threadMain();
 
-    void addCallbackHandle(const sp<CallbackHandle>& handle) REQUIRES(mMutex);
+    status_t addCallbackHandle(const sp<CallbackHandle>& handle) REQUIRES(mMutex);
+    status_t addCallbackLocked(const sp<ITransactionCompletedListener>& transactionListener,
+                               const std::vector<CallbackId>& callbackIds) REQUIRES(mMutex);
 
     class ThreadDeathRecipient : public IBinder::DeathRecipient {
     public:

@@ -431,8 +431,8 @@ private:
                              const Vector<DisplayState>& displays, uint32_t flags,
                              const sp<IBinder>& applyToken,
                              const InputWindowCommands& inputWindowCommands,
-                             int64_t desiredPresentTime,
-                             const cached_buffer_t& uncacheBuffer) override;
+                             int64_t desiredPresentTime, const cached_buffer_t& uncacheBuffer,
+                             const std::vector<ListenerCallbacks>& listenerCallbacks) override;
     void bootFinished() override;
     bool authenticateSurfaceTexture(
             const sp<IGraphicBufferProducer>& bufferProducer) const override;
@@ -579,8 +579,10 @@ private:
                                const Vector<DisplayState>& displays, uint32_t flags,
                                const InputWindowCommands& inputWindowCommands,
                                const int64_t desiredPresentTime,
-                               const cached_buffer_t& uncacheBuffer, const int64_t postTime,
-                               bool privileged, bool isMainThread = false) REQUIRES(mStateLock);
+                               const cached_buffer_t& uncacheBuffer,
+                               const std::vector<ListenerCallbacks>& listenerCallbacks,
+                               const int64_t postTime, bool privileged, bool isMainThread = false)
+            REQUIRES(mStateLock);
     bool flushTransactionQueues();
     uint32_t getTransactionFlags(uint32_t flags);
     uint32_t peekTransactionFlags();
@@ -593,6 +595,7 @@ private:
     bool transactionIsReadyToBeApplied(int64_t desiredPresentTime,
                                        const Vector<ComposerState>& states);
     uint32_t setClientStateLocked(const ComposerState& composerState, int64_t desiredPresentTime,
+                                  const std::vector<ListenerCallbacks>& listenerCallbacks,
                                   int64_t postTime, bool privileged) REQUIRES(mStateLock);
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
     uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands)
@@ -1062,12 +1065,14 @@ private:
         TransactionState(const Vector<ComposerState>& composerStates,
                          const Vector<DisplayState>& displayStates, uint32_t transactionFlags,
                          int64_t desiredPresentTime, const cached_buffer_t& uncacheBuffer,
-                         int64_t postTime, bool privileged)
+                         const std::vector<ListenerCallbacks>& listenerCallbacks, int64_t postTime,
+                         bool privileged)
               : states(composerStates),
                 displays(displayStates),
                 flags(transactionFlags),
                 desiredPresentTime(desiredPresentTime),
                 buffer(uncacheBuffer),
+                callback(listenerCallbacks),
                 postTime(postTime),
                 privileged(privileged) {}
 
@@ -1076,6 +1081,7 @@ private:
         uint32_t flags;
         const int64_t desiredPresentTime;
         cached_buffer_t buffer;
+        std::vector<ListenerCallbacks> callback;
         const int64_t postTime;
         bool privileged;
     };

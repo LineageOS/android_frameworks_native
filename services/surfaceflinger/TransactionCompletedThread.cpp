@@ -100,26 +100,48 @@ void TransactionCompletedThread::addUnpresentedCallbackHandle(const sp<CallbackH
     addCallbackHandle(handle);
 }
 
-void TransactionCompletedThread::addCallbackHandle(const sp<CallbackHandle>& handle) {
-    const sp<IBinder> listener = IInterface::asBinder(handle->listener);
+void TransactionCompletedThread::addCallback(
+        const sp<ITransactionCompletedListener>& transactionListener,
+        const std::vector<CallbackId>& callbackIds) {
+    std::lock_guard lock(mMutex);
+    addCallbackLocked(transactionListener, callbackIds);
+}
 
+status_t TransactionCompletedThread::addCallbackHandle(const sp<CallbackHandle>& handle) {
+    status_t err = addCallbackLocked(handle->listener, handle->callbackIds);
+    if (err != NO_ERROR) {
+        ALOGE("cannot add callback, err: %d", err);
+        return err;
+    }
+
+    const sp<IBinder> listener = IInterface::asBinder(handle->listener);
+    auto& listenerStats = mListenerStats[listener];
+    auto& transactionStats = listenerStats.transactionStats[handle->callbackIds];
+
+    transactionStats.latchTime = handle->latchTime;
+    transactionStats.surfaceStats.emplace_back(handle->surfaceControl, handle->acquireTime,
+                                               handle->previousReleaseFence);
+    return NO_ERROR;
+}
+
+status_t TransactionCompletedThread::addCallbackLocked(
+        const sp<ITransactionCompletedListener>& transactionListener,
+        const std::vector<CallbackId>& callbackIds) {
+    const sp<IBinder> listener = IInterface::asBinder(transactionListener);
     // If we don't already have a reference to this listener, linkToDeath so we get a notification
     // if it dies.
     if (mListenerStats.count(listener) == 0) {
-        status_t error = listener->linkToDeath(mDeathRecipient);
-        if (error != NO_ERROR) {
-            ALOGE("cannot add callback handle because linkToDeath failed, err: %d", error);
-            return;
+        status_t err = listener->linkToDeath(mDeathRecipient);
+        if (err != NO_ERROR) {
+            ALOGE("cannot add callback because linkToDeath failed, err: %d", err);
+            return err;
         }
     }
 
     auto& listenerStats = mListenerStats[listener];
-    listenerStats.listener = handle->listener;
-
-    auto& transactionStats = listenerStats.transactionStats[handle->callbackIds];
-    transactionStats.latchTime = handle->latchTime;
-    transactionStats.surfaceStats.emplace_back(handle->surfaceControl, handle->acquireTime,
-                                               handle->previousReleaseFence);
+    listenerStats.listener = transactionListener;
+    listenerStats.transactionStats[callbackIds];
+    return NO_ERROR;
 }
 
 void TransactionCompletedThread::addPresentFence(const sp<Fence>& presentFence) {
