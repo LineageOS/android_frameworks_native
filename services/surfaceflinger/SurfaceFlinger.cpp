@@ -280,6 +280,7 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory,
         mFactory(factory),
         mTransactionPending(false),
         mAnimTransactionPending(false),
+        mTraversalNeededMainThread(false),
         mLayersRemoved(false),
         mLayersAdded(false),
         mBootTime(systemTime()),
@@ -2782,7 +2783,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
      * (perform the transaction for each of them if needed)
      */
 
-    if (transactionFlags & eTraversalNeeded) {
+    if ((transactionFlags & eTraversalNeeded) || mTraversalNeededMainThread) {
         mCurrentState.traverseInZOrder([&](Layer* layer) {
             uint32_t trFlags = layer->getTransactionFlags(eTransactionNeeded);
             if (!trFlags) return;
@@ -2795,6 +2796,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                 mInputInfoChanged = true;
             }
         });
+        mTraversalNeededMainThread = false;
     }
 
     /*
@@ -3680,6 +3682,13 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
     if (transactionFlags == 0 &&
             ((flags & eSynchronous) || (flags & eAnimation))) {
         transactionFlags = eTransactionNeeded;
+    }
+
+    // If we are on the main thread, we are about to preform a traversal. Clear the traversal bit
+    // so we don't have to wake up again next frame to preform an uneeded traversal.
+    if (isMainThread && (transactionFlags & eTraversalNeeded)) {
+        transactionFlags = transactionFlags & (~eTraversalNeeded);
+        mTraversalNeededMainThread = true;
     }
 
     if (transactionFlags) {
