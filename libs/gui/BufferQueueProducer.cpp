@@ -872,7 +872,7 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         item.mFence = acquireFence;
         item.mFenceTime = acquireFenceTime;
         item.mIsDroppable = mCore->mAsyncMode ||
-                mCore->mDequeueBufferCannotBlock ||
+                mCore->mQueueBufferCanDrop ||
                 (mCore->mSharedBufferMode && mCore->mSharedBufferSlot == slot);
         item.mSurfaceDamage = surfaceDamage;
         item.mQueuedBuffer = true;
@@ -1213,9 +1213,10 @@ status_t BufferQueueProducer::connect(const sp<IProducerListener>& listener,
     mCore->mConnectedPid = IPCThreadState::self()->getCallingPid();
     mCore->mBufferHasBeenQueued = false;
     mCore->mDequeueBufferCannotBlock = false;
-    if (mDequeueTimeout < 0) {
-        mCore->mDequeueBufferCannotBlock =
-                mCore->mConsumerControlledByApp && producerControlledByApp;
+    mCore->mQueueBufferCanDrop = false;
+    if (mCore->mConsumerControlledByApp && producerControlledByApp) {
+        mCore->mDequeueBufferCannotBlock = mDequeueTimeout < 0;
+        mCore->mQueueBufferCanDrop = mDequeueTimeout <= 0;
     }
 
     mCore->mAllowAllocation = true;
@@ -1486,7 +1487,12 @@ status_t BufferQueueProducer::setDequeueTimeout(nsecs_t timeout) {
     }
 
     mDequeueTimeout = timeout;
-    mCore->mDequeueBufferCannotBlock = false;
+    if (timeout >= 0) {
+        mCore->mDequeueBufferCannotBlock = false;
+        if (timeout != 0) {
+            mCore->mQueueBufferCanDrop = false;
+        }
+    }
 
     VALIDATE_CONSISTENCY();
     return NO_ERROR;
