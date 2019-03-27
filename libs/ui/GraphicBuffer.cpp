@@ -194,6 +194,7 @@ bool GraphicBuffer::needsReallocation(uint32_t inWidth, uint32_t inHeight,
     if (inFormat != format) return true;
     if (inLayerCount != layerCount) return true;
     if ((usage & inUsage) != inUsage) return true;
+    if ((usage & USAGE_PROTECTED) != (inUsage & USAGE_PROTECTED)) return true;
     return false;
 }
 
