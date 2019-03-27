@@ -75,6 +75,7 @@
 #include "BufferLayer.h"
 #include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
+#include "BufferStateLayerCache.h"
 #include "Client.h"
 #include "ColorLayer.h"
 #include "Colorizer.h"
@@ -95,12 +96,14 @@
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/VirtualDisplaySurface.h"
 #include "Effects/Daltonizer.h"
+#include "RegionSamplingThread.h"
 #include "Scheduler/DispSync.h"
 #include "Scheduler/DispSyncSource.h"
 #include "Scheduler/EventControlThread.h"
 #include "Scheduler/EventThread.h"
 #include "Scheduler/InjectVSyncSource.h"
 #include "Scheduler/MessageQueue.h"
+#include "Scheduler/PhaseOffsets.h"
 #include "Scheduler/Scheduler.h"
 #include "TimeStats/TimeStats.h"
 
@@ -266,49 +269,17 @@ std::string decodeDisplayColorSetting(DisplayColorSetting displayColorSetting) {
     }
 }
 
-SurfaceFlingerBE::SurfaceFlingerBE()
-      : mHwcServiceName(getHwcServiceName()),
-        mFrameBuckets(),
-        mTotalTime(0),
-        mLastSwapTime(0),
-        mComposerSequenceId(0) {
-}
+SurfaceFlingerBE::SurfaceFlingerBE() : mHwcServiceName(getHwcServiceName()) {}
 
-SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory,
-                               SurfaceFlinger::SkipInitializationTag)
-      : BnSurfaceComposer(),
-        mFactory(factory),
-        mTransactionPending(false),
-        mAnimTransactionPending(false),
-        mTraversalNeededMainThread(false),
-        mLayersRemoved(false),
-        mLayersAdded(false),
-        mBootTime(systemTime()),
-        mPhaseOffsets{getFactory().createPhaseOffsets()},
-        mVisibleRegionsDirty(false),
-        mGeometryInvalid(false),
-        mAnimCompositionPending(false),
-        mBootStage(BootStage::BOOTLOADER),
-        mDebugRegion(0),
-        mDebugDisableHWC(0),
-        mDebugDisableTransformHint(0),
-        mDebugEnableProtectedContent(false),
-        mDebugInTransaction(0),
-        mLastTransactionTime(0),
-        mForceFullDamage(false),
-        mTracing(*this),
-        mTimeStats(factory.createTimeStats()),
-        mRefreshStartTime(0),
-        mHasPoweredOff(false),
-        mNumLayers(0),
-        mVrFlingerRequestsDisplay(false),
-        mMainThreadId(std::this_thread::get_id()),
-        mCompositionEngine{getFactory().createCompositionEngine()} {
-    mSetInputWindowsListener = new SetInputWindowsListener(this);
-}
+SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
+      : mFactory(factory),
+        mPhaseOffsets(mFactory.createPhaseOffsets()),
+        mInterceptor(mFactory.createSurfaceInterceptor(this)),
+        mTimeStats(mFactory.createTimeStats()),
+        mEventQueue(mFactory.createMessageQueue()),
+        mCompositionEngine(mFactory.createCompositionEngine()) {}
 
-SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
-      : SurfaceFlinger(factory, SkipInitialization) {
+SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipInitialization) {
     ALOGI("SurfaceFlinger is starting");
 
     hasSyncFramework = running_without_sync_framework(true);
@@ -427,9 +398,7 @@ void SurfaceFlinger::onFirstRef()
     mEventQueue->init(this);
 }
 
-SurfaceFlinger::~SurfaceFlinger()
-{
-}
+SurfaceFlinger::~SurfaceFlinger() = default;
 
 void SurfaceFlinger::binderDied(const wp<IBinder>& /* who */)
 {
@@ -2422,8 +2391,6 @@ void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& displayDevice) {
     const auto& displayState = display->getState();
     const auto displayId = display->getId();
 
-    mPostFramebufferTime = systemTime();
-
     if (displayState.isEnabled) {
         if (displayId) {
             getHwComposer().presentAndGetReleaseFences(*displayId);
@@ -2486,8 +2453,7 @@ void SurfaceFlinger::handleTransaction(uint32_t transactionFlags)
     State drawingState(mDrawingState);
 
     Mutex::Autolock _l(mStateLock);
-    const nsecs_t now = systemTime();
-    mDebugInTransaction = now;
+    mDebugInTransaction = systemTime();
 
     // Here we're guaranteed that some transaction flags are set
     // so we can call handleTransactionLocked() unconditionally.
@@ -2499,7 +2465,6 @@ void SurfaceFlinger::handleTransaction(uint32_t transactionFlags)
     transactionFlags = getTransactionFlags(eTransactionMask);
     handleTransactionLocked(transactionFlags);
 
-    mLastTransactionTime = systemTime() - now;
     mDebugInTransaction = 0;
     invalidateHwcGeometry();
     // here the transaction has been committed
@@ -5104,13 +5069,13 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             }
             case 1008:  // toggle use of hw composer
                 n = data.readInt32();
-                mDebugDisableHWC = n ? 1 : 0;
+                mDebugDisableHWC = n != 0;
                 invalidateHwcGeometry();
                 repaintEverything();
                 return NO_ERROR;
             case 1009:  // toggle use of transform hint
                 n = data.readInt32();
-                mDebugDisableTransformHint = n ? 1 : 0;
+                mDebugDisableTransformHint = n != 0;
                 invalidateHwcGeometry();
                 repaintEverything();
                 return NO_ERROR;
@@ -5192,7 +5157,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             }
             case 1017: {
                 n = data.readInt32();
-                mForceFullDamage = static_cast<bool>(n);
+                mForceFullDamage = n != 0;
                 return NO_ERROR;
             }
             case 1018: { // Modify Choreographer's phase offset
@@ -5919,14 +5884,11 @@ status_t SurfaceFlinger::getAllowedDisplayConfigs(const android::sp<android::IBi
     return NO_ERROR;
 }
 
-// ----------------------------------------------------------------------------
-
-void SetInputWindowsListener::onSetInputWindowsFinished() {
+void SurfaceFlinger::SetInputWindowsListener::onSetInputWindowsFinished() {
     mFlinger->setInputWindowsFinished();
 }
 
-}; // namespace android
-
+} // namespace android
 
 #if defined(__gl_h_)
 #error "don't include gl/gl.h in this file"

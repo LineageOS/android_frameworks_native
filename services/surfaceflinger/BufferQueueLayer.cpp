@@ -23,6 +23,7 @@
 
 #include "BufferQueueLayer.h"
 #include "LayerRejecter.h"
+#include "SurfaceInterceptor.h"
 
 #include "TimeStats/TimeStats.h"
 
