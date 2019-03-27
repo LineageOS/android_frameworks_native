@@ -416,7 +416,6 @@ protected:
 
         sp<InputDispatcher> mDispatcher;
         sp<InputChannel> mServerChannel, mClientChannel;
-        sp<IBinder> mToken;
         InputConsumer *mConsumer;
         PreallocatedInputEventFactory mEventFactory;
 
@@ -435,7 +434,7 @@ public:
             mFocused(false) {
             mServerChannel->setToken(new BBinder());
             mDispatcher->registerInputChannel(mServerChannel, displayId);
- 
+
             inputApplicationHandle->updateInfo();
             mInfo.applicationInfo = *inputApplicationHandle->getInfo();
     }
@@ -776,8 +775,10 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, SetInputWindow_MultiDisplayFocus) 
 class FakeMonitorReceiver : public FakeInputReceiver, public RefBase {
 public:
     FakeMonitorReceiver(const sp<InputDispatcher>& dispatcher, const std::string name,
-            int32_t displayId) : FakeInputReceiver(dispatcher, name, displayId) {
-        mDispatcher->registerInputChannel(mServerChannel, displayId);
+            int32_t displayId, bool isGestureMonitor = false)
+            : FakeInputReceiver(dispatcher, name, displayId) {
+        mServerChannel->setToken(new BBinder());
+        mDispatcher->registerInputMonitor(mServerChannel, displayId, isGestureMonitor);
     }
 };
 

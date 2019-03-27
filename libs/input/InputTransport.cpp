@@ -27,11 +27,15 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <android-base/stringprintf.h>
+#include <binder/Parcel.h>
 #include <cutils/properties.h>
 #include <log/log.h>
+#include <utils/Trace.h>
 
-#include <binder/Parcel.h>
 #include <input/InputTransport.h>
+
+using android::base::StringPrintf;
 
 namespace android {
 
@@ -420,6 +424,11 @@ status_t InputPublisher::publishKeyEvent(
         int32_t repeatCount,
         nsecs_t downTime,
         nsecs_t eventTime) {
+    if (ATRACE_ENABLED()) {
+        std::string message = StringPrintf("publishKeyEvent(inputChannel=%s, keyCode=%" PRId32 ")",
+                mChannel->getName().c_str(), keyCode);
+        ATRACE_NAME(message.c_str());
+    }
 #if DEBUG_TRANSPORT_ACTIONS
     ALOGD("channel '%s' publisher ~ publishKeyEvent: seq=%u, deviceId=%d, source=0x%x, "
             "action=0x%x, flags=0x%x, keyCode=%d, scanCode=%d, metaState=0x%x, repeatCount=%d,"
@@ -472,6 +481,12 @@ status_t InputPublisher::publishMotionEvent(
         uint32_t pointerCount,
         const PointerProperties* pointerProperties,
         const PointerCoords* pointerCoords) {
+    if (ATRACE_ENABLED()) {
+        std::string message = StringPrintf(
+                "publishMotionEvent(inputChannel=%s, action=%" PRId32 ")",
+                mChannel->getName().c_str(), action);
+        ATRACE_NAME(message.c_str());
+    }
 #if DEBUG_TRANSPORT_ACTIONS
     ALOGD("channel '%s' publisher ~ publishMotionEvent: seq=%u, deviceId=%d, source=0x%x, "
             "displayId=%" PRId32 ", "
