@@ -373,7 +373,7 @@ TEST_F(DumpOptionsTest, InitializeTelephonyBugReport) {
 
     EXPECT_EQ(status, Dumpstate::RunStatus::OK);
     EXPECT_TRUE(options_.do_add_date);
-    EXPECT_TRUE(options_.do_fb);
+    EXPECT_FALSE(options_.do_fb);
     EXPECT_TRUE(options_.do_broadcast);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.telephony_only);
@@ -404,7 +404,7 @@ TEST_F(DumpOptionsTest, InitializeWifiBugReport) {
 
     EXPECT_EQ(status, Dumpstate::RunStatus::OK);
     EXPECT_TRUE(options_.do_add_date);
-    EXPECT_TRUE(options_.do_fb);
+    EXPECT_FALSE(options_.do_fb);
     EXPECT_TRUE(options_.do_broadcast);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.wifi_only);
