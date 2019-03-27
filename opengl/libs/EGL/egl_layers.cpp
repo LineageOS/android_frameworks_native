@@ -37,9 +37,8 @@ namespace android {
 // 2. If none enabled, check system properties
 //
 // - Layer initializing -
-// TODO: ADD DETAIL ABOUT NEW INTERFACES
-// - InitializeLayer (provided by layer, called by loader)
-// - GetLayerProcAddress (provided by layer, called by loader)
+// - AndroidGLESLayer_Initialize (provided by layer, called by loader)
+// - AndroidGLESLayer_GetProcAddress (provided by layer, called by loader)
 // - getNextLayerProcAddress (provided by loader, called by layer)
 //
 // 1. Walk through defs for egl and each gl version
@@ -73,27 +72,30 @@ std::vector<FunctionTable> layer_functions;
 
 const void* getNextLayerProcAddress(void* layer_id, const char* name) {
     // Use layer_id to find funcs for layer below current
-    // This is the same key provided in InitializeLayer
+    // This is the same key provided in AndroidGLESLayer_Initialize
     auto next_layer_funcs = reinterpret_cast<FunctionTable*>(layer_id);
     EGLFuncPointer val;
+
+    ALOGV("getNextLayerProcAddress servicing %s", name);
 
     if (func_indices.find(name) == func_indices.end()) {
         // No entry for this function - it is an extension
         // call down the GPA chain directly to the impl
-        ALOGV("getNextLayerProcAddress servicing %s", name);
+        ALOGV("getNextLayerProcAddress - name(%s) no func_indices entry found", name);
 
         // Look up which GPA we should use
         int gpaIndex = func_indices["eglGetProcAddress"];
+        ALOGV("getNextLayerProcAddress - name(%s) gpaIndex(%i) <- using GPA from this index", name, gpaIndex);
         EGLFuncPointer gpaNext = (*next_layer_funcs)[gpaIndex];
+        ALOGV("getNextLayerProcAddress - name(%s) gpaIndex(%i) gpaNext(%llu) <- using GPA at this address", name, gpaIndex, (unsigned long long)gpaNext);
 
-        ALOGV("Calling down the GPA chain (%llu) for %s", (unsigned long long)gpaNext, name);
 
         // Call it for the requested function
         typedef void* (*PFNEGLGETPROCADDRESSPROC)(const char*);
         PFNEGLGETPROCADDRESSPROC next = reinterpret_cast<PFNEGLGETPROCADDRESSPROC>(gpaNext);
 
         val = reinterpret_cast<EGLFuncPointer>(next(name));
-        ALOGV("Got back %llu for %s", (unsigned long long)val, name);
+        ALOGV("getNextLayerProcAddress - name(%s) gpaIndex(%i) gpaNext(%llu) Got back (%llu) from GPA", name, gpaIndex, (unsigned long long)gpaNext, (unsigned long long)val);
 
         // We should store it now, but to do that, we need to move func_idx to the class so we can
         // increment it separately
@@ -101,10 +103,10 @@ const void* getNextLayerProcAddress(void* layer_id, const char* name) {
         return reinterpret_cast<void*>(val);
     }
 
-    // int index = func_indices[name];
-    // val = (*next_layer_funcs)[index];
-    // return reinterpret_cast<void*>(val);
-    return reinterpret_cast<void*>((*next_layer_funcs)[func_indices[name]]);
+    int index = func_indices[name];
+    val = (*next_layer_funcs)[index];
+    ALOGV("getNextLayerProcAddress - name(%s) index(%i) entry(%llu) - Got a hit, returning known entry", name, index, (unsigned long long)val);
+    return reinterpret_cast<void*>(val);
 }
 
 void SetupFuncMaps(FunctionTable& functions, char const* const* entries, EGLFuncPointer* curr,
@@ -115,14 +117,20 @@ void SetupFuncMaps(FunctionTable& functions, char const* const* entries, EGLFunc
         // Some names overlap, only fill with initial entry
         // This does mean that some indices will not be used
         if (func_indices.find(name) == func_indices.end()) {
+            ALOGV("SetupFuncMaps - name(%s), func_idx(%i), No entry for func_indices, assigning now", name, func_idx);
             func_names[func_idx] = name;
             func_indices[name] = func_idx;
+        } else {
+            ALOGV("SetupFuncMaps - name(%s), func_idx(%i), Found entry for func_indices", name, func_idx);
         }
 
         // Populate layer_functions once with initial value
         // These values will arrive in priority order, starting with platform entries
         if (functions[func_idx] == nullptr) {
+            ALOGV("SetupFuncMaps - name(%s), func_idx(%i), No entry for functions, assigning (%llu)", name, func_idx, (unsigned long long) *curr);
             functions[func_idx] = *curr;
+        } else {
+            ALOGV("SetupFuncMaps - name(%s), func_idx(%i), Found entry for functions (%llu)", name, func_idx, (unsigned long long) functions[func_idx]);
         }
 
         entries++;
@@ -400,7 +408,7 @@ void LayerLoader::LoadLayers() {
                 }
 
                 // Find the layer's Initialize function
-                std::string init_func = "InitializeLayer";
+                std::string init_func = "AndroidGLESLayer_Initialize";
                 ALOGV("Looking for entrypoint %s", init_func.c_str());
 
                 layer_init_func LayerInit =
@@ -414,7 +422,7 @@ void LayerLoader::LoadLayers() {
                 }
 
                 // Find the layer's setup function
-                std::string setup_func = "GetLayerProcAddress";
+                std::string setup_func = "AndroidGLESLayer_GetProcAddress";
                 ALOGV("Looking for entrypoint %s", setup_func.c_str());
 
                 layer_setup_func LayerSetup =
