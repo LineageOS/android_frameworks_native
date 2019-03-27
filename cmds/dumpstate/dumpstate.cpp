@@ -2735,8 +2735,8 @@ void Dumpstate::CheckUserConsent(int32_t calling_uid, const android::String16& c
     if (ics != nullptr) {
         MYLOGD("Checking user consent via incidentcompanion service\n");
         android::interface_cast<android::os::IIncidentCompanion>(ics)->authorizeReport(
-            calling_uid, calling_package, 0x1 /* FLAG_CONFIRMATION_DIALOG */,
-            consent_callback_.get());
+            calling_uid, calling_package, String16(), String16(),
+            0x1 /* FLAG_CONFIRMATION_DIALOG */, consent_callback_.get());
     } else {
         MYLOGD("Unable to check user consent; incidentcompanion service unavailable\n");
     }
