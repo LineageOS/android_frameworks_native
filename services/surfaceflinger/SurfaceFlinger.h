@@ -90,6 +90,8 @@ using namespace android::surfaceflinger;
 
 namespace android {
 
+using RefreshRateType = scheduler::RefreshRateConfigs::RefreshRateType;
+
 // ---------------------------------------------------------------------------
 
 class Client;
@@ -102,6 +104,7 @@ class IGraphicBufferProducer;
 class IInputFlinger;
 class InjectVSyncSource;
 class Layer;
+class RefreshRateOverlay;
 class Surface;
 class SurfaceFlingerBE;
 class TimeStats;
@@ -366,6 +369,7 @@ private:
     friend class BufferQueueLayer;
     friend class BufferStateLayer;
     friend class MonitoredProducer;
+    friend class RefreshRateOverlay;
     friend class RegionSamplingThread;
     friend class SurfaceTracing;
 
@@ -528,11 +532,30 @@ private:
     void signalLayerUpdate();
     void signalRefresh();
 
+    struct ActiveConfigInfo {
+        RefreshRateType type;
+        int configId;
+        sp<IBinder> displayToken;
+        Scheduler::ConfigEvent event;
+
+        bool operator!=(const ActiveConfigInfo& other) const {
+            if (type != other.type) {
+                return true;
+            }
+            if (configId != other.configId) {
+                return true;
+            }
+            if (displayToken != other.displayToken) {
+                return true;
+            }
+            return (event != other.event);
+        }
+    };
+
     // called on the main thread in response to initializeDisplays()
     void onInitializeDisplays() REQUIRES(mStateLock);
     // Sets the desired active config bit. It obtains the lock, and sets mDesiredActiveConfig.
-    void setDesiredActiveConfig(const sp<IBinder>& displayToken, int mode,
-                                Scheduler::ConfigEvent event) REQUIRES(mStateLock);
+    void setDesiredActiveConfig(const ActiveConfigInfo& info) REQUIRES(mStateLock);
     // Once HWC has returned the present fence, this sets the active config and a new refresh
     // rate in SF. It also triggers HWC vsync.
     void setActiveConfigInternal() REQUIRES(mStateLock);
@@ -818,8 +841,7 @@ private:
 
     // Sets the refresh rate by switching active configs, if they are available for
     // the desired refresh rate.
-    void setRefreshRateTo(scheduler::RefreshRateConfigs::RefreshRateType,
-                          Scheduler::ConfigEvent event) REQUIRES(mStateLock);
+    void setRefreshRateTo(RefreshRateType, Scheduler::ConfigEvent event) REQUIRES(mStateLock);
 
     bool isConfigAllowed(const DisplayId& displayId, int32_t config);
 
@@ -1140,18 +1162,6 @@ private:
     std::unordered_map<DisplayId, std::unique_ptr<const AllowedDisplayConfigs>> mAllowedConfigs
             GUARDED_BY(mAllowedConfigsLock);
 
-    struct ActiveConfigInfo {
-        int configId;
-        sp<IBinder> displayToken;
-        Scheduler::ConfigEvent event;
-
-        bool operator!=(const ActiveConfigInfo& other) const {
-            if (configId != other.configId) {
-                return true;
-            }
-            return (displayToken != other.displayToken);
-        }
-    };
     std::mutex mActiveConfigLock;
     // This bit is set once we start setting the config. We read from this bit during the
     // process. If at the end, this bit is different than mDesiredActiveConfig, we restart
@@ -1178,6 +1188,8 @@ private:
     sp<SetInputWindowsListener> mSetInputWindowsListener;
     bool mPendingSyncInputWindows GUARDED_BY(mStateLock);
     Hwc2::impl::PowerAdvisor mPowerAdvisor;
+
+    std::unique_ptr<RefreshRateOverlay> mRefreshRateOverlay;
 };
 }; // namespace android
 

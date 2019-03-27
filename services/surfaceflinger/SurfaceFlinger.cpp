@@ -84,6 +84,7 @@
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
 #include "NativeWindowSurface.h"
+#include "RefreshRateOverlay.h"
 #include "StartPropertySetThread.h"
 #include "SurfaceFlinger.h"
 #include "SurfaceInterceptor.h"
@@ -127,8 +128,6 @@ using ui::Dataspace;
 using ui::DisplayPrimaries;
 using ui::Hdr;
 using ui::RenderIntent;
-
-using RefreshRateType = scheduler::RefreshRateConfigs::RefreshRateType;
 
 namespace {
 
@@ -942,19 +941,18 @@ int SurfaceFlinger::getActiveConfig(const sp<IBinder>& displayToken) {
     return display->getActiveConfig();
 }
 
-void SurfaceFlinger::setDesiredActiveConfig(const sp<IBinder>& displayToken, int mode,
-                                            Scheduler::ConfigEvent event) {
+void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
     ATRACE_CALL();
 
     // Lock is acquired by setRefreshRateTo.
-    const auto display = getDisplayDeviceLocked(displayToken);
+    const auto display = getDisplayDeviceLocked(info.displayToken);
     if (!display) {
-        ALOGE("Attempt to set active config %d for invalid display token %p", mode,
-              displayToken.get());
+        ALOGE("Attempt to set active config %d for invalid display token %p", info.configId,
+              info.displayToken.get());
         return;
     }
     if (display->isVirtual()) {
-        ALOGW("Attempt to set active config %d for virtual display", mode);
+        ALOGW("Attempt to set active config %d for virtual display", info.configId);
         return;
     }
     int currentDisplayPowerMode = display->getPowerMode();
@@ -967,8 +965,9 @@ void SurfaceFlinger::setDesiredActiveConfig(const sp<IBinder>& displayToken, int
     // config twice. However event generation config might have changed so we need to update it
     // accordingly
     std::lock_guard<std::mutex> lock(mActiveConfigLock);
-    const Scheduler::ConfigEvent desiredConfig = mDesiredActiveConfig.event | event;
-    mDesiredActiveConfig = ActiveConfigInfo{mode, displayToken, desiredConfig};
+    const Scheduler::ConfigEvent prevConfig = mDesiredActiveConfig.event;
+    mDesiredActiveConfig = info;
+    mDesiredActiveConfig.event = mDesiredActiveConfig.event | prevConfig;
 
     if (!mDesiredActiveConfigChanged) {
         // This is the first time we set the desired
@@ -979,6 +978,10 @@ void SurfaceFlinger::setDesiredActiveConfig(const sp<IBinder>& displayToken, int
     }
     mDesiredActiveConfigChanged = true;
     ATRACE_INT("DesiredActiveConfigChanged", mDesiredActiveConfigChanged);
+
+    if (mRefreshRateOverlay) {
+        mRefreshRateOverlay->changeRefreshRate(mDesiredActiveConfig.type);
+    }
 }
 
 status_t SurfaceFlinger::setActiveConfig(const sp<IBinder>& displayToken, int mode) {
@@ -1492,7 +1495,7 @@ void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate, Scheduler::Co
     }
 
     mPhaseOffsets->setRefreshRateType(refreshRate);
-    setDesiredActiveConfig(getInternalDisplayTokenLocked(), desiredConfigId, event);
+    setDesiredActiveConfig({refreshRate, desiredConfigId, getInternalDisplayTokenLocked(), event});
 }
 
 void SurfaceFlinger::onHotplugReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId,
@@ -5033,9 +5036,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         code == IBinder::SYSPROPS_TRANSACTION) {
         return OK;
     }
-    // Numbers from 1000 to 1033 are currently used for backdoors. The code
+    // Numbers from 1000 to 1034 are currently used for backdoors. The code
     // in onTransact verifies that the user is root, and has access to use SF.
-    if (code >= 1000 && code <= 1033) {
+    if (code >= 1000 && code <= 1034) {
         ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
         return OK;
     }
@@ -5349,6 +5352,18 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 ALOGD("Updating trace flags to 0x%x", n);
                 mTracing.setTraceFlags(n);
                 reply->writeInt32(NO_ERROR);
+                return NO_ERROR;
+            }
+            case 1034: {
+                // TODO(b/129297325): expose this via developer menu option
+                n = data.readInt32();
+                if (n && !mRefreshRateOverlay) {
+                    std::lock_guard<std::mutex> lock(mActiveConfigLock);
+                    mRefreshRateOverlay = std::make_unique<RefreshRateOverlay>(*this);
+                    mRefreshRateOverlay->changeRefreshRate(mDesiredActiveConfig.type);
+                } else if (!n) {
+                    mRefreshRateOverlay.reset();
+                }
                 return NO_ERROR;
             }
         }
@@ -5823,8 +5838,8 @@ void SurfaceFlinger::setAllowedDisplayConfigsInternal(
     for (auto iter = refreshRates.crbegin(); iter != refreshRates.crend(); ++iter) {
         if (iter->second && isConfigAllowed(*displayId, iter->second->configId)) {
             ALOGV("switching to config %d", iter->second->configId);
-            setDesiredActiveConfig(displayToken, iter->second->configId,
-                                   Scheduler::ConfigEvent::Changed);
+            setDesiredActiveConfig({iter->first, iter->second->configId, displayToken,
+                                    Scheduler::ConfigEvent::Changed});
             break;
         }
     }
