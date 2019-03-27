@@ -253,6 +253,13 @@ private:
     // slot is not yet available.
     nsecs_t mDequeueTimeout;
 
+    // If set to true, dequeueBuffer() is currently waiting for buffer allocation to complete.
+    bool mDequeueWaitingForAllocation;
+
+    // Condition variable to signal allocateBuffers() that dequeueBuffer() is no longer waiting for
+    // allocation to complete.
+    std::condition_variable mDequeueWaitingForAllocationCondition;
+
 }; // class BufferQueueProducer
 
 } // namespace android

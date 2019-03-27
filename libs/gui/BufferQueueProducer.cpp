@@ -59,7 +59,8 @@ BufferQueueProducer::BufferQueueProducer(const sp<BufferQueueCore>& core,
     mNextCallbackTicket(0),
     mCurrentCallbackTicket(0),
     mCallbackCondition(),
-    mDequeueTimeout(-1) {}
+    mDequeueTimeout(-1),
+    mDequeueWaitingForAllocation(false) {}
 
 BufferQueueProducer::~BufferQueueProducer() {}
 
@@ -382,6 +383,15 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
 
     { // Autolock scope
         std::unique_lock<std::mutex> lock(mCore->mMutex);
+
+        // If we don't have a free buffer, but we are currently allocating, we wait until allocation
+        // is finished such that we don't allocate in parallel.
+        if (mCore->mFreeBuffers.empty() && mCore->mIsAllocating) {
+            mDequeueWaitingForAllocation = true;
+            mCore->waitWhileAllocatingLocked(lock);
+            mDequeueWaitingForAllocation = false;
+            mDequeueWaitingForAllocationCondition.notify_all();
+        }
 
         if (format == 0) {
             format = mCore->mDefaultBufferFormat;
@@ -1421,6 +1431,12 @@ void BufferQueueProducer::allocateBuffers(uint32_t width, uint32_t height,
             mCore->mIsAllocating = false;
             mCore->mIsAllocatingCondition.notify_all();
             VALIDATE_CONSISTENCY();
+
+            // If dequeue is waiting for to allocate a buffer, release the lock until it's not
+            // waiting anymore so it can use the buffer we just allocated.
+            while (mDequeueWaitingForAllocation) {
+                mDequeueWaitingForAllocationCondition.wait(lock);
+            }
         } // Autolock scope
     }
 }
