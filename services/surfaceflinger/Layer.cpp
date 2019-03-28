@@ -989,7 +989,7 @@ bool Layer::setBackgroundColor(const half3& color, float alpha, ui::Dataspace da
         // create background color layer if one does not yet exist
         uint32_t flags = ISurfaceComposerClient::eFXSurfaceColor;
         const String8& name = mName + "BackgroundColorLayer";
-        mCurrentState.bgColorLayer = new ColorLayer(
+        mCurrentState.bgColorLayer = mFlinger->getFactory().createColorLayer(
                 LayerCreationArgs(mFlinger.get(), nullptr, name, 0, 0, flags, LayerMetadata()));
 
         // add to child list
