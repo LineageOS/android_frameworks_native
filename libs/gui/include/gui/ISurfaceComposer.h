@@ -20,12 +20,9 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include <utils/RefBase.h>
-#include <utils/Errors.h>
-#include <utils/Timers.h>
-#include <utils/Vector.h>
-
 #include <binder/IInterface.h>
+
+#include <gui/ITransactionCompletedListener.h>
 
 #include <ui/ConfigStoreTypes.h>
 #include <ui/DisplayedFrameStats.h>
@@ -33,6 +30,11 @@
 #include <ui/GraphicBuffer.h>
 #include <ui/GraphicTypes.h>
 #include <ui/PixelFormat.h>
+
+#include <utils/Errors.h>
+#include <utils/RefBase.h>
+#include <utils/Timers.h>
+#include <utils/Vector.h>
 
 #include <optional>
 #include <vector>
@@ -133,7 +135,8 @@ public:
                                      const sp<IBinder>& applyToken,
                                      const InputWindowCommands& inputWindowCommands,
                                      int64_t desiredPresentTime,
-                                     const cached_buffer_t& uncacheBuffer) = 0;
+                                     const cached_buffer_t& uncacheBuffer,
+                                     const std::vector<ListenerCallbacks>& listenerCallbacks) = 0;
 
     /* signal that we're done booting.
      * Requires ACCESS_SURFACE_FLINGER permission

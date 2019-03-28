@@ -47,6 +47,7 @@ cc_test {
         "LayerMetadataTest.cpp",
         "SchedulerTest.cpp",
         "SchedulerUtilsTest.cpp",
+        "RefreshRateConfigsTest.cpp",
         "RefreshRateStatsTest.cpp",
         "TimeStatsTest.cpp",
         "mock/DisplayHardware/MockComposer.cpp",
