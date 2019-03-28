@@ -28,6 +28,8 @@ namespace dvr {
 
 namespace {
 
+using ::testing::Test;
+
 DvrSurfaceAttribute MakeAttribute(DvrSurfaceAttributeKey key, nullptr_t) {
   DvrSurfaceAttribute attribute;
   attribute.key = key;
@@ -139,6 +141,23 @@ Status<UniqueDvrWriteBufferQueue> CreateSurfaceQueue(
     return ErrorStatus(-ret);
   else
     return {UniqueDvrWriteBufferQueue(queue)};
+}
+
+Status<std::vector<uint8_t>> GetConfigData(int config_type) {
+  uint8_t* data = nullptr;
+  size_t data_size = 0;
+  int error = dvrConfigurationDataGet(config_type, &data, &data_size);
+  if (error < 0) {
+    return ErrorStatus(-error);
+  }
+
+  if (!data || data_size == 0) {
+    return ErrorStatus(EINVAL);
+  }
+  std::vector<uint8_t> data_result(data, data + data_size);
+  dvrConfigurationDataDestroy(data);
+  std::string s(data, data + data_size);
+  return {std::move(data_result)};
 }
 
 class TestDisplayManager {
@@ -275,23 +294,6 @@ class TestDisplayManager {
     return {std::move(queue_ids)};
   }
 
-  Status<std::vector<uint8_t>> GetConfigData(int config_type) {
-    uint8_t* data = nullptr;
-    size_t data_size = 0;
-    int error = dvrConfigurationDataGet(config_type, &data, &data_size);
-    if (error < 0) {
-      return ErrorStatus(-error);
-    }
-
-    if (!data || data_size == 0) {
-      return ErrorStatus(EINVAL);
-    }
-    std::vector<uint8_t> data_result(data, data + data_size);
-    dvrConfigurationDataDestroy(data);
-    std::string s(data, data + data_size);
-    return {std::move(data_result)};
-  }
-
  private:
   UniqueDvrDisplayManager display_manager_;
   UniqueDvrSurfaceState surface_state_;
@@ -303,9 +305,17 @@ class TestDisplayManager {
   void operator=(const TestDisplayManager&) = delete;
 };
 
-class DvrDisplayManagerTest : public ::testing::Test {
+class DvrDisplayManagerTest : public Test {
  protected:
   void SetUp() override {
+    // dvr display manager test doesn't apply to standalone vr devices because
+    // tests cannot create display manager client on these devices.
+    if (property_get_bool("ro.boot.vr", false)) {
+      GTEST_SKIP()
+          << "All tests in DvrDisplayManagerTest test case are skipped "
+             "because the device boot to VR.";
+    }
+
     int ret;
     DvrDisplayManager* display_manager;
     DvrSurfaceState* surface_state;
@@ -429,7 +439,7 @@ testing::AssertionResult StatusPred(const char* status_expression,
 #if 0
 // Verify utility predicate/macro functionality. This section is commented out
 // because it is designed to fail in some cases to validate the helpers.
-TEST_F(DvrDisplayManagerTest, ExpectVoid) {
+TEST_F(Test, ExpectVoid) {
   Status<void> status_error{ErrorStatus{EINVAL}};
   Status<void> status_ok{};
 
@@ -444,7 +454,7 @@ TEST_F(DvrDisplayManagerTest, ExpectVoid) {
   EXPECT_STATUS_ERROR_VALUE(ENOMEM, status_ok);
 }
 
-TEST_F(DvrDisplayManagerTest, ExpectInt) {
+TEST_F(Test, ExpectInt) {
   Status<int> status_error{ErrorStatus{EINVAL}};
   Status<int> status_ok{10};
 
@@ -480,11 +490,6 @@ TEST_F(DvrDisplayManagerTest, ExpectInt) {
 #endif
 
 TEST_F(DvrDisplayManagerTest, SurfaceCreateEvent) {
-  // This test doesn't apply to standalone vr devices.
-  if (property_get_bool("ro.boot.vr", false)) {
-    return;
-  }
-
   // Get surface state and verify there are no surfaces.
   ASSERT_STATUS_OK(manager_->UpdateSurfaceState());
   ASSERT_STATUS_EQ(0u, manager_->GetSurfaceCount());
@@ -524,11 +529,6 @@ TEST_F(DvrDisplayManagerTest, SurfaceCreateEvent) {
 }
 
 TEST_F(DvrDisplayManagerTest, SurfaceAttributeEvent) {
-  // This test doesn't apply to standalone vr devices.
-  if (property_get_bool("ro.boot.vr", false)) {
-    return;
-  }
-
   // Get surface state and verify there are no surfaces.
   ASSERT_STATUS_OK(manager_->UpdateSurfaceState());
   ASSERT_STATUS_EQ(0u, manager_->GetSurfaceCount());
@@ -768,11 +768,6 @@ TEST_F(DvrDisplayManagerTest, SurfaceAttributeTypes) {
 }
 
 TEST_F(DvrDisplayManagerTest, SurfaceQueueEvent) {
-  // This test doesn't apply to standalone vr devices.
-  if (property_get_bool("ro.boot.vr", false)) {
-    return;
-  }
-
   // Create an application surface.
   auto surface_status = CreateApplicationSurface();
   ASSERT_STATUS_OK(surface_status);
@@ -841,11 +836,6 @@ TEST_F(DvrDisplayManagerTest, SurfaceQueueEvent) {
 }
 
 TEST_F(DvrDisplayManagerTest, MultiLayerBufferQueue) {
-  // This test doesn't apply to standalone vr devices.
-  if (property_get_bool("ro.boot.vr", false)) {
-    return;
-  }
-
   // Create an application surface.
   auto surface_status = CreateApplicationSurface();
   ASSERT_STATUS_OK(surface_status);
@@ -884,16 +874,17 @@ TEST_F(DvrDisplayManagerTest, MultiLayerBufferQueue) {
   dvrWriteBufferDestroy(buffer);
 }
 
-TEST_F(DvrDisplayManagerTest, ConfigurationData) {
-  // TODO(hendrikw): Move this out of the display manager tests.
-  auto data1 = manager_->GetConfigData(-1);
+TEST_F(Test, ConfigurationData) {
+  // TODO(hendrikw): Move this test and GetConfigData helper function out of the
+  // display manager tests.
+  auto data1 = GetConfigData(-1);
   ASSERT_STATUS_ERROR(data1);
 
   const char kDvrLensMetricsProperty[] = "ro.dvr.lens_metrics";
 
   // This should be run on devices with and without built in metrics.
   bool has_metric = !base::GetProperty(kDvrLensMetricsProperty, "").empty();
-  auto data2 = manager_->GetConfigData(DVR_CONFIGURATION_DATA_LENS_METRICS);
+  auto data2 = GetConfigData(DVR_CONFIGURATION_DATA_LENS_METRICS);
   if (has_metric) {
     ASSERT_STATUS_OK(data2);
     ASSERT_NE(0u, data2.get().size());
