@@ -406,6 +406,12 @@ void SurfaceComposerClient::Transaction::cacheBuffers() {
             continue;
         }
 
+        // Don't try to cache a null buffer. Sending null buffers is cheap so we shouldn't waste
+        // time trying to cache them.
+        if (!s->buffer) {
+            continue;
+        }
+
         uint64_t cacheId = 0;
         status_t ret = BufferCache::getInstance().getCacheId(s->buffer, &cacheId);
         if (ret == NO_ERROR) {
