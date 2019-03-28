@@ -415,7 +415,7 @@ void SurfaceComposerClient::Transaction::cacheBuffers() {
         uint64_t cacheId = 0;
         status_t ret = BufferCache::getInstance().getCacheId(s->buffer, &cacheId);
         if (ret == NO_ERROR) {
-            s->what &= ~static_cast<uint32_t>(layer_state_t::eBufferChanged);
+            s->what &= ~static_cast<uint64_t>(layer_state_t::eBufferChanged);
             s->buffer = nullptr;
         } else {
             cacheId = BufferCache::getInstance().cache(s->buffer);
