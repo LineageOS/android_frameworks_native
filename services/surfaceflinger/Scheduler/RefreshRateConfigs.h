@@ -51,13 +51,7 @@ public:
 
     // TODO(b/122916473): Get this information from configs prepared by vendors, instead of
     // baking them in.
-    explicit RefreshRateConfigs(
-            const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs) {
-        init(configs);
-    }
-    ~RefreshRateConfigs() = default;
-
-    const std::map<RefreshRateType, std::shared_ptr<RefreshRate>>& getRefreshRates() {
+    const std::map<RefreshRateType, std::shared_ptr<RefreshRate>>& getRefreshRates() const {
         return mRefreshRates;
     }
     std::shared_ptr<RefreshRate> getRefreshRate(RefreshRateType type) {
@@ -68,8 +62,9 @@ public:
         return nullptr;
     }
 
-private:
-    void init(const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs) {
+    void populate(const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs) {
+        mRefreshRates.clear();
+
         // This is the rate that HWC encapsulates right now when the device is in DOZE mode.
         mRefreshRates.emplace(RefreshRateType::POWER_SAVING,
                               std::make_shared<RefreshRate>(
@@ -120,6 +115,7 @@ private:
         }
     }
 
+private:
     std::map<RefreshRateType, std::shared_ptr<RefreshRate>> mRefreshRates;
 };
 
