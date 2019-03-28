@@ -76,6 +76,7 @@ cc_library_shared {
         "libhardware",
         "libsync",
         "libbase",
+        "libdl_android",
         "libhidlbase",
         "libhidltransport",
         "liblog",
