@@ -1709,22 +1709,22 @@ bool SurfaceFlinger::handleMessageTransaction() {
     ATRACE_CALL();
     uint32_t transactionFlags = peekTransactionFlags();
 
-    // Apply any ready transactions in the queues if there are still transactions that have not been
-    // applied, wake up during the next vsync period and check again
-    bool transactionNeeded = false;
-    if (!flushTransactionQueues()) {
-        transactionNeeded = true;
+    bool flushedATransaction = flushTransactionQueues();
+
+    bool runHandleTransaction = transactionFlags &&
+            ((transactionFlags != eTransactionFlushNeeded) || flushedATransaction);
+
+    if (runHandleTransaction) {
+        handleTransaction(eTransactionMask);
+    } else {
+        getTransactionFlags(eTransactionFlushNeeded);
     }
 
-    if (transactionFlags) {
-        handleTransaction(transactionFlags);
+    if (transactionFlushNeeded()) {
+        setTransactionFlags(eTransactionFlushNeeded);
     }
 
-    if (transactionNeeded) {
-        setTransactionFlags(eTransactionNeeded);
-    }
-
-    return transactionFlags;
+    return runHandleTransaction;
 }
 
 void SurfaceFlinger::handleMessageRefresh() {
@@ -3522,6 +3522,8 @@ uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags,
 
 bool SurfaceFlinger::flushTransactionQueues() {
     Mutex::Autolock _l(mStateLock);
+    bool flushedATransaction = false;
+
     auto it = mTransactionQueues.begin();
     while (it != mTransactionQueues.end()) {
         auto& [applyToken, transactionQueue] = *it;
@@ -3531,17 +3533,23 @@ bool SurfaceFlinger::flushTransactionQueues() {
                     [states, displays, flags, desiredPresentTime, uncacheBuffer, listenerCallbacks,
                      postTime, privileged] = transactionQueue.front();
             if (!transactionIsReadyToBeApplied(desiredPresentTime, states)) {
+                setTransactionFlags(eTransactionFlushNeeded);
                 break;
             }
             applyTransactionState(states, displays, flags, mPendingInputWindowCommands,
                                   desiredPresentTime, uncacheBuffer, listenerCallbacks, postTime,
                                   privileged, /*isMainThread*/ true);
             transactionQueue.pop();
+            flushedATransaction = true;
         }
 
         it = (transactionQueue.empty()) ? mTransactionQueues.erase(it) : std::next(it, 1);
     }
-    return mTransactionQueues.empty();
+    return flushedATransaction;
+}
+
+bool SurfaceFlinger::transactionFlushNeeded() {
+    return !mTransactionQueues.empty();
 }
 
 bool SurfaceFlinger::containsAnyInvalidClientState(const Vector<ComposerState>& states) {
@@ -3613,7 +3621,7 @@ void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
         mTransactionQueues[applyToken].emplace(states, displays, flags, desiredPresentTime,
                                                uncacheBuffer, listenerCallbacks, postTime,
                                                privileged);
-        setTransactionFlags(eTransactionNeeded);
+        setTransactionFlags(eTransactionFlushNeeded);
         return;
     }
 

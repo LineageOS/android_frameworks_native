@@ -135,11 +135,12 @@ class NativeWindowSurface;
 // ---------------------------------------------------------------------------
 
 enum {
-    eTransactionNeeded        = 0x01,
-    eTraversalNeeded          = 0x02,
+    eTransactionNeeded = 0x01,
+    eTraversalNeeded = 0x02,
     eDisplayTransactionNeeded = 0x04,
     eDisplayLayerStackChanged = 0x08,
-    eTransactionMask          = 0x0f,
+    eTransactionFlushNeeded = 0x10,
+    eTransactionMask = 0x1f,
 };
 
 enum class DisplayColorSetting : int32_t {
@@ -606,7 +607,10 @@ private:
                                const std::vector<ListenerCallbacks>& listenerCallbacks,
                                const int64_t postTime, bool privileged, bool isMainThread = false)
             REQUIRES(mStateLock);
+    // Returns true if at least one transaction was flushed
     bool flushTransactionQueues();
+    // Returns true if there is at least one transaction that needs to be flushed
+    bool transactionFlushNeeded();
     uint32_t getTransactionFlags(uint32_t flags);
     uint32_t peekTransactionFlags();
     // Can only be called from the main thread or with mStateLock held
