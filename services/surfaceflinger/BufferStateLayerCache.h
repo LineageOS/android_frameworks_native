@@ -34,14 +34,16 @@ class BufferStateLayerCache : public Singleton<BufferStateLayerCache> {
 public:
     BufferStateLayerCache();
 
-    void add(sp<IBinder> processToken, int32_t id, const sp<GraphicBuffer>& buffer);
-    sp<GraphicBuffer> get(sp<IBinder> processToken, int32_t id);
+    void add(const sp<IBinder>& processToken, uint64_t id, const sp<GraphicBuffer>& buffer);
+    void erase(const sp<IBinder>& processToken, uint64_t id);
+
+    sp<GraphicBuffer> get(const sp<IBinder>& processToken, uint64_t id);
 
     void removeProcess(const wp<IBinder>& processToken);
 
 private:
     std::mutex mMutex;
-    std::map<wp<IBinder> /*caching process*/, std::array<sp<GraphicBuffer>, BUFFER_CACHE_MAX_SIZE>>
+    std::map<wp<IBinder> /*caching process*/, std::map<uint64_t /*Cache id*/, sp<GraphicBuffer>>>
             mBuffers GUARDED_BY(mMutex);
 
     class CacheDeathRecipient : public IBinder::DeathRecipient {

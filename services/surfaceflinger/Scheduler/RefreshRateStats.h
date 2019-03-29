@@ -147,7 +147,7 @@ private:
     // Aggregate refresh rate statistics for telemetry.
     std::shared_ptr<TimeStats> mTimeStats;
 
-    int64_t mCurrentConfigMode = 0;
+    int64_t mCurrentConfigMode = SCREEN_OFF_CONFIG_ID;
     int32_t mCurrentPowerMode = HWC_POWER_MODE_OFF;
 
     std::unordered_map<int /* power mode */, int64_t /* duration in ms */> mConfigModesTotalTime;

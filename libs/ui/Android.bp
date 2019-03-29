@@ -167,6 +167,12 @@ cc_library_headers {
             override_export_include_dirs: ["include_vndk"],
         },
     },
+    header_libs: [
+        "libnativewindow_headers",
+    ],
+    export_header_lib_headers: [
+        "libnativewindow_headers",
+    ],
 }
 
 subdirs = [

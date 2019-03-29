@@ -571,8 +571,8 @@ TEST_F(InputDispatcherTest, SetInputWindow_SingleWindowTouch) {
     sp<FakeWindowHandle> window = new FakeWindowHandle(application, mDispatcher, "Fake Window",
             ADISPLAY_ID_DEFAULT);
 
-    Vector<sp<InputWindowHandle>> inputWindowHandles;
-    inputWindowHandles.add(window);
+    std::vector<sp<InputWindowHandle>> inputWindowHandles;
+    inputWindowHandles.push_back(window);
 
     mDispatcher->setInputWindows(inputWindowHandles, ADISPLAY_ID_DEFAULT);
     ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectMotionDown(mDispatcher,
@@ -591,9 +591,9 @@ TEST_F(InputDispatcherTest, SetInputWindow_MultiWindowsTouch) {
     sp<FakeWindowHandle> windowSecond = new FakeWindowHandle(application, mDispatcher, "Second",
             ADISPLAY_ID_DEFAULT);
 
-    Vector<sp<InputWindowHandle>> inputWindowHandles;
-    inputWindowHandles.add(windowTop);
-    inputWindowHandles.add(windowSecond);
+    std::vector<sp<InputWindowHandle>> inputWindowHandles;
+    inputWindowHandles.push_back(windowTop);
+    inputWindowHandles.push_back(windowSecond);
 
     mDispatcher->setInputWindows(inputWindowHandles, ADISPLAY_ID_DEFAULT);
     ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectMotionDown(mDispatcher,
@@ -617,9 +617,9 @@ TEST_F(InputDispatcherTest, SetInputWindow_FocusedWindow) {
 
     // Expect one focus window exist in display.
     windowSecond->setFocus();
-    Vector<sp<InputWindowHandle>> inputWindowHandles;
-    inputWindowHandles.add(windowTop);
-    inputWindowHandles.add(windowSecond);
+    std::vector<sp<InputWindowHandle>> inputWindowHandles;
+    inputWindowHandles.push_back(windowTop);
+    inputWindowHandles.push_back(windowSecond);
 
     mDispatcher->setInputWindows(inputWindowHandles, ADISPLAY_ID_DEFAULT);
     ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher))
@@ -643,9 +643,9 @@ TEST_F(InputDispatcherTest, SetInputWindow_FocusPriority) {
     // Display has two focused windows. Add them to inputWindowsHandles in z-order (top most first)
     windowTop->setFocus();
     windowSecond->setFocus();
-    Vector<sp<InputWindowHandle>> inputWindowHandles;
-    inputWindowHandles.add(windowTop);
-    inputWindowHandles.add(windowSecond);
+    std::vector<sp<InputWindowHandle>> inputWindowHandles;
+    inputWindowHandles.push_back(windowTop);
+    inputWindowHandles.push_back(windowSecond);
 
     mDispatcher->setInputWindows(inputWindowHandles, ADISPLAY_ID_DEFAULT);
     ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher))
@@ -669,9 +669,9 @@ TEST_F(InputDispatcherTest, SetInputWindow_InputWindowInfo) {
 
     windowTop->setFocus();
     windowSecond->setFocus();
-    Vector<sp<InputWindowHandle>> inputWindowHandles;
-    inputWindowHandles.add(windowTop);
-    inputWindowHandles.add(windowSecond);
+    std::vector<sp<InputWindowHandle>> inputWindowHandles;
+    inputWindowHandles.push_back(windowTop);
+    inputWindowHandles.push_back(windowSecond);
     // Release channel for window is no longer valid.
     windowTop->releaseChannel();
     mDispatcher->setInputWindows(inputWindowHandles, ADISPLAY_ID_DEFAULT);
@@ -695,8 +695,8 @@ public:
         application1 = new FakeApplicationHandle();
         windowInPrimary = new FakeWindowHandle(application1, mDispatcher, "D_1",
                 ADISPLAY_ID_DEFAULT);
-        Vector<sp<InputWindowHandle>> inputWindowHandles;
-        inputWindowHandles.push(windowInPrimary);
+        std::vector<sp<InputWindowHandle>> inputWindowHandles;
+        inputWindowHandles.push_back(windowInPrimary);
         // Set focus window for primary display, but focused display would be second one.
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application1);
         windowInPrimary->setFocus();
@@ -706,8 +706,8 @@ public:
         windowInSecondary = new FakeWindowHandle(application2, mDispatcher, "D_2",
                 SECOND_DISPLAY_ID);
         // Set focus to second display window.
-        Vector<sp<InputWindowHandle>> inputWindowHandles_Second;
-        inputWindowHandles_Second.push(windowInSecondary);
+        std::vector<sp<InputWindowHandle>> inputWindowHandles_Second;
+        inputWindowHandles_Second.push_back(windowInSecondary);
         // Set focus display to second one.
         mDispatcher->setFocusedDisplay(SECOND_DISPLAY_ID);
         // Set focus window for second display.
@@ -762,7 +762,7 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, SetInputWindow_MultiDisplayFocus) 
     windowInSecondary->consumeEvent(AINPUT_EVENT_TYPE_KEY, ADISPLAY_ID_NONE);
 
     // Remove secondary display.
-    Vector<sp<InputWindowHandle>> noWindows;
+    std::vector<sp<InputWindowHandle>> noWindows;
     mDispatcher->setInputWindows(noWindows, SECOND_DISPLAY_ID);
 
     // Expect old focus should receive a cancel event.

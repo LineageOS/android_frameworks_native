@@ -186,7 +186,7 @@ const InputDeviceInfo::MotionRange* InputDeviceInfo::getMotionRange(
         int32_t axis, uint32_t source) const {
     size_t numRanges = mMotionRanges.size();
     for (size_t i = 0; i < numRanges; i++) {
-        const MotionRange& range = mMotionRanges.itemAt(i);
+        const MotionRange& range = mMotionRanges[i];
         if (range.axis == axis && range.source == source) {
             return &range;
         }
@@ -201,11 +201,11 @@ void InputDeviceInfo::addSource(uint32_t source) {
 void InputDeviceInfo::addMotionRange(int32_t axis, uint32_t source, float min, float max,
         float flat, float fuzz, float resolution) {
     MotionRange range = { axis, source, min, max, flat, fuzz, resolution };
-    mMotionRanges.add(range);
+    mMotionRanges.push_back(range);
 }
 
 void InputDeviceInfo::addMotionRange(const MotionRange& range) {
-    mMotionRanges.add(range);
+    mMotionRanges.push_back(range);
 }
 
 } // namespace android

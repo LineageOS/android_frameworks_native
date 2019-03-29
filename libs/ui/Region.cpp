@@ -820,7 +820,7 @@ status_t Region::unflatten(void const* buffer, size_t size) {
     }
 
     if (numRects > (UINT32_MAX / sizeof(Rect))) {
-        android_errorWriteWithInfoLog(0x534e4554, "29983260", -1, NULL, 0);
+        android_errorWriteWithInfoLog(0x534e4554, "29983260", -1, nullptr, 0);
         return NO_MEMORY;
     }
 

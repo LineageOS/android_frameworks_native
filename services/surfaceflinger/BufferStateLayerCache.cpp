@@ -23,21 +23,14 @@
 
 #include "BufferStateLayerCache.h"
 
-#define VALID_CACHE_ID(id) ((id) >= 0 || (id) < (BUFFER_CACHE_MAX_SIZE))
-
 namespace android {
 
 ANDROID_SINGLETON_STATIC_INSTANCE(BufferStateLayerCache);
 
 BufferStateLayerCache::BufferStateLayerCache() : mDeathRecipient(new CacheDeathRecipient) {}
 
-void BufferStateLayerCache::add(sp<IBinder> processToken, int32_t id,
+void BufferStateLayerCache::add(const sp<IBinder>& processToken, uint64_t id,
                                 const sp<GraphicBuffer>& buffer) {
-    if (!VALID_CACHE_ID(id)) {
-        ALOGE("failed to cache buffer: invalid buffer id");
-        return;
-    }
-
     if (!processToken) {
         ALOGE("failed to cache buffer: invalid process token");
         return;
@@ -61,15 +54,33 @@ void BufferStateLayerCache::add(sp<IBinder> processToken, int32_t id,
     }
 
     auto& processBuffers = mBuffers[processToken];
+
+    if (processBuffers.size() > BUFFER_CACHE_MAX_SIZE) {
+        ALOGE("failed to cache buffer: cache is full");
+        return;
+    }
+
     processBuffers[id] = buffer;
 }
 
-sp<GraphicBuffer> BufferStateLayerCache::get(sp<IBinder> processToken, int32_t id) {
-    if (!VALID_CACHE_ID(id)) {
-        ALOGE("failed to get buffer: invalid buffer id");
-        return nullptr;
+void BufferStateLayerCache::erase(const sp<IBinder>& processToken, uint64_t id) {
+    if (!processToken) {
+        ALOGE("failed to uncache buffer: invalid process token");
+        return;
     }
 
+    std::lock_guard lock(mMutex);
+
+    if (mBuffers.find(processToken) == mBuffers.end()) {
+        ALOGE("failed to uncache buffer: process token not found");
+        return;
+    }
+
+    auto& processBuffers = mBuffers[processToken];
+    processBuffers.erase(id);
+}
+
+sp<GraphicBuffer> BufferStateLayerCache::get(const sp<IBinder>& processToken, uint64_t id) {
     if (!processToken) {
         ALOGE("failed to cache buffer: invalid process token");
         return nullptr;
@@ -82,8 +93,8 @@ sp<GraphicBuffer> BufferStateLayerCache::get(sp<IBinder> processToken, int32_t i
         return nullptr;
     }
 
-    if (id >= itr->second.size()) {
-        ALOGE("failed to get buffer: id outside the bounds of the cache");
+    if (itr->second.find(id) == itr->second.end()) {
+        ALOGE("failed to get buffer: buffer not found");
         return nullptr;
     }
 

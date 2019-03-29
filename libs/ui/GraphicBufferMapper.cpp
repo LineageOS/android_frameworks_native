@@ -53,6 +53,9 @@ GraphicBufferMapper::GraphicBufferMapper() {
     mMapper = std::make_unique<const Gralloc3Mapper>();
     if (!mMapper->isLoaded()) {
         mMapper = std::make_unique<const Gralloc2Mapper>();
+        mMapperVersion = Version::GRALLOC_2;
+    } else {
+        mMapperVersion = Version::GRALLOC_3;
     }
 
     if (!mMapper->isLoaded()) {

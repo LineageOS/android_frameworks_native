@@ -41,6 +41,11 @@ namespace android {
 class Parcel;
 class ISurfaceComposerClient;
 
+struct cached_buffer_t {
+    sp<IBinder> token = nullptr;
+    uint64_t cacheId;
+};
+
 /*
  * Used to communicate layer information between SurfaceFlinger and its clients.
  */
@@ -132,10 +137,6 @@ struct layer_state_t {
         float dtdx{0};
         float dtdy{0};
         float dsdy{0};
-    };
-    struct cached_buffer_t {
-        sp<IBinder> token = nullptr;
-        int32_t bufferId = -1;
     };
     sp<IBinder> surface;
     uint64_t what;

@@ -90,7 +90,7 @@ public:
     virtual void requestTimeoutAtTime(nsecs_t when) = 0;
     virtual int32_t bumpGeneration() = 0;
 
-    virtual void getExternalStylusDevices(Vector<InputDeviceInfo>& outDevices) = 0;
+    virtual void getExternalStylusDevices(std::vector<InputDeviceInfo>& outDevices) = 0;
     virtual void dispatchExternalStylusState(const StylusState& outState) = 0;
 
     virtual InputReaderPolicyInterface* getPolicy() = 0;
@@ -124,7 +124,7 @@ public:
 
     virtual void loopOnce();
 
-    virtual void getInputDevices(Vector<InputDeviceInfo>& outInputDevices);
+    virtual void getInputDevices(std::vector<InputDeviceInfo>& outInputDevices);
 
     virtual bool isInputDeviceEnabled(int32_t deviceId);
 
@@ -166,7 +166,7 @@ protected:
         virtual void fadePointer();
         virtual void requestTimeoutAtTime(nsecs_t when);
         virtual int32_t bumpGeneration();
-        virtual void getExternalStylusDevices(Vector<InputDeviceInfo>& outDevices);
+        virtual void getExternalStylusDevices(std::vector<InputDeviceInfo>& outDevices);
         virtual void dispatchExternalStylusState(const StylusState& outState);
         virtual InputReaderPolicyInterface* getPolicy();
         virtual InputListenerInterface* getListener();
@@ -211,7 +211,7 @@ private:
     int32_t getGlobalMetaStateLocked();
 
     void notifyExternalStylusPresenceChanged();
-    void getExternalStylusDevicesLocked(Vector<InputDeviceInfo>& outDevices);
+    void getExternalStylusDevicesLocked(std::vector<InputDeviceInfo>& outDevices);
     void dispatchExternalStylusState(const StylusState& state);
 
     void fadePointerLocked();
@@ -219,7 +219,7 @@ private:
     int32_t mGeneration;
     int32_t bumpGenerationLocked();
 
-    void getInputDevicesLocked(Vector<InputDeviceInfo>& outInputDevices);
+    void getInputDevicesLocked(std::vector<InputDeviceInfo>& outInputDevices);
 
     nsecs_t mDisableVirtualKeysTimeout;
     void disableVirtualKeysUntilLocked(nsecs_t time);
@@ -266,7 +266,7 @@ public:
     inline void setMic(bool hasMic) { mHasMic = hasMic; }
     inline bool hasMic() const { return mHasMic; }
 
-    inline bool isIgnored() { return mMappers.isEmpty(); }
+    inline bool isIgnored() { return mMappers.empty(); }
 
     bool isEnabled();
     void setEnabled(bool enabled, nsecs_t when);
@@ -331,7 +331,7 @@ private:
     std::string mAlias;
     uint32_t mClasses;
 
-    Vector<InputMapper*> mMappers;
+    std::vector<InputMapper*> mMappers;
 
     uint32_t mSources;
     bool mIsExternal;
@@ -877,7 +877,7 @@ private:
     uint32_t mSource;
     int32_t mKeyboardType;
 
-    Vector<KeyDown> mKeyDowns; // keys that are down
+    std::vector<KeyDown> mKeyDowns; // keys that are down
     int32_t mMetaState;
     nsecs_t mDownTime; // time of most recent key down
 
@@ -1235,7 +1235,7 @@ protected:
         }
     };
 
-    Vector<RawState> mRawStatesPending;
+    std::vector<RawState> mRawStatesPending;
     RawState mCurrentRawState;
     CookedState mCurrentCookedState;
     RawState mLastRawState;
@@ -1262,7 +1262,7 @@ protected:
     // The pointer controller, or null if the device is not a pointer.
     sp<PointerControllerInterface> mPointerController;
 
-    Vector<VirtualKey> mVirtualKeys;
+    std::vector<VirtualKey> mVirtualKeys;
 
     virtual void configureParameters();
     virtual void dumpParameters(std::string& dump);

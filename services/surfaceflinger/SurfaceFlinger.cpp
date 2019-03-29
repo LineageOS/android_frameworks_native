@@ -738,6 +738,7 @@ void SurfaceFlinger::init() {
     mRefreshRateStats =
             std::make_unique<scheduler::RefreshRateStats>(mRefreshRateConfigs[*display->getId()],
                                                           mTimeStats);
+    mRefreshRateStats->setConfigMode(getHwComposer().getActiveConfigIndex(*display->getId()));
 
     ALOGV("Done initializing");
 }
@@ -2906,13 +2907,13 @@ void SurfaceFlinger::updateInputFlinger() {
 }
 
 void SurfaceFlinger::updateInputWindowInfo() {
-    Vector<InputWindowInfo> inputHandles;
+    std::vector<InputWindowInfo> inputHandles;
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
         if (layer->hasInput()) {
             // When calculating the screen bounds we ignore the transparent region since it may
             // result in an unwanted offset.
-            inputHandles.add(layer->fillInputInfo());
+            inputHandles.push_back(layer->fillInputInfo());
         }
     });
 
@@ -3508,13 +3509,15 @@ bool SurfaceFlinger::flushTransactionQueues() {
         auto& [applyToken, transactionQueue] = *it;
 
         while (!transactionQueue.empty()) {
-            const auto& [states, displays, flags, desiredPresentTime, postTime, privileged] =
-                    transactionQueue.front();
+            const auto&
+                    [states, displays, flags, desiredPresentTime, uncacheBuffer, postTime,
+                     privileged] = transactionQueue.front();
             if (!transactionIsReadyToBeApplied(desiredPresentTime, states)) {
                 break;
             }
             applyTransactionState(states, displays, flags, mPendingInputWindowCommands,
-                                  desiredPresentTime, postTime, privileged);
+                                  desiredPresentTime, uncacheBuffer, postTime, privileged,
+                                  /*isMainThread*/ true);
             transactionQueue.pop();
         }
 
@@ -3571,7 +3574,8 @@ void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
                                          const Vector<DisplayState>& displays, uint32_t flags,
                                          const sp<IBinder>& applyToken,
                                          const InputWindowCommands& inputWindowCommands,
-                                         int64_t desiredPresentTime) {
+                                         int64_t desiredPresentTime,
+                                         const cached_buffer_t& uncacheBuffer) {
     ATRACE_CALL();
 
     const int64_t postTime = systemTime();
@@ -3588,20 +3592,22 @@ void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
     if (mTransactionQueues.find(applyToken) != mTransactionQueues.end() ||
         !transactionIsReadyToBeApplied(desiredPresentTime, states)) {
         mTransactionQueues[applyToken].emplace(states, displays, flags, desiredPresentTime,
-                                               postTime, privileged);
+                                               uncacheBuffer, postTime, privileged);
         setTransactionFlags(eTransactionNeeded);
         return;
     }
 
     applyTransactionState(states, displays, flags, inputWindowCommands, desiredPresentTime,
-                          postTime, privileged);
+                          uncacheBuffer, postTime, privileged);
 }
 
 void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
                                            const Vector<DisplayState>& displays, uint32_t flags,
                                            const InputWindowCommands& inputWindowCommands,
-                                           const int64_t desiredPresentTime, const int64_t postTime,
-                                           bool privileged) {
+                                           const int64_t desiredPresentTime,
+                                           const cached_buffer_t& uncacheBuffer,
+                                           const int64_t postTime, bool privileged,
+                                           bool isMainThread) {
     uint32_t transactionFlags = 0;
 
     if (flags & eAnimation) {
@@ -3636,6 +3642,10 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
 
     transactionFlags |= addInputWindowCommands(inputWindowCommands);
 
+    if (uncacheBuffer.token) {
+        BufferStateLayerCache::getInstance().erase(uncacheBuffer.token, uncacheBuffer.cacheId);
+    }
+
     // If a synchronous transaction is explicitly requested without any changes, force a transaction
     // anyway. This can be used as a flush mechanism for previous async transactions.
     // Empty animation transaction can be used to simulate back-pressure, so also force a
@@ -3665,7 +3675,12 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
         }
 
         mPendingSyncInputWindows = mPendingInputWindowCommands.syncInputWindows;
-        while (mTransactionPending || mPendingSyncInputWindows) {
+
+        // applyTransactionState can be called by either the main SF thread or by
+        // another process through setTransactionState.  While a given process may wish
+        // to wait on synchronous transactions, the main SF thread should never
+        // be blocked.  Therefore, we only wait if isMainThread is false.
+        while (!isMainThread && (mTransactionPending || mPendingSyncInputWindows)) {
             status_t err = mTransactionCV.waitRelative(mStateLock, s2ns(5));
             if (CC_UNLIKELY(err != NO_ERROR)) {
                 // just in case something goes wrong in SF, return to the
@@ -3972,16 +3987,20 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
             callbackHandles.emplace_back(new CallbackHandle(listener, callbackIds, s.surface));
         }
     }
-
-    if (what & layer_state_t::eBufferChanged) {
-        // Add the new buffer to the cache. This should always come before eCachedBufferChanged.
-        BufferStateLayerCache::getInstance().add(s.cachedBuffer.token, s.cachedBuffer.bufferId,
+    bool bufferChanged = what & layer_state_t::eBufferChanged;
+    bool cacheIdChanged = what & layer_state_t::eCachedBufferChanged;
+    sp<GraphicBuffer> buffer;
+    if (bufferChanged && cacheIdChanged) {
+        BufferStateLayerCache::getInstance().add(s.cachedBuffer.token, s.cachedBuffer.cacheId,
                                                  s.buffer);
+        buffer = s.buffer;
+    } else if (cacheIdChanged) {
+        buffer = BufferStateLayerCache::getInstance().get(s.cachedBuffer.token,
+                                                          s.cachedBuffer.cacheId);
+    } else if (bufferChanged) {
+        buffer = s.buffer;
     }
-    if (what & layer_state_t::eCachedBufferChanged) {
-        sp<GraphicBuffer> buffer =
-                BufferStateLayerCache::getInstance().get(s.cachedBuffer.token,
-                                                         s.cachedBuffer.bufferId);
+    if (buffer) {
         if (layer->setBuffer(buffer)) {
             flags |= eTraversalNeeded;
             layer->setPostTime(postTime);
@@ -4225,7 +4244,7 @@ void SurfaceFlinger::onInitializeDisplays() {
     d.width = 0;
     d.height = 0;
     displays.add(d);
-    setTransactionState(state, displays, 0, nullptr, mPendingInputWindowCommands, -1);
+    setTransactionState(state, displays, 0, nullptr, mPendingInputWindowCommands, -1, {});
 
     setPowerModeInternal(display, HWC_POWER_MODE_NORMAL);
 
@@ -4639,13 +4658,14 @@ void SurfaceFlinger::dumpWideColorInfo(std::string& result) const {
     result.append("\n");
 }
 
-LayersProto SurfaceFlinger::dumpProtoInfo(LayerVector::StateSet stateSet) const {
+LayersProto SurfaceFlinger::dumpProtoInfo(LayerVector::StateSet stateSet,
+                                          uint32_t traceFlags) const {
     LayersProto layersProto;
     const bool useDrawing = stateSet == LayerVector::StateSet::Drawing;
     const State& state = useDrawing ? mDrawingState : mCurrentState;
     state.traverseInZOrder([&](Layer* layer) {
         LayerProto* layerProto = layersProto.add_layers();
-        layer->writeToProto(layerProto, stateSet);
+        layer->writeToProto(layerProto, stateSet, traceFlags);
     });
 
     return layersProto;
@@ -4988,9 +5008,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         code == IBinder::SYSPROPS_TRANSACTION) {
         return OK;
     }
-    // Numbers from 1000 to 1032 are currently use for backdoors. The code
+    // Numbers from 1000 to 1033 are currently used for backdoors. The code
     // in onTransact verifies that the user is root, and has access to use SF.
-    if (code >= 1000 && code <= 1032) {
+    if (code >= 1000 && code <= 1033) {
         ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
         return OK;
     }
@@ -5296,6 +5316,14 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             case 1032: {
                 n = data.readInt32();
                 mDebugEnableProtectedContent = n;
+                return NO_ERROR;
+            }
+            // Set trace flags
+            case 1033: {
+                n = data.readUint32();
+                ALOGD("Updating trace flags to 0x%x", n);
+                mTracing.setTraceFlags(n);
+                reply->writeInt32(NO_ERROR);
                 return NO_ERROR;
             }
         }

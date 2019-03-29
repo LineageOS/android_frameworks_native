@@ -25,6 +25,7 @@
 #include <android-base/logging.h>
 #include <android-base/macros.h>
 #include <android-base/stringprintf.h>
+#include <libdm/dm.h>
 #include <selinux/android.h>
 
 #include <apexd.h>
@@ -75,6 +76,37 @@ static void DeactivateApexPackages(const std::vector<apex::ApexFile>& active_pac
             LOG(ERROR) << "Failed to deactivate " << package_path << ": " << status.ErrorMessage();
         }
     }
+}
+
+static void TryExtraMount(const char* name, const char* slot, const char* target) {
+    std::string partition_name = StringPrintf("%s%s", name, slot);
+
+    // See whether update_engine mounted a logical partition.
+    {
+        auto& dm = dm::DeviceMapper::Instance();
+        if (dm.GetState(partition_name) != dm::DmDeviceState::INVALID) {
+            std::string path;
+            if (dm.GetDmDevicePathByName(partition_name, &path)) {
+                int mount_result = mount(path.c_str(),
+                                         target,
+                                         "ext4",
+                                         MS_RDONLY,
+                                         /* data */ nullptr);
+                if (mount_result == 0) {
+                    return;
+                }
+            }
+        }
+    }
+
+    // Fall back and attempt a direct mount.
+    std::string block_device = StringPrintf("/dev/block/by-name/%s", partition_name.c_str());
+    int mount_result = mount(block_device.c_str(),
+                             target,
+                             "ext4",
+                             MS_RDONLY,
+                             /* data */ nullptr);
+    UNUSED(mount_result);
 }
 
 // Entry for otapreopt_chroot. Expected parameters are:
@@ -137,29 +169,11 @@ static int otapreopt_chroot(const int argc, char **arg) {
         LOG(ERROR) << "Target slot suffix not legal: " << arg[2];
         exit(207);
     }
-    {
-      std::string vendor_partition = StringPrintf("/dev/block/by-name/vendor%s",
-                                                  arg[2]);
-      int vendor_result = mount(vendor_partition.c_str(),
-                                "/postinstall/vendor",
-                                "ext4",
-                                MS_RDONLY,
-                                /* data */ nullptr);
-      UNUSED(vendor_result);
-    }
+    TryExtraMount("vendor", arg[2], "/postinstall/vendor");
 
     // Try to mount the product partition. update_engine doesn't do this for us, but we
     // want it for product APKs. Same notes as vendor above.
-    {
-      std::string product_partition = StringPrintf("/dev/block/by-name/product%s",
-                                                   arg[2]);
-      int product_result = mount(product_partition.c_str(),
-                                 "/postinstall/product",
-                                 "ext4",
-                                 MS_RDONLY,
-                                 /* data */ nullptr);
-      UNUSED(product_result);
-    }
+    TryExtraMount("product", arg[2], "/postinstall/product");
 
     // Setup APEX mount point and its security context.
     static constexpr const char* kPostinstallApexDir = "/postinstall/apex";
