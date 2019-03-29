@@ -3437,7 +3437,8 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
             }
         }
         renderEngine.drawLayers(clientCompositionDisplay, clientCompositionLayers,
-                                buf->getNativeBuffer(), std::move(fd), readyFence);
+                                buf->getNativeBuffer(), /*useFramebufferCache=*/true, std::move(fd),
+                                readyFence);
         if (expensiveRenderingExpected && displayId) {
             mPowerAdvisor.setExpensiveRenderingExpected(*displayId, false);
         }
@@ -5754,7 +5755,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     base::unique_fd drawFence;
     getRenderEngine().useProtectedContext(false);
     getRenderEngine().drawLayers(clientCompositionDisplay, clientCompositionLayers, buffer,
-                                 std::move(bufferFence), &drawFence);
+                                 /*useFramebufferCache=*/false, std::move(bufferFence), &drawFence);
 
     *outSyncFd = drawFence.release();
 }

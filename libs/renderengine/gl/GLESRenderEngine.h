@@ -83,14 +83,16 @@ public:
     bool supportsProtectedContent() const override;
     bool useProtectedContext(bool useProtectedContext) override;
     status_t drawLayers(const DisplaySettings& display, const std::vector<LayerSettings>& layers,
-                        ANativeWindowBuffer* buffer, base::unique_fd&& bufferFence,
-                        base::unique_fd* drawFence) EXCLUDES(mRenderingMutex) override;
+                        ANativeWindowBuffer* buffer, const bool useFramebufferCache,
+                        base::unique_fd&& bufferFence, base::unique_fd* drawFence)
+            EXCLUDES(mRenderingMutex) override;
 
     // internal to RenderEngine
     EGLDisplay getEGLDisplay() const { return mEGLDisplay; }
     EGLConfig getEGLConfig() const { return mEGLConfig; }
     // Creates an output image for rendering to
-    EGLImageKHR createFramebufferImageIfNeeded(ANativeWindowBuffer* nativeBuffer, bool isProtected);
+    EGLImageKHR createFramebufferImageIfNeeded(ANativeWindowBuffer* nativeBuffer, bool isProtected,
+                                               bool useFramebufferCache);
 
     // Test-only methods
     // Returns true iff mImageCache contains an image keyed by bufferId
