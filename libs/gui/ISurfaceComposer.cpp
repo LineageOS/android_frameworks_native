@@ -69,7 +69,7 @@ public:
                                      const sp<IBinder>& applyToken,
                                      const InputWindowCommands& commands,
                                      int64_t desiredPresentTime,
-                                     const cached_buffer_t& uncacheBuffer,
+                                     const client_cache_t& uncacheBuffer,
                                      const std::vector<ListenerCallbacks>& listenerCallbacks) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
@@ -88,8 +88,8 @@ public:
         data.writeStrongBinder(applyToken);
         commands.write(data);
         data.writeInt64(desiredPresentTime);
-        data.writeStrongBinder(uncacheBuffer.token);
-        data.writeUint64(uncacheBuffer.cacheId);
+        data.writeWeakBinder(uncacheBuffer.token);
+        data.writeUint64(uncacheBuffer.id);
 
         if (data.writeVectorSize(listenerCallbacks) == NO_ERROR) {
             for (const auto& [listener, callbackIds] : listenerCallbacks) {
@@ -991,9 +991,9 @@ status_t BnSurfaceComposer::onTransact(
 
             int64_t desiredPresentTime = data.readInt64();
 
-            cached_buffer_t uncachedBuffer;
-            uncachedBuffer.token = data.readStrongBinder();
-            uncachedBuffer.cacheId = data.readUint64();
+            client_cache_t uncachedBuffer;
+            uncachedBuffer.token = data.readWeakBinder();
+            uncachedBuffer.id = data.readUint64();
 
             std::vector<ListenerCallbacks> listenerCallbacks;
             int32_t listenersSize = data.readInt32();

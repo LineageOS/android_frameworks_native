@@ -46,6 +46,7 @@
 #include <utils/Trace.h>
 #include <utils/threads.h>
 
+#include "ClientCache.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/PowerAdvisor.h"
@@ -386,7 +387,7 @@ private:
                              const Vector<DisplayState>& displays, uint32_t flags,
                              const sp<IBinder>& applyToken,
                              const InputWindowCommands& inputWindowCommands,
-                             int64_t desiredPresentTime, const cached_buffer_t& uncacheBuffer,
+                             int64_t desiredPresentTime, const client_cache_t& uncacheBuffer,
                              const std::vector<ListenerCallbacks>& listenerCallbacks) override;
     void bootFinished() override;
     bool authenticateSurfaceTexture(
@@ -545,7 +546,7 @@ private:
                                const Vector<DisplayState>& displays, uint32_t flags,
                                const InputWindowCommands& inputWindowCommands,
                                const int64_t desiredPresentTime,
-                               const cached_buffer_t& uncacheBuffer,
+                               const client_cache_t& uncacheBuffer,
                                const std::vector<ListenerCallbacks>& listenerCallbacks,
                                const int64_t postTime, bool privileged, bool isMainThread = false)
             REQUIRES(mStateLock);
@@ -1031,7 +1032,7 @@ private:
     struct TransactionState {
         TransactionState(const Vector<ComposerState>& composerStates,
                          const Vector<DisplayState>& displayStates, uint32_t transactionFlags,
-                         int64_t desiredPresentTime, const cached_buffer_t& uncacheBuffer,
+                         int64_t desiredPresentTime, const client_cache_t& uncacheBuffer,
                          const std::vector<ListenerCallbacks>& listenerCallbacks, int64_t postTime,
                          bool privileged)
               : states(composerStates),
@@ -1047,7 +1048,7 @@ private:
         Vector<DisplayState> displays;
         uint32_t flags;
         const int64_t desiredPresentTime;
-        cached_buffer_t buffer;
+        client_cache_t buffer;
         std::vector<ListenerCallbacks> callback;
         const int64_t postTime;
         bool privileged;
