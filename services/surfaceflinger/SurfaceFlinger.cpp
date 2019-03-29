@@ -956,11 +956,6 @@ void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
         ALOGW("Attempt to set active config %d for virtual display", info.configId);
         return;
     }
-    int currentDisplayPowerMode = display->getPowerMode();
-    if (currentDisplayPowerMode != HWC_POWER_MODE_NORMAL) {
-        // Don't change active config when in AoD.
-        return;
-    }
 
     // Don't check against the current mode yet. Worst case we set the desired
     // config twice. However event generation config might have changed so we need to update it
