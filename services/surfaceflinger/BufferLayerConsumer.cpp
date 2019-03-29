@@ -217,7 +217,11 @@ status_t BufferLayerConsumer::acquireBufferLocked(BufferItem* item, nsecs_t pres
     // If item->mGraphicBuffer is not null, this buffer has not been acquired
     // before, so we need to clean up old references.
     if (item->mGraphicBuffer != nullptr) {
-        mImages[item->mSlot] = std::make_shared<Image>(item->mGraphicBuffer, mRE);
+        std::lock_guard<std::mutex> lock(mImagesMutex);
+        if (mImages[item->mSlot] == nullptr || mImages[item->mSlot]->graphicBuffer() == nullptr ||
+            mImages[item->mSlot]->graphicBuffer()->getId() != item->mGraphicBuffer->getId()) {
+            mImages[item->mSlot] = std::make_shared<Image>(item->mGraphicBuffer, mRE);
+        }
     }
 
     return NO_ERROR;
@@ -238,7 +242,12 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
     // Hang onto the pointer so that it isn't freed in the call to
     // releaseBufferLocked() if we're in shared buffer mode and both buffers are
     // the same.
-    std::shared_ptr<Image> nextTextureBuffer = mImages[slot];
+
+    std::shared_ptr<Image> nextTextureBuffer;
+    {
+        std::lock_guard<std::mutex> lock(mImagesMutex);
+        nextTextureBuffer = mImages[slot];
+    }
 
     // release old buffer
     if (mCurrentTexture != BufferQueue::INVALID_BUFFER_SLOT) {
@@ -436,6 +445,7 @@ status_t BufferLayerConsumer::doFenceWaitLocked() const {
 
 void BufferLayerConsumer::freeBufferLocked(int slotIndex) {
     BLC_LOGV("freeBufferLocked: slotIndex=%d", slotIndex);
+    std::lock_guard<std::mutex> lock(mImagesMutex);
     if (slotIndex == mCurrentTexture) {
         mCurrentTexture = BufferQueue::INVALID_BUFFER_SLOT;
     }
@@ -468,6 +478,23 @@ void BufferLayerConsumer::onSidebandStreamChanged() {
     }
 }
 
+void BufferLayerConsumer::onBufferAllocated(const BufferItem& item) {
+    if (item.mGraphicBuffer != nullptr) {
+        std::shared_ptr<Image> image = std::make_shared<Image>(item.mGraphicBuffer, mRE);
+        std::shared_ptr<Image> oldImage;
+        {
+            std::lock_guard<std::mutex> lock(mImagesMutex);
+            oldImage = mImages[item.mSlot];
+            if (oldImage == nullptr || oldImage->graphicBuffer() == nullptr ||
+                oldImage->graphicBuffer()->getId() != item.mGraphicBuffer->getId()) {
+                mImages[item.mSlot] = std::make_shared<Image>(item.mGraphicBuffer, mRE);
+            }
+            image = mImages[item.mSlot];
+        }
+        mRE.cacheExternalTextureBuffer(image->graphicBuffer());
+    }
+}
+
 void BufferLayerConsumer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
                                                    FrameEventHistoryDelta* outDelta) {
     sp<Layer> l = mLayer.promote();
@@ -480,6 +507,7 @@ void BufferLayerConsumer::abandonLocked() {
     BLC_LOGV("abandonLocked");
     mCurrentTextureBuffer = nullptr;
     for (int i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
+        std::lock_guard<std::mutex> lock(mImagesMutex);
         mImages[i] = nullptr;
     }
     ConsumerBase::abandonLocked();

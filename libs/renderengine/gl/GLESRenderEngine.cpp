@@ -626,23 +626,26 @@ void GLESRenderEngine::bindExternalTextureImage(uint32_t texName, const Image& i
     }
 }
 
-status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer,
-                                                     sp<Fence> bufferFence) {
+status_t GLESRenderEngine::cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {
+    std::lock_guard<std::mutex> lock(mRenderingMutex);
+    return cacheExternalTextureBufferLocked(buffer);
+}
+
+status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName,
+                                                     const sp<GraphicBuffer>& buffer,
+                                                     const sp<Fence>& bufferFence) {
     std::lock_guard<std::mutex> lock(mRenderingMutex);
     return bindExternalTextureBufferLocked(texName, buffer, bufferFence);
 }
 
-status_t GLESRenderEngine::bindExternalTextureBufferLocked(uint32_t texName,
-                                                           sp<GraphicBuffer> buffer,
-                                                           sp<Fence> bufferFence) {
+status_t GLESRenderEngine::cacheExternalTextureBufferLocked(const sp<GraphicBuffer>& buffer) {
     if (buffer == nullptr) {
         return BAD_VALUE;
     }
-    ATRACE_CALL();
-    auto cachedImage = mImageCache.find(buffer->getId());
 
-    if (cachedImage != mImageCache.end()) {
-        bindExternalTextureImage(texName, *cachedImage->second);
+    ATRACE_CALL();
+
+    if (mImageCache.count(buffer->getId()) > 0) {
         return NO_ERROR;
     }
 
@@ -654,11 +657,32 @@ status_t GLESRenderEngine::bindExternalTextureBufferLocked(uint32_t texName,
         ALOGE("Failed to create image. size=%ux%u st=%u usage=%#" PRIx64 " fmt=%d",
               buffer->getWidth(), buffer->getHeight(), buffer->getStride(), buffer->getUsage(),
               buffer->getPixelFormat());
+        return NO_INIT;
+    }
+    mImageCache.insert(std::make_pair(buffer->getId(), std::move(newImage)));
+
+    return NO_ERROR;
+}
+
+status_t GLESRenderEngine::bindExternalTextureBufferLocked(uint32_t texName,
+                                                           const sp<GraphicBuffer>& buffer,
+                                                           const sp<Fence>& bufferFence) {
+    ATRACE_CALL();
+    status_t cacheResult = cacheExternalTextureBufferLocked(buffer);
+
+    if (cacheResult != NO_ERROR) {
+        return cacheResult;
+    }
+
+    auto cachedImage = mImageCache.find(buffer->getId());
+
+    if (cachedImage == mImageCache.end()) {
+        // We failed creating the image if we got here, so bail out.
         bindExternalTextureImage(texName, *createImage());
         return NO_INIT;
     }
 
-    bindExternalTextureImage(texName, *newImage);
+    bindExternalTextureImage(texName, *cachedImage->second);
 
     // Wait for the new buffer to be ready.
     if (bufferFence != nullptr && bufferFence->isValid()) {
@@ -680,7 +704,6 @@ status_t GLESRenderEngine::bindExternalTextureBufferLocked(uint32_t texName,
             }
         }
     }
-    mImageCache.insert(std::make_pair(buffer->getId(), std::move(newImage)));
 
     return NO_ERROR;
 }

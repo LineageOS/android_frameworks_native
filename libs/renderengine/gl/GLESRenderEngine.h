@@ -72,8 +72,9 @@ public:
     void genTextures(size_t count, uint32_t* names) override;
     void deleteTextures(size_t count, uint32_t const* names) override;
     void bindExternalTextureImage(uint32_t texName, const Image& image) override;
-    status_t bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer, sp<Fence> fence)
-            EXCLUDES(mRenderingMutex);
+    status_t bindExternalTextureBuffer(uint32_t texName, const sp<GraphicBuffer>& buffer,
+                                       const sp<Fence>& fence) EXCLUDES(mRenderingMutex);
+    status_t cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) EXCLUDES(mRenderingMutex);
     void unbindExternalTextureBuffer(uint64_t bufferId) EXCLUDES(mRenderingMutex);
     status_t bindFrameBuffer(Framebuffer* framebuffer) override;
     void unbindFrameBuffer(Framebuffer* framebuffer) override;
@@ -221,8 +222,12 @@ private:
 
     // See bindExternalTextureBuffer above, but requiring that mRenderingMutex
     // is held.
-    status_t bindExternalTextureBufferLocked(uint32_t texName, sp<GraphicBuffer> buffer,
-                                             sp<Fence> fence) REQUIRES(mRenderingMutex);
+    status_t bindExternalTextureBufferLocked(uint32_t texName, const sp<GraphicBuffer>& buffer,
+                                             const sp<Fence>& fence) REQUIRES(mRenderingMutex);
+    // See cacheExternalTextureBuffer above, but requiring that mRenderingMutex
+    // is held.
+    status_t cacheExternalTextureBufferLocked(const sp<GraphicBuffer>& buffer)
+            REQUIRES(mRenderingMutex);
 
     std::unique_ptr<Framebuffer> mDrawingBuffer;
 

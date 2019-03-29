@@ -1023,4 +1023,18 @@ TEST_F(RenderEngineTest, drawLayers_bindExternalBufferCachesImages) {
     EXPECT_FALSE(sRE->isImageCachedForTesting(bufferId));
 }
 
+TEST_F(RenderEngineTest, drawLayers_cacheExternalBufferWithNullBuffer) {
+    status_t result = sRE->cacheExternalTextureBuffer(nullptr);
+    ASSERT_EQ(BAD_VALUE, result);
+}
+
+TEST_F(RenderEngineTest, drawLayers_cacheExternalBufferCachesImages) {
+    sp<GraphicBuffer> buf = allocateSourceBuffer(1, 1);
+    uint64_t bufferId = buf->getId();
+    sRE->cacheExternalTextureBuffer(buf);
+    EXPECT_TRUE(sRE->isImageCachedForTesting(bufferId));
+    sRE->unbindExternalTextureBuffer(bufferId);
+    EXPECT_FALSE(sRE->isImageCachedForTesting(bufferId));
+}
+
 } // namespace android

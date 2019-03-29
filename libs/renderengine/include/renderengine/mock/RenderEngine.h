@@ -51,7 +51,9 @@ public:
     MOCK_METHOD2(genTextures, void(size_t, uint32_t*));
     MOCK_METHOD2(deleteTextures, void(size_t, uint32_t const*));
     MOCK_METHOD2(bindExternalTextureImage, void(uint32_t, const renderengine::Image&));
-    MOCK_METHOD3(bindExternalTextureBuffer, status_t(uint32_t, sp<GraphicBuffer>, sp<Fence>));
+    MOCK_METHOD1(cacheExternalTextureBuffer, status_t(const sp<GraphicBuffer>&));
+    MOCK_METHOD3(bindExternalTextureBuffer,
+                 status_t(uint32_t, const sp<GraphicBuffer>&, const sp<Fence>&));
     MOCK_METHOD1(unbindExternalTextureBuffer, void(uint64_t));
     MOCK_CONST_METHOD0(checkErrors, void());
     MOCK_METHOD4(setViewportAndProjection,
