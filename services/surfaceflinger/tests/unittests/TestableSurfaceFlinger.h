@@ -232,6 +232,8 @@ public:
     auto& mutableLayerCurrentState(sp<Layer> layer) { return layer->mCurrentState; }
     auto& mutableLayerDrawingState(sp<Layer> layer) { return layer->mDrawingState; }
 
+    auto& mutableStateLock() { return mFlinger->mStateLock; }
+
     void setLayerSidebandStream(sp<Layer> layer, sp<NativeHandle> sidebandStream) {
         layer->mDrawingState.sidebandStream = sidebandStream;
         layer->mSidebandStream = sidebandStream;
@@ -319,6 +321,22 @@ public:
                                    ui::DisplayPrimaries &primaries) {
         return mFlinger->SurfaceFlinger::getDisplayNativePrimaries(displayToken, primaries);
     }
+
+    auto& getTransactionQueue() { return mFlinger->mTransactionQueues; }
+
+    auto setTransactionState(const Vector<ComposerState>& states,
+                             const Vector<DisplayState>& displays, uint32_t flags,
+                             const sp<IBinder>& applyToken,
+                             const InputWindowCommands& inputWindowCommands,
+                             int64_t desiredPresentTime, const client_cache_t& uncacheBuffer,
+                             bool hasListenerCallbacks,
+                             std::vector<ListenerCallbacks>& listenerCallbacks) {
+        return mFlinger->setTransactionState(states, displays, flags, applyToken,
+                                             inputWindowCommands, desiredPresentTime, uncacheBuffer,
+                                             hasListenerCallbacks, listenerCallbacks);
+    }
+
+    auto flushTransactionQueues() { return mFlinger->flushTransactionQueues(); };
 
     /* ------------------------------------------------------------------------
      * Read-only access to private data to assert post-conditions.
