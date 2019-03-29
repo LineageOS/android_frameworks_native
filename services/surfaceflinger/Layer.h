@@ -452,13 +452,13 @@ public:
 
     virtual void setPostTime(nsecs_t /*postTime*/) {}
     virtual void setDesiredPresentTime(nsecs_t /*desiredPresentTime*/) {}
-    virtual RoundedCornerState getRoundedCornerStateInternal(const FloatRect bounds) const;
 
 protected:
     virtual bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
                                     bool useIdentityTransform, Region& clearRegion,
                                     const bool supportProtectedContent,
                                     renderengine::LayerSettings& layer);
+
 public:
     /*
      * compositionengine::LayerFE overrides
@@ -907,6 +907,8 @@ private:
      * bounds are constrained by its parent bounds.
      */
     Rect getCroppedBufferSize(const Layer::State& s) const;
+
+    RoundedCornerState getRoundedCornerStateInternal(const FloatRect bounds) const;
 
     // Cached properties computed from drawing state
     // Effective transform taking into account parent transforms and any parent scaling.
