@@ -203,15 +203,15 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
      * that could possibly exist for the callbacks.
      */
     std::unordered_map<sp<IBinder>, sp<SurfaceControl>, IBinderHash> surfaceControls;
-    for (const auto& [callbackIds, transactionStats] : listenerStats.transactionStats) {
-        for (auto callbackId : callbackIds) {
+    for (const auto& transactionStats : listenerStats.transactionStats) {
+        for (auto callbackId : transactionStats.callbackIds) {
             auto& [callbackFunction, callbackSurfaceControls] = mCallbacks[callbackId];
             surfaceControls.insert(callbackSurfaceControls.begin(), callbackSurfaceControls.end());
         }
     }
 
-    for (const auto& [callbackIds, transactionStats] : listenerStats.transactionStats) {
-        for (auto callbackId : callbackIds) {
+    for (const auto& transactionStats : listenerStats.transactionStats) {
+        for (auto callbackId : transactionStats.callbackIds) {
             auto& [callbackFunction, callbackSurfaceControls] = mCallbacks[callbackId];
             if (!callbackFunction) {
                 ALOGE("cannot call null callback function, skipping");
