@@ -452,13 +452,13 @@ public:
 
     virtual void setPostTime(nsecs_t /*postTime*/) {}
     virtual void setDesiredPresentTime(nsecs_t /*desiredPresentTime*/) {}
-    virtual RoundedCornerState getRoundedCornerStateInternal(const FloatRect bounds) const;
 
 protected:
     virtual bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
                                     bool useIdentityTransform, Region& clearRegion,
                                     const bool supportProtectedContent,
                                     renderengine::LayerSettings& layer);
+
 public:
     /*
      * compositionengine::LayerFE overrides

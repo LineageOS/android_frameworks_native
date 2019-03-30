@@ -72,8 +72,9 @@ public:
     void genTextures(size_t count, uint32_t* names) override;
     void deleteTextures(size_t count, uint32_t const* names) override;
     void bindExternalTextureImage(uint32_t texName, const Image& image) override;
-    status_t bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer, sp<Fence> fence)
-            EXCLUDES(mRenderingMutex);
+    status_t bindExternalTextureBuffer(uint32_t texName, const sp<GraphicBuffer>& buffer,
+                                       const sp<Fence>& fence) EXCLUDES(mRenderingMutex);
+    status_t cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) EXCLUDES(mRenderingMutex);
     void unbindExternalTextureBuffer(uint64_t bufferId) EXCLUDES(mRenderingMutex);
     status_t bindFrameBuffer(Framebuffer* framebuffer) override;
     void unbindFrameBuffer(Framebuffer* framebuffer) override;
@@ -83,14 +84,16 @@ public:
     bool supportsProtectedContent() const override;
     bool useProtectedContext(bool useProtectedContext) override;
     status_t drawLayers(const DisplaySettings& display, const std::vector<LayerSettings>& layers,
-                        ANativeWindowBuffer* buffer, base::unique_fd&& bufferFence,
-                        base::unique_fd* drawFence) EXCLUDES(mRenderingMutex) override;
+                        ANativeWindowBuffer* buffer, const bool useFramebufferCache,
+                        base::unique_fd&& bufferFence, base::unique_fd* drawFence)
+            EXCLUDES(mRenderingMutex) override;
 
     // internal to RenderEngine
     EGLDisplay getEGLDisplay() const { return mEGLDisplay; }
     EGLConfig getEGLConfig() const { return mEGLConfig; }
     // Creates an output image for rendering to
-    EGLImageKHR createFramebufferImageIfNeeded(ANativeWindowBuffer* nativeBuffer, bool isProtected);
+    EGLImageKHR createFramebufferImageIfNeeded(ANativeWindowBuffer* nativeBuffer, bool isProtected,
+                                               bool useFramebufferCache);
 
     // Test-only methods
     // Returns true iff mImageCache contains an image keyed by bufferId
@@ -219,8 +222,12 @@ private:
 
     // See bindExternalTextureBuffer above, but requiring that mRenderingMutex
     // is held.
-    status_t bindExternalTextureBufferLocked(uint32_t texName, sp<GraphicBuffer> buffer,
-                                             sp<Fence> fence) REQUIRES(mRenderingMutex);
+    status_t bindExternalTextureBufferLocked(uint32_t texName, const sp<GraphicBuffer>& buffer,
+                                             const sp<Fence>& fence) REQUIRES(mRenderingMutex);
+    // See cacheExternalTextureBuffer above, but requiring that mRenderingMutex
+    // is held.
+    status_t cacheExternalTextureBufferLocked(const sp<GraphicBuffer>& buffer)
+            REQUIRES(mRenderingMutex);
 
     std::unique_ptr<Framebuffer> mDrawingBuffer;
 

@@ -333,7 +333,6 @@ private:
             if (t < now) {
                 if (isShorterThanPeriod(now - eventListener.mLastCallbackTime)) {
                     eventListener.mLastEventTime = t;
-                    eventListener.mLastCallbackTime = now;
                     ALOGV("[%s] [%s] Skipping event due to model error", mName,
                           eventListener.mName);
                     continue;

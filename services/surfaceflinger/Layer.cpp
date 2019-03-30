@@ -1788,13 +1788,9 @@ half4 Layer::getColor() const {
 }
 
 Layer::RoundedCornerState Layer::getRoundedCornerState() const {
-    return getRoundedCornerStateInternal(mSourceBounds);
-}
-
-Layer::RoundedCornerState Layer::getRoundedCornerStateInternal(const FloatRect) const {
     const auto& p = mDrawingParent.promote();
     if (p != nullptr) {
-        RoundedCornerState parentState = p->getRoundedCornerStateInternal(mSourceBounds);
+        RoundedCornerState parentState = p->getRoundedCornerState();
         if (parentState.radius > 0) {
             ui::Transform t = getActiveTransform(getDrawingState());
             t = t.inverse();
@@ -1808,10 +1804,7 @@ Layer::RoundedCornerState Layer::getRoundedCornerStateInternal(const FloatRect) 
         }
     }
     const float radius = getDrawingState().cornerRadius;
-    return radius > 0
-            ? RoundedCornerState(mSourceBounds.intersect(getCrop(getDrawingState()).toFloatRect()),
-                                 radius)
-            : RoundedCornerState();
+    return radius > 0 ? RoundedCornerState(getBounds(), radius) : RoundedCornerState();
 }
 
 void Layer::commitChildList() {

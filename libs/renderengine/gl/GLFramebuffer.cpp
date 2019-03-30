@@ -41,19 +41,25 @@ GLFramebuffer::~GLFramebuffer() {
     glDeleteTextures(1, &mTextureName);
 }
 
-bool GLFramebuffer::setNativeWindowBuffer(ANativeWindowBuffer* nativeBuffer, bool isProtected) {
+bool GLFramebuffer::setNativeWindowBuffer(ANativeWindowBuffer* nativeBuffer, bool isProtected,
+                                          const bool useFramebufferCache) {
     ATRACE_CALL();
     if (mEGLImage != EGL_NO_IMAGE_KHR) {
+        if (!usingFramebufferCache) {
+            eglDestroyImageKHR(mEGLDisplay, mEGLImage);
+        }
         mEGLImage = EGL_NO_IMAGE_KHR;
         mBufferWidth = 0;
         mBufferHeight = 0;
     }
 
     if (nativeBuffer) {
-        mEGLImage = mEngine.createFramebufferImageIfNeeded(nativeBuffer, isProtected);
+        mEGLImage = mEngine.createFramebufferImageIfNeeded(nativeBuffer, isProtected,
+                                                           useFramebufferCache);
         if (mEGLImage == EGL_NO_IMAGE_KHR) {
             return false;
         }
+        usingFramebufferCache = useFramebufferCache;
         mBufferWidth = nativeBuffer->width;
         mBufferHeight = nativeBuffer->height;
     }

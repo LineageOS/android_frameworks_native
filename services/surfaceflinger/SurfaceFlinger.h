@@ -963,6 +963,7 @@ private:
     bool mTransactionPending;
     bool mAnimTransactionPending;
     SortedVector< sp<Layer> > mLayersPendingRemoval;
+    bool mTraversalNeededMainThread;
 
     // guards access to the mDrawing state if tracing is enabled.
     mutable std::mutex mDrawingStateLock;

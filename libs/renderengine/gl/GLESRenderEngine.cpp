@@ -626,23 +626,26 @@ void GLESRenderEngine::bindExternalTextureImage(uint32_t texName, const Image& i
     }
 }
 
-status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer,
-                                                     sp<Fence> bufferFence) {
+status_t GLESRenderEngine::cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {
+    std::lock_guard<std::mutex> lock(mRenderingMutex);
+    return cacheExternalTextureBufferLocked(buffer);
+}
+
+status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName,
+                                                     const sp<GraphicBuffer>& buffer,
+                                                     const sp<Fence>& bufferFence) {
     std::lock_guard<std::mutex> lock(mRenderingMutex);
     return bindExternalTextureBufferLocked(texName, buffer, bufferFence);
 }
 
-status_t GLESRenderEngine::bindExternalTextureBufferLocked(uint32_t texName,
-                                                           sp<GraphicBuffer> buffer,
-                                                           sp<Fence> bufferFence) {
+status_t GLESRenderEngine::cacheExternalTextureBufferLocked(const sp<GraphicBuffer>& buffer) {
     if (buffer == nullptr) {
         return BAD_VALUE;
     }
-    ATRACE_CALL();
-    auto cachedImage = mImageCache.find(buffer->getId());
 
-    if (cachedImage != mImageCache.end()) {
-        bindExternalTextureImage(texName, *cachedImage->second);
+    ATRACE_CALL();
+
+    if (mImageCache.count(buffer->getId()) > 0) {
         return NO_ERROR;
     }
 
@@ -654,11 +657,32 @@ status_t GLESRenderEngine::bindExternalTextureBufferLocked(uint32_t texName,
         ALOGE("Failed to create image. size=%ux%u st=%u usage=%#" PRIx64 " fmt=%d",
               buffer->getWidth(), buffer->getHeight(), buffer->getStride(), buffer->getUsage(),
               buffer->getPixelFormat());
+        return NO_INIT;
+    }
+    mImageCache.insert(std::make_pair(buffer->getId(), std::move(newImage)));
+
+    return NO_ERROR;
+}
+
+status_t GLESRenderEngine::bindExternalTextureBufferLocked(uint32_t texName,
+                                                           const sp<GraphicBuffer>& buffer,
+                                                           const sp<Fence>& bufferFence) {
+    ATRACE_CALL();
+    status_t cacheResult = cacheExternalTextureBufferLocked(buffer);
+
+    if (cacheResult != NO_ERROR) {
+        return cacheResult;
+    }
+
+    auto cachedImage = mImageCache.find(buffer->getId());
+
+    if (cachedImage == mImageCache.end()) {
+        // We failed creating the image if we got here, so bail out.
         bindExternalTextureImage(texName, *createImage());
         return NO_INIT;
     }
 
-    bindExternalTextureImage(texName, *newImage);
+    bindExternalTextureImage(texName, *cachedImage->second);
 
     // Wait for the new buffer to be ready.
     if (bufferFence != nullptr && bufferFence->isValid()) {
@@ -680,7 +704,6 @@ status_t GLESRenderEngine::bindExternalTextureBufferLocked(uint32_t texName,
             }
         }
     }
-    mImageCache.insert(std::make_pair(buffer->getId(), std::move(newImage)));
 
     return NO_ERROR;
 }
@@ -808,12 +831,14 @@ bool GLESRenderEngine::useProtectedContext(bool useProtectedContext) {
     return success;
 }
 EGLImageKHR GLESRenderEngine::createFramebufferImageIfNeeded(ANativeWindowBuffer* nativeBuffer,
-                                                             bool isProtected) {
+                                                             bool isProtected,
+                                                             bool useFramebufferCache) {
     sp<GraphicBuffer> graphicBuffer = GraphicBuffer::from(nativeBuffer);
-    uint64_t bufferId = graphicBuffer->getId();
-    for (const auto& image : mFramebufferImageCache) {
-        if (image.first == bufferId) {
-            return image.second;
+    if (useFramebufferCache) {
+        for (const auto& image : mFramebufferImageCache) {
+            if (image.first == graphicBuffer->getId()) {
+                return image.second;
+            }
         }
     }
     EGLint attributes[] = {
@@ -823,13 +848,15 @@ EGLImageKHR GLESRenderEngine::createFramebufferImageIfNeeded(ANativeWindowBuffer
     };
     EGLImageKHR image = eglCreateImageKHR(mEGLDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID,
                                           nativeBuffer, attributes);
-    if (image != EGL_NO_IMAGE_KHR) {
-        if (mFramebufferImageCache.size() >= mFramebufferImageCacheSize) {
-            EGLImageKHR expired = mFramebufferImageCache.front().second;
-            mFramebufferImageCache.pop_front();
-            eglDestroyImageKHR(mEGLDisplay, expired);
+    if (useFramebufferCache) {
+        if (image != EGL_NO_IMAGE_KHR) {
+            if (mFramebufferImageCache.size() >= mFramebufferImageCacheSize) {
+                EGLImageKHR expired = mFramebufferImageCache.front().second;
+                mFramebufferImageCache.pop_front();
+                eglDestroyImageKHR(mEGLDisplay, expired);
+            }
+            mFramebufferImageCache.push_back({graphicBuffer->getId(), image});
         }
-        mFramebufferImageCache.push_back({bufferId, image});
     }
     return image;
 }
@@ -837,7 +864,8 @@ EGLImageKHR GLESRenderEngine::createFramebufferImageIfNeeded(ANativeWindowBuffer
 status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
                                       const std::vector<LayerSettings>& layers,
                                       ANativeWindowBuffer* const buffer,
-                                      base::unique_fd&& bufferFence, base::unique_fd* drawFence) {
+                                      const bool useFramebufferCache, base::unique_fd&& bufferFence,
+                                      base::unique_fd* drawFence) {
     ATRACE_CALL();
     if (layers.empty()) {
         ALOGV("Drawing empty layer stack");
@@ -857,7 +885,7 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
     {
         std::lock_guard<std::mutex> lock(mRenderingMutex);
 
-        BindNativeBufferAsFramebuffer fbo(*this, buffer);
+        BindNativeBufferAsFramebuffer fbo(*this, buffer, useFramebufferCache);
 
         if (fbo.getStatus() != NO_ERROR) {
             ALOGE("Failed to bind framebuffer! Aborting GPU composition for buffer (%p).",

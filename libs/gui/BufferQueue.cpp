@@ -59,6 +59,13 @@ void BufferQueue::ProxyConsumerListener::onFrameReplaced(
     }
 }
 
+void BufferQueue::ProxyConsumerListener::onBufferAllocated(const BufferItem& item) {
+    sp<ConsumerListener> listener(mConsumerListener.promote());
+    if (listener != nullptr) {
+        listener->onBufferAllocated(item);
+    }
+}
+
 void BufferQueue::ProxyConsumerListener::onBuffersReleased() {
     sp<ConsumerListener> listener(mConsumerListener.promote());
     if (listener != nullptr) {

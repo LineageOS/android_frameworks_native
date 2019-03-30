@@ -530,6 +530,13 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
                 return NO_INIT;
             }
 
+            if (mCore->mConsumerListener != nullptr) {
+                BufferItem item;
+                item.mGraphicBuffer = graphicBuffer;
+                item.mSlot = *outSlot;
+                mCore->mConsumerListener->onBufferAllocated(item);
+            }
+
             VALIDATE_CONSISTENCY();
         } // Autolock scope
     }
@@ -1413,6 +1420,13 @@ void BufferQueueProducer::allocateBuffers(uint32_t width, uint32_t height,
 
                 BQ_LOGV("allocateBuffers: allocated a new buffer in slot %d",
                         *slot);
+
+                if (mCore->mConsumerListener != nullptr) {
+                    BufferItem item;
+                    item.mGraphicBuffer = buffers[i];
+                    item.mSlot = *slot;
+                    mCore->mConsumerListener->onBufferAllocated(item);
+                }
 
                 // Make sure the erase is done after all uses of the slot
                 // iterator since it will be invalid after this point.

@@ -44,9 +44,6 @@ cc_library_static {
     static_libs: [
         "libbufferhub",
     ],
-
-    // TODO(b/117568153): Temporarily opt out using libcrt.
-    no_libcrt: true,
 }
 
 cc_binary {

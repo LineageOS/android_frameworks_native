@@ -203,15 +203,15 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
      * that could possibly exist for the callbacks.
      */
     std::unordered_map<sp<IBinder>, sp<SurfaceControl>, IBinderHash> surfaceControls;
-    for (const auto& [callbackIds, transactionStats] : listenerStats.transactionStats) {
-        for (auto callbackId : callbackIds) {
+    for (const auto& transactionStats : listenerStats.transactionStats) {
+        for (auto callbackId : transactionStats.callbackIds) {
             auto& [callbackFunction, callbackSurfaceControls] = mCallbacks[callbackId];
             surfaceControls.insert(callbackSurfaceControls.begin(), callbackSurfaceControls.end());
         }
     }
 
-    for (const auto& [callbackIds, transactionStats] : listenerStats.transactionStats) {
-        for (auto callbackId : callbackIds) {
+    for (const auto& transactionStats : listenerStats.transactionStats) {
+        for (auto callbackId : transactionStats.callbackIds) {
             auto& [callbackFunction, callbackSurfaceControls] = mCallbacks[callbackId];
             if (!callbackFunction) {
                 ALOGE("cannot call null callback function, skipping");
@@ -406,10 +406,16 @@ void SurfaceComposerClient::Transaction::cacheBuffers() {
             continue;
         }
 
+        // Don't try to cache a null buffer. Sending null buffers is cheap so we shouldn't waste
+        // time trying to cache them.
+        if (!s->buffer) {
+            continue;
+        }
+
         uint64_t cacheId = 0;
         status_t ret = BufferCache::getInstance().getCacheId(s->buffer, &cacheId);
         if (ret == NO_ERROR) {
-            s->what &= ~static_cast<uint32_t>(layer_state_t::eBufferChanged);
+            s->what &= ~static_cast<uint64_t>(layer_state_t::eBufferChanged);
             s->buffer = nullptr;
         } else {
             cacheId = BufferCache::getInstance().cache(s->buffer);
