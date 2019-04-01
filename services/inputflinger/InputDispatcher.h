@@ -272,6 +272,13 @@ public:
      */
     virtual bool checkInjectEventsPermissionNonReentrant(
             int32_t injectorPid, int32_t injectorUid) = 0;
+
+    /* Notifies the policy that a pointer down event has occurred outside the current focused
+     * window.
+     *
+     * The touchedToken passed as an argument is the window that received the input event.
+     */
+    virtual void onPointerDownOutsideFocus(const sp<IBinder>& touchedToken) = 0;
 };
 
 
@@ -1149,7 +1156,7 @@ private:
     void releaseDispatchEntry(DispatchEntry* dispatchEntry);
     static int handleReceiveCallback(int fd, int events, void* data);
     // The action sent should only be of type AMOTION_EVENT_*
-    void dispatchPointerDownOutsideFocusIfNecessary(uint32_t source, int32_t action,
+    void dispatchPointerDownOutsideFocus(uint32_t source, int32_t action,
             const sp<IBinder>& newToken) REQUIRES(mLock);
 
     void synthesizeCancelationEventsForAllConnectionsLocked(
@@ -1204,6 +1211,8 @@ private:
             DispatchEntry* dispatchEntry, MotionEntry* motionEntry, bool handled) REQUIRES(mLock);
     void doPokeUserActivityLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     void initializeKeyEvent(KeyEvent* event, const KeyEntry* entry);
+    void doOnPointerDownOutsideFocusLockedInterruptible(CommandEntry* commandEntry)
+            REQUIRES(mLock);
 
     // Statistics gathering.
     void updateDispatchStatistics(nsecs_t currentTime, const EventEntry* entry,
