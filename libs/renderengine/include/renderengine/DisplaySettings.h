@@ -20,6 +20,7 @@
 #include <ui/GraphicTypes.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
+#include <ui/Transform.h>
 
 namespace android {
 namespace renderengine {
@@ -56,6 +57,9 @@ struct DisplaySettings {
     // globalTransform, so that it will be in the same coordinate space as the
     // rendered layers.
     Region clearRegion = Region::INVALID_REGION;
+
+    // The orientation of the physical display.
+    uint32_t orientation = ui::Transform::ROT_0;
 };
 
 } // namespace renderengine
