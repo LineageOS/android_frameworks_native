@@ -45,7 +45,7 @@ bool view_compiler(const char* apk_path, const char* package_name, const char* o
     // and pass file descriptors.
 
     // Open input file
-    unique_fd infd{open(apk_path, 0)};
+    unique_fd infd{open(apk_path, O_RDONLY)}; // NOLINT(android-cloexec-open)
     if (infd.get() < 0) {
         PLOG(ERROR) << "Could not open input file: " << apk_path;
         return false;
@@ -53,17 +53,13 @@ bool view_compiler(const char* apk_path, const char* package_name, const char* o
 
     // Set up output file. viewcompiler can't open outputs by fd, but it can write to stdout, so
     // we close stdout and open it towards the right output.
-    unique_fd outfd{open(out_dex_file, O_CREAT | O_TRUNC | O_WRONLY, 0644)};
+    unique_fd outfd{open(out_dex_file, O_CREAT | O_TRUNC | O_WRONLY | O_CLOEXEC, 0644)};
     if (outfd.get() < 0) {
         PLOG(ERROR) << "Could not open output file: " << out_dex_file;
         return false;
     }
     if (fchmod(outfd, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH) != 0) {
         PLOG(ERROR) << "Could not change output file permissions";
-        return false;
-    }
-    if (close(STDOUT_FILENO) != 0) {
-        PLOG(ERROR) << "Could not close stdout";
         return false;
     }
     if (dup2(outfd, STDOUT_FILENO) < 0) {
