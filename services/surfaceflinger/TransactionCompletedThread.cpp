@@ -34,7 +34,8 @@ namespace android {
 //         >0 if the first id that doesn't match is greater in c2 or all ids match but c2 is longer
 //
 // See CallbackIdsHash for a explaniation of why this works
-static int compareCallbackIds(const std::vector<CallbackId>& c1, const std::vector<CallbackId> c2) {
+static int compareCallbackIds(const std::vector<CallbackId>& c1,
+                              const std::vector<CallbackId>& c2) {
     if (c1.empty()) {
         return !c2.empty();
     }

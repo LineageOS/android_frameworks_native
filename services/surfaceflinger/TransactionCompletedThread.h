@@ -37,7 +37,7 @@ struct CallbackIdsHash {
     // 2) CallbackId vectors for the same listener either are identical or contain none of the
     // same members. It is sufficient to just check the first CallbackId in the vectors. If
     // they match, they are the same. If they do not match, they are not the same.
-    std::size_t operator()(const std::vector<CallbackId> callbackIds) const {
+    std::size_t operator()(const std::vector<CallbackId>& callbackIds) const {
         return std::hash<CallbackId>{}((callbackIds.empty()) ? 0 : callbackIds.front());
     }
 };
