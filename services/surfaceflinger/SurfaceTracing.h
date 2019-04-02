@@ -41,7 +41,7 @@ constexpr auto operator""_MB(unsigned long long const num) {
  */
 class SurfaceTracing {
 public:
-    SurfaceTracing(SurfaceFlinger& flinger);
+    explicit SurfaceTracing(SurfaceFlinger& flinger);
     void enable();
     bool disable();
     status_t writeToFile();
