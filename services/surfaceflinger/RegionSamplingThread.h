@@ -37,6 +37,8 @@ class Scheduler;
 class SurfaceFlinger;
 struct SamplingOffsetCallback;
 
+float sampleArea(const uint32_t* data, int32_t stride, const Rect& area);
+
 class RegionSamplingThread : public IBinder::DeathRecipient {
 public:
     struct TimingTunables {
