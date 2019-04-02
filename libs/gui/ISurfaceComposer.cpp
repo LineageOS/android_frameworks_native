@@ -504,8 +504,8 @@ public:
             ALOGE("enableVSyncInjections failed to writeBool: %d", result);
             return result;
         }
-        result = remote()->transact(BnSurfaceComposer::ENABLE_VSYNC_INJECTIONS,
-                data, &reply, TF_ONE_WAY);
+        result = remote()->transact(BnSurfaceComposer::ENABLE_VSYNC_INJECTIONS, data, &reply,
+                                    IBinder::FLAG_ONEWAY);
         if (result != NO_ERROR) {
             ALOGE("enableVSyncInjections failed to transact: %d", result);
             return result;
@@ -525,7 +525,8 @@ public:
             ALOGE("injectVSync failed to writeInt64: %d", result);
             return result;
         }
-        result = remote()->transact(BnSurfaceComposer::INJECT_VSYNC, data, &reply, TF_ONE_WAY);
+        result = remote()->transact(BnSurfaceComposer::INJECT_VSYNC, data, &reply,
+                                    IBinder::FLAG_ONEWAY);
         if (result != NO_ERROR) {
             ALOGE("injectVSync failed to transact: %d", result);
             return result;
