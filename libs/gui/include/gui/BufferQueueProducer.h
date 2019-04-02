@@ -211,7 +211,8 @@ private:
         Dequeue,
         Attach,
     };
-    status_t waitForFreeSlotThenRelock(FreeSlotCaller caller, int* found) const;
+    status_t waitForFreeSlotThenRelock(FreeSlotCaller caller, std::unique_lock<std::mutex>& lock,
+            int* found) const;
 
     sp<BufferQueueCore> mCore;
 
@@ -243,10 +244,10 @@ private:
     // (mCore->mMutex) is held, a ticket is retained by the producer. After
     // dropping the BufferQueue lock, the producer must wait on the condition
     // variable until the current callback ticket matches its retained ticket.
-    Mutex mCallbackMutex;
+    std::mutex mCallbackMutex;
     int mNextCallbackTicket; // Protected by mCore->mMutex
     int mCurrentCallbackTicket; // Protected by mCallbackMutex
-    Condition mCallbackCondition;
+    std::condition_variable mCallbackCondition;
 
     // Sets how long dequeueBuffer or attachBuffer will block if a buffer or
     // slot is not yet available.
