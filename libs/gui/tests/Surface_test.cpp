@@ -126,7 +126,7 @@ TEST_F(SurfaceTest, QueuesToWindowComposerIsTrueWhenPurgatorized) {
 }
 
 // This test probably doesn't belong here.
-TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersSucceed) {
+TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersDontSucceed) {
     sp<ANativeWindow> anw(mSurface);
 
     // Verify the screenshot works with no protected buffers.
@@ -136,8 +136,9 @@ TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersSucceed) {
     ASSERT_FALSE(display == nullptr);
 
     sp<GraphicBuffer> outBuffer;
+    bool ignored;
     ASSERT_EQ(NO_ERROR,
-              sf->captureScreen(display, &outBuffer, ui::Dataspace::V0_SRGB,
+              sf->captureScreen(display, &outBuffer, ignored, ui::Dataspace::V0_SRGB,
                                 ui::PixelFormat::RGBA_8888, Rect(), 64, 64, false));
 
     ASSERT_EQ(NO_ERROR, native_window_api_connect(anw.get(),
@@ -169,7 +170,7 @@ TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersSucceed) {
         ASSERT_EQ(NO_ERROR, anw->queueBuffer(anw.get(), buf, -1));
     }
     ASSERT_EQ(NO_ERROR,
-              sf->captureScreen(display, &outBuffer, ui::Dataspace::V0_SRGB,
+              sf->captureScreen(display, &outBuffer, ignored, ui::Dataspace::V0_SRGB,
                                 ui::PixelFormat::RGBA_8888, Rect(), 64, 64, false));
 }
 
@@ -615,6 +616,7 @@ public:
     status_t setActiveColorMode(const sp<IBinder>& /*display*/,
         ColorMode /*colorMode*/) override { return NO_ERROR; }
     status_t captureScreen(const sp<IBinder>& /*display*/, sp<GraphicBuffer>* /*outBuffer*/,
+                           bool& /* outCapturedSecureLayers */,
                            const ui::Dataspace /*reqDataspace*/,
                            const ui::PixelFormat /*reqPixelFormat*/, Rect /*sourceCrop*/,
                            uint32_t /*reqWidth*/, uint32_t /*reqHeight*/,
