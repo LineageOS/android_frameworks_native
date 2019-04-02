@@ -274,6 +274,9 @@ private:
     // mCurrentTextureImage must not be nullptr.
     void computeCurrentTransformMatrixLocked();
 
+    // See getCurrentCrop, but with mMutex already held.
+    Rect getCurrentCropLocked() const;
+
     // doFenceWaitLocked inserts a wait command into the RenderEngine command
     // stream to ensure that it is safe for future RenderEngine commands to
     // access the current texture buffer.
