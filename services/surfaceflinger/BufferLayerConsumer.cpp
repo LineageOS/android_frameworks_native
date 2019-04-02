@@ -435,7 +435,9 @@ void BufferLayerConsumer::computeCurrentTransformMatrixLocked() {
         BLC_LOGD("computeCurrentTransformMatrixLocked: "
                  "mCurrentTextureImage is nullptr");
     }
-    const Rect& cropRect = canUseImageCrop(mCurrentCrop) ? Rect::EMPTY_RECT : mCurrentCrop;
+
+    const Rect& currentCrop = getCurrentCropLocked();
+    const Rect& cropRect = canUseImageCrop(currentCrop) ? Rect::EMPTY_RECT : currentCrop;
     GLConsumer::computeTransformMatrix(mCurrentTransformMatrix, buf, cropRect, mCurrentTransform,
                                        mFilteringEnabled);
 }
@@ -490,6 +492,10 @@ sp<GraphicBuffer> BufferLayerConsumer::getCurrentBuffer(int* outSlot) const {
 
 Rect BufferLayerConsumer::getCurrentCrop() const {
     Mutex::Autolock lock(mMutex);
+    return getCurrentCropLocked();
+}
+
+Rect BufferLayerConsumer::getCurrentCropLocked() const {
     return (mCurrentScalingMode == NATIVE_WINDOW_SCALING_MODE_SCALE_CROP)
             ? GLConsumer::scaleDownCrop(mCurrentCrop, mDefaultWidth, mDefaultHeight)
             : mCurrentCrop;
