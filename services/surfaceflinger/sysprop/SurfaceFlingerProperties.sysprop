@@ -307,3 +307,11 @@ prop {
     access: Readonly
     prop_name: "ro.surface_flinger.use_smart_90_for_video"
 }
+
+prop {
+    api_name: "enable_protected_contents"
+    type: Boolean
+    scope: Internal
+    access: Readonly
+    prop_name: "ro.surface_flinger.protected_contents"
+}

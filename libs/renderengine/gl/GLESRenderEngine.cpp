@@ -248,7 +248,8 @@ std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(int hwcFormat, uint32
     bool useContextPriority = extensions.hasContextPriority() &&
             (featureFlags & RenderEngine::USE_HIGH_PRIORITY_CONTEXT);
     EGLContext protectedContext = EGL_NO_CONTEXT;
-    if (extensions.hasProtectedContent()) {
+    if ((featureFlags & RenderEngine::ENABLE_PROTECTED_CONTEXT) &&
+        extensions.hasProtectedContent()) {
         protectedContext = createEglContext(display, config, nullptr, useContextPriority,
                                             Protection::PROTECTED);
         ALOGE_IF(protectedContext == EGL_NO_CONTEXT, "Can't create protected context");
