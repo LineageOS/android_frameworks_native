@@ -110,7 +110,7 @@ BufferQueueCore::BufferQueueCore() :
 BufferQueueCore::~BufferQueueCore() {}
 
 void BufferQueueCore::dumpState(const String8& prefix, String8* outResult) const {
-    Mutex::Autolock lock(mMutex);
+    std::lock_guard<std::mutex> lock(mMutex);
 
     outResult->appendFormat("%s- BufferQueue ", prefix.string());
     outResult->appendFormat("mMaxAcquiredBufferCount=%d mMaxDequeuedBufferCount=%d\n",
@@ -306,10 +306,10 @@ bool BufferQueueCore::adjustAvailableSlotsLocked(int delta) {
     return true;
 }
 
-void BufferQueueCore::waitWhileAllocatingLocked() const {
+void BufferQueueCore::waitWhileAllocatingLocked(std::unique_lock<std::mutex>& lock) const {
     ATRACE_CALL();
     while (mIsAllocating) {
-        mIsAllocatingCondition.wait(mMutex);
+        mIsAllocatingCondition.wait(lock);
     }
 }
 
