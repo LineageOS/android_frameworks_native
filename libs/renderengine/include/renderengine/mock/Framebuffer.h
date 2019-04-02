@@ -28,7 +28,7 @@ public:
     Framebuffer();
     ~Framebuffer() override;
 
-    MOCK_METHOD2(setNativeWindowBuffer, bool(ANativeWindowBuffer*, bool));
+    MOCK_METHOD3(setNativeWindowBuffer, bool(ANativeWindowBuffer*, bool, const bool));
 };
 
 } // namespace mock

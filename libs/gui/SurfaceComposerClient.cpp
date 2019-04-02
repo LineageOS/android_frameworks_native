@@ -203,15 +203,15 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
      * that could possibly exist for the callbacks.
      */
     std::unordered_map<sp<IBinder>, sp<SurfaceControl>, IBinderHash> surfaceControls;
-    for (const auto& [callbackIds, transactionStats] : listenerStats.transactionStats) {
-        for (auto callbackId : callbackIds) {
+    for (const auto& transactionStats : listenerStats.transactionStats) {
+        for (auto callbackId : transactionStats.callbackIds) {
             auto& [callbackFunction, callbackSurfaceControls] = mCallbacks[callbackId];
             surfaceControls.insert(callbackSurfaceControls.begin(), callbackSurfaceControls.end());
         }
     }
 
-    for (const auto& [callbackIds, transactionStats] : listenerStats.transactionStats) {
-        for (auto callbackId : callbackIds) {
+    for (const auto& transactionStats : listenerStats.transactionStats) {
+        for (auto callbackId : transactionStats.callbackIds) {
             auto& [callbackFunction, callbackSurfaceControls] = mCallbacks[callbackId];
             if (!callbackFunction) {
                 ALOGE("cannot call null callback function, skipping");
@@ -381,7 +381,7 @@ void SurfaceComposerClient::doDropReferenceTransaction(const sp<IBinder>& handle
     s.state.parentHandleForChild = nullptr;
 
     composerStates.add(s);
-    sf->setTransactionState(composerStates, displayStates, 0, nullptr, {}, -1, {});
+    sf->setTransactionState(composerStates, displayStates, 0, nullptr, {}, -1, {}, {});
 }
 
 void SurfaceComposerClient::doUncacheBufferTransaction(uint64_t cacheId) {
@@ -391,7 +391,7 @@ void SurfaceComposerClient::doUncacheBufferTransaction(uint64_t cacheId) {
     uncacheBuffer.token = BufferCache::getInstance().getToken();
     uncacheBuffer.cacheId = cacheId;
 
-    sf->setTransactionState({}, {}, 0, nullptr, {}, -1, uncacheBuffer);
+    sf->setTransactionState({}, {}, 0, nullptr, {}, -1, uncacheBuffer, {});
 }
 
 void SurfaceComposerClient::Transaction::cacheBuffers() {
@@ -406,10 +406,16 @@ void SurfaceComposerClient::Transaction::cacheBuffers() {
             continue;
         }
 
+        // Don't try to cache a null buffer. Sending null buffers is cheap so we shouldn't waste
+        // time trying to cache them.
+        if (!s->buffer) {
+            continue;
+        }
+
         uint64_t cacheId = 0;
         status_t ret = BufferCache::getInstance().getCacheId(s->buffer, &cacheId);
         if (ret == NO_ERROR) {
-            s->what &= ~static_cast<uint32_t>(layer_state_t::eBufferChanged);
+            s->what &= ~static_cast<uint64_t>(layer_state_t::eBufferChanged);
             s->buffer = nullptr;
         } else {
             cacheId = BufferCache::getInstance().cache(s->buffer);
@@ -434,6 +440,8 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
 
     sp<ISurfaceComposer> sf(ComposerService::getComposerService());
 
+    std::vector<ListenerCallbacks> listenerCallbacks;
+
     // For every listener with registered callbacks
     for (const auto& [listener, callbackInfo] : mListenerCallbacks) {
         auto& [callbackIds, surfaceControls] = callbackInfo;
@@ -441,11 +449,7 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
             continue;
         }
 
-        // If the listener does not have any SurfaceControls set on this Transaction, send the
-        // callback now
-        if (surfaceControls.empty()) {
-            listener->onTransactionCompleted(ListenerStats::createEmpty(listener, callbackIds));
-        }
+        listenerCallbacks.emplace_back(listener, std::move(callbackIds));
 
         // If the listener has any SurfaceControls set on this Transaction update the surface state
         for (const auto& surfaceControl : surfaceControls) {
@@ -454,8 +458,8 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
                 ALOGE("failed to get layer state");
                 continue;
             }
-            s->what |= layer_state_t::eListenerCallbacksChanged;
-            s->listenerCallbacks.emplace_back(listener, std::move(callbackIds));
+            s->what |= layer_state_t::eHasListenerCallbacksChanged;
+            s->hasListenerCallbacks = true;
         }
     }
     mListenerCallbacks.clear();
@@ -494,7 +498,8 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
     sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
     sf->setTransactionState(composerStates, displayStates, flags, applyToken, mInputWindowCommands,
                             mDesiredPresentTime,
-                            {} /*uncacheBuffer - only set in doUncacheBufferTransaction*/);
+                            {} /*uncacheBuffer - only set in doUncacheBufferTransaction*/,
+                            listenerCallbacks);
     mInputWindowCommands.clear();
     mStatus = NO_ERROR;
     return NO_ERROR;

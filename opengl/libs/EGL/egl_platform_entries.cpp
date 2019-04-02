@@ -139,7 +139,8 @@ char const * const gExtensionString  =
 char const * const gClientExtensionString =
         "EGL_EXT_client_extensions "
         "EGL_KHR_platform_android "
-        "EGL_ANGLE_platform_angle";
+        "EGL_ANGLE_platform_angle "
+        "EGL_ANDROID_GLES_layers";
 // clang-format on
 
 // extensions not exposed to applications but used by the ANDROID system

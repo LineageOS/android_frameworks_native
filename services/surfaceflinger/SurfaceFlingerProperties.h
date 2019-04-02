@@ -2,9 +2,9 @@
 #ifndef SURFACEFLINGERPROPERTIES_H_
 #define SURFACEFLINGERPROPERTIES_H_
 
+#include <SurfaceFlingerProperties.sysprop.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <android/hardware/graphics/common/1.2/types.h>
-#include <sysprop/SurfaceFlingerProperties.sysprop.h>
 #include <ui/ConfigStoreTypes.h>
 
 #include <cstdint>

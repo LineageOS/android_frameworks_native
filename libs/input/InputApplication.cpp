@@ -24,19 +24,10 @@ namespace android {
 
 // --- InputApplicationHandle ---
 
-InputApplicationHandle::InputApplicationHandle() :
-    mInfo(nullptr) {
+InputApplicationHandle::InputApplicationHandle() {
 }
 
 InputApplicationHandle::~InputApplicationHandle() {
-    delete mInfo;
-}
-
-void InputApplicationHandle::releaseInfo() {
-    if (mInfo) {
-        delete mInfo;
-        mInfo = nullptr;
-    }
 }
 
 InputApplicationInfo InputApplicationInfo::read(const Parcel& from) {

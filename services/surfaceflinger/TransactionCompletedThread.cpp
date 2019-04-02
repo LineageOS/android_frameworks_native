@@ -29,6 +29,19 @@
 
 namespace android {
 
+// Returns 0 if they are equal
+//         <0 if the first id that doesn't match is lower in c2 or all ids match but c2 is shorter
+//         >0 if the first id that doesn't match is greater in c2 or all ids match but c2 is longer
+//
+// See CallbackIdsHash for a explaniation of why this works
+static int compareCallbackIds(const std::vector<CallbackId>& c1,
+                              const std::vector<CallbackId>& c2) {
+    if (c1.empty()) {
+        return !c2.empty();
+    }
+    return c1.front() - c2.front();
+}
+
 TransactionCompletedThread::~TransactionCompletedThread() {
     std::lock_guard lockThread(mThreadMutex);
 
@@ -44,8 +57,8 @@ TransactionCompletedThread::~TransactionCompletedThread() {
 
     {
         std::lock_guard lock(mMutex);
-        for (const auto& [listener, listenerStats] : mListenerStats) {
-            listener->unlinkToDeath(mDeathRecipient);
+        for (const auto& [listener, transactionStats] : mCompletedTransactions) {
+            IInterface::asBinder(listener)->unlinkToDeath(mDeathRecipient);
         }
     }
 }
@@ -62,64 +75,128 @@ void TransactionCompletedThread::run() {
     mThread = std::thread(&TransactionCompletedThread::threadMain, this);
 }
 
-void TransactionCompletedThread::registerPendingCallbackHandle(const sp<CallbackHandle>& handle) {
+status_t TransactionCompletedThread::addCallback(const sp<ITransactionCompletedListener>& listener,
+                                                 const std::vector<CallbackId>& callbackIds) {
     std::lock_guard lock(mMutex);
+    if (!mRunning) {
+        ALOGE("cannot add callback because the callback thread isn't running");
+        return BAD_VALUE;
+    }
 
-    sp<IBinder> listener = IInterface::asBinder(handle->listener);
-    const auto& callbackIds = handle->callbackIds;
+    if (mCompletedTransactions.count(listener) == 0) {
+        status_t err = IInterface::asBinder(listener)->linkToDeath(mDeathRecipient);
+        if (err != NO_ERROR) {
+            ALOGE("cannot add callback because linkToDeath failed, err: %d", err);
+            return err;
+        }
+    }
 
-    mPendingTransactions[listener][callbackIds]++;
+    auto& transactionStatsDeque = mCompletedTransactions[listener];
+    transactionStatsDeque.emplace_back(callbackIds);
+    return NO_ERROR;
 }
 
-void TransactionCompletedThread::addPresentedCallbackHandles(
+status_t TransactionCompletedThread::registerPendingCallbackHandle(
+        const sp<CallbackHandle>& handle) {
+    std::lock_guard lock(mMutex);
+    if (!mRunning) {
+        ALOGE("cannot register callback handle because the callback thread isn't running");
+        return BAD_VALUE;
+    }
+
+    // If we can't find the transaction stats something has gone wrong. The client should call
+    // addCallback before trying to register a pending callback handle.
+    TransactionStats* transactionStats;
+    status_t err = findTransactionStats(handle->listener, handle->callbackIds, &transactionStats);
+    if (err != NO_ERROR) {
+        ALOGE("cannot find transaction stats");
+        return err;
+    }
+
+    mPendingTransactions[handle->listener][handle->callbackIds]++;
+    return NO_ERROR;
+}
+
+status_t TransactionCompletedThread::addPresentedCallbackHandles(
         const std::deque<sp<CallbackHandle>>& handles) {
     std::lock_guard lock(mMutex);
+    if (!mRunning) {
+        ALOGE("cannot add presented callback handle because the callback thread isn't running");
+        return BAD_VALUE;
+    }
 
     for (const auto& handle : handles) {
-        auto listener = mPendingTransactions.find(IInterface::asBinder(handle->listener));
-        auto& pendingCallbacks = listener->second;
-        auto pendingCallback = pendingCallbacks.find(handle->callbackIds);
+        auto listener = mPendingTransactions.find(handle->listener);
+        if (listener != mPendingTransactions.end()) {
+            auto& pendingCallbacks = listener->second;
+            auto pendingCallback = pendingCallbacks.find(handle->callbackIds);
 
-        if (pendingCallback != pendingCallbacks.end()) {
-            auto& pendingCount = pendingCallback->second;
+            if (pendingCallback != pendingCallbacks.end()) {
+                auto& pendingCount = pendingCallback->second;
 
-            // Decrease the pending count for this listener
-            if (--pendingCount == 0) {
-                pendingCallbacks.erase(pendingCallback);
+                // Decrease the pending count for this listener
+                if (--pendingCount == 0) {
+                    pendingCallbacks.erase(pendingCallback);
+                }
+            } else {
+                ALOGW("there are more latched callbacks than there were registered callbacks");
             }
         } else {
-            ALOGE("there are more latched callbacks than there were registered callbacks");
+            ALOGW("cannot find listener in mPendingTransactions");
         }
 
-        addCallbackHandle(handle);
+        status_t err = addCallbackHandle(handle);
+        if (err != NO_ERROR) {
+            ALOGE("could not add callback handle");
+            return err;
+        }
     }
+
+    return NO_ERROR;
 }
 
-void TransactionCompletedThread::addUnpresentedCallbackHandle(const sp<CallbackHandle>& handle) {
+status_t TransactionCompletedThread::addUnpresentedCallbackHandle(
+        const sp<CallbackHandle>& handle) {
     std::lock_guard lock(mMutex);
-    addCallbackHandle(handle);
+    if (!mRunning) {
+        ALOGE("cannot add unpresented callback handle because the callback thread isn't running");
+        return BAD_VALUE;
+    }
+
+    return addCallbackHandle(handle);
 }
 
-void TransactionCompletedThread::addCallbackHandle(const sp<CallbackHandle>& handle) {
-    const sp<IBinder> listener = IInterface::asBinder(handle->listener);
+status_t TransactionCompletedThread::findTransactionStats(
+        const sp<ITransactionCompletedListener>& listener,
+        const std::vector<CallbackId>& callbackIds, TransactionStats** outTransactionStats) {
+    auto& transactionStatsDeque = mCompletedTransactions[listener];
 
-    // If we don't already have a reference to this listener, linkToDeath so we get a notification
-    // if it dies.
-    if (mListenerStats.count(listener) == 0) {
-        status_t error = listener->linkToDeath(mDeathRecipient);
-        if (error != NO_ERROR) {
-            ALOGE("cannot add callback handle because linkToDeath failed, err: %d", error);
-            return;
+    // Search back to front because the most recent transactions are at the back of the deque
+    auto itr = transactionStatsDeque.rbegin();
+    for (; itr != transactionStatsDeque.rend(); itr++) {
+        if (compareCallbackIds(itr->callbackIds, callbackIds) == 0) {
+            *outTransactionStats = &(*itr);
+            return NO_ERROR;
         }
     }
 
-    auto& listenerStats = mListenerStats[listener];
-    listenerStats.listener = handle->listener;
+    ALOGE("could not find transaction stats");
+    return BAD_VALUE;
+}
 
-    auto& transactionStats = listenerStats.transactionStats[handle->callbackIds];
-    transactionStats.latchTime = handle->latchTime;
-    transactionStats.surfaceStats.emplace_back(handle->surfaceControl, handle->acquireTime,
-                                               handle->previousReleaseFence);
+status_t TransactionCompletedThread::addCallbackHandle(const sp<CallbackHandle>& handle) {
+    // If we can't find the transaction stats something has gone wrong. The client should call
+    // addCallback before trying to add a presnted callback handle.
+    TransactionStats* transactionStats;
+    status_t err = findTransactionStats(handle->listener, handle->callbackIds, &transactionStats);
+    if (err != NO_ERROR) {
+        return err;
+    }
+
+    transactionStats->latchTime = handle->latchTime;
+    transactionStats->surfaceStats.emplace_back(handle->surfaceControl, handle->acquireTime,
+                                                handle->previousReleaseFence);
+    return NO_ERROR;
 }
 
 void TransactionCompletedThread::addPresentFence(const sp<Fence>& presentFence) {
@@ -141,40 +218,46 @@ void TransactionCompletedThread::threadMain() {
         mConditionVariable.wait(mMutex);
 
         // For each listener
-        auto it = mListenerStats.begin();
-        while (it != mListenerStats.end()) {
-            auto& [listener, listenerStats] = *it;
+        auto completedTransactionsItr = mCompletedTransactions.begin();
+        while (completedTransactionsItr != mCompletedTransactions.end()) {
+            auto& [listener, transactionStatsDeque] = *completedTransactionsItr;
+            ListenerStats listenerStats;
+            listenerStats.listener = listener;
 
             // For each transaction
-            bool sendCallback = true;
-            for (auto& [callbackIds, transactionStats] : listenerStats.transactionStats) {
-                // If we are still waiting on the callback handles for this transaction, skip it
-                if (mPendingTransactions[listener].count(callbackIds) != 0) {
-                    sendCallback = false;
+            auto transactionStatsItr = transactionStatsDeque.begin();
+            while (transactionStatsItr != transactionStatsDeque.end()) {
+                auto& transactionStats = *transactionStatsItr;
+
+                // If we are still waiting on the callback handles for this transaction, stop
+                // here because all transaction callbacks for the same listener must come in order
+                if (mPendingTransactions[listener].count(transactionStats.callbackIds) != 0) {
                     break;
                 }
 
                 // If the transaction has been latched
                 if (transactionStats.latchTime >= 0) {
                     if (!mPresentFence) {
-                        sendCallback = false;
                         break;
                     }
                     transactionStats.presentFence = mPresentFence;
                 }
+
+                // Remove the transaction from completed to the callback
+                listenerStats.transactionStats.push_back(std::move(transactionStats));
+                transactionStatsItr = transactionStatsDeque.erase(transactionStatsItr);
             }
-            // If the listener has no pending transactions and all latched transactions have been
-            // presented
-            if (sendCallback) {
+            // If the listener has completed transactions
+            if (!listenerStats.transactionStats.empty()) {
                 // If the listener is still alive
-                if (listener->isBinderAlive()) {
+                if (IInterface::asBinder(listener)->isBinderAlive()) {
                     // Send callback
                     listenerStats.listener->onTransactionCompleted(listenerStats);
-                    listener->unlinkToDeath(mDeathRecipient);
+                    IInterface::asBinder(listener)->unlinkToDeath(mDeathRecipient);
                 }
-                it = mListenerStats.erase(it);
+                completedTransactionsItr = mCompletedTransactions.erase(completedTransactionsItr);
             } else {
-                it++;
+                completedTransactionsItr++;
             }
         }
 

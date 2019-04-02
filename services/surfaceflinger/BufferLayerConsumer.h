@@ -17,6 +17,7 @@
 #ifndef ANDROID_BUFFERLAYERCONSUMER_H
 #define ANDROID_BUFFERLAYERCONSUMER_H
 
+#include <android-base/thread_annotations.h>
 #include <gui/BufferQueueDefs.h>
 #include <gui/ConsumerBase.h>
 #include <gui/HdrMetadata.h>
@@ -179,7 +180,7 @@ public:
 protected:
     // abandonLocked overrides the ConsumerBase method to clear
     // mCurrentTextureImage in addition to the ConsumerBase behavior.
-    virtual void abandonLocked();
+    virtual void abandonLocked() EXCLUDES(mImagesMutex);
 
     // dumpLocked overrides the ConsumerBase method to dump BufferLayerConsumer-
     // specific info in addition to the ConsumerBase behavior.
@@ -187,7 +188,8 @@ protected:
 
     // See ConsumerBase::acquireBufferLocked
     virtual status_t acquireBufferLocked(BufferItem* item, nsecs_t presentWhen,
-                                         uint64_t maxFrameNumber = 0) override;
+                                         uint64_t maxFrameNumber = 0) override
+            EXCLUDES(mImagesMutex);
 
     bool canUseImageCrop(const Rect& crop) const;
 
@@ -206,7 +208,8 @@ protected:
     // completion of the method will instead be returned to the caller, so that
     // it may call releaseBufferLocked itself later.
     status_t updateAndReleaseLocked(const BufferItem& item,
-                                    PendingRelease* pendingRelease = nullptr);
+                                    PendingRelease* pendingRelease = nullptr)
+            EXCLUDES(mImagesMutex);
 
     // Binds mTexName and the current buffer to TEXTURE_EXTERNAL target.
     // If the bind succeeds, this calls doFenceWait.
@@ -234,10 +237,11 @@ private:
     // that slot.  Otherwise it has no effect.
     //
     // This method must be called with mMutex locked.
-    virtual void freeBufferLocked(int slotIndex);
+    virtual void freeBufferLocked(int slotIndex) EXCLUDES(mImagesMutex);
 
     // IConsumerListener interface
     void onDisconnect() override;
+    void onBufferAllocated(const BufferItem& item) override EXCLUDES(mImagesMutex);
     void onSidebandStreamChanged() override;
     void addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
                                   FrameEventHistoryDelta* outDelta) override;
@@ -344,7 +348,12 @@ private:
     int mCurrentTexture;
 
     // Shadow buffer cache for cleaning up renderengine references.
-    std::shared_ptr<Image> mImages[BufferQueueDefs::NUM_BUFFER_SLOTS];
+    std::shared_ptr<Image> mImages[BufferQueueDefs::NUM_BUFFER_SLOTS] GUARDED_BY(mImagesMutex);
+
+    // Separate mutex guarding the shadow buffer cache.
+    // mImagesMutex can be manipulated with binder threads (e.g. onBuffersAllocated)
+    // which is contentious enough that we can't just use mMutex.
+    mutable std::mutex mImagesMutex;
 
     // A release that is pending on the receipt of a new release fence from
     // presentDisplay

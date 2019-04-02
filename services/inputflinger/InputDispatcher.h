@@ -272,6 +272,13 @@ public:
      */
     virtual bool checkInjectEventsPermissionNonReentrant(
             int32_t injectorPid, int32_t injectorUid) = 0;
+
+    /* Notifies the policy that a pointer down event has occurred outside the current focused
+     * window.
+     *
+     * The touchedToken passed as an argument is the window that received the input event.
+     */
+    virtual void onPointerDownOutsideFocus(const sp<IBinder>& touchedToken) = 0;
 };
 
 
@@ -1136,8 +1143,9 @@ private:
             EventEntry* eventEntry, const InputTarget* inputTarget) REQUIRES(mLock);
     void enqueueDispatchEntriesLocked(nsecs_t currentTime, const sp<Connection>& connection,
             EventEntry* eventEntry, const InputTarget* inputTarget) REQUIRES(mLock);
-    void enqueueDispatchEntry(const sp<Connection>& connection,
-            EventEntry* eventEntry, const InputTarget* inputTarget, int32_t dispatchMode);
+    void enqueueDispatchEntryLocked(const sp<Connection>& connection,
+            EventEntry* eventEntry, const InputTarget* inputTarget, int32_t dispatchMode)
+            REQUIRES(mLock);
     void startDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection)
             REQUIRES(mLock);
     void finishDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection,
@@ -1147,6 +1155,9 @@ private:
     void drainDispatchQueue(Queue<DispatchEntry>* queue);
     void releaseDispatchEntry(DispatchEntry* dispatchEntry);
     static int handleReceiveCallback(int fd, int events, void* data);
+    // The action sent should only be of type AMOTION_EVENT_*
+    void dispatchPointerDownOutsideFocus(uint32_t source, int32_t action,
+            const sp<IBinder>& newToken) REQUIRES(mLock);
 
     void synthesizeCancelationEventsForAllConnectionsLocked(
             const CancelationOptions& options) REQUIRES(mLock);
@@ -1200,6 +1211,8 @@ private:
             DispatchEntry* dispatchEntry, MotionEntry* motionEntry, bool handled) REQUIRES(mLock);
     void doPokeUserActivityLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     void initializeKeyEvent(KeyEvent* event, const KeyEntry* entry);
+    void doOnPointerDownOutsideFocusLockedInterruptible(CommandEntry* commandEntry)
+            REQUIRES(mLock);
 
     // Statistics gathering.
     void updateDispatchStatistics(nsecs_t currentTime, const EventEntry* entry,

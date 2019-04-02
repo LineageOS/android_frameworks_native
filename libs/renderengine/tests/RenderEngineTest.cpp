@@ -118,7 +118,7 @@ struct RenderEngineTest : public ::testing::Test {
     void invokeDraw(renderengine::DisplaySettings settings,
                     std::vector<renderengine::LayerSettings> layers, sp<GraphicBuffer> buffer) {
         base::unique_fd fence;
-        status_t status = sRE->drawLayers(settings, layers, buffer->getNativeBuffer(),
+        status_t status = sRE->drawLayers(settings, layers, buffer->getNativeBuffer(), true,
                                           base::unique_fd(), &fence);
         sCurrentBuffer = buffer;
 
@@ -770,7 +770,7 @@ TEST_F(RenderEngineTest, drawLayers_nullOutputBuffer) {
     BufferSourceVariant<ForceOpaqueBufferVariant>::fillColor(layer, 1.0f, 0.0f, 0.0f, this);
     layers.push_back(layer);
     base::unique_fd fence;
-    status_t status = sRE->drawLayers(settings, layers, nullptr, base::unique_fd(), &fence);
+    status_t status = sRE->drawLayers(settings, layers, nullptr, true, base::unique_fd(), &fence);
 
     ASSERT_EQ(BAD_VALUE, status);
 }
@@ -787,10 +787,30 @@ TEST_F(RenderEngineTest, drawLayers_nullOutputFence) {
     layer.alpha = 1.0;
     layers.push_back(layer);
 
-    status_t status = sRE->drawLayers(settings, layers, mBuffer->getNativeBuffer(),
+    status_t status = sRE->drawLayers(settings, layers, mBuffer->getNativeBuffer(), true,
                                       base::unique_fd(), nullptr);
     sCurrentBuffer = mBuffer;
     ASSERT_EQ(NO_ERROR, status);
+    expectBufferColor(fullscreenRect(), 255, 0, 0, 255);
+}
+
+TEST_F(RenderEngineTest, drawLayers_doesNotCacheFramebuffer) {
+    renderengine::DisplaySettings settings;
+    settings.physicalDisplay = fullscreenRect();
+    settings.clip = fullscreenRect();
+
+    std::vector<renderengine::LayerSettings> layers;
+    renderengine::LayerSettings layer;
+    layer.geometry.boundaries = fullscreenRect().toFloatRect();
+    BufferSourceVariant<ForceOpaqueBufferVariant>::fillColor(layer, 1.0f, 0.0f, 0.0f, this);
+    layer.alpha = 1.0;
+    layers.push_back(layer);
+
+    status_t status = sRE->drawLayers(settings, layers, mBuffer->getNativeBuffer(), false,
+                                      base::unique_fd(), nullptr);
+    sCurrentBuffer = mBuffer;
+    ASSERT_EQ(NO_ERROR, status);
+    ASSERT_FALSE(sRE->isFramebufferImageCachedForTesting(mBuffer->getId()));
     expectBufferColor(fullscreenRect(), 255, 0, 0, 255);
 }
 
@@ -998,6 +1018,20 @@ TEST_F(RenderEngineTest, drawLayers_bindExternalBufferCachesImages) {
 
     sRE->bindExternalTextureBuffer(texName, buf, nullptr);
     uint64_t bufferId = buf->getId();
+    EXPECT_TRUE(sRE->isImageCachedForTesting(bufferId));
+    sRE->unbindExternalTextureBuffer(bufferId);
+    EXPECT_FALSE(sRE->isImageCachedForTesting(bufferId));
+}
+
+TEST_F(RenderEngineTest, drawLayers_cacheExternalBufferWithNullBuffer) {
+    status_t result = sRE->cacheExternalTextureBuffer(nullptr);
+    ASSERT_EQ(BAD_VALUE, result);
+}
+
+TEST_F(RenderEngineTest, drawLayers_cacheExternalBufferCachesImages) {
+    sp<GraphicBuffer> buf = allocateSourceBuffer(1, 1);
+    uint64_t bufferId = buf->getId();
+    sRE->cacheExternalTextureBuffer(buf);
     EXPECT_TRUE(sRE->isImageCachedForTesting(bufferId));
     sRE->unbindExternalTextureBuffer(bufferId);
     EXPECT_FALSE(sRE->isImageCachedForTesting(bufferId));

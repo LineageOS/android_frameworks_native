@@ -561,7 +561,9 @@ public:
                              const sp<IBinder>& /*applyToken*/,
                              const InputWindowCommands& /*inputWindowCommands*/,
                              int64_t /*desiredPresentTime*/,
-                             const cached_buffer_t& /*cachedBuffer*/) override {}
+                             const cached_buffer_t& /*cachedBuffer*/,
+                             const std::vector<ListenerCallbacks>& /*listenerCallbacks*/) override {
+    }
 
     void bootFinished() override {}
     bool authenticateSurfaceTexture(

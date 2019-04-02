@@ -23,7 +23,6 @@
 #include <utils/Errors.h>
 
 #include <gui/IGraphicBufferProducer.h>
-#include <gui/ITransactionCompletedListener.h>
 #include <math/mat4.h>
 
 #ifndef NO_INPUT
@@ -86,7 +85,7 @@ struct layer_state_t {
         eApiChanged = 0x04000000,
         eSidebandStreamChanged = 0x08000000,
         eColorTransformChanged = 0x10000000,
-        eListenerCallbacksChanged = 0x20000000,
+        eHasListenerCallbacksChanged = 0x20000000,
         eInputInfoChanged = 0x40000000,
         eCornerRadiusChanged = 0x80000000,
         eFrameChanged = 0x1'00000000,
@@ -120,6 +119,7 @@ struct layer_state_t {
             surfaceDamageRegion(),
             api(-1),
             colorTransform(mat4()),
+            hasListenerCallbacks(false),
             bgColorAlpha(0),
             bgColorDataspace(ui::Dataspace::UNKNOWN),
             colorSpaceAgnostic(false) {
@@ -182,7 +182,7 @@ struct layer_state_t {
     sp<NativeHandle> sidebandStream;
     mat4 colorTransform;
 
-    std::vector<ListenerCallbacks> listenerCallbacks;
+    bool hasListenerCallbacks;
 #ifndef NO_INPUT
     InputWindowInfo inputInfo;
 #endif

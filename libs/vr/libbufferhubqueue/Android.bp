@@ -59,9 +59,6 @@ cc_library_shared {
     static_libs: staticLibraries,
     shared_libs: sharedLibraries,
     header_libs: headerLibraries,
-
-    // TODO(b/117568153): Temporarily opt out using libcrt.
-    no_libcrt: true,
 }
 
 subdirs = ["benchmarks", "tests"]

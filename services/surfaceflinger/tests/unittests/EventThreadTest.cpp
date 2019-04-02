@@ -38,6 +38,7 @@ namespace {
 
 constexpr PhysicalDisplayId INTERNAL_DISPLAY_ID = 111;
 constexpr PhysicalDisplayId EXTERNAL_DISPLAY_ID = 222;
+constexpr PhysicalDisplayId DISPLAY_ID_64BIT = 0xabcd12349876fedcULL;
 
 class MockVSyncSource : public VSyncSource {
 public:
@@ -468,6 +469,11 @@ TEST_F(EventThreadTest, postConfigChangedPrimary) {
 TEST_F(EventThreadTest, postConfigChangedExternal) {
     mThread->onConfigChanged(EXTERNAL_DISPLAY_ID, 5);
     expectConfigChangedEventReceivedByConnection(EXTERNAL_DISPLAY_ID, 5);
+}
+
+TEST_F(EventThreadTest, postConfigChangedPrimary64bit) {
+    mThread->onConfigChanged(DISPLAY_ID_64BIT, 7);
+    expectConfigChangedEventReceivedByConnection(DISPLAY_ID_64BIT, 7);
 }
 
 } // namespace

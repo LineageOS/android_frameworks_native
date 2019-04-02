@@ -103,14 +103,17 @@ public:
     virtual void clearWithColor(float red, float green, float blue, float alpha) = 0;
     virtual void fillRegionWithColor(const Region& region, float red, float green, float blue,
                                      float alpha) = 0;
-
-    virtual void setScissor(const Rect& region) = 0;
-    virtual void disableScissor() = 0;
     virtual void genTextures(size_t count, uint32_t* names) = 0;
     virtual void deleteTextures(size_t count, uint32_t const* names) = 0;
     virtual void bindExternalTextureImage(uint32_t texName, const Image& image) = 0;
-    virtual status_t bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer,
-                                               sp<Fence> fence) = 0;
+    // Legacy public method used by devices that don't support native fence
+    // synchronization in their GPU driver, as this method provides implicit
+    // synchronization for latching buffers.
+    virtual status_t bindExternalTextureBuffer(uint32_t texName, const sp<GraphicBuffer>& buffer,
+                                               const sp<Fence>& fence) = 0;
+    // Caches Image resources for this buffer, but does not bind the buffer to
+    // a particular texture.
+    virtual status_t cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) = 0;
     // Removes internal resources referenced by the bufferId. This method should be
     // invoked when the caller will no longer hold a reference to a GraphicBuffer
     // and needs to clean up its resources.
@@ -173,6 +176,9 @@ public:
     // @param layers The layers to draw onto the display, in Z-order.
     // @param buffer The buffer which will be drawn to. This buffer will be
     // ready once drawFence fires.
+    // @param useFramebufferCache True if the framebuffer cache should be used.
+    // If an implementation does not cache output framebuffers, then this
+    // parameter does nothing.
     // @param bufferFence Fence signalling that the buffer is ready to be drawn
     // to.
     // @param drawFence A pointer to a fence, which will fire when the buffer
@@ -183,8 +189,8 @@ public:
     // now, this always returns NO_ERROR.
     virtual status_t drawLayers(const DisplaySettings& display,
                                 const std::vector<LayerSettings>& layers,
-                                ANativeWindowBuffer* buffer, base::unique_fd&& bufferFence,
-                                base::unique_fd* drawFence) = 0;
+                                ANativeWindowBuffer* buffer, const bool useFramebufferCache,
+                                base::unique_fd&& bufferFence, base::unique_fd* drawFence) = 0;
 
 protected:
     // Gets a framebuffer to render to. This framebuffer may or may not be
@@ -198,14 +204,16 @@ protected:
 
 class BindNativeBufferAsFramebuffer {
 public:
-    BindNativeBufferAsFramebuffer(RenderEngine& engine, ANativeWindowBuffer* buffer)
+    BindNativeBufferAsFramebuffer(RenderEngine& engine, ANativeWindowBuffer* buffer,
+                                  const bool useFramebufferCache)
           : mEngine(engine), mFramebuffer(mEngine.getFramebufferForDrawing()), mStatus(NO_ERROR) {
-        mStatus = mFramebuffer->setNativeWindowBuffer(buffer, mEngine.isProtected())
+        mStatus = mFramebuffer->setNativeWindowBuffer(buffer, mEngine.isProtected(),
+                                                      useFramebufferCache)
                 ? mEngine.bindFrameBuffer(mFramebuffer)
                 : NO_MEMORY;
     }
     ~BindNativeBufferAsFramebuffer() {
-        mFramebuffer->setNativeWindowBuffer(nullptr, false);
+        mFramebuffer->setNativeWindowBuffer(nullptr, false, /*arbitrary*/ true);
         mEngine.unbindFrameBuffer(mFramebuffer);
     }
     status_t getStatus() const { return mStatus; }

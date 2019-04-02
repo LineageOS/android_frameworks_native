@@ -17,6 +17,7 @@
 package android.os;
 
 import android.os.IIncidentAuthListener;
+import android.os.IncidentManager;
 
 /**
  * Helper service for incidentd and dumpstated to provide user feedback
@@ -35,6 +36,10 @@ interface IIncidentCompanion {
      *      returns via the callback whether the application should be trusted.  It is up
      *      to the caller to actually implement the restriction to take or not take
      *      the incident or bug report.
+     * @param receiverClass The class that will be the eventual broacast receiver for the
+     *      INCIDENT_REPORT_READY message. Used as part of the id in incidentd.
+     * @param reportId The incident report ID.  Incidentd should call with this parameter, but
+     *     everyone else should pass null or empty string.
      * @param flags FLAG_CONFIRMATION_DIALOG (0x1) - to show this as a dialog.  Otherwise
      *      a dialog will be shown as a notification.
      * @param callback Interface to receive results.  The results may not come back for
@@ -44,12 +49,18 @@ interface IIncidentCompanion {
      *      to send their report.
      */
     oneway void authorizeReport(int callingUid, String callingPackage,
+            String receiverClass, String reportId,
             int flags, IIncidentAuthListener callback);
 
     /**
      * Cancel an authorization.
      */
     oneway void cancelAuthorization(IIncidentAuthListener callback);
+
+    /**
+     * Send the report ready broadcast on behalf of incidentd.
+     */
+    oneway void sendReportReadyBroadcast(String pkg, String cls);
 
     /**
      * Return the list of pending approvals.
@@ -69,4 +80,26 @@ interface IIncidentCompanion {
      * @param uri the report.
      */
     void denyReport(String uri);
+
+    /**
+     * List the incident reports for the given ComponentName.  The receiver
+     * must be for a package inside the caller.
+     */
+    List<String> getIncidentReportList(String pkg, String cls);
+
+    /**
+     * Get the IncidentReport object.
+     */
+    IncidentManager.IncidentReport getIncidentReport(String pkg, String cls, String id);
+
+    /**
+     * Signal that the client is done with this incident report and it can be deleted.
+     */
+    void deleteIncidentReports(String pkg, String cls, String id);
+
+    /**
+     * Signal that the client is done with all incident reports from this package.
+     * Especially useful for testing.
+     */
+    void deleteAllIncidentReports(String pkg);
 }

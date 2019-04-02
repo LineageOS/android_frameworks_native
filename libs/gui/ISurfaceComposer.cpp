@@ -69,7 +69,8 @@ public:
                                      const sp<IBinder>& applyToken,
                                      const InputWindowCommands& commands,
                                      int64_t desiredPresentTime,
-                                     const cached_buffer_t& uncacheBuffer) {
+                                     const cached_buffer_t& uncacheBuffer,
+                                     const std::vector<ListenerCallbacks>& listenerCallbacks) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
 
@@ -89,6 +90,14 @@ public:
         data.writeInt64(desiredPresentTime);
         data.writeStrongBinder(uncacheBuffer.token);
         data.writeUint64(uncacheBuffer.cacheId);
+
+        if (data.writeVectorSize(listenerCallbacks) == NO_ERROR) {
+            for (const auto& [listener, callbackIds] : listenerCallbacks) {
+                data.writeStrongBinder(IInterface::asBinder(listener));
+                data.writeInt64Vector(callbackIds);
+            }
+        }
+
         remote()->transact(BnSurfaceComposer::SET_TRANSACTION_STATE, data, &reply);
     }
 
@@ -978,8 +987,18 @@ status_t BnSurfaceComposer::onTransact(
             uncachedBuffer.token = data.readStrongBinder();
             uncachedBuffer.cacheId = data.readUint64();
 
+            std::vector<ListenerCallbacks> listenerCallbacks;
+            int32_t listenersSize = data.readInt32();
+            for (int32_t i = 0; i < listenersSize; i++) {
+                auto listener =
+                        interface_cast<ITransactionCompletedListener>(data.readStrongBinder());
+                std::vector<CallbackId> callbackIds;
+                data.readInt64Vector(&callbackIds);
+                listenerCallbacks.emplace_back(listener, callbackIds);
+            }
+
             setTransactionState(state, displays, stateFlags, applyToken, inputWindowCommands,
-                                desiredPresentTime, uncachedBuffer);
+                                desiredPresentTime, uncachedBuffer, listenerCallbacks);
             return NO_ERROR;
         }
         case BOOT_FINISHED: {
