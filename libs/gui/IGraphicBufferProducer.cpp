@@ -355,7 +355,7 @@ public:
         data.writeUint32(height);
         data.writeInt32(static_cast<int32_t>(format));
         data.writeUint64(usage);
-        status_t result = remote()->transact(ALLOCATE_BUFFERS, data, &reply, TF_ONE_WAY);
+        status_t result = remote()->transact(ALLOCATE_BUFFERS, data, &reply, IBinder::FLAG_ONEWAY);
         if (result != NO_ERROR) {
             ALOGE("allocateBuffers failed to transact: %d", result);
         }
