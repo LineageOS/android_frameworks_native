@@ -3248,8 +3248,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
     const auto& displayState = display->getState();
     const auto displayId = display->getId();
     auto& renderEngine = getRenderEngine();
-    const bool supportProtectedContent =
-            mDebugEnableProtectedContent && renderEngine.supportsProtectedContent();
+    const bool supportProtectedContent = renderEngine.supportsProtectedContent();
 
     const Region bounds(displayState.bounds);
     const DisplayRenderArea renderArea(displayDevice);
@@ -5324,11 +5323,6 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                     mDefaultCompositionDataspace = defaultCompositionDataspace;
                     mWideColorGamutCompositionDataspace = wideColorGamutCompositionDataspace;
                 }
-                return NO_ERROR;
-            }
-            case 1032: {
-                n = data.readInt32();
-                mDebugEnableProtectedContent = n;
                 return NO_ERROR;
             }
             // Set trace flags

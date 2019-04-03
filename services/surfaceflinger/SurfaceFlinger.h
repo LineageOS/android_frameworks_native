@@ -995,7 +995,6 @@ private:
     int mDebugRegion = 0;
     bool mDebugDisableHWC = false;
     bool mDebugDisableTransformHint = false;
-    bool mDebugEnableProtectedContent = false;
     volatile nsecs_t mDebugInTransaction = 0;
     bool mForceFullDamage = false;
     bool mPropagateBackpressure = true;
