@@ -1,7 +1,7 @@
 package android.dvr;
 
 /** @hide */
-interface VirtualTouchpadService
+interface IVirtualTouchpadService
 {
   const String SERVICE_NAME = "virtual_touchpad";
 
