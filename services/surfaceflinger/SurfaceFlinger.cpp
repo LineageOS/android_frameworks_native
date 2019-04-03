@@ -3295,6 +3295,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
         clientCompositionDisplay.clip = displayState.scissor;
         const ui::Transform& displayTransform = displayState.transform;
         clientCompositionDisplay.globalTransform = displayTransform.asMatrix4();
+        clientCompositionDisplay.orientation = displayState.orientation;
 
         const auto* profile = display->getDisplayColorProfile();
         Dataspace outputDataspace = Dataspace::UNKNOWN;
