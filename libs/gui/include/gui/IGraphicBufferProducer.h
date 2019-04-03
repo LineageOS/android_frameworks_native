@@ -584,6 +584,10 @@ public:
     // non-blocking mode and its corresponding spare buffer (which is used to
     // ensure a buffer is always available).
     //
+    // N.B. queueBuffer will stop buffer dropping behavior if timeout is
+    // strictly positive. If timeout is zero or negative, previous buffer
+    // dropping behavior will not be changed.
+    //
     // Return of a value other than NO_ERROR means an error has occurred:
     // * BAD_VALUE - Failure to adjust the number of available slots. This can
     //               happen because of trying to allocate/deallocate the async
