@@ -98,6 +98,7 @@ void Output::setColorTransform(const mat4& transform) {
     }
 
     mState.colorTransform = newColorTransform;
+    mState.colorTransformMat = transform;
 
     dirtyEntireOutput();
 }
