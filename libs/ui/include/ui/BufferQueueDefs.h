@@ -23,6 +23,16 @@ namespace android {
         // Attempts at runtime to increase the number of buffers past this
         // will fail.
         static constexpr int NUM_BUFFER_SLOTS = 64;
+
+        enum {
+            // A flag returned by dequeueBuffer when the client needs to call
+            // requestBuffer immediately thereafter.
+            BUFFER_NEEDS_REALLOCATION = 0x1,
+            // A flag returned by dequeueBuffer when all mirrored slots should be
+            // released by the client. This flag should always be processed first.
+            RELEASE_ALL_BUFFERS       = 0x2,
+        };
+
     } // namespace BufferQueueDefs
 } // namespace android
 
