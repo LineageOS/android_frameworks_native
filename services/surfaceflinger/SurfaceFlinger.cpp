@@ -1485,12 +1485,13 @@ void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate, Scheduler::Co
         return;
     }
 
+    mPhaseOffsets->setRefreshRateType(refreshRate);
+
     const auto display = getDisplayDeviceLocked(displayToken);
     if (desiredConfigId == display->getActiveConfig()) {
         return;
     }
 
-    mPhaseOffsets->setRefreshRateType(refreshRate);
     setDesiredActiveConfig({refreshRate, desiredConfigId, getInternalDisplayTokenLocked(), event});
 }
 
