@@ -63,6 +63,9 @@ public:
     enum FeatureFlag {
         USE_COLOR_MANAGEMENT = 1 << 0,      // Device manages color
         USE_HIGH_PRIORITY_CONTEXT = 1 << 1, // Use high priority context
+
+        // Create a protected context when if possible
+        ENABLE_PROTECTED_CONTEXT = 1 << 2,
     };
 
     static std::unique_ptr<impl::RenderEngine> create(int hwcFormat, uint32_t featureFlags,

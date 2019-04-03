@@ -248,7 +248,8 @@ std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(int hwcFormat, uint32
     bool useContextPriority = extensions.hasContextPriority() &&
             (featureFlags & RenderEngine::USE_HIGH_PRIORITY_CONTEXT);
     EGLContext protectedContext = EGL_NO_CONTEXT;
-    if (extensions.hasProtectedContent()) {
+    if ((featureFlags & RenderEngine::ENABLE_PROTECTED_CONTEXT) &&
+        extensions.hasProtectedContent()) {
         protectedContext = createEglContext(display, config, nullptr, useContextPriority,
                                             Protection::PROTECTED);
         ALOGE_IF(protectedContext == EGL_NO_CONTEXT, "Can't create protected context");
@@ -743,6 +744,9 @@ void GLESRenderEngine::handleRoundedCorners(const DisplaySettings& display,
     // We separate the layer into 3 parts essentially, such that we only turn on blending for the
     // top rectangle and the bottom rectangle, and turn off blending for the middle rectangle.
     FloatRect bounds = layer.geometry.roundedCornersCrop;
+
+    // Firstly, we need to convert the coordination from layer native coordination space to
+    // device coordination space.
     const auto transformMatrix = display.globalTransform * layer.geometry.positionTransform;
     const vec4 leftTopCoordinate(bounds.left, bounds.top, 1.0, 1.0);
     const vec4 rightBottomCoordinate(bounds.right, bounds.bottom, 1.0, 1.0);
@@ -750,8 +754,28 @@ void GLESRenderEngine::handleRoundedCorners(const DisplaySettings& display,
     const vec4 rightBottomCoordinateInBuffer = transformMatrix * rightBottomCoordinate;
     bounds = FloatRect(leftTopCoordinateInBuffer[0], leftTopCoordinateInBuffer[1],
                        rightBottomCoordinateInBuffer[0], rightBottomCoordinateInBuffer[1]);
-    const int32_t radius = ceil(layer.geometry.roundedCornersRadius);
 
+    // Secondly, if the display is rotated, we need to undo the rotation on coordination and
+    // align the (left, top) and (right, bottom) coordination with the device coordination
+    // space.
+    switch (display.orientation) {
+        case ui::Transform::ROT_90:
+            std::swap(bounds.left, bounds.right);
+            break;
+        case ui::Transform::ROT_180:
+            std::swap(bounds.left, bounds.right);
+            std::swap(bounds.top, bounds.bottom);
+            break;
+        case ui::Transform::ROT_270:
+            std::swap(bounds.top, bounds.bottom);
+            break;
+        default:
+            break;
+    }
+
+    // Finally, we cut the layer into 3 parts, with top and bottom parts having rounded corners
+    // and the middle part without rounded corners.
+    const int32_t radius = ceil(layer.geometry.roundedCornersRadius);
     const Rect topRect(bounds.left, bounds.top, bounds.right, bounds.top + radius);
     setScissor(topRect);
     drawMesh(mesh);
