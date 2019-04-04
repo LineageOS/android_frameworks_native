@@ -75,7 +75,6 @@ std::string create_data_misc_de_rollback_package_path(const char* volume_uuid,
         userid_t user, int32_t snapshot_id, const char* package_name);
 
 std::string create_data_media_path(const char* volume_uuid, userid_t userid);
-std::string create_data_media_obb_path(const char* volume_uuid, const char* package_name);
 std::string create_data_media_package_path(const char* volume_uuid, userid_t userid,
         const char* data_type, const char* package_name);
 

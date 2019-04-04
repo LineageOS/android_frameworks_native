@@ -34,6 +34,7 @@
 #include <unistd.h>
 
 #include <chrono>
+#include <fstream>
 #include <functional>
 #include <future>
 #include <memory>
@@ -192,6 +193,15 @@ static bool UnlinkAndLogOnError(const std::string& file) {
         return false;
     }
     return true;
+}
+
+static bool IsFileEmpty(const std::string& file_path) {
+    std::ifstream file(file_path, std::ios::binary | std::ios::ate);
+    if(file.bad()) {
+        MYLOGE("Cannot open file: %s\n", file_path.c_str());
+        return true;
+    }
+    return file.tellg() <= 0;
 }
 
 }  // namespace
@@ -1583,6 +1593,9 @@ static void DumpstateTelephonyOnly() {
 
     RunDumpsys("DUMPSYS", {"connectivity"}, CommandOptions::WithTimeout(90).Build(),
                SEC_TO_MSEC(10));
+    RunDumpsys("DUMPSYS", {"connmetrics"}, CommandOptions::WithTimeout(90).Build(),
+               SEC_TO_MSEC(10));
+    RunDumpsys("DUMPSYS", {"netd"}, CommandOptions::WithTimeout(90).Build(), SEC_TO_MSEC(10));
     RunDumpsys("DUMPSYS", {"carrier_config"}, CommandOptions::WithTimeout(90).Build(),
                SEC_TO_MSEC(10));
     RunDumpsys("DUMPSYS", {"wifi"}, CommandOptions::WithTimeout(90).Build(),
@@ -2146,7 +2159,7 @@ static void SendBugreportFinishedBroadcast() {
              "--es", "android.intent.extra.DUMPSTATE_LOG", ds.log_path_
         };
         // clang-format on
-        if (ds.options_->do_fb) {
+        if (ds.options_->do_fb && !android::os::IsFileEmpty(ds.screenshot_path_)) {
             am_args.push_back("--es");
             am_args.push_back("android.intent.extra.SCREENSHOT");
             am_args.push_back(ds.screenshot_path_);
@@ -2222,13 +2235,13 @@ static void SetOptionsFromMode(Dumpstate::BugreportMode mode, Dumpstate::DumpOpt
             break;
         case Dumpstate::BugreportMode::BUGREPORT_TELEPHONY:
             options->telephony_only = true;
-            options->do_fb = true;
+            options->do_fb = false;
             options->do_broadcast = true;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_WIFI:
             options->wifi_only = true;
             options->do_zip_file = true;
-            options->do_fb = true;
+            options->do_fb = false;
             options->do_broadcast = true;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_DEFAULT:
@@ -2732,8 +2745,8 @@ void Dumpstate::CheckUserConsent(int32_t calling_uid, const android::String16& c
     if (ics != nullptr) {
         MYLOGD("Checking user consent via incidentcompanion service\n");
         android::interface_cast<android::os::IIncidentCompanion>(ics)->authorizeReport(
-            calling_uid, calling_package, 0x1 /* FLAG_CONFIRMATION_DIALOG */,
-            consent_callback_.get());
+            calling_uid, calling_package, String16(), String16(),
+            0x1 /* FLAG_CONFIRMATION_DIALOG */, consent_callback_.get());
     } else {
         MYLOGD("Unable to check user consent; incidentcompanion service unavailable\n");
     }

@@ -27,6 +27,7 @@
 #include <math/mat4.h>
 #include <ui/GraphicTypes.h>
 #include <ui/HdrCapabilities.h>
+#include <ui/Region.h>
 #include <utils/Log.h>
 #include <utils/StrongPointer.h>
 #include <utils/Timers.h>
@@ -42,8 +43,6 @@ namespace android {
     class Fence;
     class FloatRect;
     class GraphicBuffer;
-    class Rect;
-    class Region;
     namespace Hwc2 {
         class Composer;
     }
@@ -438,9 +437,15 @@ private:
 
     hwc2_display_t mDisplayId;
     hwc2_layer_t mId;
+
+    // Cached HWC2 data, to ensure the same commands aren't sent to the HWC
+    // multiple times.
+    android::Region mVisibleRegion = android::Region::INVALID_REGION;
+    android::Region mDamageRegion = android::Region::INVALID_REGION;
     android::ui::Dataspace mDataSpace = android::ui::Dataspace::UNKNOWN;
     android::HdrMetadata mHdrMetadata;
     android::mat4 mColorMatrix;
+    uint32_t mBufferSlot;
 };
 
 } // namespace impl

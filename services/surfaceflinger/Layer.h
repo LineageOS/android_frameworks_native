@@ -433,10 +433,11 @@ public:
 
     bool isRemovedFromCurrentState() const;
 
-    void writeToProto(LayerProto* layerInfo,
-                      LayerVector::StateSet stateSet = LayerVector::StateSet::Drawing);
+    void writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet,
+                      uint32_t traceFlags = SurfaceTracing::TRACE_ALL);
 
-    void writeToProto(LayerProto* layerInfo, const sp<DisplayDevice>& displayDevice);
+    void writeToProto(LayerProto* layerInfo, const sp<DisplayDevice>& displayDevice,
+                      uint32_t traceFlags = SurfaceTracing::TRACE_ALL);
 
     virtual Geometry getActiveGeometry(const Layer::State& s) const { return s.active_legacy; }
     virtual uint32_t getActiveWidth(const Layer::State& s) const { return s.active_legacy.w; }
@@ -906,8 +907,6 @@ private:
      * bounds are constrained by its parent bounds.
      */
     Rect getCroppedBufferSize(const Layer::State& s) const;
-
-    RoundedCornerState getRoundedCornerStateInternal(const FloatRect bounds) const;
 
     // Cached properties computed from drawing state
     // Effective transform taking into account parent transforms and any parent scaling.

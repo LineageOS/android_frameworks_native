@@ -266,6 +266,7 @@ float getLuma(float r, float g, float b) {
     constexpr auto rec709_blue_primary = 0.0722f;
     return rec709_red_primary * r + rec709_green_primary * g + rec709_blue_primary * b;
 }
+} // anonymous namespace
 
 float sampleArea(const uint32_t* data, int32_t stride, const Rect& area) {
     std::array<int32_t, 256> brightnessBuckets = {};
@@ -286,14 +287,13 @@ float sampleArea(const uint32_t* data, int32_t stride, const Rect& area) {
 
     int32_t accumulated = 0;
     size_t bucket = 0;
-    while (bucket++ < brightnessBuckets.size()) {
+    for (; bucket < brightnessBuckets.size(); bucket++) {
         accumulated += brightnessBuckets[bucket];
         if (accumulated > majoritySampleNum) break;
     }
 
     return bucket / 255.0f;
 }
-} // anonymous namespace
 
 std::vector<float> RegionSamplingThread::sampleBuffer(
         const sp<GraphicBuffer>& buffer, const Point& leftTop,

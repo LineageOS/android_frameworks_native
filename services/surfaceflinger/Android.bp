@@ -47,7 +47,7 @@ cc_defaults {
         "libhwbinder",
         "liblayers_proto",
         "liblog",
-	"libnativewindow",
+        "libnativewindow",
         "libpdx_default_transport",
         "libprocessgroup",
         "libprotobuf-cpp-lite",
@@ -56,7 +56,7 @@ cc_defaults {
         "libui",
         "libinput",
         "libutils",
-        "libSurfaceFlingerProperties",
+        "libSurfaceFlingerProp",
     ],
     static_libs: [
         "libcompositionengine",
@@ -138,8 +138,9 @@ filegroup {
         "LayerVector.cpp",
         "MonitoredProducer.cpp",
         "NativeWindowSurface.cpp",
-        "RenderArea.cpp",
+        "RefreshRateOverlay.cpp",
         "RegionSamplingThread.cpp",
+        "RenderArea.cpp",
         "Scheduler/DispSync.cpp",
         "Scheduler/DispSyncSource.cpp",
         "Scheduler/EventControlThread.cpp",
@@ -221,7 +222,7 @@ cc_binary {
     srcs: [":surfaceflinger_binary_sources"],
     shared_libs: [
         "libsurfaceflinger",
-        "libSurfaceFlingerProperties",
+        "libSurfaceFlingerProp",
     ],
 }
 
@@ -232,10 +233,9 @@ subdirs = [
 ]
 
 cc_library_shared {
-    name: "libSurfaceFlingerProperties",
+    name: "libSurfaceFlingerProp",
     srcs: [
         "SurfaceFlingerProperties.cpp",
-        "sysprop/*.sysprop",
     ],
     shared_libs: [
         "android.hardware.configstore-utils",
@@ -247,11 +247,18 @@ cc_library_shared {
         "libhwbinder",
         "libui",
         "libutils",
+        "liblog",
+    ],
+    static_libs: [
+        "SurfaceFlingerProperties",
     ],
     export_shared_lib_headers: [
         "android.hardware.graphics.common@1.2",
         "libhidlbase",
         "libhidltransport",
         "libhwbinder",
+    ],
+    export_static_lib_headers: [
+        "SurfaceFlingerProperties",
     ],
 }

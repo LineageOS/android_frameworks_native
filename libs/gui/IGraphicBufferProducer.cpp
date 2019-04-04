@@ -360,7 +360,7 @@ public:
         data.writeUint32(height);
         data.writeInt32(static_cast<int32_t>(format));
         data.writeUint64(usage);
-        status_t result = remote()->transact(ALLOCATE_BUFFERS, data, &reply, TF_ONE_WAY);
+        status_t result = remote()->transact(ALLOCATE_BUFFERS, data, &reply, IBinder::FLAG_ONEWAY);
         if (result != NO_ERROR) {
             ALOGE("allocateBuffers failed to transact: %d", result);
         }
@@ -781,6 +781,10 @@ status_t BnGraphicBufferProducer::onTransact(
             int result = dequeueBuffer(&buf, &fence, width, height, format, usage, &bufferAge,
                                        getTimestamps ? &frameTimestamps : nullptr);
 
+            if (fence == nullptr) {
+                ALOGE("dequeueBuffer returned a NULL fence, setting to Fence::NO_FENCE");
+                fence = Fence::NO_FENCE;
+            }
             reply->writeInt32(buf);
             reply->write(*fence);
             reply->writeUint64(bufferAge);
@@ -962,6 +966,10 @@ status_t BnGraphicBufferProducer::onTransact(
             if (result != NO_ERROR) {
                 ALOGE("getLastQueuedBuffer failed to write buffer: %d", result);
                 return result;
+            }
+            if (fence == nullptr) {
+                ALOGE("getLastQueuedBuffer returned a NULL fence, setting to Fence::NO_FENCE");
+                fence = Fence::NO_FENCE;
             }
             result = reply->write(*fence);
             if (result != NO_ERROR) {

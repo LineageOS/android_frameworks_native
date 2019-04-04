@@ -23,6 +23,7 @@
 
 #include "BufferQueueLayer.h"
 #include "LayerRejecter.h"
+#include "SurfaceInterceptor.h"
 
 #include "TimeStats/TimeStats.h"
 
@@ -361,8 +362,12 @@ void BufferQueueLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display)
 
     uint32_t hwcSlot = 0;
     sp<GraphicBuffer> hwcBuffer;
+
+    // INVALID_BUFFER_SLOT is used to identify BufferStateLayers.  Default to 0
+    // for BufferQueueLayers
+    int slot = (mActiveBufferSlot == BufferQueue::INVALID_BUFFER_SLOT) ? 0 : mActiveBufferSlot;
     (*outputLayer->editState().hwc)
-            .hwcBufferCache.getHwcBuffer(mActiveBuffer, &hwcSlot, &hwcBuffer);
+            .hwcBufferCache.getHwcBuffer(slot, mActiveBuffer, &hwcSlot, &hwcBuffer);
 
     auto acquireFence = mConsumer->getCurrentFence();
     auto error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, acquireFence);

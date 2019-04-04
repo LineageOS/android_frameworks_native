@@ -109,6 +109,7 @@ TEST_F(RefreshRateStatsTest, oneConfigTest) {
     EXPECT_LT(screenOff, times["ScreenOff"]);
     EXPECT_EQ(0, times["90fps"]);
 
+    mRefreshRateStats->setConfigMode(CONFIG_ID_90);
     mRefreshRateStats->setPowerMode(HWC_POWER_MODE_NORMAL);
     screenOff = mRefreshRateStats->getTotalTimes()["ScreenOff"];
     std::this_thread::sleep_for(std::chrono::milliseconds(2));
@@ -172,6 +173,7 @@ TEST_F(RefreshRateStatsTest, twoConfigsTest) {
     EXPECT_EQ(sixty, times["60fps"]);
     EXPECT_EQ(ninety, times["90fps"]);
 
+    mRefreshRateStats->setConfigMode(CONFIG_ID_90);
     mRefreshRateStats->setPowerMode(HWC_POWER_MODE_NORMAL);
     screenOff = mRefreshRateStats->getTotalTimes()["ScreenOff"];
     std::this_thread::sleep_for(std::chrono::milliseconds(2));

@@ -287,7 +287,7 @@ void InputReader::loopOnce() {
     int32_t oldGeneration;
     int32_t timeoutMillis;
     bool inputDevicesChanged = false;
-    Vector<InputDeviceInfo> inputDevices;
+    std::vector<InputDeviceInfo> inputDevices;
     { // acquire lock
         AutoMutex _l(mLock);
 
@@ -590,12 +590,13 @@ void InputReader::notifyExternalStylusPresenceChanged() {
     refreshConfigurationLocked(InputReaderConfiguration::CHANGE_EXTERNAL_STYLUS_PRESENCE);
 }
 
-void InputReader::getExternalStylusDevicesLocked(Vector<InputDeviceInfo>& outDevices) {
+void InputReader::getExternalStylusDevicesLocked(std::vector<InputDeviceInfo>& outDevices) {
     for (size_t i = 0; i < mDevices.size(); i++) {
         InputDevice* device = mDevices.valueAt(i);
         if (device->getClasses() & INPUT_DEVICE_CLASS_EXTERNAL_STYLUS && !device->isIgnored()) {
-            outDevices.push();
-            device->getDeviceInfo(&outDevices.editTop());
+            InputDeviceInfo info;
+            device->getDeviceInfo(&info);
+            outDevices.push_back(info);
         }
     }
 }
@@ -643,20 +644,21 @@ int32_t InputReader::bumpGenerationLocked() {
     return ++mGeneration;
 }
 
-void InputReader::getInputDevices(Vector<InputDeviceInfo>& outInputDevices) {
+void InputReader::getInputDevices(std::vector<InputDeviceInfo>& outInputDevices) {
     AutoMutex _l(mLock);
     getInputDevicesLocked(outInputDevices);
 }
 
-void InputReader::getInputDevicesLocked(Vector<InputDeviceInfo>& outInputDevices) {
+void InputReader::getInputDevicesLocked(std::vector<InputDeviceInfo>& outInputDevices) {
     outInputDevices.clear();
 
     size_t numDevices = mDevices.size();
     for (size_t i = 0; i < numDevices; i++) {
         InputDevice* device = mDevices.valueAt(i);
         if (!device->isIgnored()) {
-            outInputDevices.push();
-            device->getDeviceInfo(&outInputDevices.editTop());
+            InputDeviceInfo info;
+            device->getDeviceInfo(&info);
+            outInputDevices.push_back(info);
         }
     }
 }
@@ -951,7 +953,7 @@ int32_t InputReader::ContextImpl::bumpGeneration() {
     return mReader->bumpGenerationLocked();
 }
 
-void InputReader::ContextImpl::getExternalStylusDevices(Vector<InputDeviceInfo>& outDevices) {
+void InputReader::ContextImpl::getExternalStylusDevices(std::vector<InputDeviceInfo>& outDevices) {
     // lock is already held by whatever called refreshConfigurationLocked
     mReader->getExternalStylusDevicesLocked(outDevices);
 }
@@ -1031,11 +1033,11 @@ void InputDevice::dump(std::string& dump) {
     dump += StringPrintf(INDENT2 "Sources: 0x%08x\n", deviceInfo.getSources());
     dump += StringPrintf(INDENT2 "KeyboardType: %d\n", deviceInfo.getKeyboardType());
 
-    const Vector<InputDeviceInfo::MotionRange>& ranges = deviceInfo.getMotionRanges();
-    if (!ranges.isEmpty()) {
+    const std::vector<InputDeviceInfo::MotionRange>& ranges = deviceInfo.getMotionRanges();
+    if (!ranges.empty()) {
         dump += INDENT2 "Motion Ranges:\n";
         for (size_t i = 0; i < ranges.size(); i++) {
-            const InputDeviceInfo::MotionRange& range = ranges.itemAt(i);
+            const InputDeviceInfo::MotionRange& range = ranges[i];
             const char* label = getAxisLabel(range.axis);
             char name[32];
             if (label) {
@@ -1059,7 +1061,7 @@ void InputDevice::dump(std::string& dump) {
 }
 
 void InputDevice::addMapper(InputMapper* mapper) {
-    mMappers.add(mapper);
+    mMappers.push_back(mapper);
 }
 
 void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes) {
@@ -1110,9 +1112,7 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
             }
         }
 
-        size_t numMappers = mMappers.size();
-        for (size_t i = 0; i < numMappers; i++) {
-            InputMapper* mapper = mMappers[i];
+        for (InputMapper* mapper : mMappers) {
             mapper->configure(when, config, changes);
             mSources |= mapper->getSources();
         }
@@ -1120,9 +1120,7 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
 }
 
 void InputDevice::reset(nsecs_t when) {
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         mapper->reset(when);
     }
 
@@ -1137,7 +1135,6 @@ void InputDevice::process(const RawEvent* rawEvents, size_t count) {
     // have side-effects that must be interleaved.  For example, joystick movement events and
     // gamepad button presses are handled by different mappers but they should be dispatched
     // in the order received.
-    size_t numMappers = mMappers.size();
     for (const RawEvent* rawEvent = rawEvents; count != 0; rawEvent++) {
 #if DEBUG_RAW_EVENTS
         ALOGD("Input event: device=%d type=0x%04x code=0x%04x value=0x%08x when=%" PRId64,
@@ -1161,8 +1158,7 @@ void InputDevice::process(const RawEvent* rawEvents, size_t count) {
             mDropUntilNextSync = true;
             reset(rawEvent->when);
         } else {
-            for (size_t i = 0; i < numMappers; i++) {
-                InputMapper* mapper = mMappers[i];
+            for (InputMapper* mapper : mMappers) {
                 mapper->process(rawEvent);
             }
         }
@@ -1171,17 +1167,13 @@ void InputDevice::process(const RawEvent* rawEvents, size_t count) {
 }
 
 void InputDevice::timeoutExpired(nsecs_t when) {
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         mapper->timeoutExpired(when);
     }
 }
 
 void InputDevice::updateExternalStylusState(const StylusState& state) {
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         mapper->updateExternalStylusState(state);
     }
 }
@@ -1189,9 +1181,7 @@ void InputDevice::updateExternalStylusState(const StylusState& state) {
 void InputDevice::getDeviceInfo(InputDeviceInfo* outDeviceInfo) {
     outDeviceInfo->initialize(mId, mGeneration, mControllerNumber, mIdentifier, mAlias,
             mIsExternal, mHasMic);
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         mapper->populateDeviceInfo(outDeviceInfo);
     }
 }
@@ -1210,9 +1200,7 @@ int32_t InputDevice::getSwitchState(uint32_t sourceMask, int32_t switchCode) {
 
 int32_t InputDevice::getState(uint32_t sourceMask, int32_t code, GetStateFunc getStateFunc) {
     int32_t result = AKEY_STATE_UNKNOWN;
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         if (sourcesMatchMask(mapper->getSources(), sourceMask)) {
             // If any mapper reports AKEY_STATE_DOWN or AKEY_STATE_VIRTUAL, return that
             // value.  Otherwise, return AKEY_STATE_UP as long as one mapper reports it.
@@ -1230,9 +1218,7 @@ int32_t InputDevice::getState(uint32_t sourceMask, int32_t code, GetStateFunc ge
 bool InputDevice::markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
         const int32_t* keyCodes, uint8_t* outFlags) {
     bool result = false;
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         if (sourcesMatchMask(mapper->getSources(), sourceMask)) {
             result |= mapper->markSupportedKeyCodes(sourceMask, numCodes, keyCodes, outFlags);
         }
@@ -1242,50 +1228,39 @@ bool InputDevice::markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
 
 void InputDevice::vibrate(const nsecs_t* pattern, size_t patternSize, ssize_t repeat,
         int32_t token) {
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         mapper->vibrate(pattern, patternSize, repeat, token);
     }
 }
 
 void InputDevice::cancelVibrate(int32_t token) {
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         mapper->cancelVibrate(token);
     }
 }
 
 void InputDevice::cancelTouch(nsecs_t when) {
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         mapper->cancelTouch(when);
     }
 }
 
 int32_t InputDevice::getMetaState() {
     int32_t result = 0;
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         result |= mapper->getMetaState();
     }
     return result;
 }
 
 void InputDevice::updateMetaState(int32_t keyCode) {
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        mMappers[i]->updateMetaState(keyCode);
+    for (InputMapper* mapper : mMappers) {
+        mapper->updateMetaState(keyCode);
     }
 }
 
 void InputDevice::fadePointer() {
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         mapper->fadePointer();
     }
 }
@@ -1300,9 +1275,7 @@ void InputDevice::notifyReset(nsecs_t when) {
 }
 
 std::optional<int32_t> InputDevice::getAssociatedDisplay() {
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         std::optional<int32_t> associatedDisplayId = mapper->getAssociatedDisplay();
         if (associatedDisplayId) {
             return associatedDisplayId;
@@ -2405,7 +2378,7 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode,
         ssize_t keyDownIndex = findKeyDown(scanCode);
         if (keyDownIndex >= 0) {
             // key repeat, be sure to use same keycode as before in case of rotation
-            keyCode = mKeyDowns.itemAt(keyDownIndex).keyCode;
+            keyCode = mKeyDowns[keyDownIndex].keyCode;
         } else {
             // key down
             if ((policyFlags & POLICY_FLAG_VIRTUAL)
@@ -2417,10 +2390,10 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode,
                 mDevice->cancelTouch(when);
             }
 
-            mKeyDowns.push();
-            KeyDown& keyDown = mKeyDowns.editTop();
+            KeyDown keyDown;
             keyDown.keyCode = keyCode;
             keyDown.scanCode = scanCode;
+            mKeyDowns.push_back(keyDown);
         }
 
         mDownTime = when;
@@ -2429,8 +2402,8 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode,
         ssize_t keyDownIndex = findKeyDown(scanCode);
         if (keyDownIndex >= 0) {
             // key up, be sure to use same keycode as before in case of rotation
-            keyCode = mKeyDowns.itemAt(keyDownIndex).keyCode;
-            mKeyDowns.removeAt(size_t(keyDownIndex));
+            keyCode = mKeyDowns[keyDownIndex].keyCode;
+            mKeyDowns.erase(mKeyDowns.begin() + (size_t)keyDownIndex);
         } else {
             // key was not actually down
             ALOGI("Dropping key up from device %s because the key was not down.  "
@@ -3316,9 +3289,9 @@ void TouchInputMapper::configure(nsecs_t when,
 }
 
 void TouchInputMapper::resolveExternalStylusPresence() {
-    Vector<InputDeviceInfo> devices;
+    std::vector<InputDeviceInfo> devices;
     mContext->getExternalStylusDevices(devices);
-    mExternalStylusConnected = !devices.isEmpty();
+    mExternalStylusConnected = !devices.empty();
 
     if (!mExternalStylusConnected) {
         resetExternalStylus();
@@ -3967,7 +3940,7 @@ void TouchInputMapper::dumpSurface(std::string& dump) {
 }
 
 void TouchInputMapper::configureVirtualKeys() {
-    Vector<VirtualKeyDefinition> virtualKeyDefinitions;
+    std::vector<VirtualKeyDefinition> virtualKeyDefinitions;
     getEventHub()->getVirtualKeyDefinitions(getDeviceId(), virtualKeyDefinitions);
 
     mVirtualKeys.clear();
@@ -3976,19 +3949,13 @@ void TouchInputMapper::configureVirtualKeys() {
         return;
     }
 
-    mVirtualKeys.setCapacity(virtualKeyDefinitions.size());
-
     int32_t touchScreenLeft = mRawPointerAxes.x.minValue;
     int32_t touchScreenTop = mRawPointerAxes.y.minValue;
     int32_t touchScreenWidth = mRawPointerAxes.getRawWidth();
     int32_t touchScreenHeight = mRawPointerAxes.getRawHeight();
 
-    for (size_t i = 0; i < virtualKeyDefinitions.size(); i++) {
-        const VirtualKeyDefinition& virtualKeyDefinition =
-                virtualKeyDefinitions[i];
-
-        mVirtualKeys.add();
-        VirtualKey& virtualKey = mVirtualKeys.editTop();
+    for (const VirtualKeyDefinition& virtualKeyDefinition : virtualKeyDefinitions) {
+        VirtualKey virtualKey;
 
         virtualKey.scanCode = virtualKeyDefinition.scanCode;
         int32_t keyCode;
@@ -3998,8 +3965,7 @@ void TouchInputMapper::configureVirtualKeys() {
                                   &keyCode, &dummyKeyMetaState, &flags)) {
             ALOGW(INDENT "VirtualKey %d: could not obtain key code, ignoring",
                     virtualKey.scanCode);
-            mVirtualKeys.pop(); // drop the key
-            continue;
+            continue; // drop the key
         }
 
         virtualKey.keyCode = keyCode;
@@ -4017,15 +3983,16 @@ void TouchInputMapper::configureVirtualKeys() {
                 * touchScreenHeight / mSurfaceHeight + touchScreenTop;
         virtualKey.hitBottom = (virtualKeyDefinition.centerY + halfHeight)
                 * touchScreenHeight / mSurfaceHeight + touchScreenTop;
+        mVirtualKeys.push_back(virtualKey);
     }
 }
 
 void TouchInputMapper::dumpVirtualKeys(std::string& dump) {
-    if (!mVirtualKeys.isEmpty()) {
+    if (!mVirtualKeys.empty()) {
         dump += INDENT3 "Virtual Keys:\n";
 
         for (size_t i = 0; i < mVirtualKeys.size(); i++) {
-            const VirtualKey& virtualKey = mVirtualKeys.itemAt(i);
+            const VirtualKey& virtualKey = mVirtualKeys[i];
             dump += StringPrintf(INDENT4 "%zu: scanCode=%d, keyCode=%d, "
                     "hitLeft=%d, hitRight=%d, hitTop=%d, hitBottom=%d\n",
                     i, virtualKey.scanCode, virtualKey.keyCode,
@@ -4347,7 +4314,8 @@ void TouchInputMapper::reportEventForStatistics(nsecs_t evdevTime) {
     nsecs_t timeSinceLastReport = now - mStatistics.lastReportTime;
     if (timeSinceLastReport > STATISTICS_REPORT_FREQUENCY) {
         android::util::stats_write(android::util::TOUCH_EVENT_REPORTED,
-                mStatistics.min, mStatistics.max, mStatistics.mean(), mStatistics.stdev());
+                mStatistics.min, mStatistics.max,
+                mStatistics.mean(), mStatistics.stdev(), mStatistics.count);
         mStatistics.reset(now);
     }
 }
@@ -4364,12 +4332,13 @@ void TouchInputMapper::process(const RawEvent* rawEvent) {
 }
 
 void TouchInputMapper::sync(nsecs_t when) {
-    const RawState* last = mRawStatesPending.isEmpty() ?
-            &mCurrentRawState : &mRawStatesPending.top();
+    const RawState* last = mRawStatesPending.empty() ?
+            &mCurrentRawState : &mRawStatesPending.back();
 
     // Push a new state.
-    mRawStatesPending.push();
-    RawState* next = &mRawStatesPending.editTop();
+    mRawStatesPending.emplace_back();
+
+    RawState* next = &mRawStatesPending.back();
     next->clear();
     next->when = when;
 
@@ -4436,7 +4405,7 @@ void TouchInputMapper::processRawTouches(bool timeout) {
         cookAndDispatch(mCurrentRawState.when);
     }
     if (count != 0) {
-        mRawStatesPending.removeItemsAt(0, count);
+        mRawStatesPending.erase(mRawStatesPending.begin(), mRawStatesPending.begin() + count);
     }
 
     if (mExternalStylusDataPending) {
@@ -6623,12 +6592,9 @@ bool TouchInputMapper::isPointInsideSurface(int32_t x, int32_t y) {
             && scaledY >= mPhysicalTop && scaledY <= mPhysicalTop + mPhysicalHeight;
 }
 
-const TouchInputMapper::VirtualKey* TouchInputMapper::findVirtualKeyHit(
-        int32_t x, int32_t y) {
-    size_t numVirtualKeys = mVirtualKeys.size();
-    for (size_t i = 0; i < numVirtualKeys; i++) {
-        const VirtualKey& virtualKey = mVirtualKeys[i];
+const TouchInputMapper::VirtualKey* TouchInputMapper::findVirtualKeyHit(int32_t x, int32_t y) {
 
+    for (const VirtualKey& virtualKey: mVirtualKeys) {
 #if DEBUG_VIRTUAL_KEYS
         ALOGD("VirtualKeys: Hit test (%d, %d): keyCode=%d, scanCode=%d, "
                 "left=%d, top=%d, right=%d, bottom=%d",
@@ -6838,9 +6804,7 @@ int32_t TouchInputMapper::getKeyCodeState(uint32_t sourceMask, int32_t keyCode) 
         return AKEY_STATE_VIRTUAL;
     }
 
-    size_t numVirtualKeys = mVirtualKeys.size();
-    for (size_t i = 0; i < numVirtualKeys; i++) {
-        const VirtualKey& virtualKey = mVirtualKeys[i];
+    for (const VirtualKey& virtualKey : mVirtualKeys) {
         if (virtualKey.keyCode == keyCode) {
             return AKEY_STATE_UP;
         }
@@ -6854,9 +6818,7 @@ int32_t TouchInputMapper::getScanCodeState(uint32_t sourceMask, int32_t scanCode
         return AKEY_STATE_VIRTUAL;
     }
 
-    size_t numVirtualKeys = mVirtualKeys.size();
-    for (size_t i = 0; i < numVirtualKeys; i++) {
-        const VirtualKey& virtualKey = mVirtualKeys[i];
+    for (const VirtualKey& virtualKey : mVirtualKeys) {
         if (virtualKey.scanCode == scanCode) {
             return AKEY_STATE_UP;
         }
@@ -6867,10 +6829,7 @@ int32_t TouchInputMapper::getScanCodeState(uint32_t sourceMask, int32_t scanCode
 
 bool TouchInputMapper::markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
         const int32_t* keyCodes, uint8_t* outFlags) {
-    size_t numVirtualKeys = mVirtualKeys.size();
-    for (size_t i = 0; i < numVirtualKeys; i++) {
-        const VirtualKey& virtualKey = mVirtualKeys[i];
-
+    for (const VirtualKey& virtualKey : mVirtualKeys) {
         for (size_t i = 0; i < numCodes; i++) {
             if (virtualKey.keyCode == keyCodes[i]) {
                 outFlags[i] = 1;

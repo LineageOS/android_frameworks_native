@@ -45,7 +45,7 @@ public:
     //
     // outBuffer is set to buffer when buffer is not in the HWC cache;
     // otherwise, outBuffer is set to nullptr.
-    void getHwcBuffer(const sp<GraphicBuffer>& buffer, uint32_t* outSlot,
+    void getHwcBuffer(int slot, const sp<GraphicBuffer>& buffer, uint32_t* outSlot,
                       sp<GraphicBuffer>* outBuffer);
 
 protected:

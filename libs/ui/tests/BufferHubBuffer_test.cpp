@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <sys/epoll.h>
 
+#include <android/frameworks/bufferhub/1.0/IBufferHub.h>
 #include <android/hardware_buffer.h>
 #include <cutils/native_handle.h>
 #include <gmock/gmock.h>
@@ -40,6 +41,7 @@ using ::android::BufferHubDefs::isClientGained;
 using ::android::BufferHubDefs::isClientPosted;
 using ::android::BufferHubDefs::isClientReleased;
 using ::android::BufferHubDefs::kMetadataHeaderSize;
+using ::android::frameworks::bufferhub::V1_0::IBufferHub;
 using ::testing::IsNull;
 using ::testing::NotNull;
 
@@ -54,7 +56,20 @@ const size_t kUserMetadataSize = 1;
 
 class BufferHubBufferTest : public ::testing::Test {
 protected:
-    void SetUp() override { android::hardware::ProcessState::self()->startThreadPool(); }
+    void SetUp() override {
+        android::hardware::ProcessState::self()->startThreadPool();
+
+        if (!BufferHubServiceRunning()) {
+            // TODO(b/112940221): Enforce the test cross all devices once BufferHub lands in Android
+            // R for all Android varieties.
+            GTEST_SKIP() << "Skip test as the BufferHub service is not running.";
+        }
+    }
+
+    bool BufferHubServiceRunning() {
+        sp<IBufferHub> bufferhub = IBufferHub::getService();
+        return bufferhub.get() != nullptr;
+    }
 };
 
 bool cmpAHardwareBufferDesc(const AHardwareBuffer_Desc& desc, const AHardwareBuffer_Desc& other) {
@@ -67,6 +82,13 @@ class BufferHubBufferStateTransitionTest : public BufferHubBufferTest {
 protected:
     void SetUp() override {
         BufferHubBufferTest::SetUp();
+
+        if (IsSkipped()) {
+            // If the base class' SetUp() stated the test should be skipped, we should short
+            // circuit this sub-class' logic.
+            return;
+        }
+
         CreateTwoClientsOfABuffer();
     }
 

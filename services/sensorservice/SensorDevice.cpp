@@ -359,7 +359,7 @@ std::string SensorDevice::dump() const {
     for (const auto & s : mSensorList) {
         int32_t handle = s.handle;
         const Info& info = mActivationCount.valueFor(handle);
-        if (info.batchParams.isEmpty()) continue;
+        if (info.numActiveClients() == 0) continue;
 
         result.appendFormat("0x%08x) active-count = %zu; ", handle, info.batchParams.size());
 
@@ -728,6 +728,15 @@ bool SensorDevice::isClientDisabled(void* ident) {
 
 bool SensorDevice::isClientDisabledLocked(void* ident) {
     return mDisabledClients.indexOf(ident) >= 0;
+}
+
+bool SensorDevice::isSensorActive(int handle) const {
+    Mutex::Autolock _l(mLock);
+    ssize_t activationIndex = mActivationCount.indexOfKey(handle);
+    if (activationIndex < 0) {
+        return false;
+    }
+    return mActivationCount.valueAt(activationIndex).numActiveClients() > 0;
 }
 
 void SensorDevice::enableAllSensors() {

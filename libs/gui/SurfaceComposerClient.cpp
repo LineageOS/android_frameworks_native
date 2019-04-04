@@ -203,15 +203,15 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
      * that could possibly exist for the callbacks.
      */
     std::unordered_map<sp<IBinder>, sp<SurfaceControl>, IBinderHash> surfaceControls;
-    for (const auto& [callbackIds, transactionStats] : listenerStats.transactionStats) {
-        for (auto callbackId : callbackIds) {
+    for (const auto& transactionStats : listenerStats.transactionStats) {
+        for (auto callbackId : transactionStats.callbackIds) {
             auto& [callbackFunction, callbackSurfaceControls] = mCallbacks[callbackId];
             surfaceControls.insert(callbackSurfaceControls.begin(), callbackSurfaceControls.end());
         }
     }
 
-    for (const auto& [callbackIds, transactionStats] : listenerStats.transactionStats) {
-        for (auto callbackId : callbackIds) {
+    for (const auto& transactionStats : listenerStats.transactionStats) {
+        for (auto callbackId : transactionStats.callbackIds) {
             auto& [callbackFunction, callbackSurfaceControls] = mCallbacks[callbackId];
             if (!callbackFunction) {
                 ALOGE("cannot call null callback function, skipping");
@@ -233,6 +233,8 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
 
 // ---------------------------------------------------------------------------
 
+void bufferCacheCallback(void* /*context*/, uint64_t graphicBufferId);
+
 class BufferCache : public Singleton<BufferCache> {
 public:
     BufferCache() : token(new BBinder()) {}
@@ -241,77 +243,57 @@ public:
         return IInterface::asBinder(TransactionCompletedListener::getIInstance());
     }
 
-    int32_t getId(const sp<GraphicBuffer>& buffer) {
+    status_t getCacheId(const sp<GraphicBuffer>& buffer, uint64_t* cacheId) {
         std::lock_guard<std::mutex> lock(mMutex);
 
-        auto itr = mBuffers.find(buffer);
+        auto itr = mBuffers.find(buffer->getId());
         if (itr == mBuffers.end()) {
-            return -1;
+            return BAD_VALUE;
         }
-        itr->second.counter = getCounter();
-        return itr->second.id;
+        itr->second = getCounter();
+        *cacheId = buffer->getId();
+        return NO_ERROR;
     }
 
-    int32_t cache(const sp<GraphicBuffer>& buffer) {
+    uint64_t cache(const sp<GraphicBuffer>& buffer) {
         std::lock_guard<std::mutex> lock(mMutex);
 
-        int32_t bufferId = getNextAvailableId();
+        if (mBuffers.size() >= BUFFER_CACHE_MAX_SIZE) {
+            evictLeastRecentlyUsedBuffer();
+        }
 
-        mBuffers[buffer].id = bufferId;
-        mBuffers[buffer].counter = getCounter();
-        return bufferId;
+        buffer->addDeathCallback(bufferCacheCallback, nullptr);
+
+        mBuffers[buffer->getId()] = getCounter();
+        return buffer->getId();
+    }
+
+    void uncache(uint64_t cacheId) {
+        std::lock_guard<std::mutex> lock(mMutex);
+        uncacheLocked(cacheId);
+    }
+
+    void uncacheLocked(uint64_t cacheId) REQUIRES(mMutex) {
+        mBuffers.erase(cacheId);
+        SurfaceComposerClient::doUncacheBufferTransaction(cacheId);
     }
 
 private:
-    int32_t evictDestroyedBuffer() REQUIRES(mMutex) {
+    void evictLeastRecentlyUsedBuffer() REQUIRES(mMutex) {
         auto itr = mBuffers.begin();
-        while (itr != mBuffers.end()) {
-            auto& buffer = itr->first;
-            if (buffer == nullptr || buffer.promote() == nullptr) {
-                int32_t bufferId = itr->second.id;
-                mBuffers.erase(itr);
-                return bufferId;
-            }
-            itr++;
-        }
-        return -1;
-    }
-
-    int32_t evictLeastRecentlyUsedBuffer() REQUIRES(mMutex) {
-        if (mBuffers.size() < 0) {
-            return -1;
-        }
-        auto itr = mBuffers.begin();
-        uint64_t minCounter = itr->second.counter;
+        uint64_t minCounter = itr->second;
         auto minBuffer = itr;
         itr++;
 
         while (itr != mBuffers.end()) {
-            uint64_t counter = itr->second.counter;
+            uint64_t counter = itr->second;
             if (counter < minCounter) {
                 minCounter = counter;
                 minBuffer = itr;
             }
             itr++;
         }
-        int32_t minBufferId = minBuffer->second.id;
-        mBuffers.erase(minBuffer);
-        return minBufferId;
-    }
-
-    int32_t getNextAvailableId() REQUIRES(mMutex) {
-        static int32_t id = 0;
-        if (id + 1 < BUFFER_CACHE_MAX_SIZE) {
-            return id++;
-        }
-
-        // There are no more valid cache ids. To set additional buffers, evict existing buffers
-        // and reuse their cache ids.
-        int32_t bufferId = evictDestroyedBuffer();
-        if (bufferId > 0) {
-            return bufferId;
-        }
-        return evictLeastRecentlyUsedBuffer();
+        uncacheLocked(minBuffer->first);
     }
 
     uint64_t getCounter() REQUIRES(mMutex) {
@@ -319,24 +301,19 @@ private:
         return counter++;
     }
 
-    struct Metadata {
-        // The cache id of a buffer that can be set to ISurfaceComposer. When ISurfaceComposer
-        // recieves this id, it can retrieve the buffer from its cache. Caching GraphicBuffers
-        // is important because sending them across processes is expensive.
-        int32_t id = 0;
-        // When a buffer is set, a counter is incremented and stored in the cache's metadata.
-        // When an buffer must be evicted, the entry with the lowest counter value is chosen.
-        uint64_t counter = 0;
-    };
-
     std::mutex mMutex;
-    std::map<wp<GraphicBuffer>, Metadata> mBuffers GUARDED_BY(mMutex);
+    std::map<uint64_t /*Cache id*/, uint64_t /*counter*/> mBuffers GUARDED_BY(mMutex);
 
     // Used by ISurfaceComposer to identify which process is sending the cached buffer.
     sp<IBinder> token;
 };
 
 ANDROID_SINGLETON_STATIC_INSTANCE(BufferCache);
+
+void bufferCacheCallback(void* /*context*/, uint64_t graphicBufferId) {
+    // GraphicBuffer id's are used as the cache ids.
+    BufferCache::getInstance().uncache(graphicBufferId);
+}
 
 // ---------------------------------------------------------------------------
 
@@ -385,6 +362,9 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Tr
     mInputWindowCommands.merge(other.mInputWindowCommands);
     other.mInputWindowCommands.clear();
 
+    mContainsBuffer = other.mContainsBuffer;
+    other.mContainsBuffer = false;
+
     return *this;
 }
 
@@ -401,7 +381,56 @@ void SurfaceComposerClient::doDropReferenceTransaction(const sp<IBinder>& handle
     s.state.parentHandleForChild = nullptr;
 
     composerStates.add(s);
-    sf->setTransactionState(composerStates, displayStates, 0, nullptr, {}, -1);
+    sf->setTransactionState(composerStates, displayStates, 0, nullptr, {}, -1, {}, {});
+}
+
+void SurfaceComposerClient::doUncacheBufferTransaction(uint64_t cacheId) {
+    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+
+    cached_buffer_t uncacheBuffer;
+    uncacheBuffer.token = BufferCache::getInstance().getToken();
+    uncacheBuffer.cacheId = cacheId;
+
+    sf->setTransactionState({}, {}, 0, nullptr, {}, -1, uncacheBuffer, {});
+}
+
+void SurfaceComposerClient::Transaction::cacheBuffers() {
+    if (!mContainsBuffer) {
+        return;
+    }
+
+    size_t count = 0;
+    for (auto& [sc, cs] : mComposerStates) {
+        layer_state_t* s = getLayerState(sc);
+        if (!(s->what & layer_state_t::eBufferChanged)) {
+            continue;
+        }
+
+        // Don't try to cache a null buffer. Sending null buffers is cheap so we shouldn't waste
+        // time trying to cache them.
+        if (!s->buffer) {
+            continue;
+        }
+
+        uint64_t cacheId = 0;
+        status_t ret = BufferCache::getInstance().getCacheId(s->buffer, &cacheId);
+        if (ret == NO_ERROR) {
+            s->what &= ~static_cast<uint64_t>(layer_state_t::eBufferChanged);
+            s->buffer = nullptr;
+        } else {
+            cacheId = BufferCache::getInstance().cache(s->buffer);
+        }
+        s->what |= layer_state_t::eCachedBufferChanged;
+        s->cachedBuffer.token = BufferCache::getInstance().getToken();
+        s->cachedBuffer.cacheId = cacheId;
+
+        // If we have more buffers than the size of the cache, we should stop caching so we don't
+        // evict other buffers in this transaction
+        count++;
+        if (count >= BUFFER_CACHE_MAX_SIZE) {
+            break;
+        }
+    }
 }
 
 status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
@@ -411,6 +440,8 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
 
     sp<ISurfaceComposer> sf(ComposerService::getComposerService());
 
+    std::vector<ListenerCallbacks> listenerCallbacks;
+
     // For every listener with registered callbacks
     for (const auto& [listener, callbackInfo] : mListenerCallbacks) {
         auto& [callbackIds, surfaceControls] = callbackInfo;
@@ -418,11 +449,7 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
             continue;
         }
 
-        // If the listener does not have any SurfaceControls set on this Transaction, send the
-        // callback now
-        if (surfaceControls.empty()) {
-            listener->onTransactionCompleted(ListenerStats::createEmpty(listener, callbackIds));
-        }
+        listenerCallbacks.emplace_back(listener, std::move(callbackIds));
 
         // If the listener has any SurfaceControls set on this Transaction update the surface state
         for (const auto& surfaceControl : surfaceControls) {
@@ -431,11 +458,13 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
                 ALOGE("failed to get layer state");
                 continue;
             }
-            s->what |= layer_state_t::eListenerCallbacksChanged;
-            s->listenerCallbacks.emplace_back(listener, std::move(callbackIds));
+            s->what |= layer_state_t::eHasListenerCallbacksChanged;
+            s->hasListenerCallbacks = true;
         }
     }
     mListenerCallbacks.clear();
+
+    cacheBuffers();
 
     Vector<ComposerState> composerStates;
     Vector<DisplayState> displayStates;
@@ -468,7 +497,9 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
 
     sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
     sf->setTransactionState(composerStates, displayStates, flags, applyToken, mInputWindowCommands,
-                            mDesiredPresentTime);
+                            mDesiredPresentTime,
+                            {} /*uncacheBuffer - only set in doUncacheBufferTransaction*/,
+                            listenerCallbacks);
     mInputWindowCommands.clear();
     mStatus = NO_ERROR;
     return NO_ERROR;
@@ -882,20 +913,12 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
         mStatus = BAD_INDEX;
         return *this;
     }
-
-    int32_t bufferId = BufferCache::getInstance().getId(buffer);
-    if (bufferId < 0) {
-        bufferId = BufferCache::getInstance().cache(buffer);
-
-        s->what |= layer_state_t::eBufferChanged;
-        s->buffer = buffer;
-    }
-
-    s->what |= layer_state_t::eCachedBufferChanged;
-    s->cachedBuffer.token = BufferCache::getInstance().getToken();
-    s->cachedBuffer.bufferId = bufferId;
+    s->what |= layer_state_t::eBufferChanged;
+    s->buffer = buffer;
 
     registerSurfaceControlForCallback(sc);
+
+    mContainsBuffer = true;
     return *this;
 }
 

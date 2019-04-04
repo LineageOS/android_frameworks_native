@@ -97,7 +97,7 @@ DisplayEventReceiver::Event makeVSync(PhysicalDisplayId displayId, nsecs_t times
     return event;
 }
 
-DisplayEventReceiver::Event makeConfigChanged(uint32_t displayId, int32_t configId) {
+DisplayEventReceiver::Event makeConfigChanged(PhysicalDisplayId displayId, int32_t configId) {
     DisplayEventReceiver::Event event;
     event.header = {DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED, displayId, systemTime()};
     event.config.configId = configId;

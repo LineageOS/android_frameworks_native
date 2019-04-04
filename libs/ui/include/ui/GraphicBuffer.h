@@ -21,9 +21,12 @@
 #include <sys/types.h>
 
 #include <string>
+#include <utility>
+#include <vector>
 
 #include <android/hardware_buffer.h>
 #include <ui/ANativeObjectBase.h>
+#include <ui/GraphicBufferMapper.h>
 #include <ui/PixelFormat.h>
 #include <ui/Rect.h>
 #include <utils/Flattenable.h>
@@ -40,6 +43,8 @@ class BufferHubBuffer;
 #endif // LIBUI_IN_VNDK
 
 class GraphicBufferMapper;
+
+using GraphicBufferDeathCallback = std::function<void(void* /*context*/, uint64_t bufferId)>;
 
 // ===========================================================================
 // GraphicBuffer
@@ -214,6 +219,12 @@ public:
     status_t flatten(void*& buffer, size_t& size, int*& fds, size_t& count) const;
     status_t unflatten(void const*& buffer, size_t& size, int const*& fds, size_t& count);
 
+    GraphicBufferMapper::Version getBufferMapperVersion() const {
+        return mBufferMapper.getMapperVersion();
+    }
+
+    void addDeathCallback(GraphicBufferDeathCallback deathCallback, void* context);
+
 #ifndef LIBUI_IN_VNDK
     // Returns whether this GraphicBuffer is backed by BufferHubBuffer.
     bool isBufferHubBuffer() const;
@@ -275,7 +286,32 @@ private:
     // IGBP::setGenerationNumber), attempts to attach the buffer will fail.
     uint32_t mGenerationNumber;
 
+    // Send a callback when a GraphicBuffer dies.
+    //
+    // This is used for BufferStateLayer caching. GraphicBuffers are refcounted per process. When
+    // A GraphicBuffer doesn't have any more sp<> in a process, it is destroyed. This causes
+    // problems when trying to implicitcly cache across process boundaries. Ideally, both sides
+    // of the cache would hold onto wp<> references. When an app dropped its sp<>, the GraphicBuffer
+    // would be destroyed. Unfortunately, when SurfaceFlinger has only a wp<> reference to the
+    // GraphicBuffer, it immediately goes out of scope in the SurfaceFlinger process. SurfaceFlinger
+    // must hold onto a sp<> to the buffer. When the GraphicBuffer goes out of scope in the app's
+    // process, the client side cache will get this callback. It erases the buffer from its cache
+    // and informs SurfaceFlinger that it should drop its strong pointer reference to the buffer.
+    std::vector<std::pair<GraphicBufferDeathCallback, void* /*mDeathCallbackContext*/>>
+            mDeathCallbacks;
+
 #ifndef LIBUI_IN_VNDK
+    // Flatten this GraphicBuffer object if backed by BufferHubBuffer.
+    status_t flattenBufferHubBuffer(void*& buffer, size_t& size) const;
+
+    // Unflatten into BufferHubBuffer backed GraphicBuffer.
+    // Unflatten will fail if the original GraphicBuffer object is destructed. For instance, a
+    // GraphicBuffer backed by BufferHubBuffer_1 flatten in process/thread A, transport the token
+    // to process/thread B through a socket, BufferHubBuffer_1 dies and bufferhub invalidated the
+    // token. Race condition occurs between the invalidation of the token in bufferhub process and
+    // process/thread B trying to unflatten and import the buffer with that token.
+    status_t unflattenBufferHubBuffer(void const*& buffer, size_t& size);
+
     // Stores a BufferHubBuffer that handles buffer signaling, identification.
     std::unique_ptr<BufferHubBuffer> mBufferHubBuffer;
 #endif // LIBUI_IN_VNDK

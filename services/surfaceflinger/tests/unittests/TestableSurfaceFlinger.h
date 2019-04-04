@@ -31,6 +31,7 @@
 #include "FakePhaseOffsets.h"
 #include "Layer.h"
 #include "NativeWindowSurface.h"
+#include "Scheduler/MessageQueue.h"
 #include "StartPropertySetThread.h"
 #include "SurfaceFlinger.h"
 #include "SurfaceFlingerFactory.h"
@@ -276,8 +277,9 @@ public:
     auto onMessageReceived(int32_t what) { return mFlinger->onMessageReceived(what); }
 
     auto captureScreenImplLocked(const RenderArea& renderArea,
-                                 TraverseLayersFunction traverseLayers, ANativeWindowBuffer* buffer,
-                                 bool useIdentityTransform, bool forSystem, int* outSyncFd) {
+                                 SurfaceFlinger::TraverseLayersFunction traverseLayers,
+                                 ANativeWindowBuffer* buffer, bool useIdentityTransform,
+                                 bool forSystem, int* outSyncFd) {
         return mFlinger->captureScreenImplLocked(renderArea, traverseLayers, buffer,
                                                  useIdentityTransform, forSystem, outSyncFd);
     }

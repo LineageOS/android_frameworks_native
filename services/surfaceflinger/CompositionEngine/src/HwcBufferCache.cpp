@@ -48,12 +48,20 @@ uint32_t HwcBufferCache::getLeastRecentlyUsedSlot() {
     return std::distance(std::begin(mBuffers), iter);
 }
 
-void HwcBufferCache::getHwcBuffer(const sp<GraphicBuffer>& buffer, uint32_t* outSlot,
+void HwcBufferCache::getHwcBuffer(int slot, const sp<GraphicBuffer>& buffer, uint32_t* outSlot,
                                   sp<GraphicBuffer>* outBuffer) {
-    bool cached = getSlot(buffer, outSlot);
+    // if this slot corresponds to a BufferStateLayer, generate the slot
+    if (slot == BufferQueue::INVALID_BUFFER_SLOT) {
+        getSlot(buffer, outSlot);
+    } else if (slot < 0 || slot >= BufferQueue::NUM_BUFFER_SLOTS) {
+        *outSlot = 0;
+    } else {
+        *outSlot = slot;
+    }
 
     auto& [currentCounter, currentBuffer] = mBuffers[*outSlot];
-    if (cached) {
+    wp<GraphicBuffer> weakCopy(buffer);
+    if (currentBuffer == weakCopy) {
         // already cached in HWC, skip sending the buffer
         *outBuffer = nullptr;
         currentCounter = getCounter();

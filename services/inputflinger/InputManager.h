@@ -94,7 +94,7 @@ public:
     virtual sp<InputClassifierInterface> getClassifier();
     virtual sp<InputDispatcherInterface> getDispatcher();
 
-    virtual void setInputWindows(const Vector<InputWindowInfo>& handles,
+    virtual void setInputWindows(const std::vector<InputWindowInfo>& handles,
             const sp<ISetInputWindowsListener>& setInputWindowsListener);
     virtual void transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken);
 

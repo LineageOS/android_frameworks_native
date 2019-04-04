@@ -560,7 +560,10 @@ public:
                              const Vector<DisplayState>& /*displays*/, uint32_t /*flags*/,
                              const sp<IBinder>& /*applyToken*/,
                              const InputWindowCommands& /*inputWindowCommands*/,
-                             int64_t /*desiredPresentTime*/) override {}
+                             int64_t /*desiredPresentTime*/,
+                             const cached_buffer_t& /*cachedBuffer*/,
+                             const std::vector<ListenerCallbacks>& /*listenerCallbacks*/) override {
+    }
 
     void bootFinished() override {}
     bool authenticateSurfaceTexture(

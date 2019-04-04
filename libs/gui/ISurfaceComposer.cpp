@@ -68,7 +68,9 @@ public:
                                      const Vector<DisplayState>& displays, uint32_t flags,
                                      const sp<IBinder>& applyToken,
                                      const InputWindowCommands& commands,
-                                     int64_t desiredPresentTime) {
+                                     int64_t desiredPresentTime,
+                                     const cached_buffer_t& uncacheBuffer,
+                                     const std::vector<ListenerCallbacks>& listenerCallbacks) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
 
@@ -86,6 +88,16 @@ public:
         data.writeStrongBinder(applyToken);
         commands.write(data);
         data.writeInt64(desiredPresentTime);
+        data.writeStrongBinder(uncacheBuffer.token);
+        data.writeUint64(uncacheBuffer.cacheId);
+
+        if (data.writeVectorSize(listenerCallbacks) == NO_ERROR) {
+            for (const auto& [listener, callbackIds] : listenerCallbacks) {
+                data.writeStrongBinder(IInterface::asBinder(listener));
+                data.writeInt64Vector(callbackIds);
+            }
+        }
+
         remote()->transact(BnSurfaceComposer::SET_TRANSACTION_STATE, data, &reply);
     }
 
@@ -539,8 +551,8 @@ public:
             ALOGE("enableVSyncInjections failed to writeBool: %d", result);
             return result;
         }
-        result = remote()->transact(BnSurfaceComposer::ENABLE_VSYNC_INJECTIONS,
-                data, &reply, TF_ONE_WAY);
+        result = remote()->transact(BnSurfaceComposer::ENABLE_VSYNC_INJECTIONS, data, &reply,
+                                    IBinder::FLAG_ONEWAY);
         if (result != NO_ERROR) {
             ALOGE("enableVSyncInjections failed to transact: %d", result);
             return result;
@@ -560,7 +572,8 @@ public:
             ALOGE("injectVSync failed to writeInt64: %d", result);
             return result;
         }
-        result = remote()->transact(BnSurfaceComposer::INJECT_VSYNC, data, &reply, TF_ONE_WAY);
+        result = remote()->transact(BnSurfaceComposer::INJECT_VSYNC, data, &reply,
+                                    IBinder::FLAG_ONEWAY);
         if (result != NO_ERROR) {
             ALOGE("injectVSync failed to transact: %d", result);
             return result;
@@ -970,8 +983,23 @@ status_t BnSurfaceComposer::onTransact(
             inputWindowCommands.read(data);
 
             int64_t desiredPresentTime = data.readInt64();
+
+            cached_buffer_t uncachedBuffer;
+            uncachedBuffer.token = data.readStrongBinder();
+            uncachedBuffer.cacheId = data.readUint64();
+
+            std::vector<ListenerCallbacks> listenerCallbacks;
+            int32_t listenersSize = data.readInt32();
+            for (int32_t i = 0; i < listenersSize; i++) {
+                auto listener =
+                        interface_cast<ITransactionCompletedListener>(data.readStrongBinder());
+                std::vector<CallbackId> callbackIds;
+                data.readInt64Vector(&callbackIds);
+                listenerCallbacks.emplace_back(listener, callbackIds);
+            }
+
             setTransactionState(state, displays, stateFlags, applyToken, inputWindowCommands,
-                                desiredPresentTime);
+                                desiredPresentTime, uncachedBuffer, listenerCallbacks);
             return NO_ERROR;
         }
         case BOOT_FINISHED: {

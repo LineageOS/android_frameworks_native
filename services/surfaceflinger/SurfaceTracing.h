@@ -41,7 +41,7 @@ constexpr auto operator""_MB(unsigned long long const num) {
  */
 class SurfaceTracing {
 public:
-    SurfaceTracing(SurfaceFlinger& flinger) : mFlinger(flinger) {}
+    explicit SurfaceTracing(SurfaceFlinger& flinger);
     void enable();
     bool disable();
     status_t writeToFile();
@@ -51,6 +51,14 @@ public:
     void setBufferSize(size_t bufferSizeInByte);
     void writeToFileAsync();
     void dump(std::string& result) const;
+
+    enum : uint32_t {
+        TRACE_CRITICAL = 1 << 0,
+        TRACE_INPUT = 1 << 1,
+        TRACE_EXTRA = 1 << 2,
+        TRACE_ALL = 0xffffffff
+    };
+    void setTraceFlags(uint32_t flags);
 
 private:
     static constexpr auto kDefaultBufferCapInByte = 100_MB;
@@ -74,18 +82,24 @@ private:
     };
 
     void mainLoop();
-    void traceLayers(const char* where);
-    LayersTraceProto traceLayersLocked(const char* where);
+    void addFirstEntry();
+    LayersTraceProto traceWhenNotified();
+    LayersTraceProto traceLayersLocked(const char* where) REQUIRES(mSfLock);
+
+    // Returns true if trace is enabled.
+    bool addTraceToBuffer(LayersTraceProto& entry);
     void writeProtoFileLocked() REQUIRES(mTraceLock);
 
     const SurfaceFlinger& mFlinger;
-
-    const char* mWhere = "";
     status_t mLastErr = NO_ERROR;
     std::thread mThread;
-    std::condition_variable mConditionalVariable;
-    mutable std::mutex mTraceLock;
+    std::condition_variable mCanStartTrace;
 
+    std::mutex& mSfLock;
+    uint32_t mTraceFlags GUARDED_BY(mSfLock) = TRACE_ALL;
+    const char* mWhere GUARDED_BY(mSfLock) = "";
+
+    mutable std::mutex mTraceLock;
     LayersTraceBuffer mBuffer GUARDED_BY(mTraceLock);
     size_t mBufferSize GUARDED_BY(mTraceLock) = kDefaultBufferCapInByte;
     bool mEnabled GUARDED_BY(mTraceLock) = false;

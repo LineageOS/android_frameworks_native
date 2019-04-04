@@ -20,12 +20,9 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include <utils/RefBase.h>
-#include <utils/Errors.h>
-#include <utils/Timers.h>
-#include <utils/Vector.h>
-
 #include <binder/IInterface.h>
+
+#include <gui/ITransactionCompletedListener.h>
 
 #include <ui/ConfigStoreTypes.h>
 #include <ui/DisplayedFrameStats.h>
@@ -34,12 +31,18 @@
 #include <ui/GraphicTypes.h>
 #include <ui/PixelFormat.h>
 
+#include <utils/Errors.h>
+#include <utils/RefBase.h>
+#include <utils/Timers.h>
+#include <utils/Vector.h>
+
 #include <optional>
 #include <vector>
 
 namespace android {
 // ----------------------------------------------------------------------------
 
+struct cached_buffer_t;
 struct ComposerState;
 struct DisplayState;
 struct DisplayInfo;
@@ -131,7 +134,9 @@ public:
                                      const Vector<DisplayState>& displays, uint32_t flags,
                                      const sp<IBinder>& applyToken,
                                      const InputWindowCommands& inputWindowCommands,
-                                     int64_t desiredPresentTime) = 0;
+                                     int64_t desiredPresentTime,
+                                     const cached_buffer_t& uncacheBuffer,
+                                     const std::vector<ListenerCallbacks>& listenerCallbacks) = 0;
 
     /* signal that we're done booting.
      * Requires ACCESS_SURFACE_FLINGER permission
@@ -194,8 +199,7 @@ public:
      * of the buffer. The caller should pick the data space and pixel format
      * that it can consume.
      *
-     * At the moment, sourceCrop is ignored and is always set to the visible
-     * region (projected display viewport) of the screen.
+     * sourceCrop is the crop on the logical display.
      *
      * reqWidth and reqHeight specifies the size of the buffer.  When either
      * of them is 0, they are set to the size of the logical display viewport.

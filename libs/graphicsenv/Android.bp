@@ -27,6 +27,7 @@ cc_library_shared {
         "libbase",
         "libbinder",
         "libcutils",
+        "libdl_android",
         "liblog",
         "libutils",
     ],
