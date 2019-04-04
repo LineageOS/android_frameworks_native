@@ -340,6 +340,17 @@ EGLBoolean egl_display_t::initialize(EGLint *major, EGLint *minor) {
             mVersionString = sVersionString15;
             cnx->driverVersion = EGL_MAKE_VERSION(1, 5, 0);
         } else if ((cnx->major == 1) && (cnx->minor == 4)) {
+            /* Querying extension strings for type Client */
+            std::string typesExtString;
+            static const char* clientExtensions =
+                    cnx->egl.eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS);
+            if (clientExtensions != nullptr && strlen(clientExtensions) > 0) {
+                typesExtString.append(clientExtensions);
+                typesExtString.append(" ");
+            }
+
+            /* Adding extension strings for type Display */
+            typesExtString.append(disp.queryString.extensions);
             mVersionString = sVersionString14;
             // Extensions needed for an EGL 1.4 implementation to be
             // able to support EGL 1.5 functionality
@@ -356,9 +367,9 @@ EGLBoolean egl_display_t::initialize(EGLint *major, EGLint *minor) {
             };
             bool extensionsFound = true;
             for (const auto& name : egl15extensions) {
-                extensionsFound &= findExtension(disp.queryString.extensions, name);
+                extensionsFound &= findExtension(typesExtString.c_str(), name);
                 ALOGV("Extension %s: %s", name,
-                      findExtension(disp.queryString.extensions, name) ? "Found" : "Missing");
+                      findExtension(typesExtString.c_str(), name) ? "Found" : "Missing");
             }
             // NOTE: From the spec:
             // Creation of fence sync objects requires support from the bound

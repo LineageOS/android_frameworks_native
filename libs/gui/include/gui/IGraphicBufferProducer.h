@@ -25,6 +25,7 @@
 
 #include <binder/IInterface.h>
 
+#include <ui/BufferQueueDefs.h>
 #include <ui/Fence.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/Rect.h>
@@ -75,10 +76,10 @@ public:
     enum {
         // A flag returned by dequeueBuffer when the client needs to call
         // requestBuffer immediately thereafter.
-        BUFFER_NEEDS_REALLOCATION = 0x1,
+        BUFFER_NEEDS_REALLOCATION = BufferQueueDefs::BUFFER_NEEDS_REALLOCATION,
         // A flag returned by dequeueBuffer when all mirrored slots should be
         // released by the client. This flag should always be processed first.
-        RELEASE_ALL_BUFFERS       = 0x2,
+        RELEASE_ALL_BUFFERS       = BufferQueueDefs::RELEASE_ALL_BUFFERS,
     };
 
     enum {

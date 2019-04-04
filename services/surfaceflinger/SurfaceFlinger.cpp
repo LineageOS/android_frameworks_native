@@ -1457,12 +1457,13 @@ void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate, Scheduler::Co
         return;
     }
 
+    mPhaseOffsets->setRefreshRateType(refreshRate);
+
     const auto display = getDisplayDeviceLocked(displayToken);
     if (desiredConfigId == display->getActiveConfig()) {
         return;
     }
 
-    mPhaseOffsets->setRefreshRateType(refreshRate);
     setDesiredActiveConfig({refreshRate, desiredConfigId, getInternalDisplayTokenLocked(), event});
 }
 
@@ -1818,11 +1819,6 @@ void SurfaceFlinger::calculateWorkingSet() {
             } else if ((layer->getDataSpace() == Dataspace::BT2020_HLG ||
                         layer->getDataSpace() == Dataspace::BT2020_ITU_HLG) &&
                        !profile->hasHLGSupport()) {
-                layer->forceClientComposition(displayDevice);
-            }
-
-            // TODO(b/111562338) remove when composer 2.3 is shipped.
-            if (layer->hasColorTransform()) {
                 layer->forceClientComposition(displayDevice);
             }
 
@@ -3248,15 +3244,13 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
     const auto& displayState = display->getState();
     const auto displayId = display->getId();
     auto& renderEngine = getRenderEngine();
-    const bool supportProtectedContent =
-            mDebugEnableProtectedContent && renderEngine.supportsProtectedContent();
+    const bool supportProtectedContent = renderEngine.supportsProtectedContent();
 
     const Region bounds(displayState.bounds);
     const DisplayRenderArea renderArea(displayDevice);
     const bool hasClientComposition = getHwComposer().hasClientComposition(displayId);
     ATRACE_INT("hasClientComposition", hasClientComposition);
 
-    mat4 colorMatrix;
     bool applyColorMatrix = false;
 
     renderengine::DisplaySettings clientCompositionDisplay;
@@ -3315,7 +3309,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
         // Compute the global color transform matrix.
         applyColorMatrix = !hasDeviceComposition && !skipClientColorTransform;
         if (applyColorMatrix) {
-            clientCompositionDisplay.colorTransform = colorMatrix;
+            clientCompositionDisplay.colorTransform = displayState.colorTransformMat;
         }
     }
 
@@ -5326,11 +5320,6 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 }
                 return NO_ERROR;
             }
-            case 1032: {
-                n = data.readInt32();
-                mDebugEnableProtectedContent = n;
-                return NO_ERROR;
-            }
             // Set trace flags
             case 1033: {
                 n = data.readUint32();
@@ -5648,8 +5637,9 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
 
     const auto reqWidth = renderArea.getReqWidth();
     const auto reqHeight = renderArea.getReqHeight();
-    const auto sourceCrop = renderArea.getSourceCrop();
     const auto rotation = renderArea.getRotationFlags();
+    const auto transform = renderArea.getTransform();
+    const auto sourceCrop = renderArea.getSourceCrop();
 
     renderengine::DisplaySettings clientCompositionDisplay;
     std::vector<renderengine::LayerSettings> clientCompositionLayers;
@@ -5657,31 +5647,34 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     // assume that bounds are never offset, and that they are the same as the
     // buffer bounds.
     clientCompositionDisplay.physicalDisplay = Rect(reqWidth, reqHeight);
-    ui::Transform transform = renderArea.getTransform();
+    clientCompositionDisplay.clip = sourceCrop;
     clientCompositionDisplay.globalTransform = transform.asMatrix4();
+
+    // Now take into account the rotation flag. We append a transform that
+    // rotates the layer stack about the origin, then translate by buffer
+    // boundaries to be in the right quadrant.
     mat4 rotMatrix;
-    // Displacement for repositioning the clipping rectangle after rotating it
-    // with the rotation hint.
     int displacementX = 0;
     int displacementY = 0;
     float rot90InRadians = 2.0f * static_cast<float>(M_PI) / 4.0f;
     switch (rotation) {
         case ui::Transform::ROT_90:
             rotMatrix = mat4::rotate(rot90InRadians, vec3(0, 0, 1));
-            displacementX = reqWidth;
+            displacementX = renderArea.getBounds().getHeight();
             break;
         case ui::Transform::ROT_180:
             rotMatrix = mat4::rotate(rot90InRadians * 2.0f, vec3(0, 0, 1));
-            displacementX = reqWidth;
-            displacementY = reqHeight;
+            displacementY = renderArea.getBounds().getWidth();
+            displacementX = renderArea.getBounds().getHeight();
             break;
         case ui::Transform::ROT_270:
             rotMatrix = mat4::rotate(rot90InRadians * 3.0f, vec3(0, 0, 1));
-            displacementY = reqHeight;
+            displacementY = renderArea.getBounds().getWidth();
             break;
         default:
             break;
     }
+
     // We need to transform the clipping window into the right spot.
     // First, rotate the clipping rectangle by the rotation hint to get the
     // right orientation
@@ -5697,15 +5690,14 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     // Now reposition the clipping rectangle with the displacement vector
     // computed above.
     const mat4 displacementMat = mat4::translate(vec4(displacementX, displacementY, 0, 1));
-
     clientCompositionDisplay.clip =
             Rect(newClipLeft + displacementX, newClipTop + displacementY,
                  newClipRight + displacementX, newClipBottom + displacementY);
 
-    // We need to perform the same transformation in layer space, so propagate
-    // it to the global transform.
     mat4 clipTransform = displacementMat * rotMatrix;
-    clientCompositionDisplay.globalTransform *= clipTransform;
+    clientCompositionDisplay.globalTransform =
+            clipTransform * clientCompositionDisplay.globalTransform;
+
     clientCompositionDisplay.outputDataspace = renderArea.getReqDataSpace();
     clientCompositionDisplay.maxLuminance = DisplayDevice::sDefaultMaxLumiance;
 

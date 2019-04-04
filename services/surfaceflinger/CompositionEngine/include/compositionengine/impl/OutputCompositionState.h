@@ -18,6 +18,7 @@
 
 #include <cstdint>
 
+#include <math/mat4.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
@@ -77,6 +78,9 @@ struct OutputCompositionState {
 
     // The color transform to apply
     android_color_transform_t colorTransform{HAL_COLOR_TRANSFORM_IDENTITY};
+
+    // The color transform matrix to apply, corresponding with colorTransform.
+    mat4 colorTransformMat;
 
     // Current active color mode
     ui::ColorMode colorMode{ui::ColorMode::NATIVE};

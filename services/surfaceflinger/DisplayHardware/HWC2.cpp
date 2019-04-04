@@ -26,7 +26,6 @@
 #include <ui/Fence.h>
 #include <ui/FloatRect.h>
 #include <ui/GraphicBuffer.h>
-#include <ui/Region.h>
 
 #include <android/configuration.h>
 
@@ -826,6 +825,11 @@ Error Layer::setCursorPosition(int32_t x, int32_t y)
 Error Layer::setBuffer(uint32_t slot, const sp<GraphicBuffer>& buffer,
         const sp<Fence>& acquireFence)
 {
+    if (buffer == nullptr && mBufferSlot == slot) {
+        return Error::None;
+    }
+    mBufferSlot = slot;
+
     int32_t fenceFd = acquireFence->dup();
     auto intError = mComposer.setLayerBuffer(mDisplayId, mId, slot, buffer,
                                              fenceFd);
@@ -834,6 +838,12 @@ Error Layer::setBuffer(uint32_t slot, const sp<GraphicBuffer>& buffer,
 
 Error Layer::setSurfaceDamage(const Region& damage)
 {
+    if (damage.isRect() && mDamageRegion.isRect() &&
+        (damage.getBounds() == mDamageRegion.getBounds())) {
+        return Error::None;
+    }
+    mDamageRegion = damage;
+
     // We encode default full-screen damage as INVALID_RECT upstream, but as 0
     // rects for HWC
     Hwc2::Error intError = Hwc2::Error::NONE;
@@ -988,6 +998,12 @@ Error Layer::setTransform(Transform transform)
 
 Error Layer::setVisibleRegion(const Region& region)
 {
+    if (region.isRect() && mVisibleRegion.isRect() &&
+        (region.getBounds() == mVisibleRegion.getBounds())) {
+        return Error::None;
+    }
+    mVisibleRegion = region;
+
     size_t rectCount = 0;
     auto rectArray = region.getArray(&rectCount);
 
