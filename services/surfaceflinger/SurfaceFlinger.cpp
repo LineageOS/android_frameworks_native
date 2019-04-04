@@ -1849,6 +1849,11 @@ void SurfaceFlinger::calculateWorkingSet() {
                 layer->forceClientComposition(displayDevice);
             }
 
+            // TODO(b/111562338) remove when composer 2.3 is shipped.
+            if (layer->hasColorTransform()) {
+                layer->forceClientComposition(displayDevice);
+            }
+
             if (layer->getRoundedCornerState().radius > 0.0f) {
                 layer->forceClientComposition(displayDevice);
             }
