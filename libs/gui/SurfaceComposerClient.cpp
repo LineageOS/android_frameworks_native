@@ -620,6 +620,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setRelat
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
+        return *this;
     }
     s->what |= layer_state_t::eRelativeLayerChanged;
     s->relativeLayerHandle = relativeTo;
