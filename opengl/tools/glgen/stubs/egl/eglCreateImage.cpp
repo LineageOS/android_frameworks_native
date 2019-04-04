@@ -1,11 +1,13 @@
-/* EGLDisplay eglGetPlatformDisplay ( EGLenum platform, EGLAttrib native_display, const EGLAttrib *attrib_list ) */
+/* EGLImage eglCreateImage ( EGLDisplay dpy, EGLContext context, EGLenum target, EGLClientBuffer buffer, const EGLAttrib *attrib_list ) */
 static jobject
-android_eglGetPlatformDisplay
-  (JNIEnv *_env, jobject _this, jint platform, jlong native_display, jlongArray attrib_list_ref, jint offset) {
+android_eglCreateImage
+  (JNIEnv *_env, jobject _this, jobject dpy, jobject context, jint target, jlong buffer, jlongArray attrib_list_ref, jint offset) {
     jint _exception = 0;
     const char * _exceptionType = NULL;
     const char * _exceptionMessage = NULL;
-    EGLDisplay _returnValue = (EGLDisplay) 0;
+    EGLImage _returnValue = (EGLImage) 0;
+    EGLDisplay dpy_native = (EGLDisplay) fromEGLHandle(_env, egldisplayGetHandleID, dpy);
+    EGLContext context_native = (EGLContext) fromEGLHandle(_env, eglcontextGetHandleID, context);
     jlong *attrib_list_base = (jlong *) 0;
     jint _remaining;
     WrappedEGLAttribs attrib_list;
@@ -27,9 +29,11 @@ android_eglGetPlatformDisplay
         _env->GetLongArrayElements(attrib_list_ref, (jboolean *)0);
     attrib_list.init(attrib_list_base + offset, _remaining);
 
-    _returnValue = eglGetPlatformDisplay(
-        (EGLenum)platform,
-        (void *)native_display,
+    _returnValue = eglCreateImage(
+        (EGLDisplay)dpy_native,
+        (EGLContext)context_native,
+        (EGLenum)target,
+        (EGLClientBuffer)buffer,
         attrib_list.attribs
     );
 
@@ -42,6 +46,5 @@ exit:
         jniThrowException(_env, _exceptionType, _exceptionMessage);
         return nullptr;
     }
-    return toEGLHandle(_env, egldisplayClass, egldisplayConstructor, _returnValue);
+    return toEGLHandle(_env, eglimageClass, eglimageConstructor, _returnValue);
 }
-

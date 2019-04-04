@@ -1,7 +1,8 @@
 EGLSync eglCreateSync ( EGLDisplay dpy, EGLenum type, const EGLAttrib *attrib_list )
+// eglGetSyncAttrib pulled in with eglCreateSync stubs
+// EGLBoolean eglGetSyncAttrib ( EGLDisplay dpy, EGLSync sync, EGLint attribute, EGLAttrib *value )
 EGLBoolean eglDestroySync ( EGLDisplay dpy, EGLSync sync )
 EGLint eglClientWaitSync ( EGLDisplay dpy, EGLSync sync, EGLint flags, EGLTime timeout )
-EGLBoolean eglGetSyncAttrib ( EGLDisplay dpy, EGLSync sync, EGLint attribute, EGLAttrib *value )
 // NOTE: native_display isn't actually an EGLAttrib. Using EGLAttrib
 // so that the generate creates mostly correct code (do not want a buffer)
 // have to manually change cast to (void *) in generated code that calls

@@ -25,6 +25,7 @@
 #include <utils/misc.h>
 
 #include <assert.h>
+#include <vector>
 #include <EGL/egl.h>
 
 #include <ui/ANativeObjectBase.h>
@@ -205,5 +206,23 @@ toEGLHandle(JNIEnv *_env, jclass cls, jmethodID con, void *handle) {
 
     return _env->NewObject(cls, con, reinterpret_cast<jlong>(handle));
 }
+
+struct WrappedEGLAttribs {
+private:
+    std::vector<EGLAttrib> backing; // only for 32-bit
+public:
+    EGLAttrib *attribs;
+    WrappedEGLAttribs(): attribs(nullptr) { };
+    void init(jlong *array, jint size) {
+        if (sizeof(EGLAttrib) != sizeof(jlong)) {
+            for (jint i = 0; i < size; ++i) {
+                backing.push_back(array[i]);
+            }
+            attribs = backing.data();
+        } else {
+            attribs = (EGLAttrib*)array;
+        }
+    }
+};
 
 // --------------------------------------------------------------------------
