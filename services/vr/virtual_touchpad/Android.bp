@@ -62,7 +62,7 @@ cc_test {
 service_src = [
     "main.cpp",
     "VirtualTouchpadService.cpp",
-    "aidl/android/dvr/VirtualTouchpadService.aidl",
+    "aidl/android/dvr/IVirtualTouchpadService.aidl",
 ]
 
 service_static_libs = [
@@ -99,7 +99,7 @@ cc_binary {
 client_src = [
     "VirtualTouchpadClient.cpp",
     "DvrVirtualTouchpadClient.cpp",
-    "aidl/android/dvr/VirtualTouchpadService.aidl",
+    "aidl/android/dvr/IVirtualTouchpadService.aidl",
 ]
 
 client_shared_libs = [
