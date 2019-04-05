@@ -3407,9 +3407,8 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
         renderEngine.drawLayers(clientCompositionDisplay, clientCompositionLayers,
                                 buf->getNativeBuffer(), /*useFramebufferCache=*/true, std::move(fd),
                                 readyFence);
-        if (expensiveRenderingExpected && displayId) {
-            mPowerAdvisor.setExpensiveRenderingExpected(*displayId, false);
-        }
+    } else if (displayId) {
+        mPowerAdvisor.setExpensiveRenderingExpected(*displayId, false);
     }
     return true;
 }
