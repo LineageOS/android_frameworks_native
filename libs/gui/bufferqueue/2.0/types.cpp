@@ -289,6 +289,7 @@ bool h2b(HardwareBuffer const& from, sp<GraphicBuffer>* to) {
         return false;
     }
     *to = GraphicBuffer::fromAHardwareBuffer(hwBuffer);
+    AHardwareBuffer_release(hwBuffer);
     return true;
 }
 
