@@ -22,6 +22,7 @@ cc_library_shared {
     cflags: ["-Wall", "-Werror"],
 
     shared_libs: [
+        "libdl_android",
         "liblog",
     ],
 
