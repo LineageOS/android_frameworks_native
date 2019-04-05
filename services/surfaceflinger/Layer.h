@@ -885,6 +885,9 @@ protected:
     // Can only be accessed with the SF state lock held.
     bool mChildrenChanged{false};
 
+    // Window types from WindowManager.LayoutParams
+    const int mWindowType;
+
     // This is populated if the layer is registered with Scheduler for tracking purposes.
     std::unique_ptr<scheduler::LayerHistory::LayerHandle> mSchedulerLayerHandle;
 

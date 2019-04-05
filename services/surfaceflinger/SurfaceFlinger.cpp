@@ -4030,7 +4030,7 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
     if (metadata.has(METADATA_WINDOW_TYPE)) {
         int32_t windowType = metadata.getInt32(METADATA_WINDOW_TYPE, 0);
         if (windowType == 441731) {
-            metadata.setInt32(METADATA_WINDOW_TYPE, 2024); // TYPE_NAVIGATION_BAR_PANEL
+            metadata.setInt32(METADATA_WINDOW_TYPE, InputWindowInfo::TYPE_NAVIGATION_BAR_PANEL);
             primaryDisplayOnly = true;
         }
     }

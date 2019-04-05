@@ -147,7 +147,9 @@ public:
     void setIgnorePresentFences(bool ignore);
     nsecs_t expectedPresentTime();
     // Registers the layer in the scheduler, and returns the handle for future references.
-    std::unique_ptr<scheduler::LayerHistory::LayerHandle> registerLayer(const std::string name);
+    std::unique_ptr<scheduler::LayerHistory::LayerHandle> registerLayer(std::string const& name,
+                                                                        int windowType);
+
     // Stores present time for a layer.
     void addLayerPresentTime(
             const std::unique_ptr<scheduler::LayerHistory::LayerHandle>& layerHandle,

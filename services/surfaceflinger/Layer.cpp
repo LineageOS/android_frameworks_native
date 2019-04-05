@@ -70,7 +70,10 @@ using base::StringAppendF;
 std::atomic<int32_t> Layer::sSequence{1};
 
 Layer::Layer(const LayerCreationArgs& args)
-      : mFlinger(args.flinger), mName(args.name), mClientRef(args.client) {
+      : mFlinger(args.flinger),
+        mName(args.name),
+        mClientRef(args.client),
+        mWindowType(args.metadata.getInt32(METADATA_WINDOW_TYPE, 0)) {
     mCurrentCrop.makeInvalid();
 
     uint32_t layerFlags = 0;
@@ -115,7 +118,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mFrameEventHistory.initializeCompositorTiming(compositorTiming);
     mFrameTracker.setDisplayRefreshPeriod(compositorTiming.interval);
 
-    mSchedulerLayerHandle = mFlinger->mScheduler->registerLayer(mName.c_str());
+    mSchedulerLayerHandle = mFlinger->mScheduler->registerLayer(mName.c_str(), mWindowType);
 
     mFlinger->onLayerCreated();
 }
@@ -1300,6 +1303,7 @@ void Layer::miniDumpHeader(std::string& result) {
     result.append("-----------------------------\n");
     result.append(" Layer name\n");
     result.append("           Z | ");
+    result.append(" Window Type | ");
     result.append(" Comp Type | ");
     result.append(" Transform | ");
     result.append("  Disp Frame (LTRB) | ");
@@ -1336,6 +1340,7 @@ void Layer::miniDump(std::string& result, const sp<DisplayDevice>& displayDevice
     } else {
         StringAppendF(&result, "  %10d | ", layerState.z);
     }
+    StringAppendF(&result, "  %10d | ", mWindowType);
     StringAppendF(&result, "%10s | ", toString(getCompositionType(displayDevice)).c_str());
     StringAppendF(&result, "%10s | ",
                   toString(getCompositionLayer() ? compositionState.bufferTransform

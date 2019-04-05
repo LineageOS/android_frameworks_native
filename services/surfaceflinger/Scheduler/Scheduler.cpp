@@ -28,6 +28,7 @@
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
 #include <cutils/properties.h>
+#include <input/InputWindow.h>
 #include <system/window.h>
 #include <ui/DisplayStatInfo.h>
 #include <utils/Timers.h>
@@ -301,8 +302,10 @@ void Scheduler::dumpPrimaryDispSync(std::string& result) const {
 }
 
 std::unique_ptr<scheduler::LayerHistory::LayerHandle> Scheduler::registerLayer(
-        const std::string name) {
-    RefreshRateType refreshRateType = RefreshRateType::PERFORMANCE;
+        std::string const& name, int windowType) {
+    RefreshRateType refreshRateType = (windowType == InputWindowInfo::TYPE_WALLPAPER)
+            ? RefreshRateType::DEFAULT
+            : RefreshRateType::PERFORMANCE;
 
     const auto refreshRate = mRefreshRateConfigs.getRefreshRate(refreshRateType);
     const uint32_t fps = (refreshRate) ? refreshRate->fps : 0;
