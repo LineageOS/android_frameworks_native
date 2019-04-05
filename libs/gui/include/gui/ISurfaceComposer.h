@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <binder/IBinder.h>
 #include <binder/IInterface.h>
 
 #include <gui/ITransactionCompletedListener.h>
@@ -37,6 +38,7 @@
 #include <utils/Vector.h>
 
 #include <optional>
+#include <unordered_set>
 #include <vector>
 
 namespace android {
@@ -243,6 +245,11 @@ public:
                              sourceCrop, reqWidth, reqHeight, useIdentityTransform, rotation);
     }
 
+    template <class AA>
+    struct SpHash {
+        size_t operator()(const sp<AA>& k) const { return std::hash<AA*>()(k.get()); }
+    };
+
     /**
      * Capture a subtree of the layer hierarchy, potentially ignoring the root node.
      *
@@ -250,10 +257,12 @@ public:
      * of the buffer. The caller should pick the data space and pixel format
      * that it can consume.
      */
-    virtual status_t captureLayers(const sp<IBinder>& layerHandleBinder,
-                                   sp<GraphicBuffer>* outBuffer, const ui::Dataspace reqDataspace,
-                                   const ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
-                                   float frameScale = 1.0, bool childrenOnly = false) = 0;
+    virtual status_t captureLayers(
+            const sp<IBinder>& layerHandleBinder, sp<GraphicBuffer>* outBuffer,
+            const ui::Dataspace reqDataspace, const ui::PixelFormat reqPixelFormat,
+            const Rect& sourceCrop,
+            const std::unordered_set<sp<IBinder>, SpHash<IBinder>>& excludeHandles,
+            float frameScale = 1.0, bool childrenOnly = false) = 0;
 
     /**
      * Capture a subtree of the layer hierarchy into an sRGB buffer with RGBA_8888 pixel format,
@@ -263,7 +272,7 @@ public:
                            const Rect& sourceCrop, float frameScale = 1.0,
                            bool childrenOnly = false) {
         return captureLayers(layerHandleBinder, outBuffer, ui::Dataspace::V0_SRGB,
-                             ui::PixelFormat::RGBA_8888, sourceCrop, frameScale, childrenOnly);
+                             ui::PixelFormat::RGBA_8888, sourceCrop, {}, frameScale, childrenOnly);
     }
 
     /* Clears the frame statistics for animations.
