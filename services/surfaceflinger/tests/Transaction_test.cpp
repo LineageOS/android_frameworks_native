@@ -231,6 +231,20 @@ public:
         *sc = std::make_unique<ScreenCapture>(outBuffer);
     }
 
+    static void captureChildLayersExcluding(
+            std::unique_ptr<ScreenCapture>* sc, sp<IBinder>& parentHandle,
+            std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>> excludeLayers) {
+        sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+        SurfaceComposerClient::Transaction().apply(true);
+
+        sp<GraphicBuffer> outBuffer;
+        ASSERT_EQ(NO_ERROR,
+                  sf->captureLayers(parentHandle, &outBuffer, ui::Dataspace::V0_SRGB,
+                                    ui::PixelFormat::RGBA_8888, Rect::EMPTY_RECT, excludeLayers,
+                                    1.0f, true));
+        *sc = std::make_unique<ScreenCapture>(outBuffer);
+    }
+
     void expectColor(const Rect& rect, const Color& color, uint8_t tolerance = 0) {
         ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mOutBuffer->getPixelFormat());
         expectBufferColor(mOutBuffer, mPixels, rect, color, tolerance);
@@ -5236,6 +5250,57 @@ TEST_F(ScreenCaptureTest, CaptureLayerChildOnly) {
     ScreenCapture::captureChildLayers(&mCapture, fgHandle);
     mCapture->checkPixel(10, 10, 0, 0, 0);
     mCapture->expectChildColor(0, 0);
+}
+
+TEST_F(ScreenCaptureTest, CaptureLayerExclude) {
+    auto fgHandle = mFGSurfaceControl->getHandle();
+
+    sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
+                                             PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
+    fillSurfaceRGBA8(child, 200, 200, 200);
+    sp<SurfaceControl> child2 = createSurface(mClient, "Child surface", 10, 10,
+                                              PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
+    fillSurfaceRGBA8(child2, 200, 0, 200);
+
+    SurfaceComposerClient::Transaction()
+            .show(child)
+            .show(child2)
+            .setLayer(child, 1)
+            .setLayer(child2, 2)
+            .apply(true);
+
+    // Child2 would be visible but its excluded, so we should see child1 color instead.
+    ScreenCapture::captureChildLayersExcluding(&mCapture, fgHandle, {child2->getHandle()});
+    mCapture->checkPixel(10, 10, 0, 0, 0);
+    mCapture->checkPixel(0, 0, 200, 200, 200);
+}
+
+// Like the last test but verifies that children are also exclude.
+TEST_F(ScreenCaptureTest, CaptureLayerExcludeTree) {
+    auto fgHandle = mFGSurfaceControl->getHandle();
+
+    sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
+                                             PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
+    fillSurfaceRGBA8(child, 200, 200, 200);
+    sp<SurfaceControl> child2 = createSurface(mClient, "Child surface", 10, 10,
+                                              PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
+    fillSurfaceRGBA8(child2, 200, 0, 200);
+    sp<SurfaceControl> child3 = createSurface(mClient, "Child surface", 10, 10,
+                                              PIXEL_FORMAT_RGBA_8888, 0, child2.get());
+    fillSurfaceRGBA8(child2, 200, 0, 200);
+
+    SurfaceComposerClient::Transaction()
+            .show(child)
+            .show(child2)
+            .show(child3)
+            .setLayer(child, 1)
+            .setLayer(child2, 2)
+            .apply(true);
+
+    // Child2 would be visible but its excluded, so we should see child1 color instead.
+    ScreenCapture::captureChildLayersExcluding(&mCapture, fgHandle, {child2->getHandle()});
+    mCapture->checkPixel(10, 10, 0, 0, 0);
+    mCapture->checkPixel(0, 0, 200, 200, 200);
 }
 
 TEST_F(ScreenCaptureTest, CaptureTransparent) {

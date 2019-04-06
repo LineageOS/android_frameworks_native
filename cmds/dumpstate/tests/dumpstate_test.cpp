@@ -666,8 +666,7 @@ TEST_F(DumpstateTest, RunCommandWithTitle) {
     EXPECT_THAT(err, StrEq("stderr\n"));
     // We don't know the exact duration, so we check the prefix and suffix
     EXPECT_THAT(out,
-                StartsWith("------ I AM GROOT (" + kSimpleCommand + ") ------\nstdout\n------"));
-    EXPECT_THAT(out, EndsWith("s was the duration of 'I AM GROOT' ------\n"));
+                StartsWith("------ I AM GROOT (" + kSimpleCommand + ") ------\nstdout\n"));
 }
 
 TEST_F(DumpstateTest, RunCommandWithLoggingMessage) {
@@ -702,8 +701,7 @@ TEST_F(DumpstateTest, RunCommandDryRun) {
     EXPECT_EQ(0, RunCommand("I AM GROOT", {kSimpleCommand}));
     // We don't know the exact duration, so we check the prefix and suffix
     EXPECT_THAT(out, StartsWith("------ I AM GROOT (" + kSimpleCommand +
-                                ") ------\n\t(skipped on dry run)\n------"));
-    EXPECT_THAT(out, EndsWith("s was the duration of 'I AM GROOT' ------\n"));
+                                ") ------\n\t(skipped on dry run)\n"));
     EXPECT_THAT(err, IsEmpty());
 }
 
@@ -1042,7 +1040,6 @@ TEST_F(DumpstateTest, DumpFileNotFoundWithTitle) {
     // We don't know the exact duration, so we check the prefix and suffix
     EXPECT_THAT(out, StartsWith("*** Error dumping /I/cant/believe/I/exist (Y U NO EXIST?): No "
                                 "such file or directory\n"));
-    EXPECT_THAT(out, EndsWith("s was the duration of 'Y U NO EXIST?' ------\n"));
 }
 
 TEST_F(DumpstateTest, DumpFileSingleLine) {
@@ -1082,8 +1079,7 @@ TEST_F(DumpstateTest, DumpFileOnDryRun) {
     EXPECT_THAT(err, IsEmpty());
     EXPECT_THAT(
         out, StartsWith("------ Might as well dump. Dump! (" + kTestDataPath + "single-line.txt:"));
-    EXPECT_THAT(out, HasSubstr("\n\t(skipped on dry run)\n------"));
-    EXPECT_THAT(out, EndsWith("s was the duration of 'Might as well dump. Dump!' ------\n"));
+    EXPECT_THAT(out, HasSubstr("\n\t(skipped on dry run)\n"));
 }
 
 TEST_F(DumpstateTest, DumpFileUpdateProgress) {
