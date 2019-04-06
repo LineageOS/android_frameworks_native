@@ -115,8 +115,15 @@ static bool isV4lTouchNode(const char* name) {
  * The system property ro.input.video_enabled can be used to control whether
  * EventHub scans and opens V4L devices. As V4L does not support multiple
  * clients, EventHub effectively blocks access to these devices when it opens
- * them. This property enables other clients to read these devices for testing
- * and development.
+ * them.
+ *
+ * Setting this to "false" would prevent any video devices from being discovered and
+ * associated with input devices.
+ *
+ * This property can be used as follows:
+ * 1. To turn off features that are dependent on video device presence.
+ * 2. During testing and development, to allow other clients to read video devices
+ * directly from /dev.
  */
 static bool isV4lScanningEnabled() {
   return property_get_bool("ro.input.video_enabled", true /* default_value */);
