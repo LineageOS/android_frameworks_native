@@ -622,12 +622,13 @@ public:
                            bool /*captureSecureLayers*/) override {
         return NO_ERROR;
     }
-    virtual status_t captureLayers(const sp<IBinder>& /*parentHandle*/,
-                                   sp<GraphicBuffer>* /*outBuffer*/,
-                                   const ui::Dataspace /*reqDataspace*/,
-                                   const ui::PixelFormat /*reqPixelFormat*/,
-                                   const Rect& /*sourceCrop*/, float /*frameScale*/,
-                                   bool /*childrenOnly*/) override {
+    virtual status_t captureLayers(
+            const sp<IBinder>& /*parentHandle*/, sp<GraphicBuffer>* /*outBuffer*/,
+            const ui::Dataspace /*reqDataspace*/, const ui::PixelFormat /*reqPixelFormat*/,
+            const Rect& /*sourceCrop*/,
+            const std::unordered_set<sp<IBinder>,
+                                     ISurfaceComposer::SpHash<IBinder>>& /*excludeHandles*/,
+            float /*frameScale*/, bool /*childrenOnly*/) override {
         return NO_ERROR;
     }
     status_t clearAnimationFrameStats() override { return NO_ERROR; }

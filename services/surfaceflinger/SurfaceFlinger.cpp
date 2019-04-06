@@ -1822,11 +1822,6 @@ void SurfaceFlinger::calculateWorkingSet() {
                 layer->forceClientComposition(displayDevice);
             }
 
-            // TODO(b/111562338) remove when composer 2.3 is shipped.
-            if (layer->hasColorTransform()) {
-                layer->forceClientComposition(displayDevice);
-            }
-
             if (layer->getRoundedCornerState().radius > 0.0f) {
                 layer->forceClientComposition(displayDevice);
             }
@@ -3407,9 +3402,8 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
         renderEngine.drawLayers(clientCompositionDisplay, clientCompositionLayers,
                                 buf->getNativeBuffer(), /*useFramebufferCache=*/true, std::move(fd),
                                 readyFence);
-        if (expensiveRenderingExpected && displayId) {
-            mPowerAdvisor.setExpensiveRenderingExpected(*displayId, false);
-        }
+    } else if (displayId) {
+        mPowerAdvisor.setExpensiveRenderingExpected(*displayId, false);
     }
     return true;
 }
@@ -5410,10 +5404,11 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
                                useIdentityTransform);
 }
 
-status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
-                                       sp<GraphicBuffer>* outBuffer, const Dataspace reqDataspace,
-                                       const ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
-                                       float frameScale, bool childrenOnly) {
+status_t SurfaceFlinger::captureLayers(
+        const sp<IBinder>& layerHandleBinder, sp<GraphicBuffer>* outBuffer,
+        const Dataspace reqDataspace, const ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
+        const std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>& excludeHandles,
+        float frameScale, bool childrenOnly) {
     ATRACE_CALL();
 
     class LayerRenderArea : public RenderArea {
@@ -5535,15 +5530,36 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
         reqHeight = 1;
     }
 
-    LayerRenderArea renderArea(this, parent, crop, reqWidth, reqHeight, reqDataspace, childrenOnly);
+    std::unordered_set<sp<Layer>, ISurfaceComposer::SpHash<Layer>> excludeLayers;
+    for (const auto& handle : excludeHandles) {
+        BBinder* local = handle->localBinder();
+        if (local != nullptr) {
+            auto layerHandle = reinterpret_cast<Layer::Handle*>(local);
+            excludeLayers.emplace(layerHandle->owner.promote());
+        } else {
+            ALOGW("Invalid layer handle passed as excludeLayer to captureLayers");
+            return NAME_NOT_FOUND;
+        }
+    }
 
-    auto traverseLayers = [parent, childrenOnly](const LayerVector::Visitor& visitor) {
+    LayerRenderArea renderArea(this, parent, crop, reqWidth, reqHeight, reqDataspace, childrenOnly);
+    auto traverseLayers = [parent, childrenOnly,
+                           &excludeLayers](const LayerVector::Visitor& visitor) {
         parent->traverseChildrenInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
             if (!layer->isVisible()) {
                 return;
             } else if (childrenOnly && layer == parent.get()) {
                 return;
             }
+
+            sp<Layer> p = layer;
+            while (p != nullptr) {
+                if (excludeLayers.count(p) != 0) {
+                    return;
+                }
+                p = p->getParent();
+            }
+
             visitor(layer);
         });
     };

@@ -37,6 +37,7 @@
 #include <ui/PixelFormat.h>
 
 #include <gui/CpuConsumer.h>
+#include <gui/ISurfaceComposer.h>
 #include <gui/ITransactionCompletedListener.h>
 #include <gui/LayerState.h>
 #include <gui/SurfaceControl.h>
@@ -516,10 +517,12 @@ public:
     static status_t captureLayers(const sp<IBinder>& layerHandle, const ui::Dataspace reqDataSpace,
                                   const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
                                   float frameScale, sp<GraphicBuffer>* outBuffer);
-    static status_t captureChildLayers(const sp<IBinder>& layerHandle,
-                                       const ui::Dataspace reqDataSpace,
-                                       const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
-                                       float frameScale, sp<GraphicBuffer>* outBuffer);
+    static status_t captureChildLayers(
+            const sp<IBinder>& layerHandle, const ui::Dataspace reqDataSpace,
+            const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
+            const std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>&
+                    excludeHandles,
+            float frameScale, sp<GraphicBuffer>* outBuffer);
 };
 
 // ---------------------------------------------------------------------------
