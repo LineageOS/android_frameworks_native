@@ -209,7 +209,8 @@ bool BufferStateLayer::setFrame(const Rect& frame) {
     return true;
 }
 
-bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer) {
+bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, nsecs_t postTime,
+                                 nsecs_t desiredPresentTime) {
     if (mCurrentState.buffer) {
         mReleasePreviousBuffer = true;
     }
@@ -217,6 +218,15 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer) {
     mCurrentState.buffer = buffer;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
+
+    mFlinger->mTimeStats->setPostTime(getSequence(), getFrameNumber(), getName().c_str(), postTime);
+    mDesiredPresentTime = desiredPresentTime;
+
+    if (mFlinger->mUseSmart90ForVideo) {
+        const nsecs_t presentTime = (mDesiredPresentTime == -1) ? 0 : mDesiredPresentTime;
+        mFlinger->mScheduler->addLayerPresentTime(mSchedulerLayerHandle, presentTime);
+    }
+
     return true;
 }
 
@@ -346,14 +356,6 @@ FloatRect BufferStateLayer::computeSourceBounds(const FloatRect& parentBounds) c
 
     // if the display frame is not defined, use the parent bounds as the buffer size.
     return parentBounds;
-}
-
-void BufferStateLayer::setPostTime(nsecs_t postTime) {
-    mFlinger->mTimeStats->setPostTime(getSequence(), getFrameNumber(), getName().c_str(), postTime);
-}
-
-void BufferStateLayer::setDesiredPresentTime(nsecs_t desiredPresentTime) {
-    mDesiredPresentTime = desiredPresentTime;
 }
 
 // -----------------------------------------------------------------------

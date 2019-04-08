@@ -33,14 +33,17 @@ protected:
         MOCK_METHOD0(requestNextVsync, void());
     };
 
+    scheduler::RefreshRateConfigs mRefreshRateConfigs;
+
     /**
      * This mock Scheduler class uses implementation of mock::EventThread but keeps everything else
      * the same.
      */
     class MockScheduler : public android::Scheduler {
     public:
-        MockScheduler(std::unique_ptr<EventThread> eventThread)
-              : Scheduler([](bool) {}), mEventThread(std::move(eventThread)) {}
+        MockScheduler(const scheduler::RefreshRateConfigs& refreshRateConfigs,
+                      std::unique_ptr<EventThread> eventThread)
+              : Scheduler([](bool) {}, refreshRateConfigs), mEventThread(std::move(eventThread)) {}
 
         std::unique_ptr<EventThread> makeEventThread(
                 const char* /* connectionName */, DispSync* /* dispSync */,
@@ -71,7 +74,7 @@ SchedulerTest::SchedulerTest() {
 
     std::unique_ptr<mock::EventThread> eventThread = std::make_unique<mock::EventThread>();
     mEventThread = eventThread.get();
-    mScheduler = std::make_unique<MockScheduler>(std::move(eventThread));
+    mScheduler = std::make_unique<MockScheduler>(mRefreshRateConfigs, std::move(eventThread));
     EXPECT_CALL(*mEventThread, registerDisplayEventConnection(_)).WillOnce(Return(0));
 
     mEventThreadConnection = new MockEventThreadConnection(mEventThread);

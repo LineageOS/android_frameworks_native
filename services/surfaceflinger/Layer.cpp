@@ -115,6 +115,8 @@ Layer::Layer(const LayerCreationArgs& args)
     mFrameEventHistory.initializeCompositorTiming(compositorTiming);
     mFrameTracker.setDisplayRefreshPeriod(compositorTiming.interval);
 
+    mSchedulerLayerHandle = mFlinger->mScheduler->registerLayer(mName.c_str());
+
     mFlinger->onLayerCreated();
 }
 

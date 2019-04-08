@@ -39,6 +39,7 @@
 #include "EventThread.h"
 #include "IdleTimer.h"
 #include "InjectVSyncSource.h"
+#include "LayerInfo.h"
 #include "SchedulerUtils.h"
 #include "SurfaceFlingerProperties.h"
 
@@ -55,11 +56,13 @@ using namespace android::sysprop;
 
 std::atomic<int64_t> Scheduler::sNextId = 0;
 
-Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function)
+Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
+                     const scheduler::RefreshRateConfigs& refreshRateConfig)
       : mHasSyncFramework(running_without_sync_framework(true)),
         mDispSyncPresentTimeOffset(present_time_offset_from_vsync_ns(0)),
         mPrimaryHWVsyncEnabled(false),
-        mHWVsyncAvailable(false) {
+        mHWVsyncAvailable(false),
+        mRefreshRateConfigs(refreshRateConfig) {
     // Note: We create a local temporary with the real DispSync implementation
     // type temporarily so we can initialize it with the configured values,
     // before storing it for more generic use using the interface type.
@@ -297,32 +300,32 @@ void Scheduler::dumpPrimaryDispSync(std::string& result) const {
     mPrimaryDispSync->dump(result);
 }
 
-void Scheduler::addNativeWindowApi(int apiId) {
-    std::lock_guard<std::mutex> lock(mWindowApiHistoryLock);
-    mWindowApiHistory[mApiHistoryCounter] = apiId;
-    mApiHistoryCounter++;
-    mApiHistoryCounter = mApiHistoryCounter % scheduler::ARRAY_SIZE;
+std::unique_ptr<scheduler::LayerHistory::LayerHandle> Scheduler::registerLayer(
+        const std::string name) {
+    RefreshRateType refreshRateType = RefreshRateType::PERFORMANCE;
+
+    const auto refreshRate = mRefreshRateConfigs.getRefreshRate(refreshRateType);
+    const uint32_t fps = (refreshRate) ? refreshRate->fps : 0;
+    return mLayerHistory.createLayer(name, fps);
+}
+
+void Scheduler::addLayerPresentTime(
+        const std::unique_ptr<scheduler::LayerHistory::LayerHandle>& layerHandle,
+        nsecs_t presentTime) {
+    mLayerHistory.insert(layerHandle, presentTime);
 }
 
 void Scheduler::withPrimaryDispSync(std::function<void(DispSync&)> const& fn) {
     fn(*mPrimaryDispSync);
 }
 
-void Scheduler::updateFpsBasedOnNativeWindowApi() {
-    int mode;
-    {
-        std::lock_guard<std::mutex> lock(mWindowApiHistoryLock);
-        mode = scheduler::calculate_mode(mWindowApiHistory);
-    }
-    ATRACE_INT("NativeWindowApiMode", mode);
-
-    if (mode == NATIVE_WINDOW_API_MEDIA) {
-        // TODO(b/127365162): These callback names are not accurate anymore. Update.
-        mediaChangeRefreshRate(MediaFeatureState::MEDIA_PLAYING);
-        ATRACE_INT("DetectedVideo", 1);
+void Scheduler::updateFpsBasedOnContent() {
+    uint32_t refreshRate = std::round(mLayerHistory.getDesiredRefreshRate());
+    ATRACE_INT("ContentFPS", refreshRate);
+    if (refreshRate > 0) {
+        contentChangeRefreshRate(ContentFeatureState::CONTENT_DETECTION_ON, refreshRate);
     } else {
-        mediaChangeRefreshRate(MediaFeatureState::MEDIA_OFF);
-        ATRACE_INT("DetectedVideo", 0);
+        contentChangeRefreshRate(ContentFeatureState::CONTENT_DETECTION_OFF, 0);
     }
 }
 
@@ -365,39 +368,59 @@ std::string Scheduler::doDump() {
     return stream.str();
 }
 
-void Scheduler::mediaChangeRefreshRate(MediaFeatureState mediaFeatureState) {
-    // Default playback for media is DEFAULT when media is on.
-    RefreshRateType refreshRateType = RefreshRateType::DEFAULT;
-    ConfigEvent configEvent = ConfigEvent::None;
-
+void Scheduler::contentChangeRefreshRate(ContentFeatureState contentFeatureState,
+                                         uint32_t refreshRate) {
+    RefreshRateType newRefreshRateType;
     {
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
-        mCurrentMediaFeatureState = mediaFeatureState;
-        // Only switch to PERFORMANCE if idle timer was reset, when turning
-        // media off. If the timer is IDLE, stay at DEFAULT.
-        if (mediaFeatureState == MediaFeatureState::MEDIA_OFF &&
-            mCurrentIdleTimerState == IdleTimerState::RESET) {
-            refreshRateType = RefreshRateType::PERFORMANCE;
-        }
+        mCurrentContentFeatureState = contentFeatureState;
+        mContentRefreshRate = refreshRate;
+        newRefreshRateType = calculateRefreshRateType();
     }
-    changeRefreshRate(refreshRateType, configEvent);
+    changeRefreshRate(newRefreshRateType, ConfigEvent::Changed);
 }
 
 void Scheduler::timerChangeRefreshRate(IdleTimerState idleTimerState) {
-    RefreshRateType refreshRateType = RefreshRateType::DEFAULT;
-    ConfigEvent configEvent = ConfigEvent::None;
-
+    RefreshRateType newRefreshRateType;
     {
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
         mCurrentIdleTimerState = idleTimerState;
-        // Only switch to PERFOMANCE if the idle timer was reset, and media is
-        // not playing. Otherwise, stay at DEFAULT.
-        if (idleTimerState == IdleTimerState::RESET &&
-            mCurrentMediaFeatureState == MediaFeatureState::MEDIA_OFF) {
-            refreshRateType = RefreshRateType::PERFORMANCE;
-        }
+        newRefreshRateType = calculateRefreshRateType();
     }
-    changeRefreshRate(refreshRateType, configEvent);
+    changeRefreshRate(newRefreshRateType, ConfigEvent::None);
+}
+
+Scheduler::RefreshRateType Scheduler::calculateRefreshRateType() {
+    // First check if timer has expired as it means there is no new content on the screen
+    if (mCurrentIdleTimerState == IdleTimerState::EXPIRED) {
+        return RefreshRateType::DEFAULT;
+    }
+
+    // If content detection is off we choose performance as we don't know the content fps
+    if (mCurrentContentFeatureState == ContentFeatureState::CONTENT_DETECTION_OFF) {
+        return RefreshRateType::PERFORMANCE;
+    }
+
+    // Content detection is on, find the appropriate refresh rate
+    // Start with the smallest refresh rate which is greater than the content
+    auto iter = mRefreshRateConfigs.getRefreshRates().cbegin();
+    RefreshRateType currRefreshRateType = iter->first;
+    while (iter != mRefreshRateConfigs.getRefreshRates().cend()) {
+        if (iter->second->fps >= mContentRefreshRate) {
+            currRefreshRateType = iter->first;
+            break;
+        }
+        ++iter;
+    }
+
+    if (iter == mRefreshRateConfigs.getRefreshRates().cend()) {
+        return RefreshRateType::PERFORMANCE;
+    }
+
+    // TODO(b/129874336): This logic is sub-optimal for content refresh rate that aligns better
+    // with a higher refresh rate. For example for 45fps we should choose 90Hz config.
+
+    return currRefreshRateType;
 }
 
 void Scheduler::changeRefreshRate(RefreshRateType refreshRateType, ConfigEvent configEvent) {

@@ -605,7 +605,8 @@ void SurfaceFlinger::init() {
     Mutex::Autolock _l(mStateLock);
     // start the EventThread
     mScheduler =
-            getFactory().createScheduler([this](bool enabled) { setPrimaryVsyncEnabled(enabled); });
+            getFactory().createScheduler([this](bool enabled) { setPrimaryVsyncEnabled(enabled); },
+                                         mRefreshRateConfigs);
     auto resyncCallback =
             mScheduler->makeResyncCallback(std::bind(&SurfaceFlinger::getVsyncPeriod, this));
 
@@ -702,6 +703,7 @@ void SurfaceFlinger::init() {
                     setRefreshRateTo(type, event);
                 });
     }
+
     mRefreshRateConfigs.populate(getHwComposer().getConfigs(*display->getId()));
     mRefreshRateStats.setConfigMode(getHwComposer().getActiveConfigIndex(*display->getId()));
 
@@ -1607,7 +1609,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
             if (mUseSmart90ForVideo) {
                 // This call is made each time SF wakes up and creates a new frame. It is part
                 // of video detection feature.
-                mScheduler->updateFpsBasedOnNativeWindowApi();
+                mScheduler->updateFpsBasedOnContent();
             }
 
             if (performSetActiveConfig()) {
@@ -3115,6 +3117,7 @@ void SurfaceFlinger::invalidateLayerStack(const sp<const Layer>& layer, const Re
 
 bool SurfaceFlinger::handlePageFlip()
 {
+    ATRACE_CALL();
     ALOGV("handlePageFlip");
 
     nsecs_t latchTime = systemTime();
@@ -3140,6 +3143,7 @@ bool SurfaceFlinger::handlePageFlip()
             if (layer->shouldPresentNow(expectedPresentTime)) {
                 mLayersWithQueuedFrames.push_back(layer);
             } else {
+                ATRACE_NAME("!layer->shouldPresentNow()");
                 layer->useEmptyDamage();
             }
         } else {
@@ -3979,10 +3983,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         buffer = s.buffer;
     }
     if (buffer) {
-        if (layer->setBuffer(buffer)) {
+        if (layer->setBuffer(buffer, postTime, desiredPresentTime)) {
             flags |= eTraversalNeeded;
-            layer->setPostTime(postTime);
-            layer->setDesiredPresentTime(desiredPresentTime);
         }
     }
     if (layer->setTransactionCompletedListeners(callbackHandles)) flags |= eTraversalNeeded;

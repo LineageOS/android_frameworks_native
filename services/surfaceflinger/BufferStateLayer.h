@@ -63,7 +63,8 @@ public:
     bool setTransformToDisplayInverse(bool transformToDisplayInverse) override;
     bool setCrop(const Rect& crop) override;
     bool setFrame(const Rect& frame) override;
-    bool setBuffer(const sp<GraphicBuffer>& buffer) override;
+    bool setBuffer(const sp<GraphicBuffer>& buffer, nsecs_t postTime,
+                   nsecs_t desiredPresentTime) override;
     bool setAcquireFence(const sp<Fence>& fence) override;
     bool setDataspace(ui::Dataspace dataspace) override;
     bool setHdrMetadata(const HdrMetadata& hdrMetadata) override;
@@ -90,8 +91,6 @@ public:
     Rect getBufferSize(const State& s) const override;
     FloatRect computeSourceBounds(const FloatRect& parentBounds) const override;
 
-    void setPostTime(nsecs_t postTime) override;
-    void setDesiredPresentTime(nsecs_t desiredPresentTime) override;
     // -----------------------------------------------------------------------
 
     // -----------------------------------------------------------------------

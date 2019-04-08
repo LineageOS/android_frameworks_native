@@ -86,7 +86,8 @@ public:
         return std::make_unique<scheduler::FakePhaseOffsets>();
     }
 
-    std::unique_ptr<Scheduler> createScheduler(std::function<void(bool)>) override {
+    std::unique_ptr<Scheduler> createScheduler(std::function<void(bool)>,
+                                               const scheduler::RefreshRateConfigs&) override {
         // TODO: Use test-fixture controlled factory
         return nullptr;
     }
@@ -339,6 +340,7 @@ public:
     auto& mutableScheduler() { return mFlinger->mScheduler; }
     auto& mutableAppConnectionHandle() { return mFlinger->mAppConnectionHandle; }
     auto& mutableSfConnectionHandle() { return mFlinger->mSfConnectionHandle; }
+    auto& mutableRefreshRateConfigs() { return mFlinger->mRefreshRateConfigs; }
 
     ~TestableSurfaceFlinger() {
         // All these pointer and container clears help ensure that GMock does

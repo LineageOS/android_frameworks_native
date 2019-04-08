@@ -147,6 +147,7 @@ filegroup {
         "Scheduler/EventThread.cpp",
         "Scheduler/IdleTimer.cpp",
         "Scheduler/LayerHistory.cpp",
+        "Scheduler/LayerInfo.cpp",
         "Scheduler/MessageQueue.cpp",
         "Scheduler/Scheduler.cpp",
         "Scheduler/SchedulerUtils.cpp",
