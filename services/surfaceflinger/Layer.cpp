@@ -1804,8 +1804,9 @@ Layer::RoundedCornerState Layer::getRoundedCornerState() const {
         }
     }
     const float radius = getDrawingState().cornerRadius;
-    return radius > 0 ? RoundedCornerState(getCrop(getDrawingState()).toFloatRect(), radius)
-                      : RoundedCornerState();
+    return radius > 0 && getCrop(getDrawingState()).isValid()
+            ? RoundedCornerState(getCrop(getDrawingState()).toFloatRect(), radius)
+            : RoundedCornerState();
 }
 
 void Layer::commitChildList() {
