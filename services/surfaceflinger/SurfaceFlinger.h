@@ -1101,7 +1101,7 @@ private:
     scheduler::RefreshRateStats mRefreshRateStats{mRefreshRateConfigs, *mTimeStats};
 
     // All configs are allowed if the set is empty.
-    using DisplayConfigs = std::unordered_set<int32_t>;
+    using DisplayConfigs = std::set<int32_t>;
     DisplayConfigs mAllowedDisplayConfigs GUARDED_BY(mStateLock);
 
     std::mutex mActiveConfigLock;
