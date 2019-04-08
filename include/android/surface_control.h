@@ -130,7 +130,7 @@ int64_t ASurfaceTransactionStats_getLatchTime(ASurfaceTransactionStats* surface_
 /**
  * Returns a sync fence that signals when the transaction has been presented.
  * The recipient of the callback takes ownership of the fence and is responsible for closing
- * it.
+ * it. If a device does not support present fences, a -1 will be returned.
  */
 int ASurfaceTransactionStats_getPresentFenceFd(ASurfaceTransactionStats* surface_transaction_stats)
                                                __INTRODUCED_IN(29);
