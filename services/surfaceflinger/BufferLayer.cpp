@@ -413,6 +413,7 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) 
     // If the head buffer's acquire fence hasn't signaled yet, return and
     // try again later
     if (!fenceHasSignaled()) {
+        ATRACE_NAME("!fenceHasSignaled()");
         mFlinger->signalLayerUpdate();
         return false;
     }

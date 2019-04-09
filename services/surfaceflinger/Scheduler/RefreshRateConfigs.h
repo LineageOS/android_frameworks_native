@@ -54,7 +54,7 @@ public:
     const std::map<RefreshRateType, std::shared_ptr<RefreshRate>>& getRefreshRates() const {
         return mRefreshRates;
     }
-    std::shared_ptr<RefreshRate> getRefreshRate(RefreshRateType type) {
+    std::shared_ptr<RefreshRate> getRefreshRate(RefreshRateType type) const {
         const auto& refreshRate = mRefreshRates.find(type);
         if (refreshRate != mRefreshRates.end()) {
             return refreshRate->second;

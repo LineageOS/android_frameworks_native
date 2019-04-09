@@ -190,6 +190,7 @@ status_t BufferQueueConsumer::acquireBuffer(BufferItem* outBuffer,
                         desiredPresent - expectedPresent,
                         systemTime(CLOCK_MONOTONIC),
                         front->mFrameNumber, maxFrameNumber);
+                ATRACE_NAME("PRESENT_LATER");
                 return PRESENT_LATER;
             }
 
