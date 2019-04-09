@@ -1269,11 +1269,12 @@ TEST_F(LayerTransactionTest, SetFlagsSecureEUidSystem) {
 
     // Here we pass captureSecureLayers = true and since we are AID_SYSTEM we should be able
     // to receive them...we are expected to take care with the results.
+    bool outCapturedSecureLayers;
     ASSERT_EQ(NO_ERROR,
-              composer->captureScreen(mDisplay, &outBuffer,
-                      ui::Dataspace::V0_SRGB, ui::PixelFormat::RGBA_8888,
-                      Rect(), 0, 0, false,
-                      ISurfaceComposer::eRotateNone, true));
+              composer->captureScreen(mDisplay, &outBuffer, outCapturedSecureLayers,
+                                      ui::Dataspace::V0_SRGB, ui::PixelFormat::RGBA_8888, Rect(), 0,
+                                      0, false, ISurfaceComposer::eRotateNone, true));
+    ASSERT_EQ(true, outCapturedSecureLayers);
     ScreenCapture sc(outBuffer);
     sc.expectColor(Rect(0, 0, 32, 32), Color::RED);
 }
