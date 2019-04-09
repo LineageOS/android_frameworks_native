@@ -109,7 +109,7 @@ public:
     }
 
     virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
-                                   const ui::Dataspace reqDataspace,
+                                   bool& outCapturedSecureLayers, const ui::Dataspace reqDataspace,
                                    const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
                                    uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
                                    ISurfaceComposer::Rotation rotation, bool captureSecureLayers) {
@@ -137,6 +137,7 @@ public:
 
         *outBuffer = new GraphicBuffer();
         reply.read(**outBuffer);
+        outCapturedSecureLayers = reply.readBool();
 
         return result;
     }
@@ -1027,12 +1028,17 @@ status_t BnSurfaceComposer::onTransact(
             int32_t rotation = data.readInt32();
             bool captureSecureLayers = static_cast<bool>(data.readInt32());
 
-            status_t res = captureScreen(display, &outBuffer, reqDataspace, reqPixelFormat,
-                                         sourceCrop, reqWidth, reqHeight, useIdentityTransform,
-                                         static_cast<ISurfaceComposer::Rotation>(rotation), captureSecureLayers);
+            bool capturedSecureLayers = false;
+            status_t res = captureScreen(display, &outBuffer, capturedSecureLayers, reqDataspace,
+                                         reqPixelFormat, sourceCrop, reqWidth, reqHeight,
+                                         useIdentityTransform,
+                                         static_cast<ISurfaceComposer::Rotation>(rotation),
+                                         captureSecureLayers);
+
             reply->writeInt32(res);
             if (res == NO_ERROR) {
                 reply->write(*outBuffer);
+                reply->writeBool(capturedSecureLayers);
             }
             return NO_ERROR;
         }

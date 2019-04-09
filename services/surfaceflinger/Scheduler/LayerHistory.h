@@ -25,40 +25,60 @@
 
 #include <utils/Timers.h>
 
+#include "LayerInfo.h"
 #include "SchedulerUtils.h"
 
 namespace android {
+namespace scheduler {
 
 /*
- * This class represents a circular buffer in which we keep layer history for
- * the past ARRAY_SIZE frames. Each time, a signal for new frame comes, the counter
- * gets incremented and includes all the layers that are requested to draw in that
- * frame.
- *
- * Once the buffer reaches the end of the array, it starts overriding the elements
- * at the beginning of the array.
+ * This class represents information about layers that are considered current. We keep an
+ * unordered map between layer name and LayerInfo.
  */
 class LayerHistory {
 public:
+    // Handle for each layer we keep track of.
+    class LayerHandle {
+    public:
+        LayerHandle(LayerHistory& lh, int64_t id) : mId(id), mLayerHistory(lh) {}
+        ~LayerHandle() { mLayerHistory.destroyLayer(mId); }
+
+        const int64_t mId;
+
+    private:
+        LayerHistory& mLayerHistory;
+    };
+
     LayerHistory();
     ~LayerHistory();
 
-    // Method for inserting layers and their requested present time into the ring buffer.
-    // The elements are going to be inserted into an unordered_map at the position 'now'.
-    void insert(const std::string layerName, nsecs_t presentTime);
-    // Method for incrementing the current slot in the ring buffer. It also clears the
-    // unordered_map, if it was created previously.
-    void incrementCounter();
-    // Returns unordered_map at the given at index. The index is decremented from 'now'. For
-    // example, 0 is now, 1 is previous frame.
-    const std::unordered_map<std::string, nsecs_t>& get(size_t index) const;
-    // Returns the total size of the ring buffer. The value is always the same regardless
-    // of how many slots we filled in.
-    static constexpr size_t getSize() { return scheduler::ARRAY_SIZE; }
+    // When the layer is first created, register it.
+    std::unique_ptr<LayerHandle> createLayer(const std::string name, float maxRefreshRate);
+
+    // Method for inserting layers and their requested present time into the unordered map.
+    void insert(const std::unique_ptr<LayerHandle>& layerHandle, nsecs_t presentTime);
+    // Returns the desired refresh rate, which is a max refresh rate of all the current
+    // layers. See go/content-fps-detection-in-scheduler for more information.
+    float getDesiredRefreshRate();
+
+    // Removes the handle and the object from the map.
+    void destroyLayer(const int64_t id);
 
 private:
-    size_t mCounter = 0;
-    std::array<std::unordered_map<std::string, nsecs_t>, scheduler::ARRAY_SIZE> mElements;
+    // Removes the layers that have been idle for a given amount of time from mLayerInfos.
+    void removeIrrelevantLayers() REQUIRES(mLock);
+
+    // Information about currently active layers.
+    std::mutex mLock;
+    std::unordered_map<int64_t, std::shared_ptr<LayerInfo>> mActiveLayerInfos GUARDED_BY(mLock);
+    std::unordered_map<int64_t, std::shared_ptr<LayerInfo>> mInactiveLayerInfos GUARDED_BY(mLock);
+
+    // Each layer has it's own ID. This variable keeps track of the count.
+    static std::atomic<int64_t> sNextId;
+
+    // Flag whether to log layer FPS in systrace
+    bool mTraceEnabled = false;
 };
 
+} // namespace scheduler
 } // namespace android

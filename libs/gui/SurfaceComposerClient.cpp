@@ -1542,13 +1542,15 @@ status_t SurfaceComposerClient::setDisplayBrightness(const sp<IBinder>& displayT
 status_t ScreenshotClient::capture(const sp<IBinder>& display, const ui::Dataspace reqDataSpace,
                                    const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
                                    uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
-                                   uint32_t rotation, bool captureSecureLayers, sp<GraphicBuffer>* outBuffer) {
+                                   uint32_t rotation, bool captureSecureLayers,
+                                   sp<GraphicBuffer>* outBuffer, bool& outCapturedSecureLayers) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
     if (s == nullptr) return NO_INIT;
-    status_t ret = s->captureScreen(display, outBuffer, reqDataSpace, reqPixelFormat, sourceCrop,
-            reqWidth, reqHeight, useIdentityTransform,
-            static_cast<ISurfaceComposer::Rotation>(rotation),
-            captureSecureLayers);
+    status_t ret =
+            s->captureScreen(display, outBuffer, outCapturedSecureLayers, reqDataSpace,
+                             reqPixelFormat, sourceCrop, reqWidth, reqHeight, useIdentityTransform,
+                             static_cast<ISurfaceComposer::Rotation>(rotation),
+                             captureSecureLayers);
     if (ret != NO_ERROR) {
         return ret;
     }
@@ -1559,8 +1561,9 @@ status_t ScreenshotClient::capture(const sp<IBinder>& display, const ui::Dataspa
                                    const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
                                    uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
                                    uint32_t rotation, sp<GraphicBuffer>* outBuffer) {
-    return capture(display, reqDataSpace, reqPixelFormat, sourceCrop, reqWidth,
-            reqHeight, useIdentityTransform, rotation, false, outBuffer);
+    bool ignored;
+    return capture(display, reqDataSpace, reqPixelFormat, sourceCrop, reqWidth, reqHeight,
+                   useIdentityTransform, rotation, false, outBuffer, ignored);
 }
 
 status_t ScreenshotClient::captureLayers(const sp<IBinder>& layerHandle,

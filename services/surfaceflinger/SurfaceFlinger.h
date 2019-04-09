@@ -46,7 +46,6 @@
 #include <utils/Trace.h>
 #include <utils/threads.h>
 
-#include "AllowedDisplayConfigs.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/PowerAdvisor.h"
@@ -74,6 +73,7 @@
 #include <thread>
 #include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 using namespace android::surfaceflinger;
@@ -313,6 +313,8 @@ public:
         return mTransactionCompletedThread;
     }
 
+    sp<Layer> fromHandle(const sp<IBinder>& handle) REQUIRES(mStateLock);
+
 private:
     friend class BufferLayer;
     friend class BufferQueueLayer;
@@ -395,24 +397,20 @@ private:
     sp<IDisplayEventConnection> createDisplayEventConnection(
             ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp) override;
     status_t captureScreen(const sp<IBinder>& displayToken, sp<GraphicBuffer>* outBuffer,
-                           const ui::Dataspace reqDataspace, const ui::PixelFormat reqPixelFormat,
-                           Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-                           bool useIdentityTransform, ISurfaceComposer::Rotation rotation,
-                           bool captureSecureLayers) override;
+            bool& outCapturedSecureLayers, const ui::Dataspace reqDataspace,
+            const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
+            uint32_t reqWidth, uint32_t reqHeight,
+            bool useIdentityTransform, ISurfaceComposer::Rotation rotation, bool captureSecureLayers) override;
     status_t captureLayers(
             const sp<IBinder>& parentHandle, sp<GraphicBuffer>* outBuffer,
             const ui::Dataspace reqDataspace, const ui::PixelFormat reqPixelFormat,
             const Rect& sourceCrop,
             const std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>& exclude,
             float frameScale, bool childrenOnly) override;
+
     status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats) override;
     status_t getDisplayConfigs(const sp<IBinder>& displayToken,
-                               Vector<DisplayInfo>* configs) override {
-        Mutex::Autolock _l(mStateLock);
-        return getDisplayConfigsLocked(displayToken, configs);
-    }
-    status_t getDisplayConfigsLocked(const sp<IBinder>& displayToken, Vector<DisplayInfo>* configs)
-            REQUIRES(mStateLock);
+                               Vector<DisplayInfo>* configs) override;
     int getActiveConfig(const sp<IBinder>& displayToken) override;
     status_t getDisplayColorModes(const sp<IBinder>& displayToken,
                                   Vector<ui::ColorMode>* configs) override;
@@ -491,20 +489,10 @@ private:
     struct ActiveConfigInfo {
         RefreshRateType type;
         int configId;
-        sp<IBinder> displayToken;
         Scheduler::ConfigEvent event;
 
         bool operator!=(const ActiveConfigInfo& other) const {
-            if (type != other.type) {
-                return true;
-            }
-            if (configId != other.configId) {
-                return true;
-            }
-            if (displayToken != other.displayToken) {
-                return true;
-            }
-            return (event != other.event);
+            return type != other.type || configId != other.configId || event != other.event;
         }
     };
 
@@ -519,14 +507,14 @@ private:
     // desired config was set, HWC needs to update the panel on the next refresh, and when
     // we receive the fence back, we know that the process was complete. It returns whether
     // we need to wait for the next invalidate
-    bool performSetActiveConfig();
+    bool performSetActiveConfig() REQUIRES(mStateLock);
     // called on the main thread in response to setPowerMode()
     void setPowerModeInternal(const sp<DisplayDevice>& display, int mode) REQUIRES(mStateLock);
 
     // called on the main thread in response to setAllowedDisplayConfigs()
-    void setAllowedDisplayConfigsInternal(
-            const sp<IBinder>& displayToken,
-            std::unique_ptr<const AllowedDisplayConfigs>&& allowedConfigs) REQUIRES(mStateLock);
+    void setAllowedDisplayConfigsInternal(const sp<DisplayDevice>& display,
+                                          const std::vector<int32_t>& allowedConfigs)
+            REQUIRES(mStateLock);
 
     // Returns whether the transaction actually modified any state
     bool handleMessageTransaction();
@@ -587,9 +575,10 @@ private:
     /* ------------------------------------------------------------------------
      * Layer management
      */
-    status_t createLayer(const String8& name, const sp<Client>& client, uint32_t w, uint32_t h,
-                         PixelFormat format, uint32_t flags, LayerMetadata metadata,
-                         sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp, sp<Layer>* parent);
+    status_t createLayer(
+            const String8& name, const sp<Client>& client, uint32_t w, uint32_t h,
+            PixelFormat format, uint32_t flags, LayerMetadata metadata,
+            sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp, const sp<IBinder>& parentHandle);
 
     status_t createBufferQueueLayer(const sp<Client>& client, const String8& name, uint32_t w,
                                     uint32_t h, uint32_t flags, LayerMetadata metadata,
@@ -621,7 +610,7 @@ private:
             const sp<IBinder>& handle,
             const sp<IGraphicBufferProducer>& gbc,
             const sp<Layer>& lbc,
-            const sp<Layer>& parent,
+            const sp<IBinder>& parentHandle,
             bool addToCurrentState);
 
     // Traverse through all the layers and compute and cache its bounds.
@@ -640,13 +629,14 @@ private:
                                 int* outSyncFd);
     status_t captureScreenCommon(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
                                  sp<GraphicBuffer>* outBuffer, const ui::PixelFormat reqPixelFormat,
-                                 bool useIdentityTransform);
+                                 bool useIdentityTransform, bool& outCapturedSecureLayers);
     status_t captureScreenCommon(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
-                                 const sp<GraphicBuffer>& buffer, bool useIdentityTransform);
+                                 const sp<GraphicBuffer>& buffer, bool useIdentityTransform,
+                                 bool& outCapturedSecureLayers);
     status_t captureScreenImplLocked(const RenderArea& renderArea,
                                      TraverseLayersFunction traverseLayers,
                                      ANativeWindowBuffer* buffer, bool useIdentityTransform,
-                                     bool forSystem, int* outSyncFd);
+                                     bool forSystem, int* outSyncFd, bool& outCapturedSecureLayers);
     void traverseLayersInDisplay(const sp<const DisplayDevice>& display,
                                  const LayerVector::Visitor& visitor);
 
@@ -805,7 +795,7 @@ private:
     // the desired refresh rate.
     void setRefreshRateTo(RefreshRateType, Scheduler::ConfigEvent event) REQUIRES(mStateLock);
 
-    bool isConfigAllowed(const DisplayId& displayId, int32_t config);
+    bool isDisplayConfigAllowed(int32_t configId) REQUIRES(mStateLock);
 
     /*
      * Display identification
@@ -994,6 +984,9 @@ private:
     std::map<wp<IBinder>, sp<DisplayDevice>> mDisplays;
     std::unordered_map<DisplayId, sp<IBinder>> mPhysicalDisplayTokens;
 
+    // protected by mStateLock
+    std::unordered_map<BBinder*, wp<Layer>> mLayersByLocalBinderToken;
+
     // don't use a lock for these, we don't care
     int mDebugRegion = 0;
     bool mDebugDisableHWC = false;
@@ -1111,14 +1104,13 @@ private:
     std::unique_ptr<Scheduler> mScheduler;
     sp<Scheduler::ConnectionHandle> mAppConnectionHandle;
     sp<Scheduler::ConnectionHandle> mSfConnectionHandle;
-    std::unique_ptr<scheduler::RefreshRateStats> mRefreshRateStats;
 
-    std::unordered_map<DisplayId, std::shared_ptr<scheduler::RefreshRateConfigs>>
-            mRefreshRateConfigs;
+    scheduler::RefreshRateConfigs mRefreshRateConfigs;
+    scheduler::RefreshRateStats mRefreshRateStats{mRefreshRateConfigs, *mTimeStats};
 
-    std::mutex mAllowedConfigsLock;
-    std::unordered_map<DisplayId, std::unique_ptr<const AllowedDisplayConfigs>> mAllowedConfigs
-            GUARDED_BY(mAllowedConfigsLock);
+    // All configs are allowed if the set is empty.
+    using DisplayConfigs = std::set<int32_t>;
+    DisplayConfigs mAllowedDisplayConfigs GUARDED_BY(mStateLock);
 
     std::mutex mActiveConfigLock;
     // This bit is set once we start setting the config. We read from this bit during the
