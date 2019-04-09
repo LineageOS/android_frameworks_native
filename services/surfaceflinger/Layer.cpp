@@ -125,6 +125,7 @@ Layer::~Layer() {
     }
 
     mFrameTracker.logAndResetStats(mName);
+
     mFlinger->onLayerDestroyed();
 }
 
