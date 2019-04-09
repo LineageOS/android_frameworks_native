@@ -165,6 +165,9 @@ private:
         // requested by the client.
         KeyedVector<void*, BatchParams> batchParams;
 
+        // Flag to track if the sensor is active
+        bool isActive = false;
+
         // Sets batch parameters for this ident. Returns error if this ident is not already present
         // in the KeyedVector above.
         status_t setBatchParamsForIdent(void* ident, int flags, int64_t samplingPeriodNs,
