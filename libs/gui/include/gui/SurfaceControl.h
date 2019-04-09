@@ -84,6 +84,9 @@ public:
     
     explicit SurfaceControl(const sp<SurfaceControl>& other);
 
+    SurfaceControl(const sp<SurfaceComposerClient>& client, const sp<IBinder>& handle,
+                   const sp<IGraphicBufferProducer>& gbp, bool owned);
+
 private:
     // can't be copied
     SurfaceControl& operator = (SurfaceControl& rhs);
@@ -91,12 +94,6 @@ private:
 
     friend class SurfaceComposerClient;
     friend class Surface;
-
-    SurfaceControl(
-            const sp<SurfaceComposerClient>& client,
-            const sp<IBinder>& handle,
-            const sp<IGraphicBufferProducer>& gbp,
-            bool owned);
 
     ~SurfaceControl();
 
