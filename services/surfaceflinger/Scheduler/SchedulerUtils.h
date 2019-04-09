@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <cinttypes>
 #include <numeric>
 #include <unordered_map>
@@ -23,6 +24,8 @@
 
 namespace android {
 namespace scheduler {
+using namespace std::chrono_literals;
+
 // This number is used to set the size of the arrays in scheduler that hold information
 // about layers.
 static constexpr size_t ARRAY_SIZE = 30;
@@ -32,12 +35,20 @@ static constexpr size_t ARRAY_SIZE = 30;
 // still like to keep track of time when the device is in this config.
 static constexpr int SCREEN_OFF_CONFIG_ID = -1;
 
+// This number is used when we try to determine how long does a given layer stay relevant.
+// Currently it is set to 100ms, because that would indicate 10Hz rendering.
+static constexpr std::chrono::nanoseconds TIME_EPSILON_NS = 100ms;
+
+// This number is used when we try to determine how long do we keep layer information around
+// before we remove it. Currently it is set to 100ms.
+static constexpr std::chrono::nanoseconds OBSOLETE_TIME_EPSILON_NS = 100ms;
+
 // Calculates the statistical mean (average) in the data structure (array, vector). The
 // function does not modify the contents of the array.
 template <typename T>
 auto calculate_mean(const T& v) {
     using V = typename T::value_type;
-    V sum = std::accumulate(v.begin(), v.end(), 0);
+    V sum = std::accumulate(v.begin(), v.end(), static_cast<V>(0));
     return sum / static_cast<V>(v.size());
 }
 

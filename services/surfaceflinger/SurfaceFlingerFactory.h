@@ -71,7 +71,9 @@ public:
     virtual std::unique_ptr<HWComposer> createHWComposer(const std::string& serviceName) = 0;
     virtual std::unique_ptr<MessageQueue> createMessageQueue() = 0;
     virtual std::unique_ptr<scheduler::PhaseOffsets> createPhaseOffsets() = 0;
-    virtual std::unique_ptr<Scheduler> createScheduler(std::function<void(bool)> callback) = 0;
+    virtual std::unique_ptr<Scheduler> createScheduler(
+            std::function<void(bool)> callback,
+            const scheduler::RefreshRateConfigs& refreshRateConfig) = 0;
     virtual std::unique_ptr<SurfaceInterceptor> createSurfaceInterceptor(SurfaceFlinger*) = 0;
 
     virtual sp<StartPropertySetThread> createStartPropertySetThread(

@@ -179,7 +179,7 @@ DisplayTransactionTest::~DisplayTransactionTest() {
 }
 
 void DisplayTransactionTest::setupScheduler() {
-    mScheduler = new TestableScheduler();
+    mScheduler = new TestableScheduler(mFlinger.mutableRefreshRateConfigs());
     mScheduler->mutableEventControlThread().reset(mEventControlThread);
     mScheduler->mutablePrimaryDispSync().reset(mPrimaryDispSync);
     EXPECT_CALL(*mEventThread, registerDisplayEventConnection(_));
