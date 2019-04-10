@@ -579,10 +579,9 @@ status_t SensorDevice::activateLocked(void* ident, int handle, int enabled) {
         }
 
         if (info.batchParams.indexOfKey(ident) >= 0) {
-          if (info.numActiveClients() == 1) {
-              // This is the first connection, we need to activate the underlying h/w sensor.
-              actuateHardware = true;
-          }
+            if (info.numActiveClients() > 0 && !info.isActive) {
+                actuateHardware = true;
+            }
         } else {
             // Log error. Every activate call should be preceded by a batch() call.
             ALOGE("\t >>>ERROR: activate called without batch");
@@ -631,6 +630,11 @@ status_t SensorDevice::activateLocked(void* ident, int handle, int enabled) {
         if (err != NO_ERROR && enabled) {
             // Failure when enabling the sensor. Clean up on failure.
             info.removeBatchParamsForIdent(ident);
+        } else {
+            // Update the isActive flag if there is no error. If there is an error when disabling a
+            // sensor, still set the flag to false since the batch parameters have already been
+            // removed. This ensures that everything remains in-sync.
+            info.isActive = enabled;
         }
     }
 
