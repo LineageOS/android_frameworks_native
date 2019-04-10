@@ -774,9 +774,8 @@ TEST_F(VelocityTrackerTest, SailfishFlingDownFast3) {
  * Three fingers quickly tap the screen. Since this is a tap, the velocities should be zero.
  * If the events with POINTER_UP or POINTER_DOWN are not handled correctly (these should not be
  * part of the fitted data), this can cause large velocity values to be reported instead.
- * TODO(b/129797752) currently evaluates velocity to -159559.78125
  */
-TEST_F(VelocityTrackerTest, DISABLED_LeastSquaresVelocityTrackerStrategyEstimator_ThreeFingerTap) {
+TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_ThreeFingerTap) {
     std::vector<MotionEventEntry> motions = {
         { 0us,      {{1063, 1128}, {NAN, NAN}, {NAN, NAN}} },
         { 10800us,  {{1063, 1128}, {682, 1318}, {NAN, NAN}} }, // POINTER_DOWN
@@ -786,8 +785,10 @@ TEST_F(VelocityTrackerTest, DISABLED_LeastSquaresVelocityTrackerStrategyEstimato
         { 272700us, {{1063, 1128}, {NAN, NAN}, {NAN, NAN}} },
     };
 
-    computeAndCheckVelocity("lsq2", motions, AMOTION_EVENT_AXIS_X, 0);
-    computeAndCheckVelocity("lsq2", motions, AMOTION_EVENT_AXIS_Y, 0);
+    // Velocity should actually be zero, but we expect 0.016 here instead.
+    // This is close enough to zero, and is likely caused by division by a very small number.
+    computeAndCheckVelocity("lsq2", motions, AMOTION_EVENT_AXIS_X, -0.016);
+    computeAndCheckVelocity("lsq2", motions, AMOTION_EVENT_AXIS_Y, -0.016);
     computeAndCheckVelocity("impulse", motions, AMOTION_EVENT_AXIS_X, 0);
     computeAndCheckVelocity("impulse", motions, AMOTION_EVENT_AXIS_Y, 0);
 }
