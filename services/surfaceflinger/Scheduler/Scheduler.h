@@ -131,9 +131,6 @@ public:
     // Offers ability to modify phase offset in the event thread.
     void setPhaseOffset(const sp<ConnectionHandle>& handle, nsecs_t phaseOffset);
 
-    // pause/resume vsync callback generation to avoid sending vsync callbacks during config switch
-    void pauseVsyncCallback(const sp<ConnectionHandle>& handle, bool pause);
-
     void getDisplayStatInfo(DisplayStatInfo* stats);
 
     void enableHardwareVsync();
