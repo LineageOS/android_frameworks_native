@@ -33,7 +33,6 @@ public:
     void setVSyncEnabled(bool enable) override;
     void setCallback(VSyncSource::Callback* callback) override;
     void setPhaseOffset(nsecs_t phaseOffset) override;
-    void pauseVsyncCallback(bool pause) override;
 
 private:
     // The following method is the implementation of the DispSync::Callback.
@@ -55,7 +54,6 @@ private:
     std::mutex mVsyncMutex;
     nsecs_t mPhaseOffset GUARDED_BY(mVsyncMutex);
     bool mEnabled GUARDED_BY(mVsyncMutex) = false;
-    bool mCallbackPaused GUARDED_BY(mVsyncMutex) = false;
 };
 
 } // namespace android
