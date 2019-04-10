@@ -924,6 +924,13 @@ void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
     if (!mDesiredActiveConfigChanged) {
         // This will trigger HWC refresh without resetting the idle timer.
         repaintEverythingForHWC();
+        // Start receiving vsync samples now, so that we can detect a period
+        // switch.
+        mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
+        mPhaseOffsets->setRefreshRateType(info.type);
+        const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
+        mVsyncModulator.onRefreshRateChangeInitiated();
+        mVsyncModulator.setPhaseOffsets(early, gl, late);
     }
     mDesiredActiveConfigChanged = true;
     ATRACE_INT("DesiredActiveConfigChanged", mDesiredActiveConfigChanged);
@@ -956,6 +963,7 @@ void SurfaceFlinger::setActiveConfigInternal() {
     display->setActiveConfig(mUpcomingActiveConfig.configId);
 
     mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
+    mPhaseOffsets->setRefreshRateType(mUpcomingActiveConfig.type);
     const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
     mVsyncModulator.setPhaseOffsets(early, gl, late);
     ATRACE_INT("ActiveConfigMode", mUpcomingActiveConfig.configId);
@@ -1399,7 +1407,11 @@ void SurfaceFlinger::onVsyncReceived(int32_t sequenceId, hwc2_display_t hwcDispl
         return;
     }
 
-    mScheduler->addResyncSample(timestamp);
+    bool periodChanged = false;
+    mScheduler->addResyncSample(timestamp, &periodChanged);
+    if (periodChanged) {
+        mVsyncModulator.onRefreshRateChangeDetected();
+    }
 }
 
 void SurfaceFlinger::getCompositorTiming(CompositorTiming* compositorTiming) {
@@ -1431,8 +1443,6 @@ void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate, Scheduler::Co
         ALOGV("Skipping config %d as it is not part of allowed configs", desiredConfigId);
         return;
     }
-
-    mPhaseOffsets->setRefreshRateType(refreshRate);
 
     if (desiredConfigId == display->getActiveConfig()) {
         return;

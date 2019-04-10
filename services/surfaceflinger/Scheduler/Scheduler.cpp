@@ -249,7 +249,6 @@ void Scheduler::setRefreshSkipCount(int count) {
 
 void Scheduler::setVsyncPeriod(const nsecs_t period) {
     std::lock_guard<std::mutex> lock(mHWVsyncLock);
-    mPrimaryDispSync->reset();
     mPrimaryDispSync->setPeriod(period);
 
     if (!mPrimaryHWVsyncEnabled) {
@@ -259,12 +258,13 @@ void Scheduler::setVsyncPeriod(const nsecs_t period) {
     }
 }
 
-void Scheduler::addResyncSample(const nsecs_t timestamp) {
+void Scheduler::addResyncSample(const nsecs_t timestamp, bool* periodChanged) {
     bool needsHwVsync = false;
+    *periodChanged = false;
     { // Scope for the lock
         std::lock_guard<std::mutex> lock(mHWVsyncLock);
         if (mPrimaryHWVsyncEnabled) {
-            needsHwVsync = mPrimaryDispSync->addResyncSample(timestamp);
+            needsHwVsync = mPrimaryDispSync->addResyncSample(timestamp, periodChanged);
         }
     }
 

@@ -30,9 +30,10 @@ namespace android {
  */
 class VSyncModulator {
 private:
-    // Number of frames we'll keep the early phase offsets once they are activated. This acts as a
-    // low-pass filter in case the client isn't quick enough in sending new transactions.
-    const int MIN_EARLY_FRAME_COUNT = 2;
+    // Number of frames we'll keep the early phase offsets once they are activated for a
+    // transaction. This acts as a low-pass filter in case the client isn't quick enough in
+    // sending new transactions.
+    const int MIN_EARLY_FRAME_COUNT_TRANSACTION = 2;
 
 public:
     struct Offsets {
@@ -85,7 +86,7 @@ public:
 
     void setTransactionStart(Scheduler::TransactionStart transactionStart) {
         if (transactionStart == Scheduler::TransactionStart::EARLY) {
-            mRemainingEarlyFrameCount = MIN_EARLY_FRAME_COUNT;
+            mRemainingEarlyFrameCount = MIN_EARLY_FRAME_COUNT_TRANSACTION;
         }
 
         // An early transaction stays an early transaction.
@@ -100,6 +101,26 @@ public:
     void onTransactionHandled() {
         if (mTransactionStart == Scheduler::TransactionStart::NORMAL) return;
         mTransactionStart = Scheduler::TransactionStart::NORMAL;
+        updateOffsets();
+    }
+
+    // Called when we send a refresh rate change to hardware composer, so that
+    // we can move into early offsets.
+    void onRefreshRateChangeInitiated() {
+        if (mRefreshRateChangePending) {
+            return;
+        }
+        mRefreshRateChangePending = true;
+        updateOffsets();
+    }
+
+    // Called when we detect from vsync signals that the refresh rate changed.
+    // This way we can move out of early offsets if no longer necessary.
+    void onRefreshRateChangeDetected() {
+        if (!mRefreshRateChangePending) {
+            return;
+        }
+        mRefreshRateChangePending = false;
         updateOffsets();
     }
 
@@ -147,8 +168,10 @@ private:
     }
 
     Offsets getOffsets() {
+        // Early offsets are used if we're in the middle of a refresh rate
+        // change, or if we recently begin a transaction.
         if (mTransactionStart == Scheduler::TransactionStart::EARLY ||
-            mRemainingEarlyFrameCount > 0) {
+            mRemainingEarlyFrameCount > 0 || mRefreshRateChangePending) {
             return mEarlyOffsets;
         } else if (mLastFrameUsedRenderEngine) {
             return mEarlyGlOffsets;
@@ -173,6 +196,7 @@ private:
     std::atomic<Scheduler::TransactionStart> mTransactionStart =
             Scheduler::TransactionStart::NORMAL;
     std::atomic<bool> mLastFrameUsedRenderEngine = false;
+    std::atomic<bool> mRefreshRateChangePending = false;
     std::atomic<int> mRemainingEarlyFrameCount = 0;
 };
 

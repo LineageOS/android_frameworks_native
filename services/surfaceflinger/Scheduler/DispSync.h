@@ -49,7 +49,7 @@ public:
     virtual void reset() = 0;
     virtual bool addPresentFence(const std::shared_ptr<FenceTime>&) = 0;
     virtual void beginResync() = 0;
-    virtual bool addResyncSample(nsecs_t timestamp) = 0;
+    virtual bool addResyncSample(nsecs_t timestamp, bool* periodChanged) = 0;
     virtual void endResync() = 0;
     virtual void setPeriod(nsecs_t period) = 0;
     virtual nsecs_t getPeriod() = 0;
@@ -119,7 +119,13 @@ public:
     // addPresentFence returns true indicating that the model has drifted away
     // from the hardware vsync events.
     void beginResync() override;
-    bool addResyncSample(nsecs_t timestamp) override;
+    // Adds a vsync sample to the dispsync model. The timestamp is the time
+    // of the vsync event that fired. periodChanged will return true if the
+    // vsync period was detected to have changed to mPendingPeriod.
+    //
+    // This method will return true if more vsync samples are needed to lock
+    // down the DispSync model, and false otherwise.
+    bool addResyncSample(nsecs_t timestamp, bool* periodChanged) override;
     void endResync() override;
 
     // The setPeriod method sets the vsync event model's period to a specific
@@ -198,6 +204,12 @@ private:
     // mPeriod is the computed period of the modeled vsync events in
     // nanoseconds.
     nsecs_t mPeriod;
+
+    // mPendingPeriod is the proposed period change in nanoseconds.
+    // If mPendingPeriod differs from mPeriod and is nonzero, it will
+    // be flushed to mPeriod when we detect that the hardware switched
+    // vsync frequency.
+    nsecs_t mPendingPeriod = 0;
 
     // mPhase is the phase offset of the modeled vsync events.  It is the
     // number of nanoseconds from time 0 to the first vsync event.
