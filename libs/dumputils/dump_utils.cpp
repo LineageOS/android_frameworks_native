@@ -51,6 +51,7 @@ static const char* hal_interfaces_to_dump[] {
         "android.hardware.health@2.0::IHealth",
         "android.hardware.media.omx@1.0::IOmx",
         "android.hardware.media.omx@1.0::IOmxStore",
+        "android.hardware.power.stats@1.0::IPowerStats",
         "android.hardware.sensors@1.0::ISensors",
         "android.hardware.vr@1.0::IVr",
         NULL,
