@@ -313,6 +313,8 @@ public:
         return mTransactionCompletedThread;
     }
 
+    sp<Layer> fromHandle(const sp<IBinder>& handle) REQUIRES(mStateLock);
+
 private:
     friend class BufferLayer;
     friend class BufferQueueLayer;
@@ -395,16 +397,17 @@ private:
     sp<IDisplayEventConnection> createDisplayEventConnection(
             ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp) override;
     status_t captureScreen(const sp<IBinder>& displayToken, sp<GraphicBuffer>* outBuffer,
-                           const ui::Dataspace reqDataspace, const ui::PixelFormat reqPixelFormat,
-                           Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-                           bool useIdentityTransform, ISurfaceComposer::Rotation rotation,
-                           bool captureSecureLayers) override;
+            bool& outCapturedSecureLayers, const ui::Dataspace reqDataspace,
+            const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
+            uint32_t reqWidth, uint32_t reqHeight,
+            bool useIdentityTransform, ISurfaceComposer::Rotation rotation, bool captureSecureLayers) override;
     status_t captureLayers(
             const sp<IBinder>& parentHandle, sp<GraphicBuffer>* outBuffer,
             const ui::Dataspace reqDataspace, const ui::PixelFormat reqPixelFormat,
             const Rect& sourceCrop,
             const std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>& exclude,
             float frameScale, bool childrenOnly) override;
+
     status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats) override;
     status_t getDisplayConfigs(const sp<IBinder>& displayToken,
                                Vector<DisplayInfo>* configs) override;
@@ -572,9 +575,10 @@ private:
     /* ------------------------------------------------------------------------
      * Layer management
      */
-    status_t createLayer(const String8& name, const sp<Client>& client, uint32_t w, uint32_t h,
-                         PixelFormat format, uint32_t flags, LayerMetadata metadata,
-                         sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp, sp<Layer>* parent);
+    status_t createLayer(
+            const String8& name, const sp<Client>& client, uint32_t w, uint32_t h,
+            PixelFormat format, uint32_t flags, LayerMetadata metadata,
+            sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp, const sp<IBinder>& parentHandle);
 
     status_t createBufferQueueLayer(const sp<Client>& client, const String8& name, uint32_t w,
                                     uint32_t h, uint32_t flags, LayerMetadata metadata,
@@ -606,7 +610,7 @@ private:
             const sp<IBinder>& handle,
             const sp<IGraphicBufferProducer>& gbc,
             const sp<Layer>& lbc,
-            const sp<Layer>& parent,
+            const sp<IBinder>& parentHandle,
             bool addToCurrentState);
 
     // Traverse through all the layers and compute and cache its bounds.
@@ -625,13 +629,14 @@ private:
                                 int* outSyncFd);
     status_t captureScreenCommon(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
                                  sp<GraphicBuffer>* outBuffer, const ui::PixelFormat reqPixelFormat,
-                                 bool useIdentityTransform);
+                                 bool useIdentityTransform, bool& outCapturedSecureLayers);
     status_t captureScreenCommon(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
-                                 const sp<GraphicBuffer>& buffer, bool useIdentityTransform);
+                                 const sp<GraphicBuffer>& buffer, bool useIdentityTransform,
+                                 bool& outCapturedSecureLayers);
     status_t captureScreenImplLocked(const RenderArea& renderArea,
                                      TraverseLayersFunction traverseLayers,
                                      ANativeWindowBuffer* buffer, bool useIdentityTransform,
-                                     bool forSystem, int* outSyncFd);
+                                     bool forSystem, int* outSyncFd, bool& outCapturedSecureLayers);
     void traverseLayersInDisplay(const sp<const DisplayDevice>& display,
                                  const LayerVector::Visitor& visitor);
 
@@ -979,6 +984,9 @@ private:
     std::map<wp<IBinder>, sp<DisplayDevice>> mDisplays;
     std::unordered_map<DisplayId, sp<IBinder>> mPhysicalDisplayTokens;
 
+    // protected by mStateLock
+    std::unordered_map<BBinder*, wp<Layer>> mLayersByLocalBinderToken;
+
     // don't use a lock for these, we don't care
     int mDebugRegion = 0;
     bool mDebugDisableHWC = false;
@@ -1101,7 +1109,7 @@ private:
     scheduler::RefreshRateStats mRefreshRateStats{mRefreshRateConfigs, *mTimeStats};
 
     // All configs are allowed if the set is empty.
-    using DisplayConfigs = std::unordered_set<int32_t>;
+    using DisplayConfigs = std::set<int32_t>;
     DisplayConfigs mAllowedDisplayConfigs GUARDED_BY(mStateLock);
 
     std::mutex mActiveConfigLock;

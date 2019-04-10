@@ -86,7 +86,8 @@ public:
         return std::make_unique<scheduler::FakePhaseOffsets>();
     }
 
-    std::unique_ptr<Scheduler> createScheduler(std::function<void(bool)>) override {
+    std::unique_ptr<Scheduler> createScheduler(std::function<void(bool)>,
+                                               const scheduler::RefreshRateConfigs&) override {
         // TODO: Use test-fixture controlled factory
         return nullptr;
     }
@@ -276,12 +277,13 @@ public:
 
     auto onMessageReceived(int32_t what) { return mFlinger->onMessageReceived(what); }
 
-    auto captureScreenImplLocked(const RenderArea& renderArea,
-                                 SurfaceFlinger::TraverseLayersFunction traverseLayers,
-                                 ANativeWindowBuffer* buffer, bool useIdentityTransform,
-                                 bool forSystem, int* outSyncFd) {
+    auto captureScreenImplLocked(
+            const RenderArea& renderArea, SurfaceFlinger::TraverseLayersFunction traverseLayers,
+            ANativeWindowBuffer* buffer, bool useIdentityTransform, bool forSystem, int* outSyncFd) {
+        bool ignored;
         return mFlinger->captureScreenImplLocked(renderArea, traverseLayers, buffer,
-                                                 useIdentityTransform, forSystem, outSyncFd);
+                                                 useIdentityTransform, forSystem, outSyncFd,
+                                                 ignored);
     }
 
     auto traverseLayersInDisplay(const sp<const DisplayDevice>& display,
@@ -339,6 +341,7 @@ public:
     auto& mutableScheduler() { return mFlinger->mScheduler; }
     auto& mutableAppConnectionHandle() { return mFlinger->mAppConnectionHandle; }
     auto& mutableSfConnectionHandle() { return mFlinger->mSfConnectionHandle; }
+    auto& mutableRefreshRateConfigs() { return mFlinger->mRefreshRateConfigs; }
 
     ~TestableSurfaceFlinger() {
         // All these pointer and container clears help ensure that GMock does

@@ -311,7 +311,10 @@ public:
     virtual bool setTransformToDisplayInverse(bool /*transformToDisplayInverse*/) { return false; };
     virtual bool setCrop(const Rect& /*crop*/) { return false; };
     virtual bool setFrame(const Rect& /*frame*/) { return false; };
-    virtual bool setBuffer(const sp<GraphicBuffer>& /*buffer*/) { return false; };
+    virtual bool setBuffer(const sp<GraphicBuffer>& /*buffer*/, nsecs_t /*postTime*/,
+                           nsecs_t /*desiredPresentTime*/) {
+        return false;
+    }
     virtual bool setAcquireFence(const sp<Fence>& /*fence*/) { return false; };
     virtual bool setDataspace(ui::Dataspace /*dataspace*/) { return false; };
     virtual bool setHdrMetadata(const HdrMetadata& /*hdrMetadata*/) { return false; };
@@ -449,9 +452,6 @@ public:
         return s.activeTransparentRegion_legacy;
     }
     virtual Rect getCrop(const Layer::State& s) const { return s.crop_legacy; }
-
-    virtual void setPostTime(nsecs_t /*postTime*/) {}
-    virtual void setDesiredPresentTime(nsecs_t /*desiredPresentTime*/) {}
 
 protected:
     virtual bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
@@ -884,6 +884,12 @@ protected:
     bool mLayerDetached{false};
     // Can only be accessed with the SF state lock held.
     bool mChildrenChanged{false};
+
+    // Window types from WindowManager.LayoutParams
+    const int mWindowType;
+
+    // This is populated if the layer is registered with Scheduler for tracking purposes.
+    std::unique_ptr<scheduler::LayerHistory::LayerHandle> mSchedulerLayerHandle;
 
 private:
     /**

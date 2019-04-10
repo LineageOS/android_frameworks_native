@@ -19,13 +19,15 @@
 #include <gmock/gmock.h>
 
 #include "Scheduler/EventThread.h"
+#include "Scheduler/RefreshRateConfigs.h"
 #include "Scheduler/Scheduler.h"
 
 namespace android {
 
 class TestableScheduler : public Scheduler {
 public:
-    TestableScheduler() : Scheduler([](bool) {}) {}
+    TestableScheduler(const scheduler::RefreshRateConfigs& refreshRateConfig)
+          : Scheduler([](bool) {}, refreshRateConfig) {}
 
     // Creates EventThreadConnection with the given eventThread. Creates Scheduler::Connection
     // and adds it to the list of connectins. Returns the ConnectionHandle for the

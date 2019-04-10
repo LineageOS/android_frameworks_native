@@ -212,7 +212,7 @@ public:
      * it) around its center.
      */
     virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
-                                   const ui::Dataspace reqDataspace,
+                                   bool& outCapturedSecureLayers, const ui::Dataspace reqDataspace,
                                    const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
                                    uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
                                    Rotation rotation = eRotateNone,
@@ -241,8 +241,10 @@ public:
     virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
                                    Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
                                    bool useIdentityTransform, Rotation rotation = eRotateNone) {
-        return captureScreen(display, outBuffer, ui::Dataspace::V0_SRGB, ui::PixelFormat::RGBA_8888,
-                             sourceCrop, reqWidth, reqHeight, useIdentityTransform, rotation);
+        bool outIgnored;
+        return captureScreen(display, outBuffer, outIgnored, ui::Dataspace::V0_SRGB,
+                             ui::PixelFormat::RGBA_8888, sourceCrop, reqWidth, reqHeight,
+                             useIdentityTransform, rotation);
     }
 
     template <class AA>

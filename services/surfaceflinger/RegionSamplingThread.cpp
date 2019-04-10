@@ -392,7 +392,8 @@ void RegionSamplingThread::captureSample() {
     //
     // To avoid this, we drop the mutex while we call into SF.
     mMutex.unlock();
-    mFlinger.captureScreenCommon(renderArea, traverseLayers, buffer, false);
+    bool ignored;
+    mFlinger.captureScreenCommon(renderArea, traverseLayers, buffer, false, ignored);
     mMutex.lock();
 
     std::vector<Descriptor> activeDescriptors;
