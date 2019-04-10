@@ -1148,6 +1148,9 @@ private:
     Hwc2::impl::PowerAdvisor mPowerAdvisor;
 
     std::unique_ptr<RefreshRateOverlay> mRefreshRateOverlay;
+
+    // Flag used to set override allowed display configs from backdoor
+    bool mDebugDisplayConfigSetByBackdoor = false;
 };
 
 } // namespace android
