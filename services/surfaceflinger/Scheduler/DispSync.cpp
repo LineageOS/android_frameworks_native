@@ -213,11 +213,14 @@ public:
             const nsecs_t phaseCorrection = mPhase + listener.mPhase;
             listener.mLastEventTime = predictedReference + phaseCorrection;
             // If we're very close in time to the predicted last event time,
+            // and we're not very close to the next predicted last event time
             // then we need to back up the last event time so that we can
             // attempt to fire an event immediately.
             //
-            // Otherwise, keep the last event time that we predicted.
-            if (isShorterThanPeriod(now - listener.mLastEventTime)) {
+            // Otherwise, keep the last event time that we predicted so that
+            // we don't wake up early.
+            if (isShorterThanPeriod(now - listener.mLastEventTime) &&
+                !isShorterThanPeriod(listener.mLastEventTime + mPeriod - now)) {
                 listener.mLastEventTime -= mPeriod;
             }
         } else {
