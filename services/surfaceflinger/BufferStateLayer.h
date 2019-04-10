@@ -29,6 +29,8 @@
 
 namespace android {
 
+class SlotGenerationTest;
+
 class BufferStateLayer : public BufferLayer {
 public:
     explicit BufferStateLayer(const LayerCreationArgs&);
@@ -134,6 +136,7 @@ private:
     void setHwcLayerBuffer(const sp<const DisplayDevice>& display) override;
 
 private:
+    friend class SlotGenerationTest;
     void onFirstRef() override;
     bool willPresentCurrentTransaction() const;
 
@@ -170,6 +173,7 @@ private:
         uint32_t getHwcCacheSlot(const client_cache_t& clientCacheId);
 
     private:
+        friend class SlotGenerationTest;
         uint32_t addCachedBuffer(const client_cache_t& clientCacheId) REQUIRES(mMutex);
         uint32_t getFreeHwcCacheSlot() REQUIRES(mMutex);
         void evictLeastRecentlyUsed() REQUIRES(mMutex);
