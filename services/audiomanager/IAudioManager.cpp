@@ -98,6 +98,30 @@ public:
         data.writeInt32((int32_t) piid);
         return remote()->transact(RELEASE_PLAYER, data, &reply, IBinder::FLAG_ONEWAY);
     }
+
+    virtual audio_unique_id_t trackRecorder(const sp<IBinder>& recorder) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioManager::getInterfaceDescriptor());
+        data.writeStrongBinder(recorder);
+        // get new RIId in reply
+        const status_t res = remote()->transact(TRACK_RECORDER, data, &reply, 0);
+        if (res != OK || reply.readExceptionCode() != 0) {
+            ALOGE("trackRecorder() failed, riid is %d", RECORD_RIID_INVALID);
+            return RECORD_RIID_INVALID;
+        } else {
+            const audio_unique_id_t riid = (audio_unique_id_t) reply.readInt32();
+            ALOGV("trackRecorder() returned riid %d", riid);
+            return riid;
+        }
+    }
+
+    virtual status_t recorderEvent(audio_unique_id_t riid, recorder_state_t event) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioManager::getInterfaceDescriptor());
+        data.writeInt32((int32_t) riid);
+        data.writeInt32((int32_t) event);
+        return remote()->transact(RECORDER_EVENT, data, &reply, IBinder::FLAG_ONEWAY);
+    }
 };
 
 IMPLEMENT_META_INTERFACE(AudioManager, "android.media.IAudioService");
