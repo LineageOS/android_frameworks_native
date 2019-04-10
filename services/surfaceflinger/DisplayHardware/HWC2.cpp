@@ -276,11 +276,6 @@ Display::Display(android::Hwc2::Composer& composer,
         if (error == Error::None && dozeSupport) {
             mDisplayCapabilities.emplace(DisplayCapability::Doze);
         }
-        bool brightnessSupport = false;
-        error = static_cast<Error>(mComposer.getDisplayBrightnessSupport(mId, &brightnessSupport));
-        if (error == Error::None && brightnessSupport) {
-            mDisplayCapabilities.emplace(DisplayCapability::Brightness);
-        }
     }
     ALOGV("Created display %" PRIu64, id);
 }
