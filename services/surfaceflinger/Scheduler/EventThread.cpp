@@ -210,12 +210,6 @@ void EventThread::setPhaseOffset(nsecs_t phaseOffset) {
     mVSyncSource->setPhaseOffset(phaseOffset);
 }
 
-void EventThread::pauseVsyncCallback(bool pause) {
-    std::lock_guard<std::mutex> lock(mMutex);
-    ATRACE_INT("vsyncPaused", pause);
-    mVSyncSource->pauseVsyncCallback(pause);
-}
-
 sp<EventThreadConnection> EventThread::createEventConnection(
         ResyncCallback resyncCallback, ResetIdleTimerCallback resetIdleTimerCallback) const {
     return new EventThreadConnection(const_cast<EventThread*>(this), std::move(resyncCallback),
