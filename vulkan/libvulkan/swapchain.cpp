@@ -1818,5 +1818,25 @@ VKAPI_ATTR void SetHdrMetadataEXT(
     return;
 }
 
+VKAPI_ATTR
+VkResult BindImageMemory2(VkDevice device,
+                          uint32_t bindInfoCount,
+                          const VkBindImageMemoryInfo* pBindInfos) {
+    ATRACE_CALL();
+
+    return GetData(device).driver.BindImageMemory2(device, bindInfoCount,
+                                                   pBindInfos);
+}
+
+VKAPI_ATTR
+VkResult BindImageMemory2KHR(VkDevice device,
+                             uint32_t bindInfoCount,
+                             const VkBindImageMemoryInfo* pBindInfos) {
+    ATRACE_CALL();
+
+    return GetData(device).driver.BindImageMemory2KHR(device, bindInfoCount,
+                                                      pBindInfos);
+}
+
 }  // namespace driver
 }  // namespace vulkan
