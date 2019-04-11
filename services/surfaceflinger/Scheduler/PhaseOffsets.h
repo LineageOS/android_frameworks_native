@@ -42,6 +42,8 @@ public:
 
     virtual nsecs_t getCurrentAppOffset() = 0;
     virtual nsecs_t getCurrentSfOffset() = 0;
+    virtual Offsets getOffsetsForRefreshRate(
+            RefreshRateConfigs::RefreshRateType refreshRateType) const = 0;
     virtual Offsets getCurrentOffsets() const = 0;
     virtual void setRefreshRateType(RefreshRateConfigs::RefreshRateType refreshRateType) = 0;
     virtual void dump(std::string& result) const = 0;
@@ -55,8 +57,14 @@ public:
     nsecs_t getCurrentAppOffset() override;
     nsecs_t getCurrentSfOffset() override;
 
+    // Returns early, early GL, and late offsets for Apps and SF for a given refresh rate.
+    Offsets getOffsetsForRefreshRate(
+            RefreshRateConfigs::RefreshRateType refreshRateType) const override;
+
     // Returns early, early GL, and late offsets for Apps and SF.
-    Offsets getCurrentOffsets() const override;
+    Offsets getCurrentOffsets() const override {
+        return getOffsetsForRefreshRate(mRefreshRateType);
+    }
 
     // This function should be called when the device is switching between different
     // refresh rates, to properly update the offsets.
