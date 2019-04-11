@@ -178,12 +178,6 @@ void Scheduler::setPhaseOffset(const sp<Scheduler::ConnectionHandle>& handle, ns
     mConnections[handle->id]->thread->setPhaseOffset(phaseOffset);
 }
 
-void Scheduler::pauseVsyncCallback(const android::sp<android::Scheduler::ConnectionHandle>& handle,
-                                   bool pause) {
-    RETURN_IF_INVALID();
-    mConnections[handle->id]->thread->pauseVsyncCallback(pause);
-}
-
 void Scheduler::getDisplayStatInfo(DisplayStatInfo* stats) {
     stats->vsyncTime = mPrimaryDispSync->computeNextRefresh(0);
     stats->vsyncPeriod = mPrimaryDispSync->getPeriod();
@@ -255,7 +249,6 @@ void Scheduler::setRefreshSkipCount(int count) {
 
 void Scheduler::setVsyncPeriod(const nsecs_t period) {
     std::lock_guard<std::mutex> lock(mHWVsyncLock);
-    mPrimaryDispSync->reset();
     mPrimaryDispSync->setPeriod(period);
 
     if (!mPrimaryHWVsyncEnabled) {
@@ -265,12 +258,13 @@ void Scheduler::setVsyncPeriod(const nsecs_t period) {
     }
 }
 
-void Scheduler::addResyncSample(const nsecs_t timestamp) {
+void Scheduler::addResyncSample(const nsecs_t timestamp, bool* periodChanged) {
     bool needsHwVsync = false;
+    *periodChanged = false;
     { // Scope for the lock
         std::lock_guard<std::mutex> lock(mHWVsyncLock);
         if (mPrimaryHWVsyncEnabled) {
-            needsHwVsync = mPrimaryDispSync->addResyncSample(timestamp);
+            needsHwVsync = mPrimaryDispSync->addResyncSample(timestamp, periodChanged);
         }
     }
 

@@ -68,8 +68,8 @@ public:
     void dump(std::string& result) const override;
 
 private:
-    Offsets getmDefaultRefreshRateOffsets() { return mDefaultRefreshRateOffsets; }
-    Offsets getmHighRefreshRateOffsets() { return mHighRefreshRateOffsets; }
+    Offsets getDefaultRefreshRateOffsets() { return mDefaultRefreshRateOffsets; }
+    Offsets getHighRefreshRateOffsets() { return mHighRefreshRateOffsets; }
 
     std::atomic<RefreshRateConfigs::RefreshRateType> mRefreshRateType =
             RefreshRateConfigs::RefreshRateType::DEFAULT;

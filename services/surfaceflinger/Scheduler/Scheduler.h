@@ -131,9 +131,6 @@ public:
     // Offers ability to modify phase offset in the event thread.
     void setPhaseOffset(const sp<ConnectionHandle>& handle, nsecs_t phaseOffset);
 
-    // pause/resume vsync callback generation to avoid sending vsync callbacks during config switch
-    void pauseVsyncCallback(const sp<ConnectionHandle>& handle, bool pause);
-
     void getDisplayStatInfo(DisplayStatInfo* stats);
 
     void enableHardwareVsync();
@@ -142,7 +139,9 @@ public:
     // Creates a callback for resyncing.
     ResyncCallback makeResyncCallback(GetVsyncPeriod&& getVsyncPeriod);
     void setRefreshSkipCount(int count);
-    void addResyncSample(const nsecs_t timestamp);
+    // Passes a vsync sample to DispSync. periodChange will be true if DipSync
+    // detected that the vsync period changed, and false otherwise.
+    void addResyncSample(const nsecs_t timestamp, bool* periodChanged);
     void addPresentFence(const std::shared_ptr<FenceTime>& fenceTime);
     void setIgnorePresentFences(bool ignore);
     nsecs_t expectedPresentTime();
