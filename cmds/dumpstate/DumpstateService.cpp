@@ -151,15 +151,15 @@ binder::Status DumpstateService::startBugreport(int32_t calling_uid,
         signalErrorAndExit(listener, IDumpstateListener::BUGREPORT_ERROR_INVALID_INPUT);
     }
 
-    if (bugreport_fd.get() == -1 || screenshot_fd.get() == -1) {
-        // TODO(b/111441001): screenshot fd should be optional
+    std::unique_ptr<Dumpstate::DumpOptions> options = std::make_unique<Dumpstate::DumpOptions>();
+    options->Initialize(static_cast<Dumpstate::BugreportMode>(bugreport_mode), bugreport_fd,
+                        screenshot_fd);
+
+    if (bugreport_fd.get() == -1 || (options->do_fb && screenshot_fd.get() == -1)) {
         MYLOGE("Invalid filedescriptor");
         signalErrorAndExit(listener, IDumpstateListener::BUGREPORT_ERROR_INVALID_INPUT);
     }
 
-    std::unique_ptr<Dumpstate::DumpOptions> options = std::make_unique<Dumpstate::DumpOptions>();
-    options->Initialize(static_cast<Dumpstate::BugreportMode>(bugreport_mode), bugreport_fd,
-                        screenshot_fd);
 
     ds_ = &(Dumpstate::GetInstance());
     ds_->SetOptions(std::move(options));

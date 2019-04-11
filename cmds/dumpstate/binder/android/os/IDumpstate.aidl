@@ -73,7 +73,7 @@ interface IDumpstate {
      * @param callingUid UID of the original application that requested the report.
      * @param callingPackage package of the original application that requested the report.
      * @param bugreportFd the file to which the zipped bugreport should be written
-     * @param screenshotFd the file to which screenshot should be written; optional
+     * @param screenshotFd the file to which screenshot should be written
      * @param bugreportMode the mode that specifies other run time options; must be one of above
      * @param listener callback for updates; optional
      */
