@@ -829,8 +829,9 @@ int Surface::queueBuffer(android_native_buffer_t* buffer, int fenceFd) {
     mDefaultHeight = output.height;
     mNextFrameNumber = output.nextFrameNumber;
 
-    // Disable transform hint if sticky transform is set.
-    if (mStickyTransform == 0) {
+    // Ignore transform hint if sticky transform is set or transform to display inverse flag is
+    // set.
+    if (mStickyTransform == 0 && !transformToDisplayInverse()) {
         mTransformHint = output.transformHint;
     }
 
@@ -1271,6 +1272,11 @@ int Surface::dispatchGetConsumerUsage64(va_list args) {
     return getConsumerUsage(usage);
 }
 
+bool Surface::transformToDisplayInverse() {
+    return (mTransform & NATIVE_WINDOW_TRANSFORM_INVERSE_DISPLAY) ==
+            NATIVE_WINDOW_TRANSFORM_INVERSE_DISPLAY;
+}
+
 int Surface::connect(int api) {
     static sp<IProducerListener> listener = new DummyProducerListener();
     return connect(api, listener);
@@ -1293,8 +1299,10 @@ int Surface::connect(
         mDefaultHeight = output.height;
         mNextFrameNumber = output.nextFrameNumber;
 
-        // Disable transform hint if sticky transform is set.
-        if (mStickyTransform == 0) {
+        // Ignore transform hint if sticky transform is set or transform to display inverse flag is
+        // set. Transform hint should be ignored if the client is expected to always submit buffers
+        // in the same orientation.
+        if (mStickyTransform == 0 && !transformToDisplayInverse()) {
             mTransformHint = output.transformHint;
         }
 
@@ -1591,6 +1599,13 @@ int Surface::setBuffersTransform(uint32_t transform)
     ATRACE_CALL();
     ALOGV("Surface::setBuffersTransform");
     Mutex::Autolock lock(mMutex);
+    // Ensure NATIVE_WINDOW_TRANSFORM_INVERSE_DISPLAY is sticky. If the client sets the flag, do not
+    // override it until the surface is disconnected. This is a temporary workaround for camera
+    // until they switch to using Buffer State Layers. Currently if client sets the buffer transform
+    // it may be overriden by the buffer producer when the producer sets the buffer transform.
+    if (transformToDisplayInverse()) {
+        transform |= NATIVE_WINDOW_TRANSFORM_INVERSE_DISPLAY;
+    }
     mTransform = transform;
     return NO_ERROR;
 }
