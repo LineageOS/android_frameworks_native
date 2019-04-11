@@ -22,133 +22,15 @@
 #include <compositionengine/mock/CompositionEngine.h>
 #include <compositionengine/mock/Display.h>
 #include <compositionengine/mock/DisplaySurface.h>
+#include <compositionengine/mock/NativeWindow.h>
 #include <compositionengine/mock/OutputLayer.h>
 #include <gtest/gtest.h>
 #include <renderengine/mock/RenderEngine.h>
-#include <system/window.h>
-#include <ui/ANativeObjectBase.h>
 
 #include "MockHWComposer.h"
 
 namespace android::compositionengine {
 namespace {
-
-/* ------------------------------------------------------------------------
- * MockNativeWindow
- *
- * An intentionally simplified Mock which implements a minimal subset of the full
- * ANativeWindow interface.
- */
-
-class MockNativeWindow : public ANativeObjectBase<ANativeWindow, MockNativeWindow, RefBase> {
-public:
-    MockNativeWindow() {
-        ANativeWindow::setSwapInterval = &forwardSetSwapInterval;
-        ANativeWindow::dequeueBuffer = &forwardDequeueBuffer;
-        ANativeWindow::cancelBuffer = &forwardCancelBuffer;
-        ANativeWindow::queueBuffer = &forwardQueueBuffer;
-        ANativeWindow::query = &forwardQuery;
-        ANativeWindow::perform = &forwardPerform;
-
-        ANativeWindow::dequeueBuffer_DEPRECATED = &forwardDequeueBufferDeprecated;
-        ANativeWindow::cancelBuffer_DEPRECATED = &forwardCancelBufferDeprecated;
-        ANativeWindow::lockBuffer_DEPRECATED = &forwardLockBufferDeprecated;
-        ANativeWindow::queueBuffer_DEPRECATED = &forwardQueueBufferDeprecated;
-    }
-
-    MOCK_METHOD1(setSwapInterval, int(int));
-    MOCK_METHOD2(dequeueBuffer, int(struct ANativeWindowBuffer**, int*));
-    MOCK_METHOD2(cancelBuffer, int(struct ANativeWindowBuffer*, int));
-    MOCK_METHOD2(queueBuffer, int(struct ANativeWindowBuffer*, int));
-    MOCK_CONST_METHOD2(query, int(int, int*));
-    MOCK_METHOD1(connect, int(int));
-    MOCK_METHOD1(lockBuffer_DEPRECATED, int(struct ANativeWindowBuffer*));
-    MOCK_METHOD1(setBuffersFormat, int(PixelFormat));
-    MOCK_METHOD1(setBuffersDataSpace, int(ui::Dataspace));
-    MOCK_METHOD1(setUsage, int(uint64_t));
-
-    static void unexpectedCall(...) { LOG_ALWAYS_FATAL("Unexpected ANativeWindow API call"); }
-
-    static int forwardSetSwapInterval(ANativeWindow* window, int interval) {
-        return getSelf(window)->setSwapInterval(interval);
-    }
-
-    static int forwardDequeueBuffer(ANativeWindow* window, ANativeWindowBuffer** buffer,
-                                    int* fenceFd) {
-        return getSelf(window)->dequeueBuffer(buffer, fenceFd);
-    }
-
-    static int forwardCancelBuffer(ANativeWindow* window, ANativeWindowBuffer* buffer,
-                                   int fenceFd) {
-        return getSelf(window)->cancelBuffer(buffer, fenceFd);
-    }
-
-    static int forwardQueueBuffer(ANativeWindow* window, ANativeWindowBuffer* buffer, int fenceFd) {
-        return getSelf(window)->queueBuffer(buffer, fenceFd);
-    }
-
-    static int forwardQuery(const ANativeWindow* window, int what, int* value) {
-        return getSelf(window)->query(what, value);
-    }
-
-    static int forwardPerform(ANativeWindow* window, int operation, ...) {
-        va_list args;
-        va_start(args, operation);
-        int result = NO_ERROR;
-        switch (operation) {
-            case NATIVE_WINDOW_API_CONNECT: {
-                int api = va_arg(args, int);
-                result = getSelf(window)->connect(api);
-                break;
-            }
-            case NATIVE_WINDOW_SET_BUFFERS_FORMAT: {
-                PixelFormat format = va_arg(args, PixelFormat);
-                result = getSelf(window)->setBuffersFormat(format);
-                break;
-            }
-            case NATIVE_WINDOW_SET_BUFFERS_DATASPACE: {
-                ui::Dataspace dataspace = static_cast<ui::Dataspace>(va_arg(args, int));
-                result = getSelf(window)->setBuffersDataSpace(dataspace);
-                break;
-            }
-            case NATIVE_WINDOW_SET_USAGE: {
-                // Note: Intentionally widens usage from 32 to 64 bits so we
-                // just have one implementation.
-                uint64_t usage = va_arg(args, uint32_t);
-                result = getSelf(window)->setUsage(usage);
-                break;
-            }
-            case NATIVE_WINDOW_SET_USAGE64: {
-                uint64_t usage = va_arg(args, uint64_t);
-                result = getSelf(window)->setUsage(usage);
-                break;
-            }
-            default:
-                LOG_ALWAYS_FATAL("Unexpected operation %d", operation);
-                break;
-        }
-
-        va_end(args);
-        return result;
-    }
-
-    static int forwardDequeueBufferDeprecated(ANativeWindow* window, ANativeWindowBuffer** buffer) {
-        int ignoredFenceFd = -1;
-        return getSelf(window)->dequeueBuffer(buffer, &ignoredFenceFd);
-    }
-
-    static int forwardCancelBufferDeprecated(ANativeWindow* window, ANativeWindowBuffer* buffer) {
-        return getSelf(window)->cancelBuffer(buffer, -1);
-    }
-
-    static int forwardLockBufferDeprecated(ANativeWindow* window, ANativeWindowBuffer* buffer) {
-        return getSelf(window)->lockBuffer_DEPRECATED(buffer);
-    }
-
-    static int forwardQueueBufferDeprecated(ANativeWindow* window, ANativeWindowBuffer* buffer) {
-        return getSelf(window)->queueBuffer(buffer, -1);
-    }
-};
 
 /* ------------------------------------------------------------------------
  * RenderSurfaceTest
@@ -175,6 +57,8 @@ public:
         EXPECT_CALL(mDisplay, getName()).WillRepeatedly(ReturnRef(DEFAULT_DISPLAY_NAME));
         EXPECT_CALL(mCompositionEngine, getHwComposer).WillRepeatedly(ReturnRef(mHwComposer));
         EXPECT_CALL(mCompositionEngine, getRenderEngine).WillRepeatedly(ReturnRef(mRenderEngine));
+        EXPECT_CALL(*mNativeWindow, disconnect(NATIVE_WINDOW_API_EGL))
+                .WillRepeatedly(Return(NO_ERROR));
     }
     ~RenderSurfaceTest() override = default;
 
@@ -182,7 +66,7 @@ public:
     StrictMock<renderengine::mock::RenderEngine> mRenderEngine;
     StrictMock<mock::CompositionEngine> mCompositionEngine;
     StrictMock<mock::Display> mDisplay;
-    sp<MockNativeWindow> mNativeWindow = new StrictMock<MockNativeWindow>();
+    sp<mock::NativeWindow> mNativeWindow = new StrictMock<mock::NativeWindow>();
     sp<mock::DisplaySurface> mDisplaySurface = new StrictMock<mock::DisplaySurface>();
     impl::RenderSurface mSurface{mCompositionEngine, mDisplay,
                                  RenderSurfaceCreationArgs{DEFAULT_DISPLAY_WIDTH,
