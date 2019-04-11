@@ -76,18 +76,9 @@ status_t Client::createSurface(const String8& name, uint32_t w, uint32_t h, Pixe
                                uint32_t flags, const sp<IBinder>& parentHandle,
                                LayerMetadata metadata, sp<IBinder>* handle,
                                sp<IGraphicBufferProducer>* gbp) {
-    sp<Layer> parent = nullptr;
-    if (parentHandle != nullptr) {
-        auto layerHandle = reinterpret_cast<Layer::Handle*>(parentHandle.get());
-        parent = layerHandle->owner.promote();
-        if (parent == nullptr) {
-            return NAME_NOT_FOUND;
-        }
-    }
-
     // We rely on createLayer to check permissions.
     return mFlinger->createLayer(name, this, w, h, format, flags, std::move(metadata), handle, gbp,
-                                 &parent);
+                                 parentHandle);
 }
 
 status_t Client::createWithSurfaceParent(const String8& name, uint32_t w, uint32_t h,
@@ -104,9 +95,8 @@ status_t Client::createWithSurfaceParent(const String8& name, uint32_t w, uint32
         return BAD_VALUE;
     }
 
-    sp<IBinder> parentHandle = layer->getHandle();
-
-    return createSurface(name, w, h, format, flags, parentHandle, std::move(metadata), handle, gbp);
+    return mFlinger->createLayer(name, this, w, h, format, flags, std::move(metadata), handle, gbp,
+                                 nullptr, layer);
 }
 
 status_t Client::clearLayerFrameStats(const sp<IBinder>& handle) const {

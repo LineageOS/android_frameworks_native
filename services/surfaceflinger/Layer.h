@@ -797,6 +797,8 @@ public:
         wp<Layer> owner;
     };
 
+    // Creates a new handle each time, so we only expect
+    // this to be called once.
     sp<IBinder> getHandle();
     const String8& getName() const;
     virtual void notifyAvailableFrames() {}
@@ -930,6 +932,8 @@ private:
     FloatRect mScreenBounds;
 
     void setZOrderRelativeOf(const wp<Layer>& relativeOf);
+
+    bool mGetHandleCalled = false;
 };
 
 } // namespace android
