@@ -73,6 +73,8 @@ BufferQueueCore::BufferQueueCore() :
     mActiveBuffers(),
     mDequeueCondition(),
     mDequeueBufferCannotBlock(false),
+    mQueueBufferCanDrop(false),
+    mLegacyBufferDrop(true),
     mDefaultBufferFormat(PIXEL_FORMAT_RGBA_8888),
     mDefaultWidth(1),
     mDefaultHeight(1),
@@ -117,6 +119,8 @@ void BufferQueueCore::dumpState(const String8& prefix, String8* outResult) const
                             mMaxAcquiredBufferCount, mMaxDequeuedBufferCount);
     outResult->appendFormat("%s  mDequeueBufferCannotBlock=%d mAsyncMode=%d\n", prefix.string(),
                             mDequeueBufferCannotBlock, mAsyncMode);
+    outResult->appendFormat("%s  mQueueBufferCanDrop=%d mLegacyBufferDrop=%d\n", prefix.string(),
+                            mQueueBufferCanDrop, mLegacyBufferDrop);
     outResult->appendFormat("%s  default-size=[%dx%d] default-format=%d ", prefix.string(),
                             mDefaultWidth, mDefaultHeight, mDefaultBufferFormat);
     outResult->appendFormat("transform-hint=%02x frame-counter=%" PRIu64, mTransformHint,
