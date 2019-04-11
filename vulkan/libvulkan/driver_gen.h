@@ -21,6 +21,7 @@
 
 #include <vulkan/vk_android_native_buffer.h>
 #include <vulkan/vulkan.h>
+
 #include <bitset>
 
 namespace vulkan {

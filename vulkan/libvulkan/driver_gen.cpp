@@ -16,11 +16,10 @@
 
 // WARNING: This file is generated. See ../README.md for instructions.
 
+#include <log/log.h>
 #include <string.h>
 
 #include <algorithm>
-
-#include <log/log.h>
 
 #include "driver.h"
 

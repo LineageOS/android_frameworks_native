@@ -16,11 +16,10 @@
 
 // WARNING: This file is generated. See ../README.md for instructions.
 
+#include <log/log.h>
 #include <string.h>
 
 #include <algorithm>
-
-#include <log/log.h>
 
 // to catch mismatches between vulkan.h and this file
 #undef VK_NO_PROTOTYPES

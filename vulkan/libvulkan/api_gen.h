@@ -20,7 +20,9 @@
 #define LIBVULKAN_API_GEN_H
 
 #include <vulkan/vulkan.h>
+
 #include <bitset>
+
 #include "driver_gen.h"
 
 namespace vulkan {
