@@ -339,53 +339,6 @@ EGLBoolean egl_display_t::initialize(EGLint *major, EGLint *minor) {
         if ((cnx->major == 1) && (cnx->minor == 5)) {
             mVersionString = sVersionString15;
             cnx->driverVersion = EGL_MAKE_VERSION(1, 5, 0);
-        } else if ((cnx->major == 1) && (cnx->minor == 4)) {
-            /* Querying extension strings for type Client */
-            std::string typesExtString;
-            static const char* clientExtensions =
-                    cnx->egl.eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS);
-            if (clientExtensions != nullptr && strlen(clientExtensions) > 0) {
-                typesExtString.append(clientExtensions);
-                typesExtString.append(" ");
-            }
-
-            /* Adding extension strings for type Display */
-            typesExtString.append(disp.queryString.extensions);
-            mVersionString = sVersionString14;
-            // Extensions needed for an EGL 1.4 implementation to be
-            // able to support EGL 1.5 functionality
-            std::vector<const char*> egl15extensions = {
-                    "EGL_EXT_client_extensions",
-                    // "EGL_EXT_platform_base",  // implemented by EGL runtime
-                    "EGL_KHR_image_base",
-                    "EGL_KHR_fence_sync",
-                    "EGL_KHR_wait_sync",
-                    "EGL_KHR_create_context",
-                    "EGL_EXT_create_context_robustness",
-                    "EGL_KHR_gl_colorspace",
-                    "EGL_ANDROID_native_fence_sync",
-            };
-            bool extensionsFound = true;
-            for (const auto& name : egl15extensions) {
-                extensionsFound &= findExtension(typesExtString.c_str(), name);
-                ALOGV("Extension %s: %s", name,
-                      findExtension(typesExtString.c_str(), name) ? "Found" : "Missing");
-            }
-            // NOTE: From the spec:
-            // Creation of fence sync objects requires support from the bound
-            // client API, and will not succeed unless the client API satisfies:
-            // client API is OpenGL ES, and either the OpenGL ES version is 3.0
-            // or greater, or the GL_OES_EGL_sync extension is supported.
-            // We don't have a way to check the GL_EXTENSIONS string at this
-            // point in the code, assume that GL_OES_EGL_sync is supported
-            // because EGL_KHR_fence_sync is supported (as verified above).
-            if (extensionsFound) {
-                // Have everything needed to emulate EGL 1.5 so report EGL 1.5
-                // to the application.
-                mVersionString = sVersionString15;
-                cnx->major = 1;
-                cnx->minor = 5;
-            }
         }
         if (mVersionString.empty()) {
             ALOGW("Unexpected driver version: %d.%d, want 1.4 or 1.5", cnx->major, cnx->minor);

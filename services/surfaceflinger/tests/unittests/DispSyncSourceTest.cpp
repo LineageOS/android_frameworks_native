@@ -142,23 +142,5 @@ TEST_F(DispSyncSourceTest, waitForCallbacksWithPhaseChange) {
     }
 }
 
-TEST_F(DispSyncSourceTest, pauseCallbacks) {
-    createDispSyncSource();
-    EXPECT_TRUE(mDispSyncSource);
-
-    mDispSyncSource->setVSyncEnabled(true);
-    EXPECT_EQ(mDispSync->getCallbackPhase(), mPhaseOffset.count());
-    mDispSync->triggerCallback();
-    EXPECT_TRUE(mVSyncEventCallRecorder.waitForCall().has_value());
-
-    mDispSyncSource->pauseVsyncCallback(true);
-    mDispSync->triggerCallback();
-    EXPECT_FALSE(mVSyncEventCallRecorder.waitForUnexpectedCall().has_value());
-
-    mDispSyncSource->pauseVsyncCallback(false);
-    mDispSync->triggerCallback();
-    EXPECT_TRUE(mVSyncEventCallRecorder.waitForUnexpectedCall().has_value());
-}
-
 } // namespace
 } // namespace android
