@@ -28,7 +28,7 @@
 #pragma clang diagnostic pop
 
 using android::hardware::graphics::allocator::V3_0::IAllocator;
-using android::hardware::graphics::common::V1_1::BufferUsage;
+using android::hardware::graphics::common::V1_2::BufferUsage;
 using android::hardware::graphics::mapper::V3_0::BufferDescriptor;
 using android::hardware::graphics::mapper::V3_0::Error;
 using android::hardware::graphics::mapper::V3_0::IMapper;
@@ -44,11 +44,7 @@ uint64_t getValidUsageBits() {
     static const uint64_t validUsageBits = []() -> uint64_t {
         uint64_t bits = 0;
         for (const auto bit :
-             hardware::hidl_enum_range<hardware::graphics::common::V1_0::BufferUsage>()) {
-            bits = bits | bit;
-        }
-        for (const auto bit :
-             hardware::hidl_enum_range<hardware::graphics::common::V1_1::BufferUsage>()) {
+             hardware::hidl_enum_range<hardware::graphics::common::V1_2::BufferUsage>()) {
             bits = bits | bit;
         }
         return bits;
@@ -71,7 +67,7 @@ static inline void sBufferDescriptorInfo(uint32_t width, uint32_t height,
     outDescriptorInfo->width = width;
     outDescriptorInfo->height = height;
     outDescriptorInfo->layerCount = layerCount;
-    outDescriptorInfo->format = static_cast<hardware::graphics::common::V1_1::PixelFormat>(format);
+    outDescriptorInfo->format = static_cast<hardware::graphics::common::V1_2::PixelFormat>(format);
     outDescriptorInfo->usage = usage;
 }
 
