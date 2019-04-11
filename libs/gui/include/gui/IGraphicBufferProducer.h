@@ -592,11 +592,19 @@ public:
     // non-blocking mode and its corresponding spare buffer (which is used to
     // ensure a buffer is always available).
     //
+    // Note well: queueBuffer will stop buffer dropping behavior if timeout is
+    // strictly positive. If timeout is zero or negative, previous buffer
+    // dropping behavior will not be changed.
+    //
     // Return of a value other than NO_ERROR means an error has occurred:
     // * BAD_VALUE - Failure to adjust the number of available slots. This can
     //               happen because of trying to allocate/deallocate the async
     //               buffer.
     virtual status_t setDequeueTimeout(nsecs_t timeout) = 0;
+
+    // Used to enable/disable buffer drop behavior of queueBuffer.
+    // If it's not used, legacy drop behavior will be retained.
+    virtual status_t setLegacyBufferDrop(bool drop);
 
     // Returns the last queued buffer along with a fence which must signal
     // before the contents of the buffer are read. If there are no buffers in
