@@ -889,7 +889,8 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         item.mFence = acquireFence;
         item.mFenceTime = acquireFenceTime;
         item.mIsDroppable = mCore->mAsyncMode ||
-                mCore->mDequeueBufferCannotBlock ||
+                (!mCore->mLegacyBufferDrop && mConsumerIsSurfaceFlinger) ||
+                (mCore->mLegacyBufferDrop && mCore->mQueueBufferCanDrop) ||
                 (mCore->mSharedBufferMode && mCore->mSharedBufferSlot == slot);
         item.mSurfaceDamage = surfaceDamage;
         item.mQueuedBuffer = true;
@@ -1230,9 +1231,11 @@ status_t BufferQueueProducer::connect(const sp<IProducerListener>& listener,
     mCore->mConnectedPid = BufferQueueThreadState::getCallingPid();
     mCore->mBufferHasBeenQueued = false;
     mCore->mDequeueBufferCannotBlock = false;
-    if (mDequeueTimeout < 0) {
-        mCore->mDequeueBufferCannotBlock =
-                mCore->mConsumerControlledByApp && producerControlledByApp;
+    mCore->mQueueBufferCanDrop = false;
+    mCore->mLegacyBufferDrop = true;
+    if (mCore->mConsumerControlledByApp && producerControlledByApp) {
+        mCore->mDequeueBufferCannotBlock = mDequeueTimeout < 0;
+        mCore->mQueueBufferCanDrop = mDequeueTimeout <= 0;
     }
 
     mCore->mAllowAllocation = true;
@@ -1516,9 +1519,23 @@ status_t BufferQueueProducer::setDequeueTimeout(nsecs_t timeout) {
     }
 
     mDequeueTimeout = timeout;
-    mCore->mDequeueBufferCannotBlock = false;
+    if (timeout >= 0) {
+        mCore->mDequeueBufferCannotBlock = false;
+        if (timeout != 0) {
+            mCore->mQueueBufferCanDrop = false;
+        }
+    }
 
     VALIDATE_CONSISTENCY();
+    return NO_ERROR;
+}
+
+status_t BufferQueueProducer::setLegacyBufferDrop(bool drop) {
+    ATRACE_CALL();
+    BQ_LOGV("setLegacyBufferDrop: drop = %d", drop);
+
+    std::lock_guard<std::mutex> lock(mCore->mMutex);
+    mCore->mLegacyBufferDrop = drop;
     return NO_ERROR;
 }
 
