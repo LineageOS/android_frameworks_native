@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// This module defines which headers are included in the NDK sysroot during
+// the NDK build process.
 ndk_headers {
-    name: "libvulkan_headers",
+    name: "ndk_vulkan_headers",
     from: "include",
     to: "",
     srcs: [
@@ -25,8 +27,28 @@ ndk_headers {
     license: "include/vulkan/NOTICE",
 }
 
+// This module makes Vulkan headers available to other modules without
+// having to link against libvulkan.so, e.g. for the Vulkan loader and
+// drivers, or things that dlopen libvulkan.so. It's available to system
+// modules, as part of the VNDK, and to unbundled modules.
 cc_library_headers {
     name: "vulkan_headers",
+    export_include_dirs: ["include"],
+    vendor_available: true,
+    sdk_version: "24",
+}
+
+// This module makes Vulkan headers available to vendor code that is
+// restricted to LLNDK dependencies.
+llndk_headers {
+    name: "vulkan_headers_llndk",
+    export_include_dirs: ["include"],
+}
+
+// This module makes the Vulkan libhardware HAL headers available, for
+// the loader and for HAL/driver implementations.
+cc_library_headers {
+    name: "hwvulkan_headers",
     vendor_available: true,
     header_libs: [
         "libcutils_headers",
@@ -36,18 +58,6 @@ cc_library_headers {
         "libcutils_headers",
         "libhardware_headers",
     ],
-    export_include_dirs: ["include"],
-}
-
-cc_library_headers {
-    name: "vulkan_headers_ndk",
-    export_include_dirs: ["include"],
-    sdk_version: "24",
-}
-
-llndk_library {
-    name: "libvulkan",
-    symbol_file: "libvulkan/libvulkan.map.txt",
     export_include_dirs: ["include"],
 }
 
