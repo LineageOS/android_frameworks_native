@@ -534,7 +534,7 @@ class RunDex2Oat : public ExecVHelper {
         }
         AddRuntimeArg(target_sdk_version_arg);
         if (enable_hidden_api_checks) {
-            AddRuntimeArg("-Xhidden-api-checks");
+            AddRuntimeArg("-Xhidden-api-policy:enabled");
         }
 
         if (dex_metadata_fd > -1) {
