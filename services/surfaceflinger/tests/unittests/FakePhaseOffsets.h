@@ -33,6 +33,11 @@ public:
     nsecs_t getCurrentAppOffset() override { return FAKE_PHASE_OFFSET_NS; }
     nsecs_t getCurrentSfOffset() override { return FAKE_PHASE_OFFSET_NS; }
 
+    PhaseOffsets::Offsets getOffsetsForRefreshRate(
+            RefreshRateConfigs::RefreshRateType /*refreshRateType*/) const override {
+        return getCurrentOffsets();
+    }
+
     // Returns early, early GL, and late offsets for Apps and SF.
     PhaseOffsets::Offsets getCurrentOffsets() const override {
         return Offsets{{FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS},

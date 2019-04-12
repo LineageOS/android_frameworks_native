@@ -86,8 +86,9 @@ PhaseOffsets::PhaseOffsets() {
     mHighRefreshRateOffsets.late = {highFpsLateSfOffsetNs, highFpsLateAppOffsetNs};
 }
 
-PhaseOffsets::Offsets PhaseOffsets::getCurrentOffsets() const {
-    switch (mRefreshRateType) {
+PhaseOffsets::Offsets PhaseOffsets::getOffsetsForRefreshRate(
+        android::scheduler::RefreshRateConfigs::RefreshRateType refreshRateType) const {
+    switch (refreshRateType) {
         case RefreshRateConfigs::RefreshRateType::PERFORMANCE:
             return mHighRefreshRateOffsets;
         default:
