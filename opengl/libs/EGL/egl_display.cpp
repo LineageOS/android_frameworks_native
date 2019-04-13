@@ -336,6 +336,7 @@ EGLBoolean egl_display_t::initialize(EGLint *major, EGLint *minor) {
         mVendorString = sVendorString;
         mVersionString.clear();
         cnx->driverVersion = EGL_MAKE_VERSION(1, 4, 0);
+        mVersionString = sVersionString14;
         if ((cnx->major == 1) && (cnx->minor == 5)) {
             mVersionString = sVersionString15;
             cnx->driverVersion = EGL_MAKE_VERSION(1, 5, 0);

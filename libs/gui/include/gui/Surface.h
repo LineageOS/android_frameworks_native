@@ -230,6 +230,7 @@ private:
     int dispatchGetWideColorSupport(va_list args);
     int dispatchGetHdrSupport(va_list args);
     int dispatchGetConsumerUsage64(va_list args);
+    bool transformToDisplayInverse();
 
 protected:
     virtual int dequeueBuffer(ANativeWindowBuffer** buffer, int* fenceFd);

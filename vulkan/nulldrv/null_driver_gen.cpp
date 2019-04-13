@@ -17,6 +17,7 @@
 // WARNING: This file is generated. See ../README.md for instructions.
 
 #include <algorithm>
+
 #include "null_driver_gen.h"
 
 using namespace null_driver;
