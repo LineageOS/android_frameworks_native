@@ -16,17 +16,19 @@
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include <algorithm>
-
+#include <android/hardware/graphics/common/1.0/types.h>
 #include <grallocusage/GrallocUsageConversion.h>
 #include <log/log.h>
-#include <ui/BufferQueueDefs.h>
 #include <sync/sync.h>
+#include <system/window.h>
+#include <ui/BufferQueueDefs.h>
 #include <utils/StrongPointer.h>
 #include <utils/Trace.h>
 #include <utils/Vector.h>
-#include <system/window.h>
-#include <android/hardware/graphics/common/1.0/types.h>
+
+#include <algorithm>
+#include <unordered_set>
+#include <vector>
 
 #include "driver.h"
 
@@ -1816,6 +1818,107 @@ VKAPI_ATTR void SetHdrMetadataEXT(
     }
 
     return;
+}
+
+static void InterceptBindImageMemory2(
+    uint32_t bind_info_count,
+    const VkBindImageMemoryInfo* bind_infos,
+    std::vector<VkNativeBufferANDROID>* out_native_buffers,
+    std::vector<VkBindImageMemoryInfo>* out_bind_infos) {
+    out_native_buffers->clear();
+    out_bind_infos->clear();
+
+    if (!bind_info_count)
+        return;
+
+    std::unordered_set<uint32_t> intercepted_indexes;
+
+    for (uint32_t idx = 0; idx < bind_info_count; idx++) {
+        auto info = reinterpret_cast<const VkBindImageMemorySwapchainInfoKHR*>(
+            bind_infos[idx].pNext);
+        while (info &&
+               info->sType !=
+                   VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR) {
+            info = reinterpret_cast<const VkBindImageMemorySwapchainInfoKHR*>(
+                info->pNext);
+        }
+
+        if (!info)
+            continue;
+
+        ALOG_ASSERT(info->swapchain != VK_NULL_HANDLE,
+                    "swapchain handle must not be NULL");
+        const Swapchain* swapchain = SwapchainFromHandle(info->swapchain);
+        ALOG_ASSERT(
+            info->imageIndex < swapchain->num_images,
+            "imageIndex must be less than the number of images in swapchain");
+
+        ANativeWindowBuffer* buffer =
+            swapchain->images[info->imageIndex].buffer.get();
+        VkNativeBufferANDROID native_buffer = {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wold-style-cast"
+            .sType = VK_STRUCTURE_TYPE_NATIVE_BUFFER_ANDROID,
+#pragma clang diagnostic pop
+            .pNext = bind_infos[idx].pNext,
+            .handle = buffer->handle,
+            .stride = buffer->stride,
+            .format = buffer->format,
+            .usage = int(buffer->usage),
+        };
+        // Reserve enough space to avoid letting re-allocation invalidate the
+        // addresses of the elements inside.
+        out_native_buffers->reserve(bind_info_count);
+        out_native_buffers->emplace_back(native_buffer);
+
+        // Reserve the space now since we know how much is needed now.
+        out_bind_infos->reserve(bind_info_count);
+        out_bind_infos->emplace_back(bind_infos[idx]);
+        out_bind_infos->back().pNext = &out_native_buffers->back();
+
+        intercepted_indexes.insert(idx);
+    }
+
+    if (intercepted_indexes.empty())
+        return;
+
+    for (uint32_t idx = 0; idx < bind_info_count; idx++) {
+        if (intercepted_indexes.count(idx))
+            continue;
+        out_bind_infos->emplace_back(bind_infos[idx]);
+    }
+}
+
+VKAPI_ATTR
+VkResult BindImageMemory2(VkDevice device,
+                          uint32_t bindInfoCount,
+                          const VkBindImageMemoryInfo* pBindInfos) {
+    ATRACE_CALL();
+
+    // out_native_buffers is for maintaining the lifecycle of the constructed
+    // VkNativeBufferANDROID objects inside InterceptBindImageMemory2.
+    std::vector<VkNativeBufferANDROID> out_native_buffers;
+    std::vector<VkBindImageMemoryInfo> out_bind_infos;
+    InterceptBindImageMemory2(bindInfoCount, pBindInfos, &out_native_buffers,
+                              &out_bind_infos);
+    return GetData(device).driver.BindImageMemory2(
+        device, bindInfoCount,
+        out_bind_infos.empty() ? pBindInfos : out_bind_infos.data());
+}
+
+VKAPI_ATTR
+VkResult BindImageMemory2KHR(VkDevice device,
+                             uint32_t bindInfoCount,
+                             const VkBindImageMemoryInfo* pBindInfos) {
+    ATRACE_CALL();
+
+    std::vector<VkNativeBufferANDROID> out_native_buffers;
+    std::vector<VkBindImageMemoryInfo> out_bind_infos;
+    InterceptBindImageMemory2(bindInfoCount, pBindInfos, &out_native_buffers,
+                              &out_bind_infos);
+    return GetData(device).driver.BindImageMemory2KHR(
+        device, bindInfoCount,
+        out_bind_infos.empty() ? pBindInfos : out_bind_infos.data());
 }
 
 }  // namespace driver
