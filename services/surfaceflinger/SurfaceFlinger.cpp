@@ -2881,7 +2881,7 @@ void SurfaceFlinger::updateInputWindowInfo() {
 }
 
 void SurfaceFlinger::commitInputWindowCommands() {
-    mInputWindowCommands.merge(mPendingInputWindowCommands);
+    mInputWindowCommands = mPendingInputWindowCommands;
     mPendingInputWindowCommands.clear();
 }
 
@@ -3662,8 +3662,9 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
         if (flags & eAnimation) {
             mAnimTransactionPending = true;
         }
-
-        mPendingSyncInputWindows = mPendingInputWindowCommands.syncInputWindows;
+        if (mPendingInputWindowCommands.syncInputWindows) {
+            mPendingSyncInputWindows = true;
+        }
 
         // applyTransactionState can be called by either the main SF thread or by
         // another process through setTransactionState.  While a given process may wish
