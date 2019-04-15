@@ -22,9 +22,9 @@
 #include <compositionengine/RenderSurfaceCreationArgs.h>
 #include <compositionengine/impl/Display.h>
 #include <compositionengine/mock/CompositionEngine.h>
+#include <compositionengine/mock/NativeWindow.h>
 #include <compositionengine/mock/RenderSurface.h>
 #include <gtest/gtest.h>
-#include <system/window.h>
 
 #include "MockHWComposer.h"
 
@@ -43,6 +43,7 @@ public:
 
     StrictMock<android::mock::HWComposer> mHwComposer;
     StrictMock<mock::CompositionEngine> mCompositionEngine;
+    sp<mock::NativeWindow> mNativeWindow = new StrictMock<mock::NativeWindow>();
     impl::Display mDisplay{mCompositionEngine,
                            DisplayCreationArgsBuilder().setDisplayId(DEFAULT_DISPLAY_ID).build()};
 };
@@ -199,8 +200,9 @@ TEST_F(DisplayTest, createDisplayColorProfileSetsDisplayColorProfile) {
  */
 
 TEST_F(DisplayTest, createRenderSurfaceSetsRenderSurface) {
+    EXPECT_CALL(*mNativeWindow, disconnect(NATIVE_WINDOW_API_EGL)).WillRepeatedly(Return(NO_ERROR));
     EXPECT_TRUE(mDisplay.getRenderSurface() == nullptr);
-    mDisplay.createRenderSurface(RenderSurfaceCreationArgs{640, 480, nullptr, nullptr});
+    mDisplay.createRenderSurface(RenderSurfaceCreationArgs{640, 480, mNativeWindow, nullptr});
     EXPECT_TRUE(mDisplay.getRenderSurface() != nullptr);
 }
 
