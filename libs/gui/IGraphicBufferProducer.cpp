@@ -72,6 +72,7 @@ enum {
     GET_FRAME_TIMESTAMPS,
     GET_UNIQUE_ID,
     GET_CONSUMER_USAGE,
+    SET_LEGACY_BUFFER_DROP,
 };
 
 class BpGraphicBufferProducer : public BpInterface<IGraphicBufferProducer>
@@ -437,6 +438,20 @@ public:
         return reply.readInt32();
     }
 
+    virtual status_t setLegacyBufferDrop(bool drop) {
+        Parcel data, reply;
+        data.writeInterfaceToken(
+                IGraphicBufferProducer::getInterfaceDescriptor());
+        data.writeInt32(drop);
+        status_t result = remote()->transact(SET_LEGACY_BUFFER_DROP,
+                data, &reply);
+        if (result != NO_ERROR) {
+            return result;
+        }
+        result = reply.readInt32();
+        return result;
+    }
+
     virtual status_t getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
             sp<Fence>* outFence, float outTransformMatrix[16]) override {
         Parcel data, reply;
@@ -637,6 +652,10 @@ public:
         return mBase->setDequeueTimeout(timeout);
     }
 
+    status_t setLegacyBufferDrop(bool drop) override {
+        return mBase->setLegacyBufferDrop(drop);
+    }
+
     status_t getLastQueuedBuffer(
             sp<GraphicBuffer>* outBuffer,
             sp<Fence>* outFence,
@@ -662,6 +681,12 @@ IMPLEMENT_HYBRID_META_INTERFACE(GraphicBufferProducer,
         "android.gui.IGraphicBufferProducer");
 
 // ----------------------------------------------------------------------
+
+status_t IGraphicBufferProducer::setLegacyBufferDrop(bool drop) {
+    // No-op for IGBP other than BufferQueue.
+    (void) drop;
+    return INVALID_OPERATION;
+}
 
 status_t IGraphicBufferProducer::exportToParcel(Parcel* parcel) {
     status_t res = OK;
@@ -1016,6 +1041,13 @@ status_t BnGraphicBufferProducer::onTransact(
             if (result != NO_ERROR) {
                 return result;
             }
+            return NO_ERROR;
+        }
+        case SET_LEGACY_BUFFER_DROP: {
+            CHECK_INTERFACE(IGraphicBufferProducer, data, reply);
+            bool drop = data.readInt32();
+            int result = setLegacyBufferDrop(drop);
+            reply->writeInt32(result);
             return NO_ERROR;
         }
     }

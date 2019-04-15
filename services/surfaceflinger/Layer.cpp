@@ -1230,10 +1230,8 @@ uint32_t Layer::getEffectiveUsage(uint32_t usage) const {
 
 void Layer::updateTransformHint(const sp<const DisplayDevice>& display) const {
     uint32_t orientation = 0;
-    // Disable setting transform hint if the debug flag is set or if the
-    // getTransformToDisplayInverse flag is set and the client wants to submit buffers
-    // in one orientation.
-    if (!mFlinger->mDebugDisableTransformHint && !getTransformToDisplayInverse()) {
+    // Disable setting transform hint if the debug flag is set.
+    if (!mFlinger->mDebugDisableTransformHint) {
         // The transform hint is used to improve performance, but we can
         // only have a single transform hint, it cannot
         // apply to all displays.

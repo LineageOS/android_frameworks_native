@@ -47,6 +47,8 @@ public:
         std::string name;
         // Refresh rate in frames per second, rounded to the nearest integer.
         uint32_t fps = 0;
+        // config Id (returned from HWC2::Display::Config::getId())
+        hwc2_config_t id;
     };
 
     // TODO(b/122916473): Get this information from configs prepared by vendors, instead of
@@ -62,13 +64,24 @@ public:
         return nullptr;
     }
 
+    RefreshRateType getRefreshRateType(hwc2_config_t id) const {
+        for (const auto& [type, refreshRate] : mRefreshRates) {
+            if (refreshRate->id == id) {
+                return type;
+            }
+        }
+
+        return RefreshRateType::DEFAULT;
+    }
+
     void populate(const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs) {
         mRefreshRates.clear();
 
         // This is the rate that HWC encapsulates right now when the device is in DOZE mode.
         mRefreshRates.emplace(RefreshRateType::POWER_SAVING,
                               std::make_shared<RefreshRate>(
-                                      RefreshRate{SCREEN_OFF_CONFIG_ID, "ScreenOff", 0}));
+                                      RefreshRate{SCREEN_OFF_CONFIG_ID, "ScreenOff", 0,
+                                                  HWC2_SCREEN_OFF_CONFIG_ID}));
 
         if (configs.size() < 1) {
             ALOGE("Device does not have valid configs. Config size is 0.");
@@ -91,11 +104,12 @@ public:
         nsecs_t vsyncPeriod = configIdToVsyncPeriod[0].second;
         if (vsyncPeriod != 0) {
             const float fps = 1e9 / vsyncPeriod;
+            const int configId = configIdToVsyncPeriod[0].first;
             mRefreshRates.emplace(RefreshRateType::DEFAULT,
                                   std::make_shared<RefreshRate>(
-                                          RefreshRate{configIdToVsyncPeriod[0].first,
-                                                      base::StringPrintf("%2.ffps", fps),
-                                                      static_cast<uint32_t>(fps)}));
+                                          RefreshRate{configId, base::StringPrintf("%2.ffps", fps),
+                                                      static_cast<uint32_t>(fps),
+                                                      configs.at(configId)->getId()}));
         }
 
         if (configs.size() < 2) {
@@ -107,11 +121,12 @@ public:
         vsyncPeriod = configIdToVsyncPeriod[1].second;
         if (vsyncPeriod != 0) {
             const float fps = 1e9 / vsyncPeriod;
+            const int configId = configIdToVsyncPeriod[1].first;
             mRefreshRates.emplace(RefreshRateType::PERFORMANCE,
                                   std::make_shared<RefreshRate>(
-                                          RefreshRate{configIdToVsyncPeriod[1].first,
-                                                      base::StringPrintf("%2.ffps", fps),
-                                                      static_cast<uint32_t>(fps)}));
+                                          RefreshRate{configId, base::StringPrintf("%2.ffps", fps),
+                                                      static_cast<uint32_t>(fps),
+                                                      configs.at(configId)->getId()}));
         }
     }
 

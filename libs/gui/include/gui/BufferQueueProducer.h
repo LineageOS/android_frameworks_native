@@ -174,6 +174,9 @@ public:
     // See IGraphicBufferProducer::setDequeueTimeout
     virtual status_t setDequeueTimeout(nsecs_t timeout) override;
 
+    // see IGraphicBufferProducer::setLegacyBufferDrop
+    virtual status_t setLegacyBufferDrop(bool drop);
+
     // See IGraphicBufferProducer::getLastQueuedBuffer
     virtual status_t getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
             sp<Fence>* outFence, float outTransformMatrix[16]) override;

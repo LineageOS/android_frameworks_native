@@ -144,6 +144,9 @@ status_t TransactionCompletedThread::addPresentedCallbackHandles(
         } else {
             ALOGW("cannot find listener in mPendingTransactions");
         }
+        if (listener->second.size() == 0) {
+            mPendingTransactions.erase(listener);
+        }
 
         status_t err = addCallbackHandle(handle);
         if (err != NO_ERROR) {
@@ -231,7 +234,9 @@ void TransactionCompletedThread::threadMain() {
 
                 // If we are still waiting on the callback handles for this transaction, stop
                 // here because all transaction callbacks for the same listener must come in order
-                if (mPendingTransactions[listener].count(transactionStats.callbackIds) != 0) {
+                auto pendingTransactions = mPendingTransactions.find(listener);
+                if (pendingTransactions != mPendingTransactions.end() &&
+                    pendingTransactions->second.count(transactionStats.callbackIds) != 0) {
                     break;
                 }
 
