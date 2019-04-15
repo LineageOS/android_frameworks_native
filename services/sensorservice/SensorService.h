@@ -23,6 +23,7 @@
 #include <binder/BinderService.h>
 #include <binder/IUidObserver.h>
 #include <cutils/compiler.h>
+#include <cutils/multiuser.h>
 #include <sensor/ISensorServer.h>
 #include <sensor/ISensorEventConnection.h>
 #include <sensor/Sensor.h>

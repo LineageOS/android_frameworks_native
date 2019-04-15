@@ -565,11 +565,11 @@ status_t SensorService::shellCommand(int in, int out, int err, Vector<String16>&
     if (in == BAD_TYPE || out == BAD_TYPE || err == BAD_TYPE) {
         return BAD_VALUE;
     }
-    if (args.size() == 3 && args[0] == String16("set-uid-state")) {
+    if (args[0] == String16("set-uid-state")) {
         return handleSetUidState(args, err);
-    } else if (args.size() == 2 && args[0] == String16("reset-uid-state")) {
+    } else if (args[0] == String16("reset-uid-state")) {
         return handleResetUidState(args, err);
-    } else if (args.size() == 2 && args[0] == String16("get-uid-state")) {
+    } else if (args[0] == String16("get-uid-state")) {
         return handleGetUidState(args, out, err);
     } else if (args.size() == 1 && args[0] == String16("help")) {
         printHelp(out);
@@ -579,14 +579,32 @@ status_t SensorService::shellCommand(int in, int out, int err, Vector<String16>&
     return BAD_VALUE;
 }
 
-status_t SensorService::handleSetUidState(Vector<String16>& args, int err) {
+static status_t getUidForPackage(String16 packageName, int userId, /*inout*/uid_t& uid, int err) {
     PermissionController pc;
-    int uid = pc.getPackageUid(args[1], 0);
+    uid = pc.getPackageUid(packageName, 0);
     if (uid <= 0) {
-        ALOGE("Unknown package: '%s'", String8(args[1]).string());
-        dprintf(err, "Unknown package: '%s'\n", String8(args[1]).string());
+        ALOGE("Unknown package: '%s'", String8(packageName).string());
+        dprintf(err, "Unknown package: '%s'\n", String8(packageName).string());
         return BAD_VALUE;
     }
+
+    if (userId < 0) {
+        ALOGE("Invalid user: %d", userId);
+        dprintf(err, "Invalid user: %d\n", userId);
+        return BAD_VALUE;
+    }
+
+    uid = multiuser_get_uid(userId, uid);
+    return NO_ERROR;
+}
+
+status_t SensorService::handleSetUidState(Vector<String16>& args, int err) {
+    // Valid arg.size() is 3 or 5, args.size() is 5 with --user option.
+    if (!(args.size() == 3 || args.size() == 5)) {
+        printHelp(err);
+        return BAD_VALUE;
+    }
+
     bool active = false;
     if (args[2] == String16("active")) {
         active = true;
@@ -594,30 +612,59 @@ status_t SensorService::handleSetUidState(Vector<String16>& args, int err) {
         ALOGE("Expected active or idle but got: '%s'", String8(args[2]).string());
         return BAD_VALUE;
     }
+
+    int userId = 0;
+    if (args.size() == 5 && args[3] == String16("--user")) {
+        userId = atoi(String8(args[4]));
+    }
+
+    uid_t uid;
+    if (getUidForPackage(args[1], userId, uid, err) != NO_ERROR) {
+        return BAD_VALUE;
+    }
+
     mUidPolicy->addOverrideUid(uid, active);
     return NO_ERROR;
 }
 
 status_t SensorService::handleResetUidState(Vector<String16>& args, int err) {
-    PermissionController pc;
-    int uid = pc.getPackageUid(args[1], 0);
-    if (uid < 0) {
-        ALOGE("Unknown package: '%s'", String8(args[1]).string());
-        dprintf(err, "Unknown package: '%s'\n", String8(args[1]).string());
+    // Valid arg.size() is 2 or 4, args.size() is 4 with --user option.
+    if (!(args.size() == 2 || args.size() == 4)) {
+        printHelp(err);
         return BAD_VALUE;
     }
+
+    int userId = 0;
+    if (args.size() == 4 && args[2] == String16("--user")) {
+        userId = atoi(String8(args[3]));
+    }
+
+    uid_t uid;
+    if (getUidForPackage(args[1], userId, uid, err) == BAD_VALUE) {
+        return BAD_VALUE;
+    }
+
     mUidPolicy->removeOverrideUid(uid);
     return NO_ERROR;
 }
 
 status_t SensorService::handleGetUidState(Vector<String16>& args, int out, int err) {
-    PermissionController pc;
-    int uid = pc.getPackageUid(args[1], 0);
-    if (uid < 0) {
-        ALOGE("Unknown package: '%s'", String8(args[1]).string());
-        dprintf(err, "Unknown package: '%s'\n", String8(args[1]).string());
+    // Valid arg.size() is 2 or 4, args.size() is 4 with --user option.
+    if (!(args.size() == 2 || args.size() == 4)) {
+        printHelp(err);
         return BAD_VALUE;
     }
+
+    int userId = 0;
+    if (args.size() == 4 && args[2] == String16("--user")) {
+        userId = atoi(String8(args[3]));
+    }
+
+    uid_t uid;
+    if (getUidForPackage(args[1], userId, uid, err) == BAD_VALUE) {
+        return BAD_VALUE;
+    }
+
     if (mUidPolicy->isUidActive(uid)) {
         return dprintf(out, "active\n");
     } else {
@@ -627,9 +674,9 @@ status_t SensorService::handleGetUidState(Vector<String16>& args, int out, int e
 
 status_t SensorService::printHelp(int out) {
     return dprintf(out, "Sensor service commands:\n"
-        "  get-uid-state <PACKAGE> gets the uid state\n"
-        "  set-uid-state <PACKAGE> <active|idle> overrides the uid state\n"
-        "  reset-uid-state <PACKAGE> clears the uid state override\n"
+        "  get-uid-state <PACKAGE> [--user USER_ID] gets the uid state\n"
+        "  set-uid-state <PACKAGE> <active|idle> [--user USER_ID] overrides the uid state\n"
+        "  reset-uid-state <PACKAGE> [--user USER_ID] clears the uid state override\n"
         "  help print this message\n");
 }
 
