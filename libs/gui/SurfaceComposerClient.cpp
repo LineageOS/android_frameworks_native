@@ -381,7 +381,8 @@ void SurfaceComposerClient::doDropReferenceTransaction(const sp<IBinder>& handle
     s.state.parentHandleForChild = nullptr;
 
     composerStates.add(s);
-    sf->setTransactionState(composerStates, displayStates, 0, nullptr, {}, -1, {}, {});
+    sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    sf->setTransactionState(composerStates, displayStates, 0, applyToken, {}, -1, {}, {});
 }
 
 void SurfaceComposerClient::doUncacheBufferTransaction(uint64_t cacheId) {
@@ -391,7 +392,8 @@ void SurfaceComposerClient::doUncacheBufferTransaction(uint64_t cacheId) {
     uncacheBuffer.token = BufferCache::getInstance().getToken();
     uncacheBuffer.cacheId = cacheId;
 
-    sf->setTransactionState({}, {}, 0, nullptr, {}, -1, uncacheBuffer, {});
+    sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    sf->setTransactionState({}, {}, 0, applyToken, {}, -1, uncacheBuffer, {});
 }
 
 void SurfaceComposerClient::Transaction::cacheBuffers() {
