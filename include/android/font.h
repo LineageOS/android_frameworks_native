@@ -15,6 +15,11 @@
  */
 
 /**
+ * @addtogroup Font
+ * {
+ */
+
+/**
  * @file font.h
  * @brief Provides some constants used in system_fonts.h or fonts_matcher.h
  *
@@ -279,3 +284,5 @@ float AFont_getAxisValue(const AFont* _Nonnull font, uint32_t axisIndex)
 __END_DECLS
 
 #endif // ANDROID_FONT_H
+
+/** @} */
