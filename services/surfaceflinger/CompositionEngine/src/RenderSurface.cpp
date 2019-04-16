@@ -52,9 +52,14 @@ RenderSurface::RenderSurface(const CompositionEngine& compositionEngine, Display
         mDisplay(display),
         mNativeWindow(args.nativeWindow),
         mDisplaySurface(args.displaySurface),
-        mSize(args.displayWidth, args.displayHeight) {}
+        mSize(args.displayWidth, args.displayHeight) {
+    LOG_ALWAYS_FATAL_IF(!mNativeWindow);
+}
 
-RenderSurface::~RenderSurface() = default;
+RenderSurface::~RenderSurface() {
+    ANativeWindow* const window = mNativeWindow.get();
+    native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
+}
 
 bool RenderSurface::isValid() const {
     return mSize.isValid();

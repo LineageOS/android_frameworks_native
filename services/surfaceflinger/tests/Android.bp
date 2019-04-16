@@ -22,6 +22,7 @@ cc_test {
         "Stress_test.cpp",
         "SurfaceInterceptor_test.cpp",
         "Transaction_test.cpp",
+        "VirtualDisplay_test.cpp",
     ],
     data: ["SurfaceFlinger_test.filter"],
     static_libs: [
