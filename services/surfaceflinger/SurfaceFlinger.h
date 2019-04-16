@@ -734,8 +734,8 @@ private:
                                     nsecs_t compositeToPresentLatency);
     void rebuildLayerStacks();
 
-    ui::Dataspace getBestDataspace(const sp<const DisplayDevice>& display,
-                                   ui::Dataspace* outHdrDataSpace) const;
+    ui::Dataspace getBestDataspace(const sp<DisplayDevice>& display, ui::Dataspace* outHdrDataSpace,
+                                   bool* outIsHdrClientComposition) const;
 
     // Returns the appropriate ColorMode, Dataspace and RenderIntent for the
     // DisplayDevice. The function only returns the supported ColorMode,
