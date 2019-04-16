@@ -2842,9 +2842,6 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                                 // Replace with native_window_get_consumer_usage ?
                                 status = state.surface->getConsumerUsage(&usage);
                                 ALOGW_IF(status != NO_ERROR, "Unable to query usage (%d)", status);
-                                displayId =
-                                getHwComposer().allocateVirtualDisplay(width, height, &format);
-                                ALOGW_IF(status != NO_ERROR, "Unable to query usage (%d)", status);
                                 if ((status == NO_ERROR) && canAllocateHwcDisplayIdForVDS(usage)) {
                                      displayId =
                                      getHwComposer().allocateVirtualDisplay(width, height, &format);
