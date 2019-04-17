@@ -252,6 +252,11 @@ char const * const gl_names[] = {
     NULL
 };
 
+char const * const gl_names_1[] = {
+    #include "../entries_gles1.in"
+    nullptr
+};
+
 char const * const egl_names[] = {
     #include "egl_entries.in"
     NULL

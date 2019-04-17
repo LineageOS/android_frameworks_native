@@ -58,6 +58,7 @@ extern "C" void gl_unimplemented();
 extern "C" void gl_noop();
 
 extern char const * const gl_names[];
+extern char const * const gl_names_1[];
 extern char const * const egl_names[];
 
 extern egl_connection_t gEGLImpl;
