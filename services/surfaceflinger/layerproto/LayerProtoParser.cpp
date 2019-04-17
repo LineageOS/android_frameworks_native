@@ -299,6 +299,7 @@ std::string LayerProtoParser::Layer::to_string() const {
 
     StringAppendF(&result, "crop=%s, ", crop.to_string().c_str());
     StringAppendF(&result, "cornerRadius=%f, ", cornerRadius);
+    StringAppendF(&result, "isProtected=%1d, ", isProtected);
     StringAppendF(&result, "isOpaque=%1d, invalidate=%1d, ", isOpaque, invalidate);
     StringAppendF(&result, "dataspace=%s, ", dataspace.c_str());
     StringAppendF(&result, "defaultPixelFormat=%s, ", pixelFormat.c_str());
