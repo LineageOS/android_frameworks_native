@@ -250,6 +250,27 @@ if __name__ == '__main__':
     for opts in TRAMPOLINE_OPTIONS:
         registry.apiGen(opts)
 
+    # Generate a GLESv1_CM entries separately to avoid extra driver loading time
+    apigen = ApiGenerator()
+    registry.setGenerator(apigen)
+    API_OPTIONS = [
+        # Generate non-extension versions of each API first, then extensions,
+        # so that if an extension enum was later standardized, we see the non-
+        # suffixed version first.
+        reg.GeneratorOptions(
+            apiname             = 'gles1',
+            profile             = 'common'),
+        reg.GeneratorOptions(
+            apiname             = 'gles1',
+            profile             = 'common',
+            emitversions        = None,
+            defaultExtensions   = 'gles1')]
+    for opts in API_OPTIONS:
+        registry.apiGen(opts)
+    apigen.finish()
+    with open('../../libs/entries_gles1.in', 'w') as f:
+        apigen.writeEntries(f)
+
     apigen = ApiGenerator()
     registry.setGenerator(apigen)
     API_OPTIONS = [

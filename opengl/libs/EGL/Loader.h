@@ -29,7 +29,7 @@ struct egl_connection_t;
 
 class Loader {
     typedef __eglMustCastToProperFunctionPointerType (* getProcAddressType)(const char*);
-   
+
     enum {
         EGL         = 0x01,
         GLESv1_CM   = 0x02,
@@ -42,25 +42,26 @@ class Loader {
         int set(void* hnd, int32_t api);
         void* dso[3];
     };
-    
+
     getProcAddressType getProcAddress;
 
 public:
     static Loader& getInstance();
     ~Loader();
-    
+
     void* open(egl_connection_t* cnx);
     void close(void* driver);
-    
+
 private:
     Loader();
     void *load_driver(const char* kind, egl_connection_t* cnx, uint32_t mask);
 
     static __attribute__((noinline))
-    void init_api(void* dso, 
-            char const * const * api, 
-            __eglMustCastToProperFunctionPointerType* curr, 
-            getProcAddressType getProcAddress); 
+    void init_api(void* dso,
+            char const * const * api,
+            char const * const * ref_api,
+            __eglMustCastToProperFunctionPointerType* curr,
+            getProcAddressType getProcAddress);
 };
 
 // ----------------------------------------------------------------------------
