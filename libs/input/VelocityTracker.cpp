@@ -382,7 +382,16 @@ void LeastSquaresVelocityTrackerStrategy::clearPointers(BitSet32 idBits) {
 
 void LeastSquaresVelocityTrackerStrategy::addMovement(nsecs_t eventTime, BitSet32 idBits,
         const VelocityTracker::Position* positions) {
-    if (++mIndex == HISTORY_SIZE) {
+    if (mMovements[mIndex].eventTime != eventTime) {
+        // When ACTION_POINTER_DOWN happens, we will first receive ACTION_MOVE with the coordinates
+        // of the existing pointers, and then ACTION_POINTER_DOWN with the coordinates that include
+        // the new pointer. If the eventtimes for both events are identical, just update the data
+        // for this time.
+        // We only compare against the last value, as it is likely that addMovement is called
+        // in chronological order as events occur.
+        mIndex++;
+    }
+    if (mIndex == HISTORY_SIZE) {
         mIndex = 0;
     }
 
@@ -1017,7 +1026,16 @@ void ImpulseVelocityTrackerStrategy::clearPointers(BitSet32 idBits) {
 
 void ImpulseVelocityTrackerStrategy::addMovement(nsecs_t eventTime, BitSet32 idBits,
         const VelocityTracker::Position* positions) {
-    if (++mIndex == HISTORY_SIZE) {
+    if (mMovements[mIndex].eventTime != eventTime) {
+        // When ACTION_POINTER_DOWN happens, we will first receive ACTION_MOVE with the coordinates
+        // of the existing pointers, and then ACTION_POINTER_DOWN with the coordinates that include
+        // the new pointer. If the eventtimes for both events are identical, just update the data
+        // for this time.
+        // We only compare against the last value, as it is likely that addMovement is called
+        // in chronological order as events occur.
+        mIndex++;
+    }
+    if (mIndex == HISTORY_SIZE) {
         mIndex = 0;
     }
 
