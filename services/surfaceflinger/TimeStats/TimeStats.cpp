@@ -291,6 +291,9 @@ void TimeStats::setLatchTime(int32_t layerID, uint64_t frameNumber, nsecs_t latc
     std::lock_guard<std::mutex> lock(mMutex);
     if (!mTimeStatsTracker.count(layerID)) return;
     LayerRecord& layerRecord = mTimeStatsTracker[layerID];
+    if (layerRecord.waitData < 0 ||
+        layerRecord.waitData >= static_cast<int32_t>(layerRecord.timeRecords.size()))
+        return;
     TimeRecord& timeRecord = layerRecord.timeRecords[layerRecord.waitData];
     if (timeRecord.frameTime.frameNumber == frameNumber) {
         timeRecord.frameTime.latchTime = latchTime;
@@ -306,6 +309,9 @@ void TimeStats::setDesiredTime(int32_t layerID, uint64_t frameNumber, nsecs_t de
     std::lock_guard<std::mutex> lock(mMutex);
     if (!mTimeStatsTracker.count(layerID)) return;
     LayerRecord& layerRecord = mTimeStatsTracker[layerID];
+    if (layerRecord.waitData < 0 ||
+        layerRecord.waitData >= static_cast<int32_t>(layerRecord.timeRecords.size()))
+        return;
     TimeRecord& timeRecord = layerRecord.timeRecords[layerRecord.waitData];
     if (timeRecord.frameTime.frameNumber == frameNumber) {
         timeRecord.frameTime.desiredTime = desiredTime;
@@ -321,6 +327,9 @@ void TimeStats::setAcquireTime(int32_t layerID, uint64_t frameNumber, nsecs_t ac
     std::lock_guard<std::mutex> lock(mMutex);
     if (!mTimeStatsTracker.count(layerID)) return;
     LayerRecord& layerRecord = mTimeStatsTracker[layerID];
+    if (layerRecord.waitData < 0 ||
+        layerRecord.waitData >= static_cast<int32_t>(layerRecord.timeRecords.size()))
+        return;
     TimeRecord& timeRecord = layerRecord.timeRecords[layerRecord.waitData];
     if (timeRecord.frameTime.frameNumber == frameNumber) {
         timeRecord.frameTime.acquireTime = acquireTime;
@@ -338,6 +347,9 @@ void TimeStats::setAcquireFence(int32_t layerID, uint64_t frameNumber,
     std::lock_guard<std::mutex> lock(mMutex);
     if (!mTimeStatsTracker.count(layerID)) return;
     LayerRecord& layerRecord = mTimeStatsTracker[layerID];
+    if (layerRecord.waitData < 0 ||
+        layerRecord.waitData >= static_cast<int32_t>(layerRecord.timeRecords.size()))
+        return;
     TimeRecord& timeRecord = layerRecord.timeRecords[layerRecord.waitData];
     if (timeRecord.frameTime.frameNumber == frameNumber) {
         timeRecord.acquireFence = acquireFence;
@@ -353,6 +365,9 @@ void TimeStats::setPresentTime(int32_t layerID, uint64_t frameNumber, nsecs_t pr
     std::lock_guard<std::mutex> lock(mMutex);
     if (!mTimeStatsTracker.count(layerID)) return;
     LayerRecord& layerRecord = mTimeStatsTracker[layerID];
+    if (layerRecord.waitData < 0 ||
+        layerRecord.waitData >= static_cast<int32_t>(layerRecord.timeRecords.size()))
+        return;
     TimeRecord& timeRecord = layerRecord.timeRecords[layerRecord.waitData];
     if (timeRecord.frameTime.frameNumber == frameNumber) {
         timeRecord.frameTime.presentTime = presentTime;
@@ -374,6 +389,9 @@ void TimeStats::setPresentFence(int32_t layerID, uint64_t frameNumber,
     std::lock_guard<std::mutex> lock(mMutex);
     if (!mTimeStatsTracker.count(layerID)) return;
     LayerRecord& layerRecord = mTimeStatsTracker[layerID];
+    if (layerRecord.waitData < 0 ||
+        layerRecord.waitData >= static_cast<int32_t>(layerRecord.timeRecords.size()))
+        return;
     TimeRecord& timeRecord = layerRecord.timeRecords[layerRecord.waitData];
     if (timeRecord.frameTime.frameNumber == frameNumber) {
         timeRecord.presentFence = presentFence;
