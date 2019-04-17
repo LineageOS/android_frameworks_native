@@ -17,6 +17,7 @@
 #pragma once
 
 #include <compositionengine/Display.h>
+#include <compositionengine/DisplayCreationArgs.h>
 #include <compositionengine/impl/Output.h>
 
 #include <memory>
@@ -29,36 +30,37 @@ namespace android::compositionengine {
 
 class CompositionEngine;
 
-struct DisplayCreationArgs;
-
 namespace impl {
 
-class Display : public compositionengine::impl::Output, public compositionengine::Display {
+// The implementation class contains the common implementation, but does not
+// actually contain the final display state.
+class Display : public compositionengine::impl::Output, public virtual compositionengine::Display {
 public:
-    Display(const CompositionEngine&, compositionengine::DisplayCreationArgs&&);
+    explicit Display(const compositionengine::DisplayCreationArgs&);
     virtual ~Display();
 
     // compositionengine::Output overrides
     void dump(std::string&) const override;
     std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(
-            const std::shared_ptr<Layer>&, const sp<LayerFE>&) const override;
+            const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&) const override;
     using compositionengine::impl::Output::setReleasedLayers;
-    void setReleasedLayers(const compositionengine::CompositionRefreshArgs&) override;
-    void setColorTransform(const compositionengine::CompositionRefreshArgs&) override;
+    void setReleasedLayers(const CompositionRefreshArgs&) override;
+    void setColorTransform(const CompositionRefreshArgs&) override;
     void setColorProfile(const ColorProfile&) override;
     void chooseCompositionStrategy() override;
     bool getSkipColorTransform() const override;
     compositionengine::Output::FrameFences presentAndGetFrameFences() override;
     void setExpensiveRenderingExpected(bool) override;
-    void finishFrame(const compositionengine::CompositionRefreshArgs&) override;
+    void finishFrame(const CompositionRefreshArgs&) override;
 
     // compositionengine::Display overrides
     const std::optional<DisplayId>& getId() const override;
     bool isSecure() const override;
     bool isVirtual() const override;
     void disconnect() override;
-    void createDisplayColorProfile(compositionengine::DisplayColorProfileCreationArgs&&) override;
-    void createRenderSurface(compositionengine::RenderSurfaceCreationArgs&&) override;
+    void createDisplayColorProfile(
+            const compositionengine::DisplayColorProfileCreationArgs&) override;
+    void createRenderSurface(const compositionengine::RenderSurfaceCreationArgs&) override;
 
     // Internal helpers used by chooseCompositionStrategy()
     using ChangedTypes = android::HWComposer::DeviceRequestedChanges::ChangedTypes;
@@ -76,8 +78,18 @@ private:
     Hwc2::PowerAdvisor* const mPowerAdvisor{nullptr};
 };
 
+// This template factory function standardizes the implementation details of the
+// final class using the types actually required by the implementation. This is
+// not possible to do in the base class as those types may not even be visible
+// to the base code.
+template <typename BaseDisplay, typename CompositionEngine, typename DisplayCreationArgs>
+std::shared_ptr<BaseDisplay> createDisplayTemplated(const CompositionEngine& compositionEngine,
+                                                    const DisplayCreationArgs& args) {
+    return createOutputTemplated<BaseDisplay>(compositionEngine, args);
+}
+
 std::shared_ptr<Display> createDisplay(const compositionengine::CompositionEngine&,
-                                       compositionengine::DisplayCreationArgs&&);
+                                       const compositionengine::DisplayCreationArgs&);
 
 } // namespace impl
 } // namespace android::compositionengine

@@ -59,12 +59,13 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
         mSequenceId(args.sequenceId),
         mDisplayInstallOrientation(args.displayInstallOrientation),
         mCompositionDisplay{mFlinger->getCompositionEngine().createDisplay(
-                compositionengine::DisplayCreationArgs{args.isSecure, args.isVirtual,
-                                                       args.displayId, args.powerAdvisor})},
+                compositionengine::DisplayCreationArgs{args.isVirtual, args.displayId,
+                                                       args.powerAdvisor})},
         mIsVirtual(args.isVirtual),
         mOrientation(),
         mActiveConfig(0),
         mIsPrimary(args.isPrimary) {
+    mCompositionDisplay->editState().isSecure = args.isSecure;
     mCompositionDisplay->createRenderSurface(
             compositionengine::RenderSurfaceCreationArgs{ANativeWindow_getWidth(
                                                                  args.nativeWindow.get()),

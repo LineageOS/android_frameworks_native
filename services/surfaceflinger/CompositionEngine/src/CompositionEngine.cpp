@@ -39,12 +39,13 @@ CompositionEngine::CompositionEngine() = default;
 CompositionEngine::~CompositionEngine() = default;
 
 std::shared_ptr<compositionengine::Display> CompositionEngine::createDisplay(
-        DisplayCreationArgs&& args) {
-    return compositionengine::impl::createDisplay(*this, std::move(args));
+        const DisplayCreationArgs& args) {
+    return compositionengine::impl::createDisplay(*this, args);
 }
 
-std::shared_ptr<compositionengine::Layer> CompositionEngine::createLayer(LayerCreationArgs&& args) {
-    return compositionengine::impl::createLayer(*this, std::move(args));
+std::shared_ptr<compositionengine::Layer> CompositionEngine::createLayer(
+        const LayerCreationArgs& args) {
+    return compositionengine::impl::createLayer(args);
 }
 
 HWComposer& CompositionEngine::getHwComposer() const {

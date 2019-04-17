@@ -15,9 +15,8 @@
  */
 
 #include <android-base/stringprintf.h>
-#include <compositionengine/CompositionEngine.h>
-#include <compositionengine/LayerCreationArgs.h>
 #include <compositionengine/LayerFE.h>
+#include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/impl/Layer.h>
 
 namespace android::compositionengine {
@@ -26,38 +25,18 @@ Layer::~Layer() = default;
 
 namespace impl {
 
-std::shared_ptr<compositionengine::Layer> createLayer(
-        const compositionengine::CompositionEngine& compositionEngine,
-        compositionengine::LayerCreationArgs&& args) {
-    return std::make_shared<Layer>(compositionEngine, std::move(args));
-}
-
-Layer::Layer(const CompositionEngine& compositionEngine, LayerCreationArgs&& args)
-      : mCompositionEngine(compositionEngine), mLayerFE(args.layerFE) {
-    static_cast<void>(mCompositionEngine); // Temporary use to prevent an unused warning
+std::shared_ptr<Layer> createLayer(const LayerCreationArgs& args) {
+    return compositionengine::impl::createLayerTemplated<Layer>(args);
 }
 
 Layer::~Layer() = default;
-
-sp<LayerFE> Layer::getLayerFE() const {
-    return mLayerFE.promote();
-}
-
-const compositionengine::LayerFECompositionState& Layer::getFEState() const {
-    return mFrontEndState;
-}
-
-compositionengine::LayerFECompositionState& Layer::editFEState() {
-    return mFrontEndState;
-}
 
 void Layer::dump(std::string& out) const {
     auto layerFE = getLayerFE();
     android::base::StringAppendF(&out, "* compositionengine::Layer %p (%s)\n", this,
                                  layerFE ? layerFE->getDebugName() : "<unknown>");
-
     out.append("    frontend:\n");
-    mFrontEndState.dump(out);
+    dumpFEState(out);
 }
 
 } // namespace impl

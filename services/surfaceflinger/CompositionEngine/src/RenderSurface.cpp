@@ -43,12 +43,13 @@ namespace impl {
 
 std::unique_ptr<compositionengine::RenderSurface> createRenderSurface(
         const compositionengine::CompositionEngine& compositionEngine,
-        compositionengine::Display& display, compositionengine::RenderSurfaceCreationArgs&& args) {
-    return std::make_unique<RenderSurface>(compositionEngine, display, std::move(args));
+        compositionengine::Display& display,
+        const compositionengine::RenderSurfaceCreationArgs& args) {
+    return std::make_unique<RenderSurface>(compositionEngine, display, args);
 }
 
 RenderSurface::RenderSurface(const CompositionEngine& compositionEngine, Display& display,
-                             RenderSurfaceCreationArgs&& args)
+                             const RenderSurfaceCreationArgs& args)
       : mCompositionEngine(compositionEngine),
         mDisplay(display),
         mNativeWindow(args.nativeWindow),
@@ -156,7 +157,7 @@ sp<GraphicBuffer> RenderSurface::dequeueBuffer(base::unique_fd* bufferFence) {
     return mGraphicBuffer;
 }
 
-void RenderSurface::queueBuffer(base::unique_fd&& readyFence) {
+void RenderSurface::queueBuffer(base::unique_fd readyFence) {
     auto& state = mDisplay.getState();
 
     if (state.usesClientComposition || state.flipClientTarget) {

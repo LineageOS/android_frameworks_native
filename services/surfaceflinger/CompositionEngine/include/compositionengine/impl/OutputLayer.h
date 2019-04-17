@@ -20,7 +20,6 @@
 #include <string>
 
 #include <compositionengine/OutputLayer.h>
-#include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <ui/FloatRect.h>
 #include <ui/Rect.h>
 
@@ -32,20 +31,13 @@ struct LayerFECompositionState;
 
 namespace impl {
 
-class OutputLayer : public compositionengine::OutputLayer {
+// The implementation class contains the common implementation, but does not
+// actually contain the final layer state.
+class OutputLayer : public virtual compositionengine::OutputLayer {
 public:
-    OutputLayer(const compositionengine::Output&, const std::shared_ptr<compositionengine::Layer>&,
-                const sp<compositionengine::LayerFE>&);
     ~OutputLayer() override;
 
     void setHwcLayer(std::shared_ptr<HWC2::Layer>) override;
-
-    const compositionengine::Output& getOutput() const override;
-    compositionengine::Layer& getLayer() const override;
-    compositionengine::LayerFE& getLayerFE() const override;
-
-    const OutputLayerCompositionState& getState() const override;
-    OutputLayerCompositionState& editState() override;
 
     void updateCompositionState(bool) override;
     void writeStateToHWC(bool) override;
@@ -59,11 +51,15 @@ public:
     void applyDeviceLayerRequest(Hwc2::IComposerClient::LayerRequest request) override;
     bool needsFiltering() const override;
 
-    void dump(std::string& result) const override;
+    void dump(std::string&) const override;
 
     virtual FloatRect calculateOutputSourceCrop() const;
     virtual Rect calculateOutputDisplayFrame() const;
     virtual uint32_t calculateOutputRelativeBufferTransform() const;
+
+protected:
+    // Implemented by the final implementation for the final state it uses.
+    virtual void dumpState(std::string&) const = 0;
 
 private:
     Rect calculateInitialCrop() const;
@@ -77,17 +73,60 @@ private:
     void writeCompositionTypeToHWC(HWC2::Layer*, Hwc2::IComposerClient::Composition);
     void detectDisallowedCompositionTypeChange(Hwc2::IComposerClient::Composition from,
                                                Hwc2::IComposerClient::Composition to) const;
-
-    const compositionengine::Output& mOutput;
-    std::shared_ptr<compositionengine::Layer> mLayer;
-    sp<compositionengine::LayerFE> mLayerFE;
-
-    OutputLayerCompositionState mState;
 };
 
-std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(
-        const compositionengine::Output&, const std::shared_ptr<compositionengine::Layer>&,
-        const sp<compositionengine::LayerFE>&);
+// This template factory function standardizes the implementation details of the
+// final class using the types actually required by the implementation. This is
+// not possible to do in the base class as those types may not even be visible
+// to the base code.
+template <typename BaseOutputLayer>
+std::unique_ptr<BaseOutputLayer> createOutputLayerTemplated(const Output& output,
+                                                            std::shared_ptr<Layer> layer,
+                                                            sp<LayerFE> layerFE) {
+    class OutputLayer final : public BaseOutputLayer {
+    public:
+// Clang incorrectly complains that these are unused.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-local-typedef"
+
+        using OutputLayerCompositionState = std::remove_const_t<
+                std::remove_reference_t<decltype(std::declval<BaseOutputLayer>().getState())>>;
+        using Output = std::remove_const_t<
+                std::remove_reference_t<decltype(std::declval<BaseOutputLayer>().getOutput())>>;
+        using Layer = std::remove_reference_t<decltype(std::declval<BaseOutputLayer>().getLayer())>;
+        using LayerFE =
+                std::remove_reference_t<decltype(std::declval<BaseOutputLayer>().getLayerFE())>;
+
+#pragma clang diagnostic pop
+
+        OutputLayer(const Output& output, const std::shared_ptr<Layer>& layer,
+                    const sp<LayerFE>& layerFE)
+              : mOutput(output), mLayer(layer), mLayerFE(layerFE) {}
+        ~OutputLayer() override = default;
+
+    private:
+        // compositionengine::OutputLayer overrides
+        const Output& getOutput() const override { return mOutput; }
+        Layer& getLayer() const override { return *mLayer; }
+        LayerFE& getLayerFE() const override { return *mLayerFE; }
+        const OutputLayerCompositionState& getState() const override { return mState; }
+        OutputLayerCompositionState& editState() override { return mState; }
+
+        // compositionengine::impl::OutputLayer overrides
+        void dumpState(std::string& out) const override { mState.dump(out); }
+
+        const Output& mOutput;
+        const std::shared_ptr<Layer> mLayer;
+        const sp<LayerFE> mLayerFE;
+        OutputLayerCompositionState mState;
+    };
+
+    return std::make_unique<OutputLayer>(output, layer, layerFE);
+}
+
+std::unique_ptr<OutputLayer> createOutputLayer(const compositionengine::Output&,
+                                               const std::shared_ptr<compositionengine::Layer>&,
+                                               const sp<LayerFE>&);
 
 } // namespace impl
 } // namespace android::compositionengine

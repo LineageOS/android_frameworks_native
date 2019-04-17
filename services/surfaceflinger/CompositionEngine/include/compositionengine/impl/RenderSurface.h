@@ -39,7 +39,7 @@ namespace impl {
 class RenderSurface : public compositionengine::RenderSurface {
 public:
     RenderSurface(const CompositionEngine&, compositionengine::Display&,
-                  compositionengine::RenderSurfaceCreationArgs&&);
+                  const compositionengine::RenderSurfaceCreationArgs&);
     ~RenderSurface() override;
 
     bool isValid() const override;
@@ -54,7 +54,7 @@ public:
     status_t beginFrame(bool mustRecompose) override;
     void prepareFrame(bool usesClientComposition, bool usesDeviceComposition) override;
     sp<GraphicBuffer> dequeueBuffer(base::unique_fd* bufferFence) override;
-    void queueBuffer(base::unique_fd&& readyFence) override;
+    void queueBuffer(base::unique_fd readyFence) override;
     void onPresentDisplayCompleted() override;
     void flip() override;
 
@@ -84,7 +84,7 @@ private:
 
 std::unique_ptr<compositionengine::RenderSurface> createRenderSurface(
         const compositionengine::CompositionEngine&, compositionengine::Display&,
-        compositionengine::RenderSurfaceCreationArgs&&);
+        const compositionengine::RenderSurfaceCreationArgs&);
 
 } // namespace impl
 } // namespace compositionengine

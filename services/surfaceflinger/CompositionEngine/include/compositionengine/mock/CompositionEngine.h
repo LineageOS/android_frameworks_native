@@ -32,8 +32,8 @@ public:
     CompositionEngine();
     ~CompositionEngine() override;
 
-    MOCK_METHOD1(createDisplay, std::shared_ptr<Display>(DisplayCreationArgs&&));
-    MOCK_METHOD1(createLayer, std::shared_ptr<Layer>(LayerCreationArgs&&));
+    MOCK_METHOD1(createDisplay, std::shared_ptr<Display>(const DisplayCreationArgs&));
+    MOCK_METHOD1(createLayer, std::shared_ptr<Layer>(const LayerCreationArgs&));
 
     MOCK_CONST_METHOD0(getHwComposer, HWComposer&());
     MOCK_METHOD1(setHwComposer, void(std::unique_ptr<HWComposer>));

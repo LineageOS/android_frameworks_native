@@ -26,9 +26,9 @@ public:
     ~CompositionEngine() override;
 
     std::shared_ptr<compositionengine::Display> createDisplay(
-            compositionengine::DisplayCreationArgs&&) override;
+            const compositionengine::DisplayCreationArgs&) override;
     std::shared_ptr<compositionengine::Layer> createLayer(
-            compositionengine::LayerCreationArgs&&) override;
+            const compositionengine::LayerCreationArgs&) override;
 
     HWComposer& getHwComposer() const override;
     void setHwComposer(std::unique_ptr<HWComposer>) override;

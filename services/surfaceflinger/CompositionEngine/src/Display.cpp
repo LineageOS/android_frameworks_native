@@ -34,17 +34,12 @@ namespace android::compositionengine::impl {
 
 std::shared_ptr<Display> createDisplay(
         const compositionengine::CompositionEngine& compositionEngine,
-        compositionengine::DisplayCreationArgs&& args) {
-    return std::make_shared<Display>(compositionEngine, std::move(args));
+        const compositionengine::DisplayCreationArgs& args) {
+    return createDisplayTemplated<Display>(compositionEngine, args);
 }
 
-Display::Display(const CompositionEngine& compositionEngine, DisplayCreationArgs&& args)
-      : compositionengine::impl::Output(compositionEngine),
-        mIsVirtual(args.isVirtual),
-        mId(args.displayId),
-        mPowerAdvisor(args.powerAdvisor) {
-    editState().isSecure = args.isSecure;
-}
+Display::Display(const DisplayCreationArgs& args)
+      : mIsVirtual(args.isVirtual), mId(args.displayId), mPowerAdvisor(args.powerAdvisor) {}
 
 Display::~Display() = default;
 
@@ -125,13 +120,13 @@ void Display::dump(std::string& out) const {
     Output::dumpBase(out);
 }
 
-void Display::createDisplayColorProfile(DisplayColorProfileCreationArgs&& args) {
-    setDisplayColorProfile(compositionengine::impl::createDisplayColorProfile(std::move(args)));
+void Display::createDisplayColorProfile(const DisplayColorProfileCreationArgs& args) {
+    setDisplayColorProfile(compositionengine::impl::createDisplayColorProfile(args));
 }
 
-void Display::createRenderSurface(RenderSurfaceCreationArgs&& args) {
-    setRenderSurface(compositionengine::impl::createRenderSurface(getCompositionEngine(), *this,
-                                                                  std::move(args)));
+void Display::createRenderSurface(const RenderSurfaceCreationArgs& args) {
+    setRenderSurface(
+            compositionengine::impl::createRenderSurface(getCompositionEngine(), *this, args));
 }
 
 std::unique_ptr<compositionengine::OutputLayer> Display::createOutputLayer(
