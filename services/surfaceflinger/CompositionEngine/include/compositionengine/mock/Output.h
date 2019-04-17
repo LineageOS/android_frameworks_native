@@ -64,20 +64,14 @@ public:
 
     MOCK_CONST_METHOD1(getOutputLayerForLayer,
                        compositionengine::OutputLayer*(compositionengine::Layer*));
-    MOCK_CONST_METHOD2(createOutputLayer,
-                       std::unique_ptr<compositionengine::OutputLayer>(
-                               const std::shared_ptr<compositionengine::Layer>&,
-                               const sp<compositionengine::LayerFE>&));
-    MOCK_METHOD2(getOrCreateOutputLayer,
-                 std::unique_ptr<compositionengine::OutputLayer>(
-                         std::shared_ptr<compositionengine::Layer>,
-                         sp<compositionengine::LayerFE>));
-
-    MOCK_METHOD1(setOutputLayersOrderedByZ, void(OutputLayers&&));
-    MOCK_CONST_METHOD0(getOutputLayersOrderedByZ, OutputLayers&());
+    MOCK_METHOD0(clearOutputLayers, void());
+    MOCK_METHOD2(injectOutputLayerForTest,
+                 compositionengine::OutputLayer*(const std::shared_ptr<compositionengine::Layer>&,
+                                                 const sp<compositionengine::LayerFE>&));
+    MOCK_CONST_METHOD0(getOutputLayerCount, size_t());
+    MOCK_CONST_METHOD1(getOutputLayerOrderedByZByIndex, OutputLayer*(size_t));
 
     MOCK_METHOD1(setReleasedLayers, void(ReleasedLayers&&));
-    MOCK_METHOD0(takeReleasedLayers, ReleasedLayers());
 
     MOCK_METHOD2(prepare, void(const compositionengine::CompositionRefreshArgs&, LayerFESet&));
     MOCK_METHOD1(present, void(const compositionengine::CompositionRefreshArgs&));
@@ -87,10 +81,9 @@ public:
     MOCK_METHOD2(collectVisibleLayers,
                  void(const compositionengine::CompositionRefreshArgs&,
                       compositionengine::Output::CoverageState&));
-    MOCK_METHOD2(getOutputLayerIfVisible,
-                 std::unique_ptr<compositionengine::OutputLayer>(
-                         std::shared_ptr<compositionengine::Layer>,
-                         compositionengine::Output::CoverageState&));
+    MOCK_METHOD2(ensureOutputLayerIfVisible,
+                 void(std::shared_ptr<compositionengine::Layer>,
+                      compositionengine::Output::CoverageState&));
     MOCK_METHOD1(setReleasedLayers, void(const compositionengine::CompositionRefreshArgs&));
 
     MOCK_CONST_METHOD1(updateLayerStateFromFE, void(const CompositionRefreshArgs&));

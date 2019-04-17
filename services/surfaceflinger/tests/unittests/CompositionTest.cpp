@@ -812,14 +812,10 @@ struct BaseLayerVariant {
         EXPECT_CALL(*test->mComposer, createLayer(HWC_DISPLAY, _))
                 .WillOnce(DoAll(SetArgPointee<1>(HWC_LAYER), Return(Error::NONE)));
 
-        std::vector<std::unique_ptr<compositionengine::OutputLayer>> outputLayers;
-        outputLayers.emplace_back(test->mDisplay->getCompositionDisplay()
-                                          ->createOutputLayer(layer->getCompositionLayer(), layer));
-
-        outputLayers.back()->editState().visibleRegion = Region(Rect(0, 0, 100, 100));
-        outputLayers.back()->editState().outputSpaceVisibleRegion = Region(Rect(0, 0, 100, 100));
-
-        test->mDisplay->getCompositionDisplay()->setOutputLayersOrderedByZ(std::move(outputLayers));
+        auto outputLayer = test->mDisplay->getCompositionDisplay()
+                                   ->injectOutputLayerForTest(layer->getCompositionLayer(), layer);
+        outputLayer->editState().visibleRegion = Region(Rect(0, 0, 100, 100));
+        outputLayer->editState().outputSpaceVisibleRegion = Region(Rect(0, 0, 100, 100));
 
         Mock::VerifyAndClear(test->mComposer);
 
@@ -830,8 +826,7 @@ struct BaseLayerVariant {
         EXPECT_CALL(*test->mComposer, destroyLayer(HWC_DISPLAY, HWC_LAYER))
                 .WillOnce(Return(Error::NONE));
 
-        test->mDisplay->getCompositionDisplay()->setOutputLayersOrderedByZ(
-                std::vector<std::unique_ptr<compositionengine::OutputLayer>>());
+        test->mDisplay->getCompositionDisplay()->clearOutputLayers();
         test->mFlinger.mutableDrawingState().layersSortedByZ.clear();
     }
 };

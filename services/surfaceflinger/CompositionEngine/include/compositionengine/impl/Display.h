@@ -41,8 +41,6 @@ public:
 
     // compositionengine::Output overrides
     void dump(std::string&) const override;
-    std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(
-            const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&) const override;
     using compositionengine::impl::Output::setReleasedLayers;
     void setReleasedLayers(const CompositionRefreshArgs&) override;
     void setColorTransform(const CompositionRefreshArgs&) override;
@@ -71,6 +69,10 @@ public:
     virtual void applyChangedTypesToLayers(const ChangedTypes&);
     virtual void applyDisplayRequests(const DisplayRequests&);
     virtual void applyLayerRequestsToLayers(const LayerRequests&);
+
+    // Internal
+    std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(
+            const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&) const;
 
 private:
     const bool mIsVirtual;

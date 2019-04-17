@@ -48,17 +48,33 @@ using testing::StrictMock;
 constexpr DisplayId DEFAULT_DISPLAY_ID = DisplayId{42};
 
 struct DisplayTest : public testing::Test {
+    class Display : public impl::Display {
+    public:
+        explicit Display(const compositionengine::DisplayCreationArgs& args)
+              : impl::Display(args) {}
+
+        using impl::Display::injectOutputLayerForTest;
+        virtual void injectOutputLayerForTest(std::unique_ptr<compositionengine::OutputLayer>) = 0;
+    };
+
+    static std::shared_ptr<Display> createDisplay(
+            const compositionengine::CompositionEngine& compositionEngine,
+            compositionengine::DisplayCreationArgs&& args) {
+        return impl::createDisplayTemplated<Display>(compositionEngine, args);
+    }
+
     DisplayTest() {
         EXPECT_CALL(mCompositionEngine, getHwComposer()).WillRepeatedly(ReturnRef(mHwComposer));
         EXPECT_CALL(*mLayer1, getHwcLayer()).WillRepeatedly(Return(&mHWC2Layer1));
         EXPECT_CALL(*mLayer2, getHwcLayer()).WillRepeatedly(Return(&mHWC2Layer2));
         EXPECT_CALL(*mLayer3, getHwcLayer()).WillRepeatedly(Return(nullptr));
 
-        std::vector<std::unique_ptr<OutputLayer>> layers;
-        layers.emplace_back(mLayer1);
-        layers.emplace_back(mLayer2);
-        layers.emplace_back(mLayer3);
-        mDisplay->setOutputLayersOrderedByZ(std::move(layers));
+        mDisplay->injectOutputLayerForTest(
+                std::unique_ptr<compositionengine::OutputLayer>(mLayer1));
+        mDisplay->injectOutputLayerForTest(
+                std::unique_ptr<compositionengine::OutputLayer>(mLayer2));
+        mDisplay->injectOutputLayerForTest(
+                std::unique_ptr<compositionengine::OutputLayer>(mLayer3));
     }
 
     StrictMock<android::mock::HWComposer> mHwComposer;
@@ -71,12 +87,11 @@ struct DisplayTest : public testing::Test {
     mock::OutputLayer* mLayer1 = new StrictMock<mock::OutputLayer>();
     mock::OutputLayer* mLayer2 = new StrictMock<mock::OutputLayer>();
     mock::OutputLayer* mLayer3 = new StrictMock<mock::OutputLayer>();
-    std::shared_ptr<impl::Display> mDisplay =
-            impl::createDisplay(mCompositionEngine,
-                                DisplayCreationArgsBuilder()
-                                        .setDisplayId(DEFAULT_DISPLAY_ID)
-                                        .setPowerAdvisor(&mPowerAdvisor)
-                                        .build());
+    std::shared_ptr<Display> mDisplay = createDisplay(mCompositionEngine,
+                                                      DisplayCreationArgsBuilder()
+                                                              .setDisplayId(DEFAULT_DISPLAY_ID)
+                                                              .setPowerAdvisor(&mPowerAdvisor)
+                                                              .build());
 };
 
 /*
@@ -376,7 +391,20 @@ struct DisplayChooseCompositionStrategyTest : public testing::Test {
         };
 
         // These need implementations though are not expected to be called.
+        MOCK_CONST_METHOD0(getOutputLayerCount, size_t());
+        MOCK_CONST_METHOD1(getOutputLayerOrderedByZByIndex,
+                           compositionengine::OutputLayer*(size_t));
+        MOCK_METHOD3(ensureOutputLayer,
+                     compositionengine::OutputLayer*(
+                             std::optional<size_t>,
+                             const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&));
+        MOCK_METHOD0(finalizePendingOutputLayers, void());
+        MOCK_METHOD0(clearOutputLayers, void());
         MOCK_CONST_METHOD1(dumpState, void(std::string&));
+        MOCK_METHOD2(injectOutputLayerForTest,
+                     compositionengine::OutputLayer*(
+                             const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&));
+        MOCK_METHOD1(injectOutputLayerForTest, void(std::unique_ptr<OutputLayer>));
 
         const compositionengine::CompositionEngine& mCompositionEngine;
         impl::OutputCompositionState mState;

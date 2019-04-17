@@ -132,7 +132,7 @@ void Display::createRenderSurface(const RenderSurfaceCreationArgs& args) {
 std::unique_ptr<compositionengine::OutputLayer> Display::createOutputLayer(
         const std::shared_ptr<compositionengine::Layer>& layer,
         const sp<compositionengine::LayerFE>& layerFE) const {
-    auto result = Output::createOutputLayer(layer, layerFE);
+    auto result = impl::createOutputLayer(*this, layer, layerFE);
 
     if (result && mId) {
         auto& hwc = getCompositionEngine().getHwComposer();
@@ -167,7 +167,7 @@ void Display::setReleasedLayers(const compositionengine::CompositionRefreshArgs&
 
     // Any non-null entries in the current list of layers are layers that are no
     // longer going to be visible
-    for (auto& layer : getOutputLayersOrderedByZ()) {
+    for (auto* layer : getOutputLayersOrderedByZ()) {
         if (!layer) {
             continue;
         }
@@ -230,14 +230,14 @@ bool Display::getSkipColorTransform() const {
 }
 
 bool Display::anyLayersRequireClientComposition() const {
-    const auto& layers = getOutputLayersOrderedByZ();
-    return std::any_of(layers.cbegin(), layers.cend(),
+    const auto layers = getOutputLayersOrderedByZ();
+    return std::any_of(layers.begin(), layers.end(),
                        [](const auto& layer) { return layer->requiresClientComposition(); });
 }
 
 bool Display::allLayersRequireClientComposition() const {
-    const auto& layers = getOutputLayersOrderedByZ();
-    return std::all_of(layers.cbegin(), layers.cend(),
+    const auto layers = getOutputLayersOrderedByZ();
+    return std::all_of(layers.begin(), layers.end(),
                        [](const auto& layer) { return layer->requiresClientComposition(); });
 }
 
@@ -246,7 +246,7 @@ void Display::applyChangedTypesToLayers(const ChangedTypes& changedTypes) {
         return;
     }
 
-    for (auto& layer : getOutputLayersOrderedByZ()) {
+    for (auto* layer : getOutputLayersOrderedByZ()) {
         auto hwcLayer = layer->getHwcLayer();
         if (!hwcLayer) {
             continue;
@@ -267,7 +267,7 @@ void Display::applyDisplayRequests(const DisplayRequests& displayRequests) {
 }
 
 void Display::applyLayerRequestsToLayers(const LayerRequests& layerRequests) {
-    for (auto& layer : getOutputLayersOrderedByZ()) {
+    for (auto* layer : getOutputLayersOrderedByZ()) {
         layer->prepareForDeviceLayerRequests();
 
         auto hwcLayer = layer->getHwcLayer();
@@ -295,7 +295,7 @@ compositionengine::Output::FrameFences Display::presentAndGetFrameFences() {
     result.presentFence = hwc.getPresentFence(*mId);
 
     // TODO(b/121291683): Change HWComposer call to return entire map
-    for (const auto& layer : getOutputLayersOrderedByZ()) {
+    for (const auto* layer : getOutputLayersOrderedByZ()) {
         auto hwcLayer = layer->getHwcLayer();
         if (!hwcLayer) {
             continue;

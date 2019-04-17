@@ -186,8 +186,8 @@ void Output::dumpBase(std::string& out) const {
         out.append("    No render surface!\n");
     }
 
-    android::base::StringAppendF(&out, "\n   %zu Layers\b", mOutputLayersOrderedByZ.size());
-    for (const auto& outputLayer : mOutputLayersOrderedByZ) {
+    android::base::StringAppendF(&out, "\n   %zu Layers\n", getOutputLayerCount());
+    for (const auto* outputLayer : getOutputLayersOrderedByZ()) {
         if (!outputLayer) {
             continue;
         }
@@ -253,47 +253,30 @@ bool Output::belongsInOutput(const compositionengine::Layer* layer) const {
     return belongsInOutput(layerFEState.layerStackId, layerFEState.internalOnly);
 }
 
-compositionengine::OutputLayer* Output::getOutputLayerForLayer(
-        compositionengine::Layer* layer) const {
-    for (const auto& outputLayer : mOutputLayersOrderedByZ) {
-        if (outputLayer && &outputLayer->getLayer() == layer) {
-            return outputLayer.get();
-        }
-    }
-    return nullptr;
-}
-
-std::unique_ptr<compositionengine::OutputLayer> Output::takeOutputLayerForLayer(
-        compositionengine::Layer* layer) {
-    // Removes the outputLayer from mOutputLayersorderedByZ and transfers ownership to the caller.
-    for (auto& outputLayer : mOutputLayersOrderedByZ) {
-        if (outputLayer && &outputLayer->getLayer() == layer) {
-            return std::move(outputLayer);
-        }
-    }
-    return nullptr;
-}
-
 std::unique_ptr<compositionengine::OutputLayer> Output::createOutputLayer(
-        const std::shared_ptr<compositionengine::Layer>& layer,
-        const sp<compositionengine::LayerFE>& layerFE) const {
+        const std::shared_ptr<compositionengine::Layer>& layer, const sp<LayerFE>& layerFE) const {
     return impl::createOutputLayer(*this, layer, layerFE);
 }
 
-void Output::setOutputLayersOrderedByZ(OutputLayers&& layers) {
-    mOutputLayersOrderedByZ = std::move(layers);
+compositionengine::OutputLayer* Output::getOutputLayerForLayer(
+        compositionengine::Layer* layer) const {
+    auto index = findCurrentOutputLayerForLayer(layer);
+    return index ? getOutputLayerOrderedByZByIndex(*index) : nullptr;
 }
 
-const Output::OutputLayers& Output::getOutputLayersOrderedByZ() const {
-    return mOutputLayersOrderedByZ;
+std::optional<size_t> Output::findCurrentOutputLayerForLayer(
+        compositionengine::Layer* layer) const {
+    for (size_t i = 0; i < getOutputLayerCount(); i++) {
+        auto outputLayer = getOutputLayerOrderedByZByIndex(i);
+        if (outputLayer && &outputLayer->getLayer() == layer) {
+            return i;
+        }
+    }
+    return std::nullopt;
 }
 
 void Output::setReleasedLayers(Output::ReleasedLayers&& layers) {
     mReleasedLayers = std::move(layers);
-}
-
-Output::ReleasedLayers Output::takeReleasedLayers() {
-    return std::move(mReleasedLayers);
 }
 
 void Output::prepare(const compositionengine::CompositionRefreshArgs& refreshArgs,
@@ -345,47 +328,34 @@ void Output::rebuildLayerStacks(const compositionengine::CompositionRefreshArgs&
 
 void Output::collectVisibleLayers(const compositionengine::CompositionRefreshArgs& refreshArgs,
                                   compositionengine::Output::CoverageState& coverage) {
-    // We build up a list of all layers that are going to be visible in the new
-    // frame.
-    compositionengine::Output::OutputLayers newLayersSortedByZ;
-
     // Evaluate the layers from front to back to determine what is visible. This
     // also incrementally calculates the coverage information for each layer as
     // well as the entire output.
     for (auto& layer : reversed(refreshArgs.layers)) {
-        // Incrementally process the coverage for each layer, obtaining an
-        // optional outputLayer if the layer is visible.
-        auto outputLayer = getOutputLayerIfVisible(layer, coverage);
-        if (outputLayer) {
-            newLayersSortedByZ.emplace_back(std::move(outputLayer));
-        }
+        // Incrementally process the coverage for each layer
+        ensureOutputLayerIfVisible(layer, coverage);
 
         // TODO(b/121291683): Stop early if the output is completely covered and
         // no more layers could even be visible underneath the ones on top.
     }
 
-    // Since we walked the layers in reverse order, we need to reverse
-    // newLayersSortedByZ to get the back-to-front ordered list of layers.
-    std::reverse(newLayersSortedByZ.begin(), newLayersSortedByZ.end());
+    setReleasedLayers(refreshArgs);
+
+    finalizePendingOutputLayers();
 
     // Generate a simple Z-order values to each visible output layer
     uint32_t zOrder = 0;
-    for (auto& outputLayer : newLayersSortedByZ) {
+    for (auto* outputLayer : getOutputLayersOrderedByZ()) {
         outputLayer->editState().z = zOrder++;
     }
-
-    setReleasedLayers(refreshArgs);
-
-    mOutputLayersOrderedByZ = std::move(newLayersSortedByZ);
 }
 
-std::unique_ptr<compositionengine::OutputLayer> Output::getOutputLayerIfVisible(
-        std::shared_ptr<compositionengine::Layer> layer,
-        compositionengine::Output::CoverageState& coverage) {
+void Output::ensureOutputLayerIfVisible(std::shared_ptr<compositionengine::Layer> layer,
+                                        compositionengine::Output::CoverageState& coverage) {
     // Note: Converts a wp<LayerFE> to a sp<LayerFE>
     auto layerFE = layer->getLayerFE();
     if (layerFE == nullptr) {
-        return nullptr;
+        return;
     }
 
     // Ensure we have a snapshot of the basic geometry layer state. Limit the
@@ -402,7 +372,7 @@ std::unique_ptr<compositionengine::OutputLayer> Output::getOutputLayerIfVisible(
 
     // Only consider the layers on the given layer stack
     if (!belongsInOutput(layer.get())) {
-        return nullptr;
+        return;
     }
 
     /*
@@ -436,7 +406,7 @@ std::unique_ptr<compositionengine::OutputLayer> Output::getOutputLayerIfVisible(
 
     // handle hidden surfaces by setting the visible region to empty
     if (CC_UNLIKELY(!layerFEState.isVisible)) {
-        return nullptr;
+        return;
     }
 
     const ui::Transform& tr = layerFEState.geomLayerTransform;
@@ -447,7 +417,7 @@ std::unique_ptr<compositionengine::OutputLayer> Output::getOutputLayerIfVisible(
     visibleRegion.set(Rect(tr.transform(layerFEState.geomLayerBounds)));
 
     if (visibleRegion.isEmpty()) {
-        return nullptr;
+        return;
     }
 
     // Remove the transparent area from the visible region
@@ -483,12 +453,14 @@ std::unique_ptr<compositionengine::OutputLayer> Output::getOutputLayerIfVisible(
     visibleRegion.subtractSelf(coverage.aboveOpaqueLayers);
 
     if (visibleRegion.isEmpty()) {
-        return nullptr;
+        return;
     }
 
     // Get coverage information for the layer as previously displayed,
     // also taking over ownership from mOutputLayersorderedByZ.
-    auto prevOutputLayer = takeOutputLayerForLayer(layer.get());
+    auto prevOutputLayerIndex = findCurrentOutputLayerForLayer(layer.get());
+    auto prevOutputLayer =
+            prevOutputLayerIndex ? getOutputLayerOrderedByZByIndex(*prevOutputLayerIndex) : nullptr;
 
     //  Get coverage information for the layer as previously displayed
     // TODO(b/121291683): Define kEmptyRegion as a constant in Region.h
@@ -540,13 +512,12 @@ std::unique_ptr<compositionengine::OutputLayer> Output::getOutputLayerIfVisible(
     Region drawRegion(outputState.transform.transform(visibleNonTransparentRegion));
     drawRegion.andSelf(outputState.bounds);
     if (drawRegion.isEmpty()) {
-        return nullptr;
+        return;
     }
 
     // The layer is visible. Either reuse the existing outputLayer if we have
     // one, or create a new one if we do not.
-    std::unique_ptr<compositionengine::OutputLayer> result =
-            prevOutputLayer ? std::move(prevOutputLayer) : createOutputLayer(layer, layerFE);
+    auto result = ensureOutputLayer(prevOutputLayerIndex, layer, layerFE);
 
     // Store the layer coverage information into the layer state as some of it
     // is useful later.
@@ -556,8 +527,6 @@ std::unique_ptr<compositionengine::OutputLayer> Output::getOutputLayerIfVisible(
     outputLayerState.coveredRegion = coveredRegion;
     outputLayerState.outputSpaceVisibleRegion = outputState.transform.transform(
             outputLayerState.visibleRegion.intersect(outputState.viewport));
-
-    return result;
 }
 
 void Output::setReleasedLayers(const compositionengine::CompositionRefreshArgs&) {
@@ -565,7 +534,7 @@ void Output::setReleasedLayers(const compositionengine::CompositionRefreshArgs&)
 }
 
 void Output::updateLayerStateFromFE(const CompositionRefreshArgs& args) const {
-    for (auto& layer : mOutputLayersOrderedByZ) {
+    for (auto* layer : getOutputLayersOrderedByZ()) {
         layer->getLayerFE().latchCompositionState(layer->getLayer().editFEState(),
                                                   args.updatingGeometryThisFrame
                                                           ? LayerFE::StateSubset::GeometryAndContent
@@ -578,7 +547,7 @@ void Output::updateAndWriteCompositionState(
     ATRACE_CALL();
     ALOGV(__FUNCTION__);
 
-    for (auto& layer : mOutputLayersOrderedByZ) {
+    for (auto* layer : getOutputLayersOrderedByZ()) {
         if (refreshArgs.devOptForceClientComposition) {
             layer->editState().forceClientComposition = true;
         }
@@ -608,7 +577,7 @@ ui::Dataspace Output::getBestDataspace(ui::Dataspace* outHdrDataSpace,
     ui::Dataspace bestDataSpace = ui::Dataspace::V0_SRGB;
     *outHdrDataSpace = ui::Dataspace::UNKNOWN;
 
-    for (const auto& layer : mOutputLayersOrderedByZ) {
+    for (const auto* layer : getOutputLayersOrderedByZ()) {
         switch (layer->getLayer().getFEState().dataspace) {
             case ui::Dataspace::V0_SCRGB:
             case ui::Dataspace::V0_SCRGB_LINEAR:
@@ -702,7 +671,7 @@ compositionengine::Output::ColorProfile Output::pickColorProfile(
 void Output::beginFrame() {
     auto& outputState = editState();
     const bool dirty = !getDirtyRegion(false).isEmpty();
-    const bool empty = mOutputLayersOrderedByZ.empty();
+    const bool empty = getOutputLayerCount() == 0;
     const bool wasEmpty = !outputState.lastCompositionHadVisibleLayers;
 
     // If nothing has changed (!dirty), don't recompose.
@@ -832,11 +801,10 @@ std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion
     // least one layer has protected content, we need to use a secure back
     // buffer.
     if (outputState.isSecure && supportsProtectedContent) {
-        bool needsProtected =
-                std::any_of(mOutputLayersOrderedByZ.begin(), mOutputLayersOrderedByZ.end(),
-                            [](auto& layer) {
-                                return layer->getLayer().getFEState().hasProtectedContent;
-                            });
+        auto layers = getOutputLayersOrderedByZ();
+        bool needsProtected = std::any_of(layers.begin(), layers.end(), [](auto* layer) {
+            return layer->getLayer().getFEState().hasProtectedContent;
+        });
         if (needsProtected != renderEngine.isProtected()) {
             renderEngine.useProtectedContext(needsProtected);
         }
@@ -888,7 +856,7 @@ std::vector<renderengine::LayerSettings> Output::generateClientCompositionReques
     // Used when a layer clears part of the buffer.
     Region dummyRegion;
 
-    for (auto& layer : mOutputLayersOrderedByZ) {
+    for (auto* layer : getOutputLayersOrderedByZ()) {
         const auto& layerState = layer->getState();
         const auto& layerFEState = layer->getLayer().getFEState();
         auto& layerFE = layer->getLayerFE();
@@ -979,7 +947,7 @@ void Output::postFramebuffer() {
 
     mRenderSurface->onPresentDisplayCompleted();
 
-    for (auto& layer : mOutputLayersOrderedByZ) {
+    for (auto* layer : getOutputLayersOrderedByZ()) {
         // The layer buffer from the previous frame (if any) is released
         // by HWC only when the release fence from this frame (if any) is
         // signaled.  Always get the release fence from HWC first.
@@ -1006,7 +974,7 @@ void Output::postFramebuffer() {
     }
 
     // We've got a list of layers needing fences, that are disjoint with
-    // mOutputLayersOrderedByZ.  The best we can do is to
+    // OutputLayersOrderedByZ.  The best we can do is to
     // supply them with the present fence.
     for (auto& weakLayer : mReleasedLayers) {
         if (auto layer = weakLayer.promote(); layer != nullptr) {
