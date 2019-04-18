@@ -20,6 +20,14 @@ ndk_library {
     unversioned_until: "current",
 }
 
+llndk_library {
+    name: "libvulkan",
+    symbol_file: "libvulkan.map.txt",
+    export_llndk_headers: [
+        "vulkan_headers_llndk",
+    ],
+}
+
 cc_library_shared {
     name: "libvulkan",
     clang: true,
@@ -65,10 +73,11 @@ cc_library_shared {
         "swapchain.cpp",
     ],
 
-    export_header_lib_headers: ["vulkan_headers"],
     header_libs: [
+        "hwvulkan_headers",
         "vulkan_headers",
     ],
+    export_header_lib_headers: ["vulkan_headers"],
     shared_libs: [
         "android.hardware.configstore@1.0",
         "android.hardware.configstore-utils",
