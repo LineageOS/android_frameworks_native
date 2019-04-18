@@ -5876,12 +5876,15 @@ status_t SurfaceFlinger::getAllowedDisplayConfigs(const sp<IBinder>& displayToke
 
     Mutex::Autolock lock(mStateLock);
 
-    if (displayToken != getInternalDisplayTokenLocked()) {
-        ALOGE("%s is only supported for the internal display", __FUNCTION__);
+    const auto display = getDisplayDeviceLocked(displayToken);
+    if (!display) {
         return NAME_NOT_FOUND;
     }
 
-    outAllowedConfigs->assign(mAllowedDisplayConfigs.begin(), mAllowedDisplayConfigs.end());
+    if (display->isPrimary()) {
+        outAllowedConfigs->assign(mAllowedDisplayConfigs.begin(), mAllowedDisplayConfigs.end());
+    }
+
     return NO_ERROR;
 }
 
