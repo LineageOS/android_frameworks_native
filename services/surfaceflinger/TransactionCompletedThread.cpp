@@ -141,11 +141,11 @@ status_t TransactionCompletedThread::addPresentedCallbackHandles(
             } else {
                 ALOGW("there are more latched callbacks than there were registered callbacks");
             }
+            if (listener->second.size() == 0) {
+                mPendingTransactions.erase(listener);
+            }
         } else {
             ALOGW("cannot find listener in mPendingTransactions");
-        }
-        if (listener->second.size() == 0) {
-            mPendingTransactions.erase(listener);
         }
 
         status_t err = addCallbackHandle(handle);
