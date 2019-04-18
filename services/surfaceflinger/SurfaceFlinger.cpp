@@ -3586,7 +3586,7 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
     if (flags & eAnimation) {
         // For window updates that are part of an animation we must wait for
         // previous animation "frames" to be handled.
-        while (mAnimTransactionPending) {
+        while (!isMainThread && mAnimTransactionPending) {
             status_t err = mTransactionCV.waitRelative(mStateLock, s2ns(5));
             if (CC_UNLIKELY(err != NO_ERROR)) {
                 // just in case something goes wrong in SF, return to the
