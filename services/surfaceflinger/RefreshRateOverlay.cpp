@@ -47,7 +47,7 @@ bool RefreshRateOverlay::createLayer() {
 void RefreshRateOverlay::changeRefreshRate(RefreshRateType type) {
     const half3& color = (type == RefreshRateType::PERFORMANCE) ? GREEN : RED;
     mLayer->setColor(color);
-    mFlinger.setTransactionFlags(eTransactionMask);
+    mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
 }
 
 }; // namespace android
