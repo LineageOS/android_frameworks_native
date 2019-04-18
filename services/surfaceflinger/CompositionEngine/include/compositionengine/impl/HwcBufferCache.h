@@ -48,20 +48,11 @@ public:
     void getHwcBuffer(int slot, const sp<GraphicBuffer>& buffer, uint32_t* outSlot,
                       sp<GraphicBuffer>* outBuffer);
 
-protected:
-    bool getSlot(const sp<GraphicBuffer>& buffer, uint32_t* outSlot);
-    uint32_t getLeastRecentlyUsedSlot();
-    uint64_t getCounter();
-
 private:
     // an array where the index corresponds to a slot and the value corresponds to a (counter,
     // buffer) pair. "counter" is a unique value that indicates the last time this slot was updated
     // or used and allows us to keep track of the least-recently used buffer.
-    std::pair<uint64_t, wp<GraphicBuffer>> mBuffers[BufferQueue::NUM_BUFFER_SLOTS];
-
-    // The cache increments this counter value when a slot is updated or used.
-    // Used to track the least recently-used buffer
-    uint64_t mCounter = 1;
+    wp<GraphicBuffer> mBuffers[BufferQueue::NUM_BUFFER_SLOTS];
 };
 
 } // namespace compositionengine::impl

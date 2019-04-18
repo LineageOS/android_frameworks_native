@@ -40,9 +40,13 @@ namespace android {
 class Parcel;
 class ISurfaceComposerClient;
 
-struct cached_buffer_t {
-    sp<IBinder> token = nullptr;
-    uint64_t cacheId;
+struct client_cache_t {
+    wp<IBinder> token = nullptr;
+    uint64_t id;
+
+    bool operator==(const client_cache_t& other) const { return id == other.id; }
+
+    bool isValid() const { return token != nullptr; }
 };
 
 /*
@@ -187,7 +191,7 @@ struct layer_state_t {
     InputWindowInfo inputInfo;
 #endif
 
-    cached_buffer_t cachedBuffer;
+    client_cache_t cachedBuffer;
 
     LayerMetadata metadata;
 

@@ -388,9 +388,9 @@ void SurfaceComposerClient::doDropReferenceTransaction(const sp<IBinder>& handle
 void SurfaceComposerClient::doUncacheBufferTransaction(uint64_t cacheId) {
     sp<ISurfaceComposer> sf(ComposerService::getComposerService());
 
-    cached_buffer_t uncacheBuffer;
+    client_cache_t uncacheBuffer;
     uncacheBuffer.token = BufferCache::getInstance().getToken();
-    uncacheBuffer.cacheId = cacheId;
+    uncacheBuffer.id = cacheId;
 
     sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
     sf->setTransactionState({}, {}, 0, applyToken, {}, -1, uncacheBuffer, {});
@@ -424,7 +424,7 @@ void SurfaceComposerClient::Transaction::cacheBuffers() {
         }
         s->what |= layer_state_t::eCachedBufferChanged;
         s->cachedBuffer.token = BufferCache::getInstance().getToken();
-        s->cachedBuffer.cacheId = cacheId;
+        s->cachedBuffer.id = cacheId;
 
         // If we have more buffers than the size of the cache, we should stop caching so we don't
         // evict other buffers in this transaction

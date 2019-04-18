@@ -18,32 +18,50 @@
 
 #include <android-base/thread_annotations.h>
 #include <binder/IBinder.h>
+#include <gui/LayerState.h>
 #include <ui/GraphicBuffer.h>
 #include <utils/RefBase.h>
 #include <utils/Singleton.h>
 
-#include <array>
 #include <map>
 #include <mutex>
+#include <set>
+#include <unordered_map>
 
 #define BUFFER_CACHE_MAX_SIZE 64
 
 namespace android {
 
-class BufferStateLayerCache : public Singleton<BufferStateLayerCache> {
+class ClientCache : public Singleton<ClientCache> {
 public:
-    BufferStateLayerCache();
+    ClientCache();
 
-    void add(const sp<IBinder>& processToken, uint64_t id, const sp<GraphicBuffer>& buffer);
-    void erase(const sp<IBinder>& processToken, uint64_t id);
+    void add(const client_cache_t& cacheId, const sp<GraphicBuffer>& buffer);
+    void erase(const client_cache_t& cacheId);
 
-    sp<GraphicBuffer> get(const sp<IBinder>& processToken, uint64_t id);
+    sp<GraphicBuffer> get(const client_cache_t& cacheId);
 
     void removeProcess(const wp<IBinder>& processToken);
 
+    class ErasedRecipient : public virtual RefBase {
+    public:
+        virtual void bufferErased(const client_cache_t& clientCacheId) = 0;
+    };
+
+    void registerErasedRecipient(const client_cache_t& cacheId,
+                                 const wp<ErasedRecipient>& recipient);
+    void unregisterErasedRecipient(const client_cache_t& cacheId,
+                                   const wp<ErasedRecipient>& recipient);
+
 private:
     std::mutex mMutex;
-    std::map<wp<IBinder> /*caching process*/, std::map<uint64_t /*Cache id*/, sp<GraphicBuffer>>>
+
+    struct ClientCacheBuffer {
+        sp<GraphicBuffer> buffer;
+        std::set<wp<ErasedRecipient>> recipients;
+    };
+    std::map<wp<IBinder> /*caching process*/,
+             std::unordered_map<uint64_t /*cache id*/, ClientCacheBuffer>>
             mBuffers GUARDED_BY(mMutex);
 
     class CacheDeathRecipient : public IBinder::DeathRecipient {
@@ -52,6 +70,9 @@ private:
     };
 
     sp<CacheDeathRecipient> mDeathRecipient;
+
+    bool getBuffer(const client_cache_t& cacheId, ClientCacheBuffer** outClientCacheBuffer)
+            REQUIRES(mMutex);
 };
 
 }; // namespace android
