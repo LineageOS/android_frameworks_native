@@ -3620,7 +3620,7 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
     }
 
     // If the state doesn't require a traversal and there are callbacks, send them now
-    if (!(clientStateFlags & eTraversalNeeded)) {
+    if (!(clientStateFlags & eTraversalNeeded) && !listenerCallbacks.empty()) {
         mTransactionCompletedThread.sendCallbacks();
     }
     transactionFlags |= clientStateFlags;
