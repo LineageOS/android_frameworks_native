@@ -1029,9 +1029,13 @@ Error Layer::setColorTransform(const android::mat4& matrix) {
     if (matrix == mColorMatrix) {
         return Error::None;
     }
-    mColorMatrix = matrix;
     auto intError = mComposer.setLayerColorTransform(mDisplayId, mId, matrix.asArray());
-    return static_cast<Error>(intError);
+    Error error = static_cast<Error>(intError);
+    if (error != Error::None) {
+        return error;
+    }
+    mColorMatrix = matrix;
+    return error;
 }
 
 } // namespace impl
