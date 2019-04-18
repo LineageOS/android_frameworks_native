@@ -41,6 +41,9 @@ cc_library_shared {
         "null_driver_gen.cpp",
     ],
 
-    header_libs: ["vulkan_headers"],
+    header_libs: [
+        "hwvulkan_headers",
+        "vulkan_headers",
+    ],
     shared_libs: ["liblog"],
 }
