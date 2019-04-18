@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Headers module is in frameworks/native/vulkan/Android.bp.
+// Headers module is in external/vulkan-headers/Android.bp.
 ndk_library {
     name: "libvulkan",
     symbol_file: "libvulkan.map.txt",
