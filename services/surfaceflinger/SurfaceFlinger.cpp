@@ -2195,8 +2195,9 @@ void SurfaceFlinger::rebuildLayerStacks() {
 //  - Dataspace::UNKNOWN
 //  - Dataspace::BT2020_HLG
 //  - Dataspace::BT2020_PQ
-Dataspace SurfaceFlinger::getBestDataspace(const sp<const DisplayDevice>& display,
-                                           Dataspace* outHdrDataSpace) const {
+Dataspace SurfaceFlinger::getBestDataspace(const sp<DisplayDevice>& display,
+                                           Dataspace* outHdrDataSpace,
+                                           bool* outIsHdrClientComposition) const {
     Dataspace bestDataSpace = Dataspace::V0_SRGB;
     *outHdrDataSpace = Dataspace::UNKNOWN;
 
@@ -2217,6 +2218,7 @@ Dataspace SurfaceFlinger::getBestDataspace(const sp<const DisplayDevice>& displa
             case Dataspace::BT2020_ITU_PQ:
                 bestDataSpace = Dataspace::DISPLAY_P3;
                 *outHdrDataSpace = Dataspace::BT2020_PQ;
+                *outIsHdrClientComposition = layer->getForceClientComposition(display);
                 break;
             case Dataspace::BT2020_HLG:
             case Dataspace::BT2020_ITU_HLG:
@@ -2246,7 +2248,8 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& display, ColorMode* 
     }
 
     Dataspace hdrDataSpace;
-    Dataspace bestDataSpace = getBestDataspace(display, &hdrDataSpace);
+    bool isHdrClientComposition = false;
+    Dataspace bestDataSpace = getBestDataspace(display, &hdrDataSpace, &isHdrClientComposition);
 
     auto* profile = display->getCompositionDisplay()->getDisplayColorProfile();
 
@@ -2262,8 +2265,8 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& display, ColorMode* 
     }
 
     // respect hdrDataSpace only when there is no legacy HDR support
-    const bool isHdr =
-            hdrDataSpace != Dataspace::UNKNOWN && !profile->hasLegacyHdrSupport(hdrDataSpace);
+    const bool isHdr = hdrDataSpace != Dataspace::UNKNOWN &&
+            !profile->hasLegacyHdrSupport(hdrDataSpace) && !isHdrClientComposition;
     if (isHdr) {
         bestDataSpace = hdrDataSpace;
     }
