@@ -1158,23 +1158,6 @@ Error Composer::setLayerPerFrameMetadataBlobs(
     return Error::NONE;
 }
 
-Error Composer::getDisplayBrightnessSupport(Display display, bool* outSupport) {
-    if (!mClient_2_3) {
-        return Error::UNSUPPORTED;
-    }
-    Error error = kDefaultError;
-    mClient_2_3->getDisplayBrightnessSupport(display,
-                                             [&](const auto& tmpError, const auto& tmpSupport) {
-                                                 error = tmpError;
-                                                 if (error != Error::NONE) {
-                                                     return;
-                                                 }
-
-                                                 *outSupport = tmpSupport;
-                                             });
-    return error;
-}
-
 Error Composer::setDisplayBrightness(Display display, float brightness) {
     if (!mClient_2_3) {
         return Error::UNSUPPORTED;
