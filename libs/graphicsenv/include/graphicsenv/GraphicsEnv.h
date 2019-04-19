@@ -34,7 +34,10 @@ public:
     // (drivers must be stored uncompressed and page aligned); such elements
     // in the search path must have a '!' after the zip filename, e.g.
     //     /data/app/com.example.driver/base.apk!/lib/arm64-v8a
-    void setDriverPath(const std::string path);
+    // Also set additional required sphal libraries to the linker for loading
+    // graphics drivers. The string is a list of libraries separated by ':',
+    // which is required by android_link_namespaces.
+    void setDriverPathAndSphalLibraries(const std::string path, const std::string sphalLibraries);
     android_namespace_t* getDriverNamespace();
 
     void setLayerPaths(NativeLoaderNamespace* appNamespace, const std::string layerPaths);
@@ -47,6 +50,7 @@ public:
 private:
     GraphicsEnv() = default;
     std::string mDriverPath;
+    std::string mSphalLibraries;
     std::string mDebugLayers;
     std::string mLayerPaths;
     android_namespace_t* mDriverNamespace = nullptr;
