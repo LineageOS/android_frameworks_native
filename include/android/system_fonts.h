@@ -15,6 +15,11 @@
  */
 
 /**
+ * @addtogroup Font
+ * {
+ */
+
+/**
  * @file system_fonts.h
  * @brief Provides the system font configurations.
  *
@@ -122,3 +127,5 @@ AFont* _Nullable ASystemFontIterator_next(ASystemFontIterator* _Nonnull iterator
 __END_DECLS
 
 #endif // ANDROID_SYSTEM_FONTS_H
+
+/** @} */
