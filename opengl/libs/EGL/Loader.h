@@ -56,6 +56,7 @@ public:
 private:
     Loader();
     void *load_driver(const char* kind, egl_connection_t* cnx, uint32_t mask);
+    void initialize_api(void* dso, egl_connection_t* cnx, uint32_t mask);
 
     static __attribute__((noinline))
     void init_api(void* dso,
