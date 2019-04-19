@@ -1898,6 +1898,7 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet,
 
         layerInfo->set_is_opaque(isOpaque(state));
         layerInfo->set_invalidate(contentDirty);
+        layerInfo->set_is_protected(isProtected());
 
         // XXX (b/79210409) mCurrentDataSpace is not protected
         layerInfo->set_dataspace(

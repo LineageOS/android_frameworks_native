@@ -15,6 +15,11 @@
  */
 
 /**
+ * @addtogroup Font
+ * {
+ */
+
+/**
  * @file font_matcher.h
  * @brief Provides the font matching logic with various inputs.
  *
@@ -205,3 +210,5 @@ AFont* _Nonnull AFontMatcher_match(
 __END_DECLS
 
 #endif // ANDROID_FONT_MATCHER_H
+
+/** @} */
