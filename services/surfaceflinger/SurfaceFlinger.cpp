@@ -1005,6 +1005,7 @@ bool SurfaceFlinger::performSetActiveConfig() {
         // display is not valid or we are already in the requested mode
         // on both cases there is nothing left to do
         std::lock_guard<std::mutex> lock(mActiveConfigLock);
+        mDesiredActiveConfig.event = Scheduler::ConfigEvent::None;
         mDesiredActiveConfigChanged = false;
         ATRACE_INT("DesiredActiveConfigChanged", mDesiredActiveConfigChanged);
         return false;
@@ -1017,6 +1018,8 @@ bool SurfaceFlinger::performSetActiveConfig() {
         std::lock_guard<std::mutex> lock(mActiveConfigLock);
         mDesiredActiveConfig.event = Scheduler::ConfigEvent::None;
         mDesiredActiveConfig.configId = display->getActiveConfig();
+        mDesiredActiveConfigChanged = false;
+        ATRACE_INT("DesiredActiveConfigChanged", mDesiredActiveConfigChanged);
         return false;
     }
     mUpcomingActiveConfig = desiredActiveConfig;
