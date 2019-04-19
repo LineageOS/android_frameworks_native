@@ -603,9 +603,6 @@ public:
     bool hasHwcLayer(const sp<const DisplayDevice>& displayDevice);
     HWC2::Layer* getHwcLayer(const sp<const DisplayDevice>& displayDevice);
 
-    // -----------------------------------------------------------------------
-    void clearWithOpenGL(const RenderArea& renderArea) const;
-
     inline const State& getDrawingState() const { return mDrawingState; }
     inline const State& getCurrentState() const { return mCurrentState; }
     inline State& getCurrentState() { return mCurrentState; }
@@ -729,12 +726,7 @@ protected:
      * crop coordinates, transforming them into layer space.
      */
     void setupRoundedCornersCropCoordinates(Rect win, const FloatRect& roundedCornersCrop) const;
-
-    // drawing
-    void clearWithOpenGL(const RenderArea& renderArea, float r, float g, float b,
-                         float alpha) const;
     void setParent(const sp<Layer>& layer);
-
     LayerVector makeTraversalList(LayerVector::StateSet stateSet, bool* outSkipRelativeZUsers);
     void addZOrderRelative(const wp<Layer>& relative);
     void removeZOrderRelative(const wp<Layer>& relative);
