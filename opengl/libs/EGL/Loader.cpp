@@ -360,42 +360,70 @@ void Loader::init_api(void* dso,
     }
 }
 
+static void* attempt_to_load_emulation_driver(const char* kind) {
+    const int emulationStatus = checkGlesEmulationStatus();
+
+    // Invalid emulation status, abort.
+    if (emulationStatus < 0 || emulationStatus > 2) {
+        return nullptr;
+    }
+
+    std::string absolutePath;
+    switch (emulationStatus) {
+        case 0:
+#if defined(__LP64__)
+            absolutePath = "/vendor/lib64/egl/libGLES_android.so";
+#else
+            absolutePath = "/vendor/lib/egl/libGLES_android.so";
+#endif
+            break;
+        case 1:
+            // Use host-side OpenGL through the "emulation" library
+#if defined(__LP64__)
+            absolutePath = std::string("/vendor/lib64/egl/lib") + kind + "_emulation.so";
+#else
+            absolutePath = std::string("/vendor/lib/egl/lib") + kind + "_emulation.so";
+#endif
+            break;
+        case 2:
+            // Use guest side swiftshader library
+#if defined(__LP64__)
+            absolutePath = std::string("/vendor/lib64/egl/lib") + kind + "_swiftshader.so";
+#else
+            absolutePath = std::string("/vendor/lib/egl/lib") + kind + "_swiftshader.so";
+#endif
+            break;
+      default:
+            // Not in emulator, or use other guest-side implementation
+            break;
+    }
+    if (absolutePath.empty()) {
+        // this happens often, we don't want to log an error
+        return nullptr;
+    }
+    const char* const driver_absolute_path = absolutePath.c_str();
+
+    // Try to load drivers from the 'sphal' namespace, if it exist. Fall back to
+    // the original routine when the namespace does not exist.
+    // See /system/core/rootdir/etc/ld.config.txt for the configuration of the
+    // sphal namespace.
+    void* dso = do_android_load_sphal_library(driver_absolute_path,
+                                              RTLD_NOW | RTLD_LOCAL);
+    if (dso == nullptr) {
+        const char* err = dlerror();
+        ALOGE("load_driver(%s): %s", driver_absolute_path, err ? err : "unknown");
+        return nullptr;
+    }
+    ALOGD("loaded %s", driver_absolute_path);
+    return dso;
+}
+
 static void* load_system_driver(const char* kind) {
     ATRACE_CALL();
     class MatchFile {
     public:
         static std::string find(const char* kind) {
             std::string result;
-            int emulationStatus = checkGlesEmulationStatus();
-            switch (emulationStatus) {
-                case 0:
-#if defined(__LP64__)
-                    result = "/vendor/lib64/egl/libGLES_android.so";
-#else
-                    result = "/vendor/lib/egl/libGLES_android.so";
-#endif
-                    return result;
-                case 1:
-                    // Use host-side OpenGL through the "emulation" library
-#if defined(__LP64__)
-                    result = std::string("/vendor/lib64/egl/lib") + kind + "_emulation.so";
-#else
-                    result = std::string("/vendor/lib/egl/lib") + kind + "_emulation.so";
-#endif
-                    return result;
-                case 2:
-                    // Use guest side swiftshader library
-#if defined(__LP64__)
-                    result = std::string("/vendor/lib64/egl/lib") + kind + "_swiftshader.so";
-#else
-                    result = std::string("/vendor/lib/egl/lib") + kind + "_swiftshader.so";
-#endif
-                    return result;
-                default:
-                    // Not in emulator, or use other guest-side implementation
-                    break;
-            }
-
             std::string pattern = std::string("lib") + kind;
             const char* const searchPaths[] = {
 #if defined(__LP64__)
@@ -608,24 +636,39 @@ void *Loader::load_driver(const char* kind,
     if (ns) {
         android::GraphicsEnv::getInstance().setDriverToLoad(android::GraphicsEnv::Driver::ANGLE);
         dso = load_angle(kind, ns, cnx);
+        if (dso) {
+            initialize_api(dso, cnx, mask);
+            return dso;
+        }
     }
 #ifndef __ANDROID_VNDK__
-    if (!dso) {
-        android_namespace_t* ns = android::GraphicsEnv::getInstance().getDriverNamespace();
-        if (ns) {
-            android::GraphicsEnv::getInstance().setDriverToLoad(
-                    android::GraphicsEnv::Driver::GL_UPDATED);
-            dso = load_updated_driver(kind, ns);
+    ns = android::GraphicsEnv::getInstance().getDriverNamespace();
+    if (ns) {
+        android::GraphicsEnv::getInstance().setDriverToLoad(android::GraphicsEnv::Driver::GL_UPDATED);
+        dso = load_updated_driver(kind, ns);
+        if (dso) {
+            initialize_api(dso, cnx, mask);
+            return dso;
         }
     }
 #endif
-    if (!dso) {
-        android::GraphicsEnv::getInstance().setDriverToLoad(android::GraphicsEnv::Driver::GL);
-        dso = load_system_driver(kind);
-        if (!dso)
-            return nullptr;
+    android::GraphicsEnv::getInstance().setDriverToLoad(android::GraphicsEnv::Driver::GL);
+    dso = attempt_to_load_emulation_driver(kind);
+    if (dso) {
+        initialize_api(dso, cnx, mask);
+        return dso;
     }
 
+    dso = load_system_driver(kind);
+    if (dso) {
+        initialize_api(dso, cnx, mask);
+        return dso;
+    }
+
+    return nullptr;
+}
+
+void Loader::initialize_api(void* dso, egl_connection_t* cnx, uint32_t mask) {
     if (mask & EGL) {
         getProcAddress = (getProcAddressType)dlsym(dso, "eglGetProcAddress");
 
@@ -665,8 +708,6 @@ void *Loader::load_driver(const char* kind,
                 &cnx->hooks[egl_connection_t::GLESv2_INDEX]->gl,
             getProcAddress);
     }
-
-    return dso;
 }
 
 // ----------------------------------------------------------------------------
