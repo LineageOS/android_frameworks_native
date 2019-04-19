@@ -1550,6 +1550,10 @@ status_t SensorService::enable(const sp<SensorEventConnection>& connection,
     if (err == NO_ERROR) {
         connection->updateLooperRegistration(mLooper);
 
+        if (sensor->getSensor().getRequiredPermission().size() > 0) {
+            connection->mHandleToAppOp[handle] = sensor->getSensor().getRequiredAppOp();
+        }
+
         mLastNSensorRegistrations.editItemAt(mNextSensorRegIndex) =
                 SensorRegistrationInfo(handle, connection->getPackageName(),
                                        samplingPeriodNs, maxBatchReportLatencyNs, true);
