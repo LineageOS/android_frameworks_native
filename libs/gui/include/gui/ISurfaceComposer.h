@@ -44,7 +44,7 @@
 namespace android {
 // ----------------------------------------------------------------------------
 
-struct cached_buffer_t;
+struct client_cache_t;
 struct ComposerState;
 struct DisplayState;
 struct DisplayInfo;
@@ -137,7 +137,7 @@ public:
                                      const sp<IBinder>& applyToken,
                                      const InputWindowCommands& inputWindowCommands,
                                      int64_t desiredPresentTime,
-                                     const cached_buffer_t& uncacheBuffer,
+                                     const client_cache_t& uncacheBuffer,
                                      const std::vector<ListenerCallbacks>& listenerCallbacks) = 0;
 
     /* signal that we're done booting.

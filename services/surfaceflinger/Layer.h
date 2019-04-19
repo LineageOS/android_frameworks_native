@@ -199,6 +199,7 @@ public:
         Region transparentRegionHint;
 
         sp<GraphicBuffer> buffer;
+        client_cache_t clientCacheId;
         sp<Fence> acquireFence;
         HdrMetadata hdrMetadata;
         Region surfaceDamageRegion;
@@ -312,9 +313,10 @@ public:
     virtual bool setCrop(const Rect& /*crop*/) { return false; };
     virtual bool setFrame(const Rect& /*frame*/) { return false; };
     virtual bool setBuffer(const sp<GraphicBuffer>& /*buffer*/, nsecs_t /*postTime*/,
-                           nsecs_t /*desiredPresentTime*/) {
+                           nsecs_t /*desiredPresentTime*/,
+                           const client_cache_t& /*clientCacheId*/) {
         return false;
-    }
+    };
     virtual bool setAcquireFence(const sp<Fence>& /*fence*/) { return false; };
     virtual bool setDataspace(ui::Dataspace /*dataspace*/) { return false; };
     virtual bool setHdrMetadata(const HdrMetadata& /*hdrMetadata*/) { return false; };

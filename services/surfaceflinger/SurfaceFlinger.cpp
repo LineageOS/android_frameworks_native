@@ -75,7 +75,6 @@
 #include "BufferLayer.h"
 #include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
-#include "BufferStateLayerCache.h"
 #include "Client.h"
 #include "ColorLayer.h"
 #include "Colorizer.h"
@@ -3545,7 +3544,7 @@ void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
                                          const sp<IBinder>& applyToken,
                                          const InputWindowCommands& inputWindowCommands,
                                          int64_t desiredPresentTime,
-                                         const cached_buffer_t& uncacheBuffer,
+                                         const client_cache_t& uncacheBuffer,
                                          const std::vector<ListenerCallbacks>& listenerCallbacks) {
     ATRACE_CALL();
 
@@ -3577,7 +3576,7 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
                                            const Vector<DisplayState>& displays, uint32_t flags,
                                            const InputWindowCommands& inputWindowCommands,
                                            const int64_t desiredPresentTime,
-                                           const cached_buffer_t& uncacheBuffer,
+                                           const client_cache_t& uncacheBuffer,
                                            const std::vector<ListenerCallbacks>& listenerCallbacks,
                                            const int64_t postTime, bool privileged,
                                            bool isMainThread) {
@@ -3627,8 +3626,8 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
 
     transactionFlags |= addInputWindowCommands(inputWindowCommands);
 
-    if (uncacheBuffer.token) {
-        BufferStateLayerCache::getInstance().erase(uncacheBuffer.token, uncacheBuffer.cacheId);
+    if (uncacheBuffer.isValid()) {
+        ClientCache::getInstance().erase(uncacheBuffer);
     }
 
     // If a synchronous transaction is explicitly requested without any changes, force a transaction
@@ -3984,17 +3983,15 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     bool cacheIdChanged = what & layer_state_t::eCachedBufferChanged;
     sp<GraphicBuffer> buffer;
     if (bufferChanged && cacheIdChanged) {
-        BufferStateLayerCache::getInstance().add(s.cachedBuffer.token, s.cachedBuffer.cacheId,
-                                                 s.buffer);
+        ClientCache::getInstance().add(s.cachedBuffer, s.buffer);
         buffer = s.buffer;
     } else if (cacheIdChanged) {
-        buffer = BufferStateLayerCache::getInstance().get(s.cachedBuffer.token,
-                                                          s.cachedBuffer.cacheId);
+        buffer = ClientCache::getInstance().get(s.cachedBuffer);
     } else if (bufferChanged) {
         buffer = s.buffer;
     }
     if (buffer) {
-        if (layer->setBuffer(buffer, postTime, desiredPresentTime)) {
+        if (layer->setBuffer(buffer, postTime, desiredPresentTime, s.cachedBuffer)) {
             flags |= eTraversalNeeded;
         }
     }
