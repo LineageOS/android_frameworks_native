@@ -12,21 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-ndk_headers {
-    name: "libvulkan_headers",
-    from: "include",
-    to: "",
-    srcs: [
-        "include/vulkan/vk_platform.h",
-        "include/vulkan/vulkan.h",
-        "include/vulkan/vulkan_core.h",
-        "include/vulkan/vulkan_android.h",
-    ],
-    license: "include/vulkan/NOTICE",
-}
-
+// This module makes the Vulkan libhardware HAL headers available, for
+// the loader and for HAL/driver implementations.
 cc_library_headers {
-    name: "vulkan_headers",
+    name: "hwvulkan_headers",
     vendor_available: true,
     header_libs: [
         "libcutils_headers",
@@ -36,18 +25,6 @@ cc_library_headers {
         "libcutils_headers",
         "libhardware_headers",
     ],
-    export_include_dirs: ["include"],
-}
-
-cc_library_headers {
-    name: "vulkan_headers_ndk",
-    export_include_dirs: ["include"],
-    sdk_version: "24",
-}
-
-llndk_library {
-    name: "libvulkan",
-    symbol_file: "libvulkan/libvulkan.map.txt",
     export_include_dirs: ["include"],
 }
 
