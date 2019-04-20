@@ -321,7 +321,10 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice,
     }
 
     error = hwcLayer->setColorTransform(getColorTransform());
-    if (error != HWC2::Error::None) {
+    if (error == HWC2::Error::Unsupported) {
+        // If per layer color transform is not supported, we use GPU composition.
+        setCompositionType(displayDevice, Hwc2::IComposerClient::Composition::CLIENT);
+    } else if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to setColorTransform: %s (%d)", mName.string(),
                 to_string(error).c_str(), static_cast<int32_t>(error));
     }

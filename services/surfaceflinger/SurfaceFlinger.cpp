@@ -75,7 +75,6 @@
 #include "BufferLayer.h"
 #include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
-#include "BufferStateLayerCache.h"
 #include "Client.h"
 #include "ColorLayer.h"
 #include "Colorizer.h"
@@ -2195,8 +2194,9 @@ void SurfaceFlinger::rebuildLayerStacks() {
 //  - Dataspace::UNKNOWN
 //  - Dataspace::BT2020_HLG
 //  - Dataspace::BT2020_PQ
-Dataspace SurfaceFlinger::getBestDataspace(const sp<const DisplayDevice>& display,
-                                           Dataspace* outHdrDataSpace) const {
+Dataspace SurfaceFlinger::getBestDataspace(const sp<DisplayDevice>& display,
+                                           Dataspace* outHdrDataSpace,
+                                           bool* outIsHdrClientComposition) const {
     Dataspace bestDataSpace = Dataspace::V0_SRGB;
     *outHdrDataSpace = Dataspace::UNKNOWN;
 
@@ -2217,6 +2217,7 @@ Dataspace SurfaceFlinger::getBestDataspace(const sp<const DisplayDevice>& displa
             case Dataspace::BT2020_ITU_PQ:
                 bestDataSpace = Dataspace::DISPLAY_P3;
                 *outHdrDataSpace = Dataspace::BT2020_PQ;
+                *outIsHdrClientComposition = layer->getForceClientComposition(display);
                 break;
             case Dataspace::BT2020_HLG:
             case Dataspace::BT2020_ITU_HLG:
@@ -2246,7 +2247,8 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& display, ColorMode* 
     }
 
     Dataspace hdrDataSpace;
-    Dataspace bestDataSpace = getBestDataspace(display, &hdrDataSpace);
+    bool isHdrClientComposition = false;
+    Dataspace bestDataSpace = getBestDataspace(display, &hdrDataSpace, &isHdrClientComposition);
 
     auto* profile = display->getCompositionDisplay()->getDisplayColorProfile();
 
@@ -2262,8 +2264,8 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& display, ColorMode* 
     }
 
     // respect hdrDataSpace only when there is no legacy HDR support
-    const bool isHdr =
-            hdrDataSpace != Dataspace::UNKNOWN && !profile->hasLegacyHdrSupport(hdrDataSpace);
+    const bool isHdr = hdrDataSpace != Dataspace::UNKNOWN &&
+            !profile->hasLegacyHdrSupport(hdrDataSpace) && !isHdrClientComposition;
     if (isHdr) {
         bestDataSpace = hdrDataSpace;
     }
@@ -2881,7 +2883,7 @@ void SurfaceFlinger::updateInputWindowInfo() {
 }
 
 void SurfaceFlinger::commitInputWindowCommands() {
-    mInputWindowCommands.merge(mPendingInputWindowCommands);
+    mInputWindowCommands = mPendingInputWindowCommands;
     mPendingInputWindowCommands.clear();
 }
 
@@ -3542,7 +3544,7 @@ void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
                                          const sp<IBinder>& applyToken,
                                          const InputWindowCommands& inputWindowCommands,
                                          int64_t desiredPresentTime,
-                                         const cached_buffer_t& uncacheBuffer,
+                                         const client_cache_t& uncacheBuffer,
                                          const std::vector<ListenerCallbacks>& listenerCallbacks) {
     ATRACE_CALL();
 
@@ -3574,7 +3576,7 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
                                            const Vector<DisplayState>& displays, uint32_t flags,
                                            const InputWindowCommands& inputWindowCommands,
                                            const int64_t desiredPresentTime,
-                                           const cached_buffer_t& uncacheBuffer,
+                                           const client_cache_t& uncacheBuffer,
                                            const std::vector<ListenerCallbacks>& listenerCallbacks,
                                            const int64_t postTime, bool privileged,
                                            bool isMainThread) {
@@ -3583,7 +3585,7 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
     if (flags & eAnimation) {
         // For window updates that are part of an animation we must wait for
         // previous animation "frames" to be handled.
-        while (mAnimTransactionPending) {
+        while (!isMainThread && mAnimTransactionPending) {
             status_t err = mTransactionCV.waitRelative(mStateLock, s2ns(5));
             if (CC_UNLIKELY(err != NO_ERROR)) {
                 // just in case something goes wrong in SF, return to the
@@ -3617,15 +3619,15 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
     }
 
     // If the state doesn't require a traversal and there are callbacks, send them now
-    if (!(clientStateFlags & eTraversalNeeded)) {
+    if (!(clientStateFlags & eTraversalNeeded) && !listenerCallbacks.empty()) {
         mTransactionCompletedThread.sendCallbacks();
     }
     transactionFlags |= clientStateFlags;
 
     transactionFlags |= addInputWindowCommands(inputWindowCommands);
 
-    if (uncacheBuffer.token) {
-        BufferStateLayerCache::getInstance().erase(uncacheBuffer.token, uncacheBuffer.cacheId);
+    if (uncacheBuffer.isValid()) {
+        ClientCache::getInstance().erase(uncacheBuffer);
     }
 
     // If a synchronous transaction is explicitly requested without any changes, force a transaction
@@ -3662,8 +3664,9 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
         if (flags & eAnimation) {
             mAnimTransactionPending = true;
         }
-
-        mPendingSyncInputWindows = mPendingInputWindowCommands.syncInputWindows;
+        if (mPendingInputWindowCommands.syncInputWindows) {
+            mPendingSyncInputWindows = true;
+        }
 
         // applyTransactionState can be called by either the main SF thread or by
         // another process through setTransactionState.  While a given process may wish
@@ -3980,17 +3983,15 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     bool cacheIdChanged = what & layer_state_t::eCachedBufferChanged;
     sp<GraphicBuffer> buffer;
     if (bufferChanged && cacheIdChanged) {
-        BufferStateLayerCache::getInstance().add(s.cachedBuffer.token, s.cachedBuffer.cacheId,
-                                                 s.buffer);
+        ClientCache::getInstance().add(s.cachedBuffer, s.buffer);
         buffer = s.buffer;
     } else if (cacheIdChanged) {
-        buffer = BufferStateLayerCache::getInstance().get(s.cachedBuffer.token,
-                                                          s.cachedBuffer.cacheId);
+        buffer = ClientCache::getInstance().get(s.cachedBuffer);
     } else if (bufferChanged) {
         buffer = s.buffer;
     }
     if (buffer) {
-        if (layer->setBuffer(buffer, postTime, desiredPresentTime)) {
+        if (layer->setBuffer(buffer, postTime, desiredPresentTime, s.cachedBuffer)) {
             flags |= eTraversalNeeded;
         }
     }
@@ -5872,12 +5873,15 @@ status_t SurfaceFlinger::getAllowedDisplayConfigs(const sp<IBinder>& displayToke
 
     Mutex::Autolock lock(mStateLock);
 
-    if (displayToken != getInternalDisplayTokenLocked()) {
-        ALOGE("%s is only supported for the internal display", __FUNCTION__);
+    const auto display = getDisplayDeviceLocked(displayToken);
+    if (!display) {
         return NAME_NOT_FOUND;
     }
 
-    outAllowedConfigs->assign(mAllowedDisplayConfigs.begin(), mAllowedDisplayConfigs.end());
+    if (display->isPrimary()) {
+        outAllowedConfigs->assign(mAllowedDisplayConfigs.begin(), mAllowedDisplayConfigs.end());
+    }
+
     return NO_ERROR;
 }
 

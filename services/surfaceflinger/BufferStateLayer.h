@@ -25,7 +25,11 @@
 #include <system/window.h>
 #include <utils/String8.h>
 
+#include <stack>
+
 namespace android {
+
+class SlotGenerationTest;
 
 class BufferStateLayer : public BufferLayer {
 public:
@@ -63,8 +67,8 @@ public:
     bool setTransformToDisplayInverse(bool transformToDisplayInverse) override;
     bool setCrop(const Rect& crop) override;
     bool setFrame(const Rect& frame) override;
-    bool setBuffer(const sp<GraphicBuffer>& buffer, nsecs_t postTime,
-                   nsecs_t desiredPresentTime) override;
+    bool setBuffer(const sp<GraphicBuffer>& buffer, nsecs_t postTime, nsecs_t desiredPresentTime,
+                   const client_cache_t& clientCacheId) override;
     bool setAcquireFence(const sp<Fence>& fence) override;
     bool setDataspace(ui::Dataspace dataspace) override;
     bool setHdrMetadata(const HdrMetadata& hdrMetadata) override;
@@ -132,6 +136,7 @@ private:
     void setHwcLayerBuffer(const sp<const DisplayDevice>& display) override;
 
 private:
+    friend class SlotGenerationTest;
     void onFirstRef() override;
     bool willPresentCurrentTransaction() const;
 
@@ -154,6 +159,46 @@ private:
     nsecs_t mDesiredPresentTime = -1;
 
     // TODO(marissaw): support sticky transform for LEGACY camera mode
+
+    class HwcSlotGenerator : public ClientCache::ErasedRecipient {
+    public:
+        HwcSlotGenerator() {
+            for (uint32_t i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
+                mFreeHwcCacheSlots.push(i);
+            }
+        }
+
+        void bufferErased(const client_cache_t& clientCacheId);
+
+        uint32_t getHwcCacheSlot(const client_cache_t& clientCacheId);
+
+    private:
+        friend class SlotGenerationTest;
+        uint32_t addCachedBuffer(const client_cache_t& clientCacheId) REQUIRES(mMutex);
+        uint32_t getFreeHwcCacheSlot() REQUIRES(mMutex);
+        void evictLeastRecentlyUsed() REQUIRES(mMutex);
+        void eraseBufferLocked(const client_cache_t& clientCacheId) REQUIRES(mMutex);
+
+        struct CachedBufferHash {
+            std::size_t operator()(const client_cache_t& clientCacheId) const {
+                return std::hash<uint64_t>{}(clientCacheId.id);
+            }
+        };
+
+        std::mutex mMutex;
+
+        std::unordered_map<client_cache_t,
+                           std::pair<uint32_t /*HwcCacheSlot*/, uint32_t /*counter*/>,
+                           CachedBufferHash>
+                mCachedBuffers GUARDED_BY(mMutex);
+        std::stack<uint32_t /*HwcCacheSlot*/> mFreeHwcCacheSlots GUARDED_BY(mMutex);
+
+        // The cache increments this counter value when a slot is updated or used.
+        // Used to track the least recently-used buffer
+        uint64_t mCounter = 0;
+    };
+
+    sp<HwcSlotGenerator> mHwcSlotGenerator;
 };
 
 } // namespace android

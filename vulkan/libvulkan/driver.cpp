@@ -983,7 +983,12 @@ VkResult EnumerateDeviceExtensionProperties(
 
             memcpy(prop.extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME,
                    sizeof(VK_KHR_SWAPCHAIN_EXTENSION_NAME));
-            prop.specVersion = VK_KHR_SWAPCHAIN_SPEC_VERSION;
+
+            if (prop.specVersion >= 8) {
+                prop.specVersion = VK_KHR_SWAPCHAIN_SPEC_VERSION;
+            } else {
+                prop.specVersion = 68;
+            }
         }
     }
 

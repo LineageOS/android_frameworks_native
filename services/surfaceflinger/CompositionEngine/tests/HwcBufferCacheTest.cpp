@@ -28,10 +28,6 @@ public:
                       sp<GraphicBuffer>* outBuffer) {
         HwcBufferCache::getHwcBuffer(slot, buffer, outSlot, outBuffer);
     }
-    bool getSlot(const sp<GraphicBuffer>& buffer, uint32_t* outSlot) {
-        return HwcBufferCache::getSlot(buffer, outSlot);
-    }
-    uint32_t getLeastRecentlyUsedSlot() { return HwcBufferCache::getLeastRecentlyUsedSlot(); }
 };
 
 class HwcBufferCacheTest : public testing::Test {
@@ -84,42 +80,6 @@ TEST_F(HwcBufferCacheTest, cacheWorksForMaxSlot) {
 
 TEST_F(HwcBufferCacheTest, cacheMapsNegativeSlotToZero) {
     testSlot(-123, 0);
-}
-
-TEST_F(HwcBufferCacheTest, cacheGeneratesSlotForInvalidBufferSlot) {
-    uint32_t outSlot;
-    sp<GraphicBuffer> outBuffer;
-
-    mCache.getHwcBuffer(BufferQueue::INVALID_BUFFER_SLOT, mBuffer1, &outSlot, &outBuffer);
-    EXPECT_EQ(0, outSlot);
-    EXPECT_EQ(mBuffer1, outBuffer);
-
-    mCache.getHwcBuffer(BufferQueue::INVALID_BUFFER_SLOT, mBuffer1, &outSlot, &outBuffer);
-    EXPECT_EQ(0, outSlot);
-    EXPECT_EQ(nullptr, outBuffer.get());
-
-    mCache.getHwcBuffer(BufferQueue::INVALID_BUFFER_SLOT, mBuffer2, &outSlot, &outBuffer);
-    EXPECT_EQ(1, outSlot);
-    EXPECT_EQ(mBuffer2, outBuffer);
-
-    mCache.getHwcBuffer(BufferQueue::INVALID_BUFFER_SLOT, mBuffer2, &outSlot, &outBuffer);
-    EXPECT_EQ(1, outSlot);
-    EXPECT_EQ(nullptr, outBuffer.get());
-
-    mCache.getHwcBuffer(BufferQueue::INVALID_BUFFER_SLOT, sp<GraphicBuffer>(), &outSlot,
-                        &outBuffer);
-    EXPECT_EQ(2, outSlot);
-    EXPECT_EQ(nullptr, outBuffer.get());
-
-    // note that sending mBuffer1 with explicit slot 1 will overwrite mBuffer2
-    // and also cause mBuffer1 to be stored in two places
-    mCache.getHwcBuffer(1, mBuffer1, &outSlot, &outBuffer);
-    EXPECT_EQ(1, outSlot);
-    EXPECT_EQ(mBuffer1, outBuffer);
-
-    mCache.getHwcBuffer(BufferQueue::INVALID_BUFFER_SLOT, mBuffer2, &outSlot, &outBuffer);
-    EXPECT_EQ(3, outSlot);
-    EXPECT_EQ(mBuffer2, outBuffer);
 }
 
 } // namespace
