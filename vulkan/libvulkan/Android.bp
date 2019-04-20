@@ -12,12 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Headers module is in frameworks/native/vulkan/Android.bp.
+// Headers module is in external/vulkan-headers/Android.bp.
 ndk_library {
     name: "libvulkan",
     symbol_file: "libvulkan.map.txt",
     first_version: "24",
     unversioned_until: "current",
+}
+
+llndk_library {
+    name: "libvulkan",
+    symbol_file: "libvulkan.map.txt",
+    export_llndk_headers: [
+        "vulkan_headers_llndk",
+    ],
 }
 
 cc_library_shared {
@@ -65,10 +73,11 @@ cc_library_shared {
         "swapchain.cpp",
     ],
 
-    export_header_lib_headers: ["vulkan_headers"],
     header_libs: [
+        "hwvulkan_headers",
         "vulkan_headers",
     ],
+    export_header_lib_headers: ["vulkan_headers"],
     shared_libs: [
         "android.hardware.configstore@1.0",
         "android.hardware.configstore-utils",
