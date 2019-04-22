@@ -31,9 +31,9 @@ bool RefreshRateOverlay::createLayer() {
     const status_t ret =
             mFlinger.createLayer(String8("RefreshRateOverlay"), mClient, 0, 0,
                                  PIXEL_FORMAT_RGBA_8888, ISurfaceComposerClient::eFXSurfaceColor,
-                                 LayerMetadata(), &mIBinder, &mGbp, &mLayer);
+                                 LayerMetadata(), &mIBinder, &mGbp, nullptr);
     if (ret) {
-        ALOGE("failed to color layer");
+        ALOGE("failed to create color layer");
         return false;
     }
 
