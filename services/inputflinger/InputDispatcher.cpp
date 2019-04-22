@@ -3214,17 +3214,29 @@ void InputDispatcher::setInputWindows(const std::vector<sp<InputWindowHandle>>& 
 
             std::vector<sp<InputWindowHandle>> newHandles;
             for (const sp<InputWindowHandle>& handle : inputWindowHandles) {
-                if (!handle->updateInfo() || (getInputChannelLocked(handle->getToken()) == nullptr
-                        && handle->getInfo()->portalToDisplayId == ADISPLAY_ID_NONE)) {
-                    ALOGE("Window handle %s has no registered input channel",
-                            handle->getName().c_str());
+                if (!handle->updateInfo()) {
+                    // handle no longer valid
+                    continue;
+                }
+                const InputWindowInfo* info = handle->getInfo();
+
+                if ((getInputChannelLocked(handle->getToken()) == nullptr &&
+                     info->portalToDisplayId == ADISPLAY_ID_NONE)) {
+                    const bool noInputChannel =
+                            info->inputFeatures & InputWindowInfo::INPUT_FEATURE_NO_INPUT_CHANNEL;
+                    const bool canReceiveInput =
+                            !(info->layoutParamsFlags & InputWindowInfo::FLAG_NOT_TOUCHABLE) ||
+                            !(info->layoutParamsFlags & InputWindowInfo::FLAG_NOT_FOCUSABLE);
+                    if (canReceiveInput && !noInputChannel) {
+                        ALOGE("Window handle %s has no registered input channel",
+                              handle->getName().c_str());
+                    }
                     continue;
                 }
 
-                if (handle->getInfo()->displayId != displayId) {
+                if (info->displayId != displayId) {
                     ALOGE("Window %s updated by wrong display %d, should belong to display %d",
-                        handle->getName().c_str(), displayId,
-                        handle->getInfo()->displayId);
+                          handle->getName().c_str(), displayId, info->displayId);
                     continue;
                 }
 
