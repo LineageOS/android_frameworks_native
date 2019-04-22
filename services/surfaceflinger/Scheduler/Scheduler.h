@@ -193,8 +193,6 @@ private:
     void expiredTimerCallback();
     // Sets vsync period.
     void setVsyncPeriod(const nsecs_t period);
-    // Media feature's function to change the refresh rate.
-    void contentChangeRefreshRate(ContentFeatureState contentFeatureState, uint32_t refreshRate);
     // Idle timer feature's function to change the refresh rate.
     void timerChangeRefreshRate(IdleTimerState idleTimerState);
     // Calculate the new refresh rate type
@@ -254,7 +252,8 @@ private:
     ContentFeatureState mCurrentContentFeatureState GUARDED_BY(mFeatureStateLock) =
             ContentFeatureState::CONTENT_DETECTION_OFF;
     IdleTimerState mCurrentIdleTimerState GUARDED_BY(mFeatureStateLock) = IdleTimerState::RESET;
-    uint32_t mContentRefreshRate;
+    uint32_t mContentRefreshRate GUARDED_BY(mFeatureStateLock);
+    RefreshRateType mRefreshRateType GUARDED_BY(mFeatureStateLock);
 
     const scheduler::RefreshRateConfigs& mRefreshRateConfigs;
 };
