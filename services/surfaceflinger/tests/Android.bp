@@ -19,6 +19,7 @@ cc_test {
     srcs: [
         "BufferGenerator.cpp",
         "Credentials_test.cpp",
+        "InvalidHandles_test.cpp",
         "Stress_test.cpp",
         "SurfaceInterceptor_test.cpp",
         "Transaction_test.cpp",
