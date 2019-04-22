@@ -37,6 +37,7 @@ static const char* native_processes_to_dump[] = {
         "/system/bin/surfaceflinger",
         "/system/bin/vehicle_network_service",
         "/vendor/bin/hw/android.hardware.media.omx@1.0-service", // media.codec
+        "/apex/com.android.media.swcodec/bin/mediaswcodec", // media.swcodec
         NULL,
 };
 
@@ -50,6 +51,7 @@ static const char* hal_interfaces_to_dump[] {
         "android.hardware.graphics.allocator@2.0::IAllocator",
         "android.hardware.graphics.composer@2.1::IComposer",
         "android.hardware.health@2.0::IHealth",
+        "android.hardware.media.c2@1.0::IComponentStore",
         "android.hardware.media.omx@1.0::IOmx",
         "android.hardware.media.omx@1.0::IOmxStore",
         "android.hardware.power.stats@1.0::IPowerStats",
