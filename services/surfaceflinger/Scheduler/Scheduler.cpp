@@ -318,12 +318,24 @@ void Scheduler::withPrimaryDispSync(std::function<void(DispSync&)> const& fn) {
 
 void Scheduler::updateFpsBasedOnContent() {
     uint32_t refreshRate = std::round(mLayerHistory.getDesiredRefreshRate());
-    ATRACE_INT("ContentFPS", refreshRate);
-    if (refreshRate > 0) {
-        contentChangeRefreshRate(ContentFeatureState::CONTENT_DETECTION_ON, refreshRate);
-    } else {
-        contentChangeRefreshRate(ContentFeatureState::CONTENT_DETECTION_OFF, 0);
+    RefreshRateType newRefreshRateType;
+    {
+        std::lock_guard<std::mutex> lock(mFeatureStateLock);
+        if (mContentRefreshRate == refreshRate) {
+            return;
+        }
+        mContentRefreshRate = refreshRate;
+        ATRACE_INT("ContentFPS", mContentRefreshRate);
+
+        mCurrentContentFeatureState = refreshRate > 0 ? ContentFeatureState::CONTENT_DETECTION_ON
+                                                      : ContentFeatureState::CONTENT_DETECTION_OFF;
+        newRefreshRateType = calculateRefreshRateType();
+        if (mRefreshRateType == newRefreshRateType) {
+            return;
+        }
+        mRefreshRateType = newRefreshRateType;
     }
+    changeRefreshRate(newRefreshRateType, ConfigEvent::Changed);
 }
 
 void Scheduler::setChangeRefreshRateCallback(
@@ -365,24 +377,19 @@ std::string Scheduler::doDump() {
     return stream.str();
 }
 
-void Scheduler::contentChangeRefreshRate(ContentFeatureState contentFeatureState,
-                                         uint32_t refreshRate) {
-    RefreshRateType newRefreshRateType;
-    {
-        std::lock_guard<std::mutex> lock(mFeatureStateLock);
-        mCurrentContentFeatureState = contentFeatureState;
-        mContentRefreshRate = refreshRate;
-        newRefreshRateType = calculateRefreshRateType();
-    }
-    changeRefreshRate(newRefreshRateType, ConfigEvent::Changed);
-}
-
 void Scheduler::timerChangeRefreshRate(IdleTimerState idleTimerState) {
     RefreshRateType newRefreshRateType;
     {
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
+        if (mCurrentIdleTimerState == idleTimerState) {
+            return;
+        }
         mCurrentIdleTimerState = idleTimerState;
         newRefreshRateType = calculateRefreshRateType();
+        if (mRefreshRateType == newRefreshRateType) {
+            return;
+        }
+        mRefreshRateType = newRefreshRateType;
     }
     changeRefreshRate(newRefreshRateType, ConfigEvent::None);
 }

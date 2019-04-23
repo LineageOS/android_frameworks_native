@@ -130,7 +130,6 @@ Layer::~Layer() {
     }
 
     mFrameTracker.logAndResetStats(mName);
-
     mFlinger->onLayerDestroyed();
 }
 
@@ -205,6 +204,11 @@ bool Layer::getPremultipledAlpha() const {
 
 sp<IBinder> Layer::getHandle() {
     Mutex::Autolock _l(mLock);
+    if (mGetHandleCalled) {
+        ALOGE("Get handle called twice" );
+        return nullptr;
+    }
+    mGetHandleCalled = true;
     return new Handle(mFlinger, this);
 }
 
