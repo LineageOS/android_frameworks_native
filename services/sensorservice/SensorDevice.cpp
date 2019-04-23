@@ -767,6 +767,10 @@ void SensorDevice::enableAllSensors() {
                     checkReturn(mSensors->activate(sensor_handle, 1 /* enabled */)));
             ALOGE_IF(err, "Error activating sensor %d (%s)", sensor_handle, strerror(-err));
         }
+
+        if (err == NO_ERROR) {
+            info.isActive = true;
+        }
     }
 }
 
@@ -774,7 +778,7 @@ void SensorDevice::disableAllSensors() {
     if (mSensors == nullptr) return;
     Mutex::Autolock _l(mLock);
     for (size_t i = 0; i< mActivationCount.size(); ++i) {
-        const Info& info = mActivationCount.valueAt(i);
+        Info& info = mActivationCount.editValueAt(i);
         // Check if this sensor has been activated previously and disable it.
         if (info.batchParams.size() > 0) {
            const int sensor_handle = mActivationCount.keyAt(i);
@@ -788,6 +792,8 @@ void SensorDevice::disableAllSensors() {
                mDisabledClients.add(info.batchParams.keyAt(j));
                ALOGI("added %p to mDisabledClients", info.batchParams.keyAt(j));
            }
+
+           info.isActive = false;
         }
     }
 }
