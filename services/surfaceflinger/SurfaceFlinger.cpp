@@ -1005,6 +1005,7 @@ bool SurfaceFlinger::performSetActiveConfig() {
         // display is not valid or we are already in the requested mode
         // on both cases there is nothing left to do
         std::lock_guard<std::mutex> lock(mActiveConfigLock);
+        mDesiredActiveConfig.event = Scheduler::ConfigEvent::None;
         mDesiredActiveConfigChanged = false;
         ATRACE_INT("DesiredActiveConfigChanged", mDesiredActiveConfigChanged);
         return false;
@@ -1017,6 +1018,8 @@ bool SurfaceFlinger::performSetActiveConfig() {
         std::lock_guard<std::mutex> lock(mActiveConfigLock);
         mDesiredActiveConfig.event = Scheduler::ConfigEvent::None;
         mDesiredActiveConfig.configId = display->getActiveConfig();
+        mDesiredActiveConfigChanged = false;
+        ATRACE_INT("DesiredActiveConfigChanged", mDesiredActiveConfigChanged);
         return false;
     }
     mUpcomingActiveConfig = desiredActiveConfig;
@@ -3398,21 +3401,31 @@ void SurfaceFlinger::drawWormhole(const Region& region) const {
     engine.fillRegionWithColor(region, 0, 0, 0, 0);
 }
 
-status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
-        const sp<IBinder>& handle,
-        const sp<IGraphicBufferProducer>& gbc,
-        const sp<Layer>& lbc,
-        const sp<Layer>& parent,
-        bool addToCurrentState)
-{
+status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
+                                        const sp<IGraphicBufferProducer>& gbc, const sp<Layer>& lbc,
+                                        const sp<IBinder>& parentHandle,
+                                        const sp<Layer>& parentLayer, bool addToCurrentState) {
     // add this layer to the current state list
     {
         Mutex::Autolock _l(mStateLock);
+        sp<Layer> parent;
+        if (parentHandle != nullptr) {
+            parent = fromHandle(parentHandle);
+            if (parent == nullptr) {
+                return NAME_NOT_FOUND;
+            }
+        } else {
+            parent = parentLayer;
+        }
+
         if (mNumLayers >= MAX_LAYERS) {
             ALOGE("AddClientLayer failed, mNumLayers (%zu) >= MAX_LAYERS (%zu)", mNumLayers,
                   MAX_LAYERS);
             return NO_MEMORY;
         }
+
+        mLayersByLocalBinderToken.emplace(handle->localBinder(), lbc);
+
         if (parent == nullptr && addToCurrentState) {
             mCurrentState.layersSortedByZ.add(lbc);
         } else if (parent == nullptr) {
@@ -4018,12 +4031,18 @@ uint32_t SurfaceFlinger::addInputWindowCommands(const InputWindowCommands& input
 status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& client, uint32_t w,
                                      uint32_t h, PixelFormat format, uint32_t flags,
                                      LayerMetadata metadata, sp<IBinder>* handle,
-                                     sp<IGraphicBufferProducer>* gbp, sp<Layer>* parent) {
+                                     sp<IGraphicBufferProducer>* gbp,
+                                     const sp<IBinder>& parentHandle,
+                                     const sp<Layer>& parentLayer) {
     if (int32_t(w|h) < 0) {
         ALOGE("createLayer() failed, w or h is negative (w=%d, h=%d)",
                 int(w), int(h));
         return BAD_VALUE;
     }
+
+    ALOG_ASSERT(parentLayer == nullptr || parentHandle == nullptr,
+            "Expected only one of parentLayer or parentHandle to be non-null. "
+            "Programmer error?");
 
     status_t result = NO_ERROR;
 
@@ -4088,8 +4107,8 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
     }
 
     bool addToCurrentState = callingThreadHasUnscopedSurfaceFlingerAccess();
-    result = addClientLayer(client, *handle, *gbp, layer, *parent,
-            addToCurrentState);
+    result = addClientLayer(client, *handle, *gbp, layer, parentHandle, parentLayer,
+                            addToCurrentState);
     if (result != NO_ERROR) {
         return result;
     }
@@ -4206,6 +4225,16 @@ void SurfaceFlinger::onHandleDestroyed(sp<Layer>& layer)
         mCurrentState.layersSortedByZ.remove(layer);
     }
     markLayerPendingRemovalLocked(layer);
+
+    auto it = mLayersByLocalBinderToken.begin();
+    while (it != mLayersByLocalBinderToken.end()) {
+        if (it->second == layer) {
+            it = mLayersByLocalBinderToken.erase(it);
+        } else {
+            it++;
+        }
+    }
+
     layer.clear();
 }
 
@@ -5486,34 +5515,50 @@ status_t SurfaceFlinger::captureLayers(
         const bool mChildrenOnly;
     };
 
-    auto layerHandle = reinterpret_cast<Layer::Handle*>(layerHandleBinder.get());
-    auto parent = layerHandle->owner.promote();
-
-    if (parent == nullptr || parent->isRemovedFromCurrentState()) {
-        ALOGE("captureLayers called with a removed parent");
-        return NAME_NOT_FOUND;
-    }
-
-    const int uid = IPCThreadState::self()->getCallingUid();
-    const bool forSystem = uid == AID_GRAPHICS || uid == AID_SYSTEM;
-    if (!forSystem && parent->getCurrentState().flags & layer_state_t::eLayerSecure) {
-        ALOGW("Attempting to capture secure layer: PERMISSION_DENIED");
-        return PERMISSION_DENIED;
-    }
-
+    int reqWidth = 0;
+    int reqHeight = 0;
+    sp<Layer> parent;
     Rect crop(sourceCrop);
-    if (sourceCrop.width() <= 0) {
-        crop.left = 0;
-        crop.right = parent->getBufferSize(parent->getCurrentState()).getWidth();
-    }
+    std::unordered_set<sp<Layer>, ISurfaceComposer::SpHash<Layer>> excludeLayers;
 
-    if (sourceCrop.height() <= 0) {
-        crop.top = 0;
-        crop.bottom = parent->getBufferSize(parent->getCurrentState()).getHeight();
-    }
+    {
+        Mutex::Autolock _l(mStateLock);
 
-    int32_t reqWidth = crop.width() * frameScale;
-    int32_t reqHeight = crop.height() * frameScale;
+        parent = fromHandle(layerHandleBinder);
+        if (parent == nullptr || parent->isRemovedFromCurrentState()) {
+            ALOGE("captureLayers called with an invalid or removed parent");
+            return NAME_NOT_FOUND;
+        }
+
+        const int uid = IPCThreadState::self()->getCallingUid();
+        const bool forSystem = uid == AID_GRAPHICS || uid == AID_SYSTEM;
+        if (!forSystem && parent->getCurrentState().flags & layer_state_t::eLayerSecure) {
+            ALOGW("Attempting to capture secure layer: PERMISSION_DENIED");
+            return PERMISSION_DENIED;
+        }
+
+        if (sourceCrop.width() <= 0) {
+            crop.left = 0;
+            crop.right = parent->getBufferSize(parent->getCurrentState()).getWidth();
+        }
+
+        if (sourceCrop.height() <= 0) {
+            crop.top = 0;
+            crop.bottom = parent->getBufferSize(parent->getCurrentState()).getHeight();
+        }
+        reqWidth = crop.width() * frameScale;
+        reqHeight = crop.height() * frameScale;
+
+        for (const auto& handle : excludeHandles) {
+            sp<Layer> excludeLayer = fromHandle(handle);
+            if (excludeLayer != nullptr) {
+                excludeLayers.emplace(excludeLayer);
+            } else {
+                ALOGW("Invalid layer handle passed as excludeLayer to captureLayers");
+                return NAME_NOT_FOUND;
+            }
+        }
+    } // mStateLock
 
     // really small crop or frameScale
     if (reqWidth <= 0) {
@@ -5521,18 +5566,6 @@ status_t SurfaceFlinger::captureLayers(
     }
     if (reqHeight <= 0) {
         reqHeight = 1;
-    }
-
-    std::unordered_set<sp<Layer>, ISurfaceComposer::SpHash<Layer>> excludeLayers;
-    for (const auto& handle : excludeHandles) {
-        BBinder* local = handle->localBinder();
-        if (local != nullptr) {
-            auto layerHandle = reinterpret_cast<Layer::Handle*>(local);
-            excludeLayers.emplace(layerHandle->owner.promote());
-        } else {
-            ALOGW("Invalid layer handle passed as excludeLayer to captureLayers");
-            return NAME_NOT_FOUND;
-        }
     }
 
     LayerRenderArea renderArea(this, parent, crop, reqWidth, reqHeight, reqDataspace, childrenOnly);
@@ -5887,6 +5920,18 @@ status_t SurfaceFlinger::getAllowedDisplayConfigs(const sp<IBinder>& displayToke
 
 void SurfaceFlinger::SetInputWindowsListener::onSetInputWindowsFinished() {
     mFlinger->setInputWindowsFinished();
+}
+
+sp<Layer> SurfaceFlinger::fromHandle(const sp<IBinder>& handle) {
+    BBinder *b = handle->localBinder();
+    if (b == nullptr) {
+        return nullptr;
+    }
+    auto it = mLayersByLocalBinderToken.find(b);
+    if (it != mLayersByLocalBinderToken.end()) {
+        return it->second.promote();
+    }
+    return nullptr;
 }
 
 } // namespace android

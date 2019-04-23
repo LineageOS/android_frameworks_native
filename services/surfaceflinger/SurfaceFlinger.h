@@ -314,6 +314,8 @@ public:
         return mTransactionCompletedThread;
     }
 
+    sp<Layer> fromHandle(const sp<IBinder>& handle) REQUIRES(mStateLock);
+
 private:
     friend class BufferLayer;
     friend class BufferQueueLayer;
@@ -576,7 +578,8 @@ private:
      */
     status_t createLayer(const String8& name, const sp<Client>& client, uint32_t w, uint32_t h,
                          PixelFormat format, uint32_t flags, LayerMetadata metadata,
-                         sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp, sp<Layer>* parent);
+                         sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp,
+                         const sp<IBinder>& parentHandle, const sp<Layer>& parentLayer = nullptr);
 
     status_t createBufferQueueLayer(const sp<Client>& client, const String8& name, uint32_t w,
                                     uint32_t h, uint32_t flags, LayerMetadata metadata,
@@ -604,12 +607,10 @@ private:
     void markLayerPendingRemovalLocked(const sp<Layer>& layer);
 
     // add a layer to SurfaceFlinger
-    status_t addClientLayer(const sp<Client>& client,
-            const sp<IBinder>& handle,
-            const sp<IGraphicBufferProducer>& gbc,
-            const sp<Layer>& lbc,
-            const sp<Layer>& parent,
-            bool addToCurrentState);
+    status_t addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
+                            const sp<IGraphicBufferProducer>& gbc, const sp<Layer>& lbc,
+                            const sp<IBinder>& parentHandle, const sp<Layer>& parentLayer,
+                            bool addToCurrentState);
 
     // Traverse through all the layers and compute and cache its bounds.
     void computeLayerBounds();
@@ -981,6 +982,9 @@ private:
     // it may be read from other threads with mStateLock held
     std::map<wp<IBinder>, sp<DisplayDevice>> mDisplays;
     std::unordered_map<DisplayId, sp<IBinder>> mPhysicalDisplayTokens;
+
+    // protected by mStateLock
+    std::unordered_map<BBinder*, wp<Layer>> mLayersByLocalBinderToken;
 
     // don't use a lock for these, we don't care
     int mDebugRegion = 0;

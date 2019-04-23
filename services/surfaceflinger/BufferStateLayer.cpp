@@ -425,7 +425,7 @@ uint32_t BufferStateLayer::getDrawingScalingMode() const {
 }
 
 Region BufferStateLayer::getDrawingSurfaceDamage() const {
-    return getDrawingState().surfaceDamageRegion;
+    return Region::INVALID_REGION;
 }
 
 const HdrMetadata& BufferStateLayer::getDrawingHdrMetadata() const {
