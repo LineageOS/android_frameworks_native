@@ -1381,15 +1381,6 @@ void SensorService::cleanupConnection(SensorEventConnection* c) {
             ALOGD_IF(DEBUG_CONNECTIONS, "... and it was the last connection");
             mActiveSensors.removeItemsAt(i, 1);
             mActiveVirtualSensors.erase(handle);
-
-            // If this is the last connection, then mark the RecentEventLogger as stale. This is
-            // critical for on-change events since the previous event is sent to a client if the
-            // sensor is already active. If two clients request the sensor at the same time, one
-            // of the clients would receive a stale event.
-            auto logger = mRecentEvent.find(handle);
-            if (logger != mRecentEvent.end()) {
-                logger->second->setLastEventStale();
-            }
             delete rec;
             size--;
         } else {
@@ -1443,6 +1434,20 @@ status_t SensorService::enable(const sp<SensorEventConnection>& connection,
         mActiveSensors.add(handle, rec);
         if (sensor->isVirtual()) {
             mActiveVirtualSensors.emplace(handle);
+        }
+
+        // There was no SensorRecord for this sensor which means it was previously disabled. Mark
+        // the recent event as stale to ensure that the previous event is not sent to a client. This
+        // ensures on-change events that were generated during a previous sensor activation are not
+        // erroneously sent to newly connected clients, especially if a second client registers for
+        // an on-change sensor before the first client receives the updated event. Once an updated
+        // event is received, the recent events will be marked as current, and any new clients will
+        // immediately receive the most recent event.
+        if (sensor->getSensor().getReportingMode() == AREPORTING_MODE_ON_CHANGE) {
+            auto logger = mRecentEvent.find(handle);
+            if (logger != mRecentEvent.end()) {
+                logger->second->setLastEventStale();
+            }
         }
     } else {
         if (rec->addConnection(connection)) {
