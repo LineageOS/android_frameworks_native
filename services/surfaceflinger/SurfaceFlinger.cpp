@@ -4885,6 +4885,9 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     result.append(mScheduler->doDump() + "\n");
     StringAppendF(&result, "+  Smart video mode: %s\n\n", mUseSmart90ForVideo ? "on" : "off");
     result.append(mRefreshRateStats.doDump() + "\n");
+
+    result.append(mTimeStats->miniDump());
+    result.append("\n");
 }
 
 const Vector<sp<Layer>>& SurfaceFlinger::getLayerSortedByZForHwcDisplay(DisplayId displayId) {

@@ -67,6 +67,16 @@ void TimeStats::parseArgs(bool asProto, const Vector<String16>& args, std::strin
     }
 }
 
+std::string TimeStats::miniDump() {
+    ATRACE_CALL();
+
+    std::string result = "TimeStats miniDump:\n";
+    std::lock_guard<std::mutex> lock(mMutex);
+    android::base::StringAppendF(&result, "Number of tracked layers is %zu\n",
+                                 mTimeStatsTracker.size());
+    return result;
+}
+
 void TimeStats::incrementTotalFrames() {
     if (!mEnabled.load()) return;
 
@@ -252,7 +262,8 @@ void TimeStats::setPostTime(int32_t layerID, uint64_t frameNumber, const std::st
           postTime);
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!mTimeStatsTracker.count(layerID) && layerNameIsValid(layerName)) {
+    if (!mTimeStatsTracker.count(layerID) && mTimeStatsTracker.size() < MAX_NUM_LAYER_RECORDS &&
+        layerNameIsValid(layerName)) {
         mTimeStatsTracker[layerID].layerName = layerName;
     }
     if (!mTimeStatsTracker.count(layerID)) return;
