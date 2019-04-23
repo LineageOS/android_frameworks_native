@@ -41,6 +41,7 @@ public:
 
     virtual void parseArgs(bool asProto, const Vector<String16>& args, std::string& result) = 0;
     virtual bool isEnabled() = 0;
+    virtual std::string miniDump();
 
     virtual void incrementTotalFrames() = 0;
     virtual void incrementMissedFrames() = 0;
@@ -112,6 +113,7 @@ public:
 
     void parseArgs(bool asProto, const Vector<String16>& args, std::string& result) override;
     bool isEnabled() override;
+    std::string miniDump() override;
 
     void incrementTotalFrames() override;
     void incrementMissedFrames() override;
@@ -137,8 +139,6 @@ public:
     void recordRefreshRate(uint32_t fps, nsecs_t duration) override;
     void setPresentFenceGlobal(const std::shared_ptr<FenceTime>& presentFence) override;
 
-    // TODO(zzyiwei): Bound the timeStatsTracker with weighted LRU
-    // static const size_t MAX_NUM_LAYER_RECORDS = 200;
     static const size_t MAX_NUM_TIME_RECORDS = 64;
 
 private:
@@ -159,6 +159,8 @@ private:
     std::unordered_map<int32_t, LayerRecord> mTimeStatsTracker;
     PowerTime mPowerTime;
     GlobalRecord mGlobalRecord;
+
+    static const size_t MAX_NUM_LAYER_RECORDS = 200;
 };
 
 } // namespace impl
