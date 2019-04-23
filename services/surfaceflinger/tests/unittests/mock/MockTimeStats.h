@@ -30,6 +30,7 @@ public:
 
     MOCK_METHOD3(parseArgs, void(bool, const Vector<String16>&, std::string&));
     MOCK_METHOD0(isEnabled, bool());
+    MOCK_METHOD0(miniDump, std::string());
     MOCK_METHOD0(incrementTotalFrames, void());
     MOCK_METHOD0(incrementMissedFrames, void());
     MOCK_METHOD0(incrementClientCompositionFrames, void());
