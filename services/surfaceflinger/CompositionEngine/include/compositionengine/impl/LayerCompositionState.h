@@ -33,12 +33,6 @@ struct LayerCompositionState {
 
     LayerFECompositionState frontEnd;
 
-    /*
-     * RE state
-     */
-
-    renderengine::Mesh reMesh{renderengine::Mesh::TRIANGLE_FAN, 4, 2, 2};
-
     // Debugging
     void dump(std::string& result) const;
 };
