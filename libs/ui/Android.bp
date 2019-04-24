@@ -82,6 +82,9 @@ cc_library_shared {
         "frameworks/native/include",
     ],
 
+    // Uncomment the following line to enable VALIDATE_REGIONS traces
+    //defaults: ["libui-validate-regions-defaults"],
+
     shared_libs: [
         "android.frameworks.bufferhub@1.0",
         "android.hardware.graphics.allocator@2.0",
@@ -98,7 +101,6 @@ cc_library_shared {
         "libhwbinder",
         "libsync",
         "libutils",
-        "libutilscallstack",
         "liblog",
     ],
 
@@ -173,6 +175,13 @@ cc_library_headers {
     export_header_lib_headers: [
         "libnativewindow_headers",
     ],
+}
+
+// defaults to enable VALIDATE_REGIONS traces
+cc_defaults {
+    name: "libui-validate-regions-defaults",
+    shared_libs: ["libutilscallstack"],
+    cflags: ["-DVALIDATE_REGIONS"],
 }
 
 subdirs = [
