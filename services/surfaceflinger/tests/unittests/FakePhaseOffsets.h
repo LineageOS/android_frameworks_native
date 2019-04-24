@@ -49,6 +49,8 @@ public:
     // refresh rates, to properly update the offsets.
     void setRefreshRateType(RefreshRateConfigs::RefreshRateType /*refreshRateType*/) override {}
 
+    nsecs_t getOffsetThresholdForNextVsync() const override { return FAKE_PHASE_OFFSET_NS; }
+
     // Returns current offsets in human friendly format.
     void dump(std::string& /*result*/) const override {}
 };
