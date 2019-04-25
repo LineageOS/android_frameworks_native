@@ -69,41 +69,6 @@ Loader& Loader::getInstance() {
     return loader;
 }
 
-/* This function is called to check whether we run inside the emulator,
- * and if this is the case whether GLES GPU emulation is supported.
- *
- * Returned values are:
- *  -1   -> not running inside the emulator
- *   0   -> running inside the emulator, but GPU emulation not supported
- *   1   -> running inside the emulator, GPU emulation is supported
- *          through the "emulation" host-side OpenGL ES implementation.
- *   2   -> running inside the emulator, GPU emulation is supported
- *          through a guest-side vendor driver's OpenGL ES implementation.
- */
-static int
-checkGlesEmulationStatus(void)
-{
-    /* We're going to check for the following kernel parameters:
-     *
-     *    qemu=1                      -> tells us that we run inside the emulator
-     *    android.qemu.gles=<number>  -> tells us the GLES GPU emulation status
-     *
-     * Note that we will return <number> if we find it. This let us support
-     * more additionnal emulation modes in the future.
-     */
-    char  prop[PROPERTY_VALUE_MAX];
-    int   result = -1;
-
-    /* First, check for qemu=1 */
-    property_get("ro.kernel.qemu",prop,"0");
-    if (atoi(prop) != 1)
-        return -1;
-
-    /* We are in the emulator, get GPU status value */
-    property_get("qemu.gles",prop,"0");
-    return atoi(prop);
-}
-
 static void* do_dlopen(const char* path, int mode) {
     ATRACE_CALL();
     return dlopen(path, mode);
@@ -234,10 +199,6 @@ void* Loader::open(egl_connection_t* cnx)
         hnd = attempt_to_load_updated_driver(cnx);
     }
     if (!hnd) {
-        // Thirdly, try to load emulation driver.
-        hnd = attempt_to_load_emulation_driver(cnx);
-    }
-    if (!hnd) {
         // Finally, try to load system driver, start by searching for the library name appended by
         // the system properties of the GLES userspace driver in both locations.
         // i.e.:
@@ -269,7 +230,9 @@ void* Loader::open(egl_connection_t* cnx)
                                                             false, systemTime() - openTime);
     }
 
-    LOG_ALWAYS_FATAL_IF(!hnd, "couldn't find an OpenGL ES implementation");
+    LOG_ALWAYS_FATAL_IF(!hnd,
+                        "couldn't find an OpenGL ES implementation, make sure you set %s or %s",
+                        HAL_SUBNAME_KEY_PROPERTIES[0], HAL_SUBNAME_KEY_PROPERTIES[1]);
 
     cnx->libEgl   = load_wrapper(EGL_WRAPPER_DIR "/libEGL.so");
     cnx->libGles2 = load_wrapper(EGL_WRAPPER_DIR "/libGLESv2.so");
@@ -375,64 +338,6 @@ void Loader::init_api(void* dso,
         api++;
         if (ref_api) ref_api++;
     }
-}
-
-static void* load_emulation_driver(const char* kind) {
-    const int emulationStatus = checkGlesEmulationStatus();
-
-    // Invalid emulation status, abort.
-    if (emulationStatus < 0 || emulationStatus > 2) {
-        return nullptr;
-    }
-
-    std::string absolutePath;
-    switch (emulationStatus) {
-        case 0:
-#if defined(__LP64__)
-            absolutePath = "/vendor/lib64/egl/libGLES_android.so";
-#else
-            absolutePath = "/vendor/lib/egl/libGLES_android.so";
-#endif
-            break;
-        case 1:
-            // Use host-side OpenGL through the "emulation" library
-#if defined(__LP64__)
-            absolutePath = std::string("/vendor/lib64/egl/lib") + kind + "_emulation.so";
-#else
-            absolutePath = std::string("/vendor/lib/egl/lib") + kind + "_emulation.so";
-#endif
-            break;
-        case 2:
-            // Use guest side swiftshader library
-#if defined(__LP64__)
-            absolutePath = std::string("/vendor/lib64/egl/lib") + kind + "_swiftshader.so";
-#else
-            absolutePath = std::string("/vendor/lib/egl/lib") + kind + "_swiftshader.so";
-#endif
-            break;
-      default:
-            // Not in emulator, or use other guest-side implementation
-            break;
-    }
-    if (absolutePath.empty()) {
-        // this happens often, we don't want to log an error
-        return nullptr;
-    }
-    const char* const driver_absolute_path = absolutePath.c_str();
-
-    // Try to load drivers from the 'sphal' namespace, if it exist. Fall back to
-    // the original routine when the namespace does not exist.
-    // See /system/core/rootdir/etc/ld.config.txt for the configuration of the
-    // sphal namespace.
-    void* dso = do_android_load_sphal_library(driver_absolute_path,
-                                              RTLD_NOW | RTLD_LOCAL);
-    if (dso == nullptr) {
-        const char* err = dlerror();
-        ALOGE("load_driver(%s): %s", driver_absolute_path, err ? err : "unknown");
-        return nullptr;
-    }
-    ALOGD("loaded %s", driver_absolute_path);
-    return dso;
 }
 
 static void* load_system_driver(const char* kind, const char* suffix) {
@@ -655,32 +560,6 @@ Loader::driver_t* Loader::attempt_to_load_updated_driver(egl_connection_t* cnx) 
 #else
     return nullptr;
 #endif
-}
-
-Loader::driver_t* Loader::attempt_to_load_emulation_driver(egl_connection_t* cnx) {
-    ATRACE_CALL();
-    android::GraphicsEnv::getInstance().setDriverToLoad(android::GraphicsEnv::Driver::GL);
-    driver_t* hnd = nullptr;
-    void* dso = load_emulation_driver("GLES");
-    if (dso) {
-        initialize_api(dso, cnx, EGL | GLESv1_CM | GLESv2);
-        hnd = new driver_t(dso);
-        return hnd;
-    }
-    dso = load_emulation_driver("EGL");
-    if (dso) {
-        initialize_api(dso, cnx, EGL);
-        hnd = new driver_t(dso);
-
-        dso = load_emulation_driver("GLESv1_CM");
-        initialize_api(dso, cnx, GLESv1_CM);
-        hnd->set(dso, GLESv1_CM);
-
-        dso = load_emulation_driver("GLESv2");
-        initialize_api(dso, cnx, GLESv2);
-        hnd->set(dso, GLESv2);
-    }
-    return hnd;
 }
 
 Loader::driver_t* Loader::attempt_to_load_system_driver(egl_connection_t* cnx, const char* suffix) {
