@@ -980,7 +980,7 @@ bool SurfaceFlinger::performSetActiveConfig() {
         if (mPreviousPresentFence != Fence::NO_FENCE &&
             (mPreviousPresentFence->getStatus() == Fence::Status::Unsignaled)) {
             // fence has not signaled yet. wait for the next invalidate
-            repaintEverythingForHWC();
+            mEventQueue->invalidateForHWC();
             return true;
         }
 
@@ -1031,7 +1031,7 @@ bool SurfaceFlinger::performSetActiveConfig() {
 
     // we need to submit an empty frame to HWC to start the process
     mCheckPendingFence = true;
-
+    mEventQueue->invalidateForHWC();
     return false;
 }
 
@@ -1444,10 +1444,6 @@ void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate, Scheduler::Co
 
     if (!isDisplayConfigAllowed(desiredConfigId)) {
         ALOGV("Skipping config %d as it is not part of allowed configs", desiredConfigId);
-        return;
-    }
-
-    if (desiredConfigId == display->getActiveConfig()) {
         return;
     }
 
