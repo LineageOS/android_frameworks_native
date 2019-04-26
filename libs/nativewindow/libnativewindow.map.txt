@@ -8,6 +8,7 @@ LIBNATIVEWINDOW {
     AHardwareBuffer_isSupported; # introduced=29
     AHardwareBuffer_lock;
     AHardwareBuffer_lockAndGetInfo; # introduced=29
+    AHardwareBuffer_lockPlanes; # introduced=29
     AHardwareBuffer_recvHandleFromUnixSocket;
     AHardwareBuffer_release;
     AHardwareBuffer_sendHandleToUnixSocket;
