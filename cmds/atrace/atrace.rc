@@ -33,6 +33,8 @@ on late-init
     chmod 0666 /sys/kernel/tracing/events/sched/sched_cpu_hotplug/enable
     chmod 0666 /sys/kernel/debug/tracing/events/sched/sched_pi_setprio/enable
     chmod 0666 /sys/kernel/tracing/events/sched/sched_pi_setprio/enable
+    chmod 0666 /sys/kernel/debug/tracing/events/sched/sched_process_exit/enable
+    chmod 0666 /sys/kernel/tracing/events/sched/sched_process_exit/enable
     chmod 0666 /sys/kernel/debug/tracing/events/sched/sched_waking/enable
     chmod 0666 /sys/kernel/tracing/events/sched/sched_waking/enable
     chmod 0666 /sys/kernel/debug/tracing/events/cgroup/enable
