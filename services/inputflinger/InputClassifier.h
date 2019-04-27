@@ -114,15 +114,22 @@ protected:
 class MotionClassifier final : public MotionClassifierInterface {
 public:
     /**
-     * The provided pointer to the service cannot be null.
+     * The deathRecipient will be subscribed to the HAL death. If the death recipient
+     * owns MotionClassifier and receives HAL death, it should delete its copy of it.
+     * The callback serviceDied will also be sent if the MotionClassifier itself fails
+     * to initialize. If the MotionClassifier fails to initialize, it is not useful, and
+     * should be deleted.
+     * If no death recipient is supplied, then the registration step will be skipped, so there will
+     * be no listeners registered for the HAL death. This is useful for testing
+     * MotionClassifier in isolation.
      */
-    MotionClassifier(sp<android::hardware::input::classifier::V1_0::IInputClassifier> service);
+    explicit MotionClassifier(sp<android::hardware::hidl_death_recipient> deathRecipient = nullptr);
     ~MotionClassifier();
+
     /**
      * Classifies events asynchronously; that is, it doesn't block events on a classification,
-     * but instead sends them over to the classifier HAL
-     * and after a classification is determined,
-     * it then marks the next event it sees in the stream with it.
+     * but instead sends them over to the classifier HAL and after a classification is
+     * determined, it then marks the next event it sees in the stream with it.
      *
      * Therefore, it is acceptable to have the classifications be delayed by 1-2 events
      * in a particular gesture.
@@ -134,6 +141,16 @@ public:
     virtual void dump(std::string& dump) override;
 
 private:
+    /**
+     * Initialize MotionClassifier.
+     * Return true if initializaion is successful.
+     */
+    bool init();
+    /**
+     * Entity that will be notified of the HAL death (most likely InputClassifier).
+     */
+    wp<android::hardware::hidl_death_recipient> mDeathRecipient;
+
     // The events that need to be sent to the HAL.
     BlockingQueue<ClassifierEvent> mEvents;
     /**
@@ -148,7 +165,7 @@ private:
     std::thread mHalThread;
     /**
      * Print an error message if the caller is not on the InputClassifier thread.
-     * Caller must supply the name of the calling function as __function__
+     * Caller must supply the name of the calling function as __func__
      */
     void ensureHalThread(const char* function);
     /**
@@ -156,9 +173,14 @@ private:
      */
     void callInputClassifierHal();
     /**
-     * Access to the InputClassifier HAL. Can always be safely dereferenced.
+     * Access to the InputClassifier HAL. May be null if init() hasn't completed yet.
+     * When init() successfully completes, mService is guaranteed to remain non-null and to not
+     * change its value until MotionClassifier is destroyed.
+     * This variable is *not* guarded by mLock in the InputClassifier thread, because
+     * that thread knows exactly when this variable is initialized.
+     * When accessed in any other thread, mService is checked for nullness with a lock.
      */
-    const sp<android::hardware::input::classifier::V1_0::IInputClassifier> mService;
+    sp<android::hardware::input::classifier::V1_0::IInputClassifier> mService;
     std::mutex mLock;
     /**
      * Per-device input classifications. Should only be accessed using the
@@ -195,6 +217,10 @@ private:
      * Useful for tests to ensure proper cleanup.
      */
     void requestExit();
+    /**
+     * Return string status of mService
+     */
+    const char* getServiceStatus() REQUIRES(mLock);
 };
 
 

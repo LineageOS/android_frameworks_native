@@ -69,41 +69,6 @@ Loader& Loader::getInstance() {
     return loader;
 }
 
-/* This function is called to check whether we run inside the emulator,
- * and if this is the case whether GLES GPU emulation is supported.
- *
- * Returned values are:
- *  -1   -> not running inside the emulator
- *   0   -> running inside the emulator, but GPU emulation not supported
- *   1   -> running inside the emulator, GPU emulation is supported
- *          through the "emulation" host-side OpenGL ES implementation.
- *   2   -> running inside the emulator, GPU emulation is supported
- *          through a guest-side vendor driver's OpenGL ES implementation.
- */
-static int
-checkGlesEmulationStatus(void)
-{
-    /* We're going to check for the following kernel parameters:
-     *
-     *    qemu=1                      -> tells us that we run inside the emulator
-     *    android.qemu.gles=<number>  -> tells us the GLES GPU emulation status
-     *
-     * Note that we will return <number> if we find it. This let us support
-     * more additionnal emulation modes in the future.
-     */
-    char  prop[PROPERTY_VALUE_MAX];
-    int   result = -1;
-
-    /* First, check for qemu=1 */
-    property_get("ro.kernel.qemu",prop,"0");
-    if (atoi(prop) != 1)
-        return -1;
-
-    /* We are in the emulator, get GPU status value */
-    property_get("qemu.gles",prop,"0");
-    return atoi(prop);
-}
-
 static void* do_dlopen(const char* path, int mode) {
     ATRACE_CALL();
     return dlopen(path, mode);
@@ -208,6 +173,11 @@ static void setEmulatorGlesValue(void) {
     }
 }
 
+static const char* HAL_SUBNAME_KEY_PROPERTIES[2] = {
+    "ro.hardware.egl",
+    "ro.board.platform",
+};
+
 void* Loader::open(egl_connection_t* cnx)
 {
     ATRACE_CALL();
@@ -229,12 +199,30 @@ void* Loader::open(egl_connection_t* cnx)
         hnd = attempt_to_load_updated_driver(cnx);
     }
     if (!hnd) {
-        // Thirdly, try to load emulation driver.
-        hnd = attempt_to_load_emulation_driver(cnx);
+        // Finally, try to load system driver, start by searching for the library name appended by
+        // the system properties of the GLES userspace driver in both locations.
+        // i.e.:
+        //      libGLES_${prop}.so, or:
+        //      libEGL_${prop}.so, libGLESv1_CM_${prop}.so, libGLESv2_${prop}.so
+        char prop[PROPERTY_VALUE_MAX + 1];
+        for (auto key : HAL_SUBNAME_KEY_PROPERTIES) {
+            if (property_get(key, prop, nullptr) <= 0) {
+                continue;
+            }
+            hnd = attempt_to_load_system_driver(cnx, prop);
+            if (hnd) {
+                break;
+            }
+        }
     }
+
     if (!hnd) {
-        // Finally, load system driver.
-        hnd = attempt_to_load_system_driver(cnx);
+        // Can't find graphics driver by appending system properties, now search for the exact name
+        // without any suffix of the GLES userspace driver in both locations.
+        // i.e.:
+        //      libGLES.so, or:
+        //      libEGL.so, libGLESv1_CM.so, libGLESv2.so
+        hnd = attempt_to_load_system_driver(cnx, nullptr);
     }
 
     if (!hnd) {
@@ -242,7 +230,9 @@ void* Loader::open(egl_connection_t* cnx)
                                                             false, systemTime() - openTime);
     }
 
-    LOG_ALWAYS_FATAL_IF(!hnd, "couldn't find an OpenGL ES implementation");
+    LOG_ALWAYS_FATAL_IF(!hnd,
+                        "couldn't find an OpenGL ES implementation, make sure you set %s or %s",
+                        HAL_SUBNAME_KEY_PROPERTIES[0], HAL_SUBNAME_KEY_PROPERTIES[1]);
 
     cnx->libEgl   = load_wrapper(EGL_WRAPPER_DIR "/libEGL.so");
     cnx->libGles2 = load_wrapper(EGL_WRAPPER_DIR "/libGLESv2.so");
@@ -350,71 +340,11 @@ void Loader::init_api(void* dso,
     }
 }
 
-static void* load_emulation_driver(const char* kind) {
-    const int emulationStatus = checkGlesEmulationStatus();
-
-    // Invalid emulation status, abort.
-    if (emulationStatus < 0 || emulationStatus > 2) {
-        return nullptr;
-    }
-
-    std::string absolutePath;
-    switch (emulationStatus) {
-        case 0:
-#if defined(__LP64__)
-            absolutePath = "/vendor/lib64/egl/libGLES_android.so";
-#else
-            absolutePath = "/vendor/lib/egl/libGLES_android.so";
-#endif
-            break;
-        case 1:
-            // Use host-side OpenGL through the "emulation" library
-#if defined(__LP64__)
-            absolutePath = std::string("/vendor/lib64/egl/lib") + kind + "_emulation.so";
-#else
-            absolutePath = std::string("/vendor/lib/egl/lib") + kind + "_emulation.so";
-#endif
-            break;
-        case 2:
-            // Use guest side swiftshader library
-#if defined(__LP64__)
-            absolutePath = std::string("/vendor/lib64/egl/lib") + kind + "_swiftshader.so";
-#else
-            absolutePath = std::string("/vendor/lib/egl/lib") + kind + "_swiftshader.so";
-#endif
-            break;
-      default:
-            // Not in emulator, or use other guest-side implementation
-            break;
-    }
-    if (absolutePath.empty()) {
-        // this happens often, we don't want to log an error
-        return nullptr;
-    }
-    const char* const driver_absolute_path = absolutePath.c_str();
-
-    // Try to load drivers from the 'sphal' namespace, if it exist. Fall back to
-    // the original routine when the namespace does not exist.
-    // See /system/core/rootdir/etc/ld.config.txt for the configuration of the
-    // sphal namespace.
-    void* dso = do_android_load_sphal_library(driver_absolute_path,
-                                              RTLD_NOW | RTLD_LOCAL);
-    if (dso == nullptr) {
-        const char* err = dlerror();
-        ALOGE("load_driver(%s): %s", driver_absolute_path, err ? err : "unknown");
-        return nullptr;
-    }
-    ALOGD("loaded %s", driver_absolute_path);
-    return dso;
-}
-
-static void* load_system_driver(const char* kind) {
+static void* load_system_driver(const char* kind, const char* suffix) {
     ATRACE_CALL();
     class MatchFile {
     public:
-        static std::string find(const char* kind) {
-            std::string result;
-            std::string pattern = std::string("lib") + kind;
+        static std::string find(const char* libraryName) {
             const char* const searchPaths[] = {
 #if defined(__LP64__)
                     "/vendor/lib64/egl",
@@ -425,74 +355,23 @@ static void* load_system_driver(const char* kind) {
 #endif
             };
 
-            // first, we search for the exact name of the GLES userspace
-            // driver in both locations.
-            // i.e.:
-            //      libGLES.so, or:
-            //      libEGL.so, libGLESv1_CM.so, libGLESv2.so
-
-            for (size_t i=0 ; i<NELEM(searchPaths) ; i++) {
-                if (find(result, pattern, searchPaths[i], true)) {
-                    return result;
-                }
-            }
-
-            // for compatibility with the old "egl.cfg" naming convention
-            // we look for files that match:
-            //      libGLES_*.so, or:
-            //      libEGL_*.so, libGLESv1_CM_*.so, libGLESv2_*.so
-
-            pattern.append("_");
-            for (size_t i=0 ; i<NELEM(searchPaths) ; i++) {
-                if (find(result, pattern, searchPaths[i], false)) {
-                    return result;
-                }
-            }
-
-            // we didn't find the driver. gah.
-            result.clear();
-            return result;
-        }
-
-    private:
-        static bool find(std::string& result,
-                const std::string& pattern, const char* const search, bool exact) {
-            if (exact) {
-                std::string absolutePath = std::string(search) + "/" + pattern + ".so";
+            for (auto dir : searchPaths) {
+                std::string absolutePath = dir + std::string("/") + libraryName + ".so";
                 if (!access(absolutePath.c_str(), R_OK)) {
-                    result = absolutePath;
-                    return true;
+                    return absolutePath;
                 }
-                return false;
             }
 
-            DIR* d = opendir(search);
-            if (d != nullptr) {
-                struct dirent* e;
-                while ((e = readdir(d)) != nullptr) {
-                    if (e->d_type == DT_DIR) {
-                        continue;
-                    }
-                    if (!strcmp(e->d_name, "libGLES_android.so")) {
-                        // always skip the software renderer
-                        continue;
-                    }
-                    if (strstr(e->d_name, pattern.c_str()) == e->d_name) {
-                        if (!strcmp(e->d_name + strlen(e->d_name) - 3, ".so")) {
-                            result = std::string(search) + "/" + e->d_name;
-                            closedir(d);
-                            return true;
-                        }
-                    }
-                }
-                closedir(d);
-            }
-            return false;
+            // Driver not found. gah.
+            return std::string();
         }
     };
 
-
-    std::string absolutePath = MatchFile::find(kind);
+    std::string libraryName = std::string("lib") + kind;
+    if (suffix) {
+        libraryName += std::string("_") + suffix;
+    }
+    std::string absolutePath = MatchFile::find(libraryName.c_str());
     if (absolutePath.empty()) {
         // this happens often, we don't want to log an error
         return nullptr;
@@ -574,7 +453,20 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
         cnx->angleBackend = angleBackendDefault;
         if (!cnx->vendorEGL && (cnx->angleBackend == EGL_PLATFORM_ANGLE_TYPE_OPENGLES_ANGLE)) {
             // Find and load vendor libEGL for ANGLE's GL back-end to use.
-            cnx->vendorEGL = load_system_driver("EGL");
+            char prop[PROPERTY_VALUE_MAX + 1];
+            for (auto key : HAL_SUBNAME_KEY_PROPERTIES) {
+                if (property_get(key, prop, nullptr) <= 0) {
+                    continue;
+                }
+                void* dso = load_system_driver("EGL", prop);
+                if (dso) {
+                    cnx->vendorEGL = dso;
+                    break;
+                }
+            }
+            if (!cnx->vendorEGL) {
+                cnx->vendorEGL = load_system_driver("EGL", nullptr);
+            }
         }
     } else {
         ALOGV("Loaded native %s library for '%s' (instead of ANGLE)", kind,
@@ -586,11 +478,6 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
     return so;
 }
 
-static const char* HAL_SUBNAME_KEY_PROPERTIES[2] = {
-    "ro.hardware.egl",
-    "ro.board.platform",
-};
-
 static void* load_updated_driver(const char* kind, android_namespace_t* ns) {
     ATRACE_CALL();
     const android_dlextinfo dlextinfo = {
@@ -600,12 +487,13 @@ static void* load_updated_driver(const char* kind, android_namespace_t* ns) {
     void* so = nullptr;
     char prop[PROPERTY_VALUE_MAX + 1];
     for (auto key : HAL_SUBNAME_KEY_PROPERTIES) {
-        if (property_get(key, prop, nullptr) > 0) {
-            std::string name = std::string("lib") + kind + "_" + prop + ".so";
-            so = do_android_dlopen_ext(name.c_str(), RTLD_LOCAL | RTLD_NOW, &dlextinfo);
-            if (so) {
-                return so;
-            }
+        if (property_get(key, prop, nullptr) <= 0) {
+            continue;
+        }
+        std::string name = std::string("lib") + kind + "_" + prop + ".so";
+        so = do_android_dlopen_ext(name.c_str(), RTLD_LOCAL | RTLD_NOW, &dlextinfo);
+        if (so) {
+            return so;
         }
     }
     return nullptr;
@@ -674,52 +562,26 @@ Loader::driver_t* Loader::attempt_to_load_updated_driver(egl_connection_t* cnx) 
 #endif
 }
 
-Loader::driver_t* Loader::attempt_to_load_emulation_driver(egl_connection_t* cnx) {
+Loader::driver_t* Loader::attempt_to_load_system_driver(egl_connection_t* cnx, const char* suffix) {
     ATRACE_CALL();
     android::GraphicsEnv::getInstance().setDriverToLoad(android::GraphicsEnv::Driver::GL);
     driver_t* hnd = nullptr;
-    void* dso = load_emulation_driver("GLES");
+    void* dso = load_system_driver("GLES", suffix);
     if (dso) {
         initialize_api(dso, cnx, EGL | GLESv1_CM | GLESv2);
         hnd = new driver_t(dso);
         return hnd;
     }
-    dso = load_emulation_driver("EGL");
+    dso = load_system_driver("EGL", suffix);
     if (dso) {
         initialize_api(dso, cnx, EGL);
         hnd = new driver_t(dso);
 
-        dso = load_emulation_driver("GLESv1_CM");
+        dso = load_system_driver("GLESv1_CM", suffix);
         initialize_api(dso, cnx, GLESv1_CM);
         hnd->set(dso, GLESv1_CM);
 
-        dso = load_emulation_driver("GLESv2");
-        initialize_api(dso, cnx, GLESv2);
-        hnd->set(dso, GLESv2);
-    }
-    return hnd;
-}
-
-Loader::driver_t* Loader::attempt_to_load_system_driver(egl_connection_t* cnx) {
-    ATRACE_CALL();
-    android::GraphicsEnv::getInstance().setDriverToLoad(android::GraphicsEnv::Driver::GL);
-    driver_t* hnd = nullptr;
-    void* dso = load_system_driver("GLES");
-    if (dso) {
-        initialize_api(dso, cnx, EGL | GLESv1_CM | GLESv2);
-        hnd = new driver_t(dso);
-        return hnd;
-    }
-    dso = load_system_driver("EGL");
-    if (dso) {
-        initialize_api(dso, cnx, EGL);
-        hnd = new driver_t(dso);
-
-        dso = load_system_driver("GLESv1_CM");
-        initialize_api(dso, cnx, GLESv1_CM);
-        hnd->set(dso, GLESv1_CM);
-
-        dso = load_system_driver("GLESv2");
+        dso = load_system_driver("GLESv2", suffix);
         initialize_api(dso, cnx, GLESv2);
         hnd->set(dso, GLESv2);
     }
