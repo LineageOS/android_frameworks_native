@@ -19,6 +19,7 @@
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/LayerCompositionState.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
+#include <gui/BufferQueueConsumer.h>
 #include <system/window.h>
 
 #include "BufferQueueLayer.h"
@@ -133,6 +134,15 @@ bool BufferQueueLayer::fenceHasSignaled() const {
     return mQueueItems[0].mFenceTime->getSignalTime() != Fence::SIGNAL_TIME_PENDING;
 }
 
+bool BufferQueueLayer::framePresentTimeIsCurrent() const {
+    if (!hasFrameUpdate() || isRemovedFromCurrentState()) {
+        return true;
+    }
+
+    Mutex::Autolock lock(mQueueItemLock);
+    return mQueueItems[0].mTimestamp <= mFlinger->mScheduler->expectedPresentTime();
+}
+
 nsecs_t BufferQueueLayer::getDesiredPresentTime() {
     return mConsumer->getTimestamp();
 }
@@ -185,7 +195,37 @@ PixelFormat BufferQueueLayer::getPixelFormat() const {
 
 uint64_t BufferQueueLayer::getFrameNumber() const {
     Mutex::Autolock lock(mQueueItemLock);
-    return mQueueItems[0].mFrameNumber;
+    uint64_t frameNumber = mQueueItems[0].mFrameNumber;
+
+    // The head of the queue will be dropped if there are signaled and timely frames behind it
+    nsecs_t expectedPresentTime = mFlinger->mScheduler->expectedPresentTime();
+
+    if (isRemovedFromCurrentState()) {
+        expectedPresentTime = 0;
+    }
+
+    for (int i = 1; i < mQueueItems.size(); i++) {
+        const bool fenceSignaled =
+                mQueueItems[i].mFenceTime->getSignalTime() != Fence::SIGNAL_TIME_PENDING;
+        if (!fenceSignaled) {
+            break;
+        }
+
+        // We don't drop frames without explicit timestamps
+        if (mQueueItems[i].mIsAutoTimestamp) {
+            break;
+        }
+
+        const nsecs_t desiredPresent = mQueueItems[i].mTimestamp;
+        if (desiredPresent < expectedPresentTime - BufferQueueConsumer::MAX_REASONABLE_NSEC ||
+            desiredPresent > expectedPresentTime) {
+            break;
+        }
+
+        frameNumber = mQueueItems[i].mFrameNumber;
+    }
+
+    return frameNumber;
 }
 
 bool BufferQueueLayer::getAutoRefresh() const {

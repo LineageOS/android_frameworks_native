@@ -534,11 +534,13 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) 
 
 // transaction
 void BufferLayer::notifyAvailableFrames() {
-    auto headFrameNumber = getHeadFrameNumber();
-    bool headFenceSignaled = fenceHasSignaled();
+    const auto headFrameNumber = getHeadFrameNumber();
+    const bool headFenceSignaled = fenceHasSignaled();
+    const bool presentTimeIsCurrent = framePresentTimeIsCurrent();
     Mutex::Autolock lock(mLocalSyncPointMutex);
     for (auto& point : mLocalSyncPoints) {
-        if (headFrameNumber >= point->getFrameNumber() && headFenceSignaled) {
+        if (headFrameNumber >= point->getFrameNumber() && headFenceSignaled &&
+            presentTimeIsCurrent) {
             point->setFrameAvailable();
         }
     }

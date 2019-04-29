@@ -101,6 +101,7 @@ public:
     // Interface implementation for BufferLayer
     // -----------------------------------------------------------------------
     bool fenceHasSignaled() const override;
+    bool framePresentTimeIsCurrent() const override;
 
 private:
     nsecs_t getDesiredPresentTime() override;
