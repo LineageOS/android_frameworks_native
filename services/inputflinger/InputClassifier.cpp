@@ -507,19 +507,53 @@ std::optional<int32_t> ClassifierEvent::getDeviceId() const {
 
 // --- MotionClassifier ---
 
-MotionClassifier::MotionClassifier(
-        sp<android::hardware::input::classifier::V1_0::IInputClassifier> service) :
-        mEvents(MAX_EVENTS), mService(service) {
+MotionClassifier::MotionClassifier(sp<android::hardware::hidl_death_recipient> deathRecipient) :
+        mDeathRecipient(deathRecipient), mEvents(MAX_EVENTS) {
     mHalThread = std::thread(&MotionClassifier::callInputClassifierHal, this);
 #if defined(__linux__)
     // Set the thread name for debugging
     pthread_setname_np(mHalThread.native_handle(), "InputClassifier");
 #endif
+}
+
+/**
+ * This function may block for some time to initialize the HAL, so it should only be called
+ * from the "InputClassifier HAL" thread.
+ */
+bool MotionClassifier::init() {
+    ensureHalThread(__func__);
+    sp<android::hardware::input::classifier::V1_0::IInputClassifier> service =
+            classifier::V1_0::IInputClassifier::getService();
+    if (!service) {
+        // Not really an error, maybe the device does not have this HAL,
+        // but somehow the feature flag is flipped
+        ALOGI("Could not obtain InputClassifier HAL");
+        return false;
+    }
+
+    sp<android::hardware::hidl_death_recipient> recipient = mDeathRecipient.promote();
+    if (recipient != nullptr) {
+        const bool linked = service->linkToDeath(recipient, 0 /* cookie */).withDefault(false);
+        if (!linked) {
+            ALOGE("Could not link MotionClassifier to the HAL death");
+            return false;
+        }
+    }
+
     // Under normal operation, we do not need to reset the HAL here. But in the case where system
     // crashed, but HAL didn't, we may be connecting to an existing HAL process that might already
     // have received events in the past. That means, that HAL could be in an inconsistent state
     // once it receives events from the newly created MotionClassifier.
     mEvents.push(ClassifierEvent::createHalResetEvent());
+
+    {
+        std::scoped_lock lock(mLock);
+        if (mService) {
+            ALOGE("MotionClassifier::%s should only be called once", __func__);
+        }
+        mService = service;
+    }
+    return true;
 }
 
 MotionClassifier::~MotionClassifier() {
@@ -530,7 +564,7 @@ MotionClassifier::~MotionClassifier() {
 void MotionClassifier::ensureHalThread(const char* function) {
     if (DEBUG) {
         if (std::this_thread::get_id() != mHalThread.get_id()) {
-            ALOGE("Function %s should only be called from InputClassifier thread", function);
+            LOG_FATAL("Function %s should only be called from InputClassifier thread", function);
         }
     }
 }
@@ -547,6 +581,21 @@ void MotionClassifier::ensureHalThread(const char* function) {
  */
 void MotionClassifier::callInputClassifierHal() {
     ensureHalThread(__func__);
+    const bool initialized = init();
+    if (!initialized) {
+        // MotionClassifier no longer useful.
+        // Deliver death notification from a separate thread
+        // because ~MotionClassifier may be invoked, which calls mHalThread.join()
+        std::thread([deathRecipient = mDeathRecipient](){
+                sp<android::hardware::hidl_death_recipient> recipient = deathRecipient.promote();
+                if (recipient != nullptr) {
+                    recipient->serviceDied(0 /*cookie*/, nullptr);
+                }
+        }).detach();
+        return;
+    }
+    // From this point on, mService is guaranteed to be non-null.
+
     while (true) {
         ClassifierEvent event = mEvents.pop();
         bool halResponseOk = true;
@@ -666,10 +715,19 @@ void MotionClassifier::reset(const NotifyDeviceResetArgs& args) {
     enqueueEvent(std::make_unique<NotifyDeviceResetArgs>(args));
 }
 
+const char* MotionClassifier::getServiceStatus() REQUIRES(mLock) {
+    if (!mService) {
+        return "null";
+    }
+    if (mService->ping().isOk()) {
+        return "running";
+    }
+    return "not responding";
+}
+
 void MotionClassifier::dump(std::string& dump) {
     std::scoped_lock lock(mLock);
-    std::string serviceStatus = mService->ping().isOk() ? "running" : " not responding";
-    dump += StringPrintf(INDENT2 "mService status: %s\n", serviceStatus.c_str());
+    dump += StringPrintf(INDENT2 "mService status: %s\n", getServiceStatus());
     dump += StringPrintf(INDENT2 "mEvents: %zu element(s) (max=%zu)\n",
             mEvents.size(), MAX_EVENTS);
     dump += INDENT2 "mClassifications, mLastDownTimes:\n";
@@ -700,28 +758,14 @@ InputClassifier::InputClassifier(const sp<InputListenerInterface>& listener) :
 }
 
 void InputClassifier::onFirstRef() {
-    std::scoped_lock lock(mLock);
     if (!deepPressEnabled()) {
-        // If feature is not enabled, the InputClassifier will just be in passthrough
-        // mode, and will forward all events to the next InputListener, unmodified
+        // If feature is not enabled, MotionClassifier should stay null to avoid unnecessary work.
+        // When MotionClassifier is null, InputClassifier will forward all events
+        // to the next InputListener, unmodified.
         return;
     }
-
-    sp<android::hardware::input::classifier::V1_0::IInputClassifier> service =
-            classifier::V1_0::IInputClassifier::getService();
-    if (!service) {
-        // Not really an error, maybe the device does not have this HAL,
-        // but somehow the feature flag is flipped
-        ALOGI("Could not obtain InputClassifier HAL");
-        return;
-    }
-    const bool linked = service->linkToDeath(this, 0 /* cookie */).withDefault(false);
-    if (!linked) {
-        ALOGE("Could not link android::InputClassifier to the HAL death");
-        return;
-    }
-
-    mMotionClassifier = std::make_unique<MotionClassifier>(service);
+    std::scoped_lock lock(mLock);
+    mMotionClassifier = std::make_unique<MotionClassifier>(this);
 }
 
 void InputClassifier::notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) {
