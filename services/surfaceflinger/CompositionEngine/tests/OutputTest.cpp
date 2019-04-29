@@ -172,16 +172,29 @@ TEST_F(OutputTest, setColorTransformSetsTransform) {
     mOutput.setColorTransform(identity);
 
     EXPECT_EQ(HAL_COLOR_TRANSFORM_IDENTITY, mOutput.getState().colorTransform);
+    EXPECT_EQ(identity, mOutput.getState().colorTransformMat);
 
     // Since identity is the default, the dirty region should be unchanged (empty)
     EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region()));
 
     // Non-identity matrix sets a non-identity state value
-    const mat4 nonIdentity = mat4() * 2;
+    const mat4 nonIdentityHalf = mat4() * 0.5;
 
-    mOutput.setColorTransform(nonIdentity);
+    mOutput.setColorTransform(nonIdentityHalf);
 
     EXPECT_EQ(HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX, mOutput.getState().colorTransform);
+    EXPECT_EQ(nonIdentityHalf, mOutput.getState().colorTransformMat);
+
+    // Since this is a state change, the entire output should now be dirty.
+    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
+
+    // Non-identity matrix sets a non-identity state value
+    const mat4 nonIdentityQuarter = mat4() * 0.25;
+
+    mOutput.setColorTransform(nonIdentityQuarter);
+
+    EXPECT_EQ(HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX, mOutput.getState().colorTransform);
+    EXPECT_EQ(nonIdentityQuarter, mOutput.getState().colorTransformMat);
 
     // Since this is a state change, the entire output should now be dirty.
     EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));

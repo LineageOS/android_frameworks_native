@@ -89,13 +89,13 @@ void Output::setLayerStackFilter(uint32_t layerStackId, bool isInternal) {
 }
 
 void Output::setColorTransform(const mat4& transform) {
+    if (mState.colorTransformMat == transform) {
+        return;
+    }
+
     const bool isIdentity = (transform == mat4());
     const auto newColorTransform =
             isIdentity ? HAL_COLOR_TRANSFORM_IDENTITY : HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX;
-
-    if (mState.colorTransform == newColorTransform) {
-        return;
-    }
 
     mState.colorTransform = newColorTransform;
     mState.colorTransformMat = transform;
