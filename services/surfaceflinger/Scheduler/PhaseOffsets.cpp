@@ -65,6 +65,13 @@ PhaseOffsets::PhaseOffsets() {
     property_get("debug.sf.high_fps_late_sf_phase_offset_ns", value, "1000000");
     const int highFpsLateSfOffsetNs = atoi(value);
 
+    // Below defines the threshold when an offset is considered to be negative, i.e. targeting
+    // for the N+2 vsync instead of N+1. This means that:
+    // For offset < threshold, SF wake up (vsync_duration - offset) before HW vsync.
+    // For offset >= threshold, SF wake up (2 * vsync_duration - offset) before HW vsync.
+    property_get("debug.sf.phase_offset_threshold_for_next_vsync_ns", value, "-1");
+    const int phaseOffsetThresholdForNextVsyncNs = atoi(value);
+
     mDefaultRefreshRateOffsets.early = {earlySfOffsetNs != -1 ? earlySfOffsetNs
                                                               : sfVsyncPhaseOffsetNs,
                                         earlyAppOffsetNs != -1 ? earlyAppOffsetNs
@@ -84,6 +91,10 @@ PhaseOffsets::PhaseOffsets() {
                                        highFpsEarlyGlAppOffsetNs != -1 ? highFpsEarlyGlAppOffsetNs
                                                                        : highFpsLateAppOffsetNs};
     mHighRefreshRateOffsets.late = {highFpsLateSfOffsetNs, highFpsLateAppOffsetNs};
+
+    mOffsetThresholdForNextVsync = phaseOffsetThresholdForNextVsyncNs != -1
+            ? phaseOffsetThresholdForNextVsyncNs
+            : std::numeric_limits<nsecs_t>::max();
 }
 
 PhaseOffsets::Offsets PhaseOffsets::getOffsetsForRefreshRate(
