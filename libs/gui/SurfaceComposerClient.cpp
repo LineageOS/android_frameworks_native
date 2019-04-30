@@ -1051,6 +1051,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::detachCh
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
+        return *this;
     }
     s->what |= layer_state_t::eDetachChildren;
 
