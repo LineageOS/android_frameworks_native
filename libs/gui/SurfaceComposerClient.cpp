@@ -1149,8 +1149,12 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setGeome
 
     int x = dst.left;
     int y = dst.top;
-    float xScale = dst.getWidth() / static_cast<float>(source.getWidth());
-    float yScale = dst.getHeight() / static_cast<float>(source.getHeight());
+
+    float sourceWidth = source.getWidth();
+    float sourceHeight = source.getHeight();
+
+    float xScale = sourceWidth < 0 ? 1.0f : dst.getWidth() / sourceWidth;
+    float yScale = sourceHeight < 0 ? 1.0f : dst.getHeight() / sourceHeight;
     float matrix[4] = {1, 0, 0, 1};
 
     switch (transform) {
