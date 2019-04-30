@@ -3495,7 +3495,12 @@ bool SurfaceFlinger::flushTransactionQueues() {
             flushedATransaction = true;
         }
 
-        it = (transactionQueue.empty()) ? mTransactionQueues.erase(it) : std::next(it, 1);
+        if (transactionQueue.empty()) {
+            it = mTransactionQueues.erase(it);
+            mTransactionCV.broadcast();
+        } else {
+            std::next(it, 1);
+        }
     }
     return flushedATransaction;
 }
@@ -3568,7 +3573,22 @@ void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
     }
 
     // If its TransactionQueue already has a pending TransactionState or if it is pending
-    if (mTransactionQueues.find(applyToken) != mTransactionQueues.end() ||
+    auto itr = mTransactionQueues.find(applyToken);
+    // if this is an animation frame, wait until prior animation frame has
+    // been applied by SF
+    if (flags & eAnimation) {
+        while (itr != mTransactionQueues.end()) {
+            status_t err = mTransactionCV.waitRelative(mStateLock, s2ns(5));
+            if (CC_UNLIKELY(err != NO_ERROR)) {
+                ALOGW_IF(err == TIMED_OUT,
+                         "setTransactionState timed out "
+                         "waiting for animation frame to apply");
+                break;
+            }
+            itr = mTransactionQueues.find(applyToken);
+        }
+    }
+    if (itr != mTransactionQueues.end() ||
         !transactionIsReadyToBeApplied(desiredPresentTime, states)) {
         mTransactionQueues[applyToken].emplace(states, displays, flags, desiredPresentTime,
                                                uncacheBuffer, listenerCallbacks, postTime,
