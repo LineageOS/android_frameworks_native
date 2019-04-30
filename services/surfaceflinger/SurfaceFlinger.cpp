@@ -2944,6 +2944,13 @@ void SurfaceFlinger::commitTransaction()
             if (l->isRemovedFromCurrentState()) {
                 latchAndReleaseBuffer(l);
             }
+
+            // If the layer has been removed and has no parent, then it will not be reachable
+            // when traversing layers on screen. Add the layer to the offscreenLayers set to
+            // ensure we can copy its current to drawing state.
+            if (!l->getParent()) {
+                mOffscreenLayers.emplace(l.get());
+            }
         }
         mLayersPendingRemoval.clear();
     }
@@ -2957,7 +2964,17 @@ void SurfaceFlinger::commitTransaction()
         // clear the "changed" flags in current state
         mCurrentState.colorMatrixChanged = false;
 
-        mDrawingState.traverseInZOrder([](Layer* layer) { layer->commitChildList(); });
+        mDrawingState.traverseInZOrder([&](Layer* layer) {
+            layer->commitChildList();
+
+            // If the layer can be reached when traversing mDrawingState, then the layer is no
+            // longer offscreen. Remove the layer from the offscreenLayer set.
+            if (mOffscreenLayers.count(layer)) {
+                mOffscreenLayers.erase(layer);
+            }
+        });
+
+        commitOffscreenLayers();
     });
 
     mTransactionPending = false;
@@ -2982,6 +2999,18 @@ void SurfaceFlinger::withTracingLock(std::function<void()> lockedOperation) {
     // Synchronize with Tracing thread
     if (mTracingEnabled) {
         lock.unlock();
+    }
+}
+
+void SurfaceFlinger::commitOffscreenLayers() {
+    for (Layer* offscreenLayer : mOffscreenLayers) {
+        offscreenLayer->traverseInZOrder(LayerVector::StateSet::Drawing, [](Layer* layer) {
+            uint32_t trFlags = layer->getTransactionFlags(eTransactionNeeded);
+            if (!trFlags) return;
+
+            layer->doTransaction(0);
+            layer->commitChildList();
+        });
     }
 }
 
