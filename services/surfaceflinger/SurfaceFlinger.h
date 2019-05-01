@@ -308,7 +308,10 @@ public:
         const sp<IGraphicBufferProducer>& bufferProducer) const;
 
     inline void onLayerCreated() { mNumLayers++; }
-    inline void onLayerDestroyed() { mNumLayers--; }
+    inline void onLayerDestroyed(Layer* layer) {
+        mNumLayers--;
+        mOffscreenLayers.erase(layer);
+    }
 
     TransactionCompletedThread& getTransactionCompletedThread() {
         return mTransactionCompletedThread;
@@ -563,6 +566,7 @@ private:
     uint32_t setTransactionFlags(uint32_t flags, Scheduler::TransactionStart transactionStart);
     void latchAndReleaseBuffer(const sp<Layer>& layer);
     void commitTransaction() REQUIRES(mStateLock);
+    void commitOffscreenLayers();
     bool containsAnyInvalidClientState(const Vector<ComposerState>& states);
     bool transactionIsReadyToBeApplied(int64_t desiredPresentTime,
                                        const Vector<ComposerState>& states);
@@ -1152,6 +1156,12 @@ private:
 
     // Flag used to set override allowed display configs from backdoor
     bool mDebugDisplayConfigSetByBackdoor = false;
+
+    // A set of layers that have no parent so they are not drawn on screen.
+    // Should only be accessed by the main thread.
+    // The Layer pointer is removed from the set when the destructor is called so there shouldn't
+    // be any issues with a raw pointer referencing an invalid object.
+    std::unordered_set<Layer*> mOffscreenLayers;
 };
 
 } // namespace android
