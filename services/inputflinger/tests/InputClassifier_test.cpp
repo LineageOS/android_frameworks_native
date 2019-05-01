@@ -136,11 +136,7 @@ protected:
     std::unique_ptr<MotionClassifierInterface> mMotionClassifier;
 
     virtual void SetUp() override {
-        sp<android::hardware::input::classifier::V1_0::IInputClassifier> service =
-                classifier::V1_0::IInputClassifier::getService();
-        if (service) {
-            mMotionClassifier = std::make_unique<MotionClassifier>(service);
-        }
+        mMotionClassifier = std::make_unique<MotionClassifier>();
     }
 };
 
@@ -165,9 +161,7 @@ TEST_F(MotionClassifierTest, Classify_NoVideoFrames) {
 
     // We are not checking the return value, because we can't be making assumptions
     // about the HAL operation, since it will be highly hardware-dependent
-    if (mMotionClassifier) {
-        ASSERT_NO_FATAL_FAILURE(mMotionClassifier->classify(motionArgs));
-    }
+    ASSERT_NO_FATAL_FAILURE(mMotionClassifier->classify(motionArgs));
 }
 
 /**
@@ -183,9 +177,7 @@ TEST_F(MotionClassifierTest, Classify_OneVideoFrame) {
 
     // We are not checking the return value, because we can't be making assumptions
     // about the HAL operation, since it will be highly hardware-dependent
-    if (mMotionClassifier) {
-        ASSERT_NO_FATAL_FAILURE(mMotionClassifier->classify(motionArgs));
-    }
+    ASSERT_NO_FATAL_FAILURE(mMotionClassifier->classify(motionArgs));
 }
 
 /**
@@ -206,18 +198,14 @@ TEST_F(MotionClassifierTest, Classify_TwoVideoFrames) {
 
     // We are not checking the return value, because we can't be making assumptions
     // about the HAL operation, since it will be highly hardware-dependent
-    if (mMotionClassifier) {
-        ASSERT_NO_FATAL_FAILURE(mMotionClassifier->classify(motionArgs));
-    }
+    ASSERT_NO_FATAL_FAILURE(mMotionClassifier->classify(motionArgs));
 }
 
 /**
  * Make sure MotionClassifier does not crash when it is reset.
  */
 TEST_F(MotionClassifierTest, Reset_DoesNotCrash) {
-    if (mMotionClassifier) {
-        ASSERT_NO_FATAL_FAILURE(mMotionClassifier->reset());
-    }
+    ASSERT_NO_FATAL_FAILURE(mMotionClassifier->reset());
 }
 
 /**
@@ -225,9 +213,7 @@ TEST_F(MotionClassifierTest, Reset_DoesNotCrash) {
  */
 TEST_F(MotionClassifierTest, DeviceReset_DoesNotCrash) {
     NotifyDeviceResetArgs args(1/*sequenceNum*/, 2/*eventTime*/, 3/*deviceId*/);
-    if (mMotionClassifier) {
-        ASSERT_NO_FATAL_FAILURE(mMotionClassifier->reset(args));
-    }
+    ASSERT_NO_FATAL_FAILURE(mMotionClassifier->reset(args));
 }
 
 } // namespace android
