@@ -94,8 +94,6 @@ status_t BufferQueueConsumer::acquireBuffer(BufferItem* outBuffer,
         // Skip this if we're in shared buffer mode and the queue is empty,
         // since in that case we'll just return the shared buffer.
         if (expectedPresent != 0 && !mCore->mQueue.empty()) {
-            const int MAX_REASONABLE_NSEC = 1000000000ULL; // 1 second
-
             // The 'expectedPresent' argument indicates when the buffer is expected
             // to be presented on-screen. If the buffer's desired present time is
             // earlier (less) than expectedPresent -- meaning it will be displayed
