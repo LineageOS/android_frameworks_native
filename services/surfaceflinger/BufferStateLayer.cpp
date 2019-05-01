@@ -374,6 +374,14 @@ bool BufferStateLayer::fenceHasSignaled() const {
     return getDrawingState().acquireFence->getStatus() == Fence::Status::Signaled;
 }
 
+bool BufferStateLayer::framePresentTimeIsCurrent() const {
+    if (!hasFrameUpdate() || isRemovedFromCurrentState()) {
+        return true;
+    }
+
+    return mDesiredPresentTime <= mFlinger->mScheduler->expectedPresentTime();
+}
+
 nsecs_t BufferStateLayer::getDesiredPresentTime() {
     return mDesiredPresentTime;
 }

@@ -114,6 +114,7 @@ public:
     // -----------------------------------------------------------------------
 private:
     virtual bool fenceHasSignaled() const = 0;
+    virtual bool framePresentTimeIsCurrent() const = 0;
 
     virtual nsecs_t getDesiredPresentTime() = 0;
     virtual std::shared_ptr<FenceTime> getCurrentFenceTime() const = 0;
