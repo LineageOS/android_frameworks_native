@@ -141,7 +141,6 @@ protected:
     // classes if they want the notification.
     virtual void onFrameAvailable(const BufferItem& item) override;
     virtual void onFrameReplaced(const BufferItem& item) override;
-    virtual void onBufferAllocated(const BufferItem& item) override;
     virtual void onBuffersReleased() override;
     virtual void onSidebandStreamChanged() override;
 

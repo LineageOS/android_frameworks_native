@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#undef LOG_TAG
+#define LOG_TAG "BufferQueueLayer"
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
 #include <compositionengine/Display.h>
 #include <compositionengine/Layer.h>
 #include <compositionengine/OutputLayer.h>
@@ -435,6 +438,7 @@ void BufferQueueLayer::fakeVsync() {
 }
 
 void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
+    ATRACE_CALL();
     // Add this buffer from our internal queue tracker
     { // Autolock scope
         if (mFlinger->mUseSmart90ForVideo) {
@@ -475,9 +479,11 @@ void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
     } else {
         mFlinger->signalLayerUpdate();
     }
+    mConsumer->onBufferAvailable(item);
 }
 
 void BufferQueueLayer::onFrameReplaced(const BufferItem& item) {
+    ATRACE_CALL();
     { // Autolock scope
         Mutex::Autolock lock(mQueueItemLock);
 
@@ -499,6 +505,7 @@ void BufferQueueLayer::onFrameReplaced(const BufferItem& item) {
         mLastFrameNumberReceived = item.mFrameNumber;
         mQueueItemCondition.broadcast();
     }
+    mConsumer->onBufferAvailable(item);
 }
 
 void BufferQueueLayer::onSidebandStreamChanged() {
