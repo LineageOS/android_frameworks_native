@@ -60,6 +60,15 @@ GraphicBufferAllocator::GraphicBufferAllocator() : mMapper(GraphicBufferMapper::
 
 GraphicBufferAllocator::~GraphicBufferAllocator() {}
 
+size_t GraphicBufferAllocator::getTotalSize() const {
+    Mutex::Autolock _l(sLock);
+    size_t total = 0;
+    for (size_t i = 0; i < sAllocList.size(); ++i) {
+        total += sAllocList.valueAt(i).size;
+    }
+    return total;
+}
+
 void GraphicBufferAllocator::dump(std::string& result) const {
     Mutex::Autolock _l(sLock);
     KeyedVector<buffer_handle_t, alloc_rec_t>& list(sAllocList);
