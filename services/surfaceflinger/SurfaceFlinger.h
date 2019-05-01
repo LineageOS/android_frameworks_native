@@ -824,6 +824,8 @@ private:
         return hwcDisplayId ? getHwComposer().toPhysicalDisplayId(*hwcDisplayId) : std::nullopt;
     }
 
+    bool previousFrameMissed();
+
     /*
      * Debugging & dumpsys
      */
@@ -956,7 +958,7 @@ private:
     std::vector<sp<Layer>> mLayersWithQueuedFrames;
     // Tracks layers that need to update a display's dirty region.
     std::vector<sp<Layer>> mLayersPendingRefresh;
-    sp<Fence> mPreviousPresentFence = Fence::NO_FENCE;
+    std::array<sp<Fence>, 2> mPreviousPresentFences = {Fence::NO_FENCE, Fence::NO_FENCE};
     // True if in the previous frame at least one layer was composed via the GPU.
     bool mHadClientComposition = false;
     // True if in the previous frame at least one layer was composed via HW Composer.

@@ -139,6 +139,19 @@ public:
         }
     }
 
+    Offsets getOffsets() {
+        // Early offsets are used if we're in the middle of a refresh rate
+        // change, or if we recently begin a transaction.
+        if (mTransactionStart == Scheduler::TransactionStart::EARLY ||
+            mRemainingEarlyFrameCount > 0 || mRefreshRateChangePending) {
+            return mEarlyOffsets;
+        } else if (mLastFrameUsedRenderEngine) {
+            return mEarlyGlOffsets;
+        } else {
+            return mLateOffsets;
+        }
+    }
+
 private:
     void updateOffsets() {
         const Offsets desired = getOffsets();
@@ -164,19 +177,6 @@ private:
 
         if (changed) {
             mOffsets = desired;
-        }
-    }
-
-    Offsets getOffsets() {
-        // Early offsets are used if we're in the middle of a refresh rate
-        // change, or if we recently begin a transaction.
-        if (mTransactionStart == Scheduler::TransactionStart::EARLY ||
-            mRemainingEarlyFrameCount > 0 || mRefreshRateChangePending) {
-            return mEarlyOffsets;
-        } else if (mLastFrameUsedRenderEngine) {
-            return mEarlyGlOffsets;
-        } else {
-            return mLateOffsets;
         }
     }
 
