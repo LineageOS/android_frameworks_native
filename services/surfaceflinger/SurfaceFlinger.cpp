@@ -2093,6 +2093,12 @@ void SurfaceFlinger::postComposition()
     if (mLumaSampling && mRegionSamplingThread) {
         mRegionSamplingThread->notifyNewContent();
     }
+
+    // Even though ATRACE_INT64 already checks if tracing is enabled, it doesn't prevent the
+    // side-effect of getTotalSize(), so we check that again here
+    if (ATRACE_ENABLED()) {
+        ATRACE_INT64("Total Buffer Size", GraphicBufferAllocator::get().getTotalSize());
+    }
 }
 
 void SurfaceFlinger::computeLayerBounds() {
