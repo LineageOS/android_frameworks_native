@@ -46,6 +46,7 @@ public:
             RefreshRateConfigs::RefreshRateType refreshRateType) const = 0;
     virtual Offsets getCurrentOffsets() const = 0;
     virtual void setRefreshRateType(RefreshRateConfigs::RefreshRateType refreshRateType) = 0;
+    virtual nsecs_t getOffsetThresholdForNextVsync() const = 0;
     virtual void dump(std::string& result) const = 0;
 };
 
@@ -72,6 +73,8 @@ public:
         mRefreshRateType = refreshRateType;
     }
 
+    nsecs_t getOffsetThresholdForNextVsync() const override { return mOffsetThresholdForNextVsync; }
+
     // Returns current offsets in human friendly format.
     void dump(std::string& result) const override;
 
@@ -84,6 +87,7 @@ private:
 
     Offsets mDefaultRefreshRateOffsets;
     Offsets mHighRefreshRateOffsets;
+    nsecs_t mOffsetThresholdForNextVsync;
 };
 } // namespace impl
 

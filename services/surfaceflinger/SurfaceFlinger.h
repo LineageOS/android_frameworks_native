@@ -308,7 +308,10 @@ public:
         const sp<IGraphicBufferProducer>& bufferProducer) const;
 
     inline void onLayerCreated() { mNumLayers++; }
-    inline void onLayerDestroyed() { mNumLayers--; }
+    inline void onLayerDestroyed(Layer* layer) {
+        mNumLayers--;
+        mOffscreenLayers.erase(layer);
+    }
 
     TransactionCompletedThread& getTransactionCompletedThread() {
         return mTransactionCompletedThread;
@@ -563,6 +566,7 @@ private:
     uint32_t setTransactionFlags(uint32_t flags, Scheduler::TransactionStart transactionStart);
     void latchAndReleaseBuffer(const sp<Layer>& layer);
     void commitTransaction() REQUIRES(mStateLock);
+    void commitOffscreenLayers();
     bool containsAnyInvalidClientState(const Vector<ComposerState>& states);
     bool transactionIsReadyToBeApplied(int64_t desiredPresentTime,
                                        const Vector<ComposerState>& states);
@@ -824,6 +828,8 @@ private:
         return hwcDisplayId ? getHwComposer().toPhysicalDisplayId(*hwcDisplayId) : std::nullopt;
     }
 
+    bool previousFrameMissed();
+
     /*
      * Debugging & dumpsys
      */
@@ -956,7 +962,7 @@ private:
     std::vector<sp<Layer>> mLayersWithQueuedFrames;
     // Tracks layers that need to update a display's dirty region.
     std::vector<sp<Layer>> mLayersPendingRefresh;
-    sp<Fence> mPreviousPresentFence = Fence::NO_FENCE;
+    std::array<sp<Fence>, 2> mPreviousPresentFences = {Fence::NO_FENCE, Fence::NO_FENCE};
     // True if in the previous frame at least one layer was composed via the GPU.
     bool mHadClientComposition = false;
     // True if in the previous frame at least one layer was composed via HW Composer.
@@ -1150,6 +1156,12 @@ private:
 
     // Flag used to set override allowed display configs from backdoor
     bool mDebugDisplayConfigSetByBackdoor = false;
+
+    // A set of layers that have no parent so they are not drawn on screen.
+    // Should only be accessed by the main thread.
+    // The Layer pointer is removed from the set when the destructor is called so there shouldn't
+    // be any issues with a raw pointer referencing an invalid object.
+    std::unordered_set<Layer*> mOffscreenLayers;
 };
 
 } // namespace android

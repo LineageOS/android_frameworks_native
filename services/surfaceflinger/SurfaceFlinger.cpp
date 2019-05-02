@@ -977,8 +977,7 @@ void SurfaceFlinger::setActiveConfigInternal() {
 bool SurfaceFlinger::performSetActiveConfig() {
     ATRACE_CALL();
     if (mCheckPendingFence) {
-        if (mPreviousPresentFence != Fence::NO_FENCE &&
-            (mPreviousPresentFence->getStatus() == Fence::Status::Unsignaled)) {
+        if (previousFrameMissed()) {
             // fence has not signaled yet. wait for the next invalidate
             mEventQueue->invalidateForHWC();
             return true;
@@ -1587,12 +1586,23 @@ void SurfaceFlinger::updateVrFlinger() {
     setTransactionFlags(eDisplayTransactionNeeded);
 }
 
+bool SurfaceFlinger::previousFrameMissed() NO_THREAD_SAFETY_ANALYSIS {
+    // We are storing the last 2 present fences. If sf's phase offset is to be
+    // woken up before the actual vsync but targeting the next vsync, we need to check
+    // fence N-2
+    const sp<Fence>& fence =
+            mVsyncModulator.getOffsets().sf < mPhaseOffsets->getOffsetThresholdForNextVsync()
+            ? mPreviousPresentFences[0]
+            : mPreviousPresentFences[1];
+
+    return fence != Fence::NO_FENCE && (fence->getStatus() == Fence::Status::Unsignaled);
+}
+
 void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
     ATRACE_CALL();
     switch (what) {
         case MessageQueue::INVALIDATE: {
-            bool frameMissed = mPreviousPresentFence != Fence::NO_FENCE &&
-                    (mPreviousPresentFence->getStatus() == Fence::Status::Unsignaled);
+            bool frameMissed = previousFrameMissed();
             bool hwcFrameMissed = mHadDeviceComposition && frameMissed;
             bool gpuFrameMissed = mHadClientComposition && frameMissed;
             ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
@@ -1982,9 +1992,11 @@ void SurfaceFlinger::postComposition()
     }
 
     getBE().mDisplayTimeline.updateSignalTimes();
-    mPreviousPresentFence = displayDevice ? getHwComposer().getPresentFence(*displayDevice->getId())
-                                          : Fence::NO_FENCE;
-    auto presentFenceTime = std::make_shared<FenceTime>(mPreviousPresentFence);
+    mPreviousPresentFences[1] = mPreviousPresentFences[0];
+    mPreviousPresentFences[0] = displayDevice
+            ? getHwComposer().getPresentFence(*displayDevice->getId())
+            : Fence::NO_FENCE;
+    auto presentFenceTime = std::make_shared<FenceTime>(mPreviousPresentFences[0]);
     getBE().mDisplayTimeline.push(presentFenceTime);
 
     DisplayStatInfo stats;
@@ -2075,11 +2087,17 @@ void SurfaceFlinger::postComposition()
         }
     }
 
-    mTransactionCompletedThread.addPresentFence(mPreviousPresentFence);
+    mTransactionCompletedThread.addPresentFence(mPreviousPresentFences[0]);
     mTransactionCompletedThread.sendCallbacks();
 
     if (mLumaSampling && mRegionSamplingThread) {
         mRegionSamplingThread->notifyNewContent();
+    }
+
+    // Even though ATRACE_INT64 already checks if tracing is enabled, it doesn't prevent the
+    // side-effect of getTotalSize(), so we check that again here
+    if (ATRACE_ENABLED()) {
+        ATRACE_INT64("Total Buffer Size", GraphicBufferAllocator::get().getTotalSize());
     }
 }
 
@@ -2932,6 +2950,13 @@ void SurfaceFlinger::commitTransaction()
             if (l->isRemovedFromCurrentState()) {
                 latchAndReleaseBuffer(l);
             }
+
+            // If the layer has been removed and has no parent, then it will not be reachable
+            // when traversing layers on screen. Add the layer to the offscreenLayers set to
+            // ensure we can copy its current to drawing state.
+            if (!l->getParent()) {
+                mOffscreenLayers.emplace(l.get());
+            }
         }
         mLayersPendingRemoval.clear();
     }
@@ -2945,7 +2970,17 @@ void SurfaceFlinger::commitTransaction()
         // clear the "changed" flags in current state
         mCurrentState.colorMatrixChanged = false;
 
-        mDrawingState.traverseInZOrder([](Layer* layer) { layer->commitChildList(); });
+        mDrawingState.traverseInZOrder([&](Layer* layer) {
+            layer->commitChildList();
+
+            // If the layer can be reached when traversing mDrawingState, then the layer is no
+            // longer offscreen. Remove the layer from the offscreenLayer set.
+            if (mOffscreenLayers.count(layer)) {
+                mOffscreenLayers.erase(layer);
+            }
+        });
+
+        commitOffscreenLayers();
     });
 
     mTransactionPending = false;
@@ -2970,6 +3005,18 @@ void SurfaceFlinger::withTracingLock(std::function<void()> lockedOperation) {
     // Synchronize with Tracing thread
     if (mTracingEnabled) {
         lock.unlock();
+    }
+}
+
+void SurfaceFlinger::commitOffscreenLayers() {
+    for (Layer* offscreenLayer : mOffscreenLayers) {
+        offscreenLayer->traverseInZOrder(LayerVector::StateSet::Drawing, [](Layer* layer) {
+            uint32_t trFlags = layer->getTransactionFlags(eTransactionNeeded);
+            if (!trFlags) return;
+
+            layer->doTransaction(0);
+            layer->commitChildList();
+        });
     }
 }
 
