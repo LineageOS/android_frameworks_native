@@ -1311,7 +1311,9 @@ void GLESRenderEngine::dump(std::string& result) {
     StringAppendF(&result, "GLES: %s, %s, %s\n", extensions.getVendor(), extensions.getRenderer(),
                   extensions.getVersion());
     StringAppendF(&result, "%s\n", extensions.getExtensions());
-    StringAppendF(&result, "RenderEngine is in protected context : %d\n", mInProtectedContext);
+    StringAppendF(&result, "RenderEngine supports protected context: %d\n",
+                  supportsProtectedContent());
+    StringAppendF(&result, "RenderEngine is in protected context: %d\n", mInProtectedContext);
     StringAppendF(&result, "RenderEngine program cache size for unprotected context: %zu\n",
                   cache.getSize(mEGLContext));
     StringAppendF(&result, "RenderEngine program cache size for protected context: %zu\n",

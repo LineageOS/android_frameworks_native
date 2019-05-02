@@ -2093,6 +2093,12 @@ void SurfaceFlinger::postComposition()
     if (mLumaSampling && mRegionSamplingThread) {
         mRegionSamplingThread->notifyNewContent();
     }
+
+    // Even though ATRACE_INT64 already checks if tracing is enabled, it doesn't prevent the
+    // side-effect of getTotalSize(), so we check that again here
+    if (ATRACE_ENABLED()) {
+        ATRACE_INT64("Total Buffer Size", GraphicBufferAllocator::get().getTotalSize());
+    }
 }
 
 void SurfaceFlinger::computeLayerBounds() {
@@ -2944,6 +2950,13 @@ void SurfaceFlinger::commitTransaction()
             if (l->isRemovedFromCurrentState()) {
                 latchAndReleaseBuffer(l);
             }
+
+            // If the layer has been removed and has no parent, then it will not be reachable
+            // when traversing layers on screen. Add the layer to the offscreenLayers set to
+            // ensure we can copy its current to drawing state.
+            if (!l->getParent()) {
+                mOffscreenLayers.emplace(l.get());
+            }
         }
         mLayersPendingRemoval.clear();
     }
@@ -2957,7 +2970,17 @@ void SurfaceFlinger::commitTransaction()
         // clear the "changed" flags in current state
         mCurrentState.colorMatrixChanged = false;
 
-        mDrawingState.traverseInZOrder([](Layer* layer) { layer->commitChildList(); });
+        mDrawingState.traverseInZOrder([&](Layer* layer) {
+            layer->commitChildList();
+
+            // If the layer can be reached when traversing mDrawingState, then the layer is no
+            // longer offscreen. Remove the layer from the offscreenLayer set.
+            if (mOffscreenLayers.count(layer)) {
+                mOffscreenLayers.erase(layer);
+            }
+        });
+
+        commitOffscreenLayers();
     });
 
     mTransactionPending = false;
@@ -2982,6 +3005,18 @@ void SurfaceFlinger::withTracingLock(std::function<void()> lockedOperation) {
     // Synchronize with Tracing thread
     if (mTracingEnabled) {
         lock.unlock();
+    }
+}
+
+void SurfaceFlinger::commitOffscreenLayers() {
+    for (Layer* offscreenLayer : mOffscreenLayers) {
+        offscreenLayer->traverseInZOrder(LayerVector::StateSet::Drawing, [](Layer* layer) {
+            uint32_t trFlags = layer->getTransactionFlags(eTransactionNeeded);
+            if (!trFlags) return;
+
+            layer->doTransaction(0);
+            layer->commitChildList();
+        });
     }
 }
 
@@ -3485,33 +3520,41 @@ uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags,
 }
 
 bool SurfaceFlinger::flushTransactionQueues() {
-    Mutex::Autolock _l(mStateLock);
+    // to prevent onHandleDestroyed from being called while the lock is held,
+    // we must keep a copy of the transactions (specifically the composer
+    // states) around outside the scope of the lock
+    std::vector<const TransactionState> transactions;
     bool flushedATransaction = false;
+    {
+        Mutex::Autolock _l(mStateLock);
 
-    auto it = mTransactionQueues.begin();
-    while (it != mTransactionQueues.end()) {
-        auto& [applyToken, transactionQueue] = *it;
+        auto it = mTransactionQueues.begin();
+        while (it != mTransactionQueues.end()) {
+            auto& [applyToken, transactionQueue] = *it;
 
-        while (!transactionQueue.empty()) {
-            const auto&
-                    [states, displays, flags, desiredPresentTime, uncacheBuffer, listenerCallbacks,
-                     postTime, privileged] = transactionQueue.front();
-            if (!transactionIsReadyToBeApplied(desiredPresentTime, states)) {
-                setTransactionFlags(eTransactionFlushNeeded);
-                break;
+            while (!transactionQueue.empty()) {
+                const auto& transaction = transactionQueue.front();
+                if (!transactionIsReadyToBeApplied(transaction.desiredPresentTime,
+                                                   transaction.states)) {
+                    setTransactionFlags(eTransactionFlushNeeded);
+                    break;
+                }
+                transactions.push_back(transaction);
+                applyTransactionState(transaction.states, transaction.displays, transaction.flags,
+                                      mPendingInputWindowCommands, transaction.desiredPresentTime,
+                                      transaction.buffer, transaction.callback,
+                                      transaction.postTime, transaction.privileged,
+                                      /*isMainThread*/ true);
+                transactionQueue.pop();
+                flushedATransaction = true;
             }
-            applyTransactionState(states, displays, flags, mPendingInputWindowCommands,
-                                  desiredPresentTime, uncacheBuffer, listenerCallbacks, postTime,
-                                  privileged, /*isMainThread*/ true);
-            transactionQueue.pop();
-            flushedATransaction = true;
-        }
 
-        if (transactionQueue.empty()) {
-            it = mTransactionQueues.erase(it);
-            mTransactionCV.broadcast();
-        } else {
-            std::next(it, 1);
+            if (transactionQueue.empty()) {
+                it = mTransactionQueues.erase(it);
+                mTransactionCV.broadcast();
+            } else {
+                std::next(it, 1);
+            }
         }
     }
     return flushedATransaction;

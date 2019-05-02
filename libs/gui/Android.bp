@@ -61,6 +61,7 @@ cc_library_shared {
         "DisplayEventReceiver.cpp",
         "FrameTimestamps.cpp",
         "GLConsumer.cpp",
+        "GLConsumerUtils.cpp",
         "GuiConfig.cpp",
         "HdrMetadata.cpp",
         "IDisplayEventConnection.cpp",
@@ -147,6 +148,109 @@ cc_library_shared {
         "libgui_headers",
         "libnativebase_headers",
         "libpdx_headers",
+    ],
+
+    export_shared_lib_headers: [
+        "libbinder",
+        "libEGL",
+        "libnativewindow",
+        "libui",
+        "android.hardware.graphics.bufferqueue@1.0",
+        "android.hardware.graphics.bufferqueue@2.0",
+        "android.hardware.graphics.common@1.1",
+        "android.hardware.graphics.common@1.2",
+        "android.hidl.token@1.0-utils",
+    ],
+
+    export_header_lib_headers: [
+        "libgui_headers",
+    ],
+
+    export_include_dirs: [
+        "include",
+    ],
+}
+
+// Used by media codec services exclusively as a static lib for
+// core bufferqueuesupport only.
+cc_library_static {
+    name: "libgui_bufferqueue_static",
+    vendor_available: true,
+
+    clang: true,
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-DNO_BUFFERHUB",
+    ],
+
+    cppflags: [
+        "-Wextra",
+        "-DDEBUG_ONLY_CODE=0",
+    ],
+
+    product_variables: {
+        eng: {
+            cppflags: [
+                "-UDEBUG_ONLY_CODE",
+                "-DDEBUG_ONLY_CODE=1",
+            ],
+        },
+    },
+
+    srcs: [
+        "BufferItem.cpp",
+        "BufferQueue.cpp",
+        "BufferQueueConsumer.cpp",
+        "BufferQueueCore.cpp",
+        "BufferQueueProducer.cpp",
+        "BufferQueueThreadState.cpp",
+        "BufferSlot.cpp",
+        "FrameTimestamps.cpp",
+        "GLConsumerUtils.cpp",
+        "HdrMetadata.cpp",
+        "IConsumerListener.cpp",
+        "IGraphicBufferConsumer.cpp",
+        "IGraphicBufferProducer.cpp",
+        "IProducerListener.cpp",
+        "OccupancyTracker.cpp",
+        "bufferqueue/1.0/B2HProducerListener.cpp",
+        "bufferqueue/1.0/Conversion.cpp",
+        "bufferqueue/1.0/H2BGraphicBufferProducer.cpp",
+        "bufferqueue/1.0/H2BProducerListener.cpp",
+        "bufferqueue/1.0/WProducerListener.cpp",
+        "bufferqueue/2.0/B2HGraphicBufferProducer.cpp",
+        "bufferqueue/2.0/B2HProducerListener.cpp",
+        "bufferqueue/2.0/H2BGraphicBufferProducer.cpp",
+        "bufferqueue/2.0/H2BProducerListener.cpp",
+        "bufferqueue/2.0/types.cpp",
+    ],
+
+    shared_libs: [
+        "android.hardware.graphics.bufferqueue@1.0",
+        "android.hardware.graphics.bufferqueue@2.0",
+        "android.hardware.graphics.common@1.1",
+        "android.hardware.graphics.common@1.2",
+        "android.hidl.token@1.0-utils",
+        "libbase",
+        "libbinder",
+        "libcutils",
+        "libEGL",
+        "libGLESv2",
+        "libhidlbase",
+        "libhidltransport",
+        "libhwbinder",
+        "liblog",
+        "libnativewindow",
+        "libsync",
+        "libui",
+        "libutils",
+        "libvndksupport",
+    ],
+
+    header_libs: [
+        "libgui_headers",
+        "libnativebase_headers",
     ],
 
     export_shared_lib_headers: [

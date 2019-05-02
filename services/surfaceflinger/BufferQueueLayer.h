@@ -61,6 +61,7 @@ public:
     // -----------------------------------------------------------------------
 public:
     bool fenceHasSignaled() const override;
+    bool framePresentTimeIsCurrent() const override;
 
 private:
     nsecs_t getDesiredPresentTime() override;
