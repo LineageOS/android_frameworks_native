@@ -2697,7 +2697,15 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
             MYLOGI(
                 "Did not receive user consent yet."
                 " Will not copy the bugreport artifacts to caller.\n");
-            // TODO(b/111441001): cancel outstanding requests
+            const String16 incidentcompanion("incidentcompanion");
+            sp<android::IBinder> ics(defaultServiceManager()->getService(incidentcompanion));
+            if (ics != nullptr) {
+                MYLOGD("Canceling user consent request via incidentcompanion service\n");
+                android::interface_cast<android::os::IIncidentCompanion>(ics)->cancelAuthorization(
+                        consent_callback_.get());
+            } else {
+                MYLOGD("Unable to cancel user consent; incidentcompanion service unavailable\n");
+            }
         }
     }
 
