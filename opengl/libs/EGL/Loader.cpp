@@ -173,8 +173,10 @@ static void setEmulatorGlesValue(void) {
     }
 }
 
+static const char* DRIVER_SUFFIX_PROPERTY = "ro.hardware.egl";
+
 static const char* HAL_SUBNAME_KEY_PROPERTIES[2] = {
-    "ro.hardware.egl",
+    DRIVER_SUFFIX_PROPERTY,
     "ro.board.platform",
 };
 
@@ -198,6 +200,8 @@ void* Loader::open(egl_connection_t* cnx)
         // Secondly, try to load from driver apk.
         hnd = attempt_to_load_updated_driver(cnx);
     }
+
+    bool failToLoadFromDriverSuffixProperty = false;
     if (!hnd) {
         // Finally, try to load system driver, start by searching for the library name appended by
         // the system properties of the GLES userspace driver in both locations.
@@ -209,9 +213,11 @@ void* Loader::open(egl_connection_t* cnx)
             if (property_get(key, prop, nullptr) <= 0) {
                 continue;
             }
-            hnd = attempt_to_load_system_driver(cnx, prop);
+            hnd = attempt_to_load_system_driver(cnx, prop, true);
             if (hnd) {
                 break;
+            } else if (strcmp(key, DRIVER_SUFFIX_PROPERTY) == 0) {
+                failToLoadFromDriverSuffixProperty = true;
             }
         }
     }
@@ -222,7 +228,11 @@ void* Loader::open(egl_connection_t* cnx)
         // i.e.:
         //      libGLES.so, or:
         //      libEGL.so, libGLESv1_CM.so, libGLESv2.so
-        hnd = attempt_to_load_system_driver(cnx, nullptr);
+        hnd = attempt_to_load_system_driver(cnx, nullptr, true);
+    }
+
+    if (!hnd && !failToLoadFromDriverSuffixProperty) {
+        hnd = attempt_to_load_system_driver(cnx, nullptr, false);
     }
 
     if (!hnd) {
@@ -340,11 +350,11 @@ void Loader::init_api(void* dso,
     }
 }
 
-static void* load_system_driver(const char* kind, const char* suffix) {
+static void* load_system_driver(const char* kind, const char* suffix, const bool exact) {
     ATRACE_CALL();
     class MatchFile {
     public:
-        static std::string find(const char* libraryName) {
+        static std::string find(const char* libraryName, const bool exact) {
             const char* const searchPaths[] = {
 #if defined(__LP64__)
                     "/vendor/lib64/egl",
@@ -356,8 +366,8 @@ static void* load_system_driver(const char* kind, const char* suffix) {
             };
 
             for (auto dir : searchPaths) {
-                std::string absolutePath = dir + std::string("/") + libraryName + ".so";
-                if (!access(absolutePath.c_str(), R_OK)) {
+                std::string absolutePath;
+                if (find(absolutePath, libraryName, dir, exact)) {
                     return absolutePath;
                 }
             }
@@ -365,13 +375,53 @@ static void* load_system_driver(const char* kind, const char* suffix) {
             // Driver not found. gah.
             return std::string();
         }
+    private:
+        static bool find(std::string& result,
+                const std::string& pattern, const char* const search, bool exact) {
+            if (exact) {
+                std::string absolutePath = std::string(search) + "/" + pattern + ".so";
+                if (!access(absolutePath.c_str(), R_OK)) {
+                    result = absolutePath;
+                    return true;
+                }
+                return false;
+            }
+
+            DIR* d = opendir(search);
+            if (d != nullptr) {
+                struct dirent* e;
+                while ((e = readdir(d)) != nullptr) {
+                    if (e->d_type == DT_DIR) {
+                        continue;
+                    }
+                    if (!strcmp(e->d_name, "libGLES_android.so")) {
+                        // always skip the software renderer
+                        continue;
+                    }
+                    if (strstr(e->d_name, pattern.c_str()) == e->d_name) {
+                        if (!strcmp(e->d_name + strlen(e->d_name) - 3, ".so")) {
+                            result = std::string(search) + "/" + e->d_name;
+                            closedir(d);
+                            return true;
+                        }
+                    }
+                }
+                closedir(d);
+            }
+            return false;
+        }
     };
 
     std::string libraryName = std::string("lib") + kind;
     if (suffix) {
         libraryName += std::string("_") + suffix;
+    } else if (!exact) {
+        // Deprecated: we look for files that match
+        //      libGLES_*.so, or:
+        //      libEGL_*.so, libGLESv1_CM_*.so, libGLESv2_*.so
+        libraryName += std::string("_");
     }
-    std::string absolutePath = MatchFile::find(libraryName.c_str());
+    std::string absolutePath = MatchFile::find(libraryName.c_str(), exact);
     if (absolutePath.empty()) {
         // this happens often, we don't want to log an error
         return nullptr;
@@ -458,14 +508,14 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
                 if (property_get(key, prop, nullptr) <= 0) {
                     continue;
                 }
-                void* dso = load_system_driver("EGL", prop);
+                void* dso = load_system_driver("EGL", prop, true);
                 if (dso) {
                     cnx->vendorEGL = dso;
                     break;
                 }
             }
             if (!cnx->vendorEGL) {
-                cnx->vendorEGL = load_system_driver("EGL", nullptr);
+                cnx->vendorEGL = load_system_driver("EGL", nullptr, true);
             }
         }
     } else {
@@ -562,26 +612,27 @@ Loader::driver_t* Loader::attempt_to_load_updated_driver(egl_connection_t* cnx) 
 #endif
 }
 
-Loader::driver_t* Loader::attempt_to_load_system_driver(egl_connection_t* cnx, const char* suffix) {
+Loader::driver_t* Loader::attempt_to_load_system_driver(egl_connection_t* cnx, const char* suffix,
+                                                        const bool exact) {
     ATRACE_CALL();
     android::GraphicsEnv::getInstance().setDriverToLoad(android::GraphicsEnv::Driver::GL);
     driver_t* hnd = nullptr;
-    void* dso = load_system_driver("GLES", suffix);
+    void* dso = load_system_driver("GLES", suffix, exact);
     if (dso) {
         initialize_api(dso, cnx, EGL | GLESv1_CM | GLESv2);
         hnd = new driver_t(dso);
         return hnd;
     }
-    dso = load_system_driver("EGL", suffix);
+    dso = load_system_driver("EGL", suffix, exact);
     if (dso) {
         initialize_api(dso, cnx, EGL);
         hnd = new driver_t(dso);
 
-        dso = load_system_driver("GLESv1_CM", suffix);
+        dso = load_system_driver("GLESv1_CM", suffix, exact);
         initialize_api(dso, cnx, GLESv1_CM);
         hnd->set(dso, GLESv1_CM);
 
-        dso = load_system_driver("GLESv2", suffix);
+        dso = load_system_driver("GLESv2", suffix, exact);
         initialize_api(dso, cnx, GLESv2);
         hnd->set(dso, GLESv2);
     }
