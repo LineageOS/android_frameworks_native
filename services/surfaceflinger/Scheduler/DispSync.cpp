@@ -210,17 +210,14 @@ public:
             const nsecs_t baseTime = now - mReferenceTime;
             const nsecs_t numPeriodsSinceReference = baseTime / mPeriod;
             const nsecs_t predictedReference = mReferenceTime + numPeriodsSinceReference * mPeriod;
-            listener.mLastEventTime = predictedReference + mPhase + listener.mPhase;
-            // If we're very close in time to the predicted last event time,
-            // and we're not very close to the next predicted last event time
-            // then we need to back up the last event time so that we can
-            // attempt to fire an event immediately.
-            //
-            // Otherwise, keep the last event time that we predicted so that
-            // we don't wake up early.
-            if (isShorterThanPeriod(now - listener.mLastEventTime) &&
-                !isShorterThanPeriod(listener.mLastEventTime + mPeriod - now)) {
-                listener.mLastEventTime -= mPeriod;
+            const nsecs_t phaseCorrection = mPhase + listener.mPhase;
+            const nsecs_t predictedLastEventTime = predictedReference + phaseCorrection;
+            if (predictedLastEventTime >= now) {
+                // Make sure that the last event time does not exceed the current time.
+                // If it would, then back the last event time by a period.
+                listener.mLastEventTime = predictedLastEventTime - mPeriod;
+            } else {
+                listener.mLastEventTime = predictedLastEventTime;
             }
         } else {
             listener.mLastEventTime = now + mPhase - mWakeupLatency;
@@ -316,7 +313,7 @@ private:
 
     // Sanity check that the duration is close enough in length to a period without
     // falling into double-rate vsyncs.
-    bool isShorterThanPeriod(nsecs_t duration) {
+    bool isCloseToPeriod(nsecs_t duration) {
         // Ratio of 3/5 is arbitrary, but it must be greater than 1/2.
         return duration < (3 * mPeriod) / 5;
     }
@@ -332,7 +329,7 @@ private:
             nsecs_t t = computeListenerNextEventTimeLocked(eventListener, onePeriodAgo);
 
             if (t < now) {
-                if (isShorterThanPeriod(now - eventListener.mLastCallbackTime)) {
+                if (isCloseToPeriod(now - eventListener.mLastCallbackTime)) {
                     eventListener.mLastEventTime = t;
                     ALOGV("[%s] [%s] Skipping event due to model error", mName,
                           eventListener.mName);
@@ -392,7 +389,7 @@ private:
 
         // Check that it's been slightly more than half a period since the last
         // event so that we don't accidentally fall into double-rate vsyncs
-        if (isShorterThanPeriod(t - listener.mLastEventTime)) {
+        if (isCloseToPeriod(t - listener.mLastEventTime)) {
             t += mPeriod;
             ALOGV("[%s] Modifying t -> %" PRId64, mName, ns2us(t));
         }
