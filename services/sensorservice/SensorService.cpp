@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <android/content/pm/IPackageManagerNative.h>
 #include <binder/ActivityManager.h>
-#include <binder/AppOpsManager.h>
 #include <binder/BinderService.h>
 #include <binder/IServiceManager.h>
 #include <binder/PermissionCache.h>
@@ -75,6 +75,9 @@ namespace android {
 const char* SensorService::WAKE_LOCK_NAME = "SensorService_wakelock";
 uint8_t SensorService::sHmacGlobalKey[128] = {};
 bool SensorService::sHmacGlobalKeyIsValid = false;
+std::map<String16, int> SensorService::sPackageTargetVersion;
+Mutex SensorService::sPackageTargetVersionLock;
+AppOpsManager SensorService::sAppOpsManager;
 
 #define SENSOR_SERVICE_DIR "/data/system/sensor_service"
 #define SENSOR_SERVICE_HMAC_KEY_FILE  SENSOR_SERVICE_DIR "/hmac_key"
@@ -1394,6 +1397,14 @@ void SensorService::cleanupConnection(SensorEventConnection* c) {
         checkWakeLockStateLocked();
     }
 
+    {
+        Mutex::Autolock packageLock(sPackageTargetVersionLock);
+        auto iter = sPackageTargetVersion.find(c->mOpPackageName);
+        if (iter != sPackageTargetVersion.end()) {
+            sPackageTargetVersion.erase(iter);
+        }
+    }
+
     SensorDevice& dev(SensorDevice::getInstance());
     dev.notifyConnectionDestroyed(c);
 }
@@ -1539,6 +1550,10 @@ status_t SensorService::enable(const sp<SensorEventConnection>& connection,
     if (err == NO_ERROR) {
         connection->updateLooperRegistration(mLooper);
 
+        if (sensor->getSensor().getRequiredPermission().size() > 0) {
+            connection->mHandleToAppOp[handle] = sensor->getSensor().getRequiredAppOp();
+        }
+
         mLastNSensorRegistrations.editItemAt(mNextSensorRegIndex) =
                 SensorRegistrationInfo(handle, connection->getPackageName(),
                                        samplingPeriodNs, maxBatchReportLatencyNs, true);
@@ -1663,13 +1678,50 @@ status_t SensorService::flushSensor(const sp<SensorEventConnection>& connection,
 
 bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
         const String16& opPackageName) {
-    const String8& requiredPermission = sensor.getRequiredPermission();
-
-    if (requiredPermission.length() <= 0) {
+    // Check if a permission is required for this sensor
+    if (sensor.getRequiredPermission().length() <= 0) {
         return true;
     }
 
+    const int32_t opCode = sensor.getRequiredAppOp();
+    const int32_t appOpMode = sAppOpsManager.checkOp(opCode,
+            IPCThreadState::self()->getCallingUid(), opPackageName);
+
+    // Ensure that the AppOp is allowed
+    //
+    // This check is also required to ensure that the user hasn't revoked the necessary permissions
+    // to access the Step Detector and Step Counter when the application targets pre-Q. Without this
+    // check, if the user revokes the pre-Q install-time GMS Core AR permission, the app would
+    // still be able to receive Step Counter and Step Detector events.
+    bool canAccess = false;
+    if (opCode >= 0 && appOpMode == AppOpsManager::MODE_ALLOWED) {
+        if (hasPermissionForSensor(sensor)) {
+            canAccess = true;
+        } else if (sensor.getType() == SENSOR_TYPE_STEP_COUNTER ||
+                   sensor.getType() == SENSOR_TYPE_STEP_DETECTOR) {
+            int targetSdkVersion = getTargetSdkVersion(opPackageName);
+            // Allow access to the sensor if the application targets pre-Q, which is before the
+            // requirement to hold the AR permission to access Step Counter and Step Detector events
+            // was introduced.
+            if (targetSdkVersion > 0 && targetSdkVersion <= __ANDROID_API_P__) {
+                canAccess = true;
+            }
+        }
+    }
+
+    if (canAccess) {
+        sAppOpsManager.noteOp(opCode, IPCThreadState::self()->getCallingUid(), opPackageName);
+    } else {
+        ALOGE("%s a sensor (%s) without holding its required permission: %s",
+                operation, sensor.getName().string(), sensor.getRequiredPermission().string());
+    }
+
+    return canAccess;
+}
+
+bool SensorService::hasPermissionForSensor(const Sensor& sensor) {
     bool hasPermission = false;
+    const String8& requiredPermission = sensor.getRequiredPermission();
 
     // Runtime permissions can't use the cache as they may change.
     if (sensor.isRequiredPermissionRuntime()) {
@@ -1678,25 +1730,31 @@ bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
     } else {
         hasPermission = PermissionCache::checkCallingPermission(String16(requiredPermission));
     }
+    return hasPermission;
+}
 
-    if (!hasPermission) {
-        ALOGE("%s a sensor (%s) without holding its required permission: %s",
-                operation, sensor.getName().string(), sensor.getRequiredPermission().string());
-        return false;
-    }
-
-    const int32_t opCode = sensor.getRequiredAppOp();
-    if (opCode >= 0) {
-        AppOpsManager appOps;
-        if (appOps.noteOp(opCode, IPCThreadState::self()->getCallingUid(), opPackageName)
-                        != AppOpsManager::MODE_ALLOWED) {
-            ALOGE("%s a sensor (%s) without enabled required app op: %d",
-                    operation, sensor.getName().string(), opCode);
-            return false;
+int SensorService::getTargetSdkVersion(const String16& opPackageName) {
+    Mutex::Autolock packageLock(sPackageTargetVersionLock);
+    int targetSdkVersion = -1;
+    auto entry = sPackageTargetVersion.find(opPackageName);
+    if (entry != sPackageTargetVersion.end()) {
+        targetSdkVersion = entry->second;
+    } else {
+        sp<IBinder> binder = defaultServiceManager()->getService(String16("package_native"));
+        if (binder != nullptr) {
+            sp<content::pm::IPackageManagerNative> packageManager =
+                    interface_cast<content::pm::IPackageManagerNative>(binder);
+            if (packageManager != nullptr) {
+                binder::Status status = packageManager->getTargetSdkVersionForPackage(
+                        opPackageName, &targetSdkVersion);
+                if (!status.isOk()) {
+                    targetSdkVersion = -1;
+                }
+            }
         }
+        sPackageTargetVersion[opPackageName] = targetSdkVersion;
     }
-
-    return true;
+    return targetSdkVersion;
 }
 
 void SensorService::checkWakeLockState() {

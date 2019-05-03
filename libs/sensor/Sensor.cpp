@@ -22,6 +22,13 @@
 #include <binder/IPermissionController.h>
 #include <binder/IServiceManager.h>
 
+/*
+ * The permission to use for activity recognition sensors (like step counter).
+ * See sensor types for more details on what sensors should require this
+ * permission.
+ */
+#define SENSOR_PERMISSION_ACTIVITY_RECOGNITION "android.permission.ACTIVITY_RECOGNITION"
+
 // ----------------------------------------------------------------------------
 namespace android {
 // ----------------------------------------------------------------------------
@@ -116,7 +123,7 @@ Sensor::Sensor(struct sensor_t const& hwSensor, const uuid_t& uuid, int halVersi
         mStringType = SENSOR_STRING_TYPE_HEART_RATE;
         mRequiredPermission = SENSOR_PERMISSION_BODY_SENSORS;
         AppOpsManager appOps;
-        mRequiredAppOp = appOps.permissionToOpCode(String16(SENSOR_PERMISSION_BODY_SENSORS));
+        mRequiredAppOp = appOps.permissionToOpCode(String16(mRequiredPermission));
         mFlags |= SENSOR_FLAG_ON_CHANGE_MODE;
         } break;
     case SENSOR_TYPE_LIGHT:
@@ -165,14 +172,22 @@ Sensor::Sensor(struct sensor_t const& hwSensor, const uuid_t& uuid, int halVersi
             mFlags |= SENSOR_FLAG_WAKE_UP;
         }
         break;
-    case SENSOR_TYPE_STEP_COUNTER:
+    case SENSOR_TYPE_STEP_COUNTER: {
         mStringType = SENSOR_STRING_TYPE_STEP_COUNTER;
+        mRequiredPermission = SENSOR_PERMISSION_ACTIVITY_RECOGNITION;
+        AppOpsManager appOps;
+        mRequiredAppOp =
+                appOps.permissionToOpCode(String16(mRequiredPermission));
         mFlags |= SENSOR_FLAG_ON_CHANGE_MODE;
-        break;
-    case SENSOR_TYPE_STEP_DETECTOR:
+        } break;
+    case SENSOR_TYPE_STEP_DETECTOR: {
         mStringType = SENSOR_STRING_TYPE_STEP_DETECTOR;
+        mRequiredPermission = SENSOR_PERMISSION_ACTIVITY_RECOGNITION;
+        AppOpsManager appOps;
+        mRequiredAppOp =
+                appOps.permissionToOpCode(String16(mRequiredPermission));
         mFlags |= SENSOR_FLAG_SPECIAL_REPORTING_MODE;
-        break;
+        } break;
     case SENSOR_TYPE_TEMPERATURE:
         mStringType = SENSOR_STRING_TYPE_TEMPERATURE;
         mFlags |= SENSOR_FLAG_ON_CHANGE_MODE;
