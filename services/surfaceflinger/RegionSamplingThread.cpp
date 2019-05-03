@@ -377,10 +377,15 @@ void RegionSamplingThread::captureSample() {
         mFlinger.traverseLayersInDisplay(device, filterVisitor);
     };
 
-    const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_HW_RENDER;
-    sp<GraphicBuffer> buffer =
-            new GraphicBuffer(sampledArea.getWidth(), sampledArea.getHeight(),
-                              PIXEL_FORMAT_RGBA_8888, 1, usage, "RegionSamplingThread");
+    sp<GraphicBuffer> buffer = nullptr;
+    if (mCachedBuffer && mCachedBuffer->getWidth() == sampledArea.getWidth() &&
+        mCachedBuffer->getHeight() == sampledArea.getHeight()) {
+        buffer = mCachedBuffer;
+    } else {
+        const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_HW_RENDER;
+        buffer = new GraphicBuffer(sampledArea.getWidth(), sampledArea.getHeight(),
+                                   PIXEL_FORMAT_RGBA_8888, 1, usage, "RegionSamplingThread");
+    }
 
     // When calling into SF, we post a message into the SF message queue (so the
     // screen capture runs on the main thread). This message blocks until the
@@ -415,6 +420,12 @@ void RegionSamplingThread::captureSample() {
     for (size_t d = 0; d < activeDescriptors.size(); ++d) {
         activeDescriptors[d].listener->onSampleCollected(lumas[d]);
     }
+
+    // Extend the lifetime of mCachedBuffer from the previous frame to here to ensure that:
+    // 1) The region sampling thread is the last owner of the buffer, and the freeing of the buffer
+    // happens in this thread, as opposed to the main thread.
+    // 2) The listener(s) receive their notifications prior to freeing the buffer.
+    mCachedBuffer = buffer;
     ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::noWorkNeeded));
 }
 
