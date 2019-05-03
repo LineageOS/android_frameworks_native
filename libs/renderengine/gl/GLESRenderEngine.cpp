@@ -271,13 +271,6 @@ std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(int hwcFormat, uint32
     extensions.initWithGLStrings(glGetString(GL_VENDOR), glGetString(GL_RENDERER),
                                  glGetString(GL_VERSION), glGetString(GL_EXTENSIONS));
 
-    // In order to have protected contents in GPU composition, the OpenGL ES extension
-    // GL_EXT_protected_textures must be supported. If it's not supported, reset
-    // protected context to EGL_NO_CONTEXT to indicate that protected contents is not supported.
-    if (!extensions.hasProtectedTexture()) {
-        protectedContext = EGL_NO_CONTEXT;
-    }
-
     EGLSurface protectedDummy = EGL_NO_SURFACE;
     if (protectedContext != EGL_NO_CONTEXT && !extensions.hasSurfacelessContext()) {
         protectedDummy =
@@ -616,10 +609,6 @@ void GLESRenderEngine::bindExternalTextureImage(uint32_t texName, const Image& i
     const GLenum target = GL_TEXTURE_EXTERNAL_OES;
 
     glBindTexture(target, texName);
-    if (supportsProtectedContent()) {
-        glTexParameteri(target, GL_TEXTURE_PROTECTED_EXT,
-                        glImage.isProtected() ? GL_TRUE : GL_FALSE);
-    }
     if (glImage.getEGLImage() != EGL_NO_IMAGE_KHR) {
         glEGLImageTargetTexture2DOES(target, static_cast<GLeglImageOES>(glImage.getEGLImage()));
     }
@@ -799,10 +788,6 @@ status_t GLESRenderEngine::bindFrameBuffer(Framebuffer* framebuffer) {
 
     // Bind the texture and turn our EGLImage into a texture
     glBindTexture(GL_TEXTURE_2D, textureName);
-    if (supportsProtectedContent()) {
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_PROTECTED_EXT,
-                        mInProtectedContext ? GL_TRUE : GL_FALSE);
-    }
     glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, (GLeglImageOES)eglImage);
 
     // Bind the Framebuffer to render into
