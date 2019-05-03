@@ -24,13 +24,13 @@
 
 #include <android-base/thread_annotations.h>
 #include <binder/IBinder.h>
+#include <ui/GraphicBuffer.h>
 #include <ui/Rect.h>
 #include <utils/StrongPointer.h>
 #include "Scheduler/IdleTimer.h"
 
 namespace android {
 
-class GraphicBuffer;
 class IRegionSamplingListener;
 class Layer;
 class Scheduler;
@@ -121,6 +121,8 @@ private:
     std::unordered_map<wp<IBinder>, Descriptor, WpHash> mDescriptors GUARDED_BY(mMutex);
     std::chrono::nanoseconds lastSampleTime GUARDED_BY(mMutex);
     bool mDiscardedFrames GUARDED_BY(mMutex) = false;
+
+    sp<GraphicBuffer> mCachedBuffer GUARDED_BY(mMutex) = nullptr;
 };
 
 } // namespace android
