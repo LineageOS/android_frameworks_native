@@ -2580,6 +2580,84 @@ TEST_F(KeyboardInputMapperTest, Configure_AssignsDisplayPort) {
                                                 AKEYCODE_DPAD_LEFT, newDisplayId));
 }
 
+TEST_F(KeyboardInputMapperTest, ExternalDevice_WakeBehavior) {
+    // For external devices, non-media keys will trigger wake on key down. Media keys need to be
+    // marked as WAKE in the keylayout file to trigger wake.
+    mDevice->setExternal(true);
+
+    mFakeEventHub->addKey(DEVICE_ID, KEY_HOME, 0, AKEYCODE_HOME, 0);
+    mFakeEventHub->addKey(DEVICE_ID, KEY_PLAY, 0, AKEYCODE_MEDIA_PLAY, 0);
+    mFakeEventHub->addKey(DEVICE_ID, KEY_PLAYPAUSE, 0, AKEYCODE_MEDIA_PLAY_PAUSE, POLICY_FLAG_WAKE);
+
+    KeyboardInputMapper* mapper = new KeyboardInputMapper(mDevice, AINPUT_SOURCE_KEYBOARD,
+                                                          AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+    addMapperAndConfigure(mapper);
+
+    process(mapper, ARBITRARY_TIME, EV_KEY, KEY_HOME, 1);
+    NotifyKeyArgs args;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
+
+    process(mapper, ARBITRARY_TIME + 1, EV_KEY, KEY_HOME, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(uint32_t(0), args.policyFlags);
+
+    process(mapper, ARBITRARY_TIME, EV_KEY, KEY_PLAY, 1);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(uint32_t(0), args.policyFlags);
+
+    process(mapper, ARBITRARY_TIME + 1, EV_KEY, KEY_PLAY, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(uint32_t(0), args.policyFlags);
+
+    process(mapper, ARBITRARY_TIME, EV_KEY, KEY_PLAYPAUSE, 1);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
+
+    process(mapper, ARBITRARY_TIME + 1, EV_KEY, KEY_PLAYPAUSE, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
+}
+
+TEST_F(KeyboardInputMapperTest, ExternalDevice_DoNotWakeByDefaultBehavior) {
+    // Tv Remote key's wake behavior is prescribed by the keylayout file.
+    mDevice->setExternal(true);
+
+    mFakeEventHub->addKey(DEVICE_ID, KEY_HOME, 0, AKEYCODE_HOME, POLICY_FLAG_WAKE);
+    mFakeEventHub->addKey(DEVICE_ID, KEY_DOWN, 0, AKEYCODE_DPAD_DOWN, 0);
+    mFakeEventHub->addKey(DEVICE_ID, KEY_PLAY, 0, AKEYCODE_MEDIA_PLAY, POLICY_FLAG_WAKE);
+
+    KeyboardInputMapper* mapper = new KeyboardInputMapper(mDevice, AINPUT_SOURCE_KEYBOARD,
+                                                          AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+    addConfigurationProperty("keyboard.doNotWakeByDefault", "1");
+    addMapperAndConfigure(mapper);
+
+    process(mapper, ARBITRARY_TIME, EV_KEY, KEY_HOME, 1);
+    NotifyKeyArgs args;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
+
+    process(mapper, ARBITRARY_TIME + 1, EV_KEY, KEY_HOME, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
+
+    process(mapper, ARBITRARY_TIME, EV_KEY, KEY_DOWN, 1);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(uint32_t(0), args.policyFlags);
+
+    process(mapper, ARBITRARY_TIME + 1, EV_KEY, KEY_DOWN, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(uint32_t(0), args.policyFlags);
+
+    process(mapper, ARBITRARY_TIME, EV_KEY, KEY_PLAY, 1);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
+
+    process(mapper, ARBITRARY_TIME + 1, EV_KEY, KEY_PLAY, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
+}
+
 // --- CursorInputMapperTest ---
 
 class CursorInputMapperTest : public InputMapperTest {

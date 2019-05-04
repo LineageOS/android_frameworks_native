@@ -73,6 +73,7 @@ private:
     struct Parameters {
         bool orientationAware;
         bool handlesKeyRepeat;
+        bool doNotWakeByDefault;
     } mParameters;
 
     void configureParameters();

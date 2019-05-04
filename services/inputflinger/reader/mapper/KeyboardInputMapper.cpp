@@ -183,6 +183,9 @@ void KeyboardInputMapper::configureParameters() {
 
     mParameters.handlesKeyRepeat = false;
     config.tryGetProperty(String8("keyboard.handlesKeyRepeat"), mParameters.handlesKeyRepeat);
+
+    mParameters.doNotWakeByDefault = false;
+    config.tryGetProperty(String8("keyboard.doNotWakeByDefault"), mParameters.doNotWakeByDefault);
 }
 
 void KeyboardInputMapper::dumpParameters(std::string& dump) {
@@ -331,10 +334,12 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode, 
 
     // Key down on external an keyboard should wake the device.
     // We don't do this for internal keyboards to prevent them from waking up in your pocket.
-    // For internal keyboards, the key layout file should specify the policy flags for
-    // each wake key individually.
+    // For internal keyboards and devices for which the default wake behavior is explicitly
+    // prevented (e.g. TV remotes), the key layout file should specify the policy flags for each
+    // wake key individually.
     // TODO: Use the input device configuration to control this behavior more finely.
-    if (down && getDevice()->isExternal() && !isMediaKey(keyCode)) {
+    if (down && getDevice()->isExternal() && !mParameters.doNotWakeByDefault &&
+        !isMediaKey(keyCode)) {
         policyFlags |= POLICY_FLAG_WAKE;
     }
 
