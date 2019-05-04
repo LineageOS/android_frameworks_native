@@ -45,6 +45,7 @@ public:
     bool isValid() const override;
     void initialize() override;
     const ui::Size& getSize() const override;
+    bool isProtected() const override { return mProtected; }
 
     const sp<Fence>& getClientTargetAcquireFence() const override;
     void setBufferDataspace(ui::Dataspace) override;
@@ -78,6 +79,7 @@ private:
     sp<GraphicBuffer> mGraphicBuffer;
     const sp<DisplaySurface> mDisplaySurface;
     ui::Size mSize;
+    bool mProtected{false};
     std::uint32_t mPageFlipCount{0};
 };
 

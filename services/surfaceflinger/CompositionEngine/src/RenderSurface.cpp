@@ -101,6 +101,9 @@ void RenderSurface::setProtected(bool useProtected) {
     }
     const int status = native_window_set_usage(mNativeWindow.get(), usageFlags);
     ALOGE_IF(status != NO_ERROR, "Unable to set BQ usage bits for protected content: %d", status);
+    if (status == NO_ERROR) {
+        mProtected = useProtected;
+    }
 }
 
 status_t RenderSurface::beginFrame(bool mustRecompose) {
