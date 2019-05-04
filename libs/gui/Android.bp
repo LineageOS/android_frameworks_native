@@ -25,50 +25,19 @@ cc_library_shared {
     },
     double_loadable: true,
 
-    clang: true,
-    cflags: [
-        "-Wall",
-        "-Werror",
-    ],
-    cppflags: [
-        "-Wextra",
-        "-DDEBUG_ONLY_CODE=0",
-    ],
-
-    product_variables: {
-        eng: {
-            cppflags: [
-                "-UDEBUG_ONLY_CODE",
-                "-DDEBUG_ONLY_CODE=1",
-            ],
-        },
-    },
+    defaults: ["libgui_bufferqueue-defaults"],
 
     srcs: [
         "BitTube.cpp",
         "BufferHubConsumer.cpp",
         "BufferHubProducer.cpp",
-        "BufferItem.cpp",
         "BufferItemConsumer.cpp",
-        "BufferQueue.cpp",
-        "BufferQueueConsumer.cpp",
-        "BufferQueueCore.cpp",
-        "BufferQueueProducer.cpp",
-        "BufferQueueThreadState.cpp",
-        "BufferSlot.cpp",
         "ConsumerBase.cpp",
         "CpuConsumer.cpp",
         "DisplayEventReceiver.cpp",
-        "FrameTimestamps.cpp",
         "GLConsumer.cpp",
-        "GLConsumerUtils.cpp",
         "GuiConfig.cpp",
-        "HdrMetadata.cpp",
         "IDisplayEventConnection.cpp",
-        "IConsumerListener.cpp",
-        "IGraphicBufferConsumer.cpp",
-        "IGraphicBufferProducer.cpp",
-        "IProducerListener.cpp",
         "IRegionSamplingListener.cpp",
         "ISurfaceComposer.cpp",
         "ISurfaceComposerClient.cpp",
@@ -76,50 +45,20 @@ cc_library_shared {
         "LayerDebugInfo.cpp",
         "LayerMetadata.cpp",
         "LayerState.cpp",
-        "OccupancyTracker.cpp",
         "StreamSplitter.cpp",
         "Surface.cpp",
         "SurfaceControl.cpp",
         "SurfaceComposerClient.cpp",
         "SyncFeatures.cpp",
         "view/Surface.cpp",
-        "bufferqueue/1.0/B2HProducerListener.cpp",
-        "bufferqueue/1.0/Conversion.cpp",
-        "bufferqueue/1.0/H2BGraphicBufferProducer.cpp",
-        "bufferqueue/1.0/H2BProducerListener.cpp",
-        "bufferqueue/1.0/WProducerListener.cpp",
-        "bufferqueue/2.0/B2HGraphicBufferProducer.cpp",
-        "bufferqueue/2.0/B2HProducerListener.cpp",
-        "bufferqueue/2.0/H2BGraphicBufferProducer.cpp",
-        "bufferqueue/2.0/H2BProducerListener.cpp",
-        "bufferqueue/2.0/types.cpp",
     ],
 
     shared_libs: [
         "android.frameworks.bufferhub@1.0",
-        "android.hardware.graphics.bufferqueue@1.0",
-        "android.hardware.graphics.bufferqueue@2.0",
-        "android.hardware.graphics.common@1.1",
-        "android.hardware.graphics.common@1.2",
-        "android.hidl.token@1.0-utils",
-        "libbase",
-        "libbinder",
         "libbufferhub",
         "libbufferhubqueue", // TODO(b/70046255): Remove this once BufferHub is integrated into libgui.
-        "libcutils",
-        "libEGL",
-        "libGLESv2",
-        "libhidlbase",
-        "libhidltransport",
-        "libhwbinder",
         "libinput",
-        "liblog",
-        "libnativewindow",
         "libpdx_default_transport",
-        "libsync",
-        "libui",
-        "libutils",
-        "libvndksupport",
     ],
 
     // bufferhub is not used when building libgui for vendors
@@ -145,43 +84,31 @@ cc_library_shared {
 
     header_libs: [
         "libdvr_headers",
-        "libgui_headers",
-        "libnativebase_headers",
         "libpdx_headers",
-    ],
-
-    export_shared_lib_headers: [
-        "libbinder",
-        "libEGL",
-        "libnativewindow",
-        "libui",
-        "android.hardware.graphics.bufferqueue@1.0",
-        "android.hardware.graphics.bufferqueue@2.0",
-        "android.hardware.graphics.common@1.1",
-        "android.hardware.graphics.common@1.2",
-        "android.hidl.token@1.0-utils",
-    ],
-
-    export_header_lib_headers: [
-        "libgui_headers",
-    ],
-
-    export_include_dirs: [
-        "include",
     ],
 }
 
 // Used by media codec services exclusively as a static lib for
-// core bufferqueuesupport only.
+// core bufferqueue support only.
 cc_library_static {
     name: "libgui_bufferqueue_static",
     vendor_available: true,
+
+    cflags: [
+        "-DNO_BUFFERHUB",
+    ],
+
+    defaults: ["libgui_bufferqueue-defaults"],
+}
+
+// Common build config shared by libgui and libgui_bufferqueue_static.
+cc_defaults {
+    name: "libgui_bufferqueue-defaults",
 
     clang: true,
     cflags: [
         "-Wall",
         "-Werror",
-        "-DNO_BUFFERHUB",
     ],
 
     cppflags: [
