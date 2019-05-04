@@ -31,6 +31,7 @@ public:
     MOCK_CONST_METHOD0(isValid, bool());
     MOCK_METHOD0(initialize, void());
     MOCK_CONST_METHOD0(getSize, const ui::Size&());
+    MOCK_CONST_METHOD0(isProtected, bool());
     MOCK_CONST_METHOD0(getClientTargetAcquireFence, const sp<Fence>&());
     MOCK_METHOD1(setDisplaySize, void(const ui::Size&));
     MOCK_METHOD1(setProtected, void(bool));

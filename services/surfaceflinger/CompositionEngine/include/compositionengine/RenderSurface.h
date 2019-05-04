@@ -50,6 +50,9 @@ public:
     // Returns the bounds of the surface
     virtual const ui::Size& getSize() const = 0;
 
+    // Returns whether the surface is protected.
+    virtual bool isProtected() const = 0;
+
     // Gets the latest fence to pass to the HWC to signal that the surface
     // buffer is done rendering
     virtual const sp<Fence>& getClientTargetAcquireFence() const = 0;
