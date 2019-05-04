@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <unordered_map>
 
 #include <utils/Vector.h>
 #include <utils/SortedVector.h>
@@ -134,6 +135,9 @@ private:
     // privacy not being enabled.
     bool hasSensorAccess();
 
+    // Call noteOp for the sensor if the sensor requires a permission
+    bool noteOpIfRequired(const sensors_event_t& event);
+
     sp<SensorService> const mService;
     sp<BitTube> mChannel;
     uid_t mUid;
@@ -181,6 +185,10 @@ private:
     mutable Mutex mDestroyLock;
     bool mDestroyed;
     bool mHasSensorAccess;
+
+    // Store a mapping of sensor handles to required AppOp for a sensor. This map only contains a
+    // valid mapping for sensors that require a permission in order to reduce the lookup time.
+    std::unordered_map<int32_t, int32_t> mHandleToAppOp;
 };
 
 } // namepsace android

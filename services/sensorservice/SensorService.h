@@ -20,6 +20,7 @@
 #include "SensorList.h"
 #include "RecentEventLogger.h"
 
+#include <binder/AppOpsManager.h>
 #include <binder/BinderService.h>
 #include <binder/IUidObserver.h>
 #include <cutils/compiler.h>
@@ -243,6 +244,8 @@ private:
             sensors_event_t const* buffer, const int count);
     static bool canAccessSensor(const Sensor& sensor, const char* operation,
             const String16& opPackageName);
+    static bool hasPermissionForSensor(const Sensor& sensor);
+    static int getTargetSdkVersion(const String16& opPackageName);
     // SensorService acquires a partial wakelock for delivering events from wake up sensors. This
     // method checks whether all the events from these wake up sensors have been delivered to the
     // corresponding applications, if yes the wakelock is released.
@@ -343,6 +346,10 @@ private:
 
     sp<UidPolicy> mUidPolicy;
     sp<SensorPrivacyPolicy> mSensorPrivacyPolicy;
+
+    static AppOpsManager sAppOpsManager;
+    static std::map<String16, int> sPackageTargetVersion;
+    static Mutex sPackageTargetVersionLock;
 };
 
 } // namespace android

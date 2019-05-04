@@ -38,7 +38,8 @@ bool RefreshRateOverlay::createLayer() {
     }
 
     mLayer = mClient->getLayerUser(mIBinder);
-    mLayer->setCrop_legacy(Rect(0, 0, 200, 100), true);
+    mLayer->setCrop_legacy(Rect(50, 70, 200, 100), true);
+    mLayer->setCornerRadius(15.0f);
     mLayer->setLayer(INT32_MAX - 2);
 
     return true;

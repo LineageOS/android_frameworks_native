@@ -285,8 +285,9 @@ status_t SensorService::SensorEventConnection::sendEvents(
                         scratch[count++] = buffer[i];
                     }
                 } else {
-                    // Regular sensor event, just copy it to the scratch buffer.
-                    if (hasSensorAccess()) {
+                    // Regular sensor event, just copy it to the scratch buffer after checking
+                    // the AppOp.
+                    if (hasSensorAccess() && noteOpIfRequired(buffer[i])) {
                         scratch[count++] = buffer[i];
                     }
                 }
@@ -384,6 +385,16 @@ void SensorService::SensorEventConnection::setSensorAccess(const bool hasAccess)
 
 bool SensorService::SensorEventConnection::hasSensorAccess() {
     return mHasSensorAccess && !mService->mSensorPrivacyPolicy->isSensorPrivacyEnabled();
+}
+
+bool SensorService::SensorEventConnection::noteOpIfRequired(const sensors_event_t& event) {
+    bool success = true;
+    const auto iter = mHandleToAppOp.find(event.sensor);
+    if (iter != mHandleToAppOp.end()) {
+        int32_t appOpMode = mService->sAppOpsManager.noteOp((*iter).second, mUid, mOpPackageName);
+        success = (appOpMode == AppOpsManager::MODE_ALLOWED);
+    }
+    return success;
 }
 
 void SensorService::SensorEventConnection::reAllocateCacheLocked(sensors_event_t const* scratch,
