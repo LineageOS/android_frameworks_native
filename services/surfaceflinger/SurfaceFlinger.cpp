@@ -3301,8 +3301,11 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
                     break;
                 }
             }
-            if (needsProtected != renderEngine.isProtected() &&
-                renderEngine.useProtectedContext(needsProtected)) {
+            if (needsProtected != renderEngine.isProtected()) {
+                renderEngine.useProtectedContext(needsProtected);
+            }
+            if (needsProtected != display->getRenderSurface()->isProtected() &&
+                needsProtected == renderEngine.isProtected()) {
                 display->getRenderSurface()->setProtected(needsProtected);
             }
         }
