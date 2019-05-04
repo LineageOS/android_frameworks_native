@@ -208,7 +208,7 @@ class ZippedBugReportContentsTest : public Test {
 
     void FileExists(const char* filename, uint32_t minsize, uint32_t maxsize) {
         ZipEntry entry;
-        EXPECT_EQ(FindEntry(handle, ZipString(filename), &entry), 0);
+        EXPECT_EQ(FindEntry(handle, filename, &entry), 0);
         EXPECT_GT(entry.uncompressed_length, minsize);
         EXPECT_LT(entry.uncompressed_length, maxsize);
     }
@@ -217,7 +217,7 @@ class ZippedBugReportContentsTest : public Test {
 TEST_F(ZippedBugReportContentsTest, ContainsMainEntry) {
     ZipEntry mainEntryLoc;
     // contains main entry name file
-    EXPECT_EQ(FindEntry(handle, ZipString("main_entry.txt"), &mainEntryLoc), 0);
+    EXPECT_EQ(FindEntry(handle, "main_entry.txt", &mainEntryLoc), 0);
 
     char* buf = new char[mainEntryLoc.uncompressed_length];
     ExtractToMemory(handle, &mainEntryLoc, (uint8_t*)buf, mainEntryLoc.uncompressed_length);
@@ -230,7 +230,7 @@ TEST_F(ZippedBugReportContentsTest, ContainsMainEntry) {
 TEST_F(ZippedBugReportContentsTest, ContainsVersion) {
     ZipEntry entry;
     // contains main entry name file
-    EXPECT_EQ(FindEntry(handle, ZipString("version.txt"), &entry), 0);
+    EXPECT_EQ(FindEntry(handle, "version.txt", &entry), 0);
 
     char* buf = new char[entry.uncompressed_length + 1];
     ExtractToMemory(handle, &entry, (uint8_t*)buf, entry.uncompressed_length);
