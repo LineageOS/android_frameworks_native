@@ -1632,7 +1632,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
             }
 
             // For now, only propagate backpressure when missing a hwc frame.
-            if (hwcFrameMissed) {
+            if (hwcFrameMissed && !gpuFrameMissed) {
                 if (mPropagateBackpressure) {
                     signalLayerUpdate();
                     break;
