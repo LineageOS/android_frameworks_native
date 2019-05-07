@@ -45,6 +45,8 @@ public:
     int32_t vkLoadingCount = 0;
     int32_t vkLoadingFailureCount = 0;
     int32_t vulkanVersion = 0;
+    int32_t cpuVulkanVersion = 0;
+    int32_t glesVersion = 0;
 };
 
 /*
