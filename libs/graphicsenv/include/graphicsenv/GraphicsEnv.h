@@ -50,6 +50,7 @@ private:
         uint64_t driverVersionCode;
         int64_t driverBuildTime;
         std::string appPackageName;
+        int32_t vulkanVersion;
         Driver glDriverToLoad;
         Driver glDriverFallback;
         Driver vkDriverToLoad;
@@ -61,6 +62,7 @@ private:
                 driverVersionCode(0),
                 driverBuildTime(0),
                 appPackageName(""),
+                vulkanVersion(0),
                 glDriverToLoad(Driver::NONE),
                 glDriverFallback(Driver::NONE),
                 vkDriverToLoad(Driver::NONE),
@@ -84,7 +86,7 @@ public:
     android_namespace_t* getDriverNamespace();
     void setGpuStats(const std::string& driverPackageName, const std::string& driverVersionName,
                      uint64_t versionCode, int64_t driverBuildTime,
-                     const std::string& appPackageName);
+                     const std::string& appPackageName, const int32_t vulkanVersion);
     void setDriverToLoad(Driver driver);
     void setDriverLoaded(Api api, bool isDriverLoaded, int64_t driverLoadingTime);
     void clearDriverLoadingInfo(Api api);
