@@ -539,13 +539,6 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
                 return NO_INIT;
             }
 
-            if (mCore->mConsumerListener != nullptr) {
-                BufferItem item;
-                item.mGraphicBuffer = graphicBuffer;
-                item.mSlot = *outSlot;
-                mCore->mConsumerListener->onBufferAllocated(item);
-            }
-
             VALIDATE_CONSISTENCY();
         } // Autolock scope
     }
@@ -974,9 +967,6 @@ status_t BufferQueueProducer::queueBuffer(int slot,
     if (!mConsumerIsSurfaceFlinger) {
         item.mGraphicBuffer.clear();
     }
-
-    // Don't send the slot number through the callback since the consumer shouldn't need it
-    item.mSlot = BufferItem::INVALID_BUFFER_SLOT;
 
     // Call back without the main BufferQueue lock held, but with the callback
     // lock held so we can ensure that callbacks occur in order
@@ -1432,13 +1422,6 @@ void BufferQueueProducer::allocateBuffers(uint32_t width, uint32_t height,
 
                 BQ_LOGV("allocateBuffers: allocated a new buffer in slot %d",
                         *slot);
-
-                if (mCore->mConsumerListener != nullptr) {
-                    BufferItem item;
-                    item.mGraphicBuffer = buffers[i];
-                    item.mSlot = *slot;
-                    mCore->mConsumerListener->onBufferAllocated(item);
-                }
 
                 // Make sure the erase is done after all uses of the slot
                 // iterator since it will be invalid after this point.

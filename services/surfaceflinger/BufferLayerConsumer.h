@@ -176,6 +176,7 @@ public:
     // setConsumerUsageBits overrides the ConsumerBase method to OR
     // DEFAULT_USAGE_FLAGS to usage.
     status_t setConsumerUsageBits(uint64_t usage);
+    void onBufferAvailable(const BufferItem& item) EXCLUDES(mImagesMutex);
 
 protected:
     // abandonLocked overrides the ConsumerBase method to clear
@@ -241,7 +242,6 @@ private:
 
     // IConsumerListener interface
     void onDisconnect() override;
-    void onBufferAllocated(const BufferItem& item) override EXCLUDES(mImagesMutex);
     void onSidebandStreamChanged() override;
     void addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
                                   FrameEventHistoryDelta* outDelta) override;
