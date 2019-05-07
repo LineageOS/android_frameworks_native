@@ -131,8 +131,6 @@ void ConsumerBase::onFrameReplaced(const BufferItem &item) {
     }
 }
 
-void ConsumerBase::onBufferAllocated(const BufferItem& /*item*/) {}
-
 void ConsumerBase::onBuffersReleased() {
     Mutex::Autolock lock(mMutex);
 
