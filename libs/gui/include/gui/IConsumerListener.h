@@ -61,13 +61,6 @@ public:
     // This is called without any lock held and can be called concurrently by multiple threads.
     virtual void onFrameReplaced(const BufferItem& /* item */) {} /* Asynchronous */
 
-    // onBufferAllocated is called to notify the buffer consumer that the BufferQueue has allocated
-    // a GraphicBuffer for a particular slot. Only the GraphicBuffer pointer and the slot ID will
-    // be populated.
-    //
-    // This is called without any lock held and can be called concurrently by multiple threads.
-    virtual void onBufferAllocated(const BufferItem& /* item */) {} /* Asynchronous */
-
     // onBuffersReleased is called to notify the buffer consumer that the BufferQueue has released
     // its references to one or more GraphicBuffers contained in its slots. The buffer consumer
     // should then call BufferQueue::getReleasedBuffers to retrieve the list of buffers.

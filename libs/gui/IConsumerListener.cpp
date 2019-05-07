@@ -28,8 +28,7 @@ enum class Tag : uint32_t {
     ON_FRAME_REPLACED,
     ON_BUFFERS_RELEASED,
     ON_SIDEBAND_STREAM_CHANGED,
-    ON_BUFFER_ALLOCATED,
-    LAST = ON_BUFFER_ALLOCATED,
+    LAST = ON_SIDEBAND_STREAM_CHANGED,
 };
 
 } // Anonymous namespace
@@ -53,11 +52,6 @@ public:
     void onFrameReplaced(const BufferItem& item) override {
         callRemoteAsync<decltype(&IConsumerListener::onFrameReplaced)>(Tag::ON_FRAME_REPLACED,
                                                                        item);
-    }
-
-    void onBufferAllocated(const BufferItem& item) override {
-        callRemoteAsync<decltype(&IConsumerListener::onBufferAllocated)>(Tag::ON_BUFFER_ALLOCATED,
-                                                                         item);
     }
 
     void onBuffersReleased() override {
@@ -95,8 +89,6 @@ status_t BnConsumerListener::onTransact(uint32_t code, const Parcel& data, Parce
             return callLocalAsync(data, reply, &IConsumerListener::onFrameAvailable);
         case Tag::ON_FRAME_REPLACED:
             return callLocalAsync(data, reply, &IConsumerListener::onFrameReplaced);
-        case Tag::ON_BUFFER_ALLOCATED:
-            return callLocalAsync(data, reply, &IConsumerListener::onBufferAllocated);
         case Tag::ON_BUFFERS_RELEASED:
             return callLocalAsync(data, reply, &IConsumerListener::onBuffersReleased);
         case Tag::ON_SIDEBAND_STREAM_CHANGED:

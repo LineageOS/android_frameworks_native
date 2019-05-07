@@ -61,7 +61,6 @@ public:
         void onDisconnect() override;
         void onFrameAvailable(const BufferItem& item) override;
         void onFrameReplaced(const BufferItem& item) override;
-        void onBufferAllocated(const BufferItem& item) override;
         void onBuffersReleased() override;
         void onSidebandStreamChanged() override;
         void addAndGetFrameTimestamps(
