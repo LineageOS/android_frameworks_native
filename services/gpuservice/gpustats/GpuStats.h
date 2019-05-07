@@ -35,8 +35,8 @@ public:
     // Insert new gpu stats into global stats and app stats.
     void insert(const std::string& driverPackageName, const std::string& driverVersionName,
                 uint64_t driverVersionCode, int64_t driverBuildTime,
-                const std::string& appPackageName, GraphicsEnv::Driver driver, bool isDriverLoaded,
-                int64_t driverLoadingTime);
+                const std::string& appPackageName, const int32_t vulkanVersion,
+                GraphicsEnv::Driver driver, bool isDriverLoaded, int64_t driverLoadingTime);
     // dumpsys interface
     void dump(const Vector<String16>& args, std::string* result);
     // Pull gpu global stats

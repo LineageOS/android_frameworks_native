@@ -44,6 +44,7 @@ public:
     int32_t glLoadingFailureCount = 0;
     int32_t vkLoadingCount = 0;
     int32_t vkLoadingFailureCount = 0;
+    int32_t vulkanVersion = 0;
 };
 
 /*

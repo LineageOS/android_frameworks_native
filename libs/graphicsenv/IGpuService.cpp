@@ -30,8 +30,8 @@ public:
     virtual void setGpuStats(const std::string& driverPackageName,
                              const std::string& driverVersionName, uint64_t driverVersionCode,
                              int64_t driverBuildTime, const std::string& appPackageName,
-                             GraphicsEnv::Driver driver, bool isDriverLoaded,
-                             int64_t driverLoadingTime) {
+                             const int32_t vulkanVersion, GraphicsEnv::Driver driver,
+                             bool isDriverLoaded, int64_t driverLoadingTime) {
         Parcel data, reply;
         data.writeInterfaceToken(IGpuService::getInterfaceDescriptor());
 
@@ -40,6 +40,7 @@ public:
         data.writeUint64(driverVersionCode);
         data.writeInt64(driverBuildTime);
         data.writeUtf8AsUtf16(appPackageName);
+        data.writeInt32(vulkanVersion);
         data.writeInt32(static_cast<int32_t>(driver));
         data.writeBool(isDriverLoaded);
         data.writeInt64(driverLoadingTime);
@@ -118,6 +119,9 @@ status_t BnGpuService::onTransact(uint32_t code, const Parcel& data, Parcel* rep
             std::string appPackageName;
             if ((status = data.readUtf8FromUtf16(&appPackageName)) != OK) return status;
 
+            int32_t vulkanVersion;
+            if ((status = data.readInt32(&vulkanVersion)) != OK) return status;
+
             int32_t driver;
             if ((status = data.readInt32(&driver)) != OK) return status;
 
@@ -128,8 +132,8 @@ status_t BnGpuService::onTransact(uint32_t code, const Parcel& data, Parcel* rep
             if ((status = data.readInt64(&driverLoadingTime)) != OK) return status;
 
             setGpuStats(driverPackageName, driverVersionName, driverVersionCode, driverBuildTime,
-                        appPackageName, static_cast<GraphicsEnv::Driver>(driver), isDriverLoaded,
-                        driverLoadingTime);
+                        appPackageName, vulkanVersion, static_cast<GraphicsEnv::Driver>(driver),
+                        isDriverLoaded, driverLoadingTime);
 
             return OK;
         }

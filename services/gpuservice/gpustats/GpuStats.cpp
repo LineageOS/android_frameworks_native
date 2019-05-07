@@ -68,8 +68,8 @@ static void addLoadingTime(GraphicsEnv::Driver driver, int64_t driverLoadingTime
 
 void GpuStats::insert(const std::string& driverPackageName, const std::string& driverVersionName,
                       uint64_t driverVersionCode, int64_t driverBuildTime,
-                      const std::string& appPackageName, GraphicsEnv::Driver driver,
-                      bool isDriverLoaded, int64_t driverLoadingTime) {
+                      const std::string& appPackageName, const int32_t vulkanVersion,
+                      GraphicsEnv::Driver driver, bool isDriverLoaded, int64_t driverLoadingTime) {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mLock);
@@ -79,11 +79,13 @@ void GpuStats::insert(const std::string& driverPackageName, const std::string& d
           "\tdriverVersionCode[%" PRIu64 "]\n"
           "\tdriverBuildTime[%" PRId64 "]\n"
           "\tappPackageName[%s]\n"
+          "\tvulkanVersion[%d]\n"
           "\tdriver[%d]\n"
           "\tisDriverLoaded[%d]\n"
           "\tdriverLoadingTime[%" PRId64 "]",
           driverPackageName.c_str(), driverVersionName.c_str(), driverVersionCode, driverBuildTime,
-          appPackageName.c_str(), static_cast<int32_t>(driver), isDriverLoaded, driverLoadingTime);
+          appPackageName.c_str(), vulkanVersion, static_cast<int32_t>(driver), isDriverLoaded,
+          driverLoadingTime);
 
     if (!mGlobalStats.count(driverVersionCode)) {
         GpuStatsGlobalInfo globalInfo;
@@ -94,6 +96,7 @@ void GpuStats::insert(const std::string& driverPackageName, const std::string& d
         globalInfo.driverVersionName = driverVersionName;
         globalInfo.driverVersionCode = driverVersionCode;
         globalInfo.driverBuildTime = driverBuildTime;
+        globalInfo.vulkanVersion = vulkanVersion;
         mGlobalStats.insert({driverVersionCode, globalInfo});
     } else if (!addLoadingCount(driver, isDriverLoaded, &mGlobalStats[driverVersionCode])) {
         return;
