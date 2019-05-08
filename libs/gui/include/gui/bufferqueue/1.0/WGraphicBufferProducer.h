@@ -68,7 +68,7 @@ struct TWGraphicBufferProducer : public BASE {
     Return<void> requestBuffer(int32_t slot, HGraphicBufferProducer::requestBuffer_cb _hidl_cb) override {
         sp<GraphicBuffer> buf;
         status_t status = mBase->requestBuffer(slot, &buf);
-        AnwBuffer anwBuffer;
+        AnwBuffer anwBuffer{};
         if (buf != nullptr) {
             ::android::conversion::wrapAs(&anwBuffer, *buf);
         }
@@ -89,15 +89,15 @@ struct TWGraphicBufferProducer : public BASE {
             uint32_t width, uint32_t height,
             ::android::hardware::graphics::common::V1_0::PixelFormat format, uint32_t usage,
             bool getFrameTimestamps, HGraphicBufferProducer::dequeueBuffer_cb _hidl_cb) override {
-        int slot;
+        int slot{};
         sp<Fence> fence;
         ::android::FrameEventHistoryDelta outTimestamps;
         status_t status = mBase->dequeueBuffer(
             &slot, &fence, width, height,
             static_cast<::android::PixelFormat>(format), usage, nullptr,
             getFrameTimestamps ? &outTimestamps : nullptr);
-        hidl_handle tFence;
-        HGraphicBufferProducer::FrameEventHistoryDelta tOutTimestamps;
+        hidl_handle tFence{};
+        HGraphicBufferProducer::FrameEventHistoryDelta tOutTimestamps{};
 
         native_handle_t* nh = nullptr;
         if ((fence == nullptr) || !::android::conversion::wrapAs(&tFence, &nh, *fence)) {
@@ -144,8 +144,8 @@ struct TWGraphicBufferProducer : public BASE {
         sp<GraphicBuffer> outBuffer;
         sp<Fence> outFence;
         status_t status = mBase->detachNextBuffer(&outBuffer, &outFence);
-        AnwBuffer tBuffer;
-        hidl_handle tFence;
+        AnwBuffer tBuffer{};
+        hidl_handle tFence{};
 
         if (outBuffer == nullptr) {
             LOG(ERROR) << "TWGraphicBufferProducer::detachNextBuffer - "
@@ -185,7 +185,7 @@ struct TWGraphicBufferProducer : public BASE {
     Return<void> queueBuffer(
             int32_t slot, const HGraphicBufferProducer::QueueBufferInput& input,
             HGraphicBufferProducer::queueBuffer_cb _hidl_cb) override {
-        HGraphicBufferProducer::QueueBufferOutput tOutput;
+        HGraphicBufferProducer::QueueBufferOutput tOutput{};
         BGraphicBufferProducer::QueueBufferInput lInput(
                 0, false, HAL_DATASPACE_UNKNOWN,
                 ::android::Rect(0, 0, 1, 1),
@@ -246,7 +246,7 @@ struct TWGraphicBufferProducer : public BASE {
                 producerControlledByApp,
                 &lOutput);
 
-        HGraphicBufferProducer::QueueBufferOutput tOutput;
+        HGraphicBufferProducer::QueueBufferOutput tOutput{};
         std::vector<std::vector<native_handle_t*> > nhAA;
         if (!::android::conversion::wrapAs(&tOutput, &nhAA, lOutput)) {
             LOG(ERROR) << "TWGraphicBufferProducer::connect - "
@@ -320,11 +320,11 @@ struct TWGraphicBufferProducer : public BASE {
         status_t status = mBase->getLastQueuedBuffer(
                 &lOutBuffer, &lOutFence, lOutTransformMatrix);
 
-        AnwBuffer tOutBuffer;
+        AnwBuffer tOutBuffer{};
         if (lOutBuffer != nullptr) {
             ::android::conversion::wrapAs(&tOutBuffer, *lOutBuffer);
         }
-        hidl_handle tOutFence;
+        hidl_handle tOutFence{};
         native_handle_t* nh = nullptr;
         if ((lOutFence == nullptr) || !::android::conversion::wrapAs(&tOutFence, &nh, *lOutFence)) {
             LOG(ERROR) << "TWGraphicBufferProducer::getLastQueuedBuffer - "
@@ -346,7 +346,7 @@ struct TWGraphicBufferProducer : public BASE {
         ::android::FrameEventHistoryDelta lDelta;
         mBase->getFrameTimestamps(&lDelta);
 
-        HGraphicBufferProducer::FrameEventHistoryDelta tDelta;
+        HGraphicBufferProducer::FrameEventHistoryDelta tDelta{};
         std::vector<std::vector<native_handle_t*> > nhAA;
         if (!::android::conversion::wrapAs(&tDelta, &nhAA, lDelta)) {
             LOG(ERROR) << "TWGraphicBufferProducer::getFrameTimestamps - "
@@ -365,7 +365,7 @@ struct TWGraphicBufferProducer : public BASE {
     }
 
     Return<void> getUniqueId(HGraphicBufferProducer::getUniqueId_cb _hidl_cb) override {
-        uint64_t outId;
+        uint64_t outId{};
         status_t status = mBase->getUniqueId(&outId);
         _hidl_cb(static_cast<int32_t>(status), outId);
         return Void();
