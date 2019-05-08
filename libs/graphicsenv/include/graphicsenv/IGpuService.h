@@ -37,8 +37,8 @@ public:
     virtual void setGpuStats(const std::string& driverPackageName,
                              const std::string& driverVersionName, uint64_t driverVersionCode,
                              int64_t driverBuildTime, const std::string& appPackageName,
-                             GraphicsEnv::Driver driver, bool isDriverLoaded,
-                             int64_t driverLoadingTime) = 0;
+                             const int32_t vulkanVersion, GraphicsEnv::Driver driver,
+                             bool isDriverLoaded, int64_t driverLoadingTime) = 0;
 
     // get GPU global stats from GpuStats module.
     virtual status_t getGpuStatsGlobalInfo(std::vector<GpuStatsGlobalInfo>* outStats) const = 0;

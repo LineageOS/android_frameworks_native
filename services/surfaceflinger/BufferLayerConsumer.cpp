@@ -478,20 +478,15 @@ void BufferLayerConsumer::onSidebandStreamChanged() {
     }
 }
 
-void BufferLayerConsumer::onBufferAllocated(const BufferItem& item) {
-    if (item.mGraphicBuffer != nullptr) {
-        std::shared_ptr<Image> image = std::make_shared<Image>(item.mGraphicBuffer, mRE);
-        std::shared_ptr<Image> oldImage;
-        {
-            std::lock_guard<std::mutex> lock(mImagesMutex);
-            oldImage = mImages[item.mSlot];
-            if (oldImage == nullptr || oldImage->graphicBuffer() == nullptr ||
-                oldImage->graphicBuffer()->getId() != item.mGraphicBuffer->getId()) {
-                mImages[item.mSlot] = std::make_shared<Image>(item.mGraphicBuffer, mRE);
-            }
-            image = mImages[item.mSlot];
+void BufferLayerConsumer::onBufferAvailable(const BufferItem& item) {
+    if (item.mGraphicBuffer != nullptr && item.mSlot != BufferQueue::INVALID_BUFFER_SLOT) {
+        std::lock_guard<std::mutex> lock(mImagesMutex);
+        const std::shared_ptr<Image>& oldImage = mImages[item.mSlot];
+        if (oldImage == nullptr || oldImage->graphicBuffer() == nullptr ||
+            oldImage->graphicBuffer()->getId() != item.mGraphicBuffer->getId()) {
+            mImages[item.mSlot] = std::make_shared<Image>(item.mGraphicBuffer, mRE);
+            mRE.cacheExternalTextureBuffer(item.mGraphicBuffer);
         }
-        mRE.cacheExternalTextureBuffer(image->graphicBuffer());
     }
 }
 
@@ -533,5 +528,4 @@ BufferLayerConsumer::Image::~Image() {
         mRE.unbindExternalTextureBuffer(mGraphicBuffer->getId());
     }
 }
-
 }; // namespace android
