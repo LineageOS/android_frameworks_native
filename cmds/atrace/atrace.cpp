@@ -62,7 +62,7 @@ using hardware::atrace::V1_0::toString;
 
 using std::string;
 
-#define MAX_SYS_FILES 10
+#define MAX_SYS_FILES 11
 
 const char* k_traceTagsProperty = "debug.atrace.tags.enableflags";
 const char* k_userInitiatedTraceProperty = "debug.atrace.user_initiated";
@@ -133,7 +133,11 @@ static const TracingCategory k_categories[] = {
         { OPT,      "events/sched/sched_blocked_reason/enable" },
         { OPT,      "events/sched/sched_cpu_hotplug/enable" },
         { OPT,      "events/sched/sched_pi_setprio/enable" },
+        { OPT,      "events/sched/sched_process_exit/enable" },
         { OPT,      "events/cgroup/enable" },
+        { OPT,      "events/oom/oom_score_adj_update/enable" },
+        { OPT,      "events/task/task_rename/enable" },
+        { OPT,      "events/task/task_newtask/enable" },
     } },
     { "irq",        "IRQ Events",   0, {
         { REQ,      "events/irq/enable" },
@@ -231,10 +235,6 @@ static const TracingCategory k_categories[] = {
         { OPT,      "events/kmem/rss_stat/enable" },
         { OPT,      "events/kmem/ion_heap_grow/enable" },
         { OPT,      "events/kmem/ion_heap_shrink/enable" },
-        { OPT,      "events/oom/oom_score_adj_update/enable" },
-        { OPT,      "events/sched/sched_process_exit/enable" },
-        { OPT,      "events/task/task_rename/enable" },
-        { OPT,      "events/task/task_newtask/enable" },
     } },
 };
 
