@@ -19,10 +19,11 @@
 
 #include "GpuStats.h"
 
-#include <unordered_set>
-
+#include <cutils/properties.h>
 #include <log/log.h>
 #include <utils/Trace.h>
+
+#include <unordered_set>
 
 namespace android {
 
@@ -120,6 +121,16 @@ void GpuStats::insert(const std::string& driverPackageName, const std::string& d
     addLoadingTime(driver, driverLoadingTime, &mAppStats[appStatsKey]);
 }
 
+void GpuStats::interceptSystemDriverStatsLocked() {
+    // Append cpuVulkanVersion and glesVersion to system driver stats
+    if (!mGlobalStats.count(0) || mGlobalStats[0].glesVersion) {
+        return;
+    }
+
+    mGlobalStats[0].cpuVulkanVersion = property_get_int32("ro.cpuvulkan.version", 0);
+    mGlobalStats[0].glesVersion = property_get_int32("ro.opengles.version", 0);
+}
+
 void GpuStats::dump(const Vector<String16>& args, std::string* result) {
     ATRACE_CALL();
 
@@ -176,6 +187,8 @@ void GpuStats::dump(const Vector<String16>& args, std::string* result) {
 }
 
 void GpuStats::dumpGlobalLocked(std::string* result) {
+    interceptSystemDriverStatsLocked();
+
     for (const auto& ele : mGlobalStats) {
         result->append(ele.second.toString());
         result->append("\n");
@@ -195,6 +208,8 @@ void GpuStats::pullGlobalStats(std::vector<GpuStatsGlobalInfo>* outStats) {
     std::lock_guard<std::mutex> lock(mLock);
     outStats->clear();
     outStats->reserve(mGlobalStats.size());
+
+    interceptSystemDriverStatsLocked();
 
     for (const auto& ele : mGlobalStats) {
         outStats->emplace_back(ele.second);
