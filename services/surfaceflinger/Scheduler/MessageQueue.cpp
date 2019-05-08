@@ -96,8 +96,7 @@ void MessageQueue::setEventThread(android::EventThread* eventThread,
     }
 
     mEventThread = eventThread;
-    mEvents =
-            eventThread->createEventConnection(std::move(resyncCallback), ResetIdleTimerCallback());
+    mEvents = eventThread->createEventConnection(std::move(resyncCallback));
     mEvents->stealReceiveChannel(&mEventTube);
     mLooper->addFd(mEventTube.getFd(), 0, Looper::EVENT_INPUT, MessageQueue::cb_eventReceiver,
                    this);
@@ -148,10 +147,6 @@ status_t MessageQueue::postMessage(const sp<MessageBase>& messageHandler, nsecs_
 
 void MessageQueue::invalidate() {
     mEvents->requestNextVsync();
-}
-
-void MessageQueue::invalidateForHWC() {
-    mEvents->requestNextVsyncForHWC();
 }
 
 void MessageQueue::refresh() {
