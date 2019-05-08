@@ -115,7 +115,8 @@ namespace android {
             kKeyStatusType_Expired,
             kKeyStatusType_OutputNotAllowed,
             kKeyStatusType_StatusPending,
-            kKeyStatusType_InternalError
+            kKeyStatusType_InternalError,
+            kKeyStatusType_UsableInFuture
         };
 
         // Used by sendKeysChange to report the usability status of each
