@@ -52,6 +52,8 @@ private:
     void dumpGlobalLocked(std::string* result);
     // Dump app stats
     void dumpAppLocked(std::string* result);
+    // Append cpuVulkanVersion and glesVersion to system driver stats
+    void interceptSystemDriverStatsLocked();
 
     // Below limits the memory usage of GpuStats to be less than 10KB. This is
     // the preferred number for statsd while maintaining nice data quality.
