@@ -15,7 +15,7 @@
  */
 
 //#define LOG_NDEBUG 0
-#define LOG_TAG "H2BGraphicBufferProducer@2.0"
+#define LOG_TAG "B2HGraphicBufferProducer@2.0"
 
 #include <android-base/logging.h>
 
@@ -30,12 +30,37 @@
 #include <vndk/hardware_buffer.h>
 
 namespace android {
-
 namespace hardware {
 namespace graphics {
 namespace bufferqueue {
 namespace V2_0 {
 namespace utils {
+
+namespace /* unnamed */ {
+
+using BQueueBufferInput = ::android::
+        IGraphicBufferProducer::QueueBufferInput;
+using HQueueBufferInput = ::android::hardware::graphics::bufferqueue::V2_0::
+        IGraphicBufferProducer::QueueBufferInput;
+using BQueueBufferOutput = ::android::
+        IGraphicBufferProducer::QueueBufferOutput;
+using HQueueBufferOutput = ::android::hardware::graphics::bufferqueue::V2_0::
+        IGraphicBufferProducer::QueueBufferOutput;
+
+using ::android::hardware::graphics::bufferqueue::V2_0::utils::b2h;
+using ::android::hardware::graphics::bufferqueue::V2_0::utils::h2b;
+
+bool b2h(BQueueBufferOutput const& from, HQueueBufferOutput* to) {
+    to->width = from.width;
+    to->height = from.height;
+    to->transformHint = static_cast<int32_t>(from.transformHint);
+    to->numPendingBuffers = from.numPendingBuffers;
+    to->nextFrameNumber = from.nextFrameNumber;
+    to->bufferReplaced = from.bufferReplaced;
+    return true;
+}
+
+} // unnamed namespace
 
 // B2HGraphicBufferProducer
 // ========================
@@ -161,11 +186,7 @@ Return<void> B2HGraphicBufferProducer::queueBuffer(
         int32_t slot,
         QueueBufferInput const& hInput,
         queueBuffer_cb _hidl_cb) {
-    using HOutput = QueueBufferOutput;
-    using BInput = BGraphicBufferProducer::QueueBufferInput;
-    using BOutput = BGraphicBufferProducer::QueueBufferOutput;
-
-    BInput bInput{
+    BQueueBufferInput bInput{
             hInput.timestamp,
             hInput.isAutoTimestamp,
             static_cast<android_dataspace>(hInput.dataSpace),
@@ -178,35 +199,32 @@ Return<void> B2HGraphicBufferProducer::queueBuffer(
 
     // Convert crop.
     if (!h2b(hInput.crop, &bInput.crop)) {
-        _hidl_cb(HStatus::UNKNOWN_ERROR, HOutput{});
+        _hidl_cb(HStatus::UNKNOWN_ERROR, QueueBufferOutput{});
         return {};
     }
 
     // Convert surfaceDamage.
     if (!h2b(hInput.surfaceDamage, &bInput.surfaceDamage)) {
-        _hidl_cb(HStatus::UNKNOWN_ERROR, HOutput{});
+        _hidl_cb(HStatus::UNKNOWN_ERROR, QueueBufferOutput{});
         return {};
     }
 
     // Convert fence.
     if (!h2b(hInput.fence, &bInput.fence)) {
-        _hidl_cb(HStatus::UNKNOWN_ERROR, HOutput{});
+        _hidl_cb(HStatus::UNKNOWN_ERROR, QueueBufferOutput{});
         return {};
     }
 
-    BOutput bOutput{};
+    BQueueBufferOutput bOutput{};
     HStatus hStatus{};
-    bool converted = b2h(
-            mBase->queueBuffer(static_cast<int>(slot), bInput, &bOutput),
-            &hStatus);
+    QueueBufferOutput hOutput{};
+    bool converted =
+            b2h(
+                mBase->queueBuffer(static_cast<int>(slot), bInput, &bOutput),
+                &hStatus) &&
+            b2h(bOutput, &hOutput);
 
-    _hidl_cb(converted ? hStatus : HStatus::UNKNOWN_ERROR,
-             HOutput{bOutput.width,
-                     bOutput.height,
-                     static_cast<int32_t>(bOutput.transformHint),
-                     bOutput.numPendingBuffers,
-                     bOutput.nextFrameNumber,
-                     bOutput.bufferReplaced});
+    _hidl_cb(converted ? hStatus : HStatus::UNKNOWN_ERROR, hOutput);
     return {};
 }
 
@@ -236,33 +254,23 @@ Return<void> B2HGraphicBufferProducer::connect(
         HConnectionType hConnectionType,
         bool producerControlledByApp,
         connect_cb _hidl_cb) {
-    using BOutput = BGraphicBufferProducer::QueueBufferOutput;
-    using HOutput = HGraphicBufferProducer::QueueBufferOutput;
     sp<BProducerListener> bListener = new H2BProducerListener(hListener);
-    if (!bListener) {
-        _hidl_cb(HStatus::UNKNOWN_ERROR, HOutput{});
+    int bConnectionType{};
+    if (!bListener || !h2b(hConnectionType, &bConnectionType)) {
+        _hidl_cb(HStatus::UNKNOWN_ERROR, QueueBufferOutput{});
         return {};
     }
-    int bConnectionType;
-    if (!h2b(hConnectionType, &bConnectionType)) {
-        _hidl_cb(HStatus::UNKNOWN_ERROR, HOutput{});
-        return {};
-    }
-    BOutput bOutput{};
+    BQueueBufferOutput bOutput{};
     HStatus hStatus{};
-    bool converted = b2h(
-            mBase->connect(bListener,
-                           bConnectionType,
-                           producerControlledByApp,
-                           &bOutput),
-            &hStatus);
-    _hidl_cb(converted ? hStatus : HStatus::UNKNOWN_ERROR,
-             HOutput{bOutput.width,
-                     bOutput.height,
-                     static_cast<int32_t>(bOutput.transformHint),
-                     bOutput.numPendingBuffers,
-                     bOutput.nextFrameNumber,
-                     bOutput.bufferReplaced});
+    QueueBufferOutput hOutput{};
+    bool converted =
+            b2h(mBase->connect(bListener,
+                               bConnectionType,
+                               producerControlledByApp,
+                               &bOutput),
+                &hStatus) &&
+            b2h(bOutput, &hOutput);
+    _hidl_cb(converted ? hStatus : HStatus::UNKNOWN_ERROR, hOutput);
     return {};
 }
 
