@@ -162,7 +162,8 @@ void GraphicsEnv::setDriverPathAndSphalLibraries(const std::string path,
 
 void GraphicsEnv::setGpuStats(const std::string& driverPackageName,
                               const std::string& driverVersionName, uint64_t driverVersionCode,
-                              int64_t driverBuildTime, const std::string& appPackageName) {
+                              int64_t driverBuildTime, const std::string& appPackageName,
+                              const int vulkanVersion) {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mStatsLock);
@@ -171,15 +172,17 @@ void GraphicsEnv::setGpuStats(const std::string& driverPackageName,
           "\tdriverVersionName[%s]\n"
           "\tdriverVersionCode[%" PRIu64 "]\n"
           "\tdriverBuildTime[%" PRId64 "]\n"
-          "\tappPackageName[%s]\n",
+          "\tappPackageName[%s]\n"
+          "\tvulkanVersion[%d]\n",
           driverPackageName.c_str(), driverVersionName.c_str(), driverVersionCode, driverBuildTime,
-          appPackageName.c_str());
+          appPackageName.c_str(), vulkanVersion);
 
     mGpuStats.driverPackageName = driverPackageName;
     mGpuStats.driverVersionName = driverVersionName;
     mGpuStats.driverVersionCode = driverVersionCode;
     mGpuStats.driverBuildTime = driverBuildTime;
     mGpuStats.appPackageName = appPackageName;
+    mGpuStats.vulkanVersion = vulkanVersion;
 }
 
 void GraphicsEnv::setDriverToLoad(GraphicsEnv::Driver driver) {
@@ -270,19 +273,20 @@ void GraphicsEnv::sendGpuStatsLocked(GraphicsEnv::Driver driver, bool isDriverLo
           "\tdriverVersionCode[%" PRIu64 "]\n"
           "\tdriverBuildTime[%" PRId64 "]\n"
           "\tappPackageName[%s]\n"
+          "\tvulkanVersion[%d]\n"
           "\tdriver[%d]\n"
           "\tisDriverLoaded[%d]\n"
           "\tdriverLoadingTime[%" PRId64 "]",
           mGpuStats.driverPackageName.c_str(), mGpuStats.driverVersionName.c_str(),
           mGpuStats.driverVersionCode, mGpuStats.driverBuildTime, mGpuStats.appPackageName.c_str(),
-          static_cast<int32_t>(driver), isDriverLoaded, driverLoadingTime);
+          mGpuStats.vulkanVersion, static_cast<int32_t>(driver), isDriverLoaded, driverLoadingTime);
 
     const sp<IGpuService> gpuService = getGpuService();
     if (gpuService) {
         gpuService->setGpuStats(mGpuStats.driverPackageName, mGpuStats.driverVersionName,
                                 mGpuStats.driverVersionCode, mGpuStats.driverBuildTime,
-                                mGpuStats.appPackageName, driver, isDriverLoaded,
-                                driverLoadingTime);
+                                mGpuStats.appPackageName, mGpuStats.vulkanVersion, driver,
+                                isDriverLoaded, driverLoadingTime);
     }
 }
 
