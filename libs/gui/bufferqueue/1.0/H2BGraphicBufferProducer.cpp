@@ -1061,7 +1061,7 @@ status_t H2BGraphicBufferProducer::detachNextBuffer(
 
 status_t H2BGraphicBufferProducer::attachBuffer(
         int* outSlot, const sp<GraphicBuffer>& buffer) {
-    AnwBuffer tBuffer;
+    AnwBuffer tBuffer{};
     wrapAs(&tBuffer, *buffer);
     status_t fnStatus;
     status_t transStatus = toStatusT(mBase->attachBuffer(tBuffer,
@@ -1076,7 +1076,7 @@ status_t H2BGraphicBufferProducer::queueBuffer(
         int slot,
         const QueueBufferInput& input,
         QueueBufferOutput* output) {
-    HGraphicBufferProducer::QueueBufferInput tInput;
+    HGraphicBufferProducer::QueueBufferInput tInput{};
     native_handle_t* nh;
     if (!wrapAs(&tInput, &nh, input)) {
         ALOGE("H2BGraphicBufferProducer::queueBuffer - "

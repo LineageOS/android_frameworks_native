@@ -29,12 +29,53 @@
 #include <vndk/hardware_buffer.h>
 
 namespace android {
-
 namespace hardware {
 namespace graphics {
 namespace bufferqueue {
 namespace V2_0 {
 namespace utils {
+
+namespace /* unnamed */ {
+
+using BQueueBufferInput = ::android::
+        IGraphicBufferProducer::QueueBufferInput;
+using HQueueBufferInput = ::android::hardware::graphics::bufferqueue::V2_0::
+        IGraphicBufferProducer::QueueBufferInput;
+using BQueueBufferOutput = ::android::
+        IGraphicBufferProducer::QueueBufferOutput;
+using HQueueBufferOutput = ::android::hardware::graphics::bufferqueue::V2_0::
+        IGraphicBufferProducer::QueueBufferOutput;
+
+using ::android::hardware::graphics::bufferqueue::V2_0::utils::b2h;
+using ::android::hardware::graphics::bufferqueue::V2_0::utils::h2b;
+
+bool b2h(BQueueBufferInput const& from, HQueueBufferInput* to,
+         HFenceWrapper* hFenceWrapper) {
+    to->timestamp = from.timestamp;
+    to->isAutoTimestamp = static_cast<bool>(from.isAutoTimestamp);
+    to->dataSpace = static_cast<int32_t>(from.dataSpace);
+    to->transform = static_cast<int32_t>(from.transform);
+    to->stickyTransform = static_cast<int32_t>(from.stickyTransform);
+    if (!b2h(from.crop, &to->crop) ||
+            !b2h(from.surfaceDamage, &to->surfaceDamage) ||
+            !b2h(from.fence, hFenceWrapper)) {
+        return false;
+    }
+    to->fence = hFenceWrapper->getHandle();
+    return true;
+}
+
+bool h2b(HQueueBufferOutput const& from, BQueueBufferOutput* to) {
+    to->width = from.width;
+    to->height = from.height;
+    to->transformHint = static_cast<uint32_t>(from.transformHint);
+    to->numPendingBuffers = from.numPendingBuffers;
+    to->nextFrameNumber = from.nextFrameNumber;
+    to->bufferReplaced = from.bufferReplaced;
+    return true;
+}
+
+} // unnamed namespace
 
 // H2BGraphicBufferProducer
 // ========================
@@ -209,47 +250,13 @@ status_t H2BGraphicBufferProducer::queueBuffer(
         int slot,
         QueueBufferInput const& input,
         QueueBufferOutput* output) {
-    HRect hCrop{};
-    (void)b2h(input.crop, &hCrop);
-
-    using HInput = HGraphicBufferProducer::QueueBufferInput;
-    HInput hInput{
-            input.timestamp,
-            static_cast<bool>(input.isAutoTimestamp),
-            static_cast<int32_t>(input.dataSpace),
-            {}, // crop
-            static_cast<int32_t>(input.transform),
-            static_cast<int32_t>(input.stickyTransform),
-            {}, // fence
-            {}  // surfaceDamage
-            };
-
-    // Convert crop.
-    if (!b2h(input.crop, &hInput.crop)) {
-        LOG(ERROR) << "queueBuffer: corrupted input crop rectangle.";
-        return UNKNOWN_ERROR;
-    }
-
-    // Convert surfaceDamage.
-    size_t numRects;
-    Rect const* rectArray = input.surfaceDamage.getArray(&numRects);
-    hInput.surfaceDamage.resize(numRects);
-    for (size_t i = 0; i < numRects; ++i) {
-        if (!b2h(rectArray[i], &hInput.surfaceDamage[i])) {
-            LOG(ERROR) << "queueBuffer: corrupted input surface damage.";
-            return UNKNOWN_ERROR;
-        }
-    }
-
-    // Convert fence.
+    HQueueBufferInput hInput{};
     HFenceWrapper hFenceWrapper;
-    if (!b2h(input.fence, &hFenceWrapper)) {
-        LOG(ERROR) << "queueBuffer: corrupted input fence.";
+    if (!b2h(input, &hInput, &hFenceWrapper)) {
+        LOG(ERROR) << "queueBuffer: corrupted input.";
         return UNKNOWN_ERROR;
     }
-    hInput.fence = hFenceWrapper.getHandle();
 
-    using HOutput = HGraphicBufferProducer::QueueBufferOutput;
     bool converted{};
     status_t bStatus{};
     Return<void> transResult = mBase->queueBuffer(
@@ -257,15 +264,8 @@ status_t H2BGraphicBufferProducer::queueBuffer(
             hInput,
             [&converted, &bStatus, output](
                     HStatus hStatus,
-                    HOutput const& hOutput) {
-                converted = h2b(hStatus, &bStatus);
-                output->width = hOutput.width;
-                output->height = hOutput.height;
-                output->transformHint =
-                        static_cast<uint32_t>(hOutput.transformHint);
-                output->numPendingBuffers = hOutput.numPendingBuffers;
-                output->nextFrameNumber = hOutput.nextFrameNumber;
-                output->bufferReplaced = hOutput.bufferReplaced;
+                    HQueueBufferOutput const& hOutput) {
+                converted = h2b(hStatus, &bStatus) && h2b(hOutput, output);
             });
 
     if (!transResult.isOk()) {
@@ -332,7 +332,6 @@ status_t H2BGraphicBufferProducer::connect(
         }
     }
 
-    using HOutput = HGraphicBufferProducer::QueueBufferOutput;
     bool converted{};
     status_t bStatus{};
     Return<void> transResult = mBase->connect(
@@ -341,15 +340,8 @@ status_t H2BGraphicBufferProducer::connect(
             producerControlledByApp,
             [&converted, &bStatus, output](
                     HStatus hStatus,
-                    HOutput hOutput) {
-                converted = h2b(hStatus, &bStatus);
-                output->width = hOutput.width;
-                output->height = hOutput.height;
-                output->transformHint =
-                        static_cast<uint32_t>(hOutput.transformHint);
-                output->numPendingBuffers = hOutput.numPendingBuffers;
-                output->nextFrameNumber = hOutput.nextFrameNumber;
-                output->bufferReplaced = hOutput.bufferReplaced;
+                    HQueueBufferOutput const& hOutput) {
+                converted = h2b(hStatus, &bStatus) && h2b(hOutput, output);
             });
     if (!transResult.isOk()) {
         LOG(ERROR) << "connect: transaction failed.";
