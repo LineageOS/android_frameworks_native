@@ -2004,10 +2004,14 @@ InputWindowInfo Layer::fillInputInfo() {
     ui::Transform t = getTransform();
     const float xScale = t.sx();
     const float yScale = t.sy();
+    float xSurfaceInset = info.surfaceInset;
+    float ySurfaceInset = info.surfaceInset;
     if (xScale != 1.0f || yScale != 1.0f) {
         info.windowXScale *= 1.0f / xScale;
         info.windowYScale *= 1.0f / yScale;
         info.touchableRegion.scaleSelf(xScale, yScale);
+        xSurfaceInset *= xScale;
+        ySurfaceInset *= yScale;
     }
 
     // Transform layer size to screen space and inset it by surface insets.
@@ -2019,7 +2023,7 @@ InputWindowInfo Layer::fillInputInfo() {
         layerBounds = getCroppedBufferSize(getDrawingState());
     }
     layerBounds = t.transform(layerBounds);
-    layerBounds.inset(info.surfaceInset, info.surfaceInset, info.surfaceInset, info.surfaceInset);
+    layerBounds.inset(xSurfaceInset, ySurfaceInset, xSurfaceInset, ySurfaceInset);
 
     // Input coordinate should match the layer bounds.
     info.frameLeft = layerBounds.left;
