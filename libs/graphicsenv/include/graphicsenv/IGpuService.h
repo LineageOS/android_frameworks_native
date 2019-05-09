@@ -40,6 +40,10 @@ public:
                              const int32_t vulkanVersion, GraphicsEnv::Driver driver,
                              bool isDriverLoaded, int64_t driverLoadingTime) = 0;
 
+    // set CPU Vulkan in use signal from GraphicsEnvironment.
+    virtual void setCpuVulkanInUse(const std::string& appPackageName,
+                                   const uint64_t driverVersionCode) = 0;
+
     // get GPU global stats from GpuStats module.
     virtual status_t getGpuStatsGlobalInfo(std::vector<GpuStatsGlobalInfo>* outStats) const = 0;
 
@@ -53,6 +57,7 @@ public:
         SET_GPU_STATS = IBinder::FIRST_CALL_TRANSACTION,
         GET_GPU_STATS_GLOBAL_INFO,
         GET_GPU_STATS_APP_INFO,
+        SET_CPU_VULKAN_IN_USE,
         // Always append new enum to the end.
     };
 

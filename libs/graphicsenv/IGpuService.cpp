@@ -91,6 +91,17 @@ public:
         outStats->clear();
         return reply.readParcelableVector(outStats);
     }
+
+    virtual void setCpuVulkanInUse(const std::string& appPackageName,
+                                   const uint64_t driverVersionCode) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IGpuService::getInterfaceDescriptor());
+
+        data.writeUtf8AsUtf16(appPackageName);
+        data.writeUint64(driverVersionCode);
+
+        remote()->transact(BnGpuService::SET_CPU_VULKAN_IN_USE, data, &reply, IBinder::FLAG_ONEWAY);
+    }
 };
 
 IMPLEMENT_META_INTERFACE(GpuService, "android.graphicsenv.IGpuService");
@@ -160,6 +171,19 @@ status_t BnGpuService::onTransact(uint32_t code, const Parcel& data, Parcel* rep
             if (result != OK) return result;
 
             if ((status = reply->writeParcelableVector(stats)) != OK) return status;
+
+            return OK;
+        }
+        case SET_CPU_VULKAN_IN_USE: {
+            CHECK_INTERFACE(IGpuService, data, reply);
+
+            std::string appPackageName;
+            if ((status = data.readUtf8FromUtf16(&appPackageName)) != OK) return status;
+
+            uint64_t driverVersionCode;
+            if ((status = data.readUint64(&driverVersionCode)) != OK) return status;
+
+            setCpuVulkanInUse(appPackageName, driverVersionCode);
 
             return OK;
         }
