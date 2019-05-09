@@ -38,6 +38,7 @@ public:
         RELEASE_PLAYER                        = IBinder::FIRST_CALL_TRANSACTION + 3,
         TRACK_RECORDER                        = IBinder::FIRST_CALL_TRANSACTION + 4,
         RECORDER_EVENT                        = IBinder::FIRST_CALL_TRANSACTION + 5,
+        RELEASE_RECORDER                      = IBinder::FIRST_CALL_TRANSACTION + 6,
     };
 
     DECLARE_META_INTERFACE(AudioManager)
@@ -52,6 +53,7 @@ public:
     /*oneway*/ virtual status_t releasePlayer(audio_unique_id_t piid) = 0;
     virtual audio_unique_id_t trackRecorder(const sp<IBinder>& recorder) = 0;
     /*oneway*/ virtual status_t recorderEvent(audio_unique_id_t riid, recorder_state_t event) = 0;
+    /*oneway*/ virtual status_t releaseRecorder(audio_unique_id_t riid) = 0;
 };
 
 // ----------------------------------------------------------------------------
