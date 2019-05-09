@@ -89,7 +89,6 @@ public:
                      const std::string& appPackageName, const int32_t vulkanVersion);
     void setDriverToLoad(Driver driver);
     void setDriverLoaded(Api api, bool isDriverLoaded, int64_t driverLoadingTime);
-    void clearDriverLoadingInfo(Api api);
     void sendGpuStatsLocked(Driver driver, bool isDriverLoaded, int64_t driverLoadingTime);
 
     bool shouldUseAngle(std::string appName);
