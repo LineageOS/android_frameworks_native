@@ -100,7 +100,7 @@ private:
     void binderDied(const wp<IBinder>& who) override;
     void checkForStaleLuma();
 
-    void captureSample() REQUIRES(mMutex);
+    void captureSample();
     void threadMain();
 
     SurfaceFlinger& mFlinger;
@@ -110,19 +110,18 @@ private:
 
     std::unique_ptr<SamplingOffsetCallback> const mPhaseCallback;
 
-    std::mutex mThreadMutex;
-    std::thread mThread GUARDED_BY(mThreadMutex);
+    std::thread mThread;
 
-    std::mutex mMutex;
+    std::mutex mThreadControlMutex;
     std::condition_variable_any mCondition;
-    bool mRunning GUARDED_BY(mMutex) = true;
-    bool mSampleRequested GUARDED_BY(mMutex) = false;
+    bool mRunning GUARDED_BY(mThreadControlMutex) = true;
+    bool mSampleRequested GUARDED_BY(mThreadControlMutex) = false;
+    bool mDiscardedFrames GUARDED_BY(mThreadControlMutex) = false;
+    std::chrono::nanoseconds lastSampleTime GUARDED_BY(mThreadControlMutex);
 
-    std::unordered_map<wp<IBinder>, Descriptor, WpHash> mDescriptors GUARDED_BY(mMutex);
-    std::chrono::nanoseconds lastSampleTime GUARDED_BY(mMutex);
-    bool mDiscardedFrames GUARDED_BY(mMutex) = false;
-
-    sp<GraphicBuffer> mCachedBuffer GUARDED_BY(mMutex) = nullptr;
+    std::mutex mSamplingMutex;
+    std::unordered_map<wp<IBinder>, Descriptor, WpHash> mDescriptors GUARDED_BY(mSamplingMutex);
+    sp<GraphicBuffer> mCachedBuffer GUARDED_BY(mSamplingMutex) = nullptr;
 };
 
 } // namespace android
