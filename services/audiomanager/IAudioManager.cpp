@@ -122,6 +122,13 @@ public:
         data.writeInt32((int32_t) event);
         return remote()->transact(RECORDER_EVENT, data, &reply, IBinder::FLAG_ONEWAY);
     }
+
+    virtual status_t releaseRecorder(audio_unique_id_t riid) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioManager::getInterfaceDescriptor());
+        data.writeInt32((int32_t) riid);
+        return remote()->transact(RELEASE_RECORDER, data, &reply, IBinder::FLAG_ONEWAY);
+    }
 };
 
 IMPLEMENT_META_INTERFACE(AudioManager, "android.media.IAudioService");
