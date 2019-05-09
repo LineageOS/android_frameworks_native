@@ -1686,26 +1686,29 @@ bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
     const int32_t opCode = sensor.getRequiredAppOp();
     const int32_t appOpMode = sAppOpsManager.checkOp(opCode,
             IPCThreadState::self()->getCallingUid(), opPackageName);
+    bool appOpAllowed = appOpMode == AppOpsManager::MODE_ALLOWED;
 
-    // Ensure that the AppOp is allowed
-    //
-    // This check is also required to ensure that the user hasn't revoked the necessary permissions
-    // to access the Step Detector and Step Counter when the application targets pre-Q. Without this
-    // check, if the user revokes the pre-Q install-time GMS Core AR permission, the app would
-    // still be able to receive Step Counter and Step Detector events.
     bool canAccess = false;
-    if (opCode >= 0 && appOpMode == AppOpsManager::MODE_ALLOWED) {
-        if (hasPermissionForSensor(sensor)) {
+    if (hasPermissionForSensor(sensor)) {
+        // Ensure that the AppOp is allowed, or that there is no necessary app op for the sensor
+        if (opCode < 0 || appOpAllowed) {
             canAccess = true;
-        } else if (sensor.getType() == SENSOR_TYPE_STEP_COUNTER ||
-                   sensor.getType() == SENSOR_TYPE_STEP_DETECTOR) {
-            int targetSdkVersion = getTargetSdkVersion(opPackageName);
-            // Allow access to the sensor if the application targets pre-Q, which is before the
-            // requirement to hold the AR permission to access Step Counter and Step Detector events
-            // was introduced.
-            if (targetSdkVersion > 0 && targetSdkVersion <= __ANDROID_API_P__) {
-                canAccess = true;
-            }
+        }
+    } else if (sensor.getType() == SENSOR_TYPE_STEP_COUNTER ||
+            sensor.getType() == SENSOR_TYPE_STEP_DETECTOR) {
+        int targetSdkVersion = getTargetSdkVersion(opPackageName);
+        // Allow access to the sensor if the application targets pre-Q, which is before the
+        // requirement to hold the AR permission to access Step Counter and Step Detector events
+        // was introduced, and the user hasn't revoked the app op.
+        //
+        // Verifying the app op is required to ensure that the user hasn't revoked the necessary
+        // permissions to access the Step Detector and Step Counter when the application targets
+        // pre-Q. Without this check, if the user revokes the pre-Q install-time GMS Core AR
+        // permission, the app would still be able to receive Step Counter and Step Detector events.
+        if (appOpAllowed &&
+                targetSdkVersion > 0 &&
+                targetSdkVersion <= __ANDROID_API_P__) {
+            canAccess = true;
         }
     }
 
