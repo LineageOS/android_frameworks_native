@@ -228,9 +228,8 @@ void GraphicsEnv::setDriverLoaded(GraphicsEnv::Api api, bool isLoaded, int64_t d
     bool isIntendedDriverLoaded = false;
     if (api == GraphicsEnv::Api::API_GL) {
         driver = mGpuStats.glDriverToLoad;
-        isIntendedDriverLoaded = isLoaded &&
-                ((mGpuStats.glDriverFallback == GraphicsEnv::Driver::NONE) ||
-                 (mGpuStats.glDriverToLoad == mGpuStats.glDriverFallback));
+        isIntendedDriverLoaded =
+                isLoaded && (mGpuStats.glDriverFallback == GraphicsEnv::Driver::NONE);
     } else {
         driver = mGpuStats.vkDriverToLoad;
         isIntendedDriverLoaded =
@@ -238,16 +237,6 @@ void GraphicsEnv::setDriverLoaded(GraphicsEnv::Api api, bool isLoaded, int64_t d
     }
 
     sendGpuStatsLocked(driver, isIntendedDriverLoaded, driverLoadingTime);
-}
-
-void GraphicsEnv::clearDriverLoadingInfo(GraphicsEnv::Api api) {
-    ATRACE_CALL();
-
-    std::lock_guard<std::mutex> lock(mStatsLock);
-    if (api == GraphicsEnv::Api::API_GL) {
-        mGpuStats.glDriverToLoad = GraphicsEnv::Driver::NONE;
-        mGpuStats.glDriverFallback = GraphicsEnv::Driver::NONE;
-    }
 }
 
 static sp<IGpuService> getGpuService() {

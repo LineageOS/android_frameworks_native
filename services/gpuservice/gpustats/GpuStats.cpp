@@ -27,7 +27,7 @@
 
 namespace android {
 
-static bool addLoadingCount(GraphicsEnv::Driver driver, bool isDriverLoaded,
+static void addLoadingCount(GraphicsEnv::Driver driver, bool isDriverLoaded,
                             GpuStatsGlobalInfo* const outGlobalInfo) {
     switch (driver) {
         case GraphicsEnv::Driver::GL:
@@ -40,13 +40,13 @@ static bool addLoadingCount(GraphicsEnv::Driver driver, bool isDriverLoaded,
             outGlobalInfo->vkLoadingCount++;
             if (!isDriverLoaded) outGlobalInfo->vkLoadingFailureCount++;
             break;
+        case GraphicsEnv::Driver::ANGLE:
+            outGlobalInfo->angleLoadingCount++;
+            if (!isDriverLoaded) outGlobalInfo->angleLoadingFailureCount++;
+            break;
         default:
-            // Currently we don't support GraphicsEnv::Driver::ANGLE because the
-            // basic driver package info only belongs to system or updated driver.
-            return false;
+            break;
     }
-
-    return true;
 }
 
 static void addLoadingTime(GraphicsEnv::Driver driver, int64_t driverLoadingTime,
@@ -54,13 +54,20 @@ static void addLoadingTime(GraphicsEnv::Driver driver, int64_t driverLoadingTime
     switch (driver) {
         case GraphicsEnv::Driver::GL:
         case GraphicsEnv::Driver::GL_UPDATED:
-            if (outAppInfo->glDriverLoadingTime.size() >= GpuStats::MAX_NUM_LOADING_TIMES) break;
-            outAppInfo->glDriverLoadingTime.emplace_back(driverLoadingTime);
+            if (outAppInfo->glDriverLoadingTime.size() < GpuStats::MAX_NUM_LOADING_TIMES) {
+                outAppInfo->glDriverLoadingTime.emplace_back(driverLoadingTime);
+            }
             break;
         case GraphicsEnv::Driver::VULKAN:
         case GraphicsEnv::Driver::VULKAN_UPDATED:
-            if (outAppInfo->vkDriverLoadingTime.size() >= GpuStats::MAX_NUM_LOADING_TIMES) break;
-            outAppInfo->vkDriverLoadingTime.emplace_back(driverLoadingTime);
+            if (outAppInfo->vkDriverLoadingTime.size() < GpuStats::MAX_NUM_LOADING_TIMES) {
+                outAppInfo->vkDriverLoadingTime.emplace_back(driverLoadingTime);
+            }
+            break;
+        case GraphicsEnv::Driver::ANGLE:
+            if (outAppInfo->angleDriverLoadingTime.size() < GpuStats::MAX_NUM_LOADING_TIMES) {
+                outAppInfo->angleDriverLoadingTime.emplace_back(driverLoadingTime);
+            }
             break;
         default:
             break;
@@ -90,17 +97,15 @@ void GpuStats::insert(const std::string& driverPackageName, const std::string& d
 
     if (!mGlobalStats.count(driverVersionCode)) {
         GpuStatsGlobalInfo globalInfo;
-        if (!addLoadingCount(driver, isDriverLoaded, &globalInfo)) {
-            return;
-        }
+        addLoadingCount(driver, isDriverLoaded, &globalInfo);
         globalInfo.driverPackageName = driverPackageName;
         globalInfo.driverVersionName = driverVersionName;
         globalInfo.driverVersionCode = driverVersionCode;
         globalInfo.driverBuildTime = driverBuildTime;
         globalInfo.vulkanVersion = vulkanVersion;
         mGlobalStats.insert({driverVersionCode, globalInfo});
-    } else if (!addLoadingCount(driver, isDriverLoaded, &mGlobalStats[driverVersionCode])) {
-        return;
+    } else {
+        addLoadingCount(driver, isDriverLoaded, &mGlobalStats[driverVersionCode]);
     }
 
     if (mAppStats.size() >= MAX_NUM_APP_RECORDS) {
