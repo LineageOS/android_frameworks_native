@@ -467,11 +467,6 @@ ssize_t SensorDevice::pollFmq(sensors_event_t* buffer, size_t maxNumEventsToRead
                               asBaseType(INTERNAL_WAKE), &eventFlagState);
         availableEvents = mEventQueue->availableToRead();
 
-        if ((eventFlagState & asBaseType(EventQueueFlagBits::READ_AND_PROCESS)) &&
-                availableEvents == 0) {
-            ALOGW("Event FMQ wake without any events");
-        }
-
         if ((eventFlagState & asBaseType(INTERNAL_WAKE)) && mReconnecting) {
             ALOGD("Event FMQ internal wake, returning from poll with no events");
             return DEAD_OBJECT;
