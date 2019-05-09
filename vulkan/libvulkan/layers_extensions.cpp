@@ -385,9 +385,8 @@ void ForEachFileInZip(const std::string& zipname,
         return;
     }
     std::string prefix(dir_in_zip + "/");
-    const ZipString prefix_str(prefix.c_str());
     void* iter_cookie = nullptr;
-    if ((err = StartIteration(zip, &iter_cookie, &prefix_str, nullptr)) != 0) {
+    if ((err = StartIteration(zip, &iter_cookie, prefix, "")) != 0) {
         ALOGE("failed to iterate entries in apk '%s': %d", zipname.c_str(),
               err);
         CloseArchive(zip);
