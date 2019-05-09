@@ -37,7 +37,7 @@ int main() {
   property_set("ctl.start", "dumpstate");
 
   // Socket will not be available until service starts.
-  int s;
+  int s = -1;
   for (int i = 0; i < 20; i++) {
     s = socket_local_client("dumpstate", ANDROID_SOCKET_NAMESPACE_RESERVED,
                             SOCK_STREAM);
