@@ -856,7 +856,7 @@ struct BufferLayerVariant : public BaseLayerVariant<LayerProperties> {
     }
 
     static void cleanupInjectedLayers(CompositionTest* test) {
-        EXPECT_CALL(*test->mMessageQueue, postMessage(_, 0)).Times(2);
+        EXPECT_CALL(*test->mMessageQueue, postMessage(_, 0)).Times(1);
         Base::cleanupInjectedLayers(test);
     }
 
