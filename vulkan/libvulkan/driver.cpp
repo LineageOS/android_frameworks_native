@@ -945,9 +945,7 @@ VkResult EnumerateDeviceExtensionProperties(
 
             memcpy(prop.extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME,
                    sizeof(VK_KHR_SWAPCHAIN_EXTENSION_NAME));
-            // b/130182551 VK_KHR_SWAPCHAIN_SPEC_VERSION > 68 has structs the
-            // loader doesn't handle properly. So drop the spec version to 68.
-            prop.specVersion = 68;
+            prop.specVersion = VK_KHR_SWAPCHAIN_SPEC_VERSION;
         }
     }
 
