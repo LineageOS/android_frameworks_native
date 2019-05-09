@@ -1572,6 +1572,13 @@ status_t ScreenshotClient::capture(const sp<IBinder>& display, const ui::Dataspa
                    useIdentityTransform, rotation, false, outBuffer, ignored);
 }
 
+status_t ScreenshotClient::capture(uint64_t displayOrLayerStack, ui::Dataspace* outDataspace,
+                                   sp<GraphicBuffer>* outBuffer) {
+    sp<ISurfaceComposer> s(ComposerService::getComposerService());
+    if (s == nullptr) return NO_INIT;
+    return s->captureScreen(displayOrLayerStack, outDataspace, outBuffer);
+}
+
 status_t ScreenshotClient::captureLayers(const sp<IBinder>& layerHandle,
                                          const ui::Dataspace reqDataSpace,
                                          const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
