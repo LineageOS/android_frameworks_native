@@ -168,11 +168,8 @@ RegionSamplingThread::RegionSamplingThread(SurfaceFlinger& flinger, Scheduler& s
         mPhaseCallback(std::make_unique<SamplingOffsetCallback>(*this, mScheduler,
                                                                 tunables.mSamplingOffset)),
         lastSampleTime(0ns) {
-    {
-        std::lock_guard threadLock(mThreadMutex);
-        mThread = std::thread([this]() { threadMain(); });
-        pthread_setname_np(mThread.native_handle(), "RegionSamplingThread");
-    }
+    mThread = std::thread([this]() { threadMain(); });
+    pthread_setname_np(mThread.native_handle(), "RegionSamplingThread");
     mIdleTimer.start();
 }
 
@@ -186,12 +183,11 @@ RegionSamplingThread::~RegionSamplingThread() {
     mIdleTimer.stop();
 
     {
-        std::lock_guard lock(mMutex);
+        std::lock_guard lock(mThreadControlMutex);
         mRunning = false;
         mCondition.notify_one();
     }
 
-    std::lock_guard threadLock(mThreadMutex);
     if (mThread.joinable()) {
         mThread.join();
     }
@@ -205,17 +201,17 @@ void RegionSamplingThread::addListener(const Rect& samplingArea, const sp<IBinde
 
     sp<IBinder> asBinder = IInterface::asBinder(listener);
     asBinder->linkToDeath(this);
-    std::lock_guard lock(mMutex);
+    std::lock_guard lock(mSamplingMutex);
     mDescriptors.emplace(wp<IBinder>(asBinder), Descriptor{samplingArea, stopLayer, listener});
 }
 
 void RegionSamplingThread::removeListener(const sp<IRegionSamplingListener>& listener) {
-    std::lock_guard lock(mMutex);
+    std::lock_guard lock(mSamplingMutex);
     mDescriptors.erase(wp<IBinder>(IInterface::asBinder(listener)));
 }
 
 void RegionSamplingThread::checkForStaleLuma() {
-    std::lock_guard lock(mMutex);
+    std::lock_guard lock(mThreadControlMutex);
 
     if (mDiscardedFrames) {
         ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::waitForZeroPhase));
@@ -233,7 +229,7 @@ void RegionSamplingThread::notifySamplingOffset() {
 }
 
 void RegionSamplingThread::doSample() {
-    std::lock_guard lock(mMutex);
+    std::lock_guard lock(mThreadControlMutex);
     auto now = std::chrono::nanoseconds(systemTime(SYSTEM_TIME_MONOTONIC));
     if (lastSampleTime + mTunables.mSamplingPeriod > now) {
         ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::idleTimerWaiting));
@@ -254,7 +250,7 @@ void RegionSamplingThread::doSample() {
 }
 
 void RegionSamplingThread::binderDied(const wp<IBinder>& who) {
-    std::lock_guard lock(mMutex);
+    std::lock_guard lock(mSamplingMutex);
     mDescriptors.erase(who);
 }
 
@@ -315,6 +311,7 @@ std::vector<float> RegionSamplingThread::sampleBuffer(
 
 void RegionSamplingThread::captureSample() {
     ATRACE_CALL();
+    std::lock_guard lock(mSamplingMutex);
 
     if (mDescriptors.empty()) {
         return;
@@ -387,19 +384,8 @@ void RegionSamplingThread::captureSample() {
                                    PIXEL_FORMAT_RGBA_8888, 1, usage, "RegionSamplingThread");
     }
 
-    // When calling into SF, we post a message into the SF message queue (so the
-    // screen capture runs on the main thread). This message blocks until the
-    // screenshot is actually captured, but before the capture occurs, the main
-    // thread may perform a normal refresh cycle. At the end of this cycle, it
-    // can request another sample (because layers changed), which triggers a
-    // call into sampleNow. When sampleNow attempts to grab the mutex, we can
-    // deadlock.
-    //
-    // To avoid this, we drop the mutex while we call into SF.
-    mMutex.unlock();
     bool ignored;
     mFlinger.captureScreenCommon(renderArea, traverseLayers, buffer, false, ignored);
-    mMutex.lock();
 
     std::vector<Descriptor> activeDescriptors;
     for (const auto& descriptor : descriptors) {
@@ -429,15 +415,19 @@ void RegionSamplingThread::captureSample() {
     ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::noWorkNeeded));
 }
 
-void RegionSamplingThread::threadMain() {
-    std::lock_guard lock(mMutex);
+// NO_THREAD_SAFETY_ANALYSIS is because std::unique_lock presently lacks thread safety annotations.
+void RegionSamplingThread::threadMain() NO_THREAD_SAFETY_ANALYSIS {
+    std::unique_lock<std::mutex> lock(mThreadControlMutex);
     while (mRunning) {
         if (mSampleRequested) {
             mSampleRequested = false;
+            lock.unlock();
             captureSample();
+            lock.lock();
         }
-        mCondition.wait(mMutex,
-                        [this]() REQUIRES(mMutex) { return mSampleRequested || !mRunning; });
+        mCondition.wait(lock, [this]() REQUIRES(mThreadControlMutex) {
+            return mSampleRequested || !mRunning;
+        });
     }
 }
 
