@@ -623,6 +623,10 @@ public:
                            bool /*captureSecureLayers*/) override {
         return NO_ERROR;
     }
+    status_t captureScreen(uint64_t /*displayOrLayerStack*/, ui::Dataspace* /*outDataspace*/,
+                           sp<GraphicBuffer>* /*outBuffer*/) override {
+        return NO_ERROR;
+    }
     virtual status_t captureLayers(
             const sp<IBinder>& /*parentHandle*/, sp<GraphicBuffer>* /*outBuffer*/,
             const ui::Dataspace /*reqDataspace*/, const ui::PixelFormat /*reqPixelFormat*/,
