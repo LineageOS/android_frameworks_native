@@ -222,6 +222,15 @@ struct Swapchain {
             window,
             &refresh_duration);
     }
+    uint64_t get_refresh_duration()
+    {
+        ANativeWindow* window = surface.window.get();
+        native_window_get_refresh_cycle_duration(
+            window,
+            &refresh_duration);
+        return static_cast<uint64_t>(refresh_duration);
+
+    }
 
     Surface& surface;
     uint32_t num_images;
@@ -1730,8 +1739,7 @@ VkResult GetRefreshCycleDurationGOOGLE(
     Swapchain& swapchain = *SwapchainFromHandle(swapchain_handle);
     VkResult result = VK_SUCCESS;
 
-    pDisplayTimingProperties->refreshDuration =
-            static_cast<uint64_t>(swapchain.refresh_duration);
+    pDisplayTimingProperties->refreshDuration = swapchain.get_refresh_duration();
 
     return result;
 }
