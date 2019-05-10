@@ -590,7 +590,11 @@ uint32_t SurfaceFlinger::getNewTexture() {
 }
 
 void SurfaceFlinger::deleteTextureAsync(uint32_t texture) {
-    postMessageAsync(new LambdaMessage([=] { getRenderEngine().deleteTextures(1, &texture); }));
+    std::lock_guard lock(mTexturePoolMutex);
+    // We don't change the pool size, so the fix-up logic in postComposition will decide whether
+    // to actually delete this or not based on mTexturePoolSize
+    mTexturePool.push_back(texture);
+    ATRACE_INT("TexturePoolSize", mTexturePool.size());
 }
 
 // Do not call property_set on main thread which will be blocked by init
@@ -2078,11 +2082,17 @@ void SurfaceFlinger::postComposition()
 
     {
         std::lock_guard lock(mTexturePoolMutex);
-        const size_t refillCount = mTexturePoolSize - mTexturePool.size();
-        if (refillCount > 0) {
+        if (mTexturePool.size() < mTexturePoolSize) {
+            const size_t refillCount = mTexturePoolSize - mTexturePool.size();
             const size_t offset = mTexturePool.size();
             mTexturePool.resize(mTexturePoolSize);
             getRenderEngine().genTextures(refillCount, mTexturePool.data() + offset);
+            ATRACE_INT("TexturePoolSize", mTexturePool.size());
+        } else if (mTexturePool.size() > mTexturePoolSize) {
+            const size_t deleteCount = mTexturePool.size() - mTexturePoolSize;
+            const size_t offset = mTexturePoolSize;
+            getRenderEngine().deleteTextures(deleteCount, mTexturePool.data() + offset);
+            mTexturePool.resize(mTexturePoolSize);
             ATRACE_INT("TexturePoolSize", mTexturePool.size());
         }
     }
