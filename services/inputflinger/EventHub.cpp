@@ -28,7 +28,6 @@
 #include <sys/limits.h>
 #include <sys/inotify.h>
 #include <sys/ioctl.h>
-#include <sys/utsname.h>
 #include <unistd.h>
 
 #define LOG_TAG "EventHub"
@@ -92,14 +91,6 @@ static std::string sha1(const std::string& in) {
         out += StringPrintf("%02x", digest[i]);
     }
     return out;
-}
-
-static void getLinuxRelease(int* major, int* minor) {
-    struct utsname info;
-    if (uname(&info) || sscanf(info.release, "%d.%d", major, minor) <= 0) {
-        *major = 0, *minor = 0;
-        ALOGE("Could not get linux version: %s", strerror(errno));
-    }
 }
 
 /**
@@ -292,11 +283,6 @@ EventHub::EventHub(void) :
     result = epoll_ctl(mEpollFd, EPOLL_CTL_ADD, mWakeReadPipeFd, &eventItem);
     LOG_ALWAYS_FATAL_IF(result != 0, "Could not add wake read pipe to epoll instance.  errno=%d",
             errno);
-
-    int major, minor;
-    getLinuxRelease(&major, &minor);
-    // EPOLLWAKEUP was introduced in kernel 3.5
-    mUsingEpollWakeup = major > 3 || (major == 3 && minor >= 5);
 }
 
 EventHub::~EventHub(void) {
@@ -1487,28 +1473,13 @@ void EventHub::configureFd(Device* device) {
         }
     }
 
-    std::string wakeMechanism = "EPOLLWAKEUP";
-    if (!mUsingEpollWakeup) {
-#ifndef EVIOCSSUSPENDBLOCK
-        // uapi headers don't include EVIOCSSUSPENDBLOCK, and future kernels
-        // will use an epoll flag instead, so as long as we want to support
-        // this feature, we need to be prepared to define the ioctl ourselves.
-#define EVIOCSSUSPENDBLOCK _IOW('E', 0x91, int)
-#endif
-        if (ioctl(device->fd, EVIOCSSUSPENDBLOCK, 1)) {
-            wakeMechanism = "<none>";
-        } else {
-            wakeMechanism = "EVIOCSSUSPENDBLOCK";
-        }
-    }
     // Tell the kernel that we want to use the monotonic clock for reporting timestamps
     // associated with input events.  This is important because the input system
     // uses the timestamps extensively and assumes they were recorded using the monotonic
     // clock.
     int clockId = CLOCK_MONOTONIC;
     bool usingClockIoctl = !ioctl(device->fd, EVIOCSCLOCKID, &clockId);
-    ALOGI("wakeMechanism=%s, usingClockIoctl=%s", wakeMechanism.c_str(),
-          toString(usingClockIoctl));
+    ALOGI("usingClockIoctl=%s", toString(usingClockIoctl));
 }
 
 void EventHub::openVideoDeviceLocked(const std::string& devicePath) {
