@@ -263,6 +263,17 @@ static sp<IGpuService> getGpuService() {
     return interface_cast<IGpuService>(binder);
 }
 
+void GraphicsEnv::setCpuVulkanInUse() {
+    ATRACE_CALL();
+
+    // Use the same stats lock to protect getGpuService() as well.
+    std::lock_guard<std::mutex> lock(mStatsLock);
+    const sp<IGpuService> gpuService = getGpuService();
+    if (gpuService) {
+        gpuService->setCpuVulkanInUse(mGpuStats.appPackageName, mGpuStats.driverVersionCode);
+    }
+}
+
 void GraphicsEnv::sendGpuStatsLocked(GraphicsEnv::Api api, bool isDriverLoaded,
                                      int64_t driverLoadingTime) {
     ATRACE_CALL();
