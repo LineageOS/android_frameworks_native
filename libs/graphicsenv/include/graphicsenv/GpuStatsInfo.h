@@ -69,6 +69,7 @@ public:
     std::vector<int64_t> glDriverLoadingTime = {};
     std::vector<int64_t> vkDriverLoadingTime = {};
     std::vector<int64_t> angleDriverLoadingTime = {};
+    bool cpuVulkanInUse = false;
 };
 
 } // namespace android
