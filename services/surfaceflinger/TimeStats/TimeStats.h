@@ -41,7 +41,7 @@ public:
 
     virtual void parseArgs(bool asProto, const Vector<String16>& args, std::string& result) = 0;
     virtual bool isEnabled() = 0;
-    virtual std::string miniDump();
+    virtual std::string miniDump() = 0;
 
     virtual void incrementTotalFrames() = 0;
     virtual void incrementMissedFrames() = 0;

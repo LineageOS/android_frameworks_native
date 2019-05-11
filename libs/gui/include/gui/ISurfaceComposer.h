@@ -247,6 +247,9 @@ public:
                              useIdentityTransform, rotation);
     }
 
+    virtual status_t captureScreen(uint64_t displayOrLayerStack, ui::Dataspace* outDataspace,
+                                   sp<GraphicBuffer>* outBuffer) = 0;
+
     template <class AA>
     struct SpHash {
         size_t operator()(const sp<AA>& k) const { return std::hash<AA*>()(k.get()); }
@@ -473,6 +476,7 @@ public:
         GET_ALLOWED_DISPLAY_CONFIGS,
         GET_DISPLAY_BRIGHTNESS_SUPPORT,
         SET_DISPLAY_BRIGHTNESS,
+        CAPTURE_SCREEN_BY_ID,
         // Always append new enum to the end.
     };
 
