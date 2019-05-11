@@ -539,6 +539,9 @@ void SensorDevice::autoDisable(void *ident, int handle) {
     }
     Info& info(mActivationCount.editValueAt(activationIndex));
     info.removeBatchParamsForIdent(ident);
+    if (info.numActiveClients() == 0) {
+        info.isActive = false;
+    }
 }
 
 status_t SensorDevice::activate(void* ident, int handle, int enabled) {
