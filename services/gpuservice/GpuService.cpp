@@ -75,6 +75,13 @@ status_t GpuService::getGpuStatsAppInfo(std::vector<GpuStatsAppInfo>* outStats) 
     return OK;
 }
 
+void GpuService::setCpuVulkanInUse(const std::string& appPackageName,
+                                   const uint64_t driverVersionCode) {
+    ATRACE_CALL();
+
+    mGpuStats->setCpuVulkanInUse(appPackageName, driverVersionCode);
+}
+
 status_t GpuService::shellCommand(int /*in*/, int out, int err, std::vector<String16>& args) {
     ATRACE_CALL();
 

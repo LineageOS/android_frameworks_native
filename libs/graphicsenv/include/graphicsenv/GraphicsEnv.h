@@ -55,6 +55,10 @@ private:
         Driver glDriverFallback;
         Driver vkDriverToLoad;
         Driver vkDriverFallback;
+        bool glDriverToSend;
+        bool vkDriverToSend;
+        int64_t glDriverLoadingTime;
+        int64_t vkDriverLoadingTime;
 
         GpuStats()
               : driverPackageName(""),
@@ -66,7 +70,11 @@ private:
                 glDriverToLoad(Driver::NONE),
                 glDriverFallback(Driver::NONE),
                 vkDriverToLoad(Driver::NONE),
-                vkDriverFallback(Driver::NONE) {}
+                vkDriverFallback(Driver::NONE),
+                glDriverToSend(false),
+                vkDriverToSend(false),
+                glDriverLoadingTime(0),
+                vkDriverLoadingTime(0) {}
     };
 
 public:
@@ -84,13 +92,14 @@ public:
     // which is required by android_link_namespaces.
     void setDriverPathAndSphalLibraries(const std::string path, const std::string sphalLibraries);
     android_namespace_t* getDriverNamespace();
+    void hintActivityLaunch();
     void setGpuStats(const std::string& driverPackageName, const std::string& driverVersionName,
                      uint64_t versionCode, int64_t driverBuildTime,
                      const std::string& appPackageName, const int32_t vulkanVersion);
+    void setCpuVulkanInUse();
     void setDriverToLoad(Driver driver);
     void setDriverLoaded(Api api, bool isDriverLoaded, int64_t driverLoadingTime);
-    void clearDriverLoadingInfo(Api api);
-    void sendGpuStatsLocked(Driver driver, bool isDriverLoaded, int64_t driverLoadingTime);
+    void sendGpuStatsLocked(Api api, bool isDriverLoaded, int64_t driverLoadingTime);
 
     bool shouldUseAngle(std::string appName);
     bool shouldUseAngle();

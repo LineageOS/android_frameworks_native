@@ -47,6 +47,8 @@ public:
     int32_t vulkanVersion = 0;
     int32_t cpuVulkanVersion = 0;
     int32_t glesVersion = 0;
+    int32_t angleLoadingCount = 0;
+    int32_t angleLoadingFailureCount = 0;
 };
 
 /*
@@ -66,6 +68,8 @@ public:
     uint64_t driverVersionCode = 0;
     std::vector<int64_t> glDriverLoadingTime = {};
     std::vector<int64_t> vkDriverLoadingTime = {};
+    std::vector<int64_t> angleDriverLoadingTime = {};
+    bool cpuVulkanInUse = false;
 };
 
 } // namespace android

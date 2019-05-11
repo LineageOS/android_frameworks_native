@@ -3611,8 +3611,9 @@ void InputDispatcher::logDispatchStateLocked() {
 }
 
 void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
-    dump += StringPrintf(INDENT "DispatchEnabled: %d\n", mDispatchEnabled);
-    dump += StringPrintf(INDENT "DispatchFrozen: %d\n", mDispatchFrozen);
+    dump += StringPrintf(INDENT "DispatchEnabled: %s\n", toString(mDispatchEnabled));
+    dump += StringPrintf(INDENT "DispatchFrozen: %s\n", toString(mDispatchFrozen));
+    dump += StringPrintf(INDENT "InputFilterEnabled: %s\n", toString(mInputFilterEnabled));
     dump += StringPrintf(INDENT "FocusedDisplayId: %" PRId32 "\n", mFocusedDisplayId);
 
     if (!mFocusedApplicationHandlesByDisplay.empty()) {

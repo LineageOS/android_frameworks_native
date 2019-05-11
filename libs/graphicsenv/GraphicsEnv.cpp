@@ -160,6 +160,22 @@ void GraphicsEnv::setDriverPathAndSphalLibraries(const std::string path,
     mSphalLibraries = sphalLibraries;
 }
 
+void GraphicsEnv::hintActivityLaunch() {
+    ATRACE_CALL();
+
+    // If there's already graphics driver preloaded in the process, just send
+    // the stats info to GpuStats directly through async binder.
+    std::lock_guard<std::mutex> lock(mStatsLock);
+    if (mGpuStats.glDriverToSend) {
+        mGpuStats.glDriverToSend = false;
+        sendGpuStatsLocked(GraphicsEnv::Api::API_GL, true, mGpuStats.glDriverLoadingTime);
+    }
+    if (mGpuStats.vkDriverToSend) {
+        mGpuStats.vkDriverToSend = false;
+        sendGpuStatsLocked(GraphicsEnv::Api::API_VK, true, mGpuStats.vkDriverLoadingTime);
+    }
+}
+
 void GraphicsEnv::setGpuStats(const std::string& driverPackageName,
                               const std::string& driverVersionName, uint64_t driverVersionCode,
                               int64_t driverBuildTime, const std::string& appPackageName,
@@ -220,34 +236,21 @@ void GraphicsEnv::setDriverToLoad(GraphicsEnv::Driver driver) {
     }
 }
 
-void GraphicsEnv::setDriverLoaded(GraphicsEnv::Api api, bool isLoaded, int64_t driverLoadingTime) {
+void GraphicsEnv::setDriverLoaded(GraphicsEnv::Api api, bool isDriverLoaded,
+                                  int64_t driverLoadingTime) {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mStatsLock);
-    GraphicsEnv::Driver driver = GraphicsEnv::Driver::NONE;
-    bool isIntendedDriverLoaded = false;
+    const bool doNotSend = mGpuStats.appPackageName.empty();
     if (api == GraphicsEnv::Api::API_GL) {
-        driver = mGpuStats.glDriverToLoad;
-        isIntendedDriverLoaded = isLoaded &&
-                ((mGpuStats.glDriverFallback == GraphicsEnv::Driver::NONE) ||
-                 (mGpuStats.glDriverToLoad == mGpuStats.glDriverFallback));
+        if (doNotSend) mGpuStats.glDriverToSend = true;
+        mGpuStats.glDriverLoadingTime = driverLoadingTime;
     } else {
-        driver = mGpuStats.vkDriverToLoad;
-        isIntendedDriverLoaded =
-                isLoaded && (mGpuStats.vkDriverFallback == GraphicsEnv::Driver::NONE);
+        if (doNotSend) mGpuStats.vkDriverToSend = true;
+        mGpuStats.vkDriverLoadingTime = driverLoadingTime;
     }
 
-    sendGpuStatsLocked(driver, isIntendedDriverLoaded, driverLoadingTime);
-}
-
-void GraphicsEnv::clearDriverLoadingInfo(GraphicsEnv::Api api) {
-    ATRACE_CALL();
-
-    std::lock_guard<std::mutex> lock(mStatsLock);
-    if (api == GraphicsEnv::Api::API_GL) {
-        mGpuStats.glDriverToLoad = GraphicsEnv::Driver::NONE;
-        mGpuStats.glDriverFallback = GraphicsEnv::Driver::NONE;
-    }
+    sendGpuStatsLocked(api, isDriverLoaded, driverLoadingTime);
 }
 
 static sp<IGpuService> getGpuService() {
@@ -260,7 +263,18 @@ static sp<IGpuService> getGpuService() {
     return interface_cast<IGpuService>(binder);
 }
 
-void GraphicsEnv::sendGpuStatsLocked(GraphicsEnv::Driver driver, bool isDriverLoaded,
+void GraphicsEnv::setCpuVulkanInUse() {
+    ATRACE_CALL();
+
+    // Use the same stats lock to protect getGpuService() as well.
+    std::lock_guard<std::mutex> lock(mStatsLock);
+    const sp<IGpuService> gpuService = getGpuService();
+    if (gpuService) {
+        gpuService->setCpuVulkanInUse(mGpuStats.appPackageName, mGpuStats.driverVersionCode);
+    }
+}
+
+void GraphicsEnv::sendGpuStatsLocked(GraphicsEnv::Api api, bool isDriverLoaded,
                                      int64_t driverLoadingTime) {
     ATRACE_CALL();
 
@@ -274,19 +288,31 @@ void GraphicsEnv::sendGpuStatsLocked(GraphicsEnv::Driver driver, bool isDriverLo
           "\tdriverBuildTime[%" PRId64 "]\n"
           "\tappPackageName[%s]\n"
           "\tvulkanVersion[%d]\n"
-          "\tdriver[%d]\n"
+          "\tapi[%d]\n"
           "\tisDriverLoaded[%d]\n"
           "\tdriverLoadingTime[%" PRId64 "]",
           mGpuStats.driverPackageName.c_str(), mGpuStats.driverVersionName.c_str(),
           mGpuStats.driverVersionCode, mGpuStats.driverBuildTime, mGpuStats.appPackageName.c_str(),
-          mGpuStats.vulkanVersion, static_cast<int32_t>(driver), isDriverLoaded, driverLoadingTime);
+          mGpuStats.vulkanVersion, static_cast<int32_t>(api), isDriverLoaded, driverLoadingTime);
+
+    GraphicsEnv::Driver driver = GraphicsEnv::Driver::NONE;
+    bool isIntendedDriverLoaded = false;
+    if (api == GraphicsEnv::Api::API_GL) {
+        driver = mGpuStats.glDriverToLoad;
+        isIntendedDriverLoaded =
+                isDriverLoaded && (mGpuStats.glDriverFallback == GraphicsEnv::Driver::NONE);
+    } else {
+        driver = mGpuStats.vkDriverToLoad;
+        isIntendedDriverLoaded =
+                isDriverLoaded && (mGpuStats.vkDriverFallback == GraphicsEnv::Driver::NONE);
+    }
 
     const sp<IGpuService> gpuService = getGpuService();
     if (gpuService) {
         gpuService->setGpuStats(mGpuStats.driverPackageName, mGpuStats.driverVersionName,
                                 mGpuStats.driverVersionCode, mGpuStats.driverBuildTime,
                                 mGpuStats.appPackageName, mGpuStats.vulkanVersion, driver,
-                                isDriverLoaded, driverLoadingTime);
+                                isIntendedDriverLoaded, driverLoadingTime);
     }
 }
 

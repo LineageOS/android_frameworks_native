@@ -590,7 +590,11 @@ uint32_t SurfaceFlinger::getNewTexture() {
 }
 
 void SurfaceFlinger::deleteTextureAsync(uint32_t texture) {
-    postMessageAsync(new LambdaMessage([=] { getRenderEngine().deleteTextures(1, &texture); }));
+    std::lock_guard lock(mTexturePoolMutex);
+    // We don't change the pool size, so the fix-up logic in postComposition will decide whether
+    // to actually delete this or not based on mTexturePoolSize
+    mTexturePool.push_back(texture);
+    ATRACE_INT("TexturePoolSize", mTexturePool.size());
 }
 
 // Do not call property_set on main thread which will be blocked by init
@@ -695,13 +699,11 @@ void SurfaceFlinger::init() {
         ALOGE("Run StartPropertySetThread failed!");
     }
 
-    if (mScheduler->isIdleTimerEnabled()) {
-        mScheduler->setChangeRefreshRateCallback(
-                [this](RefreshRateType type, Scheduler::ConfigEvent event) {
-                    Mutex::Autolock lock(mStateLock);
-                    setRefreshRateTo(type, event);
-                });
-    }
+    mScheduler->setChangeRefreshRateCallback(
+            [this](RefreshRateType type, Scheduler::ConfigEvent event) {
+                Mutex::Autolock lock(mStateLock);
+                setRefreshRateTo(type, event);
+            });
 
     mRefreshRateConfigs.populate(getHwComposer().getConfigs(*display->getId()));
     mRefreshRateStats.setConfigMode(getHwComposer().getActiveConfigIndex(*display->getId()));
@@ -2078,11 +2080,17 @@ void SurfaceFlinger::postComposition()
 
     {
         std::lock_guard lock(mTexturePoolMutex);
-        const size_t refillCount = mTexturePoolSize - mTexturePool.size();
-        if (refillCount > 0) {
+        if (mTexturePool.size() < mTexturePoolSize) {
+            const size_t refillCount = mTexturePoolSize - mTexturePool.size();
             const size_t offset = mTexturePool.size();
             mTexturePool.resize(mTexturePoolSize);
             getRenderEngine().genTextures(refillCount, mTexturePool.data() + offset);
+            ATRACE_INT("TexturePoolSize", mTexturePool.size());
+        } else if (mTexturePool.size() > mTexturePoolSize) {
+            const size_t deleteCount = mTexturePool.size() - mTexturePoolSize;
+            const size_t offset = mTexturePoolSize;
+            getRenderEngine().deleteTextures(deleteCount, mTexturePool.data() + offset);
+            mTexturePool.resize(mTexturePoolSize);
             ATRACE_INT("TexturePoolSize", mTexturePool.size());
         }
     }
@@ -5089,6 +5097,14 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
             ALOGE("Attempting to access SurfaceFlinger with unused code: %u", code);
             return PERMISSION_DENIED;
         }
+        case CAPTURE_SCREEN_BY_ID: {
+            IPCThreadState* ipc = IPCThreadState::self();
+            const int uid = ipc->getCallingUid();
+            if ((uid == AID_GRAPHICS) || (uid == AID_SYSTEM) || (uid == AID_SHELL)) {
+                return OK;
+            }
+            return PERMISSION_DENIED;
+        }
     }
 
     // These codes are used for the IBinder protocol to either interrogate the recipient
@@ -5501,6 +5517,66 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
                                     std::placeholders::_1);
     return captureScreenCommon(renderArea, traverseLayers, outBuffer, reqPixelFormat,
                                useIdentityTransform, outCapturedSecureLayers);
+}
+
+static Dataspace pickDataspaceFromColorMode(const ColorMode colorMode) {
+    switch (colorMode) {
+        case ColorMode::DISPLAY_P3:
+        case ColorMode::BT2100_PQ:
+        case ColorMode::BT2100_HLG:
+        case ColorMode::DISPLAY_BT2020:
+            return Dataspace::DISPLAY_P3;
+        default:
+            return Dataspace::V0_SRGB;
+    }
+}
+
+const sp<DisplayDevice> SurfaceFlinger::getDisplayByIdOrLayerStack(uint64_t displayOrLayerStack) {
+    const sp<IBinder> displayToken = getPhysicalDisplayTokenLocked(DisplayId{displayOrLayerStack});
+    if (displayToken) {
+        return getDisplayDeviceLocked(displayToken);
+    }
+    // Couldn't find display by displayId. Try to get display by layerStack since virtual displays
+    // may not have a displayId.
+    for (const auto& [token, display] : mDisplays) {
+        if (display->getLayerStack() == displayOrLayerStack) {
+            return display;
+        }
+    }
+    return nullptr;
+}
+
+status_t SurfaceFlinger::captureScreen(uint64_t displayOrLayerStack, Dataspace* outDataspace,
+                                       sp<GraphicBuffer>* outBuffer) {
+    sp<DisplayDevice> display;
+    uint32_t width;
+    uint32_t height;
+    ui::Transform::orientation_flags captureOrientation;
+    {
+        Mutex::Autolock _l(mStateLock);
+        display = getDisplayByIdOrLayerStack(displayOrLayerStack);
+        if (!display) {
+            return BAD_VALUE;
+        }
+
+        width = uint32_t(display->getViewport().width());
+        height = uint32_t(display->getViewport().height());
+
+        captureOrientation = fromSurfaceComposerRotation(
+                static_cast<ISurfaceComposer::Rotation>(display->getOrientation()));
+        *outDataspace =
+                pickDataspaceFromColorMode(display->getCompositionDisplay()->getState().colorMode);
+    }
+
+    DisplayRenderArea renderArea(display, Rect(), width, height, *outDataspace, captureOrientation,
+                                 false /* captureSecureLayers */);
+
+    auto traverseLayers = std::bind(&SurfaceFlinger::traverseLayersInDisplay, this, display,
+                                    std::placeholders::_1);
+    bool ignored = false;
+    return captureScreenCommon(renderArea, traverseLayers, outBuffer, ui::PixelFormat::RGBA_8888,
+                               false /* useIdentityTransform */,
+                               ignored /* outCapturedSecureLayers */);
 }
 
 status_t SurfaceFlinger::captureLayers(
