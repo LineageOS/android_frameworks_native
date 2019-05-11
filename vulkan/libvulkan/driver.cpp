@@ -1174,6 +1174,11 @@ VkResult CreateDevice(VkPhysicalDevice physicalDevice,
                                                      &properties);
     ATRACE_END();
 
+    if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU) {
+        // Log that the app is hitting software Vulkan implementation
+        android::GraphicsEnv::getInstance().setCpuVulkanInUse();
+    }
+
     data->driver_device = dev;
     data->driver_version = properties.driverVersion;
 

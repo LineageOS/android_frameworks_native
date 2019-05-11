@@ -85,6 +85,7 @@ status_t GpuStatsAppInfo::writeToParcel(Parcel* parcel) const {
     if ((status = parcel->writeInt64Vector(glDriverLoadingTime)) != OK) return status;
     if ((status = parcel->writeInt64Vector(vkDriverLoadingTime)) != OK) return status;
     if ((status = parcel->writeInt64Vector(angleDriverLoadingTime)) != OK) return status;
+    if ((status = parcel->writeBool(cpuVulkanInUse)) != OK) return status;
     return OK;
 }
 
@@ -95,6 +96,7 @@ status_t GpuStatsAppInfo::readFromParcel(const Parcel* parcel) {
     if ((status = parcel->readInt64Vector(&glDriverLoadingTime)) != OK) return status;
     if ((status = parcel->readInt64Vector(&vkDriverLoadingTime)) != OK) return status;
     if ((status = parcel->readInt64Vector(&angleDriverLoadingTime)) != OK) return status;
+    if ((status = parcel->readBool(&cpuVulkanInUse)) != OK) return status;
     return OK;
 }
 
@@ -102,6 +104,7 @@ std::string GpuStatsAppInfo::toString() const {
     std::string result;
     StringAppendF(&result, "appPackageName = %s\n", appPackageName.c_str());
     StringAppendF(&result, "driverVersionCode = %" PRIu64 "\n", driverVersionCode);
+    StringAppendF(&result, "cpuVulkanInUse = %d\n", cpuVulkanInUse);
     result.append("glDriverLoadingTime:");
     for (int32_t loadingTime : glDriverLoadingTime) {
         StringAppendF(&result, " %d", loadingTime);

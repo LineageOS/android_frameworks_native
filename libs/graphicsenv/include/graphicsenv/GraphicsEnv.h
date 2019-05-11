@@ -96,6 +96,7 @@ public:
     void setGpuStats(const std::string& driverPackageName, const std::string& driverVersionName,
                      uint64_t versionCode, int64_t driverBuildTime,
                      const std::string& appPackageName, const int32_t vulkanVersion);
+    void setCpuVulkanInUse();
     void setDriverToLoad(Driver driver);
     void setDriverLoaded(Api api, bool isDriverLoaded, int64_t driverLoadingTime);
     void sendGpuStatsLocked(Api api, bool isDriverLoaded, int64_t driverLoadingTime);

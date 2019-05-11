@@ -108,13 +108,13 @@ void GpuStats::insert(const std::string& driverPackageName, const std::string& d
         addLoadingCount(driver, isDriverLoaded, &mGlobalStats[driverVersionCode]);
     }
 
-    if (mAppStats.size() >= MAX_NUM_APP_RECORDS) {
-        ALOGV("GpuStatsAppInfo has reached maximum size. Ignore new stats.");
-        return;
-    }
-
     const std::string appStatsKey = appPackageName + std::to_string(driverVersionCode);
     if (!mAppStats.count(appStatsKey)) {
+        if (mAppStats.size() >= MAX_NUM_APP_RECORDS) {
+            ALOGV("GpuStatsAppInfo has reached maximum size. Ignore new stats.");
+            return;
+        }
+
         GpuStatsAppInfo appInfo;
         addLoadingTime(driver, driverLoadingTime, &appInfo);
         appInfo.appPackageName = appPackageName;
@@ -124,6 +124,16 @@ void GpuStats::insert(const std::string& driverPackageName, const std::string& d
     }
 
     addLoadingTime(driver, driverLoadingTime, &mAppStats[appStatsKey]);
+}
+
+void GpuStats::setCpuVulkanInUse(const std::string& appPackageName,
+                                 const uint64_t driverVersionCode) {
+    const std::string appStatsKey = appPackageName + std::to_string(driverVersionCode);
+    if (!mAppStats.count(appStatsKey)) {
+        return;
+    }
+
+    mAppStats[appStatsKey].cpuVulkanInUse = true;
 }
 
 void GpuStats::interceptSystemDriverStatsLocked() {
