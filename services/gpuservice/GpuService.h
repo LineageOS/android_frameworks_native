@@ -50,6 +50,8 @@ private:
                      int64_t driverLoadingTime) override;
     status_t getGpuStatsGlobalInfo(std::vector<GpuStatsGlobalInfo>* outStats) const override;
     status_t getGpuStatsAppInfo(std::vector<GpuStatsAppInfo>* outStats) const override;
+    void setCpuVulkanInUse(const std::string& appPackageName,
+                           const uint64_t driverVersionCode) override;
 
     /*
      * IBinder interface
