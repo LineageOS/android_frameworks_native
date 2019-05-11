@@ -699,13 +699,11 @@ void SurfaceFlinger::init() {
         ALOGE("Run StartPropertySetThread failed!");
     }
 
-    if (mScheduler->isIdleTimerEnabled()) {
-        mScheduler->setChangeRefreshRateCallback(
-                [this](RefreshRateType type, Scheduler::ConfigEvent event) {
-                    Mutex::Autolock lock(mStateLock);
-                    setRefreshRateTo(type, event);
-                });
-    }
+    mScheduler->setChangeRefreshRateCallback(
+            [this](RefreshRateType type, Scheduler::ConfigEvent event) {
+                Mutex::Autolock lock(mStateLock);
+                setRefreshRateTo(type, event);
+            });
 
     mRefreshRateConfigs.populate(getHwComposer().getConfigs(*display->getId()));
     mRefreshRateStats.setConfigMode(getHwComposer().getActiveConfigIndex(*display->getId()));
