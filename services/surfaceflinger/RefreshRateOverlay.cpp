@@ -37,9 +37,16 @@ bool RefreshRateOverlay::createLayer() {
         return false;
     }
 
+    Mutex::Autolock _l(mFlinger.mStateLock);
     mLayer = mClient->getLayerUser(mIBinder);
     mLayer->setCrop_legacy(Rect(50, 70, 200, 100), true);
-    mLayer->setLayer(INT32_MAX - 2);
+
+    // setting Layer's Z requires resorting layersSortedByZ
+    ssize_t idx = mFlinger.mCurrentState.layersSortedByZ.indexOf(mLayer);
+    if (mLayer->setLayer(INT32_MAX - 2) && idx >= 0) {
+        mFlinger.mCurrentState.layersSortedByZ.removeAt(idx);
+        mFlinger.mCurrentState.layersSortedByZ.add(mLayer);
+    }
 
     return true;
 }
