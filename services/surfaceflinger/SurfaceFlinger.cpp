@@ -5432,9 +5432,13 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 // TODO(b/129297325): expose this via developer menu option
                 n = data.readInt32();
                 if (n && !mRefreshRateOverlay) {
-                    std::lock_guard<std::mutex> lock(mActiveConfigLock);
+                    RefreshRateType type;
+                    {
+                        std::lock_guard<std::mutex> lock(mActiveConfigLock);
+                        type = mDesiredActiveConfig.type;
+                    }
                     mRefreshRateOverlay = std::make_unique<RefreshRateOverlay>(*this);
-                    mRefreshRateOverlay->changeRefreshRate(mDesiredActiveConfig.type);
+                    mRefreshRateOverlay->changeRefreshRate(type);
                 } else if (!n) {
                     mRefreshRateOverlay.reset();
                 }
