@@ -479,8 +479,6 @@ private:
     size_t mPendingEventCount;
     size_t mPendingEventIndex;
     bool mPendingINotify;
-
-    bool mUsingEpollWakeup;
 };
 
 }; // namespace android
