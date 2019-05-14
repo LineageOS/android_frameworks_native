@@ -3556,7 +3556,7 @@ bool SurfaceFlinger::flushTransactionQueues() {
                 it = mTransactionQueues.erase(it);
                 mTransactionCV.broadcast();
             } else {
-                std::next(it, 1);
+                it = std::next(it, 1);
             }
         }
     }
