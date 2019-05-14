@@ -391,6 +391,25 @@ TEST_F(InputSurfacesTest, input_respects_cropped_surface_insets) {
     parentSurface->expectTap(1, 1);
 }
 
+// Ensure a surface whose insets are scaled, handles the touch offset correctly.
+TEST_F(InputSurfacesTest, input_respects_scaled_surface_insets) {
+    std::unique_ptr<InputSurface> bgSurface = makeSurface(100, 100);
+    std::unique_ptr<InputSurface> fgSurface = makeSurface(100, 100);
+    bgSurface->showAt(100, 100);
+
+    fgSurface->mInputInfo.surfaceInset = 5;
+    fgSurface->showAt(100, 100);
+
+    fgSurface->doTransaction([&](auto &t, auto &sc) { t.setMatrix(sc, 2.0, 0, 0, 4.0); });
+
+    // expect = touch / scale - inset
+    injectTap(112, 124);
+    fgSurface->expectTap(1, 1);
+
+    injectTap(101, 101);
+    bgSurface->expectTap(1, 1);
+}
+
 // Ensure we ignore transparent region when getting screen bounds when positioning input frame.
 TEST_F(InputSurfacesTest, input_ignores_transparent_region) {
     std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
