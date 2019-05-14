@@ -162,7 +162,7 @@ cc_library_shared {
         "libEGL_getProcAddress",
         "libEGL_blobCache",
     ],
-    ldflags: ["-Wl,--exclude-libs=ALL"],
+    ldflags: ["-Wl,--exclude-libs=ALL,--Bsymbolic-functions"],
     export_include_dirs: ["EGL/include"],
 }
 
