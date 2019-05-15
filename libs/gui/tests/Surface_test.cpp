@@ -126,7 +126,7 @@ TEST_F(SurfaceTest, QueuesToWindowComposerIsTrueWhenPurgatorized) {
 }
 
 // This test probably doesn't belong here.
-TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersSucceed) {
+TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersDontSucceed) {
     sp<ANativeWindow> anw(mSurface);
 
     // Verify the screenshot works with no protected buffers.
@@ -134,7 +134,8 @@ TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersSucceed) {
     sp<IBinder> display(sf->getBuiltInDisplay(
             ISurfaceComposer::eDisplayIdMain));
     sp<GraphicBuffer> outBuffer;
-    ASSERT_EQ(NO_ERROR, sf->captureScreen(display, &outBuffer, Rect(),
+    bool ignored;
+    ASSERT_EQ(NO_ERROR, sf->captureScreen(display, &outBuffer, ignored, Rect(),
             64, 64, 0, 0x7fffffff, false));
 
     ASSERT_EQ(NO_ERROR, native_window_api_connect(anw.get(),
@@ -165,7 +166,7 @@ TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersSucceed) {
                 &buf));
         ASSERT_EQ(NO_ERROR, anw->queueBuffer(anw.get(), buf, -1));
     }
-    ASSERT_EQ(NO_ERROR, sf->captureScreen(display, &outBuffer, Rect(),
+    ASSERT_EQ(NO_ERROR, sf->captureScreen(display, &outBuffer, ignored, Rect(),
             64, 64, 0, 0x7fffffff, false));
 }
 
@@ -601,10 +602,12 @@ public:
         ColorMode /*colorMode*/) override { return NO_ERROR; }
     status_t captureScreen(const sp<IBinder>& /*display*/,
             sp<GraphicBuffer>* /*outBuffer*/,
+            bool& /* outCapturedSecureLayers */,
             Rect /*sourceCrop*/, uint32_t /*reqWidth*/, uint32_t /*reqHeight*/,
             int32_t /*minLayerZ*/, int32_t /*maxLayerZ*/,
             bool /*useIdentityTransform*/,
-            Rotation /*rotation*/) override { return NO_ERROR; }
+            Rotation /*rotation*/,
+            bool /*captureSecureLayers*/) override { return NO_ERROR; }
     virtual status_t captureLayers(const sp<IBinder>& /*parentHandle*/,
                                    sp<GraphicBuffer>* /*outBuffer*/, const Rect& /*sourceCrop*/,
                                    float /*frameScale*/, bool /*childrenOnly*/) override {
