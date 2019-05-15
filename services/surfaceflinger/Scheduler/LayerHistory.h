@@ -56,10 +56,13 @@ public:
     std::unique_ptr<LayerHandle> createLayer(const std::string name, float maxRefreshRate);
 
     // Method for inserting layers and their requested present time into the unordered map.
-    void insert(const std::unique_ptr<LayerHandle>& layerHandle, nsecs_t presentTime);
+    void insert(const std::unique_ptr<LayerHandle>& layerHandle, nsecs_t presentTime, bool isHdr);
+    // Method for setting layer visibility
+    void setVisibility(const std::unique_ptr<LayerHandle>& layerHandle, bool visible);
+
     // Returns the desired refresh rate, which is a max refresh rate of all the current
     // layers. See go/content-fps-detection-in-scheduler for more information.
-    float getDesiredRefreshRate();
+    std::pair<float, bool> getDesiredRefreshRateAndHDR();
 
     // Removes the handle and the object from the map.
     void destroyLayer(const int64_t id);

@@ -97,8 +97,11 @@ bool BufferLayer::isOpaque(const Layer::State& s) const {
 }
 
 bool BufferLayer::isVisible() const {
-    return !(isHiddenByPolicy()) && getAlpha() > 0.0f &&
+    bool visible = !(isHiddenByPolicy()) && getAlpha() > 0.0f &&
             (mActiveBuffer != nullptr || mSidebandStream != nullptr);
+    mFlinger->mScheduler->setLayerVisibility(mSchedulerLayerHandle, visible);
+
+    return visible;
 }
 
 bool BufferLayer::isFixedSize() const {
