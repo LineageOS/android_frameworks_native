@@ -67,7 +67,8 @@ void LayerHistory::destroyLayer(const int64_t id) {
     }
 }
 
-void LayerHistory::insert(const std::unique_ptr<LayerHandle>& layerHandle, nsecs_t presentTime) {
+void LayerHistory::insert(const std::unique_ptr<LayerHandle>& layerHandle, nsecs_t presentTime,
+                          bool isHdr) {
     std::shared_ptr<LayerInfo> layerInfo;
     {
         std::lock_guard lock(mLock);
@@ -88,9 +89,36 @@ void LayerHistory::insert(const std::unique_ptr<LayerHandle>& layerHandle, nsecs
         }
     }
     layerInfo->setLastPresentTime(presentTime);
+    layerInfo->setHDRContent(isHdr);
 }
 
-float LayerHistory::getDesiredRefreshRate() {
+void LayerHistory::setVisibility(const std::unique_ptr<LayerHandle>& layerHandle, bool visible) {
+    std::shared_ptr<LayerInfo> layerInfo;
+    {
+        std::lock_guard lock(mLock);
+        auto layerInfoIterator = mInactiveLayerInfos.find(layerHandle->mId);
+        if (layerInfoIterator != mInactiveLayerInfos.end()) {
+            layerInfo = layerInfoIterator->second;
+            if (visible) {
+                mInactiveLayerInfos.erase(layerInfoIterator);
+                mActiveLayerInfos.insert({layerHandle->mId, layerInfo});
+            }
+        } else {
+            layerInfoIterator = mActiveLayerInfos.find(layerHandle->mId);
+            if (layerInfoIterator != mActiveLayerInfos.end()) {
+                layerInfo = layerInfoIterator->second;
+            } else {
+                ALOGW("Inserting information about layer that is not registered: %" PRId64,
+                      layerHandle->mId);
+                return;
+            }
+        }
+    }
+    layerInfo->setVisibility(visible);
+}
+
+std::pair<float, bool> LayerHistory::getDesiredRefreshRateAndHDR() {
+    bool isHDR = false;
     float newRefreshRate = 0.f;
     std::lock_guard lock(mLock);
 
@@ -108,12 +136,13 @@ float LayerHistory::getDesiredRefreshRate() {
         if (layerInfo->isRecentlyActive() && layerRefreshRate > newRefreshRate) {
             newRefreshRate = layerRefreshRate;
         }
+        isHDR |= layerInfo->getHDRContent();
     }
     if (mTraceEnabled) {
         ALOGD("LayerHistory DesiredRefreshRate: %.2f", newRefreshRate);
     }
 
-    return newRefreshRate;
+    return {newRefreshRate, isHDR};
 }
 
 void LayerHistory::removeIrrelevantLayers() {
@@ -122,7 +151,9 @@ void LayerHistory::removeIrrelevantLayers() {
     auto it = mActiveLayerInfos.begin();
     while (it != mActiveLayerInfos.end()) {
         // If last updated was before the obsolete time, remove it.
-        if (it->second->getLastUpdatedTime() < obsoleteEpsilon) {
+        // Keep HDR layer around as long as they are visible.
+        if (!it->second->isVisible() ||
+            (!it->second->getHDRContent() && it->second->getLastUpdatedTime() < obsoleteEpsilon)) {
             // erase() function returns the iterator of the next
             // to last deleted element.
             if (mTraceEnabled) {
