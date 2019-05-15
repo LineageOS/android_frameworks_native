@@ -427,7 +427,7 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) 
     sp<GraphicBuffer> oldBuffer = mActiveBuffer;
 
     if (!allTransactionsSignaled()) {
-        mFlinger->signalLayerUpdate();
+        mFlinger->setTransactionFlags(eTraversalNeeded);
         return false;
     }
 
