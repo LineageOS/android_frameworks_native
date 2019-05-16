@@ -39,13 +39,31 @@ public:
               const TimeoutCallback& timeoutCallback);
     ~IdleTimer();
 
+    // Initializes and turns on the idle timer.
     void start();
+    // Stops the idle timer and any held resources.
     void stop();
+    // Resets the wakeup time and fires the reset callback.
     void reset();
 
 private:
     // Enum to track in what state is the timer.
-    enum class TimerState { STOPPED = 0, RESET = 1, WAITING = 2, IDLE = 3 };
+    enum class TimerState {
+        // The internal timer thread has been destroyed, and no state is
+        // tracked.
+        // Possible state transitions: RESET
+        STOPPED = 0,
+        // An external thread has just reset this timer.
+        // If there is a reset callback, then that callback is fired.
+        // Possible state transitions: STOPPED, WAITING
+        RESET = 1,
+        // This timer is waiting for the timeout interval to expire.
+        // Possible state transaitions: STOPPED, RESET, IDLE
+        WAITING = 2,
+        // The timeout interval has expired, so we are sleeping now.
+        // Possible state transaitions: STOPPED, RESET
+        IDLE = 3
+    };
 
     // Function that loops until the condition for stopping is met.
     void loop();
@@ -59,6 +77,7 @@ private:
     // Lock used for synchronizing the waiting thread with the application thread.
     std::mutex mMutex;
 
+    // Current timer state
     TimerState mState GUARDED_BY(mMutex) = TimerState::RESET;
 
     // Interval after which timer expires.

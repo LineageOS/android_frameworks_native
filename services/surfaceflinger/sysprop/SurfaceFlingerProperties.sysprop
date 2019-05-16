@@ -315,3 +315,13 @@ prop {
     access: Readonly
     prop_name: "ro.surface_flinger.protected_contents"
 }
+
+# Indicates whether Scheduler's idle timer should support a display driver timeout in the kernel.
+# The value of set_idle_timer_ms should be shorter in time than the timeout duration in the kernel.
+prop {
+    api_name: "support_kernel_idle_timer"
+    type: Boolean
+    scope: System
+    access: Readonly
+    prop_name: "ro.surface_flinger.support_kernel_idle_timer"
+}

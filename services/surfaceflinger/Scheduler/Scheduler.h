@@ -160,6 +160,7 @@ public:
     void updateFpsBasedOnContent();
     // Callback that gets invoked when Scheduler wants to change the refresh rate.
     void setChangeRefreshRateCallback(const ChangeRefreshRateCallback& changeRefreshRateCallback);
+    void setGetVsyncPeriodCallback(const GetVsyncPeriod&& getVsyncPeriod);
 
     // Returns whether idle timer is enabled or not
     bool isIdleTimerEnabled() { return mSetIdleTimerMs > 0; }
@@ -194,6 +195,14 @@ private:
     void resetTimerCallback();
     // Function that is called when the timer expires.
     void expiredTimerCallback();
+    // Function that is called when the timer resets when paired with a display
+    // driver timeout in the kernel. This enables hardware vsync when we move
+    // out from idle.
+    void resetKernelTimerCallback();
+    // Function that is called when the timer expires when paired with a display
+    // driver timeout in the kernel. This disables hardware vsync when we move
+    // into idle.
+    void expiredKernelTimerCallback();
     // Sets vsync period.
     void setVsyncPeriod(const nsecs_t period);
     // Idle timer feature's function to change the refresh rate.
@@ -245,9 +254,13 @@ private:
     // interval, a callback is fired. Set this variable to >0 to use this feature.
     int64_t mSetIdleTimerMs = 0;
     std::unique_ptr<scheduler::IdleTimer> mIdleTimer;
+    // Enables whether to use idle timer callbacks that support the kernel
+    // timer.
+    bool mSupportKernelTimer;
 
     std::mutex mCallbackLock;
     ChangeRefreshRateCallback mChangeRefreshRateCallback GUARDED_BY(mCallbackLock);
+    GetVsyncPeriod mGetVsyncPeriod GUARDED_BY(mCallbackLock);
 
     // In order to make sure that the features don't override themselves, we need a state machine
     // to keep track which feature requested the config change.
