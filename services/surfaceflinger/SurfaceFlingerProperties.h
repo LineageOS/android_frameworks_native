@@ -76,6 +76,8 @@ bool use_smart_90_for_video(bool defaultValue);
 
 bool enable_protected_contents(bool defaultValue);
 
+bool support_kernel_idle_timer(bool defaultValue);
+
 android::ui::DisplayPrimaries getDisplayNativePrimaries();
 } // namespace sysprop
 } // namespace android
