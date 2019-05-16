@@ -246,6 +246,14 @@ bool enable_protected_contents(bool defaultValue) {
     return defaultValue;
 }
 
+bool support_kernel_idle_timer(bool defaultValue) {
+    auto temp = SurfaceFlingerProperties::support_kernel_idle_timer();
+    if (temp.has_value()) {
+        return *temp;
+    }
+    return defaultValue;
+}
+
 #define DISPLAY_PRIMARY_SIZE 3
 
 constexpr float kSrgbRedX = 0.4123f;
