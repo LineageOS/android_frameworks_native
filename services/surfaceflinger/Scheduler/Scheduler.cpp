@@ -73,6 +73,7 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
     mEventControlThread = std::make_unique<impl::EventControlThread>(function);
 
     mSetIdleTimerMs = set_idle_timer_ms(0);
+    mSupportKernelTimer = support_kernel_idle_timer(false);
 
     char value[PROPERTY_VALUE_MAX];
     property_get("debug.sf.set_idle_timer_ms", value, "0");
@@ -82,10 +83,20 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
     }
 
     if (mSetIdleTimerMs > 0) {
-        mIdleTimer =
-                std::make_unique<scheduler::IdleTimer>(std::chrono::milliseconds(mSetIdleTimerMs),
-                                                       [this] { resetTimerCallback(); },
-                                                       [this] { expiredTimerCallback(); });
+        if (mSupportKernelTimer) {
+            mIdleTimer =
+                    std::make_unique<scheduler::IdleTimer>(std::chrono::milliseconds(
+                                                                   mSetIdleTimerMs),
+                                                           [this] { resetKernelTimerCallback(); },
+                                                           [this] {
+                                                               expiredKernelTimerCallback();
+                                                           });
+        } else {
+            mIdleTimer = std::make_unique<scheduler::IdleTimer>(std::chrono::milliseconds(
+                                                                        mSetIdleTimerMs),
+                                                                [this] { resetTimerCallback(); },
+                                                                [this] { expiredTimerCallback(); });
+        }
         mIdleTimer->start();
     }
 }
@@ -354,6 +365,11 @@ void Scheduler::setChangeRefreshRateCallback(
     mChangeRefreshRateCallback = changeRefreshRateCallback;
 }
 
+void Scheduler::setGetVsyncPeriodCallback(const GetVsyncPeriod&& getVsyncPeriod) {
+    std::lock_guard<std::mutex> lock(mCallbackLock);
+    mGetVsyncPeriod = getVsyncPeriod;
+}
+
 void Scheduler::updateFrameSkipping(const int64_t skipCount) {
     ATRACE_INT("FrameSkipCount", skipCount);
     if (mSkipCount != skipCount) {
@@ -370,15 +386,28 @@ void Scheduler::resetIdleTimer() {
 }
 
 void Scheduler::resetTimerCallback() {
-    // We do not notify the applications about config changes when idle timer is reset.
     timerChangeRefreshRate(IdleTimerState::RESET);
     ATRACE_INT("ExpiredIdleTimer", 0);
 }
 
+void Scheduler::resetKernelTimerCallback() {
+    ATRACE_INT("ExpiredKernelIdleTimer", 0);
+    std::lock_guard<std::mutex> lock(mCallbackLock);
+    if (mGetVsyncPeriod) {
+        resyncToHardwareVsync(false, mGetVsyncPeriod());
+    }
+}
+
 void Scheduler::expiredTimerCallback() {
-    // We do not notify the applications about config changes when idle timer expires.
     timerChangeRefreshRate(IdleTimerState::EXPIRED);
     ATRACE_INT("ExpiredIdleTimer", 1);
+}
+
+void Scheduler::expiredKernelTimerCallback() {
+    ATRACE_INT("ExpiredKernelIdleTimer", 1);
+    // Disable HW Vsync if the timer expired, as we don't need it
+    // enabled if we're not pushing frames.
+    disableHardwareVsync(false);
 }
 
 std::string Scheduler::doDump() {
