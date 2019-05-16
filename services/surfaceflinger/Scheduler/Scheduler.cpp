@@ -306,10 +306,15 @@ std::unique_ptr<scheduler::LayerHistory::LayerHandle> Scheduler::registerLayer(
     return mLayerHistory.createLayer(name, fps);
 }
 
-void Scheduler::addLayerPresentTime(
+void Scheduler::addLayerPresentTimeAndHDR(
         const std::unique_ptr<scheduler::LayerHistory::LayerHandle>& layerHandle,
-        nsecs_t presentTime) {
-    mLayerHistory.insert(layerHandle, presentTime);
+        nsecs_t presentTime, bool isHDR) {
+    mLayerHistory.insert(layerHandle, presentTime, isHDR);
+}
+
+void Scheduler::setLayerVisibility(
+        const std::unique_ptr<scheduler::LayerHistory::LayerHandle>& layerHandle, bool visible) {
+    mLayerHistory.setVisibility(layerHandle, visible);
 }
 
 void Scheduler::withPrimaryDispSync(std::function<void(DispSync&)> const& fn) {
@@ -317,18 +322,23 @@ void Scheduler::withPrimaryDispSync(std::function<void(DispSync&)> const& fn) {
 }
 
 void Scheduler::updateFpsBasedOnContent() {
-    uint32_t refreshRate = std::round(mLayerHistory.getDesiredRefreshRate());
+    auto [refreshRate, isHDR] = mLayerHistory.getDesiredRefreshRateAndHDR();
+    const uint32_t refreshRateRound = std::round(refreshRate);
     RefreshRateType newRefreshRateType;
     {
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
-        if (mContentRefreshRate == refreshRate) {
+        if (mContentRefreshRate == refreshRateRound && mIsHDRContent == isHDR) {
             return;
         }
-        mContentRefreshRate = refreshRate;
+        mContentRefreshRate = refreshRateRound;
         ATRACE_INT("ContentFPS", mContentRefreshRate);
 
-        mCurrentContentFeatureState = refreshRate > 0 ? ContentFeatureState::CONTENT_DETECTION_ON
-                                                      : ContentFeatureState::CONTENT_DETECTION_OFF;
+        mIsHDRContent = isHDR;
+        ATRACE_INT("ContentHDR", mIsHDRContent);
+
+        mCurrentContentFeatureState = refreshRateRound > 0
+                ? ContentFeatureState::CONTENT_DETECTION_ON
+                : ContentFeatureState::CONTENT_DETECTION_OFF;
         newRefreshRateType = calculateRefreshRateType();
         if (mRefreshRateType == newRefreshRateType) {
             return;
@@ -397,6 +407,11 @@ void Scheduler::timerChangeRefreshRate(IdleTimerState idleTimerState) {
 Scheduler::RefreshRateType Scheduler::calculateRefreshRateType() {
     // First check if timer has expired as it means there is no new content on the screen
     if (mCurrentIdleTimerState == IdleTimerState::EXPIRED) {
+        return RefreshRateType::DEFAULT;
+    }
+
+    // HDR content is not supported on PERFORMANCE mode
+    if (mForceHDRContentToDefaultRefreshRate && mIsHDRContent) {
         return RefreshRateType::DEFAULT;
     }
 
