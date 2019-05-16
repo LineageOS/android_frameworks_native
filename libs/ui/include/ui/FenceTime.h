@@ -19,6 +19,7 @@
 
 #include <ui/Fence.h>
 #include <utils/Flattenable.h>
+#include <utils/Mutex.h>
 #include <utils/Timers.h>
 
 #include <atomic>
@@ -159,7 +160,7 @@ public:
 
 private:
     mutable std::mutex mMutex;
-    std::queue<std::weak_ptr<FenceTime>> mQueue;
+    std::queue<std::weak_ptr<FenceTime>> mQueue GUARDED_BY(mMutex);
 };
 
 // Used by test code to create or get FenceTimes for a given Fence.
