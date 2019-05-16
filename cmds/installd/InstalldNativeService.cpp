@@ -569,31 +569,6 @@ binder::Status InstalldNativeService::clearAppData(const std::unique_ptr<std::st
                 remove_path_xattr(path, kXattrInodeCodeCache);
             }
         }
-
-        auto extPath = findDataMediaPath(uuid, userId);
-        if (flags & FLAG_CLEAR_CACHE_ONLY) {
-            // Clear only cached data from shared storage
-            path = StringPrintf("%s/Android/data/%s/cache", extPath.c_str(), pkgname);
-            if (delete_dir_contents(path, true) != 0) {
-                res = error("Failed to delete contents of " + path);
-            }
-        } else if (flags & FLAG_CLEAR_CODE_CACHE_ONLY) {
-            // No code cache on shared storage
-        } else {
-            // Clear everything on shared storage
-            path = StringPrintf("%s/Android/data/%s", extPath.c_str(), pkgname);
-            if (delete_dir_contents(path, true) != 0) {
-                res = error("Failed to delete contents of " + path);
-            }
-            path = StringPrintf("%s/Android/media/%s", extPath.c_str(), pkgname);
-            if (delete_dir_contents(path, true) != 0) {
-                res = error("Failed to delete contents of " + path);
-            }
-            path = StringPrintf("%s/Android/obb/%s", extPath.c_str(), pkgname);
-            if (delete_dir_contents(path, true) != 0) {
-                res = error("Failed to delete contents of " + path);
-            }
-        }
     }
     if (flags & FLAG_STORAGE_DE) {
         std::string suffix = "";
@@ -610,6 +585,41 @@ binder::Status InstalldNativeService::clearAppData(const std::unique_ptr<std::st
         if (access(path.c_str(), F_OK) == 0) {
             if (delete_dir_contents(path) != 0) {
                 res = error("Failed to delete contents of " + path);
+            }
+        }
+    }
+    if (flags & FLAG_STORAGE_EXTERNAL) {
+        std::lock_guard<std::recursive_mutex> lock(mMountsLock);
+        for (const auto& n : mStorageMounts) {
+            auto extPath = n.second;
+            if (n.first.compare(0, 14, "/mnt/media_rw/") != 0) {
+                extPath += StringPrintf("/%d", userId);
+            } else if (userId != 0) {
+                // TODO: support devices mounted under secondary users
+                continue;
+            }
+            if (flags & FLAG_CLEAR_CACHE_ONLY) {
+                // Clear only cached data from shared storage
+                auto path = StringPrintf("%s/Android/data/%s/cache", extPath.c_str(), pkgname);
+                if (delete_dir_contents(path, true) != 0) {
+                    res = error("Failed to delete contents of " + path);
+                }
+            } else if (flags & FLAG_CLEAR_CODE_CACHE_ONLY) {
+                // No code cache on shared storage
+            } else {
+                // Clear everything on shared storage
+                auto path = StringPrintf("%s/Android/data/%s", extPath.c_str(), pkgname);
+                if (delete_dir_contents(path, true) != 0) {
+                    res = error("Failed to delete contents of " + path);
+                }
+                path = StringPrintf("%s/Android/media/%s", extPath.c_str(), pkgname);
+                if (delete_dir_contents(path, true) != 0) {
+                    res = error("Failed to delete contents of " + path);
+                }
+                path = StringPrintf("%s/Android/obb/%s", extPath.c_str(), pkgname);
+                if (delete_dir_contents(path, true) != 0) {
+                    res = error("Failed to delete contents of " + path);
+                }
             }
         }
     }
@@ -662,20 +672,6 @@ binder::Status InstalldNativeService::destroyAppData(const std::unique_ptr<std::
         if (delete_dir_contents_and_dir(path) != 0) {
             res = error("Failed to delete " + path);
         }
-
-        auto extPath = findDataMediaPath(uuid, userId);
-        path = StringPrintf("%s/Android/data/%s", extPath.c_str(), pkgname);
-        if (delete_dir_contents_and_dir(path, true) != 0) {
-            res = error("Failed to delete " + path);
-        }
-        path = StringPrintf("%s/Android/media/%s", extPath.c_str(), pkgname);
-        if (delete_dir_contents_and_dir(path, true) != 0) {
-            res = error("Failed to delete " + path);
-        }
-        path = StringPrintf("%s/Android/obb/%s", extPath.c_str(), pkgname);
-        if (delete_dir_contents_and_dir(path, true) != 0) {
-            res = error("Failed to delete " + path);
-        }
     }
     if (flags & FLAG_STORAGE_DE) {
         auto path = create_data_user_de_package_path(uuid_, userId, pkgname);
@@ -687,6 +683,30 @@ binder::Status InstalldNativeService::destroyAppData(const std::unique_ptr<std::
         // beneficial to keep the reference profile around.
         // Verify if it's ok to do that.
         destroy_app_reference_profile(packageName);
+    }
+    if (flags & FLAG_STORAGE_EXTERNAL) {
+        std::lock_guard<std::recursive_mutex> lock(mMountsLock);
+        for (const auto& n : mStorageMounts) {
+            auto extPath = n.second;
+            if (n.first.compare(0, 14, "/mnt/media_rw/") != 0) {
+                extPath += StringPrintf("/%d", userId);
+            } else if (userId != 0) {
+                // TODO: support devices mounted under secondary users
+                continue;
+            }
+            auto path = StringPrintf("%s/Android/data/%s", extPath.c_str(), pkgname);
+            if (delete_dir_contents_and_dir(path, true) != 0) {
+                res = error("Failed to delete contents of " + path);
+            }
+            path = StringPrintf("%s/Android/media/%s", extPath.c_str(), pkgname);
+            if (delete_dir_contents_and_dir(path, true) != 0) {
+                res = error("Failed to delete contents of " + path);
+            }
+            path = StringPrintf("%s/Android/obb/%s", extPath.c_str(), pkgname);
+            if (delete_dir_contents_and_dir(path, true) != 0) {
+                res = error("Failed to delete contents of " + path);
+            }
+        }
     }
     return res;
 }
