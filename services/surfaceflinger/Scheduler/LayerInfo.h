@@ -115,6 +115,16 @@ public:
     // updated time, the updated time is the present time.
     void setLastPresentTime(nsecs_t lastPresentTime);
 
+    void setHDRContent(bool isHdr) {
+        std::lock_guard lock(mLock);
+        mIsHDR = isHdr;
+    }
+
+    void setVisibility(bool visible) {
+        std::lock_guard lock(mLock);
+        mIsVisible = visible;
+    }
+
     // Checks the present time history to see whether the layer is relevant.
     bool isRecentlyActive() const {
         std::lock_guard lock(mLock);
@@ -125,6 +135,16 @@ public:
     float getDesiredRefreshRate() const {
         std::lock_guard lock(mLock);
         return mRefreshRateHistory.getRefreshRateAvg();
+    }
+
+    bool getHDRContent() {
+        std::lock_guard lock(mLock);
+        return mIsHDR;
+    }
+
+    bool isVisible() {
+        std::lock_guard lock(mLock);
+        return mIsVisible;
     }
 
     // Return the last updated time. If the present time is farther in the future than the
@@ -150,6 +170,8 @@ private:
     nsecs_t mLastPresentTime GUARDED_BY(mLock) = 0;
     RefreshRateHistory mRefreshRateHistory GUARDED_BY(mLock);
     PresentTimeHistory mPresentTimeHistory GUARDED_BY(mLock);
+    bool mIsHDR GUARDED_BY(mLock) = false;
+    bool mIsVisible GUARDED_BY(mLock) = false;
 };
 
 } // namespace scheduler

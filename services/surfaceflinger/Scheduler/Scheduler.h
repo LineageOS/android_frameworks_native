@@ -150,9 +150,12 @@ public:
                                                                         int windowType);
 
     // Stores present time for a layer.
-    void addLayerPresentTime(
+    void addLayerPresentTimeAndHDR(
             const std::unique_ptr<scheduler::LayerHistory::LayerHandle>& layerHandle,
-            nsecs_t presentTime);
+            nsecs_t presentTime, bool isHDR);
+    // Stores visibility for a layer.
+    void setLayerVisibility(
+            const std::unique_ptr<scheduler::LayerHistory::LayerHandle>& layerHandle, bool visible);
     // Updates FPS based on the most content presented.
     void updateFpsBasedOnContent();
     // Callback that gets invoked when Scheduler wants to change the refresh rate.
@@ -254,8 +257,12 @@ private:
     IdleTimerState mCurrentIdleTimerState GUARDED_BY(mFeatureStateLock) = IdleTimerState::RESET;
     uint32_t mContentRefreshRate GUARDED_BY(mFeatureStateLock);
     RefreshRateType mRefreshRateType GUARDED_BY(mFeatureStateLock);
+    bool mIsHDRContent GUARDED_BY(mFeatureStateLock) = false;
 
     const scheduler::RefreshRateConfigs& mRefreshRateConfigs;
+
+    // Global config to force HDR content to work on DEFAULT refreshRate
+    static constexpr bool mForceHDRContentToDefaultRefreshRate = true;
 };
 
 } // namespace android
