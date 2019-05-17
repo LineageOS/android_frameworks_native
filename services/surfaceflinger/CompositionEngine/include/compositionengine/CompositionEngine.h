@@ -66,6 +66,9 @@ public:
 
     // TODO(b/121291683): These will become private/internal
     virtual void preComposition(CompositionRefreshArgs&) = 0;
+
+    // Debugging
+    virtual void dump(std::string&) const = 0;
 };
 
 } // namespace compositionengine

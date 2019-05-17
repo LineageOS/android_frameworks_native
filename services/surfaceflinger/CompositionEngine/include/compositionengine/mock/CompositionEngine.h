@@ -48,6 +48,8 @@ public:
     MOCK_METHOD1(updateCursorAsync, void(CompositionRefreshArgs&));
 
     MOCK_METHOD1(preComposition, void(CompositionRefreshArgs&));
+
+    MOCK_CONST_METHOD1(dump, void(std::string&));
 };
 
 } // namespace android::compositionengine::mock
