@@ -45,7 +45,6 @@ class SurfaceFlinger;
 // ---------------------------------------------------------------------------
 
 using ResyncCallback = std::function<void()>;
-using ResetIdleTimerCallback = std::function<void()>;
 
 enum class VSyncRequest {
     None = -1,
@@ -70,7 +69,7 @@ public:
 
 class EventThreadConnection : public BnDisplayEventConnection {
 public:
-    EventThreadConnection(EventThread*, ResyncCallback, ResetIdleTimerCallback);
+    EventThreadConnection(EventThread*, ResyncCallback);
     virtual ~EventThreadConnection();
 
     virtual status_t postEvent(const DisplayEventReceiver::Event& event);
@@ -78,13 +77,9 @@ public:
     status_t stealReceiveChannel(gui::BitTube* outChannel) override;
     status_t setVsyncRate(uint32_t rate) override;
     void requestNextVsync() override; // asynchronous
-    // Requesting Vsync for HWC does not reset the idle timer, since HWC requires a refresh
-    // in order to update the configs.
-    void requestNextVsyncForHWC();
 
     // Called in response to requestNextVsync.
     const ResyncCallback resyncCallback;
-    const ResetIdleTimerCallback resetIdleTimerCallback;
 
     VSyncRequest vsyncRequest = VSyncRequest::None;
 
@@ -98,8 +93,7 @@ class EventThread {
 public:
     virtual ~EventThread();
 
-    virtual sp<EventThreadConnection> createEventConnection(ResyncCallback,
-                                                            ResetIdleTimerCallback) const = 0;
+    virtual sp<EventThreadConnection> createEventConnection(ResyncCallback) const = 0;
 
     // called before the screen is turned off from main thread
     virtual void onScreenReleased() = 0;
@@ -120,8 +114,7 @@ public:
             const sp<EventThreadConnection>& connection) = 0;
     virtual void setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& connection) = 0;
     // Requests the next vsync. If resetIdleTimer is set to true, it resets the idle timer.
-    virtual void requestNextVsync(const sp<EventThreadConnection>& connection,
-                                  bool resetIdleTimer) = 0;
+    virtual void requestNextVsync(const sp<EventThreadConnection>& connection) = 0;
 };
 
 namespace impl {
@@ -135,13 +128,11 @@ public:
     EventThread(std::unique_ptr<VSyncSource>, InterceptVSyncsCallback, const char* threadName);
     ~EventThread();
 
-    sp<EventThreadConnection> createEventConnection(ResyncCallback,
-                                                    ResetIdleTimerCallback) const override;
+    sp<EventThreadConnection> createEventConnection(ResyncCallback) const override;
 
     status_t registerDisplayEventConnection(const sp<EventThreadConnection>& connection) override;
     void setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& connection) override;
-    void requestNextVsync(const sp<EventThreadConnection>& connection,
-                          bool resetIdleTimer) override;
+    void requestNextVsync(const sp<EventThreadConnection>& connection) override;
 
     // called before the screen is turned off from main thread
     void onScreenReleased() override;
