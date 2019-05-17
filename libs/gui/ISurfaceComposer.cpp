@@ -955,6 +955,27 @@ public:
         }
         return NO_ERROR;
     }
+
+    virtual status_t notifyPowerHint(int32_t hintId) {
+        Parcel data, reply;
+        status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (error != NO_ERROR) {
+            ALOGE("notifyPowerHint: failed to write interface token: %d", error);
+            return error;
+        }
+        error = data.writeInt32(hintId);
+        if (error != NO_ERROR) {
+            ALOGE("notifyPowerHint: failed to write hintId: %d", error);
+            return error;
+        }
+        error = remote()->transact(BnSurfaceComposer::NOTIFY_POWER_HINT, data, &reply,
+                                   IBinder::FLAG_ONEWAY);
+        if (error != NO_ERROR) {
+            ALOGE("notifyPowerHint: failed to transact: %d", error);
+            return error;
+        }
+        return NO_ERROR;
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -1555,6 +1576,16 @@ status_t BnSurfaceComposer::onTransact(
                 return error;
             }
             return setDisplayBrightness(displayToken, brightness);
+        }
+        case NOTIFY_POWER_HINT: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            int32_t hintId;
+            status_t error = data.readInt32(&hintId);
+            if (error != NO_ERROR) {
+                ALOGE("notifyPowerHint: failed to read hintId: %d", error);
+                return error;
+            }
+            return notifyPowerHint(hintId);
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);

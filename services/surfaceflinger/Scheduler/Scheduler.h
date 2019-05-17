@@ -165,6 +165,12 @@ public:
     // Returns whether idle timer is enabled or not
     bool isIdleTimerEnabled() { return mSetIdleTimerMs > 0; }
 
+    // Function that resets the idle timer.
+    void resetIdleTimer();
+
+    // Function that resets the touch timer.
+    void notifyTouchEvent();
+
     // Returns relevant information about Scheduler for dumpsys purposes.
     std::string doDump();
 
@@ -183,14 +189,14 @@ private:
     // to keep track which feature requested the config change.
     enum class ContentFeatureState { CONTENT_DETECTION_ON, CONTENT_DETECTION_OFF };
     enum class IdleTimerState { EXPIRED, RESET };
+    enum class TouchState { INACTIVE, ACTIVE };
 
     // Creates a connection on the given EventThread and forwards the given callbacks.
     sp<EventThreadConnection> createConnectionInternal(EventThread*, ResyncCallback&&);
 
     nsecs_t calculateAverage() const;
     void updateFrameSkipping(const int64_t skipCount);
-    // Function that resets the idle timer.
-    void resetIdleTimer();
+
     // Function that is called when the timer resets.
     void resetTimerCallback();
     // Function that is called when the timer expires.
@@ -203,10 +209,16 @@ private:
     // driver timeout in the kernel. This disables hardware vsync when we move
     // into idle.
     void expiredKernelTimerCallback();
+    // Function that is called when the touch timer resets.
+    void resetTouchTimerCallback();
+    // Function that is called when the touch timer expires.
+    void expiredTouchTimerCallback();
     // Sets vsync period.
     void setVsyncPeriod(const nsecs_t period);
     // Idle timer feature's function to change the refresh rate.
     void timerChangeRefreshRate(IdleTimerState idleTimerState);
+    // Touch timer feature's function to change the refresh rate.
+    void touchChangeRefreshRate(TouchState touchState);
     // Calculate the new refresh rate type
     RefreshRateType calculateRefreshRateType() REQUIRES(mFeatureStateLock);
     // Acquires a lock and calls the ChangeRefreshRateCallback() with given parameters.
@@ -258,6 +270,10 @@ private:
     // timer.
     bool mSupportKernelTimer;
 
+    // Timer used to monitor touch events.
+    int64_t mSetTouchTimerMs = 0;
+    std::unique_ptr<scheduler::IdleTimer> mTouchTimer;
+
     std::mutex mCallbackLock;
     ChangeRefreshRateCallback mChangeRefreshRateCallback GUARDED_BY(mCallbackLock);
     GetVsyncPeriod mGetVsyncPeriod GUARDED_BY(mCallbackLock);
@@ -268,6 +284,7 @@ private:
     ContentFeatureState mCurrentContentFeatureState GUARDED_BY(mFeatureStateLock) =
             ContentFeatureState::CONTENT_DETECTION_OFF;
     IdleTimerState mCurrentIdleTimerState GUARDED_BY(mFeatureStateLock) = IdleTimerState::RESET;
+    TouchState mCurrentTouchState GUARDED_BY(mFeatureStateLock) = TouchState::INACTIVE;
     uint32_t mContentRefreshRate GUARDED_BY(mFeatureStateLock);
     RefreshRateType mRefreshRateType GUARDED_BY(mFeatureStateLock);
     bool mIsHDRContent GUARDED_BY(mFeatureStateLock) = false;
