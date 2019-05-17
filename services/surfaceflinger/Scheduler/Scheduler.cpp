@@ -73,6 +73,7 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
     mEventControlThread = std::make_unique<impl::EventControlThread>(function);
 
     mSetIdleTimerMs = set_idle_timer_ms(0);
+    mSupportKernelTimer = support_kernel_idle_timer(false);
 
     char value[PROPERTY_VALUE_MAX];
     property_get("debug.sf.set_idle_timer_ms", value, "0");
@@ -82,10 +83,20 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
     }
 
     if (mSetIdleTimerMs > 0) {
-        mIdleTimer =
-                std::make_unique<scheduler::IdleTimer>(std::chrono::milliseconds(mSetIdleTimerMs),
-                                                       [this] { resetTimerCallback(); },
-                                                       [this] { expiredTimerCallback(); });
+        if (mSupportKernelTimer) {
+            mIdleTimer =
+                    std::make_unique<scheduler::IdleTimer>(std::chrono::milliseconds(
+                                                                   mSetIdleTimerMs),
+                                                           [this] { resetKernelTimerCallback(); },
+                                                           [this] {
+                                                               expiredKernelTimerCallback();
+                                                           });
+        } else {
+            mIdleTimer = std::make_unique<scheduler::IdleTimer>(std::chrono::milliseconds(
+                                                                        mSetIdleTimerMs),
+                                                                [this] { resetTimerCallback(); },
+                                                                [this] { expiredTimerCallback(); });
+        }
         mIdleTimer->start();
     }
 }
@@ -306,10 +317,15 @@ std::unique_ptr<scheduler::LayerHistory::LayerHandle> Scheduler::registerLayer(
     return mLayerHistory.createLayer(name, fps);
 }
 
-void Scheduler::addLayerPresentTime(
+void Scheduler::addLayerPresentTimeAndHDR(
         const std::unique_ptr<scheduler::LayerHistory::LayerHandle>& layerHandle,
-        nsecs_t presentTime) {
-    mLayerHistory.insert(layerHandle, presentTime);
+        nsecs_t presentTime, bool isHDR) {
+    mLayerHistory.insert(layerHandle, presentTime, isHDR);
+}
+
+void Scheduler::setLayerVisibility(
+        const std::unique_ptr<scheduler::LayerHistory::LayerHandle>& layerHandle, bool visible) {
+    mLayerHistory.setVisibility(layerHandle, visible);
 }
 
 void Scheduler::withPrimaryDispSync(std::function<void(DispSync&)> const& fn) {
@@ -317,18 +333,23 @@ void Scheduler::withPrimaryDispSync(std::function<void(DispSync&)> const& fn) {
 }
 
 void Scheduler::updateFpsBasedOnContent() {
-    uint32_t refreshRate = std::round(mLayerHistory.getDesiredRefreshRate());
+    auto [refreshRate, isHDR] = mLayerHistory.getDesiredRefreshRateAndHDR();
+    const uint32_t refreshRateRound = std::round(refreshRate);
     RefreshRateType newRefreshRateType;
     {
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
-        if (mContentRefreshRate == refreshRate) {
+        if (mContentRefreshRate == refreshRateRound && mIsHDRContent == isHDR) {
             return;
         }
-        mContentRefreshRate = refreshRate;
+        mContentRefreshRate = refreshRateRound;
         ATRACE_INT("ContentFPS", mContentRefreshRate);
 
-        mCurrentContentFeatureState = refreshRate > 0 ? ContentFeatureState::CONTENT_DETECTION_ON
-                                                      : ContentFeatureState::CONTENT_DETECTION_OFF;
+        mIsHDRContent = isHDR;
+        ATRACE_INT("ContentHDR", mIsHDRContent);
+
+        mCurrentContentFeatureState = refreshRateRound > 0
+                ? ContentFeatureState::CONTENT_DETECTION_ON
+                : ContentFeatureState::CONTENT_DETECTION_OFF;
         newRefreshRateType = calculateRefreshRateType();
         if (mRefreshRateType == newRefreshRateType) {
             return;
@@ -342,6 +363,11 @@ void Scheduler::setChangeRefreshRateCallback(
         const ChangeRefreshRateCallback& changeRefreshRateCallback) {
     std::lock_guard<std::mutex> lock(mCallbackLock);
     mChangeRefreshRateCallback = changeRefreshRateCallback;
+}
+
+void Scheduler::setGetVsyncPeriodCallback(const GetVsyncPeriod&& getVsyncPeriod) {
+    std::lock_guard<std::mutex> lock(mCallbackLock);
+    mGetVsyncPeriod = getVsyncPeriod;
 }
 
 void Scheduler::updateFrameSkipping(const int64_t skipCount) {
@@ -360,15 +386,28 @@ void Scheduler::resetIdleTimer() {
 }
 
 void Scheduler::resetTimerCallback() {
-    // We do not notify the applications about config changes when idle timer is reset.
     timerChangeRefreshRate(IdleTimerState::RESET);
     ATRACE_INT("ExpiredIdleTimer", 0);
 }
 
+void Scheduler::resetKernelTimerCallback() {
+    ATRACE_INT("ExpiredKernelIdleTimer", 0);
+    std::lock_guard<std::mutex> lock(mCallbackLock);
+    if (mGetVsyncPeriod) {
+        resyncToHardwareVsync(false, mGetVsyncPeriod());
+    }
+}
+
 void Scheduler::expiredTimerCallback() {
-    // We do not notify the applications about config changes when idle timer expires.
     timerChangeRefreshRate(IdleTimerState::EXPIRED);
     ATRACE_INT("ExpiredIdleTimer", 1);
+}
+
+void Scheduler::expiredKernelTimerCallback() {
+    ATRACE_INT("ExpiredKernelIdleTimer", 1);
+    // Disable HW Vsync if the timer expired, as we don't need it
+    // enabled if we're not pushing frames.
+    disableHardwareVsync(false);
 }
 
 std::string Scheduler::doDump() {
@@ -397,6 +436,11 @@ void Scheduler::timerChangeRefreshRate(IdleTimerState idleTimerState) {
 Scheduler::RefreshRateType Scheduler::calculateRefreshRateType() {
     // First check if timer has expired as it means there is no new content on the screen
     if (mCurrentIdleTimerState == IdleTimerState::EXPIRED) {
+        return RefreshRateType::DEFAULT;
+    }
+
+    // HDR content is not supported on PERFORMANCE mode
+    if (mForceHDRContentToDefaultRefreshRate && mIsHDRContent) {
         return RefreshRateType::DEFAULT;
     }
 

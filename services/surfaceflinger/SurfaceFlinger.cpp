@@ -704,6 +704,10 @@ void SurfaceFlinger::init() {
                 Mutex::Autolock lock(mStateLock);
                 setRefreshRateTo(type, event);
             });
+    mScheduler->setGetVsyncPeriodCallback([this] {
+        Mutex::Autolock lock(mStateLock);
+        return getVsyncPeriod();
+    });
 
     mRefreshRateConfigs.populate(getHwComposer().getConfigs(*display->getId()));
     mRefreshRateStats.setConfigMode(getHwComposer().getActiveConfigIndex(*display->getId()));
@@ -3564,7 +3568,7 @@ bool SurfaceFlinger::flushTransactionQueues() {
                 it = mTransactionQueues.erase(it);
                 mTransactionCV.broadcast();
             } else {
-                std::next(it, 1);
+                it = std::next(it, 1);
             }
         }
     }
@@ -5100,7 +5104,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case CAPTURE_SCREEN_BY_ID: {
             IPCThreadState* ipc = IPCThreadState::self();
             const int uid = ipc->getCallingUid();
-            if ((uid == AID_GRAPHICS) || (uid == AID_SYSTEM) || (uid == AID_SHELL)) {
+            if (uid == AID_ROOT || uid == AID_GRAPHICS || uid == AID_SYSTEM || uid == AID_SHELL) {
                 return OK;
             }
             return PERMISSION_DENIED;
