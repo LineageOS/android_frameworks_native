@@ -40,6 +40,7 @@ public:
     virtual ~Display();
 
     // compositionengine::Output overrides
+    std::optional<DisplayId> getDisplayId() const override;
     void dump(std::string&) const override;
     using compositionengine::impl::Output::setReleasedLayers;
     void setReleasedLayers(const CompositionRefreshArgs&) override;

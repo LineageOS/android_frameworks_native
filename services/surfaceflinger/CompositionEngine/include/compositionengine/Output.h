@@ -155,6 +155,9 @@ public:
     // constructor.
     virtual bool isValid() const = 0;
 
+    // Returns the DisplayId the output represents, if it has one
+    virtual std::optional<DisplayId> getDisplayId() const = 0;
+
     // Enables (or disables) composition on this output
     virtual void setCompositionEnabled(bool) = 0;
 

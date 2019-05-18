@@ -34,6 +34,7 @@ public:
     virtual ~Output();
 
     MOCK_CONST_METHOD0(isValid, bool());
+    MOCK_CONST_METHOD0(getDisplayId, std::optional<DisplayId>());
 
     MOCK_METHOD1(setCompositionEnabled, void(bool));
     MOCK_METHOD6(setProjection,

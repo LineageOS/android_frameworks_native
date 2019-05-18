@@ -55,6 +55,10 @@ bool Display::isVirtual() const {
     return mIsVirtual;
 }
 
+std::optional<DisplayId> Display::getDisplayId() const {
+    return mId;
+}
+
 void Display::disconnect() {
     if (!mId) {
         return;
