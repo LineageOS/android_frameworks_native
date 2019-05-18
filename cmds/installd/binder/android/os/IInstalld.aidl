@@ -114,6 +114,7 @@ interface IInstalld {
 
     const int FLAG_STORAGE_DE = 0x1;
     const int FLAG_STORAGE_CE = 0x2;
+    const int FLAG_STORAGE_EXTERNAL = 0x4;
 
     const int FLAG_CLEAR_CACHE_ONLY = 0x10;
     const int FLAG_CLEAR_CODE_CACHE_ONLY = 0x20;

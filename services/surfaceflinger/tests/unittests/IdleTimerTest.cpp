@@ -111,19 +111,19 @@ TEST_F(IdleTimerTest, resetBackToBackTest) {
     EXPECT_TRUE(mResetTimerCallback.waitForCall().has_value());
 
     mIdleTimer->reset();
-    EXPECT_TRUE(mResetTimerCallback.waitForCall().has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForCall(1ms).has_value());
     EXPECT_FALSE(mExpiredTimerCallback.waitForCall(waitTimeForUnexpected3msCallback).has_value());
 
     mIdleTimer->reset();
-    EXPECT_TRUE(mResetTimerCallback.waitForCall().has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForCall(1ms).has_value());
     EXPECT_FALSE(mExpiredTimerCallback.waitForCall(waitTimeForUnexpected3msCallback).has_value());
 
     mIdleTimer->reset();
-    EXPECT_TRUE(mResetTimerCallback.waitForCall().has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForCall(1ms).has_value());
     EXPECT_FALSE(mExpiredTimerCallback.waitForCall(waitTimeForUnexpected3msCallback).has_value());
 
     mIdleTimer->reset();
-    EXPECT_TRUE(mResetTimerCallback.waitForCall().has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForCall(1ms).has_value());
     EXPECT_FALSE(mExpiredTimerCallback.waitForCall(waitTimeForUnexpected3msCallback).has_value());
 
     // A single callback should be generated after 30ms

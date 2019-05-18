@@ -298,6 +298,17 @@ prop {
     prop_name: "ro.surface_flinger.set_idle_timer_ms"
 }
 
+# setTouchTimerMs indicates what is considered a timeout in milliseconds for Scheduler.
+# This value is used by the Scheduler to trigger touch inactivity callbacks that will switch the
+# display to a lower refresh rate. Setting this property to 0 means there is no timer.
+prop {
+    api_name: "set_touch_timer_ms"
+    type: Integer
+    scope: System
+    access: Readonly
+    prop_name: "ro.surface_flinger.set_touch_timer_ms"
+}
+
 # useSmart90ForVideo indicates whether Scheduler should detect content FPS, and try to adjust the
 # screen refresh rate based on that.
 prop {
@@ -314,4 +325,14 @@ prop {
     scope: System
     access: Readonly
     prop_name: "ro.surface_flinger.protected_contents"
+}
+
+# Indicates whether Scheduler's idle timer should support a display driver timeout in the kernel.
+# The value of set_idle_timer_ms should be shorter in time than the timeout duration in the kernel.
+prop {
+    api_name: "support_kernel_idle_timer"
+    type: Boolean
+    scope: System
+    access: Readonly
+    prop_name: "ro.surface_flinger.support_kernel_idle_timer"
 }

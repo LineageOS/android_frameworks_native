@@ -18,7 +18,9 @@ package android.sysprop {
     method public static java.util.Optional<android.sysprop.SurfaceFlingerProperties.primary_display_orientation_values> primary_display_orientation();
     method public static java.util.Optional<java.lang.Boolean> running_without_sync_framework();
     method public static java.util.Optional<java.lang.Integer> set_idle_timer_ms();
+    method public static java.util.Optional<java.lang.Integer> set_touch_timer_ms();
     method public static java.util.Optional<java.lang.Boolean> start_graphics_allocator_service();
+    method public static java.util.Optional<java.lang.Boolean> support_kernel_idle_timer();
     method public static java.util.Optional<java.lang.Boolean> use_color_management();
     method public static java.util.Optional<java.lang.Boolean> use_context_priority();
     method public static java.util.Optional<java.lang.Boolean> use_smart_90_for_video();

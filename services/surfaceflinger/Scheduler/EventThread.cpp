@@ -107,10 +107,8 @@ DisplayEventReceiver::Event makeConfigChanged(PhysicalDisplayId displayId, int32
 } // namespace
 
 EventThreadConnection::EventThreadConnection(EventThread* eventThread,
-                                             ResyncCallback resyncCallback,
-                                             ResetIdleTimerCallback resetIdleTimerCallback)
+                                             ResyncCallback resyncCallback)
       : resyncCallback(std::move(resyncCallback)),
-        resetIdleTimerCallback(std::move(resetIdleTimerCallback)),
         mEventThread(eventThread),
         mChannel(gui::BitTube::DefaultSize) {}
 
@@ -136,12 +134,7 @@ status_t EventThreadConnection::setVsyncRate(uint32_t rate) {
 
 void EventThreadConnection::requestNextVsync() {
     ATRACE_NAME("requestNextVsync");
-    mEventThread->requestNextVsync(this, true);
-}
-
-void EventThreadConnection::requestNextVsyncForHWC() {
-    ATRACE_NAME("requestNextVsyncForHWC");
-    mEventThread->requestNextVsync(this, false);
+    mEventThread->requestNextVsync(this);
 }
 
 status_t EventThreadConnection::postEvent(const DisplayEventReceiver::Event& event) {
@@ -210,10 +203,8 @@ void EventThread::setPhaseOffset(nsecs_t phaseOffset) {
     mVSyncSource->setPhaseOffset(phaseOffset);
 }
 
-sp<EventThreadConnection> EventThread::createEventConnection(
-        ResyncCallback resyncCallback, ResetIdleTimerCallback resetIdleTimerCallback) const {
-    return new EventThreadConnection(const_cast<EventThread*>(this), std::move(resyncCallback),
-                                     std::move(resetIdleTimerCallback));
+sp<EventThreadConnection> EventThread::createEventConnection(ResyncCallback resyncCallback) const {
+    return new EventThreadConnection(const_cast<EventThread*>(this), std::move(resyncCallback));
 }
 
 status_t EventThread::registerDisplayEventConnection(const sp<EventThreadConnection>& connection) {
@@ -255,12 +246,7 @@ void EventThread::setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& c
     }
 }
 
-void EventThread::requestNextVsync(const sp<EventThreadConnection>& connection, bool reset) {
-    if (connection->resetIdleTimerCallback && reset) {
-        ATRACE_NAME("resetIdleTimer");
-        connection->resetIdleTimerCallback();
-    }
-
+void EventThread::requestNextVsync(const sp<EventThreadConnection>& connection) {
     if (connection->resyncCallback) {
         connection->resyncCallback();
     }

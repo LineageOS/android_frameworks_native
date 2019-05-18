@@ -34,8 +34,7 @@ public:
     // Scheduler::Connection. This allows plugging in mock::EventThread.
     sp<Scheduler::ConnectionHandle> addConnection(std::unique_ptr<EventThread> eventThread) {
         sp<EventThreadConnection> eventThreadConnection =
-                new EventThreadConnection(eventThread.get(), ResyncCallback(),
-                                          ResetIdleTimerCallback());
+                new EventThreadConnection(eventThread.get(), ResyncCallback());
         const int64_t id = sNextId++;
         mConnections.emplace(id,
                              std::make_unique<Scheduler::Connection>(new ConnectionHandle(id),
