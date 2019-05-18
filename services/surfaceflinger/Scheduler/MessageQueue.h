@@ -91,7 +91,6 @@ public:
     virtual void waitMessage() = 0;
     virtual status_t postMessage(const sp<MessageBase>& message, nsecs_t reltime = 0) = 0;
     virtual void invalidate() = 0;
-    virtual void invalidateForHWC() = 0;
     virtual void refresh() = 0;
 };
 
@@ -136,8 +135,6 @@ public:
     // sends INVALIDATE message at next VSYNC
     void invalidate() override;
 
-    // sends INVALIDATE message at next VSYNC, without resetting the idle timer in the Scheduler
-    void invalidateForHWC();
     // sends REFRESH message at next VSYNC
     void refresh() override;
 };
