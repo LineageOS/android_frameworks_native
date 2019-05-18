@@ -84,8 +84,11 @@ void IdleTimer::loop() {
                 constexpr auto zero = std::chrono::steady_clock::duration::zero();
                 auto waitTime = triggerTime - std::chrono::steady_clock::now();
                 if (waitTime > zero) mCondition.wait_for(mMutex, waitTime);
-                if (mState == TimerState::WAITING &&
-                    (triggerTime - std::chrono::steady_clock::now()) <= zero) {
+                if (mState == TimerState::RESET) {
+                    triggerTime = std::chrono::steady_clock::now() + mInterval;
+                    mState = TimerState::WAITING;
+                } else if (mState == TimerState::WAITING &&
+                           (triggerTime - std::chrono::steady_clock::now()) <= zero) {
                     triggerTimeout = true;
                     mState = TimerState::IDLE;
                 }

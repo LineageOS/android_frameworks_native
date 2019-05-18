@@ -1171,7 +1171,9 @@ VkResult CreateSwapchainKHR(VkDevice device,
     }
     uint32_t min_undequeued_buffers = static_cast<uint32_t>(query_value);
     uint32_t num_images =
-        (create_info->minImageCount - 1) + min_undequeued_buffers;
+        (swap_interval ? create_info->minImageCount
+                       : std::max(3u, create_info->minImageCount)) -
+        1 + min_undequeued_buffers;
 
     // Lower layer insists that we have at least two buffers. This is wasteful
     // and we'd like to relax it in the shared case, but not all the pieces are

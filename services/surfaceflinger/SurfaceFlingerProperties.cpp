@@ -230,6 +230,14 @@ int32_t set_idle_timer_ms(int32_t defaultValue) {
     return defaultValue;
 }
 
+int32_t set_touch_timer_ms(int32_t defaultValue) {
+    auto temp = SurfaceFlingerProperties::set_touch_timer_ms();
+    if (temp.has_value()) {
+        return *temp;
+    }
+    return defaultValue;
+}
+
 bool use_smart_90_for_video(bool defaultValue) {
     auto temp = SurfaceFlingerProperties::use_smart_90_for_video();
     if (temp.has_value()) {
@@ -240,6 +248,14 @@ bool use_smart_90_for_video(bool defaultValue) {
 
 bool enable_protected_contents(bool defaultValue) {
     auto temp = SurfaceFlingerProperties::enable_protected_contents();
+    if (temp.has_value()) {
+        return *temp;
+    }
+    return defaultValue;
+}
+
+bool support_kernel_idle_timer(bool defaultValue) {
+    auto temp = SurfaceFlingerProperties::support_kernel_idle_timer();
     if (temp.has_value()) {
         return *temp;
     }

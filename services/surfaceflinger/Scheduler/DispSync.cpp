@@ -64,6 +64,7 @@ public:
     DispSyncThread(const char* name, bool showTraceDetailedInfo)
           : mName(name),
             mStop(false),
+            mModelLocked(false),
             mPeriod(0),
             mPhase(0),
             mReferenceTime(0),
@@ -78,6 +79,11 @@ public:
         Mutex::Autolock lock(mMutex);
 
         mPhase = phase;
+        if (mReferenceTime != referenceTime) {
+            for (auto& eventListener : mEventListeners) {
+                eventListener.mHasFired = false;
+            }
+        }
         mReferenceTime = referenceTime;
         if (mPeriod != 0 && mPeriod != period && mReferenceTime != 0) {
             // Inflate the reference time to be the most recent predicted
@@ -104,6 +110,16 @@ public:
         Mutex::Autolock lock(mMutex);
         mStop = true;
         mCond.signal();
+    }
+
+    void lockModel() {
+        Mutex::Autolock lock(mMutex);
+        mModelLocked = true;
+    }
+
+    void unlockModel() {
+        Mutex::Autolock lock(mMutex);
+        mModelLocked = false;
     }
 
     virtual bool threadLoop() {
@@ -288,6 +304,7 @@ private:
         nsecs_t mLastEventTime;
         nsecs_t mLastCallbackTime;
         DispSync::Callback* mCallback;
+        bool mHasFired = false;
     };
 
     struct CallbackInvocation {
@@ -335,6 +352,12 @@ private:
                           eventListener.mName);
                     continue;
                 }
+                if (eventListener.mHasFired && !mModelLocked) {
+                    eventListener.mLastEventTime = t;
+                    ALOGV("[%s] [%s] Skipping event due to already firing", mName,
+                          eventListener.mName);
+                    continue;
+                }
                 CallbackInvocation ci;
                 ci.mCallback = eventListener.mCallback;
                 ci.mEventTime = t;
@@ -343,6 +366,7 @@ private:
                 callbackInvocations.push_back(ci);
                 eventListener.mLastEventTime = t;
                 eventListener.mLastCallbackTime = now;
+                eventListener.mHasFired = true;
             }
         }
 
@@ -410,6 +434,7 @@ private:
     const char* const mName;
 
     bool mStop;
+    bool mModelLocked;
 
     nsecs_t mPeriod;
     nsecs_t mPhase;
@@ -497,6 +522,7 @@ void DispSync::resetLocked() {
     mNumResyncSamples = 0;
     mFirstResyncSample = 0;
     mNumResyncSamplesSincePresent = 0;
+    mThread->unlockModel();
     resetErrorLocked();
 }
 
@@ -519,6 +545,7 @@ bool DispSync::addPresentFence(const std::shared_ptr<FenceTime>& fenceTime) {
 void DispSync::beginResync() {
     Mutex::Autolock lock(mMutex);
     ALOGV("[%s] beginResync", mName);
+    mThread->unlockModel();
     mModelUpdated = false;
     mNumResyncSamples = 0;
 }
@@ -581,10 +608,15 @@ bool DispSync::addResyncSample(nsecs_t timestamp, bool* periodChanged) {
     // resync again
     bool modelLocked = mModelUpdated && mError < (kErrorThreshold / 2) && mPendingPeriod == 0;
     ALOGV("[%s] addResyncSample returning %s", mName, modelLocked ? "locked" : "unlocked");
+    if (modelLocked) {
+        mThread->lockModel();
+    }
     return !modelLocked;
 }
 
-void DispSync::endResync() {}
+void DispSync::endResync() {
+    mThread->lockModel();
+}
 
 status_t DispSync::addEventListener(const char* name, nsecs_t phase, Callback* callback,
                                     nsecs_t lastCallbackTime) {

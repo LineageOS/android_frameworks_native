@@ -113,6 +113,7 @@
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/types.h>
+#include <android/hardware/power/1.0/IPower.h>
 #include <configstore/Utils.h>
 
 #include <layerproto/LayerProtoParser.h>
@@ -124,6 +125,7 @@ using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
 using namespace android::sysprop;
 
+using android::hardware::power::V1_0::PowerHint;
 using base::StringAppendF;
 using ui::ColorMode;
 using ui::Dataspace;
@@ -704,6 +706,10 @@ void SurfaceFlinger::init() {
                 Mutex::Autolock lock(mStateLock);
                 setRefreshRateTo(type, event);
             });
+    mScheduler->setGetVsyncPeriodCallback([this] {
+        Mutex::Autolock lock(mStateLock);
+        return getVsyncPeriod();
+    });
 
     mRefreshRateConfigs.populate(getHwComposer().getConfigs(*display->getId()));
     mRefreshRateStats.setConfigMode(getHwComposer().getActiveConfigIndex(*display->getId()));
@@ -981,7 +987,7 @@ bool SurfaceFlinger::performSetActiveConfig() {
     if (mCheckPendingFence) {
         if (previousFrameMissed()) {
             // fence has not signaled yet. wait for the next invalidate
-            mEventQueue->invalidateForHWC();
+            mEventQueue->invalidate();
             return true;
         }
 
@@ -1032,7 +1038,7 @@ bool SurfaceFlinger::performSetActiveConfig() {
 
     // we need to submit an empty frame to HWC to start the process
     mCheckPendingFence = true;
-    mEventQueue->invalidateForHWC();
+    mEventQueue->invalidate();
     return false;
 }
 
@@ -1328,6 +1334,16 @@ status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken,
     return getHwComposer().setDisplayBrightness(*displayId, brightness);
 }
 
+status_t SurfaceFlinger::notifyPowerHint(int32_t hintId) {
+    PowerHint powerHint = static_cast<PowerHint>(hintId);
+
+    if (powerHint == PowerHint::INTERACTION) {
+        mScheduler->notifyTouchEvent();
+    }
+
+    return NO_ERROR;
+}
+
 // ----------------------------------------------------------------------------
 
 sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
@@ -1350,10 +1366,12 @@ void SurfaceFlinger::waitForEvent() {
 }
 
 void SurfaceFlinger::signalTransaction() {
+    mScheduler->resetIdleTimer();
     mEventQueue->invalidate();
 }
 
 void SurfaceFlinger::signalLayerUpdate() {
+    mScheduler->resetIdleTimer();
     mEventQueue->invalidate();
 }
 
@@ -5030,7 +5048,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case SET_POWER_MODE:
         case GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES:
         case SET_DISPLAY_CONTENT_SAMPLING_ENABLED:
-        case GET_DISPLAYED_CONTENT_SAMPLE: {
+        case GET_DISPLAYED_CONTENT_SAMPLE:
+        case NOTIFY_POWER_HINT: {
             if (!callingThreadHasUnscopedSurfaceFlingerAccess()) {
                 IPCThreadState* ipc = IPCThreadState::self();
                 ALOGE("Permission Denial: can't access SurfaceFlinger pid=%d, uid=%d",
@@ -5469,7 +5488,7 @@ void SurfaceFlinger::repaintEverything() {
 
 void SurfaceFlinger::repaintEverythingForHWC() {
     mRepaintEverything = true;
-    mEventQueue->invalidateForHWC();
+    mEventQueue->invalidate();
 }
 
 // A simple RAII class to disconnect from an ANativeWindow* when it goes out of scope
