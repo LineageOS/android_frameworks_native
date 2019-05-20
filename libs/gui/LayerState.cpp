@@ -245,6 +245,7 @@ void layer_state_t::merge(const layer_state_t& other) {
     }
     if (other.what & eLayerChanged) {
         what |= eLayerChanged;
+        what &= ~eRelativeLayerChanged;
         z = other.z;
     }
     if (other.what & eSizeChanged) {
@@ -303,6 +304,7 @@ void layer_state_t::merge(const layer_state_t& other) {
     }
     if (other.what & eRelativeLayerChanged) {
         what |= eRelativeLayerChanged;
+        what &= ~eLayerChanged;
         z = other.z;
         relativeLayerHandle = other.relativeLayerHandle;
     }
