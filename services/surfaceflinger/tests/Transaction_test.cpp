@@ -1056,6 +1056,53 @@ TEST_P(LayerTypeTransactionTest, SetRelativeZNegative) {
     screenshot->expectColor(Rect(0, 0, 32, 32), Color::BLUE);
 }
 
+TEST_P(LayerTypeTransactionTest, SetLayerAndRelative) {
+    sp<SurfaceControl> parent =
+            LayerTransactionTest::createLayer("Parent", 0 /* buffer width */, 0 /* buffer height */,
+                                              ISurfaceComposerClient::eFXSurfaceColor);
+
+    sp<SurfaceControl> childLayer;
+    ASSERT_NO_FATAL_FAILURE(
+            childLayer = LayerTransactionTest::createLayer("childLayer", 0 /* buffer width */,
+                                                           0 /* buffer height */,
+                                                           ISurfaceComposerClient::eFXSurfaceColor,
+                                                           parent.get()));
+    Transaction()
+            .setColor(childLayer, half3{1.0f, 0.0f, 0.0f})
+            .setColor(parent, half3{0.0f, 0.0f, 0.0f})
+            .show(childLayer)
+            .show(parent)
+            .setCrop_legacy(parent, Rect(0, 0, mDisplayWidth, mDisplayHeight))
+            .setCrop_legacy(childLayer, Rect(0, 0, 20, 30))
+            .apply();
+
+    Transaction()
+            .setRelativeLayer(childLayer, parent->getHandle(), -1)
+            .setLayer(childLayer, 1)
+            .apply();
+
+    {
+        SCOPED_TRACE("setLayer above");
+        // Set layer should get applied and place the child above.
+        std::unique_ptr<ScreenCapture> screenshot;
+        ScreenCapture::captureScreen(&screenshot);
+        screenshot->expectColor(Rect(0, 0, 20, 30), Color::RED);
+    }
+
+    Transaction()
+            .setLayer(childLayer, 1)
+            .setRelativeLayer(childLayer, parent->getHandle(), -1)
+            .apply();
+
+    {
+        SCOPED_TRACE("setRelative below");
+        // Set relative layer should get applied and place the child below.
+        std::unique_ptr<ScreenCapture> screenshot;
+        ScreenCapture::captureScreen(&screenshot);
+        screenshot->expectColor(Rect(0, 0, 20, 30), Color::BLACK);
+    }
+}
+
 void LayerRenderTypeTransactionTest::setRelativeZGroupHelper(uint32_t layerType) {
     sp<SurfaceControl> layerR;
     sp<SurfaceControl> layerG;
