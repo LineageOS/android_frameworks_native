@@ -54,10 +54,11 @@ using namespace sftest;
 namespace {
 
 // Mock test helpers
+using ::testing::_;
+using ::testing::DoAll;
 using ::testing::Invoke;
 using ::testing::Return;
 using ::testing::SetArgPointee;
-using ::testing::_;
 
 using Transaction = SurfaceComposerClient::Transaction;
 
