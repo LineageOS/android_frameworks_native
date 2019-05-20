@@ -1232,7 +1232,7 @@ static void DumpHals() {
     }
     DurationReporter duration_reporter("DUMP HALS");
     RunCommand("HARDWARE HALS", {"lshal", "-lVSietrpc", "--types=b,c,l,z"},
-               CommandOptions::WithTimeout(2).AsRootIfAvailable().Build());
+               CommandOptions::WithTimeout(10).AsRootIfAvailable().Build());
 
     using android::hidl::manager::V1_0::IServiceManager;
     using android::hardware::defaultServiceManager;
