@@ -135,13 +135,18 @@ public:
 
     void enableHardwareVsync();
     void disableHardwareVsync(bool makeUnavailable);
+    // Resyncs the scheduler to hardware vsync.
+    // If makeAvailable is true, then hardware vsync will be turned on.
+    // Otherwise, if hardware vsync is not already enabled then this method will
+    // no-op.
+    // The period is the vsync period from the current display configuration.
     void resyncToHardwareVsync(bool makeAvailable, nsecs_t period);
     // Creates a callback for resyncing.
     ResyncCallback makeResyncCallback(GetVsyncPeriod&& getVsyncPeriod);
     void setRefreshSkipCount(int count);
-    // Passes a vsync sample to DispSync. periodChange will be true if DipSync
-    // detected that the vsync period changed, and false otherwise.
-    void addResyncSample(const nsecs_t timestamp, bool* periodChanged);
+    // Passes a vsync sample to DispSync. periodFlushed will be true if
+    // DispSync detected that the vsync period changed, and false otherwise.
+    void addResyncSample(const nsecs_t timestamp, bool* periodFlushed);
     void addPresentFence(const std::shared_ptr<FenceTime>& fenceTime);
     void setIgnorePresentFences(bool ignore);
     nsecs_t expectedPresentTime();
