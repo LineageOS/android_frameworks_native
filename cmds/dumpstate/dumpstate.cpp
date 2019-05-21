@@ -91,7 +91,6 @@ using android::os::IDumpstateListener;
 using android::os::dumpstate::CommandOptions;
 using android::os::dumpstate::DumpFileToFd;
 using android::os::dumpstate::DumpstateSectionReporter;
-using android::os::dumpstate::GetPidByName;
 using android::os::dumpstate::PropertiesHelper;
 
 typedef Dumpstate::ConsentCallback::ConsentResult UserConsentResult;
@@ -392,108 +391,6 @@ static void dump_dev_files(const char *title, const char *driverpath, const char
     }
 
     closedir(d);
-}
-
-
-
-// dump anrd's trace and add to the zip file.
-// 1. check if anrd is running on this device.
-// 2. send a SIGUSR1 to its pid which will dump anrd's trace.
-// 3. wait until the trace generation completes and add to the zip file.
-static bool dump_anrd_trace() {
-    int pid;
-    char buf[50], path[PATH_MAX];
-    struct dirent *trace;
-    struct stat st;
-    DIR *trace_dir;
-    int retry = 5;
-    long max_ctime = 0, old_mtime;
-    long long cur_size = 0;
-    const char *trace_path = "/data/misc/anrd/";
-
-    if (!ds.IsZipping()) {
-        MYLOGE("Not dumping anrd trace because it's not a zipped bugreport\n");
-        return false;
-    }
-
-    // find anrd's pid if it is running.
-    pid = GetPidByName("/system/bin/anrd");
-
-    if (pid > 0) {
-        if (stat(trace_path, &st) == 0) {
-            old_mtime = st.st_mtime;
-        } else {
-            MYLOGE("Failed to find: %s\n", trace_path);
-            return false;
-        }
-
-        // send SIGUSR1 to the anrd to generate a trace.
-        sprintf(buf, "%d", pid);
-        if (RunCommand("ANRD_DUMP", {"kill", "-SIGUSR1", buf},
-                       CommandOptions::WithTimeout(1).Build())) {
-            MYLOGE("anrd signal timed out. Please manually collect trace\n");
-            return false;
-        }
-
-        while (retry-- > 0 && old_mtime == st.st_mtime) {
-            sleep(1);
-            stat(trace_path, &st);
-        }
-
-        if (retry < 0 && old_mtime == st.st_mtime) {
-            MYLOGE("Failed to stat %s or trace creation timeout\n", trace_path);
-            return false;
-        }
-
-        // identify the trace file by its creation time.
-        if (!(trace_dir = opendir(trace_path))) {
-            MYLOGE("Can't open trace file under %s\n", trace_path);
-        }
-        while ((trace = readdir(trace_dir))) {
-            if (strcmp(trace->d_name, ".") == 0
-                    || strcmp(trace->d_name, "..") == 0) {
-                continue;
-            }
-            sprintf(path, "%s%s", trace_path, trace->d_name);
-            if (stat(path, &st) == 0) {
-                if (st.st_ctime > max_ctime) {
-                    max_ctime = st.st_ctime;
-                    sprintf(buf, "%s", trace->d_name);
-                }
-            }
-        }
-        closedir(trace_dir);
-
-        // Wait until the dump completes by checking the size of the trace.
-        if (max_ctime > 0) {
-            sprintf(path, "%s%s", trace_path, buf);
-            while(true) {
-                sleep(1);
-                if (stat(path, &st) == 0) {
-                    if (st.st_size == cur_size) {
-                        break;
-                    } else if (st.st_size > cur_size) {
-                        cur_size = st.st_size;
-                    } else {
-                        return false;
-                    }
-                } else {
-                    MYLOGE("Cant stat() %s anymore\n", path);
-                    return false;
-                }
-            }
-            // Add to the zip file.
-            if (!ds.AddZipEntry("anrd_trace.txt", path)) {
-                MYLOGE("Unable to add anrd_trace file %s to zip file\n", path);
-            } else {
-                android::os::UnlinkAndLogOnError(path);
-                return true;
-            }
-        } else {
-            MYLOGE("Can't stats any trace file under %s\n", trace_path);
-        }
-    }
-    return false;
 }
 
 static bool skip_not_stat(const char *path) {
@@ -1501,9 +1398,6 @@ static Dumpstate::RunStatus dumpstate() {
  * with the caller.
  */
 static Dumpstate::RunStatus DumpstateDefault() {
-    // Try to dump anrd trace if the daemon is running.
-    dump_anrd_trace();
-
     // Invoking the following dumpsys calls before DumpTraces() to try and
     // keep the system stats as close to its initial state as possible.
     RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(RunDumpsysCritical);
