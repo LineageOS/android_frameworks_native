@@ -116,7 +116,7 @@ public:
 
     // Called when we detect from vsync signals that the refresh rate changed.
     // This way we can move out of early offsets if no longer necessary.
-    void onRefreshRateChangeDetected() {
+    void onRefreshRateChangeCompleted() {
         if (!mRefreshRateChangePending) {
             return;
         }
