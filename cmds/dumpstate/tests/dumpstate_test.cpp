@@ -664,7 +664,8 @@ TEST_F(DumpstateTest, RunCommandNoTitle) {
 TEST_F(DumpstateTest, RunCommandWithTitle) {
     EXPECT_EQ(0, RunCommand("I AM GROOT", {kSimpleCommand}));
     EXPECT_THAT(err, StrEq("stderr\n"));
-    // We don't know the exact duration, so we check the prefix and suffix
+    // The duration may not get output, depending on how long it takes,
+    // so we just check the prefix.
     EXPECT_THAT(out,
                 StartsWith("------ I AM GROOT (" + kSimpleCommand + ") ------\nstdout\n"));
 }
@@ -699,7 +700,8 @@ TEST_F(DumpstateTest, RunCommandWithMultipleArgs) {
 TEST_F(DumpstateTest, RunCommandDryRun) {
     SetDryRun(true);
     EXPECT_EQ(0, RunCommand("I AM GROOT", {kSimpleCommand}));
-    // We don't know the exact duration, so we check the prefix and suffix
+    // The duration may not get output, depending on how long it takes,
+    // so we just check the prefix.
     EXPECT_THAT(out, StartsWith("------ I AM GROOT (" + kSimpleCommand +
                                 ") ------\n\t(skipped on dry run)\n"));
     EXPECT_THAT(err, IsEmpty());
@@ -1037,7 +1039,8 @@ TEST_F(DumpstateTest, DumpFileNotFoundNoTitle) {
 TEST_F(DumpstateTest, DumpFileNotFoundWithTitle) {
     EXPECT_EQ(-1, DumpFile("Y U NO EXIST?", "/I/cant/believe/I/exist"));
     EXPECT_THAT(err, IsEmpty());
-    // We don't know the exact duration, so we check the prefix and suffix
+    // The duration may not get output, depending on how long it takes,
+    // so we just check the prefix.
     EXPECT_THAT(out, StartsWith("*** Error dumping /I/cant/believe/I/exist (Y U NO EXIST?): No "
                                 "such file or directory\n"));
 }
