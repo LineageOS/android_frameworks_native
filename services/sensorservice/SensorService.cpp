@@ -1550,7 +1550,8 @@ status_t SensorService::enable(const sp<SensorEventConnection>& connection,
     if (err == NO_ERROR) {
         connection->updateLooperRegistration(mLooper);
 
-        if (sensor->getSensor().getRequiredPermission().size() > 0) {
+        if (sensor->getSensor().getRequiredPermission().size() > 0 &&
+                sensor->getSensor().getRequiredAppOp() >= 0) {
             connection->mHandleToAppOp[handle] = sensor->getSensor().getRequiredAppOp();
         }
 
