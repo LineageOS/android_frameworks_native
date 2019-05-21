@@ -611,6 +611,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setLayer
         return *this;
     }
     s->what |= layer_state_t::eLayerChanged;
+    s->what &= ~layer_state_t::eRelativeLayerChanged;
     s->z = z;
 
     registerSurfaceControlForCallback(sc);
@@ -624,6 +625,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setRelat
         mStatus = BAD_INDEX;
     }
     s->what |= layer_state_t::eRelativeLayerChanged;
+    s->what &= ~layer_state_t::eLayerChanged;
     s->relativeLayerHandle = relativeTo;
     s->z = z;
 
