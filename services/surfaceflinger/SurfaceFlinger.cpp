@@ -1049,6 +1049,7 @@ status_t SurfaceFlinger::getDisplayColorModes(const sp<IBinder>& displayToken,
     }
 
     std::vector<ColorMode> modes;
+    bool isInternalDisplay = false;
     {
         ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
 
@@ -1058,9 +1059,20 @@ status_t SurfaceFlinger::getDisplayColorModes(const sp<IBinder>& displayToken,
         }
 
         modes = getHwComposer().getColorModes(*displayId);
+        isInternalDisplay = displayId == getInternalDisplayIdLocked();
     }
     outColorModes->clear();
-    std::copy(modes.cbegin(), modes.cend(), std::back_inserter(*outColorModes));
+
+    // If it's built-in display and the configuration claims it's not wide color capable,
+    // filter out all wide color modes. The typical reason why this happens is that the
+    // hardware is not good enough to support GPU composition of wide color, and thus the
+    // OEMs choose to disable this capability.
+    if (isInternalDisplay && !hasWideColorDisplay) {
+        std::remove_copy_if(modes.cbegin(), modes.cend(), std::back_inserter(*outColorModes),
+                            isWideColorMode);
+    } else {
+        std::copy(modes.cbegin(), modes.cend(), std::back_inserter(*outColorModes));
+    }
 
     return NO_ERROR;
 }
@@ -1206,6 +1218,13 @@ status_t SurfaceFlinger::isWideColorDisplay(const sp<IBinder>& displayToken,
     const auto display = getDisplayDeviceLocked(displayToken);
     if (!display) {
         return BAD_VALUE;
+    }
+
+    // Use hasWideColorDisplay to override built-in display.
+    const auto displayId = display->getId();
+    if (displayId && displayId == getInternalDisplayIdLocked()) {
+        *outIsWideColorDisplay = hasWideColorDisplay;
+        return NO_ERROR;
     }
     *outIsWideColorDisplay = display->hasWideColorGamut();
     return NO_ERROR;
@@ -4746,7 +4765,7 @@ void SurfaceFlinger::dumpDisplayIdentificationData(std::string& result) const {
 }
 
 void SurfaceFlinger::dumpWideColorInfo(std::string& result) const {
-    StringAppendF(&result, "Device has wide color display: %d\n", hasWideColorDisplay);
+    StringAppendF(&result, "Device has wide color built-in display: %d\n", hasWideColorDisplay);
     StringAppendF(&result, "Device uses color management: %d\n", useColorManagement);
     StringAppendF(&result, "DisplayColorSetting: %s\n",
                   decodeDisplayColorSetting(mDisplayColorSetting).c_str());
