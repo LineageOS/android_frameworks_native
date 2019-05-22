@@ -52,12 +52,6 @@ int ConsumerBuffer::LocalAcquire(DvrNativeBufferMetadata* out_meta,
   while (!buffer_state_->compare_exchange_weak(
       current_buffer_state, updated_buffer_state, std::memory_order_acq_rel,
       std::memory_order_acquire)) {
-    ALOGD(
-        "%s Failed to acquire the buffer. Current buffer state was changed to "
-        "%" PRIx32
-        " when trying to acquire the buffer and modify the buffer state to "
-        "%" PRIx32 ". About to try again if the buffer is still posted.",
-        __FUNCTION__, current_buffer_state, updated_buffer_state);
     if (!BufferHubDefs::isClientPosted(current_buffer_state,
                                        client_state_mask())) {
       ALOGE(
@@ -152,12 +146,6 @@ int ConsumerBuffer::LocalRelease(const DvrNativeBufferMetadata* meta,
   while (!buffer_state_->compare_exchange_weak(
       current_buffer_state, updated_buffer_state, std::memory_order_acq_rel,
       std::memory_order_acquire)) {
-    ALOGD(
-        "%s: Failed to release the buffer. Current buffer state was changed to "
-        "%" PRIx32
-        " when trying to release the buffer and modify the buffer state to "
-        "%" PRIx32 ". About to try again.",
-        __FUNCTION__, current_buffer_state, updated_buffer_state);
     // The failure of compare_exchange_weak updates current_buffer_state.
     updated_buffer_state = current_buffer_state & (~client_state_mask());
   }
