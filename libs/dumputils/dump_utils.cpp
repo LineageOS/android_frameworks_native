@@ -32,6 +32,7 @@ static const char* native_processes_to_dump[] = {
         "/system/bin/mediametrics", // media.metrics
         "/system/bin/mediaserver",
         "/system/bin/netd",
+        "/system/bin/vold",
         "/system/bin/sdcard",
         "/system/bin/statsd",
         "/system/bin/surfaceflinger",
@@ -110,13 +111,15 @@ std::set<int> get_interesting_hal_pids() {
 }
 
 bool IsZygote(int pid) {
-    static const std::string kZygotePrefix = "zygote";
-
     std::string cmdline;
     if (!android::base::ReadFileToString(android::base::StringPrintf("/proc/%d/cmdline", pid),
                                          &cmdline)) {
         return true;
     }
 
-    return (cmdline.find(kZygotePrefix) == 0);
+    // cmdline has embedded nulls; only consider argv[0].
+    cmdline = std::string(cmdline.c_str());
+
+    return cmdline == "zygote" || cmdline == "zygote64" || cmdline == "usap32" ||
+            cmdline == "usap64";
 }
