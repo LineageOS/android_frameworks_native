@@ -1246,7 +1246,7 @@ static Dumpstate::RunStatus dumpstate() {
     /* Dump Bluetooth HCI logs */
     ds.AddDir("/data/misc/bluetooth/logs", true);
 
-    if (!ds.do_early_screenshot_) {
+    if (ds.options_->do_fb && !ds.do_early_screenshot_) {
         MYLOGI("taking late screenshot\n");
         ds.TakeScreenshot();
     }
@@ -2482,13 +2482,8 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
     }
 
     if (options_->do_fb && do_early_screenshot_) {
-        if (screenshot_path_.empty()) {
-            // should not have happened
-            MYLOGE("INTERNAL ERROR: skipping early screenshot because path was not set\n");
-        } else {
-            MYLOGI("taking early screenshot\n");
-            TakeScreenshot();
-        }
+        MYLOGI("taking early screenshot\n");
+        TakeScreenshot();
     }
 
     if (options_->do_zip_file && zip_file != nullptr) {
