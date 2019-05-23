@@ -39,11 +39,20 @@ private:
     const int MIN_EARLY_GL_FRAME_COUNT_TRANSACTION = 2;
 
 public:
+    VSyncModulator();
+
     // Wrapper for a collection of surfaceflinger/app offsets for a particular
     // configuration .
     struct Offsets {
+        scheduler::RefreshRateConfigs::RefreshRateType fpsMode;
         nsecs_t sf;
         nsecs_t app;
+    };
+
+    enum class OffsetType {
+        Early,
+        EarlyGl,
+        Late,
     };
 
     // Sets the phase offsets
@@ -57,13 +66,7 @@ public:
     // appEarlyGl: Like sfEarlyGl, but for the app-vsync.
     // appLate: The regular app vsync phase offset.
     void setPhaseOffsets(Offsets early, Offsets earlyGl, Offsets late,
-                         nsecs_t thresholdForNextVsync);
-
-    // Returns the configured early offsets.
-    Offsets getEarlyOffsets() const { return mEarlyOffsets; }
-
-    // Returns the configured early gl offsets.
-    Offsets getEarlyGlOffsets() const { return mEarlyGlOffsets; }
+                         nsecs_t thresholdForNextVsync) EXCLUDES(mMutex);
 
     // Sets handles to the SF and app event threads.
     void setEventThreads(EventThread* sfEventThread, EventThread* appEventThread) {
@@ -100,15 +103,22 @@ public:
     // frame.
     void onRefreshed(bool usedRenderEngine);
 
-    // Returns the offsets that should be used.
-    Offsets getOffsets();
+    // Returns the offsets that we are currently using
+    Offsets getOffsets() EXCLUDES(mMutex);
 
 private:
-    void updateOffsets();
+    // Returns the next offsets that we should be using
+    Offsets getNextOffsets() REQUIRES(mMutex);
+    // Returns the next offset type that we should use.
+    OffsetType getNextOffsetType();
+    // Updates offsets and persists them into the scheduler framework.
+    void updateOffsets() EXCLUDES(mMutex);
+    void updateOffsetsLocked() REQUIRES(mMutex);
+    // Updates the internal offset type.
+    void updateOffsetType() REQUIRES(mMutex);
 
-    Offsets mLateOffsets;
-    Offsets mEarlyOffsets;
-    Offsets mEarlyGlOffsets;
+    mutable std::mutex mMutex;
+    std::unordered_map<OffsetType, Offsets> mOffsetMap GUARDED_BY(mMutex);
     nsecs_t mThresholdForNextVsync;
 
     EventThread* mSfEventThread = nullptr;
@@ -118,13 +128,15 @@ private:
     Scheduler::ConnectionHandle* mAppConnectionHandle = nullptr;
     Scheduler::ConnectionHandle* mSfConnectionHandle = nullptr;
 
-    std::atomic<Offsets> mOffsets;
+    OffsetType mOffsetType GUARDED_BY(mMutex) = OffsetType::Late;
 
     std::atomic<Scheduler::TransactionStart> mTransactionStart =
             Scheduler::TransactionStart::NORMAL;
     std::atomic<bool> mRefreshRateChangePending = false;
     std::atomic<int> mRemainingEarlyFrameCount = 0;
     std::atomic<int> mRemainingRenderEngineUsageCount = 0;
+
+    bool mTraceDetailedInfo = false;
 };
 
 } // namespace android
