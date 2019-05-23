@@ -96,13 +96,6 @@ int ProducerBuffer::LocalPost(const DvrNativeBufferMetadata* meta,
   while (!buffer_state_->compare_exchange_weak(
       current_buffer_state, updated_buffer_state, std::memory_order_acq_rel,
       std::memory_order_acquire)) {
-    ALOGD(
-        "%s: Failed to post the buffer. Current buffer state was changed to "
-        "%" PRIx32
-        " when trying to post the buffer and modify the buffer state to "
-        "%" PRIx32
-        ". About to try again if the buffer is still gained by this client.",
-        __FUNCTION__, current_buffer_state, updated_buffer_state);
     if (!BufferHubDefs::isClientGained(current_buffer_state,
                                        client_state_mask())) {
       ALOGE(
@@ -186,15 +179,6 @@ int ProducerBuffer::LocalGain(DvrNativeBufferMetadata* out_meta,
   while (!buffer_state_->compare_exchange_weak(
       current_buffer_state, updated_buffer_state, std::memory_order_acq_rel,
       std::memory_order_acquire)) {
-    ALOGD(
-        "%s: Failed to gain the buffer. Current buffer state was changed to "
-        "%" PRIx32
-        " when trying to gain the buffer and modify the buffer state to "
-        "%" PRIx32
-        ". About to try again if the buffer is still not read by other "
-        "clients.",
-        __FUNCTION__, current_buffer_state, updated_buffer_state);
-
     if (BufferHubDefs::isAnyClientAcquired(current_buffer_state) ||
         BufferHubDefs::isAnyClientGained(current_buffer_state) ||
         (BufferHubDefs::isAnyClientPosted(

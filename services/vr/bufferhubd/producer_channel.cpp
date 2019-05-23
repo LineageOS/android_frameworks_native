@@ -350,7 +350,7 @@ Status<RemoteChannelHandle> ProducerChannel::CreateConsumer(
     while (!buffer_state_->compare_exchange_weak(
         current_buffer_state, updated_buffer_state, std::memory_order_acq_rel,
         std::memory_order_acquire)) {
-      ALOGI(
+      ALOGV(
           "%s: Failed to post to the new consumer. "
           "Current buffer state was changed to %" PRIx32
           " when trying to acquire the buffer and modify the buffer state to "
