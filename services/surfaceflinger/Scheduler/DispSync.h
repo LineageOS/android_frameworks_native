@@ -49,7 +49,7 @@ public:
     virtual void reset() = 0;
     virtual bool addPresentFence(const std::shared_ptr<FenceTime>&) = 0;
     virtual void beginResync() = 0;
-    virtual bool addResyncSample(nsecs_t timestamp, bool* periodChanged) = 0;
+    virtual bool addResyncSample(nsecs_t timestamp, bool* periodFlushed) = 0;
     virtual void endResync() = 0;
     virtual void setPeriod(nsecs_t period) = 0;
     virtual nsecs_t getPeriod() = 0;
@@ -120,17 +120,19 @@ public:
     // from the hardware vsync events.
     void beginResync() override;
     // Adds a vsync sample to the dispsync model. The timestamp is the time
-    // of the vsync event that fired. periodChanged will return true if the
+    // of the vsync event that fired. periodFlushed will return true if the
     // vsync period was detected to have changed to mPendingPeriod.
     //
     // This method will return true if more vsync samples are needed to lock
     // down the DispSync model, and false otherwise.
-    bool addResyncSample(nsecs_t timestamp, bool* periodChanged) override;
+    // periodFlushed will be set to true if mPendingPeriod is flushed to
+    // mIntendedPeriod, and false otherwise.
+    bool addResyncSample(nsecs_t timestamp, bool* periodFlushed) override;
     void endResync() override;
 
     // The setPeriod method sets the vsync event model's period to a specific
-    // value.  This should be used to prime the model when a display is first
-    // turned on.  It should NOT be used after that.
+    // value. This should be used to prime the model when a display is first
+    // turned on, or when a refresh rate change is requested.
     void setPeriod(nsecs_t period) override;
 
     // The getPeriod method returns the current vsync period.
@@ -205,6 +207,11 @@ private:
     // nanoseconds.
     nsecs_t mPeriod;
 
+    // mIntendedPeriod is the intended period of the modeled vsync events in
+    // nanoseconds. Under ideal conditions this should be similar if not the
+    // same as mPeriod, plus or minus an observed error.
+    nsecs_t mIntendedPeriod = 0;
+
     // mPendingPeriod is the proposed period change in nanoseconds.
     // If mPendingPeriod differs from mPeriod and is nonzero, it will
     // be flushed to mPeriod when we detect that the hardware switched
@@ -236,8 +243,8 @@ private:
     // process to store information about the hardware vsync event times used
     // to compute the model.
     nsecs_t mResyncSamples[MAX_RESYNC_SAMPLES] = {0};
-    size_t mFirstResyncSample;
-    size_t mNumResyncSamples;
+    size_t mFirstResyncSample = 0;
+    size_t mNumResyncSamples = 0;
     int mNumResyncSamplesSincePresent;
 
     // These member variables store information about the present fences used
