@@ -295,6 +295,9 @@ class VrHwc : public IComposer, public ComposerHal, public ComposerView {
   void RegisterObserver(Observer* observer) override;
   void UnregisterObserver(Observer* observer) override;
 
+  Return<void> debug(const hidl_handle& fd,
+                     const hidl_vec<hidl_string>& args) override;
+
  private:
   class VsyncCallback : public BnVsyncCallback {
    public:
