@@ -274,8 +274,12 @@ status_t BufferQueueProducer::waitForFreeSlotThenRelock(FreeSlotCaller caller,
         // This check is only done if a buffer has already been queued
         if (mCore->mBufferHasBeenQueued &&
                 dequeuedCount >= mCore->mMaxDequeuedBufferCount) {
-            BQ_LOGE("%s: attempting to exceed the max dequeued buffer count "
-                    "(%d)", callerString, mCore->mMaxDequeuedBufferCount);
+            // Supress error logs when timeout is non-negative.
+            if (mDequeueTimeout < 0) {
+                BQ_LOGE("%s: attempting to exceed the max dequeued buffer "
+                        "count (%d)", callerString,
+                        mCore->mMaxDequeuedBufferCount);
+            }
             return INVALID_OPERATION;
         }
 
