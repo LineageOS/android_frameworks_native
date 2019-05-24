@@ -2816,5 +2816,16 @@ binder::Status InstalldNativeService::prepareAppProfile(const std::string& packa
     return ok();
 }
 
+binder::Status InstalldNativeService::migrateLegacyObbData() {
+    ENFORCE_UID(AID_SYSTEM);
+    // NOTE: The lint warning doesn't apply to the use of system(3) with
+    // absolute parse and no command line arguments.
+    if (system("/system/bin/migrate_legacy_obb_data.sh") != 0) { // NOLINT(cert-env33-c)
+        LOG(ERROR) << "Unable to migrate legacy obb data";
+    }
+
+    return ok();
+}
+
 }  // namespace installd
 }  // namespace android
