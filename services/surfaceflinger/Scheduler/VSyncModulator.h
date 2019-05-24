@@ -35,6 +35,11 @@ private:
     // sending new transactions.
     const int MIN_EARLY_FRAME_COUNT_TRANSACTION = 2;
 
+    // Number of frames we'll keep the early gl phase offsets once they are activated.
+    // This acts as a low-pass filter to avoid scenarios where we rapidly
+    // switch in and out of gl composition.
+    const int MIN_EARLY_GL_FRAME_COUNT_TRANSACTION = 2;
+
 public:
     struct Offsets {
         nsecs_t sf;
@@ -130,10 +135,14 @@ public:
             mRemainingEarlyFrameCount--;
             updateOffsetsNeeded = true;
         }
-        if (usedRenderEngine != mLastFrameUsedRenderEngine) {
-            mLastFrameUsedRenderEngine = usedRenderEngine;
+        if (usedRenderEngine) {
+            mRemainingRenderEngineUsageCount = MIN_EARLY_GL_FRAME_COUNT_TRANSACTION;
+            updateOffsetsNeeded = true;
+        } else if (mRemainingRenderEngineUsageCount > 0) {
+            mRemainingRenderEngineUsageCount--;
             updateOffsetsNeeded = true;
         }
+
         if (updateOffsetsNeeded) {
             updateOffsets();
         }
@@ -145,7 +154,7 @@ public:
         if (mTransactionStart == Scheduler::TransactionStart::EARLY ||
             mRemainingEarlyFrameCount > 0 || mRefreshRateChangePending) {
             return mEarlyOffsets;
-        } else if (mLastFrameUsedRenderEngine) {
+        } else if (mRemainingRenderEngineUsageCount > 0) {
             return mEarlyGlOffsets;
         } else {
             return mLateOffsets;
@@ -195,9 +204,9 @@ private:
 
     std::atomic<Scheduler::TransactionStart> mTransactionStart =
             Scheduler::TransactionStart::NORMAL;
-    std::atomic<bool> mLastFrameUsedRenderEngine = false;
     std::atomic<bool> mRefreshRateChangePending = false;
     std::atomic<int> mRemainingEarlyFrameCount = 0;
+    std::atomic<int> mRemainingRenderEngineUsageCount = 0;
 };
 
 } // namespace android
