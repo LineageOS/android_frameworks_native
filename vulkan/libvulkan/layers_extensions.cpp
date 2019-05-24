@@ -395,11 +395,9 @@ void ForEachFileInZip(const std::string& zipname,
     ALOGD("searching for layers in '%s!/%s'", zipname.c_str(),
           dir_in_zip.c_str());
     ZipEntry entry;
-    ZipString name;
+    std::string name;
     while (Next(iter_cookie, &entry, &name) == 0) {
-        std::string filename(
-            reinterpret_cast<const char*>(name.name) + prefix.length(),
-            name.name_length - prefix.length());
+        std::string filename(name.substr(prefix.length()));
         // only enumerate direct entries of the directory, not subdirectories
         if (filename.find('/') != filename.npos)
             continue;
