@@ -155,6 +155,8 @@ public:
             const std::string& codePath, const std::unique_ptr<std::string>& dexMetadata,
             bool* _aidl_return);
 
+    binder::Status migrateLegacyObbData();
+
 private:
     std::recursive_mutex mLock;
 

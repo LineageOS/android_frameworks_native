@@ -35,6 +35,7 @@ public:
     MOCK_METHOD0(endResync, void());
     MOCK_METHOD1(setPeriod, void(nsecs_t));
     MOCK_METHOD0(getPeriod, nsecs_t());
+    MOCK_METHOD0(getIntendedPeriod, nsecs_t());
     MOCK_METHOD1(setRefreshSkipCount, void(int));
     MOCK_CONST_METHOD1(computeNextRefresh, nsecs_t(int));
     MOCK_METHOD1(setIgnorePresentFences, void(bool));
