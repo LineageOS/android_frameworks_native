@@ -43,6 +43,7 @@ class egl_context_t;
 struct egl_connection_t;
 
 bool findExtension(const char* exts, const char* name, size_t nameLen = 0);
+bool needsAndroidPEglMitigation();
 
 // ----------------------------------------------------------------------------
 
