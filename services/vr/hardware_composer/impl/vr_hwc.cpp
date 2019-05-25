@@ -994,6 +994,26 @@ void VrHwc::UpdateVsyncCallbackEnabledLocked() {
   vsync_callback_->SetEventCallback(send_vsync ? event_callback_ : nullptr);
 }
 
+Return<void> VrHwc::debug(const hidl_handle& fd,
+                          const hidl_vec<hidl_string>& args) {
+  std::string result;
+
+  {
+    std::lock_guard<std::mutex> guard(mutex_);
+    for (const auto& pair : displays_) {
+      result += StringPrintf("Display id: %d\n", static_cast<int>(pair.first));
+      pair.second->dumpDebugInfo(&result);
+    }
+    result += "\n";
+  }
+
+  FILE* out = fdopen(dup(fd->data[0]), "w");
+  fprintf(out, "%s", result.c_str());
+  fclose(out);
+
+  return Void();
+}
+
 void HwcLayer::dumpDebugInfo(std::string* result) const {
   if (!result) {
     return;
