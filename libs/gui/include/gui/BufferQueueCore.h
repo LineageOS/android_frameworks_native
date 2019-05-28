@@ -233,7 +233,8 @@ private:
 
     // mLegacyBufferDrop indicates whether mQueueBufferCanDrop is in effect.
     // If this flag is set mQueueBufferCanDrop is working as explained. If not
-    // queueBuffer will not drop buffers unless consumer is SurfaceFlinger.
+    // queueBuffer will not drop buffers unless consumer is SurfaceFlinger and
+    // mQueueBufferCanDrop is set.
     bool mLegacyBufferDrop;
 
     // mDefaultBufferFormat can be set so it will override the buffer format
