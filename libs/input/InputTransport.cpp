@@ -84,6 +84,10 @@ inline static float lerp(float a, float b, float alpha) {
     return a + alpha * (b - a);
 }
 
+inline static bool isPointerEvent(int32_t source) {
+    return (source & AINPUT_SOURCE_CLASS_POINTER) == AINPUT_SOURCE_CLASS_POINTER;
+}
+
 // --- InputMessage ---
 
 bool InputMessage::isValid(size_t actualSize) const {
@@ -637,6 +641,16 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory,
                             mChannel->getName().c_str());
 #endif
                     break;
+                } else if (isPointerEvent(mMsg.body.motion.source) &&
+                        mMsg.body.motion.action == AMOTION_EVENT_ACTION_CANCEL) {
+                    // No need to process events that we are going to cancel anyways
+                    const size_t count = batch.samples.size();
+                    for (size_t i = 0; i < count; i++) {
+                        const InputMessage& msg = batch.samples.itemAt(i);
+                        sendFinishedSignal(msg.body.motion.seq, false);
+                    }
+                    batch.samples.removeItemsAt(0, count);
+                    mBatches.removeAt(batchIndex);
                 } else {
                     // We cannot append to the batch in progress, so we need to consume
                     // the previous batch right now and defer the new message until later.
@@ -759,8 +773,7 @@ status_t InputConsumer::consumeSamples(InputEventFactoryInterface* factory,
 }
 
 void InputConsumer::updateTouchState(InputMessage& msg) {
-    if (!mResampleTouch ||
-            !(msg.body.motion.source & AINPUT_SOURCE_CLASS_POINTER)) {
+    if (!mResampleTouch || !isPointerEvent(msg.body.motion.source)) {
         return;
     }
 
@@ -872,7 +885,7 @@ void InputConsumer::rewriteMessage(TouchState& state, InputMessage& msg) {
 void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
     const InputMessage* next) {
     if (!mResampleTouch
-            || !(event->getSource() & AINPUT_SOURCE_CLASS_POINTER)
+            || !(isPointerEvent(event->getSource()))
             || event->getAction() != AMOTION_EVENT_ACTION_MOVE) {
         return;
     }
