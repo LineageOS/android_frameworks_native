@@ -886,7 +886,7 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         item.mFence = acquireFence;
         item.mFenceTime = acquireFenceTime;
         item.mIsDroppable = mCore->mAsyncMode ||
-                (!mCore->mLegacyBufferDrop && mConsumerIsSurfaceFlinger) ||
+                (mConsumerIsSurfaceFlinger && mCore->mQueueBufferCanDrop) ||
                 (mCore->mLegacyBufferDrop && mCore->mQueueBufferCanDrop) ||
                 (mCore->mSharedBufferMode && mCore->mSharedBufferSlot == slot);
         item.mSurfaceDamage = surfaceDamage;
