@@ -1497,7 +1497,9 @@ status_t BufferQueueProducer::setDequeueTimeout(nsecs_t timeout) {
     BQ_LOGV("setDequeueTimeout: %" PRId64, timeout);
 
     std::lock_guard<std::mutex> lock(mCore->mMutex);
-    int delta = mCore->getMaxBufferCountLocked(mCore->mAsyncMode, false,
+    bool dequeueBufferCannotBlock =
+            timeout >= 0 ? false : mCore->mDequeueBufferCannotBlock;
+    int delta = mCore->getMaxBufferCountLocked(mCore->mAsyncMode, dequeueBufferCannotBlock,
             mCore->mMaxBufferCount) - mCore->getMaxBufferCountLocked();
     if (!mCore->adjustAvailableSlotsLocked(delta)) {
         BQ_LOGE("setDequeueTimeout: BufferQueue failed to adjust the number of "
@@ -1506,11 +1508,9 @@ status_t BufferQueueProducer::setDequeueTimeout(nsecs_t timeout) {
     }
 
     mDequeueTimeout = timeout;
-    if (timeout >= 0) {
-        mCore->mDequeueBufferCannotBlock = false;
-        if (timeout != 0) {
-            mCore->mQueueBufferCanDrop = false;
-        }
+    mCore->mDequeueBufferCannotBlock = dequeueBufferCannotBlock;
+    if (timeout > 0) {
+        mCore->mQueueBufferCanDrop = false;
     }
 
     VALIDATE_CONSISTENCY();
