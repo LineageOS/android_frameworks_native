@@ -518,13 +518,15 @@ private:
     // Sets the desired active config bit. It obtains the lock, and sets mDesiredActiveConfig.
     void setDesiredActiveConfig(const ActiveConfigInfo& info) REQUIRES(mStateLock);
     // Once HWC has returned the present fence, this sets the active config and a new refresh
-    // rate in SF. It also triggers HWC vsync.
+    // rate in SF.
     void setActiveConfigInternal() REQUIRES(mStateLock);
     // Active config is updated on INVALIDATE call in a state machine-like manner. When the
     // desired config was set, HWC needs to update the panel on the next refresh, and when
     // we receive the fence back, we know that the process was complete. It returns whether
     // we need to wait for the next invalidate
     bool performSetActiveConfig() REQUIRES(mStateLock);
+    // Called when active config is no longer is progress
+    void desiredActiveConfigChangeDone() REQUIRES(mStateLock);
     // called on the main thread in response to setPowerMode()
     void setPowerModeInternal(const sp<DisplayDevice>& display, int mode) REQUIRES(mStateLock);
 
