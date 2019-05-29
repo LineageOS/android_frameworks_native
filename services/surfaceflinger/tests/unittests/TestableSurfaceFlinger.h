@@ -386,6 +386,7 @@ public:
         static constexpr int32_t DEFAULT_REFRESH_RATE = 16'666'666;
         static constexpr int32_t DEFAULT_DPI = 320;
         static constexpr int32_t DEFAULT_ACTIVE_CONFIG = 0;
+        static constexpr int32_t DEFAULT_POWER_MODE = 2;
 
         FakeHwcDisplayInjector(DisplayId displayId, HWC2::DisplayType hwcDisplayType,
                                bool isPrimary)
@@ -431,6 +432,11 @@ public:
             return *this;
         }
 
+        auto& setPowerMode(int mode) {
+            mPowerMode = mode;
+            return *this;
+        }
+
         void inject(TestableSurfaceFlinger* flinger, Hwc2::Composer* composer) {
             static const std::unordered_set<HWC2::Capability> defaultCapabilities;
             if (mCapabilities == nullptr) mCapabilities = &defaultCapabilities;
@@ -450,6 +456,7 @@ public:
             config.setDpiY(mDpiY);
             display->mutableConfigs().emplace(mActiveConfig, config.build());
             display->mutableIsConnected() = true;
+            display->setPowerMode(static_cast<HWC2::PowerMode>(mPowerMode));
 
             flinger->mutableHwcDisplayData()[mDisplayId].hwcDisplay = display.get();
 
@@ -474,6 +481,7 @@ public:
         int32_t mDpiX = DEFAULT_DPI;
         int32_t mDpiY = DEFAULT_DPI;
         int32_t mActiveConfig = DEFAULT_ACTIVE_CONFIG;
+        int32_t mPowerMode = DEFAULT_POWER_MODE;
         const std::unordered_set<HWC2::Capability>* mCapabilities = nullptr;
     };
 
