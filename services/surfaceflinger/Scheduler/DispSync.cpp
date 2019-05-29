@@ -79,11 +79,7 @@ public:
         Mutex::Autolock lock(mMutex);
 
         mPhase = phase;
-        if (mReferenceTime != referenceTime) {
-            for (auto& eventListener : mEventListeners) {
-                eventListener.mHasFired = false;
-            }
-        }
+        const bool referenceTimeChanged = mReferenceTime != referenceTime;
         mReferenceTime = referenceTime;
         if (mPeriod != 0 && mPeriod != period && mReferenceTime != 0) {
             // Inflate the reference time to be the most recent predicted
@@ -94,6 +90,13 @@ public:
             mReferenceTime = mReferenceTime + (numOldPeriods)*mPeriod;
         }
         mPeriod = period;
+        if (!mModelLocked && referenceTimeChanged) {
+            for (auto& eventListener : mEventListeners) {
+                eventListener.mHasFired = false;
+                eventListener.mLastEventTime =
+                        mReferenceTime - mPeriod + mPhase + eventListener.mPhase;
+            }
+        }
         if (mTraceDetailedInfo) {
             ATRACE_INT64("DispSync:Period", mPeriod);
             ATRACE_INT64("DispSync:Phase", mPhase + mPeriod / 2);
@@ -120,6 +123,13 @@ public:
 
     void unlockModel() {
         Mutex::Autolock lock(mMutex);
+        if (mModelLocked) {
+            for (auto& eventListener : mEventListeners) {
+                if (eventListener.mLastEventTime > mReferenceTime) {
+                    eventListener.mHasFired = true;
+                }
+            }
+        }
         mModelLocked = false;
         ATRACE_INT("DispSync:ModelLocked", mModelLocked);
     }
@@ -247,6 +257,10 @@ public:
             listener.mLastCallbackTime = listener.mLastEventTime + mWakeupLatency;
         } else {
             listener.mLastCallbackTime = lastCallbackTime;
+        }
+
+        if (!mModelLocked && listener.mLastEventTime > mReferenceTime) {
+            listener.mHasFired = true;
         }
 
         mEventListeners.push_back(listener);
