@@ -261,22 +261,6 @@ Display::Display(android::Hwc2::Composer& composer,
         mId(id),
         mIsConnected(false),
         mType(type) {
-    std::vector<Hwc2::DisplayCapability> tmpCapabilities;
-    auto error = static_cast<Error>(mComposer.getDisplayCapabilities(mId, &tmpCapabilities));
-    if (error == Error::None) {
-        for (auto capability : tmpCapabilities) {
-            mDisplayCapabilities.emplace(static_cast<DisplayCapability>(capability));
-        }
-    } else if (error == Error::Unsupported) {
-        if (capabilities.count(Capability::SkipClientColorTransform)) {
-            mDisplayCapabilities.emplace(DisplayCapability::SkipClientColorTransform);
-        }
-        bool dozeSupport = false;
-        error = static_cast<Error>(mComposer.getDozeSupport(mId, &dozeSupport));
-        if (error == Error::None && dozeSupport) {
-            mDisplayCapabilities.emplace(DisplayCapability::Doze);
-        }
-    }
     ALOGV("Created display %" PRIu64, id);
 }
 
@@ -660,6 +644,29 @@ Error Display::setPowerMode(PowerMode mode)
 {
     auto intMode = static_cast<Hwc2::IComposerClient::PowerMode>(mode);
     auto intError = mComposer.setPowerMode(mId, intMode);
+
+    if (mode == PowerMode::On) {
+        std::call_once(mDisplayCapabilityQueryFlag, [this]() {
+            std::vector<Hwc2::DisplayCapability> tmpCapabilities;
+            auto error =
+                    static_cast<Error>(mComposer.getDisplayCapabilities(mId, &tmpCapabilities));
+            if (error == Error::None) {
+                for (auto capability : tmpCapabilities) {
+                    mDisplayCapabilities.emplace(static_cast<DisplayCapability>(capability));
+                }
+            } else if (error == Error::Unsupported) {
+                if (mCapabilities.count(Capability::SkipClientColorTransform)) {
+                    mDisplayCapabilities.emplace(DisplayCapability::SkipClientColorTransform);
+                }
+                bool dozeSupport = false;
+                error = static_cast<Error>(mComposer.getDozeSupport(mId, &dozeSupport));
+                if (error == Error::None && dozeSupport) {
+                    mDisplayCapabilities.emplace(DisplayCapability::Doze);
+                }
+            }
+        });
+    }
+
     return static_cast<Error>(intError);
 }
 
