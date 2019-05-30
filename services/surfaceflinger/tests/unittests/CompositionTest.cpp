@@ -253,13 +253,16 @@ struct BaseDisplayVariant {
     static constexpr int INIT_POWER_MODE = HWC_POWER_MODE_NORMAL;
 
     static void setupPreconditions(CompositionTest* test) {
-        EXPECT_CALL(*test->mComposer, getDisplayCapabilities(HWC_DISPLAY, _))
-                .WillOnce(DoAll(SetArgPointee<1>(std::vector<Hwc2::DisplayCapability>({})),
-                                Return(Error::NONE)));
+        EXPECT_CALL(*test->mComposer,
+                    setPowerMode(HWC_DISPLAY,
+                                 static_cast<Hwc2::IComposerClient::PowerMode>(
+                                         Derived::INIT_POWER_MODE)))
+                .WillOnce(Return(Error::NONE));
 
         FakeHwcDisplayInjector(DEFAULT_DISPLAY_ID, HWC2::DisplayType::Physical,
                                true /* isPrimary */)
                 .setCapabilities(&test->mDefaultCapabilities)
+                .setPowerMode(Derived::INIT_POWER_MODE)
                 .inject(&test->mFlinger, test->mComposer);
         Mock::VerifyAndClear(test->mComposer);
 
@@ -279,6 +282,13 @@ struct BaseDisplayVariant {
                                  .inject();
         Mock::VerifyAndClear(test->mNativeWindow);
         test->mDisplay->setLayerStack(DEFAULT_LAYER_STACK);
+    }
+
+    template <typename Case>
+    static void setupPreconditionCallExpectations(CompositionTest* test) {
+        EXPECT_CALL(*test->mComposer, getDisplayCapabilities(HWC_DISPLAY, _))
+                .WillOnce(DoAll(SetArgPointee<1>(std::vector<Hwc2::DisplayCapability>({})),
+                                Return(Error::NONE)));
     }
 
     template <typename Case>
@@ -391,6 +401,9 @@ struct InsecureDisplaySetupVariant : public BaseDisplayVariant<InsecureDisplaySe
 
 struct PoweredOffDisplaySetupVariant : public BaseDisplayVariant<PoweredOffDisplaySetupVariant> {
     static constexpr int INIT_POWER_MODE = HWC_POWER_MODE_OFF;
+
+    template <typename Case>
+    static void setupPreconditionCallExpectations(CompositionTest*) {}
 
     template <typename Case>
     static void setupCommonCompositionCallExpectations(CompositionTest* test) {
@@ -1022,6 +1035,7 @@ struct CompositionCase {
     using CompositionResult = CompositionResultCase;
 
     static void setupCommon(CompositionTest* test) {
+        Display::template setupPreconditionCallExpectations<ThisCase>(test);
         Display::setupPreconditions(test);
 
         auto layer = Layer::createLayer(test);

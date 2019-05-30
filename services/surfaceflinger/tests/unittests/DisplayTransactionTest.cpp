@@ -410,6 +410,7 @@ struct HwcDisplayVariant {
 
     // The HWC active configuration id
     static constexpr int HWC_ACTIVE_CONFIG_ID = 2001;
+    static constexpr int INIT_POWER_MODE = HWC_POWER_MODE_NORMAL;
 
     static void injectPendingHotplugEvent(DisplayTransactionTest* test,
                                           HWC2::Connection connection) {
@@ -427,6 +428,7 @@ struct HwcDisplayVariant {
                 .setWidth(DisplayVariant::WIDTH)
                 .setHeight(DisplayVariant::HEIGHT)
                 .setActiveConfig(HWC_ACTIVE_CONFIG_ID)
+                .setPowerMode(INIT_POWER_MODE)
                 .inject(&test->mFlinger, test->mComposer);
     }
 
@@ -435,6 +437,10 @@ struct HwcDisplayVariant {
         EXPECT_CALL(*test->mComposer, getDisplayCapabilities(HWC_DISPLAY_ID, _))
                 .WillOnce(DoAll(SetArgPointee<1>(std::vector<Hwc2::DisplayCapability>({})),
                                 Return(Error::NONE)));
+        EXPECT_CALL(*test->mComposer,
+                    setPowerMode(HWC_DISPLAY_ID,
+                                 static_cast<Hwc2::IComposerClient::PowerMode>(INIT_POWER_MODE)))
+                .WillOnce(Return(Error::NONE));
         injectHwcDisplayWithNoDefaultCapabilities(test);
     }
 
@@ -467,9 +473,6 @@ struct HwcDisplayVariant {
                     getDisplayAttribute(HWC_DISPLAY_ID, HWC_ACTIVE_CONFIG_ID,
                                         IComposerClient::Attribute::DPI_Y, _))
                 .WillOnce(DoAll(SetArgPointee<3>(DEFAULT_DPI), Return(Error::NONE)));
-        EXPECT_CALL(*test->mComposer, getDisplayCapabilities(HWC_DISPLAY_ID, _))
-                .WillOnce(DoAll(SetArgPointee<1>(std::vector<Hwc2::DisplayCapability>({})),
-                                Return(Error::NONE)));
 
         if (PhysicalDisplay::HAS_IDENTIFICATION_DATA) {
             EXPECT_CALL(*test->mComposer, getDisplayIdentificationData(HWC_DISPLAY_ID, _, _))
@@ -1890,10 +1893,6 @@ TEST_F(HandleTransactionLockedTest, processesVirtualDisplayAdded) {
 
     Case::Display::setupFramebufferConsumerBufferQueueCallExpectations(this);
     Case::Display::setupNativeWindowSurfaceCreationCallExpectations(this);
-
-    EXPECT_CALL(*mComposer, getDisplayCapabilities(Case::Display::HWC_DISPLAY_ID, _))
-            .WillOnce(DoAll(SetArgPointee<1>(std::vector<Hwc2::DisplayCapability>({})),
-                            Return(Error::NONE)));
 
     EXPECT_CALL(*surface, query(NATIVE_WINDOW_WIDTH, _))
             .WillRepeatedly(DoAll(SetArgPointee<1>(Case::Display::WIDTH), Return(NO_ERROR)));
