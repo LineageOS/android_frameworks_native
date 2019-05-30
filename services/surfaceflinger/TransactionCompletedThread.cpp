@@ -219,6 +219,7 @@ void TransactionCompletedThread::threadMain() {
 
     while (mKeepRunning) {
         mConditionVariable.wait(mMutex);
+        std::vector<ListenerStats> completedListenerStats;
 
         // For each listener
         auto completedTransactionsItr = mCompletedTransactions.begin();
@@ -264,11 +265,27 @@ void TransactionCompletedThread::threadMain() {
             } else {
                 completedTransactionsItr++;
             }
+
+            completedListenerStats.push_back(std::move(listenerStats));
         }
 
         if (mPresentFence) {
             mPresentFence.clear();
         }
+
+        // If everyone else has dropped their reference to a layer and its listener is dead,
+        // we are about to cause the layer to be deleted. If this happens at the wrong time and
+        // we are holding mMutex, we will cause a deadlock.
+        //
+        // The deadlock happens because this thread is holding on to mMutex and when we delete
+        // the layer, it grabs SF's mStateLock. A different SF binder thread grabs mStateLock,
+        // then call's TransactionCompletedThread::run() which tries to grab mMutex.
+        //
+        // To avoid this deadlock, we need to unlock mMutex when dropping our last reference to
+        // to the layer.
+        mMutex.unlock();
+        completedListenerStats.clear();
+        mMutex.lock();
     }
 }
 
