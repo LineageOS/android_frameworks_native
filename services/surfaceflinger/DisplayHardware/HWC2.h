@@ -356,6 +356,7 @@ private:
     DisplayType mType;
     std::unordered_map<hwc2_layer_t, std::unique_ptr<Layer>> mLayers;
     std::unordered_map<hwc2_config_t, std::shared_ptr<const Config>> mConfigs;
+    std::once_flag mDisplayCapabilityQueryFlag;
     std::unordered_set<DisplayCapability> mDisplayCapabilities;
 };
 } // namespace impl
