@@ -26,6 +26,8 @@
 #include <utils/Trace.h>
 #include <string>
 
+#include <compositionengine/Display.h>
+#include <compositionengine/impl/OutputCompositionState.h>
 #include "DisplayDevice.h"
 #include "Layer.h"
 #include "SurfaceFlinger.h"
@@ -264,7 +266,22 @@ float getLuma(float r, float g, float b) {
 }
 } // anonymous namespace
 
-float sampleArea(const uint32_t* data, int32_t stride, const Rect& area) {
+float sampleArea(const uint32_t* data, int32_t width, int32_t height, int32_t stride,
+                 uint32_t orientation, const Rect& sample_area) {
+    if (!sample_area.isValid() || (sample_area.getWidth() > width) ||
+        (sample_area.getHeight() > height)) {
+        ALOGE("invalid sampling region requested");
+        return 0.0f;
+    }
+
+    // (b/133849373) ROT_90 screencap images produced upside down
+    auto area = sample_area;
+    if (orientation & ui::Transform::ROT_90) {
+        area.top = height - area.top;
+        area.bottom = height - area.bottom;
+        std::swap(area.top, area.bottom);
+    }
+
     std::array<int32_t, 256> brightnessBuckets = {};
     const int32_t majoritySampleNum = area.getWidth() * area.getHeight() / 2;
 
@@ -293,18 +310,21 @@ float sampleArea(const uint32_t* data, int32_t stride, const Rect& area) {
 
 std::vector<float> RegionSamplingThread::sampleBuffer(
         const sp<GraphicBuffer>& buffer, const Point& leftTop,
-        const std::vector<RegionSamplingThread::Descriptor>& descriptors) {
+        const std::vector<RegionSamplingThread::Descriptor>& descriptors, uint32_t orientation) {
     void* data_raw = nullptr;
     buffer->lock(GRALLOC_USAGE_SW_READ_OFTEN, &data_raw);
     std::shared_ptr<uint32_t> data(reinterpret_cast<uint32_t*>(data_raw),
                                    [&buffer](auto) { buffer->unlock(); });
     if (!data) return {};
 
+    const int32_t width = buffer->getWidth();
+    const int32_t height = buffer->getHeight();
     const int32_t stride = buffer->getStride();
     std::vector<float> lumas(descriptors.size());
     std::transform(descriptors.begin(), descriptors.end(), lumas.begin(),
                    [&](auto const& descriptor) {
-                       return sampleArea(data.get(), stride, descriptor.area - leftTop);
+                       return sampleArea(data.get(), width, height, stride, orientation,
+                                         descriptor.area - leftTop);
                    });
     return lumas;
 }
@@ -317,6 +337,11 @@ void RegionSamplingThread::captureSample() {
         return;
     }
 
+    const auto device = mFlinger.getDefaultDisplayDevice();
+    const auto display = device->getCompositionDisplay();
+    const auto state = display->getState();
+    const auto orientation = static_cast<ui::Transform::orientation_flags>(state.orientation);
+
     std::vector<RegionSamplingThread::Descriptor> descriptors;
     Region sampleRegion;
     for (const auto& [listener, descriptor] : mDescriptors) {
@@ -326,10 +351,28 @@ void RegionSamplingThread::captureSample() {
 
     const Rect sampledArea = sampleRegion.bounds();
 
-    sp<const DisplayDevice> device = mFlinger.getDefaultDisplayDevice();
-    DisplayRenderArea renderArea(device, sampledArea, sampledArea.getWidth(),
-                                 sampledArea.getHeight(), ui::Dataspace::V0_SRGB,
-                                 ui::Transform::ROT_0);
+    auto dx = 0;
+    auto dy = 0;
+    switch (orientation) {
+        case ui::Transform::ROT_90:
+            dx = device->getWidth();
+            break;
+        case ui::Transform::ROT_180:
+            dx = device->getWidth();
+            dy = device->getHeight();
+            break;
+        case ui::Transform::ROT_270:
+            dy = device->getHeight();
+            break;
+        default:
+            break;
+    }
+
+    ui::Transform t(orientation);
+    auto screencapRegion = t.transform(sampleRegion);
+    screencapRegion = screencapRegion.translate(dx, dy);
+    DisplayRenderArea renderArea(device, screencapRegion.bounds(), sampledArea.getWidth(),
+                                 sampledArea.getHeight(), ui::Dataspace::V0_SRGB, orientation);
 
     std::unordered_set<sp<IRegionSamplingListener>, SpHash<IRegionSamplingListener>> listeners;
 
@@ -395,8 +438,8 @@ void RegionSamplingThread::captureSample() {
     }
 
     ALOGV("Sampling %zu descriptors", activeDescriptors.size());
-    std::vector<float> lumas = sampleBuffer(buffer, sampledArea.leftTop(), activeDescriptors);
-
+    std::vector<float> lumas =
+            sampleBuffer(buffer, sampledArea.leftTop(), activeDescriptors, orientation);
     if (lumas.size() != activeDescriptors.size()) {
         ALOGW("collected %zu median luma values for %zu descriptors", lumas.size(),
               activeDescriptors.size());
