@@ -213,12 +213,12 @@ private:
 
     static void handleHidlDeath(const std::string &detail);
     template<typename T>
-    static Return<T> checkReturn(Return<T> &&ret) {
+    static void checkReturn(const Return<T>& ret) {
         if (!ret.isOk()) {
             handleHidlDeath(ret.description());
         }
-        return std::move(ret);
     }
+    static status_t checkReturnAndGetStatus(const Return<Result>& ret);
     //TODO(b/67425500): remove waiter after bug is resolved.
     sp<SensorDeviceUtils::HidlServiceRegistrationWaiter> mRestartWaiter;
 
