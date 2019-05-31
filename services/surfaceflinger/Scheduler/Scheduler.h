@@ -299,7 +299,7 @@ private:
     const scheduler::RefreshRateConfigs& mRefreshRateConfigs;
 
     // Global config to force HDR content to work on DEFAULT refreshRate
-    static constexpr bool mForceHDRContentToDefaultRefreshRate = true;
+    static constexpr bool mForceHDRContentToDefaultRefreshRate = false;
 };
 
 } // namespace android
