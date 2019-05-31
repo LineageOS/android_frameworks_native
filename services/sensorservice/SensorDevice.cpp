@@ -1012,7 +1012,7 @@ void SensorDevice::convertToSensorEvents(
 }
 
 void SensorDevice::handleHidlDeath(const std::string & detail) {
-    if (!SensorDevice::getInstance().mSensors->supportsMessageQueues()) {
+    if (!mSensors->supportsMessageQueues()) {
         // restart is the only option at present.
         LOG_ALWAYS_FATAL("Abort due to ISensors hidl service failure, detail: %s.", detail.c_str());
     } else {
