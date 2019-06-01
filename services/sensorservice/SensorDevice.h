@@ -211,14 +211,14 @@ private:
     status_t batchLocked(void* ident, int handle, int flags, int64_t samplingPeriodNs,
                          int64_t maxBatchReportLatencyNs);
 
-    static void handleHidlDeath(const std::string &detail);
+    void handleHidlDeath(const std::string &detail);
     template<typename T>
-    static Return<T> checkReturn(Return<T> &&ret) {
+    void checkReturn(const Return<T>& ret) {
         if (!ret.isOk()) {
             handleHidlDeath(ret.description());
         }
-        return std::move(ret);
     }
+    status_t checkReturnAndGetStatus(const Return<Result>& ret);
     //TODO(b/67425500): remove waiter after bug is resolved.
     sp<SensorDeviceUtils::HidlServiceRegistrationWaiter> mRestartWaiter;
 

@@ -37,7 +37,8 @@ class Scheduler;
 class SurfaceFlinger;
 struct SamplingOffsetCallback;
 
-float sampleArea(const uint32_t* data, int32_t stride, const Rect& area);
+float sampleArea(const uint32_t* data, int32_t width, int32_t height, int32_t stride,
+                 uint32_t orientation, const Rect& area);
 
 class RegionSamplingThread : public IBinder::DeathRecipient {
 public:
@@ -94,7 +95,7 @@ private:
     };
     std::vector<float> sampleBuffer(
             const sp<GraphicBuffer>& buffer, const Point& leftTop,
-            const std::vector<RegionSamplingThread::Descriptor>& descriptors);
+            const std::vector<RegionSamplingThread::Descriptor>& descriptors, uint32_t orientation);
 
     void doSample();
     void binderDied(const wp<IBinder>& who) override;
