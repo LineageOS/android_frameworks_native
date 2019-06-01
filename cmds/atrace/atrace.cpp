@@ -890,6 +890,7 @@ static void cleanUpUserspaceTracing()
     setTagsProperty(0);
     clearAppProperties();
     pokeBinderServices();
+    pokeHalServices();
 
     if (g_tracePdx) {
         ServiceUtility::PokeServices();
