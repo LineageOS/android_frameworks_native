@@ -4122,6 +4122,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     sp<GraphicBuffer> buffer;
     if (bufferChanged && cacheIdChanged) {
         ClientCache::getInstance().add(s.cachedBuffer, s.buffer);
+        ClientCache::getInstance().registerErasedRecipient(s.cachedBuffer,
+                                                           wp<ClientCache::ErasedRecipient>(layer));
+        getRenderEngine().cacheExternalTextureBuffer(s.buffer);
         buffer = s.buffer;
     } else if (cacheIdChanged) {
         buffer = ClientCache::getInstance().get(s.cachedBuffer);
