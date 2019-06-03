@@ -545,6 +545,12 @@ void BufferLayer::notifyAvailableFrames() {
         if (headFrameNumber >= point->getFrameNumber() && headFenceSignaled &&
             presentTimeIsCurrent) {
             point->setFrameAvailable();
+            sp<Layer> requestedSyncLayer = point->getRequestedSyncLayer();
+            if (requestedSyncLayer) {
+                // Need to update the transaction flag to ensure the layer's pending transaction
+                // gets applied.
+                requestedSyncLayer->setTransactionFlags(eTransactionNeeded);
+            }
         }
     }
 }

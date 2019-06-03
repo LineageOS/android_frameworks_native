@@ -4725,6 +4725,48 @@ TEST_F(ChildLayerTest, DetachChildrenThenAttach) {
         mCapture->expectColor(Rect(20, 20, 52, 52), Color::RED);
     }
 }
+TEST_F(ChildLayerTest, DetachChildrenWithDeferredTransaction) {
+    sp<SurfaceComposerClient> newComposerClient = new SurfaceComposerClient;
+    sp<SurfaceControl> childNewClient =
+            newComposerClient->createSurface(String8("New Child Test Surface"), 10, 10,
+                                             PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
+
+    ASSERT_TRUE(childNewClient != nullptr);
+    ASSERT_TRUE(childNewClient->isValid());
+
+    fillSurfaceRGBA8(childNewClient, 200, 200, 200);
+
+    Transaction()
+            .hide(mChild)
+            .show(childNewClient)
+            .setPosition(childNewClient, 10, 10)
+            .setPosition(mFGSurfaceControl, 64, 64)
+            .apply();
+
+    {
+        mCapture = screenshot();
+        Rect rect = Rect(74, 74, 84, 84);
+        mCapture->expectBorder(rect, Color{195, 63, 63, 255});
+        mCapture->expectColor(rect, Color{200, 200, 200, 255});
+    }
+
+    Transaction()
+            .deferTransactionUntil_legacy(childNewClient, mFGSurfaceControl->getHandle(),
+                                          mFGSurfaceControl->getSurface()->getNextFrameNumber())
+            .apply();
+    Transaction().detachChildren(mFGSurfaceControl).apply();
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(mFGSurfaceControl, Color::RED, 32, 32));
+
+    // BufferLayer can still dequeue buffers even though there's a detached layer with a
+    // deferred transaction.
+    {
+        SCOPED_TRACE("new buffer");
+        mCapture = screenshot();
+        Rect rect = Rect(74, 74, 84, 84);
+        mCapture->expectBorder(rect, Color::RED);
+        mCapture->expectColor(rect, Color{200, 200, 200, 255});
+    }
+}
 
 TEST_F(ChildLayerTest, ChildrenInheritNonTransformScalingFromParent) {
     asTransaction([&](Transaction& t) {
