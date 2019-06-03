@@ -2172,9 +2172,8 @@ void InputDispatcher::dispatchPointerDownOutsideFocus(uint32_t source, int32_t a
         return;
     }
 
-    int32_t displayId = inputWindowHandle->getInfo()->displayId;
     sp<InputWindowHandle> focusedWindowHandle =
-            getValueByKey(mFocusedWindowHandlesByDisplay, displayId);
+            getValueByKey(mFocusedWindowHandlesByDisplay, mFocusedDisplayId);
 
     bool hasFocusChanged = !focusedWindowHandle || focusedWindowHandle->getToken() != newToken;
 
