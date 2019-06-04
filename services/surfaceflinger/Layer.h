@@ -733,8 +733,11 @@ protected:
 
     class SyncPoint {
     public:
-        explicit SyncPoint(uint64_t frameNumber)
-              : mFrameNumber(frameNumber), mFrameIsAvailable(false), mTransactionIsApplied(false) {}
+        explicit SyncPoint(uint64_t frameNumber, wp<Layer> requestedSyncLayer)
+              : mFrameNumber(frameNumber),
+                mFrameIsAvailable(false),
+                mTransactionIsApplied(false),
+                mRequestedSyncLayer(requestedSyncLayer) {}
 
         uint64_t getFrameNumber() const { return mFrameNumber; }
 
@@ -746,10 +749,13 @@ protected:
 
         void setTransactionApplied() { mTransactionIsApplied = true; }
 
+        sp<Layer> getRequestedSyncLayer() { return mRequestedSyncLayer.promote(); }
+
     private:
         const uint64_t mFrameNumber;
         std::atomic<bool> mFrameIsAvailable;
         std::atomic<bool> mTransactionIsApplied;
+        wp<Layer> mRequestedSyncLayer;
     };
 
     // SyncPoints which will be signaled when the correct frame is at the head
@@ -928,6 +934,8 @@ private:
     void setZOrderRelativeOf(const wp<Layer>& relativeOf);
 
     bool mGetHandleCalled = false;
+
+    void removeRemoteSyncPoints();
 };
 
 } // namespace android
