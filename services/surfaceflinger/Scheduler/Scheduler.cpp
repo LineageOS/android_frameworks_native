@@ -129,7 +129,8 @@ sp<Scheduler::ConnectionHandle> Scheduler::createConnection(
                             std::move(interceptCallback));
 
     auto eventThreadConnection =
-            createConnectionInternal(eventThread.get(), std::move(resyncCallback));
+            createConnectionInternal(eventThread.get(), std::move(resyncCallback),
+                                     ISurfaceComposer::eConfigChangedSuppress);
     mConnections.emplace(id,
                          std::make_unique<Connection>(new ConnectionHandle(id),
                                                       eventThreadConnection,
@@ -146,16 +147,18 @@ std::unique_ptr<EventThread> Scheduler::makeEventThread(
                                                std::move(interceptCallback), connectionName);
 }
 
-sp<EventThreadConnection> Scheduler::createConnectionInternal(EventThread* eventThread,
-                                                              ResyncCallback&& resyncCallback) {
-    return eventThread->createEventConnection(std::move(resyncCallback));
+sp<EventThreadConnection> Scheduler::createConnectionInternal(
+        EventThread* eventThread, ResyncCallback&& resyncCallback,
+        ISurfaceComposer::ConfigChanged configChanged) {
+    return eventThread->createEventConnection(std::move(resyncCallback), configChanged);
 }
 
 sp<IDisplayEventConnection> Scheduler::createDisplayEventConnection(
-        const sp<Scheduler::ConnectionHandle>& handle, ResyncCallback resyncCallback) {
+        const sp<Scheduler::ConnectionHandle>& handle, ResyncCallback resyncCallback,
+        ISurfaceComposer::ConfigChanged configChanged) {
     RETURN_VALUE_IF_INVALID(nullptr);
     return createConnectionInternal(mConnections[handle->id]->thread.get(),
-                                    std::move(resyncCallback));
+                                    std::move(resyncCallback), configChanged);
 }
 
 EventThread* Scheduler::getEventThread(const sp<Scheduler::ConnectionHandle>& handle) {

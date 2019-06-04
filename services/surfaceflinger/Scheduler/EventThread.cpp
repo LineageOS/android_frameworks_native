@@ -76,6 +76,10 @@ std::string toString(const DisplayEventReceiver::Event& event) {
             return StringPrintf("VSync{displayId=%" ANDROID_PHYSICAL_DISPLAY_ID_FORMAT
                                 ", count=%u}",
                                 event.header.displayId, event.vsync.count);
+        case DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED:
+            return StringPrintf("ConfigChanged{displayId=%" ANDROID_PHYSICAL_DISPLAY_ID_FORMAT
+                                ", configId=%u}",
+                                event.header.displayId, event.config.configId);
         default:
             return "Event{}";
     }
@@ -107,8 +111,10 @@ DisplayEventReceiver::Event makeConfigChanged(PhysicalDisplayId displayId, int32
 } // namespace
 
 EventThreadConnection::EventThreadConnection(EventThread* eventThread,
-                                             ResyncCallback resyncCallback)
+                                             ResyncCallback resyncCallback,
+                                             ISurfaceComposer::ConfigChanged configChanged)
       : resyncCallback(std::move(resyncCallback)),
+        configChanged(configChanged),
         mEventThread(eventThread),
         mChannel(gui::BitTube::DefaultSize) {}
 
@@ -203,8 +209,10 @@ void EventThread::setPhaseOffset(nsecs_t phaseOffset) {
     mVSyncSource->setPhaseOffset(phaseOffset);
 }
 
-sp<EventThreadConnection> EventThread::createEventConnection(ResyncCallback resyncCallback) const {
-    return new EventThreadConnection(const_cast<EventThread*>(this), std::move(resyncCallback));
+sp<EventThreadConnection> EventThread::createEventConnection(
+        ResyncCallback resyncCallback, ISurfaceComposer::ConfigChanged configChanged) const {
+    return new EventThreadConnection(const_cast<EventThread*>(this), std::move(resyncCallback),
+                                     configChanged);
 }
 
 status_t EventThread::registerDisplayEventConnection(const sp<EventThreadConnection>& connection) {
@@ -398,8 +406,10 @@ bool EventThread::shouldConsumeEvent(const DisplayEventReceiver::Event& event,
                                      const sp<EventThreadConnection>& connection) const {
     switch (event.header.type) {
         case DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG:
-        case DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED:
             return true;
+
+        case DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED:
+            return connection->configChanged == ISurfaceComposer::eConfigChangedDispatch;
 
         case DisplayEventReceiver::DISPLAY_EVENT_VSYNC:
             switch (connection->vsyncRequest) {
