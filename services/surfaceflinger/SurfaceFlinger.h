@@ -399,7 +399,9 @@ private:
             const sp<IGraphicBufferProducer>& bufferProducer) const override;
     status_t getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported) const override;
     sp<IDisplayEventConnection> createDisplayEventConnection(
-            ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp) override;
+            ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp,
+            ISurfaceComposer::ConfigChanged configChanged =
+                    ISurfaceComposer::eConfigChangedSuppress) override;
     status_t captureScreen(const sp<IBinder>& displayToken, sp<GraphicBuffer>* outBuffer,
             bool& outCapturedSecureLayers, const ui::Dataspace reqDataspace,
             const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
