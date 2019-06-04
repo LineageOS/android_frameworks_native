@@ -1666,17 +1666,16 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
                 err = window->queueBuffer(window, img.buffer.get(), fence);
                 // queueBuffer always closes fence, even on error
                 if (err != 0) {
-                    // TODO(jessehall): What now? We should probably cancel the
-                    // buffer, I guess?
                     ALOGE("queueBuffer failed: %s (%d)", strerror(-err), err);
                     swapchain_result = WorstPresentResult(
                         swapchain_result, VK_ERROR_OUT_OF_DATE_KHR);
+                } else {
+                    if (img.dequeue_fence >= 0) {
+                        close(img.dequeue_fence);
+                        img.dequeue_fence = -1;
+                    }
+                    img.dequeued = false;
                 }
-                if (img.dequeue_fence >= 0) {
-                    close(img.dequeue_fence);
-                    img.dequeue_fence = -1;
-                }
-                img.dequeued = false;
 
                 // If the swapchain is in shared mode, immediately dequeue the
                 // buffer so it can be presented again without an intervening
@@ -1703,7 +1702,6 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
                 }
             }
             if (swapchain_result != VK_SUCCESS) {
-                ReleaseSwapchainImage(device, window, fence, img);
                 OrphanSwapchain(device, &swapchain);
             }
             int window_transform_hint;
