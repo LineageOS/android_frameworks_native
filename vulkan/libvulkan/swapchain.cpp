@@ -281,6 +281,8 @@ void ReleaseSwapchainImage(VkDevice device,
                            ANativeWindow* window,
                            int release_fence,
                            Swapchain::Image& image) {
+    ATRACE_CALL();
+
     ALOG_ASSERT(release_fence == -1 || image.dequeued,
                 "ReleaseSwapchainImage: can't provide a release fence for "
                 "non-dequeued images");
@@ -319,7 +321,9 @@ void ReleaseSwapchainImage(VkDevice device,
     }
 
     if (image.image) {
+        ATRACE_BEGIN("DestroyImage");
         GetData(device).driver.DestroyImage(device, image.image, nullptr);
+        ATRACE_END();
         image.image = VK_NULL_HANDLE;
     }
 
@@ -963,6 +967,40 @@ VkResult GetPhysicalDevicePresentRectanglesKHR(VkPhysicalDevice,
     return VK_SUCCESS;
 }
 
+static void DestroySwapchainInternal(VkDevice device,
+                                     VkSwapchainKHR swapchain_handle,
+                                     const VkAllocationCallbacks* allocator) {
+    ATRACE_CALL();
+
+    const auto& dispatch = GetData(device).driver;
+    Swapchain* swapchain = SwapchainFromHandle(swapchain_handle);
+    if (!swapchain) {
+        return;
+    }
+
+    bool active = swapchain->surface.swapchain_handle == swapchain_handle;
+    ANativeWindow* window = active ? swapchain->surface.window.get() : nullptr;
+
+    if (window && swapchain->frame_timestamps_enabled) {
+        native_window_enable_frame_timestamps(window, false);
+    }
+
+    for (uint32_t i = 0; i < swapchain->num_images; i++) {
+        ReleaseSwapchainImage(device, window, -1, swapchain->images[i]);
+    }
+
+    if (active) {
+        swapchain->surface.swapchain_handle = VK_NULL_HANDLE;
+    }
+
+    if (!allocator) {
+        allocator = &GetData(device).allocator;
+    }
+
+    swapchain->~Swapchain();
+    allocator->pfnFree(allocator->pUserData, swapchain);
+}
+
 VKAPI_ATTR
 VkResult CreateSwapchainKHR(VkDevice device,
                             const VkSwapchainCreateInfoKHR* create_info,
@@ -1182,7 +1220,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
     int32_t legacy_usage = 0;
     if (dispatch.GetSwapchainGrallocUsage2ANDROID) {
         uint64_t consumer_usage, producer_usage;
-        ATRACE_BEGIN("dispatch.GetSwapchainGrallocUsage2ANDROID");
+        ATRACE_BEGIN("GetSwapchainGrallocUsage2ANDROID");
         result = dispatch.GetSwapchainGrallocUsage2ANDROID(
             device, create_info->imageFormat, create_info->imageUsage,
             swapchain_image_usage, &consumer_usage, &producer_usage);
@@ -1194,7 +1232,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
         legacy_usage =
             android_convertGralloc1To0Usage(producer_usage, consumer_usage);
     } else if (dispatch.GetSwapchainGrallocUsageANDROID) {
-        ATRACE_BEGIN("dispatch.GetSwapchainGrallocUsageANDROID");
+        ATRACE_BEGIN("GetSwapchainGrallocUsageANDROID");
         result = dispatch.GetSwapchainGrallocUsageANDROID(
             device, create_info->imageFormat, create_info->imageUsage,
             &legacy_usage);
@@ -1289,7 +1327,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
             &image_native_buffer.usage2.producer,
             &image_native_buffer.usage2.consumer);
 
-        ATRACE_BEGIN("dispatch.CreateImage");
+        ATRACE_BEGIN("CreateImage");
         result =
             dispatch.CreateImage(device, &image_create, nullptr, &img.image);
         ATRACE_END();
@@ -1302,9 +1340,6 @@ VkResult CreateSwapchainKHR(VkDevice device,
     // -- Cancel all buffers, returning them to the queue --
     // If an error occurred before, also destroy the VkImage and release the
     // buffer reference. Otherwise, we retain a strong reference to the buffer.
-    //
-    // TODO(jessehall): The error path here is the same as DestroySwapchain,
-    // but not the non-error path. Should refactor/unify.
     for (uint32_t i = 0; i < num_images; i++) {
         Swapchain::Image& img = swapchain->images[i];
         if (img.dequeued) {
@@ -1315,18 +1350,11 @@ VkResult CreateSwapchainKHR(VkDevice device,
                 img.dequeued = false;
             }
         }
-        if (result != VK_SUCCESS) {
-            if (img.image) {
-                ATRACE_BEGIN("dispatch.DestroyImage");
-                dispatch.DestroyImage(device, img.image, nullptr);
-                ATRACE_END();
-            }
-        }
     }
 
     if (result != VK_SUCCESS) {
-        swapchain->~Swapchain();
-        allocator->pfnFree(allocator->pUserData, swapchain);
+        DestroySwapchainInternal(device, HandleFromSwapchain(swapchain),
+                                 allocator);
         return result;
     }
 
@@ -1341,24 +1369,7 @@ void DestroySwapchainKHR(VkDevice device,
                          const VkAllocationCallbacks* allocator) {
     ATRACE_CALL();
 
-    const auto& dispatch = GetData(device).driver;
-    Swapchain* swapchain = SwapchainFromHandle(swapchain_handle);
-    if (!swapchain)
-        return;
-    bool active = swapchain->surface.swapchain_handle == swapchain_handle;
-    ANativeWindow* window = active ? swapchain->surface.window.get() : nullptr;
-
-    if (swapchain->frame_timestamps_enabled) {
-        native_window_enable_frame_timestamps(window, false);
-    }
-    for (uint32_t i = 0; i < swapchain->num_images; i++)
-        ReleaseSwapchainImage(device, window, -1, swapchain->images[i]);
-    if (active)
-        swapchain->surface.swapchain_handle = VK_NULL_HANDLE;
-    if (!allocator)
-        allocator = &GetData(device).allocator;
-    swapchain->~Swapchain();
-    allocator->pfnFree(allocator->pUserData, swapchain);
+    DestroySwapchainInternal(device, swapchain_handle, allocator);
 }
 
 VKAPI_ATTR
