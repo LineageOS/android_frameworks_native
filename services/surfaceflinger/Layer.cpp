@@ -144,6 +144,20 @@ Layer::~Layer() {
  */
 void Layer::onLayerDisplayed(const sp<Fence>& /*releaseFence*/) {}
 
+void Layer::removeRemoteSyncPoints() {
+    for (auto& point : mRemoteSyncPoints) {
+        point->setTransactionApplied();
+    }
+    mRemoteSyncPoints.clear();
+
+    {
+        Mutex::Autolock pendingStateLock(mPendingStateMutex);
+        for (State pendingState : mPendingStates) {
+            pendingState.barrierLayer_legacy = nullptr;
+        }
+    }
+}
+
 void Layer::onRemovedFromCurrentState() {
     mRemovedFromCurrentState = true;
 
@@ -162,10 +176,7 @@ void Layer::onRemovedFromCurrentState() {
     // never finish applying transactions. We signal the sync point
     // now so that another layer will not become indefinitely
     // blocked.
-    for (auto& point: mRemoteSyncPoints) {
-        point->setTransactionApplied();
-    }
-    mRemoteSyncPoints.clear();
+    removeRemoteSyncPoints();
 
     {
     Mutex::Autolock syncLock(mLocalSyncPointMutex);
@@ -667,7 +678,7 @@ void Layer::pushPendingState() {
             // to be applied as per normal (no synchronization).
             mCurrentState.barrierLayer_legacy = nullptr;
         } else {
-            auto syncPoint = std::make_shared<SyncPoint>(mCurrentState.frameNumber_legacy);
+            auto syncPoint = std::make_shared<SyncPoint>(mCurrentState.frameNumber_legacy, this);
             if (barrierLayer->addSyncPoint(syncPoint)) {
                 mRemoteSyncPoints.push_back(std::move(syncPoint));
             } else {
@@ -1510,6 +1521,7 @@ bool Layer::detachChildren() {
         if (client != nullptr && parentClient != client) {
             child->mLayerDetached = true;
             child->detachChildren();
+            child->removeRemoteSyncPoints();
         }
     }
 
