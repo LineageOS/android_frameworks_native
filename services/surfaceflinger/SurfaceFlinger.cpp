@@ -1543,10 +1543,25 @@ void SurfaceFlinger::onRefreshReceived(int sequenceId, hwc2_display_t /*hwcDispl
 
 void SurfaceFlinger::setPrimaryVsyncEnabled(bool enabled) {
     ATRACE_CALL();
-    Mutex::Autolock lock(mStateLock);
+
+    // Enable / Disable HWVsync from the main thread to avoid race conditions with
+    // display power state.
+    postMessageAsync(new LambdaMessage(
+            [=]() NO_THREAD_SAFETY_ANALYSIS { setPrimaryVsyncEnabledInternal(enabled); }));
+}
+
+void SurfaceFlinger::setPrimaryVsyncEnabledInternal(bool enabled) {
+    ATRACE_CALL();
+
     if (const auto displayId = getInternalDisplayIdLocked()) {
-        getHwComposer().setVsyncEnabled(*displayId,
-                                        enabled ? HWC2::Vsync::Enable : HWC2::Vsync::Disable);
+        sp<DisplayDevice> display = getDefaultDisplayDeviceLocked();
+        if (display && display->isPoweredOn()) {
+            getHwComposer().setVsyncEnabled(*displayId,
+                                            enabled ? HWC2::Vsync::Enable : HWC2::Vsync::Disable);
+        } else {
+            // Cache the latest vsync state and apply it when screen is on again
+            mEnableHWVsyncScreenOn = enabled;
+        }
     }
 }
 
@@ -4451,6 +4466,11 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
         // Turn on the display
         getHwComposer().setPowerMode(*displayId, mode);
         if (display->isPrimary() && mode != HWC_POWER_MODE_DOZE_SUSPEND) {
+            if (mEnableHWVsyncScreenOn) {
+                setPrimaryVsyncEnabledInternal(mEnableHWVsyncScreenOn);
+                mEnableHWVsyncScreenOn = false;
+            }
+
             mScheduler->onScreenAcquired(mAppConnectionHandle);
             mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
         }
