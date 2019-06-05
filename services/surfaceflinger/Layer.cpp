@@ -428,7 +428,7 @@ void Layer::latchGeometry(compositionengine::LayerFECompositionState& compositio
         auto& parentState = parent->getDrawingState();
         const int parentType = parentState.metadata.getInt32(METADATA_WINDOW_TYPE, 0);
         const int parentAppId = parentState.metadata.getInt32(METADATA_OWNER_UID, 0);
-        if (parentType >= 0 || parentAppId >= 0) {
+        if (parentType > 0 && parentAppId > 0) {
             type = parentType;
             appId = parentAppId;
         }
