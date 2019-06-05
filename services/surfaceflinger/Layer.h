@@ -571,6 +571,17 @@ public:
     virtual bool isBufferLatched() const { return false; }
 
     /*
+     * Remove relative z for the layer if its relative parent is not part of the
+     * provided layer tree.
+     */
+    void removeRelativeZ(const std::vector<Layer*>& layersInTree);
+
+    /*
+     * Remove from current state and mark for removal.
+     */
+    void removeFromCurrentState();
+
+    /*
      * called with the state lock from a binder thread when the layer is
      * removed from the current list to the pending removal list
      */
