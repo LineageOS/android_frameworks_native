@@ -144,28 +144,47 @@ Layer::~Layer() {
  */
 void Layer::onLayerDisplayed(const sp<Fence>& /*releaseFence*/) {}
 
-void Layer::onRemovedFromCurrentState() {
-    mRemovedFromCurrentState = true;
+void Layer::removeRemoteSyncPoints() {
+    for (auto& point : mRemoteSyncPoints) {
+        point->setTransactionApplied();
+    }
+    mRemoteSyncPoints.clear();
 
-    // the layer is removed from SF mCurrentState to mLayersPendingRemoval
-    if (mCurrentState.zOrderRelativeOf != nullptr) {
-        sp<Layer> strongRelative = mCurrentState.zOrderRelativeOf.promote();
-        if (strongRelative != nullptr) {
-            strongRelative->removeZOrderRelative(this);
-            mFlinger->setTransactionFlags(eTraversalNeeded);
+    {
+        Mutex::Autolock pendingStateLock(mPendingStateMutex);
+        for (State pendingState : mPendingStates) {
+            pendingState.barrierLayer_legacy = nullptr;
         }
+    }
+}
+
+void Layer::removeRelativeZ(const std::vector<Layer*>& layersInTree) {
+    if (mCurrentState.zOrderRelativeOf == nullptr) {
+        return;
+    }
+
+    sp<Layer> strongRelative = mCurrentState.zOrderRelativeOf.promote();
+    if (strongRelative == nullptr) {
+        setZOrderRelativeOf(nullptr);
+        return;
+    }
+
+    if (!std::binary_search(layersInTree.begin(), layersInTree.end(), strongRelative.get())) {
+        strongRelative->removeZOrderRelative(this);
+        mFlinger->setTransactionFlags(eTraversalNeeded);
         setZOrderRelativeOf(nullptr);
     }
+}
+
+void Layer::removeFromCurrentState() {
+    mRemovedFromCurrentState = true;
 
     // Since we are no longer reachable from CurrentState SurfaceFlinger
     // will no longer invoke doTransaction for us, and so we will
     // never finish applying transactions. We signal the sync point
     // now so that another layer will not become indefinitely
     // blocked.
-    for (auto& point: mRemoteSyncPoints) {
-        point->setTransactionApplied();
-    }
-    mRemoteSyncPoints.clear();
+    removeRemoteSyncPoints();
 
     {
     Mutex::Autolock syncLock(mLocalSyncPointMutex);
@@ -175,11 +194,16 @@ void Layer::onRemovedFromCurrentState() {
     mLocalSyncPoints.clear();
     }
 
-    for (const auto& child : mCurrentChildren) {
-        child->onRemovedFromCurrentState();
-    }
-
     mFlinger->markLayerPendingRemovalLocked(this);
+}
+
+void Layer::onRemovedFromCurrentState() {
+    auto layersInTree = getLayersInTree(LayerVector::StateSet::Current);
+    std::sort(layersInTree.begin(), layersInTree.end());
+    for (const auto& layer : layersInTree) {
+        layer->removeFromCurrentState();
+        layer->removeRelativeZ(layersInTree);
+    }
 }
 
 void Layer::addToCurrentState() {
@@ -667,7 +691,7 @@ void Layer::pushPendingState() {
             // to be applied as per normal (no synchronization).
             mCurrentState.barrierLayer_legacy = nullptr;
         } else {
-            auto syncPoint = std::make_shared<SyncPoint>(mCurrentState.frameNumber_legacy);
+            auto syncPoint = std::make_shared<SyncPoint>(mCurrentState.frameNumber_legacy, this);
             if (barrierLayer->addSyncPoint(syncPoint)) {
                 mRemoteSyncPoints.push_back(std::move(syncPoint));
             } else {
@@ -1510,6 +1534,7 @@ bool Layer::detachChildren() {
         if (client != nullptr && parentClient != client) {
             child->mLayerDetached = true;
             child->detachChildren();
+            child->removeRemoteSyncPoints();
         }
     }
 

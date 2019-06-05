@@ -571,6 +571,17 @@ public:
     virtual bool isBufferLatched() const { return false; }
 
     /*
+     * Remove relative z for the layer if its relative parent is not part of the
+     * provided layer tree.
+     */
+    void removeRelativeZ(const std::vector<Layer*>& layersInTree);
+
+    /*
+     * Remove from current state and mark for removal.
+     */
+    void removeFromCurrentState();
+
+    /*
      * called with the state lock from a binder thread when the layer is
      * removed from the current list to the pending removal list
      */
@@ -733,8 +744,11 @@ protected:
 
     class SyncPoint {
     public:
-        explicit SyncPoint(uint64_t frameNumber)
-              : mFrameNumber(frameNumber), mFrameIsAvailable(false), mTransactionIsApplied(false) {}
+        explicit SyncPoint(uint64_t frameNumber, wp<Layer> requestedSyncLayer)
+              : mFrameNumber(frameNumber),
+                mFrameIsAvailable(false),
+                mTransactionIsApplied(false),
+                mRequestedSyncLayer(requestedSyncLayer) {}
 
         uint64_t getFrameNumber() const { return mFrameNumber; }
 
@@ -746,10 +760,13 @@ protected:
 
         void setTransactionApplied() { mTransactionIsApplied = true; }
 
+        sp<Layer> getRequestedSyncLayer() { return mRequestedSyncLayer.promote(); }
+
     private:
         const uint64_t mFrameNumber;
         std::atomic<bool> mFrameIsAvailable;
         std::atomic<bool> mTransactionIsApplied;
+        wp<Layer> mRequestedSyncLayer;
     };
 
     // SyncPoints which will be signaled when the correct frame is at the head
@@ -928,6 +945,8 @@ private:
     void setZOrderRelativeOf(const wp<Layer>& relativeOf);
 
     bool mGetHandleCalled = false;
+
+    void removeRemoteSyncPoints();
 };
 
 } // namespace android
