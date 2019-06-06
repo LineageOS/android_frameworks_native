@@ -94,7 +94,7 @@ SensorManager& SensorManager::getInstanceForPackage(const String16& packageName)
 
 SensorManager::SensorManager(const String16& opPackageName)
     : mSensorList(0), mOpPackageName(opPackageName), mDirectConnectionHandle(1) {
-    // okay we're not locked here, but it's not needed during construction
+    Mutex::Autolock _l(mLock);
     assertStateLocked();
 }
 
