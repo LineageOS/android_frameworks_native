@@ -298,6 +298,11 @@ public:
     // TODO: this should be made accessible only to MessageQueue
     void onMessageReceived(int32_t what);
 
+    // Returns the expected present time for this frame.
+    // When we are in negative offsets, we perform a correction so that the
+    // predicted vsync for the *next* frame is used instead.
+    nsecs_t getExpectedPresentTime();
+
     // for debugging only
     // TODO: this should be made accessible only to HWComposer
     const Vector<sp<Layer>>& getLayerSortedByZForHwcDisplay(DisplayId displayId);
