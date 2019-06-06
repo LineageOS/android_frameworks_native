@@ -187,13 +187,9 @@ static EGLBoolean egl_init_drivers_locked() {
 
     // dynamically load our EGL implementation
     egl_connection_t* cnx = &gEGLImpl;
-    if (cnx->dso == nullptr) {
-        cnx->hooks[egl_connection_t::GLESv1_INDEX] =
-                &gHooks[egl_connection_t::GLESv1_INDEX];
-        cnx->hooks[egl_connection_t::GLESv2_INDEX] =
-                &gHooks[egl_connection_t::GLESv2_INDEX];
-        cnx->dso = loader.open(cnx);
-    }
+    cnx->hooks[egl_connection_t::GLESv1_INDEX] = &gHooks[egl_connection_t::GLESv1_INDEX];
+    cnx->hooks[egl_connection_t::GLESv2_INDEX] = &gHooks[egl_connection_t::GLESv2_INDEX];
+    cnx->dso = loader.open(cnx);
 
     // Check to see if any layers are enabled and route functions through them
     if (cnx->dso) {
