@@ -38,29 +38,29 @@ KeyMap::KeyMap() {
 KeyMap::~KeyMap() {
 }
 
-status_t KeyMap::load(const InputDeviceIdentifier& deviceIdenfifier,
+status_t KeyMap::load(const InputDeviceIdentifier& deviceIdentifier,
         const PropertyMap* deviceConfiguration) {
     // Use the configured key layout if available.
     if (deviceConfiguration) {
         String8 keyLayoutName;
         if (deviceConfiguration->tryGetProperty(String8("keyboard.layout"),
                 keyLayoutName)) {
-            status_t status = loadKeyLayout(deviceIdenfifier, keyLayoutName.c_str());
+            status_t status = loadKeyLayout(deviceIdentifier, keyLayoutName.c_str());
             if (status == NAME_NOT_FOUND) {
                 ALOGE("Configuration for keyboard device '%s' requested keyboard layout '%s' but "
                         "it was not found.",
-                        deviceIdenfifier.name.c_str(), keyLayoutName.string());
+                        deviceIdentifier.name.c_str(), keyLayoutName.string());
             }
         }
 
         String8 keyCharacterMapName;
         if (deviceConfiguration->tryGetProperty(String8("keyboard.characterMap"),
                 keyCharacterMapName)) {
-            status_t status = loadKeyCharacterMap(deviceIdenfifier, keyCharacterMapName.c_str());
+            status_t status = loadKeyCharacterMap(deviceIdentifier, keyCharacterMapName.c_str());
             if (status == NAME_NOT_FOUND) {
                 ALOGE("Configuration for keyboard device '%s' requested keyboard character "
                         "map '%s' but it was not found.",
-                        deviceIdenfifier.name.c_str(), keyLayoutName.string());
+                        deviceIdentifier.name.c_str(), keyCharacterMapName.string());
             }
         }
 
@@ -70,25 +70,25 @@ status_t KeyMap::load(const InputDeviceIdentifier& deviceIdenfifier,
     }
 
     // Try searching by device identifier.
-    if (probeKeyMap(deviceIdenfifier, "")) {
+    if (probeKeyMap(deviceIdentifier, "")) {
         return OK;
     }
 
     // Fall back on the Generic key map.
     // TODO Apply some additional heuristics here to figure out what kind of
     //      generic key map to use (US English, etc.) for typical external keyboards.
-    if (probeKeyMap(deviceIdenfifier, "Generic")) {
+    if (probeKeyMap(deviceIdentifier, "Generic")) {
         return OK;
     }
 
     // Try the Virtual key map as a last resort.
-    if (probeKeyMap(deviceIdenfifier, "Virtual")) {
+    if (probeKeyMap(deviceIdentifier, "Virtual")) {
         return OK;
     }
 
     // Give up!
     ALOGE("Could not determine key map for device '%s' and no default key maps were found!",
-            deviceIdenfifier.name.c_str());
+            deviceIdentifier.name.c_str());
     return NAME_NOT_FOUND;
 }
 
