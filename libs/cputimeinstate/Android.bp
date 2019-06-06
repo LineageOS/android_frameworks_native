@@ -19,7 +19,11 @@ cc_test {
     name: "libtimeinstate_test",
     srcs: ["testtimeinstate.cpp"],
     shared_libs: [
+        "libbase",
+        "libbpf",
+        "libbpf_android",
         "libtimeinstate",
+        "libnetdutils",
     ],
     cflags: [
         "-Werror",

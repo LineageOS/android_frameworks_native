@@ -17,6 +17,7 @@
 #define LOG_TAG "libtimeinstate"
 
 #include "cputimeinstate.h"
+#include "timeinstate.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -38,22 +39,11 @@
 #include <libbpf.h>
 #include <log/log.h>
 
-#define BPF_FS_PATH "/sys/fs/bpf/"
-
 using android::base::StringPrintf;
 using android::base::unique_fd;
 
 namespace android {
 namespace bpf {
-
-struct time_key_t {
-    uint32_t uid;
-    uint32_t freq;
-};
-
-struct val_t {
-    uint64_t ar[100];
-};
 
 static std::mutex gInitializedMutex;
 static bool gInitialized = false;
