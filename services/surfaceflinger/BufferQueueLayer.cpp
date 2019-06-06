@@ -143,7 +143,7 @@ bool BufferQueueLayer::framePresentTimeIsCurrent() const {
     }
 
     Mutex::Autolock lock(mQueueItemLock);
-    return mQueueItems[0].mTimestamp <= mFlinger->mScheduler->expectedPresentTime();
+    return mQueueItems[0].mTimestamp <= mFlinger->getExpectedPresentTime();
 }
 
 nsecs_t BufferQueueLayer::getDesiredPresentTime() {

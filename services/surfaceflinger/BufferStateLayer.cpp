@@ -380,7 +380,7 @@ bool BufferStateLayer::framePresentTimeIsCurrent() const {
         return true;
     }
 
-    return mDesiredPresentTime <= mFlinger->mScheduler->expectedPresentTime();
+    return mDesiredPresentTime <= mFlinger->getExpectedPresentTime();
 }
 
 nsecs_t BufferStateLayer::getDesiredPresentTime() {
