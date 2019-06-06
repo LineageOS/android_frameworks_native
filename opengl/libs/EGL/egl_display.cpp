@@ -217,7 +217,7 @@ EGLDisplay egl_display_t::getPlatformDisplay(EGLNativeDisplayType display,
     Loader& loader(Loader::getInstance());
 
     egl_connection_t* const cnx = &gEGLImpl;
-    if (cnx->dso && disp.dpy == EGL_NO_DISPLAY) {
+    if (cnx->dso) {
         EGLDisplay dpy = EGL_NO_DISPLAY;
 
         if (cnx->useAngle) {
