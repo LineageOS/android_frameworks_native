@@ -58,6 +58,7 @@ private:
     driver_t* attempt_to_load_angle(egl_connection_t* cnx);
     driver_t* attempt_to_load_updated_driver(egl_connection_t* cnx);
     driver_t* attempt_to_load_system_driver(egl_connection_t* cnx, const char* suffix, const bool exact);
+    void unload_system_driver(egl_connection_t* cnx);
     void initialize_api(void* dso, egl_connection_t* cnx, uint32_t mask);
 
     static __attribute__((noinline))
