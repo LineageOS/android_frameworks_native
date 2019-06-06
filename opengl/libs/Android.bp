@@ -208,6 +208,10 @@ cc_library_shared {
     defaults: ["gles_libs_defaults"],
     srcs: ["GLES2/gl2.cpp"],
     cflags: ["-DLOG_TAG=\"libGLESv2\""],
+
+    // Bug: http://b/133874658  Disable native_coverage as we investigate a
+    // crash in surfaceflinger on coverage-enabled cuttlefish builds.
+    native_coverage: false,
 }
 
 //##############################################################################
