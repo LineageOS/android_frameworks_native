@@ -126,10 +126,10 @@ TEST(TimeInStateTest, RemoveUid) {
         ASSERT_GE(fd, 0);
         time_key_t k;
         ASSERT_FALSE(getFirstMapKey(fd, &k));
-        val_t val;
-        ASSERT_FALSE(findMapEntry(fd, &k, &val));
+        std::vector<val_t> vals(get_nprocs_conf());
+        ASSERT_FALSE(findMapEntry(fd, &k, vals.data()));
         k.uid = uid;
-        ASSERT_FALSE(writeToMapEntry(fd, &k, &val, BPF_NOEXIST));
+        ASSERT_FALSE(writeToMapEntry(fd, &k, vals.data(), BPF_NOEXIST));
     }
     auto times = getUidCpuFreqTimes(uid);
     ASSERT_TRUE(times.has_value());

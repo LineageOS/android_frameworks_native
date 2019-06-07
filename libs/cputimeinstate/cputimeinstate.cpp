@@ -49,6 +49,7 @@ namespace bpf {
 static std::mutex gInitializedMutex;
 static bool gInitialized = false;
 static uint32_t gNPolicies = 0;
+static uint32_t gNCpus = 0;
 static std::vector<std::vector<uint32_t>> gPolicyFreqs;
 static std::vector<std::vector<uint32_t>> gPolicyCpus;
 static std::set<uint32_t> gAllFreqs;
@@ -85,6 +86,8 @@ static int comparePolicyFiles(const struct dirent **d1, const struct dirent **d2
 static bool initGlobals() {
     std::lock_guard<std::mutex> guard(gInitializedMutex);
     if (gInitialized) return true;
+
+    gNCpus = get_nprocs_conf();
 
     struct dirent **dirlist;
     const char basepath[] = "/sys/devices/system/cpu/cpufreq";
@@ -152,6 +155,21 @@ bool startTrackingUidCpuFreqTimes() {
         }
     }
 
+    unique_fd fd2(bpf_obj_get(BPF_FS_PATH "map_time_in_state_freq_to_idx_map"));
+    if (fd2 < 0) return false;
+    freq_idx_key_t key;
+    for (uint32_t i = 0; i < gNPolicies; ++i) {
+        key.policy = i;
+        for (uint32_t j = 0; j < gPolicyFreqs[i].size(); ++j) {
+            key.freq = gPolicyFreqs[i][j];
+            // Start indexes at 1 so that uninitialized state is distinguishable from lowest freq.
+            // The uid_times map still uses 0-based indexes, and the sched_switch program handles
+            // conversion between them, so this does not affect our map reading code.
+            uint32_t idx = j + 1;
+            if (writeToMapEntry(fd2, &key, &idx, BPF_ANY)) return false;
+        }
+    }
+
     return attachTracepointProgram("sched", "sched_switch") &&
             attachTracepointProgram("power", "cpu_frequency");
 }
@@ -163,30 +181,33 @@ bool startTrackingUidCpuFreqTimes() {
 // where ti_j is the ns that uid spent running on the ith cluster at that cluster's jth lowest freq.
 std::optional<std::vector<std::vector<uint64_t>>> getUidCpuFreqTimes(uint32_t uid) {
     if (!gInitialized && !initGlobals()) return {};
-    time_key_t key = {.uid = uid, .freq = 0};
 
-    std::vector<std::vector<uint64_t>> out(gNPolicies);
-    std::vector<uint32_t> idxs(gNPolicies, 0);
+    std::vector<std::vector<uint64_t>> out;
+    uint32_t maxFreqCount = 0;
+    for (const auto &freqList : gPolicyFreqs) {
+        if (freqList.size() > maxFreqCount) maxFreqCount = freqList.size();
+        out.emplace_back(freqList.size(), 0);
+    }
 
-    val_t value;
-    for (uint32_t freq : gAllFreqs) {
-        key.freq = freq;
-        int ret = findMapEntry(gMapFd, &key, &value);
-        if (ret) {
-            if (errno == ENOENT)
-                memset(&value.ar, 0, sizeof(value.ar));
-            else
-                return {};
+    std::vector<val_t> vals(gNCpus);
+    time_key_t key = {.uid = uid};
+    for (uint32_t i = 0; i <= (maxFreqCount - 1) / FREQS_PER_ENTRY; ++i) {
+        key.bucket = i;
+        if (findMapEntry(gMapFd, &key, vals.data())) {
+            if (errno != ENOENT) return {};
+            continue;
         }
-        for (uint32_t i = 0; i < gNPolicies; ++i) {
-            uint64_t time = 0;
-            for (uint32_t cpu : gPolicyCpus[i]) time += value.ar[cpu];
-            if (idxs[i] == gPolicyFreqs[i].size() || freq != gPolicyFreqs[i][idxs[i]]) {
-                if (time != 0) return {};
-                else continue;
+
+        auto offset = i * FREQS_PER_ENTRY;
+        auto nextOffset = (i + 1) * FREQS_PER_ENTRY;
+        for (uint32_t j = 0; j < gNPolicies; ++j) {
+            if (offset >= gPolicyFreqs[j].size()) continue;
+            auto begin = out[j].begin() + offset;
+            auto end = nextOffset < gPolicyFreqs[j].size() ? begin + FREQS_PER_ENTRY : out[j].end();
+
+            for (const auto &cpu : gPolicyCpus[j]) {
+                std::transform(begin, end, std::begin(vals[cpu].ar), begin, std::plus<uint64_t>());
             }
-            idxs[i] += 1;
-            out[i].emplace_back(time);
         }
     }
 
@@ -202,49 +223,52 @@ std::optional<std::vector<std::vector<uint64_t>>> getUidCpuFreqTimes(uint32_t ui
 std::optional<std::unordered_map<uint32_t, std::vector<std::vector<uint64_t>>>>
 getUidsCpuFreqTimes() {
     if (!gInitialized && !initGlobals()) return {};
-
-    int fd = bpf_obj_get(BPF_FS_PATH "map_time_in_state_uid_times_map");
-    if (fd < 0) return {};
-    BpfMap<time_key_t, val_t> m(fd);
-
-    std::vector<std::unordered_map<uint32_t, uint32_t>> policyFreqIdxs;
-    for (uint32_t i = 0; i < gNPolicies; ++i) {
-        std::unordered_map<uint32_t, uint32_t> freqIdxs;
-        for (size_t j = 0; j < gPolicyFreqs[i].size(); ++j) freqIdxs[gPolicyFreqs[i][j]] = j;
-        policyFreqIdxs.emplace_back(freqIdxs);
-    }
+    time_key_t key, prevKey;
     std::unordered_map<uint32_t, std::vector<std::vector<uint64_t>>> map;
-    auto fn = [&map, &policyFreqIdxs](const time_key_t &key, const val_t &val,
-                                             const BpfMap<time_key_t, val_t> &) {
-        if (map.find(key.uid) == map.end()) {
-            map[key.uid].resize(gNPolicies);
-            for (uint32_t i = 0; i < gNPolicies; ++i) {
-                map[key.uid][i].resize(gPolicyFreqs[i].size(), 0);
+    if (getFirstMapKey(gMapFd, &key)) {
+        if (errno == ENOENT) return map;
+        return std::nullopt;
+    }
+
+    std::vector<std::vector<uint64_t>> mapFormat;
+    for (const auto &freqList : gPolicyFreqs) mapFormat.emplace_back(freqList.size(), 0);
+
+    std::vector<val_t> vals(gNCpus);
+    do {
+        if (findMapEntry(gMapFd, &key, vals.data())) return {};
+        if (map.find(key.uid) == map.end()) map.emplace(key.uid, mapFormat);
+
+        auto offset = key.bucket * FREQS_PER_ENTRY;
+        auto nextOffset = (key.bucket + 1) * FREQS_PER_ENTRY;
+        for (uint32_t i = 0; i < gNPolicies; ++i) {
+            if (offset >= gPolicyFreqs[i].size()) continue;
+            auto begin = map[key.uid][i].begin() + offset;
+            auto end = nextOffset < gPolicyFreqs[i].size() ? begin + FREQS_PER_ENTRY :
+                map[key.uid][i].end();
+            for (const auto &cpu : gPolicyCpus[i]) {
+                std::transform(begin, end, std::begin(vals[cpu].ar), begin, std::plus<uint64_t>());
             }
         }
-
-        for (size_t policy = 0; policy < gNPolicies; ++policy) {
-            uint64_t time = 0;
-            for (const auto &cpu : gPolicyCpus[policy]) time += val.ar[cpu];
-            if (!time) continue;
-            auto it = policyFreqIdxs[policy].find(key.freq);
-            if (it == policyFreqIdxs[policy].end()) return android::netdutils::Status(-1);
-            map[key.uid][policy][it->second] += time;
-        }
-        return android::netdutils::status::ok;
-    };
-    if (isOk(m.iterateWithValue(fn))) return map;
-    return {};
+        prevKey = key;
+    } while (!getNextMapKey(gMapFd, &prevKey, &key));
+    if (errno != ENOENT) return {};
+    return map;
 }
 
 // Clear all time in state data for a given uid. Returns false on error, true otherwise.
 bool clearUidCpuFreqTimes(uint32_t uid) {
     if (!gInitialized && !initGlobals()) return false;
-    time_key_t key = {.uid = uid, .freq = 0};
 
-    std::vector<uint64_t> vals(get_nprocs_conf(), 0);
-    for (auto freq : gAllFreqs) {
-        key.freq = freq;
+    time_key_t key = {.uid = uid};
+
+    uint32_t maxFreqCount = 0;
+    for (const auto &freqList : gPolicyFreqs) {
+        if (freqList.size() > maxFreqCount) maxFreqCount = freqList.size();
+    }
+
+    val_t zeros = {0};
+    std::vector<val_t> vals(gNCpus, zeros);
+    for (key.bucket = 0; key.bucket <= (maxFreqCount - 1) / FREQS_PER_ENTRY; ++key.bucket) {
         if (writeToMapEntry(gMapFd, &key, vals.data(), BPF_EXIST) && errno != ENOENT) return false;
         if (deleteMapEntry(gMapFd, &key) && errno != ENOENT) return false;
     }
