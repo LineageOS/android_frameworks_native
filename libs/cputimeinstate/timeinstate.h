@@ -18,11 +18,18 @@
 
 #define BPF_FS_PATH "/sys/fs/bpf/"
 
+#define FREQS_PER_ENTRY 32
+
 struct time_key_t {
     uint32_t uid;
-    uint32_t freq;
+    uint32_t bucket;
 };
 
 struct val_t {
-    uint64_t ar[100];
+    uint64_t ar[FREQS_PER_ENTRY];
+};
+
+struct freq_idx_key_t {
+    uint32_t policy;
+    uint32_t freq;
 };
