@@ -141,6 +141,17 @@ static bool attachTracepointProgram(const std::string &eventType, const std::str
 // This function should *not* be called while tracking is already active; doing so is unnecessary
 // and can lead to accounting errors.
 bool startTrackingUidCpuFreqTimes() {
+    if (!initGlobals()) return false;
+
+    unique_fd fd(bpf_obj_get(BPF_FS_PATH "map_time_in_state_cpu_policy_map"));
+    if (fd < 0) return false;
+
+    for (uint32_t i = 0; i < gPolicyCpus.size(); ++i) {
+        for (auto &cpu : gPolicyCpus[i]) {
+            if (writeToMapEntry(fd, &cpu, &i, BPF_ANY)) return false;
+        }
+    }
+
     return attachTracepointProgram("sched", "sched_switch") &&
             attachTracepointProgram("power", "cpu_frequency");
 }
