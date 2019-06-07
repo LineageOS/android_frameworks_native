@@ -1,0 +1,26 @@
+cc_library {
+    name: "libthermalservice",
+
+    srcs: [
+        "android/os/IThermalEventListener.aidl",
+        "android/os/IThermalService.aidl",
+        "android/os/Temperature.cpp",
+    ],
+    aidl: {
+        local_include_dirs: ["."],
+        export_aidl_headers: true,
+    },
+    export_include_dirs: ["."],
+
+    shared_libs: [
+        "libbinder",
+        "libutils",
+    ],
+
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-Wunused",
+        "-Wunreachable-code",
+    ],
+}
