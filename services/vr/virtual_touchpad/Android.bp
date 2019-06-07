@@ -62,7 +62,7 @@ cc_test {
 service_src = [
     "main.cpp",
     "VirtualTouchpadService.cpp",
-    "aidl/android/dvr/IVirtualTouchpadService.aidl",
+    ":virtualtouchpad_aidl",
 ]
 
 service_static_libs = [
@@ -99,7 +99,7 @@ cc_binary {
 client_src = [
     "VirtualTouchpadClient.cpp",
     "DvrVirtualTouchpadClient.cpp",
-    "aidl/android/dvr/IVirtualTouchpadService.aidl",
+    ":virtualtouchpad_aidl",
 ]
 
 client_shared_libs = [
@@ -121,4 +121,10 @@ cc_library {
     host_ldlibs: ["-llog"],
     name: "libvirtualtouchpadclient",
     export_include_dirs: ["include"],
+}
+
+filegroup {
+    name: "virtualtouchpad_aidl",
+    srcs: ["aidl/android/dvr/IVirtualTouchpadService.aidl"],
+    path: "aidl",
 }
