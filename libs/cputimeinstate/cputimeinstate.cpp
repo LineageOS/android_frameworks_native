@@ -124,7 +124,7 @@ static bool initGlobals() {
         gPolicyCpus.emplace_back(cpus);
     }
 
-    gMapFd = unique_fd{bpf_obj_get(BPF_FS_PATH "map_time_in_state_uid_times")};
+    gMapFd = unique_fd{bpf_obj_get(BPF_FS_PATH "map_time_in_state_uid_times_map")};
     if (gMapFd < 0) return false;
 
     gInitialized = true;
@@ -196,7 +196,7 @@ bool getUidsCpuFreqTimes(
         std::unordered_map<uint32_t, std::vector<std::vector<uint64_t>>> *freqTimeMap) {
     if (!gInitialized && !initGlobals()) return false;
 
-    int fd = bpf_obj_get(BPF_FS_PATH "map_time_in_state_uid_times");
+    int fd = bpf_obj_get(BPF_FS_PATH "map_time_in_state_uid_times_map");
     if (fd < 0) return false;
     BpfMap<time_key_t, val_t> m(fd);
 
