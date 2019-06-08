@@ -69,7 +69,8 @@ public:
 
 class EventThreadConnection : public BnDisplayEventConnection {
 public:
-    EventThreadConnection(EventThread*, ResyncCallback);
+    EventThreadConnection(EventThread*, ResyncCallback,
+                          ISurfaceComposer::ConfigChanged configChanged);
     virtual ~EventThreadConnection();
 
     virtual status_t postEvent(const DisplayEventReceiver::Event& event);
@@ -82,6 +83,7 @@ public:
     const ResyncCallback resyncCallback;
 
     VSyncRequest vsyncRequest = VSyncRequest::None;
+    const ISurfaceComposer::ConfigChanged configChanged;
 
 private:
     virtual void onFirstRef();
@@ -93,7 +95,8 @@ class EventThread {
 public:
     virtual ~EventThread();
 
-    virtual sp<EventThreadConnection> createEventConnection(ResyncCallback) const = 0;
+    virtual sp<EventThreadConnection> createEventConnection(
+            ResyncCallback, ISurfaceComposer::ConfigChanged configChanged) const = 0;
 
     // called before the screen is turned off from main thread
     virtual void onScreenReleased() = 0;
@@ -128,7 +131,8 @@ public:
     EventThread(std::unique_ptr<VSyncSource>, InterceptVSyncsCallback, const char* threadName);
     ~EventThread();
 
-    sp<EventThreadConnection> createEventConnection(ResyncCallback) const override;
+    sp<EventThreadConnection> createEventConnection(
+            ResyncCallback, ISurfaceComposer::ConfigChanged configChanged) const override;
 
     status_t registerDisplayEventConnection(const sp<EventThreadConnection>& connection) override;
     void setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& connection) override;

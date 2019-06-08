@@ -301,6 +301,11 @@ public:
     // TODO: this should be made accessible only to MessageQueue
     void onMessageReceived(int32_t what);
 
+    // Returns the expected present time for this frame.
+    // When we are in negative offsets, we perform a correction so that the
+    // predicted vsync for the *next* frame is used instead.
+    nsecs_t getExpectedPresentTime();
+
     // for debugging only
     // TODO: this should be made accessible only to HWComposer
     const Vector<sp<Layer>>& getLayerSortedByZForHwcDisplay(DisplayId displayId);
@@ -402,7 +407,9 @@ private:
             const sp<IGraphicBufferProducer>& bufferProducer) const override;
     status_t getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported) const override;
     sp<IDisplayEventConnection> createDisplayEventConnection(
-            ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp) override;
+            ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp,
+            ISurfaceComposer::ConfigChanged configChanged =
+                    ISurfaceComposer::eConfigChangedSuppress) override;
     status_t captureScreen(const sp<IBinder>& displayToken, sp<GraphicBuffer>* outBuffer,
             bool& outCapturedSecureLayers, const ui::Dataspace reqDataspace,
             const ui::PixelFormat reqPixelFormat, Rect sourceCrop,

@@ -1372,7 +1372,7 @@ status_t SurfaceFlinger::notifyPowerHint(int32_t hintId) {
 // ----------------------------------------------------------------------------
 
 sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
-        ISurfaceComposer::VsyncSource vsyncSource) {
+        ISurfaceComposer::VsyncSource vsyncSource, ISurfaceComposer::ConfigChanged configChanged) {
     auto resyncCallback = mScheduler->makeResyncCallback([this] {
         Mutex::Autolock lock(mStateLock);
         return getVsyncPeriod();
@@ -1381,7 +1381,8 @@ sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
     const auto& handle =
             vsyncSource == eVsyncSourceSurfaceFlinger ? mSfConnectionHandle : mAppConnectionHandle;
 
-    return mScheduler->createDisplayEventConnection(handle, std::move(resyncCallback));
+    return mScheduler->createDisplayEventConnection(handle, std::move(resyncCallback),
+                                                    configChanged);
 }
 
 // ----------------------------------------------------------------------------
@@ -1656,6 +1657,18 @@ bool SurfaceFlinger::previousFrameMissed() NO_THREAD_SAFETY_ANALYSIS {
             : mPreviousPresentFences[1];
 
     return fence != Fence::NO_FENCE && (fence->getStatus() == Fence::Status::Unsignaled);
+}
+
+nsecs_t SurfaceFlinger::getExpectedPresentTime() NO_THREAD_SAFETY_ANALYSIS {
+    DisplayStatInfo stats;
+    mScheduler->getDisplayStatInfo(&stats);
+    const nsecs_t presentTime = mScheduler->expectedPresentTime();
+    // Inflate the expected present time if we're targetting the next vsync.
+    const nsecs_t correctedTime =
+            mVsyncModulator.getOffsets().sf < mPhaseOffsets->getOffsetThresholdForNextVsync()
+            ? presentTime
+            : presentTime + stats.vsyncPeriod;
+    return correctedTime;
 }
 
 void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
@@ -3259,8 +3272,7 @@ bool SurfaceFlinger::handlePageFlip()
     mDrawingState.traverseInZOrder([&](Layer* layer) {
         if (layer->hasReadyFrame()) {
             frameQueued = true;
-            nsecs_t expectedPresentTime;
-            expectedPresentTime = mScheduler->expectedPresentTime();
+            const nsecs_t expectedPresentTime = getExpectedPresentTime();
             if (layer->shouldPresentNow(expectedPresentTime)) {
                 mLayersWithQueuedFrames.push_back(layer);
             } else {
@@ -4137,6 +4149,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     sp<GraphicBuffer> buffer;
     if (bufferChanged && cacheIdChanged) {
         ClientCache::getInstance().add(s.cachedBuffer, s.buffer);
+        ClientCache::getInstance().registerErasedRecipient(s.cachedBuffer,
+                                                           wp<ClientCache::ErasedRecipient>(layer));
+        getRenderEngine().cacheExternalTextureBuffer(s.buffer);
         buffer = s.buffer;
     } else if (cacheIdChanged) {
         buffer = ClientCache::getInstance().get(s.cachedBuffer);
