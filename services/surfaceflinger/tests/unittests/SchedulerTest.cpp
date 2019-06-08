@@ -47,7 +47,7 @@ protected:
 
         std::unique_ptr<EventThread> makeEventThread(
                 const char* /* connectionName */, DispSync* /* dispSync */,
-                nsecs_t /* phaseOffsetNs */,
+                nsecs_t /* phaseOffsetNs */, nsecs_t /* offsetThresholdForNextVsync */,
                 impl::EventThread::InterceptVSyncsCallback /* interceptCallback */) override {
             return std::move(mEventThread);
         }
@@ -84,7 +84,7 @@ SchedulerTest::SchedulerTest() {
     EXPECT_CALL(*mEventThread, createEventConnection(_))
             .WillRepeatedly(Return(mEventThreadConnection));
 
-    mConnectionHandle = mScheduler->createConnection("appConnection", 16, ResyncCallback(),
+    mConnectionHandle = mScheduler->createConnection("appConnection", 16, 16, ResyncCallback(),
                                                      impl::EventThread::InterceptVSyncsCallback());
     EXPECT_TRUE(mConnectionHandle != nullptr);
 }

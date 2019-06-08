@@ -27,14 +27,16 @@
 
 namespace android {
 
-DispSyncSource::DispSyncSource(DispSync* dispSync, nsecs_t phaseOffset, bool traceVsync,
+DispSyncSource::DispSyncSource(DispSync* dispSync, nsecs_t phaseOffset,
+                               nsecs_t offsetThresholdForNextVsync, bool traceVsync,
                                const char* name)
       : mName(name),
         mTraceVsync(traceVsync),
         mVsyncOnLabel(base::StringPrintf("VsyncOn-%s", name)),
         mVsyncEventLabel(base::StringPrintf("VSYNC-%s", name)),
         mDispSync(dispSync),
-        mPhaseOffset(phaseOffset) {}
+        mPhaseOffset(phaseOffset),
+        mOffsetThresholdForNextVsync(offsetThresholdForNextVsync) {}
 
 void DispSyncSource::setVSyncEnabled(bool enable) {
     std::lock_guard lock(mVsyncMutex);
@@ -64,15 +66,15 @@ void DispSyncSource::setCallback(VSyncSource::Callback* callback) {
 
 void DispSyncSource::setPhaseOffset(nsecs_t phaseOffset) {
     std::lock_guard lock(mVsyncMutex);
-
-    // Normalize phaseOffset to [0, period)
-    auto period = mDispSync->getPeriod();
-    phaseOffset %= period;
-    if (phaseOffset < 0) {
-        // If we're here, then phaseOffset is in (-period, 0). After this
-        // operation, it will be in (0, period)
-        phaseOffset += period;
+    const nsecs_t period = mDispSync->getPeriod();
+    // Check if offset should be handled as negative
+    if (phaseOffset >= mOffsetThresholdForNextVsync) {
+        phaseOffset -= period;
     }
+
+    // Normalize phaseOffset to [-period, period)
+    const int numPeriods = phaseOffset / period;
+    phaseOffset -= numPeriods * period;
     mPhaseOffset = phaseOffset;
 
     // If we're not enabled, we don't need to mess with the listeners
