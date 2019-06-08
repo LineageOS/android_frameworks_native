@@ -158,18 +158,26 @@ void Layer::removeRemoteSyncPoints() {
     }
 }
 
-void Layer::onRemovedFromCurrentState() {
-    mRemovedFromCurrentState = true;
+void Layer::removeRelativeZ(const std::vector<Layer*>& layersInTree) {
+    if (mCurrentState.zOrderRelativeOf == nullptr) {
+        return;
+    }
 
-    // the layer is removed from SF mCurrentState to mLayersPendingRemoval
-    if (mCurrentState.zOrderRelativeOf != nullptr) {
-        sp<Layer> strongRelative = mCurrentState.zOrderRelativeOf.promote();
-        if (strongRelative != nullptr) {
-            strongRelative->removeZOrderRelative(this);
-            mFlinger->setTransactionFlags(eTraversalNeeded);
-        }
+    sp<Layer> strongRelative = mCurrentState.zOrderRelativeOf.promote();
+    if (strongRelative == nullptr) {
+        setZOrderRelativeOf(nullptr);
+        return;
+    }
+
+    if (!std::binary_search(layersInTree.begin(), layersInTree.end(), strongRelative.get())) {
+        strongRelative->removeZOrderRelative(this);
+        mFlinger->setTransactionFlags(eTraversalNeeded);
         setZOrderRelativeOf(nullptr);
     }
+}
+
+void Layer::removeFromCurrentState() {
+    mRemovedFromCurrentState = true;
 
     // Since we are no longer reachable from CurrentState SurfaceFlinger
     // will no longer invoke doTransaction for us, and so we will
@@ -186,11 +194,16 @@ void Layer::onRemovedFromCurrentState() {
     mLocalSyncPoints.clear();
     }
 
-    for (const auto& child : mCurrentChildren) {
-        child->onRemovedFromCurrentState();
-    }
-
     mFlinger->markLayerPendingRemovalLocked(this);
+}
+
+void Layer::onRemovedFromCurrentState() {
+    auto layersInTree = getLayersInTree(LayerVector::StateSet::Current);
+    std::sort(layersInTree.begin(), layersInTree.end());
+    for (const auto& layer : layersInTree) {
+        layer->removeFromCurrentState();
+        layer->removeRelativeZ(layersInTree);
+    }
 }
 
 void Layer::addToCurrentState() {
@@ -415,7 +428,7 @@ void Layer::latchGeometry(compositionengine::LayerFECompositionState& compositio
         auto& parentState = parent->getDrawingState();
         const int parentType = parentState.metadata.getInt32(METADATA_WINDOW_TYPE, 0);
         const int parentAppId = parentState.metadata.getInt32(METADATA_OWNER_UID, 0);
-        if (parentType >= 0 || parentAppId >= 0) {
+        if (parentType > 0 && parentAppId > 0) {
             type = parentType;
             appId = parentAppId;
         }

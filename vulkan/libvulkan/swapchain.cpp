@@ -34,10 +34,6 @@
 
 using android::hardware::graphics::common::V1_0::BufferUsage;
 
-// TODO(jessehall): Currently we don't have a good error code for when a native
-// window operation fails. Just returning INITIALIZATION_FAILED for now. Later
-// versions (post SDK 0.9) of the API/extension have a better error code.
-// When updating to that version, audit all error returns.
 namespace vulkan {
 namespace driver {
 
@@ -48,28 +44,11 @@ const VkSurfaceTransformFlagsKHR kSupportedTransforms =
     VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR |
     VK_SURFACE_TRANSFORM_ROTATE_180_BIT_KHR |
     VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR |
-    // TODO(jessehall): See TODO in TranslateNativeToVulkanTransform.
-    // VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_BIT_KHR |
-    // VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_90_BIT_KHR |
-    // VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_180_BIT_KHR |
-    // VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_270_BIT_KHR |
+    VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_BIT_KHR |
+    VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_90_BIT_KHR |
+    VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_180_BIT_KHR |
+    VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_270_BIT_KHR |
     VK_SURFACE_TRANSFORM_INHERIT_BIT_KHR;
-
-int TranslateVulkanToNativeTransform(VkSurfaceTransformFlagBitsKHR transform) {
-    switch (transform) {
-        // TODO: See TODO in TranslateNativeToVulkanTransform
-        case VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR:
-            return NATIVE_WINDOW_TRANSFORM_ROT_90;
-        case VK_SURFACE_TRANSFORM_ROTATE_180_BIT_KHR:
-            return NATIVE_WINDOW_TRANSFORM_ROT_180;
-        case VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR:
-            return NATIVE_WINDOW_TRANSFORM_ROT_270;
-        case VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR:
-        case VK_SURFACE_TRANSFORM_INHERIT_BIT_KHR:
-        default:
-            return 0;
-    }
-}
 
 VkSurfaceTransformFlagBitsKHR TranslateNativeToVulkanTransform(int native) {
     // Native and Vulkan transforms are isomorphic, but are represented
@@ -78,31 +57,51 @@ VkSurfaceTransformFlagBitsKHR TranslateNativeToVulkanTransform(int native) {
     // transforms are built up from a horizontal flip, vertical flip, and
     // 90-degree rotation, all optional but always in that order.
 
-    // TODO(jessehall): For now, only support pure rotations, not
-    // flip or flip-and-rotate, until I have more time to test them and build
-    // sample code. As far as I know we never actually use anything besides
-    // pure rotations anyway.
-
     switch (native) {
-        case 0:  // 0x0
+        case 0:
             return VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-        // case NATIVE_WINDOW_TRANSFORM_FLIP_H:  // 0x1
-        //     return VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_BIT_KHR;
-        // case NATIVE_WINDOW_TRANSFORM_FLIP_V:  // 0x2
-        //     return VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_180_BIT_KHR;
-        case NATIVE_WINDOW_TRANSFORM_ROT_180:  // FLIP_H | FLIP_V
+        case NATIVE_WINDOW_TRANSFORM_FLIP_H:
+            return VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_BIT_KHR;
+        case NATIVE_WINDOW_TRANSFORM_FLIP_V:
+            return VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_180_BIT_KHR;
+        case NATIVE_WINDOW_TRANSFORM_ROT_180:
             return VK_SURFACE_TRANSFORM_ROTATE_180_BIT_KHR;
-        case NATIVE_WINDOW_TRANSFORM_ROT_90:  // 0x4
+        case NATIVE_WINDOW_TRANSFORM_ROT_90:
             return VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR;
-        // case NATIVE_WINDOW_TRANSFORM_FLIP_H | NATIVE_WINDOW_TRANSFORM_ROT_90:
-        //     return VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_90_BIT_KHR;
-        // case NATIVE_WINDOW_TRANSFORM_FLIP_V | NATIVE_WINDOW_TRANSFORM_ROT_90:
-        //     return VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_270_BIT_KHR;
-        case NATIVE_WINDOW_TRANSFORM_ROT_270:  // FLIP_H | FLIP_V | ROT_90
+        case NATIVE_WINDOW_TRANSFORM_FLIP_H | NATIVE_WINDOW_TRANSFORM_ROT_90:
+            return VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_90_BIT_KHR;
+        case NATIVE_WINDOW_TRANSFORM_FLIP_V | NATIVE_WINDOW_TRANSFORM_ROT_90:
+            return VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_270_BIT_KHR;
+        case NATIVE_WINDOW_TRANSFORM_ROT_270:
             return VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR;
         case NATIVE_WINDOW_TRANSFORM_INVERSE_DISPLAY:
         default:
             return VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+    }
+}
+
+int TranslateVulkanToNativeTransform(VkSurfaceTransformFlagBitsKHR transform) {
+    switch (transform) {
+        case VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR:
+            return NATIVE_WINDOW_TRANSFORM_ROT_90;
+        case VK_SURFACE_TRANSFORM_ROTATE_180_BIT_KHR:
+            return NATIVE_WINDOW_TRANSFORM_ROT_180;
+        case VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR:
+            return NATIVE_WINDOW_TRANSFORM_ROT_270;
+        case VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_BIT_KHR:
+            return NATIVE_WINDOW_TRANSFORM_FLIP_H;
+        case VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_90_BIT_KHR:
+            return NATIVE_WINDOW_TRANSFORM_FLIP_H |
+                   NATIVE_WINDOW_TRANSFORM_ROT_90;
+        case VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_180_BIT_KHR:
+            return NATIVE_WINDOW_TRANSFORM_FLIP_V;
+        case VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_270_BIT_KHR:
+            return NATIVE_WINDOW_TRANSFORM_FLIP_V |
+                   NATIVE_WINDOW_TRANSFORM_ROT_90;
+        case VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR:
+        case VK_SURFACE_TRANSFORM_INHERIT_BIT_KHR:
+        default:
+            return 0;
     }
 }
 
@@ -114,17 +113,16 @@ int InvertTransformToNative(VkSurfaceTransformFlagBitsKHR transform) {
             return NATIVE_WINDOW_TRANSFORM_ROT_180;
         case VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR:
             return NATIVE_WINDOW_TRANSFORM_ROT_90;
-        // TODO(jessehall): See TODO in TranslateNativeToVulkanTransform.
-        // case VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_BIT_KHR:
-        //     return NATIVE_WINDOW_TRANSFORM_FLIP_H;
-        // case VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_90_BIT_KHR:
-        //     return NATIVE_WINDOW_TRANSFORM_FLIP_H |
-        //            NATIVE_WINDOW_TRANSFORM_ROT_90;
-        // case VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_180_BIT_KHR:
-        //     return NATIVE_WINDOW_TRANSFORM_FLIP_V;
-        // case VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_270_BIT_KHR:
-        //     return NATIVE_WINDOW_TRANSFORM_FLIP_V |
-        //            NATIVE_WINDOW_TRANSFORM_ROT_90;
+        case VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_BIT_KHR:
+            return NATIVE_WINDOW_TRANSFORM_FLIP_H;
+        case VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_90_BIT_KHR:
+            return NATIVE_WINDOW_TRANSFORM_FLIP_H |
+                   NATIVE_WINDOW_TRANSFORM_ROT_90;
+        case VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_180_BIT_KHR:
+            return NATIVE_WINDOW_TRANSFORM_FLIP_V;
+        case VK_SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_270_BIT_KHR:
+            return NATIVE_WINDOW_TRANSFORM_FLIP_V |
+                   NATIVE_WINDOW_TRANSFORM_ROT_90;
         case VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR:
         case VK_SURFACE_TRANSFORM_INHERIT_BIT_KHR:
         default:
@@ -200,8 +198,6 @@ class TimingInfo {
     int64_t timestamp_composition_latch_time_
             { NATIVE_WINDOW_TIMESTAMP_PENDING };
 };
-
-// ----------------------------------------------------------------------------
 
 struct Surface {
     android::sp<ANativeWindow> window;
@@ -285,6 +281,8 @@ void ReleaseSwapchainImage(VkDevice device,
                            ANativeWindow* window,
                            int release_fence,
                            Swapchain::Image& image) {
+    ATRACE_CALL();
+
     ALOG_ASSERT(release_fence == -1 || image.dequeued,
                 "ReleaseSwapchainImage: can't provide a release fence for "
                 "non-dequeued images");
@@ -323,7 +321,9 @@ void ReleaseSwapchainImage(VkDevice device,
     }
 
     if (image.image) {
+        ATRACE_BEGIN("DestroyImage");
         GetData(device).driver.DestroyImage(device, image.image, nullptr);
+        ATRACE_END();
         image.image = VK_NULL_HANDLE;
     }
 
@@ -539,15 +539,12 @@ VkResult CreateAndroidSurfaceKHR(
               strerror(-err), err);
         surface->~Surface();
         allocator->pfnFree(allocator->pUserData, surface);
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_SURFACE_LOST_KHR;
     }
 
-    // TODO(jessehall): Create and use NATIVE_WINDOW_API_VULKAN.
     err =
         native_window_api_connect(surface->window.get(), NATIVE_WINDOW_API_EGL);
     if (err != 0) {
-        // TODO(jessehall): Improve error reporting. Can we enumerate possible
-        // errors and translate them to valid Vulkan result codes?
         ALOGE("native_window_api_connect() failed: %s (%d)", strerror(-err),
               err);
         surface->~Surface();
@@ -656,7 +653,6 @@ VkResult GetPhysicalDeviceSurfaceCapabilitiesKHR(
         return VK_ERROR_SURFACE_LOST_KHR;
     }
 
-    // TODO(jessehall): Figure out what the min/max values should be.
     int max_buffer_count;
     err = window->query(window, NATIVE_WINDOW_MAX_BUFFER_COUNT, &max_buffer_count);
     if (err != 0) {
@@ -670,8 +666,7 @@ VkResult GetPhysicalDeviceSurfaceCapabilitiesKHR(
     capabilities->currentExtent =
         VkExtent2D{static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
 
-    // TODO(jessehall): Figure out what the max extent should be. Maximum
-    // texture dimension maybe?
+    // TODO(http://b/134182502): Figure out what the max extent should be.
     capabilities->minImageExtent = VkExtent2D{1, 1};
     capabilities->maxImageExtent = VkExtent2D{4096, 4096};
 
@@ -685,11 +680,6 @@ VkResult GetPhysicalDeviceSurfaceCapabilitiesKHR(
     // associated with the bufferqueue. It can't be changed from here.
     capabilities->supportedCompositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
 
-    // TODO(jessehall): I think these are right, but haven't thought hard about
-    // it. Do we need to query the driver for support of any of these?
-    // Currently not included:
-    // - VK_IMAGE_USAGE_DEPTH_STENCIL_BIT: definitely not
-    // - VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT: definitely not
     capabilities->supportedUsageFlags =
         VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
         VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
@@ -729,8 +719,7 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
     int err = native_window_get_wide_color_support(surface.window.get(),
                                                    &wide_color_support);
     if (err) {
-        // Not allowed to return a more sensible error code, so do this
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
+        return VK_ERROR_SURFACE_LOST_KHR;
     }
     ALOGV("wide_color_support is: %d", wide_color_support);
     wide_color_support =
@@ -978,6 +967,40 @@ VkResult GetPhysicalDevicePresentRectanglesKHR(VkPhysicalDevice,
     return VK_SUCCESS;
 }
 
+static void DestroySwapchainInternal(VkDevice device,
+                                     VkSwapchainKHR swapchain_handle,
+                                     const VkAllocationCallbacks* allocator) {
+    ATRACE_CALL();
+
+    const auto& dispatch = GetData(device).driver;
+    Swapchain* swapchain = SwapchainFromHandle(swapchain_handle);
+    if (!swapchain) {
+        return;
+    }
+
+    bool active = swapchain->surface.swapchain_handle == swapchain_handle;
+    ANativeWindow* window = active ? swapchain->surface.window.get() : nullptr;
+
+    if (window && swapchain->frame_timestamps_enabled) {
+        native_window_enable_frame_timestamps(window, false);
+    }
+
+    for (uint32_t i = 0; i < swapchain->num_images; i++) {
+        ReleaseSwapchainImage(device, window, -1, swapchain->images[i]);
+    }
+
+    if (active) {
+        swapchain->surface.swapchain_handle = VK_NULL_HANDLE;
+    }
+
+    if (!allocator) {
+        allocator = &GetData(device).allocator;
+    }
+
+    swapchain->~Swapchain();
+    allocator->pfnFree(allocator->pUserData, swapchain);
+}
+
 VKAPI_ATTR
 VkResult CreateSwapchainKHR(VkDevice device,
                             const VkSwapchainCreateInfoKHR* create_info,
@@ -1052,6 +1075,8 @@ VkResult CreateSwapchainKHR(VkDevice device,
     // non-FREE state at any given time. Disconnecting and re-connecting
     // orphans the previous buffers, getting us back to the state where we can
     // dequeue all buffers.
+    //
+    // TODO(http://b/134186185) recycle swapchain images more efficiently
     err = native_window_api_disconnect(surface.window.get(),
                                        NATIVE_WINDOW_API_EGL);
     ALOGW_IF(err != 0, "native_window_api_disconnect failed: %s (%d)",
@@ -1072,8 +1097,6 @@ VkResult CreateSwapchainKHR(VkDevice device,
         create_info->presentMode == VK_PRESENT_MODE_MAILBOX_KHR ? 0 : 1;
     err = surface.window->setSwapInterval(surface.window.get(), swap_interval);
     if (err != 0) {
-        // TODO(jessehall): Improve error reporting. Can we enumerate possible
-        // errors and translate them to valid Vulkan result codes?
         ALOGE("native_window->setSwapInterval(1) failed: %s (%d)",
               strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
@@ -1100,8 +1123,6 @@ VkResult CreateSwapchainKHR(VkDevice device,
     err = native_window_set_buffers_format(surface.window.get(),
                                            native_pixel_format);
     if (err != 0) {
-        // TODO(jessehall): Improve error reporting. Can we enumerate possible
-        // errors and translate them to valid Vulkan result codes?
         ALOGE("native_window_set_buffers_format(%d) failed: %s (%d)",
               native_pixel_format, strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
@@ -1109,8 +1130,6 @@ VkResult CreateSwapchainKHR(VkDevice device,
     err = native_window_set_buffers_data_space(surface.window.get(),
                                                native_dataspace);
     if (err != 0) {
-        // TODO(jessehall): Improve error reporting. Can we enumerate possible
-        // errors and translate them to valid Vulkan result codes?
         ALOGE("native_window_set_buffers_data_space(%d) failed: %s (%d)",
               native_dataspace, strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
@@ -1120,8 +1139,6 @@ VkResult CreateSwapchainKHR(VkDevice device,
         surface.window.get(), static_cast<int>(create_info->imageExtent.width),
         static_cast<int>(create_info->imageExtent.height));
     if (err != 0) {
-        // TODO(jessehall): Improve error reporting. Can we enumerate possible
-        // errors and translate them to valid Vulkan result codes?
         ALOGE("native_window_set_buffers_dimensions(%d,%d) failed: %s (%d)",
               create_info->imageExtent.width, create_info->imageExtent.height,
               strerror(-err), err);
@@ -1140,8 +1157,6 @@ VkResult CreateSwapchainKHR(VkDevice device,
         surface.window.get(),
         InvertTransformToNative(create_info->preTransform));
     if (err != 0) {
-        // TODO(jessehall): Improve error reporting. Can we enumerate possible
-        // errors and translate them to valid Vulkan result codes?
         ALOGE("native_window_set_buffers_transform(%d) failed: %s (%d)",
               InvertTransformToNative(create_info->preTransform),
               strerror(-err), err);
@@ -1151,8 +1166,6 @@ VkResult CreateSwapchainKHR(VkDevice device,
     err = native_window_set_scaling_mode(
         surface.window.get(), NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
     if (err != 0) {
-        // TODO(jessehall): Improve error reporting. Can we enumerate possible
-        // errors and translate them to valid Vulkan result codes?
         ALOGE("native_window_set_scaling_mode(SCALE_TO_WINDOW) failed: %s (%d)",
               strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
@@ -1182,8 +1195,6 @@ VkResult CreateSwapchainKHR(VkDevice device,
                                 NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
                                 &query_value);
     if (err != 0 || query_value < 0) {
-        // TODO(jessehall): Improve error reporting. Can we enumerate possible
-        // errors and translate them to valid Vulkan result codes?
         ALOGE("window->query failed: %s (%d) value=%d", strerror(-err), err,
               query_value);
         return VK_ERROR_SURFACE_LOST_KHR;
@@ -1201,8 +1212,6 @@ VkResult CreateSwapchainKHR(VkDevice device,
     // can't actually use!).
     err = native_window_set_buffer_count(surface.window.get(), std::max(2u, num_images));
     if (err != 0) {
-        // TODO(jessehall): Improve error reporting. Can we enumerate possible
-        // errors and translate them to valid Vulkan result codes?
         ALOGE("native_window_set_buffer_count(%d) failed: %s (%d)", num_images,
               strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
@@ -1211,7 +1220,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
     int32_t legacy_usage = 0;
     if (dispatch.GetSwapchainGrallocUsage2ANDROID) {
         uint64_t consumer_usage, producer_usage;
-        ATRACE_BEGIN("dispatch.GetSwapchainGrallocUsage2ANDROID");
+        ATRACE_BEGIN("GetSwapchainGrallocUsage2ANDROID");
         result = dispatch.GetSwapchainGrallocUsage2ANDROID(
             device, create_info->imageFormat, create_info->imageUsage,
             swapchain_image_usage, &consumer_usage, &producer_usage);
@@ -1223,7 +1232,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
         legacy_usage =
             android_convertGralloc1To0Usage(producer_usage, consumer_usage);
     } else if (dispatch.GetSwapchainGrallocUsageANDROID) {
-        ATRACE_BEGIN("dispatch.GetSwapchainGrallocUsageANDROID");
+        ATRACE_BEGIN("GetSwapchainGrallocUsageANDROID");
         result = dispatch.GetSwapchainGrallocUsageANDROID(
             device, create_info->imageFormat, create_info->imageUsage,
             &legacy_usage);
@@ -1242,8 +1251,6 @@ VkResult CreateSwapchainKHR(VkDevice device,
     }
     err = native_window_set_usage(surface.window.get(), native_usage);
     if (err != 0) {
-        // TODO(jessehall): Improve error reporting. Can we enumerate possible
-        // errors and translate them to valid Vulkan result codes?
         ALOGE("native_window_set_usage failed: %s (%d)", strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
     }
@@ -1301,8 +1308,6 @@ VkResult CreateSwapchainKHR(VkDevice device,
         err = surface.window->dequeueBuffer(surface.window.get(), &buffer,
                                             &img.dequeue_fence);
         if (err != 0) {
-            // TODO(jessehall): Improve error reporting. Can we enumerate
-            // possible errors and translate them to valid Vulkan result codes?
             ALOGE("dequeueBuffer[%u] failed: %s (%d)", i, strerror(-err), err);
             result = VK_ERROR_SURFACE_LOST_KHR;
             break;
@@ -1322,7 +1327,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
             &image_native_buffer.usage2.producer,
             &image_native_buffer.usage2.consumer);
 
-        ATRACE_BEGIN("dispatch.CreateImage");
+        ATRACE_BEGIN("CreateImage");
         result =
             dispatch.CreateImage(device, &image_create, nullptr, &img.image);
         ATRACE_END();
@@ -1335,9 +1340,6 @@ VkResult CreateSwapchainKHR(VkDevice device,
     // -- Cancel all buffers, returning them to the queue --
     // If an error occurred before, also destroy the VkImage and release the
     // buffer reference. Otherwise, we retain a strong reference to the buffer.
-    //
-    // TODO(jessehall): The error path here is the same as DestroySwapchain,
-    // but not the non-error path. Should refactor/unify.
     for (uint32_t i = 0; i < num_images; i++) {
         Swapchain::Image& img = swapchain->images[i];
         if (img.dequeued) {
@@ -1348,18 +1350,11 @@ VkResult CreateSwapchainKHR(VkDevice device,
                 img.dequeued = false;
             }
         }
-        if (result != VK_SUCCESS) {
-            if (img.image) {
-                ATRACE_BEGIN("dispatch.DestroyImage");
-                dispatch.DestroyImage(device, img.image, nullptr);
-                ATRACE_END();
-            }
-        }
     }
 
     if (result != VK_SUCCESS) {
-        swapchain->~Swapchain();
-        allocator->pfnFree(allocator->pUserData, swapchain);
+        DestroySwapchainInternal(device, HandleFromSwapchain(swapchain),
+                                 allocator);
         return result;
     }
 
@@ -1374,24 +1369,7 @@ void DestroySwapchainKHR(VkDevice device,
                          const VkAllocationCallbacks* allocator) {
     ATRACE_CALL();
 
-    const auto& dispatch = GetData(device).driver;
-    Swapchain* swapchain = SwapchainFromHandle(swapchain_handle);
-    if (!swapchain)
-        return;
-    bool active = swapchain->surface.swapchain_handle == swapchain_handle;
-    ANativeWindow* window = active ? swapchain->surface.window.get() : nullptr;
-
-    if (swapchain->frame_timestamps_enabled) {
-        native_window_enable_frame_timestamps(window, false);
-    }
-    for (uint32_t i = 0; i < swapchain->num_images; i++)
-        ReleaseSwapchainImage(device, window, -1, swapchain->images[i]);
-    if (active)
-        swapchain->surface.swapchain_handle = VK_NULL_HANDLE;
-    if (!allocator)
-        allocator = &GetData(device).allocator;
-    swapchain->~Swapchain();
-    allocator->pfnFree(allocator->pUserData, swapchain);
+    DestroySwapchainInternal(device, swapchain_handle, allocator);
 }
 
 VKAPI_ATTR
@@ -1457,8 +1435,6 @@ VkResult AcquireNextImageKHR(VkDevice device,
     int fence_fd;
     err = window->dequeueBuffer(window, &buffer, &fence_fd);
     if (err != 0) {
-        // TODO(jessehall): Improve error reporting. Can we enumerate possible
-        // errors and translate them to valid Vulkan result codes?
         ALOGE("dequeueBuffer failed: %s (%d)", strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
     }
@@ -1513,8 +1489,6 @@ VkResult AcquireNextImage2KHR(VkDevice device,
                               uint32_t* pImageIndex) {
     ATRACE_CALL();
 
-    // TODO: this should actually be the other way around and this function
-    // should handle any additional structures that get passed in
     return AcquireNextImageKHR(device, pAcquireInfo->swapchain,
                                pAcquireInfo->timeout, pAcquireInfo->semaphore,
                                pAcquireInfo->fence, pImageIndex);
@@ -1692,17 +1666,16 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
                 err = window->queueBuffer(window, img.buffer.get(), fence);
                 // queueBuffer always closes fence, even on error
                 if (err != 0) {
-                    // TODO(jessehall): What now? We should probably cancel the
-                    // buffer, I guess?
                     ALOGE("queueBuffer failed: %s (%d)", strerror(-err), err);
                     swapchain_result = WorstPresentResult(
                         swapchain_result, VK_ERROR_OUT_OF_DATE_KHR);
+                } else {
+                    if (img.dequeue_fence >= 0) {
+                        close(img.dequeue_fence);
+                        img.dequeue_fence = -1;
+                    }
+                    img.dequeued = false;
                 }
-                if (img.dequeue_fence >= 0) {
-                    close(img.dequeue_fence);
-                    img.dequeue_fence = -1;
-                }
-                img.dequeued = false;
 
                 // If the swapchain is in shared mode, immediately dequeue the
                 // buffer so it can be presented again without an intervening
@@ -1729,7 +1702,6 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
                 }
             }
             if (swapchain_result != VK_SUCCESS) {
-                ReleaseSwapchainImage(device, window, fence, img);
                 OrphanSwapchain(device, &swapchain);
             }
             int window_transform_hint;

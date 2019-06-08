@@ -129,6 +129,7 @@ private:
     void* loadLibrary(std::string name);
     bool checkAngleRules(void* so);
     void updateUseAngle();
+    bool linkDriverNamespaceLocked(android_namespace_t* vndkNamespace);
 
     GraphicsEnv() = default;
     std::string mDriverPath;

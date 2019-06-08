@@ -21,6 +21,7 @@
 #include <compositionengine/mock/Output.h>
 #include <gtest/gtest.h>
 
+#include "FloatRectMatcher.h"
 #include "MockHWC2.h"
 #include "MockHWComposer.h"
 #include "RectMatcher.h"
@@ -106,6 +107,114 @@ TEST_F(OutputLayerTest, initializingOutputLayerWithHwcDisplayCreatesHwcLayer) {
 }
 
 /*
+ * OutputLayer::calculateOutputSourceCrop()
+ */
+
+struct OutputLayerSourceCropTest : public OutputLayerTest {
+    OutputLayerSourceCropTest() {
+        // Set reasonable default values for a simple case. Each test will
+        // set one specific value to something different.
+        mLayerState.frontEnd.geomUsesSourceCrop = true;
+        mLayerState.frontEnd.geomContentCrop = Rect{0, 0, 1920, 1080};
+        mLayerState.frontEnd.geomActiveTransparentRegion = Region{};
+        mLayerState.frontEnd.geomLayerBounds = FloatRect{0.f, 0.f, 1920.f, 1080.f};
+        mLayerState.frontEnd.geomLayerTransform = ui::Transform{TR_IDENT};
+        mLayerState.frontEnd.geomBufferSize = Rect{0, 0, 1920, 1080};
+        mLayerState.frontEnd.geomBufferTransform = TR_IDENT;
+
+        mOutputState.viewport = Rect{0, 0, 1920, 1080};
+    }
+
+    FloatRect calculateOutputSourceCrop() {
+        mLayerState.frontEnd.geomInverseLayerTransform =
+                mLayerState.frontEnd.geomLayerTransform.inverse();
+
+        return mOutputLayer.calculateOutputSourceCrop();
+    }
+};
+
+TEST_F(OutputLayerSourceCropTest, computesEmptyIfSourceCropNotUsed) {
+    mLayerState.frontEnd.geomUsesSourceCrop = false;
+
+    const FloatRect expected{};
+    EXPECT_THAT(calculateOutputSourceCrop(), FloatRectEq(expected));
+}
+
+TEST_F(OutputLayerSourceCropTest, correctForSimpleDefaultCase) {
+    const FloatRect expected{0.f, 0.f, 1920.f, 1080.f};
+    EXPECT_THAT(calculateOutputSourceCrop(), FloatRectEq(expected));
+}
+
+TEST_F(OutputLayerSourceCropTest, handlesBoundsOutsideViewport) {
+    mLayerState.frontEnd.geomLayerBounds = FloatRect{-2000.f, -2000.f, 2000.f, 2000.f};
+
+    const FloatRect expected{0.f, 0.f, 1920.f, 1080.f};
+    EXPECT_THAT(calculateOutputSourceCrop(), FloatRectEq(expected));
+}
+
+TEST_F(OutputLayerSourceCropTest, handlesBoundsOutsideViewportRotated) {
+    mLayerState.frontEnd.geomLayerBounds = FloatRect{-2000.f, -2000.f, 2000.f, 2000.f};
+    mLayerState.frontEnd.geomLayerTransform.set(HAL_TRANSFORM_ROT_90, 1920, 1080);
+
+    const FloatRect expected{0.f, 0.f, 1080.f, 1080.f};
+    EXPECT_THAT(calculateOutputSourceCrop(), FloatRectEq(expected));
+}
+
+TEST_F(OutputLayerSourceCropTest, calculateOutputSourceCropWorksWithATransformedBuffer) {
+    struct Entry {
+        uint32_t bufferInvDisplay;
+        uint32_t buffer;
+        uint32_t display;
+        FloatRect expected;
+    };
+    // Not an exhaustive list of cases, but hopefully enough.
+    const std::array<Entry, 12> testData = {
+            // clang-format off
+            //             inv      buffer      display     expected
+            /*  0 */ Entry{false,   TR_IDENT,   TR_IDENT,   FloatRect{0.f, 0.f, 1920.f, 1080.f}},
+            /*  1 */ Entry{false,   TR_IDENT,   TR_ROT_90,  FloatRect{0.f, 0.f, 1920.f, 1080.f}},
+            /*  2 */ Entry{false,   TR_IDENT,   TR_ROT_180, FloatRect{0.f, 0.f, 1920.f, 1080.f}},
+            /*  3 */ Entry{false,   TR_IDENT,   TR_ROT_270, FloatRect{0.f, 0.f, 1920.f, 1080.f}},
+
+            /*  4 */ Entry{true,    TR_IDENT,   TR_IDENT,   FloatRect{0.f, 0.f, 1920.f, 1080.f}},
+            /*  5 */ Entry{true,    TR_IDENT,   TR_ROT_90,  FloatRect{0.f, 0.f, 1920.f, 1080.f}},
+            /*  6 */ Entry{true,    TR_IDENT,   TR_ROT_180, FloatRect{0.f, 0.f, 1920.f, 1080.f}},
+            /*  7 */ Entry{true,    TR_IDENT,   TR_ROT_270, FloatRect{0.f, 0.f, 1920.f, 1080.f}},
+
+            /*  8 */ Entry{false,   TR_IDENT,   TR_IDENT,   FloatRect{0.f, 0.f, 1920.f, 1080.f}},
+            /*  9 */ Entry{false,   TR_ROT_90,  TR_ROT_90,  FloatRect{0.f, 0.f, 1920.f, 1080.f}},
+            /* 10 */ Entry{false,   TR_ROT_180, TR_ROT_180, FloatRect{0.f, 0.f, 1920.f, 1080.f}},
+            /* 11 */ Entry{false,   TR_ROT_270, TR_ROT_270, FloatRect{0.f, 0.f, 1920.f, 1080.f}},
+
+            // clang-format on
+    };
+
+    for (size_t i = 0; i < testData.size(); i++) {
+        const auto& entry = testData[i];
+
+        mLayerState.frontEnd.geomBufferUsesDisplayInverseTransform = entry.bufferInvDisplay;
+        mLayerState.frontEnd.geomBufferTransform = entry.buffer;
+        mOutputState.orientation = entry.display;
+
+        EXPECT_THAT(calculateOutputSourceCrop(), FloatRectEq(entry.expected)) << "entry " << i;
+    }
+}
+
+TEST_F(OutputLayerSourceCropTest, geomContentCropAffectsCrop) {
+    mLayerState.frontEnd.geomContentCrop = Rect{0, 0, 960, 540};
+
+    const FloatRect expected{0.f, 0.f, 960.f, 540.f};
+    EXPECT_THAT(calculateOutputSourceCrop(), FloatRectEq(expected));
+}
+
+TEST_F(OutputLayerSourceCropTest, viewportAffectsCrop) {
+    mOutputState.viewport = Rect{0, 0, 960, 540};
+
+    const FloatRect expected{0.f, 0.f, 960.f, 540.f};
+    EXPECT_THAT(calculateOutputSourceCrop(), FloatRectEq(expected));
+}
+
+/*
  * OutputLayer::calculateOutputDisplayFrame()
  */
 
@@ -163,7 +272,7 @@ TEST_F(OutputLayerDisplayFrameTest, emptyGeomCropIsNotUsedToComputeFrame) {
     EXPECT_THAT(calculateOutputDisplayFrame(), RectEq(expected));
 }
 
-TEST_F(OutputLayerDisplayFrameTest, geomLayerSnapToBoundsAffectsFrame) {
+TEST_F(OutputLayerDisplayFrameTest, geomLayerBoundsAffectsFrame) {
     mLayerState.frontEnd.geomLayerBounds = FloatRect{0.f, 0.f, 960.f, 540.f};
     const Rect expected{0, 0, 960, 540};
     EXPECT_THAT(calculateOutputDisplayFrame(), RectEq(expected));
@@ -240,6 +349,159 @@ TEST_F(OutputLayerTest, calculateOutputRelativeBufferTransformTestsNeeded) {
         auto actual = mOutputLayer.calculateOutputRelativeBufferTransform();
         EXPECT_EQ(entry.expected, actual) << "entry " << i;
     }
+}
+
+TEST_F(OutputLayerTest,
+       calculateOutputRelativeBufferTransformTestWithOfBufferUsesDisplayInverseTransform) {
+    mLayerState.frontEnd.geomBufferUsesDisplayInverseTransform = true;
+
+    struct Entry {
+        uint32_t layer;
+        uint32_t buffer;
+        uint32_t display;
+        uint32_t expected;
+    };
+    // Not an exhaustive list of cases, but hopefully enough.
+    const std::array<Entry, 24> testData = {
+            // clang-format off
+            //             layer       buffer      display     expected
+            /*  0 */ Entry{TR_IDENT,   TR_IDENT,   TR_IDENT,   TR_IDENT},
+            /*  1 */ Entry{TR_IDENT,   TR_IDENT,   TR_ROT_90,  TR_IDENT},
+            /*  2 */ Entry{TR_IDENT,   TR_IDENT,   TR_ROT_180, TR_IDENT},
+            /*  3 */ Entry{TR_IDENT,   TR_IDENT,   TR_ROT_270, TR_IDENT},
+
+            /*  4 */ Entry{TR_IDENT,   TR_FLP_H,   TR_IDENT,   TR_FLP_H},
+            /*  5 */ Entry{TR_IDENT,   TR_FLP_H,   TR_ROT_90,  TR_FLP_H},
+            /*  6 */ Entry{TR_IDENT,   TR_FLP_H,   TR_ROT_180, TR_FLP_H},
+            /*  7 */ Entry{TR_IDENT,   TR_FLP_H,   TR_ROT_270, TR_FLP_H},
+
+            /*  8 */ Entry{TR_IDENT,   TR_FLP_V,   TR_IDENT,   TR_FLP_V},
+            /*  9 */ Entry{TR_IDENT,   TR_ROT_90,  TR_ROT_90,  TR_ROT_90},
+            /* 10 */ Entry{TR_IDENT,   TR_ROT_180, TR_ROT_180, TR_ROT_180},
+            /* 11 */ Entry{TR_IDENT,   TR_ROT_270, TR_ROT_270, TR_ROT_270},
+
+            /* 12 */ Entry{TR_ROT_90,  TR_IDENT,   TR_IDENT,   TR_IDENT},
+            /* 13 */ Entry{TR_ROT_90,  TR_FLP_H,   TR_ROT_90,  TR_FLP_H},
+            /* 14 */ Entry{TR_ROT_90,  TR_IDENT,   TR_ROT_180, TR_IDENT},
+            /* 15 */ Entry{TR_ROT_90,  TR_FLP_H,   TR_ROT_270, TR_FLP_H},
+
+            /* 16 */ Entry{TR_ROT_180, TR_FLP_H,   TR_IDENT,   TR_FLP_H},
+            /* 17 */ Entry{TR_ROT_180, TR_IDENT,   TR_ROT_90,  TR_IDENT},
+            /* 18 */ Entry{TR_ROT_180, TR_FLP_H,   TR_ROT_180, TR_FLP_H},
+            /* 19 */ Entry{TR_ROT_180, TR_IDENT,   TR_ROT_270, TR_IDENT},
+
+            /* 20 */ Entry{TR_ROT_270, TR_IDENT,   TR_IDENT,   TR_IDENT},
+            /* 21 */ Entry{TR_ROT_270, TR_FLP_H,   TR_ROT_90,  TR_FLP_H},
+            /* 22 */ Entry{TR_ROT_270, TR_FLP_H,   TR_ROT_180, TR_FLP_H},
+            /* 23 */ Entry{TR_ROT_270, TR_IDENT,   TR_ROT_270, TR_IDENT},
+            // clang-format on
+    };
+
+    for (size_t i = 0; i < testData.size(); i++) {
+        const auto& entry = testData[i];
+
+        mLayerState.frontEnd.geomLayerTransform = ui::Transform{entry.layer};
+        mLayerState.frontEnd.geomBufferTransform = entry.buffer;
+        mOutputState.orientation = entry.display;
+
+        auto actual = mOutputLayer.calculateOutputRelativeBufferTransform();
+        EXPECT_EQ(entry.expected, actual) << "entry " << i;
+    }
+}
+
+/*
+ * OutputLayer::updateCompositionState()
+ */
+
+struct OutputLayerPartialMockForUpdateCompositionState : public impl::OutputLayer {
+    OutputLayerPartialMockForUpdateCompositionState(const compositionengine::Output& output,
+                                                    std::shared_ptr<compositionengine::Layer> layer,
+                                                    sp<compositionengine::LayerFE> layerFE)
+          : impl::OutputLayer(output, layer, layerFE) {}
+    // Mock everything called by updateCompositionState to simplify testing it.
+    MOCK_CONST_METHOD0(calculateOutputSourceCrop, FloatRect());
+    MOCK_CONST_METHOD0(calculateOutputDisplayFrame, Rect());
+    MOCK_CONST_METHOD0(calculateOutputRelativeBufferTransform, uint32_t());
+};
+
+struct OutputLayerUpdateCompositionStateTest : public OutputLayerTest {
+public:
+    OutputLayerUpdateCompositionStateTest() {
+        EXPECT_CALL(*mLayer, getState()).WillRepeatedly(ReturnRef(mLayerState));
+        EXPECT_CALL(mOutput, getState()).WillRepeatedly(ReturnRef(mOutputState));
+    }
+
+    ~OutputLayerUpdateCompositionStateTest() = default;
+
+    void setupGeometryChildCallValues() {
+        EXPECT_CALL(mOutputLayer, calculateOutputSourceCrop()).WillOnce(Return(kSourceCrop));
+        EXPECT_CALL(mOutputLayer, calculateOutputDisplayFrame()).WillOnce(Return(kDisplayFrame));
+        EXPECT_CALL(mOutputLayer, calculateOutputRelativeBufferTransform())
+                .WillOnce(Return(mBufferTransform));
+    }
+
+    void validateComputedGeometryState() {
+        const auto& state = mOutputLayer.getState();
+        EXPECT_EQ(kSourceCrop, state.sourceCrop);
+        EXPECT_EQ(kDisplayFrame, state.displayFrame);
+        EXPECT_EQ(static_cast<Hwc2::Transform>(mBufferTransform), state.bufferTransform);
+    }
+
+    const FloatRect kSourceCrop{1.f, 2.f, 3.f, 4.f};
+    const Rect kDisplayFrame{11, 12, 13, 14};
+    uint32_t mBufferTransform{21};
+
+    using OutputLayer = OutputLayerPartialMockForUpdateCompositionState;
+    StrictMock<OutputLayer> mOutputLayer{mOutput, mLayer, mLayerFE};
+};
+
+TEST_F(OutputLayerUpdateCompositionStateTest, setsStateNormally) {
+    mLayerState.frontEnd.isSecure = true;
+    mOutputState.isSecure = true;
+
+    setupGeometryChildCallValues();
+
+    mOutputLayer.updateCompositionState(true);
+
+    validateComputedGeometryState();
+
+    EXPECT_EQ(false, mOutputLayer.getState().forceClientComposition);
+}
+
+TEST_F(OutputLayerUpdateCompositionStateTest,
+       alsoSetsForceCompositionIfSecureLayerOnNonsecureOutput) {
+    mLayerState.frontEnd.isSecure = true;
+    mOutputState.isSecure = false;
+
+    setupGeometryChildCallValues();
+
+    mOutputLayer.updateCompositionState(true);
+
+    validateComputedGeometryState();
+
+    EXPECT_EQ(true, mOutputLayer.getState().forceClientComposition);
+}
+
+TEST_F(OutputLayerUpdateCompositionStateTest,
+       alsoSetsForceCompositionIfUnsupportedBufferTransform) {
+    mLayerState.frontEnd.isSecure = true;
+    mOutputState.isSecure = true;
+
+    mBufferTransform = ui::Transform::ROT_INVALID;
+
+    setupGeometryChildCallValues();
+
+    mOutputLayer.updateCompositionState(true);
+
+    validateComputedGeometryState();
+
+    EXPECT_EQ(true, mOutputLayer.getState().forceClientComposition);
+}
+
+TEST_F(OutputLayerUpdateCompositionStateTest, doesNotRecomputeGeometryIfNotRequested) {
+    mOutputLayer.updateCompositionState(false);
+
+    EXPECT_EQ(false, mOutputLayer.getState().forceClientComposition);
 }
 
 /*
