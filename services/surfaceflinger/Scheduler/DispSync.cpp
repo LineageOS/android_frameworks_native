@@ -92,7 +92,6 @@ public:
         mPeriod = period;
         if (!mModelLocked && referenceTimeChanged) {
             for (auto& eventListener : mEventListeners) {
-                eventListener.mHasFired = false;
                 eventListener.mLastEventTime =
                         mReferenceTime - mPeriod + mPhase + eventListener.mPhase;
             }
@@ -123,13 +122,6 @@ public:
 
     void unlockModel() {
         Mutex::Autolock lock(mMutex);
-        if (mModelLocked) {
-            for (auto& eventListener : mEventListeners) {
-                if (eventListener.mLastEventTime > mReferenceTime) {
-                    eventListener.mHasFired = true;
-                }
-            }
-        }
         mModelLocked = false;
         ATRACE_INT("DispSync:ModelLocked", mModelLocked);
     }
@@ -259,10 +251,6 @@ public:
             listener.mLastCallbackTime = lastCallbackTime;
         }
 
-        if (!mModelLocked && listener.mLastEventTime > mReferenceTime) {
-            listener.mHasFired = true;
-        }
-
         mEventListeners.push_back(listener);
 
         mCond.signal();
@@ -305,7 +293,14 @@ public:
                 } else if (diff < -mPeriod / 2) {
                     diff += mPeriod;
                 }
+
+                if (phase < 0 && oldPhase > 0) {
+                    diff += mPeriod;
+                } else if (phase > 0 && oldPhase < 0) {
+                    diff -= mPeriod;
+                }
                 eventListener.mLastEventTime -= diff;
+                eventListener.mLastCallbackTime -= diff;
                 mCond.signal();
                 return NO_ERROR;
             }
@@ -320,7 +315,6 @@ private:
         nsecs_t mLastEventTime;
         nsecs_t mLastCallbackTime;
         DispSync::Callback* mCallback;
-        bool mHasFired = false;
     };
 
     struct CallbackInvocation {
@@ -368,12 +362,7 @@ private:
                           eventListener.mName);
                     continue;
                 }
-                if (eventListener.mHasFired && !mModelLocked) {
-                    eventListener.mLastEventTime = t;
-                    ALOGV("[%s] [%s] Skipping event due to already firing", mName,
-                          eventListener.mName);
-                    continue;
-                }
+
                 CallbackInvocation ci;
                 ci.mCallback = eventListener.mCallback;
                 ci.mEventTime = t;
@@ -382,7 +371,6 @@ private:
                 callbackInvocations.push_back(ci);
                 eventListener.mLastEventTime = t;
                 eventListener.mLastCallbackTime = now;
-                eventListener.mHasFired = true;
             }
         }
 
