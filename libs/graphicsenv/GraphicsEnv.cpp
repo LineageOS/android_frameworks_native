@@ -534,60 +534,73 @@ void GraphicsEnv::setDebugLayersGLES(const std::string layers) {
     mDebugLayersGLES = layers;
 }
 
+// Return true if all the required libraries from vndk and sphal namespace are
+// linked to the Game Driver namespace correctly.
+bool GraphicsEnv::linkDriverNamespaceLocked(android_namespace_t* vndkNamespace) {
+    const std::string llndkLibraries = getSystemNativeLibraries(NativeLibrary::LLNDK);
+    if (llndkLibraries.empty()) {
+        return false;
+    }
+    if (!android_link_namespaces(mDriverNamespace, nullptr, llndkLibraries.c_str())) {
+        ALOGE("Failed to link default namespace[%s]", dlerror());
+        return false;
+    }
+
+    const std::string vndkspLibraries = getSystemNativeLibraries(NativeLibrary::VNDKSP);
+    if (vndkspLibraries.empty()) {
+        return false;
+    }
+    if (!android_link_namespaces(mDriverNamespace, vndkNamespace, vndkspLibraries.c_str())) {
+        ALOGE("Failed to link vndk namespace[%s]", dlerror());
+        return false;
+    }
+
+    if (mSphalLibraries.empty()) {
+        return true;
+    }
+
+    // Make additional libraries in sphal to be accessible
+    auto sphalNamespace = android_get_exported_namespace("sphal");
+    if (!sphalNamespace) {
+        ALOGE("Depend on these libraries[%s] in sphal, but failed to get sphal namespace",
+              mSphalLibraries.c_str());
+        return false;
+    }
+
+    if (!android_link_namespaces(mDriverNamespace, sphalNamespace, mSphalLibraries.c_str())) {
+        ALOGE("Failed to link sphal namespace[%s]", dlerror());
+        return false;
+    }
+
+    return true;
+}
+
 android_namespace_t* GraphicsEnv::getDriverNamespace() {
-    static std::once_flag once;
-    std::call_once(once, [this]() {
-        if (mDriverPath.empty()) return;
+    std::lock_guard<std::mutex> lock(mNamespaceMutex);
 
-        auto vndkNamespace = android_get_exported_namespace("vndk");
-        if (!vndkNamespace) return;
+    if (mDriverNamespace) {
+        return mDriverNamespace;
+    }
 
-        mDriverNamespace = android_create_namespace("gfx driver",
-                                                    mDriverPath.c_str(), // ld_library_path
-                                                    mDriverPath.c_str(), // default_library_path
-                                                    ANDROID_NAMESPACE_TYPE_ISOLATED,
-                                                    nullptr, // permitted_when_isolated_path
-                                                    nullptr);
+    if (mDriverPath.empty()) {
+        return nullptr;
+    }
 
-        const std::string llndkLibraries = getSystemNativeLibraries(NativeLibrary::LLNDK);
-        if (llndkLibraries.empty()) {
-            mDriverNamespace = nullptr;
-            return;
-        }
-        if (!android_link_namespaces(mDriverNamespace, nullptr, llndkLibraries.c_str())) {
-            ALOGE("Failed to link default namespace[%s]", dlerror());
-            mDriverNamespace = nullptr;
-            return;
-        }
+    auto vndkNamespace = android_get_exported_namespace("vndk");
+    if (!vndkNamespace) {
+        return nullptr;
+    }
 
-        const std::string vndkspLibraries = getSystemNativeLibraries(NativeLibrary::VNDKSP);
-        if (vndkspLibraries.empty()) {
-            mDriverNamespace = nullptr;
-            return;
-        }
-        if (!android_link_namespaces(mDriverNamespace, vndkNamespace, vndkspLibraries.c_str())) {
-            ALOGE("Failed to link vndk namespace[%s]", dlerror());
-            mDriverNamespace = nullptr;
-            return;
-        }
+    mDriverNamespace = android_create_namespace("gfx driver",
+                                                mDriverPath.c_str(), // ld_library_path
+                                                mDriverPath.c_str(), // default_library_path
+                                                ANDROID_NAMESPACE_TYPE_ISOLATED,
+                                                nullptr, // permitted_when_isolated_path
+                                                nullptr);
 
-        if (mSphalLibraries.empty()) return;
-
-        // Make additional libraries in sphal to be accessible
-        auto sphalNamespace = android_get_exported_namespace("sphal");
-        if (!sphalNamespace) {
-            ALOGE("Depend on these libraries[%s] in sphal, but failed to get sphal namespace",
-                  mSphalLibraries.c_str());
-            mDriverNamespace = nullptr;
-            return;
-        }
-
-        if (!android_link_namespaces(mDriverNamespace, sphalNamespace, mSphalLibraries.c_str())) {
-            ALOGE("Failed to link sphal namespace[%s]", dlerror());
-            mDriverNamespace = nullptr;
-            return;
-        }
-    });
+    if (!linkDriverNamespaceLocked(vndkNamespace)) {
+        mDriverNamespace = nullptr;
+    }
 
     return mDriverNamespace;
 }

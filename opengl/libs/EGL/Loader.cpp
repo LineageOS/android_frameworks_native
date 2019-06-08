@@ -84,6 +84,11 @@ static void* do_android_load_sphal_library(const char* path, int mode) {
     return android_load_sphal_library(path, mode);
 }
 
+static int do_android_unload_sphal_library(void* dso) {
+    ATRACE_CALL();
+    return android_unload_sphal_library(dso);
+}
+
 Loader::driver_t::driver_t(void* gles)
 {
     dso[0] = gles;
@@ -180,10 +185,80 @@ static const char* HAL_SUBNAME_KEY_PROPERTIES[2] = {
     "ro.board.platform",
 };
 
+static bool should_unload_system_driver(egl_connection_t* cnx) {
+    // Return false if the system driver has been unloaded once.
+    if (cnx->systemDriverUnloaded) {
+        return false;
+    }
+
+    // Return true if Angle namespace is set.
+    android_namespace_t* ns = android::GraphicsEnv::getInstance().getAngleNamespace();
+    if (ns) {
+        return true;
+    }
+
+#ifndef __ANDROID_VNDK__
+    // Return true if updated driver namespace is set.
+    ns = android::GraphicsEnv::getInstance().getDriverNamespace();
+    if (ns) {
+        return true;
+    }
+#endif
+
+    return false;
+}
+
+static void uninit_api(char const* const* api, __eglMustCastToProperFunctionPointerType* curr) {
+    while (*api) {
+        *curr++ = nullptr;
+        api++;
+    }
+}
+
+void Loader::unload_system_driver(egl_connection_t* cnx) {
+    ATRACE_CALL();
+
+    uninit_api(gl_names,
+               (__eglMustCastToProperFunctionPointerType*)&cnx
+                       ->hooks[egl_connection_t::GLESv2_INDEX]
+                       ->gl);
+    uninit_api(gl_names,
+               (__eglMustCastToProperFunctionPointerType*)&cnx
+                       ->hooks[egl_connection_t::GLESv1_INDEX]
+                       ->gl);
+    uninit_api(egl_names, (__eglMustCastToProperFunctionPointerType*)&cnx->egl);
+
+    if (cnx->dso) {
+        ALOGD("Unload system gl driver.");
+        driver_t* hnd = (driver_t*)cnx->dso;
+        if (hnd->dso[2]) {
+            do_android_unload_sphal_library(hnd->dso[2]);
+        }
+        if (hnd->dso[1]) {
+            do_android_unload_sphal_library(hnd->dso[1]);
+        }
+        if (hnd->dso[0]) {
+            do_android_unload_sphal_library(hnd->dso[0]);
+        }
+        cnx->dso = nullptr;
+    }
+
+    cnx->systemDriverUnloaded = true;
+}
+
 void* Loader::open(egl_connection_t* cnx)
 {
     ATRACE_CALL();
     const nsecs_t openTime = systemTime();
+
+    if (should_unload_system_driver(cnx)) {
+        unload_system_driver(cnx);
+    }
+
+    // If a driver has been loaded, return the driver directly.
+    if (cnx->dso) {
+        return cnx->dso;
+    }
 
     setEmulatorGlesValue();
 
@@ -244,9 +319,15 @@ void* Loader::open(egl_connection_t* cnx)
                         "couldn't find an OpenGL ES implementation, make sure you set %s or %s",
                         HAL_SUBNAME_KEY_PROPERTIES[0], HAL_SUBNAME_KEY_PROPERTIES[1]);
 
-    cnx->libEgl   = load_wrapper(EGL_WRAPPER_DIR "/libEGL.so");
-    cnx->libGles2 = load_wrapper(EGL_WRAPPER_DIR "/libGLESv2.so");
-    cnx->libGles1 = load_wrapper(EGL_WRAPPER_DIR "/libGLESv1_CM.so");
+    if (!cnx->libEgl) {
+        cnx->libEgl = load_wrapper(EGL_WRAPPER_DIR "/libEGL.so");
+    }
+    if (!cnx->libGles1) {
+        cnx->libGles1 = load_wrapper(EGL_WRAPPER_DIR "/libGLESv1_CM.so");
+    }
+    if (!cnx->libGles2) {
+        cnx->libGles2 = load_wrapper(EGL_WRAPPER_DIR "/libGLESv2.so");
+    }
 
     if (!cnx->libEgl || !cnx->libGles2 || !cnx->libGles1) {
         android::GraphicsEnv::getInstance().setDriverLoaded(android::GraphicsEnv::Api::API_GL,
@@ -584,6 +665,7 @@ Loader::driver_t* Loader::attempt_to_load_updated_driver(egl_connection_t* cnx) 
         return nullptr;
     }
 
+    ALOGD("Load updated gl driver.");
     android::GraphicsEnv::getInstance().setDriverToLoad(android::GraphicsEnv::Driver::GL_UPDATED);
     driver_t* hnd = nullptr;
     void* dso = load_updated_driver("GLES", ns);
