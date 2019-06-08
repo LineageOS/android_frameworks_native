@@ -55,8 +55,9 @@ protected:
     class MockEventThreadConnection : public EventThreadConnection {
     public:
         MockEventThreadConnection(android::impl::EventThread* eventThread,
-                                  ResyncCallback&& resyncCallback)
-              : EventThreadConnection(eventThread, std::move(resyncCallback)) {}
+                                  ResyncCallback&& resyncCallback,
+                                  ISurfaceComposer::ConfigChanged configChanged)
+              : EventThreadConnection(eventThread, std::move(resyncCallback), configChanged) {}
         MOCK_METHOD1(postEvent, status_t(const DisplayEventReceiver::Event& event));
     };
 
@@ -67,7 +68,8 @@ protected:
     ~EventThreadTest() override;
 
     void createThread();
-    sp<MockEventThreadConnection> createConnection(ConnectionEventRecorder& recorder);
+    sp<MockEventThreadConnection> createConnection(ConnectionEventRecorder& recorder,
+                                                   ISurfaceComposer::ConfigChanged configChanged);
 
     void expectVSyncSetEnabledCallReceived(bool expectedState);
     void expectVSyncSetPhaseOffsetCallReceived(nsecs_t expectedPhaseOffset);
@@ -110,7 +112,8 @@ EventThreadTest::EventThreadTest() {
             .WillRepeatedly(Invoke(mVSyncSetPhaseOffsetCallRecorder.getInvocable()));
 
     createThread();
-    mConnection = createConnection(mConnectionEventCallRecorder);
+    mConnection = createConnection(mConnectionEventCallRecorder,
+                                   ISurfaceComposer::eConfigChangedDispatch);
 
     // A display must be connected for VSYNC events to be delivered.
     mThread->onHotplugReceived(INTERNAL_DISPLAY_ID, true);
@@ -138,9 +141,10 @@ void EventThreadTest::createThread() {
 }
 
 sp<EventThreadTest::MockEventThreadConnection> EventThreadTest::createConnection(
-        ConnectionEventRecorder& recorder) {
+        ConnectionEventRecorder& recorder, ISurfaceComposer::ConfigChanged configChanged) {
     sp<MockEventThreadConnection> connection =
-            new MockEventThreadConnection(mThread.get(), mResyncCallRecorder.getInvocable());
+            new MockEventThreadConnection(mThread.get(), mResyncCallRecorder.getInvocable(),
+                                          configChanged);
     EXPECT_CALL(*connection, postEvent(_)).WillRepeatedly(Invoke(recorder.getInvocable()));
     return connection;
 }
@@ -267,7 +271,9 @@ TEST_F(EventThreadTest, requestNextVsyncPostsASingleVSyncEventToTheConnection) {
 TEST_F(EventThreadTest, setVsyncRateZeroPostsNoVSyncEventsToThatConnection) {
     // Create a first connection, register it, and request a vsync rate of zero.
     ConnectionEventRecorder firstConnectionEventRecorder{0};
-    sp<MockEventThreadConnection> firstConnection = createConnection(firstConnectionEventRecorder);
+    sp<MockEventThreadConnection> firstConnection =
+            createConnection(firstConnectionEventRecorder,
+                             ISurfaceComposer::eConfigChangedSuppress);
     mThread->setVsyncRate(0, firstConnection);
 
     // By itself, this should not enable vsync events
@@ -277,7 +283,8 @@ TEST_F(EventThreadTest, setVsyncRateZeroPostsNoVSyncEventsToThatConnection) {
     // However if there is another connection which wants events at a nonzero rate.....
     ConnectionEventRecorder secondConnectionEventRecorder{0};
     sp<MockEventThreadConnection> secondConnection =
-            createConnection(secondConnectionEventRecorder);
+            createConnection(secondConnectionEventRecorder,
+                             ISurfaceComposer::eConfigChangedSuppress);
     mThread->setVsyncRate(1, secondConnection);
 
     // EventThread should enable vsync callbacks.
@@ -363,7 +370,9 @@ TEST_F(EventThreadTest, connectionsRemovedIfInstanceDestroyed) {
 
 TEST_F(EventThreadTest, connectionsRemovedIfEventDeliveryError) {
     ConnectionEventRecorder errorConnectionEventRecorder{NO_MEMORY};
-    sp<MockEventThreadConnection> errorConnection = createConnection(errorConnectionEventRecorder);
+    sp<MockEventThreadConnection> errorConnection =
+            createConnection(errorConnectionEventRecorder,
+                             ISurfaceComposer::eConfigChangedSuppress);
     mThread->setVsyncRate(1, errorConnection);
 
     // EventThread should enable vsync callbacks.
@@ -387,7 +396,9 @@ TEST_F(EventThreadTest, connectionsRemovedIfEventDeliveryError) {
 
 TEST_F(EventThreadTest, eventsDroppedIfNonfatalEventDeliveryError) {
     ConnectionEventRecorder errorConnectionEventRecorder{WOULD_BLOCK};
-    sp<MockEventThreadConnection> errorConnection = createConnection(errorConnectionEventRecorder);
+    sp<MockEventThreadConnection> errorConnection =
+            createConnection(errorConnectionEventRecorder,
+                             ISurfaceComposer::eConfigChangedSuppress);
     mThread->setVsyncRate(1, errorConnection);
 
     // EventThread should enable vsync callbacks.
@@ -447,6 +458,19 @@ TEST_F(EventThreadTest, postConfigChangedExternal) {
 TEST_F(EventThreadTest, postConfigChangedPrimary64bit) {
     mThread->onConfigChanged(DISPLAY_ID_64BIT, 7);
     expectConfigChangedEventReceivedByConnection(DISPLAY_ID_64BIT, 7);
+}
+
+TEST_F(EventThreadTest, suppressConfigChanged) {
+    ConnectionEventRecorder suppressConnectionEventRecorder{0};
+    sp<MockEventThreadConnection> suppressConnection =
+            createConnection(suppressConnectionEventRecorder,
+                             ISurfaceComposer::eConfigChangedSuppress);
+
+    mThread->onConfigChanged(INTERNAL_DISPLAY_ID, 9);
+    expectConfigChangedEventReceivedByConnection(INTERNAL_DISPLAY_ID, 9);
+
+    auto args = suppressConnectionEventRecorder.waitForCall();
+    ASSERT_FALSE(args.has_value());
 }
 
 } // namespace

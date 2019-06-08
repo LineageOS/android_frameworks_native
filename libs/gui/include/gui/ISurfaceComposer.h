@@ -90,6 +90,8 @@ public:
         eVsyncSourceSurfaceFlinger = 1
     };
 
+    enum ConfigChanged { eConfigChangedSuppress = 0, eConfigChangedDispatch = 1 };
+
     /*
      * Create a connection with SurfaceFlinger.
      */
@@ -97,7 +99,8 @@ public:
 
     /* return an IDisplayEventConnection */
     virtual sp<IDisplayEventConnection> createDisplayEventConnection(
-            VsyncSource vsyncSource = eVsyncSourceApp) = 0;
+            VsyncSource vsyncSource = eVsyncSourceApp,
+            ConfigChanged configChanged = eConfigChangedSuppress) = 0;
 
     /* create a virtual display
      * requires ACCESS_SURFACE_FLINGER permission.
