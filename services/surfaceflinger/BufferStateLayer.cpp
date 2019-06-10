@@ -50,12 +50,6 @@ BufferStateLayer::BufferStateLayer(const LayerCreationArgs& args)
     mOverrideScalingMode = NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
     mCurrentState.dataspace = ui::Dataspace::V0_SRGB;
 }
-BufferStateLayer::~BufferStateLayer() {
-    if (mActiveBuffer != nullptr) {
-        auto& engine(mFlinger->getRenderEngine());
-        engine.unbindExternalTextureBuffer(mActiveBuffer->getId());
-    }
-}
 
 // -----------------------------------------------------------------------
 // Interface implementation for Layer
@@ -571,11 +565,6 @@ status_t BufferStateLayer::updateActiveBuffer() {
         return BAD_VALUE;
     }
 
-    if (mActiveBuffer != nullptr) {
-        // todo: get this to work with BufferStateLayerCache
-        auto& engine(mFlinger->getRenderEngine());
-        engine.unbindExternalTextureBuffer(mActiveBuffer->getId());
-    }
     mActiveBuffer = s.buffer;
     mActiveBufferFence = s.acquireFence;
     auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
@@ -619,6 +608,10 @@ void BufferStateLayer::onFirstRef() {
     if (const auto display = mFlinger->getDefaultDisplayDevice()) {
         updateTransformHint(display);
     }
+}
+
+void BufferStateLayer::bufferErased(const client_cache_t& clientCacheId) {
+    mFlinger->getRenderEngine().unbindExternalTextureBuffer(clientCacheId.id);
 }
 
 void BufferStateLayer::HwcSlotGenerator::bufferErased(const client_cache_t& clientCacheId) {

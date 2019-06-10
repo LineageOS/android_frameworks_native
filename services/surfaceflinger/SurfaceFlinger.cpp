@@ -1372,7 +1372,7 @@ status_t SurfaceFlinger::notifyPowerHint(int32_t hintId) {
 // ----------------------------------------------------------------------------
 
 sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
-        ISurfaceComposer::VsyncSource vsyncSource) {
+        ISurfaceComposer::VsyncSource vsyncSource, ISurfaceComposer::ConfigChanged configChanged) {
     auto resyncCallback = mScheduler->makeResyncCallback([this] {
         Mutex::Autolock lock(mStateLock);
         return getVsyncPeriod();
@@ -1381,7 +1381,8 @@ sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
     const auto& handle =
             vsyncSource == eVsyncSourceSurfaceFlinger ? mSfConnectionHandle : mAppConnectionHandle;
 
-    return mScheduler->createDisplayEventConnection(handle, std::move(resyncCallback));
+    return mScheduler->createDisplayEventConnection(handle, std::move(resyncCallback),
+                                                    configChanged);
 }
 
 // ----------------------------------------------------------------------------
@@ -4148,6 +4149,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     sp<GraphicBuffer> buffer;
     if (bufferChanged && cacheIdChanged) {
         ClientCache::getInstance().add(s.cachedBuffer, s.buffer);
+        ClientCache::getInstance().registerErasedRecipient(s.cachedBuffer,
+                                                           wp<ClientCache::ErasedRecipient>(layer));
+        getRenderEngine().cacheExternalTextureBuffer(s.buffer);
         buffer = s.buffer;
     } else if (cacheIdChanged) {
         buffer = ClientCache::getInstance().get(s.cachedBuffer);

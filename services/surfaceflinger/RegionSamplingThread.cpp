@@ -280,6 +280,10 @@ float sampleArea(const uint32_t* data, int32_t width, int32_t height, int32_t st
         area.top = height - area.top;
         area.bottom = height - area.bottom;
         std::swap(area.top, area.bottom);
+
+        area.left = width - area.left;
+        area.right = width - area.right;
+        std::swap(area.left, area.right);
     }
 
     std::array<int32_t, 256> brightnessBuckets = {};
