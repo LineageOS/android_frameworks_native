@@ -838,6 +838,7 @@ private:
     }
 
     bool previousFrameMissed();
+    void setVsyncEnabledInHWC(DisplayId displayId, HWC2::Vsync enabled);
 
     /*
      * Debugging & dumpsys
@@ -1172,8 +1173,9 @@ private:
     // be any issues with a raw pointer referencing an invalid object.
     std::unordered_set<Layer*> mOffscreenLayers;
 
-    // Flag to indicate whether to re-enable HWVsync when screen is on
-    bool mEnableHWVsyncScreenOn = false;
+    // Flags to capture the state of Vsync in HWC
+    HWC2::Vsync mHWCVsyncState = HWC2::Vsync::Disable;
+    HWC2::Vsync mHWCVsyncPendingState = HWC2::Vsync::Disable;
 };
 
 } // namespace android
