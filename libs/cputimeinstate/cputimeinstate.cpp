@@ -25,6 +25,7 @@
 #include <sys/sysinfo.h>
 
 #include <mutex>
+#include <numeric>
 #include <optional>
 #include <set>
 #include <string>
@@ -53,7 +54,8 @@ static uint32_t gNCpus = 0;
 static std::vector<std::vector<uint32_t>> gPolicyFreqs;
 static std::vector<std::vector<uint32_t>> gPolicyCpus;
 static std::set<uint32_t> gAllFreqs;
-static unique_fd gMapFd;
+static unique_fd gTisMapFd;
+static unique_fd gConcurrentMapFd;
 
 static std::optional<std::vector<uint32_t>> readNumbersFromFile(const std::string &path) {
     std::string data;
@@ -122,8 +124,12 @@ static bool initGlobals() {
         gPolicyCpus.emplace_back(*cpus);
     }
 
-    gMapFd = unique_fd{bpf_obj_get(BPF_FS_PATH "map_time_in_state_uid_times_map")};
-    if (gMapFd < 0) return false;
+    gTisMapFd = unique_fd{bpf_obj_get(BPF_FS_PATH "map_time_in_state_uid_time_in_state_map")};
+    if (gTisMapFd < 0) return false;
+
+    gConcurrentMapFd =
+            unique_fd{bpf_obj_get(BPF_FS_PATH "map_time_in_state_uid_concurrent_times_map")};
+    if (gConcurrentMapFd < 0) return false;
 
     gInitialized = true;
     return true;
@@ -143,7 +149,7 @@ static bool attachTracepointProgram(const std::string &eventType, const std::str
 // process dies then it must be called again to resume tracking.
 // This function should *not* be called while tracking is already active; doing so is unnecessary
 // and can lead to accounting errors.
-bool startTrackingUidCpuFreqTimes() {
+bool startTrackingUidTimes() {
     if (!initGlobals()) return false;
 
     unique_fd fd(bpf_obj_get(BPF_FS_PATH "map_time_in_state_cpu_policy_map"));
@@ -174,7 +180,7 @@ bool startTrackingUidCpuFreqTimes() {
             attachTracepointProgram("power", "cpu_frequency");
 }
 
-// Retrieve the times in ns that uid spent running at each CPU frequency and store in freqTimes.
+// Retrieve the times in ns that uid spent running at each CPU frequency.
 // Return contains no value on error, otherwise it contains a vector of vectors using the format:
 // [[t0_0, t0_1, ...],
 //  [t1_0, t1_1, ...], ...]
@@ -189,11 +195,11 @@ std::optional<std::vector<std::vector<uint64_t>>> getUidCpuFreqTimes(uint32_t ui
         out.emplace_back(freqList.size(), 0);
     }
 
-    std::vector<val_t> vals(gNCpus);
+    std::vector<tis_val_t> vals(gNCpus);
     time_key_t key = {.uid = uid};
     for (uint32_t i = 0; i <= (maxFreqCount - 1) / FREQS_PER_ENTRY; ++i) {
         key.bucket = i;
-        if (findMapEntry(gMapFd, &key, vals.data())) {
+        if (findMapEntry(gTisMapFd, &key, vals.data())) {
             if (errno != ENOENT) return {};
             continue;
         }
@@ -214,7 +220,7 @@ std::optional<std::vector<std::vector<uint64_t>>> getUidCpuFreqTimes(uint32_t ui
     return out;
 }
 
-// Retrieve the times in ns that each uid spent running at each CPU freq and store in freqTimeMap.
+// Retrieve the times in ns that each uid spent running at each CPU freq.
 // Return contains no value on error, otherwise it contains a map from uids to vectors of vectors
 // using the format:
 // { uid0 -> [[t0_0_0, t0_0_1, ...], [t0_1_0, t0_1_1, ...], ...],
@@ -225,7 +231,7 @@ getUidsCpuFreqTimes() {
     if (!gInitialized && !initGlobals()) return {};
     time_key_t key, prevKey;
     std::unordered_map<uint32_t, std::vector<std::vector<uint64_t>>> map;
-    if (getFirstMapKey(gMapFd, &key)) {
+    if (getFirstMapKey(gTisMapFd, &key)) {
         if (errno == ENOENT) return map;
         return std::nullopt;
     }
@@ -233,9 +239,9 @@ getUidsCpuFreqTimes() {
     std::vector<std::vector<uint64_t>> mapFormat;
     for (const auto &freqList : gPolicyFreqs) mapFormat.emplace_back(freqList.size(), 0);
 
-    std::vector<val_t> vals(gNCpus);
+    std::vector<tis_val_t> vals(gNCpus);
     do {
-        if (findMapEntry(gMapFd, &key, vals.data())) return {};
+        if (findMapEntry(gTisMapFd, &key, vals.data())) return {};
         if (map.find(key.uid) == map.end()) map.emplace(key.uid, mapFormat);
 
         auto offset = key.bucket * FREQS_PER_ENTRY;
@@ -250,13 +256,129 @@ getUidsCpuFreqTimes() {
             }
         }
         prevKey = key;
-    } while (!getNextMapKey(gMapFd, &prevKey, &key));
+    } while (!getNextMapKey(gTisMapFd, &prevKey, &key));
     if (errno != ENOENT) return {};
     return map;
 }
 
+static bool verifyConcurrentTimes(const concurrent_time_t &ct) {
+    uint64_t activeSum = std::accumulate(ct.active.begin(), ct.active.end(), (uint64_t)0);
+    uint64_t policySum = 0;
+    for (const auto &vec : ct.policy) {
+        policySum += std::accumulate(vec.begin(), vec.end(), (uint64_t)0);
+    }
+    return activeSum == policySum;
+}
+
+// Retrieve the times in ns that uid spent running concurrently with each possible number of other
+// tasks on each cluster (policy times) and overall (active times).
+// Return contains no value on error, otherwise it contains a concurrent_time_t with the format:
+// {.active = [a0, a1, ...], .policy = [[p0_0, p0_1, ...], [p1_0, p1_1, ...], ...]}
+// where ai is the ns spent running concurrently with tasks on i other cpus and pi_j is the ns spent
+// running on the ith cluster, concurrently with tasks on j other cpus in the same cluster
+std::optional<concurrent_time_t> getUidConcurrentTimes(uint32_t uid, bool retry) {
+    if (!gInitialized && !initGlobals()) return {};
+    concurrent_time_t ret = {.active = std::vector<uint64_t>(gNCpus, 0)};
+    for (const auto &cpuList : gPolicyCpus) ret.policy.emplace_back(cpuList.size(), 0);
+    std::vector<concurrent_val_t> vals(gNCpus);
+    time_key_t key = {.uid = uid};
+    for (key.bucket = 0; key.bucket <= (gNCpus - 1) / CPUS_PER_ENTRY; ++key.bucket) {
+        if (findMapEntry(gConcurrentMapFd, &key, vals.data())) {
+            if (errno != ENOENT) return {};
+            continue;
+        }
+        auto offset = key.bucket * CPUS_PER_ENTRY;
+        auto nextOffset = (key.bucket + 1) * CPUS_PER_ENTRY;
+
+        auto activeBegin = ret.active.begin() + offset;
+        auto activeEnd = nextOffset < gNCpus ? activeBegin + CPUS_PER_ENTRY : ret.active.end();
+
+        for (uint32_t cpu = 0; cpu < gNCpus; ++cpu) {
+            std::transform(activeBegin, activeEnd, std::begin(vals[cpu].active), activeBegin,
+                           std::plus<uint64_t>());
+        }
+
+        for (uint32_t policy = 0; policy < gNPolicies; ++policy) {
+            if (offset >= gPolicyCpus[policy].size()) continue;
+            auto policyBegin = ret.policy[policy].begin() + offset;
+            auto policyEnd = nextOffset < gPolicyCpus[policy].size() ? policyBegin + CPUS_PER_ENTRY
+                                                                     : ret.policy[policy].end();
+
+            for (const auto &cpu : gPolicyCpus[policy]) {
+                std::transform(policyBegin, policyEnd, std::begin(vals[cpu].policy), policyBegin,
+                               std::plus<uint64_t>());
+            }
+        }
+    }
+    if (!verifyConcurrentTimes(ret) && retry)  return getUidConcurrentTimes(uid, false);
+    return ret;
+}
+
+// Retrieve the times in ns that each uid spent running concurrently with each possible number of
+// other tasks on each cluster (policy times) and overall (active times).
+// Return contains no value on error, otherwise it contains a map from uids to concurrent_time_t's
+// using the format:
+// { uid0 -> {.active = [a0, a1, ...], .policy = [[p0_0, p0_1, ...], [p1_0, p1_1, ...], ...] }, ...}
+// where ai is the ns spent running concurrently with tasks on i other cpus and pi_j is the ns spent
+// running on the ith cluster, concurrently with tasks on j other cpus in the same cluster.
+std::optional<std::unordered_map<uint32_t, concurrent_time_t>> getUidsConcurrentTimes() {
+    if (!gInitialized && !initGlobals()) return {};
+    time_key_t key, prevKey;
+    std::unordered_map<uint32_t, concurrent_time_t> ret;
+    if (getFirstMapKey(gConcurrentMapFd, &key)) {
+        if (errno == ENOENT) return ret;
+        return {};
+    }
+
+    concurrent_time_t retFormat = {.active = std::vector<uint64_t>(gNCpus, 0)};
+    for (const auto &cpuList : gPolicyCpus) retFormat.policy.emplace_back(cpuList.size(), 0);
+
+    std::vector<concurrent_val_t> vals(gNCpus);
+    std::vector<uint64_t>::iterator activeBegin, activeEnd, policyBegin, policyEnd;
+
+    do {
+        if (findMapEntry(gConcurrentMapFd, &key, vals.data())) return {};
+        if (ret.find(key.uid) == ret.end()) ret.emplace(key.uid, retFormat);
+
+        auto offset = key.bucket * CPUS_PER_ENTRY;
+        auto nextOffset = (key.bucket + 1) * CPUS_PER_ENTRY;
+
+        activeBegin = ret[key.uid].active.begin();
+        activeEnd = nextOffset < gNCpus ? activeBegin + CPUS_PER_ENTRY : ret[key.uid].active.end();
+
+        for (uint32_t cpu = 0; cpu < gNCpus; ++cpu) {
+            std::transform(activeBegin, activeEnd, std::begin(vals[cpu].active), activeBegin,
+                           std::plus<uint64_t>());
+        }
+
+        for (uint32_t policy = 0; policy < gNPolicies; ++policy) {
+            if (offset >= gPolicyCpus[policy].size()) continue;
+            policyBegin = ret[key.uid].policy[policy].begin() + offset;
+            policyEnd = nextOffset < gPolicyCpus[policy].size() ? policyBegin + CPUS_PER_ENTRY
+                                                                : ret[key.uid].policy[policy].end();
+
+            for (const auto &cpu : gPolicyCpus[policy]) {
+                std::transform(policyBegin, policyEnd, std::begin(vals[cpu].policy), policyBegin,
+                               std::plus<uint64_t>());
+            }
+        }
+        prevKey = key;
+    } while (!getNextMapKey(gConcurrentMapFd, &prevKey, &key));
+    if (errno != ENOENT) return {};
+    for (const auto &[key, value] : ret) {
+        if (!verifyConcurrentTimes(value)) {
+            auto val = getUidConcurrentTimes(key, false);
+            if (val.has_value()) ret[key] = val.value();
+        }
+    }
+    return ret;
+}
+
 // Clear all time in state data for a given uid. Returns false on error, true otherwise.
-bool clearUidCpuFreqTimes(uint32_t uid) {
+// This is only suitable for clearing data when an app is uninstalled; if called on a UID with
+// running tasks it will cause time in state vs. concurrent time totals to be inconsistent for that
+// UID.
+bool clearUidTimes(uint32_t uid) {
     if (!gInitialized && !initGlobals()) return false;
 
     time_key_t key = {.uid = uid};
@@ -266,11 +388,20 @@ bool clearUidCpuFreqTimes(uint32_t uid) {
         if (freqList.size() > maxFreqCount) maxFreqCount = freqList.size();
     }
 
-    val_t zeros = {0};
-    std::vector<val_t> vals(gNCpus, zeros);
+    tis_val_t zeros = {0};
+    std::vector<tis_val_t> vals(gNCpus, zeros);
     for (key.bucket = 0; key.bucket <= (maxFreqCount - 1) / FREQS_PER_ENTRY; ++key.bucket) {
-        if (writeToMapEntry(gMapFd, &key, vals.data(), BPF_EXIST) && errno != ENOENT) return false;
-        if (deleteMapEntry(gMapFd, &key) && errno != ENOENT) return false;
+        if (writeToMapEntry(gTisMapFd, &key, vals.data(), BPF_EXIST) && errno != ENOENT)
+            return false;
+        if (deleteMapEntry(gTisMapFd, &key) && errno != ENOENT) return false;
+    }
+
+    concurrent_val_t czeros = {.policy = {0}, .active = {0}};
+    std::vector<concurrent_val_t> cvals(gNCpus, czeros);
+    for (key.bucket = 0; key.bucket <= (gNCpus - 1) / CPUS_PER_ENTRY; ++key.bucket) {
+        if (writeToMapEntry(gConcurrentMapFd, &key, cvals.data(), BPF_EXIST) && errno != ENOENT)
+            return false;
+        if (deleteMapEntry(gConcurrentMapFd, &key) && errno != ENOENT) return false;
     }
     return true;
 }
