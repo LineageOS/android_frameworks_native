@@ -418,7 +418,6 @@ private:
     virtual sp<IDisplayEventConnection> createDisplayEventConnection(
             ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp);
     virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
-                                   bool& outCapturedSecureLayers,
                                    Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
                                    int32_t minLayerZ, int32_t maxLayerZ, bool useIdentityTransform,
                                    ISurfaceComposer::Rotation rotation, bool captureSecureLayers);
@@ -569,11 +568,11 @@ private:
                                 bool yswap, bool useIdentityTransform);
     status_t captureScreenCommon(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
                                  sp<GraphicBuffer>* outBuffer,
-                                 bool useIdentityTransform, bool& outCapturedSecureLayers);
+                                 bool useIdentityTransform);
     status_t captureScreenImplLocked(const RenderArea& renderArea,
                                      TraverseLayersFunction traverseLayers,
                                      ANativeWindowBuffer* buffer, bool useIdentityTransform,
-                                     bool forSystem, int* outSyncFd, bool& outCapturedSecureLayers);
+                                     bool forSystem, int* outSyncFd);
     void traverseLayersInDisplay(const sp<const DisplayDevice>& display, int32_t minLayerZ,
                                  int32_t maxLayerZ, const LayerVector::Visitor& visitor);
 

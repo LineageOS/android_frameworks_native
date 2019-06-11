@@ -4705,8 +4705,7 @@ private:
     const int mApi;
 };
 
-status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
-                                       sp<GraphicBuffer>* outBuffer, bool& outCapturedSecureLayers,
+status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
                                        Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
                                        int32_t minLayerZ, int32_t maxLayerZ,
                                        bool useIdentityTransform,
@@ -4734,8 +4733,7 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
 
     auto traverseLayers = std::bind(std::mem_fn(&SurfaceFlinger::traverseLayersInDisplay), this,
                                     device, minLayerZ, maxLayerZ, std::placeholders::_1);
-    return captureScreenCommon(renderArea, traverseLayers, outBuffer, useIdentityTransform,
-                               outCapturedSecureLayers);
+    return captureScreenCommon(renderArea, traverseLayers, outBuffer, useIdentityTransform);
 }
 
 status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
@@ -4849,16 +4847,13 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
             visitor(layer);
         });
     };
-    bool outCapturedSecureLayers = false;
-    return captureScreenCommon(renderArea, traverseLayers, outBuffer, false,
-                               outCapturedSecureLayers);
+    return captureScreenCommon(renderArea, traverseLayers, outBuffer, false);
 }
 
 status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
                                              TraverseLayersFunction traverseLayers,
                                              sp<GraphicBuffer>* outBuffer,
-                                             bool useIdentityTransform,
-                                             bool& outCapturedSecureLayers) {
+                                             bool useIdentityTransform) {
     ATRACE_CALL();
 
     renderArea.updateDimensions(mPrimaryDisplayOrientation);
@@ -4896,8 +4891,7 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
             Mutex::Autolock _l(mStateLock);
             renderArea.render([&]() {
                 result = captureScreenImplLocked(renderArea, traverseLayers, (*outBuffer).get(),
-                                                 useIdentityTransform, forSystem, &fd,
-                                                 outCapturedSecureLayers);
+                                                 useIdentityTransform, forSystem, &fd);
             });
         }
 
@@ -5048,19 +5042,21 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
 status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
                                                  TraverseLayersFunction traverseLayers,
                                                  ANativeWindowBuffer* buffer,
-                                                 bool useIdentityTransform, bool forSystem,
-                                                 int* outSyncFd, bool& outCapturedSecureLayers) {
+                                                 bool useIdentityTransform,
+                                                 bool forSystem,
+                                                 int* outSyncFd) {
     ATRACE_CALL();
 
+    bool secureLayerIsVisible = false;
+
     traverseLayers([&](Layer* layer) {
-        outCapturedSecureLayers =
-                outCapturedSecureLayers || (layer->isVisible() && layer->isSecure());
+        secureLayerIsVisible = secureLayerIsVisible || (layer->isVisible() && layer->isSecure());
     });
 
     // We allow the system server to take screenshots of secure layers for
     // use in situations like the Screen-rotation animation and place
     // the impetus on WindowManager to not persist them.
-    if (outCapturedSecureLayers && !forSystem) {
+    if (secureLayerIsVisible && !forSystem) {
         ALOGW("FB is protected: PERMISSION_DENIED");
         return PERMISSION_DENIED;
     }

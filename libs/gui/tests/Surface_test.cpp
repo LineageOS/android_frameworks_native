@@ -126,7 +126,7 @@ TEST_F(SurfaceTest, QueuesToWindowComposerIsTrueWhenPurgatorized) {
 }
 
 // This test probably doesn't belong here.
-TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersDontSucceed) {
+TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersSucceed) {
     sp<ANativeWindow> anw(mSurface);
 
     // Verify the screenshot works with no protected buffers.
@@ -134,8 +134,7 @@ TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersDontSucceed) {
     sp<IBinder> display(sf->getBuiltInDisplay(
             ISurfaceComposer::eDisplayIdMain));
     sp<GraphicBuffer> outBuffer;
-    bool ignored;
-    ASSERT_EQ(NO_ERROR, sf->captureScreen(display, &outBuffer, ignored, Rect(),
+    ASSERT_EQ(NO_ERROR, sf->captureScreen(display, &outBuffer, Rect(),
             64, 64, 0, 0x7fffffff, false));
 
     ASSERT_EQ(NO_ERROR, native_window_api_connect(anw.get(),
@@ -166,7 +165,7 @@ TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersDontSucceed) {
                 &buf));
         ASSERT_EQ(NO_ERROR, anw->queueBuffer(anw.get(), buf, -1));
     }
-    ASSERT_EQ(NO_ERROR, sf->captureScreen(display, &outBuffer, ignored, Rect(),
+    ASSERT_EQ(NO_ERROR, sf->captureScreen(display, &outBuffer, Rect(),
             64, 64, 0, 0x7fffffff, false));
 }
 
@@ -599,7 +598,6 @@ public:
         ColorMode /*colorMode*/) override { return NO_ERROR; }
     status_t captureScreen(const sp<IBinder>& /*display*/,
             sp<GraphicBuffer>* /*outBuffer*/,
-            bool& /* outCapturedSecureLayers */,
             Rect /*sourceCrop*/, uint32_t /*reqWidth*/, uint32_t /*reqHeight*/,
             int32_t /*minLayerZ*/, int32_t /*maxLayerZ*/,
             bool /*useIdentityTransform*/,
