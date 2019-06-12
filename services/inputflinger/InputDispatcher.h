@@ -570,19 +570,21 @@ private:
         int32_t edgeFlags;
         float xPrecision;
         float yPrecision;
+        float xCursorPosition;
+        float yCursorPosition;
         nsecs_t downTime;
         uint32_t pointerCount;
         PointerProperties pointerProperties[MAX_POINTERS];
         PointerCoords pointerCoords[MAX_POINTERS];
 
-        MotionEntry(uint32_t sequenceNum, nsecs_t eventTime,
-                int32_t deviceId, uint32_t source, int32_t displayId, uint32_t policyFlags,
-                int32_t action, int32_t actionButton, int32_t flags,
-                int32_t metaState, int32_t buttonState, MotionClassification classification,
-                int32_t edgeFlags, float xPrecision, float yPrecision,
-                nsecs_t downTime, uint32_t pointerCount,
-                const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
-                float xOffset, float yOffset);
+        MotionEntry(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId, uint32_t source,
+                    int32_t displayId, uint32_t policyFlags, int32_t action, int32_t actionButton,
+                    int32_t flags, int32_t metaState, int32_t buttonState,
+                    MotionClassification classification, int32_t edgeFlags, float xPrecision,
+                    float yPrecision, float xCursorPosition, float yCursorPosition,
+                    nsecs_t downTime, uint32_t pointerCount,
+                    const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
+                    float xOffset, float yOffset);
         virtual void appendDescription(std::string& msg) const;
 
     protected:
@@ -830,6 +832,8 @@ private:
             int32_t flags;
             float xPrecision;
             float yPrecision;
+            float xCursorPosition;
+            float yCursorPosition;
             nsecs_t downTime;
             uint32_t pointerCount;
             PointerProperties pointerProperties[MAX_POINTERS];
