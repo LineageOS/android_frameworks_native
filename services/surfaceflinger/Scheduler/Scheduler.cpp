@@ -404,6 +404,10 @@ void Scheduler::notifyTouchEvent() {
     if (mSupportKernelTimer) {
         resetIdleTimer();
     }
+
+    // Touch event will boost the refresh rate to performance.
+    // Clear Layer History to get fresh FPS detection
+    mLayerHistory.clearHistory();
 }
 
 void Scheduler::resetTimerCallback() {
