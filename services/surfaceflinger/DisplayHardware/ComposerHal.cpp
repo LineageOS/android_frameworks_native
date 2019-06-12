@@ -24,6 +24,7 @@
 
 #include <composer-command-buffer/2.2/ComposerCommandBuffer.h>
 #include <gui/BufferQueue.h>
+#include <hidl/HidlTransportSupport.h>
 #include <hidl/HidlTransportUtils.h>
 
 namespace android {
@@ -229,6 +230,7 @@ std::string Composer::dumpDebugInfo()
 
 void Composer::registerCallback(const sp<IComposerCallback>& callback)
 {
+    android::hardware::setMinSchedulerPolicy(callback, SCHED_FIFO, 2);
     auto ret = mClient->registerCallback(callback);
     if (!ret.isOk()) {
         ALOGE("failed to register IComposerCallback");
