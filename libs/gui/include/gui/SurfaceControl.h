@@ -44,7 +44,7 @@ class SurfaceComposerClient;
 class SurfaceControl : public RefBase
 {
 public:
-    static sp<SurfaceControl> readFromParcel(Parcel* parcel);
+    static sp<SurfaceControl> readFromParcel(const Parcel* parcel);
     void writeToParcel(Parcel* parcel);
 
     static bool isValid(const sp<SurfaceControl>& surface) {
@@ -81,7 +81,7 @@ public:
     status_t getLayerFrameStats(FrameStats* outStats) const;
 
     sp<SurfaceComposerClient> getClient() const;
-    
+
     explicit SurfaceControl(const sp<SurfaceControl>& other);
 
     SurfaceControl(const sp<SurfaceComposerClient>& client, const sp<IBinder>& handle,
