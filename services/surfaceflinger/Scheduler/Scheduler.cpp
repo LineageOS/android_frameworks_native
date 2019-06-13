@@ -315,7 +315,7 @@ void Scheduler::setIgnorePresentFences(bool ignore) {
     mPrimaryDispSync->setIgnorePresentFences(ignore);
 }
 
-nsecs_t Scheduler::expectedPresentTime() {
+nsecs_t Scheduler::getDispSyncExpectedPresentTime() {
     return mPrimaryDispSync->expectedPresentTime();
 }
 
