@@ -186,8 +186,7 @@ void SurfaceControl::writeToParcel(Parcel* parcel)
     parcel->writeStrongBinder(IGraphicBufferProducer::asBinder(mGraphicBufferProducer));
 }
 
-sp<SurfaceControl> SurfaceControl::readFromParcel(Parcel* parcel)
-{
+sp<SurfaceControl> SurfaceControl::readFromParcel(const Parcel* parcel) {
     sp<IBinder> client = parcel->readStrongBinder();
     sp<IBinder> handle = parcel->readStrongBinder();
     if (client == nullptr || handle == nullptr)
