@@ -56,10 +56,12 @@ public:
     // appEarly: Like sfEarly, but for the app-vsync
     // appEarlyGl: Like sfEarlyGl, but for the app-vsync.
     // appLate: The regular app vsync phase offset.
-    void setPhaseOffsets(Offsets early, Offsets earlyGl, Offsets late) {
+    void setPhaseOffsets(Offsets early, Offsets earlyGl, Offsets late,
+                         nsecs_t thresholdForNextVsync) {
         mEarlyOffsets = early;
         mEarlyGlOffsets = earlyGl;
         mLateOffsets = late;
+        mThresholdForNextVsync = thresholdForNextVsync;
 
         if (mSfConnectionHandle && late.sf != mOffsets.load().sf) {
             mScheduler->setPhaseOffset(mSfConnectionHandle, late.sf);
@@ -192,6 +194,7 @@ private:
     Offsets mLateOffsets;
     Offsets mEarlyOffsets;
     Offsets mEarlyGlOffsets;
+    nsecs_t mThresholdForNextVsync;
 
     EventThread* mSfEventThread = nullptr;
     EventThread* mAppEventThread = nullptr;

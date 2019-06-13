@@ -51,6 +51,7 @@ protected:
     AsyncCallRecorder<void (*)(nsecs_t)> mVSyncEventCallRecorder;
 
     static constexpr std::chrono::nanoseconds mPhaseOffset = 6ms;
+    static constexpr std::chrono::nanoseconds mOffsetThresholdForNextVsync = 16ms;
     static constexpr int mIterations = 100;
 };
 
@@ -78,7 +79,8 @@ void DispSyncSourceTest::createDispSync() {
 
 void DispSyncSourceTest::createDispSyncSource() {
     createDispSync();
-    mDispSyncSource = std::make_unique<DispSyncSource>(mDispSync.get(), mPhaseOffset.count(), true,
+    mDispSyncSource = std::make_unique<DispSyncSource>(mDispSync.get(), mPhaseOffset.count(),
+                                                       mOffsetThresholdForNextVsync.count(), true,
                                                        "DispSyncSourceTest");
     mDispSyncSource->setCallback(this);
 }

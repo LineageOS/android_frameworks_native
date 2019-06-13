@@ -119,14 +119,15 @@ Scheduler::~Scheduler() {
 }
 
 sp<Scheduler::ConnectionHandle> Scheduler::createConnection(
-        const char* connectionName, int64_t phaseOffsetNs, ResyncCallback resyncCallback,
+        const char* connectionName, nsecs_t phaseOffsetNs, nsecs_t offsetThresholdForNextVsync,
+        ResyncCallback resyncCallback,
         impl::EventThread::InterceptVSyncsCallback interceptCallback) {
     const int64_t id = sNextId++;
     ALOGV("Creating a connection handle with ID: %" PRId64 "\n", id);
 
     std::unique_ptr<EventThread> eventThread =
             makeEventThread(connectionName, mPrimaryDispSync.get(), phaseOffsetNs,
-                            std::move(interceptCallback));
+                            offsetThresholdForNextVsync, std::move(interceptCallback));
 
     auto eventThreadConnection =
             createConnectionInternal(eventThread.get(), std::move(resyncCallback),
@@ -139,10 +140,12 @@ sp<Scheduler::ConnectionHandle> Scheduler::createConnection(
 }
 
 std::unique_ptr<EventThread> Scheduler::makeEventThread(
-        const char* connectionName, DispSync* dispSync, int64_t phaseOffsetNs,
+        const char* connectionName, DispSync* dispSync, nsecs_t phaseOffsetNs,
+        nsecs_t offsetThresholdForNextVsync,
         impl::EventThread::InterceptVSyncsCallback interceptCallback) {
     std::unique_ptr<VSyncSource> eventThreadSource =
-            std::make_unique<DispSyncSource>(dispSync, phaseOffsetNs, true, connectionName);
+            std::make_unique<DispSyncSource>(dispSync, phaseOffsetNs, offsetThresholdForNextVsync,
+                                             true, connectionName);
     return std::make_unique<impl::EventThread>(std::move(eventThreadSource),
                                                std::move(interceptCallback), connectionName);
 }
