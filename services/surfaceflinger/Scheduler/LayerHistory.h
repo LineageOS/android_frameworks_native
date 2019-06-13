@@ -64,6 +64,9 @@ public:
     // layers. See go/content-fps-detection-in-scheduler for more information.
     std::pair<float, bool> getDesiredRefreshRateAndHDR();
 
+    // Clears all layer history.
+    void clearHistory();
+
     // Removes the handle and the object from the map.
     void destroyLayer(const int64_t id);
 

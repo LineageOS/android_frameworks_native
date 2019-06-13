@@ -377,7 +377,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     mLumaSampling = atoi(value);
 
     const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
-    mVsyncModulator.setPhaseOffsets(early, gl, late);
+    mVsyncModulator.setPhaseOffsets(early, gl, late,
+                                    mPhaseOffsets->getOffsetThresholdForNextVsync());
 
     // We should be reading 'persist.sys.sf.color_saturation' here
     // but since /data may be encrypted, we need to wait until after vold
@@ -616,13 +617,16 @@ void SurfaceFlinger::init() {
             mScheduler->makeResyncCallback(std::bind(&SurfaceFlinger::getVsyncPeriod, this));
 
     mAppConnectionHandle =
-            mScheduler->createConnection("app", mPhaseOffsets->getCurrentAppOffset(),
+            mScheduler->createConnection("app", mVsyncModulator.getOffsets().app,
+                                         mPhaseOffsets->getOffsetThresholdForNextVsync(),
                                          resyncCallback,
                                          impl::EventThread::InterceptVSyncsCallback());
-    mSfConnectionHandle = mScheduler->createConnection("sf", mPhaseOffsets->getCurrentSfOffset(),
-                                                       resyncCallback, [this](nsecs_t timestamp) {
-                                                           mInterceptor->saveVSyncEvent(timestamp);
-                                                       });
+    mSfConnectionHandle =
+            mScheduler->createConnection("sf", mVsyncModulator.getOffsets().sf,
+                                         mPhaseOffsets->getOffsetThresholdForNextVsync(),
+                                         resyncCallback, [this](nsecs_t timestamp) {
+                                             mInterceptor->saveVSyncEvent(timestamp);
+                                         });
 
     mEventQueue->setEventConnection(mScheduler->getEventConnection(mSfConnectionHandle));
     mVsyncModulator.setSchedulerAndHandles(mScheduler.get(), mAppConnectionHandle.get(),
@@ -940,7 +944,8 @@ void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
         mVsyncModulator.onRefreshRateChangeInitiated();
         mPhaseOffsets->setRefreshRateType(info.type);
         const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
-        mVsyncModulator.setPhaseOffsets(early, gl, late);
+        mVsyncModulator.setPhaseOffsets(early, gl, late,
+                                        mPhaseOffsets->getOffsetThresholdForNextVsync());
     }
     mDesiredActiveConfigChanged = true;
     ATRACE_INT("DesiredActiveConfigChanged", mDesiredActiveConfigChanged);
@@ -974,7 +979,8 @@ void SurfaceFlinger::setActiveConfigInternal() {
 
     mPhaseOffsets->setRefreshRateType(mUpcomingActiveConfig.type);
     const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
-    mVsyncModulator.setPhaseOffsets(early, gl, late);
+    mVsyncModulator.setPhaseOffsets(early, gl, late,
+                                    mPhaseOffsets->getOffsetThresholdForNextVsync());
     ATRACE_INT("ActiveConfigMode", mUpcomingActiveConfig.configId);
 
     if (mUpcomingActiveConfig.event != Scheduler::ConfigEvent::None) {
@@ -992,7 +998,8 @@ void SurfaceFlinger::desiredActiveConfigChangeDone() {
     mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
     mPhaseOffsets->setRefreshRateType(mUpcomingActiveConfig.type);
     const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
-    mVsyncModulator.setPhaseOffsets(early, gl, late);
+    mVsyncModulator.setPhaseOffsets(early, gl, late,
+                                    mPhaseOffsets->getOffsetThresholdForNextVsync());
 }
 
 bool SurfaceFlinger::performSetActiveConfig() {
@@ -1541,14 +1548,12 @@ void SurfaceFlinger::setPrimaryVsyncEnabled(bool enabled) {
 void SurfaceFlinger::setPrimaryVsyncEnabledInternal(bool enabled) {
     ATRACE_CALL();
 
+    mHWCVsyncPendingState = enabled ? HWC2::Vsync::Enable : HWC2::Vsync::Disable;
+
     if (const auto displayId = getInternalDisplayIdLocked()) {
         sp<DisplayDevice> display = getDefaultDisplayDeviceLocked();
         if (display && display->isPoweredOn()) {
-            getHwComposer().setVsyncEnabled(*displayId,
-                                            enabled ? HWC2::Vsync::Enable : HWC2::Vsync::Disable);
-        } else {
-            // Cache the latest vsync state and apply it when screen is on again
-            mEnableHWVsyncScreenOn = enabled;
+            setVsyncEnabledInHWC(*displayId, mHWCVsyncPendingState);
         }
     }
 }
@@ -4435,6 +4440,13 @@ void SurfaceFlinger::initializeDisplays() {
             new LambdaMessage([this]() NO_THREAD_SAFETY_ANALYSIS { onInitializeDisplays(); }));
 }
 
+void SurfaceFlinger::setVsyncEnabledInHWC(DisplayId displayId, HWC2::Vsync enabled) {
+    if (mHWCVsyncState != enabled) {
+        getHwComposer().setVsyncEnabled(displayId, enabled);
+        mHWCVsyncState = enabled;
+    }
+}
+
 void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int mode) {
     if (display->isVirtual()) {
         ALOGE("%s: Invalid operation on virtual display", __FUNCTION__);
@@ -4461,11 +4473,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
         // Turn on the display
         getHwComposer().setPowerMode(*displayId, mode);
         if (display->isPrimary() && mode != HWC_POWER_MODE_DOZE_SUSPEND) {
-            if (mEnableHWVsyncScreenOn) {
-                setPrimaryVsyncEnabledInternal(mEnableHWVsyncScreenOn);
-                mEnableHWVsyncScreenOn = false;
-            }
-
+            setVsyncEnabledInHWC(*displayId, mHWCVsyncPendingState);
             mScheduler->onScreenAcquired(mAppConnectionHandle);
             mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
         }
@@ -4490,6 +4498,9 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
             mScheduler->disableHardwareVsync(true);
             mScheduler->onScreenReleased(mAppConnectionHandle);
         }
+
+        // Make sure HWVsync is disabled before turning off the display
+        setVsyncEnabledInHWC(*displayId, HWC2::Vsync::Disable);
 
         getHwComposer().setPowerMode(*displayId, mode);
         mVisibleRegionsDirty = true;
