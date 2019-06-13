@@ -173,5 +173,18 @@ void LayerHistory::removeIrrelevantLayers() {
     }
 }
 
+void LayerHistory::clearHistory() {
+    std::lock_guard lock(mLock);
+
+    auto it = mActiveLayerInfos.begin();
+    while (it != mActiveLayerInfos.end()) {
+        auto id = it->first;
+        auto layerInfo = it->second;
+        layerInfo->clearHistory();
+        mInactiveLayerInfos.insert({id, layerInfo});
+        it = mActiveLayerInfos.erase(it);
+    }
+}
+
 } // namespace scheduler
 } // namespace android
