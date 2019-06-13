@@ -96,8 +96,8 @@ public:
     virtual ~Scheduler();
 
     /** Creates an EventThread connection. */
-    sp<ConnectionHandle> createConnection(const char* connectionName, int64_t phaseOffsetNs,
-                                          ResyncCallback,
+    sp<ConnectionHandle> createConnection(const char* connectionName, nsecs_t phaseOffsetNs,
+                                          nsecs_t offsetThresholdForNextVsync, ResyncCallback,
                                           impl::EventThread::InterceptVSyncsCallback);
 
     sp<IDisplayEventConnection> createDisplayEventConnection(
@@ -185,7 +185,8 @@ public:
 
 protected:
     virtual std::unique_ptr<EventThread> makeEventThread(
-            const char* connectionName, DispSync* dispSync, int64_t phaseOffsetNs,
+            const char* connectionName, DispSync* dispSync, nsecs_t phaseOffsetNs,
+            nsecs_t offsetThresholdForNextVsync,
             impl::EventThread::InterceptVSyncsCallback interceptCallback);
 
 private:
