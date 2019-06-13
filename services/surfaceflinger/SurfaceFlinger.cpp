@@ -2133,7 +2133,14 @@ void SurfaceFlinger::postComposition()
     }
 
     mTransactionCompletedThread.addPresentFence(mPreviousPresentFences[0]);
-    mTransactionCompletedThread.sendCallbacks();
+
+    // Lock the mStateLock in case SurfaceFlinger is in the middle of applying a transaction.
+    // If we do not lock here, a callback could be sent without all of its SurfaceControls and
+    // metrics.
+    {
+        Mutex::Autolock _l(mStateLock);
+        mTransactionCompletedThread.sendCallbacks();
+    }
 
     if (mLumaSampling && mRegionSamplingThread) {
         mRegionSamplingThread->notifyNewContent();
