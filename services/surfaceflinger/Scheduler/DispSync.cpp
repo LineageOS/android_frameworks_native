@@ -288,17 +288,6 @@ public:
                 // new offset to allow for a seamless offset change without double-firing or
                 // skipping.
                 nsecs_t diff = oldPhase - phase;
-                if (diff > mPeriod / 2) {
-                    diff -= mPeriod;
-                } else if (diff < -mPeriod / 2) {
-                    diff += mPeriod;
-                }
-
-                if (phase < 0 && oldPhase > 0) {
-                    diff += mPeriod;
-                } else if (phase > 0 && oldPhase < 0) {
-                    diff -= mPeriod;
-                }
                 eventListener.mLastEventTime -= diff;
                 eventListener.mLastCallbackTime -= diff;
                 mCond.signal();
