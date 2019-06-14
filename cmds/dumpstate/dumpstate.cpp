@@ -2257,7 +2257,6 @@ Dumpstate::RunStatus Dumpstate::DumpOptions::Initialize(int argc, char* argv[]) 
         }
     }
 
-    // TODO: use helper function to convert argv into a string
     for (int i = 0; i < argc; i++) {
         args += argv[i];
         if (i < argc - 1) {

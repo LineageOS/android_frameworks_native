@@ -441,8 +441,7 @@ class Dumpstate {
     // Full path of the bugreport file, be it zip or text, inside bugreport_internal_dir_.
     std::string path_;
 
-    // TODO: If temporary this should be removed at the end.
-    // Full path of the temporary file containing the screenshot (when requested).
+    // Full path of the file containing the screenshot (when requested).
     std::string screenshot_path_;
 
     // Pointer to the zipped file.
