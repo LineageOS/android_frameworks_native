@@ -150,7 +150,7 @@ public:
     void addResyncSample(const nsecs_t timestamp, bool* periodFlushed);
     void addPresentFence(const std::shared_ptr<FenceTime>& fenceTime);
     void setIgnorePresentFences(bool ignore);
-    nsecs_t expectedPresentTime();
+    nsecs_t getDispSyncExpectedPresentTime();
     // Registers the layer in the scheduler, and returns the handle for future references.
     std::unique_ptr<scheduler::LayerHistory::LayerHandle> registerLayer(std::string const& name,
                                                                         int windowType);
