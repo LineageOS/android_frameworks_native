@@ -1285,8 +1285,6 @@ static Dumpstate::RunStatus dumpstate() {
 
     RunCommand("FILESYSTEMS & FREE SPACE", {"df"});
 
-    RunCommand("LAST RADIO LOG", {"parse_radio_log", "/proc/last_radio_log"});
-
     /* Binder state is expensive to look at as it uses a lot of memory. */
     DumpFile("BINDER FAILED TRANSACTION LOG", "/sys/kernel/debug/binder/failed_transaction_log");
     DumpFile("BINDER TRANSACTION LOG", "/sys/kernel/debug/binder/transaction_log");
