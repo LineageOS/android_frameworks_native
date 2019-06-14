@@ -285,7 +285,7 @@ public:
         std::unordered_set<sp<SurfaceControl>, SCHash> surfaceControls;
     };
 
-    class Transaction {
+    class Transaction : Parcelable {
         std::unordered_map<sp<SurfaceControl>, ComposerState, SCHash> mComposerStates;
         SortedVector<DisplayState > mDisplayStates;
         std::unordered_map<sp<ITransactionCompletedListener>, CallbackInfo, TCLHash>
@@ -324,6 +324,12 @@ public:
         Transaction() = default;
         virtual ~Transaction() = default;
         Transaction(Transaction const& other);
+
+        // Factory method that creates a new Transaction instance from the parcel.
+        static std::unique_ptr<Transaction> createFromParcel(const Parcel* parcel);
+
+        status_t writeToParcel(Parcel* parcel) const override;
+        status_t readFromParcel(const Parcel* parcel) override;
 
         status_t apply(bool synchronous = false);
         // Merge another transaction in to this one, clearing other

@@ -377,7 +377,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     mLumaSampling = atoi(value);
 
     const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
-    mVsyncModulator.setPhaseOffsets(early, gl, late);
+    mVsyncModulator.setPhaseOffsets(early, gl, late,
+                                    mPhaseOffsets->getOffsetThresholdForNextVsync());
 
     // We should be reading 'persist.sys.sf.color_saturation' here
     // but since /data may be encrypted, we need to wait until after vold
@@ -616,13 +617,16 @@ void SurfaceFlinger::init() {
             mScheduler->makeResyncCallback(std::bind(&SurfaceFlinger::getVsyncPeriod, this));
 
     mAppConnectionHandle =
-            mScheduler->createConnection("app", mPhaseOffsets->getCurrentAppOffset(),
+            mScheduler->createConnection("app", mVsyncModulator.getOffsets().app,
+                                         mPhaseOffsets->getOffsetThresholdForNextVsync(),
                                          resyncCallback,
                                          impl::EventThread::InterceptVSyncsCallback());
-    mSfConnectionHandle = mScheduler->createConnection("sf", mPhaseOffsets->getCurrentSfOffset(),
-                                                       resyncCallback, [this](nsecs_t timestamp) {
-                                                           mInterceptor->saveVSyncEvent(timestamp);
-                                                       });
+    mSfConnectionHandle =
+            mScheduler->createConnection("sf", mVsyncModulator.getOffsets().sf,
+                                         mPhaseOffsets->getOffsetThresholdForNextVsync(),
+                                         resyncCallback, [this](nsecs_t timestamp) {
+                                             mInterceptor->saveVSyncEvent(timestamp);
+                                         });
 
     mEventQueue->setEventConnection(mScheduler->getEventConnection(mSfConnectionHandle));
     mVsyncModulator.setSchedulerAndHandles(mScheduler.get(), mAppConnectionHandle.get(),
@@ -940,7 +944,8 @@ void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
         mVsyncModulator.onRefreshRateChangeInitiated();
         mPhaseOffsets->setRefreshRateType(info.type);
         const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
-        mVsyncModulator.setPhaseOffsets(early, gl, late);
+        mVsyncModulator.setPhaseOffsets(early, gl, late,
+                                        mPhaseOffsets->getOffsetThresholdForNextVsync());
     }
     mDesiredActiveConfigChanged = true;
     ATRACE_INT("DesiredActiveConfigChanged", mDesiredActiveConfigChanged);
@@ -974,7 +979,8 @@ void SurfaceFlinger::setActiveConfigInternal() {
 
     mPhaseOffsets->setRefreshRateType(mUpcomingActiveConfig.type);
     const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
-    mVsyncModulator.setPhaseOffsets(early, gl, late);
+    mVsyncModulator.setPhaseOffsets(early, gl, late,
+                                    mPhaseOffsets->getOffsetThresholdForNextVsync());
     ATRACE_INT("ActiveConfigMode", mUpcomingActiveConfig.configId);
 
     if (mUpcomingActiveConfig.event != Scheduler::ConfigEvent::None) {
@@ -992,7 +998,8 @@ void SurfaceFlinger::desiredActiveConfigChangeDone() {
     mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
     mPhaseOffsets->setRefreshRateType(mUpcomingActiveConfig.type);
     const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
-    mVsyncModulator.setPhaseOffsets(early, gl, late);
+    mVsyncModulator.setPhaseOffsets(early, gl, late,
+                                    mPhaseOffsets->getOffsetThresholdForNextVsync());
 }
 
 bool SurfaceFlinger::performSetActiveConfig() {
@@ -1660,7 +1667,7 @@ bool SurfaceFlinger::previousFrameMissed() NO_THREAD_SAFETY_ANALYSIS {
 nsecs_t SurfaceFlinger::getExpectedPresentTime() NO_THREAD_SAFETY_ANALYSIS {
     DisplayStatInfo stats;
     mScheduler->getDisplayStatInfo(&stats);
-    const nsecs_t presentTime = mScheduler->expectedPresentTime();
+    const nsecs_t presentTime = mScheduler->getDispSyncExpectedPresentTime();
     // Inflate the expected present time if we're targetting the next vsync.
     const nsecs_t correctedTime =
             mVsyncModulator.getOffsets().sf < mPhaseOffsets->getOffsetThresholdForNextVsync()
@@ -2165,7 +2172,14 @@ void SurfaceFlinger::postComposition()
     }
 
     mTransactionCompletedThread.addPresentFence(mPreviousPresentFences[0]);
-    mTransactionCompletedThread.sendCallbacks();
+
+    // Lock the mStateLock in case SurfaceFlinger is in the middle of applying a transaction.
+    // If we do not lock here, a callback could be sent without all of its SurfaceControls and
+    // metrics.
+    {
+        Mutex::Autolock _l(mStateLock);
+        mTransactionCompletedThread.sendCallbacks();
+    }
 
     if (mLumaSampling && mRegionSamplingThread) {
         mRegionSamplingThread->notifyNewContent();
@@ -3667,7 +3681,7 @@ bool SurfaceFlinger::containsAnyInvalidClientState(const Vector<ComposerState>& 
 
 bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
                                                    const Vector<ComposerState>& states) {
-    nsecs_t expectedPresentTime = mScheduler->expectedPresentTime();
+    nsecs_t expectedPresentTime = getExpectedPresentTime();
     // Do not present if the desiredPresentTime has not passed unless it is more than one second
     // in the future. We ignore timestamps more than 1 second in the future for stability reasons.
     if (desiredPresentTime >= 0 && desiredPresentTime >= expectedPresentTime &&

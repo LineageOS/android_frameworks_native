@@ -96,8 +96,8 @@ public:
     virtual ~Scheduler();
 
     /** Creates an EventThread connection. */
-    sp<ConnectionHandle> createConnection(const char* connectionName, int64_t phaseOffsetNs,
-                                          ResyncCallback,
+    sp<ConnectionHandle> createConnection(const char* connectionName, nsecs_t phaseOffsetNs,
+                                          nsecs_t offsetThresholdForNextVsync, ResyncCallback,
                                           impl::EventThread::InterceptVSyncsCallback);
 
     sp<IDisplayEventConnection> createDisplayEventConnection(
@@ -150,7 +150,7 @@ public:
     void addResyncSample(const nsecs_t timestamp, bool* periodFlushed);
     void addPresentFence(const std::shared_ptr<FenceTime>& fenceTime);
     void setIgnorePresentFences(bool ignore);
-    nsecs_t expectedPresentTime();
+    nsecs_t getDispSyncExpectedPresentTime();
     // Registers the layer in the scheduler, and returns the handle for future references.
     std::unique_ptr<scheduler::LayerHistory::LayerHandle> registerLayer(std::string const& name,
                                                                         int windowType);
@@ -185,7 +185,8 @@ public:
 
 protected:
     virtual std::unique_ptr<EventThread> makeEventThread(
-            const char* connectionName, DispSync* dispSync, int64_t phaseOffsetNs,
+            const char* connectionName, DispSync* dispSync, nsecs_t phaseOffsetNs,
+            nsecs_t offsetThresholdForNextVsync,
             impl::EventThread::InterceptVSyncsCallback interceptCallback);
 
 private:
