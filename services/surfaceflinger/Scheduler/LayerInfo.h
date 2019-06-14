@@ -55,7 +55,7 @@ class LayerInfo {
 
         float getRefreshRateAvg() const {
             nsecs_t refreshDuration = mMinRefreshDuration;
-            if (mElements.size() == HISTORY_SIZE) {
+            if (mElements.size() > 0) {
                 refreshDuration = scheduler::calculate_mean(mElements);
             }
 
@@ -86,14 +86,23 @@ class LayerInfo {
         // Checks whether the present time that was inserted HISTORY_SIZE ago is within a
         // certain threshold: TIME_EPSILON_NS.
         bool isRelevant() const {
-            const int64_t obsoleteEpsilon = systemTime() - scheduler::TIME_EPSILON_NS.count();
-            // The layer had to publish at least HISTORY_SIZE of updates, and the first
-            // update should not be older than TIME_EPSILON_NS nanoseconds.
-            if (mElements.size() == HISTORY_SIZE &&
-                mElements.at(HISTORY_SIZE - 1) > obsoleteEpsilon) {
-                return true;
+            if (mElements.size() < 2) {
+                return false;
             }
-            return false;
+
+            // The layer had to publish at least HISTORY_SIZE or HISTORY_TIME of updates
+            if (mElements.size() != HISTORY_SIZE &&
+                mElements.at(mElements.size() - 1) - mElements.at(0) < HISTORY_TIME.count()) {
+                return false;
+            }
+
+            // The last update should not be older than TIME_EPSILON_NS nanoseconds.
+            const int64_t obsoleteEpsilon = systemTime() - scheduler::TIME_EPSILON_NS.count();
+            if (mElements.at(mElements.size() - 1) < obsoleteEpsilon) {
+                return false;
+            }
+
+            return true;
         }
 
         void clearHistory() { mElements.clear(); }
@@ -101,6 +110,7 @@ class LayerInfo {
     private:
         std::deque<nsecs_t> mElements;
         static constexpr size_t HISTORY_SIZE = 10;
+        static constexpr std::chrono::nanoseconds HISTORY_TIME = 500ms;
     };
 
 public:
