@@ -77,7 +77,6 @@
 #include <serviceutils/PriorityDumper.h>
 #include <utils/StrongPointer.h>
 #include "DumpstateInternal.h"
-#include "DumpstateSectionReporter.h"
 #include "DumpstateService.h"
 #include "dumpstate.h"
 
@@ -102,7 +101,6 @@ using android::base::StringPrintf;
 using android::os::IDumpstateListener;
 using android::os::dumpstate::CommandOptions;
 using android::os::dumpstate::DumpFileToFd;
-using android::os::dumpstate::DumpstateSectionReporter;
 using android::os::dumpstate::PropertiesHelper;
 
 // Keep in sync with
@@ -1016,7 +1014,6 @@ static Dumpstate::RunStatus RunDumpsysTextByPriority(const std::string& title, i
         RETURN_IF_USER_DENIED_CONSENT();
         std::string path(title);
         path.append(" - ").append(String8(service).c_str());
-        DumpstateSectionReporter section_reporter(path, ds.listener_, ds.report_section_);
         size_t bytes_written = 0;
         status_t status = dumpsys.startDumpThread(service, args);
         if (status == OK) {
@@ -1024,12 +1021,10 @@ static Dumpstate::RunStatus RunDumpsysTextByPriority(const std::string& title, i
             std::chrono::duration<double> elapsed_seconds;
             status = dumpsys.writeDump(STDOUT_FILENO, service, service_timeout,
                                        /* as_proto = */ false, elapsed_seconds, bytes_written);
-            section_reporter.setSize(bytes_written);
             dumpsys.writeDumpFooter(STDOUT_FILENO, service, elapsed_seconds);
             bool dump_complete = (status == OK);
             dumpsys.stopDumpThread(dump_complete);
         }
-        section_reporter.setStatus(status);
 
         auto elapsed_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - start);
@@ -1092,7 +1087,6 @@ static Dumpstate::RunStatus RunDumpsysProto(const std::string& title, int priori
             path.append("_HIGH");
         }
         path.append(kProtoExt);
-        DumpstateSectionReporter section_reporter(path, ds.listener_, ds.report_section_);
         status_t status = dumpsys.startDumpThread(service, args);
         if (status == OK) {
             status = ds.AddZipEntryFromFd(path, dumpsys.getDumpFd(), service_timeout);
@@ -1101,8 +1095,6 @@ static Dumpstate::RunStatus RunDumpsysProto(const std::string& title, int priori
         }
         ZipWriter::FileEntry file_entry;
         ds.zip_writer_->GetLastEntry(&file_entry);
-        section_reporter.setSize(file_entry.compressed_size);
-        section_reporter.setStatus(status);
 
         auto elapsed_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - start);
@@ -2772,6 +2764,7 @@ int run_main(int argc, char* argv[]) {
 Dumpstate::Dumpstate(const std::string& version)
     : pid_(getpid()),
       options_(new Dumpstate::DumpOptions()),
+      last_reported_percent_progress_(0),
       version_(version),
       now_(time(nullptr)) {
 }
@@ -3534,31 +3527,25 @@ void Dumpstate::UpdateProgress(int32_t delta_sec) {
     }
 
     // Always update progess so stats can be tuned...
-    bool max_changed = progress_->Inc(delta_sec);
+    progress_->Inc(delta_sec);
 
     // ...but only notifiy listeners when necessary.
     if (!options_->do_progress_updates) return;
 
     int progress = progress_->Get();
     int max = progress_->GetMax();
+    int percent = 100 * progress / max;
 
-    // adjusts max on the fly
-    if (max_changed && listener_ != nullptr) {
-        listener_->onMaxProgressUpdated(max);
-    }
-
-    int32_t last_update_delta = progress - last_updated_progress_;
-    if (last_updated_progress_ > 0 && last_update_delta < update_progress_threshold_) {
+    if (last_reported_percent_progress_ > 0 && percent <= last_reported_percent_progress_) {
         return;
     }
-    last_updated_progress_ = progress;
+    last_reported_percent_progress_ = percent;
 
     if (control_socket_fd_ >= 0) {
         dprintf(control_socket_fd_, "PROGRESS:%d/%d\n", progress, max);
         fsync(control_socket_fd_);
     }
 
-    int percent = 100 * progress / max;
     if (listener_ != nullptr) {
         if (percent % 5 == 0) {
             // We don't want to spam logcat, so only log multiples of 5.
@@ -3570,8 +3557,6 @@ void Dumpstate::UpdateProgress(int32_t delta_sec) {
             fprintf(stderr, "Setting progress (%s): %d/%d (%d%%)\n", listener_name_.c_str(),
                     progress, max, percent);
         }
-        // TODO(b/111441001): Remove in favor of onProgress
-        listener_->onProgressUpdated(progress);
 
         listener_->onProgress(percent);
     }
