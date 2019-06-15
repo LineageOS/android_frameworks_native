@@ -1796,22 +1796,21 @@ void Dumpstate::DumpstateBoard() {
 
 static void ShowUsage() {
     fprintf(stderr,
-            "usage: dumpstate [-h] [-b soundfile] [-e soundfile] [-o file] [-d] [-p] "
+            "usage: dumpstate [-h] [-b soundfile] [-e soundfile] [-d] [-p] "
             "[-z]] [-s] [-S] [-q] [-B] [-P] [-R] [-V version]\n"
             "  -h: display this help message\n"
             "  -b: play sound file instead of vibrate, at beginning of job\n"
             "  -e: play sound file instead of vibrate, at end of job\n"
-            "  -o: write to file (instead of stdout)\n"
-            "  -d: append date to filename (requires -o)\n"
-            "  -p: capture screenshot to filename.png (requires -o)\n"
-            "  -z: generate zipped file (requires -o)\n"
+            "  -d: append date to filename\n"
+            "  -p: capture screenshot to filename.png\n"
+            "  -z: generate zipped file\n"
             "  -s: write output to control socket (for init)\n"
-            "  -S: write file location to control socket (for init; requires -o and -z)\n"
+            "  -S: write file location to control socket (for init; requires -z)\n"
             "  -q: disable vibrate\n"
-            "  -B: send broadcast when finished (requires -o)\n"
+            "  -B: send broadcast when finished\n"
             "  -P: send broadcast when started and update system properties on "
-            "progress (requires -o and -B)\n"
-            "  -R: take bugreport in remote mode (requires -o, -z, -d and -B, "
+            "progress (requires -B)\n"
+            "  -R: take bugreport in remote mode (requires -z, -d and -B, "
             "shouldn't be used with -P)\n"
             "  -w: start binder service and make it wait for a call to startBugreport\n"
             "  -v: prints the dumpstate header and exit\n");
@@ -1923,7 +1922,7 @@ static void SendBroadcast(const std::string& action, const std::vector<std::stri
 
 static void Vibrate(int duration_ms) {
     // clang-format off
-    RunCommand("", {"cmd", "vibrator", "vibrate", "-f", std::to_string(duration_ms), "dumpstate"},
+    RunCommand("", {"cmd", "vibrator", "vibrate", std::to_string(duration_ms), "dumpstate"},
                CommandOptions::WithTimeout(10)
                    .Log("Vibrate: '%s'\n")
                    .Always()
