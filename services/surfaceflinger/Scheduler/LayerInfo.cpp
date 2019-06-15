@@ -38,6 +38,12 @@ void LayerInfo::setLastPresentTime(nsecs_t lastPresentTime) {
     mLastUpdatedTime = std::max(lastPresentTime, systemTime());
     mPresentTimeHistory.insertPresentTime(mLastUpdatedTime);
 
+    if (mLastPresentTime == 0) {
+        // First frame
+        mLastPresentTime = lastPresentTime;
+        return;
+    }
+
     const nsecs_t timeDiff = lastPresentTime - mLastPresentTime;
     mLastPresentTime = lastPresentTime;
     // Ignore time diff that are too high - those are stale values
