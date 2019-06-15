@@ -37,12 +37,12 @@ static constexpr int SCREEN_OFF_CONFIG_ID = -1;
 static constexpr uint32_t HWC2_SCREEN_OFF_CONFIG_ID = 0xffffffff;
 
 // This number is used when we try to determine how long does a given layer stay relevant.
-// Currently it is set to 100ms, because that would indicate 10Hz rendering.
-static constexpr std::chrono::nanoseconds TIME_EPSILON_NS = 100ms;
+// The value is set based on testing different scenarios.
+static constexpr std::chrono::nanoseconds TIME_EPSILON_NS = 200ms;
 
 // This number is used when we try to determine how long do we keep layer information around
-// before we remove it. Currently it is set to 100ms.
-static constexpr std::chrono::nanoseconds OBSOLETE_TIME_EPSILON_NS = 100ms;
+// before we remove it.
+static constexpr std::chrono::nanoseconds OBSOLETE_TIME_EPSILON_NS = 200ms;
 
 // Calculates the statistical mean (average) in the data structure (array, vector). The
 // function does not modify the contents of the array.
