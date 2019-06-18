@@ -16,7 +16,7 @@
 
 /**
  * @addtogroup Font
- * {
+ * @{
  */
 
 /**
