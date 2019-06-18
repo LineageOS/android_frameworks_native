@@ -19,9 +19,7 @@
 #define LOG_TAG "BufferLayer"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include <cmath>
-#include <cstdlib>
-#include <mutex>
+#include "BufferLayer.h"
 
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/Display.h>
@@ -45,11 +43,14 @@
 #include <utils/StopWatch.h>
 #include <utils/Trace.h>
 
-#include "BufferLayer.h"
+#include <cmath>
+#include <cstdlib>
+#include <mutex>
+#include <sstream>
+
 #include "Colorizer.h"
 #include "DisplayDevice.h"
 #include "LayerRejecter.h"
-
 #include "TimeStats/TimeStats.h"
 
 namespace android {
@@ -525,6 +526,9 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) 
             }
 
             if ((*point)->getFrameNumber() <= mCurrentFrameNumber) {
+                std::stringstream ss;
+                ss << "Dropping sync point " << (*point)->getFrameNumber();
+                ATRACE_NAME(ss.str().c_str());
                 point = mLocalSyncPoints.erase(point);
             } else {
                 ++point;
