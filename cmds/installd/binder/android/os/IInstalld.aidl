@@ -127,4 +127,6 @@ interface IInstalld {
 
     const int FLAG_USE_QUOTA = 0x1000;
     const int FLAG_FORCE = 0x2000;
+
+    const int FLAG_CLEAR_APP_DATA_KEEP_ART_PROFILES = 0x20000;
 }
