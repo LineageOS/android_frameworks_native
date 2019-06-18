@@ -425,7 +425,6 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Tr
             mComposerStates[kv.first].state.merge(kv.second.state);
         }
     }
-    other.mComposerStates.clear();
 
     for (auto const& state : other.mDisplayStates) {
         ssize_t index = mDisplayStates.indexOf(state);
@@ -435,7 +434,6 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Tr
             mDisplayStates.editItemAt(static_cast<size_t>(index)).merge(state);
         }
     }
-    other.mDisplayStates.clear();
 
     for (const auto& [listener, callbackInfo] : other.mListenerCallbacks) {
         auto& [callbackIds, surfaceControls] = callbackInfo;
@@ -446,15 +444,25 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Tr
                 .surfaceControls.insert(std::make_move_iterator(surfaceControls.begin()),
                                         std::make_move_iterator(surfaceControls.end()));
     }
-    other.mListenerCallbacks.clear();
 
     mInputWindowCommands.merge(other.mInputWindowCommands);
-    other.mInputWindowCommands.clear();
 
     mContainsBuffer = other.mContainsBuffer;
-    other.mContainsBuffer = false;
-
+    other.clear();
     return *this;
+}
+
+void SurfaceComposerClient::Transaction::clear() {
+    mComposerStates.clear();
+    mDisplayStates.clear();
+    mListenerCallbacks.clear();
+    mInputWindowCommands.clear();
+    mContainsBuffer = false;
+    mForceSynchronous = 0;
+    mTransactionNestCount = 0;
+    mAnimation = false;
+    mEarlyWakeup = false;
+    mDesiredPresentTime = -1;
 }
 
 void SurfaceComposerClient::doDropReferenceTransaction(const sp<IBinder>& handle,
