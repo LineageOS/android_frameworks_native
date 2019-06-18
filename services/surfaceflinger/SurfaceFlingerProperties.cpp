@@ -177,14 +177,10 @@ SurfaceFlingerProperties::primary_display_orientation_values primary_display_ori
 
 bool use_color_management(bool defaultValue) {
     auto tmpuseColorManagement = SurfaceFlingerProperties::use_color_management();
-    auto tmpHasHDRDisplay = SurfaceFlingerProperties::has_HDR_display();
-    auto tmpHasWideColorDisplay = SurfaceFlingerProperties::has_wide_color_display();
+    auto tmpHasHDRDisplayVal = has_HDR_display(defaultValue);
+    auto tmpHasWideColorDisplayVal = has_wide_color_display(defaultValue);
 
     auto tmpuseColorManagementVal = tmpuseColorManagement.has_value() ? *tmpuseColorManagement :
-        defaultValue;
-    auto tmpHasHDRDisplayVal = tmpHasHDRDisplay.has_value() ? *tmpHasHDRDisplay :
-        defaultValue;
-    auto tmpHasWideColorDisplayVal = tmpHasWideColorDisplay.has_value() ? *tmpHasWideColorDisplay :
         defaultValue;
 
     return tmpuseColorManagementVal || tmpHasHDRDisplayVal || tmpHasWideColorDisplayVal;
