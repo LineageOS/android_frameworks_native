@@ -258,7 +258,7 @@ void RegionSamplingThread::binderDied(const wp<IBinder>& who) {
 
 namespace {
 // Using Rec. 709 primaries
-float getLuma(float r, float g, float b) {
+inline float getLuma(float r, float g, float b) {
     constexpr auto rec709_red_primary = 0.2126f;
     constexpr auto rec709_green_primary = 0.7152f;
     constexpr auto rec709_blue_primary = 0.0722f;
@@ -293,10 +293,10 @@ float sampleArea(const uint32_t* data, int32_t width, int32_t height, int32_t st
         const uint32_t* rowBase = data + row * stride;
         for (int32_t column = area.left; column < area.right; ++column) {
             uint32_t pixel = rowBase[column];
-            const float r = (pixel & 0xFF) / 255.0f;
-            const float g = ((pixel >> 8) & 0xFF) / 255.0f;
-            const float b = ((pixel >> 16) & 0xFF) / 255.0f;
-            const uint8_t luma = std::round(getLuma(r, g, b) * 255.0f);
+            const float r = pixel & 0xFF;
+            const float g = (pixel >> 8) & 0xFF;
+            const float b = (pixel >> 16) & 0xFF;
+            const uint8_t luma = std::round(getLuma(r, g, b));
             ++brightnessBuckets[luma];
             if (brightnessBuckets[luma] > majoritySampleNum) return luma / 255.0f;
         }
