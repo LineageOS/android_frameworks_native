@@ -151,6 +151,7 @@ cc_binary {
     shared_libs: [
         "libbase",
         "libbinder",
+        "libcrypto",
         "liblog",
         "libprotobuf-cpp-full",
         "libselinux",
@@ -163,6 +164,7 @@ cc_binary {
         "lib_apex_manifest_proto",
         "libavb",
         "libdm",
+        "libverity_tree",
         "libvold_binder",
     ],
 }
