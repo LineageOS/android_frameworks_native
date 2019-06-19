@@ -412,7 +412,6 @@ public:
         uint64_t nextFrameNumber{0};
         FrameEventHistoryDelta frameTimestamps;
         bool bufferReplaced{false};
-        int maxBufferCount{0};
     };
 
     virtual status_t queueBuffer(int slot, const QueueBufferInput& input,

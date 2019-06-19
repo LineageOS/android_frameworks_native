@@ -465,7 +465,6 @@ protected:
 
     bool mReportRemovedBuffers = false;
     std::vector<sp<GraphicBuffer>> mRemovedBuffers;
-    int mMaxBufferCount;
 };
 
 } // namespace android
