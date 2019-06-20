@@ -105,9 +105,8 @@ class DumpstateBaseTest : public Test {
 
   protected:
     const std::string kTestPath = dirname(android::base::GetExecutablePath().c_str());
-    const std::string kFixturesPath = kTestPath + "/../dumpstate_test_fixture/";
-    const std::string kTestDataPath = kFixturesPath + "tests/testdata/";
-    const std::string kSimpleCommand = kFixturesPath + "dumpstate_test_fixture";
+    const std::string kTestDataPath = kTestPath + "/tests/testdata/";
+    const std::string kSimpleCommand = kTestPath + "/dumpstate_test_fixture";
     const std::string kEchoCommand = "/system/bin/echo";
 
     /*
