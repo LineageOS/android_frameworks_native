@@ -33,6 +33,7 @@
 #include <ui/Gralloc.h>
 #include <ui/Gralloc2.h>
 #include <ui/Gralloc3.h>
+#include <ui/Gralloc4.h>
 #include <ui/GraphicBufferMapper.h>
 
 namespace android {
@@ -47,16 +48,23 @@ KeyedVector<buffer_handle_t,
     GraphicBufferAllocator::alloc_rec_t> GraphicBufferAllocator::sAllocList;
 
 GraphicBufferAllocator::GraphicBufferAllocator() : mMapper(GraphicBufferMapper::getInstance()) {
+    mAllocator = std::make_unique<const Gralloc4Allocator>(
+            reinterpret_cast<const Gralloc4Mapper&>(mMapper.getGrallocMapper()));
+    if (mAllocator->isLoaded()) {
+        return;
+    }
     mAllocator = std::make_unique<const Gralloc3Allocator>(
             reinterpret_cast<const Gralloc3Mapper&>(mMapper.getGrallocMapper()));
-    if (!mAllocator->isLoaded()) {
-        mAllocator = std::make_unique<const Gralloc2Allocator>(
-                reinterpret_cast<const Gralloc2Mapper&>(mMapper.getGrallocMapper()));
+    if (mAllocator->isLoaded()) {
+        return;
+    }
+    mAllocator = std::make_unique<const Gralloc2Allocator>(
+            reinterpret_cast<const Gralloc2Mapper&>(mMapper.getGrallocMapper()));
+    if (mAllocator->isLoaded()) {
+        return;
     }
 
-    if (!mAllocator->isLoaded()) {
-        LOG_ALWAYS_FATAL("gralloc-allocator is missing");
-    }
+    LOG_ALWAYS_FATAL("gralloc-allocator is missing");
 }
 
 GraphicBufferAllocator::~GraphicBufferAllocator() {}
