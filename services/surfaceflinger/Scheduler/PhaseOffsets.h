@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <unordered_map>
 
 #include "RefreshRateConfigs.h"
 #include "VSyncModulator.h"
@@ -79,14 +80,10 @@ public:
     void dump(std::string& result) const override;
 
 private:
-    Offsets getDefaultRefreshRateOffsets() { return mDefaultRefreshRateOffsets; }
-    Offsets getHighRefreshRateOffsets() { return mHighRefreshRateOffsets; }
-
     std::atomic<RefreshRateConfigs::RefreshRateType> mRefreshRateType =
             RefreshRateConfigs::RefreshRateType::DEFAULT;
 
-    Offsets mDefaultRefreshRateOffsets;
-    Offsets mHighRefreshRateOffsets;
+    std::unordered_map<RefreshRateConfigs::RefreshRateType, Offsets> mOffsets;
     nsecs_t mOffsetThresholdForNextVsync;
 };
 } // namespace impl
