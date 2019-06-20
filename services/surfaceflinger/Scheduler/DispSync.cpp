@@ -92,8 +92,12 @@ public:
         mPeriod = period;
         if (!mModelLocked && referenceTimeChanged) {
             for (auto& eventListener : mEventListeners) {
-                eventListener.mLastEventTime =
-                        mReferenceTime - mPeriod + mPhase + eventListener.mPhase;
+                eventListener.mLastEventTime = mReferenceTime + mPhase + eventListener.mPhase;
+                // If mLastEventTime is after mReferenceTime (can happen when positive phase offsets
+                // are used) we treat it as like it happened in previous period.
+                if (eventListener.mLastEventTime > mReferenceTime) {
+                    eventListener.mLastEventTime -= mPeriod;
+                }
             }
         }
         if (mTraceDetailedInfo) {
