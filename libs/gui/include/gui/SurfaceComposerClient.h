@@ -331,6 +331,9 @@ public:
         status_t writeToParcel(Parcel* parcel) const override;
         status_t readFromParcel(const Parcel* parcel) override;
 
+        // Clears the contents of the transaction without applying it.
+        void clear();
+
         status_t apply(bool synchronous = false);
         // Merge another transaction in to this one, clearing other
         // as if it had been applied.

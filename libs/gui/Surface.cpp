@@ -96,7 +96,6 @@ Surface::Surface(const sp<IGraphicBufferProducer>& bufferProducer, bool controll
     mConnectedToCpu = false;
     mProducerControlledByApp = controlledByApp;
     mSwapIntervalZero = false;
-    mMaxBufferCount = 0;
 }
 
 Surface::~Surface() {
@@ -962,10 +961,6 @@ int Surface::query(int what, int* value) const {
                 *value = static_cast<int>(mDataSpace);
                 return NO_ERROR;
             }
-            case NATIVE_WINDOW_MAX_BUFFER_COUNT: {
-                *value = mMaxBufferCount;
-                return NO_ERROR;
-            }
         }
     }
     return mGraphicBufferProducer->query(what, value);
@@ -1303,7 +1298,6 @@ int Surface::connect(
         mDefaultWidth = output.width;
         mDefaultHeight = output.height;
         mNextFrameNumber = output.nextFrameNumber;
-        mMaxBufferCount = output.maxBufferCount;
 
         // Ignore transform hint if sticky transform is set or transform to display inverse flag is
         // set. Transform hint should be ignored if the client is expected to always submit buffers
