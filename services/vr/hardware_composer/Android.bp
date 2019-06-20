@@ -137,7 +137,7 @@ cc_binary {
     "libbinder",
     "liblog",
     "libhardware",
-    "libhwbinder",
+    "libhidlbase",
     "libui",
     "libutils",
     "libvr_hwc-hal",
