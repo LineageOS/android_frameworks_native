@@ -38,9 +38,9 @@
 #include "DispSyncSource.h"
 #include "EventControlThread.h"
 #include "EventThread.h"
-#include "IdleTimer.h"
 #include "InjectVSyncSource.h"
 #include "LayerInfo.h"
+#include "OneShotTimer.h"
 #include "SchedulerUtils.h"
 #include "SurfaceFlingerProperties.h"
 
@@ -86,34 +86,29 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
 
     if (mSetIdleTimerMs > 0) {
         if (mSupportKernelTimer) {
-            mIdleTimer =
-                    std::make_unique<scheduler::IdleTimer>(std::chrono::milliseconds(
-                                                                   mSetIdleTimerMs),
-                                                           [this] { resetKernelTimerCallback(); },
-                                                           [this] {
-                                                               expiredKernelTimerCallback();
-                                                           });
+            mIdleTimer = std::make_unique<scheduler::OneShotTimer>(
+                    std::chrono::milliseconds(mSetIdleTimerMs),
+                    [this] { resetKernelTimerCallback(); },
+                    [this] { expiredKernelTimerCallback(); });
         } else {
-            mIdleTimer = std::make_unique<scheduler::IdleTimer>(std::chrono::milliseconds(
-                                                                        mSetIdleTimerMs),
-                                                                [this] { resetTimerCallback(); },
-                                                                [this] { expiredTimerCallback(); });
+            mIdleTimer = std::make_unique<scheduler::OneShotTimer>(
+                    std::chrono::milliseconds(mSetIdleTimerMs), [this] { resetTimerCallback(); },
+                    [this] { expiredTimerCallback(); });
         }
         mIdleTimer->start();
     }
 
     if (mSetTouchTimerMs > 0) {
         // Touch events are coming to SF every 100ms, so the timer needs to be higher than that
-        mTouchTimer =
-                std::make_unique<scheduler::IdleTimer>(std::chrono::milliseconds(mSetTouchTimerMs),
-                                                       [this] { resetTouchTimerCallback(); },
-                                                       [this] { expiredTouchTimerCallback(); });
+        mTouchTimer = std::make_unique<scheduler::OneShotTimer>(
+                std::chrono::milliseconds(mSetTouchTimerMs), [this] { resetTouchTimerCallback(); },
+                [this] { expiredTouchTimerCallback(); });
         mTouchTimer->start();
     }
 }
 
 Scheduler::~Scheduler() {
-    // Ensure the IdleTimer thread is joined before we start destroying state.
+    // Ensure the OneShotTimer threads are joined before we start destroying state.
     mTouchTimer.reset();
     mIdleTimer.reset();
 }

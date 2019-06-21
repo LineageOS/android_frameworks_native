@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "IdleTimer.h"
+#include "OneShotTimer.h"
 
 #include <chrono>
 #include <thread>
@@ -22,23 +22,23 @@
 namespace android {
 namespace scheduler {
 
-IdleTimer::IdleTimer(const Interval& interval, const ResetCallback& resetCallback,
-                     const TimeoutCallback& timeoutCallback)
+OneShotTimer::OneShotTimer(const Interval& interval, const ResetCallback& resetCallback,
+                           const TimeoutCallback& timeoutCallback)
       : mInterval(interval), mResetCallback(resetCallback), mTimeoutCallback(timeoutCallback) {}
 
-IdleTimer::~IdleTimer() {
+OneShotTimer::~OneShotTimer() {
     stop();
 }
 
-void IdleTimer::start() {
+void OneShotTimer::start() {
     {
         std::lock_guard<std::mutex> lock(mMutex);
         mState = TimerState::RESET;
     }
-    mThread = std::thread(&IdleTimer::loop, this);
+    mThread = std::thread(&OneShotTimer::loop, this);
 }
 
-void IdleTimer::stop() {
+void OneShotTimer::stop() {
     {
         std::lock_guard<std::mutex> lock(mMutex);
         mState = TimerState::STOPPED;
@@ -49,7 +49,7 @@ void IdleTimer::stop() {
     }
 }
 
-void IdleTimer::loop() {
+void OneShotTimer::loop() {
     while (true) {
         bool triggerReset = false;
         bool triggerTimeout = false;
@@ -100,7 +100,7 @@ void IdleTimer::loop() {
     }
 } // namespace scheduler
 
-void IdleTimer::reset() {
+void OneShotTimer::reset() {
     {
         std::lock_guard<std::mutex> lock(mMutex);
         mState = TimerState::RESET;

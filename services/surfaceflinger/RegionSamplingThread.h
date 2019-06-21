@@ -27,7 +27,7 @@
 #include <ui/GraphicBuffer.h>
 #include <ui/Rect.h>
 #include <utils/StrongPointer.h>
-#include "Scheduler/IdleTimer.h"
+#include "Scheduler/OneShotTimer.h"
 
 namespace android {
 
@@ -107,7 +107,7 @@ private:
     SurfaceFlinger& mFlinger;
     Scheduler& mScheduler;
     const TimingTunables mTunables;
-    scheduler::IdleTimer mIdleTimer;
+    scheduler::OneShotTimer mIdleTimer;
 
     std::unique_ptr<SamplingOffsetCallback> const mPhaseCallback;
 
