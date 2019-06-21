@@ -16,30 +16,29 @@
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include "driver.h"
+
+#include <dlfcn.h>
 #include <malloc.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/prctl.h>
-
-#include <dlfcn.h>
-#include <algorithm>
-#include <array>
-#include <new>
-
-#include <log/log.h>
 
 #include <android/dlext.h>
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
+#include <android-base/properties.h>
 #include <configstore/Utils.h>
 #include <cutils/properties.h>
 #include <graphicsenv/GraphicsEnv.h>
+#include <log/log.h>
+#include <sys/prctl.h>
 #include <utils/Timers.h>
 #include <utils/Trace.h>
-#include <utils/Vector.h>
 
-#include "android-base/properties.h"
+#include <algorithm>
+#include <array>
+#include <new>
+#include <vector>
 
-#include "driver.h"
 #include "stubhal.h"
 
 using namespace android::hardware::configstore;
@@ -809,8 +808,7 @@ VkResult EnumerateInstanceExtensionProperties(
     const char* pLayerName,
     uint32_t* pPropertyCount,
     VkExtensionProperties* pProperties) {
-
-    android::Vector<VkExtensionProperties> loader_extensions;
+    std::vector<VkExtensionProperties> loader_extensions;
     loader_extensions.push_back({
         VK_KHR_SURFACE_EXTENSION_NAME,
         VK_KHR_SURFACE_SPEC_VERSION});
@@ -833,7 +831,7 @@ VkResult EnumerateInstanceExtensionProperties(
         uint32_t count = std::min(
             *pPropertyCount, static_cast<uint32_t>(loader_extensions.size()));
 
-        std::copy_n(loader_extensions.begin(), count, pProperties);
+        std::copy_n(loader_extensions.data(), count, pProperties);
 
         if (count < loader_extensions.size()) {
             *pPropertyCount = count;
@@ -879,8 +877,7 @@ VkResult EnumerateInstanceExtensionProperties(
 
 bool QueryPresentationProperties(
     VkPhysicalDevice physicalDevice,
-    VkPhysicalDevicePresentationPropertiesANDROID *presentation_properties)
-{
+    VkPhysicalDevicePresentationPropertiesANDROID *presentation_properties) {
     const InstanceData& data = GetData(physicalDevice);
 
     // GPDP2 must be present and enabled on the instance.
@@ -920,7 +917,7 @@ VkResult EnumerateDeviceExtensionProperties(
     VkExtensionProperties* pProperties) {
     const InstanceData& data = GetData(physicalDevice);
     // extensions that are unconditionally exposed by the loader
-    android::Vector<VkExtensionProperties> loader_extensions;
+    std::vector<VkExtensionProperties> loader_extensions;
     loader_extensions.push_back({
         VK_KHR_INCREMENTAL_PRESENT_EXTENSION_NAME,
         VK_KHR_INCREMENTAL_PRESENT_SPEC_VERSION});
@@ -956,7 +953,7 @@ VkResult EnumerateDeviceExtensionProperties(
         uint32_t count = std::min(
             *pPropertyCount, static_cast<uint32_t>(loader_extensions.size()));
 
-        std::copy_n(loader_extensions.begin(), count, pProperties);
+        std::copy_n(loader_extensions.data(), count, pProperties);
 
         if (count < loader_extensions.size()) {
             *pPropertyCount = count;
@@ -1245,11 +1242,10 @@ VkResult EnumeratePhysicalDeviceGroups(
         if (!device_count)
             return VK_INCOMPLETE;
 
-        android::Vector<VkPhysicalDevice> devices;
-        devices.resize(device_count);
+        std::vector<VkPhysicalDevice> devices(device_count);
         *pPhysicalDeviceGroupCount = device_count;
-        result = EnumeratePhysicalDevices(instance, &device_count,
-                                          devices.editArray());
+        result =
+            EnumeratePhysicalDevices(instance, &device_count, devices.data());
         if (result < 0)
             return result;
 
