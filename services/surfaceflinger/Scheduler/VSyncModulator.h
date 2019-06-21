@@ -114,8 +114,8 @@ private:
     // Updates offsets and persists them into the scheduler framework.
     void updateOffsets() EXCLUDES(mMutex);
     void updateOffsetsLocked() REQUIRES(mMutex);
-    // Updates the internal offset type.
-    void updateOffsetType() REQUIRES(mMutex);
+    // Updates the internal offsets and offset type.
+    void flushOffsets() REQUIRES(mMutex);
 
     mutable std::mutex mMutex;
     std::unordered_map<OffsetType, Offsets> mOffsetMap GUARDED_BY(mMutex);
@@ -128,7 +128,7 @@ private:
     Scheduler::ConnectionHandle* mAppConnectionHandle = nullptr;
     Scheduler::ConnectionHandle* mSfConnectionHandle = nullptr;
 
-    OffsetType mOffsetType GUARDED_BY(mMutex) = OffsetType::Late;
+    Offsets mOffsets GUARDED_BY(mMutex) = {Scheduler::RefreshRateType::DEFAULT, 0, 0};
 
     std::atomic<Scheduler::TransactionStart> mTransactionStart =
             Scheduler::TransactionStart::NORMAL;
