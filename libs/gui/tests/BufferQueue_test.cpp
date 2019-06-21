@@ -169,6 +169,18 @@ TEST_F(BufferQueueTest, DISABLED_BufferQueueInAnotherProcess) {
     ASSERT_EQ(OK, item.mGraphicBuffer->unlock());
 }
 
+TEST_F(BufferQueueTest, GetMaxBufferCountInQueueBufferOutput_Succeeds) {
+    createBufferQueue();
+    sp<DummyConsumer> dc(new DummyConsumer);
+    mConsumer->consumerConnect(dc, false);
+    int bufferCount = 50;
+    mConsumer->setMaxBufferCount(bufferCount);
+
+    IGraphicBufferProducer::QueueBufferOutput output;
+    mProducer->connect(new DummyProducerListener, NATIVE_WINDOW_API_CPU, false, &output);
+    ASSERT_EQ(output.maxBufferCount, bufferCount);
+}
+
 TEST_F(BufferQueueTest, AcquireBuffer_ExceedsMaxAcquireCount_Fails) {
     createBufferQueue();
     sp<DummyConsumer> dc(new DummyConsumer);

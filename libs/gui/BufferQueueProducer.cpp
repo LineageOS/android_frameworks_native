@@ -1132,9 +1132,6 @@ int BufferQueueProducer::query(int what, int *outValue) {
         case NATIVE_WINDOW_CONSUMER_IS_PROTECTED:
             value = static_cast<int32_t>(mCore->mConsumerIsProtected);
             break;
-        case NATIVE_WINDOW_MAX_BUFFER_COUNT:
-            value = static_cast<int32_t>(mCore->mMaxBufferCount);
-            break;
         default:
             return BAD_VALUE;
     }
@@ -1199,6 +1196,7 @@ status_t BufferQueueProducer::connect(const sp<IProducerListener>& listener,
                     static_cast<uint32_t>(mCore->mQueue.size());
             output->nextFrameNumber = mCore->mFrameCounter + 1;
             output->bufferReplaced = false;
+            output->maxBufferCount = mCore->mMaxBufferCount;
 
             if (listener != nullptr) {
                 // Set up a death notification so that we can disconnect
