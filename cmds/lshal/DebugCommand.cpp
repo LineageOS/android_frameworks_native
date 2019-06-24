@@ -79,7 +79,7 @@ void DebugCommand::usage() const {
             "    lshal debug [-E] <interface> [options [options [...]]] \n"
             "        Print debug information of a specified interface.\n"
             "        -E: excludes debug output if HAL is actually a subclass.\n"
-            "        <inteface>: Format is `android.hardware.foo@1.0::IFoo/default`.\n"
+            "        <interface>: Format is `android.hardware.foo@1.0::IFoo/default`.\n"
             "            If instance name is missing `default` is used.\n"
             "        options: space separated options to IBase::debug.\n";
 
@@ -88,4 +88,3 @@ void DebugCommand::usage() const {
 
 }  // namespace lshal
 }  // namespace android
-
