@@ -64,7 +64,8 @@ static std::vector<apex::ApexFile> ActivateApexPackages() {
     // system/apex/apexd/apexd_main.cpp.
     //
     // Only scan the APEX directory under /system (within the chroot dir).
-    apex::scanPackagesDirAndActivate(apex::kApexPackageSystemDir);
+    // Cast call to void to suppress warn_unused_result.
+    static_cast<void>(apex::scanPackagesDirAndActivate(apex::kApexPackageSystemDir));
     return apex::getActivePackages();
 }
 
