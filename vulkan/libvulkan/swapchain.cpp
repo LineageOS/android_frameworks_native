@@ -24,7 +24,6 @@
 #include <ui/BufferQueueDefs.h>
 #include <utils/StrongPointer.h>
 #include <utils/Trace.h>
-#include <utils/Vector.h>
 
 #include <algorithm>
 #include <unordered_set>
@@ -132,7 +131,6 @@ int InvertTransformToNative(VkSurfaceTransformFlagBitsKHR transform) {
 
 class TimingInfo {
    public:
-    TimingInfo() = default;
     TimingInfo(const VkPresentTimeGOOGLE* qp, uint64_t nativeFrameId)
         : vals_{qp->presentID, qp->desiredPresentTime, 0, 0, 0},
           native_frame_id_(nativeFrameId) {}
@@ -266,7 +264,7 @@ struct Swapchain {
         bool dequeued;
     } images[android::BufferQueueDefs::NUM_BUFFER_SLOTS];
 
-    android::Vector<TimingInfo> timing;
+    std::vector<TimingInfo> timing;
 };
 
 VkSwapchainKHR HandleFromSwapchain(Swapchain* swapchain) {
@@ -349,7 +347,7 @@ uint32_t get_num_ready_timings(Swapchain& swapchain) {
     uint32_t num_ready = 0;
     const size_t num_timings = swapchain.timing.size() - MIN_NUM_FRAMES_AGO + 1;
     for (uint32_t i = 0; i < num_timings; i++) {
-        TimingInfo& ti = swapchain.timing.editItemAt(i);
+        TimingInfo& ti = swapchain.timing[i];
         if (ti.ready()) {
             // This TimingInfo is ready to be reported to the user.  Add it
             // to the num_ready.
@@ -419,7 +417,7 @@ void copy_ready_timings(Swapchain& swapchain,
     }
 
     uint32_t num_copied = 0;
-    size_t num_to_remove = 0;
+    int32_t num_to_remove = 0;
     for (uint32_t i = 0; i <= last_ready && num_copied < *count; i++) {
         const TimingInfo& ti = swapchain.timing[i];
         if (ti.ready()) {
@@ -431,7 +429,8 @@ void copy_ready_timings(Swapchain& swapchain,
 
     // Discard old frames that aren't ready if newer frames are ready.
     // We don't expect to get the timing info for those old frames.
-    swapchain.timing.removeItemsAt(0, num_to_remove);
+    swapchain.timing.erase(swapchain.timing.begin(),
+                           swapchain.timing.begin() + num_to_remove);
 
     *count = num_copied;
 }
@@ -817,11 +816,10 @@ VkResult GetPhysicalDeviceSurfaceFormats2KHR(
     } else {
         // temp vector for forwarding; we'll marshal it into the pSurfaceFormats
         // after the call.
-        android::Vector<VkSurfaceFormatKHR> surface_formats;
-        surface_formats.resize(*pSurfaceFormatCount);
+        std::vector<VkSurfaceFormatKHR> surface_formats(*pSurfaceFormatCount);
         VkResult result = GetPhysicalDeviceSurfaceFormatsKHR(
             physicalDevice, pSurfaceInfo->surface, pSurfaceFormatCount,
-            &surface_formats.editItemAt(0));
+            surface_formats.data());
 
         if (result == VK_SUCCESS || result == VK_INCOMPLETE) {
             // marshal results individually due to stride difference.
@@ -863,7 +861,7 @@ VkResult GetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice pdev,
     }
     uint32_t max_buffer_count = static_cast<uint32_t>(query_value);
 
-    android::Vector<VkPresentModeKHR> present_modes;
+    std::vector<VkPresentModeKHR> present_modes;
     if (min_undequeued_buffers + 1 < max_buffer_count)
         present_modes.push_back(VK_PRESENT_MODE_MAILBOX_KHR);
     present_modes.push_back(VK_PRESENT_MODE_FIFO_KHR);
@@ -883,7 +881,7 @@ VkResult GetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice pdev,
         if (*count < num_modes)
             result = VK_INCOMPLETE;
         *count = std::min(*count, num_modes);
-        std::copy(present_modes.begin(), present_modes.begin() + int(*count), modes);
+        std::copy_n(present_modes.data(), *count, modes);
     } else {
         *count = num_modes;
     }
@@ -1647,9 +1645,9 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
 
                     // Add a new timing record with the user's presentID and
                     // the nativeFrameId.
-                    swapchain.timing.push_back(TimingInfo(time, nativeFrameId));
+                    swapchain.timing.emplace_back(time, nativeFrameId);
                     while (swapchain.timing.size() > MAX_TIMING_INFOS) {
-                        swapchain.timing.removeAt(0);
+                        swapchain.timing.erase(swapchain.timing.begin());
                     }
                     if (time->desiredPresentTime) {
                         // Set the desiredPresentTime:
