@@ -26,9 +26,9 @@
 #include "DispSync.h"
 #include "EventControlThread.h"
 #include "EventThread.h"
-#include "IdleTimer.h"
 #include "InjectVSyncSource.h"
 #include "LayerHistory.h"
+#include "OneShotTimer.h"
 #include "RefreshRateConfigs.h"
 #include "SchedulerUtils.h"
 
@@ -273,14 +273,14 @@ private:
     // Timer that records time between requests for next vsync. If the time is higher than a given
     // interval, a callback is fired. Set this variable to >0 to use this feature.
     int64_t mSetIdleTimerMs = 0;
-    std::unique_ptr<scheduler::IdleTimer> mIdleTimer;
+    std::unique_ptr<scheduler::OneShotTimer> mIdleTimer;
     // Enables whether to use idle timer callbacks that support the kernel
     // timer.
     bool mSupportKernelTimer;
 
     // Timer used to monitor touch events.
     int64_t mSetTouchTimerMs = 0;
-    std::unique_ptr<scheduler::IdleTimer> mTouchTimer;
+    std::unique_ptr<scheduler::OneShotTimer> mTouchTimer;
 
     std::mutex mCallbackLock;
     ChangeRefreshRateCallback mChangeRefreshRateCallback GUARDED_BY(mCallbackLock);
