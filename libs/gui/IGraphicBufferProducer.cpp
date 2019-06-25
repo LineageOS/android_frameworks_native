@@ -73,6 +73,7 @@ enum {
     GET_UNIQUE_ID,
     GET_CONSUMER_USAGE,
     SET_LEGACY_BUFFER_DROP,
+    SET_AUTO_PREROTATION,
 };
 
 class BpGraphicBufferProducer : public BpInterface<IGraphicBufferProducer>
@@ -547,6 +548,17 @@ public:
         }
         return actualResult;
     }
+
+    virtual status_t setAutoPrerotation(bool autoPrerotation) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IGraphicBufferProducer::getInterfaceDescriptor());
+        data.writeBool(autoPrerotation);
+        status_t result = remote()->transact(SET_AUTO_PREROTATION, data, &reply);
+        if (result == NO_ERROR) {
+            result = reply.readInt32();
+        }
+        return result;
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -675,6 +687,10 @@ public:
     status_t getConsumerUsage(uint64_t* outUsage) const override {
         return mBase->getConsumerUsage(outUsage);
     }
+
+    status_t setAutoPrerotation(bool autoPrerotation) override {
+        return mBase->setAutoPrerotation(autoPrerotation);
+    }
 };
 
 IMPLEMENT_HYBRID_META_INTERFACE(GraphicBufferProducer,
@@ -685,6 +701,12 @@ IMPLEMENT_HYBRID_META_INTERFACE(GraphicBufferProducer,
 status_t IGraphicBufferProducer::setLegacyBufferDrop(bool drop) {
     // No-op for IGBP other than BufferQueue.
     (void) drop;
+    return INVALID_OPERATION;
+}
+
+status_t IGraphicBufferProducer::setAutoPrerotation(bool autoPrerotation) {
+    // No-op for IGBP other than BufferQueue.
+    (void)autoPrerotation;
     return INVALID_OPERATION;
 }
 
@@ -1047,6 +1069,13 @@ status_t BnGraphicBufferProducer::onTransact(
             CHECK_INTERFACE(IGraphicBufferProducer, data, reply);
             bool drop = data.readInt32();
             int result = setLegacyBufferDrop(drop);
+            reply->writeInt32(result);
+            return NO_ERROR;
+        }
+        case SET_AUTO_PREROTATION: {
+            CHECK_INTERFACE(IGraphicBuffer, data, reply);
+            bool autoPrerotation = data.readBool();
+            status_t result = setAutoPrerotation(autoPrerotation);
             reply->writeInt32(result);
             return NO_ERROR;
         }

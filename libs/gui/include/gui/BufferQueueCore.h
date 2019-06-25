@@ -348,6 +348,14 @@ private:
 
     const uint64_t mUniqueId;
 
+    // When buffer size is driven by the consumer and mTransformHint specifies
+    // a 90 or 270 degree rotation, this indicates whether the width and height
+    // used by dequeueBuffer will be additionally swapped.
+    bool mAutoPrerotation;
+
+    // mTransformHintInUse is to cache the mTransformHint used by the producer.
+    uint32_t mTransformHintInUse;
+
 }; // class BufferQueueCore
 
 } // namespace android

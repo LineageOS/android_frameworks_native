@@ -1746,4 +1746,74 @@ TEST_F(GetFrameTimestampsTest, PresentUnsupportedNoSync) {
     EXPECT_EQ(-1, outDisplayPresentTime);
 }
 
+TEST_F(SurfaceTest, DequeueWithConsumerDrivenSize) {
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+
+    sp<DummyConsumer> dummyConsumer(new DummyConsumer);
+    consumer->consumerConnect(dummyConsumer, false);
+    consumer->setDefaultBufferSize(10, 10);
+
+    sp<Surface> surface = new Surface(producer);
+    sp<ANativeWindow> window(surface);
+    native_window_api_connect(window.get(), NATIVE_WINDOW_API_CPU);
+    native_window_set_buffers_dimensions(window.get(), 0, 0);
+
+    int fence;
+    ANativeWindowBuffer* buffer;
+
+    // Buffer size is driven by the consumer
+    ASSERT_EQ(NO_ERROR, window->dequeueBuffer(window.get(), &buffer, &fence));
+    EXPECT_EQ(10, buffer->width);
+    EXPECT_EQ(10, buffer->height);
+    ASSERT_EQ(NO_ERROR, window->cancelBuffer(window.get(), buffer, fence));
+
+    // Buffer size is driven by the consumer
+    consumer->setDefaultBufferSize(10, 20);
+    ASSERT_EQ(NO_ERROR, window->dequeueBuffer(window.get(), &buffer, &fence));
+    EXPECT_EQ(10, buffer->width);
+    EXPECT_EQ(20, buffer->height);
+    ASSERT_EQ(NO_ERROR, window->cancelBuffer(window.get(), buffer, fence));
+
+    // Transform hint isn't synced to producer before queueBuffer or connect
+    consumer->setTransformHint(NATIVE_WINDOW_TRANSFORM_ROT_270);
+    ASSERT_EQ(NO_ERROR, window->dequeueBuffer(window.get(), &buffer, &fence));
+    EXPECT_EQ(10, buffer->width);
+    EXPECT_EQ(20, buffer->height);
+    ASSERT_EQ(NO_ERROR, window->queueBuffer(window.get(), buffer, fence));
+
+    // Transform hint is synced to producer but no auto prerotation
+    consumer->setTransformHint(NATIVE_WINDOW_TRANSFORM_ROT_270);
+    ASSERT_EQ(NO_ERROR, window->dequeueBuffer(window.get(), &buffer, &fence));
+    EXPECT_EQ(10, buffer->width);
+    EXPECT_EQ(20, buffer->height);
+    ASSERT_EQ(NO_ERROR, window->cancelBuffer(window.get(), buffer, fence));
+
+    // Prerotation is driven by the consumer with the transform hint used by producer
+    native_window_set_auto_prerotation(window.get(), true);
+    ASSERT_EQ(NO_ERROR, window->dequeueBuffer(window.get(), &buffer, &fence));
+    EXPECT_EQ(20, buffer->width);
+    EXPECT_EQ(10, buffer->height);
+    ASSERT_EQ(NO_ERROR, window->cancelBuffer(window.get(), buffer, fence));
+
+    // Turn off auto prerotaton
+    native_window_set_auto_prerotation(window.get(), false);
+    ASSERT_EQ(NO_ERROR, window->dequeueBuffer(window.get(), &buffer, &fence));
+    EXPECT_EQ(10, buffer->width);
+    EXPECT_EQ(20, buffer->height);
+    ASSERT_EQ(NO_ERROR, window->cancelBuffer(window.get(), buffer, fence));
+
+    // Test auto prerotation bit is disabled after disconnect
+    native_window_set_auto_prerotation(window.get(), true);
+    native_window_api_disconnect(window.get(), NATIVE_WINDOW_API_CPU);
+    native_window_api_connect(window.get(), NATIVE_WINDOW_API_CPU);
+    consumer->setTransformHint(NATIVE_WINDOW_TRANSFORM_ROT_270);
+    native_window_set_buffers_dimensions(window.get(), 0, 0);
+    ASSERT_EQ(NO_ERROR, window->dequeueBuffer(window.get(), &buffer, &fence));
+    EXPECT_EQ(10, buffer->width);
+    EXPECT_EQ(20, buffer->height);
+    ASSERT_EQ(NO_ERROR, window->cancelBuffer(window.get(), buffer, fence));
+}
+
 } // namespace android

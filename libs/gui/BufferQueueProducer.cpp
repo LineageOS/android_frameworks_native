@@ -408,6 +408,10 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
         if (useDefaultSize) {
             width = mCore->mDefaultWidth;
             height = mCore->mDefaultHeight;
+            if (mCore->mAutoPrerotation &&
+                (mCore->mTransformHintInUse & NATIVE_WINDOW_TRANSFORM_ROT_90)) {
+                std::swap(width, height);
+            }
         }
 
         int found = BufferItem::INVALID_BUFFER_SLOT;
@@ -951,7 +955,7 @@ status_t BufferQueueProducer::queueBuffer(int slot,
 
         output->width = mCore->mDefaultWidth;
         output->height = mCore->mDefaultHeight;
-        output->transformHint = mCore->mTransformHint;
+        output->transformHint = mCore->mTransformHintInUse = mCore->mTransformHint;
         output->numPendingBuffers = static_cast<uint32_t>(mCore->mQueue.size());
         output->nextFrameNumber = mCore->mFrameCounter + 1;
 
@@ -1194,7 +1198,7 @@ status_t BufferQueueProducer::connect(const sp<IProducerListener>& listener,
 
             output->width = mCore->mDefaultWidth;
             output->height = mCore->mDefaultHeight;
-            output->transformHint = mCore->mTransformHint;
+            output->transformHint = mCore->mTransformHintInUse = mCore->mTransformHint;
             output->numPendingBuffers =
                     static_cast<uint32_t>(mCore->mQueue.size());
             output->nextFrameNumber = mCore->mFrameCounter + 1;
@@ -1298,6 +1302,7 @@ status_t BufferQueueProducer::disconnect(int api, DisconnectMode mode) {
                     mCore->mConnectedPid = -1;
                     mCore->mSidebandStream.clear();
                     mCore->mDequeueCondition.notify_all();
+                    mCore->mAutoPrerotation = false;
                     listener = mCore->mConsumerListener;
                 } else if (mCore->mConnectedApi == BufferQueueCore::NO_CONNECTED_API) {
                     BQ_LOGE("disconnect: not connected (req=%d)", api);
@@ -1341,6 +1346,8 @@ status_t BufferQueueProducer::setSidebandStream(const sp<NativeHandle>& stream) 
 void BufferQueueProducer::allocateBuffers(uint32_t width, uint32_t height,
         PixelFormat format, uint64_t usage) {
     ATRACE_CALL();
+
+    const bool useDefaultSize = !width && !height;
     while (true) {
         size_t newBufferCount = 0;
         uint32_t allocWidth = 0;
@@ -1367,6 +1374,11 @@ void BufferQueueProducer::allocateBuffers(uint32_t width, uint32_t height,
 
             allocWidth = width > 0 ? width : mCore->mDefaultWidth;
             allocHeight = height > 0 ? height : mCore->mDefaultHeight;
+            if (useDefaultSize && mCore->mAutoPrerotation &&
+                (mCore->mTransformHintInUse & NATIVE_WINDOW_TRANSFORM_ROT_90)) {
+                std::swap(allocWidth, allocHeight);
+            }
+
             allocFormat = format != 0 ? format : mCore->mDefaultBufferFormat;
             allocUsage = usage | mCore->mConsumerUsageBits;
             allocName.assign(mCore->mConsumerName.string(), mCore->mConsumerName.size());
@@ -1397,6 +1409,11 @@ void BufferQueueProducer::allocateBuffers(uint32_t width, uint32_t height,
             std::unique_lock<std::mutex> lock(mCore->mMutex);
             uint32_t checkWidth = width > 0 ? width : mCore->mDefaultWidth;
             uint32_t checkHeight = height > 0 ? height : mCore->mDefaultHeight;
+            if (useDefaultSize && mCore->mAutoPrerotation &&
+                (mCore->mTransformHintInUse & NATIVE_WINDOW_TRANSFORM_ROT_90)) {
+                std::swap(checkWidth, checkHeight);
+            }
+
             PixelFormat checkFormat = format != 0 ?
                     format : mCore->mDefaultBufferFormat;
             uint64_t checkUsage = usage | mCore->mConsumerUsageBits;
@@ -1596,6 +1613,16 @@ status_t BufferQueueProducer::getConsumerUsage(uint64_t* outUsage) const {
 
     std::lock_guard<std::mutex> lock(mCore->mMutex);
     *outUsage = mCore->mConsumerUsageBits;
+    return NO_ERROR;
+}
+
+status_t BufferQueueProducer::setAutoPrerotation(bool autoPrerotation) {
+    ATRACE_CALL();
+    BQ_LOGV("setAutoPrerotation: %d", autoPrerotation);
+
+    std::lock_guard<std::mutex> lock(mCore->mMutex);
+
+    mCore->mAutoPrerotation = autoPrerotation;
     return NO_ERROR;
 }
 
