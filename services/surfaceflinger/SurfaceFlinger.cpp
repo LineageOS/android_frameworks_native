@@ -5613,6 +5613,11 @@ status_t SurfaceFlinger::captureScreen(uint64_t displayOrLayerStack, Dataspace* 
 
         captureOrientation = fromSurfaceComposerRotation(
                 static_cast<ISurfaceComposer::Rotation>(display->getOrientation()));
+        if (captureOrientation == ui::Transform::orientation_flags::ROT_90) {
+            captureOrientation = ui::Transform::orientation_flags::ROT_270;
+        } else if (captureOrientation == ui::Transform::orientation_flags::ROT_270) {
+            captureOrientation = ui::Transform::orientation_flags::ROT_90;
+        }
         *outDataspace =
                 pickDataspaceFromColorMode(display->getCompositionDisplay()->getState().colorMode);
     }
