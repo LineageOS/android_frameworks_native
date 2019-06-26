@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef FRAMEWORK_NATIVE_CMDS_LSHAL_PROCPARTITION_H_
-#define FRAMEWORK_NATIVE_CMDS_LSHAL_PROCPARTITION_H_
+#pragma once
 
 #include <sys/types.h>
 
@@ -44,5 +43,3 @@ Partition getPartition(pid_t pid);
 
 }  // namespace procpartition
 }  // namespace android
-
-#endif  // FRAMEWORK_NATIVE_CMDS_LSHAL_PROCPARTITION_H_
