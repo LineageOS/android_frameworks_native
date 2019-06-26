@@ -29,15 +29,15 @@ namespace scheduler {
  * Class that sets off a timer for a given interval, and fires a callback when the
  * interval expires.
  */
-class IdleTimer {
+class OneShotTimer {
 public:
     using Interval = std::chrono::milliseconds;
     using ResetCallback = std::function<void()>;
     using TimeoutCallback = std::function<void()>;
 
-    IdleTimer(const Interval& interval, const ResetCallback& resetCallback,
-              const TimeoutCallback& timeoutCallback);
-    ~IdleTimer();
+    OneShotTimer(const Interval& interval, const ResetCallback& resetCallback,
+                 const TimeoutCallback& timeoutCallback);
+    ~OneShotTimer();
 
     // Initializes and turns on the idle timer.
     void start();

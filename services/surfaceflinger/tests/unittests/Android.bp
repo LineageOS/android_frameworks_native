@@ -42,7 +42,7 @@ cc_test {
         "DisplayTransactionTest.cpp",
         "EventControlThreadTest.cpp",
         "EventThreadTest.cpp",
-        "IdleTimerTest.cpp",
+        "OneShotTimerTest.cpp",
         "LayerHistoryTest.cpp",
         "LayerMetadataTest.cpp",
         "SchedulerTest.cpp",

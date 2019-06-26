@@ -3933,6 +3933,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(
 
     sp<Layer> layer(client->getLayerUser(s.surface));
     if (layer == nullptr) {
+        for (auto& listenerCallback : listenerCallbacks) {
+            mTransactionCompletedThread.addUnpresentedCallbackHandle(
+                    new CallbackHandle(listenerCallback.transactionCompletedListener,
+                                       listenerCallback.callbackIds, s.surface));
+        }
         return 0;
     }
 

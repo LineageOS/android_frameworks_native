@@ -149,7 +149,7 @@ filegroup {
         "Scheduler/DispSyncSource.cpp",
         "Scheduler/EventControlThread.cpp",
         "Scheduler/EventThread.cpp",
-        "Scheduler/IdleTimer.cpp",
+        "Scheduler/OneShotTimer.cpp",
         "Scheduler/LayerHistory.cpp",
         "Scheduler/LayerInfo.cpp",
         "Scheduler/MessageQueue.cpp",
