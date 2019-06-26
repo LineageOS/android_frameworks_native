@@ -46,11 +46,13 @@ LayerHistory::LayerHistory() {
 LayerHistory::~LayerHistory() = default;
 
 std::unique_ptr<LayerHistory::LayerHandle> LayerHistory::createLayer(const std::string name,
+                                                                     float minRefreshRate,
                                                                      float maxRefreshRate) {
     const int64_t id = sNextId++;
 
     std::lock_guard lock(mLock);
-    mInactiveLayerInfos.emplace(id, std::make_shared<LayerInfo>(name, maxRefreshRate));
+    mInactiveLayerInfos.emplace(id,
+                                std::make_shared<LayerInfo>(name, minRefreshRate, maxRefreshRate));
     return std::make_unique<LayerHistory::LayerHandle>(*this, id);
 }
 
