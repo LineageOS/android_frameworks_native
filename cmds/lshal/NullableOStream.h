@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef FRAMEWORK_NATIVE_CMDS_LSHAL_NULLABLE_O_STREAM_H_
-#define FRAMEWORK_NATIVE_CMDS_LSHAL_NULLABLE_O_STREAM_H_
+#pragma once
 
 #include <iostream>
 
@@ -69,5 +68,3 @@ private:
 
 }  // namespace lshal
 }  // namespace android
-
-#endif  // FRAMEWORK_NATIVE_CMDS_LSHAL_NULLABLE_O_STREAM_H_
