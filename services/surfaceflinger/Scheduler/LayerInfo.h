@@ -96,13 +96,33 @@ class LayerInfo {
                 return false;
             }
 
-            // The last update should not be older than TIME_EPSILON_NS nanoseconds.
-            const int64_t obsoleteEpsilon = systemTime() - scheduler::TIME_EPSILON_NS.count();
+            // The last update should not be older than OBSOLETE_TIME_EPSILON_NS nanoseconds.
+            const int64_t obsoleteEpsilon =
+                    systemTime() - scheduler::OBSOLETE_TIME_EPSILON_NS.count();
             if (mElements.at(mElements.size() - 1) < obsoleteEpsilon) {
                 return false;
             }
 
             return true;
+        }
+
+        bool isLowActivityLayer() const {
+            // We want to make sure that we received more than two frames from the layer
+            // in order to check low activity.
+            if (mElements.size() < 2) {
+                return false;
+            }
+
+            const int64_t obsoleteEpsilon =
+                    systemTime() - scheduler::LOW_ACTIVITY_EPSILON_NS.count();
+            // Check the frame before last to determine whether there is low activity.
+            // If that frame is older than LOW_ACTIVITY_EPSILON_NS, the layer is sending
+            // infrequent updates.
+            if (mElements.at(mElements.size() - 2) < obsoleteEpsilon) {
+                return true;
+            }
+
+            return false;
         }
 
         void clearHistory() { mElements.clear(); }
@@ -114,7 +134,7 @@ class LayerInfo {
     };
 
 public:
-    LayerInfo(const std::string name, float maxRefreshRate);
+    LayerInfo(const std::string name, float minRefreshRate, float maxRefreshRate);
     ~LayerInfo();
 
     LayerInfo(const LayerInfo&) = delete;
@@ -144,6 +164,10 @@ public:
     // Calculate the average refresh rate.
     float getDesiredRefreshRate() const {
         std::lock_guard lock(mLock);
+
+        if (mPresentTimeHistory.isLowActivityLayer()) {
+            return 1e9f / mLowActivityRefreshDuration;
+        }
         return mRefreshRateHistory.getRefreshRateAvg();
     }
 
@@ -175,6 +199,7 @@ public:
 private:
     const std::string mName;
     const nsecs_t mMinRefreshDuration;
+    const nsecs_t mLowActivityRefreshDuration;
     mutable std::mutex mLock;
     nsecs_t mLastUpdatedTime GUARDED_BY(mLock) = 0;
     nsecs_t mLastPresentTime GUARDED_BY(mLock) = 0;
