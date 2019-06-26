@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef FRAMEWORK_NATIVE_CMDS_LSHAL_HELP_COMMAND_H_
-#define FRAMEWORK_NATIVE_CMDS_LSHAL_HELP_COMMAND_H_
+#pragma once
 
 #include <string>
 
@@ -44,5 +43,3 @@ public:
 
 }  // namespace lshal
 }  // namespace android
-
-#endif  // FRAMEWORK_NATIVE_CMDS_LSHAL_HELP_COMMAND_H_
