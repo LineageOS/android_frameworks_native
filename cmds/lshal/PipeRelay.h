@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef FRAMEWORKS_NATIVE_CMDS_LSHAL_PIPE_RELAY_H_
-
-#define FRAMEWORKS_NATIVE_CMDS_LSHAL_PIPE_RELAY_H_
+#pragma once
 
 #include <android-base/macros.h>
 #include <ostream>
@@ -53,6 +51,3 @@ private:
 
 }  // namespace lshal
 }  // namespace android
-
-#endif  // FRAMEWORKS_NATIVE_CMDS_LSHAL_PIPE_RELAY_H_
-

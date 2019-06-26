@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef FRAMEWORK_NATIVE_CMDS_LSHAL_TEXT_TABLE_H_
-#define FRAMEWORK_NATIVE_CMDS_LSHAL_TEXT_TABLE_H_
+#pragma once
 
 #include <iostream>
 #include <string>
@@ -80,5 +79,3 @@ private:
 
 } // namespace lshal
 } // namespace android
-
-#endif // FRAMEWORK_NATIVE_CMDS_LSHAL_TEXT_TABLE_H_
