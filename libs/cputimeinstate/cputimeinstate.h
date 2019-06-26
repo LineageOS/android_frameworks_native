@@ -23,8 +23,9 @@ namespace android {
 namespace bpf {
 
 bool startTrackingUidCpuFreqTimes();
-bool getUidCpuFreqTimes(unsigned int uid, std::vector<std::vector<uint64_t>> *freqTimes);
-bool getUidsCpuFreqTimes(std::unordered_map<uint32_t, std::vector<std::vector<uint64_t>>> *tisMap);
+std::optional<std::vector<std::vector<uint64_t>>> getUidCpuFreqTimes(uint32_t uid);
+std::optional<std::unordered_map<uint32_t, std::vector<std::vector<uint64_t>>>>
+    getUidsCpuFreqTimes();
 bool clearUidCpuFreqTimes(unsigned int uid);
 
 } // namespace bpf

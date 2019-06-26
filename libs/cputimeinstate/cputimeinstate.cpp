@@ -23,6 +23,7 @@
 #include <inttypes.h>
 
 #include <mutex>
+#include <optional>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -62,19 +63,20 @@ static std::vector<std::vector<uint32_t>> gPolicyCpus;
 static std::set<uint32_t> gAllFreqs;
 static unique_fd gMapFd;
 
-static bool readNumbersFromFile(const std::string &path, std::vector<uint32_t> *out) {
+static std::optional<std::vector<uint32_t>> readNumbersFromFile(const std::string &path) {
     std::string data;
 
-    if (!android::base::ReadFileToString(path, &data)) return false;
+    if (!android::base::ReadFileToString(path, &data)) return {};
 
     auto strings = android::base::Split(data, " \n");
+    std::vector<uint32_t> ret;
     for (const auto &s : strings) {
         if (s.empty()) continue;
         uint32_t n;
-        if (!android::base::ParseUint(s, &n)) return false;
-        out->emplace_back(n);
+        if (!android::base::ParseUint(s, &n)) return {};
+        ret.emplace_back(n);
     }
-    return true;
+    return ret;
 }
 
 static int isPolicyFile(const struct dirent *d) {
@@ -111,20 +113,22 @@ static bool initGlobals() {
         for (const auto &name : {"available", "boost"}) {
             std::string path =
                     StringPrintf("%s/%s/scaling_%s_frequencies", basepath, policy.c_str(), name);
-            if (!readNumbersFromFile(path, &freqs)) return false;
+            auto nums = readNumbersFromFile(path);
+            if (!nums) return false;
+            freqs.insert(freqs.end(), nums->begin(), nums->end());
         }
         std::sort(freqs.begin(), freqs.end());
         gPolicyFreqs.emplace_back(freqs);
 
         for (auto freq : freqs) gAllFreqs.insert(freq);
 
-        std::vector<uint32_t> cpus;
         std::string path = StringPrintf("%s/%s/%s", basepath, policy.c_str(), "related_cpus");
-        if (!readNumbersFromFile(path, &cpus)) return false;
-        gPolicyCpus.emplace_back(cpus);
+        auto cpus = readNumbersFromFile(path);
+        if (!cpus) return false;
+        gPolicyCpus.emplace_back(*cpus);
     }
 
-    gMapFd = unique_fd{bpf_obj_get(BPF_FS_PATH "map_time_in_state_uid_times")};
+    gMapFd = unique_fd{bpf_obj_get(BPF_FS_PATH "map_time_in_state_uid_times_map")};
     if (gMapFd < 0) return false;
 
     gInitialized = true;
@@ -151,17 +155,15 @@ bool startTrackingUidCpuFreqTimes() {
 }
 
 // Retrieve the times in ns that uid spent running at each CPU frequency and store in freqTimes.
-// Returns false on error. Otherwise, returns true and populates freqTimes with a vector of vectors
-// using the format:
+// Return contains no value on error, otherwise it contains a vector of vectors using the format:
 // [[t0_0, t0_1, ...],
 //  [t1_0, t1_1, ...], ...]
 // where ti_j is the ns that uid spent running on the ith cluster at that cluster's jth lowest freq.
-bool getUidCpuFreqTimes(uint32_t uid, std::vector<std::vector<uint64_t>> *freqTimes) {
-    if (!gInitialized && !initGlobals()) return false;
+std::optional<std::vector<std::vector<uint64_t>>> getUidCpuFreqTimes(uint32_t uid) {
+    if (!gInitialized && !initGlobals()) return {};
     time_key_t key = {.uid = uid, .freq = 0};
 
-    freqTimes->clear();
-    freqTimes->resize(gNPolicies);
+    std::vector<std::vector<uint64_t>> out(gNPolicies);
     std::vector<uint32_t> idxs(gNPolicies, 0);
 
     val_t value;
@@ -172,32 +174,32 @@ bool getUidCpuFreqTimes(uint32_t uid, std::vector<std::vector<uint64_t>> *freqTi
             if (errno == ENOENT)
                 memset(&value.ar, 0, sizeof(value.ar));
             else
-                return false;
+                return {};
         }
         for (uint32_t i = 0; i < gNPolicies; ++i) {
             if (idxs[i] == gPolicyFreqs[i].size() || freq != gPolicyFreqs[i][idxs[i]]) continue;
             uint64_t time = 0;
             for (uint32_t cpu : gPolicyCpus[i]) time += value.ar[cpu];
             idxs[i] += 1;
-            (*freqTimes)[i].emplace_back(time);
+            out[i].emplace_back(time);
         }
     }
 
-    return true;
+    return out;
 }
 
 // Retrieve the times in ns that each uid spent running at each CPU freq and store in freqTimeMap.
-// Returns false on error. Otherwise, returns true and populates freqTimeMap with a map from uids to
-// vectors of vectors using the format:
+// Return contains no value on error, otherwise it contains a map from uids to vectors of vectors
+// using the format:
 // { uid0 -> [[t0_0_0, t0_0_1, ...], [t0_1_0, t0_1_1, ...], ...],
 //   uid1 -> [[t1_0_0, t1_0_1, ...], [t1_1_0, t1_1_1, ...], ...], ... }
 // where ti_j_k is the ns uid i spent running on the jth cluster at the cluster's kth lowest freq.
-bool getUidsCpuFreqTimes(
-        std::unordered_map<uint32_t, std::vector<std::vector<uint64_t>>> *freqTimeMap) {
-    if (!gInitialized && !initGlobals()) return false;
+std::optional<std::unordered_map<uint32_t, std::vector<std::vector<uint64_t>>>>
+getUidsCpuFreqTimes() {
+    if (!gInitialized && !initGlobals()) return {};
 
-    int fd = bpf_obj_get(BPF_FS_PATH "map_time_in_state_uid_times");
-    if (fd < 0) return false;
+    int fd = bpf_obj_get(BPF_FS_PATH "map_time_in_state_uid_times_map");
+    if (fd < 0) return {};
     BpfMap<time_key_t, val_t> m(fd);
 
     std::vector<std::unordered_map<uint32_t, uint32_t>> policyFreqIdxs;
@@ -206,25 +208,26 @@ bool getUidsCpuFreqTimes(
         for (size_t j = 0; j < gPolicyFreqs[i].size(); ++j) freqIdxs[gPolicyFreqs[i][j]] = j;
         policyFreqIdxs.emplace_back(freqIdxs);
     }
-
-    auto fn = [freqTimeMap, &policyFreqIdxs](const time_key_t &key, const val_t &val,
+    std::unordered_map<uint32_t, std::vector<std::vector<uint64_t>>> map;
+    auto fn = [&map, &policyFreqIdxs](const time_key_t &key, const val_t &val,
                                              const BpfMap<time_key_t, val_t> &) {
-        if (freqTimeMap->find(key.uid) == freqTimeMap->end()) {
-            (*freqTimeMap)[key.uid].resize(gNPolicies);
+        if (map.find(key.uid) == map.end()) {
+            map[key.uid].resize(gNPolicies);
             for (uint32_t i = 0; i < gNPolicies; ++i) {
-                (*freqTimeMap)[key.uid][i].resize(gPolicyFreqs[i].size(), 0);
+                map[key.uid][i].resize(gPolicyFreqs[i].size(), 0);
             }
         }
 
         for (size_t policy = 0; policy < gNPolicies; ++policy) {
             for (const auto &cpu : gPolicyCpus[policy]) {
                 auto freqIdx = policyFreqIdxs[policy][key.freq];
-                (*freqTimeMap)[key.uid][policy][freqIdx] += val.ar[cpu];
+                map[key.uid][policy][freqIdx] += val.ar[cpu];
             }
         }
         return android::netdutils::status::ok;
     };
-    return isOk(m.iterateWithValue(fn));
+    if (isOk(m.iterateWithValue(fn))) return map;
+    return {};
 }
 
 // Clear all time in state data for a given uid. Returns false on error, true otherwise.
