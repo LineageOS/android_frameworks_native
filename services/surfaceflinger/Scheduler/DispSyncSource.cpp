@@ -78,6 +78,10 @@ void DispSyncSource::setPhaseOffset(nsecs_t phaseOffset) {
     // Normalize phaseOffset to [-period, period)
     const int numPeriods = phaseOffset / period;
     phaseOffset -= numPeriods * period;
+    if (mPhaseOffset == phaseOffset) {
+        return;
+    }
+
     mPhaseOffset = phaseOffset;
     tracePhaseOffset();
 
