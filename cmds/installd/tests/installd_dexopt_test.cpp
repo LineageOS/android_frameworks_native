@@ -241,18 +241,14 @@ protected:
     }
 
     ::testing::AssertionResult create_mock_app() {
-        // Create the oat dir.
-        app_oat_dir_ = app_apk_dir_ + "/oat";
         // For debug mode, the directory might already exist. Avoid erroring out.
         if (mkdir(app_apk_dir_, kSystemUid, kSystemGid, 0755) != 0 && !kDebug) {
             return ::testing::AssertionFailure() << "Could not create app dir " << app_apk_dir_
                                                  << " : " << strerror(errno);
         }
-        binder::Status status = service_->createOatDir(app_oat_dir_, kRuntimeIsa);
-        if (!status.isOk()) {
-            return ::testing::AssertionFailure() << "Could not create oat dir: "
-                                                 << status.toString8().c_str();
-        }
+
+        // Initialize the oat dir path.
+        app_oat_dir_ = app_apk_dir_ + "/oat";
 
         // Copy the primary apk.
         apk_path_ = app_apk_dir_ + "/base.jar";
@@ -283,7 +279,7 @@ protected:
           }
 
         // Create the app user data.
-        status = service_->createAppData(
+        binder::Status status = service_->createAppData(
                 volume_uuid_,
                 package_name_,
                 kTestUserId,
@@ -640,6 +636,16 @@ TEST_F(DexoptTest, DexoptSecondaryAcessViaDifferentUidError) {
 
 TEST_F(DexoptTest, DexoptPrimaryPublic) {
     LOG(INFO) << "DexoptPrimaryPublic";
+    CompilePrimaryDexOk("verify",
+                        DEXOPT_BOOTCOMPLETE | DEXOPT_PUBLIC,
+                        app_oat_dir_.c_str(),
+                        kTestAppGid,
+                        DEX2OAT_FROM_SCRATCH);
+}
+
+TEST_F(DexoptTest, DexoptPrimaryPublicCreateOatDir) {
+    LOG(INFO) << "DexoptPrimaryPublic";
+    ASSERT_BINDER_SUCCESS(service_->createOatDir(app_oat_dir_, kRuntimeIsa));
     CompilePrimaryDexOk("verify",
                         DEXOPT_BOOTCOMPLETE | DEXOPT_PUBLIC,
                         app_oat_dir_.c_str(),
