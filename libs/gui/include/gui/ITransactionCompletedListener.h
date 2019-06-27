@@ -106,6 +106,16 @@ public:
                       const std::vector<CallbackId>& ids)
           : transactionCompletedListener(listener), callbackIds(ids) {}
 
+    bool operator==(const ListenerCallbacks& rhs) const {
+        if (transactionCompletedListener != rhs.transactionCompletedListener) {
+            return false;
+        }
+        if (callbackIds.empty()) {
+            return rhs.callbackIds.empty();
+        }
+        return callbackIds.front() == rhs.callbackIds.front();
+    }
+
     sp<ITransactionCompletedListener> transactionCompletedListener;
     std::vector<CallbackId> callbackIds;
 };

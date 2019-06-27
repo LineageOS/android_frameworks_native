@@ -2183,14 +2183,7 @@ void SurfaceFlinger::postComposition()
     }
 
     mTransactionCompletedThread.addPresentFence(mPreviousPresentFences[0]);
-
-    // Lock the mStateLock in case SurfaceFlinger is in the middle of applying a transaction.
-    // If we do not lock here, a callback could be sent without all of its SurfaceControls and
-    // metrics.
-    {
-        Mutex::Autolock _l(mStateLock);
-        mTransactionCompletedThread.sendCallbacks();
-    }
+    mTransactionCompletedThread.sendCallbacks();
 
     if (mLumaSampling && mRegionSamplingThread) {
         mRegionSamplingThread->notifyNewContent();
@@ -3790,14 +3783,18 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
     if (!listenerCallbacks.empty()) {
         mTransactionCompletedThread.run();
     }
-    for (const auto& [listener, callbackIds] : listenerCallbacks) {
-        mTransactionCompletedThread.addCallback(listener, callbackIds);
+    for (const auto& listenerCallback : listenerCallbacks) {
+        mTransactionCompletedThread.startRegistration(listenerCallback);
     }
 
     uint32_t clientStateFlags = 0;
     for (const ComposerState& state : states) {
         clientStateFlags |= setClientStateLocked(state, desiredPresentTime, listenerCallbacks,
                                                  postTime, privileged);
+    }
+
+    for (const auto& listenerCallback : listenerCallbacks) {
+        mTransactionCompletedThread.endRegistration(listenerCallback);
     }
 
     // If the state doesn't require a traversal and there are callbacks, send them now
@@ -3937,7 +3934,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     sp<Layer> layer(client->getLayerUser(s.surface));
     if (layer == nullptr) {
         for (auto& listenerCallback : listenerCallbacks) {
-            mTransactionCompletedThread.addUnpresentedCallbackHandle(
+            mTransactionCompletedThread.registerUnpresentedCallbackHandle(
                     new CallbackHandle(listenerCallback.transactionCompletedListener,
                                        listenerCallback.callbackIds, s.surface));
         }

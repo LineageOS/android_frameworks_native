@@ -85,7 +85,7 @@ void BufferStateLayer::setTransformHint(uint32_t /*orientation*/) const {
 }
 
 void BufferStateLayer::releasePendingBuffer(nsecs_t /*dequeueReadyTime*/) {
-    mFlinger->getTransactionCompletedThread().addPresentedCallbackHandles(
+    mFlinger->getTransactionCompletedThread().finalizePendingCallbackHandles(
             mDrawingState.callbackHandles);
 
     mDrawingState.callbackHandles = {};
@@ -310,7 +310,7 @@ bool BufferStateLayer::setTransactionCompletedListeners(
 
         } else { // If this layer will NOT need to be relatched and presented this frame
             // Notify the transaction completed thread this handle is done
-            mFlinger->getTransactionCompletedThread().addUnpresentedCallbackHandle(handle);
+            mFlinger->getTransactionCompletedThread().registerUnpresentedCallbackHandle(handle);
         }
     }
 

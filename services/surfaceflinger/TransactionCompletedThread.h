@@ -21,6 +21,7 @@
 #include <mutex>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 
 #include <android-base/thread_annotations.h>
 
@@ -29,6 +30,12 @@
 #include <ui/Fence.h>
 
 namespace android {
+
+struct ITransactionCompletedListenerHash {
+    std::size_t operator()(const sp<ITransactionCompletedListener>& listener) const {
+        return std::hash<IBinder*>{}((listener) ? IInterface::asBinder(listener).get() : nullptr);
+    }
+};
 
 struct CallbackIdsHash {
     // CallbackId vectors have several properties that let us get away with this simple hash.
@@ -39,6 +46,22 @@ struct CallbackIdsHash {
     // they match, they are the same. If they do not match, they are not the same.
     std::size_t operator()(const std::vector<CallbackId>& callbackIds) const {
         return std::hash<CallbackId>{}((callbackIds.empty()) ? 0 : callbackIds.front());
+    }
+};
+
+struct ListenerCallbacksHash {
+    std::size_t HashCombine(size_t value1, size_t value2) const {
+        return value1 ^ (value2 + 0x9e3779b9 + (value1 << 6) + (value1 >> 2));
+    }
+
+    std::size_t operator()(const ListenerCallbacks& listenerCallbacks) const {
+        struct ITransactionCompletedListenerHash listenerHasher;
+        struct CallbackIdsHash callbackIdsHasher;
+
+        std::size_t listenerHash = listenerHasher(listenerCallbacks.transactionCompletedListener);
+        std::size_t callbackIdsHash = callbackIdsHasher(listenerCallbacks.callbackIds);
+
+        return HashCombine(listenerHash, callbackIdsHash);
     }
 };
 
@@ -64,10 +87,12 @@ public:
     void run();
 
     // Adds listener and callbackIds in case there are no SurfaceControls that are supposed
-    // to be included in the callback. This functions should be call before attempting to add any
-    // callback handles.
-    status_t addCallback(const sp<ITransactionCompletedListener>& transactionListener,
-                         const std::vector<CallbackId>& callbackIds);
+    // to be included in the callback. This functions should be call before attempting to register
+    // any callback handles.
+    status_t startRegistration(const ListenerCallbacks& listenerCallbacks);
+    // Ends the registration. After this is called, no more CallbackHandles will be registered.
+    // It is safe to send a callback if the Transaction doesn't have any Pending callback handles.
+    status_t endRegistration(const ListenerCallbacks& listenerCallbacks);
 
     // Informs the TransactionCompletedThread that there is a Transaction with a CallbackHandle
     // that needs to be latched and presented this frame. This function should be called once the
@@ -76,11 +101,11 @@ public:
     // presented.
     status_t registerPendingCallbackHandle(const sp<CallbackHandle>& handle);
     // Notifies the TransactionCompletedThread that a pending CallbackHandle has been presented.
-    status_t addPresentedCallbackHandles(const std::deque<sp<CallbackHandle>>& handles);
+    status_t finalizePendingCallbackHandles(const std::deque<sp<CallbackHandle>>& handles);
 
     // Adds the Transaction CallbackHandle from a layer that does not need to be relatched and
     // presented this frame.
-    status_t addUnpresentedCallbackHandle(const sp<CallbackHandle>& handle);
+    status_t registerUnpresentedCallbackHandle(const sp<CallbackHandle>& handle);
 
     void addPresentFence(const sp<Fence>& presentFence);
 
@@ -88,6 +113,9 @@ public:
 
 private:
     void threadMain();
+
+    bool isRegisteringTransaction(const sp<ITransactionCompletedListener>& transactionListener,
+                                  const std::vector<CallbackId>& callbackIds) REQUIRES(mMutex);
 
     status_t findTransactionStats(const sp<ITransactionCompletedListener>& listener,
                                   const std::vector<CallbackId>& callbackIds,
@@ -106,13 +134,6 @@ private:
     };
     sp<ThreadDeathRecipient> mDeathRecipient;
 
-    struct ITransactionCompletedListenerHash {
-        std::size_t operator()(const sp<ITransactionCompletedListener>& listener) const {
-            return std::hash<IBinder*>{}((listener) ? IInterface::asBinder(listener).get()
-                                                    : nullptr);
-        }
-    };
-
     // Protects the creation and destruction of mThread
     std::mutex mThreadMutex;
 
@@ -121,11 +142,15 @@ private:
     std::mutex mMutex;
     std::condition_variable_any mConditionVariable;
 
+    std::unordered_set<ListenerCallbacks, ListenerCallbacksHash> mRegisteringTransactions
+            GUARDED_BY(mMutex);
+
     std::unordered_map<
             sp<ITransactionCompletedListener>,
             std::unordered_map<std::vector<CallbackId>, uint32_t /*count*/, CallbackIdsHash>,
             ITransactionCompletedListenerHash>
             mPendingTransactions GUARDED_BY(mMutex);
+
     std::unordered_map<sp<ITransactionCompletedListener>, std::deque<TransactionStats>,
                        ITransactionCompletedListenerHash>
             mCompletedTransactions GUARDED_BY(mMutex);
