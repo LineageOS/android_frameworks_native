@@ -123,7 +123,6 @@ cc_binary {
         "lsmod",
         "lsof",
         "netstat",
-        "parse_radio_log",
         "printenv",
         "procrank",
         "screencap",
