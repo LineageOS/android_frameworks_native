@@ -2055,10 +2055,15 @@ binder::Status InstalldNativeService::dexopt(const std::string& apkPath, int32_t
     CHECK_ARGUMENT_PATH(dexMetadataPath);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
+    const char* oat_dir = getCStr(outputPath);
+    const char* instruction_set = instructionSet.c_str();
+    if (oat_dir != nullptr && !createOatDir(oat_dir, instruction_set).isOk()) {
+        // Can't create oat dir - let dexopt use cache dir.
+        oat_dir = nullptr;
+    }
+
     const char* apk_path = apkPath.c_str();
     const char* pkgname = getCStr(packageName, "*");
-    const char* instruction_set = instructionSet.c_str();
-    const char* oat_dir = getCStr(outputPath);
     const char* compiler_filter = compilerFilter.c_str();
     const char* volume_uuid = getCStr(uuid);
     const char* class_loader_context = getCStr(classLoaderContext);
