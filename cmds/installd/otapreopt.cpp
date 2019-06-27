@@ -464,7 +464,7 @@ private:
                 "--compiler-filter=",
                 false,
                 cmd);
-        cmd.push_back("--image-classes=/system/etc/preloaded-classes");
+        cmd.push_back("--profile-file=/system/etc/boot-image.prof");
         // TODO: Compiled-classes.
         const std::string* extra_opts =
                 system_properties_.GetProperty("dalvik.vm.image-dex2oat-flags");
