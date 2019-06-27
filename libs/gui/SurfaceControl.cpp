@@ -71,14 +71,6 @@ SurfaceControl::~SurfaceControl()
     release();
 }
 
-void SurfaceControl::destroy()
-{
-    if (isValid()) {
-        SurfaceComposerClient::Transaction().reparent(this, nullptr).apply();
-    }
-    release();
-}
-
 void SurfaceControl::release()
 {
     // Trigger an IPC now, to make sure things
