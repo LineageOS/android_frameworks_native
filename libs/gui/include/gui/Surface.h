@@ -292,7 +292,8 @@ public:
 
     ui::Dataspace getBuffersDataSpace();
 
-    static status_t attachAndQueueBuffer(Surface* surface, sp<GraphicBuffer> buffer);
+    static status_t attachAndQueueBufferWithDataspace(Surface* surface, sp<GraphicBuffer> buffer,
+                                                      ui::Dataspace dataspace);
 
 protected:
     enum { NUM_BUFFER_SLOTS = BufferQueueDefs::NUM_BUFFER_SLOTS };
