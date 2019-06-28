@@ -262,3 +262,7 @@ int ANativeWindow_setSharedBufferMode(ANativeWindow* window, bool sharedBufferMo
 int ANativeWindow_setAutoRefresh(ANativeWindow* window, bool autoRefresh) {
     return native_window_set_auto_refresh(window, autoRefresh);
 }
+
+int ANativeWindow_setAutoPrerotation(ANativeWindow* window, bool autoPrerotation) {
+    return native_window_set_auto_prerotation(window, autoPrerotation);
+}

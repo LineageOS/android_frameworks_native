@@ -230,6 +230,7 @@ private:
     int dispatchGetWideColorSupport(va_list args);
     int dispatchGetHdrSupport(va_list args);
     int dispatchGetConsumerUsage64(va_list args);
+    int dispatchSetAutoPrerotation(va_list args);
     bool transformToDisplayInverse();
 
 protected:
@@ -265,6 +266,7 @@ public:
     virtual int setAsyncMode(bool async);
     virtual int setSharedBufferMode(bool sharedBufferMode);
     virtual int setAutoRefresh(bool autoRefresh);
+    virtual int setAutoPrerotation(bool autoPrerotation);
     virtual int setBuffersDimensions(uint32_t width, uint32_t height);
     virtual int lock(ANativeWindow_Buffer* outBuffer, ARect* inOutDirtyBounds);
     virtual int unlockAndPost();
@@ -433,6 +435,7 @@ protected:
     // Caches the values that have been passed to the producer.
     bool mSharedBufferMode;
     bool mAutoRefresh;
+    bool mAutoPrerotation;
 
     // If in shared buffer mode and auto refresh is enabled, store the shared
     // buffer slot and return it for all calls to queue/dequeue without going

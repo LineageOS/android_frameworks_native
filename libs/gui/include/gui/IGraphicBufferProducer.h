@@ -630,6 +630,14 @@ public:
     // NATIVE_WINDOW_CONSUMER_USAGE_BITS attribute.
     virtual status_t getConsumerUsage(uint64_t* outUsage) const = 0;
 
+    // Enable/disable the auto prerotation at buffer allocation when the buffer
+    // size is driven by the consumer.
+    //
+    // When buffer size is driven by the consumer and the transform hint
+    // specifies a 90 or 270 degree rotation, if auto prerotation is enabled,
+    // the width and height used for dequeueBuffer will be additionally swapped.
+    virtual status_t setAutoPrerotation(bool autoPrerotation);
+
     // Static method exports any IGraphicBufferProducer object to a parcel. It
     // handles null producer as well.
     static status_t exportToParcel(const sp<IGraphicBufferProducer>& producer,

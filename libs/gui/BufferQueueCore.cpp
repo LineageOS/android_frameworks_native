@@ -97,7 +97,9 @@ BufferQueueCore::BufferQueueCore() :
     mSharedBufferCache(Rect::INVALID_RECT, 0, NATIVE_WINDOW_SCALING_MODE_FREEZE,
             HAL_DATASPACE_UNKNOWN),
     mLastQueuedSlot(INVALID_BUFFER_SLOT),
-    mUniqueId(getUniqueId())
+    mUniqueId(getUniqueId()),
+    mAutoPrerotation(false),
+    mTransformHintInUse(0)
 {
     int numStartingBuffers = getMaxBufferCountLocked();
     for (int s = 0; s < numStartingBuffers; s++) {
@@ -123,10 +125,12 @@ void BufferQueueCore::dumpState(const String8& prefix, String8* outResult) const
                             mQueueBufferCanDrop, mLegacyBufferDrop);
     outResult->appendFormat("%s  default-size=[%dx%d] default-format=%d ", prefix.string(),
                             mDefaultWidth, mDefaultHeight, mDefaultBufferFormat);
-    outResult->appendFormat("transform-hint=%02x frame-counter=%" PRIu64, mTransformHint,
-                            mFrameCounter);
+    outResult->appendFormat("%s  transform-hint=%02x frame-counter=%" PRIu64 "\n", prefix.string(),
+                            mTransformHint, mFrameCounter);
+    outResult->appendFormat("%s  mTransformHintInUse=%02x mAutoPrerotation=%d\n", prefix.string(),
+                            mTransformHintInUse, mAutoPrerotation);
 
-    outResult->appendFormat("\n%sFIFO(%zu):\n", prefix.string(), mQueue.size());
+    outResult->appendFormat("%sFIFO(%zu):\n", prefix.string(), mQueue.size());
     Fifo::const_iterator current(mQueue.begin());
     while (current != mQueue.end()) {
         double timestamp = current->mTimestamp / 1e9;

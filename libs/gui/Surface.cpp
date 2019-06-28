@@ -1077,6 +1077,9 @@ int Surface::perform(int operation, va_list args)
     case NATIVE_WINDOW_GET_CONSUMER_USAGE64:
         res = dispatchGetConsumerUsage64(args);
         break;
+    case NATIVE_WINDOW_SET_AUTO_PREROTATION:
+        res = dispatchSetAutoPrerotation(args);
+        break;
     default:
         res = NAME_NOT_FOUND;
         break;
@@ -1277,6 +1280,11 @@ int Surface::dispatchGetConsumerUsage64(va_list args) {
     return getConsumerUsage(usage);
 }
 
+int Surface::dispatchSetAutoPrerotation(va_list args) {
+    bool autoPrerotation = va_arg(args, int);
+    return setAutoPrerotation(autoPrerotation);
+}
+
 bool Surface::transformToDisplayInverse() {
     return (mTransform & NATIVE_WINDOW_TRANSFORM_INVERSE_DISPLAY) ==
             NATIVE_WINDOW_TRANSFORM_INVERSE_DISPLAY;
@@ -1345,6 +1353,7 @@ int Surface::disconnect(int api, IGraphicBufferProducer::DisconnectMode mode) {
         mScalingMode = NATIVE_WINDOW_SCALING_MODE_FREEZE;
         mTransform = 0;
         mStickyTransform = 0;
+        mAutoPrerotation = false;
 
         if (api == NATIVE_WINDOW_API_CPU) {
             mConnectedToCpu = false;
@@ -1944,6 +1953,24 @@ status_t Surface::attachAndQueueBuffer(Surface* surface, sp<GraphicBuffer> buffe
         return err;
     }
     err = surface->disconnect(NATIVE_WINDOW_API_CPU);
+    return err;
+}
+
+int Surface::setAutoPrerotation(bool autoPrerotation) {
+    ATRACE_CALL();
+    ALOGV("Surface::setAutoPrerotation (%d)", autoPrerotation);
+    Mutex::Autolock lock(mMutex);
+
+    if (mAutoPrerotation == autoPrerotation) {
+        return OK;
+    }
+
+    status_t err = mGraphicBufferProducer->setAutoPrerotation(autoPrerotation);
+    if (err == NO_ERROR) {
+        mAutoPrerotation = autoPrerotation;
+    }
+    ALOGE_IF(err, "IGraphicBufferProducer::setAutoPrerotation(%d) returned %s", autoPrerotation,
+             strerror(-err));
     return err;
 }
 
