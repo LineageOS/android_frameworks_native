@@ -608,8 +608,8 @@ static NotifyMotionArgs generateMotionArgs(int32_t action, int32_t source, int32
     NotifyMotionArgs args(/* sequenceNum */ 0, currentTime, DEVICE_ID, source, displayId,
                           POLICY_FLAG_PASS_TO_USER, action, /* actionButton */ 0, /* flags */ 0,
                           AMETA_NONE, /* buttonState */ 0, MotionClassification::NONE,
-                          AMOTION_EVENT_EDGE_FLAG_NONE, /* deviceTimestamp */ 0, 1,
-                          pointerProperties, pointerCoords, /* xPrecision */ 0, /* yPrecision */ 0,
+                          AMOTION_EVENT_EDGE_FLAG_NONE, 1, pointerProperties, pointerCoords,
+                          /* xPrecision */ 0, /* yPrecision */ 0,
                           AMOTION_EVENT_INVALID_CURSOR_POSITION,
                           AMOTION_EVENT_INVALID_CURSOR_POSITION, currentTime, /* videoFrames */ {});
 
