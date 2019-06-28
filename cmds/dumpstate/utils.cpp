@@ -733,6 +733,11 @@ int open_socket(const char *service) {
     struct sockaddr addr;
     socklen_t alen = sizeof(addr);
     int fd = accept(s, &addr, &alen);
+
+    // Close socket just after accept(), to make sure that connect() by client will get error
+    // when the socket is used by the other services.
+    close(s);
+
     if (fd < 0) {
         MYLOGE("accept(control socket): %s\n", strerror(errno));
         return -1;
