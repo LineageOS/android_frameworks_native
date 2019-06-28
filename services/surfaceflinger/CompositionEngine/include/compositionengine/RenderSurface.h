@@ -83,10 +83,6 @@ public:
     // Called after the HWC calls are made to present the display
     virtual void onPresentDisplayCompleted() = 0;
 
-    // Called to set the viewport and projection state for rendering into this
-    // surface
-    virtual void setViewportAndProjection() = 0;
-
     // Called after the surface has been rendering to signal the surface should
     // be made ready for displaying
     virtual void flip() = 0;

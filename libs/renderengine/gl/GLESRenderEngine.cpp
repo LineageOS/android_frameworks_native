@@ -456,10 +456,6 @@ void GLESRenderEngine::primeCache() const {
                                            mFeatureFlags & USE_COLOR_MANAGEMENT);
 }
 
-bool GLESRenderEngine::isCurrent() const {
-    return mEGLDisplay == eglGetCurrentDisplay() && mEGLContext == eglGetCurrentContext();
-}
-
 base::unique_fd GLESRenderEngine::flush() {
     ATRACE_CALL();
     if (!GLExtensions::getInstance().hasNativeFenceSync()) {
@@ -795,7 +791,6 @@ status_t GLESRenderEngine::bindFrameBuffer(Framebuffer* framebuffer) {
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureName, 0);
 
     uint32_t glStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-
     ALOGE_IF(glStatus != GL_FRAMEBUFFER_COMPLETE_OES, "glCheckFramebufferStatusOES error %d",
              glStatus);
 
@@ -1013,33 +1008,6 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
     return NO_ERROR;
 }
 
-void GLESRenderEngine::setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
-                                                ui::Transform::orientation_flags rotation) {
-    setViewportAndProjection(Rect(vpw, vph), sourceCrop);
-
-    if (rotation == ui::Transform::ROT_0) {
-        return;
-    }
-
-    // Apply custom rotation to the projection.
-    float rot90InRadians = 2.0f * static_cast<float>(M_PI) / 4.0f;
-    mat4 m = mState.projectionMatrix;
-    switch (rotation) {
-        case ui::Transform::ROT_90:
-            m = mat4::rotate(rot90InRadians, vec3(0, 0, 1)) * m;
-            break;
-        case ui::Transform::ROT_180:
-            m = mat4::rotate(rot90InRadians * 2.0f, vec3(0, 0, 1)) * m;
-            break;
-        case ui::Transform::ROT_270:
-            m = mat4::rotate(rot90InRadians * 3.0f, vec3(0, 0, 1)) * m;
-            break;
-        default:
-            break;
-    }
-    mState.projectionMatrix = m;
-}
-
 void GLESRenderEngine::setViewportAndProjection(Rect viewport, Rect clip) {
     ATRACE_CALL();
     mVpWidth = viewport.getWidth();
@@ -1099,14 +1067,6 @@ void GLESRenderEngine::setupLayerTexturing(const Texture& texture) {
     glTexParameteri(target, GL_TEXTURE_MAG_FILTER, filter);
     glTexParameteri(target, GL_TEXTURE_MIN_FILTER, filter);
 
-    mState.texture = texture;
-    mState.textureEnabled = true;
-}
-
-void GLESRenderEngine::setupLayerBlackedOut() {
-    glBindTexture(GL_TEXTURE_2D, mProtectedTexName);
-    Texture texture(Texture::TEXTURE_2D, mProtectedTexName);
-    texture.setDimensions(1, 1); // FIXME: we should get that from somewhere
     mState.texture = texture;
     mState.textureEnabled = true;
 }

@@ -357,8 +357,6 @@ public:
         return getLayerStack() == layerStack && (!mPrimaryDisplayOnly || isPrimaryDisplay);
     }
 
-    void computeGeometry(const RenderArea& renderArea, renderengine::Mesh& mesh,
-                         bool useIdentityTransform) const;
     FloatRect getBounds(const Region& activeTransparentRegion) const;
     FloatRect getBounds() const;
 

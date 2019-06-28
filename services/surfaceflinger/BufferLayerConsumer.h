@@ -252,11 +252,6 @@ private:
     // mCurrentTextureImage must not be nullptr.
     void computeCurrentTransformMatrixLocked();
 
-    // doFenceWaitLocked inserts a wait command into the RenderEngine command
-    // stream to ensure that it is safe for future RenderEngine commands to
-    // access the current texture buffer.
-    status_t doFenceWaitLocked() const;
-
     // getCurrentCropLocked returns the cropping rectangle of the current buffer.
     Rect getCurrentCropLocked() const;
 

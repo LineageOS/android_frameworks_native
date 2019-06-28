@@ -56,7 +56,6 @@ public:
     sp<GraphicBuffer> dequeueBuffer(base::unique_fd* bufferFence) override;
     void queueBuffer(base::unique_fd&& readyFence) override;
     void onPresentDisplayCompleted() override;
-    void setViewportAndProjection() override;
     void flip() override;
 
     // Debugging

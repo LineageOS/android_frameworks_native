@@ -619,32 +619,6 @@ bool Layer::addSyncPoint(const std::shared_ptr<SyncPoint>& point) {
 // local state
 // ----------------------------------------------------------------------------
 
-void Layer::computeGeometry(const RenderArea& renderArea,
-                            renderengine::Mesh& mesh,
-                            bool useIdentityTransform) const {
-    const ui::Transform renderAreaTransform(renderArea.getTransform());
-    FloatRect win = getBounds();
-
-    vec2 lt = vec2(win.left, win.top);
-    vec2 lb = vec2(win.left, win.bottom);
-    vec2 rb = vec2(win.right, win.bottom);
-    vec2 rt = vec2(win.right, win.top);
-
-    ui::Transform layerTransform = getTransform();
-    if (!useIdentityTransform) {
-        lt = layerTransform.transform(lt);
-        lb = layerTransform.transform(lb);
-        rb = layerTransform.transform(rb);
-        rt = layerTransform.transform(rt);
-    }
-
-    renderengine::Mesh::VertexArray<vec2> position(mesh.getPositionArray<vec2>());
-    position[0] = renderAreaTransform.transform(lt);
-    position[1] = renderAreaTransform.transform(lb);
-    position[2] = renderAreaTransform.transform(rb);
-    position[3] = renderAreaTransform.transform(rt);
-}
-
 bool Layer::isSecure() const {
     const State& s(mDrawingState);
     return (s.flags & layer_state_t::eLayerSecure);

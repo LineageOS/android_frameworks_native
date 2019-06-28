@@ -3534,11 +3534,6 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
     return true;
 }
 
-void SurfaceFlinger::drawWormhole(const Region& region) const {
-    auto& engine(getRenderEngine());
-    engine.fillRegionWithColor(region, 0, 0, 0, 0);
-}
-
 status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
                                         const sp<IGraphicBufferProducer>& gbc, const sp<Layer>& lbc,
                                         const sp<IBinder>& parentHandle,

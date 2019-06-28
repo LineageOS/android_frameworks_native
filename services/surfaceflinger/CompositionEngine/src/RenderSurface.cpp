@@ -215,13 +215,6 @@ void RenderSurface::onPresentDisplayCompleted() {
     mDisplaySurface->onFrameCommitted();
 }
 
-void RenderSurface::setViewportAndProjection() {
-    auto& renderEngine = mCompositionEngine.getRenderEngine();
-    Rect sourceCrop = Rect(mSize);
-    renderEngine.setViewportAndProjection(mSize.width, mSize.height, sourceCrop,
-                                          ui::Transform::ROT_0);
-}
-
 void RenderSurface::flip() {
     mPageFlipCount++;
 }

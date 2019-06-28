@@ -303,11 +303,6 @@ struct BaseDisplayVariant {
         EXPECT_CALL(*test->mComposer, getReleaseFences(HWC_DISPLAY, _, _)).Times(1);
 
         EXPECT_CALL(*test->mRenderEngine, useNativeFenceSync()).WillRepeatedly(Return(true));
-        // TODO: remove once we verify that we can just grab the fence from the
-        // FramebufferSurface.
-        EXPECT_CALL(*test->mRenderEngine, flush()).WillRepeatedly(Invoke([]() {
-            return base::unique_fd();
-        }));
 
         EXPECT_CALL(*test->mDisplaySurface, onFrameCommitted()).Times(1);
         EXPECT_CALL(*test->mDisplaySurface, advanceFrame()).Times(1);
