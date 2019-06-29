@@ -37,6 +37,7 @@
 
 #include <memory>
 #include <string>
+#include <thread>
 
 // TODO(b/37049319) Get this from a header once one exists
 extern "C" {
@@ -163,17 +164,20 @@ void GraphicsEnv::setDriverPathAndSphalLibraries(const std::string path,
 void GraphicsEnv::hintActivityLaunch() {
     ATRACE_CALL();
 
-    // If there's already graphics driver preloaded in the process, just send
-    // the stats info to GpuStats directly through async binder.
-    std::lock_guard<std::mutex> lock(mStatsLock);
-    if (mGpuStats.glDriverToSend) {
-        mGpuStats.glDriverToSend = false;
-        sendGpuStatsLocked(GraphicsEnv::Api::API_GL, true, mGpuStats.glDriverLoadingTime);
-    }
-    if (mGpuStats.vkDriverToSend) {
-        mGpuStats.vkDriverToSend = false;
-        sendGpuStatsLocked(GraphicsEnv::Api::API_VK, true, mGpuStats.vkDriverLoadingTime);
-    }
+    std::thread trySendGpuStatsThread([this]() {
+        // If there's already graphics driver preloaded in the process, just send
+        // the stats info to GpuStats directly through async binder.
+        std::lock_guard<std::mutex> lock(mStatsLock);
+        if (mGpuStats.glDriverToSend) {
+            mGpuStats.glDriverToSend = false;
+            sendGpuStatsLocked(GraphicsEnv::Api::API_GL, true, mGpuStats.glDriverLoadingTime);
+        }
+        if (mGpuStats.vkDriverToSend) {
+            mGpuStats.vkDriverToSend = false;
+            sendGpuStatsLocked(GraphicsEnv::Api::API_VK, true, mGpuStats.vkDriverLoadingTime);
+        }
+    });
+    trySendGpuStatsThread.detach();
 }
 
 void GraphicsEnv::setGpuStats(const std::string& driverPackageName,
