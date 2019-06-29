@@ -445,9 +445,11 @@ private:
         }
         cmd.push_back(StringPrintf("--oat-file=%s", oat_path.c_str()));
 
-        int32_t base_offset = ChooseRelocationOffsetDelta(art::GetImageMinBaseAddressDelta(),
-                                                          art::GetImageMaxBaseAddressDelta());
-        cmd.push_back(StringPrintf("--base=0x%x", art::GetImageBaseAddress() + base_offset));
+        int32_t base_offset = ChooseRelocationOffsetDelta(
+                art::imagevalues::GetImageMinBaseAddressDelta(),
+                art::imagevalues::GetImageMaxBaseAddressDelta());
+        cmd.push_back(StringPrintf("--base=0x%x",
+                art::imagevalues::GetImageBaseAddress() + base_offset));
 
         cmd.push_back(StringPrintf("--instruction-set=%s", isa));
 
@@ -464,7 +466,7 @@ private:
                 "--compiler-filter=",
                 false,
                 cmd);
-        cmd.push_back("--image-classes=/system/etc/preloaded-classes");
+        cmd.push_back("--profile-file=/system/etc/boot-image.prof");
         // TODO: Compiled-classes.
         const std::string* extra_opts =
                 system_properties_.GetProperty("dalvik.vm.image-dex2oat-flags");

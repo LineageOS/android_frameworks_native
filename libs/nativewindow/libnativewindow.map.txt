@@ -28,6 +28,7 @@ LIBNATIVEWINDOW {
     ANativeWindow_queryf; # vndk
     ANativeWindow_queueBuffer; # vndk
     ANativeWindow_release;
+    ANativeWindow_setAutoPrerotation; # vndk
     ANativeWindow_setAutoRefresh; # vndk
     ANativeWindow_setBufferCount; # vndk
     ANativeWindow_setBuffersDataSpace; # introduced=28

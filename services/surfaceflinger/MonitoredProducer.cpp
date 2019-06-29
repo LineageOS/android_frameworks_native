@@ -154,6 +154,10 @@ status_t MonitoredProducer::getConsumerUsage(uint64_t* outUsage) const {
     return mProducer->getConsumerUsage(outUsage);
 }
 
+status_t MonitoredProducer::setAutoPrerotation(bool autoPrerotation) {
+    return mProducer->setAutoPrerotation(autoPrerotation);
+}
+
 IBinder* MonitoredProducer::onAsBinder() {
     return this;
 }

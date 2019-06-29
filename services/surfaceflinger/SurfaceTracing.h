@@ -61,7 +61,7 @@ public:
     void setTraceFlags(uint32_t flags);
 
 private:
-    static constexpr auto kDefaultBufferCapInByte = 100_MB;
+    static constexpr auto kDefaultBufferCapInByte = 5_MB;
     static constexpr auto kDefaultFileName = "/data/misc/wmtrace/layers_trace.pb";
 
     class LayersTraceBuffer { // ring buffer
