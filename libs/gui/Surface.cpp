@@ -1920,7 +1920,8 @@ status_t Surface::getAndFlushRemovedBuffers(std::vector<sp<GraphicBuffer>>* out)
     return OK;
 }
 
-status_t Surface::attachAndQueueBuffer(Surface* surface, sp<GraphicBuffer> buffer) {
+status_t Surface::attachAndQueueBufferWithDataspace(Surface* surface, sp<GraphicBuffer> buffer,
+                                                    Dataspace dataspace) {
     if (buffer == nullptr) {
         return BAD_VALUE;
     }
@@ -1929,11 +1930,20 @@ status_t Surface::attachAndQueueBuffer(Surface* surface, sp<GraphicBuffer> buffe
     if (err != OK) {
         return err;
     }
+    ui::Dataspace tmpDataspace = surface->getBuffersDataSpace();
+    err = surface->setBuffersDataSpace(dataspace);
+    if (err != OK) {
+        return err;
+    }
     err = surface->attachBuffer(buffer->getNativeBuffer());
     if (err != OK) {
         return err;
     }
     err = static_cast<ANativeWindow*>(surface)->queueBuffer(surface, buffer->getNativeBuffer(), -1);
+    if (err != OK) {
+        return err;
+    }
+    err = surface->setBuffersDataSpace(tmpDataspace);
     if (err != OK) {
         return err;
     }
