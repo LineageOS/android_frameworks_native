@@ -330,8 +330,11 @@ std::unique_ptr<scheduler::LayerHistory::LayerHandle> Scheduler::registerLayer(
             : RefreshRateType::PERFORMANCE;
 
     const auto refreshRate = mRefreshRateConfigs.getRefreshRate(refreshRateType);
-    const uint32_t fps = (refreshRate) ? refreshRate->fps : 0;
-    return mLayerHistory.createLayer(name, fps);
+    const uint32_t performanceFps = (refreshRate) ? refreshRate->fps : 0;
+
+    const auto defaultRefreshRate = mRefreshRateConfigs.getRefreshRate(RefreshRateType::DEFAULT);
+    const uint32_t defaultFps = (defaultRefreshRate) ? defaultRefreshRate->fps : 0;
+    return mLayerHistory.createLayer(name, defaultFps, performanceFps);
 }
 
 void Scheduler::addLayerPresentTimeAndHDR(

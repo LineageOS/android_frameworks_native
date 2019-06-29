@@ -53,7 +53,8 @@ public:
     ~LayerHistory();
 
     // When the layer is first created, register it.
-    std::unique_ptr<LayerHandle> createLayer(const std::string name, float maxRefreshRate);
+    std::unique_ptr<LayerHandle> createLayer(const std::string name, float minRefreshRate,
+                                             float maxRefreshRate);
 
     // Method for inserting layers and their requested present time into the unordered map.
     void insert(const std::unique_ptr<LayerHandle>& layerHandle, nsecs_t presentTime, bool isHdr);
