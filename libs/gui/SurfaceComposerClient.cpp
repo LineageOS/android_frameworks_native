@@ -768,16 +768,27 @@ status_t SurfaceComposerClient::getHdrCapabilities(const sp<IBinder>& display,
 status_t ScreenshotClient::capture(const sp<IBinder>& display, Rect sourceCrop, uint32_t reqWidth,
                                    uint32_t reqHeight, int32_t minLayerZ, int32_t maxLayerZ,
                                    bool useIdentityTransform, uint32_t rotation,
-                                   sp<GraphicBuffer>* outBuffer) {
+                                   bool captureSecureLayers, sp<GraphicBuffer>* outBuffer,
+                                   bool& outCapturedSecureLayers) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
     if (s == NULL) return NO_INIT;
-    status_t ret = s->captureScreen(display, outBuffer, sourceCrop, reqWidth, reqHeight, minLayerZ,
-                                    maxLayerZ, useIdentityTransform,
-                                    static_cast<ISurfaceComposer::Rotation>(rotation));
+    status_t ret = s->captureScreen(display, outBuffer, outCapturedSecureLayers, sourceCrop,
+                                    reqWidth, reqHeight, minLayerZ, maxLayerZ, useIdentityTransform,
+                                    static_cast<ISurfaceComposer::Rotation>(rotation),
+                                    captureSecureLayers);
     if (ret != NO_ERROR) {
         return ret;
     }
     return ret;
+}
+
+status_t ScreenshotClient::capture(const sp<IBinder>& display, Rect sourceCrop, uint32_t reqWidth,
+                                   uint32_t reqHeight, int32_t minLayerZ, int32_t maxLayerZ,
+                                   bool useIdentityTransform, uint32_t rotation,
+                                   sp<GraphicBuffer>* outBuffer) {
+    bool ignored;
+    return capture(display, sourceCrop, reqWidth, reqHeight,
+                   minLayerZ, maxLayerZ, useIdentityTransform, rotation, false, outBuffer, ignored);
 }
 
 status_t ScreenshotClient::captureLayers(const sp<IBinder>& layerHandle, Rect sourceCrop,

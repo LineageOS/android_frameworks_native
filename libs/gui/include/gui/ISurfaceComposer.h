@@ -195,10 +195,22 @@ public:
      * it) around its center.
      */
     virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
-                                   Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-                                   int32_t minLayerZ, int32_t maxLayerZ, bool useIdentityTransform,
-                                   Rotation rotation = eRotateNone) = 0;
+                                   bool& outCapturedSecureLayers, Rect sourceCrop,
+                                   uint32_t reqWidth, uint32_t reqHeight, int32_t minLayerZ,
+                                   int32_t maxLayerZ, bool useIdentityTransform,
+                                   Rotation rotation = eRotateNone,
+                                   bool captureSecureLayers = false) = 0;
 
+    virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
+                                   Rect sourceCrop,
+                                   uint32_t reqWidth, uint32_t reqHeight, int32_t minLayerZ,
+                                   int32_t maxLayerZ, bool useIdentityTransform,
+                                   Rotation rotation = eRotateNone,
+                                   bool captureSecureLayers = false) {
+      bool ignored;
+      return captureScreen(display, outBuffer, ignored, sourceCrop, reqWidth, reqHeight, minLayerZ,
+                           maxLayerZ, useIdentityTransform, rotation, captureSecureLayers);
+    }
     /**
      * Capture a subtree of the layer hierarchy, potentially ignoring the root node.
      */
