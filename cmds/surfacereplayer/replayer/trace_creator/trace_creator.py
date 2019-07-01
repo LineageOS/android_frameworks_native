@@ -172,7 +172,7 @@ def surface_delete(increment):
 def display_create(increment):
     increment.display_creation.id = int(input("Enter id: "))
     increment.display_creation.name = str(raw_input("Enter name: "))
-    increment.display_creation.type = int(input("Enter type: "))
+    increment.display_creation.display_id = int(input("Enter display ID: "))
     increment.display_creation.is_secure = bool(input("Enter if secure: "))
 
 def display_delete(increment):

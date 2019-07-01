@@ -21,30 +21,35 @@
 #include <android/frameworks/displayservice/1.0/IDisplayService.h>
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/graphics/allocator/2.0/IAllocator.h>
-#include <binder/IServiceManager.h>
+#include <android/hardware/graphics/allocator/3.0/IAllocator.h>
 #include <binder/IPCThreadState.h>
-#include <binder/ProcessState.h>
 #include <binder/IServiceManager.h>
+#include <binder/ProcessState.h>
+#include <configstore/Utils.h>
 #include <displayservice/DisplayService.h>
 #include <hidl/LegacySupport.h>
 #include <processgroup/sched_policy.h>
-#include <configstore/Utils.h>
 #include "SurfaceFlinger.h"
+#include "SurfaceFlingerFactory.h"
+#include "SurfaceFlingerProperties.h"
 
 using namespace android;
 
 static status_t startGraphicsAllocatorService() {
     using android::hardware::configstore::getBool;
     using android::hardware::configstore::V1_0::ISurfaceFlingerConfigs;
-    if (!getBool<ISurfaceFlingerConfigs,
-            &ISurfaceFlingerConfigs::startGraphicsAllocatorService>(false)) {
+    if (!android::sysprop::start_graphics_allocator_service(false)) {
         return OK;
     }
 
-    using android::hardware::graphics::allocator::V2_0::IAllocator;
+    status_t result = hardware::registerPassthroughServiceImplementation<
+            android::hardware::graphics::allocator::V3_0::IAllocator>();
+    if (result == OK) {
+        return OK;
+    }
 
-    status_t result =
-        hardware::registerPassthroughServiceImplementation<IAllocator>();
+    result = hardware::registerPassthroughServiceImplementation<
+            android::hardware::graphics::allocator::V2_0::IAllocator>();
     if (result != OK) {
         ALOGE("could not start graphics allocator service");
         return result;
@@ -84,7 +89,7 @@ int main(int, char**) {
     ps->startThreadPool();
 
     // instantiate surfaceflinger
-    sp<SurfaceFlinger> flinger = new SurfaceFlinger();
+    sp<SurfaceFlinger> flinger = surfaceflinger::createSurfaceFlinger();
 
     setpriority(PRIO_PROCESS, 0, PRIORITY_URGENT_DISPLAY);
 

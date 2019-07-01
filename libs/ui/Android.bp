@@ -55,11 +55,16 @@ cc_library_shared {
 
     srcs: [
         "ColorSpace.cpp",
+        "BufferHubBuffer.cpp",
+        "BufferHubEventFd.cpp",
+        "BufferHubMetadata.cpp",
         "DebugUtils.cpp",
         "Fence.cpp",
         "FenceTime.cpp",
         "FrameStats.cpp",
+        "Gralloc.cpp",
         "Gralloc2.cpp",
+        "Gralloc3.cpp",
         "GraphicBuffer.cpp",
         "GraphicBufferAllocator.cpp",
         "GraphicBufferMapper.cpp",
@@ -68,6 +73,8 @@ cc_library_shared {
         "PublicFormat.cpp",
         "Rect.cpp",
         "Region.cpp",
+        "Size.cpp",
+        "Transform.cpp",
         "UiConfig.cpp",
     ],
 
@@ -75,13 +82,17 @@ cc_library_shared {
         "frameworks/native/include",
     ],
 
+    // Uncomment the following line to enable VALIDATE_REGIONS traces
+    //defaults: ["libui-validate-regions-defaults"],
+
     shared_libs: [
+        "android.frameworks.bufferhub@1.0",
         "android.hardware.graphics.allocator@2.0",
-        "android.hardware.graphics.common@1.1",
+        "android.hardware.graphics.allocator@3.0",
+        "android.hardware.graphics.common@1.2",
         "android.hardware.graphics.mapper@2.0",
         "android.hardware.graphics.mapper@2.1",
-        "android.hardware.configstore@1.0",
-        "android.hardware.configstore-utils",
+        "android.hardware.graphics.mapper@3.0",
         "libbase",
         "libcutils",
         "libhardware",
@@ -90,12 +101,11 @@ cc_library_shared {
         "libhwbinder",
         "libsync",
         "libutils",
-        "libutilscallstack",
         "liblog",
     ],
 
     export_shared_lib_headers: [
-        "android.hardware.graphics.common@1.1",
+        "android.hardware.graphics.common@1.2",
     ],
 
     static_libs: [
@@ -104,9 +114,32 @@ cc_library_shared {
         "libmath",
     ],
 
+    // bufferhub is not used when building libgui for vendors
+    target: {
+        vendor: {
+            cflags: ["-DLIBUI_IN_VNDK"],
+            exclude_srcs: [
+                "BufferHubBuffer.cpp",
+                "BufferHubEventFd.cpp",
+                "BufferHubMetadata.cpp",
+            ],
+            exclude_header_libs: [
+                "libbufferhub_headers",
+                "libdvr_headers",
+            ],
+            exclude_shared_libs: [
+                "android.frameworks.bufferhub@1.0",
+                "libpdx_default_transport",
+            ],
+        },
+    },
+
     header_libs: [
         "libbase_headers",
+        "libbufferhub_headers",
+        "libdvr_headers",
         "libnativebase_headers",
+        "libnativewindow_headers",
         "libhardware_headers",
         "libui_headers",
         "libpdx_headers",
@@ -120,6 +153,7 @@ cc_library_shared {
     export_header_lib_headers: [
         "libbase_headers",
         "libnativebase_headers",
+        "libnativewindow_headers",
         "libhardware_headers",
         "libui_headers",
     ],
@@ -131,9 +165,23 @@ cc_library_headers {
     vendor_available: true,
     target: {
         vendor: {
+            cflags: ["-DLIBUI_IN_VNDK"],
             override_export_include_dirs: ["include_vndk"],
         },
     },
+    header_libs: [
+        "libnativewindow_headers",
+    ],
+    export_header_lib_headers: [
+        "libnativewindow_headers",
+    ],
+}
+
+// defaults to enable VALIDATE_REGIONS traces
+cc_defaults {
+    name: "libui-validate-regions-defaults",
+    shared_libs: ["libutilscallstack"],
+    cflags: ["-DVALIDATE_REGIONS"],
 }
 
 subdirs = [

@@ -24,6 +24,7 @@
 
 #include <ui/FloatRect.h>
 #include <ui/Point.h>
+#include <ui/Size.h>
 
 #include <android/rect.h>
 
@@ -78,6 +79,13 @@ public:
         bottom = static_cast<int32_t>(floatRect.bottom + 0.5f);
     }
 
+    inline explicit Rect(const ui::Size& size) {
+        left = 0;
+        top = 0;
+        right = size.width;
+        bottom = size.height;
+    }
+
     void makeInvalid();
 
     inline void clear() {
@@ -106,6 +114,8 @@ public:
         return bottom - top;
     }
 
+    ui::Size getSize() const { return ui::Size(getWidth(), getHeight()); }
+
     __attribute__((no_sanitize("signed-integer-overflow")))
     inline Rect getBounds() const {
         return Rect(right - left, bottom - top);
@@ -120,7 +130,7 @@ public:
         right = rb.x;
         bottom = rb.y;
     }
-    
+
     // the following 4 functions return the 4 corners of the rect as Point
     Point leftTop() const {
         return Point(left, top);
@@ -174,6 +184,11 @@ public:
 
     Rect& offsetTo(int32_t x, int32_t y);
     Rect& offsetBy(int32_t x, int32_t y);
+
+    /**
+     * Insets the rectangle on all sides specified by the insets.
+     */
+    Rect& inset(int32_t _left, int32_t _top, int32_t _right, int32_t _bottom);
 
     bool intersect(const Rect& with, Rect* result) const;
 

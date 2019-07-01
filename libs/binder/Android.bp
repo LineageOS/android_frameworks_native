@@ -107,6 +107,7 @@ cc_library_shared {
         "-Wall",
         "-Wextra",
         "-Werror",
+        "-Wzero-as-null-pointer-constant",
     ],
     product_variables: {
         binder32bit: {

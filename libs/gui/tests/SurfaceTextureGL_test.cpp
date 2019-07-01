@@ -40,12 +40,12 @@ TEST_F(SurfaceTextureGLTest, TexturingFromCpuFilledYV12BufferNpot) {
     ANativeWindowBuffer* anb;
     ASSERT_EQ(NO_ERROR, native_window_dequeue_buffer_and_wait(mANW.get(),
             &anb));
-    ASSERT_TRUE(anb != NULL);
+    ASSERT_TRUE(anb != nullptr);
 
     sp<GraphicBuffer> buf(GraphicBuffer::from(anb));
 
     // Fill the buffer with the a checkerboard pattern
-    uint8_t* img = NULL;
+    uint8_t* img = nullptr;
     buf->lock(GRALLOC_USAGE_SW_WRITE_OFTEN, (void**)(&img));
     fillYV12Buffer(img, texWidth, texHeight, buf->getStride());
     buf->unlock();
@@ -90,12 +90,12 @@ TEST_F(SurfaceTextureGLTest, TexturingFromCpuFilledYV12BufferPow2) {
     ANativeWindowBuffer* anb;
     ASSERT_EQ(NO_ERROR, native_window_dequeue_buffer_and_wait(mANW.get(),
             &anb));
-    ASSERT_TRUE(anb != NULL);
+    ASSERT_TRUE(anb != nullptr);
 
     sp<GraphicBuffer> buf(GraphicBuffer::from(anb));
 
     // Fill the buffer with the a checkerboard pattern
-    uint8_t* img = NULL;
+    uint8_t* img = nullptr;
     buf->lock(GRALLOC_USAGE_SW_WRITE_OFTEN, (void**)(&img));
     fillYV12Buffer(img, texWidth, texHeight, buf->getStride());
     buf->unlock();
@@ -155,11 +155,11 @@ TEST_F(SurfaceTextureGLTest, TexturingFromCpuFilledYV12BufferWithCrop) {
         ANativeWindowBuffer* anb;
         ASSERT_EQ(NO_ERROR, native_window_dequeue_buffer_and_wait(mANW.get(),
                 &anb));
-        ASSERT_TRUE(anb != NULL);
+        ASSERT_TRUE(anb != nullptr);
 
         sp<GraphicBuffer> buf(GraphicBuffer::from(anb));
 
-        uint8_t* img = NULL;
+        uint8_t* img = nullptr;
         buf->lock(GRALLOC_USAGE_SW_WRITE_OFTEN, (void**)(&img));
         fillYV12BufferRect(img, texWidth, texHeight, buf->getStride(), crop);
         buf->unlock();
@@ -234,7 +234,7 @@ TEST_F(SurfaceTextureGLTest, TexturingFromCpuFilledYV12BuffersRepeatedly) {
                         &anb) != NO_ERROR) {
                     return false;
                 }
-                if (anb == NULL) {
+                if (anb == nullptr) {
                     return false;
                 }
 
@@ -248,7 +248,7 @@ TEST_F(SurfaceTextureGLTest, TexturingFromCpuFilledYV12BuffersRepeatedly) {
                 int yuvTexOffsetU = yuvTexOffsetV + yuvTexStrideV * texHeight/2;
                 int yuvTexStrideU = yuvTexStrideV;
 
-                uint8_t* img = NULL;
+                uint8_t* img = nullptr;
                 buf->lock(GRALLOC_USAGE_SW_WRITE_OFTEN, (void**)(&img));
 
                 // Gray out all the test pixels first, so we're more likely to
@@ -457,7 +457,7 @@ TEST_F(SurfaceTextureGLTest, DisconnectStressTest) {
                         &anb) != NO_ERROR) {
                     return false;
                 }
-                if (anb == NULL) {
+                if (anb == nullptr) {
                     return false;
                 }
                 if (mANW->queueBuffer(mANW.get(), anb, -1)
@@ -641,7 +641,7 @@ TEST_F(SurfaceTextureGLTest, AbandonUnblocksDequeueBuffer) {
                     &anb) != NO_ERROR) {
                 return false;
             }
-            if (anb == NULL) {
+            if (anb == nullptr) {
                 return false;
             }
             if (mANW->queueBuffer(mANW.get(), anb, -1)
@@ -654,7 +654,7 @@ TEST_F(SurfaceTextureGLTest, AbandonUnblocksDequeueBuffer) {
                     &anb) != NO_ERROR) {
                 return false;
             }
-            if (anb == NULL) {
+            if (anb == nullptr) {
                 return false;
             }
             if (mANW->queueBuffer(mANW.get(), anb, -1)

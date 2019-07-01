@@ -100,11 +100,11 @@ status_t EGLUtils::selectConfigForPixelFormat(
     if (!attrs)
         return BAD_VALUE;
 
-    if (outConfig == NULL)
+    if (outConfig == nullptr)
         return BAD_VALUE;
 
     // Get all the "potential match" configs...
-    if (eglGetConfigs(dpy, NULL, 0, &numConfigs) == EGL_FALSE)
+    if (eglGetConfigs(dpy, nullptr, 0, &numConfigs) == EGL_FALSE)
         return BAD_VALUE;
 
     std::vector<EGLConfig> configs(numConfigs);
@@ -113,7 +113,7 @@ status_t EGLUtils::selectConfigForPixelFormat(
     }
 
     int i;
-    EGLConfig config = NULL;
+    EGLConfig config = nullptr;
     for (i=0 ; i<n ; i++) {
         EGLint nativeVisualId = 0;
         eglGetConfigAttrib(dpy, configs[i], EGL_NATIVE_VISUAL_ID, &nativeVisualId);
@@ -243,7 +243,7 @@ String8 EGLUtils::printEGLConfiguration(EGLDisplay dpy, EGLConfig config) {
 
 bool EGLUtils::printEGLConfigurations(EGLDisplay dpy, String8& msg) {
     EGLint numConfig = 0;
-    EGLint returnVal = eglGetConfigs(dpy, NULL, 0, &numConfig);
+    EGLint returnVal = eglGetConfigs(dpy, nullptr, 0, &numConfig);
     msg.append(checkEglError("eglGetConfigs", returnVal));
     if (!returnVal) {
         return false;
@@ -280,6 +280,8 @@ String8 EGLUtils::decodeColorSpace(EGLint colorSpace) {
             return String8("EGL_GL_COLORSPACE_SRGB_KHR");
         case EGL_GL_COLORSPACE_DISPLAY_P3_EXT:
             return String8("EGL_GL_COLORSPACE_DISPLAY_P3_EXT");
+        case EGL_GL_COLORSPACE_DISPLAY_P3_PASSTHROUGH_EXT:
+            return String8("EGL_GL_COLORSPACE_DISPLAY_P3_PASSTHROUGH_EXT");
         case  EGL_GL_COLORSPACE_LINEAR_KHR:
             return String8("EGL_GL_COLORSPACE_LINEAR_KHR");
         default:

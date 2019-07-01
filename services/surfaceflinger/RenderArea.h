@@ -1,10 +1,13 @@
 #pragma once
 
-#include "Transform.h"
+#include <ui/GraphicTypes.h>
+#include <ui/Transform.h>
 
 #include <functional>
 
 namespace android {
+
+class DisplayDevice;
 
 // RenderArea describes a rectangular area that layers can be rendered to.
 //
@@ -19,9 +22,11 @@ public:
     static float getCaptureFillValue(CaptureFill captureFill);
 
     RenderArea(uint32_t reqWidth, uint32_t reqHeight, CaptureFill captureFill,
-               Transform::orientation_flags rotation = Transform::ROT_0)
+               ui::Dataspace reqDataSpace,
+               ui::Transform::orientation_flags rotation = ui::Transform::ROT_0)
           : mReqWidth(reqWidth),
             mReqHeight(reqHeight),
+            mReqDataSpace(reqDataSpace),
             mCaptureFill(captureFill),
             mRotationFlags(rotation) {}
 
@@ -40,7 +45,7 @@ public:
 
     // Returns the transform to be applied on layers to transform them into
     // the logical render area.
-    virtual const Transform& getTransform() const = 0;
+    virtual const ui::Transform& getTransform() const = 0;
 
     // Returns the size of the logical render area.  Layers are clipped to the
     // logical render area.
@@ -60,21 +65,27 @@ public:
     virtual Rect getSourceCrop() const = 0;
 
     // Returns the rotation of the source crop and the layers.
-    Transform::orientation_flags getRotationFlags() const { return mRotationFlags; };
+    ui::Transform::orientation_flags getRotationFlags() const { return mRotationFlags; };
 
     // Returns the size of the physical render area.
     int getReqWidth() const { return mReqWidth; };
     int getReqHeight() const { return mReqHeight; };
 
+    // Returns the composition data space of the render area.
+    ui::Dataspace getReqDataSpace() const { return mReqDataSpace; }
+
     // Returns the fill color of the physical render area.  Regions not
     // covered by any rendered layer should be filled with this color.
     CaptureFill getCaptureFill() const { return mCaptureFill; };
 
+    virtual const sp<const DisplayDevice> getDisplayDevice() const = 0;
+
 private:
     const uint32_t mReqWidth;
     const uint32_t mReqHeight;
+    const ui::Dataspace mReqDataSpace;
     const CaptureFill mCaptureFill;
-    const Transform::orientation_flags mRotationFlags;
+    const ui::Transform::orientation_flags mRotationFlags;
 };
 
 } // namespace android

@@ -20,6 +20,7 @@
 #include <android/frameworks/vr/composer/1.0/IVrComposerClient.h>
 #include <android/hardware/graphics/composer/2.1/IComposer.h>
 #include <composer-hal/2.1/ComposerHal.h>
+#include <private/dvr/vsync_service.h>
 #include <ui/Fence.h>
 #include <ui/GraphicBuffer.h>
 #include <utils/StrongPointer.h>
@@ -154,10 +155,8 @@ class HwcDisplay {
   IComposerClient::PowerMode power_mode() const { return power_mode_; }
   void set_power_mode(IComposerClient::PowerMode mode) { power_mode_ = mode; }
 
-  IComposerClient::Vsync vsync_enabled() const { return vsync_enabled_; }
-  void set_vsync_enabled(IComposerClient::Vsync vsync) {
-    vsync_enabled_ = vsync;
-  }
+  bool vsync_enabled() const { return vsync_enabled_; }
+  void set_vsync_enabled(bool vsync) {vsync_enabled_ = vsync;}
 
   const float* color_transform() const { return color_transform_; }
   int32_t color_transform_hint() const { return color_transform_hint_; }
@@ -185,7 +184,7 @@ class HwcDisplay {
   Config active_config_;
   ColorMode color_mode_;
   IComposerClient::PowerMode power_mode_;
-  IComposerClient::Vsync vsync_enabled_;
+  bool vsync_enabled_ = false;
   float color_transform_[16];
   int32_t color_transform_hint_;
 
@@ -297,7 +296,22 @@ class VrHwc : public IComposer, public ComposerHal, public ComposerView {
   void UnregisterObserver(Observer* observer) override;
 
  private:
+  class VsyncCallback : public BnVsyncCallback {
+   public:
+    status_t onVsync(int64_t vsync_timestamp) override;
+    void SetEventCallback(EventCallback* callback);
+   private:
+    std::mutex mutex_;
+    EventCallback* callback_;
+  };
+
   HwcDisplay* FindDisplay(Display display);
+
+  // Re-evaluate whether or not we should start making onVsync() callbacks to
+  // the client. We need enableCallback(true) to have been called, and
+  // setVsyncEnabled() to have been called for the primary display. The caller
+  // must have mutex_ locked already.
+  void UpdateVsyncCallbackEnabledLocked();
 
   wp<VrComposerClient> client_;
 
@@ -309,6 +323,8 @@ class VrHwc : public IComposer, public ComposerHal, public ComposerView {
 
   EventCallback* event_callback_ = nullptr;
   Observer* observer_ = nullptr;
+
+  sp<VsyncCallback> vsync_callback_;
 
   VrHwc(const VrHwc&) = delete;
   void operator=(const VrHwc&) = delete;

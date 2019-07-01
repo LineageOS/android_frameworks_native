@@ -72,6 +72,14 @@ Rect& Rect::offsetBy(int32_t x, int32_t y) {
     return *this;
 }
 
+Rect& Rect::inset(int32_t _left, int32_t _top, int32_t _right, int32_t _bottom) {
+    this->left += _left;
+    this->top += _top;
+    this->right -= _right;
+    this->bottom -= _bottom;
+    return *this;
+}
+
 const Rect Rect::operator +(const Point& rhs) const {
     const Rect result(left + rhs.x, top + rhs.y, right + rhs.x, bottom + rhs.y);
     return result;

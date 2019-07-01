@@ -1,7 +1,6 @@
 #include "include/private/dvr/display_manager_client.h"
 
 #include <pdx/default_transport/client_channel_factory.h>
-#include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/buffer_hub_queue_client.h>
 #include <private/dvr/display_protocol.h>
 #include <utils/Log.h>

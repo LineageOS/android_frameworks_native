@@ -1,9 +1,5 @@
-#include "buffer_hub.h"
-
 #include <inttypes.h>
-#include <log/log.h>
 #include <poll.h>
-#include <utils/Trace.h>
 
 #include <iomanip>
 #include <memory>
@@ -11,12 +7,14 @@
 #include <string>
 #include <thread>
 
+#include <log/log.h>
 #include <pdx/default_transport/service_endpoint.h>
 #include <private/dvr/bufferhub_rpc.h>
-#include "consumer_channel.h"
-#include "detached_buffer_channel.h"
-#include "producer_channel.h"
-#include "producer_queue_channel.h"
+#include <private/dvr/buffer_hub.h>
+#include <private/dvr/consumer_channel.h>
+#include <private/dvr/producer_channel.h>
+#include <private/dvr/producer_queue_channel.h>
+#include <utils/Trace.h>
 
 using android::pdx::Channel;
 using android::pdx::ErrorStatus;
@@ -57,8 +55,6 @@ std::string BufferHubService::DumpState(size_t /*max_length*/) {
   stream << " ";
   stream << std::setw(10) << "Usage";
   stream << " ";
-  stream << std::setw(9) << "Pending";
-  stream << " ";
   stream << std::setw(18) << "State";
   stream << " ";
   stream << std::setw(18) << "Signaled";
@@ -90,8 +86,6 @@ std::string BufferHubService::DumpState(size_t /*max_length*/) {
       stream << "0x" << std::hex << std::setfill('0');
       stream << std::setw(8) << info.usage;
       stream << std::dec << std::setfill(' ');
-      stream << " ";
-      stream << std::setw(9) << info.pending_count;
       stream << " ";
       stream << "0x" << std::hex << std::setfill('0');
       stream << std::setw(16) << info.state;
@@ -247,31 +241,9 @@ pdx::Status<void> BufferHubService::HandleMessage(Message& message) {
           *this, &BufferHubService::OnCreateBuffer, message);
       return {};
 
-    case DetachedBufferRPC::Create::Opcode:
-      DispatchRemoteMethod<DetachedBufferRPC::Create>(
-          *this, &BufferHubService::OnCreateDetachedBuffer, message);
-      return {};
-
     case BufferHubRPC::CreateProducerQueue::Opcode:
       DispatchRemoteMethod<BufferHubRPC::CreateProducerQueue>(
           *this, &BufferHubService::OnCreateProducerQueue, message);
-      return {};
-
-    case BufferHubRPC::ProducerBufferDetach::Opcode:
-      // In addition to the message handler in the ProducerChannel's
-      // HandleMessage method, we also need to invalid the producer channel (and
-      // all associated consumer channels). Note that this has to be done after
-      // HandleMessage returns to make sure the IPC request has went back to the
-      // client first.
-      SetChannel(channel->channel_id(), nullptr);
-      return {};
-
-    case DetachedBufferRPC::Promote::Opcode:
-      // In addition to the message handler in the DetachedBufferChannel's
-      // HandleMessage method, we also need to invalid the channel. Note that
-      // this has to be done after HandleMessage returns to make sure the IPC
-      // request has went back to the client first.
-      SetChannel(channel->channel_id(), nullptr);
       return {};
 
     default:
@@ -308,43 +280,6 @@ Status<void> BufferHubService::OnCreateBuffer(Message& message, uint32_t width,
           status.GetErrorMessage().c_str());
     return status.error_status();
   }
-}
-
-pdx::Status<void> BufferHubService::OnCreateDetachedBuffer(
-    pdx::Message& message, uint32_t width, uint32_t height,
-    uint32_t layer_count, uint32_t format, uint64_t usage,
-    size_t user_metadata_size) {
-  // Use the producer channel id as the global buffer id.
-  const int buffer_id = message.GetChannelId();
-  ALOGD_IF(TRACE,
-           "BufferHubService::OnCreateDetachedBuffer: buffer_id=%d width=%u "
-           "height=%u layer_count=%u format=%u usage=%" PRIx64
-           " user_metadata_size=%zu",
-           buffer_id, width, height, layer_count, format, usage,
-           user_metadata_size);
-
-  // See if this channel is already attached to a buffer.
-  if (const auto channel = message.GetChannel<BufferHubChannel>()) {
-    ALOGE(
-        "BufferHubService::OnCreateDetachedBuffer: Buffer already created: "
-        "buffer=%d",
-        buffer_id);
-    return ErrorStatus(EALREADY);
-  }
-
-  std::unique_ptr<DetachedBufferChannel> channel =
-      DetachedBufferChannel::Create(this, buffer_id, width, height, layer_count,
-                                    format, usage, user_metadata_size);
-  if (!channel) {
-    ALOGE(
-        "BufferHubService::OnCreateDetachedBuffer: Failed to allocate buffer, "
-        "buffer=%d.",
-        buffer_id);
-    return ErrorStatus(ENOMEM);
-  }
-
-  message.SetChannel(std::move(channel));
-  return {};
 }
 
 Status<QueueInfo> BufferHubService::OnCreateProducerQueue(

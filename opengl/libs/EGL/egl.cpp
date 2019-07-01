@@ -30,10 +30,9 @@
 #include "egl_tls.h"
 #include "egl_display.h"
 #include "egl_object.h"
+#include "egl_layers.h"
 #include "CallStack.h"
 #include "Loader.h"
-
-typedef __eglMustCastToProperFunctionPointerType EGLFuncPointer;
 
 // ----------------------------------------------------------------------------
 namespace android {
@@ -89,22 +88,22 @@ static int sEarlyInitState = pthread_once(&once_control, &early_egl_init);
 egl_display_ptr validate_display(EGLDisplay dpy) {
     egl_display_ptr dp = get_display(dpy);
     if (!dp)
-        return setError(EGL_BAD_DISPLAY, egl_display_ptr(NULL));
+        return setError(EGL_BAD_DISPLAY, egl_display_ptr(nullptr));
     if (!dp->isReady())
-        return setError(EGL_NOT_INITIALIZED, egl_display_ptr(NULL));
+        return setError(EGL_NOT_INITIALIZED, egl_display_ptr(nullptr));
 
     return dp;
 }
 
 egl_display_ptr validate_display_connection(EGLDisplay dpy,
         egl_connection_t*& cnx) {
-    cnx = NULL;
+    cnx = nullptr;
     egl_display_ptr dp = validate_display(dpy);
     if (!dp)
         return dp;
     cnx = &gEGLImpl;
-    if (cnx->dso == 0) {
-        return setError(EGL_BAD_CONFIG, egl_display_ptr(NULL));
+    if (cnx->dso == nullptr) {
+        return setError(EGL_BAD_CONFIG, egl_display_ptr(nullptr));
     }
     return dp;
 }
@@ -117,14 +116,14 @@ const GLubyte * egl_get_string_for_current_context(GLenum name) {
 
     EGLContext context = egl_tls_t::getContext();
     if (context == EGL_NO_CONTEXT)
-        return NULL;
+        return nullptr;
 
     egl_context_t const * const c = get_context(context);
-    if (c == NULL) // this should never happen, by construction
-        return NULL;
+    if (c == nullptr) // this should never happen, by construction
+        return nullptr;
 
     if (name != GL_EXTENSIONS)
-        return NULL;
+        return nullptr;
 
     return (const GLubyte *)c->gl_extensions.c_str();
 }
@@ -135,19 +134,19 @@ const GLubyte * egl_get_string_for_current_context(GLenum name, GLuint index) {
 
     EGLContext context = egl_tls_t::getContext();
     if (context == EGL_NO_CONTEXT)
-        return NULL;
+        return nullptr;
 
     egl_context_t const * const c = get_context(context);
-    if (c == NULL) // this should never happen, by construction
-        return NULL;
+    if (c == nullptr) // this should never happen, by construction
+        return nullptr;
 
     if (name != GL_EXTENSIONS)
-        return NULL;
+        return nullptr;
 
     // if index is out of bounds, assume it will be in the default
     // implementation too, so we don't have to generate a GL error here
     if (index >= c->tokenized_gl_extensions.size())
-        return NULL;
+        return nullptr;
 
     return (const GLubyte *)c->tokenized_gl_extensions[index].c_str();
 }
@@ -161,10 +160,14 @@ GLint egl_get_num_extensions_for_current_context() {
         return -1;
 
     egl_context_t const * const c = get_context(context);
-    if (c == NULL) // this should never happen, by construction
+    if (c == nullptr) // this should never happen, by construction
         return -1;
 
     return (GLint)c->tokenized_gl_extensions.size();
+}
+
+egl_connection_t* egl_get_connection() {
+    return &gEGLImpl;
 }
 
 // ----------------------------------------------------------------------------
@@ -184,12 +187,16 @@ static EGLBoolean egl_init_drivers_locked() {
 
     // dynamically load our EGL implementation
     egl_connection_t* cnx = &gEGLImpl;
-    if (cnx->dso == 0) {
-        cnx->hooks[egl_connection_t::GLESv1_INDEX] =
-                &gHooks[egl_connection_t::GLESv1_INDEX];
-        cnx->hooks[egl_connection_t::GLESv2_INDEX] =
-                &gHooks[egl_connection_t::GLESv2_INDEX];
-        cnx->dso = loader.open(cnx);
+    cnx->hooks[egl_connection_t::GLESv1_INDEX] = &gHooks[egl_connection_t::GLESv1_INDEX];
+    cnx->hooks[egl_connection_t::GLESv2_INDEX] = &gHooks[egl_connection_t::GLESv2_INDEX];
+    cnx->dso = loader.open(cnx);
+
+    // Check to see if any layers are enabled and route functions through them
+    if (cnx->dso) {
+        // Layers can be enabled long after the drivers have been loaded.
+        // They will only be initialized once.
+        LayerLoader& layer_loader(LayerLoader::getInstance());
+        layer_loader.InitLayers(cnx);
     }
 
     return cnx->dso ? EGL_TRUE : EGL_FALSE;
@@ -249,7 +256,7 @@ void setGlThreadSpecific(gl_hooks_t const *value) {
 
 char const * const gl_names[] = {
     #include "../entries.in"
-    NULL
+    nullptr
 };
 
 char const * const gl_names_1[] = {
@@ -259,7 +266,12 @@ char const * const gl_names_1[] = {
 
 char const * const egl_names[] = {
     #include "egl_entries.in"
-    NULL
+    nullptr
+};
+
+char const * const platform_names[] = {
+    #include "platform_entries.in"
+    nullptr
 };
 
 #undef GL_ENTRY

@@ -22,8 +22,6 @@
 #include <gui/BufferSlot.h>
 #include <gui/OccupancyTracker.h>
 
-#include <utils/Condition.h>
-#include <utils/Mutex.h>
 #include <utils/NativeHandle.h>
 #include <utils/RefBase.h>
 #include <utils/String8.h>
@@ -33,6 +31,8 @@
 
 #include <list>
 #include <set>
+#include <mutex>
+#include <condition_variable>
 
 #define BQ_LOGV(x, ...) ALOGV("[%s] " x, mConsumerName.string(), ##__VA_ARGS__)
 #define BQ_LOGD(x, ...) ALOGD("[%s] " x, mConsumerName.string(), ##__VA_ARGS__)
@@ -134,7 +134,7 @@ private:
     bool adjustAvailableSlotsLocked(int delta);
 
     // waitWhileAllocatingLocked blocks until mIsAllocating is false.
-    void waitWhileAllocatingLocked() const;
+    void waitWhileAllocatingLocked(std::unique_lock<std::mutex>& lock) const;
 
 #if DEBUG_ONLY_CODE
     // validateConsistencyLocked ensures that the free lists are in sync with
@@ -145,7 +145,7 @@ private:
     // mMutex is the mutex used to prevent concurrent access to the member
     // variables of BufferQueueCore objects. It must be locked whenever any
     // member variable is accessed.
-    mutable Mutex mMutex;
+    mutable std::mutex mMutex;
 
     // mIsAbandoned indicates that the BufferQueue will no longer be used to
     // consume image buffers pushed to it using the IGraphicBufferProducer
@@ -219,12 +219,23 @@ private:
 
     // mDequeueCondition is a condition variable used for dequeueBuffer in
     // synchronous mode.
-    mutable Condition mDequeueCondition;
+    mutable std::condition_variable mDequeueCondition;
 
     // mDequeueBufferCannotBlock indicates whether dequeueBuffer is allowed to
     // block. This flag is set during connect when both the producer and
     // consumer are controlled by the application.
     bool mDequeueBufferCannotBlock;
+
+    // mQueueBufferCanDrop indicates whether queueBuffer is allowed to drop
+    // buffers in non-async mode. This flag is set during connect when both the
+    // producer and consumer are controlled by application.
+    bool mQueueBufferCanDrop;
+
+    // mLegacyBufferDrop indicates whether mQueueBufferCanDrop is in effect.
+    // If this flag is set mQueueBufferCanDrop is working as explained. If not
+    // queueBuffer will not drop buffers unless consumer is SurfaceFlinger and
+    // mQueueBufferCanDrop is set.
+    bool mLegacyBufferDrop;
 
     // mDefaultBufferFormat can be set so it will override the buffer format
     // when it isn't specified in dequeueBuffer.
@@ -282,7 +293,7 @@ private:
 
     // mIsAllocatingCondition is a condition variable used by producers to wait until mIsAllocating
     // becomes false.
-    mutable Condition mIsAllocatingCondition;
+    mutable std::condition_variable mIsAllocatingCondition;
 
     // mAllowAllocation determines whether dequeueBuffer is allowed to allocate
     // new buffers

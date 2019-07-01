@@ -8,8 +8,8 @@
 #include <pdx/client.h>
 #include <pdx/default_transport/client_channel_factory.h>
 #include <pdx/file_handle.h>
-#include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/buffer_hub_queue_client.h>
+#include <private/dvr/consumer_buffer.h>
 #include <private/dvr/display_client.h>
 #include <private/dvr/pose-ipc.h>
 #include <private/dvr/shared_buffer_helpers.h>
@@ -221,14 +221,14 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
       return -status.error();
     }
 
-    auto buffer = BufferConsumer::Import(status.take());
+    auto buffer = ConsumerBuffer::Import(status.take());
     if (!buffer) {
       ALOGE("Pose failed to import ring buffer");
       return -EIO;
     }
     constexpr size_t size = DvrVsyncPoseBuffer::kSize * sizeof(DvrPoseAsync);
     void* addr = nullptr;
-    int ret = buffer->GetBlobReadOnlyPointer(size, &addr);
+    int ret = buffer->GetBlobReadWritePointer(size, &addr);
     if (ret < 0 || !addr) {
       ALOGE("Pose failed to map ring buffer: ret:%d, addr:%p", ret, addr);
       return -EIO;
@@ -290,7 +290,7 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
   const DvrVsyncPoseBuffer* mapped_vsync_pose_buffer_ = nullptr;
 
   struct ControllerClientState {
-    std::unique_ptr<BufferConsumer> pose_buffer;
+    std::unique_ptr<ConsumerBuffer> pose_buffer;
     const DvrPoseAsync* mapped_pose_buffer = nullptr;
   };
   ControllerClientState controllers_[MAX_CONTROLLERS];

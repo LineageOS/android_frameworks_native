@@ -1,9 +1,8 @@
-#include "producer_queue_channel.h"
-
 #include <inttypes.h>
 
-#include "consumer_queue_channel.h"
-#include "producer_channel.h"
+#include <private/dvr/consumer_queue_channel.h>
+#include <private/dvr/producer_channel.h>
+#include <private/dvr/producer_queue_channel.h>
 
 using android::pdx::ErrorStatus;
 using android::pdx::Message;
@@ -74,6 +73,11 @@ bool ProducerQueueChannel::HandleMessage(Message& message) {
       DispatchRemoteMethod<BufferHubRPC::ProducerQueueAllocateBuffers>(
           *this, &ProducerQueueChannel::OnProducerQueueAllocateBuffers,
           message);
+      return true;
+
+    case BufferHubRPC::ProducerQueueInsertBuffer::Opcode:
+      DispatchRemoteMethod<BufferHubRPC::ProducerQueueInsertBuffer>(
+          *this, &ProducerQueueChannel::OnProducerQueueInsertBuffer, message);
       return true;
 
     case BufferHubRPC::ProducerQueueRemoveBuffer::Opcode:
@@ -276,6 +280,86 @@ ProducerQueueChannel::AllocateBuffer(Message& message, uint32_t width,
   }
 
   return {{std::move(buffer_handle), slot}};
+}
+
+Status<size_t> ProducerQueueChannel::OnProducerQueueInsertBuffer(
+    pdx::Message& message, int buffer_cid) {
+  ATRACE_NAME("ProducerQueueChannel::InsertBuffer");
+  ALOGD_IF(TRACE,
+           "ProducerQueueChannel::InsertBuffer: channel_id=%d, buffer_cid=%d",
+           channel_id(), buffer_cid);
+
+  if (capacity_ >= BufferHubRPC::kMaxQueueCapacity) {
+    ALOGE("ProducerQueueChannel::InsertBuffer: reaches kMaxQueueCapacity.");
+    return ErrorStatus(E2BIG);
+  }
+  auto producer_channel = std::static_pointer_cast<ProducerChannel>(
+      service()->GetChannel(buffer_cid));
+  if (producer_channel == nullptr ||
+      producer_channel->channel_type() != BufferHubChannel::kProducerType) {
+    // Rejects the request if the requested buffer channel is invalid and/or
+    // it's not a ProducerChannel.
+    ALOGE(
+        "ProducerQueueChannel::InsertBuffer: Invalid buffer_cid=%d, "
+        "producer_buffer=0x%p, channel_type=%d.",
+        buffer_cid, producer_channel.get(),
+        producer_channel == nullptr ? -1 : producer_channel->channel_type());
+    return ErrorStatus(EINVAL);
+  }
+  if (producer_channel->GetActiveProcessId() != message.GetProcessId()) {
+    // Rejects the request if the requested buffer channel is not currently
+    // connected to the caller this is IPC request. This effectively prevents
+    // fake buffer_cid from being injected.
+    ALOGE(
+        "ProducerQueueChannel::InsertBuffer: Requested buffer channel "
+        "(buffer_cid=%d) is not connected to the calling process (pid=%d). "
+        "It's connected to a different process (pid=%d).",
+        buffer_cid, message.GetProcessId(),
+        producer_channel->GetActiveProcessId());
+    return ErrorStatus(EINVAL);
+  }
+  uint64_t buffer_state = producer_channel->buffer_state();
+  // TODO(b/112007999) add an atomic variable in metadata header in shared
+  // memory to indicate which client is the last producer of the buffer.
+  // Currently, the first client is the only producer to the buffer.
+  // Thus, it checks whether the first client gains the buffer below.
+  if (!BufferHubDefs::isClientGained(buffer_state,
+                                     BufferHubDefs::kFirstClientBitMask)) {
+    // Rejects the request if the requested buffer is not in Gained state.
+    ALOGE(
+        "ProducerQueueChannel::InsertBuffer: The buffer (cid=%d, "
+        "state=0x%" PRIx64 ") is not in gained state.",
+        buffer_cid, buffer_state);
+    return ErrorStatus(EINVAL);
+  }
+
+  // Register the to-be-inserted buffer's channel_id into the first empty
+  // buffer slot.
+  size_t slot = 0;
+  for (; slot < BufferHubRPC::kMaxQueueCapacity; slot++) {
+    if (buffers_[slot].expired())
+      break;
+  }
+  if (slot == BufferHubRPC::kMaxQueueCapacity) {
+    ALOGE(
+        "ProducerQueueChannel::AllocateBuffer: Cannot find empty slot for new "
+        "buffer allocation.");
+    return ErrorStatus(E2BIG);
+  }
+
+  buffers_[slot] = producer_channel;
+  capacity_++;
+
+  // Notify each consumer channel about the new buffer.
+  for (auto* consumer_channel : consumer_channels_) {
+    ALOGD(
+        "ProducerQueueChannel::AllocateBuffer: Notified consumer with new "
+        "buffer, buffer_cid=%d",
+        buffer_cid);
+    consumer_channel->RegisterNewBuffer(producer_channel, slot);
+  }
+
+  return {slot};
 }
 
 Status<void> ProducerQueueChannel::OnProducerQueueRemoveBuffer(

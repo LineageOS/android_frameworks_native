@@ -57,7 +57,6 @@ using ::android::IProducerListener;
 
 struct H2BGraphicBufferProducer : public ::android::H2BConverter<
         HGraphicBufferProducer,
-        BGraphicBufferProducer,
         BnGraphicBufferProducer> {
     explicit H2BGraphicBufferProducer(sp<HGraphicBufferProducer> const& base) : CBase(base) {}
 

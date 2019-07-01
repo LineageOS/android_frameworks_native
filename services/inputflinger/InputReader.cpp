@@ -57,6 +57,7 @@
 #include <android-base/stringprintf.h>
 #include <input/Keyboard.h>
 #include <input/VirtualKeyMap.h>
+#include <statslog.h>
 
 #define INDENT "  "
 #define INDENT2 "    "
@@ -71,18 +72,21 @@ namespace android {
 // --- Constants ---
 
 // Maximum number of slots supported when using the slot-based Multitouch Protocol B.
-static const size_t MAX_SLOTS = 32;
+static constexpr size_t MAX_SLOTS = 32;
 
 // Maximum amount of latency to add to touch events while waiting for data from an
 // external stylus.
-static const nsecs_t EXTERNAL_STYLUS_DATA_TIMEOUT = ms2ns(72);
+static constexpr nsecs_t EXTERNAL_STYLUS_DATA_TIMEOUT = ms2ns(72);
 
 // Maximum amount of time to wait on touch data before pushing out new pressure data.
-static const nsecs_t TOUCH_DATA_TIMEOUT = ms2ns(20);
+static constexpr nsecs_t TOUCH_DATA_TIMEOUT = ms2ns(20);
 
 // Artificial latency on synthetic events created from stylus data without corresponding touch
 // data.
-static const nsecs_t STYLUS_DATA_LATENCY = ms2ns(10);
+static constexpr nsecs_t STYLUS_DATA_LATENCY = ms2ns(10);
+
+// How often to report input event statistics
+static constexpr nsecs_t STATISTICS_REPORT_FREQUENCY = seconds_to_nanoseconds(5 * 60);
 
 // --- Static Functions ---
 
@@ -226,7 +230,7 @@ static float calculateCommonVector(float a, float b) {
 }
 
 static void synthesizeButtonKey(InputReaderContext* context, int32_t action,
-        nsecs_t when, int32_t deviceId, uint32_t source,
+        nsecs_t when, int32_t deviceId, uint32_t source, int32_t displayId,
         uint32_t policyFlags, int32_t lastButtonState, int32_t currentButtonState,
         int32_t buttonState, int32_t keyCode) {
     if (
@@ -236,96 +240,21 @@ static void synthesizeButtonKey(InputReaderContext* context, int32_t action,
             || (action == AKEY_EVENT_ACTION_UP
                     && (lastButtonState & buttonState)
                     && !(currentButtonState & buttonState))) {
-        NotifyKeyArgs args(when, deviceId, source, policyFlags,
-                action, 0, keyCode, 0, context->getGlobalMetaState(), when);
+        NotifyKeyArgs args(context->getNextSequenceNum(), when, deviceId, source, displayId,
+                policyFlags, action, 0, keyCode, 0, context->getGlobalMetaState(), when);
         context->getListener()->notifyKey(&args);
     }
 }
 
 static void synthesizeButtonKeys(InputReaderContext* context, int32_t action,
-        nsecs_t when, int32_t deviceId, uint32_t source,
+        nsecs_t when, int32_t deviceId, uint32_t source, int32_t displayId,
         uint32_t policyFlags, int32_t lastButtonState, int32_t currentButtonState) {
-    synthesizeButtonKey(context, action, when, deviceId, source, policyFlags,
+    synthesizeButtonKey(context, action, when, deviceId, source, displayId, policyFlags,
             lastButtonState, currentButtonState,
             AMOTION_EVENT_BUTTON_BACK, AKEYCODE_BACK);
-    synthesizeButtonKey(context, action, when, deviceId, source, policyFlags,
+    synthesizeButtonKey(context, action, when, deviceId, source, displayId, policyFlags,
             lastButtonState, currentButtonState,
             AMOTION_EVENT_BUTTON_FORWARD, AKEYCODE_FORWARD);
-}
-
-
-// --- InputReaderConfiguration ---
-
-bool InputReaderConfiguration::getDisplayViewport(ViewportType viewportType,
-        const String8* uniqueDisplayId, DisplayViewport* outViewport) const {
-    const DisplayViewport* viewport = NULL;
-    if (viewportType == ViewportType::VIEWPORT_VIRTUAL && uniqueDisplayId != NULL) {
-        for (const DisplayViewport& currentViewport : mVirtualDisplays) {
-            if (currentViewport.uniqueId == *uniqueDisplayId) {
-                viewport = &currentViewport;
-                break;
-            }
-        }
-    } else if (viewportType == ViewportType::VIEWPORT_EXTERNAL) {
-        viewport = &mExternalDisplay;
-    } else if (viewportType == ViewportType::VIEWPORT_INTERNAL) {
-        viewport = &mInternalDisplay;
-    }
-
-    if (viewport != NULL && viewport->displayId >= 0) {
-        *outViewport = *viewport;
-        return true;
-    }
-    return false;
-}
-
-void InputReaderConfiguration::setPhysicalDisplayViewport(ViewportType viewportType,
-        const DisplayViewport& viewport) {
-    if (viewportType == ViewportType::VIEWPORT_EXTERNAL) {
-        mExternalDisplay = viewport;
-    } else if (viewportType == ViewportType::VIEWPORT_INTERNAL) {
-        mInternalDisplay = viewport;
-    }
-}
-
-void InputReaderConfiguration::setVirtualDisplayViewports(
-        const Vector<DisplayViewport>& viewports) {
-    mVirtualDisplays = viewports;
-}
-
-void InputReaderConfiguration::dump(std::string& dump) const {
-    dump += INDENT4 "ViewportInternal:\n";
-    dumpViewport(dump, mInternalDisplay);
-    dump += INDENT4 "ViewportExternal:\n";
-    dumpViewport(dump, mExternalDisplay);
-    dump += INDENT4 "ViewportVirtual:\n";
-    for (const DisplayViewport& viewport : mVirtualDisplays) {
-        dumpViewport(dump, viewport);
-    }
-}
-
-void InputReaderConfiguration::dumpViewport(std::string& dump, const DisplayViewport& viewport) const {
-    dump += StringPrintf(INDENT5 "Viewport: displayId=%d, orientation=%d, uniqueId='%s', "
-            "logicalFrame=[%d, %d, %d, %d], "
-            "physicalFrame=[%d, %d, %d, %d], "
-            "deviceSize=[%d, %d]\n",
-            viewport.displayId, viewport.orientation, viewport.uniqueId.c_str(),
-            viewport.logicalLeft, viewport.logicalTop,
-            viewport.logicalRight, viewport.logicalBottom,
-            viewport.physicalLeft, viewport.physicalTop,
-            viewport.physicalRight, viewport.physicalBottom,
-            viewport.deviceWidth, viewport.deviceHeight);
-}
-
-
-// -- TouchAffineTransformation --
-void TouchAffineTransformation::applyTo(float& x, float& y) const {
-    float newX, newY;
-    newX = x * x_scale + y * x_ymix + x_offset;
-    newY = x * y_xmix + y * y_scale + y_offset;
-
-    x = newX;
-    y = newY;
 }
 
 
@@ -335,7 +264,7 @@ InputReader::InputReader(const sp<EventHubInterface>& eventHub,
         const sp<InputReaderPolicyInterface>& policy,
         const sp<InputListenerInterface>& listener) :
         mContext(this), mEventHub(eventHub), mPolicy(policy),
-        mGlobalMetaState(0), mGeneration(1),
+        mNextSequenceNum(1), mGlobalMetaState(0), mGeneration(1),
         mDisableVirtualKeysTimeout(LLONG_MIN), mNextTimeout(LLONG_MAX),
         mConfigurationChangesToRefresh(0) {
     mQueuedListener = new QueuedInputListener(listener);
@@ -358,7 +287,7 @@ void InputReader::loopOnce() {
     int32_t oldGeneration;
     int32_t timeoutMillis;
     bool inputDevicesChanged = false;
-    Vector<InputDeviceInfo> inputDevices;
+    std::vector<InputDeviceInfo> inputDevices;
     { // acquire lock
         AutoMutex _l(mLock);
 
@@ -473,10 +402,10 @@ void InputReader::addDeviceLocked(nsecs_t when, int32_t deviceId) {
 
     if (device->isIgnored()) {
         ALOGI("Device added: id=%d, name='%s' (ignored non-input device)", deviceId,
-                identifier.name.string());
+                identifier.name.c_str());
     } else {
         ALOGI("Device added: id=%d, name='%s', sources=0x%08x", deviceId,
-                identifier.name.string(), device->getSources());
+                identifier.name.c_str(), device->getSources());
     }
 
     mDevices.add(deviceId, device);
@@ -488,7 +417,7 @@ void InputReader::addDeviceLocked(nsecs_t when, int32_t deviceId) {
 }
 
 void InputReader::removeDeviceLocked(nsecs_t when, int32_t deviceId) {
-    InputDevice* device = NULL;
+    InputDevice* device = nullptr;
     ssize_t deviceIndex = mDevices.indexOfKey(deviceId);
     if (deviceIndex < 0) {
         ALOGW("Ignoring spurious device removed event for deviceId %d.", deviceId);
@@ -501,10 +430,10 @@ void InputReader::removeDeviceLocked(nsecs_t when, int32_t deviceId) {
 
     if (device->isIgnored()) {
         ALOGI("Device removed: id=%d, name='%s' (ignored non-input device)",
-                device->getId(), device->getName().string());
+                device->getId(), device->getName().c_str());
     } else {
         ALOGI("Device removed: id=%d, name='%s', sources=0x%08x",
-                device->getId(), device->getName().string(), device->getSources());
+                device->getId(), device->getName().c_str(), device->getSources());
     }
 
     if (device->getClasses() & INPUT_DEVICE_CLASS_EXTERNAL_STYLUS) {
@@ -621,7 +550,7 @@ void InputReader::handleConfigurationChangedLocked(nsecs_t when) {
     updateGlobalMetaStateLocked();
 
     // Enqueue configuration changed.
-    NotifyConfigurationChangedArgs args(when);
+    NotifyConfigurationChangedArgs args(mContext.getNextSequenceNum(), when);
     mQueuedListener->notifyConfigurationChanged(&args);
 }
 
@@ -661,12 +590,13 @@ void InputReader::notifyExternalStylusPresenceChanged() {
     refreshConfigurationLocked(InputReaderConfiguration::CHANGE_EXTERNAL_STYLUS_PRESENCE);
 }
 
-void InputReader::getExternalStylusDevicesLocked(Vector<InputDeviceInfo>& outDevices) {
+void InputReader::getExternalStylusDevicesLocked(std::vector<InputDeviceInfo>& outDevices) {
     for (size_t i = 0; i < mDevices.size(); i++) {
         InputDevice* device = mDevices.valueAt(i);
         if (device->getClasses() & INPUT_DEVICE_CLASS_EXTERNAL_STYLUS && !device->isIgnored()) {
-            outDevices.push();
-            device->getDeviceInfo(&outDevices.editTop());
+            InputDeviceInfo info;
+            device->getDeviceInfo(&info);
+            outDevices.push_back(info);
         }
     }
 }
@@ -687,7 +617,7 @@ bool InputReader::shouldDropVirtualKeyLocked(nsecs_t now,
     if (now < mDisableVirtualKeysTimeout) {
         ALOGI("Dropping virtual key from device %s because virtual keys are "
                 "temporarily disabled for the next %0.3fms.  keyCode=%d, scanCode=%d",
-                device->getName().string(),
+                device->getName().c_str(),
                 (mDisableVirtualKeysTimeout - now) * 0.000001,
                 keyCode, scanCode);
         return true;
@@ -714,20 +644,21 @@ int32_t InputReader::bumpGenerationLocked() {
     return ++mGeneration;
 }
 
-void InputReader::getInputDevices(Vector<InputDeviceInfo>& outInputDevices) {
+void InputReader::getInputDevices(std::vector<InputDeviceInfo>& outInputDevices) {
     AutoMutex _l(mLock);
     getInputDevicesLocked(outInputDevices);
 }
 
-void InputReader::getInputDevicesLocked(Vector<InputDeviceInfo>& outInputDevices) {
+void InputReader::getInputDevicesLocked(std::vector<InputDeviceInfo>& outInputDevices) {
     outInputDevices.clear();
 
     size_t numDevices = mDevices.size();
     for (size_t i = 0; i < numDevices; i++) {
         InputDevice* device = mDevices.valueAt(i);
         if (!device->isIgnored()) {
-            outInputDevices.push();
-            device->getDeviceInfo(&outInputDevices.editTop());
+            InputDeviceInfo info;
+            device->getDeviceInfo(&info);
+            outInputDevices.push_back(info);
         }
     }
 }
@@ -876,6 +807,30 @@ bool InputReader::isInputDeviceEnabled(int32_t deviceId) {
     return false;
 }
 
+bool InputReader::canDispatchToDisplay(int32_t deviceId, int32_t displayId) {
+    AutoMutex _l(mLock);
+
+    ssize_t deviceIndex = mDevices.indexOfKey(deviceId);
+    if (deviceIndex < 0) {
+        ALOGW("Ignoring invalid device id %" PRId32 ".", deviceId);
+        return false;
+    }
+
+    InputDevice* device = mDevices.valueAt(deviceIndex);
+    std::optional<int32_t> associatedDisplayId = device->getAssociatedDisplay();
+    // No associated display. By default, can dispatch to all displays.
+    if (!associatedDisplayId) {
+        return true;
+    }
+
+    if (*associatedDisplayId == ADISPLAY_ID_NONE) {
+        ALOGW("Device has associated, but no associated display id.");
+        return true;
+    }
+
+    return *associatedDisplayId == displayId;
+}
+
 void InputReader::dump(std::string& dump) {
     AutoMutex _l(mLock);
 
@@ -894,7 +849,7 @@ void InputReader::dump(std::string& dump) {
         if (i != 0) {
             dump += ", ";
         }
-        dump += mConfig.excludedDeviceNames.itemAt(i).string();
+        dump += mConfig.excludedDeviceNames[i];
     }
     dump += "]\n";
     dump += StringPrintf(INDENT2 "VirtualKeyQuietTime: %0.1fms\n",
@@ -998,7 +953,7 @@ int32_t InputReader::ContextImpl::bumpGeneration() {
     return mReader->bumpGenerationLocked();
 }
 
-void InputReader::ContextImpl::getExternalStylusDevices(Vector<InputDeviceInfo>& outDevices) {
+void InputReader::ContextImpl::getExternalStylusDevices(std::vector<InputDeviceInfo>& outDevices) {
     // lock is already held by whatever called refreshConfigurationLocked
     mReader->getExternalStylusDevicesLocked(outDevices);
 }
@@ -1019,21 +974,9 @@ EventHubInterface* InputReader::ContextImpl::getEventHub() {
     return mReader->mEventHub.get();
 }
 
-
-// --- InputReaderThread ---
-
-InputReaderThread::InputReaderThread(const sp<InputReaderInterface>& reader) :
-        Thread(/*canCallJava*/ true), mReader(reader) {
+uint32_t InputReader::ContextImpl::getNextSequenceNum() {
+    return (mReader->mNextSequenceNum)++;
 }
-
-InputReaderThread::~InputReaderThread() {
-}
-
-bool InputReaderThread::threadLoop() {
-    mReader->loopOnce();
-    return true;
-}
-
 
 // --- InputDevice ---
 
@@ -1074,21 +1017,27 @@ void InputDevice::setEnabled(bool enabled, nsecs_t when) {
 
 void InputDevice::dump(std::string& dump) {
     InputDeviceInfo deviceInfo;
-    getDeviceInfo(& deviceInfo);
+    getDeviceInfo(&deviceInfo);
 
     dump += StringPrintf(INDENT "Device %d: %s\n", deviceInfo.getId(),
-            deviceInfo.getDisplayName().string());
+            deviceInfo.getDisplayName().c_str());
     dump += StringPrintf(INDENT2 "Generation: %d\n", mGeneration);
     dump += StringPrintf(INDENT2 "IsExternal: %s\n", toString(mIsExternal));
+    dump += StringPrintf(INDENT2 "AssociatedDisplayPort: ");
+    if (mAssociatedDisplayPort) {
+        dump += StringPrintf("%" PRIu8 "\n", *mAssociatedDisplayPort);
+    } else {
+        dump += "<none>\n";
+    }
     dump += StringPrintf(INDENT2 "HasMic:     %s\n", toString(mHasMic));
     dump += StringPrintf(INDENT2 "Sources: 0x%08x\n", deviceInfo.getSources());
     dump += StringPrintf(INDENT2 "KeyboardType: %d\n", deviceInfo.getKeyboardType());
 
-    const Vector<InputDeviceInfo::MotionRange>& ranges = deviceInfo.getMotionRanges();
-    if (!ranges.isEmpty()) {
+    const std::vector<InputDeviceInfo::MotionRange>& ranges = deviceInfo.getMotionRanges();
+    if (!ranges.empty()) {
         dump += INDENT2 "Motion Ranges:\n";
         for (size_t i = 0; i < ranges.size(); i++) {
-            const InputDeviceInfo::MotionRange& range = ranges.itemAt(i);
+            const InputDeviceInfo::MotionRange& range = ranges[i];
             const char* label = getAxisLabel(range.axis);
             char name[32];
             if (label) {
@@ -1112,7 +1061,7 @@ void InputDevice::dump(std::string& dump) {
 }
 
 void InputDevice::addMapper(InputMapper* mapper) {
-    mMappers.add(mapper);
+    mMappers.push_back(mapper);
 }
 
 void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes) {
@@ -1135,7 +1084,7 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
 
         if (!changes || (changes & InputReaderConfiguration::CHANGE_DEVICE_ALIAS)) {
             if (!(mClasses & INPUT_DEVICE_CLASS_VIRTUAL)) {
-                String8 alias = mContext->getPolicy()->getDeviceAlias(mIdentifier);
+                std::string alias = mContext->getPolicy()->getDeviceAlias(mIdentifier);
                 if (mAlias != alias) {
                     mAlias = alias;
                     bumpGeneration();
@@ -1149,9 +1098,21 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
             setEnabled(enabled, when);
         }
 
-        size_t numMappers = mMappers.size();
-        for (size_t i = 0; i < numMappers; i++) {
-            InputMapper* mapper = mMappers[i];
+        if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
+             // In most situations, no port will be specified.
+            mAssociatedDisplayPort = std::nullopt;
+            // Find the display port that corresponds to the current input port.
+            const std::string& inputPort = mIdentifier.location;
+            if (!inputPort.empty()) {
+                const std::unordered_map<std::string, uint8_t>& ports = config->portAssociations;
+                const auto& displayPort = ports.find(inputPort);
+                if (displayPort != ports.end()) {
+                    mAssociatedDisplayPort = std::make_optional(displayPort->second);
+                }
+            }
+        }
+
+        for (InputMapper* mapper : mMappers) {
             mapper->configure(when, config, changes);
             mSources |= mapper->getSources();
         }
@@ -1159,9 +1120,7 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
 }
 
 void InputDevice::reset(nsecs_t when) {
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         mapper->reset(when);
     }
 
@@ -1176,7 +1135,6 @@ void InputDevice::process(const RawEvent* rawEvents, size_t count) {
     // have side-effects that must be interleaved.  For example, joystick movement events and
     // gamepad button presses are handled by different mappers but they should be dispatched
     // in the order received.
-    size_t numMappers = mMappers.size();
     for (const RawEvent* rawEvent = rawEvents; count != 0; rawEvent++) {
 #if DEBUG_RAW_EVENTS
         ALOGD("Input event: device=%d type=0x%04x code=0x%04x value=0x%08x when=%" PRId64,
@@ -1196,12 +1154,11 @@ void InputDevice::process(const RawEvent* rawEvents, size_t count) {
 #endif
             }
         } else if (rawEvent->type == EV_SYN && rawEvent->code == SYN_DROPPED) {
-            ALOGI("Detected input event buffer overrun for device %s.", getName().string());
+            ALOGI("Detected input event buffer overrun for device %s.", getName().c_str());
             mDropUntilNextSync = true;
             reset(rawEvent->when);
         } else {
-            for (size_t i = 0; i < numMappers; i++) {
-                InputMapper* mapper = mMappers[i];
+            for (InputMapper* mapper : mMappers) {
                 mapper->process(rawEvent);
             }
         }
@@ -1210,17 +1167,13 @@ void InputDevice::process(const RawEvent* rawEvents, size_t count) {
 }
 
 void InputDevice::timeoutExpired(nsecs_t when) {
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         mapper->timeoutExpired(when);
     }
 }
 
 void InputDevice::updateExternalStylusState(const StylusState& state) {
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         mapper->updateExternalStylusState(state);
     }
 }
@@ -1228,9 +1181,7 @@ void InputDevice::updateExternalStylusState(const StylusState& state) {
 void InputDevice::getDeviceInfo(InputDeviceInfo* outDeviceInfo) {
     outDeviceInfo->initialize(mId, mGeneration, mControllerNumber, mIdentifier, mAlias,
             mIsExternal, mHasMic);
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         mapper->populateDeviceInfo(outDeviceInfo);
     }
 }
@@ -1249,9 +1200,7 @@ int32_t InputDevice::getSwitchState(uint32_t sourceMask, int32_t switchCode) {
 
 int32_t InputDevice::getState(uint32_t sourceMask, int32_t code, GetStateFunc getStateFunc) {
     int32_t result = AKEY_STATE_UNKNOWN;
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         if (sourcesMatchMask(mapper->getSources(), sourceMask)) {
             // If any mapper reports AKEY_STATE_DOWN or AKEY_STATE_VIRTUAL, return that
             // value.  Otherwise, return AKEY_STATE_UP as long as one mapper reports it.
@@ -1269,9 +1218,7 @@ int32_t InputDevice::getState(uint32_t sourceMask, int32_t code, GetStateFunc ge
 bool InputDevice::markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
         const int32_t* keyCodes, uint8_t* outFlags) {
     bool result = false;
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         if (sourcesMatchMask(mapper->getSources(), sourceMask)) {
             result |= mapper->markSupportedKeyCodes(sourceMask, numCodes, keyCodes, outFlags);
         }
@@ -1281,50 +1228,39 @@ bool InputDevice::markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
 
 void InputDevice::vibrate(const nsecs_t* pattern, size_t patternSize, ssize_t repeat,
         int32_t token) {
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         mapper->vibrate(pattern, patternSize, repeat, token);
     }
 }
 
 void InputDevice::cancelVibrate(int32_t token) {
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         mapper->cancelVibrate(token);
     }
 }
 
 void InputDevice::cancelTouch(nsecs_t when) {
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         mapper->cancelTouch(when);
     }
 }
 
 int32_t InputDevice::getMetaState() {
     int32_t result = 0;
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         result |= mapper->getMetaState();
     }
     return result;
 }
 
 void InputDevice::updateMetaState(int32_t keyCode) {
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        mMappers[i]->updateMetaState(keyCode);
+    for (InputMapper* mapper : mMappers) {
+        mapper->updateMetaState(keyCode);
     }
 }
 
 void InputDevice::fadePointer() {
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
+    for (InputMapper* mapper : mMappers) {
         mapper->fadePointer();
     }
 }
@@ -1334,10 +1270,20 @@ void InputDevice::bumpGeneration() {
 }
 
 void InputDevice::notifyReset(nsecs_t when) {
-    NotifyDeviceResetArgs args(when, mId);
+    NotifyDeviceResetArgs args(mContext->getNextSequenceNum(), when, mId);
     mContext->getListener()->notifyDeviceReset(&args);
 }
 
+std::optional<int32_t> InputDevice::getAssociatedDisplay() {
+    for (InputMapper* mapper : mMappers) {
+        std::optional<int32_t> associatedDisplayId = mapper->getAssociatedDisplay();
+        if (associatedDisplayId) {
+            return associatedDisplayId;
+        }
+    }
+
+    return std::nullopt;
+}
 
 // --- CursorButtonAccumulator ---
 
@@ -1786,7 +1732,7 @@ void SingleTouchMotionAccumulator::process(const RawEvent* rawEvent) {
 // --- MultiTouchMotionAccumulator ---
 
 MultiTouchMotionAccumulator::MultiTouchMotionAccumulator() :
-        mCurrentSlot(-1), mSlots(NULL), mSlotCount(0), mUsingSlotsProtocol(false),
+        mCurrentSlot(-1), mSlots(nullptr), mSlotCount(0), mUsingSlotsProtocol(false),
         mHaveStylus(false), mDeviceTimestamp(0) {
 }
 
@@ -2107,7 +2053,8 @@ void SwitchInputMapper::processSwitch(int32_t switchCode, int32_t switchValue) {
 void SwitchInputMapper::sync(nsecs_t when) {
     if (mUpdatedSwitchMask) {
         uint32_t updatedSwitchValues = mSwitchValues & mUpdatedSwitchMask;
-        NotifySwitchArgs args(when, 0, updatedSwitchValues, mUpdatedSwitchMask);
+        NotifySwitchArgs args(mContext->getNextSequenceNum(), when, 0, updatedSwitchValues,
+                mUpdatedSwitchMask);
         getListener()->notifySwitch(&args);
 
         mUpdatedSwitchMask = 0;
@@ -2240,8 +2187,7 @@ void VibratorInputMapper::dump(std::string& dump) {
 
 KeyboardInputMapper::KeyboardInputMapper(InputDevice* device,
         uint32_t source, int32_t keyboardType) :
-        InputMapper(device), mSource(source),
-        mKeyboardType(keyboardType) {
+        InputMapper(device), mSource(source), mKeyboardType(keyboardType) {
 }
 
 KeyboardInputMapper::~KeyboardInputMapper() {
@@ -2249,6 +2195,20 @@ KeyboardInputMapper::~KeyboardInputMapper() {
 
 uint32_t KeyboardInputMapper::getSources() {
     return mSource;
+}
+
+int32_t KeyboardInputMapper::getOrientation() {
+    if (mViewport) {
+        return mViewport->orientation;
+    }
+    return DISPLAY_ORIENTATION_0;
+}
+
+int32_t KeyboardInputMapper::getDisplayId() {
+    if (mViewport) {
+        return mViewport->displayId;
+    }
+    return ADISPLAY_ID_NONE;
 }
 
 void KeyboardInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
@@ -2262,12 +2222,11 @@ void KeyboardInputMapper::dump(std::string& dump) {
     dump += INDENT2 "Keyboard Input Mapper:\n";
     dumpParameters(dump);
     dump += StringPrintf(INDENT3 "KeyboardType: %d\n", mKeyboardType);
-    dump += StringPrintf(INDENT3 "Orientation: %d\n", mOrientation);
+    dump += StringPrintf(INDENT3 "Orientation: %d\n", getOrientation());
     dump += StringPrintf(INDENT3 "KeyDowns: %zu keys currently down\n", mKeyDowns.size());
     dump += StringPrintf(INDENT3 "MetaState: 0x%0x\n", mMetaState);
     dump += StringPrintf(INDENT3 "DownTime: %" PRId64 "\n", mDownTime);
 }
-
 
 void KeyboardInputMapper::configure(nsecs_t when,
         const InputReaderConfiguration* config, uint32_t changes) {
@@ -2279,15 +2238,8 @@ void KeyboardInputMapper::configure(nsecs_t when,
     }
 
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
-        if (mParameters.orientationAware && mParameters.hasAssociatedDisplay) {
-            DisplayViewport v;
-            if (config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, NULL, &v)) {
-                mOrientation = v.orientation;
-            } else {
-                mOrientation = DISPLAY_ORIENTATION_0;
-            }
-        } else {
-            mOrientation = DISPLAY_ORIENTATION_0;
+        if (mParameters.orientationAware) {
+            mViewport = config->getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
         }
     }
 }
@@ -2310,10 +2262,7 @@ void KeyboardInputMapper::configureParameters() {
     config.tryGetProperty(String8("keyboard.orientationAware"),
             mParameters.orientationAware);
 
-    mParameters.hasAssociatedDisplay = false;
     if (mParameters.orientationAware) {
-        mParameters.hasAssociatedDisplay = true;
-
         mapStemKey(AKEYCODE_STEM_PRIMARY, config, "keyboard.rotated.stem_primary");
         mapStemKey(AKEYCODE_STEM_1, config, "keyboard.rotated.stem_1");
         mapStemKey(AKEYCODE_STEM_2, config, "keyboard.rotated.stem_2");
@@ -2327,8 +2276,6 @@ void KeyboardInputMapper::configureParameters() {
 
 void KeyboardInputMapper::dumpParameters(std::string& dump) {
     dump += INDENT3 "Parameters:\n";
-    dump += StringPrintf(INDENT4 "HasAssociatedDisplay: %s\n",
-            toString(mParameters.hasAssociatedDisplay));
     dump += StringPrintf(INDENT4 "OrientationAware: %s\n",
             toString(mParameters.orientationAware));
     dump += StringPrintf(INDENT4 "HandlesKeyRepeat: %s\n",
@@ -2423,15 +2370,15 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode,
 
     if (down) {
         // Rotate key codes according to orientation if needed.
-        if (mParameters.orientationAware && mParameters.hasAssociatedDisplay) {
-            keyCode = rotateKeyCode(keyCode, mOrientation);
+        if (mParameters.orientationAware) {
+            keyCode = rotateKeyCode(keyCode, getOrientation());
         }
 
         // Add key down.
         ssize_t keyDownIndex = findKeyDown(scanCode);
         if (keyDownIndex >= 0) {
             // key repeat, be sure to use same keycode as before in case of rotation
-            keyCode = mKeyDowns.itemAt(keyDownIndex).keyCode;
+            keyCode = mKeyDowns[keyDownIndex].keyCode;
         } else {
             // key down
             if ((policyFlags & POLICY_FLAG_VIRTUAL)
@@ -2443,10 +2390,10 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode,
                 mDevice->cancelTouch(when);
             }
 
-            mKeyDowns.push();
-            KeyDown& keyDown = mKeyDowns.editTop();
+            KeyDown keyDown;
             keyDown.keyCode = keyCode;
             keyDown.scanCode = scanCode;
+            mKeyDowns.push_back(keyDown);
         }
 
         mDownTime = when;
@@ -2455,13 +2402,13 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode,
         ssize_t keyDownIndex = findKeyDown(scanCode);
         if (keyDownIndex >= 0) {
             // key up, be sure to use same keycode as before in case of rotation
-            keyCode = mKeyDowns.itemAt(keyDownIndex).keyCode;
-            mKeyDowns.removeAt(size_t(keyDownIndex));
+            keyCode = mKeyDowns[keyDownIndex].keyCode;
+            mKeyDowns.erase(mKeyDowns.begin() + (size_t)keyDownIndex);
         } else {
             // key was not actually down
             ALOGI("Dropping key up from device %s because the key was not down.  "
                     "keyCode=%d, scanCode=%d",
-                    getDeviceName().string(), keyCode, scanCode);
+                    getDeviceName().c_str(), keyCode, scanCode);
             return;
         }
     }
@@ -2489,8 +2436,8 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode,
         policyFlags |= POLICY_FLAG_DISABLE_KEY_REPEAT;
     }
 
-    NotifyKeyArgs args(when, getDeviceId(), mSource, policyFlags,
-            down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
+    NotifyKeyArgs args(mContext->getNextSequenceNum(), when, getDeviceId(), mSource,
+            getDisplayId(), policyFlags, down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
             AKEY_EVENT_FLAG_FROM_SYSTEM, keyCode, scanCode, keyMetaState, downTime);
     getListener()->notifyKey(&args);
 }
@@ -2699,15 +2646,18 @@ void CursorInputMapper::configure(nsecs_t when,
     }
 
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
+        mOrientation = DISPLAY_ORIENTATION_0;
         if (mParameters.orientationAware && mParameters.hasAssociatedDisplay) {
-            DisplayViewport v;
-            if (config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, NULL, &v)) {
-                mOrientation = v.orientation;
-            } else {
-                mOrientation = DISPLAY_ORIENTATION_0;
+            std::optional<DisplayViewport> internalViewport =
+                    config->getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
+            if (internalViewport) {
+                mOrientation = internalViewport->orientation;
             }
-        } else {
-            mOrientation = DISPLAY_ORIENTATION_0;
+        }
+
+        // Update the PointerController if viewports changed.
+        if (mParameters.mode == Parameters::MODE_POINTER) {
+            getPolicy()->obtainPointerController(getDeviceId());
         }
         bumpGeneration();
     }
@@ -2826,8 +2776,8 @@ void CursorInputMapper::sync(nsecs_t when) {
     float hscroll = mCursorScrollAccumulator.getRelativeHWheel();
     bool scrolled = vscroll != 0 || hscroll != 0;
 
-    mWheelYVelocityControl.move(when, NULL, &vscroll);
-    mWheelXVelocityControl.move(when, &hscroll, NULL);
+    mWheelYVelocityControl.move(when, nullptr, &vscroll);
+    mWheelXVelocityControl.move(when, &hscroll, nullptr);
 
     mPointerVelocityControl.move(when, &deltaX, &deltaY);
 
@@ -2854,7 +2804,7 @@ void CursorInputMapper::sync(nsecs_t when) {
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, y);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, deltaX);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, deltaY);
-        displayId = ADISPLAY_ID_DEFAULT;
+        displayId = mPointerController->getDisplayId();
     } else {
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_X, deltaX);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, deltaY);
@@ -2874,7 +2824,7 @@ void CursorInputMapper::sync(nsecs_t when) {
 
     // Synthesize key down from buttons if needed.
     synthesizeButtonKeys(getContext(), AKEY_EVENT_ACTION_DOWN, when, getDeviceId(), mSource,
-            policyFlags, lastButtonState, currentButtonState);
+            displayId, policyFlags, lastButtonState, currentButtonState);
 
     // Send motion event.
     if (downChanged || moved || scrolled || buttonsChanged) {
@@ -2894,20 +2844,22 @@ void CursorInputMapper::sync(nsecs_t when) {
             while (!released.isEmpty()) {
                 int32_t actionButton = BitSet32::valueForBit(released.clearFirstMarkedBit());
                 buttonState &= ~actionButton;
-                NotifyMotionArgs releaseArgs(when, getDeviceId(), mSource, policyFlags,
+                NotifyMotionArgs releaseArgs(mContext->getNextSequenceNum(), when, getDeviceId(),
+                        mSource, displayId, policyFlags,
                         AMOTION_EVENT_ACTION_BUTTON_RELEASE, actionButton, 0,
-                        metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
-                        displayId, /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
-                        mXPrecision, mYPrecision, downTime);
+                        metaState, buttonState,
+                        MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
+                        /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
+                        mXPrecision, mYPrecision, downTime, /* videoFrames */ {});
                 getListener()->notifyMotion(&releaseArgs);
             }
         }
 
-        NotifyMotionArgs args(when, getDeviceId(), mSource, policyFlags,
-                motionEventAction, 0, 0, metaState, currentButtonState,
-                AMOTION_EVENT_EDGE_FLAG_NONE,
-                displayId, /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
-                mXPrecision, mYPrecision, downTime);
+        NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(), mSource,
+                displayId, policyFlags, motionEventAction, 0, 0, metaState, currentButtonState,
+                MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
+                /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
+                mXPrecision, mYPrecision, downTime, /* videoFrames */ {});
         getListener()->notifyMotion(&args);
 
         if (buttonsPressed) {
@@ -2915,11 +2867,12 @@ void CursorInputMapper::sync(nsecs_t when) {
             while (!pressed.isEmpty()) {
                 int32_t actionButton = BitSet32::valueForBit(pressed.clearFirstMarkedBit());
                 buttonState |= actionButton;
-                NotifyMotionArgs pressArgs(when, getDeviceId(), mSource, policyFlags,
-                        AMOTION_EVENT_ACTION_BUTTON_PRESS, actionButton, 0,
-                        metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
-                        displayId, /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
-                        mXPrecision, mYPrecision, downTime);
+                NotifyMotionArgs pressArgs(mContext->getNextSequenceNum(), when, getDeviceId(),
+                        mSource, displayId, policyFlags, AMOTION_EVENT_ACTION_BUTTON_PRESS,
+                        actionButton, 0, metaState, buttonState,
+                        MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
+                        /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
+                        mXPrecision, mYPrecision, downTime, /* videoFrames */ {});
                 getListener()->notifyMotion(&pressArgs);
             }
         }
@@ -2929,11 +2882,12 @@ void CursorInputMapper::sync(nsecs_t when) {
         // Send hover move after UP to tell the application that the mouse is hovering now.
         if (motionEventAction == AMOTION_EVENT_ACTION_UP
                 && (mSource == AINPUT_SOURCE_MOUSE)) {
-            NotifyMotionArgs hoverArgs(when, getDeviceId(), mSource, policyFlags,
-                    AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0,
-                    metaState, currentButtonState, AMOTION_EVENT_EDGE_FLAG_NONE,
-                    displayId, /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
-                    mXPrecision, mYPrecision, downTime);
+            NotifyMotionArgs hoverArgs(mContext->getNextSequenceNum(), when, getDeviceId(),
+                    mSource, displayId, policyFlags, AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0,
+                    metaState, currentButtonState,
+                    MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
+                    /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
+                    mXPrecision, mYPrecision, downTime, /* videoFrames */ {});
             getListener()->notifyMotion(&hoverArgs);
         }
 
@@ -2942,18 +2896,19 @@ void CursorInputMapper::sync(nsecs_t when) {
             pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_VSCROLL, vscroll);
             pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_HSCROLL, hscroll);
 
-            NotifyMotionArgs scrollArgs(when, getDeviceId(), mSource, policyFlags,
+            NotifyMotionArgs scrollArgs(mContext->getNextSequenceNum(), when, getDeviceId(),
+                    mSource, displayId, policyFlags,
                     AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState, currentButtonState,
-                    AMOTION_EVENT_EDGE_FLAG_NONE,
-                    displayId, /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
-                    mXPrecision, mYPrecision, downTime);
+                    MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
+                    /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
+                    mXPrecision, mYPrecision, downTime, /* videoFrames */ {});
             getListener()->notifyMotion(&scrollArgs);
         }
     }
 
     // Synthesize key up from buttons if needed.
     synthesizeButtonKeys(getContext(), AKEY_EVENT_ACTION_UP, when, getDeviceId(), mSource,
-            policyFlags, lastButtonState, currentButtonState);
+            displayId, policyFlags, lastButtonState, currentButtonState);
 
     mCursorMotionAccumulator.finishSync();
     mCursorScrollAccumulator.finishSync();
@@ -2968,9 +2923,22 @@ int32_t CursorInputMapper::getScanCodeState(uint32_t sourceMask, int32_t scanCod
 }
 
 void CursorInputMapper::fadePointer() {
-    if (mPointerController != NULL) {
+    if (mPointerController != nullptr) {
         mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
     }
+}
+
+std::optional<int32_t> CursorInputMapper::getAssociatedDisplay() {
+    if (mParameters.hasAssociatedDisplay) {
+        if (mParameters.mode == Parameters::MODE_POINTER) {
+            return std::make_optional(mPointerController->getDisplayId());
+        } else {
+            // If the device is orientationAware and not a mouse,
+            // it expects to dispatch events to any display
+            return std::make_optional(ADISPLAY_ID_NONE);
+        }
+    }
+    return std::nullopt;
 }
 
 // --- RotaryEncoderInputMapper ---
@@ -3019,9 +2987,10 @@ void RotaryEncoderInputMapper::configure(nsecs_t when,
         mRotaryEncoderScrollAccumulator.configure(getDevice());
     }
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
-        DisplayViewport v;
-        if (config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, NULL, &v)) {
-            mOrientation = v.orientation;
+        std::optional<DisplayViewport> internalViewport =
+                config->getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
+        if (internalViewport) {
+            mOrientation = internalViewport->orientation;
         } else {
             mOrientation = DISPLAY_ORIENTATION_0;
         }
@@ -3072,11 +3041,12 @@ void RotaryEncoderInputMapper::sync(nsecs_t when) {
         int32_t metaState = mContext->getGlobalMetaState();
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_SCROLL, scroll * mScalingFactor);
 
-        NotifyMotionArgs scrollArgs(when, getDeviceId(), mSource, policyFlags,
-                AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState, 0,
-                AMOTION_EVENT_EDGE_FLAG_NONE,
-                displayId, /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
-                0, 0, 0);
+        NotifyMotionArgs scrollArgs(mContext->getNextSequenceNum(), when, getDeviceId(),
+                mSource, displayId, policyFlags,
+                AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState, /* buttonState */ 0,
+                MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
+                /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
+                0, 0, 0, /* videoFrames */ {});
         getListener()->notifyMotion(&scrollArgs);
     }
 
@@ -3319,9 +3289,9 @@ void TouchInputMapper::configure(nsecs_t when,
 }
 
 void TouchInputMapper::resolveExternalStylusPresence() {
-    Vector<InputDeviceInfo> devices;
+    std::vector<InputDeviceInfo> devices;
     mContext->getExternalStylusDevices(devices);
-    mExternalStylusConnected = !devices.isEmpty();
+    mExternalStylusConnected = !devices.empty();
 
     if (!mExternalStylusConnected) {
         resetExternalStylus();
@@ -3394,9 +3364,14 @@ void TouchInputMapper::configureParameters() {
         mParameters.hasAssociatedDisplay = true;
         if (mParameters.deviceType == Parameters::DEVICE_TYPE_TOUCH_SCREEN) {
             mParameters.associatedDisplayIsExternal = getDevice()->isExternal();
+            String8 uniqueDisplayId;
             getDevice()->getConfiguration().tryGetProperty(String8("touch.displayId"),
-                    mParameters.uniqueDisplayId);
+                    uniqueDisplayId);
+            mParameters.uniqueDisplayId = uniqueDisplayId.c_str();
         }
+    }
+    if (getDevice()->getAssociatedDisplayPort()) {
+        mParameters.hasAssociatedDisplay = true;
     }
 
     // Initial downs on external touch devices should wake the device.
@@ -3472,6 +3447,59 @@ bool TouchInputMapper::hasExternalStylus() const {
     return mExternalStylusConnected;
 }
 
+/**
+ * Determine which DisplayViewport to use.
+ * 1. If display port is specified, return the matching viewport. If matching viewport not
+ * found, then return.
+ * 2. If a device has associated display, get the matching viewport by either unique id or by
+ * the display type (internal or external).
+ * 3. Otherwise, use a non-display viewport.
+ */
+std::optional<DisplayViewport> TouchInputMapper::findViewport() {
+    if (mParameters.hasAssociatedDisplay) {
+        const std::optional<uint8_t> displayPort = mDevice->getAssociatedDisplayPort();
+        if (displayPort) {
+            // Find the viewport that contains the same port
+            std::optional<DisplayViewport> v = mConfig.getDisplayViewportByPort(*displayPort);
+            if (!v) {
+                ALOGW("Input device %s should be associated with display on port %" PRIu8 ", "
+                        "but the corresponding viewport is not found.",
+                        getDeviceName().c_str(), *displayPort);
+            }
+            return v;
+        }
+
+        if (!mParameters.uniqueDisplayId.empty()) {
+            return mConfig.getDisplayViewportByUniqueId(mParameters.uniqueDisplayId);
+        }
+
+        ViewportType viewportTypeToUse;
+        if (mParameters.associatedDisplayIsExternal) {
+            viewportTypeToUse = ViewportType::VIEWPORT_EXTERNAL;
+        } else {
+            viewportTypeToUse = ViewportType::VIEWPORT_INTERNAL;
+        }
+
+        std::optional<DisplayViewport> viewport =
+                mConfig.getDisplayViewportByType(viewportTypeToUse);
+        if (!viewport && viewportTypeToUse == ViewportType::VIEWPORT_EXTERNAL) {
+            ALOGW("Input device %s should be associated with external display, "
+                    "fallback to internal one for the external viewport is not found.",
+                        getDeviceName().c_str());
+            viewport = mConfig.getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
+        }
+
+        return viewport;
+    }
+
+    DisplayViewport newViewport;
+    // Raw width and height in the natural orientation.
+    int32_t rawWidth = mRawPointerAxes.getRawWidth();
+    int32_t rawHeight = mRawPointerAxes.getRawHeight();
+    newViewport.setNonDisplayViewport(rawWidth, rawHeight);
+    return std::make_optional(newViewport);
+}
+
 void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
     int32_t oldDeviceMode = mDeviceMode;
 
@@ -3505,47 +3533,30 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
 
     // Ensure we have valid X and Y axes.
     if (!mRawPointerAxes.x.valid || !mRawPointerAxes.y.valid) {
-        ALOGW(INDENT "Touch device '%s' did not report support for X or Y axis!  "
-                "The device will be inoperable.", getDeviceName().string());
+        ALOGW("Touch device '%s' did not report support for X or Y axis!  "
+                "The device will be inoperable.", getDeviceName().c_str());
+        mDeviceMode = DEVICE_MODE_DISABLED;
+        return;
+    }
+
+    // Get associated display dimensions.
+    std::optional<DisplayViewport> newViewport = findViewport();
+    if (!newViewport) {
+        ALOGI("Touch device '%s' could not query the properties of its associated "
+                "display.  The device will be inoperable until the display size "
+                "becomes available.",
+                getDeviceName().c_str());
         mDeviceMode = DEVICE_MODE_DISABLED;
         return;
     }
 
     // Raw width and height in the natural orientation.
-    int32_t rawWidth = mRawPointerAxes.x.maxValue - mRawPointerAxes.x.minValue + 1;
-    int32_t rawHeight = mRawPointerAxes.y.maxValue - mRawPointerAxes.y.minValue + 1;
+    int32_t rawWidth = mRawPointerAxes.getRawWidth();
+    int32_t rawHeight = mRawPointerAxes.getRawHeight();
 
-    // Get associated display dimensions.
-    DisplayViewport newViewport;
-    if (mParameters.hasAssociatedDisplay) {
-        const String8* uniqueDisplayId = NULL;
-        ViewportType viewportTypeToUse;
-
-        if (mParameters.associatedDisplayIsExternal) {
-            viewportTypeToUse = ViewportType::VIEWPORT_EXTERNAL;
-        } else if (!mParameters.uniqueDisplayId.isEmpty()) {
-            // If the IDC file specified a unique display Id, then it expects to be linked to a
-            // virtual display with the same unique ID.
-            uniqueDisplayId = &mParameters.uniqueDisplayId;
-            viewportTypeToUse = ViewportType::VIEWPORT_VIRTUAL;
-        } else {
-            viewportTypeToUse = ViewportType::VIEWPORT_INTERNAL;
-        }
-
-        if (!mConfig.getDisplayViewport(viewportTypeToUse, uniqueDisplayId, &newViewport)) {
-            ALOGI(INDENT "Touch device '%s' could not query the properties of its associated "
-                    "display.  The device will be inoperable until the display size "
-                    "becomes available.",
-                    getDeviceName().string());
-            mDeviceMode = DEVICE_MODE_DISABLED;
-            return;
-        }
-    } else {
-        newViewport.setNonDisplayViewport(rawWidth, rawHeight);
-    }
-    bool viewportChanged = mViewport != newViewport;
+    bool viewportChanged = mViewport != *newViewport;
     if (viewportChanged) {
-        mViewport = newViewport;
+        mViewport = *newViewport;
 
         if (mDeviceMode == DEVICE_MODE_DIRECT || mDeviceMode == DEVICE_MODE_POINTER) {
             // Convert rotated viewport to natural surface coordinates.
@@ -3597,6 +3608,12 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
                 break;
             }
 
+            if (naturalPhysicalHeight == 0 || naturalPhysicalWidth == 0) {
+                ALOGE("Viewport is not set properly: %s", mViewport.toString().c_str());
+                naturalPhysicalHeight = naturalPhysicalHeight == 0 ? 1 : naturalPhysicalHeight;
+                naturalPhysicalWidth = naturalPhysicalWidth == 0 ? 1 : naturalPhysicalWidth;
+            }
+
             mPhysicalWidth = naturalPhysicalWidth;
             mPhysicalHeight = naturalPhysicalHeight;
             mPhysicalLeft = naturalPhysicalLeft;
@@ -3629,10 +3646,10 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
         mOrientedRanges.clear();
     }
 
-    // Create pointer controller if needed.
+    // Create or update pointer controller if needed.
     if (mDeviceMode == DEVICE_MODE_POINTER ||
             (mDeviceMode == DEVICE_MODE_DIRECT && mConfig.showTouches)) {
-        if (mPointerController == NULL) {
+        if (mPointerController == nullptr || viewportChanged) {
             mPointerController = getPolicy()->obtainPointerController(getDeviceId());
         }
     } else {
@@ -3642,7 +3659,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
     if (viewportChanged || deviceModeChanged) {
         ALOGI("Device reconfigured: id=%d, name='%s', size %dx%d, orientation %d, mode %d, "
                 "display id %d",
-                getDeviceId(), getDeviceName().string(), mSurfaceWidth, mSurfaceHeight,
+                getDeviceId(), getDeviceName().c_str(), mSurfaceWidth, mSurfaceHeight,
                 mSurfaceOrientation, mDeviceMode, mViewport.displayId);
 
         // Configure X and Y factors.
@@ -3910,17 +3927,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
 }
 
 void TouchInputMapper::dumpSurface(std::string& dump) {
-    dump += StringPrintf(INDENT3 "Viewport: displayId=%d, orientation=%d, "
-            "logicalFrame=[%d, %d, %d, %d], "
-            "physicalFrame=[%d, %d, %d, %d], "
-            "deviceSize=[%d, %d]\n",
-            mViewport.displayId, mViewport.orientation,
-            mViewport.logicalLeft, mViewport.logicalTop,
-            mViewport.logicalRight, mViewport.logicalBottom,
-            mViewport.physicalLeft, mViewport.physicalTop,
-            mViewport.physicalRight, mViewport.physicalBottom,
-            mViewport.deviceWidth, mViewport.deviceHeight);
-
+    dump += StringPrintf(INDENT3 "%s\n", mViewport.toString().c_str());
     dump += StringPrintf(INDENT3 "SurfaceWidth: %dpx\n", mSurfaceWidth);
     dump += StringPrintf(INDENT3 "SurfaceHeight: %dpx\n", mSurfaceHeight);
     dump += StringPrintf(INDENT3 "SurfaceLeft: %d\n", mSurfaceLeft);
@@ -3933,7 +3940,7 @@ void TouchInputMapper::dumpSurface(std::string& dump) {
 }
 
 void TouchInputMapper::configureVirtualKeys() {
-    Vector<VirtualKeyDefinition> virtualKeyDefinitions;
+    std::vector<VirtualKeyDefinition> virtualKeyDefinitions;
     getEventHub()->getVirtualKeyDefinitions(getDeviceId(), virtualKeyDefinitions);
 
     mVirtualKeys.clear();
@@ -3942,19 +3949,13 @@ void TouchInputMapper::configureVirtualKeys() {
         return;
     }
 
-    mVirtualKeys.setCapacity(virtualKeyDefinitions.size());
-
     int32_t touchScreenLeft = mRawPointerAxes.x.minValue;
     int32_t touchScreenTop = mRawPointerAxes.y.minValue;
-    int32_t touchScreenWidth = mRawPointerAxes.x.maxValue - mRawPointerAxes.x.minValue + 1;
-    int32_t touchScreenHeight = mRawPointerAxes.y.maxValue - mRawPointerAxes.y.minValue + 1;
+    int32_t touchScreenWidth = mRawPointerAxes.getRawWidth();
+    int32_t touchScreenHeight = mRawPointerAxes.getRawHeight();
 
-    for (size_t i = 0; i < virtualKeyDefinitions.size(); i++) {
-        const VirtualKeyDefinition& virtualKeyDefinition =
-                virtualKeyDefinitions[i];
-
-        mVirtualKeys.add();
-        VirtualKey& virtualKey = mVirtualKeys.editTop();
+    for (const VirtualKeyDefinition& virtualKeyDefinition : virtualKeyDefinitions) {
+        VirtualKey virtualKey;
 
         virtualKey.scanCode = virtualKeyDefinition.scanCode;
         int32_t keyCode;
@@ -3964,8 +3965,7 @@ void TouchInputMapper::configureVirtualKeys() {
                                   &keyCode, &dummyKeyMetaState, &flags)) {
             ALOGW(INDENT "VirtualKey %d: could not obtain key code, ignoring",
                     virtualKey.scanCode);
-            mVirtualKeys.pop(); // drop the key
-            continue;
+            continue; // drop the key
         }
 
         virtualKey.keyCode = keyCode;
@@ -3983,15 +3983,16 @@ void TouchInputMapper::configureVirtualKeys() {
                 * touchScreenHeight / mSurfaceHeight + touchScreenTop;
         virtualKey.hitBottom = (virtualKeyDefinition.centerY + halfHeight)
                 * touchScreenHeight / mSurfaceHeight + touchScreenTop;
+        mVirtualKeys.push_back(virtualKey);
     }
 }
 
 void TouchInputMapper::dumpVirtualKeys(std::string& dump) {
-    if (!mVirtualKeys.isEmpty()) {
+    if (!mVirtualKeys.empty()) {
         dump += INDENT3 "Virtual Keys:\n";
 
         for (size_t i = 0; i < mVirtualKeys.size(); i++) {
-            const VirtualKey& virtualKey = mVirtualKeys.itemAt(i);
+            const VirtualKey& virtualKey = mVirtualKeys[i];
             dump += StringPrintf(INDENT4 "%zu: scanCode=%d, keyCode=%d, "
                     "hitLeft=%d, hitRight=%d, hitTop=%d, hitBottom=%d\n",
                     i, virtualKey.scanCode, virtualKey.keyCode,
@@ -4286,7 +4287,7 @@ void TouchInputMapper::reset(nsecs_t when) {
     mPointerSimple.reset();
     resetExternalStylus();
 
-    if (mPointerController != NULL) {
+    if (mPointerController != nullptr) {
         mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
         mPointerController->clearSpots();
     }
@@ -4306,23 +4307,38 @@ void TouchInputMapper::clearStylusDataPendingFlags() {
     mExternalStylusFusionTimeout = LLONG_MAX;
 }
 
+void TouchInputMapper::reportEventForStatistics(nsecs_t evdevTime) {
+    nsecs_t now = systemTime(CLOCK_MONOTONIC);
+    nsecs_t latency = now - evdevTime;
+    mStatistics.addValue(nanoseconds_to_microseconds(latency));
+    nsecs_t timeSinceLastReport = now - mStatistics.lastReportTime;
+    if (timeSinceLastReport > STATISTICS_REPORT_FREQUENCY) {
+        android::util::stats_write(android::util::TOUCH_EVENT_REPORTED,
+                mStatistics.min, mStatistics.max,
+                mStatistics.mean(), mStatistics.stdev(), mStatistics.count);
+        mStatistics.reset(now);
+    }
+}
+
 void TouchInputMapper::process(const RawEvent* rawEvent) {
     mCursorButtonAccumulator.process(rawEvent);
     mCursorScrollAccumulator.process(rawEvent);
     mTouchButtonAccumulator.process(rawEvent);
 
     if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
+        reportEventForStatistics(rawEvent->when);
         sync(rawEvent->when);
     }
 }
 
 void TouchInputMapper::sync(nsecs_t when) {
-    const RawState* last = mRawStatesPending.isEmpty() ?
-            &mCurrentRawState : &mRawStatesPending.top();
+    const RawState* last = mRawStatesPending.empty() ?
+            &mCurrentRawState : &mRawStatesPending.back();
 
     // Push a new state.
-    mRawStatesPending.push();
-    RawState* next = &mRawStatesPending.editTop();
+    mRawStatesPending.emplace_back();
+
+    RawState* next = &mRawStatesPending.back();
     next->clear();
     next->when = when;
 
@@ -4389,7 +4405,7 @@ void TouchInputMapper::processRawTouches(bool timeout) {
         cookAndDispatch(mCurrentRawState.when);
     }
     if (count != 0) {
-        mRawStatesPending.removeItemsAt(0, count);
+        mRawStatesPending.erase(mRawStatesPending.begin(), mRawStatesPending.begin() + count);
     }
 
     if (mExternalStylusDataPending) {
@@ -4448,7 +4464,8 @@ void TouchInputMapper::cookAndDispatch(nsecs_t when) {
 
     // Synthesize key down from raw buttons if needed.
     synthesizeButtonKeys(getContext(), AKEY_EVENT_ACTION_DOWN, when, getDeviceId(), mSource,
-            policyFlags, mLastCookedState.buttonState, mCurrentCookedState.buttonState);
+            mViewport.displayId, policyFlags,
+            mLastCookedState.buttonState, mCurrentCookedState.buttonState);
 
     // Dispatch the touches either directly or by translation through a pointer on screen.
     if (mDeviceMode == DEVICE_MODE_POINTER) {
@@ -4495,14 +4512,15 @@ void TouchInputMapper::cookAndDispatch(nsecs_t when) {
         dispatchPointerUsage(when, policyFlags, pointerUsage);
     } else {
         if (mDeviceMode == DEVICE_MODE_DIRECT
-                && mConfig.showTouches && mPointerController != NULL) {
+                && mConfig.showTouches && mPointerController != nullptr) {
             mPointerController->setPresentation(PointerControllerInterface::PRESENTATION_SPOT);
             mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
 
             mPointerController->setButtonState(mCurrentRawState.buttonState);
             mPointerController->setSpots(mCurrentCookedState.cookedPointerData.pointerCoords,
                     mCurrentCookedState.cookedPointerData.idToIndex,
-                    mCurrentCookedState.cookedPointerData.touchingIdBits);
+                    mCurrentCookedState.cookedPointerData.touchingIdBits,
+                    mViewport.displayId);
         }
 
         if (!mCurrentMotionAborted) {
@@ -4520,7 +4538,8 @@ void TouchInputMapper::cookAndDispatch(nsecs_t when) {
 
     // Synthesize key up from raw buttons if needed.
     synthesizeButtonKeys(getContext(), AKEY_EVENT_ACTION_UP, when, getDeviceId(), mSource,
-            policyFlags, mLastCookedState.buttonState, mCurrentCookedState.buttonState);
+            mViewport.displayId, policyFlags,
+            mLastCookedState.buttonState, mCurrentCookedState.buttonState);
 
     // Clear some transient state.
     mCurrentRawState.rawVScroll = 0;
@@ -4735,8 +4754,9 @@ void TouchInputMapper::dispatchVirtualKey(nsecs_t when, uint32_t policyFlags,
     int32_t metaState = mContext->getGlobalMetaState();
     policyFlags |= POLICY_FLAG_VIRTUAL;
 
-    NotifyKeyArgs args(when, getDeviceId(), AINPUT_SOURCE_KEYBOARD, policyFlags,
-            keyEventAction, keyEventFlags, keyCode, scanCode, metaState, downTime);
+    NotifyKeyArgs args(mContext->getNextSequenceNum(), when, getDeviceId(), AINPUT_SOURCE_KEYBOARD,
+            mViewport.displayId,
+            policyFlags, keyEventAction, keyEventFlags, keyCode, scanCode, metaState, downTime);
     getListener()->notifyKey(&args);
 }
 
@@ -5264,7 +5284,8 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, uint32_t policyFlag
         if (mPointerGesture.currentGestureMode == PointerGesture::FREEFORM) {
             mPointerController->setSpots(mPointerGesture.currentGestureCoords,
                      mPointerGesture.currentGestureIdToIndex,
-                     mPointerGesture.currentGestureIdBits);
+                     mPointerGesture.currentGestureIdBits,
+                     mPointerController->getDisplayId());
         }
     } else {
         mPointerController->setPresentation(PointerControllerInterface::PRESENTATION_POINTER);
@@ -5428,11 +5449,13 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, uint32_t policyFlag
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_X, x);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, y);
 
-        NotifyMotionArgs args(when, getDeviceId(), mSource, policyFlags,
+        const int32_t displayId = mPointerController->getDisplayId();
+        NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
+                mSource, displayId, policyFlags,
                 AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0,
-                metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
-                mViewport.displayId, /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
-                0, 0, mPointerGesture.downTime);
+                metaState, buttonState, MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
+                /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
+                0, 0, mPointerGesture.downTime, /* videoFrames */ {});
         getListener()->notifyMotion(&args);
     }
 
@@ -5473,7 +5496,7 @@ void TouchInputMapper::abortPointerGestures(nsecs_t when, uint32_t policyFlags) 
     mPointerVelocityControl.reset();
 
     // Remove any current spots.
-    if (mPointerController != NULL) {
+    if (mPointerController != nullptr) {
         mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
         mPointerController->clearSpots();
     }
@@ -6335,8 +6358,9 @@ void TouchInputMapper::abortPointerMouse(nsecs_t when, uint32_t policyFlags) {
 void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         bool down, bool hovering) {
     int32_t metaState = getContext()->getGlobalMetaState();
+    int32_t displayId = mViewport.displayId;
 
-    if (mPointerController != NULL) {
+    if (mPointerController != nullptr) {
         if (down || hovering) {
             mPointerController->setPresentation(PointerControllerInterface::PRESENTATION_POINTER);
             mPointerController->clearSpots();
@@ -6345,18 +6369,20 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         } else if (!down && !hovering && (mPointerSimple.down || mPointerSimple.hovering)) {
             mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
         }
+        displayId = mPointerController->getDisplayId();
     }
 
     if (mPointerSimple.down && !down) {
         mPointerSimple.down = false;
 
         // Send up.
-        NotifyMotionArgs args(when, getDeviceId(), mSource, policyFlags,
-                 AMOTION_EVENT_ACTION_UP, 0, 0, metaState, mLastRawState.buttonState, 0,
-                 mViewport.displayId, /* deviceTimestamp */ 0,
-                 1, &mPointerSimple.lastProperties, &mPointerSimple.lastCoords,
-                 mOrientedXPrecision, mOrientedYPrecision,
-                 mPointerSimple.downTime);
+        NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
+                mSource, displayId, policyFlags,
+                AMOTION_EVENT_ACTION_UP, 0, 0, metaState, mLastRawState.buttonState,
+                MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, /* deviceTimestamp */ 0,
+                1, &mPointerSimple.lastProperties, &mPointerSimple.lastCoords,
+                mOrientedXPrecision, mOrientedYPrecision,
+                mPointerSimple.downTime, /* videoFrames */ {});
         getListener()->notifyMotion(&args);
     }
 
@@ -6364,12 +6390,13 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         mPointerSimple.hovering = false;
 
         // Send hover exit.
-        NotifyMotionArgs args(when, getDeviceId(), mSource, policyFlags,
-                AMOTION_EVENT_ACTION_HOVER_EXIT, 0, 0, metaState, mLastRawState.buttonState, 0,
-                mViewport.displayId, /* deviceTimestamp */ 0,
+        NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
+                mSource, displayId, policyFlags,
+                AMOTION_EVENT_ACTION_HOVER_EXIT, 0, 0, metaState, mLastRawState.buttonState,
+                MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, /* deviceTimestamp */ 0,
                 1, &mPointerSimple.lastProperties, &mPointerSimple.lastCoords,
                 mOrientedXPrecision, mOrientedYPrecision,
-                mPointerSimple.downTime);
+                mPointerSimple.downTime, /* videoFrames */ {});
         getListener()->notifyMotion(&args);
     }
 
@@ -6379,22 +6406,25 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
             mPointerSimple.downTime = when;
 
             // Send down.
-            NotifyMotionArgs args(when, getDeviceId(), mSource, policyFlags,
-                    AMOTION_EVENT_ACTION_DOWN, 0, 0, metaState, mCurrentRawState.buttonState, 0,
-                    mViewport.displayId, /* deviceTimestamp */ 0,
+            NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
+                    mSource, displayId, policyFlags,
+                    AMOTION_EVENT_ACTION_DOWN, 0, 0, metaState, mCurrentRawState.buttonState,
+                    MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
+                    /* deviceTimestamp */ 0,
                     1, &mPointerSimple.currentProperties, &mPointerSimple.currentCoords,
                     mOrientedXPrecision, mOrientedYPrecision,
-                    mPointerSimple.downTime);
+                    mPointerSimple.downTime, /* videoFrames */ {});
             getListener()->notifyMotion(&args);
         }
 
         // Send move.
-        NotifyMotionArgs args(when, getDeviceId(), mSource, policyFlags,
-                AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState, mCurrentRawState.buttonState, 0,
-                mViewport.displayId, /* deviceTimestamp */ 0,
+        NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
+                mSource, displayId, policyFlags,
+                AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState, mCurrentRawState.buttonState,
+                MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, /* deviceTimestamp */ 0,
                 1, &mPointerSimple.currentProperties, &mPointerSimple.currentCoords,
                 mOrientedXPrecision, mOrientedYPrecision,
-                mPointerSimple.downTime);
+                mPointerSimple.downTime, /* videoFrames */ {});
         getListener()->notifyMotion(&args);
     }
 
@@ -6403,32 +6433,34 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
             mPointerSimple.hovering = true;
 
             // Send hover enter.
-            NotifyMotionArgs args(when, getDeviceId(), mSource, policyFlags,
+            NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
+                    mSource, displayId, policyFlags,
                     AMOTION_EVENT_ACTION_HOVER_ENTER, 0, 0, metaState,
-                    mCurrentRawState.buttonState, 0,
-                    mViewport.displayId, /* deviceTimestamp */ 0,
+                    mCurrentRawState.buttonState, MotionClassification::NONE,
+                    AMOTION_EVENT_EDGE_FLAG_NONE, /* deviceTimestamp */ 0,
                     1, &mPointerSimple.currentProperties, &mPointerSimple.currentCoords,
                     mOrientedXPrecision, mOrientedYPrecision,
-                    mPointerSimple.downTime);
+                    mPointerSimple.downTime, /* videoFrames */ {});
             getListener()->notifyMotion(&args);
         }
 
         // Send hover move.
-        NotifyMotionArgs args(when, getDeviceId(), mSource, policyFlags,
+        NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
+                mSource, displayId, policyFlags,
                 AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0, metaState,
-                mCurrentRawState.buttonState, 0,
-                mViewport.displayId, /* deviceTimestamp */ 0,
+                mCurrentRawState.buttonState, MotionClassification::NONE,
+                AMOTION_EVENT_EDGE_FLAG_NONE, /* deviceTimestamp */ 0,
                 1, &mPointerSimple.currentProperties, &mPointerSimple.currentCoords,
                 mOrientedXPrecision, mOrientedYPrecision,
-                mPointerSimple.downTime);
+                mPointerSimple.downTime, /* videoFrames */ {});
         getListener()->notifyMotion(&args);
     }
 
     if (mCurrentRawState.rawVScroll || mCurrentRawState.rawHScroll) {
         float vscroll = mCurrentRawState.rawVScroll;
         float hscroll = mCurrentRawState.rawHScroll;
-        mWheelYVelocityControl.move(when, NULL, &vscroll);
-        mWheelXVelocityControl.move(when, &hscroll, NULL);
+        mWheelYVelocityControl.move(when, nullptr, &vscroll);
+        mWheelXVelocityControl.move(when, &hscroll, nullptr);
 
         // Send scroll.
         PointerCoords pointerCoords;
@@ -6436,12 +6468,13 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_VSCROLL, vscroll);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_HSCROLL, hscroll);
 
-        NotifyMotionArgs args(when, getDeviceId(), mSource, policyFlags,
-                AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState, mCurrentRawState.buttonState, 0,
-                mViewport.displayId, /* deviceTimestamp */ 0,
+        NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
+                mSource, displayId, policyFlags,
+                AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState, mCurrentRawState.buttonState,
+                MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, /* deviceTimestamp */ 0,
                 1, &mPointerSimple.currentProperties, &pointerCoords,
                 mOrientedXPrecision, mOrientedYPrecision,
-                mPointerSimple.downTime);
+                mPointerSimple.downTime, /* videoFrames */ {});
         getListener()->notifyMotion(&args);
     }
 
@@ -6498,11 +6531,16 @@ void TouchInputMapper::dispatchMotion(nsecs_t when, uint32_t policyFlags, uint32
             ALOG_ASSERT(false);
         }
     }
-
-    NotifyMotionArgs args(when, getDeviceId(), source, policyFlags,
-            action, actionButton, flags, metaState, buttonState, edgeFlags,
-            mViewport.displayId, deviceTimestamp, pointerCount, pointerProperties, pointerCoords,
-            xPrecision, yPrecision, downTime);
+    const int32_t displayId = getAssociatedDisplay().value_or(ADISPLAY_ID_NONE);
+    const int32_t deviceId = getDeviceId();
+    std::vector<TouchVideoFrame> frames = mDevice->getEventHub()->getVideoFrames(deviceId);
+    std::for_each(frames.begin(), frames.end(),
+            [this](TouchVideoFrame& frame) { frame.rotate(this->mSurfaceOrientation); });
+    NotifyMotionArgs args(mContext->getNextSequenceNum(), when, deviceId,
+            source, displayId, policyFlags,
+            action, actionButton, flags, metaState, buttonState, MotionClassification::NONE,
+            edgeFlags, deviceTimestamp, pointerCount, pointerProperties, pointerCoords,
+            xPrecision, yPrecision, downTime, std::move(frames));
     getListener()->notifyMotion(&args);
 }
 
@@ -6535,7 +6573,7 @@ bool TouchInputMapper::updateMovedPointers(const PointerProperties* inProperties
 }
 
 void TouchInputMapper::fadePointer() {
-    if (mPointerController != NULL) {
+    if (mPointerController != nullptr) {
         mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
     }
 }
@@ -6554,12 +6592,9 @@ bool TouchInputMapper::isPointInsideSurface(int32_t x, int32_t y) {
             && scaledY >= mPhysicalTop && scaledY <= mPhysicalTop + mPhysicalHeight;
 }
 
-const TouchInputMapper::VirtualKey* TouchInputMapper::findVirtualKeyHit(
-        int32_t x, int32_t y) {
-    size_t numVirtualKeys = mVirtualKeys.size();
-    for (size_t i = 0; i < numVirtualKeys; i++) {
-        const VirtualKey& virtualKey = mVirtualKeys[i];
+const TouchInputMapper::VirtualKey* TouchInputMapper::findVirtualKeyHit(int32_t x, int32_t y) {
 
+    for (const VirtualKey& virtualKey: mVirtualKeys) {
 #if DEBUG_VIRTUAL_KEYS
         ALOGD("VirtualKeys: Hit test (%d, %d): keyCode=%d, scanCode=%d, "
                 "left=%d, top=%d, right=%d, bottom=%d",
@@ -6574,7 +6609,7 @@ const TouchInputMapper::VirtualKey* TouchInputMapper::findVirtualKeyHit(
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 void TouchInputMapper::assignPointerIds(const RawState* last, RawState* current) {
@@ -6769,9 +6804,7 @@ int32_t TouchInputMapper::getKeyCodeState(uint32_t sourceMask, int32_t keyCode) 
         return AKEY_STATE_VIRTUAL;
     }
 
-    size_t numVirtualKeys = mVirtualKeys.size();
-    for (size_t i = 0; i < numVirtualKeys; i++) {
-        const VirtualKey& virtualKey = mVirtualKeys[i];
+    for (const VirtualKey& virtualKey : mVirtualKeys) {
         if (virtualKey.keyCode == keyCode) {
             return AKEY_STATE_UP;
         }
@@ -6785,9 +6818,7 @@ int32_t TouchInputMapper::getScanCodeState(uint32_t sourceMask, int32_t scanCode
         return AKEY_STATE_VIRTUAL;
     }
 
-    size_t numVirtualKeys = mVirtualKeys.size();
-    for (size_t i = 0; i < numVirtualKeys; i++) {
-        const VirtualKey& virtualKey = mVirtualKeys[i];
+    for (const VirtualKey& virtualKey : mVirtualKeys) {
         if (virtualKey.scanCode == scanCode) {
             return AKEY_STATE_UP;
         }
@@ -6798,10 +6829,7 @@ int32_t TouchInputMapper::getScanCodeState(uint32_t sourceMask, int32_t scanCode
 
 bool TouchInputMapper::markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
         const int32_t* keyCodes, uint8_t* outFlags) {
-    size_t numVirtualKeys = mVirtualKeys.size();
-    for (size_t i = 0; i < numVirtualKeys; i++) {
-        const VirtualKey& virtualKey = mVirtualKeys[i];
-
+    for (const VirtualKey& virtualKey : mVirtualKeys) {
         for (size_t i = 0; i < numCodes; i++) {
             if (virtualKey.keyCode == keyCodes[i]) {
                 outFlags[i] = 1;
@@ -6812,6 +6840,16 @@ bool TouchInputMapper::markSupportedKeyCodes(uint32_t sourceMask, size_t numCode
     return true;
 }
 
+std::optional<int32_t> TouchInputMapper::getAssociatedDisplay() {
+    if (mParameters.hasAssociatedDisplay) {
+        if (mDeviceMode == DEVICE_MODE_POINTER) {
+            return std::make_optional(mPointerController->getDisplayId());
+        } else {
+            return std::make_optional(mViewport.displayId);
+        }
+    }
+    return std::nullopt;
+}
 
 // --- SingleTouchInputMapper ---
 
@@ -6923,7 +6961,7 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
 #if DEBUG_POINTERS
             ALOGD("MultiTouch device %s emitted more than maximum of %d pointers; "
                     "ignoring the rest.",
-                    getDeviceName().string(), MAX_POINTERS);
+                    getDeviceName().c_str(), MAX_POINTERS);
 #endif
             break; // too many fingers!
         }
@@ -7014,7 +7052,7 @@ void MultiTouchInputMapper::configureRawPointerAxes() {
         if (slotCount > MAX_SLOTS) {
             ALOGW("MultiTouch Device %s reported %zu slots but the framework "
                     "only supports a maximum of %zu slots at this time.",
-                    getDeviceName().string(), slotCount, MAX_SLOTS);
+                    getDeviceName().c_str(), slotCount, MAX_SLOTS);
             slotCount = MAX_SLOTS;
         }
         mMultiTouchMotionAccumulator.configure(getDevice(),
@@ -7257,7 +7295,7 @@ void JoystickInputMapper::configure(nsecs_t when,
         // Prefer to keep explicitly mapped axes.
         if (mAxes.size() > PointerCoords::MAX_AXES) {
             ALOGI("Joystick '%s' has %zu axes but the framework only supports a maximum of %d.",
-                    getDeviceName().string(), mAxes.size(), PointerCoords::MAX_AXES);
+                    getDeviceName().c_str(), mAxes.size(), PointerCoords::MAX_AXES);
             pruneAxes(true);
             pruneAxes(false);
         }
@@ -7279,7 +7317,7 @@ void JoystickInputMapper::configure(nsecs_t when,
                 } else {
                     ALOGI("Ignoring joystick '%s' axis %d because all of the generic axis ids "
                             "have already been assigned to other axes.",
-                            getDeviceName().string(), mAxes.keyAt(i));
+                            getDeviceName().c_str(), mAxes.keyAt(i));
                     mAxes.removeItemsAt(i--);
                     numAxes -= 1;
                 }
@@ -7308,7 +7346,7 @@ void JoystickInputMapper::pruneAxes(bool ignoreExplicitlyMappedAxes) {
             continue;
         }
         ALOGI("Discarding joystick '%s' axis %d because there are too many axes.",
-                getDeviceName().string(), mAxes.keyAt(i));
+                getDeviceName().c_str(), mAxes.keyAt(i));
         mAxes.removeItemsAt(i);
     }
 }
@@ -7423,10 +7461,11 @@ void JoystickInputMapper::sync(nsecs_t when, bool force) {
     // TODO: Use the input device configuration to control this behavior more finely.
     uint32_t policyFlags = 0;
 
-    NotifyMotionArgs args(when, getDeviceId(), AINPUT_SOURCE_JOYSTICK, policyFlags,
-            AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
-            ADISPLAY_ID_NONE, /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
-            0, 0, 0);
+    NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
+            AINPUT_SOURCE_JOYSTICK, ADISPLAY_ID_NONE, policyFlags,
+            AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState, buttonState, MotionClassification::NONE,
+            AMOTION_EVENT_EDGE_FLAG_NONE, /* deviceTimestamp */ 0, 1,
+            &pointerProperties, &pointerCoords, 0, 0, 0, /* videoFrames */ {});
     getListener()->notifyMotion(&args);
 }
 

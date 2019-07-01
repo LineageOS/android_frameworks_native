@@ -45,7 +45,7 @@ namespace installd {
 
 constexpr const char* kTestUuid = "TEST";
 
-static constexpr int FLAG_FORCE = 1 << 16;
+#define FLAG_FORCE InstalldNativeService::FLAG_FORCE
 
 int get_property(const char *key, char *value, const char *default_value) {
     return property_get(key, value, default_value);

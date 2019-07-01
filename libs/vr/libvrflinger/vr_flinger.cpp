@@ -23,7 +23,6 @@
 #include "DisplayHardware/ComposerHal.h"
 #include "display_manager_service.h"
 #include "display_service.h"
-#include "vsync_service.h"
 
 namespace android {
 namespace dvr {
@@ -84,16 +83,6 @@ bool VrFlinger::Init(Hwc2::Composer* hidl,
   service = android::dvr::DisplayManagerService::Create(display_service_);
   CHECK_ERROR(!service, error, "Failed to create display manager service.");
   dispatcher_->AddService(service);
-
-  service = android::dvr::VSyncService::Create();
-  CHECK_ERROR(!service, error, "Failed to create vsync service.");
-  dispatcher_->AddService(service);
-
-  display_service_->SetVSyncCallback(
-      std::bind(&android::dvr::VSyncService::VSyncEvent,
-                std::static_pointer_cast<android::dvr::VSyncService>(service),
-                std::placeholders::_1, std::placeholders::_2,
-                std::placeholders::_3));
 
   dispatcher_thread_ = std::thread([this]() {
     prctl(PR_SET_NAME, reinterpret_cast<unsigned long>("VrDispatch"), 0, 0, 0);

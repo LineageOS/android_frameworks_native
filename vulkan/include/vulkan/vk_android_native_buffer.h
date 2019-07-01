@@ -37,7 +37,17 @@ extern "C" {
  * backwards-compatibility support is temporary, and will likely be removed in
  * (along with all gralloc0 support) in a future release.
  */
-#define VK_ANDROID_NATIVE_BUFFER_SPEC_VERSION     7
+/* NOTE ON VK_ANDROID_NATIVE_BUFFER_SPEC_VERSION 8
+ *
+ * This version of the extension doesn't introduce new types or structs, but is
+ * to accommodate the new struct VkBindImageMemorySwapchainInfoKHR added in
+ * VK_KHR_swapchain spec version 69. When VkBindImageMemorySwapchainInfoKHR is
+ * chained in the pNext chain of VkBindImageMemoryInfo, a VkNativeBufferANDROID
+ * that holds the correct gralloc handle according to the imageIndex specified
+ * in VkBindImageMemorySwapchainInfoKHR will be additionally chained to the
+ * pNext chain of VkBindImageMemoryInfo and passed down to the driver.
+ */
+#define VK_ANDROID_NATIVE_BUFFER_SPEC_VERSION     8
 #define VK_ANDROID_NATIVE_BUFFER_EXTENSION_NAME   "VK_ANDROID_native_buffer"
 
 #define VK_ANDROID_NATIVE_BUFFER_ENUM(type,id)    ((type)(1000000000 + (1000 * (VK_ANDROID_NATIVE_BUFFER_EXTENSION_NUMBER - 1)) + (id)))

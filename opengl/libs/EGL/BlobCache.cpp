@@ -79,7 +79,7 @@ void BlobCache::set(const void* key, size_t keySize, const void* value,
     }
 
     std::shared_ptr<Blob> dummyKey(new Blob(key, keySize, false));
-    CacheEntry dummyEntry(dummyKey, NULL);
+    CacheEntry dummyEntry(dummyKey, nullptr);
 
     while (true) {
         auto index = std::lower_bound(mCacheEntries.begin(), mCacheEntries.end(), dummyEntry);
@@ -139,7 +139,7 @@ size_t BlobCache::get(const void* key, size_t keySize, void* value,
         return 0;
     }
     std::shared_ptr<Blob> dummyKey(new Blob(key, keySize, false));
-    CacheEntry dummyEntry(dummyKey, NULL);
+    CacheEntry dummyEntry(dummyKey, nullptr);
     auto index = std::lower_bound(mCacheEntries.begin(), mCacheEntries.end(), dummyEntry);
     if (index == mCacheEntries.end() || dummyEntry < *index) {
         ALOGV("get: no cache entry found for key of size %zu", keySize);
@@ -308,7 +308,7 @@ BlobCache::Blob::Blob(const void* data, size_t size, bool copyData) :
         mData(copyData ? malloc(size) : data),
         mSize(size),
         mOwnsData(copyData) {
-    if (data != NULL && copyData) {
+    if (data != nullptr && copyData) {
         memcpy(const_cast<void*>(mData), data, size);
     }
 }

@@ -83,7 +83,7 @@ enum {
 };
 
 /**
- * Meta key / modifer state.
+ * Meta key / modifier state.
  */
 enum {
     /** No meta keys are pressed. */

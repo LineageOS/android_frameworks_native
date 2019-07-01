@@ -90,7 +90,7 @@ public:
     void logAndResetStats(const String8& name);
 
     // dumpStats dump appends the current frame display time history to the result string.
-    void dumpStats(String8& result) const;
+    void dumpStats(std::string& result) const;
 
 private:
     struct FrameRecord {

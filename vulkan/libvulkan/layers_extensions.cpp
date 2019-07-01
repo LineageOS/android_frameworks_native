@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
+
 #include "layers_extensions.h"
 
 #include <alloca.h>
@@ -33,6 +35,7 @@
 #include <log/log.h>
 #include <nativebridge/native_bridge.h>
 #include <nativeloader/native_loader.h>
+#include <utils/Trace.h>
 #include <ziparchive/zip_archive.h>
 
 // TODO(jessehall): The whole way we deal with extensions is pretty hokey, and
@@ -425,6 +428,8 @@ void ForEachFileInPath(const std::string& path, Functor functor) {
 }
 
 void DiscoverLayersInPathList(const std::string& pathstr) {
+    ATRACE_CALL();
+
     std::vector<std::string> paths = android::base::Split(pathstr, ":");
     for (const auto& path : paths) {
         ForEachFileInPath(path, [&](const std::string& filename) {
@@ -474,6 +479,8 @@ void* GetLayerGetProcAddr(const Layer& layer,
 }  // anonymous namespace
 
 void DiscoverLayers() {
+    ATRACE_CALL();
+
     if (property_get_bool("ro.debuggable", false) &&
         prctl(PR_GET_DUMPABLE, 0, 0, 0, 0)) {
         DiscoverLayersInPathList(kSystemLayerLibraryDir);

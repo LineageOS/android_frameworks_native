@@ -20,6 +20,7 @@
 #include "EventHub.h"
 #include "PointerControllerInterface.h"
 #include "InputListener.h"
+#include "InputReaderBase.h"
 
 #include <input/DisplayViewport.h>
 #include <input/Input.h>
@@ -28,315 +29,20 @@
 #include <ui/DisplayInfo.h>
 #include <utils/KeyedVector.h>
 #include <utils/Condition.h>
-#include <utils/Thread.h>
 #include <utils/Mutex.h>
 #include <utils/Timers.h>
-#include <utils/RefBase.h>
 #include <utils/BitSet.h>
-#include <utils/SortedVector.h>
 
+#include <optional>
 #include <stddef.h>
 #include <unistd.h>
-
-// Maximum supported size of a vibration pattern.
-// Must be at least 2.
-#define MAX_VIBRATE_PATTERN_SIZE 100
-
-// Maximum allowable delay value in a vibration pattern before
-// which the delay will be truncated.
-#define MAX_VIBRATE_PATTERN_DELAY_NSECS (1000000 * 1000000000LL)
+#include <vector>
 
 namespace android {
 
 class InputDevice;
 class InputMapper;
 
-/*
- * Input reader configuration.
- *
- * Specifies various options that modify the behavior of the input reader.
- */
-struct InputReaderConfiguration {
-    // Describes changes that have occurred.
-    enum {
-        // The pointer speed changed.
-        CHANGE_POINTER_SPEED = 1 << 0,
-
-        // The pointer gesture control changed.
-        CHANGE_POINTER_GESTURE_ENABLEMENT = 1 << 1,
-
-        // The display size or orientation changed.
-        CHANGE_DISPLAY_INFO = 1 << 2,
-
-        // The visible touches option changed.
-        CHANGE_SHOW_TOUCHES = 1 << 3,
-
-        // The keyboard layouts must be reloaded.
-        CHANGE_KEYBOARD_LAYOUTS = 1 << 4,
-
-        // The device name alias supplied by the may have changed for some devices.
-        CHANGE_DEVICE_ALIAS = 1 << 5,
-
-        // The location calibration matrix changed.
-        CHANGE_TOUCH_AFFINE_TRANSFORMATION = 1 << 6,
-
-        // The presence of an external stylus has changed.
-        CHANGE_EXTERNAL_STYLUS_PRESENCE = 1 << 7,
-
-        // The pointer capture mode has changed.
-        CHANGE_POINTER_CAPTURE = 1 << 8,
-
-        // The set of disabled input devices (disabledDevices) has changed.
-        CHANGE_ENABLED_STATE = 1 << 9,
-
-        // All devices must be reopened.
-        CHANGE_MUST_REOPEN = 1 << 31,
-    };
-
-    // Gets the amount of time to disable virtual keys after the screen is touched
-    // in order to filter out accidental virtual key presses due to swiping gestures
-    // or taps near the edge of the display.  May be 0 to disable the feature.
-    nsecs_t virtualKeyQuietTime;
-
-    // The excluded device names for the platform.
-    // Devices with these names will be ignored.
-    Vector<String8> excludedDeviceNames;
-
-    // Velocity control parameters for mouse pointer movements.
-    VelocityControlParameters pointerVelocityControlParameters;
-
-    // Velocity control parameters for mouse wheel movements.
-    VelocityControlParameters wheelVelocityControlParameters;
-
-    // True if pointer gestures are enabled.
-    bool pointerGesturesEnabled;
-
-    // Quiet time between certain pointer gesture transitions.
-    // Time to allow for all fingers or buttons to settle into a stable state before
-    // starting a new gesture.
-    nsecs_t pointerGestureQuietInterval;
-
-    // The minimum speed that a pointer must travel for us to consider switching the active
-    // touch pointer to it during a drag.  This threshold is set to avoid switching due
-    // to noise from a finger resting on the touch pad (perhaps just pressing it down).
-    float pointerGestureDragMinSwitchSpeed; // in pixels per second
-
-    // Tap gesture delay time.
-    // The time between down and up must be less than this to be considered a tap.
-    nsecs_t pointerGestureTapInterval;
-
-    // Tap drag gesture delay time.
-    // The time between the previous tap's up and the next down must be less than
-    // this to be considered a drag.  Otherwise, the previous tap is finished and a
-    // new tap begins.
-    //
-    // Note that the previous tap will be held down for this entire duration so this
-    // interval must be shorter than the long press timeout.
-    nsecs_t pointerGestureTapDragInterval;
-
-    // The distance in pixels that the pointer is allowed to move from initial down
-    // to up and still be called a tap.
-    float pointerGestureTapSlop; // in pixels
-
-    // Time after the first touch points go down to settle on an initial centroid.
-    // This is intended to be enough time to handle cases where the user puts down two
-    // fingers at almost but not quite exactly the same time.
-    nsecs_t pointerGestureMultitouchSettleInterval;
-
-    // The transition from PRESS to SWIPE or FREEFORM gesture mode is made when
-    // at least two pointers have moved at least this far from their starting place.
-    float pointerGestureMultitouchMinDistance; // in pixels
-
-    // The transition from PRESS to SWIPE gesture mode can only occur when the
-    // cosine of the angle between the two vectors is greater than or equal to than this value
-    // which indicates that the vectors are oriented in the same direction.
-    // When the vectors are oriented in the exactly same direction, the cosine is 1.0.
-    // (In exactly opposite directions, the cosine is -1.0.)
-    float pointerGestureSwipeTransitionAngleCosine;
-
-    // The transition from PRESS to SWIPE gesture mode can only occur when the
-    // fingers are no more than this far apart relative to the diagonal size of
-    // the touch pad.  For example, a ratio of 0.5 means that the fingers must be
-    // no more than half the diagonal size of the touch pad apart.
-    float pointerGestureSwipeMaxWidthRatio;
-
-    // The gesture movement speed factor relative to the size of the display.
-    // Movement speed applies when the fingers are moving in the same direction.
-    // Without acceleration, a full swipe of the touch pad diagonal in movement mode
-    // will cover this portion of the display diagonal.
-    float pointerGestureMovementSpeedRatio;
-
-    // The gesture zoom speed factor relative to the size of the display.
-    // Zoom speed applies when the fingers are mostly moving relative to each other
-    // to execute a scale gesture or similar.
-    // Without acceleration, a full swipe of the touch pad diagonal in zoom mode
-    // will cover this portion of the display diagonal.
-    float pointerGestureZoomSpeedRatio;
-
-    // True to show the location of touches on the touch screen as spots.
-    bool showTouches;
-
-    // True if pointer capture is enabled.
-    bool pointerCapture;
-
-    // The set of currently disabled input devices.
-    SortedVector<int32_t> disabledDevices;
-
-    InputReaderConfiguration() :
-            virtualKeyQuietTime(0),
-            pointerVelocityControlParameters(1.0f, 500.0f, 3000.0f, 3.0f),
-            wheelVelocityControlParameters(1.0f, 15.0f, 50.0f, 4.0f),
-            pointerGesturesEnabled(true),
-            pointerGestureQuietInterval(100 * 1000000LL), // 100 ms
-            pointerGestureDragMinSwitchSpeed(50), // 50 pixels per second
-            pointerGestureTapInterval(150 * 1000000LL), // 150 ms
-            pointerGestureTapDragInterval(150 * 1000000LL), // 150 ms
-            pointerGestureTapSlop(10.0f), // 10 pixels
-            pointerGestureMultitouchSettleInterval(100 * 1000000LL), // 100 ms
-            pointerGestureMultitouchMinDistance(15), // 15 pixels
-            pointerGestureSwipeTransitionAngleCosine(0.2588f), // cosine of 75 degrees
-            pointerGestureSwipeMaxWidthRatio(0.25f),
-            pointerGestureMovementSpeedRatio(0.8f),
-            pointerGestureZoomSpeedRatio(0.3f),
-            showTouches(false) { }
-
-    bool getDisplayViewport(ViewportType viewportType, const String8* displayId,
-            DisplayViewport* outViewport) const;
-    void setPhysicalDisplayViewport(ViewportType viewportType, const DisplayViewport& viewport);
-    void setVirtualDisplayViewports(const Vector<DisplayViewport>& viewports);
-
-
-    void dump(std::string& dump) const;
-    void dumpViewport(std::string& dump, const DisplayViewport& viewport) const;
-
-private:
-    DisplayViewport mInternalDisplay;
-    DisplayViewport mExternalDisplay;
-    Vector<DisplayViewport> mVirtualDisplays;
-};
-
-
-struct TouchAffineTransformation {
-    float x_scale;
-    float x_ymix;
-    float x_offset;
-    float y_xmix;
-    float y_scale;
-    float y_offset;
-
-    TouchAffineTransformation() :
-        x_scale(1.0f), x_ymix(0.0f), x_offset(0.0f),
-        y_xmix(0.0f), y_scale(1.0f), y_offset(0.0f) {
-    }
-
-    TouchAffineTransformation(float xscale, float xymix, float xoffset,
-            float yxmix, float yscale, float yoffset) :
-        x_scale(xscale), x_ymix(xymix), x_offset(xoffset),
-        y_xmix(yxmix), y_scale(yscale), y_offset(yoffset) {
-    }
-
-    void applyTo(float& x, float& y) const;
-};
-
-
-/*
- * Input reader policy interface.
- *
- * The input reader policy is used by the input reader to interact with the Window Manager
- * and other system components.
- *
- * The actual implementation is partially supported by callbacks into the DVM
- * via JNI.  This interface is also mocked in the unit tests.
- *
- * These methods must NOT re-enter the input reader since they may be called while
- * holding the input reader lock.
- */
-class InputReaderPolicyInterface : public virtual RefBase {
-protected:
-    InputReaderPolicyInterface() { }
-    virtual ~InputReaderPolicyInterface() { }
-
-public:
-    /* Gets the input reader configuration. */
-    virtual void getReaderConfiguration(InputReaderConfiguration* outConfig) = 0;
-
-    /* Gets a pointer controller associated with the specified cursor device (ie. a mouse). */
-    virtual sp<PointerControllerInterface> obtainPointerController(int32_t deviceId) = 0;
-
-    /* Notifies the input reader policy that some input devices have changed
-     * and provides information about all current input devices.
-     */
-    virtual void notifyInputDevicesChanged(const Vector<InputDeviceInfo>& inputDevices) = 0;
-
-    /* Gets the keyboard layout for a particular input device. */
-    virtual sp<KeyCharacterMap> getKeyboardLayoutOverlay(
-            const InputDeviceIdentifier& identifier) = 0;
-
-    /* Gets a user-supplied alias for a particular input device, or an empty string if none. */
-    virtual String8 getDeviceAlias(const InputDeviceIdentifier& identifier) = 0;
-
-    /* Gets the affine calibration associated with the specified device. */
-    virtual TouchAffineTransformation getTouchAffineTransformation(
-            const String8& inputDeviceDescriptor, int32_t surfaceRotation) = 0;
-};
-
-
-/* Processes raw input events and sends cooked event data to an input listener. */
-class InputReaderInterface : public virtual RefBase {
-protected:
-    InputReaderInterface() { }
-    virtual ~InputReaderInterface() { }
-
-public:
-    /* Dumps the state of the input reader.
-     *
-     * This method may be called on any thread (usually by the input manager). */
-    virtual void dump(std::string& dump) = 0;
-
-    /* Called by the heatbeat to ensures that the reader has not deadlocked. */
-    virtual void monitor() = 0;
-
-    /* Returns true if the input device is enabled. */
-    virtual bool isInputDeviceEnabled(int32_t deviceId) = 0;
-
-    /* Runs a single iteration of the processing loop.
-     * Nominally reads and processes one incoming message from the EventHub.
-     *
-     * This method should be called on the input reader thread.
-     */
-    virtual void loopOnce() = 0;
-
-    /* Gets information about all input devices.
-     *
-     * This method may be called on any thread (usually by the input manager).
-     */
-    virtual void getInputDevices(Vector<InputDeviceInfo>& outInputDevices) = 0;
-
-    /* Query current input state. */
-    virtual int32_t getScanCodeState(int32_t deviceId, uint32_t sourceMask,
-            int32_t scanCode) = 0;
-    virtual int32_t getKeyCodeState(int32_t deviceId, uint32_t sourceMask,
-            int32_t keyCode) = 0;
-    virtual int32_t getSwitchState(int32_t deviceId, uint32_t sourceMask,
-            int32_t sw) = 0;
-
-    /* Toggle Caps Lock */
-    virtual void toggleCapsLockState(int32_t deviceId) = 0;
-
-    /* Determine whether physical keys exist for the given framework-domain key codes. */
-    virtual bool hasKeys(int32_t deviceId, uint32_t sourceMask,
-            size_t numCodes, const int32_t* keyCodes, uint8_t* outFlags) = 0;
-
-    /* Requests that a reconfiguration of all input devices.
-     * The changes flag is a bitfield that indicates what has changed and whether
-     * the input devices must all be reopened. */
-    virtual void requestRefreshConfiguration(uint32_t changes) = 0;
-
-    /* Controls the vibrator of a particular input device. */
-    virtual void vibrate(int32_t deviceId, const nsecs_t* pattern, size_t patternSize,
-            ssize_t repeat, int32_t token) = 0;
-    virtual void cancelVibrate(int32_t deviceId, int32_t token) = 0;
-};
 
 struct StylusState {
     /* Time the stylus event was received. */
@@ -384,12 +90,14 @@ public:
     virtual void requestTimeoutAtTime(nsecs_t when) = 0;
     virtual int32_t bumpGeneration() = 0;
 
-    virtual void getExternalStylusDevices(Vector<InputDeviceInfo>& outDevices) = 0;
+    virtual void getExternalStylusDevices(std::vector<InputDeviceInfo>& outDevices) = 0;
     virtual void dispatchExternalStylusState(const StylusState& outState) = 0;
 
     virtual InputReaderPolicyInterface* getPolicy() = 0;
     virtual InputListenerInterface* getListener() = 0;
     virtual EventHubInterface* getEventHub() = 0;
+
+    virtual uint32_t getNextSequenceNum() = 0;
 };
 
 
@@ -416,7 +124,7 @@ public:
 
     virtual void loopOnce();
 
-    virtual void getInputDevices(Vector<InputDeviceInfo>& outInputDevices);
+    virtual void getInputDevices(std::vector<InputDeviceInfo>& outInputDevices);
 
     virtual bool isInputDeviceEnabled(int32_t deviceId);
 
@@ -438,6 +146,7 @@ public:
             ssize_t repeat, int32_t token);
     virtual void cancelVibrate(int32_t deviceId, int32_t token);
 
+    virtual bool canDispatchToDisplay(int32_t deviceId, int32_t displayId);
 protected:
     // These members are protected so they can be instrumented by test cases.
     virtual InputDevice* createDeviceLocked(int32_t deviceId, int32_t controllerNumber,
@@ -457,11 +166,12 @@ protected:
         virtual void fadePointer();
         virtual void requestTimeoutAtTime(nsecs_t when);
         virtual int32_t bumpGeneration();
-        virtual void getExternalStylusDevices(Vector<InputDeviceInfo>& outDevices);
+        virtual void getExternalStylusDevices(std::vector<InputDeviceInfo>& outDevices);
         virtual void dispatchExternalStylusState(const StylusState& outState);
         virtual InputReaderPolicyInterface* getPolicy();
         virtual InputListenerInterface* getListener();
         virtual EventHubInterface* getEventHub();
+        virtual uint32_t getNextSequenceNum();
     } mContext;
 
     friend class ContextImpl;
@@ -476,6 +186,9 @@ private:
     sp<QueuedInputListener> mQueuedListener;
 
     InputReaderConfiguration mConfig;
+
+    // used by InputReaderContext::getNextSequenceNum() as a counter for event sequence numbers
+    uint32_t mNextSequenceNum;
 
     // The event queue.
     static const int EVENT_BUFFER_SIZE = 256;
@@ -498,7 +211,7 @@ private:
     int32_t getGlobalMetaStateLocked();
 
     void notifyExternalStylusPresenceChanged();
-    void getExternalStylusDevicesLocked(Vector<InputDeviceInfo>& outDevices);
+    void getExternalStylusDevicesLocked(std::vector<InputDeviceInfo>& outDevices);
     void dispatchExternalStylusState(const StylusState& state);
 
     void fadePointerLocked();
@@ -506,7 +219,7 @@ private:
     int32_t mGeneration;
     int32_t bumpGenerationLocked();
 
-    void getInputDevicesLocked(Vector<InputDeviceInfo>& outInputDevices);
+    void getInputDevicesLocked(std::vector<InputDeviceInfo>& outInputDevices);
 
     nsecs_t mDisableVirtualKeysTimeout;
     void disableVirtualKeysUntilLocked(nsecs_t time);
@@ -528,19 +241,6 @@ private:
 };
 
 
-/* Reads raw events from the event hub and processes them, endlessly. */
-class InputReaderThread : public Thread {
-public:
-    explicit InputReaderThread(const sp<InputReaderInterface>& reader);
-    virtual ~InputReaderThread();
-
-private:
-    sp<InputReaderInterface> mReader;
-
-    virtual bool threadLoop();
-};
-
-
 /* Represents the state of a single input device. */
 class InputDevice {
 public:
@@ -552,18 +252,21 @@ public:
     inline int32_t getId() const { return mId; }
     inline int32_t getControllerNumber() const { return mControllerNumber; }
     inline int32_t getGeneration() const { return mGeneration; }
-    inline const String8& getName() const { return mIdentifier.name; }
-    inline const String8& getDescriptor() { return mIdentifier.descriptor; }
+    inline const std::string getName() const { return mIdentifier.name; }
+    inline const std::string getDescriptor() { return mIdentifier.descriptor; }
     inline uint32_t getClasses() const { return mClasses; }
     inline uint32_t getSources() const { return mSources; }
 
     inline bool isExternal() { return mIsExternal; }
     inline void setExternal(bool external) { mIsExternal = external; }
+    inline std::optional<uint8_t> getAssociatedDisplayPort() const {
+        return mAssociatedDisplayPort;
+    }
 
     inline void setMic(bool hasMic) { mHasMic = hasMic; }
     inline bool hasMic() const { return mHasMic; }
 
-    inline bool isIgnored() { return mMappers.isEmpty(); }
+    inline bool isIgnored() { return mMappers.empty(); }
 
     bool isEnabled();
     void setEnabled(bool enabled, nsecs_t when);
@@ -618,19 +321,21 @@ public:
         return value;
     }
 
+    std::optional<int32_t> getAssociatedDisplay();
 private:
     InputReaderContext* mContext;
     int32_t mId;
     int32_t mGeneration;
     int32_t mControllerNumber;
     InputDeviceIdentifier mIdentifier;
-    String8 mAlias;
+    std::string mAlias;
     uint32_t mClasses;
 
-    Vector<InputMapper*> mMappers;
+    std::vector<InputMapper*> mMappers;
 
     uint32_t mSources;
     bool mIsExternal;
+    std::optional<uint8_t> mAssociatedDisplayPort;
     bool mHasMic;
     bool mDropUntilNextSync;
 
@@ -773,6 +478,8 @@ struct RawPointerAxes {
     RawAbsoluteAxisInfo slot;
 
     RawPointerAxes();
+    inline int32_t getRawWidth() const { return x.maxValue - x.minValue + 1; }
+    inline int32_t getRawHeight() const { return y.maxValue - y.minValue + 1; }
     void clear();
 };
 
@@ -862,6 +569,69 @@ struct CookedPointerData {
     }
 };
 
+/**
+ * Basic statistics information.
+ * Keep track of min, max, average, and standard deviation of the received samples.
+ * Used to report latency information about input events.
+ */
+struct LatencyStatistics {
+    float min;
+    float max;
+    // Sum of all samples
+    float sum;
+    // Sum of squares of all samples
+    float sum2;
+    // The number of samples
+    size_t count;
+    // The last time statistics were reported.
+    nsecs_t lastReportTime;
+
+    LatencyStatistics() {
+        reset(systemTime(SYSTEM_TIME_MONOTONIC));
+    }
+
+    inline void addValue(float x) {
+        if (x < min) {
+            min = x;
+        }
+        if (x > max) {
+            max = x;
+        }
+        sum += x;
+        sum2 += x * x;
+        count++;
+    }
+
+    // Get the average value. Should not be called if no samples have been added.
+    inline float mean() {
+        if (count == 0) {
+            return 0;
+        }
+        return sum / count;
+    }
+
+    // Get the standard deviation. Should not be called if no samples have been added.
+    inline float stdev() {
+        if (count == 0) {
+            return 0;
+        }
+        float average = mean();
+        return sqrt(sum2 / count - average * average);
+    }
+
+    /**
+     * Reset internal state. The variable 'when' is the time when the data collection started.
+     * Call this to start a new data collection window.
+     */
+    inline void reset(nsecs_t when) {
+        max = 0;
+        min = std::numeric_limits<float>::max();
+        sum = 0;
+        sum2 = 0;
+        count = 0;
+        lastReportTime = when;
+    }
+};
 
 /* Keeps track of the state of single-touch protocol. */
 class SingleTouchMotionAccumulator {
@@ -980,7 +750,7 @@ public:
 
     inline InputDevice* getDevice() { return mDevice; }
     inline int32_t getDeviceId() { return mDevice->getId(); }
-    inline const String8 getDeviceName() { return mDevice->getName(); }
+    inline const std::string getDeviceName() { return mDevice->getName(); }
     inline InputReaderContext* getContext() { return mContext; }
     inline InputReaderPolicyInterface* getPolicy() { return mContext->getPolicy(); }
     inline InputListenerInterface* getListener() { return mContext->getListener(); }
@@ -1010,7 +780,9 @@ public:
     virtual void updateExternalStylusState(const StylusState& state);
 
     virtual void fadePointer();
-
+    virtual std::optional<int32_t> getAssociatedDisplay() {
+        return std::nullopt;
+    }
 protected:
     InputDevice* mDevice;
     InputReaderContext* mContext;
@@ -1094,6 +866,9 @@ public:
     virtual void updateMetaState(int32_t keyCode);
 
 private:
+    // The current viewport.
+    std::optional<DisplayViewport> mViewport;
+
     struct KeyDown {
         int32_t keyCode;
         int32_t scanCode;
@@ -1102,9 +877,7 @@ private:
     uint32_t mSource;
     int32_t mKeyboardType;
 
-    int32_t mOrientation; // orientation for dpad keys
-
-    Vector<KeyDown> mKeyDowns; // keys that are down
+    std::vector<KeyDown> mKeyDowns; // keys that are down
     int32_t mMetaState;
     nsecs_t mDownTime; // time of most recent key down
 
@@ -1120,13 +893,15 @@ private:
 
     // Immutable configuration parameters.
     struct Parameters {
-        bool hasAssociatedDisplay;
         bool orientationAware;
         bool handlesKeyRepeat;
     } mParameters;
 
     void configureParameters();
     void dumpParameters(std::string& dump);
+
+    int32_t getOrientation();
+    int32_t getDisplayId();
 
     bool isKeyboardOrGamepadKey(int32_t scanCode);
     bool isMediaKey(int32_t keyCode);
@@ -1161,6 +936,7 @@ public:
 
     virtual void fadePointer();
 
+    virtual std::optional<int32_t> getAssociatedDisplay();
 private:
     // Amount that trackball needs to move in order to generate a key event.
     static const int32_t TRACKBALL_MOVEMENT_THRESHOLD = 6;
@@ -1254,7 +1030,7 @@ public:
     virtual void cancelTouch(nsecs_t when);
     virtual void timeoutExpired(nsecs_t when);
     virtual void updateExternalStylusState(const StylusState& state);
-
+    virtual std::optional<int32_t> getAssociatedDisplay();
 protected:
     CursorButtonAccumulator mCursorButtonAccumulator;
     CursorScrollAccumulator mCursorScrollAccumulator;
@@ -1305,7 +1081,7 @@ protected:
         bool associatedDisplayIsExternal;
         bool orientationAware;
         bool hasButtonUnderPad;
-        String8 uniqueDisplayId;
+        std::string uniqueDisplayId;
 
         enum GestureMode {
             GESTURE_MODE_SINGLE_TOUCH,
@@ -1459,7 +1235,7 @@ protected:
         }
     };
 
-    Vector<RawState> mRawStatesPending;
+    std::vector<RawState> mRawStatesPending;
     RawState mCurrentRawState;
     CookedState mCurrentCookedState;
     RawState mLastRawState;
@@ -1486,7 +1262,7 @@ protected:
     // The pointer controller, or null if the device is not a pointer.
     sp<PointerControllerInterface> mPointerController;
 
-    Vector<VirtualKey> mVirtualKeys;
+    std::vector<VirtualKey> mVirtualKeys;
 
     virtual void configureParameters();
     virtual void dumpParameters(std::string& dump);
@@ -1803,6 +1579,11 @@ private:
     VelocityControl mWheelXVelocityControl;
     VelocityControl mWheelYVelocityControl;
 
+    // Latency statistics for touch events
+    struct LatencyStatistics mStatistics;
+
+    std::optional<DisplayViewport> findViewport();
+
     void resetExternalStylus();
     void clearStylusDataPendingFlags();
 
@@ -1869,6 +1650,8 @@ private:
     const VirtualKey* findVirtualKeyHit(int32_t x, int32_t y);
 
     static void assignPointerIds(const RawState* last, RawState* current);
+
+    void reportEventForStatistics(nsecs_t evdevTime);
 
     const char* modeToString(DeviceMode deviceMode);
 };

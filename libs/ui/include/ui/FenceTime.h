@@ -19,6 +19,7 @@
 
 #include <ui/Fence.h>
 #include <utils/Flattenable.h>
+#include <utils/Mutex.h>
 #include <utils/Timers.h>
 
 #include <atomic>
@@ -113,11 +114,6 @@ public:
 
     void signalForTest(nsecs_t signalTime);
 
-    // Override new and delete since this needs 8-byte alignment, which
-    // is not guaranteed on x86.
-    static void* operator new(size_t nbytes) noexcept;
-    static void operator delete(void *p);
-
 private:
     // For tests only. If forceValidForTest is true, then getSignalTime will
     // never return SIGNAL_TIME_INVALID and isValid will always return true.
@@ -164,7 +160,7 @@ public:
 
 private:
     mutable std::mutex mMutex;
-    std::queue<std::weak_ptr<FenceTime>> mQueue;
+    std::queue<std::weak_ptr<FenceTime>> mQueue GUARDED_BY(mMutex);
 };
 
 // Used by test code to create or get FenceTimes for a given Fence.

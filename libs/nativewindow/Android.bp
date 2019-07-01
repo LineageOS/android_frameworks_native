@@ -13,11 +13,18 @@
 // limitations under the License.
 
 ndk_headers {
-    name: "libnativewindow_headers",
+    name: "libnativewindow_ndk_headers",
     from: "include/android",
     to: "android",
     srcs: ["include/android/*.h"],
     license: "NOTICE",
+}
+
+// TODO(b/118715870): cleanup header files
+cc_library_headers {
+    name: "libnativewindow_headers",
+    export_include_dirs: ["include"],
+    vendor_available: true,
 }
 
 ndk_library {
@@ -40,6 +47,7 @@ cc_library {
     cflags: [
         "-Wall",
         "-Werror",
+        "-Wno-enum-compare",
         "-Wno-unused-function",
     ],
 
@@ -66,6 +74,7 @@ cc_library {
 
     header_libs: [
         "libnativebase_headers",
+        "libnativewindow_headers",
     ],
 
     // headers we include in our public headers

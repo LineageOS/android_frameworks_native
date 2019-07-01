@@ -94,7 +94,7 @@ const char* RotationVectorSensor::getSensorName() const {
             return "GeoMag Rotation Vector Sensor";
         default:
             assert(0);
-            return NULL;
+            return nullptr;
     }
 }
 

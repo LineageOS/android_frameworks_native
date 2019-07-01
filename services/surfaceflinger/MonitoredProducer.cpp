@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include "MessageQueue.h"
 #include "MonitoredProducer.h"
-#include "SurfaceFlinger.h"
 #include "Layer.h"
+#include "SurfaceFlinger.h"
+
+#include "Scheduler/MessageQueue.h"
 
 namespace android {
 
@@ -129,6 +130,10 @@ status_t MonitoredProducer::setAutoRefresh(bool autoRefresh) {
 
 status_t MonitoredProducer::setDequeueTimeout(nsecs_t timeout) {
     return mProducer->setDequeueTimeout(timeout);
+}
+
+status_t MonitoredProducer::setLegacyBufferDrop(bool drop) {
+    return mProducer->setLegacyBufferDrop(drop);
 }
 
 status_t MonitoredProducer::getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,

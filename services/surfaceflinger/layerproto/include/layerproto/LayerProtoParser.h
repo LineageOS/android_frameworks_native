@@ -17,6 +17,7 @@
 
 #include <layerproto/LayerProtoHeader.h>
 
+#include <gui/LayerMetadata.h>
 #include <math/vec4.h>
 
 #include <memory>
@@ -80,7 +81,7 @@ public:
     public:
         int32_t id;
         std::string name;
-        std::vector<std::unique_ptr<Layer>> children;
+        std::vector<Layer*> children;
         std::vector<Layer*> relatives;
         std::string type;
         LayerProtoParser::Region transparentRegion;
@@ -92,7 +93,6 @@ public:
         float2 requestedPosition;
         int2 size;
         LayerProtoParser::Rect crop;
-        LayerProtoParser::Rect finalCrop;
         bool isOpaque;
         bool invalidate;
         std::string dataspace;
@@ -105,15 +105,16 @@ public:
         Layer* parent = 0;
         Layer* zOrderRelativeOf = 0;
         LayerProtoParser::ActiveBuffer activeBuffer;
+        Transform bufferTransform;
         int32_t queuedFrames;
         bool refreshPending;
         LayerProtoParser::Rect hwcFrame;
         LayerProtoParser::FloatRect hwcCrop;
         int32_t hwcTransform;
-        int32_t windowType;
-        int32_t appId;
         int32_t hwcCompositionType;
         bool isProtected;
+        float cornerRadius;
+        LayerMetadata metadata;
 
         std::string to_string() const;
     };
@@ -126,13 +127,22 @@ public:
         int32_t globalTransform;
     };
 
+    class LayerTree {
+    public:
+        // all layers in LayersProto and in the original order
+        std::vector<Layer> allLayers;
+
+        // pointers to top-level layers in allLayers
+        std::vector<Layer*> topLevelLayers;
+    };
+
     static const LayerGlobal generateLayerGlobalInfo(const LayersProto& layersProto);
-    static std::vector<std::unique_ptr<Layer>> generateLayerTree(const LayersProto& layersProto);
-    static std::string layersToString(std::vector<std::unique_ptr<LayerProtoParser::Layer>> layers);
+    static LayerTree generateLayerTree(const LayersProto& layersProto);
+    static std::string layerTreeToString(const LayerTree& layerTree);
 
 private:
-    static std::unordered_map<int32_t, Layer*> generateMap(const LayersProto& layersProto);
-    static LayerProtoParser::Layer* generateLayer(const LayerProto& layerProto);
+    static std::vector<Layer> generateLayerList(const LayersProto& layersProto);
+    static LayerProtoParser::Layer generateLayer(const LayerProto& layerProto);
     static LayerProtoParser::Region generateRegion(const RegionProto& regionProto);
     static LayerProtoParser::Rect generateRect(const RectProto& rectProto);
     static LayerProtoParser::FloatRect generateFloatRect(const FloatRectProto& rectProto);
@@ -142,7 +152,7 @@ private:
     static void updateChildrenAndRelative(const LayerProto& layerProto,
                                           std::unordered_map<int32_t, Layer*>& layerMap);
 
-    static std::string layerToString(LayerProtoParser::Layer* layer);
+    static std::string layerToString(const LayerProtoParser::Layer* layer);
 };
 
 } // namespace surfaceflinger

@@ -33,7 +33,8 @@ class Loader {
     enum {
         EGL         = 0x01,
         GLESv1_CM   = 0x02,
-        GLESv2      = 0x04
+        GLESv2      = 0x04,
+        PLATFORM    = 0x08
     };
     struct driver_t {
         explicit driver_t(void* gles);
@@ -50,11 +51,15 @@ public:
     ~Loader();
 
     void* open(egl_connection_t* cnx);
-    void close(void* driver);
+    void close(egl_connection_t* cnx);
 
 private:
     Loader();
-    void *load_driver(const char* kind, egl_connection_t* cnx, uint32_t mask);
+    driver_t* attempt_to_load_angle(egl_connection_t* cnx);
+    driver_t* attempt_to_load_updated_driver(egl_connection_t* cnx);
+    driver_t* attempt_to_load_system_driver(egl_connection_t* cnx, const char* suffix, const bool exact);
+    void unload_system_driver(egl_connection_t* cnx);
+    void initialize_api(void* dso, egl_connection_t* cnx, uint32_t mask);
 
     static __attribute__((noinline))
     void init_api(void* dso,

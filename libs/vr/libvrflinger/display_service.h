@@ -4,7 +4,6 @@
 #include <dvr/dvr_api.h>
 #include <pdx/service.h>
 #include <pdx/status.h>
-#include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/bufferhub_rpc.h>
 #include <private/dvr/display_protocol.h>
 
@@ -59,11 +58,6 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
   using DisplayConfigurationUpdateNotifier = std::function<void(void)>;
   void SetDisplayConfigurationUpdateNotifier(
       DisplayConfigurationUpdateNotifier notifier);
-
-  using VSyncCallback = HardwareComposer::VSyncCallback;
-  void SetVSyncCallback(VSyncCallback callback) {
-    hardware_composer_.SetVSyncCallback(callback);
-  }
 
   void GrantDisplayOwnership() { hardware_composer_.Enable(); }
   void SeizeDisplayOwnership() { hardware_composer_.Disable(); }
