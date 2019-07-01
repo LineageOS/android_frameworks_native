@@ -72,9 +72,10 @@ static std::vector<apex::ApexFile> ActivateApexPackages() {
 static void DeactivateApexPackages(const std::vector<apex::ApexFile>& active_packages) {
     for (const apex::ApexFile& apex_file : active_packages) {
         const std::string& package_path = apex_file.GetPath();
-        apex::Status status = apex::deactivatePackage(package_path);
-        if (!status.Ok()) {
-            LOG(ERROR) << "Failed to deactivate " << package_path << ": " << status.ErrorMessage();
+        base::Result<void> status = apex::deactivatePackage(package_path);
+        if (!status) {
+            LOG(ERROR) << "Failed to deactivate " << package_path << ": "
+                       << status.error();
         }
     }
 }
