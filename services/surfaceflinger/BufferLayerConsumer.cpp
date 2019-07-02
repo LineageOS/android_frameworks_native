@@ -419,30 +419,6 @@ std::shared_ptr<FenceTime> BufferLayerConsumer::getCurrentFenceTime() const {
     return mCurrentFenceTime;
 }
 
-status_t BufferLayerConsumer::doFenceWaitLocked() const {
-    if (mCurrentFence->isValid()) {
-        if (mRE.useWaitSync()) {
-            base::unique_fd fenceFd(mCurrentFence->dup());
-            if (fenceFd == -1) {
-                BLC_LOGE("doFenceWait: error dup'ing fence fd: %d", errno);
-                return -errno;
-            }
-            if (!mRE.waitFence(std::move(fenceFd))) {
-                BLC_LOGE("doFenceWait: failed to wait on fence fd");
-                return UNKNOWN_ERROR;
-            }
-        } else {
-            status_t err = mCurrentFence->waitForever("BufferLayerConsumer::doFenceWaitLocked");
-            if (err != NO_ERROR) {
-                BLC_LOGE("doFenceWait: error waiting for fence: %d", err);
-                return err;
-            }
-        }
-    }
-
-    return NO_ERROR;
-}
-
 void BufferLayerConsumer::freeBufferLocked(int slotIndex) {
     BLC_LOGV("freeBufferLocked: slotIndex=%d", slotIndex);
     std::lock_guard<std::mutex> lock(mImagesMutex);

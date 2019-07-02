@@ -50,7 +50,6 @@ class GLESRenderEngine : public impl::RenderEngine {
 public:
     static std::unique_ptr<GLESRenderEngine> create(int hwcFormat, uint32_t featureFlags,
                                                     uint32_t imageCacheSize);
-    static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);
 
     GLESRenderEngine(uint32_t featureFlags, // See RenderEngine::FeatureFlag
                      EGLDisplay display, EGLConfig config, EGLContext ctxt, EGLSurface dummy,
@@ -58,17 +57,7 @@ public:
                      uint32_t imageCacheSize);
     ~GLESRenderEngine() override EXCLUDES(mRenderingMutex);
 
-    std::unique_ptr<Framebuffer> createFramebuffer() override;
-    std::unique_ptr<Image> createImage() override;
-
     void primeCache() const override;
-    bool isCurrent() const override;
-    base::unique_fd flush() override;
-    bool finish() override;
-    bool waitFence(base::unique_fd fenceFd) override;
-    void clearWithColor(float red, float green, float blue, float alpha) override;
-    void fillRegionWithColor(const Region& region, float red, float green, float blue,
-                             float alpha) override;
     void genTextures(size_t count, uint32_t* names) override;
     void deleteTextures(size_t count, uint32_t const* names) override;
     void bindExternalTextureImage(uint32_t texName, const Image& image) override;
@@ -78,7 +67,6 @@ public:
     void unbindExternalTextureBuffer(uint64_t bufferId) EXCLUDES(mRenderingMutex);
     status_t bindFrameBuffer(Framebuffer* framebuffer) override;
     void unbindFrameBuffer(Framebuffer* framebuffer) override;
-    void checkErrors() const override;
 
     bool isProtected() const override { return mInProtectedContext; }
     bool supportsProtectedContent() const override;
@@ -88,9 +76,7 @@ public:
                         base::unique_fd&& bufferFence, base::unique_fd* drawFence)
             EXCLUDES(mRenderingMutex) override;
 
-    // internal to RenderEngine
     EGLDisplay getEGLDisplay() const { return mEGLDisplay; }
-    EGLConfig getEGLConfig() const { return mEGLConfig; }
     // Creates an output image for rendering to
     EGLImageKHR createFramebufferImageIfNeeded(ANativeWindowBuffer* nativeBuffer, bool isProtected,
                                                bool useFramebufferCache);
@@ -104,27 +90,6 @@ public:
 protected:
     Framebuffer* getFramebufferForDrawing() override;
     void dump(std::string& result) override;
-    void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
-                                  ui::Transform::orientation_flags rotation) override;
-    void setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,
-                            const half4& color, float cornerRadius) override;
-    void setupLayerTexturing(const Texture& texture) override;
-    void setupLayerBlackedOut() override;
-    void setupFillWithColor(float r, float g, float b, float a) override;
-    void setColorTransform(const mat4& colorTransform) override;
-    void disableTexturing() override;
-    void disableBlending() override;
-    void setupCornerRadiusCropSize(float width, float height) override;
-
-    // HDR and color management related functions and state
-    void setSourceY410BT2020(bool enable) override;
-    void setSourceDataSpace(ui::Dataspace source) override;
-    void setOutputDataSpace(ui::Dataspace dataspace) override;
-    void setDisplayMaxLuminance(const float maxLuminance) override;
-
-    // drawing
-    void drawMesh(const Mesh& mesh) override;
-
     size_t getMaxTextureSize() const override;
     size_t getMaxViewportDims() const override;
 
@@ -136,12 +101,16 @@ private:
         GLES_VERSION_3_0 = 0x30000,
     };
 
+    static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);
     static GlesVersion parseGlesVersion(const char* str);
     static EGLContext createEglContext(EGLDisplay display, EGLConfig config,
                                        EGLContext shareContext, bool useContextPriority,
                                        Protection protection);
     static EGLSurface createDummyEglPbufferSurface(EGLDisplay display, EGLConfig config,
                                                    int hwcFormat, Protection protection);
+    std::unique_ptr<Framebuffer> createFramebuffer();
+    std::unique_ptr<Image> createImage();
+    void checkErrors() const;
     void setScissor(const Rect& region);
     void disableScissor();
     bool waitSync(EGLSyncKHR sync, EGLint flags);
@@ -165,6 +134,28 @@ private:
     // blending is an expensive operation, we want to turn off blending when it's not necessary.
     void handleRoundedCorners(const DisplaySettings& display, const LayerSettings& layer,
                               const Mesh& mesh);
+    base::unique_fd flush();
+    bool finish();
+    bool waitFence(base::unique_fd fenceFd);
+    void clearWithColor(float red, float green, float blue, float alpha);
+    void fillRegionWithColor(const Region& region, float red, float green, float blue, float alpha);
+    void setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,
+                            const half4& color, float cornerRadius);
+    void setupLayerTexturing(const Texture& texture);
+    void setupFillWithColor(float r, float g, float b, float a);
+    void setColorTransform(const mat4& colorTransform);
+    void disableTexturing();
+    void disableBlending();
+    void setupCornerRadiusCropSize(float width, float height);
+
+    // HDR and color management related functions and state
+    void setSourceY410BT2020(bool enable);
+    void setSourceDataSpace(ui::Dataspace source);
+    void setOutputDataSpace(ui::Dataspace dataspace);
+    void setDisplayMaxLuminance(const float maxLuminance);
+
+    // drawing
+    void drawMesh(const Mesh& mesh);
 
     EGLDisplay mEGLDisplay;
     EGLConfig mEGLConfig;

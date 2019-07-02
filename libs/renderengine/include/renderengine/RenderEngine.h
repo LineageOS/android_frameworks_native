@@ -77,10 +77,6 @@ public:
     // This interface, while still in use until a suitable replacement is built,
     // should be considered deprecated, minus some methods which still may be
     // used to support legacy behavior.
-
-    virtual std::unique_ptr<Framebuffer> createFramebuffer() = 0;
-    virtual std::unique_ptr<Image> createImage() = 0;
-
     virtual void primeCache() const = 0;
 
     // dump the extension strings. always call the base class.
@@ -88,24 +84,6 @@ public:
 
     virtual bool useNativeFenceSync() const = 0;
     virtual bool useWaitSync() const = 0;
-
-    virtual bool isCurrent() const = 0;
-
-    // helpers
-    // flush submits RenderEngine command stream for execution and returns a
-    // native fence fd that is signaled when the execution has completed.  It
-    // returns -1 on errors.
-    virtual base::unique_fd flush() = 0;
-    // finish waits until RenderEngine command stream has been executed.  It
-    // returns false on errors.
-    virtual bool finish() = 0;
-    // waitFence inserts a wait on an external fence fd to RenderEngine
-    // command stream.  It returns false on errors.
-    virtual bool waitFence(base::unique_fd fenceFd) = 0;
-
-    virtual void clearWithColor(float red, float green, float blue, float alpha) = 0;
-    virtual void fillRegionWithColor(const Region& region, float red, float green, float blue,
-                                     float alpha) = 0;
     virtual void genTextures(size_t count, uint32_t* names) = 0;
     virtual void deleteTextures(size_t count, uint32_t const* names) = 0;
     virtual void bindExternalTextureImage(uint32_t texName, const Image& image) = 0;
@@ -125,40 +103,6 @@ public:
     // Returns NO_ERROR when binds successfully, NO_MEMORY when there's no memory for allocation.
     virtual status_t bindFrameBuffer(Framebuffer* framebuffer) = 0;
     virtual void unbindFrameBuffer(Framebuffer* framebuffer) = 0;
-
-    // set-up
-    virtual void checkErrors() const = 0;
-    virtual void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
-                                          ui::Transform::orientation_flags rotation) = 0;
-    virtual void setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,
-                                    const half4& color, float cornerRadius) = 0;
-    virtual void setupLayerTexturing(const Texture& texture) = 0;
-    virtual void setupLayerBlackedOut() = 0;
-    virtual void setupFillWithColor(float r, float g, float b, float a) = 0;
-    // Sets up the crop size for corner radius clipping.
-    //
-    // Having corner radius will force GPU composition on the layer and its children, drawing it
-    // with a special shader. The shader will receive the radius and the crop rectangle as input,
-    // modifying the opacity of the destination texture, multiplying it by a number between 0 and 1.
-    // We query Layer#getRoundedCornerState() to retrieve the radius as well as the rounded crop
-    // rectangle to figure out how to apply the radius for this layer. The crop rectangle will be
-    // in local layer coordinate space, so we have to take the layer transform into account when
-    // walking up the tree.
-    virtual void setupCornerRadiusCropSize(float width, float height) = 0;
-
-    // Set a color transform matrix that is applied in linear space right before OETF.
-    virtual void setColorTransform(const mat4& /* colorTransform */) = 0;
-    virtual void disableTexturing() = 0;
-    virtual void disableBlending() = 0;
-
-    // HDR and color management support
-    virtual void setSourceY410BT2020(bool enable) = 0;
-    virtual void setSourceDataSpace(ui::Dataspace source) = 0;
-    virtual void setOutputDataSpace(ui::Dataspace dataspace) = 0;
-    virtual void setDisplayMaxLuminance(const float maxLuminance) = 0;
-
-    // drawing
-    virtual void drawMesh(const Mesh& mesh) = 0;
 
     // queries
     virtual size_t getMaxTextureSize() const = 0;
