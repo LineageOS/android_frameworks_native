@@ -61,7 +61,11 @@ blacklistedExtensions = [
     'VK_NV_win32_keyed_mutex',
     'VK_EXT_metal_surface', #not present in vulkan.api
     'VK_NVX_image_view_handle', #not present in vulkan.api
-    'VK_NV_cooperative_matrix' #not present in vulkan.api
+    'VK_NV_cooperative_matrix', #not present in vulkan.api
+    'VK_EXT_headless_surface', #not present in vulkan.api
+    'VK_GGP_stream_descriptor_surface', #not present in vulkan.api
+    'VK_NV_coverage_reduction_mode', #not present in vulkan.api
+    'VK_EXT_full_screen_exclusive' #not present in vulkan.api
 ]
 
 exportedExtensions = [
@@ -70,6 +74,11 @@ exportedExtensions = [
     'VK_KHR_android_surface',
     'VK_ANDROID_external_memory_android_hardware_buffer'
 ]
+
+def isExtensionInternal(extensionName):
+  if extensionName == 'VK_ANDROID_native_buffer':
+    return True
+  return False
 
 def isFunctionSupported(functionName):
   if functionName not in extensionsDict:
@@ -167,6 +176,7 @@ def parseVulkanRegistry():
           aliasDict[fnName] = alias
           allCommandsList.append(fnName)
           paramDict[fnName] = paramDict[alias].copy()
+          returnTypeDict[fnName] = returnTypeDict[alias]
         for params in command:
           if(params.tag == 'param'):
             paramtype = ""
@@ -208,6 +218,19 @@ def parseVulkanRegistry():
                 if apiversion != "":
                   versionDict[commandname] = apiversion
 
+  # TODO(adsrini): http://b/136570819
+  extensionsDict['vkGetSwapchainGrallocUsage2ANDROID'] = 'VK_ANDROID_native_buffer'
+  allCommandsList.append('vkGetSwapchainGrallocUsage2ANDROID')
+  returnTypeDict['vkGetSwapchainGrallocUsage2ANDROID'] = 'VkResult'
+  paramDict['vkGetSwapchainGrallocUsage2ANDROID'] = [
+    ('VkDevice ', 'device', None),
+    ('VkFormat ', 'format', None),
+    ('VkImageUsageFlags', 'imageUsage', None),
+    ('VkSwapchainImageUsageFlagsANDROID ', 'swapchainImageUsage', None),
+    ('u64* ', 'grallocConsumerUsage', None),
+    ('u64* ', 'grallocProducerUsage', None)
+  ]
+
   for feature in root.iter('feature'):
     apiversion = feature.get('name')
     for req in feature:
@@ -225,6 +248,8 @@ def initProc(name, f):
     f.write ('    INIT_PROC(')
 
   if name in versionDict and versionDict[name] == 'VK_VERSION_1_1':
+    f.write('false, ')
+  elif name == 'vkGetSwapchainGrallocUsageANDROID' or name == 'vkGetSwapchainGrallocUsage2ANDROID': # optional in vulkan.api
     f.write('false, ')
   else:
     f.write('true, ')

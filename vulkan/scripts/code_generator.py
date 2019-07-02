@@ -19,8 +19,11 @@
 
 import generator_common as gencom
 import api_generator as apigen
+import driver_generator as drivergen
 
 if __name__ == '__main__':
   gencom.parseVulkanRegistry()
   apigen.api_genh()
   apigen.api_gencpp()
+  drivergen.driver_genh()
+  drivergen.driver_gencpp()
