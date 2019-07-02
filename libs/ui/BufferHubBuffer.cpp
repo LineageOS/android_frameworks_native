@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "BufferHubBuffer"
 #include <poll.h>
 
 #include <android-base/unique_fd.h>

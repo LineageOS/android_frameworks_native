@@ -626,7 +626,7 @@ status_t GraphicBuffer::unflattenBufferHubBuffer(void const*& buffer, size_t& si
                            bufferHubBuffer->desc().layers, bufferHubBuffer->desc().usage,
                            bufferHubBuffer->desc().stride);
     mBufferId = bufferHubBuffer->id();
-    mBufferHubBuffer.reset(std::move(bufferHubBuffer.get()));
+    mBufferHubBuffer = std::move(bufferHubBuffer);
 
     return NO_ERROR;
 }
