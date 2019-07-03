@@ -18,6 +18,7 @@
 
 #include <android/hardware/graphics/common/1.0/types.h>
 #include <grallocusage/GrallocUsageConversion.h>
+#include <graphicsenv/GraphicsEnv.h>
 #include <log/log.h>
 #include <sync/sync.h>
 #include <system/window.h>
@@ -1253,6 +1254,15 @@ VkResult CreateSwapchainKHR(VkDevice device,
         return VK_ERROR_SURFACE_LOST_KHR;
     }
 
+    int transform_hint;
+    err = surface.window->query(surface.window.get(),
+                                NATIVE_WINDOW_TRANSFORM_HINT, &transform_hint);
+    if (err != 0) {
+        ALOGE("NATIVE_WINDOW_TRANSFORM_HINT query failed: %s (%d)",
+              strerror(-err), err);
+        return VK_ERROR_SURFACE_LOST_KHR;
+    }
+
     // -- Allocate our Swapchain object --
     // After this point, we must deallocate the swapchain on error.
 
@@ -1354,6 +1364,12 @@ VkResult CreateSwapchainKHR(VkDevice device,
         DestroySwapchainInternal(device, HandleFromSwapchain(swapchain),
                                  allocator);
         return result;
+    }
+
+    if (transform_hint != swapchain->pre_transform) {
+        // Log that the app is not doing pre-rotation.
+        android::GraphicsEnv::getInstance().setTargetStats(
+            android::GpuStatsInfo::Stats::FALSE_PREROTATION);
     }
 
     surface.swapchain_handle = HandleFromSwapchain(swapchain);

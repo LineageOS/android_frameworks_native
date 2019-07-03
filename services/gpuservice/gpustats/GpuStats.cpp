@@ -142,6 +142,9 @@ void GpuStats::insertTargetStats(const std::string& appPackageName,
         case GpuStatsInfo::Stats::CPU_VULKAN_IN_USE:
             mAppStats[appStatsKey].cpuVulkanInUse = true;
             break;
+        case GpuStatsInfo::Stats::FALSE_PREROTATION:
+            mAppStats[appStatsKey].falsePrerotation = true;
+            break;
         default:
             break;
     }
