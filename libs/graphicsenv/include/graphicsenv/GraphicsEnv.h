@@ -43,6 +43,10 @@ public:
         ANGLE = 5,
     };
 
+    enum Stats {
+        CPU_VULKAN_IN_USE = 0,
+    };
+
 private:
     struct GpuStats {
         std::string driverPackageName;
@@ -96,7 +100,7 @@ public:
     void setGpuStats(const std::string& driverPackageName, const std::string& driverVersionName,
                      uint64_t versionCode, int64_t driverBuildTime,
                      const std::string& appPackageName, const int32_t vulkanVersion);
-    void setCpuVulkanInUse();
+    void setTargetStats(const Stats stats, const uint64_t value = 0);
     void setDriverToLoad(Driver driver);
     void setDriverLoaded(Api api, bool isDriverLoaded, int64_t driverLoadingTime);
     void sendGpuStatsLocked(Api api, bool isDriverLoaded, int64_t driverLoadingTime);
