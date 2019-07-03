@@ -523,22 +523,19 @@ Scheduler::RefreshRateType Scheduler::calculateRefreshRateType() {
         return RefreshRateType::PERFORMANCE;
     }
 
-    // Content detection is on, find the appropriate refresh rate
-    // Start with the smallest refresh rate which is within a margin of the content
-    RefreshRateType currRefreshRateType = RefreshRateType::PERFORMANCE;
-    constexpr float MARGIN = 0.05f;
-    auto iter = mRefreshRateConfigs.getRefreshRates().cbegin();
-    while (iter != mRefreshRateConfigs.getRefreshRates().cend()) {
-        if (iter->second->fps >= mContentRefreshRate * (1 - MARGIN)) {
-            currRefreshRateType = iter->first;
-            break;
-        }
-        ++iter;
-    }
+    // Content detection is on, find the appropriate refresh rate with minimal error
+    auto iter = min_element(mRefreshRateConfigs.getRefreshRates().cbegin(),
+                            mRefreshRateConfigs.getRefreshRates().cend(),
+                            [rate = mContentRefreshRate](const auto& l, const auto& r) -> bool {
+                                return std::abs(l.second->fps - static_cast<float>(rate)) <
+                                        std::abs(r.second->fps - static_cast<float>(rate));
+                            });
+    RefreshRateType currRefreshRateType = iter->first;
 
     // Some content aligns better on higher refresh rate. For example for 45fps we should choose
     // 90Hz config. However we should still prefer a lower refresh rate if the content doesn't
     // align well with both
+    constexpr float MARGIN = 0.05f;
     float ratio = mRefreshRateConfigs.getRefreshRate(currRefreshRateType)->fps /
             float(mContentRefreshRate);
     if (std::abs(std::round(ratio) - ratio) > MARGIN) {
