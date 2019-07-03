@@ -213,7 +213,8 @@ void GraphicsEnv::setDriverToLoad(GraphicsEnv::Driver driver) {
         case GraphicsEnv::Driver::GL:
         case GraphicsEnv::Driver::GL_UPDATED:
         case GraphicsEnv::Driver::ANGLE: {
-            if (mGpuStats.glDriverToLoad == GraphicsEnv::Driver::NONE) {
+            if (mGpuStats.glDriverToLoad == GraphicsEnv::Driver::NONE ||
+                mGpuStats.glDriverToLoad == GraphicsEnv::Driver::GL) {
                 mGpuStats.glDriverToLoad = driver;
                 break;
             }
@@ -225,7 +226,8 @@ void GraphicsEnv::setDriverToLoad(GraphicsEnv::Driver driver) {
         }
         case Driver::VULKAN:
         case Driver::VULKAN_UPDATED: {
-            if (mGpuStats.vkDriverToLoad == GraphicsEnv::Driver::NONE) {
+            if (mGpuStats.vkDriverToLoad == GraphicsEnv::Driver::NONE ||
+                mGpuStats.vkDriverToLoad == GraphicsEnv::Driver::VULKAN) {
                 mGpuStats.vkDriverToLoad = driver;
                 break;
             }
@@ -267,14 +269,14 @@ static sp<IGpuService> getGpuService() {
     return interface_cast<IGpuService>(binder);
 }
 
-void GraphicsEnv::setCpuVulkanInUse() {
+void GraphicsEnv::setTargetStats(const Stats stats, const uint64_t value) {
     ATRACE_CALL();
 
-    // Use the same stats lock to protect getGpuService() as well.
     std::lock_guard<std::mutex> lock(mStatsLock);
     const sp<IGpuService> gpuService = getGpuService();
     if (gpuService) {
-        gpuService->setCpuVulkanInUse(mGpuStats.appPackageName, mGpuStats.driverVersionCode);
+        gpuService->setTargetStats(mGpuStats.appPackageName, mGpuStats.driverVersionCode, stats,
+                                   value);
     }
 }
 
