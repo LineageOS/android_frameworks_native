@@ -46,6 +46,24 @@ cc_test {
     cflags: ["-Wall", "-Werror"],
 }
 
+// This test has a main method, and requires a separate binary to be built.
+cc_test {
+    name: "GraphicBufferOverBinder_test",
+    srcs: ["GraphicBufferOverBinder_test.cpp"],
+    cflags: ["-Wall", "-Werror"],
+    header_libs: [
+        "libdvr_headers",
+    ],
+    shared_libs: [
+        "android.frameworks.bufferhub@1.0",
+        "libbinder",
+        "libgui",
+        "liblog",
+        "libui",
+        "libutils",
+    ],
+}
+
 cc_test {
     name: "BufferHub_test",
     header_libs: [

@@ -276,7 +276,7 @@ void MotionClassifier::enqueueEvent(ClassifierEvent&& event) {
     bool eventAdded = mEvents.push(std::move(event));
     if (!eventAdded) {
         // If the queue is full, suspect the HAL is slow in processing the events.
-        ALOGE("Dropped event with eventTime %" PRId64, event.args->eventTime);
+        ALOGE("Could not add the event to the queue. Resetting");
         reset();
     }
 }

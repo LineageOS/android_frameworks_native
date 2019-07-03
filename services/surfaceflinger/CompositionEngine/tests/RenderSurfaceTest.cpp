@@ -364,20 +364,6 @@ TEST_F(RenderSurfaceTest, onPresentDisplayCompletedForwardsSignal) {
 }
 
 /* ------------------------------------------------------------------------
- * RenderSurface::setViewportAndProjection()
- */
-
-TEST_F(RenderSurfaceTest, setViewportAndProjectionAppliesChang) {
-    mSurface.setSizeForTest(ui::Size(100, 200));
-
-    EXPECT_CALL(mRenderEngine,
-                setViewportAndProjection(100, 200, Rect(100, 200), ui::Transform::ROT_0))
-            .Times(1);
-
-    mSurface.setViewportAndProjection();
-}
-
-/* ------------------------------------------------------------------------
  * RenderSurface::flip()
  */
 

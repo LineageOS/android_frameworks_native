@@ -790,7 +790,6 @@ private:
 
     void postFramebuffer(const sp<DisplayDevice>& display);
     void postFrame();
-    void drawWormhole(const Region& region) const;
 
     /* ------------------------------------------------------------------------
      * Display management
