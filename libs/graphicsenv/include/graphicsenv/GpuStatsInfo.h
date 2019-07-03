@@ -91,6 +91,10 @@ public:
         ANGLE = 5,
     };
 
+    enum Stats {
+        CPU_VULKAN_IN_USE = 0,
+    };
+
     GpuStatsInfo() = default;
     GpuStatsInfo(const GpuStatsInfo&) = default;
     virtual ~GpuStatsInfo() = default;
