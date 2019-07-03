@@ -17,6 +17,8 @@
 #ifndef ANDROID_UI_GRAPHICS_ENV_H
 #define ANDROID_UI_GRAPHICS_ENV_H 1
 
+#include <graphicsenv/GpuStatsInfo.h>
+
 #include <mutex>
 #include <string>
 #include <vector>
@@ -28,55 +30,6 @@ namespace android {
 struct NativeLoaderNamespace;
 
 class GraphicsEnv {
-public:
-    enum Api {
-        API_GL = 0,
-        API_VK = 1,
-    };
-
-    enum Driver {
-        NONE = 0,
-        GL = 1,
-        GL_UPDATED = 2,
-        VULKAN = 3,
-        VULKAN_UPDATED = 4,
-        ANGLE = 5,
-    };
-
-private:
-    struct GpuStats {
-        std::string driverPackageName;
-        std::string driverVersionName;
-        uint64_t driverVersionCode;
-        int64_t driverBuildTime;
-        std::string appPackageName;
-        int32_t vulkanVersion;
-        Driver glDriverToLoad;
-        Driver glDriverFallback;
-        Driver vkDriverToLoad;
-        Driver vkDriverFallback;
-        bool glDriverToSend;
-        bool vkDriverToSend;
-        int64_t glDriverLoadingTime;
-        int64_t vkDriverLoadingTime;
-
-        GpuStats()
-              : driverPackageName(""),
-                driverVersionName(""),
-                driverVersionCode(0),
-                driverBuildTime(0),
-                appPackageName(""),
-                vulkanVersion(0),
-                glDriverToLoad(Driver::NONE),
-                glDriverFallback(Driver::NONE),
-                vkDriverToLoad(Driver::NONE),
-                vkDriverFallback(Driver::NONE),
-                glDriverToSend(false),
-                vkDriverToSend(false),
-                glDriverLoadingTime(0),
-                vkDriverLoadingTime(0) {}
-    };
-
 public:
     static GraphicsEnv& getInstance();
 
@@ -97,9 +50,9 @@ public:
                      uint64_t versionCode, int64_t driverBuildTime,
                      const std::string& appPackageName, const int32_t vulkanVersion);
     void setCpuVulkanInUse();
-    void setDriverToLoad(Driver driver);
-    void setDriverLoaded(Api api, bool isDriverLoaded, int64_t driverLoadingTime);
-    void sendGpuStatsLocked(Api api, bool isDriverLoaded, int64_t driverLoadingTime);
+    void setDriverToLoad(GpuStatsInfo::Driver driver);
+    void setDriverLoaded(GpuStatsInfo::Api api, bool isDriverLoaded, int64_t driverLoadingTime);
+    void sendGpuStatsLocked(GpuStatsInfo::Api api, bool isDriverLoaded, int64_t driverLoadingTime);
 
     bool shouldUseAngle(std::string appName);
     bool shouldUseAngle();
@@ -135,7 +88,7 @@ private:
     std::string mDriverPath;
     std::string mSphalLibraries;
     std::mutex mStatsLock;
-    GpuStats mGpuStats;
+    GpuStatsInfo mGpuStats;
     std::string mAnglePath;
     std::string mAngleAppName;
     std::string mAngleDeveloperOptIn;
