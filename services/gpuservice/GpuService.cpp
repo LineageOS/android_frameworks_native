@@ -51,7 +51,7 @@ GpuService::GpuService() : mGpuStats(std::make_unique<GpuStats>()){};
 void GpuService::setGpuStats(const std::string& driverPackageName,
                              const std::string& driverVersionName, uint64_t driverVersionCode,
                              int64_t driverBuildTime, const std::string& appPackageName,
-                             const int32_t vulkanVersion, GraphicsEnv::Driver driver,
+                             const int32_t vulkanVersion, GpuStatsInfo::Driver driver,
                              bool isDriverLoaded, int64_t driverLoadingTime) {
     ATRACE_CALL();
 

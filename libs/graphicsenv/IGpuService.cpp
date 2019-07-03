@@ -30,7 +30,7 @@ public:
     virtual void setGpuStats(const std::string& driverPackageName,
                              const std::string& driverVersionName, uint64_t driverVersionCode,
                              int64_t driverBuildTime, const std::string& appPackageName,
-                             const int32_t vulkanVersion, GraphicsEnv::Driver driver,
+                             const int32_t vulkanVersion, GpuStatsInfo::Driver driver,
                              bool isDriverLoaded, int64_t driverLoadingTime) {
         Parcel data, reply;
         data.writeInterfaceToken(IGpuService::getInterfaceDescriptor());
@@ -143,7 +143,7 @@ status_t BnGpuService::onTransact(uint32_t code, const Parcel& data, Parcel* rep
             if ((status = data.readInt64(&driverLoadingTime)) != OK) return status;
 
             setGpuStats(driverPackageName, driverVersionName, driverVersionCode, driverBuildTime,
-                        appPackageName, vulkanVersion, static_cast<GraphicsEnv::Driver>(driver),
+                        appPackageName, vulkanVersion, static_cast<GpuStatsInfo::Driver>(driver),
                         isDriverLoaded, driverLoadingTime);
 
             return OK;

@@ -36,7 +36,7 @@ public:
     void insert(const std::string& driverPackageName, const std::string& driverVersionName,
                 uint64_t driverVersionCode, int64_t driverBuildTime,
                 const std::string& appPackageName, const int32_t vulkanVersion,
-                GraphicsEnv::Driver driver, bool isDriverLoaded, int64_t driverLoadingTime);
+                GpuStatsInfo::Driver driver, bool isDriverLoaded, int64_t driverLoadingTime);
     // Set CPU Vulkan in use signal into app stats.
     void setCpuVulkanInUse(const std::string& appPackageName, const uint64_t driverVersionCode);
     // dumpsys interface

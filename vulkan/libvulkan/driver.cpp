@@ -211,7 +211,7 @@ int LoadBuiltinDriver(const hwvulkan_module_t** module) {
     if (!ns)
         return -ENOENT;
     android::GraphicsEnv::getInstance().setDriverToLoad(
-        android::GraphicsEnv::Driver::VULKAN);
+        android::GpuStatsInfo::Driver::VULKAN);
     return LoadDriver(ns, module);
 }
 
@@ -222,7 +222,7 @@ int LoadUpdatedDriver(const hwvulkan_module_t** module) {
     if (!ns)
         return -ENOENT;
     android::GraphicsEnv::getInstance().setDriverToLoad(
-        android::GraphicsEnv::Driver::VULKAN_UPDATED);
+        android::GpuStatsInfo::Driver::VULKAN_UPDATED);
     return LoadDriver(ns, module);
 }
 
@@ -257,7 +257,7 @@ bool Hal::Open() {
     }
     if (result != 0) {
         android::GraphicsEnv::getInstance().setDriverLoaded(
-            android::GraphicsEnv::Api::API_VK, false, systemTime() - openTime);
+            android::GpuStatsInfo::Api::API_VK, false, systemTime() - openTime);
         ALOGV("unable to load Vulkan HAL, using stub HAL (result=%d)", result);
         return true;
     }
@@ -271,7 +271,7 @@ bool Hal::Open() {
     ATRACE_END();
     if (result != 0) {
         android::GraphicsEnv::getInstance().setDriverLoaded(
-            android::GraphicsEnv::Api::API_VK, false, systemTime() - openTime);
+            android::GpuStatsInfo::Api::API_VK, false, systemTime() - openTime);
         // Any device with a Vulkan HAL should be able to open the device.
         ALOGE("failed to open Vulkan HAL device: %s (%d)", strerror(-result),
               result);
@@ -283,7 +283,7 @@ bool Hal::Open() {
     hal_.InitDebugReportIndex();
 
     android::GraphicsEnv::getInstance().setDriverLoaded(
-        android::GraphicsEnv::Api::API_VK, true, systemTime() - openTime);
+        android::GpuStatsInfo::Api::API_VK, true, systemTime() - openTime);
 
     return true;
 }
