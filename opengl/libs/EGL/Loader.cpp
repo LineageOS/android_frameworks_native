@@ -311,7 +311,7 @@ void* Loader::open(egl_connection_t* cnx)
     }
 
     if (!hnd) {
-        android::GraphicsEnv::getInstance().setDriverLoaded(android::GraphicsEnv::Api::API_GL,
+        android::GraphicsEnv::getInstance().setDriverLoaded(android::GpuStatsInfo::Api::API_GL,
                                                             false, systemTime() - openTime);
     }
 
@@ -330,7 +330,7 @@ void* Loader::open(egl_connection_t* cnx)
     }
 
     if (!cnx->libEgl || !cnx->libGles2 || !cnx->libGles1) {
-        android::GraphicsEnv::getInstance().setDriverLoaded(android::GraphicsEnv::Api::API_GL,
+        android::GraphicsEnv::getInstance().setDriverLoaded(android::GpuStatsInfo::Api::API_GL,
                                                             false, systemTime() - openTime);
     }
 
@@ -340,7 +340,7 @@ void* Loader::open(egl_connection_t* cnx)
     LOG_ALWAYS_FATAL_IF(!cnx->libGles2 || !cnx->libGles1,
             "couldn't load system OpenGL ES wrapper libraries");
 
-    android::GraphicsEnv::getInstance().setDriverLoaded(android::GraphicsEnv::Api::API_GL, true,
+    android::GraphicsEnv::getInstance().setDriverLoaded(android::GpuStatsInfo::Api::API_GL, true,
                                                         systemTime() - openTime);
 
     return (void*)hnd;
@@ -637,7 +637,7 @@ Loader::driver_t* Loader::attempt_to_load_angle(egl_connection_t* cnx) {
         return nullptr;
     }
 
-    android::GraphicsEnv::getInstance().setDriverToLoad(android::GraphicsEnv::Driver::ANGLE);
+    android::GraphicsEnv::getInstance().setDriverToLoad(android::GpuStatsInfo::Driver::ANGLE);
     driver_t* hnd = nullptr;
 
     // ANGLE doesn't ship with GLES library, and thus we skip GLES driver.
@@ -666,7 +666,7 @@ Loader::driver_t* Loader::attempt_to_load_updated_driver(egl_connection_t* cnx) 
     }
 
     ALOGD("Load updated gl driver.");
-    android::GraphicsEnv::getInstance().setDriverToLoad(android::GraphicsEnv::Driver::GL_UPDATED);
+    android::GraphicsEnv::getInstance().setDriverToLoad(android::GpuStatsInfo::Driver::GL_UPDATED);
     driver_t* hnd = nullptr;
     void* dso = load_updated_driver("GLES", ns);
     if (dso) {
@@ -697,7 +697,7 @@ Loader::driver_t* Loader::attempt_to_load_updated_driver(egl_connection_t* cnx) 
 Loader::driver_t* Loader::attempt_to_load_system_driver(egl_connection_t* cnx, const char* suffix,
                                                         const bool exact) {
     ATRACE_CALL();
-    android::GraphicsEnv::getInstance().setDriverToLoad(android::GraphicsEnv::Driver::GL);
+    android::GraphicsEnv::getInstance().setDriverToLoad(android::GpuStatsInfo::Driver::GL);
     driver_t* hnd = nullptr;
     void* dso = load_system_driver("GLES", suffix, exact);
     if (dso) {

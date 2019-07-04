@@ -72,4 +72,43 @@ public:
     bool cpuVulkanInUse = false;
 };
 
+/*
+ * class for holding the gpu stats in GraphicsEnv before sending to GpuService.
+ */
+class GpuStatsInfo {
+public:
+    enum Api {
+        API_GL = 0,
+        API_VK = 1,
+    };
+
+    enum Driver {
+        NONE = 0,
+        GL = 1,
+        GL_UPDATED = 2,
+        VULKAN = 3,
+        VULKAN_UPDATED = 4,
+        ANGLE = 5,
+    };
+
+    GpuStatsInfo() = default;
+    GpuStatsInfo(const GpuStatsInfo&) = default;
+    virtual ~GpuStatsInfo() = default;
+
+    std::string driverPackageName = "";
+    std::string driverVersionName = "";
+    uint64_t driverVersionCode = 0;
+    int64_t driverBuildTime = 0;
+    std::string appPackageName = "";
+    int32_t vulkanVersion = 0;
+    Driver glDriverToLoad = Driver::NONE;
+    Driver glDriverFallback = Driver::NONE;
+    Driver vkDriverToLoad = Driver::NONE;
+    Driver vkDriverFallback = Driver::NONE;
+    bool glDriverToSend = false;
+    bool vkDriverToSend = false;
+    int64_t glDriverLoadingTime = 0;
+    int64_t vkDriverLoadingTime = 0;
+};
+
 } // namespace android
