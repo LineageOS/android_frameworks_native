@@ -493,19 +493,19 @@ TEST_F(ListTest, DumpVintf) {
 TEST_F(ListTest, DumpDefault) {
     const std::string expected =
         "[fake description 0]\n"
-        "R Interface            Thread Use Server Clients\n"
-        "N a.h.foo1@1.0::IFoo/1 11/21      1      2 4\n"
-        "Y a.h.foo2@2.0::IFoo/2 12/22      2      3 5\n"
+        "VINTF R Interface            Thread Use Server Clients\n"
+        "X     N a.h.foo1@1.0::IFoo/1 11/21      1      2 4\n"
+        "X     Y a.h.foo2@2.0::IFoo/2 12/22      2      3 5\n"
         "\n"
         "[fake description 1]\n"
-        "R Interface            Thread Use Server Clients\n"
-        "? a.h.foo3@3.0::IFoo/3 N/A        N/A    4 6\n"
-        "? a.h.foo4@4.0::IFoo/4 N/A        N/A    5 7\n"
+        "VINTF R Interface            Thread Use Server Clients\n"
+        "X     ? a.h.foo3@3.0::IFoo/3 N/A        N/A    4 6\n"
+        "X     ? a.h.foo4@4.0::IFoo/4 N/A        N/A    5 7\n"
         "\n"
         "[fake description 2]\n"
-        "R Interface            Thread Use Server Clients\n"
-        "? a.h.foo5@5.0::IFoo/5 N/A        N/A    6 8\n"
-        "? a.h.foo6@6.0::IFoo/6 N/A        N/A    7 9\n"
+        "VINTF R Interface            Thread Use Server Clients\n"
+        "X     ? a.h.foo5@5.0::IFoo/5 N/A        N/A    6 8\n"
+        "X     ? a.h.foo6@6.0::IFoo/6 N/A        N/A    7 9\n"
         "\n";
 
     optind = 1; // mimic Lshal::parseArg()
