@@ -72,14 +72,18 @@ cc_binary {
 
 cc_test {
     name: "lshal_test",
+    test_suites: ["device-tests"],
     defaults: ["lshal_defaults"],
     gtest: true,
     static_libs: [
-        "libgmock"
+        "android.hardware.tests.baz@1.0",
+        "libgmock",
     ],
     shared_libs: [
+        "libhwbinder",
+        "libhidlbase",
+        "libhidltransport",
         "libvintf",
-        "android.hardware.tests.baz@1.0"
     ],
     srcs: [
         "test.cpp"
