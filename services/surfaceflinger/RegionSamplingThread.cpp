@@ -44,11 +44,14 @@ constexpr auto lumaSamplingStepTag = "LumaSamplingStep";
 enum class samplingStep {
     noWorkNeeded,
     idleTimerWaiting,
+    waitForQuietFrame,
     waitForZeroPhase,
     waitForSamplePhase,
     sample
 };
 
+constexpr auto timeForRegionSampling = 5000000ns;
+constexpr auto maxRegionSamplingSkips = 10;
 constexpr auto defaultRegionSamplingOffset = -3ms;
 constexpr auto defaultRegionSamplingPeriod = 100ms;
 constexpr auto defaultRegionSamplingTimerTimeout = 100ms;
@@ -215,9 +218,9 @@ void RegionSamplingThread::removeListener(const sp<IRegionSamplingListener>& lis
 void RegionSamplingThread::checkForStaleLuma() {
     std::lock_guard lock(mThreadControlMutex);
 
-    if (mDiscardedFrames) {
+    if (mDiscardedFrames > 0) {
         ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::waitForZeroPhase));
-        mDiscardedFrames = false;
+        mDiscardedFrames = 0;
         mPhaseCallback->startVsyncListener();
     }
 }
@@ -235,13 +238,25 @@ void RegionSamplingThread::doSample() {
     auto now = std::chrono::nanoseconds(systemTime(SYSTEM_TIME_MONOTONIC));
     if (lastSampleTime + mTunables.mSamplingPeriod > now) {
         ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::idleTimerWaiting));
-        mDiscardedFrames = true;
+        if (mDiscardedFrames == 0) mDiscardedFrames++;
         return;
+    }
+    if (mDiscardedFrames < maxRegionSamplingSkips) {
+        // If there is relatively little time left for surfaceflinger
+        // until the next vsync deadline, defer this sampling work
+        // to a later frame, when hopefully there will be more time.
+        DisplayStatInfo stats;
+        mScheduler.getDisplayStatInfo(&stats);
+        if (std::chrono::nanoseconds(stats.vsyncTime) - now < timeForRegionSampling) {
+            ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::waitForQuietFrame));
+            mDiscardedFrames++;
+            return;
+        }
     }
 
     ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::sample));
 
-    mDiscardedFrames = false;
+    mDiscardedFrames = 0;
     lastSampleTime = now;
 
     mIdleTimer.reset();
