@@ -826,7 +826,7 @@ public:
 
 protected:
     // -----------------------------------------------------------------------
-    bool usingRelativeZ(LayerVector::StateSet stateSet);
+    bool usingRelativeZ(LayerVector::StateSet stateSet) const;
 
     bool mPremultipliedAlpha{true};
     String8 mName;
