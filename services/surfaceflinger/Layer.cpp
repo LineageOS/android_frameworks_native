@@ -1205,6 +1205,14 @@ bool Layer::isHiddenByPolicy() const {
     if (parent != nullptr && parent->isHiddenByPolicy()) {
         return true;
     }
+    if (usingRelativeZ(LayerVector::StateSet::Drawing)) {
+        auto zOrderRelativeOf = mDrawingState.zOrderRelativeOf.promote();
+        if (zOrderRelativeOf != nullptr) {
+            if (zOrderRelativeOf->isHiddenByPolicy()) {
+                return true;
+            }
+        }
+    }
     return s.flags & layer_state_t::eLayerHidden;
 }
 
@@ -1586,7 +1594,7 @@ int32_t Layer::getZ() const {
     return mDrawingState.z;
 }
 
-bool Layer::usingRelativeZ(LayerVector::StateSet stateSet) {
+bool Layer::usingRelativeZ(LayerVector::StateSet stateSet) const {
     const bool useDrawing = stateSet == LayerVector::StateSet::Drawing;
     const State& state = useDrawing ? mDrawingState : mCurrentState;
     return state.zOrderRelativeOf != nullptr;
