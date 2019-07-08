@@ -146,7 +146,11 @@ cc_test {
     ],
     static_libs: ["libgmock"],
     test_config: "dumpstate_test.xml",
-    data: [":dumpstate_test_fixture", "tests/testdata/**/*"]
+    data: [
+        ":dumpstate_test_fixture",
+        "tests/testdata/**/*",
+    ],
+    test_suites: ["device-tests"],
 }
 
 cc_test {
