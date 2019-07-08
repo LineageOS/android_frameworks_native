@@ -258,7 +258,7 @@ void GraphicsEnv::setDriverLoaded(GpuStatsInfo::Api api, bool isDriverLoaded,
 }
 
 static sp<IGpuService> getGpuService() {
-    const sp<IBinder> binder = defaultServiceManager()->checkService(String16("gpu"));
+    static const sp<IBinder> binder = defaultServiceManager()->checkService(String16("gpu"));
     if (!binder) {
         ALOGE("Failed to get gpu service");
         return nullptr;
