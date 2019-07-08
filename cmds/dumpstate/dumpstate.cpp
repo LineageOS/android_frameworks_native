@@ -1594,6 +1594,8 @@ static Dumpstate::RunStatus DumpstateDefault() {
 static void DumpstateRadioCommon() {
     DumpIpTablesAsRoot();
 
+    ds.AddDir(LOGPERSIST_DATA_DIR, false);
+
     if (!DropRootUser()) {
         return;
     }
@@ -1604,6 +1606,7 @@ static void DumpstateRadioCommon() {
     DoKmsg();
     DumpIpAddrAndRules();
     dump_route_tables();
+    DumpHals();
 
     RunDumpsys("NETWORK DIAGNOSTICS", {"connectivity", "--diag"},
                CommandOptions::WithTimeout(10).Build());
@@ -1672,8 +1675,6 @@ static void DumpstateWifiOnly() {
                SEC_TO_MSEC(10));
     RunDumpsys("DUMPSYS", {"wifi"}, CommandOptions::WithTimeout(90).Build(),
                SEC_TO_MSEC(10));
-
-    DumpHals();
 
     printf("========================================================\n");
     printf("== dumpstate: done (id %d)\n", ds.id_);
