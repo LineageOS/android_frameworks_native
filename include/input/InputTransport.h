@@ -113,6 +113,8 @@ struct InputMessage {
             float yOffset;
             float xPrecision;
             float yPrecision;
+            float xCursorPosition;
+            float yCursorPosition;
             uint32_t pointerCount;
             uint32_t empty3;
             // Note that PointerCoords requires 8 byte alignment.
@@ -261,27 +263,14 @@ public:
      * Returns BAD_VALUE if seq is 0 or if pointerCount is less than 1 or greater than MAX_POINTERS.
      * Other errors probably indicate that the channel is broken.
      */
-    status_t publishMotionEvent(
-            uint32_t seq,
-            int32_t deviceId,
-            int32_t source,
-            int32_t displayId,
-            int32_t action,
-            int32_t actionButton,
-            int32_t flags,
-            int32_t edgeFlags,
-            int32_t metaState,
-            int32_t buttonState,
-            MotionClassification classification,
-            float xOffset,
-            float yOffset,
-            float xPrecision,
-            float yPrecision,
-            nsecs_t downTime,
-            nsecs_t eventTime,
-            uint32_t pointerCount,
-            const PointerProperties* pointerProperties,
-            const PointerCoords* pointerCoords);
+    status_t publishMotionEvent(uint32_t seq, int32_t deviceId, int32_t source, int32_t displayId,
+                                int32_t action, int32_t actionButton, int32_t flags,
+                                int32_t edgeFlags, int32_t metaState, int32_t buttonState,
+                                MotionClassification classification, float xOffset, float yOffset,
+                                float xPrecision, float yPrecision, float xCursorPosition,
+                                float yCursorPosition, nsecs_t downTime, nsecs_t eventTime,
+                                uint32_t pointerCount, const PointerProperties* pointerProperties,
+                                const PointerCoords* pointerCoords);
 
     /* Receives the finished signal from the consumer in reply to the original dispatch signal.
      * If a signal was received, returns the message sequence number,

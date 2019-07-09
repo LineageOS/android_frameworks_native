@@ -255,11 +255,11 @@ void MotionEventTest::initializeEventWithHistory(MotionEvent* event) {
     pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, 27);
     pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 28);
     event->initialize(2, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID, AMOTION_EVENT_ACTION_MOVE, 0,
-            AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED,
-            AMOTION_EVENT_EDGE_FLAG_TOP, AMETA_ALT_ON, AMOTION_EVENT_BUTTON_PRIMARY,
-            MotionClassification::NONE, X_OFFSET, Y_OFFSET, 2.0f, 2.1f,
-            ARBITRARY_DOWN_TIME, ARBITRARY_EVENT_TIME,
-            2, pointerProperties, pointerCoords);
+                      AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED, AMOTION_EVENT_EDGE_FLAG_TOP,
+                      AMETA_ALT_ON, AMOTION_EVENT_BUTTON_PRIMARY, MotionClassification::NONE,
+                      X_OFFSET, Y_OFFSET, 2.0f, 2.1f, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                      AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_DOWN_TIME,
+                      ARBITRARY_EVENT_TIME, 2, pointerProperties, pointerCoords);
 
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, 110);
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, 111);
@@ -571,10 +571,11 @@ TEST_F(MotionEventTest, Transform) {
     }
     MotionEvent event;
     event.initialize(0 /*deviceId*/, AINPUT_SOURCE_UNKNOWN, DISPLAY_ID, AMOTION_EVENT_ACTION_MOVE,
-            0 /*actionButton*/, 0 /*flags*/, AMOTION_EVENT_EDGE_FLAG_NONE,
-            AMETA_NONE, 0 /*buttonState*/, MotionClassification::NONE,
-            0 /*xOffset*/, 0 /*yOffset*/, 0 /*xPrecision*/, 0 /*yPrecision*/,
-            0 /*downTime*/, 0 /*eventTime*/, pointerCount, pointerProperties, pointerCoords);
+                     0 /*actionButton*/, 0 /*flags*/, AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE,
+                     0 /*buttonState*/, MotionClassification::NONE, 0 /*xOffset*/, 0 /*yOffset*/,
+                     0 /*xPrecision*/, 0 /*yPrecision*/, 3 + RADIUS /*xCursorPosition*/,
+                     2 /*yCursorPosition*/, 0 /*downTime*/, 0 /*eventTime*/, pointerCount,
+                     pointerProperties, pointerCoords);
     float originalRawX = 0 + 3;
     float originalRawY = -RADIUS + 2;
 
@@ -602,6 +603,10 @@ TEST_F(MotionEventTest, Transform) {
         ASSERT_NEAR(tanf(angle), tanf(event.getOrientation(i)), 0.1);
     }
 
+    // Check cursor positions.
+    ASSERT_NEAR(sinf(PI_180 * (90 + ROTATION)) * RADIUS, event.getXCursorPosition(), 0.001);
+    ASSERT_NEAR(-cosf(PI_180 * (90 + ROTATION)) * RADIUS, event.getYCursorPosition(), 0.001);
+
     // Applying the transformation should preserve the raw X and Y of the first point.
     ASSERT_NEAR(originalRawX, event.getRawX(0), 0.001);
     ASSERT_NEAR(originalRawY, event.getRawY(0), 0.001);
@@ -626,11 +631,34 @@ TEST_F(MotionEventTest, Initialize_SetsClassification) {
 
     for (MotionClassification classification : classifications) {
         event.initialize(0 /*deviceId*/, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID,
-                AMOTION_EVENT_ACTION_DOWN, 0, 0, AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0,
-                classification, 0, 0, 0, 0, 0 /*downTime*/, 0 /*eventTime*/,
-                pointerCount, pointerProperties, pointerCoords);
+                         AMOTION_EVENT_ACTION_DOWN, 0, 0, AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE,
+                         0, classification, 0, 0, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                         AMOTION_EVENT_INVALID_CURSOR_POSITION, 0 /*downTime*/, 0 /*eventTime*/,
+                         pointerCount, pointerProperties, pointerCoords);
         ASSERT_EQ(classification, event.getClassification());
     }
+}
+
+TEST_F(MotionEventTest, Initialize_SetsCursorPosition) {
+    MotionEvent event;
+    constexpr size_t pointerCount = 1;
+    PointerProperties pointerProperties[pointerCount];
+    PointerCoords pointerCoords[pointerCount];
+    for (size_t i = 0; i < pointerCount; i++) {
+        pointerProperties[i].clear();
+        pointerProperties[i].id = i;
+        pointerCoords[i].clear();
+    }
+
+    event.initialize(0 /*deviceId*/, AINPUT_SOURCE_MOUSE, DISPLAY_ID, AMOTION_EVENT_ACTION_DOWN, 0,
+                     0, AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0, MotionClassification::NONE, 0,
+                     0, 0, 0, 280 /*xCursorPosition*/, 540 /*yCursorPosition*/, 0 /*downTime*/,
+                     0 /*eventTime*/, pointerCount, pointerProperties, pointerCoords);
+    event.offsetLocation(20, 60);
+    ASSERT_EQ(280, event.getRawXCursorPosition());
+    ASSERT_EQ(540, event.getRawYCursorPosition());
+    ASSERT_EQ(300, event.getXCursorPosition());
+    ASSERT_EQ(600, event.getYCursorPosition());
 }
 
 } // namespace android

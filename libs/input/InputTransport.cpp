@@ -191,6 +191,10 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
             msg->body.motion.xPrecision = body.motion.xPrecision;
             // float yPrecision
             msg->body.motion.yPrecision = body.motion.yPrecision;
+            // float xCursorPosition
+            msg->body.motion.xCursorPosition = body.motion.xCursorPosition;
+            // float yCursorPosition
+            msg->body.motion.yCursorPosition = body.motion.yCursorPosition;
             // uint32_t pointerCount
             msg->body.motion.pointerCount = body.motion.pointerCount;
             //struct Pointer pointers[MAX_POINTERS]
@@ -465,26 +469,12 @@ status_t InputPublisher::publishKeyEvent(
 }
 
 status_t InputPublisher::publishMotionEvent(
-        uint32_t seq,
-        int32_t deviceId,
-        int32_t source,
-        int32_t displayId,
-        int32_t action,
-        int32_t actionButton,
-        int32_t flags,
-        int32_t edgeFlags,
-        int32_t metaState,
-        int32_t buttonState,
-        MotionClassification classification,
-        float xOffset,
-        float yOffset,
-        float xPrecision,
-        float yPrecision,
-        nsecs_t downTime,
-        nsecs_t eventTime,
-        uint32_t pointerCount,
-        const PointerProperties* pointerProperties,
-        const PointerCoords* pointerCoords) {
+        uint32_t seq, int32_t deviceId, int32_t source, int32_t displayId, int32_t action,
+        int32_t actionButton, int32_t flags, int32_t edgeFlags, int32_t metaState,
+        int32_t buttonState, MotionClassification classification, float xOffset, float yOffset,
+        float xPrecision, float yPrecision, float xCursorPosition, float yCursorPosition,
+        nsecs_t downTime, nsecs_t eventTime, uint32_t pointerCount,
+        const PointerProperties* pointerProperties, const PointerCoords* pointerCoords) {
     if (ATRACE_ENABLED()) {
         std::string message = StringPrintf(
                 "publishMotionEvent(inputChannel=%s, action=%" PRId32 ")",
@@ -532,6 +522,8 @@ status_t InputPublisher::publishMotionEvent(
     msg.body.motion.yOffset = yOffset;
     msg.body.motion.xPrecision = xPrecision;
     msg.body.motion.yPrecision = yPrecision;
+    msg.body.motion.xCursorPosition = xCursorPosition;
+    msg.body.motion.yCursorPosition = yCursorPosition;
     msg.body.motion.downTime = downTime;
     msg.body.motion.eventTime = eventTime;
     msg.body.motion.pointerCount = pointerCount;
@@ -1135,26 +1127,16 @@ void InputConsumer::initializeMotionEvent(MotionEvent* event, const InputMessage
         pointerCoords[i].copyFrom(msg->body.motion.pointers[i].coords);
     }
 
-    event->initialize(
-            msg->body.motion.deviceId,
-            msg->body.motion.source,
-            msg->body.motion.displayId,
-            msg->body.motion.action,
-            msg->body.motion.actionButton,
-            msg->body.motion.flags,
-            msg->body.motion.edgeFlags,
-            msg->body.motion.metaState,
-            msg->body.motion.buttonState,
-            msg->body.motion.classification,
-            msg->body.motion.xOffset,
-            msg->body.motion.yOffset,
-            msg->body.motion.xPrecision,
-            msg->body.motion.yPrecision,
-            msg->body.motion.downTime,
-            msg->body.motion.eventTime,
-            pointerCount,
-            pointerProperties,
-            pointerCoords);
+    event->initialize(msg->body.motion.deviceId, msg->body.motion.source,
+                      msg->body.motion.displayId, msg->body.motion.action,
+                      msg->body.motion.actionButton, msg->body.motion.flags,
+                      msg->body.motion.edgeFlags, msg->body.motion.metaState,
+                      msg->body.motion.buttonState, msg->body.motion.classification,
+                      msg->body.motion.xOffset, msg->body.motion.yOffset,
+                      msg->body.motion.xPrecision, msg->body.motion.yPrecision,
+                      msg->body.motion.xCursorPosition, msg->body.motion.yCursorPosition,
+                      msg->body.motion.downTime, msg->body.motion.eventTime, pointerCount,
+                      pointerProperties, pointerCoords);
 }
 
 void InputConsumer::addSample(MotionEvent* event, const InputMessage* msg) {

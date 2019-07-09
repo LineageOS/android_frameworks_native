@@ -146,6 +146,8 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     constexpr float yOffset = -20;
     constexpr float xPrecision = 0.25;
     constexpr float yPrecision = 0.5;
+    constexpr float xCursorPosition = 1.3;
+    constexpr float yCursorPosition = 50.6;
     constexpr nsecs_t downTime = 3;
     constexpr size_t pointerCount = 3;
     constexpr nsecs_t eventTime = 4;
@@ -168,10 +170,12 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
         pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 3.5 * i);
     }
 
-    status = mPublisher->publishMotionEvent(seq, deviceId, source, displayId, action, actionButton,
-            flags, edgeFlags, metaState, buttonState, classification,
-            xOffset, yOffset, xPrecision, yPrecision, downTime, eventTime, pointerCount,
-            pointerProperties, pointerCoords);
+    status =
+            mPublisher->publishMotionEvent(seq, deviceId, source, displayId, action, actionButton,
+                                           flags, edgeFlags, metaState, buttonState, classification,
+                                           xOffset, yOffset, xPrecision, yPrecision,
+                                           xCursorPosition, yCursorPosition, downTime, eventTime,
+                                           pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(OK, status)
             << "publisher publishMotionEvent should return OK";
 
@@ -199,6 +203,10 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     EXPECT_EQ(classification, motionEvent->getClassification());
     EXPECT_EQ(xPrecision, motionEvent->getXPrecision());
     EXPECT_EQ(yPrecision, motionEvent->getYPrecision());
+    EXPECT_EQ(xCursorPosition, motionEvent->getRawXCursorPosition());
+    EXPECT_EQ(yCursorPosition, motionEvent->getRawYCursorPosition());
+    EXPECT_EQ(xCursorPosition + xOffset, motionEvent->getXCursorPosition());
+    EXPECT_EQ(yCursorPosition + yOffset, motionEvent->getYCursorPosition());
     EXPECT_EQ(downTime, motionEvent->getDownTime());
     EXPECT_EQ(eventTime, motionEvent->getEventTime());
     EXPECT_EQ(pointerCount, motionEvent->getPointerCount());
@@ -266,9 +274,11 @@ TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenSequenceNumberIsZer
         pointerCoords[i].clear();
     }
 
-    status = mPublisher->publishMotionEvent(0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            MotionClassification::NONE, 0, 0, 0, 0, 0, 0,
-            pointerCount, pointerProperties, pointerCoords);
+    status =
+            mPublisher->publishMotionEvent(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, MotionClassification::NONE,
+                                           0, 0, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                           AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0,
+                                           pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(BAD_VALUE, status)
             << "publisher publishMotionEvent should return BAD_VALUE";
 }
@@ -279,9 +289,11 @@ TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenPointerCountLessTha
     PointerProperties pointerProperties[pointerCount];
     PointerCoords pointerCoords[pointerCount];
 
-    status = mPublisher->publishMotionEvent(1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            MotionClassification::NONE, 0, 0, 0, 0, 0, 0,
-            pointerCount, pointerProperties, pointerCoords);
+    status =
+            mPublisher->publishMotionEvent(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, MotionClassification::NONE,
+                                           0, 0, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                           AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0,
+                                           pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(BAD_VALUE, status)
             << "publisher publishMotionEvent should return BAD_VALUE";
 }
@@ -297,9 +309,11 @@ TEST_F(InputPublisherAndConsumerTest,
         pointerCoords[i].clear();
     }
 
-    status = mPublisher->publishMotionEvent(1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            MotionClassification::NONE, 0, 0, 0, 0, 0, 0,
-            pointerCount, pointerProperties, pointerCoords);
+    status =
+            mPublisher->publishMotionEvent(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, MotionClassification::NONE,
+                                           0, 0, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                           AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0,
+                                           pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(BAD_VALUE, status)
             << "publisher publishMotionEvent should return BAD_VALUE";
 }

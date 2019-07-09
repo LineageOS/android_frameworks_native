@@ -119,19 +119,27 @@ struct NotifyMotionArgs : public NotifyArgs {
     PointerCoords pointerCoords[MAX_POINTERS];
     float xPrecision;
     float yPrecision;
+    /**
+     * Mouse cursor position when this event is reported relative to the origin of the specified
+     * display. Only valid if this is a mouse event (originates from a mouse or from a trackpad in
+     * gestures enabled mode.
+     */
+    float xCursorPosition;
+    float yCursorPosition;
     nsecs_t downTime;
     std::vector<TouchVideoFrame> videoFrames;
 
     inline NotifyMotionArgs() { }
 
     NotifyMotionArgs(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId, uint32_t source,
-            int32_t displayId, uint32_t policyFlags,
-            int32_t action, int32_t actionButton, int32_t flags,
-            int32_t metaState, int32_t buttonState, MotionClassification classification,
-            int32_t edgeFlags, uint32_t deviceTimestamp, uint32_t pointerCount,
-            const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
-            float xPrecision, float yPrecision, nsecs_t downTime,
-            const std::vector<TouchVideoFrame>& videoFrames);
+                     int32_t displayId, uint32_t policyFlags, int32_t action, int32_t actionButton,
+                     int32_t flags, int32_t metaState, int32_t buttonState,
+                     MotionClassification classification, int32_t edgeFlags,
+                     uint32_t deviceTimestamp, uint32_t pointerCount,
+                     const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
+                     float xPrecision, float yPrecision, float xCursorPosition,
+                     float yCursorPosition, nsecs_t downTime,
+                     const std::vector<TouchVideoFrame>& videoFrames);
 
     NotifyMotionArgs(const NotifyMotionArgs& other);
 

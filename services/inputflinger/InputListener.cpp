@@ -21,6 +21,7 @@
 #include "InputListener.h"
 
 #include <android/log.h>
+#include <math.h>
 
 namespace android {
 
@@ -87,21 +88,33 @@ void NotifyKeyArgs::notify(const sp<InputListenerInterface>& listener) const {
 
 // --- NotifyMotionArgs ---
 
-NotifyMotionArgs::NotifyMotionArgs(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId,
-        uint32_t source, int32_t displayId, uint32_t policyFlags,
-        int32_t action, int32_t actionButton, int32_t flags, int32_t metaState,
-        int32_t buttonState, MotionClassification classification,
+NotifyMotionArgs::NotifyMotionArgs(
+        uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId, uint32_t source,
+        int32_t displayId, uint32_t policyFlags, int32_t action, int32_t actionButton,
+        int32_t flags, int32_t metaState, int32_t buttonState, MotionClassification classification,
         int32_t edgeFlags, uint32_t deviceTimestamp, uint32_t pointerCount,
         const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
-        float xPrecision, float yPrecision, nsecs_t downTime,
-        const std::vector<TouchVideoFrame>& videoFrames) :
-        NotifyArgs(sequenceNum, eventTime), deviceId(deviceId), source(source),
-        displayId(displayId), policyFlags(policyFlags),
-        action(action), actionButton(actionButton),
-        flags(flags), metaState(metaState), buttonState(buttonState),
-        classification(classification), edgeFlags(edgeFlags), deviceTimestamp(deviceTimestamp),
+        float xPrecision, float yPrecision, float xCursorPosition, float yCursorPosition,
+        nsecs_t downTime, const std::vector<TouchVideoFrame>& videoFrames)
+      : NotifyArgs(sequenceNum, eventTime),
+        deviceId(deviceId),
+        source(source),
+        displayId(displayId),
+        policyFlags(policyFlags),
+        action(action),
+        actionButton(actionButton),
+        flags(flags),
+        metaState(metaState),
+        buttonState(buttonState),
+        classification(classification),
+        edgeFlags(edgeFlags),
+        deviceTimestamp(deviceTimestamp),
         pointerCount(pointerCount),
-        xPrecision(xPrecision), yPrecision(yPrecision), downTime(downTime),
+        xPrecision(xPrecision),
+        yPrecision(yPrecision),
+        xCursorPosition(xCursorPosition),
+        yCursorPosition(yCursorPosition),
+        downTime(downTime),
         videoFrames(videoFrames) {
     for (uint32_t i = 0; i < pointerCount; i++) {
         this->pointerProperties[i].copyFrom(pointerProperties[i]);
@@ -109,14 +122,26 @@ NotifyMotionArgs::NotifyMotionArgs(uint32_t sequenceNum, nsecs_t eventTime, int3
     }
 }
 
-NotifyMotionArgs::NotifyMotionArgs(const NotifyMotionArgs& other) :
-        NotifyArgs(other.sequenceNum, other.eventTime), deviceId(other.deviceId),
-        source(other.source), displayId(other.displayId), policyFlags(other.policyFlags),
-        action(other.action), actionButton(other.actionButton), flags(other.flags),
-        metaState(other.metaState), buttonState(other.buttonState),
-        classification(other.classification), edgeFlags(other.edgeFlags),
-        deviceTimestamp(other.deviceTimestamp), pointerCount(other.pointerCount),
-        xPrecision(other.xPrecision), yPrecision(other.yPrecision), downTime(other.downTime),
+NotifyMotionArgs::NotifyMotionArgs(const NotifyMotionArgs& other)
+      : NotifyArgs(other.sequenceNum, other.eventTime),
+        deviceId(other.deviceId),
+        source(other.source),
+        displayId(other.displayId),
+        policyFlags(other.policyFlags),
+        action(other.action),
+        actionButton(other.actionButton),
+        flags(other.flags),
+        metaState(other.metaState),
+        buttonState(other.buttonState),
+        classification(other.classification),
+        edgeFlags(other.edgeFlags),
+        deviceTimestamp(other.deviceTimestamp),
+        pointerCount(other.pointerCount),
+        xPrecision(other.xPrecision),
+        yPrecision(other.yPrecision),
+        xCursorPosition(other.xCursorPosition),
+        yCursorPosition(other.yCursorPosition),
+        downTime(other.downTime),
         videoFrames(other.videoFrames) {
     for (uint32_t i = 0; i < pointerCount; i++) {
         pointerProperties[i].copyFrom(other.pointerProperties[i]);
@@ -124,28 +149,23 @@ NotifyMotionArgs::NotifyMotionArgs(const NotifyMotionArgs& other) :
     }
 }
 
+static inline bool isCursorPositionEqual(float lhs, float rhs) {
+    return (isnan(lhs) && isnan(rhs)) || lhs == rhs;
+}
+
 bool NotifyMotionArgs::operator==(const NotifyMotionArgs& rhs) const {
-    bool equal =
-            sequenceNum == rhs.sequenceNum
-            && eventTime == rhs.eventTime
-            && deviceId == rhs.deviceId
-            && source == rhs.source
-            && displayId == rhs.displayId
-            && policyFlags == rhs.policyFlags
-            && action == rhs.action
-            && actionButton == rhs.actionButton
-            && flags == rhs.flags
-            && metaState == rhs.metaState
-            && buttonState == rhs.buttonState
-            && classification == rhs.classification
-            && edgeFlags == rhs.edgeFlags
-            && deviceTimestamp == rhs.deviceTimestamp
-            && pointerCount == rhs.pointerCount
+    bool equal = sequenceNum == rhs.sequenceNum && eventTime == rhs.eventTime &&
+            deviceId == rhs.deviceId && source == rhs.source && displayId == rhs.displayId &&
+            policyFlags == rhs.policyFlags && action == rhs.action &&
+            actionButton == rhs.actionButton && flags == rhs.flags && metaState == rhs.metaState &&
+            buttonState == rhs.buttonState && classification == rhs.classification &&
+            edgeFlags == rhs.edgeFlags && deviceTimestamp == rhs.deviceTimestamp &&
+            pointerCount == rhs.pointerCount
             // PointerProperties and PointerCoords are compared separately below
-            && xPrecision == rhs.xPrecision
-            && yPrecision == rhs.yPrecision
-            && downTime == rhs.downTime
-            && videoFrames == rhs.videoFrames;
+            && xPrecision == rhs.xPrecision && yPrecision == rhs.yPrecision &&
+            isCursorPositionEqual(xCursorPosition, rhs.xCursorPosition) &&
+            isCursorPositionEqual(yCursorPosition, rhs.yCursorPosition) &&
+            downTime == rhs.downTime && videoFrames == rhs.videoFrames;
     if (!equal) {
         return false;
     }
