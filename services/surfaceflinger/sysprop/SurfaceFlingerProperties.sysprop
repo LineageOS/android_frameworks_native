@@ -251,6 +251,20 @@ prop {
     prop_name: "ro.surface_flinger.wcg_composition_pixel_format"
 }
 
+# colorSpaceAgnosticDataspace specifies the data space that
+# SurfaceFlinger expects for surfaces which are color space agnostic.
+# The variable works only when useColorManagement is specified. If
+# unspecified, the data space follows what SurfaceFlinger expects for
+# surfaces when useColorManagement is specified.
+
+prop {
+    api_name: "color_space_agnostic_dataspace"
+    type: Long
+    scope: System
+    access: Readonly
+    prop_name: "ro.surface_flinger.color_space_agnostic_dataspace"
+}
+
 # Return the native panel primary data. The data includes red, green,
 # blue and white. The primary format is CIE 1931 XYZ color space.
 # If unspecified, the primaries is sRGB gamut by default.
