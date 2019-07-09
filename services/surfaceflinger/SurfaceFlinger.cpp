@@ -311,6 +311,9 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     wideColorGamutCompositionPixelFormat =
             static_cast<ui::PixelFormat>(wcg_composition_pixel_format(ui::PixelFormat::RGBA_8888));
 
+    mColorSpaceAgnosticDataspace =
+            static_cast<ui::Dataspace>(color_space_agnostic_dataspace(Dataspace::UNKNOWN));
+
     useContextPriority = use_context_priority(true);
 
     auto tmpPrimaryDisplayOrientation = primary_display_orientation(
@@ -1879,7 +1882,14 @@ void SurfaceFlinger::calculateWorkingSet() {
             RenderIntent renderIntent;
             pickColorMode(displayDevice, &colorMode, &targetDataspace, &renderIntent);
             display->setColorMode(colorMode, targetDataspace, renderIntent);
+
+            if (isHdrColorMode(colorMode)) {
+                targetDataspace = Dataspace::UNKNOWN;
+            } else if (mColorSpaceAgnosticDataspace != Dataspace::UNKNOWN) {
+                targetDataspace = mColorSpaceAgnosticDataspace;
+            }
         }
+
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
             if (layer->isHdrY410()) {
                 layer->forceClientComposition(displayDevice);
@@ -1906,9 +1916,7 @@ void SurfaceFlinger::calculateWorkingSet() {
 
             const auto& displayState = display->getState();
             layer->setPerFrameData(displayDevice, displayState.transform, displayState.viewport,
-                                   displayDevice->getSupportedPerFrameMetadata(),
-                                   isHdrColorMode(displayState.colorMode) ? Dataspace::UNKNOWN
-                                                                          : targetDataspace);
+                                   displayDevice->getSupportedPerFrameMetadata(), targetDataspace);
         }
     }
 
