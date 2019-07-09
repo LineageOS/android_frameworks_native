@@ -25,10 +25,21 @@
 
 #include <mutex>
 #include <vector>
+#include <unordered_map>
 
 namespace android {
 
 class GpuStats;
+
+struct MemoryStruct {
+  int64_t gpuMemory;
+  int64_t mappedMemory;
+  int64_t ionMemory;
+};
+
+// A map that keeps track of how much memory of each type is allocated by every process.
+// Format: map[pid][memoryType] = MemoryStruct()'
+using GpuMemoryMap = std::unordered_map<int32_t, std::unordered_map<std::string, MemoryStruct>>;
 
 class GpuService : public BnGpuService, public PriorityDumper {
 public:
@@ -70,6 +81,8 @@ private:
     }
 
     status_t doDump(int fd, const Vector<String16>& args, bool asProto);
+
+    status_t getQCommGpuMemoryInfo(GpuMemoryMap* memories, std::string* result, int32_t dumpPid) const;
 
     /*
      * Attributes
