@@ -218,6 +218,14 @@ int32_t wcg_composition_pixel_format(PixelFormat defaultValue) {
     return static_cast<int32_t>(defaultValue);
 }
 
+int64_t color_space_agnostic_dataspace(Dataspace defaultValue) {
+    auto temp = SurfaceFlingerProperties::color_space_agnostic_dataspace();
+    if (temp.has_value()) {
+        return *temp;
+    }
+    return static_cast<int64_t>(defaultValue);
+}
+
 int32_t set_idle_timer_ms(int32_t defaultValue) {
     auto temp = SurfaceFlingerProperties::set_idle_timer_ms();
     if (temp.has_value()) {

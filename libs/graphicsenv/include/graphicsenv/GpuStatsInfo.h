@@ -70,6 +70,7 @@ public:
     std::vector<int64_t> vkDriverLoadingTime = {};
     std::vector<int64_t> angleDriverLoadingTime = {};
     bool cpuVulkanInUse = false;
+    bool falsePrerotation = false;
 };
 
 /*
@@ -89,6 +90,11 @@ public:
         VULKAN = 3,
         VULKAN_UPDATED = 4,
         ANGLE = 5,
+    };
+
+    enum Stats {
+        CPU_VULKAN_IN_USE = 0,
+        FALSE_PREROTATION = 1,
     };
 
     GpuStatsInfo() = default;

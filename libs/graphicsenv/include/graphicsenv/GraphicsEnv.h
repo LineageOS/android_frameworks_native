@@ -60,8 +60,8 @@ public:
     void setGpuStats(const std::string& driverPackageName, const std::string& driverVersionName,
                      uint64_t versionCode, int64_t driverBuildTime,
                      const std::string& appPackageName, const int32_t vulkanVersion);
-    // Set that CPU type physical device is in use.
-    void setCpuVulkanInUse();
+    // Set stats for target GpuStatsInfo::Stats type.
+    void setTargetStats(const GpuStatsInfo::Stats stats, const uint64_t value = 0);
     // Set which driver is intended to load.
     void setDriverToLoad(GpuStatsInfo::Driver driver);
     // Set which driver is actually loaded.

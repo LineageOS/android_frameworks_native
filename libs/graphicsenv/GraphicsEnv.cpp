@@ -258,7 +258,7 @@ void GraphicsEnv::setDriverLoaded(GpuStatsInfo::Api api, bool isDriverLoaded,
 }
 
 static sp<IGpuService> getGpuService() {
-    const sp<IBinder> binder = defaultServiceManager()->checkService(String16("gpu"));
+    static const sp<IBinder> binder = defaultServiceManager()->checkService(String16("gpu"));
     if (!binder) {
         ALOGE("Failed to get gpu service");
         return nullptr;
@@ -267,14 +267,14 @@ static sp<IGpuService> getGpuService() {
     return interface_cast<IGpuService>(binder);
 }
 
-void GraphicsEnv::setCpuVulkanInUse() {
+void GraphicsEnv::setTargetStats(const GpuStatsInfo::Stats stats, const uint64_t value) {
     ATRACE_CALL();
 
-    // Use the same stats lock to protect getGpuService() as well.
     std::lock_guard<std::mutex> lock(mStatsLock);
     const sp<IGpuService> gpuService = getGpuService();
     if (gpuService) {
-        gpuService->setCpuVulkanInUse(mGpuStats.appPackageName, mGpuStats.driverVersionCode);
+        gpuService->setTargetStats(mGpuStats.appPackageName, mGpuStats.driverVersionCode, stats,
+                                   value);
     }
 }
 
