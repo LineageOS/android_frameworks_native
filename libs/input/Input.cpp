@@ -235,26 +235,14 @@ void PointerProperties::copyFrom(const PointerProperties& other) {
 
 // --- MotionEvent ---
 
-void MotionEvent::initialize(
-        int32_t deviceId,
-        int32_t source,
-        int32_t displayId,
-        int32_t action,
-        int32_t actionButton,
-        int32_t flags,
-        int32_t edgeFlags,
-        int32_t metaState,
-        int32_t buttonState,
-        MotionClassification classification,
-        float xOffset,
-        float yOffset,
-        float xPrecision,
-        float yPrecision,
-        nsecs_t downTime,
-        nsecs_t eventTime,
-        size_t pointerCount,
-        const PointerProperties* pointerProperties,
-        const PointerCoords* pointerCoords) {
+void MotionEvent::initialize(int32_t deviceId, int32_t source, int32_t displayId, int32_t action,
+                             int32_t actionButton, int32_t flags, int32_t edgeFlags,
+                             int32_t metaState, int32_t buttonState,
+                             MotionClassification classification, float xOffset, float yOffset,
+                             float xPrecision, float yPrecision, float xCursorPosition,
+                             float yCursorPosition, nsecs_t downTime, nsecs_t eventTime,
+                             size_t pointerCount, const PointerProperties* pointerProperties,
+                             const PointerCoords* pointerCoords) {
     InputEvent::initialize(deviceId, source, displayId);
     mAction = action;
     mActionButton = actionButton;
@@ -267,6 +255,8 @@ void MotionEvent::initialize(
     mYOffset = yOffset;
     mXPrecision = xPrecision;
     mYPrecision = yPrecision;
+    mXCursorPosition = xCursorPosition;
+    mYCursorPosition = yCursorPosition;
     mDownTime = downTime;
     mPointerProperties.clear();
     mPointerProperties.appendArray(pointerProperties, pointerCount);
@@ -288,6 +278,8 @@ void MotionEvent::copyFrom(const MotionEvent* other, bool keepHistory) {
     mYOffset = other->mYOffset;
     mXPrecision = other->mXPrecision;
     mYPrecision = other->mYPrecision;
+    mXCursorPosition = other->mXCursorPosition;
+    mYCursorPosition = other->mYCursorPosition;
     mDownTime = other->mDownTime;
     mPointerProperties = other->mPointerProperties;
 
@@ -310,6 +302,16 @@ void MotionEvent::addSample(
         const PointerCoords* pointerCoords) {
     mSampleEventTimes.push(eventTime);
     mSamplePointerCoords.appendArray(pointerCoords, getPointerCount());
+}
+
+float MotionEvent::getXCursorPosition() const {
+    const float rawX = getRawXCursorPosition();
+    return rawX + mXOffset;
+}
+
+float MotionEvent::getYCursorPosition() const {
+    const float rawY = getRawYCursorPosition();
+    return rawY + mYOffset;
 }
 
 const PointerCoords* MotionEvent::getRawPointerCoords(size_t pointerIndex) const {
@@ -431,6 +433,15 @@ void MotionEvent::transform(const float matrix[9]) {
     float originX, originY;
     transformPoint(matrix, 0, 0, &originX, &originY);
 
+    // Apply the transformation to cursor position.
+    if (!isnan(mXCursorPosition) && !isnan(mYCursorPosition)) {
+        float x = mXCursorPosition + oldXOffset;
+        float y = mYCursorPosition + oldYOffset;
+        transformPoint(matrix, x, y, &x, &y);
+        mXCursorPosition = x - mXOffset;
+        mYCursorPosition = y - mYOffset;
+    }
+
     // Apply the transformation to all samples.
     size_t numSamples = mSamplePointerCoords.size();
     for (size_t i = 0; i < numSamples; i++) {
@@ -470,6 +481,8 @@ status_t MotionEvent::readFromParcel(Parcel* parcel) {
     mYOffset = parcel->readFloat();
     mXPrecision = parcel->readFloat();
     mYPrecision = parcel->readFloat();
+    mXCursorPosition = parcel->readFloat();
+    mYCursorPosition = parcel->readFloat();
     mDownTime = parcel->readInt64();
 
     mPointerProperties.clear();
@@ -521,6 +534,8 @@ status_t MotionEvent::writeToParcel(Parcel* parcel) const {
     parcel->writeFloat(mYOffset);
     parcel->writeFloat(mXPrecision);
     parcel->writeFloat(mYPrecision);
+    parcel->writeFloat(mXCursorPosition);
+    parcel->writeFloat(mYCursorPosition);
     parcel->writeInt64(mDownTime);
 
     for (size_t i = 0; i < pointerCount; i++) {
