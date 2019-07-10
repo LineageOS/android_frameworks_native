@@ -20,6 +20,14 @@ if ! test -d /data/media/obb ; then
   exit 0
 fi
 
+rm -rf /data/media/0/Android/obb/test_probe
+touch /sdcard/Android/obb/test_probe
+if ! test -f /data/media/0/Android/obb/test_probe ; then
+  log -p i -t migrate_legacy_obb_data "No support for 'unshared_obb'. Not migrating"
+  rm -rf /data/media/0/Android/obb/test_probe
+  exit 0
+fi
+
 log -p i -t migrate_legacy_obb_data "Migrating legacy obb data."
 rm -rf /data/media/0/Android/obb
 cp -F -p -R -P -d /data/media/obb /data/media/0/Android
