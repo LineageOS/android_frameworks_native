@@ -377,16 +377,21 @@ public:
     }
 
     Rect getSourceCrop() const override {
-        // use the (projected) logical display viewport by default
+        // use the projected display viewport by default.
         if (mSourceCrop.isEmpty()) {
             return mDevice->getScissor();
         }
 
-        const int orientation = mDevice->getInstallOrientation();
-        if (orientation == DisplayState::eOrientationDefault) {
-            return mSourceCrop;
-        }
+        // Recompute the device transformation for the source crop.
+        Transform rotation;
+        Transform translatePhysical;
+        Transform translateLogical;
+        Transform scale;
+        const Rect& viewport = mDevice->getViewport();
+        const Rect& scissor = mDevice->getScissor();
+        const Rect& frame = mDevice->getFrame();
 
+        const int orientation = mDevice->getInstallOrientation();
         // Install orientation is transparent to the callers.  Apply it now.
         uint32_t flags = 0x00;
         switch (orientation) {
@@ -399,10 +404,17 @@ public:
             case DisplayState::eOrientation270:
                 flags = Transform::ROT_270;
                 break;
+            default:
+                break;
         }
-        Transform tr;
-        tr.set(flags, getWidth(), getHeight());
-        return tr.transform(mSourceCrop);
+        rotation.set(flags, getWidth(), getHeight());
+        translateLogical.set(-viewport.left, -viewport.top);
+        translatePhysical.set(scissor.left, scissor.top);
+        scale.set(frame.getWidth() / float(viewport.getWidth()), 0, 0,
+                  frame.getHeight() / float(viewport.getHeight()));
+        const Transform finalTransform =
+                rotation * translatePhysical * scale * translateLogical;
+        return finalTransform.transform(mSourceCrop);
     }
 
 private:
