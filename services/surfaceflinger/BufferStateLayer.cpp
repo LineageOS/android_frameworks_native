@@ -216,7 +216,7 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, nsecs_t postTi
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
 
-    mFlinger->mTimeStats->setPostTime(getSequence(), getFrameNumber(), getName().c_str(), postTime);
+    mFlinger->mTimeStats->setPostTime(getSequence(), mFrameNumber, getName().c_str(), postTime);
     mDesiredPresentTime = desiredPresentTime;
 
     if (mFlinger->mUseSmart90ForVideo) {
@@ -369,12 +369,12 @@ bool BufferStateLayer::fenceHasSignaled() const {
     return getDrawingState().acquireFence->getStatus() == Fence::Status::Signaled;
 }
 
-bool BufferStateLayer::framePresentTimeIsCurrent() const {
+bool BufferStateLayer::framePresentTimeIsCurrent(nsecs_t expectedPresentTime) const {
     if (!hasFrameUpdate() || isRemovedFromCurrentState()) {
         return true;
     }
 
-    return mDesiredPresentTime <= mFlinger->getExpectedPresentTime();
+    return mDesiredPresentTime <= expectedPresentTime;
 }
 
 nsecs_t BufferStateLayer::getDesiredPresentTime() {
@@ -446,7 +446,7 @@ PixelFormat BufferStateLayer::getPixelFormat() const {
     return mActiveBuffer->format;
 }
 
-uint64_t BufferStateLayer::getFrameNumber() const {
+uint64_t BufferStateLayer::getFrameNumber(nsecs_t /*expectedPresentTime*/) const {
     return mFrameNumber;
 }
 
@@ -494,7 +494,8 @@ status_t BufferStateLayer::bindTextureImage() {
     return engine.bindExternalTextureBuffer(mTextureName, s.buffer, s.acquireFence);
 }
 
-status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nsecs_t latchTime) {
+status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nsecs_t latchTime,
+                                          nsecs_t /*expectedPresentTime*/) {
     const State& s(getDrawingState());
 
     if (!s.buffer) {
@@ -528,7 +529,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         ALOGE("[%s] rejecting buffer: "
               "bufferWidth=%d, bufferHeight=%d, front.active.{w=%d, h=%d}",
               mName.string(), bufferWidth, bufferHeight, s.active.w, s.active.h);
-        mFlinger->mTimeStats->removeTimeRecord(layerID, getFrameNumber());
+        mFlinger->mTimeStats->removeTimeRecord(layerID, mFrameNumber);
         return BAD_VALUE;
     }
 
@@ -550,8 +551,8 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         }
     }
 
-    mFlinger->mTimeStats->setAcquireFence(layerID, getFrameNumber(), getCurrentFenceTime());
-    mFlinger->mTimeStats->setLatchTime(layerID, getFrameNumber(), latchTime);
+    mFlinger->mTimeStats->setAcquireFence(layerID, mFrameNumber, getCurrentFenceTime());
+    mFlinger->mTimeStats->setLatchTime(layerID, mFrameNumber, latchTime);
 
     mCurrentStateModified = false;
 

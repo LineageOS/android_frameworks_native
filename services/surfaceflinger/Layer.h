@@ -561,8 +561,9 @@ public:
      * operation, so this should be set only if needed). Typically this is used
      * to figure out if the content or size of a surface has changed.
      */
-    virtual bool latchBuffer(bool& /*recomputeVisibleRegions*/, nsecs_t /*latchTime*/) {
-        return {};
+    virtual bool latchBuffer(bool& /*recomputeVisibleRegions*/, nsecs_t /*latchTime*/,
+                             nsecs_t /*expectedPresentTime*/) {
+        return false;
     }
 
     virtual bool isBufferLatched() const { return false; }
@@ -812,7 +813,7 @@ public:
     // this to be called once.
     sp<IBinder> getHandle();
     const String8& getName() const;
-    virtual void notifyAvailableFrames() {}
+    virtual void notifyAvailableFrames(nsecs_t /*expectedPresentTime*/) {}
     virtual PixelFormat getPixelFormat() const { return PIXEL_FORMAT_NONE; }
     bool getPremultipledAlpha() const;
 

@@ -295,17 +295,12 @@ public:
 
     // main thread function to enable/disable h/w composer event
     void setPrimaryVsyncEnabledInternal(bool enabled);
+    void setVsyncEnabledInHWC(DisplayId displayId, HWC2::Vsync enabled);
 
     // called on the main thread by MessageQueue when an internal message
     // is received
     // TODO: this should be made accessible only to MessageQueue
     void onMessageReceived(int32_t what);
-
-    // populates the expected present time for this frame.
-    // When we are in negative offsets, we perform a correction so that the
-    // predicted vsync for the *next* frame is used instead.
-    void populateExpectedPresentTime();
-    nsecs_t getExpectedPresentTime() const { return mExpectedPresentTime; }
 
     // for debugging only
     // TODO: this should be made accessible only to HWComposer
@@ -585,6 +580,7 @@ private:
     void commitOffscreenLayers();
     bool containsAnyInvalidClientState(const Vector<ComposerState>& states);
     bool transactionIsReadyToBeApplied(int64_t desiredPresentTime,
+                                       bool useCachedExpectedPresentTime,
                                        const Vector<ComposerState>& states);
     uint32_t setClientStateLocked(const ComposerState& composerState, int64_t desiredPresentTime,
                                   const std::vector<ListenerCallbacks>& listenerCallbacks,
@@ -816,6 +812,12 @@ private:
 
     bool isDisplayConfigAllowed(int32_t configId) const REQUIRES(mStateLock);
 
+    bool previousFrameMissed();
+
+    // Populates the expected present time for this frame. For negative offsets, performs a
+    // correction using the predicted vsync for the next frame instead.
+    void populateExpectedPresentTime();
+
     /*
      * Display identification
      */
@@ -843,9 +845,6 @@ private:
         const auto hwcDisplayId = getHwComposer().getInternalHwcDisplayId();
         return hwcDisplayId ? getHwComposer().toPhysicalDisplayId(*hwcDisplayId) : std::nullopt;
     }
-
-    bool previousFrameMissed();
-    void setVsyncEnabledInHWC(DisplayId displayId, HWC2::Vsync enabled);
 
     /*
      * Debugging & dumpsys
@@ -1135,6 +1134,8 @@ private:
     scheduler::RefreshRateConfigs mRefreshRateConfigs;
     scheduler::RefreshRateStats mRefreshRateStats{mRefreshRateConfigs, *mTimeStats};
 
+    std::atomic<nsecs_t> mExpectedPresentTime = 0;
+
     // All configs are allowed if the set is empty.
     using DisplayConfigs = std::set<int32_t>;
     DisplayConfigs mAllowedDisplayConfigs GUARDED_BY(mStateLock);
@@ -1188,8 +1189,6 @@ private:
     // Flags to capture the state of Vsync in HWC
     HWC2::Vsync mHWCVsyncState = HWC2::Vsync::Disable;
     HWC2::Vsync mHWCVsyncPendingState = HWC2::Vsync::Disable;
-
-    nsecs_t mExpectedPresentTime;
 };
 
 } // namespace android
