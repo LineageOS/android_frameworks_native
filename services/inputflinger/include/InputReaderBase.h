@@ -24,7 +24,6 @@
 #include <input/DisplayViewport.h>
 #include <input/VelocityControl.h>
 #include <input/VelocityTracker.h>
-#include <utils/KeyedVector.h>
 #include <utils/Thread.h>
 #include <utils/RefBase.h>
 
