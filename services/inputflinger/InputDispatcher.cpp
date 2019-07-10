@@ -1388,8 +1388,8 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
         // Figure out whether splitting will be allowed for this window.
         if (newTouchedWindowHandle != nullptr
                 && newTouchedWindowHandle->getInfo()->supportsSplitTouch()) {
-            // New window supports splitting.
-            isSplit = true;
+            // New window supports splitting, but we should never split mouse events.
+            isSplit = !isFromMouse;
         } else if (isSplit) {
             // New window does not support splitting but we have already split events.
             // Ignore the new window.
