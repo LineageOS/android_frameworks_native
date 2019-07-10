@@ -1097,6 +1097,9 @@ private:
     // either AID_GRAPHICS or AID_SYSTEM.
     status_t CheckTransactCodeCredentials(uint32_t code);
 
+    // to linkToDeath
+    sp<IBinder> mWindowManager;
+
     std::unique_ptr<dvr::VrFlinger> mVrFlinger;
     std::atomic<bool> mVrFlingerRequestsDisplay = false;
     static bool useVrFlinger;
