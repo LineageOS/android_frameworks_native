@@ -38,14 +38,13 @@ int main(int argc, char** argv) {
 
     android::base::InitLogging(nullptr, &android::base::KernelLogger);
 
-    ProcessState::self()->initWithDriver(driver);
-    ProcessState::self()->setThreadPoolMaxThreadCount(0);
-    ProcessState::self()->setCallRestriction(
-        ProcessState::CallRestriction::FATAL_IF_NOT_ONEWAY);
+    sp<ProcessState> ps = ProcessState::initWithDriver(driver);
+    ps->setThreadPoolMaxThreadCount(0);
+    ps->setCallRestriction(ProcessState::CallRestriction::FATAL_IF_NOT_ONEWAY);
 
     sp<ServiceManager> manager = new ServiceManager(std::make_unique<Access>());
     IPCThreadState::self()->setTheContextObject(manager);
-    ProcessState::self()->becomeContextManager(nullptr, nullptr);
+    ps->becomeContextManager(nullptr, nullptr);
 
     IPCThreadState::self()->joinThreadPool();
 
