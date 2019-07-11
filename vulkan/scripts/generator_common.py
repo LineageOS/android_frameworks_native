@@ -223,12 +223,12 @@ def parseVulkanRegistry():
   allCommandsList.append('vkGetSwapchainGrallocUsage2ANDROID')
   returnTypeDict['vkGetSwapchainGrallocUsage2ANDROID'] = 'VkResult'
   paramDict['vkGetSwapchainGrallocUsage2ANDROID'] = [
-    ('VkDevice ', 'device', None),
-    ('VkFormat ', 'format', None),
-    ('VkImageUsageFlags', 'imageUsage', None),
-    ('VkSwapchainImageUsageFlagsANDROID ', 'swapchainImageUsage', None),
-    ('u64* ', 'grallocConsumerUsage', None),
-    ('u64* ', 'grallocProducerUsage', None)
+    ('VkDevice ', 'device'),
+    ('VkFormat ', 'format'),
+    ('VkImageUsageFlags ', 'imageUsage'),
+    ('VkSwapchainImageUsageFlagsANDROID ', 'swapchainImageUsage'),
+    ('uint64_t* ', 'grallocConsumerUsage'),
+    ('uint64_t* ', 'grallocProducerUsage')
   ]
 
   for feature in root.iter('feature'):
