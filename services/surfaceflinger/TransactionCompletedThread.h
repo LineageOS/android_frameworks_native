@@ -72,7 +72,7 @@ public:
 
     sp<ITransactionCompletedListener> listener;
     std::vector<CallbackId> callbackIds;
-    sp<IBinder> surfaceControl;
+    wp<IBinder> surfaceControl;
 
     bool releasePreviousBuffer = false;
     sp<Fence> previousReleaseFence;
