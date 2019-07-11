@@ -132,7 +132,7 @@ def driver_genh():
 
 namespace vulkan {
 namespace driver {\n\n"""
-  genfile = os.path.join(os.path.dirname(__file__),'..','libvulkan','driver_gen2.h')
+  genfile = os.path.join(os.path.dirname(__file__),'..','libvulkan','driver_gen.h')
   with open(genfile, 'w') as f:
     f.write (gencom.copyright)
     f.write (gencom.warning)
@@ -166,6 +166,8 @@ bool InitDriverTable(VkDevice dev,
 }  // namespace vulkan
 
 #endif  // LIBVULKAN_DRIVER_TABLE_H\n""")
+    f.close()
+  gencom.runClangFormat(genfile)
 
 def isIntercepted(functionName):
   switchCase = {
@@ -317,7 +319,7 @@ namespace {
 
 // clang-format off\n\n"""
 
-  genfile = os.path.join(os.path.dirname(__file__),'..','libvulkan','driver_gen2.cpp')
+  genfile = os.path.join(os.path.dirname(__file__),'..','libvulkan','driver_gen.cpp')
 
   with open(genfile, 'w') as f:
     f.write (gencom.copyright)
@@ -390,4 +392,5 @@ namespace {
     f.write ('\n' + gencom.clang_off_spaces + 'return success;\n')
     f.write ('}\n\n}  // namespace driver\n}  // namespace vulkan\n\n')
     gencom.clang_on(f, 0)
-
+    f.close()
+  gencom.runClangFormat(genfile)

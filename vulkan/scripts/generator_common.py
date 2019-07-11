@@ -17,6 +17,8 @@
 # This script provides the common functions for generating the
 # vulkan framework directly from the vulkan registry (vk.xml).
 
+from subprocess import check_call
+
 copyright = """/*
  * Copyright 2016 The Android Open Source Project
  *
@@ -74,6 +76,10 @@ exportedExtensions = [
     'VK_KHR_android_surface',
     'VK_ANDROID_external_memory_android_hardware_buffer'
 ]
+
+def runClangFormat(args):
+  clang_call = ["clang-format", "--style", "file", "-i", args]
+  check_call (clang_call)
 
 def isExtensionInternal(extensionName):
   if extensionName == 'VK_ANDROID_native_buffer':

@@ -63,7 +63,7 @@ bool InitDispatchTable(
 
 #endif  // LIBVULKAN_API_GEN_H
 """
-  genfile = os.path.join(os.path.dirname(__file__),'..','libvulkan','api_gen2.h')
+  genfile = os.path.join(os.path.dirname(__file__),'..','libvulkan','api_gen.h')
   with open(genfile, 'w') as f:
     instanceDispatchTableEntries = []
     deviceDispatchTableEntries = []
@@ -93,6 +93,7 @@ bool InitDispatchTable(
 
     f.write (tail)
     f.close()
+  gencom.runClangFormat(genfile)
 
 def defineInitProc(name, f):
   f.write ('#define UNLIKELY(expr) __builtin_expect((expr), 0)\n')
@@ -233,7 +234,7 @@ def apiDispatch(functionName, f):
 
 
 def api_gencpp():
-  genfile = os.path.join(os.path.dirname(__file__),'..','libvulkan','api_gen2.cpp')
+  genfile = os.path.join(os.path.dirname(__file__),'..','libvulkan','api_gen.cpp')
   header = """#include <log/log.h>
 #include <string.h>
 
@@ -341,4 +342,5 @@ namespace api {\n\n""")
         f.write ('}\n\n')
 
     gencom.clang_on(f, 0)
-
+    f.close()
+  gencom.runClangFormat(genfile)
