@@ -713,6 +713,24 @@ void SurfaceFlinger::init() {
                 Mutex::Autolock lock(mStateLock);
                 setRefreshRateTo(type, event);
             });
+    mScheduler->setGetCurrentRefreshRateTypeCallback([this] {
+        Mutex::Autolock lock(mStateLock);
+        const auto display = getDefaultDisplayDeviceLocked();
+        if (!display) {
+            // If we don't have a default display the fallback to the default
+            // refresh rate type
+            return RefreshRateType::DEFAULT;
+        }
+
+        const int configId = display->getActiveConfig();
+        for (const auto& [type, refresh] : mRefreshRateConfigs.getRefreshRates()) {
+            if (refresh && refresh->configId == configId) {
+                return type;
+            }
+        }
+        // This should never happen, but just gracefully fallback to default.
+        return RefreshRateType::DEFAULT;
+    });
     mScheduler->setGetVsyncPeriodCallback([this] {
         Mutex::Autolock lock(mStateLock);
         return getVsyncPeriod();
@@ -1045,6 +1063,7 @@ bool SurfaceFlinger::performSetActiveConfig() {
         desiredActiveConfigChangeDone();
         return false;
     }
+
     mUpcomingActiveConfig = desiredActiveConfig;
     const auto displayId = display->getId();
     LOG_ALWAYS_FATAL_IF(!displayId);
