@@ -24,6 +24,7 @@
  */
 
 #include <android/input.h>
+#include <math.h>
 #include <stdint.h>
 #include <utils/BitSet.h>
 #include <utils/KeyedVector.h>
@@ -475,6 +476,8 @@ public:
     inline float getRawYCursorPosition() const { return mYCursorPosition; }
 
     float getYCursorPosition() const;
+
+    static inline bool isValidCursorPosition(float x, float y) { return !isnan(x) && !isnan(y); }
 
     inline nsecs_t getDownTime() const { return mDownTime; }
 
