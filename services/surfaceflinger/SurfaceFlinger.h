@@ -813,7 +813,7 @@ private:
     // the desired refresh rate.
     void setRefreshRateTo(RefreshRateType, Scheduler::ConfigEvent event) REQUIRES(mStateLock);
 
-    bool isDisplayConfigAllowed(int32_t configId) REQUIRES(mStateLock);
+    bool isDisplayConfigAllowed(int32_t configId) const REQUIRES(mStateLock);
 
     /*
      * Display identification

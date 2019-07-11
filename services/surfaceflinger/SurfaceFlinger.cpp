@@ -1477,7 +1477,7 @@ void SurfaceFlinger::getCompositorTiming(CompositorTiming* compositorTiming) {
     *compositorTiming = getBE().mCompositorTiming;
 }
 
-bool SurfaceFlinger::isDisplayConfigAllowed(int32_t configId) {
+bool SurfaceFlinger::isDisplayConfigAllowed(int32_t configId) const {
     return mAllowedDisplayConfigs.empty() || mAllowedDisplayConfigs.count(configId);
 }
 
@@ -4710,11 +4710,9 @@ void SurfaceFlinger::dumpVSync(std::string& result) const {
     StringAppendF(&result, "+  Smart 90 for video detection: %s\n\n",
                   mUseSmart90ForVideo ? "on" : "off");
     StringAppendF(&result, "Allowed Display Configs: ");
-    for (int32_t configId : mAllowedDisplayConfigs) {
-        for (auto refresh : mRefreshRateConfigs.getRefreshRates()) {
-            if (refresh.second && refresh.second->configId == configId) {
-                StringAppendF(&result, "%dHz, ", refresh.second->fps);
-            }
+    for (auto refresh : mRefreshRateConfigs.getRefreshRates()) {
+        if (refresh.second && isDisplayConfigAllowed(refresh.second->configId)) {
+            StringAppendF(&result, "%dHz, ", refresh.second->fps);
         }
     }
     StringAppendF(&result, "(config override by backdoor: %s)\n\n",
