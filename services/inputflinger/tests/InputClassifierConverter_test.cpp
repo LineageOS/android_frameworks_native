@@ -42,9 +42,9 @@ static NotifyMotionArgs generateBasicMotionArgs() {
                                 AINPUT_SOURCE_ANY, ADISPLAY_ID_DEFAULT, 4 /*policyFlags*/,
                                 AMOTION_EVENT_ACTION_DOWN, 0 /*actionButton*/, 0 /*flags*/,
                                 AMETA_NONE, 0 /*buttonState*/, MotionClassification::NONE,
-                                AMOTION_EVENT_EDGE_FLAG_NONE, 5 /*deviceTimestamp*/,
-                                1 /*pointerCount*/, &properties, &coords, 0 /*xPrecision*/,
-                                0 /*yPrecision*/, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                AMOTION_EVENT_EDGE_FLAG_NONE, 1 /*pointerCount*/, &properties,
+                                &coords, 0 /*xPrecision*/, 0 /*yPrecision*/,
+                                AMOTION_EVENT_INVALID_CURSOR_POSITION,
                                 AMOTION_EVENT_INVALID_CURSOR_POSITION, downTime,
                                 {} /*videoFrames*/);
     return motionArgs;
