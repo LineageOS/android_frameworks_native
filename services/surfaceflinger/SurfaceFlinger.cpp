@@ -533,9 +533,9 @@ void SurfaceFlinger::bootFinished()
 
     // wait patiently for the window manager death
     const String16 name("window");
-    sp<IBinder> window(defaultServiceManager()->getService(name));
-    if (window != 0) {
-        window->linkToDeath(static_cast<IBinder::DeathRecipient*>(this));
+    mWindowManager = defaultServiceManager()->getService(name);
+    if (mWindowManager != 0) {
+        mWindowManager->linkToDeath(static_cast<IBinder::DeathRecipient*>(this));
     }
     sp<IBinder> input(defaultServiceManager()->getService(
             String16("inputflinger")));
@@ -4709,6 +4709,16 @@ void SurfaceFlinger::dumpVSync(std::string& result) const {
     StringAppendF(&result, "Scheduler enabled.");
     StringAppendF(&result, "+  Smart 90 for video detection: %s\n\n",
                   mUseSmart90ForVideo ? "on" : "off");
+    StringAppendF(&result, "Allowed Display Configs: ");
+    for (int32_t configId : mAllowedDisplayConfigs) {
+        for (auto refresh : mRefreshRateConfigs.getRefreshRates()) {
+            if (refresh.second && refresh.second->configId == configId) {
+                StringAppendF(&result, "%dHz, ", refresh.second->fps);
+            }
+        }
+    }
+    StringAppendF(&result, "(config override by backdoor: %s)\n\n",
+                  mDebugDisplayConfigSetByBackdoor ? "yes" : "no");
     mScheduler->dump(mAppConnectionHandle, result);
 }
 
