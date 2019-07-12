@@ -242,6 +242,14 @@ int32_t set_touch_timer_ms(int32_t defaultValue) {
     return defaultValue;
 }
 
+int32_t set_display_power_timer_ms(int32_t defaultValue) {
+    auto temp = SurfaceFlingerProperties::set_display_power_timer_ms();
+    if (temp.has_value()) {
+        return *temp;
+    }
+    return defaultValue;
+}
+
 bool use_smart_90_for_video(bool defaultValue) {
     auto temp = SurfaceFlingerProperties::use_smart_90_for_video();
     if (temp.has_value()) {
