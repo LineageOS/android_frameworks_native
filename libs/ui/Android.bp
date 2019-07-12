@@ -95,7 +95,6 @@ cc_library_shared {
         "android.hardware.graphics.mapper@3.0",
         "libbase",
         "libcutils",
-        "libhardware",
         "libhidlbase",
         "libhidltransport",
         "libhwbinder",
