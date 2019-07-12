@@ -86,6 +86,7 @@ cc_defaults {
         "libdumpstateaidl",
         "libdumpstateutil",
         "libdumputils",
+        "libhardware_legacy",
         "libhidlbase",
         "libhidltransport",
         "liblog",
