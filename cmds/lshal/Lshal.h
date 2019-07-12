@@ -24,7 +24,6 @@
 #include <utils/StrongPointer.h>
 
 #include "Command.h"
-#include "HelpCommand.h"
 #include "NullableOStream.h"
 #include "utils.h"
 

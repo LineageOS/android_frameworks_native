@@ -36,6 +36,7 @@ cc_library_static {
         "TableEntry.cpp",
         "TextTable.cpp",
         "utils.cpp",
+        "WaitCommand.cpp",
     ],
     cflags: [
         "-Wall",
