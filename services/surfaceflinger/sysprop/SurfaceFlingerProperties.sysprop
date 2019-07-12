@@ -323,6 +323,18 @@ prop {
     prop_name: "ro.surface_flinger.set_touch_timer_ms"
 }
 
+# setDisplayPowerTimerMs indicates what is considered a timeout in milliseconds for Scheduler.
+# This value is used by the Scheduler to trigger display power inactivity callbacks that will
+# keep the display in peak refresh rate as long as display power is not in normal mode.
+# Setting this property to 0 means there is no timer.
+prop {
+    api_name: "set_display_power_timer_ms"
+    type: Integer
+    scope: System
+    access: Readonly
+    prop_name: "ro.surface_flinger.set_display_power_timer_ms"
+}
+
 # useSmart90ForVideo indicates whether Scheduler should detect content FPS, and try to adjust the
 # screen refresh rate based on that.
 prop {
