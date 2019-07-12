@@ -48,6 +48,7 @@ cc_library {
 
     shared_libs: [
         "liblog",
+        "libutils",
     ],
 
     required: [
