@@ -50,7 +50,8 @@ void LayerInfo::setLastPresentTime(nsecs_t lastPresentTime) {
     // Ignore time diff that are too high - those are stale values
     if (timeDiff > OBSOLETE_TIME_EPSILON_NS.count()) return;
     const nsecs_t refreshDuration = (timeDiff > 0) ? timeDiff : mMinRefreshDuration;
-    mRefreshRateHistory.insertRefreshRate(refreshDuration);
+    const int fps = 1e9f / refreshDuration;
+    mRefreshRateHistory.insertRefreshRate(fps);
 }
 
 } // namespace scheduler

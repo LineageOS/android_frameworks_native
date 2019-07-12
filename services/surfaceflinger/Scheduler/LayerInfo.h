@@ -46,7 +46,7 @@ class LayerInfo {
     public:
         explicit RefreshRateHistory(nsecs_t minRefreshDuration)
               : mMinRefreshDuration(minRefreshDuration) {}
-        void insertRefreshRate(nsecs_t refreshRate) {
+        void insertRefreshRate(int refreshRate) {
             mElements.push_back(refreshRate);
             if (mElements.size() > HISTORY_SIZE) {
                 mElements.pop_front();
@@ -54,13 +54,13 @@ class LayerInfo {
         }
 
         float getRefreshRateAvg() const {
-            nsecs_t refreshDuration = mMinRefreshDuration;
-            if (mElements.size() > 0) {
-                refreshDuration = scheduler::calculate_mean(mElements);
+            if (mElements.empty()) {
+                return 1e9f / mMinRefreshDuration;
             }
 
-            return 1e9f / refreshDuration;
+            return scheduler::calculate_mean(mElements);
         }
+
         void clearHistory() { mElements.clear(); }
 
     private:
