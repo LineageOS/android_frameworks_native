@@ -84,7 +84,6 @@ cc_library_shared {
         "android.hardware.configstore-utils",
         "libbase",
         "libcutils",
-        "libhardware",
         "libhidlbase",
         "libhidltransport",
         "libhwbinder",
