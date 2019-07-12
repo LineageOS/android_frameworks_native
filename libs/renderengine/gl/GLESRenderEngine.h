@@ -85,8 +85,7 @@ public:
     bool useProtectedContext(bool useProtectedContext) override;
     status_t drawLayers(const DisplaySettings& display, const std::vector<LayerSettings>& layers,
                         ANativeWindowBuffer* buffer, const bool useFramebufferCache,
-                        base::unique_fd&& bufferFence, base::unique_fd* drawFence)
-            EXCLUDES(mRenderingMutex) override;
+                        base::unique_fd&& bufferFence, base::unique_fd* drawFence) override;
 
     // internal to RenderEngine
     EGLDisplay getEGLDisplay() const { return mEGLDisplay; }
@@ -219,15 +218,6 @@ private:
     // 2. Internal state related to rendering that is potentially modified by
     // multiple threads is guaranteed thread-safe.
     std::mutex mRenderingMutex;
-
-    // See bindExternalTextureBuffer above, but requiring that mRenderingMutex
-    // is held.
-    status_t bindExternalTextureBufferLocked(uint32_t texName, const sp<GraphicBuffer>& buffer,
-                                             const sp<Fence>& fence) REQUIRES(mRenderingMutex);
-    // See cacheExternalTextureBuffer above, but requiring that mRenderingMutex
-    // is held.
-    status_t cacheExternalTextureBufferLocked(const sp<GraphicBuffer>& buffer)
-            REQUIRES(mRenderingMutex);
 
     std::unique_ptr<Framebuffer> mDrawingBuffer;
 
