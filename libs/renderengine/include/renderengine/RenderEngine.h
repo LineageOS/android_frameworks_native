@@ -176,6 +176,17 @@ public:
     // should be called for every display that needs to be rendered via the GPU.
     // @param display The display-wide settings that should be applied prior to
     // drawing any layers.
+    //
+    // Assumptions when calling this method:
+    // 1. There is exactly one caller - i.e. multi-threading is not supported.
+    // 2. Additional threads may be calling the {bind,cache}ExternalTexture
+    // methods above. But the main thread is responsible for holding resources
+    // such that Image destruction does not occur while this method is called.
+    //
+    // TODO(b/136806342): This should behavior should ideally be fixed since
+    // the above two assumptions are brittle, as conditional thread safetyness
+    // may be insufficient when maximizing rendering performance in the future.
+    //
     // @param layers The layers to draw onto the display, in Z-order.
     // @param buffer The buffer which will be drawn to. This buffer will be
     // ready once drawFence fires.
