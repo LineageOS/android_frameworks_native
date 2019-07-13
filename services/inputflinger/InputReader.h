@@ -717,7 +717,6 @@ public:
 
     inline size_t getSlotCount() const { return mSlotCount; }
     inline const Slot* getSlot(size_t index) const { return &mSlots[index]; }
-    inline uint32_t getDeviceTimestamp() const { return mDeviceTimestamp; }
 
 private:
     int32_t mCurrentSlot;
@@ -725,7 +724,6 @@ private:
     size_t mSlotCount;
     bool mUsingSlotsProtocol;
     bool mHaveStylus;
-    uint32_t mDeviceTimestamp;
 
     void clearSlots(int32_t initialSlot);
 };
@@ -1174,7 +1172,6 @@ protected:
 
     struct RawState {
         nsecs_t when;
-        uint32_t deviceTimestamp;
 
         // Raw pointer sample data.
         RawPointerData rawPointerData;
@@ -1187,7 +1184,6 @@ protected:
 
         void copyFrom(const RawState& other) {
             when = other.when;
-            deviceTimestamp = other.deviceTimestamp;
             rawPointerData.copyFrom(other.rawPointerData);
             buttonState = other.buttonState;
             rawVScroll = other.rawVScroll;
@@ -1196,7 +1192,6 @@ protected:
 
         void clear() {
             when = 0;
-            deviceTimestamp = 0;
             rawPointerData.clear();
             buttonState = 0;
             rawVScroll = 0;
@@ -1205,7 +1200,6 @@ protected:
     };
 
     struct CookedState {
-        uint32_t deviceTimestamp;
         // Cooked pointer sample data.
         CookedPointerData cookedPointerData;
 
@@ -1217,7 +1211,6 @@ protected:
         int32_t buttonState;
 
         void copyFrom(const CookedState& other) {
-            deviceTimestamp = other.deviceTimestamp;
             cookedPointerData.copyFrom(other.cookedPointerData);
             fingerIdBits = other.fingerIdBits;
             stylusIdBits = other.stylusIdBits;
@@ -1226,7 +1219,6 @@ protected:
         }
 
         void clear() {
-            deviceTimestamp = 0;
             cookedPointerData.clear();
             fingerIdBits.clear();
             stylusIdBits.clear();
@@ -1634,7 +1626,6 @@ private:
     void dispatchMotion(nsecs_t when, uint32_t policyFlags, uint32_t source,
             int32_t action, int32_t actionButton,
             int32_t flags, int32_t metaState, int32_t buttonState, int32_t edgeFlags,
-            uint32_t deviceTimestamp,
             const PointerProperties* properties, const PointerCoords* coords,
             const uint32_t* idToIndex, BitSet32 idBits,
             int32_t changedId, float xPrecision, float yPrecision, nsecs_t downTime);

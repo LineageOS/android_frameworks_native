@@ -92,10 +92,10 @@ NotifyMotionArgs::NotifyMotionArgs(
         uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId, uint32_t source,
         int32_t displayId, uint32_t policyFlags, int32_t action, int32_t actionButton,
         int32_t flags, int32_t metaState, int32_t buttonState, MotionClassification classification,
-        int32_t edgeFlags, uint32_t deviceTimestamp, uint32_t pointerCount,
-        const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
-        float xPrecision, float yPrecision, float xCursorPosition, float yCursorPosition,
-        nsecs_t downTime, const std::vector<TouchVideoFrame>& videoFrames)
+        int32_t edgeFlags, uint32_t pointerCount, const PointerProperties* pointerProperties,
+        const PointerCoords* pointerCoords, float xPrecision, float yPrecision,
+        float xCursorPosition, float yCursorPosition, nsecs_t downTime,
+        const std::vector<TouchVideoFrame>& videoFrames)
       : NotifyArgs(sequenceNum, eventTime),
         deviceId(deviceId),
         source(source),
@@ -108,7 +108,6 @@ NotifyMotionArgs::NotifyMotionArgs(
         buttonState(buttonState),
         classification(classification),
         edgeFlags(edgeFlags),
-        deviceTimestamp(deviceTimestamp),
         pointerCount(pointerCount),
         xPrecision(xPrecision),
         yPrecision(yPrecision),
@@ -135,7 +134,6 @@ NotifyMotionArgs::NotifyMotionArgs(const NotifyMotionArgs& other)
         buttonState(other.buttonState),
         classification(other.classification),
         edgeFlags(other.edgeFlags),
-        deviceTimestamp(other.deviceTimestamp),
         pointerCount(other.pointerCount),
         xPrecision(other.xPrecision),
         yPrecision(other.yPrecision),
@@ -159,7 +157,7 @@ bool NotifyMotionArgs::operator==(const NotifyMotionArgs& rhs) const {
             policyFlags == rhs.policyFlags && action == rhs.action &&
             actionButton == rhs.actionButton && flags == rhs.flags && metaState == rhs.metaState &&
             buttonState == rhs.buttonState && classification == rhs.classification &&
-            edgeFlags == rhs.edgeFlags && deviceTimestamp == rhs.deviceTimestamp &&
+            edgeFlags == rhs.edgeFlags &&
             pointerCount == rhs.pointerCount
             // PointerProperties and PointerCoords are compared separately below
             && xPrecision == rhs.xPrecision && yPrecision == rhs.yPrecision &&

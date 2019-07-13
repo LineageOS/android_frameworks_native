@@ -75,13 +75,14 @@ void TransactionCompletedThread::run() {
     mThread = std::thread(&TransactionCompletedThread::threadMain, this);
 }
 
-status_t TransactionCompletedThread::addCallback(const sp<ITransactionCompletedListener>& listener,
-                                                 const std::vector<CallbackId>& callbackIds) {
+status_t TransactionCompletedThread::startRegistration(const ListenerCallbacks& listenerCallbacks) {
     std::lock_guard lock(mMutex);
     if (!mRunning) {
         ALOGE("cannot add callback because the callback thread isn't running");
         return BAD_VALUE;
     }
+
+    auto& [listener, callbackIds] = listenerCallbacks;
 
     if (mCompletedTransactions.count(listener) == 0) {
         status_t err = IInterface::asBinder(listener)->linkToDeath(mDeathRecipient);
@@ -91,9 +92,39 @@ status_t TransactionCompletedThread::addCallback(const sp<ITransactionCompletedL
         }
     }
 
+    mRegisteringTransactions.insert(listenerCallbacks);
+
     auto& transactionStatsDeque = mCompletedTransactions[listener];
     transactionStatsDeque.emplace_back(callbackIds);
+
     return NO_ERROR;
+}
+
+status_t TransactionCompletedThread::endRegistration(const ListenerCallbacks& listenerCallbacks) {
+    std::lock_guard lock(mMutex);
+    if (!mRunning) {
+        ALOGE("cannot add callback because the callback thread isn't running");
+        return BAD_VALUE;
+    }
+
+    auto itr = mRegisteringTransactions.find(listenerCallbacks);
+    if (itr == mRegisteringTransactions.end()) {
+        ALOGE("cannot end a registration that does not exist");
+        return BAD_VALUE;
+    }
+
+    mRegisteringTransactions.erase(itr);
+
+    return NO_ERROR;
+}
+
+bool TransactionCompletedThread::isRegisteringTransaction(
+        const sp<ITransactionCompletedListener>& transactionListener,
+        const std::vector<CallbackId>& callbackIds) {
+    ListenerCallbacks listenerCallbacks(transactionListener, callbackIds);
+
+    auto itr = mRegisteringTransactions.find(listenerCallbacks);
+    return itr != mRegisteringTransactions.end();
 }
 
 status_t TransactionCompletedThread::registerPendingCallbackHandle(
@@ -105,7 +136,7 @@ status_t TransactionCompletedThread::registerPendingCallbackHandle(
     }
 
     // If we can't find the transaction stats something has gone wrong. The client should call
-    // addCallback before trying to register a pending callback handle.
+    // startRegistration before trying to register a pending callback handle.
     TransactionStats* transactionStats;
     status_t err = findTransactionStats(handle->listener, handle->callbackIds, &transactionStats);
     if (err != NO_ERROR) {
@@ -117,7 +148,7 @@ status_t TransactionCompletedThread::registerPendingCallbackHandle(
     return NO_ERROR;
 }
 
-status_t TransactionCompletedThread::addPresentedCallbackHandles(
+status_t TransactionCompletedThread::finalizePendingCallbackHandles(
         const std::deque<sp<CallbackHandle>>& handles) {
     std::lock_guard lock(mMutex);
     if (!mRunning) {
@@ -158,7 +189,7 @@ status_t TransactionCompletedThread::addPresentedCallbackHandles(
     return NO_ERROR;
 }
 
-status_t TransactionCompletedThread::addUnpresentedCallbackHandle(
+status_t TransactionCompletedThread::registerUnpresentedCallbackHandle(
         const sp<CallbackHandle>& handle) {
     std::lock_guard lock(mMutex);
     if (!mRunning) {
@@ -189,7 +220,7 @@ status_t TransactionCompletedThread::findTransactionStats(
 
 status_t TransactionCompletedThread::addCallbackHandle(const sp<CallbackHandle>& handle) {
     // If we can't find the transaction stats something has gone wrong. The client should call
-    // addCallback before trying to add a presnted callback handle.
+    // startRegistration before trying to add a callback handle.
     TransactionStats* transactionStats;
     status_t err = findTransactionStats(handle->listener, handle->callbackIds, &transactionStats);
     if (err != NO_ERROR) {
@@ -197,8 +228,14 @@ status_t TransactionCompletedThread::addCallbackHandle(const sp<CallbackHandle>&
     }
 
     transactionStats->latchTime = handle->latchTime;
-    transactionStats->surfaceStats.emplace_back(handle->surfaceControl, handle->acquireTime,
-                                                handle->previousReleaseFence);
+    // If the layer has already been destroyed, don't add the SurfaceControl to the callback.
+    // The client side keeps a sp<> to the SurfaceControl so if the SurfaceControl has been
+    // destroyed the client side is dead and there won't be anyone to send the callback to.
+    sp<IBinder> surfaceControl = handle->surfaceControl.promote();
+    if (surfaceControl) {
+        transactionStats->surfaceStats.emplace_back(surfaceControl, handle->acquireTime,
+                                                    handle->previousReleaseFence);
+    }
     return NO_ERROR;
 }
 
@@ -232,6 +269,13 @@ void TransactionCompletedThread::threadMain() {
             auto transactionStatsItr = transactionStatsDeque.begin();
             while (transactionStatsItr != transactionStatsDeque.end()) {
                 auto& transactionStats = *transactionStatsItr;
+
+                // If this transaction is still registering, it is not safe to send a callback
+                // because there could be surface controls that haven't been added to
+                // transaction stats or mPendingTransactions.
+                if (isRegisteringTransaction(listener, transactionStats.callbackIds)) {
+                    break;
+                }
 
                 // If we are still waiting on the callback handles for this transaction, stop
                 // here because all transaction callbacks for the same listener must come in order

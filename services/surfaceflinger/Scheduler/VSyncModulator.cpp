@@ -129,29 +129,16 @@ void VSyncModulator::updateOffsets() {
 
 void VSyncModulator::updateOffsetsLocked() {
     const Offsets desired = getNextOffsets();
-    const Offsets current = mOffsets;
 
-    bool changed = false;
-    if (desired.sf != current.sf) {
-        if (mSfConnectionHandle != nullptr) {
-            mScheduler->setPhaseOffset(mSfConnectionHandle, desired.sf);
-        } else if (mSfEventThread != nullptr) {
-            mSfEventThread->setPhaseOffset(desired.sf);
-        }
-        changed = true;
-    }
-    if (desired.app != current.app) {
-        if (mAppConnectionHandle != nullptr) {
-            mScheduler->setPhaseOffset(mAppConnectionHandle, desired.app);
-        } else if (mAppEventThread != nullptr) {
-            mAppEventThread->setPhaseOffset(desired.app);
-        }
-        changed = true;
+    if (mSfConnectionHandle != nullptr) {
+        mScheduler->setPhaseOffset(mSfConnectionHandle, desired.sf);
     }
 
-    if (changed) {
-        flushOffsets();
+    if (mAppConnectionHandle != nullptr) {
+        mScheduler->setPhaseOffset(mAppConnectionHandle, desired.app);
     }
+
+    flushOffsets();
 }
 
 void VSyncModulator::flushOffsets() {

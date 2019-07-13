@@ -107,13 +107,7 @@ struct NotifyMotionArgs : public NotifyArgs {
      */
     MotionClassification classification;
     int32_t edgeFlags;
-    /**
-     * A timestamp in the input device's time base, not the platform's.
-     * The units are microseconds since the last reset.
-     * This can only be compared to other device timestamps from the same device.
-     * This value will overflow after a little over an hour.
-     */
-    uint32_t deviceTimestamp;
+
     uint32_t pointerCount;
     PointerProperties pointerProperties[MAX_POINTERS];
     PointerCoords pointerCoords[MAX_POINTERS];
@@ -134,8 +128,7 @@ struct NotifyMotionArgs : public NotifyArgs {
     NotifyMotionArgs(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId, uint32_t source,
                      int32_t displayId, uint32_t policyFlags, int32_t action, int32_t actionButton,
                      int32_t flags, int32_t metaState, int32_t buttonState,
-                     MotionClassification classification, int32_t edgeFlags,
-                     uint32_t deviceTimestamp, uint32_t pointerCount,
+                     MotionClassification classification, int32_t edgeFlags, uint32_t pointerCount,
                      const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
                      float xPrecision, float yPrecision, float xCursorPosition,
                      float yCursorPosition, nsecs_t downTime,

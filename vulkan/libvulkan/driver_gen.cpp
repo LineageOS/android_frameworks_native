@@ -74,6 +74,15 @@ VKAPI_ATTR VkResult checkedQueuePresentKHR(VkQueue queue, const VkPresentInfoKHR
     }
 }
 
+VKAPI_ATTR VkResult checkedBindImageMemory2KHR(VkDevice device, uint32_t bindInfoCount, const VkBindImageMemoryInfo* pBindInfos) {
+    if (GetData(device).hook_extensions[ProcHook::KHR_bind_memory2]) {
+        return BindImageMemory2KHR(device, bindInfoCount, pBindInfos);
+    } else {
+        Logger(device).Err(device, "VK_KHR_bind_memory2 not enabled. vkBindImageMemory2KHR not executed.");
+        return VK_SUCCESS;
+    }
+}
+
 VKAPI_ATTR VkResult checkedGetDeviceGroupPresentCapabilitiesKHR(VkDevice device, VkDeviceGroupPresentCapabilitiesKHR* pDeviceGroupPresentCapabilities) {
     if (GetData(device).hook_extensions[ProcHook::KHR_swapchain]) {
         return GetDeviceGroupPresentCapabilitiesKHR(device, pDeviceGroupPresentCapabilities);
@@ -101,24 +110,6 @@ VKAPI_ATTR VkResult checkedAcquireNextImage2KHR(VkDevice device, const VkAcquire
     }
 }
 
-VKAPI_ATTR VkResult checkedGetRefreshCycleDurationGOOGLE(VkDevice device, VkSwapchainKHR swapchain, VkRefreshCycleDurationGOOGLE* pDisplayTimingProperties) {
-    if (GetData(device).hook_extensions[ProcHook::GOOGLE_display_timing]) {
-        return GetRefreshCycleDurationGOOGLE(device, swapchain, pDisplayTimingProperties);
-    } else {
-        Logger(device).Err(device, "VK_GOOGLE_display_timing not enabled. vkGetRefreshCycleDurationGOOGLE not executed.");
-        return VK_SUCCESS;
-    }
-}
-
-VKAPI_ATTR VkResult checkedGetPastPresentationTimingGOOGLE(VkDevice device, VkSwapchainKHR swapchain, uint32_t* pPresentationTimingCount, VkPastPresentationTimingGOOGLE* pPresentationTimings) {
-    if (GetData(device).hook_extensions[ProcHook::GOOGLE_display_timing]) {
-        return GetPastPresentationTimingGOOGLE(device, swapchain, pPresentationTimingCount, pPresentationTimings);
-    } else {
-        Logger(device).Err(device, "VK_GOOGLE_display_timing not enabled. vkGetPastPresentationTimingGOOGLE not executed.");
-        return VK_SUCCESS;
-    }
-}
-
 VKAPI_ATTR void checkedSetHdrMetadataEXT(VkDevice device, uint32_t swapchainCount, const VkSwapchainKHR* pSwapchains, const VkHdrMetadataEXT* pMetadata) {
     if (GetData(device).hook_extensions[ProcHook::EXT_hdr_metadata]) {
         SetHdrMetadataEXT(device, swapchainCount, pSwapchains, pMetadata);
@@ -136,11 +127,20 @@ VKAPI_ATTR VkResult checkedGetSwapchainStatusKHR(VkDevice device, VkSwapchainKHR
     }
 }
 
-VKAPI_ATTR VkResult checkedBindImageMemory2KHR(VkDevice device, uint32_t bindInfoCount, const VkBindImageMemoryInfoKHR* pBindInfos) {
-    if (GetData(device).hook_extensions[ProcHook::KHR_bind_memory2]) {
-        return BindImageMemory2KHR(device, bindInfoCount, pBindInfos);
+VKAPI_ATTR VkResult checkedGetRefreshCycleDurationGOOGLE(VkDevice device, VkSwapchainKHR swapchain, VkRefreshCycleDurationGOOGLE* pDisplayTimingProperties) {
+    if (GetData(device).hook_extensions[ProcHook::GOOGLE_display_timing]) {
+        return GetRefreshCycleDurationGOOGLE(device, swapchain, pDisplayTimingProperties);
     } else {
-        Logger(device).Err(device, "VK_KHR_bind_memory2 not enabled. vkBindImageMemory2KHR not executed.");
+        Logger(device).Err(device, "VK_GOOGLE_display_timing not enabled. vkGetRefreshCycleDurationGOOGLE not executed.");
+        return VK_SUCCESS;
+    }
+}
+
+VKAPI_ATTR VkResult checkedGetPastPresentationTimingGOOGLE(VkDevice device, VkSwapchainKHR swapchain, uint32_t* pPresentationTimingCount, VkPastPresentationTimingGOOGLE* pPresentationTimings) {
+    if (GetData(device).hook_extensions[ProcHook::GOOGLE_display_timing]) {
+        return GetPastPresentationTimingGOOGLE(device, swapchain, pPresentationTimingCount, pPresentationTimings);
+    } else {
+        Logger(device).Err(device, "VK_GOOGLE_display_timing not enabled. vkGetPastPresentationTimingGOOGLE not executed.");
         return VK_SUCCESS;
     }
 }
@@ -516,12 +516,12 @@ bool InitDriverTable(VkInstance instance,
     INIT_PROC(true, instance, GetPhysicalDeviceProperties);
     INIT_PROC(true, instance, CreateDevice);
     INIT_PROC(true, instance, EnumerateDeviceExtensionProperties);
-    INIT_PROC(false, instance, EnumeratePhysicalDeviceGroups);
-    INIT_PROC(false, instance, GetPhysicalDeviceProperties2);
     INIT_PROC_EXT(EXT_debug_report, true, instance, CreateDebugReportCallbackEXT);
     INIT_PROC_EXT(EXT_debug_report, true, instance, DestroyDebugReportCallbackEXT);
     INIT_PROC_EXT(EXT_debug_report, true, instance, DebugReportMessageEXT);
+    INIT_PROC(false, instance, GetPhysicalDeviceProperties2);
     INIT_PROC_EXT(KHR_get_physical_device_properties2, true, instance, GetPhysicalDeviceProperties2KHR);
+    INIT_PROC(false, instance, EnumeratePhysicalDeviceGroups);
     // clang-format on
 
     return success;
@@ -541,12 +541,12 @@ bool InitDriverTable(VkDevice dev,
     INIT_PROC(true, dev, DestroyImage);
     INIT_PROC(true, dev, AllocateCommandBuffers);
     INIT_PROC(false, dev, BindImageMemory2);
+    INIT_PROC_EXT(KHR_bind_memory2, true, dev, BindImageMemory2KHR);
     INIT_PROC(false, dev, GetDeviceQueue2);
     INIT_PROC_EXT(ANDROID_native_buffer, false, dev, GetSwapchainGrallocUsageANDROID);
-    INIT_PROC_EXT(ANDROID_native_buffer, false, dev, GetSwapchainGrallocUsage2ANDROID);
     INIT_PROC_EXT(ANDROID_native_buffer, true, dev, AcquireImageANDROID);
     INIT_PROC_EXT(ANDROID_native_buffer, true, dev, QueueSignalReleaseImageANDROID);
-    INIT_PROC_EXT(KHR_bind_memory2, true, dev, BindImageMemory2KHR);
+    INIT_PROC_EXT(ANDROID_native_buffer, false, dev, GetSwapchainGrallocUsage2ANDROID);
     // clang-format on
 
     return success;
