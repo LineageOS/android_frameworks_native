@@ -67,7 +67,7 @@ PFN_vkVoidFunction GetGlobalProcAddr(const char* name);
 PFN_vkVoidFunction GetInstanceProcAddr(const char* name);
 
 """
-  genfile = os.path.join(os.path.dirname(__file__),'..','nulldrv','null_driver_gen2.h')
+  genfile = os.path.join(os.path.dirname(__file__),'..','nulldrv','null_driver_gen.h')
   with open(genfile, 'w') as f:
     f.write (copyright)
     f.write (gencom.warning)
@@ -85,6 +85,8 @@ VKAPI_ATTR VkResult QueueSignalReleaseImageANDROID(VkQueue queue, uint32_t waitS
 
     f.write ('\n}  // namespace null_driver\n')
     f.write ('\n#endif  // NULLDRV_NULL_DRIVER_H\n')
+    f.close()
+  gencom.runClangFormat(genfile)
 
 def null_driver_gencpp():
   header = """#include <algorithm>
@@ -118,7 +120,7 @@ PFN_vkVoidFunction Lookup(const char* name, const NameProc (&procs)[N]) {
 
 const NameProc kGlobalProcs[] = {
 """
-  genfile = os.path.join(os.path.dirname(__file__),'..','nulldrv','null_driver_gen2.cpp')
+  genfile = os.path.join(os.path.dirname(__file__),'..','nulldrv','null_driver_gen.cpp')
   with open(genfile, 'w') as f:
     f.write (copyright)
     f.write (gencom.warning)
@@ -151,4 +153,6 @@ PFN_vkVoidFunction GetInstanceProcAddr(const char* name) {
 }
 
 }  // namespace null_driver\n""")
+    f.close()
+  gencom.runClangFormat(genfile)
 
