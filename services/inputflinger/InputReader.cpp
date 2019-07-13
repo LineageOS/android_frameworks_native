@@ -559,7 +559,8 @@ void InputReader::refreshConfigurationLocked(uint32_t changes) {
     mEventHub->setExcludedDevices(mConfig.excludedDeviceNames);
 
     if (changes) {
-        ALOGI("Reconfiguring input devices.  changes=0x%08x", changes);
+        ALOGI("Reconfiguring input devices, changes=%s",
+              InputReaderConfiguration::changesToString(changes).c_str());
         nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
 
         if (changes & InputReaderConfiguration::CHANGE_MUST_REOPEN) {
