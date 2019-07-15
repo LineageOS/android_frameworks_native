@@ -837,6 +837,7 @@ EGLImageKHR GLESRenderEngine::createFramebufferImageIfNeeded(ANativeWindowBuffer
                                                              bool useFramebufferCache) {
     sp<GraphicBuffer> graphicBuffer = GraphicBuffer::from(nativeBuffer);
     if (useFramebufferCache) {
+        std::lock_guard<std::mutex> lock(mFramebufferImageCacheMutex);
         for (const auto& image : mFramebufferImageCache) {
             if (image.first == graphicBuffer->getId()) {
                 return image.second;
@@ -852,6 +853,7 @@ EGLImageKHR GLESRenderEngine::createFramebufferImageIfNeeded(ANativeWindowBuffer
                                           nativeBuffer, attributes);
     if (useFramebufferCache) {
         if (image != EGL_NO_IMAGE_KHR) {
+            std::lock_guard<std::mutex> lock(mFramebufferImageCacheMutex);
             if (mFramebufferImageCache.size() >= mFramebufferImageCacheSize) {
                 EGLImageKHR expired = mFramebufferImageCache.front().second;
                 mFramebufferImageCache.pop_front();
@@ -1266,6 +1268,23 @@ void GLESRenderEngine::dump(std::string& result) {
     StringAppendF(&result, "RenderEngine last dataspace conversion: (%s) to (%s)\n",
                   dataspaceDetails(static_cast<android_dataspace>(mDataSpace)).c_str(),
                   dataspaceDetails(static_cast<android_dataspace>(mOutputDataSpace)).c_str());
+    {
+        std::lock_guard<std::mutex> lock(mRenderingMutex);
+        StringAppendF(&result, "RenderEngine image cache size: %zu\n", mImageCache.size());
+        StringAppendF(&result, "Dumping buffer ids...\n");
+        for (const auto& [id, unused] : mImageCache) {
+            StringAppendF(&result, "0x%" PRIx64 "\n", id);
+        }
+    }
+    {
+        std::lock_guard<std::mutex> lock(mFramebufferImageCacheMutex);
+        StringAppendF(&result, "RenderEngine framebuffer image cache size: %zu\n",
+                      mFramebufferImageCache.size());
+        StringAppendF(&result, "Dumping buffer ids...\n");
+        for (const auto& [id, unused] : mFramebufferImageCache) {
+            StringAppendF(&result, "0x%" PRIx64 "\n", id);
+        }
+    }
 }
 
 GLESRenderEngine::GlesVersion GLESRenderEngine::parseGlesVersion(const char* str) {
@@ -1392,7 +1411,7 @@ bool GLESRenderEngine::isImageCachedForTesting(uint64_t bufferId) {
 }
 
 bool GLESRenderEngine::isFramebufferImageCachedForTesting(uint64_t bufferId) {
-    std::lock_guard<std::mutex> lock(mRenderingMutex);
+    std::lock_guard<std::mutex> lock(mFramebufferImageCacheMutex);
     return std::any_of(mFramebufferImageCache.cbegin(), mFramebufferImageCache.cend(),
                        [=](std::pair<uint64_t, EGLImageKHR> image) {
                            return image.first == bufferId;
