@@ -3,5 +3,10 @@
     {
       "name": "servicemanager_test"
     }
+  ],
+  "imports": [
+    {
+      "path": "frameworks/native/libs/binder"
+    }
   ]
 }
