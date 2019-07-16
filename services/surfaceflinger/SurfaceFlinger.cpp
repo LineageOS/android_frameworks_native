@@ -5188,7 +5188,18 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case SET_DISPLAY_BRIGHTNESS: {
             return OK;
         }
-        case CAPTURE_LAYERS:
+        case CAPTURE_LAYERS: {
+            IPCThreadState* ipc = IPCThreadState::self();
+            const int pid = ipc->getCallingPid();
+            const int uid = ipc->getCallingUid();
+            // allow media to capture layer for video thumbnails
+            if ((uid != AID_GRAPHICS && uid != AID_MEDIA) &&
+                !PermissionCache::checkPermission(sReadFramebuffer, pid, uid)) {
+                ALOGE("Permission Denial: can't capture layer pid=%d, uid=%d", pid, uid);
+                return PERMISSION_DENIED;
+            }
+            return OK;
+        }
         case CAPTURE_SCREEN:
         case ADD_REGION_SAMPLING_LISTENER:
         case REMOVE_REGION_SAMPLING_LISTENER: {
