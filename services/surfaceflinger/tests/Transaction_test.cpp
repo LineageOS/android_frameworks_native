@@ -4427,6 +4427,30 @@ TEST_F(LayerUpdateTest, MergingTransactions) {
     }
 }
 
+TEST_F(LayerUpdateTest, MergingTransactionFlags) {
+    Transaction().hide(mFGSurfaceControl).apply();
+    std::unique_ptr<ScreenCapture> sc;
+    {
+        SCOPED_TRACE("before merge");
+        ScreenCapture::captureScreen(&sc);
+        sc->expectBGColor(0, 12);
+        sc->expectBGColor(75, 75);
+        sc->expectBGColor(145, 145);
+    }
+
+    Transaction t1, t2;
+    t1.show(mFGSurfaceControl);
+    t2.setFlags(mFGSurfaceControl, 0 /* flags */, layer_state_t::eLayerSecure /* mask */);
+    t1.merge(std::move(t2));
+    t1.apply();
+
+    {
+        SCOPED_TRACE("after merge");
+        ScreenCapture::captureScreen(&sc);
+        sc->expectFGColor(75, 75);
+    }
+}
+
 class ChildLayerTest : public LayerUpdateTest {
 protected:
     void SetUp() override {

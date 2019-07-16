@@ -267,8 +267,9 @@ void layer_state_t::merge(const layer_state_t& other) {
     }
     if (other.what & eFlagsChanged) {
         what |= eFlagsChanged;
-        flags = other.flags;
-        mask = other.mask;
+        flags &= ~other.mask;
+        flags |= (other.flags & other.mask);
+        mask |= other.mask;
     }
     if (other.what & eLayerStackChanged) {
         what |= eLayerStackChanged;
