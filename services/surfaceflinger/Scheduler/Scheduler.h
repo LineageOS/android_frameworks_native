@@ -49,6 +49,7 @@ public:
     }
 
     using RefreshRateType = scheduler::RefreshRateConfigs::RefreshRateType;
+    using GetCurrentRefreshRateTypeCallback = std::function<RefreshRateType()>;
     using ChangeRefreshRateCallback = std::function<void(RefreshRateType, ConfigEvent)>;
     using GetVsyncPeriod = std::function<nsecs_t()>;
 
@@ -165,7 +166,9 @@ public:
     // Updates FPS based on the most content presented.
     void updateFpsBasedOnContent();
     // Callback that gets invoked when Scheduler wants to change the refresh rate.
-    void setChangeRefreshRateCallback(const ChangeRefreshRateCallback& changeRefreshRateCallback);
+    void setChangeRefreshRateCallback(const ChangeRefreshRateCallback&& changeRefreshRateCallback);
+    void setGetCurrentRefreshRateTypeCallback(
+            const GetCurrentRefreshRateTypeCallback&& getCurrentRefreshRateType);
     void setGetVsyncPeriodCallback(const GetVsyncPeriod&& getVsyncPeriod);
 
     // Returns whether idle timer is enabled or not
@@ -294,6 +297,7 @@ private:
     std::unique_ptr<scheduler::IdleTimer> mDisplayPowerTimer;
 
     std::mutex mCallbackLock;
+    GetCurrentRefreshRateTypeCallback mGetCurrentRefreshRateTypeCallback GUARDED_BY(mCallbackLock);
     ChangeRefreshRateCallback mChangeRefreshRateCallback GUARDED_BY(mCallbackLock);
     GetVsyncPeriod mGetVsyncPeriod GUARDED_BY(mCallbackLock);
 
