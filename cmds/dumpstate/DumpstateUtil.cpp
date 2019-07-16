@@ -378,34 +378,6 @@ int RunCommandToFd(int fd, const std::string& title, const std::vector<std::stri
     return status;
 }
 
-int GetPidByName(const std::string& ps_name) {
-    DIR* proc_dir;
-    struct dirent* ps;
-    unsigned int pid;
-    std::string cmdline;
-
-    if (!(proc_dir = opendir("/proc"))) {
-        MYLOGE("Can't open /proc\n");
-        return -1;
-    }
-
-    while ((ps = readdir(proc_dir))) {
-        if (!(pid = atoi(ps->d_name))) {
-            continue;
-        }
-        android::base::ReadFileToString("/proc/" + std::string(ps->d_name) + "/cmdline", &cmdline);
-        if (cmdline.find(ps_name) == std::string::npos) {
-            continue;
-        } else {
-            closedir(proc_dir);
-            return pid;
-        }
-    }
-    MYLOGE("can't find the pid\n");
-    closedir(proc_dir);
-    return -1;
-}
-
 }  // namespace dumpstate
 }  // namespace os
 }  // namespace android
