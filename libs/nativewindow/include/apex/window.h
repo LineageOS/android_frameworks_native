@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,21 @@
  * limitations under the License.
  */
 
-#include <android/hardware_buffer.h>
-#include <android/native_window.h>
-#include <apex/window.h>
-#include <vndk/hardware_buffer.h>
-#include <vndk/window.h>
+#pragma once
 
-// this checks that all these headers are C-compatible
+#include <nativebase/nativebase.h>
+
+// apex is a superset of the NDK
+#include <android/native_window.h>
+
+__BEGIN_DECLS
+
+/**
+ * Retrieves how long it took for the last time a buffer was dequeued.
+ *
+ * \return a negative value on error, otherwise returns the duration in
+ * microseconds.
+ */
+int ANativeWindow_getLastDequeueDuration(ANativeWindow* window);
+
+__END_DECLS
