@@ -668,7 +668,13 @@ void DispSync::updateModelLocked() {
         nsecs_t durationSum = 0;
         nsecs_t minDuration = INT64_MAX;
         nsecs_t maxDuration = 0;
-        for (size_t i = 1; i < mNumResyncSamples; i++) {
+        // We skip the first 2 samples because the first vsync duration on some
+        // devices may be much more inaccurate than on other devices, e.g. due
+        // to delays in ramping up from a power collapse. By doing so this
+        // actually increases the accuracy of the DispSync model even though
+        // we're effectively relying on fewer sample points.
+        static constexpr size_t numSamplesSkipped = 2;
+        for (size_t i = numSamplesSkipped; i < mNumResyncSamples; i++) {
             size_t idx = (mFirstResyncSample + i) % MAX_RESYNC_SAMPLES;
             size_t prev = (idx + MAX_RESYNC_SAMPLES - 1) % MAX_RESYNC_SAMPLES;
             nsecs_t duration = mResyncSamples[idx] - mResyncSamples[prev];
@@ -679,15 +685,14 @@ void DispSync::updateModelLocked() {
 
         // Exclude the min and max from the average
         durationSum -= minDuration + maxDuration;
-        mPeriod = durationSum / (mNumResyncSamples - 3);
+        mPeriod = durationSum / (mNumResyncSamples - numSamplesSkipped - 2);
 
         ALOGV("[%s] mPeriod = %" PRId64, mName, ns2us(mPeriod));
 
         double sampleAvgX = 0;
         double sampleAvgY = 0;
         double scale = 2.0 * M_PI / double(mPeriod);
-        // Intentionally skip the first sample
-        for (size_t i = 1; i < mNumResyncSamples; i++) {
+        for (size_t i = numSamplesSkipped; i < mNumResyncSamples; i++) {
             size_t idx = (mFirstResyncSample + i) % MAX_RESYNC_SAMPLES;
             nsecs_t sample = mResyncSamples[idx] - mReferenceTime;
             double samplePhase = double(sample % mPeriod) * scale;
@@ -695,8 +700,8 @@ void DispSync::updateModelLocked() {
             sampleAvgY += sin(samplePhase);
         }
 
-        sampleAvgX /= double(mNumResyncSamples - 1);
-        sampleAvgY /= double(mNumResyncSamples - 1);
+        sampleAvgX /= double(mNumResyncSamples - numSamplesSkipped);
+        sampleAvgY /= double(mNumResyncSamples - numSamplesSkipped);
 
         mPhase = nsecs_t(atan2(sampleAvgY, sampleAvgX) / scale);
 
