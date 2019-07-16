@@ -4542,6 +4542,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
     if (display->isPrimary()) {
         mTimeStats->setPowerMode(mode);
         mRefreshRateStats.setPowerMode(mode);
+        mScheduler->setDisplayPowerState(mode == HWC_POWER_MODE_NORMAL);
     }
 
     ALOGD("Finished setting power mode %d on display %s", mode, to_string(*displayId).c_str());
