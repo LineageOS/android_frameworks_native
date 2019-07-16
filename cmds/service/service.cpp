@@ -70,7 +70,7 @@ int main(int argc, char* const argv[])
 {
     bool wantsUsage = false;
     int result = 0;
-    
+
     while (1) {
         int ic = getopt(argc, argv, "h?");
         if (ic < 0)
@@ -97,7 +97,7 @@ int main(int argc, char* const argv[])
         aerr << "service: Unable to get default service manager!" << endl;
         return 20;
     }
-    
+
     if (optind >= argc) {
         wantsUsage = true;
     } else if (!wantsUsage) {
@@ -119,8 +119,8 @@ int main(int argc, char* const argv[])
             for (unsigned i = 0; i < services.size(); i++) {
                 String16 name = services[i];
                 sp<IBinder> service = sm->checkService(name);
-                aout << i 
-                     << "\t" << good_old_string(name) 
+                aout << i
+                     << "\t" << good_old_string(name)
                      << ": [" << good_old_string(get_interface_name(service)) << "]"
                      << endl;
             }
@@ -188,69 +188,69 @@ int main(int argc, char* const argv[])
                             optind++;
                             data.writeStrongBinder(nullptr);
                         } else if (strcmp(argv[optind], "intent") == 0) {
-                        	
-                        	char* action = nullptr;
-                        	char* dataArg = nullptr;
-                        	char* type = nullptr;
-                        	int launchFlags = 0;
-                        	char* component = nullptr;
-                        	int categoryCount = 0;
-                        	char* categories[16];
-                        	
-                        	char* context1 = nullptr;
-                        	
+
+                            char* action = nullptr;
+                            char* dataArg = nullptr;
+                            char* type = nullptr;
+                            int launchFlags = 0;
+                            char* component = nullptr;
+                            int categoryCount = 0;
+                            char* categories[16];
+
+                            char* context1 = nullptr;
+
                             optind++;
-                            
-                        	while (optind < argc)
-                        	{
-                        		char* key = strtok_r(argv[optind], "=", &context1);
-                        		char* value = strtok_r(nullptr, "=", &context1);
-                                
+
+                            while (optind < argc)
+                            {
+                                char* key = strtok_r(argv[optind], "=", &context1);
+                                char* value = strtok_r(nullptr, "=", &context1);
+
                                 // we have reached the end of the XXX=XXX args.
                                 if (key == nullptr) break;
-                        		
-                        		if (strcmp(key, "action") == 0)
-                        		{
-                        			action = value;
-                        		}
-                        		else if (strcmp(key, "data") == 0)
-                        		{
-                        			dataArg = value;
-                        		}
-                        		else if (strcmp(key, "type") == 0)
-                        		{
-                        			type = value;
-                        		}
-                        		else if (strcmp(key, "launchFlags") == 0)
-                        		{
-                        			launchFlags = atoi(value);
-                        		}
-                        		else if (strcmp(key, "component") == 0)
-                        		{
-                        			component = value;
-                        		}
-                        		else if (strcmp(key, "categories") == 0)
-                        		{
-                        			char* context2 = nullptr;
-                        			int categoryCount = 0;
-                        			categories[categoryCount] = strtok_r(value, ",", &context2);
-                        			
-                        			while (categories[categoryCount] != nullptr)
-                        			{
-                        				categoryCount++;
-                        				categories[categoryCount] = strtok_r(nullptr, ",", &context2);
-                        			}
-                        		}
-                                
+
+                                if (strcmp(key, "action") == 0)
+                                {
+                                    action = value;
+                                }
+                                else if (strcmp(key, "data") == 0)
+                                {
+                                    dataArg = value;
+                                }
+                                else if (strcmp(key, "type") == 0)
+                                {
+                                    type = value;
+                                }
+                                else if (strcmp(key, "launchFlags") == 0)
+                                {
+                                    launchFlags = atoi(value);
+                                }
+                                else if (strcmp(key, "component") == 0)
+                                {
+                                    component = value;
+                                }
+                                else if (strcmp(key, "categories") == 0)
+                                {
+                                    char* context2 = nullptr;
+                                    int categoryCount = 0;
+                                    categories[categoryCount] = strtok_r(value, ",", &context2);
+
+                                    while (categories[categoryCount] != nullptr)
+                                    {
+                                        categoryCount++;
+                                        categories[categoryCount] = strtok_r(nullptr, ",", &context2);
+                                    }
+                                }
+
                                 optind++;
-                        	} 
-                        	
+                            }
+
                             writeString16(data, action);
                             writeString16(data, dataArg);
                             writeString16(data, type);
-                       		data.writeInt32(launchFlags);
+                            data.writeInt32(launchFlags);
                             writeString16(data, component);
-                        	
+
                             if (categoryCount > 0)
                             {
                                 data.writeInt32(categoryCount);
@@ -262,10 +262,10 @@ int main(int argc, char* const argv[])
                             else
                             {
                                 data.writeInt32(0);
-                            }                            
-  
+                            }
+
                             // for now just set the extra field to be null.
-                       		data.writeInt32(-1);
+                            data.writeInt32(-1);
                         } else {
                             aerr << "service: unknown option " << argv[optind] << endl;
                             wantsUsage = true;
@@ -273,7 +273,7 @@ int main(int argc, char* const argv[])
                             break;
                         }
                     }
-                    
+
                     service->transact(code, data, &reply);
                     aout << "Result: " << reply << endl;
                 } else {
@@ -296,7 +296,7 @@ int main(int argc, char* const argv[])
             result = 10;
         }
     }
-    
+
     if (wantsUsage) {
         aout << "Usage: service [-h|-?]\n"
                 "       service list\n"
@@ -312,7 +312,7 @@ int main(int argc, char* const argv[])
 //                "       action=STR data=STR type=STR launchFlags=INT component=STR categories=STR[,STR,...]\n";
         return result;
     }
-    
+
     return result;
 }
 
