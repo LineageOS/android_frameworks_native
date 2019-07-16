@@ -5415,7 +5415,12 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 return NO_ERROR;
             }
             case 1023: { // Set native mode
+                int32_t colorMode;
+
                 mDisplayColorSetting = static_cast<DisplayColorSetting>(data.readInt32());
+                if (data.readInt32(&colorMode) == NO_ERROR) {
+                    mForceColorMode = static_cast<ColorMode>(colorMode);
+                }
                 invalidateHwcGeometry();
                 repaintEverything();
                 return NO_ERROR;
