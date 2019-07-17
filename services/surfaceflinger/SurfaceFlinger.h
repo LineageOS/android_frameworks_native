@@ -582,7 +582,6 @@ private:
     void latchAndReleaseBuffer(const sp<Layer>& layer);
     void commitTransaction() REQUIRES(mStateLock);
     void commitOffscreenLayers();
-    bool containsAnyInvalidClientState(const Vector<ComposerState>& states);
     bool transactionIsReadyToBeApplied(int64_t desiredPresentTime,
                                        const Vector<ComposerState>& states);
     uint32_t setClientStateLocked(const ComposerState& composerState, int64_t desiredPresentTime,
