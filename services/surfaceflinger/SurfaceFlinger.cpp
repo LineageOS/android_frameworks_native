@@ -713,6 +713,24 @@ void SurfaceFlinger::init() {
                 Mutex::Autolock lock(mStateLock);
                 setRefreshRateTo(type, event);
             });
+    mScheduler->setGetCurrentRefreshRateTypeCallback([this] {
+        Mutex::Autolock lock(mStateLock);
+        const auto display = getDefaultDisplayDeviceLocked();
+        if (!display) {
+            // If we don't have a default display the fallback to the default
+            // refresh rate type
+            return RefreshRateType::DEFAULT;
+        }
+
+        const int configId = display->getActiveConfig();
+        for (const auto& [type, refresh] : mRefreshRateConfigs.getRefreshRates()) {
+            if (refresh && refresh->configId == configId) {
+                return type;
+            }
+        }
+        // This should never happen, but just gracefully fallback to default.
+        return RefreshRateType::DEFAULT;
+    });
     mScheduler->setGetVsyncPeriodCallback([this] {
         Mutex::Autolock lock(mStateLock);
         return getVsyncPeriod();
@@ -1045,6 +1063,7 @@ bool SurfaceFlinger::performSetActiveConfig() {
         desiredActiveConfigChangeDone();
         return false;
     }
+
     mUpcomingActiveConfig = desiredActiveConfig;
     const auto displayId = display->getId();
     LOG_ALWAYS_FATAL_IF(!displayId);
@@ -4543,6 +4562,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
     if (display->isPrimary()) {
         mTimeStats->setPowerMode(mode);
         mRefreshRateStats.setPowerMode(mode);
+        mScheduler->setDisplayPowerState(mode == HWC_POWER_MODE_NORMAL);
     }
 
     ALOGD("Finished setting power mode %d on display %s", mode, to_string(*displayId).c_str());
@@ -5415,7 +5435,12 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 return NO_ERROR;
             }
             case 1023: { // Set native mode
+                int32_t colorMode;
+
                 mDisplayColorSetting = static_cast<DisplayColorSetting>(data.readInt32());
+                if (data.readInt32(&colorMode) == NO_ERROR) {
+                    mForceColorMode = static_cast<ColorMode>(colorMode);
+                }
                 invalidateHwcGeometry();
                 repaintEverything();
                 return NO_ERROR;

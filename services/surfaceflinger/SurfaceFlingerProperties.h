@@ -77,6 +77,8 @@ int32_t set_idle_timer_ms(int32_t defaultValue);
 
 int32_t set_touch_timer_ms(int32_t defaultValue);
 
+int32_t set_display_power_timer_ms(int32_t defaultValue);
+
 bool use_smart_90_for_video(bool defaultValue);
 
 bool enable_protected_contents(bool defaultValue);

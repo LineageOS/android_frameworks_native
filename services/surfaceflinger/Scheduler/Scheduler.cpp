@@ -76,6 +76,7 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
     mSupportKernelTimer = support_kernel_idle_timer(false);
 
     mSetTouchTimerMs = set_touch_timer_ms(0);
+    mSetDisplayPowerTimerMs = set_display_power_timer_ms(0);
 
     char value[PROPERTY_VALUE_MAX];
     property_get("debug.sf.set_idle_timer_ms", value, "0");
@@ -110,10 +111,22 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
                                                        [this] { expiredTouchTimerCallback(); });
         mTouchTimer->start();
     }
+
+    if (mSetDisplayPowerTimerMs > 0) {
+        mDisplayPowerTimer =
+                std::make_unique<scheduler::IdleTimer>(std::chrono::milliseconds(
+                                                               mSetDisplayPowerTimerMs),
+                                                       [this] { resetDisplayPowerTimerCallback(); },
+                                                       [this] {
+                                                           expiredDisplayPowerTimerCallback();
+                                                       });
+        mDisplayPowerTimer->start();
+    }
 }
 
 Scheduler::~Scheduler() {
     // Ensure the IdleTimer thread is joined before we start destroying state.
+    mDisplayPowerTimer.reset();
     mTouchTimer.reset();
     mIdleTimer.reset();
 }
@@ -380,9 +393,15 @@ void Scheduler::updateFpsBasedOnContent() {
 }
 
 void Scheduler::setChangeRefreshRateCallback(
-        const ChangeRefreshRateCallback& changeRefreshRateCallback) {
+        const ChangeRefreshRateCallback&& changeRefreshRateCallback) {
     std::lock_guard<std::mutex> lock(mCallbackLock);
     mChangeRefreshRateCallback = changeRefreshRateCallback;
+}
+
+void Scheduler::setGetCurrentRefreshRateTypeCallback(
+        const GetCurrentRefreshRateTypeCallback&& getCurrentRefreshRateTypeCallback) {
+    std::lock_guard<std::mutex> lock(mCallbackLock);
+    mGetCurrentRefreshRateTypeCallback = getCurrentRefreshRateTypeCallback;
 }
 
 void Scheduler::setGetVsyncPeriodCallback(const GetVsyncPeriod&& getVsyncPeriod) {
@@ -419,41 +438,75 @@ void Scheduler::notifyTouchEvent() {
     mLayerHistory.clearHistory();
 }
 
+void Scheduler::setDisplayPowerState(bool normal) {
+    {
+        std::lock_guard<std::mutex> lock(mFeatureStateLock);
+        mIsDisplayPowerStateNormal = normal;
+    }
+
+    if (mDisplayPowerTimer) {
+        mDisplayPowerTimer->reset();
+    }
+
+    // Display Power event will boost the refresh rate to performance.
+    // Clear Layer History to get fresh FPS detection
+    mLayerHistory.clearHistory();
+}
+
 void Scheduler::resetTimerCallback() {
-    timerChangeRefreshRate(IdleTimerState::RESET);
+    handleTimerStateChanged(&mCurrentIdleTimerState, IdleTimerState::RESET, false);
     ATRACE_INT("ExpiredIdleTimer", 0);
 }
 
 void Scheduler::resetKernelTimerCallback() {
     ATRACE_INT("ExpiredKernelIdleTimer", 0);
     std::lock_guard<std::mutex> lock(mCallbackLock);
-    if (mGetVsyncPeriod) {
-        resyncToHardwareVsync(true, mGetVsyncPeriod());
+    if (mGetVsyncPeriod && mGetCurrentRefreshRateTypeCallback) {
+        // If we're not in performance mode then the kernel timer shouldn't do
+        // anything, as the refresh rate during DPU power collapse will be the
+        // same.
+        if (mGetCurrentRefreshRateTypeCallback() == Scheduler::RefreshRateType::PERFORMANCE) {
+            resyncToHardwareVsync(true, mGetVsyncPeriod());
+        }
     }
 }
 
 void Scheduler::expiredTimerCallback() {
-    timerChangeRefreshRate(IdleTimerState::EXPIRED);
+    handleTimerStateChanged(&mCurrentIdleTimerState, IdleTimerState::EXPIRED, false);
     ATRACE_INT("ExpiredIdleTimer", 1);
 }
 
 void Scheduler::resetTouchTimerCallback() {
-    // We do not notify the applications about config changes when idle timer is reset.
-    touchChangeRefreshRate(TouchState::ACTIVE);
+    handleTimerStateChanged(&mCurrentTouchState, TouchState::ACTIVE, true);
     ATRACE_INT("TouchState", 1);
 }
 
 void Scheduler::expiredTouchTimerCallback() {
-    // We do not notify the applications about config changes when idle timer expires.
-    touchChangeRefreshRate(TouchState::INACTIVE);
+    handleTimerStateChanged(&mCurrentTouchState, TouchState::INACTIVE, true);
     ATRACE_INT("TouchState", 0);
 }
 
+void Scheduler::resetDisplayPowerTimerCallback() {
+    handleTimerStateChanged(&mDisplayPowerTimerState, DisplayPowerTimerState::RESET, true);
+    ATRACE_INT("ExpiredDisplayPowerTimer", 0);
+}
+
+void Scheduler::expiredDisplayPowerTimerCallback() {
+    handleTimerStateChanged(&mDisplayPowerTimerState, DisplayPowerTimerState::EXPIRED, true);
+    ATRACE_INT("ExpiredDisplayPowerTimer", 1);
+}
+
 void Scheduler::expiredKernelTimerCallback() {
+    std::lock_guard<std::mutex> lock(mCallbackLock);
     ATRACE_INT("ExpiredKernelIdleTimer", 1);
-    // Disable HW Vsync if the timer expired, as we don't need it
-    // enabled if we're not pushing frames.
-    disableHardwareVsync(false);
+    if (mGetCurrentRefreshRateTypeCallback) {
+        if (mGetCurrentRefreshRateTypeCallback() != Scheduler::RefreshRateType::PERFORMANCE) {
+            // Disable HW Vsync if the timer expired, as we don't need it
+            // enabled if we're not pushing frames, and if we're in PERFORMANCE
+            // mode then we'll need to re-update the DispSync model anyways.
+            disableHardwareVsync(false);
+        }
+    }
 }
 
 std::string Scheduler::doDump() {
@@ -463,39 +516,23 @@ std::string Scheduler::doDump() {
     return stream.str();
 }
 
-void Scheduler::timerChangeRefreshRate(IdleTimerState idleTimerState) {
-    RefreshRateType newRefreshRateType;
-    {
-        std::lock_guard<std::mutex> lock(mFeatureStateLock);
-        if (mCurrentIdleTimerState == idleTimerState) {
-            return;
-        }
-        mCurrentIdleTimerState = idleTimerState;
-        newRefreshRateType = calculateRefreshRateType();
-        if (mRefreshRateType == newRefreshRateType) {
-            return;
-        }
-        mRefreshRateType = newRefreshRateType;
-    }
-    changeRefreshRate(newRefreshRateType, ConfigEvent::None);
-}
-
-void Scheduler::touchChangeRefreshRate(TouchState touchState) {
+template <class T>
+void Scheduler::handleTimerStateChanged(T* currentState, T newState, bool eventOnContentDetection) {
     ConfigEvent event = ConfigEvent::None;
     RefreshRateType newRefreshRateType;
     {
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
-        if (mCurrentTouchState == touchState) {
+        if (*currentState == newState) {
             return;
         }
-        mCurrentTouchState = touchState;
+        *currentState = newState;
         newRefreshRateType = calculateRefreshRateType();
         if (mRefreshRateType == newRefreshRateType) {
             return;
         }
         mRefreshRateType = newRefreshRateType;
-        // Send an event in case that content detection is on as touch has a higher priority
-        if (mCurrentContentFeatureState == ContentFeatureState::CONTENT_DETECTION_ON) {
+        if (eventOnContentDetection &&
+            mCurrentContentFeatureState == ContentFeatureState::CONTENT_DETECTION_ON) {
             event = ConfigEvent::Changed;
         }
     }
@@ -506,6 +543,12 @@ Scheduler::RefreshRateType Scheduler::calculateRefreshRateType() {
     // HDR content is not supported on PERFORMANCE mode
     if (mForceHDRContentToDefaultRefreshRate && mIsHDRContent) {
         return RefreshRateType::DEFAULT;
+    }
+
+    // If Display Power is not in normal operation we want to be in performance mode.
+    // When coming back to normal mode, a grace period is given with DisplayPowerTimer
+    if (!mIsDisplayPowerStateNormal || mDisplayPowerTimerState == DisplayPowerTimerState::RESET) {
+        return RefreshRateType::PERFORMANCE;
     }
 
     // As long as touch is active we want to be in performance mode
