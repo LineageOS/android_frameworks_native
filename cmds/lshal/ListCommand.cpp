@@ -975,7 +975,8 @@ void ListCommand::registerAllOptions() {
        "    - DM: if the HAL is in the device manifest\n"
        "    - DC: if the HAL is in the device compatibility matrix\n"
        "    - FM: if the HAL is in the framework manifest\n"
-       "    - FC: if the HAL is in the framework compatibility matrix"});
+       "    - FC: if the HAL is in the framework compatibility matrix\n"
+       "    - X: if the HAL is in none of the above lists"});
     mOptions.push_back({'S', "service-status", no_argument, v++, [](ListCommand* thiz, const char*) {
         thiz->mSelectedColumns.push_back(TableColumnType::SERVICE_STATUS);
         return OK;

@@ -37,7 +37,6 @@
 #include <binder/ProcessState.h>
 #include <binder/Status.h>
 #include <binder/TextOutput.h>
-#include <binder/Value.h>
 
 #include <cutils/ashmem.h>
 #include <utils/Debug.h>
@@ -48,7 +47,7 @@
 #include <utils/String16.h>
 
 #include <private/binder/binder_module.h>
-#include <private/binder/Static.h>
+#include "Static.h"
 
 #ifndef INT32_MAX
 #define INT32_MAX ((int32_t)(2147483647))
@@ -667,11 +666,6 @@ bool Parcel::enforceInterface(const String16& interface,
     }
 }
 
-const binder_size_t* Parcel::objects() const
-{
-    return mObjects;
-}
-
 size_t Parcel::objectsCount() const
 {
     return mObjectsSize;
@@ -1163,10 +1157,6 @@ status_t Parcel::writeParcelable(const Parcelable& parcelable) {
     return parcelable.writeToParcel(this);
 }
 
-status_t Parcel::writeValue(const binder::Value& value) {
-    return value.writeToParcel(this);
-}
-
 status_t Parcel::writeNativeHandle(const native_handle* handle)
 {
     if (!handle || handle->version != sizeof(native_handle))
@@ -1402,125 +1392,6 @@ status_t Parcel::writeNoException()
 {
     binder::Status status;
     return status.writeToParcel(this);
-}
-
-status_t Parcel::writeMap(const ::android::binder::Map& map_in)
-{
-    using ::std::map;
-    using ::android::binder::Value;
-    using ::android::binder::Map;
-
-    Map::const_iterator iter;
-    status_t ret;
-
-    ret = writeInt32(map_in.size());
-
-    if (ret != NO_ERROR) {
-        return ret;
-    }
-
-    for (iter = map_in.begin(); iter != map_in.end(); ++iter) {
-        ret = writeValue(Value(iter->first));
-        if (ret != NO_ERROR) {
-            return ret;
-        }
-
-        ret = writeValue(iter->second);
-        if (ret != NO_ERROR) {
-            return ret;
-        }
-    }
-
-    return ret;
-}
-
-status_t Parcel::writeNullableMap(const std::unique_ptr<binder::Map>& map)
-{
-    if (map == nullptr) {
-        return writeInt32(-1);
-    }
-
-    return writeMap(*map.get());
-}
-
-status_t Parcel::readMap(::android::binder::Map* map_out)const
-{
-    using ::std::map;
-    using ::android::String16;
-    using ::android::String8;
-    using ::android::binder::Value;
-    using ::android::binder::Map;
-
-    status_t ret = NO_ERROR;
-    int32_t count;
-
-    ret = readInt32(&count);
-    if (ret != NO_ERROR) {
-        return ret;
-    }
-
-    if (count < 0) {
-        ALOGE("readMap: Unexpected count: %d", count);
-        return (count == -1)
-            ? UNEXPECTED_NULL
-            : BAD_VALUE;
-    }
-
-    map_out->clear();
-
-    while (count--) {
-        Map::key_type key;
-        Value value;
-
-        ret = readValue(&value);
-        if (ret != NO_ERROR) {
-            return ret;
-        }
-
-        if (!value.getString(&key)) {
-            ALOGE("readMap: Key type not a string (parcelType = %d)", value.parcelType());
-            return BAD_VALUE;
-        }
-
-        ret = readValue(&value);
-        if (ret != NO_ERROR) {
-            return ret;
-        }
-
-        (*map_out)[key] = value;
-    }
-
-    return ret;
-}
-
-status_t Parcel::readNullableMap(std::unique_ptr<binder::Map>* map) const
-{
-    const size_t start = dataPosition();
-    int32_t count;
-    status_t status = readInt32(&count);
-    map->reset();
-
-    if (status != OK || count == -1) {
-        return status;
-    }
-
-    setDataPosition(start);
-    map->reset(new binder::Map());
-
-    status = readMap(map->get());
-
-    if (status != OK) {
-        map->reset();
-    }
-
-    return status;
-}
-
-
-
-void Parcel::remove(size_t /*start*/, size_t /*amt*/)
-{
-    LOG_ALWAYS_FATAL("Parcel::remove() not yet implemented!");
 }
 
 status_t Parcel::validateReadData(size_t upperBound) const
@@ -2227,10 +2098,6 @@ status_t Parcel::readParcelable(Parcelable* parcelable) const {
     return parcelable->readFromParcel(this);
 }
 
-status_t Parcel::readValue(binder::Value* value) const {
-    return value->readFromParcel(this);
-}
-
 int32_t Parcel::readExceptionCode() const
 {
     binder::Status status;
@@ -2582,7 +2449,7 @@ void Parcel::print(TextOutput& to, uint32_t /*flags*/) const
     } else if (dataSize() > 0) {
         const uint8_t* DATA = data();
         to << indent << HexDump(DATA, dataSize()) << dedent;
-        const binder_size_t* OBJS = objects();
+        const binder_size_t* OBJS = mObjects;
         const size_t N = objectsCount();
         for (size_t i=0; i<N; i++) {
             const flat_binder_object* flat

@@ -36,8 +36,6 @@ class ProcessState : public virtual RefBase
 public:
     static  sp<ProcessState>    self();
     static  sp<ProcessState>    selfOrNull();
-    // Note: don't call self() or selfOrNull() before initWithMmapSize()
-    static  sp<ProcessState>    initWithMmapSize(size_t mmapSize); // size in bytes
 
     /* initWithDriver() can be used to configure libbinder to use
      * a different binder driver dev node. It must be called *before*
@@ -47,21 +45,14 @@ public:
      */
     static  sp<ProcessState>    initWithDriver(const char *driver);
 
-            void                setContextObject(const sp<IBinder>& object);
             sp<IBinder>         getContextObject(const sp<IBinder>& caller);
-        
-            void                setContextObject(const sp<IBinder>& object,
-                                                 const String16& name);
-            sp<IBinder>         getContextObject(const String16& name,
-                                                 const sp<IBinder>& caller);
 
             void                startThreadPool();
                         
     typedef bool (*context_check_func)(const String16& name,
                                        const sp<IBinder>& caller,
                                        void* userData);
-        
-            bool                isContextManager(void) const;
+
             bool                becomeContextManager(
                                     context_check_func checkFunc,
                                     void* userData);
@@ -78,7 +69,6 @@ public:
             String8             getDriverName();
 
             ssize_t             getKernelReferences(size_t count, uintptr_t* buf);
-            size_t              getMmapSize();
 
             enum class CallRestriction {
                 // all calls okay
@@ -95,7 +85,7 @@ public:
 private:
     friend class IPCThreadState;
     
-            explicit            ProcessState(const char* driver, size_t mmap_size);
+            explicit            ProcessState(const char* driver);
                                 ~ProcessState();
 
                                 ProcessState(const ProcessState& o);
@@ -124,23 +114,15 @@ private:
             int64_t             mStarvationStartTimeMs;
 
     mutable Mutex               mLock;  // protects everything below.
-            // TODO: mManagesContexts is often accessed without the lock.
-            //       Explain why that's safe.
 
             Vector<handle_entry>mHandleToObject;
 
-            bool                mManagesContexts;
             context_check_func  mBinderContextCheckFunc;
             void*               mBinderContextUserData;
-
-            KeyedVector<String16, sp<IBinder> >
-                                mContexts;
-
 
             String8             mRootDir;
             bool                mThreadPoolStarted;
     volatile int32_t            mThreadPoolSeq;
-            const size_t        mMmapSize;
 
             CallRestriction     mCallRestriction;
 };
