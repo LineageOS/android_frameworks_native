@@ -725,7 +725,11 @@ int open_socket(const char *service) {
         return -1;
     }
     fcntl(s, F_SETFD, FD_CLOEXEC);
-    if (listen(s, 4) < 0) {
+
+    // Set backlog to 0 to make sure that queue size will be minimum.
+    // In Linux, because the minimum queue will be 1, connect() will be blocked
+    // if the other clients already called connect() and the connection request was not accepted.
+    if (listen(s, 0) < 0) {
         MYLOGE("listen(control socket): %s\n", strerror(errno));
         return -1;
     }
@@ -736,6 +740,9 @@ int open_socket(const char *service) {
 
     // Close socket just after accept(), to make sure that connect() by client will get error
     // when the socket is used by the other services.
+    // There is still a race condition possibility between accept and close, but there is no way
+    // to close-on-accept atomically.
+    // See detail; b/123306389#comment25
     close(s);
 
     if (fd < 0) {
