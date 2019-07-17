@@ -393,9 +393,15 @@ void Scheduler::updateFpsBasedOnContent() {
 }
 
 void Scheduler::setChangeRefreshRateCallback(
-        const ChangeRefreshRateCallback& changeRefreshRateCallback) {
+        const ChangeRefreshRateCallback&& changeRefreshRateCallback) {
     std::lock_guard<std::mutex> lock(mCallbackLock);
     mChangeRefreshRateCallback = changeRefreshRateCallback;
+}
+
+void Scheduler::setGetCurrentRefreshRateTypeCallback(
+        const GetCurrentRefreshRateTypeCallback&& getCurrentRefreshRateTypeCallback) {
+    std::lock_guard<std::mutex> lock(mCallbackLock);
+    mGetCurrentRefreshRateTypeCallback = getCurrentRefreshRateTypeCallback;
 }
 
 void Scheduler::setGetVsyncPeriodCallback(const GetVsyncPeriod&& getVsyncPeriod) {
@@ -455,8 +461,13 @@ void Scheduler::resetTimerCallback() {
 void Scheduler::resetKernelTimerCallback() {
     ATRACE_INT("ExpiredKernelIdleTimer", 0);
     std::lock_guard<std::mutex> lock(mCallbackLock);
-    if (mGetVsyncPeriod) {
-        resyncToHardwareVsync(true, mGetVsyncPeriod());
+    if (mGetVsyncPeriod && mGetCurrentRefreshRateTypeCallback) {
+        // If we're not in performance mode then the kernel timer shouldn't do
+        // anything, as the refresh rate during DPU power collapse will be the
+        // same.
+        if (mGetCurrentRefreshRateTypeCallback() == Scheduler::RefreshRateType::PERFORMANCE) {
+            resyncToHardwareVsync(true, mGetVsyncPeriod());
+        }
     }
 }
 
@@ -486,10 +497,16 @@ void Scheduler::expiredDisplayPowerTimerCallback() {
 }
 
 void Scheduler::expiredKernelTimerCallback() {
+    std::lock_guard<std::mutex> lock(mCallbackLock);
     ATRACE_INT("ExpiredKernelIdleTimer", 1);
-    // Disable HW Vsync if the timer expired, as we don't need it
-    // enabled if we're not pushing frames.
-    disableHardwareVsync(false);
+    if (mGetCurrentRefreshRateTypeCallback) {
+        if (mGetCurrentRefreshRateTypeCallback() != Scheduler::RefreshRateType::PERFORMANCE) {
+            // Disable HW Vsync if the timer expired, as we don't need it
+            // enabled if we're not pushing frames, and if we're in PERFORMANCE
+            // mode then we'll need to re-update the DispSync model anyways.
+            disableHardwareVsync(false);
+        }
+    }
 }
 
 std::string Scheduler::doDump() {
