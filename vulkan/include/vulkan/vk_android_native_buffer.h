@@ -62,6 +62,11 @@ typedef enum VkSwapchainImageUsageFlagBitsANDROID {
 typedef VkFlags VkSwapchainImageUsageFlagsANDROID;
 
 typedef struct {
+    uint64_t consumer;
+    uint64_t producer;
+} VkNativeBufferUsage2ANDROID;
+
+typedef struct {
     VkStructureType             sType; // must be VK_STRUCTURE_TYPE_NATIVE_BUFFER_ANDROID
     const void*                 pNext;
 
@@ -73,10 +78,7 @@ typedef struct {
     int                         format;
     int                         usage; // DEPRECATED in SPEC_VERSION 6
     // -- Added in SPEC_VERSION 6 --
-    struct {
-        uint64_t                consumer;
-        uint64_t                producer;
-    } usage2;
+    VkNativeBufferUsage2ANDROID usage2;
 } VkNativeBufferANDROID;
 
 typedef struct {
