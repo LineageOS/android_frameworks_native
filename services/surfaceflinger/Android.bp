@@ -182,9 +182,6 @@ cc_defaults {
     cflags: [
         "-DLOG_TAG=\"SurfaceFlinger\"",
     ],
-    whole_static_libs: [
-        "libsigchain",
-    ],
     shared_libs: [
         "android.frameworks.displayservice@1.0",
         "android.hardware.configstore-utils",
