@@ -63,6 +63,21 @@ Status ServiceManager::checkService(const std::string& name, sp<IBinder>* outBin
     return Status::ok();
 }
 
+bool isValidServiceName(const std::string& name) {
+    if (name.size() == 0) return false;
+    if (name.size() > 127) return false;
+
+    for (char c : name) {
+        if (c == '_' || c == '-' || c == '.') continue;
+        if (c >= 'a' && c <= 'z') continue;
+        if (c >= 'A' && c <= 'Z') continue;
+        if (c >= '0' && c <= '9') continue;
+        return false;
+    }
+
+    return true;
+}
+
 Status ServiceManager::addService(const std::string& name, const sp<IBinder>& binder, bool allowIsolated, int32_t dumpPriority) {
     auto ctx = mAccess->getCallingContext(name);
 
@@ -79,8 +94,8 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
         return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT);
     }
 
-    // match legacy rules
-    if (name.size() == 0 || name.size() > 127) {
+    if (!isValidServiceName(name)) {
+        LOG(ERROR) << "Invalid service name: " << name;
         return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT);
     }
 

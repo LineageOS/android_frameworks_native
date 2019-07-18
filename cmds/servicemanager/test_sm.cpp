@@ -82,6 +82,12 @@ TEST(AddService, TooLongNameDisallowed) {
         IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT).isOk());
 }
 
+TEST(AddService, WeirdCharactersDisallowed) {
+    auto sm = getPermissiveServiceManager();
+    EXPECT_FALSE(sm->addService("happy$foo$foo", getBinder(), false /*allowIsolated*/,
+        IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT).isOk());
+}
+
 TEST(AddService, AddNullServiceDisallowed) {
     auto sm = getPermissiveServiceManager();
     EXPECT_FALSE(sm->addService("foo", nullptr, false /*allowIsolated*/,
