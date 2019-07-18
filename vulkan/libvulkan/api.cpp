@@ -664,6 +664,12 @@ VkResult LayerChain::LoadLayer(ActiveLayer& layer, const char* name) {
         return VK_ERROR_LAYER_NOT_PRESENT;
     }
 
+    if (!layer.ref.GetGetInstanceProcAddr()) {
+        ALOGW("Failed to locate vkGetInstanceProcAddr in layer %s", name);
+        layer.ref.~LayerRef();
+        return VK_ERROR_LAYER_NOT_PRESENT;
+    }
+
     ALOGI("Loaded layer %s", name);
 
     return VK_SUCCESS;
