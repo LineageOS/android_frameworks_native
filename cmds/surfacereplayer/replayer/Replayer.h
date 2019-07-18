@@ -108,6 +108,14 @@ class Replayer {
             layer_id id, const SecureFlagChange& sfc);
     void setDeferredTransaction(SurfaceComposerClient::Transaction& t,
             layer_id id, const DeferredTransactionChange& dtc);
+    void setReparentChange(SurfaceComposerClient::Transaction& t,
+            layer_id id, const ReparentChange& c);
+    void setRelativeParentChange(SurfaceComposerClient::Transaction& t,
+            layer_id id, const RelativeParentChange& c);
+    void setDetachChildrenChange(SurfaceComposerClient::Transaction& t,
+            layer_id id, const DetachChildrenChange& c);
+    void setReparentChildrenChange(SurfaceComposerClient::Transaction& t,
+            layer_id id, const ReparentChildrenChange& c);
 
     void setDisplaySurface(SurfaceComposerClient::Transaction& t,
             display_id id, const DispSurfaceChange& dsc);
