@@ -40,18 +40,18 @@ static sp<IBinder> getBinder() {
 
 class MockAccess : public Access {
 public:
-    MOCK_METHOD1(getCallingContext, CallingContext(const std::string& name));
-    MOCK_METHOD1(canAdd, bool(const CallingContext&));
-    MOCK_METHOD1(canFind, bool(const CallingContext&));
+    MOCK_METHOD0(getCallingContext, CallingContext());
+    MOCK_METHOD2(canAdd, bool(const CallingContext&, const std::string& name));
+    MOCK_METHOD2(canFind, bool(const CallingContext&, const std::string& name));
     MOCK_METHOD1(canList, bool(const CallingContext&));
 };
 
 static sp<ServiceManager> getPermissiveServiceManager() {
     std::unique_ptr<MockAccess> access = std::make_unique<NiceMock<MockAccess>>();
 
-    ON_CALL(*access, getCallingContext(_)).WillByDefault(Return(Access::CallingContext{}));
-    ON_CALL(*access, canAdd(_)).WillByDefault(Return(true));
-    ON_CALL(*access, canFind(_)).WillByDefault(Return(true));
+    ON_CALL(*access, getCallingContext()).WillByDefault(Return(Access::CallingContext{}));
+    ON_CALL(*access, canAdd(_, _)).WillByDefault(Return(true));
+    ON_CALL(*access, canFind(_, _)).WillByDefault(Return(true));
     ON_CALL(*access, canList(_)).WillByDefault(Return(true));
 
     sp<ServiceManager> sm = new ServiceManager(std::move(access));
@@ -97,11 +97,11 @@ TEST(AddService, AddNullServiceDisallowed) {
 TEST(AddService, AddDisallowedFromApp) {
     for (uid_t uid : { AID_APP_START, AID_APP_START + 1, AID_APP_END }) {
         std::unique_ptr<MockAccess> access = std::make_unique<NiceMock<MockAccess>>();
-        EXPECT_CALL(*access, getCallingContext(_)).WillOnce(Return(Access::CallingContext{
+        EXPECT_CALL(*access, getCallingContext()).WillOnce(Return(Access::CallingContext{
             .debugPid = 1337,
             .uid = uid,
         }));
-        EXPECT_CALL(*access, canAdd(_)).Times(0);
+        EXPECT_CALL(*access, canAdd(_, _)).Times(0);
         sp<ServiceManager> sm = new ServiceManager(std::move(access));
 
         EXPECT_FALSE(sm->addService("foo", getBinder(), false /*allowIsolated*/,
@@ -121,8 +121,8 @@ TEST(AddService, HappyOverExistingService) {
 TEST(AddService, NoPermissions) {
     std::unique_ptr<MockAccess> access = std::make_unique<NiceMock<MockAccess>>();
 
-    EXPECT_CALL(*access, getCallingContext(_)).WillOnce(Return(Access::CallingContext{}));
-    EXPECT_CALL(*access, canAdd(_)).WillOnce(Return(false));
+    EXPECT_CALL(*access, getCallingContext()).WillOnce(Return(Access::CallingContext{}));
+    EXPECT_CALL(*access, canAdd(_, _)).WillOnce(Return(false));
 
     sp<ServiceManager> sm = new ServiceManager(std::move(access));
 
@@ -151,9 +151,9 @@ TEST(GetService, NonExistant) {
 TEST(GetService, NoPermissionsForGettingService) {
     std::unique_ptr<MockAccess> access = std::make_unique<NiceMock<MockAccess>>();
 
-    EXPECT_CALL(*access, getCallingContext(_)).WillRepeatedly(Return(Access::CallingContext{}));
-    EXPECT_CALL(*access, canAdd(_)).WillOnce(Return(true));
-    EXPECT_CALL(*access, canFind(_)).WillOnce(Return(false));
+    EXPECT_CALL(*access, getCallingContext()).WillRepeatedly(Return(Access::CallingContext{}));
+    EXPECT_CALL(*access, canAdd(_, _)).WillOnce(Return(true));
+    EXPECT_CALL(*access, canFind(_, _)).WillOnce(Return(false));
 
     sp<ServiceManager> sm = new ServiceManager(std::move(access));
 
@@ -169,15 +169,15 @@ TEST(GetService, NoPermissionsForGettingService) {
 TEST(GetService, AllowedFromIsolated) {
     std::unique_ptr<MockAccess> access = std::make_unique<NiceMock<MockAccess>>();
 
-    EXPECT_CALL(*access, getCallingContext(_))
+    EXPECT_CALL(*access, getCallingContext())
         // something adds it
         .WillOnce(Return(Access::CallingContext{}))
         // next call is from isolated app
         .WillOnce(Return(Access::CallingContext{
             .uid = AID_ISOLATED_START,
         }));
-    EXPECT_CALL(*access, canAdd(_)).WillOnce(Return(true));
-    EXPECT_CALL(*access, canFind(_)).WillOnce(Return(true));
+    EXPECT_CALL(*access, canAdd(_, _)).WillOnce(Return(true));
+    EXPECT_CALL(*access, canFind(_, _)).WillOnce(Return(true));
 
     sp<ServiceManager> sm = new ServiceManager(std::move(access));
 
@@ -192,17 +192,17 @@ TEST(GetService, AllowedFromIsolated) {
 TEST(GetService, NotAllowedFromIsolated) {
     std::unique_ptr<MockAccess> access = std::make_unique<NiceMock<MockAccess>>();
 
-    EXPECT_CALL(*access, getCallingContext(_))
+    EXPECT_CALL(*access, getCallingContext())
         // something adds it
         .WillOnce(Return(Access::CallingContext{}))
         // next call is from isolated app
         .WillOnce(Return(Access::CallingContext{
             .uid = AID_ISOLATED_START,
         }));
-    EXPECT_CALL(*access, canAdd(_)).WillOnce(Return(true));
+    EXPECT_CALL(*access, canAdd(_, _)).WillOnce(Return(true));
 
     // TODO(b/136023468): when security check is first, this should be called first
-    // EXPECT_CALL(*access, canFind(_)).WillOnce(Return(true));
+    // EXPECT_CALL(*access, canFind(_, _)).WillOnce(Return(true));
 
     sp<ServiceManager> sm = new ServiceManager(std::move(access));
 
@@ -218,7 +218,7 @@ TEST(GetService, NotAllowedFromIsolated) {
 TEST(ListServices, NoPermissions) {
     std::unique_ptr<MockAccess> access = std::make_unique<NiceMock<MockAccess>>();
 
-    EXPECT_CALL(*access, getCallingContext(_)).WillOnce(Return(Access::CallingContext{}));
+    EXPECT_CALL(*access, getCallingContext()).WillOnce(Return(Access::CallingContext{}));
     EXPECT_CALL(*access, canList(_)).WillOnce(Return(false));
 
     sp<ServiceManager> sm = new ServiceManager(std::move(access));

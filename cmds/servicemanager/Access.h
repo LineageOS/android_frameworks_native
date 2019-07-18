@@ -36,22 +36,18 @@ public:
         pid_t debugPid;
         uid_t uid;
         std::string sid;
-
-        // name of the service
-        //
-        // empty if call is unrelated to service (e.g. list)
-        std::string name;
     };
 
-    virtual CallingContext getCallingContext(const std::string& name);
+    virtual CallingContext getCallingContext();
 
-    virtual bool canFind(const CallingContext& ctx);
-    virtual bool canAdd(const CallingContext& ctx);
+    virtual bool canFind(const CallingContext& ctx, const std::string& name);
+    virtual bool canAdd(const CallingContext& ctx, const std::string& name);
     virtual bool canList(const CallingContext& ctx);
 
 private:
     bool actionAllowed(const CallingContext& sctx, const char* tctx, const char* perm);
-    bool actionAllowedFromLookup(const CallingContext& sctx, const char *perm);
+    bool actionAllowedFromLookup(const CallingContext& sctx, const std::string& name,
+            const char *perm);
 
     char* mThisProcessContext = nullptr;
 };
