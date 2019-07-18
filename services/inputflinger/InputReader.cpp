@@ -85,9 +85,6 @@ static constexpr nsecs_t TOUCH_DATA_TIMEOUT = ms2ns(20);
 // data.
 static constexpr nsecs_t STYLUS_DATA_LATENCY = ms2ns(10);
 
-// How often to report input event statistics
-static constexpr nsecs_t STATISTICS_REPORT_FREQUENCY = seconds_to_nanoseconds(5 * 60);
-
 // --- Static Functions ---
 
 template<typename T>
@@ -4314,16 +4311,14 @@ void TouchInputMapper::clearStylusDataPendingFlags() {
 }
 
 void TouchInputMapper::reportEventForStatistics(nsecs_t evdevTime) {
-    nsecs_t now = systemTime(CLOCK_MONOTONIC);
-    nsecs_t latency = now - evdevTime;
-    mStatistics.addValue(nanoseconds_to_microseconds(latency));
-    nsecs_t timeSinceLastReport = now - mStatistics.lastReportTime;
-    if (timeSinceLastReport > STATISTICS_REPORT_FREQUENCY) {
-        android::util::stats_write(android::util::TOUCH_EVENT_REPORTED,
-                mStatistics.min, mStatistics.max,
-                mStatistics.mean(), mStatistics.stdev(), mStatistics.count);
-        mStatistics.reset(now);
+    if (mStatistics.shouldReport()) {
+        android::util::stats_write(android::util::TOUCH_EVENT_REPORTED, mStatistics.getMin(),
+                                   mStatistics.getMax(), mStatistics.getMean(),
+                                   mStatistics.getStDev(), mStatistics.getCount());
+        mStatistics.reset();
     }
+    nsecs_t latency = nanoseconds_to_microseconds(systemTime(CLOCK_MONOTONIC) - evdevTime);
+    mStatistics.addValue(latency);
 }
 
 void TouchInputMapper::process(const RawEvent* rawEvent) {

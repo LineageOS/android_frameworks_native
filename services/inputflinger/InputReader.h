@@ -24,14 +24,15 @@
 
 #include <input/DisplayViewport.h>
 #include <input/Input.h>
+#include <input/LatencyStatistics.h>
 #include <input/VelocityControl.h>
 #include <input/VelocityTracker.h>
 #include <ui/DisplayInfo.h>
-#include <utils/KeyedVector.h>
+#include <utils/BitSet.h>
 #include <utils/Condition.h>
+#include <utils/KeyedVector.h>
 #include <utils/Mutex.h>
 #include <utils/Timers.h>
-#include <utils/BitSet.h>
 
 #include <optional>
 #include <stddef.h>
@@ -569,69 +570,6 @@ struct CookedPointerData {
     }
 };
 
-/**
- * Basic statistics information.
- * Keep track of min, max, average, and standard deviation of the received samples.
- * Used to report latency information about input events.
- */
-struct LatencyStatistics {
-    float min;
-    float max;
-    // Sum of all samples
-    float sum;
-    // Sum of squares of all samples
-    float sum2;
-    // The number of samples
-    size_t count;
-    // The last time statistics were reported.
-    nsecs_t lastReportTime;
-
-    LatencyStatistics() {
-        reset(systemTime(SYSTEM_TIME_MONOTONIC));
-    }
-
-    inline void addValue(float x) {
-        if (x < min) {
-            min = x;
-        }
-        if (x > max) {
-            max = x;
-        }
-        sum += x;
-        sum2 += x * x;
-        count++;
-    }
-
-    // Get the average value. Should not be called if no samples have been added.
-    inline float mean() {
-        if (count == 0) {
-            return 0;
-        }
-        return sum / count;
-    }
-
-    // Get the standard deviation. Should not be called if no samples have been added.
-    inline float stdev() {
-        if (count == 0) {
-            return 0;
-        }
-        float average = mean();
-        return sqrt(sum2 / count - average * average);
-    }
-
-    /**
-     * Reset internal state. The variable 'when' is the time when the data collection started.
-     * Call this to start a new data collection window.
-     */
-    inline void reset(nsecs_t when) {
-        max = 0;
-        min = std::numeric_limits<float>::max();
-        sum = 0;
-        sum2 = 0;
-        count = 0;
-        lastReportTime = when;
-    }
-};
 
 /* Keeps track of the state of single-touch protocol. */
 class SingleTouchMotionAccumulator {
@@ -1571,8 +1509,10 @@ private:
     VelocityControl mWheelXVelocityControl;
     VelocityControl mWheelYVelocityControl;
 
+    static constexpr std::chrono::duration STATS_REPORT_PERIOD = 5min;
+
     // Latency statistics for touch events
-    struct LatencyStatistics mStatistics;
+    LatencyStatistics mStatistics{STATS_REPORT_PERIOD};
 
     std::optional<DisplayViewport> findViewport();
 
