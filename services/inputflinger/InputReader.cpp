@@ -1094,8 +1094,8 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
         }
 
         if (!changes || (changes & InputReaderConfiguration::CHANGE_ENABLED_STATE)) {
-            ssize_t index = config->disabledDevices.indexOf(mId);
-            bool enabled = index < 0;
+            auto it = config->disabledDevices.find(mId);
+            bool enabled = it == config->disabledDevices.end();
             setEnabled(enabled, when);
         }
 
