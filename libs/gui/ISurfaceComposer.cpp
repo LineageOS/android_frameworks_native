@@ -88,7 +88,7 @@ public:
         data.writeStrongBinder(applyToken);
         commands.write(data);
         data.writeInt64(desiredPresentTime);
-        data.writeWeakBinder(uncacheBuffer.token);
+        data.writeStrongBinder(uncacheBuffer.token.promote());
         data.writeUint64(uncacheBuffer.id);
 
         if (data.writeVectorSize(listenerCallbacks) == NO_ERROR) {
@@ -1036,7 +1036,7 @@ status_t BnSurfaceComposer::onTransact(
             int64_t desiredPresentTime = data.readInt64();
 
             client_cache_t uncachedBuffer;
-            uncachedBuffer.token = data.readWeakBinder();
+            uncachedBuffer.token = data.readStrongBinder();
             uncachedBuffer.id = data.readUint64();
 
             std::vector<ListenerCallbacks> listenerCallbacks;
