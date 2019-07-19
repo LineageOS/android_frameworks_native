@@ -202,9 +202,21 @@ public:
         mConfig.portAssociations.insert({inputPort, displayPort});
     }
 
-    void addDisabledDevice(int32_t deviceId) { mConfig.disabledDevices.insert(deviceId); }
+    void addDisabledDevice(int32_t deviceId) {
+        ssize_t index = mConfig.disabledDevices.indexOf(deviceId);
+        bool currentlyEnabled = index < 0;
+        if (currentlyEnabled) {
+            mConfig.disabledDevices.add(deviceId);
+        }
+    }
 
-    void removeDisabledDevice(int32_t deviceId) { mConfig.disabledDevices.erase(deviceId); }
+    void removeDisabledDevice(int32_t deviceId) {
+        ssize_t index = mConfig.disabledDevices.indexOf(deviceId);
+        bool currentlyEnabled = index < 0;
+        if (!currentlyEnabled) {
+            mConfig.disabledDevices.remove(deviceId);
+        }
+    }
 
     void setPointerController(int32_t deviceId, const sp<FakePointerController>& controller) {
         mPointerControllers.add(deviceId, controller);
