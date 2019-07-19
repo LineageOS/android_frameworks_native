@@ -128,6 +128,9 @@ private:
     uint64_t mPreviousFrameNumber{0};
     bool mUpdateTexImageFailed{false};
 
+    uint64_t mPreviousBufferId = 0;
+    uint64_t mPreviousReleasedFrameNumber = 0;
+
     // Local copy of the queued contents of the incoming BufferQueue
     mutable Mutex mQueueItemLock;
     Condition mQueueItemCondition;

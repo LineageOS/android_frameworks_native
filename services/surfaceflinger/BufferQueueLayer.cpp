@@ -45,6 +45,14 @@ BufferQueueLayer::~BufferQueueLayer() {
 
 void BufferQueueLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
     mConsumer->setReleaseFence(releaseFence);
+
+    // Prevent tracing the same release multiple times.
+    if (mPreviousFrameNumber != mPreviousReleasedFrameNumber) {
+        mFlinger->mTimeStats->traceFence(getSequence(), mPreviousBufferId, mPreviousFrameNumber,
+                                         std::make_shared<FenceTime>(releaseFence),
+                                         TimeStats::FrameEvent::RELEASE_FENCE);
+        mPreviousReleasedFrameNumber = mPreviousFrameNumber;
+    }
 }
 
 void BufferQueueLayer::setTransformHint(uint32_t orientation) const {
@@ -355,9 +363,15 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
             mQueuedFrames--;
         }
 
+        uint64_t bufferID = mQueueItems[0].mGraphicBuffer->getId();
         mFlinger->mTimeStats->setAcquireFence(layerID, currentFrameNumber,
                                               mQueueItems[0].mFenceTime);
+        mFlinger->mTimeStats->traceFence(layerID, bufferID, currentFrameNumber,
+                                         mQueueItems[0].mFenceTime,
+                                         TimeStats::FrameEvent::ACQUIRE_FENCE);
         mFlinger->mTimeStats->setLatchTime(layerID, currentFrameNumber, latchTime);
+        mFlinger->mTimeStats->traceTimestamp(layerID, bufferID, currentFrameNumber, latchTime,
+                                             TimeStats::FrameEvent::LATCH);
 
         mQueueItems.removeAt(0);
     }
@@ -373,6 +387,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
 
 status_t BufferQueueLayer::updateActiveBuffer() {
     // update the active buffer
+    mPreviousBufferId = getCurrentBufferId();
     mActiveBuffer = mConsumer->getCurrentBuffer(&mActiveBufferSlot, &mActiveBufferFence);
     auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
     layerCompositionState.buffer = mActiveBuffer;
@@ -413,6 +428,11 @@ void BufferQueueLayer::latchPerFrameState(
 // -----------------------------------------------------------------------
 
 void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
+    const int32_t layerID = getSequence();
+    mFlinger->mTimeStats->traceNewLayer(layerID, getName().c_str());
+    mFlinger->mTimeStats->traceTimestamp(layerID, item.mGraphicBuffer->getId(), item.mFrameNumber,
+                                         systemTime(), TimeStats::FrameEvent::POST);
+
     ATRACE_CALL();
     // Add this buffer from our internal queue tracker
     { // Autolock scope
