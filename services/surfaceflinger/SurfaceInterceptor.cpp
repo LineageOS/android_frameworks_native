@@ -116,7 +116,14 @@ void SurfaceInterceptor::addInitialSurfaceStateLocked(Increment* increment,
                                   layer->mCurrentState.frameNumber_legacy);
     }
     addOverrideScalingModeLocked(transaction, layerId, layer->getEffectiveScalingMode());
-    addFlagsLocked(transaction, layerId, layer->mCurrentState.flags);
+    addFlagsLocked(transaction, layerId, layer->mCurrentState.flags,
+                   layer_state_t::eLayerHidden | layer_state_t::eLayerOpaque |
+                           layer_state_t::eLayerSecure);
+    addReparentLocked(transaction, layerId, getLayerIdFromWeakRef(layer->mCurrentParent));
+    addDetachChildrenLocked(transaction, layerId, layer->isLayerDetached());
+    addRelativeParentLocked(transaction, layerId,
+                            getLayerIdFromWeakRef(layer->mCurrentState.zOrderRelativeOf),
+                            layer->mCurrentState.z);
 }
 
 void SurfaceInterceptor::addInitialDisplayStateLocked(Increment* increment,
@@ -150,7 +157,7 @@ status_t SurfaceInterceptor::writeProtoFileLocked() {
     return NO_ERROR;
 }
 
-const sp<const Layer> SurfaceInterceptor::getLayer(const wp<const IBinder>& weakHandle) {
+const sp<const Layer> SurfaceInterceptor::getLayer(const wp<const IBinder>& weakHandle) const {
     const sp<const IBinder>& handle(weakHandle.promote());
     const auto layerHandle(static_cast<const Layer::Handle*>(handle.get()));
     const sp<const Layer> layer(layerHandle->owner.promote());
@@ -158,12 +165,29 @@ const sp<const Layer> SurfaceInterceptor::getLayer(const wp<const IBinder>& weak
     return layer;
 }
 
-const std::string SurfaceInterceptor::getLayerName(const sp<const Layer>& layer) {
+const std::string SurfaceInterceptor::getLayerName(const sp<const Layer>& layer) const {
     return layer->getName().string();
 }
 
-int32_t SurfaceInterceptor::getLayerId(const sp<const Layer>& layer) {
+int32_t SurfaceInterceptor::getLayerId(const sp<const Layer>& layer) const {
     return layer->sequence;
+}
+
+int32_t SurfaceInterceptor::getLayerIdFromWeakRef(const wp<const Layer>& layer) const {
+    if (layer == nullptr) {
+        return -1;
+    }
+    auto strongLayer = layer.promote();
+    return strongLayer == nullptr ? -1 : getLayerId(strongLayer);
+}
+
+int32_t SurfaceInterceptor::getLayerIdFromHandle(const sp<const IBinder>& handle) const {
+    if (handle == nullptr) {
+        return -1;
+    }
+    const auto layerHandle(static_cast<const Layer::Handle*>(handle.get()));
+    const sp<const Layer> layer(layerHandle->owner.promote());
+    return layer == nullptr ? -1 : getLayerId(layer);
 }
 
 Increment* SurfaceInterceptor::createTraceIncrementLocked() {
@@ -252,24 +276,23 @@ void SurfaceInterceptor::addTransparentRegionLocked(Transaction* transaction,
     }
 }
 
-void SurfaceInterceptor::addFlagsLocked(Transaction* transaction, int32_t layerId,
-        uint8_t flags)
-{
+void SurfaceInterceptor::addFlagsLocked(Transaction* transaction, int32_t layerId, uint8_t flags,
+                                        uint8_t mask) {
     // There can be multiple flags changed
-    if (flags & layer_state_t::eLayerHidden) {
+    if (mask & layer_state_t::eLayerHidden) {
         SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
         HiddenFlagChange* flagChange(change->mutable_hidden_flag());
-        flagChange->set_hidden_flag(true);
+        flagChange->set_hidden_flag(flags & layer_state_t::eLayerHidden);
     }
-    if (flags & layer_state_t::eLayerOpaque) {
+    if (mask & layer_state_t::eLayerOpaque) {
         SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
         OpaqueFlagChange* flagChange(change->mutable_opaque_flag());
-        flagChange->set_opaque_flag(true);
+        flagChange->set_opaque_flag(flags & layer_state_t::eLayerOpaque);
     }
-    if (flags & layer_state_t::eLayerSecure) {
+    if (mask & layer_state_t::eLayerSecure) {
         SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
         SecureFlagChange* flagChange(change->mutable_secure_flag());
-        flagChange->set_secure_flag(true);
+        flagChange->set_secure_flag(flags & layer_state_t::eLayerSecure);
     }
 }
 
@@ -320,6 +343,35 @@ void SurfaceInterceptor::addOverrideScalingModeLocked(Transaction* transaction,
     overrideChange->set_override_scaling_mode(overrideScalingMode);
 }
 
+void SurfaceInterceptor::addReparentLocked(Transaction* transaction, int32_t layerId,
+                                           int32_t parentId) {
+    SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
+    ReparentChange* overrideChange(change->mutable_reparent());
+    overrideChange->set_parent_id(parentId);
+}
+
+void SurfaceInterceptor::addReparentChildrenLocked(Transaction* transaction, int32_t layerId,
+                                                   int32_t parentId) {
+    SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
+    ReparentChildrenChange* overrideChange(change->mutable_reparent_children());
+    overrideChange->set_parent_id(parentId);
+}
+
+void SurfaceInterceptor::addDetachChildrenLocked(Transaction* transaction, int32_t layerId,
+                                                 bool detached) {
+    SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
+    DetachChildrenChange* overrideChange(change->mutable_detach_children());
+    overrideChange->set_detach_children(detached);
+}
+
+void SurfaceInterceptor::addRelativeParentLocked(Transaction* transaction, int32_t layerId,
+                                                 int32_t parentId, int z) {
+    SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
+    RelativeParentChange* overrideChange(change->mutable_relative_parent());
+    overrideChange->set_relative_parent_id(parentId);
+    overrideChange->set_z(z);
+}
+
 void SurfaceInterceptor::addSurfaceChangesLocked(Transaction* transaction,
         const layer_state_t& state)
 {
@@ -351,7 +403,7 @@ void SurfaceInterceptor::addSurfaceChangesLocked(Transaction* transaction,
         addTransparentRegionLocked(transaction, layerId, state.transparentRegion);
     }
     if (state.what & layer_state_t::eFlagsChanged) {
-        addFlagsLocked(transaction, layerId, state.flags);
+        addFlagsLocked(transaction, layerId, state.flags, state.mask);
     }
     if (state.what & layer_state_t::eLayerStackChanged) {
         addLayerStackLocked(transaction, layerId, state.layerStack);
@@ -379,6 +431,19 @@ void SurfaceInterceptor::addSurfaceChangesLocked(Transaction* transaction,
     }
     if (state.what & layer_state_t::eOverrideScalingModeChanged) {
         addOverrideScalingModeLocked(transaction, layerId, state.overrideScalingMode);
+    }
+    if (state.what & layer_state_t::eReparent) {
+        addReparentLocked(transaction, layerId, getLayerIdFromHandle(state.parentHandleForChild));
+    }
+    if (state.what & layer_state_t::eReparentChildren) {
+        addReparentChildrenLocked(transaction, layerId, getLayerIdFromHandle(state.reparentHandle));
+    }
+    if (state.what & layer_state_t::eDetachChildren) {
+        addDetachChildrenLocked(transaction, layerId, true);
+    }
+    if (state.what & layer_state_t::eRelativeLayerChanged) {
+        addRelativeParentLocked(transaction, layerId,
+                                getLayerIdFromHandle(state.relativeLayerHandle), state.z);
     }
 }
 
