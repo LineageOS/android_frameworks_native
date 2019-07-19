@@ -20,6 +20,7 @@
 
 #include "DispSync.h"
 #include "EventThread.h"
+#include "TracedOrdinal.h"
 
 namespace android {
 
@@ -39,16 +40,11 @@ private:
     // The following method is the implementation of the DispSync::Callback.
     virtual void onDispSyncEvent(nsecs_t when);
 
-    void tracePhaseOffset() REQUIRES(mVsyncMutex);
-
     const char* const mName;
-    int mValue = 0;
+    TracedOrdinal<int> mValue;
 
     const bool mTraceVsync;
     const std::string mVsyncOnLabel;
-    const std::string mVsyncEventLabel;
-    const std::string mVsyncOffsetLabel;
-    const std::string mVsyncNegativeOffsetLabel;
     nsecs_t mLastCallbackTime GUARDED_BY(mVsyncMutex) = 0;
 
     DispSync* mDispSync;
@@ -57,7 +53,7 @@ private:
     VSyncSource::Callback* mCallback GUARDED_BY(mCallbackMutex) = nullptr;
 
     std::mutex mVsyncMutex;
-    nsecs_t mPhaseOffset GUARDED_BY(mVsyncMutex);
+    TracedOrdinal<nsecs_t> mPhaseOffset GUARDED_BY(mVsyncMutex);
     const nsecs_t mOffsetThresholdForNextVsync;
     bool mEnabled GUARDED_BY(mVsyncMutex) = false;
 };

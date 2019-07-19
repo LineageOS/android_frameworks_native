@@ -976,7 +976,6 @@ void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
                                         mPhaseOffsets->getOffsetThresholdForNextVsync());
     }
     mDesiredActiveConfigChanged = true;
-    ATRACE_INT("DesiredActiveConfigChanged", mDesiredActiveConfigChanged);
 
     if (mRefreshRateOverlay) {
         mRefreshRateOverlay->changeRefreshRate(mDesiredActiveConfig.type);
@@ -1021,7 +1020,6 @@ void SurfaceFlinger::desiredActiveConfigChangeDone() {
     std::lock_guard<std::mutex> lock(mActiveConfigLock);
     mDesiredActiveConfig.event = Scheduler::ConfigEvent::None;
     mDesiredActiveConfigChanged = false;
-    ATRACE_INT("DesiredActiveConfigChanged", mDesiredActiveConfigChanged);
 
     mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
     mPhaseOffsets->setRefreshRateType(mUpcomingActiveConfig.type);
@@ -1713,12 +1711,12 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
             // seeing this same value.
             populateExpectedPresentTime();
 
-            bool frameMissed = previousFrameMissed();
-            bool hwcFrameMissed = mHadDeviceComposition && frameMissed;
-            bool gpuFrameMissed = mHadClientComposition && frameMissed;
-            ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
-            ATRACE_INT("HwcFrameMissed", static_cast<int>(hwcFrameMissed));
-            ATRACE_INT("GpuFrameMissed", static_cast<int>(gpuFrameMissed));
+            const TracedOrdinal<bool> frameMissed = {"FrameMissed", previousFrameMissed()};
+            const TracedOrdinal<bool> hwcFrameMissed = {"HwcFrameMissed",
+                                                        mHadDeviceComposition && frameMissed};
+            const TracedOrdinal<bool> gpuFrameMissed = {"GpuFrameMissed",
+                                                        mHadClientComposition && frameMissed};
+
             if (frameMissed) {
                 mFrameMissedCount++;
                 mTimeStats->incrementMissedFrames();
@@ -3402,8 +3400,9 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
 
     const Region bounds(displayState.bounds);
     const DisplayRenderArea renderArea(displayDevice);
-    const bool hasClientComposition = getHwComposer().hasClientComposition(displayId);
-    ATRACE_INT("hasClientComposition", hasClientComposition);
+    const TracedOrdinal<bool> hasClientComposition = {"hasClientComposition",
+                                                      getHwComposer().hasClientComposition(
+                                                              displayId)};
 
     bool applyColorMatrix = false;
 

@@ -64,7 +64,7 @@ public:
     DispSyncThread(const char* name, bool showTraceDetailedInfo)
           : mName(name),
             mStop(false),
-            mModelLocked(false),
+            mModelLocked("DispSync:ModelLocked", false),
             mPeriod(0),
             mPhase(0),
             mReferenceTime(0),
@@ -121,13 +121,11 @@ public:
     void lockModel() {
         Mutex::Autolock lock(mMutex);
         mModelLocked = true;
-        ATRACE_INT("DispSync:ModelLocked", mModelLocked);
     }
 
     void unlockModel() {
         Mutex::Autolock lock(mMutex);
         mModelLocked = false;
-        ATRACE_INT("DispSync:ModelLocked", mModelLocked);
     }
 
     virtual bool threadLoop() {
@@ -431,7 +429,7 @@ private:
     const char* const mName;
 
     bool mStop;
-    bool mModelLocked;
+    TracedOrdinal<bool> mModelLocked;
 
     nsecs_t mPeriod;
     nsecs_t mPhase;
@@ -454,15 +452,14 @@ private:
 
 class ZeroPhaseTracer : public DispSync::Callback {
 public:
-    ZeroPhaseTracer() : mParity(false) {}
+    ZeroPhaseTracer() : mParity("ZERO_PHASE_VSYNC", false) {}
 
     virtual void onDispSyncEvent(nsecs_t /*when*/) {
         mParity = !mParity;
-        ATRACE_INT("ZERO_PHASE_VSYNC", mParity ? 1 : 0);
     }
 
 private:
-    bool mParity;
+    TracedOrdinal<bool> mParity;
 };
 
 DispSync::DispSync(const char* name) : mName(name), mRefreshSkipCount(0) {

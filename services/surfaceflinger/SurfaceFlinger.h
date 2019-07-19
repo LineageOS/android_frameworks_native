@@ -60,6 +60,7 @@
 #include "Scheduler/VSyncModulator.h"
 #include "SurfaceFlingerFactory.h"
 #include "SurfaceTracing.h"
+#include "TracedOrdinal.h"
 #include "TransactionCompletedThread.h"
 
 #include <atomic>
@@ -1148,7 +1149,8 @@ private:
     ActiveConfigInfo mDesiredActiveConfig GUARDED_BY(mActiveConfigLock);
 
     // below flags are set by main thread only
-    bool mDesiredActiveConfigChanged GUARDED_BY(mActiveConfigLock) = false;
+    TracedOrdinal<bool> mDesiredActiveConfigChanged
+            GUARDED_BY(mActiveConfigLock) = {"DesiredActiveConfigChanged", false};
     bool mCheckPendingFence = false;
 
     bool mLumaSampling = true;
