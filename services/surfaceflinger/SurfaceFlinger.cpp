@@ -276,11 +276,11 @@ SurfaceFlingerBE::SurfaceFlingerBE() : mHwcServiceName(getHwcServiceName()) {}
 
 SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
       : mFactory(factory),
-        mPhaseOffsets(mFactory.createPhaseOffsets()),
         mInterceptor(mFactory.createSurfaceInterceptor(this)),
         mTimeStats(mFactory.createTimeStats()),
         mEventQueue(mFactory.createMessageQueue()),
-        mCompositionEngine(mFactory.createCompositionEngine()) {}
+        mCompositionEngine(mFactory.createCompositionEngine()),
+        mPhaseOffsets(mFactory.createPhaseOffsets()) {}
 
 SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipInitialization) {
     ALOGI("SurfaceFlinger is starting");
@@ -385,10 +385,6 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
 
     property_get("debug.sf.luma_sampling", value, "1");
     mLumaSampling = atoi(value);
-
-    const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
-    mVsyncModulator.setPhaseOffsets(early, gl, late,
-                                    mPhaseOffsets->getOffsetThresholdForNextVsync());
 
     // We should be reading 'persist.sys.sf.color_saturation' here
     // but since /data may be encrypted, we need to wait until after vold
@@ -616,7 +612,7 @@ void SurfaceFlinger::init() {
     ALOGI(  "SurfaceFlinger's main thread ready to run. "
             "Initializing graphics H/W...");
 
-    ALOGI("Phase offset NS: %" PRId64 "", mPhaseOffsets->getCurrentAppOffset());
+    ALOGI("Phase offset: %" PRId64 " ns", mPhaseOffsets->getCurrentAppOffset());
 
     Mutex::Autolock _l(mStateLock);
     // start the EventThread
@@ -627,20 +623,21 @@ void SurfaceFlinger::init() {
             mScheduler->makeResyncCallback(std::bind(&SurfaceFlinger::getVsyncPeriod, this));
 
     mAppConnectionHandle =
-            mScheduler->createConnection("app", mVsyncModulator.getOffsets().app,
+            mScheduler->createConnection("app", mPhaseOffsets->getCurrentAppOffset(),
                                          mPhaseOffsets->getOffsetThresholdForNextVsync(),
                                          resyncCallback,
                                          impl::EventThread::InterceptVSyncsCallback());
     mSfConnectionHandle =
-            mScheduler->createConnection("sf", mVsyncModulator.getOffsets().sf,
+            mScheduler->createConnection("sf", mPhaseOffsets->getCurrentSfOffset(),
                                          mPhaseOffsets->getOffsetThresholdForNextVsync(),
                                          resyncCallback, [this](nsecs_t timestamp) {
                                              mInterceptor->saveVSyncEvent(timestamp);
                                          });
 
     mEventQueue->setEventConnection(mScheduler->getEventConnection(mSfConnectionHandle));
-    mVsyncModulator.setSchedulerAndHandles(mScheduler.get(), mAppConnectionHandle.get(),
-                                           mSfConnectionHandle.get());
+
+    mVSyncModulator.emplace(*mScheduler, mAppConnectionHandle, mSfConnectionHandle,
+                            mPhaseOffsets->getCurrentOffsets());
 
     mRegionSamplingThread =
             new RegionSamplingThread(*this, *mScheduler,
@@ -969,11 +966,9 @@ void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
         mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
         // As we called to set period, we will call to onRefreshRateChangeCompleted once
         // DispSync model is locked.
-        mVsyncModulator.onRefreshRateChangeInitiated();
+        mVSyncModulator->onRefreshRateChangeInitiated();
         mPhaseOffsets->setRefreshRateType(info.type);
-        const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
-        mVsyncModulator.setPhaseOffsets(early, gl, late,
-                                        mPhaseOffsets->getOffsetThresholdForNextVsync());
+        mVSyncModulator->setPhaseOffsets(mPhaseOffsets->getCurrentOffsets());
     }
     mDesiredActiveConfigChanged = true;
     ATRACE_INT("DesiredActiveConfigChanged", mDesiredActiveConfigChanged);
@@ -1006,9 +1001,7 @@ void SurfaceFlinger::setActiveConfigInternal() {
     display->setActiveConfig(mUpcomingActiveConfig.configId);
 
     mPhaseOffsets->setRefreshRateType(mUpcomingActiveConfig.type);
-    const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
-    mVsyncModulator.setPhaseOffsets(early, gl, late,
-                                    mPhaseOffsets->getOffsetThresholdForNextVsync());
+    mVSyncModulator->setPhaseOffsets(mPhaseOffsets->getCurrentOffsets());
     ATRACE_INT("ActiveConfigMode", mUpcomingActiveConfig.configId);
 
     if (mUpcomingActiveConfig.event != Scheduler::ConfigEvent::None) {
@@ -1025,9 +1018,7 @@ void SurfaceFlinger::desiredActiveConfigChangeDone() {
 
     mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
     mPhaseOffsets->setRefreshRateType(mUpcomingActiveConfig.type);
-    const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
-    mVsyncModulator.setPhaseOffsets(early, gl, late,
-                                    mPhaseOffsets->getOffsetThresholdForNextVsync());
+    mVSyncModulator->setPhaseOffsets(mPhaseOffsets->getCurrentOffsets());
 }
 
 bool SurfaceFlinger::performSetActiveConfig() {
@@ -1494,7 +1485,7 @@ void SurfaceFlinger::onVsyncReceived(int32_t sequenceId, hwc2_display_t hwcDispl
     bool periodFlushed = false;
     mScheduler->addResyncSample(timestamp, &periodFlushed);
     if (periodFlushed) {
-        mVsyncModulator.onRefreshRateChangeCompleted();
+        mVSyncModulator->onRefreshRateChangeCompleted();
     }
 }
 
@@ -1686,7 +1677,7 @@ bool SurfaceFlinger::previousFrameMissed() NO_THREAD_SAFETY_ANALYSIS {
     // woken up before the actual vsync but targeting the next vsync, we need to check
     // fence N-2
     const sp<Fence>& fence =
-            mVsyncModulator.getOffsets().sf < mPhaseOffsets->getOffsetThresholdForNextVsync()
+            mVSyncModulator->getOffsets().sf < mPhaseOffsets->getOffsetThresholdForNextVsync()
             ? mPreviousPresentFences[0]
             : mPreviousPresentFences[1];
 
@@ -1698,7 +1689,7 @@ void SurfaceFlinger::populateExpectedPresentTime() {
     mScheduler->getDisplayStatInfo(&stats);
     const nsecs_t presentTime = mScheduler->getDispSyncExpectedPresentTime();
     // Inflate the expected present time if we're targetting the next vsync.
-    mExpectedPresentTime.store(mVsyncModulator.getOffsets().sf <
+    mExpectedPresentTime.store(mVSyncModulator->getOffsets().sf <
                                                mPhaseOffsets->getOffsetThresholdForNextVsync()
                                        ? presentTime
                                        : presentTime + stats.vsyncPeriod);
@@ -1831,7 +1822,7 @@ void SurfaceFlinger::handleMessageRefresh() {
                 mHadDeviceComposition || getHwComposer().hasDeviceComposition(displayId);
     }
 
-    mVsyncModulator.onRefreshed(mHadClientComposition);
+    mVSyncModulator->onRefreshed(mHadClientComposition);
 
     mLayersWithQueuedFrames.clear();
     if (mVisibleRegionsDirty) {
@@ -2583,7 +2574,7 @@ void SurfaceFlinger::handleTransaction(uint32_t transactionFlags)
     // with mStateLock held to guarantee that mCurrentState won't change
     // until the transaction is committed.
 
-    mVsyncModulator.onTransactionHandled();
+    mVSyncModulator->onTransactionHandled();
     transactionFlags = getTransactionFlags(eTransactionMask);
     handleTransactionLocked(transactionFlags);
 
@@ -3636,7 +3627,7 @@ uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags) {
 uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags,
                                              Scheduler::TransactionStart transactionStart) {
     uint32_t old = mTransactionFlags.fetch_or(flags);
-    mVsyncModulator.setTransactionStart(transactionStart);
+    mVSyncModulator->setTransactionStart(transactionStart);
     if ((old & flags)==0) { // wake the server up
         signalTransaction();
     }

@@ -18,115 +18,102 @@
 
 #include <cutils/properties.h>
 
+#include <optional>
+
 #include "SurfaceFlingerProperties.h"
 
-namespace android {
-using namespace android::sysprop;
+namespace {
 
-namespace scheduler {
+std::optional<int> getProperty(const char* name) {
+    char value[PROPERTY_VALUE_MAX];
+    property_get(name, value, "-1");
+    if (const int i = atoi(value); i != -1) return i;
+    return std::nullopt;
+}
 
-using RefreshRateType = RefreshRateConfigs::RefreshRateType;
+} // namespace
+
+namespace android::scheduler {
+
 PhaseOffsets::~PhaseOffsets() = default;
 
 namespace impl {
+
 PhaseOffsets::PhaseOffsets() {
-    int64_t vsyncPhaseOffsetNs = vsync_event_phase_offset_ns(1000000);
-
-    int64_t sfVsyncPhaseOffsetNs = vsync_sf_event_phase_offset_ns(1000000);
-
-    char value[PROPERTY_VALUE_MAX];
-    property_get("debug.sf.early_phase_offset_ns", value, "-1");
-    const int earlySfOffsetNs = atoi(value);
-
-    property_get("debug.sf.early_gl_phase_offset_ns", value, "-1");
-    const int earlyGlSfOffsetNs = atoi(value);
-
-    property_get("debug.sf.early_app_phase_offset_ns", value, "-1");
-    const int earlyAppOffsetNs = atoi(value);
-
-    property_get("debug.sf.early_gl_app_phase_offset_ns", value, "-1");
-    const int earlyGlAppOffsetNs = atoi(value);
-
-    property_get("debug.sf.high_fps_early_phase_offset_ns", value, "-1");
-    const int highFpsEarlySfOffsetNs = atoi(value);
-
-    property_get("debug.sf.high_fps_early_gl_phase_offset_ns", value, "-1");
-    const int highFpsEarlyGlSfOffsetNs = atoi(value);
-
-    property_get("debug.sf.high_fps_early_app_phase_offset_ns", value, "-1");
-    const int highFpsEarlyAppOffsetNs = atoi(value);
-
-    property_get("debug.sf.high_fps_early_gl_app_phase_offset_ns", value, "-1");
-    const int highFpsEarlyGlAppOffsetNs = atoi(value);
-
-    // TODO(b/122905996): Define these in device.mk.
-    property_get("debug.sf.high_fps_late_app_phase_offset_ns", value, "2000000");
-    const int highFpsLateAppOffsetNs = atoi(value);
-
-    property_get("debug.sf.high_fps_late_sf_phase_offset_ns", value, "1000000");
-    const int highFpsLateSfOffsetNs = atoi(value);
-
     // Below defines the threshold when an offset is considered to be negative, i.e. targeting
     // for the N+2 vsync instead of N+1. This means that:
     // For offset < threshold, SF wake up (vsync_duration - offset) before HW vsync.
     // For offset >= threshold, SF wake up (2 * vsync_duration - offset) before HW vsync.
-    property_get("debug.sf.phase_offset_threshold_for_next_vsync_ns", value, "-1");
-    const int phaseOffsetThresholdForNextVsyncNs = atoi(value);
+    const nsecs_t thresholdForNextVsync =
+            getProperty("debug.sf.phase_offset_threshold_for_next_vsync_ns")
+                    .value_or(std::numeric_limits<nsecs_t>::max());
 
-    Offsets defaultOffsets;
-    Offsets highFpsOffsets;
-    defaultOffsets.early = {RefreshRateType::DEFAULT,
-                            earlySfOffsetNs != -1 ? earlySfOffsetNs : sfVsyncPhaseOffsetNs,
-                            earlyAppOffsetNs != -1 ? earlyAppOffsetNs : vsyncPhaseOffsetNs};
-    defaultOffsets.earlyGl = {RefreshRateType::DEFAULT,
-                              earlyGlSfOffsetNs != -1 ? earlyGlSfOffsetNs : sfVsyncPhaseOffsetNs,
-                              earlyGlAppOffsetNs != -1 ? earlyGlAppOffsetNs : vsyncPhaseOffsetNs};
-    defaultOffsets.late = {RefreshRateType::DEFAULT, sfVsyncPhaseOffsetNs, vsyncPhaseOffsetNs};
-
-    highFpsOffsets.early = {RefreshRateType::PERFORMANCE,
-                            highFpsEarlySfOffsetNs != -1 ? highFpsEarlySfOffsetNs
-                                                         : highFpsLateSfOffsetNs,
-                            highFpsEarlyAppOffsetNs != -1 ? highFpsEarlyAppOffsetNs
-                                                          : highFpsLateAppOffsetNs};
-    highFpsOffsets.earlyGl = {RefreshRateType::PERFORMANCE,
-                              highFpsEarlyGlSfOffsetNs != -1 ? highFpsEarlyGlSfOffsetNs
-                                                             : highFpsLateSfOffsetNs,
-                              highFpsEarlyGlAppOffsetNs != -1 ? highFpsEarlyGlAppOffsetNs
-                                                              : highFpsLateAppOffsetNs};
-    highFpsOffsets.late = {RefreshRateType::PERFORMANCE, highFpsLateSfOffsetNs,
-                           highFpsLateAppOffsetNs};
+    const Offsets defaultOffsets = getDefaultOffsets(thresholdForNextVsync);
+    const Offsets highFpsOffsets = getHighFpsOffsets(thresholdForNextVsync);
 
     mOffsets.insert({RefreshRateType::POWER_SAVING, defaultOffsets});
     mOffsets.insert({RefreshRateType::DEFAULT, defaultOffsets});
     mOffsets.insert({RefreshRateType::PERFORMANCE, highFpsOffsets});
-
-    mOffsetThresholdForNextVsync = phaseOffsetThresholdForNextVsyncNs != -1
-            ? phaseOffsetThresholdForNextVsyncNs
-            : std::numeric_limits<nsecs_t>::max();
 }
 
 PhaseOffsets::Offsets PhaseOffsets::getOffsetsForRefreshRate(
-        android::scheduler::RefreshRateConfigs::RefreshRateType refreshRateType) const {
+        RefreshRateType refreshRateType) const {
     return mOffsets.at(refreshRateType);
 }
 
 void PhaseOffsets::dump(std::string& result) const {
-    const auto [early, earlyGl, late] = getCurrentOffsets();
+    const auto [early, earlyGl, late, threshold] = getCurrentOffsets();
     base::StringAppendF(&result,
                         "         app phase: %9" PRId64 " ns\t         SF phase: %9" PRId64 " ns\n"
                         "   early app phase: %9" PRId64 " ns\t   early SF phase: %9" PRId64 " ns\n"
-                        "GL early app phase: %9" PRId64 " ns\tGL early SF phase: %9" PRId64 " ns\n",
-                        late.app, late.sf, early.app, early.sf, earlyGl.app, earlyGl.sf);
+                        "GL early app phase: %9" PRId64 " ns\tGL early SF phase: %9" PRId64 " ns\n"
+                        "threshold for next VSYNC: %" PRId64 " ns\n",
+                        late.app, late.sf, early.app, early.sf, earlyGl.app, earlyGl.sf, threshold);
 }
 
-nsecs_t PhaseOffsets::getCurrentAppOffset() {
-    return getCurrentOffsets().late.app;
+PhaseOffsets::Offsets PhaseOffsets::getDefaultOffsets(nsecs_t thresholdForNextVsync) {
+    const int64_t vsyncPhaseOffsetNs = sysprop::vsync_event_phase_offset_ns(1000000);
+    const int64_t sfVsyncPhaseOffsetNs = sysprop::vsync_sf_event_phase_offset_ns(1000000);
+
+    const auto earlySfOffsetNs = getProperty("debug.sf.early_phase_offset_ns");
+    const auto earlyGlSfOffsetNs = getProperty("debug.sf.early_gl_phase_offset_ns");
+    const auto earlyAppOffsetNs = getProperty("debug.sf.early_app_phase_offset_ns");
+    const auto earlyGlAppOffsetNs = getProperty("debug.sf.early_gl_app_phase_offset_ns");
+
+    return {{RefreshRateType::DEFAULT, earlySfOffsetNs.value_or(sfVsyncPhaseOffsetNs),
+             earlyAppOffsetNs.value_or(vsyncPhaseOffsetNs)},
+
+            {RefreshRateType::DEFAULT, earlyGlSfOffsetNs.value_or(sfVsyncPhaseOffsetNs),
+             earlyGlAppOffsetNs.value_or(vsyncPhaseOffsetNs)},
+
+            {RefreshRateType::DEFAULT, sfVsyncPhaseOffsetNs, vsyncPhaseOffsetNs},
+
+            thresholdForNextVsync};
 }
 
-nsecs_t PhaseOffsets::getCurrentSfOffset() {
-    return getCurrentOffsets().late.sf;
+PhaseOffsets::Offsets PhaseOffsets::getHighFpsOffsets(nsecs_t thresholdForNextVsync) {
+    // TODO(b/122905996): Define these in device.mk.
+    const int highFpsLateAppOffsetNs =
+            getProperty("debug.sf.high_fps_late_app_phase_offset_ns").value_or(2000000);
+    const int highFpsLateSfOffsetNs =
+            getProperty("debug.sf.high_fps_late_sf_phase_offset_ns").value_or(1000000);
+
+    const auto highFpsEarlySfOffsetNs = getProperty("debug.sf.high_fps_early_phase_offset_ns");
+    const auto highFpsEarlyGlSfOffsetNs = getProperty("debug.sf.high_fps_early_gl_phase_offset_ns");
+    const auto highFpsEarlyAppOffsetNs = getProperty("debug.sf.high_fps_early_app_phase_offset_ns");
+    const auto highFpsEarlyGlAppOffsetNs =
+            getProperty("debug.sf.high_fps_early_gl_app_phase_offset_ns");
+
+    return {{RefreshRateType::PERFORMANCE, highFpsEarlySfOffsetNs.value_or(highFpsLateSfOffsetNs),
+             highFpsEarlyAppOffsetNs.value_or(highFpsLateAppOffsetNs)},
+
+            {RefreshRateType::PERFORMANCE, highFpsEarlyGlSfOffsetNs.value_or(highFpsLateSfOffsetNs),
+             highFpsEarlyGlAppOffsetNs.value_or(highFpsLateAppOffsetNs)},
+
+            {RefreshRateType::PERFORMANCE, highFpsLateSfOffsetNs, highFpsLateAppOffsetNs},
+
+            thresholdForNextVsync};
 }
 
 } // namespace impl
-} // namespace scheduler
-} // namespace android
+} // namespace android::scheduler
