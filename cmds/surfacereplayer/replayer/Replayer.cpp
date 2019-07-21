@@ -412,6 +412,18 @@ status_t Replayer::doSurfaceTransaction(
                 setDeferredTransaction(transaction, change.id(),
                         change.deferred_transaction());
                 break;
+            case SurfaceChange::SurfaceChangeCase::kReparent:
+                setReparentChange(transaction, change.id(), change.reparent());
+                break;
+            case SurfaceChange::SurfaceChangeCase::kReparentChildren:
+                setReparentChildrenChange(transaction, change.id(), change.reparent_children());
+                break;
+            case SurfaceChange::SurfaceChangeCase::kRelativeParent:
+                setRelativeParentChange(transaction, change.id(), change.relative_parent());
+                break;
+            case SurfaceChange::SurfaceChangeCase::kDetachChildren:
+                setDetachChildrenChange(transaction, change.id(), change.detach_children());
+                break;
             default:
                 status = 1;
                 break;
@@ -679,4 +691,36 @@ void Replayer::waitUntilDeferredTransactionLayerExists(
 status_t Replayer::loadSurfaceComposerClient() {
     mComposerClient = new SurfaceComposerClient;
     return mComposerClient->initCheck();
+}
+
+void Replayer::setReparentChange(SurfaceComposerClient::Transaction& t,
+        layer_id id, const ReparentChange& c) {
+    sp<IBinder> newParentHandle = nullptr;
+    if (mLayers.count(c.parent_id()) != 0 && mLayers[c.parent_id()] != nullptr) {
+        newParentHandle = mLayers[c.parent_id()]->getHandle();
+    }
+    t.reparent(mLayers[id], newParentHandle);
+}
+
+void Replayer::setRelativeParentChange(SurfaceComposerClient::Transaction& t,
+        layer_id id, const RelativeParentChange& c) {
+    if (mLayers.count(c.relative_parent_id()) == 0 || mLayers[c.relative_parent_id()] == nullptr) {
+        ALOGE("Layer %d not found in set relative parent transaction", c.relative_parent_id());
+        return;
+    }
+    t.setRelativeLayer(mLayers[id], mLayers[c.relative_parent_id()]->getHandle(), c.z());
+}
+
+void Replayer::setDetachChildrenChange(SurfaceComposerClient::Transaction& t,
+        layer_id id, const DetachChildrenChange& c) {
+    t.detachChildren(mLayers[id]);
+}
+
+void Replayer::setReparentChildrenChange(SurfaceComposerClient::Transaction& t,
+        layer_id id, const ReparentChildrenChange& c) {
+    if (mLayers.count(c.parent_id()) == 0 || mLayers[c.parent_id()] == nullptr) {
+        ALOGE("Layer %d not found in reparent children transaction", c.parent_id());
+        return;
+    }
+    t.reparentChildren(mLayers[id], mLayers[c.parent_id()]->getHandle());
 }
