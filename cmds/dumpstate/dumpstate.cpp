@@ -71,6 +71,7 @@
 #include <debuggerd/client.h>
 #include <dumpsys.h>
 #include <dumputils/dump_utils.h>
+#include <hardware_legacy/power.h>
 #include <hidl/ServiceManagement.h>
 #include <log/log.h>
 #include <openssl/sha.h>
@@ -176,6 +177,8 @@ static const std::string ANR_FILE_PREFIX = "anr_";
     RETURN_IF_USER_DENIED_CONSENT();                        \
     func_ptr(__VA_ARGS__);                                  \
     RETURN_IF_USER_DENIED_CONSENT();
+
+static const char* WAKE_LOCK_NAME = "dumpstate_wakelock";
 
 namespace android {
 namespace os {
@@ -2467,6 +2470,13 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
     android::base::SetProperty(PROPERTY_LAST_ID, std::to_string(last_id));
 
     MYLOGI("begin\n");
+
+    if (acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_NAME) < 0) {
+        MYLOGE("Failed to acquire wake lock: %s\n", strerror(errno));
+    } else {
+        // Wake lock will be released automatically on process death
+        MYLOGD("Wake lock acquired.\n");
+    }
 
     register_sig_handler();
 
