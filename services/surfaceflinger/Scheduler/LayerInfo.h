@@ -129,8 +129,8 @@ class LayerInfo {
 
     private:
         std::deque<nsecs_t> mElements;
-        static constexpr size_t HISTORY_SIZE = 10;
-        static constexpr std::chrono::nanoseconds HISTORY_TIME = 500ms;
+        static constexpr size_t HISTORY_SIZE = 90;
+        static constexpr std::chrono::nanoseconds HISTORY_TIME = 1s;
     };
 
 public:
