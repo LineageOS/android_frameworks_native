@@ -32,7 +32,7 @@ Status ServiceManager::getService(const std::string& name, sp<IBinder>* outBinde
 }
 
 Status ServiceManager::checkService(const std::string& name, sp<IBinder>* outBinder) {
-    auto ctx = mAccess->getCallingContext(name);
+    auto ctx = mAccess->getCallingContext();
 
     auto it = mNameToService.find(name);
     if (it == mNameToService.end()) {
@@ -53,7 +53,7 @@ Status ServiceManager::checkService(const std::string& name, sp<IBinder>* outBin
     }
 
     // TODO(b/136023468): move this check to be first
-    if (!mAccess->canFind(ctx)) {
+    if (!mAccess->canFind(ctx, name)) {
         // returns ok and null for legacy reasons
         *outBinder = nullptr;
         return Status::ok();
@@ -79,14 +79,14 @@ bool isValidServiceName(const std::string& name) {
 }
 
 Status ServiceManager::addService(const std::string& name, const sp<IBinder>& binder, bool allowIsolated, int32_t dumpPriority) {
-    auto ctx = mAccess->getCallingContext(name);
+    auto ctx = mAccess->getCallingContext();
 
     // apps cannot add services
     if (multiuser_get_app_id(ctx.uid) >= AID_APP) {
         return Status::fromExceptionCode(Status::EX_SECURITY);
     }
 
-    if (!mAccess->canAdd(ctx)) {
+    if (!mAccess->canAdd(ctx, name)) {
         return Status::fromExceptionCode(Status::EX_SECURITY);
     }
 
@@ -121,7 +121,7 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
 }
 
 Status ServiceManager::listServices(int32_t dumpPriority, std::vector<std::string>* outList) {
-    if (!mAccess->canList(mAccess->getCallingContext(""))) {
+    if (!mAccess->canList(mAccess->getCallingContext())) {
         return Status::fromExceptionCode(Status::EX_SECURITY);
     }
 

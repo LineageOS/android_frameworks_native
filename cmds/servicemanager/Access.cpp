@@ -69,7 +69,7 @@ static int auditCallback(void *data, security_class_t /*cls*/, char *buf, size_t
         return 0;
     }
 
-    snprintf(buf, len, "service=%s pid=%d uid=%d", ad->name.c_str(), ad->debugPid, ad->uid);
+    snprintf(buf, len, "pid=%d uid=%d", ad->debugPid, ad->uid);
     return 0;
 }
 
@@ -91,7 +91,7 @@ Access::~Access() {
     freecon(mThisProcessContext);
 }
 
-Access::CallingContext Access::getCallingContext(const std::string& name) {
+Access::CallingContext Access::getCallingContext() {
     IPCThreadState* ipc = IPCThreadState::self();
 
     const char* callingSid = ipc->getCallingSid();
@@ -101,21 +101,18 @@ Access::CallingContext Access::getCallingContext(const std::string& name) {
         .debugPid = callingPid,
         .uid = ipc->getCallingUid(),
         .sid = callingSid ? std::string(callingSid) : getPidcon(callingPid),
-        .name = name,
     };
 }
 
-bool Access::canFind(const CallingContext& ctx) {
-    return actionAllowedFromLookup(ctx, "find");
+bool Access::canFind(const CallingContext& ctx,const std::string& name) {
+    return actionAllowedFromLookup(ctx, name, "find");
 }
 
-bool Access::canAdd(const CallingContext& ctx) {
-    return actionAllowedFromLookup(ctx, "add");
+bool Access::canAdd(const CallingContext& ctx, const std::string& name) {
+    return actionAllowedFromLookup(ctx, name, "add");
 }
 
 bool Access::canList(const CallingContext& ctx) {
-    CHECK(ctx.name == "");
-
     return actionAllowed(ctx, mThisProcessContext, "list");
 }
 
@@ -125,10 +122,10 @@ bool Access::actionAllowed(const CallingContext& sctx, const char* tctx, const c
     return 0 == selinux_check_access(sctx.sid.c_str(), tctx, tclass, perm, reinterpret_cast<void*>(const_cast<CallingContext*>((&sctx))));
 }
 
-bool Access::actionAllowedFromLookup(const CallingContext& sctx, const char *perm) {
+bool Access::actionAllowedFromLookup(const CallingContext& sctx, const std::string& name, const char *perm) {
     char *tctx = nullptr;
-    if (selabel_lookup(getSehandle(), &tctx, sctx.name.c_str(), 0) != 0) {
-        LOG(ERROR) << "SELinux: No match for " << sctx.name << " in service_contexts.\n";
+    if (selabel_lookup(getSehandle(), &tctx, name.c_str(), 0) != 0) {
+        LOG(ERROR) << "SELinux: No match for " << name << " in service_contexts.\n";
         return false;
     }
 
