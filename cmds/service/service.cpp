@@ -18,13 +18,18 @@
 #include <binder/ProcessState.h>
 #include <binder/IServiceManager.h>
 #include <binder/TextOutput.h>
+#include <cutils/ashmem.h>
 
 #include <getopt.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/mman.h>
 #include <sys/time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 using namespace android;
 
@@ -187,6 +192,57 @@ int main(int argc, char* const argv[])
                         } else if (strcmp(argv[optind], "null") == 0) {
                             optind++;
                             data.writeStrongBinder(nullptr);
+                        } else if (strcmp(argv[optind], "fd") == 0) {
+                            optind++;
+                            if (optind >= argc) {
+                                aerr << "service: no path supplied for 'fd'" << endl;
+                                wantsUsage = true;
+                                result = 10;
+                                break;
+                            }
+                            const char *path = argv[optind++];
+                            int fd = open(path, O_RDONLY);
+                            if (fd < 0) {
+                                aerr << "service: could not open '" << path << "'" << endl;
+                                wantsUsage = true;
+                                result = 10;
+                                break;
+                            }
+                            data.writeFileDescriptor(fd, true /* take ownership */);
+                        } else if (strcmp(argv[optind], "afd") == 0) {
+                            optind++;
+                            if (optind >= argc) {
+                                aerr << "service: no path supplied for 'afd'" << endl;
+                                wantsUsage = true;
+                                result = 10;
+                                break;
+                            }
+                            const char *path = argv[optind++];
+                            int fd = open(path, O_RDONLY);
+                            struct stat statbuf;
+                            if (fd < 0 || fstat(fd, &statbuf) != 0) {
+                                aerr << "service: could not open or stat '" << path << "'" << endl;
+                                wantsUsage = true;
+                                result = 10;
+                                break;
+                            }
+                            int afd = ashmem_create_region("test", statbuf.st_size);
+                            void* ptr = mmap(NULL, statbuf.st_size,
+                                   PROT_READ | PROT_WRITE, MAP_SHARED, afd, 0);
+                            read(fd, ptr, statbuf.st_size);
+                            close(fd);
+                            data.writeFileDescriptor(afd, true /* take ownership */);
+                        } else if (strcmp(argv[optind], "nfd") == 0) {
+                            optind++;
+                            if (optind >= argc) {
+                                aerr << "service: no file descriptor supplied for 'nfd'" << endl;
+                                wantsUsage = true;
+                                result = 10;
+                                break;
+                            }
+                            data.writeFileDescriptor(
+                                    atoi(argv[optind++]), true /* take ownership */);
+
                         } else if (strcmp(argv[optind], "intent") == 0) {
 
                             char* action = nullptr;
@@ -300,13 +356,19 @@ int main(int argc, char* const argv[])
         aout << "Usage: service [-h|-?]\n"
                 "       service list\n"
                 "       service check SERVICE\n"
-                "       service call SERVICE CODE [i32 N | i64 N | f N | d N | s16 STR ] ...\n"
+                "       service call SERVICE CODE [i32 N | i64 N | f N | d N | s16 STR | null"
+                " | fd f | nfd n | afd f ] ...\n"
                 "Options:\n"
                 "   i32: Write the 32-bit integer N into the send parcel.\n"
                 "   i64: Write the 64-bit integer N into the send parcel.\n"
                 "   f:   Write the 32-bit single-precision number N into the send parcel.\n"
                 "   d:   Write the 64-bit double-precision number N into the send parcel.\n"
-                "   s16: Write the UTF-16 string STR into the send parcel.\n";
+                "   s16: Write the UTF-16 string STR into the send parcel.\n"
+                "  null: Write a null binder into the send parcel.\n"
+                "    fd: Write a file descriptor for the file f to the send parcel.\n"
+                "   nfd: Write file descriptor n to the send parcel.\n"
+                "   afd: Write an ashmem file descriptor for a region containing the data from"
+                " file f to the send parcel.\n";
 //                "   intent: Write and Intent int the send parcel. ARGS can be\n"
 //                "       action=STR data=STR type=STR launchFlags=INT component=STR categories=STR[,STR,...]\n";
         return result;
