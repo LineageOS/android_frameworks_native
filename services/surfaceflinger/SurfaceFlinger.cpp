@@ -48,6 +48,8 @@
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <dvr/vr_flinger.h>
 #include <gui/BufferQueue.h>
+#include <gui/DebugEGLImageTracker.h>
+
 #include <gui/GuiConfig.h>
 #include <gui/IDisplayEventConnection.h>
 #include <gui/IProducerListener.h>
@@ -5018,6 +5020,8 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     colorizer.reset(result);
 
     getRenderEngine().dump(result);
+
+    DebugEGLImageTracker::getInstance()->dump(result);
 
     if (const auto display = getDefaultDisplayDeviceLocked()) {
         display->getCompositionDisplay()->getState().undefinedRegion.dump(result,
