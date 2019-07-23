@@ -1556,10 +1556,14 @@ TEST_F(InputReaderTest, Device_CanDispatchToDisplay) {
     mReader->requestRefreshConfiguration(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
     mReader->loopOnce();
 
-    // Check device.
+    // Device should only dispatch to the specified display.
     ASSERT_EQ(deviceId, device->getId());
     ASSERT_FALSE(mReader->canDispatchToDisplay(deviceId, DISPLAY_ID));
     ASSERT_TRUE(mReader->canDispatchToDisplay(deviceId, SECONDARY_DISPLAY_ID));
+
+    // Can't dispatch event from a disabled device.
+    disableDevice(deviceId, device);
+    ASSERT_FALSE(mReader->canDispatchToDisplay(deviceId, SECONDARY_DISPLAY_ID));
 }
 
 
@@ -1568,6 +1572,7 @@ TEST_F(InputReaderTest, Device_CanDispatchToDisplay) {
 class InputDeviceTest : public testing::Test {
 protected:
     static const char* DEVICE_NAME;
+    static const char* DEVICE_LOCATION;
     static const int32_t DEVICE_ID;
     static const int32_t DEVICE_GENERATION;
     static const int32_t DEVICE_CONTROLLER_NUMBER;
@@ -1589,6 +1594,7 @@ protected:
         mFakeEventHub->addDevice(DEVICE_ID, DEVICE_NAME, 0);
         InputDeviceIdentifier identifier;
         identifier.name = DEVICE_NAME;
+        identifier.location = DEVICE_LOCATION;
         mDevice = new InputDevice(mFakeContext, DEVICE_ID, DEVICE_GENERATION,
                 DEVICE_CONTROLLER_NUMBER, identifier, DEVICE_CLASSES);
     }
@@ -1603,6 +1609,7 @@ protected:
 };
 
 const char* InputDeviceTest::DEVICE_NAME = "device";
+const char* InputDeviceTest::DEVICE_LOCATION = "USB1";
 const int32_t InputDeviceTest::DEVICE_ID = 1;
 const int32_t InputDeviceTest::DEVICE_GENERATION = 2;
 const int32_t InputDeviceTest::DEVICE_CONTROLLER_NUMBER = 0;
@@ -1755,6 +1762,49 @@ TEST_F(InputDeviceTest, WhenMappersAreRegistered_DeviceIsNotIgnoredAndForwardsRe
     ASSERT_NO_FATAL_FAILURE(mapper2->assertProcessWasCalled());
 }
 
+// A single input device is associated with a specific display. Check that:
+// 1. Device is disabled if the viewport corresponding to the associated display is not found
+// 2. Device is disabled when setEnabled API is called
+TEST_F(InputDeviceTest, Configure_AssignsDisplayPort) {
+    FakeInputMapper* mapper = new FakeInputMapper(mDevice, AINPUT_SOURCE_TOUCHSCREEN);
+    mDevice->addMapper(mapper);
+
+    // First Configuration.
+    mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(), 0);
+
+    // Device should be enabled by default.
+    ASSERT_TRUE(mDevice->isEnabled());
+
+    // Prepare associated info.
+    constexpr uint8_t hdmi = 1;
+    const std::string UNIQUE_ID = "local:1";
+
+    mFakePolicy->addInputPortAssociation(DEVICE_LOCATION, hdmi);
+    mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
+                       InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+    // Device should be disabled because it is associated with a specific display via
+    // input port <-> display port association, but the corresponding display is not found
+    ASSERT_FALSE(mDevice->isEnabled());
+
+    // Prepare displays.
+    mFakePolicy->addDisplayViewport(SECONDARY_DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                    DISPLAY_ORIENTATION_0, UNIQUE_ID, hdmi,
+                                    ViewportType::VIEWPORT_INTERNAL);
+    mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
+                       InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+    ASSERT_TRUE(mDevice->isEnabled());
+
+    // Device should be disabled after set disable.
+    mFakePolicy->addDisabledDevice(mDevice->getId());
+    mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
+                       InputReaderConfiguration::CHANGE_ENABLED_STATE);
+    ASSERT_FALSE(mDevice->isEnabled());
+
+    // Device should still be disabled even found the associated display.
+    mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
+                       InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+    ASSERT_FALSE(mDevice->isEnabled());
+}
 
 // --- InputMapperTest ---
 
@@ -1926,8 +1976,9 @@ protected:
 
     void prepareDisplay(int32_t orientation);
 
-    void testDPadKeyRotation(KeyboardInputMapper* mapper,
-            int32_t originalScanCode, int32_t originalKeyCode, int32_t rotatedKeyCode);
+    void testDPadKeyRotation(KeyboardInputMapper* mapper, int32_t originalScanCode,
+                             int32_t originalKeyCode, int32_t rotatedKeyCode,
+                             int32_t displayId = ADISPLAY_ID_NONE);
 };
 
 /* Similar to setDisplayInfoAndReconfigure, but pre-populates all parameters except for the
@@ -1939,7 +1990,8 @@ void KeyboardInputMapperTest::prepareDisplay(int32_t orientation) {
 }
 
 void KeyboardInputMapperTest::testDPadKeyRotation(KeyboardInputMapper* mapper,
-        int32_t originalScanCode, int32_t originalKeyCode, int32_t rotatedKeyCode) {
+                                                  int32_t originalScanCode, int32_t originalKeyCode,
+                                                  int32_t rotatedKeyCode, int32_t displayId) {
     NotifyKeyArgs args;
 
     process(mapper, ARBITRARY_TIME, EV_KEY, originalScanCode, 1);
@@ -1947,14 +1999,15 @@ void KeyboardInputMapperTest::testDPadKeyRotation(KeyboardInputMapper* mapper,
     ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, args.action);
     ASSERT_EQ(originalScanCode, args.scanCode);
     ASSERT_EQ(rotatedKeyCode, args.keyCode);
+    ASSERT_EQ(displayId, args.displayId);
 
     process(mapper, ARBITRARY_TIME, EV_KEY, originalScanCode, 0);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
     ASSERT_EQ(AKEY_EVENT_ACTION_UP, args.action);
     ASSERT_EQ(originalScanCode, args.scanCode);
     ASSERT_EQ(rotatedKeyCode, args.keyCode);
+    ASSERT_EQ(displayId, args.displayId);
 }
-
 
 TEST_F(KeyboardInputMapperTest, GetSources) {
     KeyboardInputMapper* mapper = new KeyboardInputMapper(mDevice,
@@ -2136,47 +2189,47 @@ TEST_F(KeyboardInputMapperTest, Process_WhenOrientationAware_ShouldRotateDPad) {
     addMapperAndConfigure(mapper);
 
     prepareDisplay(DISPLAY_ORIENTATION_0);
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
-            KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_UP));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
-            KEY_RIGHT, AKEYCODE_DPAD_RIGHT, AKEYCODE_DPAD_RIGHT));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
-            KEY_DOWN, AKEYCODE_DPAD_DOWN, AKEYCODE_DPAD_DOWN));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
-            KEY_LEFT, AKEYCODE_DPAD_LEFT, AKEYCODE_DPAD_LEFT));
+    ASSERT_NO_FATAL_FAILURE(
+            testDPadKeyRotation(mapper, KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_UP, DISPLAY_ID));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_RIGHT, AKEYCODE_DPAD_RIGHT,
+                                                AKEYCODE_DPAD_RIGHT, DISPLAY_ID));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_DOWN, AKEYCODE_DPAD_DOWN,
+                                                AKEYCODE_DPAD_DOWN, DISPLAY_ID));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_LEFT, AKEYCODE_DPAD_LEFT,
+                                                AKEYCODE_DPAD_LEFT, DISPLAY_ID));
 
     clearViewports();
     prepareDisplay(DISPLAY_ORIENTATION_90);
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
-            KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_LEFT));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
-            KEY_RIGHT, AKEYCODE_DPAD_RIGHT, AKEYCODE_DPAD_UP));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
-            KEY_DOWN, AKEYCODE_DPAD_DOWN, AKEYCODE_DPAD_RIGHT));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
-            KEY_LEFT, AKEYCODE_DPAD_LEFT, AKEYCODE_DPAD_DOWN));
+    ASSERT_NO_FATAL_FAILURE(
+            testDPadKeyRotation(mapper, KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_LEFT, DISPLAY_ID));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_RIGHT, AKEYCODE_DPAD_RIGHT,
+                                                AKEYCODE_DPAD_UP, DISPLAY_ID));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_DOWN, AKEYCODE_DPAD_DOWN,
+                                                AKEYCODE_DPAD_RIGHT, DISPLAY_ID));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_LEFT, AKEYCODE_DPAD_LEFT,
+                                                AKEYCODE_DPAD_DOWN, DISPLAY_ID));
 
     clearViewports();
     prepareDisplay(DISPLAY_ORIENTATION_180);
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
-            KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_DOWN));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
-            KEY_RIGHT, AKEYCODE_DPAD_RIGHT, AKEYCODE_DPAD_LEFT));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
-            KEY_DOWN, AKEYCODE_DPAD_DOWN, AKEYCODE_DPAD_UP));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
-            KEY_LEFT, AKEYCODE_DPAD_LEFT, AKEYCODE_DPAD_RIGHT));
+    ASSERT_NO_FATAL_FAILURE(
+            testDPadKeyRotation(mapper, KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_DOWN, DISPLAY_ID));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_RIGHT, AKEYCODE_DPAD_RIGHT,
+                                                AKEYCODE_DPAD_LEFT, DISPLAY_ID));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_DOWN, AKEYCODE_DPAD_DOWN,
+                                                AKEYCODE_DPAD_UP, DISPLAY_ID));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_LEFT, AKEYCODE_DPAD_LEFT,
+                                                AKEYCODE_DPAD_RIGHT, DISPLAY_ID));
 
     clearViewports();
     prepareDisplay(DISPLAY_ORIENTATION_270);
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
-            KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_RIGHT));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
-            KEY_RIGHT, AKEYCODE_DPAD_RIGHT, AKEYCODE_DPAD_DOWN));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
-            KEY_DOWN, AKEYCODE_DPAD_DOWN, AKEYCODE_DPAD_LEFT));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
-            KEY_LEFT, AKEYCODE_DPAD_LEFT, AKEYCODE_DPAD_UP));
+    ASSERT_NO_FATAL_FAILURE(
+            testDPadKeyRotation(mapper, KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_RIGHT, DISPLAY_ID));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_RIGHT, AKEYCODE_DPAD_RIGHT,
+                                                AKEYCODE_DPAD_DOWN, DISPLAY_ID));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_DOWN, AKEYCODE_DPAD_DOWN,
+                                                AKEYCODE_DPAD_LEFT, DISPLAY_ID));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_LEFT, AKEYCODE_DPAD_LEFT,
+                                                AKEYCODE_DPAD_UP, DISPLAY_ID));
 
     // Special case: if orientation changes while key is down, we still emit the same keycode
     // in the key up as we did in the key down.
@@ -2360,6 +2413,84 @@ TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleMetaStateAndLeds) 
     ASSERT_EQ(AMETA_NONE, mapper->getMetaState());
 }
 
+TEST_F(KeyboardInputMapperTest, Configure_AssignsDisplayPort) {
+    // keyboard 1.
+    mFakeEventHub->addKey(DEVICE_ID, KEY_UP, 0, AKEYCODE_DPAD_UP, 0);
+    mFakeEventHub->addKey(DEVICE_ID, KEY_RIGHT, 0, AKEYCODE_DPAD_RIGHT, 0);
+    mFakeEventHub->addKey(DEVICE_ID, KEY_DOWN, 0, AKEYCODE_DPAD_DOWN, 0);
+    mFakeEventHub->addKey(DEVICE_ID, KEY_LEFT, 0, AKEYCODE_DPAD_LEFT, 0);
+
+    // keyboard 2.
+    const std::string USB2 = "USB2";
+    constexpr int32_t SECOND_DEVICE_ID = DEVICE_ID + 1;
+    InputDeviceIdentifier identifier;
+    identifier.name = "KEYBOARD2";
+    identifier.location = USB2;
+    std::unique_ptr<InputDevice> device2 =
+            std::make_unique<InputDevice>(mFakeContext, SECOND_DEVICE_ID, DEVICE_GENERATION,
+                                          DEVICE_CONTROLLER_NUMBER, identifier, DEVICE_CLASSES);
+    mFakeEventHub->addDevice(SECOND_DEVICE_ID, DEVICE_NAME, 0 /*classes*/);
+    mFakeEventHub->addKey(SECOND_DEVICE_ID, KEY_UP, 0, AKEYCODE_DPAD_UP, 0);
+    mFakeEventHub->addKey(SECOND_DEVICE_ID, KEY_RIGHT, 0, AKEYCODE_DPAD_RIGHT, 0);
+    mFakeEventHub->addKey(SECOND_DEVICE_ID, KEY_DOWN, 0, AKEYCODE_DPAD_DOWN, 0);
+    mFakeEventHub->addKey(SECOND_DEVICE_ID, KEY_LEFT, 0, AKEYCODE_DPAD_LEFT, 0);
+
+    KeyboardInputMapper* mapper = new KeyboardInputMapper(mDevice, AINPUT_SOURCE_KEYBOARD,
+                                                          AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+    addMapperAndConfigure(mapper);
+
+    KeyboardInputMapper* mapper2 = new KeyboardInputMapper(device2.get(), AINPUT_SOURCE_KEYBOARD,
+                                                           AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+    device2->addMapper(mapper2);
+    device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(), 0 /*changes*/);
+    device2->reset(ARBITRARY_TIME);
+
+    // Prepared displays and associated info.
+    constexpr uint8_t hdmi1 = 0;
+    constexpr uint8_t hdmi2 = 1;
+    const std::string SECONDARY_UNIQUE_ID = "local:1";
+
+    mFakePolicy->addInputPortAssociation(DEVICE_LOCATION, hdmi1);
+    mFakePolicy->addInputPortAssociation(USB2, hdmi2);
+
+    // No associated display viewport found, should disable the device.
+    device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
+                       InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+    ASSERT_FALSE(device2->isEnabled());
+
+    // Prepare second display.
+    constexpr int32_t newDisplayId = 2;
+    setDisplayInfoAndReconfigure(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ORIENTATION_0,
+                                 UNIQUE_ID, hdmi1, ViewportType::VIEWPORT_INTERNAL);
+    setDisplayInfoAndReconfigure(newDisplayId, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ORIENTATION_0,
+                                 SECONDARY_UNIQUE_ID, hdmi2, ViewportType::VIEWPORT_EXTERNAL);
+    // Default device will reconfigure above, need additional reconfiguration for another device.
+    device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
+                       InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+
+    // Device should be enabled after the associated display is found.
+    ASSERT_TRUE(mDevice->isEnabled());
+    ASSERT_TRUE(device2->isEnabled());
+
+    // Test pad key events
+    ASSERT_NO_FATAL_FAILURE(
+            testDPadKeyRotation(mapper, KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_UP, DISPLAY_ID));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_RIGHT, AKEYCODE_DPAD_RIGHT,
+                                                AKEYCODE_DPAD_RIGHT, DISPLAY_ID));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_DOWN, AKEYCODE_DPAD_DOWN,
+                                                AKEYCODE_DPAD_DOWN, DISPLAY_ID));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_LEFT, AKEYCODE_DPAD_LEFT,
+                                                AKEYCODE_DPAD_LEFT, DISPLAY_ID));
+
+    ASSERT_NO_FATAL_FAILURE(
+            testDPadKeyRotation(mapper2, KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_UP, newDisplayId));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper2, KEY_RIGHT, AKEYCODE_DPAD_RIGHT,
+                                                AKEYCODE_DPAD_RIGHT, newDisplayId));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper2, KEY_DOWN, AKEYCODE_DPAD_DOWN,
+                                                AKEYCODE_DPAD_DOWN, newDisplayId));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper2, KEY_LEFT, AKEYCODE_DPAD_LEFT,
+                                                AKEYCODE_DPAD_LEFT, newDisplayId));
+}
 
 // --- CursorInputMapperTest ---
 
@@ -6276,12 +6407,13 @@ TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShowTouches) {
 
     // Create the second touch screen device, and enable multi fingers.
     const std::string USB2 = "USB2";
-    const int32_t SECOND_DEVICE_ID = 2;
+    constexpr int32_t SECOND_DEVICE_ID = DEVICE_ID + 1;
     InputDeviceIdentifier identifier;
-    identifier.name = DEVICE_NAME;
+    identifier.name = "TOUCHSCREEN2";
     identifier.location = USB2;
-    InputDevice* device2 = new InputDevice(mFakeContext, SECOND_DEVICE_ID, DEVICE_GENERATION,
-            DEVICE_CONTROLLER_NUMBER, identifier, DEVICE_CLASSES);
+    std::unique_ptr<InputDevice> device2 =
+            std::make_unique<InputDevice>(mFakeContext, SECOND_DEVICE_ID, DEVICE_GENERATION,
+                                          DEVICE_CONTROLLER_NUMBER, identifier, DEVICE_CLASSES);
     mFakeEventHub->addDevice(SECOND_DEVICE_ID, DEVICE_NAME, 0 /*classes*/);
     mFakeEventHub->addAbsoluteAxis(SECOND_DEVICE_ID, ABS_MT_POSITION_X, RAW_X_MIN, RAW_X_MAX,
             0 /*flat*/, 0 /*fuzz*/);
@@ -6296,7 +6428,7 @@ TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShowTouches) {
             String8("touchScreen"));
 
     // Setup the second touch screen device.
-    MultiTouchInputMapper* mapper2 = new MultiTouchInputMapper(device2);
+    MultiTouchInputMapper* mapper2 = new MultiTouchInputMapper(device2.get());
     device2->addMapper(mapper2);
     device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(), 0 /*changes*/);
     device2->reset(ARBITRARY_TIME);
