@@ -86,6 +86,7 @@ cc_defaults {
         "libdumpstateaidl",
         "libdumpstateutil",
         "libdumputils",
+        "libhardware_legacy",
         "libhidlbase",
         "libhidltransport",
         "liblog",
@@ -94,7 +95,6 @@ cc_defaults {
     srcs: [
         "DumpstateSectionReporter.cpp",
         "DumpstateService.cpp",
-        "utils.cpp",
     ],
     static_libs: [
         "libincidentcompanion",

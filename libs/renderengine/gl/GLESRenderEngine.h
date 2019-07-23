@@ -78,17 +78,20 @@ public:
     EGLDisplay getEGLDisplay() const { return mEGLDisplay; }
     // Creates an output image for rendering to
     EGLImageKHR createFramebufferImageIfNeeded(ANativeWindowBuffer* nativeBuffer, bool isProtected,
-                                               bool useFramebufferCache);
+                                               bool useFramebufferCache)
+            EXCLUDES(mFramebufferImageCacheMutex);
 
     // Test-only methods
     // Returns true iff mImageCache contains an image keyed by bufferId
     bool isImageCachedForTesting(uint64_t bufferId) EXCLUDES(mRenderingMutex);
     // Returns true iff mFramebufferImageCache contains an image keyed by bufferId
-    bool isFramebufferImageCachedForTesting(uint64_t bufferId) EXCLUDES(mRenderingMutex);
+    bool isFramebufferImageCachedForTesting(uint64_t bufferId)
+            EXCLUDES(mFramebufferImageCacheMutex);
 
 protected:
     Framebuffer* getFramebufferForDrawing() override;
-    void dump(std::string& result) override;
+    void dump(std::string& result) override EXCLUDES(mRenderingMutex)
+            EXCLUDES(mFramebufferImageCacheMutex);
     size_t getMaxTextureSize() const override;
     size_t getMaxViewportDims() const override;
 
@@ -190,7 +193,11 @@ private:
     uint32_t mFramebufferImageCacheSize = 0;
 
     // Cache of output images, keyed by corresponding GraphicBuffer ID.
-    std::deque<std::pair<uint64_t, EGLImageKHR>> mFramebufferImageCache;
+    std::deque<std::pair<uint64_t, EGLImageKHR>> mFramebufferImageCache
+            GUARDED_BY(mFramebufferImageCacheMutex);
+    // The only reason why we have this mutex is so that we don't segfault when
+    // dumping info.
+    std::mutex mFramebufferImageCacheMutex;
 
     // Current dataspace of layer being rendered
     ui::Dataspace mDataSpace = ui::Dataspace::UNKNOWN;

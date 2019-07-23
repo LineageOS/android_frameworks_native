@@ -68,7 +68,8 @@ bool DropRootUser() {
     }
 
     static const std::vector<std::string> group_names{
-        "log", "sdcard_r", "sdcard_rw", "mount", "inet", "net_bw_stats", "readproc", "bluetooth"};
+        "log", "sdcard_r", "sdcard_rw", "mount", "inet", "net_bw_stats",
+            "readproc", "bluetooth", "wakelock"};
     std::vector<gid_t> groups(group_names.size(), 0);
     for (size_t i = 0; i < group_names.size(); ++i) {
         grp = getgrnam(group_names[i].c_str());
@@ -115,6 +116,11 @@ bool DropRootUser() {
         capdata[cap_syslog_index].permitted |= cap_syslog_mask;
         capdata[cap_syslog_index].effective |= cap_syslog_mask;
     }
+
+    const uint32_t cap_block_suspend_mask = CAP_TO_MASK(CAP_BLOCK_SUSPEND);
+    const uint32_t cap_block_suspend_index = CAP_TO_INDEX(CAP_BLOCK_SUSPEND);
+    capdata[cap_block_suspend_index].permitted |= cap_block_suspend_mask;
+    capdata[cap_block_suspend_index].effective |= cap_block_suspend_mask;
 
     if (capset(&capheader, &capdata[0]) != 0) {
         MYLOGE("capset({%#x, %#x}) failed: %s\n", capdata[0].effective,
