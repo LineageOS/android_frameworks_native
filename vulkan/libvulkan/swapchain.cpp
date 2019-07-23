@@ -370,9 +370,6 @@ uint32_t get_num_ready_timings(Swapchain& swapchain) {
             nullptr,  //&first_composition_start_time,
             nullptr,  //&last_composition_start_time,
             nullptr,  //&composition_finish_time,
-            // TODO(ianelliott): Maybe ask if this one is
-            // supported, at startup time (since it may not be
-            // supported):
             &actual_present_time,
             nullptr,  //&dequeue_ready_time,
             nullptr /*&reads_done_time*/);
@@ -399,7 +396,6 @@ uint32_t get_num_ready_timings(Swapchain& swapchain) {
     return num_ready;
 }
 
-// TODO(ianelliott): DEAL WITH RETURN VALUE (e.g. VK_INCOMPLETE)!!!
 void copy_ready_timings(Swapchain& swapchain,
                         uint32_t* count,
                         VkPastPresentationTimingGOOGLE* timings) {
@@ -1773,6 +1769,10 @@ VkResult GetPastPresentationTimingGOOGLE(
     ATRACE_CALL();
 
     Swapchain& swapchain = *SwapchainFromHandle(swapchain_handle);
+    if (swapchain.surface.swapchain_handle != swapchain_handle) {
+        return VK_ERROR_OUT_OF_DATE_KHR;
+    }
+
     ANativeWindow* window = swapchain.surface.window.get();
     VkResult result = VK_SUCCESS;
 
@@ -1783,8 +1783,15 @@ VkResult GetPastPresentationTimingGOOGLE(
     }
 
     if (timings) {
-        // TODO(ianelliott): plumb return value (e.g. VK_INCOMPLETE)
+        // Get the latest ready timing count before copying, since the copied
+        // timing info will be erased in copy_ready_timings function.
+        uint32_t n = get_num_ready_timings(swapchain);
         copy_ready_timings(swapchain, count, timings);
+        // Check the *count here against the recorded ready timing count, since
+        // *count can be overwritten per spec describes.
+        if (*count < n) {
+            result = VK_INCOMPLETE;
+        }
     } else {
         *count = get_num_ready_timings(swapchain);
     }
