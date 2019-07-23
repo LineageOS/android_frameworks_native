@@ -39,6 +39,12 @@ struct ComposerState;
 struct DisplayDeviceState;
 struct DisplayState;
 struct layer_state_t;
+using Transaction = surfaceflinger::Transaction;
+using Trace = surfaceflinger::Trace;
+using Rectangle = surfaceflinger::Rectangle;
+using SurfaceChange = surfaceflinger::SurfaceChange;
+using Increment = surfaceflinger::Increment;
+using DisplayChange = surfaceflinger::DisplayChange;
 
 constexpr auto DEFAULT_FILENAME = "/data/SurfaceTrace.dat";
 
@@ -183,6 +189,7 @@ private:
 };
 
 } // namespace impl
+
 } // namespace android
 
 #endif // ANDROID_SURFACEINTERCEPTOR_H

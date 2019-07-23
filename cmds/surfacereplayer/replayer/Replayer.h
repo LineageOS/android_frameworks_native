@@ -38,6 +38,8 @@
 #include <unordered_map>
 #include <utility>
 
+using namespace android::surfaceflinger;
+
 namespace android {
 
 const auto DEFAULT_PATH = "/data/local/tmp/SurfaceTrace.dat";
