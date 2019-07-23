@@ -140,6 +140,9 @@ public:
     // must be called from SF main thread
     const Region& getSurfaceDamage() const;
 
+    // Merge the given damage region into the current damage region value.
+    void mergeSurfaceDamage(const Region& damage);
+
     // getCurrentApi retrieves the API which queues the current buffer.
     int getCurrentApi() const;
 
