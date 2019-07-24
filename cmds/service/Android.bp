@@ -4,6 +4,7 @@ cc_binary {
     srcs: ["service.cpp"],
 
     shared_libs: [
+        "libcutils",
         "libutils",
         "libbinder",
     ],
@@ -22,6 +23,7 @@ cc_binary {
     srcs: ["service.cpp"],
 
     shared_libs: [
+        "libcutils",
         "libutils",
         "libbinder",
     ],

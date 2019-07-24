@@ -38,6 +38,7 @@ cc_library_shared {
         "BufferItemConsumer.cpp",
         "ConsumerBase.cpp",
         "CpuConsumer.cpp",
+        "DebugEGLImageTracker.cpp",
         "DisplayEventReceiver.cpp",
         "GLConsumer.cpp",
         "GuiConfig.cpp",

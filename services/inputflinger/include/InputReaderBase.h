@@ -26,11 +26,11 @@
 #include <input/VelocityTracker.h>
 #include <utils/Thread.h>
 #include <utils/RefBase.h>
-#include <utils/SortedVector.h>
 
-#include <optional>
 #include <stddef.h>
 #include <unistd.h>
+#include <optional>
+#include <set>
 #include <unordered_map>
 #include <vector>
 
@@ -249,7 +249,7 @@ struct InputReaderConfiguration {
     bool pointerCapture;
 
     // The set of currently disabled input devices.
-    SortedVector<int32_t> disabledDevices;
+    std::set<int32_t> disabledDevices;
 
     InputReaderConfiguration() :
             virtualKeyQuietTime(0),

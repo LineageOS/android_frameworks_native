@@ -28,7 +28,12 @@
 #include <utils/String8.h>
 #include <utils/Trace.h>
 
+#include <array>
+#include <fstream>
+#include <sstream>
+#include <sys/types.h>
 #include <vkjson.h>
+#include <unistd.h>
 
 #include "gpustats/GpuStats.h"
 
@@ -40,6 +45,7 @@ namespace {
 status_t cmdHelp(int out);
 status_t cmdVkjson(int out, int err);
 void dumpGameDriverInfo(std::string* result);
+void dumpMemoryInfo(std::string* result, const GpuMemoryMap& memories, uint32_t pid);
 } // namespace
 
 const String16 sDump("android.permission.DUMP");
@@ -72,6 +78,147 @@ void GpuService::setTargetStats(const std::string& appPackageName, const uint64_
     mGpuStats->insertTargetStats(appPackageName, driverVersionCode, stats, value);
 }
 
+bool isExpectedFormat(const char* str) {
+    // Should match in order:
+    // gpuaddr useraddr size id flags type usage sglen mapsize eglsrf eglimg
+    std::istringstream iss;
+    iss.str(str);
+
+    std::string word;
+    iss >> word;
+    if (word != "gpuaddr") { return false; }
+    iss >> word;
+    if (word != "useraddr") { return false; }
+    iss >> word;
+    if (word != "size") { return false; }
+    iss >> word;
+    if (word != "id") { return false; }
+    iss >> word;
+    if (word != "flags") { return false; }
+    iss >> word;
+    if (word != "type") { return false; }
+    iss >> word;
+    if (word != "usage") { return false; }
+    iss >> word;
+    if (word != "sglen") { return false; }
+    iss >> word;
+    if (word != "mapsize") { return false; }
+    iss >> word;
+    if (word != "eglsrf") { return false; }
+    iss >> word;
+    if (word != "eglimg") { return false; }
+    return true;
+}
+
+
+// Queries gpu memory via Qualcomm's /d/kgsl/proc/*/mem interface.
+status_t GpuService::getQCommGpuMemoryInfo(GpuMemoryMap* memories, std::string* result, int32_t dumpPid) const {
+    const std::string kDirectoryPath = "/d/kgsl/proc";
+    DIR* directory = opendir(kDirectoryPath.c_str());
+    if (!directory) { return PERMISSION_DENIED; }
+
+    // File Format:
+    //          gpuaddr         useraddr     size id     flags   type          usage sglen mapsize eglsrf eglimg
+    // 0000000000000000 0000000000000000  8359936 23 --w--pY-- gpumem VK/others( 38)     0       0      0      0
+    // 0000000000000000 0000000000000000 16293888 24 --wL--N--    ion        surface    41       0      0      1
+
+    const bool dumpAll = dumpPid == 0;
+    static constexpr size_t kMaxLineLength = 1024;
+    static char line[kMaxLineLength];
+    while(dirent* subdir = readdir(directory)) {
+        // Skip "." and ".." in directory.
+        if (strcmp(subdir->d_name, ".") == 0 || strcmp(subdir->d_name, "..") == 0 ) { continue; }
+
+        std::string pid_str(subdir->d_name);
+        const uint32_t pid(stoi(pid_str));
+
+        if (!dumpAll && dumpPid != pid) {
+            continue;
+        }
+
+        std::string filepath(kDirectoryPath + "/" + pid_str + "/mem");
+        std::ifstream file(filepath);
+
+        // Check first line
+        file.getline(line, kMaxLineLength);
+        if (!isExpectedFormat(line)) {
+            continue;
+        }
+
+        if (result) {
+            StringAppendF(result, "%d:\n%s\n", pid, line);
+        }
+
+        while( file.getline(line, kMaxLineLength) ) {
+            if (result) {
+                StringAppendF(result, "%s\n", line);
+            }
+
+            std::istringstream iss;
+            iss.str(line);
+
+            // Skip gpuaddr, useraddr.
+            const char delimiter = ' ';
+            iss >> std::ws;
+            iss.ignore(kMaxLineLength, delimiter);
+            iss >> std::ws;
+            iss.ignore(kMaxLineLength, delimiter);
+
+            // Get size.
+            int64_t memsize;
+            iss >> memsize;
+
+            // Skip id, flags.
+            iss >> std::ws;
+            iss.ignore(kMaxLineLength, delimiter);
+            iss >> std::ws;
+            iss.ignore(kMaxLineLength, delimiter);
+
+            // Get type, usage.
+            std::string memtype;
+            std::string usage;
+            iss >> memtype >> usage;
+
+            // Adjust for the space in VK/others( #)
+            if (usage == "VK/others(") {
+              std::string vkTypeEnd;
+              iss >> vkTypeEnd;
+              usage.append(vkTypeEnd);
+            }
+
+            // Skip sglen.
+            iss >> std::ws;
+            iss.ignore(kMaxLineLength, delimiter);
+
+            // Get mapsize.
+            int64_t mapsize;
+            iss >> mapsize;
+
+            if (memsize == 0 && mapsize == 0) {
+                continue;
+            }
+
+            if (memtype == "gpumem") {
+                (*memories)[pid][usage].gpuMemory += memsize;
+            } else {
+                (*memories)[pid][usage].ionMemory += memsize;
+            }
+
+            if (mapsize > 0) {
+                (*memories)[pid][usage].mappedMemory += mapsize;
+            }
+        }
+
+        if (result) {
+            StringAppendF(result, "\n");
+        }
+    }
+
+    closedir(directory);
+
+    return OK;
+}
+
 status_t GpuService::shellCommand(int /*in*/, int out, int err, std::vector<String16>& args) {
     ATRACE_CALL();
 
@@ -99,23 +246,43 @@ status_t GpuService::doDump(int fd, const Vector<String16>& args, bool /*asProto
         StringAppendF(&result, "Permission Denial: can't dump gpu from pid=%d, uid=%d\n", pid, uid);
     } else {
         bool dumpAll = true;
-        size_t index = 0;
+        bool dumpDriverInfo = false;
+        bool dumpStats = false;
+        bool dumpMemory = false;
         size_t numArgs = args.size();
+        int32_t pid = 0;
 
         if (numArgs) {
-            if ((index < numArgs) && (args[index] == String16("--gpustats"))) {
-                index++;
-                mGpuStats->dump(args, &result);
-                dumpAll = false;
+            dumpAll = false;
+            for (size_t index = 0; index < numArgs; ++index) {
+                if (args[index] == String16("--gpustats")) {
+                    dumpStats = true;
+                } else if (args[index] == String16("--gpudriverinfo")) {
+                    dumpDriverInfo = true;
+                } else if (args[index] == String16("--gpumem")) {
+                    dumpMemory = true;
+                } else if (args[index].compare(String16("--gpumem=")) > 0) {
+                    dumpMemory = true;
+                    pid = atoi(String8(&args[index][9]));
+                }
             }
         }
 
-        if (dumpAll) {
+        if (dumpAll || dumpDriverInfo) {
             dumpGameDriverInfo(&result);
             result.append("\n");
-
+        }
+        if (dumpAll || dumpStats) {
             mGpuStats->dump(Vector<String16>(), &result);
             result.append("\n");
+        }
+        if (dumpAll || dumpMemory) {
+            GpuMemoryMap memories;
+            // Currently only queries Qualcomm gpu memory. More will be added later.
+            if (getQCommGpuMemoryInfo(&memories, &result, pid) == OK) {
+                dumpMemoryInfo(&result, memories, pid);
+                result.append("\n");
+            }
         }
     }
 
@@ -166,6 +333,34 @@ void dumpGameDriverInfo(std::string* result) {
     char preReleaseGameDriver[PROPERTY_VALUE_MAX] = {};
     property_get("ro.gfx.driver.1", preReleaseGameDriver, "unsupported");
     StringAppendF(result, "Pre-release Game Driver: %s\n", preReleaseGameDriver);
+}
+
+// Read and print all memory info for each process from /d/kgsl/proc/<pid>/mem.
+void dumpMemoryInfo(std::string* result, const GpuMemoryMap& memories, uint32_t pid) {
+    if (!result) return;
+
+    // Write results.
+    StringAppendF(result, "GPU Memory Summary:\n");
+    for(auto& mem : memories) {
+        uint32_t process = mem.first;
+        if (pid != 0 && pid != process) {
+            continue;
+        }
+
+        StringAppendF(result, "%d:\n", process);
+        for(auto& memStruct : mem.second) {
+            StringAppendF(result, "  %s", memStruct.first.c_str());
+
+            if(memStruct.second.gpuMemory > 0)
+                StringAppendF(result, ", GPU memory = %" PRId64, memStruct.second.gpuMemory);
+            if(memStruct.second.mappedMemory > 0)
+                StringAppendF(result, ", Mapped memory = %" PRId64, memStruct.second.mappedMemory);
+            if(memStruct.second.ionMemory > 0)
+                StringAppendF(result, ", Ion memory = %" PRId64, memStruct.second.ionMemory);
+
+            StringAppendF(result, "\n");
+        }
+    }
 }
 
 } // anonymous namespace
