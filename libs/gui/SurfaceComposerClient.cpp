@@ -365,6 +365,9 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Tr
     mContainsBuffer = other.mContainsBuffer;
     other.mContainsBuffer = false;
 
+    mEarlyWakeup = mEarlyWakeup || other.mEarlyWakeup;
+    other.mEarlyWakeup = false;
+
     return *this;
 }
 
