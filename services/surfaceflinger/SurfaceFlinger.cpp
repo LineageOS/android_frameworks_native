@@ -48,6 +48,8 @@
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <dvr/vr_flinger.h>
 #include <gui/BufferQueue.h>
+#include <gui/DebugEGLImageTracker.h>
+
 #include <gui/GuiConfig.h>
 #include <gui/IDisplayEventConnection.h>
 #include <gui/IProducerListener.h>
@@ -355,6 +357,11 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     property_get("debug.sf.disable_backpressure", value, "0");
     mPropagateBackpressure = !atoi(value);
     ALOGI_IF(!mPropagateBackpressure, "Disabling backpressure propagation");
+
+    property_get("debug.sf.enable_gl_backpressure", value, "0");
+    mPropagateBackpressureClientComposition = atoi(value);
+    ALOGI_IF(mPropagateBackpressureClientComposition,
+             "Enabling backpressure propagation for Client Composition");
 
     property_get("debug.sf.enable_hwc_vds", value, "0");
     mUseHwcVirtualDisplays = atoi(value);
@@ -1686,22 +1693,26 @@ bool SurfaceFlinger::previousFrameMissed() NO_THREAD_SAFETY_ANALYSIS {
     return fence != Fence::NO_FENCE && (fence->getStatus() == Fence::Status::Unsignaled);
 }
 
-nsecs_t SurfaceFlinger::getExpectedPresentTime() NO_THREAD_SAFETY_ANALYSIS {
+void SurfaceFlinger::populateExpectedPresentTime() NO_THREAD_SAFETY_ANALYSIS {
     DisplayStatInfo stats;
     mScheduler->getDisplayStatInfo(&stats);
     const nsecs_t presentTime = mScheduler->getDispSyncExpectedPresentTime();
     // Inflate the expected present time if we're targetting the next vsync.
-    const nsecs_t correctedTime =
+    mExpectedPresentTime =
             mVsyncModulator.getOffsets().sf < mPhaseOffsets->getOffsetThresholdForNextVsync()
             ? presentTime
             : presentTime + stats.vsyncPeriod;
-    return correctedTime;
 }
 
 void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
     ATRACE_CALL();
     switch (what) {
         case MessageQueue::INVALIDATE: {
+            // calculate the expected present time once and use the cached
+            // value throughout this frame to make sure all layers are
+            // seeing this same value.
+            populateExpectedPresentTime();
+
             bool frameMissed = previousFrameMissed();
             bool hwcFrameMissed = mHadDeviceComposition && frameMissed;
             bool gpuFrameMissed = mHadClientComposition && frameMissed;
@@ -1731,9 +1742,9 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
                 break;
             }
 
-            // For now, only propagate backpressure when missing a hwc frame.
-            if (hwcFrameMissed && !gpuFrameMissed) {
-                if (mPropagateBackpressure) {
+            if (frameMissed && mPropagateBackpressure) {
+                if ((hwcFrameMissed && !gpuFrameMissed) ||
+                    mPropagateBackpressureClientComposition) {
                     signalLayerUpdate();
                     break;
                 }
@@ -5021,6 +5032,8 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     colorizer.reset(result);
 
     getRenderEngine().dump(result);
+
+    DebugEGLImageTracker::getInstance()->dump(result);
 
     if (const auto display = getDefaultDisplayDeviceLocked()) {
         display->getCompositionDisplay()->getState().undefinedRegion.dump(result,
