@@ -22,6 +22,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <sys/sysinfo.h>
 
 #include <mutex>
 #include <optional>
@@ -167,9 +168,12 @@ std::optional<std::vector<std::vector<uint64_t>>> getUidCpuFreqTimes(uint32_t ui
                 return {};
         }
         for (uint32_t i = 0; i < gNPolicies; ++i) {
-            if (idxs[i] == gPolicyFreqs[i].size() || freq != gPolicyFreqs[i][idxs[i]]) continue;
             uint64_t time = 0;
             for (uint32_t cpu : gPolicyCpus[i]) time += value.ar[cpu];
+            if (idxs[i] == gPolicyFreqs[i].size() || freq != gPolicyFreqs[i][idxs[i]]) {
+                if (time != 0) return {};
+                else continue;
+            }
             idxs[i] += 1;
             out[i].emplace_back(time);
         }
@@ -209,10 +213,12 @@ getUidsCpuFreqTimes() {
         }
 
         for (size_t policy = 0; policy < gNPolicies; ++policy) {
-            for (const auto &cpu : gPolicyCpus[policy]) {
-                auto freqIdx = policyFreqIdxs[policy][key.freq];
-                map[key.uid][policy][freqIdx] += val.ar[cpu];
-            }
+            uint64_t time = 0;
+            for (const auto &cpu : gPolicyCpus[policy]) time += val.ar[cpu];
+            if (!time) continue;
+            auto it = policyFreqIdxs[policy].find(key.freq);
+            if (it == policyFreqIdxs[policy].end()) return android::netdutils::Status(-1);
+            map[key.uid][policy][it->second] += time;
         }
         return android::netdutils::status::ok;
     };
@@ -225,9 +231,10 @@ bool clearUidCpuFreqTimes(uint32_t uid) {
     if (!gInitialized && !initGlobals()) return false;
     time_key_t key = {.uid = uid, .freq = 0};
 
-    std::vector<uint32_t> idxs(gNPolicies, 0);
+    std::vector<uint64_t> vals(get_nprocs_conf(), 0);
     for (auto freq : gAllFreqs) {
         key.freq = freq;
+        if (writeToMapEntry(gMapFd, &key, vals.data(), BPF_EXIST) && errno != ENOENT) return false;
         if (deleteMapEntry(gMapFd, &key) && errno != ENOENT) return false;
     }
     return true;
