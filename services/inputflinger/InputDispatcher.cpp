@@ -253,9 +253,17 @@ static void dumpRegion(std::string& dump, const Region& region) {
     }
 }
 
-template<typename T, typename U>
-static T getValueByKey(std::unordered_map<U, T>& map, U key) {
-    typename std::unordered_map<U, T>::const_iterator it = map.find(key);
+/**
+ * Find the entry in std::unordered_map by key, and return it.
+ * If the entry is not found, return a default constructed entry.
+ *
+ * Useful when the entries are vectors, since an empty vector will be returned
+ * if the entry is not found.
+ * Also useful when the entries are sp<>. If an entry is not found, nullptr is returned.
+ */
+template <typename T, typename U>
+static T getValueByKey(const std::unordered_map<U, T>& map, U key) {
+    auto it = map.find(key);
     return it != map.end() ? it->second : T{};
 }
 
@@ -3144,14 +3152,7 @@ void InputDispatcher::decrementPendingForegroundDispatches(EventEntry* entry) {
 
 std::vector<sp<InputWindowHandle>> InputDispatcher::getWindowHandlesLocked(
         int32_t displayId) const {
-    std::unordered_map<int32_t, std::vector<sp<InputWindowHandle>>>::const_iterator it =
-            mWindowHandlesByDisplay.find(displayId);
-    if(it != mWindowHandlesByDisplay.end()) {
-        return it->second;
-    }
-
-    // Return an empty one if nothing found.
-    return std::vector<sp<InputWindowHandle>>();
+    return getValueByKey(mWindowHandlesByDisplay, displayId);
 }
 
 sp<InputWindowHandle> InputDispatcher::getWindowHandleLocked(
@@ -3193,6 +3194,63 @@ sp<InputChannel> InputDispatcher::getInputChannelLocked(const sp<IBinder>& token
     return mInputChannelsByToken.at(token);
 }
 
+void InputDispatcher::updateWindowHandlesForDisplayLocked(
+        const std::vector<sp<InputWindowHandle>>& inputWindowHandles, int32_t displayId) {
+    if (inputWindowHandles.empty()) {
+        // Remove all handles on a display if there are no windows left.
+        mWindowHandlesByDisplay.erase(displayId);
+        return;
+    }
+
+    // Since we compare the pointer of input window handles across window updates, we need
+    // to make sure the handle object for the same window stays unchanged across updates.
+    const std::vector<sp<InputWindowHandle>>& oldHandles = getWindowHandlesLocked(displayId);
+    std::unordered_map<sp<IBinder>, sp<InputWindowHandle>, IBinderHash> oldHandlesByTokens;
+    for (const sp<InputWindowHandle>& handle : oldHandles) {
+        oldHandlesByTokens[handle->getToken()] = handle;
+    }
+
+    std::vector<sp<InputWindowHandle>> newHandles;
+    for (const sp<InputWindowHandle>& handle : inputWindowHandles) {
+        if (!handle->updateInfo()) {
+            // handle no longer valid
+            continue;
+        }
+
+        const InputWindowInfo* info = handle->getInfo();
+        if ((getInputChannelLocked(handle->getToken()) == nullptr &&
+             info->portalToDisplayId == ADISPLAY_ID_NONE)) {
+            const bool noInputChannel =
+                    info->inputFeatures & InputWindowInfo::INPUT_FEATURE_NO_INPUT_CHANNEL;
+            const bool canReceiveInput =
+                    !(info->layoutParamsFlags & InputWindowInfo::FLAG_NOT_TOUCHABLE) ||
+                    !(info->layoutParamsFlags & InputWindowInfo::FLAG_NOT_FOCUSABLE);
+            if (canReceiveInput && !noInputChannel) {
+                ALOGE("Window handle %s has no registered input channel",
+                      handle->getName().c_str());
+            }
+            continue;
+        }
+
+        if (info->displayId != displayId) {
+            ALOGE("Window %s updated by wrong display %d, should belong to display %d",
+                  handle->getName().c_str(), displayId, info->displayId);
+            continue;
+        }
+
+        if (oldHandlesByTokens.find(handle->getToken()) != oldHandlesByTokens.end()) {
+            const sp<InputWindowHandle> oldHandle = oldHandlesByTokens.at(handle->getToken());
+            oldHandle->updateFrom(handle);
+            newHandles.push_back(oldHandle);
+        } else {
+            newHandles.push_back(handle);
+        }
+    }
+
+    // Insert or replace
+    mWindowHandlesByDisplay[displayId] = newHandles;
+}
+
 /**
  * Called from InputManagerService, update window handle list by displayId that can receive input.
  * A window handle contains information about InputChannel, Touch Region, Types, Focused,...
@@ -3212,73 +3270,19 @@ void InputDispatcher::setInputWindows(const std::vector<sp<InputWindowHandle>>& 
         const std::vector<sp<InputWindowHandle>> oldWindowHandles =
                 getWindowHandlesLocked(displayId);
 
+        updateWindowHandlesForDisplayLocked(inputWindowHandles, displayId);
+
         sp<InputWindowHandle> newFocusedWindowHandle = nullptr;
         bool foundHoveredWindow = false;
-
-        if (inputWindowHandles.empty()) {
-            // Remove all handles on a display if there are no windows left.
-            mWindowHandlesByDisplay.erase(displayId);
-        } else {
-            // Since we compare the pointer of input window handles across window updates, we need
-            // to make sure the handle object for the same window stays unchanged across updates.
-            const std::vector<sp<InputWindowHandle>>& oldHandles =
-                    mWindowHandlesByDisplay[displayId];
-            std::unordered_map<sp<IBinder>, sp<InputWindowHandle>, IBinderHash> oldHandlesByTokens;
-            for (const sp<InputWindowHandle>& handle : oldHandles) {
-                oldHandlesByTokens[handle->getToken()] = handle;
+        for (const sp<InputWindowHandle>& windowHandle : getWindowHandlesLocked(displayId)) {
+            // Set newFocusedWindowHandle to the top most focused window instead of the last one
+            if (!newFocusedWindowHandle && windowHandle->getInfo()->hasFocus &&
+                windowHandle->getInfo()->visible) {
+                newFocusedWindowHandle = windowHandle;
             }
-
-            std::vector<sp<InputWindowHandle>> newHandles;
-            for (const sp<InputWindowHandle>& handle : inputWindowHandles) {
-                if (!handle->updateInfo()) {
-                    // handle no longer valid
-                    continue;
-                }
-                const InputWindowInfo* info = handle->getInfo();
-
-                if ((getInputChannelLocked(handle->getToken()) == nullptr &&
-                     info->portalToDisplayId == ADISPLAY_ID_NONE)) {
-                    const bool noInputChannel =
-                            info->inputFeatures & InputWindowInfo::INPUT_FEATURE_NO_INPUT_CHANNEL;
-                    const bool canReceiveInput =
-                            !(info->layoutParamsFlags & InputWindowInfo::FLAG_NOT_TOUCHABLE) ||
-                            !(info->layoutParamsFlags & InputWindowInfo::FLAG_NOT_FOCUSABLE);
-                    if (canReceiveInput && !noInputChannel) {
-                        ALOGE("Window handle %s has no registered input channel",
-                              handle->getName().c_str());
-                    }
-                    continue;
-                }
-
-                if (info->displayId != displayId) {
-                    ALOGE("Window %s updated by wrong display %d, should belong to display %d",
-                          handle->getName().c_str(), displayId, info->displayId);
-                    continue;
-                }
-
-                if (oldHandlesByTokens.find(handle->getToken()) != oldHandlesByTokens.end()) {
-                    const sp<InputWindowHandle> oldHandle =
-                            oldHandlesByTokens.at(handle->getToken());
-                    oldHandle->updateFrom(handle);
-                    newHandles.push_back(oldHandle);
-                } else {
-                    newHandles.push_back(handle);
-                }
+            if (windowHandle == mLastHoverWindowHandle) {
+                foundHoveredWindow = true;
             }
-
-            for (const sp<InputWindowHandle>& windowHandle : newHandles) {
-                // Set newFocusedWindowHandle to the top most focused window instead of the last one
-                if (!newFocusedWindowHandle && windowHandle->getInfo()->hasFocus
-                        && windowHandle->getInfo()->visible) {
-                    newFocusedWindowHandle = windowHandle;
-                }
-                if (windowHandle == mLastHoverWindowHandle) {
-                    foundHoveredWindow = true;
-                }
-            }
-
-            // Insert or replace
-            mWindowHandlesByDisplay[displayId] = newHandles;
         }
 
         if (!foundHoveredWindow) {
