@@ -703,7 +703,11 @@ void SurfaceFlinger::init() {
     // set initial conditions (e.g. unblank default device)
     initializeDisplays();
 
-    getRenderEngine().primeCache();
+    char primeShaderCache[PROPERTY_VALUE_MAX];
+    property_get("service.sf.prime_shader_cache", primeShaderCache, "1");
+    if (atoi(primeShaderCache)) {
+        getRenderEngine().primeCache();
+    }
 
     // Inform native graphics APIs whether the present timestamp is supported:
 
