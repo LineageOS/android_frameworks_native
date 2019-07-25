@@ -260,12 +260,17 @@ static void synthesizeButtonKeys(InputReaderContext* context, int32_t action,
 
 // --- InputReader ---
 
-InputReader::InputReader(const sp<EventHubInterface>& eventHub,
-        const sp<InputReaderPolicyInterface>& policy,
-        const sp<InputListenerInterface>& listener) :
-        mContext(this), mEventHub(eventHub), mPolicy(policy),
-        mNextSequenceNum(1), mGlobalMetaState(0), mGeneration(1),
-        mDisableVirtualKeysTimeout(LLONG_MIN), mNextTimeout(LLONG_MAX),
+InputReader::InputReader(std::shared_ptr<EventHubInterface> eventHub,
+                         const sp<InputReaderPolicyInterface>& policy,
+                         const sp<InputListenerInterface>& listener)
+      : mContext(this),
+        mEventHub(eventHub),
+        mPolicy(policy),
+        mNextSequenceNum(1),
+        mGlobalMetaState(0),
+        mGeneration(1),
+        mDisableVirtualKeysTimeout(LLONG_MIN),
+        mNextTimeout(LLONG_MAX),
         mConfigurationChangesToRefresh(0) {
     mQueuedListener = new QueuedInputListener(listener);
 

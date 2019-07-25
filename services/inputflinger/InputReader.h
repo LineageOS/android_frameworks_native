@@ -114,9 +114,9 @@ public:
  */
 class InputReader : public InputReaderInterface {
 public:
-    InputReader(const sp<EventHubInterface>& eventHub,
-            const sp<InputReaderPolicyInterface>& policy,
-            const sp<InputListenerInterface>& listener);
+    InputReader(std::shared_ptr<EventHubInterface> eventHub,
+                const sp<InputReaderPolicyInterface>& policy,
+                const sp<InputListenerInterface>& listener);
     virtual ~InputReader();
 
     virtual void dump(std::string& dump);
@@ -181,7 +181,10 @@ private:
 
     Condition mReaderIsAliveCondition;
 
-    sp<EventHubInterface> mEventHub;
+    // This could be unique_ptr, but due to the way InputReader tests are written,
+    // it is made shared_ptr here. In the tests, an EventHub reference is retained by the test
+    // in parallel to passing it to the InputReader.
+    std::shared_ptr<EventHubInterface> mEventHub;
     sp<InputReaderPolicyInterface> mPolicy;
     sp<QueuedInputListener> mQueuedListener;
 
