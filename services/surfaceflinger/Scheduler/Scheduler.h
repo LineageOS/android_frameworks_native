@@ -200,10 +200,9 @@ private:
 
     // In order to make sure that the features don't override themselves, we need a state machine
     // to keep track which feature requested the config change.
-    enum class ContentFeatureState { CONTENT_DETECTION_ON, CONTENT_DETECTION_OFF };
-    enum class IdleTimerState { EXPIRED, RESET };
+    enum class ContentFeatureState { CONTENT_DETECTION_OFF, CONTENT_DETECTION_ON };
+    enum class TimerState { RESET, EXPIRED };
     enum class TouchState { INACTIVE, ACTIVE };
-    enum class DisplayPowerTimerState { EXPIRED, RESET };
 
     // Creates a connection on the given EventThread and forwards the given callbacks.
     sp<EventThreadConnection> createConnectionInternal(EventThread*, ResyncCallback&&,
@@ -212,26 +211,12 @@ private:
     nsecs_t calculateAverage() const;
     void updateFrameSkipping(const int64_t skipCount);
 
-    // Function that is called when the timer resets.
-    void resetTimerCallback();
-    // Function that is called when the timer expires.
-    void expiredTimerCallback();
-    // Function that is called when the timer resets when paired with a display
-    // driver timeout in the kernel. This enables hardware vsync when we move
-    // out from idle.
-    void resetKernelTimerCallback();
-    // Function that is called when the timer expires when paired with a display
-    // driver timeout in the kernel. This disables hardware vsync when we move
-    // into idle.
-    void expiredKernelTimerCallback();
-    // Function that is called when the touch timer resets.
-    void resetTouchTimerCallback();
-    // Function that is called when the touch timer expires.
-    void expiredTouchTimerCallback();
-    // Function that is called when the display power timer resets.
-    void resetDisplayPowerTimerCallback();
-    // Function that is called when the display power timer expires.
-    void expiredDisplayPowerTimerCallback();
+    // Update feature state machine to given state when corresponding timer resets or expires.
+    void kernelIdleTimerCallback(TimerState);
+    void idleTimerCallback(TimerState);
+    void touchTimerCallback(TimerState);
+    void displayPowerTimerCallback(TimerState);
+
     // Sets vsync period.
     void setVsyncPeriod(const nsecs_t period);
     // handles various timer features to change the refresh rate.
@@ -306,10 +291,9 @@ private:
     std::mutex mFeatureStateLock;
     ContentFeatureState mCurrentContentFeatureState GUARDED_BY(mFeatureStateLock) =
             ContentFeatureState::CONTENT_DETECTION_OFF;
-    IdleTimerState mCurrentIdleTimerState GUARDED_BY(mFeatureStateLock) = IdleTimerState::RESET;
+    TimerState mCurrentIdleTimerState GUARDED_BY(mFeatureStateLock) = TimerState::RESET;
     TouchState mCurrentTouchState GUARDED_BY(mFeatureStateLock) = TouchState::INACTIVE;
-    DisplayPowerTimerState mDisplayPowerTimerState GUARDED_BY(mFeatureStateLock) =
-            DisplayPowerTimerState::EXPIRED;
+    TimerState mDisplayPowerTimerState GUARDED_BY(mFeatureStateLock) = TimerState::EXPIRED;
     uint32_t mContentRefreshRate GUARDED_BY(mFeatureStateLock);
     RefreshRateType mRefreshRateType GUARDED_BY(mFeatureStateLock);
     bool mIsHDRContent GUARDED_BY(mFeatureStateLock) = false;
