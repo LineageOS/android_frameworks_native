@@ -325,14 +325,13 @@ class FakeEventHub : public EventHubInterface {
     List<RawEvent> mEvents;
     std::unordered_map<int32_t /*deviceId*/, std::vector<TouchVideoFrame>> mVideoFrames;
 
-protected:
+public:
     virtual ~FakeEventHub() {
         for (size_t i = 0; i < mDevices.size(); i++) {
             delete mDevices.valueAt(i);
         }
     }
 
-public:
     FakeEventHub() { }
 
     void addDevice(int32_t deviceId, const std::string& name, uint32_t classes) {
@@ -760,7 +759,7 @@ private:
 // --- FakeInputReaderContext ---
 
 class FakeInputReaderContext : public InputReaderContext {
-    sp<EventHubInterface> mEventHub;
+    std::shared_ptr<EventHubInterface> mEventHub;
     sp<InputReaderPolicyInterface> mPolicy;
     sp<InputListenerInterface> mListener;
     int32_t mGlobalMetaState;
@@ -769,12 +768,14 @@ class FakeInputReaderContext : public InputReaderContext {
     uint32_t mNextSequenceNum;
 
 public:
-    FakeInputReaderContext(const sp<EventHubInterface>& eventHub,
-            const sp<InputReaderPolicyInterface>& policy,
-            const sp<InputListenerInterface>& listener) :
-            mEventHub(eventHub), mPolicy(policy), mListener(listener),
-            mGlobalMetaState(0), mNextSequenceNum(1) {
-    }
+    FakeInputReaderContext(std::shared_ptr<EventHubInterface> eventHub,
+                           const sp<InputReaderPolicyInterface>& policy,
+                           const sp<InputListenerInterface>& listener)
+          : mEventHub(eventHub),
+            mPolicy(policy),
+            mListener(listener),
+            mGlobalMetaState(0),
+            mNextSequenceNum(1) {}
 
     virtual ~FakeInputReaderContext() { }
 
@@ -999,12 +1000,10 @@ class InstrumentedInputReader : public InputReader {
     InputDevice* mNextDevice;
 
 public:
-    InstrumentedInputReader(const sp<EventHubInterface>& eventHub,
-            const sp<InputReaderPolicyInterface>& policy,
-            const sp<InputListenerInterface>& listener) :
-            InputReader(eventHub, policy, listener),
-            mNextDevice(nullptr) {
-    }
+    InstrumentedInputReader(std::shared_ptr<EventHubInterface> eventHub,
+                            const sp<InputReaderPolicyInterface>& policy,
+                            const sp<InputListenerInterface>& listener)
+          : InputReader(eventHub, policy, listener), mNextDevice(nullptr) {}
 
     virtual ~InstrumentedInputReader() {
         if (mNextDevice) {
@@ -1232,11 +1231,11 @@ class InputReaderTest : public testing::Test {
 protected:
     sp<TestInputListener> mFakeListener;
     sp<FakeInputReaderPolicy> mFakePolicy;
-    sp<FakeEventHub> mFakeEventHub;
+    std::shared_ptr<FakeEventHub> mFakeEventHub;
     sp<InstrumentedInputReader> mReader;
 
     virtual void SetUp() {
-        mFakeEventHub = new FakeEventHub();
+        mFakeEventHub = std::make_unique<FakeEventHub>();
         mFakePolicy = new FakeInputReaderPolicy();
         mFakeListener = new TestInputListener();
 
@@ -1248,7 +1247,6 @@ protected:
 
         mFakeListener.clear();
         mFakePolicy.clear();
-        mFakeEventHub.clear();
     }
 
     void addDevice(int32_t deviceId, const std::string& name, uint32_t classes,
@@ -1575,7 +1573,7 @@ protected:
     static const int32_t DEVICE_CONTROLLER_NUMBER;
     static const uint32_t DEVICE_CLASSES;
 
-    sp<FakeEventHub> mFakeEventHub;
+    std::shared_ptr<FakeEventHub> mFakeEventHub;
     sp<FakeInputReaderPolicy> mFakePolicy;
     sp<TestInputListener> mFakeListener;
     FakeInputReaderContext* mFakeContext;
@@ -1583,7 +1581,7 @@ protected:
     InputDevice* mDevice;
 
     virtual void SetUp() {
-        mFakeEventHub = new FakeEventHub();
+        mFakeEventHub = std::make_unique<FakeEventHub>();
         mFakePolicy = new FakeInputReaderPolicy();
         mFakeListener = new TestInputListener();
         mFakeContext = new FakeInputReaderContext(mFakeEventHub, mFakePolicy, mFakeListener);
@@ -1601,7 +1599,6 @@ protected:
         delete mFakeContext;
         mFakeListener.clear();
         mFakePolicy.clear();
-        mFakeEventHub.clear();
     }
 };
 
@@ -1770,14 +1767,14 @@ protected:
     static const int32_t DEVICE_CONTROLLER_NUMBER;
     static const uint32_t DEVICE_CLASSES;
 
-    sp<FakeEventHub> mFakeEventHub;
+    std::shared_ptr<FakeEventHub> mFakeEventHub;
     sp<FakeInputReaderPolicy> mFakePolicy;
     sp<TestInputListener> mFakeListener;
     FakeInputReaderContext* mFakeContext;
     InputDevice* mDevice;
 
     virtual void SetUp() {
-        mFakeEventHub = new FakeEventHub();
+        mFakeEventHub = std::make_unique<FakeEventHub>();
         mFakePolicy = new FakeInputReaderPolicy();
         mFakeListener = new TestInputListener();
         mFakeContext = new FakeInputReaderContext(mFakeEventHub, mFakePolicy, mFakeListener);
@@ -1795,7 +1792,6 @@ protected:
         delete mFakeContext;
         mFakeListener.clear();
         mFakePolicy.clear();
-        mFakeEventHub.clear();
     }
 
     void addConfigurationProperty(const char* key, const char* value) {

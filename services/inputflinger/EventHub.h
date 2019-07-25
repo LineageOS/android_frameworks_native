@@ -146,12 +146,11 @@ extern uint32_t getAbsAxisUsage(int32_t axis, uint32_t deviceClasses);
  * which keys are currently down.  Finally, the event hub keeps track of the capabilities of
  * individual input devices, such as their class and the set of key codes that they support.
  */
-class EventHubInterface : public virtual RefBase {
-protected:
+class EventHubInterface {
+public:
     EventHubInterface() { }
     virtual ~EventHubInterface() { }
 
-public:
     // Synthetic raw event type codes produced when devices are added or removed.
     enum {
         // Sent when a device is added.
@@ -319,7 +318,6 @@ public:
     virtual void dump(std::string& dump);
     virtual void monitor();
 
-protected:
     virtual ~EventHub();
 
 private:
