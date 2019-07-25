@@ -603,9 +603,13 @@ TEST_F(MotionEventTest, Transform) {
         ASSERT_NEAR(tanf(angle), tanf(event.getOrientation(i)), 0.1);
     }
 
-    // Check cursor positions.
-    ASSERT_NEAR(sinf(PI_180 * (90 + ROTATION)) * RADIUS, event.getXCursorPosition(), 0.001);
-    ASSERT_NEAR(-cosf(PI_180 * (90 + ROTATION)) * RADIUS, event.getYCursorPosition(), 0.001);
+    // Check cursor positions. The original cursor position is at (3 + RADIUS, 2), where the center
+    // of the circle is (3, 2), so the cursor position is to the right of the center of the circle.
+    // The choice of triangular functions in this test defines the angle of rotation clockwise
+    // relative to the y-axis. Therefore the cursor position's angle is 90 degrees. Here we swap the
+    // triangular function so that we don't have to add the 90 degrees.
+    ASSERT_NEAR(cosf(PI_180 * ROTATION) * RADIUS, event.getXCursorPosition(), 0.001);
+    ASSERT_NEAR(sinf(PI_180 * ROTATION) * RADIUS, event.getYCursorPosition(), 0.001);
 
     // Applying the transformation should preserve the raw X and Y of the first point.
     ASSERT_NEAR(originalRawX, event.getRawX(0), 0.001);

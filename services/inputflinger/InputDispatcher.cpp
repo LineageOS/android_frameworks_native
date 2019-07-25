@@ -2774,7 +2774,7 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
           ", policyFlags=0x%x, "
           "action=0x%x, actionButton=0x%x, flags=0x%x, metaState=0x%x, buttonState=0x%x, "
           "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, xCursorPosition=%f, "
-          "mYCursorPosition=%f, downTime=%" PRId64,
+          "yCursorPosition=%f, downTime=%" PRId64,
           args->eventTime, args->deviceId, args->source, args->displayId, args->policyFlags,
           args->action, args->actionButton, args->flags, args->metaState, args->buttonState,
           args->edgeFlags, args->xPrecision, args->yPrecision, arg->xCursorPosition,
