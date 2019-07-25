@@ -31,13 +31,16 @@
 
 #include <string>
 
+#include <android-base/chrono_utils.h>
+
 #include <binder/IBinder.h>
 #include <input/Input.h>
-#include <utils/Errors.h>
-#include <utils/Timers.h>
-#include <utils/RefBase.h>
-#include <utils/Vector.h>
+#include <input/LatencyStatistics.h>
 #include <utils/BitSet.h>
+#include <utils/Errors.h>
+#include <utils/RefBase.h>
+#include <utils/Timers.h>
+#include <utils/Vector.h>
 
 namespace android {
 class Parcel;
@@ -286,7 +289,12 @@ public:
     status_t receiveFinishedSignal(uint32_t* outSeq, bool* outHandled);
 
 private:
+    static constexpr std::chrono::duration TOUCH_STATS_REPORT_PERIOD = 5min;
+
     sp<InputChannel> mChannel;
+    LatencyStatistics mTouchStatistics{TOUCH_STATS_REPORT_PERIOD};
+
+    void reportTouchEventForStatistics(nsecs_t evdevTime);
 };
 
 /*

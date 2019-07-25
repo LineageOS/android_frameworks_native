@@ -57,7 +57,6 @@
 #include <android-base/stringprintf.h>
 #include <input/Keyboard.h>
 #include <input/VirtualKeyMap.h>
-#include <statslog.h>
 
 #define INDENT "  "
 #define INDENT2 "    "
@@ -4310,24 +4309,12 @@ void TouchInputMapper::clearStylusDataPendingFlags() {
     mExternalStylusFusionTimeout = LLONG_MAX;
 }
 
-void TouchInputMapper::reportEventForStatistics(nsecs_t evdevTime) {
-    if (mStatistics.shouldReport()) {
-        android::util::stats_write(android::util::TOUCH_EVENT_REPORTED, mStatistics.getMin(),
-                                   mStatistics.getMax(), mStatistics.getMean(),
-                                   mStatistics.getStDev(), mStatistics.getCount());
-        mStatistics.reset();
-    }
-    nsecs_t latency = nanoseconds_to_microseconds(systemTime(CLOCK_MONOTONIC) - evdevTime);
-    mStatistics.addValue(latency);
-}
-
 void TouchInputMapper::process(const RawEvent* rawEvent) {
     mCursorButtonAccumulator.process(rawEvent);
     mCursorScrollAccumulator.process(rawEvent);
     mTouchButtonAccumulator.process(rawEvent);
 
     if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
-        reportEventForStatistics(rawEvent->when);
         sync(rawEvent->when);
     }
 }

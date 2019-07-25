@@ -24,7 +24,6 @@
 
 #include <input/DisplayViewport.h>
 #include <input/Input.h>
-#include <input/LatencyStatistics.h>
 #include <input/VelocityControl.h>
 #include <input/VelocityTracker.h>
 #include <ui/DisplayInfo.h>
@@ -1509,11 +1508,6 @@ private:
     VelocityControl mWheelXVelocityControl;
     VelocityControl mWheelYVelocityControl;
 
-    static constexpr std::chrono::duration STATS_REPORT_PERIOD = 5min;
-
-    // Latency statistics for touch events
-    LatencyStatistics mStatistics{STATS_REPORT_PERIOD};
-
     std::optional<DisplayViewport> findViewport();
 
     void resetExternalStylus();
@@ -1581,8 +1575,6 @@ private:
     const VirtualKey* findVirtualKeyHit(int32_t x, int32_t y);
 
     static void assignPointerIds(const RawState* last, RawState* current);
-
-    void reportEventForStatistics(nsecs_t evdevTime);
 
     const char* modeToString(DeviceMode deviceMode);
 };
