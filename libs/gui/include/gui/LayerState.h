@@ -206,7 +206,6 @@ struct layer_state_t {
 };
 
 struct ComposerState {
-    sp<ISurfaceComposerClient> client;
     layer_state_t state;
     status_t write(Parcel& output) const;
     status_t read(const Parcel& input);
@@ -274,8 +273,6 @@ struct InputWindowCommands {
 };
 
 static inline int compare_type(const ComposerState& lhs, const ComposerState& rhs) {
-    if (lhs.client < rhs.client) return -1;
-    if (lhs.client > rhs.client) return 1;
     if (lhs.state.surface < rhs.state.surface) return -1;
     if (lhs.state.surface > rhs.state.surface) return 1;
     return 0;

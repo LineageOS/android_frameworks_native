@@ -3685,27 +3685,6 @@ bool SurfaceFlinger::transactionFlushNeeded() {
     return !mTransactionQueues.empty();
 }
 
-bool SurfaceFlinger::containsAnyInvalidClientState(const Vector<ComposerState>& states) {
-    for (const ComposerState& state : states) {
-        // Here we need to check that the interface we're given is indeed
-        // one of our own. A malicious client could give us a nullptr
-        // IInterface, or one of its own or even one of our own but a
-        // different type. All these situations would cause us to crash.
-        if (state.client == nullptr) {
-            return true;
-        }
-
-        sp<IBinder> binder = IInterface::asBinder(state.client);
-        if (binder == nullptr) {
-            return true;
-        }
-
-        if (binder->queryLocalInterface(ISurfaceComposerClient::descriptor) == nullptr) {
-            return true;
-        }
-    }
-    return false;
-}
 
 bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
                                                    const Vector<ComposerState>& states) {
@@ -3743,10 +3722,6 @@ void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
     bool privileged = callingThreadHasUnscopedSurfaceFlingerAccess();
 
     Mutex::Autolock _l(mStateLock);
-
-    if (containsAnyInvalidClientState(states)) {
-        return;
-    }
 
     // If its TransactionQueue already has a pending TransactionState or if it is pending
     auto itr = mTransactionQueues.find(applyToken);
@@ -3959,9 +3934,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         const std::vector<ListenerCallbacks>& listenerCallbacks, int64_t postTime,
         bool privileged) {
     const layer_state_t& s = composerState.state;
-    sp<Client> client(static_cast<Client*>(composerState.client.get()));
 
-    sp<Layer> layer(client->getLayerUser(s.surface));
+    sp<Layer> layer(fromHandle(s.surface));
     if (layer == nullptr) {
         for (auto& listenerCallback : listenerCallbacks) {
             mTransactionCompletedThread.registerUnpresentedCallbackHandle(

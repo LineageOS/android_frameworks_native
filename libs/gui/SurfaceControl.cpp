@@ -65,8 +65,8 @@ SurfaceControl::~SurfaceControl()
 {
     // Avoid reparenting the server-side surface to null if we are not the owner of it,
     // meaning that we retrieved it from another process.
-    if (mClient != nullptr && mHandle != nullptr && mOwned) {
-        SurfaceComposerClient::doDropReferenceTransaction(mHandle, mClient->getClient());
+    if (mHandle != nullptr && mOwned) {
+        SurfaceComposerClient::doDropReferenceTransaction(mHandle);
     }
     release();
 }
