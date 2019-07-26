@@ -89,13 +89,13 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
         if (mSupportKernelTimer) {
             mIdleTimer = std::make_unique<scheduler::OneShotTimer>(
                     std::chrono::milliseconds(mSetIdleTimerMs),
-                    [this] { kernelIdleTimerCallback(TimerState::RESET); },
-                    [this] { kernelIdleTimerCallback(TimerState::EXPIRED); });
+                    [this] { kernelIdleTimerCallback(TimerState::Reset); },
+                    [this] { kernelIdleTimerCallback(TimerState::Expired); });
         } else {
             mIdleTimer = std::make_unique<scheduler::OneShotTimer>(
                     std::chrono::milliseconds(mSetIdleTimerMs),
-                    [this] { idleTimerCallback(TimerState::RESET); },
-                    [this] { idleTimerCallback(TimerState::EXPIRED); });
+                    [this] { idleTimerCallback(TimerState::Reset); },
+                    [this] { idleTimerCallback(TimerState::Expired); });
         }
         mIdleTimer->start();
     }
@@ -104,16 +104,16 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
         // Touch events are coming to SF every 100ms, so the timer needs to be higher than that
         mTouchTimer = std::make_unique<scheduler::OneShotTimer>(
                 std::chrono::milliseconds(mSetTouchTimerMs),
-                [this] { touchTimerCallback(TimerState::RESET); },
-                [this] { touchTimerCallback(TimerState::EXPIRED); });
+                [this] { touchTimerCallback(TimerState::Reset); },
+                [this] { touchTimerCallback(TimerState::Expired); });
         mTouchTimer->start();
     }
 
     if (mSetDisplayPowerTimerMs > 0) {
         mDisplayPowerTimer = std::make_unique<scheduler::OneShotTimer>(
                 std::chrono::milliseconds(mSetDisplayPowerTimerMs),
-                [this] { displayPowerTimerCallback(TimerState::RESET); },
-                [this] { displayPowerTimerCallback(TimerState::EXPIRED); });
+                [this] { displayPowerTimerCallback(TimerState::Reset); },
+                [this] { displayPowerTimerCallback(TimerState::Expired); });
         mDisplayPowerTimer->start();
     }
 }
@@ -365,23 +365,22 @@ void Scheduler::updateFpsBasedOnContent() {
     RefreshRateType newRefreshRateType;
     {
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
-        if (mContentRefreshRate == refreshRateRound && mIsHDRContent == isHDR) {
+        if (mFeatures.contentRefreshRate == refreshRateRound && mFeatures.isHDRContent == isHDR) {
             return;
         }
-        mContentRefreshRate = refreshRateRound;
-        ATRACE_INT("ContentFPS", mContentRefreshRate);
+        mFeatures.contentRefreshRate = refreshRateRound;
+        ATRACE_INT("ContentFPS", refreshRateRound);
 
-        mIsHDRContent = isHDR;
-        ATRACE_INT("ContentHDR", mIsHDRContent);
+        mFeatures.isHDRContent = isHDR;
+        ATRACE_INT("ContentHDR", isHDR);
 
-        mCurrentContentFeatureState = refreshRateRound > 0
-                ? ContentFeatureState::CONTENT_DETECTION_ON
-                : ContentFeatureState::CONTENT_DETECTION_OFF;
+        mFeatures.contentDetection =
+                refreshRateRound > 0 ? ContentDetectionState::On : ContentDetectionState::Off;
         newRefreshRateType = calculateRefreshRateType();
-        if (mRefreshRateType == newRefreshRateType) {
+        if (mFeatures.refreshRateType == newRefreshRateType) {
             return;
         }
-        mRefreshRateType = newRefreshRateType;
+        mFeatures.refreshRateType = newRefreshRateType;
     }
     changeRefreshRate(newRefreshRateType, ConfigEvent::Changed);
 }
@@ -435,7 +434,7 @@ void Scheduler::notifyTouchEvent() {
 void Scheduler::setDisplayPowerState(bool normal) {
     {
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
-        mIsDisplayPowerStateNormal = normal;
+        mFeatures.isDisplayPowerStateNormal = normal;
     }
 
     if (mDisplayPowerTimer) {
@@ -454,12 +453,12 @@ void Scheduler::kernelIdleTimerCallback(TimerState state) {
     if (!mGetCurrentRefreshRateTypeCallback || !mGetVsyncPeriod) return;
 
     const auto type = mGetCurrentRefreshRateTypeCallback();
-    if (state == TimerState::RESET && type == RefreshRateType::PERFORMANCE) {
+    if (state == TimerState::Reset && type == RefreshRateType::PERFORMANCE) {
         // If we're not in performance mode then the kernel timer shouldn't do
         // anything, as the refresh rate during DPU power collapse will be the
         // same.
         resyncToHardwareVsync(true /* makeAvailable */, mGetVsyncPeriod());
-    } else if (state == TimerState::EXPIRED && type != RefreshRateType::PERFORMANCE) {
+    } else if (state == TimerState::Expired && type != RefreshRateType::PERFORMANCE) {
         // Disable HW VSYNC if the timer expired, as we don't need it enabled if
         // we're not pushing frames, and if we're in PERFORMANCE mode then we'll
         // need to update the DispSync model anyway.
@@ -468,18 +467,19 @@ void Scheduler::kernelIdleTimerCallback(TimerState state) {
 }
 
 void Scheduler::idleTimerCallback(TimerState state) {
-    handleTimerStateChanged(&mCurrentIdleTimerState, state, false /* eventOnContentDetection */);
+    handleTimerStateChanged(&mFeatures.idleTimer, state, false /* eventOnContentDetection */);
     ATRACE_INT("ExpiredIdleTimer", static_cast<int>(state));
 }
 
 void Scheduler::touchTimerCallback(TimerState state) {
-    const TouchState touch = state == TimerState::RESET ? TouchState::ACTIVE : TouchState::INACTIVE;
-    handleTimerStateChanged(&mCurrentTouchState, touch, true /* eventOnContentDetection */);
+    const TouchState touch = state == TimerState::Reset ? TouchState::Active : TouchState::Inactive;
+    handleTimerStateChanged(&mFeatures.touch, touch, true /* eventOnContentDetection */);
     ATRACE_INT("TouchState", static_cast<int>(touch));
 }
 
 void Scheduler::displayPowerTimerCallback(TimerState state) {
-    handleTimerStateChanged(&mDisplayPowerTimerState, state, true /* eventOnContentDetection */);
+    handleTimerStateChanged(&mFeatures.displayPowerTimer, state,
+                            true /* eventOnContentDetection */);
     ATRACE_INT("ExpiredDisplayPowerTimer", static_cast<int>(state));
 }
 
@@ -501,12 +501,11 @@ void Scheduler::handleTimerStateChanged(T* currentState, T newState, bool eventO
         }
         *currentState = newState;
         newRefreshRateType = calculateRefreshRateType();
-        if (mRefreshRateType == newRefreshRateType) {
+        if (mFeatures.refreshRateType == newRefreshRateType) {
             return;
         }
-        mRefreshRateType = newRefreshRateType;
-        if (eventOnContentDetection &&
-            mCurrentContentFeatureState == ContentFeatureState::CONTENT_DETECTION_ON) {
+        mFeatures.refreshRateType = newRefreshRateType;
+        if (eventOnContentDetection && mFeatures.contentDetection == ContentDetectionState::On) {
             event = ConfigEvent::Changed;
         }
     }
@@ -515,37 +514,38 @@ void Scheduler::handleTimerStateChanged(T* currentState, T newState, bool eventO
 
 Scheduler::RefreshRateType Scheduler::calculateRefreshRateType() {
     // HDR content is not supported on PERFORMANCE mode
-    if (mForceHDRContentToDefaultRefreshRate && mIsHDRContent) {
+    if (mForceHDRContentToDefaultRefreshRate && mFeatures.isHDRContent) {
         return RefreshRateType::DEFAULT;
     }
 
     // If Display Power is not in normal operation we want to be in performance mode.
     // When coming back to normal mode, a grace period is given with DisplayPowerTimer
-    if (!mIsDisplayPowerStateNormal || mDisplayPowerTimerState == TimerState::RESET) {
+    if (!mFeatures.isDisplayPowerStateNormal || mFeatures.displayPowerTimer == TimerState::Reset) {
         return RefreshRateType::PERFORMANCE;
     }
 
     // As long as touch is active we want to be in performance mode
-    if (mCurrentTouchState == TouchState::ACTIVE) {
+    if (mFeatures.touch == TouchState::Active) {
         return RefreshRateType::PERFORMANCE;
     }
 
     // If timer has expired as it means there is no new content on the screen
-    if (mCurrentIdleTimerState == TimerState::EXPIRED) {
+    if (mFeatures.idleTimer == TimerState::Expired) {
         return RefreshRateType::DEFAULT;
     }
 
     // If content detection is off we choose performance as we don't know the content fps
-    if (mCurrentContentFeatureState == ContentFeatureState::CONTENT_DETECTION_OFF) {
+    if (mFeatures.contentDetection == ContentDetectionState::Off) {
         return RefreshRateType::PERFORMANCE;
     }
 
     // Content detection is on, find the appropriate refresh rate with minimal error
+    const float rate = static_cast<float>(mFeatures.contentRefreshRate);
     auto iter = min_element(mRefreshRateConfigs.getRefreshRates().cbegin(),
                             mRefreshRateConfigs.getRefreshRates().cend(),
-                            [rate = mContentRefreshRate](const auto& l, const auto& r) -> bool {
-                                return std::abs(l.second->fps - static_cast<float>(rate)) <
-                                        std::abs(r.second->fps - static_cast<float>(rate));
+                            [rate](const auto& lhs, const auto& rhs) -> bool {
+                                return std::abs(lhs.second->fps - rate) <
+                                        std::abs(rhs.second->fps - rate);
                             });
     RefreshRateType currRefreshRateType = iter->first;
 
@@ -553,11 +553,10 @@ Scheduler::RefreshRateType Scheduler::calculateRefreshRateType() {
     // 90Hz config. However we should still prefer a lower refresh rate if the content doesn't
     // align well with both
     constexpr float MARGIN = 0.05f;
-    float ratio = mRefreshRateConfigs.getRefreshRate(currRefreshRateType)->fps /
-            float(mContentRefreshRate);
+    float ratio = mRefreshRateConfigs.getRefreshRate(currRefreshRateType)->fps / rate;
     if (std::abs(std::round(ratio) - ratio) > MARGIN) {
         while (iter != mRefreshRateConfigs.getRefreshRates().cend()) {
-            ratio = iter->second->fps / float(mContentRefreshRate);
+            ratio = iter->second->fps / rate;
 
             if (std::abs(std::round(ratio) - ratio) <= MARGIN) {
                 currRefreshRateType = iter->first;

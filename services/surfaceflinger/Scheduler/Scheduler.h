@@ -200,9 +200,9 @@ private:
 
     // In order to make sure that the features don't override themselves, we need a state machine
     // to keep track which feature requested the config change.
-    enum class ContentFeatureState { CONTENT_DETECTION_OFF, CONTENT_DETECTION_ON };
-    enum class TimerState { RESET, EXPIRED };
-    enum class TouchState { INACTIVE, ACTIVE };
+    enum class ContentDetectionState { Off, On };
+    enum class TimerState { Reset, Expired };
+    enum class TouchState { Inactive, Active };
 
     // Creates a connection on the given EventThread and forwards the given callbacks.
     sp<EventThreadConnection> createConnectionInternal(EventThread*, ResyncCallback&&,
@@ -289,15 +289,19 @@ private:
     // In order to make sure that the features don't override themselves, we need a state machine
     // to keep track which feature requested the config change.
     std::mutex mFeatureStateLock;
-    ContentFeatureState mCurrentContentFeatureState GUARDED_BY(mFeatureStateLock) =
-            ContentFeatureState::CONTENT_DETECTION_OFF;
-    TimerState mCurrentIdleTimerState GUARDED_BY(mFeatureStateLock) = TimerState::RESET;
-    TouchState mCurrentTouchState GUARDED_BY(mFeatureStateLock) = TouchState::INACTIVE;
-    TimerState mDisplayPowerTimerState GUARDED_BY(mFeatureStateLock) = TimerState::EXPIRED;
-    uint32_t mContentRefreshRate GUARDED_BY(mFeatureStateLock);
-    RefreshRateType mRefreshRateType GUARDED_BY(mFeatureStateLock);
-    bool mIsHDRContent GUARDED_BY(mFeatureStateLock) = false;
-    bool mIsDisplayPowerStateNormal GUARDED_BY(mFeatureStateLock) = true;
+
+    struct {
+        ContentDetectionState contentDetection = ContentDetectionState::Off;
+        TimerState idleTimer = TimerState::Reset;
+        TouchState touch = TouchState::Inactive;
+        TimerState displayPowerTimer = TimerState::Expired;
+
+        RefreshRateType refreshRateType = RefreshRateType::DEFAULT;
+        uint32_t contentRefreshRate = 0;
+
+        bool isHDRContent = false;
+        bool isDisplayPowerStateNormal = true;
+    } mFeatures GUARDED_BY(mFeatureStateLock);
 
     const scheduler::RefreshRateConfigs& mRefreshRateConfigs;
 
