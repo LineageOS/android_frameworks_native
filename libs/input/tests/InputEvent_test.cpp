@@ -665,4 +665,14 @@ TEST_F(MotionEventTest, Initialize_SetsCursorPosition) {
     ASSERT_EQ(600, event.getYCursorPosition());
 }
 
+TEST_F(MotionEventTest, SetCursorPosition) {
+    MotionEvent event;
+    initializeEventWithHistory(&event);
+    event.setSource(AINPUT_SOURCE_MOUSE);
+
+    event.setCursorPosition(3, 4);
+    ASSERT_EQ(3, event.getXCursorPosition());
+    ASSERT_EQ(4, event.getYCursorPosition());
+}
+
 } // namespace android
