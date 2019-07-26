@@ -1986,12 +1986,12 @@ static void PrepareToWriteToFile() {
     }
 
     if (ds.options_->do_fb) {
-        ds.screenshot_path_ = ds.GetPath(".png");
+        ds.screenshot_path_ = ds.GetPath(ds.CalledByApi() ? "-tmp.png" : ".png");
     }
     ds.tmp_path_ = ds.GetPath(".tmp");
     ds.log_path_ = ds.GetPath("-dumpstate_log-" + std::to_string(ds.pid_) + ".txt");
 
-    std::string destination = ds.options_->bugreport_fd.get() != -1
+    std::string destination = ds.CalledByApi()
                                   ? StringPrintf("[fd:%d]", ds.options_->bugreport_fd.get())
                                   : ds.bugreport_internal_dir_.c_str();
     MYLOGD(
@@ -2005,7 +2005,7 @@ static void PrepareToWriteToFile() {
         ds.tmp_path_.c_str(), ds.screenshot_path_.c_str());
 
     if (ds.options_->do_zip_file) {
-        ds.path_ = ds.GetPath(".zip");
+        ds.path_ = ds.GetPath(ds.CalledByApi() ? "-tmp.zip" : ".zip");
         MYLOGD("Creating initial .zip file (%s)\n", ds.path_.c_str());
         create_parent_dirs(ds.path_.c_str());
         ds.zip_file.reset(fopen(ds.path_.c_str(), "wb"));
@@ -2040,7 +2040,7 @@ static void FinalizeFile() {
         MYLOGI("changing suffix from %s to %s\n", ds.name_.c_str(), name.c_str());
         ds.name_ = name;
         if (!ds.screenshot_path_.empty()) {
-            std::string new_screenshot_path = ds.GetPath(".png");
+            std::string new_screenshot_path = ds.GetPath(ds.CalledByApi() ? "-tmp.png" : ".png");
             if (rename(ds.screenshot_path_.c_str(), new_screenshot_path.c_str())) {
                 MYLOGE("rename(%s, %s): %s\n", ds.screenshot_path_.c_str(),
                        new_screenshot_path.c_str(), strerror(errno));
@@ -2058,7 +2058,7 @@ static void FinalizeFile() {
         } else {
             do_text_file = false;
             // If the user has changed the suffix, we need to change the zip file name.
-            std::string new_path = ds.GetPath(".zip");
+            std::string new_path = ds.GetPath(ds.CalledByApi() ? "-tmp.zip" : ".zip");
             if (ds.path_ != new_path) {
                 MYLOGD("Renaming zip file from %s to %s\n", ds.path_.c_str(), new_path.c_str());
                 if (rename(ds.path_.c_str(), new_path.c_str())) {
@@ -2704,6 +2704,10 @@ void Dumpstate::CheckUserConsent(int32_t calling_uid, const android::String16& c
 bool Dumpstate::IsUserConsentDenied() const {
     return ds.consent_callback_ != nullptr &&
            ds.consent_callback_->getResult() == UserConsentResult::DENIED;
+}
+
+bool Dumpstate::CalledByApi() const {
+    return ds.options_->bugreport_fd.get() != -1 ? true : false;
 }
 
 void Dumpstate::CleanupFiles() {
