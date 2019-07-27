@@ -1055,6 +1055,13 @@ private:
     sp<InputChannel> getInputChannelLocked(const sp<IBinder>& windowToken) const REQUIRES(mLock);
     bool hasWindowHandleLocked(const sp<InputWindowHandle>& windowHandle) const REQUIRES(mLock);
 
+    /*
+     * Validate and update InputWindowHandles for a given display.
+     */
+    void updateWindowHandlesForDisplayLocked(
+            const std::vector<sp<InputWindowHandle>>& inputWindowHandles, int32_t displayId)
+            REQUIRES(mLock);
+
     // Focus tracking for keys, trackball, etc.
     std::unordered_map<int32_t, sp<InputWindowHandle>> mFocusedWindowHandlesByDisplay
             GUARDED_BY(mLock);

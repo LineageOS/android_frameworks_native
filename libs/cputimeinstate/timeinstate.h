@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-#include "InputReaderFactory.h"
-#include "InputReader.h"
+#include <inttypes.h>
 
-namespace android {
+#define BPF_FS_PATH "/sys/fs/bpf/"
 
-sp<InputReaderInterface> createInputReader(
-        const sp<InputReaderPolicyInterface>& policy,
-        const sp<InputListenerInterface>& listener) {
-    return new InputReader(std::make_unique<EventHub>(), policy, listener);
-}
+struct time_key_t {
+    uint32_t uid;
+    uint32_t freq;
+};
 
-} // namespace android
+struct val_t {
+    uint64_t ar[100];
+};

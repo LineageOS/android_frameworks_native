@@ -369,6 +369,15 @@ const Region& BufferLayerConsumer::getSurfaceDamage() const {
     return mCurrentSurfaceDamage;
 }
 
+void BufferLayerConsumer::mergeSurfaceDamage(const Region& damage) {
+    if (damage.bounds() == Rect::INVALID_RECT ||
+        mCurrentSurfaceDamage.bounds() == Rect::INVALID_RECT) {
+        mCurrentSurfaceDamage = Region::INVALID_REGION;
+    } else {
+        mCurrentSurfaceDamage |= damage;
+    }
+}
+
 int BufferLayerConsumer::getCurrentApi() const {
     Mutex::Autolock lock(mMutex);
     return mCurrentApi;

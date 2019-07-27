@@ -31,19 +31,16 @@ DispSyncSource::DispSyncSource(DispSync* dispSync, nsecs_t phaseOffset,
                                nsecs_t offsetThresholdForNextVsync, bool traceVsync,
                                const char* name)
       : mName(name),
+        mValue(base::StringPrintf("VSYNC-%s", name), 0),
         mTraceVsync(traceVsync),
         mVsyncOnLabel(base::StringPrintf("VsyncOn-%s", name)),
-        mVsyncEventLabel(base::StringPrintf("VSYNC-%s", name)),
-        mVsyncOffsetLabel(base::StringPrintf("VsyncOffset-%s", name)),
-        mVsyncNegativeOffsetLabel(base::StringPrintf("VsyncNegativeOffset-%s", name)),
         mDispSync(dispSync),
-        mPhaseOffset(phaseOffset),
+        mPhaseOffset(base::StringPrintf("VsyncOffset-%s", name), phaseOffset),
         mOffsetThresholdForNextVsync(offsetThresholdForNextVsync) {}
 
 void DispSyncSource::setVSyncEnabled(bool enable) {
     std::lock_guard lock(mVsyncMutex);
     if (enable) {
-        tracePhaseOffset();
         status_t err = mDispSync->addEventListener(mName, mPhaseOffset,
                                                    static_cast<DispSync::Callback*>(this),
                                                    mLastCallbackTime);
@@ -83,7 +80,6 @@ void DispSyncSource::setPhaseOffset(nsecs_t phaseOffset) {
     }
 
     mPhaseOffset = phaseOffset;
-    tracePhaseOffset();
 
     // If we're not enabled, we don't need to mess with the listeners
     if (!mEnabled) {
@@ -106,21 +102,10 @@ void DispSyncSource::onDispSyncEvent(nsecs_t when) {
 
     if (mTraceVsync) {
         mValue = (mValue + 1) % 2;
-        ATRACE_INT(mVsyncEventLabel.c_str(), mValue);
     }
 
     if (callback != nullptr) {
         callback->onVSyncEvent(when);
-    }
-}
-
-void DispSyncSource::tracePhaseOffset() {
-    if (mPhaseOffset > 0) {
-        ATRACE_INT(mVsyncOffsetLabel.c_str(), mPhaseOffset);
-        ATRACE_INT(mVsyncNegativeOffsetLabel.c_str(), 0);
-    } else {
-        ATRACE_INT(mVsyncOffsetLabel.c_str(), 0);
-        ATRACE_INT(mVsyncNegativeOffsetLabel.c_str(), -mPhaseOffset);
     }
 }
 

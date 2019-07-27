@@ -163,8 +163,7 @@ public:
      * Called from SurfaceControl d'tor to 'destroy' the surface (or rather, reparent it
      * to null), but without needing an sp<SurfaceControl> to avoid infinite ressurection.
      */
-    static void doDropReferenceTransaction(const sp<IBinder>& handle,
-            const sp<ISurfaceComposerClient>& client);
+    static void doDropReferenceTransaction(const sp<IBinder>& handle);
 
     /**
      * Uncaches a buffer in ISurfaceComposer. It must be uncached via a transaction so that it is
@@ -270,6 +269,12 @@ public:
         }
     };
 
+    struct IBinderHash {
+        std::size_t operator()(const sp<IBinder>& iBinder) const {
+            return std::hash<IBinder*>{}(iBinder.get());
+        }
+    };
+
     struct TCLHash {
         std::size_t operator()(const sp<ITransactionCompletedListener>& tcl) const {
             return std::hash<IBinder*>{}((tcl) ? IInterface::asBinder(tcl).get() : nullptr);
@@ -286,7 +291,7 @@ public:
     };
 
     class Transaction : Parcelable {
-        std::unordered_map<sp<SurfaceControl>, ComposerState, SCHash> mComposerStates;
+        std::unordered_map<sp<IBinder>, ComposerState, IBinderHash> mComposerStates;
         SortedVector<DisplayState > mDisplayStates;
         std::unordered_map<sp<ITransactionCompletedListener>, CallbackInfo, TCLHash>
                 mListenerCallbacks;
@@ -314,7 +319,10 @@ public:
         InputWindowCommands mInputWindowCommands;
         int mStatus = NO_ERROR;
 
-        layer_state_t* getLayerState(const sp<SurfaceControl>& sc);
+        layer_state_t* getLayerState(const sp<IBinder>& surfaceHandle);
+        layer_state_t* getLayerState(const sp<SurfaceControl>& sc) {
+            return getLayerState(sc->getHandle());
+        }
         DisplayState& getDisplayState(const sp<IBinder>& token);
 
         void cacheBuffers();
@@ -560,15 +568,10 @@ class TransactionCompletedListener : public BnTransactionCompletedListener {
 
     CallbackId mCallbackIdCounter GUARDED_BY(mMutex) = 1;
 
-    struct IBinderHash {
-        std::size_t operator()(const sp<IBinder>& iBinder) const {
-            return std::hash<IBinder*>{}(iBinder.get());
-        }
-    };
-
     struct CallbackTranslation {
         TransactionCompletedCallback callbackFunction;
-        std::unordered_map<sp<IBinder>, sp<SurfaceControl>, IBinderHash> surfaceControls;
+        std::unordered_map<sp<IBinder>, sp<SurfaceControl>, SurfaceComposerClient::IBinderHash>
+                surfaceControls;
     };
 
     std::unordered_map<CallbackId, CallbackTranslation> mCallbacks GUARDED_BY(mMutex);

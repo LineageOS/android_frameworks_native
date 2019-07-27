@@ -169,12 +169,10 @@ status_t layer_state_t::read(const Parcel& input)
 }
 
 status_t ComposerState::write(Parcel& output) const {
-    output.writeStrongBinder(IInterface::asBinder(client));
     return state.write(output);
 }
 
 status_t ComposerState::read(const Parcel& input) {
-    client = interface_cast<ISurfaceComposerClient>(input.readStrongBinder());
     return state.read(input);
 }
 

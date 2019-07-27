@@ -60,6 +60,7 @@
 #include "Scheduler/VSyncModulator.h"
 #include "SurfaceFlingerFactory.h"
 #include "SurfaceTracing.h"
+#include "TracedOrdinal.h"
 #include "TransactionCompletedThread.h"
 
 #include <atomic>
@@ -583,7 +584,6 @@ private:
     void latchAndReleaseBuffer(const sp<Layer>& layer);
     void commitTransaction() REQUIRES(mStateLock);
     void commitOffscreenLayers();
-    bool containsAnyInvalidClientState(const Vector<ComposerState>& states);
     bool transactionIsReadyToBeApplied(int64_t desiredPresentTime,
                                        const Vector<ComposerState>& states);
     uint32_t setClientStateLocked(const ComposerState& composerState, int64_t desiredPresentTime,
@@ -1148,7 +1148,8 @@ private:
     ActiveConfigInfo mDesiredActiveConfig GUARDED_BY(mActiveConfigLock);
 
     // below flags are set by main thread only
-    bool mDesiredActiveConfigChanged GUARDED_BY(mActiveConfigLock) = false;
+    TracedOrdinal<bool> mDesiredActiveConfigChanged
+            GUARDED_BY(mActiveConfigLock) = {"DesiredActiveConfigChanged", false};
     bool mCheckPendingFence = false;
 
     bool mLumaSampling = true;

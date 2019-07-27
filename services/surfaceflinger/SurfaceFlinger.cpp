@@ -976,7 +976,6 @@ void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
                                         mPhaseOffsets->getOffsetThresholdForNextVsync());
     }
     mDesiredActiveConfigChanged = true;
-    ATRACE_INT("DesiredActiveConfigChanged", mDesiredActiveConfigChanged);
 
     if (mRefreshRateOverlay) {
         mRefreshRateOverlay->changeRefreshRate(mDesiredActiveConfig.type);
@@ -1021,7 +1020,6 @@ void SurfaceFlinger::desiredActiveConfigChangeDone() {
     std::lock_guard<std::mutex> lock(mActiveConfigLock);
     mDesiredActiveConfig.event = Scheduler::ConfigEvent::None;
     mDesiredActiveConfigChanged = false;
-    ATRACE_INT("DesiredActiveConfigChanged", mDesiredActiveConfigChanged);
 
     mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
     mPhaseOffsets->setRefreshRateType(mUpcomingActiveConfig.type);
@@ -1713,12 +1711,12 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
             // seeing this same value.
             populateExpectedPresentTime();
 
-            bool frameMissed = previousFrameMissed();
-            bool hwcFrameMissed = mHadDeviceComposition && frameMissed;
-            bool gpuFrameMissed = mHadClientComposition && frameMissed;
-            ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
-            ATRACE_INT("HwcFrameMissed", static_cast<int>(hwcFrameMissed));
-            ATRACE_INT("GpuFrameMissed", static_cast<int>(gpuFrameMissed));
+            const TracedOrdinal<bool> frameMissed = {"FrameMissed", previousFrameMissed()};
+            const TracedOrdinal<bool> hwcFrameMissed = {"HwcFrameMissed",
+                                                        mHadDeviceComposition && frameMissed};
+            const TracedOrdinal<bool> gpuFrameMissed = {"GpuFrameMissed",
+                                                        mHadClientComposition && frameMissed};
+
             if (frameMissed) {
                 mFrameMissedCount++;
                 mTimeStats->incrementMissedFrames();
@@ -3402,8 +3400,9 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
 
     const Region bounds(displayState.bounds);
     const DisplayRenderArea renderArea(displayDevice);
-    const bool hasClientComposition = getHwComposer().hasClientComposition(displayId);
-    ATRACE_INT("hasClientComposition", hasClientComposition);
+    const TracedOrdinal<bool> hasClientComposition = {"hasClientComposition",
+                                                      getHwComposer().hasClientComposition(
+                                                              displayId)};
 
     bool applyColorMatrix = false;
 
@@ -3685,27 +3684,6 @@ bool SurfaceFlinger::transactionFlushNeeded() {
     return !mTransactionQueues.empty();
 }
 
-bool SurfaceFlinger::containsAnyInvalidClientState(const Vector<ComposerState>& states) {
-    for (const ComposerState& state : states) {
-        // Here we need to check that the interface we're given is indeed
-        // one of our own. A malicious client could give us a nullptr
-        // IInterface, or one of its own or even one of our own but a
-        // different type. All these situations would cause us to crash.
-        if (state.client == nullptr) {
-            return true;
-        }
-
-        sp<IBinder> binder = IInterface::asBinder(state.client);
-        if (binder == nullptr) {
-            return true;
-        }
-
-        if (binder->queryLocalInterface(ISurfaceComposerClient::descriptor) == nullptr) {
-            return true;
-        }
-    }
-    return false;
-}
 
 bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
                                                    const Vector<ComposerState>& states) {
@@ -3743,10 +3721,6 @@ void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
     bool privileged = callingThreadHasUnscopedSurfaceFlingerAccess();
 
     Mutex::Autolock _l(mStateLock);
-
-    if (containsAnyInvalidClientState(states)) {
-        return;
-    }
 
     // If its TransactionQueue already has a pending TransactionState or if it is pending
     auto itr = mTransactionQueues.find(applyToken);
@@ -3959,9 +3933,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         const std::vector<ListenerCallbacks>& listenerCallbacks, int64_t postTime,
         bool privileged) {
     const layer_state_t& s = composerState.state;
-    sp<Client> client(static_cast<Client*>(composerState.client.get()));
 
-    sp<Layer> layer(client->getLayerUser(s.surface));
+    sp<Layer> layer(fromHandle(s.surface));
     if (layer == nullptr) {
         for (auto& listenerCallback : listenerCallbacks) {
             mTransactionCompletedThread.registerUnpresentedCallbackHandle(

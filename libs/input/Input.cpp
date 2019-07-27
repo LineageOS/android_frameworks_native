@@ -17,7 +17,6 @@
 #define LOG_TAG "Input"
 //#define LOG_NDEBUG 0
 
-#include <math.h>
 #include <limits.h>
 
 #include <input/Input.h>
@@ -434,7 +433,7 @@ void MotionEvent::transform(const float matrix[9]) {
     transformPoint(matrix, 0, 0, &originX, &originY);
 
     // Apply the transformation to cursor position.
-    if (!isnan(mXCursorPosition) && !isnan(mYCursorPosition)) {
+    if (isValidCursorPosition(mXCursorPosition, mYCursorPosition)) {
         float x = mXCursorPosition + oldXOffset;
         float y = mYCursorPosition + oldYOffset;
         transformPoint(matrix, x, y, &x, &y);
