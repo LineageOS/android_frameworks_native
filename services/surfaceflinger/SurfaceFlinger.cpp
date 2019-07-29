@@ -162,28 +162,6 @@ bool isWideColorMode(const ColorMode colorMode) {
     return false;
 }
 
-bool isHdrColorMode(const ColorMode colorMode) {
-    switch (colorMode) {
-        case ColorMode::BT2100_PQ:
-        case ColorMode::BT2100_HLG:
-            return true;
-        case ColorMode::DISPLAY_P3:
-        case ColorMode::ADOBE_RGB:
-        case ColorMode::DCI_P3:
-        case ColorMode::BT2020:
-        case ColorMode::DISPLAY_BT2020:
-        case ColorMode::NATIVE:
-        case ColorMode::STANDARD_BT601_625:
-        case ColorMode::STANDARD_BT601_625_UNADJUSTED:
-        case ColorMode::STANDARD_BT601_525:
-        case ColorMode::STANDARD_BT601_525_UNADJUSTED:
-        case ColorMode::STANDARD_BT709:
-        case ColorMode::SRGB:
-            return false;
-    }
-    return false;
-}
-
 ui::Transform::orientation_flags fromSurfaceComposerRotation(ISurfaceComposer::Rotation rotation) {
     switch (rotation) {
         case ISurfaceComposer::eRotateNone:
@@ -1158,7 +1136,8 @@ status_t SurfaceFlinger::setActiveColorMode(const sp<IBinder>& displayToken, Col
                   decodeColorMode(mode).c_str(), mode);
         } else {
             display->getCompositionDisplay()->setColorMode(mode, Dataspace::UNKNOWN,
-                                                           RenderIntent::COLORIMETRIC);
+                                                           RenderIntent::COLORIMETRIC,
+                                                           Dataspace::UNKNOWN);
         }
     }));
 
@@ -1862,104 +1841,80 @@ void SurfaceFlinger::calculateWorkingSet() {
     ATRACE_CALL();
     ALOGV(__FUNCTION__);
 
-    // build the h/w work list
-    if (CC_UNLIKELY(mGeometryInvalid)) {
-        mGeometryInvalid = false;
+    const bool updatingGeometryThisFrame = mGeometryInvalid;
+    mGeometryInvalid = false;
+
+    {
+        // Use a map so that we latch the state of each front-end layer once.
+        std::unordered_map<compositionengine::LayerFE*, compositionengine::LayerFECompositionState*>
+                uniqueVisibleLayers;
+
+        // Figure out which frontend layers are being composed, and build the unique
+        // set of them (and the corresponding composition layer)
         for (const auto& [token, displayDevice] : mDisplays) {
             auto display = displayDevice->getCompositionDisplay();
+            for (auto& layer : display->getOutputLayersOrderedByZ()) {
+                uniqueVisibleLayers.insert(std::make_pair(&layer->getLayerFE(),
+                                                          &layer->getLayer().editState().frontEnd));
+            }
+        }
 
+        // Update the composition state from each front-end layer.
+        for (auto& [layerFE, state] : uniqueVisibleLayers) {
+            layerFE->latchCompositionState(*state, updatingGeometryThisFrame);
+        }
+    }
+
+    if (CC_UNLIKELY(updatingGeometryThisFrame)) {
+        for (const auto& [token, displayDevice] : mDisplays) {
+            auto display = displayDevice->getCompositionDisplay();
             uint32_t zOrder = 0;
 
             for (auto& layer : display->getOutputLayersOrderedByZ()) {
-                auto& compositionState = layer->editState();
-                compositionState.forceClientComposition = false;
-                if (!compositionState.hwc || mDebugDisableHWC || mDebugRegion) {
-                    compositionState.forceClientComposition = true;
-                }
-
-                // The output Z order is set here based on a simple counter.
-                compositionState.z = zOrder++;
-
-                // Update the display independent composition state. This goes
-                // to the general composition layer state structure.
-                // TODO: Do this once per compositionengine::CompositionLayer.
-                layer->getLayerFE().latchCompositionState(layer->getLayer().editState().frontEnd,
-                                                          true);
-
-                // Recalculate the geometry state of the output layer.
-                layer->updateCompositionState(true);
-
-                // Write the updated geometry state to the HWC
-                layer->writeStateToHWC(true);
+                // Assign a simple Z order sequence to each visible layer.
+                layer->editState().z = zOrder++;
             }
         }
     }
 
-    // Set the per-frame data
+    // Determine the color configuration of each output
     for (const auto& [token, displayDevice] : mDisplays) {
         auto display = displayDevice->getCompositionDisplay();
-        const auto displayId = display->getId();
-        if (!displayId) {
-            continue;
-        }
-        auto* profile = display->getDisplayColorProfile();
 
-        if (mDrawingState.colorMatrixChanged) {
+        ColorMode colorMode = ColorMode::NATIVE;
+        Dataspace dataspace = Dataspace::UNKNOWN;
+        RenderIntent renderIntent = RenderIntent::COLORIMETRIC;
+        if (useColorManagement) {
+            pickColorMode(displayDevice, &colorMode, &dataspace, &renderIntent);
+        }
+        display->setColorMode(colorMode, dataspace, renderIntent, mColorSpaceAgnosticDataspace);
+    }
+
+    for (const auto& [token, displayDevice] : mDisplays) {
+        auto display = displayDevice->getCompositionDisplay();
+
+        for (auto& layer : display->getOutputLayersOrderedByZ()) {
+            // Update the composition state of the output layer, as needed
+            // recomputing it from the state given by the front-end layer.
+            layer->updateCompositionState(updatingGeometryThisFrame);
+        }
+    }
+
+    for (const auto& [token, displayDevice] : mDisplays) {
+        auto display = displayDevice->getCompositionDisplay();
+
+        for (auto& layer : display->getOutputLayersOrderedByZ()) {
+            // Send the updated state to the HWC, if appropriate.
+            layer->writeStateToHWC(updatingGeometryThisFrame);
+        }
+    }
+
+    if (CC_UNLIKELY(mDrawingState.colorMatrixChanged)) {
+        for (const auto& [token, displayDevice] : mDisplays) {
+            auto display = displayDevice->getCompositionDisplay();
             display->setColorTransform(mDrawingState.colorMatrix);
         }
-        Dataspace targetDataspace = Dataspace::UNKNOWN;
-        if (useColorManagement) {
-            ColorMode colorMode;
-            RenderIntent renderIntent;
-            pickColorMode(displayDevice, &colorMode, &targetDataspace, &renderIntent);
-            display->setColorMode(colorMode, targetDataspace, renderIntent);
-
-            if (isHdrColorMode(colorMode)) {
-                targetDataspace = Dataspace::UNKNOWN;
-            } else if (mColorSpaceAgnosticDataspace != Dataspace::UNKNOWN) {
-                targetDataspace = mColorSpaceAgnosticDataspace;
-            }
-        }
-
-        for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-            if (layer->isHdrY410()) {
-                layer->forceClientComposition(displayDevice);
-            } else if ((layer->getDataSpace() == Dataspace::BT2020_PQ ||
-                        layer->getDataSpace() == Dataspace::BT2020_ITU_PQ) &&
-                       !profile->hasHDR10Support()) {
-                layer->forceClientComposition(displayDevice);
-            } else if ((layer->getDataSpace() == Dataspace::BT2020_HLG ||
-                        layer->getDataSpace() == Dataspace::BT2020_ITU_HLG) &&
-                       !profile->hasHLGSupport()) {
-                layer->forceClientComposition(displayDevice);
-            }
-
-            if (layer->getRoundedCornerState().radius > 0.0f) {
-                layer->forceClientComposition(displayDevice);
-            }
-
-            if (layer->getForceClientComposition(displayDevice)) {
-                ALOGV("[%s] Requesting Client composition", layer->getName().string());
-                layer->setCompositionType(displayDevice,
-                                          Hwc2::IComposerClient::Composition::CLIENT);
-                continue;
-            }
-
-            const auto& displayState = display->getState();
-            layer->setPerFrameData(displayDevice, displayState.transform, displayState.viewport,
-                                   displayDevice->getSupportedPerFrameMetadata(), targetDataspace);
-        }
-    }
-
-    mDrawingState.colorMatrixChanged = false;
-
-    for (const auto& [token, displayDevice] : mDisplays) {
-        auto display = displayDevice->getCompositionDisplay();
-        for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-            auto& layerState = layer->getCompositionLayer()->editState().frontEnd;
-            layerState.compositionType = static_cast<Hwc2::IComposerClient::Composition>(
-                    layer->getCompositionType(displayDevice));
-        }
+        mDrawingState.colorMatrixChanged = false;
     }
 }
 
@@ -2356,7 +2311,8 @@ Dataspace SurfaceFlinger::getBestDataspace(const sp<DisplayDevice>& display,
             case Dataspace::BT2020_ITU_PQ:
                 bestDataSpace = Dataspace::DISPLAY_P3;
                 *outHdrDataSpace = Dataspace::BT2020_PQ;
-                *outIsHdrClientComposition = layer->getForceClientComposition(display);
+                *outIsHdrClientComposition =
+                        layer->getCompositionLayer()->getState().frontEnd.forceClientComposition;
                 break;
             case Dataspace::BT2020_HLG:
             case Dataspace::BT2020_ITU_HLG:
@@ -2697,7 +2653,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         defaultDataSpace = Dataspace::V0_SRGB;
     }
     display->getCompositionDisplay()->setColorMode(defaultColorMode, defaultDataSpace,
-                                                   RenderIntent::COLORIMETRIC);
+                                                   RenderIntent::COLORIMETRIC, Dataspace::UNKNOWN);
     if (!state.isVirtual()) {
         LOG_ALWAYS_FATAL_IF(!displayId);
         display->setActiveConfig(getHwComposer().getActiveConfigIndex(*displayId));

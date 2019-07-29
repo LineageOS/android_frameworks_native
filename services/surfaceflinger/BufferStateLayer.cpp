@@ -570,7 +570,6 @@ status_t BufferStateLayer::updateActiveBuffer() {
     mActiveBufferFence = s.acquireFence;
     auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
     layerCompositionState.buffer = mActiveBuffer;
-    layerCompositionState.bufferSlot = 0;
 
     return NO_ERROR;
 }
@@ -581,24 +580,18 @@ status_t BufferStateLayer::updateFrameNumber(nsecs_t /*latchTime*/) {
     return NO_ERROR;
 }
 
-void BufferStateLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display) {
-    const auto outputLayer = findOutputLayerForDisplay(display);
-    LOG_FATAL_IF(!outputLayer || !outputLayer->getState().hwc);
-    auto& hwcInfo = *outputLayer->editState().hwc;
-    auto& hwcLayer = hwcInfo.hwcLayer;
+void BufferStateLayer::latchPerFrameState(
+        compositionengine::LayerFECompositionState& compositionState) const {
+    BufferLayer::latchPerFrameState(compositionState);
+    if (compositionState.compositionType == Hwc2::IComposerClient::Composition::SIDEBAND) {
+        return;
+    }
 
     const State& s(getDrawingState());
 
-    uint32_t hwcSlot;
-    sp<GraphicBuffer> buffer;
-    hwcInfo.hwcBufferCache.getHwcBuffer(mHwcSlotGenerator->getHwcCacheSlot(s.clientCacheId),
-                                        s.buffer, &hwcSlot, &buffer);
-
-    auto error = hwcLayer->setBuffer(hwcSlot, buffer, s.acquireFence);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set buffer %p: %s (%d)", mName.string(),
-              s.buffer->handle, to_string(error).c_str(), static_cast<int32_t>(error));
-    }
+    compositionState.buffer = s.buffer;
+    compositionState.bufferSlot = mHwcSlotGenerator->getHwcCacheSlot(s.clientCacheId);
+    compositionState.acquireFence = s.acquireFence;
 
     mFrameNumber++;
 }

@@ -45,7 +45,7 @@ public:
     void setLayerStackFilter(uint32_t layerStackId, bool isInternal) override;
 
     void setColorTransform(const mat4&) override;
-    void setColorMode(ui::ColorMode, ui::Dataspace, ui::RenderIntent) override;
+    void setColorMode(ui::ColorMode, ui::Dataspace, ui::RenderIntent, ui::Dataspace) override;
 
     void dump(std::string&) const override;
 

@@ -242,20 +242,6 @@ sp<IBinder> Layer::getHandle() {
 // h/w composer set-up
 // ---------------------------------------------------------------------------
 
-bool Layer::hasHwcLayer(const sp<const DisplayDevice>& displayDevice) {
-    auto outputLayer = findOutputLayerForDisplay(displayDevice);
-    LOG_FATAL_IF(!outputLayer);
-    return outputLayer->getState().hwc && (*outputLayer->getState().hwc).hwcLayer != nullptr;
-}
-
-HWC2::Layer* Layer::getHwcLayer(const sp<const DisplayDevice>& displayDevice) {
-    auto outputLayer = findOutputLayerForDisplay(displayDevice);
-    if (!outputLayer || !outputLayer->getState().hwc) {
-        return nullptr;
-    }
-    return (*outputLayer->getState().hwc).hwcLayer.get();
-}
-
 Rect Layer::getContentCrop() const {
     // this is the crop rectangle that applies to the buffer
     // itself (as opposed to the window)
@@ -454,27 +440,36 @@ void Layer::latchGeometry(compositionengine::LayerFECompositionState& compositio
     compositionState.appId = appId;
 }
 
+void Layer::latchPerFrameState(compositionengine::LayerFECompositionState& compositionState) const {
+    compositionState.forceClientComposition = false;
+
+    // TODO(lpique): b/121291683 Remove this one we are sure we don't need the
+    // value recomputed / set every frame.
+    compositionState.geomVisibleRegion = visibleRegion;
+
+    compositionState.isColorspaceAgnostic = isColorSpaceAgnostic();
+    compositionState.dataspace = mCurrentDataSpace;
+    compositionState.colorTransform = getColorTransform();
+    compositionState.colorTransformIsIdentity = !hasColorTransform();
+    compositionState.surfaceDamage = surfaceDamageRegion;
+
+    // Force client composition for special cases known only to the front-end.
+    if (isHdrY410() || getRoundedCornerState().radius > 0.0f) {
+        compositionState.forceClientComposition = true;
+    }
+}
+
 void Layer::latchCompositionState(compositionengine::LayerFECompositionState& compositionState,
                                   bool includeGeometry) const {
     if (includeGeometry) {
         latchGeometry(compositionState);
     }
+
+    latchPerFrameState(compositionState);
 }
 
 const char* Layer::getDebugName() const {
     return mName.string();
-}
-
-void Layer::forceClientComposition(const sp<DisplayDevice>& display) {
-    const auto outputLayer = findOutputLayerForDisplay(display);
-    LOG_FATAL_IF(!outputLayer);
-    outputLayer->editState().forceClientComposition = true;
-}
-
-bool Layer::getForceClientComposition(const sp<DisplayDevice>& display) {
-    const auto outputLayer = findOutputLayerForDisplay(display);
-    LOG_FATAL_IF(!outputLayer);
-    return outputLayer->getState().forceClientComposition;
 }
 
 void Layer::updateCursorPosition(const sp<const DisplayDevice>& display) {
@@ -561,29 +556,6 @@ bool Layer::prepareClientLayer(const RenderArea& /*renderArea*/, const Region& /
     layer.alpha = alpha;
     layer.sourceDataspace = mCurrentDataSpace;
     return true;
-}
-
-void Layer::setCompositionType(const sp<const DisplayDevice>& display,
-                               Hwc2::IComposerClient::Composition type) {
-    const auto outputLayer = findOutputLayerForDisplay(display);
-    LOG_FATAL_IF(!outputLayer);
-    LOG_FATAL_IF(!outputLayer->getState().hwc);
-    auto& compositionState = outputLayer->editState();
-
-    ALOGV("setCompositionType(%" PRIx64 ", %s, %d)", ((*compositionState.hwc).hwcLayer)->getId(),
-          toString(type).c_str(), 1);
-    if ((*compositionState.hwc).hwcCompositionType != type) {
-        ALOGV("    actually setting");
-        (*compositionState.hwc).hwcCompositionType = type;
-
-        auto error = (*compositionState.hwc)
-                             .hwcLayer->setCompositionType(static_cast<HWC2::Composition>(type));
-        ALOGE_IF(error != HWC2::Error::None,
-                 "[%s] Failed to set "
-                 "composition type %s: %s (%d)",
-                 mName.string(), toString(type).c_str(), to_string(error).c_str(),
-                 static_cast<int32_t>(error));
-    }
 }
 
 Hwc2::IComposerClient::Composition Layer::getCompositionType(

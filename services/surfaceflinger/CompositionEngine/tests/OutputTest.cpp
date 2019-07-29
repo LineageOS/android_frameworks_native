@@ -205,24 +205,36 @@ TEST_F(OutputTest, setColorTransformSetsTransform) {
  */
 
 TEST_F(OutputTest, setColorModeSetsStateAndDirtiesOutputIfChanged) {
+    EXPECT_CALL(*mDisplayColorProfile,
+                getTargetDataspace(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
+                                   ui::Dataspace::UNKNOWN))
+            .WillOnce(Return(ui::Dataspace::UNKNOWN));
     EXPECT_CALL(*mRenderSurface, setBufferDataspace(ui::Dataspace::DISPLAY_P3)).Times(1);
 
     mOutput.setColorMode(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
-                         ui::RenderIntent::TONE_MAP_COLORIMETRIC);
+                         ui::RenderIntent::TONE_MAP_COLORIMETRIC, ui::Dataspace::UNKNOWN);
 
     EXPECT_EQ(ui::ColorMode::DISPLAY_P3, mOutput.getState().colorMode);
     EXPECT_EQ(ui::Dataspace::DISPLAY_P3, mOutput.getState().dataspace);
     EXPECT_EQ(ui::RenderIntent::TONE_MAP_COLORIMETRIC, mOutput.getState().renderIntent);
+    EXPECT_EQ(ui::Dataspace::UNKNOWN, mOutput.getState().targetDataspace);
+
     EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
 }
 
 TEST_F(OutputTest, setColorModeDoesNothingIfNoChange) {
+    EXPECT_CALL(*mDisplayColorProfile,
+                getTargetDataspace(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
+                                   ui::Dataspace::UNKNOWN))
+            .WillOnce(Return(ui::Dataspace::UNKNOWN));
+
     mOutput.editState().colorMode = ui::ColorMode::DISPLAY_P3;
     mOutput.editState().dataspace = ui::Dataspace::DISPLAY_P3;
     mOutput.editState().renderIntent = ui::RenderIntent::TONE_MAP_COLORIMETRIC;
+    mOutput.editState().targetDataspace = ui::Dataspace::UNKNOWN;
 
     mOutput.setColorMode(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
-                         ui::RenderIntent::TONE_MAP_COLORIMETRIC);
+                         ui::RenderIntent::TONE_MAP_COLORIMETRIC, ui::Dataspace::UNKNOWN);
 
     EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region()));
 }

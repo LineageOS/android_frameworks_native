@@ -88,8 +88,11 @@ struct OutputCompositionState {
     // Current active render intent
     ui::RenderIntent renderIntent{ui::RenderIntent::COLORIMETRIC};
 
-    // Current active dstaspace
+    // Current active dataspace
     ui::Dataspace dataspace{ui::Dataspace::UNKNOWN};
+
+    // Current target dataspace
+    ui::Dataspace targetDataspace{ui::Dataspace::UNKNOWN};
 
     // Debugging
     void dump(std::string& result) const;

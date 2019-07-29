@@ -71,7 +71,8 @@ public:
     virtual void setColorTransform(const mat4&) = 0;
 
     // Sets the output color mode
-    virtual void setColorMode(ui::ColorMode, ui::Dataspace, ui::RenderIntent) = 0;
+    virtual void setColorMode(ui::ColorMode, ui::Dataspace, ui::RenderIntent,
+                              ui::Dataspace colorSpaceAgnosticDataspace) = 0;
 
     // Outputs a string with a state dump
     virtual void dump(std::string&) const = 0;

@@ -376,7 +376,6 @@ status_t BufferQueueLayer::updateActiveBuffer() {
     mActiveBuffer = mConsumer->getCurrentBuffer(&mActiveBufferSlot, &mActiveBufferFence);
     auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
     layerCompositionState.buffer = mActiveBuffer;
-    layerCompositionState.bufferSlot = mActiveBufferSlot;
 
     if (mActiveBuffer == nullptr) {
         // this can only happen if the very first buffer was rejected.
@@ -396,32 +395,17 @@ status_t BufferQueueLayer::updateFrameNumber(nsecs_t latchTime) {
     return NO_ERROR;
 }
 
-void BufferQueueLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display) {
-    const auto outputLayer = findOutputLayerForDisplay(display);
-    LOG_FATAL_IF(!outputLayer);
-    LOG_FATAL_IF(!outputLayer->getState.hwc);
-    auto& hwcLayer = (*outputLayer->getState().hwc).hwcLayer;
-
-    uint32_t hwcSlot = 0;
-    sp<GraphicBuffer> hwcBuffer;
-
-    // INVALID_BUFFER_SLOT is used to identify BufferStateLayers.  Default to 0
-    // for BufferQueueLayers
-    int slot = (mActiveBufferSlot == BufferQueue::INVALID_BUFFER_SLOT) ? 0 : mActiveBufferSlot;
-    (*outputLayer->editState().hwc)
-            .hwcBufferCache.getHwcBuffer(slot, mActiveBuffer, &hwcSlot, &hwcBuffer);
-
-    auto acquireFence = mConsumer->getCurrentFence();
-    auto error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, acquireFence);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set buffer %p: %s (%d)", mName.string(), mActiveBuffer->handle,
-              to_string(error).c_str(), static_cast<int32_t>(error));
+void BufferQueueLayer::latchPerFrameState(
+        compositionengine::LayerFECompositionState& compositionState) const {
+    BufferLayer::latchPerFrameState(compositionState);
+    if (compositionState.compositionType == Hwc2::IComposerClient::Composition::SIDEBAND) {
+        return;
     }
 
-    auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
-    layerCompositionState.bufferSlot = mActiveBufferSlot;
-    layerCompositionState.buffer = mActiveBuffer;
-    layerCompositionState.acquireFence = acquireFence;
+    compositionState.buffer = mActiveBuffer;
+    compositionState.bufferSlot =
+            (mActiveBufferSlot == BufferQueue::INVALID_BUFFER_SLOT) ? 0 : mActiveBufferSlot;
+    compositionState.acquireFence = mConsumer->getCurrentFence();
 }
 
 // -----------------------------------------------------------------------

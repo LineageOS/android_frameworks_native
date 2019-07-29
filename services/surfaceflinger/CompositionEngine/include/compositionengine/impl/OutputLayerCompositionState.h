@@ -23,6 +23,7 @@
 #include <compositionengine/impl/HwcBufferCache.h>
 #include <renderengine/Mesh.h>
 #include <ui/FloatRect.h>
+#include <ui/GraphicTypes.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
 
@@ -57,6 +58,9 @@ struct OutputLayerCompositionState {
     // The buffer transform to use for this layer o on this output.
     Hwc2::Transform bufferTransform{static_cast<Hwc2::Transform>(0)};
 
+    // The dataspace for this layer
+    ui::Dataspace dataspace{ui::Dataspace::UNKNOWN};
+
     // The Z order index of this layer on this output
     uint32_t z;
 
@@ -70,7 +74,7 @@ struct OutputLayerCompositionState {
         // The HWC Layer backing this layer
         std::shared_ptr<HWC2::Layer> hwcLayer;
 
-        // The HWC composition type for this layer
+        // The most recently set HWC composition type for this layer
         Hwc2::IComposerClient::Composition hwcCompositionType{
                 Hwc2::IComposerClient::Composition::INVALID};
 

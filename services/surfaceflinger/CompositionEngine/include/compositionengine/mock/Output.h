@@ -41,17 +41,18 @@ public:
     MOCK_METHOD2(setLayerStackFilter, void(uint32_t, bool));
 
     MOCK_METHOD1(setColorTransform, void(const mat4&));
-    MOCK_METHOD3(setColorMode, void(ui::ColorMode, ui::Dataspace, ui::RenderIntent));
+    MOCK_METHOD4(setColorMode, void(ui::ColorMode, ui::Dataspace, ui::RenderIntent, ui::Dataspace));
 
     MOCK_CONST_METHOD1(dump, void(std::string&));
     MOCK_CONST_METHOD0(getName, const std::string&());
     MOCK_METHOD1(setName, void(const std::string&));
 
-    MOCK_CONST_METHOD0(getDisplayColorProfile, DisplayColorProfile*());
-    MOCK_METHOD1(setDisplayColorProfile, void(std::unique_ptr<DisplayColorProfile>));
+    MOCK_CONST_METHOD0(getDisplayColorProfile, compositionengine::DisplayColorProfile*());
+    MOCK_METHOD1(setDisplayColorProfile,
+                 void(std::unique_ptr<compositionengine::DisplayColorProfile>));
 
-    MOCK_CONST_METHOD0(getRenderSurface, RenderSurface*());
-    MOCK_METHOD1(setRenderSurface, void(std::unique_ptr<RenderSurface>));
+    MOCK_CONST_METHOD0(getRenderSurface, compositionengine::RenderSurface*());
+    MOCK_METHOD1(setRenderSurface, void(std::unique_ptr<compositionengine::RenderSurface>));
 
     MOCK_CONST_METHOD0(getState, const OutputCompositionState&());
     MOCK_METHOD0(editState, OutputCompositionState&());

@@ -47,6 +47,7 @@ void OutputLayerCompositionState::dump(std::string& out) const {
     dumpVal(out, "displayFrame", displayFrame);
     dumpVal(out, "sourceCrop", sourceCrop);
     dumpVal(out, "bufferTransform", toString(bufferTransform), bufferTransform);
+    dumpVal(out, "dataspace", toString(dataspace), dataspace);
     dumpVal(out, "z-index", z);
 
     if (hwc) {

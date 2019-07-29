@@ -37,10 +37,6 @@ public:
 
     bool setDataspace(ui::Dataspace dataspace) override;
 
-    void setPerFrameData(const sp<const DisplayDevice>& display, const ui::Transform& transform,
-                         const Rect& viewport, int32_t supportedPerFrameMetadata,
-                         const ui::Dataspace targetDataspace) override;
-
     void commitTransaction(const State& stateToCommit) override;
 
     bool onPreComposition(nsecs_t /*refreshStartTime*/) override { return false; }
@@ -52,6 +48,8 @@ protected:
                                     renderengine::LayerSettings& layer);
 
 private:
+    void latchPerFrameState(compositionengine::LayerFECompositionState&) const override;
+
     std::shared_ptr<compositionengine::Layer> mCompositionLayer;
 };
 

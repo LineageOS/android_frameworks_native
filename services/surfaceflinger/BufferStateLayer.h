@@ -137,7 +137,7 @@ private:
     status_t updateActiveBuffer() override;
     status_t updateFrameNumber(nsecs_t latchTime) override;
 
-    void setHwcLayerBuffer(const sp<const DisplayDevice>& display) override;
+    void latchPerFrameState(compositionengine::LayerFECompositionState&) const override;
 
 private:
     friend class SlotGenerationTest;
@@ -152,11 +152,11 @@ private:
 
     std::atomic<bool> mSidebandStreamChanged{false};
 
-    uint32_t mFrameNumber{0};
+    mutable uint32_t mFrameNumber{0};
 
     sp<Fence> mPreviousReleaseFence;
 
-    bool mCurrentStateModified = false;
+    mutable bool mCurrentStateModified = false;
     bool mReleasePreviousBuffer = false;
     nsecs_t mCallbackHandleAcquireTime = -1;
 

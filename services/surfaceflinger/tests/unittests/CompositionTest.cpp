@@ -988,7 +988,9 @@ struct RECompositionResultVariant : public CompositionResultBaseVariant {
 
 struct ForcedClientCompositionResultVariant : public RECompositionResultVariant {
     static void setupLayerState(CompositionTest* test, sp<Layer> layer) {
-        layer->forceClientComposition(test->mDisplay);
+        const auto outputLayer = layer->findOutputLayerForDisplay(test->mDisplay);
+        LOG_FATAL_IF(!outputLayer);
+        outputLayer->editState().forceClientComposition = true;
     }
 
     template <typename Case>
