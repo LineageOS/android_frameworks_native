@@ -76,6 +76,18 @@ cc_defaults {
         "libhidltransport",
         "libhwbinder",
     ],
+    product_variables: {
+        lineage: {
+            uses_qcom_um_family: {
+                header_libs: [
+                    "display_intf_headers",
+                ],
+                shared_libs: [
+                    "libqdMetaData.system",
+                ],
+            },
+        },
+    },
 }
 
 cc_library_headers {
@@ -94,6 +106,7 @@ filegroup {
         "ColorLayer.cpp",
         "ContainerLayer.cpp",
         "DisplayDevice.cpp",
+        "DisplayUtils.cpp",
         "DisplayHardware/ComposerHal.cpp",
         "DisplayHardware/FramebufferSurface.cpp",
         "DisplayHardware/HWC2.cpp",
@@ -132,10 +145,6 @@ filegroup {
         "SurfaceTracing.cpp",
         "TimeStats/TimeStats.cpp",
         "Transform.cpp",
-        "DisplayUtils.cpp",
-        "ExSurfaceFlinger/ExSurfaceFlinger.cpp",
-        "ExSurfaceFlinger/ExVirtualDisplaySurface.cpp",
-        "ExSurfaceFlinger/ExBufferLayer.cpp"
     ],
 }
 
@@ -153,12 +162,10 @@ cc_library_shared {
     include_dirs: [
         "frameworks/native/vulkan/vkjson",
         "frameworks/native/vulkan/include",
-        "hardware/qcom/display/include",
-        "hardware/qcom/display/gralloc",
-        "hardware/qcom/display/libqdutils",
     ],
     cppflags: [
         "-fwhole-program-vtables", // requires ThinLTO
+        "-Wno-unused-parameter",
     ],
     lto: {
         thin: true,
@@ -167,6 +174,42 @@ cc_library_shared {
         lineage: {
             apply_msm8974_1440p_egl_workaround: {
                 cflags: ["-DALLOW_TOO_LARGE_DIMENSIONS"],
+            },
+            uses_qcom_um_family: {
+                cflags: ["-DQCOM_UM_FAMILY"],
+                srcs: [
+                    "ExSurfaceFlinger/ExSurfaceFlinger.cpp",
+                    "ExSurfaceFlinger/ExVirtualDisplaySurface.cpp",
+                    "ExSurfaceFlinger/ExBufferLayer.cpp"
+                ],
+            },
+            uses_qcom_um_3_18_family: {
+                include_dirs: [
+                    "hardware/qcom/display-caf/msm8996/include",
+                    "hardware/qcom/display-caf/msm8996/gralloc",
+                    "hardware/qcom/display-caf/msm8996/libqdutils"
+                ],
+            },
+            uses_qcom_um_4_4_family: {
+                include_dirs: [
+                    "hardware/qcom/display-caf/msm8998/include",
+                    "hardware/qcom/display-caf/msm8998/gralloc",
+                    "hardware/qcom/display-caf/msm8998/libqdutils"
+                ],
+            },
+            uses_qcom_um_4_9_family: {
+                include_dirs: [
+                    "hardware/qcom/display-caf/sdm845/include",
+                    "hardware/qcom/display-caf/sdm845/gralloc",
+                    "hardware/qcom/display-caf/sdm845/libqdutils"
+                ],
+            },
+            uses_qcom_um_4_14_family: {
+                include_dirs: [
+                    "hardware/qcom/display-caf/sm8150/include",
+                    "hardware/qcom/display-caf/sm8150/gralloc",
+                    "hardware/qcom/display-caf/sm8150/libqdutils"
+                ],
             },
         },
     },
@@ -180,10 +223,34 @@ cc_binary {
     whole_static_libs: [
         "libsigchain",
     ],
-    include_dirs: [
-        "hardware/qcom/display/include",
-        "hardware/qcom/display/gralloc",
-    ],
+    product_variables: {
+        lineage: {
+            uses_qcom_um_3_18_family: {
+                include_dirs: [
+                    "hardware/qcom/display-caf/msm8996/include",
+                    "hardware/qcom/display-caf/msm8996/gralloc",
+                ],
+            },
+            uses_qcom_um_4_4_family: {
+                include_dirs: [
+                    "hardware/qcom/display-caf/msm8998/include",
+                    "hardware/qcom/display-caf/msm8998/gralloc",
+                ],
+            },
+            uses_qcom_um_4_9_family: {
+                include_dirs: [
+                    "hardware/qcom/display-caf/sdm845/include",
+                    "hardware/qcom/display-caf/sdm845/gralloc",
+                ],
+            },
+            uses_qcom_um_4_14_family: {
+                include_dirs: [
+                    "hardware/qcom/display-caf/sm8150/include",
+                    "hardware/qcom/display-caf/sm8150/gralloc",
+                ],
+            },
+        },
+    },
     shared_libs: [
         "android.frameworks.displayservice@1.0",
         "android.hardware.configstore-utils",
