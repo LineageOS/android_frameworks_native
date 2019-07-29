@@ -27,7 +27,7 @@ public:
                   "Type is not supported. Please test it with systrace before adding "
                   "it to the list.");
 
-    TracedOrdinal(std::string name, T initialValue)
+    TracedOrdinal(const std::string& name, T initialValue)
           : mName(name),
             mNameNegative(android::base::StringPrintf("%sNegative", name.c_str())),
             mHasGoneNegative(std::signbit(initialValue)),
