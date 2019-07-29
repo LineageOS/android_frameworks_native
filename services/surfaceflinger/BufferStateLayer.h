@@ -100,7 +100,7 @@ public:
     // Interface implementation for BufferLayer
     // -----------------------------------------------------------------------
     bool fenceHasSignaled() const override;
-    bool framePresentTimeIsCurrent() const override;
+    bool framePresentTimeIsCurrent(nsecs_t expectedPresentTime) const override;
 
     // Inherit from ClientCache::ErasedRecipient
     void bufferErased(const client_cache_t& clientCacheId) override;
@@ -119,7 +119,7 @@ private:
     int getDrawingApi() const override;
     PixelFormat getPixelFormat() const override;
 
-    uint64_t getFrameNumber() const override;
+    uint64_t getFrameNumber(nsecs_t expectedPresentTime) const override;
 
     bool getAutoRefresh() const override;
     bool getSidebandStreamChanged() const override;
@@ -131,7 +131,8 @@ private:
     void setFilteringEnabled(bool enabled) override;
 
     status_t bindTextureImage() override;
-    status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime) override;
+    status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime,
+                            nsecs_t expectedPresentTime) override;
 
     status_t updateActiveBuffer() override;
     status_t updateFrameNumber(nsecs_t latchTime) override;

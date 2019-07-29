@@ -1691,15 +1691,15 @@ bool SurfaceFlinger::previousFrameMissed() NO_THREAD_SAFETY_ANALYSIS {
     return fence != Fence::NO_FENCE && (fence->getStatus() == Fence::Status::Unsignaled);
 }
 
-void SurfaceFlinger::populateExpectedPresentTime() NO_THREAD_SAFETY_ANALYSIS {
+void SurfaceFlinger::populateExpectedPresentTime() {
     DisplayStatInfo stats;
     mScheduler->getDisplayStatInfo(&stats);
     const nsecs_t presentTime = mScheduler->getDispSyncExpectedPresentTime();
     // Inflate the expected present time if we're targetting the next vsync.
-    mExpectedPresentTime =
-            mVsyncModulator.getOffsets().sf < mPhaseOffsets->getOffsetThresholdForNextVsync()
-            ? presentTime
-            : presentTime + stats.vsyncPeriod;
+    mExpectedPresentTime.store(mVsyncModulator.getOffsets().sf <
+                                               mPhaseOffsets->getOffsetThresholdForNextVsync()
+                                       ? presentTime
+                                       : presentTime + stats.vsyncPeriod);
 }
 
 void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
@@ -2854,9 +2854,11 @@ void SurfaceFlinger::processDisplayChangesLocked() {
 
 void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
 {
+    const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
+
     // Notify all layers of available frames
-    mCurrentState.traverseInZOrder([](Layer* layer) {
-        layer->notifyAvailableFrames();
+    mCurrentState.traverseInZOrder([expectedPresentTime](Layer* layer) {
+        layer->notifyAvailableFrames(expectedPresentTime);
     });
 
     /*
@@ -3055,7 +3057,7 @@ void SurfaceFlinger::updateCursorAsync()
 void SurfaceFlinger::latchAndReleaseBuffer(const sp<Layer>& layer) {
     if (layer->hasReadyFrame()) {
         bool ignored = false;
-        layer->latchBuffer(ignored, systemTime());
+        layer->latchBuffer(ignored, systemTime(), 0 /* expectedPresentTime */);
     }
     layer->releasePendingBuffer(systemTime());
 }
@@ -3303,6 +3305,8 @@ bool SurfaceFlinger::handlePageFlip()
     bool frameQueued = false;
     bool newDataLatched = false;
 
+    const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
+
     // Store the set of layers that need updates. This set must not change as
     // buffers are being latched, as this could result in a deadlock.
     // Example: Two producers share the same command stream and:
@@ -3315,7 +3319,6 @@ bool SurfaceFlinger::handlePageFlip()
     mDrawingState.traverseInZOrder([&](Layer* layer) {
         if (layer->hasReadyFrame()) {
             frameQueued = true;
-            const nsecs_t expectedPresentTime = getExpectedPresentTime();
             if (layer->shouldPresentNow(expectedPresentTime)) {
                 mLayersWithQueuedFrames.push_back(layer);
             } else {
@@ -3333,7 +3336,7 @@ bool SurfaceFlinger::handlePageFlip()
         Mutex::Autolock lock(mStateLock);
 
         for (auto& layer : mLayersWithQueuedFrames) {
-            if (layer->latchBuffer(visibleRegions, latchTime)) {
+            if (layer->latchBuffer(visibleRegions, latchTime, expectedPresentTime)) {
                 mLayersPendingRefresh.push_back(layer);
             }
             layer->useSurfaceDamage();
@@ -3655,6 +3658,7 @@ bool SurfaceFlinger::flushTransactionQueues() {
             while (!transactionQueue.empty()) {
                 const auto& transaction = transactionQueue.front();
                 if (!transactionIsReadyToBeApplied(transaction.desiredPresentTime,
+                                                   true /* useCachedExpectedPresentTime */,
                                                    transaction.states)) {
                     setTransactionFlags(eTransactionFlushNeeded);
                     break;
@@ -3686,8 +3690,12 @@ bool SurfaceFlinger::transactionFlushNeeded() {
 
 
 bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
+                                                   bool useCachedExpectedPresentTime,
                                                    const Vector<ComposerState>& states) {
-    nsecs_t expectedPresentTime = getExpectedPresentTime();
+    if (!useCachedExpectedPresentTime)
+        populateExpectedPresentTime();
+
+    const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
     // Do not present if the desiredPresentTime has not passed unless it is more than one second
     // in the future. We ignore timestamps more than 1 second in the future for stability reasons.
     if (desiredPresentTime >= 0 && desiredPresentTime >= expectedPresentTime &&
@@ -3738,8 +3746,10 @@ void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
             itr = mTransactionQueues.find(applyToken);
         }
     }
-    if (itr != mTransactionQueues.end() ||
-        !transactionIsReadyToBeApplied(desiredPresentTime, states)) {
+
+    // Expected present time is computed and cached on invalidate, so it may be stale.
+    if (itr != mTransactionQueues.end() || !transactionIsReadyToBeApplied(
+            desiredPresentTime, false /* useCachedExpectedPresentTime */, states)) {
         mTransactionQueues[applyToken].emplace(states, displays, flags, desiredPresentTime,
                                                uncacheBuffer, listenerCallbacks, postTime,
                                                privileged);

@@ -395,7 +395,8 @@ bool BufferLayer::onPostComposition(const std::optional<DisplayId>& displayId,
     return true;
 }
 
-bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) {
+bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
+                              nsecs_t expectedPresentTime) {
     ATRACE_CALL();
 
     bool refreshRequired = latchSidebandStream(recomputeVisibleRegions);
@@ -430,12 +431,12 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) 
     const bool oldOpacity = isOpaque(s);
     sp<GraphicBuffer> oldBuffer = mActiveBuffer;
 
-    if (!allTransactionsSignaled()) {
+    if (!allTransactionsSignaled(expectedPresentTime)) {
         mFlinger->setTransactionFlags(eTraversalNeeded);
         return false;
     }
 
-    status_t err = updateTexImage(recomputeVisibleRegions, latchTime);
+    status_t err = updateTexImage(recomputeVisibleRegions, latchTime, expectedPresentTime);
     if (err != NO_ERROR) {
         return false;
     }
@@ -540,10 +541,10 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) 
 }
 
 // transaction
-void BufferLayer::notifyAvailableFrames() {
-    const auto headFrameNumber = getHeadFrameNumber();
+void BufferLayer::notifyAvailableFrames(nsecs_t expectedPresentTime) {
+    const auto headFrameNumber = getHeadFrameNumber(expectedPresentTime);
     const bool headFenceSignaled = fenceHasSignaled();
-    const bool presentTimeIsCurrent = framePresentTimeIsCurrent();
+    const bool presentTimeIsCurrent = framePresentTimeIsCurrent(expectedPresentTime);
     Mutex::Autolock lock(mLocalSyncPointMutex);
     for (auto& point : mLocalSyncPoints) {
         if (headFrameNumber >= point->getFrameNumber() && headFenceSignaled &&
@@ -591,8 +592,8 @@ bool BufferLayer::latchUnsignaledBuffers() {
 }
 
 // h/w composer set-up
-bool BufferLayer::allTransactionsSignaled() {
-    auto headFrameNumber = getHeadFrameNumber();
+bool BufferLayer::allTransactionsSignaled(nsecs_t expectedPresentTime) {
+    const auto headFrameNumber = getHeadFrameNumber(expectedPresentTime);
     bool matchingFramesFound = false;
     bool allTransactionsApplied = true;
     Mutex::Autolock lock(mLocalSyncPointMutex);
@@ -658,9 +659,9 @@ bool BufferLayer::needsFiltering(const sp<const DisplayDevice>& displayDevice) c
             sourceCrop.getWidth() != displayFrame.getWidth();
 }
 
-uint64_t BufferLayer::getHeadFrameNumber() const {
+uint64_t BufferLayer::getHeadFrameNumber(nsecs_t expectedPresentTime) const {
     if (hasFrameUpdate()) {
-        return getFrameNumber();
+        return getFrameNumber(expectedPresentTime);
     } else {
         return mCurrentFrameNumber;
     }
