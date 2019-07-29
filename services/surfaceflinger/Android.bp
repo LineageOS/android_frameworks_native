@@ -52,7 +52,6 @@ cc_defaults {
         "libui",
         "libutils",
         "libvulkan",
-        "libqdMetaData.system",
     ],
     static_libs: [
         "libserviceutils",
@@ -64,7 +63,6 @@ cc_defaults {
     header_libs: [
         "android.hardware.graphics.composer@2.1-command-buffer",
         "android.hardware.graphics.composer@2.2-command-buffer",
-        "display_intf_headers",
     ],
     export_static_lib_headers: [
         "libserviceutils",
@@ -135,9 +133,6 @@ filegroup {
         "TimeStats/TimeStats.cpp",
         "Transform.cpp",
         "DisplayUtils.cpp",
-        "ExSurfaceFlinger/ExSurfaceFlinger.cpp",
-        "ExSurfaceFlinger/ExVirtualDisplaySurface.cpp",
-        "ExSurfaceFlinger/ExBufferLayer.cpp"
     ],
 }
 
@@ -158,6 +153,7 @@ cc_library_shared {
     ],
     cppflags: [
         "-fwhole-program-vtables", // requires ThinLTO
+        "-Wno-unused-parameter",
     ],
     lto: {
         thin: true,
@@ -166,6 +162,46 @@ cc_library_shared {
         lineage: {
             apply_msm8974_1440p_egl_workaround: {
                 cflags: ["-DALLOW_TOO_LARGE_DIMENSIONS"],
+            },
+            uses_qcom_um_family: {
+                cflags: ["-DQCOM_UM_FAMILY"],
+                srcs: [
+                    "ExSurfaceFlinger/ExSurfaceFlinger.cpp",
+                    "ExSurfaceFlinger/ExVirtualDisplaySurface.cpp",
+                    "ExSurfaceFlinger/ExBufferLayer.cpp"
+                ],
+            },
+            uses_qcom_um_3_18_family: {
+                header_libs: [
+                    "//hardware/qcom/display-caf/msm8996:display_intf_headers",
+                ],
+                shared_libs: [
+                    "//hardware/qcom/display-caf/msm8996:libqdMetaData.system",
+                ],
+            },
+            uses_qcom_um_4_4_family: {
+                header_libs: [
+                    "//hardware/qcom/display-caf/msm8998:display_intf_headers",
+                ],
+                shared_libs: [
+                    "//hardware/qcom/display-caf/msm8998:libqdMetaData.system",
+                ],
+            },
+            uses_qcom_um_4_9_family: {
+                header_libs: [
+                    "//hardware/qcom/display-caf/sdm845:display_intf_headers",
+                ],
+                shared_libs: [
+                    "//hardware/qcom/display-caf/sdm845:libqdMetaData.system",
+                ],
+            },
+            uses_qcom_um_4_14_family: {
+                header_libs: [
+                    "//hardware/qcom/display-caf/sm8150:display_intf_headers",
+                ],
+                shared_libs: [
+                    "//hardware/qcom/display-caf/sm8150:libqdMetaData.system",
+                ],
             },
         },
     },
