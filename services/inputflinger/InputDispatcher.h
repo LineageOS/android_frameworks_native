@@ -33,9 +33,10 @@
 #include <cutils/atomic.h>
 #include <unordered_map>
 
+#include <limits.h>
 #include <stddef.h>
 #include <unistd.h>
-#include <limits.h>
+#include <deque>
 #include <unordered_map>
 
 #include "InputListener.h"
@@ -592,7 +593,7 @@ private:
     };
 
     // Tracks the progress of dispatching a particular event to a particular connection.
-    struct DispatchEntry : Link<DispatchEntry> {
+    struct DispatchEntry {
         const uint32_t seq; // unique sequence number, never 0
 
         EventEntry* eventEntry; // the event to dispatch
@@ -886,11 +887,11 @@ private:
         bool inputPublisherBlocked;
 
         // Queue of events that need to be published to the connection.
-        Queue<DispatchEntry> outboundQueue;
+        std::deque<DispatchEntry*> outboundQueue;
 
         // Queue of events that have been published to the connection but that have not
         // yet received a "finished" response from the application.
-        Queue<DispatchEntry> waitQueue;
+        std::deque<DispatchEntry*> waitQueue;
 
         explicit Connection(const sp<InputChannel>& inputChannel, bool monitor);
 
@@ -899,7 +900,7 @@ private:
         const std::string getWindowName() const;
         const char* getStatusLabel() const;
 
-        DispatchEntry* findWaitQueueEntry(uint32_t seq);
+        std::deque<DispatchEntry*>::iterator findWaitQueueEntry(uint32_t seq);
     };
 
     struct Monitor {
@@ -1221,7 +1222,7 @@ private:
             uint32_t seq, bool handled) REQUIRES(mLock);
     void abortBrokenDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection,
             bool notify) REQUIRES(mLock);
-    void drainDispatchQueue(Queue<DispatchEntry>* queue);
+    void drainDispatchQueue(std::deque<DispatchEntry*>& queue);
     void releaseDispatchEntry(DispatchEntry* dispatchEntry);
     static int handleReceiveCallback(int fd, int events, void* data);
     // The action sent should only be of type AMOTION_EVENT_*
