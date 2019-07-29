@@ -853,7 +853,7 @@ private:
     EventEntry* mPendingEvent GUARDED_BY(mLock);
     std::deque<EventEntry*> mInboundQueue GUARDED_BY(mLock);
     std::deque<EventEntry*> mRecentQueue GUARDED_BY(mLock);
-    std::deque<CommandEntry*> mCommandQueue GUARDED_BY(mLock);
+    std::deque<std::unique_ptr<CommandEntry>> mCommandQueue GUARDED_BY(mLock);
 
     DropReason mLastDropReason GUARDED_BY(mLock);
 
@@ -953,7 +953,7 @@ private:
     // Deferred command processing.
     bool haveCommandsLocked() const REQUIRES(mLock);
     bool runCommandsLockedInterruptible() REQUIRES(mLock);
-    CommandEntry* postCommandLocked(Command command) REQUIRES(mLock);
+    void postCommandLocked(std::unique_ptr<CommandEntry> commandEntry) REQUIRES(mLock);
 
     // Input filter processing.
     bool shouldSendKeyToInputFilterLocked(const NotifyKeyArgs* args) REQUIRES(mLock);
