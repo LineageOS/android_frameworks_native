@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "ebd05453_ba96a4ac",
+        "filename": "services/surfaceflinger/DisplayUtils.cpp",
+        "patchSetId": 4
+      },
+      "lineNbr": 60,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2019-07-29T20:45:25Z",
+      "side": 1,
+      "message": "This bool is initialized as false, so we only need to ifdef here.",
+      "range": {
+        "startLine": 60,
+        "startChar": 4,
+        "endLine": 60,
+        "endChar": 21
+      },
+      "revId": "6d27c10d6749afe516721a4b642ef45a424aef2f",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
+    }
+  ]
+}
