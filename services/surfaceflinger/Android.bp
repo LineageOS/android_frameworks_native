@@ -63,7 +63,6 @@ cc_defaults {
     header_libs: [
         "android.hardware.graphics.composer@2.1-command-buffer",
         "android.hardware.graphics.composer@2.2-command-buffer",
-        "display_intf_headers",
     ],
     export_static_lib_headers: [
         "libserviceutils",
@@ -77,6 +76,19 @@ cc_defaults {
         "libhidltransport",
         "libhwbinder",
     ],
+    product_variables: {
+        lineage: {
+            uses_qcom_um_family: {
+                cflags: ["-DQCOM_UM_FAMILY"],
+                header_libs: [
+                    "display_intf_headers",
+                ],
+                shared_libs: [
+                    "libqdMetaData.system",
+                ],
+            },
+        },
+    },
 }
 
 cc_library_headers {
@@ -134,9 +146,6 @@ filegroup {
         "TimeStats/TimeStats.cpp",
         "Transform.cpp",
         "DisplayUtils.cpp",
-        "ExSurfaceFlinger/ExSurfaceFlinger.cpp",
-        "ExSurfaceFlinger/ExVirtualDisplaySurface.cpp",
-        "ExSurfaceFlinger/ExBufferLayer.cpp"
     ],
 }
 
@@ -157,6 +166,7 @@ cc_library_shared {
     ],
     cppflags: [
         "-fwhole-program-vtables", // requires ThinLTO
+        "-Wno-unused-parameter",
     ],
     lto: {
         thin: true,
