@@ -76,6 +76,19 @@ cc_defaults {
         "libhidltransport",
         "libhwbinder",
     ],
+    product_variables: {
+        lineage: {
+            uses_qcom_um_family: {
+                cflags: ["-DQCOM_UM_FAMILY"],
+                header_libs: [
+                    "display_intf_headers",
+                ],
+                shared_libs: [
+                    "libqdMetaData.system",
+                ],
+            },
+        },
+    },
 }
 
 cc_library_headers {
@@ -94,6 +107,7 @@ filegroup {
         "ColorLayer.cpp",
         "ContainerLayer.cpp",
         "DisplayDevice.cpp",
+        "DisplayUtils.cpp",
         "DisplayHardware/ComposerHal.cpp",
         "DisplayHardware/FramebufferSurface.cpp",
         "DisplayHardware/HWC2.cpp",
@@ -132,10 +146,6 @@ filegroup {
         "SurfaceTracing.cpp",
         "TimeStats/TimeStats.cpp",
         "Transform.cpp",
-        "DisplayUtils.cpp",
-        "ExSurfaceFlinger/ExSurfaceFlinger.cpp",
-        "ExSurfaceFlinger/ExVirtualDisplaySurface.cpp",
-        "ExSurfaceFlinger/ExBufferLayer.cpp"
     ],
 }
 
@@ -153,22 +163,13 @@ cc_library_shared {
     include_dirs: [
         "frameworks/native/vulkan/vkjson",
         "frameworks/native/vulkan/include",
-        "hardware/qcom/display/include",
-        "hardware/qcom/display/gralloc",
-        "hardware/qcom/display/libqdutils",
     ],
     cppflags: [
         "-fwhole-program-vtables", // requires ThinLTO
+        "-Wno-unused-parameter",
     ],
     lto: {
         thin: true,
-    },
-    product_variables: {
-        lineage: {
-            apply_msm8974_1440p_egl_workaround: {
-                cflags: ["-DALLOW_TOO_LARGE_DIMENSIONS"],
-            },
-        },
     },
 }
 
@@ -179,10 +180,6 @@ cc_binary {
     srcs: ["main_surfaceflinger.cpp"],
     whole_static_libs: [
         "libsigchain",
-    ],
-    include_dirs: [
-        "hardware/qcom/display/include",
-        "hardware/qcom/display/gralloc",
     ],
     shared_libs: [
         "android.frameworks.displayservice@1.0",

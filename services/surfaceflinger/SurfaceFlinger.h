@@ -326,7 +326,6 @@ public:
     // Obtains a name from the texture pool, or, if the pool is empty, posts a
     // synchronous message to the main thread to obtain one on the fly
     uint32_t getNewTexture();
-
     virtual bool IsHWCDisabled() { return false; }
 
     // utility function to delete a texture on the main thread
