@@ -69,6 +69,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <queue>
 #include <set>
 #include <string>
@@ -962,11 +963,6 @@ private:
     std::unique_ptr<EventThread> mInjectorEventThread;
     std::unique_ptr<InjectVSyncSource> mVSyncInjector;
 
-    // Calculates correct offsets.
-    VSyncModulator mVsyncModulator;
-    // Keeps track of all available phase offsets for different refresh types.
-    const std::unique_ptr<scheduler::PhaseOffsets> mPhaseOffsets;
-
     // Can only accessed from the main thread, these members
     // don't need synchronization
     State mDrawingState{LayerVector::StateSet::Drawing};
@@ -1130,6 +1126,12 @@ private:
     std::unique_ptr<Scheduler> mScheduler;
     sp<Scheduler::ConnectionHandle> mAppConnectionHandle;
     sp<Scheduler::ConnectionHandle> mSfConnectionHandle;
+
+    // Stores phase offsets configured per refresh rate.
+    const std::unique_ptr<scheduler::PhaseOffsets> mPhaseOffsets;
+
+    // Optional to defer construction until scheduler connections are created.
+    std::optional<scheduler::VSyncModulator> mVSyncModulator;
 
     scheduler::RefreshRateConfigs mRefreshRateConfigs;
     scheduler::RefreshRateStats mRefreshRateStats{mRefreshRateConfigs, *mTimeStats};
