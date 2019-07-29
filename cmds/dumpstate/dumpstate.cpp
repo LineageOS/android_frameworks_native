@@ -2608,7 +2608,7 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
         // Dump state for the default case. This also drops root.
         RunStatus s = DumpstateDefault();
         if (s != RunStatus::OK) {
-            if (s == RunStatus::USER_CONSENT_TIMED_OUT) {
+            if (s == RunStatus::USER_CONSENT_DENIED) {
                 HandleUserConsentDenied();
             }
             return s;
