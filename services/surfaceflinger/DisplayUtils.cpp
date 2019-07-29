@@ -38,10 +38,13 @@
 #include <dlfcn.h>
 
 #include "DisplayUtils.h"
+
+#ifdef QCOM_UM_FAMILY
 #include <ExSurfaceFlinger/ExBufferLayer.h>
 #include <ExSurfaceFlinger/ExSurfaceFlinger.h>
 #include <ExSurfaceFlinger/ExVirtualDisplaySurface.h>
 #include <gralloc_priv.h>
+#endif
 
 namespace android {
 
@@ -50,10 +53,12 @@ bool DisplayUtils::sUseExtendedImpls = false;
 bool DisplayUtils::sDirectStreaming = false;
 
 DisplayUtils::DisplayUtils() {
+#ifdef QCOM_UM_FAMILY
     char value[PROPERTY_VALUE_MAX] = {};
     property_get("vendor.display.disable_qti_bsp", value, "0");
     int disable_qti_bsp = atoi(value);
     sUseExtendedImpls = !disable_qti_bsp;
+#endif
 }
 
 DisplayUtils* DisplayUtils::getInstance() {
