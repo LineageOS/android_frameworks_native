@@ -28,8 +28,6 @@
 #include <utils/Log.h>
 #include <utils/Thread.h>
 
-extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
-
 namespace android {
 
 class SurfaceTextureClientTest : public ::testing::Test {
