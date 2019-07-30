@@ -24,6 +24,8 @@
 
 namespace android {
 
+using Increment = surfaceflinger::Increment;
+
 class Event {
   public:
     Event(Increment::IncrementCase);
