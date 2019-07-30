@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "38d2a444_71e955c7",
+        "filename": "services/surfaceflinger/Android.bp",
+        "patchSetId": 4
+      },
+      "lineNbr": 140,
+      "author": {
+        "id": 2681
+      },
+      "writtenOn": "2019-07-30T14:40:10Z",
+      "side": 0,
+      "message": "These should have not been removed",
+      "revId": "b3ebca6d95bef6a99dcf0d82a11f2d8c966632a5",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
+    }
+  ]
+}
