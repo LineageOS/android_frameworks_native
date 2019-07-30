@@ -36,9 +36,9 @@ namespace android::compositionengine {
  * Used by LayerFE::getCompositionState
  */
 struct LayerFECompositionState {
-    // TODO(lpique): b/121291683 Remove this one we are sure we don't need the
-    // value recomputed / set every frame.
-    Region geomVisibleRegion;
+    // If set to true, forces client composition on all output layers until
+    // the next geometry change.
+    bool forceClientComposition{false};
 
     /*
      * Geometry state
@@ -55,6 +55,10 @@ struct LayerFECompositionState {
     Rect geomCrop;
     Region geomActiveTransparentRegion;
     FloatRect geomLayerBounds;
+
+    // TODO(lpique): b/121291683 Remove this one we are sure we don't need the
+    // value recomputed / set every frame.
+    Region geomVisibleRegion;
 
     /*
      * Presentation
@@ -93,11 +97,15 @@ struct LayerFECompositionState {
     sp<NativeHandle> sidebandStream;
 
     // The color for this layer
-    Hwc2::IComposerClient::Color color;
+    half4 color;
 
     /*
      * Per-frame presentation state
      */
+
+    // If true, this layer will use the dataspace chosen for the output and
+    // ignore the dataspace value just below
+    bool isColorspaceAgnostic{false};
 
     // The dataspace for this layer
     ui::Dataspace dataspace{ui::Dataspace::UNKNOWN};
@@ -107,6 +115,7 @@ struct LayerFECompositionState {
 
     // The color transform
     mat4 colorTransform;
+    bool colorTransformIsIdentity{true};
 };
 
 } // namespace android::compositionengine

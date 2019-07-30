@@ -137,13 +137,13 @@ bool BufferQueueLayer::fenceHasSignaled() const {
     return mQueueItems[0].mFenceTime->getSignalTime() != Fence::SIGNAL_TIME_PENDING;
 }
 
-bool BufferQueueLayer::framePresentTimeIsCurrent() const {
+bool BufferQueueLayer::framePresentTimeIsCurrent(nsecs_t expectedPresentTime) const {
     if (!hasFrameUpdate() || isRemovedFromCurrentState()) {
         return true;
     }
 
     Mutex::Autolock lock(mQueueItemLock);
-    return mQueueItems[0].mTimestamp <= mFlinger->getExpectedPresentTime();
+    return mQueueItems[0].mTimestamp <= expectedPresentTime;
 }
 
 nsecs_t BufferQueueLayer::getDesiredPresentTime() {
@@ -196,13 +196,11 @@ PixelFormat BufferQueueLayer::getPixelFormat() const {
     return mFormat;
 }
 
-uint64_t BufferQueueLayer::getFrameNumber() const {
+uint64_t BufferQueueLayer::getFrameNumber(nsecs_t expectedPresentTime) const {
     Mutex::Autolock lock(mQueueItemLock);
     uint64_t frameNumber = mQueueItems[0].mFrameNumber;
 
     // The head of the queue will be dropped if there are signaled and timely frames behind it
-    nsecs_t expectedPresentTime = mFlinger->getExpectedPresentTime();
-
     if (isRemovedFromCurrentState()) {
         expectedPresentTime = 0;
     }
@@ -268,7 +266,8 @@ status_t BufferQueueLayer::bindTextureImage() {
     return mConsumer->bindTextureImage();
 }
 
-status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime) {
+status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime,
+                                          nsecs_t expectedPresentTime) {
     // This boolean is used to make sure that SurfaceFlinger's shadow copy
     // of the buffer queue isn't modified when the buffer queue is returning
     // BufferItem's that weren't actually queued. This can happen in shared
@@ -278,8 +277,6 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
     LayerRejecter r(mDrawingState, getCurrentState(), recomputeVisibleRegions,
                     getProducerStickyTransform() != 0, mName.string(), mOverrideScalingMode,
                     getTransformToDisplayInverse(), mFreezeGeometryUpdates);
-
-    nsecs_t expectedPresentTime = mFlinger->getExpectedPresentTime();
 
     if (isRemovedFromCurrentState()) {
         expectedPresentTime = 0;
@@ -379,7 +376,6 @@ status_t BufferQueueLayer::updateActiveBuffer() {
     mActiveBuffer = mConsumer->getCurrentBuffer(&mActiveBufferSlot, &mActiveBufferFence);
     auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
     layerCompositionState.buffer = mActiveBuffer;
-    layerCompositionState.bufferSlot = mActiveBufferSlot;
 
     if (mActiveBuffer == nullptr) {
         // this can only happen if the very first buffer was rejected.
@@ -399,32 +395,17 @@ status_t BufferQueueLayer::updateFrameNumber(nsecs_t latchTime) {
     return NO_ERROR;
 }
 
-void BufferQueueLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display) {
-    const auto outputLayer = findOutputLayerForDisplay(display);
-    LOG_FATAL_IF(!outputLayer);
-    LOG_FATAL_IF(!outputLayer->getState.hwc);
-    auto& hwcLayer = (*outputLayer->getState().hwc).hwcLayer;
-
-    uint32_t hwcSlot = 0;
-    sp<GraphicBuffer> hwcBuffer;
-
-    // INVALID_BUFFER_SLOT is used to identify BufferStateLayers.  Default to 0
-    // for BufferQueueLayers
-    int slot = (mActiveBufferSlot == BufferQueue::INVALID_BUFFER_SLOT) ? 0 : mActiveBufferSlot;
-    (*outputLayer->editState().hwc)
-            .hwcBufferCache.getHwcBuffer(slot, mActiveBuffer, &hwcSlot, &hwcBuffer);
-
-    auto acquireFence = mConsumer->getCurrentFence();
-    auto error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, acquireFence);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set buffer %p: %s (%d)", mName.string(), mActiveBuffer->handle,
-              to_string(error).c_str(), static_cast<int32_t>(error));
+void BufferQueueLayer::latchPerFrameState(
+        compositionengine::LayerFECompositionState& compositionState) const {
+    BufferLayer::latchPerFrameState(compositionState);
+    if (compositionState.compositionType == Hwc2::IComposerClient::Composition::SIDEBAND) {
+        return;
     }
 
-    auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
-    layerCompositionState.bufferSlot = mActiveBufferSlot;
-    layerCompositionState.buffer = mActiveBuffer;
-    layerCompositionState.acquireFence = acquireFence;
+    compositionState.buffer = mActiveBuffer;
+    compositionState.bufferSlot =
+            (mActiveBufferSlot == BufferQueue::INVALID_BUFFER_SLOT) ? 0 : mActiveBufferSlot;
+    compositionState.acquireFence = mConsumer->getCurrentFence();
 }
 
 // -----------------------------------------------------------------------
@@ -434,7 +415,7 @@ void BufferQueueLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display)
 void BufferQueueLayer::fakeVsync() {
     mRefreshPending = false;
     bool ignored = false;
-    latchBuffer(ignored, systemTime());
+    latchBuffer(ignored, systemTime(), 0 /* expectedPresentTime */);
     usleep(16000);
     releasePendingBuffer(systemTime());
 }

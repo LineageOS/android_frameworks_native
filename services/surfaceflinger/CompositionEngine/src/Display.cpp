@@ -74,9 +74,14 @@ void Display::setColorTransform(const mat4& transform) {
 }
 
 void Display::setColorMode(ui::ColorMode mode, ui::Dataspace dataspace,
-                           ui::RenderIntent renderIntent) {
+                           ui::RenderIntent renderIntent,
+                           ui::Dataspace colorSpaceAgnosticDataspace) {
+    ui::Dataspace targetDataspace =
+            getDisplayColorProfile()->getTargetDataspace(mode, dataspace,
+                                                         colorSpaceAgnosticDataspace);
+
     if (mode == getState().colorMode && dataspace == getState().dataspace &&
-        renderIntent == getState().renderIntent) {
+        renderIntent == getState().renderIntent && targetDataspace == getState().targetDataspace) {
         return;
     }
 
@@ -85,7 +90,7 @@ void Display::setColorMode(ui::ColorMode mode, ui::Dataspace dataspace,
         return;
     }
 
-    Output::setColorMode(mode, dataspace, renderIntent);
+    Output::setColorMode(mode, dataspace, renderIntent, colorSpaceAgnosticDataspace);
 
     auto& hwc = getCompositionEngine().getHwComposer();
     hwc.setActiveColorMode(*mId, mode, renderIntent);

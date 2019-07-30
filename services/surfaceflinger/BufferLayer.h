@@ -82,10 +82,6 @@ public:
 
     bool isHdrY410() const override;
 
-    void setPerFrameData(const sp<const DisplayDevice>& display, const ui::Transform& transform,
-                         const Rect& viewport, int32_t supportedPerFrameMetadata,
-                         const ui::Dataspace targetDataspace) override;
-
     bool onPreComposition(nsecs_t refreshStartTime) override;
     bool onPostComposition(const std::optional<DisplayId>& displayId,
                            const std::shared_ptr<FenceTime>& glDoneFence,
@@ -96,11 +92,12 @@ public:
     // the visible regions need to be recomputed (this is a fairly heavy
     // operation, so this should be set only if needed). Typically this is used
     // to figure out if the content or size of a surface has changed.
-    bool latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) override;
+    bool latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
+                     nsecs_t expectedPresentTime) override;
 
     bool isBufferLatched() const override { return mRefreshPending; }
 
-    void notifyAvailableFrames() override;
+    void notifyAvailableFrames(nsecs_t expectedPresentTime) override;
 
     bool hasReadyFrame() const override;
 
@@ -114,7 +111,7 @@ public:
     // -----------------------------------------------------------------------
 private:
     virtual bool fenceHasSignaled() const = 0;
-    virtual bool framePresentTimeIsCurrent() const = 0;
+    virtual bool framePresentTimeIsCurrent(nsecs_t expectedPresentTime) const = 0;
 
     virtual nsecs_t getDesiredPresentTime() = 0;
     virtual std::shared_ptr<FenceTime> getCurrentFenceTime() const = 0;
@@ -129,7 +126,7 @@ private:
     virtual int getDrawingApi() const = 0;
     virtual PixelFormat getPixelFormat() const = 0;
 
-    virtual uint64_t getFrameNumber() const = 0;
+    virtual uint64_t getFrameNumber(nsecs_t expectedPresentTime) const = 0;
 
     virtual bool getAutoRefresh() const = 0;
     virtual bool getSidebandStreamChanged() const = 0;
@@ -142,21 +139,22 @@ private:
     virtual void setFilteringEnabled(bool enabled) = 0;
 
     virtual status_t bindTextureImage() = 0;
-    virtual status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime) = 0;
+    virtual status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime,
+                                    nsecs_t expectedPresentTime) = 0;
 
     virtual status_t updateActiveBuffer() = 0;
     virtual status_t updateFrameNumber(nsecs_t latchTime) = 0;
 
-    virtual void setHwcLayerBuffer(const sp<const DisplayDevice>& displayDevice) = 0;
-
 protected:
+    void latchPerFrameState(compositionengine::LayerFECompositionState& outState) const override;
+
     // Loads the corresponding system property once per process
     static bool latchUnsignaledBuffers();
 
     // Check all of the local sync points to ensure that all transactions
     // which need to have been applied prior to the frame which is about to
     // be latched have signaled
-    bool allTransactionsSignaled();
+    bool allTransactionsSignaled(nsecs_t expectedPresentTime);
 
     static bool getOpacityForFormat(uint32_t format);
 
@@ -175,7 +173,7 @@ private:
     // Returns true if this layer requires filtering
     bool needsFiltering(const sp<const DisplayDevice>& displayDevice) const;
 
-    uint64_t getHeadFrameNumber() const;
+    uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const;
 
     uint32_t mCurrentScalingMode{NATIVE_WINDOW_SCALING_MODE_FREEZE};
 

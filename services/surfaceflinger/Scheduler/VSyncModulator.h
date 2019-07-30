@@ -16,12 +16,11 @@
 
 #pragma once
 
-#include <cinttypes>
 #include <mutex>
 
 #include "Scheduler.h"
 
-namespace android {
+namespace android::scheduler {
 
 /*
  * Modulates the vsync-offsets depending on current SurfaceFlinger state.
@@ -31,51 +30,36 @@ private:
     // Number of frames we'll keep the early phase offsets once they are activated for a
     // transaction. This acts as a low-pass filter in case the client isn't quick enough in
     // sending new transactions.
-    const int MIN_EARLY_FRAME_COUNT_TRANSACTION = 2;
+    static constexpr int MIN_EARLY_FRAME_COUNT_TRANSACTION = 2;
 
     // Number of frames we'll keep the early gl phase offsets once they are activated.
     // This acts as a low-pass filter to avoid scenarios where we rapidly
     // switch in and out of gl composition.
-    const int MIN_EARLY_GL_FRAME_COUNT_TRANSACTION = 2;
+    static constexpr int MIN_EARLY_GL_FRAME_COUNT_TRANSACTION = 2;
+
+    using RefreshRateType = RefreshRateConfigs::RefreshRateType;
 
 public:
-    VSyncModulator();
-
     // Wrapper for a collection of surfaceflinger/app offsets for a particular
-    // configuration .
+    // configuration.
     struct Offsets {
-        scheduler::RefreshRateConfigs::RefreshRateType fpsMode;
+        RefreshRateType fpsMode;
         nsecs_t sf;
         nsecs_t app;
     };
 
-    enum class OffsetType {
-        Early,
-        EarlyGl,
-        Late,
+    struct OffsetsConfig {
+        Offsets early;   // For transactions with the eEarlyWakeup flag.
+        Offsets earlyGl; // As above but while compositing with GL.
+        Offsets late;    // Default.
+
+        nsecs_t thresholdForNextVsync;
     };
 
-    // Sets the phase offsets
-    //
-    // sfEarly: The phase offset when waking up SF early, which happens when marking a transaction
-    //          as early. May be the same as late, in which case we don't shift offsets.
-    // sfEarlyGl: Like sfEarly, but only if we used GL composition. If we use both GL composition
-    //            and the transaction was marked as early, we'll use sfEarly.
-    // sfLate: The regular SF vsync phase offset.
-    // appEarly: Like sfEarly, but for the app-vsync
-    // appEarlyGl: Like sfEarlyGl, but for the app-vsync.
-    // appLate: The regular app vsync phase offset.
-    void setPhaseOffsets(Offsets early, Offsets earlyGl, Offsets late,
-                         nsecs_t thresholdForNextVsync) EXCLUDES(mMutex);
+    VSyncModulator(Scheduler&, const sp<Scheduler::ConnectionHandle>& appConnectionHandle,
+                   const sp<Scheduler::ConnectionHandle>& sfConnectionHandle, const OffsetsConfig&);
 
-    // Sets the scheduler and vsync connection handlers.
-    void setSchedulerAndHandles(Scheduler* scheduler,
-                                Scheduler::ConnectionHandle* appConnectionHandle,
-                                Scheduler::ConnectionHandle* sfConnectionHandle) {
-        mScheduler = scheduler;
-        mAppConnectionHandle = appConnectionHandle;
-        mSfConnectionHandle = sfConnectionHandle;
-    }
+    void setPhaseOffsets(const OffsetsConfig&) EXCLUDES(mMutex);
 
     // Signals that a transaction has started, and changes offsets accordingly.
     void setTransactionStart(Scheduler::TransactionStart transactionStart);
@@ -98,28 +82,23 @@ public:
     void onRefreshed(bool usedRenderEngine);
 
     // Returns the offsets that we are currently using
-    Offsets getOffsets() EXCLUDES(mMutex);
+    Offsets getOffsets() const EXCLUDES(mMutex);
 
 private:
     // Returns the next offsets that we should be using
-    Offsets getNextOffsets() REQUIRES(mMutex);
-    // Returns the next offset type that we should use.
-    OffsetType getNextOffsetType();
+    const Offsets& getNextOffsets() const REQUIRES(mMutex);
     // Updates offsets and persists them into the scheduler framework.
     void updateOffsets() EXCLUDES(mMutex);
     void updateOffsetsLocked() REQUIRES(mMutex);
-    // Updates the internal offsets and offset type.
-    void flushOffsets() REQUIRES(mMutex);
+
+    Scheduler& mScheduler;
+    const sp<Scheduler::ConnectionHandle> mAppConnectionHandle;
+    const sp<Scheduler::ConnectionHandle> mSfConnectionHandle;
 
     mutable std::mutex mMutex;
-    std::unordered_map<OffsetType, Offsets> mOffsetMap GUARDED_BY(mMutex);
-    nsecs_t mThresholdForNextVsync;
+    OffsetsConfig mOffsetsConfig GUARDED_BY(mMutex);
 
-    Scheduler* mScheduler = nullptr;
-    Scheduler::ConnectionHandle* mAppConnectionHandle = nullptr;
-    Scheduler::ConnectionHandle* mSfConnectionHandle = nullptr;
-
-    Offsets mOffsets GUARDED_BY(mMutex) = {Scheduler::RefreshRateType::DEFAULT, 0, 0};
+    Offsets mOffsets GUARDED_BY(mMutex){mOffsetsConfig.late};
 
     std::atomic<Scheduler::TransactionStart> mTransactionStart =
             Scheduler::TransactionStart::NORMAL;
@@ -130,4 +109,4 @@ private:
     bool mTraceDetailedInfo = false;
 };
 
-} // namespace android
+} // namespace android::scheduler

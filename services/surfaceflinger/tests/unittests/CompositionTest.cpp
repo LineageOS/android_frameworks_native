@@ -502,7 +502,7 @@ struct BaseLayerProperties {
 
         EXPECT_CALL(*test->mRenderEngine, useNativeFenceSync()).WillRepeatedly(Return(true));
         bool ignoredRecomputeVisibleRegions;
-        layer->latchBuffer(ignoredRecomputeVisibleRegions, 0);
+        layer->latchBuffer(ignoredRecomputeVisibleRegions, 0, 0);
         Mock::VerifyAndClear(test->mRenderEngine);
     }
 
@@ -988,7 +988,9 @@ struct RECompositionResultVariant : public CompositionResultBaseVariant {
 
 struct ForcedClientCompositionResultVariant : public RECompositionResultVariant {
     static void setupLayerState(CompositionTest* test, sp<Layer> layer) {
-        layer->forceClientComposition(test->mDisplay);
+        const auto outputLayer = layer->findOutputLayerForDisplay(test->mDisplay);
+        LOG_FATAL_IF(!outputLayer);
+        outputLayer->editState().forceClientComposition = true;
     }
 
     template <typename Case>

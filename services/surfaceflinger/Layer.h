@@ -469,23 +469,13 @@ public:
 
 protected:
     void latchGeometry(compositionengine::LayerFECompositionState& outState) const;
+    virtual void latchPerFrameState(compositionengine::LayerFECompositionState& outState) const;
 
 public:
     virtual void setDefaultBufferSize(uint32_t /*w*/, uint32_t /*h*/) {}
 
     virtual bool isHdrY410() const { return false; }
 
-    void forceClientComposition(const sp<DisplayDevice>& display);
-    bool getForceClientComposition(const sp<DisplayDevice>& display);
-    virtual void setPerFrameData(const sp<const DisplayDevice>& display,
-                                 const ui::Transform& transform, const Rect& viewport,
-                                 int32_t supportedPerFrameMetadata,
-                                 const ui::Dataspace targetDataspace) = 0;
-
-    // callIntoHwc exists so we can update our local state and call
-    // acceptDisplayChanges without unnecessarily updating the device's state
-    void setCompositionType(const sp<const DisplayDevice>& display,
-                            Hwc2::IComposerClient::Composition type);
     Hwc2::IComposerClient::Composition getCompositionType(
             const sp<const DisplayDevice>& display) const;
     bool getClearClientTarget(const sp<const DisplayDevice>& display) const;
@@ -561,8 +551,9 @@ public:
      * operation, so this should be set only if needed). Typically this is used
      * to figure out if the content or size of a surface has changed.
      */
-    virtual bool latchBuffer(bool& /*recomputeVisibleRegions*/, nsecs_t /*latchTime*/) {
-        return {};
+    virtual bool latchBuffer(bool& /*recomputeVisibleRegions*/, nsecs_t /*latchTime*/,
+                             nsecs_t /*expectedPresentTime*/) {
+        return false;
     }
 
     virtual bool isBufferLatched() const { return false; }
@@ -607,10 +598,6 @@ public:
     virtual int32_t getQueuedFrameCount() const { return 0; }
 
     // -----------------------------------------------------------------------
-
-    bool hasHwcLayer(const sp<const DisplayDevice>& displayDevice);
-    HWC2::Layer* getHwcLayer(const sp<const DisplayDevice>& displayDevice);
-
     inline const State& getDrawingState() const { return mDrawingState; }
     inline const State& getCurrentState() const { return mCurrentState; }
     inline State& getCurrentState() { return mCurrentState; }
@@ -812,7 +799,7 @@ public:
     // this to be called once.
     sp<IBinder> getHandle();
     const String8& getName() const;
-    virtual void notifyAvailableFrames() {}
+    virtual void notifyAvailableFrames(nsecs_t /*expectedPresentTime*/) {}
     virtual PixelFormat getPixelFormat() const { return PIXEL_FORMAT_NONE; }
     bool getPremultipledAlpha() const;
 

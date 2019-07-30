@@ -24,25 +24,24 @@
 #include <cinttypes>
 #include <mutex>
 
-namespace android {
+namespace android::scheduler {
 
-using RefreshRateType = scheduler::RefreshRateConfigs::RefreshRateType;
-VSyncModulator::VSyncModulator() {
+VSyncModulator::VSyncModulator(Scheduler& scheduler,
+                               const sp<Scheduler::ConnectionHandle>& appConnectionHandle,
+                               const sp<Scheduler::ConnectionHandle>& sfConnectionHandle,
+                               const OffsetsConfig& config)
+      : mScheduler(scheduler),
+        mAppConnectionHandle(appConnectionHandle),
+        mSfConnectionHandle(sfConnectionHandle),
+        mOffsetsConfig(config) {
     char value[PROPERTY_VALUE_MAX];
     property_get("debug.sf.vsync_trace_detailed_info", value, "0");
     mTraceDetailedInfo = atoi(value);
-    // Populate the offset map with some default offsets.
-    const Offsets defaultOffsets = {RefreshRateType::DEFAULT, 0, 0};
-    setPhaseOffsets(defaultOffsets, defaultOffsets, defaultOffsets, 0);
 }
 
-void VSyncModulator::setPhaseOffsets(Offsets early, Offsets earlyGl, Offsets late,
-                                     nsecs_t thresholdForNextVsync) {
+void VSyncModulator::setPhaseOffsets(const OffsetsConfig& config) {
     std::lock_guard<std::mutex> lock(mMutex);
-    mOffsetMap.insert_or_assign(OffsetType::Early, early);
-    mOffsetMap.insert_or_assign(OffsetType::EarlyGl, earlyGl);
-    mOffsetMap.insert_or_assign(OffsetType::Late, late);
-    mThresholdForNextVsync = thresholdForNextVsync;
+    mOffsetsConfig = config;
     updateOffsetsLocked();
 }
 
@@ -100,25 +99,21 @@ void VSyncModulator::onRefreshed(bool usedRenderEngine) {
     }
 }
 
-VSyncModulator::Offsets VSyncModulator::getOffsets() {
+VSyncModulator::Offsets VSyncModulator::getOffsets() const {
     std::lock_guard<std::mutex> lock(mMutex);
     return mOffsets;
 }
 
-VSyncModulator::Offsets VSyncModulator::getNextOffsets() {
-    return mOffsetMap.at(getNextOffsetType());
-}
-
-VSyncModulator::OffsetType VSyncModulator::getNextOffsetType() {
+const VSyncModulator::Offsets& VSyncModulator::getNextOffsets() const {
     // Early offsets are used if we're in the middle of a refresh rate
     // change, or if we recently begin a transaction.
     if (mTransactionStart == Scheduler::TransactionStart::EARLY || mRemainingEarlyFrameCount > 0 ||
         mRefreshRateChangePending) {
-        return OffsetType::Early;
+        return mOffsetsConfig.early;
     } else if (mRemainingRenderEngineUsageCount > 0) {
-        return OffsetType::EarlyGl;
+        return mOffsetsConfig.earlyGl;
     } else {
-        return OffsetType::Late;
+        return mOffsetsConfig.late;
     }
 }
 
@@ -128,37 +123,29 @@ void VSyncModulator::updateOffsets() {
 }
 
 void VSyncModulator::updateOffsetsLocked() {
-    const Offsets desired = getNextOffsets();
+    const Offsets& offsets = getNextOffsets();
 
-    if (mSfConnectionHandle != nullptr) {
-        mScheduler->setPhaseOffset(mSfConnectionHandle, desired.sf);
-    }
+    mScheduler.setPhaseOffset(mSfConnectionHandle, offsets.sf);
+    mScheduler.setPhaseOffset(mAppConnectionHandle, offsets.app);
 
-    if (mAppConnectionHandle != nullptr) {
-        mScheduler->setPhaseOffset(mAppConnectionHandle, desired.app);
-    }
+    mOffsets = offsets;
 
-    flushOffsets();
-}
-
-void VSyncModulator::flushOffsets() {
-    OffsetType type = getNextOffsetType();
-    mOffsets = mOffsetMap.at(type);
     if (!mTraceDetailedInfo) {
         return;
     }
-    ATRACE_INT("Vsync-EarlyOffsetsOn",
-               mOffsets.fpsMode == RefreshRateType::DEFAULT && type == OffsetType::Early);
-    ATRACE_INT("Vsync-EarlyGLOffsetsOn",
-               mOffsets.fpsMode == RefreshRateType::DEFAULT && type == OffsetType::EarlyGl);
-    ATRACE_INT("Vsync-LateOffsetsOn",
-               mOffsets.fpsMode == RefreshRateType::DEFAULT && type == OffsetType::Late);
-    ATRACE_INT("Vsync-HighFpsEarlyOffsetsOn",
-               mOffsets.fpsMode == RefreshRateType::PERFORMANCE && type == OffsetType::Early);
-    ATRACE_INT("Vsync-HighFpsEarlyGLOffsetsOn",
-               mOffsets.fpsMode == RefreshRateType::PERFORMANCE && type == OffsetType::EarlyGl);
-    ATRACE_INT("Vsync-HighFpsLateOffsetsOn",
-               mOffsets.fpsMode == RefreshRateType::PERFORMANCE && type == OffsetType::Late);
+
+    const bool isDefault = mOffsets.fpsMode == RefreshRateType::DEFAULT;
+    const bool isPerformance = mOffsets.fpsMode == RefreshRateType::PERFORMANCE;
+    const bool isEarly = &offsets == &mOffsetsConfig.early;
+    const bool isEarlyGl = &offsets == &mOffsetsConfig.earlyGl;
+    const bool isLate = &offsets == &mOffsetsConfig.late;
+
+    ATRACE_INT("Vsync-EarlyOffsetsOn", isDefault && isEarly);
+    ATRACE_INT("Vsync-EarlyGLOffsetsOn", isDefault && isEarlyGl);
+    ATRACE_INT("Vsync-LateOffsetsOn", isDefault && isLate);
+    ATRACE_INT("Vsync-HighFpsEarlyOffsetsOn", isPerformance && isEarly);
+    ATRACE_INT("Vsync-HighFpsEarlyGLOffsetsOn", isPerformance && isEarlyGl);
+    ATRACE_INT("Vsync-HighFpsLateOffsetsOn", isPerformance && isLate);
 }
 
-} // namespace android
+} // namespace android::scheduler

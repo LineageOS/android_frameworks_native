@@ -22,6 +22,7 @@
 #include <compositionengine/RenderSurfaceCreationArgs.h>
 #include <compositionengine/impl/Display.h>
 #include <compositionengine/mock/CompositionEngine.h>
+#include <compositionengine/mock/DisplayColorProfile.h>
 #include <compositionengine/mock/NativeWindow.h>
 #include <compositionengine/mock/RenderSurface.h>
 #include <gtest/gtest.h>
@@ -31,6 +32,7 @@
 namespace android::compositionengine {
 namespace {
 
+using testing::_;
 using testing::Return;
 using testing::ReturnRef;
 using testing::StrictMock;
@@ -140,21 +142,27 @@ TEST_F(DisplayTest, setColorTransformSetsTransform) {
 TEST_F(DisplayTest, setColorModeSetsModeUnlessNoChange) {
     mock::RenderSurface* renderSurface = new StrictMock<mock::RenderSurface>();
     mDisplay.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(renderSurface));
+    mock::DisplayColorProfile* colorProfile = new StrictMock<mock::DisplayColorProfile>();
+    mDisplay.setDisplayColorProfileForTest(std::unique_ptr<DisplayColorProfile>(colorProfile));
 
     EXPECT_CALL(mCompositionEngine, getHwComposer()).WillRepeatedly(ReturnRef(mHwComposer));
+    EXPECT_CALL(*colorProfile, getTargetDataspace(_, _, _))
+            .WillRepeatedly(Return(ui::Dataspace::UNKNOWN));
 
     // These values are expected to be the initial state.
     ASSERT_EQ(ui::ColorMode::NATIVE, mDisplay.getState().colorMode);
     ASSERT_EQ(ui::Dataspace::UNKNOWN, mDisplay.getState().dataspace);
     ASSERT_EQ(ui::RenderIntent::COLORIMETRIC, mDisplay.getState().renderIntent);
+    ASSERT_EQ(ui::Dataspace::UNKNOWN, mDisplay.getState().targetDataspace);
 
-    // Otherwise if the values are unchanged, nothing happens
+    // If the set values are unchanged, nothing happens
     mDisplay.setColorMode(ui::ColorMode::NATIVE, ui::Dataspace::UNKNOWN,
-                          ui::RenderIntent::COLORIMETRIC);
+                          ui::RenderIntent::COLORIMETRIC, ui::Dataspace::UNKNOWN);
 
     EXPECT_EQ(ui::ColorMode::NATIVE, mDisplay.getState().colorMode);
     EXPECT_EQ(ui::Dataspace::UNKNOWN, mDisplay.getState().dataspace);
     EXPECT_EQ(ui::RenderIntent::COLORIMETRIC, mDisplay.getState().renderIntent);
+    EXPECT_EQ(ui::Dataspace::UNKNOWN, mDisplay.getState().targetDataspace);
 
     // Otherwise if the values are different, updates happen
     EXPECT_CALL(*renderSurface, setBufferDataspace(ui::Dataspace::DISPLAY_P3)).Times(1);
@@ -164,23 +172,34 @@ TEST_F(DisplayTest, setColorModeSetsModeUnlessNoChange) {
             .Times(1);
 
     mDisplay.setColorMode(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
-                          ui::RenderIntent::TONE_MAP_COLORIMETRIC);
+                          ui::RenderIntent::TONE_MAP_COLORIMETRIC, ui::Dataspace::UNKNOWN);
 
     EXPECT_EQ(ui::ColorMode::DISPLAY_P3, mDisplay.getState().colorMode);
     EXPECT_EQ(ui::Dataspace::DISPLAY_P3, mDisplay.getState().dataspace);
     EXPECT_EQ(ui::RenderIntent::TONE_MAP_COLORIMETRIC, mDisplay.getState().renderIntent);
+    EXPECT_EQ(ui::Dataspace::UNKNOWN, mDisplay.getState().targetDataspace);
 }
 
 TEST_F(DisplayTest, setColorModeDoesNothingForVirtualDisplay) {
     impl::Display virtualDisplay{mCompositionEngine,
                                  DisplayCreationArgs{false, true, DEFAULT_DISPLAY_ID}};
 
+    mock::DisplayColorProfile* colorProfile = new StrictMock<mock::DisplayColorProfile>();
+    virtualDisplay.setDisplayColorProfileForTest(
+            std::unique_ptr<DisplayColorProfile>(colorProfile));
+
+    EXPECT_CALL(*colorProfile,
+                getTargetDataspace(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
+                                   ui::Dataspace::UNKNOWN))
+            .WillOnce(Return(ui::Dataspace::UNKNOWN));
+
     virtualDisplay.setColorMode(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
-                                ui::RenderIntent::TONE_MAP_COLORIMETRIC);
+                                ui::RenderIntent::TONE_MAP_COLORIMETRIC, ui::Dataspace::UNKNOWN);
 
     EXPECT_EQ(ui::ColorMode::NATIVE, virtualDisplay.getState().colorMode);
     EXPECT_EQ(ui::Dataspace::UNKNOWN, virtualDisplay.getState().dataspace);
     EXPECT_EQ(ui::RenderIntent::COLORIMETRIC, virtualDisplay.getState().renderIntent);
+    EXPECT_EQ(ui::Dataspace::UNKNOWN, mDisplay.getState().targetDataspace);
 }
 
 /* ------------------------------------------------------------------------

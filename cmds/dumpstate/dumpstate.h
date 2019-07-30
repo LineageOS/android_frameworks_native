@@ -341,6 +341,11 @@ class Dumpstate {
     bool IsUserConsentDenied() const;
 
     /*
+     * Returns true if dumpstate is called by bugreporting API
+     */
+    bool CalledByApi() const;
+
+    /*
      * Structure to hold options that determine the behavior of dumpstate.
      */
     struct DumpOptions {
