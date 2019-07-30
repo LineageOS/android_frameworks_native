@@ -469,13 +469,15 @@ public:
 
     inline float getYPrecision() const { return mYPrecision; }
 
-    inline float getRawXCursorPosition() const { return mXCursorPosition; }
+    inline float getRawXCursorPosition() const { return mRawXCursorPosition; }
 
     float getXCursorPosition() const;
 
-    inline float getRawYCursorPosition() const { return mYCursorPosition; }
+    inline float getRawYCursorPosition() const { return mRawYCursorPosition; }
 
     float getYCursorPosition() const;
+
+    void setCursorPosition(float x, float y);
 
     static inline bool isValidCursorPosition(float x, float y) { return !isnan(x) && !isnan(y); }
 
@@ -623,8 +625,8 @@ public:
     void initialize(int32_t deviceId, int32_t source, int32_t displayId, int32_t action,
                     int32_t actionButton, int32_t flags, int32_t edgeFlags, int32_t metaState,
                     int32_t buttonState, MotionClassification classification, float xOffset,
-                    float yOffset, float xPrecision, float yPrecision, float mXCursorPosition,
-                    float mYCursorPosition, nsecs_t downTime, nsecs_t eventTime,
+                    float yOffset, float xPrecision, float yPrecision, float rawXCursorPosition,
+                    float rawYCursorPosition, nsecs_t downTime, nsecs_t eventTime,
                     size_t pointerCount, const PointerProperties* pointerProperties,
                     const PointerCoords* pointerCoords);
 
@@ -676,8 +678,8 @@ protected:
     float mYOffset;
     float mXPrecision;
     float mYPrecision;
-    float mXCursorPosition;
-    float mYCursorPosition;
+    float mRawXCursorPosition;
+    float mRawYCursorPosition;
     nsecs_t mDownTime;
     Vector<PointerProperties> mPointerProperties;
     Vector<nsecs_t> mSampleEventTimes;
