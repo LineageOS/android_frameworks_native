@@ -715,7 +715,7 @@ bool InputDispatcher::runCommandsLockedInterruptible() {
         CommandEntry* commandEntry = mCommandQueue.dequeueAtHead();
 
         Command command = commandEntry->command;
-        (this->*command)(commandEntry); // commands are implicitly 'LockedInterruptible'
+        command(*this, commandEntry); // commands are implicitly 'LockedInterruptible'
 
         commandEntry->connection.clear();
         delete commandEntry;
@@ -809,8 +809,8 @@ bool InputDispatcher::dispatchConfigurationChangedLocked(
     resetKeyRepeatLocked();
 
     // Enqueue a command to run outside the lock to tell the policy that the configuration changed.
-    CommandEntry* commandEntry = postCommandLocked(
-            & InputDispatcher::doNotifyConfigurationChangedLockedInterruptible);
+    CommandEntry* commandEntry =
+            postCommandLocked(&InputDispatcher::doNotifyConfigurationChangedLockedInterruptible);
     commandEntry->eventTime = entry->eventTime;
     return true;
 }
@@ -884,7 +884,7 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
     if (entry->interceptKeyResult == KeyEntry::INTERCEPT_KEY_RESULT_UNKNOWN) {
         if (entry->policyFlags & POLICY_FLAG_PASS_TO_USER) {
             CommandEntry* commandEntry = postCommandLocked(
-                    & InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible);
+                    &InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible);
             sp<InputWindowHandle> focusedWindowHandle =
                     getValueByKey(mFocusedWindowHandlesByDisplay, getTargetDisplayId(entry));
             if (focusedWindowHandle != nullptr) {
@@ -1982,8 +1982,8 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry* eventEntry) {
     }
     }
 
-    CommandEntry* commandEntry = postCommandLocked(
-            & InputDispatcher::doPokeUserActivityLockedInterruptible);
+    CommandEntry* commandEntry =
+            postCommandLocked(&InputDispatcher::doPokeUserActivityLockedInterruptible);
     commandEntry->eventTime = eventEntry->eventTime;
     commandEntry->userActivityEventType = eventType;
 }
@@ -2200,8 +2200,8 @@ void InputDispatcher::dispatchPointerDownOutsideFocus(uint32_t source, int32_t a
         return;
     }
 
-    CommandEntry* commandEntry = postCommandLocked(
-            & InputDispatcher::doOnPointerDownOutsideFocusLockedInterruptible);
+    CommandEntry* commandEntry =
+            postCommandLocked(&InputDispatcher::doOnPointerDownOutsideFocusLockedInterruptible);
     commandEntry->newToken = newToken;
 }
 
@@ -4087,8 +4087,8 @@ ssize_t InputDispatcher::getConnectionIndexLocked(const sp<InputChannel>& inputC
 
 void InputDispatcher::onDispatchCycleFinishedLocked(
         nsecs_t currentTime, const sp<Connection>& connection, uint32_t seq, bool handled) {
-    CommandEntry* commandEntry = postCommandLocked(
-            & InputDispatcher::doDispatchCycleFinishedLockedInterruptible);
+    CommandEntry* commandEntry =
+            postCommandLocked(&InputDispatcher::doDispatchCycleFinishedLockedInterruptible);
     commandEntry->connection = connection;
     commandEntry->eventTime = currentTime;
     commandEntry->seq = seq;
@@ -4100,8 +4100,8 @@ void InputDispatcher::onDispatchCycleBrokenLocked(
     ALOGE("channel '%s' ~ Channel is unrecoverably broken and will be disposed!",
             connection->getInputChannelName().c_str());
 
-    CommandEntry* commandEntry = postCommandLocked(
-            & InputDispatcher::doNotifyInputChannelBrokenLockedInterruptible);
+    CommandEntry* commandEntry =
+            postCommandLocked(&InputDispatcher::doNotifyInputChannelBrokenLockedInterruptible);
     commandEntry->connection = connection;
 }
 
@@ -4109,8 +4109,8 @@ void InputDispatcher::onFocusChangedLocked(const sp<InputWindowHandle>& oldFocus
         const sp<InputWindowHandle>& newFocus) {
     sp<IBinder> oldToken = oldFocus != nullptr ? oldFocus->getToken() : nullptr;
     sp<IBinder> newToken = newFocus != nullptr ? newFocus->getToken() : nullptr;
-    CommandEntry* commandEntry = postCommandLocked(
-            & InputDispatcher::doNotifyFocusChangedLockedInterruptible);
+    CommandEntry* commandEntry =
+            postCommandLocked(&InputDispatcher::doNotifyFocusChangedLockedInterruptible);
     commandEntry->oldToken = oldToken;
     commandEntry->newToken = newToken;
 }
@@ -4142,8 +4142,8 @@ void InputDispatcher::onANRLocked(
     mLastANRState += StringPrintf(INDENT2 "Reason: %s\n", reason);
     dumpDispatchStateLocked(mLastANRState);
 
-    CommandEntry* commandEntry = postCommandLocked(
-            & InputDispatcher::doNotifyANRLockedInterruptible);
+    CommandEntry* commandEntry =
+            postCommandLocked(&InputDispatcher::doNotifyANRLockedInterruptible);
     commandEntry->inputApplicationHandle = applicationHandle;
     commandEntry->inputChannel = windowHandle != nullptr ?
             getInputChannelLocked(windowHandle->getToken()) : nullptr;
