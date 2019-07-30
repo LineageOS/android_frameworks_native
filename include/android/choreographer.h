@@ -83,7 +83,7 @@ void AChoreographer_postFrameCallbackDelayed(AChoreographer* choreographer,
  * Power a callback to be run on the next frame.  The data pointer provided will
  * be passed to the callback function when it's called.
  */
-void AChoreographer_postFrameCallback64(AChoreographer* chroreographer,
+void AChoreographer_postFrameCallback64(AChoreographer* choreographer,
                 AChoreographer_frameCallback64 callback, void* data) __INTRODUCED_IN(29);
 
 /**
