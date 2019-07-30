@@ -22,6 +22,30 @@
       "revId": "6d27c10d6749afe516721a4b642ef45a424aef2f",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "3b6fdf07_c70e42f6",
+        "filename": "services/surfaceflinger/DisplayUtils.cpp",
+        "patchSetId": 4
+      },
+      "lineNbr": 60,
+      "author": {
+        "id": 2681
+      },
+      "writtenOn": "2019-07-30T14:32:38Z",
+      "side": 1,
+      "message": "Without if-defing the other blocks, there are compile errors for non-UM devices",
+      "parentUuid": "ebd05453_ba96a4ac",
+      "range": {
+        "startLine": 60,
+        "startChar": 4,
+        "endLine": 60,
+        "endChar": 21
+      },
+      "revId": "6d27c10d6749afe516721a4b642ef45a424aef2f",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
     }
   ]
 }
