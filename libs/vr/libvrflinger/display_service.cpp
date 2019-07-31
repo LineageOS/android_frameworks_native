@@ -44,6 +44,18 @@ DisplayService::DisplayService(Hwc2::Composer* hidl,
            Endpoint::Create(display::DisplayProtocol::kClientPath)) {
     hardware_composer_.Initialize(
         hidl, primary_display_id, request_display_callback);
+
+    uint8_t port;
+    const auto error = hidl->getDisplayIdentificationData(
+        primary_display_id, &port, &display_identification_data_);
+    if (error != android::hardware::graphics::composer::V2_1::Error::NONE) {
+      if (error !=
+          android::hardware::graphics::composer::V2_1::Error::UNSUPPORTED) {
+        ALOGI("DisplayService: identification data error\n");
+      } else {
+        ALOGI("DisplayService: identification data unsupported\n");
+      }
+    }
 }
 
 bool DisplayService::IsInitialized() const {
@@ -204,6 +216,12 @@ pdx::Status<std::string> DisplayService::OnGetConfigurationData(
     case display::ConfigFileType::kDeviceConfiguration:
       property_name = kDvrDeviceConfigProperty;
       break;
+    case display::ConfigFileType::kDeviceEdid:
+      if (display_identification_data_.size() == 0) {
+        return ErrorStatus(ENOENT);
+      }
+      return std::string(display_identification_data_.begin(),
+                         display_identification_data_.end());
     default:
       return ErrorStatus(EINVAL);
   }
