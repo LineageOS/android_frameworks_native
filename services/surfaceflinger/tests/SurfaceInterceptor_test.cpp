@@ -36,6 +36,9 @@
 namespace android {
 
 using Transaction = SurfaceComposerClient::Transaction;
+using SurfaceChange = surfaceflinger::SurfaceChange;
+using Trace = surfaceflinger::Trace;
+using Increment = surfaceflinger::Increment;
 
 constexpr int32_t SCALING_UPDATE = 1;
 constexpr uint32_t BUFFER_UPDATES = 18;
@@ -980,5 +983,4 @@ TEST_F(SurfaceInterceptorTest, InterceptSimultaneousUpdatesWorks) {
     ASSERT_TRUE(bufferUpdatesFound(capturedTrace));
     ASSERT_TRUE(singleIncrementFound(capturedTrace, Increment::IncrementCase::kSurfaceCreation));
 }
-
 }

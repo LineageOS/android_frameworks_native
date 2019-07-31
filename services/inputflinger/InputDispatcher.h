@@ -644,7 +644,7 @@ private:
     //
     // Commands are implicitly 'LockedInterruptible'.
     struct CommandEntry;
-    typedef void (InputDispatcher::*Command)(CommandEntry* commandEntry);
+    typedef std::function<void(InputDispatcher&, CommandEntry*)> Command;
 
     class Connection;
     struct CommandEntry : Link<CommandEntry> {
