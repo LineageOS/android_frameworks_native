@@ -21,11 +21,7 @@
 
 #include <utils/StrongPointer.h>
 
-namespace android {
-
-typedef int64_t nsecs_t;
-
-namespace compositionengine {
+namespace android::compositionengine {
 
 class Display;
 class LayerFE;
@@ -62,5 +58,4 @@ public:
     virtual void dump(std::string& result) const = 0;
 };
 
-} // namespace compositionengine
-} // namespace android
+} // namespace android::compositionengine

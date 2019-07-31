@@ -18,6 +18,8 @@
 
 #include <memory>
 
+#include <utils/Timers.h>
+
 namespace android {
 
 class HWComposer;
@@ -31,6 +33,7 @@ namespace compositionengine {
 class Display;
 class Layer;
 
+struct CompositionRefreshArgs;
 struct DisplayCreationArgs;
 struct LayerCreationArgs;
 
@@ -51,6 +54,12 @@ public:
 
     virtual renderengine::RenderEngine& getRenderEngine() const = 0;
     virtual void setRenderEngine(std::unique_ptr<renderengine::RenderEngine>) = 0;
+
+    virtual bool needsAnotherUpdate() const = 0;
+    virtual nsecs_t getLastFrameRefreshTimestamp() const = 0;
+
+    // TODO(b/121291683): These will become private/internal
+    virtual void preComposition(CompositionRefreshArgs&) = 0;
 };
 
 } // namespace compositionengine

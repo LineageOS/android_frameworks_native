@@ -38,6 +38,7 @@
 #include <binder/PermissionCache.h>
 
 #include <compositionengine/CompositionEngine.h>
+#include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/Display.h>
 #include <compositionengine/DisplayColorProfile.h>
 #include <compositionengine/Layer.h>
@@ -1776,8 +1777,17 @@ void SurfaceFlinger::handleMessageRefresh() {
 
     mRefreshPending = false;
 
+    compositionengine::CompositionRefreshArgs refreshArgs;
+    for (const auto& [_, display] : mDisplays) {
+        refreshArgs.outputs.push_back(display->getCompositionDisplay());
+    }
+    mDrawingState.traverseInZOrder([&refreshArgs](Layer* layer) {
+        auto compositionLayer = layer->getCompositionLayer();
+        if (compositionLayer) refreshArgs.layers.push_back(compositionLayer);
+    });
+
     const bool repaintEverything = mRepaintEverything.exchange(false);
-    preComposition();
+    mCompositionEngine->preComposition(refreshArgs);
     rebuildLayerStacks();
     calculateWorkingSet();
     for (const auto& [token, display] : mDisplays) {
@@ -1811,6 +1821,10 @@ void SurfaceFlinger::handleMessageRefresh() {
         if (mTracingEnabled) {
             mTracing.notify("visibleRegionsDirty");
         }
+    }
+
+    if (mCompositionEngine->needsAnotherUpdate()) {
+        signalLayerUpdate();
     }
 }
 
@@ -1957,30 +1971,6 @@ void SurfaceFlinger::logLayerStats() {
     }
 }
 
-void SurfaceFlinger::preComposition()
-{
-    ATRACE_CALL();
-    ALOGV("preComposition");
-
-    mRefreshStartTime = systemTime(SYSTEM_TIME_MONOTONIC);
-
-    bool needExtraInvalidate = false;
-    mDrawingState.traverseInZOrder([&](Layer* layer) {
-        auto compositionLayer = layer->getCompositionLayer();
-        if (compositionLayer) {
-            auto layerFE = compositionLayer->getLayerFE();
-
-            if (layerFE && layerFE->onPreComposition(mRefreshStartTime)) {
-                needExtraInvalidate = true;
-            }
-        }
-    });
-
-    if (needExtraInvalidate) {
-        signalLayerUpdate();
-    }
-}
-
 void SurfaceFlinger::updateCompositorTiming(const DisplayStatInfo& stats, nsecs_t compositeTime,
                                             std::shared_ptr<FenceTime>& presentFenceTime) {
     // Update queue of past composite+present times and determine the
@@ -2074,10 +2064,11 @@ void SurfaceFlinger::postComposition()
     DisplayStatInfo stats;
     mScheduler->getDisplayStatInfo(&stats);
 
-    // We use the mRefreshStartTime which might be sampled a little later than
-    // when we started doing work for this frame, but that should be okay
-    // since updateCompositorTiming has snapping logic.
-    updateCompositorTiming(stats, mRefreshStartTime, presentFenceTime);
+    // We use the CompositionEngine::getLastFrameRefreshTimestamp() which might
+    // be sampled a little later than when we started doing work for this frame,
+    // but that should be okay since updateCompositorTiming has snapping logic.
+    updateCompositorTiming(stats, mCompositionEngine->getLastFrameRefreshTimestamp(),
+                           presentFenceTime);
     CompositorTiming compositorTiming;
     {
         std::lock_guard<std::mutex> lock(getBE().mCompositorTimingLock);
