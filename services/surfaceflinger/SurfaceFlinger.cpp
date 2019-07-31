@@ -2210,8 +2210,8 @@ void SurfaceFlinger::rebuildLayerStacks() {
             Region opaqueRegion;
             Region dirtyRegion;
             compositionengine::Output::OutputLayers layersSortedByZ;
+            compositionengine::Output::ReleasedLayers releasedLayers;
             Vector<sp<Layer>> deprecated_layersSortedByZ;
-            Vector<sp<Layer>> layersNeedingFences;
             const ui::Transform& tr = displayState.transform;
             const Rect bounds = displayState.bounds;
             if (displayState.isEnabled) {
@@ -2259,16 +2259,16 @@ void SurfaceFlinger::rebuildLayerStacks() {
                                                          layer) != mLayersWithQueuedFrames.cend();
 
                         if (hasExistingOutputLayer && hasQueuedFrames) {
-                            layersNeedingFences.add(layer);
+                            releasedLayers.push_back(layer);
                         }
                     }
                 });
             }
 
             display->setOutputLayersOrderedByZ(std::move(layersSortedByZ));
+            display->setReleasedLayers(std::move(releasedLayers));
 
             displayDevice->setVisibleLayersSortedByZ(deprecated_layersSortedByZ);
-            displayDevice->setLayersNeedingFences(layersNeedingFences);
 
             Region undefinedRegion{bounds};
             undefinedRegion.subtractSelf(tr.transform(opaqueRegion));
@@ -2504,11 +2504,14 @@ void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& displayDevice) {
         // We've got a list of layers needing fences, that are disjoint with
         // display->getVisibleLayersSortedByZ.  The best we can do is to
         // supply them with the present fence.
-        if (!displayDevice->getLayersNeedingFences().isEmpty()) {
+        auto releasedLayers = display->takeReleasedLayers();
+        if (!releasedLayers.empty()) {
             sp<Fence> presentFence =
                     displayId ? getHwComposer().getPresentFence(*displayId) : Fence::NO_FENCE;
-            for (auto& layer : displayDevice->getLayersNeedingFences()) {
-                layer->getCompositionLayer()->getLayerFE()->onLayerDisplayed(presentFence);
+            for (auto& weakLayer : releasedLayers) {
+                if (auto layer = weakLayer.promote(); layer != nullptr) {
+                    layer->onLayerDisplayed(presentFence);
+                }
             }
         }
 
