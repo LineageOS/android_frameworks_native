@@ -14,19 +14,20 @@
  * limitations under the License.
  */
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
-
-#include <fcntl.h>
-#include <libgen.h>
-
 #include <android-base/file.h>
 #include <android/os/BnDumpstate.h>
 #include <android/os/BnDumpstateListener.h>
 #include <binder/IServiceManager.h>
 #include <binder/ProcessState.h>
 #include <cutils/properties.h>
+#include <fcntl.h>
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+#include <libgen.h>
 #include <ziparchive/zip_archive.h>
+
+#include <fstream>
+#include <regex>
 
 #include "dumpstate.h"
 
@@ -44,6 +45,11 @@ class DumpstateListener;
 
 namespace {
 
+struct SectionInfo {
+    std::string name;
+    int32_t size_bytes;
+};
+
 sp<IDumpstate> GetDumpstateService() {
     return android::interface_cast<IDumpstate>(
         android::defaultServiceManager()->getService(String16("dumpstate")));
@@ -55,14 +61,79 @@ int OpenForWrite(const std::string& filename) {
                                    S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH));
 }
 
-}  // namespace
+void GetEntry(const ZipArchiveHandle archive, const std::string_view entry_name, ZipEntry* data) {
+    int32_t e = FindEntry(archive, entry_name, data);
+    EXPECT_EQ(e, 0) << ErrorCodeString(e) << " entry name: " << entry_name;
+}
 
-struct SectionInfo {
-    std::string name;
-    status_t status;
-    int32_t size_bytes;
-    int32_t duration_ms;
-};
+// Extracts the main bugreport txt from the given archive and writes into output_fd.
+void ExtractBugreport(const ZipArchiveHandle* handle, int output_fd) {
+    // Read contents of main_entry.txt which is a single line indicating the name of the zip entry
+    // that contains the main bugreport txt.
+    ZipEntry main_entry;
+    GetEntry(*handle, "main_entry.txt", &main_entry);
+    std::string bugreport_txt_name;
+    bugreport_txt_name.resize(main_entry.uncompressed_length);
+    ExtractToMemory(*handle, &main_entry, reinterpret_cast<uint8_t*>(bugreport_txt_name.data()),
+                    main_entry.uncompressed_length);
+
+    // Read the main bugreport txt and extract to output_fd.
+    ZipEntry entry;
+    GetEntry(*handle, bugreport_txt_name, &entry);
+    ExtractEntryToFile(*handle, &entry, output_fd);
+}
+
+bool IsSectionStart(const std::string& line, std::string* section_name) {
+    static const std::regex kSectionStart = std::regex{"DUMP OF SERVICE (.*):"};
+    std::smatch match;
+    if (std::regex_match(line, match, kSectionStart)) {
+        *section_name = match.str(1);
+        return true;
+    }
+    return false;
+}
+
+bool IsSectionEnd(const std::string& line) {
+    // Not all lines that contain "was the duration of" is a section end, but all section ends do
+    // contain "was the duration of". The disambiguation can be done by the caller.
+    return (line.find("was the duration of") != std::string::npos);
+}
+
+// Extracts the zipped bugreport and identifies the sections.
+void ParseSections(const std::string& zip_path, std::vector<SectionInfo>* sections) {
+    // Open the archive
+    ZipArchiveHandle handle;
+    ASSERT_EQ(OpenArchive(zip_path.c_str(), &handle), 0);
+
+    // Extract the main entry to a temp file
+    TemporaryFile tmp_binary;
+    ASSERT_NE(-1, tmp_binary.fd);
+    ExtractBugreport(&handle, tmp_binary.fd);
+
+    // Read line by line and identify sections
+    std::ifstream ifs(tmp_binary.path, std::ifstream::in);
+    std::string line;
+    int section_bytes = 0;
+    std::string current_section_name;
+    while (std::getline(ifs, line)) {
+        std::string section_name;
+        if (IsSectionStart(line, &section_name)) {
+            section_bytes = 0;
+            current_section_name = section_name;
+        } else if (IsSectionEnd(line)) {
+            if (!current_section_name.empty()) {
+                sections->push_back({current_section_name, section_bytes});
+            }
+            current_section_name = "";
+        } else if (!current_section_name.empty()) {
+            section_bytes += line.length();
+        }
+    }
+
+    CloseArchive(handle);
+}
+
+}  // namespace
 
 /**
  * Listens to bugreport progress and updates the user by writing the progress to STDOUT. All the
@@ -107,11 +178,11 @@ class DumpstateListener : public BnDumpstateListener {
         return binder::Status::ok();
     }
 
-    binder::Status onSectionComplete(const ::std::string& name, int32_t status, int32_t size_bytes,
-                                     int32_t duration_ms) override {
+    binder::Status onSectionComplete(const ::std::string& name, int32_t, int32_t size_bytes,
+                                     int32_t) override {
         std::lock_guard<std::mutex> lock(lock_);
         if (sections_.get() != nullptr) {
-            sections_->push_back({name, status, size_bytes, duration_ms});
+            sections_->push_back({name, size_bytes});
         }
         return binder::Status::ok();
     }
@@ -208,29 +279,30 @@ class ZippedBugReportContentsTest : public Test {
 
     void FileExists(const char* filename, uint32_t minsize, uint32_t maxsize) {
         ZipEntry entry;
-        EXPECT_EQ(FindEntry(handle, filename, &entry), 0);
+        GetEntry(handle, filename, &entry);
         EXPECT_GT(entry.uncompressed_length, minsize);
         EXPECT_LT(entry.uncompressed_length, maxsize);
     }
 };
 
 TEST_F(ZippedBugReportContentsTest, ContainsMainEntry) {
-    ZipEntry mainEntryLoc;
+    ZipEntry main_entry;
     // contains main entry name file
-    EXPECT_EQ(FindEntry(handle, "main_entry.txt", &mainEntryLoc), 0);
+    GetEntry(handle, "main_entry.txt", &main_entry);
 
-    char* buf = new char[mainEntryLoc.uncompressed_length];
-    ExtractToMemory(handle, &mainEntryLoc, (uint8_t*)buf, mainEntryLoc.uncompressed_length);
-    delete[] buf;
+    std::string bugreport_txt_name;
+    bugreport_txt_name.resize(main_entry.uncompressed_length);
+    ExtractToMemory(handle, &main_entry, reinterpret_cast<uint8_t*>(bugreport_txt_name.data()),
+                    main_entry.uncompressed_length);
 
     // contains main entry file
-    FileExists(buf, 1000000U, 50000000U);
+    FileExists(bugreport_txt_name.c_str(), 1000000U, 50000000U);
 }
 
 TEST_F(ZippedBugReportContentsTest, ContainsVersion) {
     ZipEntry entry;
     // contains main entry name file
-    EXPECT_EQ(FindEntry(handle, "version.txt", &entry), 0);
+    GetEntry(handle, "version.txt", &entry);
 
     char* buf = new char[entry.uncompressed_length + 1];
     ExtractToMemory(handle, &entry, (uint8_t*)buf, entry.uncompressed_length);
@@ -242,6 +314,10 @@ TEST_F(ZippedBugReportContentsTest, ContainsVersion) {
 TEST_F(ZippedBugReportContentsTest, ContainsBoardSpecificFiles) {
     FileExists("dumpstate_board.bin", 1000000U, 80000000U);
     FileExists("dumpstate_board.txt", 100000U, 1000000U);
+}
+
+TEST_F(ZippedBugReportContentsTest, ContainsProtoFile) {
+    FileExists("proto/activity.proto", 100000U, 1000000U);
 }
 
 // Spot check on some files pulled from the file system
@@ -258,6 +334,11 @@ TEST_F(ZippedBugReportContentsTest, ContainsSomeFileSystemFiles) {
  */
 class BugreportSectionTest : public Test {
   public:
+    static void SetUpTestCase() {
+        ParseSections(ZippedBugreportGenerationTest::getZipFilePath(),
+                      ZippedBugreportGenerationTest::sections.get());
+    }
+
     int numMatches(const std::string& substring) {
         int matches = 0;
         for (auto const& section : *ZippedBugreportGenerationTest::sections) {
@@ -267,10 +348,11 @@ class BugreportSectionTest : public Test {
         }
         return matches;
     }
+
     void SectionExists(const std::string& sectionName, int minsize) {
         for (auto const& section : *ZippedBugreportGenerationTest::sections) {
             if (sectionName == section.name) {
-                EXPECT_GE(section.size_bytes, minsize);
+                EXPECT_GE(section.size_bytes, minsize) << " for section:" << sectionName;
                 return;
             }
         }
@@ -278,71 +360,59 @@ class BugreportSectionTest : public Test {
     }
 };
 
-// Test all sections are generated without timeouts or errors
-TEST_F(BugreportSectionTest, GeneratedWithoutErrors) {
-    for (auto const& section : *ZippedBugreportGenerationTest::sections) {
-        EXPECT_EQ(section.status, 0) << section.name << " failed with status " << section.status;
-    }
-}
-
 TEST_F(BugreportSectionTest, Atleast3CriticalDumpsysSectionsGenerated) {
-    int numSections = numMatches("DUMPSYS CRITICAL");
+    int numSections = numMatches("CRITICAL");
     EXPECT_GE(numSections, 3);
 }
 
 TEST_F(BugreportSectionTest, Atleast2HighDumpsysSectionsGenerated) {
-    int numSections = numMatches("DUMPSYS HIGH");
+    int numSections = numMatches("HIGH");
     EXPECT_GE(numSections, 2);
 }
 
 TEST_F(BugreportSectionTest, Atleast50NormalDumpsysSectionsGenerated) {
-    int allSections = numMatches("DUMPSYS");
-    int criticalSections = numMatches("DUMPSYS CRITICAL");
-    int highSections = numMatches("DUMPSYS HIGH");
+    int allSections = ZippedBugreportGenerationTest::sections->size();
+    int criticalSections = numMatches("CRITICAL");
+    int highSections = numMatches("HIGH");
     int normalSections = allSections - criticalSections - highSections;
 
     EXPECT_GE(normalSections, 50) << "Total sections less than 50 (Critical:" << criticalSections
                                   << "High:" << highSections << "Normal:" << normalSections << ")";
 }
 
-TEST_F(BugreportSectionTest, Atleast1ProtoDumpsysSectionGenerated) {
-    int numSections = numMatches("proto/");
-    EXPECT_GE(numSections, 1);
-}
-
 // Test if some critical sections are being generated.
 TEST_F(BugreportSectionTest, CriticalSurfaceFlingerSectionGenerated) {
-    SectionExists("DUMPSYS CRITICAL - SurfaceFlinger", /* bytes= */ 10000);
+    SectionExists("CRITICAL SurfaceFlinger", /* bytes= */ 10000);
 }
 
 TEST_F(BugreportSectionTest, ActivitySectionsGenerated) {
-    SectionExists("DUMPSYS CRITICAL - activity", /* bytes= */ 5000);
-    SectionExists("DUMPSYS - activity", /* bytes= */ 10000);
+    SectionExists("CRITICAL activity", /* bytes= */ 5000);
+    SectionExists("activity", /* bytes= */ 10000);
 }
 
 TEST_F(BugreportSectionTest, CpuinfoSectionGenerated) {
-    SectionExists("DUMPSYS CRITICAL - cpuinfo", /* bytes= */ 1000);
+    SectionExists("CRITICAL cpuinfo", /* bytes= */ 1000);
 }
 
 TEST_F(BugreportSectionTest, WindowSectionGenerated) {
-    SectionExists("DUMPSYS CRITICAL - window", /* bytes= */ 20000);
+    SectionExists("CRITICAL window", /* bytes= */ 20000);
 }
 
 TEST_F(BugreportSectionTest, ConnectivitySectionsGenerated) {
-    SectionExists("DUMPSYS HIGH - connectivity", /* bytes= */ 5000);
-    SectionExists("DUMPSYS - connectivity", /* bytes= */ 5000);
+    SectionExists("HIGH connectivity", /* bytes= */ 3000);
+    SectionExists("connectivity", /* bytes= */ 5000);
 }
 
 TEST_F(BugreportSectionTest, MeminfoSectionGenerated) {
-    SectionExists("DUMPSYS HIGH - meminfo", /* bytes= */ 100000);
+    SectionExists("HIGH meminfo", /* bytes= */ 100000);
 }
 
 TEST_F(BugreportSectionTest, BatteryStatsSectionGenerated) {
-    SectionExists("DUMPSYS - batterystats", /* bytes= */ 1000);
+    SectionExists("batterystats", /* bytes= */ 1000);
 }
 
 TEST_F(BugreportSectionTest, WifiSectionGenerated) {
-    SectionExists("DUMPSYS - wifi", /* bytes= */ 100000);
+    SectionExists("wifi", /* bytes= */ 100000);
 }
 
 class DumpstateBinderTest : public Test {
