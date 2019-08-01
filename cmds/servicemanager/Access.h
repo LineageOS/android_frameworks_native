@@ -45,7 +45,8 @@ public:
     virtual bool canList(const CallingContext& ctx);
 
 private:
-    bool actionAllowed(const CallingContext& sctx, const char* tctx, const char* perm);
+    bool actionAllowed(const CallingContext& sctx, const char* tctx, const char* perm,
+            const std::string& tname);
     bool actionAllowedFromLookup(const CallingContext& sctx, const std::string& name,
             const char *perm);
 
