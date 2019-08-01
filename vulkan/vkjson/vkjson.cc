@@ -21,19 +21,20 @@
 #include "vkjson.h"
 
 #include <assert.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include <cmath>
+#include <json/json.h>
+
+#include <algorithm>
 #include <cinttypes>
+#include <cmath>
 #include <cstdio>
 #include <limits>
 #include <memory>
 #include <sstream>
 #include <type_traits>
 #include <utility>
-
-#include <json/json.h>
 
 namespace {
 
@@ -45,6 +46,14 @@ inline bool IsIntegral(double value) {
   return std::trunc(value) == value;
 #endif
 }
+
+// Floating point fields of Vulkan structure use single precision. The string
+// output of max double value in c++ will be larger than Java double's infinity
+// value. Below fake double max/min values are only to serve the safe json text
+// parsing in between C++ and Java, becasue Java json library simply cannot
+// handle infinity.
+static const double SAFE_DOUBLE_MAX = 0.99 * std::numeric_limits<double>::max();
+static const double SAFE_DOUBLE_MIN = 0.99 * std::numeric_limits<double>::min();
 
 template <typename T> struct EnumTraits;
 template <> struct EnumTraits<VkPhysicalDeviceType> {
@@ -851,7 +860,8 @@ Json::Value ToJsonValue(const T& value);
 
 template <typename T, typename = EnableForArithmetic<T>>
 inline Json::Value ToJsonValue(const T& value) {
-  return Json::Value(static_cast<double>(value));
+  return Json::Value(
+      std::clamp(static_cast<double>(value), SAFE_DOUBLE_MIN, SAFE_DOUBLE_MAX));
 }
 
 inline Json::Value ToJsonValue(const uint64_t& value) {
