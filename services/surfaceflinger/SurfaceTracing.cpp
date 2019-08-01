@@ -162,7 +162,7 @@ LayersTraceProto SurfaceTracing::traceLayersLocked(const char* where) {
     LayersTraceProto entry;
     entry.set_elapsed_realtime_nanos(elapsedRealtimeNano());
     entry.set_where(where);
-    LayersProto layers(mFlinger.dumpProtoInfo(LayerVector::StateSet::Drawing, mTraceFlags));
+    LayersProto layers(mFlinger.dumpDrawingStateProto(mTraceFlags));
     entry.mutable_layers()->Swap(&layers);
 
     return entry;
