@@ -38,6 +38,7 @@
 #include <binder/PermissionCache.h>
 
 #include <compositionengine/CompositionEngine.h>
+#include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/Display.h>
 #include <compositionengine/DisplayColorProfile.h>
 #include <compositionengine/Layer.h>
@@ -1776,8 +1777,17 @@ void SurfaceFlinger::handleMessageRefresh() {
 
     mRefreshPending = false;
 
+    compositionengine::CompositionRefreshArgs refreshArgs;
+    for (const auto& [_, display] : mDisplays) {
+        refreshArgs.outputs.push_back(display->getCompositionDisplay());
+    }
+    mDrawingState.traverseInZOrder([&refreshArgs](Layer* layer) {
+        auto compositionLayer = layer->getCompositionLayer();
+        if (compositionLayer) refreshArgs.layers.push_back(compositionLayer);
+    });
+
     const bool repaintEverything = mRepaintEverything.exchange(false);
-    preComposition();
+    mCompositionEngine->preComposition(refreshArgs);
     rebuildLayerStacks();
     calculateWorkingSet();
     for (const auto& [token, display] : mDisplays) {
@@ -1811,6 +1821,10 @@ void SurfaceFlinger::handleMessageRefresh() {
         if (mTracingEnabled) {
             mTracing.notify("visibleRegionsDirty");
         }
+    }
+
+    if (mCompositionEngine->needsAnotherUpdate()) {
+        signalLayerUpdate();
     }
 }
 
@@ -1957,25 +1971,6 @@ void SurfaceFlinger::logLayerStats() {
     }
 }
 
-void SurfaceFlinger::preComposition()
-{
-    ATRACE_CALL();
-    ALOGV("preComposition");
-
-    mRefreshStartTime = systemTime(SYSTEM_TIME_MONOTONIC);
-
-    bool needExtraInvalidate = false;
-    mDrawingState.traverseInZOrder([&](Layer* layer) {
-        if (layer->onPreComposition(mRefreshStartTime)) {
-            needExtraInvalidate = true;
-        }
-    });
-
-    if (needExtraInvalidate) {
-        signalLayerUpdate();
-    }
-}
-
 void SurfaceFlinger::updateCompositorTiming(const DisplayStatInfo& stats, nsecs_t compositeTime,
                                             std::shared_ptr<FenceTime>& presentFenceTime) {
     // Update queue of past composite+present times and determine the
@@ -2069,10 +2064,11 @@ void SurfaceFlinger::postComposition()
     DisplayStatInfo stats;
     mScheduler->getDisplayStatInfo(&stats);
 
-    // We use the mRefreshStartTime which might be sampled a little later than
-    // when we started doing work for this frame, but that should be okay
-    // since updateCompositorTiming has snapping logic.
-    updateCompositorTiming(stats, mRefreshStartTime, presentFenceTime);
+    // We use the CompositionEngine::getLastFrameRefreshTimestamp() which might
+    // be sampled a little later than when we started doing work for this frame,
+    // but that should be okay since updateCompositorTiming has snapping logic.
+    updateCompositorTiming(stats, mCompositionEngine->getLastFrameRefreshTimestamp(),
+                           presentFenceTime);
     CompositorTiming compositorTiming;
     {
         std::lock_guard<std::mutex> lock(getBE().mCompositorTimingLock);
@@ -2205,8 +2201,8 @@ void SurfaceFlinger::rebuildLayerStacks() {
             Region opaqueRegion;
             Region dirtyRegion;
             compositionengine::Output::OutputLayers layersSortedByZ;
+            compositionengine::Output::ReleasedLayers releasedLayers;
             Vector<sp<Layer>> deprecated_layersSortedByZ;
-            Vector<sp<Layer>> layersNeedingFences;
             const ui::Transform& tr = displayState.transform;
             const Rect bounds = displayState.bounds;
             if (displayState.isEnabled) {
@@ -2254,16 +2250,16 @@ void SurfaceFlinger::rebuildLayerStacks() {
                                                          layer) != mLayersWithQueuedFrames.cend();
 
                         if (hasExistingOutputLayer && hasQueuedFrames) {
-                            layersNeedingFences.add(layer);
+                            releasedLayers.push_back(layer);
                         }
                     }
                 });
             }
 
             display->setOutputLayersOrderedByZ(std::move(layersSortedByZ));
+            display->setReleasedLayers(std::move(releasedLayers));
 
             displayDevice->setVisibleLayersSortedByZ(deprecated_layersSortedByZ);
-            displayDevice->setLayersNeedingFences(layersNeedingFences);
 
             Region undefinedRegion{bounds};
             undefinedRegion.subtractSelf(tr.transform(opaqueRegion));
@@ -2499,11 +2495,14 @@ void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& displayDevice) {
         // We've got a list of layers needing fences, that are disjoint with
         // display->getVisibleLayersSortedByZ.  The best we can do is to
         // supply them with the present fence.
-        if (!displayDevice->getLayersNeedingFences().isEmpty()) {
+        auto releasedLayers = display->takeReleasedLayers();
+        if (!releasedLayers.empty()) {
             sp<Fence> presentFence =
                     displayId ? getHwComposer().getPresentFence(*displayId) : Fence::NO_FENCE;
-            for (auto& layer : displayDevice->getLayersNeedingFences()) {
-                layer->getCompositionLayer()->getLayerFE()->onLayerDisplayed(presentFence);
+            for (auto& weakLayer : releasedLayers) {
+                if (auto layer = weakLayer.promote(); layer != nullptr) {
+                    layer->onLayerDisplayed(presentFence);
+                }
             }
         }
 

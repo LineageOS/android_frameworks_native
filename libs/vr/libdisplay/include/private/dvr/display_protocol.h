@@ -191,7 +191,8 @@ struct SurfaceInfo {
 enum class ConfigFileType : uint32_t {
   kLensMetrics,
   kDeviceMetrics,
-  kDeviceConfiguration
+  kDeviceConfiguration,
+  kDeviceEdid
 };
 
 struct DisplayProtocol {

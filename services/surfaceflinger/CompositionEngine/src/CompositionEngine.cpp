@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
+#include <compositionengine/CompositionRefreshArgs.h>
+#include <compositionengine/LayerFE.h>
 #include <compositionengine/impl/CompositionEngine.h>
 #include <compositionengine/impl/Display.h>
 #include <compositionengine/impl/Layer.h>
 #include <renderengine/RenderEngine.h>
+#include <utils/Trace.h>
 
 #include "DisplayHardware/HWComposer.h"
 
@@ -57,6 +60,36 @@ renderengine::RenderEngine& CompositionEngine::getRenderEngine() const {
 
 void CompositionEngine::setRenderEngine(std::unique_ptr<renderengine::RenderEngine> renderEngine) {
     mRenderEngine = std::move(renderEngine);
+}
+
+bool CompositionEngine::needsAnotherUpdate() const {
+    return mNeedsAnotherUpdate;
+}
+
+nsecs_t CompositionEngine::getLastFrameRefreshTimestamp() const {
+    return mRefreshStartTime;
+}
+
+void CompositionEngine::preComposition(CompositionRefreshArgs& args) {
+    ATRACE_CALL();
+    ALOGV(__FUNCTION__);
+
+    bool needsAnotherUpdate = false;
+
+    mRefreshStartTime = systemTime(SYSTEM_TIME_MONOTONIC);
+
+    for (auto& layer : args.layers) {
+        sp<compositionengine::LayerFE> layerFE = layer->getLayerFE();
+        if (layerFE && layerFE->onPreComposition(mRefreshStartTime)) {
+            needsAnotherUpdate = true;
+        }
+    }
+
+    mNeedsAnotherUpdate = needsAnotherUpdate;
+}
+
+void CompositionEngine::setNeedsAnotherUpdateForTest(bool value) {
+    mNeedsAnotherUpdate = value;
 }
 
 } // namespace impl

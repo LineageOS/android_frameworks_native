@@ -46,6 +46,7 @@ struct OutputCompositionState;
 class Output {
 public:
     using OutputLayers = std::vector<std::unique_ptr<compositionengine::OutputLayer>>;
+    using ReleasedLayers = std::vector<wp<LayerFE>>;
 
     virtual ~Output();
 
@@ -130,6 +131,12 @@ public:
 
     // Gets the ordered set of output layers for this output
     virtual const OutputLayers& getOutputLayersOrderedByZ() const = 0;
+
+    // Sets the new set of layers being released this frame.
+    virtual void setReleasedLayers(ReleasedLayers&&) = 0;
+
+    // Takes (moves) the set of layers being released this frame.
+    virtual ReleasedLayers takeReleasedLayers() = 0;
 
 protected:
     virtual void setDisplayColorProfile(std::unique_ptr<DisplayColorProfile>) = 0;

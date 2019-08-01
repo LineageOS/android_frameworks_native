@@ -66,8 +66,12 @@ public:
                  std::unique_ptr<compositionengine::OutputLayer>(
                          std::optional<DisplayId>, std::shared_ptr<compositionengine::Layer>,
                          sp<compositionengine::LayerFE>));
+
     MOCK_METHOD1(setOutputLayersOrderedByZ, void(OutputLayers&&));
     MOCK_CONST_METHOD0(getOutputLayersOrderedByZ, OutputLayers&());
+
+    MOCK_METHOD1(setReleasedLayers, void(ReleasedLayers&&));
+    MOCK_METHOD0(takeReleasedLayers, ReleasedLayers());
 };
 
 } // namespace android::compositionengine::mock

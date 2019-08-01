@@ -242,6 +242,14 @@ const Output::OutputLayers& Output::getOutputLayersOrderedByZ() const {
     return mOutputLayersOrderedByZ;
 }
 
+void Output::setReleasedLayers(Output::ReleasedLayers&& layers) {
+    mReleasedLayers = std::move(layers);
+}
+
+Output::ReleasedLayers Output::takeReleasedLayers() {
+    return std::move(mReleasedLayers);
+}
+
 void Output::dirtyEntireOutput() {
     mState.dirtyRegion.set(mState.bounds);
 }
