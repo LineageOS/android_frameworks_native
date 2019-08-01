@@ -23,6 +23,7 @@
 #include <compositionengine/DisplaySurface.h>
 #include <compositionengine/RenderSurfaceCreationArgs.h>
 #include <compositionengine/impl/DumpHelpers.h>
+#include <compositionengine/impl/OutputCompositionState.h>
 #include <compositionengine/impl/RenderSurface.h>
 #include <log/log.h>
 #include <renderengine/RenderEngine.h>
@@ -110,24 +111,13 @@ status_t RenderSurface::beginFrame(bool mustRecompose) {
     return mDisplaySurface->beginFrame(mustRecompose);
 }
 
-status_t RenderSurface::prepareFrame() {
-    auto& hwc = mCompositionEngine.getHwComposer();
-    const auto id = mDisplay.getId();
-    if (id) {
-        status_t error = hwc.prepare(*id, mDisplay);
-        if (error != NO_ERROR) {
-            return error;
-        }
-    }
-
+void RenderSurface::prepareFrame(bool usesClientComposition, bool usesDeviceComposition) {
     DisplaySurface::CompositionType compositionType;
-    const bool hasClient = hwc.hasClientComposition(id);
-    const bool hasDevice = hwc.hasDeviceComposition(id);
-    if (hasClient && hasDevice) {
+    if (usesClientComposition && usesDeviceComposition) {
         compositionType = DisplaySurface::COMPOSITION_MIXED;
-    } else if (hasClient) {
+    } else if (usesClientComposition) {
         compositionType = DisplaySurface::COMPOSITION_GLES;
-    } else if (hasDevice) {
+    } else if (usesDeviceComposition) {
         compositionType = DisplaySurface::COMPOSITION_HWC;
     } else {
         // Nothing to do -- when turning the screen off we get a frame like
@@ -135,7 +125,11 @@ status_t RenderSurface::prepareFrame() {
         // will do a prepare/set cycle.
         compositionType = DisplaySurface::COMPOSITION_HWC;
     }
-    return mDisplaySurface->prepareFrame(compositionType);
+
+    if (status_t result = mDisplaySurface->prepareFrame(compositionType); result != NO_ERROR) {
+        ALOGE("updateCompositionType failed for %s: %d (%s)", mDisplay.getName().c_str(), result,
+              strerror(-result));
+    }
 }
 
 sp<GraphicBuffer> RenderSurface::dequeueBuffer(base::unique_fd* bufferFence) {
@@ -163,10 +157,9 @@ sp<GraphicBuffer> RenderSurface::dequeueBuffer(base::unique_fd* bufferFence) {
 }
 
 void RenderSurface::queueBuffer(base::unique_fd&& readyFence) {
-    auto& hwc = mCompositionEngine.getHwComposer();
-    const auto id = mDisplay.getId();
+    auto& state = mDisplay.getState();
 
-    if (hwc.hasClientComposition(id) || hwc.hasFlipClientTargetRequest(id)) {
+    if (state.usesClientComposition || state.flipClientTarget) {
         // hasFlipClientTargetRequest could return true even if we haven't
         // dequeued a buffer before. Try dequeueing one if we don't have a
         // buffer ready.

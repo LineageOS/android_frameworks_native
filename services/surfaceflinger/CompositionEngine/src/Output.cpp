@@ -22,6 +22,7 @@
 #include <compositionengine/impl/Output.h>
 #include <compositionengine/impl/OutputLayer.h>
 #include <ui/DebugUtils.h>
+#include <utils/Trace.h>
 
 namespace android::compositionengine {
 
@@ -250,8 +251,27 @@ Output::ReleasedLayers Output::takeReleasedLayers() {
     return std::move(mReleasedLayers);
 }
 
+void Output::prepareFrame() {
+    ATRACE_CALL();
+    ALOGV(__FUNCTION__);
+
+    if (!mState.isEnabled) {
+        return;
+    }
+
+    chooseCompositionStrategy();
+
+    mRenderSurface->prepareFrame(mState.usesClientComposition, mState.usesDeviceComposition);
+}
+
 void Output::dirtyEntireOutput() {
     mState.dirtyRegion.set(mState.bounds);
+}
+
+void Output::chooseCompositionStrategy() {
+    // The base output implementation can only do client composition
+    mState.usesClientComposition = true;
+    mState.usesDeviceComposition = false;
 }
 
 } // namespace impl

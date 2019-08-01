@@ -296,7 +296,6 @@ struct BaseDisplayVariant {
         EXPECT_CALL(*test->mComposer,
                     setColorTransform(HWC_DISPLAY, _, Hwc2::ColorTransform::IDENTITY))
                 .Times(1);
-        EXPECT_CALL(*test->mComposer, presentOrValidateDisplay(HWC_DISPLAY, _, _, _, _)).Times(1);
         EXPECT_CALL(*test->mComposer, getDisplayRequests(HWC_DISPLAY, _, _, _)).Times(1);
         EXPECT_CALL(*test->mComposer, acceptDisplayChanges(HWC_DISPLAY)).Times(1);
         EXPECT_CALL(*test->mComposer, presentDisplay(HWC_DISPLAY, _)).Times(1);
@@ -336,9 +335,19 @@ struct BaseDisplayVariant {
     }
 
     static void setupHwcCompositionCallExpectations(CompositionTest* test) {
+        EXPECT_CALL(*test->mComposer, presentOrValidateDisplay(HWC_DISPLAY, _, _, _, _)).Times(1);
+
         EXPECT_CALL(*test->mDisplaySurface,
                     prepareFrame(compositionengine::DisplaySurface::COMPOSITION_HWC))
                 .Times(1);
+    }
+
+    static void setupHwcClientCompositionCallExpectations(CompositionTest* test) {
+        EXPECT_CALL(*test->mComposer, presentOrValidateDisplay(HWC_DISPLAY, _, _, _, _)).Times(1);
+    }
+
+    static void setupHwcForcedClientCompositionCallExpectations(CompositionTest* test) {
+        EXPECT_CALL(*test->mComposer, validateDisplay(HWC_DISPLAY, _, _)).Times(1);
     }
 
     static void setupRECompositionCallExpectations(CompositionTest* test) {
@@ -414,6 +423,8 @@ struct PoweredOffDisplaySetupVariant : public BaseDisplayVariant<PoweredOffDispl
     }
 
     static void setupHwcCompositionCallExpectations(CompositionTest*) {}
+    static void setupHwcClientCompositionCallExpectations(CompositionTest*) {}
+    static void setupHwcForcedClientCompositionCallExpectations(CompositionTest*) {}
 
     static void setupRECompositionCallExpectations(CompositionTest* test) {
         EXPECT_CALL(*test->mRenderEngine, useNativeFenceSync()).WillRepeatedly(Return(true));
@@ -981,16 +992,25 @@ struct RECompositionResultVariant : public CompositionResultBaseVariant {
     template <typename Case>
     static void setupCallExpectations(CompositionTest* test) {
         Case::Display::setupNonEmptyFrameCompositionCallExpectations(test);
+        Case::Display::setupHwcClientCompositionCallExpectations(test);
         Case::Display::setupRECompositionCallExpectations(test);
         Case::Display::template setupRELayerCompositionCallExpectations<Case>(test);
     }
 };
 
-struct ForcedClientCompositionResultVariant : public RECompositionResultVariant {
+struct ForcedClientCompositionResultVariant : public CompositionResultBaseVariant {
     static void setupLayerState(CompositionTest* test, sp<Layer> layer) {
         const auto outputLayer = layer->findOutputLayerForDisplay(test->mDisplay);
         LOG_FATAL_IF(!outputLayer);
         outputLayer->editState().forceClientComposition = true;
+    }
+
+    template <typename Case>
+    static void setupCallExpectations(CompositionTest* test) {
+        Case::Display::setupNonEmptyFrameCompositionCallExpectations(test);
+        Case::Display::setupHwcForcedClientCompositionCallExpectations(test);
+        Case::Display::setupRECompositionCallExpectations(test);
+        Case::Display::template setupRELayerCompositionCallExpectations<Case>(test);
     }
 
     template <typename Case>

@@ -21,7 +21,9 @@
 #include <compositionengine/impl/Display.h>
 #include <compositionengine/impl/DisplayColorProfile.h>
 #include <compositionengine/impl/DumpHelpers.h>
+#include <compositionengine/impl/OutputLayer.h>
 #include <compositionengine/impl/RenderSurface.h>
+#include <utils/Trace.h>
 
 #include "DisplayHardware/HWComposer.h"
 
@@ -122,6 +124,93 @@ void Display::createDisplayColorProfile(DisplayColorProfileCreationArgs&& args) 
 void Display::createRenderSurface(RenderSurfaceCreationArgs&& args) {
     setRenderSurface(compositionengine::impl::createRenderSurface(getCompositionEngine(), *this,
                                                                   std::move(args)));
+}
+
+void Display::chooseCompositionStrategy() {
+    ATRACE_CALL();
+    ALOGV(__FUNCTION__);
+
+    // Default to the base settings -- client composition only.
+    Output::chooseCompositionStrategy();
+
+    // If we don't have a HWC display, then we are done
+    if (!mId) {
+        return;
+    }
+
+    // Get any composition changes requested by the HWC device, and apply them.
+    std::optional<android::HWComposer::DeviceRequestedChanges> changes;
+    auto& hwc = getCompositionEngine().getHwComposer();
+    if (status_t result = hwc.getDeviceCompositionChanges(*mId, anyLayersRequireClientComposition(),
+                                                          &changes);
+        result != NO_ERROR) {
+        ALOGE("chooseCompositionStrategy failed for %s: %d (%s)", getName().c_str(), result,
+              strerror(-result));
+        return;
+    }
+    if (changes) {
+        applyChangedTypesToLayers(changes->changedTypes);
+        applyDisplayRequests(changes->displayRequests);
+        applyLayerRequestsToLayers(changes->layerRequests);
+    }
+
+    // Determine what type of composition we are doing from the final state
+    auto& state = editState();
+    state.usesClientComposition = anyLayersRequireClientComposition();
+    state.usesDeviceComposition = !allLayersRequireClientComposition();
+}
+
+bool Display::anyLayersRequireClientComposition() const {
+    const auto& layers = getOutputLayersOrderedByZ();
+    return std::any_of(layers.cbegin(), layers.cend(),
+                       [](const auto& layer) { return layer->requiresClientComposition(); });
+}
+
+bool Display::allLayersRequireClientComposition() const {
+    const auto& layers = getOutputLayersOrderedByZ();
+    return std::all_of(layers.cbegin(), layers.cend(),
+                       [](const auto& layer) { return layer->requiresClientComposition(); });
+}
+
+void Display::applyChangedTypesToLayers(const ChangedTypes& changedTypes) {
+    if (changedTypes.empty()) {
+        return;
+    }
+
+    for (auto& layer : getOutputLayersOrderedByZ()) {
+        auto hwcLayer = layer->getHwcLayer();
+        if (!hwcLayer) {
+            continue;
+        }
+
+        if (auto it = changedTypes.find(hwcLayer); it != changedTypes.end()) {
+            layer->applyDeviceCompositionTypeChange(
+                    static_cast<Hwc2::IComposerClient::Composition>(it->second));
+        }
+    }
+}
+
+void Display::applyDisplayRequests(const DisplayRequests& displayRequests) {
+    auto& state = editState();
+    state.flipClientTarget = (static_cast<uint32_t>(displayRequests) &
+                              static_cast<uint32_t>(HWC2::DisplayRequest::FlipClientTarget)) != 0;
+    // Note: HWC2::DisplayRequest::WriteClientTargetToOutput is currently ignored.
+}
+
+void Display::applyLayerRequestsToLayers(const LayerRequests& layerRequests) {
+    for (auto& layer : getOutputLayersOrderedByZ()) {
+        layer->prepareForDeviceLayerRequests();
+
+        auto hwcLayer = layer->getHwcLayer();
+        if (!hwcLayer) {
+            continue;
+        }
+
+        if (auto it = layerRequests.find(hwcLayer); it != layerRequests.end()) {
+            layer->applyDeviceLayerRequest(
+                    static_cast<Hwc2::IComposerClient::LayerRequest>(it->second));
+        }
+    }
 }
 
 } // namespace android::compositionengine::impl

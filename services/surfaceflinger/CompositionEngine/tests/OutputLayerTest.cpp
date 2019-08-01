@@ -56,8 +56,7 @@ MATCHER_P(ColorEq, expected, "") {
     return expected.r == arg.r && expected.g == arg.g && expected.b == arg.b && expected.a == arg.a;
 }
 
-class OutputLayerTest : public testing::Test {
-public:
+struct OutputLayerTest : public testing::Test {
     OutputLayerTest() {
         EXPECT_CALL(*mLayerFE, getDebugName()).WillRepeatedly(Return("Test LayerFE"));
         EXPECT_CALL(mOutput, getName()).WillRepeatedly(ReturnRef(kOutputName));
@@ -65,8 +64,6 @@ public:
         EXPECT_CALL(*mLayer, getState()).WillRepeatedly(ReturnRef(mLayerState));
         EXPECT_CALL(mOutput, getState()).WillRepeatedly(ReturnRef(mOutputState));
     }
-
-    ~OutputLayerTest() override = default;
 
     compositionengine::mock::Output mOutput;
     std::shared_ptr<compositionengine::mock::Layer> mLayer{
@@ -782,6 +779,100 @@ TEST_F(OutputLayerWriteStateToHWCTest, compositionTypeIsSetToClientIfClientCompo
     expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::CLIENT);
 
     mOutputLayer.writeStateToHWC(false);
+}
+
+/*
+ * OutputLayer::getHwcLayer()
+ */
+
+TEST_F(OutputLayerTest, getHwcLayerHandlesNoHwcState) {
+    mOutputLayer.editState().hwc.reset();
+
+    EXPECT_TRUE(mOutputLayer.getHwcLayer() == nullptr);
+}
+
+TEST_F(OutputLayerTest, getHwcLayerHandlesNoHwcLayer) {
+    mOutputLayer.editState().hwc = impl::OutputLayerCompositionState::Hwc{nullptr};
+
+    EXPECT_TRUE(mOutputLayer.getHwcLayer() == nullptr);
+}
+
+TEST_F(OutputLayerTest, getHwcLayerReturnsHwcLayer) {
+    auto hwcLayer = std::make_shared<StrictMock<HWC2::mock::Layer>>();
+    mOutputLayer.editState().hwc = impl::OutputLayerCompositionState::Hwc{hwcLayer};
+
+    EXPECT_EQ(hwcLayer.get(), mOutputLayer.getHwcLayer());
+}
+
+/*
+ * OutputLayer::requiresClientComposition()
+ */
+
+TEST_F(OutputLayerTest, requiresClientCompositionReturnsTrueIfNoHWC2State) {
+    mOutputLayer.editState().hwc.reset();
+
+    EXPECT_TRUE(mOutputLayer.requiresClientComposition());
+}
+
+TEST_F(OutputLayerTest, requiresClientCompositionReturnsTrueIfSetToClientComposition) {
+    mOutputLayer.editState().hwc = impl::OutputLayerCompositionState::Hwc{nullptr};
+    mOutputLayer.editState().hwc->hwcCompositionType = Hwc2::IComposerClient::Composition::CLIENT;
+
+    EXPECT_TRUE(mOutputLayer.requiresClientComposition());
+}
+
+TEST_F(OutputLayerTest, requiresClientCompositionReturnsFalseIfSetToDeviceComposition) {
+    mOutputLayer.editState().hwc = impl::OutputLayerCompositionState::Hwc{nullptr};
+    mOutputLayer.editState().hwc->hwcCompositionType = Hwc2::IComposerClient::Composition::DEVICE;
+
+    EXPECT_FALSE(mOutputLayer.requiresClientComposition());
+}
+
+/*
+ * OutputLayer::applyDeviceCompositionTypeChange()
+ */
+
+TEST_F(OutputLayerTest, applyDeviceCompositionTypeChangeSetsNewType) {
+    mOutputLayer.editState().hwc = impl::OutputLayerCompositionState::Hwc{nullptr};
+    mOutputLayer.editState().hwc->hwcCompositionType = Hwc2::IComposerClient::Composition::DEVICE;
+
+    mOutputLayer.applyDeviceCompositionTypeChange(Hwc2::IComposerClient::Composition::CLIENT);
+
+    ASSERT_TRUE(mOutputLayer.getState().hwc);
+    EXPECT_EQ(Hwc2::IComposerClient::Composition::CLIENT,
+              mOutputLayer.getState().hwc->hwcCompositionType);
+}
+
+/*
+ * OutputLayer::prepareForDeviceLayerRequests()
+ */
+
+TEST_F(OutputLayerTest, prepareForDeviceLayerRequestsResetsRequestState) {
+    mOutputLayer.editState().clearClientTarget = true;
+
+    mOutputLayer.prepareForDeviceLayerRequests();
+
+    EXPECT_FALSE(mOutputLayer.getState().clearClientTarget);
+}
+
+/*
+ * OutputLayer::applyDeviceLayerRequest()
+ */
+
+TEST_F(OutputLayerTest, applyDeviceLayerRequestHandlesClearClientTarget) {
+    mOutputLayer.editState().clearClientTarget = false;
+
+    mOutputLayer.applyDeviceLayerRequest(Hwc2::IComposerClient::LayerRequest::CLEAR_CLIENT_TARGET);
+
+    EXPECT_TRUE(mOutputLayer.getState().clearClientTarget);
+}
+
+TEST_F(OutputLayerTest, applyDeviceLayerRequestHandlesUnknownRequest) {
+    mOutputLayer.editState().clearClientTarget = false;
+
+    mOutputLayer.applyDeviceLayerRequest(static_cast<Hwc2::IComposerClient::LayerRequest>(0));
+
+    EXPECT_FALSE(mOutputLayer.getState().clearClientTarget);
 }
 
 } // namespace
