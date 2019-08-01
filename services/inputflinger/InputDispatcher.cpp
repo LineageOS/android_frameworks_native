@@ -4237,53 +4237,55 @@ void InputDispatcher::doOnPointerDownOutsideFocusLockedInterruptible(CommandEntr
 void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(
         CommandEntry* commandEntry) {
     sp<Connection> connection = commandEntry->connection;
-    nsecs_t finishTime = commandEntry->eventTime;
+    const nsecs_t finishTime = commandEntry->eventTime;
     uint32_t seq = commandEntry->seq;
-    bool handled = commandEntry->handled;
+    const bool handled = commandEntry->handled;
 
     // Handle post-event policy actions.
     DispatchEntry* dispatchEntry = connection->findWaitQueueEntry(seq);
-    if (dispatchEntry) {
-        nsecs_t eventDuration = finishTime - dispatchEntry->deliveryTime;
-        if (eventDuration > SLOW_EVENT_PROCESSING_WARNING_TIMEOUT) {
-            std::string msg =
-                    StringPrintf("Window '%s' spent %0.1fms processing the last input event: ",
-                    connection->getWindowName().c_str(), eventDuration * 0.000001f);
-            dispatchEntry->eventEntry->appendDescription(msg);
-            ALOGI("%s", msg.c_str());
-        }
-
-        bool restartEvent;
-        if (dispatchEntry->eventEntry->type == EventEntry::TYPE_KEY) {
-            KeyEntry* keyEntry = static_cast<KeyEntry*>(dispatchEntry->eventEntry);
-            restartEvent = afterKeyEventLockedInterruptible(connection,
-                    dispatchEntry, keyEntry, handled);
-        } else if (dispatchEntry->eventEntry->type == EventEntry::TYPE_MOTION) {
-            MotionEntry* motionEntry = static_cast<MotionEntry*>(dispatchEntry->eventEntry);
-            restartEvent = afterMotionEventLockedInterruptible(connection,
-                    dispatchEntry, motionEntry, handled);
-        } else {
-            restartEvent = false;
-        }
-
-        // Dequeue the event and start the next cycle.
-        // Note that because the lock might have been released, it is possible that the
-        // contents of the wait queue to have been drained, so we need to double-check
-        // a few things.
-        if (dispatchEntry == connection->findWaitQueueEntry(seq)) {
-            connection->waitQueue.dequeue(dispatchEntry);
-            traceWaitQueueLength(connection);
-            if (restartEvent && connection->status == Connection::STATUS_NORMAL) {
-                connection->outboundQueue.enqueueAtHead(dispatchEntry);
-                traceOutboundQueueLength(connection);
-            } else {
-                releaseDispatchEntry(dispatchEntry);
-            }
-        }
-
-        // Start the next dispatch cycle for this connection.
-        startDispatchCycleLocked(now(), connection);
+    if (!dispatchEntry) {
+        return;
     }
+
+    nsecs_t eventDuration = finishTime - dispatchEntry->deliveryTime;
+    if (eventDuration > SLOW_EVENT_PROCESSING_WARNING_TIMEOUT) {
+        std::string msg =
+                StringPrintf("Window '%s' spent %0.1fms processing the last input event: ",
+                             connection->getWindowName().c_str(), eventDuration * 0.000001f);
+        dispatchEntry->eventEntry->appendDescription(msg);
+        ALOGI("%s", msg.c_str());
+    }
+
+    bool restartEvent;
+    if (dispatchEntry->eventEntry->type == EventEntry::TYPE_KEY) {
+        KeyEntry* keyEntry = static_cast<KeyEntry*>(dispatchEntry->eventEntry);
+        restartEvent =
+                afterKeyEventLockedInterruptible(connection, dispatchEntry, keyEntry, handled);
+    } else if (dispatchEntry->eventEntry->type == EventEntry::TYPE_MOTION) {
+        MotionEntry* motionEntry = static_cast<MotionEntry*>(dispatchEntry->eventEntry);
+        restartEvent = afterMotionEventLockedInterruptible(connection, dispatchEntry, motionEntry,
+                                                           handled);
+    } else {
+        restartEvent = false;
+    }
+
+    // Dequeue the event and start the next cycle.
+    // Note that because the lock might have been released, it is possible that the
+    // contents of the wait queue to have been drained, so we need to double-check
+    // a few things.
+    if (dispatchEntry == connection->findWaitQueueEntry(seq)) {
+        connection->waitQueue.dequeue(dispatchEntry);
+        traceWaitQueueLength(connection);
+        if (restartEvent && connection->status == Connection::STATUS_NORMAL) {
+            connection->outboundQueue.enqueueAtHead(dispatchEntry);
+            traceOutboundQueueLength(connection);
+        } else {
+            releaseDispatchEntry(dispatchEntry);
+        }
+    }
+
+    // Start the next dispatch cycle for this connection.
+    startDispatchCycleLocked(now(), connection);
 }
 
 bool InputDispatcher::afterKeyEventLockedInterruptible(const sp<Connection>& connection,
