@@ -264,6 +264,57 @@ void Output::prepareFrame() {
     mRenderSurface->prepareFrame(mState.usesClientComposition, mState.usesDeviceComposition);
 }
 
+void Output::postFramebuffer() {
+    ATRACE_CALL();
+    ALOGV(__FUNCTION__);
+
+    if (!getState().isEnabled) {
+        return;
+    }
+
+    mRenderSurface->onPresentDisplayCompleted();
+
+    auto frame = presentAndGetFrameFences();
+
+    for (auto& layer : getOutputLayersOrderedByZ()) {
+        // The layer buffer from the previous frame (if any) is released
+        // by HWC only when the release fence from this frame (if any) is
+        // signaled.  Always get the release fence from HWC first.
+        sp<Fence> releaseFence = Fence::NO_FENCE;
+
+        if (auto hwcLayer = layer->getHwcLayer()) {
+            if (auto f = frame.layerFences.find(hwcLayer); f != frame.layerFences.end()) {
+                releaseFence = f->second;
+            }
+        }
+
+        // If the layer was client composited in the previous frame, we
+        // need to merge with the previous client target acquire fence.
+        // Since we do not track that, always merge with the current
+        // client target acquire fence when it is available, even though
+        // this is suboptimal.
+        // TODO(b/121291683): Track previous frame client target acquire fence.
+        if (mState.usesClientComposition) {
+            releaseFence =
+                    Fence::merge("LayerRelease", releaseFence, frame.clientTargetAcquireFence);
+        }
+
+        layer->getLayerFE().onLayerDisplayed(releaseFence);
+    }
+
+    // We've got a list of layers needing fences, that are disjoint with
+    // getOutputLayersOrderedByZ.  The best we can do is to
+    // supply them with the present fence.
+    for (auto& weakLayer : mReleasedLayers) {
+        if (auto layer = weakLayer.promote(); layer != nullptr) {
+            layer->onLayerDisplayed(frame.presentFence);
+        }
+    }
+
+    // Clear out the released layers now that we're done with them.
+    mReleasedLayers.clear();
+}
+
 void Output::dirtyEntireOutput() {
     mState.dirtyRegion.set(mState.bounds);
 }
@@ -272,6 +323,14 @@ void Output::chooseCompositionStrategy() {
     // The base output implementation can only do client composition
     mState.usesClientComposition = true;
     mState.usesDeviceComposition = false;
+}
+
+compositionengine::Output::FrameFences Output::presentAndGetFrameFences() {
+    compositionengine::Output::FrameFences result;
+    if (mState.usesClientComposition) {
+        result.clientTargetAcquireFence = mRenderSurface->getClientTargetAcquireFence();
+    }
+    return result;
 }
 
 } // namespace impl

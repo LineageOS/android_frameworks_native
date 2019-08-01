@@ -76,6 +76,7 @@ public:
     ReleasedLayers takeReleasedLayers() override;
 
     void prepareFrame() override;
+    void postFramebuffer() override;
 
     // Testing
     void setDisplayColorProfileForTest(std::unique_ptr<compositionengine::DisplayColorProfile>);
@@ -84,6 +85,7 @@ public:
 protected:
     const CompositionEngine& getCompositionEngine() const;
     void chooseCompositionStrategy() override;
+    compositionengine::Output::FrameFences presentAndGetFrameFences() override;
     void dumpBase(std::string&) const;
 
 private:

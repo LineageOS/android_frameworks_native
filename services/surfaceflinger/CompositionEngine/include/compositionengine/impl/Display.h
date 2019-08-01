@@ -42,6 +42,7 @@ public:
     void setColorTransform(const mat4&) override;
     void setColorMode(ui::ColorMode, ui::Dataspace, ui::RenderIntent, ui::Dataspace) override;
     void chooseCompositionStrategy() override;
+    compositionengine::Output::FrameFences presentAndGetFrameFences() override;
 
     // compositionengine::Display overrides
     const std::optional<DisplayId>& getId() const override;
@@ -66,7 +67,7 @@ private:
     std::optional<DisplayId> mId;
 };
 
-std::shared_ptr<compositionengine::Display> createDisplay(
-        const compositionengine::CompositionEngine&, compositionengine::DisplayCreationArgs&&);
+std::shared_ptr<Display> createDisplay(const compositionengine::CompositionEngine&,
+                                       compositionengine::DisplayCreationArgs&&);
 } // namespace impl
 } // namespace android::compositionengine
