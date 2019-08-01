@@ -2566,51 +2566,53 @@ void SurfaceFlinger::initScheduler(DisplayId primaryDisplayId) {
 
 void SurfaceFlinger::commitTransaction()
 {
-    withTracingLock([&]() {
-        if (!mLayersPendingRemoval.isEmpty()) {
-            // Notify removed layers now that they can't be drawn from
-            for (const auto& l : mLayersPendingRemoval) {
-                recordBufferingStats(l->getName().string(), l->getOccupancyHistory(true));
-
-                // Ensure any buffers set to display on any children are released.
-                if (l->isRemovedFromCurrentState()) {
-                    l->latchAndReleaseBuffer();
-                }
-
-                // If the layer has been removed and has no parent, then it will not be reachable
-                // when traversing layers on screen. Add the layer to the offscreenLayers set to
-                // ensure we can copy its current to drawing state.
-                if (!l->getParent()) {
-                    mOffscreenLayers.emplace(l.get());
-                }
-            }
-            mLayersPendingRemoval.clear();
-        }
-
-        // If this transaction is part of a window animation then the next frame
-        // we composite should be considered an animation as well.
-        mAnimCompositionPending = mAnimTransactionPending;
-
-        mDrawingState = mCurrentState;
-        // clear the "changed" flags in current state
-        mCurrentState.colorMatrixChanged = false;
-
-        mDrawingState.traverseInZOrder([&](Layer* layer) {
-            layer->commitChildList();
-
-            // If the layer can be reached when traversing mDrawingState, then the layer is no
-            // longer offscreen. Remove the layer from the offscreenLayer set.
-            if (mOffscreenLayers.count(layer)) {
-                mOffscreenLayers.erase(layer);
-            }
-        });
-
-        commitOffscreenLayers();
-    });
+    withTracingLock([this]() { commitTransactionLocked(); });
 
     mTransactionPending = false;
     mAnimTransactionPending = false;
     mTransactionCV.broadcast();
+}
+
+void SurfaceFlinger::commitTransactionLocked() {
+    if (!mLayersPendingRemoval.isEmpty()) {
+        // Notify removed layers now that they can't be drawn from
+        for (const auto& l : mLayersPendingRemoval) {
+            recordBufferingStats(l->getName().string(), l->getOccupancyHistory(true));
+
+            // Ensure any buffers set to display on any children are released.
+            if (l->isRemovedFromCurrentState()) {
+                l->latchAndReleaseBuffer();
+            }
+
+            // If the layer has been removed and has no parent, then it will not be reachable
+            // when traversing layers on screen. Add the layer to the offscreenLayers set to
+            // ensure we can copy its current to drawing state.
+            if (!l->getParent()) {
+                mOffscreenLayers.emplace(l.get());
+            }
+        }
+        mLayersPendingRemoval.clear();
+    }
+
+    // If this transaction is part of a window animation then the next frame
+    // we composite should be considered an animation as well.
+    mAnimCompositionPending = mAnimTransactionPending;
+
+    mDrawingState = mCurrentState;
+    // clear the "changed" flags in current state
+    mCurrentState.colorMatrixChanged = false;
+
+    mDrawingState.traverseInZOrder([&](Layer* layer) {
+        layer->commitChildList();
+
+        // If the layer can be reached when traversing mDrawingState, then the layer is no
+        // longer offscreen. Remove the layer from the offscreenLayer set.
+        if (mOffscreenLayers.count(layer)) {
+            mOffscreenLayers.erase(layer);
+        }
+    });
+
+    commitOffscreenLayers();
 }
 
 void SurfaceFlinger::withTracingLock(std::function<void()> lockedOperation) {

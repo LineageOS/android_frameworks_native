@@ -346,9 +346,11 @@ private:
     static const size_t MAX_LAYERS = 4096;
     static const int MAX_TRACING_MEMORY = 100 * 1024 * 1024; // 100MB
 
+protected:
     // We're reference counted, never destroy SurfaceFlinger directly
     virtual ~SurfaceFlinger();
 
+private:
     /* ------------------------------------------------------------------------
      * Internal data structures
      */
@@ -584,15 +586,19 @@ private:
     bool transactionIsReadyToBeApplied(int64_t desiredPresentTime,
                                        bool useCachedExpectedPresentTime,
                                        const Vector<ComposerState>& states);
-    uint32_t setClientStateLocked(
-            const ComposerState& composerState, int64_t desiredPresentTime, int64_t postTime,
-            bool privileged,
-            std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>& listenerCallbacks)
-            REQUIRES(mStateLock);
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
     uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands)
             REQUIRES(mStateLock);
 
+protected:
+    virtual uint32_t setClientStateLocked(
+            const ComposerState& composerState, int64_t desiredPresentTime, int64_t postTime,
+            bool privileged,
+            std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>& listenerCallbacks)
+            REQUIRES(mStateLock);
+    virtual void commitTransactionLocked();
+
+private:
     /* ------------------------------------------------------------------------
      * Layer management
      */
