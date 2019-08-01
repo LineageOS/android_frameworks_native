@@ -4973,19 +4973,6 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     result.append("\n");
 }
 
-const Vector<sp<Layer>>& SurfaceFlinger::getLayerSortedByZForHwcDisplay(DisplayId displayId) {
-    // Note: mStateLock is held here
-    for (const auto& [token, display] : mDisplays) {
-        if (display->getId() == displayId) {
-            return getDisplayDeviceLocked(token)->getVisibleLayersSortedByZ();
-        }
-    }
-
-    ALOGE("%s: Invalid display %s", __FUNCTION__, to_string(displayId).c_str());
-    static const Vector<sp<Layer>> empty;
-    return empty;
-}
-
 void SurfaceFlinger::updateColorMatrixLocked() {
     mat4 colorMatrix;
     if (mGlobalSaturationFactor != 1.0f) {
