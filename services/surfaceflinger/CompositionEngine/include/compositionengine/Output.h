@@ -150,6 +150,9 @@ public:
     // Takes (moves) the set of layers being released this frame.
     virtual ReleasedLayers takeReleasedLayers() = 0;
 
+    // Signals that a frame is beginning on the output
+    virtual void beginFrame() = 0;
+
     // Prepares a frame for display
     virtual void prepareFrame() = 0;
 

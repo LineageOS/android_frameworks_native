@@ -760,12 +760,6 @@ private:
                        ui::Dataspace* outDataSpace, ui::RenderIntent* outRenderIntent) const;
 
     void calculateWorkingSet();
-    /*
-     * beginFrame - This function handles any pre-frame processing that needs to be
-     * prior to any CompositionInfo handling and is not dependent on data in
-     * CompositionInfo
-     */
-    void beginFrame(const sp<DisplayDevice>& display);
     void doComposition(const sp<DisplayDevice>& display, bool repainEverything);
     void doDebugFlashRegions(const sp<DisplayDevice>& display, bool repaintEverything);
     void logLayerStats();

@@ -251,6 +251,34 @@ Output::ReleasedLayers Output::takeReleasedLayers() {
     return std::move(mReleasedLayers);
 }
 
+void Output::beginFrame() {
+    const bool dirty = !getDirtyRegion(false).isEmpty();
+    const bool empty = mOutputLayersOrderedByZ.empty();
+    const bool wasEmpty = !mState.lastCompositionHadVisibleLayers;
+
+    // If nothing has changed (!dirty), don't recompose.
+    // If something changed, but we don't currently have any visible layers,
+    //   and didn't when we last did a composition, then skip it this time.
+    // The second rule does two things:
+    // - When all layers are removed from a display, we'll emit one black
+    //   frame, then nothing more until we get new layers.
+    // - When a display is created with a private layer stack, we won't
+    //   emit any black frames until a layer is added to the layer stack.
+    const bool mustRecompose = dirty && !(empty && wasEmpty);
+
+    const char flagPrefix[] = {'-', '+'};
+    static_cast<void>(flagPrefix);
+    ALOGV_IF("%s: %s composition for %s (%cdirty %cempty %cwasEmpty)", __FUNCTION__,
+             mustRecompose ? "doing" : "skipping", getName().c_str(), flagPrefix[dirty],
+             flagPrefix[empty], flagPrefix[wasEmpty]);
+
+    mRenderSurface->beginFrame(mustRecompose);
+
+    if (mustRecompose) {
+        mState.lastCompositionHadVisibleLayers = !empty;
+    }
+}
+
 void Output::prepareFrame() {
     ATRACE_CALL();
     ALOGV(__FUNCTION__);

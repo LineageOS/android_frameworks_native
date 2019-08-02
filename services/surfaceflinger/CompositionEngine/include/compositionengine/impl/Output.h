@@ -75,6 +75,7 @@ public:
     void setReleasedLayers(ReleasedLayers&&) override;
     ReleasedLayers takeReleasedLayers() override;
 
+    void beginFrame() override;
     void prepareFrame() override;
     void postFramebuffer() override;
 
