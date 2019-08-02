@@ -46,7 +46,7 @@ using SurfaceChange = surfaceflinger::SurfaceChange;
 using Increment = surfaceflinger::Increment;
 using DisplayChange = surfaceflinger::DisplayChange;
 
-constexpr auto DEFAULT_FILENAME = "/data/SurfaceTrace.dat";
+constexpr auto DEFAULT_FILENAME = "/data/misc/wmtrace/transaction_trace.pb";
 
 class SurfaceInterceptor {
 public:
