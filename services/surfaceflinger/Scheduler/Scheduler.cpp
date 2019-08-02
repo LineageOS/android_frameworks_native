@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#undef LOG_TAG
+#define LOG_TAG "Scheduler"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "Scheduler.h"
@@ -21,6 +23,7 @@
 #include <algorithm>
 #include <cinttypes>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <numeric>
 
@@ -38,80 +41,56 @@
 #include "DispSyncSource.h"
 #include "EventControlThread.h"
 #include "EventThread.h"
-#include "InjectVSyncSource.h"
-#include "LayerInfo.h"
 #include "OneShotTimer.h"
 #include "SchedulerUtils.h"
 #include "SurfaceFlingerProperties.h"
 
+#define RETURN_IF_INVALID_HANDLE(handle, ...)                        \
+    do {                                                             \
+        if (mConnections.count(handle) == 0) {                       \
+            ALOGE("Invalid connection handle %" PRIuPTR, handle.id); \
+            return __VA_ARGS__;                                      \
+        }                                                            \
+    } while (false)
+
 namespace android {
-
-using namespace android::hardware::configstore;
-using namespace android::hardware::configstore::V1_0;
-using namespace android::sysprop;
-
-#define RETURN_VALUE_IF_INVALID(value) \
-    if (handle == nullptr || mConnections.count(handle->id) == 0) return value
-#define RETURN_IF_INVALID() \
-    if (handle == nullptr || mConnections.count(handle->id) == 0) return
-
-std::atomic<int64_t> Scheduler::sNextId = 0;
 
 Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
                      const scheduler::RefreshRateConfigs& refreshRateConfig)
-      : mHasSyncFramework(running_without_sync_framework(true)),
-        mDispSyncPresentTimeOffset(present_time_offset_from_vsync_ns(0)),
-        mPrimaryHWVsyncEnabled(false),
-        mHWVsyncAvailable(false),
+      : mPrimaryDispSync(new impl::DispSync("SchedulerDispSync",
+                                            sysprop::running_without_sync_framework(true))),
+        mEventControlThread(new impl::EventControlThread(std::move(function))),
+        mSupportKernelTimer(sysprop::support_kernel_idle_timer(false)),
         mRefreshRateConfigs(refreshRateConfig) {
-    // Note: We create a local temporary with the real DispSync implementation
-    // type temporarily so we can initialize it with the configured values,
-    // before storing it for more generic use using the interface type.
-    auto primaryDispSync = std::make_unique<impl::DispSync>("SchedulerDispSync");
-    primaryDispSync->init(mHasSyncFramework, mDispSyncPresentTimeOffset);
-    mPrimaryDispSync = std::move(primaryDispSync);
-    mEventControlThread = std::make_unique<impl::EventControlThread>(function);
-
-    mSetIdleTimerMs = set_idle_timer_ms(0);
-    mSupportKernelTimer = support_kernel_idle_timer(false);
-
-    mSetTouchTimerMs = set_touch_timer_ms(0);
-    mSetDisplayPowerTimerMs = set_display_power_timer_ms(0);
+    using namespace sysprop;
 
     char value[PROPERTY_VALUE_MAX];
     property_get("debug.sf.set_idle_timer_ms", value, "0");
-    int int_value = atoi(value);
-    if (int_value) {
-        mSetIdleTimerMs = atoi(value);
-    }
+    const int setIdleTimerMs = atoi(value);
 
-    if (mSetIdleTimerMs > 0) {
-        if (mSupportKernelTimer) {
-            mIdleTimer = std::make_unique<scheduler::OneShotTimer>(
-                    std::chrono::milliseconds(mSetIdleTimerMs),
-                    [this] { kernelIdleTimerCallback(TimerState::Reset); },
-                    [this] { kernelIdleTimerCallback(TimerState::Expired); });
-        } else {
-            mIdleTimer = std::make_unique<scheduler::OneShotTimer>(
-                    std::chrono::milliseconds(mSetIdleTimerMs),
-                    [this] { idleTimerCallback(TimerState::Reset); },
-                    [this] { idleTimerCallback(TimerState::Expired); });
-        }
+    if (const auto millis = setIdleTimerMs ? setIdleTimerMs : set_idle_timer_ms(0); millis > 0) {
+        const auto callback = mSupportKernelTimer ? &Scheduler::kernelIdleTimerCallback
+                                                  : &Scheduler::idleTimerCallback;
+
+        mIdleTimer.emplace(
+                std::chrono::milliseconds(millis),
+                [this, callback] { std::invoke(callback, this, TimerState::Reset); },
+                [this, callback] { std::invoke(callback, this, TimerState::Expired); });
         mIdleTimer->start();
     }
 
-    if (mSetTouchTimerMs > 0) {
+    if (const int64_t millis = set_touch_timer_ms(0); millis > 0) {
         // Touch events are coming to SF every 100ms, so the timer needs to be higher than that
-        mTouchTimer = std::make_unique<scheduler::OneShotTimer>(
-                std::chrono::milliseconds(mSetTouchTimerMs),
+        mTouchTimer.emplace(
+                std::chrono::milliseconds(millis),
                 [this] { touchTimerCallback(TimerState::Reset); },
                 [this] { touchTimerCallback(TimerState::Expired); });
         mTouchTimer->start();
     }
 
-    if (mSetDisplayPowerTimerMs > 0) {
-        mDisplayPowerTimer = std::make_unique<scheduler::OneShotTimer>(
-                std::chrono::milliseconds(mSetDisplayPowerTimerMs),
+    if (const int64_t millis = set_display_power_timer_ms(0); millis > 0) {
+        mDisplayPowerTimer.emplace(
+                std::chrono::milliseconds(millis),
                 [this] { displayPowerTimerCallback(TimerState::Reset); },
                 [this] { displayPowerTimerCallback(TimerState::Expired); });
         mDisplayPowerTimer->start();
@@ -121,9 +100,9 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
 Scheduler::Scheduler(std::unique_ptr<DispSync> primaryDispSync,
                      std::unique_ptr<EventControlThread> eventControlThread,
                      const scheduler::RefreshRateConfigs& configs)
-      : mHasSyncFramework(false),
-        mPrimaryDispSync(std::move(primaryDispSync)),
+      : mPrimaryDispSync(std::move(primaryDispSync)),
         mEventControlThread(std::move(eventControlThread)),
+        mSupportKernelTimer(false),
         mRefreshRateConfigs(configs) {}
 
 Scheduler::~Scheduler() {
@@ -133,36 +112,39 @@ Scheduler::~Scheduler() {
     mIdleTimer.reset();
 }
 
-sp<Scheduler::ConnectionHandle> Scheduler::createConnection(
+DispSync& Scheduler::getPrimaryDispSync() {
+    return *mPrimaryDispSync;
+}
+
+Scheduler::ConnectionHandle Scheduler::createConnection(
         const char* connectionName, nsecs_t phaseOffsetNs, nsecs_t offsetThresholdForNextVsync,
         ResyncCallback resyncCallback,
         impl::EventThread::InterceptVSyncsCallback interceptCallback) {
-    const int64_t id = sNextId++;
-    ALOGV("Creating a connection handle with ID: %" PRId64 "\n", id);
+    auto eventThread = makeEventThread(connectionName, phaseOffsetNs, offsetThresholdForNextVsync,
+                                       std::move(interceptCallback));
+    return createConnection(std::move(eventThread), std::move(resyncCallback));
+}
 
-    std::unique_ptr<EventThread> eventThread =
-            makeEventThread(connectionName, mPrimaryDispSync.get(), phaseOffsetNs,
-                            offsetThresholdForNextVsync, std::move(interceptCallback));
+Scheduler::ConnectionHandle Scheduler::createConnection(std::unique_ptr<EventThread> eventThread,
+                                                        ResyncCallback&& resyncCallback) {
+    const ConnectionHandle handle = ConnectionHandle{mNextConnectionHandleId++};
+    ALOGV("Creating a connection handle with ID %" PRIuPTR, handle.id);
 
-    auto eventThreadConnection =
-            createConnectionInternal(eventThread.get(), std::move(resyncCallback),
-                                     ISurfaceComposer::eConfigChangedSuppress);
-    mConnections.emplace(id,
-                         std::make_unique<Connection>(new ConnectionHandle(id),
-                                                      eventThreadConnection,
-                                                      std::move(eventThread)));
-    return mConnections[id]->handle;
+    auto connection = createConnectionInternal(eventThread.get(), std::move(resyncCallback),
+                                               ISurfaceComposer::eConfigChangedSuppress);
+
+    mConnections.emplace(handle, Connection{connection, std::move(eventThread)});
+    return handle;
 }
 
 std::unique_ptr<EventThread> Scheduler::makeEventThread(
-        const char* connectionName, DispSync* dispSync, nsecs_t phaseOffsetNs,
-        nsecs_t offsetThresholdForNextVsync,
-        impl::EventThread::InterceptVSyncsCallback interceptCallback) {
-    std::unique_ptr<VSyncSource> eventThreadSource =
-            std::make_unique<DispSyncSource>(dispSync, phaseOffsetNs, offsetThresholdForNextVsync,
-                                             true, connectionName);
-    return std::make_unique<impl::EventThread>(std::move(eventThreadSource),
-                                               std::move(interceptCallback), connectionName);
+        const char* connectionName, nsecs_t phaseOffsetNs, nsecs_t offsetThresholdForNextVsync,
+        impl::EventThread::InterceptVSyncsCallback&& interceptCallback) {
+    auto source = std::make_unique<DispSyncSource>(mPrimaryDispSync.get(), phaseOffsetNs,
+                                                   offsetThresholdForNextVsync,
+                                                   true /* traceVsync */, connectionName);
+    return std::make_unique<impl::EventThread>(std::move(source), std::move(interceptCallback),
+                                               connectionName);
 }
 
 sp<EventThreadConnection> Scheduler::createConnectionInternal(
@@ -172,53 +154,53 @@ sp<EventThreadConnection> Scheduler::createConnectionInternal(
 }
 
 sp<IDisplayEventConnection> Scheduler::createDisplayEventConnection(
-        const sp<Scheduler::ConnectionHandle>& handle, ResyncCallback resyncCallback,
+        ConnectionHandle handle, ResyncCallback resyncCallback,
         ISurfaceComposer::ConfigChanged configChanged) {
-    RETURN_VALUE_IF_INVALID(nullptr);
-    return createConnectionInternal(mConnections[handle->id]->thread.get(),
-                                    std::move(resyncCallback), configChanged);
+    RETURN_IF_INVALID_HANDLE(handle, nullptr);
+    return createConnectionInternal(mConnections[handle].thread.get(), std::move(resyncCallback),
+                                    configChanged);
 }
 
-EventThread* Scheduler::getEventThread(const sp<Scheduler::ConnectionHandle>& handle) {
-    RETURN_VALUE_IF_INVALID(nullptr);
-    return mConnections[handle->id]->thread.get();
+EventThread* Scheduler::getEventThread(ConnectionHandle handle) {
+    RETURN_IF_INVALID_HANDLE(handle, nullptr);
+    return mConnections[handle].thread.get();
 }
 
-sp<EventThreadConnection> Scheduler::getEventConnection(const sp<ConnectionHandle>& handle) {
-    RETURN_VALUE_IF_INVALID(nullptr);
-    return mConnections[handle->id]->eventConnection;
+sp<EventThreadConnection> Scheduler::getEventConnection(ConnectionHandle handle) {
+    RETURN_IF_INVALID_HANDLE(handle, nullptr);
+    return mConnections[handle].connection;
 }
 
-void Scheduler::hotplugReceived(const sp<Scheduler::ConnectionHandle>& handle,
-                                PhysicalDisplayId displayId, bool connected) {
-    RETURN_IF_INVALID();
-    mConnections[handle->id]->thread->onHotplugReceived(displayId, connected);
+void Scheduler::onHotplugReceived(ConnectionHandle handle, PhysicalDisplayId displayId,
+                                  bool connected) {
+    RETURN_IF_INVALID_HANDLE(handle);
+    mConnections[handle].thread->onHotplugReceived(displayId, connected);
 }
 
-void Scheduler::onScreenAcquired(const sp<Scheduler::ConnectionHandle>& handle) {
-    RETURN_IF_INVALID();
-    mConnections[handle->id]->thread->onScreenAcquired();
+void Scheduler::onScreenAcquired(ConnectionHandle handle) {
+    RETURN_IF_INVALID_HANDLE(handle);
+    mConnections[handle].thread->onScreenAcquired();
 }
 
-void Scheduler::onScreenReleased(const sp<Scheduler::ConnectionHandle>& handle) {
-    RETURN_IF_INVALID();
-    mConnections[handle->id]->thread->onScreenReleased();
+void Scheduler::onScreenReleased(ConnectionHandle handle) {
+    RETURN_IF_INVALID_HANDLE(handle);
+    mConnections[handle].thread->onScreenReleased();
 }
 
-void Scheduler::onConfigChanged(const sp<ConnectionHandle>& handle, PhysicalDisplayId displayId,
+void Scheduler::onConfigChanged(ConnectionHandle handle, PhysicalDisplayId displayId,
                                 int32_t configId) {
-    RETURN_IF_INVALID();
-    mConnections[handle->id]->thread->onConfigChanged(displayId, configId);
+    RETURN_IF_INVALID_HANDLE(handle);
+    mConnections[handle].thread->onConfigChanged(displayId, configId);
 }
 
-void Scheduler::dump(const sp<Scheduler::ConnectionHandle>& handle, std::string& result) const {
-    RETURN_IF_INVALID();
-    mConnections.at(handle->id)->thread->dump(result);
+void Scheduler::dump(ConnectionHandle handle, std::string& result) const {
+    RETURN_IF_INVALID_HANDLE(handle);
+    mConnections.at(handle).thread->dump(result);
 }
 
-void Scheduler::setPhaseOffset(const sp<Scheduler::ConnectionHandle>& handle, nsecs_t phaseOffset) {
-    RETURN_IF_INVALID();
-    mConnections[handle->id]->thread->setPhaseOffset(phaseOffset);
+void Scheduler::setPhaseOffset(ConnectionHandle handle, nsecs_t phaseOffset) {
+    RETURN_IF_INVALID_HANDLE(handle);
+    mConnections[handle].thread->setPhaseOffset(phaseOffset);
 }
 
 void Scheduler::getDisplayStatInfo(DisplayStatInfo* stats) {
@@ -290,7 +272,7 @@ void Scheduler::setRefreshSkipCount(int count) {
     mPrimaryDispSync->setRefreshSkipCount(count);
 }
 
-void Scheduler::setVsyncPeriod(const nsecs_t period) {
+void Scheduler::setVsyncPeriod(nsecs_t period) {
     std::lock_guard<std::mutex> lock(mHWVsyncLock);
     mPrimaryDispSync->setPeriod(period);
 
@@ -301,7 +283,7 @@ void Scheduler::setVsyncPeriod(const nsecs_t period) {
     }
 }
 
-void Scheduler::addResyncSample(const nsecs_t timestamp, bool* periodFlushed) {
+void Scheduler::addResyncSample(nsecs_t timestamp, bool* periodFlushed) {
     bool needsHwVsync = false;
     *periodFlushed = false;
     { // Scope for the lock
@@ -334,10 +316,6 @@ nsecs_t Scheduler::getDispSyncExpectedPresentTime() {
     return mPrimaryDispSync->expectedPresentTime();
 }
 
-void Scheduler::dumpPrimaryDispSync(std::string& result) const {
-    mPrimaryDispSync->dump(result);
-}
-
 std::unique_ptr<scheduler::LayerHistory::LayerHandle> Scheduler::registerLayer(
         std::string const& name, int windowType) {
     RefreshRateType refreshRateType = (windowType == InputWindowInfo::TYPE_WALLPAPER)
@@ -361,10 +339,6 @@ void Scheduler::addLayerPresentTimeAndHDR(
 void Scheduler::setLayerVisibility(
         const std::unique_ptr<scheduler::LayerHistory::LayerHandle>& layerHandle, bool visible) {
     mLayerHistory.setVisibility(layerHandle, visible);
-}
-
-void Scheduler::withPrimaryDispSync(std::function<void(DispSync&)> const& fn) {
-    fn(*mPrimaryDispSync);
 }
 
 void Scheduler::updateFpsBasedOnContent() {
@@ -393,30 +367,19 @@ void Scheduler::updateFpsBasedOnContent() {
     changeRefreshRate(newRefreshRateType, ConfigEvent::Changed);
 }
 
-void Scheduler::setChangeRefreshRateCallback(
-        const ChangeRefreshRateCallback&& changeRefreshRateCallback) {
+void Scheduler::setChangeRefreshRateCallback(ChangeRefreshRateCallback&& callback) {
     std::lock_guard<std::mutex> lock(mCallbackLock);
-    mChangeRefreshRateCallback = changeRefreshRateCallback;
+    mChangeRefreshRateCallback = std::move(callback);
 }
 
-void Scheduler::setGetCurrentRefreshRateTypeCallback(
-        const GetCurrentRefreshRateTypeCallback&& getCurrentRefreshRateTypeCallback) {
+void Scheduler::setGetCurrentRefreshRateTypeCallback(GetCurrentRefreshRateTypeCallback&& callback) {
     std::lock_guard<std::mutex> lock(mCallbackLock);
-    mGetCurrentRefreshRateTypeCallback = getCurrentRefreshRateTypeCallback;
+    mGetCurrentRefreshRateTypeCallback = std::move(callback);
 }
 
-void Scheduler::setGetVsyncPeriodCallback(const GetVsyncPeriod&& getVsyncPeriod) {
+void Scheduler::setGetVsyncPeriodCallback(GetVsyncPeriod&& callback) {
     std::lock_guard<std::mutex> lock(mCallbackLock);
-    mGetVsyncPeriod = getVsyncPeriod;
-}
-
-void Scheduler::updateFrameSkipping(const int64_t skipCount) {
-    ATRACE_INT("FrameSkipCount", skipCount);
-    if (mSkipCount != skipCount) {
-        // Only update DispSync if it hasn't been updated yet.
-        mPrimaryDispSync->setRefreshSkipCount(skipCount);
-        mSkipCount = skipCount;
-    }
+    mGetVsyncPeriod = std::move(callback);
 }
 
 void Scheduler::resetIdleTimer() {
@@ -430,8 +393,8 @@ void Scheduler::notifyTouchEvent() {
         mTouchTimer->reset();
     }
 
-    if (mSupportKernelTimer) {
-        resetIdleTimer();
+    if (mSupportKernelTimer && mIdleTimer) {
+        mIdleTimer->reset();
     }
 
     // Touch event will boost the refresh rate to performance.
@@ -491,11 +454,16 @@ void Scheduler::displayPowerTimerCallback(TimerState state) {
     ATRACE_INT("ExpiredDisplayPowerTimer", static_cast<int>(state));
 }
 
-std::string Scheduler::doDump() {
+void Scheduler::dump(std::string& result) const {
     std::ostringstream stream;
-    stream << "+  Idle timer interval: " << mSetIdleTimerMs << " ms" << std::endl;
-    stream << "+  Touch timer interval: " << mSetTouchTimerMs << " ms" << std::endl;
-    return stream.str();
+    if (mIdleTimer) {
+        stream << "+  Idle timer interval: " << mIdleTimer->interval().count() << " ms\n";
+    }
+    if (mTouchTimer) {
+        stream << "+  Touch timer interval: " << mTouchTimer->interval().count() << " ms\n";
+    }
+
+    result.append(stream.str());
 }
 
 template <class T>

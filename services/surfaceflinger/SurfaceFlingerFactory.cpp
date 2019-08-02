@@ -45,19 +45,13 @@ sp<SurfaceFlinger> createSurfaceFlinger() {
         Factory() = default;
         ~Factory() = default;
 
-        std::unique_ptr<DispSync> createDispSync(const char* name, bool hasSyncFramework,
-                                                 int64_t dispSyncPresentTimeOffset) override {
-            // Note: We create a local temporary with the real DispSync implementation
-            // type temporarily so we can initialize it with the configured values,
-            // before storing it for more generic use using the interface type.
-            auto primaryDispSync = std::make_unique<android::impl::DispSync>(name);
-            primaryDispSync->init(hasSyncFramework, dispSyncPresentTimeOffset);
-            return primaryDispSync;
+        std::unique_ptr<DispSync> createDispSync(const char* name, bool hasSyncFramework) override {
+            return std::make_unique<android::impl::DispSync>(name, hasSyncFramework);
         }
 
         std::unique_ptr<EventControlThread> createEventControlThread(
-                std::function<void(bool)> setVSyncEnabled) override {
-            return std::make_unique<android::impl::EventControlThread>(setVSyncEnabled);
+                SetVSyncEnabled setVSyncEnabled) override {
+            return std::make_unique<android::impl::EventControlThread>(std::move(setVSyncEnabled));
         }
 
         std::unique_ptr<HWComposer> createHWComposer(const std::string& serviceName) override {
@@ -74,9 +68,9 @@ sp<SurfaceFlinger> createSurfaceFlinger() {
         }
 
         std::unique_ptr<Scheduler> createScheduler(
-                std::function<void(bool)> callback,
-                const scheduler::RefreshRateConfigs& refreshRateConfig) override {
-            return std::make_unique<Scheduler>(callback, refreshRateConfig);
+                SetVSyncEnabled setVSyncEnabled,
+                const scheduler::RefreshRateConfigs& configs) override {
+            return std::make_unique<Scheduler>(std::move(setVSyncEnabled), configs);
         }
 
         std::unique_ptr<SurfaceInterceptor> createSurfaceInterceptor(

@@ -462,22 +462,14 @@ private:
     TracedOrdinal<bool> mParity;
 };
 
-DispSync::DispSync(const char* name) : mName(name), mRefreshSkipCount(0) {
+DispSync::DispSync(const char* name, bool hasSyncFramework)
+      : mName(name), mIgnorePresentFences(!hasSyncFramework) {
     // This flag offers the ability to turn on systrace logging from the shell.
     char value[PROPERTY_VALUE_MAX];
     property_get("debug.sf.dispsync_trace_detailed_info", value, "0");
     mTraceDetailedInfo = atoi(value);
+
     mThread = new DispSyncThread(name, mTraceDetailedInfo);
-}
-
-DispSync::~DispSync() {
-    mThread->stop();
-    mThread->requestExitAndWait();
-}
-
-void DispSync::init(bool hasSyncFramework, int64_t dispSyncPresentTimeOffset) {
-    mIgnorePresentFences = !hasSyncFramework;
-    mPresentTimeOffset = dispSyncPresentTimeOffset;
     mThread->run("DispSync", PRIORITY_URGENT_DISPLAY + PRIORITY_MORE_FAVORABLE);
 
     // set DispSync to SCHED_FIFO to minimize jitter
@@ -493,6 +485,11 @@ void DispSync::init(bool hasSyncFramework, int64_t dispSyncPresentTimeOffset) {
         mZeroPhaseTracer = std::make_unique<ZeroPhaseTracer>();
         addEventListener("ZeroPhaseTracer", 0, mZeroPhaseTracer.get(), 0);
     }
+}
+
+DispSync::~DispSync() {
+    mThread->stop();
+    mThread->requestExitAndWait();
 }
 
 void DispSync::reset() {

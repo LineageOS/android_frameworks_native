@@ -63,12 +63,13 @@ PhaseOffsets::Offsets PhaseOffsets::getOffsetsForRefreshRate(
 
 void PhaseOffsets::dump(std::string& result) const {
     const auto [early, earlyGl, late, threshold] = getCurrentOffsets();
-    base::StringAppendF(&result,
-                        "         app phase: %9" PRId64 " ns\t         SF phase: %9" PRId64 " ns\n"
-                        "   early app phase: %9" PRId64 " ns\t   early SF phase: %9" PRId64 " ns\n"
-                        "GL early app phase: %9" PRId64 " ns\tGL early SF phase: %9" PRId64 " ns\n"
-                        "threshold for next VSYNC: %" PRId64 " ns\n",
-                        late.app, late.sf, early.app, early.sf, earlyGl.app, earlyGl.sf, threshold);
+    using base::StringAppendF;
+    StringAppendF(&result,
+                  "           app phase: %9" PRId64 " ns\t         SF phase: %9" PRId64 " ns\n"
+                  "     early app phase: %9" PRId64 " ns\t   early SF phase: %9" PRId64 " ns\n"
+                  "  GL early app phase: %9" PRId64 " ns\tGL early SF phase: %9" PRId64 " ns\n"
+                  "next VSYNC threshold: %9" PRId64 " ns\n",
+                  late.app, late.sf, early.app, early.sf, earlyGl.app, earlyGl.sf, threshold);
 }
 
 PhaseOffsets::Offsets PhaseOffsets::getDefaultOffsets(nsecs_t thresholdForNextVsync) {

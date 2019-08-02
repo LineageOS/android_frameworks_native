@@ -94,13 +94,13 @@ public:
 
     // Traverses through the map of config modes and returns how long they've been running in easy
     // to read format.
-    std::string doDump() const {
-        std::ostringstream stream;
-        stream << "+  Refresh rate: running time in seconds\n";
+    void dump(std::string& result) const {
+        std::ostringstream stream("+  Refresh rate: running time in seconds\n");
+
         for (const auto& [name, time] : const_cast<RefreshRateStats*>(this)->getTotalTimes()) {
             stream << name << ": " << getDateFormatFromMs(time) << '\n';
         }
-        return stream.str();
+        result.append(stream.str());
     }
 
 private:

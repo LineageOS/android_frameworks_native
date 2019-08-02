@@ -39,6 +39,8 @@ public:
                  const TimeoutCallback& timeoutCallback);
     ~OneShotTimer();
 
+    const Interval& interval() const { return mInterval; }
+
     // Initializes and turns on the idle timer.
     void start();
     // Stops the idle timer and any held resources.

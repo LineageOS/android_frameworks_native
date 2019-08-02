@@ -88,10 +88,9 @@ class DispSyncThread;
 // needed.
 class DispSync : public android::DispSync {
 public:
-    explicit DispSync(const char* name);
+    // hasSyncFramework specifies whether the platform supports present fences.
+    DispSync(const char* name, bool hasSyncFramework);
     ~DispSync() override;
-
-    void init(bool hasSyncFramework, int64_t dispSyncPresentTimeOffset);
 
     // reset clears the resync samples and error value.
     void reset() override;
@@ -252,17 +251,13 @@ private:
     std::shared_ptr<FenceTime> mPresentFences[NUM_PRESENT_SAMPLES]{FenceTime::NO_FENCE};
     size_t mPresentSampleOffset;
 
-    int mRefreshSkipCount;
+    int mRefreshSkipCount = 0;
 
     // mThread is the thread from which all the callbacks are called.
     sp<DispSyncThread> mThread;
 
     // mMutex is used to protect access to all member variables.
     mutable Mutex mMutex;
-
-    // This is the offset from the present fence timestamps to the corresponding
-    // vsync event.
-    int64_t mPresentTimeOffset;
 
     // Ignore present (retire) fences if the device doesn't have support for the
     // sync framework

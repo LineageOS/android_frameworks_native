@@ -1101,8 +1101,8 @@ private:
      */
     bool mUseSmart90ForVideo = false;
     std::unique_ptr<Scheduler> mScheduler;
-    sp<Scheduler::ConnectionHandle> mAppConnectionHandle;
-    sp<Scheduler::ConnectionHandle> mSfConnectionHandle;
+    scheduler::ConnectionHandle mAppConnectionHandle;
+    scheduler::ConnectionHandle mSfConnectionHandle;
 
     // Stores phase offsets configured per refresh rate.
     const std::unique_ptr<scheduler::PhaseOffsets> mPhaseOffsets;
