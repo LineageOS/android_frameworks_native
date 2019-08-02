@@ -613,7 +613,7 @@ void TimeStats::dump(bool asProto, std::optional<uint32_t> maxLayers, std::strin
     if (asProto) {
         ALOGD("Dumping TimeStats as proto");
         SFTimeStatsGlobalProto timeStatsProto = mTimeStats.toProto(maxLayers);
-        result.append(timeStatsProto.SerializeAsString().c_str(), timeStatsProto.ByteSize());
+        result.append(timeStatsProto.SerializeAsString());
     } else {
         ALOGD("Dumping TimeStats as text");
         result.append(mTimeStats.toString(maxLayers));
