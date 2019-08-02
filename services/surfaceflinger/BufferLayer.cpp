@@ -132,13 +132,15 @@ static constexpr mat4 inverseOrientation(uint32_t transform) {
     return inverse(tr);
 }
 
-bool BufferLayer::prepareClientLayer(const RenderArea& renderArea, const Region& clip,
-                                     bool useIdentityTransform, Region& clearRegion,
-                                     const bool supportProtectedContent,
-                                     renderengine::LayerSettings& layer) {
+std::optional<renderengine::LayerSettings> BufferLayer::prepareClientComposition(
+        compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) {
     ATRACE_CALL();
-    Layer::prepareClientLayer(renderArea, clip, useIdentityTransform, clearRegion,
-                              supportProtectedContent, layer);
+
+    auto result = Layer::prepareClientComposition(targetSettings);
+    if (!result) {
+        return result;
+    }
+
     if (CC_UNLIKELY(mActiveBuffer == 0)) {
         // the texture has not been created yet, this Layer has
         // in fact never been drawn into. This happens frequently with
@@ -159,15 +161,16 @@ bool BufferLayer::prepareClientLayer(const RenderArea& renderArea, const Region&
             under.orSelf(layer->visibleRegion);
         });
         // if not everything below us is covered, we plug the holes!
-        Region holes(clip.subtract(under));
+        Region holes(targetSettings.clip.subtract(under));
         if (!holes.isEmpty()) {
-            clearRegion.orSelf(holes);
+            targetSettings.clearRegion.orSelf(holes);
         }
-        return false;
+        return std::nullopt;
     }
-    bool blackOutLayer =
-            (isProtected() && !supportProtectedContent) || (isSecure() && !renderArea.isSecure());
+    bool blackOutLayer = (isProtected() && !targetSettings.supportProtectedContent) ||
+            (isSecure() && !targetSettings.isSecure);
     const State& s(getDrawingState());
+    auto& layer = *result;
     if (!blackOutLayer) {
         layer.source.buffer.buffer = mActiveBuffer;
         layer.source.buffer.isOpaque = isOpaque(s);
@@ -176,8 +179,7 @@ bool BufferLayer::prepareClientLayer(const RenderArea& renderArea, const Region&
         layer.source.buffer.usePremultipliedAlpha = getPremultipledAlpha();
         layer.source.buffer.isY410BT2020 = isHdrY410();
         // TODO: we could be more subtle with isFixedSize()
-        const bool useFiltering = needsFiltering(renderArea.getDisplayDevice()) ||
-                renderArea.needsFiltering() || isFixedSize();
+        const bool useFiltering = targetSettings.needsFiltering || mNeedsFiltering || isFixedSize();
 
         // Query the texture matrix given our current filtering mode.
         float textureMatrix[16];
@@ -244,7 +246,7 @@ bool BufferLayer::prepareClientLayer(const RenderArea& renderArea, const Region&
         layer.alpha = 1.0;
     }
 
-    return true;
+    return result;
 }
 
 bool BufferLayer::isHdrY410() const {
@@ -572,21 +574,23 @@ bool BufferLayer::getOpacityForFormat(uint32_t format) {
 }
 
 bool BufferLayer::needsFiltering(const sp<const DisplayDevice>& displayDevice) const {
-    // If we are not capturing based on the state of a known display device, we
-    // only return mNeedsFiltering
+    // If we are not capturing based on the state of a known display device,
+    // just return false.
     if (displayDevice == nullptr) {
-        return mNeedsFiltering;
+        return false;
     }
 
     const auto outputLayer = findOutputLayerForDisplay(displayDevice);
     if (outputLayer == nullptr) {
-        return mNeedsFiltering;
+        return false;
     }
 
+    // We need filtering if the sourceCrop rectangle size does not match the
+    // displayframe rectangle size (not a 1:1 render)
     const auto& compositionState = outputLayer->getState();
     const auto displayFrame = compositionState.displayFrame;
     const auto sourceCrop = compositionState.sourceCrop;
-    return mNeedsFiltering || sourceCrop.getHeight() != displayFrame.getHeight() ||
+    return sourceCrop.getHeight() != displayFrame.getHeight() ||
             sourceCrop.getWidth() != displayFrame.getWidth();
 }
 

@@ -3319,6 +3319,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
      */
 
     ALOGV("Rendering client layers");
+    const bool useIdentityTransform = false;
     bool firstLayer = true;
     Region clearRegion = Region::INVALID_REGION;
     for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
@@ -3339,13 +3340,20 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
                         layer->getRoundedCornerState().radius == 0.0f && hasClientComposition) {
                         // never clear the very first layer since we're
                         // guaranteed the FB is already cleared
-                        renderengine::LayerSettings layerSettings;
                         Region dummyRegion;
-                        bool prepared =
-                                layer->prepareClientLayer(renderArea, clip, dummyRegion,
-                                                          supportProtectedContent, layerSettings);
+                        compositionengine::LayerFE::ClientCompositionTargetSettings targetSettings{
+                                clip,
+                                useIdentityTransform,
+                                layer->needsFiltering(renderArea.getDisplayDevice()) ||
+                                        renderArea.needsFiltering(),
+                                renderArea.isSecure(),
+                                supportProtectedContent,
+                                dummyRegion,
+                        };
+                        auto result = layer->prepareClientComposition(targetSettings);
 
-                        if (prepared) {
+                        if (result) {
+                            auto& layerSettings = *result;
                             layerSettings.source.buffer.buffer = nullptr;
                             layerSettings.source.solidColor = half3(0.0, 0.0, 0.0);
                             layerSettings.alpha = half(0.0);
@@ -3356,12 +3364,18 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
                     break;
                 }
                 case Hwc2::IComposerClient::Composition::CLIENT: {
-                    renderengine::LayerSettings layerSettings;
-                    bool prepared =
-                            layer->prepareClientLayer(renderArea, clip, clearRegion,
-                                                      supportProtectedContent, layerSettings);
-                    if (prepared) {
-                        clientCompositionLayers.push_back(layerSettings);
+                    compositionengine::LayerFE::ClientCompositionTargetSettings targetSettings{
+                            clip,
+                            useIdentityTransform,
+                            layer->needsFiltering(renderArea.getDisplayDevice()) ||
+                                    renderArea.needsFiltering(),
+                            renderArea.isSecure(),
+                            supportProtectedContent,
+                            clearRegion,
+                    };
+                    auto result = layer->prepareClientComposition(targetSettings);
+                    if (result) {
+                        clientCompositionLayers.push_back(*result);
                     }
                     break;
                 }
@@ -5902,11 +5916,19 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
 
     Region clearRegion = Region::INVALID_REGION;
     traverseLayers([&](Layer* layer) {
-        renderengine::LayerSettings layerSettings;
-        bool prepared = layer->prepareClientLayer(renderArea, useIdentityTransform, clearRegion,
-                                                  false, layerSettings);
-        if (prepared) {
-            clientCompositionLayers.push_back(layerSettings);
+        const bool supportProtectedContent = false;
+        Region clip(renderArea.getBounds());
+        compositionengine::LayerFE::ClientCompositionTargetSettings targetSettings{
+                clip,
+                useIdentityTransform,
+                layer->needsFiltering(renderArea.getDisplayDevice()) || renderArea.needsFiltering(),
+                renderArea.isSecure(),
+                supportProtectedContent,
+                clearRegion,
+        };
+        auto result = layer->prepareClientComposition(targetSettings);
+        if (result) {
+            clientCompositionLayers.push_back(*result);
         }
     });
 

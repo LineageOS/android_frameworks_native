@@ -461,19 +461,17 @@ public:
         return s.activeTransparentRegion_legacy;
     }
     virtual Rect getCrop(const Layer::State& s) const { return s.crop_legacy; }
-
-protected:
-    virtual bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
-                                    bool useIdentityTransform, Region& clearRegion,
-                                    const bool supportProtectedContent,
-                                    renderengine::LayerSettings& layer);
+    virtual bool needsFiltering(const sp<const DisplayDevice>&) const { return false; }
 
 public:
     /*
      * compositionengine::LayerFE overrides
      */
+    bool onPreComposition(nsecs_t) override;
     void latchCompositionState(compositionengine::LayerFECompositionState&,
                                bool includeGeometry) const override;
+    std::optional<renderengine::LayerSettings> prepareClientComposition(
+            compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
     void onLayerDisplayed(const sp<Fence>& releaseFence) override;
     const char* getDebugName() const override;
 
@@ -507,17 +505,6 @@ public:
 
     // If a buffer was replaced this frame, release the former buffer
     virtual void releasePendingBuffer(nsecs_t /*dequeueReadyTime*/) { }
-
-    /*
-     * prepareClientLayer - populates a renderengine::LayerSettings to passed to
-     * RenderEngine::drawLayers. Returns true if the layer can be used, and
-     * false otherwise.
-     */
-    bool prepareClientLayer(const RenderArea& renderArea, const Region& clip, Region& clearRegion,
-                            const bool supportProtectedContent, renderengine::LayerSettings& layer);
-    bool prepareClientLayer(const RenderArea& renderArea, bool useIdentityTransform,
-                            Region& clearRegion, const bool supportProtectedContent,
-                            renderengine::LayerSettings& layer);
 
     /*
      * doTransaction - process the transaction. This is a good place to figure

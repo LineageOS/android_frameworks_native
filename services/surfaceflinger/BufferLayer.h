@@ -82,7 +82,6 @@ public:
 
     bool isHdrY410() const override;
 
-    bool onPreComposition(nsecs_t refreshStartTime) override;
     bool onPostComposition(const std::optional<DisplayId>& displayId,
                            const std::shared_ptr<FenceTime>& glDoneFence,
                            const std::shared_ptr<FenceTime>& presentFence,
@@ -146,7 +145,13 @@ private:
     virtual status_t updateFrameNumber(nsecs_t latchTime) = 0;
 
 protected:
-    void latchPerFrameState(compositionengine::LayerFECompositionState& outState) const override;
+    /*
+     * compositionengine::LayerFE overrides
+     */
+    bool onPreComposition(nsecs_t) override;
+    void latchPerFrameState(compositionengine::LayerFECompositionState&) const override;
+    std::optional<renderengine::LayerSettings> prepareClientComposition(
+            compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
 
     // Loads the corresponding system property once per process
     static bool latchUnsignaledBuffers();
@@ -163,15 +168,9 @@ protected:
 
     bool mRefreshPending{false};
 
-    // prepareClientLayer - constructs a RenderEngine layer for GPU composition.
-    bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
-                            bool useIdentityTransform, Region& clearRegion,
-                            const bool supportProtectedContent,
-                            renderengine::LayerSettings& layer) override;
-
 private:
     // Returns true if this layer requires filtering
-    bool needsFiltering(const sp<const DisplayDevice>& displayDevice) const;
+    bool needsFiltering(const sp<const DisplayDevice>& displayDevice) const override;
 
     uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const;
 

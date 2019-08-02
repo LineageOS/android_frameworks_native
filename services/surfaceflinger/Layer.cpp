@@ -458,6 +458,10 @@ void Layer::latchPerFrameState(compositionengine::LayerFECompositionState& compo
     }
 }
 
+bool Layer::onPreComposition(nsecs_t) {
+    return false;
+}
+
 void Layer::latchCompositionState(compositionengine::LayerFECompositionState& compositionState,
                                   bool includeGeometry) const {
     if (includeGeometry) {
@@ -507,54 +511,33 @@ void Layer::updateCursorPosition(const sp<const DisplayDevice>& display) {
 // drawing...
 // ---------------------------------------------------------------------------
 
-bool Layer::prepareClientLayer(const RenderArea& renderArea, const Region& clip,
-                               Region& clearRegion, const bool supportProtectedContent,
-                               renderengine::LayerSettings& layer) {
-    return prepareClientLayer(renderArea, clip, false, clearRegion, supportProtectedContent, layer);
-}
+std::optional<renderengine::LayerSettings> Layer::prepareClientComposition(
+        compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) {
+    if (!getCompositionLayer()) {
+        return {};
+    }
 
-bool Layer::prepareClientLayer(const RenderArea& renderArea, bool useIdentityTransform,
-                               Region& clearRegion, const bool supportProtectedContent,
-                               renderengine::LayerSettings& layer) {
-    return prepareClientLayer(renderArea, Region(renderArea.getBounds()), useIdentityTransform,
-                              clearRegion, supportProtectedContent, layer);
-}
-
-bool Layer::prepareClientLayer(const RenderArea& /*renderArea*/, const Region& /*clip*/,
-                               bool useIdentityTransform, Region& /*clearRegion*/,
-                               const bool /*supportProtectedContent*/,
-                               renderengine::LayerSettings& layer) {
     FloatRect bounds = getBounds();
     half alpha = getAlpha();
-    layer.geometry.boundaries = bounds;
-    if (useIdentityTransform) {
-        layer.geometry.positionTransform = mat4();
+    renderengine::LayerSettings layerSettings;
+    layerSettings.geometry.boundaries = bounds;
+    if (targetSettings.useIdentityTransform) {
+        layerSettings.geometry.positionTransform = mat4();
     } else {
-        const ui::Transform transform = getTransform();
-        mat4 m;
-        m[0][0] = transform[0][0];
-        m[0][1] = transform[0][1];
-        m[0][3] = transform[0][2];
-        m[1][0] = transform[1][0];
-        m[1][1] = transform[1][1];
-        m[1][3] = transform[1][2];
-        m[3][0] = transform[2][0];
-        m[3][1] = transform[2][1];
-        m[3][3] = transform[2][2];
-        layer.geometry.positionTransform = m;
+        layerSettings.geometry.positionTransform = getTransform().asMatrix4();
     }
 
     if (hasColorTransform()) {
-        layer.colorTransform = getColorTransform();
+        layerSettings.colorTransform = getColorTransform();
     }
 
     const auto roundedCornerState = getRoundedCornerState();
-    layer.geometry.roundedCornersRadius = roundedCornerState.radius;
-    layer.geometry.roundedCornersCrop = roundedCornerState.cropRect;
+    layerSettings.geometry.roundedCornersRadius = roundedCornerState.radius;
+    layerSettings.geometry.roundedCornersCrop = roundedCornerState.cropRect;
 
-    layer.alpha = alpha;
-    layer.sourceDataspace = mCurrentDataSpace;
-    return true;
+    layerSettings.alpha = alpha;
+    layerSettings.sourceDataspace = mCurrentDataSpace;
+    return layerSettings;
 }
 
 Hwc2::IComposerClient::Composition Layer::getCompositionType(
