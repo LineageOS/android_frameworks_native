@@ -95,11 +95,10 @@ public:
     DisplayTransactionTest();
     ~DisplayTransactionTest() override;
 
-    void setupScheduler();
-
     // --------------------------------------------------------------------
     // Mock/Fake injection
 
+    void injectMockScheduler();
     void injectMockComposer(int virtualDisplayCount);
     void injectFakeBufferQueueFactory();
     void injectFakeNativeWindowSurfaceFactory();
@@ -119,11 +118,7 @@ public:
     // --------------------------------------------------------------------
     // Test instances
 
-    TestableScheduler* mScheduler;
     TestableSurfaceFlinger mFlinger;
-    mock::EventThread* mEventThread = new mock::EventThread();
-    mock::EventThread* mSFEventThread = new mock::EventThread();
-    mock::EventControlThread* mEventControlThread = new mock::EventControlThread();
     sp<mock::NativeWindow> mNativeWindow = new mock::NativeWindow();
     sp<GraphicBuffer> mBuffer = new GraphicBuffer();
 
@@ -134,7 +129,11 @@ public:
     Hwc2::mock::Composer* mComposer = nullptr;
     mock::MessageQueue* mMessageQueue = new mock::MessageQueue();
     mock::SurfaceInterceptor* mSurfaceInterceptor = new mock::SurfaceInterceptor();
-    mock::DispSync* mPrimaryDispSync = new mock::DispSync();
+
+    mock::DispSync* mPrimaryDispSync = new mock::DispSync;
+    mock::EventControlThread* mEventControlThread = new mock::EventControlThread;
+    mock::EventThread* mEventThread = new mock::EventThread;
+    mock::EventThread* mSFEventThread = new mock::EventThread;
 
     // These mocks are created only when expected to be created via a factory.
     sp<mock::GraphicBufferConsumer> mConsumer;
@@ -164,7 +163,7 @@ DisplayTransactionTest::DisplayTransactionTest() {
         return nullptr;
     });
 
-    setupScheduler();
+    injectMockScheduler();
     mFlinger.mutableEventQueue().reset(mMessageQueue);
     mFlinger.setupRenderEngine(std::unique_ptr<renderengine::RenderEngine>(mRenderEngine));
     mFlinger.mutableInterceptor().reset(mSurfaceInterceptor);
@@ -178,20 +177,14 @@ DisplayTransactionTest::~DisplayTransactionTest() {
     ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
 }
 
-void DisplayTransactionTest::setupScheduler() {
-    mScheduler = new TestableScheduler(mFlinger.mutableRefreshRateConfigs());
-    mScheduler->mutableEventControlThread().reset(mEventControlThread);
-    mScheduler->mutablePrimaryDispSync().reset(mPrimaryDispSync);
+void DisplayTransactionTest::injectMockScheduler() {
     EXPECT_CALL(*mEventThread, registerDisplayEventConnection(_));
     EXPECT_CALL(*mSFEventThread, registerDisplayEventConnection(_));
 
-    sp<Scheduler::ConnectionHandle> sfConnectionHandle =
-            mScheduler->addConnection(std::unique_ptr<EventThread>(mSFEventThread));
-    mFlinger.mutableSfConnectionHandle() = std::move(sfConnectionHandle);
-    sp<Scheduler::ConnectionHandle> appConnectionHandle =
-            mScheduler->addConnection(std::unique_ptr<EventThread>(mEventThread));
-    mFlinger.mutableAppConnectionHandle() = std::move(appConnectionHandle);
-    mFlinger.mutableScheduler().reset(mScheduler);
+    mFlinger.setupScheduler(std::unique_ptr<DispSync>(mPrimaryDispSync),
+                            std::unique_ptr<EventControlThread>(mEventControlThread),
+                            std::unique_ptr<EventThread>(mEventThread),
+                            std::unique_ptr<EventThread>(mSFEventThread));
 }
 
 void DisplayTransactionTest::injectMockComposer(int virtualDisplayCount) {
@@ -1131,8 +1124,8 @@ TEST_F(DisplayTransactionTest, resetDisplayStateClearsState) {
     // Preconditions
 
     // vsync is enabled and available
-    mScheduler->mutablePrimaryHWVsyncEnabled() = true;
-    mScheduler->mutableHWVsyncAvailable() = true;
+    mFlinger.scheduler()->mutablePrimaryHWVsyncEnabled() = true;
+    mFlinger.scheduler()->mutableHWVsyncAvailable() = true;
 
     // A display exists
     auto existing = Case::Display::makeFakeExistingDisplayInjector(this);
@@ -1156,8 +1149,8 @@ TEST_F(DisplayTransactionTest, resetDisplayStateClearsState) {
     // Postconditions
 
     // vsyncs should be off and not available.
-    EXPECT_FALSE(mScheduler->mutablePrimaryHWVsyncEnabled());
-    EXPECT_FALSE(mScheduler->mutableHWVsyncAvailable());
+    EXPECT_FALSE(mFlinger.scheduler()->mutablePrimaryHWVsyncEnabled());
+    EXPECT_FALSE(mFlinger.scheduler()->mutableHWVsyncAvailable());
 
     // The display should have been removed from the display map.
     EXPECT_FALSE(hasDisplayDevice(existing.token()));
@@ -3008,7 +3001,7 @@ struct DisplayPowerCase {
     }
 
     static void setInitialPrimaryHWVsyncEnabled(DisplayTransactionTest* test, bool enabled) {
-        test->mScheduler->mutablePrimaryHWVsyncEnabled() = enabled;
+        test->mFlinger.scheduler()->mutablePrimaryHWVsyncEnabled() = enabled;
     }
 
     static void setupRepaintEverythingCallExpectations(DisplayTransactionTest* test) {

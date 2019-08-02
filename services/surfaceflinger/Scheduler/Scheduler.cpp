@@ -118,6 +118,14 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
     }
 }
 
+Scheduler::Scheduler(std::unique_ptr<DispSync> primaryDispSync,
+                     std::unique_ptr<EventControlThread> eventControlThread,
+                     const scheduler::RefreshRateConfigs& configs)
+      : mHasSyncFramework(false),
+        mPrimaryDispSync(std::move(primaryDispSync)),
+        mEventControlThread(std::move(eventControlThread)),
+        mRefreshRateConfigs(configs) {}
+
 Scheduler::~Scheduler() {
     // Ensure the OneShotTimer threads are joined before we start destroying state.
     mDisplayPowerTimer.reset();
