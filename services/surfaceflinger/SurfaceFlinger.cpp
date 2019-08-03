@@ -1790,11 +1790,12 @@ void SurfaceFlinger::handleMessageRefresh() {
     mCompositionEngine->preComposition(refreshArgs);
     rebuildLayerStacks();
     calculateWorkingSet();
-    for (const auto& [token, display] : mDisplays) {
-        beginFrame(display);
-        prepareFrame(display);
-        doDebugFlashRegions(display, repaintEverything);
-        doComposition(display, repaintEverything);
+    for (const auto& [token, displayDevice] : mDisplays) {
+        auto display = displayDevice->getCompositionDisplay();
+        display->beginFrame();
+        display->prepareFrame();
+        doDebugFlashRegions(displayDevice, repaintEverything);
+        doComposition(displayDevice, repaintEverything);
     }
 
     logLayerStats();
@@ -1802,16 +1803,16 @@ void SurfaceFlinger::handleMessageRefresh() {
     postFrame();
     postComposition();
 
-    mHadClientComposition = false;
-    mHadDeviceComposition = false;
-    for (const auto& [token, displayDevice] : mDisplays) {
-        auto display = displayDevice->getCompositionDisplay();
-        const auto displayId = display->getId();
-        mHadClientComposition =
-                mHadClientComposition || getHwComposer().hasClientComposition(displayId);
-        mHadDeviceComposition =
-                mHadDeviceComposition || getHwComposer().hasDeviceComposition(displayId);
-    }
+    mHadClientComposition =
+            std::any_of(mDisplays.cbegin(), mDisplays.cend(), [](const auto& tokenDisplayPair) {
+                auto& displayDevice = tokenDisplayPair.second;
+                return displayDevice->getCompositionDisplay()->getState().usesClientComposition;
+            });
+    mHadDeviceComposition =
+            std::any_of(mDisplays.cbegin(), mDisplays.cend(), [](const auto& tokenDisplayPair) {
+                auto& displayDevice = tokenDisplayPair.second;
+                return displayDevice->getCompositionDisplay()->getState().usesDeviceComposition;
+            });
 
     mVSyncModulator->onRefreshed(mHadClientComposition);
 
@@ -1948,13 +1949,13 @@ void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& displayDevice,
         }
     }
 
-    postFramebuffer(displayDevice);
+    displayDevice->getCompositionDisplay()->postFramebuffer();
 
     if (mDebugRegion > 1) {
         usleep(mDebugRegion * 1000);
     }
 
-    prepareFrame(displayDevice);
+    displayDevice->getCompositionDisplay()->prepareFrame();
 }
 
 void SurfaceFlinger::logLayerStats() {
@@ -2043,7 +2044,7 @@ void SurfaceFlinger::postComposition()
 
     getBE().mGlCompositionDoneTimeline.updateSignalTimes();
     std::shared_ptr<FenceTime> glCompositionDoneFenceTime;
-    if (displayDevice && getHwComposer().hasClientComposition(displayDevice->getId())) {
+    if (displayDevice && displayDevice->getCompositionDisplay()->getState().usesClientComposition) {
         glCompositionDoneFenceTime =
                 std::make_shared<FenceTime>(displayDevice->getCompositionDisplay()
                                                     ->getRenderSurface()
@@ -2373,51 +2374,6 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& display, ColorMode* 
     profile->getBestColorMode(bestDataSpace, intent, outDataSpace, outMode, outRenderIntent);
 }
 
-void SurfaceFlinger::beginFrame(const sp<DisplayDevice>& displayDevice) {
-    auto display = displayDevice->getCompositionDisplay();
-    const auto& displayState = display->getState();
-
-    bool dirty = !display->getDirtyRegion(false).isEmpty();
-    bool empty = displayDevice->getVisibleLayersSortedByZ().size() == 0;
-    bool wasEmpty = !displayState.lastCompositionHadVisibleLayers;
-
-    // If nothing has changed (!dirty), don't recompose.
-    // If something changed, but we don't currently have any visible layers,
-    //   and didn't when we last did a composition, then skip it this time.
-    // The second rule does two things:
-    // - When all layers are removed from a display, we'll emit one black
-    //   frame, then nothing more until we get new layers.
-    // - When a display is created with a private layer stack, we won't
-    //   emit any black frames until a layer is added to the layer stack.
-    bool mustRecompose = dirty && !(empty && wasEmpty);
-
-    const char flagPrefix[] = {'-', '+'};
-    static_cast<void>(flagPrefix);
-    ALOGV_IF(displayDevice->isVirtual(), "%s: %s composition for %s (%cdirty %cempty %cwasEmpty)",
-             __FUNCTION__, mustRecompose ? "doing" : "skipping",
-             displayDevice->getDebugName().c_str(), flagPrefix[dirty], flagPrefix[empty],
-             flagPrefix[wasEmpty]);
-
-    display->getRenderSurface()->beginFrame(mustRecompose);
-
-    if (mustRecompose) {
-        display->editState().lastCompositionHadVisibleLayers = !empty;
-    }
-}
-
-void SurfaceFlinger::prepareFrame(const sp<DisplayDevice>& displayDevice) {
-    auto display = displayDevice->getCompositionDisplay();
-    const auto& displayState = display->getState();
-
-    if (!displayState.isEnabled) {
-        return;
-    }
-
-    status_t result = display->getRenderSurface()->prepareFrame();
-    ALOGE_IF(result != NO_ERROR, "prepareFrame failed for %s: %d (%s)",
-             displayDevice->getDebugName().c_str(), result, strerror(-result));
-}
-
 void SurfaceFlinger::doComposition(const sp<DisplayDevice>& displayDevice, bool repaintEverything) {
     ATRACE_CALL();
     ALOGV("doComposition");
@@ -2435,7 +2391,7 @@ void SurfaceFlinger::doComposition(const sp<DisplayDevice>& displayDevice, bool 
         display->editState().dirtyRegion.clear();
         display->getRenderSurface()->flip();
     }
-    postFramebuffer(displayDevice);
+    displayDevice->getCompositionDisplay()->postFramebuffer();
 }
 
 void SurfaceFlinger::postFrame()
@@ -2446,68 +2402,6 @@ void SurfaceFlinger::postFrame()
         uint32_t flipCount = display->getPageFlipCount();
         if (flipCount % LOG_FRAME_STATS_PERIOD == 0) {
             logFrameStats();
-        }
-    }
-}
-
-void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& displayDevice) {
-    ATRACE_CALL();
-    ALOGV("postFramebuffer");
-
-    auto display = displayDevice->getCompositionDisplay();
-    const auto& displayState = display->getState();
-    const auto displayId = display->getId();
-
-    if (displayState.isEnabled) {
-        if (displayId) {
-            getHwComposer().presentAndGetReleaseFences(*displayId);
-        }
-        display->getRenderSurface()->onPresentDisplayCompleted();
-        for (auto& layer : display->getOutputLayersOrderedByZ()) {
-            sp<Fence> releaseFence = Fence::NO_FENCE;
-            bool usedClientComposition = true;
-
-            // The layer buffer from the previous frame (if any) is released
-            // by HWC only when the release fence from this frame (if any) is
-            // signaled.  Always get the release fence from HWC first.
-            if (layer->getState().hwc) {
-                const auto& hwcState = *layer->getState().hwc;
-                releaseFence =
-                        getHwComposer().getLayerReleaseFence(*displayId, hwcState.hwcLayer.get());
-                usedClientComposition =
-                        hwcState.hwcCompositionType == Hwc2::IComposerClient::Composition::CLIENT;
-            }
-
-            // If the layer was client composited in the previous frame, we
-            // need to merge with the previous client target acquire fence.
-            // Since we do not track that, always merge with the current
-            // client target acquire fence when it is available, even though
-            // this is suboptimal.
-            if (usedClientComposition) {
-                releaseFence =
-                        Fence::merge("LayerRelease", releaseFence,
-                                     display->getRenderSurface()->getClientTargetAcquireFence());
-            }
-
-            layer->getLayerFE().onLayerDisplayed(releaseFence);
-        }
-
-        // We've got a list of layers needing fences, that are disjoint with
-        // display->getVisibleLayersSortedByZ.  The best we can do is to
-        // supply them with the present fence.
-        auto releasedLayers = display->takeReleasedLayers();
-        if (!releasedLayers.empty()) {
-            sp<Fence> presentFence =
-                    displayId ? getHwComposer().getPresentFence(*displayId) : Fence::NO_FENCE;
-            for (auto& weakLayer : releasedLayers) {
-                if (auto layer = weakLayer.promote(); layer != nullptr) {
-                    layer->onLayerDisplayed(presentFence);
-                }
-            }
-        }
-
-        if (displayId) {
-            getHwComposer().clearReleaseFences(*displayId);
         }
     }
 }
@@ -3354,9 +3248,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
     const Region bounds(displayState.bounds);
     const DisplayRenderArea renderArea(displayDevice);
     const TracedOrdinal<bool> hasClientComposition = {"hasClientComposition",
-                                                      getHwComposer().hasClientComposition(
-                                                              displayId)};
-
+                                                      displayState.usesClientComposition};
     bool applyColorMatrix = false;
 
     renderengine::DisplaySettings clientCompositionDisplay;
@@ -3409,7 +3301,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
         clientCompositionDisplay.maxLuminance =
                 profile->getHdrCapabilities().getDesiredMaxLuminance();
 
-        const bool hasDeviceComposition = getHwComposer().hasDeviceComposition(displayId);
+        const bool hasDeviceComposition = displayState.usesDeviceComposition;
         const bool skipClientColorTransform =
                 getHwComposer()
                         .hasDisplayCapability(displayId,
@@ -3427,6 +3319,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
      */
 
     ALOGV("Rendering client layers");
+    const bool useIdentityTransform = false;
     bool firstLayer = true;
     Region clearRegion = Region::INVALID_REGION;
     for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
@@ -3447,13 +3340,20 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
                         layer->getRoundedCornerState().radius == 0.0f && hasClientComposition) {
                         // never clear the very first layer since we're
                         // guaranteed the FB is already cleared
-                        renderengine::LayerSettings layerSettings;
                         Region dummyRegion;
-                        bool prepared =
-                                layer->prepareClientLayer(renderArea, clip, dummyRegion,
-                                                          supportProtectedContent, layerSettings);
+                        compositionengine::LayerFE::ClientCompositionTargetSettings targetSettings{
+                                clip,
+                                useIdentityTransform,
+                                layer->needsFiltering(renderArea.getDisplayDevice()) ||
+                                        renderArea.needsFiltering(),
+                                renderArea.isSecure(),
+                                supportProtectedContent,
+                                dummyRegion,
+                        };
+                        auto result = layer->prepareClientComposition(targetSettings);
 
-                        if (prepared) {
+                        if (result) {
+                            auto& layerSettings = *result;
                             layerSettings.source.buffer.buffer = nullptr;
                             layerSettings.source.solidColor = half3(0.0, 0.0, 0.0);
                             layerSettings.alpha = half(0.0);
@@ -3464,12 +3364,18 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
                     break;
                 }
                 case Hwc2::IComposerClient::Composition::CLIENT: {
-                    renderengine::LayerSettings layerSettings;
-                    bool prepared =
-                            layer->prepareClientLayer(renderArea, clip, clearRegion,
-                                                      supportProtectedContent, layerSettings);
-                    if (prepared) {
-                        clientCompositionLayers.push_back(layerSettings);
+                    compositionengine::LayerFE::ClientCompositionTargetSettings targetSettings{
+                            clip,
+                            useIdentityTransform,
+                            layer->needsFiltering(renderArea.getDisplayDevice()) ||
+                                    renderArea.needsFiltering(),
+                            renderArea.isSecure(),
+                            supportProtectedContent,
+                            clearRegion,
+                    };
+                    auto result = layer->prepareClientComposition(targetSettings);
+                    if (result) {
+                        clientCompositionLayers.push_back(*result);
                     }
                     break;
                 }
@@ -4577,17 +4483,21 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args,
 
         if (const auto it = dumpers.find(flag); it != dumpers.end()) {
             (it->second)(args, asProto, result);
-        } else {
-            if (asProto) {
-                LayersProto layersProto = dumpProtoInfo(LayerVector::StateSet::Current);
-                result.append(layersProto.SerializeAsString().c_str(), layersProto.ByteSize());
-            } else {
-                dumpAllLocked(args, result);
-            }
+        } else if (!asProto) {
+            dumpAllLocked(args, result);
         }
 
         if (locked) {
             mStateLock.unlock();
+        }
+
+        LayersProto layersProto = dumpProtoFromMainThread();
+        if (asProto) {
+            result.append(layersProto.SerializeAsString().c_str(), layersProto.ByteSize());
+        } else {
+            auto layerTree = LayerProtoParser::generateLayerTree(layersProto);
+            result.append(LayerProtoParser::layerTreeToString(layerTree));
+            result.append("\n");
         }
     }
     write(fd, result.c_str(), result.size());
@@ -4829,16 +4739,20 @@ void SurfaceFlinger::dumpWideColorInfo(std::string& result) const {
     result.append("\n");
 }
 
-LayersProto SurfaceFlinger::dumpProtoInfo(LayerVector::StateSet stateSet,
-                                          uint32_t traceFlags) const {
+LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
     LayersProto layersProto;
-    const bool useDrawing = stateSet == LayerVector::StateSet::Drawing;
-    const State& state = useDrawing ? mDrawingState : mCurrentState;
-    state.traverseInZOrder([&](Layer* layer) {
+    mDrawingState.traverseInZOrder([&](Layer* layer) {
         LayerProto* layerProto = layersProto.add_layers();
-        layer->writeToProto(layerProto, stateSet, traceFlags);
+        layer->writeToProtoDrawingState(layerProto, traceFlags);
+        layer->writeToProtoCommonState(layerProto, LayerVector::StateSet::Drawing, traceFlags);
     });
 
+    return layersProto;
+}
+
+LayersProto SurfaceFlinger::dumpProtoFromMainThread(uint32_t traceFlags) {
+    LayersProto layersProto;
+    postMessageSync(new LambdaMessage([&]() { layersProto = dumpDrawingStateProto(traceFlags); }));
     return layersProto;
 }
 
@@ -4862,7 +4776,7 @@ LayersProto SurfaceFlinger::dumpVisibleLayersProtoInfo(
     mDrawingState.traverseInZOrder([&](Layer* layer) {
         if (!layer->visibleRegion.isEmpty() && !display->getOutputLayersOrderedByZ().empty()) {
             LayerProto* layerProto = layersProto.add_layers();
-            layer->writeToProto(layerProto, displayDevice);
+            layer->writeToProtoCompositionState(layerProto, displayDevice);
         }
     });
 
@@ -4925,13 +4839,6 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     StringAppendF(&result, "GraphicBufferProducers: %zu, max %zu\n",
                   mGraphicBufferProducerList.size(), mMaxGraphicBufferProducerListSize);
     colorizer.reset(result);
-
-    {
-        LayersProto layersProto = dumpProtoInfo(LayerVector::StateSet::Current);
-        auto layerTree = LayerProtoParser::generateLayerTree(layersProto);
-        result.append(LayerProtoParser::layerTreeToString(layerTree));
-        result.append("\n");
-    }
 
     {
         StringAppendF(&result, "Composition layers\n");
@@ -5047,19 +4954,6 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
 
     result.append(mTimeStats->miniDump());
     result.append("\n");
-}
-
-const Vector<sp<Layer>>& SurfaceFlinger::getLayerSortedByZForHwcDisplay(DisplayId displayId) {
-    // Note: mStateLock is held here
-    for (const auto& [token, display] : mDisplays) {
-        if (display->getId() == displayId) {
-            return getDisplayDeviceLocked(token)->getVisibleLayersSortedByZ();
-        }
-    }
-
-    ALOGE("%s: Invalid display %s", __FUNCTION__, to_string(displayId).c_str());
-    static const Vector<sp<Layer>> empty;
-    return empty;
 }
 
 void SurfaceFlinger::updateColorMatrixLocked() {
@@ -6022,11 +5916,19 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
 
     Region clearRegion = Region::INVALID_REGION;
     traverseLayers([&](Layer* layer) {
-        renderengine::LayerSettings layerSettings;
-        bool prepared = layer->prepareClientLayer(renderArea, useIdentityTransform, clearRegion,
-                                                  false, layerSettings);
-        if (prepared) {
-            clientCompositionLayers.push_back(layerSettings);
+        const bool supportProtectedContent = false;
+        Region clip(renderArea.getBounds());
+        compositionengine::LayerFE::ClientCompositionTargetSettings targetSettings{
+                clip,
+                useIdentityTransform,
+                layer->needsFiltering(renderArea.getDisplayDevice()) || renderArea.needsFiltering(),
+                renderArea.isSecure(),
+                supportProtectedContent,
+                clearRegion,
+        };
+        auto result = layer->prepareClientComposition(targetSettings);
+        if (result) {
+            clientCompositionLayers.push_back(*result);
         }
     });
 

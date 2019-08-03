@@ -435,11 +435,21 @@ public:
 
     bool isRemovedFromCurrentState() const;
 
-    void writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet,
-                      uint32_t traceFlags = SurfaceTracing::TRACE_ALL);
-
-    void writeToProto(LayerProto* layerInfo, const sp<DisplayDevice>& displayDevice,
-                      uint32_t traceFlags = SurfaceTracing::TRACE_ALL);
+    // Write states that are modified by the main thread. This includes drawing
+    // state as well as buffer data. This should be called in the main or tracing
+    // thread.
+    void writeToProtoDrawingState(LayerProto* layerInfo,
+                                  uint32_t traceFlags = SurfaceTracing::TRACE_ALL) const;
+    // Write states that are modified by the main thread. This includes drawing
+    // state as well as buffer data and composition data for layers on the specified
+    // display. This should be called in the main or tracing thread.
+    void writeToProtoCompositionState(LayerProto* layerInfo, const sp<DisplayDevice>& displayDevice,
+                                      uint32_t traceFlags = SurfaceTracing::TRACE_ALL) const;
+    // Write drawing or current state. If writing current state, the caller should hold the
+    // external mStateLock. If writing drawing state, this function should be called on the
+    // main or tracing thread.
+    void writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet stateSet,
+                                 uint32_t traceFlags = SurfaceTracing::TRACE_ALL) const;
 
     virtual Geometry getActiveGeometry(const Layer::State& s) const { return s.active_legacy; }
     virtual uint32_t getActiveWidth(const Layer::State& s) const { return s.active_legacy.w; }
@@ -451,19 +461,17 @@ public:
         return s.activeTransparentRegion_legacy;
     }
     virtual Rect getCrop(const Layer::State& s) const { return s.crop_legacy; }
-
-protected:
-    virtual bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
-                                    bool useIdentityTransform, Region& clearRegion,
-                                    const bool supportProtectedContent,
-                                    renderengine::LayerSettings& layer);
+    virtual bool needsFiltering(const sp<const DisplayDevice>&) const { return false; }
 
 public:
     /*
      * compositionengine::LayerFE overrides
      */
+    bool onPreComposition(nsecs_t) override;
     void latchCompositionState(compositionengine::LayerFECompositionState&,
                                bool includeGeometry) const override;
+    std::optional<renderengine::LayerSettings> prepareClientComposition(
+            compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
     void onLayerDisplayed(const sp<Fence>& releaseFence) override;
     const char* getDebugName() const override;
 
@@ -497,17 +505,6 @@ public:
 
     // If a buffer was replaced this frame, release the former buffer
     virtual void releasePendingBuffer(nsecs_t /*dequeueReadyTime*/) { }
-
-    /*
-     * prepareClientLayer - populates a renderengine::LayerSettings to passed to
-     * RenderEngine::drawLayers. Returns true if the layer can be used, and
-     * false otherwise.
-     */
-    bool prepareClientLayer(const RenderArea& renderArea, const Region& clip, Region& clearRegion,
-                            const bool supportProtectedContent, renderengine::LayerSettings& layer);
-    bool prepareClientLayer(const RenderArea& renderArea, bool useIdentityTransform,
-                            Region& clearRegion, const bool supportProtectedContent,
-                            renderengine::LayerSettings& layer);
 
     /*
      * doTransaction - process the transaction. This is a good place to figure
@@ -813,13 +810,15 @@ protected:
 
     bool mPrimaryDisplayOnly = false;
 
-    // these are protected by an external lock
-    State mCurrentState;
+    // These are only accessed by the main thread or the tracing thread.
     State mDrawingState;
-    std::atomic<uint32_t> mTransactionFlags{0};
+    // Store a copy of the pending state so that the drawing thread can access the
+    // states without a lock.
+    Vector<State> mPendingStatesSnapshot;
 
-    // Accessed from main thread and binder threads
-    Mutex mPendingStateMutex;
+    // these are protected by an external lock (mStateLock)
+    State mCurrentState;
+    std::atomic<uint32_t> mTransactionFlags{0};
     Vector<State> mPendingStates;
 
     // Timestamp history for UIAutomation. Thread safe.

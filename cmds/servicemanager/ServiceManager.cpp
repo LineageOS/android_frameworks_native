@@ -52,7 +52,6 @@ Status ServiceManager::checkService(const std::string& name, sp<IBinder>* outBin
         }
     }
 
-    // TODO(b/136023468): move this check to be first
     if (!mAccess->canFind(ctx, name)) {
         // returns ok and null for legacy reasons
         *outBinder = nullptr;

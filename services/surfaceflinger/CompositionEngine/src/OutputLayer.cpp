@@ -550,6 +550,70 @@ void OutputLayer::writeCompositionTypeToHWC(
     }
 }
 
+HWC2::Layer* OutputLayer::getHwcLayer() const {
+    return mState.hwc ? mState.hwc->hwcLayer.get() : nullptr;
+}
+
+bool OutputLayer::requiresClientComposition() const {
+    return !mState.hwc ||
+            mState.hwc->hwcCompositionType == Hwc2::IComposerClient::Composition::CLIENT;
+}
+
+void OutputLayer::detectDisallowedCompositionTypeChange(
+        Hwc2::IComposerClient::Composition from, Hwc2::IComposerClient::Composition to) const {
+    bool result = false;
+    switch (from) {
+        case Hwc2::IComposerClient::Composition::INVALID:
+        case Hwc2::IComposerClient::Composition::CLIENT:
+            result = false;
+            break;
+
+        case Hwc2::IComposerClient::Composition::DEVICE:
+        case Hwc2::IComposerClient::Composition::SOLID_COLOR:
+            result = (to == Hwc2::IComposerClient::Composition::CLIENT);
+            break;
+
+        case Hwc2::IComposerClient::Composition::CURSOR:
+        case Hwc2::IComposerClient::Composition::SIDEBAND:
+            result = (to == Hwc2::IComposerClient::Composition::CLIENT ||
+                      to == Hwc2::IComposerClient::Composition::DEVICE);
+            break;
+    }
+
+    if (!result) {
+        ALOGE("[%s] Invalid device requested composition type change: %s (%d) --> %s (%d)",
+              mLayerFE->getDebugName(), toString(from).c_str(), static_cast<int>(from),
+              toString(to).c_str(), static_cast<int>(to));
+    }
+}
+
+void OutputLayer::applyDeviceCompositionTypeChange(
+        Hwc2::IComposerClient::Composition compositionType) {
+    LOG_FATAL_IF(!mState.hwc);
+    auto& hwcState = *mState.hwc;
+
+    detectDisallowedCompositionTypeChange(hwcState.hwcCompositionType, compositionType);
+
+    hwcState.hwcCompositionType = compositionType;
+}
+
+void OutputLayer::prepareForDeviceLayerRequests() {
+    mState.clearClientTarget = false;
+}
+
+void OutputLayer::applyDeviceLayerRequest(Hwc2::IComposerClient::LayerRequest request) {
+    switch (request) {
+        case Hwc2::IComposerClient::LayerRequest::CLEAR_CLIENT_TARGET:
+            mState.clearClientTarget = true;
+            break;
+
+        default:
+            ALOGE("[%s] Unknown device layer request %s (%d)", mLayerFE->getDebugName(),
+                  toString(request).c_str(), static_cast<int>(request));
+            break;
+    }
+}
+
 void OutputLayer::dump(std::string& out) const {
     using android::base::StringAppendF;
 

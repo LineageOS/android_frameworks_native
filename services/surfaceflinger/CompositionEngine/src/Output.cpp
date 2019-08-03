@@ -22,6 +22,7 @@
 #include <compositionengine/impl/Output.h>
 #include <compositionengine/impl/OutputLayer.h>
 #include <ui/DebugUtils.h>
+#include <utils/Trace.h>
 
 namespace android::compositionengine {
 
@@ -250,8 +251,114 @@ Output::ReleasedLayers Output::takeReleasedLayers() {
     return std::move(mReleasedLayers);
 }
 
+void Output::beginFrame() {
+    const bool dirty = !getDirtyRegion(false).isEmpty();
+    const bool empty = mOutputLayersOrderedByZ.empty();
+    const bool wasEmpty = !mState.lastCompositionHadVisibleLayers;
+
+    // If nothing has changed (!dirty), don't recompose.
+    // If something changed, but we don't currently have any visible layers,
+    //   and didn't when we last did a composition, then skip it this time.
+    // The second rule does two things:
+    // - When all layers are removed from a display, we'll emit one black
+    //   frame, then nothing more until we get new layers.
+    // - When a display is created with a private layer stack, we won't
+    //   emit any black frames until a layer is added to the layer stack.
+    const bool mustRecompose = dirty && !(empty && wasEmpty);
+
+    const char flagPrefix[] = {'-', '+'};
+    static_cast<void>(flagPrefix);
+    ALOGV_IF("%s: %s composition for %s (%cdirty %cempty %cwasEmpty)", __FUNCTION__,
+             mustRecompose ? "doing" : "skipping", getName().c_str(), flagPrefix[dirty],
+             flagPrefix[empty], flagPrefix[wasEmpty]);
+
+    mRenderSurface->beginFrame(mustRecompose);
+
+    if (mustRecompose) {
+        mState.lastCompositionHadVisibleLayers = !empty;
+    }
+}
+
+void Output::prepareFrame() {
+    ATRACE_CALL();
+    ALOGV(__FUNCTION__);
+
+    if (!mState.isEnabled) {
+        return;
+    }
+
+    chooseCompositionStrategy();
+
+    mRenderSurface->prepareFrame(mState.usesClientComposition, mState.usesDeviceComposition);
+}
+
+void Output::postFramebuffer() {
+    ATRACE_CALL();
+    ALOGV(__FUNCTION__);
+
+    if (!getState().isEnabled) {
+        return;
+    }
+
+    mRenderSurface->onPresentDisplayCompleted();
+
+    auto frame = presentAndGetFrameFences();
+
+    for (auto& layer : getOutputLayersOrderedByZ()) {
+        // The layer buffer from the previous frame (if any) is released
+        // by HWC only when the release fence from this frame (if any) is
+        // signaled.  Always get the release fence from HWC first.
+        sp<Fence> releaseFence = Fence::NO_FENCE;
+
+        if (auto hwcLayer = layer->getHwcLayer()) {
+            if (auto f = frame.layerFences.find(hwcLayer); f != frame.layerFences.end()) {
+                releaseFence = f->second;
+            }
+        }
+
+        // If the layer was client composited in the previous frame, we
+        // need to merge with the previous client target acquire fence.
+        // Since we do not track that, always merge with the current
+        // client target acquire fence when it is available, even though
+        // this is suboptimal.
+        // TODO(b/121291683): Track previous frame client target acquire fence.
+        if (mState.usesClientComposition) {
+            releaseFence =
+                    Fence::merge("LayerRelease", releaseFence, frame.clientTargetAcquireFence);
+        }
+
+        layer->getLayerFE().onLayerDisplayed(releaseFence);
+    }
+
+    // We've got a list of layers needing fences, that are disjoint with
+    // getOutputLayersOrderedByZ.  The best we can do is to
+    // supply them with the present fence.
+    for (auto& weakLayer : mReleasedLayers) {
+        if (auto layer = weakLayer.promote(); layer != nullptr) {
+            layer->onLayerDisplayed(frame.presentFence);
+        }
+    }
+
+    // Clear out the released layers now that we're done with them.
+    mReleasedLayers.clear();
+}
+
 void Output::dirtyEntireOutput() {
     mState.dirtyRegion.set(mState.bounds);
+}
+
+void Output::chooseCompositionStrategy() {
+    // The base output implementation can only do client composition
+    mState.usesClientComposition = true;
+    mState.usesDeviceComposition = false;
+}
+
+compositionengine::Output::FrameFences Output::presentAndGetFrameFences() {
+    compositionengine::Output::FrameFences result;
+    if (mState.usesClientComposition) {
+        result.clientTargetAcquireFence = mRenderSurface->getClientTargetAcquireFence();
+    }
+    return result;
 }
 
 } // namespace impl

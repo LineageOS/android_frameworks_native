@@ -39,16 +39,13 @@ public:
 
     void commitTransaction(const State& stateToCommit) override;
 
-    bool onPreComposition(nsecs_t /*refreshStartTime*/) override { return false; }
-
 protected:
-    virtual bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
-                                    bool useIdentityTransform, Region& clearRegion,
-                                    const bool supportProtectedContent,
-                                    renderengine::LayerSettings& layer);
-
-private:
+    /*
+     * compositionengine::LayerFE overrides
+     */
     void latchPerFrameState(compositionengine::LayerFECompositionState&) const override;
+    std::optional<renderengine::LayerSettings> prepareClientComposition(
+            compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
 
     std::shared_ptr<compositionengine::Layer> mCompositionLayer;
 };

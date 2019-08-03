@@ -265,7 +265,8 @@ public:
     status_t postMessageAsync(const sp<MessageBase>& msg, nsecs_t reltime = 0, uint32_t flags = 0);
 
     // post a synchronous message to the main thread
-    status_t postMessageSync(const sp<MessageBase>& msg, nsecs_t reltime = 0, uint32_t flags = 0);
+    status_t postMessageSync(const sp<MessageBase>& msg, nsecs_t reltime = 0, uint32_t flags = 0)
+            EXCLUDES(mStateLock);
 
     // force full composition on all displays
     void repaintEverything();
@@ -303,10 +304,6 @@ public:
     // is received
     // TODO: this should be made accessible only to MessageQueue
     void onMessageReceived(int32_t what);
-
-    // for debugging only
-    // TODO: this should be made accessible only to HWComposer
-    const Vector<sp<Layer>>& getLayerSortedByZForHwcDisplay(DisplayId displayId);
 
     renderengine::RenderEngine& getRenderEngine() const;
 
@@ -763,17 +760,6 @@ private:
                        ui::Dataspace* outDataSpace, ui::RenderIntent* outRenderIntent) const;
 
     void calculateWorkingSet();
-    /*
-     * beginFrame - This function handles any pre-frame processing that needs to be
-     * prior to any CompositionInfo handling and is not dependent on data in
-     * CompositionInfo
-     */
-    void beginFrame(const sp<DisplayDevice>& display);
-    /* prepareFrame - This function will call into the DisplayDevice to prepare a
-     * frame after CompositionInfo has been programmed.   This provides a mechanism
-     * to prepare the hardware composer
-     */
-    void prepareFrame(const sp<DisplayDevice>& display);
     void doComposition(const sp<DisplayDevice>& display, bool repainEverything);
     void doDebugFlashRegions(const sp<DisplayDevice>& display, bool repaintEverything);
     void logLayerStats();
@@ -785,7 +771,6 @@ private:
     bool doComposeSurfaces(const sp<DisplayDevice>& display, const Region& debugRegionm,
                            base::unique_fd* readyFence);
 
-    void postFramebuffer(const sp<DisplayDevice>& display);
     void postFrame();
 
     /* ------------------------------------------------------------------------
@@ -895,8 +880,9 @@ private:
     void dumpBufferingStats(std::string& result) const;
     void dumpDisplayIdentificationData(std::string& result) const;
     void dumpWideColorInfo(std::string& result) const;
-    LayersProto dumpProtoInfo(LayerVector::StateSet stateSet,
-                              uint32_t traceFlags = SurfaceTracing::TRACE_ALL) const;
+    LayersProto dumpDrawingStateProto(uint32_t traceFlags = SurfaceTracing::TRACE_ALL) const;
+    LayersProto dumpProtoFromMainThread(uint32_t traceFlags = SurfaceTracing::TRACE_ALL)
+            EXCLUDES(mStateLock);
     void withTracingLock(std::function<void()> operation) REQUIRES(mStateLock);
     LayersProto dumpVisibleLayersProtoInfo(const sp<DisplayDevice>& display) const;
 

@@ -33,6 +33,9 @@ public:
     MOCK_METHOD1(onPreComposition, bool(nsecs_t));
 
     MOCK_CONST_METHOD2(latchCompositionState, void(LayerFECompositionState&, bool));
+    MOCK_METHOD1(prepareClientComposition,
+                 std::optional<renderengine::LayerSettings>(
+                         compositionengine::LayerFE::ClientCompositionTargetSettings&));
     MOCK_METHOD1(onLayerDisplayed, void(const sp<Fence>&));
 
     MOCK_CONST_METHOD0(getDebugName, const char*());

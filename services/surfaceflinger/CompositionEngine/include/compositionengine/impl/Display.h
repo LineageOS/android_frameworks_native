@@ -16,12 +16,13 @@
 
 #pragma once
 
-#include <memory>
-
 #include <compositionengine/Display.h>
 #include <compositionengine/impl/Output.h>
 
+#include <memory>
+
 #include "DisplayHardware/DisplayIdentification.h"
+#include "DisplayHardware/HWComposer.h"
 
 namespace android::compositionengine {
 
@@ -40,6 +41,8 @@ public:
     void dump(std::string&) const override;
     void setColorTransform(const mat4&) override;
     void setColorMode(ui::ColorMode, ui::Dataspace, ui::RenderIntent, ui::Dataspace) override;
+    void chooseCompositionStrategy() override;
+    compositionengine::Output::FrameFences presentAndGetFrameFences() override;
 
     // compositionengine::Display overrides
     const std::optional<DisplayId>& getId() const override;
@@ -49,12 +52,22 @@ public:
     void createDisplayColorProfile(compositionengine::DisplayColorProfileCreationArgs&&) override;
     void createRenderSurface(compositionengine::RenderSurfaceCreationArgs&&) override;
 
+    // Internal helpers used by chooseCompositionStrategy()
+    using ChangedTypes = android::HWComposer::DeviceRequestedChanges::ChangedTypes;
+    using DisplayRequests = android::HWComposer::DeviceRequestedChanges::DisplayRequests;
+    using LayerRequests = android::HWComposer::DeviceRequestedChanges::LayerRequests;
+    virtual bool anyLayersRequireClientComposition() const;
+    virtual bool allLayersRequireClientComposition() const;
+    virtual void applyChangedTypesToLayers(const ChangedTypes&);
+    virtual void applyDisplayRequests(const DisplayRequests&);
+    virtual void applyLayerRequestsToLayers(const LayerRequests&);
+
 private:
     const bool mIsVirtual;
     std::optional<DisplayId> mId;
 };
 
-std::shared_ptr<compositionengine::Display> createDisplay(
-        const compositionengine::CompositionEngine&, compositionengine::DisplayCreationArgs&&);
+std::shared_ptr<Display> createDisplay(const compositionengine::CompositionEngine&,
+                                       compositionengine::DisplayCreationArgs&&);
 } // namespace impl
 } // namespace android::compositionengine

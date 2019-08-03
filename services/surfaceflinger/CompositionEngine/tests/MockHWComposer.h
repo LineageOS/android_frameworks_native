@@ -40,7 +40,9 @@ public:
                  std::optional<DisplayId>(uint32_t, uint32_t, ui::PixelFormat*));
     MOCK_METHOD1(createLayer, HWC2::Layer*(DisplayId));
     MOCK_METHOD2(destroyLayer, void(DisplayId, HWC2::Layer*));
-    MOCK_METHOD2(prepare, status_t(DisplayId, const compositionengine::Output&));
+    MOCK_METHOD3(getDeviceCompositionChanges,
+                 status_t(DisplayId, bool,
+                          std::optional<android::HWComposer::DeviceRequestedChanges>*));
     MOCK_METHOD5(setClientTarget,
                  status_t(DisplayId, uint32_t, const sp<Fence>&, const sp<GraphicBuffer>&,
                           ui::Dataspace));
@@ -50,8 +52,6 @@ public:
     MOCK_METHOD2(setColorTransform, status_t(DisplayId, const mat4&));
     MOCK_METHOD1(disconnectDisplay, void(DisplayId));
     MOCK_CONST_METHOD1(hasDeviceComposition, bool(const std::optional<DisplayId>&));
-    MOCK_CONST_METHOD1(hasFlipClientTargetRequest, bool(const std::optional<DisplayId>&));
-    MOCK_CONST_METHOD1(hasClientComposition, bool(const std::optional<DisplayId>&));
     MOCK_CONST_METHOD1(getPresentFence, sp<Fence>(DisplayId));
     MOCK_CONST_METHOD2(getLayerReleaseFence, sp<Fence>(DisplayId, HWC2::Layer*));
     MOCK_METHOD3(setOutputBuffer, status_t(DisplayId, const sp<Fence>&, const sp<GraphicBuffer>&));

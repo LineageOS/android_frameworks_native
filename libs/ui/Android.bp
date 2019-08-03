@@ -187,3 +187,11 @@ subdirs = [
     "tests",
     "tools",
 ]
+
+filegroup {
+    name: "libui_host_common",
+    srcs: [
+        "Rect.cpp",
+        "PixelFormat.cpp"
+    ],
+}

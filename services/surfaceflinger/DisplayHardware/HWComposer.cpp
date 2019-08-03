@@ -20,6 +20,8 @@
 #define LOG_TAG "HWComposer"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include "HWComposer.h"
+
 #include <compositionengine/Output.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
@@ -29,12 +31,10 @@
 #include <utils/Errors.h>
 #include <utils/Trace.h>
 
-#include "HWComposer.h"
-#include "HWC2.h"
-#include "ComposerHal.h"
-
-#include "../Layer.h"           // needed only for debugging
+#include "../Layer.h" // needed only for debugging
 #include "../SurfaceFlinger.h"
+#include "ComposerHal.h"
+#include "HWC2.h"
 
 #define LOG_HWC_DISPLAY_ERROR(hwcDisplayId, msg) \
     ALOGE("%s failed for HWC display %" PRIu64 ": %s", __FUNCTION__, hwcDisplayId, msg)
@@ -111,31 +111,6 @@ bool HWComposer::hasDisplayCapability(const std::optional<DisplayId>& displayId,
     }
     RETURN_IF_INVALID_DISPLAY(*displayId, false);
     return mDisplayData.at(*displayId).hwcDisplay->getCapabilities().count(capability) > 0;
-}
-
-void HWComposer::validateChange(HWC2::Composition from, HWC2::Composition to) {
-    bool valid = true;
-    switch (from) {
-        case HWC2::Composition::Client:
-            valid = false;
-            break;
-        case HWC2::Composition::Device:
-        case HWC2::Composition::SolidColor:
-            valid = (to == HWC2::Composition::Client);
-            break;
-        case HWC2::Composition::Cursor:
-        case HWC2::Composition::Sideband:
-            valid = (to == HWC2::Composition::Client ||
-                    to == HWC2::Composition::Device);
-            break;
-        default:
-            break;
-    }
-
-    if (!valid) {
-        ALOGE("Invalid layer type change: %s --> %s", to_string(from).c_str(),
-                to_string(to).c_str());
-    }
 }
 
 std::optional<DisplayIdentificationInfo> HWComposer::onHotplug(hwc2_display_t hwcDisplayId,
@@ -399,7 +374,9 @@ status_t HWComposer::setClientTarget(DisplayId displayId, uint32_t slot,
     return NO_ERROR;
 }
 
-status_t HWComposer::prepare(DisplayId displayId, const compositionengine::Output& output) {
+status_t HWComposer::getDeviceCompositionChanges(
+        DisplayId displayId, bool frameUsesClientComposition,
+        std::optional<android::HWComposer::DeviceRequestedChanges>* outChanges) {
     ATRACE_CALL();
 
     RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
@@ -419,12 +396,8 @@ status_t HWComposer::prepare(DisplayId displayId, const compositionengine::Outpu
     // composition.  When there is client composition, since we haven't
     // rendered to the client target yet, we should not attempt to skip
     // validate.
-    //
-    // displayData.hasClientComposition hasn't been updated for this frame.
-    // The check below is incorrect.  We actually rely on HWC here to fall
-    // back to validate when there is any client layer.
     displayData.validateWasSkipped = false;
-    if (!displayData.hasClientComposition) {
+    if (!frameUsesClientComposition) {
         sp<Fence> outPresentFence;
         uint32_t state = UINT32_MAX;
         error = hwcDisplay->presentOrValidate(&numTypes, &numRequests, &outPresentFence , &state);
@@ -449,97 +422,24 @@ status_t HWComposer::prepare(DisplayId displayId, const compositionengine::Outpu
         RETURN_IF_HWC_ERROR_FOR("validate", error, displayId, BAD_INDEX);
     }
 
-    std::unordered_map<HWC2::Layer*, HWC2::Composition> changedTypes;
+    android::HWComposer::DeviceRequestedChanges::ChangedTypes changedTypes;
     changedTypes.reserve(numTypes);
     error = hwcDisplay->getChangedCompositionTypes(&changedTypes);
     RETURN_IF_HWC_ERROR_FOR("getChangedCompositionTypes", error, displayId, BAD_INDEX);
 
-    displayData.displayRequests = static_cast<HWC2::DisplayRequest>(0);
-    std::unordered_map<HWC2::Layer*, HWC2::LayerRequest> layerRequests;
+    auto displayRequests = static_cast<HWC2::DisplayRequest>(0);
+    android::HWComposer::DeviceRequestedChanges::LayerRequests layerRequests;
     layerRequests.reserve(numRequests);
-    error = hwcDisplay->getRequests(&displayData.displayRequests,
-            &layerRequests);
+    error = hwcDisplay->getRequests(&displayRequests, &layerRequests);
     RETURN_IF_HWC_ERROR_FOR("getRequests", error, displayId, BAD_INDEX);
 
-    displayData.hasClientComposition = false;
-    displayData.hasDeviceComposition = false;
-    for (auto& outputLayer : output.getOutputLayersOrderedByZ()) {
-        auto& state = outputLayer->editState();
-        LOG_FATAL_IF(!state.hwc.);
-        auto hwcLayer = (*state.hwc).hwcLayer;
-
-        if (auto it = changedTypes.find(hwcLayer.get()); it != changedTypes.end()) {
-            auto newCompositionType = it->second;
-            validateChange(static_cast<HWC2::Composition>((*state.hwc).hwcCompositionType),
-                           newCompositionType);
-            (*state.hwc).hwcCompositionType =
-                    static_cast<Hwc2::IComposerClient::Composition>(newCompositionType);
-        }
-
-        switch ((*state.hwc).hwcCompositionType) {
-            case Hwc2::IComposerClient::Composition::CLIENT:
-                displayData.hasClientComposition = true;
-                break;
-            case Hwc2::IComposerClient::Composition::DEVICE:
-            case Hwc2::IComposerClient::Composition::SOLID_COLOR:
-            case Hwc2::IComposerClient::Composition::CURSOR:
-            case Hwc2::IComposerClient::Composition::SIDEBAND:
-                displayData.hasDeviceComposition = true;
-                break;
-            default:
-                break;
-        }
-
-        state.clearClientTarget = false;
-        if (auto it = layerRequests.find(hwcLayer.get()); it != layerRequests.end()) {
-            auto request = it->second;
-            if (request == HWC2::LayerRequest::ClearClientTarget) {
-                state.clearClientTarget = true;
-            } else {
-                LOG_DISPLAY_ERROR(displayId,
-                                  ("Unknown layer request " + to_string(request)).c_str());
-            }
-        }
-    }
+    outChanges->emplace(DeviceRequestedChanges{std::move(changedTypes), std::move(displayRequests),
+                                               std::move(layerRequests)});
 
     error = hwcDisplay->acceptChanges();
     RETURN_IF_HWC_ERROR_FOR("acceptChanges", error, displayId, BAD_INDEX);
 
     return NO_ERROR;
-}
-
-bool HWComposer::hasDeviceComposition(const std::optional<DisplayId>& displayId) const {
-    if (!displayId) {
-        // Displays without a corresponding HWC display are never composed by
-        // the device
-        return false;
-    }
-
-    RETURN_IF_INVALID_DISPLAY(*displayId, false);
-    return mDisplayData.at(*displayId).hasDeviceComposition;
-}
-
-bool HWComposer::hasFlipClientTargetRequest(const std::optional<DisplayId>& displayId) const {
-    if (!displayId) {
-        // Displays without a corresponding HWC display are never composed by
-        // the device
-        return false;
-    }
-
-    RETURN_IF_INVALID_DISPLAY(*displayId, false);
-    return ((static_cast<uint32_t>(mDisplayData.at(*displayId).displayRequests) &
-             static_cast<uint32_t>(HWC2::DisplayRequest::FlipClientTarget)) != 0);
-}
-
-bool HWComposer::hasClientComposition(const std::optional<DisplayId>& displayId) const {
-    if (!displayId) {
-        // Displays without a corresponding HWC display are always composed by
-        // the client
-        return true;
-    }
-
-    RETURN_IF_INVALID_DISPLAY(*displayId, true);
-    return mDisplayData.at(*displayId).hasClientComposition;
 }
 
 sp<Fence> HWComposer::getPresentFence(DisplayId displayId) const {

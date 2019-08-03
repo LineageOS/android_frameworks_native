@@ -50,16 +50,14 @@ ColorLayer::ColorLayer(const LayerCreationArgs& args)
 
 ColorLayer::~ColorLayer() = default;
 
-bool ColorLayer::prepareClientLayer(const RenderArea& renderArea, const Region& clip,
-                                    bool useIdentityTransform, Region& clearRegion,
-                                    const bool supportProtectedContent,
-                                    renderengine::LayerSettings& layer) {
-    Layer::prepareClientLayer(renderArea, clip, useIdentityTransform, clearRegion,
-                              supportProtectedContent, layer);
-    half4 color(getColor());
-    half3 solidColor(color.r, color.g, color.b);
-    layer.source.solidColor = solidColor;
-    return true;
+std::optional<renderengine::LayerSettings> ColorLayer::prepareClientComposition(
+        compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) {
+    auto result = Layer::prepareClientComposition(targetSettings);
+    if (!result) {
+        return result;
+    }
+    result->source.solidColor = getColor().rgb;
+    return result;
 }
 
 bool ColorLayer::isVisible() const {

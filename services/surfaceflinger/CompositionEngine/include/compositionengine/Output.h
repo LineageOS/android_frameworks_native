@@ -19,14 +19,20 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <unordered_map>
 
 #include <math/mat4.h>
+#include <ui/Fence.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Region.h>
 #include <ui/Transform.h>
 #include <utils/StrongPointer.h>
 
 #include "DisplayHardware/DisplayIdentification.h"
+
+namespace HWC2 {
+class Layer;
+} // namespace HWC2
 
 namespace android::compositionengine {
 
@@ -47,6 +53,12 @@ class Output {
 public:
     using OutputLayers = std::vector<std::unique_ptr<compositionengine::OutputLayer>>;
     using ReleasedLayers = std::vector<wp<LayerFE>>;
+
+    struct FrameFences {
+        sp<Fence> presentFence{Fence::NO_FENCE};
+        sp<Fence> clientTargetAcquireFence{Fence::NO_FENCE};
+        std::unordered_map<HWC2::Layer*, sp<Fence>> layerFences;
+    };
 
     virtual ~Output();
 
@@ -132,15 +144,26 @@ public:
     // Gets the ordered set of output layers for this output
     virtual const OutputLayers& getOutputLayersOrderedByZ() const = 0;
 
-    // Sets the new set of layers being released this frame.
+    // Sets the new set of layers being released this frame
     virtual void setReleasedLayers(ReleasedLayers&&) = 0;
 
     // Takes (moves) the set of layers being released this frame.
     virtual ReleasedLayers takeReleasedLayers() = 0;
 
+    // Signals that a frame is beginning on the output
+    virtual void beginFrame() = 0;
+
+    // Prepares a frame for display
+    virtual void prepareFrame() = 0;
+
+    // Posts the new frame, and sets release fences.
+    virtual void postFramebuffer() = 0;
+
 protected:
     virtual void setDisplayColorProfile(std::unique_ptr<DisplayColorProfile>) = 0;
     virtual void setRenderSurface(std::unique_ptr<RenderSurface>) = 0;
+    virtual void chooseCompositionStrategy() = 0;
+    virtual FrameFences presentAndGetFrameFences() = 0;
 };
 
 } // namespace android::compositionengine

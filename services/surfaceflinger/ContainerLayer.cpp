@@ -26,11 +26,6 @@ ContainerLayer::ContainerLayer(const LayerCreationArgs& args) : Layer(args) {}
 
 ContainerLayer::~ContainerLayer() = default;
 
-bool ContainerLayer::prepareClientLayer(const RenderArea&, const Region&, bool, Region&, const bool,
-                                        renderengine::LayerSettings&) {
-    return false;
-}
-
 bool ContainerLayer::isVisible() const {
     return false;
 }
