@@ -1313,7 +1313,6 @@ static Dumpstate::RunStatus dumpstate() {
 
     DumpFile("KERNEL WAKE SOURCES", "/d/wakeup_sources");
     DumpFile("KERNEL CPUFREQ", "/sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state");
-    DumpFile("KERNEL SYNC", "/d/sync");
 
     RunCommand("PROCESSES AND THREADS",
                {"ps", "-A", "-T", "-Z", "-O", "pri,nice,rtprio,sched,pcy,time"});
