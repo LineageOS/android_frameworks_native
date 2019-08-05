@@ -4686,6 +4686,34 @@ TEST_F(ChildLayerTest, ChildrenSurviveParentDestruction) {
     }
 }
 
+TEST_F(ChildLayerTest, ChildrenRelativeZSurvivesParentDestruction) {
+    sp<SurfaceControl> mGrandChild =
+            createSurface(mClient, "Grand Child", 10, 10, PIXEL_FORMAT_RGBA_8888, 0, mChild.get());
+    fillSurfaceRGBA8(mGrandChild, 111, 111, 111);
+
+    // draw grand child behind the foreground surface
+    asTransaction([&](Transaction& t) {
+        t.setRelativeLayer(mGrandChild, mFGSurfaceControl->getHandle(), -1);
+    });
+
+    {
+        SCOPED_TRACE("Child visible");
+        ScreenCapture::captureScreen(&mCapture);
+        mCapture->checkPixel(64, 64, 200, 200, 200);
+    }
+
+    asTransaction([&](Transaction& t) {
+        t.reparent(mChild, nullptr);
+        t.reparentChildren(mChild, mFGSurfaceControl->getHandle());
+    });
+
+    {
+        SCOPED_TRACE("foreground visible reparenting grandchild");
+        ScreenCapture::captureScreen(&mCapture);
+        mCapture->checkPixel(64, 64, 195, 63, 63);
+    }
+}
+
 TEST_F(ChildLayerTest, DetachChildrenSameClient) {
     asTransaction([&](Transaction& t) {
         t.show(mChild);
