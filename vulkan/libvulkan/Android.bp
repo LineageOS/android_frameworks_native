@@ -75,6 +75,7 @@ cc_library_shared {
 
     header_libs: [
         "hwvulkan_headers",
+        "libnativeloader-dummy-headers",
         "vulkan_headers",
     ],
     export_header_lib_headers: ["vulkan_headers"],
