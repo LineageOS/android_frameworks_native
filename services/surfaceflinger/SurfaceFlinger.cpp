@@ -3957,15 +3957,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         // We don't trigger a traversal here because if no other state is
         // changed, we don't want this to cause any more work
     }
-    if (what & layer_state_t::eReparent) {
-        bool hadParent = layer->hasParent();
-        if (layer->reparent(s.parentHandleForChild)) {
-            if (!hadParent) {
-                mCurrentState.layersSortedByZ.remove(layer);
-            }
-            flags |= eTransactionNeeded|eTraversalNeeded;
-        }
-    }
     if (what & layer_state_t::eReparentChildren) {
         if (layer->reparentChildren(s.reparentHandle)) {
             flags |= eTransactionNeeded|eTraversalNeeded;
@@ -4024,6 +4015,19 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     if (what & layer_state_t::eColorSpaceAgnosticChanged) {
         if (layer->setColorSpaceAgnostic(s.colorSpaceAgnostic)) {
             flags |= eTraversalNeeded;
+        }
+    }
+    // This has to happen after we reparent children because when we reparent to null we remove
+    // child layers from current state and remove its relative z. If the children are reparented in
+    // the same transaction, then we have to make sure we reparent the children first so we do not
+    // lose its relative z order.
+    if (what & layer_state_t::eReparent) {
+        bool hadParent = layer->hasParent();
+        if (layer->reparent(s.parentHandleForChild)) {
+            if (!hadParent) {
+                mCurrentState.layersSortedByZ.remove(layer);
+            }
+            flags |= eTransactionNeeded | eTraversalNeeded;
         }
     }
     std::vector<sp<CallbackHandle>> callbackHandles;
