@@ -213,7 +213,8 @@ void GraphicsEnv::setDriverToLoad(GpuStatsInfo::Driver driver) {
         case GpuStatsInfo::Driver::GL:
         case GpuStatsInfo::Driver::GL_UPDATED:
         case GpuStatsInfo::Driver::ANGLE: {
-            if (mGpuStats.glDriverToLoad == GpuStatsInfo::Driver::NONE) {
+            if (mGpuStats.glDriverToLoad == GpuStatsInfo::Driver::NONE ||
+                mGpuStats.glDriverToLoad == GpuStatsInfo::Driver::GL) {
                 mGpuStats.glDriverToLoad = driver;
                 break;
             }
@@ -225,7 +226,8 @@ void GraphicsEnv::setDriverToLoad(GpuStatsInfo::Driver driver) {
         }
         case GpuStatsInfo::Driver::VULKAN:
         case GpuStatsInfo::Driver::VULKAN_UPDATED: {
-            if (mGpuStats.vkDriverToLoad == GpuStatsInfo::Driver::NONE) {
+            if (mGpuStats.vkDriverToLoad == GpuStatsInfo::Driver::NONE ||
+                mGpuStats.vkDriverToLoad == GpuStatsInfo::Driver::VULKAN) {
                 mGpuStats.vkDriverToLoad = driver;
                 break;
             }
