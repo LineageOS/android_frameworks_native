@@ -116,10 +116,20 @@ public:
                                                const sp<Fence>& fence) = 0;
     // Caches Image resources for this buffer, but does not bind the buffer to
     // a particular texture.
-    virtual status_t cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) = 0;
+    // Note that work is deferred to an additional thread, i.e. this call
+    // is made asynchronously, but the caller can expect that cache/unbind calls
+    // are performed in a manner that's conflict serializable, i.e. unbinding
+    // a buffer should never occur before binding the buffer if the caller
+    // called {bind, cache}ExternalTextureBuffer before calling unbind.
+    virtual void cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) = 0;
     // Removes internal resources referenced by the bufferId. This method should be
     // invoked when the caller will no longer hold a reference to a GraphicBuffer
     // and needs to clean up its resources.
+    // Note that work is deferred to an additional thread, i.e. this call
+    // is made asynchronously, but the caller can expect that cache/unbind calls
+    // are performed in a manner that's conflict serializable, i.e. unbinding
+    // a buffer should never occur before binding the buffer if the caller
+    // called {bind, cache}ExternalTextureBuffer before calling unbind.
     virtual void unbindExternalTextureBuffer(uint64_t bufferId) = 0;
     // When binding a native buffer, it must be done before setViewportAndProjection
     // Returns NO_ERROR when binds successfully, NO_MEMORY when there's no memory for allocation.
