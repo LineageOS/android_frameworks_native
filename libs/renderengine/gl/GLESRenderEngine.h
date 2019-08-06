@@ -17,9 +17,7 @@
 #ifndef SF_GLESRENDERENGINE_H_
 #define SF_GLESRENDERENGINE_H_
 
-#include <android-base/thread_annotations.h>
 #include <stdint.h>
-#include <sys/types.h>
 #include <condition_variable>
 #include <deque>
 #include <mutex>
@@ -30,8 +28,11 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
+#include <android-base/thread_annotations.h>
 #include <renderengine/RenderEngine.h>
 #include <renderengine/private/Description.h>
+#include <sys/types.h>
+#include "ImageManager.h"
 
 #define EGL_NO_CONFIG ((EGLConfig)0)
 
@@ -74,7 +75,7 @@ public:
     void bindExternalTextureImage(uint32_t texName, const Image& image) override;
     status_t bindExternalTextureBuffer(uint32_t texName, const sp<GraphicBuffer>& buffer,
                                        const sp<Fence>& fence) EXCLUDES(mRenderingMutex);
-    status_t cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) EXCLUDES(mRenderingMutex);
+    void cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) EXCLUDES(mRenderingMutex);
     void unbindExternalTextureBuffer(uint64_t bufferId) EXCLUDES(mRenderingMutex);
     status_t bindFrameBuffer(Framebuffer* framebuffer) override;
     void unbindFrameBuffer(Framebuffer* framebuffer) override;
@@ -101,6 +102,11 @@ public:
     // Returns true iff mFramebufferImageCache contains an image keyed by bufferId
     bool isFramebufferImageCachedForTesting(uint64_t bufferId)
             EXCLUDES(mFramebufferImageCacheMutex);
+    // These are wrappers around public methods above, but exposing Barrier
+    // objects so that tests can block.
+    std::shared_ptr<ImageManager::Barrier> cacheExternalTextureBufferForTesting(
+            const sp<GraphicBuffer>& buffer);
+    std::shared_ptr<ImageManager::Barrier> unbindExternalTextureBufferForTesting(uint64_t bufferId);
 
 protected:
     Framebuffer* getFramebufferForDrawing() override;
@@ -147,6 +153,9 @@ private:
     void setScissor(const Rect& region);
     void disableScissor();
     bool waitSync(EGLSyncKHR sync, EGLint flags);
+    status_t cacheExternalTextureBufferInternal(const sp<GraphicBuffer>& buffer)
+            EXCLUDES(mRenderingMutex);
+    void unbindExternalTextureBufferInternal(uint64_t bufferId) EXCLUDES(mRenderingMutex);
 
     // A data space is considered HDR data space if it has BT2020 color space
     // with PQ or HLG transfer function.
@@ -250,7 +259,9 @@ private:
         bool mRunning = true;
     };
     friend class FlushTracer;
+    friend class ImageManager;
     std::unique_ptr<FlushTracer> mFlushTracer;
+    std::unique_ptr<ImageManager> mImageManager = std::make_unique<ImageManager>(this);
 };
 
 } // namespace gl
