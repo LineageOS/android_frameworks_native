@@ -19,9 +19,8 @@
 #define LOG_TAG "RenderEngine"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include "GLESRenderEngine.h"
-
-#include <math.h>
+#include <sched.h>
+#include <cmath>
 #include <fstream>
 #include <sstream>
 #include <unordered_set>
@@ -43,6 +42,7 @@
 #include <ui/Region.h>
 #include <utils/KeyedVector.h>
 #include <utils/Trace.h>
+#include "GLESRenderEngine.h"
 #include "GLExtensions.h"
 #include "GLFramebuffer.h"
 #include "GLImage.h"
@@ -423,10 +423,13 @@ GLESRenderEngine::GLESRenderEngine(uint32_t featureFlags, EGLDisplay display, EG
         mTraceGpuCompletion = true;
         mFlushTracer = std::make_unique<FlushTracer>(this);
     }
+    mImageManager = std::make_unique<ImageManager>(this);
     mDrawingBuffer = createFramebuffer();
 }
 
 GLESRenderEngine::~GLESRenderEngine() {
+    // Destroy the image manager first.
+    mImageManager = nullptr;
     std::lock_guard<std::mutex> lock(mRenderingMutex);
     unbindFrameBuffer(mDrawingBuffer.get());
     mDrawingBuffer = nullptr;
@@ -619,19 +622,41 @@ void GLESRenderEngine::bindExternalTextureImage(uint32_t texName, const Image& i
 status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName,
                                                      const sp<GraphicBuffer>& buffer,
                                                      const sp<Fence>& bufferFence) {
-    ATRACE_CALL();
-    status_t cacheResult = cacheExternalTextureBuffer(buffer);
-
-    if (cacheResult != NO_ERROR) {
-        return cacheResult;
+    if (buffer == nullptr) {
+        return BAD_VALUE;
     }
 
+    ATRACE_CALL();
+
+    bool found = false;
+    {
+        std::lock_guard<std::mutex> lock(mRenderingMutex);
+        auto cachedImage = mImageCache.find(buffer->getId());
+        found = (cachedImage != mImageCache.end());
+    }
+
+    // If we couldn't find the image in the cache at this time, then either
+    // SurfaceFlinger messed up registering the buffer ahead of time or we got
+    // backed up creating other EGLImages.
+    if (!found) {
+        status_t cacheResult = mImageManager->cache(buffer);
+        if (cacheResult != NO_ERROR) {
+            return cacheResult;
+        }
+    }
+
+    // Whether or not we needed to cache, re-check mImageCache to make sure that
+    // there's an EGLImage. The current threading model guarantees that we don't
+    // destroy a cached image until it's really not needed anymore (i.e. this
+    // function should not be called), so the only possibility is that something
+    // terrible went wrong and we should just bind something and move on.
     {
         std::lock_guard<std::mutex> lock(mRenderingMutex);
         auto cachedImage = mImageCache.find(buffer->getId());
 
         if (cachedImage == mImageCache.end()) {
             // We failed creating the image if we got here, so bail out.
+            ALOGE("Failed to create an EGLImage when rendering");
             bindExternalTextureImage(texName, *createImage());
             return NO_INIT;
         }
@@ -663,7 +688,18 @@ status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName,
     return NO_ERROR;
 }
 
-status_t GLESRenderEngine::cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {
+void GLESRenderEngine::cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {
+    mImageManager->cacheAsync(buffer, nullptr);
+}
+
+std::shared_ptr<ImageManager::Barrier> GLESRenderEngine::cacheExternalTextureBufferForTesting(
+        const sp<GraphicBuffer>& buffer) {
+    auto barrier = std::make_shared<ImageManager::Barrier>();
+    mImageManager->cacheAsync(buffer, barrier);
+    return barrier;
+}
+
+status_t GLESRenderEngine::cacheExternalTextureBufferInternal(const sp<GraphicBuffer>& buffer) {
     if (buffer == nullptr) {
         return BAD_VALUE;
     }
@@ -703,12 +739,30 @@ status_t GLESRenderEngine::cacheExternalTextureBuffer(const sp<GraphicBuffer>& b
 }
 
 void GLESRenderEngine::unbindExternalTextureBuffer(uint64_t bufferId) {
-    std::lock_guard<std::mutex> lock(mRenderingMutex);
-    const auto& cachedImage = mImageCache.find(bufferId);
-    if (cachedImage != mImageCache.end()) {
-        ALOGV("Destroying image for buffer: %" PRIu64, bufferId);
-        mImageCache.erase(bufferId);
-        return;
+    mImageManager->releaseAsync(bufferId, nullptr);
+}
+
+std::shared_ptr<ImageManager::Barrier> GLESRenderEngine::unbindExternalTextureBufferForTesting(
+        uint64_t bufferId) {
+    auto barrier = std::make_shared<ImageManager::Barrier>();
+    mImageManager->releaseAsync(bufferId, barrier);
+    return barrier;
+}
+
+void GLESRenderEngine::unbindExternalTextureBufferInternal(uint64_t bufferId) {
+    std::unique_ptr<Image> image;
+    {
+        std::lock_guard<std::mutex> lock(mRenderingMutex);
+        const auto& cachedImage = mImageCache.find(bufferId);
+
+        if (cachedImage != mImageCache.end()) {
+            ALOGV("Destroying image for buffer: %" PRIu64, bufferId);
+            // Move the buffer out of cache first, so that we can destroy
+            // without holding the cache's lock.
+            image = std::move(cachedImage->second);
+            mImageCache.erase(bufferId);
+            return;
+        }
     }
     ALOGV("Failed to find image for buffer: %" PRIu64, bufferId);
 }
