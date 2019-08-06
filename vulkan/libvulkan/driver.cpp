@@ -30,6 +30,7 @@
 #include <cutils/properties.h>
 #include <graphicsenv/GraphicsEnv.h>
 #include <log/log.h>
+#include <nativeloader/dlext_namespaces.h>
 #include <sys/prctl.h>
 #include <utils/Timers.h>
 #include <utils/Trace.h>
@@ -43,11 +44,6 @@
 
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
-
-// TODO(b/37049319) Get this from a header once one exists
-extern "C" {
-android_namespace_t* android_get_exported_namespace(const char*);
-}
 
 // #define ENABLE_ALLOC_CALLSTACKS 1
 #if ENABLE_ALLOC_CALLSTACKS
