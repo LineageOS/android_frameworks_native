@@ -134,7 +134,12 @@ void SensorDevice::initializeSensorList() {
 
                     mActivationCount.add(list[i].sensorHandle, model);
 
-                    checkReturn(mSensors->activate(list[i].sensorHandle, 0 /* enabled */));
+                    // Only disable all sensors on HAL 1.0 since HAL 2.0
+                    // handles this in its initialize method
+                    if (!mSensors->supportsMessageQueues()) {
+                        checkReturn(mSensors->activate(list[i].sensorHandle,
+                                    0 /* enabled */));
+                    }
                 }
             }));
 }
