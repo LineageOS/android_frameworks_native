@@ -48,6 +48,7 @@ cc_library {
                 "InputTransport.cpp",
                 "InputWindow.cpp",
                 "ISetInputWindowsListener.cpp",
+                "LatencyStatistics.cpp",
                 "VelocityControl.cpp",
                 "VelocityTracker.cpp",
             ],
@@ -55,7 +56,8 @@ cc_library {
             shared_libs: [
                 "libutils",
                 "libbinder",
-                "libui"
+                "libui",
+                "libstatslog",
             ],
 
             sanitize: {

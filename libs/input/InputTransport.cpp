@@ -34,6 +34,7 @@
 #include <utils/Trace.h>
 
 #include <input/InputTransport.h>
+#include <statslog.h>
 
 using android::base::StringPrintf;
 
@@ -531,6 +532,10 @@ status_t InputPublisher::publishMotionEvent(
         msg.body.motion.pointers[i].properties.copyFrom(pointerProperties[i]);
         msg.body.motion.pointers[i].coords.copyFrom(pointerCoords[i]);
     }
+
+    if (source == AINPUT_SOURCE_TOUCHSCREEN) {
+        reportTouchEventForStatistics(eventTime);
+    }
     return mChannel->sendMessage(&msg);
 }
 
@@ -555,6 +560,17 @@ status_t InputPublisher::receiveFinishedSignal(uint32_t* outSeq, bool* outHandle
     *outSeq = msg.body.finished.seq;
     *outHandled = msg.body.finished.handled;
     return OK;
+}
+
+void InputPublisher::reportTouchEventForStatistics(nsecs_t evdevTime) {
+    if (mTouchStatistics.shouldReport()) {
+        android::util::stats_write(android::util::TOUCH_EVENT_REPORTED, mTouchStatistics.getMin(),
+                                   mTouchStatistics.getMax(), mTouchStatistics.getMean(),
+                                   mTouchStatistics.getStDev(), mTouchStatistics.getCount());
+        mTouchStatistics.reset();
+    }
+    nsecs_t latency = nanoseconds_to_microseconds(systemTime(CLOCK_MONOTONIC) - evdevTime);
+    mTouchStatistics.addValue(latency);
 }
 
 // --- InputConsumer ---
