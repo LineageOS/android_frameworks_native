@@ -53,7 +53,7 @@ inline bool IsIntegral(double value) {
 // parsing in between C++ and Java, becasue Java json library simply cannot
 // handle infinity.
 static const double SAFE_DOUBLE_MAX = 0.99 * std::numeric_limits<double>::max();
-static const double SAFE_DOUBLE_MIN = 0.99 * std::numeric_limits<double>::min();
+static const double SAFE_DOUBLE_MIN = -SAFE_DOUBLE_MAX;
 
 template <typename T> struct EnumTraits;
 template <> struct EnumTraits<VkPhysicalDeviceType> {
