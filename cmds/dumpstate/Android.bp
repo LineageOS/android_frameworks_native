@@ -93,7 +93,6 @@ cc_defaults {
         "libutils",
     ],
     srcs: [
-        "DumpstateSectionReporter.cpp",
         "DumpstateService.cpp",
     ],
     static_libs: [

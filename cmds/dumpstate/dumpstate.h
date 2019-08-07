@@ -400,12 +400,8 @@ class Dumpstate {
     // Runtime options.
     std::unique_ptr<DumpOptions> options_;
 
-    // How frequently the progess should be updated;the listener will only be notificated when the
-    // delta from the previous update is more than the threshold.
-    int32_t update_progress_threshold_ = 100;
-
-    // Last progress that triggered a listener updated
-    int32_t last_updated_progress_;
+    // Last progress that was sent to the listener [0-100].
+    int last_reported_percent_progress_ = 0;
 
     // Whether it should take an screenshot earlier in the process.
     bool do_early_screenshot_ = false;
