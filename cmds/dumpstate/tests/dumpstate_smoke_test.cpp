@@ -167,26 +167,6 @@ class DumpstateListener : public BnDumpstateListener {
         return binder::Status::ok();
     }
 
-    binder::Status onProgressUpdated(int32_t progress) override {
-        dprintf(out_fd_, "\rIn progress %d/%d", progress, max_progress_);
-        return binder::Status::ok();
-    }
-
-    binder::Status onMaxProgressUpdated(int32_t max_progress) override {
-        std::lock_guard<std::mutex> lock(lock_);
-        max_progress_ = max_progress;
-        return binder::Status::ok();
-    }
-
-    binder::Status onSectionComplete(const ::std::string& name, int32_t, int32_t size_bytes,
-                                     int32_t) override {
-        std::lock_guard<std::mutex> lock(lock_);
-        if (sections_.get() != nullptr) {
-            sections_->push_back({name, size_bytes});
-        }
-        return binder::Status::ok();
-    }
-
     bool getIsFinished() {
         std::lock_guard<std::mutex> lock(lock_);
         return is_finished_;
@@ -199,7 +179,6 @@ class DumpstateListener : public BnDumpstateListener {
 
   private:
     int out_fd_;
-    int max_progress_ = 5000;
     int error_code_ = -1;
     bool is_finished_ = false;
     std::shared_ptr<std::vector<SectionInfo>> sections_;
