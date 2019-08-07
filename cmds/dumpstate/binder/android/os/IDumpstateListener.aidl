@@ -61,21 +61,4 @@ interface IDumpstateListener {
      * Called when taking bugreport finishes successfully.
      */
     void onFinished();
-
-    // TODO(b/111441001): Remove old methods when not used anymore.
-    void onProgressUpdated(int progress);
-    void onMaxProgressUpdated(int maxProgress);
-
-    /**
-     * Called after every section is complete.
-     *
-     * @param  name          section name
-     * @param  status        values from status_t
-     *                       {@code OK} section completed successfully
-     *                       {@code TIMEOUT} dump timed out
-     *                       {@code != OK} error
-     * @param  size          size in bytes, may be invalid if status != OK
-     * @param  durationMs    duration in ms
-     */
-    void onSectionComplete(@utf8InCpp String name, int status, int size, int durationMs);
 }

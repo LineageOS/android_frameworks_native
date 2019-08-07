@@ -62,10 +62,6 @@ class DumpstateListenerMock : public IDumpstateListener {
     MOCK_METHOD1(onProgress, binder::Status(int32_t progress));
     MOCK_METHOD1(onError, binder::Status(int32_t error_code));
     MOCK_METHOD0(onFinished, binder::Status());
-    MOCK_METHOD1(onProgressUpdated, binder::Status(int32_t progress));
-    MOCK_METHOD1(onMaxProgressUpdated, binder::Status(int32_t max_progress));
-    MOCK_METHOD4(onSectionComplete, binder::Status(const ::std::string& name, int32_t status,
-                                                   int32_t size, int32_t durationMs));
 
   protected:
     MOCK_METHOD0(onAsBinder, IBinder*());
@@ -590,7 +586,6 @@ class DumpstateTest : public DumpstateBaseTest {
         SetDryRun(false);
         SetBuildType(android::base::GetProperty("ro.build.type", "(unknown)"));
         ds.progress_.reset(new Progress());
-        ds.update_progress_threshold_ = 0;
         ds.options_.reset(new Dumpstate::DumpOptions());
     }
 
@@ -615,10 +610,9 @@ class DumpstateTest : public DumpstateBaseTest {
         return status;
     }
 
-    void SetProgress(long progress, long initial_max, long threshold = 0) {
+    void SetProgress(long progress, long initial_max) {
+        ds.last_reported_percent_progress_ = 0;
         ds.options_->do_progress_updates = true;
-        ds.update_progress_threshold_ = threshold;
-        ds.last_updated_progress_ = 0;
         ds.progress_.reset(new Progress(initial_max, progress, 1.2));
     }
 
@@ -796,73 +790,36 @@ TEST_F(DumpstateTest, RunCommandProgress) {
     ds.listener_name_ = "FoxMulder";
     SetProgress(0, 30);
 
-    EXPECT_CALL(*listener, onProgressUpdated(20));
     EXPECT_CALL(*listener, onProgress(66));  // 20/30 %
     EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(20).Build()));
     std::string progress_message = GetProgressMessage(ds.listener_name_, 20, 30);
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
 
-    EXPECT_CALL(*listener, onProgressUpdated(30));
-    EXPECT_CALL(*listener, onProgress(100));  // 35/35 %
-    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(10).Build()));
-    progress_message = GetProgressMessage(ds.listener_name_, 30, 30);
-    EXPECT_THAT(out, StrEq("stdout\n"));
-    EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
-
-    // Run a command that will increase maximum timeout.
-    EXPECT_CALL(*listener, onProgressUpdated(31));
-    EXPECT_CALL(*listener, onMaxProgressUpdated(37));
-    EXPECT_CALL(*listener, onProgress(83));  // 31/37 %
-    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(1).Build()));
-    progress_message = GetProgressMessage(ds.listener_name_, 31, 37, 30);  // 20% increase
+    EXPECT_CALL(*listener, onProgress(80));  // 24/30 %
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(4).Build()));
+    progress_message = GetProgressMessage(ds.listener_name_, 24, 30);
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
 
     // Make sure command ran while in dry_run is counted.
     SetDryRun(true);
-    EXPECT_CALL(*listener, onProgressUpdated(35));
-    EXPECT_CALL(*listener, onProgress(94));  // 35/37 %
-    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(4).Build()));
-    progress_message = GetProgressMessage(ds.listener_name_, 35, 37);
+    EXPECT_CALL(*listener, onProgress(90));  // 27/30 %
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(3).Build()));
+    progress_message = GetProgressMessage(ds.listener_name_, 27, 30);
     EXPECT_THAT(out, IsEmpty());
     EXPECT_THAT(err, StrEq(progress_message));
 
-    ds.listener_.clear();
-}
-
-TEST_F(DumpstateTest, RunCommandProgressIgnoreThreshold) {
-    sp<DumpstateListenerMock> listener(new DumpstateListenerMock());
-    ds.listener_ = listener;
-    ds.listener_name_ = "FoxMulder";
-    SetProgress(0, 8, 5);  // 8 max, 5 threshold
-
-    // First update should always be sent.
-    EXPECT_CALL(*listener, onProgressUpdated(1));
-    EXPECT_CALL(*listener, onProgress(12));  // 1/12 %
-    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(1).Build()));
-    std::string progress_message = GetProgressMessage(ds.listener_name_, 1, 8);
+    SetDryRun(false);
+    EXPECT_CALL(*listener, onProgress(96));  // 29/30 %
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(2).Build()));
+    progress_message = GetProgressMessage(ds.listener_name_, 29, 30);
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
 
-    // Fourth update should be ignored because it's between the threshold (5 -1 = 4 < 5).
-    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(4).Build()));
-    EXPECT_THAT(out, StrEq("stdout\n"));
-    EXPECT_THAT(err, StrEq("stderr\n"));
-
-    // Third update should be sent because it reaches threshold (6 - 1 = 5).
-    EXPECT_CALL(*listener, onProgressUpdated(6));
-    EXPECT_CALL(*listener, onProgress(75));  // 6/8 %
+    EXPECT_CALL(*listener, onProgress(100));  // 30/30 %
     EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(1).Build()));
-    progress_message = GetProgressMessage(ds.listener_name_, 6, 8);
-    EXPECT_THAT(out, StrEq("stdout\n"));
-    EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
-
-    // Fourth update should be ignored because it's between the threshold (9 - 6 = 3 < 5).
-    // But max update should be sent.
-    EXPECT_CALL(*listener, onMaxProgressUpdated(10));  // 9 * 120% = 10.8 = 10
-    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(3).Build()));
-    progress_message = GetProgressMessage(ds.listener_name_, 9, 10, 8, false);
+    progress_message = GetProgressMessage(ds.listener_name_, 30, 30);
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
 
@@ -1090,7 +1047,6 @@ TEST_F(DumpstateTest, DumpFileUpdateProgress) {
     ds.listener_name_ = "FoxMulder";
     SetProgress(0, 30);
 
-    EXPECT_CALL(*listener, onProgressUpdated(5));
     EXPECT_CALL(*listener, onProgress(16));  // 5/30 %
     EXPECT_EQ(0, DumpFile("", kTestDataPath + "single-line.txt"));
 
