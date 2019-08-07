@@ -32,28 +32,13 @@
 #include <cutils/properties.h>
 #include <graphicsenv/IGpuService.h>
 #include <log/log.h>
+#include <nativeloader/dlext_namespaces.h>
 #include <sys/prctl.h>
 #include <utils/Trace.h>
 
 #include <memory>
 #include <string>
 #include <thread>
-
-// TODO(b/37049319) Get this from a header once one exists
-extern "C" {
-android_namespace_t* android_get_exported_namespace(const char*);
-android_namespace_t* android_create_namespace(const char* name, const char* ld_library_path,
-                                              const char* default_library_path, uint64_t type,
-                                              const char* permitted_when_isolated_path,
-                                              android_namespace_t* parent);
-bool android_link_namespaces(android_namespace_t* from, android_namespace_t* to,
-                             const char* shared_libs_sonames);
-
-enum {
-    ANDROID_NAMESPACE_TYPE_ISOLATED = 1,
-    ANDROID_NAMESPACE_TYPE_SHARED = 2,
-};
-}
 
 // TODO(ianelliott@): Get the following from an ANGLE header:
 #define CURRENT_ANGLE_API_VERSION 2 // Current API verion we are targetting
@@ -213,7 +198,8 @@ void GraphicsEnv::setDriverToLoad(GpuStatsInfo::Driver driver) {
         case GpuStatsInfo::Driver::GL:
         case GpuStatsInfo::Driver::GL_UPDATED:
         case GpuStatsInfo::Driver::ANGLE: {
-            if (mGpuStats.glDriverToLoad == GpuStatsInfo::Driver::NONE) {
+            if (mGpuStats.glDriverToLoad == GpuStatsInfo::Driver::NONE ||
+                mGpuStats.glDriverToLoad == GpuStatsInfo::Driver::GL) {
                 mGpuStats.glDriverToLoad = driver;
                 break;
             }
@@ -225,7 +211,8 @@ void GraphicsEnv::setDriverToLoad(GpuStatsInfo::Driver driver) {
         }
         case GpuStatsInfo::Driver::VULKAN:
         case GpuStatsInfo::Driver::VULKAN_UPDATED: {
-            if (mGpuStats.vkDriverToLoad == GpuStatsInfo::Driver::NONE) {
+            if (mGpuStats.vkDriverToLoad == GpuStatsInfo::Driver::NONE ||
+                mGpuStats.vkDriverToLoad == GpuStatsInfo::Driver::VULKAN) {
                 mGpuStats.vkDriverToLoad = driver;
                 break;
             }

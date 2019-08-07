@@ -200,8 +200,7 @@ status_t DumpstateService::dump(int fd, const Vector<String16>&) {
     dprintf(fd, "id: %d\n", ds_->id_);
     dprintf(fd, "pid: %d\n", ds_->pid_);
     dprintf(fd, "update_progress: %s\n", ds_->options_->do_progress_updates ? "true" : "false");
-    dprintf(fd, "update_progress_threshold: %d\n", ds_->update_progress_threshold_);
-    dprintf(fd, "last_updated_progress: %d\n", ds_->last_updated_progress_);
+    dprintf(fd, "last_percent_progress: %d\n", ds_->last_reported_percent_progress_);
     dprintf(fd, "progress:\n");
     ds_->progress_->Dump(fd, "  ");
     dprintf(fd, "args: %s\n", ds_->options_->args.c_str());
