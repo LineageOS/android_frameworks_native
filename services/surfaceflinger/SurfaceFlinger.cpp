@@ -4996,13 +4996,8 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 updateColorMatrixLocked();
                 return NO_ERROR;
             }
-            // This is an experimental interface
-            // Needs to be shifted to proper binder interface when we productize
-            case 1016: {
-                n = data.readInt32();
-                // TODO(b/113612090): Evaluate if this can be removed.
-                mScheduler->setRefreshSkipCount(n);
-                return NO_ERROR;
+            case 1016: { // Unused.
+                return NAME_NOT_FOUND;
             }
             case 1017: {
                 n = data.readInt32();
