@@ -171,6 +171,7 @@ static const TracingCategory k_categories[] = {
         { OPT,      "events/clk/clk_disable/enable" },
         { OPT,      "events/clk/clk_enable/enable" },
         { OPT,      "events/power/cpu_frequency_limits/enable" },
+        { OPT,      "events/power/suspend_resume/enable" },
     } },
     { "membus",     "Memory Bus Utilization", 0, {
         { REQ,      "events/memory_bus/enable" },
