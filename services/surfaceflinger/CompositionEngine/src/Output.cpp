@@ -300,9 +300,9 @@ void Output::postFramebuffer() {
         return;
     }
 
-    mRenderSurface->onPresentDisplayCompleted();
-
     auto frame = presentAndGetFrameFences();
+
+    mRenderSurface->onPresentDisplayCompleted();
 
     for (auto& layer : getOutputLayersOrderedByZ()) {
         // The layer buffer from the previous frame (if any) is released
