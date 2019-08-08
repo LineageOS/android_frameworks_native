@@ -18,6 +18,7 @@
 #include <input/LatencyStatistics.h>
 #include <cmath>
 #include <limits>
+#include <thread>
 
 namespace android {
 namespace test {
@@ -64,6 +65,8 @@ TEST(LatencyStatisticsTest, AddMultipleStatsValue) {
 TEST(LatencyStatisticsTest, ShouldReportStats) {
     LatencyStatistics stats{0min};
     stats.addValue(5.0);
+
+    std::this_thread::sleep_for(1us);
 
     ASSERT_EQ(stats.shouldReport(), true);
 }
