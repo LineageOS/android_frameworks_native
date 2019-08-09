@@ -1854,24 +1854,13 @@ void SurfaceFlinger::calculateWorkingSet() {
     const bool updatingGeometryThisFrame = mGeometryInvalid;
     mGeometryInvalid = false;
 
-    {
-        // Use a map so that we latch the state of each front-end layer once.
-        std::unordered_map<compositionengine::LayerFE*, compositionengine::LayerFECompositionState*>
-                uniqueVisibleLayers;
-
-        // Figure out which frontend layers are being composed, and build the unique
-        // set of them (and the corresponding composition layer)
-        for (const auto& [token, displayDevice] : mDisplays) {
-            auto display = displayDevice->getCompositionDisplay();
-            for (auto& layer : display->getOutputLayersOrderedByZ()) {
-                uniqueVisibleLayers.insert(std::make_pair(&layer->getLayerFE(),
-                                                          &layer->getLayer().editState().frontEnd));
-            }
-        }
-
-        // Update the composition state from each front-end layer.
-        for (auto& [layerFE, state] : uniqueVisibleLayers) {
-            layerFE->latchCompositionState(*state, updatingGeometryThisFrame);
+    // Latch the frontend layer composition state for each layer being
+    // composed.
+    for (const auto& [token, displayDevice] : mDisplays) {
+        auto display = displayDevice->getCompositionDisplay();
+        for (auto& layer : display->getOutputLayersOrderedByZ()) {
+            layer->getLayerFE().latchCompositionState(layer->getLayer().editState().frontEnd,
+                                                      updatingGeometryThisFrame);
         }
     }
 
@@ -1907,13 +1896,7 @@ void SurfaceFlinger::calculateWorkingSet() {
             // Update the composition state of the output layer, as needed
             // recomputing it from the state given by the front-end layer.
             layer->updateCompositionState(updatingGeometryThisFrame);
-        }
-    }
 
-    for (const auto& [token, displayDevice] : mDisplays) {
-        auto display = displayDevice->getCompositionDisplay();
-
-        for (auto& layer : display->getOutputLayersOrderedByZ()) {
             // Send the updated state to the HWC, if appropriate.
             layer->writeStateToHWC(updatingGeometryThisFrame);
         }
