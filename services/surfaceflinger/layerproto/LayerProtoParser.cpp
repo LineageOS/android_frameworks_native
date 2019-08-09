@@ -37,16 +37,6 @@ bool sortLayers(LayerProtoParser::Layer* lhs, const LayerProtoParser::Layer* rhs
     return lhs->id < rhs->id;
 }
 
-const LayerProtoParser::LayerGlobal LayerProtoParser::generateLayerGlobalInfo(
-        const LayersProto& layersProto) {
-    LayerGlobal layerGlobal;
-    layerGlobal.resolution = {layersProto.resolution().w(), layersProto.resolution().h()};
-    layerGlobal.colorMode = layersProto.color_mode();
-    layerGlobal.colorTransform = layersProto.color_transform();
-    layerGlobal.globalTransform = layersProto.global_transform();
-    return layerGlobal;
-}
-
 LayerProtoParser::LayerTree LayerProtoParser::generateLayerTree(const LayersProto& layersProto) {
     LayerTree layerTree;
     layerTree.allLayers = generateLayerList(layersProto);
@@ -114,10 +104,6 @@ LayerProtoParser::Layer LayerProtoParser::generateLayer(const LayerProto& layerP
     layer.bufferTransform = generateTransform(layerProto.buffer_transform());
     layer.queuedFrames = layerProto.queued_frames();
     layer.refreshPending = layerProto.refresh_pending();
-    layer.hwcFrame = generateRect(layerProto.hwc_frame());
-    layer.hwcCrop = generateFloatRect(layerProto.hwc_crop());
-    layer.hwcTransform = layerProto.hwc_transform();
-    layer.hwcCompositionType = layerProto.hwc_composition_type();
     layer.isProtected = layerProto.is_protected();
     layer.cornerRadius = layerProto.corner_radius();
     for (const auto& entry : layerProto.metadata()) {

@@ -108,23 +108,11 @@ public:
         Transform bufferTransform;
         int32_t queuedFrames;
         bool refreshPending;
-        LayerProtoParser::Rect hwcFrame;
-        LayerProtoParser::FloatRect hwcCrop;
-        int32_t hwcTransform;
-        int32_t hwcCompositionType;
         bool isProtected;
         float cornerRadius;
         LayerMetadata metadata;
 
         std::string to_string() const;
-    };
-
-    class LayerGlobal {
-    public:
-        int2 resolution;
-        std::string colorMode;
-        std::string colorTransform;
-        int32_t globalTransform;
     };
 
     class LayerTree {
@@ -136,7 +124,6 @@ public:
         std::vector<Layer*> topLevelLayers;
     };
 
-    static const LayerGlobal generateLayerGlobalInfo(const LayersProto& layersProto);
     static LayerTree generateLayerTree(const LayersProto& layersProto);
     static std::string layerTreeToString(const LayerTree& layerTree);
 

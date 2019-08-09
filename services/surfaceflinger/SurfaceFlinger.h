@@ -52,7 +52,6 @@
 #include "DisplayHardware/PowerAdvisor.h"
 #include "Effects/Daltonizer.h"
 #include "FrameTracker.h"
-#include "LayerStats.h"
 #include "LayerVector.h"
 #include "Scheduler/RefreshRateConfigs.h"
 #include "Scheduler/RefreshRateStats.h"
@@ -762,7 +761,6 @@ private:
     void calculateWorkingSet();
     void doComposition(const sp<DisplayDevice>& display, bool repainEverything);
     void doDebugFlashRegions(const sp<DisplayDevice>& display, bool repaintEverything);
-    void logLayerStats();
     void doDisplayComposition(const sp<DisplayDevice>& display, const Region& dirtyRegion);
 
     // This fails if using GL and the surface has been destroyed. readyFence
@@ -884,7 +882,6 @@ private:
     LayersProto dumpProtoFromMainThread(uint32_t traceFlags = SurfaceTracing::TRACE_ALL)
             EXCLUDES(mStateLock);
     void withTracingLock(std::function<void()> operation) REQUIRES(mStateLock);
-    LayersProto dumpVisibleLayersProtoInfo(const sp<DisplayDevice>& display) const;
 
     bool isLayerTripleBufferingDisabled() const {
         return this->mLayerTripleBufferingDisabled;
@@ -1001,7 +998,6 @@ private:
     SurfaceTracing mTracing{*this};
     bool mTracingEnabled = false;
     bool mTracingEnabledChanged GUARDED_BY(mStateLock) = false;
-    LayerStats mLayerStats;
     const std::shared_ptr<TimeStats> mTimeStats;
     bool mUseHwcVirtualDisplays = false;
     std::atomic<uint32_t> mFrameMissedCount = 0;

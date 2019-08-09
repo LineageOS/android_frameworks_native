@@ -440,11 +440,6 @@ public:
     // thread.
     void writeToProtoDrawingState(LayerProto* layerInfo,
                                   uint32_t traceFlags = SurfaceTracing::TRACE_ALL) const;
-    // Write states that are modified by the main thread. This includes drawing
-    // state as well as buffer data and composition data for layers on the specified
-    // display. This should be called in the main or tracing thread.
-    void writeToProtoCompositionState(LayerProto* layerInfo, const sp<DisplayDevice>& displayDevice,
-                                      uint32_t traceFlags = SurfaceTracing::TRACE_ALL) const;
     // Write drawing or current state. If writing current state, the caller should hold the
     // external mStateLock. If writing drawing state, this function should be called on the
     // main or tracing thread.
