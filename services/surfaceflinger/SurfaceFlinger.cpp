@@ -4485,7 +4485,8 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args,
 
         const auto flag = args.empty() ? ""s : std::string(String8(args[0]));
 
-        if (const auto it = dumpers.find(flag); it != dumpers.end()) {
+        const auto it = dumpers.find(flag);
+        if (it != dumpers.end()) {
             (it->second)(args, asProto, result);
         } else if (!asProto) {
             dumpAllLocked(args, result);
@@ -4495,13 +4496,15 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args,
             mStateLock.unlock();
         }
 
-        LayersProto layersProto = dumpProtoFromMainThread();
-        if (asProto) {
-            result.append(layersProto.SerializeAsString().c_str(), layersProto.ByteSize());
-        } else {
-            auto layerTree = LayerProtoParser::generateLayerTree(layersProto);
-            result.append(LayerProtoParser::layerTreeToString(layerTree));
-            result.append("\n");
+        if (it == dumpers.end()) {
+            const LayersProto layersProto = dumpProtoFromMainThread();
+            if (asProto) {
+                result.append(layersProto.SerializeAsString());
+            } else {
+                const auto layerTree = LayerProtoParser::generateLayerTree(layersProto);
+                result.append(LayerProtoParser::layerTreeToString(layerTree));
+                result.append("\n");
+            }
         }
     }
     write(fd, result.c_str(), result.size());
