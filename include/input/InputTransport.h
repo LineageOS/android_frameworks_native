@@ -42,6 +42,8 @@
 #include <utils/Timers.h>
 #include <utils/Vector.h>
 
+#include <android-base/unique_fd.h>
+
 namespace android {
 class Parcel;
 
@@ -166,8 +168,7 @@ protected:
     virtual ~InputChannel();
 
 public:
-    InputChannel() = default;
-    InputChannel(const std::string& name, int fd);
+    static sp<InputChannel> create(const std::string& name, android::base::unique_fd fd);
 
     /* Creates a pair of input channels.
      *
@@ -177,7 +178,7 @@ public:
             sp<InputChannel>& outServerChannel, sp<InputChannel>& outClientChannel);
 
     inline std::string getName() const { return mName; }
-    inline int getFd() const { return mFd; }
+    inline int getFd() const { return mFd.get(); }
 
     /* Sends a message to the other endpoint.
      *
@@ -208,16 +209,15 @@ public:
     sp<InputChannel> dup() const;
 
     status_t write(Parcel& out) const;
-    status_t read(const Parcel& from);
+    static sp<InputChannel> read(const Parcel& from);
 
     sp<IBinder> getToken() const;
     void setToken(const sp<IBinder>& token);
 
 private:
-    void setFd(int fd);
-
+    InputChannel(const std::string& name, android::base::unique_fd fd);
     std::string mName;
-    int mFd = -1;
+    android::base::unique_fd mFd;
 
     sp<IBinder> mToken = nullptr;
 };
