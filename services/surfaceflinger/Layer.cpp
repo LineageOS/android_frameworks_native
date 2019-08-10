@@ -1965,13 +1965,6 @@ bool Layer::isRemovedFromCurrentState() const  {
     return mRemovedFromCurrentState;
 }
 
-// Debug helper for b/137560795
-#define INT32_MIGHT_OVERFLOW(n) (((n) >= INT32_MAX / 2) || ((n) <= INT32_MIN / 2))
-
-#define RECT_BOUNDS_INVALID(rect)                                               \
-    (INT32_MIGHT_OVERFLOW((rect).left) || INT32_MIGHT_OVERFLOW((rect).right) || \
-     INT32_MIGHT_OVERFLOW((rect).bottom) || INT32_MIGHT_OVERFLOW((rect).top))
-
 InputWindowInfo Layer::fillInputInfo() {
     InputWindowInfo info = mDrawingState.inputInfo;
 
@@ -1982,14 +1975,14 @@ InputWindowInfo Layer::fillInputInfo() {
     ui::Transform t = getTransform();
     const float xScale = t.sx();
     const float yScale = t.sy();
-    float xSurfaceInset = info.surfaceInset;
-    float ySurfaceInset = info.surfaceInset;
+    int32_t xSurfaceInset = info.surfaceInset;
+    int32_t ySurfaceInset = info.surfaceInset;
     if (xScale != 1.0f || yScale != 1.0f) {
-        info.windowXScale *= 1.0f / xScale;
-        info.windowYScale *= 1.0f / yScale;
+        info.windowXScale *= (xScale != 0.0f) ? 1.0f / xScale : 0.0f;
+        info.windowYScale *= (yScale != 0.0f) ? 1.0f / yScale : 0.0f;
         info.touchableRegion.scaleSelf(xScale, yScale);
-        xSurfaceInset *= xScale;
-        ySurfaceInset *= yScale;
+        xSurfaceInset = std::round(xSurfaceInset * xScale);
+        ySurfaceInset = std::round(ySurfaceInset * yScale);
     }
 
     // Transform layer size to screen space and inset it by surface insets.
@@ -2002,25 +1995,10 @@ InputWindowInfo Layer::fillInputInfo() {
     }
     layerBounds = t.transform(layerBounds);
 
-    // debug check for b/137560795
-    {
-        if (RECT_BOUNDS_INVALID(layerBounds)) {
-            ALOGE("layer %s bounds are invalid (%" PRIi32 ", %" PRIi32 ", %" PRIi32 ", %" PRIi32
-                  ")",
-                  mName.c_str(), layerBounds.left, layerBounds.top, layerBounds.right,
-                  layerBounds.bottom);
-            std::string out;
-            getTransform().dump(out, "Transform");
-            ALOGE("%s", out.c_str());
-            layerBounds.left = layerBounds.top = layerBounds.right = layerBounds.bottom = 0;
-        }
+    // clamp inset to layer bounds
+    xSurfaceInset = (xSurfaceInset >= 0) ? std::min(xSurfaceInset, layerBounds.getWidth() / 2) : 0;
+    ySurfaceInset = (ySurfaceInset >= 0) ? std::min(ySurfaceInset, layerBounds.getHeight() / 2) : 0;
 
-        if (INT32_MIGHT_OVERFLOW(xSurfaceInset) || INT32_MIGHT_OVERFLOW(ySurfaceInset)) {
-            ALOGE("layer %s surface inset are invalid (%" PRIi32 ", %" PRIi32 ")", mName.c_str(),
-                  int32_t(xSurfaceInset), int32_t(ySurfaceInset));
-            xSurfaceInset = ySurfaceInset = 0;
-        }
-    }
     layerBounds.inset(xSurfaceInset, ySurfaceInset, xSurfaceInset, ySurfaceInset);
 
     // Input coordinate should match the layer bounds.
