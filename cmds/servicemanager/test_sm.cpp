@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
+#include <android/os/BnServiceCallback.h>
+#include <binder/Binder.h>
 #include <binder/ProcessState.h>
+#include <binder/IServiceManager.h>
 #include <cutils/android_filesystem_config.h>
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
@@ -24,8 +27,11 @@
 
 using android::sp;
 using android::Access;
+using android::BBinder;
 using android::IBinder;
 using android::ServiceManager;
+using android::binder::Status;
+using android::os::BnServiceCallback;
 using android::os::IServiceManager;
 using testing::_;
 using testing::ElementsAre;
@@ -33,9 +39,14 @@ using testing::NiceMock;
 using testing::Return;
 
 static sp<IBinder> getBinder() {
-    // It doesn't matter what remote binder it is, we just need one so that linkToDeath will work.
-    // The context manager (servicemanager) is easy to get and is in another process.
-    return android::ProcessState::self()->getContextObject(nullptr);
+    class LinkableBinder : public BBinder {
+        android::status_t linkToDeath(const sp<DeathRecipient>&, void*, uint32_t) override {
+            // let SM linkToDeath
+            return android::OK;
+        }
+    };
+
+    return new LinkableBinder;
 }
 
 class MockAccess : public Access {
@@ -132,12 +143,14 @@ TEST(AddService, NoPermissions) {
 
 TEST(GetService, HappyHappy) {
     auto sm = getPermissiveServiceManager();
-    EXPECT_TRUE(sm->addService("foo", getBinder(), false /*allowIsolated*/,
+    sp<IBinder> service = getBinder();
+
+    EXPECT_TRUE(sm->addService("foo", service, false /*allowIsolated*/,
         IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT).isOk());
 
     sp<IBinder> out;
     EXPECT_TRUE(sm->getService("foo", &out).isOk());
-    EXPECT_EQ(getBinder(), out);
+    EXPECT_EQ(service, out);
 }
 
 TEST(GetService, NonExistant) {
@@ -181,12 +194,13 @@ TEST(GetService, AllowedFromIsolated) {
 
     sp<ServiceManager> sm = new ServiceManager(std::move(access));
 
-    EXPECT_TRUE(sm->addService("foo", getBinder(), true /*allowIsolated*/,
+    sp<IBinder> service = getBinder();
+    EXPECT_TRUE(sm->addService("foo", service, true /*allowIsolated*/,
         IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT).isOk());
 
     sp<IBinder> out;
     EXPECT_TRUE(sm->getService("foo", &out).isOk());
-    EXPECT_EQ(getBinder(), out.get());
+    EXPECT_EQ(service, out.get());
 }
 
 TEST(GetService, NotAllowedFromIsolated) {
@@ -264,4 +278,146 @@ TEST(ListServices, CriticalServices) {
 
     // all there and in the right order
     EXPECT_THAT(out, ElementsAre("sa"));
+}
+
+class CallbackHistorian : public BnServiceCallback {
+    Status onRegistration(const std::string& name, const sp<IBinder>& binder) override {
+        registrations.push_back(name);
+        binders.push_back(binder);
+        return Status::ok();
+    }
+
+    android::status_t linkToDeath(const sp<DeathRecipient>&, void*, uint32_t) override {
+        // let SM linkToDeath
+        return android::OK;
+    }
+
+public:
+    std::vector<std::string> registrations;
+    std::vector<sp<IBinder>> binders;
+};
+
+TEST(ServiceNotifications, NoPermissionsRegister) {
+    std::unique_ptr<MockAccess> access = std::make_unique<NiceMock<MockAccess>>();
+
+    EXPECT_CALL(*access, getCallingContext()).WillOnce(Return(Access::CallingContext{}));
+    EXPECT_CALL(*access, canFind(_,_)).WillOnce(Return(false));
+
+    sp<ServiceManager> sm = new ServiceManager(std::move(access));
+
+    sp<CallbackHistorian> cb = new CallbackHistorian;
+
+    EXPECT_EQ(sm->registerForNotifications("foofoo", cb).exceptionCode(),
+        Status::EX_SECURITY);
+}
+
+TEST(ServiceNotifications, NoPermissionsUnregister) {
+    std::unique_ptr<MockAccess> access = std::make_unique<NiceMock<MockAccess>>();
+
+    EXPECT_CALL(*access, getCallingContext()).WillOnce(Return(Access::CallingContext{}));
+    EXPECT_CALL(*access, canFind(_,_)).WillOnce(Return(false));
+
+    sp<ServiceManager> sm = new ServiceManager(std::move(access));
+
+    sp<CallbackHistorian> cb = new CallbackHistorian;
+
+    // should always hit security error first
+    EXPECT_EQ(sm->unregisterForNotifications("foofoo", cb).exceptionCode(),
+        Status::EX_SECURITY);
+}
+
+TEST(ServiceNotifications, InvalidName) {
+    auto sm = getPermissiveServiceManager();
+
+    sp<CallbackHistorian> cb = new CallbackHistorian;
+
+    EXPECT_EQ(sm->registerForNotifications("foo@foo", cb).exceptionCode(),
+        Status::EX_ILLEGAL_ARGUMENT);
+}
+
+TEST(ServiceNotifications, NullCallback) {
+    auto sm = getPermissiveServiceManager();
+
+    EXPECT_EQ(sm->registerForNotifications("foofoo", nullptr).exceptionCode(),
+        Status::EX_NULL_POINTER);
+}
+
+TEST(ServiceNotifications, Unregister) {
+    auto sm = getPermissiveServiceManager();
+
+    sp<CallbackHistorian> cb = new CallbackHistorian;
+
+    EXPECT_TRUE(sm->registerForNotifications("foofoo", cb).isOk());
+    EXPECT_EQ(sm->unregisterForNotifications("foofoo", cb).exceptionCode(), 0);
+}
+
+TEST(ServiceNotifications, UnregisterWhenNoRegistrationExists) {
+    auto sm = getPermissiveServiceManager();
+
+    sp<CallbackHistorian> cb = new CallbackHistorian;
+
+    EXPECT_EQ(sm->unregisterForNotifications("foofoo", cb).exceptionCode(),
+        Status::EX_ILLEGAL_STATE);
+}
+
+TEST(ServiceNotifications, NoNotification) {
+    auto sm = getPermissiveServiceManager();
+
+    sp<CallbackHistorian> cb = new CallbackHistorian;
+
+    EXPECT_TRUE(sm->registerForNotifications("foofoo", cb).isOk());
+    EXPECT_TRUE(sm->addService("otherservice", getBinder(),
+        false /*allowIsolated*/, IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT).isOk());
+
+    EXPECT_THAT(cb->registrations, ElementsAre());
+    EXPECT_THAT(cb->binders, ElementsAre());
+}
+
+TEST(ServiceNotifications, GetNotification) {
+    auto sm = getPermissiveServiceManager();
+
+    sp<CallbackHistorian> cb = new CallbackHistorian;
+
+    sp<IBinder> service = getBinder();
+
+    EXPECT_TRUE(sm->registerForNotifications("asdfasdf", cb).isOk());
+    EXPECT_TRUE(sm->addService("asdfasdf", service,
+        false /*allowIsolated*/, IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT).isOk());
+
+    EXPECT_THAT(cb->registrations, ElementsAre("asdfasdf"));
+    EXPECT_THAT(cb->binders, ElementsAre(service));
+}
+
+TEST(ServiceNotifications, GetNotificationForAlreadyRegisteredService) {
+    auto sm = getPermissiveServiceManager();
+
+    sp<CallbackHistorian> cb = new CallbackHistorian;
+
+    sp<IBinder> service = getBinder();
+
+    EXPECT_TRUE(sm->addService("asdfasdf", service,
+        false /*allowIsolated*/, IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT).isOk());
+
+    EXPECT_TRUE(sm->registerForNotifications("asdfasdf", cb).isOk());
+
+    EXPECT_THAT(cb->registrations, ElementsAre("asdfasdf"));
+    EXPECT_THAT(cb->binders, ElementsAre(service));
+}
+
+TEST(ServiceNotifications, GetMultipleNotification) {
+    auto sm = getPermissiveServiceManager();
+
+    sp<CallbackHistorian> cb = new CallbackHistorian;
+
+    sp<IBinder> binder1 = getBinder();
+    sp<IBinder> binder2 = getBinder();
+
+    EXPECT_TRUE(sm->registerForNotifications("asdfasdf", cb).isOk());
+    EXPECT_TRUE(sm->addService("asdfasdf", binder1,
+        false /*allowIsolated*/, IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT).isOk());
+    EXPECT_TRUE(sm->addService("asdfasdf", binder2,
+        false /*allowIsolated*/, IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT).isOk());
+
+    EXPECT_THAT(cb->registrations, ElementsAre("asdfasdf", "asdfasdf"));
+    EXPECT_THAT(cb->registrations, ElementsAre("asdfasdf", "asdfasdf"));
 }
