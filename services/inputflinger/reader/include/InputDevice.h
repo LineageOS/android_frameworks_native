@@ -81,7 +81,7 @@ public:
     int32_t getSwitchState(uint32_t sourceMask, int32_t switchCode);
     bool markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes, const int32_t* keyCodes,
                                uint8_t* outFlags);
-    void vibrate(const nsecs_t* pattern, size_t patternSize, ssize_t repeat, int32_t token);
+    void vibrate(const std::vector<VibrationElement>& pattern, ssize_t repeat, int32_t token);
     void cancelVibrate(int32_t token);
     void cancelTouch(nsecs_t when);
 
@@ -262,7 +262,9 @@ public:
     inline bool setKeyboardLayoutOverlay(const sp<KeyCharacterMap>& map) {
         return mEventHub->setKeyboardLayoutOverlay(mId, map);
     }
-    inline void vibrate(nsecs_t duration) { return mEventHub->vibrate(mId, duration); }
+    inline void vibrate(const VibrationElement& element) {
+        return mEventHub->vibrate(mId, element);
+    }
     inline void cancelVibrate() { return mEventHub->cancelVibrate(mId); }
 
     inline bool hasAbsoluteAxis(int32_t code) const {

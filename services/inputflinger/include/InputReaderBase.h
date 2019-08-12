@@ -17,22 +17,23 @@
 #ifndef _UI_INPUT_READER_BASE_H
 #define _UI_INPUT_READER_BASE_H
 
-#include "PointerControllerInterface.h"
-
 #include <input/DisplayViewport.h>
 #include <input/Input.h>
 #include <input/InputDevice.h>
 #include <input/VelocityControl.h>
 #include <input/VelocityTracker.h>
+#include <stddef.h>
+#include <unistd.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 
-#include <stddef.h>
-#include <unistd.h>
 #include <optional>
 #include <set>
 #include <unordered_map>
 #include <vector>
+
+#include "PointerControllerInterface.h"
+#include "VibrationElement.h"
 
 // Maximum supported size of a vibration pattern.
 // Must be at least 2.
@@ -41,6 +42,7 @@
 // Maximum allowable delay value in a vibration pattern before
 // which the delay will be truncated.
 #define MAX_VIBRATE_PATTERN_DELAY_NSECS (1000000 * 1000000000LL)
+#define MAX_VIBRATE_PATTERN_DELAY_MSECS (1000000 * 1000LL)
 
 namespace android {
 
@@ -104,8 +106,8 @@ public:
     virtual void requestRefreshConfiguration(uint32_t changes) = 0;
 
     /* Controls the vibrator of a particular input device. */
-    virtual void vibrate(int32_t deviceId, const nsecs_t* pattern, size_t patternSize,
-            ssize_t repeat, int32_t token) = 0;
+    virtual void vibrate(int32_t deviceId, const std::vector<VibrationElement>& pattern,
+                         ssize_t repeat, int32_t token) = 0;
     virtual void cancelVibrate(int32_t deviceId, int32_t token) = 0;
 
     /* Return true if the device can send input events to the specified display. */

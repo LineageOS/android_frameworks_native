@@ -78,7 +78,7 @@ public:
 
     virtual void requestRefreshConfiguration(uint32_t changes) override;
 
-    virtual void vibrate(int32_t deviceId, const nsecs_t* pattern, size_t patternSize,
+    virtual void vibrate(int32_t deviceId, const std::vector<VibrationElement>& pattern,
                          ssize_t repeat, int32_t token) override;
     virtual void cancelVibrate(int32_t deviceId, int32_t token) override;
 
