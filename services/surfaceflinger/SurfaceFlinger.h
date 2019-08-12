@@ -172,9 +172,9 @@ public:
 
 class SurfaceFlinger : public BnSurfaceComposer,
                        public PriorityDumper,
+                       public ClientCache::ErasedRecipient,
                        private IBinder::DeathRecipient,
-                       private HWC2::ComposerCallback
-{
+                       private HWC2::ComposerCallback {
 public:
     SurfaceFlingerBE& getBE() { return mBE; }
     const SurfaceFlingerBE& getBE() const { return mBE; }
@@ -321,6 +321,9 @@ public:
     }
 
     sp<Layer> fromHandle(const sp<IBinder>& handle) REQUIRES(mStateLock);
+
+    // Inherit from ClientCache::ErasedRecipient
+    void bufferErased(const client_cache_t& clientCacheId) override;
 
 private:
     friend class BufferLayer;

@@ -48,7 +48,7 @@ namespace android {
 class BufferLayer : public Layer {
 public:
     explicit BufferLayer(const LayerCreationArgs& args);
-    ~BufferLayer() override;
+    virtual ~BufferLayer() override;
 
     // -----------------------------------------------------------------------
     // Overriden from Layer

@@ -3677,6 +3677,7 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
 
     if (uncacheBuffer.isValid()) {
         ClientCache::getInstance().erase(uncacheBuffer);
+        getRenderEngine().unbindExternalTextureBuffer(uncacheBuffer.id);
     }
 
     // If a synchronous transaction is explicitly requested without any changes, force a transaction
@@ -4039,12 +4040,18 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     bool bufferChanged = what & layer_state_t::eBufferChanged;
     bool cacheIdChanged = what & layer_state_t::eCachedBufferChanged;
     sp<GraphicBuffer> buffer;
-    if (bufferChanged && cacheIdChanged) {
-        ClientCache::getInstance().add(s.cachedBuffer, s.buffer);
-        ClientCache::getInstance().registerErasedRecipient(s.cachedBuffer,
-                                                           wp<ClientCache::ErasedRecipient>(layer));
-        getRenderEngine().cacheExternalTextureBuffer(s.buffer);
+    if (bufferChanged && cacheIdChanged && s.buffer != nullptr) {
         buffer = s.buffer;
+        bool success = ClientCache::getInstance().add(s.cachedBuffer, s.buffer);
+        if (success) {
+            getRenderEngine().cacheExternalTextureBuffer(s.buffer);
+            success = ClientCache::getInstance()
+                              .registerErasedRecipient(s.cachedBuffer,
+                                                       wp<ClientCache::ErasedRecipient>(this));
+            if (!success) {
+                getRenderEngine().unbindExternalTextureBuffer(s.buffer->getId());
+            }
+        }
     } else if (cacheIdChanged) {
         buffer = ClientCache::getInstance().get(s.cachedBuffer);
     } else if (bufferChanged) {
@@ -6097,6 +6104,10 @@ sp<Layer> SurfaceFlinger::fromHandle(const sp<IBinder>& handle) {
         return it->second.promote();
     }
     return nullptr;
+}
+
+void SurfaceFlinger::bufferErased(const client_cache_t& clientCacheId) {
+    getRenderEngine().unbindExternalTextureBuffer(clientCacheId.id);
 }
 
 } // namespace android
