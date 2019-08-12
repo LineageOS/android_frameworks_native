@@ -275,7 +275,7 @@ protected:
             writer.StartEntry("primary.prof", ZipWriter::kCompress);
             writer.FinishEntry();
             writer.Finish();
-            close(fd);
+            fclose(file);
           }
 
         // Create the app user data.
