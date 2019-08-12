@@ -60,6 +60,8 @@ enum AndroidBitmapFormat {
     ANDROID_BITMAP_FORMAT_RGBA_4444 = 7,
     /** Alpha: 8 bits. */
     ANDROID_BITMAP_FORMAT_A_8       = 8,
+    /** Each component is stored as a half float. **/
+    ANDROID_BITMAP_FORMAT_RGBA_F16  = 9,
 };
 
 /** Bitmap info, see AndroidBitmap_getInfo(). */
