@@ -51,6 +51,16 @@ BufferStateLayer::BufferStateLayer(const LayerCreationArgs& args)
     mCurrentState.dataspace = ui::Dataspace::V0_SRGB;
 }
 
+BufferStateLayer::~BufferStateLayer() {
+    if (mActiveBuffer != nullptr) {
+        // Ensure that mActiveBuffer is uncached from RenderEngine here, as
+        // RenderEngine may have been using the buffer as an external texture
+        // after the client uncached the buffer.
+        auto& engine(mFlinger->getRenderEngine());
+        engine.unbindExternalTextureBuffer(mActiveBuffer->getId());
+    }
+}
+
 // -----------------------------------------------------------------------
 // Interface implementation for Layer
 // -----------------------------------------------------------------------
@@ -608,10 +618,6 @@ void BufferStateLayer::onFirstRef() {
     if (const auto display = mFlinger->getDefaultDisplayDevice()) {
         updateTransformHint(display);
     }
-}
-
-void BufferStateLayer::bufferErased(const client_cache_t& clientCacheId) {
-    mFlinger->getRenderEngine().unbindExternalTextureBuffer(clientCacheId.id);
 }
 
 void BufferStateLayer::HwcSlotGenerator::bufferErased(const client_cache_t& clientCacheId) {

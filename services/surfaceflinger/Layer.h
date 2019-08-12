@@ -93,7 +93,7 @@ struct LayerCreationArgs {
     LayerMetadata metadata;
 };
 
-class Layer : public virtual compositionengine::LayerFE, public ClientCache::ErasedRecipient {
+class Layer : public virtual compositionengine::LayerFE {
     static std::atomic<int32_t> sSequence;
 
 public:
@@ -699,9 +699,6 @@ public:
 
     compositionengine::OutputLayer* findOutputLayerForDisplay(
             const sp<const DisplayDevice>& display) const;
-
-    // Inherit from ClientCache::ErasedRecipient
-    void bufferErased(const client_cache_t& /*clientCacheId*/) override {}
 
 protected:
     // constant

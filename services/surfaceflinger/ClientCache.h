@@ -36,7 +36,7 @@ class ClientCache : public Singleton<ClientCache> {
 public:
     ClientCache();
 
-    void add(const client_cache_t& cacheId, const sp<GraphicBuffer>& buffer);
+    bool add(const client_cache_t& cacheId, const sp<GraphicBuffer>& buffer);
     void erase(const client_cache_t& cacheId);
 
     sp<GraphicBuffer> get(const client_cache_t& cacheId);
@@ -48,7 +48,7 @@ public:
         virtual void bufferErased(const client_cache_t& clientCacheId) = 0;
     };
 
-    void registerErasedRecipient(const client_cache_t& cacheId,
+    bool registerErasedRecipient(const client_cache_t& cacheId,
                                  const wp<ErasedRecipient>& recipient);
     void unregisterErasedRecipient(const client_cache_t& cacheId,
                                    const wp<ErasedRecipient>& recipient);
