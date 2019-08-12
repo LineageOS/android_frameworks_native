@@ -356,6 +356,7 @@ public:
     auto& mutableTransactionFlags() { return mFlinger->mTransactionFlags; }
     auto& mutableUseHwcVirtualDisplays() { return mFlinger->mUseHwcVirtualDisplays; }
     auto& mutablePowerAdvisor() { return mFlinger->mPowerAdvisor; }
+    auto& mutableDebugDisableHWC() { return mFlinger->mDebugDisableHWC; }
 
     auto& mutableComposerSequenceId() { return mFlinger->getBE().mComposerSequenceId; }
     auto& mutableHwcDisplayData() { return getHwComposer().mDisplayData; }
