@@ -217,10 +217,10 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, nsecs_t postTi
     setTransactionFlags(eTransactionNeeded);
 
     mFlinger->mTimeStats->setPostTime(getSequence(), mFrameNumber, getName().c_str(), postTime);
-    mDesiredPresentTime = desiredPresentTime;
+    mCurrentState.desiredPresentTime = desiredPresentTime;
 
     if (mFlinger->mUseSmart90ForVideo) {
-        const nsecs_t presentTime = (mDesiredPresentTime == -1) ? 0 : mDesiredPresentTime;
+        const nsecs_t presentTime = (desiredPresentTime == -1) ? 0 : desiredPresentTime;
         mFlinger->mScheduler->addLayerPresentTimeAndHDR(mSchedulerLayerHandle, presentTime,
                                                         mCurrentState.hdrMetadata.validTypes != 0);
     }
@@ -374,11 +374,11 @@ bool BufferStateLayer::framePresentTimeIsCurrent(nsecs_t expectedPresentTime) co
         return true;
     }
 
-    return mDesiredPresentTime <= expectedPresentTime;
+    return mCurrentState.desiredPresentTime <= expectedPresentTime;
 }
 
 nsecs_t BufferStateLayer::getDesiredPresentTime() {
-    return mDesiredPresentTime;
+    return getDrawingState().desiredPresentTime;
 }
 
 std::shared_ptr<FenceTime> BufferStateLayer::getCurrentFenceTime() const {
