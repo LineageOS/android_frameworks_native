@@ -544,6 +544,8 @@ public:
 
     virtual bool isBufferLatched() const { return false; }
 
+    virtual void latchAndReleaseBuffer() {}
+
     /*
      * Remove relative z for the layer if its relative parent is not part of the
      * provided layer tree.

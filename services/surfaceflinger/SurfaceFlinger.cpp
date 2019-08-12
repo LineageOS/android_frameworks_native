@@ -2887,14 +2887,6 @@ void SurfaceFlinger::updateCursorAsync()
     }
 }
 
-void SurfaceFlinger::latchAndReleaseBuffer(const sp<Layer>& layer) {
-    if (layer->hasReadyFrame()) {
-        bool ignored = false;
-        layer->latchBuffer(ignored, systemTime(), 0 /* expectedPresentTime */);
-    }
-    layer->releasePendingBuffer(systemTime());
-}
-
 void SurfaceFlinger::commitTransaction()
 {
     if (!mLayersPendingRemoval.isEmpty()) {
@@ -2905,7 +2897,7 @@ void SurfaceFlinger::commitTransaction()
 
             // Ensure any buffers set to display on any children are released.
             if (l->isRemovedFromCurrentState()) {
-                latchAndReleaseBuffer(l);
+                l->latchAndReleaseBuffer();
             }
 
             // If the layer has been removed and has no parent, then it will not be reachable
@@ -3162,6 +3154,14 @@ bool SurfaceFlinger::handlePageFlip()
             layer->useEmptyDamage();
         }
     });
+
+    // The client can continue submitting buffers for offscreen layers, but they will not
+    // be shown on screen. Therefore, we need to latch and release buffers of offscreen
+    // layers to ensure dequeueBuffer doesn't block indefinitely.
+    for (Layer* offscreenLayer : mOffscreenLayers) {
+        offscreenLayer->traverseInZOrder(LayerVector::StateSet::Drawing,
+                                         [&](Layer* l) { l->latchAndReleaseBuffer(); });
+    }
 
     if (!mLayersWithQueuedFrames.empty()) {
         // mStateLock is needed for latchBuffer as LayerRejecter::reject()
