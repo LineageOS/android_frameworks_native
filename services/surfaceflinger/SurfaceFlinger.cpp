@@ -1798,8 +1798,6 @@ void SurfaceFlinger::handleMessageRefresh() {
         doComposition(displayDevice, repaintEverything);
     }
 
-    logLayerStats();
-
     postFrame();
     postComposition();
 
@@ -1960,20 +1958,6 @@ void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& displayDevice,
     }
 
     displayDevice->getCompositionDisplay()->prepareFrame();
-}
-
-void SurfaceFlinger::logLayerStats() {
-    ATRACE_CALL();
-    if (CC_UNLIKELY(mLayerStats.isEnabled())) {
-        for (const auto& [token, display] : mDisplays) {
-            if (display->isPrimary()) {
-                mLayerStats.logLayerStats(dumpVisibleLayersProtoInfo(display));
-                return;
-            }
-        }
-
-        ALOGE("logLayerStats: no primary display");
-    }
 }
 
 void SurfaceFlinger::updateCompositorTiming(const DisplayStatInfo& stats, nsecs_t compositeTime,
@@ -4476,14 +4460,10 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args,
         using namespace std::string_literals;
 
         static const std::unordered_map<std::string, Dumper> dumpers = {
-                {"--clear-layer-stats"s, dumper([this](std::string&) { mLayerStats.clear(); })},
-                {"--disable-layer-stats"s, dumper([this](std::string&) { mLayerStats.disable(); })},
                 {"--display-id"s, dumper(&SurfaceFlinger::dumpDisplayIdentificationData)},
                 {"--dispsync"s, dumper([this](std::string& s) {
                          mScheduler->dumpPrimaryDispSync(s);
                  })},
-                {"--dump-layer-stats"s, dumper([this](std::string& s) { mLayerStats.dump(s); })},
-                {"--enable-layer-stats"s, dumper([this](std::string&) { mLayerStats.enable(); })},
                 {"--frame-events"s, dumper(&SurfaceFlinger::dumpFrameEventsLocked)},
                 {"--latency"s, argsDumper(&SurfaceFlinger::dumpStatsLocked)},
                 {"--latency-clear"s, argsDumper(&SurfaceFlinger::clearStatsLocked)},
@@ -4771,33 +4751,6 @@ LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
 LayersProto SurfaceFlinger::dumpProtoFromMainThread(uint32_t traceFlags) {
     LayersProto layersProto;
     postMessageSync(new LambdaMessage([&]() { layersProto = dumpDrawingStateProto(traceFlags); }));
-    return layersProto;
-}
-
-LayersProto SurfaceFlinger::dumpVisibleLayersProtoInfo(
-        const sp<DisplayDevice>& displayDevice) const {
-    LayersProto layersProto;
-
-    SizeProto* resolution = layersProto.mutable_resolution();
-    resolution->set_w(displayDevice->getWidth());
-    resolution->set_h(displayDevice->getHeight());
-
-    auto display = displayDevice->getCompositionDisplay();
-    const auto& displayState = display->getState();
-
-    layersProto.set_color_mode(decodeColorMode(displayState.colorMode));
-    layersProto.set_color_transform(decodeColorTransform(displayState.colorTransform));
-    layersProto.set_global_transform(displayState.orientation);
-
-    const auto displayId = displayDevice->getId();
-    LOG_ALWAYS_FATAL_IF(!displayId);
-    mDrawingState.traverseInZOrder([&](Layer* layer) {
-        if (!layer->visibleRegion.isEmpty() && !display->getOutputLayersOrderedByZ().empty()) {
-            LayerProto* layerProto = layersProto.add_layers();
-            layer->writeToProtoCompositionState(layerProto, displayDevice);
-        }
-    });
-
     return layersProto;
 }
 

@@ -7,10 +7,6 @@ package android.surfaceflinger;
 // Contains a list of all layers.
 message LayersProto {
   repeated LayerProto layers = 1;
-  SizeProto resolution = 2;
-  string color_mode = 3;
-  string color_transform = 4;
-  int32 global_transform = 5;
 }
 
 // Information about each layer.

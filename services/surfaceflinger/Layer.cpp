@@ -1932,35 +1932,6 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
     }
 }
 
-void Layer::writeToProtoCompositionState(LayerProto* layerInfo,
-                                         const sp<DisplayDevice>& displayDevice,
-                                         uint32_t traceFlags) const {
-    auto outputLayer = findOutputLayerForDisplay(displayDevice);
-    if (!outputLayer) {
-        return;
-    }
-
-    writeToProtoDrawingState(layerInfo, traceFlags);
-    writeToProtoCommonState(layerInfo, LayerVector::StateSet::Drawing, traceFlags);
-
-    const auto& compositionState = outputLayer->getState();
-
-    const Rect& frame = compositionState.displayFrame;
-    LayerProtoHelper::writeToProto(frame, [&]() { return layerInfo->mutable_hwc_frame(); });
-
-    const FloatRect& crop = compositionState.sourceCrop;
-    LayerProtoHelper::writeToProto(crop, [&]() { return layerInfo->mutable_hwc_crop(); });
-
-    const int32_t transform =
-            getCompositionLayer() ? static_cast<int32_t>(compositionState.bufferTransform) : 0;
-    layerInfo->set_hwc_transform(transform);
-
-    const int32_t compositionType =
-            static_cast<int32_t>(compositionState.hwc ? (*compositionState.hwc).hwcCompositionType
-                                                      : Hwc2::IComposerClient::Composition::CLIENT);
-    layerInfo->set_hwc_composition_type(compositionType);
-}
-
 bool Layer::isRemovedFromCurrentState() const  {
     return mRemovedFromCurrentState;
 }
