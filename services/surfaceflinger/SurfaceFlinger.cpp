@@ -1904,6 +1904,10 @@ void SurfaceFlinger::calculateWorkingSet() {
         auto display = displayDevice->getCompositionDisplay();
 
         for (auto& layer : display->getOutputLayersOrderedByZ()) {
+            if (mDebugDisableHWC || mDebugRegion) {
+                layer->editState().forceClientComposition = true;
+            }
+
             // Update the composition state of the output layer, as needed
             // recomputing it from the state given by the front-end layer.
             layer->updateCompositionState(updatingGeometryThisFrame);
