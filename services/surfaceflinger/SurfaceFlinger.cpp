@@ -3429,7 +3429,7 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
         }
 
         if (mNumLayers >= MAX_LAYERS) {
-            ALOGE("AddClientLayer failed, mNumLayers (%zu) >= MAX_LAYERS (%zu)", mNumLayers,
+            ALOGE("AddClientLayer failed, mNumLayers (%zu) >= MAX_LAYERS (%zu)", mNumLayers.load(),
                   MAX_LAYERS);
             return NO_MEMORY;
         }
@@ -3453,7 +3453,7 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
                                         mMaxGraphicBufferProducerListSize,
                                 "Suspected IGBP leak: %zu IGBPs (%zu max), %zu Layers",
                                 mGraphicBufferProducerList.size(),
-                                mMaxGraphicBufferProducerListSize, mNumLayers);
+                                mMaxGraphicBufferProducerListSize, mNumLayers.load());
         }
         mLayersAdded = true;
     }
@@ -4806,7 +4806,7 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
      * Dump the visible layer list
      */
     colorizer.bold(result);
-    StringAppendF(&result, "Visible layers (count = %zu)\n", mNumLayers);
+    StringAppendF(&result, "Visible layers (count = %zu)\n", mNumLayers.load());
     StringAppendF(&result, "GraphicBufferProducers: %zu, max %zu\n",
                   mGraphicBufferProducerList.size(), mMaxGraphicBufferProducerListSize);
     colorizer.reset(result);

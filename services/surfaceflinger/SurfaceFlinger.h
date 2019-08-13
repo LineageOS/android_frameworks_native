@@ -1071,7 +1071,7 @@ private:
     // Static screen stats
     bool mHasPoweredOff = false;
 
-    size_t mNumLayers = 0;
+    std::atomic<size_t> mNumLayers = 0;
 
     // Verify that transaction is being called by an approved process:
     // either AID_GRAPHICS or AID_SYSTEM.
