@@ -584,9 +584,6 @@ bool is_dir(const char* pathname);
 /** Gets the last modification time of a file, or default time if file is not found. */
 time_t get_mtime(int fd, time_t default_mtime);
 
-/* Dumps eMMC Extended CSD data. */
-void dump_emmc_ecsd(const char *ext_csd_path);
-
 /** Gets command-line arguments. */
 void format_args(int argc, const char *argv[], std::string *args);
 
