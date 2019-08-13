@@ -26,6 +26,7 @@
 #include <utils/Trace.h>
 
 #include "DisplayHardware/HWComposer.h"
+#include "DisplayHardware/PowerAdvisor.h"
 
 namespace android::compositionengine::impl {
 
@@ -38,7 +39,8 @@ std::shared_ptr<Display> createDisplay(
 Display::Display(const CompositionEngine& compositionEngine, DisplayCreationArgs&& args)
       : compositionengine::impl::Output(compositionEngine),
         mIsVirtual(args.isVirtual),
-        mId(args.displayId) {
+        mId(args.displayId),
+        mPowerAdvisor(args.powerAdvisor) {
     editState().isSecure = args.isSecure;
 }
 
@@ -160,6 +162,15 @@ void Display::chooseCompositionStrategy() {
     state.usesDeviceComposition = !allLayersRequireClientComposition();
 }
 
+bool Display::getSkipColorTransform() const {
+    if (!mId) {
+        return false;
+    }
+
+    auto& hwc = getCompositionEngine().getHwComposer();
+    return hwc.hasDisplayCapability(*mId, HWC2::DisplayCapability::SkipClientColorTransform);
+}
+
 bool Display::anyLayersRequireClientComposition() const {
     const auto& layers = getOutputLayersOrderedByZ();
     return std::any_of(layers.cbegin(), layers.cend(),
@@ -238,6 +249,14 @@ compositionengine::Output::FrameFences Display::presentAndGetFrameFences() {
     hwc.clearReleaseFences(*mId);
 
     return result;
+}
+
+void Display::setExpensiveRenderingExpected(bool enabled) {
+    Output::setExpensiveRenderingExpected(enabled);
+
+    if (mPowerAdvisor && mId) {
+        mPowerAdvisor->setExpensiveRenderingExpected(*mId, enabled);
+    }
 }
 
 } // namespace android::compositionengine::impl

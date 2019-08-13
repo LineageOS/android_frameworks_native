@@ -55,6 +55,7 @@ public:
     void applyDeviceCompositionTypeChange(Hwc2::IComposerClient::Composition) override;
     void prepareForDeviceLayerRequests() override;
     void applyDeviceLayerRequest(Hwc2::IComposerClient::LayerRequest request) override;
+    bool needsFiltering() const override;
 
     void dump(std::string& result) const override;
 

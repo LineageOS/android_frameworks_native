@@ -167,7 +167,7 @@ std::optional<renderengine::LayerSettings> BufferLayer::prepareClientComposition
         }
         return std::nullopt;
     }
-    bool blackOutLayer = (isProtected() && !targetSettings.supportProtectedContent) ||
+    bool blackOutLayer = (isProtected() && !targetSettings.supportsProtectedContent) ||
             (isSecure() && !targetSettings.isSecure);
     const State& s(getDrawingState());
     auto& layer = *result;

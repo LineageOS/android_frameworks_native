@@ -440,6 +440,7 @@ void Layer::latchGeometry(compositionengine::LayerFECompositionState& compositio
 }
 
 void Layer::latchPerFrameState(compositionengine::LayerFECompositionState& compositionState) const {
+    const auto& drawingState{getDrawingState()};
     compositionState.forceClientComposition = false;
 
     // TODO(lpique): b/121291683 Remove this one we are sure we don't need the
@@ -451,9 +452,14 @@ void Layer::latchPerFrameState(compositionengine::LayerFECompositionState& compo
     compositionState.colorTransform = getColorTransform();
     compositionState.colorTransformIsIdentity = !hasColorTransform();
     compositionState.surfaceDamage = surfaceDamageRegion;
+    compositionState.hasProtectedContent = isProtected();
+
+    const bool usesRoundedCorners = getRoundedCornerState().radius != 0.f;
+    compositionState.isOpaque =
+            isOpaque(drawingState) && !usesRoundedCorners && getAlpha() == 1.0_hf;
 
     // Force client composition for special cases known only to the front-end.
-    if (isHdrY410() || getRoundedCornerState().radius > 0.0f) {
+    if (isHdrY410() || usesRoundedCorners) {
         compositionState.forceClientComposition = true;
     }
 }

@@ -766,12 +766,6 @@ private:
     void doDebugFlashRegions(const sp<DisplayDevice>& display, bool repaintEverything);
     void doDisplayComposition(const sp<DisplayDevice>& display, const Region& dirtyRegion);
 
-    // This fails if using GL and the surface has been destroyed. readyFence
-    // will be populated if using GL and native fence sync is supported, to
-    // signal when drawing has completed.
-    bool doComposeSurfaces(const sp<DisplayDevice>& display, const Region& debugRegionm,
-                           base::unique_fd* readyFence);
-
     void postFrame();
 
     /* ------------------------------------------------------------------------

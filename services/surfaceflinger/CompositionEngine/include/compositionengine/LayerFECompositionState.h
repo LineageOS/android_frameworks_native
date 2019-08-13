@@ -116,6 +116,12 @@ struct LayerFECompositionState {
     // The color transform
     mat4 colorTransform;
     bool colorTransformIsIdentity{true};
+
+    // True if the layer is completely opaque
+    bool isOpaque{true};
+
+    // True if the layer has protected content
+    bool hasProtectedContent{false};
 };
 
 } // namespace android::compositionengine
