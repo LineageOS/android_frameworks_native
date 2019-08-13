@@ -1172,10 +1172,15 @@ bool EnsureInitialized() {
 
     std::call_once(once_flag, []() {
         if (driver::OpenHAL()) {
-            DiscoverLayers();
             initialized = true;
         }
     });
+
+    {
+        static std::mutex layer_lock;
+        std::lock_guard<std::mutex> lock(layer_lock);
+        DiscoverLayers();
+    }
 
     return initialized;
 }
