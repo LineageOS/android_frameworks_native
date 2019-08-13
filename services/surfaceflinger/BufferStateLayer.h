@@ -35,6 +35,8 @@ class BufferStateLayer : public BufferLayer {
 public:
     explicit BufferStateLayer(const LayerCreationArgs&);
 
+    ~BufferStateLayer() override;
+
     // -----------------------------------------------------------------------
     // Interface implementation for Layer
     // -----------------------------------------------------------------------
@@ -101,9 +103,6 @@ public:
     // -----------------------------------------------------------------------
     bool fenceHasSignaled() const override;
     bool framePresentTimeIsCurrent() const override;
-
-    // Inherit from ClientCache::ErasedRecipient
-    void bufferErased(const client_cache_t& clientCacheId) override;
 
 private:
     nsecs_t getDesiredPresentTime() override;
