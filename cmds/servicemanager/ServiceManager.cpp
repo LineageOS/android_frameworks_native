@@ -98,16 +98,10 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
         return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT);
     }
 
+    // implicitly unlinked when the binder is removed
     if (OK != binder->linkToDeath(this)) {
         LOG(ERROR) << "Could not linkToDeath when adding " << name;
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
-    }
-
-    auto it = mNameToService.find(name);
-    if (it != mNameToService.end()) {
-        if (OK != it->second.binder->unlinkToDeath(this)) {
-            LOG(WARNING) << "Could not unlinkToDeath when adding " << name;
-        }
     }
 
     mNameToService[name] = Service {
