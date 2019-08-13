@@ -5655,10 +5655,13 @@ status_t SurfaceFlinger::captureLayers(
                 drawLayers();
             } else {
                 Rect bounds = getBounds();
-                screenshotParentLayer = mFlinger->getFactory().createContainerLayer(
-                        LayerCreationArgs(mFlinger, nullptr, String8("Screenshot Parent"),
-                                          bounds.getWidth(), bounds.getHeight(), 0,
-                                          LayerMetadata()));
+                // In the "childrenOnly" case we reparent the children to a screenshot
+                // layer which has no properties set and which does not draw.
+                sp<ContainerLayer> screenshotParentLayer =
+                        mFlinger->getFactory().createContainerLayer(
+                                LayerCreationArgs(mFlinger, nullptr, String8("Screenshot Parent"),
+                                                  bounds.getWidth(), bounds.getHeight(), 0,
+                                                  LayerMetadata()));
 
                 ReparentForDrawing reparent(mLayer, screenshotParentLayer, sourceCrop);
                 drawLayers();
@@ -5669,9 +5672,6 @@ status_t SurfaceFlinger::captureLayers(
         const sp<Layer> mLayer;
         const Rect mCrop;
 
-        // In the "childrenOnly" case we reparent the children to a screenshot
-        // layer which has no properties set and which does not draw.
-        sp<ContainerLayer> screenshotParentLayer;
         ui::Transform mTransform;
         bool mNeedsFiltering;
 
