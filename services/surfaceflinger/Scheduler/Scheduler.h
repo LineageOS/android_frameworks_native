@@ -204,6 +204,10 @@ private:
     enum class TimerState { Reset, Expired };
     enum class TouchState { Inactive, Active };
 
+    // Used by tests to inject mocks.
+    Scheduler(std::unique_ptr<DispSync>, std::unique_ptr<EventControlThread>,
+              const scheduler::RefreshRateConfigs&);
+
     // Creates a connection on the given EventThread and forwards the given callbacks.
     sp<EventThreadConnection> createConnectionInternal(EventThread*, ResyncCallback&&,
                                                        ISurfaceComposer::ConfigChanged);

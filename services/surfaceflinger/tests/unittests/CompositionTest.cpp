@@ -34,7 +34,6 @@
 #include "ColorLayer.h"
 #include "Layer.h"
 
-#include "TestableScheduler.h"
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/MockDispSync.h"
@@ -95,10 +94,6 @@ public:
         mFlinger.mutableEventQueue().reset(mMessageQueue);
         setupScheduler();
 
-        EXPECT_CALL(*mPrimaryDispSync, computeNextRefresh(0)).WillRepeatedly(Return(0));
-        EXPECT_CALL(*mPrimaryDispSync, getPeriod())
-                .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_REFRESH_RATE));
-        EXPECT_CALL(*mPrimaryDispSync, expectedPresentTime()).WillRepeatedly(Return(0));
         EXPECT_CALL(*mNativeWindow, query(NATIVE_WINDOW_WIDTH, _))
                 .WillRepeatedly(DoAll(SetArgPointee<1>(DEFAULT_DISPLAY_WIDTH), Return(0)));
         EXPECT_CALL(*mNativeWindow, query(NATIVE_WINDOW_HEIGHT, _))
@@ -125,15 +120,22 @@ public:
     }
 
     void setupScheduler() {
-        mScheduler = new TestableScheduler(mFlinger.mutableRefreshRateConfigs());
-        mScheduler->mutableEventControlThread().reset(mEventControlThread);
-        mScheduler->mutablePrimaryDispSync().reset(mPrimaryDispSync);
-        EXPECT_CALL(*mEventThread.get(), registerDisplayEventConnection(_));
-        sp<Scheduler::ConnectionHandle> connectionHandle =
-                mScheduler->addConnection(std::move(mEventThread));
-        mFlinger.mutableSfConnectionHandle() = std::move(connectionHandle);
+        auto eventThread = std::make_unique<mock::EventThread>();
+        auto sfEventThread = std::make_unique<mock::EventThread>();
 
-        mFlinger.mutableScheduler().reset(mScheduler);
+        EXPECT_CALL(*eventThread, registerDisplayEventConnection(_));
+        EXPECT_CALL(*sfEventThread, registerDisplayEventConnection(_));
+
+        auto primaryDispSync = std::make_unique<mock::DispSync>();
+
+        EXPECT_CALL(*primaryDispSync, computeNextRefresh(0)).WillRepeatedly(Return(0));
+        EXPECT_CALL(*primaryDispSync, getPeriod())
+                .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_REFRESH_RATE));
+        EXPECT_CALL(*primaryDispSync, expectedPresentTime()).WillRepeatedly(Return(0));
+
+        mFlinger.setupScheduler(std::move(primaryDispSync),
+                                std::make_unique<mock::EventControlThread>(),
+                                std::move(eventThread), std::move(sfEventThread));
     }
 
     void setupForceGeometryDirty() {
@@ -157,7 +159,6 @@ public:
 
     std::unordered_set<HWC2::Capability> mDefaultCapabilities = {HWC2::Capability::SidebandStream};
 
-    TestableScheduler* mScheduler;
     TestableSurfaceFlinger mFlinger;
     sp<DisplayDevice> mDisplay;
     sp<DisplayDevice> mExternalDisplay;
@@ -168,13 +169,9 @@ public:
     sp<GraphicBuffer> mBuffer = new GraphicBuffer();
     ANativeWindowBuffer* mNativeWindowBuffer = mBuffer->getNativeBuffer();
 
-    std::unique_ptr<mock::EventThread> mEventThread = std::make_unique<mock::EventThread>();
-    mock::EventControlThread* mEventControlThread = new mock::EventControlThread();
-
     Hwc2::mock::Composer* mComposer = nullptr;
     renderengine::mock::RenderEngine* mRenderEngine = new renderengine::mock::RenderEngine();
     mock::MessageQueue* mMessageQueue = new mock::MessageQueue();
-    mock::DispSync* mPrimaryDispSync = new mock::DispSync();
 
     sp<Fence> mClientTargetAcquireFence = Fence::NO_FENCE;
 

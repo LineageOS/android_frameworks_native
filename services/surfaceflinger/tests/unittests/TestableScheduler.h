@@ -20,15 +20,16 @@
 #include <gui/ISurfaceComposer.h>
 
 #include "Scheduler/EventThread.h"
-#include "Scheduler/RefreshRateConfigs.h"
 #include "Scheduler/Scheduler.h"
 
 namespace android {
 
 class TestableScheduler : public Scheduler {
 public:
-    TestableScheduler(const scheduler::RefreshRateConfigs& refreshRateConfig)
-          : Scheduler([](bool) {}, refreshRateConfig) {}
+    TestableScheduler(std::unique_ptr<DispSync> primaryDispSync,
+                      std::unique_ptr<EventControlThread> eventControlThread,
+                      const scheduler::RefreshRateConfigs& configs)
+          : Scheduler(std::move(primaryDispSync), std::move(eventControlThread), configs) {}
 
     // Creates EventThreadConnection with the given eventThread. Creates Scheduler::Connection
     // and adds it to the list of connectins. Returns the ConnectionHandle for the
@@ -62,7 +63,7 @@ public:
         mutableEventControlThread().reset();
         mutablePrimaryDispSync().reset();
         mConnections.clear();
-    };
+    }
 };
 
 } // namespace android
