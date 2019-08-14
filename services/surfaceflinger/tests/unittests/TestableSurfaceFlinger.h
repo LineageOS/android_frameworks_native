@@ -368,6 +368,7 @@ public:
         mutableDrawingState().displays.clear();
         mutableEventQueue().reset();
         mutableInterceptor().reset();
+        mFlinger->mScheduler.reset();
         mFlinger->mCompositionEngine->setHwComposer(std::unique_ptr<HWComposer>());
         mFlinger->mCompositionEngine->setRenderEngine(
                 std::unique_ptr<renderengine::RenderEngine>());
