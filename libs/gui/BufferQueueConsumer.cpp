@@ -166,7 +166,9 @@ status_t BufferQueueConsumer::acquireBuffer(BufferItem* outBuffer,
                         mCore->mFreeBuffers.push_back(front->mSlot);
                     }
 
-                    listener = mCore->mConnectedProducerListener;
+                    if (mCore->mBufferReleasedCbEnabled) {
+                        listener = mCore->mConnectedProducerListener;
+                    }
                     ++numDroppedBuffers;
                 }
 
@@ -457,7 +459,9 @@ status_t BufferQueueConsumer::releaseBuffer(int slot, uint64_t frameNumber,
             mCore->mFreeBuffers.push_back(slot);
         }
 
-        listener = mCore->mConnectedProducerListener;
+        if (mCore->mBufferReleasedCbEnabled) {
+            listener = mCore->mConnectedProducerListener;
+        }
         BQ_LOGV("releaseBuffer: releasing slot %d", slot);
 
         mCore->mDequeueCondition.notify_all();
@@ -668,7 +672,7 @@ status_t BufferQueueConsumer::setMaxAcquiredBufferCount(
         BQ_LOGV("setMaxAcquiredBufferCount: %d", maxAcquiredBuffers);
         mCore->mMaxAcquiredBufferCount = maxAcquiredBuffers;
         VALIDATE_CONSISTENCY();
-        if (delta < 0) {
+        if (delta < 0 && mCore->mBufferReleasedCbEnabled) {
             listener = mCore->mConsumerListener;
         }
     }
