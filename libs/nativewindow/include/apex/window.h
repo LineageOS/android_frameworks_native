@@ -31,4 +31,12 @@ __BEGIN_DECLS
  */
 int ANativeWindow_getLastDequeueDuration(ANativeWindow* window);
 
+/**
+ * Retrieves how long it took for the last time a buffer was queued.
+ *
+ * \return a negative value on error, otherwise returns the duration in
+ * microseconds
+ */
+int ANativeWindow_getLastQueueDuration(ANativeWindow* window);
+
 __END_DECLS
