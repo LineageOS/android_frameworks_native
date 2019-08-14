@@ -614,6 +614,13 @@ void OutputLayer::applyDeviceLayerRequest(Hwc2::IComposerClient::LayerRequest re
     }
 }
 
+bool OutputLayer::needsFiltering() const {
+    const auto& displayFrame = mState.displayFrame;
+    const auto& sourceCrop = mState.sourceCrop;
+    return sourceCrop.getHeight() != displayFrame.getHeight() ||
+            sourceCrop.getWidth() != displayFrame.getWidth();
+}
+
 void OutputLayer::dump(std::string& out) const {
     using android::base::StringAppendF;
 

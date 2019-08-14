@@ -1798,8 +1798,6 @@ void SurfaceFlinger::handleMessageRefresh() {
         doComposition(displayDevice, repaintEverything);
     }
 
-    logLayerStats();
-
     postFrame();
     postComposition();
 
@@ -1904,6 +1902,10 @@ void SurfaceFlinger::calculateWorkingSet() {
         auto display = displayDevice->getCompositionDisplay();
 
         for (auto& layer : display->getOutputLayersOrderedByZ()) {
+            if (mDebugDisableHWC || mDebugRegion) {
+                layer->editState().forceClientComposition = true;
+            }
+
             // Update the composition state of the output layer, as needed
             // recomputing it from the state given by the front-end layer.
             layer->updateCompositionState(updatingGeometryThisFrame);
@@ -1943,7 +1945,7 @@ void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& displayDevice,
         if (!dirtyRegion.isEmpty()) {
             base::unique_fd readyFence;
             // redraw the whole screen
-            doComposeSurfaces(displayDevice, dirtyRegion, &readyFence);
+            display->composeSurfaces(dirtyRegion, &readyFence);
 
             display->getRenderSurface()->queueBuffer(std::move(readyFence));
         }
@@ -1956,20 +1958,6 @@ void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& displayDevice,
     }
 
     displayDevice->getCompositionDisplay()->prepareFrame();
-}
-
-void SurfaceFlinger::logLayerStats() {
-    ATRACE_CALL();
-    if (CC_UNLIKELY(mLayerStats.isEnabled())) {
-        for (const auto& [token, display] : mDisplays) {
-            if (display->isPrimary()) {
-                mLayerStats.logLayerStats(dumpVisibleLayersProtoInfo(display));
-                return;
-            }
-        }
-
-        ALOGE("logLayerStats: no primary display");
-    }
 }
 
 void SurfaceFlinger::updateCompositorTiming(const DisplayStatInfo& stats, nsecs_t compositeTime,
@@ -2488,6 +2476,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     creationArgs.displaySurface = dispSurface;
     creationArgs.hasWideColorGamut = false;
     creationArgs.supportedPerFrameMetadata = 0;
+    creationArgs.powerAdvisor = displayId ? &mPowerAdvisor : nullptr;
 
     const bool isInternalDisplay = displayId && displayId == getInternalDisplayIdLocked();
     creationArgs.isPrimary = isInternalDisplay;
@@ -3228,199 +3217,10 @@ void SurfaceFlinger::doDisplayComposition(const sp<DisplayDevice>& displayDevice
 
     ALOGV("doDisplayComposition");
     base::unique_fd readyFence;
-    if (!doComposeSurfaces(displayDevice, Region::INVALID_REGION, &readyFence)) return;
+    if (!display->composeSurfaces(Region::INVALID_REGION, &readyFence)) return;
 
     // swap buffers (presentation)
     display->getRenderSurface()->queueBuffer(std::move(readyFence));
-}
-
-bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
-                                       const Region& debugRegion, base::unique_fd* readyFence) {
-    ATRACE_CALL();
-    ALOGV("doComposeSurfaces");
-
-    auto display = displayDevice->getCompositionDisplay();
-    const auto& displayState = display->getState();
-    const auto displayId = display->getId();
-    auto& renderEngine = getRenderEngine();
-    const bool supportProtectedContent = renderEngine.supportsProtectedContent();
-
-    const Region bounds(displayState.bounds);
-    const DisplayRenderArea renderArea(displayDevice);
-    const TracedOrdinal<bool> hasClientComposition = {"hasClientComposition",
-                                                      displayState.usesClientComposition};
-    bool applyColorMatrix = false;
-
-    renderengine::DisplaySettings clientCompositionDisplay;
-    std::vector<renderengine::LayerSettings> clientCompositionLayers;
-    sp<GraphicBuffer> buf;
-    base::unique_fd fd;
-
-    if (hasClientComposition) {
-        ALOGV("hasClientComposition");
-
-        if (displayDevice->isPrimary() && supportProtectedContent) {
-            bool needsProtected = false;
-            for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-                // If the layer is a protected layer, mark protected context is needed.
-                if (layer->isProtected()) {
-                    needsProtected = true;
-                    break;
-                }
-            }
-            if (needsProtected != renderEngine.isProtected()) {
-                renderEngine.useProtectedContext(needsProtected);
-            }
-            if (needsProtected != display->getRenderSurface()->isProtected() &&
-                needsProtected == renderEngine.isProtected()) {
-                display->getRenderSurface()->setProtected(needsProtected);
-            }
-        }
-
-        buf = display->getRenderSurface()->dequeueBuffer(&fd);
-
-        if (buf == nullptr) {
-            ALOGW("Dequeuing buffer for display [%s] failed, bailing out of "
-                  "client composition for this frame",
-                  displayDevice->getDisplayName().c_str());
-            return false;
-        }
-
-        clientCompositionDisplay.physicalDisplay = displayState.scissor;
-        clientCompositionDisplay.clip = displayState.scissor;
-        const ui::Transform& displayTransform = displayState.transform;
-        clientCompositionDisplay.globalTransform = displayTransform.asMatrix4();
-        clientCompositionDisplay.orientation = displayState.orientation;
-
-        const auto* profile = display->getDisplayColorProfile();
-        Dataspace outputDataspace = Dataspace::UNKNOWN;
-        if (profile->hasWideColorGamut()) {
-            outputDataspace = displayState.dataspace;
-        }
-        clientCompositionDisplay.outputDataspace = outputDataspace;
-        clientCompositionDisplay.maxLuminance =
-                profile->getHdrCapabilities().getDesiredMaxLuminance();
-
-        const bool hasDeviceComposition = displayState.usesDeviceComposition;
-        const bool skipClientColorTransform =
-                getHwComposer()
-                        .hasDisplayCapability(displayId,
-                                              HWC2::DisplayCapability::SkipClientColorTransform);
-
-        // Compute the global color transform matrix.
-        applyColorMatrix = !hasDeviceComposition && !skipClientColorTransform;
-        if (applyColorMatrix) {
-            clientCompositionDisplay.colorTransform = displayState.colorTransformMat;
-        }
-    }
-
-    /*
-     * and then, render the layers targeted at the framebuffer
-     */
-
-    ALOGV("Rendering client layers");
-    const bool useIdentityTransform = false;
-    bool firstLayer = true;
-    Region clearRegion = Region::INVALID_REGION;
-    for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-        const Region viewportRegion(displayState.viewport);
-        const Region clip(viewportRegion.intersect(layer->visibleRegion));
-        ALOGV("Layer: %s", layer->getName().string());
-        ALOGV("  Composition type: %s", toString(layer->getCompositionType(displayDevice)).c_str());
-        if (!clip.isEmpty()) {
-            switch (layer->getCompositionType(displayDevice)) {
-                case Hwc2::IComposerClient::Composition::CURSOR:
-                case Hwc2::IComposerClient::Composition::DEVICE:
-                case Hwc2::IComposerClient::Composition::SIDEBAND:
-                case Hwc2::IComposerClient::Composition::SOLID_COLOR: {
-                    LOG_ALWAYS_FATAL_IF(!displayId);
-                    const Layer::State& state(layer->getDrawingState());
-                    if (layer->getClearClientTarget(displayDevice) && !firstLayer &&
-                        layer->isOpaque(state) && (layer->getAlpha() == 1.0f) &&
-                        layer->getRoundedCornerState().radius == 0.0f && hasClientComposition) {
-                        // never clear the very first layer since we're
-                        // guaranteed the FB is already cleared
-                        Region dummyRegion;
-                        compositionengine::LayerFE::ClientCompositionTargetSettings targetSettings{
-                                clip,
-                                useIdentityTransform,
-                                layer->needsFiltering(renderArea.getDisplayDevice()) ||
-                                        renderArea.needsFiltering(),
-                                renderArea.isSecure(),
-                                supportProtectedContent,
-                                dummyRegion,
-                        };
-                        auto result = layer->prepareClientComposition(targetSettings);
-
-                        if (result) {
-                            auto& layerSettings = *result;
-                            layerSettings.source.buffer.buffer = nullptr;
-                            layerSettings.source.solidColor = half3(0.0, 0.0, 0.0);
-                            layerSettings.alpha = half(0.0);
-                            layerSettings.disableBlending = true;
-                            clientCompositionLayers.push_back(layerSettings);
-                        }
-                    }
-                    break;
-                }
-                case Hwc2::IComposerClient::Composition::CLIENT: {
-                    compositionengine::LayerFE::ClientCompositionTargetSettings targetSettings{
-                            clip,
-                            useIdentityTransform,
-                            layer->needsFiltering(renderArea.getDisplayDevice()) ||
-                                    renderArea.needsFiltering(),
-                            renderArea.isSecure(),
-                            supportProtectedContent,
-                            clearRegion,
-                    };
-                    auto result = layer->prepareClientComposition(targetSettings);
-                    if (result) {
-                        clientCompositionLayers.push_back(*result);
-                    }
-                    break;
-                }
-                default:
-                    break;
-            }
-        } else {
-            ALOGV("  Skipping for empty clip");
-        }
-        firstLayer = false;
-    }
-
-    // Perform some cleanup steps if we used client composition.
-    if (hasClientComposition) {
-        clientCompositionDisplay.clearRegion = clearRegion;
-
-        // We boost GPU frequency here because there will be color spaces conversion
-        // and it's expensive. We boost the GPU frequency so that GPU composition can
-        // finish in time. We must reset GPU frequency afterwards, because high frequency
-        // consumes extra battery.
-        const bool expensiveRenderingExpected =
-                clientCompositionDisplay.outputDataspace == Dataspace::DISPLAY_P3;
-        if (expensiveRenderingExpected && displayId) {
-            mPowerAdvisor.setExpensiveRenderingExpected(*displayId, true);
-        }
-        if (!debugRegion.isEmpty()) {
-            Region::const_iterator it = debugRegion.begin();
-            Region::const_iterator end = debugRegion.end();
-            while (it != end) {
-                const Rect& rect = *it++;
-                renderengine::LayerSettings layerSettings;
-                layerSettings.source.buffer.buffer = nullptr;
-                layerSettings.source.solidColor = half3(1.0, 0.0, 1.0);
-                layerSettings.geometry.boundaries = rect.toFloatRect();
-                layerSettings.alpha = half(1.0);
-                clientCompositionLayers.push_back(layerSettings);
-            }
-        }
-        renderEngine.drawLayers(clientCompositionDisplay, clientCompositionLayers,
-                                buf->getNativeBuffer(), /*useFramebufferCache=*/true, std::move(fd),
-                                readyFence);
-    } else if (displayId) {
-        mPowerAdvisor.setExpensiveRenderingExpected(*displayId, false);
-    }
-    return true;
 }
 
 status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
@@ -3441,7 +3241,7 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
         }
 
         if (mNumLayers >= MAX_LAYERS) {
-            ALOGE("AddClientLayer failed, mNumLayers (%zu) >= MAX_LAYERS (%zu)", mNumLayers,
+            ALOGE("AddClientLayer failed, mNumLayers (%zu) >= MAX_LAYERS (%zu)", mNumLayers.load(),
                   MAX_LAYERS);
             return NO_MEMORY;
         }
@@ -3465,7 +3265,7 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
                                         mMaxGraphicBufferProducerListSize,
                                 "Suspected IGBP leak: %zu IGBPs (%zu max), %zu Layers",
                                 mGraphicBufferProducerList.size(),
-                                mMaxGraphicBufferProducerListSize, mNumLayers);
+                                mMaxGraphicBufferProducerListSize, mNumLayers.load());
         }
         mLayersAdded = true;
     }
@@ -4472,14 +4272,10 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args,
         using namespace std::string_literals;
 
         static const std::unordered_map<std::string, Dumper> dumpers = {
-                {"--clear-layer-stats"s, dumper([this](std::string&) { mLayerStats.clear(); })},
-                {"--disable-layer-stats"s, dumper([this](std::string&) { mLayerStats.disable(); })},
                 {"--display-id"s, dumper(&SurfaceFlinger::dumpDisplayIdentificationData)},
                 {"--dispsync"s, dumper([this](std::string& s) {
                          mScheduler->dumpPrimaryDispSync(s);
                  })},
-                {"--dump-layer-stats"s, dumper([this](std::string& s) { mLayerStats.dump(s); })},
-                {"--enable-layer-stats"s, dumper([this](std::string&) { mLayerStats.enable(); })},
                 {"--frame-events"s, dumper(&SurfaceFlinger::dumpFrameEventsLocked)},
                 {"--latency"s, argsDumper(&SurfaceFlinger::dumpStatsLocked)},
                 {"--latency-clear"s, argsDumper(&SurfaceFlinger::clearStatsLocked)},
@@ -4770,33 +4566,6 @@ LayersProto SurfaceFlinger::dumpProtoFromMainThread(uint32_t traceFlags) {
     return layersProto;
 }
 
-LayersProto SurfaceFlinger::dumpVisibleLayersProtoInfo(
-        const sp<DisplayDevice>& displayDevice) const {
-    LayersProto layersProto;
-
-    SizeProto* resolution = layersProto.mutable_resolution();
-    resolution->set_w(displayDevice->getWidth());
-    resolution->set_h(displayDevice->getHeight());
-
-    auto display = displayDevice->getCompositionDisplay();
-    const auto& displayState = display->getState();
-
-    layersProto.set_color_mode(decodeColorMode(displayState.colorMode));
-    layersProto.set_color_transform(decodeColorTransform(displayState.colorTransform));
-    layersProto.set_global_transform(displayState.orientation);
-
-    const auto displayId = displayDevice->getId();
-    LOG_ALWAYS_FATAL_IF(!displayId);
-    mDrawingState.traverseInZOrder([&](Layer* layer) {
-        if (!layer->visibleRegion.isEmpty() && !display->getOutputLayersOrderedByZ().empty()) {
-            LayerProto* layerProto = layersProto.add_layers();
-            layer->writeToProtoCompositionState(layerProto, displayDevice);
-        }
-    });
-
-    return layersProto;
-}
-
 void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) const {
     const bool colorize = !args.empty() && args[0] == String16("--color");
     Colorizer colorizer(colorize);
@@ -4849,7 +4618,7 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
      * Dump the visible layer list
      */
     colorizer.bold(result);
-    StringAppendF(&result, "Visible layers (count = %zu)\n", mNumLayers);
+    StringAppendF(&result, "Visible layers (count = %zu)\n", mNumLayers.load());
     StringAppendF(&result, "GraphicBufferProducers: %zu, max %zu\n",
                   mGraphicBufferProducerList.size(), mMaxGraphicBufferProducerListSize);
     colorizer.reset(result);

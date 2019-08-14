@@ -94,6 +94,7 @@ cc_test {
         "tests/LayerTest.cpp",
         "tests/MockHWC2.cpp",
         "tests/MockHWComposer.cpp",
+        "tests/MockPowerAdvisor.cpp",
         "tests/OutputTest.cpp",
         "tests/OutputLayerTest.cpp",
         "tests/RenderSurfaceTest.cpp",

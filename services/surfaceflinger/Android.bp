@@ -138,7 +138,6 @@ filegroup {
         "Layer.cpp",
         "LayerProtoHelper.cpp",
         "LayerRejecter.cpp",
-        "LayerStats.cpp",
         "LayerVector.cpp",
         "MonitoredProducer.cpp",
         "NativeWindowSurface.cpp",

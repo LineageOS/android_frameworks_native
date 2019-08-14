@@ -36,7 +36,7 @@
 #include "SurfaceFlinger.h"
 #include "SurfaceFlingerFactory.h"
 #include "SurfaceInterceptor.h"
-
+#include "TestableScheduler.h"
 #include "TimeStats/TimeStats.h"
 
 namespace android {
@@ -176,6 +176,8 @@ public:
 
 class TestableSurfaceFlinger {
 public:
+    TestableScheduler* scheduler() { return mScheduler; }
+
     // Extend this as needed for accessing SurfaceFlinger private (and public)
     // functions.
 
@@ -186,6 +188,23 @@ public:
     void setupComposer(std::unique_ptr<Hwc2::Composer> composer) {
         mFlinger->mCompositionEngine->setHwComposer(
                 std::make_unique<impl::HWComposer>(std::move(composer)));
+    }
+
+    void setupScheduler(std::unique_ptr<DispSync> primaryDispSync,
+                        std::unique_ptr<EventControlThread> eventControlThread,
+                        std::unique_ptr<EventThread> appEventThread,
+                        std::unique_ptr<EventThread> sfEventThread) {
+        mScheduler =
+                new TestableScheduler(std::move(primaryDispSync), std::move(eventControlThread),
+                                      mFlinger->mRefreshRateConfigs);
+
+        mFlinger->mAppConnectionHandle = mScheduler->addConnection(std::move(appEventThread));
+        mFlinger->mSfConnectionHandle = mScheduler->addConnection(std::move(sfEventThread));
+
+        mFlinger->mScheduler.reset(mScheduler);
+        mFlinger->mVSyncModulator.emplace(*mScheduler, mFlinger->mAppConnectionHandle,
+                                          mFlinger->mSfConnectionHandle,
+                                          mFlinger->mPhaseOffsets->getCurrentOffsets());
     }
 
     using CreateBufferQueueFunction = surfaceflinger::test::Factory::CreateBufferQueueFunction;
@@ -338,10 +357,6 @@ public:
     auto& mutableHwcPhysicalDisplayIdMap() { return getHwComposer().mPhysicalDisplayIdMap; }
     auto& mutableInternalHwcDisplayId() { return getHwComposer().mInternalHwcDisplayId; }
     auto& mutableExternalHwcDisplayId() { return getHwComposer().mExternalHwcDisplayId; }
-    auto& mutableScheduler() { return mFlinger->mScheduler; }
-    auto& mutableAppConnectionHandle() { return mFlinger->mAppConnectionHandle; }
-    auto& mutableSfConnectionHandle() { return mFlinger->mSfConnectionHandle; }
-    auto& mutableRefreshRateConfigs() { return mFlinger->mRefreshRateConfigs; }
 
     ~TestableSurfaceFlinger() {
         // All these pointer and container clears help ensure that GMock does
@@ -353,7 +368,6 @@ public:
         mutableDrawingState().displays.clear();
         mutableEventQueue().reset();
         mutableInterceptor().reset();
-        mutableScheduler().reset();
         mFlinger->mCompositionEngine->setHwComposer(std::unique_ptr<HWComposer>());
         mFlinger->mCompositionEngine->setRenderEngine(
                 std::unique_ptr<renderengine::RenderEngine>());
@@ -573,6 +587,7 @@ public:
 
     surfaceflinger::test::Factory mFactory;
     sp<SurfaceFlinger> mFlinger = new SurfaceFlinger(mFactory, SurfaceFlinger::SkipInitialization);
+    TestableScheduler* mScheduler = nullptr;
 
     // We need to keep a reference to these so they are properly destroyed.
     std::vector<std::unique_ptr<HWC2Display>> mFakeHwcDisplays;

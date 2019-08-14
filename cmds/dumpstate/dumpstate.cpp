@@ -44,10 +44,12 @@
 #include <unistd.h>
 
 #include <chrono>
+#include <cmath>
 #include <fstream>
 #include <functional>
 #include <future>
 #include <memory>
+#include <numeric>
 #include <regex>
 #include <set>
 #include <string>
@@ -1232,6 +1234,45 @@ static void DumpHals() {
     }
 }
 
+static void DumpExternalFragmentationInfo() {
+    struct stat st;
+    if (stat("/proc/buddyinfo", &st) != 0) {
+        MYLOGE("Unable to dump external fragmentation info\n");
+        return;
+    }
+
+    printf("------ EXTERNAL FRAGMENTATION INFO ------\n");
+    std::ifstream ifs("/proc/buddyinfo");
+    auto unusable_index_regex = std::regex{"Node\\s+([0-9]+),\\s+zone\\s+(\\S+)\\s+(.*)"};
+    for (std::string line; std::getline(ifs, line);) {
+        std::smatch match_results;
+        if (std::regex_match(line, match_results, unusable_index_regex)) {
+            std::stringstream free_pages(std::string{match_results[3]});
+            std::vector<int> free_pages_per_order(std::istream_iterator<int>{free_pages},
+                                                  std::istream_iterator<int>());
+
+            int total_free_pages = 0;
+            for (size_t i = 0; i < free_pages_per_order.size(); i++) {
+                total_free_pages += (free_pages_per_order[i] * std::pow(2, i));
+            }
+
+            printf("Node %s, zone %8s", match_results[1].str().c_str(),
+                   match_results[2].str().c_str());
+
+            int usable_free_pages = total_free_pages;
+            for (size_t i = 0; i < free_pages_per_order.size(); i++) {
+                auto unusable_index = (total_free_pages - usable_free_pages) /
+                        static_cast<double>(total_free_pages);
+                printf(" %5.3f", unusable_index);
+                usable_free_pages -= (free_pages_per_order[i] * std::pow(2, i));
+            }
+
+            printf("\n");
+        }
+    }
+    printf("\n");
+}
+
 // Dumps various things. Returns early with status USER_CONSENT_DENIED if user denies consent
 // via the consent they are shown. Ignores other errors that occur while running various
 // commands. The consent checking is currently done around long running tasks, which happen to
@@ -1258,7 +1299,7 @@ static Dumpstate::RunStatus dumpstate() {
     DumpFile("ZONEINFO", "/proc/zoneinfo");
     DumpFile("PAGETYPEINFO", "/proc/pagetypeinfo");
     DumpFile("BUDDYINFO", "/proc/buddyinfo");
-    DumpFile("FRAGMENTATION INFO", "/d/extfrag/unusable_index");
+    DumpExternalFragmentationInfo();
 
     DumpFile("KERNEL WAKE SOURCES", "/d/wakeup_sources");
     DumpFile("KERNEL CPUFREQ", "/sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state");

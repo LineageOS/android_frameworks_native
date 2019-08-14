@@ -30,6 +30,7 @@
 
 #include "MockHWC2.h"
 #include "MockHWComposer.h"
+#include "MockPowerAdvisor.h"
 
 namespace android::compositionengine {
 namespace {
@@ -59,6 +60,7 @@ struct DisplayTest : public testing::Test {
     }
 
     StrictMock<android::mock::HWComposer> mHwComposer;
+    StrictMock<Hwc2::mock::PowerAdvisor> mPowerAdvisor;
     StrictMock<mock::CompositionEngine> mCompositionEngine;
     sp<mock::NativeWindow> mNativeWindow = new StrictMock<mock::NativeWindow>();
     StrictMock<HWC2::mock::Layer> mHWC2Layer1;
@@ -68,7 +70,10 @@ struct DisplayTest : public testing::Test {
     mock::OutputLayer* mLayer2 = new StrictMock<mock::OutputLayer>();
     mock::OutputLayer* mLayer3 = new StrictMock<mock::OutputLayer>();
     impl::Display mDisplay{mCompositionEngine,
-                           DisplayCreationArgsBuilder().setDisplayId(DEFAULT_DISPLAY_ID).build()};
+                           DisplayCreationArgsBuilder()
+                                   .setDisplayId(DEFAULT_DISPLAY_ID)
+                                   .setPowerAdvisor(&mPowerAdvisor)
+                                   .build()};
 };
 
 /*
@@ -344,6 +349,24 @@ TEST_F(DisplayChooseCompositionStrategyTest, normalOperationWithChanges) {
 }
 
 /*
+ * Display::getSkipColorTransform()
+ */
+
+TEST_F(DisplayTest, getSkipColorTransformDoesNothingIfNonHwcDisplay) {
+    auto nonHwcDisplay{
+            impl::createDisplay(mCompositionEngine, DisplayCreationArgsBuilder().build())};
+    EXPECT_FALSE(nonHwcDisplay->getSkipColorTransform());
+}
+
+TEST_F(DisplayTest, getSkipColorTransformChecksHwcCapability) {
+    EXPECT_CALL(mHwComposer,
+                hasDisplayCapability(std::make_optional(DEFAULT_DISPLAY_ID),
+                                     HWC2::DisplayCapability::SkipClientColorTransform))
+            .WillOnce(Return(true));
+    EXPECT_TRUE(mDisplay.getSkipColorTransform());
+}
+
+/*
  * Display::anyLayersRequireClientComposition()
  */
 
@@ -500,6 +523,18 @@ TEST_F(DisplayTest, presentAndGetFrameFencesReturnsPresentAndLayerFences) {
     EXPECT_EQ(layer1Fence, result.layerFences[&mHWC2Layer1]);
     ASSERT_EQ(1, result.layerFences.count(&mHWC2Layer2));
     EXPECT_EQ(layer2Fence, result.layerFences[&mHWC2Layer2]);
+}
+
+/*
+ * Display::setExpensiveRenderingExpected()
+ */
+
+TEST_F(DisplayTest, setExpensiveRenderingExpectedForwardsToPowerAdvisor) {
+    EXPECT_CALL(mPowerAdvisor, setExpensiveRenderingExpected(DEFAULT_DISPLAY_ID, true)).Times(1);
+    mDisplay.setExpensiveRenderingExpected(true);
+
+    EXPECT_CALL(mPowerAdvisor, setExpensiveRenderingExpected(DEFAULT_DISPLAY_ID, false)).Times(1);
+    mDisplay.setExpensiveRenderingExpected(false);
 }
 
 } // namespace

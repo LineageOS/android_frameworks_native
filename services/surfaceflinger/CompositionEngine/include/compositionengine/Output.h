@@ -22,6 +22,7 @@
 #include <unordered_map>
 
 #include <math/mat4.h>
+#include <renderengine/LayerSettings.h>
 #include <ui/Fence.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Region.h>
@@ -156,6 +157,12 @@ public:
     // Prepares a frame for display
     virtual void prepareFrame() = 0;
 
+    // Performs client composition as needed for layers on the output. The
+    // output fence is set to a fence to signal when client composition is
+    // finished.
+    // Returns false if client composition cannot be performed.
+    virtual bool composeSurfaces(const Region& debugFence, base::unique_fd* outReadyFence) = 0;
+
     // Posts the new frame, and sets release fences.
     virtual void postFramebuffer() = 0;
 
@@ -163,7 +170,14 @@ protected:
     virtual void setDisplayColorProfile(std::unique_ptr<DisplayColorProfile>) = 0;
     virtual void setRenderSurface(std::unique_ptr<RenderSurface>) = 0;
     virtual void chooseCompositionStrategy() = 0;
+    virtual bool getSkipColorTransform() const = 0;
     virtual FrameFences presentAndGetFrameFences() = 0;
+    virtual std::vector<renderengine::LayerSettings> generateClientCompositionRequests(
+            bool supportsProtectedContent, Region& clearRegion) = 0;
+    virtual void appendRegionFlashRequests(
+            const Region& flashRegion,
+            std::vector<renderengine::LayerSettings>& clientCompositionLayers) = 0;
+    virtual void setExpensiveRenderingExpected(bool enabled) = 0;
 };
 
 } // namespace android::compositionengine

@@ -60,7 +60,7 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
         mDisplayInstallOrientation(args.displayInstallOrientation),
         mCompositionDisplay{mFlinger->getCompositionEngine().createDisplay(
                 compositionengine::DisplayCreationArgs{args.isSecure, args.isVirtual,
-                                                       args.displayId})},
+                                                       args.displayId, args.powerAdvisor})},
         mIsVirtual(args.isVirtual),
         mOrientation(),
         mActiveConfig(0),

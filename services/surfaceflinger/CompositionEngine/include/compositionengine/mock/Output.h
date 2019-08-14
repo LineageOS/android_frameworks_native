@@ -77,8 +77,17 @@ public:
     MOCK_METHOD0(prepareFrame, void());
     MOCK_METHOD0(chooseCompositionStrategy, void());
 
+    MOCK_METHOD2(composeSurfaces, bool(const Region&, base::unique_fd*));
+    MOCK_CONST_METHOD0(getSkipColorTransform, bool());
+
     MOCK_METHOD0(postFramebuffer, void());
     MOCK_METHOD0(presentAndGetFrameFences, compositionengine::Output::FrameFences());
+
+    MOCK_METHOD2(generateClientCompositionRequests,
+                 std::vector<renderengine::LayerSettings>(bool, Region&));
+    MOCK_METHOD2(appendRegionFlashRequests,
+                 void(const Region&, std::vector<renderengine::LayerSettings>&));
+    MOCK_METHOD1(setExpensiveRenderingExpected, void(bool));
 };
 
 } // namespace android::compositionengine::mock

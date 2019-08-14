@@ -23,6 +23,7 @@
 
 #include "DisplayHardware/DisplayIdentification.h"
 #include "DisplayHardware/HWComposer.h"
+#include "DisplayHardware/PowerAdvisor.h"
 
 namespace android::compositionengine {
 
@@ -42,7 +43,9 @@ public:
     void setColorTransform(const mat4&) override;
     void setColorMode(ui::ColorMode, ui::Dataspace, ui::RenderIntent, ui::Dataspace) override;
     void chooseCompositionStrategy() override;
+    bool getSkipColorTransform() const override;
     compositionengine::Output::FrameFences presentAndGetFrameFences() override;
+    void setExpensiveRenderingExpected(bool) override;
 
     // compositionengine::Display overrides
     const std::optional<DisplayId>& getId() const override;
@@ -65,9 +68,11 @@ public:
 private:
     const bool mIsVirtual;
     std::optional<DisplayId> mId;
+    Hwc2::PowerAdvisor* const mPowerAdvisor{nullptr};
 };
 
 std::shared_ptr<Display> createDisplay(const compositionengine::CompositionEngine&,
                                        compositionengine::DisplayCreationArgs&&);
+
 } // namespace impl
 } // namespace android::compositionengine

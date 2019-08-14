@@ -875,5 +875,23 @@ TEST_F(OutputLayerTest, applyDeviceLayerRequestHandlesUnknownRequest) {
     EXPECT_FALSE(mOutputLayer.getState().clearClientTarget);
 }
 
+/*
+ * OutputLayer::needsFiltering()
+ */
+
+TEST_F(OutputLayerTest, needsFilteringReturnsFalseIfDisplaySizeSameAsSourceSize) {
+    mOutputLayer.editState().displayFrame = Rect(100, 100, 200, 200);
+    mOutputLayer.editState().sourceCrop = FloatRect{0.f, 0.f, 100.f, 100.f};
+
+    EXPECT_FALSE(mOutputLayer.needsFiltering());
+}
+
+TEST_F(OutputLayerTest, needsFilteringReturnsTrueIfDisplaySizeDifferentFromSourceSize) {
+    mOutputLayer.editState().displayFrame = Rect(100, 100, 200, 200);
+    mOutputLayer.editState().sourceCrop = FloatRect{0.f, 0.f, 100.1f, 100.1f};
+
+    EXPECT_TRUE(mOutputLayer.needsFiltering());
+}
+
 } // namespace
 } // namespace android::compositionengine

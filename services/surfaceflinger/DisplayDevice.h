@@ -40,6 +40,7 @@
 #include <utils/Timers.h>
 
 #include "DisplayHardware/DisplayIdentification.h"
+#include "DisplayHardware/PowerAdvisor.h"
 #include "RenderArea.h"
 
 namespace android {
@@ -241,6 +242,7 @@ struct DisplayDeviceCreationArgs {
     std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>> hwcColorModes;
     int initialPowerMode{HWC_POWER_MODE_NORMAL};
     bool isPrimary{false};
+    Hwc2::PowerAdvisor* powerAdvisor{nullptr};
 };
 
 class DisplayRenderArea : public RenderArea {

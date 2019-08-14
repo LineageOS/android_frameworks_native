@@ -71,6 +71,8 @@ void dumpFrontEnd(std::string& out, const LayerFECompositionState& state) {
     dumpVal(out, "color", state.color);
 
     out.append("\n      ");
+    dumpVal(out, "isOpaque", state.isOpaque);
+    dumpVal(out, "hasProtectedContent", state.hasProtectedContent);
     dumpVal(out, "isColorspaceAgnostic", state.isColorspaceAgnostic);
     dumpVal(out, "dataspace", toString(state.dataspace), state.dataspace);
     dumpVal(out, "hdr metadata types", state.hdrMetadata.validTypes);
