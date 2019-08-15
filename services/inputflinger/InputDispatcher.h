@@ -451,14 +451,6 @@ public:
     virtual status_t pilferPointers(const sp<IBinder>& token) override;
 
 private:
-    template <typename T>
-    struct Link {
-        T* next;
-        T* prev;
-
-    protected:
-        inline Link() : next(nullptr), prev(nullptr) { }
-    };
 
     struct InjectionState {
         mutable int32_t refCount;
@@ -476,7 +468,7 @@ private:
         ~InjectionState();
     };
 
-    struct EventEntry : Link<EventEntry> {
+    struct EventEntry {
         enum {
             TYPE_CONFIGURATION_CHANGED,
             TYPE_DEVICE_RESET,
@@ -648,7 +640,7 @@ private:
     typedef std::function<void(InputDispatcher&, CommandEntry*)> Command;
 
     class Connection;
-    struct CommandEntry : Link<CommandEntry> {
+    struct CommandEntry {
         explicit CommandEntry(Command command);
         ~CommandEntry();
 
@@ -666,75 +658,6 @@ private:
         sp<InputChannel> inputChannel;
         sp<IBinder> oldToken;
         sp<IBinder> newToken;
-    };
-
-    // Generic queue implementation.
-    template <typename T>
-    struct Queue {
-        T* head;
-        T* tail;
-        uint32_t entryCount;
-
-        inline Queue() : head(nullptr), tail(nullptr), entryCount(0) {
-        }
-
-        inline bool isEmpty() const {
-            return !head;
-        }
-
-        inline void enqueueAtTail(T* entry) {
-            entryCount++;
-            entry->prev = tail;
-            if (tail) {
-                tail->next = entry;
-            } else {
-                head = entry;
-            }
-            entry->next = nullptr;
-            tail = entry;
-        }
-
-        inline void enqueueAtHead(T* entry) {
-            entryCount++;
-            entry->next = head;
-            if (head) {
-                head->prev = entry;
-            } else {
-                tail = entry;
-            }
-            entry->prev = nullptr;
-            head = entry;
-        }
-
-        inline void dequeue(T* entry) {
-            entryCount--;
-            if (entry->prev) {
-                entry->prev->next = entry->next;
-            } else {
-                head = entry->next;
-            }
-            if (entry->next) {
-                entry->next->prev = entry->prev;
-            } else {
-                tail = entry->prev;
-            }
-        }
-
-        inline T* dequeueAtHead() {
-            entryCount--;
-            T* entry = head;
-            head = entry->next;
-            if (head) {
-                head->prev = nullptr;
-            } else {
-                tail = nullptr;
-            }
-            return entry;
-        }
-
-        uint32_t count() const {
-            return entryCount;
-        }
     };
 
     /* Specifies which events are to be canceled and why. */
@@ -928,9 +851,9 @@ private:
     sp<Looper> mLooper;
 
     EventEntry* mPendingEvent GUARDED_BY(mLock);
-    Queue<EventEntry> mInboundQueue GUARDED_BY(mLock);
-    Queue<EventEntry> mRecentQueue GUARDED_BY(mLock);
-    Queue<CommandEntry> mCommandQueue GUARDED_BY(mLock);
+    std::deque<EventEntry*> mInboundQueue GUARDED_BY(mLock);
+    std::deque<EventEntry*> mRecentQueue GUARDED_BY(mLock);
+    std::deque<std::unique_ptr<CommandEntry>> mCommandQueue GUARDED_BY(mLock);
 
     DropReason mLastDropReason GUARDED_BY(mLock);
 
@@ -1030,7 +953,7 @@ private:
     // Deferred command processing.
     bool haveCommandsLocked() const REQUIRES(mLock);
     bool runCommandsLockedInterruptible() REQUIRES(mLock);
-    CommandEntry* postCommandLocked(Command command) REQUIRES(mLock);
+    void postCommandLocked(std::unique_ptr<CommandEntry> commandEntry) REQUIRES(mLock);
 
     // Input filter processing.
     bool shouldSendKeyToInputFilterLocked(const NotifyKeyArgs* args) REQUIRES(mLock);

@@ -48,10 +48,11 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <limits.h>
-#include <sstream>
 #include <stddef.h>
 #include <time.h>
 #include <unistd.h>
+#include <queue>
+#include <sstream>
 
 #include <android-base/chrono_utils.h>
 #include <android-base/stringprintf.h>
@@ -358,7 +359,7 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
     // Ready to start a new event.
     // If we don't already have a pending event, go grab one.
     if (! mPendingEvent) {
-        if (mInboundQueue.isEmpty()) {
+        if (mInboundQueue.empty()) {
             if (isAppSwitchDue) {
                 // The inbound queue is empty so the app switch key we were waiting
                 // for will never arrive.  Stop waiting for it.
@@ -383,7 +384,8 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
             }
         } else {
             // Inbound queue has at least one entry.
-            mPendingEvent = mInboundQueue.dequeueAtHead();
+            mPendingEvent = mInboundQueue.front();
+            mInboundQueue.pop_front();
             traceInboundQueueLengthLocked();
         }
 
@@ -483,8 +485,8 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
 }
 
 bool InputDispatcher::enqueueInboundEventLocked(EventEntry* entry) {
-    bool needWake = mInboundQueue.isEmpty();
-    mInboundQueue.enqueueAtTail(entry);
+    bool needWake = mInboundQueue.empty();
+    mInboundQueue.push_back(entry);
     traceInboundQueueLengthLocked();
 
     switch (entry->type) {
@@ -544,9 +546,10 @@ bool InputDispatcher::enqueueInboundEventLocked(EventEntry* entry) {
 
 void InputDispatcher::addRecentEventLocked(EventEntry* entry) {
     entry->refCount += 1;
-    mRecentQueue.enqueueAtTail(entry);
-    if (mRecentQueue.count() > RECENT_QUEUE_MAX_SIZE) {
-        mRecentQueue.dequeueAtHead()->release();
+    mRecentQueue.push_back(entry);
+    if (mRecentQueue.size() > RECENT_QUEUE_MAX_SIZE) {
+        mRecentQueue.front()->release();
+        mRecentQueue.pop_front();
     }
 }
 
@@ -703,35 +706,33 @@ bool InputDispatcher::isStaleEvent(nsecs_t currentTime, EventEntry* entry) {
 }
 
 bool InputDispatcher::haveCommandsLocked() const {
-    return !mCommandQueue.isEmpty();
+    return !mCommandQueue.empty();
 }
 
 bool InputDispatcher::runCommandsLockedInterruptible() {
-    if (mCommandQueue.isEmpty()) {
+    if (mCommandQueue.empty()) {
         return false;
     }
 
     do {
-        CommandEntry* commandEntry = mCommandQueue.dequeueAtHead();
-
+        std::unique_ptr<CommandEntry> commandEntry = std::move(mCommandQueue.front());
+        mCommandQueue.pop_front();
         Command command = commandEntry->command;
-        command(*this, commandEntry); // commands are implicitly 'LockedInterruptible'
+        command(*this, commandEntry.get()); // commands are implicitly 'LockedInterruptible'
 
         commandEntry->connection.clear();
-        delete commandEntry;
-    } while (! mCommandQueue.isEmpty());
+    } while (!mCommandQueue.empty());
     return true;
 }
 
-InputDispatcher::CommandEntry* InputDispatcher::postCommandLocked(Command command) {
-    CommandEntry* commandEntry = new CommandEntry(command);
-    mCommandQueue.enqueueAtTail(commandEntry);
-    return commandEntry;
+void InputDispatcher::postCommandLocked(std::unique_ptr<CommandEntry> commandEntry) {
+    mCommandQueue.push_back(std::move(commandEntry));
 }
 
 void InputDispatcher::drainInboundQueueLocked() {
-    while (! mInboundQueue.isEmpty()) {
-        EventEntry* entry = mInboundQueue.dequeueAtHead();
+    while (!mInboundQueue.empty()) {
+        EventEntry* entry = mInboundQueue.front();
+        mInboundQueue.pop_front();
         releaseInboundEventLocked(entry);
     }
     traceInboundQueueLengthLocked();
@@ -809,9 +810,10 @@ bool InputDispatcher::dispatchConfigurationChangedLocked(
     resetKeyRepeatLocked();
 
     // Enqueue a command to run outside the lock to tell the policy that the configuration changed.
-    CommandEntry* commandEntry =
-            postCommandLocked(&InputDispatcher::doNotifyConfigurationChangedLockedInterruptible);
+    std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
+            &InputDispatcher::doNotifyConfigurationChangedLockedInterruptible);
     commandEntry->eventTime = entry->eventTime;
+    postCommandLocked(std::move(commandEntry));
     return true;
 }
 
@@ -883,7 +885,7 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
     // Give the policy a chance to intercept the key.
     if (entry->interceptKeyResult == KeyEntry::INTERCEPT_KEY_RESULT_UNKNOWN) {
         if (entry->policyFlags & POLICY_FLAG_PASS_TO_USER) {
-            CommandEntry* commandEntry = postCommandLocked(
+            std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
                     &InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible);
             sp<InputWindowHandle> focusedWindowHandle =
                     getValueByKey(mFocusedWindowHandlesByDisplay, getTargetDisplayId(entry));
@@ -892,6 +894,7 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
                     getInputChannelLocked(focusedWindowHandle->getToken());
             }
             commandEntry->keyEntry = entry;
+            postCommandLocked(std::move(commandEntry));
             entry->refCount += 1;
             return false; // wait for the command to run
         } else {
@@ -1988,10 +1991,11 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry* eventEntry) {
     }
     }
 
-    CommandEntry* commandEntry =
-            postCommandLocked(&InputDispatcher::doPokeUserActivityLockedInterruptible);
+    std::unique_ptr<CommandEntry> commandEntry =
+            std::make_unique<CommandEntry>(&InputDispatcher::doPokeUserActivityLockedInterruptible);
     commandEntry->eventTime = eventEntry->eventTime;
     commandEntry->userActivityEventType = eventType;
+    postCommandLocked(std::move(commandEntry));
 }
 
 void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
@@ -2206,9 +2210,10 @@ void InputDispatcher::dispatchPointerDownOutsideFocus(uint32_t source, int32_t a
         return;
     }
 
-    CommandEntry* commandEntry =
-            postCommandLocked(&InputDispatcher::doOnPointerDownOutsideFocusLockedInterruptible);
+    std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
+            &InputDispatcher::doOnPointerDownOutsideFocusLockedInterruptible);
     commandEntry->newToken = newToken;
+    postCommandLocked(std::move(commandEntry));
 }
 
 void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
@@ -2915,8 +2920,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
         policyFlags |= POLICY_FLAG_TRUSTED;
     }
 
-    EventEntry* firstInjectedEntry;
-    EventEntry* lastInjectedEntry;
+    std::queue<EventEntry*> injectedEntries;
     switch (event->getType()) {
     case AINPUT_EVENT_TYPE_KEY: {
         KeyEvent keyEvent;
@@ -2949,12 +2953,13 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
         }
 
         mLock.lock();
-        firstInjectedEntry = new KeyEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, keyEvent.getEventTime(),
-                keyEvent.getDeviceId(), keyEvent.getSource(), keyEvent.getDisplayId(),
-                policyFlags, action, flags,
-                keyEvent.getKeyCode(), keyEvent.getScanCode(), keyEvent.getMetaState(),
-                keyEvent.getRepeatCount(), keyEvent.getDownTime());
-        lastInjectedEntry = firstInjectedEntry;
+        KeyEntry* injectedEntry =
+                new KeyEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, keyEvent.getEventTime(),
+                             keyEvent.getDeviceId(), keyEvent.getSource(), keyEvent.getDisplayId(),
+                             policyFlags, action, flags, keyEvent.getKeyCode(),
+                             keyEvent.getScanCode(), keyEvent.getMetaState(),
+                             keyEvent.getRepeatCount(), keyEvent.getDownTime());
+        injectedEntries.push(injectedEntry);
         break;
     }
 
@@ -2982,7 +2987,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
         mLock.lock();
         const nsecs_t* sampleEventTimes = motionEvent->getSampleEventTimes();
         const PointerCoords* samplePointerCoords = motionEvent->getSamplePointerCoords();
-        firstInjectedEntry =
+        MotionEntry* injectedEntry =
                 new MotionEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, *sampleEventTimes,
                                 motionEvent->getDeviceId(), motionEvent->getSource(),
                                 motionEvent->getDisplayId(), policyFlags, action, actionButton,
@@ -2993,7 +2998,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
                                 motionEvent->getRawYCursorPosition(), motionEvent->getDownTime(),
                                 uint32_t(pointerCount), pointerProperties, samplePointerCoords,
                                 motionEvent->getXOffset(), motionEvent->getYOffset());
-        lastInjectedEntry = firstInjectedEntry;
+        injectedEntries.push(injectedEntry);
         for (size_t i = motionEvent->getHistorySize(); i > 0; i--) {
             sampleEventTimes += 1;
             samplePointerCoords += pointerCount;
@@ -3010,8 +3015,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
                                     motionEvent->getDownTime(), uint32_t(pointerCount),
                                     pointerProperties, samplePointerCoords,
                                     motionEvent->getXOffset(), motionEvent->getYOffset());
-            lastInjectedEntry->next = nextInjectedEntry;
-            lastInjectedEntry = nextInjectedEntry;
+            injectedEntries.push(nextInjectedEntry);
         }
         break;
     }
@@ -3027,13 +3031,12 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
     }
 
     injectionState->refCount += 1;
-    lastInjectedEntry->injectionState = injectionState;
+    injectedEntries.back()->injectionState = injectionState;
 
     bool needWake = false;
-    for (EventEntry* entry = firstInjectedEntry; entry != nullptr; ) {
-        EventEntry* nextEntry = entry->next;
-        needWake |= enqueueInboundEventLocked(entry);
-        entry = nextEntry;
+    while (!injectedEntries.empty()) {
+        needWake |= enqueueInboundEventLocked(injectedEntries.front());
+        injectedEntries.pop();
     }
 
     mLock.unlock();
@@ -3764,9 +3767,9 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
     nsecs_t currentTime = now();
 
     // Dump recently dispatched or dropped events from oldest to newest.
-    if (!mRecentQueue.isEmpty()) {
-        dump += StringPrintf(INDENT "RecentQueue: length=%u\n", mRecentQueue.count());
-        for (EventEntry* entry = mRecentQueue.head; entry; entry = entry->next) {
+    if (!mRecentQueue.empty()) {
+        dump += StringPrintf(INDENT "RecentQueue: length=%zu\n", mRecentQueue.size());
+        for (EventEntry* entry : mRecentQueue) {
             dump += INDENT2;
             entry->appendDescription(dump);
             dump += StringPrintf(", age=%0.1fms\n",
@@ -3788,9 +3791,9 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
     }
 
     // Dump inbound events from oldest to newest.
-    if (!mInboundQueue.isEmpty()) {
-        dump += StringPrintf(INDENT "InboundQueue: length=%u\n", mInboundQueue.count());
-        for (EventEntry* entry = mInboundQueue.head; entry; entry = entry->next) {
+    if (!mInboundQueue.empty()) {
+        dump += StringPrintf(INDENT "InboundQueue: length=%zu\n", mInboundQueue.size());
+        for (EventEntry* entry : mInboundQueue) {
             dump += INDENT2;
             entry->appendDescription(dump);
             dump += StringPrintf(", age=%0.1fms\n",
@@ -4093,12 +4096,13 @@ ssize_t InputDispatcher::getConnectionIndexLocked(const sp<InputChannel>& inputC
 
 void InputDispatcher::onDispatchCycleFinishedLocked(
         nsecs_t currentTime, const sp<Connection>& connection, uint32_t seq, bool handled) {
-    CommandEntry* commandEntry =
-            postCommandLocked(&InputDispatcher::doDispatchCycleFinishedLockedInterruptible);
+    std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
+            &InputDispatcher::doDispatchCycleFinishedLockedInterruptible);
     commandEntry->connection = connection;
     commandEntry->eventTime = currentTime;
     commandEntry->seq = seq;
     commandEntry->handled = handled;
+    postCommandLocked(std::move(commandEntry));
 }
 
 void InputDispatcher::onDispatchCycleBrokenLocked(
@@ -4106,19 +4110,21 @@ void InputDispatcher::onDispatchCycleBrokenLocked(
     ALOGE("channel '%s' ~ Channel is unrecoverably broken and will be disposed!",
             connection->getInputChannelName().c_str());
 
-    CommandEntry* commandEntry =
-            postCommandLocked(&InputDispatcher::doNotifyInputChannelBrokenLockedInterruptible);
+    std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
+            &InputDispatcher::doNotifyInputChannelBrokenLockedInterruptible);
     commandEntry->connection = connection;
+    postCommandLocked(std::move(commandEntry));
 }
 
 void InputDispatcher::onFocusChangedLocked(const sp<InputWindowHandle>& oldFocus,
         const sp<InputWindowHandle>& newFocus) {
     sp<IBinder> oldToken = oldFocus != nullptr ? oldFocus->getToken() : nullptr;
     sp<IBinder> newToken = newFocus != nullptr ? newFocus->getToken() : nullptr;
-    CommandEntry* commandEntry =
-            postCommandLocked(&InputDispatcher::doNotifyFocusChangedLockedInterruptible);
+    std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
+            &InputDispatcher::doNotifyFocusChangedLockedInterruptible);
     commandEntry->oldToken = oldToken;
     commandEntry->newToken = newToken;
+    postCommandLocked(std::move(commandEntry));
 }
 
 void InputDispatcher::onANRLocked(
@@ -4148,12 +4154,13 @@ void InputDispatcher::onANRLocked(
     mLastANRState += StringPrintf(INDENT2 "Reason: %s\n", reason);
     dumpDispatchStateLocked(mLastANRState);
 
-    CommandEntry* commandEntry =
-            postCommandLocked(&InputDispatcher::doNotifyANRLockedInterruptible);
+    std::unique_ptr<CommandEntry> commandEntry =
+            std::make_unique<CommandEntry>(&InputDispatcher::doNotifyANRLockedInterruptible);
     commandEntry->inputApplicationHandle = applicationHandle;
     commandEntry->inputChannel = windowHandle != nullptr ?
             getInputChannelLocked(windowHandle->getToken()) : nullptr;
     commandEntry->reason = reason;
+    postCommandLocked(std::move(commandEntry));
 }
 
 void InputDispatcher::doNotifyConfigurationChangedLockedInterruptible (
@@ -4506,7 +4513,7 @@ void InputDispatcher::updateDispatchStatistics(nsecs_t currentTime, const EventE
 
 void InputDispatcher::traceInboundQueueLengthLocked() {
     if (ATRACE_ENABLED()) {
-        ATRACE_INT("iq", mInboundQueue.count());
+        ATRACE_INT("iq", mInboundQueue.size());
     }
 }
 
