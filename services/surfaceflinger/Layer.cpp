@@ -2015,6 +2015,15 @@ Region Layer::debugGetVisibleRegionOnDefaultDisplay() const {
     return outputLayer->getState().visibleRegion;
 }
 
+void Layer::setInitialValuesForClone(const sp<Layer>& clonedFrom) {
+    // copy drawing state from cloned layer
+    mDrawingState = clonedFrom->mDrawingState;
+    mClonedFrom = clonedFrom;
+
+    // TODO: (b/140756730) Ignore input for now since InputDispatcher doesn't support multiple
+    // InputWindows per client token yet.
+    mDrawingState.inputInfo.token = nullptr;
+}
 // ---------------------------------------------------------------------------
 
 }; // namespace android

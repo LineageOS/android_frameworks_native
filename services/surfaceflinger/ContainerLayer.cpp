@@ -30,4 +30,11 @@ bool ContainerLayer::isVisible() const {
     return false;
 }
 
+sp<Layer> ContainerLayer::createClone() {
+    String8 name = mName + " (Mirror)";
+    sp<ContainerLayer> layer = new ContainerLayer(
+            LayerCreationArgs(mFlinger.get(), nullptr, name, 0, 0, 0, LayerMetadata()));
+    layer->setInitialValuesForClone(this);
+    return layer;
+}
 } // namespace android

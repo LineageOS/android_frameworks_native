@@ -3532,8 +3532,18 @@ status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, const 
         break;
     }
 
-    sp<BufferQueueLayer> layer = getFactory().createBufferQueueLayer(
-            LayerCreationArgs(this, client, name, w, h, flags, std::move(metadata)));
+    sp<BufferQueueLayer> layer;
+    LayerCreationArgs args =
+            LayerCreationArgs(this, client, name, w, h, flags, std::move(metadata));
+    args.textureName = getNewTexture();
+    {
+        // Grab the SF state lock during this since it's the only safe way to access
+        // RenderEngine when creating a BufferLayerConsumer
+        // TODO: Check if this lock is still needed here
+        Mutex::Autolock lock(mStateLock);
+        layer = getFactory().createBufferQueueLayer(args);
+    }
+
     status_t err = layer->setDefaultBufferProperties(w, h, format);
     if (err == NO_ERROR) {
         *handle = layer->getHandle();
@@ -3549,8 +3559,11 @@ status_t SurfaceFlinger::createBufferStateLayer(const sp<Client>& client, const 
                                                 uint32_t w, uint32_t h, uint32_t flags,
                                                 LayerMetadata metadata, sp<IBinder>* handle,
                                                 sp<Layer>* outLayer) {
-    sp<BufferStateLayer> layer = getFactory().createBufferStateLayer(
-            LayerCreationArgs(this, client, name, w, h, flags, std::move(metadata)));
+    LayerCreationArgs args =
+            LayerCreationArgs(this, client, name, w, h, flags, std::move(metadata));
+    args.displayDevice = getDefaultDisplayDevice();
+    args.textureName = getNewTexture();
+    sp<BufferStateLayer> layer = getFactory().createBufferStateLayer(args);
     *handle = layer->getHandle();
     *outLayer = layer;
 

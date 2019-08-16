@@ -91,6 +91,8 @@ struct LayerCreationArgs {
     LayerMetadata metadata;
     pid_t callingPid;
     uid_t callingUid;
+    sp<const DisplayDevice> displayDevice;
+    uint32_t textureName;
 };
 
 class Layer : public compositionengine::LayerFE {
@@ -464,6 +466,13 @@ public:
     }
     virtual Rect getCrop(const Layer::State& s) const { return s.crop_legacy; }
     virtual bool needsFiltering(const sp<const DisplayDevice>&) const { return false; }
+
+protected:
+    virtual sp<Layer> createClone() = 0;
+    sp<Layer> getClonedFrom() { return mClonedFrom != nullptr ? mClonedFrom.promote() : nullptr; }
+
+    bool isClone() { return getClonedFrom() != nullptr; }
+    virtual void setInitialValuesForClone(const sp<Layer>& clonedFrom);
 
 public:
     /*
@@ -912,6 +921,12 @@ private:
     // to help debugging.
     pid_t mCallingPid;
     uid_t mCallingUid;
+
+    // The current layer is a clone of mClonedFrom. This means that this layer will update it's
+    // properties based on mClonedFrom. When mClonedFrom latches a new buffer for BufferLayers,
+    // this layer will update it's buffer. When mClonedFrom updates it's drawing state, children,
+    // and relatives, this layer will update as well.
+    wp<Layer> mClonedFrom;
 };
 
 } // namespace android

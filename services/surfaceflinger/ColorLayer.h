@@ -50,6 +50,8 @@ protected:
             compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
 
     std::shared_ptr<compositionengine::Layer> mCompositionLayer;
+
+    sp<Layer> createClone() override;
 };
 
 } // namespace android

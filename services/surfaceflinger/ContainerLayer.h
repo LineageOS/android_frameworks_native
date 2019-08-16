@@ -32,6 +32,9 @@ public:
     bool isVisible() const override;
 
     bool isCreatedFromMainThread() const override { return true; }
+
+protected:
+    sp<Layer> createClone() override;
 };
 
 } // namespace android

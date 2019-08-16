@@ -124,13 +124,13 @@ private:
     status_t updateFrameNumber(nsecs_t latchTime) override;
 
     void latchPerFrameState(compositionengine::LayerFECompositionState&) const override;
+    sp<Layer> createClone() override;
 
     // Crop that applies to the buffer
     Rect computeCrop(const State& s);
 
 private:
     friend class SlotGenerationTest;
-    void onFirstRef() override;
     bool willPresentCurrentTransaction() const;
 
     static const std::array<float, 16> IDENTITY_MATRIX;

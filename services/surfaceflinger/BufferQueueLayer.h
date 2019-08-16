@@ -31,6 +31,7 @@ namespace android {
  */
 class BufferQueueLayer : public BufferLayer, public BufferLayerConsumer::ContentsChangedListener {
 public:
+    // Only call while mStateLock is held
     explicit BufferQueueLayer(const LayerCreationArgs&);
     ~BufferQueueLayer() override;
 
@@ -81,6 +82,7 @@ private:
     status_t updateFrameNumber(nsecs_t latchTime) override;
 
     void latchPerFrameState(compositionengine::LayerFECompositionState&) const override;
+    sp<Layer> createClone() override;
 
     // -----------------------------------------------------------------------
     // Interface implementation for BufferLayerConsumer::ContentsChangedListener

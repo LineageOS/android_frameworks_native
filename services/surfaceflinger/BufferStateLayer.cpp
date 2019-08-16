@@ -48,10 +48,17 @@ BufferStateLayer::BufferStateLayer(const LayerCreationArgs& args)
       : BufferLayer(args), mHwcSlotGenerator(new HwcSlotGenerator()) {
     mOverrideScalingMode = NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
     mCurrentState.dataspace = ui::Dataspace::V0_SRGB;
+    if (const auto display = args.displayDevice) {
+        updateTransformHint(display);
+    }
 }
 
 BufferStateLayer::~BufferStateLayer() {
-    if (mBufferInfo.mBuffer != nullptr) {
+    // The original layer and the clone layer share the same texture and buffer. Therefore, only
+    // one of the layers, in this case the original layer, needs to handle the deletion. The
+    // original layer and the clone should be removed at the same time so there shouldn't be any
+    // issue with the clone layer trying to use the texture.
+    if (mBufferInfo.mBuffer != nullptr && !isClone()) {
         // Ensure that mBuffer is uncached from RenderEngine here, as
         // RenderEngine may have been using the buffer as an external texture
         // after the client uncached the buffer.
@@ -545,14 +552,6 @@ void BufferStateLayer::latchPerFrameState(
     mFrameNumber++;
 }
 
-void BufferStateLayer::onFirstRef() {
-    BufferLayer::onFirstRef();
-
-    if (const auto display = mFlinger->getDefaultDisplayDevice()) {
-        updateTransformHint(display);
-    }
-}
-
 void BufferStateLayer::HwcSlotGenerator::bufferErased(const client_cache_t& clientCacheId) {
     std::lock_guard lock(mMutex);
     if (!clientCacheId.isValid()) {
@@ -668,4 +667,14 @@ Rect BufferStateLayer::computeCrop(const State& s) {
     return s.crop;
 }
 
+sp<Layer> BufferStateLayer::createClone() {
+    const String8 name = mName + " (Mirror)";
+    LayerCreationArgs args =
+            LayerCreationArgs(mFlinger.get(), nullptr, name, 0, 0, 0, LayerMetadata());
+    args.textureName = mTextureName;
+    sp<BufferStateLayer> layer = new BufferStateLayer(args);
+    layer->mHwcSlotGenerator = mHwcSlotGenerator;
+    layer->setInitialValuesForClone(this);
+    return layer;
+}
 } // namespace android

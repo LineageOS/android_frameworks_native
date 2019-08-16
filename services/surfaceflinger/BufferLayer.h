@@ -194,6 +194,7 @@ protected:
     bool mRefreshPending{false};
 
     ui::Dataspace translateDataspace(ui::Dataspace dataspace);
+    void setInitialValuesForClone(const sp<Layer>& clonedFrom);
 
 private:
     // Returns true if this layer requires filtering
