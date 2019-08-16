@@ -24,9 +24,6 @@
 
 namespace android::inputdispatcher {
 
-// Sequence number for synthesized or injected events.
-constexpr uint32_t SYNTHESIZED_EVENT_SEQUENCE_NUM = 0;
-
 /* Tracks dispatched key and motion event state so that cancellation events can be
  * synthesized when events are dropped. */
 class InputState {

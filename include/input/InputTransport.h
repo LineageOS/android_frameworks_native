@@ -35,7 +35,6 @@
 
 #include <binder/IBinder.h>
 #include <input/Input.h>
-#include <input/LatencyStatistics.h>
 #include <utils/BitSet.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
@@ -289,12 +288,8 @@ public:
     status_t receiveFinishedSignal(uint32_t* outSeq, bool* outHandled);
 
 private:
-    static constexpr std::chrono::duration TOUCH_STATS_REPORT_PERIOD = 5min;
 
     sp<InputChannel> mChannel;
-    LatencyStatistics mTouchStatistics{TOUCH_STATS_REPORT_PERIOD};
-
-    void reportTouchEventForStatistics(nsecs_t evdevTime);
 };
 
 /*

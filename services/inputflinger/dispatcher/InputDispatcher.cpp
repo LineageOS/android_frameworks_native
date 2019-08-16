@@ -50,6 +50,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <statslog.h>
 #include <stddef.h>
 #include <time.h>
 #include <unistd.h>
@@ -2274,6 +2275,7 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                                                      motionEntry->downTime, motionEntry->eventTime,
                                                      motionEntry->pointerCount,
                                                      motionEntry->pointerProperties, usingCoords);
+                reportTouchEventForStatistics(*motionEntry);
                 break;
             }
 
@@ -4476,6 +4478,34 @@ void InputDispatcher::updateDispatchStatistics(nsecs_t currentTime, const EventE
                                                int32_t injectionResult,
                                                nsecs_t timeSpentWaitingForApplication) {
     // TODO Write some statistics about how long we spend waiting.
+}
+
+/**
+ * Report the touch event latency to the statsd server.
+ * Input events are reported for statistics if:
+ * - This is a touchscreen event
+ * - InputFilter is not enabled
+ * - Event is not injected or synthesized
+ *
+ * Statistics should be reported before calling addValue, to prevent a fresh new sample
+ * from getting aggregated with the "old" data.
+ */
+void InputDispatcher::reportTouchEventForStatistics(const MotionEntry& motionEntry)
+        REQUIRES(mLock) {
+    const bool reportForStatistics = (motionEntry.source == AINPUT_SOURCE_TOUCHSCREEN) &&
+            !(motionEntry.isSynthesized()) && !mInputFilterEnabled;
+    if (!reportForStatistics) {
+        return;
+    }
+
+    if (mTouchStatistics.shouldReport()) {
+        android::util::stats_write(android::util::TOUCH_EVENT_REPORTED, mTouchStatistics.getMin(),
+                                   mTouchStatistics.getMax(), mTouchStatistics.getMean(),
+                                   mTouchStatistics.getStDev(), mTouchStatistics.getCount());
+        mTouchStatistics.reset();
+    }
+    const float latencyMicros = nanoseconds_to_microseconds(now() - motionEntry.eventTime);
+    mTouchStatistics.addValue(latencyMicros);
 }
 
 void InputDispatcher::traceInboundQueueLengthLocked() {
