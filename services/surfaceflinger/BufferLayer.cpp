@@ -668,6 +668,15 @@ FloatRect BufferLayer::computeSourceBounds(const FloatRect& parentBounds) const 
     return FloatRect(0, 0, bufWidth, bufHeight);
 }
 
+void BufferLayer::latchAndReleaseBuffer() {
+    mRefreshPending = false;
+    if (hasReadyFrame()) {
+        bool ignored = false;
+        latchBuffer(ignored, systemTime(), 0 /* expectedPresentTime */);
+    }
+    releasePendingBuffer(systemTime());
+}
+
 } // namespace android
 
 #if defined(__gl_h_)

@@ -103,6 +103,13 @@ public:
     // Returns the current scaling mode, unless mOverrideScalingMode
     // is set, in which case, it returns mOverrideScalingMode
     uint32_t getEffectiveScalingMode() const override;
+
+    // Calls latchBuffer if the buffer has a frame queued and then releases the buffer.
+    // This is used if the buffer is just latched and releases to free up the buffer
+    // and will not be shown on screen.
+    // Should only be called on the main thread.
+    void latchAndReleaseBuffer() override;
+
     // -----------------------------------------------------------------------
 
     // -----------------------------------------------------------------------
