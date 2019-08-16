@@ -118,8 +118,9 @@ static const int32_t WEIGHT_FILE = 5;
 // TODO: temporary variables and functions used during C++ refactoring
 static Dumpstate& ds = Dumpstate::GetInstance();
 static int RunCommand(const std::string& title, const std::vector<std::string>& full_command,
-                      const CommandOptions& options = CommandOptions::DEFAULT) {
-    return ds.RunCommand(title, full_command, options);
+                      const CommandOptions& options = CommandOptions::DEFAULT,
+                      bool verbose_duration = false) {
+    return ds.RunCommand(title, full_command, options, verbose_duration);
 }
 
 // Reasonable value for max stats.
@@ -898,17 +899,17 @@ static void DoLogcat() {
     RunCommand(
         "EVENT LOG",
         {"logcat", "-b", "events", "-v", "threadtime", "-v", "printable", "-v", "uid", "-d", "*:v"},
-        CommandOptions::WithTimeoutInMs(timeout_ms).Build());
+        CommandOptions::WithTimeoutInMs(timeout_ms).Build(), true /* verbose_duration */);
     timeout_ms = logcat_timeout({"stats"});
     RunCommand(
         "STATS LOG",
         {"logcat", "-b", "stats", "-v", "threadtime", "-v", "printable", "-v", "uid", "-d", "*:v"},
-        CommandOptions::WithTimeoutInMs(timeout_ms).Build());
+        CommandOptions::WithTimeoutInMs(timeout_ms).Build(), true /* verbose_duration */);
     timeout_ms = logcat_timeout({"radio"});
     RunCommand(
         "RADIO LOG",
         {"logcat", "-b", "radio", "-v", "threadtime", "-v", "printable", "-v", "uid", "-d", "*:v"},
-        CommandOptions::WithTimeoutInMs(timeout_ms).Build());
+        CommandOptions::WithTimeoutInMs(timeout_ms).Build(), true /* verbose_duration */);
 
     RunCommand("LOG STATISTICS", {"logcat", "-b", "all", "-S"});
 
@@ -2851,8 +2852,8 @@ Dumpstate& Dumpstate::GetInstance() {
     return singleton_;
 }
 
-DurationReporter::DurationReporter(const std::string& title, bool logcat_only)
-    : title_(title), logcat_only_(logcat_only) {
+DurationReporter::DurationReporter(const std::string& title, bool logcat_only, bool verbose)
+    : title_(title), logcat_only_(logcat_only), verbose_(verbose) {
     if (!title_.empty()) {
         started_ = Nanotime();
     }
@@ -2861,7 +2862,7 @@ DurationReporter::DurationReporter(const std::string& title, bool logcat_only)
 DurationReporter::~DurationReporter() {
     if (!title_.empty()) {
         float elapsed = (float)(Nanotime() - started_) / NANOS_PER_SEC;
-        if (elapsed < .5f) {
+        if (elapsed < .5f && !verbose_) {
             return;
         }
         MYLOGD("Duration of '%s': %.2fs\n", title_.c_str(), elapsed);
@@ -3454,8 +3455,8 @@ int dump_file_from_fd(const char *title, const char *path, int fd) {
 }
 
 int Dumpstate::RunCommand(const std::string& title, const std::vector<std::string>& full_command,
-                          const CommandOptions& options) {
-    DurationReporter duration_reporter(title);
+                          const CommandOptions& options, bool verbose_duration) {
+    DurationReporter duration_reporter(title, false /* logcat_only */, verbose_duration);
 
     int status = RunCommandToFd(STDOUT_FILENO, title, full_command, options);
 
