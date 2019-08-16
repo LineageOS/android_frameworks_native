@@ -108,6 +108,10 @@ std::shared_ptr<compositionengine::Layer> ColorLayer::getCompositionLayer() cons
     return mCompositionLayer;
 }
 
+bool ColorLayer::isOpaque(const Layer::State& s) const {
+    return (s.flags & layer_state_t::eLayerOpaque) != 0;
+}
+
 // ---------------------------------------------------------------------------
 
 }; // namespace android
