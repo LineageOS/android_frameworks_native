@@ -39,6 +39,8 @@ public:
 
     void commitTransaction(const State& stateToCommit) override;
 
+    bool isOpaque(const Layer::State& s) const override;
+
 protected:
     /*
      * compositionengine::LayerFE overrides
