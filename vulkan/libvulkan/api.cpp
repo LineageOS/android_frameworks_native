@@ -1177,9 +1177,13 @@ bool EnsureInitialized() {
     });
 
     {
+        static pid_t pid = getpid() + 1;
         static std::mutex layer_lock;
         std::lock_guard<std::mutex> lock(layer_lock);
-        DiscoverLayers();
+        if (pid != getpid()) {
+            pid = getpid();
+            DiscoverLayers();
+        }
     }
 
     return initialized;

@@ -412,14 +412,6 @@ void BufferQueueLayer::latchPerFrameState(
 // Interface implementation for BufferLayerConsumer::ContentsChangedListener
 // -----------------------------------------------------------------------
 
-void BufferQueueLayer::fakeVsync() {
-    mRefreshPending = false;
-    bool ignored = false;
-    latchBuffer(ignored, systemTime(), 0 /* expectedPresentTime */);
-    usleep(16000);
-    releasePendingBuffer(systemTime());
-}
-
 void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
     ATRACE_CALL();
     // Add this buffer from our internal queue tracker
@@ -456,13 +448,7 @@ void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
     mFlinger->mInterceptor->saveBufferUpdate(this, item.mGraphicBuffer->getWidth(),
                                              item.mGraphicBuffer->getHeight(), item.mFrameNumber);
 
-    // If this layer is orphaned, then we run a fake vsync pulse so that
-    // dequeueBuffer doesn't block indefinitely.
-    if (isRemovedFromCurrentState()) {
-        fakeVsync();
-    } else {
-        mFlinger->signalLayerUpdate();
-    }
+    mFlinger->signalLayerUpdate();
     mConsumer->onBufferAvailable(item);
 }
 

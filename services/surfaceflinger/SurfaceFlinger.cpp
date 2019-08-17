@@ -1852,24 +1852,13 @@ void SurfaceFlinger::calculateWorkingSet() {
     const bool updatingGeometryThisFrame = mGeometryInvalid;
     mGeometryInvalid = false;
 
-    {
-        // Use a map so that we latch the state of each front-end layer once.
-        std::unordered_map<compositionengine::LayerFE*, compositionengine::LayerFECompositionState*>
-                uniqueVisibleLayers;
-
-        // Figure out which frontend layers are being composed, and build the unique
-        // set of them (and the corresponding composition layer)
-        for (const auto& [token, displayDevice] : mDisplays) {
-            auto display = displayDevice->getCompositionDisplay();
-            for (auto& layer : display->getOutputLayersOrderedByZ()) {
-                uniqueVisibleLayers.insert(std::make_pair(&layer->getLayerFE(),
-                                                          &layer->getLayer().editState().frontEnd));
-            }
-        }
-
-        // Update the composition state from each front-end layer.
-        for (auto& [layerFE, state] : uniqueVisibleLayers) {
-            layerFE->latchCompositionState(*state, updatingGeometryThisFrame);
+    // Latch the frontend layer composition state for each layer being
+    // composed.
+    for (const auto& [token, displayDevice] : mDisplays) {
+        auto display = displayDevice->getCompositionDisplay();
+        for (auto& layer : display->getOutputLayersOrderedByZ()) {
+            layer->getLayerFE().latchCompositionState(layer->getLayer().editState().frontEnd,
+                                                      updatingGeometryThisFrame);
         }
     }
 
@@ -1909,13 +1898,7 @@ void SurfaceFlinger::calculateWorkingSet() {
             // Update the composition state of the output layer, as needed
             // recomputing it from the state given by the front-end layer.
             layer->updateCompositionState(updatingGeometryThisFrame);
-        }
-    }
 
-    for (const auto& [token, displayDevice] : mDisplays) {
-        auto display = displayDevice->getCompositionDisplay();
-
-        for (auto& layer : display->getOutputLayersOrderedByZ()) {
             // Send the updated state to the HWC, if appropriate.
             layer->writeStateToHWC(updatingGeometryThisFrame);
         }
@@ -2887,14 +2870,6 @@ void SurfaceFlinger::updateCursorAsync()
     }
 }
 
-void SurfaceFlinger::latchAndReleaseBuffer(const sp<Layer>& layer) {
-    if (layer->hasReadyFrame()) {
-        bool ignored = false;
-        layer->latchBuffer(ignored, systemTime(), 0 /* expectedPresentTime */);
-    }
-    layer->releasePendingBuffer(systemTime());
-}
-
 void SurfaceFlinger::commitTransaction()
 {
     if (!mLayersPendingRemoval.isEmpty()) {
@@ -2905,7 +2880,7 @@ void SurfaceFlinger::commitTransaction()
 
             // Ensure any buffers set to display on any children are released.
             if (l->isRemovedFromCurrentState()) {
-                latchAndReleaseBuffer(l);
+                l->latchAndReleaseBuffer();
             }
 
             // If the layer has been removed and has no parent, then it will not be reachable
@@ -3162,6 +3137,14 @@ bool SurfaceFlinger::handlePageFlip()
             layer->useEmptyDamage();
         }
     });
+
+    // The client can continue submitting buffers for offscreen layers, but they will not
+    // be shown on screen. Therefore, we need to latch and release buffers of offscreen
+    // layers to ensure dequeueBuffer doesn't block indefinitely.
+    for (Layer* offscreenLayer : mOffscreenLayers) {
+        offscreenLayer->traverseInZOrder(LayerVector::StateSet::Drawing,
+                                         [&](Layer* l) { l->latchAndReleaseBuffer(); });
+    }
 
     if (!mLayersWithQueuedFrames.empty()) {
         // mStateLock is needed for latchBuffer as LayerRejecter::reject()

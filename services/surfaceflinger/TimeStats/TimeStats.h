@@ -161,6 +161,7 @@ private:
     GlobalRecord mGlobalRecord;
 
     static const size_t MAX_NUM_LAYER_RECORDS = 200;
+    static const size_t MAX_NUM_LAYER_STATS = 200;
 };
 
 } // namespace impl

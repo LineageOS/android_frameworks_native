@@ -73,13 +73,15 @@ extern "C" {
  */
 class DurationReporter {
   public:
-    explicit DurationReporter(const std::string& title, bool logcat_only = false);
+    explicit DurationReporter(const std::string& title, bool logcat_only = false,
+                              bool verbose = false);
 
     ~DurationReporter();
 
   private:
     std::string title_;
     bool logcat_only_;
+    bool verbose_;
     uint64_t started_;
 
     DISALLOW_COPY_AND_ASSIGN(DurationReporter);
@@ -224,7 +226,8 @@ class Dumpstate {
      */
     int RunCommand(const std::string& title, const std::vector<std::string>& fullCommand,
                    const android::os::dumpstate::CommandOptions& options =
-                       android::os::dumpstate::CommandOptions::DEFAULT);
+                       android::os::dumpstate::CommandOptions::DEFAULT,
+                   bool verbose_duration = false);
 
     /*
      * Runs `dumpsys` with the given arguments, automatically setting its timeout

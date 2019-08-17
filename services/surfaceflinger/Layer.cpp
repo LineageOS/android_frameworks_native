@@ -105,7 +105,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.acquireFence = new Fence(-1);
     mCurrentState.dataspace = ui::Dataspace::UNKNOWN;
     mCurrentState.hdrMetadata.validTypes = 0;
-    mCurrentState.surfaceDamageRegion.clear();
+    mCurrentState.surfaceDamageRegion = Region::INVALID_REGION;
     mCurrentState.cornerRadius = 0.0f;
     mCurrentState.api = -1;
     mCurrentState.hasColorTransform = false;

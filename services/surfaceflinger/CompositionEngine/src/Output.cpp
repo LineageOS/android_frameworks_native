@@ -315,7 +315,7 @@ bool Output::composeSurfaces(const Region& debugRegion, base::unique_fd* readyFe
     const bool supportsProtectedContent = renderEngine.supportsProtectedContent();
 
     renderengine::DisplaySettings clientCompositionDisplay;
-    clientCompositionDisplay.physicalDisplay = mState.frame;
+    clientCompositionDisplay.physicalDisplay = mState.scissor;
     clientCompositionDisplay.clip = mState.scissor;
     clientCompositionDisplay.globalTransform = mState.transform.asMatrix4();
     clientCompositionDisplay.orientation = mState.orientation;

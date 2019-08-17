@@ -22,7 +22,12 @@
 
 namespace android {
 
-enum { METADATA_OWNER_UID = 1, METADATA_WINDOW_TYPE = 2, METADATA_TASK_ID = 3 };
+enum {
+    METADATA_OWNER_UID = 1,
+    METADATA_WINDOW_TYPE = 2,
+    METADATA_TASK_ID = 3,
+    METADATA_MOUSE_CURSOR = 4,
+};
 
 struct LayerMetadata : public Parcelable {
     std::unordered_map<uint32_t, std::vector<uint8_t>> mMap;
