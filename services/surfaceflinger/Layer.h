@@ -378,7 +378,9 @@ public:
 
     // -----------------------------------------------------------------------
     // Virtuals
-    virtual const char* getTypeId() const = 0;
+
+    // Provide unique string for each class type in the Layer hierarchy
+    virtual const char* getType() const = 0;
 
     /*
      * isOpaque - true if this surface is opaque

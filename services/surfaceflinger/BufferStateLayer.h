@@ -40,6 +40,8 @@ public:
     // -----------------------------------------------------------------------
     // Interface implementation for Layer
     // -----------------------------------------------------------------------
+    const char* getType() const override { return "BufferStateLayer"; }
+
     void onLayerDisplayed(const sp<Fence>& releaseFence) override;
     void setTransformHint(uint32_t orientation) const override;
     void releasePendingBuffer(nsecs_t dequeueReadyTime) override;

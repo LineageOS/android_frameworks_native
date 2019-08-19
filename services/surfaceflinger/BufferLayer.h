@@ -62,10 +62,6 @@ public:
     void useSurfaceDamage() override;
     void useEmptyDamage() override;
 
-    // getTypeId - Provide unique string for each class type in the Layer
-    // hierarchy
-    const char* getTypeId() const override { return "BufferLayer"; }
-
     bool isOpaque(const Layer::State& s) const override;
 
     // isVisible - true if this layer is visible, false otherwise

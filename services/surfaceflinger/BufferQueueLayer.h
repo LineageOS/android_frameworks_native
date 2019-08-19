@@ -38,6 +38,8 @@ public:
     // Interface implementation for Layer
     // -----------------------------------------------------------------------
 public:
+    const char* getType() const override { return "BufferQueueLayer"; }
+
     void onLayerDisplayed(const sp<Fence>& releaseFence) override;
 
     void setTransformHint(uint32_t orientation) const override;
