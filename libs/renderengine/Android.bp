@@ -71,9 +71,6 @@ cc_library_static {
         "-fvisibility=hidden",
         "-Werror=format",
     ],
-    cppflags: [
-        "-fwhole-program-vtables", // requires ThinLTO
-    ],
     srcs: [
         ":librenderengine_sources",
         ":librenderengine_gl_sources",
