@@ -28,7 +28,7 @@ public:
     explicit ContainerLayer(const LayerCreationArgs&);
     ~ContainerLayer() override;
 
-    const char* getTypeId() const override { return "ContainerLayer"; }
+    const char* getType() const override { return "ContainerLayer"; }
     bool isVisible() const override;
 
     bool canReceiveInput() const override;

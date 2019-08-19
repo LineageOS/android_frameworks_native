@@ -1217,7 +1217,7 @@ LayerDebugInfo Layer::getLayerDebugInfo() const {
     info.mName = getName();
     sp<Layer> parent = getParent();
     info.mParentName = (parent == nullptr ? std::string("none") : parent->getName().string());
-    info.mType = std::string(getTypeId());
+    info.mType = getType();
     info.mTransparentRegion = ds.activeTransparentRegion_legacy;
     info.mVisibleRegion = visibleRegion;
     info.mSurfaceDamageRegion = surfaceDamageRegion;
@@ -1334,7 +1334,7 @@ void Layer::getFrameStats(FrameStats* outStats) const {
 }
 
 void Layer::dumpFrameEvents(std::string& result) {
-    StringAppendF(&result, "- Layer %s (%s, %p)\n", getName().string(), getTypeId(), this);
+    StringAppendF(&result, "- Layer %s (%s, %p)\n", getName().string(), getType(), this);
     Mutex::Autolock lock(mFrameEventHistoryMutex);
     mFrameEventHistory.checkFencesForCompletion();
     mFrameEventHistory.dump(result);
@@ -1868,7 +1868,7 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
     if (traceFlags & SurfaceTracing::TRACE_CRITICAL) {
         layerInfo->set_id(sequence);
         layerInfo->set_name(getName().c_str());
-        layerInfo->set_type(String8(getTypeId()));
+        layerInfo->set_type(getType());
 
         for (const auto& child : children) {
             layerInfo->add_children(child->sequence);

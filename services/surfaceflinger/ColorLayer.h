@@ -30,7 +30,7 @@ public:
 
     std::shared_ptr<compositionengine::Layer> getCompositionLayer() const override;
 
-    virtual const char* getTypeId() const { return "ColorLayer"; }
+    const char* getType() const override { return "ColorLayer"; }
     bool isVisible() const override;
 
     bool setColor(const half3& color) override;
