@@ -143,7 +143,6 @@ private:
 
     sp<Fence> mPreviousReleaseFence;
     uint64_t mPreviousBufferId = 0;
-    uint64_t mPreviousFrameNumber = 0;
     uint64_t mPreviousReleasedFrameNumber = 0;
 
     mutable bool mCurrentStateModified = false;
