@@ -17,10 +17,12 @@
 #ifndef ANDROID_DVR_HARDWARE_COMPOSER_IMPL_VR_COMPOSER_CLIENT_H
 #define ANDROID_DVR_HARDWARE_COMPOSER_IMPL_VR_COMPOSER_CLIENT_H
 
-#include <android/frameworks/vr/composer/1.0/IVrComposerClient.h>
-#include <composer-command-buffer/2.1/ComposerCommandBuffer.h>
+#include <android/frameworks/vr/composer/2.0/IVrComposerClient.h>
+#include <composer-command-buffer/2.3/ComposerCommandBuffer.h>
 #include <composer-hal/2.1/ComposerClient.h>
 #include <composer-hal/2.1/ComposerCommandEngine.h>
+#include <composer-hal/2.2/ComposerClient.h>
+#include <composer-hal/2.3/ComposerClient.h>
 
 namespace android {
 namespace dvr {
@@ -28,8 +30,8 @@ namespace dvr {
 class VrHwc;
 
 using hardware::graphics::composer::V2_1::hal::ComposerCommandEngine;
-using hardware::graphics::composer::V2_1::hal::ComposerHal;
-using hardware::graphics::composer::V2_1::hal::detail::ComposerClientImpl;
+using hardware::graphics::composer::V2_3::hal::ComposerHal;
+using hardware::graphics::composer::V2_3::hal::detail::ComposerClientImpl;
 
 using ComposerClient = ComposerClientImpl<IVrComposerClient, ComposerHal>;
 
@@ -44,8 +46,9 @@ class VrComposerClient : public ComposerClient {
     explicit VrCommandEngine(VrComposerClient& client);
     ~VrCommandEngine() override;
 
-    bool executeCommand(IComposerClient::Command command,
-                        uint16_t length) override;
+    bool executeCommand(
+        hardware::graphics::composer::V2_1::IComposerClient::Command command,
+        uint16_t length) override;
 
    private:
     bool executeSetLayerInfo(uint16_t length);

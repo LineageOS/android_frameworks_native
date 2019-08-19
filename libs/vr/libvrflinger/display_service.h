@@ -82,6 +82,7 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
   pdx::Status<display::Metrics> OnGetMetrics(pdx::Message& message);
   pdx::Status<std::string> OnGetConfigurationData(
       pdx::Message& message, display::ConfigFileType config_type);
+  pdx::Status<uint8_t> OnGetDisplayIdentificationPort(pdx::Message& message);
   pdx::Status<display::SurfaceInfo> OnCreateSurface(
       pdx::Message& message, const display::SurfaceAttributes& attributes);
   pdx::Status<BorrowedNativeBufferHandle> OnSetupGlobalBuffer(
@@ -121,6 +122,7 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
   void operator=(const DisplayService&) = delete;
 
   DisplayIdentificationData display_identification_data_;
+  uint8_t display_identification_port_;
 };
 
 }  // namespace dvr

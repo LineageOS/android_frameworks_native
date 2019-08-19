@@ -23,7 +23,9 @@
 #include <utility>
 #include <vector>
 
-#include <android/frameworks/vr/composer/1.0/IVrComposerClient.h>
+#if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
+#include <android/frameworks/vr/composer/2.0/IVrComposerClient.h>
+#endif // defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 #include <android/hardware/graphics/common/1.1/types.h>
 #include <android/hardware/graphics/composer/2.3/IComposer.h>
 #include <android/hardware/graphics/composer/2.3/IComposerClient.h>
@@ -38,7 +40,9 @@ namespace android {
 
 namespace Hwc2 {
 
-using frameworks::vr::composer::V1_0::IVrComposerClient;
+#if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
+using frameworks::vr::composer::V2_0::IVrComposerClient;
+#endif // defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 
 namespace types = hardware::graphics::common;
 
@@ -418,6 +422,7 @@ public:
     Error setDisplayBrightness(Display display, float brightness) override;
 
 private:
+#if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
     class CommandWriter : public CommandWriterBase {
     public:
         explicit CommandWriter(uint32_t initialMaxSize);
@@ -433,6 +438,13 @@ private:
         void writeBufferMetadata(
                 const IVrComposerClient::BufferMetadata& metadata);
     };
+#else
+    class CommandWriter : public CommandWriterBase {
+    public:
+        explicit CommandWriter(uint32_t initialMaxSize) : CommandWriterBase(initialMaxSize) {}
+        ~CommandWriter() override {}
+    };
+#endif // defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 
     // Many public functions above simply write a command into the command
     // queue to batch the calls.  validateDisplay and presentDisplay will call

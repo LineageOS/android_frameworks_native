@@ -47,7 +47,8 @@ DisplayService::DisplayService(Hwc2::Composer* hidl,
 
     uint8_t port;
     const auto error = hidl->getDisplayIdentificationData(
-        primary_display_id, &port, &display_identification_data_);
+        primary_display_id, &display_identification_port_,
+        &display_identification_data_);
     if (error != android::hardware::graphics::composer::V2_1::Error::NONE) {
       if (error !=
           android::hardware::graphics::composer::V2_1::Error::UNSUPPORTED) {
@@ -151,6 +152,11 @@ Status<void> DisplayService::HandleMessage(pdx::Message& message) {
           *this, &DisplayService::OnGetConfigurationData, message);
       return {};
 
+    case DisplayProtocol::GetDisplayIdentificationPort::Opcode:
+      DispatchRemoteMethod<DisplayProtocol::GetDisplayIdentificationPort>(
+          *this, &DisplayService::OnGetDisplayIdentificationPort, message);
+      return {};
+
     case DisplayProtocol::CreateSurface::Opcode:
       DispatchRemoteMethod<DisplayProtocol::CreateSurface>(
           *this, &DisplayService::OnCreateSurface, message);
@@ -236,6 +242,11 @@ pdx::Status<std::string> DisplayService::OnGetConfigurationData(
   }
 
   return std::move(data);
+}
+
+pdx::Status<uint8_t> DisplayService::OnGetDisplayIdentificationPort(
+    pdx::Message& /*message*/) {
+  return display_identification_port_;
 }
 
 // Creates a new DisplaySurface and associates it with this channel. This may
