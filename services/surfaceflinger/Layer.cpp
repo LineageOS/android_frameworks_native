@@ -780,6 +780,15 @@ uint32_t Layer::doTransaction(uint32_t flags) {
     ATRACE_CALL();
 
     if (mLayerDetached) {
+        // Ensure BLAST buffer callbacks are processed.
+        // detachChildren and mLayerDetached were implemented to avoid geometry updates
+        // to layers in the cases of animation. For BufferQueue layers buffers are still
+        // consumed as normal. This is useful as otherwise the client could get hung
+        // inevitably waiting on a buffer to return. We recreate this semantic for BufferQueue
+        // even though it is a little consistent. detachChildren is shortly slated for removal
+        // by the hierarchy mirroring work so we don't need to worry about it too much.
+        mDrawingState.callbackHandles = mCurrentState.callbackHandles;
+        mCurrentState.callbackHandles = {};
         return flags;
     }
 
