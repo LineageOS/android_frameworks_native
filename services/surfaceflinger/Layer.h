@@ -217,6 +217,7 @@ public:
         // recent callback handle.
         std::deque<sp<CallbackHandle>> callbackHandles;
         bool colorSpaceAgnostic;
+        nsecs_t desiredPresentTime = -1;
     };
 
     explicit Layer(const LayerCreationArgs& args);
