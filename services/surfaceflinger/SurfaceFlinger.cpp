@@ -6169,6 +6169,25 @@ void SurfaceFlinger::traverseLayersInDisplay(const sp<const DisplayDevice>& disp
     }
 }
 
+void SurfaceFlinger::setPreferredDisplayConfig() {
+    const auto& type = mScheduler->getPreferredRefreshRateType();
+    const auto& config = mRefreshRateConfigs.getRefreshRate(type);
+    if (config && isDisplayConfigAllowed(config->configId)) {
+        ALOGV("switching to Scheduler preferred config %d", config->configId);
+        setDesiredActiveConfig({type, config->configId, Scheduler::ConfigEvent::Changed});
+    } else {
+        // Set the highest allowed config by iterating backwards on available refresh rates
+        const auto& refreshRates = mRefreshRateConfigs.getRefreshRates();
+        for (auto iter = refreshRates.crbegin(); iter != refreshRates.crend(); ++iter) {
+            if (iter->second && isDisplayConfigAllowed(iter->second->configId)) {
+                ALOGV("switching to allowed config %d", iter->second->configId);
+                setDesiredActiveConfig({iter->first, iter->second->configId,
+                        Scheduler::ConfigEvent::Changed});
+            }
+        }
+    }
+}
+
 void SurfaceFlinger::setAllowedDisplayConfigsInternal(const sp<DisplayDevice>& display,
                                                       const std::vector<int32_t>& allowedConfigs) {
     if (!display->isPrimary()) {
@@ -6190,16 +6209,7 @@ void SurfaceFlinger::setAllowedDisplayConfigsInternal(const sp<DisplayDevice>& d
     mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value,
                                 display->getActiveConfig());
 
-    // Set the highest allowed config by iterating backwards on available refresh rates
-    const auto& refreshRates = mRefreshRateConfigs.getRefreshRates();
-    for (auto iter = refreshRates.crbegin(); iter != refreshRates.crend(); ++iter) {
-        if (iter->second && isDisplayConfigAllowed(iter->second->configId)) {
-            ALOGV("switching to config %d", iter->second->configId);
-            setDesiredActiveConfig(
-                    {iter->first, iter->second->configId, Scheduler::ConfigEvent::Changed});
-            break;
-        }
-    }
+    setPreferredDisplayConfig();
 }
 
 status_t SurfaceFlinger::setAllowedDisplayConfigs(const sp<IBinder>& displayToken,
