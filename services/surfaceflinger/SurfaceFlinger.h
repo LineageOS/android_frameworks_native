@@ -29,6 +29,7 @@
 #include <gui/FrameTimestamps.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/ISurfaceComposerClient.h>
+#include <gui/ITransactionCompletedListener.h>
 #include <gui/LayerState.h>
 #include <gui/OccupancyTracker.h>
 #include <hardware/hwcomposer_defs.h>
@@ -1024,11 +1025,6 @@ private:
     uint32_t mTexturePoolSize = 0;
     std::vector<uint32_t> mTexturePool;
 
-    struct IBinderHash {
-        std::size_t operator()(const sp<IBinder>& strongPointer) const {
-            return std::hash<IBinder*>{}(strongPointer.get());
-        }
-    };
     struct TransactionState {
         TransactionState(const Vector<ComposerState>& composerStates,
                          const Vector<DisplayState>& displayStates, uint32_t transactionFlags,
@@ -1053,7 +1049,7 @@ private:
         const int64_t postTime;
         bool privileged;
     };
-    std::unordered_map<sp<IBinder>, std::queue<TransactionState>, IBinderHash> mTransactionQueues;
+    std::unordered_map<sp<IBinder>, std::queue<TransactionState>, IListenerHash> mTransactionQueues;
 
     /* ------------------------------------------------------------------------
      * Feature prototyping
