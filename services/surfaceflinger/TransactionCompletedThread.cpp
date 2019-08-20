@@ -75,26 +75,28 @@ void TransactionCompletedThread::run() {
 }
 
 status_t TransactionCompletedThread::startRegistration(const ListenerCallbacks& listenerCallbacks) {
+    // begin running if not already running
+    run();
     std::lock_guard lock(mMutex);
     if (!mRunning) {
         ALOGE("cannot add callback because the callback thread isn't running");
         return BAD_VALUE;
     }
 
+    auto [itr, inserted] = mRegisteringTransactions.insert(listenerCallbacks);
     auto& [listener, callbackIds] = listenerCallbacks;
 
-    if (mCompletedTransactions.count(listener) == 0) {
-        status_t err = listener->linkToDeath(mDeathRecipient);
-        if (err != NO_ERROR) {
-            ALOGE("cannot add callback because linkToDeath failed, err: %d", err);
-            return err;
+    if (inserted) {
+        if (mCompletedTransactions.count(listener) == 0) {
+            status_t err = listener->linkToDeath(mDeathRecipient);
+            if (err != NO_ERROR) {
+                ALOGE("cannot add callback because linkToDeath failed, err: %d", err);
+                return err;
+            }
         }
+        auto& transactionStatsDeque = mCompletedTransactions[listener];
+        transactionStatsDeque.emplace_back(callbackIds);
     }
-
-    mRegisteringTransactions.insert(listenerCallbacks);
-
-    auto& transactionStatsDeque = mCompletedTransactions[listener];
-    transactionStatsDeque.emplace_back(callbackIds);
 
     return NO_ERROR;
 }

@@ -69,7 +69,7 @@ public:
                                      const sp<IBinder>& applyToken,
                                      const InputWindowCommands& commands,
                                      int64_t desiredPresentTime,
-                                     const client_cache_t& uncacheBuffer,
+                                     const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
                                      const std::vector<ListenerCallbacks>& listenerCallbacks) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
@@ -90,6 +90,7 @@ public:
         data.writeInt64(desiredPresentTime);
         data.writeStrongBinder(uncacheBuffer.token.promote());
         data.writeUint64(uncacheBuffer.id);
+        data.writeBool(hasListenerCallbacks);
 
         if (data.writeVectorSize(listenerCallbacks) == NO_ERROR) {
             for (const auto& [listener, callbackIds] : listenerCallbacks) {
@@ -1039,6 +1040,8 @@ status_t BnSurfaceComposer::onTransact(
             uncachedBuffer.token = data.readStrongBinder();
             uncachedBuffer.id = data.readUint64();
 
+            bool hasListenerCallbacks = data.readBool();
+
             std::vector<ListenerCallbacks> listenerCallbacks;
             int32_t listenersSize = data.readInt32();
             for (int32_t i = 0; i < listenersSize; i++) {
@@ -1047,9 +1050,9 @@ status_t BnSurfaceComposer::onTransact(
                 data.readInt64Vector(&callbackIds);
                 listenerCallbacks.emplace_back(listener, callbackIds);
             }
-
             setTransactionState(state, displays, stateFlags, applyToken, inputWindowCommands,
-                                desiredPresentTime, uncachedBuffer, listenerCallbacks);
+                                desiredPresentTime, uncachedBuffer, hasListenerCallbacks,
+                                listenerCallbacks);
             return NO_ERROR;
         }
         case BOOT_FINISHED: {
