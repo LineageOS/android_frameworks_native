@@ -31,46 +31,12 @@
 
 namespace android {
 
-struct ITransactionCompletedListenerHash {
-    std::size_t operator()(const sp<ITransactionCompletedListener>& listener) const {
-        return std::hash<IBinder*>{}((listener) ? IInterface::asBinder(listener).get() : nullptr);
-    }
-};
-
-struct CallbackIdsHash {
-    // CallbackId vectors have several properties that let us get away with this simple hash.
-    // 1) CallbackIds are never 0 so if something has gone wrong and our CallbackId vector is
-    // empty we can still hash 0.
-    // 2) CallbackId vectors for the same listener either are identical or contain none of the
-    // same members. It is sufficient to just check the first CallbackId in the vectors. If
-    // they match, they are the same. If they do not match, they are not the same.
-    std::size_t operator()(const std::vector<CallbackId>& callbackIds) const {
-        return std::hash<CallbackId>{}((callbackIds.empty()) ? 0 : callbackIds.front());
-    }
-};
-
-struct ListenerCallbacksHash {
-    std::size_t HashCombine(size_t value1, size_t value2) const {
-        return value1 ^ (value2 + 0x9e3779b9 + (value1 << 6) + (value1 >> 2));
-    }
-
-    std::size_t operator()(const ListenerCallbacks& listenerCallbacks) const {
-        struct ITransactionCompletedListenerHash listenerHasher;
-        struct CallbackIdsHash callbackIdsHasher;
-
-        std::size_t listenerHash = listenerHasher(listenerCallbacks.transactionCompletedListener);
-        std::size_t callbackIdsHash = callbackIdsHasher(listenerCallbacks.callbackIds);
-
-        return HashCombine(listenerHash, callbackIdsHash);
-    }
-};
-
 class CallbackHandle : public RefBase {
 public:
-    CallbackHandle(const sp<ITransactionCompletedListener>& transactionListener,
-                   const std::vector<CallbackId>& ids, const sp<IBinder>& sc);
+    CallbackHandle(const sp<IBinder>& transactionListener, const std::vector<CallbackId>& ids,
+                   const sp<IBinder>& sc);
 
-    sp<ITransactionCompletedListener> listener;
+    sp<IBinder> listener;
     std::vector<CallbackId> callbackIds;
     wp<IBinder> surfaceControl;
 
@@ -114,10 +80,10 @@ public:
 private:
     void threadMain();
 
-    bool isRegisteringTransaction(const sp<ITransactionCompletedListener>& transactionListener,
+    bool isRegisteringTransaction(const sp<IBinder>& transactionListener,
                                   const std::vector<CallbackId>& callbackIds) REQUIRES(mMutex);
 
-    status_t findTransactionStats(const sp<ITransactionCompletedListener>& listener,
+    status_t findTransactionStats(const sp<IBinder>& listener,
                                   const std::vector<CallbackId>& callbackIds,
                                   TransactionStats** outTransactionStats) REQUIRES(mMutex);
 
@@ -146,13 +112,12 @@ private:
             GUARDED_BY(mMutex);
 
     std::unordered_map<
-            sp<ITransactionCompletedListener>,
+            sp<IBinder>,
             std::unordered_map<std::vector<CallbackId>, uint32_t /*count*/, CallbackIdsHash>,
-            ITransactionCompletedListenerHash>
+            IListenerHash>
             mPendingTransactions GUARDED_BY(mMutex);
 
-    std::unordered_map<sp<ITransactionCompletedListener>, std::deque<TransactionStats>,
-                       ITransactionCompletedListenerHash>
+    std::unordered_map<sp<IBinder>, std::deque<TransactionStats>, IListenerHash>
             mCompletedTransactions GUARDED_BY(mMutex);
 
     bool mRunning GUARDED_BY(mMutex) = false;

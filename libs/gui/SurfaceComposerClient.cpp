@@ -548,7 +548,7 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
             continue;
         }
 
-        listenerCallbacks.emplace_back(listener, std::move(callbackIds));
+        listenerCallbacks.emplace_back(IInterface::asBinder(listener), std::move(callbackIds));
 
         // If the listener has any SurfaceControls set on this Transaction update the surface state
         for (const auto& surfaceControl : surfaceControls) {
