@@ -1505,6 +1505,20 @@ status_t SurfaceComposerClient::createSurfaceChecked(const String8& name, uint32
     return err;
 }
 
+sp<SurfaceControl> SurfaceComposerClient::mirrorSurface(SurfaceControl* mirrorFromSurface) {
+    if (mirrorFromSurface == nullptr) {
+        return nullptr;
+    }
+
+    sp<IBinder> handle;
+    sp<IBinder> mirrorFromHandle = mirrorFromSurface->getHandle();
+    status_t err = mClient->mirrorSurface(mirrorFromHandle, &handle);
+    if (err == NO_ERROR) {
+        return new SurfaceControl(this, handle, nullptr, true /* owned */);
+    }
+    return nullptr;
+}
+
 status_t SurfaceComposerClient::clearLayerFrameStats(const sp<IBinder>& token) const {
     if (mStatus != NO_ERROR) {
         return mStatus;

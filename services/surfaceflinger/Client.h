@@ -62,6 +62,8 @@ private:
                                              LayerMetadata metadata, sp<IBinder>* handle,
                                              sp<IGraphicBufferProducer>* gbp);
 
+    status_t mirrorSurface(const sp<IBinder>& mirrorFromHandle, sp<IBinder>* handle);
+
     virtual status_t clearLayerFrameStats(const sp<IBinder>& handle) const;
 
     virtual status_t getLayerFrameStats(const sp<IBinder>& handle, FrameStats* outStats) const;
