@@ -44,6 +44,7 @@ public:
     enum Version {
         GRALLOC_2,
         GRALLOC_3,
+        GRALLOC_4,
     };
     static void preloadHal();
     static inline GraphicBufferMapper& get() { return getInstance(); }
