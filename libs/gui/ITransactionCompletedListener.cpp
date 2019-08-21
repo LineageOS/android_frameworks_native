@@ -151,7 +151,7 @@ status_t ListenerStats::readFromParcel(const Parcel* input) {
     return NO_ERROR;
 }
 
-ListenerStats ListenerStats::createEmpty(const sp<ITransactionCompletedListener>& listener,
+ListenerStats ListenerStats::createEmpty(const sp<IBinder>& listener,
                                          const std::unordered_set<CallbackId>& callbackIds) {
     ListenerStats listenerStats;
     listenerStats.listener = listener;

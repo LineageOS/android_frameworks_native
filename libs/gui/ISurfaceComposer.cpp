@@ -93,7 +93,7 @@ public:
 
         if (data.writeVectorSize(listenerCallbacks) == NO_ERROR) {
             for (const auto& [listener, callbackIds] : listenerCallbacks) {
-                data.writeStrongBinder(IInterface::asBinder(listener));
+                data.writeStrongBinder(listener);
                 data.writeInt64Vector(callbackIds);
             }
         }
@@ -1042,8 +1042,7 @@ status_t BnSurfaceComposer::onTransact(
             std::vector<ListenerCallbacks> listenerCallbacks;
             int32_t listenersSize = data.readInt32();
             for (int32_t i = 0; i < listenersSize; i++) {
-                auto listener =
-                        interface_cast<ITransactionCompletedListener>(data.readStrongBinder());
+                auto listener = data.readStrongBinder();
                 std::vector<CallbackId> callbackIds;
                 data.readInt64Vector(&callbackIds);
                 listenerCallbacks.emplace_back(listener, callbackIds);

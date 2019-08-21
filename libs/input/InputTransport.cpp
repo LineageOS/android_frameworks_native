@@ -227,35 +227,28 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
 
 // --- InputChannel ---
 
-InputChannel::InputChannel(const std::string& name, int fd) :
-        mName(name) {
+sp<InputChannel> InputChannel::create(const std::string& name, android::base::unique_fd fd) {
+    const int result = fcntl(fd, F_SETFL, O_NONBLOCK);
+    if (result != 0) {
+        LOG_ALWAYS_FATAL("channel '%s' ~ Could not make socket non-blocking: %s", name.c_str(),
+                         strerror(errno));
+        return nullptr;
+    }
+    return new InputChannel(name, std::move(fd));
+}
+
+InputChannel::InputChannel(const std::string& name, android::base::unique_fd fd)
+      : mName(name), mFd(std::move(fd)) {
 #if DEBUG_CHANNEL_LIFECYCLE
     ALOGD("Input channel constructed: name='%s', fd=%d",
             mName.c_str(), fd);
 #endif
-
-    setFd(fd);
 }
 
 InputChannel::~InputChannel() {
 #if DEBUG_CHANNEL_LIFECYCLE
-    ALOGD("Input channel destroyed: name='%s', fd=%d",
-            mName.c_str(), mFd);
+    ALOGD("Input channel destroyed: name='%s', fd=%d", mName.c_str(), mFd.get());
 #endif
-
-    ::close(mFd);
-}
-
-void InputChannel::setFd(int fd) {
-    if (mFd > 0) {
-        ::close(mFd);
-    }
-    mFd = fd;
-    if (mFd > 0) {
-        int result = fcntl(mFd, F_SETFL, O_NONBLOCK);
-        LOG_ALWAYS_FATAL_IF(result != 0, "channel '%s' ~ Could not make socket "
-            "non-blocking.  errno=%d", mName.c_str(), errno);
-    }
 }
 
 status_t InputChannel::openInputChannelPair(const std::string& name,
@@ -276,13 +269,13 @@ status_t InputChannel::openInputChannelPair(const std::string& name,
     setsockopt(sockets[1], SOL_SOCKET, SO_SNDBUF, &bufferSize, sizeof(bufferSize));
     setsockopt(sockets[1], SOL_SOCKET, SO_RCVBUF, &bufferSize, sizeof(bufferSize));
 
-    std::string serverChannelName = name;
-    serverChannelName += " (server)";
-    outServerChannel = new InputChannel(serverChannelName, sockets[0]);
+    std::string serverChannelName = name + " (server)";
+    android::base::unique_fd serverFd(sockets[0]);
+    outServerChannel = InputChannel::create(serverChannelName, std::move(serverFd));
 
-    std::string clientChannelName = name;
-    clientChannelName += " (client)";
-    outClientChannel = new InputChannel(clientChannelName, sockets[1]);
+    std::string clientChannelName = name + " (client)";
+    android::base::unique_fd clientFd(sockets[1]);
+    outClientChannel = InputChannel::create(clientChannelName, std::move(clientFd));
     return OK;
 }
 
@@ -292,7 +285,7 @@ status_t InputChannel::sendMessage(const InputMessage* msg) {
     msg->getSanitizedCopy(&cleanMsg);
     ssize_t nWrite;
     do {
-        nWrite = ::send(mFd, &cleanMsg, msgLength, MSG_DONTWAIT | MSG_NOSIGNAL);
+        nWrite = ::send(mFd.get(), &cleanMsg, msgLength, MSG_DONTWAIT | MSG_NOSIGNAL);
     } while (nWrite == -1 && errno == EINTR);
 
     if (nWrite < 0) {
@@ -327,7 +320,7 @@ status_t InputChannel::sendMessage(const InputMessage* msg) {
 status_t InputChannel::receiveMessage(InputMessage* msg) {
     ssize_t nRead;
     do {
-        nRead = ::recv(mFd, msg, sizeof(InputMessage), MSG_DONTWAIT);
+        nRead = ::recv(mFd.get(), msg, sizeof(InputMessage), MSG_DONTWAIT);
     } while (nRead == -1 && errno == EINTR);
 
     if (nRead < 0) {
@@ -365,39 +358,44 @@ status_t InputChannel::receiveMessage(InputMessage* msg) {
 }
 
 sp<InputChannel> InputChannel::dup() const {
-    int fd = ::dup(getFd());
-    return fd >= 0 ? new InputChannel(getName(), fd) : nullptr;
+    android::base::unique_fd newFd(::dup(getFd()));
+    if (!newFd.ok()) {
+        ALOGE("Could not duplicate fd %i for channel %s: %s", getFd(), mName.c_str(),
+              strerror(errno));
+        return nullptr;
+    }
+    return InputChannel::create(mName, std::move(newFd));
 }
 
-
 status_t InputChannel::write(Parcel& out) const {
-    status_t s = out.writeString8(String8(getName().c_str()));
-
+    status_t s = out.writeCString(getName().c_str());
     if (s != OK) {
         return s;
     }
+
     s = out.writeStrongBinder(mToken);
     if (s != OK) {
         return s;
     }
 
-    s = out.writeDupFileDescriptor(getFd());
-
+    s = out.writeUniqueFileDescriptor(mFd);
     return s;
 }
 
-status_t InputChannel::read(const Parcel& from) {
-    mName = from.readString8();
-    mToken = from.readStrongBinder();
-
-    int rawFd = from.readFileDescriptor();
-    setFd(::dup(rawFd));
-
-    if (mFd < 0) {
-        return BAD_VALUE;
+sp<InputChannel> InputChannel::read(const Parcel& from) {
+    std::string name = from.readCString();
+    sp<IBinder> token = from.readStrongBinder();
+    android::base::unique_fd rawFd;
+    status_t fdResult = from.readUniqueFileDescriptor(&rawFd);
+    if (fdResult != OK) {
+        return nullptr;
     }
 
-    return OK;
+    sp<InputChannel> channel = InputChannel::create(name, std::move(rawFd));
+    if (channel != nullptr) {
+        channel->setToken(token);
+    }
+    return channel;
 }
 
 sp<IBinder> InputChannel::getToken() const {

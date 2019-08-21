@@ -261,7 +261,7 @@ status_t GpuService::doDump(int fd, const Vector<String16>& args, bool /*asProto
                     dumpDriverInfo = true;
                 } else if (args[index] == String16("--gpumem")) {
                     dumpMemory = true;
-                } else if (args[index].compare(String16("--gpumem=")) > 0) {
+                } else if (args[index].startsWith(String16("--gpumem="))) {
                     dumpMemory = true;
                     pid = atoi(String8(&args[index][9]));
                 }

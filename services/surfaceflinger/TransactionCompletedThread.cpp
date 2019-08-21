@@ -24,7 +24,6 @@
 #include <cinttypes>
 
 #include <binder/IInterface.h>
-#include <gui/ITransactionCompletedListener.h>
 #include <utils/RefBase.h>
 
 namespace android {
@@ -58,7 +57,7 @@ TransactionCompletedThread::~TransactionCompletedThread() {
     {
         std::lock_guard lock(mMutex);
         for (const auto& [listener, transactionStats] : mCompletedTransactions) {
-            IInterface::asBinder(listener)->unlinkToDeath(mDeathRecipient);
+            listener->unlinkToDeath(mDeathRecipient);
         }
     }
 }
@@ -85,7 +84,7 @@ status_t TransactionCompletedThread::startRegistration(const ListenerCallbacks& 
     auto& [listener, callbackIds] = listenerCallbacks;
 
     if (mCompletedTransactions.count(listener) == 0) {
-        status_t err = IInterface::asBinder(listener)->linkToDeath(mDeathRecipient);
+        status_t err = listener->linkToDeath(mDeathRecipient);
         if (err != NO_ERROR) {
             ALOGE("cannot add callback because linkToDeath failed, err: %d", err);
             return err;
@@ -119,8 +118,7 @@ status_t TransactionCompletedThread::endRegistration(const ListenerCallbacks& li
 }
 
 bool TransactionCompletedThread::isRegisteringTransaction(
-        const sp<ITransactionCompletedListener>& transactionListener,
-        const std::vector<CallbackId>& callbackIds) {
+        const sp<IBinder>& transactionListener, const std::vector<CallbackId>& callbackIds) {
     ListenerCallbacks listenerCallbacks(transactionListener, callbackIds);
 
     auto itr = mRegisteringTransactions.find(listenerCallbacks);
@@ -201,8 +199,8 @@ status_t TransactionCompletedThread::registerUnpresentedCallbackHandle(
 }
 
 status_t TransactionCompletedThread::findTransactionStats(
-        const sp<ITransactionCompletedListener>& listener,
-        const std::vector<CallbackId>& callbackIds, TransactionStats** outTransactionStats) {
+        const sp<IBinder>& listener, const std::vector<CallbackId>& callbackIds,
+        TransactionStats** outTransactionStats) {
     auto& transactionStatsDeque = mCompletedTransactions[listener];
 
     // Search back to front because the most recent transactions are at the back of the deque
@@ -300,10 +298,16 @@ void TransactionCompletedThread::threadMain() {
             // If the listener has completed transactions
             if (!listenerStats.transactionStats.empty()) {
                 // If the listener is still alive
-                if (IInterface::asBinder(listener)->isBinderAlive()) {
-                    // Send callback
-                    listenerStats.listener->onTransactionCompleted(listenerStats);
-                    IInterface::asBinder(listener)->unlinkToDeath(mDeathRecipient);
+                if (listener->isBinderAlive()) {
+                    // Send callback.  The listener stored in listenerStats
+                    // comes from the cross-process setTransactionState call to
+                    // SF.  This MUST be an ITransactionCompletedListener.  We
+                    // keep it as an IBinder due to consistency reasons: if we
+                    // interface_cast at the IPC boundary when reading a Parcel,
+                    // we get pointers that compare unequal in the SF process.
+                    interface_cast<ITransactionCompletedListener>(listenerStats.listener)
+                            ->onTransactionCompleted(listenerStats);
+                    listener->unlinkToDeath(mDeathRecipient);
                 }
                 completedTransactionsItr = mCompletedTransactions.erase(completedTransactionsItr);
             } else {
@@ -335,7 +339,7 @@ void TransactionCompletedThread::threadMain() {
 
 // -----------------------------------------------------------------------
 
-CallbackHandle::CallbackHandle(const sp<ITransactionCompletedListener>& transactionListener,
+CallbackHandle::CallbackHandle(const sp<IBinder>& transactionListener,
                                const std::vector<CallbackId>& ids, const sp<IBinder>& sc)
       : listener(transactionListener), callbackIds(ids), surfaceControl(sc) {}
 
