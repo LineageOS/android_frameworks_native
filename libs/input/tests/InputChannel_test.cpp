@@ -22,11 +22,12 @@
 #include <time.h>
 #include <errno.h>
 
+#include <binder/Binder.h>
 #include <gtest/gtest.h>
 #include <input/InputTransport.h>
-#include <utils/Timers.h>
 #include <utils/StopWatch.h>
 #include <utils/StrongPointer.h>
+#include <utils/Timers.h>
 
 namespace android {
 
@@ -43,20 +44,28 @@ TEST_F(InputChannelTest, ConstructorAndDestructor_TakesOwnershipOfFileDescriptor
     // of a pipe and to check for EPIPE on the other end after the channel is destroyed.
     Pipe pipe;
 
-    sp<InputChannel> inputChannel = new InputChannel("channel name", pipe.sendFd);
+    android::base::unique_fd sendFd(pipe.sendFd);
 
+    sp<InputChannel> inputChannel = InputChannel::create("channel name", std::move(sendFd));
+
+    EXPECT_NE(inputChannel, nullptr) << "channel should be successfully created";
     EXPECT_STREQ("channel name", inputChannel->getName().c_str())
             << "channel should have provided name";
-    EXPECT_EQ(pipe.sendFd, inputChannel->getFd())
-            << "channel should have provided fd";
+    EXPECT_NE(-1, inputChannel->getFd()) << "channel should have valid fd";
 
-    inputChannel.clear(); // destroys input channel
+    // InputChannel should be the owner of the file descriptor now
+    ASSERT_FALSE(sendFd.ok());
+}
 
-    EXPECT_EQ(-EPIPE, pipe.readSignal())
-            << "channel should have closed fd when destroyed";
+TEST_F(InputChannelTest, SetAndGetToken) {
+    Pipe pipe;
+    sp<InputChannel> channel =
+            InputChannel::create("test channel", android::base::unique_fd(pipe.sendFd));
+    EXPECT_EQ(channel->getToken(), nullptr);
 
-    // clean up fds of Pipe endpoints that were closed so we don't try to close them again
-    pipe.sendFd = -1;
+    sp<IBinder> token = new BBinder();
+    channel->setToken(token);
+    EXPECT_EQ(token, channel->getToken());
 }
 
 TEST_F(InputChannelTest, OpenInputChannelPair_ReturnsAPairOfConnectedChannels) {
