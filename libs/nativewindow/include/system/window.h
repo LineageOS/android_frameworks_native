@@ -93,7 +93,6 @@ enum {
      */
     NATIVE_WINDOW_CONCRETE_TYPE = 5,
 
-
     /*
      * Default width and height of ANativeWindow buffers, these are the
      * dimensions of the window buffers irrespective of the
@@ -240,6 +239,7 @@ enum {
     NATIVE_WINDOW_SET_BUFFERS_CTA861_3_METADATA   = 33,
     NATIVE_WINDOW_SET_BUFFERS_HDR10_PLUS_METADATA = 34,
     NATIVE_WINDOW_SET_AUTO_PREROTATION            = 35,
+    NATIVE_WINDOW_GET_LAST_DEQUEUE_START          = 36,    /* private */
     // clang-format on
 };
 
