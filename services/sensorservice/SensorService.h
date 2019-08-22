@@ -180,7 +180,7 @@ private:
             void onUidActive(uid_t uid);
             void onUidIdle(uid_t uid, bool disabled);
             void onUidStateChanged(uid_t uid __unused, int32_t procState __unused,
-                                   int64_t procStateSeq __unused) {}
+                                   int64_t procStateSeq __unused, int32_t capability __unused) {}
 
             void addOverrideUid(uid_t uid, bool active);
             void removeOverrideUid(uid_t uid);
