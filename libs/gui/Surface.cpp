@@ -1354,6 +1354,7 @@ int Surface::disconnect(int api, IGraphicBufferProducer::DisconnectMode mode) {
         mTransform = 0;
         mStickyTransform = 0;
         mAutoPrerotation = false;
+        mEnableFrameTimestamps = false;
 
         if (api == NATIVE_WINDOW_API_CPU) {
             mConnectedToCpu = false;
