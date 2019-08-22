@@ -1306,7 +1306,7 @@ void DestroySwapchainKHR(VkDevice device,
     bool active = swapchain->surface.swapchain_handle == swapchain_handle;
     ANativeWindow* window = active ? swapchain->surface.window.get() : nullptr;
 
-    if (swapchain->frame_timestamps_enabled) {
+    if (window && swapchain->frame_timestamps_enabled) {
         native_window_enable_frame_timestamps(window, false);
     }
     for (uint32_t i = 0; i < swapchain->num_images; i++)
