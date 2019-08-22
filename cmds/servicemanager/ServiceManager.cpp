@@ -67,7 +67,7 @@ bool isValidServiceName(const std::string& name) {
     if (name.size() > 127) return false;
 
     for (char c : name) {
-        if (c == '_' || c == '-' || c == '.') continue;
+        if (c == '_' || c == '-' || c == '.' || c == '/') continue;
         if (c >= 'a' && c <= 'z') continue;
         if (c >= 'A' && c <= 'Z') continue;
         if (c >= '0' && c <= '9') continue;
