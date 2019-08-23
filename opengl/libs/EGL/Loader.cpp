@@ -51,12 +51,6 @@ namespace android {
  *      /vendor/lib/egl/libGLESv1_CM.so
  *      /vendor/lib/egl/libGLESv2.so
  *
- * The software renderer for the emulator must be provided as a single
- * library at:
- *
- *      /system/lib/egl/libGLES_android.so
- *
- *
  * For backward compatibility and to facilitate the transition to
  * this new naming scheme, the loader will additionally look for:
  *
