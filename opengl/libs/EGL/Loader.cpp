@@ -51,12 +51,6 @@ namespace android {
  *      /vendor/lib/egl/libGLESv1_CM.so
  *      /vendor/lib/egl/libGLESv2.so
  *
- * The software renderer for the emulator must be provided as a single
- * library at:
- *
- *      /system/lib/egl/libGLES_android.so
- *
- *
  * For backward compatibility and to facilitate the transition to
  * this new naming scheme, the loader will additionally look for:
  *
@@ -146,38 +140,6 @@ static void* load_wrapper(const char* path) {
 #endif
 #endif
 
-static void setEmulatorGlesValue(void) {
-    char prop[PROPERTY_VALUE_MAX];
-    property_get("ro.kernel.qemu", prop, "0");
-    if (atoi(prop) != 1) return;
-
-    property_get("ro.kernel.qemu.gles",prop,"0");
-    if (atoi(prop) == 1) {
-        ALOGD("Emulator has host GPU support, qemu.gles is set to 1.");
-        property_set("qemu.gles", "1");
-        return;
-    }
-
-    // for now, checking the following
-    // directory is good enough for emulator system images
-    const char* vendor_lib_path =
-#if defined(__LP64__)
-        "/vendor/lib64/egl";
-#else
-        "/vendor/lib/egl";
-#endif
-
-    const bool has_vendor_lib = (access(vendor_lib_path, R_OK) == 0);
-    if (has_vendor_lib) {
-        ALOGD("Emulator has vendor provided software renderer, qemu.gles is set to 2.");
-        property_set("qemu.gles", "2");
-    } else {
-        ALOGD("Emulator without GPU support detected. "
-              "Fallback to legacy software renderer, qemu.gles is set to 0.");
-        property_set("qemu.gles", "0");
-    }
-}
-
 static const char* DRIVER_SUFFIX_PROPERTY = "ro.hardware.egl";
 
 static const char* HAL_SUBNAME_KEY_PROPERTIES[2] = {
@@ -259,8 +221,6 @@ void* Loader::open(egl_connection_t* cnx)
     if (cnx->dso) {
         return cnx->dso;
     }
-
-    setEmulatorGlesValue();
 
     // Check if we should use ANGLE early, so loading each driver doesn't require repeated queries.
     if (android::GraphicsEnv::getInstance().shouldUseAngle()) {
