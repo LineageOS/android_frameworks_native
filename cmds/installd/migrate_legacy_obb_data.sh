@@ -15,6 +15,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+rm -rf /sdcard/Android/obb/test_probe
+mkdir -p /sdcard/Android/obb/
+touch /sdcard/Android/obb/test_probe
+if ! test -f /data/media/0/Android/obb/test_probe ; then
+  log -p i -t migrate_legacy_obb_data "No support for 'unshared_obb'. Not migrating"
+  rm -rf /sdcard/Android/obb/test_probe
+  exit 0
+fi
+
+# Delete the test file, and remove the obb folder if it is empty
+rm -rf /sdcard/Android/obb/test_probe
+rmdir /data/media/obb
+
 if ! test -d /data/media/obb ; then
   log -p i -t migrate_legacy_obb_data "No legacy obb data to migrate."
   exit 0

@@ -575,10 +575,11 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
             float applyCornerRadius(vec2 cropCoords)
             {
                 vec2 position = cropCoords - cropCenter;
-                // Increase precision here so that a large corner radius doesn't
-                // cause floating point error
-                highp vec2 dist = abs(position) + vec2(cornerRadius) - cropCenter;
-                float plane = length(max(dist, vec2(0.0)));
+                // Scale down the dist vector here, as otherwise large corner
+                // radii can cause floating point issues when computing the norm
+                vec2 dist = (abs(position) - cropCenter + vec2(cornerRadius)) / 16.0;
+                // Once we've found the norm, then scale back up.
+                float plane = length(max(dist, vec2(0.0))) * 16.0;
                 return 1.0 - clamp(plane - cornerRadius, 0.0, 1.0);
             }
             )__SHADER__";
