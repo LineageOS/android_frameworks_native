@@ -48,4 +48,13 @@ int ANativeWindow_getLastQueueDuration(ANativeWindow* window);
  */
 int64_t ANativeWindow_getLastDequeueStartTime(ANativeWindow* window);
 
+/**
+ * Sets a timeout in nanoseconds for dequeue calls. All subsequent dequeue calls
+ * made by the window will return -ETIMEDOUT after the timeout if the dequeue
+ * takes too long.
+ *
+ * \return NO_ERROR on succes, -errno on error.
+ */
+int ANativeWindow_setDequeueTimeout(ANativeWindow* window, int64_t timeout);
+
 __END_DECLS

@@ -284,3 +284,7 @@ int64_t ANativeWindow_getLastDequeueStartTime(ANativeWindow* window) {
     int success = window->perform(window, NATIVE_WINDOW_GET_LAST_DEQUEUE_START, &time);
     return success < 0 ? success : time;
 }
+
+int ANativeWindow_setDequeueTimeout(ANativeWindow* window, int64_t timeout) {
+    return window->perform(window, NATIVE_WINDOW_SET_DEQUEUE_TIMEOUT, timeout);
+}
