@@ -197,8 +197,14 @@ status_t TransactionCompletedThread::addCallbackHandle(const sp<CallbackHandle>&
     }
 
     transactionStats->latchTime = handle->latchTime;
-    transactionStats->surfaceStats.emplace_back(handle->surfaceControl, handle->acquireTime,
-                                                handle->previousReleaseFence);
+    // If the layer has already been destroyed, don't add the SurfaceControl to the callback.
+    // The client side keeps a sp<> to the SurfaceControl so if the SurfaceControl has been
+    // destroyed the client side is dead and there won't be anyone to send the callback to.
+    sp<IBinder> surfaceControl = handle->surfaceControl.promote();
+    if (surfaceControl) {
+        transactionStats->surfaceStats.emplace_back(surfaceControl, handle->acquireTime,
+                                                    handle->previousReleaseFence);
+    }
     return NO_ERROR;
 }
 
