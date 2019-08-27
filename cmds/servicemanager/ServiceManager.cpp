@@ -25,6 +25,13 @@ using ::android::binder::Status;
 namespace android {
 
 ServiceManager::ServiceManager(std::unique_ptr<Access>&& access) : mAccess(std::move(access)) {}
+ServiceManager::~ServiceManager() {
+    // this should only happen in tests
+
+    for (const auto& [name, service] : mNameToService) {
+        CHECK(service.binder != nullptr) << name;
+    }
+}
 
 Status ServiceManager::getService(const std::string& name, sp<IBinder>* outBinder) {
     // Servicemanager is single-threaded and cannot block. This method exists for legacy reasons.
