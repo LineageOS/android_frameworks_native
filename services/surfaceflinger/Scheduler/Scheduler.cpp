@@ -268,10 +268,6 @@ void Scheduler::VsyncState::resync(const GetVsyncPeriod& getVsyncPeriod) {
     }
 }
 
-void Scheduler::setRefreshSkipCount(int count) {
-    mPrimaryDispSync->setRefreshSkipCount(count);
-}
-
 void Scheduler::setVsyncPeriod(nsecs_t period) {
     std::lock_guard<std::mutex> lock(mHWVsyncLock);
     mPrimaryDispSync->setPeriod(period);

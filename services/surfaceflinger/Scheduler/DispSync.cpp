@@ -617,13 +617,6 @@ status_t DispSync::addEventListener(const char* name, nsecs_t phase, Callback* c
     return mThread->addEventListener(name, phase, callback, lastCallbackTime);
 }
 
-void DispSync::setRefreshSkipCount(int count) {
-    Mutex::Autolock lock(mMutex);
-    ALOGD("setRefreshSkipCount(%d)", count);
-    mRefreshSkipCount = count;
-    updateModelLocked();
-}
-
 status_t DispSync::removeEventListener(Callback* callback, nsecs_t* outLastCallbackTime) {
     Mutex::Autolock lock(mMutex);
     return mThread->removeEventListener(callback, outLastCallbackTime);
@@ -706,9 +699,6 @@ void DispSync::updateModelLocked() {
             ALOGV("[%s] Adjusting mPhase -> %" PRId64, mName, ns2us(mPhase));
         }
 
-        // Artificially inflate the period if requested.
-        mPeriod += mPeriod * mRefreshSkipCount;
-
         mThread->updateModel(mPeriod, mPhase, mReferenceTime);
         mModelUpdated = true;
     }
@@ -718,10 +708,6 @@ void DispSync::updateErrorLocked() {
     if (!mModelUpdated) {
         return;
     }
-
-    // Need to compare present fences against the un-adjusted refresh period,
-    // since they might arrive between two events.
-    nsecs_t period = mPeriod / (1 + mRefreshSkipCount);
 
     int numErrSamples = 0;
     nsecs_t sqErrSum = 0;
@@ -741,9 +727,9 @@ void DispSync::updateErrorLocked() {
             continue;
         }
 
-        nsecs_t sampleErr = (sample - mPhase) % period;
-        if (sampleErr > period / 2) {
-            sampleErr -= period;
+        nsecs_t sampleErr = (sample - mPhase) % mPeriod;
+        if (sampleErr > mPeriod / 2) {
+            sampleErr -= mPeriod;
         }
         sqErrSum += sampleErr * sampleErr;
         numErrSamples++;
@@ -798,8 +784,7 @@ void DispSync::setIgnorePresentFences(bool ignore) {
 void DispSync::dump(std::string& result) const {
     Mutex::Autolock lock(mMutex);
     StringAppendF(&result, "present fences are %s\n", mIgnorePresentFences ? "ignored" : "used");
-    StringAppendF(&result, "mPeriod: %" PRId64 " ns (%.3f fps; skipCount=%d)\n", mPeriod,
-                  1000000000.0 / mPeriod, mRefreshSkipCount);
+    StringAppendF(&result, "mPeriod: %" PRId64 " ns (%.3f fps)\n", mPeriod, 1000000000.0 / mPeriod);
     StringAppendF(&result, "mPhase: %" PRId64 " ns\n", mPhase);
     StringAppendF(&result, "mError: %" PRId64 " ns (sqrt=%.1f)\n", mError, sqrt(mError));
     StringAppendF(&result, "mNumResyncSamplesSincePresent: %d (limit %d)\n",

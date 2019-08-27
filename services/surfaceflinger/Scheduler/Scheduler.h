@@ -94,7 +94,6 @@ public:
     // DispSync detected that the vsync period changed, and false otherwise.
     void addResyncSample(nsecs_t timestamp, bool* periodFlushed);
     void addPresentFence(const std::shared_ptr<FenceTime>&);
-    void setRefreshSkipCount(int count);
     void setIgnorePresentFences(bool ignore);
     nsecs_t getDispSyncExpectedPresentTime();
     // Registers the layer in the scheduler, and returns the handle for future references.

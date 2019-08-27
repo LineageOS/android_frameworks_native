@@ -53,7 +53,6 @@ public:
     virtual void endResync() = 0;
     virtual void setPeriod(nsecs_t period) = 0;
     virtual nsecs_t getPeriod() = 0;
-    virtual void setRefreshSkipCount(int count) = 0;
     virtual status_t addEventListener(const char* name, nsecs_t phase, Callback* callback,
                                       nsecs_t lastCallbackTime) = 0;
     virtual status_t removeEventListener(Callback* callback, nsecs_t* outLastCallback) = 0;
@@ -136,12 +135,6 @@ public:
 
     // The getPeriod method returns the current vsync period.
     nsecs_t getPeriod() override;
-
-    // setRefreshSkipCount specifies an additional number of refresh
-    // cycles to skip.  For example, on a 60Hz display, a skip count of 1
-    // will result in events happening at 30Hz.  Default is zero.  The idea
-    // is to sacrifice smoothness for battery life.
-    void setRefreshSkipCount(int count) override;
 
     // addEventListener registers a callback to be called repeatedly at the
     // given phase offset from the hardware vsync events.  The callback is
@@ -250,8 +243,6 @@ private:
     // to validate the currently computed model.
     std::shared_ptr<FenceTime> mPresentFences[NUM_PRESENT_SAMPLES]{FenceTime::NO_FENCE};
     size_t mPresentSampleOffset;
-
-    int mRefreshSkipCount = 0;
 
     // mThread is the thread from which all the callbacks are called.
     sp<DispSyncThread> mThread;
