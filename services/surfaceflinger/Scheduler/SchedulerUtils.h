@@ -22,13 +22,23 @@
 #include <unordered_map>
 #include <vector>
 
-namespace android {
-namespace scheduler {
-using namespace std::chrono_literals;
+namespace android::scheduler {
 
-// This number is used to set the size of the arrays in scheduler that hold information
-// about layers.
-static constexpr size_t ARRAY_SIZE = 30;
+// Opaque handle to scheduler connection.
+struct ConnectionHandle {
+    using Id = std::uintptr_t;
+    static constexpr Id INVALID_ID = static_cast<Id>(-1);
+
+    Id id = INVALID_ID;
+
+    explicit operator bool() const { return id != INVALID_ID; }
+};
+
+inline bool operator==(ConnectionHandle lhs, ConnectionHandle rhs) {
+    return lhs.id == rhs.id;
+}
+
+using namespace std::chrono_literals;
 
 // This number is used to have a place holder for when the screen is not NORMAL/ON. Currently
 // the config is not visible to SF, and is completely maintained by HWC. However, we would
@@ -80,5 +90,15 @@ auto calculate_mode(const T& v) {
     return static_cast<int>(std::max_element(counts.begin(), counts.end(), compareCounts)->first);
 }
 
-} // namespace scheduler
-} // namespace android
+} // namespace android::scheduler
+
+namespace std {
+
+template <>
+struct hash<android::scheduler::ConnectionHandle> {
+    size_t operator()(android::scheduler::ConnectionHandle handle) const {
+        return hash<android::scheduler::ConnectionHandle::Id>()(handle.id);
+    }
+};
+
+} // namespace std

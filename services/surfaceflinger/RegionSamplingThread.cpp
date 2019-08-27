@@ -21,15 +21,18 @@
 
 #include "RegionSamplingThread.h"
 
-#include <cutils/properties.h>
-#include <gui/IRegionSamplingListener.h>
-#include <utils/Trace.h>
-#include <string>
-
 #include <compositionengine/Display.h>
 #include <compositionengine/impl/OutputCompositionState.h>
+#include <cutils/properties.h>
+#include <gui/IRegionSamplingListener.h>
+#include <ui/DisplayStatInfo.h>
+#include <utils/Trace.h>
+
+#include <string>
+
 #include "DisplayDevice.h"
 #include "Layer.h"
+#include "Scheduler/DispSync.h"
 #include "SurfaceFlinger.h"
 
 namespace android {
@@ -105,9 +108,8 @@ struct SamplingOffsetCallback : DispSync::Callback {
         if (mVsyncListening) return;
 
         mPhaseIntervalSetting = Phase::ZERO;
-        mScheduler.withPrimaryDispSync([this](android::DispSync& sync) {
-            sync.addEventListener("SamplingThreadDispSyncListener", 0, this, mLastCallbackTime);
-        });
+        mScheduler.getPrimaryDispSync().addEventListener("SamplingThreadDispSyncListener", 0, this,
+                                                         mLastCallbackTime);
         mVsyncListening = true;
     }
 
@@ -120,9 +122,7 @@ private:
     void stopVsyncListenerLocked() /*REQUIRES(mMutex)*/ {
         if (!mVsyncListening) return;
 
-        mScheduler.withPrimaryDispSync([this](android::DispSync& sync) {
-            sync.removeEventListener(this, &mLastCallbackTime);
-        });
+        mScheduler.getPrimaryDispSync().removeEventListener(this, &mLastCallbackTime);
         mVsyncListening = false;
     }
 
@@ -132,16 +132,13 @@ private:
         if (mPhaseIntervalSetting == Phase::ZERO) {
             ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::waitForSamplePhase));
             mPhaseIntervalSetting = Phase::SAMPLING;
-            mScheduler.withPrimaryDispSync([this](android::DispSync& sync) {
-                sync.changePhaseOffset(this, mTargetSamplingOffset.count());
-            });
+            mScheduler.getPrimaryDispSync().changePhaseOffset(this, mTargetSamplingOffset.count());
             return;
         }
 
         if (mPhaseIntervalSetting == Phase::SAMPLING) {
             mPhaseIntervalSetting = Phase::ZERO;
-            mScheduler.withPrimaryDispSync(
-                    [this](android::DispSync& sync) { sync.changePhaseOffset(this, 0); });
+            mScheduler.getPrimaryDispSync().changePhaseOffset(this, 0);
             stopVsyncListenerLocked();
             lock.unlock();
             mRegionSamplingThread.notifySamplingOffset();

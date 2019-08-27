@@ -31,7 +31,7 @@ EventControlThread::~EventControlThread() = default;
 namespace impl {
 
 EventControlThread::EventControlThread(EventControlThread::SetVSyncEnabledFunction function)
-      : mSetVSyncEnabled(function) {
+      : mSetVSyncEnabled(std::move(function)) {
     pthread_setname_np(mThread.native_handle(), "EventControlThread");
 
     pid_t tid = pthread_gettid_np(mThread.native_handle());

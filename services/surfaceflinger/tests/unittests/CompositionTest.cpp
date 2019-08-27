@@ -124,7 +124,16 @@ public:
         auto sfEventThread = std::make_unique<mock::EventThread>();
 
         EXPECT_CALL(*eventThread, registerDisplayEventConnection(_));
+        EXPECT_CALL(*eventThread, createEventConnection(_, _))
+                .WillOnce(Return(
+                        new EventThreadConnection(eventThread.get(), ResyncCallback(),
+                                                  ISurfaceComposer::eConfigChangedSuppress)));
+
         EXPECT_CALL(*sfEventThread, registerDisplayEventConnection(_));
+        EXPECT_CALL(*sfEventThread, createEventConnection(_, _))
+                .WillOnce(Return(
+                        new EventThreadConnection(sfEventThread.get(), ResyncCallback(),
+                                                  ISurfaceComposer::eConfigChangedSuppress)));
 
         auto primaryDispSync = std::make_unique<mock::DispSync>();
 

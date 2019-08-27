@@ -16,16 +16,23 @@
 
 #pragma once
 
+#include <android-base/stringprintf.h>
+
 #include <algorithm>
 #include <numeric>
-
-#include "android-base/stringprintf.h"
+#include <type_traits>
 
 #include "DisplayHardware/HWComposer.h"
 #include "Scheduler/SchedulerUtils.h"
 
-namespace android {
-namespace scheduler {
+namespace android::scheduler {
+
+enum class RefreshRateConfigEvent : unsigned { None = 0b0, Changed = 0b1 };
+
+inline RefreshRateConfigEvent operator|(RefreshRateConfigEvent lhs, RefreshRateConfigEvent rhs) {
+    using T = std::underlying_type_t<RefreshRateConfigEvent>;
+    return static_cast<RefreshRateConfigEvent>(static_cast<T>(lhs) | static_cast<T>(rhs));
+}
 
 /**
  * This class is used to encapsulate configuration for refresh rates. It holds information
@@ -134,5 +141,4 @@ private:
     std::map<RefreshRateType, std::shared_ptr<RefreshRate>> mRefreshRates;
 };
 
-} // namespace scheduler
-} // namespace android
+} // namespace android::scheduler
