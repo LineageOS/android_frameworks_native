@@ -290,7 +290,7 @@ public:
         std::unordered_set<sp<SurfaceControl>, SCHash> surfaceControls;
     };
 
-    class Transaction : Parcelable {
+    class Transaction : public Parcelable {
         std::unordered_map<sp<IBinder>, ComposerState, IBinderHash> mComposerStates;
         SortedVector<DisplayState > mDisplayStates;
         std::unordered_map<sp<ITransactionCompletedListener>, CallbackInfo, TCLHash>
