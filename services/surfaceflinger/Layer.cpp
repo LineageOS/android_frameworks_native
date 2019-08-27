@@ -57,6 +57,7 @@
 #include "Colorizer.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWComposer.h"
+#include "FrameTracer/FrameTracer.h"
 #include "LayerProtoHelper.h"
 #include "LayerRejecter.h"
 #include "MonitoredProducer.h"
@@ -1343,7 +1344,9 @@ void Layer::dumpFrameEvents(std::string& result) {
 void Layer::onDisconnect() {
     Mutex::Autolock lock(mFrameEventHistoryMutex);
     mFrameEventHistory.onDisconnect();
-    mFlinger->mTimeStats->onDestroy(getSequence());
+    const int32_t layerID = getSequence();
+    mFlinger->mTimeStats->onDestroy(layerID);
+    mFlinger->mFrameTracer->onDestroy(layerID);
 }
 
 void Layer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,

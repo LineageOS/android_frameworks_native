@@ -30,140 +30,9 @@
 #include <algorithm>
 #include <regex>
 
-PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(android::impl::TimeStats::TimeStatsDataSource);
-
 namespace android {
 
 namespace impl {
-
-void TimeStats::initializeTracing() {
-    perfetto::TracingInitArgs args;
-    args.backends = perfetto::kSystemBackend;
-    perfetto::Tracing::Initialize(args);
-    registerTracingDataSource();
-}
-
-void TimeStats::registerTracingDataSource() {
-    perfetto::DataSourceDescriptor dsd;
-    dsd.set_name(kTimeStatsDataSource);
-    TimeStatsDataSource::Register(dsd);
-}
-
-void TimeStats::traceNewLayer(int32_t layerID, const std::string& layerName) {
-    TimeStatsDataSource::Trace([this, layerID, &layerName](TimeStatsDataSource::TraceContext) {
-        if (mTraceTracker.find(layerID) == mTraceTracker.end()) {
-            std::lock_guard<std::mutex> lock(mTraceMutex);
-            mTraceTracker[layerID].layerName = layerName;
-        }
-    });
-}
-
-void TimeStats::traceTimestamp(int32_t layerID, uint64_t bufferID, uint64_t frameNumber,
-                               nsecs_t timestamp, FrameEvent::BufferEventType type,
-                               nsecs_t duration) {
-    TimeStatsDataSource::Trace([this, layerID, bufferID, frameNumber, timestamp, type,
-                                duration](TimeStatsDataSource::TraceContext ctx) {
-        std::lock_guard<std::mutex> lock(mTraceMutex);
-        if (mTraceTracker.find(layerID) == mTraceTracker.end()) {
-            return;
-        }
-
-        // Handle any pending fences for this buffer.
-        tracePendingFencesLocked(ctx, layerID, bufferID);
-
-        // Complete current trace.
-        traceLocked(ctx, layerID, bufferID, frameNumber, timestamp, type, duration);
-    });
-}
-
-void TimeStats::traceFence(int32_t layerID, uint64_t bufferID, uint64_t frameNumber,
-                           const std::shared_ptr<FenceTime>& fence,
-                           FrameEvent::BufferEventType type, nsecs_t startTime) {
-    TimeStatsDataSource::Trace([this, layerID, bufferID, frameNumber, &fence, type,
-                                startTime](TimeStatsDataSource::TraceContext ctx) {
-        const nsecs_t signalTime = fence->getSignalTime();
-        if (signalTime != Fence::SIGNAL_TIME_INVALID) {
-            std::lock_guard<std::mutex> lock(mTraceMutex);
-            if (mTraceTracker.find(layerID) == mTraceTracker.end()) {
-                return;
-            }
-
-            // Handle any pending fences for this buffer.
-            tracePendingFencesLocked(ctx, layerID, bufferID);
-
-            if (signalTime != Fence::SIGNAL_TIME_PENDING) {
-                traceSpanLocked(ctx, layerID, bufferID, frameNumber, type, startTime, signalTime);
-            } else {
-                mTraceTracker[layerID].pendingFences[bufferID].push_back(
-                        {.frameNumber = frameNumber,
-                         .type = type,
-                         .fence = fence,
-                         .startTime = startTime});
-            }
-        }
-    });
-}
-
-void TimeStats::tracePendingFencesLocked(TimeStatsDataSource::TraceContext& ctx, int32_t layerID,
-                                         uint64_t bufferID) {
-    if (mTraceTracker[layerID].pendingFences.count(bufferID)) {
-        auto& pendingFences = mTraceTracker[layerID].pendingFences[bufferID];
-        for (size_t i = 0; i < pendingFences.size(); ++i) {
-            auto& pendingFence = pendingFences[i];
-
-            nsecs_t signalTime = Fence::SIGNAL_TIME_INVALID;
-            if (pendingFence.fence && pendingFence.fence->isValid()) {
-                signalTime = pendingFence.fence->getSignalTime();
-                if (signalTime == Fence::SIGNAL_TIME_PENDING) {
-                    continue;
-                }
-            }
-
-            if (signalTime != Fence::SIGNAL_TIME_INVALID &&
-                systemTime() - signalTime < kFenceSignallingDeadline) {
-                traceSpanLocked(ctx, layerID, bufferID, pendingFence.frameNumber, pendingFence.type,
-                                pendingFence.startTime, signalTime);
-            }
-
-            pendingFences.erase(pendingFences.begin() + i);
-            --i;
-        }
-    }
-}
-
-void TimeStats::traceLocked(TimeStatsDataSource::TraceContext& ctx, int32_t layerID,
-                            uint64_t bufferID, uint64_t frameNumber, nsecs_t timestamp,
-                            FrameEvent::BufferEventType type, nsecs_t duration) {
-    auto packet = ctx.NewTracePacket();
-    packet->set_timestamp(timestamp);
-    auto* event = packet->set_graphics_frame_event()->set_buffer_event();
-    event->set_buffer_id(static_cast<uint32_t>(bufferID));
-    event->set_frame_number(frameNumber);
-    event->set_type(type);
-
-    if (mTraceTracker.find(layerID) != mTraceTracker.end() &&
-        !mTraceTracker[layerID].layerName.empty()) {
-        const std::string& layerName = mTraceTracker[layerID].layerName;
-        event->set_layer_name(layerName.c_str(), layerName.size());
-    }
-
-    if (duration > 0) {
-        event->set_duration_ns(duration);
-    }
-}
-
-void TimeStats::traceSpanLocked(TimeStatsDataSource::TraceContext& ctx, int32_t layerID,
-                                uint64_t bufferID, uint64_t frameNumber,
-                                FrameEvent::BufferEventType type, nsecs_t startTime,
-                                nsecs_t endTime) {
-    nsecs_t timestamp = endTime;
-    nsecs_t duration = 0;
-    if (startTime > 0 && startTime < endTime) {
-        timestamp = startTime;
-        duration = endTime - startTime;
-    }
-    traceLocked(ctx, layerID, bufferID, frameNumber, timestamp, type, duration);
-}
 
 void TimeStats::parseArgs(bool asProto, const Vector<String16>& args, std::string& result) {
     ATRACE_CALL();
@@ -207,8 +76,6 @@ std::string TimeStats::miniDump() {
                                  mTimeStatsTracker.size());
     android::base::StringAppendF(&result, "Number of layers in the stats pool is %zu\n",
                                  mTimeStats.stats.size());
-    android::base::StringAppendF(&result, "Number of layers currently being traced is %zu\n",
-                                 mTraceTracker.size());
     return result;
 }
 
@@ -542,15 +409,8 @@ void TimeStats::setPresentFence(int32_t layerID, uint64_t frameNumber,
 void TimeStats::onDestroy(int32_t layerID) {
     ATRACE_CALL();
     ALOGV("[%d]-onDestroy", layerID);
-    {
-        std::lock_guard<std::mutex> lock(mMutex);
-        mTimeStatsTracker.erase(layerID);
-    }
-
-    {
-        std::lock_guard<std::mutex> traceLock(mTraceMutex);
-        mTraceTracker.erase(layerID);
-    }
+    std::lock_guard<std::mutex> lock(mMutex);
+    mTimeStatsTracker.erase(layerID);
 }
 
 void TimeStats::removeTimeRecord(int32_t layerID, uint64_t frameNumber) {
