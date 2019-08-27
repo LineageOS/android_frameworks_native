@@ -24,7 +24,7 @@
 
 namespace {
 
-std::optional<int> getProperty(const char* name) {
+std::optional<nsecs_t> getProperty(const char* name) {
     char value[PROPERTY_VALUE_MAX];
     property_get(name, value, "-1");
     if (const int i = atoi(value); i != -1) return i;
