@@ -87,6 +87,14 @@ void BufferStateLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
             break;
         }
     }
+
+    // Prevent tracing the same release multiple times.
+    if (mPreviousFrameNumber != mPreviousReleasedFrameNumber) {
+        mFlinger->mTimeStats->traceFence(getSequence(), mPreviousBufferId, mPreviousFrameNumber,
+                                         std::make_shared<FenceTime>(releaseFence),
+                                         TimeStats::FrameEvent::RELEASE_FENCE);
+        mPreviousReleasedFrameNumber = mPreviousFrameNumber;
+    }
 }
 
 void BufferStateLayer::setTransformHint(uint32_t /*orientation*/) const {
@@ -226,7 +234,11 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, nsecs_t postTi
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
 
-    mFlinger->mTimeStats->setPostTime(getSequence(), mFrameNumber, getName().c_str(), postTime);
+    const int32_t layerID = getSequence();
+    mFlinger->mTimeStats->setPostTime(layerID, mFrameNumber, getName().c_str(), postTime);
+    mFlinger->mTimeStats->traceNewLayer(layerID, getName().c_str());
+    mFlinger->mTimeStats->traceTimestamp(layerID, buffer->getId(), mFrameNumber, postTime,
+                                         TimeStats::FrameEvent::POST);
     mCurrentState.desiredPresentTime = desiredPresentTime;
 
     if (mFlinger->mUseSmart90ForVideo) {
@@ -561,8 +573,13 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         }
     }
 
+    const uint64_t bufferID = getCurrentBufferId();
     mFlinger->mTimeStats->setAcquireFence(layerID, mFrameNumber, getCurrentFenceTime());
+    mFlinger->mTimeStats->traceFence(layerID, bufferID, mFrameNumber, getCurrentFenceTime(),
+                                     TimeStats::FrameEvent::ACQUIRE_FENCE);
     mFlinger->mTimeStats->setLatchTime(layerID, mFrameNumber, latchTime);
+    mFlinger->mTimeStats->traceTimestamp(layerID, bufferID, mFrameNumber, latchTime,
+                                         TimeStats::FrameEvent::LATCH);
 
     mCurrentStateModified = false;
 
@@ -576,6 +593,7 @@ status_t BufferStateLayer::updateActiveBuffer() {
         return BAD_VALUE;
     }
 
+    mPreviousBufferId = getCurrentBufferId();
     mActiveBuffer = s.buffer;
     mActiveBufferFence = s.acquireFence;
     auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
@@ -586,6 +604,7 @@ status_t BufferStateLayer::updateActiveBuffer() {
 
 status_t BufferStateLayer::updateFrameNumber(nsecs_t /*latchTime*/) {
     // TODO(marissaw): support frame history events
+    mPreviousFrameNumber = mCurrentFrameNumber;
     mCurrentFrameNumber = mFrameNumber;
     return NO_ERROR;
 }

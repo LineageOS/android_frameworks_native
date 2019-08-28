@@ -513,6 +513,8 @@ void SurfaceFlinger::bootFinished()
     const nsecs_t duration = now - mBootTime;
     ALOGI("Boot is finished (%ld ms)", long(ns2ms(duration)) );
 
+    mTimeStats->initializeTracing();
+
     // wait patiently for the window manager death
     const String16 name("window");
     mWindowManager = defaultServiceManager()->getService(name);

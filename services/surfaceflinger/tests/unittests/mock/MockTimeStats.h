@@ -28,6 +28,14 @@ public:
     TimeStats();
     ~TimeStats() override;
 
+    MOCK_METHOD0(initializeTracing, void());
+    MOCK_METHOD0(registerTracingDataSource, void());
+    MOCK_METHOD2(traceNewLayer, void(int32_t, const std::string&));
+    MOCK_METHOD6(traceTimestamp,
+                 void(int32_t, uint64_t, uint64_t, nsecs_t, FrameEvent::BufferEventType, nsecs_t));
+    MOCK_METHOD6(traceFence,
+                 void(int32_t, uint64_t, uint64_t, const std::shared_ptr<FenceTime>&,
+                      FrameEvent::BufferEventType, nsecs_t));
     MOCK_METHOD3(parseArgs, void(bool, const Vector<String16>&, std::string&));
     MOCK_METHOD0(isEnabled, bool());
     MOCK_METHOD0(miniDump, std::string());

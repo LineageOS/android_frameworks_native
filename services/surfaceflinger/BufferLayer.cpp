@@ -314,12 +314,17 @@ bool BufferLayer::onPostComposition(const std::optional<DisplayId>& displayId,
 
     if (presentFence->isValid()) {
         mFlinger->mTimeStats->setPresentFence(layerID, mCurrentFrameNumber, presentFence);
+        mFlinger->mTimeStats->traceFence(layerID, getCurrentBufferId(), mCurrentFrameNumber,
+                                         presentFence, TimeStats::FrameEvent::PRESENT_FENCE);
         mFrameTracker.setActualPresentFence(std::shared_ptr<FenceTime>(presentFence));
     } else if (displayId && mFlinger->getHwComposer().isConnected(*displayId)) {
         // The HWC doesn't support present fences, so use the refresh
         // timestamp instead.
         const nsecs_t actualPresentTime = mFlinger->getHwComposer().getRefreshTimestamp(*displayId);
         mFlinger->mTimeStats->setPresentTime(layerID, mCurrentFrameNumber, actualPresentTime);
+        mFlinger->mTimeStats->traceTimestamp(layerID, getCurrentBufferId(), mCurrentFrameNumber,
+                                             actualPresentTime,
+                                             TimeStats::FrameEvent::PRESENT_FENCE);
         mFrameTracker.setActualPresentTime(actualPresentTime);
     }
 
