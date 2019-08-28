@@ -37,7 +37,7 @@ public:
 
     // Used to inject mock event thread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread> eventThread) {
-        return Scheduler::createConnection(std::move(eventThread), ResyncCallback());
+        return Scheduler::createConnection(std::move(eventThread));
     }
 
     /* ------------------------------------------------------------------------

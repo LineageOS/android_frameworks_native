@@ -40,12 +40,6 @@ inline bool operator==(ConnectionHandle lhs, ConnectionHandle rhs) {
 
 using namespace std::chrono_literals;
 
-// This number is used to have a place holder for when the screen is not NORMAL/ON. Currently
-// the config is not visible to SF, and is completely maintained by HWC. However, we would
-// still like to keep track of time when the device is in this config.
-static constexpr int SCREEN_OFF_CONFIG_ID = -1;
-static constexpr uint32_t HWC2_SCREEN_OFF_CONFIG_ID = 0xffffffff;
-
 // This number is used when we try to determine how long do we keep layer information around
 // before we remove it. It is also used to determine how long the layer stays relevant.
 // This time period captures infrequent updates when playing YouTube video with static image,

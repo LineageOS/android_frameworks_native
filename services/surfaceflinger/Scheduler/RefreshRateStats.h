@@ -41,19 +41,16 @@ class RefreshRateStats {
     static constexpr int64_t MS_PER_DAY = 24 * MS_PER_HOUR;
 
 public:
-    RefreshRateStats(const RefreshRateConfigs& refreshRateConfigs, TimeStats& timeStats)
-          : mRefreshRateConfigs(refreshRateConfigs), mTimeStats(timeStats) {}
+    RefreshRateStats(const RefreshRateConfigs& refreshRateConfigs, TimeStats& timeStats,
+                     int currentConfigMode, int currentPowerMode)
+          : mRefreshRateConfigs(refreshRateConfigs),
+            mTimeStats(timeStats),
+            mCurrentConfigMode(currentConfigMode),
+            mCurrentPowerMode(currentPowerMode) {}
 
-    // Sets power mode. We only collect the information when the power mode is not
-    // HWC_POWER_MODE_NORMAL. When power mode is HWC_POWER_MODE_NORMAL, we collect the stats based
-    // on config mode.
+    // Sets power mode.
     void setPowerMode(int mode) {
         if (mCurrentPowerMode == mode) {
-            return;
-        }
-        // If power mode is normal, the time is going to be recorded under config modes.
-        if (mode == HWC_POWER_MODE_NORMAL) {
-            mCurrentPowerMode = mode;
             return;
         }
         flushTime();
@@ -79,16 +76,15 @@ public:
         flushTime();
 
         std::unordered_map<std::string, int64_t> totalTime;
-        for (const auto& [type, config] : mRefreshRateConfigs.getRefreshRates()) {
-            int64_t totalTimeForConfig = 0;
-            if (!config) {
-                continue;
-            }
-            if (mConfigModesTotalTime.find(config->configId) != mConfigModesTotalTime.end()) {
-                totalTimeForConfig = mConfigModesTotalTime.at(config->configId);
-            }
-            totalTime[config->name] = totalTimeForConfig;
+        // Multiple configs may map to the same name, e.g. "60fps". Add the
+        // times for such configs together.
+        for (const auto& [config, time] : mConfigModesTotalTime) {
+            totalTime[mRefreshRateConfigs.getRefreshRateFromConfigId(config).name] = 0;
         }
+        for (const auto& [config, time] : mConfigModesTotalTime) {
+            totalTime[mRefreshRateConfigs.getRefreshRateFromConfigId(config).name] += time;
+        }
+        totalTime["ScreenOff"] = mScreenOffTime;
         return totalTime;
     }
 
@@ -104,32 +100,26 @@ public:
     }
 
 private:
-    void flushTime() {
-        // Normal power mode is counted under different config modes.
-        if (mCurrentPowerMode == HWC_POWER_MODE_NORMAL) {
-            flushTimeForMode(mCurrentConfigMode);
-        } else {
-            flushTimeForMode(SCREEN_OFF_CONFIG_ID);
-        }
-    }
-
     // Calculates the time that passed in ms between the last time we recorded time and the time
     // this method was called.
-    void flushTimeForMode(int mode) {
+    void flushTime() {
         nsecs_t currentTime = systemTime();
         nsecs_t timeElapsed = currentTime - mPreviousRecordedTime;
         int64_t timeElapsedMs = ns2ms(timeElapsed);
         mPreviousRecordedTime = currentTime;
 
-        mConfigModesTotalTime[mode] += timeElapsedMs;
-        for (const auto& [type, config] : mRefreshRateConfigs.getRefreshRates()) {
-            if (!config) {
-                continue;
+        uint32_t fps = 0;
+        if (mCurrentPowerMode == HWC_POWER_MODE_NORMAL) {
+            // Normal power mode is counted under different config modes.
+            if (mConfigModesTotalTime.find(mCurrentConfigMode) == mConfigModesTotalTime.end()) {
+                mConfigModesTotalTime[mCurrentConfigMode] = 0;
             }
-            if (config->configId == mode) {
-                mTimeStats.recordRefreshRate(config->fps, timeElapsed);
-            }
+            mConfigModesTotalTime[mCurrentConfigMode] += timeElapsedMs;
+            fps = mRefreshRateConfigs.getRefreshRateFromConfigId(mCurrentConfigMode).fps;
+        } else {
+            mScreenOffTime += timeElapsedMs;
         }
+        mTimeStats.recordRefreshRate(fps, timeElapsed);
     }
 
     // Formats the time in milliseconds into easy to read format.
@@ -149,10 +139,11 @@ private:
     // Aggregate refresh rate statistics for telemetry.
     TimeStats& mTimeStats;
 
-    int64_t mCurrentConfigMode = SCREEN_OFF_CONFIG_ID;
-    int32_t mCurrentPowerMode = HWC_POWER_MODE_OFF;
+    int mCurrentConfigMode;
+    int32_t mCurrentPowerMode;
 
-    std::unordered_map<int /* power mode */, int64_t /* duration in ms */> mConfigModesTotalTime;
+    std::unordered_map<int /* config */, int64_t /* duration in ms */> mConfigModesTotalTime;
+    int64_t mScreenOffTime = 0;
 
     nsecs_t mPreviousRecordedTime = systemTime();
 };

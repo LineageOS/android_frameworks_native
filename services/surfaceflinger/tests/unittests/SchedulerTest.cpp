@@ -9,6 +9,7 @@
 
 #include "Scheduler/EventControlThread.h"
 #include "Scheduler/EventThread.h"
+#include "Scheduler/RefreshRateConfigs.h"
 #include "TestableScheduler.h"
 #include "mock/MockEventThread.h"
 
@@ -36,8 +37,8 @@ protected:
     SchedulerTest();
     ~SchedulerTest() override;
 
-    scheduler::RefreshRateConfigs mRefreshRateConfigs;
-    TestableScheduler mScheduler{mRefreshRateConfigs};
+    std::unique_ptr<scheduler::RefreshRateConfigs> mRefreshRateConfigs;
+    std::unique_ptr<TestableScheduler> mScheduler;
 
     Scheduler::ConnectionHandle mConnectionHandle;
     mock::EventThread* mEventThread;
@@ -48,6 +49,13 @@ SchedulerTest::SchedulerTest() {
     const ::testing::TestInfo* const test_info =
             ::testing::UnitTest::GetInstance()->current_test_info();
     ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
+
+    std::vector<scheduler::RefreshRateConfigs::InputConfig> configs{{/*hwcId=*/0, 16666667}};
+    mRefreshRateConfigs =
+            std::make_unique<scheduler::RefreshRateConfigs>(/*refreshRateSwitching=*/false, configs,
+                                                            /*currentConfig=*/0);
+
+    mScheduler = std::make_unique<TestableScheduler>(*mRefreshRateConfigs);
 
     auto eventThread = std::make_unique<mock::EventThread>();
     mEventThread = eventThread.get();
@@ -60,7 +68,7 @@ SchedulerTest::SchedulerTest() {
     EXPECT_CALL(*mEventThread, createEventConnection(_, _))
             .WillRepeatedly(Return(mEventThreadConnection));
 
-    mConnectionHandle = mScheduler.createConnection(std::move(eventThread));
+    mConnectionHandle = mScheduler->createConnection(std::move(eventThread));
     EXPECT_TRUE(mConnectionHandle);
 }
 
@@ -80,61 +88,60 @@ TEST_F(SchedulerTest, invalidConnectionHandle) {
 
     sp<IDisplayEventConnection> connection;
     ASSERT_NO_FATAL_FAILURE(
-            connection = mScheduler.createDisplayEventConnection(handle, ResyncCallback(),
-                                                                 ISurfaceComposer::
-                                                                         eConfigChangedSuppress));
+            connection = mScheduler->createDisplayEventConnection(handle,
+                                                                  ISurfaceComposer::
+                                                                          eConfigChangedSuppress));
     EXPECT_FALSE(connection);
-    EXPECT_FALSE(mScheduler.getEventThread(handle));
-    EXPECT_FALSE(mScheduler.getEventConnection(handle));
+    EXPECT_FALSE(mScheduler->getEventThread(handle));
+    EXPECT_FALSE(mScheduler->getEventConnection(handle));
 
     // The EXPECT_CALLS make sure we don't call the functions on the subsequent event threads.
     EXPECT_CALL(*mEventThread, onHotplugReceived(_, _)).Times(0);
-    ASSERT_NO_FATAL_FAILURE(mScheduler.onHotplugReceived(handle, PHYSICAL_DISPLAY_ID, false));
+    ASSERT_NO_FATAL_FAILURE(mScheduler->onHotplugReceived(handle, PHYSICAL_DISPLAY_ID, false));
 
     EXPECT_CALL(*mEventThread, onScreenAcquired()).Times(0);
-    ASSERT_NO_FATAL_FAILURE(mScheduler.onScreenAcquired(handle));
+    ASSERT_NO_FATAL_FAILURE(mScheduler->onScreenAcquired(handle));
 
     EXPECT_CALL(*mEventThread, onScreenReleased()).Times(0);
-    ASSERT_NO_FATAL_FAILURE(mScheduler.onScreenReleased(handle));
+    ASSERT_NO_FATAL_FAILURE(mScheduler->onScreenReleased(handle));
 
     std::string output;
     EXPECT_CALL(*mEventThread, dump(_)).Times(0);
-    ASSERT_NO_FATAL_FAILURE(mScheduler.dump(handle, output));
+    ASSERT_NO_FATAL_FAILURE(mScheduler->dump(handle, output));
     EXPECT_TRUE(output.empty());
 
     EXPECT_CALL(*mEventThread, setPhaseOffset(_)).Times(0);
-    ASSERT_NO_FATAL_FAILURE(mScheduler.setPhaseOffset(handle, 10));
+    ASSERT_NO_FATAL_FAILURE(mScheduler->setPhaseOffset(handle, 10));
 }
 
 TEST_F(SchedulerTest, validConnectionHandle) {
     sp<IDisplayEventConnection> connection;
     ASSERT_NO_FATAL_FAILURE(
-            connection =
-                    mScheduler.createDisplayEventConnection(mConnectionHandle, ResyncCallback(),
-                                                            ISurfaceComposer::
-                                                                    eConfigChangedSuppress));
+            connection = mScheduler->createDisplayEventConnection(mConnectionHandle,
+                                                                  ISurfaceComposer::
+                                                                          eConfigChangedSuppress));
     ASSERT_EQ(mEventThreadConnection, connection);
 
-    EXPECT_TRUE(mScheduler.getEventThread(mConnectionHandle));
-    EXPECT_TRUE(mScheduler.getEventConnection(mConnectionHandle));
+    EXPECT_TRUE(mScheduler->getEventThread(mConnectionHandle));
+    EXPECT_TRUE(mScheduler->getEventConnection(mConnectionHandle));
 
     EXPECT_CALL(*mEventThread, onHotplugReceived(PHYSICAL_DISPLAY_ID, false)).Times(1);
     ASSERT_NO_FATAL_FAILURE(
-            mScheduler.onHotplugReceived(mConnectionHandle, PHYSICAL_DISPLAY_ID, false));
+            mScheduler->onHotplugReceived(mConnectionHandle, PHYSICAL_DISPLAY_ID, false));
 
     EXPECT_CALL(*mEventThread, onScreenAcquired()).Times(1);
-    ASSERT_NO_FATAL_FAILURE(mScheduler.onScreenAcquired(mConnectionHandle));
+    ASSERT_NO_FATAL_FAILURE(mScheduler->onScreenAcquired(mConnectionHandle));
 
     EXPECT_CALL(*mEventThread, onScreenReleased()).Times(1);
-    ASSERT_NO_FATAL_FAILURE(mScheduler.onScreenReleased(mConnectionHandle));
+    ASSERT_NO_FATAL_FAILURE(mScheduler->onScreenReleased(mConnectionHandle));
 
     std::string output("dump");
     EXPECT_CALL(*mEventThread, dump(output)).Times(1);
-    ASSERT_NO_FATAL_FAILURE(mScheduler.dump(mConnectionHandle, output));
+    ASSERT_NO_FATAL_FAILURE(mScheduler->dump(mConnectionHandle, output));
     EXPECT_FALSE(output.empty());
 
     EXPECT_CALL(*mEventThread, setPhaseOffset(10)).Times(1);
-    ASSERT_NO_FATAL_FAILURE(mScheduler.setPhaseOffset(mConnectionHandle, 10));
+    ASSERT_NO_FATAL_FAILURE(mScheduler->setPhaseOffset(mConnectionHandle, 10));
 }
 
 } // namespace

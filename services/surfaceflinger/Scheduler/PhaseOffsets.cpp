@@ -51,7 +51,6 @@ PhaseOffsets::PhaseOffsets() {
     const Offsets defaultOffsets = getDefaultOffsets(thresholdForNextVsync);
     const Offsets highFpsOffsets = getHighFpsOffsets(thresholdForNextVsync);
 
-    mOffsets.insert({RefreshRateType::POWER_SAVING, defaultOffsets});
     mOffsets.insert({RefreshRateType::DEFAULT, defaultOffsets});
     mOffsets.insert({RefreshRateType::PERFORMANCE, highFpsOffsets});
 }
