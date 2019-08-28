@@ -79,11 +79,7 @@ public:
         Mutex::Autolock lock(mMutex);
 
         mPhase = phase;
-        if (mReferenceTime != referenceTime) {
-            for (auto& eventListener : mEventListeners) {
-                eventListener.mHasFired = false;
-            }
-        }
+        const bool referenceTimeChanged = mReferenceTime != referenceTime;
         mReferenceTime = referenceTime;
         if (mPeriod != 0 && mPeriod != period && mReferenceTime != 0) {
             // Inflate the reference time to be the most recent predicted
@@ -94,6 +90,13 @@ public:
             mReferenceTime = mReferenceTime + (numOldPeriods)*mPeriod;
         }
         mPeriod = period;
+        if (!mModelLocked && referenceTimeChanged) {
+            for (auto& eventListener : mEventListeners) {
+                eventListener.mHasFired = false;
+                eventListener.mLastEventTime =
+                        mReferenceTime - mPeriod + mPhase + eventListener.mPhase;
+            }
+        }
         if (mTraceDetailedInfo) {
             ATRACE_INT64("DispSync:Period", mPeriod);
             ATRACE_INT64("DispSync:Phase", mPhase + mPeriod / 2);
@@ -115,11 +118,20 @@ public:
     void lockModel() {
         Mutex::Autolock lock(mMutex);
         mModelLocked = true;
+        ATRACE_INT("DispSync:ModelLocked", mModelLocked);
     }
 
     void unlockModel() {
         Mutex::Autolock lock(mMutex);
+        if (mModelLocked) {
+            for (auto& eventListener : mEventListeners) {
+                if (eventListener.mLastEventTime > mReferenceTime) {
+                    eventListener.mHasFired = true;
+                }
+            }
+        }
         mModelLocked = false;
+        ATRACE_INT("DispSync:ModelLocked", mModelLocked);
     }
 
     virtual bool threadLoop() {
@@ -245,6 +257,10 @@ public:
             listener.mLastCallbackTime = listener.mLastEventTime + mWakeupLatency;
         } else {
             listener.mLastCallbackTime = lastCallbackTime;
+        }
+
+        if (!mModelLocked && listener.mLastEventTime > mReferenceTime) {
+            listener.mHasFired = true;
         }
 
         mEventListeners.push_back(listener);
@@ -493,7 +509,6 @@ void DispSync::init(bool hasSyncFramework, int64_t dispSyncPresentTimeOffset) {
         ALOGE("Couldn't set SCHED_FIFO for DispSyncThread");
     }
 
-    reset();
     beginResync();
 
     if (mTraceDetailedInfo && kEnableZeroPhaseTracer) {
@@ -545,17 +560,15 @@ bool DispSync::addPresentFence(const std::shared_ptr<FenceTime>& fenceTime) {
 void DispSync::beginResync() {
     Mutex::Autolock lock(mMutex);
     ALOGV("[%s] beginResync", mName);
-    mThread->unlockModel();
-    mModelUpdated = false;
-    mNumResyncSamples = 0;
+    resetLocked();
 }
 
-bool DispSync::addResyncSample(nsecs_t timestamp, bool* periodChanged) {
+bool DispSync::addResyncSample(nsecs_t timestamp, bool* periodFlushed) {
     Mutex::Autolock lock(mMutex);
 
     ALOGV("[%s] addResyncSample(%" PRId64 ")", mName, ns2us(timestamp));
 
-    *periodChanged = false;
+    *periodFlushed = false;
     const size_t idx = (mFirstResyncSample + mNumResyncSamples) % MAX_RESYNC_SAMPLES;
     mResyncSamples[idx] = timestamp;
     if (mNumResyncSamples == 0) {
@@ -569,16 +582,20 @@ bool DispSync::addResyncSample(nsecs_t timestamp, bool* periodChanged) {
         const nsecs_t lastTimestamp = mResyncSamples[priorIdx];
 
         const nsecs_t observedVsync = std::abs(timestamp - lastTimestamp);
-        if (std::abs(observedVsync - mPendingPeriod) < std::abs(observedVsync - mPeriod)) {
-            // Observed vsync is closer to the pending period, so reset the
-            // model and flush the pending period.
+        if (std::abs(observedVsync - mPendingPeriod) <= std::abs(observedVsync - mIntendedPeriod)) {
+            // Either the observed vsync is closer to the pending period, (and
+            // thus we detected a period change), or the period change will
+            // no-op. In either case, reset the model and flush the pending
+            // period.
             resetLocked();
+            mIntendedPeriod = mPendingPeriod;
             mPeriod = mPendingPeriod;
             mPendingPeriod = 0;
             if (mTraceDetailedInfo) {
                 ATRACE_INT("DispSync:PendingPeriod", mPendingPeriod);
+                ATRACE_INT("DispSync:IntendedPeriod", mIntendedPeriod);
             }
-            *periodChanged = true;
+            *periodFlushed = true;
         }
     }
     // Always update the reference time with the most recent timestamp.
@@ -609,6 +626,7 @@ bool DispSync::addResyncSample(nsecs_t timestamp, bool* periodChanged) {
     bool modelLocked = mModelUpdated && mError < (kErrorThreshold / 2) && mPendingPeriod == 0;
     ALOGV("[%s] addResyncSample returning %s", mName, modelLocked ? "locked" : "unlocked");
     if (modelLocked) {
+        *periodFlushed = true;
         mThread->lockModel();
     }
     return !modelLocked;
@@ -643,10 +661,17 @@ status_t DispSync::changePhaseOffset(Callback* callback, nsecs_t phase) {
 
 void DispSync::setPeriod(nsecs_t period) {
     Mutex::Autolock lock(mMutex);
-    if (mTraceDetailedInfo) {
-        ATRACE_INT("DispSync:PendingPeriod", period);
+
+    const bool pendingPeriodShouldChange =
+            period != mIntendedPeriod || (period == mIntendedPeriod && mPendingPeriod != 0);
+
+    if (pendingPeriodShouldChange) {
+        mPendingPeriod = period;
     }
-    mPendingPeriod = period;
+    if (mTraceDetailedInfo) {
+        ATRACE_INT("DispSync:IntendedPeriod", mIntendedPeriod);
+        ATRACE_INT("DispSync:PendingPeriod", mPendingPeriod);
+    }
 }
 
 nsecs_t DispSync::getPeriod() {
@@ -764,6 +789,9 @@ void DispSync::resetErrorLocked() {
     mPresentSampleOffset = 0;
     mError = 0;
     mZeroErrSamplesCount = 0;
+    if (mTraceDetailedInfo) {
+        ATRACE_INT64("DispSync:Error", mError);
+    }
     for (size_t i = 0; i < NUM_PRESENT_SAMPLES; i++) {
         mPresentFences[i] = FenceTime::NO_FENCE;
     }
