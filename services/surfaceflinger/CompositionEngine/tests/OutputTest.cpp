@@ -16,8 +16,10 @@
 
 #include <cmath>
 
+#include <compositionengine/impl/LayerCompositionState.h>
 #include <compositionengine/impl/Output.h>
 #include <compositionengine/impl/OutputCompositionState.h>
+#include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <compositionengine/mock/CompositionEngine.h>
 #include <compositionengine/mock/DisplayColorProfile.h>
 #include <compositionengine/mock/Layer.h>
@@ -25,6 +27,7 @@
 #include <compositionengine/mock/OutputLayer.h>
 #include <compositionengine/mock/RenderSurface.h>
 #include <gtest/gtest.h>
+#include <renderengine/mock/RenderEngine.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
 
@@ -34,9 +37,13 @@
 namespace android::compositionengine {
 namespace {
 
+using testing::_;
 using testing::Return;
 using testing::ReturnRef;
 using testing::StrictMock;
+
+constexpr auto TR_IDENT = 0u;
+constexpr auto TR_ROT_90 = HAL_TRANSFORM_ROT_90;
 
 struct OutputTest : public testing::Test {
     OutputTest() {
@@ -444,6 +451,270 @@ TEST_F(OutputTest, prepareFrameSetsClientCompositionOnlyByDefault) {
 
     EXPECT_TRUE(mOutput.getState().usesClientComposition);
     EXPECT_FALSE(mOutput.getState().usesDeviceComposition);
+}
+
+/*
+ * Output::composeSurfaces()
+ */
+
+struct OutputComposeSurfacesTest : public testing::Test {
+    static constexpr uint32_t kDefaultOutputOrientation = TR_IDENT;
+    static constexpr ui::Dataspace kDefaultOutputDataspace = ui::Dataspace::DISPLAY_P3;
+
+    static const Rect kDefaultOutputFrame;
+    static const Rect kDefaultOutputViewport;
+    static const Rect kDefaultOutputScissor;
+    static const mat4 kDefaultColorTransformMat;
+
+    struct OutputPartialMock : public impl::Output {
+        OutputPartialMock(const compositionengine::CompositionEngine& compositionEngine)
+              : impl::Output(compositionEngine) {}
+
+        // Sets up the helper functions called by composeSurfaces to use a mock
+        // implementations.
+        MOCK_CONST_METHOD0(getSkipColorTransform, bool());
+        MOCK_METHOD2(generateClientCompositionRequests,
+                     std::vector<renderengine::LayerSettings>(bool, Region&));
+        MOCK_METHOD2(appendRegionFlashRequests,
+                     void(const Region&, std::vector<renderengine::LayerSettings>&));
+        MOCK_METHOD1(setExpensiveRenderingExpected, void(bool));
+    };
+
+    OutputComposeSurfacesTest() {
+        mOutput.setDisplayColorProfileForTest(
+                std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
+        mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+
+        Output::OutputLayers outputLayers;
+        outputLayers.emplace_back(std::unique_ptr<OutputLayer>(mOutputLayer1));
+        outputLayers.emplace_back(std::unique_ptr<OutputLayer>(mOutputLayer2));
+        mOutput.setOutputLayersOrderedByZ(std::move(outputLayers));
+
+        mOutput.editState().frame = kDefaultOutputFrame;
+        mOutput.editState().viewport = kDefaultOutputViewport;
+        mOutput.editState().scissor = kDefaultOutputScissor;
+        mOutput.editState().transform = ui::Transform{kDefaultOutputOrientation};
+        mOutput.editState().orientation = kDefaultOutputOrientation;
+        mOutput.editState().dataspace = kDefaultOutputDataspace;
+        mOutput.editState().colorTransformMat = kDefaultColorTransformMat;
+        mOutput.editState().isSecure = true;
+        mOutput.editState().needsFiltering = false;
+        mOutput.editState().usesClientComposition = true;
+        mOutput.editState().usesDeviceComposition = false;
+
+        EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
+    }
+
+    StrictMock<mock::CompositionEngine> mCompositionEngine;
+    StrictMock<renderengine::mock::RenderEngine> mRenderEngine;
+    mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
+    mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
+    mock::OutputLayer* mOutputLayer1 = new StrictMock<mock::OutputLayer>();
+    mock::OutputLayer* mOutputLayer2 = new StrictMock<mock::OutputLayer>();
+    StrictMock<OutputPartialMock> mOutput{mCompositionEngine};
+    sp<GraphicBuffer> mOutputBuffer = new GraphicBuffer();
+};
+
+const Rect OutputComposeSurfacesTest::kDefaultOutputFrame{1001, 1002, 1003, 1004};
+const Rect OutputComposeSurfacesTest::kDefaultOutputViewport{1005, 1006, 1007, 1008};
+const Rect OutputComposeSurfacesTest::kDefaultOutputScissor{1009, 1010, 1011, 1012};
+const mat4 OutputComposeSurfacesTest::kDefaultColorTransformMat{mat4() * 0.5};
+
+// TODO(b/121291683): Expand unit test coverage for composeSurfaces beyond these
+// basic tests.
+
+TEST_F(OutputComposeSurfacesTest, doesNothingIfNoClientComposition) {
+    mOutput.editState().usesClientComposition = false;
+
+    Region debugRegion;
+    base::unique_fd readyFence;
+    EXPECT_EQ(true, mOutput.composeSurfaces(debugRegion, &readyFence));
+}
+
+TEST_F(OutputComposeSurfacesTest, worksIfNoClientLayersQueued) {
+    const Region kDebugRegion{Rect{100, 101, 102, 103}};
+
+    constexpr float kDefaultMaxLuminance = 1.0f;
+    constexpr float kDefaultAvgLuminance = 0.7f;
+    constexpr float kDefaultMinLuminance = 0.1f;
+    HdrCapabilities HdrCapabilities{{},
+                                    kDefaultMaxLuminance,
+                                    kDefaultAvgLuminance,
+                                    kDefaultMinLuminance};
+
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillOnce(Return(false));
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, true, _, _)).Times(1);
+
+    EXPECT_CALL(*mDisplayColorProfile, hasWideColorGamut()).WillOnce(Return(true));
+    EXPECT_CALL(*mDisplayColorProfile, getHdrCapabilities()).WillOnce(ReturnRef(HdrCapabilities));
+
+    EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillOnce(Return(mOutputBuffer));
+
+    EXPECT_CALL(mOutput, getSkipColorTransform()).WillOnce(Return(false));
+    EXPECT_CALL(mOutput, generateClientCompositionRequests(false, _)).Times(1);
+    EXPECT_CALL(mOutput, appendRegionFlashRequests(RegionEq(kDebugRegion), _)).Times(1);
+    EXPECT_CALL(mOutput, setExpensiveRenderingExpected(true)).Times(1);
+    EXPECT_CALL(mOutput, setExpensiveRenderingExpected(false)).Times(1);
+
+    base::unique_fd readyFence;
+    EXPECT_EQ(true, mOutput.composeSurfaces(kDebugRegion, &readyFence));
+}
+
+/*
+ * Output::generateClientCompositionRequests()
+ */
+
+struct GenerateClientCompositionRequestsTest : public testing::Test {
+    struct OutputPartialMock : public impl::Output {
+        OutputPartialMock(const compositionengine::CompositionEngine& compositionEngine)
+              : impl::Output(compositionEngine) {}
+
+        std::vector<renderengine::LayerSettings> generateClientCompositionRequests(
+                bool supportsProtectedContent, Region& clearRegion) override {
+            return impl::Output::generateClientCompositionRequests(supportsProtectedContent,
+                                                                   clearRegion);
+        }
+    };
+
+    GenerateClientCompositionRequestsTest() {
+        mOutput.setDisplayColorProfileForTest(
+                std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
+        mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+    }
+
+    StrictMock<mock::CompositionEngine> mCompositionEngine;
+    mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
+    mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
+    StrictMock<OutputPartialMock> mOutput{mCompositionEngine};
+};
+
+// TODO(b/121291683): Add more unit test coverage for generateClientCompositionRequests
+
+TEST_F(GenerateClientCompositionRequestsTest, worksForLandscapeModeSplitScreen) {
+    // In split-screen landscape mode, the screen is rotated 90 degrees, with
+    // one layer on the left covering the left side of the output, and one layer
+    // on the right covering that side of the output.
+
+    mock::OutputLayer* leftOutputLayer = new StrictMock<mock::OutputLayer>();
+    mock::OutputLayer* rightOutputLayer = new StrictMock<mock::OutputLayer>();
+
+    StrictMock<mock::Layer> leftLayer;
+    StrictMock<mock::LayerFE> leftLayerFE;
+    StrictMock<mock::Layer> rightLayer;
+    StrictMock<mock::LayerFE> rightLayerFE;
+
+    impl::OutputLayerCompositionState leftOutputLayerState;
+    leftOutputLayerState.clearClientTarget = false;
+
+    impl::LayerCompositionState leftLayerState;
+    leftLayerState.frontEnd.geomVisibleRegion = Region{Rect{0, 0, 1000, 1000}};
+    leftLayerState.frontEnd.isOpaque = true;
+
+    const half3 leftLayerColor{1.f, 0.f, 0.f};
+    renderengine::LayerSettings leftLayerRESettings;
+    leftLayerRESettings.source.solidColor = leftLayerColor;
+
+    impl::OutputLayerCompositionState rightOutputLayerState;
+    rightOutputLayerState.clearClientTarget = false;
+
+    impl::LayerCompositionState rightLayerState;
+    rightLayerState.frontEnd.geomVisibleRegion = Region{Rect{1000, 0, 2000, 1000}};
+    rightLayerState.frontEnd.isOpaque = true;
+
+    const half3 rightLayerColor{0.f, 1.f, 0.f};
+    renderengine::LayerSettings rightLayerRESettings;
+    rightLayerRESettings.source.solidColor = rightLayerColor;
+
+    EXPECT_CALL(*leftOutputLayer, getState()).WillRepeatedly(ReturnRef(leftOutputLayerState));
+    EXPECT_CALL(*leftOutputLayer, getLayer()).WillRepeatedly(ReturnRef(leftLayer));
+    EXPECT_CALL(*leftOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(leftLayerFE));
+    EXPECT_CALL(*leftOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*leftOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
+    EXPECT_CALL(leftLayer, getState()).WillRepeatedly(ReturnRef(leftLayerState));
+    EXPECT_CALL(leftLayerFE, prepareClientComposition(_)).WillOnce(Return(leftLayerRESettings));
+
+    EXPECT_CALL(*rightOutputLayer, getState()).WillRepeatedly(ReturnRef(rightOutputLayerState));
+    EXPECT_CALL(*rightOutputLayer, getLayer()).WillRepeatedly(ReturnRef(rightLayer));
+    EXPECT_CALL(*rightOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(rightLayerFE));
+    EXPECT_CALL(*rightOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*rightOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
+    EXPECT_CALL(rightLayer, getState()).WillRepeatedly(ReturnRef(rightLayerState));
+    EXPECT_CALL(rightLayerFE, prepareClientComposition(_)).WillOnce(Return(rightLayerRESettings));
+
+    Output::OutputLayers outputLayers;
+    outputLayers.emplace_back(std::unique_ptr<OutputLayer>(leftOutputLayer));
+    outputLayers.emplace_back(std::unique_ptr<OutputLayer>(rightOutputLayer));
+    mOutput.setOutputLayersOrderedByZ(std::move(outputLayers));
+
+    const Rect kPortraitFrame(0, 0, 1000, 2000);
+    const Rect kPortraitViewport(0, 0, 2000, 1000);
+    const Rect kPortraitScissor(0, 0, 1000, 2000);
+    const uint32_t kPortraitOrientation = TR_ROT_90;
+
+    mOutput.editState().frame = kPortraitFrame;
+    mOutput.editState().viewport = kPortraitViewport;
+    mOutput.editState().scissor = kPortraitScissor;
+    mOutput.editState().transform = ui::Transform{kPortraitOrientation};
+    mOutput.editState().orientation = kPortraitOrientation;
+    mOutput.editState().needsFiltering = true;
+    mOutput.editState().isSecure = false;
+
+    constexpr bool supportsProtectedContent = false;
+    Region clearRegion;
+    auto requests =
+            mOutput.generateClientCompositionRequests(supportsProtectedContent, clearRegion);
+
+    ASSERT_EQ(2u, requests.size());
+    EXPECT_EQ(leftLayerColor, requests[0].source.solidColor);
+    EXPECT_EQ(rightLayerColor, requests[1].source.solidColor);
+}
+
+TEST_F(GenerateClientCompositionRequestsTest, ignoresLayersThatDoNotIntersectWithViewport) {
+    // Layers whose visible region does not intersect with the viewport will be
+    // skipped when generating client composition request state.
+
+    mock::OutputLayer* outputLayer = new StrictMock<mock::OutputLayer>();
+    StrictMock<mock::Layer> layer;
+    StrictMock<mock::LayerFE> layerFE;
+
+    impl::OutputLayerCompositionState outputLayerState;
+    outputLayerState.clearClientTarget = false;
+
+    impl::LayerCompositionState layerState;
+    layerState.frontEnd.geomVisibleRegion = Region{Rect{3000, 0, 4000, 1000}};
+    layerState.frontEnd.isOpaque = true;
+
+    EXPECT_CALL(*outputLayer, getState()).WillRepeatedly(ReturnRef(outputLayerState));
+    EXPECT_CALL(*outputLayer, getLayer()).WillRepeatedly(ReturnRef(layer));
+    EXPECT_CALL(*outputLayer, getLayerFE()).WillRepeatedly(ReturnRef(layerFE));
+    EXPECT_CALL(*outputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*outputLayer, needsFiltering()).WillRepeatedly(Return(false));
+    EXPECT_CALL(layer, getState()).WillRepeatedly(ReturnRef(layerState));
+    EXPECT_CALL(layerFE, prepareClientComposition(_)).Times(0);
+
+    Output::OutputLayers outputLayers;
+    outputLayers.emplace_back(std::unique_ptr<OutputLayer>(outputLayer));
+    mOutput.setOutputLayersOrderedByZ(std::move(outputLayers));
+
+    const Rect kPortraitFrame(0, 0, 1000, 2000);
+    const Rect kPortraitViewport(0, 0, 2000, 1000);
+    const Rect kPortraitScissor(0, 0, 1000, 2000);
+    const uint32_t kPortraitOrientation = TR_ROT_90;
+
+    mOutput.editState().frame = kPortraitFrame;
+    mOutput.editState().viewport = kPortraitViewport;
+    mOutput.editState().scissor = kPortraitScissor;
+    mOutput.editState().transform = ui::Transform{kPortraitOrientation};
+    mOutput.editState().orientation = kPortraitOrientation;
+    mOutput.editState().needsFiltering = true;
+    mOutput.editState().isSecure = false;
+
+    constexpr bool supportsProtectedContent = false;
+    Region clearRegion;
+    auto requests =
+            mOutput.generateClientCompositionRequests(supportsProtectedContent, clearRegion);
+
+    EXPECT_EQ(0u, requests.size());
 }
 
 } // namespace
