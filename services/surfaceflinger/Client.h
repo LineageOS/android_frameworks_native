@@ -58,7 +58,7 @@ private:
     virtual status_t createSurface(
             const String8& name,
             uint32_t w, uint32_t h,PixelFormat format, uint32_t flags,
-            const sp<IBinder>& parent, int32_t windowType, int32_t ownerUid,
+            const sp<IBinder>& parentHandle, int32_t windowType, int32_t ownerUid,
             sp<IBinder>* handle,
             sp<IGraphicBufferProducer>* gbp);
 
