@@ -569,14 +569,16 @@ void SurfaceFlinger::bootFinished()
         readPersistentProperties();
         mBootStage = BootStage::FINISHED;
 
-        // set the refresh rate according to the policy
-        const auto& performanceRefreshRate =
-                mRefreshRateConfigs.getRefreshRate(RefreshRateType::PERFORMANCE);
+        if (mRefreshRateConfigs->refreshRateSwitchingSupported()) {
+            // set the refresh rate according to the policy
+            const auto& performanceRefreshRate =
+                    mRefreshRateConfigs->getRefreshRateFromType(RefreshRateType::PERFORMANCE);
 
-        if (performanceRefreshRate && isDisplayConfigAllowed(performanceRefreshRate->configId)) {
-            setRefreshRateTo(RefreshRateType::PERFORMANCE, Scheduler::ConfigEvent::None);
-        } else {
-            setRefreshRateTo(RefreshRateType::DEFAULT, Scheduler::ConfigEvent::None);
+            if (isDisplayConfigAllowed(performanceRefreshRate.configId)) {
+                setRefreshRateTo(RefreshRateType::PERFORMANCE, Scheduler::ConfigEvent::None);
+            } else {
+                setRefreshRateTo(RefreshRateType::DEFAULT, Scheduler::ConfigEvent::None);
+            }
         }
     }));
 }
@@ -619,32 +621,6 @@ void SurfaceFlinger::init() {
     ALOGI("Phase offset NS: %" PRId64 "", mPhaseOffsets->getCurrentAppOffset());
 
     Mutex::Autolock _l(mStateLock);
-    // start the EventThread
-    mScheduler =
-            getFactory().createScheduler([this](bool enabled) { setPrimaryVsyncEnabled(enabled); },
-                                         mRefreshRateConfigs);
-    auto resyncCallback =
-            mScheduler->makeResyncCallback(std::bind(&SurfaceFlinger::getVsyncPeriod, this));
-
-    mAppConnectionHandle =
-            mScheduler->createConnection("app", mVsyncModulator.getOffsets().app,
-                                         mPhaseOffsets->getOffsetThresholdForNextVsync(),
-                                         resyncCallback,
-                                         impl::EventThread::InterceptVSyncsCallback());
-    mSfConnectionHandle =
-            mScheduler->createConnection("sf", mVsyncModulator.getOffsets().sf,
-                                         mPhaseOffsets->getOffsetThresholdForNextVsync(),
-                                         resyncCallback, [this](nsecs_t timestamp) {
-                                             mInterceptor->saveVSyncEvent(timestamp);
-                                         });
-
-    mEventQueue->setEventConnection(mScheduler->getEventConnection(mSfConnectionHandle));
-    mVsyncModulator.setSchedulerAndHandles(mScheduler.get(), mAppConnectionHandle.get(),
-                                           mSfConnectionHandle.get());
-
-    mRegionSamplingThread =
-            new RegionSamplingThread(*this, *mScheduler,
-                                     RegionSamplingThread::EnvironmentTimingTunables());
 
     // Get a RenderEngine for the given display / config (can't fail)
     int32_t renderEngineFeature = 0;
@@ -714,37 +690,6 @@ void SurfaceFlinger::init() {
     if (mStartPropertySetThread->Start() != NO_ERROR) {
         ALOGE("Run StartPropertySetThread failed!");
     }
-
-    mScheduler->setChangeRefreshRateCallback(
-            [this](RefreshRateType type, Scheduler::ConfigEvent event) {
-                Mutex::Autolock lock(mStateLock);
-                setRefreshRateTo(type, event);
-            });
-    mScheduler->setGetCurrentRefreshRateTypeCallback([this] {
-        Mutex::Autolock lock(mStateLock);
-        const auto display = getDefaultDisplayDeviceLocked();
-        if (!display) {
-            // If we don't have a default display the fallback to the default
-            // refresh rate type
-            return RefreshRateType::DEFAULT;
-        }
-
-        const int configId = display->getActiveConfig();
-        for (const auto& [type, refresh] : mRefreshRateConfigs.getRefreshRates()) {
-            if (refresh && refresh->configId == configId) {
-                return type;
-            }
-        }
-        // This should never happen, but just gracefully fallback to default.
-        return RefreshRateType::DEFAULT;
-    });
-    mScheduler->setGetVsyncPeriodCallback([this] {
-        Mutex::Autolock lock(mStateLock);
-        return getVsyncPeriod();
-    });
-
-    mRefreshRateConfigs.populate(getHwComposer().getConfigs(*display->getId()));
-    mRefreshRateStats.setConfigMode(getHwComposer().getActiveConfigIndex(*display->getId()));
 
     ALOGV("Done initializing");
 }
@@ -899,7 +844,8 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
         info.xdpi = xdpi;
         info.ydpi = ydpi;
         info.fps = 1e9 / hwConfig->getVsyncPeriod();
-        const auto refreshRateType = mRefreshRateConfigs.getRefreshRateType(hwConfig->getId());
+        const auto refreshRateType =
+                mRefreshRateConfigs->getRefreshRateTypeFromHwcConfigId(hwConfig->getId());
         const auto offset = mPhaseOffsets->getOffsetsForRefreshRate(refreshRateType);
         info.appVsyncOffset = offset.late.app;
 
@@ -1001,7 +947,8 @@ void SurfaceFlinger::setActiveConfigInternal() {
     }
 
     std::lock_guard<std::mutex> lock(mActiveConfigLock);
-    mRefreshRateStats.setConfigMode(mUpcomingActiveConfig.configId);
+    mRefreshRateConfigs->setCurrentConfig(mUpcomingActiveConfig.configId);
+    mRefreshRateStats->setConfigMode(mUpcomingActiveConfig.configId);
 
     display->setActiveConfig(mUpcomingActiveConfig.configId);
 
@@ -1280,9 +1227,6 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
             return;
         }
 
-        auto resyncCallback =
-                mScheduler->makeResyncCallback(std::bind(&SurfaceFlinger::getVsyncPeriod, this));
-
         // TODO(b/128863962): Part of the Injector should be refactored, so that it
         // can be passed to Scheduler.
         if (enable) {
@@ -1294,11 +1238,11 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
                                            impl::EventThread::InterceptVSyncsCallback(),
                                            "injEventThread");
             }
-            mEventQueue->setEventThread(mInjectorEventThread.get(), std::move(resyncCallback));
+            mEventQueue->setEventThread(mInjectorEventThread.get(), [&] { mScheduler->resync(); });
         } else {
             ALOGV("VSync Injections disabled");
             mEventQueue->setEventThread(mScheduler->getEventThread(mSfConnectionHandle),
-                                        std::move(resyncCallback));
+                                        [&] { mScheduler->resync(); });
         }
 
         mInjectVSyncs = enable;
@@ -1409,16 +1353,10 @@ status_t SurfaceFlinger::notifyPowerHint(int32_t hintId) {
 
 sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
         ISurfaceComposer::VsyncSource vsyncSource, ISurfaceComposer::ConfigChanged configChanged) {
-    auto resyncCallback = mScheduler->makeResyncCallback([this] {
-        Mutex::Autolock lock(mStateLock);
-        return getVsyncPeriod();
-    });
-
     const auto& handle =
             vsyncSource == eVsyncSourceSurfaceFlinger ? mSfConnectionHandle : mAppConnectionHandle;
 
-    return mScheduler->createDisplayEventConnection(handle, std::move(resyncCallback),
-                                                    configChanged);
+    return mScheduler->createDisplayEventConnection(handle, configChanged);
 }
 
 // ----------------------------------------------------------------------------
@@ -1515,13 +1453,8 @@ void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate, Scheduler::Co
     ATRACE_CALL();
 
     // Don't do any updating if the current fps is the same as the new one.
-    const auto& refreshRateConfig = mRefreshRateConfigs.getRefreshRate(refreshRate);
-    if (!refreshRateConfig) {
-        ALOGV("Skipping refresh rate change request for unsupported rate.");
-        return;
-    }
-
-    const int desiredConfigId = refreshRateConfig->configId;
+    const auto& refreshRateConfig = mRefreshRateConfigs->getRefreshRateFromType(refreshRate);
+    const int desiredConfigId = refreshRateConfig.configId;
 
     if (!isDisplayConfigAllowed(desiredConfigId)) {
         ALOGV("Skipping config %d as it is not part of allowed configs", desiredConfigId);
@@ -2626,6 +2559,9 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
         if (event.connection == HWC2::Connection::Connected) {
             if (!mPhysicalDisplayTokens.count(info->id)) {
                 ALOGV("Creating display %s", to_string(info->id).c_str());
+                if (event.hwcDisplayId == getHwComposer().getInternalHwcDisplayId()) {
+                    initScheduler(info->id);
+                }
                 mPhysicalDisplayTokens[info->id] = new BBinder();
                 DisplayDeviceState state;
                 state.displayId = info->id;
@@ -3069,6 +3005,55 @@ void SurfaceFlinger::latchAndReleaseBuffer(const sp<Layer>& layer) {
         layer->latchBuffer(ignored, systemTime());
     }
     layer->releasePendingBuffer(systemTime());
+}
+
+void SurfaceFlinger::initScheduler(DisplayId primaryDisplayId) {
+    if (mScheduler) {
+        // In practice it's not allowed to hotplug in/out the primary display once it's been
+        // connected during startup, but some tests do it, so just warn and return.
+        ALOGW("Can't re-init scheduler");
+        return;
+    }
+
+    int currentConfig = getHwComposer().getActiveConfigIndex(primaryDisplayId);
+    mRefreshRateConfigs =
+            std::make_unique<scheduler::RefreshRateConfigs>(refresh_rate_switching(false),
+                                                            getHwComposer().getConfigs(
+                                                                    primaryDisplayId),
+                                                            currentConfig);
+    mRefreshRateStats =
+            std::make_unique<scheduler::RefreshRateStats>(*mRefreshRateConfigs, *mTimeStats,
+                                                          currentConfig, HWC_POWER_MODE_OFF);
+    mRefreshRateStats->setConfigMode(currentConfig);
+
+    // start the EventThread
+    mScheduler =
+            getFactory().createScheduler([this](bool enabled) { setPrimaryVsyncEnabled(enabled); },
+                                         *mRefreshRateConfigs);
+    mAppConnectionHandle =
+            mScheduler->createConnection("app", mVsyncModulator.getOffsets().app,
+                                         mPhaseOffsets->getOffsetThresholdForNextVsync(),
+                                         impl::EventThread::InterceptVSyncsCallback());
+    mSfConnectionHandle =
+            mScheduler->createConnection("sf", mVsyncModulator.getOffsets().sf,
+                                         mPhaseOffsets->getOffsetThresholdForNextVsync(),
+                                         [this](nsecs_t timestamp) {
+                                             mInterceptor->saveVSyncEvent(timestamp);
+                                         });
+
+    mEventQueue->setEventConnection(mScheduler->getEventConnection(mSfConnectionHandle));
+    mVsyncModulator.setSchedulerAndHandles(mScheduler.get(), mAppConnectionHandle.get(),
+                                           mSfConnectionHandle.get());
+
+    mRegionSamplingThread =
+            new RegionSamplingThread(*this, *mScheduler,
+                                     RegionSamplingThread::EnvironmentTimingTunables());
+
+    mScheduler->setChangeRefreshRateCallback(
+            [this](RefreshRateType type, Scheduler::ConfigEvent event) {
+                Mutex::Autolock lock(mStateLock);
+                setRefreshRateTo(type, event);
+            });
 }
 
 void SurfaceFlinger::commitTransaction()
@@ -4583,7 +4568,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
 
     if (display->isPrimary()) {
         mTimeStats->setPowerMode(mode);
-        mRefreshRateStats.setPowerMode(mode);
+        mRefreshRateStats->setPowerMode(mode);
         mScheduler->setDisplayPowerState(mode == HWC_POWER_MODE_NORMAL);
     }
 
@@ -4751,15 +4736,14 @@ void SurfaceFlinger::dumpVSync(std::string& result) const {
                   mUseSmart90ForVideo ? "on" : "off");
     StringAppendF(&result, "Allowed Display Configs: ");
     for (int32_t configId : mAllowedDisplayConfigs) {
-        for (auto refresh : mRefreshRateConfigs.getRefreshRates()) {
-            if (refresh.second && refresh.second->configId == configId) {
-                StringAppendF(&result, "%dHz, ", refresh.second->fps);
-            }
-        }
+        StringAppendF(&result, "%" PRIu32 " Hz, ",
+                      mRefreshRateConfigs->getRefreshRateFromConfigId(configId).fps);
     }
     StringAppendF(&result, "(config override by backdoor: %s)\n\n",
                   mDebugDisplayConfigSetByBackdoor ? "yes" : "no");
     mScheduler->dump(mAppConnectionHandle, result);
+    StringAppendF(&result, "+  Refresh rate switching: %s\n",
+                  mRefreshRateConfigs->refreshRateSwitchingSupported() ? "on" : "off");
 }
 
 void SurfaceFlinger::dumpStaticScreenStats(std::string& result) const {
@@ -5124,7 +5108,7 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     result.append("\nScheduler state:\n");
     result.append(mScheduler->doDump() + "\n");
     StringAppendF(&result, "+  Smart video mode: %s\n\n", mUseSmart90ForVideo ? "on" : "off");
-    result.append(mRefreshRateStats.doDump() + "\n");
+    result.append(mRefreshRateStats->doDump() + "\n");
 
     result.append(mTimeStats->miniDump());
     result.append("\n");
@@ -5595,7 +5579,8 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             case 1034: {
                 // TODO(b/129297325): expose this via developer menu option
                 n = data.readInt32();
-                if (n && !mRefreshRateOverlay) {
+                if (n && !mRefreshRateOverlay &&
+                    mRefreshRateConfigs->refreshRateSwitchingSupported()) {
                     RefreshRateType type;
                     {
                         std::lock_guard<std::mutex> lock(mActiveConfigLock);
@@ -6173,25 +6158,6 @@ void SurfaceFlinger::traverseLayersInDisplay(const sp<const DisplayDevice>& disp
     }
 }
 
-void SurfaceFlinger::setPreferredDisplayConfig() {
-    const auto& type = mScheduler->getPreferredRefreshRateType();
-    const auto& config = mRefreshRateConfigs.getRefreshRate(type);
-    if (config && isDisplayConfigAllowed(config->configId)) {
-        ALOGV("switching to Scheduler preferred config %d", config->configId);
-        setDesiredActiveConfig({type, config->configId, Scheduler::ConfigEvent::Changed});
-    } else {
-        // Set the highest allowed config by iterating backwards on available refresh rates
-        const auto& refreshRates = mRefreshRateConfigs.getRefreshRates();
-        for (auto iter = refreshRates.crbegin(); iter != refreshRates.crend(); ++iter) {
-            if (iter->second && isDisplayConfigAllowed(iter->second->configId)) {
-                ALOGV("switching to allowed config %d", iter->second->configId);
-                setDesiredActiveConfig({iter->first, iter->second->configId,
-                        Scheduler::ConfigEvent::Changed});
-            }
-        }
-    }
-}
-
 void SurfaceFlinger::setAllowedDisplayConfigsInternal(const sp<DisplayDevice>& display,
                                                       const std::vector<int32_t>& allowedConfigs) {
     if (!display->isPrimary()) {
@@ -6213,7 +6179,29 @@ void SurfaceFlinger::setAllowedDisplayConfigsInternal(const sp<DisplayDevice>& d
     mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value,
                                 display->getActiveConfig());
 
-    setPreferredDisplayConfig();
+    if (mRefreshRateConfigs->refreshRateSwitchingSupported()) {
+        const auto& type = mScheduler->getPreferredRefreshRateType();
+        const auto& config = mRefreshRateConfigs->getRefreshRateFromType(type);
+        if (isDisplayConfigAllowed(config.configId)) {
+            ALOGV("switching to Scheduler preferred config %d", config.configId);
+            setDesiredActiveConfig({type, config.configId, Scheduler::ConfigEvent::Changed});
+        } else {
+            // Set the highest allowed config by iterating backwards on available refresh rates
+            const auto& refreshRates = mRefreshRateConfigs->getRefreshRateMap();
+            for (auto iter = refreshRates.crbegin(); iter != refreshRates.crend(); ++iter) {
+                if (isDisplayConfigAllowed(iter->second.configId)) {
+                    ALOGV("switching to allowed config %d", iter->second.configId);
+                    setDesiredActiveConfig(
+                            {iter->first, iter->second.configId, Scheduler::ConfigEvent::Changed});
+                    break;
+                }
+            }
+        }
+    } else if (!isDisplayConfigAllowed(display->getActiveConfig())) {
+        ALOGV("switching to config %d", allowedConfigs[0]);
+        setDesiredActiveConfig(
+                {RefreshRateType::DEFAULT, allowedConfigs[0], Scheduler::ConfigEvent::Changed});
+    }
 }
 
 status_t SurfaceFlinger::setAllowedDisplayConfigs(const sp<IBinder>& displayToken,
