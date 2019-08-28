@@ -819,14 +819,19 @@ bool InputReader::canDispatchToDisplay(int32_t deviceId, int32_t displayId) {
     }
 
     InputDevice* device = mDevices.valueAt(deviceIndex);
-    std::optional<int32_t> associatedDisplayId = device->getAssociatedDisplay();
+    if (!device->isEnabled()) {
+        ALOGW("Ignoring disabled device %s", device->getName().c_str());
+        return false;
+    }
+
+    std::optional<int32_t> associatedDisplayId = device->getAssociatedDisplayId();
     // No associated display. By default, can dispatch to all displays.
     if (!associatedDisplayId) {
         return true;
     }
 
     if (*associatedDisplayId == ADISPLAY_ID_NONE) {
-        ALOGW("Device has associated, but no associated display id.");
+        ALOGW("Device %s is associated with display ADISPLAY_ID_NONE.", device->getName().c_str());
         return true;
     }
 
@@ -1002,6 +1007,13 @@ bool InputDevice::isEnabled() {
 }
 
 void InputDevice::setEnabled(bool enabled, nsecs_t when) {
+    if (enabled && mAssociatedDisplayPort && !mAssociatedViewport) {
+        ALOGW("Cannot enable input device %s because it is associated with port %" PRIu8 ", "
+              "but the corresponding viewport is not found",
+              getName().c_str(), *mAssociatedDisplayPort);
+        enabled = false;
+    }
+
     if (isEnabled() == enabled) {
         return;
     }
@@ -1103,6 +1115,7 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
         if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
              // In most situations, no port will be specified.
             mAssociatedDisplayPort = std::nullopt;
+            mAssociatedViewport = std::nullopt;
             // Find the display port that corresponds to the current input port.
             const std::string& inputPort = mIdentifier.location;
             if (!inputPort.empty()) {
@@ -1112,6 +1125,23 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
                     mAssociatedDisplayPort = std::make_optional(displayPort->second);
                 }
             }
+
+            // If the device was explicitly disabled by the user, it would be present in the
+            // "disabledDevices" list. If it is associated with a specific display, and it was not
+            // explicitly disabled, then enable/disable the device based on whether we can find the
+            // corresponding viewport.
+            bool enabled = (config->disabledDevices.find(mId) == config->disabledDevices.end());
+            if (mAssociatedDisplayPort) {
+                mAssociatedViewport = config->getDisplayViewportByPort(*mAssociatedDisplayPort);
+                if (!mAssociatedViewport) {
+                    ALOGW("Input device %s should be associated with display on port %" PRIu8 ", "
+                          "but the corresponding viewport is not found.",
+                          getName().c_str(), *mAssociatedDisplayPort);
+                    enabled = false;
+                }
+            }
+
+            setEnabled(enabled, when);
         }
 
         for (InputMapper* mapper : mMappers) {
@@ -1276,9 +1306,15 @@ void InputDevice::notifyReset(nsecs_t when) {
     mContext->getListener()->notifyDeviceReset(&args);
 }
 
-std::optional<int32_t> InputDevice::getAssociatedDisplay() {
+std::optional<int32_t> InputDevice::getAssociatedDisplayId() {
+    // Check if we had associated to the specific display.
+    if (mAssociatedViewport) {
+        return mAssociatedViewport->displayId;
+    }
+
+    // No associated display port, check if some InputMapper is associated.
     for (InputMapper* mapper : mMappers) {
-        std::optional<int32_t> associatedDisplayId = mapper->getAssociatedDisplay();
+        std::optional<int32_t> associatedDisplayId = mapper->getAssociatedDisplayId();
         if (associatedDisplayId) {
             return associatedDisplayId;
         }
@@ -2229,6 +2265,22 @@ void KeyboardInputMapper::dump(std::string& dump) {
     dump += StringPrintf(INDENT3 "DownTime: %" PRId64 "\n", mDownTime);
 }
 
+std::optional<DisplayViewport> KeyboardInputMapper::findViewport(
+        nsecs_t when, const InputReaderConfiguration* config) {
+    const std::optional<uint8_t> displayPort = mDevice->getAssociatedDisplayPort();
+    if (displayPort) {
+        // Find the viewport that contains the same port
+        return mDevice->getAssociatedViewport();
+    }
+
+    // No associated display defined, try to find default display if orientationAware.
+    if (mParameters.orientationAware) {
+        return config->getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
+    }
+
+    return std::nullopt;
+}
+
 void KeyboardInputMapper::configure(nsecs_t when,
         const InputReaderConfiguration* config, uint32_t changes) {
     InputMapper::configure(when, config, changes);
@@ -2239,9 +2291,7 @@ void KeyboardInputMapper::configure(nsecs_t when,
     }
 
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
-        if (mParameters.orientationAware) {
-            mViewport = config->getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
-        }
+        mViewport = findViewport(when, config);
     }
 }
 
@@ -2521,6 +2571,12 @@ void KeyboardInputMapper::updateLedStateForModifier(LedState& ledState,
     }
 }
 
+std::optional<int32_t> KeyboardInputMapper::getAssociatedDisplayId() {
+    if (mViewport) {
+        return std::make_optional(mViewport->displayId);
+    }
+    return std::nullopt;
+}
 
 // --- CursorInputMapper ---
 
@@ -2935,7 +2991,7 @@ void CursorInputMapper::fadePointer() {
     }
 }
 
-std::optional<int32_t> CursorInputMapper::getAssociatedDisplay() {
+std::optional<int32_t> CursorInputMapper::getAssociatedDisplayId() {
     if (mParameters.hasAssociatedDisplay) {
         if (mParameters.mode == Parameters::MODE_POINTER) {
             return std::make_optional(mPointerController->getDisplayId());
@@ -3467,15 +3523,10 @@ std::optional<DisplayViewport> TouchInputMapper::findViewport() {
         const std::optional<uint8_t> displayPort = mDevice->getAssociatedDisplayPort();
         if (displayPort) {
             // Find the viewport that contains the same port
-            std::optional<DisplayViewport> v = mConfig.getDisplayViewportByPort(*displayPort);
-            if (!v) {
-                ALOGW("Input device %s should be associated with display on port %" PRIu8 ", "
-                        "but the corresponding viewport is not found.",
-                        getDeviceName().c_str(), *displayPort);
-            }
-            return v;
+            return mDevice->getAssociatedViewport();
         }
 
+        // Check if uniqueDisplayId is specified in idc file.
         if (!mParameters.uniqueDisplayId.empty()) {
             return mConfig.getDisplayViewportByUniqueId(mParameters.uniqueDisplayId);
         }
@@ -3499,6 +3550,7 @@ std::optional<DisplayViewport> TouchInputMapper::findViewport() {
         return viewport;
     }
 
+    // No associated display, return a non-display viewport.
     DisplayViewport newViewport;
     // Raw width and height in the natural orientation.
     int32_t rawWidth = mRawPointerAxes.getRawWidth();
@@ -6508,7 +6560,7 @@ void TouchInputMapper::dispatchMotion(nsecs_t when, uint32_t policyFlags, uint32
     if (mDeviceMode == DEVICE_MODE_POINTER) {
         mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
     }
-    const int32_t displayId = getAssociatedDisplay().value_or(ADISPLAY_ID_NONE);
+    const int32_t displayId = getAssociatedDisplayId().value_or(ADISPLAY_ID_NONE);
     const int32_t deviceId = getDeviceId();
     std::vector<TouchVideoFrame> frames = mDevice->getEventHub()->getVideoFrames(deviceId);
     std::for_each(frames.begin(), frames.end(),
@@ -6817,7 +6869,7 @@ bool TouchInputMapper::markSupportedKeyCodes(uint32_t sourceMask, size_t numCode
     return true;
 }
 
-std::optional<int32_t> TouchInputMapper::getAssociatedDisplay() {
+std::optional<int32_t> TouchInputMapper::getAssociatedDisplayId() {
     if (mParameters.hasAssociatedDisplay) {
         if (mDeviceMode == DEVICE_MODE_POINTER) {
             return std::make_optional(mPointerController->getDisplayId());
