@@ -22,24 +22,7 @@
       "name": "CtsClassloaderSplitsHostTestCases"
     },
     {
-      "name": "CtsCompilationTestCases",
-      "options": [
-        {
-          "exclude-filter": "android.compilation.cts.AdbRootDependentCompilationTest#testCompile_bgDexopt"
-        },
-        {
-          "exclude-filter": "android.compilation.cts.AdbRootDependentCompilationTest#testCompile_noProfile"
-        },
-        {
-          "exclude-filter": "android.compilation.cts.AdbRootDependentCompilationTest#testCompile_curProfile"
-        },
-        {
-          "exclude-filter": "android.compilation.cts.AdbRootDependentCompilationTest#testCompile_refProfile"
-        },
-        {
-          "exclude-filter": "android.compilation.cts.AdbRootDependentCompilationTest#testCompile_curAndRefProfile"
-        }
-      ]
+      "name": "CtsCompilationTestCases"
     }
   ]
 }
