@@ -8,6 +8,7 @@ cc_library {
         "liblog",
         "libnetdutils"
     ],
+    header_libs: ["bpf_prog_headers"],
     cflags: [
         "-Werror",
         "-Wall",
@@ -25,6 +26,7 @@ cc_test {
         "libtimeinstate",
         "libnetdutils",
     ],
+    header_libs: ["bpf_prog_headers"],
     cflags: [
         "-Werror",
         "-Wall",

@@ -17,7 +17,7 @@
 #define LOG_TAG "libtimeinstate"
 
 #include "cputimeinstate.h"
-#include "timeinstate.h"
+#include <bpf_timeinstate.h>
 
 #include <dirent.h>
 #include <errno.h>

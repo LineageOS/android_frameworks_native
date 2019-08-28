@@ -1,5 +1,5 @@
 
-#include "timeinstate.h"
+#include <bpf_timeinstate.h>
 
 #include <sys/sysinfo.h>
 
