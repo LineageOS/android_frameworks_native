@@ -53,7 +53,6 @@ public:
     virtual void endResync() = 0;
     virtual void setPeriod(nsecs_t period) = 0;
     virtual nsecs_t getPeriod() = 0;
-    virtual void setRefreshSkipCount(int count) = 0;
     virtual status_t addEventListener(const char* name, nsecs_t phase, Callback* callback,
                                       nsecs_t lastCallbackTime) = 0;
     virtual status_t removeEventListener(Callback* callback, nsecs_t* outLastCallback) = 0;
@@ -88,10 +87,9 @@ class DispSyncThread;
 // needed.
 class DispSync : public android::DispSync {
 public:
-    explicit DispSync(const char* name);
+    // hasSyncFramework specifies whether the platform supports present fences.
+    DispSync(const char* name, bool hasSyncFramework);
     ~DispSync() override;
-
-    void init(bool hasSyncFramework, int64_t dispSyncPresentTimeOffset);
 
     // reset clears the resync samples and error value.
     void reset() override;
@@ -137,12 +135,6 @@ public:
 
     // The getPeriod method returns the current vsync period.
     nsecs_t getPeriod() override;
-
-    // setRefreshSkipCount specifies an additional number of refresh
-    // cycles to skip.  For example, on a 60Hz display, a skip count of 1
-    // will result in events happening at 30Hz.  Default is zero.  The idea
-    // is to sacrifice smoothness for battery life.
-    void setRefreshSkipCount(int count) override;
 
     // addEventListener registers a callback to be called repeatedly at the
     // given phase offset from the hardware vsync events.  The callback is
@@ -252,17 +244,11 @@ private:
     std::shared_ptr<FenceTime> mPresentFences[NUM_PRESENT_SAMPLES]{FenceTime::NO_FENCE};
     size_t mPresentSampleOffset;
 
-    int mRefreshSkipCount;
-
     // mThread is the thread from which all the callbacks are called.
     sp<DispSyncThread> mThread;
 
     // mMutex is used to protect access to all member variables.
     mutable Mutex mMutex;
-
-    // This is the offset from the present fence timestamps to the corresponding
-    // vsync event.
-    int64_t mPresentTimeOffset;
 
     // Ignore present (retire) fences if the device doesn't have support for the
     // sync framework

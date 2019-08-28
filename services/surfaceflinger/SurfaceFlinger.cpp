@@ -2444,8 +2444,8 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
 }
 
 void SurfaceFlinger::dispatchDisplayHotplugEvent(PhysicalDisplayId displayId, bool connected) {
-    mScheduler->hotplugReceived(mAppConnectionHandle, displayId, connected);
-    mScheduler->hotplugReceived(mSfConnectionHandle, displayId, connected);
+    mScheduler->onHotplugReceived(mAppConnectionHandle, displayId, connected);
+    mScheduler->onHotplugReceived(mSfConnectionHandle, displayId, connected);
 }
 
 sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
@@ -4256,9 +4256,8 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args,
 
         static const std::unordered_map<std::string, Dumper> dumpers = {
                 {"--display-id"s, dumper(&SurfaceFlinger::dumpDisplayIdentificationData)},
-                {"--dispsync"s, dumper([this](std::string& s) {
-                         mScheduler->dumpPrimaryDispSync(s);
-                 })},
+                {"--dispsync"s,
+                 dumper([this](std::string& s) { mScheduler->getPrimaryDispSync().dump(s); })},
                 {"--frame-events"s, dumper(&SurfaceFlinger::dumpFrameEventsLocked)},
                 {"--latency"s, argsDumper(&SurfaceFlinger::dumpStatsLocked)},
                 {"--latency-clear"s, argsDumper(&SurfaceFlinger::clearStatsLocked)},
@@ -4365,22 +4364,26 @@ void SurfaceFlinger::appendSfConfigString(std::string& result) const {
 }
 
 void SurfaceFlinger::dumpVSync(std::string& result) const {
+    mScheduler->dump(result);
+    StringAppendF(&result, "+  Smart video mode: %s\n\n", mUseSmart90ForVideo ? "on" : "off");
+
+    mRefreshRateStats.dump(result);
+    result.append("\n");
+
     mPhaseOffsets->dump(result);
     StringAppendF(&result,
-                  "    present offset: %9" PRId64 " ns\t     VSYNC period: %9" PRId64 " ns\n\n",
+                  "      present offset: %9" PRId64 " ns\t     VSYNC period: %9" PRId64 " ns\n\n",
                   dispSyncPresentTimeOffset, getVsyncPeriod());
 
-    StringAppendF(&result, "Scheduler enabled.");
-    StringAppendF(&result, "+  Smart 90 for video detection: %s\n\n",
-                  mUseSmart90ForVideo ? "on" : "off");
     StringAppendF(&result, "Allowed Display Configs: ");
-    for (auto refresh : mRefreshRateConfigs.getRefreshRates()) {
-        if (refresh.second && isDisplayConfigAllowed(refresh.second->configId)) {
-            StringAppendF(&result, "%dHz, ", refresh.second->fps);
+    for (const auto& [type, rate] : mRefreshRateConfigs.getRefreshRates()) {
+        if (rate && isDisplayConfigAllowed(rate->configId)) {
+            StringAppendF(&result, "%" PRIu32 " Hz, ", rate->fps);
         }
     }
     StringAppendF(&result, "(config override by backdoor: %s)\n\n",
                   mDebugDisplayConfigSetByBackdoor ? "yes" : "no");
+
     mScheduler->dump(mAppConnectionHandle, result);
 }
 
@@ -4583,7 +4586,7 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     result.append("\n\n");
 
     colorizer.bold(result);
-    result.append("VSYNC configuration:\n");
+    result.append("Scheduler:\n");
     colorizer.reset(result);
     dumpVSync(result);
     result.append("\n");
@@ -4709,14 +4712,6 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
         result.append(mVrFlinger->Dump());
         result.append("\n");
     }
-
-    /**
-     * Scheduler dump state.
-     */
-    result.append("\nScheduler state:\n");
-    result.append(mScheduler->doDump() + "\n");
-    StringAppendF(&result, "+  Smart video mode: %s\n\n", mUseSmart90ForVideo ? "on" : "off");
-    result.append(mRefreshRateStats.doDump() + "\n");
 
     result.append(mTimeStats->miniDump());
     result.append("\n");
@@ -5001,13 +4996,8 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 updateColorMatrixLocked();
                 return NO_ERROR;
             }
-            // This is an experimental interface
-            // Needs to be shifted to proper binder interface when we productize
-            case 1016: {
-                n = data.readInt32();
-                // TODO(b/113612090): Evaluate if this can be removed.
-                mScheduler->setRefreshSkipCount(n);
-                return NO_ERROR;
+            case 1016: { // Unused.
+                return NAME_NOT_FOUND;
             }
             case 1017: {
                 n = data.readInt32();

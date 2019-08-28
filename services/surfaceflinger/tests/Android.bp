@@ -50,6 +50,7 @@ subdirs = [
     "fakehwc",
     "hwc2",
     "unittests",
+    "utils",
     "vsync",
     "waitforvsync",
 ]

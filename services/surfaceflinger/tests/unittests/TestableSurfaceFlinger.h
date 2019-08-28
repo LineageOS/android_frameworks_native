@@ -61,7 +61,7 @@ class Factory final : public surfaceflinger::Factory {
 public:
     ~Factory() = default;
 
-    std::unique_ptr<DispSync> createDispSync(const char*, bool, int64_t) override {
+    std::unique_ptr<DispSync> createDispSync(const char*, bool) override {
         // TODO: Use test-fixture controlled factory
         return nullptr;
     }
@@ -198,8 +198,8 @@ public:
                 new TestableScheduler(std::move(primaryDispSync), std::move(eventControlThread),
                                       mFlinger->mRefreshRateConfigs);
 
-        mFlinger->mAppConnectionHandle = mScheduler->addConnection(std::move(appEventThread));
-        mFlinger->mSfConnectionHandle = mScheduler->addConnection(std::move(sfEventThread));
+        mFlinger->mAppConnectionHandle = mScheduler->createConnection(std::move(appEventThread));
+        mFlinger->mSfConnectionHandle = mScheduler->createConnection(std::move(sfEventThread));
 
         mFlinger->mScheduler.reset(mScheduler);
         mFlinger->mVSyncModulator.emplace(*mScheduler, mFlinger->mAppConnectionHandle,

@@ -27,8 +27,8 @@
 namespace android::scheduler {
 
 VSyncModulator::VSyncModulator(Scheduler& scheduler,
-                               const sp<Scheduler::ConnectionHandle>& appConnectionHandle,
-                               const sp<Scheduler::ConnectionHandle>& sfConnectionHandle,
+                               Scheduler::ConnectionHandle appConnectionHandle,
+                               Scheduler::ConnectionHandle sfConnectionHandle,
                                const OffsetsConfig& config)
       : mScheduler(scheduler),
         mAppConnectionHandle(appConnectionHandle),

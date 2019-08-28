@@ -20,7 +20,6 @@
 #include <functional>
 #include <limits>
 #include <ostream>
-#include <thread>
 
 #include <gtest/gtest.h>
 
@@ -37,10 +36,7 @@
 #include <private/android_filesystem_config.h>
 #include <private/gui/ComposerService.h>
 
-#include <ui/ColorSpace.h>
 #include <ui/DisplayInfo.h>
-#include <ui/Rect.h>
-#include <utils/String8.h>
 
 #include <math.h>
 #include <math/vec3.h>
@@ -48,293 +44,14 @@
 #include <unistd.h>
 
 #include "BufferGenerator.h"
+#include "utils/CallbackUtils.h"
+#include "utils/ColorUtils.h"
+#include "utils/ScreenshotUtils.h"
+#include "utils/TransactionUtils.h"
 
 namespace android {
 
-namespace {
-
-struct Color {
-    uint8_t r;
-    uint8_t g;
-    uint8_t b;
-    uint8_t a;
-
-    static const Color RED;
-    static const Color GREEN;
-    static const Color BLUE;
-    static const Color WHITE;
-    static const Color BLACK;
-    static const Color TRANSPARENT;
-};
-
-const Color Color::RED{255, 0, 0, 255};
-const Color Color::GREEN{0, 255, 0, 255};
-const Color Color::BLUE{0, 0, 255, 255};
-const Color Color::WHITE{255, 255, 255, 255};
-const Color Color::BLACK{0, 0, 0, 255};
-const Color Color::TRANSPARENT{0, 0, 0, 0};
-
 using android::hardware::graphics::common::V1_1::BufferUsage;
-using namespace std::chrono_literals;
-
-std::ostream& operator<<(std::ostream& os, const Color& color) {
-    os << int(color.r) << ", " << int(color.g) << ", " << int(color.b) << ", " << int(color.a);
-    return os;
-}
-
-// Fill a region with the specified color.
-void fillANativeWindowBufferColor(const ANativeWindow_Buffer& buffer, const Rect& rect,
-                                  const Color& color) {
-    Rect r(0, 0, buffer.width, buffer.height);
-    if (!r.intersect(rect, &r)) {
-        return;
-    }
-
-    int32_t width = r.right - r.left;
-    int32_t height = r.bottom - r.top;
-
-    for (int32_t row = 0; row < height; row++) {
-        uint8_t* dst =
-                static_cast<uint8_t*>(buffer.bits) + (buffer.stride * (r.top + row) + r.left) * 4;
-        for (int32_t column = 0; column < width; column++) {
-            dst[0] = color.r;
-            dst[1] = color.g;
-            dst[2] = color.b;
-            dst[3] = color.a;
-            dst += 4;
-        }
-    }
-}
-
-// Fill a region with the specified color.
-void fillGraphicBufferColor(const sp<GraphicBuffer>& buffer, const Rect& rect, const Color& color) {
-    Rect r(0, 0, buffer->width, buffer->height);
-    if (!r.intersect(rect, &r)) {
-        return;
-    }
-
-    int32_t width = r.right - r.left;
-    int32_t height = r.bottom - r.top;
-
-    uint8_t* pixels;
-    buffer->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
-                 reinterpret_cast<void**>(&pixels));
-
-    for (int32_t row = 0; row < height; row++) {
-        uint8_t* dst = pixels + (buffer->getStride() * (r.top + row) + r.left) * 4;
-        for (int32_t column = 0; column < width; column++) {
-            dst[0] = color.r;
-            dst[1] = color.g;
-            dst[2] = color.b;
-            dst[3] = color.a;
-            dst += 4;
-        }
-    }
-    buffer->unlock();
-}
-
-// Check if a region has the specified color.
-void expectBufferColor(const sp<GraphicBuffer>& outBuffer, uint8_t* pixels, const Rect& rect,
-                       const Color& color, uint8_t tolerance) {
-    int32_t x = rect.left;
-    int32_t y = rect.top;
-    int32_t width = rect.right - rect.left;
-    int32_t height = rect.bottom - rect.top;
-
-    int32_t bufferWidth = int32_t(outBuffer->getWidth());
-    int32_t bufferHeight = int32_t(outBuffer->getHeight());
-    if (x + width > bufferWidth) {
-        x = std::min(x, bufferWidth);
-        width = bufferWidth - x;
-    }
-    if (y + height > bufferHeight) {
-        y = std::min(y, bufferHeight);
-        height = bufferHeight - y;
-    }
-
-    auto colorCompare = [tolerance](uint8_t a, uint8_t b) {
-        uint8_t tmp = a >= b ? a - b : b - a;
-        return tmp <= tolerance;
-    };
-    for (int32_t j = 0; j < height; j++) {
-        const uint8_t* src = pixels + (outBuffer->getStride() * (y + j) + x) * 4;
-        for (int32_t i = 0; i < width; i++) {
-            const uint8_t expected[4] = {color.r, color.g, color.b, color.a};
-            EXPECT_TRUE(std::equal(src, src + 4, expected, colorCompare))
-                    << "pixel @ (" << x + i << ", " << y + j << "): "
-                    << "expected (" << color << "), "
-                    << "got (" << Color{src[0], src[1], src[2], src[3]} << ")";
-            src += 4;
-        }
-    }
-}
-
-} // anonymous namespace
-
-using Transaction = SurfaceComposerClient::Transaction;
-
-// Fill an RGBA_8888 formatted surface with a single color.
-static void fillSurfaceRGBA8(const sp<SurfaceControl>& sc, uint8_t r, uint8_t g, uint8_t b,
-                             bool unlock = true) {
-    ANativeWindow_Buffer outBuffer;
-    sp<Surface> s = sc->getSurface();
-    ASSERT_TRUE(s != nullptr);
-    ASSERT_EQ(NO_ERROR, s->lock(&outBuffer, nullptr));
-    uint8_t* img = reinterpret_cast<uint8_t*>(outBuffer.bits);
-    for (int y = 0; y < outBuffer.height; y++) {
-        for (int x = 0; x < outBuffer.width; x++) {
-            uint8_t* pixel = img + (4 * (y * outBuffer.stride + x));
-            pixel[0] = r;
-            pixel[1] = g;
-            pixel[2] = b;
-            pixel[3] = 255;
-        }
-    }
-    if (unlock) {
-        ASSERT_EQ(NO_ERROR, s->unlockAndPost());
-    }
-}
-
-// A ScreenCapture is a screenshot from SurfaceFlinger that can be used to check
-// individual pixel values for testing purposes.
-class ScreenCapture : public RefBase {
-public:
-    static void captureScreen(std::unique_ptr<ScreenCapture>* sc) {
-        captureScreen(sc, SurfaceComposerClient::getInternalDisplayToken());
-    }
-
-    static void captureScreen(std::unique_ptr<ScreenCapture>* sc, sp<IBinder> displayToken) {
-        const auto sf = ComposerService::getComposerService();
-        SurfaceComposerClient::Transaction().apply(true);
-
-        sp<GraphicBuffer> outBuffer;
-        ASSERT_EQ(NO_ERROR, sf->captureScreen(displayToken, &outBuffer, Rect(), 0, 0, false));
-        *sc = std::make_unique<ScreenCapture>(outBuffer);
-    }
-
-    static void captureLayers(std::unique_ptr<ScreenCapture>* sc, sp<IBinder>& parentHandle,
-                              Rect crop = Rect::EMPTY_RECT, float frameScale = 1.0) {
-        sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-        SurfaceComposerClient::Transaction().apply(true);
-
-        sp<GraphicBuffer> outBuffer;
-        ASSERT_EQ(NO_ERROR, sf->captureLayers(parentHandle, &outBuffer, crop, frameScale));
-        *sc = std::make_unique<ScreenCapture>(outBuffer);
-    }
-
-    static void captureChildLayers(std::unique_ptr<ScreenCapture>* sc, sp<IBinder>& parentHandle,
-                                   Rect crop = Rect::EMPTY_RECT, float frameScale = 1.0) {
-        sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-        SurfaceComposerClient::Transaction().apply(true);
-
-        sp<GraphicBuffer> outBuffer;
-        ASSERT_EQ(NO_ERROR, sf->captureLayers(parentHandle, &outBuffer, crop, frameScale, true));
-        *sc = std::make_unique<ScreenCapture>(outBuffer);
-    }
-
-    static void captureChildLayersExcluding(
-            std::unique_ptr<ScreenCapture>* sc, sp<IBinder>& parentHandle,
-            std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>> excludeLayers) {
-        sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-        SurfaceComposerClient::Transaction().apply(true);
-
-        sp<GraphicBuffer> outBuffer;
-        ASSERT_EQ(NO_ERROR,
-                  sf->captureLayers(parentHandle, &outBuffer, ui::Dataspace::V0_SRGB,
-                                    ui::PixelFormat::RGBA_8888, Rect::EMPTY_RECT, excludeLayers,
-                                    1.0f, true));
-        *sc = std::make_unique<ScreenCapture>(outBuffer);
-    }
-
-    void expectColor(const Rect& rect, const Color& color, uint8_t tolerance = 0) {
-        ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mOutBuffer->getPixelFormat());
-        expectBufferColor(mOutBuffer, mPixels, rect, color, tolerance);
-    }
-
-    void expectBorder(const Rect& rect, const Color& color, uint8_t tolerance = 0) {
-        ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mOutBuffer->getPixelFormat());
-        const bool leftBorder = rect.left > 0;
-        const bool topBorder = rect.top > 0;
-        const bool rightBorder = rect.right < int32_t(mOutBuffer->getWidth());
-        const bool bottomBorder = rect.bottom < int32_t(mOutBuffer->getHeight());
-
-        if (topBorder) {
-            Rect top(rect.left, rect.top - 1, rect.right, rect.top);
-            if (leftBorder) {
-                top.left -= 1;
-            }
-            if (rightBorder) {
-                top.right += 1;
-            }
-            expectColor(top, color, tolerance);
-        }
-        if (leftBorder) {
-            Rect left(rect.left - 1, rect.top, rect.left, rect.bottom);
-            expectColor(left, color, tolerance);
-        }
-        if (rightBorder) {
-            Rect right(rect.right, rect.top, rect.right + 1, rect.bottom);
-            expectColor(right, color, tolerance);
-        }
-        if (bottomBorder) {
-            Rect bottom(rect.left, rect.bottom, rect.right, rect.bottom + 1);
-            if (leftBorder) {
-                bottom.left -= 1;
-            }
-            if (rightBorder) {
-                bottom.right += 1;
-            }
-            expectColor(bottom, color, tolerance);
-        }
-    }
-
-    void expectQuadrant(const Rect& rect, const Color& topLeft, const Color& topRight,
-                        const Color& bottomLeft, const Color& bottomRight, bool filtered = false,
-                        uint8_t tolerance = 0) {
-        ASSERT_TRUE((rect.right - rect.left) % 2 == 0 && (rect.bottom - rect.top) % 2 == 0);
-
-        const int32_t centerX = rect.left + (rect.right - rect.left) / 2;
-        const int32_t centerY = rect.top + (rect.bottom - rect.top) / 2;
-        // avoid checking borders due to unspecified filtering behavior
-        const int32_t offsetX = filtered ? 2 : 0;
-        const int32_t offsetY = filtered ? 2 : 0;
-        expectColor(Rect(rect.left, rect.top, centerX - offsetX, centerY - offsetY), topLeft,
-                    tolerance);
-        expectColor(Rect(centerX + offsetX, rect.top, rect.right, centerY - offsetY), topRight,
-                    tolerance);
-        expectColor(Rect(rect.left, centerY + offsetY, centerX - offsetX, rect.bottom), bottomLeft,
-                    tolerance);
-        expectColor(Rect(centerX + offsetX, centerY + offsetY, rect.right, rect.bottom),
-                    bottomRight, tolerance);
-    }
-
-    void checkPixel(uint32_t x, uint32_t y, uint8_t r, uint8_t g, uint8_t b) {
-        ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mOutBuffer->getPixelFormat());
-        const uint8_t* pixel = mPixels + (4 * (y * mOutBuffer->getStride() + x));
-        if (r != pixel[0] || g != pixel[1] || b != pixel[2]) {
-            String8 err(String8::format("pixel @ (%3d, %3d): "
-                                        "expected [%3d, %3d, %3d], got [%3d, %3d, %3d]",
-                                        x, y, r, g, b, pixel[0], pixel[1], pixel[2]));
-            EXPECT_EQ(String8(), err) << err.string();
-        }
-    }
-
-    void expectFGColor(uint32_t x, uint32_t y) { checkPixel(x, y, 195, 63, 63); }
-
-    void expectBGColor(uint32_t x, uint32_t y) { checkPixel(x, y, 63, 63, 195); }
-
-    void expectChildColor(uint32_t x, uint32_t y) { checkPixel(x, y, 200, 200, 200); }
-
-    explicit ScreenCapture(const sp<GraphicBuffer>& outBuffer) : mOutBuffer(outBuffer) {
-        mOutBuffer->lock(GRALLOC_USAGE_SW_READ_OFTEN, reinterpret_cast<void**>(&mPixels));
-    }
-
-    ~ScreenCapture() { mOutBuffer->unlock(); }
-
-private:
-    sp<GraphicBuffer> mOutBuffer;
-    uint8_t* mPixels = nullptr;
-};
 
 class LayerTransactionTest : public ::testing::Test {
 protected:
@@ -583,7 +300,6 @@ private:
 
     friend class LayerRenderPathTestHarness;
 };
-enum class RenderPath { SCREENSHOT, VIRTUAL_DISPLAY };
 
 class LayerRenderPathTestHarness {
 public:
@@ -691,13 +407,6 @@ public:
 
 protected:
     LayerRenderPathTestHarness mRenderPathHarness;
-};
-
-// Environment for starting up binder threads. This is required for testing
-// virtual displays, as BufferQueue parameters may be queried over binder.
-class BinderEnvironment : public ::testing::Environment {
-public:
-    void SetUp() override { ProcessState::self()->startThreadPool(); }
 };
 
 ::testing::Environment* const binderEnv =
@@ -1338,19 +1047,6 @@ TEST_P(LayerTypeTransactionTest, SetFlagsSecure) {
               composer->captureScreen(mDisplay, &outBuffer, Rect(), 0, 0, false));
 }
 
-/** RAII Wrapper around get/seteuid */
-class UIDFaker {
-    uid_t oldId;
-public:
-    UIDFaker(uid_t uid) {
-        oldId = geteuid();
-        seteuid(uid);
-    }
-    ~UIDFaker() {
-        seteuid(oldId);
-    }
-};
-
 TEST_F(LayerTransactionTest, SetFlagsSecureEUidSystem) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
@@ -1595,6 +1291,7 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadius) {
 
     Transaction()
             .setCornerRadius(layer, cornerRadius)
+            .setCrop_legacy(layer, Rect(0, 0, size, size))
             .apply();
     {
         const uint8_t bottom = size - 1;
@@ -1621,6 +1318,7 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadiusChildCrop) {
 
     Transaction()
             .setCornerRadius(parent, cornerRadius)
+            .setCrop_legacy(parent, Rect(0, 0, size, size))
             .reparent(child, parent->getHandle())
             .setPosition(child, 0, size / 2)
             .apply();
@@ -2934,47 +2632,6 @@ TEST_F(LayerTransactionTest, ReparentToSelf) {
     }
 }
 
-class ColorTransformHelper {
-public:
-    static void DegammaColorSingle(half& s) {
-        if (s <= 0.03928f)
-            s = s / 12.92f;
-        else
-            s = pow((s + 0.055f) / 1.055f, 2.4f);
-    }
-
-    static void DegammaColor(half3& color) {
-        DegammaColorSingle(color.r);
-        DegammaColorSingle(color.g);
-        DegammaColorSingle(color.b);
-    }
-
-    static void GammaColorSingle(half& s) {
-        if (s <= 0.0031308f) {
-            s = s * 12.92f;
-        } else {
-            s = 1.055f * pow(s, (1.0f / 2.4f)) - 0.055f;
-        }
-    }
-
-    static void GammaColor(half3& color) {
-        GammaColorSingle(color.r);
-        GammaColorSingle(color.g);
-        GammaColorSingle(color.b);
-    }
-
-    static void applyMatrix(half3& color, const mat3& mat) {
-        half3 ret = half3(0);
-
-        for (int i = 0; i < 3; i++) {
-            for (int j = 0; j < 3; j++) {
-                ret[i] = ret[i] + color[j] * mat[j][i];
-            }
-        }
-        color = ret;
-    }
-};
-
 TEST_P(LayerRenderTypeTransactionTest, SetColorTransformBasic) {
     sp<SurfaceControl> colorLayer;
     ASSERT_NO_FATAL_FAILURE(colorLayer =
@@ -3137,173 +2794,6 @@ TEST_P(LayerRenderTypeTransactionTest, SetColorTransformOnChildAndParent) {
         getScreenCapture()->expectColor(Rect(0, 0, 32, 32), expectedColor, tolerance);
     }
 }
-
-struct CallbackData {
-    CallbackData() = default;
-    CallbackData(nsecs_t time, const sp<Fence>& fence,
-                 const std::vector<SurfaceControlStats>& stats)
-          : latchTime(time), presentFence(fence), surfaceControlStats(stats) {}
-
-    nsecs_t latchTime;
-    sp<Fence> presentFence;
-    std::vector<SurfaceControlStats> surfaceControlStats;
-};
-
-class ExpectedResult {
-public:
-    enum Transaction {
-        NOT_PRESENTED = 0,
-        PRESENTED,
-    };
-
-    enum Buffer {
-        NOT_ACQUIRED = 0,
-        ACQUIRED,
-    };
-
-    enum PreviousBuffer {
-        NOT_RELEASED = 0,
-        RELEASED,
-        UNKNOWN,
-    };
-
-    void reset() {
-        mTransactionResult = ExpectedResult::Transaction::NOT_PRESENTED;
-        mExpectedSurfaceResults.clear();
-    }
-
-    void addSurface(ExpectedResult::Transaction transactionResult, const sp<SurfaceControl>& layer,
-                    ExpectedResult::Buffer bufferResult = ACQUIRED,
-                    ExpectedResult::PreviousBuffer previousBufferResult = NOT_RELEASED) {
-        mTransactionResult = transactionResult;
-        mExpectedSurfaceResults.emplace(std::piecewise_construct, std::forward_as_tuple(layer),
-                                        std::forward_as_tuple(bufferResult, previousBufferResult));
-    }
-
-    void addSurfaces(ExpectedResult::Transaction transactionResult,
-                     const std::vector<sp<SurfaceControl>>& layers,
-                     ExpectedResult::Buffer bufferResult = ACQUIRED,
-                     ExpectedResult::PreviousBuffer previousBufferResult = NOT_RELEASED) {
-        for (const auto& layer : layers) {
-            addSurface(transactionResult, layer, bufferResult, previousBufferResult);
-        }
-    }
-
-    void addExpectedPresentTime(nsecs_t expectedPresentTime) {
-        mExpectedPresentTime = expectedPresentTime;
-    }
-
-    void verifyCallbackData(const CallbackData& callbackData) const {
-        const auto& [latchTime, presentFence, surfaceControlStats] = callbackData;
-        if (mTransactionResult == ExpectedResult::Transaction::PRESENTED) {
-            ASSERT_GE(latchTime, 0) << "bad latch time";
-            ASSERT_NE(presentFence, nullptr);
-            if (mExpectedPresentTime >= 0) {
-                ASSERT_EQ(presentFence->wait(3000), NO_ERROR);
-                ASSERT_GE(presentFence->getSignalTime(), mExpectedPresentTime - nsecs_t(5 * 1e6));
-                // if the panel is running at 30 hz, at the worst case, our expected time just
-                // misses vsync and we have to wait another 33.3ms
-                ASSERT_LE(presentFence->getSignalTime(),
-                          mExpectedPresentTime + nsecs_t(66.666666 * 1e6));
-            }
-        } else {
-            ASSERT_EQ(presentFence, nullptr) << "transaction shouldn't have been presented";
-            ASSERT_EQ(latchTime, -1) << "unpresented transactions shouldn't be latched";
-        }
-
-        ASSERT_EQ(surfaceControlStats.size(), mExpectedSurfaceResults.size())
-                << "wrong number of surfaces";
-
-        for (const auto& stats : surfaceControlStats) {
-            ASSERT_NE(stats.surfaceControl, nullptr) << "returned null surface control";
-
-            const auto& expectedSurfaceResult = mExpectedSurfaceResults.find(stats.surfaceControl);
-            ASSERT_NE(expectedSurfaceResult, mExpectedSurfaceResults.end())
-                    << "unexpected surface control";
-            expectedSurfaceResult->second.verifySurfaceControlStats(stats, latchTime);
-        }
-    }
-
-private:
-    class ExpectedSurfaceResult {
-    public:
-        ExpectedSurfaceResult(ExpectedResult::Buffer bufferResult,
-                              ExpectedResult::PreviousBuffer previousBufferResult)
-              : mBufferResult(bufferResult), mPreviousBufferResult(previousBufferResult) {}
-
-        void verifySurfaceControlStats(const SurfaceControlStats& surfaceControlStats,
-                                       nsecs_t latchTime) const {
-            const auto& [surfaceControl, acquireTime, previousReleaseFence] = surfaceControlStats;
-
-            ASSERT_EQ(acquireTime > 0, mBufferResult == ExpectedResult::Buffer::ACQUIRED)
-                    << "bad acquire time";
-            ASSERT_LE(acquireTime, latchTime) << "acquire time should be <= latch time";
-
-            if (mPreviousBufferResult == ExpectedResult::PreviousBuffer::RELEASED) {
-                ASSERT_NE(previousReleaseFence, nullptr)
-                        << "failed to set release prev buffer fence";
-            } else if (mPreviousBufferResult == ExpectedResult::PreviousBuffer::NOT_RELEASED) {
-                ASSERT_EQ(previousReleaseFence, nullptr)
-                        << "should not have set released prev buffer fence";
-            }
-        }
-
-    private:
-        ExpectedResult::Buffer mBufferResult;
-        ExpectedResult::PreviousBuffer mPreviousBufferResult;
-    };
-
-    struct SCHash {
-        std::size_t operator()(const sp<SurfaceControl>& sc) const {
-            return std::hash<IBinder*>{}(sc->getHandle().get());
-        }
-    };
-    ExpectedResult::Transaction mTransactionResult = ExpectedResult::Transaction::NOT_PRESENTED;
-    nsecs_t mExpectedPresentTime = -1;
-    std::unordered_map<sp<SurfaceControl>, ExpectedSurfaceResult, SCHash> mExpectedSurfaceResults;
-};
-
-class CallbackHelper {
-public:
-    static void function(void* callbackContext, nsecs_t latchTime, const sp<Fence>& presentFence,
-                         const std::vector<SurfaceControlStats>& stats) {
-        if (!callbackContext) {
-            ALOGE("failed to get callback context");
-        }
-        CallbackHelper* helper = static_cast<CallbackHelper*>(callbackContext);
-        std::lock_guard lock(helper->mMutex);
-        helper->mCallbackDataQueue.emplace(latchTime, presentFence, stats);
-        helper->mConditionVariable.notify_all();
-    }
-
-    void getCallbackData(CallbackData* outData) {
-        std::unique_lock lock(mMutex);
-
-        if (mCallbackDataQueue.empty()) {
-            ASSERT_NE(mConditionVariable.wait_for(lock, std::chrono::seconds(3)),
-                      std::cv_status::timeout)
-                    << "did not receive callback";
-        }
-
-        *outData = std::move(mCallbackDataQueue.front());
-        mCallbackDataQueue.pop();
-    }
-
-    void verifyFinalState() {
-        // Wait to see if there are extra callbacks
-        std::this_thread::sleep_for(500ms);
-
-        std::lock_guard lock(mMutex);
-        EXPECT_EQ(mCallbackDataQueue.size(), 0) << "extra callbacks received";
-        mCallbackDataQueue = {};
-    }
-
-    void* getContext() { return static_cast<void*>(this); }
-
-    std::mutex mMutex;
-    std::condition_variable mConditionVariable;
-    std::queue<CallbackData> mCallbackDataQueue;
-};
 
 class LayerCallbackTest : public LayerTransactionTest {
 public:

@@ -56,8 +56,8 @@ public:
         nsecs_t thresholdForNextVsync;
     };
 
-    VSyncModulator(Scheduler&, const sp<Scheduler::ConnectionHandle>& appConnectionHandle,
-                   const sp<Scheduler::ConnectionHandle>& sfConnectionHandle, const OffsetsConfig&);
+    VSyncModulator(Scheduler&, ConnectionHandle appConnectionHandle,
+                   ConnectionHandle sfConnectionHandle, const OffsetsConfig&);
 
     void setPhaseOffsets(const OffsetsConfig&) EXCLUDES(mMutex);
 
@@ -92,8 +92,8 @@ private:
     void updateOffsetsLocked() REQUIRES(mMutex);
 
     Scheduler& mScheduler;
-    const sp<Scheduler::ConnectionHandle> mAppConnectionHandle;
-    const sp<Scheduler::ConnectionHandle> mSfConnectionHandle;
+    const ConnectionHandle mAppConnectionHandle;
+    const ConnectionHandle mSfConnectionHandle;
 
     mutable std::mutex mMutex;
     OffsetsConfig mOffsetsConfig GUARDED_BY(mMutex);
