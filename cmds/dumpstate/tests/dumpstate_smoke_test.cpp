@@ -201,9 +201,7 @@ class ZippedBugreportGenerationTest : public Test {
             (char*)"dumpstate",
             (char*)"-d",
             (char*)"-z",
-            (char*)"-B",
-            (char*)"-o",
-            (char*)dirname(android::base::GetExecutablePath().c_str())
+            (char*)"-B"
         };
         // clang-format on
         sp<DumpstateListener> listener(new DumpstateListener(dup(fileno(stdout)), sections));
