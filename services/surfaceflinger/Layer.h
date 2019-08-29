@@ -376,6 +376,14 @@ public:
 
     int32_t getSequence() const { return sequence; }
 
+    // For tracing.
+    // TODO: Replace with raw buffer id from buffer metadata when that becomes available.
+    // GraphicBuffer::getId() does not provide a reliable global identifier. Since the traces
+    // creates its tracks by buffer id and has no way of associating a buffer back to the process
+    // that created it, the current implementation is only sufficient for cases where a buffer is
+    // only used within a single layer.
+    uint64_t getCurrentBufferId() const { return mActiveBuffer ? mActiveBuffer->getId() : 0; }
+
     // -----------------------------------------------------------------------
     // Virtuals
 

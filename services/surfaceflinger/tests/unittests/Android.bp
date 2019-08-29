@@ -36,7 +36,7 @@ cc_test {
         ":libsurfaceflinger_sources",
         "libsurfaceflinger_unittest_main.cpp",
         "CachingTest.cpp",
-	"CompositionTest.cpp",
+        "CompositionTest.cpp",
         "DispSyncSourceTest.cpp",
         "DisplayIdentificationTest.cpp",
         "DisplayTransactionTest.cpp",
@@ -69,7 +69,13 @@ cc_test {
         "libgmock",
         "libcompositionengine",
         "libcompositionengine_mocks",
+        "libperfetto_client_experimental",
         "librenderengine_mocks",
+        "libtimestats",
+        "perfetto_trace_protos",
+    ],
+    shared_libs: [
+        "libsurfaceflinger",
     ],
     header_libs: [
         "libsurfaceflinger_headers",

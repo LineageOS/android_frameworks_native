@@ -265,7 +265,9 @@ public:
     inline std::optional<uint8_t> getAssociatedDisplayPort() const {
         return mAssociatedDisplayPort;
     }
-
+    inline std::optional<DisplayViewport> getAssociatedViewport() const {
+        return mAssociatedViewport;
+    }
     inline void setMic(bool hasMic) { mHasMic = hasMic; }
     inline bool hasMic() const { return mHasMic; }
 
@@ -324,7 +326,8 @@ public:
         return value;
     }
 
-    std::optional<int32_t> getAssociatedDisplay();
+    std::optional<int32_t> getAssociatedDisplayId();
+
 private:
     InputReaderContext* mContext;
     int32_t mId;
@@ -339,6 +342,7 @@ private:
     uint32_t mSources;
     bool mIsExternal;
     std::optional<uint8_t> mAssociatedDisplayPort;
+    std::optional<DisplayViewport> mAssociatedViewport;
     bool mHasMic;
     bool mDropUntilNextSync;
 
@@ -718,9 +722,8 @@ public:
     virtual void updateExternalStylusState(const StylusState& state);
 
     virtual void fadePointer();
-    virtual std::optional<int32_t> getAssociatedDisplay() {
-        return std::nullopt;
-    }
+    virtual std::optional<int32_t> getAssociatedDisplayId() { return std::nullopt; }
+
 protected:
     InputDevice* mDevice;
     InputReaderContext* mContext;
@@ -802,6 +805,7 @@ public:
 
     virtual int32_t getMetaState();
     virtual void updateMetaState(int32_t keyCode);
+    virtual std::optional<int32_t> getAssociatedDisplayId();
 
 private:
     // The current viewport.
@@ -855,6 +859,8 @@ private:
     void updateLedState(bool reset);
     void updateLedStateForModifier(LedState& ledState, int32_t led,
             int32_t modifier, bool reset);
+    std::optional<DisplayViewport> findViewport(nsecs_t when,
+                                                const InputReaderConfiguration* config);
 };
 
 
@@ -874,7 +880,8 @@ public:
 
     virtual void fadePointer();
 
-    virtual std::optional<int32_t> getAssociatedDisplay();
+    virtual std::optional<int32_t> getAssociatedDisplayId();
+
 private:
     // Amount that trackball needs to move in order to generate a key event.
     static const int32_t TRACKBALL_MOVEMENT_THRESHOLD = 6;
@@ -968,7 +975,8 @@ public:
     virtual void cancelTouch(nsecs_t when);
     virtual void timeoutExpired(nsecs_t when);
     virtual void updateExternalStylusState(const StylusState& state);
-    virtual std::optional<int32_t> getAssociatedDisplay();
+    virtual std::optional<int32_t> getAssociatedDisplayId();
+
 protected:
     CursorButtonAccumulator mCursorButtonAccumulator;
     CursorScrollAccumulator mCursorScrollAccumulator;
