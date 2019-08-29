@@ -37,10 +37,13 @@ using android::base::unique_fd;
 namespace android {
 
 TouchVideoDevice::TouchVideoDevice(int fd, std::string&& name, std::string&& devicePath,
-        uint32_t height, uint32_t width,
-        const std::array<const int16_t*, NUM_BUFFERS>& readLocations) :
-        mFd(fd), mName(std::move(name)), mPath(std::move(devicePath)),
-        mHeight(height), mWidth(width),
+                                   uint32_t height, uint32_t width,
+                                   const std::array<const int16_t*, NUM_BUFFERS>& readLocations)
+      : mFd(fd),
+        mName(std::move(name)),
+        mPath(std::move(devicePath)),
+        mHeight(height),
+        mWidth(width),
         mReadLocations(readLocations) {
     mFrames.reserve(MAX_QUEUE_SIZE);
 };
@@ -60,11 +63,11 @@ std::unique_ptr<TouchVideoDevice> TouchVideoDevice::create(std::string devicePat
     }
     if (!(cap.capabilities & V4L2_CAP_TOUCH)) {
         ALOGE("Capability V4L2_CAP_TOUCH is not present, can't use device for heatmap data. "
-                "Make sure device specifies V4L2_CAP_TOUCH");
+              "Make sure device specifies V4L2_CAP_TOUCH");
         return nullptr;
     }
-    ALOGI("Opening video device: driver = %s, card = %s, bus_info = %s, version = %i",
-            cap.driver, cap.card, cap.bus_info, cap.version);
+    ALOGI("Opening video device: driver = %s, card = %s, bus_info = %s, version = %i", cap.driver,
+          cap.card, cap.bus_info, cap.version);
     std::string name = reinterpret_cast<const char*>(cap.card);
 
     struct v4l2_input v4l2_input_struct;
@@ -77,7 +80,7 @@ std::unique_ptr<TouchVideoDevice> TouchVideoDevice::create(std::string devicePat
 
     if (v4l2_input_struct.type != V4L2_INPUT_TYPE_TOUCH) {
         ALOGE("Video device does not provide touch data. "
-                "Make sure device specifies V4L2_INPUT_TYPE_TOUCH.");
+              "Make sure device specifies V4L2_INPUT_TYPE_TOUCH.");
         return nullptr;
     }
 
@@ -120,14 +123,14 @@ std::unique_ptr<TouchVideoDevice> TouchVideoDevice::create(std::string devicePat
             return nullptr;
         }
         if (buf.length != height * width * sizeof(int16_t)) {
-            ALOGE("Unexpected value of buf.length = %i (offset = %" PRIu32 ")",
-                    buf.length, buf.m.offset);
+            ALOGE("Unexpected value of buf.length = %i (offset = %" PRIu32 ")", buf.length,
+                  buf.m.offset);
             return nullptr;
         }
 
-        readLocations[i] = static_cast<const int16_t*>(mmap(nullptr /* start anywhere */,
-                buf.length, PROT_READ /* required */, MAP_SHARED /* recommended */,
-                fd.get(), buf.m.offset));
+        readLocations[i] = static_cast<const int16_t*>(
+                mmap(nullptr /* start anywhere */, buf.length, PROT_READ /* required */,
+                     MAP_SHARED /* recommended */, fd.get(), buf.m.offset));
         if (readLocations[i] == MAP_FAILED) {
             ALOGE("%s: map failed: %s", __func__, strerror(errno));
             return nullptr;
@@ -150,8 +153,9 @@ std::unique_ptr<TouchVideoDevice> TouchVideoDevice::create(std::string devicePat
         }
     }
     // Using 'new' to access a non-public constructor.
-    return std::unique_ptr<TouchVideoDevice>(new TouchVideoDevice(
-            fd.release(), std::move(name), std::move(devicePath), height, width, readLocations));
+    return std::unique_ptr<TouchVideoDevice>(new TouchVideoDevice(fd.release(), std::move(name),
+                                                                  std::move(devicePath), height,
+                                                                  width, readLocations));
 }
 
 size_t TouchVideoDevice::readAndQueueFrames() {
@@ -163,10 +167,10 @@ size_t TouchVideoDevice::readAndQueueFrames() {
     }
     // Concatenate the vectors, then clip up to maximum size allowed
     mFrames.insert(mFrames.end(), std::make_move_iterator(frames.begin()),
-            std::make_move_iterator(frames.end()));
+                   std::make_move_iterator(frames.end()));
     if (mFrames.size() > MAX_QUEUE_SIZE) {
         ALOGE("More than %zu frames have been accumulated. Dropping %zu frames", MAX_QUEUE_SIZE,
-                mFrames.size() - MAX_QUEUE_SIZE);
+              mFrames.size() - MAX_QUEUE_SIZE);
         mFrames.erase(mFrames.begin(), mFrames.end() - MAX_QUEUE_SIZE);
     }
     return numFrames;
@@ -193,8 +197,8 @@ std::optional<TouchVideoFrame> TouchVideoDevice::readFrame() {
     if ((buf.flags & V4L2_BUF_FLAG_TIMESTAMP_MASK) != V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC) {
         // We use CLOCK_MONOTONIC for input events, so if the clocks don't match,
         // we can't compare timestamps. Just log a warning, since this is a driver issue
-        ALOGW("The timestamp %ld.%ld was not acquired using CLOCK_MONOTONIC",
-                buf.timestamp.tv_sec, buf.timestamp.tv_usec);
+        ALOGW("The timestamp %ld.%ld was not acquired using CLOCK_MONOTONIC", buf.timestamp.tv_sec,
+              buf.timestamp.tv_usec);
     }
     std::vector<int16_t> data(mHeight * mWidth);
     const int16_t* readFrom = mReadLocations[buf.index];
@@ -233,7 +237,7 @@ TouchVideoDevice::~TouchVideoDevice() {
     }
     for (const int16_t* buffer : mReadLocations) {
         void* bufferAddress = static_cast<void*>(const_cast<int16_t*>(buffer));
-        result = munmap(bufferAddress,  mHeight * mWidth * sizeof(int16_t));
+        result = munmap(bufferAddress, mHeight * mWidth * sizeof(int16_t));
         if (result == -1) {
             ALOGE("%s: Couldn't unmap: [%s]", __func__, strerror(errno));
         }
@@ -242,9 +246,9 @@ TouchVideoDevice::~TouchVideoDevice() {
 
 std::string TouchVideoDevice::dump() const {
     return StringPrintf("Video device %s (%s) : height=%" PRIu32 ", width=%" PRIu32
-            ", fd=%i, hasValidFd=%s",
-            mName.c_str(), mPath.c_str(), mHeight, mWidth, mFd.get(),
-            hasValidFd() ? "true" : "false");
+                        ", fd=%i, hasValidFd=%s",
+                        mName.c_str(), mPath.c_str(), mHeight, mWidth, mFd.get(),
+                        hasValidFd() ? "true" : "false");
 }
 
 } // namespace android

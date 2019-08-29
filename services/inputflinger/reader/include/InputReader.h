@@ -18,9 +18,9 @@
 #define _UI_INPUT_READER_H
 
 #include "EventHub.h"
-#include "PointerControllerInterface.h"
 #include "InputListener.h"
 #include "InputReaderBase.h"
+#include "PointerControllerInterface.h"
 
 #include <input/DisplayViewport.h>
 #include <input/Input.h>
@@ -33,16 +33,15 @@
 #include <utils/Mutex.h>
 #include <utils/Timers.h>
 
-#include <optional>
 #include <stddef.h>
 #include <unistd.h>
+#include <optional>
 #include <vector>
 
 namespace android {
 
 class InputDevice;
 class InputMapper;
-
 
 struct StylusState {
     /* Time the stylus event was received. */
@@ -69,21 +68,20 @@ struct StylusState {
     }
 };
 
-
 /* Internal interface used by individual input devices to access global input device state
  * and parameters maintained by the input reader.
  */
 class InputReaderContext {
 public:
-    InputReaderContext() { }
-    virtual ~InputReaderContext() { }
+    InputReaderContext() {}
+    virtual ~InputReaderContext() {}
 
     virtual void updateGlobalMetaState() = 0;
     virtual int32_t getGlobalMetaState() = 0;
 
     virtual void disableVirtualKeysUntil(nsecs_t time) = 0;
-    virtual bool shouldDropVirtualKey(nsecs_t now,
-            InputDevice* device, int32_t keyCode, int32_t scanCode) = 0;
+    virtual bool shouldDropVirtualKey(nsecs_t now, InputDevice* device, int32_t keyCode,
+                                      int32_t scanCode) = 0;
 
     virtual void fadePointer() = 0;
 
@@ -99,7 +97,6 @@ public:
 
     virtual uint32_t getNextSequenceNum() = 0;
 };
-
 
 /* The input reader reads raw event data from the event hub and processes it into input events
  * that it sends to the input listener.  Some functions of the input reader, such as early
@@ -128,29 +125,28 @@ public:
 
     virtual bool isInputDeviceEnabled(int32_t deviceId);
 
-    virtual int32_t getScanCodeState(int32_t deviceId, uint32_t sourceMask,
-            int32_t scanCode);
-    virtual int32_t getKeyCodeState(int32_t deviceId, uint32_t sourceMask,
-            int32_t keyCode);
-    virtual int32_t getSwitchState(int32_t deviceId, uint32_t sourceMask,
-            int32_t sw);
+    virtual int32_t getScanCodeState(int32_t deviceId, uint32_t sourceMask, int32_t scanCode);
+    virtual int32_t getKeyCodeState(int32_t deviceId, uint32_t sourceMask, int32_t keyCode);
+    virtual int32_t getSwitchState(int32_t deviceId, uint32_t sourceMask, int32_t sw);
 
     virtual void toggleCapsLockState(int32_t deviceId);
 
-    virtual bool hasKeys(int32_t deviceId, uint32_t sourceMask,
-            size_t numCodes, const int32_t* keyCodes, uint8_t* outFlags);
+    virtual bool hasKeys(int32_t deviceId, uint32_t sourceMask, size_t numCodes,
+                         const int32_t* keyCodes, uint8_t* outFlags);
 
     virtual void requestRefreshConfiguration(uint32_t changes);
 
     virtual void vibrate(int32_t deviceId, const nsecs_t* pattern, size_t patternSize,
-            ssize_t repeat, int32_t token);
+                         ssize_t repeat, int32_t token);
     virtual void cancelVibrate(int32_t deviceId, int32_t token);
 
     virtual bool canDispatchToDisplay(int32_t deviceId, int32_t displayId);
+
 protected:
     // These members are protected so they can be instrumented by test cases.
     virtual InputDevice* createDeviceLocked(int32_t deviceId, int32_t controllerNumber,
-            const InputDeviceIdentifier& identifier, uint32_t classes);
+                                            const InputDeviceIdentifier& identifier,
+                                            uint32_t classes);
 
     class ContextImpl : public InputReaderContext {
         InputReader* mReader;
@@ -161,8 +157,8 @@ protected:
         virtual void updateGlobalMetaState();
         virtual int32_t getGlobalMetaState();
         virtual void disableVirtualKeysUntil(nsecs_t time);
-        virtual bool shouldDropVirtualKey(nsecs_t now,
-                InputDevice* device, int32_t keyCode, int32_t scanCode);
+        virtual bool shouldDropVirtualKey(nsecs_t now, InputDevice* device, int32_t keyCode,
+                                          int32_t scanCode);
         virtual void fadePointer();
         virtual void requestTimeoutAtTime(nsecs_t when);
         virtual int32_t bumpGeneration();
@@ -226,8 +222,8 @@ private:
 
     nsecs_t mDisableVirtualKeysTimeout;
     void disableVirtualKeysUntilLocked(nsecs_t time);
-    bool shouldDropVirtualKeyLocked(nsecs_t now,
-            InputDevice* device, int32_t keyCode, int32_t scanCode);
+    bool shouldDropVirtualKeyLocked(nsecs_t now, InputDevice* device, int32_t keyCode,
+                                    int32_t scanCode);
 
     nsecs_t mNextTimeout;
     void requestTimeoutAtTimeLocked(nsecs_t when);
@@ -238,17 +234,17 @@ private:
     // state queries
     typedef int32_t (InputDevice::*GetStateFunc)(uint32_t sourceMask, int32_t code);
     int32_t getStateLocked(int32_t deviceId, uint32_t sourceMask, int32_t code,
-            GetStateFunc getStateFunc);
+                           GetStateFunc getStateFunc);
     bool markSupportedKeyCodesLocked(int32_t deviceId, uint32_t sourceMask, size_t numCodes,
-            const int32_t* keyCodes, uint8_t* outFlags);
+                                     const int32_t* keyCodes, uint8_t* outFlags);
 };
-
 
 /* Represents the state of a single input device. */
 class InputDevice {
 public:
-    InputDevice(InputReaderContext* context, int32_t id, int32_t generation, int32_t
-            controllerNumber, const InputDeviceIdentifier& identifier, uint32_t classes);
+    InputDevice(InputReaderContext* context, int32_t id, int32_t generation,
+                int32_t controllerNumber, const InputDeviceIdentifier& identifier,
+                uint32_t classes);
     ~InputDevice();
 
     inline InputReaderContext* getContext() { return mContext; }
@@ -288,8 +284,8 @@ public:
     int32_t getKeyCodeState(uint32_t sourceMask, int32_t keyCode);
     int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode);
     int32_t getSwitchState(uint32_t sourceMask, int32_t switchCode);
-    bool markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
-            const int32_t* keyCodes, uint8_t* outFlags);
+    bool markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes, const int32_t* keyCodes,
+                               uint8_t* outFlags);
     void vibrate(const nsecs_t* pattern, size_t patternSize, ssize_t repeat, int32_t token);
     void cancelVibrate(int32_t token);
     void cancelTouch(nsecs_t when);
@@ -306,9 +302,7 @@ public:
     inline const PropertyMap& getConfiguration() { return mConfiguration; }
     inline EventHubInterface* getEventHub() { return mContext->getEventHub(); }
 
-    bool hasKey(int32_t code) {
-        return getEventHub()->hasScanCode(mId, code);
-    }
+    bool hasKey(int32_t code) { return getEventHub()->hasScanCode(mId, code); }
 
     bool hasAbsoluteAxis(int32_t code) {
         RawAbsoluteAxisInfo info;
@@ -352,7 +346,6 @@ private:
     PropertyMap mConfiguration;
 };
 
-
 /* Keeps track of the state of mouse or touch pad buttons. */
 class CursorButtonAccumulator {
 public:
@@ -376,7 +369,6 @@ private:
     void clearButtons();
 };
 
-
 /* Keeps track of cursor movements. */
 
 class CursorMotionAccumulator {
@@ -396,7 +388,6 @@ private:
 
     void clearRelativeAxes();
 };
-
 
 /* Keeps track of cursor scrolling motions. */
 
@@ -428,7 +419,6 @@ private:
 
     void clearRelativeAxes();
 };
-
 
 /* Keeps track of the state of touch, stylus and tool buttons. */
 class TouchButtonAccumulator {
@@ -467,7 +457,6 @@ private:
     void clearButtons();
 };
 
-
 /* Raw axis information from the driver. */
 struct RawPointerAxes {
     RawAbsoluteAxisInfo x;
@@ -489,7 +478,6 @@ struct RawPointerAxes {
     inline int32_t getRawHeight() const { return y.maxValue - y.minValue + 1; }
     void clear();
 };
-
 
 /* Raw data for a collection of pointers including a pointer id mapping table. */
 struct RawPointerData {
@@ -533,15 +521,10 @@ struct RawPointerData {
         touchingIdBits.clear();
     }
 
-    inline const Pointer& pointerForId(uint32_t id) const {
-        return pointers[idToIndex[id]];
-    }
+    inline const Pointer& pointerForId(uint32_t id) const { return pointers[idToIndex[id]]; }
 
-    inline bool isHovering(uint32_t pointerIndex) {
-        return pointers[pointerIndex].isHovering;
-    }
+    inline bool isHovering(uint32_t pointerIndex) { return pointers[pointerIndex].isHovering; }
 };
-
 
 /* Cooked data for a collection of pointers including a pointer id mapping table. */
 struct CookedPointerData {
@@ -576,7 +559,6 @@ struct CookedPointerData {
     }
 };
 
-
 /* Keeps track of the state of single-touch protocol. */
 class SingleTouchMotionAccumulator {
 public:
@@ -605,7 +587,6 @@ private:
     void clearAbsoluteAxes();
 };
 
-
 /* Keeps track of the state of multi-touch protocol. */
 class MultiTouchMotionAccumulator {
 public:
@@ -616,10 +597,12 @@ public:
         inline int32_t getY() const { return mAbsMTPositionY; }
         inline int32_t getTouchMajor() const { return mAbsMTTouchMajor; }
         inline int32_t getTouchMinor() const {
-            return mHaveAbsMTTouchMinor ? mAbsMTTouchMinor : mAbsMTTouchMajor; }
+            return mHaveAbsMTTouchMinor ? mAbsMTTouchMinor : mAbsMTTouchMajor;
+        }
         inline int32_t getToolMajor() const { return mAbsMTWidthMajor; }
         inline int32_t getToolMinor() const {
-            return mHaveAbsMTWidthMinor ? mAbsMTWidthMinor : mAbsMTWidthMajor; }
+            return mHaveAbsMTWidthMinor ? mAbsMTWidthMinor : mAbsMTWidthMajor;
+        }
         inline int32_t getOrientation() const { return mAbsMTOrientation; }
         inline int32_t getTrackingId() const { return mAbsMTTrackingId; }
         inline int32_t getPressure() const { return mAbsMTPressure; }
@@ -672,7 +655,6 @@ private:
     void clearSlots(int32_t initialSlot);
 };
 
-
 /* An input mapper transforms raw input events into cooked event data.
  * A single input device can have multiple associated input mappers in order to interpret
  * different classes of events.
@@ -710,9 +692,8 @@ public:
     virtual int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode);
     virtual int32_t getSwitchState(uint32_t sourceMask, int32_t switchCode);
     virtual bool markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
-            const int32_t* keyCodes, uint8_t* outFlags);
-    virtual void vibrate(const nsecs_t* pattern, size_t patternSize, ssize_t repeat,
-            int32_t token);
+                                       const int32_t* keyCodes, uint8_t* outFlags);
+    virtual void vibrate(const nsecs_t* pattern, size_t patternSize, ssize_t repeat, int32_t token);
     virtual void cancelVibrate(int32_t token);
     virtual void cancelTouch(nsecs_t when);
 
@@ -731,11 +712,10 @@ protected:
     status_t getAbsoluteAxisInfo(int32_t axis, RawAbsoluteAxisInfo* axisInfo);
     void bumpGeneration();
 
-    static void dumpRawAbsoluteAxisInfo(std::string& dump,
-            const RawAbsoluteAxisInfo& axis, const char* name);
+    static void dumpRawAbsoluteAxisInfo(std::string& dump, const RawAbsoluteAxisInfo& axis,
+                                        const char* name);
     static void dumpStylusState(std::string& dump, const StylusState& state);
 };
-
 
 class SwitchInputMapper : public InputMapper {
 public:
@@ -756,7 +736,6 @@ private:
     void sync(nsecs_t when);
 };
 
-
 class VibratorInputMapper : public InputMapper {
 public:
     explicit VibratorInputMapper(InputDevice* device);
@@ -766,8 +745,7 @@ public:
     virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo);
     virtual void process(const RawEvent* rawEvent);
 
-    virtual void vibrate(const nsecs_t* pattern, size_t patternSize, ssize_t repeat,
-            int32_t token);
+    virtual void vibrate(const nsecs_t* pattern, size_t patternSize, ssize_t repeat, int32_t token);
     virtual void cancelVibrate(int32_t token);
     virtual void timeoutExpired(nsecs_t when);
     virtual void dump(std::string& dump);
@@ -785,7 +763,6 @@ private:
     void stopVibrating();
 };
 
-
 class KeyboardInputMapper : public InputMapper {
 public:
     KeyboardInputMapper(InputDevice* device, uint32_t source, int32_t keyboardType);
@@ -801,7 +778,7 @@ public:
     virtual int32_t getKeyCodeState(uint32_t sourceMask, int32_t keyCode);
     virtual int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode);
     virtual bool markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
-            const int32_t* keyCodes, uint8_t* outFlags);
+                                       const int32_t* keyCodes, uint8_t* outFlags);
 
     virtual int32_t getMetaState();
     virtual void updateMetaState(int32_t keyCode);
@@ -857,12 +834,10 @@ private:
     void resetLedState();
     void initializeLedState(LedState& ledState, int32_t led);
     void updateLedState(bool reset);
-    void updateLedStateForModifier(LedState& ledState, int32_t led,
-            int32_t modifier, bool reset);
+    void updateLedStateForModifier(LedState& ledState, int32_t led, int32_t modifier, bool reset);
     std::optional<DisplayViewport> findViewport(nsecs_t when,
                                                 const InputReaderConfiguration* config);
 };
-
 
 class CursorInputMapper : public InputMapper {
 public:
@@ -931,7 +906,6 @@ private:
     void sync(nsecs_t when);
 };
 
-
 class RotaryEncoderInputMapper : public InputMapper {
 public:
     explicit RotaryEncoderInputMapper(InputDevice* device);
@@ -969,7 +943,7 @@ public:
     virtual int32_t getKeyCodeState(uint32_t sourceMask, int32_t keyCode);
     virtual int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode);
     virtual bool markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
-            const int32_t* keyCodes, uint8_t* outFlags);
+                                       const int32_t* keyCodes, uint8_t* outFlags);
 
     virtual void fadePointer();
     virtual void cancelTouch(nsecs_t when);
@@ -1002,11 +976,11 @@ protected:
     uint32_t mSource;
 
     enum DeviceMode {
-        DEVICE_MODE_DISABLED, // input is disabled
-        DEVICE_MODE_DIRECT, // direct mapping (touchscreen)
-        DEVICE_MODE_UNSCALED, // unscaled mapping (touchpad)
+        DEVICE_MODE_DISABLED,   // input is disabled
+        DEVICE_MODE_DIRECT,     // direct mapping (touchscreen)
+        DEVICE_MODE_UNSCALED,   // unscaled mapping (touchpad)
         DEVICE_MODE_NAVIGATION, // unscaled mapping with assist gesture (touch navigation)
-        DEVICE_MODE_POINTER, // pointer mapping (pointer)
+        DEVICE_MODE_POINTER,    // pointer mapping (pointer)
     };
     DeviceMode mDeviceMode;
 
@@ -1303,9 +1277,7 @@ private:
         bool haveTilt;
         InputDeviceInfo::MotionRange tilt;
 
-        OrientedRanges() {
-            clear();
-        }
+        OrientedRanges() { clear(); }
 
         void clear() {
             haveSize = false;
@@ -1445,9 +1417,9 @@ private:
         nsecs_t quietTime;
 
         // Reference points for multitouch gestures.
-        float referenceTouchX;    // reference touch X/Y coordinates in surface units
+        float referenceTouchX; // reference touch X/Y coordinates in surface units
         float referenceTouchY;
-        float referenceGestureX;  // reference gesture X/Y coordinates in pixels
+        float referenceGestureX; // reference gesture X/Y coordinates in pixels
         float referenceGestureY;
 
         // Distance that each pointer has traveled which has not yet been
@@ -1483,9 +1455,7 @@ private:
             tapUpTime = LLONG_MIN;
         }
 
-        void resetQuietTime() {
-            quietTime = LLONG_MIN;
-        }
+        void resetQuietTime() { quietTime = LLONG_MIN; }
     } mPointerGesture;
 
     struct PointerSimple {
@@ -1529,8 +1499,8 @@ private:
     bool consumeRawTouches(nsecs_t when, uint32_t policyFlags);
     void processRawTouches(bool timeout);
     void cookAndDispatch(nsecs_t when);
-    void dispatchVirtualKey(nsecs_t when, uint32_t policyFlags,
-            int32_t keyEventAction, int32_t keyEventFlags);
+    void dispatchVirtualKey(nsecs_t when, uint32_t policyFlags, int32_t keyEventAction,
+                            int32_t keyEventFlags);
 
     void dispatchTouches(nsecs_t when, uint32_t policyFlags);
     void dispatchHoverExit(nsecs_t when, uint32_t policyFlags);
@@ -1546,9 +1516,8 @@ private:
 
     void dispatchPointerGestures(nsecs_t when, uint32_t policyFlags, bool isTimeout);
     void abortPointerGestures(nsecs_t when, uint32_t policyFlags);
-    bool preparePointerGestures(nsecs_t when,
-            bool* outCancelPreviousGesture, bool* outFinishPreviousGesture,
-            bool isTimeout);
+    bool preparePointerGestures(nsecs_t when, bool* outCancelPreviousGesture,
+                                bool* outFinishPreviousGesture, bool isTimeout);
 
     void dispatchPointerStylus(nsecs_t when, uint32_t policyFlags);
     void abortPointerStylus(nsecs_t when, uint32_t policyFlags);
@@ -1556,8 +1525,7 @@ private:
     void dispatchPointerMouse(nsecs_t when, uint32_t policyFlags);
     void abortPointerMouse(nsecs_t when, uint32_t policyFlags);
 
-    void dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
-            bool down, bool hovering);
+    void dispatchPointerSimple(nsecs_t when, uint32_t policyFlags, bool down, bool hovering);
     void abortPointerSimple(nsecs_t when, uint32_t policyFlags);
 
     bool assignExternalStylusId(const RawState& state, bool timeout);
@@ -1568,19 +1536,18 @@ private:
     // If the changedId is >= 0 and the action is POINTER_DOWN or POINTER_UP, the
     // method will take care of setting the index and transmuting the action to DOWN or UP
     // it is the first / last pointer to go down / up.
-    void dispatchMotion(nsecs_t when, uint32_t policyFlags, uint32_t source,
-            int32_t action, int32_t actionButton,
-            int32_t flags, int32_t metaState, int32_t buttonState, int32_t edgeFlags,
-            const PointerProperties* properties, const PointerCoords* coords,
-            const uint32_t* idToIndex, BitSet32 idBits,
-            int32_t changedId, float xPrecision, float yPrecision, nsecs_t downTime);
+    void dispatchMotion(nsecs_t when, uint32_t policyFlags, uint32_t source, int32_t action,
+                        int32_t actionButton, int32_t flags, int32_t metaState, int32_t buttonState,
+                        int32_t edgeFlags, const PointerProperties* properties,
+                        const PointerCoords* coords, const uint32_t* idToIndex, BitSet32 idBits,
+                        int32_t changedId, float xPrecision, float yPrecision, nsecs_t downTime);
 
     // Updates pointer coords and properties for pointers with specified ids that have moved.
     // Returns true if any of them changed.
-    bool updateMovedPointers(const PointerProperties* inProperties,
-            const PointerCoords* inCoords, const uint32_t* inIdToIndex,
-            PointerProperties* outProperties, PointerCoords* outCoords,
-            const uint32_t* outIdToIndex, BitSet32 idBits) const;
+    bool updateMovedPointers(const PointerProperties* inProperties, const PointerCoords* inCoords,
+                             const uint32_t* inIdToIndex, PointerProperties* outProperties,
+                             PointerCoords* outCoords, const uint32_t* outIdToIndex,
+                             BitSet32 idBits) const;
 
     bool isPointInsideSurface(int32_t x, int32_t y);
     const VirtualKey* findVirtualKeyHit(int32_t x, int32_t y);
@@ -1589,7 +1556,6 @@ private:
 
     const char* modeToString(DeviceMode deviceMode);
 };
-
 
 class SingleTouchInputMapper : public TouchInputMapper {
 public:
@@ -1607,7 +1573,6 @@ protected:
 private:
     SingleTouchMotionAccumulator mSingleTouchMotionAccumulator;
 };
-
 
 class MultiTouchInputMapper : public TouchInputMapper {
 public:
@@ -1651,7 +1616,6 @@ private:
     StylusState mStylusState;
 };
 
-
 class JoystickInputMapper : public InputMapper {
 public:
     explicit JoystickInputMapper(InputDevice* device);
@@ -1671,8 +1635,8 @@ private:
 
         bool explicitlyMapped; // true if the axis was explicitly assigned an axis id
 
-        float scale;   // scale factor from raw to normalized values
-        float offset;  // offset to add after scaling for normalization
+        float scale;      // scale factor from raw to normalized values
+        float offset;     // offset to add after scaling for normalization
         float highScale;  // scale factor from raw to normalized values of high split
         float highOffset; // offset to add after scaling for normalization of high split
 
@@ -1682,16 +1646,16 @@ private:
         float fuzz;       // normalized error tolerance
         float resolution; // normalized resolution in units/mm
 
-        float filter;  // filter out small variations of this size
-        float currentValue; // current value
-        float newValue; // most recent value
+        float filter;           // filter out small variations of this size
+        float currentValue;     // current value
+        float newValue;         // most recent value
         float highCurrentValue; // current value of high split
-        float highNewValue; // most recent value of high split
+        float highNewValue;     // most recent value of high split
 
         void initialize(const RawAbsoluteAxisInfo& rawAxisInfo, const AxisInfo& axisInfo,
-                bool explicitlyMapped, float scale, float offset,
-                float highScale, float highOffset,
-                float min, float max, float flat, float fuzz, float resolution) {
+                        bool explicitlyMapped, float scale, float offset, float highScale,
+                        float highOffset, float min, float max, float flat, float fuzz,
+                        float resolution) {
             this->rawAxisInfo = rawAxisInfo;
             this->axisInfo = axisInfo;
             this->explicitlyMapped = explicitlyMapped;
@@ -1725,17 +1689,16 @@ private:
     void pruneAxes(bool ignoreExplicitlyMappedAxes);
     bool filterAxes(bool force);
 
-    static bool hasValueChangedSignificantly(float filter,
-            float newValue, float currentValue, float min, float max);
-    static bool hasMovedNearerToValueWithinFilteredRange(float filter,
-            float newValue, float currentValue, float thresholdValue);
+    static bool hasValueChangedSignificantly(float filter, float newValue, float currentValue,
+                                             float min, float max);
+    static bool hasMovedNearerToValueWithinFilteredRange(float filter, float newValue,
+                                                         float currentValue, float thresholdValue);
 
     static bool isCenteredAxis(int32_t axis);
     static int32_t getCompatAxis(int32_t axis);
 
     static void addMotionRange(int32_t axisId, const Axis& axis, InputDeviceInfo* info);
-    static void setPointerCoordsAxisValue(PointerCoords* pointerCoords, int32_t axis,
-            float value);
+    static void setPointerCoordsAxisValue(PointerCoords* pointerCoords, int32_t axis, float value);
 };
 
 } // namespace android
