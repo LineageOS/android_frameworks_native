@@ -432,7 +432,7 @@ std::vector<renderengine::LayerSettings> Output::generateClientCompositionReques
                     clientComposition ? clearRegion : dummyRegion,
             };
             if (auto result = layerFE.prepareClientComposition(targetSettings)) {
-                if (clearClientComposition) {
+                if (!clientComposition) {
                     auto& layerSettings = *result;
                     layerSettings.source.buffer.buffer = nullptr;
                     layerSettings.source.solidColor = half3(0.0, 0.0, 0.0);
