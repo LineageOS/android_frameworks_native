@@ -402,7 +402,7 @@ std::vector<renderengine::LayerSettings> Output::generateClientCompositionReques
         const auto& layerFEState = layer->getLayer().getState().frontEnd;
         auto& layerFE = layer->getLayerFE();
 
-        const Region clip(viewportRegion.intersect(layer->getState().visibleRegion));
+        const Region clip(viewportRegion.intersect(layerFEState.geomVisibleRegion));
         ALOGV("Layer: %s", layerFE.getDebugName());
         if (clip.isEmpty()) {
             ALOGV("  Skipping for empty clip");
