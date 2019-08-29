@@ -1543,10 +1543,25 @@ void SurfaceFlinger::onRefreshReceived(int sequenceId, hwc2_display_t /*hwcDispl
 
 void SurfaceFlinger::setPrimaryVsyncEnabled(bool enabled) {
     ATRACE_CALL();
-    Mutex::Autolock lock(mStateLock);
+
+    // Enable / Disable HWVsync from the main thread to avoid race conditions with
+    // display power state.
+    postMessageAsync(new LambdaMessage(
+            [=]() NO_THREAD_SAFETY_ANALYSIS { setPrimaryVsyncEnabledInternal(enabled); }));
+}
+
+void SurfaceFlinger::setPrimaryVsyncEnabledInternal(bool enabled) {
+    ATRACE_CALL();
+
     if (const auto displayId = getInternalDisplayIdLocked()) {
-        getHwComposer().setVsyncEnabled(*displayId,
-                                        enabled ? HWC2::Vsync::Enable : HWC2::Vsync::Disable);
+        sp<DisplayDevice> display = getDefaultDisplayDeviceLocked();
+        if (display && display->isPoweredOn()) {
+            getHwComposer().setVsyncEnabled(*displayId,
+                                            enabled ? HWC2::Vsync::Enable : HWC2::Vsync::Disable);
+        } else {
+            // Cache the latest vsync state and apply it when screen is on again
+            mEnableHWVsyncScreenOn = enabled;
+        }
     }
 }
 
@@ -1654,6 +1669,18 @@ bool SurfaceFlinger::previousFrameMissed() NO_THREAD_SAFETY_ANALYSIS {
             : mPreviousPresentFences[1];
 
     return fence != Fence::NO_FENCE && (fence->getStatus() == Fence::Status::Unsignaled);
+}
+
+nsecs_t SurfaceFlinger::getExpectedPresentTime() NO_THREAD_SAFETY_ANALYSIS {
+    DisplayStatInfo stats;
+    mScheduler->getDisplayStatInfo(&stats);
+    const nsecs_t presentTime = mScheduler->expectedPresentTime();
+    // Inflate the expected present time if we're targetting the next vsync.
+    const nsecs_t correctedTime =
+            mVsyncModulator.getOffsets().sf < mPhaseOffsets->getOffsetThresholdForNextVsync()
+            ? presentTime
+            : presentTime + stats.vsyncPeriod;
+    return correctedTime;
 }
 
 void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
@@ -3264,8 +3291,7 @@ bool SurfaceFlinger::handlePageFlip()
     mDrawingState.traverseInZOrder([&](Layer* layer) {
         if (layer->hasReadyFrame()) {
             frameQueued = true;
-            nsecs_t expectedPresentTime;
-            expectedPresentTime = mScheduler->expectedPresentTime();
+            const nsecs_t expectedPresentTime = getExpectedPresentTime();
             if (layer->shouldPresentNow(expectedPresentTime)) {
                 mLayersWithQueuedFrames.push_back(layer);
             } else {
@@ -4451,6 +4477,11 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
         // Turn on the display
         getHwComposer().setPowerMode(*displayId, mode);
         if (display->isPrimary() && mode != HWC_POWER_MODE_DOZE_SUSPEND) {
+            if (mEnableHWVsyncScreenOn) {
+                setPrimaryVsyncEnabledInternal(mEnableHWVsyncScreenOn);
+                mEnableHWVsyncScreenOn = false;
+            }
+
             mScheduler->onScreenAcquired(mAppConnectionHandle);
             mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
         }
