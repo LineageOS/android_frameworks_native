@@ -717,5 +717,84 @@ TEST_F(GenerateClientCompositionRequestsTest, ignoresLayersThatDoNotIntersectWit
     EXPECT_EQ(0u, requests.size());
 }
 
+TEST_F(GenerateClientCompositionRequestsTest, clearsDeviceLayesAfterFirst) {
+    // If client composition is performed with some layers set to use device
+    // composition, device layers after the first layer (device or client) will
+    // clear the frame buffer if they are opaque and if that layer has a flag
+    // set to do so. The first layer is skipped as the frame buffer is already
+    // expected to be clear.
+
+    mock::OutputLayer* leftOutputLayer = new StrictMock<mock::OutputLayer>();
+    mock::OutputLayer* rightOutputLayer = new StrictMock<mock::OutputLayer>();
+
+    StrictMock<mock::Layer> leftLayer;
+    StrictMock<mock::LayerFE> leftLayerFE;
+    StrictMock<mock::Layer> rightLayer;
+    StrictMock<mock::LayerFE> rightLayerFE;
+
+    impl::OutputLayerCompositionState leftOutputLayerState;
+    leftOutputLayerState.clearClientTarget = true;
+
+    impl::LayerCompositionState leftLayerState;
+    leftLayerState.frontEnd.geomVisibleRegion = Region{Rect{0, 0, 1000, 1000}};
+    leftLayerState.frontEnd.isOpaque = true;
+
+    impl::OutputLayerCompositionState rightOutputLayerState;
+    rightOutputLayerState.clearClientTarget = true;
+
+    impl::LayerCompositionState rightLayerState;
+    rightLayerState.frontEnd.geomVisibleRegion = Region{Rect{1000, 0, 2000, 1000}};
+    rightLayerState.frontEnd.isOpaque = true;
+
+    const half3 rightLayerColor{0.f, 1.f, 0.f};
+    renderengine::LayerSettings rightLayerRESettings;
+    rightLayerRESettings.geometry.boundaries = FloatRect{456, 0, 0, 0};
+    rightLayerRESettings.source.solidColor = rightLayerColor;
+
+    EXPECT_CALL(*leftOutputLayer, getState()).WillRepeatedly(ReturnRef(leftOutputLayerState));
+    EXPECT_CALL(*leftOutputLayer, getLayer()).WillRepeatedly(ReturnRef(leftLayer));
+    EXPECT_CALL(*leftOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(leftLayerFE));
+    EXPECT_CALL(*leftOutputLayer, requiresClientComposition()).WillRepeatedly(Return(false));
+    EXPECT_CALL(*leftOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
+    EXPECT_CALL(leftLayer, getState()).WillRepeatedly(ReturnRef(leftLayerState));
+
+    EXPECT_CALL(*rightOutputLayer, getState()).WillRepeatedly(ReturnRef(rightOutputLayerState));
+    EXPECT_CALL(*rightOutputLayer, getLayer()).WillRepeatedly(ReturnRef(rightLayer));
+    EXPECT_CALL(*rightOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(rightLayerFE));
+    EXPECT_CALL(*rightOutputLayer, requiresClientComposition()).WillRepeatedly(Return(false));
+    EXPECT_CALL(*rightOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
+    EXPECT_CALL(rightLayer, getState()).WillRepeatedly(ReturnRef(rightLayerState));
+    EXPECT_CALL(rightLayerFE, prepareClientComposition(_)).WillOnce(Return(rightLayerRESettings));
+
+    Output::OutputLayers outputLayers;
+    outputLayers.emplace_back(std::unique_ptr<OutputLayer>(leftOutputLayer));
+    outputLayers.emplace_back(std::unique_ptr<OutputLayer>(rightOutputLayer));
+    mOutput.setOutputLayersOrderedByZ(std::move(outputLayers));
+
+    const Rect kPortraitFrame(0, 0, 1000, 2000);
+    const Rect kPortraitViewport(0, 0, 2000, 1000);
+    const Rect kPortraitScissor(0, 0, 1000, 2000);
+    const uint32_t kPortraitOrientation = TR_ROT_90;
+
+    mOutput.editState().frame = kPortraitFrame;
+    mOutput.editState().viewport = kPortraitViewport;
+    mOutput.editState().scissor = kPortraitScissor;
+    mOutput.editState().transform = ui::Transform{kPortraitOrientation};
+    mOutput.editState().orientation = kPortraitOrientation;
+    mOutput.editState().needsFiltering = true;
+    mOutput.editState().isSecure = false;
+
+    constexpr bool supportsProtectedContent = false;
+    Region clearRegion;
+    auto requests =
+            mOutput.generateClientCompositionRequests(supportsProtectedContent, clearRegion);
+
+    const half3 clearColor{0.f, 0.f, 0.f};
+
+    ASSERT_EQ(1u, requests.size());
+    EXPECT_EQ(456.f, requests[0].geometry.boundaries.left);
+    EXPECT_EQ(clearColor, requests[0].source.solidColor);
+}
+
 } // namespace
 } // namespace android::compositionengine
