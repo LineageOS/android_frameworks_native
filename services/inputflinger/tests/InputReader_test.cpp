@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "../InputReader.h"
+#include "InputReader.h"
 #include "TestInputListener.h"
 
 #include <gtest/gtest.h>

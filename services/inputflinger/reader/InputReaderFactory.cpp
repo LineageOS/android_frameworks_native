@@ -19,9 +19,8 @@
 
 namespace android {
 
-sp<InputReaderInterface> createInputReader(
-        const sp<InputReaderPolicyInterface>& policy,
-        const sp<InputListenerInterface>& listener) {
+sp<InputReaderInterface> createInputReader(const sp<InputReaderPolicyInterface>& policy,
+                                           const sp<InputListenerInterface>& listener) {
     return new InputReader(new EventHub(), policy, listener);
 }
 

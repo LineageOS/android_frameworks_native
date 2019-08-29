@@ -76,39 +76,6 @@ cc_library_headers {
 }
 
 cc_library_shared {
-    name: "libinputreader",
-    defaults: ["inputflinger_defaults"],
-
-    srcs: [
-        "EventHub.cpp",
-        "InputReader.cpp",
-        "InputReaderFactory.cpp",
-        "TouchVideoDevice.cpp",
-    ],
-
-    shared_libs: [
-        "libbase",
-        "libinputflinger_base",
-        "libcrypto",
-        "libcutils",
-        "libinput",
-        "liblog",
-        "libui",
-        "libutils",
-        "libhardware_legacy",
-        "libstatslog",
-    ],
-
-    header_libs: [
-        "libinputflinger_headers",
-    ],
-
-    export_header_lib_headers: [
-        "libinputflinger_headers",
-    ],
-}
-
-cc_library_shared {
     name: "libinputflinger_base",
     defaults: ["inputflinger_defaults"],
 

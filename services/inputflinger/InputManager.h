@@ -21,9 +21,8 @@
  * Native input manager.
  */
 
-#include "EventHub.h"
 #include "InputClassifier.h"
-#include "InputReader.h"
+#include "InputDispatcher.h"
 #include "InputReaderBase.h"
 
 #include <InputDispatcherInterface.h>
