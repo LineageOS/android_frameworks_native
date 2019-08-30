@@ -51,8 +51,6 @@ const char kDvrStandaloneProperty[] = "ro.boot.vr";
 
 const char kRightEyeOffsetProperty[] = "dvr.right_eye_offset_ns";
 
-const char kUseExternalDisplayProperty[] = "persist.vr.use_external_display";
-
 // Surface flinger uses "VSYNC-sf" and "VSYNC-app" for its version of these
 // events. Name ours similarly.
 const char kVsyncTraceEventName[] = "VSYNC-vrflinger";
@@ -965,18 +963,9 @@ bool HardwareComposer::UpdateTargetDisplay() {
       external_display_ = GetDisplayParams(composer_.get(),
           *displays.external_display, /*is_primary*/ false);
 
-      if (property_get_bool(kUseExternalDisplayProperty, false)) {
-        ALOGI("External display connected. Switching to external display.");
-        target_display_ = &(*external_display_);
-        target_display_changed = true;
-      } else {
-        ALOGI("External display connected, but sysprop %s is unset, so"
-              " using primary display.", kUseExternalDisplayProperty);
-        if (was_using_external_display) {
-          target_display_ = &primary_display_;
-          target_display_changed = true;
-        }
-      }
+      ALOGI("External display connected. Switching to external display.");
+      target_display_ = &(*external_display_);
+      target_display_changed = true;
     } else {
       // External display was disconnected
       external_display_ = std::nullopt;
