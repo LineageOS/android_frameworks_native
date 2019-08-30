@@ -28,6 +28,13 @@ ServiceManager::ServiceManager(std::unique_ptr<Access>&& access) : mAccess(std::
 ServiceManager::~ServiceManager() {
     // this should only happen in tests
 
+    for (const auto& [name, callbacks] : mNameToCallback) {
+        CHECK(!callbacks.empty()) << name;
+        for (const auto& callback : callbacks) {
+            CHECK(callback != nullptr) << name;
+        }
+    }
+
     for (const auto& [name, service] : mNameToService) {
         CHECK(service.binder != nullptr) << name;
     }
@@ -117,6 +124,14 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
         .dumpPriority = dumpPriority,
     };
 
+    auto it = mNameToCallback.find(name);
+    if (it != mNameToCallback.end()) {
+        for (const sp<IServiceCallback>& cb : it->second) {
+            // permission checked in registerForNotifications
+            cb->onRegistration(name, binder);
+        }
+    }
+
     return Status::ok();
 }
 
@@ -146,6 +161,84 @@ Status ServiceManager::listServices(int32_t dumpPriority, std::vector<std::strin
     return Status::ok();
 }
 
+Status ServiceManager::registerForNotifications(
+        const std::string& name, const sp<IServiceCallback>& callback) {
+    auto ctx = mAccess->getCallingContext();
+
+    if (!mAccess->canFind(ctx, name)) {
+        return Status::fromExceptionCode(Status::EX_SECURITY);
+    }
+
+    if (!isValidServiceName(name)) {
+        LOG(ERROR) << "Invalid service name: " << name;
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT);
+    }
+
+    if (callback == nullptr) {
+        return Status::fromExceptionCode(Status::EX_NULL_POINTER);
+    }
+
+    if (OK != IInterface::asBinder(callback)->linkToDeath(this)) {
+        LOG(ERROR) << "Could not linkToDeath when adding " << name;
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
+    }
+
+    mNameToCallback[name].push_back(callback);
+
+    if (auto it = mNameToService.find(name); it != mNameToService.end()) {
+        const sp<IBinder>& binder = it->second.binder;
+
+        // never null if an entry exists
+        CHECK(binder != nullptr) << name;
+        callback->onRegistration(name, binder);
+    }
+
+    return Status::ok();
+}
+Status ServiceManager::unregisterForNotifications(
+        const std::string& name, const sp<IServiceCallback>& callback) {
+    auto ctx = mAccess->getCallingContext();
+
+    if (!mAccess->canFind(ctx, name)) {
+        return Status::fromExceptionCode(Status::EX_SECURITY);
+    }
+
+    bool found = false;
+
+    auto it = mNameToCallback.find(name);
+    if (it != mNameToCallback.end()) {
+        removeCallback(IInterface::asBinder(callback), &it, &found);
+    }
+
+    if (!found) {
+        LOG(ERROR) << "Trying to unregister callback, but none exists " << name;
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
+    }
+
+    return Status::ok();
+}
+
+void ServiceManager::removeCallback(const wp<IBinder>& who,
+                                    CallbackMap::iterator* it,
+                                    bool* found) {
+    std::vector<sp<IServiceCallback>>& listeners = (*it)->second;
+
+    for (auto lit = listeners.begin(); lit != listeners.end();) {
+        if (IInterface::asBinder(*lit) == who) {
+            if(found) *found = true;
+            lit = listeners.erase(lit);
+        } else {
+            ++lit;
+        }
+    }
+
+    if (listeners.empty()) {
+        *it = mNameToCallback.erase(*it);
+    } else {
+        it++;
+    }
+}
+
 void ServiceManager::binderDied(const wp<IBinder>& who) {
     for (auto it = mNameToService.begin(); it != mNameToService.end();) {
         if (who == it->second.binder) {
@@ -153,6 +246,10 @@ void ServiceManager::binderDied(const wp<IBinder>& who) {
         } else {
             ++it;
         }
+    }
+
+    for (auto it = mNameToCallback.begin(); it != mNameToCallback.end();) {
+        removeCallback(who, &it, nullptr /*found*/);
     }
 }
 
