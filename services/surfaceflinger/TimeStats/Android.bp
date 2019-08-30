@@ -2,12 +2,9 @@ cc_library_static {
     name: "libtimestats",
     defaults: ["surfaceflinger_defaults"],
     srcs: [
-      "TimeStats.cpp"
+      "TimeStats.cpp",
     ],
     export_include_dirs: ["."],
-    static_libs: [
-      "libperfetto_client_experimental",
-    ],
     shared_libs: [
       "libtimestats_proto",
       "libui",

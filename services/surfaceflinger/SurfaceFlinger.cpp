@@ -98,6 +98,7 @@
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/VirtualDisplaySurface.h"
 #include "Effects/Daltonizer.h"
+#include "FrameTracer/FrameTracer.h"
 #include "RegionSamplingThread.h"
 #include "Scheduler/DispSync.h"
 #include "Scheduler/DispSyncSource.h"
@@ -257,6 +258,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
       : mFactory(factory),
         mInterceptor(mFactory.createSurfaceInterceptor(this)),
         mTimeStats(mFactory.createTimeStats()),
+        mFrameTracer(std::make_unique<FrameTracer>()),
         mEventQueue(mFactory.createMessageQueue()),
         mCompositionEngine(mFactory.createCompositionEngine()),
         mPhaseOffsets(mFactory.createPhaseOffsets()) {}
@@ -513,7 +515,7 @@ void SurfaceFlinger::bootFinished()
     const nsecs_t duration = now - mBootTime;
     ALOGI("Boot is finished (%ld ms)", long(ns2ms(duration)) );
 
-    mTimeStats->initializeTracing();
+    mFrameTracer->initialize();
 
     // wait patiently for the window manager death
     const String16 name("window");

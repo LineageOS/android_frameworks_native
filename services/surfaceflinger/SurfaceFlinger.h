@@ -94,6 +94,7 @@ class MessageBase;
 class RefreshRateOverlay;
 class RegionSamplingThread;
 class TimeStats;
+class FrameTracer;
 
 namespace compositionengine {
 class DisplaySurface;
@@ -995,6 +996,7 @@ private:
     bool mTracingEnabled = false;
     bool mTracingEnabledChanged GUARDED_BY(mStateLock) = false;
     const std::shared_ptr<TimeStats> mTimeStats;
+    const std::unique_ptr<FrameTracer> mFrameTracer;
     bool mUseHwcVirtualDisplays = false;
     std::atomic<uint32_t> mFrameMissedCount = 0;
     std::atomic<uint32_t> mHwcFrameMissedCount = 0;

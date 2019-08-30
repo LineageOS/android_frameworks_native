@@ -51,6 +51,7 @@
 
 #include "Colorizer.h"
 #include "DisplayDevice.h"
+#include "FrameTracer/FrameTracer.h"
 #include "LayerRejecter.h"
 #include "TimeStats/TimeStats.h"
 
@@ -71,7 +72,9 @@ BufferLayer::BufferLayer(const LayerCreationArgs& args)
 
 BufferLayer::~BufferLayer() {
     mFlinger->deleteTextureAsync(mTextureName);
-    mFlinger->mTimeStats->onDestroy(getSequence());
+    const int32_t layerID = getSequence();
+    mFlinger->mTimeStats->onDestroy(layerID);
+    mFlinger->mFrameTracer->onDestroy(layerID);
 }
 
 void BufferLayer::useSurfaceDamage() {
@@ -314,17 +317,17 @@ bool BufferLayer::onPostComposition(const std::optional<DisplayId>& displayId,
 
     if (presentFence->isValid()) {
         mFlinger->mTimeStats->setPresentFence(layerID, mCurrentFrameNumber, presentFence);
-        mFlinger->mTimeStats->traceFence(layerID, getCurrentBufferId(), mCurrentFrameNumber,
-                                         presentFence, TimeStats::FrameEvent::PRESENT_FENCE);
+        mFlinger->mFrameTracer->traceFence(layerID, getCurrentBufferId(), mCurrentFrameNumber,
+                                           presentFence, FrameTracer::FrameEvent::PRESENT_FENCE);
         mFrameTracker.setActualPresentFence(std::shared_ptr<FenceTime>(presentFence));
     } else if (displayId && mFlinger->getHwComposer().isConnected(*displayId)) {
         // The HWC doesn't support present fences, so use the refresh
         // timestamp instead.
         const nsecs_t actualPresentTime = mFlinger->getHwComposer().getRefreshTimestamp(*displayId);
         mFlinger->mTimeStats->setPresentTime(layerID, mCurrentFrameNumber, actualPresentTime);
-        mFlinger->mTimeStats->traceTimestamp(layerID, getCurrentBufferId(), mCurrentFrameNumber,
-                                             actualPresentTime,
-                                             TimeStats::FrameEvent::PRESENT_FENCE);
+        mFlinger->mFrameTracer->traceTimestamp(layerID, getCurrentBufferId(), mCurrentFrameNumber,
+                                               actualPresentTime,
+                                               FrameTracer::FrameEvent::PRESENT_FENCE);
         mFrameTracker.setActualPresentTime(actualPresentTime);
     }
 
