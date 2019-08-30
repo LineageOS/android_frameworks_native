@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "../InputDispatcher.h"
+#include "../dispatcher/InputDispatcher.h"
 
 #include <binder/Binder.h>
 
