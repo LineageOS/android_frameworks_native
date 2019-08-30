@@ -16,6 +16,7 @@
 
 #include <android-base/stringprintf.h>
 #include <compositionengine/CompositionEngine.h>
+#include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/DisplayCreationArgs.h>
 #include <compositionengine/DisplaySurface.h>
 #include <compositionengine/impl/Display.h>
@@ -257,6 +258,21 @@ void Display::setExpensiveRenderingExpected(bool enabled) {
     if (mPowerAdvisor && mId) {
         mPowerAdvisor->setExpensiveRenderingExpected(*mId, enabled);
     }
+}
+
+void Display::finishFrame(const compositionengine::CompositionRefreshArgs& refreshArgs) {
+    // We only need to actually compose the display if:
+    // 1) It is being handled by hardware composer, which may need this to
+    //    keep its virtual display state machine in sync, or
+    // 2) There is work to be done (the dirty region isn't empty)
+    if (!mId) {
+        if (getDirtyRegion(refreshArgs.repaintEverything).isEmpty()) {
+            ALOGV("Skipping display composition");
+            return;
+        }
+    }
+
+    impl::Output::finishFrame(refreshArgs);
 }
 
 } // namespace android::compositionengine::impl

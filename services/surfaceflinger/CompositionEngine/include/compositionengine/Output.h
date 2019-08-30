@@ -162,11 +162,15 @@ public:
     // Performs any debug related screen flashing due to the update
     virtual void devOptRepaintFlash(const CompositionRefreshArgs&) = 0;
 
+    // Finishes the current frame on the output, performing client composition
+    // and ensuring the content is displayed.
+    virtual void finishFrame(const CompositionRefreshArgs&) = 0;
+
     // Performs client composition as needed for layers on the output. The
     // output fence is set to a fence to signal when client composition is
     // finished.
-    // Returns false if client composition cannot be performed.
-    virtual bool composeSurfaces(const Region& debugFence, base::unique_fd* outReadyFence) = 0;
+    // Returns std::nullopt if client composition cannot be performed.
+    virtual std::optional<base::unique_fd> composeSurfaces(const Region&) = 0;
 
     // Posts the new frame, and sets release fences.
     virtual void postFramebuffer() = 0;
