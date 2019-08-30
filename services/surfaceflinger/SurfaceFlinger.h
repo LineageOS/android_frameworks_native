@@ -876,8 +876,11 @@ private:
     void dumpDisplayIdentificationData(std::string& result) const;
     void dumpWideColorInfo(std::string& result) const;
     LayersProto dumpDrawingStateProto(uint32_t traceFlags = SurfaceTracing::TRACE_ALL) const;
+    void dumpOffscreenLayersProto(LayersProto& layersProto,
+                                  uint32_t traceFlags = SurfaceTracing::TRACE_ALL) const;
     LayersProto dumpProtoFromMainThread(uint32_t traceFlags = SurfaceTracing::TRACE_ALL)
             EXCLUDES(mStateLock);
+    void dumpOffscreenLayers(std::string& result) EXCLUDES(mStateLock);
     void withTracingLock(std::function<void()> operation) REQUIRES(mStateLock);
 
     bool isLayerTripleBufferingDisabled() const {

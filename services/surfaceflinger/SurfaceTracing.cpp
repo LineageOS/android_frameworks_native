@@ -163,6 +163,7 @@ LayersTraceProto SurfaceTracing::traceLayersLocked(const char* where) {
     entry.set_elapsed_realtime_nanos(elapsedRealtimeNano());
     entry.set_where(where);
     LayersProto layers(mFlinger.dumpDrawingStateProto(mTraceFlags));
+    mFlinger.dumpOffscreenLayersProto(layers);
     entry.mutable_layers()->Swap(&layers);
 
     return entry;

@@ -80,9 +80,7 @@ class SurfaceInterceptor;
 
 struct LayerCreationArgs {
     LayerCreationArgs(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name,
-                      uint32_t w, uint32_t h, uint32_t flags, LayerMetadata metadata)
-          : flinger(flinger), client(client), name(name), w(w), h(h), flags(flags),
-            metadata(std::move(metadata)) {}
+                      uint32_t w, uint32_t h, uint32_t flags, LayerMetadata metadata);
 
     SurfaceFlinger* flinger;
     const sp<Client>& client;
@@ -91,6 +89,8 @@ struct LayerCreationArgs {
     uint32_t h;
     uint32_t flags;
     LayerMetadata metadata;
+    pid_t callingPid;
+    uid_t callingUid;
 };
 
 class Layer : public virtual compositionengine::LayerFE {
@@ -600,6 +600,7 @@ public:
     void miniDump(std::string& result, const sp<DisplayDevice>& display) const;
     void dumpFrameStats(std::string& result) const;
     void dumpFrameEvents(std::string& result);
+    void dumpCallingUidPid(std::string& result) const;
     void clearFrameStats();
     void logFrameStats();
     void getFrameStats(FrameStats* outStats) const;
@@ -924,6 +925,11 @@ private:
     bool mGetHandleCalled = false;
 
     void removeRemoteSyncPoints();
+
+    // Tracks the process and user id of the caller when creating this layer
+    // to help debugging.
+    pid_t mCallingPid;
+    uid_t mCallingUid;
 };
 
 } // namespace android
