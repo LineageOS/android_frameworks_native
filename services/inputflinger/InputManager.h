@@ -22,14 +22,15 @@
  */
 
 #include "EventHub.h"
-#include "InputReaderBase.h"
 #include "InputClassifier.h"
-#include "InputDispatcher.h"
 #include "InputReader.h"
+#include "InputReaderBase.h"
 
+#include <InputDispatcherInterface.h>
+#include <InputDispatcherPolicyInterface.h>
+#include <input/ISetInputWindowsListener.h>
 #include <input/Input.h>
 #include <input/InputTransport.h>
-#include <input/ISetInputWindowsListener.h>
 
 #include <input/IInputFlinger.h>
 #include <utils/Errors.h>
@@ -39,6 +40,7 @@
 
 namespace android {
 class InputChannel;
+class InputDispatcherThread;
 
 /*
  * The input manager is the core of the system event processing.
