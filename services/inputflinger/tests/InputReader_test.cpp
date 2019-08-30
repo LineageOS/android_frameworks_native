@@ -15,7 +15,15 @@
  */
 
 #include "InputReader.h"
+#include "CursorInputMapper.h"
+#include "InputDevice.h"
+#include "InputMapper.h"
+#include "KeyboardInputMapper.h"
+#include "MultiTouchInputMapper.h"
+#include "SingleTouchInputMapper.h"
+#include "SwitchInputMapper.h"
 #include "TestInputListener.h"
+#include "TouchInputMapper.h"
 
 #include <gtest/gtest.h>
 #include <inttypes.h>
