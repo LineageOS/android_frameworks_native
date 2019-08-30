@@ -202,6 +202,20 @@ public:
         mConfig.setDisplayViewports(mViewports);
     }
 
+    bool updateViewport(const DisplayViewport& viewport) {
+        size_t count = mViewports.size();
+        for (size_t i = 0; i < count; i++) {
+            const DisplayViewport& currentViewport = mViewports[i];
+            if (currentViewport.displayId == viewport.displayId) {
+                mViewports[i] = viewport;
+                mConfig.setDisplayViewports(mViewports);
+                return true;
+            }
+        }
+        // no viewport found.
+        return false;
+    }
+
     void addExcludedDeviceName(const std::string& deviceName) {
         mConfig.excludedDeviceNames.push_back(deviceName);
     }
@@ -6591,6 +6605,32 @@ TEST_F(MultiTouchInputMapperTest, Configure_EnabledForAssociatedDisplay) {
     NotifyMotionArgs args;
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(SECONDARY_DISPLAY_ID, args.displayId);
+}
+
+/**
+ * Test touch should not work if outside of surface.
+ */
+TEST_F(MultiTouchInputMapperTest, Viewports_SurfaceRange) {
+    MultiTouchInputMapper* mapper = new MultiTouchInputMapper(mDevice);
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    // Let surface be different from physical display.
+    std::optional<DisplayViewport> internalViewport =
+            mFakePolicy->getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
+    internalViewport->logicalLeft = internalViewport->physicalTop + 20;
+    internalViewport->logicalTop = internalViewport->physicalRight + 20;
+    internalViewport->logicalRight = internalViewport->physicalRight - 20;
+    internalViewport->logicalBottom = internalViewport->physicalBottom - 20;
+    mFakePolicy->updateViewport(internalViewport.value());
+
+    prepareAxes(POSITION);
+    addMapperAndConfigure(mapper);
+
+    int32_t rawX = 10;
+    int32_t rawY = 10;
+    processPosition(mapper, rawX, rawY);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
 }
 
 } // namespace android
