@@ -22,10 +22,26 @@ cc_library_shared {
     defaults: ["inputflinger_defaults"],
 
     srcs: [
+        "CursorButtonAccumulator.cpp",
+        "CursorInputMapper.cpp",
+        "CursorScrollAccumulator.cpp",
         "EventHub.cpp",
+        "ExternalStylusInputMapper.cpp",
+        "InputDevice.cpp",
+        "InputMapper.cpp",
         "InputReader.cpp",
         "InputReaderFactory.cpp",
+        "JoystickInputMapper.cpp",
+        "KeyboardInputMapper.cpp",
+        "MultiTouchInputMapper.cpp",
+        "RotaryEncoderInputMapper.cpp",
+        "SingleTouchInputMapper.cpp",
+        "SingleTouchMotionAccumulator.cpp",
+        "SwitchInputMapper.cpp",
+        "TouchButtonAccumulator.cpp",
+        "TouchInputMapper.cpp",
         "TouchVideoDevice.cpp",
+        "VibratorInputMapper.cpp",
     ],
 
     shared_libs: [
@@ -38,6 +54,7 @@ cc_library_shared {
         "libui",
         "libutils",
         "libhardware_legacy",
+        "libstatslog",
     ],
 
     header_libs: [

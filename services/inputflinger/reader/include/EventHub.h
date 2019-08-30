@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-//
 #ifndef _RUNTIME_EVENT_HUB_H
 #define _RUNTIME_EVENT_HUB_H
 

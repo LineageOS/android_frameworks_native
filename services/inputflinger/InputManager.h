@@ -22,7 +22,6 @@
  */
 
 #include "InputClassifier.h"
-#include "InputDispatcher.h"
 #include "InputReaderBase.h"
 
 #include <InputDispatcherInterface.h>
