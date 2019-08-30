@@ -14,28 +14,20 @@
  * limitations under the License.
  */
 
-#include "InputReporterInterface.h"
+#include "InputDispatcherThread.h"
+
+#include "InputDispatcherInterface.h"
 
 namespace android {
 
-// --- InputReporter ---
+InputDispatcherThread::InputDispatcherThread(const sp<InputDispatcherInterface>& dispatcher)
+      : Thread(/*canCallJava*/ true), mDispatcher(dispatcher) {}
 
-class InputReporter : public InputReporterInterface {
-public:
-    void reportUnhandledKey(uint32_t sequenceNum) override;
-    void reportDroppedKey(uint32_t sequenceNum) override;
-};
+InputDispatcherThread::~InputDispatcherThread() {}
 
-void InputReporter::reportUnhandledKey(uint32_t sequenceNum) {
-  // do nothing
-}
-
-void InputReporter::reportDroppedKey(uint32_t sequenceNum) {
-  // do nothing
-}
-
-sp<InputReporterInterface> createInputReporter() {
-  return new InputReporter();
+bool InputDispatcherThread::threadLoop() {
+    mDispatcher->dispatchOnce();
+    return true;
 }
 
 } // namespace android

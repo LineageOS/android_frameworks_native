@@ -30,7 +30,6 @@ cc_library_shared {
     srcs: [
         "InputClassifier.cpp",
         "InputClassifierConverter.cpp",
-        "dispatcher/InputDispatcher.cpp",
         "InputManager.cpp",
     ],
 
@@ -50,6 +49,10 @@ cc_library_shared {
         "server_configurable_flags",
     ],
 
+    static_libs: [
+        "libinputdispatcher",
+    ],
+
     cflags: [
         // TODO(b/23084678): Move inputflinger to its own process and mark it hidden
         //-fvisibility=hidden
@@ -58,14 +61,18 @@ cc_library_shared {
     export_include_dirs: [
         ".",
         "include",
-        "dispatcher",
     ],
 
+    export_static_lib_headers: [
+        "libinputdispatcher",
+    ],
 }
 
 cc_library_headers {
     name: "libinputflinger_headers",
+    header_libs: ["libinputreporter_headers"],
     export_include_dirs: ["include"],
+    export_header_lib_headers: ["libinputreporter_headers"],
 }
 
 cc_library_shared {
@@ -113,28 +120,6 @@ cc_library_shared {
     shared_libs: [
         "libbase",
         "libinput",
-        "liblog",
-        "libutils",
-    ],
-
-    header_libs: [
-        "libinputflinger_headers",
-    ],
-
-    export_header_lib_headers: [
-        "libinputflinger_headers",
-    ],
-}
-
-cc_library_shared {
-    name: "libinputreporter",
-    defaults: ["inputflinger_defaults"],
-
-    srcs: [
-        "InputReporter.cpp",
-    ],
-
-    shared_libs: [
         "liblog",
         "libutils",
     ],
