@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/DisplayColorProfile.h>
 #include <compositionengine/Layer.h>
 #include <compositionengine/LayerFE.h>
@@ -41,7 +42,7 @@ public:
     MOCK_METHOD2(setLayerStackFilter, void(uint32_t, bool));
 
     MOCK_METHOD1(setColorTransform, void(const mat4&));
-    MOCK_METHOD4(setColorMode, void(ui::ColorMode, ui::Dataspace, ui::RenderIntent, ui::Dataspace));
+    MOCK_METHOD1(setColorProfile, void(const ColorProfile&));
 
     MOCK_CONST_METHOD1(dump, void(std::string&));
     MOCK_CONST_METHOD0(getName, const std::string&());
@@ -73,11 +74,17 @@ public:
     MOCK_METHOD1(setReleasedLayers, void(ReleasedLayers&&));
     MOCK_METHOD0(takeReleasedLayers, ReleasedLayers());
 
+    MOCK_METHOD1(updateColorProfile, void(const compositionengine::CompositionRefreshArgs&));
+
     MOCK_METHOD0(beginFrame, void());
     MOCK_METHOD0(prepareFrame, void());
     MOCK_METHOD0(chooseCompositionStrategy, void());
 
-    MOCK_METHOD2(composeSurfaces, bool(const Region&, base::unique_fd*));
+    MOCK_METHOD1(devOptRepaintFlash, void(const compositionengine::CompositionRefreshArgs&));
+
+    MOCK_METHOD1(finishFrame, void(const compositionengine::CompositionRefreshArgs&));
+
+    MOCK_METHOD1(composeSurfaces, std::optional<base::unique_fd>(const Region&));
     MOCK_CONST_METHOD0(getSkipColorTransform, bool());
 
     MOCK_METHOD0(postFramebuffer, void());

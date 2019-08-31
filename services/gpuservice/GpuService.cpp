@@ -273,7 +273,7 @@ status_t GpuService::doDump(int fd, const Vector<String16>& args, bool /*asProto
             result.append("\n");
         }
         if (dumpAll || dumpStats) {
-            mGpuStats->dump(Vector<String16>(), &result);
+            mGpuStats->dump(args, &result);
             result.append("\n");
         }
         if (dumpAll || dumpMemory) {

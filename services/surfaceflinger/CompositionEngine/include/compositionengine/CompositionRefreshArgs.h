@@ -16,8 +16,12 @@
 
 #pragma once
 
+#include <chrono>
+#include <optional>
+
 #include <compositionengine/Display.h>
 #include <compositionengine/Layer.h>
+#include <compositionengine/OutputColorSetting.h>
 
 namespace android::compositionengine {
 
@@ -35,6 +39,21 @@ struct CompositionRefreshArgs {
     // the layers is important, and should be in traversal order from back to
     // front.
     Layers layers;
+
+    // If true, forces the entire display to be considered dirty and repainted
+    bool repaintEverything{false};
+
+    // Controls how the color mode is chosen for an output
+    OutputColorSetting outputColorSetting{OutputColorSetting::kEnhanced};
+
+    // If not Dataspace::UNKNOWN, overrides the dataspace on each output
+    ui::Dataspace colorSpaceAgnosticDataspace{ui::Dataspace::UNKNOWN};
+
+    // Forces a color mode on the outputs being refreshed
+    ui::ColorMode forceOutputColorMode{ui::ColorMode::NATIVE};
+
+    // If set, causes the dirty regions to flash with the delay
+    std::optional<std::chrono::microseconds> devOptFlashDirtyRegionsDelay;
 };
 
 } // namespace android::compositionengine

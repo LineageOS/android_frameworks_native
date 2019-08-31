@@ -45,7 +45,7 @@ public:
     void setLayerStackFilter(uint32_t layerStackId, bool isInternal) override;
 
     void setColorTransform(const mat4&) override;
-    void setColorMode(ui::ColorMode, ui::Dataspace, ui::RenderIntent, ui::Dataspace) override;
+    void setColorProfile(const ColorProfile&) override;
 
     void dump(std::string&) const override;
 
@@ -75,9 +75,13 @@ public:
     void setReleasedLayers(ReleasedLayers&&) override;
     ReleasedLayers takeReleasedLayers() override;
 
+    void updateColorProfile(const compositionengine::CompositionRefreshArgs&) override;
+
     void beginFrame() override;
     void prepareFrame() override;
-    bool composeSurfaces(const Region&, base::unique_fd*) override;
+    void devOptRepaintFlash(const compositionengine::CompositionRefreshArgs&) override;
+    void finishFrame(const compositionengine::CompositionRefreshArgs&) override;
+    std::optional<base::unique_fd> composeSurfaces(const Region&) override;
     void postFramebuffer() override;
 
     // Testing
@@ -98,6 +102,9 @@ protected:
 
 private:
     void dirtyEntireOutput();
+    ui::Dataspace getBestDataspace(ui::Dataspace*, bool*) const;
+    compositionengine::Output::ColorProfile pickColorProfile(
+            const compositionengine::CompositionRefreshArgs&) const;
 
     const CompositionEngine& mCompositionEngine;
 

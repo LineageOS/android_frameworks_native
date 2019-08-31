@@ -51,6 +51,7 @@ cc_test {
         "RefreshRateStatsTest.cpp",
         "RegionSamplingTest.cpp",
         "TimeStatsTest.cpp",
+        "FrameTracerTest.cpp",
         "mock/DisplayHardware/MockComposer.cpp",
         "mock/DisplayHardware/MockDisplay.cpp",
         "mock/DisplayHardware/MockPowerAdvisor.cpp",
@@ -63,6 +64,7 @@ cc_test {
         "mock/MockNativeWindowSurface.cpp",
         "mock/MockSurfaceInterceptor.cpp",
         "mock/MockTimeStats.cpp",
+        "mock/MockFrameTracer.cpp",
         "mock/system/window/MockNativeWindow.cpp",
     ],
     static_libs: [

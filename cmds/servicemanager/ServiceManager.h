@@ -17,10 +17,13 @@
 #pragma once
 
 #include <android/os/BnServiceManager.h>
+#include <android/os/IServiceCallback.h>
 
 #include "Access.h"
 
 namespace android {
+
+using os::IServiceCallback;
 
 class ServiceManager : public os::BnServiceManager, public IBinder::DeathRecipient {
 public:
@@ -29,19 +32,35 @@ public:
 
     binder::Status getService(const std::string& name, sp<IBinder>* outBinder) override;
     binder::Status checkService(const std::string& name, sp<IBinder>* outBinder) override;
-    binder::Status addService(const std::string& name, const sp<IBinder>& binder, bool allowIsolated, int32_t dumpPriority) override;
+    binder::Status addService(const std::string& name, const sp<IBinder>& binder,
+                              bool allowIsolated, int32_t dumpPriority) override;
     binder::Status listServices(int32_t dumpPriority, std::vector<std::string>* outList) override;
+    binder::Status registerForNotifications(const std::string& name,
+                                            const sp<IServiceCallback>& callback) override;
+    binder::Status unregisterForNotifications(const std::string& name,
+                                              const sp<IServiceCallback>& callback) override;
 
     void binderDied(const wp<IBinder>& who) override;
 
 private:
     struct Service {
-        sp<IBinder> binder;
+        sp<IBinder> binder; // not null
         bool allowIsolated;
         int32_t dumpPriority;
     };
 
-    std::map<std::string, Service> mNameToService;
+    using CallbackMap = std::map<std::string, std::vector<sp<IServiceCallback>>>;
+    using ServiceMap = std::map<std::string, Service>;
+
+    // removes a callback from mNameToCallback, removing it if the vector is empty
+    // this updates iterator to the next location
+    void removeCallback(const wp<IBinder>& who,
+                        CallbackMap::iterator* it,
+                        bool* found);
+
+    CallbackMap mNameToCallback;
+    ServiceMap mNameToService;
+
     std::unique_ptr<Access> mAccess;
 };
 

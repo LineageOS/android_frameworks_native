@@ -43,6 +43,8 @@ class LayerFE;
 class RenderSurface;
 class OutputLayer;
 
+struct CompositionRefreshArgs;
+
 namespace impl {
 struct OutputCompositionState;
 } // namespace impl
@@ -59,6 +61,13 @@ public:
         sp<Fence> presentFence{Fence::NO_FENCE};
         sp<Fence> clientTargetAcquireFence{Fence::NO_FENCE};
         std::unordered_map<HWC2::Layer*, sp<Fence>> layerFences;
+    };
+
+    struct ColorProfile {
+        ui::ColorMode mode{ui::ColorMode::NATIVE};
+        ui::Dataspace dataspace{ui::Dataspace::UNKNOWN};
+        ui::RenderIntent renderIntent{ui::RenderIntent::COLORIMETRIC};
+        ui::Dataspace colorSpaceAgnosticDataspace{ui::Dataspace::UNKNOWN};
     };
 
     virtual ~Output();
@@ -85,8 +94,7 @@ public:
     virtual void setColorTransform(const mat4&) = 0;
 
     // Sets the output color mode
-    virtual void setColorMode(ui::ColorMode, ui::Dataspace, ui::RenderIntent,
-                              ui::Dataspace colorSpaceAgnosticDataspace) = 0;
+    virtual void setColorProfile(const ColorProfile&) = 0;
 
     // Outputs a string with a state dump
     virtual void dump(std::string&) const = 0;
@@ -151,17 +159,27 @@ public:
     // Takes (moves) the set of layers being released this frame.
     virtual ReleasedLayers takeReleasedLayers() = 0;
 
+    // Updates the color mode used on this output
+    virtual void updateColorProfile(const CompositionRefreshArgs&) = 0;
+
     // Signals that a frame is beginning on the output
     virtual void beginFrame() = 0;
 
     // Prepares a frame for display
     virtual void prepareFrame() = 0;
 
+    // Performs any debug related screen flashing due to the update
+    virtual void devOptRepaintFlash(const CompositionRefreshArgs&) = 0;
+
+    // Finishes the current frame on the output, performing client composition
+    // and ensuring the content is displayed.
+    virtual void finishFrame(const CompositionRefreshArgs&) = 0;
+
     // Performs client composition as needed for layers on the output. The
     // output fence is set to a fence to signal when client composition is
     // finished.
-    // Returns false if client composition cannot be performed.
-    virtual bool composeSurfaces(const Region& debugFence, base::unique_fd* outReadyFence) = 0;
+    // Returns std::nullopt if client composition cannot be performed.
+    virtual std::optional<base::unique_fd> composeSurfaces(const Region&) = 0;
 
     // Posts the new frame, and sets release fences.
     virtual void postFramebuffer() = 0;

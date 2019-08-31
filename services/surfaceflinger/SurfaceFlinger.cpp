@@ -98,6 +98,7 @@
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/VirtualDisplaySurface.h"
 #include "Effects/Daltonizer.h"
+#include "FrameTracer/FrameTracer.h"
 #include "RegionSamplingThread.h"
 #include "Scheduler/DispSync.h"
 #include "Scheduler/DispSyncSource.h"
@@ -239,11 +240,11 @@ bool useTrebleTestingOverride() {
 
 std::string decodeDisplayColorSetting(DisplayColorSetting displayColorSetting) {
     switch(displayColorSetting) {
-        case DisplayColorSetting::MANAGED:
+        case DisplayColorSetting::kManaged:
             return std::string("Managed");
-        case DisplayColorSetting::UNMANAGED:
+        case DisplayColorSetting::kUnmanaged:
             return std::string("Unmanaged");
-        case DisplayColorSetting::ENHANCED:
+        case DisplayColorSetting::kEnhanced:
             return std::string("Enhanced");
         default:
             return std::string("Unknown ") +
@@ -257,6 +258,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
       : mFactory(factory),
         mInterceptor(mFactory.createSurfaceInterceptor(this)),
         mTimeStats(mFactory.createTimeStats()),
+        mFrameTracer(std::make_unique<FrameTracer>()),
         mEventQueue(mFactory.createMessageQueue()),
         mCompositionEngine(mFactory.createCompositionEngine()),
         mPhaseOffsets(mFactory.createPhaseOffsets()) {}
@@ -513,7 +515,7 @@ void SurfaceFlinger::bootFinished()
     const nsecs_t duration = now - mBootTime;
     ALOGI("Boot is finished (%ld ms)", long(ns2ms(duration)) );
 
-    mTimeStats->initializeTracing();
+    mFrameTracer->initialize();
 
     // wait patiently for the window manager death
     const String16 name("window");
@@ -1133,9 +1135,10 @@ status_t SurfaceFlinger::setActiveColorMode(const sp<IBinder>& displayToken, Col
             ALOGW("Attempt to set active color mode %s (%d) for virtual display",
                   decodeColorMode(mode).c_str(), mode);
         } else {
-            display->getCompositionDisplay()->setColorMode(mode, Dataspace::UNKNOWN,
-                                                           RenderIntent::COLORIMETRIC,
-                                                           Dataspace::UNKNOWN);
+            display->getCompositionDisplay()->setColorProfile(
+                    compositionengine::Output::ColorProfile{mode, Dataspace::UNKNOWN,
+                                                            RenderIntent::COLORIMETRIC,
+                                                            Dataspace::UNKNOWN});
         }
     }));
 
@@ -1787,17 +1790,27 @@ void SurfaceFlinger::handleMessageRefresh() {
         auto compositionLayer = layer->getCompositionLayer();
         if (compositionLayer) refreshArgs.layers.push_back(compositionLayer);
     });
+    refreshArgs.repaintEverything = mRepaintEverything.exchange(false);
+    refreshArgs.outputColorSetting = useColorManagement
+            ? mDisplayColorSetting
+            : compositionengine::OutputColorSetting::kUnmanaged;
+    refreshArgs.colorSpaceAgnosticDataspace = mColorSpaceAgnosticDataspace;
+    refreshArgs.forceOutputColorMode = mForceColorMode;
+    if (mDebugRegion != 0) {
+        refreshArgs.devOptFlashDirtyRegionsDelay =
+                std::chrono::milliseconds(mDebugRegion > 1 ? mDebugRegion : 0);
+    }
 
-    const bool repaintEverything = mRepaintEverything.exchange(false);
     mCompositionEngine->preComposition(refreshArgs);
     rebuildLayerStacks();
-    calculateWorkingSet();
+    calculateWorkingSet(refreshArgs);
     for (const auto& [token, displayDevice] : mDisplays) {
         auto display = displayDevice->getCompositionDisplay();
         display->beginFrame();
         display->prepareFrame();
-        doDebugFlashRegions(displayDevice, repaintEverything);
-        doComposition(displayDevice, repaintEverything);
+        display->devOptRepaintFlash(refreshArgs);
+        display->finishFrame(refreshArgs);
+        display->postFramebuffer();
     }
 
     postFrame();
@@ -1847,7 +1860,8 @@ bool SurfaceFlinger::handleMessageInvalidate() {
     return refreshNeeded;
 }
 
-void SurfaceFlinger::calculateWorkingSet() {
+void SurfaceFlinger::calculateWorkingSet(
+        const compositionengine::CompositionRefreshArgs& refreshArgs) {
     ATRACE_CALL();
     ALOGV(__FUNCTION__);
 
@@ -1879,14 +1893,7 @@ void SurfaceFlinger::calculateWorkingSet() {
     // Determine the color configuration of each output
     for (const auto& [token, displayDevice] : mDisplays) {
         auto display = displayDevice->getCompositionDisplay();
-
-        ColorMode colorMode = ColorMode::NATIVE;
-        Dataspace dataspace = Dataspace::UNKNOWN;
-        RenderIntent renderIntent = RenderIntent::COLORIMETRIC;
-        if (useColorManagement) {
-            pickColorMode(displayDevice, &colorMode, &dataspace, &renderIntent);
-        }
-        display->setColorMode(colorMode, dataspace, renderIntent, mColorSpaceAgnosticDataspace);
+        display->updateColorProfile(refreshArgs);
     }
 
     for (const auto& [token, displayDevice] : mDisplays) {
@@ -1913,36 +1920,6 @@ void SurfaceFlinger::calculateWorkingSet() {
         }
         mDrawingState.colorMatrixChanged = false;
     }
-}
-
-void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& displayDevice,
-                                         bool repaintEverything) {
-    auto display = displayDevice->getCompositionDisplay();
-    const auto& displayState = display->getState();
-
-    // is debugging enabled
-    if (CC_LIKELY(!mDebugRegion))
-        return;
-
-    if (displayState.isEnabled) {
-        // transform the dirty region into this screen's coordinate space
-        const Region dirtyRegion = display->getDirtyRegion(repaintEverything);
-        if (!dirtyRegion.isEmpty()) {
-            base::unique_fd readyFence;
-            // redraw the whole screen
-            display->composeSurfaces(dirtyRegion, &readyFence);
-
-            display->getRenderSurface()->queueBuffer(std::move(readyFence));
-        }
-    }
-
-    displayDevice->getCompositionDisplay()->postFramebuffer();
-
-    if (mDebugRegion > 1) {
-        usleep(mDebugRegion * 1000);
-    }
-
-    displayDevice->getCompositionDisplay()->prepareFrame();
 }
 
 void SurfaceFlinger::updateCompositorTiming(const DisplayStatInfo& stats, nsecs_t compositeTime,
@@ -2244,129 +2221,6 @@ void SurfaceFlinger::rebuildLayerStacks() {
     }
 }
 
-// Returns a data space that fits all visible layers.  The returned data space
-// can only be one of
-//  - Dataspace::SRGB (use legacy dataspace and let HWC saturate when colors are enhanced)
-//  - Dataspace::DISPLAY_P3
-//  - Dataspace::DISPLAY_BT2020
-// The returned HDR data space is one of
-//  - Dataspace::UNKNOWN
-//  - Dataspace::BT2020_HLG
-//  - Dataspace::BT2020_PQ
-Dataspace SurfaceFlinger::getBestDataspace(const sp<DisplayDevice>& display,
-                                           Dataspace* outHdrDataSpace,
-                                           bool* outIsHdrClientComposition) const {
-    Dataspace bestDataSpace = Dataspace::V0_SRGB;
-    *outHdrDataSpace = Dataspace::UNKNOWN;
-
-    for (const auto& layer : display->getVisibleLayersSortedByZ()) {
-        switch (layer->getDataSpace()) {
-            case Dataspace::V0_SCRGB:
-            case Dataspace::V0_SCRGB_LINEAR:
-            case Dataspace::BT2020:
-            case Dataspace::BT2020_ITU:
-            case Dataspace::BT2020_LINEAR:
-            case Dataspace::DISPLAY_BT2020:
-                bestDataSpace = Dataspace::DISPLAY_BT2020;
-                break;
-            case Dataspace::DISPLAY_P3:
-                bestDataSpace = Dataspace::DISPLAY_P3;
-                break;
-            case Dataspace::BT2020_PQ:
-            case Dataspace::BT2020_ITU_PQ:
-                bestDataSpace = Dataspace::DISPLAY_P3;
-                *outHdrDataSpace = Dataspace::BT2020_PQ;
-                *outIsHdrClientComposition =
-                        layer->getCompositionLayer()->getState().frontEnd.forceClientComposition;
-                break;
-            case Dataspace::BT2020_HLG:
-            case Dataspace::BT2020_ITU_HLG:
-                bestDataSpace = Dataspace::DISPLAY_P3;
-                // When there's mixed PQ content and HLG content, we set the HDR
-                // data space to be BT2020_PQ and convert HLG to PQ.
-                if (*outHdrDataSpace == Dataspace::UNKNOWN) {
-                    *outHdrDataSpace = Dataspace::BT2020_HLG;
-                }
-                break;
-            default:
-                break;
-        }
-    }
-
-    return bestDataSpace;
-}
-
-// Pick the ColorMode / Dataspace for the display device.
-void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& display, ColorMode* outMode,
-                                   Dataspace* outDataSpace, RenderIntent* outRenderIntent) const {
-    if (mDisplayColorSetting == DisplayColorSetting::UNMANAGED) {
-        *outMode = ColorMode::NATIVE;
-        *outDataSpace = Dataspace::UNKNOWN;
-        *outRenderIntent = RenderIntent::COLORIMETRIC;
-        return;
-    }
-
-    Dataspace hdrDataSpace;
-    bool isHdrClientComposition = false;
-    Dataspace bestDataSpace = getBestDataspace(display, &hdrDataSpace, &isHdrClientComposition);
-
-    auto* profile = display->getCompositionDisplay()->getDisplayColorProfile();
-
-    switch (mForceColorMode) {
-        case ColorMode::SRGB:
-            bestDataSpace = Dataspace::V0_SRGB;
-            break;
-        case ColorMode::DISPLAY_P3:
-            bestDataSpace = Dataspace::DISPLAY_P3;
-            break;
-        default:
-            break;
-    }
-
-    // respect hdrDataSpace only when there is no legacy HDR support
-    const bool isHdr = hdrDataSpace != Dataspace::UNKNOWN &&
-            !profile->hasLegacyHdrSupport(hdrDataSpace) && !isHdrClientComposition;
-    if (isHdr) {
-        bestDataSpace = hdrDataSpace;
-    }
-
-    RenderIntent intent;
-    switch (mDisplayColorSetting) {
-        case DisplayColorSetting::MANAGED:
-        case DisplayColorSetting::UNMANAGED:
-            intent = isHdr ? RenderIntent::TONE_MAP_COLORIMETRIC : RenderIntent::COLORIMETRIC;
-            break;
-        case DisplayColorSetting::ENHANCED:
-            intent = isHdr ? RenderIntent::TONE_MAP_ENHANCE : RenderIntent::ENHANCE;
-            break;
-        default: // vendor display color setting
-            intent = static_cast<RenderIntent>(mDisplayColorSetting);
-            break;
-    }
-
-    profile->getBestColorMode(bestDataSpace, intent, outDataSpace, outMode, outRenderIntent);
-}
-
-void SurfaceFlinger::doComposition(const sp<DisplayDevice>& displayDevice, bool repaintEverything) {
-    ATRACE_CALL();
-    ALOGV("doComposition");
-
-    auto display = displayDevice->getCompositionDisplay();
-    const auto& displayState = display->getState();
-
-    if (displayState.isEnabled) {
-        // transform the dirty region into this screen's coordinate space
-        const Region dirtyRegion = display->getDirtyRegion(repaintEverything);
-
-        // repaint the framebuffer (if needed)
-        doDisplayComposition(displayDevice, dirtyRegion);
-
-        display->editState().dirtyRegion.clear();
-        display->getRenderSurface()->flip();
-    }
-    displayDevice->getCompositionDisplay()->postFramebuffer();
-}
-
 void SurfaceFlinger::postFrame()
 {
     // |mStateLock| not needed as we are on the main thread
@@ -2514,8 +2368,10 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         defaultColorMode = ColorMode::SRGB;
         defaultDataSpace = Dataspace::V0_SRGB;
     }
-    display->getCompositionDisplay()->setColorMode(defaultColorMode, defaultDataSpace,
-                                                   RenderIntent::COLORIMETRIC, Dataspace::UNKNOWN);
+    display->getCompositionDisplay()->setColorProfile(
+            compositionengine::Output::ColorProfile{defaultColorMode, defaultDataSpace,
+                                                    RenderIntent::COLORIMETRIC,
+                                                    Dataspace::UNKNOWN});
     if (!state.isVirtual()) {
         LOG_ALWAYS_FATAL_IF(!displayId);
         display->setActiveConfig(getHwComposer().getActiveConfigIndex(*displayId));
@@ -3186,26 +3042,6 @@ bool SurfaceFlinger::handlePageFlip()
 void SurfaceFlinger::invalidateHwcGeometry()
 {
     mGeometryInvalid = true;
-}
-
-void SurfaceFlinger::doDisplayComposition(const sp<DisplayDevice>& displayDevice,
-                                          const Region& inDirtyRegion) {
-    auto display = displayDevice->getCompositionDisplay();
-    // We only need to actually compose the display if:
-    // 1) It is being handled by hardware composer, which may need this to
-    //    keep its virtual display state machine in sync, or
-    // 2) There is work to be done (the dirty region isn't empty)
-    if (!displayDevice->getId() && inDirtyRegion.isEmpty()) {
-        ALOGV("Skipping display composition");
-        return;
-    }
-
-    ALOGV("doDisplayComposition");
-    base::unique_fd readyFence;
-    if (!display->composeSurfaces(Region::INVALID_REGION, &readyFence)) return;
-
-    // swap buffers (presentation)
-    display->getRenderSurface()->queueBuffer(std::move(readyFence));
 }
 
 status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
@@ -5093,13 +4929,13 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
 
                 DisplayColorSetting setting = static_cast<DisplayColorSetting>(data.readInt32());
                 switch (setting) {
-                    case DisplayColorSetting::MANAGED:
+                    case DisplayColorSetting::kManaged:
                         reply->writeBool(useColorManagement);
                         break;
-                    case DisplayColorSetting::UNMANAGED:
+                    case DisplayColorSetting::kUnmanaged:
                         reply->writeBool(true);
                         break;
-                    case DisplayColorSetting::ENHANCED:
+                    case DisplayColorSetting::kEnhanced:
                         reply->writeBool(display->hasRenderIntent(RenderIntent::ENHANCE));
                         break;
                     default: // vendor display color setting

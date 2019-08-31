@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
+#include <thread>
+
 #include <android-base/stringprintf.h>
 #include <compositionengine/CompositionEngine.h>
+#include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/DisplayColorProfile.h>
 #include <compositionengine/Layer.h>
 #include <compositionengine/LayerFE.h>
@@ -111,28 +114,27 @@ void Output::setColorTransform(const mat4& transform) {
     dirtyEntireOutput();
 }
 
-void Output::setColorMode(ui::ColorMode mode, ui::Dataspace dataspace,
-                          ui::RenderIntent renderIntent,
-                          ui::Dataspace colorSpaceAgnosticDataspace) {
-    ui::Dataspace targetDataspace =
-            getDisplayColorProfile()->getTargetDataspace(mode, dataspace,
-                                                         colorSpaceAgnosticDataspace);
+void Output::setColorProfile(const ColorProfile& colorProfile) {
+    const ui::Dataspace targetDataspace =
+            getDisplayColorProfile()->getTargetDataspace(colorProfile.mode, colorProfile.dataspace,
+                                                         colorProfile.colorSpaceAgnosticDataspace);
 
-    if (mState.colorMode == mode && mState.dataspace == dataspace &&
-        mState.renderIntent == renderIntent && mState.targetDataspace == targetDataspace) {
+    if (mState.colorMode == colorProfile.mode && mState.dataspace == colorProfile.dataspace &&
+        mState.renderIntent == colorProfile.renderIntent &&
+        mState.targetDataspace == targetDataspace) {
         return;
     }
 
-    mState.colorMode = mode;
-    mState.dataspace = dataspace;
-    mState.renderIntent = renderIntent;
+    mState.colorMode = colorProfile.mode;
+    mState.dataspace = colorProfile.dataspace;
+    mState.renderIntent = colorProfile.renderIntent;
     mState.targetDataspace = targetDataspace;
 
-    mRenderSurface->setBufferDataspace(dataspace);
+    mRenderSurface->setBufferDataspace(colorProfile.dataspace);
 
     ALOGV("Set active color mode: %s (%d), active render intent: %s (%d)",
-          decodeColorMode(mode).c_str(), mode, decodeRenderIntent(renderIntent).c_str(),
-          renderIntent);
+          decodeColorMode(colorProfile.mode).c_str(), colorProfile.mode,
+          decodeRenderIntent(colorProfile.renderIntent).c_str(), colorProfile.renderIntent);
 
     dirtyEntireOutput();
 }
@@ -258,6 +260,116 @@ Output::ReleasedLayers Output::takeReleasedLayers() {
     return std::move(mReleasedLayers);
 }
 
+void Output::updateColorProfile(const compositionengine::CompositionRefreshArgs& refreshArgs) {
+    setColorProfile(pickColorProfile(refreshArgs));
+}
+
+// Returns a data space that fits all visible layers.  The returned data space
+// can only be one of
+//  - Dataspace::SRGB (use legacy dataspace and let HWC saturate when colors are enhanced)
+//  - Dataspace::DISPLAY_P3
+//  - Dataspace::DISPLAY_BT2020
+// The returned HDR data space is one of
+//  - Dataspace::UNKNOWN
+//  - Dataspace::BT2020_HLG
+//  - Dataspace::BT2020_PQ
+ui::Dataspace Output::getBestDataspace(ui::Dataspace* outHdrDataSpace,
+                                       bool* outIsHdrClientComposition) const {
+    ui::Dataspace bestDataSpace = ui::Dataspace::V0_SRGB;
+    *outHdrDataSpace = ui::Dataspace::UNKNOWN;
+
+    for (const auto& layer : mOutputLayersOrderedByZ) {
+        switch (layer->getLayer().getState().frontEnd.dataspace) {
+            case ui::Dataspace::V0_SCRGB:
+            case ui::Dataspace::V0_SCRGB_LINEAR:
+            case ui::Dataspace::BT2020:
+            case ui::Dataspace::BT2020_ITU:
+            case ui::Dataspace::BT2020_LINEAR:
+            case ui::Dataspace::DISPLAY_BT2020:
+                bestDataSpace = ui::Dataspace::DISPLAY_BT2020;
+                break;
+            case ui::Dataspace::DISPLAY_P3:
+                bestDataSpace = ui::Dataspace::DISPLAY_P3;
+                break;
+            case ui::Dataspace::BT2020_PQ:
+            case ui::Dataspace::BT2020_ITU_PQ:
+                bestDataSpace = ui::Dataspace::DISPLAY_P3;
+                *outHdrDataSpace = ui::Dataspace::BT2020_PQ;
+                *outIsHdrClientComposition =
+                        layer->getLayer().getState().frontEnd.forceClientComposition;
+                break;
+            case ui::Dataspace::BT2020_HLG:
+            case ui::Dataspace::BT2020_ITU_HLG:
+                bestDataSpace = ui::Dataspace::DISPLAY_P3;
+                // When there's mixed PQ content and HLG content, we set the HDR
+                // data space to be BT2020_PQ and convert HLG to PQ.
+                if (*outHdrDataSpace == ui::Dataspace::UNKNOWN) {
+                    *outHdrDataSpace = ui::Dataspace::BT2020_HLG;
+                }
+                break;
+            default:
+                break;
+        }
+    }
+
+    return bestDataSpace;
+}
+
+compositionengine::Output::ColorProfile Output::pickColorProfile(
+        const compositionengine::CompositionRefreshArgs& refreshArgs) const {
+    if (refreshArgs.outputColorSetting == OutputColorSetting::kUnmanaged) {
+        return ColorProfile{ui::ColorMode::NATIVE, ui::Dataspace::UNKNOWN,
+                            ui::RenderIntent::COLORIMETRIC,
+                            refreshArgs.colorSpaceAgnosticDataspace};
+    }
+
+    ui::Dataspace hdrDataSpace;
+    bool isHdrClientComposition = false;
+    ui::Dataspace bestDataSpace = getBestDataspace(&hdrDataSpace, &isHdrClientComposition);
+
+    switch (refreshArgs.forceOutputColorMode) {
+        case ui::ColorMode::SRGB:
+            bestDataSpace = ui::Dataspace::V0_SRGB;
+            break;
+        case ui::ColorMode::DISPLAY_P3:
+            bestDataSpace = ui::Dataspace::DISPLAY_P3;
+            break;
+        default:
+            break;
+    }
+
+    // respect hdrDataSpace only when there is no legacy HDR support
+    const bool isHdr = hdrDataSpace != ui::Dataspace::UNKNOWN &&
+            !mDisplayColorProfile->hasLegacyHdrSupport(hdrDataSpace) && !isHdrClientComposition;
+    if (isHdr) {
+        bestDataSpace = hdrDataSpace;
+    }
+
+    ui::RenderIntent intent;
+    switch (refreshArgs.outputColorSetting) {
+        case OutputColorSetting::kManaged:
+        case OutputColorSetting::kUnmanaged:
+            intent = isHdr ? ui::RenderIntent::TONE_MAP_COLORIMETRIC
+                           : ui::RenderIntent::COLORIMETRIC;
+            break;
+        case OutputColorSetting::kEnhanced:
+            intent = isHdr ? ui::RenderIntent::TONE_MAP_ENHANCE : ui::RenderIntent::ENHANCE;
+            break;
+        default: // vendor display color setting
+            intent = static_cast<ui::RenderIntent>(refreshArgs.outputColorSetting);
+            break;
+    }
+
+    ui::ColorMode outMode;
+    ui::Dataspace outDataSpace;
+    ui::RenderIntent outRenderIntent;
+    mDisplayColorProfile->getBestColorMode(bestDataSpace, intent, &outDataSpace, &outMode,
+                                           &outRenderIntent);
+
+    return ColorProfile{outMode, outDataSpace, outRenderIntent,
+                        refreshArgs.colorSpaceAgnosticDataspace};
+}
+
 void Output::beginFrame() {
     const bool dirty = !getDirtyRegion(false).isEmpty();
     const bool empty = mOutputLayersOrderedByZ.empty();
@@ -299,14 +411,59 @@ void Output::prepareFrame() {
     mRenderSurface->prepareFrame(mState.usesClientComposition, mState.usesDeviceComposition);
 }
 
-bool Output::composeSurfaces(const Region& debugRegion, base::unique_fd* readyFence) {
+void Output::devOptRepaintFlash(const compositionengine::CompositionRefreshArgs& refreshArgs) {
+    if (CC_LIKELY(!refreshArgs.devOptFlashDirtyRegionsDelay)) {
+        return;
+    }
+
+    if (mState.isEnabled) {
+        // transform the dirty region into this screen's coordinate space
+        const Region dirtyRegion = getDirtyRegion(refreshArgs.repaintEverything);
+        if (!dirtyRegion.isEmpty()) {
+            base::unique_fd readyFence;
+            // redraw the whole screen
+            static_cast<void>(composeSurfaces(dirtyRegion));
+
+            mRenderSurface->queueBuffer(std::move(readyFence));
+        }
+    }
+
+    postFramebuffer();
+
+    std::this_thread::sleep_for(*refreshArgs.devOptFlashDirtyRegionsDelay);
+
+    prepareFrame();
+}
+
+void Output::finishFrame(const compositionengine::CompositionRefreshArgs&) {
+    ATRACE_CALL();
+    ALOGV(__FUNCTION__);
+
+    if (!mState.isEnabled) {
+        return;
+    }
+
+    // Repaint the framebuffer (if needed), getting the optional fence for when
+    // the composition completes.
+    auto optReadyFence = composeSurfaces(Region::INVALID_REGION);
+    if (!optReadyFence) {
+        return;
+    }
+
+    // swap buffers (presentation)
+    mRenderSurface->queueBuffer(std::move(*optReadyFence));
+}
+
+std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion) {
     ATRACE_CALL();
     ALOGV(__FUNCTION__);
 
     const TracedOrdinal<bool> hasClientComposition = {"hasClientComposition",
                                                       mState.usesClientComposition};
+    base::unique_fd readyFence;
+
     if (!hasClientComposition) {
-        return true;
+        return readyFence;
     }
 
     ALOGV("hasClientComposition");
@@ -362,7 +519,7 @@ bool Output::composeSurfaces(const Region& debugRegion, base::unique_fd* readyFe
         ALOGW("Dequeuing buffer for display [%s] failed, bailing out of "
               "client composition for this frame",
               mName.c_str());
-        return false;
+        return std::nullopt;
     }
 
     // We boost GPU frequency here because there will be color spaces conversion
@@ -377,13 +534,13 @@ bool Output::composeSurfaces(const Region& debugRegion, base::unique_fd* readyFe
 
     renderEngine.drawLayers(clientCompositionDisplay, clientCompositionLayers,
                             buf->getNativeBuffer(), /*useFramebufferCache=*/true, std::move(fd),
-                            readyFence);
+                            &readyFence);
 
     if (expensiveRenderingExpected) {
         setExpensiveRenderingExpected(false);
     }
 
-    return true;
+    return readyFence;
 }
 
 std::vector<renderengine::LayerSettings> Output::generateClientCompositionRequests(
@@ -402,7 +559,7 @@ std::vector<renderengine::LayerSettings> Output::generateClientCompositionReques
         const auto& layerFEState = layer->getLayer().getState().frontEnd;
         auto& layerFE = layer->getLayerFE();
 
-        const Region clip(viewportRegion.intersect(layer->getState().visibleRegion));
+        const Region clip(viewportRegion.intersect(layerFEState.geomVisibleRegion));
         ALOGV("Layer: %s", layerFE.getDebugName());
         if (clip.isEmpty()) {
             ALOGV("  Skipping for empty clip");
@@ -432,7 +589,7 @@ std::vector<renderengine::LayerSettings> Output::generateClientCompositionReques
                     clientComposition ? clearRegion : dummyRegion,
             };
             if (auto result = layerFE.prepareClientComposition(targetSettings)) {
-                if (clearClientComposition) {
+                if (!clientComposition) {
                     auto& layerSettings = *result;
                     layerSettings.source.buffer.buffer = nullptr;
                     layerSettings.source.solidColor = half3(0.0, 0.0, 0.0);
@@ -479,6 +636,9 @@ void Output::postFramebuffer() {
     if (!getState().isEnabled) {
         return;
     }
+
+    mState.dirtyRegion.clear();
+    mRenderSurface->flip();
 
     auto frame = presentAndGetFrameFences();
 
