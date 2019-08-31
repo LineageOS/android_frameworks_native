@@ -114,28 +114,27 @@ void Output::setColorTransform(const mat4& transform) {
     dirtyEntireOutput();
 }
 
-void Output::setColorMode(ui::ColorMode mode, ui::Dataspace dataspace,
-                          ui::RenderIntent renderIntent,
-                          ui::Dataspace colorSpaceAgnosticDataspace) {
-    ui::Dataspace targetDataspace =
-            getDisplayColorProfile()->getTargetDataspace(mode, dataspace,
-                                                         colorSpaceAgnosticDataspace);
+void Output::setColorProfile(const ColorProfile& colorProfile) {
+    const ui::Dataspace targetDataspace =
+            getDisplayColorProfile()->getTargetDataspace(colorProfile.mode, colorProfile.dataspace,
+                                                         colorProfile.colorSpaceAgnosticDataspace);
 
-    if (mState.colorMode == mode && mState.dataspace == dataspace &&
-        mState.renderIntent == renderIntent && mState.targetDataspace == targetDataspace) {
+    if (mState.colorMode == colorProfile.mode && mState.dataspace == colorProfile.dataspace &&
+        mState.renderIntent == colorProfile.renderIntent &&
+        mState.targetDataspace == targetDataspace) {
         return;
     }
 
-    mState.colorMode = mode;
-    mState.dataspace = dataspace;
-    mState.renderIntent = renderIntent;
+    mState.colorMode = colorProfile.mode;
+    mState.dataspace = colorProfile.dataspace;
+    mState.renderIntent = colorProfile.renderIntent;
     mState.targetDataspace = targetDataspace;
 
-    mRenderSurface->setBufferDataspace(dataspace);
+    mRenderSurface->setBufferDataspace(colorProfile.dataspace);
 
     ALOGV("Set active color mode: %s (%d), active render intent: %s (%d)",
-          decodeColorMode(mode).c_str(), mode, decodeRenderIntent(renderIntent).c_str(),
-          renderIntent);
+          decodeColorMode(colorProfile.mode).c_str(), colorProfile.mode,
+          decodeRenderIntent(colorProfile.renderIntent).c_str(), colorProfile.renderIntent);
 
     dirtyEntireOutput();
 }
@@ -259,6 +258,116 @@ void Output::setReleasedLayers(Output::ReleasedLayers&& layers) {
 
 Output::ReleasedLayers Output::takeReleasedLayers() {
     return std::move(mReleasedLayers);
+}
+
+void Output::updateColorProfile(const compositionengine::CompositionRefreshArgs& refreshArgs) {
+    setColorProfile(pickColorProfile(refreshArgs));
+}
+
+// Returns a data space that fits all visible layers.  The returned data space
+// can only be one of
+//  - Dataspace::SRGB (use legacy dataspace and let HWC saturate when colors are enhanced)
+//  - Dataspace::DISPLAY_P3
+//  - Dataspace::DISPLAY_BT2020
+// The returned HDR data space is one of
+//  - Dataspace::UNKNOWN
+//  - Dataspace::BT2020_HLG
+//  - Dataspace::BT2020_PQ
+ui::Dataspace Output::getBestDataspace(ui::Dataspace* outHdrDataSpace,
+                                       bool* outIsHdrClientComposition) const {
+    ui::Dataspace bestDataSpace = ui::Dataspace::V0_SRGB;
+    *outHdrDataSpace = ui::Dataspace::UNKNOWN;
+
+    for (const auto& layer : mOutputLayersOrderedByZ) {
+        switch (layer->getLayer().getState().frontEnd.dataspace) {
+            case ui::Dataspace::V0_SCRGB:
+            case ui::Dataspace::V0_SCRGB_LINEAR:
+            case ui::Dataspace::BT2020:
+            case ui::Dataspace::BT2020_ITU:
+            case ui::Dataspace::BT2020_LINEAR:
+            case ui::Dataspace::DISPLAY_BT2020:
+                bestDataSpace = ui::Dataspace::DISPLAY_BT2020;
+                break;
+            case ui::Dataspace::DISPLAY_P3:
+                bestDataSpace = ui::Dataspace::DISPLAY_P3;
+                break;
+            case ui::Dataspace::BT2020_PQ:
+            case ui::Dataspace::BT2020_ITU_PQ:
+                bestDataSpace = ui::Dataspace::DISPLAY_P3;
+                *outHdrDataSpace = ui::Dataspace::BT2020_PQ;
+                *outIsHdrClientComposition =
+                        layer->getLayer().getState().frontEnd.forceClientComposition;
+                break;
+            case ui::Dataspace::BT2020_HLG:
+            case ui::Dataspace::BT2020_ITU_HLG:
+                bestDataSpace = ui::Dataspace::DISPLAY_P3;
+                // When there's mixed PQ content and HLG content, we set the HDR
+                // data space to be BT2020_PQ and convert HLG to PQ.
+                if (*outHdrDataSpace == ui::Dataspace::UNKNOWN) {
+                    *outHdrDataSpace = ui::Dataspace::BT2020_HLG;
+                }
+                break;
+            default:
+                break;
+        }
+    }
+
+    return bestDataSpace;
+}
+
+compositionengine::Output::ColorProfile Output::pickColorProfile(
+        const compositionengine::CompositionRefreshArgs& refreshArgs) const {
+    if (refreshArgs.outputColorSetting == OutputColorSetting::kUnmanaged) {
+        return ColorProfile{ui::ColorMode::NATIVE, ui::Dataspace::UNKNOWN,
+                            ui::RenderIntent::COLORIMETRIC,
+                            refreshArgs.colorSpaceAgnosticDataspace};
+    }
+
+    ui::Dataspace hdrDataSpace;
+    bool isHdrClientComposition = false;
+    ui::Dataspace bestDataSpace = getBestDataspace(&hdrDataSpace, &isHdrClientComposition);
+
+    switch (refreshArgs.forceOutputColorMode) {
+        case ui::ColorMode::SRGB:
+            bestDataSpace = ui::Dataspace::V0_SRGB;
+            break;
+        case ui::ColorMode::DISPLAY_P3:
+            bestDataSpace = ui::Dataspace::DISPLAY_P3;
+            break;
+        default:
+            break;
+    }
+
+    // respect hdrDataSpace only when there is no legacy HDR support
+    const bool isHdr = hdrDataSpace != ui::Dataspace::UNKNOWN &&
+            !mDisplayColorProfile->hasLegacyHdrSupport(hdrDataSpace) && !isHdrClientComposition;
+    if (isHdr) {
+        bestDataSpace = hdrDataSpace;
+    }
+
+    ui::RenderIntent intent;
+    switch (refreshArgs.outputColorSetting) {
+        case OutputColorSetting::kManaged:
+        case OutputColorSetting::kUnmanaged:
+            intent = isHdr ? ui::RenderIntent::TONE_MAP_COLORIMETRIC
+                           : ui::RenderIntent::COLORIMETRIC;
+            break;
+        case OutputColorSetting::kEnhanced:
+            intent = isHdr ? ui::RenderIntent::TONE_MAP_ENHANCE : ui::RenderIntent::ENHANCE;
+            break;
+        default: // vendor display color setting
+            intent = static_cast<ui::RenderIntent>(refreshArgs.outputColorSetting);
+            break;
+    }
+
+    ui::ColorMode outMode;
+    ui::Dataspace outDataSpace;
+    ui::RenderIntent outRenderIntent;
+    mDisplayColorProfile->getBestColorMode(bestDataSpace, intent, &outDataSpace, &outMode,
+                                           &outRenderIntent);
+
+    return ColorProfile{outMode, outDataSpace, outRenderIntent,
+                        refreshArgs.colorSpaceAgnosticDataspace};
 }
 
 void Output::beginFrame() {

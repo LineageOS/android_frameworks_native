@@ -23,6 +23,7 @@
  */
 
 #include <android-base/thread_annotations.h>
+#include <compositionengine/OutputColorSetting.h>
 #include <cutils/atomic.h>
 #include <cutils/compiler.h>
 #include <gui/BufferQueue.h>
@@ -98,6 +99,8 @@ class FrameTracer;
 
 namespace compositionengine {
 class DisplaySurface;
+
+struct CompositionRefreshArgs;
 } // namespace compositionengine
 
 namespace renderengine {
@@ -117,11 +120,7 @@ enum {
     eTransactionMask = 0x1f,
 };
 
-enum class DisplayColorSetting : int32_t {
-    MANAGED = 0,
-    UNMANAGED = 1,
-    ENHANCED = 2,
-};
+using DisplayColorSetting = compositionengine::OutputColorSetting;
 
 class SurfaceFlingerBE
 {
@@ -753,16 +752,7 @@ private:
                                     nsecs_t compositeToPresentLatency);
     void rebuildLayerStacks();
 
-    ui::Dataspace getBestDataspace(const sp<DisplayDevice>& display, ui::Dataspace* outHdrDataSpace,
-                                   bool* outIsHdrClientComposition) const;
-
-    // Returns the appropriate ColorMode, Dataspace and RenderIntent for the
-    // DisplayDevice. The function only returns the supported ColorMode,
-    // Dataspace and RenderIntent.
-    void pickColorMode(const sp<DisplayDevice>& display, ui::ColorMode* outMode,
-                       ui::Dataspace* outDataSpace, ui::RenderIntent* outRenderIntent) const;
-
-    void calculateWorkingSet();
+    void calculateWorkingSet(const compositionengine::CompositionRefreshArgs&);
 
     void postFrame();
 
@@ -1073,7 +1063,7 @@ private:
     static bool useVrFlinger;
     std::thread::id mMainThreadId = std::this_thread::get_id();
 
-    DisplayColorSetting mDisplayColorSetting = DisplayColorSetting::ENHANCED;
+    DisplayColorSetting mDisplayColorSetting = DisplayColorSetting::kEnhanced;
 
     // Color mode forced by setting persist.sys.sf.color_mode, it must:
     //     1. not be NATIVE color mode, NATIVE color mode means no forced color mode;

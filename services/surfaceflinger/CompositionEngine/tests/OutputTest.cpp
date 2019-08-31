@@ -211,14 +211,17 @@ TEST_F(OutputTest, setColorTransformSetsTransform) {
  */
 
 TEST_F(OutputTest, setColorModeSetsStateAndDirtiesOutputIfChanged) {
+    using ColorProfile = Output::ColorProfile;
+
     EXPECT_CALL(*mDisplayColorProfile,
                 getTargetDataspace(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
                                    ui::Dataspace::UNKNOWN))
             .WillOnce(Return(ui::Dataspace::UNKNOWN));
     EXPECT_CALL(*mRenderSurface, setBufferDataspace(ui::Dataspace::DISPLAY_P3)).Times(1);
 
-    mOutput.setColorMode(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
-                         ui::RenderIntent::TONE_MAP_COLORIMETRIC, ui::Dataspace::UNKNOWN);
+    mOutput.setColorProfile(ColorProfile{ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
+                                         ui::RenderIntent::TONE_MAP_COLORIMETRIC,
+                                         ui::Dataspace::UNKNOWN});
 
     EXPECT_EQ(ui::ColorMode::DISPLAY_P3, mOutput.getState().colorMode);
     EXPECT_EQ(ui::Dataspace::DISPLAY_P3, mOutput.getState().dataspace);
@@ -229,6 +232,8 @@ TEST_F(OutputTest, setColorModeSetsStateAndDirtiesOutputIfChanged) {
 }
 
 TEST_F(OutputTest, setColorModeDoesNothingIfNoChange) {
+    using ColorProfile = Output::ColorProfile;
+
     EXPECT_CALL(*mDisplayColorProfile,
                 getTargetDataspace(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
                                    ui::Dataspace::UNKNOWN))
@@ -239,8 +244,9 @@ TEST_F(OutputTest, setColorModeDoesNothingIfNoChange) {
     mOutput.editState().renderIntent = ui::RenderIntent::TONE_MAP_COLORIMETRIC;
     mOutput.editState().targetDataspace = ui::Dataspace::UNKNOWN;
 
-    mOutput.setColorMode(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
-                         ui::RenderIntent::TONE_MAP_COLORIMETRIC, ui::Dataspace::UNKNOWN);
+    mOutput.setColorProfile(ColorProfile{ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
+                                         ui::RenderIntent::TONE_MAP_COLORIMETRIC,
+                                         ui::Dataspace::UNKNOWN});
 
     EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region()));
 }
