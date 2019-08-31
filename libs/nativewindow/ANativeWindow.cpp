@@ -33,6 +33,12 @@ static int32_t query(ANativeWindow* window, int what) {
     return res < 0 ? res : value;
 }
 
+static int64_t query64(ANativeWindow* window, int what) {
+    int64_t value;
+    int res = window->perform(window, what, &value);
+    return res < 0 ? res : value;
+}
+
 static bool isDataSpaceValid(ANativeWindow* window, int32_t dataSpace) {
     bool supported = false;
     switch (dataSpace) {
@@ -271,18 +277,16 @@ int ANativeWindow_setAutoPrerotation(ANativeWindow* window, bool autoPrerotation
  * apex-stable
  **************************************************************************************************/
 
-int ANativeWindow_getLastDequeueDuration(ANativeWindow* window) {
-    return query(window, NATIVE_WINDOW_LAST_DEQUEUE_DURATION);
+int64_t ANativeWindow_getLastDequeueDuration(ANativeWindow* window) {
+    return query64(window, NATIVE_WINDOW_GET_LAST_DEQUEUE_DURATION);
 }
 
-int ANativeWindow_getLastQueueDuration(ANativeWindow* window) {
-    return query(window, NATIVE_WINDOW_LAST_QUEUE_DURATION);
+int64_t ANativeWindow_getLastQueueDuration(ANativeWindow* window) {
+    return query64(window, NATIVE_WINDOW_GET_LAST_QUEUE_DURATION);
 }
 
 int64_t ANativeWindow_getLastDequeueStartTime(ANativeWindow* window) {
-    int64_t time;
-    int success = window->perform(window, NATIVE_WINDOW_GET_LAST_DEQUEUE_START, &time);
-    return success < 0 ? success : time;
+    return query64(window, NATIVE_WINDOW_GET_LAST_DEQUEUE_START);
 }
 
 int ANativeWindow_setDequeueTimeout(ANativeWindow* window, int64_t timeout) {

@@ -74,7 +74,7 @@ protected:
 TEST_F(ANativeWindowTest, getLastDequeueDuration_noDequeue_returnsZero) {
     int result = ANativeWindow_getLastDequeueDuration(mWindow.get());
     EXPECT_EQ(0, result);
-    EXPECT_EQ(0, mWindow->getLastDequeueDuration() / 1000);
+    EXPECT_EQ(0, mWindow->getLastDequeueDuration());
 }
 
 TEST_F(ANativeWindowTest, getLastDequeueDuration_withDequeue_returnsTime) {
@@ -86,7 +86,7 @@ TEST_F(ANativeWindowTest, getLastDequeueDuration_withDequeue_returnsTime) {
 
     result = ANativeWindow_getLastDequeueDuration(mWindow.get());
     EXPECT_GT(result, 0);
-    EXPECT_EQ(result, mWindow->getLastDequeueDuration() / 1000);
+    EXPECT_EQ(result, mWindow->getLastDequeueDuration());
 }
 
 TEST_F(ANativeWindowTest, getLastQueueDuration_noDequeue_returnsZero) {
@@ -118,7 +118,7 @@ TEST_F(ANativeWindowTest, getLastQueueDuration_withQueue_returnsTime) {
 
     result = ANativeWindow_getLastQueueDuration(mWindow.get());
     EXPECT_GT(result, 0);
-    EXPECT_EQ(result, mWindow->getLastQueueDuration() / 1000);
+    EXPECT_EQ(result, mWindow->getLastQueueDuration());
 }
 
 TEST_F(ANativeWindowTest, getLastDequeueStartTime_noDequeue_returnsZero) {
