@@ -782,6 +782,61 @@ TEST_F(OutputLayerWriteStateToHWCTest, compositionTypeIsSetToClientIfClientCompo
 }
 
 /*
+ * OutputLayer::writeCursorPositionToHWC()
+ */
+
+struct OutputLayerWriteCursorPositionToHWCTest : public OutputLayerTest {
+    static constexpr int kDefaultTransform = TR_IDENT;
+    static constexpr HWC2::Error kDefaultError = HWC2::Error::Unsupported;
+
+    static const Rect kDefaultDisplayViewport;
+    static const Rect kDefaultCursorFrame;
+
+    OutputLayerWriteCursorPositionToHWCTest() {
+        auto& outputLayerState = mOutputLayer.editState();
+        outputLayerState.hwc = impl::OutputLayerCompositionState::Hwc(mHwcLayer);
+
+        mLayerState.frontEnd.cursorFrame = kDefaultCursorFrame;
+
+        mOutputState.viewport = kDefaultDisplayViewport;
+        mOutputState.transform = ui::Transform{kDefaultTransform};
+    }
+
+    std::shared_ptr<HWC2::mock::Layer> mHwcLayer{std::make_shared<StrictMock<HWC2::mock::Layer>>()};
+};
+
+const Rect OutputLayerWriteCursorPositionToHWCTest::kDefaultDisplayViewport{0, 0, 1920, 1080};
+const Rect OutputLayerWriteCursorPositionToHWCTest::kDefaultCursorFrame{1, 2, 3, 4};
+
+TEST_F(OutputLayerWriteCursorPositionToHWCTest, writeCursorPositionToHWCHandlesNoHwcState) {
+    mOutputLayer.editState().hwc.reset();
+
+    mOutputLayer.writeCursorPositionToHWC();
+}
+
+TEST_F(OutputLayerWriteCursorPositionToHWCTest, writeCursorPositionToHWCWritesStateToHWC) {
+    EXPECT_CALL(*mHwcLayer, setCursorPosition(1, 2)).WillOnce(Return(kDefaultError));
+
+    mOutputLayer.writeCursorPositionToHWC();
+}
+
+TEST_F(OutputLayerWriteCursorPositionToHWCTest, writeCursorPositionToHWCIntersectedWithViewport) {
+    mLayerState.frontEnd.cursorFrame = Rect{3000, 3000, 3016, 3016};
+
+    EXPECT_CALL(*mHwcLayer, setCursorPosition(1920, 1080)).WillOnce(Return(kDefaultError));
+
+    mOutputLayer.writeCursorPositionToHWC();
+}
+
+TEST_F(OutputLayerWriteCursorPositionToHWCTest, writeCursorPositionToHWCRotatedByTransform) {
+    mOutputState.transform = ui::Transform{TR_ROT_90};
+
+    EXPECT_CALL(*mHwcLayer, setCursorPosition(-4, 1)).WillOnce(Return(kDefaultError));
+
+    mOutputLayer.writeCursorPositionToHWC();
+}
+
+/*
  * OutputLayer::getHwcLayer()
  */
 
@@ -826,6 +881,30 @@ TEST_F(OutputLayerTest, requiresClientCompositionReturnsFalseIfSetToDeviceCompos
     mOutputLayer.editState().hwc->hwcCompositionType = Hwc2::IComposerClient::Composition::DEVICE;
 
     EXPECT_FALSE(mOutputLayer.requiresClientComposition());
+}
+
+/*
+ * OutputLayer::isHardwareCursor()
+ */
+
+TEST_F(OutputLayerTest, isHardwareCursorReturnsFalseIfNoHWC2State) {
+    mOutputLayer.editState().hwc.reset();
+
+    EXPECT_FALSE(mOutputLayer.isHardwareCursor());
+}
+
+TEST_F(OutputLayerTest, isHardwareCursorReturnsTrueIfSetToCursorComposition) {
+    mOutputLayer.editState().hwc = impl::OutputLayerCompositionState::Hwc{nullptr};
+    mOutputLayer.editState().hwc->hwcCompositionType = Hwc2::IComposerClient::Composition::CURSOR;
+
+    EXPECT_TRUE(mOutputLayer.isHardwareCursor());
+}
+
+TEST_F(OutputLayerTest, isHardwareCursorReturnsFalseIfSetToDeviceComposition) {
+    mOutputLayer.editState().hwc = impl::OutputLayerCompositionState::Hwc{nullptr};
+    mOutputLayer.editState().hwc->hwcCompositionType = Hwc2::IComposerClient::Composition::DEVICE;
+
+    EXPECT_FALSE(mOutputLayer.isHardwareCursor());
 }
 
 /*

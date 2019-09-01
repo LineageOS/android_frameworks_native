@@ -40,9 +40,11 @@ public:
 
     MOCK_METHOD1(updateCompositionState, void(bool));
     MOCK_METHOD1(writeStateToHWC, void(bool));
+    MOCK_CONST_METHOD0(writeCursorPositionToHWC, void());
 
     MOCK_CONST_METHOD0(getHwcLayer, HWC2::Layer*());
     MOCK_CONST_METHOD0(requiresClientComposition, bool());
+    MOCK_CONST_METHOD0(isHardwareCursor, bool());
     MOCK_METHOD1(applyDeviceCompositionTypeChange, void(Hwc2::IComposerClient::Composition));
     MOCK_METHOD0(prepareForDeviceLayerRequests, void());
     MOCK_METHOD1(applyDeviceLayerRequest, void(Hwc2::IComposerClient::LayerRequest request));

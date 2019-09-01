@@ -550,6 +550,27 @@ void OutputLayer::writeCompositionTypeToHWC(
     }
 }
 
+void OutputLayer::writeCursorPositionToHWC() const {
+    // Skip doing this if there is no HWC interface
+    auto hwcLayer = getHwcLayer();
+    if (!hwcLayer) {
+        return;
+    }
+
+    const auto& layerFEState = mLayer->getState().frontEnd;
+    const auto& outputState = mOutput.getState();
+
+    Rect frame = layerFEState.cursorFrame;
+    frame.intersect(outputState.viewport, &frame);
+    Rect position = outputState.transform.transform(frame);
+
+    if (auto error = hwcLayer->setCursorPosition(position.left, position.top);
+        error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set cursor position to (%d, %d): %s (%d)", mLayerFE->getDebugName(),
+              position.left, position.top, to_string(error).c_str(), static_cast<int32_t>(error));
+    }
+}
+
 HWC2::Layer* OutputLayer::getHwcLayer() const {
     return mState.hwc ? mState.hwc->hwcLayer.get() : nullptr;
 }
@@ -557,6 +578,11 @@ HWC2::Layer* OutputLayer::getHwcLayer() const {
 bool OutputLayer::requiresClientComposition() const {
     return !mState.hwc ||
             mState.hwc->hwcCompositionType == Hwc2::IComposerClient::Composition::CLIENT;
+}
+
+bool OutputLayer::isHardwareCursor() const {
+    return mState.hwc &&
+            mState.hwc->hwcCompositionType == Hwc2::IComposerClient::Composition::CURSOR;
 }
 
 void OutputLayer::detectDisallowedCompositionTypeChange(
