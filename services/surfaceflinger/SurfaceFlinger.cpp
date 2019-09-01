@@ -2717,15 +2717,14 @@ void SurfaceFlinger::executeInputWindowCommands() {
 
 void SurfaceFlinger::updateCursorAsync()
 {
-    for (const auto& [token, display] : mDisplays) {
-        if (!display->getId()) {
-            continue;
-        }
-
-        for (auto& layer : display->getVisibleLayersSortedByZ()) {
-            layer->updateCursorPosition(display);
+    compositionengine::CompositionRefreshArgs refreshArgs;
+    for (const auto& [_, display] : mDisplays) {
+        if (display->getId()) {
+            refreshArgs.outputs.push_back(display->getCompositionDisplay());
         }
     }
+
+    mCompositionEngine->updateCursorAsync(refreshArgs);
 }
 
 void SurfaceFlinger::commitTransaction()

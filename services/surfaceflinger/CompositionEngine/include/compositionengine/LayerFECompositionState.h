@@ -122,6 +122,13 @@ struct LayerFECompositionState {
 
     // True if the layer has protected content
     bool hasProtectedContent{false};
+
+    /*
+     * Cursor state
+     */
+
+    // The output-independent frame for the cursor
+    Rect cursorFrame;
 };
 
 } // namespace android::compositionengine
