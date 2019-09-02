@@ -233,17 +233,17 @@ static int otapreopt_chroot(const int argc, char **arg) {
     }
 
     // Try to mount APEX packages in "/apex" in the chroot dir. We need at least
-    // the Android Runtime APEX, as it is required by otapreopt to run dex2oat.
+    // the ART APEX, as it is required by otapreopt to run dex2oat.
     std::vector<apex::ApexFile> active_packages = ActivateApexPackages();
 
-    // Check that an Android Runtime APEX has been activated; clean up and exit
+    // Check that an ART APEX has been activated; clean up and exit
     // early otherwise.
     if (std::none_of(active_packages.begin(),
                      active_packages.end(),
                      [](const apex::ApexFile& package){
-                         return package.GetManifest().name() == "com.android.runtime";
+                         return package.GetManifest().name() == "com.android.art";
                      })) {
-        LOG(FATAL_WITHOUT_ABORT) << "No activated com.android.runtime APEX package.";
+        LOG(FATAL_WITHOUT_ABORT) << "No activated com.android.art APEX package.";
         DeactivateApexPackages(active_packages);
         exit(217);
     }
