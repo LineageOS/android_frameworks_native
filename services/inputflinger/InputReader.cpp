@@ -1141,12 +1141,23 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
                 }
             }
 
-            setEnabled(enabled, when);
+            if (changes) {
+                // For first-time configuration, only allow device to be disabled after mappers have
+                // finished configuring. This is because we need to read some of the properties from
+                // the device's open fd.
+                setEnabled(enabled, when);
+            }
         }
 
         for (InputMapper* mapper : mMappers) {
             mapper->configure(when, config, changes);
             mSources |= mapper->getSources();
+        }
+
+        // If a device is just plugged but it might be disabled, we need to update some info like
+        // axis range of touch from each InputMapper first, then disable it.
+        if (!changes) {
+            setEnabled(config->disabledDevices.find(mId) == config->disabledDevices.end(), when);
         }
     }
 }
