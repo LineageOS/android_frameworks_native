@@ -752,8 +752,6 @@ private:
                                     nsecs_t compositeToPresentLatency);
     void rebuildLayerStacks();
 
-    void calculateWorkingSet(const compositionengine::CompositionRefreshArgs&);
-
     void postFrame();
 
     /* ------------------------------------------------------------------------

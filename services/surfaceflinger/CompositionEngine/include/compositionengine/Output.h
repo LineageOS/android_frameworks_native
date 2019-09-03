@@ -21,7 +21,6 @@
 #include <string>
 #include <unordered_map>
 
-#include <math/mat4.h>
 #include <renderengine/LayerSettings.h>
 #include <ui/Fence.h>
 #include <ui/GraphicTypes.h>
@@ -44,6 +43,7 @@ class RenderSurface;
 class OutputLayer;
 
 struct CompositionRefreshArgs;
+struct LayerFECompositionState;
 
 namespace impl {
 struct OutputCompositionState;
@@ -56,6 +56,7 @@ class Output {
 public:
     using OutputLayers = std::vector<std::unique_ptr<compositionengine::OutputLayer>>;
     using ReleasedLayers = std::vector<wp<LayerFE>>;
+    using UniqueFELayerStateMap = std::unordered_map<LayerFE*, LayerFECompositionState*>;
 
     struct FrameFences {
         sp<Fence> presentFence{Fence::NO_FENCE};
@@ -89,9 +90,6 @@ public:
     // Sets the layer stack filtering settings for this output. See
     // belongsInOutput for full details.
     virtual void setLayerStackFilter(uint32_t layerStackId, bool isInternal) = 0;
-
-    // Sets the color transform matrix to use
-    virtual void setColorTransform(const mat4&) = 0;
 
     // Sets the output color mode
     virtual void setColorProfile(const ColorProfile&) = 0;
@@ -159,20 +157,26 @@ public:
     // Takes (moves) the set of layers being released this frame.
     virtual ReleasedLayers takeReleasedLayers() = 0;
 
-    // Presents the output, finalizing all composition details
-    virtual void present(const compositionengine::CompositionRefreshArgs&) = 0;
+    // Prepare the output, updating the OutputLayers used in the output
+    virtual void prepare(CompositionRefreshArgs&) = 0;
 
-    // Updates the color mode used on this output
-    virtual void updateColorProfile(const CompositionRefreshArgs&) = 0;
+    // Presents the output, finalizing all composition details
+    virtual void present(const CompositionRefreshArgs&) = 0;
+
+    // Latches the front-end layer state for each output layer
+    virtual void updateLayerStateFromFE(const CompositionRefreshArgs&) const = 0;
 
 protected:
     virtual void setDisplayColorProfile(std::unique_ptr<DisplayColorProfile>) = 0;
     virtual void setRenderSurface(std::unique_ptr<RenderSurface>) = 0;
 
+    virtual void updateAndWriteCompositionState(const CompositionRefreshArgs&) = 0;
+    virtual void setColorTransform(const CompositionRefreshArgs&) = 0;
+    virtual void updateColorProfile(const CompositionRefreshArgs&) = 0;
     virtual void beginFrame() = 0;
     virtual void prepareFrame() = 0;
-    virtual void devOptRepaintFlash(const compositionengine::CompositionRefreshArgs&) = 0;
-    virtual void finishFrame(const compositionengine::CompositionRefreshArgs&) = 0;
+    virtual void devOptRepaintFlash(const CompositionRefreshArgs&) = 0;
+    virtual void finishFrame(const CompositionRefreshArgs&) = 0;
     virtual std::optional<base::unique_fd> composeSurfaces(const Region&) = 0;
     virtual void postFramebuffer() = 0;
     virtual void chooseCompositionStrategy() = 0;

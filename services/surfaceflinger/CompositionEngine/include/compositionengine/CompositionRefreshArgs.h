@@ -22,6 +22,7 @@
 #include <compositionengine/Display.h>
 #include <compositionengine/Layer.h>
 #include <compositionengine/OutputColorSetting.h>
+#include <math/mat4.h>
 
 namespace android::compositionengine {
 
@@ -51,6 +52,16 @@ struct CompositionRefreshArgs {
 
     // Forces a color mode on the outputs being refreshed
     ui::ColorMode forceOutputColorMode{ui::ColorMode::NATIVE};
+
+    // If true, there was a geometry update this frame
+    bool updatingGeometryThisFrame{false};
+
+    // The color matrix to use for this
+    // frame. Only set if the color transform is changing this frame.
+    std::optional<mat4> colorTransformMatrix;
+
+    // If true, client composition is always used.
+    bool devOptForceClientComposition{false};
 
     // If set, causes the dirty regions to flash with the delay
     std::optional<std::chrono::microseconds> devOptFlashDirtyRegionsDelay;

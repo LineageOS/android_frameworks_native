@@ -99,17 +99,12 @@ void Output::setLayerStackFilter(uint32_t layerStackId, bool isInternal) {
     dirtyEntireOutput();
 }
 
-void Output::setColorTransform(const mat4& transform) {
-    if (mState.colorTransformMat == transform) {
+void Output::setColorTransform(const compositionengine::CompositionRefreshArgs& args) {
+    if (!args.colorTransformMatrix || mState.colorTransformMatrix == *args.colorTransformMatrix) {
         return;
     }
 
-    const bool isIdentity = (transform == mat4());
-    const auto newColorTransform =
-            isIdentity ? HAL_COLOR_TRANSFORM_IDENTITY : HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX;
-
-    mState.colorTransform = newColorTransform;
-    mState.colorTransformMat = transform;
+    mState.colorTransformMatrix = *args.colorTransformMatrix;
 
     dirtyEntireOutput();
 }
@@ -260,12 +255,51 @@ Output::ReleasedLayers Output::takeReleasedLayers() {
     return std::move(mReleasedLayers);
 }
 
+void Output::prepare(compositionengine::CompositionRefreshArgs& refreshArgs) {
+    if (CC_LIKELY(!refreshArgs.updatingGeometryThisFrame)) {
+        return;
+    }
+
+    uint32_t zOrder = 0;
+    for (auto& layer : mOutputLayersOrderedByZ) {
+        // Assign a simple Z order sequence to each visible layer.
+        layer->editState().z = zOrder++;
+    }
+}
+
 void Output::present(const compositionengine::CompositionRefreshArgs& refreshArgs) {
+    updateColorProfile(refreshArgs);
+    updateAndWriteCompositionState(refreshArgs);
+    setColorTransform(refreshArgs);
     beginFrame();
     prepareFrame();
     devOptRepaintFlash(refreshArgs);
     finishFrame(refreshArgs);
     postFramebuffer();
+}
+
+void Output::updateLayerStateFromFE(const CompositionRefreshArgs& args) const {
+    for (auto& layer : mOutputLayersOrderedByZ) {
+        layer->getLayerFE().latchCompositionState(layer->getLayer().editState().frontEnd,
+                                                  args.updatingGeometryThisFrame);
+    }
+}
+
+void Output::updateAndWriteCompositionState(
+        const compositionengine::CompositionRefreshArgs& refreshArgs) {
+    ATRACE_CALL();
+    ALOGV(__FUNCTION__);
+
+    for (auto& layer : mOutputLayersOrderedByZ) {
+        if (refreshArgs.devOptForceClientComposition) {
+            layer->editState().forceClientComposition = true;
+        }
+
+        layer->updateCompositionState(refreshArgs.updatingGeometryThisFrame);
+
+        // Send the updated state to the HWC, if appropriate.
+        layer->writeStateToHWC(refreshArgs.updatingGeometryThisFrame);
+    }
 }
 
 void Output::updateColorProfile(const compositionengine::CompositionRefreshArgs& refreshArgs) {
@@ -491,7 +525,7 @@ std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion
 
     // Compute the global color transform matrix.
     if (!mState.usesDeviceComposition && !getSkipColorTransform()) {
-        clientCompositionDisplay.colorTransform = mState.colorTransformMat;
+        clientCompositionDisplay.colorTransform = mState.colorTransformMatrix;
     }
 
     // Note: Updated by generateClientCompositionRequests

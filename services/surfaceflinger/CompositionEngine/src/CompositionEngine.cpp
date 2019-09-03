@@ -73,6 +73,12 @@ nsecs_t CompositionEngine::getLastFrameRefreshTimestamp() const {
 
 void CompositionEngine::present(CompositionRefreshArgs& args) {
     for (const auto& output : args.outputs) {
+        output->prepare(args);
+    }
+
+    updateLayerStateFromFE(args);
+
+    for (const auto& output : args.outputs) {
         output->present(args);
     }
 }
@@ -113,6 +119,13 @@ void CompositionEngine::preComposition(CompositionRefreshArgs& args) {
 
 void CompositionEngine::setNeedsAnotherUpdateForTest(bool value) {
     mNeedsAnotherUpdate = value;
+}
+
+void CompositionEngine::updateLayerStateFromFE(CompositionRefreshArgs& args) {
+    // Update the composition state from each front-end layer
+    for (const auto& output : args.outputs) {
+        output->updateLayerStateFromFE(args);
+    }
 }
 
 } // namespace impl

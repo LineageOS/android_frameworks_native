@@ -45,6 +45,10 @@ using testing::StrictMock;
 constexpr auto TR_IDENT = 0u;
 constexpr auto TR_ROT_90 = HAL_TRANSFORM_ROT_90;
 
+const mat4 kIdentity;
+const mat4 kNonIdentityHalf = mat4() * 0.5;
+const mat4 kNonIdentityQuarter = mat4() * 0.25;
+
 struct OutputTest : public testing::Test {
     OutputTest() {
         mOutput.setDisplayColorProfileForTest(
@@ -171,38 +175,84 @@ TEST_F(OutputTest, setLayerStackFilterSetsFilterAndDirtiesEntireOutput) {
  * Output::setColorTransform
  */
 
-TEST_F(OutputTest, setColorTransformSetsTransform) {
-    // Identity matrix sets an identity state value
-    const mat4 identity;
+TEST_F(OutputTest, setColorTransformWithNoChangeFlaggedSkipsUpdates) {
+    mOutput.editState().colorTransformMatrix = kIdentity;
 
-    mOutput.setColorTransform(identity);
+    // If no colorTransformMatrix is set the update should be skipped.
+    CompositionRefreshArgs refreshArgs;
+    refreshArgs.colorTransformMatrix = std::nullopt;
 
-    EXPECT_EQ(HAL_COLOR_TRANSFORM_IDENTITY, mOutput.getState().colorTransform);
-    EXPECT_EQ(identity, mOutput.getState().colorTransformMat);
+    mOutput.setColorTransform(refreshArgs);
 
-    // Since identity is the default, the dirty region should be unchanged (empty)
+    // The internal state should be unchanged
+    EXPECT_EQ(kIdentity, mOutput.getState().colorTransformMatrix);
+
+    // No dirty region should be set
     EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region()));
+}
 
-    // Non-identity matrix sets a non-identity state value
-    const mat4 nonIdentityHalf = mat4() * 0.5;
+TEST_F(OutputTest, setColorTransformWithNoActualChangeSkipsUpdates) {
+    mOutput.editState().colorTransformMatrix = kIdentity;
 
-    mOutput.setColorTransform(nonIdentityHalf);
+    // Attempting to set the same colorTransformMatrix that is already set should
+    // also skip the update.
+    CompositionRefreshArgs refreshArgs;
+    refreshArgs.colorTransformMatrix = kIdentity;
 
-    EXPECT_EQ(HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX, mOutput.getState().colorTransform);
-    EXPECT_EQ(nonIdentityHalf, mOutput.getState().colorTransformMat);
+    mOutput.setColorTransform(refreshArgs);
 
-    // Since this is a state change, the entire output should now be dirty.
+    // The internal state should be unchanged
+    EXPECT_EQ(kIdentity, mOutput.getState().colorTransformMatrix);
+
+    // No dirty region should be set
+    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region()));
+}
+
+TEST_F(OutputTest, setColorTransformPerformsUpdateToIdentity) {
+    mOutput.editState().colorTransformMatrix = kNonIdentityHalf;
+
+    // Setting a different colorTransformMatrix should perform the update.
+    CompositionRefreshArgs refreshArgs;
+    refreshArgs.colorTransformMatrix = kIdentity;
+
+    mOutput.setColorTransform(refreshArgs);
+
+    // The internal state should have been updated
+    EXPECT_EQ(kIdentity, mOutput.getState().colorTransformMatrix);
+
+    // The dirtyRegion should be set to the full display size
     EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
+}
 
-    // Non-identity matrix sets a non-identity state value
-    const mat4 nonIdentityQuarter = mat4() * 0.25;
+TEST_F(OutputTest, setColorTransformPerformsUpdateForIdentityToHalf) {
+    mOutput.editState().colorTransformMatrix = kIdentity;
 
-    mOutput.setColorTransform(nonIdentityQuarter);
+    // Setting a different colorTransformMatrix should perform the update.
+    CompositionRefreshArgs refreshArgs;
+    refreshArgs.colorTransformMatrix = kNonIdentityHalf;
 
-    EXPECT_EQ(HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX, mOutput.getState().colorTransform);
-    EXPECT_EQ(nonIdentityQuarter, mOutput.getState().colorTransformMat);
+    mOutput.setColorTransform(refreshArgs);
 
-    // Since this is a state change, the entire output should now be dirty.
+    // The internal state should have been updated
+    EXPECT_EQ(kNonIdentityHalf, mOutput.getState().colorTransformMatrix);
+
+    // The dirtyRegion should be set to the full display size
+    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
+}
+
+TEST_F(OutputTest, setColorTransformPerformsUpdateForHalfToQuarter) {
+    mOutput.editState().colorTransformMatrix = kNonIdentityHalf;
+
+    // Setting a different colorTransformMatrix should perform the update.
+    CompositionRefreshArgs refreshArgs;
+    refreshArgs.colorTransformMatrix = kNonIdentityQuarter;
+
+    mOutput.setColorTransform(refreshArgs);
+
+    // The internal state should have been updated
+    EXPECT_EQ(kNonIdentityQuarter, mOutput.getState().colorTransformMatrix);
+
+    // The dirtyRegion should be set to the full display size
     EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
 }
 
@@ -502,7 +552,7 @@ struct OutputComposeSurfacesTest : public testing::Test {
         mOutput.editState().transform = ui::Transform{kDefaultOutputOrientation};
         mOutput.editState().orientation = kDefaultOutputOrientation;
         mOutput.editState().dataspace = kDefaultOutputDataspace;
-        mOutput.editState().colorTransformMat = kDefaultColorTransformMat;
+        mOutput.editState().colorTransformMatrix = kDefaultColorTransformMat;
         mOutput.editState().isSecure = true;
         mOutput.editState().needsFiltering = false;
         mOutput.editState().usesClientComposition = true;
