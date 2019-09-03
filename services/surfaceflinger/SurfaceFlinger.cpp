@@ -2729,32 +2729,31 @@ void SurfaceFlinger::updateCursorAsync()
 
 void SurfaceFlinger::commitTransaction()
 {
-    if (!mLayersPendingRemoval.isEmpty()) {
-        // Notify removed layers now that they can't be drawn from
-        for (const auto& l : mLayersPendingRemoval) {
-            recordBufferingStats(l->getName().string(),
-                    l->getOccupancyHistory(true));
-
-            // Ensure any buffers set to display on any children are released.
-            if (l->isRemovedFromCurrentState()) {
-                l->latchAndReleaseBuffer();
-            }
-
-            // If the layer has been removed and has no parent, then it will not be reachable
-            // when traversing layers on screen. Add the layer to the offscreenLayers set to
-            // ensure we can copy its current to drawing state.
-            if (!l->getParent()) {
-                mOffscreenLayers.emplace(l.get());
-            }
-        }
-        mLayersPendingRemoval.clear();
-    }
-
-    // If this transaction is part of a window animation then the next frame
-    // we composite should be considered an animation as well.
-    mAnimCompositionPending = mAnimTransactionPending;
-
     withTracingLock([&]() {
+        if (!mLayersPendingRemoval.isEmpty()) {
+            // Notify removed layers now that they can't be drawn from
+            for (const auto& l : mLayersPendingRemoval) {
+                recordBufferingStats(l->getName().string(), l->getOccupancyHistory(true));
+
+                // Ensure any buffers set to display on any children are released.
+                if (l->isRemovedFromCurrentState()) {
+                    l->latchAndReleaseBuffer();
+                }
+
+                // If the layer has been removed and has no parent, then it will not be reachable
+                // when traversing layers on screen. Add the layer to the offscreenLayers set to
+                // ensure we can copy its current to drawing state.
+                if (!l->getParent()) {
+                    mOffscreenLayers.emplace(l.get());
+                }
+            }
+            mLayersPendingRemoval.clear();
+        }
+
+        // If this transaction is part of a window animation then the next frame
+        // we composite should be considered an animation as well.
+        mAnimCompositionPending = mAnimTransactionPending;
+
         mDrawingState = mCurrentState;
         // clear the "changed" flags in current state
         mCurrentState.colorMatrixChanged = false;
@@ -4123,9 +4122,11 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args,
             if (asProto) {
                 result.append(layersProto.SerializeAsString());
             } else {
+                // Dump info that we need to access from the main thread
                 const auto layerTree = LayerProtoParser::generateLayerTree(layersProto);
                 result.append(LayerProtoParser::layerTreeToString(layerTree));
                 result.append("\n");
+                dumpOffscreenLayers(result);
             }
         }
     }
@@ -4383,10 +4384,52 @@ LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
     return layersProto;
 }
 
+void SurfaceFlinger::dumpOffscreenLayersProto(LayersProto& layersProto, uint32_t traceFlags) const {
+    // Add a fake invisible root layer to the proto output and parent all the offscreen layers to
+    // it.
+    LayerProto* rootProto = layersProto.add_layers();
+    const int32_t offscreenRootLayerId = INT32_MAX - 2;
+    rootProto->set_id(offscreenRootLayerId);
+    rootProto->set_name("Offscreen Root");
+
+    for (Layer* offscreenLayer : mOffscreenLayers) {
+        // Add layer as child of the fake root
+        rootProto->add_children(offscreenLayer->sequence);
+
+        // Add layer
+        LayerProto* layerProto = layersProto.add_layers();
+        offscreenLayer->writeToProtoDrawingState(layerProto, traceFlags);
+        offscreenLayer->writeToProtoCommonState(layerProto, LayerVector::StateSet::Drawing,
+                                                traceFlags);
+        layerProto->set_parent(offscreenRootLayerId);
+
+        // Add children
+        offscreenLayer->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
+            if (layer == offscreenLayer) {
+                return;
+            }
+            LayerProto* childProto = layersProto.add_layers();
+            layer->writeToProtoDrawingState(childProto, traceFlags);
+            layer->writeToProtoCommonState(childProto, LayerVector::StateSet::Drawing, traceFlags);
+        });
+    }
+}
+
 LayersProto SurfaceFlinger::dumpProtoFromMainThread(uint32_t traceFlags) {
     LayersProto layersProto;
     postMessageSync(new LambdaMessage([&]() { layersProto = dumpDrawingStateProto(traceFlags); }));
     return layersProto;
+}
+
+void SurfaceFlinger::dumpOffscreenLayers(std::string& result) {
+    result.append("Offscreen Layers:\n");
+    postMessageSync(new LambdaMessage([&]() {
+        for (Layer* offscreenLayer : mOffscreenLayers) {
+            offscreenLayer->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
+                layer->dumpCallingUidPid(result);
+            });
+        }
+    }));
 }
 
 void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) const {
