@@ -14,7 +14,11 @@
 
 cc_library_headers {
     name: "libinputreader_headers",
-    export_include_dirs: ["include"],
+    export_include_dirs: [
+        "include",
+        "mapper",
+        "mapper/accumulator",
+    ],
 }
 
 cc_library_shared {
@@ -22,26 +26,26 @@ cc_library_shared {
     defaults: ["inputflinger_defaults"],
 
     srcs: [
-        "CursorButtonAccumulator.cpp",
-        "CursorInputMapper.cpp",
-        "CursorScrollAccumulator.cpp",
         "EventHub.cpp",
-        "ExternalStylusInputMapper.cpp",
         "InputDevice.cpp",
-        "InputMapper.cpp",
+        "mapper/accumulator/CursorButtonAccumulator.cpp",
+        "mapper/accumulator/CursorScrollAccumulator.cpp",
+        "mapper/accumulator/SingleTouchMotionAccumulator.cpp",
+        "mapper/accumulator/TouchButtonAccumulator.cpp",
+        "mapper/CursorInputMapper.cpp",
+        "mapper/ExternalStylusInputMapper.cpp",
+        "mapper/InputMapper.cpp",
+        "mapper/JoystickInputMapper.cpp",
+        "mapper/KeyboardInputMapper.cpp",
+        "mapper/MultiTouchInputMapper.cpp",
+        "mapper/RotaryEncoderInputMapper.cpp",
+        "mapper/SingleTouchInputMapper.cpp",
+        "mapper/SwitchInputMapper.cpp",
+        "mapper/TouchInputMapper.cpp",
+        "mapper/VibratorInputMapper.cpp",
         "InputReader.cpp",
         "InputReaderFactory.cpp",
-        "JoystickInputMapper.cpp",
-        "KeyboardInputMapper.cpp",
-        "MultiTouchInputMapper.cpp",
-        "RotaryEncoderInputMapper.cpp",
-        "SingleTouchInputMapper.cpp",
-        "SingleTouchMotionAccumulator.cpp",
-        "SwitchInputMapper.cpp",
-        "TouchButtonAccumulator.cpp",
-        "TouchInputMapper.cpp",
         "TouchVideoDevice.cpp",
-        "VibratorInputMapper.cpp",
     ],
 
     shared_libs: [
