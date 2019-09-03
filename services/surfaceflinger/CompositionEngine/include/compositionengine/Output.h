@@ -159,34 +159,22 @@ public:
     // Takes (moves) the set of layers being released this frame.
     virtual ReleasedLayers takeReleasedLayers() = 0;
 
+    // Presents the output, finalizing all composition details
+    virtual void present(const compositionengine::CompositionRefreshArgs&) = 0;
+
     // Updates the color mode used on this output
     virtual void updateColorProfile(const CompositionRefreshArgs&) = 0;
-
-    // Signals that a frame is beginning on the output
-    virtual void beginFrame() = 0;
-
-    // Prepares a frame for display
-    virtual void prepareFrame() = 0;
-
-    // Performs any debug related screen flashing due to the update
-    virtual void devOptRepaintFlash(const CompositionRefreshArgs&) = 0;
-
-    // Finishes the current frame on the output, performing client composition
-    // and ensuring the content is displayed.
-    virtual void finishFrame(const CompositionRefreshArgs&) = 0;
-
-    // Performs client composition as needed for layers on the output. The
-    // output fence is set to a fence to signal when client composition is
-    // finished.
-    // Returns std::nullopt if client composition cannot be performed.
-    virtual std::optional<base::unique_fd> composeSurfaces(const Region&) = 0;
-
-    // Posts the new frame, and sets release fences.
-    virtual void postFramebuffer() = 0;
 
 protected:
     virtual void setDisplayColorProfile(std::unique_ptr<DisplayColorProfile>) = 0;
     virtual void setRenderSurface(std::unique_ptr<RenderSurface>) = 0;
+
+    virtual void beginFrame() = 0;
+    virtual void prepareFrame() = 0;
+    virtual void devOptRepaintFlash(const compositionengine::CompositionRefreshArgs&) = 0;
+    virtual void finishFrame(const compositionengine::CompositionRefreshArgs&) = 0;
+    virtual std::optional<base::unique_fd> composeSurfaces(const Region&) = 0;
+    virtual void postFramebuffer() = 0;
     virtual void chooseCompositionStrategy() = 0;
     virtual bool getSkipColorTransform() const = 0;
     virtual FrameFences presentAndGetFrameFences() = 0;

@@ -71,6 +71,12 @@ nsecs_t CompositionEngine::getLastFrameRefreshTimestamp() const {
     return mRefreshStartTime;
 }
 
+void CompositionEngine::present(CompositionRefreshArgs& args) {
+    for (const auto& output : args.outputs) {
+        output->present(args);
+    }
+}
+
 void CompositionEngine::updateCursorAsync(CompositionRefreshArgs& args) {
     std::unordered_map<compositionengine::LayerFE*, compositionengine::LayerFECompositionState*>
             uniqueVisibleLayers;

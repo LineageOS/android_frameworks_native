@@ -1804,14 +1804,7 @@ void SurfaceFlinger::handleMessageRefresh() {
     mCompositionEngine->preComposition(refreshArgs);
     rebuildLayerStacks();
     calculateWorkingSet(refreshArgs);
-    for (const auto& [token, displayDevice] : mDisplays) {
-        auto display = displayDevice->getCompositionDisplay();
-        display->beginFrame();
-        display->prepareFrame();
-        display->devOptRepaintFlash(refreshArgs);
-        display->finishFrame(refreshArgs);
-        display->postFramebuffer();
-    }
+    mCompositionEngine->present(refreshArgs);
 
     postFrame();
     postComposition();
