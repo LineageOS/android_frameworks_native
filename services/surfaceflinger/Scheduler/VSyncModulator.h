@@ -68,12 +68,6 @@ public:
     void setPhaseOffsets(Offsets early, Offsets earlyGl, Offsets late,
                          nsecs_t thresholdForNextVsync) EXCLUDES(mMutex);
 
-    // Sets handles to the SF and app event threads.
-    void setEventThreads(EventThread* sfEventThread, EventThread* appEventThread) {
-        mSfEventThread = sfEventThread;
-        mAppEventThread = appEventThread;
-    }
-
     // Sets the scheduler and vsync connection handlers.
     void setSchedulerAndHandles(Scheduler* scheduler,
                                 Scheduler::ConnectionHandle* appConnectionHandle,
@@ -120,9 +114,6 @@ private:
     mutable std::mutex mMutex;
     std::unordered_map<OffsetType, Offsets> mOffsetMap GUARDED_BY(mMutex);
     nsecs_t mThresholdForNextVsync;
-
-    EventThread* mSfEventThread = nullptr;
-    EventThread* mAppEventThread = nullptr;
 
     Scheduler* mScheduler = nullptr;
     Scheduler::ConnectionHandle* mAppConnectionHandle = nullptr;
