@@ -276,7 +276,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
     const int32_t layerID = getSequence();
     LayerRejecter r(mDrawingState, getCurrentState(), recomputeVisibleRegions,
                     getProducerStickyTransform() != 0, mName.string(), mOverrideScalingMode,
-                    getTransformToDisplayInverse(), mFreezeGeometryUpdates);
+                    getTransformToDisplayInverse());
 
     if (isRemovedFromCurrentState()) {
         expectedPresentTime = 0;

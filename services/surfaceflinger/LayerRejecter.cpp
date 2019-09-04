@@ -23,22 +23,16 @@
 
 namespace android {
 
-LayerRejecter::LayerRejecter(Layer::State& front,
-                             Layer::State& current,
-                             bool& recomputeVisibleRegions,
-                             bool stickySet,
-                             const char* name,
-                             int32_t overrideScalingMode,
-                             bool transformToDisplayInverse,
-                             bool& freezePositionUpdates)
-  : mFront(front),
-    mCurrent(current),
-    mRecomputeVisibleRegions(recomputeVisibleRegions),
-    mStickyTransformSet(stickySet),
-    mName(name),
-    mOverrideScalingMode(overrideScalingMode),
-    mTransformToDisplayInverse(transformToDisplayInverse),
-    mFreezeGeometryUpdates(freezePositionUpdates) {}
+LayerRejecter::LayerRejecter(Layer::State& front, Layer::State& current,
+                             bool& recomputeVisibleRegions, bool stickySet, const char* name,
+                             int32_t overrideScalingMode, bool transformToDisplayInverse)
+      : mFront(front),
+        mCurrent(current),
+        mRecomputeVisibleRegions(recomputeVisibleRegions),
+        mStickyTransformSet(stickySet),
+        mName(name),
+        mOverrideScalingMode(overrideScalingMode),
+        mTransformToDisplayInverse(transformToDisplayInverse) {}
 
 bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item) {
     if (buf == nullptr) {
@@ -82,8 +76,6 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
 
             // recompute visible region
             mRecomputeVisibleRegions = true;
-
-            mFreezeGeometryUpdates = false;
 
             if (mFront.crop_legacy != mFront.requestedCrop_legacy) {
                 mFront.crop_legacy = mFront.requestedCrop_legacy;

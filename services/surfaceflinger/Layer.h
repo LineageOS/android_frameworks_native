@@ -268,9 +268,9 @@ public:
 
     // setPosition operates in parent buffer space (pre parent-transform) or display
     // space for top-level layers.
-    virtual bool setPosition(float x, float y, bool immediate);
+    virtual bool setPosition(float x, float y);
     // Buffer space
-    virtual bool setCrop_legacy(const Rect& crop, bool immediate);
+    virtual bool setCrop_legacy(const Rect& crop);
 
     // TODO(b/38182121): Could we eliminate the various latching modes by
     // using the layer hierarchy?
@@ -859,8 +859,6 @@ protected:
 
     // This layer can be a cursor on some displays.
     bool mPotentialCursor{false};
-
-    bool mFreezeGeometryUpdates{false};
 
     // Child list about to be committed/used for editing.
     LayerVector mCurrentChildren{LayerVector::StateSet::Current};

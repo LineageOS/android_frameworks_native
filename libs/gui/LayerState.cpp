@@ -291,9 +291,6 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eOverrideScalingModeChanged;
         overrideScalingMode = other.overrideScalingMode;
     }
-    if (other.what & eGeometryAppliesWithResize) {
-        what |= eGeometryAppliesWithResize;
-    }
     if (other.what & eReparentChildren) {
         what |= eReparentChildren;
         reparentHandle = other.reparentHandle;

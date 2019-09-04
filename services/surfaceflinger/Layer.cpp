@@ -770,11 +770,6 @@ uint32_t Layer::doTransactionResize(uint32_t flags, State* stateToCommit) {
     if (!(flags & eDontUpdateGeometryState)) {
         State& editCurrentState(getCurrentState());
 
-        // If mFreezeGeometryUpdates is true we are in the setGeometryAppliesWithResize
-        // mode, which causes attributes which normally latch regardless of scaling mode,
-        // to be delayed. We copy the requested state to the active state making sure
-        // to respect these rules (again see Layer.h for a detailed discussion).
-        //
         // There is an awkward asymmetry in the handling of the crop states in the position
         // states, as can be seen below. Largely this arises from position and transform
         // being stored in the same data structure while having different latching rules.
@@ -782,16 +777,8 @@ uint32_t Layer::doTransactionResize(uint32_t flags, State* stateToCommit) {
         //
         // Careful that "stateToCommit" and editCurrentState may not begin as equivalent due to
         // applyPendingStates in the presence of deferred transactions.
-        if (mFreezeGeometryUpdates) {
-            float tx = stateToCommit->active_legacy.transform.tx();
-            float ty = stateToCommit->active_legacy.transform.ty();
-            stateToCommit->active_legacy = stateToCommit->requested_legacy;
-            stateToCommit->active_legacy.transform.set(tx, ty);
-            editCurrentState.active_legacy = stateToCommit->active_legacy;
-        } else {
-            editCurrentState.active_legacy = editCurrentState.requested_legacy;
-            stateToCommit->active_legacy = stateToCommit->requested_legacy;
-        }
+        editCurrentState.active_legacy = editCurrentState.requested_legacy;
+        stateToCommit->active_legacy = stateToCommit->requested_legacy;
     }
 
     return flags;
@@ -858,7 +845,7 @@ uint32_t Layer::setTransactionFlags(uint32_t flags) {
     return mTransactionFlags.fetch_or(flags);
 }
 
-bool Layer::setPosition(float x, float y, bool immediate) {
+bool Layer::setPosition(float x, float y) {
     if (mCurrentState.requested_legacy.transform.tx() == x &&
         mCurrentState.requested_legacy.transform.ty() == y)
         return false;
@@ -868,14 +855,11 @@ bool Layer::setPosition(float x, float y, bool immediate) {
     // we want to apply the position portion of the transform matrix immediately,
     // but still delay scaling when resizing a SCALING_MODE_FREEZE layer.
     mCurrentState.requested_legacy.transform.set(x, y);
-    if (immediate && !mFreezeGeometryUpdates) {
-        // Here we directly update the active state
-        // unlike other setters, because we store it within
-        // the transform, but use different latching rules.
-        // b/38182305
-        mCurrentState.active_legacy.transform.set(x, y);
-    }
-    mFreezeGeometryUpdates = mFreezeGeometryUpdates || !immediate;
+    // Here we directly update the active state
+    // unlike other setters, because we store it within
+    // the transform, but use different latching rules.
+    // b/38182305
+    mCurrentState.active_legacy.transform.set(x, y);
 
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
@@ -1081,14 +1065,11 @@ bool Layer::setFlags(uint8_t flags, uint8_t mask) {
     return true;
 }
 
-bool Layer::setCrop_legacy(const Rect& crop, bool immediate) {
+bool Layer::setCrop_legacy(const Rect& crop) {
     if (mCurrentState.requestedCrop_legacy == crop) return false;
     mCurrentState.sequence++;
     mCurrentState.requestedCrop_legacy = crop;
-    if (immediate && !mFreezeGeometryUpdates) {
-        mCurrentState.crop_legacy = crop;
-    }
-    mFreezeGeometryUpdates = mFreezeGeometryUpdates || !immediate;
+    mCurrentState.crop_legacy = crop;
 
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);

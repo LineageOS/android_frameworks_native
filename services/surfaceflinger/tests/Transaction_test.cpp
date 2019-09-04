@@ -842,62 +842,6 @@ TEST_P(LayerRenderTypeTransactionTest, SetPositionWithResize_BufferQueue) {
     }
 }
 
-TEST_P(LayerRenderTypeTransactionTest, SetPositionWithNextResize_BufferQueue) {
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-
-    // request setPosition to be applied with the next resize
-    Transaction().setPosition(layer, 5, 10).setGeometryAppliesWithResize(layer).apply();
-    {
-        SCOPED_TRACE("new position pending");
-        getScreenCapture()->expectColor(Rect(0, 0, 32, 32), Color::RED);
-    }
-
-    Transaction().setPosition(layer, 15, 20).apply();
-    {
-        SCOPED_TRACE("pending new position modified");
-        getScreenCapture()->expectColor(Rect(0, 0, 32, 32), Color::RED);
-    }
-
-    Transaction().setSize(layer, 64, 64).apply();
-    {
-        SCOPED_TRACE("resize pending");
-        getScreenCapture()->expectColor(Rect(0, 0, 32, 32), Color::RED);
-    }
-
-    // finally resize and latch the buffer
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 64, 64));
-    {
-        SCOPED_TRACE("new position applied");
-        getScreenCapture()->expectColor(Rect(15, 20, 79, 84), Color::RED);
-    }
-}
-
-TEST_P(LayerRenderTypeTransactionTest, SetPositionWithNextResizeScaleToWindow_BufferQueue) {
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-
-    // setPosition is not immediate even with SCALE_TO_WINDOW override
-    Transaction()
-            .setPosition(layer, 5, 10)
-            .setSize(layer, 64, 64)
-            .setOverrideScalingMode(layer, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW)
-            .setGeometryAppliesWithResize(layer)
-            .apply();
-    {
-        SCOPED_TRACE("new position pending");
-        getScreenCapture()->expectColor(Rect(0, 0, 64, 64), Color::RED);
-    }
-
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 64, 64));
-    {
-        SCOPED_TRACE("new position applied");
-        getScreenCapture()->expectColor(Rect(5, 10, 69, 74), Color::RED);
-    }
-}
-
 TEST_P(LayerRenderTypeTransactionTest, SetSizeBasic_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
@@ -2307,74 +2251,6 @@ TEST_P(LayerRenderTypeTransactionTest, SetCropWithResize_BufferQueue) {
         auto shot = getScreenCapture();
         shot->expectColor(Rect(8, 8, 16, 16), Color::RED);
         shot->expectBorder(Rect(8, 8, 16, 16), Color::BLACK);
-    }
-}
-
-TEST_P(LayerRenderTypeTransactionTest, SetCropWithNextResize_BufferQueue) {
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-
-    // request setCrop_legacy to be applied with the next resize
-    Transaction()
-            .setCrop_legacy(layer, Rect(8, 8, 24, 24))
-            .setGeometryAppliesWithResize(layer)
-            .apply();
-    {
-        SCOPED_TRACE("waiting for next resize");
-        getScreenCapture()->expectColor(Rect(0, 0, 32, 32), Color::RED);
-    }
-
-    Transaction().setCrop_legacy(layer, Rect(4, 4, 12, 12)).apply();
-    {
-        SCOPED_TRACE("pending crop modified");
-        getScreenCapture()->expectColor(Rect(0, 0, 32, 32), Color::RED);
-    }
-
-    Transaction().setSize(layer, 16, 16).apply();
-    {
-        SCOPED_TRACE("resize pending");
-        getScreenCapture()->expectColor(Rect(0, 0, 32, 32), Color::RED);
-    }
-
-    // finally resize
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 16, 16));
-    {
-        SCOPED_TRACE("new crop applied");
-        auto shot = getScreenCapture();
-        shot->expectColor(Rect(4, 4, 12, 12), Color::RED);
-        shot->expectBorder(Rect(4, 4, 12, 12), Color::BLACK);
-    }
-}
-
-TEST_P(LayerRenderTypeTransactionTest, SetCropWithNextResizeScaleToWindow_BufferQueue) {
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-
-    // setCrop_legacy is not immediate even with SCALE_TO_WINDOW override
-    Transaction()
-            .setCrop_legacy(layer, Rect(4, 4, 12, 12))
-            .setSize(layer, 16, 16)
-            .setOverrideScalingMode(layer, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW)
-            .setGeometryAppliesWithResize(layer)
-            .apply();
-    {
-        SCOPED_TRACE("new crop pending");
-        auto shot = getScreenCapture();
-        shot->expectColor(Rect(0, 0, 16, 16), Color::RED);
-        shot->expectBorder(Rect(0, 0, 16, 16), Color::BLACK);
-    }
-
-    // XXX crop is never latched without other geometry change (b/69315677)
-    Transaction().setPosition(layer, 1, 0).setGeometryAppliesWithResize(layer).apply();
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 16, 16));
-    Transaction().setPosition(layer, 0, 0).apply();
-    {
-        SCOPED_TRACE("new crop applied");
-        auto shot = getScreenCapture();
-        shot->expectColor(Rect(4, 4, 12, 12), Color::RED);
-        shot->expectBorder(Rect(4, 4, 12, 12), Color::BLACK);
     }
 }
 

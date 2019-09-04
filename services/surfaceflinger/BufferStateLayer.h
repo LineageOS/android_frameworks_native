@@ -82,13 +82,13 @@ public:
 
     // Override to ignore legacy layer state properties that are not used by BufferStateLayer
     bool setSize(uint32_t /*w*/, uint32_t /*h*/) override { return false; }
-    bool setPosition(float /*x*/, float /*y*/, bool /*immediate*/) override { return false; }
+    bool setPosition(float /*x*/, float /*y*/) override { return false; }
     bool setTransparentRegionHint(const Region& transparent) override;
     bool setMatrix(const layer_state_t::matrix22_t& /*matrix*/,
                    bool /*allowNonRectPreservingTransforms*/) override {
         return false;
     }
-    bool setCrop_legacy(const Rect& /*crop*/, bool /*immediate*/) override { return false; }
+    bool setCrop_legacy(const Rect& /*crop*/) override { return false; }
     bool setOverrideScalingMode(int32_t /*overrideScalingMode*/) override { return false; }
     void deferTransactionUntil_legacy(const sp<IBinder>& /*barrierHandle*/,
                                       uint64_t /*frameNumber*/) override {}

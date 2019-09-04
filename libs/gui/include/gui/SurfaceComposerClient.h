@@ -446,12 +446,6 @@ public:
         Transaction& setOverrideScalingMode(const sp<SurfaceControl>& sc,
                 int32_t overrideScalingMode);
 
-        // If the size changes in this transaction, all geometry updates specified
-        // in this transaction will not complete until a buffer of the new size
-        // arrives. As some elements normally apply immediately, this enables
-        // freezing the total geometry of a surface until a resize is completed.
-        Transaction& setGeometryAppliesWithResize(const sp<SurfaceControl>& sc);
-
 #ifndef NO_INPUT
         Transaction& setInputWindowInfo(const sp<SurfaceControl>& sc, const InputWindowInfo& info);
         Transaction& transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken);
