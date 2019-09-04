@@ -260,6 +260,14 @@ Output::ReleasedLayers Output::takeReleasedLayers() {
     return std::move(mReleasedLayers);
 }
 
+void Output::present(const compositionengine::CompositionRefreshArgs& refreshArgs) {
+    beginFrame();
+    prepareFrame();
+    devOptRepaintFlash(refreshArgs);
+    finishFrame(refreshArgs);
+    postFramebuffer();
+}
+
 void Output::updateColorProfile(const compositionengine::CompositionRefreshArgs& refreshArgs) {
     setColorProfile(pickColorProfile(refreshArgs));
 }

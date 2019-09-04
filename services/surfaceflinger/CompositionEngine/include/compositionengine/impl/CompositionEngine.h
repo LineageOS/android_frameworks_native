@@ -39,6 +39,8 @@ public:
     bool needsAnotherUpdate() const override;
     nsecs_t getLastFrameRefreshTimestamp() const override;
 
+    void present(CompositionRefreshArgs&) override;
+
     void updateCursorAsync(CompositionRefreshArgs&) override;
 
     void preComposition(CompositionRefreshArgs&) override;

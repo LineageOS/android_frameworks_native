@@ -22,6 +22,7 @@
 #include "Layer.h"
 
 #include <android-base/stringprintf.h>
+#include <binder/IPCThreadState.h>
 #include <compositionengine/Display.h>
 #include <compositionengine/Layer.h>
 #include <compositionengine/LayerFECompositionState.h>
@@ -122,7 +123,8 @@ Layer::Layer(const LayerCreationArgs& args)
     mFrameTracker.setDisplayRefreshPeriod(compositorTiming.interval);
 
     mSchedulerLayerHandle = mFlinger->mScheduler->registerLayer(mName.c_str(), mWindowType);
-
+    mCallingPid = args.callingPid;
+    mCallingUid = args.callingUid;
     mFlinger->onLayerCreated();
 }
 
@@ -134,6 +136,21 @@ Layer::~Layer() {
 
     mFrameTracker.logAndResetStats(mName);
     mFlinger->onLayerDestroyed(this);
+}
+
+LayerCreationArgs::LayerCreationArgs(SurfaceFlinger* flinger, const sp<Client>& client,
+                                     const String8& name, uint32_t w, uint32_t h, uint32_t flags,
+                                     LayerMetadata metadata)
+      : flinger(flinger),
+        client(client),
+        name(name),
+        w(w),
+        h(h),
+        flags(flags),
+        metadata(std::move(metadata)) {
+    IPCThreadState* ipc = IPCThreadState::self();
+    callingPid = ipc->getCallingPid();
+    callingUid = ipc->getCallingUid();
 }
 
 // ---------------------------------------------------------------------------
@@ -1324,6 +1341,11 @@ void Layer::dumpFrameEvents(std::string& result) {
     mFrameEventHistory.dump(result);
 }
 
+void Layer::dumpCallingUidPid(std::string& result) const {
+    StringAppendF(&result, "Layer %s (%s) pid:%d uid:%d\n", getName().string(), getType(),
+                  mCallingPid, mCallingUid);
+}
+
 void Layer::onDisconnect() {
     Mutex::Autolock lock(mFrameEventHistoryMutex);
     mFrameEventHistory.onDisconnect();
@@ -1932,7 +1954,7 @@ InputWindowInfo Layer::fillInputInfo() {
     InputWindowInfo info = mDrawingState.inputInfo;
 
     if (info.displayId == ADISPLAY_ID_NONE) {
-        info.displayId = mDrawingState.layerStack;
+        info.displayId = getLayerStack();
     }
 
     ui::Transform t = getTransform();
