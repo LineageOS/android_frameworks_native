@@ -78,7 +78,6 @@ Layer::Layer(const LayerCreationArgs& args)
         mName(args.name),
         mClientRef(args.client),
         mWindowType(args.metadata.getInt32(METADATA_WINDOW_TYPE, 0)) {
-    mCurrentCrop.makeInvalid();
 
     uint32_t layerFlags = 0;
     if (args.flags & ISurfaceComposerClient::eHidden) layerFlags |= layer_state_t::eLayerHidden;
@@ -259,23 +258,6 @@ sp<IBinder> Layer::getHandle() {
 // h/w composer set-up
 // ---------------------------------------------------------------------------
 
-Rect Layer::getContentCrop() const {
-    // this is the crop rectangle that applies to the buffer
-    // itself (as opposed to the window)
-    Rect crop;
-    if (!mCurrentCrop.isEmpty()) {
-        // if the buffer crop is defined, we use that
-        crop = mCurrentCrop;
-    } else if (mActiveBuffer != nullptr) {
-        // otherwise we use the whole buffer
-        crop = mActiveBuffer->getBounds();
-    } else {
-        // if we don't have a buffer yet, we use an empty/invalid crop
-        crop.makeInvalid();
-    }
-    return crop;
-}
-
 static Rect reduce(const Rect& win, const Region& exclude) {
     if (CC_LIKELY(exclude.isEmpty())) {
         return win;
@@ -335,7 +317,7 @@ ui::Transform Layer::getBufferScaleTransform() const {
     int bufferWidth = mActiveBuffer->getWidth();
     int bufferHeight = mActiveBuffer->getHeight();
 
-    if (mCurrentTransform & NATIVE_WINDOW_TRANSFORM_ROT_90) {
+    if (getBufferTransform() & NATIVE_WINDOW_TRANSFORM_ROT_90) {
         std::swap(bufferWidth, bufferHeight);
     }
 
@@ -442,9 +424,9 @@ void Layer::latchGeometry(compositionengine::LayerFECompositionState& compositio
     compositionState.geomLayerTransform = getTransform();
     compositionState.geomInverseLayerTransform = compositionState.geomLayerTransform.inverse();
     compositionState.geomBufferSize = getBufferSize(drawingState);
-    compositionState.geomContentCrop = getContentCrop();
+    compositionState.geomContentCrop = getBufferCrop();
     compositionState.geomCrop = getCrop(drawingState);
-    compositionState.geomBufferTransform = mCurrentTransform;
+    compositionState.geomBufferTransform = getBufferTransform();
     compositionState.geomBufferUsesDisplayInverseTransform = getTransformToDisplayInverse();
     compositionState.geomActiveTransparentRegion = getActiveTransparentRegion(drawingState);
     compositionState.geomLayerBounds = mBounds;
@@ -466,7 +448,7 @@ void Layer::latchPerFrameState(compositionengine::LayerFECompositionState& compo
     compositionState.geomVisibleRegion = visibleRegion;
 
     compositionState.isColorspaceAgnostic = isColorSpaceAgnostic();
-    compositionState.dataspace = mCurrentDataSpace;
+    compositionState.dataspace = getDataSpace();
     compositionState.colorTransform = getColorTransform();
     compositionState.colorTransformIsIdentity = !hasColorTransform();
     compositionState.surfaceDamage = surfaceDamageRegion;
@@ -543,7 +525,7 @@ std::optional<renderengine::LayerSettings> Layer::prepareClientComposition(
     layerSettings.geometry.roundedCornersCrop = roundedCornerState.cropRect;
 
     layerSettings.alpha = alpha;
-    layerSettings.sourceDataspace = mCurrentDataSpace;
+    layerSettings.sourceDataspace = getDataSpace();
     return layerSettings;
 }
 
@@ -726,7 +708,7 @@ uint32_t Layer::doTransactionResize(uint32_t flags, State* stateToCommit) {
                  "            requested={ wh={%4u,%4u} }}\n"
                  "  drawing={ active   ={ wh={%4u,%4u} crop={%4d,%4d,%4d,%4d} (%4d,%4d) }\n"
                  "            requested={ wh={%4u,%4u} }}\n",
-                 this, getName().string(), mCurrentTransform, getEffectiveScalingMode(),
+                 this, getName().string(), getBufferTransform(), getEffectiveScalingMode(),
                  stateToCommit->active_legacy.w, stateToCommit->active_legacy.h,
                  stateToCommit->crop_legacy.left, stateToCommit->crop_legacy.top,
                  stateToCommit->crop_legacy.right, stateToCommit->crop_legacy.bottom,
@@ -1232,7 +1214,7 @@ LayerDebugInfo Layer::getLayerDebugInfo() const {
     info.mColor = ds.color;
     info.mFlags = ds.flags;
     info.mPixelFormat = getPixelFormat();
-    info.mDataSpace = static_cast<android_dataspace>(mCurrentDataSpace);
+    info.mDataSpace = static_cast<android_dataspace>(getDataSpace());
     info.mMatrix[0][0] = ds.active_legacy.transform[0][0];
     info.mMatrix[0][1] = ds.active_legacy.transform[0][1];
     info.mMatrix[1][0] = ds.active_legacy.transform[1][0];
@@ -1551,8 +1533,9 @@ bool Layer::hasColorTransform() const {
 
 bool Layer::isLegacyDataSpace() const {
     // return true when no higher bits are set
-    return !(mCurrentDataSpace & (ui::Dataspace::STANDARD_MASK |
-                ui::Dataspace::TRANSFER_MASK | ui::Dataspace::RANGE_MASK));
+    return !(getDataSpace() &
+             (ui::Dataspace::STANDARD_MASK | ui::Dataspace::TRANSFER_MASK |
+              ui::Dataspace::RANGE_MASK));
 }
 
 void Layer::setParent(const sp<Layer>& layer) {
@@ -1834,13 +1817,12 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags)
         if (buffer != nullptr) {
             LayerProtoHelper::writeToProto(buffer,
                                            [&]() { return layerInfo->mutable_active_buffer(); });
-            LayerProtoHelper::writeToProto(ui::Transform(mCurrentTransform),
+            LayerProtoHelper::writeToProto(ui::Transform(getBufferTransform()),
                                            layerInfo->mutable_buffer_transform());
         }
         layerInfo->set_invalidate(contentDirty);
         layerInfo->set_is_protected(isProtected());
-        layerInfo->set_dataspace(
-                dataspaceDetails(static_cast<android_dataspace>(mCurrentDataSpace)));
+        layerInfo->set_dataspace(dataspaceDetails(static_cast<android_dataspace>(getDataSpace())));
         layerInfo->set_queued_frames(getQueuedFrameCount());
         layerInfo->set_refresh_pending(isBufferLatched());
         layerInfo->set_curr_frame(mCurrentFrameNumber);

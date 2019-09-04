@@ -48,8 +48,6 @@ public:
 
     bool shouldPresentNow(nsecs_t expectedPresentTime) const override;
 
-    bool getTransformToDisplayInverse() const override;
-
     uint32_t doTransactionResize(uint32_t flags, Layer::State* /*stateToCommit*/) override {
         return flags;
     }
@@ -106,19 +104,10 @@ public:
     bool fenceHasSignaled() const override;
     bool framePresentTimeIsCurrent(nsecs_t expectedPresentTime) const override;
 
-private:
-    nsecs_t getDesiredPresentTime() override;
-    std::shared_ptr<FenceTime> getCurrentFenceTime() const override;
+protected:
+    void gatherBufferInfo() override;
 
-    void getDrawingTransformMatrix(float *matrix) override;
-    uint32_t getDrawingTransform() const override;
-    ui::Dataspace getDrawingDataSpace() const override;
-    Rect getDrawingCrop() const override;
-    uint32_t getDrawingScalingMode() const override;
-    Region getDrawingSurfaceDamage() const override;
-    const HdrMetadata& getDrawingHdrMetadata() const override;
-    int getDrawingApi() const override;
-    PixelFormat getPixelFormat() const override;
+private:
 
     uint64_t getFrameNumber(nsecs_t expectedPresentTime) const override;
 
@@ -139,6 +128,9 @@ private:
     status_t updateFrameNumber(nsecs_t latchTime) override;
 
     void latchPerFrameState(compositionengine::LayerFECompositionState&) const override;
+
+    // Crop that applies to the buffer
+    Rect computeCrop(const State& s);
 
 private:
     friend class SlotGenerationTest;

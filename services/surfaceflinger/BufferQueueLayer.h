@@ -46,7 +46,6 @@ public:
 
     std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool forceFlush) override;
 
-    bool getTransformToDisplayInverse() const override;
 
     // If a buffer was replaced this frame, release the former buffer
     void releasePendingBuffer(nsecs_t dequeueReadyTime) override;
@@ -66,18 +65,6 @@ public:
     bool framePresentTimeIsCurrent(nsecs_t expectedPresentTime) const override;
 
 private:
-    nsecs_t getDesiredPresentTime() override;
-    std::shared_ptr<FenceTime> getCurrentFenceTime() const override;
-
-    void getDrawingTransformMatrix(float *matrix) override;
-    uint32_t getDrawingTransform() const override;
-    ui::Dataspace getDrawingDataSpace() const override;
-    Rect getDrawingCrop() const override;
-    uint32_t getDrawingScalingMode() const override;
-    Region getDrawingSurfaceDamage() const override;
-    const HdrMetadata& getDrawingHdrMetadata() const override;
-    int getDrawingApi() const override;
-    PixelFormat getPixelFormat() const override;
 
     uint64_t getFrameNumber(nsecs_t expectedPresentTime) const override;
 
@@ -103,6 +90,8 @@ private:
     // Interface implementation for BufferLayerConsumer::ContentsChangedListener
     // -----------------------------------------------------------------------
 protected:
+    void gatherBufferInfo() override;
+
     void onFrameAvailable(const BufferItem& item) override;
     void onFrameReplaced(const BufferItem& item) override;
     void onSidebandStreamChanged() override;

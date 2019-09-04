@@ -99,17 +99,16 @@ void ColorLayer::latchPerFrameState(
     compositionState.compositionType = Hwc2::IComposerClient::Composition::SOLID_COLOR;
 }
 
-void ColorLayer::commitTransaction(const State& stateToCommit) {
-    Layer::commitTransaction(stateToCommit);
-    mCurrentDataSpace = mDrawingState.dataspace;
-}
-
 std::shared_ptr<compositionengine::Layer> ColorLayer::getCompositionLayer() const {
     return mCompositionLayer;
 }
 
 bool ColorLayer::isOpaque(const Layer::State& s) const {
     return (s.flags & layer_state_t::eLayerOpaque) != 0;
+}
+
+ui::Dataspace ColorLayer::getDataSpace() const {
+    return mDrawingState.dataspace;
 }
 
 // ---------------------------------------------------------------------------
