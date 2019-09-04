@@ -100,6 +100,7 @@ private:
 
     std::mutex mTraceMutex;
     std::unordered_map<int32_t, TraceRecord> mTraceTracker;
+    std::once_flag mInitializationFlag;
 };
 
 } // namespace android
