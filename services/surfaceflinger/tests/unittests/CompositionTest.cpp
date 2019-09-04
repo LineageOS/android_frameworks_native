@@ -805,9 +805,6 @@ struct BaseLayerVariant {
 
         Mock::VerifyAndClear(test->mComposer);
 
-        Vector<sp<Layer>> layers;
-        layers.add(layer);
-        test->mDisplay->setVisibleLayersSortedByZ(layers);
         test->mFlinger.mutableDrawingState().layersSortedByZ.add(layer);
     }
 
@@ -1096,8 +1093,6 @@ struct CompositionCase {
         for (auto& hwcDisplay : test->mFlinger.mFakeHwcDisplays) {
             hwcDisplay->mutableLayers().clear();
         }
-
-        test->mDisplay->setVisibleLayersSortedByZ(Vector<sp<android::Layer>>());
     }
 };
 

@@ -87,9 +87,6 @@ public:
     int         getHeight() const;
     int         getInstallOrientation() const { return mDisplayInstallOrientation; }
 
-    void                    setVisibleLayersSortedByZ(const Vector< sp<Layer> >& layers);
-    const Vector< sp<Layer> >& getVisibleLayersSortedByZ() const;
-
     void                    setLayerStack(uint32_t stack);
     void                    setDisplaySize(const int newWidth, const int newHeight);
     void                    setProjection(int orientation, const Rect& viewport, const Rect& frame);
@@ -178,9 +175,6 @@ private:
      * Can only accessed from the main thread, these members
      * don't need synchronization.
      */
-
-    // list of visible layers on that display
-    Vector< sp<Layer> > mVisibleLayersSortedByZ;
 
     /*
      * Transaction state

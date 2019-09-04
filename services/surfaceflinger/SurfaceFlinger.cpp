@@ -2095,7 +2095,6 @@ void SurfaceFlinger::rebuildLayerStacks() {
             Region dirtyRegion;
             compositionengine::Output::OutputLayers layersSortedByZ;
             compositionengine::Output::ReleasedLayers releasedLayers;
-            Vector<sp<Layer>> deprecated_layersSortedByZ;
             const ui::Transform& tr = displayState.transform;
             const Rect bounds = displayState.bounds;
             if (displayState.isEnabled) {
@@ -2127,8 +2126,6 @@ void SurfaceFlinger::rebuildLayerStacks() {
                         layersSortedByZ.emplace_back(
                                 display->getOrCreateOutputLayer(displayId, compositionLayer,
                                                                 layerFE));
-                        deprecated_layersSortedByZ.add(layer);
-
                         auto& outputLayerState = layersSortedByZ.back()->editState();
                         outputLayerState.visibleRegion =
                                 tr.transform(layer->visibleRegion.intersect(displayState.viewport));
@@ -2151,8 +2148,6 @@ void SurfaceFlinger::rebuildLayerStacks() {
 
             display->setOutputLayersOrderedByZ(std::move(layersSortedByZ));
             display->setReleasedLayers(std::move(releasedLayers));
-
-            displayDevice->setVisibleLayersSortedByZ(deprecated_layersSortedByZ);
 
             Region undefinedRegion{bounds};
             undefinedRegion.subtractSelf(tr.transform(opaqueRegion));
