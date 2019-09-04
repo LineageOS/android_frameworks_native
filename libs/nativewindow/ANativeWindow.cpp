@@ -266,3 +266,11 @@ int ANativeWindow_setAutoRefresh(ANativeWindow* window, bool autoRefresh) {
 int ANativeWindow_setAutoPrerotation(ANativeWindow* window, bool autoPrerotation) {
     return native_window_set_auto_prerotation(window, autoPrerotation);
 }
+
+/**************************************************************************************************
+ * apex-stable
+ **************************************************************************************************/
+
+int ANativeWindow_getLastDequeueDuration(ANativeWindow* window) {
+    return query(window, NATIVE_WINDOW_LAST_DEQUEUE_DURATION);
+}

@@ -41,7 +41,8 @@
 #include <unistd.h>
 #include <stdbool.h>
 
-// system/window.h is a superset of the vndk
+// system/window.h is a superset of the vndk and apex apis
+#include <apex/window.h>
 #include <vndk/window.h>
 
 
