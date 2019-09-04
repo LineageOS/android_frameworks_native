@@ -21,15 +21,18 @@
 #include <EGL/eglext.h>
 #include <EGL/eglplatform.h>
 
+#include "EGL/egldefs.h"
 #include "hooks.h"
 
 // ----------------------------------------------------------------------------
 namespace android {
 // ----------------------------------------------------------------------------
 
+
 EGLAPI const GLubyte * egl_get_string_for_current_context(GLenum name);
 EGLAPI const GLubyte * egl_get_string_for_current_context(GLenum name, GLuint index);
 EGLAPI GLint egl_get_num_extensions_for_current_context();
+EGLAPI egl_connection_t* egl_get_connection();
 
 // ----------------------------------------------------------------------------
 }; // namespace android

@@ -22,7 +22,6 @@
 
 #include "ComposerHal.h"
 
-#include <android/hardware/graphics/composer/2.2/IComposer.h>
 #include <composer-command-buffer/2.2/ComposerCommandBuffer.h>
 #include <gui/BufferQueue.h>
 #include <hidl/HidlTransportUtils.h>
@@ -171,22 +170,31 @@ Composer::Composer(const std::string& serviceName)
         LOG_ALWAYS_FATAL("failed to get hwcomposer service");
     }
 
-    mComposer->createClient(
-            [&](const auto& tmpError, const auto& tmpClient)
-            {
-                if (tmpError == Error::NONE) {
-                    mClient = tmpClient;
-                }
-            });
-    if (mClient == nullptr) {
-        LOG_ALWAYS_FATAL("failed to create composer client");
+    if (sp<IComposer> composer_2_3 = IComposer::castFrom(mComposer)) {
+        composer_2_3->createClient_2_3([&](const auto& tmpError, const auto& tmpClient) {
+            if (tmpError == Error::NONE) {
+                mClient = tmpClient;
+                mClient_2_2 = tmpClient;
+                mClient_2_3 = tmpClient;
+            }
+        });
+    } else {
+        mComposer->createClient([&](const auto& tmpError, const auto& tmpClient) {
+            if (tmpError != Error::NONE) {
+                return;
+            }
+
+            mClient = tmpClient;
+            if (sp<V2_2::IComposer> composer_2_2 = V2_2::IComposer::castFrom(mComposer)) {
+                mClient_2_2 = V2_2::IComposerClient::castFrom(mClient);
+                LOG_ALWAYS_FATAL_IF(mClient_2_2 == nullptr,
+                                    "IComposer 2.2 did not return IComposerClient 2.2");
+            }
+        });
     }
 
-    // 2.2 support is optional
-    sp<IComposer> composer_2_2 = IComposer::castFrom(mComposer);
-    if (composer_2_2 != nullptr) {
-        mClient_2_2 = IComposerClient::castFrom(mClient);
-        LOG_ALWAYS_FATAL_IF(mClient_2_2 == nullptr, "IComposer 2.2 did not return IComposerClient 2.2");
+    if (mClient == nullptr) {
+        LOG_ALWAYS_FATAL("failed to create composer client");
     }
 
     if (mIsUsingVrComposer) {
@@ -206,7 +214,6 @@ std::vector<IComposer::Capability> Composer::getCapabilities()
             [&](const auto& tmpCapabilities) {
                 capabilities = tmpCapabilities;
             });
-
     return capabilities;
 }
 
@@ -252,17 +259,20 @@ Error Composer::createVirtualDisplay(uint32_t width, uint32_t height,
     const uint32_t bufferSlotCount = 1;
     Error error = kDefaultError;
     if (mClient_2_2) {
-        mClient_2_2->createVirtualDisplay_2_2(width, height, *format, bufferSlotCount,
-                [&](const auto& tmpError, const auto& tmpDisplay,
-                    const auto& tmpFormat) {
-                    error = tmpError;
-                    if (error != Error::NONE) {
-                        return;
-                    }
+        mClient_2_2->createVirtualDisplay_2_2(width, height,
+                                              static_cast<types::V1_1::PixelFormat>(*format),
+                                              bufferSlotCount,
+                                              [&](const auto& tmpError, const auto& tmpDisplay,
+                                                  const auto& tmpFormat) {
+                                                  error = tmpError;
+                                                  if (error != Error::NONE) {
+                                                      return;
+                                                  }
 
-                    *outDisplay = tmpDisplay;
-                    *format = tmpFormat;
-                });
+                                                  *outDisplay = tmpDisplay;
+                                                  *format = static_cast<types::V1_2::PixelFormat>(
+                                                          tmpFormat);
+                                              });
     } else {
         mClient->createVirtualDisplay(width, height,
                 static_cast<types::V1_0::PixelFormat>(*format), bufferSlotCount,
@@ -345,16 +355,26 @@ Error Composer::getColorModes(Display display,
 {
     Error error = kDefaultError;
 
-    if (mClient_2_2) {
-        mClient_2_2->getColorModes_2_2(display,
-                [&](const auto& tmpError, const auto& tmpModes) {
-                    error = tmpError;
-                    if (error != Error::NONE) {
-                        return;
-                    }
+    if (mClient_2_3) {
+        mClient_2_3->getColorModes_2_3(display, [&](const auto& tmpError, const auto& tmpModes) {
+            error = tmpError;
+            if (error != Error::NONE) {
+                return;
+            }
 
-                    *outModes = tmpModes;
-                });
+            *outModes = tmpModes;
+        });
+    } else if (mClient_2_2) {
+        mClient_2_2->getColorModes_2_2(display, [&](const auto& tmpError, const auto& tmpModes) {
+            error = tmpError;
+            if (error != Error::NONE) {
+                return;
+            }
+
+            for (types::V1_1::ColorMode colorMode : tmpModes) {
+                outModes->push_back(static_cast<ColorMode>(colorMode));
+            }
+        });
     } else {
         mClient->getColorModes(display,
                 [&](const auto& tmpError, const auto& tmpModes) {
@@ -468,21 +488,43 @@ Error Composer::getHdrCapabilities(Display display,
         float* outMaxAverageLuminance, float* outMinLuminance)
 {
     Error error = kDefaultError;
-    mClient->getHdrCapabilities(display,
-            [&](const auto& tmpError, const auto& tmpTypes,
-                const auto& tmpMaxLuminance,
-                const auto& tmpMaxAverageLuminance,
-                const auto& tmpMinLuminance) {
-                error = tmpError;
-                if (error != Error::NONE) {
-                    return;
-                }
+    if (mClient_2_3) {
+        mClient_2_3->getHdrCapabilities_2_3(display,
+                                            [&](const auto& tmpError, const auto& tmpTypes,
+                                                const auto& tmpMaxLuminance,
+                                                const auto& tmpMaxAverageLuminance,
+                                                const auto& tmpMinLuminance) {
+                                                error = tmpError;
+                                                if (error != Error::NONE) {
+                                                    return;
+                                                }
 
-                *outTypes = tmpTypes;
-                *outMaxLuminance = tmpMaxLuminance;
-                *outMaxAverageLuminance = tmpMaxAverageLuminance;
-                *outMinLuminance = tmpMinLuminance;
-            });
+                                                *outTypes = tmpTypes;
+                                                *outMaxLuminance = tmpMaxLuminance;
+                                                *outMaxAverageLuminance = tmpMaxAverageLuminance;
+                                                *outMinLuminance = tmpMinLuminance;
+                                            });
+    } else {
+        mClient->getHdrCapabilities(display,
+                                    [&](const auto& tmpError, const auto& tmpTypes,
+                                        const auto& tmpMaxLuminance,
+                                        const auto& tmpMaxAverageLuminance,
+                                        const auto& tmpMinLuminance) {
+                                        error = tmpError;
+                                        if (error != Error::NONE) {
+                                            return;
+                                        }
+
+                                        outTypes->clear();
+                                        for (auto type : tmpTypes) {
+                                            outTypes->push_back(static_cast<Hdr>(type));
+                                        }
+
+                                        *outMaxLuminance = tmpMaxLuminance;
+                                        *outMaxAverageLuminance = tmpMaxAverageLuminance;
+                                        *outMinLuminance = tmpMinLuminance;
+                                    });
+    }
 
     return error;
 }
@@ -546,8 +588,11 @@ Error Composer::setColorMode(Display display, ColorMode mode,
         RenderIntent renderIntent)
 {
     hardware::Return<Error> ret(kDefaultError);
-    if (mClient_2_2) {
-        ret = mClient_2_2->setColorMode_2_2(display, mode, renderIntent);
+    if (mClient_2_3) {
+        ret = mClient_2_3->setColorMode_2_3(display, mode, renderIntent);
+    } else if (mClient_2_2) {
+        ret = mClient_2_2->setColorMode_2_2(display, static_cast<types::V1_1::ColorMode>(mode),
+                                            renderIntent);
     } else {
         ret = mClient->setColorMode(display,
                 static_cast<types::V1_0::ColorMode>(mode));
@@ -896,23 +941,43 @@ Error Composer::setLayerPerFrameMetadata(Display display, Layer layer,
     return Error::NONE;
 }
 
-Error Composer::getPerFrameMetadataKeys(
-        Display display, std::vector<IComposerClient::PerFrameMetadataKey>* outKeys) {
+std::vector<IComposerClient::PerFrameMetadataKey> Composer::getPerFrameMetadataKeys(
+        Display display) {
+    std::vector<IComposerClient::PerFrameMetadataKey>  keys;
     if (!mClient_2_2) {
-        return Error::UNSUPPORTED;
+        return keys;
     }
 
     Error error = kDefaultError;
-    mClient_2_2->getPerFrameMetadataKeys(display, [&](const auto& tmpError, const auto& tmpKeys) {
-        error = tmpError;
-        if (error != Error::NONE) {
-            return;
-        }
+    if (mClient_2_3) {
+        mClient_2_3->getPerFrameMetadataKeys_2_3(display,
+                                                 [&](const auto& tmpError, const auto& tmpKeys) {
+                                                     error = tmpError;
+                                                     if (error != Error::NONE) {
+                                                         ALOGW("getPerFrameMetadataKeys failed "
+                                                               "with %d",
+                                                               tmpError);
+                                                         return;
+                                                     }
+                                                     keys = tmpKeys;
+                                                 });
+    } else {
+        mClient_2_2
+                ->getPerFrameMetadataKeys(display, [&](const auto& tmpError, const auto& tmpKeys) {
+                    error = tmpError;
+                    if (error != Error::NONE) {
+                        ALOGW("getPerFrameMetadataKeys failed with %d", tmpError);
+                        return;
+                    }
 
-        *outKeys = tmpKeys;
-    });
+                    keys.clear();
+                    for (auto key : tmpKeys) {
+                        keys.push_back(static_cast<IComposerClient::PerFrameMetadataKey>(key));
+                    }
+                });
+    }
 
-    return error;
+    return keys;
 }
 
 Error Composer::getRenderIntents(Display display, ColorMode colorMode,
@@ -923,15 +988,22 @@ Error Composer::getRenderIntents(Display display, ColorMode colorMode,
     }
 
     Error error = kDefaultError;
-    mClient_2_2->getRenderIntents(display, colorMode,
-            [&](const auto& tmpError, const auto& tmpKeys) {
+
+    auto getRenderIntentsLambda = [&](const auto& tmpError, const auto& tmpKeys) {
         error = tmpError;
         if (error != Error::NONE) {
             return;
         }
 
         *outRenderIntents = tmpKeys;
-    });
+    };
+
+    if (mClient_2_3) {
+        mClient_2_3->getRenderIntents_2_3(display, colorMode, getRenderIntentsLambda);
+    } else {
+        mClient_2_2->getRenderIntents(display, static_cast<types::V1_1::ColorMode>(colorMode),
+                                      getRenderIntentsLambda);
+    }
 
     return error;
 }
@@ -944,16 +1016,153 @@ Error Composer::getDataspaceSaturationMatrix(Dataspace dataspace, mat4* outMatri
     }
 
     Error error = kDefaultError;
-    mClient_2_2->getDataspaceSaturationMatrix(dataspace, [&](const auto& tmpError, const auto& tmpMatrix) {
-        error = tmpError;
-        if (error != Error::NONE) {
-            return;
-        }
-
-        *outMatrix = mat4(tmpMatrix.data());
-    });
+    mClient_2_2->getDataspaceSaturationMatrix(static_cast<types::V1_1::Dataspace>(dataspace),
+                                              [&](const auto& tmpError, const auto& tmpMatrix) {
+                                                  error = tmpError;
+                                                  if (error != Error::NONE) {
+                                                      return;
+                                                  }
+                                                  *outMatrix = mat4(tmpMatrix.data());
+                                              });
 
     return error;
+}
+
+// Composer HAL 2.3
+
+Error Composer::getDisplayIdentificationData(Display display, uint8_t* outPort,
+                                             std::vector<uint8_t>* outData) {
+    if (!mClient_2_3) {
+        return Error::UNSUPPORTED;
+    }
+
+    Error error = kDefaultError;
+    mClient_2_3->getDisplayIdentificationData(display,
+                                              [&](const auto& tmpError, const auto& tmpPort,
+                                                  const auto& tmpData) {
+                                                  error = tmpError;
+                                                  if (error != Error::NONE) {
+                                                      return;
+                                                  }
+
+                                                  *outPort = tmpPort;
+                                                  *outData = tmpData;
+                                              });
+
+    return error;
+}
+
+Error Composer::setLayerColorTransform(Display display, Layer layer, const float* matrix)
+{
+    if (!mClient_2_3) {
+        return Error::UNSUPPORTED;
+    }
+
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerColorTransform(matrix);
+    return Error::NONE;
+}
+
+Error Composer::getDisplayedContentSamplingAttributes(Display display, PixelFormat* outFormat,
+                                                      Dataspace* outDataspace,
+                                                      uint8_t* outComponentMask) {
+    if (!outFormat || !outDataspace || !outComponentMask) {
+        return Error::BAD_PARAMETER;
+    }
+    if (!mClient_2_3) {
+        return Error::UNSUPPORTED;
+    }
+    Error error = kDefaultError;
+    mClient_2_3->getDisplayedContentSamplingAttributes(display,
+                                                       [&](const auto tmpError,
+                                                           const auto& tmpFormat,
+                                                           const auto& tmpDataspace,
+                                                           const auto& tmpComponentMask) {
+                                                           error = tmpError;
+                                                           if (error == Error::NONE) {
+                                                               *outFormat = tmpFormat;
+                                                               *outDataspace = tmpDataspace;
+                                                               *outComponentMask =
+                                                                       static_cast<uint8_t>(
+                                                                               tmpComponentMask);
+                                                           }
+                                                       });
+    return error;
+}
+
+Error Composer::getDisplayCapabilities(Display display,
+                                       std::vector<DisplayCapability>* outCapabilities) {
+    if (!mClient_2_3) {
+        return Error::UNSUPPORTED;
+    }
+    Error error = kDefaultError;
+    mClient_2_3->getDisplayCapabilities(display,
+                                        [&](const auto& tmpError, const auto& tmpCapabilities) {
+                                            error = tmpError;
+                                            if (error != Error::NONE) {
+                                                return;
+                                            }
+                                            *outCapabilities = tmpCapabilities;
+                                        });
+    return error;
+}
+
+Error Composer::setDisplayContentSamplingEnabled(Display display, bool enabled,
+                                                 uint8_t componentMask, uint64_t maxFrames) {
+    if (!mClient_2_3) {
+        return Error::UNSUPPORTED;
+    }
+
+    auto enable = enabled ? V2_3::IComposerClient::DisplayedContentSampling::ENABLE
+                          : V2_3::IComposerClient::DisplayedContentSampling::DISABLE;
+    return mClient_2_3->setDisplayedContentSamplingEnabled(display, enable, componentMask,
+                                                           maxFrames);
+}
+
+Error Composer::getDisplayedContentSample(Display display, uint64_t maxFrames, uint64_t timestamp,
+                                          DisplayedFrameStats* outStats) {
+    if (!outStats) {
+        return Error::BAD_PARAMETER;
+    }
+    if (!mClient_2_3) {
+        return Error::UNSUPPORTED;
+    }
+    Error error = kDefaultError;
+    mClient_2_3->getDisplayedContentSample(display, maxFrames, timestamp,
+                                           [&](const auto tmpError, auto tmpNumFrames,
+                                               const auto& tmpSamples0, const auto& tmpSamples1,
+                                               const auto& tmpSamples2, const auto& tmpSamples3) {
+                                               error = tmpError;
+                                               if (error == Error::NONE) {
+                                                   outStats->numFrames = tmpNumFrames;
+                                                   outStats->component_0_sample = tmpSamples0;
+                                                   outStats->component_1_sample = tmpSamples1;
+                                                   outStats->component_2_sample = tmpSamples2;
+                                                   outStats->component_3_sample = tmpSamples3;
+                                               }
+                                           });
+    return error;
+}
+
+Error Composer::setLayerPerFrameMetadataBlobs(
+        Display display, Layer layer,
+        const std::vector<IComposerClient::PerFrameMetadataBlob>& metadata) {
+    if (!mClient_2_3) {
+        return Error::UNSUPPORTED;
+    }
+
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerPerFrameMetadataBlobs(metadata);
+    return Error::NONE;
+}
+
+Error Composer::setDisplayBrightness(Display display, float brightness) {
+    if (!mClient_2_3) {
+        return Error::UNSUPPORTED;
+    }
+    return mClient_2_3->setDisplayBrightness(display, brightness);
 }
 
 CommandReader::~CommandReader()

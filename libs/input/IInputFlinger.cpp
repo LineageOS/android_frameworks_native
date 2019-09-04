@@ -23,7 +23,6 @@
 
 #include <input/IInputFlinger.h>
 
-
 namespace android {
 
 class BpInputFlinger : public BpInterface<IInputFlinger> {
@@ -31,23 +30,85 @@ public:
     explicit BpInputFlinger(const sp<IBinder>& impl) :
             BpInterface<IInputFlinger>(impl) { }
 
-    virtual status_t doSomething() {
+    virtual void setInputWindows(const std::vector<InputWindowInfo>& inputInfo,
+            const sp<ISetInputWindowsListener>& setInputWindowsListener) {
         Parcel data, reply;
         data.writeInterfaceToken(IInputFlinger::getInterfaceDescriptor());
-        remote()->transact(BnInputFlinger::DO_SOMETHING_TRANSACTION, data, &reply);
-        return reply.readInt32();
+
+        data.writeUint32(static_cast<uint32_t>(inputInfo.size()));
+        for (const auto& info : inputInfo) {
+            info.write(data);
+        }
+        data.writeStrongBinder(IInterface::asBinder(setInputWindowsListener));
+
+        remote()->transact(BnInputFlinger::SET_INPUT_WINDOWS_TRANSACTION, data, &reply,
+                IBinder::FLAG_ONEWAY);
+    }
+
+    virtual void transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IInputFlinger::getInterfaceDescriptor());
+
+        data.writeStrongBinder(fromToken);
+        data.writeStrongBinder(toToken);
+        remote()->transact(BnInputFlinger::TRANSFER_TOUCH_FOCUS, data, &reply,
+                IBinder::FLAG_ONEWAY);
+    }
+
+    virtual void registerInputChannel(const sp<InputChannel>& channel) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IInputFlinger::getInterfaceDescriptor());
+        channel->write(data);
+        remote()->transact(BnInputFlinger::REGISTER_INPUT_CHANNEL_TRANSACTION, data, &reply);
+    }
+
+    virtual void unregisterInputChannel(const sp<InputChannel>& channel) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IInputFlinger::getInterfaceDescriptor());
+        channel->write(data);
+        remote()->transact(BnInputFlinger::UNREGISTER_INPUT_CHANNEL_TRANSACTION, data, &reply);
     }
 };
 
 IMPLEMENT_META_INTERFACE(InputFlinger, "android.input.IInputFlinger");
 
-
 status_t BnInputFlinger::onTransact(
         uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags) {
     switch(code) {
-    case DO_SOMETHING_TRANSACTION: {
+    case SET_INPUT_WINDOWS_TRANSACTION: {
         CHECK_INTERFACE(IInputFlinger, data, reply);
-        reply->writeInt32(0);
+        size_t count = data.readUint32();
+        if (count > data.dataSize()) {
+            return BAD_VALUE;
+        }
+        std::vector<InputWindowInfo> handles;
+        for (size_t i = 0; i < count; i++) {
+            handles.push_back(InputWindowInfo::read(data));
+        }
+        const sp<ISetInputWindowsListener> setInputWindowsListener =
+                ISetInputWindowsListener::asInterface(data.readStrongBinder());
+        setInputWindows(handles, setInputWindowsListener);
+        break;
+    }
+    case REGISTER_INPUT_CHANNEL_TRANSACTION: {
+        CHECK_INTERFACE(IInputFlinger, data, reply);
+        sp<InputChannel> channel = new InputChannel();
+        channel->read(data);
+        registerInputChannel(channel);
+        break;
+    }
+    case UNREGISTER_INPUT_CHANNEL_TRANSACTION: {
+        CHECK_INTERFACE(IInputFlinger, data, reply);
+        sp<InputChannel> channel = new InputChannel();
+        channel->read(data);
+        unregisterInputChannel(channel);
+        break;
+    }
+    case TRANSFER_TOUCH_FOCUS: {
+        CHECK_INTERFACE(IInputFlinger, data, reply);
+        sp<IBinder> fromToken = data.readStrongBinder();
+        sp<IBinder> toToken = data.readStrongBinder();
+        transferTouchFocus(fromToken, toToken);
         break;
     }
     default:

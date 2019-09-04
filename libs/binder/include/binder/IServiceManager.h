@@ -72,15 +72,21 @@ public:
     // NOLINTNEXTLINE(google-default-arguments)
     virtual Vector<String16> listServices(int dumpsysFlags = DUMP_FLAG_PRIORITY_ALL) = 0;
 
-    enum {
-        GET_SERVICE_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION,
-        CHECK_SERVICE_TRANSACTION,
-        ADD_SERVICE_TRANSACTION,
-        LIST_SERVICES_TRANSACTION,
-    };
+    /**
+     * Efficiently wait for a service.
+     *
+     * Returns nullptr only for permission problem or fatal error.
+     */
+    virtual sp<IBinder> waitForService(const String16& name) = 0;
 };
 
 sp<IServiceManager> defaultServiceManager();
+
+template<typename INTERFACE>
+sp<INTERFACE> waitForService(const String16& name) {
+    const sp<IServiceManager> sm = defaultServiceManager();
+    return interface_cast<INTERFACE>(sm->waitForService(name));
+}
 
 template<typename INTERFACE>
 status_t getService(const String16& name, sp<INTERFACE>* outService)
@@ -88,7 +94,7 @@ status_t getService(const String16& name, sp<INTERFACE>* outService)
     const sp<IServiceManager> sm = defaultServiceManager();
     if (sm != nullptr) {
         *outService = interface_cast<INTERFACE>(sm->getService(name));
-        if ((*outService) != NULL) return NO_ERROR;
+        if ((*outService) != nullptr) return NO_ERROR;
     }
     return NAME_NOT_FOUND;
 }

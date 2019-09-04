@@ -15,6 +15,7 @@
  */
 
 #include <gui/HdrMetadata.h>
+#include <limits>
 
 namespace android {
 
@@ -25,6 +26,10 @@ size_t HdrMetadata::getFlattenedSize() const {
     }
     if (validTypes & CTA861_3) {
         size += sizeof(cta8613);
+    }
+    if (validTypes & HDR10PLUS) {
+        size += sizeof(size_t);
+        size += hdr10plus.size();
     }
     return size;
 }
@@ -40,6 +45,12 @@ status_t HdrMetadata::flatten(void* buffer, size_t size) const {
     }
     if (validTypes & CTA861_3) {
         FlattenableUtils::write(buffer, size, cta8613);
+    }
+    if (validTypes & HDR10PLUS) {
+        size_t metadataSize = hdr10plus.size();
+        FlattenableUtils::write(buffer, size, metadataSize);
+        memcpy(buffer, hdr10plus.data(), metadataSize);
+        FlattenableUtils::advance(buffer, size, metadataSize);
     }
 
     return NO_ERROR;
@@ -61,6 +72,22 @@ status_t HdrMetadata::unflatten(void const* buffer, size_t size) {
             return NO_MEMORY;
         }
         FlattenableUtils::read(buffer, size, cta8613);
+    }
+    if (validTypes & HDR10PLUS) {
+        if (size < sizeof(size_t)) {
+            return NO_MEMORY;
+        }
+
+        size_t metadataSize;
+        FlattenableUtils::read(buffer, size, metadataSize);
+
+        if (size < metadataSize) {
+            return NO_MEMORY;
+        }
+
+        hdr10plus.resize(metadataSize);
+        memcpy(hdr10plus.data(), buffer, metadataSize);
+        FlattenableUtils::advance(buffer, size, metadataSize);
     }
 
     return NO_ERROR;
@@ -89,6 +116,10 @@ bool HdrMetadata::operator==(const HdrMetadata& rhs) const {
             cta8613.maxContentLightLevel != rhs.cta8613.maxContentLightLevel) {
             return false;
         }
+    }
+
+    if ((validTypes & HDR10PLUS) == HDR10PLUS) {
+        if (hdr10plus != rhs.hdr10plus) return false;
     }
 
     return true;

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <array>
+
 #include "TestHelpers.h"
 
 #include <unistd.h>
@@ -153,6 +155,38 @@ TEST_F(InputChannelTest, SendSignal_WhenPeerClosed_ReturnsAnError) {
     msg.header.type = InputMessage::TYPE_KEY;
     EXPECT_EQ(DEAD_OBJECT, clientChannel->sendMessage(&msg))
             << "sendMessage should have returned DEAD_OBJECT";
+}
+
+TEST_F(InputChannelTest, SendAndReceive_MotionClassification) {
+    sp<InputChannel> serverChannel, clientChannel;
+    status_t result = InputChannel::openInputChannelPair("channel name",
+            serverChannel, clientChannel);
+    ASSERT_EQ(OK, result)
+            << "should have successfully opened a channel pair";
+
+    std::array<MotionClassification, 3> classifications = {
+        MotionClassification::NONE,
+        MotionClassification::AMBIGUOUS_GESTURE,
+        MotionClassification::DEEP_PRESS,
+    };
+
+    InputMessage serverMsg = {}, clientMsg;
+    serverMsg.header.type = InputMessage::TYPE_MOTION;
+    serverMsg.body.motion.seq = 1;
+    serverMsg.body.motion.pointerCount = 1;
+
+    for (MotionClassification classification : classifications) {
+        // Send and receive a message with classification
+        serverMsg.body.motion.classification = classification;
+        EXPECT_EQ(OK, serverChannel->sendMessage(&serverMsg))
+                << "server channel should be able to send message to client channel";
+
+        EXPECT_EQ(OK, clientChannel->receiveMessage(&clientMsg))
+                << "client channel should be able to receive message from server channel";
+        EXPECT_EQ(serverMsg.header.type, clientMsg.header.type);
+        EXPECT_EQ(classification, clientMsg.body.motion.classification) <<
+                "Expected to receive " << motionClassificationToString(classification);
+    }
 }
 
 

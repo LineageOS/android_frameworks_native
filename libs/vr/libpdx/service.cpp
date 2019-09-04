@@ -318,13 +318,7 @@ Status<void> Message::Reply(const RemoteHandle& handle) {
   PDX_TRACE_NAME("Message::ReplyFileHandle");
   auto svc = service_.lock();
   if (!replied_ && svc) {
-    Status<void> ret;
-
-    if (handle)
-      ret = svc->endpoint()->MessageReply(this, handle.Get());
-    else
-      ret = svc->endpoint()->MessageReply(this, handle.Get());
-
+    Status<void> ret = svc->endpoint()->MessageReply(this, handle.Get());
     replied_ = ret.ok();
     return ret;
   } else {

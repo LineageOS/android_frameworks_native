@@ -38,11 +38,11 @@ namespace android {
 status_t StreamSplitter::createSplitter(
         const sp<IGraphicBufferConsumer>& inputQueue,
         sp<StreamSplitter>* outSplitter) {
-    if (inputQueue == NULL) {
+    if (inputQueue == nullptr) {
         ALOGE("createSplitter: inputQueue must not be NULL");
         return BAD_VALUE;
     }
-    if (outSplitter == NULL) {
+    if (outSplitter == nullptr) {
         ALOGE("createSplitter: outSplitter must not be NULL");
         return BAD_VALUE;
     }
@@ -74,7 +74,7 @@ StreamSplitter::~StreamSplitter() {
 
 status_t StreamSplitter::addOutput(
         const sp<IGraphicBufferProducer>& outputQueue) {
-    if (outputQueue == NULL) {
+    if (outputQueue == nullptr) {
         ALOGE("addOutput: outputQueue must not be NULL");
         return BAD_VALUE;
     }

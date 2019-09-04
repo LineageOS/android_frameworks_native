@@ -66,7 +66,7 @@ class BufferTransportService : public BBinder {
         reply->writeStrongBinder(
             IGraphicBufferProducer::asBinder(new_queue->producer));
         buffer_queues_.push_back(new_queue);
-        return NO_ERROR;
+        return OK;
       }
       default:
         return UNKNOWN_TRANSACTION;
@@ -89,7 +89,7 @@ class BufferTransportService : public BBinder {
                                                    /*waitForFence=*/false);
       }
 
-      if (ret != NO_ERROR) {
+      if (ret != OK) {
         LOG(ERROR) << "Failed to acquire next buffer.";
         return;
       }
@@ -99,7 +99,7 @@ class BufferTransportService : public BBinder {
         ret = buffer_item_consumer_->releaseBuffer(buffer);
       }
 
-      if (ret != NO_ERROR) {
+      if (ret != OK) {
         LOG(ERROR) << "Failed to release buffer.";
         return;
       }
@@ -171,14 +171,14 @@ class BinderBufferTransport : public BufferTransport {
     Parcel data;
     Parcel reply;
     int error = service_->transact(CREATE_BUFFER_QUEUE, data, &reply);
-    if (error != NO_ERROR) {
+    if (error != OK) {
       LOG(ERROR) << "Failed to get buffer queue over binder.";
       return nullptr;
     }
 
     sp<IBinder> binder;
     error = reply.readNullableStrongBinder(&binder);
-    if (error != NO_ERROR) {
+    if (error != OK) {
       LOG(ERROR) << "Failed to get IGraphicBufferProducer over binder.";
       return nullptr;
     }
@@ -206,7 +206,7 @@ class BinderBufferTransport : public BufferTransport {
 class DvrApi {
  public:
   DvrApi() {
-    handle_ = dlopen("libdvr.so", RTLD_NOW | RTLD_LOCAL);
+    handle_ = dlopen("libdvr.google.so", RTLD_NOW | RTLD_LOCAL);
     CHECK(handle_);
 
     auto dvr_get_api =

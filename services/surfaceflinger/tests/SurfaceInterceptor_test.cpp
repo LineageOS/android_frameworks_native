@@ -42,13 +42,17 @@ constexpr uint32_t BUFFER_UPDATES = 18;
 constexpr uint32_t LAYER_UPDATE = INT_MAX - 2;
 constexpr uint32_t SIZE_UPDATE = 134;
 constexpr uint32_t STACK_UPDATE = 1;
-constexpr uint64_t DEFERRED_UPDATE = 13;
+constexpr uint64_t DEFERRED_UPDATE = 0;
 constexpr float ALPHA_UPDATE = 0.29f;
+constexpr float CORNER_RADIUS_UPDATE = 0.2f;
 constexpr float POSITION_UPDATE = 121;
 const Rect CROP_UPDATE(16, 16, 32, 32);
 
 const String8 DISPLAY_NAME("SurfaceInterceptor Display Test");
+constexpr auto TEST_SURFACE_NAME = "BG Interceptor Test Surface";
+constexpr auto UNIQUE_TEST_SURFACE_NAME = "BG Interceptor Test Surface#0";
 constexpr auto LAYER_NAME = "Layer Create and Delete Test";
+constexpr auto UNIQUE_LAYER_NAME = "Layer Create and Delete Test#0";
 
 constexpr auto DEFAULT_FILENAME = "/data/SurfaceTrace.dat";
 
@@ -94,30 +98,21 @@ static void disableInterceptor() {
     system("service call SurfaceFlinger 1020 i32 0 > /dev/null");
 }
 
-int32_t getSurfaceId(const std::string& surfaceName) {
-    enableInterceptor();
-    disableInterceptor();
-    Trace capturedTrace;
-    readProtoFile(&capturedTrace);
+int32_t getSurfaceId(const Trace& capturedTrace, const std::string& surfaceName) {
     int32_t layerId = 0;
-    for (const auto& increment : *capturedTrace.mutable_increment()) {
+    for (const auto& increment : capturedTrace.increment()) {
         if (increment.increment_case() == increment.kSurfaceCreation) {
             if (increment.surface_creation().name() == surfaceName) {
                 layerId = increment.surface_creation().id();
-                break;
             }
         }
     }
     return layerId;
 }
 
-int32_t getDisplayId(const std::string& displayName) {
-    enableInterceptor();
-    disableInterceptor();
-    Trace capturedTrace;
-    readProtoFile(&capturedTrace);
+int32_t getDisplayId(const Trace& capturedTrace, const std::string& displayName) {
     int32_t displayId = 0;
-    for (const auto& increment : *capturedTrace.mutable_increment()) {
+    for (const auto& increment : capturedTrace.increment()) {
         if (increment.increment_case() == increment.kDisplayCreation) {
             if (increment.display_creation().name() == displayName) {
                 displayId = increment.display_creation().id();
@@ -130,36 +125,15 @@ int32_t getDisplayId(const std::string& displayName) {
 
 class SurfaceInterceptorTest : public ::testing::Test {
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         // Allow SurfaceInterceptor write to /data
         system("setenforce 0");
 
         mComposerClient = new SurfaceComposerClient;
         ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
-
-        sp<IBinder> display(SurfaceComposerClient::getBuiltInDisplay(
-                ISurfaceComposer::eDisplayIdMain));
-        DisplayInfo info;
-        SurfaceComposerClient::getDisplayInfo(display, &info);
-        ssize_t displayWidth = info.w;
-        ssize_t displayHeight = info.h;
-
-        // Background surface
-        mBGSurfaceControl = mComposerClient->createSurface(
-                String8("BG Interceptor Test Surface"), displayWidth, displayHeight,
-                PIXEL_FORMAT_RGBA_8888, 0);
-        ASSERT_TRUE(mBGSurfaceControl != nullptr);
-        ASSERT_TRUE(mBGSurfaceControl->isValid());
-        mBGLayerId = getSurfaceId("BG Interceptor Test Surface");
-
-        Transaction t;
-        t.setDisplayLayerStack(display, 0);
-        ASSERT_EQ(NO_ERROR, t.setLayer(mBGSurfaceControl, INT_MAX-3)
-                .show(mBGSurfaceControl)
-                .apply());
     }
 
-    virtual void TearDown() {
+    void TearDown() override {
         mComposerClient->dispose();
         mBGSurfaceControl.clear();
         mComposerClient.clear();
@@ -168,18 +142,25 @@ protected:
     sp<SurfaceComposerClient> mComposerClient;
     sp<SurfaceControl> mBGSurfaceControl;
     int32_t mBGLayerId;
-    // Used to verify creation and destruction of surfaces and displays
-    int32_t mTargetId;
 
 public:
-    void captureTest(void (SurfaceInterceptorTest::* action)(Transaction&),
-            bool (SurfaceInterceptorTest::* verification)(Trace *));
-    void captureTest(void (SurfaceInterceptorTest::* action)(Transaction&),
-            SurfaceChange::SurfaceChangeCase changeCase);
-    void captureTest(void (SurfaceInterceptorTest::* action)(Transaction&),
-            Increment::IncrementCase incrementCase);
-    void runInTransaction(void (SurfaceInterceptorTest::* action)(Transaction&),
-            bool intercepted = false);
+    using TestTransactionAction = void (SurfaceInterceptorTest::*)(Transaction&);
+    using TestAction = void (SurfaceInterceptorTest::*)();
+    using TestBooleanVerification = bool (SurfaceInterceptorTest::*)(const Trace&);
+    using TestVerification = void (SurfaceInterceptorTest::*)(const Trace&);
+
+    void setupBackgroundSurface();
+    void preProcessTrace(const Trace& trace);
+
+    // captureTest will enable SurfaceInterceptor, setup background surface,
+    // disable SurfaceInterceptor, collect the trace and process the trace for
+    // id of background surface before further verification.
+    void captureTest(TestTransactionAction action, TestBooleanVerification verification);
+    void captureTest(TestTransactionAction action, SurfaceChange::SurfaceChangeCase changeCase);
+    void captureTest(TestTransactionAction action, Increment::IncrementCase incrementCase);
+    void captureTest(TestAction action, TestBooleanVerification verification);
+    void captureTest(TestAction action, TestVerification verification);
+    void runInTransaction(TestTransactionAction action);
 
     // Verification of changes to a surface
     bool positionUpdateFound(const SurfaceChange& change, bool foundPosition);
@@ -187,7 +168,7 @@ public:
     bool alphaUpdateFound(const SurfaceChange& change, bool foundAlpha);
     bool layerUpdateFound(const SurfaceChange& change, bool foundLayer);
     bool cropUpdateFound(const SurfaceChange& change, bool foundCrop);
-    bool finalCropUpdateFound(const SurfaceChange& change, bool foundFinalCrop);
+    bool cornerRadiusUpdateFound(const SurfaceChange& change, bool foundCornerRadius);
     bool matrixUpdateFound(const SurfaceChange& change, bool foundMatrix);
     bool scalingModeUpdateFound(const SurfaceChange& change, bool foundScalingMode);
     bool transparentRegionHintUpdateFound(const SurfaceChange& change, bool foundTransparentRegion);
@@ -196,18 +177,22 @@ public:
     bool opaqueFlagUpdateFound(const SurfaceChange& change, bool foundOpaqueFlag);
     bool secureFlagUpdateFound(const SurfaceChange& change, bool foundSecureFlag);
     bool deferredTransactionUpdateFound(const SurfaceChange& change, bool foundDeferred);
-    bool surfaceUpdateFound(Trace* trace, SurfaceChange::SurfaceChangeCase changeCase);
-    void assertAllUpdatesFound(Trace* trace);
+    bool surfaceUpdateFound(const Trace& trace, SurfaceChange::SurfaceChangeCase changeCase);
+
+    // Find all of the updates in the single trace
+    void assertAllUpdatesFound(const Trace& trace);
 
     // Verification of creation and deletion of a surface
     bool surfaceCreationFound(const Increment& increment, bool foundSurface);
-    bool surfaceDeletionFound(const Increment& increment, bool foundSurface);
+    bool surfaceDeletionFound(const Increment& increment, const int32_t targetId,
+            bool foundSurface);
     bool displayCreationFound(const Increment& increment, bool foundDisplay);
-    bool displayDeletionFound(const Increment& increment, bool foundDisplay);
-    bool singleIncrementFound(Trace* trace, Increment::IncrementCase incrementCase);
+    bool displayDeletionFound(const Increment& increment, const int32_t targetId,
+            bool foundDisplay);
+    bool singleIncrementFound(const Trace& trace, Increment::IncrementCase incrementCase);
 
     // Verification of buffer updates
-    bool bufferUpdatesFound(Trace* trace);
+    bool bufferUpdatesFound(const Trace& trace);
 
     // Perform each of the possible changes to a surface
     void positionUpdate(Transaction&);
@@ -215,7 +200,7 @@ public:
     void alphaUpdate(Transaction&);
     void layerUpdate(Transaction&);
     void cropUpdate(Transaction&);
-    void finalCropUpdate(Transaction&);
+    void cornerRadiusUpdate(Transaction&);
     void matrixUpdate(Transaction&);
     void overrideScalingModeUpdate(Transaction&);
     void transparentRegionHintUpdate(Transaction&);
@@ -230,48 +215,95 @@ public:
 
     void nBufferUpdates();
     void runAllUpdates();
+
+private:
+    void captureInTransaction(TestTransactionAction action, Trace*);
+    void capture(TestAction action, Trace*);
 };
 
-void SurfaceInterceptorTest::captureTest(void (SurfaceInterceptorTest::* action)(Transaction&),
-        bool (SurfaceInterceptorTest::* verification)(Trace *))
-{
-    runInTransaction(action, true);
-    Trace capturedTrace;
-    ASSERT_EQ(NO_ERROR, readProtoFile(&capturedTrace));
-    ASSERT_TRUE((this->*verification)(&capturedTrace));
+void SurfaceInterceptorTest::captureInTransaction(TestTransactionAction action, Trace* outTrace) {
+    enableInterceptor();
+    setupBackgroundSurface();
+    runInTransaction(action);
+    disableInterceptor();
+    ASSERT_EQ(NO_ERROR, readProtoFile(outTrace));
+    preProcessTrace(*outTrace);
 }
 
-void SurfaceInterceptorTest::captureTest(void (SurfaceInterceptorTest::* action)(Transaction&),
-        Increment::IncrementCase incrementCase)
-{
-    runInTransaction(action, true);
-    Trace capturedTrace;
-    ASSERT_EQ(NO_ERROR, readProtoFile(&capturedTrace));
-    ASSERT_TRUE(singleIncrementFound(&capturedTrace, incrementCase));
+void SurfaceInterceptorTest::capture(TestAction action, Trace* outTrace) {
+    enableInterceptor();
+    setupBackgroundSurface();
+    (this->*action)();
+    disableInterceptor();
+    ASSERT_EQ(NO_ERROR, readProtoFile(outTrace));
+    preProcessTrace(*outTrace);
 }
 
-void SurfaceInterceptorTest::captureTest(void (SurfaceInterceptorTest::* action)(Transaction&),
-        SurfaceChange::SurfaceChangeCase changeCase)
-{
-    runInTransaction(action, true);
-    Trace capturedTrace;
-    ASSERT_EQ(NO_ERROR, readProtoFile(&capturedTrace));
-    ASSERT_TRUE(surfaceUpdateFound(&capturedTrace, changeCase));
+void SurfaceInterceptorTest::setupBackgroundSurface() {
+    const auto display = SurfaceComposerClient::getInternalDisplayToken();
+    ASSERT_FALSE(display == nullptr);
+
+    DisplayInfo info;
+    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
+
+    ssize_t displayWidth = info.w;
+    ssize_t displayHeight = info.h;
+
+    // Background surface
+    mBGSurfaceControl = mComposerClient->createSurface(
+            String8(TEST_SURFACE_NAME), displayWidth, displayHeight,
+            PIXEL_FORMAT_RGBA_8888, 0);
+    ASSERT_TRUE(mBGSurfaceControl != nullptr);
+    ASSERT_TRUE(mBGSurfaceControl->isValid());
+
+    Transaction t;
+    t.setDisplayLayerStack(display, 0);
+    ASSERT_EQ(NO_ERROR, t.setLayer(mBGSurfaceControl, INT_MAX-3)
+            .show(mBGSurfaceControl)
+            .apply());
 }
 
-void SurfaceInterceptorTest::runInTransaction(void (SurfaceInterceptorTest::* action)(Transaction&),
-        bool intercepted)
-{
-    if (intercepted) {
-        enableInterceptor();
-    }
+void SurfaceInterceptorTest::preProcessTrace(const Trace& trace) {
+    mBGLayerId = getSurfaceId(trace, UNIQUE_TEST_SURFACE_NAME);
+}
+
+void SurfaceInterceptorTest::captureTest(TestTransactionAction action,
+        TestBooleanVerification verification) {
+    Trace capturedTrace;
+    captureInTransaction(action, &capturedTrace);
+    ASSERT_TRUE((this->*verification)(capturedTrace));
+}
+
+void SurfaceInterceptorTest::captureTest(TestTransactionAction action,
+        Increment::IncrementCase incrementCase) {
+    Trace capturedTrace;
+    captureInTransaction(action, &capturedTrace);
+    ASSERT_TRUE(singleIncrementFound(capturedTrace, incrementCase));
+}
+
+void SurfaceInterceptorTest::captureTest(TestTransactionAction action,
+        SurfaceChange::SurfaceChangeCase changeCase) {
+    Trace capturedTrace;
+    captureInTransaction(action, &capturedTrace);
+    ASSERT_TRUE(surfaceUpdateFound(capturedTrace, changeCase));
+}
+
+void SurfaceInterceptorTest::captureTest(TestAction action, TestBooleanVerification verification) {
+    Trace capturedTrace;
+    capture(action, &capturedTrace);
+    ASSERT_TRUE((this->*verification)(capturedTrace));
+}
+
+void SurfaceInterceptorTest::captureTest(TestAction action, TestVerification verification) {
+    Trace capturedTrace;
+    capture(action, &capturedTrace);
+    (this->*verification)(capturedTrace);
+}
+
+void SurfaceInterceptorTest::runInTransaction(TestTransactionAction action) {
     Transaction t;
     (this->*action)(t);
     t.apply(true);
-
-    if (intercepted) {
-        disableInterceptor();
-    }
 }
 
 void SurfaceInterceptorTest::positionUpdate(Transaction& t) {
@@ -286,16 +318,16 @@ void SurfaceInterceptorTest::alphaUpdate(Transaction& t) {
     t.setAlpha(mBGSurfaceControl, ALPHA_UPDATE);
 }
 
+void SurfaceInterceptorTest::cornerRadiusUpdate(Transaction& t) {
+    t.setCornerRadius(mBGSurfaceControl, CORNER_RADIUS_UPDATE);
+}
+
 void SurfaceInterceptorTest::layerUpdate(Transaction& t) {
     t.setLayer(mBGSurfaceControl, LAYER_UPDATE);
 }
 
 void SurfaceInterceptorTest::cropUpdate(Transaction& t) {
-    t.setCrop(mBGSurfaceControl, CROP_UPDATE);
-}
-
-void SurfaceInterceptorTest::finalCropUpdate(Transaction& t) {
-    t.setFinalCrop(mBGSurfaceControl, CROP_UPDATE);
+    t.setCrop_legacy(mBGSurfaceControl, CROP_UPDATE);
 }
 
 void SurfaceInterceptorTest::matrixUpdate(Transaction& t) {
@@ -328,7 +360,8 @@ void SurfaceInterceptorTest::secureFlagUpdate(Transaction& t) {
 }
 
 void SurfaceInterceptorTest::deferredTransactionUpdate(Transaction& t) {
-    t.deferTransactionUntil(mBGSurfaceControl, mBGSurfaceControl->getHandle(), DEFERRED_UPDATE);
+    t.deferTransactionUntil_legacy(mBGSurfaceControl, mBGSurfaceControl->getHandle(),
+                                   DEFERRED_UPDATE);
 }
 
 void SurfaceInterceptorTest::displayCreation(Transaction&) {
@@ -338,7 +371,6 @@ void SurfaceInterceptorTest::displayCreation(Transaction&) {
 
 void SurfaceInterceptorTest::displayDeletion(Transaction&) {
     sp<IBinder> testDisplay = SurfaceComposerClient::createDisplay(DISPLAY_NAME, false);
-    mTargetId = getDisplayId(DISPLAY_NAME.string());
     SurfaceComposerClient::destroyDisplay(testDisplay);
 }
 
@@ -346,9 +378,9 @@ void SurfaceInterceptorTest::runAllUpdates() {
     runInTransaction(&SurfaceInterceptorTest::positionUpdate);
     runInTransaction(&SurfaceInterceptorTest::sizeUpdate);
     runInTransaction(&SurfaceInterceptorTest::alphaUpdate);
+    runInTransaction(&SurfaceInterceptorTest::cornerRadiusUpdate);
     runInTransaction(&SurfaceInterceptorTest::layerUpdate);
     runInTransaction(&SurfaceInterceptorTest::cropUpdate);
-    runInTransaction(&SurfaceInterceptorTest::finalCropUpdate);
     runInTransaction(&SurfaceInterceptorTest::matrixUpdate);
     runInTransaction(&SurfaceInterceptorTest::overrideScalingModeUpdate);
     runInTransaction(&SurfaceInterceptorTest::transparentRegionHintUpdate);
@@ -380,9 +412,8 @@ bool SurfaceInterceptorTest::positionUpdateFound(const SurfaceChange& change, bo
     bool hasY(change.position().y() == POSITION_UPDATE);
     if (hasX && hasY && !foundPosition) {
         foundPosition = true;
-    }
-    // Failed because the position update was found a second time
-    else if (hasX && hasY && foundPosition) {
+    } else if (hasX && hasY && foundPosition) {
+        // Failed because the position update was found a second time
         [] () { FAIL(); }();
     }
     return foundPosition;
@@ -393,8 +424,7 @@ bool SurfaceInterceptorTest::sizeUpdateFound(const SurfaceChange& change, bool f
     bool hasHeight(change.size().w() == SIZE_UPDATE);
     if (hasWidth && hasHeight && !foundSize) {
         foundSize = true;
-    }
-    else if (hasWidth && hasHeight && foundSize) {
+    } else if (hasWidth && hasHeight && foundSize) {
         [] () { FAIL(); }();
     }
     return foundSize;
@@ -404,19 +434,28 @@ bool SurfaceInterceptorTest::alphaUpdateFound(const SurfaceChange& change, bool 
     bool hasAlpha(change.alpha().alpha() == ALPHA_UPDATE);
     if (hasAlpha && !foundAlpha) {
         foundAlpha = true;
-    }
-    else if (hasAlpha && foundAlpha) {
+    } else if (hasAlpha && foundAlpha) {
         [] () { FAIL(); }();
     }
     return foundAlpha;
+}
+
+bool SurfaceInterceptorTest::cornerRadiusUpdateFound(const SurfaceChange &change,
+                                                     bool foundCornerRadius) {
+    bool hasCornerRadius(change.corner_radius().corner_radius() == CORNER_RADIUS_UPDATE);
+    if (hasCornerRadius && !foundCornerRadius) {
+        foundCornerRadius = true;
+    } else if (hasCornerRadius && foundCornerRadius) {
+        [] () { FAIL(); }();
+    }
+    return foundCornerRadius;
 }
 
 bool SurfaceInterceptorTest::layerUpdateFound(const SurfaceChange& change, bool foundLayer) {
     bool hasLayer(change.layer().layer() == LAYER_UPDATE);
     if (hasLayer && !foundLayer) {
         foundLayer = true;
-    }
-    else if (hasLayer && foundLayer) {
+    } else if (hasLayer && foundLayer) {
         [] () { FAIL(); }();
     }
     return foundLayer;
@@ -429,59 +468,38 @@ bool SurfaceInterceptorTest::cropUpdateFound(const SurfaceChange& change, bool f
     bool hasBottom(change.crop().rectangle().bottom() == CROP_UPDATE.bottom);
     if (hasLeft && hasRight && hasTop && hasBottom && !foundCrop) {
         foundCrop = true;
-    }
-    else if (hasLeft && hasRight && hasTop && hasBottom && foundCrop) {
+    } else if (hasLeft && hasRight && hasTop && hasBottom && foundCrop) {
         [] () { FAIL(); }();
     }
     return foundCrop;
 }
 
-bool SurfaceInterceptorTest::finalCropUpdateFound(const SurfaceChange& change,
-        bool foundFinalCrop)
-{
-    bool hasLeft(change.final_crop().rectangle().left() == CROP_UPDATE.left);
-    bool hasTop(change.final_crop().rectangle().top() == CROP_UPDATE.top);
-    bool hasRight(change.final_crop().rectangle().right() == CROP_UPDATE.right);
-    bool hasBottom(change.final_crop().rectangle().bottom() == CROP_UPDATE.bottom);
-    if (hasLeft && hasRight && hasTop && hasBottom && !foundFinalCrop) {
-        foundFinalCrop = true;
-    }
-    else if (hasLeft && hasRight && hasTop && hasBottom && foundFinalCrop) {
-        [] () { FAIL(); }();
-    }
-    return foundFinalCrop;
-}
-
 bool SurfaceInterceptorTest::matrixUpdateFound(const SurfaceChange& change, bool foundMatrix) {
     bool hasSx((float)change.matrix().dsdx() == (float)M_SQRT1_2);
     bool hasTx((float)change.matrix().dtdx() == (float)M_SQRT1_2);
-    bool hasSy((float)change.matrix().dsdy() == (float)-M_SQRT1_2);
-    bool hasTy((float)change.matrix().dtdy() == (float)M_SQRT1_2);
+    bool hasSy((float)change.matrix().dsdy() == (float)M_SQRT1_2);
+    bool hasTy((float)change.matrix().dtdy() == (float)-M_SQRT1_2);
     if (hasSx && hasTx && hasSy && hasTy && !foundMatrix) {
         foundMatrix = true;
-    }
-    else if (hasSx && hasTx && hasSy && hasTy && foundMatrix) {
+    } else if (hasSx && hasTx && hasSy && hasTy && foundMatrix) {
         [] () { FAIL(); }();
     }
     return foundMatrix;
 }
 
 bool SurfaceInterceptorTest::scalingModeUpdateFound(const SurfaceChange& change,
-        bool foundScalingMode)
-{
+        bool foundScalingMode) {
     bool hasScalingUpdate(change.override_scaling_mode().override_scaling_mode() == SCALING_UPDATE);
     if (hasScalingUpdate && !foundScalingMode) {
         foundScalingMode = true;
-    }
-    else if (hasScalingUpdate && foundScalingMode) {
+    } else if (hasScalingUpdate && foundScalingMode) {
         [] () { FAIL(); }();
     }
     return foundScalingMode;
 }
 
 bool SurfaceInterceptorTest::transparentRegionHintUpdateFound(const SurfaceChange& change,
-        bool foundTransparentRegion)
-{
+        bool foundTransparentRegion) {
     auto traceRegion = change.transparent_region_hint().region(0);
     bool hasLeft(traceRegion.left() == CROP_UPDATE.left);
     bool hasTop(traceRegion.top() == CROP_UPDATE.top);
@@ -489,84 +507,72 @@ bool SurfaceInterceptorTest::transparentRegionHintUpdateFound(const SurfaceChang
     bool hasBottom(traceRegion.bottom() == CROP_UPDATE.bottom);
     if (hasLeft && hasRight && hasTop && hasBottom && !foundTransparentRegion) {
         foundTransparentRegion = true;
-    }
-    else if (hasLeft && hasRight && hasTop && hasBottom && foundTransparentRegion) {
+    } else if (hasLeft && hasRight && hasTop && hasBottom && foundTransparentRegion) {
         [] () { FAIL(); }();
     }
     return foundTransparentRegion;
 }
 
 bool SurfaceInterceptorTest::layerStackUpdateFound(const SurfaceChange& change,
-        bool foundLayerStack)
-{
+        bool foundLayerStack) {
     bool hasLayerStackUpdate(change.layer_stack().layer_stack() == STACK_UPDATE);
     if (hasLayerStackUpdate && !foundLayerStack) {
         foundLayerStack = true;
-    }
-    else if (hasLayerStackUpdate && foundLayerStack) {
+    } else if (hasLayerStackUpdate && foundLayerStack) {
         [] () { FAIL(); }();
     }
     return foundLayerStack;
 }
 
 bool SurfaceInterceptorTest::hiddenFlagUpdateFound(const SurfaceChange& change,
-        bool foundHiddenFlag)
-{
+        bool foundHiddenFlag) {
     bool hasHiddenFlag(change.hidden_flag().hidden_flag());
     if (hasHiddenFlag && !foundHiddenFlag) {
         foundHiddenFlag = true;
-    }
-    else if (hasHiddenFlag && foundHiddenFlag) {
+    } else if (hasHiddenFlag && foundHiddenFlag) {
         [] () { FAIL(); }();
     }
     return foundHiddenFlag;
 }
 
 bool SurfaceInterceptorTest::opaqueFlagUpdateFound(const SurfaceChange& change,
-        bool foundOpaqueFlag)
-{
+        bool foundOpaqueFlag) {
     bool hasOpaqueFlag(change.opaque_flag().opaque_flag());
     if (hasOpaqueFlag && !foundOpaqueFlag) {
         foundOpaqueFlag = true;
-    }
-    else if (hasOpaqueFlag && foundOpaqueFlag) {
+    } else if (hasOpaqueFlag && foundOpaqueFlag) {
         [] () { FAIL(); }();
     }
     return foundOpaqueFlag;
 }
 
 bool SurfaceInterceptorTest::secureFlagUpdateFound(const SurfaceChange& change,
-        bool foundSecureFlag)
-{
+        bool foundSecureFlag) {
     bool hasSecureFlag(change.secure_flag().secure_flag());
     if (hasSecureFlag && !foundSecureFlag) {
         foundSecureFlag = true;
-    }
-    else if (hasSecureFlag && foundSecureFlag) {
+    } else if (hasSecureFlag && foundSecureFlag) {
         [] () { FAIL(); }();
     }
     return foundSecureFlag;
 }
 
 bool SurfaceInterceptorTest::deferredTransactionUpdateFound(const SurfaceChange& change,
-        bool foundDeferred)
-{
+        bool foundDeferred) {
     bool hasId(change.deferred_transaction().layer_id() == mBGLayerId);
     bool hasFrameNumber(change.deferred_transaction().frame_number() == DEFERRED_UPDATE);
     if (hasId && hasFrameNumber && !foundDeferred) {
         foundDeferred = true;
-    }
-    else if (hasId && hasFrameNumber && foundDeferred) {
+    } else if (hasId && hasFrameNumber && foundDeferred) {
         [] () { FAIL(); }();
     }
     return foundDeferred;
 }
 
-bool SurfaceInterceptorTest::surfaceUpdateFound(Trace* trace,
-        SurfaceChange::SurfaceChangeCase changeCase)
-{
+bool SurfaceInterceptorTest::surfaceUpdateFound(const Trace& trace,
+        SurfaceChange::SurfaceChangeCase changeCase) {
     bool foundUpdate = false;
-    for (const auto& increment : *trace->mutable_increment()) {
+    for (const auto& increment : trace.increment()) {
         if (increment.increment_case() == increment.kTransaction) {
             for (const auto& change : increment.transaction().surface_change()) {
                 if (change.id() == mBGLayerId && change.SurfaceChange_case() == changeCase) {
@@ -587,8 +593,8 @@ bool SurfaceInterceptorTest::surfaceUpdateFound(Trace* trace,
                         case SurfaceChange::SurfaceChangeCase::kCrop:
                             foundUpdate = cropUpdateFound(change, foundUpdate);
                             break;
-                        case SurfaceChange::SurfaceChangeCase::kFinalCrop:
-                            foundUpdate = finalCropUpdateFound(change, foundUpdate);
+                        case SurfaceChange::SurfaceChangeCase::kCornerRadius:
+                            foundUpdate = cornerRadiusUpdateFound(change, foundUpdate);
                             break;
                         case SurfaceChange::SurfaceChangeCase::kMatrix:
                             foundUpdate = matrixUpdateFound(change, foundUpdate);
@@ -624,13 +630,12 @@ bool SurfaceInterceptorTest::surfaceUpdateFound(Trace* trace,
     return foundUpdate;
 }
 
-void SurfaceInterceptorTest::assertAllUpdatesFound(Trace* trace) {
+void SurfaceInterceptorTest::assertAllUpdatesFound(const Trace& trace) {
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kPosition));
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kSize));
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kAlpha));
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kLayer));
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kCrop));
-    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kFinalCrop));
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kMatrix));
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kOverrideScalingMode));
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kTransparentRegionHint));
@@ -642,24 +647,23 @@ void SurfaceInterceptorTest::assertAllUpdatesFound(Trace* trace) {
 }
 
 bool SurfaceInterceptorTest::surfaceCreationFound(const Increment& increment, bool foundSurface) {
-    bool isMatch(increment.surface_creation().name() == LAYER_NAME &&
+    bool isMatch(increment.surface_creation().name() == UNIQUE_LAYER_NAME &&
             increment.surface_creation().w() == SIZE_UPDATE &&
             increment.surface_creation().h() == SIZE_UPDATE);
     if (isMatch && !foundSurface) {
         foundSurface = true;
-    }
-    else if (isMatch && foundSurface) {
+    } else if (isMatch && foundSurface) {
         [] () { FAIL(); }();
     }
     return foundSurface;
 }
 
-bool SurfaceInterceptorTest::surfaceDeletionFound(const Increment& increment, bool foundSurface) {
-    bool isMatch(increment.surface_deletion().id() == mTargetId);
+bool SurfaceInterceptorTest::surfaceDeletionFound(const Increment& increment,
+        const int32_t targetId, bool foundSurface) {
+    bool isMatch(increment.surface_deletion().id() == targetId);
     if (isMatch && !foundSurface) {
         foundSurface = true;
-    }
-    else if (isMatch && foundSurface) {
+    } else if (isMatch && foundSurface) {
         [] () { FAIL(); }();
     }
     return foundSurface;
@@ -670,42 +674,45 @@ bool SurfaceInterceptorTest::displayCreationFound(const Increment& increment, bo
             increment.display_creation().is_secure());
     if (isMatch && !foundDisplay) {
         foundDisplay = true;
-    }
-    else if (isMatch && foundDisplay) {
+    } else if (isMatch && foundDisplay) {
         [] () { FAIL(); }();
     }
     return foundDisplay;
 }
 
-bool SurfaceInterceptorTest::displayDeletionFound(const Increment& increment, bool foundDisplay) {
-    bool isMatch(increment.display_deletion().id() == mTargetId);
+bool SurfaceInterceptorTest::displayDeletionFound(const Increment& increment,
+        const int32_t targetId, bool foundDisplay) {
+    bool isMatch(increment.display_deletion().id() == targetId);
     if (isMatch && !foundDisplay) {
         foundDisplay = true;
-    }
-    else if (isMatch && foundDisplay) {
+    } else if (isMatch && foundDisplay) {
         [] () { FAIL(); }();
     }
     return foundDisplay;
 }
 
-bool SurfaceInterceptorTest::singleIncrementFound(Trace* trace,
-        Increment::IncrementCase incrementCase)
-{
+bool SurfaceInterceptorTest::singleIncrementFound(const Trace& trace,
+        Increment::IncrementCase incrementCase) {
     bool foundIncrement = false;
-    for (const auto& increment : *trace->mutable_increment()) {
+    for (const auto& increment : trace.increment()) {
         if (increment.increment_case() == incrementCase) {
+            int32_t targetId = 0;
             switch (incrementCase) {
                 case Increment::IncrementCase::kSurfaceCreation:
                     foundIncrement = surfaceCreationFound(increment, foundIncrement);
                     break;
                 case Increment::IncrementCase::kSurfaceDeletion:
-                    foundIncrement = surfaceDeletionFound(increment, foundIncrement);
+                    // Find the id of created surface.
+                    targetId = getSurfaceId(trace, UNIQUE_LAYER_NAME);
+                    foundIncrement = surfaceDeletionFound(increment, targetId, foundIncrement);
                     break;
                 case Increment::IncrementCase::kDisplayCreation:
                     foundIncrement = displayCreationFound(increment, foundIncrement);
                     break;
                 case Increment::IncrementCase::kDisplayDeletion:
-                    foundIncrement = displayDeletionFound(increment, foundIncrement);
+                    // Find the id of created display.
+                    targetId = getDisplayId(trace, DISPLAY_NAME.string());
+                    foundIncrement = displayDeletionFound(increment, targetId, foundIncrement);
                     break;
                 default:
                     /* code */
@@ -716,9 +723,9 @@ bool SurfaceInterceptorTest::singleIncrementFound(Trace* trace,
     return foundIncrement;
 }
 
-bool SurfaceInterceptorTest::bufferUpdatesFound(Trace* trace) {
+bool SurfaceInterceptorTest::bufferUpdatesFound(const Trace& trace) {
     uint32_t updates = 0;
-    for (const auto& inc : *trace->mutable_increment()) {
+    for (const auto& inc : trace.increment()) {
         if (inc.increment_case() == inc.kBufferUpdate && inc.buffer_update().id() == mBGLayerId) {
             updates++;
         }
@@ -747,9 +754,9 @@ TEST_F(SurfaceInterceptorTest, InterceptCropUpdateWorks) {
     captureTest(&SurfaceInterceptorTest::cropUpdate, SurfaceChange::SurfaceChangeCase::kCrop);
 }
 
-TEST_F(SurfaceInterceptorTest, InterceptFinalCropUpdateWorks) {
-    captureTest(&SurfaceInterceptorTest::finalCropUpdate,
-            SurfaceChange::SurfaceChangeCase::kFinalCrop);
+TEST_F(SurfaceInterceptorTest, InterceptCornerRadiusUpdateWorks) {
+    captureTest(&SurfaceInterceptorTest::cornerRadiusUpdate,
+            SurfaceChange::SurfaceChangeCase::kCornerRadius);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptMatrixUpdateWorks) {
@@ -792,32 +799,13 @@ TEST_F(SurfaceInterceptorTest, InterceptDeferredTransactionUpdateWorks) {
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptAllUpdatesWorks) {
-    enableInterceptor();
-    runAllUpdates();
-    disableInterceptor();
-
-    // Find all of the updates in the single trace
-    Trace capturedTrace;
-    ASSERT_EQ(NO_ERROR, readProtoFile(&capturedTrace));
-    assertAllUpdatesFound(&capturedTrace);
+    captureTest(&SurfaceInterceptorTest::runAllUpdates,
+                &SurfaceInterceptorTest::assertAllUpdatesFound);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptSurfaceCreationWorks) {
     captureTest(&SurfaceInterceptorTest::surfaceCreation,
             Increment::IncrementCase::kSurfaceCreation);
-}
-
-TEST_F(SurfaceInterceptorTest, InterceptSurfaceDeletionWorks) {
-    sp<SurfaceControl> layerToDelete = mComposerClient->createSurface(String8(LAYER_NAME),
-            SIZE_UPDATE, SIZE_UPDATE, PIXEL_FORMAT_RGBA_8888, 0);
-    this->mTargetId = getSurfaceId(LAYER_NAME);
-    enableInterceptor();
-    mComposerClient->destroySurface(layerToDelete->getHandle());
-    disableInterceptor();
-
-    Trace capturedTrace;
-    ASSERT_EQ(NO_ERROR, readProtoFile(&capturedTrace));
-    ASSERT_TRUE(singleIncrementFound(&capturedTrace, Increment::IncrementCase::kSurfaceDeletion));
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptDisplayCreationWorks) {
@@ -826,21 +814,24 @@ TEST_F(SurfaceInterceptorTest, InterceptDisplayCreationWorks) {
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptDisplayDeletionWorks) {
-    captureTest(&SurfaceInterceptorTest::displayDeletion,
-            Increment::IncrementCase::kDisplayDeletion);
+    enableInterceptor();
+    runInTransaction(&SurfaceInterceptorTest::displayDeletion);
+    disableInterceptor();
+    Trace capturedTrace;
+    ASSERT_EQ(NO_ERROR, readProtoFile(&capturedTrace));
+    ASSERT_TRUE(singleIncrementFound(capturedTrace, Increment::IncrementCase::kDisplayDeletion));
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptBufferUpdateWorks) {
-    nBufferUpdates();
-    Trace capturedTrace;
-    ASSERT_EQ(NO_ERROR, readProtoFile(&capturedTrace));
-    ASSERT_TRUE(bufferUpdatesFound(&capturedTrace));
+    captureTest(&SurfaceInterceptorTest::nBufferUpdates,
+            &SurfaceInterceptorTest::bufferUpdatesFound);
 }
 
 // If the interceptor is enabled while buffer updates are being pushed, the interceptor should
 // first create a snapshot of the existing displays and surfaces and then start capturing
 // the buffer updates
 TEST_F(SurfaceInterceptorTest, InterceptWhileBufferUpdatesWorks) {
+    setupBackgroundSurface();
     std::thread bufferUpdates(&SurfaceInterceptorTest::nBufferUpdates, this);
     enableInterceptor();
     disableInterceptor();
@@ -854,6 +845,7 @@ TEST_F(SurfaceInterceptorTest, InterceptWhileBufferUpdatesWorks) {
 
 TEST_F(SurfaceInterceptorTest, InterceptSimultaneousUpdatesWorks) {
     enableInterceptor();
+    setupBackgroundSurface();
     std::thread bufferUpdates(&SurfaceInterceptorTest::nBufferUpdates, this);
     std::thread surfaceUpdates(&SurfaceInterceptorTest::runAllUpdates, this);
     runInTransaction(&SurfaceInterceptorTest::surfaceCreation);
@@ -863,10 +855,11 @@ TEST_F(SurfaceInterceptorTest, InterceptSimultaneousUpdatesWorks) {
 
     Trace capturedTrace;
     ASSERT_EQ(NO_ERROR, readProtoFile(&capturedTrace));
+    preProcessTrace(capturedTrace);
 
-    assertAllUpdatesFound(&capturedTrace);
-    ASSERT_TRUE(bufferUpdatesFound(&capturedTrace));
-    ASSERT_TRUE(singleIncrementFound(&capturedTrace, Increment::IncrementCase::kSurfaceCreation));
+    assertAllUpdatesFound(capturedTrace);
+    ASSERT_TRUE(bufferUpdatesFound(capturedTrace));
+    ASSERT_TRUE(singleIncrementFound(capturedTrace, Increment::IncrementCase::kSurfaceCreation));
 }
 
 }

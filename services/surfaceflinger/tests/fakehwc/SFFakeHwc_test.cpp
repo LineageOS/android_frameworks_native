@@ -146,7 +146,7 @@ protected:
     void TearDown() override;
 
     void waitForDisplayTransaction();
-    bool waitForHotplugEvent(uint32_t id, bool connected);
+    bool waitForHotplugEvent(PhysicalDisplayId displayId, bool connected);
 
     sp<IComposer> mFakeService;
     sp<SurfaceComposerClient> mComposerClient;
@@ -243,7 +243,7 @@ void DisplayTest::waitForDisplayTransaction() {
     mMockComposer->runVSyncAndWait();
 }
 
-bool DisplayTest::waitForHotplugEvent(uint32_t id, bool connected) {
+bool DisplayTest::waitForHotplugEvent(PhysicalDisplayId displayId, bool connected) {
     int waitCount = 20;
     while (waitCount--) {
         while (!mReceivedDisplayEvents.empty()) {
@@ -251,11 +251,12 @@ bool DisplayTest::waitForHotplugEvent(uint32_t id, bool connected) {
             mReceivedDisplayEvents.pop_front();
 
             ALOGV_IF(event.header.type == DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG,
-                    "event hotplug: id %d, connected %d\t", event.header.id,
-                    event.hotplug.connected);
+                     "event hotplug: displayId %" ANDROID_PHYSICAL_DISPLAY_ID_FORMAT
+                     ", connected %d\t",
+                     event.header.displayId, event.hotplug.connected);
 
             if (event.header.type == DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG &&
-                event.header.id == id && event.hotplug.connected == connected) {
+                event.header.displayId == displayId && event.hotplug.connected == connected) {
                 return true;
             }
         }
@@ -295,13 +296,14 @@ TEST_F(DisplayTest, Hotplug) {
 
     waitForDisplayTransaction();
 
-    EXPECT_TRUE(waitForHotplugEvent(ISurfaceComposer::eDisplayIdHdmi, true));
+    EXPECT_TRUE(waitForHotplugEvent(EXTERNAL_DISPLAY, true));
 
     {
-        sp<android::IBinder> display(
-                SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdHdmi));
+        const auto display = SurfaceComposerClient::getPhysicalDisplayToken(EXTERNAL_DISPLAY);
+        ASSERT_FALSE(display == nullptr);
+
         DisplayInfo info;
-        SurfaceComposerClient::getDisplayInfo(display, &info);
+        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
         ASSERT_EQ(400u, info.w);
         ASSERT_EQ(200u, info.h);
 
@@ -329,14 +331,15 @@ TEST_F(DisplayTest, Hotplug) {
 
     waitForDisplayTransaction();
 
-    EXPECT_TRUE(waitForHotplugEvent(ISurfaceComposer::eDisplayIdHdmi, false));
-    EXPECT_TRUE(waitForHotplugEvent(ISurfaceComposer::eDisplayIdHdmi, true));
+    EXPECT_TRUE(waitForHotplugEvent(EXTERNAL_DISPLAY, false));
+    EXPECT_TRUE(waitForHotplugEvent(EXTERNAL_DISPLAY, true));
 
     {
-        sp<android::IBinder> display(
-                SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdHdmi));
+        const auto display = SurfaceComposerClient::getPhysicalDisplayToken(EXTERNAL_DISPLAY);
+        ASSERT_FALSE(display == nullptr);
+
         DisplayInfo info;
-        SurfaceComposerClient::getDisplayInfo(display, &info);
+        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
         ASSERT_EQ(400u, info.w);
         ASSERT_EQ(200u, info.h);
 
@@ -365,11 +368,12 @@ TEST_F(DisplayTest, HotplugPrimaryDisplay) {
 
     waitForDisplayTransaction();
 
-    EXPECT_TRUE(waitForHotplugEvent(ISurfaceComposer::eDisplayIdMain, false));
+    EXPECT_TRUE(waitForHotplugEvent(PRIMARY_DISPLAY, false));
 
     {
-        sp<android::IBinder> display(
-                SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
+        const auto display = SurfaceComposerClient::getPhysicalDisplayToken(PRIMARY_DISPLAY);
+        EXPECT_FALSE(display == nullptr);
+
         DisplayInfo info;
         auto result = SurfaceComposerClient::getDisplayInfo(display, &info);
         EXPECT_NE(NO_ERROR, result);
@@ -403,11 +407,12 @@ TEST_F(DisplayTest, HotplugPrimaryDisplay) {
 
     waitForDisplayTransaction();
 
-    EXPECT_TRUE(waitForHotplugEvent(ISurfaceComposer::eDisplayIdMain, true));
+    EXPECT_TRUE(waitForHotplugEvent(PRIMARY_DISPLAY, true));
 
     {
-        sp<android::IBinder> display(
-                SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
+        const auto display = SurfaceComposerClient::getPhysicalDisplayToken(PRIMARY_DISPLAY);
+        EXPECT_FALSE(display == nullptr);
+
         DisplayInfo info;
         auto result = SurfaceComposerClient::getDisplayInfo(display, &info);
         EXPECT_EQ(NO_ERROR, result);
@@ -474,10 +479,11 @@ void TransactionTest::SetUp() {
     ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
 
     ALOGI("TransactionTest::SetUp - display");
-    sp<android::IBinder> display(
-            SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
+    const auto display = SurfaceComposerClient::getPhysicalDisplayToken(PRIMARY_DISPLAY);
+    ASSERT_FALSE(display == nullptr);
+
     DisplayInfo info;
-    SurfaceComposerClient::getDisplayInfo(display, &info);
+    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
 
     mDisplayWidth = info.w;
     mDisplayHeight = info.h;
@@ -625,47 +631,13 @@ TEST_F(TransactionTest, LayerCrop) {
     {
         TransactionScope ts(*sFakeComposer);
         Rect cropRect(16, 16, 32, 32);
-        ts.setCrop(mFGSurfaceControl, cropRect);
+        ts.setCrop_legacy(mFGSurfaceControl, cropRect);
     }
     ASSERT_EQ(2, sFakeComposer->getFrameCount());
 
     auto referenceFrame = mBaseFrame;
     referenceFrame[FG_LAYER].mSourceCrop = hwc_frect_t{16.f, 16.f, 32.f, 32.f};
     referenceFrame[FG_LAYER].mDisplayFrame = hwc_rect_t{64 + 16, 64 + 16, 64 + 32, 64 + 32};
-    EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
-}
-
-TEST_F(TransactionTest, LayerFinalCrop) {
-    // TODO: Add scaling to confirm that crop happens in display space?
-    {
-        TransactionScope ts(*sFakeComposer);
-        Rect cropRect(32, 32, 32 + 64, 32 + 64);
-        ts.setFinalCrop(mFGSurfaceControl, cropRect);
-    }
-    ASSERT_EQ(2, sFakeComposer->getFrameCount());
-
-    // In display space we are cropping with [32, 32, 96, 96] against display rect
-    // [64, 64, 128, 128]. Should yield display rect [64, 64, 96, 96]
-    auto referenceFrame = mBaseFrame;
-    referenceFrame[FG_LAYER].mSourceCrop = hwc_frect_t{0.f, 0.f, 32.f, 32.f};
-    referenceFrame[FG_LAYER].mDisplayFrame = hwc_rect_t{64, 64, 64 + 32, 64 + 32};
-
-    EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
-}
-
-TEST_F(TransactionTest, LayerFinalCropEmpty) {
-    // TODO: Add scaling to confirm that crop happens in display space?
-    {
-        TransactionScope ts(*sFakeComposer);
-        Rect cropRect(16, 16, 32, 32);
-        ts.setFinalCrop(mFGSurfaceControl, cropRect);
-    }
-    ASSERT_EQ(2, sFakeComposer->getFrameCount());
-
-    // In display space we are cropping with [16, 16, 32, 32] against display rect
-    // [64, 64, 128, 128]. The intersection is empty and only the background layer is composited.
-    std::vector<RenderState> referenceFrame(1);
-    referenceFrame[BG_LAYER] = mBaseFrame[BG_LAYER];
     EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
 }
 
@@ -848,18 +820,16 @@ TEST_F(TransactionTest, DeferredTransaction) {
     {
         TransactionScope ts(*sFakeComposer);
         ts.setAlpha(mFGSurfaceControl, 0.75);
-        ts.deferTransactionUntil(mFGSurfaceControl, 
-                syncSurfaceControl->getHandle(),
-                syncSurfaceControl->getSurface()->getNextFrameNumber());
+        ts.deferTransactionUntil_legacy(mFGSurfaceControl, syncSurfaceControl->getHandle(),
+                                        syncSurfaceControl->getSurface()->getNextFrameNumber());
     }
     EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
 
     {
         TransactionScope ts(*sFakeComposer);
         ts.setPosition(mFGSurfaceControl, 128, 128);
-        ts.deferTransactionUntil(mFGSurfaceControl,
-                syncSurfaceControl->getHandle(),
-                syncSurfaceControl->getSurface()->getNextFrameNumber() + 1);
+        ts.deferTransactionUntil_legacy(mFGSurfaceControl, syncSurfaceControl->getHandle(),
+                                        syncSurfaceControl->getSurface()->getNextFrameNumber() + 1);
     }
     EXPECT_EQ(4, sFakeComposer->getFrameCount());
     EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
@@ -982,27 +952,11 @@ TEST_F(ChildLayerTest, Cropping) {
         ts.show(mChild);
         ts.setPosition(mChild, 0, 0);
         ts.setPosition(mFGSurfaceControl, 0, 0);
-        ts.setCrop(mFGSurfaceControl, Rect(0, 0, 5, 5));
+        ts.setCrop_legacy(mFGSurfaceControl, Rect(0, 0, 5, 5));
     }
     // NOTE: The foreground surface would be occluded by the child
     // now, but is included in the stack because the child is
     // transparent.
-    auto referenceFrame = mBaseFrame;
-    referenceFrame[FG_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 0 + 5, 0 + 5};
-    referenceFrame[FG_LAYER].mSourceCrop = hwc_frect_t{0.f, 0.f, 5.f, 5.f};
-    referenceFrame[CHILD_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 0 + 5, 0 + 5};
-    referenceFrame[CHILD_LAYER].mSourceCrop = hwc_frect_t{0.f, 0.f, 5.f, 5.f};
-    EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
-}
-
-TEST_F(ChildLayerTest, FinalCropping) {
-    {
-        TransactionScope ts(*sFakeComposer);
-        ts.show(mChild);
-        ts.setPosition(mChild, 0, 0);
-        ts.setPosition(mFGSurfaceControl, 0, 0);
-        ts.setFinalCrop(mFGSurfaceControl, Rect(0, 0, 5, 5));
-    }
     auto referenceFrame = mBaseFrame;
     referenceFrame[FG_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 0 + 5, 0 + 5};
     referenceFrame[FG_LAYER].mSourceCrop = hwc_frect_t{0.f, 0.f, 5.f, 5.f};
@@ -1096,7 +1050,7 @@ TEST_F(ChildLayerTest, ReparentChildren) {
     EXPECT_TRUE(framesAreSame(referenceFrame2, sFakeComposer->getLatestFrame()));
 }
 
-TEST_F(ChildLayerTest, DetachChildren) {
+TEST_F(ChildLayerTest, DetachChildrenSameClient) {
     {
         TransactionScope ts(*sFakeComposer);
         ts.show(mChild);
@@ -1112,12 +1066,57 @@ TEST_F(ChildLayerTest, DetachChildren) {
 
     {
         TransactionScope ts(*sFakeComposer);
+        ts.setPosition(mFGSurfaceControl, 0, 0);
         ts.detachChildren(mFGSurfaceControl);
     }
 
     {
         TransactionScope ts(*sFakeComposer);
+        ts.setPosition(mFGSurfaceControl, 64, 64);
         ts.hide(mChild);
+    }
+
+    std::vector<RenderState> refFrame(2);
+    refFrame[BG_LAYER] = mBaseFrame[BG_LAYER];
+    refFrame[FG_LAYER] = mBaseFrame[FG_LAYER];
+
+    EXPECT_TRUE(framesAreSame(refFrame, sFakeComposer->getLatestFrame()));
+}
+
+TEST_F(ChildLayerTest, DetachChildrenDifferentClient) {
+    sp<SurfaceComposerClient> newComposerClient = new SurfaceComposerClient;
+    sp<SurfaceControl> childNewClient =
+            newComposerClient->createSurface(String8("New Child Test Surface"), 10, 10,
+                                             PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
+    ASSERT_TRUE(childNewClient != nullptr);
+    ASSERT_TRUE(childNewClient->isValid());
+    fillSurfaceRGBA8(childNewClient, LIGHT_GRAY);
+
+    {
+        TransactionScope ts(*sFakeComposer);
+        ts.hide(mChild);
+        ts.show(childNewClient);
+        ts.setPosition(childNewClient, 10, 10);
+        ts.setPosition(mFGSurfaceControl, 64, 64);
+    }
+
+    auto referenceFrame = mBaseFrame;
+    referenceFrame[FG_LAYER].mDisplayFrame = hwc_rect_t{64, 64, 64 + 64, 64 + 64};
+    referenceFrame[CHILD_LAYER].mDisplayFrame =
+            hwc_rect_t{64 + 10, 64 + 10, 64 + 10 + 10, 64 + 10 + 10};
+    EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
+
+    {
+        TransactionScope ts(*sFakeComposer);
+        ts.detachChildren(mFGSurfaceControl);
+        ts.setPosition(mFGSurfaceControl, 0, 0);
+    }
+
+    {
+        TransactionScope ts(*sFakeComposer);
+        ts.setPosition(mFGSurfaceControl, 64, 64);
+        ts.setPosition(childNewClient, 0, 0);
+        ts.hide(childNewClient);
     }
 
     // Nothing should have changed. The child control becomes a no-op
@@ -1194,8 +1193,8 @@ TEST_F(ChildLayerTest, Bug36858924) {
     // Show the child layer in a deferred transaction
     {
         TransactionScope ts(*sFakeComposer);
-        ts.deferTransactionUntil(mChild, mFGSurfaceControl->getHandle(), 
-                                      mFGSurfaceControl->getSurface()->getNextFrameNumber());
+        ts.deferTransactionUntil_legacy(mChild, mFGSurfaceControl->getHandle(),
+                                        mFGSurfaceControl->getSurface()->getNextFrameNumber());
         ts.show(mChild);
     }
 
@@ -1218,6 +1217,82 @@ TEST_F(ChildLayerTest, Bug36858924) {
     sFakeComposer->runVSyncAndWait();
 }
 
+class ChildColorLayerTest : public ChildLayerTest {
+protected:
+    void SetUp() override {
+        TransactionTest::SetUp();
+        mChild = mComposerClient->createSurface(String8("Child surface"), 0, 0,
+                                                PIXEL_FORMAT_RGBA_8888,
+                                                ISurfaceComposerClient::eFXSurfaceColor,
+                                                mFGSurfaceControl.get());
+        {
+            TransactionScope ts(*sFakeComposer);
+            ts.setColor(mChild,
+                        {LIGHT_GRAY.r / 255.0f, LIGHT_GRAY.g / 255.0f, LIGHT_GRAY.b / 255.0f});
+            ts.setCrop_legacy(mChild, Rect(0, 0, 10, 10));
+        }
+
+        sFakeComposer->runVSyncAndWait();
+        mBaseFrame.push_back(makeSimpleRect(64, 64, 64 + 10, 64 + 10));
+        mBaseFrame[CHILD_LAYER].mSourceCrop = hwc_frect_t{0.0f, 0.0f, 0.0f, 0.0f};
+        mBaseFrame[CHILD_LAYER].mSwapCount = 0;
+        ASSERT_EQ(2, sFakeComposer->getFrameCount());
+        ASSERT_TRUE(framesAreSame(mBaseFrame, sFakeComposer->getLatestFrame()));
+    }
+};
+
+TEST_F(ChildColorLayerTest, LayerAlpha) {
+    {
+        TransactionScope ts(*sFakeComposer);
+        ts.show(mChild);
+        ts.setPosition(mChild, 0, 0);
+        ts.setPosition(mFGSurfaceControl, 0, 0);
+        ts.setAlpha(mChild, 0.5);
+    }
+
+    auto referenceFrame = mBaseFrame;
+    referenceFrame[FG_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 64, 64};
+    referenceFrame[CHILD_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 10, 10};
+    referenceFrame[CHILD_LAYER].mPlaneAlpha = 0.5f;
+    EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
+
+    {
+        TransactionScope ts(*sFakeComposer);
+        ts.setAlpha(mFGSurfaceControl, 0.5);
+    }
+
+    auto referenceFrame2 = referenceFrame;
+    referenceFrame2[FG_LAYER].mPlaneAlpha = 0.5f;
+    referenceFrame2[CHILD_LAYER].mPlaneAlpha = 0.25f;
+    EXPECT_TRUE(framesAreSame(referenceFrame2, sFakeComposer->getLatestFrame()));
+}
+
+TEST_F(ChildColorLayerTest, LayerZeroAlpha) {
+    {
+        TransactionScope ts(*sFakeComposer);
+        ts.show(mChild);
+        ts.setPosition(mChild, 0, 0);
+        ts.setPosition(mFGSurfaceControl, 0, 0);
+        ts.setAlpha(mChild, 0.5);
+    }
+
+    auto referenceFrame = mBaseFrame;
+    referenceFrame[FG_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 64, 64};
+    referenceFrame[CHILD_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 10, 10};
+    referenceFrame[CHILD_LAYER].mPlaneAlpha = 0.5f;
+    EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
+
+    {
+        TransactionScope ts(*sFakeComposer);
+        ts.setAlpha(mFGSurfaceControl, 0.0f);
+    }
+
+    std::vector<RenderState> refFrame(1);
+    refFrame[BG_LAYER] = mBaseFrame[BG_LAYER];
+
+    EXPECT_TRUE(framesAreSame(refFrame, sFakeComposer->getLatestFrame()));
+}
+
 class LatchingTest : public TransactionTest {
 protected:
     void lockAndFillFGBuffer() { fillSurfaceRGBA8(mFGSurfaceControl, RED, false); }
@@ -1236,8 +1311,7 @@ protected:
         TransactionScope ts(*sFakeComposer);
         ts.setSize(mFGSurfaceControl, 64, 64);
         ts.setPosition(mFGSurfaceControl, 64, 64);
-        ts.setCrop(mFGSurfaceControl, Rect(0, 0, 64, 64));
-        ts.setFinalCrop(mFGSurfaceControl, Rect(0, 0, -1, -1));
+        ts.setCrop_legacy(mFGSurfaceControl, Rect(0, 0, 64, 64));
     }
 };
 
@@ -1281,7 +1355,7 @@ TEST_F(LatchingTest, CropLatching) {
     {
         TransactionScope ts(*sFakeComposer);
         ts.setSize(mFGSurfaceControl, 128, 128);
-        ts.setCrop(mFGSurfaceControl, Rect(0, 0, 63, 63));
+        ts.setCrop_legacy(mFGSurfaceControl, Rect(0, 0, 63, 63));
     }
 
     auto referenceFrame1 = mBaseFrame;
@@ -1295,7 +1369,7 @@ TEST_F(LatchingTest, CropLatching) {
         TransactionScope ts(*sFakeComposer);
         ts.setSize(mFGSurfaceControl, 128, 128);
         ts.setGeometryAppliesWithResize(mFGSurfaceControl);
-        ts.setCrop(mFGSurfaceControl, Rect(0, 0, 63, 63));
+        ts.setCrop_legacy(mFGSurfaceControl, Rect(0, 0, 63, 63));
     }
     EXPECT_TRUE(framesAreSame(mBaseFrame, sFakeComposer->getLatestFrame()));
 
@@ -1306,111 +1380,6 @@ TEST_F(LatchingTest, CropLatching) {
     referenceFrame2[FG_LAYER].mSourceCrop = hwc_frect_t{0.f, 0.f, 63.f, 63.f};
     referenceFrame2[FG_LAYER].mSwapCount++;
     EXPECT_TRUE(framesAreSame(referenceFrame2, sFakeComposer->getLatestFrame()));
-}
-
-TEST_F(LatchingTest, FinalCropLatching) {
-    // Normally the crop applies immediately even while a resize is pending.
-    {
-        TransactionScope ts(*sFakeComposer);
-        ts.setSize(mFGSurfaceControl, 128, 128);
-        ts.setFinalCrop(mFGSurfaceControl, Rect(64, 64, 127, 127));
-    }
-
-    auto referenceFrame1 = mBaseFrame;
-    referenceFrame1[FG_LAYER].mDisplayFrame = hwc_rect_t{64, 64, 127, 127};
-    referenceFrame1[FG_LAYER].mSourceCrop =
-            hwc_frect_t{0.f, 0.f, static_cast<float>(127 - 64), static_cast<float>(127 - 64)};
-    EXPECT_TRUE(framesAreSame(referenceFrame1, sFakeComposer->getLatestFrame()));
-
-    restoreInitialState();
-
-    {
-        TransactionScope ts(*sFakeComposer);
-        ts.setSize(mFGSurfaceControl, 128, 128);
-        ts.setGeometryAppliesWithResize(mFGSurfaceControl);
-        ts.setFinalCrop(mFGSurfaceControl, Rect(64, 64, 127, 127));
-    }
-    EXPECT_TRUE(framesAreSame(mBaseFrame, sFakeComposer->getLatestFrame()));
-
-    completeFGResize();
-
-    auto referenceFrame2 = mBaseFrame;
-    referenceFrame2[FG_LAYER].mDisplayFrame = hwc_rect_t{64, 64, 127, 127};
-    referenceFrame2[FG_LAYER].mSourceCrop =
-            hwc_frect_t{0.f, 0.f, static_cast<float>(127 - 64), static_cast<float>(127 - 64)};
-    referenceFrame2[FG_LAYER].mSwapCount++;
-    EXPECT_TRUE(framesAreSame(referenceFrame2, sFakeComposer->getLatestFrame()));
-}
-
-// In this test we ensure that setGeometryAppliesWithResize actually demands
-// a buffer of the new size, and not just any size.
-TEST_F(LatchingTest, FinalCropLatchingBufferOldSize) {
-    // Normally the crop applies immediately even while a resize is pending.
-    {
-        TransactionScope ts(*sFakeComposer);
-        ts.setSize(mFGSurfaceControl, 128, 128);
-        ts.setFinalCrop(mFGSurfaceControl, Rect(64, 64, 127, 127));
-    }
-
-    auto referenceFrame1 = mBaseFrame;
-    referenceFrame1[FG_LAYER].mDisplayFrame = hwc_rect_t{64, 64, 127, 127};
-    referenceFrame1[FG_LAYER].mSourceCrop =
-            hwc_frect_t{0.f, 0.f, static_cast<float>(127 - 64), static_cast<float>(127 - 64)};
-    EXPECT_TRUE(framesAreSame(referenceFrame1, sFakeComposer->getLatestFrame()));
-
-    restoreInitialState();
-
-    // In order to prepare to submit a buffer at the wrong size, we acquire it prior to
-    // initiating the resize.
-    lockAndFillFGBuffer();
-
-    {
-        TransactionScope ts(*sFakeComposer);
-        ts.setSize(mFGSurfaceControl, 128, 128);
-        ts.setGeometryAppliesWithResize(mFGSurfaceControl);
-        ts.setFinalCrop(mFGSurfaceControl, Rect(64, 64, 127, 127));
-    }
-    EXPECT_TRUE(framesAreSame(mBaseFrame, sFakeComposer->getLatestFrame()));
-
-    // We now submit our old buffer, at the old size, and ensure it doesn't
-    // trigger geometry latching.
-    unlockFGBuffer();
-
-    auto referenceFrame2 = mBaseFrame;
-    referenceFrame2[FG_LAYER].mSwapCount++;
-    EXPECT_TRUE(framesAreSame(referenceFrame2, sFakeComposer->getLatestFrame()));
-
-    completeFGResize();
-    auto referenceFrame3 = referenceFrame2;
-    referenceFrame3[FG_LAYER].mDisplayFrame = hwc_rect_t{64, 64, 127, 127};
-    referenceFrame3[FG_LAYER].mSourceCrop =
-            hwc_frect_t{0.f, 0.f, static_cast<float>(127 - 64), static_cast<float>(127 - 64)};
-    referenceFrame3[FG_LAYER].mSwapCount++;
-    EXPECT_TRUE(framesAreSame(referenceFrame3, sFakeComposer->getLatestFrame()));
-}
-
-TEST_F(LatchingTest, FinalCropLatchingRegressionForb37531386) {
-    // In this scenario, we attempt to set the final crop a second time while the resize
-    // is still pending, and ensure we are successful. Success meaning the second crop
-    // is the one which eventually latches and not the first.
-    {
-        TransactionScope ts(*sFakeComposer);
-        ts.setSize(mFGSurfaceControl, 128, 128);
-        ts.setGeometryAppliesWithResize(mFGSurfaceControl);
-        ts.setFinalCrop(mFGSurfaceControl, Rect(64, 64, 127, 127));
-    }
-
-    {
-        TransactionScope ts(*sFakeComposer);
-        ts.setFinalCrop(mFGSurfaceControl, Rect(0, 0, -1, -1));
-    }
-    EXPECT_TRUE(framesAreSame(mBaseFrame, sFakeComposer->getLatestFrame()));
-
-    completeFGResize();
-
-    auto referenceFrame = mBaseFrame;
-    referenceFrame[FG_LAYER].mSwapCount++;
-    EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
 }
 
 } // namespace

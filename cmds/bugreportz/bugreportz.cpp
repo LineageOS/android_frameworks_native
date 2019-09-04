@@ -55,7 +55,7 @@ int bugreportz(int s, bool show_progress) {
                 errno = ETIMEDOUT;
             }
             printf("FAIL:Bugreport read terminated abnormally (%s)\n", strerror(errno));
-            break;
+            return EXIT_FAILURE;
         }
 
         // Writes line by line.
@@ -71,8 +71,5 @@ int bugreportz(int s, bool show_progress) {
     // Process final line, in case it didn't finish with newline
     write_line(line, show_progress);
 
-    if (close(s) == -1) {
-        fprintf(stderr, "WARNING: error closing socket: %s\n", strerror(errno));
-    }
     return EXIT_SUCCESS;
 }

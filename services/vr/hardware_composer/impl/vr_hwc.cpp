@@ -16,9 +16,11 @@
 #include "impl/vr_hwc.h"
 
 #include "android-base/stringprintf.h"
+#include <binder/IServiceManager.h>
 #include <cutils/properties.h>
 #include <private/dvr/display_client.h>
 #include <ui/Fence.h>
+#include <utils/Trace.h>
 
 #include <mutex>
 
@@ -244,29 +246,38 @@ void HwcDisplay::dumpDebugInfo(std::string* result) const {
 ////////////////////////////////////////////////////////////////////////////////
 // VrHwcClient
 
-VrHwc::VrHwc() {}
+VrHwc::VrHwc() {
+  vsync_callback_ = new VsyncCallback;
+}
 
-VrHwc::~VrHwc() {}
+VrHwc::~VrHwc() {
+  vsync_callback_->SetEventCallback(nullptr);
+}
 
 bool VrHwc::hasCapability(hwc2_capability_t /* capability */) { return false; }
 
 void VrHwc::registerEventCallback(EventCallback* callback) {
-  {
-    std::lock_guard<std::mutex> guard(mutex_);
-    event_callback_ = callback;
-    int32_t width, height;
-    GetPrimaryDisplaySize(&width, &height);
-    // Create the primary display late to avoid initialization issues between
-    // VR HWC and SurfaceFlinger.
-    displays_[kDefaultDisplayId].reset(new HwcDisplay(width, height));
-  }
+  std::unique_lock<std::mutex> lock(mutex_);
+  event_callback_ = callback;
+  int32_t width, height;
+  GetPrimaryDisplaySize(&width, &height);
+  // Create the primary display late to avoid initialization issues between
+  // VR HWC and SurfaceFlinger.
+  displays_[kDefaultDisplayId].reset(new HwcDisplay(width, height));
+
+  // Surface flinger will make calls back into vr_hwc when it receives the
+  // onHotplug() call, so it's important to release mutex_ here.
+  lock.unlock();
   event_callback_->onHotplug(kDefaultDisplayId,
                              IComposerCallback::Connection::CONNECTED);
+  lock.lock();
+  UpdateVsyncCallbackEnabledLocked();
 }
 
 void VrHwc::unregisterEventCallback() {
   std::lock_guard<std::mutex> guard(mutex_);
   event_callback_ = nullptr;
+  UpdateVsyncCallbackEnabledLocked();
 }
 
 uint32_t VrHwc::getMaxVirtualDisplayCount() { return 1; }
@@ -321,10 +332,14 @@ Error VrHwc::getActiveConfig(Display display, Config* outConfig) {
   return Error::NONE;
 }
 
-Error VrHwc::getClientTargetSupport(Display /* display */, uint32_t /* width */,
+Error VrHwc::getClientTargetSupport(Display display, uint32_t /* width */,
                                     uint32_t /* height */,
                                     PixelFormat /* format */,
                                     Dataspace /* dataspace */) {
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (!FindDisplay(display))
+    return Error::BAD_DISPLAY;
+
   return Error::NONE;
 }
 
@@ -455,15 +470,36 @@ Error VrHwc::setColorMode(Display display, ColorMode mode) {
   if (!display_ptr)
     return Error::BAD_DISPLAY;
 
+  if (mode < ColorMode::NATIVE || mode > ColorMode::DISPLAY_P3)
+    return Error::BAD_PARAMETER;
+
   display_ptr->set_color_mode(mode);
   return Error::NONE;
 }
 
 Error VrHwc::setPowerMode(Display display, IComposerClient::PowerMode mode) {
+  bool dozeSupported = false;
+
+  Error dozeSupportError = getDozeSupport(display, &dozeSupported);
+
+  if (dozeSupportError != Error::NONE)
+    return dozeSupportError;
+
   std::lock_guard<std::mutex> guard(mutex_);
   auto display_ptr = FindDisplay(display);
   if (!display_ptr)
     return Error::BAD_DISPLAY;
+
+  if (mode < IComposerClient::PowerMode::OFF ||
+      mode > IComposerClient::PowerMode::DOZE_SUSPEND) {
+    return Error::BAD_PARAMETER;
+  }
+
+  if (!dozeSupported &&
+      (mode == IComposerClient::PowerMode::DOZE ||
+       mode == IComposerClient::PowerMode::DOZE_SUSPEND)) {
+    return Error::UNSUPPORTED;
+  }
 
   display_ptr->set_power_mode(mode);
   return Error::NONE;
@@ -475,8 +511,45 @@ Error VrHwc::setVsyncEnabled(Display display, IComposerClient::Vsync enabled) {
   if (!display_ptr)
     return Error::BAD_DISPLAY;
 
-  display_ptr->set_vsync_enabled(enabled);
-  return Error::NONE;
+  if (enabled != IComposerClient::Vsync::ENABLE &&
+      enabled != IComposerClient::Vsync::DISABLE) {
+    return Error::BAD_PARAMETER;
+  }
+
+  Error set_vsync_result = Error::NONE;
+  if (display == kDefaultDisplayId) {
+    sp<IVsyncService> vsync_service = interface_cast<IVsyncService>(
+        defaultServiceManager()->getService(
+            String16(IVsyncService::GetServiceName())));
+    if (vsync_service == nullptr) {
+      ALOGE("Failed to get vsync service");
+      return Error::NO_RESOURCES;
+    }
+
+    if (enabled == IComposerClient::Vsync::ENABLE) {
+      ALOGI("Enable vsync");
+      display_ptr->set_vsync_enabled(true);
+      status_t result = vsync_service->registerCallback(vsync_callback_);
+      if (result != OK) {
+        ALOGE("%s service registerCallback() failed: %s (%d)",
+            IVsyncService::GetServiceName(), strerror(-result), result);
+        set_vsync_result = Error::NO_RESOURCES;
+      }
+    } else if (enabled == IComposerClient::Vsync::DISABLE) {
+      ALOGI("Disable vsync");
+      display_ptr->set_vsync_enabled(false);
+      status_t result = vsync_service->unregisterCallback(vsync_callback_);
+      if (result != OK) {
+        ALOGE("%s service unregisterCallback() failed: %s (%d)",
+            IVsyncService::GetServiceName(), strerror(-result), result);
+        set_vsync_result = Error::NO_RESOURCES;
+      }
+    }
+
+    UpdateVsyncCallbackEnabledLocked();
+  }
+
+  return set_vsync_result;
 }
 
 Error VrHwc::setColorTransform(Display display, const float* matrix,
@@ -559,7 +632,8 @@ Error VrHwc::presentDisplay(Display display, int32_t* outPresentFence,
   frame.display_height = display_ptr->height();
   frame.active_config = display_ptr->active_config();
   frame.power_mode = display_ptr->power_mode();
-  frame.vsync_enabled = display_ptr->vsync_enabled();
+  frame.vsync_enabled = display_ptr->vsync_enabled() ?
+      IComposerClient::Vsync::ENABLE : IComposerClient::Vsync::DISABLE;
   frame.color_transform_hint = display_ptr->color_transform_hint();
   frame.color_mode = display_ptr->color_mode();
   memcpy(frame.color_transform, display_ptr->color_transform(),
@@ -911,6 +985,15 @@ HwcDisplay* VrHwc::FindDisplay(Display display) {
   return iter == displays_.end() ? nullptr : iter->second.get();
 }
 
+void VrHwc::UpdateVsyncCallbackEnabledLocked() {
+  auto primary_display = FindDisplay(kDefaultDisplayId);
+  LOG_ALWAYS_FATAL_IF(event_callback_ != nullptr && primary_display == nullptr,
+      "Should have created the primary display by now");
+  bool send_vsync =
+      event_callback_ != nullptr && primary_display->vsync_enabled();
+  vsync_callback_->SetEventCallback(send_vsync ? event_callback_ : nullptr);
+}
+
 void HwcLayer::dumpDebugInfo(std::string* result) const {
   if (!result) {
     return;
@@ -926,6 +1009,19 @@ void HwcLayer::dumpDebugInfo(std::string* result) const {
   *result += StringPrintf("Layer buffer metadata: width: %d, height: %d, stride: %d, layerCount: %d\
       , pixelFormat: %d\n", buffer_metadata.width, buffer_metadata.height, buffer_metadata.stride,
       buffer_metadata.layerCount, buffer_metadata.format);
+}
+
+status_t VrHwc::VsyncCallback::onVsync(int64_t vsync_timestamp) {
+  ATRACE_NAME("vr_hwc onVsync");
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (callback_ != nullptr)
+    callback_->onVsync(kDefaultDisplayId, vsync_timestamp);
+  return OK;
+}
+
+void VrHwc::VsyncCallback::SetEventCallback(EventCallback* callback) {
+  std::lock_guard<std::mutex> guard(mutex_);
+  callback_ = callback;
 }
 
 }  // namespace dvr

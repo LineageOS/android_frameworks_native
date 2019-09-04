@@ -26,22 +26,30 @@ namespace SensorServiceUtil {
 
 namespace {
     constexpr size_t LOG_SIZE = 10;
+    constexpr size_t LOG_SIZE_MED = 30;  // debugging for slower sensors
     constexpr size_t LOG_SIZE_LARGE = 50;  // larger samples for debugging
 }// unnamed namespace
 
 RecentEventLogger::RecentEventLogger(int sensorType) :
         mSensorType(sensorType), mEventSize(eventSizeBySensorType(mSensorType)),
-        mRecentEvents(logSizeBySensorType(sensorType)), mMaskData(false) {
+        mRecentEvents(logSizeBySensorType(sensorType)), mMaskData(false),
+        mIsLastEventCurrent(false) {
     // blank
 }
 
 void RecentEventLogger::addEvent(const sensors_event_t& event) {
     std::lock_guard<std::mutex> lk(mLock);
     mRecentEvents.emplace(event);
+    mIsLastEventCurrent = true;
 }
 
 bool RecentEventLogger::isEmpty() const {
     return mRecentEvents.size() == 0;
+}
+
+void RecentEventLogger::setLastEventStale() {
+    std::lock_guard<std::mutex> lk(mLock);
+    mIsLastEventCurrent = false;
 }
 
 std::string RecentEventLogger::dump() const {
@@ -84,10 +92,10 @@ void RecentEventLogger::setFormat(std::string format) {
     }
 }
 
-bool RecentEventLogger::populateLastEvent(sensors_event_t *event) const {
+bool RecentEventLogger::populateLastEventIfCurrent(sensors_event_t *event) const {
     std::lock_guard<std::mutex> lk(mLock);
 
-    if (mRecentEvents.size()) {
+    if (mIsLastEventCurrent && mRecentEvents.size()) {
         // Index 0 contains the latest event emplace()'ed
         *event = mRecentEvents[0].mEvent;
         return true;
@@ -98,10 +106,16 @@ bool RecentEventLogger::populateLastEvent(sensors_event_t *event) const {
 
 
 size_t RecentEventLogger::logSizeBySensorType(int sensorType) {
-    return (sensorType == SENSOR_TYPE_STEP_COUNTER ||
-            sensorType == SENSOR_TYPE_SIGNIFICANT_MOTION ||
-            sensorType == SENSOR_TYPE_ACCELEROMETER ||
-            sensorType == SENSOR_TYPE_LIGHT) ? LOG_SIZE_LARGE : LOG_SIZE;
+    if (sensorType == SENSOR_TYPE_STEP_COUNTER ||
+        sensorType == SENSOR_TYPE_SIGNIFICANT_MOTION ||
+        sensorType == SENSOR_TYPE_ACCELEROMETER ||
+        sensorType == SENSOR_TYPE_LIGHT) {
+        return LOG_SIZE_LARGE;
+    }
+    if (sensorType == SENSOR_TYPE_PROXIMITY) {
+        return LOG_SIZE_MED;
+    }
+    return LOG_SIZE;
 }
 
 RecentEventLogger::SensorEventLog::SensorEventLog(const sensors_event_t& e) : mEvent(e) {

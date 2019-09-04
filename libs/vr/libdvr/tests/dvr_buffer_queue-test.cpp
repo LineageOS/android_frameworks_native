@@ -62,7 +62,7 @@ class DvrBufferQueueTest : public DvrApiTest {
              buffer_removed_count_);
   }
 
-  DvrWriteBufferQueue* write_queue_{nullptr};
+  DvrWriteBufferQueue* write_queue_ = nullptr;
   int buffer_available_count_{0};
   int buffer_removed_count_{0};
 };

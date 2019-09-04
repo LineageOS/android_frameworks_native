@@ -45,7 +45,7 @@ VrComposerClient::createCommandEngine() {
 }
 
 VrComposerClient::VrCommandEngine::VrCommandEngine(VrComposerClient& client)
-    : ComposerCommandEngine(client.mHal, client.mResources.get()), mVrClient(client),
+    : ComposerCommandEngine(client.mHal, client.mResources.get()),
       mVrHal(client.mVrHal) {}
 
 VrComposerClient::VrCommandEngine::~VrCommandEngine() {}

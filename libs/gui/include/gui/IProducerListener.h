@@ -17,8 +17,10 @@
 #ifndef ANDROID_GUI_IPRODUCERLISTENER_H
 #define ANDROID_GUI_IPRODUCERLISTENER_H
 
+#include <android/hardware/graphics/bufferqueue/1.0/IProducerListener.h>
+#include <android/hardware/graphics/bufferqueue/2.0/IProducerListener.h>
 #include <binder/IInterface.h>
-
+#include <hidl/HybridInterface.h>
 #include <utils/RefBase.h>
 
 namespace android {
@@ -47,7 +49,14 @@ public:
 class IProducerListener : public ProducerListener, public IInterface
 {
 public:
-    DECLARE_META_INTERFACE(ProducerListener)
+    using HProducerListener1 =
+            ::android::hardware::graphics::bufferqueue::V1_0::IProducerListener;
+    using HProducerListener2 =
+            ::android::hardware::graphics::bufferqueue::V2_0::IProducerListener;
+    DECLARE_HYBRID_META_INTERFACE(
+            ProducerListener,
+            HProducerListener1,
+            HProducerListener2)
 };
 
 class BnProducerListener : public BnInterface<IProducerListener>

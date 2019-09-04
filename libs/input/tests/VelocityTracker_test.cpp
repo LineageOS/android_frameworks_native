@@ -29,6 +29,8 @@ using android::base::StringPrintf;
 
 namespace android {
 
+constexpr int32_t DISPLAY_ID = ADISPLAY_ID_DEFAULT; // default display id
+
 constexpr int32_t DEFAULT_POINTER_ID = 0; // pointer ID used for manually defined tests
 
 // velocity must be in the range (1-tol)*EV <= velocity <= (1+tol)*EV
@@ -174,9 +176,10 @@ static std::vector<MotionEvent> createMotionEventStream(
         EXPECT_EQ(pointerIndex, pointerCount);
 
         MotionEvent event;
-        event.initialize(0 /*deviceId*/, AINPUT_SOURCE_TOUCHSCREEN,
+        event.initialize(0 /*deviceId*/, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID,
                 action, 0 /*actionButton*/, 0 /*flags*/,
                 AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0 /*buttonState*/,
+                MotionClassification::NONE,
                 0 /*xOffset*/, 0 /*yOffset*/, 0 /*xPrecision*/, 0 /*yPrecision*/,
                 0 /*downTime*/, entry.eventTime.count(), pointerCount, properties, coords);
 

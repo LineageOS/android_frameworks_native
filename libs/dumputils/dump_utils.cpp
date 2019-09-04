@@ -38,6 +38,7 @@ static const char* native_processes_to_dump[] = {
         "/system/bin/surfaceflinger",
         "/system/bin/vehicle_network_service",
         "/vendor/bin/hw/android.hardware.media.omx@1.0-service", // media.codec
+        "/apex/com.android.media.swcodec/bin/mediaswcodec", // media.swcodec
         NULL,
 };
 
@@ -48,11 +49,16 @@ static const char* hal_interfaces_to_dump[] {
         "android.hardware.bluetooth@1.0::IBluetoothHci",
         "android.hardware.camera.provider@2.4::ICameraProvider",
         "android.hardware.drm@1.0::IDrmFactory",
+        "android.hardware.graphics.allocator@2.0::IAllocator",
         "android.hardware.graphics.composer@2.1::IComposer",
         "android.hardware.health@2.0::IHealth",
+        "android.hardware.media.c2@1.0::IComponentStore",
         "android.hardware.media.omx@1.0::IOmx",
         "android.hardware.media.omx@1.0::IOmxStore",
+        "android.hardware.power@1.3::IPower",
+        "android.hardware.power.stats@1.0::IPowerStats",
         "android.hardware.sensors@1.0::ISensors",
+        "android.hardware.thermal@2.0::IThermal",
         "android.hardware.vr@1.0::IVr",
         NULL,
 };
@@ -105,13 +111,15 @@ std::set<int> get_interesting_hal_pids() {
 }
 
 bool IsZygote(int pid) {
-    static const std::string kZygotePrefix = "zygote";
-
     std::string cmdline;
     if (!android::base::ReadFileToString(android::base::StringPrintf("/proc/%d/cmdline", pid),
                                          &cmdline)) {
         return true;
     }
 
-    return (cmdline.find(kZygotePrefix) == 0);
+    // cmdline has embedded nulls; only consider argv[0].
+    cmdline = std::string(cmdline.c_str());
+
+    return cmdline == "zygote" || cmdline == "zygote64" || cmdline == "usap32" ||
+            cmdline == "usap64";
 }

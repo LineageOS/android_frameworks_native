@@ -19,7 +19,14 @@ cc_library_headers {
     vendor_available: true,
 }
 
+cc_library_headers {
+    name: "libdvr_private_headers",
+    export_include_dirs: ["."],
+    vendor_available: false,
+}
+
 cflags = [
+    "-DDVR_TRACKING_IMPLEMENTED=0",
     "-DLOG_TAG=\"libdvr\"",
     "-DTRACE=0",
     "-Wall",
@@ -36,7 +43,7 @@ srcs = [
     "dvr_performance.cpp",
     "dvr_pose.cpp",
     "dvr_surface.cpp",
-    "dvr_vsync.cpp",
+    "dvr_tracking.cpp",
 ]
 
 static_libs = [
@@ -66,7 +73,7 @@ shared_libs = [
 ]
 
 cc_library_shared {
-    name: "libdvr",
+    name: "libdvr.google",
     owner: "google",
     cflags: cflags,
     header_libs: ["libdvr_headers"],
@@ -81,7 +88,7 @@ cc_library_shared {
 // restricting function access in the shared lib makes it inconvenient to use in
 // test code.
 cc_library_static {
-    name: "libdvr_static",
+    name: "libdvr_static.google",
     owner: "google",
     cflags: cflags,
     header_libs: ["libdvr_headers"],

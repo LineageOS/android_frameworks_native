@@ -22,8 +22,8 @@
 #include <dvr/dvr_vsync.h>
 #include <pdx/file_handle.h>
 #include <pdx/rpc/variant.h>
-#include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/shared_buffer_helpers.h>
+#include <private/dvr/vsync_service.h>
 
 #include "acquired_buffer.h"
 #include "display_surface.h"
@@ -300,8 +300,6 @@ class Layer {
 // will access the state and whether it needs to be synchronized.
 class HardwareComposer {
  public:
-  // Type for vsync callback.
-  using VSyncCallback = std::function<void(int64_t, int64_t, uint32_t)>;
   using RequestDisplayCallback = std::function<void(bool)>;
 
   HardwareComposer();
@@ -324,8 +322,6 @@ class HardwareComposer {
   void OnBootFinished();
 
   std::string Dump();
-
-  void SetVSyncCallback(VSyncCallback callback);
 
   const DisplayParams& GetPrimaryDisplayParams() const {
     return primary_display_;
@@ -350,6 +346,18 @@ class HardwareComposer {
   // on/off. Returns true on success, false on failure.
   bool EnableDisplay(const DisplayParams& display, bool enabled);
 
+  class VsyncService : public BnVsyncService {
+   public:
+    status_t registerCallback(const sp<IVsyncCallback> callback) override;
+    status_t unregisterCallback(const sp<IVsyncCallback> callback) override;
+    void OnVsync(int64_t vsync_timestamp);
+   private:
+    std::vector<sp<IVsyncCallback>>::const_iterator FindCallback(
+        const sp<IVsyncCallback>& callback) const;
+    std::mutex mutex_;
+    std::vector<sp<IVsyncCallback>> callbacks_;
+  };
+
   class ComposerCallback : public Hwc2::IComposerCallback {
    public:
     ComposerCallback() = default;
@@ -360,6 +368,7 @@ class HardwareComposer {
                                    int64_t timestamp) override;
 
     bool GotFirstHotplug() { return got_first_hotplug_; }
+    void SetVsyncService(const sp<VsyncService>& vsync_service);
 
     struct Displays {
       hwc2_display_t primary_display = 0;
@@ -385,6 +394,7 @@ class HardwareComposer {
     DisplayInfo primary_display_;
     std::optional<DisplayInfo> external_display_;
     bool external_display_was_hotplugged_ = false;
+    sp<VsyncService> vsync_service_;
   };
 
   HWC::Error Validate(hwc2_display_t display);
@@ -484,9 +494,6 @@ class HardwareComposer {
   // vector must be sorted by surface_id in ascending order.
   std::vector<Layer> layers_;
 
-  // Handler to hook vsync events outside of this class.
-  VSyncCallback vsync_callback_;
-
   // The layer posting thread. This thread wakes up a short time before vsync to
   // hand buffers to hardware composer.
   std::thread post_thread_;
@@ -533,6 +540,9 @@ class HardwareComposer {
   // Config buffer for reading from the post thread.
   DvrConfig post_thread_config_;
   std::mutex shared_config_mutex_;
+
+  bool vsync_trace_parity_ = false;
+  sp<VsyncService> vsync_service_;
 
   static constexpr int kPostThreadInterrupted = 1;
 

@@ -18,6 +18,7 @@ cc_defaults {
         "dexopt.cpp",
         "globals.cpp",
         "utils.cpp",
+        "utils_default.cpp",
         "view_compiler.cpp",
         ":installd_aidl",
     ],
@@ -127,6 +128,10 @@ cc_binary {
             ],
         },
     },
+
+    // Needs to be wherever installd is as it's execed by
+    // installd.
+    required: [ "migrate_legacy_obb_data.sh" ],
 }
 
 // OTA chroot tool
@@ -202,6 +207,7 @@ cc_binary {
         "otapreopt.cpp",
         "otapreopt_utils.cpp",
         "utils.cpp",
+        "utils_default.cpp",
         "view_compiler.cpp",
     ],
 
@@ -244,4 +250,10 @@ sh_binary {
         "otapreopt_chroot",
         "otapreopt_slot",
     ],
+}
+
+// Script to migrate legacy obb data.
+sh_binary {
+    name: "migrate_legacy_obb_data.sh",
+    src: "migrate_legacy_obb_data.sh"
 }

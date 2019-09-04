@@ -2,18 +2,18 @@
 
 #include <dvr/dvr_buffer.h>
 #include <pdx/rpc/variant.h>
-#include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/buffer_hub_queue_client.h>
+#include <private/dvr/consumer_buffer.h>
 #include <private/dvr/display_client.h>
 #include <private/dvr/display_manager_client.h>
 
 #include "dvr_internal.h"
 #include "dvr_buffer_queue_internal.h"
 
-using android::dvr::BufferConsumer;
+using android::dvr::ConsumerBuffer;
 using android::dvr::display::DisplayManagerClient;
-using android::dvr::display::SurfaceAttributes;
 using android::dvr::display::SurfaceAttribute;
+using android::dvr::display::SurfaceAttributes;
 using android::dvr::display::SurfaceState;
 using android::pdx::rpc::EmptyVariant;
 

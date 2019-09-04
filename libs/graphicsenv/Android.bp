@@ -16,16 +16,20 @@ cc_library_shared {
     name: "libgraphicsenv",
 
     srcs: [
+        "GpuStatsInfo.cpp",
         "GraphicsEnv.cpp",
+        "IGpuService.cpp"
     ],
 
     cflags: ["-Wall", "-Werror"],
 
     shared_libs: [
         "libbase",
+        "libbinder",
         "libcutils",
         "libdl_android",
         "liblog",
+        "libutils",
     ],
 
     export_include_dirs: ["include"],

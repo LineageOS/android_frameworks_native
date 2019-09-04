@@ -28,12 +28,12 @@ namespace Hwc2 {
 namespace mock {
 
 using android::hardware::graphics::common::V1_0::ColorTransform;
-using android::hardware::graphics::common::V1_0::Hdr;
 using android::hardware::graphics::common::V1_0::Transform;
-using android::hardware::graphics::common::V1_1::ColorMode;
-using android::hardware::graphics::common::V1_1::Dataspace;
-using android::hardware::graphics::common::V1_1::PixelFormat;
 using android::hardware::graphics::common::V1_1::RenderIntent;
+using android::hardware::graphics::common::V1_2::ColorMode;
+using android::hardware::graphics::common::V1_2::Dataspace;
+using android::hardware::graphics::common::V1_2::Hdr;
+using android::hardware::graphics::common::V1_2::PixelFormat;
 
 using android::hardware::graphics::composer::V2_1::Config;
 using android::hardware::graphics::composer::V2_1::Display;
@@ -41,7 +41,7 @@ using android::hardware::graphics::composer::V2_1::Error;
 using android::hardware::graphics::composer::V2_1::IComposer;
 using android::hardware::graphics::composer::V2_1::IComposerCallback;
 using android::hardware::graphics::composer::V2_1::Layer;
-using android::hardware::graphics::composer::V2_2::IComposerClient;
+using android::hardware::graphics::composer::V2_3::IComposerClient;
 
 class Composer : public Hwc2::Composer {
 public:
@@ -74,9 +74,10 @@ public:
     MOCK_METHOD2(getDisplayType, Error(Display, IComposerClient::DisplayType*));
     MOCK_METHOD2(getDozeSupport, Error(Display, bool*));
     MOCK_METHOD5(getHdrCapabilities, Error(Display, std::vector<Hdr>*, float*, float*, float*));
-    MOCK_METHOD2(getPerFrameMetadataKeys,
-                 Error(Display, std::vector<IComposerClient::PerFrameMetadataKey>*));
+    MOCK_METHOD1(getPerFrameMetadataKeys,
+                 std::vector<IComposerClient::PerFrameMetadataKey>(Display));
     MOCK_METHOD2(getDataspaceSaturationMatrix, Error(Dataspace, mat4*));
+    MOCK_METHOD3(getDisplayIdentificationData, Error(Display, uint8_t*, std::vector<uint8_t>*));
     MOCK_METHOD3(getReleaseFences, Error(Display, std::vector<Layer>*, std::vector<int>*));
     MOCK_METHOD2(presentDisplay, Error(Display, int*));
     MOCK_METHOD2(setActiveConfig, Error(Display, Config));
@@ -111,6 +112,16 @@ public:
     MOCK_METHOD3(setLayerZOrder, Error(Display, Layer, uint32_t));
     MOCK_METHOD4(setLayerInfo, Error(Display, Layer, uint32_t, uint32_t));
     MOCK_METHOD3(getRenderIntents, Error(Display, ColorMode, std::vector<RenderIntent>*));
+    MOCK_METHOD3(setLayerColorTransform, Error(Display, Layer, const float*));
+    MOCK_METHOD4(getDisplayedContentSamplingAttributes,
+                 Error(Display, PixelFormat*, Dataspace*, uint8_t*));
+    MOCK_METHOD4(setDisplayContentSamplingEnabled, Error(Display, bool, uint8_t, uint64_t));
+    MOCK_METHOD4(getDisplayedContentSample,
+                 Error(Display, uint64_t, uint64_t, DisplayedFrameStats*));
+    MOCK_METHOD2(getDisplayCapabilities, Error(Display, std::vector<DisplayCapability>*));
+    MOCK_METHOD3(setLayerPerFrameMetadataBlobs,
+                 Error(Display, Layer, const std::vector<IComposerClient::PerFrameMetadataBlob>&));
+    MOCK_METHOD2(setDisplayBrightness, Error(Display, float));
 };
 
 } // namespace mock

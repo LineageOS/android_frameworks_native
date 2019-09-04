@@ -222,9 +222,9 @@ bool GLHelper::createNamedSurfaceTexture(GLuint name, uint32_t w, uint32_t h,
 }
 
 bool GLHelper::computeWindowScale(uint32_t w, uint32_t h, float* scale) {
-    sp<IBinder> dpy = mSurfaceComposerClient->getBuiltInDisplay(0);
+    const sp<IBinder> dpy = mSurfaceComposerClient->getInternalDisplayToken();
     if (dpy == nullptr) {
-        fprintf(stderr, "SurfaceComposer::getBuiltInDisplay failed.\n");
+        fprintf(stderr, "SurfaceComposer::getInternalDisplayToken failed.\n");
         return false;
     }
 

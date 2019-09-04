@@ -13,10 +13,11 @@
 // in these headers and their dependencies.
 #include <pdx/client.h>
 #include <pdx/status.h>
-#include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/buffer_hub_queue_parcelable.h>
 #include <private/dvr/bufferhub_rpc.h>
+#include <private/dvr/consumer_buffer.h>
 #include <private/dvr/epoll_file_descriptor.h>
+#include <private/dvr/producer_buffer.h>
 
 #if defined(__clang__)
 #pragma clang diagnostic pop
@@ -31,13 +32,13 @@ namespace dvr {
 
 class ConsumerQueue;
 
-// |BufferHubQueue| manages a queue of |BufferHubBuffer|s. Buffers are
+// |BufferHubQueue| manages a queue of |BufferHubBase|s. Buffers are
 // automatically re-requeued when released by the remote side.
 class BufferHubQueue : public pdx::Client {
  public:
   using BufferAvailableCallback = std::function<void()>;
   using BufferRemovedCallback =
-      std::function<void(const std::shared_ptr<BufferHubBuffer>&)>;
+      std::function<void(const std::shared_ptr<BufferHubBase>&)>;
 
   virtual ~BufferHubQueue() {}
 
@@ -57,10 +58,10 @@ class BufferHubQueue : public pdx::Client {
   uint32_t default_width() const { return default_width_; }
 
   // Returns the default buffer height of this buffer queue.
-  uint32_t default_height() const { return static_cast<uint32_t>(default_height_); }
+  uint32_t default_height() const { return default_height_; }
 
   // Returns the default buffer format of this buffer queue.
-  uint32_t default_format() const { return static_cast<uint32_t>(default_format_); }
+  uint32_t default_format() const { return default_format_; }
 
   // Creates a new consumer in handle form for immediate transport over RPC.
   pdx::Status<pdx::LocalChannelHandle> CreateConsumerQueueHandle(
@@ -93,7 +94,7 @@ class BufferHubQueue : public pdx::Client {
                                                       : -1;
   }
 
-  std::shared_ptr<BufferHubBuffer> GetBuffer(size_t slot) const {
+  std::shared_ptr<BufferHubBase> GetBuffer(size_t slot) const {
     return buffers_[slot];
   }
 
@@ -142,7 +143,7 @@ class BufferHubQueue : public pdx::Client {
 
   // Register a buffer for management by the queue. Used by subclasses to add a
   // buffer to internal bookkeeping.
-  pdx::Status<void> AddBuffer(const std::shared_ptr<BufferHubBuffer>& buffer,
+  pdx::Status<void> AddBuffer(const std::shared_ptr<BufferHubBase>& buffer,
                               size_t slot);
 
   // Called by ProducerQueue::RemoveBuffer and ConsumerQueue::RemoveBuffer only
@@ -158,8 +159,8 @@ class BufferHubQueue : public pdx::Client {
   // block. Specifying a timeout of -1 causes Dequeue() to block indefinitely,
   // while specifying a timeout equal to zero cause Dequeue() to return
   // immediately, even if no buffers are available.
-  pdx::Status<std::shared_ptr<BufferHubBuffer>> Dequeue(int timeout,
-                                                        size_t* slot);
+  pdx::Status<std::shared_ptr<BufferHubBase>> Dequeue(int timeout,
+                                                      size_t* slot);
 
   // Waits for buffers to become available and adds them to the available queue.
   bool WaitForBuffers(int timeout);
@@ -172,10 +173,10 @@ class BufferHubQueue : public pdx::Client {
   // per-buffer data.
   struct Entry {
     Entry() : slot(0) {}
-    Entry(const std::shared_ptr<BufferHubBuffer>& in_buffer, size_t in_slot,
+    Entry(const std::shared_ptr<BufferHubBase>& in_buffer, size_t in_slot,
           uint64_t in_index)
         : buffer(in_buffer), slot(in_slot), index(in_index) {}
-    Entry(const std::shared_ptr<BufferHubBuffer>& in_buffer,
+    Entry(const std::shared_ptr<BufferHubBase>& in_buffer,
           std::unique_ptr<uint8_t[]> in_metadata, pdx::LocalHandle in_fence,
           size_t in_slot)
         : buffer(in_buffer),
@@ -185,7 +186,7 @@ class BufferHubQueue : public pdx::Client {
     Entry(Entry&&) = default;
     Entry& operator=(Entry&&) = default;
 
-    std::shared_ptr<BufferHubBuffer> buffer;
+    std::shared_ptr<BufferHubBase> buffer;
     std::unique_ptr<uint8_t[]> metadata;
     pdx::LocalHandle fence;
     size_t slot;
@@ -207,6 +208,14 @@ class BufferHubQueue : public pdx::Client {
 
   // Size of the metadata that buffers in this queue cary.
   size_t user_metadata_size_{0};
+
+  // Buffers and related data that are available for dequeue.
+  std::priority_queue<Entry, std::vector<Entry>, EntryComparator>
+      available_buffers_;
+
+  // Slot of the buffers that are not available for normal dequeue. For example,
+  // the slot of posted or acquired buffers in the perspective of a producer.
+  std::vector<size_t> unavailable_buffers_slot_;
 
  private:
   void Initialize();
@@ -250,11 +259,7 @@ class BufferHubQueue : public pdx::Client {
   // Tracks the buffers belonging to this queue. Buffers are stored according to
   // "slot" in this vector. Each slot is a logical id of the buffer within this
   // queue regardless of its queue position or presence in the ring buffer.
-  std::array<std::shared_ptr<BufferHubBuffer>, kMaxQueueCapacity> buffers_;
-
-  // Buffers and related data that are available for dequeue.
-  std::priority_queue<Entry, std::vector<Entry>, EntryComparator>
-      available_buffers_;
+  std::array<std::shared_ptr<BufferHubBase>, kMaxQueueCapacity> buffers_;
 
   // Keeps track with how many buffers have been added into the queue.
   size_t capacity_{0};
@@ -302,12 +307,12 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
     return BASE::Create(std::move(handle));
   }
 
-  // Get a buffer producer. Note that the method doesn't check whether the
+  // Get a producer buffer. Note that the method doesn't check whether the
   // buffer slot has a valid buffer that has been allocated already. When no
   // buffer has been imported before it returns nullptr; otherwise it returns
-  // a shared pointer to a BufferProducer.
-  std::shared_ptr<BufferProducer> GetBuffer(size_t slot) const {
-    return std::static_pointer_cast<BufferProducer>(
+  // a shared pointer to a ProducerBuffer.
+  std::shared_ptr<ProducerBuffer> GetBuffer(size_t slot) const {
+    return std::static_pointer_cast<ProducerBuffer>(
         BufferHubQueue::GetBuffer(slot));
   }
 
@@ -328,8 +333,15 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
 
   // Add a producer buffer to populate the queue. Once added, a producer buffer
   // is available to use (i.e. in GAINED state).
-  pdx::Status<void> AddBuffer(const std::shared_ptr<BufferProducer>& buffer,
+  pdx::Status<void> AddBuffer(const std::shared_ptr<ProducerBuffer>& buffer,
                               size_t slot);
+
+  // Inserts a ProducerBuffer into the queue. On success, the method returns the
+  // |slot| number where the new buffer gets inserted. Note that the buffer
+  // being inserted should be in Gain'ed state prior to the call and it's
+  // considered as already Dequeued when the function returns.
+  pdx::Status<size_t> InsertBuffer(
+      const std::shared_ptr<ProducerBuffer>& buffer);
 
   // Remove producer buffer from the queue.
   pdx::Status<void> RemoveBuffer(size_t slot) override;
@@ -342,14 +354,33 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
   // Dequeue a producer buffer to write. The returned buffer in |Gain|'ed mode,
   // and caller should call Post() once it's done writing to release the buffer
   // to the consumer side.
-  pdx::Status<std::shared_ptr<BufferProducer>> Dequeue(
+  // @return a buffer in gained state, which was originally in released state.
+  pdx::Status<std::shared_ptr<ProducerBuffer>> Dequeue(
       int timeout, size_t* slot, pdx::LocalHandle* release_fence);
-  pdx::Status<std::shared_ptr<BufferProducer>> Dequeue(
+
+  // Dequeue a producer buffer to write. The returned buffer in |Gain|'ed mode,
+  // and caller should call Post() once it's done writing to release the buffer
+  // to the consumer side.
+  //
+  // @param timeout to dequeue a buffer.
+  // @param slot is the slot of the output ProducerBuffer.
+  // @param release_fence for gaining a buffer.
+  // @param out_meta metadata of the output buffer.
+  // @param gain_posted_buffer whether to gain posted buffer if no released
+  //     buffer is available to gain.
+  // @return a buffer in gained state, which was originally in released state if
+  //     gain_posted_buffer is false, or in posted/released state if
+  //     gain_posted_buffer is true.
+  // TODO(b/112007999): gain_posted_buffer true is only used to prevent
+  // libdvrtracking from starving when there are non-responding clients. This
+  // gain_posted_buffer param can be removed once libdvrtracking start to use
+  // the new AHardwareBuffer API.
+  pdx::Status<std::shared_ptr<ProducerBuffer>> Dequeue(
       int timeout, size_t* slot, DvrNativeBufferMetadata* out_meta,
-      pdx::LocalHandle* release_fence);
+      pdx::LocalHandle* release_fence, bool gain_posted_buffer = false);
 
   // Enqueues a producer buffer in the queue.
-  pdx::Status<void> Enqueue(const std::shared_ptr<BufferProducer>& buffer,
+  pdx::Status<void> Enqueue(const std::shared_ptr<ProducerBuffer>& buffer,
                             size_t slot, uint64_t index) {
     return BufferHubQueue::Enqueue({buffer, slot, index});
   }
@@ -367,16 +398,26 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
   // arguments as the constructors.
   explicit ProducerQueue(pdx::LocalChannelHandle handle);
   ProducerQueue(const ProducerQueueConfig& config, const UsagePolicy& usage);
+
+  // Dequeue a producer buffer to write. The returned buffer in |Gain|'ed mode,
+  // and caller should call Post() once it's done writing to release the buffer
+  // to the consumer side.
+  //
+  // @param slot the slot of the returned buffer.
+  // @return a buffer in gained state, which was originally in posted state or
+  //     released state.
+  pdx::Status<std::shared_ptr<ProducerBuffer>> DequeueUnacquiredBuffer(
+      size_t* slot);
 };
 
 class ConsumerQueue : public BufferHubQueue {
  public:
-  // Get a buffer consumer. Note that the method doesn't check whether the
+  // Get a consumer buffer. Note that the method doesn't check whether the
   // buffer slot has a valid buffer that has been imported already. When no
   // buffer has been imported before it returns nullptr; otherwise returns a
-  // shared pointer to a BufferConsumer.
-  std::shared_ptr<BufferConsumer> GetBuffer(size_t slot) const {
-    return std::static_pointer_cast<BufferConsumer>(
+  // shared pointer to a ConsumerBuffer.
+  std::shared_ptr<ConsumerBuffer> GetBuffer(size_t slot) const {
+    return std::static_pointer_cast<ConsumerBuffer>(
         BufferHubQueue::GetBuffer(slot));
   }
 
@@ -394,23 +435,23 @@ class ConsumerQueue : public BufferHubQueue {
   // Dequeue a consumer buffer to read. The returned buffer in |Acquired|'ed
   // mode, and caller should call Releasse() once it's done writing to release
   // the buffer to the producer side. |meta| is passed along from BufferHub,
-  // The user of BufferProducer is responsible with making sure that the
+  // The user of ProducerBuffer is responsible with making sure that the
   // Dequeue() is done with the corect metadata type and size with those used
   // when the buffer is orignally created.
   template <typename Meta>
-  pdx::Status<std::shared_ptr<BufferConsumer>> Dequeue(
+  pdx::Status<std::shared_ptr<ConsumerBuffer>> Dequeue(
       int timeout, size_t* slot, Meta* meta, pdx::LocalHandle* acquire_fence) {
     return Dequeue(timeout, slot, meta, sizeof(*meta), acquire_fence);
   }
-  pdx::Status<std::shared_ptr<BufferConsumer>> Dequeue(
+  pdx::Status<std::shared_ptr<ConsumerBuffer>> Dequeue(
       int timeout, size_t* slot, pdx::LocalHandle* acquire_fence) {
     return Dequeue(timeout, slot, nullptr, 0, acquire_fence);
   }
 
-  pdx::Status<std::shared_ptr<BufferConsumer>> Dequeue(
+  pdx::Status<std::shared_ptr<ConsumerBuffer>> Dequeue(
       int timeout, size_t* slot, void* meta, size_t user_metadata_size,
       pdx::LocalHandle* acquire_fence);
-  pdx::Status<std::shared_ptr<BufferConsumer>> Dequeue(
+  pdx::Status<std::shared_ptr<ConsumerBuffer>> Dequeue(
       int timeout, size_t* slot, DvrNativeBufferMetadata* out_meta,
       pdx::LocalHandle* acquire_fence);
 
@@ -423,7 +464,7 @@ class ConsumerQueue : public BufferHubQueue {
   // is NOT available to use until the producer side |Post| it. |WaitForBuffers|
   // will catch the |Post| and |Acquire| the buffer to make it available for
   // consumer.
-  pdx::Status<void> AddBuffer(const std::shared_ptr<BufferConsumer>& buffer,
+  pdx::Status<void> AddBuffer(const std::shared_ptr<ConsumerBuffer>& buffer,
                               size_t slot);
 
   pdx::Status<void> OnBufferAllocated() override;

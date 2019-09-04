@@ -18,6 +18,8 @@
 #ifndef _RUNTIME_EVENT_HUB_H
 #define _RUNTIME_EVENT_HUB_H
 
+#include <vector>
+
 #include <input/Input.h>
 #include <input/InputDevice.h>
 #include <input/Keyboard.h>
@@ -29,40 +31,20 @@
 #include <utils/List.h>
 #include <utils/Errors.h>
 #include <utils/PropertyMap.h>
-#include <utils/Vector.h>
 #include <utils/KeyedVector.h>
 #include <utils/BitSet.h>
 
 #include <linux/input.h>
 #include <sys/epoll.h>
 
+#include "TouchVideoDevice.h"
+
 /* Convenience constants. */
 
 #define BTN_FIRST 0x100  // first button code
 #define BTN_LAST 0x15f   // last button code
 
-/*
- * These constants are used privately in Android to pass raw timestamps
- * through evdev from uinput device drivers because there is currently no
- * other way to transfer this information.  The evdev driver automatically
- * timestamps all input events with the time they were posted and clobbers
- * whatever information was passed in.
- *
- * For the purposes of this hack, the timestamp is specified in the
- * CLOCK_MONOTONIC timebase and is split into two EV_MSC events specifying
- * seconds and microseconds.
- */
-#define MSC_ANDROID_TIME_SEC 0x6
-#define MSC_ANDROID_TIME_USEC 0x7
-
 namespace android {
-
-enum {
-    // Device id of a special "virtual" keyboard that is always present.
-    VIRTUAL_KEYBOARD_ID = -1,
-    // Device id of the "built-in" keyboard if there is one.
-    BUILT_IN_KEYBOARD_ID = 0,
-};
 
 /*
  * A raw event as retrieved from the EventHub.
@@ -207,7 +189,7 @@ public:
 
     // Sets devices that are excluded from opening.
     // This can be used to ignore input devices for sensors.
-    virtual void setExcludedDevices(const Vector<String8>& devices) = 0;
+    virtual void setExcludedDevices(const std::vector<std::string>& devices) = 0;
 
     /*
      * Wait for events to become available and returns them.
@@ -222,6 +204,7 @@ public:
      * Returns the number of events obtained, or 0 if the timeout expired.
      */
     virtual size_t getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSize) = 0;
+    virtual std::vector<TouchVideoFrame> getVideoFrames(int32_t deviceId) = 0;
 
     /*
      * Query current input state.
@@ -245,7 +228,7 @@ public:
     virtual void setLedState(int32_t deviceId, int32_t led, bool on) = 0;
 
     virtual void getVirtualKeyDefinitions(int32_t deviceId,
-            Vector<VirtualKeyDefinition>& outVirtualKeys) const = 0;
+            std::vector<VirtualKeyDefinition>& outVirtualKeys) const = 0;
 
     virtual sp<KeyCharacterMap> getKeyCharacterMap(int32_t deviceId) const = 0;
     virtual bool setKeyboardLayoutOverlay(int32_t deviceId, const sp<KeyCharacterMap>& map) = 0;
@@ -303,7 +286,7 @@ public:
     virtual status_t mapAxis(int32_t deviceId, int32_t scanCode,
             AxisInfo* outAxisInfo) const;
 
-    virtual void setExcludedDevices(const Vector<String8>& devices);
+    virtual void setExcludedDevices(const std::vector<std::string>& devices);
 
     virtual int32_t getScanCodeState(int32_t deviceId, int32_t scanCode) const;
     virtual int32_t getKeyCodeState(int32_t deviceId, int32_t keyCode) const;
@@ -314,13 +297,14 @@ public:
             const int32_t* keyCodes, uint8_t* outFlags) const;
 
     virtual size_t getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSize);
+    virtual std::vector<TouchVideoFrame> getVideoFrames(int32_t deviceId);
 
     virtual bool hasScanCode(int32_t deviceId, int32_t scanCode) const;
     virtual bool hasLed(int32_t deviceId, int32_t led) const;
     virtual void setLedState(int32_t deviceId, int32_t led, bool on);
 
     virtual void getVirtualKeyDefinitions(int32_t deviceId,
-            Vector<VirtualKeyDefinition>& outVirtualKeys) const;
+            std::vector<VirtualKeyDefinition>& outVirtualKeys) const;
 
     virtual sp<KeyCharacterMap> getKeyCharacterMap(int32_t deviceId) const;
     virtual bool setKeyboardLayoutOverlay(int32_t deviceId, const sp<KeyCharacterMap>& map);
@@ -344,8 +328,10 @@ private:
 
         int fd; // may be -1 if device is closed
         const int32_t id;
-        const String8 path;
+        const std::string path;
         const InputDeviceIdentifier identifier;
+
+        std::unique_ptr<TouchVideoDevice> videoDevice;
 
         uint32_t classes;
 
@@ -357,9 +343,9 @@ private:
         uint8_t ffBitmask[(FF_MAX + 1) / 8];
         uint8_t propBitmask[(INPUT_PROP_MAX + 1) / 8];
 
-        String8 configurationFile;
+        std::string configurationFile;
         PropertyMap* configuration;
-        VirtualKeyMap* virtualKeyMap;
+        std::unique_ptr<VirtualKeyMap> virtualKeyMap;
         KeyMap keyMap;
 
         sp<KeyCharacterMap> overlayKeyMap;
@@ -370,10 +356,8 @@ private:
 
         int32_t controllerNumber;
 
-        int32_t timestampOverrideSec;
-        int32_t timestampOverrideUsec;
-
-        Device(int fd, int32_t id, const String8& path, const InputDeviceIdentifier& identifier);
+        Device(int fd, int32_t id, const std::string& path,
+                const InputDeviceIdentifier& identifier);
         ~Device();
 
         void close();
@@ -385,19 +369,21 @@ private:
         const bool isVirtual; // set if fd < 0 is passed to constructor
 
         const sp<KeyCharacterMap>& getKeyCharacterMap() const {
-            if (combinedKeyMap != NULL) {
+            if (combinedKeyMap != nullptr) {
                 return combinedKeyMap;
             }
             return keyMap.keyCharacterMap;
         }
     };
 
-    status_t openDeviceLocked(const char *devicePath);
+    status_t openDeviceLocked(const char* devicePath);
+    void openVideoDeviceLocked(const std::string& devicePath);
     void createVirtualKeyboardLocked();
     void addDeviceLocked(Device* device);
     void assignDescriptorLocked(InputDeviceIdentifier& identifier);
 
-    status_t closeDeviceByPathLocked(const char *devicePath);
+    void closeDeviceByPathLocked(const char *devicePath);
+    void closeVideoDeviceByPathLocked(const std::string& devicePath);
     void closeDeviceLocked(Device* device);
     void closeAllDevicesLocked();
 
@@ -406,21 +392,31 @@ private:
     bool isDeviceEnabled(int32_t deviceId);
     status_t enableDevice(int32_t deviceId);
     status_t disableDevice(int32_t deviceId);
+    status_t registerFdForEpoll(int fd);
+    status_t unregisterFdFromEpoll(int fd);
     status_t registerDeviceForEpollLocked(Device* device);
+    void registerVideoDeviceForEpollLocked(const TouchVideoDevice& videoDevice);
     status_t unregisterDeviceFromEpollLocked(Device* device);
+    void unregisterVideoDeviceFromEpollLocked(const TouchVideoDevice& videoDevice);
 
     status_t scanDirLocked(const char *dirname);
+    status_t scanVideoDirLocked(const std::string& dirname);
     void scanDevicesLocked();
     status_t readNotifyLocked();
 
-    Device* getDeviceByDescriptorLocked(String8& descriptor) const;
+    Device* getDeviceByDescriptorLocked(const std::string& descriptor) const;
     Device* getDeviceLocked(int32_t deviceId) const;
     Device* getDeviceByPathLocked(const char* devicePath) const;
+    /**
+     * Look through all available fd's (both for input devices and for video devices),
+     * and return the device pointer.
+     */
+    Device* getDeviceByFdLocked(int fd) const;
 
     bool hasKeycodeLocked(Device* device, int keycode) const;
 
     void loadConfigurationLocked(Device* device);
-    status_t loadVirtualKeyMapLocked(Device* device);
+    bool loadVirtualKeyMapLocked(Device* device);
     status_t loadKeyMapLocked(Device* device);
 
     bool isExternalDeviceLocked(Device* device);
@@ -450,6 +446,14 @@ private:
     BitSet32 mControllerNumbers;
 
     KeyedVector<int32_t, Device*> mDevices;
+    /**
+     * Video devices that report touchscreen heatmap, but have not (yet) been paired
+     * with a specific input device. Video device discovery is independent from input device
+     * discovery, so the two types of devices could be found in any order.
+     * Ideally, video devices in this queue do not have an open fd, or at least aren't
+     * actively streaming.
+     */
+    std::vector<std::unique_ptr<TouchVideoDevice>> mUnattachedVideoDevices;
 
     Device *mOpeningDevices;
     Device *mClosingDevices;
@@ -457,19 +461,15 @@ private:
     bool mNeedToSendFinishedDeviceScan;
     bool mNeedToReopenDevices;
     bool mNeedToScanDevices;
-    Vector<String8> mExcludedDevices;
+    std::vector<std::string> mExcludedDevices;
 
     int mEpollFd;
     int mINotifyFd;
     int mWakeReadPipeFd;
     int mWakeWritePipeFd;
 
-    // Ids used for epoll notifications not associated with devices.
-    static const uint32_t EPOLL_ID_INOTIFY = 0x80000001;
-    static const uint32_t EPOLL_ID_WAKE = 0x80000002;
-
-    // Epoll FD list size hint.
-    static const int EPOLL_SIZE_HINT = 8;
+    int mInputWd;
+    int mVideoWd;
 
     // Maximum number of signalled FDs to handle at a time.
     static const int EPOLL_MAX_EVENTS = 16;

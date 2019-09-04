@@ -30,14 +30,13 @@ message Transaction {
 
 message SurfaceChange {
     required int32 id = 1;
-
+    reserved 7;
     oneof SurfaceChange {
         PositionChange              position                = 2;
         SizeChange                  size                    = 3;
         AlphaChange                 alpha                   = 4;
         LayerChange                 layer                   = 5;
         CropChange                  crop                    = 6;
-        FinalCropChange             final_crop              = 7;
         MatrixChange                matrix                  = 8;
         OverrideScalingModeChange   override_scaling_mode   = 9;
         TransparentRegionHintChange transparent_region_hint = 10;
@@ -46,6 +45,7 @@ message SurfaceChange {
         OpaqueFlagChange            opaque_flag             = 13;
         SecureFlagChange            secure_flag             = 14;
         DeferredTransactionChange   deferred_transaction    = 15;
+        CornerRadiusChange          corner_radius           = 16;
     }
 }
 
@@ -63,15 +63,15 @@ message AlphaChange {
     required float alpha = 1;
 }
 
+message CornerRadiusChange {
+    required float corner_radius = 1;
+}
+
 message LayerChange {
     required uint32 layer = 1;
 }
 
 message CropChange {
-    required Rectangle rectangle = 1;
-}
-
-message FinalCropChange {
     required Rectangle rectangle = 1;
 }
 
@@ -165,7 +165,7 @@ message VSyncEvent {
 message DisplayCreation {
     required int32     id                = 1;
     required string    name              = 2;
-    required int32     type              = 3;
+    optional uint64    display_id        = 3;
     required bool      is_secure         = 4;
 }
 

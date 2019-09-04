@@ -97,6 +97,10 @@ public:
     //
     int unflatten(void const* buffer, size_t size);
 
+    // clear flushes out all contents of the cache then the BlobCache, leaving
+    // it in an empty state.
+    void clear() { mCacheEntries.clear(); }
+
 protected:
     // mMaxTotalSize is the maximum size that all cache entries can occupy. This
     // includes space for both keys and values. When a call to BlobCache::set

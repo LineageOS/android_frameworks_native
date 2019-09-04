@@ -81,14 +81,14 @@ egl_surface_t::egl_surface_t(egl_display_t* dpy, EGLConfig config, EGLNativeWind
 }
 
 egl_surface_t::~egl_surface_t() {
-    if (win != NULL) {
+    if (win != nullptr) {
         disconnect();
         win->decStrong(this);
     }
 }
 
 void egl_surface_t::disconnect() {
-    if (win != NULL && connected) {
+    if (win != nullptr && connected) {
         native_window_set_buffers_format(win, 0);
         if (native_window_api_disconnect(win, NATIVE_WINDOW_API_EGL)) {
             ALOGW("EGLNativeWindowType %p disconnect failed", win);
@@ -281,12 +281,12 @@ void egl_surface_t::terminate() {
 egl_context_t::egl_context_t(EGLDisplay dpy, EGLContext context, EGLConfig config,
         egl_connection_t const* cnx, int version) :
     egl_object_t(get_display_nowake(dpy)), dpy(dpy), context(context),
-            config(config), read(0), draw(0), cnx(cnx), version(version) {
+            config(config), read(nullptr), draw(nullptr), cnx(cnx), version(version) {
 }
 
 void egl_context_t::onLooseCurrent() {
-    read = NULL;
-    draw = NULL;
+    read = nullptr;
+    draw = nullptr;
 }
 
 void egl_context_t::onMakeCurrent(EGLSurface draw, EGLSurface read) {

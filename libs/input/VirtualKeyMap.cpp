@@ -28,10 +28,6 @@
 // Enables debug output for the parser.
 #define DEBUG_PARSER 0
 
-// Enables debug output for parser performance.
-#define DEBUG_PARSER_PERFORMANCE 0
-
-
 namespace android {
 
 static const char* WHITESPACE = " \t\r";
@@ -46,39 +42,28 @@ VirtualKeyMap::VirtualKeyMap() {
 VirtualKeyMap::~VirtualKeyMap() {
 }
 
-status_t VirtualKeyMap::load(const String8& filename, VirtualKeyMap** outMap) {
-    *outMap = NULL;
-
-    Tokenizer* tokenizer;
-    status_t status = Tokenizer::open(filename, &tokenizer);
-    if (status) {
-        ALOGE("Error %d opening virtual key map file %s.", status, filename.string());
-    } else {
-        VirtualKeyMap* map = new VirtualKeyMap();
-        if (!map) {
-            ALOGE("Error allocating virtual key map.");
-            status = NO_MEMORY;
-        } else {
-#if DEBUG_PARSER_PERFORMANCE
-            nsecs_t startTime = systemTime(SYSTEM_TIME_MONOTONIC);
-#endif
-            Parser parser(map, tokenizer);
-            status = parser.parse();
-#if DEBUG_PARSER_PERFORMANCE
-            nsecs_t elapsedTime = systemTime(SYSTEM_TIME_MONOTONIC) - startTime;
-            ALOGD("Parsed key character map file '%s' %d lines in %0.3fms.",
-                    tokenizer->getFilename().string(), tokenizer->getLineNumber(),
-                    elapsedTime / 1000000.0);
-#endif
-            if (status) {
-                delete map;
-            } else {
-                *outMap = map;
-            }
-        }
-        delete tokenizer;
+std::unique_ptr<VirtualKeyMap> VirtualKeyMap::load(const std::string& filename) {
+    Tokenizer* t;
+    status_t status = Tokenizer::open(String8(filename.c_str()), &t);
+    if (status != OK) {
+        ALOGE("Error %d opening virtual key map file %s.", status, filename.c_str());
+        return nullptr;
     }
-    return status;
+    std::unique_ptr<Tokenizer> tokenizer(t);
+    // Using 'new' to access a non-public constructor
+    std::unique_ptr<VirtualKeyMap> map(new VirtualKeyMap());
+    if (!map) {
+        ALOGE("Error allocating virtual key map.");
+        return nullptr;
+    }
+
+    Parser parser(map.get(), tokenizer.get());
+    status = parser.parse();
+    if (status != OK) {
+        return nullptr;
+    }
+
+    return map;
 }
 
 
@@ -127,7 +112,7 @@ status_t VirtualKeyMap::Parser::parse() {
                         "width=%d, height=%d",
                         defn.scanCode, defn.centerX, defn.centerY, defn.width, defn.height);
 #endif
-                mMap->mVirtualKeys.push(defn);
+                mMap->mVirtualKeys.push_back(defn);
             } while (consumeFieldDelimiterAndSkipWhitespace());
 
             if (!mTokenizer->isEol()) {

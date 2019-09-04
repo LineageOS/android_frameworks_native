@@ -25,50 +25,94 @@ cc_library_shared {
     },
     double_loadable: true,
 
+    defaults: ["libgui_bufferqueue-defaults"],
+
+    srcs: [
+        "BitTube.cpp",
+        "BufferHubConsumer.cpp",
+        "BufferHubProducer.cpp",
+        "BufferItemConsumer.cpp",
+        "ConsumerBase.cpp",
+        "CpuConsumer.cpp",
+        "DisplayEventReceiver.cpp",
+        "GLConsumer.cpp",
+        "GuiConfig.cpp",
+        "IDisplayEventConnection.cpp",
+        "IRegionSamplingListener.cpp",
+        "ISurfaceComposer.cpp",
+        "ISurfaceComposerClient.cpp",
+        "ITransactionCompletedListener.cpp",
+        "LayerDebugInfo.cpp",
+        "LayerMetadata.cpp",
+        "LayerState.cpp",
+        "StreamSplitter.cpp",
+        "Surface.cpp",
+        "SurfaceControl.cpp",
+        "SurfaceComposerClient.cpp",
+        "SyncFeatures.cpp",
+        "view/Surface.cpp",
+    ],
+
+    shared_libs: [
+        "android.frameworks.bufferhub@1.0",
+        "libbufferhub",
+        "libbufferhubqueue", // TODO(b/70046255): Remove this once BufferHub is integrated into libgui.
+        "libinput",
+        "libpdx_default_transport",
+    ],
+
+    // bufferhub is not used when building libgui for vendors
+    target: {
+        vendor: {
+            cflags: [
+                "-DNO_BUFFERHUB",
+                "-DNO_INPUT",
+            ],
+            exclude_srcs: [
+                "BufferHubConsumer.cpp",
+                "BufferHubProducer.cpp",
+            ],
+            exclude_shared_libs: [
+                "android.frameworks.bufferhub@1.0",
+                "libbufferhub",
+                "libbufferhubqueue",
+                "libinput",
+                "libpdx_default_transport",
+            ],
+        },
+    },
+
+    header_libs: [
+        "libdvr_headers",
+        "libpdx_headers",
+    ],
+}
+
+// Used by media codec services exclusively as a static lib for
+// core bufferqueue support only.
+cc_library_static {
+    name: "libgui_bufferqueue_static",
+    vendor_available: true,
+
+    cflags: [
+        "-DNO_BUFFERHUB",
+    ],
+
+    defaults: ["libgui_bufferqueue-defaults"],
+}
+
+// Common build config shared by libgui and libgui_bufferqueue_static.
+cc_defaults {
+    name: "libgui_bufferqueue-defaults",
+
     clang: true,
     cflags: [
         "-Wall",
         "-Werror",
     ],
+
     cppflags: [
-        "-Weverything",
-
-        // The static constructors and destructors in this library have not been noted to
-        // introduce significant overheads
-        "-Wno-exit-time-destructors",
-        "-Wno-global-constructors",
-
-        // We only care about compiling as C++14
-        "-Wno-c++98-compat-pedantic",
-
-        // We don't need to enumerate every case in a switch as long as a default case
-        // is present
-        "-Wno-switch-enum",
-
-        // Allow calling variadic macros without a __VA_ARGS__ list
-        "-Wno-gnu-zero-variadic-macro-arguments",
-
-        // Don't warn about struct padding
-        "-Wno-padded",
-
-        // We are aware of the risks inherent in comparing floats for equality
-        "-Wno-float-equal",
-
-        // Pure abstract classes trigger this warning
-        "-Wno-weak-vtables",
-
-        // Allow four-character integer literals
-	"-Wno-four-char-constants",
-
-        // Allow documentation warnings
-        "-Wno-documentation",
-
-        // Allow implicit instantiation for templated class function
-        "-Wno-undefined-func-template",
-
-        // Allow explicitly marking struct as packed even when unnecessary
-        "-Wno-packed",
-
+        "-Wextra",
         "-DDEBUG_ONLY_CODE=0",
     ],
 
@@ -82,84 +126,58 @@ cc_library_shared {
     },
 
     srcs: [
-        "BitTube.cpp",
-        "BufferHubConsumer.cpp",
-        "BufferHubProducer.cpp",
         "BufferItem.cpp",
-        "BufferItemConsumer.cpp",
         "BufferQueue.cpp",
         "BufferQueueConsumer.cpp",
         "BufferQueueCore.cpp",
         "BufferQueueProducer.cpp",
+        "BufferQueueThreadState.cpp",
         "BufferSlot.cpp",
-        "ConsumerBase.cpp",
-        "CpuConsumer.cpp",
-        "DisplayEventReceiver.cpp",
         "FrameTimestamps.cpp",
-        "GLConsumer.cpp",
-        "GuiConfig.cpp",
+        "GLConsumerUtils.cpp",
         "HdrMetadata.cpp",
-        "IDisplayEventConnection.cpp",
         "IConsumerListener.cpp",
         "IGraphicBufferConsumer.cpp",
         "IGraphicBufferProducer.cpp",
         "IProducerListener.cpp",
-        "ISurfaceComposer.cpp",
-        "ISurfaceComposerClient.cpp",
-        "LayerDebugInfo.cpp",
-        "LayerState.cpp",
         "OccupancyTracker.cpp",
-        "StreamSplitter.cpp",
-        "Surface.cpp",
-        "SurfaceControl.cpp",
-        "SurfaceComposerClient.cpp",
-        "SyncFeatures.cpp",
-        "view/Surface.cpp",
         "bufferqueue/1.0/B2HProducerListener.cpp",
-        "bufferqueue/1.0/H2BGraphicBufferProducer.cpp"
+        "bufferqueue/1.0/Conversion.cpp",
+        "bufferqueue/1.0/H2BGraphicBufferProducer.cpp",
+        "bufferqueue/1.0/H2BProducerListener.cpp",
+        "bufferqueue/1.0/WProducerListener.cpp",
+        "bufferqueue/2.0/B2HGraphicBufferProducer.cpp",
+        "bufferqueue/2.0/B2HProducerListener.cpp",
+        "bufferqueue/2.0/H2BGraphicBufferProducer.cpp",
+        "bufferqueue/2.0/H2BProducerListener.cpp",
+        "bufferqueue/2.0/types.cpp",
     ],
 
     shared_libs: [
+        "android.hardware.graphics.bufferqueue@1.0",
+        "android.hardware.graphics.bufferqueue@2.0",
         "android.hardware.graphics.common@1.1",
-        "libsync",
+        "android.hardware.graphics.common@1.2",
+        "android.hidl.token@1.0-utils",
+        "libbase",
         "libbinder",
-        "libbufferhubqueue",  // TODO(b/70046255): Remove this once BufferHub is integrated into libgui.
-        "libpdx_default_transport",
         "libcutils",
         "libEGL",
         "libGLESv2",
-        "libui",
-        "libutils",
-        "libnativewindow",
-        "liblog",
         "libhidlbase",
         "libhidltransport",
-        "android.hidl.token@1.0-utils",
-        "android.hardware.graphics.bufferqueue@1.0",
-        "android.hardware.configstore@1.0",
-        "android.hardware.configstore-utils",
+        "libhwbinder",
+        "liblog",
+        "libnativewindow",
+        "libsync",
+        "libui",
+        "libutils",
+        "libvndksupport",
     ],
 
-    // bufferhub is not used when building libgui for vendors
-    target: {
-        vendor: {
-            cflags: ["-DNO_BUFFERHUB"],
-            exclude_srcs: [
-                "BufferHubConsumer.cpp",
-                "BufferHubProducer.cpp",
-            ],
-            exclude_shared_libs: [
-                "libbufferhubqueue",
-                "libpdx_default_transport",
-            ],
-        },
-    },
-
     header_libs: [
-        "libdvr_headers",
-        "libnativebase_headers",
         "libgui_headers",
-        "libpdx_headers",
+        "libnativebase_headers",
     ],
 
     export_shared_lib_headers: [
@@ -167,9 +185,11 @@ cc_library_shared {
         "libEGL",
         "libnativewindow",
         "libui",
-        "android.hidl.token@1.0-utils",
         "android.hardware.graphics.bufferqueue@1.0",
+        "android.hardware.graphics.bufferqueue@2.0",
         "android.hardware.graphics.common@1.1",
+        "android.hardware.graphics.common@1.2",
+        "android.hidl.token@1.0-utils",
     ],
 
     export_header_lib_headers: [

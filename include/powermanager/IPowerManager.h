@@ -45,7 +45,7 @@ public:
         IS_INTERACTIVE               = IBinder::FIRST_CALL_TRANSACTION + 11,
         IS_POWER_SAVE_MODE           = IBinder::FIRST_CALL_TRANSACTION + 12,
         GET_POWER_SAVE_STATE         = IBinder::FIRST_CALL_TRANSACTION + 13,
-        SET_POWER_SAVE_MODE          = IBinder::FIRST_CALL_TRANSACTION + 14,
+        SET_POWER_SAVE_MODE_ENABLED  = IBinder::FIRST_CALL_TRANSACTION + 14,
         REBOOT                       = IBinder::FIRST_CALL_TRANSACTION + 17,
         REBOOT_SAFE_MODE             = IBinder::FIRST_CALL_TRANSACTION + 18,
         SHUTDOWN                     = IBinder::FIRST_CALL_TRANSACTION + 19,

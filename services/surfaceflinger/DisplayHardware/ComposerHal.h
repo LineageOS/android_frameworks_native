@@ -25,11 +25,12 @@
 
 #include <android/frameworks/vr/composer/1.0/IVrComposerClient.h>
 #include <android/hardware/graphics/common/1.1/types.h>
-#include <android/hardware/graphics/composer/2.2/IComposer.h>
-#include <android/hardware/graphics/composer/2.2/IComposerClient.h>
-#include <composer-command-buffer/2.2/ComposerCommandBuffer.h>
+#include <android/hardware/graphics/composer/2.3/IComposer.h>
+#include <android/hardware/graphics/composer/2.3/IComposerClient.h>
+#include <composer-command-buffer/2.3/ComposerCommandBuffer.h>
 #include <gui/HdrMetadata.h>
 #include <math/mat4.h>
+#include <ui/DisplayedFrameStats.h>
 #include <ui/GraphicBuffer.h>
 #include <utils/StrongPointer.h>
 
@@ -43,29 +44,29 @@ namespace types = hardware::graphics::common;
 
 namespace V2_1 = hardware::graphics::composer::V2_1;
 namespace V2_2 = hardware::graphics::composer::V2_2;
+namespace V2_3 = hardware::graphics::composer::V2_3;
 
 using types::V1_0::ColorTransform;
-using types::V1_0::Hdr;
 using types::V1_0::Transform;
-
-using types::V1_1::ColorMode;
-using types::V1_1::Dataspace;
-using types::V1_1::PixelFormat;
 using types::V1_1::RenderIntent;
+using types::V1_2::ColorMode;
+using types::V1_2::Dataspace;
+using types::V1_2::Hdr;
+using types::V1_2::PixelFormat;
 
 using V2_1::Config;
 using V2_1::Display;
 using V2_1::Error;
 using V2_1::IComposerCallback;
 using V2_1::Layer;
-
-using V2_2::CommandReaderBase;
-using V2_2::CommandWriterBase;
-using V2_2::IComposer;
-using V2_2::IComposerClient;
-
+using V2_3::CommandReaderBase;
+using V2_3::CommandWriterBase;
+using V2_3::IComposer;
+using V2_3::IComposerClient;
+using DisplayCapability = IComposerClient::DisplayCapability;
 using PerFrameMetadata = IComposerClient::PerFrameMetadata;
 using PerFrameMetadataKey = IComposerClient::PerFrameMetadataKey;
+using PerFrameMetadataBlob = IComposerClient::PerFrameMetadataBlob;
 
 class Composer {
 public:
@@ -180,11 +181,29 @@ public:
     virtual Error setLayerPerFrameMetadata(
             Display display, Layer layer,
             const std::vector<IComposerClient::PerFrameMetadata>& perFrameMetadatas) = 0;
-    virtual Error getPerFrameMetadataKeys(
-            Display display, std::vector<IComposerClient::PerFrameMetadataKey>* outKeys) = 0;
+    virtual std::vector<IComposerClient::PerFrameMetadataKey> getPerFrameMetadataKeys(
+            Display display) = 0;
     virtual Error getRenderIntents(Display display, ColorMode colorMode,
             std::vector<RenderIntent>* outRenderIntents) = 0;
     virtual Error getDataspaceSaturationMatrix(Dataspace dataspace, mat4* outMatrix) = 0;
+
+    // Composer HAL 2.3
+    virtual Error getDisplayIdentificationData(Display display, uint8_t* outPort,
+                                               std::vector<uint8_t>* outData) = 0;
+    virtual Error setLayerColorTransform(Display display, Layer layer,
+                                         const float* matrix) = 0;
+    virtual Error getDisplayedContentSamplingAttributes(Display display, PixelFormat* outFormat,
+                                                        Dataspace* outDataspace,
+                                                        uint8_t* outComponentMask) = 0;
+    virtual Error setDisplayContentSamplingEnabled(Display display, bool enabled,
+                                                   uint8_t componentMask, uint64_t maxFrames) = 0;
+    virtual Error getDisplayedContentSample(Display display, uint64_t maxFrames, uint64_t timestamp,
+                                            DisplayedFrameStats* outStats) = 0;
+    virtual Error getDisplayCapabilities(Display display,
+                                         std::vector<DisplayCapability>* outCapabilities) = 0;
+    virtual Error setLayerPerFrameMetadataBlobs(
+            Display display, Layer layer, const std::vector<PerFrameMetadataBlob>& metadata) = 0;
+    virtual Error setDisplayBrightness(Display display, float brightness) = 0;
 };
 
 namespace impl {
@@ -374,11 +393,29 @@ public:
     Error setLayerPerFrameMetadata(
             Display display, Layer layer,
             const std::vector<IComposerClient::PerFrameMetadata>& perFrameMetadatas) override;
-    Error getPerFrameMetadataKeys(
-            Display display, std::vector<IComposerClient::PerFrameMetadataKey>* outKeys) override;
+    std::vector<IComposerClient::PerFrameMetadataKey> getPerFrameMetadataKeys(
+            Display display) override;
     Error getRenderIntents(Display display, ColorMode colorMode,
             std::vector<RenderIntent>* outRenderIntents) override;
     Error getDataspaceSaturationMatrix(Dataspace dataspace, mat4* outMatrix) override;
+
+    // Composer HAL 2.3
+    Error getDisplayIdentificationData(Display display, uint8_t* outPort,
+                                       std::vector<uint8_t>* outData) override;
+    Error setLayerColorTransform(Display display, Layer layer, const float* matrix) override;
+    Error getDisplayedContentSamplingAttributes(Display display, PixelFormat* outFormat,
+                                                Dataspace* outDataspace,
+                                                uint8_t* outComponentMask) override;
+    Error setDisplayContentSamplingEnabled(Display display, bool enabled, uint8_t componentMask,
+                                           uint64_t maxFrames) override;
+    Error getDisplayedContentSample(Display display, uint64_t maxFrames, uint64_t timestamp,
+                                    DisplayedFrameStats* outStats) override;
+    Error getDisplayCapabilities(Display display,
+                                 std::vector<DisplayCapability>* outCapabilities) override;
+    Error setLayerPerFrameMetadataBlobs(
+            Display display, Layer layer,
+            const std::vector<IComposerClient::PerFrameMetadataBlob>& metadata) override;
+    Error setDisplayBrightness(Display display, float brightness) override;
 
 private:
     class CommandWriter : public CommandWriterBase {
@@ -405,7 +442,8 @@ private:
     sp<V2_1::IComposer> mComposer;
 
     sp<V2_1::IComposerClient> mClient;
-    sp<IComposerClient> mClient_2_2;
+    sp<V2_2::IComposerClient> mClient_2_2;
+    sp<IComposerClient> mClient_2_3;
 
     // 64KiB minus a small space for metadata such as read/write pointers
     static constexpr size_t kWriterInitialSize =

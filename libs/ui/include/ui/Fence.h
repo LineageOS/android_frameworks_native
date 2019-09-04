@@ -99,6 +99,12 @@ public:
     // be returned and errno will indicate the problem.
     int dup() const;
 
+    // Return the underlying file descriptor without giving up ownership. The
+    // returned file descriptor is only valid for as long as the owning Fence
+    // object lives. (If the situation is unclear, dup() is always a safer
+    // option.)
+    int get() const { return mFenceFd.get(); }
+
     // getSignalTime returns the system monotonic clock time at which the
     // fence transitioned to the signaled state.  If the fence is not signaled
     // then SIGNAL_TIME_PENDING is returned.  If the fence is invalid or if an

@@ -1,5 +1,7 @@
 #include "performance_service.h"
 
+#include <sstream>
+
 #include <sched.h>
 #include <sys/prctl.h>
 #include <unistd.h>
@@ -30,6 +32,10 @@ namespace {
 const char kCpuSetBasePath[] = "/dev/cpuset";
 
 const char kRootCpuSet[] = "/";
+
+const char kVrAppRenderPolicy[] = "vr:app:render";
+
+const bool kAllowAppsToRequestVrAppRenderPolicy = false;
 
 constexpr unsigned long kTimerSlackForegroundNs = 50000;
 constexpr unsigned long kTimerSlackBackgroundNs = 40000000;
@@ -124,9 +130,6 @@ PerformanceService::PerformanceService()
   // TODO(eieio): Replace this witha device-specific config file. This is just a
   // hack for now to put some form of permission logic in place while a longer
   // term solution is developed.
-  using AllowRootSystem =
-      CheckAnd<SameProcess,
-               CheckOr<UserId<AID_ROOT, AID_SYSTEM>, GroupId<AID_SYSTEM>>>;
   using AllowRootSystemGraphics =
       CheckAnd<SameProcess, CheckOr<UserId<AID_ROOT, AID_SYSTEM, AID_GRAPHICS>,
                                     GroupId<AID_SYSTEM, AID_GRAPHICS>>>;
@@ -135,6 +138,17 @@ PerformanceService::PerformanceService()
                                     GroupId<AID_SYSTEM, AID_AUDIO>>>;
   using AllowRootSystemTrusted =
       CheckOr<Trusted, UserId<AID_ROOT, AID_SYSTEM>, GroupId<AID_SYSTEM>>;
+
+  auto vr_app_render_permission_check = [](
+      const pdx::Message& sender, const Task& task) {
+          // For vr:app:render, in addition to system/root apps and VrCore, we
+          // also allow apps to request vr:app:render if
+          // kAllowAppsToRequestVrAppRenderPolicy == true, but not for other
+          // apps, only for themselves.
+          return (task && task.thread_group_id() == sender.GetProcessId() &&
+                  kAllowAppsToRequestVrAppRenderPolicy)
+              || AllowRootSystemTrusted::Check(sender, task);
+      };
 
   partition_permission_check_ = AllowRootSystemTrusted::Check;
 
@@ -170,28 +184,28 @@ PerformanceService::PerformanceService()
        {.timer_slack = kTimerSlackForegroundNs,
         .scheduler_policy = SCHED_FIFO | SCHED_RESET_ON_FORK,
         .priority = fifo_low,
-        .permission_check = AllowRootSystem::Check}},
+        .permission_check = AllowRootSystemTrusted::Check}},
       {"sensors:low",
        {.timer_slack = kTimerSlackForegroundNs,
         .scheduler_policy = SCHED_FIFO | SCHED_RESET_ON_FORK,
         .priority = fifo_low,
-        .permission_check = AllowRootSystem::Check}},
+        .permission_check = AllowRootSystemTrusted::Check}},
       {"sensors:high",
        {.timer_slack = kTimerSlackForegroundNs,
         .scheduler_policy = SCHED_FIFO | SCHED_RESET_ON_FORK,
         .priority = fifo_low + 1,
-        .permission_check = AllowRootSystem::Check}},
+        .permission_check = AllowRootSystemTrusted::Check}},
       {"vr:system:arp",
        {.timer_slack = kTimerSlackForegroundNs,
         .scheduler_policy = SCHED_FIFO | SCHED_RESET_ON_FORK,
         .priority = fifo_medium + 2,
         .permission_check = AllowRootSystemTrusted::Check,
         "/system/performance"}},
-      {"vr:app:render",
+      {kVrAppRenderPolicy,
        {.timer_slack = kTimerSlackForegroundNs,
         .scheduler_policy = SCHED_FIFO | SCHED_RESET_ON_FORK,
         .priority = fifo_medium + 1,
-        .permission_check = AllowRootSystemTrusted::Check,
+        .permission_check = vr_app_render_permission_check,
         "/application/performance"}},
       {"normal",
        {.timer_slack = kTimerSlackForegroundNs,
@@ -218,7 +232,10 @@ bool PerformanceService::IsInitialized() const {
 }
 
 std::string PerformanceService::DumpState(size_t /*max_length*/) {
-  return cpuset_.DumpState();
+  std::ostringstream stream;
+  stream << "vr_app_render_thread: " << vr_app_render_thread_ << std::endl;
+  cpuset_.DumpState(stream);
+  return stream.str();
 }
 
 Status<void> PerformanceService::OnSetSchedulerPolicy(
@@ -244,7 +261,12 @@ Status<void> PerformanceService::OnSetSchedulerPolicy(
     // Make sure the sending process is allowed to make the requested change to
     // this task.
     if (!config.IsAllowed(message, task))
-      return ErrorStatus(EINVAL);
+      return ErrorStatus(EPERM);
+
+    if (scheduler_policy == kVrAppRenderPolicy) {
+      // We only allow one vr:app:render thread at a time
+      SetVrAppRenderThread(task_id);
+    }
 
     // Get the thread group's cpu set. Policies that do not specify a cpuset
     // should default to this cpuset.
@@ -302,14 +324,16 @@ Status<void> PerformanceService::OnSetSchedulerPolicy(
 Status<void> PerformanceService::OnSetCpuPartition(
     Message& message, pid_t task_id, const std::string& partition) {
   Task task(task_id);
-  if (!task || task.thread_group_id() != message.GetProcessId())
+  if (!task)
     return ErrorStatus(EINVAL);
+  if (task.thread_group_id() != message.GetProcessId())
+    return ErrorStatus(EPERM);
 
   // Temporary permission check.
   // TODO(eieio): Replace this with a configuration file.
   if (partition_permission_check_ &&
       !partition_permission_check_(message, task)) {
-    return ErrorStatus(EINVAL);
+    return ErrorStatus(EPERM);
   }
 
   auto target_set = cpuset_.Lookup(partition);
@@ -336,7 +360,12 @@ Status<void> PerformanceService::OnSetSchedulerClass(
     // Make sure the sending process is allowed to make the requested change to
     // this task.
     if (!config.IsAllowed(message, task))
-      return ErrorStatus(EINVAL);
+      return ErrorStatus(EPERM);
+
+    if (scheduler_class == kVrAppRenderPolicy) {
+      // We only allow one vr:app:render thread at a time
+      SetVrAppRenderThread(task_id);
+    }
 
     struct sched_param param;
     param.sched_priority = config.priority;
@@ -359,8 +388,10 @@ Status<std::string> PerformanceService::OnGetCpuPartition(Message& message,
                                                           pid_t task_id) {
   // Make sure the task id is valid and belongs to the sending process.
   Task task(task_id);
-  if (!task || task.thread_group_id() != message.GetProcessId())
+  if (!task)
     return ErrorStatus(EINVAL);
+  if (task.thread_group_id() != message.GetProcessId())
+    return ErrorStatus(EPERM);
 
   return task.GetCpuSetPath();
 }
@@ -391,6 +422,39 @@ Status<void> PerformanceService::HandleMessage(Message& message) {
     default:
       return Service::HandleMessage(message);
   }
+}
+
+void PerformanceService::SetVrAppRenderThread(pid_t new_vr_app_render_thread) {
+  ALOGI("SetVrAppRenderThread old=%d new=%d",
+      vr_app_render_thread_, new_vr_app_render_thread);
+
+  if (vr_app_render_thread_ >= 0 &&
+      vr_app_render_thread_ != new_vr_app_render_thread) {
+    // Restore the default scheduler policy and priority on the previous
+    // vr:app:render thread.
+    struct sched_param param;
+    param.sched_priority = 0;
+    if (sched_setscheduler(vr_app_render_thread_, SCHED_NORMAL, &param) < 0) {
+      if (errno == ESRCH) {
+        ALOGI("Failed to revert %s scheduler policy. Couldn't find thread %d."
+            " Was the app killed?", kVrAppRenderPolicy, vr_app_render_thread_);
+      } else {
+        ALOGE("Failed to revert %s scheduler policy: %s",
+            kVrAppRenderPolicy, strerror(errno));
+      }
+    }
+
+    // Restore the default timer slack on the previous vr:app:render thread.
+    prctl(PR_SET_TIMERSLACK_PID, kTimerSlackForegroundNs,
+        vr_app_render_thread_);
+  }
+
+  // We could also reset the thread's cpuset here, but the cpuset is already
+  // managed by Android. Better to let Android adjust the cpuset as the app
+  // moves to the background, rather than adjust it ourselves here, and risk
+  // stomping on the value set by Android.
+
+  vr_app_render_thread_ = new_vr_app_render_thread;
 }
 
 }  // namespace dvr

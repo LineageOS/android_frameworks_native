@@ -106,7 +106,7 @@ std::vector<CpuSet*> CpuSetManager::GetCpuSets() {
   return sets;
 }
 
-std::string CpuSetManager::DumpState() const {
+void CpuSetManager::DumpState(std::ostringstream& stream) const {
   size_t max_path = 0;
   std::vector<CpuSet*> sets;
 
@@ -118,8 +118,6 @@ std::string CpuSetManager::DumpState() const {
   std::sort(sets.begin(), sets.end(), [](const CpuSet* a, const CpuSet* b) {
     return a->path() < b->path();
   });
-
-  std::ostringstream stream;
 
   stream << std::left;
   stream << std::setw(max_path) << "Path";
@@ -146,8 +144,6 @@ std::string CpuSetManager::DumpState() const {
     stream << std::setw(6) << set->GetTasks().size();
     stream << std::endl;
   }
-
-  return stream.str();
 }
 
 void CpuSetManager::MoveUnboundTasks(const std::string& target_set) {

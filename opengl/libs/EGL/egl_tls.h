@@ -38,6 +38,7 @@ class egl_tls_t {
 
     egl_tls_t();
     static void validateTLSKey();
+    static void destructTLSData(void* data);
     static void setErrorEtcImpl(
             const char* caller, int line, EGLint error, bool quiet);
 

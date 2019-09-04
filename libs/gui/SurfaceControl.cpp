@@ -54,19 +54,34 @@ SurfaceControl::SurfaceControl(
 {
 }
 
+SurfaceControl::SurfaceControl(const sp<SurfaceControl>& other) {
+    mClient = other->mClient;
+    mHandle = other->mHandle;
+    mGraphicBufferProducer = other->mGraphicBufferProducer;
+    mOwned = false;
+}
+
 SurfaceControl::~SurfaceControl()
 {
-    destroy();
+    // Avoid reparenting the server-side surface to null if we are not the owner of it,
+    // meaning that we retrieved it from another process.
+    if (mClient != nullptr && mHandle != nullptr && mOwned) {
+        SurfaceComposerClient::doDropReferenceTransaction(mHandle, mClient->getClient());
+    }
+    release();
 }
 
 void SurfaceControl::destroy()
 {
-    // Avoid destroying the server-side surface if we are not the owner of it, meaning that we
-    // retrieved it from another process.
-    if (isValid() && mOwned) {
-        mClient->destroySurface(mHandle);
+    if (isValid()) {
+        SurfaceComposerClient::Transaction().reparent(this, nullptr).apply();
     }
-    // clear all references and trigger an IPC now, to make sure things
+    release();
+}
+
+void SurfaceControl::release()
+{
+    // Trigger an IPC now, to make sure things
     // happen without delay, since these resources are quite heavy.
     mClient.clear();
     mHandle.clear();
@@ -74,19 +89,8 @@ void SurfaceControl::destroy()
     IPCThreadState::self()->flushCommands();
 }
 
-void SurfaceControl::clear()
-{
-    // here, the window manager tells us explicitly that we should destroy
-    // the surface's resource. Soon after this call, it will also release
-    // its last reference (which will call the dtor); however, it is possible
-    // that a client living in the same process still holds references which
-    // would delay the call to the dtor -- that is why we need this explicit
-    // "clear()" call.
-    destroy();
-}
-
 void SurfaceControl::disconnect() {
-    if (mGraphicBufferProducer != NULL) {
+    if (mGraphicBufferProducer != nullptr) {
         mGraphicBufferProducer->disconnect(
                 BufferQueueCore::CURRENTLY_CONNECTED_API);
     }
@@ -95,28 +99,28 @@ void SurfaceControl::disconnect() {
 bool SurfaceControl::isSameSurface(
         const sp<SurfaceControl>& lhs, const sp<SurfaceControl>& rhs)
 {
-    if (lhs == 0 || rhs == 0)
+    if (lhs == nullptr || rhs == nullptr)
         return false;
     return lhs->mHandle == rhs->mHandle;
 }
 
 status_t SurfaceControl::clearLayerFrameStats() const {
     status_t err = validate();
-    if (err < 0) return err;
+    if (err != NO_ERROR) return err;
     const sp<SurfaceComposerClient>& client(mClient);
     return client->clearLayerFrameStats(mHandle);
 }
 
 status_t SurfaceControl::getLayerFrameStats(FrameStats* outStats) const {
     status_t err = validate();
-    if (err < 0) return err;
+    if (err != NO_ERROR) return err;
     const sp<SurfaceComposerClient>& client(mClient);
     return client->getLayerFrameStats(mHandle, outStats);
 }
 
 status_t SurfaceControl::validate() const
 {
-    if (mHandle==0 || mClient==0) {
+    if (mHandle==nullptr || mClient==nullptr) {
         ALOGE("invalid handle (%p) or client (%p)",
                 mHandle.get(), mClient.get());
         return NO_INIT;
@@ -128,7 +132,7 @@ status_t SurfaceControl::writeSurfaceToParcel(
         const sp<SurfaceControl>& control, Parcel* parcel)
 {
     sp<IGraphicBufferProducer> bp;
-    if (control != NULL) {
+    if (control != nullptr) {
         bp = control->mGraphicBufferProducer;
     }
     return parcel->writeStrongBinder(IInterface::asBinder(bp));
@@ -146,7 +150,7 @@ sp<Surface> SurfaceControl::generateSurfaceLocked() const
 sp<Surface> SurfaceControl::getSurface() const
 {
     Mutex::Autolock _l(mLock);
-    if (mSurfaceData == 0) {
+    if (mSurfaceData == nullptr) {
         return generateSurfaceLocked();
     }
     return mSurfaceData;
@@ -162,6 +166,12 @@ sp<IBinder> SurfaceControl::getHandle() const
 {
     Mutex::Autolock lock(mLock);
     return mHandle;
+}
+
+sp<IGraphicBufferProducer> SurfaceControl::getIGraphicBufferProducer() const
+{
+    Mutex::Autolock _l(mLock);
+    return mGraphicBufferProducer;
 }
 
 sp<SurfaceComposerClient> SurfaceControl::getClient() const

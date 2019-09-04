@@ -228,9 +228,9 @@ protected:
     void setupDequeueRequestBuffer(int *slot, sp<Fence> *fence,
             sp<GraphicBuffer> *buffer)
     {
-        ASSERT_TRUE(slot != NULL);
-        ASSERT_TRUE(fence != NULL);
-        ASSERT_TRUE(buffer != NULL);
+        ASSERT_TRUE(slot != nullptr);
+        ASSERT_TRUE(fence != nullptr);
+        ASSERT_TRUE(buffer != nullptr);
 
         ASSERT_NO_FATAL_FAILURE(ConnectProducer());
 
@@ -263,7 +263,7 @@ TEST_P(IGraphicBufferProducerTest, ConnectFirst_ReturnsError) {
     EXPECT_EQ(BAD_VALUE, mProducer->connect(TEST_TOKEN,
                                             TEST_API,
                                             TEST_CONTROLLED_BY_APP,
-                                            /*output*/NULL));
+                                            /*output*/nullptr));
 
     // Invalid API returns bad value
     EXPECT_EQ(BAD_VALUE, mProducer->connect(TEST_TOKEN,
@@ -359,7 +359,7 @@ TEST_P(IGraphicBufferProducerTest, Query_ReturnsError) {
     // TODO: Consider documented the above enums as unsupported or make a new enum for IGBP
 
     // Value was NULL
-    EXPECT_EQ(BAD_VALUE, mProducer->query(NATIVE_WINDOW_FORMAT, /*value*/NULL));
+    EXPECT_EQ(BAD_VALUE, mProducer->query(NATIVE_WINDOW_FORMAT, /*value*/nullptr));
 
     ASSERT_OK(mConsumer->consumerDisconnect());
 
@@ -465,7 +465,7 @@ TEST_P(IGraphicBufferProducerTest, Queue_ReturnsError) {
 
     // Fence was NULL
     {
-        sp<Fence> nullFence = NULL;
+        sp<Fence> nullFence = nullptr;
 
         IGraphicBufferProducer::QueueBufferInput input =
                 QueueBufferInputBuilder().setFence(nullFence).build();
@@ -695,10 +695,7 @@ TEST_P(IGraphicBufferProducerTest,
     sp<Fence> fence;
     sp<GraphicBuffer> buffer;
 
-    if (GetParam() == USE_BUFFER_QUEUE_PRODUCER) {
-        // TODO(b/38137191): Implement BufferHubProducer::detachBuffer
-        ASSERT_EQ(NO_INIT, mProducer->detachNextBuffer(&buffer, &fence));
-    }
+    ASSERT_EQ(NO_INIT, mProducer->detachNextBuffer(&buffer, &fence));
 }
 
 TEST_P(IGraphicBufferProducerTest,
@@ -735,10 +732,7 @@ TEST_P(IGraphicBufferProducerTest,
 
     ASSERT_OK(mProducer->disconnect(TEST_API));
 
-    if (GetParam() == USE_BUFFER_QUEUE_PRODUCER) {
-        // TODO(b/38137191): Implement BufferHubProducer::detachBuffer
-        ASSERT_EQ(NO_INIT, mProducer->detachBuffer(slot));
-    }
+    ASSERT_EQ(NO_INIT, mProducer->detachBuffer(slot));
 }
 
 TEST_P(IGraphicBufferProducerTest,
@@ -778,18 +772,29 @@ TEST_P(IGraphicBufferProducerTest,
     sp<GraphicBuffer> buffer;
 
     setupDequeueRequestBuffer(&slot, &fence, &buffer);
+    ASSERT_TRUE(buffer != nullptr);
 
-    if (GetParam() == USE_BUFFER_QUEUE_PRODUCER) {
-        // TODO(b/38137191): Implement BufferHubProducer::detachBuffer
-        ASSERT_OK(mProducer->detachBuffer(slot));
-    }
+    ASSERT_OK(mProducer->detachBuffer(slot));
+    EXPECT_OK(buffer->initCheck());
 
     ASSERT_OK(mProducer->disconnect(TEST_API));
 
-    if (GetParam() == USE_BUFFER_QUEUE_PRODUCER) {
-        // TODO(b/69981968): Implement BufferHubProducer::attachBuffer
-        ASSERT_EQ(NO_INIT, mProducer->attachBuffer(&slot, buffer));
-    }
+    ASSERT_EQ(NO_INIT, mProducer->attachBuffer(&slot, buffer));
+}
+
+TEST_P(IGraphicBufferProducerTest, DetachThenAttach_Succeeds) {
+    int slot = -1;
+    sp<Fence> fence;
+    sp<GraphicBuffer> buffer;
+
+    setupDequeueRequestBuffer(&slot, &fence, &buffer);
+    ASSERT_TRUE(buffer != nullptr);
+
+    ASSERT_OK(mProducer->detachBuffer(slot));
+    EXPECT_OK(buffer->initCheck());
+
+    EXPECT_OK(mProducer->attachBuffer(&slot, buffer));
+    EXPECT_OK(buffer->initCheck());
 }
 
 #if USE_BUFFER_HUB_AS_BUFFER_QUEUE

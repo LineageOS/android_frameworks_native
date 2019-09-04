@@ -1,7 +1,9 @@
 #include <base/logging.h>
 #include <binder/Parcel.h>
-#include <private/dvr/buffer_hub_client.h>
+#include <dvr/dvr_api.h>
 #include <private/dvr/buffer_hub_queue_client.h>
+#include <private/dvr/consumer_buffer.h>
+#include <private/dvr/producer_buffer.h>
 
 #include <gtest/gtest.h>
 #include <poll.h>
@@ -111,7 +113,7 @@ TEST_F(BufferHubQueueTest, TestDequeue) {
 
     // Consumer acquires a buffer.
     auto c1_status = consumer_queue_->Dequeue(kTimeoutMs, &slot, &mo, &fence);
-    EXPECT_TRUE(c1_status.ok());
+    EXPECT_TRUE(c1_status.ok()) << c1_status.GetErrorMessage();
     auto c1 = c1_status.take();
     ASSERT_NE(c1, nullptr);
     EXPECT_EQ(mi.index, i);
@@ -119,6 +121,147 @@ TEST_F(BufferHubQueueTest, TestDequeue) {
 
     // Consumer releases the buffer.
     EXPECT_EQ(c1->ReleaseAsync(&mi, LocalHandle()), 0);
+  }
+}
+
+TEST_F(BufferHubQueueTest,
+       TestDequeuePostedBufferIfNoAvailableReleasedBuffer_withConsumerBuffer) {
+  ASSERT_TRUE(CreateQueues(config_builder_.Build(), UsagePolicy{}));
+
+  // Allocate 3 buffers to use.
+  const size_t test_queue_capacity = 3;
+  for (int64_t i = 0; i < test_queue_capacity; i++) {
+    AllocateBuffer();
+  }
+  EXPECT_EQ(producer_queue_->capacity(), test_queue_capacity);
+
+  size_t producer_slot, consumer_slot;
+  LocalHandle fence;
+  DvrNativeBufferMetadata mi, mo;
+
+  // Producer posts 2 buffers and remember their posted sequence.
+  std::deque<size_t> posted_slots;
+  for (int64_t i = 0; i < 2; i++) {
+    auto p1_status =
+        producer_queue_->Dequeue(kTimeoutMs, &producer_slot, &mo, &fence, true);
+    EXPECT_TRUE(p1_status.ok());
+    auto p1 = p1_status.take();
+    ASSERT_NE(p1, nullptr);
+
+    // Producer should not be gaining posted buffer when there are still
+    // available buffers to gain.
+    auto found_iter =
+        std::find(posted_slots.begin(), posted_slots.end(), producer_slot);
+    EXPECT_EQ(found_iter, posted_slots.end());
+    posted_slots.push_back(producer_slot);
+
+    // Producer posts the buffer.
+    mi.index = i;
+    EXPECT_EQ(0, p1->PostAsync(&mi, LocalHandle()));
+  }
+
+  // Consumer acquires one buffer.
+  auto c1_status =
+      consumer_queue_->Dequeue(kTimeoutMs, &consumer_slot, &mo, &fence);
+  EXPECT_TRUE(c1_status.ok());
+  auto c1 = c1_status.take();
+  ASSERT_NE(c1, nullptr);
+  // Consumer should get the oldest posted buffer. No checks here.
+  // posted_slots[0] should be in acquired state now.
+  EXPECT_EQ(mo.index, 0);
+  // Consumer releases the buffer.
+  EXPECT_EQ(c1->ReleaseAsync(&mi, LocalHandle()), 0);
+  // posted_slots[0] should be in released state now.
+
+  // Producer gain and post 2 buffers.
+  for (int64_t i = 0; i < 2; i++) {
+    auto p1_status =
+        producer_queue_->Dequeue(kTimeoutMs, &producer_slot, &mo, &fence, true);
+    EXPECT_TRUE(p1_status.ok());
+    auto p1 = p1_status.take();
+    ASSERT_NE(p1, nullptr);
+
+    // The gained buffer should be the one in released state or the one haven't
+    // been use.
+    EXPECT_NE(posted_slots[1], producer_slot);
+
+    mi.index = i + 2;
+    EXPECT_EQ(0, p1->PostAsync(&mi, LocalHandle()));
+  }
+
+  // Producer gains a buffer.
+  auto p1_status =
+      producer_queue_->Dequeue(kTimeoutMs, &producer_slot, &mo, &fence, true);
+  EXPECT_TRUE(p1_status.ok());
+  auto p1 = p1_status.take();
+  ASSERT_NE(p1, nullptr);
+
+  // The gained buffer should be the oldest posted buffer.
+  EXPECT_EQ(posted_slots[1], producer_slot);
+
+  // Producer posts the buffer.
+  mi.index = 4;
+  EXPECT_EQ(0, p1->PostAsync(&mi, LocalHandle()));
+}
+
+TEST_F(BufferHubQueueTest,
+       TestDequeuePostedBufferIfNoAvailableReleasedBuffer_noConsumerBuffer) {
+  ASSERT_TRUE(CreateQueues(config_builder_.Build(), UsagePolicy{}));
+
+  // Allocate 4 buffers to use.
+  const size_t test_queue_capacity = 4;
+  for (int64_t i = 0; i < test_queue_capacity; i++) {
+    AllocateBuffer();
+  }
+  EXPECT_EQ(producer_queue_->capacity(), test_queue_capacity);
+
+  // Post all allowed buffers and remember their posted sequence.
+  std::deque<size_t> posted_slots;
+  for (int64_t i = 0; i < test_queue_capacity; i++) {
+    size_t slot;
+    LocalHandle fence;
+    DvrNativeBufferMetadata mi, mo;
+
+    // Producer gains a buffer.
+    auto p1_status =
+        producer_queue_->Dequeue(kTimeoutMs, &slot, &mo, &fence, true);
+    EXPECT_TRUE(p1_status.ok());
+    auto p1 = p1_status.take();
+    ASSERT_NE(p1, nullptr);
+
+    // Producer should not be gaining posted buffer when there are still
+    // available buffers to gain.
+    auto found_iter = std::find(posted_slots.begin(), posted_slots.end(), slot);
+    EXPECT_EQ(found_iter, posted_slots.end());
+    posted_slots.push_back(slot);
+
+    // Producer posts the buffer.
+    mi.index = i;
+    EXPECT_EQ(p1->PostAsync(&mi, LocalHandle()), 0);
+  }
+
+  // Gain posted buffers in sequence.
+  const int64_t nb_dequeue_all_times = 2;
+  for (int j = 0; j < nb_dequeue_all_times; ++j) {
+    for (int i = 0; i < test_queue_capacity; ++i) {
+      size_t slot;
+      LocalHandle fence;
+      DvrNativeBufferMetadata mi, mo;
+
+      // Producer gains a buffer.
+      auto p1_status =
+          producer_queue_->Dequeue(kTimeoutMs, &slot, &mo, &fence, true);
+      EXPECT_TRUE(p1_status.ok());
+      auto p1 = p1_status.take();
+      ASSERT_NE(p1, nullptr);
+
+      // The gained buffer should be the oldest posted buffer.
+      EXPECT_EQ(posted_slots[i], slot);
+
+      // Producer posts the buffer.
+      mi.index = i + test_queue_capacity * (j + 1);
+      EXPECT_EQ(p1->PostAsync(&mi, LocalHandle()), 0);
+    }
   }
 }
 
@@ -181,6 +324,42 @@ TEST_F(BufferHubQueueTest, TestProducerConsumer) {
   }
 }
 
+TEST_F(BufferHubQueueTest, TestInsertBuffer) {
+  ASSERT_TRUE(CreateProducerQueue(config_builder_.Build(), UsagePolicy{}));
+
+  consumer_queue_ = producer_queue_->CreateConsumerQueue();
+  ASSERT_TRUE(consumer_queue_ != nullptr);
+  EXPECT_EQ(producer_queue_->capacity(), 0);
+  EXPECT_EQ(consumer_queue_->capacity(), 0);
+
+  std::shared_ptr<ProducerBuffer> p1 = ProducerBuffer::Create(
+      kBufferWidth, kBufferHeight, kBufferFormat, kBufferUsage, 0);
+  ASSERT_TRUE(p1 != nullptr);
+  ASSERT_EQ(p1->GainAsync(), 0);
+
+  // Inserting a posted buffer will fail.
+  DvrNativeBufferMetadata meta;
+  EXPECT_EQ(p1->PostAsync(&meta, LocalHandle()), 0);
+  auto status_or_slot = producer_queue_->InsertBuffer(p1);
+  EXPECT_FALSE(status_or_slot.ok());
+  EXPECT_EQ(status_or_slot.error(), EINVAL);
+
+  // Inserting a gained buffer will succeed.
+  std::shared_ptr<ProducerBuffer> p2 = ProducerBuffer::Create(
+      kBufferWidth, kBufferHeight, kBufferFormat, kBufferUsage);
+  ASSERT_EQ(p2->GainAsync(), 0);
+  ASSERT_TRUE(p2 != nullptr);
+  status_or_slot = producer_queue_->InsertBuffer(p2);
+  EXPECT_TRUE(status_or_slot.ok()) << status_or_slot.GetErrorMessage();
+  // This is the first buffer inserted, should take slot 0.
+  size_t slot = status_or_slot.get();
+  EXPECT_EQ(slot, 0);
+
+  // Wait and expect the consumer to kick up the newly inserted buffer.
+  WaitAndHandleOnce(consumer_queue_.get(), kTimeoutMs);
+  EXPECT_EQ(consumer_queue_->capacity(), 1ULL);
+}
+
 TEST_F(BufferHubQueueTest, TestRemoveBuffer) {
   ASSERT_TRUE(CreateProducerQueue(config_builder_.Build(), UsagePolicy{}));
   DvrNativeBufferMetadata mo;
@@ -203,7 +382,7 @@ TEST_F(BufferHubQueueTest, TestRemoveBuffer) {
   // Dequeue all the buffers and keep track of them in an array. This prevents
   // the producer queue ring buffer ref counts from interfering with the tests.
   struct Entry {
-    std::shared_ptr<BufferProducer> buffer;
+    std::shared_ptr<ProducerBuffer> buffer;
     LocalHandle fence;
     size_t slot;
   };
@@ -211,8 +390,8 @@ TEST_F(BufferHubQueueTest, TestRemoveBuffer) {
 
   for (size_t i = 0; i < kBufferCount; i++) {
     Entry* entry = &buffers[i];
-    auto producer_status = producer_queue_->Dequeue(
-        kTimeoutMs, &entry->slot, &mo, &entry->fence);
+    auto producer_status =
+        producer_queue_->Dequeue(kTimeoutMs, &entry->slot, &mo, &entry->fence);
     ASSERT_TRUE(producer_status.ok());
     entry->buffer = producer_status.take();
     ASSERT_NE(nullptr, entry->buffer);
@@ -409,7 +588,7 @@ TEST_F(BufferHubQueueTest, TestUserMetadata) {
     mi.user_metadata_ptr = reinterpret_cast<uint64_t>(&user_metadata);
     EXPECT_EQ(p1->PostAsync(&mi, {}), 0);
     auto c1_status = consumer_queue_->Dequeue(kTimeoutMs, &slot, &mo, &fence);
-    EXPECT_TRUE(c1_status.ok());
+    EXPECT_TRUE(c1_status.ok()) << c1_status.GetErrorMessage();
     auto c1 = c1_status.take();
     ASSERT_NE(c1, nullptr);
 
@@ -513,7 +692,7 @@ TEST_F(BufferHubQueueTest, TestAllocateBuffer) {
 
   size_t cs1, cs2;
   auto c1_status = consumer_queue_->Dequeue(kTimeoutMs, &cs1, &mo, &fence);
-  ASSERT_TRUE(c1_status.ok());
+  ASSERT_TRUE(c1_status.ok()) << c1_status.GetErrorMessage();
   auto c1 = c1_status.take();
   ASSERT_NE(c1, nullptr);
   ASSERT_EQ(consumer_queue_->count(), 0U);
@@ -526,6 +705,30 @@ TEST_F(BufferHubQueueTest, TestAllocateBuffer) {
   auto c2 = c2_status.take();
   ASSERT_NE(c2, nullptr);
   ASSERT_EQ(cs2, ps2);
+}
+
+TEST_F(BufferHubQueueTest, TestAllocateTwoBuffers) {
+  ASSERT_TRUE(CreateQueues(config_builder_.Build(), UsagePolicy{}));
+  ASSERT_EQ(producer_queue_->capacity(), 0);
+  auto status = producer_queue_->AllocateBuffers(
+      kBufferWidth, kBufferHeight, kBufferLayerCount, kBufferFormat,
+      kBufferUsage, /*buffer_count=*/2);
+  ASSERT_TRUE(status.ok());
+  std::vector<size_t> buffer_slots = status.take();
+  ASSERT_EQ(buffer_slots.size(), 2);
+  ASSERT_EQ(producer_queue_->capacity(), 2);
+}
+
+TEST_F(BufferHubQueueTest, TestAllocateZeroBuffers) {
+  ASSERT_TRUE(CreateQueues(config_builder_.Build(), UsagePolicy{}));
+  ASSERT_EQ(producer_queue_->capacity(), 0);
+  auto status = producer_queue_->AllocateBuffers(
+      kBufferWidth, kBufferHeight, kBufferLayerCount, kBufferFormat,
+      kBufferUsage, /*buffer_count=*/0);
+  ASSERT_TRUE(status.ok());
+  std::vector<size_t> buffer_slots = status.take();
+  ASSERT_EQ(buffer_slots.size(), 0);
+  ASSERT_EQ(producer_queue_->capacity(), 0);
 }
 
 TEST_F(BufferHubQueueTest, TestUsageSetMask) {
@@ -645,10 +848,10 @@ TEST_F(BufferHubQueueTest, TestFreeAllBuffers) {
   size_t slot;
   LocalHandle fence;
   pdx::Status<void> status;
-  pdx::Status<std::shared_ptr<BufferConsumer>> consumer_status;
-  pdx::Status<std::shared_ptr<BufferProducer>> producer_status;
-  std::shared_ptr<BufferConsumer> consumer_buffer;
-  std::shared_ptr<BufferProducer> producer_buffer;
+  pdx::Status<std::shared_ptr<ConsumerBuffer>> consumer_status;
+  pdx::Status<std::shared_ptr<ProducerBuffer>> producer_status;
+  std::shared_ptr<ConsumerBuffer> consumer_buffer;
+  std::shared_ptr<ProducerBuffer> producer_buffer;
   DvrNativeBufferMetadata mi, mo;
 
   ASSERT_TRUE(CreateQueues(config_builder_.Build(), UsagePolicy{}));
@@ -705,7 +908,7 @@ TEST_F(BufferHubQueueTest, TestFreeAllBuffers) {
     ASSERT_NE(producer_buffer, nullptr);
     ASSERT_EQ(producer_buffer->PostAsync(&mi, fence), 0);
     consumer_status = consumer_queue_->Dequeue(kTimeoutMs, &slot, &mo, &fence);
-    ASSERT_TRUE(consumer_status.ok());
+    ASSERT_TRUE(consumer_status.ok()) << consumer_status.GetErrorMessage();
   }
 
   status = producer_queue_->FreeAllBuffers();
@@ -748,7 +951,7 @@ TEST_F(BufferHubQueueTest, TestProducerExportToParcelable) {
   Parcel parcel;
   status_t res;
   res = output_parcelable.writeToParcel(&parcel);
-  EXPECT_EQ(res, NO_ERROR);
+  EXPECT_EQ(res, OK);
 
   // After written into parcelable, the output_parcelable is still valid has
   // keeps the producer channel alive.
@@ -770,7 +973,7 @@ TEST_F(BufferHubQueueTest, TestProducerExportToParcelable) {
   EXPECT_FALSE(input_parcelable.IsValid());
 
   res = input_parcelable.readFromParcel(&parcel);
-  EXPECT_EQ(res, NO_ERROR);
+  EXPECT_EQ(res, OK);
   EXPECT_TRUE(input_parcelable.IsValid());
 
   EXPECT_EQ(producer_queue_, nullptr);
@@ -791,7 +994,7 @@ TEST_F(BufferHubQueueTest, TestProducerExportToParcelable) {
   auto s3 = producer_queue_->Dequeue(0, &slot, &producer_meta, &fence);
   EXPECT_TRUE(s3.ok());
 
-  std::shared_ptr<BufferProducer> p1 = s3.take();
+  std::shared_ptr<ProducerBuffer> p1 = s3.take();
   ASSERT_NE(p1, nullptr);
 
   producer_meta.timestamp = 42;
@@ -799,7 +1002,7 @@ TEST_F(BufferHubQueueTest, TestProducerExportToParcelable) {
 
   // Make sure the buffer can be dequeued from consumer side.
   auto s4 = consumer_queue_->Dequeue(kTimeoutMs, &slot, &consumer_meta, &fence);
-  EXPECT_TRUE(s4.ok());
+  EXPECT_TRUE(s4.ok()) << s4.GetErrorMessage();
   EXPECT_EQ(consumer_queue_->capacity(), 1U);
 
   auto consumer = s4.take();
@@ -840,7 +1043,7 @@ TEST_F(BufferHubQueueTest, TestCreateConsumerParcelable) {
   EXPECT_FALSE(input_parcelable.IsValid());
 
   res = input_parcelable.readFromParcel(&parcel);
-  EXPECT_EQ(res, NO_ERROR);
+  EXPECT_EQ(res, OK);
   EXPECT_TRUE(input_parcelable.IsValid());
 
   consumer_queue_ = ConsumerQueue::Import(input_parcelable.TakeChannelHandle());
@@ -858,7 +1061,7 @@ TEST_F(BufferHubQueueTest, TestCreateConsumerParcelable) {
   auto s2 = producer_queue_->Dequeue(0, &slot, &producer_meta, &fence);
   EXPECT_TRUE(s2.ok());
 
-  std::shared_ptr<BufferProducer> p1 = s2.take();
+  std::shared_ptr<ProducerBuffer> p1 = s2.take();
   ASSERT_NE(p1, nullptr);
 
   producer_meta.timestamp = 42;
@@ -866,7 +1069,7 @@ TEST_F(BufferHubQueueTest, TestCreateConsumerParcelable) {
 
   // Make sure the buffer can be dequeued from consumer side.
   auto s3 = consumer_queue_->Dequeue(kTimeoutMs, &slot, &consumer_meta, &fence);
-  EXPECT_TRUE(s3.ok());
+  EXPECT_TRUE(s3.ok()) << s3.GetErrorMessage();
   EXPECT_EQ(consumer_queue_->capacity(), 1U);
 
   auto consumer = s3.take();

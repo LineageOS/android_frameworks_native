@@ -28,7 +28,7 @@ public:
     float getHeight() const { return bottom - top; }
 
     FloatRect intersect(const FloatRect& other) const {
-        return {
+        FloatRect intersection = {
             // Inline to avoid tromping on other min/max defines or adding a
             // dependency on STL
             (left > other.left) ? left : other.left,
@@ -36,6 +36,10 @@ public:
             (right < other.right) ? right : other.right,
             (bottom < other.bottom) ? bottom : other.bottom
         };
+        if (intersection.getWidth() < 0 || intersection.getHeight() < 0) {
+            return {0, 0, 0, 0};
+        }
+        return intersection;
     }
 
     float left = 0.0f;

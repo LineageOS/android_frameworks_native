@@ -32,7 +32,9 @@
 #include <utils/Log.h>
 #include <utils/Trace.h>
 
+#include <ui/Gralloc.h>
 #include <ui/Gralloc2.h>
+#include <ui/Gralloc3.h>
 #include <ui/GraphicBuffer.h>
 
 #include <system/graphics.h>
@@ -43,12 +45,22 @@ namespace android {
 ANDROID_SINGLETON_STATIC_INSTANCE( GraphicBufferMapper )
 
 void GraphicBufferMapper::preloadHal() {
-    Gralloc2::Mapper::preload();
+    Gralloc2Mapper::preload();
+    Gralloc3Mapper::preload();
 }
 
-GraphicBufferMapper::GraphicBufferMapper()
-  : mMapper(std::make_unique<const Gralloc2::Mapper>())
-{
+GraphicBufferMapper::GraphicBufferMapper() {
+    mMapper = std::make_unique<const Gralloc3Mapper>();
+    if (!mMapper->isLoaded()) {
+        mMapper = std::make_unique<const Gralloc2Mapper>();
+        mMapperVersion = Version::GRALLOC_2;
+    } else {
+        mMapperVersion = Version::GRALLOC_3;
+    }
+
+    if (!mMapper->isLoaded()) {
+        LOG_ALWAYS_FATAL("gralloc-mapper is missing");
+    }
 }
 
 status_t GraphicBufferMapper::importBuffer(buffer_handle_t rawHandle,
@@ -59,22 +71,15 @@ status_t GraphicBufferMapper::importBuffer(buffer_handle_t rawHandle,
     ATRACE_CALL();
 
     buffer_handle_t bufferHandle;
-    Gralloc2::Error error = mMapper->importBuffer(
-            hardware::hidl_handle(rawHandle), &bufferHandle);
-    if (error != Gralloc2::Error::NONE) {
+    status_t error = mMapper->importBuffer(hardware::hidl_handle(rawHandle), &bufferHandle);
+    if (error != NO_ERROR) {
         ALOGW("importBuffer(%p) failed: %d", rawHandle, error);
-        return static_cast<status_t>(error);
+        return error;
     }
 
-    Gralloc2::IMapper::BufferDescriptorInfo info = {};
-    info.width = width;
-    info.height = height;
-    info.layerCount = layerCount;
-    info.format = static_cast<Gralloc2::PixelFormat>(format);
-    info.usage = usage;
-
-    error = mMapper->validateBufferSize(bufferHandle, info, stride);
-    if (error != Gralloc2::Error::NONE) {
+    error = mMapper->validateBufferSize(bufferHandle, width, height, format, layerCount, usage,
+                                        stride);
+    if (error != NO_ERROR) {
         ALOGE("validateBufferSize(%p) failed: %d", rawHandle, error);
         freeBuffer(bufferHandle);
         return static_cast<status_t>(error);
@@ -100,19 +105,10 @@ status_t GraphicBufferMapper::freeBuffer(buffer_handle_t handle)
     return NO_ERROR;
 }
 
-static inline Gralloc2::IMapper::Rect asGralloc2Rect(const Rect& rect) {
-    Gralloc2::IMapper::Rect outRect{};
-    outRect.left = rect.left;
-    outRect.top = rect.top;
-    outRect.width = rect.width();
-    outRect.height = rect.height();
-    return outRect;
-}
-
-status_t GraphicBufferMapper::lock(buffer_handle_t handle, uint32_t usage,
-        const Rect& bounds, void** vaddr)
-{
-    return lockAsync(handle, usage, bounds, vaddr, -1);
+status_t GraphicBufferMapper::lock(buffer_handle_t handle, uint32_t usage, const Rect& bounds,
+                                   void** vaddr, int32_t* outBytesPerPixel,
+                                   int32_t* outBytesPerStride) {
+    return lockAsync(handle, usage, bounds, vaddr, -1, outBytesPerPixel, outBytesPerStride);
 }
 
 status_t GraphicBufferMapper::lockYCbCr(buffer_handle_t handle, uint32_t usage,
@@ -132,27 +128,23 @@ status_t GraphicBufferMapper::unlock(buffer_handle_t handle)
     return error;
 }
 
-status_t GraphicBufferMapper::lockAsync(buffer_handle_t handle,
-        uint32_t usage, const Rect& bounds, void** vaddr, int fenceFd)
-{
-    return lockAsync(handle, usage, usage, bounds, vaddr, fenceFd);
+status_t GraphicBufferMapper::lockAsync(buffer_handle_t handle, uint32_t usage, const Rect& bounds,
+                                        void** vaddr, int fenceFd, int32_t* outBytesPerPixel,
+                                        int32_t* outBytesPerStride) {
+    return lockAsync(handle, usage, usage, bounds, vaddr, fenceFd, outBytesPerPixel,
+                     outBytesPerStride);
 }
 
-status_t GraphicBufferMapper::lockAsync(buffer_handle_t handle,
-        uint64_t producerUsage, uint64_t consumerUsage, const Rect& bounds,
-        void** vaddr, int fenceFd)
-{
+status_t GraphicBufferMapper::lockAsync(buffer_handle_t handle, uint64_t producerUsage,
+                                        uint64_t consumerUsage, const Rect& bounds, void** vaddr,
+                                        int fenceFd, int32_t* outBytesPerPixel,
+                                        int32_t* outBytesPerStride) {
     ATRACE_CALL();
 
     const uint64_t usage = static_cast<uint64_t>(
             android_convertGralloc1To0Usage(producerUsage, consumerUsage));
-    Gralloc2::Error error = mMapper->lock(handle, usage,
-            asGralloc2Rect(bounds), fenceFd, vaddr);
-
-    ALOGW_IF(error != Gralloc2::Error::NONE, "lock(%p, ...) failed: %d",
-            handle, error);
-
-    return static_cast<status_t>(error);
+    return mMapper->lock(handle, usage, bounds, fenceFd, vaddr, outBytesPerPixel,
+                         outBytesPerStride);
 }
 
 status_t GraphicBufferMapper::lockAsyncYCbCr(buffer_handle_t handle,
@@ -160,19 +152,7 @@ status_t GraphicBufferMapper::lockAsyncYCbCr(buffer_handle_t handle,
 {
     ATRACE_CALL();
 
-    Gralloc2::YCbCrLayout layout;
-    Gralloc2::Error error = mMapper->lock(handle, usage,
-            asGralloc2Rect(bounds), fenceFd, &layout);
-    if (error == Gralloc2::Error::NONE) {
-        ycbcr->y = layout.y;
-        ycbcr->cb = layout.cb;
-        ycbcr->cr = layout.cr;
-        ycbcr->ystride = static_cast<size_t>(layout.yStride);
-        ycbcr->cstride = static_cast<size_t>(layout.cStride);
-        ycbcr->chroma_step = static_cast<size_t>(layout.chromaStep);
-    }
-
-    return static_cast<status_t>(error);
+    return mMapper->lock(handle, usage, bounds, fenceFd, ycbcr);
 }
 
 status_t GraphicBufferMapper::unlockAsync(buffer_handle_t handle, int *fenceFd)
@@ -184,5 +164,10 @@ status_t GraphicBufferMapper::unlockAsync(buffer_handle_t handle, int *fenceFd)
     return NO_ERROR;
 }
 
+status_t GraphicBufferMapper::isSupported(uint32_t width, uint32_t height,
+                                          android::PixelFormat format, uint32_t layerCount,
+                                          uint64_t usage, bool* outSupported) {
+    return mMapper->isSupported(width, height, format, layerCount, usage, outSupported);
+}
 // ---------------------------------------------------------------------------
 }; // namespace android

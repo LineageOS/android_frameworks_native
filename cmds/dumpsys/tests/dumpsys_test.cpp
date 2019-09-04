@@ -53,7 +53,7 @@ class ServiceManagerMock : public IServiceManager {
     MOCK_CONST_METHOD1(checkService, sp<IBinder>(const String16&));
     MOCK_METHOD4(addService, status_t(const String16&, const sp<IBinder>&, bool, int));
     MOCK_METHOD1(listServices, Vector<String16>(int));
-
+    MOCK_METHOD1(waitForService, sp<IBinder>(const String16&));
   protected:
     MOCK_METHOD0(onAsBinder, IBinder*());
 };
@@ -371,8 +371,8 @@ TEST_F(DumpsysTest, PassAllFlagsToNormalServices) {
                                    IServiceManager::DUMP_FLAG_PRIORITY_NORMAL);
     ExpectCheckService("Locksmith");
     ExpectCheckService("Valet");
-    ExpectDumpWithArgs("Locksmith", {"-a", "--dump-priority", "NORMAL"}, "dump1");
-    ExpectDumpWithArgs("Valet", {"-a", "--dump-priority", "NORMAL"}, "dump2");
+    ExpectDumpWithArgs("Locksmith", {"--dump-priority", "NORMAL", "-a"}, "dump1");
+    ExpectDumpWithArgs("Valet", {"--dump-priority", "NORMAL", "-a"}, "dump2");
 
     CallMain({"--priority", "NORMAL"});
 

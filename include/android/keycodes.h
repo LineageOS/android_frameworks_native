@@ -769,7 +769,14 @@ enum {
     /** all apps */
     AKEYCODE_ALL_APPS = 284,
     /** refresh key */
-    AKEYCODE_REFRESH = 285
+    AKEYCODE_REFRESH = 285,
+    /** Thumbs up key. Apps can use this to let user upvote content. */
+    AKEYCODE_THUMBS_UP = 286,
+    /** Thumbs down key. Apps can use this to let user downvote content. */
+    AKEYCODE_THUMBS_DOWN = 287,
+    /** Used to switch current account that is consuming content.
+     * May be consumed by system to switch current viewer profile. */
+    AKEYCODE_PROFILE_SWITCH = 288
 
     // NOTE: If you add a new keycode here you must also add it to several other files.
     //       Refer to frameworks/base/core/java/android/view/KeyEvent.java for the full list.

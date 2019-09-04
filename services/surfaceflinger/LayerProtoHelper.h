@@ -16,24 +16,33 @@
 
 #include <layerproto/LayerProtoHeader.h>
 
+#include <Layer.h>
+#include <input/InputWindow.h>
+#include <math/vec4.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
-
-#include <Transform.h>
-
-#include <math/vec4.h>
+#include <ui/Transform.h>
 
 namespace android {
 namespace surfaceflinger {
 class LayerProtoHelper {
 public:
-    static void writeToProto(const Rect& rect, RectProto* rectProto);
-    static void writeToProto(const FloatRect& rect, FloatRectProto* rectProto);
-    static void writeToProto(const Region& region, RegionProto* regionProto);
-    static void writeToProto(const half4 color, ColorProto* colorProto);
-    static void writeToProto(const Transform& transform, TransformProto* transformProto);
-    static void writeToProto(const sp<GraphicBuffer>& buffer, ActiveBufferProto* activeBufferProto);
+    static void writePositionToProto(const float x, const float y,
+                                     std::function<PositionProto*()> getPositionProto);
+    static void writeSizeToProto(const uint32_t w, const uint32_t h,
+                                 std::function<SizeProto*()> getSizeProto);
+    static void writeToProto(const Rect& rect, std::function<RectProto*()> getRectProto);
+    static void writeToProto(const FloatRect& rect,
+                             std::function<FloatRectProto*()> getFloatRectProto);
+    static void writeToProto(const Region& region, std::function<RegionProto*()> getRegionProto);
+    static void writeToProto(const half4 color, std::function<ColorProto*()> getColorProto);
+    static void writeToProto(const ui::Transform& transform, TransformProto* transformProto);
+    static void writeToProto(const sp<GraphicBuffer>& buffer,
+                             std::function<ActiveBufferProto*()> getActiveBufferProto);
+    static void writeToProto(const InputWindowInfo& inputInfo,
+                             const wp<Layer>& touchableRegionBounds,
+                             std::function<InputWindowInfoProto*()> getInputWindowInfoProto);
 };
 
 } // namespace surfaceflinger
