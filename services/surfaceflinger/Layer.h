@@ -382,7 +382,7 @@ public:
     // creates its tracks by buffer id and has no way of associating a buffer back to the process
     // that created it, the current implementation is only sufficient for cases where a buffer is
     // only used within a single layer.
-    uint64_t getCurrentBufferId() const { return mActiveBuffer ? mActiveBuffer->getId() : 0; }
+    uint64_t getCurrentBufferId() const { return getBuffer() ? getBuffer()->getId() : 0; }
 
     // -----------------------------------------------------------------------
     // Virtuals
@@ -593,6 +593,8 @@ public:
      * Returns the transform applied to the buffer.
      */
     virtual uint32_t getBufferTransform() const { return 0; }
+
+    virtual sp<GraphicBuffer> getBuffer() const { return nullptr; }
 
     /*
      * Returns if a frame is ready
@@ -844,9 +846,6 @@ protected:
 
     // main thread
     sp<NativeHandle> mSidebandStream;
-    // Active buffer fields
-    sp<GraphicBuffer> mActiveBuffer;
-    sp<Fence> mActiveBufferFence;
     // False if the buffer and its contents have been previously used for GPU
     // composition, true otherwise.
     bool mIsActiveBufferUpdatedForGpu = true;

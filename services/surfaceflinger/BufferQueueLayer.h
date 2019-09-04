@@ -127,7 +127,6 @@ private:
     std::atomic<uint64_t> mLastFrameNumberReceived{0};
 
     bool mAutoRefresh{false};
-    int mActiveBufferSlot{BufferQueue::INVALID_BUFFER_SLOT};
 
     // thread-safe
     std::atomic<int32_t> mQueuedFrames{0};

@@ -53,12 +53,12 @@ BufferStateLayer::BufferStateLayer(const LayerCreationArgs& args)
 }
 
 BufferStateLayer::~BufferStateLayer() {
-    if (mActiveBuffer != nullptr) {
-        // Ensure that mActiveBuffer is uncached from RenderEngine here, as
+    if (mBufferInfo.mBuffer != nullptr) {
+        // Ensure that mBuffer is uncached from RenderEngine here, as
         // RenderEngine may have been using the buffer as an external texture
         // after the client uncached the buffer.
         auto& engine(mFlinger->getRenderEngine());
-        engine.unbindExternalTextureBuffer(mActiveBuffer->getId());
+        engine.unbindExternalTextureBuffer(mBufferInfo.mBuffer->getId());
     }
 }
 
@@ -433,8 +433,8 @@ bool BufferStateLayer::hasFrameUpdate() const {
 }
 
 void BufferStateLayer::setFilteringEnabled(bool enabled) {
-    GLConsumer::computeTransformMatrix(mTransformMatrix.data(), mActiveBuffer, mBufferInfo.mCrop,
-                                       mBufferInfo.mTransform, enabled);
+    GLConsumer::computeTransformMatrix(mTransformMatrix.data(), mBufferInfo.mBuffer,
+                                       mBufferInfo.mCrop, mBufferInfo.mTransform, enabled);
 }
 
 status_t BufferStateLayer::bindTextureImage() {
@@ -523,10 +523,10 @@ status_t BufferStateLayer::updateActiveBuffer() {
     }
 
     mPreviousBufferId = getCurrentBufferId();
-    mActiveBuffer = s.buffer;
-    mActiveBufferFence = s.acquireFence;
+    mBufferInfo.mBuffer = s.buffer;
+    mBufferInfo.mFence = s.acquireFence;
     auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
-    layerCompositionState.buffer = mActiveBuffer;
+    layerCompositionState.buffer = mBufferInfo.mBuffer;
 
     return NO_ERROR;
 }
@@ -650,7 +650,8 @@ void BufferStateLayer::gatherBufferInfo() {
     mBufferInfo.mSurfaceDamage = s.surfaceDamageRegion;
     mBufferInfo.mHdrMetadata = s.hdrMetadata;
     mBufferInfo.mApi = s.api;
-    mBufferInfo.mPixelFormat = !mActiveBuffer ? PIXEL_FORMAT_NONE : mActiveBuffer->format;
+    mBufferInfo.mPixelFormat =
+            !mBufferInfo.mBuffer ? PIXEL_FORMAT_NONE : mBufferInfo.mBuffer->format;
     mBufferInfo.mTransformToDisplayInverse = s.transformToDisplayInverse;
 }
 

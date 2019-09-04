@@ -302,7 +302,7 @@ ui::Transform Layer::getBufferScaleTransform() const {
     // If the layer is not using NATIVE_WINDOW_SCALING_MODE_FREEZE (e.g.
     // it isFixedSize) then there may be additional scaling not accounted
     // for in the layer transform.
-    if (!isFixedSize() || !mActiveBuffer) {
+    if (!isFixedSize() || getBuffer() == nullptr) {
         return {};
     }
 
@@ -314,8 +314,8 @@ ui::Transform Layer::getBufferScaleTransform() const {
         return {};
     }
 
-    int bufferWidth = mActiveBuffer->getWidth();
-    int bufferHeight = mActiveBuffer->getHeight();
+    int bufferWidth = getBuffer()->getWidth();
+    int bufferHeight = getBuffer()->getHeight();
 
     if (getBufferTransform() & NATIVE_WINDOW_TRANSFORM_ROT_90) {
         std::swap(bufferWidth, bufferHeight);
@@ -332,7 +332,7 @@ ui::Transform Layer::getBufferScaleTransform() const {
 ui::Transform Layer::getTransformWithScale(const ui::Transform& bufferScaleTransform) const {
     // We need to mirror this scaling to child surfaces or we will break the contract where WM can
     // treat child surfaces as pixels in the parent surface.
-    if (!isFixedSize() || !mActiveBuffer) {
+    if (!isFixedSize() || getBuffer() == nullptr) {
         return mEffectiveTransform;
     }
     return mEffectiveTransform * bufferScaleTransform;
@@ -341,7 +341,7 @@ ui::Transform Layer::getTransformWithScale(const ui::Transform& bufferScaleTrans
 FloatRect Layer::getBoundsPreScaling(const ui::Transform& bufferScaleTransform) const {
     // We need the pre scaled layer bounds when computing child bounds to make sure the child is
     // cropped to its parent layer after any buffer transform scaling is applied.
-    if (!isFixedSize() || !mActiveBuffer) {
+    if (!isFixedSize() || getBuffer() == nullptr) {
         return mBounds;
     }
     return bufferScaleTransform.inverse().transform(mBounds);
@@ -740,7 +740,7 @@ uint32_t Layer::doTransactionResize(uint32_t flags, State* stateToCommit) {
     const bool resizePending =
             ((stateToCommit->requested_legacy.w != stateToCommit->active_legacy.w) ||
              (stateToCommit->requested_legacy.h != stateToCommit->active_legacy.h)) &&
-            (mActiveBuffer != nullptr);
+            (getBuffer() != nullptr);
     if (!isFixedSize()) {
         if (resizePending && mSidebandStream == nullptr) {
             flags |= eDontUpdateGeometryState;
@@ -1220,7 +1220,7 @@ LayerDebugInfo Layer::getLayerDebugInfo() const {
     info.mMatrix[1][0] = ds.active_legacy.transform[1][0];
     info.mMatrix[1][1] = ds.active_legacy.transform[1][1];
     {
-        sp<const GraphicBuffer> buffer = mActiveBuffer;
+        sp<const GraphicBuffer> buffer = getBuffer();
         if (buffer != 0) {
             info.mActiveBufferWidth = buffer->getWidth();
             info.mActiveBufferHeight = buffer->getHeight();
@@ -1813,7 +1813,7 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags)
             }
         }
 
-        auto buffer = mActiveBuffer;
+        auto buffer = getBuffer();
         if (buffer != nullptr) {
             LayerProtoHelper::writeToProto(buffer,
                                            [&]() { return layerInfo->mutable_active_buffer(); });

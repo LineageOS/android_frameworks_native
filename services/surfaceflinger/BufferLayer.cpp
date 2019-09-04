@@ -92,7 +92,7 @@ void BufferLayer::useEmptyDamage() {
 bool BufferLayer::isOpaque(const Layer::State& s) const {
     // if we don't have a buffer or sidebandStream yet, we're translucent regardless of the
     // layer's opaque flag.
-    if ((mSidebandStream == nullptr) && (mActiveBuffer == nullptr)) {
+    if ((mSidebandStream == nullptr) && (mBufferInfo.mBuffer == nullptr)) {
         return false;
     }
 
@@ -103,7 +103,7 @@ bool BufferLayer::isOpaque(const Layer::State& s) const {
 
 bool BufferLayer::isVisible() const {
     bool visible = !(isHiddenByPolicy()) && getAlpha() > 0.0f &&
-            (mActiveBuffer != nullptr || mSidebandStream != nullptr);
+            (mBufferInfo.mBuffer != nullptr || mSidebandStream != nullptr);
     mFlinger->mScheduler->setLayerVisibility(mSchedulerLayerHandle, visible);
 
     return visible;
@@ -144,7 +144,7 @@ std::optional<renderengine::LayerSettings> BufferLayer::prepareClientComposition
         return result;
     }
 
-    if (CC_UNLIKELY(mActiveBuffer == 0)) {
+    if (CC_UNLIKELY(mBufferInfo.mBuffer == 0)) {
         // the texture has not been created yet, this Layer has
         // in fact never been drawn into. This happens frequently with
         // SurfaceView because the WindowManager can't know when the client
@@ -175,9 +175,9 @@ std::optional<renderengine::LayerSettings> BufferLayer::prepareClientComposition
     const State& s(getDrawingState());
     auto& layer = *result;
     if (!blackOutLayer) {
-        layer.source.buffer.buffer = mActiveBuffer;
+        layer.source.buffer.buffer = mBufferInfo.mBuffer;
         layer.source.buffer.isOpaque = isOpaque(s);
-        layer.source.buffer.fence = mActiveBufferFence;
+        layer.source.buffer.fence = mBufferInfo.mFence;
         layer.source.buffer.textureName = mTextureName;
         layer.source.buffer.usePremultipliedAlpha = getPremultipledAlpha();
         layer.source.buffer.isY410BT2020 = isHdrY410();
@@ -256,7 +256,7 @@ bool BufferLayer::isHdrY410() const {
     // pixel format is HDR Y410 masquerading as RGBA_1010102
     return (mBufferInfo.mDataspace == ui::Dataspace::BT2020_ITU_PQ &&
             mBufferInfo.mApi == NATIVE_WINDOW_API_MEDIA &&
-            mActiveBuffer->getPixelFormat() == HAL_PIXEL_FORMAT_RGBA_1010102);
+            mBufferInfo.mBuffer->getPixelFormat() == HAL_PIXEL_FORMAT_RGBA_1010102);
 }
 
 void BufferLayer::latchPerFrameState(
@@ -276,7 +276,7 @@ void BufferLayer::latchPerFrameState(
 }
 
 bool BufferLayer::onPreComposition(nsecs_t refreshStartTime) {
-    if (mBufferLatched) {
+    if (mBufferInfo.mBuffer != nullptr) {
         Mutex::Autolock lock(mFrameEventHistoryMutex);
         mFrameEventHistory.addPreComposition(mCurrentFrameNumber, refreshStartTime);
     }
@@ -370,7 +370,8 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
     // Capture the old state of the layer for comparisons later
     const State& s(getDrawingState());
     const bool oldOpacity = isOpaque(s);
-    sp<GraphicBuffer> oldBuffer = mActiveBuffer;
+
+    BufferInfo oldBufferInfo = mBufferInfo;
 
     if (!allTransactionsSignaled(expectedPresentTime)) {
         mFlinger->setTransactionFlags(eTraversalNeeded);
@@ -387,19 +388,16 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
         return false;
     }
 
-    mBufferLatched = true;
-
     err = updateFrameNumber(latchTime);
     if (err != NO_ERROR) {
         return false;
     }
 
-    BufferInfo oldBufferInfo = mBufferInfo;
     gatherBufferInfo();
 
     mRefreshPending = true;
     mFrameLatencyNeeded = true;
-    if (oldBuffer == nullptr) {
+    if (oldBufferInfo.mBuffer == nullptr) {
         // the first time we receive a buffer, we need to trigger a
         // geometry invalidation.
         recomputeVisibleRegions = true;
@@ -412,10 +410,11 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
         recomputeVisibleRegions = true;
     }
 
-    if (oldBuffer != nullptr) {
-        uint32_t bufWidth = mActiveBuffer->getWidth();
-        uint32_t bufHeight = mActiveBuffer->getHeight();
-        if (bufWidth != uint32_t(oldBuffer->width) || bufHeight != uint32_t(oldBuffer->height)) {
+    if (oldBufferInfo.mBuffer != nullptr) {
+        uint32_t bufWidth = mBufferInfo.mBuffer->getWidth();
+        uint32_t bufHeight = mBufferInfo.mBuffer->getHeight();
+        if (bufWidth != uint32_t(oldBufferInfo.mBuffer->width) ||
+            bufHeight != uint32_t(oldBufferInfo.mBuffer->height)) {
             recomputeVisibleRegions = true;
         }
     }
@@ -484,7 +483,7 @@ uint32_t BufferLayer::getEffectiveScalingMode() const {
 }
 
 bool BufferLayer::isProtected() const {
-    const sp<GraphicBuffer>& buffer(mActiveBuffer);
+    const sp<GraphicBuffer>& buffer(mBufferInfo.mBuffer);
     return (buffer != 0) && (buffer->getUsage() & GRALLOC_USAGE_PROTECTED);
 }
 
@@ -588,12 +587,12 @@ Rect BufferLayer::getBufferSize(const State& s) const {
         return Rect(getActiveWidth(s), getActiveHeight(s));
     }
 
-    if (mActiveBuffer == nullptr) {
+    if (mBufferInfo.mBuffer == nullptr) {
         return Rect::INVALID_RECT;
     }
 
-    uint32_t bufWidth = mActiveBuffer->getWidth();
-    uint32_t bufHeight = mActiveBuffer->getHeight();
+    uint32_t bufWidth = mBufferInfo.mBuffer->getWidth();
+    uint32_t bufHeight = mBufferInfo.mBuffer->getHeight();
 
     // Undo any transformations on the buffer and return the result.
     if (mBufferInfo.mTransform & ui::Transform::ROT_90) {
@@ -624,12 +623,12 @@ FloatRect BufferLayer::computeSourceBounds(const FloatRect& parentBounds) const 
         return FloatRect(0, 0, getActiveWidth(s), getActiveHeight(s));
     }
 
-    if (mActiveBuffer == nullptr) {
+    if (mBufferInfo.mBuffer == nullptr) {
         return parentBounds;
     }
 
-    uint32_t bufWidth = mActiveBuffer->getWidth();
-    uint32_t bufHeight = mActiveBuffer->getHeight();
+    uint32_t bufWidth = mBufferInfo.mBuffer->getWidth();
+    uint32_t bufHeight = mBufferInfo.mBuffer->getHeight();
 
     // Undo any transformations on the buffer and return the result.
     if (mBufferInfo.mTransform & ui::Transform::ROT_90) {
@@ -669,9 +668,9 @@ Rect BufferLayer::getBufferCrop() const {
     if (!mBufferInfo.mCrop.isEmpty()) {
         // if the buffer crop is defined, we use that
         return mBufferInfo.mCrop;
-    } else if (mActiveBuffer != nullptr) {
+    } else if (mBufferInfo.mBuffer != nullptr) {
         // otherwise we use the whole buffer
-        return mActiveBuffer->getBounds();
+        return mBufferInfo.mBuffer->getBounds();
     } else {
         // if we don't have a buffer yet, we use an empty/invalid crop
         return Rect();
@@ -713,6 +712,10 @@ ui::Dataspace BufferLayer::translateDataspace(ui::Dataspace dataspace) {
     }
 
     return updatedDataspace;
+}
+
+sp<GraphicBuffer> BufferLayer::getBuffer() const {
+    return mBufferInfo.mBuffer;
 }
 
 } // namespace android

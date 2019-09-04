@@ -114,6 +114,8 @@ public:
 
     ui::Dataspace getDataSpace() const override;
 
+    sp<GraphicBuffer> getBuffer() const override;
+
     // -----------------------------------------------------------------------
 
     // -----------------------------------------------------------------------
@@ -159,6 +161,9 @@ protected:
         int mApi;
         PixelFormat mPixelFormat;
         bool mTransformToDisplayInverse{false};
+
+        sp<GraphicBuffer> mBuffer;
+        int mBufferSlot{BufferQueue::INVALID_BUFFER_SLOT};
     };
 
     BufferInfo mBufferInfo;
@@ -194,9 +199,6 @@ private:
     bool needsFiltering(const sp<const DisplayDevice>& displayDevice) const override;
 
     uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const;
-
-    // main thread.
-    bool mBufferLatched{false}; // TODO: Use mActiveBuffer?
 
     // BufferStateLayers can return Rect::INVALID_RECT if the layer does not have a display frame
     // and its parent layer is not bounded
