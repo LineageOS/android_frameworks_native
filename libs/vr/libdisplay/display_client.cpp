@@ -178,6 +178,10 @@ Status<std::string> DisplayClient::GetConfigurationData(
   return status;
 }
 
+Status<uint8_t> DisplayClient::GetDisplayIdentificationPort() {
+  return InvokeRemoteMethod<DisplayProtocol::GetDisplayIdentificationPort>();
+}
+
 Status<std::unique_ptr<Surface>> DisplayClient::CreateSurface(
     const SurfaceAttributes& attributes) {
   int error;
