@@ -1379,6 +1379,9 @@ EGLBoolean eglSwapBuffersWithDamageKHRImpl(EGLDisplay dpy, EGLSurface draw,
     if (!_s.get())
         return setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
 
+    if (n_rects < 0 || (n_rects > 0 && rects == NULL))
+        return setError(EGL_BAD_PARAMETER, (EGLBoolean)EGL_FALSE);
+
     egl_surface_t* const s = get_surface(draw);
 
     if (CC_UNLIKELY(dp->traceGpuCompletion)) {
