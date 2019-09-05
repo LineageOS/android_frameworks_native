@@ -29,6 +29,15 @@
 
 using namespace android;
 
+class TestableSurface final : public Surface {
+public:
+    explicit TestableSurface(const sp<IGraphicBufferProducer>& bufferProducer)
+          : Surface(bufferProducer) {}
+
+    // Exposes the internal last dequeue duration that's stored on the Surface.
+    nsecs_t getLastDequeueDuration() const { return mLastDequeueDuration; }
+};
+
 class ANativeWindowTest : public ::testing::Test {
 protected:
     void SetUp() override {
@@ -37,7 +46,7 @@ protected:
         ALOGV("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
         BufferQueue::createBufferQueue(&mProducer, &mConsumer);
         mItemConsumer = new BufferItemConsumer(mConsumer, GRALLOC_USAGE_SW_READ_OFTEN);
-        mWindow = new Surface(mProducer);
+        mWindow = new TestableSurface(mProducer);
         const int success = native_window_api_connect(mWindow.get(), NATIVE_WINDOW_API_CPU);
         EXPECT_EQ(0, success);
     }
@@ -52,12 +61,14 @@ protected:
     sp<IGraphicBufferProducer> mProducer;
     sp<IGraphicBufferConsumer> mConsumer;
     sp<BufferItemConsumer> mItemConsumer;
-    sp<ANativeWindow> mWindow;
+
+    sp<TestableSurface> mWindow;
 };
 
 TEST_F(ANativeWindowTest, getLastDequeueDuration_noDequeue_returnsZero) {
     int result = ANativeWindow_getLastDequeueDuration(mWindow.get());
     EXPECT_EQ(0, result);
+    EXPECT_EQ(0, mWindow->getLastDequeueDuration() / 1000);
 }
 
 TEST_F(ANativeWindowTest, getLastDequeueDuration_withDequeue_returnsTime) {
@@ -69,4 +80,5 @@ TEST_F(ANativeWindowTest, getLastDequeueDuration_withDequeue_returnsTime) {
 
     result = ANativeWindow_getLastDequeueDuration(mWindow.get());
     EXPECT_GT(result, 0);
+    EXPECT_EQ(result, mWindow->getLastDequeueDuration() / 1000);
 }
