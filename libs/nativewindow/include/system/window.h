@@ -202,7 +202,7 @@ enum {
  * ANativeWindow.
  */
 enum {
-// clang-format off
+    // clang-format off
     NATIVE_WINDOW_SET_USAGE                     =  0,   /* deprecated */
     NATIVE_WINDOW_CONNECT                       =  1,   /* deprecated */
     NATIVE_WINDOW_DISCONNECT                    =  2,   /* deprecated */
@@ -237,7 +237,8 @@ enum {
     NATIVE_WINDOW_GET_CONSUMER_USAGE64          = 31,
     NATIVE_WINDOW_SET_BUFFERS_SMPTE2086_METADATA = 32,
     NATIVE_WINDOW_SET_BUFFERS_CTA861_3_METADATA = 33,
-// clang-format on
+    NATIVE_WINDOW_SET_BUFFERS_HDR10_PLUS_METADATA = 34,
+    // clang-format on
 };
 
 /* parameter for NATIVE_WINDOW_[API_][DIS]CONNECT */
@@ -745,6 +746,27 @@ static inline int native_window_set_buffers_cta861_3_metadata(
 {
     return window->perform(window, NATIVE_WINDOW_SET_BUFFERS_CTA861_3_METADATA,
             metadata);
+}
+
+/*
+ * native_window_set_buffers_hdr10_plus_metadata(..., metadata)
+ * All buffers queued after this call will be associated with the
+ * HDR10+ dynamic metadata specified.
+ *
+ * metadata specifies additional dynamic information about the
+ * contents of the buffer that may affect how it is displayed.  When
+ * it is nullptr, it means no such information is available.  No
+ * HDR10+ dynamic emtadata is associated with the buffers by default.
+ *
+ * Parameter "size" refers to the length of the metadata blob pointed to
+ * by parameter "data".  The metadata blob will adhere to the HDR10+ SEI
+ * message standard.
+ */
+static inline int native_window_set_buffers_hdr10_plus_metadata(struct ANativeWindow* window,
+                                                           const size_t size,
+                                                           const uint8_t* metadata) {
+    return window->perform(window, NATIVE_WINDOW_SET_BUFFERS_HDR10_PLUS_METADATA, size,
+                           metadata);
 }
 
 /*

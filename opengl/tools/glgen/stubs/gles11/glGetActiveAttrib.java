@@ -17,6 +17,7 @@
     // C function void glGetActiveAttrib ( GLuint program, GLuint index, GLsizei bufsize, GLsizei *length, GLint *size, GLenum *type, char *name )
 
     /** @hide Method is broken, but used to be public (b/6006380) */
+    @UnsupportedAppUsage
     public static native void glGetActiveAttrib(
         int program,
         int index,

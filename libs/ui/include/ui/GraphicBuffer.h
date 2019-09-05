@@ -21,8 +21,12 @@
 #include <sys/types.h>
 
 #include <string>
+#include <utility>
+#include <vector>
 
+#include <android/hardware_buffer.h>
 #include <ui/ANativeObjectBase.h>
+#include <ui/GraphicBufferMapper.h>
 #include <ui/PixelFormat.h>
 #include <ui/Rect.h>
 #include <utils/Flattenable.h>
@@ -34,8 +38,13 @@
 
 namespace android {
 
-class DetachedBufferHandle;
+#ifndef LIBUI_IN_VNDK
+class BufferHubBuffer;
+#endif // LIBUI_IN_VNDK
+
 class GraphicBufferMapper;
+
+using GraphicBufferDeathCallback = std::function<void(void* /*context*/, uint64_t bufferId)>;
 
 // ===========================================================================
 // GraphicBuffer
@@ -75,6 +84,10 @@ public:
 
     static sp<GraphicBuffer> from(ANativeWindowBuffer *);
 
+    static GraphicBuffer* fromAHardwareBuffer(AHardwareBuffer*);
+    static GraphicBuffer const* fromAHardwareBuffer(AHardwareBuffer const*);
+    AHardwareBuffer* toAHardwareBuffer();
+    AHardwareBuffer const* toAHardwareBuffer() const;
 
     // Create a GraphicBuffer to be unflatten'ed into or be reallocated.
     GraphicBuffer();
@@ -134,6 +147,11 @@ public:
     GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
             uint32_t inUsage, std::string requestorName = "<Unknown>");
 
+#ifndef LIBUI_IN_VNDK
+    // Create a GraphicBuffer from an existing BufferHubBuffer.
+    GraphicBuffer(std::unique_ptr<BufferHubBuffer> buffer);
+#endif // LIBUI_IN_VNDK
+
     // return status
     status_t initCheck() const;
 
@@ -145,6 +163,7 @@ public:
     uint32_t getLayerCount() const      { return static_cast<uint32_t>(layerCount); }
     Rect getBounds() const              { return Rect(width, height); }
     uint64_t getId() const              { return mId; }
+    int32_t getBufferId() const { return mBufferId; }
 
     uint32_t getGenerationNumber() const { return mGenerationNumber; }
     void setGenerationNumber(uint32_t generation) {
@@ -160,23 +179,34 @@ public:
     bool needsReallocation(uint32_t inWidth, uint32_t inHeight,
             PixelFormat inFormat, uint32_t inLayerCount, uint64_t inUsage);
 
-    status_t lock(uint32_t inUsage, void** vaddr);
-    status_t lock(uint32_t inUsage, const Rect& rect, void** vaddr);
+    // For the following two lock functions, if bytesPerStride or bytesPerPixel
+    // are unknown or variable, -1 will be returned
+    status_t lock(uint32_t inUsage, void** vaddr, int32_t* outBytesPerPixel = nullptr,
+                  int32_t* outBytesPerStride = nullptr);
+    status_t lock(uint32_t inUsage, const Rect& rect, void** vaddr,
+                  int32_t* outBytesPerPixel = nullptr, int32_t* outBytesPerStride = nullptr);
     // For HAL_PIXEL_FORMAT_YCbCr_420_888
     status_t lockYCbCr(uint32_t inUsage, android_ycbcr *ycbcr);
     status_t lockYCbCr(uint32_t inUsage, const Rect& rect,
             android_ycbcr *ycbcr);
     status_t unlock();
-    status_t lockAsync(uint32_t inUsage, void** vaddr, int fenceFd);
-    status_t lockAsync(uint32_t inUsage, const Rect& rect, void** vaddr,
-            int fenceFd);
-    status_t lockAsync(uint64_t inProducerUsage, uint64_t inConsumerUsage,
-            const Rect& rect, void** vaddr, int fenceFd);
+    // For the following three lockAsync functions, if bytesPerStride or bytesPerPixel
+    // are unknown or variable, -1 will be returned
+    status_t lockAsync(uint32_t inUsage, void** vaddr, int fenceFd,
+                       int32_t* outBytesPerPixel = nullptr, int32_t* outBytesPerStride = nullptr);
+    status_t lockAsync(uint32_t inUsage, const Rect& rect, void** vaddr, int fenceFd,
+                       int32_t* outBytesPerPixel = nullptr, int32_t* outBytesPerStride = nullptr);
+    status_t lockAsync(uint64_t inProducerUsage, uint64_t inConsumerUsage, const Rect& rect,
+                       void** vaddr, int fenceFd, int32_t* outBytesPerPixel = nullptr,
+                       int32_t* outBytesPerStride = nullptr);
     status_t lockAsyncYCbCr(uint32_t inUsage, android_ycbcr *ycbcr,
             int fenceFd);
     status_t lockAsyncYCbCr(uint32_t inUsage, const Rect& rect,
             android_ycbcr *ycbcr, int fenceFd);
     status_t unlockAsync(int *fenceFd);
+
+    status_t isSupported(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
+                         uint32_t inLayerCount, uint64_t inUsage, bool* outSupported) const;
 
     ANativeWindowBuffer* getNativeBuffer() const;
 
@@ -189,10 +219,16 @@ public:
     status_t flatten(void*& buffer, size_t& size, int*& fds, size_t& count) const;
     status_t unflatten(void const*& buffer, size_t& size, int const*& fds, size_t& count);
 
-    // Sets and takes DetachedBuffer. Should only be called from BufferHub.
-    bool isDetachedBuffer() const;
-    status_t setDetachedBufferHandle(std::unique_ptr<DetachedBufferHandle> detachedBuffer);
-    std::unique_ptr<DetachedBufferHandle> takeDetachedBufferHandle();
+    GraphicBufferMapper::Version getBufferMapperVersion() const {
+        return mBufferMapper.getMapperVersion();
+    }
+
+    void addDeathCallback(GraphicBufferDeathCallback deathCallback, void* context);
+
+#ifndef LIBUI_IN_VNDK
+    // Returns whether this GraphicBuffer is backed by BufferHubBuffer.
+    bool isBufferHubBuffer() const;
+#endif // LIBUI_IN_VNDK
 
 private:
     ~GraphicBuffer();
@@ -239,21 +275,46 @@ private:
 
     uint64_t mId;
 
+    // System unique buffer ID. Note that this is different from mId, which is process unique. For
+    // GraphicBuffer backed by BufferHub, the mBufferId is a system unique identifier that stays the
+    // same cross process for the same chunck of underlying memory. Also note that this only applies
+    // to GraphicBuffers that are backed by BufferHub.
+    int32_t mBufferId = -1;
+
     // Stores the generation number of this buffer. If this number does not
     // match the BufferQueue's internal generation number (set through
     // IGBP::setGenerationNumber), attempts to attach the buffer will fail.
     uint32_t mGenerationNumber;
 
-    // Stores a BufferHub handle that can be used to re-attach this GraphicBuffer back into a
-    // BufferHub producer/consumer set. In terms of GraphicBuffer's relationship with BufferHub,
-    // there are three different modes:
-    // 1. Legacy mode: GraphicBuffer is not backed by BufferHub and mDetachedBufferHandle must be
-    //    invalid.
-    // 2. Detached mode: GraphicBuffer is backed by BufferHub, but not part of a producer/consumer
-    //    set. In this mode, mDetachedBufferHandle must be valid.
-    // 3. Attached mode: GraphicBuffer is backed by BufferHub and it's part of a producer/consumer
-    //    set. In this mode, mDetachedBufferHandle must be invalid.
-    std::unique_ptr<DetachedBufferHandle> mDetachedBufferHandle;
+    // Send a callback when a GraphicBuffer dies.
+    //
+    // This is used for BufferStateLayer caching. GraphicBuffers are refcounted per process. When
+    // A GraphicBuffer doesn't have any more sp<> in a process, it is destroyed. This causes
+    // problems when trying to implicitcly cache across process boundaries. Ideally, both sides
+    // of the cache would hold onto wp<> references. When an app dropped its sp<>, the GraphicBuffer
+    // would be destroyed. Unfortunately, when SurfaceFlinger has only a wp<> reference to the
+    // GraphicBuffer, it immediately goes out of scope in the SurfaceFlinger process. SurfaceFlinger
+    // must hold onto a sp<> to the buffer. When the GraphicBuffer goes out of scope in the app's
+    // process, the client side cache will get this callback. It erases the buffer from its cache
+    // and informs SurfaceFlinger that it should drop its strong pointer reference to the buffer.
+    std::vector<std::pair<GraphicBufferDeathCallback, void* /*mDeathCallbackContext*/>>
+            mDeathCallbacks;
+
+#ifndef LIBUI_IN_VNDK
+    // Flatten this GraphicBuffer object if backed by BufferHubBuffer.
+    status_t flattenBufferHubBuffer(void*& buffer, size_t& size) const;
+
+    // Unflatten into BufferHubBuffer backed GraphicBuffer.
+    // Unflatten will fail if the original GraphicBuffer object is destructed. For instance, a
+    // GraphicBuffer backed by BufferHubBuffer_1 flatten in process/thread A, transport the token
+    // to process/thread B through a socket, BufferHubBuffer_1 dies and bufferhub invalidated the
+    // token. Race condition occurs between the invalidation of the token in bufferhub process and
+    // process/thread B trying to unflatten and import the buffer with that token.
+    status_t unflattenBufferHubBuffer(void const*& buffer, size_t& size);
+
+    // Stores a BufferHubBuffer that handles buffer signaling, identification.
+    std::unique_ptr<BufferHubBuffer> mBufferHubBuffer;
+#endif // LIBUI_IN_VNDK
 };
 
 }; // namespace android

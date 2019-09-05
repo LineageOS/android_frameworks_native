@@ -52,13 +52,14 @@ public:
     enum {
         DISPLAY_EVENT_VSYNC = fourcc('v', 's', 'y', 'n'),
         DISPLAY_EVENT_HOTPLUG = fourcc('p', 'l', 'u', 'g'),
+        DISPLAY_EVENT_CONFIG_CHANGED = fourcc('c', 'o', 'n', 'f'),
     };
 
     struct Event {
 
         struct Header {
             uint32_t type;
-            uint32_t id;
+            PhysicalDisplayId displayId;
             nsecs_t timestamp __attribute__((aligned(8)));
         };
 
@@ -70,10 +71,15 @@ public:
             bool connected;
         };
 
+        struct Config {
+            int32_t configId;
+        };
+
         Header header;
         union {
             VSync vsync;
             Hotplug hotplug;
+            Config config;
         };
     };
 

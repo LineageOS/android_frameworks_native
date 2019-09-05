@@ -19,8 +19,6 @@
 #include <gui/BufferItem.h>
 #include <system/window.h>
 
-#include "clz.h"
-
 #define DEBUG_RESIZE 0
 
 namespace android {
@@ -31,6 +29,7 @@ LayerRejecter::LayerRejecter(Layer::State& front,
                              bool stickySet,
                              const char* name,
                              int32_t overrideScalingMode,
+                             bool transformToDisplayInverse,
                              bool& freezePositionUpdates)
   : mFront(front),
     mCurrent(current),
@@ -38,6 +37,7 @@ LayerRejecter::LayerRejecter(Layer::State& front,
     mStickyTransformSet(stickySet),
     mName(name),
     mOverrideScalingMode(overrideScalingMode),
+    mTransformToDisplayInverse(transformToDisplayInverse),
     mFreezeGeometryUpdates(freezePositionUpdates) {}
 
 bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item) {
@@ -50,26 +50,34 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
 
     // check that we received a buffer of the right size
     // (Take the buffer's orientation into account)
-    if (item.mTransform & Transform::ROT_90) {
-        swap(bufWidth, bufHeight);
+    if (item.mTransform & ui::Transform::ROT_90) {
+        std::swap(bufWidth, bufHeight);
+    }
+
+    if (mTransformToDisplayInverse) {
+        uint32_t invTransform = DisplayDevice::getPrimaryDisplayOrientationTransform();
+        if (invTransform & ui::Transform::ROT_90) {
+            std::swap(bufWidth, bufHeight);
+        }
     }
 
     int actualScalingMode = mOverrideScalingMode >= 0 ? mOverrideScalingMode : item.mScalingMode;
     bool isFixedSize = actualScalingMode != NATIVE_WINDOW_SCALING_MODE_FREEZE;
-    if (mFront.active != mFront.requested) {
-        if (isFixedSize || (bufWidth == mFront.requested.w && bufHeight == mFront.requested.h)) {
+    if (mFront.active_legacy != mFront.requested_legacy) {
+        if (isFixedSize ||
+            (bufWidth == mFront.requested_legacy.w && bufHeight == mFront.requested_legacy.h)) {
             // Here we pretend the transaction happened by updating the
             // current and drawing states. Drawing state is only accessed
             // in this thread, no need to have it locked
-            mFront.active = mFront.requested;
+            mFront.active_legacy = mFront.requested_legacy;
 
             // We also need to update the current state so that
             // we don't end-up overwriting the drawing state with
             // this stale current state during the next transaction
             //
             // NOTE: We don't need to hold the transaction lock here
-            // because State::active is only accessed from this thread.
-            mCurrent.active = mFront.active;
+            // because State::active_legacy is only accessed from this thread.
+            mCurrent.active_legacy = mFront.active_legacy;
             mCurrent.modified = true;
 
             // recompute visible region
@@ -77,35 +85,32 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
 
             mFreezeGeometryUpdates = false;
 
-            if (mFront.crop != mFront.requestedCrop) {
-                mFront.crop = mFront.requestedCrop;
-                mCurrent.crop = mFront.requestedCrop;
-                mRecomputeVisibleRegions = true;
-            }
-            if (mFront.finalCrop != mFront.requestedFinalCrop) {
-                mFront.finalCrop = mFront.requestedFinalCrop;
-                mCurrent.finalCrop = mFront.requestedFinalCrop;
+            if (mFront.crop_legacy != mFront.requestedCrop_legacy) {
+                mFront.crop_legacy = mFront.requestedCrop_legacy;
+                mCurrent.crop_legacy = mFront.requestedCrop_legacy;
                 mRecomputeVisibleRegions = true;
             }
         }
 
         ALOGD_IF(DEBUG_RESIZE,
                  "[%s] latchBuffer/reject: buffer (%ux%u, tr=%02x), scalingMode=%d\n"
-                 "  drawing={ active   ={ wh={%4u,%4u} crop={%4d,%4d,%4d,%4d} (%4d,%4d) "
+                 "  drawing={ active_legacy   ={ wh={%4u,%4u} crop_legacy={%4d,%4d,%4d,%4d} "
+                 "(%4d,%4d) "
                  "}\n"
-                 "            requested={ wh={%4u,%4u} }}\n",
-                 mName, bufWidth, bufHeight, item.mTransform, item.mScalingMode, mFront.active.w,
-                 mFront.active.h, mFront.crop.left, mFront.crop.top, mFront.crop.right,
-                 mFront.crop.bottom, mFront.crop.getWidth(), mFront.crop.getHeight(),
-                 mFront.requested.w, mFront.requested.h);
+                 "            requested_legacy={ wh={%4u,%4u} }}\n",
+                 mName, bufWidth, bufHeight, item.mTransform, item.mScalingMode,
+                 mFront.active_legacy.w, mFront.active_legacy.h, mFront.crop_legacy.left,
+                 mFront.crop_legacy.top, mFront.crop_legacy.right, mFront.crop_legacy.bottom,
+                 mFront.crop_legacy.getWidth(), mFront.crop_legacy.getHeight(),
+                 mFront.requested_legacy.w, mFront.requested_legacy.h);
     }
 
     if (!isFixedSize && !mStickyTransformSet) {
-        if (mFront.active.w != bufWidth || mFront.active.h != bufHeight) {
+        if (mFront.active_legacy.w != bufWidth || mFront.active_legacy.h != bufHeight) {
             // reject this buffer
             ALOGE("[%s] rejecting buffer: "
-                  "bufWidth=%d, bufHeight=%d, front.active.{w=%d, h=%d}",
-                  mName, bufWidth, bufHeight, mFront.active.w, mFront.active.h);
+                  "bufWidth=%d, bufHeight=%d, front.active_legacy.{w=%d, h=%d}",
+                  mName, bufWidth, bufHeight, mFront.active_legacy.w, mFront.active_legacy.h);
             return true;
         }
     }
@@ -118,16 +123,17 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
     // We latch the transparent region here, instead of above where we latch
     // the rest of the geometry because it is only content but not necessarily
     // resize dependent.
-    if (!mFront.activeTransparentRegion.isTriviallyEqual(mFront.requestedTransparentRegion)) {
-        mFront.activeTransparentRegion = mFront.requestedTransparentRegion;
+    if (!mFront.activeTransparentRegion_legacy.isTriviallyEqual(
+                mFront.requestedTransparentRegion_legacy)) {
+        mFront.activeTransparentRegion_legacy = mFront.requestedTransparentRegion_legacy;
 
         // We also need to update the current state so that
         // we don't end-up overwriting the drawing state with
         // this stale current state during the next transaction
         //
         // NOTE: We don't need to hold the transaction lock here
-        // because State::active is only accessed from this thread.
-        mCurrent.activeTransparentRegion = mFront.activeTransparentRegion;
+        // because State::active_legacy is only accessed from this thread.
+        mCurrent.activeTransparentRegion_legacy = mFront.activeTransparentRegion_legacy;
 
         // recompute visible region
         mRecomputeVisibleRegions = true;

@@ -13,8 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include "timestatsproto/TimeStatsHelper.h"
+
 #include <android-base/stringprintf.h>
-#include <timestatsproto/TimeStatsHelper.h>
+#include <inttypes.h>
 
 #include <array>
 
@@ -39,17 +41,25 @@ void TimeStatsHelper::Histogram::insert(int32_t delta) {
     if (delta < 0) return;
     // std::lower_bound won't work on out of range values
     if (delta > histogramConfig[HISTOGRAM_SIZE - 1]) {
-        hist[histogramConfig[HISTOGRAM_SIZE - 1]]++;
+        hist[histogramConfig[HISTOGRAM_SIZE - 1]] += delta / histogramConfig[HISTOGRAM_SIZE - 1];
         return;
     }
     auto iter = std::lower_bound(histogramConfig.begin(), histogramConfig.end(), delta);
     hist[*iter]++;
 }
 
+int64_t TimeStatsHelper::Histogram::totalTime() const {
+    int64_t ret = 0;
+    for (const auto& ele : hist) {
+        ret += ele.first * ele.second;
+    }
+    return ret;
+}
+
 float TimeStatsHelper::Histogram::averageTime() const {
     int64_t ret = 0;
     int64_t count = 0;
-    for (auto& ele : hist) {
+    for (const auto& ele : hist) {
         count += ele.second;
         ret += ele.first * ele.second;
     }
@@ -68,19 +78,18 @@ std::string TimeStatsHelper::Histogram::toString() const {
 }
 
 std::string TimeStatsHelper::TimeStatsLayer::toString() const {
-    std::string result = "";
+    std::string result = "\n";
     StringAppendF(&result, "layerName = %s\n", layerName.c_str());
     StringAppendF(&result, "packageName = %s\n", packageName.c_str());
-    StringAppendF(&result, "statsStart = %lld\n", static_cast<long long int>(statsStart));
-    StringAppendF(&result, "statsEnd = %lld\n", static_cast<long long int>(statsEnd));
-    StringAppendF(&result, "totalFrames= %d\n", totalFrames);
-    auto iter = deltas.find("present2present");
+    StringAppendF(&result, "totalFrames = %d\n", totalFrames);
+    StringAppendF(&result, "droppedFrames = %d\n", droppedFrames);
+    const auto iter = deltas.find("present2present");
     if (iter != deltas.end()) {
         StringAppendF(&result, "averageFPS = %.3f\n", 1000.0 / iter->second.averageTime());
     }
-    for (auto& ele : deltas) {
+    for (const auto& ele : deltas) {
         StringAppendF(&result, "%s histogram is as below:\n", ele.first.c_str());
-        StringAppendF(&result, "%s", ele.second.toString().c_str());
+        result.append(ele.second.toString());
     }
 
     return result;
@@ -88,15 +97,23 @@ std::string TimeStatsHelper::TimeStatsLayer::toString() const {
 
 std::string TimeStatsHelper::TimeStatsGlobal::toString(std::optional<uint32_t> maxLayers) const {
     std::string result = "SurfaceFlinger TimeStats:\n";
-    StringAppendF(&result, "statsStart = %lld\n", static_cast<long long int>(statsStart));
-    StringAppendF(&result, "statsEnd = %lld\n", static_cast<long long int>(statsEnd));
-    StringAppendF(&result, "totalFrames= %d\n", totalFrames);
-    StringAppendF(&result, "missedFrames= %d\n", missedFrames);
-    StringAppendF(&result, "clientCompositionFrames= %d\n", clientCompositionFrames);
-    StringAppendF(&result, "TimeStats for each layer is as below:\n");
+    StringAppendF(&result, "statsStart = %" PRId64 "\n", statsStart);
+    StringAppendF(&result, "statsEnd = %" PRId64 "\n", statsEnd);
+    StringAppendF(&result, "totalFrames = %d\n", totalFrames);
+    StringAppendF(&result, "missedFrames = %d\n", missedFrames);
+    StringAppendF(&result, "clientCompositionFrames = %d\n", clientCompositionFrames);
+    StringAppendF(&result, "displayOnTime = %" PRId64 " ms\n", displayOnTime);
+    StringAppendF(&result, "displayConfigStats is as below:\n");
+    for (const auto& [fps, duration] : refreshRateStats) {
+        StringAppendF(&result, "%dfps=%ldms ", fps, ns2ms(duration));
+    }
+    result.back() = '\n';
+    StringAppendF(&result, "totalP2PTime = %" PRId64 " ms\n", presentToPresent.totalTime());
+    StringAppendF(&result, "presentToPresent histogram is as below:\n");
+    result.append(presentToPresent.toString());
     const auto dumpStats = generateDumpStats(maxLayers);
-    for (auto& ele : dumpStats) {
-        StringAppendF(&result, "%s", ele->toString().c_str());
+    for (const auto& ele : dumpStats) {
+        result.append(ele->toString());
     }
 
     return result;
@@ -106,15 +123,14 @@ SFTimeStatsLayerProto TimeStatsHelper::TimeStatsLayer::toProto() const {
     SFTimeStatsLayerProto layerProto;
     layerProto.set_layer_name(layerName);
     layerProto.set_package_name(packageName);
-    layerProto.set_stats_start(statsStart);
-    layerProto.set_stats_end(statsEnd);
     layerProto.set_total_frames(totalFrames);
-    for (auto& ele : deltas) {
+    layerProto.set_dropped_frames(droppedFrames);
+    for (const auto& ele : deltas) {
         SFTimeStatsDeltaProto* deltaProto = layerProto.add_deltas();
         deltaProto->set_delta_name(ele.first);
-        for (auto& histEle : ele.second.hist) {
+        for (const auto& histEle : ele.second.hist) {
             SFTimeStatsHistogramBucketProto* histProto = deltaProto->add_histograms();
-            histProto->set_render_millis(histEle.first);
+            histProto->set_time_millis(histEle.first);
             histProto->set_frame_count(histEle.second);
         }
     }
@@ -129,8 +145,21 @@ SFTimeStatsGlobalProto TimeStatsHelper::TimeStatsGlobal::toProto(
     globalProto.set_total_frames(totalFrames);
     globalProto.set_missed_frames(missedFrames);
     globalProto.set_client_composition_frames(clientCompositionFrames);
+    globalProto.set_display_on_time(displayOnTime);
+    for (const auto& ele : refreshRateStats) {
+        SFTimeStatsDisplayConfigBucketProto* configBucketProto =
+                globalProto.add_display_config_stats();
+        SFTimeStatsDisplayConfigProto* configProto = configBucketProto->mutable_config();
+        configProto->set_fps(ele.first);
+        configBucketProto->set_duration_millis(ns2ms(ele.second));
+    }
+    for (const auto& histEle : presentToPresent.hist) {
+        SFTimeStatsHistogramBucketProto* histProto = globalProto.add_present_to_present();
+        histProto->set_time_millis(histEle.first);
+        histProto->set_frame_count(histEle.second);
+    }
     const auto dumpStats = generateDumpStats(maxLayers);
-    for (auto& ele : dumpStats) {
+    for (const auto& ele : dumpStats) {
         SFTimeStatsLayerProto* layerProto = globalProto.add_stats();
         layerProto->CopyFrom(ele->toProto());
     }
@@ -140,7 +169,7 @@ SFTimeStatsGlobalProto TimeStatsHelper::TimeStatsGlobal::toProto(
 std::vector<TimeStatsHelper::TimeStatsLayer const*>
 TimeStatsHelper::TimeStatsGlobal::generateDumpStats(std::optional<uint32_t> maxLayers) const {
     std::vector<TimeStatsLayer const*> dumpStats;
-    for (auto& ele : stats) {
+    for (const auto& ele : stats) {
         dumpStats.push_back(&ele.second);
     }
 

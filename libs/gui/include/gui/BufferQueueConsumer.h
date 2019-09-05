@@ -171,6 +171,9 @@ public:
 
     // End functions required for backwards compatibility
 
+    // Value used to determine if present time is valid.
+    constexpr static int MAX_REASONABLE_NSEC = 1'000'000'000ULL; // 1 second
+
 private:
     sp<BufferQueueCore> mCore;
 

@@ -41,33 +41,11 @@ using namespace android;
 // ----------------------------------------------------------------------------
 
 int AHardwareBuffer_allocate(const AHardwareBuffer_Desc* desc, AHardwareBuffer** outBuffer) {
-    if (!outBuffer || !desc)
-        return BAD_VALUE;
-
-    if (!AHardwareBuffer_isValidPixelFormat(desc->format)) {
-        ALOGE("Invalid AHardwareBuffer pixel format %u (%#x))", desc->format, desc->format);
-        return BAD_VALUE;
-    }
+    if (!outBuffer || !desc) return BAD_VALUE;
+    if (!AHardwareBuffer_isValidDescription(desc, /*log=*/true)) return BAD_VALUE;
 
     int format = AHardwareBuffer_convertToPixelFormat(desc->format);
-    if (desc->rfu0 != 0 || desc->rfu1 != 0) {
-        ALOGE("AHardwareBuffer_Desc::rfu fields must be 0");
-        return BAD_VALUE;
-    }
-
-    if (desc->format == AHARDWAREBUFFER_FORMAT_BLOB && desc->height != 1) {
-        ALOGE("Height must be 1 when using the AHARDWAREBUFFER_FORMAT_BLOB format");
-        return BAD_VALUE;
-    }
-
-    if ((desc->usage & (AHARDWAREBUFFER_USAGE_CPU_READ_MASK | AHARDWAREBUFFER_USAGE_CPU_WRITE_MASK)) &&
-        (desc->usage & AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT)) {
-        ALOGE("AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT requires AHARDWAREBUFFER_USAGE_CPU_READ_NEVER "
-              "and AHARDWAREBUFFER_USAGE_CPU_WRITE_NEVER");
-        return BAD_VALUE;
-    }
-
-    uint64_t usage =  AHardwareBuffer_convertToGrallocUsageBits(desc->usage);
+    uint64_t usage = AHardwareBuffer_convertToGrallocUsageBits(desc->usage);
     sp<GraphicBuffer> gbuffer(new GraphicBuffer(
             desc->width, desc->height, format, desc->layers, usage,
             std::string("AHardwareBuffer pid [") + std::to_string(getpid()) + "]"));
@@ -115,9 +93,96 @@ void AHardwareBuffer_describe(const AHardwareBuffer* buffer,
     outDesc->rfu1 = 0;
 }
 
+int AHardwareBuffer_lockAndGetInfo(AHardwareBuffer* buffer, uint64_t usage,
+        int32_t fence, const ARect* rect, void** outVirtualAddress,
+        int32_t* outBytesPerPixel, int32_t* outBytesPerStride) {
+    if (outBytesPerPixel) *outBytesPerPixel = -1;
+    if (outBytesPerStride) *outBytesPerStride = -1;
+
+    if (!buffer) {
+        return BAD_VALUE;
+    }
+
+    if (usage & ~(AHARDWAREBUFFER_USAGE_CPU_READ_MASK |
+                  AHARDWAREBUFFER_USAGE_CPU_WRITE_MASK)) {
+        ALOGE("Invalid usage flags passed to AHardwareBuffer_lock; only "
+                "AHARDWAREBUFFER_USAGE_CPU_* flags are allowed");
+        return BAD_VALUE;
+    }
+
+    usage = AHardwareBuffer_convertToGrallocUsageBits(usage);
+    GraphicBuffer* gbuffer = AHardwareBuffer_to_GraphicBuffer(buffer);
+
+    //Mapper implementations before 3.0 will not return bytes per pixel or
+    //bytes per stride information.
+    if (gbuffer->getBufferMapperVersion() == GraphicBufferMapper::Version::GRALLOC_2) {
+        ALOGE("Mapper versions before 3.0 cannot retrieve bytes per pixel and bytes per stride info");
+        return INVALID_OPERATION;
+    }
+
+    if (gbuffer->getLayerCount() > 1) {
+        ALOGE("Buffer with multiple layers passed to AHardwareBuffer_lock; "
+                "only buffers with one layer are allowed");
+        return INVALID_OPERATION;
+    }
+
+    Rect bounds;
+    if (!rect) {
+        bounds.set(Rect(gbuffer->getWidth(), gbuffer->getHeight()));
+    } else {
+        bounds.set(Rect(rect->left, rect->top, rect->right, rect->bottom));
+    }
+    int32_t bytesPerPixel;
+    int32_t bytesPerStride;
+    int result = gbuffer->lockAsync(usage, usage, bounds, outVirtualAddress, fence, &bytesPerPixel, &bytesPerStride);
+
+    // if hardware returns -1 for bytes per pixel or bytes per stride, we fail
+    // and unlock the buffer
+    if (bytesPerPixel == -1 || bytesPerStride == -1) {
+        gbuffer->unlock();
+        return INVALID_OPERATION;
+    }
+
+    if (outBytesPerPixel) *outBytesPerPixel = bytesPerPixel;
+    if (outBytesPerStride) *outBytesPerStride = bytesPerStride;
+    return result;
+}
+
 int AHardwareBuffer_lock(AHardwareBuffer* buffer, uint64_t usage,
-        int32_t fence, const ARect* rect, void** outVirtualAddress) {
+                         int32_t fence, const ARect* rect, void** outVirtualAddress) {
+    int32_t bytesPerPixel;
+    int32_t bytesPerStride;
+
     if (!buffer) return BAD_VALUE;
+
+    if (usage & ~(AHARDWAREBUFFER_USAGE_CPU_READ_MASK |
+                  AHARDWAREBUFFER_USAGE_CPU_WRITE_MASK)) {
+        ALOGE("Invalid usage flags passed to AHardwareBuffer_lock; only "
+                "AHARDWAREBUFFER_USAGE_CPU_* flags are allowed");
+        return BAD_VALUE;
+    }
+
+    usage = AHardwareBuffer_convertToGrallocUsageBits(usage);
+    GraphicBuffer* gbuffer = AHardwareBuffer_to_GraphicBuffer(buffer);
+
+    if (gbuffer->getLayerCount() > 1) {
+        ALOGE("Buffer with multiple layers passed to AHardwareBuffer_lock; "
+                "only buffers with one layer are allowed");
+        return INVALID_OPERATION;
+    }
+
+    Rect bounds;
+    if (!rect) {
+        bounds.set(Rect(gbuffer->getWidth(), gbuffer->getHeight()));
+    } else {
+        bounds.set(Rect(rect->left, rect->top, rect->right, rect->bottom));
+    }
+    return gbuffer->lockAsync(usage, usage, bounds, outVirtualAddress, fence, &bytesPerPixel, &bytesPerStride);
+}
+
+int AHardwareBuffer_lockPlanes(AHardwareBuffer* buffer, uint64_t usage,
+        int32_t fence, const ARect* rect, AHardwareBuffer_Planes* outPlanes) {
+    if (!buffer || !outPlanes) return BAD_VALUE;
 
     if (usage & ~(AHARDWAREBUFFER_USAGE_CPU_READ_MASK |
                   AHARDWAREBUFFER_USAGE_CPU_WRITE_MASK)) {
@@ -134,7 +199,33 @@ int AHardwareBuffer_lock(AHardwareBuffer* buffer, uint64_t usage,
     } else {
         bounds.set(Rect(rect->left, rect->top, rect->right, rect->bottom));
     }
-    return gBuffer->lockAsync(usage, usage, bounds, outVirtualAddress, fence);
+    int format = AHardwareBuffer_convertFromPixelFormat(uint32_t(gBuffer->getPixelFormat()));
+    memset(outPlanes->planes, 0, sizeof(outPlanes->planes));
+    if (AHardwareBuffer_formatIsYuv(format)) {
+      android_ycbcr yuvData;
+      int result = gBuffer->lockAsyncYCbCr(usage, bounds, &yuvData, fence);
+      if (result == 0) {
+        outPlanes->planeCount = 3;
+        outPlanes->planes[0].data = yuvData.y;
+        outPlanes->planes[0].pixelStride = 1;
+        outPlanes->planes[0].rowStride = yuvData.ystride;
+        outPlanes->planes[1].data = yuvData.cb;
+        outPlanes->planes[1].pixelStride = yuvData.chroma_step;
+        outPlanes->planes[1].rowStride = yuvData.cstride;
+        outPlanes->planes[2].data = yuvData.cr;
+        outPlanes->planes[2].pixelStride = yuvData.chroma_step;
+        outPlanes->planes[2].rowStride = yuvData.cstride;
+      } else {
+        outPlanes->planeCount = 0;
+      }
+      return result;
+    } else {
+      const uint32_t pixelStride = AHardwareBuffer_bytesPerPixel(format);
+      outPlanes->planeCount = 1;
+      outPlanes->planes[0].pixelStride = pixelStride;
+      outPlanes->planes[0].rowStride = gBuffer->getStride() * pixelStride;
+      return gBuffer->lockAsync(usage, usage, bounds, &outPlanes->planes[0].data, fence);
+    }
 }
 
 int AHardwareBuffer_unlock(AHardwareBuffer* buffer, int32_t* fence) {
@@ -274,6 +365,38 @@ int AHardwareBuffer_recvHandleFromUnixSocket(int socketFd, AHardwareBuffer** out
     return NO_ERROR;
 }
 
+int AHardwareBuffer_isSupported(const AHardwareBuffer_Desc* desc) {
+    if (!desc) return 0;
+    if (!AHardwareBuffer_isValidDescription(desc, /*log=*/false)) return 0;
+
+    bool supported = false;
+    GraphicBuffer* gBuffer = new GraphicBuffer();
+    status_t err = gBuffer->isSupported(desc->width, desc->height, desc->format, desc->layers,
+                                        desc->usage, &supported);
+
+    if (err == NO_ERROR) {
+        return supported;
+    }
+
+    // function isSupported is not implemented on device or an error occurred during HAL
+    // query.  Make a trial allocation.
+    AHardwareBuffer_Desc trialDesc = *desc;
+    trialDesc.width = 4;
+    trialDesc.height = desc->format == AHARDWAREBUFFER_FORMAT_BLOB ? 1 : 4;
+    if (desc->usage & AHARDWAREBUFFER_USAGE_GPU_CUBE_MAP) {
+        trialDesc.layers = desc->layers == 6 ? 6 : 12;
+    } else {
+        trialDesc.layers = desc->layers == 1 ? 1 : 2;
+    }
+    AHardwareBuffer* trialBuffer = nullptr;
+    int result = AHardwareBuffer_allocate(&trialDesc, &trialBuffer);
+    if (result == NO_ERROR) {
+        AHardwareBuffer_release(trialBuffer);
+        return 1;
+    }
+    return 0;
+}
+
 
 // ----------------------------------------------------------------------------
 // VNDK functions
@@ -322,14 +445,84 @@ int AHardwareBuffer_createFromHandle(const AHardwareBuffer_Desc* desc,
 
 namespace android {
 
-// A 1:1 mapping of AHardwaqreBuffer bitmasks to gralloc1 bitmasks.
-struct UsageMaskMapping {
-    uint64_t hardwareBufferMask;
-    uint64_t grallocMask;
-};
+bool AHardwareBuffer_isValidDescription(const AHardwareBuffer_Desc* desc, bool log) {
+    if (desc->width == 0 || desc->height == 0 || desc->layers == 0) {
+        ALOGE_IF(log, "Width, height and layers must all be nonzero");
+        return false;
+    }
 
-static inline bool containsBits(uint64_t mask, uint64_t bitsToCheck) {
-    return (mask & bitsToCheck) == bitsToCheck && bitsToCheck;
+    if (!AHardwareBuffer_isValidPixelFormat(desc->format)) {
+        ALOGE_IF(log, "Invalid AHardwareBuffer pixel format %u (%#x))",
+                desc->format, desc->format);
+        return false;
+    }
+
+    if (desc->rfu0 != 0 || desc->rfu1 != 0) {
+        ALOGE_IF(log, "AHardwareBuffer_Desc::rfu fields must be 0");
+        return false;
+    }
+
+    if (desc->format == AHARDWAREBUFFER_FORMAT_BLOB) {
+        if (desc->height != 1 || desc->layers != 1) {
+            ALOGE_IF(log, "Height and layers must be 1 for AHARDWAREBUFFER_FORMAT_BLOB");
+            return false;
+        }
+        const uint64_t blobInvalidGpuMask =
+            AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE |
+            AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER |
+            AHARDWAREBUFFER_USAGE_GPU_MIPMAP_COMPLETE |
+            AHARDWAREBUFFER_USAGE_GPU_CUBE_MAP;
+        if (desc->usage & blobInvalidGpuMask) {
+            ALOGE_IF(log, "Invalid GPU usage flag for AHARDWAREBUFFER_FORMAT_BLOB; "
+                    "only AHARDWAREBUFFER_USAGE_GPU_DATA_BUFFER is allowed");
+            return false;
+        }
+        if (desc->usage & AHARDWAREBUFFER_USAGE_VIDEO_ENCODE) {
+            ALOGE_IF(log, "AHARDWAREBUFFER_FORMAT_BLOB cannot be encoded as video");
+            return false;
+        }
+    } else if (AHardwareBuffer_formatIsYuv(desc->format)) {
+        if (desc->layers != 1) {
+            ALOGE_IF(log, "Layers must be 1 for YUV formats.");
+            return false;
+        }
+        const uint64_t yuvInvalidGpuMask =
+            AHARDWAREBUFFER_USAGE_GPU_MIPMAP_COMPLETE |
+            AHARDWAREBUFFER_USAGE_GPU_CUBE_MAP;
+        if (desc->usage & yuvInvalidGpuMask) {
+            ALOGE_IF(log, "Invalid usage flags specified for YUV format; "
+                    "mip-mapping and cube-mapping are not allowed.");
+            return false;
+        }
+    } else {
+        if (desc->usage & AHARDWAREBUFFER_USAGE_SENSOR_DIRECT_DATA) {
+            ALOGE_IF(log, "AHARDWAREBUFFER_USAGE_SENSOR_DIRECT_DATA requires AHARDWAREBUFFER_FORMAT_BLOB");
+            return false;
+        }
+        if (desc->usage & AHARDWAREBUFFER_USAGE_GPU_DATA_BUFFER) {
+            ALOGE_IF(log, "AHARDWAREBUFFER_USAGE_GPU_DATA_BUFFER requires AHARDWAREBUFFER_FORMAT_BLOB");
+            return false;
+        }
+    }
+
+    if ((desc->usage & (AHARDWAREBUFFER_USAGE_CPU_READ_MASK | AHARDWAREBUFFER_USAGE_CPU_WRITE_MASK)) &&
+        (desc->usage & AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT)) {
+        ALOGE_IF(log, "AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT requires AHARDWAREBUFFER_USAGE_CPU_READ_NEVER "
+              "and AHARDWAREBUFFER_USAGE_CPU_WRITE_NEVER");
+        return false;
+    }
+
+    if (desc->usage & AHARDWAREBUFFER_USAGE_GPU_CUBE_MAP) {
+        if (desc->width != desc->height) {
+            ALOGE_IF(log, "Cube maps must be square");
+            return false;
+        }
+        if (desc->layers % 6 != 0) {
+            ALOGE_IF(log, "Cube map layers must be a multiple of 6");
+            return false;
+        }
+    }
+    return true;
 }
 
 bool AHardwareBuffer_isValidPixelFormat(uint32_t format) {
@@ -400,6 +593,7 @@ bool AHardwareBuffer_isValidPixelFormat(uint32_t format) {
         case AHARDWAREBUFFER_FORMAT_D32_FLOAT:
         case AHARDWAREBUFFER_FORMAT_D32_FLOAT_S8_UINT:
         case AHARDWAREBUFFER_FORMAT_S8_UINT:
+        case AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_420:
             // VNDK formats only -- unfortunately we can't differentiate from where we're called
         case AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM:
         case AHARDWAREBUFFER_FORMAT_YV12:
@@ -410,7 +604,6 @@ bool AHardwareBuffer_isValidPixelFormat(uint32_t format) {
         case AHARDWAREBUFFER_FORMAT_RAW12:
         case AHARDWAREBUFFER_FORMAT_RAW_OPAQUE:
         case AHARDWAREBUFFER_FORMAT_IMPLEMENTATION_DEFINED:
-        case AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_420:
         case AHARDWAREBUFFER_FORMAT_YCbCr_422_SP:
         case AHARDWAREBUFFER_FORMAT_YCrCb_420_SP:
         case AHARDWAREBUFFER_FORMAT_YCbCr_422_I:
@@ -419,6 +612,40 @@ bool AHardwareBuffer_isValidPixelFormat(uint32_t format) {
         default:
             return false;
     }
+}
+
+bool AHardwareBuffer_formatIsYuv(uint32_t format) {
+    switch (format) {
+        case AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_420:
+        case AHARDWAREBUFFER_FORMAT_YV12:
+        case AHARDWAREBUFFER_FORMAT_Y8:
+        case AHARDWAREBUFFER_FORMAT_Y16:
+        case AHARDWAREBUFFER_FORMAT_YCbCr_422_SP:
+        case AHARDWAREBUFFER_FORMAT_YCrCb_420_SP:
+        case AHARDWAREBUFFER_FORMAT_YCbCr_422_I:
+            return true;
+        default:
+            return false;
+    }
+}
+
+uint32_t AHardwareBuffer_bytesPerPixel(uint32_t format) {
+  switch (format) {
+      case AHARDWAREBUFFER_FORMAT_R5G6B5_UNORM:
+      case AHARDWAREBUFFER_FORMAT_D16_UNORM:
+          return 2;
+      case AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM:
+      case AHARDWAREBUFFER_FORMAT_D24_UNORM:
+          return 3;
+      case AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM:
+      case AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM:
+      case AHARDWAREBUFFER_FORMAT_D32_FLOAT:
+      case AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM:
+      case AHARDWAREBUFFER_FORMAT_D24_UNORM_S8_UINT:
+          return 4;
+      default:
+          return 0;
+  }
 }
 
 uint32_t AHardwareBuffer_convertFromPixelFormat(uint32_t hal_format) {
@@ -445,7 +672,7 @@ uint64_t AHardwareBuffer_convertToGrallocUsageBits(uint64_t usage) {
             "gralloc and AHardwareBuffer flags don't match");
     static_assert(AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE == (uint64_t)BufferUsage::GPU_TEXTURE,
             "gralloc and AHardwareBuffer flags don't match");
-    static_assert(AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT == (uint64_t)BufferUsage::GPU_RENDER_TARGET,
+    static_assert(AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER == (uint64_t)BufferUsage::GPU_RENDER_TARGET,
             "gralloc and AHardwareBuffer flags don't match");
     static_assert(AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT == (uint64_t)BufferUsage::PROTECTED,
             "gralloc and AHardwareBuffer flags don't match");
@@ -467,11 +694,11 @@ uint64_t AHardwareBuffer_convertFromGrallocUsageBits(uint64_t usage) {
 }
 
 const GraphicBuffer* AHardwareBuffer_to_GraphicBuffer(const AHardwareBuffer* buffer) {
-    return reinterpret_cast<const GraphicBuffer*>(buffer);
+    return GraphicBuffer::fromAHardwareBuffer(buffer);
 }
 
 GraphicBuffer* AHardwareBuffer_to_GraphicBuffer(AHardwareBuffer* buffer) {
-    return reinterpret_cast<GraphicBuffer*>(buffer);
+    return GraphicBuffer::fromAHardwareBuffer(buffer);
 }
 
 const ANativeWindowBuffer* AHardwareBuffer_to_ANativeWindowBuffer(const AHardwareBuffer* buffer) {
@@ -483,7 +710,7 @@ ANativeWindowBuffer* AHardwareBuffer_to_ANativeWindowBuffer(AHardwareBuffer* buf
 }
 
 AHardwareBuffer* AHardwareBuffer_from_GraphicBuffer(GraphicBuffer* buffer) {
-    return reinterpret_cast<AHardwareBuffer*>(buffer);
+    return buffer->toAHardwareBuffer();
 }
 
 } // namespace android

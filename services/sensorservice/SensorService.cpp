@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <android/content/pm/IPackageManagerNative.h>
 #include <binder/ActivityManager.h>
-#include <binder/AppOpsManager.h>
 #include <binder/BinderService.h>
 #include <binder/IServiceManager.h>
 #include <binder/PermissionCache.h>
@@ -29,6 +29,7 @@
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
 #include <sensor/SensorEventQueue.h>
+#include <sensorprivacy/SensorPrivacyManager.h>
 #include <utils/SystemClock.h>
 
 #include "BatteryService.h"
@@ -47,6 +48,7 @@
 #include "SensorRecord.h"
 #include "SensorRegistrationInfo.h"
 
+#include <ctime>
 #include <inttypes.h>
 #include <math.h>
 #include <sched.h>
@@ -73,6 +75,9 @@ namespace android {
 const char* SensorService::WAKE_LOCK_NAME = "SensorService_wakelock";
 uint8_t SensorService::sHmacGlobalKey[128] = {};
 bool SensorService::sHmacGlobalKeyIsValid = false;
+std::map<String16, int> SensorService::sPackageTargetVersion;
+Mutex SensorService::sPackageTargetVersionLock;
+AppOpsManager SensorService::sAppOpsManager;
 
 #define SENSOR_SERVICE_DIR "/data/system/sensor_service"
 #define SENSOR_SERVICE_HMAC_KEY_FILE  SENSOR_SERVICE_DIR "/hmac_key"
@@ -87,6 +92,7 @@ SensorService::SensorService()
     : mInitCheck(NO_INIT), mSocketBufferSize(SOCKET_BUFFER_SIZE_NON_BATCHED),
       mWakeLockAcquired(false) {
     mUidPolicy = new UidPolicy(this);
+    mSensorPrivacyPolicy = new SensorPrivacyPolicy(this);
 }
 
 bool SensorService::initializeHmacKey() {
@@ -250,7 +256,7 @@ void SensorService::onFirstRef() {
             // it to maxSystemSocketBufferSize if necessary.
             FILE *fp = fopen("/proc/sys/net/core/wmem_max", "r");
             char line[128];
-            if (fp != NULL && fgets(line, sizeof(line), fp) != NULL) {
+            if (fp != nullptr && fgets(line, sizeof(line), fp) != nullptr) {
                 line[sizeof(line) - 1] = '\0';
                 size_t maxSystemSocketBufferSize;
                 sscanf(line, "%zu", &maxSystemSocketBufferSize);
@@ -285,6 +291,9 @@ void SensorService::onFirstRef() {
 
             // Start watching UID changes to apply policy.
             mUidPolicy->registerSelf();
+
+            // Start watching sensor privacy changes
+            mSensorPrivacyPolicy->registerSelf();
         }
     }
 }
@@ -295,7 +304,7 @@ void SensorService::setSensorAccess(uid_t uid, bool hasAccess) {
     {
         Mutex::Autolock _l(mLock);
         for (size_t i = 0 ; i < activeConnections.size(); i++) {
-            if (activeConnections[i] != 0 && activeConnections[i]->getUid() == uid) {
+            if (activeConnections[i] != nullptr && activeConnections[i]->getUid() == uid) {
                 activeConnections[i]->setSensorAccess(hasAccess);
             }
         }
@@ -306,7 +315,7 @@ const Sensor& SensorService::registerSensor(SensorInterface* s, bool isDebug, bo
     int handle = s->getSensor().getHandle();
     int type = s->getSensor().getType();
     if (mSensors.add(handle, s, isDebug, isVirtual)){
-        mRecentEvent.emplace(handle, new RecentEventLogger(type));
+        mRecentEvent.emplace(handle, new SensorServiceUtil::RecentEventLogger(type));
         return s->getSensor();
     } else {
         return mSensors.getNonSensor();
@@ -337,6 +346,7 @@ SensorService::~SensorService() {
         delete entry.second;
     }
     mUidPolicy->unregisterSelf();
+    mSensorPrivacyPolicy->unregisterSelf();
 }
 
 status_t SensorService::dump(int fd, const Vector<String16>& args) {
@@ -363,35 +373,16 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
             }
 
             mCurrentOperatingMode = RESTRICTED;
-            // temporarily stop all sensor direct report
-            for (auto &i : mDirectConnections) {
-                sp<SensorDirectConnection> connection(i.promote());
-                if (connection != nullptr) {
-                    connection->stopAll(true /* backupRecord */);
-                }
-            }
-
-            dev.disableAllSensors();
-            // Clear all pending flush connections for all active sensors. If one of the active
-            // connections has called flush() and the underlying sensor has been disabled before a
-            // flush complete event is returned, we need to remove the connection from this queue.
-            for (size_t i=0 ; i< mActiveSensors.size(); ++i) {
-                mActiveSensors.valueAt(i)->clearAllPendingFlushConnections();
-            }
+            // temporarily stop all sensor direct report and disable sensors
+            disableAllSensorsLocked();
             mWhiteListedPackage.setTo(String8(args[1]));
             return status_t(NO_ERROR);
         } else if (args.size() == 1 && args[0] == String16("enable")) {
             // If currently in restricted mode, reset back to NORMAL mode else ignore.
             if (mCurrentOperatingMode == RESTRICTED) {
                 mCurrentOperatingMode = NORMAL;
-                dev.enableAllSensors();
-                // recover all sensor direct report
-                for (auto &i : mDirectConnections) {
-                    sp<SensorDirectConnection> connection(i.promote());
-                    if (connection != nullptr) {
-                        connection->recoverAll();
-                    }
-                }
+                // enable sensors and recover all sensor direct report
+                enableAllSensorsLocked();
             }
             if (mCurrentOperatingMode == DATA_INJECTION) {
                resetToNormalModeLocked();
@@ -423,6 +414,11 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
         } else {
             // Default dump the sensor list and debugging information.
             //
+            timespec curTime;
+            clock_gettime(CLOCK_REALTIME, &curTime);
+            struct tm* timeinfo = localtime(&(curTime.tv_sec));
+            result.appendFormat("Captured at: %02d:%02d:%02d.%03d\n", timeinfo->tm_hour,
+                                timeinfo->tm_min, timeinfo->tm_sec, (int)ns2ms(curTime.tv_nsec));
             result.append("Sensor Device:\n");
             result.append(SensorDevice::getInstance().dump().c_str());
 
@@ -448,12 +444,15 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
             }
 
             result.append("Active sensors:\n");
+            SensorDevice& dev = SensorDevice::getInstance();
             for (size_t i=0 ; i<mActiveSensors.size() ; i++) {
                 int handle = mActiveSensors.keyAt(i);
-                result.appendFormat("%s (handle=0x%08x, connections=%zu)\n",
-                        getSensorName(handle).string(),
-                        handle,
-                        mActiveSensors.valueAt(i)->getNumConnections());
+                if (dev.isSensorActive(handle)) {
+                    result.appendFormat("%s (handle=0x%08x, connections=%zu)\n",
+                            getSensorName(handle).string(),
+                            handle,
+                            mActiveSensors.valueAt(i)->getNumConnections());
+                }
             }
 
             result.appendFormat("Socket Buffer size = %zd events\n",
@@ -471,11 +470,13 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
                case DATA_INJECTION:
                    result.appendFormat(" DATA_INJECTION : %s\n", mWhiteListedPackage.string());
             }
+            result.appendFormat("Sensor Privacy: %s\n",
+                    mSensorPrivacyPolicy->isSensorPrivacyEnabled() ? "enabled" : "disabled");
 
             result.appendFormat("%zd active connections\n", mActiveConnections.size());
             for (size_t i=0 ; i < mActiveConnections.size() ; i++) {
                 sp<SensorEventConnection> connection(mActiveConnections[i].promote());
-                if (connection != 0) {
+                if (connection != nullptr) {
                     result.appendFormat("Connection Number: %zu \n", i);
                     connection->dump(result);
                 }
@@ -513,6 +514,52 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
     return NO_ERROR;
 }
 
+void SensorService::disableAllSensors() {
+    Mutex::Autolock _l(mLock);
+    disableAllSensorsLocked();
+}
+
+void SensorService::disableAllSensorsLocked() {
+    SensorDevice& dev(SensorDevice::getInstance());
+    for (auto &i : mDirectConnections) {
+        sp<SensorDirectConnection> connection(i.promote());
+        if (connection != nullptr) {
+            connection->stopAll(true /* backupRecord */);
+        }
+    }
+    dev.disableAllSensors();
+    // Clear all pending flush connections for all active sensors. If one of the active
+    // connections has called flush() and the underlying sensor has been disabled before a
+    // flush complete event is returned, we need to remove the connection from this queue.
+    for (size_t i=0 ; i< mActiveSensors.size(); ++i) {
+        mActiveSensors.valueAt(i)->clearAllPendingFlushConnections();
+    }
+}
+
+void SensorService::enableAllSensors() {
+    Mutex::Autolock _l(mLock);
+    enableAllSensorsLocked();
+}
+
+void SensorService::enableAllSensorsLocked() {
+    // sensors should only be enabled if the operating state is not restricted and sensor
+    // privacy is not enabled.
+    if (mCurrentOperatingMode == RESTRICTED || mSensorPrivacyPolicy->isSensorPrivacyEnabled()) {
+        ALOGW("Sensors cannot be enabled: mCurrentOperatingMode = %d, sensor privacy = %s",
+              mCurrentOperatingMode,
+              mSensorPrivacyPolicy->isSensorPrivacyEnabled() ? "enabled" : "disabled");
+        return;
+    }
+    SensorDevice& dev(SensorDevice::getInstance());
+    dev.enableAllSensors();
+    for (auto &i : mDirectConnections) {
+        sp<SensorDirectConnection> connection(i.promote());
+        if (connection != nullptr) {
+            connection->recoverAll();
+        }
+    }
+}
+
 // NOTE: This is a remote API - make sure all args are validated
 status_t SensorService::shellCommand(int in, int out, int err, Vector<String16>& args) {
     if (!checkCallingPermission(sManageSensorsPermission, nullptr, nullptr)) {
@@ -521,11 +568,11 @@ status_t SensorService::shellCommand(int in, int out, int err, Vector<String16>&
     if (in == BAD_TYPE || out == BAD_TYPE || err == BAD_TYPE) {
         return BAD_VALUE;
     }
-    if (args.size() == 3 && args[0] == String16("set-uid-state")) {
+    if (args[0] == String16("set-uid-state")) {
         return handleSetUidState(args, err);
-    } else if (args.size() == 2 && args[0] == String16("reset-uid-state")) {
+    } else if (args[0] == String16("reset-uid-state")) {
         return handleResetUidState(args, err);
-    } else if (args.size() == 2 && args[0] == String16("get-uid-state")) {
+    } else if (args[0] == String16("get-uid-state")) {
         return handleGetUidState(args, out, err);
     } else if (args.size() == 1 && args[0] == String16("help")) {
         printHelp(out);
@@ -535,14 +582,32 @@ status_t SensorService::shellCommand(int in, int out, int err, Vector<String16>&
     return BAD_VALUE;
 }
 
-status_t SensorService::handleSetUidState(Vector<String16>& args, int err) {
+static status_t getUidForPackage(String16 packageName, int userId, /*inout*/uid_t& uid, int err) {
     PermissionController pc;
-    int uid = pc.getPackageUid(args[1], 0);
+    uid = pc.getPackageUid(packageName, 0);
     if (uid <= 0) {
-        ALOGE("Unknown package: '%s'", String8(args[1]).string());
-        dprintf(err, "Unknown package: '%s'\n", String8(args[1]).string());
+        ALOGE("Unknown package: '%s'", String8(packageName).string());
+        dprintf(err, "Unknown package: '%s'\n", String8(packageName).string());
         return BAD_VALUE;
     }
+
+    if (userId < 0) {
+        ALOGE("Invalid user: %d", userId);
+        dprintf(err, "Invalid user: %d\n", userId);
+        return BAD_VALUE;
+    }
+
+    uid = multiuser_get_uid(userId, uid);
+    return NO_ERROR;
+}
+
+status_t SensorService::handleSetUidState(Vector<String16>& args, int err) {
+    // Valid arg.size() is 3 or 5, args.size() is 5 with --user option.
+    if (!(args.size() == 3 || args.size() == 5)) {
+        printHelp(err);
+        return BAD_VALUE;
+    }
+
     bool active = false;
     if (args[2] == String16("active")) {
         active = true;
@@ -550,30 +615,59 @@ status_t SensorService::handleSetUidState(Vector<String16>& args, int err) {
         ALOGE("Expected active or idle but got: '%s'", String8(args[2]).string());
         return BAD_VALUE;
     }
+
+    int userId = 0;
+    if (args.size() == 5 && args[3] == String16("--user")) {
+        userId = atoi(String8(args[4]));
+    }
+
+    uid_t uid;
+    if (getUidForPackage(args[1], userId, uid, err) != NO_ERROR) {
+        return BAD_VALUE;
+    }
+
     mUidPolicy->addOverrideUid(uid, active);
     return NO_ERROR;
 }
 
 status_t SensorService::handleResetUidState(Vector<String16>& args, int err) {
-    PermissionController pc;
-    int uid = pc.getPackageUid(args[1], 0);
-    if (uid < 0) {
-        ALOGE("Unknown package: '%s'", String8(args[1]).string());
-        dprintf(err, "Unknown package: '%s'\n", String8(args[1]).string());
+    // Valid arg.size() is 2 or 4, args.size() is 4 with --user option.
+    if (!(args.size() == 2 || args.size() == 4)) {
+        printHelp(err);
         return BAD_VALUE;
     }
+
+    int userId = 0;
+    if (args.size() == 4 && args[2] == String16("--user")) {
+        userId = atoi(String8(args[3]));
+    }
+
+    uid_t uid;
+    if (getUidForPackage(args[1], userId, uid, err) == BAD_VALUE) {
+        return BAD_VALUE;
+    }
+
     mUidPolicy->removeOverrideUid(uid);
     return NO_ERROR;
 }
 
 status_t SensorService::handleGetUidState(Vector<String16>& args, int out, int err) {
-    PermissionController pc;
-    int uid = pc.getPackageUid(args[1], 0);
-    if (uid < 0) {
-        ALOGE("Unknown package: '%s'", String8(args[1]).string());
-        dprintf(err, "Unknown package: '%s'\n", String8(args[1]).string());
+    // Valid arg.size() is 2 or 4, args.size() is 4 with --user option.
+    if (!(args.size() == 2 || args.size() == 4)) {
+        printHelp(err);
         return BAD_VALUE;
     }
+
+    int userId = 0;
+    if (args.size() == 4 && args[2] == String16("--user")) {
+        userId = atoi(String8(args[3]));
+    }
+
+    uid_t uid;
+    if (getUidForPackage(args[1], userId, uid, err) == BAD_VALUE) {
+        return BAD_VALUE;
+    }
+
     if (mUidPolicy->isUidActive(uid)) {
         return dprintf(out, "active\n");
     } else {
@@ -583,9 +677,9 @@ status_t SensorService::handleGetUidState(Vector<String16>& args, int out, int e
 
 status_t SensorService::printHelp(int out) {
     return dprintf(out, "Sensor service commands:\n"
-        "  get-uid-state <PACKAGE> gets the uid state\n"
-        "  set-uid-state <PACKAGE> <active|idle> overrides the uid state\n"
-        "  reset-uid-state <PACKAGE> clears the uid state override\n"
+        "  get-uid-state <PACKAGE> [--user USER_ID] gets the uid state\n"
+        "  set-uid-state <PACKAGE> <active|idle> [--user USER_ID] overrides the uid state\n"
+        "  reset-uid-state <PACKAGE> [--user USER_ID] clears the uid state override\n"
         "  help print this message\n");
 }
 
@@ -627,8 +721,13 @@ bool SensorService::threadLoop() {
     do {
         ssize_t count = device.poll(mSensorEventBuffer, numEventMax);
         if (count < 0) {
-            ALOGE("sensor poll failed (%s)", strerror(-count));
-            break;
+            if(count == DEAD_OBJECT && device.isReconnecting()) {
+                device.reconnect();
+                continue;
+            } else {
+                ALOGE("sensor poll failed (%s)", strerror(-count));
+                break;
+            }
         }
 
         // Reset sensors_event_t.flags to zero for all events in the buffer.
@@ -651,16 +750,18 @@ bool SensorService::threadLoop() {
         // sending events to clients (incrementing SensorEventConnection::mWakeLockRefCount) should
         // not be interleaved with decrementing SensorEventConnection::mWakeLockRefCount and
         // releasing the wakelock.
-        bool bufferHasWakeUpEvent = false;
+        uint32_t wakeEvents = 0;
         for (int i = 0; i < count; i++) {
             if (isWakeUpSensorEvent(mSensorEventBuffer[i])) {
-                bufferHasWakeUpEvent = true;
-                break;
+                wakeEvents++;
             }
         }
 
-        if (bufferHasWakeUpEvent && !mWakeLockAcquired) {
-            setWakeLockAcquiredLocked(true);
+        if (wakeEvents > 0) {
+            if (!mWakeLockAcquired) {
+                setWakeLockAcquiredLocked(true);
+            }
+            device.writeWakeLockHandled(wakeEvents);
         }
         recordLastValueLocked(mSensorEventBuffer, count);
 
@@ -722,11 +823,11 @@ bool SensorService::threadLoop() {
             // on the hardware sensor. mapFlushEventsToConnections[i] will be the
             // SensorEventConnection mapped to the corresponding flush_complete_event in
             // mSensorEventBuffer[i] if such a mapping exists (NULL otherwise).
-            mMapFlushEventsToConnections[i] = NULL;
+            mMapFlushEventsToConnections[i] = nullptr;
             if (mSensorEventBuffer[i].type == SENSOR_TYPE_META_DATA) {
                 const int sensor_handle = mSensorEventBuffer[i].meta_data.sensor;
                 SensorRecord* rec = mActiveSensors.valueFor(sensor_handle);
-                if (rec != NULL) {
+                if (rec != nullptr) {
                     mMapFlushEventsToConnections[i] = rec->getFirstPendingFlushConnection();
                     rec->removeFirstPendingFlushConnection();
                 }
@@ -770,7 +871,7 @@ bool SensorService::threadLoop() {
 
                     size_t numConnections = activeConnections.size();
                     for (size_t i=0 ; i < numConnections; ++i) {
-                        if (activeConnections[i] != NULL) {
+                        if (activeConnections[i] != nullptr) {
                             activeConnections[i]->removeSensor(handle);
                         }
                     }
@@ -783,7 +884,7 @@ bool SensorService::threadLoop() {
         bool needsWakeLock = false;
         size_t numConnections = activeConnections.size();
         for (size_t i=0 ; i < numConnections; ++i) {
-            if (activeConnections[i] != 0) {
+            if (activeConnections[i] != nullptr) {
                 activeConnections[i]->sendEvents(mSensorEventBuffer, count, mSensorEventScratch,
                         mMapFlushEventsToConnections);
                 needsWakeLock |= activeConnections[i]->needsWakeLock();
@@ -816,7 +917,7 @@ void SensorService::resetAllWakeLockRefCounts() {
     {
         Mutex::Autolock _l(mLock);
         for (size_t i=0 ; i < activeConnections.size(); ++i) {
-            if (activeConnections[i] != 0) {
+            if (activeConnections[i] != nullptr) {
                 activeConnections[i]->resetWakeLockRefCount();
             }
         }
@@ -1021,15 +1122,15 @@ sp<ISensorEventConnection> SensorService::createSensorEventConnection(const Stri
         int requestedMode, const String16& opPackageName) {
     // Only 2 modes supported for a SensorEventConnection ... NORMAL and DATA_INJECTION.
     if (requestedMode != NORMAL && requestedMode != DATA_INJECTION) {
-        return NULL;
+        return nullptr;
     }
 
     Mutex::Autolock _l(mLock);
     // To create a client in DATA_INJECTION mode to inject data, SensorService should already be
     // operating in DI mode.
     if (requestedMode == DATA_INJECTION) {
-        if (mCurrentOperatingMode != DATA_INJECTION) return NULL;
-        if (!isWhiteListedPackage(packageName)) return NULL;
+        if (mCurrentOperatingMode != DATA_INJECTION) return nullptr;
+        if (!isWhiteListedPackage(packageName)) return nullptr;
     }
 
     uid_t uid = IPCThreadState::self()->getCallingUid();
@@ -1062,6 +1163,12 @@ sp<ISensorEventConnection> SensorService::createSensorDirectConnection(
         const String16& opPackageName, uint32_t size, int32_t type, int32_t format,
         const native_handle *resource) {
     Mutex::Autolock _l(mLock);
+
+    // No new direct connections are allowed when sensor privacy is enabled
+    if (mSensorPrivacyPolicy->isSensorPrivacyEnabled()) {
+        ALOGE("Cannot create new direct connections when sensor privacy is enabled");
+        return nullptr;
+    }
 
     struct sensors_direct_mem_t mem = {
         .type = type,
@@ -1290,6 +1397,14 @@ void SensorService::cleanupConnection(SensorEventConnection* c) {
         checkWakeLockStateLocked();
     }
 
+    {
+        Mutex::Autolock packageLock(sPackageTargetVersionLock);
+        auto iter = sPackageTargetVersion.find(c->mOpPackageName);
+        if (iter != sPackageTargetVersion.end()) {
+            sPackageTargetVersion.erase(iter);
+        }
+    }
+
     SensorDevice& dev(SensorDevice::getInstance());
     dev.notifyConnectionDestroyed(c);
 }
@@ -1325,11 +1440,25 @@ status_t SensorService::enable(const sp<SensorEventConnection>& connection,
     }
 
     SensorRecord* rec = mActiveSensors.valueFor(handle);
-    if (rec == 0) {
+    if (rec == nullptr) {
         rec = new SensorRecord(connection);
         mActiveSensors.add(handle, rec);
         if (sensor->isVirtual()) {
             mActiveVirtualSensors.emplace(handle);
+        }
+
+        // There was no SensorRecord for this sensor which means it was previously disabled. Mark
+        // the recent event as stale to ensure that the previous event is not sent to a client. This
+        // ensures on-change events that were generated during a previous sensor activation are not
+        // erroneously sent to newly connected clients, especially if a second client registers for
+        // an on-change sensor before the first client receives the updated event. Once an updated
+        // event is received, the recent events will be marked as current, and any new clients will
+        // immediately receive the most recent event.
+        if (sensor->getSensor().getReportingMode() == AREPORTING_MODE_ON_CHANGE) {
+            auto logger = mRecentEvent.find(handle);
+            if (logger != mRecentEvent.end()) {
+                logger->second->setLastEventStale();
+            }
         }
     } else {
         if (rec->addConnection(connection)) {
@@ -1343,16 +1472,17 @@ status_t SensorService::enable(const sp<SensorEventConnection>& connection,
                 auto logger = mRecentEvent.find(handle);
                 if (logger != mRecentEvent.end()) {
                     sensors_event_t event;
-                    // It is unlikely that this buffer is empty as the sensor is already active.
-                    // One possible corner case may be two applications activating an on-change
-                    // sensor at the same time.
-                    if(logger->second->populateLastEvent(&event)) {
+                    // Verify that the last sensor event was generated from the current activation
+                    // of the sensor. If not, it is possible for an on-change sensor to receive a
+                    // sensor event that is stale if two clients re-activate the sensor
+                    // simultaneously.
+                    if(logger->second->populateLastEventIfCurrent(&event)) {
                         event.sensor = handle;
                         if (event.version == sizeof(sensors_event_t)) {
                             if (isWakeUpSensorEvent(event) && !mWakeLockAcquired) {
                                 setWakeLockAcquiredLocked(true);
                             }
-                            connection->sendEvents(&event, 1, NULL);
+                            connection->sendEvents(&event, 1, nullptr);
                             if (!connection->needsWakeLock() && mWakeLockAcquired) {
                                 checkWakeLockStateLocked();
                             }
@@ -1419,6 +1549,11 @@ status_t SensorService::enable(const sp<SensorEventConnection>& connection,
 
     if (err == NO_ERROR) {
         connection->updateLooperRegistration(mLooper);
+
+        if (sensor->getSensor().getRequiredPermission().size() > 0 &&
+                sensor->getSensor().getRequiredAppOp() >= 0) {
+            connection->mHandleToAppOp[handle] = sensor->getSensor().getRequiredAppOp();
+        }
 
         mLastNSensorRegistrations.editItemAt(mNextSensorRegIndex) =
                 SensorRegistrationInfo(handle, connection->getPackageName(),
@@ -1534,7 +1669,7 @@ status_t SensorService::flushSensor(const sp<SensorEventConnection>& connection,
             status_t err_flush = sensor->flush(connection.get(), handle);
             if (err_flush == NO_ERROR) {
                 SensorRecord* rec = mActiveSensors.valueFor(handle);
-                if (rec != NULL) rec->addPendingFlushConnection(connection);
+                if (rec != nullptr) rec->addPendingFlushConnection(connection);
             }
             err = (err_flush != NO_ERROR) ? err_flush : err;
         }
@@ -1544,13 +1679,53 @@ status_t SensorService::flushSensor(const sp<SensorEventConnection>& connection,
 
 bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
         const String16& opPackageName) {
-    const String8& requiredPermission = sensor.getRequiredPermission();
-
-    if (requiredPermission.length() <= 0) {
+    // Check if a permission is required for this sensor
+    if (sensor.getRequiredPermission().length() <= 0) {
         return true;
     }
 
+    const int32_t opCode = sensor.getRequiredAppOp();
+    const int32_t appOpMode = sAppOpsManager.checkOp(opCode,
+            IPCThreadState::self()->getCallingUid(), opPackageName);
+    bool appOpAllowed = appOpMode == AppOpsManager::MODE_ALLOWED;
+
+    bool canAccess = false;
+    if (hasPermissionForSensor(sensor)) {
+        // Ensure that the AppOp is allowed, or that there is no necessary app op for the sensor
+        if (opCode < 0 || appOpAllowed) {
+            canAccess = true;
+        }
+    } else if (sensor.getType() == SENSOR_TYPE_STEP_COUNTER ||
+            sensor.getType() == SENSOR_TYPE_STEP_DETECTOR) {
+        int targetSdkVersion = getTargetSdkVersion(opPackageName);
+        // Allow access to the sensor if the application targets pre-Q, which is before the
+        // requirement to hold the AR permission to access Step Counter and Step Detector events
+        // was introduced, and the user hasn't revoked the app op.
+        //
+        // Verifying the app op is required to ensure that the user hasn't revoked the necessary
+        // permissions to access the Step Detector and Step Counter when the application targets
+        // pre-Q. Without this check, if the user revokes the pre-Q install-time GMS Core AR
+        // permission, the app would still be able to receive Step Counter and Step Detector events.
+        if (appOpAllowed &&
+                targetSdkVersion > 0 &&
+                targetSdkVersion <= __ANDROID_API_P__) {
+            canAccess = true;
+        }
+    }
+
+    if (canAccess) {
+        sAppOpsManager.noteOp(opCode, IPCThreadState::self()->getCallingUid(), opPackageName);
+    } else {
+        ALOGE("%s a sensor (%s) without holding its required permission: %s",
+                operation, sensor.getName().string(), sensor.getRequiredPermission().string());
+    }
+
+    return canAccess;
+}
+
+bool SensorService::hasPermissionForSensor(const Sensor& sensor) {
     bool hasPermission = false;
+    const String8& requiredPermission = sensor.getRequiredPermission();
 
     // Runtime permissions can't use the cache as they may change.
     if (sensor.isRequiredPermissionRuntime()) {
@@ -1559,25 +1734,31 @@ bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
     } else {
         hasPermission = PermissionCache::checkCallingPermission(String16(requiredPermission));
     }
+    return hasPermission;
+}
 
-    if (!hasPermission) {
-        ALOGE("%s a sensor (%s) without holding its required permission: %s",
-                operation, sensor.getName().string(), sensor.getRequiredPermission().string());
-        return false;
-    }
-
-    const int32_t opCode = sensor.getRequiredAppOp();
-    if (opCode >= 0) {
-        AppOpsManager appOps;
-        if (appOps.noteOp(opCode, IPCThreadState::self()->getCallingUid(), opPackageName)
-                        != AppOpsManager::MODE_ALLOWED) {
-            ALOGE("%s a sensor (%s) without enabled required app op: %d",
-                    operation, sensor.getName().string(), opCode);
-            return false;
+int SensorService::getTargetSdkVersion(const String16& opPackageName) {
+    Mutex::Autolock packageLock(sPackageTargetVersionLock);
+    int targetSdkVersion = -1;
+    auto entry = sPackageTargetVersion.find(opPackageName);
+    if (entry != sPackageTargetVersion.end()) {
+        targetSdkVersion = entry->second;
+    } else {
+        sp<IBinder> binder = defaultServiceManager()->getService(String16("package_native"));
+        if (binder != nullptr) {
+            sp<content::pm::IPackageManagerNative> packageManager =
+                    interface_cast<content::pm::IPackageManagerNative>(binder);
+            if (packageManager != nullptr) {
+                binder::Status status = packageManager->getTargetSdkVersionForPackage(
+                        opPackageName, &targetSdkVersion);
+                if (!status.isOk()) {
+                    targetSdkVersion = -1;
+                }
+            }
         }
+        sPackageTargetVersion[opPackageName] = targetSdkVersion;
     }
-
-    return true;
+    return targetSdkVersion;
 }
 
 void SensorService::checkWakeLockState() {
@@ -1592,7 +1773,7 @@ void SensorService::checkWakeLockStateLocked() {
     bool releaseLock = true;
     for (size_t i=0 ; i<mActiveConnections.size() ; i++) {
         sp<SensorEventConnection> connection(mActiveConnections[i].promote());
-        if (connection != 0) {
+        if (connection != nullptr) {
             if (connection->needsWakeLock()) {
                 releaseLock = false;
                 break;
@@ -1617,7 +1798,7 @@ void SensorService::populateActiveConnections(
     Mutex::Autolock _l(mLock);
     for (size_t i=0 ; i < mActiveConnections.size(); ++i) {
         sp<SensorEventConnection> connection(mActiveConnections[i].promote());
-        if (connection != 0) {
+        if (connection != nullptr) {
             activeConnections->add(connection);
         }
     }
@@ -1627,13 +1808,13 @@ bool SensorService::isWhiteListedPackage(const String8& packageName) {
     return (packageName.contains(mWhiteListedPackage.string()));
 }
 
-bool SensorService::isOperationRestricted(const String16& opPackageName) {
+bool SensorService::isOperationPermitted(const String16& opPackageName) {
     Mutex::Autolock _l(mLock);
-    if (mCurrentOperatingMode != RESTRICTED) {
+    if (mCurrentOperatingMode == RESTRICTED) {
         String8 package(opPackageName);
-        return !isWhiteListedPackage(package);
+        return isWhiteListedPackage(package);
     }
-    return false;
+    return true;
 }
 
 void SensorService::UidPolicy::registerSelf() {
@@ -1730,4 +1911,31 @@ bool SensorService::UidPolicy::isUidActiveLocked(uid_t uid) {
     return mActiveUids.find(uid) != mActiveUids.end();
 }
 
+void SensorService::SensorPrivacyPolicy::registerSelf() {
+    SensorPrivacyManager spm;
+    mSensorPrivacyEnabled = spm.isSensorPrivacyEnabled();
+    spm.addSensorPrivacyListener(this);
+}
+
+void SensorService::SensorPrivacyPolicy::unregisterSelf() {
+    SensorPrivacyManager spm;
+    spm.removeSensorPrivacyListener(this);
+}
+
+bool SensorService::SensorPrivacyPolicy::isSensorPrivacyEnabled() {
+    return mSensorPrivacyEnabled;
+}
+
+binder::Status SensorService::SensorPrivacyPolicy::onSensorPrivacyChanged(bool enabled) {
+    mSensorPrivacyEnabled = enabled;
+    sp<SensorService> service = mService.promote();
+    if (service != nullptr) {
+        if (enabled) {
+            service->disableAllSensors();
+        } else {
+            service->enableAllSensors();
+        }
+    }
+    return binder::Status::ok();
+}
 }; // namespace android

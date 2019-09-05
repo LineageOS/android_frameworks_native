@@ -19,19 +19,21 @@
 
 #include "SensorDeviceUtils.h"
 #include "SensorServiceUtils.h"
+#include "SensorsWrapper.h"
 
+#include <fmq/MessageQueue.h>
+#include <sensor/SensorEventQueue.h>
 #include <sensor/Sensor.h>
 #include <stdint.h>
 #include <sys/types.h>
 #include <utils/KeyedVector.h>
 #include <utils/Singleton.h>
 #include <utils/String8.h>
+#include <utils/Timers.h>
 
 #include <string>
 #include <unordered_map>
 #include <algorithm> //std::max std::min
-
-#include "android/hardware/sensors/1.0/ISensors.h"
 
 #include "RingBuffer.h"
 
@@ -40,8 +42,13 @@
 namespace android {
 
 // ---------------------------------------------------------------------------
+class SensorsHalDeathReceivier : public android::hardware::hidl_death_recipient {
+    virtual void serviceDied(uint64_t cookie,
+                             const wp<::android::hidl::base::V1_0::IBase>& service) override;
+};
 
-class SensorDevice : public Singleton<SensorDevice>, public SensorServiceUtil::Dumpable {
+class SensorDevice : public Singleton<SensorDevice>,
+                     public SensorServiceUtil::Dumpable {
 public:
     class HidlTransportErrorLog {
      public:
@@ -69,6 +76,10 @@ public:
         int mCount;   // number of transport errors observed
     };
 
+    ~SensorDevice();
+    void prepareForReconnect();
+    void reconnect();
+
     ssize_t getSensorList(sensor_t const** list);
 
     void handleDynamicSensorConnection(int handle, bool connected);
@@ -76,6 +87,7 @@ public:
     int getHalDeviceVersion() const;
 
     ssize_t poll(sensors_event_t* buffer, size_t count);
+    void writeWakeLockHandled(uint32_t count);
 
     status_t activate(void* ident, int handle, int enabled);
     status_t batch(void* ident, int handle, int flags, int64_t samplingPeriodNs,
@@ -98,12 +110,24 @@ public:
     status_t injectSensorData(const sensors_event_t *event);
     void notifyConnectionDestroyed(void *ident);
 
+    using Result = ::android::hardware::sensors::V1_0::Result;
+    hardware::Return<void> onDynamicSensorsConnected(
+            const hardware::hidl_vec<hardware::sensors::V1_0::SensorInfo> &dynamicSensorsAdded);
+    hardware::Return<void> onDynamicSensorsDisconnected(
+            const hardware::hidl_vec<int32_t> &dynamicSensorHandlesRemoved);
+
+    bool isReconnecting() const {
+        return mReconnecting;
+    }
+
+    bool isSensorActive(int handle) const;
+
     // Dumpable
     virtual std::string dump() const;
 private:
     friend class Singleton<SensorDevice>;
 
-    sp<hardware::sensors::V1_0::ISensors> mSensors;
+    sp<SensorServiceUtil::ISensorsWrapper> mSensors;
     Vector<sensor_t> mSensorList;
     std::unordered_map<int32_t, sensor_t*> mConnectedDynamicSensors;
 
@@ -141,6 +165,9 @@ private:
         // requested by the client.
         KeyedVector<void*, BatchParams> batchParams;
 
+        // Flag to track if the sensor is active
+        bool isActive = false;
+
         // Sets batch parameters for this ident. Returns error if this ident is not already present
         // in the KeyedVector above.
         status_t setBatchParamsForIdent(void* ident, int flags, int64_t samplingPeriodNs,
@@ -151,7 +178,7 @@ private:
         // the removed ident. If index >=0, ident is present and successfully removed.
         ssize_t removeBatchParamsForIdent(void* ident);
 
-        int numActiveClients();
+        int numActiveClients() const;
     };
     DefaultKeyedVector<int, Info> mActivationCount;
 
@@ -163,15 +190,35 @@ private:
     SortedVector<void *> mDisabledClients;
     SensorDevice();
     bool connectHidlService();
+    void initializeSensorList();
+    void reactivateSensors(const DefaultKeyedVector<int, Info>& previousActivations);
+    static bool sensorHandlesChanged(const Vector<sensor_t>& oldSensorList,
+                                     const Vector<sensor_t>& newSensorList);
+    static bool sensorIsEquivalent(const sensor_t& prevSensor, const sensor_t& newSensor);
 
-    static void handleHidlDeath(const std::string &detail);
+    enum HalConnectionStatus {
+        CONNECTED, // Successfully connected to the HAL
+        DOES_NOT_EXIST, // Could not find the HAL
+        FAILED_TO_CONNECT, // Found the HAL but failed to connect/initialize
+        UNKNOWN,
+    };
+    HalConnectionStatus connectHidlServiceV1_0();
+    HalConnectionStatus connectHidlServiceV2_0();
+
+    ssize_t pollHal(sensors_event_t* buffer, size_t count);
+    ssize_t pollFmq(sensors_event_t* buffer, size_t count);
+    status_t activateLocked(void* ident, int handle, int enabled);
+    status_t batchLocked(void* ident, int handle, int flags, int64_t samplingPeriodNs,
+                         int64_t maxBatchReportLatencyNs);
+
+    void handleHidlDeath(const std::string &detail);
     template<typename T>
-    static Return<T> checkReturn(Return<T> &&ret) {
+    void checkReturn(const Return<T>& ret) {
         if (!ret.isOk()) {
             handleHidlDeath(ret.description());
         }
-        return std::move(ret);
     }
+    status_t checkReturnAndGetStatus(const Return<Result>& ret);
     //TODO(b/67425500): remove waiter after bug is resolved.
     sp<SensorDeviceUtils::HidlServiceRegistrationWaiter> mRestartWaiter;
 
@@ -189,6 +236,19 @@ private:
             sensors_event_t *dst);
 
     bool mIsDirectReportSupported;
+
+    typedef hardware::MessageQueue<Event, hardware::kSynchronizedReadWrite> EventMessageQueue;
+    typedef hardware::MessageQueue<uint32_t, hardware::kSynchronizedReadWrite> WakeLockQueue;
+    std::unique_ptr<EventMessageQueue> mEventQueue;
+    std::unique_ptr<WakeLockQueue> mWakeLockQueue;
+
+    hardware::EventFlag* mEventQueueFlag;
+    hardware::EventFlag* mWakeLockQueueFlag;
+
+    std::array<Event, SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT> mEventBuffer;
+
+    sp<SensorsHalDeathReceivier> mSensorsHalDeathReceiver;
+    std::atomic_bool mReconnecting;
 };
 
 // ---------------------------------------------------------------------------

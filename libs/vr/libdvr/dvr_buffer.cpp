@@ -2,7 +2,8 @@
 
 #include <android/hardware_buffer.h>
 #include <dvr/dvr_shared_buffers.h>
-#include <private/dvr/buffer_hub_client.h>
+#include <private/dvr/consumer_buffer.h>
+#include <private/dvr/producer_buffer.h>
 #include <ui/GraphicBuffer.h>
 
 #include "dvr_internal.h"

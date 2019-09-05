@@ -5,7 +5,6 @@
 #include <hardware/hwcomposer.h>
 #include <pdx/client.h>
 #include <pdx/file_handle.h>
-#include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/buffer_hub_queue_client.h>
 #include <private/dvr/display_protocol.h>
 

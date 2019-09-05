@@ -29,7 +29,7 @@ public:
     PowerAdvisor();
     ~PowerAdvisor() override;
 
-    MOCK_METHOD2(setExpensiveRenderingExpected, void(hwc2_display_t displayId, bool expected));
+    MOCK_METHOD2(setExpensiveRenderingExpected, void(DisplayId displayId, bool expected));
 };
 
 } // namespace mock

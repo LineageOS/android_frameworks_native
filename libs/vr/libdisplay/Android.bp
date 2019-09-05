@@ -16,8 +16,8 @@ sourceFiles = [
     "display_client.cpp",
     "display_manager_client.cpp",
     "display_protocol.cpp",
-    "vsync_client.cpp",
     "shared_buffer_helpers.cpp",
+    "vsync_service.cpp",
 ]
 
 localIncludeFiles = [

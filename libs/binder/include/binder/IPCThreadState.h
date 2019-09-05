@@ -52,6 +52,19 @@ public:
             void                setStrictModePolicy(int32_t policy);
             int32_t             getStrictModePolicy() const;
 
+            // See Binder#setCallingWorkSourceUid in Binder.java.
+            int64_t             setCallingWorkSourceUid(uid_t uid);
+            // Internal only. Use setCallingWorkSourceUid(uid) instead.
+            int64_t             setCallingWorkSourceUidWithoutPropagation(uid_t uid);
+            // See Binder#getCallingWorkSourceUid in Binder.java.
+            uid_t               getCallingWorkSourceUid() const;
+            // See Binder#clearCallingWorkSource in Binder.java.
+            int64_t             clearCallingWorkSource();
+            // See Binder#restoreCallingWorkSource in Binder.java.
+            void                restoreCallingWorkSource(int64_t token);
+            void                clearPropagateWorkSource();
+            bool                shouldPropagateWorkSource() const;
+
             void                setLastTransactionBinderFlags(int32_t flags);
             int32_t             getLastTransactionBinderFlags() const;
 
@@ -97,6 +110,8 @@ public:
             // the maximum number of binder threads threads allowed for this process.
             void                blockUntilThreadAvailable();
 
+            // Service manager registration
+            void                setTheContextObject(sp<BBinder> obj);
 
             // Is this thread currently serving a binder call. This method
             // returns true if while traversing backwards from the function call
@@ -123,6 +138,13 @@ public:
             // hardware::IPCThreadState methods or IPCThreadState methods to
             // infer information about thread state.
             bool                isServingCall() const;
+
+            // The work source represents the UID of the process we should attribute the transaction
+            // to. We use -1 to specify that the work source was not set using #setWorkSource.
+            //
+            // This constant needs to be kept in sync with Binder.UNSET_WORKSOURCE from the Java
+            // side.
+            static const int32_t kUnsetWorkSource = -1;
 
 private:
                                 IPCThreadState();
@@ -162,6 +184,11 @@ private:
             pid_t               mCallingPid;
             const char*         mCallingSid;
             uid_t               mCallingUid;
+            // The UID of the process who is responsible for this transaction.
+            // This is used for resource attribution.
+            int32_t             mWorkSource;
+            // Whether the work source should be propagated.
+            bool                mPropagateWorkSource;
             int32_t             mStrictModePolicy;
             int32_t             mLastTransactionBinderFlags;
             IPCThreadStateBase  *mIPCThreadStateBase;

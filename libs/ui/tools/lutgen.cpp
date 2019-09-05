@@ -85,11 +85,11 @@ static const ColorSpace findColorSpace(const string& name) {
 static int handleCommandLineArgments(int argc, char* argv[]) {
     static constexpr const char* OPTSTR = "h:d:s:t:";
     static const struct option OPTIONS[] = {
-            { "help",       no_argument,       0, 'h' },
-            { "dimension",  required_argument, 0, 'd' },
-            { "source",     required_argument, 0, 's' },
-            { "target",     required_argument, 0, 't' },
-            { 0, 0, 0, 0 }  // termination of the option list
+            { "help",       no_argument,       nullptr, 'h' },
+            { "dimension",  required_argument, nullptr, 'd' },
+            { "source",     required_argument, nullptr, 's' },
+            { "target",     required_argument, nullptr, 't' },
+            { nullptr, 0, nullptr, 0 }  // termination of the option list
     };
 
     int opt;

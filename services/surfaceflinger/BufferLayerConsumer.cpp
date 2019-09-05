@@ -20,11 +20,8 @@
 //#define LOG_NDEBUG 0
 
 #include "BufferLayerConsumer.h"
-
-#include "DispSync.h"
 #include "Layer.h"
-#include "RenderEngine/Image.h"
-#include "RenderEngine/RenderEngine.h"
+#include "Scheduler/DispSync.h"
 
 #include <inttypes.h>
 
@@ -38,10 +35,9 @@
 #include <gui/GLConsumer.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
-
 #include <private/gui/ComposerService.h>
-#include <private/gui/SyncFeatures.h>
-
+#include <renderengine/Image.h>
+#include <renderengine/RenderEngine.h>
 #include <utils/Log.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
@@ -58,7 +54,8 @@ namespace android {
 static const mat4 mtxIdentity;
 
 BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq,
-                                         RE::RenderEngine& engine, uint32_t tex, Layer* layer)
+                                         renderengine::RenderEngine& engine, uint32_t tex,
+                                         Layer* layer)
       : ConsumerBase(bq, false),
         mCurrentCrop(Rect::EMPTY_RECT),
         mCurrentTransform(0),
@@ -101,54 +98,7 @@ void BufferLayerConsumer::setContentsChangedListener(const wp<ContentsChangedLis
     mContentsChangedListener = listener;
 }
 
-// We need to determine the time when a buffer acquired now will be
-// displayed.  This can be calculated:
-//   time when previous buffer's actual-present fence was signaled
-//    + current display refresh rate * HWC latency
-//    + a little extra padding
-//
-// Buffer producers are expected to set their desired presentation time
-// based on choreographer time stamps, which (coming from vsync events)
-// will be slightly later then the actual-present timing.  If we get a
-// desired-present time that is unintentionally a hair after the next
-// vsync, we'll hold the frame when we really want to display it.  We
-// need to take the offset between actual-present and reported-vsync
-// into account.
-//
-// If the system is configured without a DispSync phase offset for the app,
-// we also want to throw in a bit of padding to avoid edge cases where we
-// just barely miss.  We want to do it here, not in every app.  A major
-// source of trouble is the app's use of the display's ideal refresh time
-// (via Display.getRefreshRate()), which could be off of the actual refresh
-// by a few percent, with the error multiplied by the number of frames
-// between now and when the buffer should be displayed.
-//
-// If the refresh reported to the app has a phase offset, we shouldn't need
-// to tweak anything here.
-nsecs_t BufferLayerConsumer::computeExpectedPresent(const DispSync& dispSync) {
-    // The HWC doesn't currently have a way to report additional latency.
-    // Assume that whatever we submit now will appear right after the flip.
-    // For a smart panel this might be 1.  This is expressed in frames,
-    // rather than time, because we expect to have a constant frame delay
-    // regardless of the refresh rate.
-    const uint32_t hwcLatency = 0;
-
-    // Ask DispSync when the next refresh will be (CLOCK_MONOTONIC).
-    const nsecs_t nextRefresh = dispSync.computeNextRefresh(hwcLatency);
-
-    // The DispSync time is already adjusted for the difference between
-    // vsync and reported-vsync (SurfaceFlinger::dispSyncPresentTimeOffset), so
-    // we don't need to factor that in here.  Pad a little to avoid
-    // weird effects if apps might be requesting times right on the edge.
-    nsecs_t extraPadding = 0;
-    if (SurfaceFlinger::vsyncPhaseOffsetNs == 0) {
-        extraPadding = 1000000; // 1ms (6% of 60Hz)
-    }
-
-    return nextRefresh + extraPadding;
-}
-
-status_t BufferLayerConsumer::updateTexImage(BufferRejecter* rejecter, const DispSync& dispSync,
+status_t BufferLayerConsumer::updateTexImage(BufferRejecter* rejecter, nsecs_t expectedPresentTime,
                                              bool* autoRefresh, bool* queuedBuffer,
                                              uint64_t maxFrameNumber) {
     ATRACE_CALL();
@@ -160,18 +110,12 @@ status_t BufferLayerConsumer::updateTexImage(BufferRejecter* rejecter, const Dis
         return NO_INIT;
     }
 
-    // Make sure RenderEngine is current
-    if (!mRE.isCurrent()) {
-        BLC_LOGE("updateTexImage: RenderEngine is not current");
-        return INVALID_OPERATION;
-    }
-
     BufferItem item;
 
     // Acquire the next buffer.
     // In asynchronous mode the list is guaranteed to be one buffer
     // deep, while in synchronous mode we use the oldest buffer.
-    status_t err = acquireBufferLocked(&item, computeExpectedPresent(dispSync), maxFrameNumber);
+    status_t err = acquireBufferLocked(&item, expectedPresentTime, maxFrameNumber);
     if (err != NO_ERROR) {
         if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
             err = NO_ERROR;
@@ -206,7 +150,7 @@ status_t BufferLayerConsumer::updateTexImage(BufferRejecter* rejecter, const Dis
         return err;
     }
 
-    if (!SyncFeatures::getInstance().useNativeFenceSync()) {
+    if (!mRE.useNativeFenceSync()) {
         // Bind the new buffer to the GL texture.
         //
         // Older devices require the "implicit" synchronization provided
@@ -235,7 +179,7 @@ void BufferLayerConsumer::setReleaseFence(const sp<Fence>& fence) {
     }
 
     auto buffer = mPendingRelease.isPending ? mPendingRelease.graphicBuffer
-                                            : mCurrentTextureImage->graphicBuffer();
+                                            : mCurrentTextureBuffer->graphicBuffer();
     auto err = addReleaseFence(slot, buffer, fence);
     if (err != OK) {
         BLC_LOGE("setReleaseFence: failed to add the fence: %s (%d)", strerror(-err), err);
@@ -271,21 +215,16 @@ status_t BufferLayerConsumer::acquireBufferLocked(BufferItem* item, nsecs_t pres
     }
 
     // If item->mGraphicBuffer is not null, this buffer has not been acquired
-    // before, so any prior EglImage created is using a stale buffer. This
-    // replaces any old EglImage with a new one (using the new buffer).
+    // before, so we need to clean up old references.
     if (item->mGraphicBuffer != nullptr) {
-        mImages[item->mSlot] = new Image(item->mGraphicBuffer, mRE);
+        std::lock_guard<std::mutex> lock(mImagesMutex);
+        if (mImages[item->mSlot] == nullptr || mImages[item->mSlot]->graphicBuffer() == nullptr ||
+            mImages[item->mSlot]->graphicBuffer()->getId() != item->mGraphicBuffer->getId()) {
+            mImages[item->mSlot] = std::make_shared<Image>(item->mGraphicBuffer, mRE);
+        }
     }
 
     return NO_ERROR;
-}
-
-bool BufferLayerConsumer::canUseImageCrop(const Rect& crop) const {
-    // If the crop rect is not at the origin, we can't set the crop on the
-    // EGLImage because that's not allowed by the EGL_ANDROID_image_crop
-    // extension.  In the future we can add a layered extension that
-    // removes this restriction if there is hardware that can support it.
-    return mRE.supportsImageCrop() && crop.left == 0 && crop.top == 0;
 }
 
 status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
@@ -294,33 +233,27 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
 
     int slot = item.mSlot;
 
-    // Do whatever sync ops we need to do before releasing the old slot.
-    if (slot != mCurrentTexture) {
-        err = syncForReleaseLocked();
-        if (err != NO_ERROR) {
-            // Release the buffer we just acquired.  It's not safe to
-            // release the old buffer, so instead we just drop the new frame.
-            // As we are still under lock since acquireBuffer, it is safe to
-            // release by slot.
-            releaseBufferLocked(slot, mSlots[slot].mGraphicBuffer);
-            return err;
-        }
-    }
-
     BLC_LOGV("updateAndRelease: (slot=%d buf=%p) -> (slot=%d buf=%p)", mCurrentTexture,
-             mCurrentTextureImage != nullptr ? mCurrentTextureImage->graphicBufferHandle() : 0,
+             (mCurrentTextureBuffer != nullptr && mCurrentTextureBuffer->graphicBuffer() != nullptr)
+                     ? mCurrentTextureBuffer->graphicBuffer()->handle
+                     : 0,
              slot, mSlots[slot].mGraphicBuffer->handle);
 
     // Hang onto the pointer so that it isn't freed in the call to
     // releaseBufferLocked() if we're in shared buffer mode and both buffers are
     // the same.
-    sp<Image> nextTextureImage = mImages[slot];
+
+    std::shared_ptr<Image> nextTextureBuffer;
+    {
+        std::lock_guard<std::mutex> lock(mImagesMutex);
+        nextTextureBuffer = mImages[slot];
+    }
 
     // release old buffer
     if (mCurrentTexture != BufferQueue::INVALID_BUFFER_SLOT) {
         if (pendingRelease == nullptr) {
             status_t status =
-                    releaseBufferLocked(mCurrentTexture, mCurrentTextureImage->graphicBuffer());
+                    releaseBufferLocked(mCurrentTexture, mCurrentTextureBuffer->graphicBuffer());
             if (status < NO_ERROR) {
                 BLC_LOGE("updateAndRelease: failed to release buffer: %s (%d)", strerror(-status),
                          status);
@@ -329,14 +262,14 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
             }
         } else {
             pendingRelease->currentTexture = mCurrentTexture;
-            pendingRelease->graphicBuffer = mCurrentTextureImage->graphicBuffer();
+            pendingRelease->graphicBuffer = mCurrentTextureBuffer->graphicBuffer();
             pendingRelease->isPending = true;
         }
     }
 
     // Update the BufferLayerConsumer state.
     mCurrentTexture = slot;
-    mCurrentTextureImage = nextTextureImage;
+    mCurrentTextureBuffer = nextTextureBuffer;
     mCurrentCrop = item.mCrop;
     mCurrentTransform = item.mTransform;
     mCurrentScalingMode = item.mScalingMode;
@@ -357,51 +290,13 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
 
 status_t BufferLayerConsumer::bindTextureImageLocked() {
     ATRACE_CALL();
-    mRE.checkErrors();
 
-    if (mCurrentTexture == BufferQueue::INVALID_BUFFER_SLOT && mCurrentTextureImage == nullptr) {
-        BLC_LOGE("bindTextureImage: no currently-bound texture");
-        mRE.bindExternalTextureImage(mTexName, *mRE.createImage());
-        return NO_INIT;
+    if (mCurrentTextureBuffer != nullptr && mCurrentTextureBuffer->graphicBuffer() != nullptr) {
+        return mRE.bindExternalTextureBuffer(mTexName, mCurrentTextureBuffer->graphicBuffer(),
+                                             mCurrentFence);
     }
 
-    const Rect& imageCrop = canUseImageCrop(mCurrentCrop) ? mCurrentCrop : Rect::EMPTY_RECT;
-    status_t err = mCurrentTextureImage->createIfNeeded(imageCrop);
-    if (err != NO_ERROR) {
-        BLC_LOGW("bindTextureImage: can't create image on slot=%d", mCurrentTexture);
-        mRE.bindExternalTextureImage(mTexName, *mRE.createImage());
-        return UNKNOWN_ERROR;
-    }
-
-    mRE.bindExternalTextureImage(mTexName, mCurrentTextureImage->image());
-
-    // Wait for the new buffer to be ready.
-    return doFenceWaitLocked();
-}
-
-status_t BufferLayerConsumer::syncForReleaseLocked() {
-    BLC_LOGV("syncForReleaseLocked");
-
-    if (mCurrentTexture != BufferQueue::INVALID_BUFFER_SLOT) {
-        if (SyncFeatures::getInstance().useNativeFenceSync()) {
-            base::unique_fd fenceFd = mRE.flush();
-            if (fenceFd == -1) {
-                BLC_LOGE("syncForReleaseLocked: failed to flush RenderEngine");
-                return UNKNOWN_ERROR;
-            }
-            sp<Fence> fence(new Fence(std::move(fenceFd)));
-            status_t err = addReleaseFenceLocked(mCurrentTexture,
-                                                 mCurrentTextureImage->graphicBuffer(), fence);
-            if (err != OK) {
-                BLC_LOGE("syncForReleaseLocked: error adding release fence: "
-                         "%s (%d)",
-                         strerror(-err), err);
-                return err;
-            }
-        }
-    }
-
-    return OK;
+    return NO_INIT;
 }
 
 void BufferLayerConsumer::getTransformMatrix(float mtx[16]) {
@@ -418,27 +313,26 @@ void BufferLayerConsumer::setFilteringEnabled(bool enabled) {
     bool needsRecompute = mFilteringEnabled != enabled;
     mFilteringEnabled = enabled;
 
-    if (needsRecompute && mCurrentTextureImage == nullptr) {
-        BLC_LOGD("setFilteringEnabled called with mCurrentTextureImage == nullptr");
+    if (needsRecompute && mCurrentTextureBuffer == nullptr) {
+        BLC_LOGD("setFilteringEnabled called with mCurrentTextureBuffer == nullptr");
     }
 
-    if (needsRecompute && mCurrentTextureImage != nullptr) {
+    if (needsRecompute && mCurrentTextureBuffer != nullptr) {
         computeCurrentTransformMatrixLocked();
     }
 }
 
 void BufferLayerConsumer::computeCurrentTransformMatrixLocked() {
     BLC_LOGV("computeCurrentTransformMatrixLocked");
-    sp<GraphicBuffer> buf =
-            (mCurrentTextureImage == nullptr) ? nullptr : mCurrentTextureImage->graphicBuffer();
-    if (buf == nullptr) {
+    if (mCurrentTextureBuffer == nullptr || mCurrentTextureBuffer->graphicBuffer() == nullptr) {
         BLC_LOGD("computeCurrentTransformMatrixLocked: "
-                 "mCurrentTextureImage is nullptr");
+                 "mCurrentTextureBuffer is nullptr");
     }
-
-    const Rect& currentCrop = getCurrentCropLocked();
-    const Rect& cropRect = canUseImageCrop(currentCrop) ? Rect::EMPTY_RECT : currentCrop;
-    GLConsumer::computeTransformMatrix(mCurrentTransformMatrix, buf, cropRect, mCurrentTransform,
+    GLConsumer::computeTransformMatrix(mCurrentTransformMatrix,
+                                       mCurrentTextureBuffer == nullptr
+                                               ? nullptr
+                                               : mCurrentTextureBuffer->graphicBuffer(),
+                                       getCurrentCropLocked(), mCurrentTransform,
                                        mFilteringEnabled);
 }
 
@@ -480,14 +374,18 @@ int BufferLayerConsumer::getCurrentApi() const {
     return mCurrentApi;
 }
 
-sp<GraphicBuffer> BufferLayerConsumer::getCurrentBuffer(int* outSlot) const {
+sp<GraphicBuffer> BufferLayerConsumer::getCurrentBuffer(int* outSlot, sp<Fence>* outFence) const {
     Mutex::Autolock lock(mMutex);
 
     if (outSlot != nullptr) {
         *outSlot = mCurrentTexture;
     }
 
-    return (mCurrentTextureImage == nullptr) ? nullptr : mCurrentTextureImage->graphicBuffer();
+    if (outFence != nullptr) {
+        *outFence = mCurrentFence;
+    }
+
+    return mCurrentTextureBuffer == nullptr ? nullptr : mCurrentTextureBuffer->graphicBuffer();
 }
 
 Rect BufferLayerConsumer::getCurrentCrop() const {
@@ -522,13 +420,8 @@ std::shared_ptr<FenceTime> BufferLayerConsumer::getCurrentFenceTime() const {
 }
 
 status_t BufferLayerConsumer::doFenceWaitLocked() const {
-    if (!mRE.isCurrent()) {
-        BLC_LOGE("doFenceWait: RenderEngine is not current");
-        return INVALID_OPERATION;
-    }
-
     if (mCurrentFence->isValid()) {
-        if (SyncFeatures::getInstance().useWaitSync()) {
+        if (mRE.useWaitSync()) {
             base::unique_fd fenceFd(mCurrentFence->dup());
             if (fenceFd == -1) {
                 BLC_LOGE("doFenceWait: error dup'ing fence fd: %d", errno);
@@ -552,10 +445,11 @@ status_t BufferLayerConsumer::doFenceWaitLocked() const {
 
 void BufferLayerConsumer::freeBufferLocked(int slotIndex) {
     BLC_LOGV("freeBufferLocked: slotIndex=%d", slotIndex);
+    std::lock_guard<std::mutex> lock(mImagesMutex);
     if (slotIndex == mCurrentTexture) {
         mCurrentTexture = BufferQueue::INVALID_BUFFER_SLOT;
     }
-    mImages[slotIndex].clear();
+    mImages[slotIndex] = nullptr;
     ConsumerBase::freeBufferLocked(slotIndex);
 }
 
@@ -584,6 +478,18 @@ void BufferLayerConsumer::onSidebandStreamChanged() {
     }
 }
 
+void BufferLayerConsumer::onBufferAvailable(const BufferItem& item) {
+    if (item.mGraphicBuffer != nullptr && item.mSlot != BufferQueue::INVALID_BUFFER_SLOT) {
+        std::lock_guard<std::mutex> lock(mImagesMutex);
+        const std::shared_ptr<Image>& oldImage = mImages[item.mSlot];
+        if (oldImage == nullptr || oldImage->graphicBuffer() == nullptr ||
+            oldImage->graphicBuffer()->getId() != item.mGraphicBuffer->getId()) {
+            mImages[item.mSlot] = std::make_shared<Image>(item.mGraphicBuffer, mRE);
+            mRE.cacheExternalTextureBuffer(item.mGraphicBuffer);
+        }
+    }
+}
+
 void BufferLayerConsumer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
                                                    FrameEventHistoryDelta* outDelta) {
     sp<Layer> l = mLayer.promote();
@@ -594,7 +500,11 @@ void BufferLayerConsumer::addAndGetFrameTimestamps(const NewFrameEventsEntry* ne
 
 void BufferLayerConsumer::abandonLocked() {
     BLC_LOGV("abandonLocked");
-    mCurrentTextureImage.clear();
+    mCurrentTextureBuffer = nullptr;
+    for (int i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
+        std::lock_guard<std::mutex> lock(mImagesMutex);
+        mImages[i] = nullptr;
+    }
     ConsumerBase::abandonLocked();
 }
 
@@ -612,39 +522,10 @@ void BufferLayerConsumer::dumpLocked(String8& result, const char* prefix) const 
     ConsumerBase::dumpLocked(result, prefix);
 }
 
-BufferLayerConsumer::Image::Image(sp<GraphicBuffer> graphicBuffer, RE::RenderEngine& engine)
-      : mGraphicBuffer(graphicBuffer),
-        mImage{engine.createImage()},
-        mCreated(false),
-        mCropWidth(0),
-        mCropHeight(0) {}
-
-BufferLayerConsumer::Image::~Image() = default;
-
-status_t BufferLayerConsumer::Image::createIfNeeded(const Rect& imageCrop) {
-    const int32_t cropWidth = imageCrop.width();
-    const int32_t cropHeight = imageCrop.height();
-    if (mCreated && mCropWidth == cropWidth && mCropHeight == cropHeight) {
-        return OK;
+BufferLayerConsumer::Image::~Image() {
+    if (mGraphicBuffer != nullptr) {
+        ALOGV("Destroying buffer: %" PRId64, mGraphicBuffer->getId());
+        mRE.unbindExternalTextureBuffer(mGraphicBuffer->getId());
     }
-
-    mCreated = mImage->setNativeWindowBuffer(mGraphicBuffer->getNativeBuffer(),
-                                             mGraphicBuffer->getUsage() & GRALLOC_USAGE_PROTECTED,
-                                             cropWidth, cropHeight);
-    if (mCreated) {
-        mCropWidth = cropWidth;
-        mCropHeight = cropHeight;
-    } else {
-        mCropWidth = 0;
-        mCropHeight = 0;
-
-        const sp<GraphicBuffer>& buffer = mGraphicBuffer;
-        ALOGE("Failed to create image. size=%ux%u st=%u usage=%#" PRIx64 " fmt=%d",
-              buffer->getWidth(), buffer->getHeight(), buffer->getStride(), buffer->getUsage(),
-              buffer->getPixelFormat());
-    }
-
-    return mCreated ? OK : UNKNOWN_ERROR;
 }
-
 }; // namespace android

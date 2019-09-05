@@ -521,6 +521,9 @@ Status<void> Endpoint::ReceiveMessageForChannel(
   info.flags = 0;
   info.service = service_;
   info.channel = GetChannelState(channel_id);
+  if (info.channel != nullptr) {
+    info.channel->SetActiveProcessId(request.cred.pid);
+  }
   info.send_len = request.send_len;
   info.recv_len = request.max_recv_len;
   info.fd_count = request.file_descriptors.size();

@@ -25,16 +25,34 @@ namespace android {
 
 class ColorLayer : public Layer {
 public:
-    ColorLayer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name, uint32_t w,
-               uint32_t h, uint32_t flags);
-    virtual ~ColorLayer() = default;
+    explicit ColorLayer(const LayerCreationArgs&);
+    ~ColorLayer() override;
+
+    std::shared_ptr<compositionengine::Layer> getCompositionLayer() const override;
 
     virtual const char* getTypeId() const { return "ColorLayer"; }
-    virtual void onDraw(const RenderArea& renderArea, const Region& clip,
-                        bool useIdentityTransform) const;
     bool isVisible() const override;
 
-    void setPerFrameData(const sp<const DisplayDevice>& displayDevice) override;
+    bool setColor(const half3& color) override;
+
+    bool setDataspace(ui::Dataspace dataspace) override;
+
+    void setPerFrameData(const sp<const DisplayDevice>& display, const ui::Transform& transform,
+                         const Rect& viewport, int32_t supportedPerFrameMetadata,
+                         const ui::Dataspace targetDataspace) override;
+
+    void commitTransaction(const State& stateToCommit) override;
+
+    bool onPreComposition(nsecs_t /*refreshStartTime*/) override { return false; }
+
+protected:
+    virtual bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
+                                    bool useIdentityTransform, Region& clearRegion,
+                                    const bool supportProtectedContent,
+                                    renderengine::LayerSettings& layer);
+
+private:
+    std::shared_ptr<compositionengine::Layer> mCompositionLayer;
 };
 
 } // namespace android

@@ -174,6 +174,9 @@ public:
     // See IGraphicBufferProducer::setDequeueTimeout
     virtual status_t setDequeueTimeout(nsecs_t timeout) override;
 
+    // see IGraphicBufferProducer::setLegacyBufferDrop
+    virtual status_t setLegacyBufferDrop(bool drop);
+
     // See IGraphicBufferProducer::getLastQueuedBuffer
     virtual status_t getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
             sp<Fence>* outFence, float outTransformMatrix[16]) override;
@@ -211,7 +214,8 @@ private:
         Dequeue,
         Attach,
     };
-    status_t waitForFreeSlotThenRelock(FreeSlotCaller caller, int* found) const;
+    status_t waitForFreeSlotThenRelock(FreeSlotCaller caller, std::unique_lock<std::mutex>& lock,
+            int* found) const;
 
     sp<BufferQueueCore> mCore;
 
@@ -243,14 +247,21 @@ private:
     // (mCore->mMutex) is held, a ticket is retained by the producer. After
     // dropping the BufferQueue lock, the producer must wait on the condition
     // variable until the current callback ticket matches its retained ticket.
-    Mutex mCallbackMutex;
+    std::mutex mCallbackMutex;
     int mNextCallbackTicket; // Protected by mCore->mMutex
     int mCurrentCallbackTicket; // Protected by mCallbackMutex
-    Condition mCallbackCondition;
+    std::condition_variable mCallbackCondition;
 
     // Sets how long dequeueBuffer or attachBuffer will block if a buffer or
     // slot is not yet available.
     nsecs_t mDequeueTimeout;
+
+    // If set to true, dequeueBuffer() is currently waiting for buffer allocation to complete.
+    bool mDequeueWaitingForAllocation;
+
+    // Condition variable to signal allocateBuffers() that dequeueBuffer() is no longer waiting for
+    // allocation to complete.
+    std::condition_variable mDequeueWaitingForAllocationCondition;
 
 }; // class BufferQueueProducer
 

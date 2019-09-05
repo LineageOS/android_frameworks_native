@@ -17,6 +17,7 @@
 #ifndef ANDROID_BUFFERLAYERCONSUMER_H
 #define ANDROID_BUFFERLAYERCONSUMER_H
 
+#include <android-base/thread_annotations.h>
 #include <gui/BufferQueueDefs.h>
 #include <gui/ConsumerBase.h>
 #include <gui/HdrMetadata.h>
@@ -37,10 +38,10 @@ class DispSync;
 class Layer;
 class String8;
 
-namespace RE {
+namespace renderengine {
 class RenderEngine;
 class Image;
-} // namespace RE
+} // namespace renderengine
 
 /*
  * BufferLayerConsumer consumes buffers of graphics data from a BufferQueue,
@@ -73,14 +74,12 @@ public:
     // BufferLayerConsumer constructs a new BufferLayerConsumer object.  The
     // tex parameter indicates the name of the RenderEngine texture to which
     // images are to be streamed.
-    BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, RE::RenderEngine& engine,
+    BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, renderengine::RenderEngine& engine,
                         uint32_t tex, Layer* layer);
 
     // Sets the contents changed listener. This should be used instead of
     // ConsumerBase::setFrameAvailableListener().
     void setContentsChangedListener(const wp<ContentsChangedListener>& listener);
-
-    nsecs_t computeExpectedPresent(const DispSync& dispSync);
 
     // updateTexImage acquires the most recently queued buffer, and sets the
     // image contents of the target texture to it.
@@ -93,8 +92,8 @@ public:
     // Unlike the GLConsumer version, this version takes a functor that may be
     // used to reject the newly acquired buffer.  It also does not bind the
     // RenderEngine texture until bindTextureImage is called.
-    status_t updateTexImage(BufferRejecter* rejecter, const DispSync& dispSync, bool* autoRefresh,
-                            bool* queuedBuffer, uint64_t maxFrameNumber);
+    status_t updateTexImage(BufferRejecter* rejecter, nsecs_t expectedPresentTime,
+                            bool* autoRefresh, bool* queuedBuffer, uint64_t maxFrameNumber);
 
     // See BufferLayerConsumer::bindTextureImageLocked().
     status_t bindTextureImage();
@@ -153,8 +152,9 @@ public:
 
     // getCurrentBuffer returns the buffer associated with the current image.
     // When outSlot is not nullptr, the current buffer slot index is also
-    // returned.
-    sp<GraphicBuffer> getCurrentBuffer(int* outSlot = nullptr) const;
+    // returned. Simiarly, when outFence is not nullptr, the current output
+    // fence is returned.
+    sp<GraphicBuffer> getCurrentBuffer(int* outSlot = nullptr, sp<Fence>* outFence = nullptr) const;
 
     // getCurrentCrop returns the cropping rectangle of the current buffer.
     Rect getCurrentCrop() const;
@@ -176,20 +176,21 @@ public:
     // setConsumerUsageBits overrides the ConsumerBase method to OR
     // DEFAULT_USAGE_FLAGS to usage.
     status_t setConsumerUsageBits(uint64_t usage);
+    void onBufferAvailable(const BufferItem& item) EXCLUDES(mImagesMutex);
 
 protected:
     // abandonLocked overrides the ConsumerBase method to clear
     // mCurrentTextureImage in addition to the ConsumerBase behavior.
-    virtual void abandonLocked();
+    virtual void abandonLocked() EXCLUDES(mImagesMutex);
 
     // dumpLocked overrides the ConsumerBase method to dump BufferLayerConsumer-
     // specific info in addition to the ConsumerBase behavior.
     virtual void dumpLocked(String8& result, const char* prefix) const;
 
-    // acquireBufferLocked overrides the ConsumerBase method to update the
-    // mImages array in addition to the ConsumerBase behavior.
+    // See ConsumerBase::acquireBufferLocked
     virtual status_t acquireBufferLocked(BufferItem* item, nsecs_t presentWhen,
-                                         uint64_t maxFrameNumber = 0) override;
+                                         uint64_t maxFrameNumber = 0) override
+            EXCLUDES(mImagesMutex);
 
     bool canUseImageCrop(const Rect& crop) const;
 
@@ -208,59 +209,36 @@ protected:
     // completion of the method will instead be returned to the caller, so that
     // it may call releaseBufferLocked itself later.
     status_t updateAndReleaseLocked(const BufferItem& item,
-                                    PendingRelease* pendingRelease = nullptr);
+                                    PendingRelease* pendingRelease = nullptr)
+            EXCLUDES(mImagesMutex);
 
-    // Binds mTexName and the current buffer to TEXTURE_EXTERNAL target.  Uses
-    // mCurrentTexture if it's set, mCurrentTextureImage if not.  If the
-    // bind succeeds, this calls doFenceWait.
+    // Binds mTexName and the current buffer to TEXTURE_EXTERNAL target.
+    // If the bind succeeds, this calls doFenceWait.
     status_t bindTextureImageLocked();
 
 private:
-    // Image is a utility class for tracking and creating RE::Images. There
-    // is primarily just one image per slot, but there is also special cases:
-    //  - After freeBuffer, we must still keep the current image/buffer
-    // Reference counting RE::Images lets us handle all these cases easily while
-    // also only creating new RE::Images from buffers when required.
-    class Image : public LightRefBase<Image> {
+    // Utility class for managing GraphicBuffer references into renderengine
+    class Image {
     public:
-        Image(sp<GraphicBuffer> graphicBuffer, RE::RenderEngine& engine);
-
-        Image(const Image& rhs) = delete;
-        Image& operator=(const Image& rhs) = delete;
-
-        // createIfNeeded creates an RE::Image if required (we haven't created
-        // one yet, or the crop-rect has changed).
-        status_t createIfNeeded(const Rect& imageCrop);
-
+        Image(sp<GraphicBuffer> graphicBuffer, renderengine::RenderEngine& engine)
+              : mGraphicBuffer(graphicBuffer), mRE(engine) {}
+        virtual ~Image();
         const sp<GraphicBuffer>& graphicBuffer() { return mGraphicBuffer; }
-        const native_handle* graphicBufferHandle() {
-            return mGraphicBuffer == nullptr ? nullptr : mGraphicBuffer->handle;
-        }
-
-        const RE::Image& image() const { return *mImage; }
 
     private:
-        // Only allow instantiation using ref counting.
-        friend class LightRefBase<Image>;
-        virtual ~Image();
-
         // mGraphicBuffer is the buffer that was used to create this image.
         sp<GraphicBuffer> mGraphicBuffer;
-
-        // mImage is the image created from mGraphicBuffer.
-        std::unique_ptr<RE::Image> mImage;
-        bool mCreated;
-        int32_t mCropWidth;
-        int32_t mCropHeight;
+        // Back-reference into renderengine to initiate cleanup.
+        renderengine::RenderEngine& mRE;
+        DISALLOW_COPY_AND_ASSIGN(Image);
     };
 
     // freeBufferLocked frees up the given buffer slot. If the slot has been
     // initialized this will release the reference to the GraphicBuffer in
-    // that slot and destroy the RE::Image in that slot.  Otherwise it has no
-    // effect.
+    // that slot.  Otherwise it has no effect.
     //
     // This method must be called with mMutex locked.
-    virtual void freeBufferLocked(int slotIndex);
+    virtual void freeBufferLocked(int slotIndex) EXCLUDES(mImagesMutex);
 
     // IConsumerListener interface
     void onDisconnect() override;
@@ -274,19 +252,13 @@ private:
     // mCurrentTextureImage must not be nullptr.
     void computeCurrentTransformMatrixLocked();
 
-    // See getCurrentCrop, but with mMutex already held.
-    Rect getCurrentCropLocked() const;
-
     // doFenceWaitLocked inserts a wait command into the RenderEngine command
     // stream to ensure that it is safe for future RenderEngine commands to
     // access the current texture buffer.
     status_t doFenceWaitLocked() const;
 
-    // syncForReleaseLocked performs the synchronization needed to release the
-    // current slot from RenderEngine.  If needed it will set the current
-    // slot's fence to guard against a producer accessing the buffer before
-    // the outstanding accesses have completed.
-    status_t syncForReleaseLocked();
+    // getCurrentCropLocked returns the cropping rectangle of the current buffer.
+    Rect getCurrentCropLocked() const;
 
     // The default consumer usage flags that BufferLayerConsumer always sets on its
     // BufferQueue instance; these will be OR:d with any additional flags passed
@@ -294,10 +266,10 @@ private:
     // consume buffers as hardware textures.
     static const uint64_t DEFAULT_USAGE_FLAGS = GraphicBuffer::USAGE_HW_TEXTURE;
 
-    // mCurrentTextureImage is the Image/buffer of the current texture. It's
+    // mCurrentTextureBuffer is the buffer containing the current texture. It's
     // possible that this buffer is not associated with any buffer slot, so we
     // must track it separately in order to support the getCurrentBuffer method.
-    sp<Image> mCurrentTextureImage;
+    std::shared_ptr<Image> mCurrentTextureBuffer;
 
     // mCurrentCrop is the crop rectangle that applies to the current texture.
     // It gets set each time updateTexImage is called.
@@ -355,7 +327,7 @@ private:
     // setFilteringEnabled().
     bool mFilteringEnabled;
 
-    RE::RenderEngine& mRE;
+    renderengine::RenderEngine& mRE;
 
     // mTexName is the name of the RenderEngine texture to which streamed
     // images will be bound when bindTexImage is called. It is set at
@@ -367,15 +339,6 @@ private:
 
     wp<ContentsChangedListener> mContentsChangedListener;
 
-    // mImages stores the buffers that have been allocated by the BufferQueue
-    // for each buffer slot.  It is initialized to null pointers, and gets
-    // filled in with the result of BufferQueue::acquire when the
-    // client dequeues a buffer from a
-    // slot that has not yet been used. The buffer allocated to a slot will also
-    // be replaced if the requested buffer usage or geometry differs from that
-    // of the buffer allocated to a slot.
-    sp<Image> mImages[BufferQueueDefs::NUM_BUFFER_SLOTS];
-
     // mCurrentTexture is the buffer slot index of the buffer that is currently
     // bound to the RenderEngine texture. It is initialized to INVALID_BUFFER_SLOT,
     // indicating that no buffer slot is currently bound to the texture. Note,
@@ -383,6 +346,14 @@ private:
     // that no buffer is bound to the texture. A call to setBufferCount will
     // reset mCurrentTexture to INVALID_BUFFER_SLOT.
     int mCurrentTexture;
+
+    // Shadow buffer cache for cleaning up renderengine references.
+    std::shared_ptr<Image> mImages[BufferQueueDefs::NUM_BUFFER_SLOTS] GUARDED_BY(mImagesMutex);
+
+    // Separate mutex guarding the shadow buffer cache.
+    // mImagesMutex can be manipulated with binder threads (e.g. onBuffersAllocated)
+    // which is contentious enough that we can't just use mMutex.
+    mutable std::mutex mImagesMutex;
 
     // A release that is pending on the receipt of a new release fence from
     // presentDisplay

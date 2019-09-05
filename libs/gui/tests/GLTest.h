@@ -39,7 +39,7 @@ protected:
             mEglDisplay(EGL_NO_DISPLAY),
             mEglSurface(EGL_NO_SURFACE),
             mEglContext(EGL_NO_CONTEXT),
-            mGlConfig(NULL) {
+            mGlConfig(nullptr) {
     }
 
     virtual void SetUp();

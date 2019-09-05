@@ -1,11 +1,11 @@
 #ifndef ANDROID_DVR_BUFFERHUB_RPC_H_
 #define ANDROID_DVR_BUFFERHUB_RPC_H_
 
+#include "buffer_hub_defs.h"
+
 #include <cutils/native_handle.h>
-#include <sys/types.h>
 #include <ui/BufferQueueDefs.h>
 
-#include <dvr/dvr_api.h>
 #include <pdx/channel_handle.h>
 #include <pdx/file_handle.h>
 #include <pdx/rpc/remote_method.h>
@@ -14,71 +14,6 @@
 
 namespace android {
 namespace dvr {
-
-namespace BufferHubDefs {
-
-static constexpr uint32_t kMetadataFormat = HAL_PIXEL_FORMAT_BLOB;
-static constexpr uint32_t kMetadataUsage =
-    GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN;
-
-// Single producuer multiple (up to 63) consumers ownership signal.
-// 64-bit atomic unsigned int.
-//
-// MSB           LSB
-//  |             |
-//  v             v
-// [P|C62|...|C1|C0]
-// Gain'ed state:     [0|..|0|0] -> Exclusively Writable.
-// Post'ed state:     [1|..|0|0]
-// Acquired'ed state: [1|..|X|X] -> At least one bit is set in lower 63 bits
-// Released'ed state: [0|..|X|X] -> At least one bit is set in lower 63 bits
-static constexpr uint64_t kProducerStateBit = 1ULL << 63;
-static constexpr uint64_t kConsumerStateMask = (1ULL << 63) - 1;
-
-static inline void ModifyBufferState(std::atomic<uint64_t>* buffer_state,
-                                     uint64_t clear_mask, uint64_t set_mask) {
-  uint64_t old_state;
-  uint64_t new_state;
-  do {
-    old_state = buffer_state->load();
-    new_state = (old_state & ~clear_mask) | set_mask;
-  } while (!buffer_state->compare_exchange_weak(old_state, new_state));
-}
-
-static inline bool IsBufferGained(uint64_t state) { return state == 0; }
-
-static inline bool IsBufferPosted(uint64_t state,
-                                  uint64_t consumer_bit = kConsumerStateMask) {
-  return (state & kProducerStateBit) && !(state & consumer_bit);
-}
-
-static inline bool IsBufferAcquired(uint64_t state) {
-  return (state & kProducerStateBit) && (state & kConsumerStateMask);
-}
-
-static inline bool IsBufferReleased(uint64_t state) {
-  return !(state & kProducerStateBit) && (state & kConsumerStateMask);
-}
-
-struct __attribute__((packed, aligned(8))) MetadataHeader {
-  // Internal data format, which can be updated as long as the size, padding and
-  // field alignment of the struct is consistent within the same ABI. As this
-  // part is subject for future updates, it's not stable cross Android version,
-  // so don't have it visible from outside of the Android platform (include Apps
-  // and vendor HAL).
-  std::atomic<uint64_t> buffer_state;
-  std::atomic<uint64_t> fence_state;
-  uint64_t queue_index;
-
-  // Public data format, which should be updated with caution. See more details
-  // in dvr_api.h
-  DvrNativeBufferMetadata metadata;
-};
-
-static_assert(sizeof(MetadataHeader) == 128, "Unexpected MetadataHeader size");
-static constexpr size_t kMetadataHeaderSize = sizeof(MetadataHeader);
-
-}  // namespace BufferHubDefs
 
 template <typename FileHandleType>
 class NativeBufferHandle {
@@ -164,11 +99,12 @@ class BufferDescription {
  public:
   BufferDescription() = default;
   BufferDescription(const IonBuffer& buffer, const IonBuffer& metadata, int id,
-                    uint64_t buffer_state_bit,
+                    int buffer_cid, uint32_t client_state_mask,
                     const FileHandleType& acquire_fence_fd,
                     const FileHandleType& release_fence_fd)
       : id_(id),
-        buffer_state_bit_(buffer_state_bit),
+        buffer_cid_(buffer_cid),
+        client_state_mask_(client_state_mask),
         buffer_(buffer, id),
         metadata_(metadata, id),
         acquire_fence_fd_(acquire_fence_fd.Borrow()),
@@ -177,14 +113,17 @@ class BufferDescription {
   BufferDescription(BufferDescription&& other) noexcept = default;
   BufferDescription& operator=(BufferDescription&& other) noexcept = default;
 
-  // ID of the buffer client. All BufferHubBuffer clients derived from the same
-  // buffer in bufferhubd share the same buffer id.
+  // ID of the buffer client. All BufferHub clients derived from the same buffer
+  // in bufferhubd share the same buffer id.
   int id() const { return id_; }
-  // State mask of the buffer client. Each BufferHubBuffer client backed by the
-  // same buffer channel has uniqued state bit among its siblings. For a
-  // producer buffer the bit must be kProducerStateBit; for a consumer the bit
-  // must be one of the kConsumerStateMask.
-  uint64_t buffer_state_bit() const { return buffer_state_bit_; }
+
+  // Channel ID of the buffer client. Each BufferHub client has its system
+  // unique channel id.
+  int buffer_cid() const { return buffer_cid_; }
+
+  // State mask of the buffer client. Each BufferHub client backed by the
+  // same buffer channel has uniqued state bit among its siblings.
+  uint32_t client_state_mask() const { return client_state_mask_; }
   FileHandleType take_acquire_fence() { return std::move(acquire_fence_fd_); }
   FileHandleType take_release_fence() { return std::move(release_fence_fd_); }
 
@@ -193,7 +132,8 @@ class BufferDescription {
 
  private:
   int id_{-1};
-  uint64_t buffer_state_bit_{0};
+  int buffer_cid_{-1};
+  uint32_t client_state_mask_{0U};
   // Two IonBuffers: one for the graphic buffer and one for metadata.
   NativeBufferHandle<FileHandleType> buffer_;
   NativeBufferHandle<FileHandleType> metadata_;
@@ -202,8 +142,8 @@ class BufferDescription {
   FileHandleType acquire_fence_fd_;
   FileHandleType release_fence_fd_;
 
-  PDX_SERIALIZABLE_MEMBERS(BufferDescription<FileHandleType>, id_,
-                           buffer_state_bit_, buffer_, metadata_,
+  PDX_SERIALIZABLE_MEMBERS(BufferDescription<FileHandleType>, id_, buffer_cid_,
+                           client_state_mask_, buffer_, metadata_,
                            acquire_fence_fd_, release_fence_fd_);
 
   BufferDescription(const BufferDescription&) = delete;
@@ -372,19 +312,15 @@ struct BufferHubRPC {
     kOpProducerGain,
     kOpConsumerAcquire,
     kOpConsumerRelease,
-    kOpConsumerSetIgnore,
-    kOpProducerBufferDetach,
     kOpConsumerBufferDetach,
-    kOpDetachedBufferCreate,
-    kOpDetachedBufferPromote,
     kOpCreateProducerQueue,
     kOpCreateConsumerQueue,
     kOpGetQueueInfo,
     kOpProducerQueueAllocateBuffers,
+    kOpProducerQueueInsertBuffer,
     kOpProducerQueueRemoveBuffer,
     kOpConsumerQueueImportBuffers,
     // TODO(b/77153033): Separate all those RPC operations into subclasses.
-    kOpDetachedBufferBase = 1000,
   };
 
   // Aliases.
@@ -405,9 +341,6 @@ struct BufferHubRPC {
   PDX_REMOTE_METHOD(ConsumerAcquire, kOpConsumerAcquire, LocalFence(Void));
   PDX_REMOTE_METHOD(ConsumerRelease, kOpConsumerRelease,
                     void(LocalFence release_fence));
-  PDX_REMOTE_METHOD(ConsumerSetIgnore, kOpConsumerSetIgnore, void(bool ignore));
-  PDX_REMOTE_METHOD(ProducerBufferDetach, kOpProducerBufferDetach,
-                    LocalChannelHandle(Void));
 
   // Detaches a ConsumerBuffer from an existing producer/consumer set. Can only
   // be called when the consumer is the only consumer and it has exclusive
@@ -430,29 +363,12 @@ struct BufferHubRPC {
                     std::vector<std::pair<LocalChannelHandle, size_t>>(
                         uint32_t width, uint32_t height, uint32_t layer_count,
                         uint32_t format, uint64_t usage, size_t buffer_count));
+  PDX_REMOTE_METHOD(ProducerQueueInsertBuffer, kOpProducerQueueInsertBuffer,
+                    size_t(int buffer_cid));
   PDX_REMOTE_METHOD(ProducerQueueRemoveBuffer, kOpProducerQueueRemoveBuffer,
                     void(size_t slot));
   PDX_REMOTE_METHOD(ConsumerQueueImportBuffers, kOpConsumerQueueImportBuffers,
                     std::vector<std::pair<LocalChannelHandle, size_t>>(Void));
-};
-
-struct DetachedBufferRPC final : public BufferHubRPC {
- private:
-  enum {
-    kOpCreate = kOpDetachedBufferBase,
-    kOpImport,
-    kOpPromote,
-  };
-
- public:
-  PDX_REMOTE_METHOD(Create, kOpCreate,
-                    void(uint32_t width, uint32_t height, uint32_t layer_count,
-                         uint32_t format, uint64_t usage,
-                         size_t user_metadata_size));
-  PDX_REMOTE_METHOD(Import, kOpImport, BufferDescription<LocalHandle>(Void));
-  PDX_REMOTE_METHOD(Promote, kOpPromote, LocalChannelHandle(Void));
-
-  PDX_REMOTE_API(API, Create, Promote);
 };
 
 }  // namespace dvr

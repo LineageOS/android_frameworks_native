@@ -70,8 +70,6 @@ class Replayer {
     status_t doTransaction(const Transaction& transaction, const std::shared_ptr<Event>& event);
     status_t createSurfaceControl(const SurfaceCreation& create,
             const std::shared_ptr<Event>& event);
-    status_t deleteSurfaceControl(const SurfaceDeletion& delete_,
-            const std::shared_ptr<Event>& event);
     status_t injectVSyncEvent(const VSyncEvent& vsyncEvent, const std::shared_ptr<Event>& event);
     void createDisplay(const DisplayCreation& create, const std::shared_ptr<Event>& event);
     void deleteDisplay(const DisplayDeletion& delete_, const std::shared_ptr<Event>& event);
@@ -92,8 +90,8 @@ class Replayer {
             layer_id id, const LayerChange& lc);
     void setCrop(SurfaceComposerClient::Transaction& t,
             layer_id id, const CropChange& cc);
-    void setFinalCrop(SurfaceComposerClient::Transaction& t,
-            layer_id id, const FinalCropChange& fcc);
+    void setCornerRadius(SurfaceComposerClient::Transaction& t,
+            layer_id id, const CornerRadiusChange& cc);
     void setMatrix(SurfaceComposerClient::Transaction& t,
             layer_id id, const MatrixChange& mc);
     void setOverrideScalingMode(SurfaceComposerClient::Transaction& t,
@@ -120,7 +118,6 @@ class Replayer {
     void setDisplayProjection(SurfaceComposerClient::Transaction& t,
             display_id id, const ProjectionChange& pc);
 
-    void doDeleteSurfaceControls();
     void waitUntilTimestamp(int64_t timestamp);
     void waitUntilDeferredTransactionLayerExists(
             const DeferredTransactionChange& dtc, std::unique_lock<std::mutex>& lock);

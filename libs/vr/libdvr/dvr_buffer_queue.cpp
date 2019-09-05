@@ -8,10 +8,10 @@
 #include "dvr_buffer_queue_internal.h"
 
 using namespace android;
-using android::dvr::BufferConsumer;
-using android::dvr::BufferHubBuffer;
-using android::dvr::BufferProducer;
+using android::dvr::BufferHubBase;
+using android::dvr::ConsumerBuffer;
 using android::dvr::ConsumerQueue;
+using android::dvr::ProducerBuffer;
 using android::dvr::ProducerQueue;
 using android::dvr::ProducerQueueConfigBuilder;
 using android::dvr::UsagePolicy;
@@ -103,13 +103,13 @@ int DvrWriteBufferQueue::GainBuffer(int timeout,
         "DvrWriteBufferQueue::GainBuffer: Buffer slot is not empty: %zu", slot);
     write_buffers_[slot]->write_buffer = std::move(buffer_status.take());
 
-    const auto& buffer_producer = write_buffers_[slot]->write_buffer;
-    if (!buffer_producer)
+    const auto& producer_buffer = write_buffers_[slot]->write_buffer;
+    if (!producer_buffer)
       return -ENOMEM;
 
-    if (width_ == buffer_producer->width() &&
-        height_ == buffer_producer->height() &&
-        format_ == buffer_producer->format()) {
+    if (width_ == producer_buffer->width() &&
+        height_ == producer_buffer->height() &&
+        format_ == producer_buffer->format()) {
       // Producer queue returns a buffer matches the current request.
       break;
     }
@@ -122,14 +122,14 @@ int DvrWriteBufferQueue::GainBuffer(int timeout,
              "DvrWriteBufferQueue::Dequeue: requested buffer at slot: %zu "
              "(w=%u, h=%u, fmt=%u) is different from the buffer returned "
              "(w=%u, h=%u, fmt=%u). Need re-allocation.",
-             slot, width_, height_, format_, buffer_producer->width(),
-             buffer_producer->height(), buffer_producer->format());
+             slot, width_, height_, format_, producer_buffer->width(),
+             producer_buffer->height(), producer_buffer->format());
 
     // Currently, we are not storing |layer_count| and |usage| in queue
     // configuration. Copy those setup from the last buffer dequeued before we
     // remove it.
-    uint32_t old_layer_count = buffer_producer->layer_count();
-    uint64_t old_usage = buffer_producer->usage();
+    uint32_t old_layer_count = producer_buffer->layer_count();
+    uint64_t old_usage = producer_buffer->usage();
 
     // Allocate a new producer buffer with new buffer configs. Note that if
     // there are already multiple available buffers in the queue, the next one
@@ -439,11 +439,11 @@ void DvrReadBufferQueue::SetBufferRemovedCallback(
     consumer_queue_->SetBufferRemovedCallback(nullptr);
   } else {
     consumer_queue_->SetBufferRemovedCallback(
-        [callback, context](const std::shared_ptr<BufferHubBuffer>& buffer) {
+        [callback, context](const std::shared_ptr<BufferHubBase>& buffer) {
           // When buffer is removed from the queue, the slot is already invalid.
           auto read_buffer = std::make_unique<DvrReadBuffer>();
           read_buffer->read_buffer =
-              std::static_pointer_cast<BufferConsumer>(buffer);
+              std::static_pointer_cast<ConsumerBuffer>(buffer);
           callback(read_buffer.release(), context);
         });
   }

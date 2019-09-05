@@ -31,9 +31,10 @@ SensorService::SensorEventConnection::SensorEventConnection(
         const sp<SensorService>& service, uid_t uid, String8 packageName, bool isDataInjectionMode,
         const String16& opPackageName, bool hasSensorAccess)
     : mService(service), mUid(uid), mWakeLockRefCount(0), mHasLooperCallbacks(false),
-      mDead(false), mDataInjectionMode(isDataInjectionMode), mEventCache(NULL),
-      mCacheSize(0), mMaxCacheSize(0), mPackageName(packageName), mOpPackageName(opPackageName),
-      mDestroyed(false), mHasSensorAccess(hasSensorAccess) {
+      mDead(false), mDataInjectionMode(isDataInjectionMode), mEventCache(nullptr),
+      mCacheSize(0), mMaxCacheSize(0), mTimeOfLastEventDrop(0), mEventsDropped(0),
+      mPackageName(packageName), mOpPackageName(opPackageName), mDestroyed(false),
+      mHasSensorAccess(hasSensorAccess) {
     mChannel = new BitTube(mService->mSocketBufferSize);
 #if DEBUG_CONNECTIONS
     mEventsReceived = mEventsSentFromCache = mEventsSent = 0;
@@ -55,8 +56,8 @@ void SensorService::SensorEventConnection::destroy() {
     }
 
     mService->cleanupConnection(this);
-    if (mEventCache != NULL) {
-        delete mEventCache;
+    if (mEventCache != nullptr) {
+        delete[] mEventCache;
     }
     mDestroyed = true;
 }
@@ -77,7 +78,14 @@ void SensorService::SensorEventConnection::resetWakeLockRefCount() {
 
 void SensorService::SensorEventConnection::dump(String8& result) {
     Mutex::Autolock _l(mConnectionLock);
-    result.appendFormat("\tOperating Mode: %s\n",mDataInjectionMode ? "DATA_INJECTION" : "NORMAL");
+    result.appendFormat("\tOperating Mode: ");
+    if (!mService->isWhiteListedPackage(getPackageName())) {
+        result.append("RESTRICTED\n");
+    } else if (mDataInjectionMode) {
+        result.append("DATA_INJECTION\n");
+    } else {
+        result.append("NORMAL\n");
+    }
     result.appendFormat("\t %s | WakeLockRefCount %d | uid %d | cache size %d | "
             "max cache size %d\n", mPackageName.string(), mWakeLockRefCount, mUid, mCacheSize,
             mMaxCacheSize);
@@ -200,7 +208,7 @@ void SensorService::SensorEventConnection::updateLooperRegistrationLocked(
 
     // Add the file descriptor to the Looper for receiving acknowledegments if the app has
     // registered for wake-up sensors OR for sending events in the cache.
-    int ret = looper->addFd(mChannel->getSendFd(), 0, looper_flags, this, NULL);
+    int ret = looper->addFd(mChannel->getSendFd(), 0, looper_flags, this, nullptr);
     if (ret == 1) {
         ALOGD_IF(DEBUG_CONNECTIONS, "%p addFd fd=%d", this, mChannel->getSendFd());
         mHasLooperCallbacks = true;
@@ -224,7 +232,7 @@ status_t SensorService::SensorEventConnection::sendEvents(
         wp<const SensorEventConnection> const * mapFlushEventsToConnections) {
     // filter out events not for this connection
 
-    sensors_event_t* sanitizedBuffer = nullptr;
+    std::unique_ptr<sensors_event_t[]> sanitizedBuffer;
 
     int count = 0;
     Mutex::Autolock _l(mConnectionLock);
@@ -277,8 +285,9 @@ status_t SensorService::SensorEventConnection::sendEvents(
                         scratch[count++] = buffer[i];
                     }
                 } else {
-                    // Regular sensor event, just copy it to the scratch buffer.
-                    if (mHasSensorAccess) {
+                    // Regular sensor event, just copy it to the scratch buffer after checking
+                    // the AppOp.
+                    if (hasSensorAccess() && noteOpIfRequired(buffer[i])) {
                         scratch[count++] = buffer[i];
                     }
                 }
@@ -289,11 +298,12 @@ status_t SensorService::SensorEventConnection::sendEvents(
                                         buffer[i].meta_data.sensor == sensor_handle)));
         }
     } else {
-        if (mHasSensorAccess) {
+        if (hasSensorAccess()) {
             scratch = const_cast<sensors_event_t *>(buffer);
             count = numEvents;
         } else {
-            scratch = sanitizedBuffer = new sensors_event_t[numEvents];
+            sanitizedBuffer.reset(new sensors_event_t[numEvents]);
+            scratch = sanitizedBuffer.get();
             for (size_t i = 0; i < numEvents; i++) {
                 if (buffer[i].type == SENSOR_TYPE_META_DATA) {
                     scratch[count++] = buffer[i++];
@@ -305,7 +315,6 @@ status_t SensorService::SensorEventConnection::sendEvents(
     sendPendingFlushEventsLocked();
     // Early return if there are no events for this connection.
     if (count == 0) {
-        delete sanitizedBuffer;
         return status_t(NO_ERROR);
     }
 
@@ -315,39 +324,12 @@ status_t SensorService::SensorEventConnection::sendEvents(
     if (mCacheSize != 0) {
         // There are some events in the cache which need to be sent first. Copy this buffer to
         // the end of cache.
-        if (mCacheSize + count <= mMaxCacheSize) {
-            memcpy(&mEventCache[mCacheSize], scratch, count * sizeof(sensors_event_t));
-            mCacheSize += count;
-        } else {
-            // Check if any new sensors have registered on this connection which may have increased
-            // the max cache size that is desired.
-            if (mCacheSize + count < computeMaxCacheSizeLocked()) {
-                reAllocateCacheLocked(scratch, count);
-                delete sanitizedBuffer;
-                return status_t(NO_ERROR);
-            }
-            // Some events need to be dropped.
-            int remaningCacheSize = mMaxCacheSize - mCacheSize;
-            if (remaningCacheSize != 0) {
-                memcpy(&mEventCache[mCacheSize], scratch,
-                                                remaningCacheSize * sizeof(sensors_event_t));
-            }
-            int numEventsDropped = count - remaningCacheSize;
-            countFlushCompleteEventsLocked(mEventCache, numEventsDropped);
-            // Drop the first "numEventsDropped" in the cache.
-            memmove(mEventCache, &mEventCache[numEventsDropped],
-                    (mCacheSize - numEventsDropped) * sizeof(sensors_event_t));
-
-            // Copy the remainingEvents in scratch buffer to the end of cache.
-            memcpy(&mEventCache[mCacheSize - numEventsDropped], scratch + remaningCacheSize,
-                                            numEventsDropped * sizeof(sensors_event_t));
-        }
-        delete sanitizedBuffer;
+        appendEventsToCacheLocked(scratch, count);
         return status_t(NO_ERROR);
     }
 
     int index_wake_up_event = -1;
-    if (mHasSensorAccess) {
+    if (hasSensorAccess()) {
         index_wake_up_event = findWakeUpSensorEventLocked(scratch, count);
         if (index_wake_up_event >= 0) {
             scratch[index_wake_up_event].flags |= WAKE_UP_SENSOR_EVENT_NEEDS_ACK;
@@ -373,18 +355,17 @@ status_t SensorService::SensorEventConnection::sendEvents(
             --mTotalAcksNeeded;
 #endif
         }
-        if (mEventCache == NULL) {
+        if (mEventCache == nullptr) {
             mMaxCacheSize = computeMaxCacheSizeLocked();
             mEventCache = new sensors_event_t[mMaxCacheSize];
             mCacheSize = 0;
         }
-        memcpy(&mEventCache[mCacheSize], scratch, count * sizeof(sensors_event_t));
-        mCacheSize += count;
+        // Save the events so that they can be written later
+        appendEventsToCacheLocked(scratch, count);
 
         // Add this file descriptor to the looper to get a callback when this fd is available for
         // writing.
         updateLooperRegistrationLocked(mService->getLooper());
-        delete sanitizedBuffer;
         return size;
     }
 
@@ -394,13 +375,26 @@ status_t SensorService::SensorEventConnection::sendEvents(
     }
 #endif
 
-    delete sanitizedBuffer;
     return size < 0 ? status_t(size) : status_t(NO_ERROR);
 }
 
 void SensorService::SensorEventConnection::setSensorAccess(const bool hasAccess) {
     Mutex::Autolock _l(mConnectionLock);
     mHasSensorAccess = hasAccess;
+}
+
+bool SensorService::SensorEventConnection::hasSensorAccess() {
+    return mHasSensorAccess && !mService->mSensorPrivacyPolicy->isSensorPrivacyEnabled();
+}
+
+bool SensorService::SensorEventConnection::noteOpIfRequired(const sensors_event_t& event) {
+    bool success = true;
+    const auto iter = mHandleToAppOp.find(event.sensor);
+    if (iter != mHandleToAppOp.end()) {
+        int32_t appOpMode = mService->sAppOpsManager.noteOp((*iter).second, mUid, mOpPackageName);
+        success = (appOpMode == AppOpsManager::MODE_ALLOWED);
+    }
+    return success;
 }
 
 void SensorService::SensorEventConnection::reAllocateCacheLocked(sensors_event_t const* scratch,
@@ -415,10 +409,64 @@ void SensorService::SensorEventConnection::reAllocateCacheLocked(sensors_event_t
     ALOGD_IF(DEBUG_CONNECTIONS, "reAllocateCacheLocked maxCacheSize=%d %d", mMaxCacheSize,
             new_cache_size);
 
-    delete mEventCache;
+    delete[] mEventCache;
     mEventCache = eventCache_new;
     mCacheSize += count;
     mMaxCacheSize = new_cache_size;
+}
+
+void SensorService::SensorEventConnection::appendEventsToCacheLocked(sensors_event_t const* events,
+                                                                     int count) {
+    if (count <= 0) {
+        return;
+    } else if (mCacheSize + count <= mMaxCacheSize) {
+        // The events fit within the current cache: add them
+        memcpy(&mEventCache[mCacheSize], events, count * sizeof(sensors_event_t));
+        mCacheSize += count;
+    } else if (mCacheSize + count <= computeMaxCacheSizeLocked()) {
+        // The events fit within a resized cache: resize the cache and add the events
+        reAllocateCacheLocked(events, count);
+    } else {
+        // The events do not fit within the cache: drop the oldest events.
+        int freeSpace = mMaxCacheSize - mCacheSize;
+
+        // Drop up to the currently cached number of events to make room for new events
+        int cachedEventsToDrop = std::min(mCacheSize, count - freeSpace);
+
+        // New events need to be dropped if there are more new events than the size of the cache
+        int newEventsToDrop = std::max(0, count - mMaxCacheSize);
+
+        // Determine the number of new events to copy into the cache
+        int eventsToCopy = std::min(mMaxCacheSize, count);
+
+        constexpr nsecs_t kMinimumTimeBetweenDropLogNs = 2 * 1000 * 1000 * 1000; // 2 sec
+        if (events[0].timestamp - mTimeOfLastEventDrop > kMinimumTimeBetweenDropLogNs) {
+            ALOGW("Dropping %d cached events (%d/%d) to save %d/%d new events. %d events previously"
+                    " dropped", cachedEventsToDrop, mCacheSize, mMaxCacheSize, eventsToCopy,
+                    count, mEventsDropped);
+            mEventsDropped = 0;
+            mTimeOfLastEventDrop = events[0].timestamp;
+        } else {
+            // Record the number dropped
+            mEventsDropped += cachedEventsToDrop + newEventsToDrop;
+        }
+
+        // Check for any flush complete events in the events that will be dropped
+        countFlushCompleteEventsLocked(mEventCache, cachedEventsToDrop);
+        countFlushCompleteEventsLocked(events, newEventsToDrop);
+
+        // Only shift the events if they will not all be overwritten
+        if (eventsToCopy != mMaxCacheSize) {
+            memmove(mEventCache, &mEventCache[cachedEventsToDrop],
+                    (mCacheSize - cachedEventsToDrop) * sizeof(sensors_event_t));
+        }
+        mCacheSize -= cachedEventsToDrop;
+
+        // Copy the events into the cache
+        memcpy(&mEventCache[mCacheSize], &events[newEventsToDrop],
+                eventsToCopy * sizeof(sensors_event_t));
+        mCacheSize += eventsToCopy;
+    }
 }
 
 void SensorService::SensorEventConnection::sendPendingFlushEventsLocked() {
@@ -465,7 +513,7 @@ void SensorService::SensorEventConnection::writeToSocketFromCache() {
     for (int numEventsSent = 0; numEventsSent < mCacheSize;) {
         const int numEventsToWrite = helpers::min(mCacheSize - numEventsSent, maxWriteSize);
         int index_wake_up_event = -1;
-        if (mHasSensorAccess) {
+        if (hasSensorAccess()) {
             index_wake_up_event =
                       findWakeUpSensorEventLocked(mEventCache + numEventsSent, numEventsToWrite);
             if (index_wake_up_event >= 0) {

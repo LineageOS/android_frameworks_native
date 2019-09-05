@@ -84,6 +84,7 @@ namespace android {
             kDrmPluginEventSessionReclaimed,
             kDrmPluginEventExpirationUpdate,
             kDrmPluginEventKeysChange,
+            kDrmPluginEventSessionLostState,
         };
 
         // Drm keys can be for offline content or for online streaming.
@@ -114,7 +115,8 @@ namespace android {
             kKeyStatusType_Expired,
             kKeyStatusType_OutputNotAllowed,
             kKeyStatusType_StatusPending,
-            kKeyStatusType_InternalError
+            kKeyStatusType_InternalError,
+            kKeyStatusType_UsableInFuture
         };
 
         // Used by sendKeysChange to report the usability status of each
@@ -139,6 +141,8 @@ namespace android {
             kHdcpV2_1,
             // HDCP version 2.2 Type 1.
             kHdcpV2_2,
+            // HDCP version 2.3 Type 1.
+            kHdcpV2_3,
             // No digital output, implicitly secure
             kHdcpNoOutput = 0x7fff
         };
@@ -165,6 +169,25 @@ namespace android {
             // handling of the media (compressed and uncompressed) is handled within
             // a hardware backed trusted execution environment.
             kSecurityLevelHwSecureAll
+        };
+
+        // An offline license may be usable or inactive. The keys in a
+        // usable offline license are available for decryption. When
+        // the offline license state is inactive, the keys have been
+        // marked for release using getKeyRequest with
+        // kKeyType_Release but the key response has not been
+        // received. The keys in an inactive offline license are not
+        // usable for decryption.
+
+        enum OfflineLicenseState {
+            // The offline license state is unknown due to an error
+            kOfflineLicenseStateUnknown,
+            // Offline license state is usable, the keys may be used for decryption.
+            kOfflineLicenseStateUsable,
+            // Offline license state is released, the keys have been marked for
+            // release using getKeyRequest() with kKeyType_Release but the
+            // key response has not been received.
+            kOfflineLicenseStateReleased
         };
 
         DrmPlugin() {}

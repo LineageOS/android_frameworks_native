@@ -47,7 +47,7 @@ protected:
         GLTest::TearDown();
     }
     virtual EGLint const* getContextAttribs() {
-        return NULL;
+        return nullptr;
     }
     virtual EGLint const* getConfigAttribs() {
         static EGLint sDefaultConfigAttribs[] = {
@@ -105,7 +105,7 @@ TEST_F(MultiTextureConsumerTest, EGLImageTargetWorks) {
 
     glClear(GL_COLOR_BUFFER_BIT);
     for (int i=0 ; i<8 ; i++) {
-        mSurface->lock(&buffer, NULL);
+        mSurface->lock(&buffer, nullptr);
         memset(buffer.bits, (i&7) * 0x20, buffer.stride * buffer.height * 4);
         mSurface->unlockAndPost();
 

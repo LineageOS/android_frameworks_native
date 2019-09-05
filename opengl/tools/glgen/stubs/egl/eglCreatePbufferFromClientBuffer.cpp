@@ -54,6 +54,7 @@ exit:
     }
     if (_exception) {
         jniThrowException(_env, _exceptionType, _exceptionMessage);
+        return nullptr;
     }
     return toEGLHandle(_env, eglsurfaceClass, eglsurfaceConstructor, _returnValue);
 }

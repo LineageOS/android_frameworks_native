@@ -48,6 +48,7 @@ typedef enum OMX_AUDIO_CODINGEXTTYPE {
     OMX_AUDIO_CodingAndroidAC3,         /**< AC3 encoded data */
     OMX_AUDIO_CodingAndroidOPUS,        /**< OPUS encoded data */
     OMX_AUDIO_CodingAndroidEAC3,        /**< EAC3 encoded data */
+    OMX_AUDIO_CodingAndroidAC4,         /**< AC4 encoded data */
 } OMX_AUDIO_CODINGEXTTYPE;
 
 typedef struct OMX_AUDIO_PARAM_ANDROID_AC3TYPE {
@@ -67,6 +68,15 @@ typedef struct OMX_AUDIO_PARAM_ANDROID_EAC3TYPE {
     OMX_U32 nSampleRate;           /**< Sampling rate of the source data.  Use 0 for
                                         variable or unknown sampling rate. */
 } OMX_AUDIO_PARAM_ANDROID_EAC3TYPE;
+
+typedef struct OMX_AUDIO_PARAM_ANDROID_AC4TYPE {
+    OMX_U32 nSize;                 /**< size of the structure in bytes */
+    OMX_VERSIONTYPE nVersion;      /**< OMX specification version information */
+    OMX_U32 nPortIndex;            /**< port that this structure applies to */
+    OMX_U32 nChannels;             /**< Number of channels */
+    OMX_U32 nSampleRate;           /**< Sampling rate of the source data.  Use 0 for
+                                        variable or unknown sampling rate. */
+} OMX_AUDIO_PARAM_ANDROID_AC4TYPE;
 
 typedef struct OMX_AUDIO_PARAM_ANDROID_OPUSTYPE {
     OMX_U32 nSize;            /**< size of the structure in bytes */
@@ -116,6 +126,13 @@ typedef struct OMX_AUDIO_PARAM_ANDROID_PROFILETYPE {
                                  depending on context */
    OMX_U32 nProfileIndex; /**< Used to query for individual profile support information */
 } OMX_AUDIO_PARAM_ANDROID_PROFILETYPE;
+
+typedef struct OMX_AUDIO_CONFIG_ANDROID_AUDIOPRESENTATION {
+    OMX_U32 nSize;                 /**< size of the structure in bytes */
+    OMX_VERSIONTYPE nVersion;      /**< OMX specification version information */
+    OMX_S32 nPresentationId;       /**< presentation id */
+    OMX_S32 nProgramId;            /**< program id */
+} OMX_AUDIO_CONFIG_ANDROID_AUDIOPRESENTATION;
 
 #ifdef __cplusplus
 }

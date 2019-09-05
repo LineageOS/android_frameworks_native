@@ -484,12 +484,12 @@ void produceOneFrame(const sp<ANativeWindow>& anw,
     err = native_window_dequeue_buffer_and_wait(anw.get(), &anb);
     ASSERT_NO_ERROR(err, "dequeueBuffer error: ");
 
-    ASSERT_TRUE(anb != NULL);
+    ASSERT_TRUE(anb != nullptr);
 
     sp<GraphicBuffer> buf(GraphicBuffer::from(anb));
 
     *stride = buf->getStride();
-    uint8_t* img = NULL;
+    uint8_t* img = nullptr;
 
     ALOGVV("Lock buffer from %p for write", anw.get());
     err = buf->lock(GRALLOC_USAGE_SW_WRITE_OFTEN, (void**)(&img));
@@ -554,7 +554,7 @@ TEST_P(CpuConsumerTest, FromCpuSingle) {
     err = mCC->lockNextBuffer(&b);
     ASSERT_NO_ERROR(err, "getNextBuffer error: ");
 
-    ASSERT_TRUE(b.data != NULL);
+    ASSERT_TRUE(b.data != nullptr);
     EXPECT_EQ(params.width,  b.width);
     EXPECT_EQ(params.height, b.height);
     EXPECT_EQ(params.format, b.format);
@@ -595,7 +595,7 @@ TEST_P(CpuConsumerTest, FromCpuManyInQueue) {
         err = mCC->lockNextBuffer(&b);
         ASSERT_NO_ERROR(err, "getNextBuffer error: ");
 
-        ASSERT_TRUE(b.data != NULL);
+        ASSERT_TRUE(b.data != nullptr);
         EXPECT_EQ(params.width,  b.width);
         EXPECT_EQ(params.height, b.height);
         EXPECT_EQ(params.format, b.format);
@@ -637,7 +637,7 @@ TEST_P(CpuConsumerTest, FromCpuLockMax) {
         err = mCC->lockNextBuffer(&b[i]);
         ASSERT_NO_ERROR(err, "getNextBuffer error: ");
 
-        ASSERT_TRUE(b[i].data != NULL);
+        ASSERT_TRUE(b[i].data != nullptr);
         EXPECT_EQ(params.width,  b[i].width);
         EXPECT_EQ(params.height, b[i].height);
         EXPECT_EQ(params.format, b[i].format);
@@ -660,7 +660,7 @@ TEST_P(CpuConsumerTest, FromCpuLockMax) {
     err = mCC->lockNextBuffer(&bTooMuch);
     ASSERT_NO_ERROR(err, "Did not allow new lock after unlock");
 
-    ASSERT_TRUE(bTooMuch.data != NULL);
+    ASSERT_TRUE(bTooMuch.data != nullptr);
     EXPECT_EQ(params.width,  bTooMuch.width);
     EXPECT_EQ(params.height, bTooMuch.height);
     EXPECT_EQ(params.format, bTooMuch.format);

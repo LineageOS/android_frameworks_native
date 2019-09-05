@@ -164,6 +164,8 @@ typedef enum OMX_VIDEO_VP9PROFILETYPE {
     // HDR profiles also support passing HDR metadata
     OMX_VIDEO_VP9Profile2HDR = 0x1000,
     OMX_VIDEO_VP9Profile3HDR = 0x2000,
+    OMX_VIDEO_VP9Profile2HDR10Plus = 0x4000,
+    OMX_VIDEO_VP9Profile3HDR10Plus = 0x8000,
     OMX_VIDEO_VP9ProfileUnknown = 0x6EFFFFFF,
     OMX_VIDEO_VP9ProfileMax = 0x7FFFFFFF
 } OMX_VIDEO_VP9PROFILETYPE;
@@ -216,6 +218,7 @@ typedef enum OMX_VIDEO_HEVCPROFILETYPE {
     OMX_VIDEO_HEVCProfileMainStill    = 0x4,
     // Main10 profile with HDR SEI support.
     OMX_VIDEO_HEVCProfileMain10HDR10  = 0x1000,
+    OMX_VIDEO_HEVCProfileMain10HDR10Plus  = 0x2000,
     OMX_VIDEO_HEVCProfileMax          = 0x7FFFFFFF
 } OMX_VIDEO_HEVCPROFILETYPE;
 

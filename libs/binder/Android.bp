@@ -99,7 +99,6 @@ cc_library_shared {
                 "PermissionController.cpp",
                 "ProcessInfoService.cpp",
                 "IpPrefix.cpp",
-                ":libbinder_aidl",
             ],
         },
     },
@@ -112,6 +111,7 @@ cc_library_shared {
         "-Wall",
         "-Wextra",
         "-Werror",
+        "-Wzero-as-null-pointer-constant",
     ],
     product_variables: {
         binder32bit: {
@@ -145,8 +145,8 @@ filegroup {
     name: "libbinder_aidl",
     srcs: [
         "aidl/android/content/pm/IPackageManagerNative.aidl",
+        "aidl/android/os/IServiceCallback.aidl",
+        "aidl/android/os/IServiceManager.aidl",
     ],
     path: "aidl",
 }
-
-subdirs = ["tests"]

@@ -188,7 +188,9 @@ inline static const char *asString(OMX_AUDIO_AMRDTXMODETYPE i, const char *def =
 inline static const char *asString(OMX_AUDIO_CODINGEXTTYPE i, const char *def = "??") {
     switch (i) {
         case OMX_AUDIO_CodingAndroidAC3:  return "AndroidAC3";
+        case OMX_AUDIO_CodingAndroidEAC3: return "AndroidEAC3";
         case OMX_AUDIO_CodingAndroidOPUS: return "AndroidOPUS";
+        case OMX_AUDIO_CodingAndroidAC4:  return "AndroidAC4";
         default:                          return asString((OMX_AUDIO_CODINGTYPE)i, def);
     }
 }
@@ -533,9 +535,11 @@ inline static const char *asString(OMX_INDEXEXTTYPE i, const char *def = "??") {
 //      case OMX_IndexConfigCommit:                     return "ConfigCommit";
         case OMX_IndexConfigAndroidVendorExtension:     return "ConfigAndroidVendorExtension";
         case OMX_IndexParamAudioAndroidAc3:             return "ParamAudioAndroidAc3";
+        case OMX_IndexConfigAudioPresentation:          return "ConfigAudioPresentation";
         case OMX_IndexParamAudioAndroidOpus:            return "ParamAudioAndroidOpus";
         case OMX_IndexParamAudioAndroidAacPresentation: return "ParamAudioAndroidAacPresentation";
         case OMX_IndexParamAudioAndroidEac3:            return "ParamAudioAndroidEac3";
+        case OMX_IndexParamAudioAndroidAc4:             return "ParamAudioAndroidAc4";
         case OMX_IndexParamAudioProfileQuerySupported:  return "ParamAudioProfileQuerySupported";
 //      case OMX_IndexParamNalStreamFormatSupported:    return "ParamNalStreamFormatSupported";
 //      case OMX_IndexParamNalStreamFormat:             return "ParamNalStreamFormat";
@@ -907,6 +911,9 @@ inline static const char *asString(OMX_VIDEO_AVCLEVELTYPE i, const char *def = "
         case OMX_VIDEO_AVCLevel5:  return "Level5";
         case OMX_VIDEO_AVCLevel51: return "Level51";
         case OMX_VIDEO_AVCLevel52: return "Level52";
+        case OMX_VIDEO_AVCLevel6:  return "Level6";
+        case OMX_VIDEO_AVCLevel61: return "Level61";
+        case OMX_VIDEO_AVCLevel62: return "Level62";
         default:                   return def;
     }
 }

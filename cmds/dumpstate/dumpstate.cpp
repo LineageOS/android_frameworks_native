@@ -19,6 +19,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <libgen.h>
 #include <limits.h>
 #include <math.h>
@@ -61,9 +62,11 @@
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
+#include <android/content/pm/IPackageManagerNative.h>
 #include <android/hardware/dumpstate/1.0/IDumpstateDevice.h>
 #include <android/hidl/manager/1.0/IServiceManager.h>
 #include <android/os/IIncidentCompanion.h>
+#include <binder/IServiceManager.h>
 #include <cutils/native_handle.h>
 #include <cutils/properties.h>
 #include <cutils/sockets.h>
@@ -235,6 +238,30 @@ static bool IsFileEmpty(const std::string& file_path) {
         return true;
     }
     return file.tellg() <= 0;
+}
+
+int64_t GetModuleMetadataVersion() {
+    auto binder = defaultServiceManager()->getService(android::String16("package_native"));
+    if (binder == nullptr) {
+        MYLOGE("Failed to retrieve package_native service");
+        return 0L;
+    }
+    auto package_service = android::interface_cast<content::pm::IPackageManagerNative>(binder);
+    std::string package_name;
+    auto status = package_service->getModuleMetadataPackageName(&package_name);
+    if (!status.isOk()) {
+        MYLOGE("Failed to retrieve module metadata package name: %s", status.toString8().c_str());
+        return 0L;
+    }
+    MYLOGD("Module metadata package name: %s", package_name.c_str());
+    int64_t version_code;
+    status = package_service->getVersionCodeForPackage(android::String16(package_name.c_str()),
+                                                       &version_code);
+    if (!status.isOk()) {
+        MYLOGE("Failed to retrieve module metadata version: %s", status.toString8().c_str());
+        return 0L;
+    }
+    return version_code;
 }
 
 }  // namespace
@@ -668,6 +695,10 @@ void Dumpstate::PrintHeader() const {
     printf("Bootloader: %s\n", bootloader.c_str());
     printf("Radio: %s\n", radio.c_str());
     printf("Network: %s\n", network.c_str());
+    int64_t module_metadata_version = android::os::GetModuleMetadataVersion();
+    if (module_metadata_version != 0) {
+        printf("Module Metadata version: %" PRId64 "\n", module_metadata_version);
+    }
 
     printf("Kernel: ");
     DumpFileToFd(STDOUT_FILENO, "", "/proc/version");
@@ -1445,6 +1476,12 @@ static Dumpstate::RunStatus dumpstate() {
     printf("========================================================\n");
     printf("== dumpstate: done (id %d)\n", ds.id_);
     printf("========================================================\n");
+
+    printf("========================================================\n");
+    printf("== Obtaining statsd metadata\n");
+    printf("========================================================\n");
+    // This differs from the usual dumpsys stats, which is the stats report data.
+    RunDumpsys("STATSDSTATS", {"stats", "--metadata"});
     return Dumpstate::RunStatus::OK;
 }
 
@@ -2700,8 +2737,8 @@ void Dumpstate::CheckUserConsent(int32_t calling_uid, const android::String16& c
     if (ics != nullptr) {
         MYLOGD("Checking user consent via incidentcompanion service\n");
         android::interface_cast<android::os::IIncidentCompanion>(ics)->authorizeReport(
-            calling_uid, calling_package, 0x1 /* FLAG_CONFIRMATION_DIALOG */,
-            consent_callback_.get());
+            calling_uid, calling_package, String16(), String16(),
+            0x1 /* FLAG_CONFIRMATION_DIALOG */, consent_callback_.get());
     } else {
         MYLOGD("Unable to check user consent; incidentcompanion service unavailable\n");
     }

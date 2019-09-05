@@ -95,7 +95,7 @@ void egl_cache_t::initialize(egl_display_t *display) {
                     reinterpret_cast<PFNEGLSETBLOBCACHEFUNCSANDROIDPROC>(
                             cnx->egl.eglGetProcAddress(
                                     "eglSetBlobCacheFuncsANDROID"));
-            if (eglSetBlobCacheFuncsANDROID == NULL) {
+            if (eglSetBlobCacheFuncsANDROID == nullptr) {
                 ALOGE("EGL_ANDROID_blob_cache advertised, "
                         "but unable to get eglSetBlobCacheFuncsANDROID");
                 return;
@@ -119,7 +119,7 @@ void egl_cache_t::terminate() {
     if (mBlobCache) {
         mBlobCache->writeToFile();
     }
-    mBlobCache = NULL;
+    mBlobCache = nullptr;
 }
 
 void egl_cache_t::setBlob(const void* key, EGLsizeiANDROID keySize,

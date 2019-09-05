@@ -34,8 +34,12 @@ WindowSurface::WindowSurface() {
     }
 
     // Get main display parameters.
-    sp<IBinder> mainDpy = SurfaceComposerClient::getBuiltInDisplay(
-            ISurfaceComposer::eDisplayIdMain);
+    const auto mainDpy = SurfaceComposerClient::getInternalDisplayToken();
+    if (mainDpy == nullptr) {
+        fprintf(stderr, "ERROR: no display\n");
+        return;
+    }
+
     DisplayInfo mainDpyInfo;
     err = SurfaceComposerClient::getDisplayInfo(mainDpy, &mainDpyInfo);
     if (err != NO_ERROR) {
@@ -57,7 +61,7 @@ WindowSurface::WindowSurface() {
     sp<SurfaceControl> sc = surfaceComposerClient->createSurface(
             String8("Benchmark"), width, height,
             PIXEL_FORMAT_RGBX_8888, ISurfaceComposerClient::eOpaque);
-    if (sc == NULL || !sc->isValid()) {
+    if (sc == nullptr || !sc->isValid()) {
         fprintf(stderr, "Failed to create SurfaceControl\n");
         return;
     }

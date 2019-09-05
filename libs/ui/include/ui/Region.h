@@ -25,12 +25,13 @@
 #include <ui/Rect.h>
 #include <utils/Flattenable.h>
 
+#include <android-base/macros.h>
+
+#include <string>
+
 namespace android {
 // ---------------------------------------------------------------------------
 
-class String8;
-
-// ---------------------------------------------------------------------------
 class Region : public LightFlattenable<Region>
 {
 public:
@@ -87,17 +88,19 @@ public:
 
             // these translate rhs first
             Region&     translateSelf(int dx, int dy);
+            Region&     scaleSelf(float sx, float sy);
             Region&     orSelf(const Region& rhs, int dx, int dy);
             Region&     xorSelf(const Region& rhs, int dx, int dy);
             Region&     andSelf(const Region& rhs, int dx, int dy);
             Region&     subtractSelf(const Region& rhs, int dx, int dy);
 
+
             // these translate rhs first
-    const   Region      translate(int dx, int dy) const;
-    const   Region      merge(const Region& rhs, int dx, int dy) const;
-    const   Region      mergeExclusive(const Region& rhs, int dx, int dy) const;
-    const   Region      intersect(const Region& rhs, int dx, int dy) const;
-    const   Region      subtract(const Region& rhs, int dx, int dy) const;
+    const   Region      translate(int dx, int dy) const WARN_UNUSED;
+    const   Region      merge(const Region& rhs, int dx, int dy) const WARN_UNUSED;
+    const   Region      mergeExclusive(const Region& rhs, int dx, int dy) const WARN_UNUSED;
+    const   Region      intersect(const Region& rhs, int dx, int dy) const WARN_UNUSED;
+    const   Region      subtract(const Region& rhs, int dx, int dy) const WARN_UNUSED;
 
     // convenience operators overloads
     inline  const Region      operator | (const Region& rhs) const;
@@ -140,8 +143,8 @@ public:
             status_t    flatten(void* buffer, size_t size) const;
             status_t    unflatten(void const* buffer, size_t size);
 
-    void        dump(String8& out, const char* what, uint32_t flags=0) const;
-    void        dump(const char* what, uint32_t flags=0) const;
+            void        dump(std::string& out, const char* what, uint32_t flags=0) const;
+            void        dump(const char* what, uint32_t flags=0) const;
 
 private:
     class rasterizer;

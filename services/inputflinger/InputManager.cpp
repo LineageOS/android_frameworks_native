@@ -19,25 +19,23 @@
 //#define LOG_NDEBUG 0
 
 #include "InputManager.h"
+#include "InputReaderFactory.h"
+
+#include <binder/IPCThreadState.h>
 
 #include <log/log.h>
+#include <unordered_map>
+
+#include <private/android_filesystem_config.h>
 
 namespace android {
 
 InputManager::InputManager(
-        const sp<EventHubInterface>& eventHub,
         const sp<InputReaderPolicyInterface>& readerPolicy,
         const sp<InputDispatcherPolicyInterface>& dispatcherPolicy) {
     mDispatcher = new InputDispatcher(dispatcherPolicy);
-    mReader = new InputReader(eventHub, readerPolicy, mDispatcher);
-    initialize();
-}
-
-InputManager::InputManager(
-        const sp<InputReaderInterface>& reader,
-        const sp<InputDispatcherInterface>& dispatcher) :
-        mReader(reader),
-        mDispatcher(dispatcher) {
+    mClassifier = new InputClassifier(mDispatcher);
+    mReader = createInputReader(readerPolicy, mClassifier);
     initialize();
 }
 
@@ -86,8 +84,57 @@ sp<InputReaderInterface> InputManager::getReader() {
     return mReader;
 }
 
+sp<InputClassifierInterface> InputManager::getClassifier() {
+    return mClassifier;
+}
+
 sp<InputDispatcherInterface> InputManager::getDispatcher() {
     return mDispatcher;
+}
+
+class BinderWindowHandle : public InputWindowHandle {
+public:
+    BinderWindowHandle(const InputWindowInfo& info) {
+        mInfo = info;
+    }
+
+    bool updateInfo() override {
+        return true;
+    }
+};
+
+void InputManager::setInputWindows(const std::vector<InputWindowInfo>& infos,
+        const sp<ISetInputWindowsListener>& setInputWindowsListener) {
+    std::unordered_map<int32_t, std::vector<sp<InputWindowHandle>>> handlesPerDisplay;
+
+    std::vector<sp<InputWindowHandle>> handles;
+    for (const auto& info : infos) {
+        handlesPerDisplay.emplace(info.displayId, std::vector<sp<InputWindowHandle>>());
+        handlesPerDisplay[info.displayId].push_back(new BinderWindowHandle(info));
+    }
+    for (auto const& i : handlesPerDisplay) {
+        mDispatcher->setInputWindows(i.second, i.first, setInputWindowsListener);
+    }
+}
+
+void InputManager::transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken) {
+    mDispatcher->transferTouchFocus(fromToken, toToken);
+}
+
+// Used by tests only.
+void InputManager::registerInputChannel(const sp<InputChannel>& channel) {
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int uid = ipc->getCallingUid();
+    if (uid != AID_SHELL && uid != AID_ROOT) {
+        ALOGE("Invalid attempt to register input channel over IPC"
+                "from non shell/root entity (PID: %d)", ipc->getCallingPid());
+        return;
+    }
+    mDispatcher->registerInputChannel(channel, false);
+}
+
+void InputManager::unregisterInputChannel(const sp<InputChannel>& channel) {
+    mDispatcher->unregisterInputChannel(channel);
 }
 
 } // namespace android

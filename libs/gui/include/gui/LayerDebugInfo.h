@@ -52,7 +52,6 @@ public:
     int32_t mWidth = -1;
     int32_t mHeight = -1;
     Rect mCrop = Rect::INVALID_RECT;
-    Rect mFinalCrop = Rect::INVALID_RECT;
     half4 mColor = half4(1.0_hf, 1.0_hf, 1.0_hf, 0.0_hf);
     uint32_t mFlags = 0;
     PixelFormat mPixelFormat = PIXEL_FORMAT_NONE;

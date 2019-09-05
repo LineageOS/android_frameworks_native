@@ -96,7 +96,7 @@ define NULL_HANDLE 0
 @extension("VK_KHR_win32_surface") define VK_KHR_WIN32_SURFACE_NAME             "VK_KHR_win32_surface"
 
 // 11
-@extension("VK_ANDROID_native_buffer") define VK_ANDROID_NATIVE_BUFFER_SPEC_VERSION     7
+@extension("VK_ANDROID_native_buffer") define VK_ANDROID_NATIVE_BUFFER_SPEC_VERSION     8
 @extension("VK_ANDROID_native_buffer") define VK_ANDROID_NATIVE_BUFFER_NAME             "VK_ANDROID_native_buffer"
 
 // 12
