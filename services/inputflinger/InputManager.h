@@ -96,7 +96,6 @@ public:
 
     virtual void setInputWindows(const std::vector<InputWindowInfo>& handles,
             const sp<ISetInputWindowsListener>& setInputWindowsListener);
-    virtual void transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken);
 
     virtual void registerInputChannel(const sp<InputChannel>& channel);
     virtual void unregisterInputChannel(const sp<InputChannel>& channel);

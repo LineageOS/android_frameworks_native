@@ -42,7 +42,6 @@ public:
     virtual status_t dump(int fd, const Vector<String16>& args);
     void setInputWindows(const std::vector<InputWindowInfo>&,
             const sp<ISetInputWindowsListener>&) {}
-    void transferTouchFocus(const sp<IBinder>&, const sp<IBinder>&) {}
     void registerInputChannel(const sp<InputChannel>&) {}
     void unregisterInputChannel(const sp<InputChannel>&) {}
 
