@@ -57,6 +57,37 @@ class FakeProducerFrameEventHistory;
 
 static constexpr uint64_t NO_FRAME_INDEX = std::numeric_limits<uint64_t>::max();
 
+class DummySurfaceListener : public SurfaceListener {
+public:
+    DummySurfaceListener(bool enableReleasedCb = false) :
+            mEnableReleaseCb(enableReleasedCb),
+            mBuffersReleased(0) {}
+    virtual ~DummySurfaceListener() = default;
+
+    virtual void onBufferReleased() {
+        mBuffersReleased++;
+    }
+    virtual bool needsReleaseNotify() {
+        return mEnableReleaseCb;
+    }
+    virtual void onBuffersDiscarded(const std::vector<sp<GraphicBuffer>>& buffers) {
+        mDiscardedBuffers.insert(mDiscardedBuffers.end(), buffers.begin(), buffers.end());
+    }
+
+    int getReleaseNotifyCount() const {
+        return mBuffersReleased;
+    }
+    const std::vector<sp<GraphicBuffer>>& getDiscardedBuffers() const {
+        return mDiscardedBuffers;
+    }
+private:
+    // No need to use lock given the test triggers the listener in the same
+    // thread context.
+    bool mEnableReleaseCb;
+    int32_t mBuffersReleased;
+    std::vector<sp<GraphicBuffer>> mDiscardedBuffers;
+};
+
 class SurfaceTest : public ::testing::Test {
 protected:
     SurfaceTest() {
@@ -86,6 +117,86 @@ protected:
 
     virtual void TearDown() {
         mComposerClient->dispose();
+    }
+
+    void testSurfaceListener(bool hasSurfaceListener, bool enableReleasedCb,
+            int32_t extraDiscardedBuffers) {
+        sp<IGraphicBufferProducer> producer;
+        sp<IGraphicBufferConsumer> consumer;
+        BufferQueue::createBufferQueue(&producer, &consumer);
+
+        sp<DummyConsumer> dummyConsumer(new DummyConsumer);
+        consumer->consumerConnect(dummyConsumer, false);
+        consumer->setConsumerName(String8("TestConsumer"));
+
+        sp<Surface> surface = new Surface(producer);
+        sp<ANativeWindow> window(surface);
+        sp<DummySurfaceListener> listener;
+        if (hasSurfaceListener) {
+            listener = new DummySurfaceListener(enableReleasedCb);
+        }
+        ASSERT_EQ(OK, surface->connect(
+                NATIVE_WINDOW_API_CPU,
+                /*reportBufferRemoval*/true,
+                /*listener*/listener));
+        const int BUFFER_COUNT = 4 + extraDiscardedBuffers;
+        ASSERT_EQ(NO_ERROR, native_window_set_buffer_count(window.get(), BUFFER_COUNT));
+
+        ANativeWindowBuffer* buffers[BUFFER_COUNT];
+        // Dequeue first to allocate a number of buffers
+        for (int i = 0; i < BUFFER_COUNT; i++) {
+            ASSERT_EQ(NO_ERROR, native_window_dequeue_buffer_and_wait(window.get(), &buffers[i]));
+        }
+        for (int i = 0; i < BUFFER_COUNT; i++) {
+            ASSERT_EQ(NO_ERROR, window->cancelBuffer(window.get(), buffers[i], -1));
+        }
+
+        ANativeWindowBuffer* buffer;
+        // Fill BUFFER_COUNT-1 buffers
+        for (int i = 0; i < BUFFER_COUNT-1; i++) {
+            ASSERT_EQ(NO_ERROR, native_window_dequeue_buffer_and_wait(window.get(), &buffer));
+            ASSERT_EQ(NO_ERROR, window->queueBuffer(window.get(), buffer, -1));
+        }
+
+        // Dequeue 1 buffer
+        ASSERT_EQ(NO_ERROR, native_window_dequeue_buffer_and_wait(window.get(), &buffer));
+
+        // Acquire and free 1+extraDiscardedBuffers buffer, check onBufferReleased is called.
+        std::vector<BufferItem> releasedItems;
+        releasedItems.resize(1+extraDiscardedBuffers);
+        for (int i = 0; i < releasedItems.size(); i++) {
+            ASSERT_EQ(NO_ERROR, consumer->acquireBuffer(&releasedItems[i], 0));
+            ASSERT_EQ(NO_ERROR, consumer->releaseBuffer(releasedItems[i].mSlot,
+                    releasedItems[i].mFrameNumber, EGL_NO_DISPLAY, EGL_NO_SYNC_KHR,
+                    Fence::NO_FENCE));
+        }
+        int32_t expectedReleaseCb = (enableReleasedCb ? releasedItems.size() : 0);
+        if (hasSurfaceListener) {
+            ASSERT_EQ(expectedReleaseCb, listener->getReleaseNotifyCount());
+        }
+
+        // Acquire 1 buffer, leaving 1+extraDiscardedBuffers filled buffer in queue
+        BufferItem item;
+        ASSERT_EQ(NO_ERROR, consumer->acquireBuffer(&item, 0));
+
+        // Discard free buffers
+        ASSERT_EQ(NO_ERROR, consumer->discardFreeBuffers());
+
+        if (hasSurfaceListener) {
+            ASSERT_EQ(expectedReleaseCb, listener->getReleaseNotifyCount());
+
+            // Check onBufferDiscarded is called with correct buffer
+            auto discardedBuffers = listener->getDiscardedBuffers();
+            ASSERT_EQ(discardedBuffers.size(), releasedItems.size());
+            for (int i = 0; i < releasedItems.size(); i++) {
+                ASSERT_EQ(discardedBuffers[i], releasedItems[i].mGraphicBuffer);
+            }
+
+            ASSERT_EQ(expectedReleaseCb, listener->getReleaseNotifyCount());
+        }
+
+        // Disconnect the surface
+        ASSERT_EQ(NO_ERROR, surface->disconnect(NATIVE_WINDOW_API_CPU));
     }
 
     sp<Surface> mSurface;
@@ -478,6 +589,21 @@ TEST_F(SurfaceTest, GetAndFlushRemovedBuffers) {
     // Depends on which slot GraphicBufferProducer impl pick, the attach call might
     // get 0 or 1 buffer removed.
     ASSERT_LE(removedBuffers.size(), 1u);
+}
+
+TEST_F(SurfaceTest, SurfaceListenerTest) {
+    // Test discarding 1 free buffers with no listener
+    testSurfaceListener(/*hasListener*/false, /*enableReleaseCb*/false, /*extraDiscardedBuffers*/0);
+    // Test discarding 2 free buffers with no listener
+    testSurfaceListener(/*hasListener*/false, /*enableReleaseCb*/false, /*extraDiscardedBuffers*/1);
+    // Test discarding 1 free buffers with a listener, disabling onBufferReleased
+    testSurfaceListener(/*hasListener*/true, /*enableReleasedCb*/false, /*extraDiscardedBuffers*/0);
+    // Test discarding 2 free buffers with a listener, disabling onBufferReleased
+    testSurfaceListener(/*hasListener*/true, /*enableReleasedCb*/false, /*extraDiscardedBuffers*/1);
+    // Test discarding 1 free buffers with a listener, enabling onBufferReleased
+    testSurfaceListener(/*hasListener*/true, /*enableReleasedCb*/true, /*extraDiscardedBuffers*/0);
+    // Test discarding 3 free buffers with a listener, enabling onBufferReleased
+    testSurfaceListener(/*hasListener*/true, /*enableReleasedCb*/true, /*extraDiscardedBuffers*/2);
 }
 
 TEST_F(SurfaceTest, TestGetLastDequeueStartTime) {
