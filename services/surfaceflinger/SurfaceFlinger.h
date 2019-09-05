@@ -301,10 +301,11 @@ public:
     // TODO: this should be made accessible only to MessageQueue
     void onMessageReceived(int32_t what);
 
-    // Returns the expected present time for this frame.
+    // populates the expected present time for this frame.
     // When we are in negative offsets, we perform a correction so that the
     // predicted vsync for the *next* frame is used instead.
-    nsecs_t getExpectedPresentTime();
+    void populateExpectedPresentTime();
+    nsecs_t getExpectedPresentTime() const { return mExpectedPresentTime; }
 
     // for debugging only
     // TODO: this should be made accessible only to HWComposer
@@ -1184,6 +1185,8 @@ private:
     // Flags to capture the state of Vsync in HWC
     HWC2::Vsync mHWCVsyncState = HWC2::Vsync::Disable;
     HWC2::Vsync mHWCVsyncPendingState = HWC2::Vsync::Disable;
+
+    nsecs_t mExpectedPresentTime;
 };
 
 } // namespace android
