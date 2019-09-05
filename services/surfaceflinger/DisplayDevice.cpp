@@ -117,16 +117,6 @@ uint32_t DisplayDevice::getPageFlipCount() const {
 }
 
 // ----------------------------------------------------------------------------
-
-void DisplayDevice::setVisibleLayersSortedByZ(const Vector< sp<Layer> >& layers) {
-    mVisibleLayersSortedByZ = layers;
-}
-
-const Vector< sp<Layer> >& DisplayDevice::getVisibleLayersSortedByZ() const {
-    return mVisibleLayersSortedByZ;
-}
-
-// ----------------------------------------------------------------------------
 void DisplayDevice::setPowerMode(int mode) {
     mPowerMode = mode;
     getCompositionDisplay()->setCompositionEnabled(mPowerMode != HWC_POWER_MODE_OFF);
@@ -291,7 +281,6 @@ void DisplayDevice::dump(std::string& result) const {
     result.append("   ");
     StringAppendF(&result, "powerMode=%d, ", mPowerMode);
     StringAppendF(&result, "activeConfig=%d, ", mActiveConfig);
-    StringAppendF(&result, "numLayers=%zu\n", mVisibleLayersSortedByZ.size());
     getCompositionDisplay()->dump(result);
 }
 

@@ -110,6 +110,7 @@ Error unwrapRet(Return<Error>& ret)
 
 namespace impl {
 
+#if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 Composer::CommandWriter::CommandWriter(uint32_t initialMaxSize)
     : CommandWriterBase(initialMaxSize) {}
 
@@ -160,6 +161,7 @@ void Composer::CommandWriter::writeBufferMetadata(
     writeSigned(static_cast<int32_t>(metadata.format));
     write64(metadata.usage);
 }
+#endif // defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 
 Composer::Composer(const std::string& serviceName)
     : mWriter(kWriterInitialSize),
@@ -198,12 +200,14 @@ Composer::Composer(const std::string& serviceName)
         LOG_ALWAYS_FATAL("failed to create composer client");
     }
 
+#if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
     if (mIsUsingVrComposer) {
         sp<IVrComposerClient> vrClient = IVrComposerClient::castFrom(mClient);
         if (vrClient == nullptr) {
             LOG_ALWAYS_FATAL("failed to create vr composer client");
         }
     }
+#endif // defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 }
 
 Composer::~Composer() = default;
@@ -565,17 +569,20 @@ Error Composer::setClientTarget(Display display, uint32_t slot,
         const std::vector<IComposerClient::Rect>& damage)
 {
     mWriter.selectDisplay(display);
+
+#if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
     if (mIsUsingVrComposer && target.get()) {
         IVrComposerClient::BufferMetadata metadata = {
-            .width = target->getWidth(),
-            .height = target->getHeight(),
-            .stride = target->getStride(),
-            .layerCount = target->getLayerCount(),
-            .format = static_cast<types::V1_0::PixelFormat>(target->getPixelFormat()),
-            .usage = target->getUsage(),
+                .width = target->getWidth(),
+                .height = target->getHeight(),
+                .stride = target->getStride(),
+                .layerCount = target->getLayerCount(),
+                .format = static_cast<types::V1_2::PixelFormat>(target->getPixelFormat()),
+                .usage = target->getUsage(),
         };
         mWriter.setClientTargetMetadata(metadata);
     }
+#endif // defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 
     const native_handle_t* handle = nullptr;
     if (target.get()) {
@@ -695,17 +702,20 @@ Error Composer::setLayerBuffer(Display display, Layer layer,
 {
     mWriter.selectDisplay(display);
     mWriter.selectLayer(layer);
+
+#if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
     if (mIsUsingVrComposer && buffer.get()) {
         IVrComposerClient::BufferMetadata metadata = {
-            .width = buffer->getWidth(),
-            .height = buffer->getHeight(),
-            .stride = buffer->getStride(),
-            .layerCount = buffer->getLayerCount(),
-            .format = static_cast<types::V1_0::PixelFormat>(buffer->getPixelFormat()),
-            .usage = buffer->getUsage(),
+                .width = buffer->getWidth(),
+                .height = buffer->getHeight(),
+                .stride = buffer->getStride(),
+                .layerCount = buffer->getLayerCount(),
+                .format = static_cast<types::V1_2::PixelFormat>(buffer->getPixelFormat()),
+                .usage = buffer->getUsage(),
         };
         mWriter.setLayerBufferMetadata(metadata);
     }
+#endif // defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 
     const native_handle_t* handle = nullptr;
     if (buffer.get()) {
@@ -823,6 +833,7 @@ Error Composer::setLayerZOrder(Display display, Layer layer, uint32_t z)
     return Error::NONE;
 }
 
+#if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 Error Composer::setLayerInfo(Display display, Layer layer, uint32_t type,
                              uint32_t appId)
 {
@@ -833,6 +844,15 @@ Error Composer::setLayerInfo(Display display, Layer layer, uint32_t type,
     }
     return Error::NONE;
 }
+#else
+Error Composer::setLayerInfo(Display display, Layer layer, uint32_t, uint32_t) {
+    if (mIsUsingVrComposer) {
+        mWriter.selectDisplay(display);
+        mWriter.selectLayer(layer);
+    }
+    return Error::NONE;
+}
+#endif // defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 
 Error Composer::execute()
 {

@@ -45,6 +45,8 @@ public:
 
     void preComposition(CompositionRefreshArgs&) override;
 
+    void updateLayerStateFromFE(CompositionRefreshArgs& args);
+
     // Testing
     void setNeedsAnotherUpdateForTest(bool);
 

@@ -1796,6 +1796,15 @@ void SurfaceFlinger::handleMessageRefresh() {
             : compositionengine::OutputColorSetting::kUnmanaged;
     refreshArgs.colorSpaceAgnosticDataspace = mColorSpaceAgnosticDataspace;
     refreshArgs.forceOutputColorMode = mForceColorMode;
+    refreshArgs.updatingGeometryThisFrame = mGeometryInvalid;
+
+    if (CC_UNLIKELY(mDrawingState.colorMatrixChanged)) {
+        refreshArgs.colorTransformMatrix = mDrawingState.colorMatrix;
+        mDrawingState.colorMatrixChanged = false;
+    }
+
+    refreshArgs.devOptForceClientComposition = mDebugDisableHWC || mDebugRegion;
+
     if (mDebugRegion != 0) {
         refreshArgs.devOptFlashDirtyRegionsDelay =
                 std::chrono::milliseconds(mDebugRegion > 1 ? mDebugRegion : 0);
@@ -1803,8 +1812,10 @@ void SurfaceFlinger::handleMessageRefresh() {
 
     mCompositionEngine->preComposition(refreshArgs);
     rebuildLayerStacks();
-    calculateWorkingSet(refreshArgs);
+    refreshArgs.updatingGeometryThisFrame = mGeometryInvalid; // Can be set by rebuildLayerStacks()
     mCompositionEngine->present(refreshArgs);
+
+    mGeometryInvalid = false;
 
     postFrame();
     postComposition();
@@ -1851,68 +1862,6 @@ bool SurfaceFlinger::handleMessageInvalidate() {
     }
     mLayersPendingRefresh.clear();
     return refreshNeeded;
-}
-
-void SurfaceFlinger::calculateWorkingSet(
-        const compositionengine::CompositionRefreshArgs& refreshArgs) {
-    ATRACE_CALL();
-    ALOGV(__FUNCTION__);
-
-    const bool updatingGeometryThisFrame = mGeometryInvalid;
-    mGeometryInvalid = false;
-
-    // Latch the frontend layer composition state for each layer being
-    // composed.
-    for (const auto& [token, displayDevice] : mDisplays) {
-        auto display = displayDevice->getCompositionDisplay();
-        for (auto& layer : display->getOutputLayersOrderedByZ()) {
-            layer->getLayerFE().latchCompositionState(layer->getLayer().editState().frontEnd,
-                                                      updatingGeometryThisFrame);
-        }
-    }
-
-    if (CC_UNLIKELY(updatingGeometryThisFrame)) {
-        for (const auto& [token, displayDevice] : mDisplays) {
-            auto display = displayDevice->getCompositionDisplay();
-            uint32_t zOrder = 0;
-
-            for (auto& layer : display->getOutputLayersOrderedByZ()) {
-                // Assign a simple Z order sequence to each visible layer.
-                layer->editState().z = zOrder++;
-            }
-        }
-    }
-
-    // Determine the color configuration of each output
-    for (const auto& [token, displayDevice] : mDisplays) {
-        auto display = displayDevice->getCompositionDisplay();
-        display->updateColorProfile(refreshArgs);
-    }
-
-    for (const auto& [token, displayDevice] : mDisplays) {
-        auto display = displayDevice->getCompositionDisplay();
-
-        for (auto& layer : display->getOutputLayersOrderedByZ()) {
-            if (mDebugDisableHWC || mDebugRegion) {
-                layer->editState().forceClientComposition = true;
-            }
-
-            // Update the composition state of the output layer, as needed
-            // recomputing it from the state given by the front-end layer.
-            layer->updateCompositionState(updatingGeometryThisFrame);
-
-            // Send the updated state to the HWC, if appropriate.
-            layer->writeStateToHWC(updatingGeometryThisFrame);
-        }
-    }
-
-    if (CC_UNLIKELY(mDrawingState.colorMatrixChanged)) {
-        for (const auto& [token, displayDevice] : mDisplays) {
-            auto display = displayDevice->getCompositionDisplay();
-            display->setColorTransform(mDrawingState.colorMatrix);
-        }
-        mDrawingState.colorMatrixChanged = false;
-    }
 }
 
 void SurfaceFlinger::updateCompositorTiming(const DisplayStatInfo& stats, nsecs_t compositeTime,
@@ -2146,7 +2095,6 @@ void SurfaceFlinger::rebuildLayerStacks() {
             Region dirtyRegion;
             compositionengine::Output::OutputLayers layersSortedByZ;
             compositionengine::Output::ReleasedLayers releasedLayers;
-            Vector<sp<Layer>> deprecated_layersSortedByZ;
             const ui::Transform& tr = displayState.transform;
             const Rect bounds = displayState.bounds;
             if (displayState.isEnabled) {
@@ -2178,8 +2126,6 @@ void SurfaceFlinger::rebuildLayerStacks() {
                         layersSortedByZ.emplace_back(
                                 display->getOrCreateOutputLayer(displayId, compositionLayer,
                                                                 layerFE));
-                        deprecated_layersSortedByZ.add(layer);
-
                         auto& outputLayerState = layersSortedByZ.back()->editState();
                         outputLayerState.visibleRegion =
                                 tr.transform(layer->visibleRegion.intersect(displayState.viewport));
@@ -2202,8 +2148,6 @@ void SurfaceFlinger::rebuildLayerStacks() {
 
             display->setOutputLayersOrderedByZ(std::move(layersSortedByZ));
             display->setReleasedLayers(std::move(releasedLayers));
-
-            displayDevice->setVisibleLayersSortedByZ(deprecated_layersSortedByZ);
 
             Region undefinedRegion{bounds};
             undefinedRegion.subtractSelf(tr.transform(opaqueRegion));

@@ -41,7 +41,7 @@ public:
     MOCK_METHOD1(setBounds, void(const ui::Size&));
     MOCK_METHOD2(setLayerStackFilter, void(uint32_t, bool));
 
-    MOCK_METHOD1(setColorTransform, void(const mat4&));
+    MOCK_METHOD1(setColorTransform, void(const compositionengine::CompositionRefreshArgs&));
     MOCK_METHOD1(setColorProfile, void(const ColorProfile&));
 
     MOCK_CONST_METHOD1(dump, void(std::string&));
@@ -74,8 +74,11 @@ public:
     MOCK_METHOD1(setReleasedLayers, void(ReleasedLayers&&));
     MOCK_METHOD0(takeReleasedLayers, ReleasedLayers());
 
+    MOCK_METHOD1(prepare, void(compositionengine::CompositionRefreshArgs&));
     MOCK_METHOD1(present, void(const compositionengine::CompositionRefreshArgs&));
 
+    MOCK_CONST_METHOD1(updateLayerStateFromFE, void(const CompositionRefreshArgs&));
+    MOCK_METHOD1(updateAndWriteCompositionState, void(const CompositionRefreshArgs&));
     MOCK_METHOD1(updateColorProfile, void(const compositionengine::CompositionRefreshArgs&));
 
     MOCK_METHOD0(beginFrame, void());

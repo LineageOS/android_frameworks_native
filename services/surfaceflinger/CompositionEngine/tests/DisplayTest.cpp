@@ -138,23 +138,26 @@ TEST_F(DisplayTest, disconnectDisconnectsDisplay) {
  */
 
 TEST_F(DisplayTest, setColorTransformSetsTransform) {
+    // No change does nothing
+    CompositionRefreshArgs refreshArgs;
+    refreshArgs.colorTransformMatrix = std::nullopt;
+    mDisplay.setColorTransform(refreshArgs);
+
     // Identity matrix sets an identity state value
-    const mat4 identity;
+    const mat4 kIdentity;
 
-    EXPECT_CALL(mHwComposer, setColorTransform(DEFAULT_DISPLAY_ID, identity)).Times(1);
+    EXPECT_CALL(mHwComposer, setColorTransform(DEFAULT_DISPLAY_ID, kIdentity)).Times(1);
 
-    mDisplay.setColorTransform(identity);
-
-    EXPECT_EQ(HAL_COLOR_TRANSFORM_IDENTITY, mDisplay.getState().colorTransform);
+    refreshArgs.colorTransformMatrix = kIdentity;
+    mDisplay.setColorTransform(refreshArgs);
 
     // Non-identity matrix sets a non-identity state value
-    const mat4 nonIdentity = mat4() * 2;
+    const mat4 kNonIdentity = mat4() * 2;
 
-    EXPECT_CALL(mHwComposer, setColorTransform(DEFAULT_DISPLAY_ID, nonIdentity)).Times(1);
+    EXPECT_CALL(mHwComposer, setColorTransform(DEFAULT_DISPLAY_ID, kNonIdentity)).Times(1);
 
-    mDisplay.setColorTransform(nonIdentity);
-
-    EXPECT_EQ(HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX, mDisplay.getState().colorTransform);
+    refreshArgs.colorTransformMatrix = kNonIdentity;
+    mDisplay.setColorTransform(refreshArgs);
 }
 
 /*

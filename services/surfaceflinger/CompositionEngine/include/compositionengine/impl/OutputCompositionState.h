@@ -86,11 +86,8 @@ struct OutputCompositionState {
     // True if the last composition frame had visible layers
     bool lastCompositionHadVisibleLayers{false};
 
-    // The color transform to apply
-    android_color_transform_t colorTransform{HAL_COLOR_TRANSFORM_IDENTITY};
-
-    // The color transform matrix to apply, corresponding with colorTransform.
-    mat4 colorTransformMat;
+    // The color transform matrix to apply
+    mat4 colorTransformMatrix;
 
     // Current active color mode
     ui::ColorMode colorMode{ui::ColorMode::NATIVE};
