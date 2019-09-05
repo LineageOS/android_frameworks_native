@@ -23,16 +23,19 @@
 #include <android-base/stringprintf.h>
 
 #include <algorithm>
+#include <mutex>
 
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(android::FrameTracer::FrameTracerDataSource);
 
 namespace android {
 
 void FrameTracer::initialize() {
-    perfetto::TracingInitArgs args;
-    args.backends = perfetto::kSystemBackend;
-    perfetto::Tracing::Initialize(args);
-    registerDataSource();
+    std::call_once(mInitializationFlag, [this]() {
+        perfetto::TracingInitArgs args;
+        args.backends = perfetto::kSystemBackend;
+        perfetto::Tracing::Initialize(args);
+        registerDataSource();
+    });
 }
 
 void FrameTracer::registerDataSource() {
