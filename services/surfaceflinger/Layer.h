@@ -98,10 +98,6 @@ class Layer : public compositionengine::LayerFE {
 
 public:
     mutable bool contentDirty{false};
-    // regions below are in window-manager space
-    Region visibleRegion;
-    Region coveredRegion;
-    Region visibleNonTransparentRegion;
     Region surfaceDamageRegion;
 
     // Layer serial number.  This gives layers an explicit ordering, so we
@@ -519,30 +515,6 @@ public:
     uint32_t doTransaction(uint32_t transactionFlags);
 
     /*
-     * setVisibleRegion - called to set the new visible region. This gives
-     * a chance to update the new visible region or record the fact it changed.
-     */
-    void setVisibleRegion(const Region& visibleRegion);
-
-    /*
-     * setCoveredRegion - called when the covered region changes. The covered
-     * region corresponds to any area of the surface that is covered
-     * (transparently or not) by another surface.
-     */
-    void setCoveredRegion(const Region& coveredRegion);
-
-    /*
-     * setVisibleNonTransparentRegion - called when the visible and
-     * non-transparent region changes.
-     */
-    void setVisibleNonTransparentRegion(const Region& visibleNonTransparentRegion);
-
-    /*
-     * Clear the visible, covered, and non-transparent regions.
-     */
-    void clearVisibilityRegions();
-
-    /*
      * latchBuffer - called each time the screen is redrawn and returns whether
      * the visible regions need to be recomputed (this is a fairly heavy
      * operation, so this should be set only if needed). Typically this is used
@@ -684,6 +656,8 @@ public:
 
     compositionengine::OutputLayer* findOutputLayerForDisplay(
             const sp<const DisplayDevice>& display) const;
+
+    Region debugGetVisibleRegionOnDefaultDisplay() const;
 
 protected:
     // constant

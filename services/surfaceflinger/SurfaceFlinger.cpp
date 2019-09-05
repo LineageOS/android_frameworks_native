@@ -2794,7 +2794,6 @@ void SurfaceFlinger::computeVisibleRegions(
          */
         Region transparentRegion;
 
-
         // handle hidden surfaces by setting the visible region to empty
         if (CC_LIKELY(layer->isVisible())) {
             const bool translucent = !layer->isOpaque(s);
@@ -2827,7 +2826,6 @@ void SurfaceFlinger::computeVisibleRegions(
         }
 
         if (visibleRegion.isEmpty()) {
-            layer->clearVisibilityRegions();
             return;
         }
 
@@ -2840,12 +2838,21 @@ void SurfaceFlinger::computeVisibleRegions(
         // subtract the opaque region covered by the layers above us
         visibleRegion.subtractSelf(aboveOpaqueLayers);
 
+        //  Get coverage information for the layer as previously displayed
+        auto prevOutputLayer = display->getOutputLayerForLayer(compositionLayer.get());
+        // TODO(b/121291683): Define this as a constant in Region.h
+        const Region kEmptyRegion;
+        const Region& oldVisibleRegion =
+                prevOutputLayer ? prevOutputLayer->getState().visibleRegion : kEmptyRegion;
+        const Region& oldCoveredRegion =
+                prevOutputLayer ? prevOutputLayer->getState().coveredRegion : kEmptyRegion;
+
         // compute this layer's dirty region
         if (layer->contentDirty) {
             // we need to invalidate the whole region
             dirty = visibleRegion;
             // as well, as the old visible region
-            dirty.orSelf(layer->visibleRegion);
+            dirty.orSelf(oldVisibleRegion);
             layer->contentDirty = false;
         } else {
             /* compute the exposed region:
@@ -2861,8 +2868,6 @@ void SurfaceFlinger::computeVisibleRegions(
              * exposed because of a resize.
              */
             const Region newExposed = visibleRegion - coveredRegion;
-            const Region oldVisibleRegion = layer->visibleRegion;
-            const Region oldCoveredRegion = layer->coveredRegion;
             const Region oldExposed = oldVisibleRegion - oldCoveredRegion;
             dirty = (visibleRegion&oldCoveredRegion) | (newExposed-oldExposed);
         }
@@ -2874,16 +2879,13 @@ void SurfaceFlinger::computeVisibleRegions(
         // Update aboveOpaqueLayers for next (lower) layer
         aboveOpaqueLayers.orSelf(opaqueRegion);
 
-        // Store the visible region in screen space
-        layer->setVisibleRegion(visibleRegion);
-        layer->setCoveredRegion(coveredRegion);
-        layer->setVisibleNonTransparentRegion(
-                visibleRegion.subtract(transparentRegion));
+        // Compute the visible non-transparent region
+        Region visibleNonTransparentRegion = visibleRegion.subtract(transparentRegion);
 
-        // Setup an output layer for this output if the layer is
-        // visible on this output
+        // Setup an output layer for this output if the layer is visible on this
+        // output
         const auto& displayState = display->getState();
-        Region drawRegion(displayState.transform.transform(layer->visibleNonTransparentRegion));
+        Region drawRegion(displayState.transform.transform(visibleNonTransparentRegion));
         drawRegion.andSelf(displayState.bounds);
         if (drawRegion.isEmpty()) {
             return;
@@ -2896,8 +2898,11 @@ void SurfaceFlinger::computeVisibleRegions(
         outLayersSortedByZ.emplace_back(
                 display->getOrCreateOutputLayer(displayId, compositionLayer, layerFE));
         auto& outputLayerState = outLayersSortedByZ.back()->editState();
-        outputLayerState.visibleRegion = displayState.transform.transform(
-                layer->visibleRegion.intersect(displayState.viewport));
+        outputLayerState.visibleRegion = std::move(visibleRegion);
+        outputLayerState.visibleNonTransparentRegion = std::move(visibleNonTransparentRegion);
+        outputLayerState.coveredRegion = std::move(coveredRegion);
+        outputLayerState.outputSpaceVisibleRegion = displayState.transform.transform(
+                outputLayerState.visibleRegion.intersect(displayState.viewport));
     });
 
     outOpaqueRegion = aboveOpaqueLayers;

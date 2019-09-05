@@ -56,10 +56,6 @@ struct LayerFECompositionState {
     Region geomActiveTransparentRegion;
     FloatRect geomLayerBounds;
 
-    // TODO(lpique): b/121291683 Remove this one we are sure we don't need the
-    // value recomputed / set every frame.
-    Region geomVisibleRegion;
-
     /*
      * Presentation
      */

@@ -461,10 +461,6 @@ void Layer::latchPerFrameState(compositionengine::LayerFECompositionState& compo
     const auto& drawingState{getDrawingState()};
     compositionState.forceClientComposition = false;
 
-    // TODO(lpique): b/121291683 Remove this one we are sure we don't need the
-    // value recomputed / set every frame.
-    compositionState.geomVisibleRegion = visibleRegion;
-
     compositionState.isColorspaceAgnostic = isColorSpaceAgnostic();
     compositionState.dataspace = mCurrentDataSpace;
     compositionState.colorTransform = getColorTransform();
@@ -583,27 +579,6 @@ bool Layer::addSyncPoint(const std::shared_ptr<SyncPoint>& point) {
 bool Layer::isSecure() const {
     const State& s(mDrawingState);
     return (s.flags & layer_state_t::eLayerSecure);
-}
-
-void Layer::setVisibleRegion(const Region& visibleRegion) {
-    // always called from main thread
-    this->visibleRegion = visibleRegion;
-}
-
-void Layer::setCoveredRegion(const Region& coveredRegion) {
-    // always called from main thread
-    this->coveredRegion = coveredRegion;
-}
-
-void Layer::setVisibleNonTransparentRegion(const Region& setVisibleNonTransparentRegion) {
-    // always called from main thread
-    this->visibleNonTransparentRegion = setVisibleNonTransparentRegion;
-}
-
-void Layer::clearVisibilityRegions() {
-    visibleRegion.clear();
-    visibleNonTransparentRegion.clear();
-    coveredRegion.clear();
 }
 
 // ----------------------------------------------------------------------------
@@ -1220,7 +1195,8 @@ LayerDebugInfo Layer::getLayerDebugInfo() const {
     info.mParentName = (parent == nullptr ? std::string("none") : parent->getName().string());
     info.mType = getType();
     info.mTransparentRegion = ds.activeTransparentRegion_legacy;
-    info.mVisibleRegion = visibleRegion;
+
+    info.mVisibleRegion = debugGetVisibleRegionOnDefaultDisplay();
     info.mSurfaceDamageRegion = surfaceDamageRegion;
     info.mLayerStack = getLayerStack();
     info.mX = ds.active_legacy.transform.tx();
@@ -1851,7 +1827,7 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags)
         LayerProtoHelper::writePositionToProto(transform.tx(), transform.ty(),
                                                [&]() { return layerInfo->mutable_position(); });
         LayerProtoHelper::writeToProto(mBounds, [&]() { return layerInfo->mutable_bounds(); });
-        LayerProtoHelper::writeToProto(visibleRegion,
+        LayerProtoHelper::writeToProto(debugGetVisibleRegionOnDefaultDisplay(),
                                        [&]() { return layerInfo->mutable_visible_region(); });
         LayerProtoHelper::writeToProto(surfaceDamageRegion,
                                        [&]() { return layerInfo->mutable_damage_region(); });
@@ -2026,6 +2002,20 @@ bool Layer::canReceiveInput() const {
 compositionengine::OutputLayer* Layer::findOutputLayerForDisplay(
         const sp<const DisplayDevice>& display) const {
     return display->getCompositionDisplay()->getOutputLayerForLayer(getCompositionLayer().get());
+}
+
+Region Layer::debugGetVisibleRegionOnDefaultDisplay() const {
+    sp<DisplayDevice> displayDevice = mFlinger->getDefaultDisplayDeviceLocked();
+    if (displayDevice == nullptr) {
+        return {};
+    }
+
+    auto outputLayer = findOutputLayerForDisplay(displayDevice);
+    if (outputLayer == nullptr) {
+        return {};
+    }
+
+    return outputLayer->getState().visibleRegion;
 }
 
 // ---------------------------------------------------------------------------
