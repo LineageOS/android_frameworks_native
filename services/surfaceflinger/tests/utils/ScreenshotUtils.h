@@ -76,7 +76,7 @@ public:
 
     void expectColor(const Rect& rect, const Color& color, uint8_t tolerance = 0) {
         ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mOutBuffer->getPixelFormat());
-        expectBufferColor(mOutBuffer, mPixels, rect, color, tolerance);
+        TransactionUtils::expectBufferColor(mOutBuffer, mPixels, rect, color, tolerance);
     }
 
     void expectBorder(const Rect& rect, const Color& color, uint8_t tolerance = 0) {

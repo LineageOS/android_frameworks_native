@@ -136,7 +136,9 @@ protected:
                                            int32_t bufferWidth, int32_t bufferHeight) {
         ANativeWindow_Buffer buffer;
         ASSERT_NO_FATAL_FAILURE(buffer = getBufferQueueLayerBuffer(layer));
-        fillANativeWindowBufferColor(buffer, Rect(0, 0, bufferWidth, bufferHeight), color);
+        TransactionUtils::fillANativeWindowBufferColor(buffer,
+                                                       Rect(0, 0, bufferWidth, bufferHeight),
+                                                       color);
         postBufferQueueLayerBuffer(layer);
     }
 
@@ -147,7 +149,8 @@ protected:
                                   BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
                                           BufferUsage::COMPOSER_OVERLAY,
                                   "test");
-        fillGraphicBufferColor(buffer, Rect(0, 0, bufferWidth, bufferHeight), color);
+        TransactionUtils::fillGraphicBufferColor(buffer, Rect(0, 0, bufferWidth, bufferHeight),
+                                                 color);
         Transaction().setBuffer(layer, buffer).apply();
     }
 
@@ -193,11 +196,15 @@ protected:
 
         const int32_t halfW = bufferWidth / 2;
         const int32_t halfH = bufferHeight / 2;
-        fillANativeWindowBufferColor(buffer, Rect(0, 0, halfW, halfH), topLeft);
-        fillANativeWindowBufferColor(buffer, Rect(halfW, 0, bufferWidth, halfH), topRight);
-        fillANativeWindowBufferColor(buffer, Rect(0, halfH, halfW, bufferHeight), bottomLeft);
-        fillANativeWindowBufferColor(buffer, Rect(halfW, halfH, bufferWidth, bufferHeight),
-                                     bottomRight);
+        TransactionUtils::fillANativeWindowBufferColor(buffer, Rect(0, 0, halfW, halfH), topLeft);
+        TransactionUtils::fillANativeWindowBufferColor(buffer, Rect(halfW, 0, bufferWidth, halfH),
+                                                       topRight);
+        TransactionUtils::fillANativeWindowBufferColor(buffer, Rect(0, halfH, halfW, bufferHeight),
+                                                       bottomLeft);
+        TransactionUtils::fillANativeWindowBufferColor(buffer,
+                                                       Rect(halfW, halfH, bufferWidth,
+                                                            bufferHeight),
+                                                       bottomRight);
 
         postBufferQueueLayerBuffer(layer);
     }
@@ -216,10 +223,14 @@ protected:
 
         const int32_t halfW = bufferWidth / 2;
         const int32_t halfH = bufferHeight / 2;
-        fillGraphicBufferColor(buffer, Rect(0, 0, halfW, halfH), topLeft);
-        fillGraphicBufferColor(buffer, Rect(halfW, 0, bufferWidth, halfH), topRight);
-        fillGraphicBufferColor(buffer, Rect(0, halfH, halfW, bufferHeight), bottomLeft);
-        fillGraphicBufferColor(buffer, Rect(halfW, halfH, bufferWidth, bufferHeight), bottomRight);
+        TransactionUtils::fillGraphicBufferColor(buffer, Rect(0, 0, halfW, halfH), topLeft);
+        TransactionUtils::fillGraphicBufferColor(buffer, Rect(halfW, 0, bufferWidth, halfH),
+                                                 topRight);
+        TransactionUtils::fillGraphicBufferColor(buffer, Rect(0, halfH, halfW, bufferHeight),
+                                                 bottomLeft);
+        TransactionUtils::fillGraphicBufferColor(buffer,
+                                                 Rect(halfW, halfH, bufferWidth, bufferHeight),
+                                                 bottomRight);
 
         Transaction().setBuffer(layer, buffer).setSize(layer, bufferWidth, bufferHeight).apply();
     }
@@ -1037,8 +1048,10 @@ TEST_P(LayerRenderTypeTransactionTest, SetTransparentRegionHintBasic_BufferQueue
 
     ANativeWindow_Buffer buffer;
     ASSERT_NO_FATAL_FAILURE(buffer = getBufferQueueLayerBuffer(layer));
-    ASSERT_NO_FATAL_FAILURE(fillANativeWindowBufferColor(buffer, top, Color::TRANSPARENT));
-    ASSERT_NO_FATAL_FAILURE(fillANativeWindowBufferColor(buffer, bottom, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(
+            TransactionUtils::fillANativeWindowBufferColor(buffer, top, Color::TRANSPARENT));
+    ASSERT_NO_FATAL_FAILURE(
+            TransactionUtils::fillANativeWindowBufferColor(buffer, bottom, Color::RED));
     // setTransparentRegionHint always applies to the following buffer
     Transaction().setTransparentRegionHint(layer, Region(top)).apply();
     ASSERT_NO_FATAL_FAILURE(postBufferQueueLayerBuffer(layer));
@@ -1058,8 +1071,10 @@ TEST_P(LayerRenderTypeTransactionTest, SetTransparentRegionHintBasic_BufferQueue
     }
 
     ASSERT_NO_FATAL_FAILURE(buffer = getBufferQueueLayerBuffer(layer));
-    ASSERT_NO_FATAL_FAILURE(fillANativeWindowBufferColor(buffer, top, Color::RED));
-    ASSERT_NO_FATAL_FAILURE(fillANativeWindowBufferColor(buffer, bottom, Color::TRANSPARENT));
+    ASSERT_NO_FATAL_FAILURE(
+            TransactionUtils::fillANativeWindowBufferColor(buffer, top, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(
+            TransactionUtils::fillANativeWindowBufferColor(buffer, bottom, Color::TRANSPARENT));
     ASSERT_NO_FATAL_FAILURE(postBufferQueueLayerBuffer(layer));
     {
         SCOPED_TRACE("bottom transparent");
@@ -1082,8 +1097,9 @@ TEST_P(LayerRenderTypeTransactionTest, SetTransparentRegionHintBasic_BufferState
                                       BufferUsage::COMPOSER_OVERLAY,
                               "test");
 
-    ASSERT_NO_FATAL_FAILURE(fillGraphicBufferColor(buffer, top, Color::TRANSPARENT));
-    ASSERT_NO_FATAL_FAILURE(fillGraphicBufferColor(buffer, bottom, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(
+            TransactionUtils::fillGraphicBufferColor(buffer, top, Color::TRANSPARENT));
+    ASSERT_NO_FATAL_FAILURE(TransactionUtils::fillGraphicBufferColor(buffer, bottom, Color::RED));
     Transaction()
             .setTransparentRegionHint(layer, Region(top))
             .setBuffer(layer, buffer)
@@ -1109,8 +1125,9 @@ TEST_P(LayerRenderTypeTransactionTest, SetTransparentRegionHintBasic_BufferState
                                        BufferUsage::COMPOSER_OVERLAY,
                                "test");
 
-    ASSERT_NO_FATAL_FAILURE(fillGraphicBufferColor(buffer, top, Color::RED));
-    ASSERT_NO_FATAL_FAILURE(fillGraphicBufferColor(buffer, bottom, Color::TRANSPARENT));
+    ASSERT_NO_FATAL_FAILURE(TransactionUtils::fillGraphicBufferColor(buffer, top, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(
+            TransactionUtils::fillGraphicBufferColor(buffer, bottom, Color::TRANSPARENT));
     Transaction().setBuffer(layer, buffer).apply();
     {
         SCOPED_TRACE("bottom transparent");
@@ -1851,8 +1868,8 @@ TEST_P(LayerRenderTypeTransactionTest, SetCropOutOfBounds_BufferState) {
                               BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
                                       BufferUsage::COMPOSER_OVERLAY,
                               "test");
-    fillGraphicBufferColor(buffer, Rect(0, 0, 32, 16), Color::BLUE);
-    fillGraphicBufferColor(buffer, Rect(0, 16, 32, 64), Color::RED);
+    TransactionUtils::fillGraphicBufferColor(buffer, Rect(0, 0, 32, 16), Color::BLUE);
+    TransactionUtils::fillGraphicBufferColor(buffer, Rect(0, 16, 32, 64), Color::RED);
 
     Transaction().setFrame(layer, Rect(0, 0, 64, 64)).apply();
 
@@ -2178,7 +2195,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetBufferCaching_BufferState) {
                                            BufferUsage::COMPOSER_OVERLAY,
                                    "test");
         Color color = colors[idx % colors.size()];
-        fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), color);
+        TransactionUtils::fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), color);
         idx++;
     }
 
@@ -2214,7 +2231,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetBufferCaching_LeastRecentlyUsed_Buffer
                                            BufferUsage::COMPOSER_OVERLAY,
                                    "test");
         Color color = colors[idx % colors.size()];
-        fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), color);
+        TransactionUtils::fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), color);
         idx++;
     }
 
@@ -2250,7 +2267,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetBufferCaching_DestroyedBuffer_BufferSt
                                            BufferUsage::COMPOSER_OVERLAY,
                                    "test");
         Color color = colors[idx % colors.size()];
-        fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), color);
+        TransactionUtils::fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), color);
         idx++;
     }
 
@@ -2347,7 +2364,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetFenceBasic_BufferState) {
                               BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
                                       BufferUsage::COMPOSER_OVERLAY,
                               "test");
-    fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), Color::RED);
+    TransactionUtils::fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), Color::RED);
 
     sp<Fence> fence;
     if (getBuffer(nullptr, &fence) != NO_ERROR) {
@@ -2376,7 +2393,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetFenceNull_BufferState) {
                               BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
                                       BufferUsage::COMPOSER_OVERLAY,
                               "test");
-    fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), Color::RED);
+    TransactionUtils::fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), Color::RED);
 
     sp<Fence> fence = Fence::NO_FENCE;
 
@@ -2400,7 +2417,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetDataspaceBasic_BufferState) {
                               BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
                                       BufferUsage::COMPOSER_OVERLAY,
                               "test");
-    fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), Color::RED);
+    TransactionUtils::fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), Color::RED);
 
     Transaction()
             .setBuffer(layer, buffer)
@@ -2422,7 +2439,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetHdrMetadataBasic_BufferState) {
                               BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
                                       BufferUsage::COMPOSER_OVERLAY,
                               "test");
-    fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), Color::RED);
+    TransactionUtils::fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), Color::RED);
 
     HdrMetadata hdrMetadata;
     hdrMetadata.validTypes = 0;
@@ -2446,7 +2463,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetSurfaceDamageRegionBasic_BufferState) 
                               BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
                                       BufferUsage::COMPOSER_OVERLAY,
                               "test");
-    fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), Color::RED);
+    TransactionUtils::fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), Color::RED);
 
     Region region;
     region.set(32, 32);
@@ -2470,7 +2487,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetApiBasic_BufferState) {
                               BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
                                       BufferUsage::COMPOSER_OVERLAY,
                               "test");
-    fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), Color::RED);
+    TransactionUtils::fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), Color::RED);
 
     Transaction()
             .setBuffer(layer, buffer)
@@ -3537,7 +3554,7 @@ protected:
                                                displayHeight, 0);
         ASSERT_TRUE(mBGSurfaceControl != nullptr);
         ASSERT_TRUE(mBGSurfaceControl->isValid());
-        fillSurfaceRGBA8(mBGSurfaceControl, 63, 63, 195);
+        TransactionUtils::fillSurfaceRGBA8(mBGSurfaceControl, 63, 63, 195);
 
         // Foreground surface
         mFGSurfaceControl = createLayer(String8("FG Test Surface"), 64, 64, 0);
@@ -3545,14 +3562,14 @@ protected:
         ASSERT_TRUE(mFGSurfaceControl != nullptr);
         ASSERT_TRUE(mFGSurfaceControl->isValid());
 
-        fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
+        TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
 
         // Synchronization surface
         mSyncSurfaceControl = createLayer(String8("Sync Test Surface"), 1, 1, 0);
         ASSERT_TRUE(mSyncSurfaceControl != nullptr);
         ASSERT_TRUE(mSyncSurfaceControl->isValid());
 
-        fillSurfaceRGBA8(mSyncSurfaceControl, 31, 31, 31);
+        TransactionUtils::fillSurfaceRGBA8(mSyncSurfaceControl, 31, 31, 31);
 
         asTransaction([&](Transaction& t) {
             t.setDisplayLayerStack(display, 0);
@@ -3581,9 +3598,9 @@ protected:
         // posting three buffers to it should ensure that at least two
         // SurfaceFlinger::handlePageFlip calls have been made, which should
         // guaranteed that a buffer posted to another Surface has been retired.
-        fillSurfaceRGBA8(mSyncSurfaceControl, 31, 31, 31);
-        fillSurfaceRGBA8(mSyncSurfaceControl, 31, 31, 31);
-        fillSurfaceRGBA8(mSyncSurfaceControl, 31, 31, 31);
+        TransactionUtils::fillSurfaceRGBA8(mSyncSurfaceControl, 31, 31, 31);
+        TransactionUtils::fillSurfaceRGBA8(mSyncSurfaceControl, 31, 31, 31);
+        TransactionUtils::fillSurfaceRGBA8(mSyncSurfaceControl, 31, 31, 31);
     }
 
 
@@ -3600,7 +3617,7 @@ TEST_F(LayerUpdateTest, RelativesAreNotDetached) {
     std::unique_ptr<ScreenCapture> sc;
 
     sp<SurfaceControl> relative = createLayer(String8("relativeTestSurface"), 10, 10, 0);
-    fillSurfaceRGBA8(relative, 10, 10, 10);
+    TransactionUtils::fillSurfaceRGBA8(relative, 10, 10, 10);
     waitForPostedBuffers();
 
     Transaction{}
@@ -3641,7 +3658,9 @@ protected:
         sc->expectBGColor(128, 128);
     }
 
-    void lockAndFillFGBuffer() { fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63, false); }
+    void lockAndFillFGBuffer() {
+        TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63, false);
+    }
 
     void unlockFGBuffer() {
         sp<Surface> s = mFGSurfaceControl->getSurface();
@@ -3650,7 +3669,7 @@ protected:
     }
 
     void completeFGResize() {
-        fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
+        TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
         waitForPostedBuffers();
     }
     void restoreInitialState() {
@@ -3718,7 +3737,7 @@ TEST_F(LayerUpdateTest, DeferredTransactionTest) {
     }
 
     // should trigger the first deferred transaction, but not the second one
-    fillSurfaceRGBA8(mSyncSurfaceControl, 31, 31, 31);
+    TransactionUtils::fillSurfaceRGBA8(mSyncSurfaceControl, 31, 31, 31);
     {
         SCOPED_TRACE("after first trigger");
         ScreenCapture::captureScreen(&sc);
@@ -3731,7 +3750,7 @@ TEST_F(LayerUpdateTest, DeferredTransactionTest) {
     asTransaction([&](Transaction& t) { t.setAlpha(mFGSurfaceControl, 1.0); });
 
     // trigger the second deferred transaction
-    fillSurfaceRGBA8(mSyncSurfaceControl, 31, 31, 31);
+    TransactionUtils::fillSurfaceRGBA8(mSyncSurfaceControl, 31, 31, 31);
     {
         SCOPED_TRACE("after second trigger");
         ScreenCapture::captureScreen(&sc);
@@ -3749,7 +3768,7 @@ TEST_F(LayerUpdateTest, LayerWithNoBuffersResizesImmediately) {
                           PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
     sp<SurfaceControl> childBuffer = createSurface(mClient, "Buffered child", 20, 20,
                                                    PIXEL_FORMAT_RGBA_8888, 0, childNoBuffer.get());
-    fillSurfaceRGBA8(childBuffer, 200, 200, 200);
+    TransactionUtils::fillSurfaceRGBA8(childBuffer, 200, 200, 200);
     SurfaceComposerClient::Transaction{}
             .setCrop_legacy(childNoBuffer, Rect(0, 0, 10, 10))
             .show(childNoBuffer)
@@ -3824,7 +3843,7 @@ protected:
         LayerUpdateTest::SetUp();
         mChild = createSurface(mClient, "Child surface", 10, 15, PIXEL_FORMAT_RGBA_8888, 0,
                                mFGSurfaceControl.get());
-        fillSurfaceRGBA8(mChild, 200, 200, 200);
+        TransactionUtils::fillSurfaceRGBA8(mChild, 200, 200, 200);
 
         {
             SCOPED_TRACE("before anything");
@@ -3955,9 +3974,9 @@ TEST_F(ChildLayerTest, ChildLayerScalingCroppedByParent) {
 }
 
 TEST_F(ChildLayerTest, ChildLayerAlpha) {
-    fillSurfaceRGBA8(mBGSurfaceControl, 0, 0, 254);
-    fillSurfaceRGBA8(mFGSurfaceControl, 254, 0, 0);
-    fillSurfaceRGBA8(mChild, 0, 254, 0);
+    TransactionUtils::fillSurfaceRGBA8(mBGSurfaceControl, 0, 0, 254);
+    TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 254, 0, 0);
+    TransactionUtils::fillSurfaceRGBA8(mChild, 0, 254, 0);
     waitForPostedBuffers();
 
     asTransaction([&](Transaction& t) {
@@ -4025,7 +4044,7 @@ TEST_F(ChildLayerTest, ReparentChildren) {
 TEST_F(ChildLayerTest, ChildrenSurviveParentDestruction) {
     sp<SurfaceControl> mGrandChild =
             createSurface(mClient, "Grand Child", 10, 10, PIXEL_FORMAT_RGBA_8888, 0, mChild.get());
-    fillSurfaceRGBA8(mGrandChild, 111, 111, 111);
+    TransactionUtils::fillSurfaceRGBA8(mGrandChild, 111, 111, 111);
 
     {
         SCOPED_TRACE("Grandchild visible");
@@ -4055,7 +4074,7 @@ TEST_F(ChildLayerTest, ChildrenSurviveParentDestruction) {
 TEST_F(ChildLayerTest, ChildrenRelativeZSurvivesParentDestruction) {
     sp<SurfaceControl> mGrandChild =
             createSurface(mClient, "Grand Child", 10, 10, PIXEL_FORMAT_RGBA_8888, 0, mChild.get());
-    fillSurfaceRGBA8(mGrandChild, 111, 111, 111);
+    TransactionUtils::fillSurfaceRGBA8(mGrandChild, 111, 111, 111);
 
     // draw grand child behind the foreground surface
     asTransaction([&](Transaction& t) {
@@ -4120,7 +4139,7 @@ TEST_F(ChildLayerTest, DetachChildrenDifferentClient) {
 
     ASSERT_TRUE(mChildNewClient->isValid());
 
-    fillSurfaceRGBA8(mChildNewClient, 200, 200, 200);
+    TransactionUtils::fillSurfaceRGBA8(mChildNewClient, 200, 200, 200);
 
     asTransaction([&](Transaction& t) {
         t.hide(mChild);
@@ -4161,7 +4180,7 @@ TEST_F(ChildLayerTest, DetachChildrenThenAttach) {
     ASSERT_TRUE(childNewClient != nullptr);
     ASSERT_TRUE(childNewClient->isValid());
 
-    fillSurfaceRGBA8(childNewClient, 200, 200, 200);
+    TransactionUtils::fillSurfaceRGBA8(childNewClient, 200, 200, 200);
 
     Transaction()
             .hide(mChild)
@@ -4215,7 +4234,7 @@ TEST_F(ChildLayerTest, DetachChildrenWithDeferredTransaction) {
     ASSERT_TRUE(childNewClient != nullptr);
     ASSERT_TRUE(childNewClient->isValid());
 
-    fillSurfaceRGBA8(childNewClient, 200, 200, 200);
+    TransactionUtils::fillSurfaceRGBA8(childNewClient, 200, 200, 200);
 
     Transaction()
             .hide(mChild)
@@ -4304,7 +4323,7 @@ TEST_F(ChildLayerTest, ChildrenWithParentBufferTransform) {
     auto anw = static_cast<ANativeWindow*>(s.get());
     native_window_set_buffers_transform(anw, NATIVE_WINDOW_TRANSFORM_ROT_90);
     native_window_set_buffers_dimensions(anw, 64, 128);
-    fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
+    TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
     waitForPostedBuffers();
 
     {
@@ -4324,7 +4343,7 @@ TEST_F(ChildLayerTest, ChildCroppedByParentWithBufferTransform) {
         t.setPosition(mFGSurfaceControl, 0, 0);
         t.setSize(mChild, 100, 100);
     });
-    fillSurfaceRGBA8(mChild, 200, 200, 200);
+    TransactionUtils::fillSurfaceRGBA8(mChild, 200, 200, 200);
 
     {
         mCapture = screenshot();
@@ -4340,7 +4359,7 @@ TEST_F(ChildLayerTest, ChildCroppedByParentWithBufferTransform) {
     // Apply a 90 transform on the buffer.
     native_window_set_buffers_transform(anw, NATIVE_WINDOW_TRANSFORM_ROT_90);
     native_window_set_buffers_dimensions(anw, 64, 128);
-    fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
+    TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
     waitForPostedBuffers();
 
     // The child should be cropped by the new parent bounds.
@@ -4361,7 +4380,7 @@ TEST_F(ChildLayerTest, ChildCroppedByParentWithBufferScale) {
         t.setPosition(mFGSurfaceControl, 0, 0);
         t.setSize(mChild, 200, 200);
     });
-    fillSurfaceRGBA8(mChild, 200, 200, 200);
+    TransactionUtils::fillSurfaceRGBA8(mChild, 200, 200, 200);
 
     {
         mCapture = screenshot();
@@ -4413,7 +4432,7 @@ TEST_F(ChildLayerTest, ChildrenWithParentBufferTransformAndScale) {
     // have an effective scale of 2.0 applied to the buffer along with a rotation transform.
     native_window_set_buffers_transform(anw, NATIVE_WINDOW_TRANSFORM_ROT_90);
     native_window_set_buffers_dimensions(anw, 32, 64);
-    fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
+    TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
     waitForPostedBuffers();
 
     // The child should ignore the buffer transform but apply the 2.0 scale from parent.
@@ -4446,13 +4465,13 @@ TEST_F(ChildLayerTest, Bug36858924) {
     // frame because SurfaceFlinger would never process the deferred transaction and would therefore
     // never acquire/release the first buffer
     ALOGI("Filling 1");
-    fillSurfaceRGBA8(mFGSurfaceControl, 0, 255, 0);
+    TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 0, 255, 0);
     ALOGI("Filling 2");
-    fillSurfaceRGBA8(mFGSurfaceControl, 0, 0, 255);
+    TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 0, 0, 255);
     ALOGI("Filling 3");
-    fillSurfaceRGBA8(mFGSurfaceControl, 255, 0, 0);
+    TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 255, 0, 0);
     ALOGI("Filling 4");
-    fillSurfaceRGBA8(mFGSurfaceControl, 0, 255, 0);
+    TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 0, 255, 0);
 }
 
 TEST_F(ChildLayerTest, Reparent) {
@@ -4517,7 +4536,7 @@ TEST_F(ChildLayerTest, ReparentFromNoParent) {
     ASSERT_TRUE(newSurface != nullptr);
     ASSERT_TRUE(newSurface->isValid());
 
-    fillSurfaceRGBA8(newSurface, 63, 195, 63);
+    TransactionUtils::fillSurfaceRGBA8(newSurface, 63, 195, 63);
     asTransaction([&](Transaction& t) {
         t.hide(mChild);
         t.show(newSurface);
@@ -4549,7 +4568,7 @@ TEST_F(ChildLayerTest, ReparentFromNoParent) {
 TEST_F(ChildLayerTest, NestedChildren) {
     sp<SurfaceControl> grandchild = createSurface(mClient, "Grandchild surface", 10, 10,
                                                   PIXEL_FORMAT_RGBA_8888, 0, mChild.get());
-    fillSurfaceRGBA8(grandchild, 50, 50, 50);
+    TransactionUtils::fillSurfaceRGBA8(grandchild, 50, 50, 50);
 
     {
         mCapture = screenshot();
@@ -4561,7 +4580,7 @@ TEST_F(ChildLayerTest, NestedChildren) {
 
 TEST_F(ChildLayerTest, ChildLayerRelativeLayer) {
     sp<SurfaceControl> relative = createLayer(String8("Relative surface"), 128, 128, 0);
-    fillSurfaceRGBA8(relative, 255, 255, 255);
+    TransactionUtils::fillSurfaceRGBA8(relative, 255, 255, 255);
 
     Transaction t;
     t.setLayer(relative, INT32_MAX)
@@ -4798,7 +4817,7 @@ TEST_F(ScreenCaptureTest, CaptureLayerWithChild) {
 
     sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
                                              PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
-    fillSurfaceRGBA8(child, 200, 200, 200);
+    TransactionUtils::fillSurfaceRGBA8(child, 200, 200, 200);
 
     SurfaceComposerClient::Transaction().show(child).apply(true);
 
@@ -4813,7 +4832,7 @@ TEST_F(ScreenCaptureTest, CaptureLayerChildOnly) {
 
     sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
                                              PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
-    fillSurfaceRGBA8(child, 200, 200, 200);
+    TransactionUtils::fillSurfaceRGBA8(child, 200, 200, 200);
 
     SurfaceComposerClient::Transaction().show(child).apply(true);
 
@@ -4828,10 +4847,10 @@ TEST_F(ScreenCaptureTest, CaptureLayerExclude) {
 
     sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
                                              PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
-    fillSurfaceRGBA8(child, 200, 200, 200);
+    TransactionUtils::fillSurfaceRGBA8(child, 200, 200, 200);
     sp<SurfaceControl> child2 = createSurface(mClient, "Child surface", 10, 10,
                                               PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
-    fillSurfaceRGBA8(child2, 200, 0, 200);
+    TransactionUtils::fillSurfaceRGBA8(child2, 200, 0, 200);
 
     SurfaceComposerClient::Transaction()
             .show(child)
@@ -4852,13 +4871,13 @@ TEST_F(ScreenCaptureTest, CaptureLayerExcludeTree) {
 
     sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
                                              PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
-    fillSurfaceRGBA8(child, 200, 200, 200);
+    TransactionUtils::fillSurfaceRGBA8(child, 200, 200, 200);
     sp<SurfaceControl> child2 = createSurface(mClient, "Child surface", 10, 10,
                                               PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
-    fillSurfaceRGBA8(child2, 200, 0, 200);
+    TransactionUtils::fillSurfaceRGBA8(child2, 200, 0, 200);
     sp<SurfaceControl> child3 = createSurface(mClient, "Child surface", 10, 10,
                                               PIXEL_FORMAT_RGBA_8888, 0, child2.get());
-    fillSurfaceRGBA8(child2, 200, 0, 200);
+    TransactionUtils::fillSurfaceRGBA8(child2, 200, 0, 200);
 
     SurfaceComposerClient::Transaction()
             .show(child)
@@ -4878,7 +4897,7 @@ TEST_F(ScreenCaptureTest, CaptureTransparent) {
     sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
                                              PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
 
-    fillSurfaceRGBA8(child, 200, 200, 200);
+    TransactionUtils::fillSurfaceRGBA8(child, 200, 200, 200);
 
     SurfaceComposerClient::Transaction().show(child).apply(true);
 
@@ -4898,8 +4917,8 @@ TEST_F(ScreenCaptureTest, DontCaptureRelativeOutsideTree) {
                                              PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
     ASSERT_NE(nullptr, child.get()) << "failed to create surface";
     sp<SurfaceControl> relative = createLayer(String8("Relative surface"), 10, 10, 0);
-    fillSurfaceRGBA8(child, 200, 200, 200);
-    fillSurfaceRGBA8(relative, 100, 100, 100);
+    TransactionUtils::fillSurfaceRGBA8(child, 200, 200, 200);
+    TransactionUtils::fillSurfaceRGBA8(relative, 100, 100, 100);
 
     SurfaceComposerClient::Transaction()
             .show(child)
@@ -4921,8 +4940,8 @@ TEST_F(ScreenCaptureTest, CaptureRelativeInTree) {
                                              PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
     sp<SurfaceControl> relative = createSurface(mClient, "Relative surface", 10, 10,
                                                 PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
-    fillSurfaceRGBA8(child, 200, 200, 200);
-    fillSurfaceRGBA8(relative, 100, 100, 100);
+    TransactionUtils::fillSurfaceRGBA8(child, 200, 200, 200);
+    TransactionUtils::fillSurfaceRGBA8(relative, 100, 100, 100);
 
     SurfaceComposerClient::Transaction()
             .show(child)
@@ -4951,7 +4970,7 @@ public:
 
         mChild = createSurface(mClient, "Child surface", 10, 10, PIXEL_FORMAT_RGBA_8888, 0,
                                mFGSurfaceControl.get());
-        fillSurfaceRGBA8(mChild, 200, 200, 200);
+        TransactionUtils::fillSurfaceRGBA8(mChild, 200, 200, 200);
 
         SurfaceComposerClient::Transaction().show(mChild).apply(true);
     }
@@ -5014,12 +5033,12 @@ TEST_F(ScreenCaptureTest, CaptureLayerWithGrandchild) {
 
     sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
                                              PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
-    fillSurfaceRGBA8(child, 200, 200, 200);
+    TransactionUtils::fillSurfaceRGBA8(child, 200, 200, 200);
 
     sp<SurfaceControl> grandchild = createSurface(mClient, "Grandchild surface", 5, 5,
                                                   PIXEL_FORMAT_RGBA_8888, 0, child.get());
 
-    fillSurfaceRGBA8(grandchild, 50, 50, 50);
+    TransactionUtils::fillSurfaceRGBA8(grandchild, 50, 50, 50);
     SurfaceComposerClient::Transaction()
             .show(child)
             .setPosition(grandchild, 5, 5)
@@ -5036,7 +5055,7 @@ TEST_F(ScreenCaptureTest, CaptureLayerWithGrandchild) {
 TEST_F(ScreenCaptureTest, CaptureChildOnly) {
     sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
                                              PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
-    fillSurfaceRGBA8(child, 200, 200, 200);
+    TransactionUtils::fillSurfaceRGBA8(child, 200, 200, 200);
     auto childHandle = child->getHandle();
 
     SurfaceComposerClient::Transaction().setPosition(child, 5, 5).show(child).apply(true);
@@ -5050,12 +5069,12 @@ TEST_F(ScreenCaptureTest, CaptureChildOnly) {
 TEST_F(ScreenCaptureTest, CaptureGrandchildOnly) {
     sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
                                              PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
-    fillSurfaceRGBA8(child, 200, 200, 200);
+    TransactionUtils::fillSurfaceRGBA8(child, 200, 200, 200);
     auto childHandle = child->getHandle();
 
     sp<SurfaceControl> grandchild = createSurface(mClient, "Grandchild surface", 5, 5,
                                                   PIXEL_FORMAT_RGBA_8888, 0, child.get());
-    fillSurfaceRGBA8(grandchild, 50, 50, 50);
+    TransactionUtils::fillSurfaceRGBA8(grandchild, 50, 50, 50);
 
     SurfaceComposerClient::Transaction()
             .show(child)
@@ -5550,8 +5569,8 @@ TEST_F(LayerTransactionTest, DISABLED_BufferQueueLayerMergeDamageRegionWhenDropp
         ASSERT_NO_FATAL_FAILURE(slotToBuffer(slot1, &buf1));
         sp<GraphicBuffer> buf2;
         ASSERT_NO_FATAL_FAILURE(slotToBuffer(slot2, &buf2));
-        fillGraphicBufferColor(buf1, Rect(width, height), color);
-        fillGraphicBufferColor(buf2, Rect(width, height), color);
+        TransactionUtils::fillGraphicBufferColor(buf1, Rect(width, height), color);
+        TransactionUtils::fillGraphicBufferColor(buf2, Rect(width, height), color);
 
         const auto displayTime = systemTime() + milliseconds_to_nanoseconds(100);
         ASSERT_NO_FATAL_FAILURE(queue(slot1, Region::INVALID_REGION, displayTime));
