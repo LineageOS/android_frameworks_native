@@ -45,8 +45,8 @@ public:
       ALOGE("onVsync failed to writeInt64: %d", result);
       return result;
     }
-    result = remote()->transact(
-        BnVsyncCallback::ON_VSYNC, data, &reply, TF_ONE_WAY);
+    result = remote()->transact(BnVsyncCallback::ON_VSYNC, data, &reply,
+                                IBinder::FLAG_ONEWAY);
     if (result != OK) {
       ALOGE("onVsync failed to transact: %d", result);
       return result;
