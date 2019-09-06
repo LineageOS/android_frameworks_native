@@ -39,7 +39,7 @@ bool RefreshRateOverlay::createLayer() {
 
     Mutex::Autolock _l(mFlinger.mStateLock);
     mLayer = mClient->getLayerUser(mIBinder);
-    mLayer->setCrop_legacy(Rect(50, 70, 200, 100), true);
+    mLayer->setCrop_legacy(Rect(50, 70, 200, 100));
 
     // setting Layer's Z requires resorting layersSortedByZ
     ssize_t idx = mFlinger.mCurrentState.layersSortedByZ.indexOf(mLayer);

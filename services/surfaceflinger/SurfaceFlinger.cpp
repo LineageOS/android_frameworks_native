@@ -3392,8 +3392,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     uint32_t flags = 0;
 
     const uint64_t what = s.what;
-    bool geometryAppliesWithResize =
-            what & layer_state_t::eGeometryAppliesWithResize;
 
     // If we are deferring transaction, make sure to push the pending state, as otherwise the
     // pending state will also be deferred.
@@ -3402,7 +3400,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     }
 
     if (what & layer_state_t::ePositionChanged) {
-        if (layer->setPosition(s.x, s.y, !geometryAppliesWithResize)) {
+        if (layer->setPosition(s.x, s.y)) {
             flags |= eTraversalNeeded;
         }
     }
@@ -3493,8 +3491,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eCropChanged_legacy) {
-        if (layer->setCrop_legacy(s.crop_legacy, !geometryAppliesWithResize))
-            flags |= eTraversalNeeded;
+        if (layer->setCrop_legacy(s.crop_legacy)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eCornerRadiusChanged) {
         if (layer->setCornerRadius(s.cornerRadius))

@@ -71,7 +71,7 @@ struct layer_state_t {
         eCropChanged_legacy = 0x00000100,
         eDeferTransaction_legacy = 0x00000200,
         eOverrideScalingModeChanged = 0x00000400,
-        eGeometryAppliesWithResize = 0x00000800,
+        // AVAILABLE 0x00000800,
         eReparentChildren = 0x00001000,
         eDetachChildren = 0x00002000,
         eRelativeLayerChanged = 0x00004000,

@@ -1187,19 +1187,6 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setOverr
     return *this;
 }
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setGeometryAppliesWithResize(
-        const sp<SurfaceControl>& sc) {
-    layer_state_t* s = getLayerState(sc);
-    if (!s) {
-        mStatus = BAD_INDEX;
-        return *this;
-    }
-    s->what |= layer_state_t::eGeometryAppliesWithResize;
-
-    registerSurfaceControlForCallback(sc);
-    return *this;
-}
-
 #ifndef NO_INPUT
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setInputWindowInfo(
         const sp<SurfaceControl>& sc,
