@@ -471,7 +471,7 @@ public:
      */
     bool onPreComposition(nsecs_t) override;
     void latchCompositionState(compositionengine::LayerFECompositionState&,
-                               bool includeGeometry) const override;
+                               compositionengine::LayerFE::StateSubset subset) const override;
     void latchCursorCompositionState(compositionengine::LayerFECompositionState&) const override;
     std::optional<renderengine::LayerSettings> prepareClientComposition(
             compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
@@ -479,6 +479,7 @@ public:
     const char* getDebugName() const override;
 
 protected:
+    void latchBasicGeometry(compositionengine::LayerFECompositionState& outState) const;
     void latchGeometry(compositionengine::LayerFECompositionState& outState) const;
     virtual void latchPerFrameState(compositionengine::LayerFECompositionState& outState) const;
 

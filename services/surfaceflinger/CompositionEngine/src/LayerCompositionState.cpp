@@ -45,7 +45,7 @@ void dumpFrontEnd(std::string& out, const LayerFECompositionState& state) {
     dumpVal(out, "geomBufferTransform", state.geomBufferTransform);
 
     out.append("\n      ");
-    dumpVal(out, "geomActiveTransparentRegion", state.geomActiveTransparentRegion);
+    dumpVal(out, "transparentRegionHint", state.transparentRegionHint);
 
     out.append("      ");
     dumpVal(out, "geomLayerBounds", state.geomLayerBounds);

@@ -124,7 +124,7 @@ struct OutputLayerSourceCropTest : public OutputLayerTest {
         // set one specific value to something different.
         mLayerState.frontEnd.geomUsesSourceCrop = true;
         mLayerState.frontEnd.geomContentCrop = Rect{0, 0, 1920, 1080};
-        mLayerState.frontEnd.geomActiveTransparentRegion = Region{};
+        mLayerState.frontEnd.transparentRegionHint = Region{};
         mLayerState.frontEnd.geomLayerBounds = FloatRect{0.f, 0.f, 1920.f, 1080.f};
         mLayerState.frontEnd.geomLayerTransform = ui::Transform{TR_IDENT};
         mLayerState.frontEnd.geomBufferSize = Rect{0, 0, 1920, 1080};
@@ -231,7 +231,7 @@ struct OutputLayerDisplayFrameTest : public OutputLayerTest {
         // Set reasonable default values for a simple case. Each test will
         // set one specific value to something different.
 
-        mLayerState.frontEnd.geomActiveTransparentRegion = Region{};
+        mLayerState.frontEnd.transparentRegionHint = Region{};
         mLayerState.frontEnd.geomLayerTransform = ui::Transform{TR_IDENT};
         mLayerState.frontEnd.geomBufferSize = Rect{0, 0, 1920, 1080};
         mLayerState.frontEnd.geomBufferUsesDisplayInverseTransform = false;
@@ -256,7 +256,7 @@ TEST_F(OutputLayerDisplayFrameTest, correctForSimpleDefaultCase) {
 }
 
 TEST_F(OutputLayerDisplayFrameTest, fullActiveTransparentRegionReturnsEmptyFrame) {
-    mLayerState.frontEnd.geomActiveTransparentRegion = Region{Rect{0, 0, 1920, 1080}};
+    mLayerState.frontEnd.transparentRegionHint = Region{Rect{0, 0, 1920, 1080}};
     const Rect expected{0, 0, 0, 0};
     EXPECT_THAT(calculateOutputDisplayFrame(), RectEq(expected));
 }

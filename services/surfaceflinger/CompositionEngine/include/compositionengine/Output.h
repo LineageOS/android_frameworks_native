@@ -132,7 +132,7 @@ public:
     // A layer belongs to the output if its layerStackId matches. Additionally
     // if the layer should only show in the internal (primary) display only and
     // this output allows that.
-    virtual bool belongsInOutput(uint32_t layerStackId, bool internalOnly) const = 0;
+    virtual bool belongsInOutput(std::optional<uint32_t> layerStackId, bool internalOnly) const = 0;
 
     // Returns a pointer to the output layer corresponding to the given layer on
     // this output, or nullptr if the layer does not have one
