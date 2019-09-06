@@ -75,7 +75,6 @@ cc_defaults {
         "libtrace_proto",
         "libvr_manager",
         "libvrflinger",
-        "perfetto_src_tracing_ipc",
     ],
     header_libs: [
         "android.hardware.graphics.composer@2.1-command-buffer",
@@ -84,7 +83,6 @@ cc_defaults {
     ],
     export_static_lib_headers: [
         "libcompositionengine",
-        "libperfetto_client_experimental",
         "librenderengine",
         "libserviceutils",
         "libtimestats",
