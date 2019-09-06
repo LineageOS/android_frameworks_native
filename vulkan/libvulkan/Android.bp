@@ -87,7 +87,6 @@ cc_library_shared {
         "libbase",
         "libdl_android",
         "libhidlbase",
-        "libhidltransport",
         "liblog",
         "libui",
         "libgraphicsenv",

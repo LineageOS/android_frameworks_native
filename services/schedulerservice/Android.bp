@@ -6,8 +6,6 @@ cc_library_shared {
     cflags: ["-Wall", "-Werror"],
     shared_libs: [
         "libhidlbase",
-        "libhidltransport",
-        "libhwbinder",
         "libmediautils",
         "liblog",
         "libutils",
