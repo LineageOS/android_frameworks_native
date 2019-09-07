@@ -112,6 +112,7 @@
 
 #include <cutils/compiler.h>
 
+#include "android-base/parseint.h"
 #include "android-base/stringprintf.h"
 
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
@@ -4056,6 +4057,7 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args,
                 {"--display-id"s, dumper(&SurfaceFlinger::dumpDisplayIdentificationData)},
                 {"--dispsync"s,
                  dumper([this](std::string& s) { mScheduler->getPrimaryDispSync().dump(s); })},
+                {"--edid"s, argsDumper(&SurfaceFlinger::dumpRawDisplayIdentificationData)},
                 {"--frame-events"s, dumper(&SurfaceFlinger::dumpFrameEventsLocked)},
                 {"--latency"s, argsDumper(&SurfaceFlinger::dumpStatsLocked)},
                 {"--latency-clear"s, argsDumper(&SurfaceFlinger::clearStatsLocked)},
@@ -4284,27 +4286,31 @@ void SurfaceFlinger::dumpDisplayIdentificationData(std::string& result) const {
         }
 
         if (!isEdid(data)) {
-            result.append("unknown identification data: ");
-            for (uint8_t byte : data) {
-                StringAppendF(&result, "%x ", byte);
-            }
-            result.append("\n");
+            result.append("unknown identification data\n");
             continue;
         }
 
         const auto edid = parseEdid(data);
         if (!edid) {
-            result.append("invalid EDID: ");
-            for (uint8_t byte : data) {
-                StringAppendF(&result, "%x ", byte);
-            }
-            result.append("\n");
+            result.append("invalid EDID\n");
             continue;
         }
 
         StringAppendF(&result, "port=%u pnpId=%s displayName=\"", port, edid->pnpId.data());
         result.append(edid->displayName.data(), edid->displayName.length());
         result.append("\"\n");
+    }
+}
+
+void SurfaceFlinger::dumpRawDisplayIdentificationData(const DumpArgs& args,
+                                                      std::string& result) const {
+    hwc2_display_t hwcDisplayId;
+    uint8_t port;
+    DisplayIdentificationData data;
+
+    if (args.size() > 1 && base::ParseUint(String8(args[1]), &hwcDisplayId) &&
+        getHwComposer().getDisplayIdentificationData(hwcDisplayId, &port, &data)) {
+        result.append(reinterpret_cast<const char*>(data.data()), data.size());
     }
 }
 
