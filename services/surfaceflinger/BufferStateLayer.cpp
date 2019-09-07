@@ -125,10 +125,6 @@ bool BufferStateLayer::willPresentCurrentTransaction() const {
              (mCurrentState.buffer != nullptr || mCurrentState.bgColorLayer != nullptr));
 }
 
-bool BufferStateLayer::getTransformToDisplayInverse() const {
-    return mCurrentState.transformToDisplayInverse;
-}
-
 void BufferStateLayer::pushPendingState() {
     if (!mCurrentState.modified) {
         return;
@@ -400,75 +396,6 @@ bool BufferStateLayer::framePresentTimeIsCurrent(nsecs_t expectedPresentTime) co
     return mCurrentState.desiredPresentTime <= expectedPresentTime;
 }
 
-nsecs_t BufferStateLayer::getDesiredPresentTime() {
-    return getDrawingState().desiredPresentTime;
-}
-
-std::shared_ptr<FenceTime> BufferStateLayer::getCurrentFenceTime() const {
-    return std::make_shared<FenceTime>(getDrawingState().acquireFence);
-}
-
-void BufferStateLayer::getDrawingTransformMatrix(float *matrix) {
-    std::copy(std::begin(mTransformMatrix), std::end(mTransformMatrix), matrix);
-}
-
-uint32_t BufferStateLayer::getDrawingTransform() const {
-    return getDrawingState().transform;
-}
-
-ui::Dataspace BufferStateLayer::getDrawingDataSpace() const {
-    return getDrawingState().dataspace;
-}
-
-// Crop that applies to the buffer
-Rect BufferStateLayer::getDrawingCrop() const {
-    const State& s(getDrawingState());
-
-    if (s.crop.isEmpty() && s.buffer) {
-        return s.buffer->getBounds();
-    } else if (s.buffer) {
-        Rect crop = s.crop;
-        crop.left = std::max(crop.left, 0);
-        crop.top = std::max(crop.top, 0);
-        uint32_t bufferWidth = s.buffer->getWidth();
-        uint32_t bufferHeight = s.buffer->getHeight();
-        if (bufferHeight <= std::numeric_limits<int32_t>::max() &&
-            bufferWidth <= std::numeric_limits<int32_t>::max()) {
-            crop.right = std::min(crop.right, static_cast<int32_t>(bufferWidth));
-            crop.bottom = std::min(crop.bottom, static_cast<int32_t>(bufferHeight));
-        }
-        if (!crop.isValid()) {
-            // Crop rect is out of bounds, return whole buffer
-            return s.buffer->getBounds();
-        }
-        return crop;
-    }
-    return s.crop;
-}
-
-uint32_t BufferStateLayer::getDrawingScalingMode() const {
-    return NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
-}
-
-Region BufferStateLayer::getDrawingSurfaceDamage() const {
-    return getDrawingState().surfaceDamageRegion;
-}
-
-const HdrMetadata& BufferStateLayer::getDrawingHdrMetadata() const {
-    return getDrawingState().hdrMetadata;
-}
-
-int BufferStateLayer::getDrawingApi() const {
-    return getDrawingState().api;
-}
-
-PixelFormat BufferStateLayer::getPixelFormat() const {
-    if (!mActiveBuffer) {
-        return PIXEL_FORMAT_NONE;
-    }
-    return mActiveBuffer->format;
-}
-
 uint64_t BufferStateLayer::getFrameNumber(nsecs_t /*expectedPresentTime*/) const {
     return mFrameNumber;
 }
@@ -506,8 +433,8 @@ bool BufferStateLayer::hasFrameUpdate() const {
 }
 
 void BufferStateLayer::setFilteringEnabled(bool enabled) {
-    GLConsumer::computeTransformMatrix(mTransformMatrix.data(), mActiveBuffer, mCurrentCrop,
-                                       mCurrentTransform, enabled);
+    GLConsumer::computeTransformMatrix(mTransformMatrix.data(), mActiveBuffer, mBufferInfo.mCrop,
+                                       mBufferInfo.mTransform, enabled);
 }
 
 status_t BufferStateLayer::bindTextureImage() {
@@ -576,8 +503,8 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
     }
 
     const uint64_t bufferID = getCurrentBufferId();
-    mFlinger->mTimeStats->setAcquireFence(layerID, mFrameNumber, getCurrentFenceTime());
-    mFlinger->mFrameTracer->traceFence(layerID, bufferID, mFrameNumber, getCurrentFenceTime(),
+    mFlinger->mTimeStats->setAcquireFence(layerID, mFrameNumber, mBufferInfo.mFenceTime);
+    mFlinger->mFrameTracer->traceFence(layerID, bufferID, mFrameNumber, mBufferInfo.mFenceTime,
                                        FrameTracer::FrameEvent::ACQUIRE_FENCE);
     mFlinger->mTimeStats->setLatchTime(layerID, mFrameNumber, latchTime);
     mFlinger->mFrameTracer->traceTimestamp(layerID, bufferID, mFrameNumber, latchTime,
@@ -622,7 +549,7 @@ void BufferStateLayer::latchPerFrameState(
 
     compositionState.buffer = s.buffer;
     compositionState.bufferSlot = mHwcSlotGenerator->getHwcCacheSlot(s.clientCacheId);
-    compositionState.acquireFence = s.acquireFence;
+    compositionState.acquireFence = mBufferInfo.mFence;
 
     mFrameNumber++;
 }
@@ -707,4 +634,47 @@ void BufferStateLayer::HwcSlotGenerator::eraseBufferLocked(const client_cache_t&
     mFreeHwcCacheSlots.push(hwcCacheSlot);
     mCachedBuffers.erase(clientCacheId);
 }
+
+void BufferStateLayer::gatherBufferInfo() {
+    const State& s(getDrawingState());
+
+    mBufferInfo.mDesiredPresentTime = s.desiredPresentTime;
+    mBufferInfo.mFenceTime = std::make_shared<FenceTime>(s.acquireFence);
+    mBufferInfo.mFence = s.acquireFence;
+    std::copy(std::begin(mTransformMatrix), std::end(mTransformMatrix),
+              mBufferInfo.mTransformMatrix);
+    mBufferInfo.mTransform = s.transform;
+    mBufferInfo.mDataspace = translateDataspace(s.dataspace);
+    mBufferInfo.mCrop = computeCrop(s);
+    mBufferInfo.mScaleMode = NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
+    mBufferInfo.mSurfaceDamage = s.surfaceDamageRegion;
+    mBufferInfo.mHdrMetadata = s.hdrMetadata;
+    mBufferInfo.mApi = s.api;
+    mBufferInfo.mPixelFormat = !mActiveBuffer ? PIXEL_FORMAT_NONE : mActiveBuffer->format;
+    mBufferInfo.mTransformToDisplayInverse = s.transformToDisplayInverse;
+}
+
+Rect BufferStateLayer::computeCrop(const State& s) {
+    if (s.crop.isEmpty() && s.buffer) {
+        return s.buffer->getBounds();
+    } else if (s.buffer) {
+        Rect crop = s.crop;
+        crop.left = std::max(crop.left, 0);
+        crop.top = std::max(crop.top, 0);
+        uint32_t bufferWidth = s.buffer->getWidth();
+        uint32_t bufferHeight = s.buffer->getHeight();
+        if (bufferHeight <= std::numeric_limits<int32_t>::max() &&
+            bufferWidth <= std::numeric_limits<int32_t>::max()) {
+            crop.right = std::min(crop.right, static_cast<int32_t>(bufferWidth));
+            crop.bottom = std::min(crop.bottom, static_cast<int32_t>(bufferHeight));
+        }
+        if (!crop.isValid()) {
+            // Crop rect is out of bounds, return whole buffer
+            return s.buffer->getBounds();
+        }
+        return crop;
+    }
+    return s.crop;
+}
+
 } // namespace android

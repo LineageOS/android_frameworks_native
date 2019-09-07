@@ -326,7 +326,7 @@ public:
     virtual bool setBackgroundColor(const half3& color, float alpha, ui::Dataspace dataspace);
     virtual bool setColorSpaceAgnostic(const bool agnostic);
 
-    ui::Dataspace getDataSpace() const { return mCurrentDataSpace; }
+    virtual ui::Dataspace getDataSpace() const { return ui::Dataspace::UNKNOWN; }
 
     // Before color management is introduced, contents on Android have to be
     // desaturated in order to match what they appears like visually.
@@ -560,7 +560,12 @@ public:
      * returns the rectangle that crops the content of the layer and scales it
      * to the layer's size.
      */
-    Rect getContentCrop() const;
+    virtual Rect getBufferCrop() const { return Rect(); }
+
+    /*
+     * Returns the transform applied to the buffer.
+     */
+    virtual uint32_t getBufferTransform() const { return 0; }
 
     /*
      * Returns if a frame is ready
@@ -821,9 +826,6 @@ protected:
     // composition, true otherwise.
     bool mIsActiveBufferUpdatedForGpu = true;
 
-    ui::Dataspace mCurrentDataSpace = ui::Dataspace::UNKNOWN;
-    Rect mCurrentCrop;
-    uint32_t mCurrentTransform{0};
     // We encode unset as -1.
     int32_t mOverrideScalingMode{-1};
     std::atomic<uint64_t> mCurrentFrameNumber{0};
