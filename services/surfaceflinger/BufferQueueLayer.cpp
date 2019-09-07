@@ -343,11 +343,12 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
 status_t BufferQueueLayer::updateActiveBuffer() {
     // update the active buffer
     mPreviousBufferId = getCurrentBufferId();
-    mActiveBuffer = mConsumer->getCurrentBuffer(&mActiveBufferSlot, &mActiveBufferFence);
+    mBufferInfo.mBuffer =
+            mConsumer->getCurrentBuffer(&mBufferInfo.mBufferSlot, &mBufferInfo.mFence);
     auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
-    layerCompositionState.buffer = mActiveBuffer;
+    layerCompositionState.buffer = mBufferInfo.mBuffer;
 
-    if (mActiveBuffer == nullptr) {
+    if (mBufferInfo.mBuffer == nullptr) {
         // this can only happen if the very first buffer was rejected.
         return BAD_VALUE;
     }
@@ -372,9 +373,10 @@ void BufferQueueLayer::latchPerFrameState(
         return;
     }
 
-    compositionState.buffer = mActiveBuffer;
-    compositionState.bufferSlot =
-            (mActiveBufferSlot == BufferQueue::INVALID_BUFFER_SLOT) ? 0 : mActiveBufferSlot;
+    compositionState.buffer = mBufferInfo.mBuffer;
+    compositionState.bufferSlot = (mBufferInfo.mBufferSlot == BufferQueue::INVALID_BUFFER_SLOT)
+            ? 0
+            : mBufferInfo.mBufferSlot;
     compositionState.acquireFence = mBufferInfo.mFence;
 }
 
