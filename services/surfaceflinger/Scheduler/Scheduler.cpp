@@ -514,8 +514,13 @@ Scheduler::RefreshRateType Scheduler::calculateRefreshRateType() {
     // Content detection is on, find the appropriate refresh rate with minimal error
     // TODO(b/139751853): Scan allowed refresh rates only (SurfaceFlinger::mAllowedDisplayConfigs)
     const float rate = static_cast<float>(mFeatures.contentRefreshRate);
-    auto iter = min_element(mRefreshRateConfigs.getRefreshRates().cbegin(),
-                            mRefreshRateConfigs.getRefreshRates().cend(),
+    auto begin = mRefreshRateConfigs.getRefreshRates().cbegin();
+
+    // Skip POWER_SAVING config as it is not a real config
+    if (begin->first == RefreshRateType::POWER_SAVING) {
+        ++begin;
+    }
+    auto iter = min_element(begin, mRefreshRateConfigs.getRefreshRates().cend(),
                             [rate](const auto& lhs, const auto& rhs) -> bool {
                                 return std::abs(lhs.second->fps - rate) <
                                         std::abs(rhs.second->fps - rate);
