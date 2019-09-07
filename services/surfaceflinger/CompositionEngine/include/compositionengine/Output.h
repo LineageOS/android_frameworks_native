@@ -132,17 +132,20 @@ public:
     // A layer belongs to the output if its layerStackId matches. Additionally
     // if the layer should only show in the internal (primary) display only and
     // this output allows that.
-    virtual bool belongsInOutput(uint32_t layerStackId, bool internalOnly) const = 0;
+    virtual bool belongsInOutput(std::optional<uint32_t> layerStackId, bool internalOnly) const = 0;
 
     // Returns a pointer to the output layer corresponding to the given layer on
     // this output, or nullptr if the layer does not have one
     virtual OutputLayer* getOutputLayerForLayer(Layer*) const = 0;
 
+    // Creates an OutputLayer instance for this output
+    virtual std::unique_ptr<OutputLayer> createOutputLayer(const std::shared_ptr<Layer>&,
+                                                           const sp<LayerFE>&) const = 0;
+
     // Gets the OutputLayer corresponding to the input Layer instance from the
     // current ordered set of output layers. If there is no such layer, a new
     // one is created and returned.
-    virtual std::unique_ptr<OutputLayer> getOrCreateOutputLayer(std::optional<DisplayId>,
-                                                                std::shared_ptr<Layer>,
+    virtual std::unique_ptr<OutputLayer> getOrCreateOutputLayer(std::shared_ptr<Layer>,
                                                                 sp<LayerFE>) = 0;
 
     // Sets the new ordered set of output layers for this output

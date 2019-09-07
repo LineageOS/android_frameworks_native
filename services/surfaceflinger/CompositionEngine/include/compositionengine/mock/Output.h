@@ -59,13 +59,17 @@ public:
     MOCK_METHOD0(editState, OutputCompositionState&());
 
     MOCK_CONST_METHOD1(getDirtyRegion, Region(bool));
-    MOCK_CONST_METHOD2(belongsInOutput, bool(uint32_t, bool));
+    MOCK_CONST_METHOD2(belongsInOutput, bool(std::optional<uint32_t>, bool));
 
     MOCK_CONST_METHOD1(getOutputLayerForLayer,
                        compositionengine::OutputLayer*(compositionengine::Layer*));
-    MOCK_METHOD3(getOrCreateOutputLayer,
+    MOCK_CONST_METHOD2(createOutputLayer,
+                       std::unique_ptr<compositionengine::OutputLayer>(
+                               const std::shared_ptr<compositionengine::Layer>&,
+                               const sp<compositionengine::LayerFE>&));
+    MOCK_METHOD2(getOrCreateOutputLayer,
                  std::unique_ptr<compositionengine::OutputLayer>(
-                         std::optional<DisplayId>, std::shared_ptr<compositionengine::Layer>,
+                         std::shared_ptr<compositionengine::Layer>,
                          sp<compositionengine::LayerFE>));
 
     MOCK_METHOD1(setOutputLayersOrderedByZ, void(OutputLayers&&));

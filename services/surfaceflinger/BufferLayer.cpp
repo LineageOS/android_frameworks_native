@@ -81,7 +81,7 @@ void BufferLayer::useSurfaceDamage() {
     if (mFlinger->mForceFullDamage) {
         surfaceDamageRegion = Region::INVALID_REGION;
     } else {
-        surfaceDamageRegion = getDrawingSurfaceDamage();
+        surfaceDamageRegion = mBufferInfo.mSurfaceDamage;
     }
 }
 
@@ -92,7 +92,7 @@ void BufferLayer::useEmptyDamage() {
 bool BufferLayer::isOpaque(const Layer::State& s) const {
     // if we don't have a buffer or sidebandStream yet, we're translucent regardless of the
     // layer's opaque flag.
-    if ((mSidebandStream == nullptr) && (mActiveBuffer == nullptr)) {
+    if ((mSidebandStream == nullptr) && (mBufferInfo.mBuffer == nullptr)) {
         return false;
     }
 
@@ -103,7 +103,7 @@ bool BufferLayer::isOpaque(const Layer::State& s) const {
 
 bool BufferLayer::isVisible() const {
     bool visible = !(isHiddenByPolicy()) && getAlpha() > 0.0f &&
-            (mActiveBuffer != nullptr || mSidebandStream != nullptr);
+            (mBufferInfo.mBuffer != nullptr || mSidebandStream != nullptr);
     mFlinger->mScheduler->setLayerVisibility(mSchedulerLayerHandle, visible);
 
     return visible;
@@ -144,7 +144,7 @@ std::optional<renderengine::LayerSettings> BufferLayer::prepareClientComposition
         return result;
     }
 
-    if (CC_UNLIKELY(mActiveBuffer == 0)) {
+    if (CC_UNLIKELY(mBufferInfo.mBuffer == 0)) {
         // the texture has not been created yet, this Layer has
         // in fact never been drawn into. This happens frequently with
         // SurfaceView because the WindowManager can't know when the client
@@ -161,7 +161,8 @@ std::optional<renderengine::LayerSettings> BufferLayer::prepareClientComposition
                 finished = true;
                 return;
             }
-            under.orSelf(layer->visibleRegion);
+
+            under.orSelf(layer->getScreenBounds());
         });
         // if not everything below us is covered, we plug the holes!
         Region holes(targetSettings.clip.subtract(under));
@@ -175,9 +176,9 @@ std::optional<renderengine::LayerSettings> BufferLayer::prepareClientComposition
     const State& s(getDrawingState());
     auto& layer = *result;
     if (!blackOutLayer) {
-        layer.source.buffer.buffer = mActiveBuffer;
+        layer.source.buffer.buffer = mBufferInfo.mBuffer;
         layer.source.buffer.isOpaque = isOpaque(s);
-        layer.source.buffer.fence = mActiveBufferFence;
+        layer.source.buffer.fence = mBufferInfo.mFence;
         layer.source.buffer.textureName = mTextureName;
         layer.source.buffer.usePremultipliedAlpha = getPremultipledAlpha();
         layer.source.buffer.isY410BT2020 = isHdrY410();
@@ -187,7 +188,7 @@ std::optional<renderengine::LayerSettings> BufferLayer::prepareClientComposition
         // Query the texture matrix given our current filtering mode.
         float textureMatrix[16];
         setFilteringEnabled(useFiltering);
-        getDrawingTransformMatrix(textureMatrix);
+        memcpy(textureMatrix, mBufferInfo.mTransformMatrix, sizeof(mBufferInfo.mTransformMatrix));
 
         if (getTransformToDisplayInverse()) {
             /*
@@ -254,9 +255,9 @@ std::optional<renderengine::LayerSettings> BufferLayer::prepareClientComposition
 
 bool BufferLayer::isHdrY410() const {
     // pixel format is HDR Y410 masquerading as RGBA_1010102
-    return (mCurrentDataSpace == ui::Dataspace::BT2020_ITU_PQ &&
-            getDrawingApi() == NATIVE_WINDOW_API_MEDIA &&
-            mActiveBuffer->getPixelFormat() == HAL_PIXEL_FORMAT_RGBA_1010102);
+    return (mBufferInfo.mDataspace == ui::Dataspace::BT2020_ITU_PQ &&
+            mBufferInfo.mApi == NATIVE_WINDOW_API_MEDIA &&
+            mBufferInfo.mBuffer->getPixelFormat() == HAL_PIXEL_FORMAT_RGBA_1010102);
 }
 
 void BufferLayer::latchPerFrameState(
@@ -268,7 +269,7 @@ void BufferLayer::latchPerFrameState(
         compositionState.compositionType = Hwc2::IComposerClient::Composition::SIDEBAND;
     } else {
         // Normal buffer layers
-        compositionState.hdrMetadata = getDrawingHdrMetadata();
+        compositionState.hdrMetadata = mBufferInfo.mHdrMetadata;
         compositionState.compositionType = mPotentialCursor
                 ? Hwc2::IComposerClient::Composition::CURSOR
                 : Hwc2::IComposerClient::Composition::DEVICE;
@@ -276,7 +277,7 @@ void BufferLayer::latchPerFrameState(
 }
 
 bool BufferLayer::onPreComposition(nsecs_t refreshStartTime) {
-    if (mBufferLatched) {
+    if (mBufferInfo.mBuffer != nullptr) {
         Mutex::Autolock lock(mFrameEventHistoryMutex);
         mFrameEventHistory.addPreComposition(mCurrentFrameNumber, refreshStartTime);
     }
@@ -300,13 +301,13 @@ bool BufferLayer::onPostComposition(const std::optional<DisplayId>& displayId,
     }
 
     // Update mFrameTracker.
-    nsecs_t desiredPresentTime = getDesiredPresentTime();
+    nsecs_t desiredPresentTime = mBufferInfo.mDesiredPresentTime;
     mFrameTracker.setDesiredPresentTime(desiredPresentTime);
 
     const int32_t layerID = getSequence();
     mFlinger->mTimeStats->setDesiredTime(layerID, mCurrentFrameNumber, desiredPresentTime);
 
-    std::shared_ptr<FenceTime> frameReadyFence = getCurrentFenceTime();
+    std::shared_ptr<FenceTime> frameReadyFence = mBufferInfo.mFenceTime;
     if (frameReadyFence->isValid()) {
         mFrameTracker.setFrameReadyFence(std::move(frameReadyFence));
     } else {
@@ -370,7 +371,8 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
     // Capture the old state of the layer for comparisons later
     const State& s(getDrawingState());
     const bool oldOpacity = isOpaque(s);
-    sp<GraphicBuffer> oldBuffer = mActiveBuffer;
+
+    BufferInfo oldBufferInfo = mBufferInfo;
 
     if (!allTransactionsSignaled(expectedPresentTime)) {
         mFlinger->setTransactionFlags(eTraversalNeeded);
@@ -387,65 +389,33 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
         return false;
     }
 
-    mBufferLatched = true;
-
     err = updateFrameNumber(latchTime);
     if (err != NO_ERROR) {
         return false;
     }
 
+    gatherBufferInfo();
+
     mRefreshPending = true;
     mFrameLatencyNeeded = true;
-    if (oldBuffer == nullptr) {
+    if (oldBufferInfo.mBuffer == nullptr) {
         // the first time we receive a buffer, we need to trigger a
         // geometry invalidation.
         recomputeVisibleRegions = true;
     }
 
-    ui::Dataspace dataSpace = getDrawingDataSpace();
-    // translate legacy dataspaces to modern dataspaces
-    switch (dataSpace) {
-        case ui::Dataspace::SRGB:
-            dataSpace = ui::Dataspace::V0_SRGB;
-            break;
-        case ui::Dataspace::SRGB_LINEAR:
-            dataSpace = ui::Dataspace::V0_SRGB_LINEAR;
-            break;
-        case ui::Dataspace::JFIF:
-            dataSpace = ui::Dataspace::V0_JFIF;
-            break;
-        case ui::Dataspace::BT601_625:
-            dataSpace = ui::Dataspace::V0_BT601_625;
-            break;
-        case ui::Dataspace::BT601_525:
-            dataSpace = ui::Dataspace::V0_BT601_525;
-            break;
-        case ui::Dataspace::BT709:
-            dataSpace = ui::Dataspace::V0_BT709;
-            break;
-        default:
-            break;
-    }
-    mCurrentDataSpace = dataSpace;
-
-    Rect crop(getDrawingCrop());
-    const uint32_t transform(getDrawingTransform());
-    const uint32_t scalingMode(getDrawingScalingMode());
-    const bool transformToDisplayInverse(getTransformToDisplayInverse());
-    if ((crop != mCurrentCrop) || (transform != mCurrentTransform) ||
-        (scalingMode != mCurrentScalingMode) ||
-        (transformToDisplayInverse != mTransformToDisplayInverse)) {
-        mCurrentCrop = crop;
-        mCurrentTransform = transform;
-        mCurrentScalingMode = scalingMode;
-        mTransformToDisplayInverse = transformToDisplayInverse;
+    if ((mBufferInfo.mCrop != oldBufferInfo.mCrop) ||
+        (mBufferInfo.mTransform != oldBufferInfo.mTransform) ||
+        (mBufferInfo.mScaleMode != oldBufferInfo.mScaleMode) ||
+        (mBufferInfo.mTransformToDisplayInverse != oldBufferInfo.mTransformToDisplayInverse)) {
         recomputeVisibleRegions = true;
     }
 
-    if (oldBuffer != nullptr) {
-        uint32_t bufWidth = mActiveBuffer->getWidth();
-        uint32_t bufHeight = mActiveBuffer->getHeight();
-        if (bufWidth != uint32_t(oldBuffer->width) || bufHeight != uint32_t(oldBuffer->height)) {
+    if (oldBufferInfo.mBuffer != nullptr) {
+        uint32_t bufWidth = mBufferInfo.mBuffer->getWidth();
+        uint32_t bufHeight = mBufferInfo.mBuffer->getHeight();
+        if (bufWidth != uint32_t(oldBufferInfo.mBuffer->width) ||
+            bufHeight != uint32_t(oldBufferInfo.mBuffer->height)) {
             recomputeVisibleRegions = true;
         }
     }
@@ -510,11 +480,11 @@ uint32_t BufferLayer::getEffectiveScalingMode() const {
         return mOverrideScalingMode;
     }
 
-    return mCurrentScalingMode;
+    return mBufferInfo.mScaleMode;
 }
 
 bool BufferLayer::isProtected() const {
-    const sp<GraphicBuffer>& buffer(mActiveBuffer);
+    const sp<GraphicBuffer>& buffer(mBufferInfo.mBuffer);
     return (buffer != 0) && (buffer->getUsage() & GRALLOC_USAGE_PROTECTED);
 }
 
@@ -618,15 +588,15 @@ Rect BufferLayer::getBufferSize(const State& s) const {
         return Rect(getActiveWidth(s), getActiveHeight(s));
     }
 
-    if (mActiveBuffer == nullptr) {
+    if (mBufferInfo.mBuffer == nullptr) {
         return Rect::INVALID_RECT;
     }
 
-    uint32_t bufWidth = mActiveBuffer->getWidth();
-    uint32_t bufHeight = mActiveBuffer->getHeight();
+    uint32_t bufWidth = mBufferInfo.mBuffer->getWidth();
+    uint32_t bufHeight = mBufferInfo.mBuffer->getHeight();
 
     // Undo any transformations on the buffer and return the result.
-    if (mCurrentTransform & ui::Transform::ROT_90) {
+    if (mBufferInfo.mTransform & ui::Transform::ROT_90) {
         std::swap(bufWidth, bufHeight);
     }
 
@@ -654,15 +624,15 @@ FloatRect BufferLayer::computeSourceBounds(const FloatRect& parentBounds) const 
         return FloatRect(0, 0, getActiveWidth(s), getActiveHeight(s));
     }
 
-    if (mActiveBuffer == nullptr) {
+    if (mBufferInfo.mBuffer == nullptr) {
         return parentBounds;
     }
 
-    uint32_t bufWidth = mActiveBuffer->getWidth();
-    uint32_t bufHeight = mActiveBuffer->getHeight();
+    uint32_t bufWidth = mBufferInfo.mBuffer->getWidth();
+    uint32_t bufHeight = mBufferInfo.mBuffer->getHeight();
 
     // Undo any transformations on the buffer and return the result.
-    if (mCurrentTransform & ui::Transform::ROT_90) {
+    if (mBufferInfo.mTransform & ui::Transform::ROT_90) {
         std::swap(bufWidth, bufHeight);
     }
 
@@ -683,6 +653,70 @@ void BufferLayer::latchAndReleaseBuffer() {
         latchBuffer(ignored, systemTime(), 0 /* expectedPresentTime */);
     }
     releasePendingBuffer(systemTime());
+}
+
+PixelFormat BufferLayer::getPixelFormat() const {
+    return mBufferInfo.mPixelFormat;
+}
+
+bool BufferLayer::getTransformToDisplayInverse() const {
+    return mBufferInfo.mTransformToDisplayInverse;
+}
+
+Rect BufferLayer::getBufferCrop() const {
+    // this is the crop rectangle that applies to the buffer
+    // itself (as opposed to the window)
+    if (!mBufferInfo.mCrop.isEmpty()) {
+        // if the buffer crop is defined, we use that
+        return mBufferInfo.mCrop;
+    } else if (mBufferInfo.mBuffer != nullptr) {
+        // otherwise we use the whole buffer
+        return mBufferInfo.mBuffer->getBounds();
+    } else {
+        // if we don't have a buffer yet, we use an empty/invalid crop
+        return Rect();
+    }
+}
+
+uint32_t BufferLayer::getBufferTransform() const {
+    return mBufferInfo.mTransform;
+}
+
+ui::Dataspace BufferLayer::getDataSpace() const {
+    return mBufferInfo.mDataspace;
+}
+
+ui::Dataspace BufferLayer::translateDataspace(ui::Dataspace dataspace) {
+    ui::Dataspace updatedDataspace = dataspace;
+    // translate legacy dataspaces to modern dataspaces
+    switch (dataspace) {
+        case ui::Dataspace::SRGB:
+            updatedDataspace = ui::Dataspace::V0_SRGB;
+            break;
+        case ui::Dataspace::SRGB_LINEAR:
+            updatedDataspace = ui::Dataspace::V0_SRGB_LINEAR;
+            break;
+        case ui::Dataspace::JFIF:
+            updatedDataspace = ui::Dataspace::V0_JFIF;
+            break;
+        case ui::Dataspace::BT601_625:
+            updatedDataspace = ui::Dataspace::V0_BT601_625;
+            break;
+        case ui::Dataspace::BT601_525:
+            updatedDataspace = ui::Dataspace::V0_BT601_525;
+            break;
+        case ui::Dataspace::BT709:
+            updatedDataspace = ui::Dataspace::V0_BT709;
+            break;
+        default:
+            break;
+    }
+
+    return updatedDataspace;
+}
+
+sp<GraphicBuffer> BufferLayer::getBuffer() const {
+    return mBufferInfo.mBuffer;
 }
 
 } // namespace android

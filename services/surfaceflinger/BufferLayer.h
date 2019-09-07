@@ -106,6 +106,16 @@ public:
     // Should only be called on the main thread.
     void latchAndReleaseBuffer() override;
 
+    bool getTransformToDisplayInverse() const override;
+
+    Rect getBufferCrop() const override;
+
+    uint32_t getBufferTransform() const override;
+
+    ui::Dataspace getDataSpace() const override;
+
+    sp<GraphicBuffer> getBuffer() const override;
+
     // -----------------------------------------------------------------------
 
     // -----------------------------------------------------------------------
@@ -115,18 +125,7 @@ private:
     virtual bool fenceHasSignaled() const = 0;
     virtual bool framePresentTimeIsCurrent(nsecs_t expectedPresentTime) const = 0;
 
-    virtual nsecs_t getDesiredPresentTime() = 0;
-    virtual std::shared_ptr<FenceTime> getCurrentFenceTime() const = 0;
-
-    virtual void getDrawingTransformMatrix(float *matrix) = 0;
-    virtual uint32_t getDrawingTransform() const = 0;
-    virtual ui::Dataspace getDrawingDataSpace() const = 0;
-    virtual Rect getDrawingCrop() const = 0;
-    virtual uint32_t getDrawingScalingMode() const = 0;
-    virtual Region getDrawingSurfaceDamage() const = 0;
-    virtual const HdrMetadata& getDrawingHdrMetadata() const = 0;
-    virtual int getDrawingApi() const = 0;
-    virtual PixelFormat getPixelFormat() const = 0;
+    PixelFormat getPixelFormat() const;
 
     virtual uint64_t getFrameNumber(nsecs_t expectedPresentTime) const = 0;
 
@@ -148,6 +147,28 @@ private:
     virtual status_t updateFrameNumber(nsecs_t latchTime) = 0;
 
 protected:
+    struct BufferInfo {
+        nsecs_t mDesiredPresentTime;
+        std::shared_ptr<FenceTime> mFenceTime;
+        sp<Fence> mFence;
+        float mTransformMatrix[16];
+        uint32_t mTransform{0};
+        ui::Dataspace mDataspace;
+        Rect mCrop;
+        uint32_t mScaleMode{NATIVE_WINDOW_SCALING_MODE_FREEZE};
+        Region mSurfaceDamage;
+        HdrMetadata mHdrMetadata;
+        int mApi;
+        PixelFormat mPixelFormat;
+        bool mTransformToDisplayInverse{false};
+
+        sp<GraphicBuffer> mBuffer;
+        int mBufferSlot{BufferQueue::INVALID_BUFFER_SLOT};
+    };
+
+    BufferInfo mBufferInfo;
+    virtual void gatherBufferInfo() = 0;
+
     /*
      * compositionengine::LayerFE overrides
      */
@@ -171,18 +192,13 @@ protected:
 
     bool mRefreshPending{false};
 
+    ui::Dataspace translateDataspace(ui::Dataspace dataspace);
+
 private:
     // Returns true if this layer requires filtering
     bool needsFiltering(const sp<const DisplayDevice>& displayDevice) const override;
 
     uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const;
-
-    uint32_t mCurrentScalingMode{NATIVE_WINDOW_SCALING_MODE_FREEZE};
-
-    bool mTransformToDisplayInverse{false};
-
-    // main thread.
-    bool mBufferLatched{false}; // TODO: Use mActiveBuffer?
 
     // BufferStateLayers can return Rect::INVALID_RECT if the layer does not have a display frame
     // and its parent layer is not bounded

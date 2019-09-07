@@ -48,6 +48,9 @@ class OutputLayer {
 public:
     virtual ~OutputLayer();
 
+    // Sets the HWC2::Layer associated with this layer
+    virtual void setHwcLayer(std::shared_ptr<HWC2::Layer>) = 0;
+
     // Gets the output which owns this output layer
     virtual const Output& getOutput() const = 0;
 

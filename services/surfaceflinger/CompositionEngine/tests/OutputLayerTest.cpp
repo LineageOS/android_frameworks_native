@@ -36,8 +36,6 @@ using testing::Return;
 using testing::ReturnRef;
 using testing::StrictMock;
 
-constexpr DisplayId DEFAULT_DISPLAY_ID = DisplayId{42};
-
 constexpr auto TR_IDENT = 0u;
 constexpr auto TR_FLP_H = HAL_TRANSFORM_FLIP_H;
 constexpr auto TR_FLP_V = HAL_TRANSFORM_FLIP_V;
@@ -83,35 +81,27 @@ struct OutputLayerTest : public testing::Test {
 TEST_F(OutputLayerTest, canInstantiateOutputLayer) {}
 
 /*
- * OutputLayer::initialize()
+ * OutputLayer::setHwcLayer()
  */
 
-TEST_F(OutputLayerTest, initializingOutputLayerWithoutHwcDoesNothingInteresting) {
+TEST_F(OutputLayerTest, settingNullHwcLayerSetsEmptyHwcState) {
     StrictMock<compositionengine::mock::CompositionEngine> compositionEngine;
 
-    mOutputLayer.initialize(compositionEngine, std::nullopt);
+    mOutputLayer.setHwcLayer(nullptr);
 
     EXPECT_FALSE(mOutputLayer.getState().hwc);
 }
 
-TEST_F(OutputLayerTest, initializingOutputLayerWithHwcDisplayCreatesHwcLayer) {
-    StrictMock<compositionengine::mock::CompositionEngine> compositionEngine;
-    StrictMock<android::mock::HWComposer> hwc;
-    StrictMock<HWC2::mock::Layer> hwcLayer;
+TEST_F(OutputLayerTest, settingHwcLayerSetsHwcState) {
+    auto hwcLayer = std::make_shared<StrictMock<HWC2::mock::Layer>>();
 
-    EXPECT_CALL(compositionEngine, getHwComposer()).WillOnce(ReturnRef(hwc));
-    EXPECT_CALL(hwc, createLayer(DEFAULT_DISPLAY_ID)).WillOnce(Return(&hwcLayer));
-
-    mOutputLayer.initialize(compositionEngine, DEFAULT_DISPLAY_ID);
+    mOutputLayer.setHwcLayer(hwcLayer);
 
     const auto& outputLayerState = mOutputLayer.getState();
     ASSERT_TRUE(outputLayerState.hwc);
 
     const auto& hwcState = *outputLayerState.hwc;
-    EXPECT_EQ(&hwcLayer, hwcState.hwcLayer.get());
-
-    EXPECT_CALL(hwc, destroyLayer(DEFAULT_DISPLAY_ID, &hwcLayer));
-    mOutputLayer.editState().hwc.reset();
+    EXPECT_EQ(hwcLayer, hwcState.hwcLayer);
 }
 
 /*
@@ -124,7 +114,7 @@ struct OutputLayerSourceCropTest : public OutputLayerTest {
         // set one specific value to something different.
         mLayerState.frontEnd.geomUsesSourceCrop = true;
         mLayerState.frontEnd.geomContentCrop = Rect{0, 0, 1920, 1080};
-        mLayerState.frontEnd.geomActiveTransparentRegion = Region{};
+        mLayerState.frontEnd.transparentRegionHint = Region{};
         mLayerState.frontEnd.geomLayerBounds = FloatRect{0.f, 0.f, 1920.f, 1080.f};
         mLayerState.frontEnd.geomLayerTransform = ui::Transform{TR_IDENT};
         mLayerState.frontEnd.geomBufferSize = Rect{0, 0, 1920, 1080};
@@ -231,7 +221,7 @@ struct OutputLayerDisplayFrameTest : public OutputLayerTest {
         // Set reasonable default values for a simple case. Each test will
         // set one specific value to something different.
 
-        mLayerState.frontEnd.geomActiveTransparentRegion = Region{};
+        mLayerState.frontEnd.transparentRegionHint = Region{};
         mLayerState.frontEnd.geomLayerTransform = ui::Transform{TR_IDENT};
         mLayerState.frontEnd.geomBufferSize = Rect{0, 0, 1920, 1080};
         mLayerState.frontEnd.geomBufferUsesDisplayInverseTransform = false;
@@ -256,7 +246,7 @@ TEST_F(OutputLayerDisplayFrameTest, correctForSimpleDefaultCase) {
 }
 
 TEST_F(OutputLayerDisplayFrameTest, fullActiveTransparentRegionReturnsEmptyFrame) {
-    mLayerState.frontEnd.geomActiveTransparentRegion = Region{Rect{0, 0, 1920, 1080}};
+    mLayerState.frontEnd.transparentRegionHint = Region{Rect{0, 0, 1920, 1080}};
     const Rect expected{0, 0, 0, 0};
     EXPECT_THAT(calculateOutputDisplayFrame(), RectEq(expected));
 }
@@ -574,7 +564,7 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
 
     static const half4 kColor;
     static const Rect kDisplayFrame;
-    static const Region kVisibleRegion;
+    static const Region kOutputSpaceVisibleRegion;
     static const mat4 kColorTransform;
     static const Region kSurfaceDamage;
     static const HdrMetadata kHdrMetadata;
@@ -590,7 +580,7 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
         outputLayerState.sourceCrop = kSourceCrop;
         outputLayerState.z = kZOrder;
         outputLayerState.bufferTransform = static_cast<Hwc2::Transform>(kBufferTransform);
-        outputLayerState.visibleRegion = kVisibleRegion;
+        outputLayerState.outputSpaceVisibleRegion = kOutputSpaceVisibleRegion;
         outputLayerState.dataspace = kDataspace;
 
         mLayerState.frontEnd.blendMode = kBlendMode;
@@ -629,7 +619,7 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
     }
 
     void expectPerFrameCommonCalls(SimulateUnsupported unsupported = SimulateUnsupported::None) {
-        EXPECT_CALL(*mHwcLayer, setVisibleRegion(RegionEq(kVisibleRegion)))
+        EXPECT_CALL(*mHwcLayer, setVisibleRegion(RegionEq(kOutputSpaceVisibleRegion)))
                 .WillOnce(Return(kError));
         EXPECT_CALL(*mHwcLayer, setDataspace(kDataspace)).WillOnce(Return(kError));
         EXPECT_CALL(*mHwcLayer, setColorTransform(kColorTransform))
@@ -673,7 +663,8 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
 const half4 OutputLayerWriteStateToHWCTest::kColor{81.f / 255.f, 82.f / 255.f, 83.f / 255.f,
                                                    84.f / 255.f};
 const Rect OutputLayerWriteStateToHWCTest::kDisplayFrame{1001, 1002, 1003, 10044};
-const Region OutputLayerWriteStateToHWCTest::kVisibleRegion{Rect{1005, 1006, 1007, 1008}};
+const Region OutputLayerWriteStateToHWCTest::kOutputSpaceVisibleRegion{
+        Rect{1005, 1006, 1007, 1008}};
 const mat4 OutputLayerWriteStateToHWCTest::kColorTransform{
         1009, 1010, 1011, 1012, 1013, 1014, 1015, 1016,
         1017, 1018, 1019, 1020, 1021, 1022, 1023, 1024,

@@ -127,6 +127,9 @@ public:
     void dump(std::string&) const;
     void dump(ConnectionHandle, std::string&) const;
 
+    // Get the appropriate refresh type for current conditions.
+    RefreshRateType getPreferredRefreshRateType();
+
 private:
     friend class TestableScheduler;
 

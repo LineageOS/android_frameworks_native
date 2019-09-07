@@ -70,10 +70,6 @@ std::vector<OccupancyTracker::Segment> BufferQueueLayer::getOccupancyHistory(boo
     return history;
 }
 
-bool BufferQueueLayer::getTransformToDisplayInverse() const {
-    return mConsumer->getTransformToDisplayInverse();
-}
-
 void BufferQueueLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
     if (!mConsumer->releasePendingBuffer()) {
         return;
@@ -155,55 +151,12 @@ bool BufferQueueLayer::framePresentTimeIsCurrent(nsecs_t expectedPresentTime) co
     return mQueueItems[0].mTimestamp <= expectedPresentTime;
 }
 
-nsecs_t BufferQueueLayer::getDesiredPresentTime() {
-    return mConsumer->getTimestamp();
-}
-
-std::shared_ptr<FenceTime> BufferQueueLayer::getCurrentFenceTime() const {
-    return mConsumer->getCurrentFenceTime();
-}
-
-void BufferQueueLayer::getDrawingTransformMatrix(float *matrix) {
-    return mConsumer->getTransformMatrix(matrix);
-}
-
 // NOTE: SurfaceFlinger's definitions of "Current" and "Drawing" do not neatly map to BufferQueue's
 // These functions get the fields for the frame that is currently in SurfaceFlinger's Drawing state
 // so the functions start with "getDrawing". The data is retrieved from the BufferQueueConsumer's
 // current buffer so the consumer functions start with "getCurrent".
 //
 // This results in the rather confusing functions below.
-uint32_t BufferQueueLayer::getDrawingTransform() const {
-    return mConsumer->getCurrentTransform();
-}
-
-ui::Dataspace BufferQueueLayer::getDrawingDataSpace() const {
-    return mConsumer->getCurrentDataSpace();
-}
-
-Rect BufferQueueLayer::getDrawingCrop() const {
-    return mConsumer->getCurrentCrop();
-}
-
-uint32_t BufferQueueLayer::getDrawingScalingMode() const {
-    return mConsumer->getCurrentScalingMode();
-}
-
-Region BufferQueueLayer::getDrawingSurfaceDamage() const {
-    return mConsumer->getSurfaceDamage();
-}
-
-const HdrMetadata& BufferQueueLayer::getDrawingHdrMetadata() const {
-    return mConsumer->getCurrentHdrMetadata();
-}
-
-int BufferQueueLayer::getDrawingApi() const {
-    return mConsumer->getCurrentApi();
-}
-
-PixelFormat BufferQueueLayer::getPixelFormat() const {
-    return mFormat;
-}
 
 uint64_t BufferQueueLayer::getFrameNumber(nsecs_t expectedPresentTime) const {
     Mutex::Autolock lock(mQueueItemLock);
@@ -285,7 +238,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
     const int32_t layerID = getSequence();
     LayerRejecter r(mDrawingState, getCurrentState(), recomputeVisibleRegions,
                     getProducerStickyTransform() != 0, mName.string(), mOverrideScalingMode,
-                    getTransformToDisplayInverse(), mFreezeGeometryUpdates);
+                    getTransformToDisplayInverse());
 
     if (isRemovedFromCurrentState()) {
         expectedPresentTime = 0;
@@ -390,11 +343,12 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
 status_t BufferQueueLayer::updateActiveBuffer() {
     // update the active buffer
     mPreviousBufferId = getCurrentBufferId();
-    mActiveBuffer = mConsumer->getCurrentBuffer(&mActiveBufferSlot, &mActiveBufferFence);
+    mBufferInfo.mBuffer =
+            mConsumer->getCurrentBuffer(&mBufferInfo.mBufferSlot, &mBufferInfo.mFence);
     auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
-    layerCompositionState.buffer = mActiveBuffer;
+    layerCompositionState.buffer = mBufferInfo.mBuffer;
 
-    if (mActiveBuffer == nullptr) {
+    if (mBufferInfo.mBuffer == nullptr) {
         // this can only happen if the very first buffer was rejected.
         return BAD_VALUE;
     }
@@ -419,10 +373,11 @@ void BufferQueueLayer::latchPerFrameState(
         return;
     }
 
-    compositionState.buffer = mActiveBuffer;
-    compositionState.bufferSlot =
-            (mActiveBufferSlot == BufferQueue::INVALID_BUFFER_SLOT) ? 0 : mActiveBufferSlot;
-    compositionState.acquireFence = mConsumer->getCurrentFence();
+    compositionState.buffer = mBufferInfo.mBuffer;
+    compositionState.bufferSlot = (mBufferInfo.mBufferSlot == BufferQueue::INVALID_BUFFER_SLOT)
+            ? 0
+            : mBufferInfo.mBufferSlot;
+    compositionState.acquireFence = mBufferInfo.mFence;
 }
 
 // -----------------------------------------------------------------------
@@ -571,6 +526,22 @@ uint32_t BufferQueueLayer::getProducerStickyTransform() const {
         return 0;
     }
     return static_cast<uint32_t>(producerStickyTransform);
+}
+
+void BufferQueueLayer::gatherBufferInfo() {
+    mBufferInfo.mDesiredPresentTime = mConsumer->getTimestamp();
+    mBufferInfo.mFenceTime = mConsumer->getCurrentFenceTime();
+    mBufferInfo.mFence = mConsumer->getCurrentFence();
+    mConsumer->getTransformMatrix(mBufferInfo.mTransformMatrix);
+    mBufferInfo.mTransform = mConsumer->getCurrentTransform();
+    mBufferInfo.mDataspace = translateDataspace(mConsumer->getCurrentDataSpace());
+    mBufferInfo.mCrop = mConsumer->getCurrentCrop();
+    mBufferInfo.mScaleMode = mConsumer->getCurrentScalingMode();
+    mBufferInfo.mSurfaceDamage = mConsumer->getSurfaceDamage();
+    mBufferInfo.mHdrMetadata = mConsumer->getCurrentHdrMetadata();
+    mBufferInfo.mApi = mConsumer->getCurrentApi();
+    mBufferInfo.mPixelFormat = mFormat;
+    mBufferInfo.mTransformToDisplayInverse = mConsumer->getTransformToDisplayInverse();
 }
 
 } // namespace android

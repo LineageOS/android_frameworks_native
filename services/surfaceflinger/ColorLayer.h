@@ -37,7 +37,7 @@ public:
 
     bool setDataspace(ui::Dataspace dataspace) override;
 
-    void commitTransaction(const State& stateToCommit) override;
+    ui::Dataspace getDataSpace() const override;
 
     bool isOpaque(const Layer::State& s) const override;
 

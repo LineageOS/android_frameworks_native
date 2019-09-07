@@ -212,10 +212,11 @@ Region Output::getDirtyRegion(bool repaintEverything) const {
     return dirty;
 }
 
-bool Output::belongsInOutput(uint32_t layerStackId, bool internalOnly) const {
+bool Output::belongsInOutput(std::optional<uint32_t> layerStackId, bool internalOnly) const {
     // The layerStackId's must match, and also the layer must not be internal
     // only when not on an internal output.
-    return (layerStackId == mState.layerStackId) && (!internalOnly || mState.layerStackInternal);
+    return layerStackId && (*layerStackId == mState.layerStackId) &&
+            (!internalOnly || mState.layerStackInternal);
 }
 
 compositionengine::OutputLayer* Output::getOutputLayerForLayer(
@@ -229,14 +230,20 @@ compositionengine::OutputLayer* Output::getOutputLayerForLayer(
 }
 
 std::unique_ptr<compositionengine::OutputLayer> Output::getOrCreateOutputLayer(
-        std::optional<DisplayId> displayId, std::shared_ptr<compositionengine::Layer> layer,
-        sp<compositionengine::LayerFE> layerFE) {
+        std::shared_ptr<compositionengine::Layer> layer, sp<compositionengine::LayerFE> layerFE) {
     for (auto& outputLayer : mOutputLayersOrderedByZ) {
         if (outputLayer && &outputLayer->getLayer() == layer.get()) {
             return std::move(outputLayer);
         }
     }
-    return createOutputLayer(mCompositionEngine, displayId, *this, layer, layerFE);
+
+    return createOutputLayer(layer, layerFE);
+}
+
+std::unique_ptr<compositionengine::OutputLayer> Output::createOutputLayer(
+        const std::shared_ptr<compositionengine::Layer>& layer,
+        const sp<compositionengine::LayerFE>& layerFE) const {
+    return impl::createOutputLayer(*this, layer, layerFE);
 }
 
 void Output::setOutputLayersOrderedByZ(OutputLayers&& layers) {
@@ -281,7 +288,9 @@ void Output::present(const compositionengine::CompositionRefreshArgs& refreshArg
 void Output::updateLayerStateFromFE(const CompositionRefreshArgs& args) const {
     for (auto& layer : mOutputLayersOrderedByZ) {
         layer->getLayerFE().latchCompositionState(layer->getLayer().editState().frontEnd,
-                                                  args.updatingGeometryThisFrame);
+                                                  args.updatingGeometryThisFrame
+                                                          ? LayerFE::StateSubset::GeometryAndContent
+                                                          : LayerFE::StateSubset::Content);
     }
 }
 
@@ -601,7 +610,7 @@ std::vector<renderengine::LayerSettings> Output::generateClientCompositionReques
         const auto& layerFEState = layer->getLayer().getState().frontEnd;
         auto& layerFE = layer->getLayerFE();
 
-        const Region clip(viewportRegion.intersect(layerFEState.geomVisibleRegion));
+        const Region clip(viewportRegion.intersect(layerState.visibleRegion));
         ALOGV("Layer: %s", layerFE.getDebugName());
         if (clip.isEmpty()) {
             ALOGV("  Skipping for empty clip");

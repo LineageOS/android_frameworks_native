@@ -99,6 +99,7 @@ class FrameTracer;
 
 namespace compositionengine {
 class DisplaySurface;
+class OutputLayer;
 
 struct CompositionRefreshArgs;
 } // namespace compositionengine
@@ -528,6 +529,9 @@ private:
     // called on the main thread in response to setPowerMode()
     void setPowerModeInternal(const sp<DisplayDevice>& display, int mode) REQUIRES(mStateLock);
 
+    // Query the Scheduler or allowed display configs list for a matching config, and set it
+    void setPreferredDisplayConfig() REQUIRES(mStateLock);
+
     // called on the main thread in response to setAllowedDisplayConfigs()
     void setAllowedDisplayConfigsInternal(const sp<DisplayDevice>& display,
                                           const std::vector<int32_t>& allowedConfigs)
@@ -741,8 +745,9 @@ private:
      * Compositing
      */
     void invalidateHwcGeometry();
-    void computeVisibleRegions(const sp<const DisplayDevice>& display, Region& dirtyRegion,
-                               Region& opaqueRegion);
+    void computeVisibleRegions(
+            const sp<const DisplayDevice>& display, Region& dirtyRegion, Region& opaqueRegion,
+            std::vector<std::unique_ptr<compositionengine::OutputLayer>>& outputLayers);
 
     void postComposition();
     void getCompositorTiming(CompositorTiming* compositorTiming);
@@ -860,6 +865,7 @@ private:
             std::vector<OccupancyTracker::Segment>&& history);
     void dumpBufferingStats(std::string& result) const;
     void dumpDisplayIdentificationData(std::string& result) const;
+    void dumpRawDisplayIdentificationData(const DumpArgs&, std::string& result) const;
     void dumpWideColorInfo(std::string& result) const;
     LayersProto dumpDrawingStateProto(uint32_t traceFlags = SurfaceTracing::TRACE_ALL) const;
     void dumpOffscreenLayersProto(LayersProto& layersProto,

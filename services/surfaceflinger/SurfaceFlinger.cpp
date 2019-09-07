@@ -112,6 +112,7 @@
 
 #include <cutils/compiler.h>
 
+#include "android-base/parseint.h"
 #include "android-base/stringprintf.h"
 
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
@@ -2087,6 +2088,12 @@ void SurfaceFlinger::rebuildLayerStacks() {
         ATRACE_NAME("rebuildLayerStacks VR Dirty");
         invalidateHwcGeometry();
 
+        std::vector<sp<compositionengine::LayerFE>> layersWithQueuedFrames;
+        layersWithQueuedFrames.reserve(mLayersWithQueuedFrames.size());
+        for (sp<Layer> layer : mLayersWithQueuedFrames) {
+            layersWithQueuedFrames.push_back(layer);
+        }
+
         for (const auto& pair : mDisplays) {
             const auto& displayDevice = pair.second;
             auto display = displayDevice->getCompositionDisplay();
@@ -2094,59 +2101,44 @@ void SurfaceFlinger::rebuildLayerStacks() {
             Region opaqueRegion;
             Region dirtyRegion;
             compositionengine::Output::OutputLayers layersSortedByZ;
-            compositionengine::Output::ReleasedLayers releasedLayers;
             const ui::Transform& tr = displayState.transform;
             const Rect bounds = displayState.bounds;
-            if (displayState.isEnabled) {
-                computeVisibleRegions(displayDevice, dirtyRegion, opaqueRegion);
-
-                mDrawingState.traverseInZOrder([&](Layer* layer) {
-                    auto compositionLayer = layer->getCompositionLayer();
-                    if (compositionLayer == nullptr) {
-                        return;
-                    }
-
-                    const auto displayId = displayDevice->getId();
-                    sp<compositionengine::LayerFE> layerFE = compositionLayer->getLayerFE();
-                    LOG_ALWAYS_FATAL_IF(layerFE.get() == nullptr);
-
-                    bool needsOutputLayer = false;
-
-                    if (display->belongsInOutput(layer->getLayerStack(),
-                                                 layer->getPrimaryDisplayOnly())) {
-                        Region drawRegion(tr.transform(
-                                layer->visibleNonTransparentRegion));
-                        drawRegion.andSelf(bounds);
-                        if (!drawRegion.isEmpty()) {
-                            needsOutputLayer = true;
-                        }
-                    }
-
-                    if (needsOutputLayer) {
-                        layersSortedByZ.emplace_back(
-                                display->getOrCreateOutputLayer(displayId, compositionLayer,
-                                                                layerFE));
-                        auto& outputLayerState = layersSortedByZ.back()->editState();
-                        outputLayerState.visibleRegion =
-                                tr.transform(layer->visibleRegion.intersect(displayState.viewport));
-                    } else if (displayId) {
-                        // For layers that are being removed from a HWC display,
-                        // and that have queued frames, add them to a a list of
-                        // released layers so we can properly set a fence.
-                        bool hasExistingOutputLayer =
-                                display->getOutputLayerForLayer(compositionLayer.get()) != nullptr;
-                        bool hasQueuedFrames = std::find(mLayersWithQueuedFrames.cbegin(),
-                                                         mLayersWithQueuedFrames.cend(),
-                                                         layer) != mLayersWithQueuedFrames.cend();
-
-                        if (hasExistingOutputLayer && hasQueuedFrames) {
-                            releasedLayers.push_back(layer);
-                        }
-                    }
-                });
+            if (!displayState.isEnabled) {
+                continue;
             }
 
+            computeVisibleRegions(displayDevice, dirtyRegion, opaqueRegion, layersSortedByZ);
+
+            // computeVisibleRegions walks the layers in reverse-Z order. Reverse
+            // to get a back-to-front ordering.
+            std::reverse(layersSortedByZ.begin(), layersSortedByZ.end());
+
             display->setOutputLayersOrderedByZ(std::move(layersSortedByZ));
+
+            compositionengine::Output::ReleasedLayers releasedLayers;
+            if (displayDevice->getId() && !layersWithQueuedFrames.empty()) {
+                // For layers that are being removed from a HWC display,
+                // and that have queued frames, add them to a a list of
+                // released layers so we can properly set a fence.
+
+                // Any non-null entries in the current list of layers are layers
+                // that are no longer going to be visible
+                for (auto& layer : display->getOutputLayersOrderedByZ()) {
+                    if (!layer) {
+                        continue;
+                    }
+
+                    sp<compositionengine::LayerFE> layerFE(&layer->getLayerFE());
+                    const bool hasQueuedFrames =
+                            std::find(layersWithQueuedFrames.cbegin(),
+                                      layersWithQueuedFrames.cend(),
+                                      layerFE) != layersWithQueuedFrames.cend();
+
+                    if (hasQueuedFrames) {
+                        releasedLayers.emplace_back(layerFE);
+                    }
+                }
+            }
             display->setReleasedLayers(std::move(releasedLayers));
 
             Region undefinedRegion{bounds};
@@ -2745,8 +2737,10 @@ void SurfaceFlinger::commitOffscreenLayers() {
     }
 }
 
-void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displayDevice,
-                                           Region& outDirtyRegion, Region& outOpaqueRegion) {
+void SurfaceFlinger::computeVisibleRegions(
+        const sp<const DisplayDevice>& displayDevice, Region& outDirtyRegion,
+        Region& outOpaqueRegion,
+        std::vector<std::unique_ptr<compositionengine::OutputLayer>>& outLayersSortedByZ) {
     ATRACE_CALL();
     ALOGV("computeVisibleRegions");
 
@@ -2759,11 +2753,27 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
     outDirtyRegion.clear();
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
-        // start with the whole surface at its current location
-        const Layer::State& s(layer->getDrawingState());
+        auto compositionLayer = layer->getCompositionLayer();
+        if (compositionLayer == nullptr) {
+            return;
+        }
+
+        // Note: Converts a wp<LayerFE> to a sp<LayerFE>
+        auto layerFE = compositionLayer->getLayerFE();
+        if (layerFE == nullptr) {
+            return;
+        }
+
+        // Request a snapshot of the subset of state relevant to visibility
+        // determination
+        layerFE->latchCompositionState(compositionLayer->editState().frontEnd,
+                                       compositionengine::LayerFE::StateSubset::BasicGeometry);
+
+        // Work with a read-only copy of the snapshot
+        const auto& layerFEState = compositionLayer->getState().frontEnd;
 
         // only consider the layers on the given layer stack
-        if (!display->belongsInOutput(layer->getLayerStack(), layer->getPrimaryDisplayOnly())) {
+        if (!display->belongsInOutput(layerFEState.layerStackId, layerFEState.internalOnly)) {
             return;
         }
 
@@ -2796,20 +2806,18 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
          */
         Region transparentRegion;
 
-
         // handle hidden surfaces by setting the visible region to empty
-        if (CC_LIKELY(layer->isVisible())) {
-            const bool translucent = !layer->isOpaque(s);
-            Rect bounds(layer->getScreenBounds());
-
-            visibleRegion.set(bounds);
-            ui::Transform tr = layer->getTransform();
+        if (CC_LIKELY(layerFEState.isVisible)) {
+            // Get the visible region
+            visibleRegion.set(
+                    Rect(layerFEState.geomLayerTransform.transform(layerFEState.geomLayerBounds)));
+            const ui::Transform& tr = layerFEState.geomLayerTransform;
             if (!visibleRegion.isEmpty()) {
                 // Remove the transparent area from the visible region
-                if (translucent) {
+                if (!layerFEState.isOpaque) {
                     if (tr.preserveRects()) {
                         // transform the transparent region
-                        transparentRegion = tr.transform(layer->getActiveTransparentRegion(s));
+                        transparentRegion = tr.transform(layerFEState.transparentRegionHint);
                     } else {
                         // transformation too complex, can't do the
                         // transparent region optimization.
@@ -2819,9 +2827,8 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
 
                 // compute the opaque region
                 const int32_t layerOrientation = tr.getOrientation();
-                if (layer->getAlpha() == 1.0f && !translucent &&
-                        layer->getRoundedCornerState().radius == 0.0f &&
-                        ((layerOrientation & ui::Transform::ROT_INVALID) == false)) {
+                if (layerFEState.isOpaque &&
+                    ((layerOrientation & ui::Transform::ROT_INVALID) == false)) {
                     // the opaque region is the layer's footprint
                     opaqueRegion = visibleRegion;
                 }
@@ -2829,7 +2836,6 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
         }
 
         if (visibleRegion.isEmpty()) {
-            layer->clearVisibilityRegions();
             return;
         }
 
@@ -2842,13 +2848,21 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
         // subtract the opaque region covered by the layers above us
         visibleRegion.subtractSelf(aboveOpaqueLayers);
 
+        //  Get coverage information for the layer as previously displayed
+        auto prevOutputLayer = display->getOutputLayerForLayer(compositionLayer.get());
+        // TODO(b/121291683): Define this as a constant in Region.h
+        const Region kEmptyRegion;
+        const Region& oldVisibleRegion =
+                prevOutputLayer ? prevOutputLayer->getState().visibleRegion : kEmptyRegion;
+        const Region& oldCoveredRegion =
+                prevOutputLayer ? prevOutputLayer->getState().coveredRegion : kEmptyRegion;
+
         // compute this layer's dirty region
-        if (layer->contentDirty) {
+        if (layerFEState.contentDirty) {
             // we need to invalidate the whole region
             dirty = visibleRegion;
             // as well, as the old visible region
-            dirty.orSelf(layer->visibleRegion);
-            layer->contentDirty = false;
+            dirty.orSelf(oldVisibleRegion);
         } else {
             /* compute the exposed region:
              *   the exposed region consists of two components:
@@ -2863,8 +2877,6 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
              * exposed because of a resize.
              */
             const Region newExposed = visibleRegion - coveredRegion;
-            const Region oldVisibleRegion = layer->visibleRegion;
-            const Region oldCoveredRegion = layer->coveredRegion;
             const Region oldExposed = oldVisibleRegion - oldCoveredRegion;
             dirty = (visibleRegion&oldCoveredRegion) | (newExposed-oldExposed);
         }
@@ -2876,11 +2888,25 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
         // Update aboveOpaqueLayers for next (lower) layer
         aboveOpaqueLayers.orSelf(opaqueRegion);
 
-        // Store the visible region in screen space
-        layer->setVisibleRegion(visibleRegion);
-        layer->setCoveredRegion(coveredRegion);
-        layer->setVisibleNonTransparentRegion(
-                visibleRegion.subtract(transparentRegion));
+        // Compute the visible non-transparent region
+        Region visibleNonTransparentRegion = visibleRegion.subtract(transparentRegion);
+
+        // Setup an output layer for this output if the layer is visible on this
+        // output
+        const auto& displayState = display->getState();
+        Region drawRegion(displayState.transform.transform(visibleNonTransparentRegion));
+        drawRegion.andSelf(displayState.bounds);
+        if (drawRegion.isEmpty()) {
+            return;
+        }
+
+        outLayersSortedByZ.emplace_back(display->getOrCreateOutputLayer(compositionLayer, layerFE));
+        auto& outputLayerState = outLayersSortedByZ.back()->editState();
+        outputLayerState.visibleRegion = std::move(visibleRegion);
+        outputLayerState.visibleNonTransparentRegion = std::move(visibleNonTransparentRegion);
+        outputLayerState.coveredRegion = std::move(coveredRegion);
+        outputLayerState.outputSpaceVisibleRegion = displayState.transform.transform(
+                outputLayerState.visibleRegion.intersect(displayState.viewport));
     });
 
     outOpaqueRegion = aboveOpaqueLayers;
@@ -3370,8 +3396,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     uint32_t flags = 0;
 
     const uint64_t what = s.what;
-    bool geometryAppliesWithResize =
-            what & layer_state_t::eGeometryAppliesWithResize;
 
     // If we are deferring transaction, make sure to push the pending state, as otherwise the
     // pending state will also be deferred.
@@ -3380,7 +3404,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     }
 
     if (what & layer_state_t::ePositionChanged) {
-        if (layer->setPosition(s.x, s.y, !geometryAppliesWithResize)) {
+        if (layer->setPosition(s.x, s.y)) {
             flags |= eTraversalNeeded;
         }
     }
@@ -3471,8 +3495,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eCropChanged_legacy) {
-        if (layer->setCrop_legacy(s.crop_legacy, !geometryAppliesWithResize))
-            flags |= eTraversalNeeded;
+        if (layer->setCrop_legacy(s.crop_legacy)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eCornerRadiusChanged) {
         if (layer->setCornerRadius(s.cornerRadius))
@@ -4031,6 +4054,7 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args,
                 {"--display-id"s, dumper(&SurfaceFlinger::dumpDisplayIdentificationData)},
                 {"--dispsync"s,
                  dumper([this](std::string& s) { mScheduler->getPrimaryDispSync().dump(s); })},
+                {"--edid"s, argsDumper(&SurfaceFlinger::dumpRawDisplayIdentificationData)},
                 {"--frame-events"s, dumper(&SurfaceFlinger::dumpFrameEventsLocked)},
                 {"--latency"s, argsDumper(&SurfaceFlinger::dumpStatsLocked)},
                 {"--latency-clear"s, argsDumper(&SurfaceFlinger::clearStatsLocked)},
@@ -4259,27 +4283,31 @@ void SurfaceFlinger::dumpDisplayIdentificationData(std::string& result) const {
         }
 
         if (!isEdid(data)) {
-            result.append("unknown identification data: ");
-            for (uint8_t byte : data) {
-                StringAppendF(&result, "%x ", byte);
-            }
-            result.append("\n");
+            result.append("unknown identification data\n");
             continue;
         }
 
         const auto edid = parseEdid(data);
         if (!edid) {
-            result.append("invalid EDID: ");
-            for (uint8_t byte : data) {
-                StringAppendF(&result, "%x ", byte);
-            }
-            result.append("\n");
+            result.append("invalid EDID\n");
             continue;
         }
 
         StringAppendF(&result, "port=%u pnpId=%s displayName=\"", port, edid->pnpId.data());
         result.append(edid->displayName.data(), edid->displayName.length());
         result.append("\"\n");
+    }
+}
+
+void SurfaceFlinger::dumpRawDisplayIdentificationData(const DumpArgs& args,
+                                                      std::string& result) const {
+    hwc2_display_t hwcDisplayId;
+    uint8_t port;
+    DisplayIdentificationData data;
+
+    if (args.size() > 1 && base::ParseUint(String8(args[1]), &hwcDisplayId) &&
+        getHwComposer().getDisplayIdentificationData(hwcDisplayId, &port, &data)) {
+        result.append(reinterpret_cast<const char*>(data.data()), data.size());
     }
 }
 
@@ -5578,6 +5606,25 @@ void SurfaceFlinger::traverseLayersInDisplay(const sp<const DisplayDevice>& disp
     }
 }
 
+void SurfaceFlinger::setPreferredDisplayConfig() {
+    const auto& type = mScheduler->getPreferredRefreshRateType();
+    const auto& config = mRefreshRateConfigs.getRefreshRate(type);
+    if (config && isDisplayConfigAllowed(config->configId)) {
+        ALOGV("switching to Scheduler preferred config %d", config->configId);
+        setDesiredActiveConfig({type, config->configId, Scheduler::ConfigEvent::Changed});
+    } else {
+        // Set the highest allowed config by iterating backwards on available refresh rates
+        const auto& refreshRates = mRefreshRateConfigs.getRefreshRates();
+        for (auto iter = refreshRates.crbegin(); iter != refreshRates.crend(); ++iter) {
+            if (iter->second && isDisplayConfigAllowed(iter->second->configId)) {
+                ALOGV("switching to allowed config %d", iter->second->configId);
+                setDesiredActiveConfig({iter->first, iter->second->configId,
+                        Scheduler::ConfigEvent::Changed});
+            }
+        }
+    }
+}
+
 void SurfaceFlinger::setAllowedDisplayConfigsInternal(const sp<DisplayDevice>& display,
                                                       const std::vector<int32_t>& allowedConfigs) {
     if (!display->isPrimary()) {
@@ -5599,16 +5646,7 @@ void SurfaceFlinger::setAllowedDisplayConfigsInternal(const sp<DisplayDevice>& d
     mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value,
                                 display->getActiveConfig());
 
-    // Set the highest allowed config by iterating backwards on available refresh rates
-    const auto& refreshRates = mRefreshRateConfigs.getRefreshRates();
-    for (auto iter = refreshRates.crbegin(); iter != refreshRates.crend(); ++iter) {
-        if (iter->second && isDisplayConfigAllowed(iter->second->configId)) {
-            ALOGV("switching to config %d", iter->second->configId);
-            setDesiredActiveConfig(
-                    {iter->first, iter->second->configId, Scheduler::ConfigEvent::Changed});
-            break;
-        }
-    }
+    setPreferredDisplayConfig();
 }
 
 status_t SurfaceFlinger::setAllowedDisplayConfigs(const sp<IBinder>& displayToken,
