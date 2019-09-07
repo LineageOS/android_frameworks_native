@@ -19,6 +19,7 @@
 #include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/DisplayCreationArgs.h>
 #include <compositionengine/DisplaySurface.h>
+#include <compositionengine/LayerFE.h>
 #include <compositionengine/impl/Display.h>
 #include <compositionengine/impl/DisplayColorProfile.h>
 #include <compositionengine/impl/DumpHelpers.h>
@@ -131,6 +132,30 @@ void Display::createDisplayColorProfile(DisplayColorProfileCreationArgs&& args) 
 void Display::createRenderSurface(RenderSurfaceCreationArgs&& args) {
     setRenderSurface(compositionengine::impl::createRenderSurface(getCompositionEngine(), *this,
                                                                   std::move(args)));
+}
+
+std::unique_ptr<compositionengine::OutputLayer> Display::createOutputLayer(
+        const std::shared_ptr<compositionengine::Layer>& layer,
+        const sp<compositionengine::LayerFE>& layerFE) const {
+    auto result = Output::createOutputLayer(layer, layerFE);
+
+    if (result && mId) {
+        auto& hwc = getCompositionEngine().getHwComposer();
+        auto displayId = *mId;
+        // Note: For the moment we ensure it is safe to take a reference to the
+        // HWComposer implementation by destroying all the OutputLayers (and
+        // hence the HWC2::Layers they own) before setting a new HWComposer. See
+        // for example SurfaceFlinger::updateVrFlinger().
+        // TODO(b/121291683): Make this safer.
+        auto hwcLayer = std::shared_ptr<HWC2::Layer>(hwc.createLayer(displayId),
+                                                     [&hwc, displayId](HWC2::Layer* layer) {
+                                                         hwc.destroyLayer(displayId, layer);
+                                                     });
+        ALOGE_IF(!hwcLayer, "Failed to create a HWC layer for a HWC supported display %s",
+                 getName().c_str());
+        result->setHwcLayer(std::move(hwcLayer));
+    }
+    return result;
 }
 
 void Display::chooseCompositionStrategy() {

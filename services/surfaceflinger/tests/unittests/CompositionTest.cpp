@@ -814,9 +814,7 @@ struct BaseLayerVariant {
 
         std::vector<std::unique_ptr<compositionengine::OutputLayer>> outputLayers;
         outputLayers.emplace_back(test->mDisplay->getCompositionDisplay()
-                                          ->getOrCreateOutputLayer(DEFAULT_DISPLAY_ID,
-                                                                   layer->getCompositionLayer(),
-                                                                   layer));
+                                          ->createOutputLayer(layer->getCompositionLayer(), layer));
 
         outputLayers.back()->editState().visibleRegion = Region(Rect(0, 0, 100, 100));
         outputLayers.back()->editState().outputSpaceVisibleRegion = Region(Rect(0, 0, 100, 100));

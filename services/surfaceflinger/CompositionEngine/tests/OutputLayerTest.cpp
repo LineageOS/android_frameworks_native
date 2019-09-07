@@ -36,8 +36,6 @@ using testing::Return;
 using testing::ReturnRef;
 using testing::StrictMock;
 
-constexpr DisplayId DEFAULT_DISPLAY_ID = DisplayId{42};
-
 constexpr auto TR_IDENT = 0u;
 constexpr auto TR_FLP_H = HAL_TRANSFORM_FLIP_H;
 constexpr auto TR_FLP_V = HAL_TRANSFORM_FLIP_V;
@@ -83,35 +81,27 @@ struct OutputLayerTest : public testing::Test {
 TEST_F(OutputLayerTest, canInstantiateOutputLayer) {}
 
 /*
- * OutputLayer::initialize()
+ * OutputLayer::setHwcLayer()
  */
 
-TEST_F(OutputLayerTest, initializingOutputLayerWithoutHwcDoesNothingInteresting) {
+TEST_F(OutputLayerTest, settingNullHwcLayerSetsEmptyHwcState) {
     StrictMock<compositionengine::mock::CompositionEngine> compositionEngine;
 
-    mOutputLayer.initialize(compositionEngine, std::nullopt);
+    mOutputLayer.setHwcLayer(nullptr);
 
     EXPECT_FALSE(mOutputLayer.getState().hwc);
 }
 
-TEST_F(OutputLayerTest, initializingOutputLayerWithHwcDisplayCreatesHwcLayer) {
-    StrictMock<compositionengine::mock::CompositionEngine> compositionEngine;
-    StrictMock<android::mock::HWComposer> hwc;
-    StrictMock<HWC2::mock::Layer> hwcLayer;
+TEST_F(OutputLayerTest, settingHwcLayerSetsHwcState) {
+    auto hwcLayer = std::make_shared<StrictMock<HWC2::mock::Layer>>();
 
-    EXPECT_CALL(compositionEngine, getHwComposer()).WillOnce(ReturnRef(hwc));
-    EXPECT_CALL(hwc, createLayer(DEFAULT_DISPLAY_ID)).WillOnce(Return(&hwcLayer));
-
-    mOutputLayer.initialize(compositionEngine, DEFAULT_DISPLAY_ID);
+    mOutputLayer.setHwcLayer(hwcLayer);
 
     const auto& outputLayerState = mOutputLayer.getState();
     ASSERT_TRUE(outputLayerState.hwc);
 
     const auto& hwcState = *outputLayerState.hwc;
-    EXPECT_EQ(&hwcLayer, hwcState.hwcLayer.get());
-
-    EXPECT_CALL(hwc, destroyLayer(DEFAULT_DISPLAY_ID, &hwcLayer));
-    mOutputLayer.editState().hwc.reset();
+    EXPECT_EQ(hwcLayer, hwcState.hwcLayer);
 }
 
 /*

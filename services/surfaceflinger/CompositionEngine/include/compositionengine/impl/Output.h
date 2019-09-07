@@ -66,9 +66,10 @@ public:
 
     compositionengine::OutputLayer* getOutputLayerForLayer(
             compositionengine::Layer*) const override;
+    std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(
+            const std::shared_ptr<Layer>&, const sp<LayerFE>&) const override;
     std::unique_ptr<compositionengine::OutputLayer> getOrCreateOutputLayer(
-            std::optional<DisplayId>, std::shared_ptr<compositionengine::Layer>,
-            sp<LayerFE>) override;
+            std::shared_ptr<compositionengine::Layer>, sp<LayerFE>) override;
     void setOutputLayersOrderedByZ(OutputLayers&&) override;
     const OutputLayers& getOutputLayersOrderedByZ() const override;
 
