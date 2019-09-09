@@ -25,7 +25,17 @@ public:
 protected:
     std::unique_ptr<LayerHistory> mLayerHistory;
 
+    static constexpr float MIN_REFRESH_RATE = 30.f;
     static constexpr float MAX_REFRESH_RATE = 90.f;
+    static constexpr auto RELEVANT_FRAME_THRESHOLD = 90u;
+    static constexpr uint64_t THIRTY_FPS_INTERVAL = 33'333'333;
+
+    void forceRelevancy(const std::unique_ptr<LayerHistory::LayerHandle>& testLayer) {
+        mLayerHistory->setVisibility(testLayer, true);
+        for (auto i = 0u; i < RELEVANT_FRAME_THRESHOLD; i++) {
+            mLayerHistory->insert(testLayer, 0, false /*isHDR*/);
+        }
+    };
 };
 
 LayerHistoryTest::LayerHistoryTest() {
@@ -36,31 +46,25 @@ LayerHistoryTest::~LayerHistoryTest() {}
 namespace {
 TEST_F(LayerHistoryTest, oneLayer) {
     std::unique_ptr<LayerHistory::LayerHandle> testLayer =
-            mLayerHistory->createLayer("TestLayer", MAX_REFRESH_RATE);
+            mLayerHistory->createLayer("TestLayer", MIN_REFRESH_RATE, MAX_REFRESH_RATE);
     mLayerHistory->setVisibility(testLayer, true);
+    for (auto i = 0u; i < RELEVANT_FRAME_THRESHOLD; i++) {
+        EXPECT_FLOAT_EQ(0.f, mLayerHistory->getDesiredRefreshRateAndHDR().first);
+        mLayerHistory->insert(testLayer, 0, false /*isHDR*/);
+    }
 
-    mLayerHistory->insert(testLayer, 0, false /*isHDR*/);
-    EXPECT_FLOAT_EQ(0.f, mLayerHistory->getDesiredRefreshRateAndHDR().first);
-
-    mLayerHistory->insert(testLayer, 0, false /*isHDR*/);
-    mLayerHistory->insert(testLayer, 0, false /*isHDR*/);
-    mLayerHistory->insert(testLayer, 0, false /*isHDR*/);
-    // This is still 0, because the layer is not considered recently active if it
-    // has been present in less than 10 frames.
-    EXPECT_FLOAT_EQ(0.f, mLayerHistory->getDesiredRefreshRateAndHDR().first);
-    mLayerHistory->insert(testLayer, 0, false /*isHDR*/);
-    mLayerHistory->insert(testLayer, 0, false /*isHDR*/);
-    mLayerHistory->insert(testLayer, 0, false /*isHDR*/);
-    mLayerHistory->insert(testLayer, 0, false /*isHDR*/);
-    mLayerHistory->insert(testLayer, 0, false /*isHDR*/);
-    mLayerHistory->insert(testLayer, 0, false /*isHDR*/);
-    // This should be MAX_REFRESH_RATE as we have more than 10 samples
-    EXPECT_FLOAT_EQ(MAX_REFRESH_RATE, mLayerHistory->getDesiredRefreshRateAndHDR().first);
+    // Add a few more. This time we should get MAX refresh rate as the layer
+    // becomes relevant
+    static constexpr auto A_FEW = 10;
+    for (auto i = 0u; i < A_FEW; i++) {
+        EXPECT_FLOAT_EQ(MAX_REFRESH_RATE, mLayerHistory->getDesiredRefreshRateAndHDR().first);
+        mLayerHistory->insert(testLayer, 0, false /*isHDR*/);
+    }
 }
 
 TEST_F(LayerHistoryTest, oneHDRLayer) {
     std::unique_ptr<LayerHistory::LayerHandle> testLayer =
-            mLayerHistory->createLayer("TestHDRLayer", MAX_REFRESH_RATE);
+            mLayerHistory->createLayer("TestHDRLayer", MIN_REFRESH_RATE, MAX_REFRESH_RATE);
     mLayerHistory->setVisibility(testLayer, true);
 
     mLayerHistory->insert(testLayer, 0, true /*isHDR*/);
@@ -74,12 +78,13 @@ TEST_F(LayerHistoryTest, oneHDRLayer) {
 
 TEST_F(LayerHistoryTest, explicitTimestamp) {
     std::unique_ptr<LayerHistory::LayerHandle> test30FpsLayer =
-            mLayerHistory->createLayer("30FpsLayer", MAX_REFRESH_RATE);
+            mLayerHistory->createLayer("30FpsLayer", MIN_REFRESH_RATE, MAX_REFRESH_RATE);
     mLayerHistory->setVisibility(test30FpsLayer, true);
 
     nsecs_t startTime = systemTime();
-    for (int i = 0; i < 31; i++) {
-        mLayerHistory->insert(test30FpsLayer, startTime + (i * 33333333), false /*isHDR*/);
+    for (int i = 0; i < RELEVANT_FRAME_THRESHOLD; i++) {
+        mLayerHistory->insert(test30FpsLayer, startTime + (i * THIRTY_FPS_INTERVAL),
+                              false /*isHDR*/);
     }
 
     EXPECT_FLOAT_EQ(30.f, mLayerHistory->getDesiredRefreshRateAndHDR().first);
@@ -87,29 +92,31 @@ TEST_F(LayerHistoryTest, explicitTimestamp) {
 
 TEST_F(LayerHistoryTest, multipleLayers) {
     std::unique_ptr<LayerHistory::LayerHandle> testLayer =
-            mLayerHistory->createLayer("TestLayer", MAX_REFRESH_RATE);
+            mLayerHistory->createLayer("TestLayer", MIN_REFRESH_RATE, MAX_REFRESH_RATE);
     mLayerHistory->setVisibility(testLayer, true);
     std::unique_ptr<LayerHistory::LayerHandle> test30FpsLayer =
-            mLayerHistory->createLayer("30FpsLayer", MAX_REFRESH_RATE);
+            mLayerHistory->createLayer("30FpsLayer", MIN_REFRESH_RATE, MAX_REFRESH_RATE);
     mLayerHistory->setVisibility(test30FpsLayer, true);
     std::unique_ptr<LayerHistory::LayerHandle> testLayer2 =
-            mLayerHistory->createLayer("TestLayer2", MAX_REFRESH_RATE);
+            mLayerHistory->createLayer("TestLayer2", MIN_REFRESH_RATE, MAX_REFRESH_RATE);
     mLayerHistory->setVisibility(testLayer2, true);
 
     nsecs_t startTime = systemTime();
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < RELEVANT_FRAME_THRESHOLD; i++) {
         mLayerHistory->insert(testLayer, 0, false /*isHDR*/);
     }
     EXPECT_FLOAT_EQ(MAX_REFRESH_RATE, mLayerHistory->getDesiredRefreshRateAndHDR().first);
 
     startTime = systemTime();
-    for (int i = 0; i < 10; i++) {
-        mLayerHistory->insert(test30FpsLayer, startTime + (i * 33333333), false /*isHDR*/);
+    for (int i = 0; i < RELEVANT_FRAME_THRESHOLD; i++) {
+        mLayerHistory->insert(test30FpsLayer, startTime + (i * THIRTY_FPS_INTERVAL),
+                              false /*isHDR*/);
     }
     EXPECT_FLOAT_EQ(MAX_REFRESH_RATE, mLayerHistory->getDesiredRefreshRateAndHDR().first);
 
-    for (int i = 10; i < 30; i++) {
-        mLayerHistory->insert(test30FpsLayer, startTime + (i * 33333333), false /*isHDR*/);
+    for (int i = 10; i < RELEVANT_FRAME_THRESHOLD; i++) {
+        mLayerHistory->insert(test30FpsLayer, startTime + (i * THIRTY_FPS_INTERVAL),
+                              false /*isHDR*/);
     }
     EXPECT_FLOAT_EQ(MAX_REFRESH_RATE, mLayerHistory->getDesiredRefreshRateAndHDR().first);
 
@@ -119,10 +126,12 @@ TEST_F(LayerHistoryTest, multipleLayers) {
         mLayerHistory->insert(testLayer2, 0, false /*isHDR*/);
     }
     EXPECT_FLOAT_EQ(MAX_REFRESH_RATE, mLayerHistory->getDesiredRefreshRateAndHDR().first);
-    // After 100 ms frames become obsolete.
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    // Insert the 31st frame.
-    mLayerHistory->insert(test30FpsLayer, startTime + (30 * 33333333), false /*isHDR*/);
+    // After 1200 ms frames become obsolete.
+    std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+
+    mLayerHistory->insert(test30FpsLayer,
+                          startTime + (RELEVANT_FRAME_THRESHOLD * THIRTY_FPS_INTERVAL),
+                          false /*isHDR*/);
     EXPECT_FLOAT_EQ(30.f, mLayerHistory->getDesiredRefreshRateAndHDR().first);
 }
 

@@ -251,6 +251,20 @@ prop {
     prop_name: "ro.surface_flinger.wcg_composition_pixel_format"
 }
 
+# colorSpaceAgnosticDataspace specifies the data space that
+# SurfaceFlinger expects for surfaces which are color space agnostic.
+# The variable works only when useColorManagement is specified. If
+# unspecified, the data space follows what SurfaceFlinger expects for
+# surfaces when useColorManagement is specified.
+
+prop {
+    api_name: "color_space_agnostic_dataspace"
+    type: Long
+    scope: System
+    access: Readonly
+    prop_name: "ro.surface_flinger.color_space_agnostic_dataspace"
+}
+
 # Return the native panel primary data. The data includes red, green,
 # blue and white. The primary format is CIE 1931 XYZ color space.
 # If unspecified, the primaries is sRGB gamut by default.
@@ -307,6 +321,18 @@ prop {
     scope: Public
     access: Readonly
     prop_name: "ro.surface_flinger.set_touch_timer_ms"
+}
+
+# setDisplayPowerTimerMs indicates what is considered a timeout in milliseconds for Scheduler.
+# This value is used by the Scheduler to trigger display power inactivity callbacks that will
+# keep the display in peak refresh rate as long as display power is not in normal mode.
+# Setting this property to 0 means there is no timer.
+prop {
+    api_name: "set_display_power_timer_ms"
+    type: Integer
+    scope: System
+    access: Readonly
+    prop_name: "ro.surface_flinger.set_display_power_timer_ms"
 }
 
 # useSmart90ForVideo indicates whether Scheduler should detect content FPS, and try to adjust the

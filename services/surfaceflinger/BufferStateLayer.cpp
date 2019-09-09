@@ -50,8 +50,12 @@ BufferStateLayer::BufferStateLayer(const LayerCreationArgs& args)
     mOverrideScalingMode = NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
     mCurrentState.dataspace = ui::Dataspace::V0_SRGB;
 }
+
 BufferStateLayer::~BufferStateLayer() {
     if (mActiveBuffer != nullptr) {
+        // Ensure that mActiveBuffer is uncached from RenderEngine here, as
+        // RenderEngine may have been using the buffer as an external texture
+        // after the client uncached the buffer.
         auto& engine(mFlinger->getRenderEngine());
         engine.unbindExternalTextureBuffer(mActiveBuffer->getId());
     }
@@ -380,7 +384,7 @@ bool BufferStateLayer::framePresentTimeIsCurrent() const {
         return true;
     }
 
-    return mDesiredPresentTime <= mFlinger->mScheduler->expectedPresentTime();
+    return mDesiredPresentTime <= mFlinger->getExpectedPresentTime();
 }
 
 nsecs_t BufferStateLayer::getDesiredPresentTime() {
@@ -571,11 +575,6 @@ status_t BufferStateLayer::updateActiveBuffer() {
         return BAD_VALUE;
     }
 
-    if (mActiveBuffer != nullptr) {
-        // todo: get this to work with BufferStateLayerCache
-        auto& engine(mFlinger->getRenderEngine());
-        engine.unbindExternalTextureBuffer(mActiveBuffer->getId());
-    }
     mActiveBuffer = s.buffer;
     mActiveBufferFence = s.acquireFence;
     auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;

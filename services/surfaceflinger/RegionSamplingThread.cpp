@@ -44,11 +44,14 @@ constexpr auto lumaSamplingStepTag = "LumaSamplingStep";
 enum class samplingStep {
     noWorkNeeded,
     idleTimerWaiting,
+    waitForQuietFrame,
     waitForZeroPhase,
     waitForSamplePhase,
     sample
 };
 
+constexpr auto timeForRegionSampling = 5000000ns;
+constexpr auto maxRegionSamplingSkips = 10;
 constexpr auto defaultRegionSamplingOffset = -3ms;
 constexpr auto defaultRegionSamplingPeriod = 100ms;
 constexpr auto defaultRegionSamplingTimerTimeout = 100ms;
@@ -215,9 +218,9 @@ void RegionSamplingThread::removeListener(const sp<IRegionSamplingListener>& lis
 void RegionSamplingThread::checkForStaleLuma() {
     std::lock_guard lock(mThreadControlMutex);
 
-    if (mDiscardedFrames) {
+    if (mDiscardedFrames > 0) {
         ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::waitForZeroPhase));
-        mDiscardedFrames = false;
+        mDiscardedFrames = 0;
         mPhaseCallback->startVsyncListener();
     }
 }
@@ -235,13 +238,25 @@ void RegionSamplingThread::doSample() {
     auto now = std::chrono::nanoseconds(systemTime(SYSTEM_TIME_MONOTONIC));
     if (lastSampleTime + mTunables.mSamplingPeriod > now) {
         ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::idleTimerWaiting));
-        mDiscardedFrames = true;
+        if (mDiscardedFrames == 0) mDiscardedFrames++;
         return;
+    }
+    if (mDiscardedFrames < maxRegionSamplingSkips) {
+        // If there is relatively little time left for surfaceflinger
+        // until the next vsync deadline, defer this sampling work
+        // to a later frame, when hopefully there will be more time.
+        DisplayStatInfo stats;
+        mScheduler.getDisplayStatInfo(&stats);
+        if (std::chrono::nanoseconds(stats.vsyncTime) - now < timeForRegionSampling) {
+            ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::waitForQuietFrame));
+            mDiscardedFrames++;
+            return;
+        }
     }
 
     ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::sample));
 
-    mDiscardedFrames = false;
+    mDiscardedFrames = 0;
     lastSampleTime = now;
 
     mIdleTimer.reset();
@@ -258,7 +273,7 @@ void RegionSamplingThread::binderDied(const wp<IBinder>& who) {
 
 namespace {
 // Using Rec. 709 primaries
-float getLuma(float r, float g, float b) {
+inline float getLuma(float r, float g, float b) {
     constexpr auto rec709_red_primary = 0.2126f;
     constexpr auto rec709_green_primary = 0.7152f;
     constexpr auto rec709_blue_primary = 0.0722f;
@@ -293,10 +308,10 @@ float sampleArea(const uint32_t* data, int32_t width, int32_t height, int32_t st
         const uint32_t* rowBase = data + row * stride;
         for (int32_t column = area.left; column < area.right; ++column) {
             uint32_t pixel = rowBase[column];
-            const float r = (pixel & 0xFF) / 255.0f;
-            const float g = ((pixel >> 8) & 0xFF) / 255.0f;
-            const float b = ((pixel >> 16) & 0xFF) / 255.0f;
-            const uint8_t luma = std::round(getLuma(r, g, b) * 255.0f);
+            const float r = pixel & 0xFF;
+            const float g = (pixel >> 8) & 0xFF;
+            const float b = (pixel >> 16) & 0xFF;
+            const uint8_t luma = std::round(getLuma(r, g, b));
             ++brightnessBuckets[luma];
             if (brightnessBuckets[luma] > majoritySampleNum) return luma / 255.0f;
         }
@@ -342,9 +357,19 @@ void RegionSamplingThread::captureSample() {
     }
 
     const auto device = mFlinger.getDefaultDisplayDevice();
-    const auto display = device->getCompositionDisplay();
-    const auto state = display->getState();
-    const auto orientation = static_cast<ui::Transform::orientation_flags>(state.orientation);
+    const auto orientation = [](uint32_t orientation) {
+        switch (orientation) {
+            default:
+            case DisplayState::eOrientationDefault:
+                return ui::Transform::ROT_0;
+            case DisplayState::eOrientation90:
+                return ui::Transform::ROT_90;
+            case DisplayState::eOrientation180:
+                return ui::Transform::ROT_180;
+            case DisplayState::eOrientation270:
+                return ui::Transform::ROT_270;
+        }
+    }(device->getOrientation());
 
     std::vector<RegionSamplingThread::Descriptor> descriptors;
     Region sampleRegion;

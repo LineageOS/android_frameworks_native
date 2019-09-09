@@ -70,9 +70,14 @@ int64_t wcg_composition_dataspace(
 int32_t wcg_composition_pixel_format(
         android::hardware::graphics::common::V1_2::PixelFormat defaultValue);
 
+int64_t color_space_agnostic_dataspace(
+        android::hardware::graphics::common::V1_2::Dataspace defaultValue);
+
 int32_t set_idle_timer_ms(int32_t defaultValue);
 
 int32_t set_touch_timer_ms(int32_t defaultValue);
+
+int32_t set_display_power_timer_ms(int32_t defaultValue);
 
 bool use_smart_90_for_video(bool defaultValue);
 

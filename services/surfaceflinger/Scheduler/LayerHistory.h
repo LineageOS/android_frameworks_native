@@ -53,7 +53,8 @@ public:
     ~LayerHistory();
 
     // When the layer is first created, register it.
-    std::unique_ptr<LayerHandle> createLayer(const std::string name, float maxRefreshRate);
+    std::unique_ptr<LayerHandle> createLayer(const std::string name, float minRefreshRate,
+                                             float maxRefreshRate);
 
     // Method for inserting layers and their requested present time into the unordered map.
     void insert(const std::unique_ptr<LayerHandle>& layerHandle, nsecs_t presentTime, bool isHdr);
@@ -63,6 +64,9 @@ public:
     // Returns the desired refresh rate, which is a max refresh rate of all the current
     // layers. See go/content-fps-detection-in-scheduler for more information.
     std::pair<float, bool> getDesiredRefreshRateAndHDR();
+
+    // Clears all layer history.
+    void clearHistory();
 
     // Removes the handle and the object from the map.
     void destroyLayer(const int64_t id);

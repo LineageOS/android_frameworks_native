@@ -24,9 +24,10 @@
 namespace android {
 namespace scheduler {
 
-LayerInfo::LayerInfo(const std::string name, float maxRefreshRate)
+LayerInfo::LayerInfo(const std::string name, float minRefreshRate, float maxRefreshRate)
       : mName(name),
         mMinRefreshDuration(1e9f / maxRefreshRate),
+        mLowActivityRefreshDuration(1e9f / minRefreshRate),
         mRefreshRateHistory(mMinRefreshDuration) {}
 
 LayerInfo::~LayerInfo() = default;
@@ -38,12 +39,19 @@ void LayerInfo::setLastPresentTime(nsecs_t lastPresentTime) {
     mLastUpdatedTime = std::max(lastPresentTime, systemTime());
     mPresentTimeHistory.insertPresentTime(mLastUpdatedTime);
 
+    if (mLastPresentTime == 0) {
+        // First frame
+        mLastPresentTime = lastPresentTime;
+        return;
+    }
+
     const nsecs_t timeDiff = lastPresentTime - mLastPresentTime;
     mLastPresentTime = lastPresentTime;
     // Ignore time diff that are too high - those are stale values
-    if (timeDiff > TIME_EPSILON_NS.count()) return;
-    const nsecs_t refreshDuration = (timeDiff > 0) ? timeDiff : mMinRefreshDuration;
-    mRefreshRateHistory.insertRefreshRate(refreshDuration);
+    if (timeDiff > OBSOLETE_TIME_EPSILON_NS.count()) return;
+    const nsecs_t refreshDuration = std::max(timeDiff, mMinRefreshDuration);
+    const int fps = 1e9f / refreshDuration;
+    mRefreshRateHistory.insertRefreshRate(fps);
 }
 
 } // namespace scheduler
