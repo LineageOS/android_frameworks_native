@@ -189,6 +189,9 @@ public:
     // calls DispSync::dump() on primary disp sync
     void dumpPrimaryDispSync(std::string& result) const;
 
+    // Get the appropriate refresh type for current conditions.
+    RefreshRateType getPreferredRefreshRateType();
+
 protected:
     virtual std::unique_ptr<EventThread> makeEventThread(
             const char* connectionName, DispSync* dispSync, nsecs_t phaseOffsetNs,
