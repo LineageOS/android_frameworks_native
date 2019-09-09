@@ -452,7 +452,7 @@ TEST_F(ListTest, Fetch) {
 }
 
 TEST_F(ListTest, DumpVintf) {
-    const std::string expected = "<manifest version=\"1.0\" type=\"device\">\n"
+    const std::string expected = "<manifest version=\"2.0\" type=\"device\">\n"
                                  "    <hal format=\"hidl\">\n"
                                  "        <name>a.h.foo1</name>\n"
                                  "        <transport>hwbinder</transport>\n"
