@@ -534,6 +534,9 @@ private:
     // called on the main thread in response to setPowerMode()
     void setPowerModeInternal(const sp<DisplayDevice>& display, int mode) REQUIRES(mStateLock);
 
+    // Query the Scheduler or allowed display configs list for a matching config, and set it
+    void setPreferredDisplayConfig() REQUIRES(mStateLock);
+
     // called on the main thread in response to setAllowedDisplayConfigs()
     void setAllowedDisplayConfigsInternal(const sp<DisplayDevice>& display,
                                           const std::vector<int32_t>& allowedConfigs)
