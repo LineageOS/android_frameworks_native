@@ -2048,7 +2048,7 @@ InputWindowInfo Layer::fillInputInfo() {
     InputWindowInfo info = mDrawingState.inputInfo;
 
     if (info.displayId == ADISPLAY_ID_NONE) {
-        info.displayId = mDrawingState.layerStack;
+        info.displayId = getLayerStack();
     }
 
     ui::Transform t = getTransform();
