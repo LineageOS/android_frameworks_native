@@ -37,7 +37,6 @@
 #include "SurfaceFlingerFactory.h"
 #include "SurfaceInterceptor.h"
 #include "TestableScheduler.h"
-#include "TimeStats/TimeStats.h"
 
 namespace android {
 
@@ -149,11 +148,6 @@ public:
     sp<ContainerLayer> createContainerLayer(const LayerCreationArgs&) override {
         // TODO: Use test-fixture controlled factory
         return nullptr;
-    }
-
-    std::shared_ptr<TimeStats> createTimeStats() override {
-        // TODO: Use test-fixture controlled factory
-        return std::make_shared<android::impl::TimeStats>();
     }
 
     using CreateBufferQueueFunction =
