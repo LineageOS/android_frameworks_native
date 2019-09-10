@@ -166,8 +166,6 @@ cc_defaults {
         "libEGL",
         "libGLESv2",
         "libhidlbase",
-        "libhidltransport",
-        "libhwbinder",
         "liblog",
         "libnativewindow",
         "libsync",

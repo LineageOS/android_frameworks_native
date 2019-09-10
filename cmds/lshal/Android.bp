@@ -19,7 +19,6 @@ cc_library_static {
         "libcutils",
         "libutils",
         "libhidlbase",
-        "libhidltransport",
         "libhidl-gen-hash",
         "libhidl-gen-utils",
         "libvintf",
@@ -51,7 +50,6 @@ cc_defaults {
         "libcutils",
         "libutils",
         "libhidlbase",
-        "libhidltransport",
         "libhidl-gen-hash",
         "libhidl-gen-utils",
         "libvintf",
@@ -81,9 +79,7 @@ cc_test {
         "libgmock",
     ],
     shared_libs: [
-        "libhwbinder",
         "libhidlbase",
-        "libhidltransport",
         "libvintf",
     ],
     srcs: [
