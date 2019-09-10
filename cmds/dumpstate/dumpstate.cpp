@@ -929,6 +929,14 @@ static void DumpIpTablesAsRoot() {
     RunCommand("IP6TABLES RAW", {"ip6tables", "-t", "raw", "-L", "-nvx"});
 }
 
+static void DumpDynamicPartitionInfo() {
+    if (!::android::base::GetBoolProperty("ro.boot.dynamic_partitions", false)) {
+        return;
+    }
+
+    RunCommand("LPDUMP", {"lpdump", "--all"});
+}
+
 static void AddAnrTraceDir(const bool add_to_zip, const std::string& anr_traces_dir) {
     MYLOGD("AddAnrTraceDir(): dump_traces_file=%s, anr_traces_dir=%s\n", dump_traces_path,
            anr_traces_dir.c_str());
@@ -1515,6 +1523,7 @@ static Dumpstate::RunStatus DumpstateDefault() {
     }
     add_mountinfo();
     DumpIpTablesAsRoot();
+    DumpDynamicPartitionInfo();
 
     // Capture any IPSec policies in play. No keys are exposed here.
     RunCommand("IP XFRM POLICY", {"ip", "xfrm", "policy"}, CommandOptions::WithTimeout(10).Build());
