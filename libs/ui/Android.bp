@@ -96,8 +96,6 @@ cc_library_shared {
         "libbase",
         "libcutils",
         "libhidlbase",
-        "libhidltransport",
-        "libhwbinder",
         "libsync",
         "libutils",
         "liblog",
