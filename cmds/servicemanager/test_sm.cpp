@@ -57,6 +57,12 @@ public:
     MOCK_METHOD1(canList, bool(const CallingContext&));
 };
 
+class MockServiceManager : public ServiceManager {
+ public:
+    MockServiceManager(std::unique_ptr<Access>&& access) : ServiceManager(std::move(access)) {}
+    MOCK_METHOD1(tryStartService, void(const std::string& name));
+};
+
 static sp<ServiceManager> getPermissiveServiceManager() {
     std::unique_ptr<MockAccess> access = std::make_unique<NiceMock<MockAccess>>();
 
@@ -65,7 +71,7 @@ static sp<ServiceManager> getPermissiveServiceManager() {
     ON_CALL(*access, canFind(_, _)).WillByDefault(Return(true));
     ON_CALL(*access, canList(_)).WillByDefault(Return(true));
 
-    sp<ServiceManager> sm = new ServiceManager(std::move(access));
+    sp<ServiceManager> sm = new NiceMock<MockServiceManager>(std::move(access));
     return sm;
 }
 
@@ -113,7 +119,7 @@ TEST(AddService, AddDisallowedFromApp) {
             .uid = uid,
         }));
         EXPECT_CALL(*access, canAdd(_, _)).Times(0);
-        sp<ServiceManager> sm = new ServiceManager(std::move(access));
+        sp<ServiceManager> sm = new NiceMock<MockServiceManager>(std::move(access));
 
         EXPECT_FALSE(sm->addService("foo", getBinder(), false /*allowIsolated*/,
             IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT).isOk());
@@ -135,7 +141,7 @@ TEST(AddService, NoPermissions) {
     EXPECT_CALL(*access, getCallingContext()).WillOnce(Return(Access::CallingContext{}));
     EXPECT_CALL(*access, canAdd(_, _)).WillOnce(Return(false));
 
-    sp<ServiceManager> sm = new ServiceManager(std::move(access));
+    sp<ServiceManager> sm = new NiceMock<MockServiceManager>(std::move(access));
 
     EXPECT_FALSE(sm->addService("foo", getBinder(), false /*allowIsolated*/,
         IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT).isOk());
@@ -168,7 +174,7 @@ TEST(GetService, NoPermissionsForGettingService) {
     EXPECT_CALL(*access, canAdd(_, _)).WillOnce(Return(true));
     EXPECT_CALL(*access, canFind(_, _)).WillOnce(Return(false));
 
-    sp<ServiceManager> sm = new ServiceManager(std::move(access));
+    sp<ServiceManager> sm = new NiceMock<MockServiceManager>(std::move(access));
 
     EXPECT_TRUE(sm->addService("foo", getBinder(), false /*allowIsolated*/,
         IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT).isOk());
@@ -192,7 +198,7 @@ TEST(GetService, AllowedFromIsolated) {
     EXPECT_CALL(*access, canAdd(_, _)).WillOnce(Return(true));
     EXPECT_CALL(*access, canFind(_, _)).WillOnce(Return(true));
 
-    sp<ServiceManager> sm = new ServiceManager(std::move(access));
+    sp<ServiceManager> sm = new NiceMock<MockServiceManager>(std::move(access));
 
     sp<IBinder> service = getBinder();
     EXPECT_TRUE(sm->addService("foo", service, true /*allowIsolated*/,
@@ -218,7 +224,7 @@ TEST(GetService, NotAllowedFromIsolated) {
     // TODO(b/136023468): when security check is first, this should be called first
     // EXPECT_CALL(*access, canFind(_, _)).WillOnce(Return(true));
 
-    sp<ServiceManager> sm = new ServiceManager(std::move(access));
+    sp<ServiceManager> sm = new NiceMock<MockServiceManager>(std::move(access));
 
     EXPECT_TRUE(sm->addService("foo", getBinder(), false /*allowIsolated*/,
         IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT).isOk());
@@ -235,7 +241,7 @@ TEST(ListServices, NoPermissions) {
     EXPECT_CALL(*access, getCallingContext()).WillOnce(Return(Access::CallingContext{}));
     EXPECT_CALL(*access, canList(_)).WillOnce(Return(false));
 
-    sp<ServiceManager> sm = new ServiceManager(std::move(access));
+    sp<ServiceManager> sm = new NiceMock<MockServiceManager>(std::move(access));
 
     std::vector<std::string> out;
     EXPECT_FALSE(sm->listServices(IServiceManager::DUMP_FLAG_PRIORITY_ALL, &out).isOk());
