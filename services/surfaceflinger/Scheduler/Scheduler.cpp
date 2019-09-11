@@ -601,6 +601,11 @@ Scheduler::RefreshRateType Scheduler::calculateRefreshRateType() {
     return currRefreshRateType;
 }
 
+Scheduler::RefreshRateType Scheduler::getPreferredRefreshRateType() {
+    std::lock_guard<std::mutex> lock(mFeatureStateLock);
+    return mRefreshRateType;
+}
+
 void Scheduler::changeRefreshRate(RefreshRateType refreshRateType, ConfigEvent configEvent) {
     std::lock_guard<std::mutex> lock(mCallbackLock);
     if (mChangeRefreshRateCallback) {
