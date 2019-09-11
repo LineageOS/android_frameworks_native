@@ -274,3 +274,7 @@ int ANativeWindow_setAutoPrerotation(ANativeWindow* window, bool autoPrerotation
 int ANativeWindow_getLastDequeueDuration(ANativeWindow* window) {
     return query(window, NATIVE_WINDOW_LAST_DEQUEUE_DURATION);
 }
+
+int ANativeWindow_getLastQueueDuration(ANativeWindow* window) {
+    return query(window, NATIVE_WINDOW_LAST_QUEUE_DURATION);
+}
