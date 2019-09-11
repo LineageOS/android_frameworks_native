@@ -217,6 +217,9 @@ void DisplayDevice::setProjection(int orientation,
         // the destination frame can be invalid if it has never been set,
         // in that case we assume the whole display frame.
         frame = Rect(w, h);
+        if (mDisplayInstallOrientation & DisplayState::eOrientationSwapMask) {
+            std::swap(frame.right, frame.bottom);
+        }
     }
 
     if (viewport.isEmpty()) {
@@ -225,7 +228,8 @@ void DisplayDevice::setProjection(int orientation,
         // it's also invalid to have an empty viewport, so we handle that
         // case in the same way.
         viewport = Rect(w, h);
-        if (R.getOrientation() & ui::Transform::ROT_90) {
+        if (((orientation + mDisplayInstallOrientation) % (DisplayState::eOrientation270 + 1))
+            & DisplayState::eOrientationSwapMask) {
             // viewport is always specified in the logical orientation
             // of the display (ie: post-rotation).
             std::swap(viewport.right, viewport.bottom);
