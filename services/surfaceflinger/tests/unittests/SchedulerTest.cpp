@@ -25,7 +25,8 @@ protected:
     class MockEventThreadConnection : public android::EventThreadConnection {
     public:
         explicit MockEventThreadConnection(EventThread* eventThread)
-              : EventThreadConnection(eventThread, ResyncCallback()) {}
+              : EventThreadConnection(eventThread, ResyncCallback(),
+                                      ISurfaceComposer::eConfigChangedSuppress) {}
         ~MockEventThreadConnection() = default;
 
         MOCK_METHOD1(stealReceiveChannel, status_t(gui::BitTube* outChannel));
@@ -47,7 +48,7 @@ protected:
 
         std::unique_ptr<EventThread> makeEventThread(
                 const char* /* connectionName */, DispSync* /* dispSync */,
-                nsecs_t /* phaseOffsetNs */,
+                nsecs_t /* phaseOffsetNs */, nsecs_t /* offsetThresholdForNextVsync */,
                 impl::EventThread::InterceptVSyncsCallback /* interceptCallback */) override {
             return std::move(mEventThread);
         }
@@ -81,10 +82,10 @@ SchedulerTest::SchedulerTest() {
 
     // createConnection call to scheduler makes a createEventConnection call to EventThread. Make
     // sure that call gets executed and returns an EventThread::Connection object.
-    EXPECT_CALL(*mEventThread, createEventConnection(_))
+    EXPECT_CALL(*mEventThread, createEventConnection(_, _))
             .WillRepeatedly(Return(mEventThreadConnection));
 
-    mConnectionHandle = mScheduler->createConnection("appConnection", 16, ResyncCallback(),
+    mConnectionHandle = mScheduler->createConnection("appConnection", 16, 16, ResyncCallback(),
                                                      impl::EventThread::InterceptVSyncsCallback());
     EXPECT_TRUE(mConnectionHandle != nullptr);
 }
@@ -105,7 +106,10 @@ TEST_F(SchedulerTest, testNullPtr) {
     // exceptions, just gracefully continues.
     sp<IDisplayEventConnection> returnedValue;
     ASSERT_NO_FATAL_FAILURE(
-            returnedValue = mScheduler->createDisplayEventConnection(nullptr, ResyncCallback()));
+            returnedValue =
+                    mScheduler->createDisplayEventConnection(nullptr, ResyncCallback(),
+                                                             ISurfaceComposer::
+                                                                     eConfigChangedSuppress));
     EXPECT_TRUE(returnedValue == nullptr);
     EXPECT_TRUE(mScheduler->getEventThread(nullptr) == nullptr);
     EXPECT_TRUE(mScheduler->getEventConnection(nullptr) == nullptr);
@@ -126,7 +130,9 @@ TEST_F(SchedulerTest, invalidConnectionHandle) {
     sp<IDisplayEventConnection> returnedValue;
     ASSERT_NO_FATAL_FAILURE(
             returnedValue =
-                    mScheduler->createDisplayEventConnection(connectionHandle, ResyncCallback()));
+                    mScheduler->createDisplayEventConnection(connectionHandle, ResyncCallback(),
+                                                             ISurfaceComposer::
+                                                                     eConfigChangedSuppress));
     EXPECT_TRUE(returnedValue == nullptr);
     EXPECT_TRUE(mScheduler->getEventThread(connectionHandle) == nullptr);
     EXPECT_TRUE(mScheduler->getEventConnection(connectionHandle) == nullptr);
@@ -155,7 +161,9 @@ TEST_F(SchedulerTest, validConnectionHandle) {
     sp<IDisplayEventConnection> returnedValue;
     ASSERT_NO_FATAL_FAILURE(
             returnedValue =
-                    mScheduler->createDisplayEventConnection(mConnectionHandle, ResyncCallback()));
+                    mScheduler->createDisplayEventConnection(mConnectionHandle, ResyncCallback(),
+                                                             ISurfaceComposer::
+                                                                     eConfigChangedSuppress));
     EXPECT_TRUE(returnedValue != nullptr);
     ASSERT_EQ(returnedValue, mEventThreadConnection);
 

@@ -25,6 +25,7 @@ using namespace android::sysprop;
 
 namespace scheduler {
 
+using RefreshRateType = RefreshRateConfigs::RefreshRateType;
 PhaseOffsets::~PhaseOffsets() = default;
 
 namespace impl {
@@ -72,25 +73,32 @@ PhaseOffsets::PhaseOffsets() {
     property_get("debug.sf.phase_offset_threshold_for_next_vsync_ns", value, "-1");
     const int phaseOffsetThresholdForNextVsyncNs = atoi(value);
 
-    mDefaultRefreshRateOffsets.early = {earlySfOffsetNs != -1 ? earlySfOffsetNs
-                                                              : sfVsyncPhaseOffsetNs,
-                                        earlyAppOffsetNs != -1 ? earlyAppOffsetNs
-                                                               : vsyncPhaseOffsetNs};
-    mDefaultRefreshRateOffsets.earlyGl = {earlyGlSfOffsetNs != -1 ? earlyGlSfOffsetNs
-                                                                  : sfVsyncPhaseOffsetNs,
-                                          earlyGlAppOffsetNs != -1 ? earlyGlAppOffsetNs
-                                                                   : vsyncPhaseOffsetNs};
-    mDefaultRefreshRateOffsets.late = {sfVsyncPhaseOffsetNs, vsyncPhaseOffsetNs};
+    Offsets defaultOffsets;
+    Offsets highFpsOffsets;
+    defaultOffsets.early = {RefreshRateType::DEFAULT,
+                            earlySfOffsetNs != -1 ? earlySfOffsetNs : sfVsyncPhaseOffsetNs,
+                            earlyAppOffsetNs != -1 ? earlyAppOffsetNs : vsyncPhaseOffsetNs};
+    defaultOffsets.earlyGl = {RefreshRateType::DEFAULT,
+                              earlyGlSfOffsetNs != -1 ? earlyGlSfOffsetNs : sfVsyncPhaseOffsetNs,
+                              earlyGlAppOffsetNs != -1 ? earlyGlAppOffsetNs : vsyncPhaseOffsetNs};
+    defaultOffsets.late = {RefreshRateType::DEFAULT, sfVsyncPhaseOffsetNs, vsyncPhaseOffsetNs};
 
-    mHighRefreshRateOffsets.early = {highFpsEarlySfOffsetNs != -1 ? highFpsEarlySfOffsetNs
-                                                                  : highFpsLateSfOffsetNs,
-                                     highFpsEarlyAppOffsetNs != -1 ? highFpsEarlyAppOffsetNs
-                                                                   : highFpsLateAppOffsetNs};
-    mHighRefreshRateOffsets.earlyGl = {highFpsEarlyGlSfOffsetNs != -1 ? highFpsEarlyGlSfOffsetNs
-                                                                      : highFpsLateSfOffsetNs,
-                                       highFpsEarlyGlAppOffsetNs != -1 ? highFpsEarlyGlAppOffsetNs
-                                                                       : highFpsLateAppOffsetNs};
-    mHighRefreshRateOffsets.late = {highFpsLateSfOffsetNs, highFpsLateAppOffsetNs};
+    highFpsOffsets.early = {RefreshRateType::PERFORMANCE,
+                            highFpsEarlySfOffsetNs != -1 ? highFpsEarlySfOffsetNs
+                                                         : highFpsLateSfOffsetNs,
+                            highFpsEarlyAppOffsetNs != -1 ? highFpsEarlyAppOffsetNs
+                                                          : highFpsLateAppOffsetNs};
+    highFpsOffsets.earlyGl = {RefreshRateType::PERFORMANCE,
+                              highFpsEarlyGlSfOffsetNs != -1 ? highFpsEarlyGlSfOffsetNs
+                                                             : highFpsLateSfOffsetNs,
+                              highFpsEarlyGlAppOffsetNs != -1 ? highFpsEarlyGlAppOffsetNs
+                                                              : highFpsLateAppOffsetNs};
+    highFpsOffsets.late = {RefreshRateType::PERFORMANCE, highFpsLateSfOffsetNs,
+                           highFpsLateAppOffsetNs};
+
+    mOffsets.insert({RefreshRateType::POWER_SAVING, defaultOffsets});
+    mOffsets.insert({RefreshRateType::DEFAULT, defaultOffsets});
+    mOffsets.insert({RefreshRateType::PERFORMANCE, highFpsOffsets});
 
     mOffsetThresholdForNextVsync = phaseOffsetThresholdForNextVsyncNs != -1
             ? phaseOffsetThresholdForNextVsyncNs
@@ -99,12 +107,7 @@ PhaseOffsets::PhaseOffsets() {
 
 PhaseOffsets::Offsets PhaseOffsets::getOffsetsForRefreshRate(
         android::scheduler::RefreshRateConfigs::RefreshRateType refreshRateType) const {
-    switch (refreshRateType) {
-        case RefreshRateConfigs::RefreshRateType::PERFORMANCE:
-            return mHighRefreshRateOffsets;
-        default:
-            return mDefaultRefreshRateOffsets;
-    }
+    return mOffsets.at(refreshRateType);
 }
 
 void PhaseOffsets::dump(std::string& result) const {

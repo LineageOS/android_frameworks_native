@@ -28,7 +28,8 @@ public:
     EventThread();
     ~EventThread() override;
 
-    MOCK_CONST_METHOD1(createEventConnection, sp<EventThreadConnection>(ResyncCallback));
+    MOCK_CONST_METHOD2(createEventConnection,
+                       sp<EventThreadConnection>(ResyncCallback, ISurfaceComposer::ConfigChanged));
     MOCK_METHOD0(onScreenReleased, void());
     MOCK_METHOD0(onScreenAcquired, void());
     MOCK_METHOD2(onHotplugReceived, void(PhysicalDisplayId, bool));

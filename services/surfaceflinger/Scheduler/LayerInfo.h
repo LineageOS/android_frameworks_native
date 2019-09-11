@@ -46,7 +46,7 @@ class LayerInfo {
     public:
         explicit RefreshRateHistory(nsecs_t minRefreshDuration)
               : mMinRefreshDuration(minRefreshDuration) {}
-        void insertRefreshRate(nsecs_t refreshRate) {
+        void insertRefreshRate(int refreshRate) {
             mElements.push_back(refreshRate);
             if (mElements.size() > HISTORY_SIZE) {
                 mElements.pop_front();
@@ -54,13 +54,13 @@ class LayerInfo {
         }
 
         float getRefreshRateAvg() const {
-            nsecs_t refreshDuration = mMinRefreshDuration;
-            if (mElements.size() == HISTORY_SIZE) {
-                refreshDuration = scheduler::calculate_mean(mElements);
+            if (mElements.empty()) {
+                return 1e9f / mMinRefreshDuration;
             }
 
-            return 1e9f / refreshDuration;
+            return scheduler::calculate_mean(mElements);
         }
+
         void clearHistory() { mElements.clear(); }
 
     private:
@@ -86,13 +86,42 @@ class LayerInfo {
         // Checks whether the present time that was inserted HISTORY_SIZE ago is within a
         // certain threshold: TIME_EPSILON_NS.
         bool isRelevant() const {
-            const int64_t obsoleteEpsilon = systemTime() - scheduler::TIME_EPSILON_NS.count();
-            // The layer had to publish at least HISTORY_SIZE of updates, and the first
-            // update should not be older than TIME_EPSILON_NS nanoseconds.
-            if (mElements.size() == HISTORY_SIZE &&
-                mElements.at(HISTORY_SIZE - 1) > obsoleteEpsilon) {
+            if (mElements.size() < 2) {
+                return false;
+            }
+
+            // The layer had to publish at least HISTORY_SIZE or HISTORY_TIME of updates
+            if (mElements.size() != HISTORY_SIZE &&
+                mElements.at(mElements.size() - 1) - mElements.at(0) < HISTORY_TIME.count()) {
+                return false;
+            }
+
+            // The last update should not be older than OBSOLETE_TIME_EPSILON_NS nanoseconds.
+            const int64_t obsoleteEpsilon =
+                    systemTime() - scheduler::OBSOLETE_TIME_EPSILON_NS.count();
+            if (mElements.at(mElements.size() - 1) < obsoleteEpsilon) {
+                return false;
+            }
+
+            return true;
+        }
+
+        bool isLowActivityLayer() const {
+            // We want to make sure that we received more than two frames from the layer
+            // in order to check low activity.
+            if (mElements.size() < 2) {
+                return false;
+            }
+
+            const int64_t obsoleteEpsilon =
+                    systemTime() - scheduler::LOW_ACTIVITY_EPSILON_NS.count();
+            // Check the frame before last to determine whether there is low activity.
+            // If that frame is older than LOW_ACTIVITY_EPSILON_NS, the layer is sending
+            // infrequent updates.
+            if (mElements.at(mElements.size() - 2) < obsoleteEpsilon) {
                 return true;
             }
+
             return false;
         }
 
@@ -100,11 +129,12 @@ class LayerInfo {
 
     private:
         std::deque<nsecs_t> mElements;
-        static constexpr size_t HISTORY_SIZE = 10;
+        static constexpr size_t HISTORY_SIZE = 90;
+        static constexpr std::chrono::nanoseconds HISTORY_TIME = 1s;
     };
 
 public:
-    LayerInfo(const std::string name, float maxRefreshRate);
+    LayerInfo(const std::string name, float minRefreshRate, float maxRefreshRate);
     ~LayerInfo();
 
     LayerInfo(const LayerInfo&) = delete;
@@ -134,6 +164,10 @@ public:
     // Calculate the average refresh rate.
     float getDesiredRefreshRate() const {
         std::lock_guard lock(mLock);
+
+        if (mPresentTimeHistory.isLowActivityLayer()) {
+            return 1e9f / mLowActivityRefreshDuration;
+        }
         return mRefreshRateHistory.getRefreshRateAvg();
     }
 
@@ -165,6 +199,7 @@ public:
 private:
     const std::string mName;
     const nsecs_t mMinRefreshDuration;
+    const nsecs_t mLowActivityRefreshDuration;
     mutable std::mutex mLock;
     nsecs_t mLastUpdatedTime GUARDED_BY(mLock) = 0;
     nsecs_t mLastPresentTime GUARDED_BY(mLock) = 0;

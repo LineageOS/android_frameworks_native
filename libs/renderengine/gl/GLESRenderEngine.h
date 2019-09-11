@@ -17,9 +17,7 @@
 #ifndef SF_GLESRENDERENGINE_H_
 #define SF_GLESRENDERENGINE_H_
 
-#include <android-base/thread_annotations.h>
 #include <stdint.h>
-#include <sys/types.h>
 #include <condition_variable>
 #include <deque>
 #include <mutex>
@@ -30,8 +28,11 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
+#include <android-base/thread_annotations.h>
 #include <renderengine/RenderEngine.h>
 #include <renderengine/private/Description.h>
+#include <sys/types.h>
+#include "ImageManager.h"
 
 #define EGL_NO_CONFIG ((EGLConfig)0)
 
@@ -74,7 +75,7 @@ public:
     void bindExternalTextureImage(uint32_t texName, const Image& image) override;
     status_t bindExternalTextureBuffer(uint32_t texName, const sp<GraphicBuffer>& buffer,
                                        const sp<Fence>& fence) EXCLUDES(mRenderingMutex);
-    status_t cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) EXCLUDES(mRenderingMutex);
+    void cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) EXCLUDES(mRenderingMutex);
     void unbindExternalTextureBuffer(uint64_t bufferId) EXCLUDES(mRenderingMutex);
     status_t bindFrameBuffer(Framebuffer* framebuffer) override;
     void unbindFrameBuffer(Framebuffer* framebuffer) override;
@@ -85,25 +86,32 @@ public:
     bool useProtectedContext(bool useProtectedContext) override;
     status_t drawLayers(const DisplaySettings& display, const std::vector<LayerSettings>& layers,
                         ANativeWindowBuffer* buffer, const bool useFramebufferCache,
-                        base::unique_fd&& bufferFence, base::unique_fd* drawFence)
-            EXCLUDES(mRenderingMutex) override;
+                        base::unique_fd&& bufferFence, base::unique_fd* drawFence) override;
 
     // internal to RenderEngine
     EGLDisplay getEGLDisplay() const { return mEGLDisplay; }
     EGLConfig getEGLConfig() const { return mEGLConfig; }
     // Creates an output image for rendering to
     EGLImageKHR createFramebufferImageIfNeeded(ANativeWindowBuffer* nativeBuffer, bool isProtected,
-                                               bool useFramebufferCache);
+                                               bool useFramebufferCache)
+            EXCLUDES(mFramebufferImageCacheMutex);
 
     // Test-only methods
     // Returns true iff mImageCache contains an image keyed by bufferId
     bool isImageCachedForTesting(uint64_t bufferId) EXCLUDES(mRenderingMutex);
     // Returns true iff mFramebufferImageCache contains an image keyed by bufferId
-    bool isFramebufferImageCachedForTesting(uint64_t bufferId) EXCLUDES(mRenderingMutex);
+    bool isFramebufferImageCachedForTesting(uint64_t bufferId)
+            EXCLUDES(mFramebufferImageCacheMutex);
+    // These are wrappers around public methods above, but exposing Barrier
+    // objects so that tests can block.
+    std::shared_ptr<ImageManager::Barrier> cacheExternalTextureBufferForTesting(
+            const sp<GraphicBuffer>& buffer);
+    std::shared_ptr<ImageManager::Barrier> unbindExternalTextureBufferForTesting(uint64_t bufferId);
 
 protected:
     Framebuffer* getFramebufferForDrawing() override;
-    void dump(std::string& result) override;
+    void dump(std::string& result) override EXCLUDES(mRenderingMutex)
+            EXCLUDES(mFramebufferImageCacheMutex);
     void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
                                   ui::Transform::orientation_flags rotation) override;
     void setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,
@@ -145,6 +153,9 @@ private:
     void setScissor(const Rect& region);
     void disableScissor();
     bool waitSync(EGLSyncKHR sync, EGLint flags);
+    status_t cacheExternalTextureBufferInternal(const sp<GraphicBuffer>& buffer)
+            EXCLUDES(mRenderingMutex);
+    void unbindExternalTextureBufferInternal(uint64_t bufferId) EXCLUDES(mRenderingMutex);
 
     // A data space is considered HDR data space if it has BT2020 color space
     // with PQ or HLG transfer function.
@@ -200,7 +211,11 @@ private:
     uint32_t mFramebufferImageCacheSize = 0;
 
     // Cache of output images, keyed by corresponding GraphicBuffer ID.
-    std::deque<std::pair<uint64_t, EGLImageKHR>> mFramebufferImageCache;
+    std::deque<std::pair<uint64_t, EGLImageKHR>> mFramebufferImageCache
+            GUARDED_BY(mFramebufferImageCacheMutex);
+    // The only reason why we have this mutex is so that we don't segfault when
+    // dumping info.
+    std::mutex mFramebufferImageCacheMutex;
 
     // Current dataspace of layer being rendered
     ui::Dataspace mDataSpace = ui::Dataspace::UNKNOWN;
@@ -219,15 +234,6 @@ private:
     // 2. Internal state related to rendering that is potentially modified by
     // multiple threads is guaranteed thread-safe.
     std::mutex mRenderingMutex;
-
-    // See bindExternalTextureBuffer above, but requiring that mRenderingMutex
-    // is held.
-    status_t bindExternalTextureBufferLocked(uint32_t texName, const sp<GraphicBuffer>& buffer,
-                                             const sp<Fence>& fence) REQUIRES(mRenderingMutex);
-    // See cacheExternalTextureBuffer above, but requiring that mRenderingMutex
-    // is held.
-    status_t cacheExternalTextureBufferLocked(const sp<GraphicBuffer>& buffer)
-            REQUIRES(mRenderingMutex);
 
     std::unique_ptr<Framebuffer> mDrawingBuffer;
 
@@ -253,7 +259,9 @@ private:
         bool mRunning = true;
     };
     friend class FlushTracer;
+    friend class ImageManager;
     std::unique_ptr<FlushTracer> mFlushTracer;
+    std::unique_ptr<ImageManager> mImageManager = std::make_unique<ImageManager>(this);
 };
 
 } // namespace gl

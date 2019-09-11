@@ -17,8 +17,6 @@
 #ifndef ANDROID_LAYER_H
 #define ANDROID_LAYER_H
 
-#include <sys/types.h>
-
 #include <compositionengine/LayerFE.h>
 #include <gui/BufferQueue.h>
 #include <gui/ISurfaceComposerClient.h>
@@ -28,6 +26,7 @@
 #include <math/vec4.h>
 #include <renderengine/Mesh.h>
 #include <renderengine/Texture.h>
+#include <sys/types.h>
 #include <ui/FloatRect.h>
 #include <ui/FrameStats.h>
 #include <ui/GraphicBuffer.h>
@@ -44,15 +43,15 @@
 #include <vector>
 
 #include "Client.h"
+#include "ClientCache.h"
+#include "DisplayHardware/ComposerHal.h"
+#include "DisplayHardware/HWComposer.h"
 #include "FrameTracker.h"
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
+#include "RenderArea.h"
 #include "SurfaceFlinger.h"
 #include "TransactionCompletedThread.h"
-
-#include "DisplayHardware/ComposerHal.h"
-#include "DisplayHardware/HWComposer.h"
-#include "RenderArea.h"
 
 using namespace android::surfaceflinger;
 
