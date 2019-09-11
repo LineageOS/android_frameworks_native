@@ -22,7 +22,6 @@ cc_test {
         "libbinder",
         "libgui",
         "libhidlbase",
-        "libhidltransport",
         "liblog",
         "libutils",
         "libnativewindow",

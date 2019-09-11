@@ -22,8 +22,6 @@ cc_test {
         "libgui",
         "libhardware",
         "libhidlbase",
-        "libhidltransport",
-        "libhwbinder",
         "liblayers_proto",
         "liblog",
         "libnativewindow",
