@@ -17,25 +17,25 @@
 #ifndef _UI_INPUT_DISPATCHER_H
 #define _UI_INPUT_DISPATCHER_H
 
-#include <condition_variable>
+#include <cutils/atomic.h>
+#include <input/ISetInputWindowsListener.h>
 #include <input/Input.h>
 #include <input/InputApplication.h>
 #include <input/InputTransport.h>
 #include <input/InputWindow.h>
-#include <input/ISetInputWindowsListener.h>
-#include <optional>
 #include <ui/Region.h>
-#include <utils/threads.h>
-#include <utils/Timers.h>
-#include <utils/RefBase.h>
-#include <utils/Looper.h>
 #include <utils/BitSet.h>
-#include <cutils/atomic.h>
+#include <utils/Looper.h>
+#include <utils/RefBase.h>
+#include <utils/Timers.h>
+#include <utils/threads.h>
+#include <condition_variable>
+#include <optional>
 #include <unordered_map>
 
+#include <limits.h>
 #include <stddef.h>
 #include <unistd.h>
-#include <limits.h>
 #include <unordered_map>
 
 #include "InputListener.h"
@@ -79,7 +79,6 @@ enum {
     /* Waits for the input event to be completely processed. */
     INPUT_EVENT_INJECTION_SYNC_WAIT_FOR_FINISHED = 2,
 };
-
 
 /*
  * An input target specifies how an input event is to be dispatched to a particular window
@@ -136,12 +135,9 @@ struct InputTarget {
         FLAG_DISPATCH_AS_SLIPPERY_ENTER = 1 << 13,
 
         /* Mask for all dispatch modes. */
-        FLAG_DISPATCH_MASK = FLAG_DISPATCH_AS_IS
-                | FLAG_DISPATCH_AS_OUTSIDE
-                | FLAG_DISPATCH_AS_HOVER_ENTER
-                | FLAG_DISPATCH_AS_HOVER_EXIT
-                | FLAG_DISPATCH_AS_SLIPPERY_EXIT
-                | FLAG_DISPATCH_AS_SLIPPERY_ENTER,
+        FLAG_DISPATCH_MASK = FLAG_DISPATCH_AS_IS | FLAG_DISPATCH_AS_OUTSIDE |
+                FLAG_DISPATCH_AS_HOVER_ENTER | FLAG_DISPATCH_AS_HOVER_EXIT |
+                FLAG_DISPATCH_AS_SLIPPERY_EXIT | FLAG_DISPATCH_AS_SLIPPERY_ENTER,
 
         /* This flag indicates that the target of a MotionEvent is partly or wholly
          * obscured by another visible window above it.  The motion event should be
@@ -171,7 +167,6 @@ struct InputTarget {
     BitSet32 pointerIds;
 };
 
-
 /*
  * Input dispatcher configuration.
  *
@@ -186,11 +181,9 @@ struct InputDispatcherConfiguration {
     // The key repeat inter-key delay.
     nsecs_t keyRepeatDelay;
 
-    InputDispatcherConfiguration() :
-            keyRepeatTimeout(500 * 1000000LL),
-            keyRepeatDelay(50 * 1000000LL) { }
+    InputDispatcherConfiguration()
+          : keyRepeatTimeout(500 * 1000000LL), keyRepeatDelay(50 * 1000000LL) {}
 };
-
 
 /*
  * Input dispatcher policy interface.
@@ -203,8 +196,8 @@ struct InputDispatcherConfiguration {
  */
 class InputDispatcherPolicyInterface : public virtual RefBase {
 protected:
-    InputDispatcherPolicyInterface() { }
-    virtual ~InputDispatcherPolicyInterface() { }
+    InputDispatcherPolicyInterface() {}
+    virtual ~InputDispatcherPolicyInterface() {}
 
 public:
     /* Notifies the system that a configuration change has occurred. */
@@ -213,8 +206,7 @@ public:
     /* Notifies the system that an application is not responding.
      * Returns a new timeout to continue waiting, or 0 to abort dispatch. */
     virtual nsecs_t notifyANR(const sp<InputApplicationHandle>& inputApplicationHandle,
-            const sp<IBinder>& token,
-            const std::string& reason) = 0;
+                              const sp<IBinder>& token, const std::string& reason) = 0;
 
     /* Notifies the system that an input channel is unrecoverably broken. */
     virtual void notifyInputChannelBroken(const sp<IBinder>& token) = 0;
@@ -247,21 +239,22 @@ public:
      * should be dispatched to applications.
      */
     virtual void interceptMotionBeforeQueueing(const int32_t displayId, nsecs_t when,
-            uint32_t& policyFlags) = 0;
+                                               uint32_t& policyFlags) = 0;
 
     /* Allows the policy a chance to intercept a key before dispatching. */
     virtual nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>& token,
-            const KeyEvent* keyEvent, uint32_t policyFlags) = 0;
+                                                  const KeyEvent* keyEvent,
+                                                  uint32_t policyFlags) = 0;
 
     /* Allows the policy a chance to perform default processing for an unhandled key.
      * Returns an alternate keycode to redispatch as a fallback, or 0 to give up. */
-    virtual bool dispatchUnhandledKey(const sp<IBinder>& token,
-            const KeyEvent* keyEvent, uint32_t policyFlags, KeyEvent* outFallbackKeyEvent) = 0;
+    virtual bool dispatchUnhandledKey(const sp<IBinder>& token, const KeyEvent* keyEvent,
+                                      uint32_t policyFlags, KeyEvent* outFallbackKeyEvent) = 0;
 
     /* Notifies the policy about switch events.
      */
-    virtual void notifySwitch(nsecs_t when,
-            uint32_t switchValues, uint32_t switchMask, uint32_t policyFlags) = 0;
+    virtual void notifySwitch(nsecs_t when, uint32_t switchValues, uint32_t switchMask,
+                              uint32_t policyFlags) = 0;
 
     /* Poke user activity for an event dispatched to a window. */
     virtual void pokeUserActivity(nsecs_t eventTime, int32_t eventType) = 0;
@@ -272,8 +265,8 @@ public:
      * This method is special in that its implementation promises to be non-reentrant and
      * is safe to call while holding other locks.  (Most other methods make no such guarantees!)
      */
-    virtual bool checkInjectEventsPermissionNonReentrant(
-            int32_t injectorPid, int32_t injectorUid) = 0;
+    virtual bool checkInjectEventsPermissionNonReentrant(int32_t injectorPid,
+                                                         int32_t injectorUid) = 0;
 
     /* Notifies the policy that a pointer down event has occurred outside the current focused
      * window.
@@ -283,13 +276,12 @@ public:
     virtual void onPointerDownOutsideFocus(const sp<IBinder>& touchedToken) = 0;
 };
 
-
 /* Notifies the system about input events generated by the input reader.
  * The dispatcher is expected to be mostly asynchronous. */
 class InputDispatcherInterface : public virtual RefBase, public InputListenerInterface {
 protected:
-    InputDispatcherInterface() { }
-    virtual ~InputDispatcherInterface() { }
+    InputDispatcherInterface() {}
+    virtual ~InputDispatcherInterface() {}
 
 public:
     /* Dumps the state of the input dispatcher.
@@ -314,16 +306,16 @@ public:
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual int32_t injectInputEvent(const InputEvent* event,
-            int32_t injectorPid, int32_t injectorUid, int32_t syncMode, int32_t timeoutMillis,
-            uint32_t policyFlags) = 0;
+    virtual int32_t injectInputEvent(const InputEvent* event, int32_t injectorPid,
+                                     int32_t injectorUid, int32_t syncMode, int32_t timeoutMillis,
+                                     uint32_t policyFlags) = 0;
 
     /* Sets the list of input windows.
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual void setInputWindows(const std::vector<sp<InputWindowHandle> >& inputWindowHandles,
-            int32_t displayId,
+    virtual void setInputWindows(
+            const std::vector<sp<InputWindowHandle>>& inputWindowHandles, int32_t displayId,
             const sp<ISetInputWindowsListener>& setInputWindowsListener = nullptr) = 0;
 
     /* Sets the focused application on the given display.
@@ -363,8 +355,8 @@ public:
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual status_t registerInputChannel(
-            const sp<InputChannel>& inputChannel, int32_t displayId) = 0;
+    virtual status_t registerInputChannel(const sp<InputChannel>& inputChannel,
+                                          int32_t displayId) = 0;
 
     /* Registers input channels to be used to monitor input events.
      *
@@ -374,8 +366,8 @@ public:
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual status_t registerInputMonitor(
-            const sp<InputChannel>& inputChannel, int32_t displayId, bool gestureMonitor) = 0;
+    virtual status_t registerInputMonitor(const sp<InputChannel>& inputChannel, int32_t displayId,
+                                          bool gestureMonitor) = 0;
 
     /* Unregister input channels that will no longer receive input events.
      *
@@ -388,7 +380,6 @@ public:
      * This method may be called on any thread (usually by the input manager).
      */
     virtual status_t pilferPointers(const sp<IBinder>& token) = 0;
-
 };
 
 /* Dispatches events to input targets.  Some functions of the input dispatcher, such as
@@ -426,26 +417,26 @@ public:
     virtual void notifySwitch(const NotifySwitchArgs* args) override;
     virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) override;
 
-    virtual int32_t injectInputEvent(const InputEvent* event,
-            int32_t injectorPid, int32_t injectorUid, int32_t syncMode, int32_t timeoutMillis,
-            uint32_t policyFlags) override;
+    virtual int32_t injectInputEvent(const InputEvent* event, int32_t injectorPid,
+                                     int32_t injectorUid, int32_t syncMode, int32_t timeoutMillis,
+                                     uint32_t policyFlags) override;
 
-    virtual void setInputWindows(const std::vector<sp<InputWindowHandle> >& inputWindowHandles,
-            int32_t displayId,
+    virtual void setInputWindows(
+            const std::vector<sp<InputWindowHandle>>& inputWindowHandles, int32_t displayId,
             const sp<ISetInputWindowsListener>& setInputWindowsListener = nullptr) override;
-    virtual void setFocusedApplication(int32_t displayId,
-            const sp<InputApplicationHandle>& inputApplicationHandle) override;
+    virtual void setFocusedApplication(
+            int32_t displayId, const sp<InputApplicationHandle>& inputApplicationHandle) override;
     virtual void setFocusedDisplay(int32_t displayId) override;
     virtual void setInputDispatchMode(bool enabled, bool frozen) override;
     virtual void setInputFilterEnabled(bool enabled) override;
 
-    virtual bool transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken)
-            override;
+    virtual bool transferTouchFocus(const sp<IBinder>& fromToken,
+                                    const sp<IBinder>& toToken) override;
 
     virtual status_t registerInputChannel(const sp<InputChannel>& inputChannel,
-            int32_t displayId) override;
-    virtual status_t registerInputMonitor(const sp<InputChannel>& inputChannel,
-            int32_t displayId, bool isGestureMonitor) override;
+                                          int32_t displayId) override;
+    virtual status_t registerInputMonitor(const sp<InputChannel>& inputChannel, int32_t displayId,
+                                          bool isGestureMonitor) override;
     virtual status_t unregisterInputChannel(const sp<InputChannel>& inputChannel) override;
     virtual status_t pilferPointers(const sp<IBinder>& token) override;
 
@@ -456,7 +447,7 @@ private:
         T* prev;
 
     protected:
-        inline Link() : next(nullptr), prev(nullptr) { }
+        inline Link() : next(nullptr), prev(nullptr) {}
     };
 
     struct InjectionState {
@@ -464,8 +455,8 @@ private:
 
         int32_t injectorPid;
         int32_t injectorUid;
-        int32_t injectionResult;  // initially INPUT_EVENT_INJECTION_PENDING
-        bool injectionIsAsync; // set to true if injection is not waiting for the result
+        int32_t injectionResult; // initially INPUT_EVENT_INJECTION_PENDING
+        bool injectionIsAsync;   // set to true if injection is not waiting for the result
         int32_t pendingForegroundDispatches; // the number of foreground dispatches in progress
 
         InjectionState(int32_t injectorPid, int32_t injectorUid);
@@ -476,12 +467,7 @@ private:
     };
 
     struct EventEntry : Link<EventEntry> {
-        enum {
-            TYPE_CONFIGURATION_CHANGED,
-            TYPE_DEVICE_RESET,
-            TYPE_KEY,
-            TYPE_MOTION
-        };
+        enum { TYPE_CONFIGURATION_CHANGED, TYPE_DEVICE_RESET, TYPE_KEY, TYPE_MOTION };
 
         uint32_t sequenceNum;
         mutable int32_t refCount;
@@ -543,12 +529,12 @@ private:
             INTERCEPT_KEY_RESULT_TRY_AGAIN_LATER,
         };
         InterceptKeyResult interceptKeyResult; // set based on the interception result
-        nsecs_t interceptKeyWakeupTime; // used with INTERCEPT_KEY_RESULT_TRY_AGAIN_LATER
+        nsecs_t interceptKeyWakeupTime;        // used with INTERCEPT_KEY_RESULT_TRY_AGAIN_LATER
 
-        KeyEntry(uint32_t sequenceNum, nsecs_t eventTime,
-                int32_t deviceId, uint32_t source, int32_t displayId, uint32_t policyFlags,
-                int32_t action, int32_t flags, int32_t keyCode, int32_t scanCode, int32_t metaState,
-                int32_t repeatCount, nsecs_t downTime);
+        KeyEntry(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId, uint32_t source,
+                 int32_t displayId, uint32_t policyFlags, int32_t action, int32_t flags,
+                 int32_t keyCode, int32_t scanCode, int32_t metaState, int32_t repeatCount,
+                 nsecs_t downTime);
         virtual void appendDescription(std::string& msg) const;
         void recycle();
 
@@ -575,14 +561,13 @@ private:
         PointerProperties pointerProperties[MAX_POINTERS];
         PointerCoords pointerCoords[MAX_POINTERS];
 
-        MotionEntry(uint32_t sequenceNum, nsecs_t eventTime,
-                int32_t deviceId, uint32_t source, int32_t displayId, uint32_t policyFlags,
-                int32_t action, int32_t actionButton, int32_t flags,
-                int32_t metaState, int32_t buttonState, MotionClassification classification,
-                int32_t edgeFlags, float xPrecision, float yPrecision,
-                nsecs_t downTime, uint32_t pointerCount,
-                const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
-                float xOffset, float yOffset);
+        MotionEntry(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId, uint32_t source,
+                    int32_t displayId, uint32_t policyFlags, int32_t action, int32_t actionButton,
+                    int32_t flags, int32_t metaState, int32_t buttonState,
+                    MotionClassification classification, int32_t edgeFlags, float xPrecision,
+                    float yPrecision, nsecs_t downTime, uint32_t pointerCount,
+                    const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
+                    float xOffset, float yOffset);
         virtual void appendDescription(std::string& msg) const;
 
     protected:
@@ -606,18 +591,15 @@ private:
         int32_t resolvedAction;
         int32_t resolvedFlags;
 
-        DispatchEntry(EventEntry* eventEntry,
-                int32_t targetFlags, float xOffset, float yOffset,
-                float globalScaleFactor, float windowXScale, float windowYScale);
+        DispatchEntry(EventEntry* eventEntry, int32_t targetFlags, float xOffset, float yOffset,
+                      float globalScaleFactor, float windowXScale, float windowYScale);
         ~DispatchEntry();
 
         inline bool hasForegroundTarget() const {
             return targetFlags & InputTarget::FLAG_FOREGROUND;
         }
 
-        inline bool isSplit() const {
-            return targetFlags & InputTarget::FLAG_SPLIT;
-        }
+        inline bool isSplit() const { return targetFlags & InputTarget::FLAG_SPLIT; }
 
     private:
         static volatile int32_t sNextSeqAtomic;
@@ -672,12 +654,9 @@ private:
         T* tail;
         uint32_t entryCount;
 
-        inline Queue() : head(nullptr), tail(nullptr), entryCount(0) {
-        }
+        inline Queue() : head(nullptr), tail(nullptr), entryCount(0) {}
 
-        inline bool isEmpty() const {
-            return !head;
-        }
+        inline bool isEmpty() const { return !head; }
 
         inline void enqueueAtTail(T* entry) {
             entryCount++;
@@ -729,9 +708,7 @@ private:
             return entry;
         }
 
-        uint32_t count() const {
-            return entryCount;
-        }
+        uint32_t count() const { return entryCount; }
     };
 
     /* Specifies which events are to be canceled and why. */
@@ -758,7 +735,7 @@ private:
         // The specific display id of events to cancel, or nullopt to cancel events on any display.
         std::optional<int32_t> displayId = std::nullopt;
 
-        CancelationOptions(Mode mode, const char* reason) : mode(mode), reason(reason) { }
+        CancelationOptions(Mode mode, const char* reason) : mode(mode), reason(reason) {}
     };
 
     /* Tracks dispatched key and motion event state so that cancelation events can be
@@ -786,8 +763,8 @@ private:
         bool trackMotion(const MotionEntry* entry, int32_t action, int32_t flags);
 
         // Synthesizes cancelation events for the current state and resets the tracked state.
-        void synthesizeCancelationEvents(nsecs_t currentTime,
-                std::vector<EventEntry*>& outEvents, const CancelationOptions& options);
+        void synthesizeCancelationEvents(nsecs_t currentTime, std::vector<EventEntry*>& outEvents,
+                                         const CancelationOptions& options);
 
         // Clears the current state.
         void clear();
@@ -850,10 +827,9 @@ private:
         void addKeyMemento(const KeyEntry* entry, int32_t flags);
         void addMotionMemento(const MotionEntry* entry, int32_t flags, bool hovering);
 
-        static bool shouldCancelKey(const KeyMemento& memento,
-                const CancelationOptions& options);
+        static bool shouldCancelKey(const KeyMemento& memento, const CancelationOptions& options);
         static bool shouldCancelMotion(const MotionMemento& memento,
-                const CancelationOptions& options);
+                                       const CancelationOptions& options);
     };
 
     /* Manages the dispatch state associated with a single input channel. */
@@ -956,14 +932,15 @@ private:
     EventEntry* mNextUnblockedEvent GUARDED_BY(mLock);
 
     sp<InputWindowHandle> findTouchedWindowAtLocked(int32_t displayId, int32_t x, int32_t y,
-            bool addOutsideTargets = false, bool addPortalWindows = false) REQUIRES(mLock);
+                                                    bool addOutsideTargets = false,
+                                                    bool addPortalWindows = false) REQUIRES(mLock);
 
     // All registered connections mapped by channel file descriptor.
-    KeyedVector<int, sp<Connection> > mConnectionsByFd GUARDED_BY(mLock);
+    KeyedVector<int, sp<Connection>> mConnectionsByFd GUARDED_BY(mLock);
 
     struct IBinderHash {
         std::size_t operator()(const sp<IBinder>& b) const {
-            return std::hash<IBinder *>{}(b.get());
+            return std::hash<IBinder*>{}(b.get());
         }
     };
     std::unordered_map<sp<IBinder>, sp<InputChannel>, IBinderHash> mInputChannelsByToken
@@ -976,16 +953,13 @@ private:
     ssize_t getConnectionIndexLocked(const sp<InputChannel>& inputChannel) REQUIRES(mLock);
 
     // Input channels that will receive a copy of all input events sent to the provided display.
-    std::unordered_map<int32_t, std::vector<Monitor>> mGlobalMonitorsByDisplay
-            GUARDED_BY(mLock);
+    std::unordered_map<int32_t, std::vector<Monitor>> mGlobalMonitorsByDisplay GUARDED_BY(mLock);
 
     // Input channels that will receive pointer events that start within the corresponding display.
     // These are a bit special when compared to global monitors since they'll cause gesture streams
     // to continue even when there isn't a touched window,and have the ability to steal the rest of
     // the pointer stream in order to claim it for a system gesture.
-    std::unordered_map<int32_t, std::vector<Monitor>> mGestureMonitorsByDisplay
-            GUARDED_BY(mLock);
-
+    std::unordered_map<int32_t, std::vector<Monitor>> mGestureMonitorsByDisplay GUARDED_BY(mLock);
 
     // Event injection and synchronization.
     std::condition_variable mInjectionResultAvailable;
@@ -1019,8 +993,8 @@ private:
     // Maps the key code replaced, device id tuple to the key code it was replaced with
     KeyedVector<KeyReplacement, int32_t> mReplacedKeys GUARDED_BY(mLock);
     // Process certain Meta + Key combinations
-    void accelerateMetaShortcuts(const int32_t deviceId, const int32_t action,
-            int32_t& keyCode, int32_t& metaState);
+    void accelerateMetaShortcuts(const int32_t deviceId, const int32_t action, int32_t& keyCode,
+                                 int32_t& metaState);
 
     // Deferred command processing.
     bool haveCommandsLocked() const REQUIRES(mLock);
@@ -1059,7 +1033,7 @@ private:
     struct TouchedWindow {
         sp<InputWindowHandle> windowHandle;
         int32_t targetFlags;
-        BitSet32 pointerIds;        // zero unless target flag FLAG_SPLIT is set
+        BitSet32 pointerIds; // zero unless target flag FLAG_SPLIT is set
     };
 
     // For tracking the offsets we need to apply when adding gesture monitor targets.
@@ -1074,8 +1048,8 @@ private:
     struct TouchState {
         bool down;
         bool split;
-        int32_t deviceId; // id of the device that is currently down, others are rejected
-        uint32_t source;  // source of the device that is current down, others are rejected
+        int32_t deviceId;  // id of the device that is currently down, others are rejected
+        uint32_t source;   // source of the device that is current down, others are rejected
         int32_t displayId; // id to the display that currently has a touch, others are rejected
         std::vector<TouchedWindow> windows;
 
@@ -1090,8 +1064,8 @@ private:
         ~TouchState();
         void reset();
         void copyFrom(const TouchState& other);
-        void addOrUpdateWindow(const sp<InputWindowHandle>& windowHandle,
-                int32_t targetFlags, BitSet32 pointerIds);
+        void addOrUpdateWindow(const sp<InputWindowHandle>& windowHandle, int32_t targetFlags,
+                               BitSet32 pointerIds);
         void addPortalWindow(const sp<InputWindowHandle>& windowHandle);
         void addGestureMonitors(const std::vector<TouchedMonitor>& monitors);
         void removeWindow(const sp<InputWindowHandle>& windowHandle);
@@ -1116,18 +1090,15 @@ private:
     std::string mLastANRState GUARDED_BY(mLock);
 
     // Dispatch inbound events.
-    bool dispatchConfigurationChangedLocked(
-            nsecs_t currentTime, ConfigurationChangedEntry* entry) REQUIRES(mLock);
-    bool dispatchDeviceResetLocked(
-            nsecs_t currentTime, DeviceResetEntry* entry) REQUIRES(mLock);
-    bool dispatchKeyLocked(
-            nsecs_t currentTime, KeyEntry* entry,
-            DropReason* dropReason, nsecs_t* nextWakeupTime) REQUIRES(mLock);
-    bool dispatchMotionLocked(
-            nsecs_t currentTime, MotionEntry* entry,
-            DropReason* dropReason, nsecs_t* nextWakeupTime) REQUIRES(mLock);
+    bool dispatchConfigurationChangedLocked(nsecs_t currentTime, ConfigurationChangedEntry* entry)
+            REQUIRES(mLock);
+    bool dispatchDeviceResetLocked(nsecs_t currentTime, DeviceResetEntry* entry) REQUIRES(mLock);
+    bool dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry, DropReason* dropReason,
+                           nsecs_t* nextWakeupTime) REQUIRES(mLock);
+    bool dispatchMotionLocked(nsecs_t currentTime, MotionEntry* entry, DropReason* dropReason,
+                              nsecs_t* nextWakeupTime) REQUIRES(mLock);
     void dispatchEventLocked(nsecs_t currentTime, EventEntry* entry,
-            const std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
+                             const std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
 
     void logOutboundKeyDetails(const char* prefix, const KeyEntry* entry);
     void logOutboundMotionDetails(const char* prefix, const MotionEntry* entry);
@@ -1150,83 +1121,95 @@ private:
 
     // Finding targets for input events.
     int32_t handleTargetsNotReadyLocked(nsecs_t currentTime, const EventEntry* entry,
-            const sp<InputApplicationHandle>& applicationHandle,
-            const sp<InputWindowHandle>& windowHandle,
-            nsecs_t* nextWakeupTime, const char* reason) REQUIRES(mLock);
+                                        const sp<InputApplicationHandle>& applicationHandle,
+                                        const sp<InputWindowHandle>& windowHandle,
+                                        nsecs_t* nextWakeupTime, const char* reason)
+            REQUIRES(mLock);
 
     void removeWindowByTokenLocked(const sp<IBinder>& token) REQUIRES(mLock);
 
     void resumeAfterTargetsNotReadyTimeoutLocked(nsecs_t newTimeout,
-            const sp<InputChannel>& inputChannel) REQUIRES(mLock);
+                                                 const sp<InputChannel>& inputChannel)
+            REQUIRES(mLock);
     nsecs_t getTimeSpentWaitingForApplicationLocked(nsecs_t currentTime) REQUIRES(mLock);
     void resetANRTimeoutsLocked() REQUIRES(mLock);
 
     int32_t getTargetDisplayId(const EventEntry* entry);
     int32_t findFocusedWindowTargetsLocked(nsecs_t currentTime, const EventEntry* entry,
-            std::vector<InputTarget>& inputTargets, nsecs_t* nextWakeupTime) REQUIRES(mLock);
+                                           std::vector<InputTarget>& inputTargets,
+                                           nsecs_t* nextWakeupTime) REQUIRES(mLock);
     int32_t findTouchedWindowTargetsLocked(nsecs_t currentTime, const MotionEntry* entry,
-            std::vector<InputTarget>& inputTargets, nsecs_t* nextWakeupTime,
-            bool* outConflictingPointerActions) REQUIRES(mLock);
-    std::vector<TouchedMonitor> findTouchedGestureMonitorsLocked(int32_t displayId,
-            const std::vector<sp<InputWindowHandle>>& portalWindows) REQUIRES(mLock);
+                                           std::vector<InputTarget>& inputTargets,
+                                           nsecs_t* nextWakeupTime,
+                                           bool* outConflictingPointerActions) REQUIRES(mLock);
+    std::vector<TouchedMonitor> findTouchedGestureMonitorsLocked(
+            int32_t displayId, const std::vector<sp<InputWindowHandle>>& portalWindows)
+            REQUIRES(mLock);
     void addGestureMonitors(const std::vector<Monitor>& monitors,
-            std::vector<TouchedMonitor>& outTouchedMonitors, float xOffset = 0, float yOffset = 0);
+                            std::vector<TouchedMonitor>& outTouchedMonitors, float xOffset = 0,
+                            float yOffset = 0);
 
-    void addWindowTargetLocked(const sp<InputWindowHandle>& windowHandle,
-            int32_t targetFlags, BitSet32 pointerIds, std::vector<InputTarget>& inputTargets)
+    void addWindowTargetLocked(const sp<InputWindowHandle>& windowHandle, int32_t targetFlags,
+                               BitSet32 pointerIds, std::vector<InputTarget>& inputTargets)
             REQUIRES(mLock);
     void addMonitoringTargetLocked(const Monitor& monitor, float xOffset, float yOffset,
-            std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
-    void addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets,
-            int32_t displayId, float xOffset = 0, float yOffset = 0) REQUIRES(mLock);
+                                   std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
+    void addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets, int32_t displayId,
+                                          float xOffset = 0, float yOffset = 0) REQUIRES(mLock);
 
     void pokeUserActivityLocked(const EventEntry* eventEntry) REQUIRES(mLock);
     bool checkInjectionPermission(const sp<InputWindowHandle>& windowHandle,
-            const InjectionState* injectionState);
-    bool isWindowObscuredAtPointLocked(const sp<InputWindowHandle>& windowHandle,
-            int32_t x, int32_t y) const REQUIRES(mLock);
+                                  const InjectionState* injectionState);
+    bool isWindowObscuredAtPointLocked(const sp<InputWindowHandle>& windowHandle, int32_t x,
+                                       int32_t y) const REQUIRES(mLock);
     bool isWindowObscuredLocked(const sp<InputWindowHandle>& windowHandle) const REQUIRES(mLock);
     std::string getApplicationWindowLabel(const sp<InputApplicationHandle>& applicationHandle,
-            const sp<InputWindowHandle>& windowHandle);
+                                          const sp<InputWindowHandle>& windowHandle);
 
     std::string checkWindowReadyForMoreInputLocked(nsecs_t currentTime,
-            const sp<InputWindowHandle>& windowHandle, const EventEntry* eventEntry,
-            const char* targetType) REQUIRES(mLock);
+                                                   const sp<InputWindowHandle>& windowHandle,
+                                                   const EventEntry* eventEntry,
+                                                   const char* targetType) REQUIRES(mLock);
 
     // Manage the dispatch cycle for a single connection.
     // These methods are deliberately not Interruptible because doing all of the work
     // with the mutex held makes it easier to ensure that connection invariants are maintained.
     // If needed, the methods post commands to run later once the critical bits are done.
     void prepareDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection,
-            EventEntry* eventEntry, const InputTarget* inputTarget) REQUIRES(mLock);
+                                    EventEntry* eventEntry, const InputTarget* inputTarget)
+            REQUIRES(mLock);
     void enqueueDispatchEntriesLocked(nsecs_t currentTime, const sp<Connection>& connection,
-            EventEntry* eventEntry, const InputTarget* inputTarget) REQUIRES(mLock);
-    void enqueueDispatchEntryLocked(const sp<Connection>& connection,
-            EventEntry* eventEntry, const InputTarget* inputTarget, int32_t dispatchMode)
+                                      EventEntry* eventEntry, const InputTarget* inputTarget)
+            REQUIRES(mLock);
+    void enqueueDispatchEntryLocked(const sp<Connection>& connection, EventEntry* eventEntry,
+                                    const InputTarget* inputTarget, int32_t dispatchMode)
             REQUIRES(mLock);
     void startDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection)
             REQUIRES(mLock);
     void finishDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection,
-            uint32_t seq, bool handled) REQUIRES(mLock);
+                                   uint32_t seq, bool handled) REQUIRES(mLock);
     void abortBrokenDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection,
-            bool notify) REQUIRES(mLock);
+                                        bool notify) REQUIRES(mLock);
     void drainDispatchQueue(Queue<DispatchEntry>* queue);
     void releaseDispatchEntry(DispatchEntry* dispatchEntry);
     static int handleReceiveCallback(int fd, int events, void* data);
     // The action sent should only be of type AMOTION_EVENT_*
     void dispatchPointerDownOutsideFocus(uint32_t source, int32_t action,
-            const sp<IBinder>& newToken) REQUIRES(mLock);
+                                         const sp<IBinder>& newToken) REQUIRES(mLock);
 
-    void synthesizeCancelationEventsForAllConnectionsLocked(
-            const CancelationOptions& options) REQUIRES(mLock);
+    void synthesizeCancelationEventsForAllConnectionsLocked(const CancelationOptions& options)
+            REQUIRES(mLock);
+    void synthesizeCancelationEventsForMonitorsLocked(const CancelationOptions& options)
+            REQUIRES(mLock);
     void synthesizeCancelationEventsForMonitorsLocked(
-            const CancelationOptions& options) REQUIRES(mLock);
-    void synthesizeCancelationEventsForMonitorsLocked(const CancelationOptions& options,
+            const CancelationOptions& options,
             std::unordered_map<int32_t, std::vector<Monitor>>& monitorsByDisplay) REQUIRES(mLock);
     void synthesizeCancelationEventsForInputChannelLocked(const sp<InputChannel>& channel,
-            const CancelationOptions& options) REQUIRES(mLock);
+                                                          const CancelationOptions& options)
+            REQUIRES(mLock);
     void synthesizeCancelationEventsForConnectionLocked(const sp<Connection>& connection,
-            const CancelationOptions& options) REQUIRES(mLock);
+                                                        const CancelationOptions& options)
+            REQUIRES(mLock);
 
     // Splitting motion events across windows.
     MotionEntry* splitMotionEvent(const MotionEntry* originalMotionEntry, BitSet32 pointerIds);
@@ -1241,24 +1224,22 @@ private:
 
     // Registration.
     void removeMonitorChannelLocked(const sp<InputChannel>& inputChannel) REQUIRES(mLock);
-    void removeMonitorChannelLocked(const sp<InputChannel>& inputChannel,
-        std::unordered_map<int32_t, std::vector<Monitor>>& monitorsByDisplay)
-            REQUIRES(mLock);
+    void removeMonitorChannelLocked(
+            const sp<InputChannel>& inputChannel,
+            std::unordered_map<int32_t, std::vector<Monitor>>& monitorsByDisplay) REQUIRES(mLock);
     status_t unregisterInputChannelLocked(const sp<InputChannel>& inputChannel, bool notify)
             REQUIRES(mLock);
 
     // Interesting events that we might like to log or tell the framework about.
-    void onDispatchCycleFinishedLocked(
-            nsecs_t currentTime, const sp<Connection>& connection, uint32_t seq, bool handled)
-             REQUIRES(mLock);
-    void onDispatchCycleBrokenLocked(
-            nsecs_t currentTime, const sp<Connection>& connection) REQUIRES(mLock);
+    void onDispatchCycleFinishedLocked(nsecs_t currentTime, const sp<Connection>& connection,
+                                       uint32_t seq, bool handled) REQUIRES(mLock);
+    void onDispatchCycleBrokenLocked(nsecs_t currentTime, const sp<Connection>& connection)
+            REQUIRES(mLock);
     void onFocusChangedLocked(const sp<InputWindowHandle>& oldFocus,
-            const sp<InputWindowHandle>& newFocus) REQUIRES(mLock);
-    void onANRLocked(
-            nsecs_t currentTime, const sp<InputApplicationHandle>& applicationHandle,
-            const sp<InputWindowHandle>& windowHandle,
-            nsecs_t eventTime, nsecs_t waitStartTime, const char* reason) REQUIRES(mLock);
+                              const sp<InputWindowHandle>& newFocus) REQUIRES(mLock);
+    void onANRLocked(nsecs_t currentTime, const sp<InputApplicationHandle>& applicationHandle,
+                     const sp<InputWindowHandle>& windowHandle, nsecs_t eventTime,
+                     nsecs_t waitStartTime, const char* reason) REQUIRES(mLock);
 
     // Outbound policy interactions.
     void doNotifyConfigurationChangedLockedInterruptible(CommandEntry* commandEntry)
@@ -1270,17 +1251,18 @@ private:
             REQUIRES(mLock);
     void doDispatchCycleFinishedLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     bool afterKeyEventLockedInterruptible(const sp<Connection>& connection,
-            DispatchEntry* dispatchEntry, KeyEntry* keyEntry, bool handled) REQUIRES(mLock);
+                                          DispatchEntry* dispatchEntry, KeyEntry* keyEntry,
+                                          bool handled) REQUIRES(mLock);
     bool afterMotionEventLockedInterruptible(const sp<Connection>& connection,
-            DispatchEntry* dispatchEntry, MotionEntry* motionEntry, bool handled) REQUIRES(mLock);
+                                             DispatchEntry* dispatchEntry, MotionEntry* motionEntry,
+                                             bool handled) REQUIRES(mLock);
     void doPokeUserActivityLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     void initializeKeyEvent(KeyEvent* event, const KeyEntry* entry);
-    void doOnPointerDownOutsideFocusLockedInterruptible(CommandEntry* commandEntry)
-            REQUIRES(mLock);
+    void doOnPointerDownOutsideFocusLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
 
     // Statistics gathering.
     void updateDispatchStatistics(nsecs_t currentTime, const EventEntry* entry,
-            int32_t injectionResult, nsecs_t timeSpentWaitingForApplication);
+                                  int32_t injectionResult, nsecs_t timeSpentWaitingForApplication);
     void traceInboundQueueLengthLocked() REQUIRES(mLock);
     void traceOutboundQueueLength(const sp<Connection>& connection);
     void traceWaitQueueLength(const sp<Connection>& connection);

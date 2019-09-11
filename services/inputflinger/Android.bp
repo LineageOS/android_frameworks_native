@@ -30,7 +30,7 @@ cc_library_shared {
     srcs: [
         "InputClassifier.cpp",
         "InputClassifierConverter.cpp",
-        "InputDispatcher.cpp",
+        "dispatcher/InputDispatcher.cpp",
         "InputManager.cpp",
     ],
 
@@ -58,6 +58,7 @@ cc_library_shared {
     export_include_dirs: [
         ".",
         "include",
+        "dispatcher",
     ],
 
 }
