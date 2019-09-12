@@ -34,6 +34,7 @@
 #include <cutils/properties.h>
 #include <gui/BufferItem.h>
 #include <gui/BufferQueue.h>
+#include <gui/GLConsumer.h>
 #include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
 #include <renderengine/RenderEngine.h>
@@ -187,8 +188,7 @@ std::optional<renderengine::LayerSettings> BufferLayer::prepareClientComposition
 
         // Query the texture matrix given our current filtering mode.
         float textureMatrix[16];
-        setFilteringEnabled(useFiltering);
-        memcpy(textureMatrix, mBufferInfo.mTransformMatrix, sizeof(mBufferInfo.mTransformMatrix));
+        getDrawingTransformMatrix(useFiltering, textureMatrix);
 
         if (getTransformToDisplayInverse()) {
             /*
@@ -717,6 +717,11 @@ ui::Dataspace BufferLayer::translateDataspace(ui::Dataspace dataspace) {
 
 sp<GraphicBuffer> BufferLayer::getBuffer() const {
     return mBufferInfo.mBuffer;
+}
+
+void BufferLayer::getDrawingTransformMatrix(bool filteringEnabled, float outMatrix[16]) {
+    GLConsumer::computeTransformMatrix(outMatrix, mBufferInfo.mBuffer, mBufferInfo.mCrop,
+                                       mBufferInfo.mTransform, filteringEnabled);
 }
 
 } // namespace android

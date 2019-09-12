@@ -46,7 +46,6 @@ public:
 
     std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool forceFlush) override;
 
-
     // If a buffer was replaced this frame, release the former buffer
     void releasePendingBuffer(nsecs_t dequeueReadyTime) override;
 
@@ -65,7 +64,6 @@ public:
     bool framePresentTimeIsCurrent(nsecs_t expectedPresentTime) const override;
 
 private:
-
     uint64_t getFrameNumber(nsecs_t expectedPresentTime) const override;
 
     bool getAutoRefresh() const override;
@@ -74,8 +72,6 @@ private:
     bool latchSidebandStream(bool& recomputeVisibleRegions) override;
 
     bool hasFrameUpdate() const override;
-
-    void setFilteringEnabled(bool enabled) override;
 
     status_t bindTextureImage() override;
     status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime,

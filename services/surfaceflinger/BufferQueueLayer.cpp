@@ -151,13 +151,6 @@ bool BufferQueueLayer::framePresentTimeIsCurrent(nsecs_t expectedPresentTime) co
     return mQueueItems[0].mTimestamp <= expectedPresentTime;
 }
 
-// NOTE: SurfaceFlinger's definitions of "Current" and "Drawing" do not neatly map to BufferQueue's
-// These functions get the fields for the frame that is currently in SurfaceFlinger's Drawing state
-// so the functions start with "getDrawing". The data is retrieved from the BufferQueueConsumer's
-// current buffer so the consumer functions start with "getCurrent".
-//
-// This results in the rather confusing functions below.
-
 uint64_t BufferQueueLayer::getFrameNumber(nsecs_t expectedPresentTime) const {
     Mutex::Autolock lock(mQueueItemLock);
     uint64_t frameNumber = mQueueItems[0].mFrameNumber;
@@ -218,10 +211,6 @@ bool BufferQueueLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
 
 bool BufferQueueLayer::hasFrameUpdate() const {
     return mQueuedFrames > 0;
-}
-
-void BufferQueueLayer::setFilteringEnabled(bool enabled) {
-    return mConsumer->setFilteringEnabled(enabled);
 }
 
 status_t BufferQueueLayer::bindTextureImage() {
@@ -532,7 +521,6 @@ void BufferQueueLayer::gatherBufferInfo() {
     mBufferInfo.mDesiredPresentTime = mConsumer->getTimestamp();
     mBufferInfo.mFenceTime = mConsumer->getCurrentFenceTime();
     mBufferInfo.mFence = mConsumer->getCurrentFence();
-    mConsumer->getTransformMatrix(mBufferInfo.mTransformMatrix);
     mBufferInfo.mTransform = mConsumer->getCurrentTransform();
     mBufferInfo.mDataspace = translateDataspace(mConsumer->getCurrentDataSpace());
     mBufferInfo.mCrop = mConsumer->getCurrentCrop();

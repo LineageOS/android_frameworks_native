@@ -19,7 +19,6 @@
 #include "BufferLayer.h"
 #include "Layer.h"
 
-#include <gui/GLConsumer.h>
 #include <renderengine/Image.h>
 #include <renderengine/RenderEngine.h>
 #include <system/window.h>
@@ -108,7 +107,6 @@ protected:
     void gatherBufferInfo() override;
 
 private:
-
     uint64_t getFrameNumber(nsecs_t expectedPresentTime) const override;
 
     bool getAutoRefresh() const override;
@@ -117,8 +115,6 @@ private:
     bool latchSidebandStream(bool& recomputeVisibleRegions) override;
 
     bool hasFrameUpdate() const override;
-
-    void setFilteringEnabled(bool enabled) override;
 
     status_t bindTextureImage() override;
     status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime,
@@ -140,8 +136,6 @@ private:
     static const std::array<float, 16> IDENTITY_MATRIX;
 
     std::unique_ptr<renderengine::Image> mTextureImage;
-
-    std::array<float, 16> mTransformMatrix{IDENTITY_MATRIX};
 
     std::atomic<bool> mSidebandStreamChanged{false};
 
