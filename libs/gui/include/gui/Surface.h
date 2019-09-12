@@ -179,9 +179,6 @@ public:
     status_t getUniqueId(uint64_t* outId) const;
     status_t getConsumerUsage(uint64_t* outUsage) const;
 
-    // Returns the CLOCK_MONOTONIC start time of the last dequeueBuffer call
-    nsecs_t getLastDequeueStartTime() const;
-
 protected:
     virtual ~Surface();
 
@@ -247,6 +244,7 @@ private:
     int dispatchGetHdrSupport(va_list args);
     int dispatchGetConsumerUsage64(va_list args);
     int dispatchSetAutoPrerotation(va_list args);
+    int dispatchGetLastDequeueStartTime(va_list args);
     bool transformToDisplayInverse();
 
 protected:
