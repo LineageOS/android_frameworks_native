@@ -209,6 +209,10 @@ int32_t TimeStatsTest::genRandomInt32(int32_t begin, int32_t end) {
     return distr(mRandomEngine);
 }
 
+TEST_F(TimeStatsTest, enabledByDefault) {
+    ASSERT_TRUE(mTimeStats->isEnabled());
+}
+
 TEST_F(TimeStatsTest, canEnableAndDisableTimeStats) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
     ASSERT_TRUE(mTimeStats->isEnabled());

@@ -1081,6 +1081,9 @@ int Surface::perform(int operation, va_list args)
     case NATIVE_WINDOW_SET_AUTO_PREROTATION:
         res = dispatchSetAutoPrerotation(args);
         break;
+    case NATIVE_WINDOW_GET_LAST_DEQUEUE_START:
+        res = dispatchGetLastDequeueStartTime(args);
+        break;
     default:
         res = NAME_NOT_FOUND;
         break;
@@ -1284,6 +1287,12 @@ int Surface::dispatchGetConsumerUsage64(va_list args) {
 int Surface::dispatchSetAutoPrerotation(va_list args) {
     bool autoPrerotation = va_arg(args, int);
     return setAutoPrerotation(autoPrerotation);
+}
+
+int Surface::dispatchGetLastDequeueStartTime(va_list args) {
+    int64_t* lastDequeueStartTime = va_arg(args, int64_t*);
+    *lastDequeueStartTime = mLastDequeueStartTime;
+    return NO_ERROR;
 }
 
 bool Surface::transformToDisplayInverse() {
@@ -1948,11 +1957,6 @@ status_t Surface::getUniqueId(uint64_t* outId) const {
 int Surface::getConsumerUsage(uint64_t* outUsage) const {
     Mutex::Autolock lock(mMutex);
     return mGraphicBufferProducer->getConsumerUsage(outUsage);
-}
-
-nsecs_t Surface::getLastDequeueStartTime() const {
-    Mutex::Autolock lock(mMutex);
-    return mLastDequeueStartTime;
 }
 
 status_t Surface::getAndFlushRemovedBuffers(std::vector<sp<GraphicBuffer>>* out) {

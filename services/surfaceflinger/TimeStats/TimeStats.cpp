@@ -34,6 +34,14 @@ namespace android {
 
 namespace impl {
 
+TimeStats::TimeStats() {
+    // Temporarily enable TimeStats by default. Telemetry is disabled while
+    // we move onto statsd, so TimeStats is currently not exercised at all
+    // during testing.
+    // TODO: remove this.
+    enable();
+}
+
 void TimeStats::parseArgs(bool asProto, const Vector<String16>& args, std::string& result) {
     ATRACE_CALL();
 

@@ -36,6 +36,12 @@ public:
 
     // Exposes the internal last dequeue duration that's stored on the Surface.
     nsecs_t getLastDequeueDuration() const { return mLastDequeueDuration; }
+
+    // Exposes the internal last queue duration that's stored on the Surface.
+    nsecs_t getLastQueueDuration() const { return mLastQueueDuration; }
+
+    // Exposes the internal last dequeue start time that's stored on the Surface.
+    nsecs_t getLastDequeueStartTime() const { return mLastDequeueStartTime; }
 };
 
 class ANativeWindowTest : public ::testing::Test {
@@ -81,4 +87,54 @@ TEST_F(ANativeWindowTest, getLastDequeueDuration_withDequeue_returnsTime) {
     result = ANativeWindow_getLastDequeueDuration(mWindow.get());
     EXPECT_GT(result, 0);
     EXPECT_EQ(result, mWindow->getLastDequeueDuration() / 1000);
+}
+
+TEST_F(ANativeWindowTest, getLastQueueDuration_noDequeue_returnsZero) {
+    int result = ANativeWindow_getLastQueueDuration(mWindow.get());
+    EXPECT_EQ(0, result);
+    EXPECT_EQ(0, mWindow->getLastQueueDuration());
+}
+
+TEST_F(ANativeWindowTest, getLastQueueDuration_noQueue_returnsZero) {
+    ANativeWindowBuffer* buffer;
+    int fd;
+    int result = ANativeWindow_dequeueBuffer(mWindow.get(), &buffer, &fd);
+    close(fd);
+    EXPECT_EQ(0, result);
+
+    result = ANativeWindow_getLastQueueDuration(mWindow.get());
+    EXPECT_EQ(result, 0);
+    EXPECT_EQ(result, mWindow->getLastQueueDuration());
+}
+
+TEST_F(ANativeWindowTest, getLastQueueDuration_withQueue_returnsTime) {
+    ANativeWindowBuffer* buffer;
+    int fd;
+    int result = ANativeWindow_dequeueBuffer(mWindow.get(), &buffer, &fd);
+    close(fd);
+    EXPECT_EQ(0, result);
+
+    result = ANativeWindow_queueBuffer(mWindow.get(), buffer, 0);
+
+    result = ANativeWindow_getLastQueueDuration(mWindow.get());
+    EXPECT_GT(result, 0);
+    EXPECT_EQ(result, mWindow->getLastQueueDuration() / 1000);
+}
+
+TEST_F(ANativeWindowTest, getLastDequeueStartTime_noDequeue_returnsZero) {
+    int64_t result = ANativeWindow_getLastDequeueStartTime(mWindow.get());
+    EXPECT_EQ(0, result);
+    EXPECT_EQ(0, mWindow->getLastQueueDuration());
+}
+
+TEST_F(ANativeWindowTest, getLastDequeueStartTime_withDequeue_returnsTime) {
+    ANativeWindowBuffer* buffer;
+    int fd;
+    int dequeueResult = ANativeWindow_dequeueBuffer(mWindow.get(), &buffer, &fd);
+    close(fd);
+    EXPECT_EQ(0, dequeueResult);
+
+    int64_t result = ANativeWindow_getLastDequeueStartTime(mWindow.get());
+    EXPECT_GT(result, 0);
+    EXPECT_EQ(result, mWindow->getLastDequeueStartTime());
 }

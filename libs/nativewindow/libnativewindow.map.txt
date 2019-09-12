@@ -23,6 +23,8 @@ LIBNATIVEWINDOW {
     ANativeWindow_getFormat;
     ANativeWindow_getHeight;
     ANativeWindow_getLastDequeueDuration; # apex # introduced=30
+    ANativeWindow_getLastDequeueStartTime; # apex # introduced=30
+    ANativeWindow_getLastQueueDuration; # apex # introduced=30
     ANativeWindow_getWidth;
     ANativeWindow_lock;
     ANativeWindow_query; # vndk

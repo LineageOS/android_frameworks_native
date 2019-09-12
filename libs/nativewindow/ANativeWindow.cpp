@@ -274,3 +274,13 @@ int ANativeWindow_setAutoPrerotation(ANativeWindow* window, bool autoPrerotation
 int ANativeWindow_getLastDequeueDuration(ANativeWindow* window) {
     return query(window, NATIVE_WINDOW_LAST_DEQUEUE_DURATION);
 }
+
+int ANativeWindow_getLastQueueDuration(ANativeWindow* window) {
+    return query(window, NATIVE_WINDOW_LAST_QUEUE_DURATION);
+}
+
+int64_t ANativeWindow_getLastDequeueStartTime(ANativeWindow* window) {
+    int64_t time;
+    int success = window->perform(window, NATIVE_WINDOW_GET_LAST_DEQUEUE_START, &time);
+    return success < 0 ? success : time;
+}

@@ -617,7 +617,7 @@ TEST_F(SurfaceTest, TestGetLastDequeueStartTime) {
     anw->dequeueBuffer(anw.get(), &buffer, &fenceFd);
     nsecs_t after = systemTime(CLOCK_MONOTONIC);
 
-    nsecs_t lastDequeueTime = mSurface->getLastDequeueStartTime();
+    nsecs_t lastDequeueTime = ANativeWindow_getLastDequeueStartTime(anw.get());
     ASSERT_LE(before, lastDequeueTime);
     ASSERT_GE(after, lastDequeueTime);
 }
