@@ -353,11 +353,6 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     mPropagateBackpressure = !atoi(value);
     ALOGI_IF(!mPropagateBackpressure, "Disabling backpressure propagation");
 
-    property_get("debug.sf.enable_gl_backpressure", value, "0");
-    mPropagateBackpressureClientComposition = atoi(value);
-    ALOGI_IF(mPropagateBackpressureClientComposition,
-             "Enabling backpressure propagation for Client Composition");
-
     property_get("debug.sf.enable_hwc_vds", value, "0");
     mUseHwcVirtualDisplays = atoi(value);
     ALOGI_IF(mUseHwcVirtualDisplays, "Enabling HWC virtual displays");
@@ -1737,9 +1732,9 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
                 break;
             }
 
-            if (frameMissed && mPropagateBackpressure) {
-                if ((hwcFrameMissed && !gpuFrameMissed) ||
-                    mPropagateBackpressureClientComposition) {
+            // For now, only propagate backpressure when missing a hwc frame.
+            if (hwcFrameMissed && !gpuFrameMissed) {
+                if (mPropagateBackpressure) {
                     signalLayerUpdate();
                     break;
                 }
