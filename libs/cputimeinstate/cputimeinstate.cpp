@@ -110,9 +110,10 @@ static bool initGlobals() {
             std::string path =
                     StringPrintf("%s/%s/scaling_%s_frequencies", basepath, policy.c_str(), name);
             auto nums = readNumbersFromFile(path);
-            if (!nums) return false;
+            if (!nums) continue;
             freqs.insert(freqs.end(), nums->begin(), nums->end());
         }
+        if (freqs.empty()) return false;
         std::sort(freqs.begin(), freqs.end());
         gPolicyFreqs.emplace_back(freqs);
 
