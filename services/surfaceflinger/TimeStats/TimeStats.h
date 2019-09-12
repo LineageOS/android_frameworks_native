@@ -106,7 +106,7 @@ class TimeStats : public android::TimeStats {
     };
 
 public:
-    TimeStats() = default;
+    TimeStats();
 
     void parseArgs(bool asProto, const Vector<String16>& args, std::string& result) override;
     bool isEnabled() override;
