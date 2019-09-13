@@ -3003,7 +3003,7 @@ void SurfaceFlinger::initScheduler(DisplayId primaryDisplayId) {
 
     int currentConfig = getHwComposer().getActiveConfigIndex(primaryDisplayId);
     mRefreshRateConfigs =
-            std::make_unique<scheduler::RefreshRateConfigs>(refresh_rate_switching(false),
+            std::make_unique<scheduler::RefreshRateConfigs>(refresh_rate_switching(true),
                                                             getHwComposer().getConfigs(
                                                                     primaryDisplayId),
                                                             currentConfig);
