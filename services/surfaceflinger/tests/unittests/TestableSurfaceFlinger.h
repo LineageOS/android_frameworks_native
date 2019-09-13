@@ -32,6 +32,7 @@
 #include "Layer.h"
 #include "NativeWindowSurface.h"
 #include "Scheduler/MessageQueue.h"
+#include "Scheduler/RefreshRateConfigs.h"
 #include "StartPropertySetThread.h"
 #include "SurfaceFlinger.h"
 #include "SurfaceFlingerFactory.h"
@@ -194,9 +195,19 @@ public:
                         std::unique_ptr<EventControlThread> eventControlThread,
                         std::unique_ptr<EventThread> appEventThread,
                         std::unique_ptr<EventThread> sfEventThread) {
+        std::vector<scheduler::RefreshRateConfigs::InputConfig> configs{{/*hwcId=*/0, 16666667}};
+        mFlinger->mRefreshRateConfigs =
+                std::make_unique<scheduler::RefreshRateConfigs>(/*refreshRateSwitching=*/false,
+                                                                configs, /*currentConfig=*/0);
+        mFlinger->mRefreshRateStats =
+                std::make_unique<scheduler::RefreshRateStats>(*mFlinger->mRefreshRateConfigs,
+                                                              *mFlinger->mTimeStats,
+                                                              /*currentConfig=*/0,
+                                                              /*powerMode=*/HWC_POWER_MODE_OFF);
+
         mScheduler =
                 new TestableScheduler(std::move(primaryDispSync), std::move(eventControlThread),
-                                      mFlinger->mRefreshRateConfigs);
+                                      *mFlinger->mRefreshRateConfigs);
 
         mFlinger->mAppConnectionHandle = mScheduler->createConnection(std::move(appEventThread));
         mFlinger->mSfConnectionHandle = mScheduler->createConnection(std::move(sfEventThread));

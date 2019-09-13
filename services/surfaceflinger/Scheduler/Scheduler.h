@@ -43,9 +43,7 @@ public:
     using RefreshRateType = scheduler::RefreshRateConfigs::RefreshRateType;
     using ConfigEvent = scheduler::RefreshRateConfigEvent;
 
-    using GetCurrentRefreshRateTypeCallback = std::function<RefreshRateType()>;
     using ChangeRefreshRateCallback = std::function<void(RefreshRateType, ConfigEvent)>;
-    using GetVsyncPeriod = std::function<nsecs_t()>;
 
     // Indicates whether to start the transaction early, or at vsync time.
     enum class TransactionStart { EARLY, NORMAL };
@@ -59,10 +57,10 @@ public:
 
     using ConnectionHandle = scheduler::ConnectionHandle;
     ConnectionHandle createConnection(const char* connectionName, nsecs_t phaseOffsetNs,
-                                      nsecs_t offsetThresholdForNextVsync, ResyncCallback,
+                                      nsecs_t offsetThresholdForNextVsync,
                                       impl::EventThread::InterceptVSyncsCallback);
 
-    sp<IDisplayEventConnection> createDisplayEventConnection(ConnectionHandle, ResyncCallback,
+    sp<IDisplayEventConnection> createDisplayEventConnection(ConnectionHandle,
                                                              ISurfaceComposer::ConfigChanged);
 
     EventThread* getEventThread(ConnectionHandle);
@@ -88,7 +86,7 @@ public:
     // no-op.
     // The period is the vsync period from the current display configuration.
     void resyncToHardwareVsync(bool makeAvailable, nsecs_t period);
-    ResyncCallback makeResyncCallback(GetVsyncPeriod&&);
+    void resync();
 
     // Passes a vsync sample to DispSync. periodFlushed will be true if
     // DispSync detected that the vsync period changed, and false otherwise.
@@ -112,9 +110,6 @@ public:
 
     // Called by Scheduler to change refresh rate.
     void setChangeRefreshRateCallback(ChangeRefreshRateCallback&&);
-
-    void setGetCurrentRefreshRateTypeCallback(GetCurrentRefreshRateTypeCallback&&);
-    void setGetVsyncPeriodCallback(GetVsyncPeriod&&);
 
     bool isIdleTimerEnabled() const { return mIdleTimer.has_value(); }
     void resetIdleTimer();
@@ -149,8 +144,8 @@ private:
                                                  impl::EventThread::InterceptVSyncsCallback&&);
 
     // Create a connection on the given EventThread and forward the resync callback.
-    ConnectionHandle createConnection(std::unique_ptr<EventThread>, ResyncCallback&&);
-    sp<EventThreadConnection> createConnectionInternal(EventThread*, ResyncCallback&&,
+    ConnectionHandle createConnection(std::unique_ptr<EventThread>);
+    sp<EventThreadConnection> createConnectionInternal(EventThread*,
                                                        ISurfaceComposer::ConfigChanged);
 
     // Update feature state machine to given state when corresponding timer resets or expires.
@@ -182,17 +177,7 @@ private:
     bool mPrimaryHWVsyncEnabled GUARDED_BY(mHWVsyncLock) = false;
     bool mHWVsyncAvailable GUARDED_BY(mHWVsyncLock) = false;
 
-    // Stores per-display state about VSYNC.
-    struct VsyncState {
-        explicit VsyncState(Scheduler& scheduler) : scheduler(scheduler) {}
-
-        void resync(const GetVsyncPeriod&);
-
-        Scheduler& scheduler;
-        std::atomic<nsecs_t> lastResyncTime = 0;
-    };
-
-    const std::shared_ptr<VsyncState> mPrimaryVsyncState{std::make_shared<VsyncState>(*this)};
+    std::atomic<nsecs_t> mLastResyncTime = 0;
 
     std::unique_ptr<DispSync> mPrimaryDispSync;
     std::unique_ptr<EventControlThread> mEventControlThread;
@@ -211,9 +196,7 @@ private:
     std::optional<scheduler::OneShotTimer> mDisplayPowerTimer;
 
     std::mutex mCallbackLock;
-    GetCurrentRefreshRateTypeCallback mGetCurrentRefreshRateTypeCallback GUARDED_BY(mCallbackLock);
     ChangeRefreshRateCallback mChangeRefreshRateCallback GUARDED_BY(mCallbackLock);
-    GetVsyncPeriod mGetVsyncPeriod GUARDED_BY(mCallbackLock);
 
     // In order to make sure that the features don't override themselves, we need a state machine
     // to keep track which feature requested the config change.
