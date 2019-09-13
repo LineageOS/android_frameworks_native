@@ -137,6 +137,20 @@ HardwareComposer::~HardwareComposer(void) {
   composer_callback_->SetVsyncService(nullptr);
 }
 
+void HardwareComposer::UpdateEdidData(Hwc2::Composer* composer,
+                                      hwc2_display_t hw_id) {
+  const auto error = composer->getDisplayIdentificationData(
+      hw_id, &display_port_, &display_identification_data_);
+  if (error != android::hardware::graphics::composer::V2_1::Error::NONE) {
+    if (error !=
+        android::hardware::graphics::composer::V2_1::Error::UNSUPPORTED) {
+      ALOGI("hardware_composer: identification data error\n");
+    } else {
+      ALOGI("hardware_composer: identification data unsupported\n");
+    }
+  }
+}
+
 bool HardwareComposer::Initialize(
     Hwc2::Composer* composer, hwc2_display_t primary_display_id,
     RequestDisplayCallback request_display_callback) {
@@ -163,6 +177,8 @@ bool HardwareComposer::Initialize(
       !post_thread_event_fd_,
       "HardwareComposer: Failed to create interrupt event fd : %s",
       strerror(errno));
+
+  UpdateEdidData(composer, primary_display_id);
 
   post_thread_ = std::thread(&HardwareComposer::PostThread, this);
 
@@ -987,6 +1003,9 @@ bool HardwareComposer::UpdateTargetDisplay() {
     else if (target_display_->is_primary && external_display_) {
       EnableDisplay(*external_display_, false);
     }
+
+    // Update the cached edid data for the current display.
+    UpdateEdidData(composer_.get(), target_display_->id);
 
     // Turn the new target display on.
     EnableDisplay(*target_display_, true);

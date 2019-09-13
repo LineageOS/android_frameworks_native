@@ -25,6 +25,7 @@
 #include <private/dvr/shared_buffer_helpers.h>
 #include <private/dvr/vsync_service.h>
 
+#include "DisplayHardware/DisplayIdentification.h"
 #include "acquired_buffer.h"
 #include "display_surface.h"
 
@@ -334,6 +335,14 @@ class HardwareComposer {
   int OnNewGlobalBuffer(DvrGlobalBufferKey key, IonBuffer& ion_buffer);
   void OnDeletedGlobalBuffer(DvrGlobalBufferKey key);
 
+  // Gets the edid data for the current active display (internal or external)
+  DisplayIdentificationData GetCurrentDisplayIdentificationData() {
+    return display_identification_data_;
+  }
+
+  // Gets the edid port for the current active display (internal or external)
+  uint8_t GetCurrentDisplayPort() { return display_port_; }
+
  private:
   DisplayParams GetDisplayParams(Hwc2::Composer* composer,
       hwc2_display_t display, bool is_primary);
@@ -543,6 +552,11 @@ class HardwareComposer {
 
   bool vsync_trace_parity_ = false;
   sp<VsyncService> vsync_service_;
+
+  // Edid section.
+  void UpdateEdidData(Hwc2::Composer* composer, hwc2_display_t hw_id);
+  DisplayIdentificationData display_identification_data_;
+  uint8_t display_port_;
 
   static constexpr int kPostThreadInterrupted = 1;
 

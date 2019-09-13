@@ -18,8 +18,6 @@
 #include "epoll_event_dispatcher.h"
 #include "hardware_composer.h"
 
-#include "DisplayHardware/DisplayIdentification.h"
-
 namespace android {
 namespace dvr {
 
@@ -120,9 +118,6 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
 
   DisplayService(const DisplayService&) = delete;
   void operator=(const DisplayService&) = delete;
-
-  DisplayIdentificationData display_identification_data_;
-  uint8_t display_identification_port_;
 };
 
 }  // namespace dvr
