@@ -244,7 +244,7 @@ void Scheduler::resyncToHardwareVsync(bool makeAvailable, nsecs_t period) {
 }
 
 void Scheduler::resync() {
-    static constexpr nsecs_t kIgnoreDelay = ms2ns(500);
+    static constexpr nsecs_t kIgnoreDelay = ms2ns(750);
 
     const nsecs_t now = systemTime();
     const nsecs_t last = mLastResyncTime.exchange(now);
