@@ -30,8 +30,4 @@ bool ContainerLayer::isVisible() const {
     return false;
 }
 
-bool ContainerLayer::canReceiveInput() const {
-    return !isHiddenByPolicy();
-}
-
 } // namespace android

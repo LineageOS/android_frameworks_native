@@ -31,8 +31,6 @@ public:
     const char* getType() const override { return "ContainerLayer"; }
     bool isVisible() const override;
 
-    bool canReceiveInput() const override;
-
     bool isCreatedFromMainThread() const override { return true; }
 };
 
