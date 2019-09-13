@@ -1,6 +1,11 @@
 props {
   module: "android.sysprop.SurfaceFlingerProperties"
   prop {
+    api_name: "color_space_agnostic_dataspace"
+    type: Long
+    prop_name: "ro.surface_flinger.color_space_agnostic_dataspace"
+  }
+  prop {
     api_name: "default_composition_dataspace"
     type: Long
     prop_name: "ro.surface_flinger.default_composition_dataspace"
@@ -70,6 +75,11 @@ props {
   prop {
     api_name: "running_without_sync_framework"
     prop_name: "ro.surface_flinger.running_without_sync_framework"
+  }
+  prop {
+    api_name: "set_display_power_timer_ms"
+    type: Integer
+    prop_name: "ro.surface_flinger.set_display_power_timer_ms"
   }
   prop {
     api_name: "set_idle_timer_ms"
