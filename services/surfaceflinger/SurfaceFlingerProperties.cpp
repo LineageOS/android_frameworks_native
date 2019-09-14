@@ -218,6 +218,14 @@ int32_t wcg_composition_pixel_format(PixelFormat defaultValue) {
     return static_cast<int32_t>(defaultValue);
 }
 
+bool refresh_rate_switching(bool defaultValue) {
+    auto temp = SurfaceFlingerProperties::refresh_rate_switching();
+    if (temp.has_value()) {
+        return *temp;
+    }
+    return defaultValue;
+}
+
 int32_t set_idle_timer_ms(int32_t defaultValue) {
     auto temp = SurfaceFlingerProperties::set_idle_timer_ms();
     if (temp.has_value()) {

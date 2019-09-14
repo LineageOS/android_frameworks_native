@@ -553,6 +553,7 @@ private:
     void executeInputWindowCommands();
     void setInputWindowsFinished();
     void updateCursorAsync();
+    void initScheduler(DisplayId primaryDisplayId);
 
     /* handlePageFlip - latch a new buffer if available and compute the dirty
      * region. Returns whether a new buffer has been latched, i.e., whether it
@@ -1128,8 +1129,8 @@ private:
     sp<Scheduler::ConnectionHandle> mAppConnectionHandle;
     sp<Scheduler::ConnectionHandle> mSfConnectionHandle;
 
-    scheduler::RefreshRateConfigs mRefreshRateConfigs;
-    scheduler::RefreshRateStats mRefreshRateStats{mRefreshRateConfigs, *mTimeStats};
+    std::unique_ptr<scheduler::RefreshRateConfigs> mRefreshRateConfigs;
+    std::unique_ptr<scheduler::RefreshRateStats> mRefreshRateStats;
 
     // All configs are allowed if the set is empty.
     using DisplayConfigs = std::set<int32_t>;
