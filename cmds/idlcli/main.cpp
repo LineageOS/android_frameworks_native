@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,10 @@
  * limitations under the License.
  */
 
-// #define LOG_NDEBUG 0
-#undef LOG_TAG
-#define LOG_TAG "ContainerLayer"
+#include "IdlCli.h"
+#include "utils.h"
 
-#include "ContainerLayer.h"
-
-namespace android {
-
-ContainerLayer::ContainerLayer(const LayerCreationArgs& args) : Layer(args) {}
-
-ContainerLayer::~ContainerLayer() = default;
-
-bool ContainerLayer::isVisible() const {
-    return false;
+int main(const int argc, const char* const argv[]) {
+    using namespace ::android::idlcli;
+    return IdlCli{}.main(Args{argc, argv});
 }
-
-} // namespace android

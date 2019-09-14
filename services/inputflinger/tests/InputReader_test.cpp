@@ -527,7 +527,7 @@ private:
     virtual status_t getAbsoluteAxisInfo(int32_t deviceId, int axis,
             RawAbsoluteAxisInfo* outAxisInfo) const {
         Device* device = getDevice(deviceId);
-        if (device) {
+        if (device && device->enabled) {
             ssize_t index = device->absoluteAxes.indexOfKey(axis);
             if (index >= 0) {
                 *outAxisInfo = device->absoluteAxes.valueAt(index);
@@ -6552,6 +6552,37 @@ TEST_F(MultiTouchInputMapperTest, VideoFrames_MultipleFramesAreRotated) {
     std::for_each(frames.begin(), frames.end(),
             [](TouchVideoFrame& frame) { frame.rotate(DISPLAY_ORIENTATION_90); });
     ASSERT_EQ(frames, motionArgs.videoFrames);
+}
+
+/**
+ * If we had defined port associations, but the viewport is not ready, the touch device would be
+ * expected to be disabled, and it should be enabled after the viewport has found.
+ */
+TEST_F(MultiTouchInputMapperTest, Configure_EnabledForAssociatedDisplay) {
+    MultiTouchInputMapper* mapper = new MultiTouchInputMapper(mDevice);
+    constexpr uint8_t hdmi2 = 1;
+    const std::string secondaryUniqueId = "uniqueId2";
+    constexpr ViewportType type = ViewportType::VIEWPORT_EXTERNAL;
+
+    mFakePolicy->addInputPortAssociation(DEVICE_LOCATION, hdmi2);
+
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareAxes(POSITION);
+    addMapperAndConfigure(mapper);
+
+    ASSERT_EQ(mDevice->isEnabled(), false);
+
+    // Add display on hdmi2, the device should be enabled and can receive touch event.
+    prepareSecondaryDisplay(type, hdmi2);
+    ASSERT_EQ(mDevice->isEnabled(), true);
+
+    // Send a touch event.
+    processPosition(mapper, 100, 100);
+    processSync(mapper);
+
+    NotifyMotionArgs args;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(SECONDARY_DISPLAY_ID, args.displayId);
 }
 
 } // namespace android

@@ -887,7 +887,7 @@ private:
             bool addOutsideTargets = false, bool addPortalWindows = false) REQUIRES(mLock);
 
     // All registered connections mapped by channel file descriptor.
-    KeyedVector<int, sp<Connection> > mConnectionsByFd GUARDED_BY(mLock);
+    std::unordered_map<int, sp<Connection>> mConnectionsByFd GUARDED_BY(mLock);
 
     struct IBinderHash {
         std::size_t operator()(const sp<IBinder>& b) const {
@@ -901,7 +901,7 @@ private:
     std::optional<int32_t> findGestureMonitorDisplayByTokenLocked(const sp<IBinder>& token)
             REQUIRES(mLock);
 
-    ssize_t getConnectionIndexLocked(const sp<InputChannel>& inputChannel) REQUIRES(mLock);
+    sp<Connection> getConnectionLocked(const sp<InputChannel>& inputChannel) REQUIRES(mLock);
 
     // Input channels that will receive a copy of all input events sent to the provided display.
     std::unordered_map<int32_t, std::vector<Monitor>> mGlobalMonitorsByDisplay

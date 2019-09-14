@@ -529,9 +529,6 @@ private:
     // called on the main thread in response to setPowerMode()
     void setPowerModeInternal(const sp<DisplayDevice>& display, int mode) REQUIRES(mStateLock);
 
-    // Query the Scheduler or allowed display configs list for a matching config, and set it
-    void setPreferredDisplayConfig() REQUIRES(mStateLock);
-
     // called on the main thread in response to setAllowedDisplayConfigs()
     void setAllowedDisplayConfigsInternal(const sp<DisplayDevice>& display,
                                           const std::vector<int32_t>& allowedConfigs)
@@ -554,6 +551,7 @@ private:
     void executeInputWindowCommands();
     void setInputWindowsFinished();
     void updateCursorAsync();
+    void initScheduler(DisplayId primaryDisplayId);
 
     /* handlePageFlip - latch a new buffer if available and compute the dirty
      * region. Returns whether a new buffer has been latched, i.e., whether it
@@ -985,7 +983,6 @@ private:
     volatile nsecs_t mDebugInTransaction = 0;
     bool mForceFullDamage = false;
     bool mPropagateBackpressure = true;
-    bool mPropagateBackpressureClientComposition = false;
     std::unique_ptr<SurfaceInterceptor> mInterceptor;
     SurfaceTracing mTracing{*this};
     bool mTracingEnabled = false;
@@ -1102,8 +1099,8 @@ private:
     // Optional to defer construction until scheduler connections are created.
     std::optional<scheduler::VSyncModulator> mVSyncModulator;
 
-    scheduler::RefreshRateConfigs mRefreshRateConfigs;
-    scheduler::RefreshRateStats mRefreshRateStats{mRefreshRateConfigs, *mTimeStats};
+    std::unique_ptr<scheduler::RefreshRateConfigs> mRefreshRateConfigs;
+    std::unique_ptr<scheduler::RefreshRateStats> mRefreshRateStats;
 
     std::atomic<nsecs_t> mExpectedPresentTime = 0;
 

@@ -127,6 +127,10 @@ private:
 
     PixelFormat getPixelFormat() const;
 
+    // Computes the transform matrix using the setFilteringEnabled to determine whether the
+    // transform matrix should be computed for use with bilinear filtering.
+    void getDrawingTransformMatrix(bool filteringEnabled, float outMatrix[16]);
+
     virtual uint64_t getFrameNumber(nsecs_t expectedPresentTime) const = 0;
 
     virtual bool getAutoRefresh() const = 0;
@@ -136,8 +140,6 @@ private:
     virtual bool latchSidebandStream(bool& recomputeVisibleRegions) = 0;
 
     virtual bool hasFrameUpdate() const = 0;
-
-    virtual void setFilteringEnabled(bool enabled) = 0;
 
     virtual status_t bindTextureImage() = 0;
     virtual status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime,
@@ -151,9 +153,8 @@ protected:
         nsecs_t mDesiredPresentTime;
         std::shared_ptr<FenceTime> mFenceTime;
         sp<Fence> mFence;
-        float mTransformMatrix[16];
         uint32_t mTransform{0};
-        ui::Dataspace mDataspace;
+        ui::Dataspace mDataspace{ui::Dataspace::UNKNOWN};
         Rect mCrop;
         uint32_t mScaleMode{NATIVE_WINDOW_SCALING_MODE_FREEZE};
         Region mSurfaceDamage;

@@ -73,6 +73,10 @@ props {
     enum_values: "ORIENTATION_0|ORIENTATION_90|ORIENTATION_180|ORIENTATION_270"
   }
   prop {
+    api_name: "refresh_rate_switching"
+    prop_name: "ro.surface_flinger.refresh_rate_switching"
+  }
+  prop {
     api_name: "running_without_sync_framework"
     prop_name: "ro.surface_flinger.running_without_sync_framework"
   }

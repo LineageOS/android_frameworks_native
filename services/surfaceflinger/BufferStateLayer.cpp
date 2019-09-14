@@ -432,11 +432,6 @@ bool BufferStateLayer::hasFrameUpdate() const {
     return mCurrentStateModified && (c.buffer != nullptr || c.bgColorLayer != nullptr);
 }
 
-void BufferStateLayer::setFilteringEnabled(bool enabled) {
-    GLConsumer::computeTransformMatrix(mTransformMatrix.data(), mBufferInfo.mBuffer,
-                                       mBufferInfo.mCrop, mBufferInfo.mTransform, enabled);
-}
-
 status_t BufferStateLayer::bindTextureImage() {
     const State& s(getDrawingState());
     auto& engine(mFlinger->getRenderEngine());
@@ -545,10 +540,8 @@ void BufferStateLayer::latchPerFrameState(
         return;
     }
 
-    const State& s(getDrawingState());
-
-    compositionState.buffer = s.buffer;
-    compositionState.bufferSlot = mHwcSlotGenerator->getHwcCacheSlot(s.clientCacheId);
+    compositionState.buffer = mBufferInfo.mBuffer;
+    compositionState.bufferSlot = mBufferInfo.mBufferSlot;
     compositionState.acquireFence = mBufferInfo.mFence;
 
     mFrameNumber++;
@@ -641,8 +634,6 @@ void BufferStateLayer::gatherBufferInfo() {
     mBufferInfo.mDesiredPresentTime = s.desiredPresentTime;
     mBufferInfo.mFenceTime = std::make_shared<FenceTime>(s.acquireFence);
     mBufferInfo.mFence = s.acquireFence;
-    std::copy(std::begin(mTransformMatrix), std::end(mTransformMatrix),
-              mBufferInfo.mTransformMatrix);
     mBufferInfo.mTransform = s.transform;
     mBufferInfo.mDataspace = translateDataspace(s.dataspace);
     mBufferInfo.mCrop = computeCrop(s);
@@ -653,6 +644,7 @@ void BufferStateLayer::gatherBufferInfo() {
     mBufferInfo.mPixelFormat =
             !mBufferInfo.mBuffer ? PIXEL_FORMAT_NONE : mBufferInfo.mBuffer->format;
     mBufferInfo.mTransformToDisplayInverse = s.transformToDisplayInverse;
+    mBufferInfo.mBufferSlot = mHwcSlotGenerator->getHwcCacheSlot(s.clientCacheId);
 }
 
 Rect BufferStateLayer::computeCrop(const State& s) {

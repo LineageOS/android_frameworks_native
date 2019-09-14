@@ -262,12 +262,32 @@ static void dumpRegion(std::string& dump, const Region& region) {
  * if the entry is not found.
  * Also useful when the entries are sp<>. If an entry is not found, nullptr is returned.
  */
-template <typename T, typename U>
-static T getValueByKey(const std::unordered_map<U, T>& map, U key) {
+template <typename K, typename V>
+static V getValueByKey(const std::unordered_map<K, V>& map, K key) {
     auto it = map.find(key);
-    return it != map.end() ? it->second : T{};
+    return it != map.end() ? it->second : V{};
 }
 
+/**
+ * Find the entry in std::unordered_map by value, and remove it.
+ * If more than one entry has the same value, then all matching
+ * key-value pairs will be removed.
+ *
+ * Return true if at least one value has been removed.
+ */
+template <typename K, typename V>
+static bool removeByValue(std::unordered_map<K, V>& map, const V& value) {
+    bool removed = false;
+    for (auto it = map.begin(); it != map.end();) {
+        if (it->second == value) {
+            it = map.erase(it);
+            removed = true;
+        } else {
+            it++;
+        }
+    }
+    return removed;
+}
 
 // --- InputDispatcher ---
 
@@ -300,8 +320,9 @@ InputDispatcher::~InputDispatcher() {
         drainInboundQueueLocked();
     }
 
-    while (mConnectionsByFd.size() != 0) {
-        unregisterInputChannel(mConnectionsByFd.valueAt(0)->inputChannel);
+    while (!mConnectionsByFd.empty()) {
+        sp<Connection> connection = mConnectionsByFd.begin()->second;
+        unregisterInputChannel(connection->inputChannel);
     }
 }
 
@@ -1072,9 +1093,8 @@ void InputDispatcher::dispatchEventLocked(nsecs_t currentTime,
     pokeUserActivityLocked(eventEntry);
 
     for (const InputTarget& inputTarget : inputTargets) {
-        ssize_t connectionIndex = getConnectionIndexLocked(inputTarget.inputChannel);
-        if (connectionIndex >= 0) {
-            sp<Connection> connection = mConnectionsByFd.valueAt(connectionIndex);
+        sp<Connection> connection = getConnectionLocked(inputTarget.inputChannel);
+        if (connection != nullptr) {
             prepareDispatchCycleLocked(currentTime, connection, eventEntry, &inputTarget);
         } else {
 #if DEBUG_FOCUS
@@ -1172,21 +1192,18 @@ void InputDispatcher::resumeAfterTargetsNotReadyTimeoutLocked(nsecs_t newTimeout
         mInputTargetWaitTimeoutExpired = true;
 
         // Input state will not be realistic.  Mark it out of sync.
-        if (inputChannel.get()) {
-            ssize_t connectionIndex = getConnectionIndexLocked(inputChannel);
-            if (connectionIndex >= 0) {
-                sp<Connection> connection = mConnectionsByFd.valueAt(connectionIndex);
-                sp<IBinder> token = connection->inputChannel->getToken();
+        sp<Connection> connection = getConnectionLocked(inputChannel);
+        if (connection != nullptr) {
+            sp<IBinder> token = connection->inputChannel->getToken();
 
-                if (token != nullptr) {
-                    removeWindowByTokenLocked(token);
-                }
+            if (token != nullptr) {
+                removeWindowByTokenLocked(token);
+            }
 
-                if (connection->status == Connection::STATUS_NORMAL) {
-                    CancelationOptions options(CancelationOptions::CANCEL_ALL_EVENTS,
-                            "application not responding");
-                    synthesizeCancelationEventsForConnectionLocked(connection, options);
-                }
+            if (connection->status == Connection::STATUS_NORMAL) {
+                CancelationOptions options(CancelationOptions::CANCEL_ALL_EVENTS,
+                                           "application not responding");
+                synthesizeCancelationEventsForConnectionLocked(connection, options);
             }
         }
     }
@@ -1857,16 +1874,15 @@ std::string InputDispatcher::checkWindowReadyForMoreInputLocked(nsecs_t currentT
     }
 
     // If the window's connection is not registered then keep waiting.
-    ssize_t connectionIndex = getConnectionIndexLocked(
-            getInputChannelLocked(windowHandle->getToken()));
-    if (connectionIndex < 0) {
+    sp<Connection> connection =
+            getConnectionLocked(getInputChannelLocked(windowHandle->getToken()));
+    if (connection == nullptr) {
         return StringPrintf("Waiting because the %s window's input channel is not "
                 "registered with the input dispatcher.  The window may be in the process "
                 "of being removed.", targetType);
     }
 
     // If the connection is dead then keep waiting.
-    sp<Connection> connection = mConnectionsByFd.valueAt(connectionIndex);
     if (connection->status != Connection::STATUS_NORMAL) {
         return StringPrintf("Waiting because the %s window's input connection is %s."
                 "The window may be in the process of being removed.", targetType,
@@ -2410,15 +2426,14 @@ int InputDispatcher::handleReceiveCallback(int fd, int events, void* data) {
     { // acquire lock
         std::scoped_lock _l(d->mLock);
 
-        ssize_t connectionIndex = d->mConnectionsByFd.indexOfKey(fd);
-        if (connectionIndex < 0) {
+        if (d->mConnectionsByFd.find(fd) == d->mConnectionsByFd.end()) {
             ALOGE("Received spurious receive callback for unknown input channel.  "
                     "fd=%d, events=0x%x", fd, events);
             return 0; // remove the callback
         }
 
         bool notify;
-        sp<Connection> connection = d->mConnectionsByFd.valueAt(connectionIndex);
+        sp<Connection> connection = d->mConnectionsByFd[fd];
         if (!(events & (ALOOPER_EVENT_ERROR | ALOOPER_EVENT_HANGUP))) {
             if (!(events & ALOOPER_EVENT_INPUT)) {
                 ALOGW("channel '%s' ~ Received spurious callback for unhandled poll event.  "
@@ -2470,9 +2485,8 @@ int InputDispatcher::handleReceiveCallback(int fd, int events, void* data) {
 
 void InputDispatcher::synthesizeCancelationEventsForAllConnectionsLocked (
         const CancelationOptions& options) {
-    for (size_t i = 0; i < mConnectionsByFd.size(); i++) {
-        synthesizeCancelationEventsForConnectionLocked(
-                mConnectionsByFd.valueAt(i), options);
+    for (const auto& pair : mConnectionsByFd) {
+        synthesizeCancelationEventsForConnectionLocked(pair.second, options);
     }
 }
 
@@ -2495,11 +2509,12 @@ void InputDispatcher::synthesizeCancelationEventsForMonitorsLocked(
 
 void InputDispatcher::synthesizeCancelationEventsForInputChannelLocked(
         const sp<InputChannel>& channel, const CancelationOptions& options) {
-    ssize_t index = getConnectionIndexLocked(channel);
-    if (index >= 0) {
-        synthesizeCancelationEventsForConnectionLocked(
-                mConnectionsByFd.valueAt(index), options);
+    sp<Connection> connection = getConnectionLocked(channel);
+    if (connection == nullptr) {
+        return;
     }
+
+    synthesizeCancelationEventsForConnectionLocked(connection, options);
 }
 
 void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
@@ -3586,15 +3601,11 @@ Found:
             return false;
         }
 
-
         sp<InputChannel> fromChannel = getInputChannelLocked(fromToken);
         sp<InputChannel> toChannel = getInputChannelLocked(toToken);
-        ssize_t fromConnectionIndex = getConnectionIndexLocked(fromChannel);
-        ssize_t toConnectionIndex = getConnectionIndexLocked(toChannel);
-        if (fromConnectionIndex >= 0 && toConnectionIndex >= 0) {
-            sp<Connection> fromConnection = mConnectionsByFd.valueAt(fromConnectionIndex);
-            sp<Connection> toConnection = mConnectionsByFd.valueAt(toConnectionIndex);
-
+        sp<Connection> fromConnection = getConnectionLocked(fromChannel);
+        sp<Connection> toConnection = getConnectionLocked(toChannel);
+        if (fromConnection != nullptr && toConnection != nullptr) {
             fromConnection->inputState.copyPointerStateTo(toConnection->inputState);
             CancelationOptions options(CancelationOptions::CANCEL_POINTER_EVENTS,
                     "transferring touch focus from this window to another window");
@@ -3815,16 +3826,16 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
         dump += INDENT "ReplacedKeys: <empty>\n";
     }
 
-    if (!mConnectionsByFd.isEmpty()) {
+    if (!mConnectionsByFd.empty()) {
         dump += INDENT "Connections:\n";
-        for (size_t i = 0; i < mConnectionsByFd.size(); i++) {
-            const sp<Connection>& connection = mConnectionsByFd.valueAt(i);
-            dump += StringPrintf(INDENT2 "%zu: channelName='%s', windowName='%s', "
-                    "status=%s, monitor=%s, inputPublisherBlocked=%s\n",
-                    i, connection->getInputChannelName().c_str(),
-                    connection->getWindowName().c_str(),
-                    connection->getStatusLabel(), toString(connection->monitor),
-                    toString(connection->inputPublisherBlocked));
+        for (const auto& pair : mConnectionsByFd) {
+            const sp<Connection>& connection = pair.second;
+            dump += StringPrintf(INDENT2 "%i: channelName='%s', windowName='%s', "
+                                         "status=%s, monitor=%s, inputPublisherBlocked=%s\n",
+                                 pair.first, connection->getInputChannelName().c_str(),
+                                 connection->getWindowName().c_str(), connection->getStatusLabel(),
+                                 toString(connection->monitor),
+                                 toString(connection->inputPublisherBlocked));
 
             if (!connection->outboundQueue.empty()) {
                 dump += StringPrintf(INDENT3 "OutboundQueue: length=%zu\n",
@@ -3893,8 +3904,8 @@ status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChan
 
     { // acquire lock
         std::scoped_lock _l(mLock);
-
-        if (getConnectionIndexLocked(inputChannel) >= 0) {
+        sp<Connection> existingConnection = getConnectionLocked(inputChannel);
+        if (existingConnection != nullptr) {
             ALOGW("Attempted to register already registered input channel '%s'",
                     inputChannel->getName().c_str());
             return BAD_VALUE;
@@ -3903,7 +3914,7 @@ status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChan
         sp<Connection> connection = new Connection(inputChannel, false /*monitor*/);
 
         int fd = inputChannel->getFd();
-        mConnectionsByFd.add(fd, connection);
+        mConnectionsByFd[fd] = connection;
         mInputChannelsByToken[inputChannel->getToken()] = inputChannel;
 
         mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, handleReceiveCallback, this);
@@ -3932,7 +3943,7 @@ status_t InputDispatcher::registerInputMonitor(const sp<InputChannel>& inputChan
         sp<Connection> connection = new Connection(inputChannel, true /*monitor*/);
 
         const int fd = inputChannel->getFd();
-        mConnectionsByFd.add(fd, connection);
+        mConnectionsByFd[fd] = connection;
         mInputChannelsByToken[inputChannel->getToken()] = inputChannel;
 
         auto& monitorsByDisplay = isGestureMonitor
@@ -3970,16 +3981,15 @@ status_t InputDispatcher::unregisterInputChannel(const sp<InputChannel>& inputCh
 
 status_t InputDispatcher::unregisterInputChannelLocked(const sp<InputChannel>& inputChannel,
         bool notify) {
-    ssize_t connectionIndex = getConnectionIndexLocked(inputChannel);
-    if (connectionIndex < 0) {
+    sp<Connection> connection = getConnectionLocked(inputChannel);
+    if (connection == nullptr) {
         ALOGW("Attempted to unregister already unregistered input channel '%s'",
                 inputChannel->getName().c_str());
         return BAD_VALUE;
     }
 
-    sp<Connection> connection = mConnectionsByFd.valueAt(connectionIndex);
-    mConnectionsByFd.removeItemsAt(connectionIndex);
-
+    const bool removed = removeByValue(mConnectionsByFd, connection);
+    ALOG_ASSERT(removed);
     mInputChannelsByToken.erase(inputChannel->getToken());
 
     if (connection->monitor) {
@@ -4079,19 +4089,20 @@ std::optional<int32_t> InputDispatcher::findGestureMonitorDisplayByTokenLocked(
     return std::nullopt;
 }
 
-ssize_t InputDispatcher::getConnectionIndexLocked(const sp<InputChannel>& inputChannel) {
+sp<InputDispatcher::Connection> InputDispatcher::getConnectionLocked(
+        const sp<InputChannel>& inputChannel) {
     if (inputChannel == nullptr) {
-        return -1;
+        return nullptr;
     }
 
-    for (size_t i = 0; i < mConnectionsByFd.size(); i++) {
-        sp<Connection> connection = mConnectionsByFd.valueAt(i);
+    for (const auto& pair : mConnectionsByFd) {
+        sp<Connection> connection = pair.second;
         if (connection->inputChannel->getToken() == inputChannel->getToken()) {
-            return i;
+            return connection;
         }
     }
 
-    return -1;
+    return nullptr;
 }
 
 void InputDispatcher::onDispatchCycleFinishedLocked(
