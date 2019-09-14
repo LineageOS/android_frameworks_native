@@ -3504,7 +3504,7 @@ int open_socket(const char *service) {
 
     struct sockaddr addr;
     socklen_t alen = sizeof(addr);
-    int fd = accept(s, &addr, &alen);
+    int fd = accept4(s, &addr, &alen, SOCK_CLOEXEC);
 
     // Close socket just after accept(), to make sure that connect() by client will get error
     // when the socket is used by the other services.
