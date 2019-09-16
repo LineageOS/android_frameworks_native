@@ -243,8 +243,9 @@ bool BufferQueueLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
     bool sidebandStreamChanged = true;
     if (mSidebandStreamChanged.compare_exchange_strong(sidebandStreamChanged, false)) {
         // mSidebandStreamChanged was changed to false
+        mSidebandStream = mConsumer->getSidebandStream();
         auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
-        layerCompositionState.sidebandStream = mConsumer->getSidebandStream();
+        layerCompositionState.sidebandStream = mSidebandStream;
         if (layerCompositionState.sidebandStream != nullptr) {
             setTransactionFlags(eTransactionNeeded);
             mFlinger->setTransactionFlags(eTraversalNeeded);
