@@ -307,6 +307,13 @@ void GraphicsEnv::sendGpuStatsLocked(GpuStatsInfo::Api api, bool isDriverLoaded,
     }
 }
 
+bool GraphicsEnv::setInjectLayersPrSetDumpable() {
+    if (prctl(PR_SET_DUMPABLE, 1, 0, 0, 0) == -1) {
+        return false;
+    }
+    return true;
+}
+
 void* GraphicsEnv::loadLibrary(std::string name) {
     const android_dlextinfo dlextinfo = {
             .flags = ANDROID_DLEXT_USE_NAMESPACE,
