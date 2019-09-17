@@ -18,6 +18,8 @@
 #include <private/dvr/trusted_uids.h>
 #include <private/dvr/types.h>
 
+#include "DisplayHardware/DisplayIdentification.h"
+
 using android::dvr::display::DisplayProtocol;
 using android::pdx::Channel;
 using android::pdx::ErrorStatus;
@@ -44,19 +46,6 @@ DisplayService::DisplayService(Hwc2::Composer* hidl,
            Endpoint::Create(display::DisplayProtocol::kClientPath)) {
     hardware_composer_.Initialize(
         hidl, primary_display_id, request_display_callback);
-
-    uint8_t port;
-    const auto error = hidl->getDisplayIdentificationData(
-        primary_display_id, &display_identification_port_,
-        &display_identification_data_);
-    if (error != android::hardware::graphics::composer::V2_1::Error::NONE) {
-      if (error !=
-          android::hardware::graphics::composer::V2_1::Error::UNSUPPORTED) {
-        ALOGI("DisplayService: identification data error\n");
-      } else {
-        ALOGI("DisplayService: identification data unsupported\n");
-      }
-    }
 }
 
 bool DisplayService::IsInitialized() const {
@@ -212,6 +201,7 @@ Status<display::Metrics> DisplayService::OnGetMetrics(
 pdx::Status<std::string> DisplayService::OnGetConfigurationData(
     pdx::Message& /*message*/, display::ConfigFileType config_type) {
   std::string property_name;
+  DisplayIdentificationData display_identification_data;
   switch (config_type) {
     case display::ConfigFileType::kLensMetrics:
       property_name = kDvrLensMetricsProperty;
@@ -223,11 +213,13 @@ pdx::Status<std::string> DisplayService::OnGetConfigurationData(
       property_name = kDvrDeviceConfigProperty;
       break;
     case display::ConfigFileType::kDeviceEdid:
-      if (display_identification_data_.size() == 0) {
+      display_identification_data =
+          hardware_composer_.GetCurrentDisplayIdentificationData();
+      if (display_identification_data.size() == 0) {
         return ErrorStatus(ENOENT);
       }
-      return std::string(display_identification_data_.begin(),
-                         display_identification_data_.end());
+      return std::string(display_identification_data.begin(),
+                         display_identification_data.end());
     default:
       return ErrorStatus(EINVAL);
   }
@@ -246,7 +238,7 @@ pdx::Status<std::string> DisplayService::OnGetConfigurationData(
 
 pdx::Status<uint8_t> DisplayService::OnGetDisplayIdentificationPort(
     pdx::Message& /*message*/) {
-  return display_identification_port_;
+  return hardware_composer_.GetCurrentDisplayPort();
 }
 
 // Creates a new DisplaySurface and associates it with this channel. This may
