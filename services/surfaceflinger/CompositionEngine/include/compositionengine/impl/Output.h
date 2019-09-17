@@ -63,6 +63,7 @@ public:
 
     Region getDirtyRegion(bool repaintEverything) const override;
     bool belongsInOutput(std::optional<uint32_t>, bool) const override;
+    bool belongsInOutput(const compositionengine::Layer*) const override;
 
     compositionengine::OutputLayer* getOutputLayerForLayer(
             compositionengine::Layer*) const override;
