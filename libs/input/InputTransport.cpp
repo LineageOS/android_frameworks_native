@@ -362,6 +362,13 @@ sp<InputChannel> InputChannel::dup() const {
     if (!newFd.ok()) {
         ALOGE("Could not duplicate fd %i for channel %s: %s", getFd(), mName.c_str(),
               strerror(errno));
+        const bool hitFdLimit = errno == EMFILE || errno == ENFILE;
+        // If this process is out of file descriptors, then throwing that might end up exploding
+        // on the other side of a binder call, which isn't really helpful.
+        // Better to just crash here and hope that the FD leak is slow.
+        // Other failures could be client errors, so we still propagate those back to the caller.
+        LOG_ALWAYS_FATAL_IF(hitFdLimit, "Too many open files, could not duplicate input channel %s",
+                            getName().c_str());
         return nullptr;
     }
     return InputChannel::create(mName, std::move(newFd));
