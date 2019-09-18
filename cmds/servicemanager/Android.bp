@@ -15,11 +15,18 @@ cc_defaults {
     shared_libs: [
         "libbase",
         "libbinder", // also contains servicemanager_interface
+        "libvintf",
         "libcutils",
         "liblog",
         "libutils",
         "libselinux",
     ],
+
+    target: {
+        vendor: {
+            exclude_shared_libs: ["libvintf"],
+        },
+    },
 }
 
 cc_binary {
