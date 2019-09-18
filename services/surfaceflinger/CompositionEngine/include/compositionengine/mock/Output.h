@@ -79,8 +79,19 @@ public:
     MOCK_METHOD1(setReleasedLayers, void(ReleasedLayers&&));
     MOCK_METHOD0(takeReleasedLayers, ReleasedLayers());
 
-    MOCK_METHOD1(prepare, void(compositionengine::CompositionRefreshArgs&));
+    MOCK_METHOD2(prepare, void(const compositionengine::CompositionRefreshArgs&, LayerFESet&));
     MOCK_METHOD1(present, void(const compositionengine::CompositionRefreshArgs&));
+
+    MOCK_METHOD2(rebuildLayerStacks,
+                 void(const compositionengine::CompositionRefreshArgs&, LayerFESet&));
+    MOCK_METHOD2(collectVisibleLayers,
+                 void(const compositionengine::CompositionRefreshArgs&,
+                      compositionengine::Output::CoverageState&));
+    MOCK_METHOD2(getOutputLayerIfVisible,
+                 std::unique_ptr<compositionengine::OutputLayer>(
+                         std::shared_ptr<compositionengine::Layer>,
+                         compositionengine::Output::CoverageState&));
+    MOCK_METHOD1(setReleasedLayers, void(const compositionengine::CompositionRefreshArgs&));
 
     MOCK_CONST_METHOD1(updateLayerStateFromFE, void(const CompositionRefreshArgs&));
     MOCK_METHOD1(updateAndWriteCompositionState, void(const CompositionRefreshArgs&));

@@ -77,8 +77,16 @@ public:
     void setReleasedLayers(ReleasedLayers&&) override;
     ReleasedLayers takeReleasedLayers() override;
 
-    void prepare(compositionengine::CompositionRefreshArgs&) override;
+    void prepare(const compositionengine::CompositionRefreshArgs&, LayerFESet&) override;
     void present(const compositionengine::CompositionRefreshArgs&) override;
+
+    void rebuildLayerStacks(const compositionengine::CompositionRefreshArgs&, LayerFESet&) override;
+    void collectVisibleLayers(const compositionengine::CompositionRefreshArgs&,
+                              compositionengine::Output::CoverageState&) override;
+    std::unique_ptr<compositionengine::OutputLayer> getOutputLayerIfVisible(
+            std::shared_ptr<compositionengine::Layer>,
+            compositionengine::Output::CoverageState&) override;
+    void setReleasedLayers(const compositionengine::CompositionRefreshArgs&) override;
 
     void updateLayerStateFromFE(const CompositionRefreshArgs&) const override;
     void updateAndWriteCompositionState(const compositionengine::CompositionRefreshArgs&) override;
@@ -91,11 +99,14 @@ public:
     void postFramebuffer() override;
 
     // Testing
+    const ReleasedLayers& getReleasedLayersForTest() const;
     void setDisplayColorProfileForTest(std::unique_ptr<compositionengine::DisplayColorProfile>);
     void setRenderSurfaceForTest(std::unique_ptr<compositionengine::RenderSurface>);
 
 protected:
     const CompositionEngine& getCompositionEngine() const;
+    std::unique_ptr<compositionengine::OutputLayer> takeOutputLayerForLayer(
+            compositionengine::Layer*);
     void chooseCompositionStrategy() override;
     bool getSkipColorTransform() const override;
     compositionengine::Output::FrameFences presentAndGetFrameFences() override;

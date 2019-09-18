@@ -277,6 +277,79 @@ TEST_F(DisplayTest, createOutputLayerSetsHwcLayer) {
 }
 
 /*
+ * Display::setReleasedLayers()
+ */
+
+TEST_F(DisplayTest, setReleasedLayersDoesNothingIfNotHwcDisplay) {
+    std::shared_ptr<impl::Display> nonHwcDisplay{
+            impl::createDisplay(mCompositionEngine, DisplayCreationArgsBuilder().build())};
+
+    sp<mock::LayerFE> layerXLayerFE = new StrictMock<mock::LayerFE>();
+    mock::Layer layerXLayer;
+
+    {
+        Output::ReleasedLayers releasedLayers;
+        releasedLayers.emplace_back(layerXLayerFE);
+        nonHwcDisplay->setReleasedLayers(std::move(releasedLayers));
+    }
+
+    CompositionRefreshArgs refreshArgs;
+    refreshArgs.layersWithQueuedFrames.push_back(&layerXLayer);
+
+    nonHwcDisplay->setReleasedLayers(refreshArgs);
+
+    const auto& releasedLayers = nonHwcDisplay->getReleasedLayersForTest();
+    ASSERT_EQ(1, releasedLayers.size());
+}
+
+TEST_F(DisplayTest, setReleasedLayersDoesNothingIfNoLayersWithQueuedFrames) {
+    sp<mock::LayerFE> layerXLayerFE = new StrictMock<mock::LayerFE>();
+
+    {
+        Output::ReleasedLayers releasedLayers;
+        releasedLayers.emplace_back(layerXLayerFE);
+        mDisplay.setReleasedLayers(std::move(releasedLayers));
+    }
+
+    CompositionRefreshArgs refreshArgs;
+    mDisplay.setReleasedLayers(refreshArgs);
+
+    const auto& releasedLayers = mDisplay.getReleasedLayersForTest();
+    ASSERT_EQ(1, releasedLayers.size());
+}
+
+TEST_F(DisplayTest, setReleasedLayers) {
+    sp<mock::LayerFE> layer1LayerFE = new StrictMock<mock::LayerFE>();
+    sp<mock::LayerFE> layer2LayerFE = new StrictMock<mock::LayerFE>();
+    sp<mock::LayerFE> layer3LayerFE = new StrictMock<mock::LayerFE>();
+    sp<mock::LayerFE> layerXLayerFE = new StrictMock<mock::LayerFE>();
+    mock::Layer layer1Layer;
+    mock::Layer layer2Layer;
+    mock::Layer layer3Layer;
+    mock::Layer layerXLayer;
+
+    EXPECT_CALL(*mLayer1, getLayer()).WillRepeatedly(ReturnRef(layer1Layer));
+    EXPECT_CALL(*mLayer1, getLayerFE()).WillRepeatedly(ReturnRef(*layer1LayerFE.get()));
+    EXPECT_CALL(*mLayer2, getLayer()).WillRepeatedly(ReturnRef(layer2Layer));
+    EXPECT_CALL(*mLayer2, getLayerFE()).WillRepeatedly(ReturnRef(*layer2LayerFE.get()));
+    EXPECT_CALL(*mLayer3, getLayer()).WillRepeatedly(ReturnRef(layer3Layer));
+    EXPECT_CALL(*mLayer3, getLayerFE()).WillRepeatedly(ReturnRef(*layer3LayerFE.get()));
+
+    CompositionRefreshArgs refreshArgs;
+    refreshArgs.layersWithQueuedFrames.push_back(&layer1Layer);
+    refreshArgs.layersWithQueuedFrames.push_back(&layer2Layer);
+    refreshArgs.layersWithQueuedFrames.push_back(&layerXLayer);
+    refreshArgs.layersWithQueuedFrames.push_back(nullptr);
+
+    mDisplay.setReleasedLayers(refreshArgs);
+
+    const auto& releasedLayers = mDisplay.getReleasedLayersForTest();
+    ASSERT_EQ(2, releasedLayers.size());
+    ASSERT_EQ(layer1LayerFE.get(), releasedLayers[0].promote().get());
+    ASSERT_EQ(layer2LayerFE.get(), releasedLayers[1].promote().get());
+}
+
+/*
  * Display::chooseCompositionStrategy()
  */
 
