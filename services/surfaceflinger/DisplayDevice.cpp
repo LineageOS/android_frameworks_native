@@ -278,6 +278,8 @@ void DisplayDevice::setProjection(int orientation,
 
     if (isPrimary()) {
         sPrimaryDisplayOrientation = displayStateOrientationToTransformOrientation(orientation);
+        orientation = (orientation + mDisplayInstallOrientation) %
+                (DisplayState::eOrientation270 + 1);
     }
 
     getCompositionDisplay()->setProjection(globalTransform,
