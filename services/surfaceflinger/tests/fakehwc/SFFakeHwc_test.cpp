@@ -171,7 +171,7 @@ void DisplayTest::SetUp() {
     mMockComposer = new MockComposerClient;
     sp<ComposerClient> client = new ComposerClient(mMockComposer);
     mFakeService = new FakeComposerService(client);
-    (void)mFakeService->registerAsService("mock");
+    ASSERT_EQ(android::OK, mFakeService->registerAsService("mock"));
 
     android::hardware::ProcessState::self()->startThreadPool();
     android::ProcessState::self()->startThreadPool();
