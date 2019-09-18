@@ -134,6 +134,9 @@ public:
     // this output allows that.
     virtual bool belongsInOutput(std::optional<uint32_t> layerStackId, bool internalOnly) const = 0;
 
+    // Determines if a layer belongs to the output.
+    virtual bool belongsInOutput(const compositionengine::Layer*) const = 0;
+
     // Returns a pointer to the output layer corresponding to the given layer on
     // this output, or nullptr if the layer does not have one
     virtual OutputLayer* getOutputLayerForLayer(Layer*) const = 0;

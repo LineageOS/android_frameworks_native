@@ -219,6 +219,15 @@ bool Output::belongsInOutput(std::optional<uint32_t> layerStackId, bool internal
             (!internalOnly || mState.layerStackInternal);
 }
 
+bool Output::belongsInOutput(const compositionengine::Layer* layer) const {
+    if (!layer) {
+        return false;
+    }
+
+    const auto& layerFEState = layer->getState().frontEnd;
+    return belongsInOutput(layerFEState.layerStackId, layerFEState.internalOnly);
+}
+
 compositionengine::OutputLayer* Output::getOutputLayerForLayer(
         compositionengine::Layer* layer) const {
     for (const auto& outputLayer : mOutputLayersOrderedByZ) {
