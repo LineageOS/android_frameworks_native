@@ -22,11 +22,19 @@
 namespace android {
 namespace bpf {
 
-bool startTrackingUidCpuFreqTimes();
+bool startTrackingUidTimes();
 std::optional<std::vector<std::vector<uint64_t>>> getUidCpuFreqTimes(uint32_t uid);
 std::optional<std::unordered_map<uint32_t, std::vector<std::vector<uint64_t>>>>
     getUidsCpuFreqTimes();
-bool clearUidCpuFreqTimes(unsigned int uid);
+
+struct concurrent_time_t {
+    std::vector<uint64_t> active;
+    std::vector<std::vector<uint64_t>> policy;
+};
+
+std::optional<concurrent_time_t> getUidConcurrentTimes(uint32_t uid, bool retry = true);
+std::optional<std::unordered_map<uint32_t, concurrent_time_t>> getUidsConcurrentTimes();
+bool clearUidTimes(unsigned int uid);
 
 } // namespace bpf
 } // namespace android
