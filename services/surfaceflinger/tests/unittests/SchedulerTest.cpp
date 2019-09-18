@@ -92,7 +92,6 @@ TEST_F(SchedulerTest, invalidConnectionHandle) {
                                                                   ISurfaceComposer::
                                                                           eConfigChangedSuppress));
     EXPECT_FALSE(connection);
-    EXPECT_FALSE(mScheduler->getEventThread(handle));
     EXPECT_FALSE(mScheduler->getEventConnection(handle));
 
     // The EXPECT_CALLS make sure we don't call the functions on the subsequent event threads.
@@ -121,8 +120,6 @@ TEST_F(SchedulerTest, validConnectionHandle) {
                                                                   ISurfaceComposer::
                                                                           eConfigChangedSuppress));
     ASSERT_EQ(mEventThreadConnection, connection);
-
-    EXPECT_TRUE(mScheduler->getEventThread(mConnectionHandle));
     EXPECT_TRUE(mScheduler->getEventConnection(mConnectionHandle));
 
     EXPECT_CALL(*mEventThread, onHotplugReceived(PHYSICAL_DISPLAY_ID, false)).Times(1);

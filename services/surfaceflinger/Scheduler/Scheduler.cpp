@@ -41,6 +41,7 @@
 #include "DispSyncSource.h"
 #include "EventControlThread.h"
 #include "EventThread.h"
+#include "InjectVSyncSource.h"
 #include "OneShotTimer.h"
 #include "SchedulerUtils.h"
 #include "SurfaceFlingerProperties.h"
@@ -116,11 +117,20 @@ DispSync& Scheduler::getPrimaryDispSync() {
     return *mPrimaryDispSync;
 }
 
+std::unique_ptr<VSyncSource> Scheduler::makePrimaryDispSyncSource(
+        const char* name, nsecs_t phaseOffsetNs, nsecs_t offsetThresholdForNextVsync) {
+    return std::make_unique<DispSyncSource>(mPrimaryDispSync.get(), phaseOffsetNs,
+                                            offsetThresholdForNextVsync, true /* traceVsync */,
+                                            name);
+}
+
 Scheduler::ConnectionHandle Scheduler::createConnection(
         const char* connectionName, nsecs_t phaseOffsetNs, nsecs_t offsetThresholdForNextVsync,
         impl::EventThread::InterceptVSyncsCallback interceptCallback) {
-    auto eventThread = makeEventThread(connectionName, phaseOffsetNs, offsetThresholdForNextVsync,
-                                       std::move(interceptCallback));
+    auto vsyncSource =
+            makePrimaryDispSyncSource(connectionName, phaseOffsetNs, offsetThresholdForNextVsync);
+    auto eventThread = std::make_unique<impl::EventThread>(std::move(vsyncSource),
+                                                           std::move(interceptCallback));
     return createConnection(std::move(eventThread));
 }
 
@@ -135,16 +145,6 @@ Scheduler::ConnectionHandle Scheduler::createConnection(std::unique_ptr<EventThr
     return handle;
 }
 
-std::unique_ptr<EventThread> Scheduler::makeEventThread(
-        const char* connectionName, nsecs_t phaseOffsetNs, nsecs_t offsetThresholdForNextVsync,
-        impl::EventThread::InterceptVSyncsCallback&& interceptCallback) {
-    auto source = std::make_unique<DispSyncSource>(mPrimaryDispSync.get(), phaseOffsetNs,
-                                                   offsetThresholdForNextVsync,
-                                                   true /* traceVsync */, connectionName);
-    return std::make_unique<impl::EventThread>(std::move(source), std::move(interceptCallback),
-                                               connectionName);
-}
-
 sp<EventThreadConnection> Scheduler::createConnectionInternal(
         EventThread* eventThread, ISurfaceComposer::ConfigChanged configChanged) {
     return eventThread->createEventConnection([&] { resync(); }, configChanged);
@@ -154,11 +154,6 @@ sp<IDisplayEventConnection> Scheduler::createDisplayEventConnection(
         ConnectionHandle handle, ISurfaceComposer::ConfigChanged configChanged) {
     RETURN_IF_INVALID_HANDLE(handle, nullptr);
     return createConnectionInternal(mConnections[handle].thread.get(), configChanged);
-}
-
-EventThread* Scheduler::getEventThread(ConnectionHandle handle) {
-    RETURN_IF_INVALID_HANDLE(handle, nullptr);
-    return mConnections[handle].thread.get();
 }
 
 sp<EventThreadConnection> Scheduler::getEventConnection(ConnectionHandle handle) {
@@ -201,6 +196,37 @@ void Scheduler::setPhaseOffset(ConnectionHandle handle, nsecs_t phaseOffset) {
 void Scheduler::getDisplayStatInfo(DisplayStatInfo* stats) {
     stats->vsyncTime = mPrimaryDispSync->computeNextRefresh(0);
     stats->vsyncPeriod = mPrimaryDispSync->getPeriod();
+}
+
+Scheduler::ConnectionHandle Scheduler::enableVSyncInjection(bool enable) {
+    if (mInjectVSyncs == enable) {
+        return {};
+    }
+
+    ALOGV("%s VSYNC injection", enable ? "Enabling" : "Disabling");
+
+    if (!mInjectorConnectionHandle) {
+        auto vsyncSource = std::make_unique<InjectVSyncSource>();
+        mVSyncInjector = vsyncSource.get();
+
+        auto eventThread =
+                std::make_unique<impl::EventThread>(std::move(vsyncSource),
+                                                    impl::EventThread::InterceptVSyncsCallback());
+
+        mInjectorConnectionHandle = createConnection(std::move(eventThread));
+    }
+
+    mInjectVSyncs = enable;
+    return mInjectorConnectionHandle;
+}
+
+bool Scheduler::injectVSync(nsecs_t when) {
+    if (!mInjectVSyncs || !mVSyncInjector) {
+        return false;
+    }
+
+    mVSyncInjector->onInjectSyncEvent(when);
+    return true;
 }
 
 void Scheduler::enableHardwareVsync() {
