@@ -44,7 +44,6 @@ class Scheduler;
 class StartPropertySetThread;
 class SurfaceFlinger;
 class SurfaceInterceptor;
-class TimeStats;
 
 struct DisplayDeviceCreationArgs;
 struct LayerCreationArgs;
@@ -93,8 +92,6 @@ public:
     virtual sp<BufferStateLayer> createBufferStateLayer(const LayerCreationArgs& args) = 0;
     virtual sp<ColorLayer> createColorLayer(const LayerCreationArgs& args) = 0;
     virtual sp<ContainerLayer> createContainerLayer(const LayerCreationArgs& args) = 0;
-
-    virtual std::shared_ptr<TimeStats> createTimeStats() = 0;
 
 protected:
     ~Factory() = default;
