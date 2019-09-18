@@ -19,18 +19,16 @@
 #define LOG_TAG "BufferStateLayer"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include "BufferStateLayer.h"
+
 #include <limits>
 
-#include <compositionengine/Display.h>
 #include <compositionengine/Layer.h>
-#include <compositionengine/OutputLayer.h>
-#include <compositionengine/impl/LayerCompositionState.h>
-#include <compositionengine/impl/OutputLayerCompositionState.h>
+#include <compositionengine/LayerFECompositionState.h>
 #include <gui/BufferQueue.h>
 #include <private/gui/SyncFeatures.h>
 #include <renderengine/Image.h>
 
-#include "BufferStateLayer.h"
 #include "ColorLayer.h"
 #include "FrameTracer/FrameTracer.h"
 #include "TimeStats/TimeStats.h"
@@ -415,7 +413,7 @@ bool BufferStateLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
         // mSidebandStreamChanged was true
         LOG_ALWAYS_FATAL_IF(!getCompositionLayer());
         mSidebandStream = s.sidebandStream;
-        getCompositionLayer()->editState().frontEnd.sidebandStream = mSidebandStream;
+        getCompositionLayer()->editFEState().sidebandStream = mSidebandStream;
         if (mSidebandStream != nullptr) {
             setTransactionFlags(eTransactionNeeded);
             mFlinger->setTransactionFlags(eTraversalNeeded);
@@ -520,7 +518,7 @@ status_t BufferStateLayer::updateActiveBuffer() {
     mPreviousBufferId = getCurrentBufferId();
     mBufferInfo.mBuffer = s.buffer;
     mBufferInfo.mFence = s.acquireFence;
-    auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
+    auto& layerCompositionState = getCompositionLayer()->editFEState();
     layerCompositionState.buffer = mBufferInfo.mBuffer;
 
     return NO_ERROR;

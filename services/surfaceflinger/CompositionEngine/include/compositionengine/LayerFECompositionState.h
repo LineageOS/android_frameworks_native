@@ -147,6 +147,9 @@ struct LayerFECompositionState {
 
     // The output-independent frame for the cursor
     Rect cursorFrame;
+
+    // Debugging
+    void dump(std::string& out) const;
 };
 
 } // namespace android::compositionengine

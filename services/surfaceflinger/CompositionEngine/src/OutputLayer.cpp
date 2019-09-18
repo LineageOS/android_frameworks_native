@@ -18,8 +18,8 @@
 #include <compositionengine/DisplayColorProfile.h>
 #include <compositionengine/Layer.h>
 #include <compositionengine/LayerFE.h>
+#include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/Output.h>
-#include <compositionengine/impl/LayerCompositionState.h>
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <compositionengine/impl/OutputLayer.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
@@ -86,7 +86,7 @@ OutputLayerCompositionState& OutputLayer::editState() {
 }
 
 Rect OutputLayer::calculateInitialCrop() const {
-    const auto& layerState = mLayer->getState().frontEnd;
+    const auto& layerState = mLayer->getFEState();
 
     // apply the projection's clipping to the window crop in
     // layerstack space, and convert-back to layer space.
@@ -119,7 +119,7 @@ Rect OutputLayer::calculateInitialCrop() const {
 }
 
 FloatRect OutputLayer::calculateOutputSourceCrop() const {
-    const auto& layerState = mLayer->getState().frontEnd;
+    const auto& layerState = mLayer->getFEState();
     const auto& outputState = mOutput.getState();
 
     if (!layerState.geomUsesSourceCrop) {
@@ -196,7 +196,7 @@ FloatRect OutputLayer::calculateOutputSourceCrop() const {
 }
 
 Rect OutputLayer::calculateOutputDisplayFrame() const {
-    const auto& layerState = mLayer->getState().frontEnd;
+    const auto& layerState = mLayer->getFEState();
     const auto& outputState = mOutput.getState();
 
     // apply the layer's transform, followed by the display's global transform
@@ -243,7 +243,7 @@ Rect OutputLayer::calculateOutputDisplayFrame() const {
 }
 
 uint32_t OutputLayer::calculateOutputRelativeBufferTransform() const {
-    const auto& layerState = mLayer->getState().frontEnd;
+    const auto& layerState = mLayer->getFEState();
     const auto& outputState = mOutput.getState();
 
     /*
@@ -283,7 +283,7 @@ uint32_t OutputLayer::calculateOutputRelativeBufferTransform() const {
 } // namespace impl
 
 void OutputLayer::updateCompositionState(bool includeGeometry) {
-    const auto& layerFEState = mLayer->getState().frontEnd;
+    const auto& layerFEState = mLayer->getFEState();
     const auto& outputState = mOutput.getState();
     const auto& profile = *mOutput.getDisplayColorProfile();
 
@@ -327,7 +327,7 @@ void OutputLayer::writeStateToHWC(bool includeGeometry) {
         return;
     }
 
-    const auto& outputIndependentState = mLayer->getState().frontEnd;
+    const auto& outputIndependentState = mLayer->getFEState();
     auto requestedCompositionType = outputIndependentState.compositionType;
 
     if (includeGeometry) {
@@ -544,7 +544,7 @@ void OutputLayer::writeCursorPositionToHWC() const {
         return;
     }
 
-    const auto& layerFEState = mLayer->getState().frontEnd;
+    const auto& layerFEState = mLayer->getFEState();
     const auto& outputState = mOutput.getState();
 
     Rect frame = layerFEState.cursorFrame;

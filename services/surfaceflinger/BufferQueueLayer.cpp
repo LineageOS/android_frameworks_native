@@ -17,15 +17,13 @@
 #undef LOG_TAG
 #define LOG_TAG "BufferQueueLayer"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
-#include <compositionengine/Display.h>
+#include "BufferQueueLayer.h"
+
 #include <compositionengine/Layer.h>
-#include <compositionengine/OutputLayer.h>
-#include <compositionengine/impl/LayerCompositionState.h>
-#include <compositionengine/impl/OutputLayerCompositionState.h>
+#include <compositionengine/LayerFECompositionState.h>
 #include <gui/BufferQueueConsumer.h>
 #include <system/window.h>
 
-#include "BufferQueueLayer.h"
 #include "LayerRejecter.h"
 #include "SurfaceInterceptor.h"
 
@@ -197,7 +195,7 @@ bool BufferQueueLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
     if (mSidebandStreamChanged.compare_exchange_strong(sidebandStreamChanged, false)) {
         // mSidebandStreamChanged was changed to false
         mSidebandStream = mConsumer->getSidebandStream();
-        auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
+        auto& layerCompositionState = getCompositionLayer()->editFEState();
         layerCompositionState.sidebandStream = mSidebandStream;
         if (layerCompositionState.sidebandStream != nullptr) {
             setTransactionFlags(eTransactionNeeded);
@@ -335,7 +333,7 @@ status_t BufferQueueLayer::updateActiveBuffer() {
     mPreviousBufferId = getCurrentBufferId();
     mBufferInfo.mBuffer =
             mConsumer->getCurrentBuffer(&mBufferInfo.mBufferSlot, &mBufferInfo.mFence);
-    auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
+    auto& layerCompositionState = getCompositionLayer()->editFEState();
     layerCompositionState.buffer = mBufferInfo.mBuffer;
 
     if (mBufferInfo.mBuffer == nullptr) {
