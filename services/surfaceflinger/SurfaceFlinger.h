@@ -780,7 +780,7 @@ private:
 
     bool isDisplayConfigAllowed(int32_t configId) const REQUIRES(mStateLock);
 
-    bool previousFrameMissed();
+    bool previousFrameMissed(int graceTimeMs = 0);
 
     // Populates the expected present time for this frame. For negative offsets, performs a
     // correction using the predicted vsync for the next frame instead.

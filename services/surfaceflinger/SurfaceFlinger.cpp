@@ -1588,7 +1588,8 @@ void SurfaceFlinger::updateVrFlinger() {
     setTransactionFlags(eDisplayTransactionNeeded);
 }
 
-bool SurfaceFlinger::previousFrameMissed() NO_THREAD_SAFETY_ANALYSIS {
+bool SurfaceFlinger::previousFrameMissed(int graceTimeMs) NO_THREAD_SAFETY_ANALYSIS {
+    ATRACE_CALL();
     // We are storing the last 2 present fences. If sf's phase offset is to be
     // woken up before the actual vsync but targeting the next vsync, we need to check
     // fence N-2
@@ -1597,7 +1598,15 @@ bool SurfaceFlinger::previousFrameMissed() NO_THREAD_SAFETY_ANALYSIS {
             ? mPreviousPresentFences[0]
             : mPreviousPresentFences[1];
 
-    return fence != Fence::NO_FENCE && (fence->getStatus() == Fence::Status::Unsignaled);
+    if (fence == Fence::NO_FENCE) {
+        return false;
+    }
+
+    if (graceTimeMs > 0 && fence->getStatus() == Fence::Status::Unsignaled) {
+        fence->wait(graceTimeMs);
+    }
+
+    return (fence->getStatus() == Fence::Status::Unsignaled);
 }
 
 void SurfaceFlinger::populateExpectedPresentTime() {
@@ -1620,7 +1629,17 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
             // seeing this same value.
             populateExpectedPresentTime();
 
-            const TracedOrdinal<bool> frameMissed = {"FrameMissed", previousFrameMissed()};
+            // When Backpressure propagation is enabled we want to give a small grace period
+            // for the present fence to fire instead of just giving up on this frame to handle cases
+            // where present fence is just about to get signaled.
+            const int graceTimeForPresentFenceMs =
+                    (mPropagateBackpressure &&
+                     (mPropagateBackpressureClientComposition || !mHadClientComposition))
+                    ? 1
+                    : 0;
+            const TracedOrdinal<bool> frameMissed = {"FrameMissed",
+                                                     previousFrameMissed(
+                                                             graceTimeForPresentFenceMs)};
             const TracedOrdinal<bool> hwcFrameMissed = {"HwcFrameMissed",
                                                         mHadDeviceComposition && frameMissed};
             const TracedOrdinal<bool> gpuFrameMissed = {"GpuFrameMissed",
