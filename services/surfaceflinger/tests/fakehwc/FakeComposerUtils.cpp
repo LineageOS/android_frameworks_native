@@ -167,7 +167,9 @@ void FakeHwcEnvironment::SetUp() {
     }
     // TODO: Try registering the mock as the default service instead.
     property_set("debug.sf.hwc_service_name", "mock");
-    // This allows the SurfaceFlinger to load a HIDL service not listed in manifest files.
+
+    // This allows tests/SF to register/load a HIDL service not listed in manifest files.
+    setenv("TREBLE_TESTING_OVERRIDE", "true", true);
     property_set("debug.sf.treble_testing_override", "true");
 }
 
