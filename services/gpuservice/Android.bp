@@ -59,9 +59,6 @@ cc_defaults {
 cc_defaults {
     name: "gpuservice_binary",
     defaults: ["gpuservice_defaults"],
-    whole_static_libs: [
-        "libsigchain",
-    ],
     shared_libs: [
         "libbinder",
         "libcutils",
