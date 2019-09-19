@@ -2839,9 +2839,9 @@ bool SurfaceFlinger::flushTransactionQueues() {
                 transactions.push_back(transaction);
                 applyTransactionState(transaction.states, transaction.displays, transaction.flags,
                                       mPendingInputWindowCommands, transaction.desiredPresentTime,
-                                      transaction.buffer, transaction.callback,
-                                      transaction.postTime, transaction.privileged,
-                                      /*isMainThread*/ true);
+                                      transaction.buffer, transaction.postTime,
+                                      transaction.privileged, transaction.hasListenerCallbacks,
+                                      transaction.listenerCallbacks, /*isMainThread*/ true);
                 transactionQueue.pop();
                 flushedATransaction = true;
             }
@@ -2888,13 +2888,11 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
     return true;
 }
 
-void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
-                                         const Vector<DisplayState>& displays, uint32_t flags,
-                                         const sp<IBinder>& applyToken,
-                                         const InputWindowCommands& inputWindowCommands,
-                                         int64_t desiredPresentTime,
-                                         const client_cache_t& uncacheBuffer,
-                                         const std::vector<ListenerCallbacks>& listenerCallbacks) {
+void SurfaceFlinger::setTransactionState(
+        const Vector<ComposerState>& states, const Vector<DisplayState>& displays, uint32_t flags,
+        const sp<IBinder>& applyToken, const InputWindowCommands& inputWindowCommands,
+        int64_t desiredPresentTime, const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
+        const std::vector<ListenerCallbacks>& listenerCallbacks) {
     ATRACE_CALL();
 
     const int64_t postTime = systemTime();
@@ -2924,24 +2922,23 @@ void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
     if (itr != mTransactionQueues.end() || !transactionIsReadyToBeApplied(
             desiredPresentTime, false /* useCachedExpectedPresentTime */, states)) {
         mTransactionQueues[applyToken].emplace(states, displays, flags, desiredPresentTime,
-                                               uncacheBuffer, listenerCallbacks, postTime,
-                                               privileged);
+                                               uncacheBuffer, postTime, privileged,
+                                               hasListenerCallbacks, listenerCallbacks);
         setTransactionFlags(eTransactionFlushNeeded);
         return;
     }
 
     applyTransactionState(states, displays, flags, inputWindowCommands, desiredPresentTime,
-                          uncacheBuffer, listenerCallbacks, postTime, privileged);
+                          uncacheBuffer, postTime, privileged, hasListenerCallbacks,
+                          listenerCallbacks);
 }
 
-void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
-                                           const Vector<DisplayState>& displays, uint32_t flags,
-                                           const InputWindowCommands& inputWindowCommands,
-                                           const int64_t desiredPresentTime,
-                                           const client_cache_t& uncacheBuffer,
-                                           const std::vector<ListenerCallbacks>& listenerCallbacks,
-                                           const int64_t postTime, bool privileged,
-                                           bool isMainThread) {
+void SurfaceFlinger::applyTransactionState(
+        const Vector<ComposerState>& states, const Vector<DisplayState>& displays, uint32_t flags,
+        const InputWindowCommands& inputWindowCommands, const int64_t desiredPresentTime,
+        const client_cache_t& uncacheBuffer, const int64_t postTime, bool privileged,
+        bool hasListenerCallbacks, const std::vector<ListenerCallbacks>& listenerCallbacks,
+        bool isMainThread) {
     uint32_t transactionFlags = 0;
 
     if (flags & eAnimation) {
@@ -2964,28 +2961,27 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
         transactionFlags |= setDisplayStateLocked(display);
     }
 
-    // In case the client has sent a Transaction that should receive callbacks but without any
-    // SurfaceControls that should be included in the callback, send the listener and callbackIds
-    // to the callback thread so it can send an empty callback
-    if (!listenerCallbacks.empty()) {
-        mTransactionCompletedThread.run();
-    }
-    for (const auto& listenerCallback : listenerCallbacks) {
-        mTransactionCompletedThread.startRegistration(listenerCallback);
+    // start and end registration for listeners w/ no surface so they can get their callback.  Note
+    // that listeners with SurfaceControls will start registration during setClientStateLocked
+    // below.
+    for (const auto& listener : listenerCallbacks) {
+        mTransactionCompletedThread.startRegistration(listener);
+        mTransactionCompletedThread.endRegistration(listener);
     }
 
+    std::unordered_set<ListenerCallbacks, ListenerCallbacksHash> listenerCallbacksWithSurfaces;
     uint32_t clientStateFlags = 0;
     for (const ComposerState& state : states) {
-        clientStateFlags |= setClientStateLocked(state, desiredPresentTime, listenerCallbacks,
-                                                 postTime, privileged);
+        clientStateFlags |= setClientStateLocked(state, desiredPresentTime, postTime, privileged,
+                                                 listenerCallbacksWithSurfaces);
     }
 
-    for (const auto& listenerCallback : listenerCallbacks) {
+    for (const auto& listenerCallback : listenerCallbacksWithSurfaces) {
         mTransactionCompletedThread.endRegistration(listenerCallback);
     }
 
     // If the state doesn't require a traversal and there are callbacks, send them now
-    if (!(clientStateFlags & eTraversalNeeded) && !listenerCallbacks.empty()) {
+    if (!(clientStateFlags & eTraversalNeeded) && hasListenerCallbacks) {
         mTransactionCompletedThread.sendCallbacks();
     }
     transactionFlags |= clientStateFlags;
@@ -3113,17 +3109,23 @@ bool SurfaceFlinger::callingThreadHasUnscopedSurfaceFlingerAccess() {
 }
 
 uint32_t SurfaceFlinger::setClientStateLocked(
-        const ComposerState& composerState, int64_t desiredPresentTime,
-        const std::vector<ListenerCallbacks>& listenerCallbacks, int64_t postTime,
-        bool privileged) {
+        const ComposerState& composerState, int64_t desiredPresentTime, int64_t postTime,
+        bool privileged,
+        std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>& listenerCallbacks) {
     const layer_state_t& s = composerState.state;
+
+    for (auto& listener : s.listeners) {
+        // note that startRegistration will not re-register if the listener has
+        // already be registered for a prior surface control
+        mTransactionCompletedThread.startRegistration(listener);
+        listenerCallbacks.insert(listener);
+    }
 
     sp<Layer> layer(fromHandle(s.surface));
     if (layer == nullptr) {
-        for (auto& listenerCallback : listenerCallbacks) {
+        for (auto& [listener, callbackIds] : s.listeners) {
             mTransactionCompletedThread.registerUnpresentedCallbackHandle(
-                    new CallbackHandle(listenerCallback.transactionCompletedListener,
-                                       listenerCallback.callbackIds, s.surface));
+                    new CallbackHandle(listener, callbackIds, s.surface));
         }
         return 0;
     }
@@ -3346,8 +3348,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         }
     }
     std::vector<sp<CallbackHandle>> callbackHandles;
-    if ((what & layer_state_t::eHasListenerCallbacksChanged) && (!listenerCallbacks.empty())) {
-        for (const auto& [listener, callbackIds] : listenerCallbacks) {
+    if ((what & layer_state_t::eHasListenerCallbacksChanged) && (!s.listeners.empty())) {
+        for (auto& [listener, callbackIds] : s.listeners) {
             callbackHandles.emplace_back(new CallbackHandle(listener, callbackIds, s.surface));
         }
     }
@@ -3629,7 +3631,8 @@ void SurfaceFlinger::onInitializeDisplays() {
     d.width = 0;
     d.height = 0;
     displays.add(d);
-    setTransactionState(state, displays, 0, nullptr, mPendingInputWindowCommands, -1, {}, {});
+    setTransactionState(state, displays, 0, nullptr, mPendingInputWindowCommands, -1, {}, false,
+                        {});
 
     setPowerModeInternal(display, HWC_POWER_MODE_NORMAL);
 

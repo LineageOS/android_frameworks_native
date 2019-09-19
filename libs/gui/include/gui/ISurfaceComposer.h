@@ -140,7 +140,7 @@ public:
                                      const sp<IBinder>& applyToken,
                                      const InputWindowCommands& inputWindowCommands,
                                      int64_t desiredPresentTime,
-                                     const client_cache_t& uncacheBuffer,
+                                     const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
                                      const std::vector<ListenerCallbacks>& listenerCallbacks) = 0;
 
     /* signal that we're done booting.

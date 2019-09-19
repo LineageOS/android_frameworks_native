@@ -400,6 +400,7 @@ private:
                              const sp<IBinder>& applyToken,
                              const InputWindowCommands& inputWindowCommands,
                              int64_t desiredPresentTime, const client_cache_t& uncacheBuffer,
+                             bool hasListenerCallbacks,
                              const std::vector<ListenerCallbacks>& listenerCallbacks) override;
     void bootFinished() override;
     bool authenticateSurfaceTexture(
@@ -566,10 +567,10 @@ private:
                                const Vector<DisplayState>& displays, uint32_t flags,
                                const InputWindowCommands& inputWindowCommands,
                                const int64_t desiredPresentTime,
-                               const client_cache_t& uncacheBuffer,
+                               const client_cache_t& uncacheBuffer, const int64_t postTime,
+                               bool privileged, bool hasListenerCallbacks,
                                const std::vector<ListenerCallbacks>& listenerCallbacks,
-                               const int64_t postTime, bool privileged, bool isMainThread = false)
-            REQUIRES(mStateLock);
+                               bool isMainThread = false) REQUIRES(mStateLock);
     // Returns true if at least one transaction was flushed
     bool flushTransactionQueues();
     // Returns true if there is at least one transaction that needs to be flushed
@@ -584,9 +585,11 @@ private:
     bool transactionIsReadyToBeApplied(int64_t desiredPresentTime,
                                        bool useCachedExpectedPresentTime,
                                        const Vector<ComposerState>& states);
-    uint32_t setClientStateLocked(const ComposerState& composerState, int64_t desiredPresentTime,
-                                  const std::vector<ListenerCallbacks>& listenerCallbacks,
-                                  int64_t postTime, bool privileged) REQUIRES(mStateLock);
+    uint32_t setClientStateLocked(
+            const ComposerState& composerState, int64_t desiredPresentTime, int64_t postTime,
+            bool privileged,
+            std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>& listenerCallbacks)
+            REQUIRES(mStateLock);
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
     uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands)
             REQUIRES(mStateLock);
@@ -1018,25 +1021,27 @@ private:
         TransactionState(const Vector<ComposerState>& composerStates,
                          const Vector<DisplayState>& displayStates, uint32_t transactionFlags,
                          int64_t desiredPresentTime, const client_cache_t& uncacheBuffer,
-                         const std::vector<ListenerCallbacks>& listenerCallbacks, int64_t postTime,
-                         bool privileged)
+                         int64_t postTime, bool privileged, bool hasListenerCallbacks,
+                         std::vector<ListenerCallbacks> listenerCallbacks)
               : states(composerStates),
                 displays(displayStates),
                 flags(transactionFlags),
                 desiredPresentTime(desiredPresentTime),
                 buffer(uncacheBuffer),
-                callback(listenerCallbacks),
                 postTime(postTime),
-                privileged(privileged) {}
+                privileged(privileged),
+                hasListenerCallbacks(hasListenerCallbacks),
+                listenerCallbacks(listenerCallbacks) {}
 
         Vector<ComposerState> states;
         Vector<DisplayState> displays;
         uint32_t flags;
         const int64_t desiredPresentTime;
         client_cache_t buffer;
-        std::vector<ListenerCallbacks> callback;
         const int64_t postTime;
         bool privileged;
+        bool hasListenerCallbacks;
+        std::vector<ListenerCallbacks> listenerCallbacks;
     };
     std::unordered_map<sp<IBinder>, std::queue<TransactionState>, IListenerHash> mTransactionQueues;
 
