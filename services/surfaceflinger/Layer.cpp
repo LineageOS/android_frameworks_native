@@ -27,7 +27,6 @@
 #include <compositionengine/Layer.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/OutputLayer.h>
-#include <compositionengine/impl/LayerCompositionState.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <cutils/compiler.h>
 #include <cutils/native_handle.h>

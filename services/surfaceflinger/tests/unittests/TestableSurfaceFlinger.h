@@ -18,9 +18,9 @@
 
 #include <compositionengine/Display.h>
 #include <compositionengine/Layer.h>
+#include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/CompositionEngine.h>
-#include <compositionengine/impl/LayerCompositionState.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 
 #include "BufferQueueLayer.h"
@@ -38,7 +38,6 @@
 #include "SurfaceFlingerFactory.h"
 #include "SurfaceInterceptor.h"
 #include "TestableScheduler.h"
-#include "TimeStats/TimeStats.h"
 
 namespace android {
 
@@ -152,11 +151,6 @@ public:
         return nullptr;
     }
 
-    std::shared_ptr<TimeStats> createTimeStats() override {
-        // TODO: Use test-fixture controlled factory
-        return std::make_shared<android::impl::TimeStats>();
-    }
-
     using CreateBufferQueueFunction =
             std::function<void(sp<IGraphicBufferProducer>* /* outProducer */,
                                sp<IGraphicBufferConsumer>* /* outConsumer */,
@@ -241,7 +235,7 @@ public:
     void setLayerSidebandStream(sp<Layer> layer, sp<NativeHandle> sidebandStream) {
         layer->mDrawingState.sidebandStream = sidebandStream;
         layer->mSidebandStream = sidebandStream;
-        layer->getCompositionLayer()->editState().frontEnd.sidebandStream = sidebandStream;
+        layer->getCompositionLayer()->editFEState().sidebandStream = sidebandStream;
     }
 
     void setLayerCompositionType(sp<Layer> layer, HWC2::Composition type) {

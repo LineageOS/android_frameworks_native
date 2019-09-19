@@ -43,19 +43,21 @@ sp<LayerFE> Layer::getLayerFE() const {
     return mLayerFE.promote();
 }
 
-const LayerCompositionState& Layer::getState() const {
-    return mState;
+const compositionengine::LayerFECompositionState& Layer::getFEState() const {
+    return mFrontEndState;
 }
 
-LayerCompositionState& Layer::editState() {
-    return mState;
+compositionengine::LayerFECompositionState& Layer::editFEState() {
+    return mFrontEndState;
 }
 
 void Layer::dump(std::string& out) const {
     auto layerFE = getLayerFE();
     android::base::StringAppendF(&out, "* compositionengine::Layer %p (%s)\n", this,
                                  layerFE ? layerFE->getDebugName() : "<unknown>");
-    mState.dump(out);
+
+    out.append("    frontend:\n");
+    mFrontEndState.dump(out);
 }
 
 } // namespace impl

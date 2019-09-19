@@ -47,7 +47,7 @@ cc_library {
         "src/DumpHelpers.cpp",
         "src/HwcBufferCache.cpp",
         "src/Layer.cpp",
-        "src/LayerCompositionState.cpp",
+        "src/LayerFECompositionState.cpp",
         "src/Output.cpp",
         "src/OutputCompositionState.cpp",
         "src/OutputLayer.cpp",

@@ -18,13 +18,51 @@
 
 #include <android-base/logging.h>
 #include <android-base/properties.h>
+#include <binder/Stability.h>
 #include <cutils/android_filesystem_config.h>
 #include <cutils/multiuser.h>
 #include <thread>
 
+#ifndef VENDORSERVICEMANAGER
+#include <vintf/VintfObject.h>
+#include <vintf/constants.h>
+#endif  // !VENDORSERVICEMANAGER
+
 using ::android::binder::Status;
+using ::android::internal::Stability;
 
 namespace android {
+
+#ifndef VENDORSERVICEMANAGER
+static bool meetsDeclarationRequirements(const sp<IBinder>& binder, const std::string& name) {
+    if (!Stability::requiresVintfDeclaration(binder)) {
+        return true;
+    }
+
+    size_t firstSlash = name.find('/');
+    size_t lastDot = name.rfind('.', firstSlash);
+    if (firstSlash == std::string::npos || lastDot == std::string::npos) {
+        LOG(ERROR) << "VINTF HALs require names in the format type/instance (e.g. "
+                   << "some.package.foo.IFoo/default) but got: " << name;
+        return false;
+    }
+    const std::string package = name.substr(0, lastDot);
+    const std::string iface = name.substr(lastDot+1, firstSlash-lastDot-1);
+    const std::string instance = name.substr(firstSlash+1);
+
+    for (const auto& manifest : {
+            vintf::VintfObject::GetDeviceHalManifest(),
+            vintf::VintfObject::GetFrameworkHalManifest()
+        }) {
+        if (manifest->hasAidlInstance(package, iface, instance)) {
+            return true;
+        }
+    }
+    LOG(ERROR) << "Could not find " << package << "." << iface << "/" << instance
+               << " in the VINTF manifest.";
+    return false;
+}
+#endif  // !VENDORSERVICEMANAGER
 
 ServiceManager::ServiceManager(std::unique_ptr<Access>&& access) : mAccess(std::move(access)) {}
 ServiceManager::~ServiceManager() {
@@ -118,6 +156,13 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
         LOG(ERROR) << "Invalid service name: " << name;
         return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT);
     }
+
+#ifndef VENDORSERVICEMANAGER
+    if (!meetsDeclarationRequirements(binder, name)) {
+        // already logged
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT);
+    }
+#endif  // !VENDORSERVICEMANAGER
 
     // implicitly unlinked when the binder is removed
     if (OK != binder->linkToDeath(this)) {

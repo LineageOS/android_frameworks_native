@@ -72,8 +72,20 @@ nsecs_t CompositionEngine::getLastFrameRefreshTimestamp() const {
 }
 
 void CompositionEngine::present(CompositionRefreshArgs& args) {
-    for (const auto& output : args.outputs) {
-        output->prepare(args);
+    ATRACE_CALL();
+    ALOGV(__FUNCTION__);
+
+    preComposition(args);
+
+    {
+        // latchedLayers is used to track the set of front-end layer state that
+        // has been latched across all outputs for the prepare step, and is not
+        // needed for anything else.
+        LayerFESet latchedLayers;
+
+        for (const auto& output : args.outputs) {
+            output->prepare(args, latchedLayers);
+        }
     }
 
     updateLayerStateFromFE(args);
@@ -91,8 +103,8 @@ void CompositionEngine::updateCursorAsync(CompositionRefreshArgs& args) {
         for (auto& layer : output->getOutputLayersOrderedByZ()) {
             if (layer->isHardwareCursor()) {
                 // Latch the cursor composition state from each front-end layer.
-                layer->getLayerFE().latchCursorCompositionState(
-                        layer->getLayer().editState().frontEnd);
+                layer->getLayerFE().latchCursorCompositionState(layer->getLayer().editFEState());
+
                 layer->writeCursorPositionToHWC();
             }
         }

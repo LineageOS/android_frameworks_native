@@ -21,6 +21,7 @@
 #include <string>
 #include <unordered_map>
 
+#include <compositionengine/LayerFE.h>
 #include <renderengine/LayerSettings.h>
 #include <ui/Fence.h>
 #include <ui/GraphicTypes.h>
@@ -69,6 +70,22 @@ public:
         ui::Dataspace dataspace{ui::Dataspace::UNKNOWN};
         ui::RenderIntent renderIntent{ui::RenderIntent::COLORIMETRIC};
         ui::Dataspace colorSpaceAgnosticDataspace{ui::Dataspace::UNKNOWN};
+    };
+
+    // Use internally to incrementally compute visibility/coverage
+    struct CoverageState {
+        explicit CoverageState(LayerFESet& latchedLayers) : latchedLayers(latchedLayers) {}
+
+        // The set of layers that had been latched for the coverage calls, to
+        // avoid duplicate requests to obtain the same front-end layer state.
+        LayerFESet& latchedLayers;
+
+        // The region of the output which is covered by layers
+        Region aboveCoveredLayers;
+        // The region of the output which is opaquely covered by layers
+        Region aboveOpaqueLayers;
+        // The region of the output which should be considered dirty
+        Region dirtyRegion;
     };
 
     virtual ~Output();
@@ -164,7 +181,7 @@ public:
     virtual ReleasedLayers takeReleasedLayers() = 0;
 
     // Prepare the output, updating the OutputLayers used in the output
-    virtual void prepare(CompositionRefreshArgs&) = 0;
+    virtual void prepare(const CompositionRefreshArgs&, LayerFESet&) = 0;
 
     // Presents the output, finalizing all composition details
     virtual void present(const CompositionRefreshArgs&) = 0;
@@ -175,6 +192,13 @@ public:
 protected:
     virtual void setDisplayColorProfile(std::unique_ptr<DisplayColorProfile>) = 0;
     virtual void setRenderSurface(std::unique_ptr<RenderSurface>) = 0;
+
+    virtual void rebuildLayerStacks(const compositionengine::CompositionRefreshArgs&,
+                                    LayerFESet&) = 0;
+    virtual void collectVisibleLayers(const CompositionRefreshArgs&, CoverageState&) = 0;
+    virtual std::unique_ptr<OutputLayer> getOutputLayerIfVisible(
+            std::shared_ptr<compositionengine::Layer>, CoverageState&) = 0;
+    virtual void setReleasedLayers(const compositionengine::CompositionRefreshArgs&) = 0;
 
     virtual void updateAndWriteCompositionState(const CompositionRefreshArgs&) = 0;
     virtual void setColorTransform(const CompositionRefreshArgs&) = 0;
