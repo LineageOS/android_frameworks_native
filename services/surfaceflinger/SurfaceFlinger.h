@@ -851,7 +851,7 @@ private:
         return hwcDisplayId ? getHwComposer().toPhysicalDisplayId(*hwcDisplayId) : std::nullopt;
     }
 
-    bool previousFrameMissed();
+    bool previousFrameMissed(int graceTimeMs = 0);
     void setVsyncEnabledInHWC(DisplayId displayId, HWC2::Vsync enabled);
 
     /*
