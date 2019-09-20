@@ -26,21 +26,22 @@ public:
     KeyboardInputMapper(InputDevice* device, uint32_t source, int32_t keyboardType);
     virtual ~KeyboardInputMapper();
 
-    virtual uint32_t getSources();
-    virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo);
-    virtual void dump(std::string& dump);
-    virtual void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes);
-    virtual void reset(nsecs_t when);
-    virtual void process(const RawEvent* rawEvent);
+    virtual uint32_t getSources() override;
+    virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
+    virtual void dump(std::string& dump) override;
+    virtual void configure(nsecs_t when, const InputReaderConfiguration* config,
+                           uint32_t changes) override;
+    virtual void reset(nsecs_t when) override;
+    virtual void process(const RawEvent* rawEvent) override;
 
-    virtual int32_t getKeyCodeState(uint32_t sourceMask, int32_t keyCode);
-    virtual int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode);
+    virtual int32_t getKeyCodeState(uint32_t sourceMask, int32_t keyCode) override;
+    virtual int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode) override;
     virtual bool markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
-                                       const int32_t* keyCodes, uint8_t* outFlags);
+                                       const int32_t* keyCodes, uint8_t* outFlags) override;
 
-    virtual int32_t getMetaState();
-    virtual void updateMetaState(int32_t keyCode);
-    virtual std::optional<int32_t> getAssociatedDisplayId();
+    virtual int32_t getMetaState() override;
+    virtual void updateMetaState(int32_t keyCode) override;
+    virtual std::optional<int32_t> getAssociatedDisplayId() override;
 
 private:
     // The current viewport.

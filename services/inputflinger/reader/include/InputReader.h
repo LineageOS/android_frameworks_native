@@ -52,31 +52,33 @@ public:
                 const sp<InputListenerInterface>& listener);
     virtual ~InputReader();
 
-    virtual void dump(std::string& dump);
-    virtual void monitor();
+    virtual void dump(std::string& dump) override;
+    virtual void monitor() override;
 
-    virtual void loopOnce();
+    virtual void loopOnce() override;
 
-    virtual void getInputDevices(std::vector<InputDeviceInfo>& outInputDevices);
+    virtual void getInputDevices(std::vector<InputDeviceInfo>& outInputDevices) override;
 
-    virtual bool isInputDeviceEnabled(int32_t deviceId);
+    virtual bool isInputDeviceEnabled(int32_t deviceId) override;
 
-    virtual int32_t getScanCodeState(int32_t deviceId, uint32_t sourceMask, int32_t scanCode);
-    virtual int32_t getKeyCodeState(int32_t deviceId, uint32_t sourceMask, int32_t keyCode);
-    virtual int32_t getSwitchState(int32_t deviceId, uint32_t sourceMask, int32_t sw);
+    virtual int32_t getScanCodeState(int32_t deviceId, uint32_t sourceMask,
+                                     int32_t scanCode) override;
+    virtual int32_t getKeyCodeState(int32_t deviceId, uint32_t sourceMask,
+                                    int32_t keyCode) override;
+    virtual int32_t getSwitchState(int32_t deviceId, uint32_t sourceMask, int32_t sw) override;
 
-    virtual void toggleCapsLockState(int32_t deviceId);
+    virtual void toggleCapsLockState(int32_t deviceId) override;
 
     virtual bool hasKeys(int32_t deviceId, uint32_t sourceMask, size_t numCodes,
-                         const int32_t* keyCodes, uint8_t* outFlags);
+                         const int32_t* keyCodes, uint8_t* outFlags) override;
 
-    virtual void requestRefreshConfiguration(uint32_t changes);
+    virtual void requestRefreshConfiguration(uint32_t changes) override;
 
     virtual void vibrate(int32_t deviceId, const nsecs_t* pattern, size_t patternSize,
-                         ssize_t repeat, int32_t token);
-    virtual void cancelVibrate(int32_t deviceId, int32_t token);
+                         ssize_t repeat, int32_t token) override;
+    virtual void cancelVibrate(int32_t deviceId, int32_t token) override;
 
-    virtual bool canDispatchToDisplay(int32_t deviceId, int32_t displayId);
+    virtual bool canDispatchToDisplay(int32_t deviceId, int32_t displayId) override;
 
 protected:
     // These members are protected so they can be instrumented by test cases.
@@ -90,20 +92,20 @@ protected:
     public:
         explicit ContextImpl(InputReader* reader);
 
-        virtual void updateGlobalMetaState();
-        virtual int32_t getGlobalMetaState();
-        virtual void disableVirtualKeysUntil(nsecs_t time);
+        virtual void updateGlobalMetaState() override;
+        virtual int32_t getGlobalMetaState() override;
+        virtual void disableVirtualKeysUntil(nsecs_t time) override;
         virtual bool shouldDropVirtualKey(nsecs_t now, InputDevice* device, int32_t keyCode,
-                                          int32_t scanCode);
-        virtual void fadePointer();
-        virtual void requestTimeoutAtTime(nsecs_t when);
-        virtual int32_t bumpGeneration();
-        virtual void getExternalStylusDevices(std::vector<InputDeviceInfo>& outDevices);
-        virtual void dispatchExternalStylusState(const StylusState& outState);
-        virtual InputReaderPolicyInterface* getPolicy();
-        virtual InputListenerInterface* getListener();
-        virtual EventHubInterface* getEventHub();
-        virtual uint32_t getNextSequenceNum();
+                                          int32_t scanCode) override;
+        virtual void fadePointer() override;
+        virtual void requestTimeoutAtTime(nsecs_t when) override;
+        virtual int32_t bumpGeneration() override;
+        virtual void getExternalStylusDevices(std::vector<InputDeviceInfo>& outDevices) override;
+        virtual void dispatchExternalStylusState(const StylusState& outState) override;
+        virtual InputReaderPolicyInterface* getPolicy() override;
+        virtual InputListenerInterface* getListener() override;
+        virtual EventHubInterface* getEventHub() override;
+        virtual uint32_t getNextSequenceNum() override;
     } mContext;
 
     friend class ContextImpl;
