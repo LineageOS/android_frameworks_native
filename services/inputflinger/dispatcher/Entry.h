@@ -33,7 +33,13 @@ namespace android::inputdispatcher {
 constexpr uint32_t SYNTHESIZED_EVENT_SEQUENCE_NUM = 0;
 
 struct EventEntry {
-    enum class Type { CONFIGURATION_CHANGED, DEVICE_RESET, KEY, MOTION };
+    enum class Type {
+        CONFIGURATION_CHANGED,
+        DEVICE_RESET,
+        FOCUS,
+        KEY,
+        MOTION,
+    };
 
     static const char* typeToString(Type type) {
         switch (type) {
@@ -41,6 +47,8 @@ struct EventEntry {
                 return "CONFIGURATION_CHANGED";
             case Type::DEVICE_RESET:
                 return "DEVICE_RESET";
+            case Type::FOCUS:
+                return "FOCUS";
             case Type::KEY:
                 return "KEY";
             case Type::MOTION:
@@ -100,6 +108,17 @@ struct DeviceResetEntry : EventEntry {
 
 protected:
     virtual ~DeviceResetEntry();
+};
+
+struct FocusEntry : EventEntry {
+    sp<IBinder> connectionToken;
+    bool hasFocus;
+
+    FocusEntry(uint32_t sequenceNum, nsecs_t eventTime, sp<IBinder> connectionToken, bool hasFocus);
+    virtual void appendDescription(std::string& msg) const;
+
+protected:
+    virtual ~FocusEntry();
 };
 
 struct KeyEntry : EventEntry {

@@ -112,22 +112,31 @@ public:
         if (consumed != OK) {
             return nullptr;
         }
-        mInputConsumer->sendFinishedSignal(seqId, true);
+        status_t status = mInputConsumer->sendFinishedSignal(seqId, true);
+        EXPECT_EQ(OK, status) << "Could not send finished signal";
         return ev;
+    }
+
+    void assertFocusChange(bool hasFocus) {
+        InputEvent *ev = consumeEvent();
+        ASSERT_NE(ev, nullptr);
+        ASSERT_EQ(AINPUT_EVENT_TYPE_FOCUS, ev->getType());
+        FocusEvent *focusEvent = static_cast<FocusEvent *>(ev);
+        EXPECT_EQ(hasFocus, focusEvent->getHasFocus());
     }
 
     void expectTap(int x, int y) {
         InputEvent* ev = consumeEvent();
-        EXPECT_TRUE(ev != nullptr);
-        EXPECT_TRUE(ev->getType() == AINPUT_EVENT_TYPE_MOTION);
+        ASSERT_NE(ev, nullptr);
+        ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, ev->getType());
         MotionEvent* mev = static_cast<MotionEvent*>(ev);
         EXPECT_EQ(AMOTION_EVENT_ACTION_DOWN, mev->getAction());
         EXPECT_EQ(x, mev->getX(0));
         EXPECT_EQ(y, mev->getY(0));
 
         ev = consumeEvent();
-        EXPECT_TRUE(ev != nullptr);
-        EXPECT_TRUE(ev->getType() == AINPUT_EVENT_TYPE_MOTION);
+        ASSERT_NE(ev, nullptr);
+        ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, ev->getType());
         mev = static_cast<MotionEvent*>(ev);
         EXPECT_EQ(AMOTION_EVENT_ACTION_UP, mev->getAction());
     }
@@ -212,7 +221,7 @@ public:
         ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
 
         const auto display = mComposerClient->getInternalDisplayToken();
-        ASSERT_FALSE(display == nullptr);
+        ASSERT_NE(display, nullptr);
 
         DisplayInfo info;
         ASSERT_EQ(NO_ERROR, mComposerClient->getDisplayInfo(display, &info));
@@ -259,18 +268,28 @@ void injectTap(int x, int y) {
 TEST_F(InputSurfacesTest, can_receive_input) {
     std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
     surface->showAt(100, 100);
+    surface->assertFocusChange(true);
 
     injectTap(101, 101);
 
-    EXPECT_TRUE(surface->consumeEvent() != nullptr);
+    EXPECT_NE(surface->consumeEvent(), nullptr);
 }
 
+/**
+ * Set up two surfaces side-by-side. Tap each surface.
+ * Next, swap the positions of the two surfaces. Inject tap into the two
+ * original locations. Ensure that the tap is received by the surfaces in the
+ * reverse order.
+ */
 TEST_F(InputSurfacesTest, input_respects_positioning) {
     std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
     surface->showAt(100, 100);
+    surface->assertFocusChange(true);
 
     std::unique_ptr<InputSurface> surface2 = makeSurface(100, 100);
     surface2->showAt(200, 200);
+    surface->assertFocusChange(false);
+    surface2->assertFocusChange(true);
 
     injectTap(201, 201);
     surface2->expectTap(1, 1);
@@ -297,11 +316,16 @@ TEST_F(InputSurfacesTest, input_respects_layering) {
     std::unique_ptr<InputSurface> surface2 = makeSurface(100, 100);
 
     surface->showAt(10, 10);
+    surface->assertFocusChange(true);
     surface2->showAt(10, 10);
+    surface->assertFocusChange(false);
+    surface2->assertFocusChange(true);
 
     surface->doTransaction([](auto &t, auto &sc) {
          t.setLayer(sc, LAYER_BASE + 1);
     });
+    surface2->assertFocusChange(false);
+    surface->assertFocusChange(true);
 
     injectTap(11, 11);
     surface->expectTap(1, 1);
@@ -309,6 +333,8 @@ TEST_F(InputSurfacesTest, input_respects_layering) {
     surface2->doTransaction([](auto &t, auto &sc) {
          t.setLayer(sc, LAYER_BASE + 1);
     });
+    surface2->assertFocusChange(true);
+    surface->assertFocusChange(false);
 
     injectTap(11, 11);
     surface2->expectTap(1, 1);
@@ -316,6 +342,8 @@ TEST_F(InputSurfacesTest, input_respects_layering) {
     surface2->doTransaction([](auto &t, auto &sc) {
          t.hide(sc);
     });
+    surface2->assertFocusChange(false);
+    surface->assertFocusChange(true);
 
     injectTap(11, 11);
     surface->expectTap(1, 1);
@@ -328,9 +356,12 @@ TEST_F(InputSurfacesTest, input_respects_surface_insets) {
     std::unique_ptr<InputSurface> bgSurface = makeSurface(100, 100);
     std::unique_ptr<InputSurface> fgSurface = makeSurface(100, 100);
     bgSurface->showAt(100, 100);
+    bgSurface->assertFocusChange(true);
 
     fgSurface->mInputInfo.surfaceInset = 5;
     fgSurface->showAt(100, 100);
+    fgSurface->assertFocusChange(true);
+    bgSurface->assertFocusChange(false);
 
     injectTap(106, 106);
     fgSurface->expectTap(1, 1);
@@ -344,9 +375,12 @@ TEST_F(InputSurfacesTest, input_respects_cropped_surface_insets) {
     std::unique_ptr<InputSurface> parentSurface = makeSurface(100, 100);
     std::unique_ptr<InputSurface> childSurface = makeSurface(100, 100);
     parentSurface->showAt(100, 100);
+    parentSurface->assertFocusChange(true);
 
     childSurface->mInputInfo.surfaceInset = 10;
     childSurface->showAt(100, 100);
+    childSurface->assertFocusChange(true);
+    parentSurface->assertFocusChange(false);
 
     childSurface->doTransaction([&](auto &t, auto &sc) {
         t.setPosition(sc, -5, -5);
@@ -365,9 +399,12 @@ TEST_F(InputSurfacesTest, input_respects_scaled_surface_insets) {
     std::unique_ptr<InputSurface> bgSurface = makeSurface(100, 100);
     std::unique_ptr<InputSurface> fgSurface = makeSurface(100, 100);
     bgSurface->showAt(100, 100);
+    bgSurface->assertFocusChange(true);
 
     fgSurface->mInputInfo.surfaceInset = 5;
     fgSurface->showAt(100, 100);
+    bgSurface->assertFocusChange(false);
+    fgSurface->assertFocusChange(true);
 
     fgSurface->doTransaction([&](auto &t, auto &sc) { t.setMatrix(sc, 2.0, 0, 0, 4.0); });
 
@@ -384,6 +421,7 @@ TEST_F(InputSurfacesTest, input_respects_scaled_surface_insets_overflow) {
     // In case we pass the very big inset without any checking.
     fgSurface->mInputInfo.surfaceInset = INT32_MAX;
     fgSurface->showAt(100, 100);
+    fgSurface->assertFocusChange(true);
 
     fgSurface->doTransaction([&](auto &t, auto &sc) { t.setMatrix(sc, 2.0, 0, 0, 2.0); });
 
@@ -400,6 +438,7 @@ TEST_F(InputSurfacesTest, input_ignores_transparent_region) {
         t.setTransparentRegionHint(sc, transparentRegion);
     });
     surface->showAt(100, 100);
+    surface->assertFocusChange(true);
     injectTap(101, 101);
     surface->expectTap(1, 1);
 }
@@ -414,7 +453,10 @@ TEST_F(InputSurfacesTest, input_ignores_buffer_layer_buffer) {
             InputSurface::makeBufferInputSurface(mComposerClient, 100, 100);
 
     bgSurface->showAt(10, 10);
+    bgSurface->assertFocusChange(true);
     bufferSurface->showAt(10, 10);
+    bgSurface->assertFocusChange(false);
+    bufferSurface->assertFocusChange(true);
 
     injectTap(11, 11);
     bufferSurface->expectTap(1, 1);
@@ -431,7 +473,10 @@ TEST_F(InputSurfacesTest, input_ignores_buffer_layer_alpha) {
     postBuffer(bufferSurface->mSurfaceControl);
 
     bgSurface->showAt(10, 10);
+    bgSurface->assertFocusChange(true);
     bufferSurface->showAt(10, 10);
+    bufferSurface->assertFocusChange(true);
+    bgSurface->assertFocusChange(false);
 
     injectTap(11, 11);
     bufferSurface->expectTap(1, 1);
@@ -447,7 +492,10 @@ TEST_F(InputSurfacesTest, input_ignores_color_layer_alpha) {
     std::unique_ptr<InputSurface> fgSurface = makeSurface(100, 100);
 
     bgSurface->showAt(10, 10);
+    bgSurface->assertFocusChange(true);
     fgSurface->showAt(10, 10);
+    bgSurface->assertFocusChange(false);
+    fgSurface->assertFocusChange(true);
 
     injectTap(11, 11);
     fgSurface->expectTap(1, 1);
@@ -464,12 +512,17 @@ TEST_F(InputSurfacesTest, input_respects_container_layer_visiblity) {
             InputSurface::makeContainerInputSurface(mComposerClient, 100, 100);
 
     bgSurface->showAt(10, 10);
+    bgSurface->assertFocusChange(true);
     containerSurface->showAt(10, 10);
+    bgSurface->assertFocusChange(false);
+    containerSurface->assertFocusChange(true);
 
     injectTap(11, 11);
     containerSurface->expectTap(1, 1);
 
     containerSurface->doTransaction([](auto &t, auto &sc) { t.hide(sc); });
+    containerSurface->assertFocusChange(false);
+    bgSurface->assertFocusChange(true);
 
     injectTap(11, 11);
     bgSurface->expectTap(1, 1);
@@ -478,6 +531,7 @@ TEST_F(InputSurfacesTest, input_respects_container_layer_visiblity) {
 TEST_F(InputSurfacesTest, input_respects_outscreen) {
     std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
     surface->showAt(-1, -1);
+    surface->assertFocusChange(true);
 
     injectTap(0, 0);
     surface->expectTap(1, 1);
