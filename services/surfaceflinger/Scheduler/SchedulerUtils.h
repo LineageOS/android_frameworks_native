@@ -42,9 +42,11 @@ static constexpr uint32_t HWC2_SCREEN_OFF_CONFIG_ID = 0xffffffff;
 // or waiting idle in messaging app, when cursor is blinking.
 static constexpr std::chrono::nanoseconds OBSOLETE_TIME_EPSILON_NS = 1200ms;
 
-// Layer is considered low activity if the buffers come more than LOW_ACTIVITY_EPSILON_NS
-// apart. This is helping SF to vote for lower refresh rates when there is not activity
+// Layer is considered low activity if the LOW_ACTIVITY_BUFFERS buffers come more than
+// LOW_ACTIVITY_EPSILON_NS  apart.
+// This is helping SF to vote for lower refresh rates when there is not activity
 // in screen.
+static constexpr int LOW_ACTIVITY_BUFFERS = 2;
 static constexpr std::chrono::nanoseconds LOW_ACTIVITY_EPSILON_NS = 250ms;
 
 // Calculates the statistical mean (average) in the data structure (array, vector). The
