@@ -150,7 +150,7 @@ status_t SensorManager::assertStateLocked() {
         class DeathObserver : public IBinder::DeathRecipient {
             SensorManager& mSensorManager;
             virtual void binderDied(const wp<IBinder>& who) {
-                ALOGW("sensorservice died [%p]", who.unsafe_get());
+                ALOGW("sensorservice died [%p]", static_cast<void*>(who.unsafe_get()));
                 mSensorManager.sensorManagerDied();
             }
         public:
