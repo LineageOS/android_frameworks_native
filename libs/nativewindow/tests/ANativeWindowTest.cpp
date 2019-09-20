@@ -138,3 +138,31 @@ TEST_F(ANativeWindowTest, getLastDequeueStartTime_withDequeue_returnsTime) {
     EXPECT_GT(result, 0);
     EXPECT_EQ(result, mWindow->getLastDequeueStartTime());
 }
+
+TEST_F(ANativeWindowTest, setDequeueTimeout_causesDequeueTimeout) {
+    nsecs_t timeout = milliseconds_to_nanoseconds(100);
+    int result = ANativeWindow_setDequeueTimeout(mWindow.get(), timeout);
+    EXPECT_EQ(0, result);
+
+    // The two dequeues should not timeout...
+    ANativeWindowBuffer* buffer;
+    int fd;
+    int dequeueResult = ANativeWindow_dequeueBuffer(mWindow.get(), &buffer, &fd);
+    close(fd);
+    EXPECT_EQ(0, dequeueResult);
+    int queueResult = ANativeWindow_queueBuffer(mWindow.get(), buffer, -1);
+    EXPECT_EQ(0, queueResult);
+    dequeueResult = ANativeWindow_dequeueBuffer(mWindow.get(), &buffer, &fd);
+    close(fd);
+    EXPECT_EQ(0, dequeueResult);
+    queueResult = ANativeWindow_queueBuffer(mWindow.get(), buffer, -1);
+    EXPECT_EQ(0, queueResult);
+
+    // ...but the third one should since the queue depth is too deep.
+    nsecs_t start = systemTime(SYSTEM_TIME_MONOTONIC);
+    dequeueResult = ANativeWindow_dequeueBuffer(mWindow.get(), &buffer, &fd);
+    nsecs_t end = systemTime(SYSTEM_TIME_MONOTONIC);
+    close(fd);
+    EXPECT_EQ(TIMED_OUT, dequeueResult);
+    EXPECT_GE(end - start, timeout);
+}
