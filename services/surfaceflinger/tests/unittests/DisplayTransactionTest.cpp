@@ -445,10 +445,6 @@ struct HwcDisplayVariant {
     }
 
     static void setupHwcHotplugCallExpectations(DisplayTransactionTest* test) {
-        EXPECT_CALL(*test->mComposer, getDisplayType(HWC_DISPLAY_ID, _))
-                .WillOnce(DoAll(SetArgPointee<1>(static_cast<IComposerClient::DisplayType>(
-                                        HWC_DISPLAY_TYPE)),
-                                Return(Error::NONE)));
         EXPECT_CALL(*test->mComposer, setClientTargetSlotCount(_)).WillOnce(Return(Error::NONE));
         EXPECT_CALL(*test->mComposer, getDisplayConfigs(HWC_DISPLAY_ID, _))
                 .WillOnce(DoAll(SetArgPointee<1>(std::vector<unsigned>{HWC_ACTIVE_CONFIG_ID}),
