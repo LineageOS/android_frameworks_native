@@ -245,6 +245,7 @@ private:
     int dispatchGetConsumerUsage64(va_list args);
     int dispatchSetAutoPrerotation(va_list args);
     int dispatchGetLastDequeueStartTime(va_list args);
+    int dispatchSetDequeueTimeout(va_list args);
     bool transformToDisplayInverse();
 
 protected:

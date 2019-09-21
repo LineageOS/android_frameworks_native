@@ -40,6 +40,7 @@ LIBNATIVEWINDOW {
     ANativeWindow_setBuffersGeometry;
     ANativeWindow_setBuffersTimestamp; # vndk
     ANativeWindow_setBuffersTransform;
+    ANativeWindow_setDequeueTimeout; # apex # introduced=30
     ANativeWindow_setSharedBufferMode; # vndk
     ANativeWindow_setSwapInterval; # vndk
     ANativeWindow_setUsage; # vndk

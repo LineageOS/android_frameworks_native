@@ -28,8 +28,8 @@ size_t HdrMetadata::getFlattenedSize() const {
         size += sizeof(cta8613);
     }
     if (validTypes & HDR10PLUS) {
-        size += sizeof(size_t);
-        size += hdr10plus.size();
+        size += sizeof(uint32_t);
+        size += hdr10plus.size() * sizeof(hdr10plus[0]);
     }
     return size;
 }
@@ -47,10 +47,11 @@ status_t HdrMetadata::flatten(void* buffer, size_t size) const {
         FlattenableUtils::write(buffer, size, cta8613);
     }
     if (validTypes & HDR10PLUS) {
-        size_t metadataSize = hdr10plus.size();
+        uint32_t metadataSize = hdr10plus.size();
         FlattenableUtils::write(buffer, size, metadataSize);
-        memcpy(buffer, hdr10plus.data(), metadataSize);
-        FlattenableUtils::advance(buffer, size, metadataSize);
+        size_t metadataSizeinByte = metadataSize * sizeof(hdr10plus[0]);
+        memcpy(buffer, hdr10plus.data(), metadataSizeinByte);
+        FlattenableUtils::advance(buffer, size, metadataSizeinByte);
     }
 
     return NO_ERROR;
@@ -74,20 +75,21 @@ status_t HdrMetadata::unflatten(void const* buffer, size_t size) {
         FlattenableUtils::read(buffer, size, cta8613);
     }
     if (validTypes & HDR10PLUS) {
-        if (size < sizeof(size_t)) {
+        if (size < sizeof(uint32_t)) {
             return NO_MEMORY;
         }
 
-        size_t metadataSize;
+        uint32_t metadataSize;
         FlattenableUtils::read(buffer, size, metadataSize);
 
-        if (size < metadataSize) {
+        size_t metadataSizeinByte = metadataSize * sizeof(hdr10plus[0]);
+        if (size < metadataSizeinByte) {
             return NO_MEMORY;
         }
 
         hdr10plus.resize(metadataSize);
-        memcpy(hdr10plus.data(), buffer, metadataSize);
-        FlattenableUtils::advance(buffer, size, metadataSize);
+        memcpy(hdr10plus.data(), buffer, metadataSizeinByte);
+        FlattenableUtils::advance(buffer, size, metadataSizeinByte);
     }
 
     return NO_ERROR;

@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,20 @@
  * limitations under the License.
  */
 
-#include "InputReaderFactory.h"
-#include "InputReader.h"
+#include "InputDispatcherThread.h"
+
+#include "InputDispatcherInterface.h"
 
 namespace android {
 
-sp<InputReaderInterface> createInputReader(
-        const sp<InputReaderPolicyInterface>& policy,
-        const sp<InputListenerInterface>& listener) {
-    return new InputReader(std::make_unique<EventHub>(), policy, listener);
+InputDispatcherThread::InputDispatcherThread(const sp<InputDispatcherInterface>& dispatcher)
+      : Thread(/*canCallJava*/ true), mDispatcher(dispatcher) {}
+
+InputDispatcherThread::~InputDispatcherThread() {}
+
+bool InputDispatcherThread::threadLoop() {
+    mDispatcher->dispatchOnce();
+    return true;
 }
 
 } // namespace android

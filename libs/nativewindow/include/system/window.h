@@ -240,6 +240,7 @@ enum {
     NATIVE_WINDOW_SET_BUFFERS_HDR10_PLUS_METADATA = 34,
     NATIVE_WINDOW_SET_AUTO_PREROTATION            = 35,
     NATIVE_WINDOW_GET_LAST_DEQUEUE_START          = 36,    /* private */
+    NATIVE_WINDOW_SET_DEQUEUE_TIMEOUT             = 37,    /* private */
     // clang-format on
 };
 

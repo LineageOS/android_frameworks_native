@@ -43,7 +43,48 @@ cc_test {
         "libui",
         "libutils",
     ]
+}
 
+cc_defaults {
+    name: "ipc_defaults",
+    cflags: [
+        "-Wall",
+	"-Werror",
+    ],
+}
+
+cc_test {
+    name: "IPC_test",
+    defaults: ["ipc_defaults"],
+    test_suites: ["device-tests"],
+    srcs: [
+        "BufferGenerator.cpp",
+        "IPC_test.cpp",
+    ],
+    cppflags: [
+        "-Wall",
+	"-Werror",
+	"-Wformat",
+	"-Wthread-safety",
+	"-Wunused",
+	"-Wunreachable-code",
+    ],
+    shared_libs: [
+        "libandroid",
+        "libbinder",
+        "libcutils",
+        "libEGL",
+        "libGLESv2",
+        "libgui",
+        "liblayers_proto",
+        "liblog",
+        "libprotobuf-cpp-full",
+        "libtimestats_proto",
+        "libui",
+        "libutils",
+    ],
+    cpp_std: "experimental",
+    gnu_extensions: false,
 }
 
 subdirs = [

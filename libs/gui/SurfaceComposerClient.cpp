@@ -366,6 +366,33 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
     if (count > parcel->dataSize()) {
         return BAD_VALUE;
     }
+    std::unordered_map<sp<ITransactionCompletedListener>, CallbackInfo, TCLHash> listenerCallbacks;
+    listenerCallbacks.reserve(count);
+    for (size_t i = 0; i < count; i++) {
+        sp<ITransactionCompletedListener> listener =
+                interface_cast<ITransactionCompletedListener>(parcel->readStrongBinder());
+        size_t numCallbackIds = parcel->readUint32();
+        if (numCallbackIds > parcel->dataSize()) {
+            return BAD_VALUE;
+        }
+        for (size_t j = 0; j < numCallbackIds; j++) {
+            listenerCallbacks[listener].callbackIds.insert(parcel->readInt64());
+        }
+        size_t numSurfaces = parcel->readUint32();
+        if (numSurfaces > parcel->dataSize()) {
+            return BAD_VALUE;
+        }
+        for (size_t j = 0; j < numSurfaces; j++) {
+            sp<SurfaceControl> surface;
+            surface = SurfaceControl::readFromParcel(parcel);
+            listenerCallbacks[listener].surfaceControls.insert(surface);
+        }
+    }
+
+    count = static_cast<size_t>(parcel->readUint32());
+    if (count > parcel->dataSize()) {
+        return BAD_VALUE;
+    }
     std::unordered_map<sp<IBinder>, ComposerState, IBinderHash> composerStates;
     composerStates.reserve(count);
     for (size_t i = 0; i < count; i++) {
@@ -389,10 +416,9 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
     mContainsBuffer = containsBuffer;
     mDesiredPresentTime = desiredPresentTime;
     mDisplayStates = displayStates;
+    mListenerCallbacks = listenerCallbacks;
     mComposerStates = composerStates;
     mInputWindowCommands = inputWindowCommands;
-    // listener callbacks contain function pointer addresses and may not be safe to parcel.
-    mListenerCallbacks.clear();
     return NO_ERROR;
 }
 
@@ -406,6 +432,19 @@ status_t SurfaceComposerClient::Transaction::writeToParcel(Parcel* parcel) const
     parcel->writeUint32(static_cast<uint32_t>(mDisplayStates.size()));
     for (auto const& displayState : mDisplayStates) {
         displayState.write(*parcel);
+    }
+
+    parcel->writeUint32(static_cast<uint32_t>(mListenerCallbacks.size()));
+    for (auto const& [listener, callbackInfo] : mListenerCallbacks) {
+        parcel->writeStrongBinder(ITransactionCompletedListener::asBinder(listener));
+        parcel->writeUint32(static_cast<uint32_t>(callbackInfo.callbackIds.size()));
+        for (auto callbackId : callbackInfo.callbackIds) {
+            parcel->writeInt64(callbackId);
+        }
+        parcel->writeUint32(static_cast<uint32_t>(callbackInfo.surfaceControls.size()));
+        for (auto surfaceControl : callbackInfo.surfaceControls) {
+            surfaceControl->writeToParcel(parcel);
+        }
     }
 
     parcel->writeUint32(static_cast<uint32_t>(mComposerStates.size()));
@@ -441,6 +480,11 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Tr
         mListenerCallbacks[listener].callbackIds.insert(std::make_move_iterator(
                                                                 callbackIds.begin()),
                                                         std::make_move_iterator(callbackIds.end()));
+        // register surface controls for this listener that is merging
+        for (const auto& surfaceControl : surfaceControls) {
+            registerSurfaceControlForCallback(surfaceControl);
+        }
+
         mListenerCallbacks[listener]
                 .surfaceControls.insert(std::make_move_iterator(surfaceControls.begin()),
                                         std::make_move_iterator(surfaceControls.end()));
@@ -479,7 +523,7 @@ void SurfaceComposerClient::doDropReferenceTransaction(const sp<IBinder>& handle
 
     composerStates.add(s);
     sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
-    sf->setTransactionState(composerStates, displayStates, 0, applyToken, {}, -1, {}, {});
+    sf->setTransactionState(composerStates, displayStates, 0, applyToken, {}, -1, {}, false, {});
 }
 
 void SurfaceComposerClient::doUncacheBufferTransaction(uint64_t cacheId) {
@@ -490,7 +534,7 @@ void SurfaceComposerClient::doUncacheBufferTransaction(uint64_t cacheId) {
     uncacheBuffer.id = cacheId;
 
     sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
-    sf->setTransactionState({}, {}, 0, applyToken, {}, -1, uncacheBuffer, {});
+    sf->setTransactionState({}, {}, 0, applyToken, {}, -1, uncacheBuffer, false, {});
 }
 
 void SurfaceComposerClient::Transaction::cacheBuffers() {
@@ -539,8 +583,8 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
 
     sp<ISurfaceComposer> sf(ComposerService::getComposerService());
 
+    bool hasListenerCallbacks = !mListenerCallbacks.empty();
     std::vector<ListenerCallbacks> listenerCallbacks;
-
     // For every listener with registered callbacks
     for (const auto& [listener, callbackInfo] : mListenerCallbacks) {
         auto& [callbackIds, surfaceControls] = callbackInfo;
@@ -548,19 +592,24 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
             continue;
         }
 
-        listenerCallbacks.emplace_back(IInterface::asBinder(listener), std::move(callbackIds));
-
-        // If the listener has any SurfaceControls set on this Transaction update the surface state
-        for (const auto& surfaceControl : surfaceControls) {
-            layer_state_t* s = getLayerState(surfaceControl);
-            if (!s) {
-                ALOGE("failed to get layer state");
-                continue;
+        if (surfaceControls.empty()) {
+            listenerCallbacks.emplace_back(IInterface::asBinder(listener), std::move(callbackIds));
+        } else {
+            // If the listener has any SurfaceControls set on this Transaction update the surface
+            // state
+            for (const auto& surfaceControl : surfaceControls) {
+                layer_state_t* s = getLayerState(surfaceControl);
+                if (!s) {
+                    ALOGE("failed to get layer state");
+                    continue;
+                }
+                std::vector<CallbackId> callbacks(callbackIds.begin(), callbackIds.end());
+                s->what |= layer_state_t::eHasListenerCallbacksChanged;
+                s->listeners.emplace_back(IInterface::asBinder(listener), callbacks);
             }
-            s->what |= layer_state_t::eHasListenerCallbacksChanged;
-            s->hasListenerCallbacks = true;
         }
     }
+
     mListenerCallbacks.clear();
 
     cacheBuffers();
@@ -598,7 +647,7 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
     sf->setTransactionState(composerStates, displayStates, flags, applyToken, mInputWindowCommands,
                             mDesiredPresentTime,
                             {} /*uncacheBuffer - only set in doUncacheBufferTransaction*/,
-                            listenerCallbacks);
+                            hasListenerCallbacks, listenerCallbacks);
     mInputWindowCommands.clear();
     mStatus = NO_ERROR;
     return NO_ERROR;

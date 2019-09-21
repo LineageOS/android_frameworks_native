@@ -291,6 +291,7 @@ public:
     };
 
     class Transaction : public Parcelable {
+    protected:
         std::unordered_map<sp<IBinder>, ComposerState, IBinderHash> mComposerStates;
         SortedVector<DisplayState > mDisplayStates;
         std::unordered_map<sp<ITransactionCompletedListener>, CallbackInfo, TCLHash>
