@@ -259,6 +259,16 @@ status_t GraphicBuffer::initWithHandle(const native_handle_t* inHandle, HandleWr
     return NO_ERROR;
 }
 
+status_t GraphicBuffer::lock(uint32_t inUsage, void** vaddr) {
+    status_t res = lock(inUsage, vaddr, nullptr, nullptr);
+    return res;
+}
+
+status_t GraphicBuffer::lock(uint32_t inUsage, void** vaddr, int32_t* outBytesPerPixel) {
+    status_t res = lock(inUsage, vaddr, outBytesPerPixel, nullptr);
+    return res;
+}
+
 status_t GraphicBuffer::lock(uint32_t inUsage, void** vaddr, int32_t* outBytesPerPixel,
                              int32_t* outBytesPerStride) {
     const Rect lockBounds(width, height);
