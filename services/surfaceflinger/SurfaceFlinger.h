@@ -851,7 +851,7 @@ private:
         return hwcDisplayId ? getHwComposer().toPhysicalDisplayId(*hwcDisplayId) : std::nullopt;
     }
 
-    bool previousFrameMissed();
+    bool previousFrameMissed(int graceTimeMs = 0);
     void setVsyncEnabledInHWC(DisplayId displayId, HWC2::Vsync enabled);
 
     /*
@@ -1023,6 +1023,7 @@ private:
     volatile nsecs_t mDebugInTransaction = 0;
     bool mForceFullDamage = false;
     bool mPropagateBackpressure = true;
+    bool mPropagateBackpressureClientComposition = false;
     std::unique_ptr<SurfaceInterceptor> mInterceptor;
     SurfaceTracing mTracing{*this};
     bool mTracingEnabled = false;

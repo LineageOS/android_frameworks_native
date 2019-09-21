@@ -109,7 +109,7 @@ class LayerInfo {
         bool isLowActivityLayer() const {
             // We want to make sure that we received more than two frames from the layer
             // in order to check low activity.
-            if (mElements.size() < 2) {
+            if (mElements.size() < scheduler::LOW_ACTIVITY_BUFFERS + 1) {
                 return false;
             }
 
@@ -118,7 +118,8 @@ class LayerInfo {
             // Check the frame before last to determine whether there is low activity.
             // If that frame is older than LOW_ACTIVITY_EPSILON_NS, the layer is sending
             // infrequent updates.
-            if (mElements.at(mElements.size() - 2) < obsoleteEpsilon) {
+            if (mElements.at(mElements.size() - (scheduler::LOW_ACTIVITY_BUFFERS + 1)) <
+                obsoleteEpsilon) {
                 return true;
             }
 
