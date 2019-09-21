@@ -46,6 +46,7 @@ cc_library_shared {
         "-Wno-padded",
         "-Wno-switch-enum",
         "-Wno-undef",
+        "-Wno-format-pedantic",
 
         // Have clang emit complete debug_info.
         "-fstandalone-debug",
