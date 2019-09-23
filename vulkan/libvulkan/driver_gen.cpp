@@ -444,6 +444,13 @@ const ProcHook g_proc_hooks[] = {
         nullptr,
     },
     {
+        "vkQueueSubmit",
+        ProcHook::DEVICE,
+        ProcHook::EXTENSION_CORE,
+        reinterpret_cast<PFN_vkVoidFunction>(QueueSubmit),
+        nullptr,
+    },
+    {
         "vkSetHdrMetadataEXT",
         ProcHook::DEVICE,
         ProcHook::EXT_hdr_metadata,
@@ -537,6 +544,7 @@ bool InitDriverTable(VkDevice dev,
     INIT_PROC(true, dev, GetDeviceProcAddr);
     INIT_PROC(true, dev, DestroyDevice);
     INIT_PROC(true, dev, GetDeviceQueue);
+    INIT_PROC(true, dev, QueueSubmit);
     INIT_PROC(true, dev, CreateImage);
     INIT_PROC(true, dev, DestroyImage);
     INIT_PROC(true, dev, AllocateCommandBuffers);
