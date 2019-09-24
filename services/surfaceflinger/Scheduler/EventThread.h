@@ -62,6 +62,8 @@ public:
     };
 
     virtual ~VSyncSource() {}
+
+    virtual const char* getName() const = 0;
     virtual void setVSyncEnabled(bool enable) = 0;
     virtual void setCallback(Callback* callback) = 0;
     virtual void setPhaseOffset(nsecs_t phaseOffset) = 0;
@@ -126,9 +128,7 @@ class EventThread : public android::EventThread, private VSyncSource::Callback {
 public:
     using InterceptVSyncsCallback = std::function<void(nsecs_t)>;
 
-    // TODO(b/128863962): Once the Scheduler is complete this constructor will become obsolete.
-    EventThread(VSyncSource*, InterceptVSyncsCallback, const char* threadName);
-    EventThread(std::unique_ptr<VSyncSource>, InterceptVSyncsCallback, const char* threadName);
+    EventThread(std::unique_ptr<VSyncSource>, InterceptVSyncsCallback);
     ~EventThread();
 
     sp<EventThreadConnection> createEventConnection(
@@ -157,10 +157,6 @@ private:
 
     using DisplayEventConsumers = std::vector<sp<EventThreadConnection>>;
 
-    // TODO(b/128863962): Once the Scheduler is complete this constructor will become obsolete.
-    EventThread(VSyncSource* src, std::unique_ptr<VSyncSource> uniqueSrc,
-                InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName);
-
     void threadMain(std::unique_lock<std::mutex>& lock) REQUIRES(mMutex);
 
     bool shouldConsumeEvent(const DisplayEventReceiver::Event& event,
@@ -174,9 +170,7 @@ private:
     // Implements VSyncSource::Callback
     void onVSyncEvent(nsecs_t timestamp) override;
 
-    // TODO(b/128863962): Once the Scheduler is complete this pointer will become obsolete.
-    VSyncSource* mVSyncSource GUARDED_BY(mMutex) = nullptr;
-    std::unique_ptr<VSyncSource> mVSyncSourceUnique GUARDED_BY(mMutex) = nullptr;
+    const std::unique_ptr<VSyncSource> mVSyncSource GUARDED_BY(mMutex);
 
     const InterceptVSyncsCallback mInterceptVSyncsCallback;
     const char* const mThreadName;

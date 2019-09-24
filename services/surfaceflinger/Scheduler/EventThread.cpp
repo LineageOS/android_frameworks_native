@@ -154,23 +154,11 @@ EventThread::~EventThread() = default;
 
 namespace impl {
 
-EventThread::EventThread(std::unique_ptr<VSyncSource> src,
-                         InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName)
-      : EventThread(nullptr, std::move(src), std::move(interceptVSyncsCallback), threadName) {}
-
-EventThread::EventThread(VSyncSource* src, InterceptVSyncsCallback interceptVSyncsCallback,
-                         const char* threadName)
-      : EventThread(src, nullptr, std::move(interceptVSyncsCallback), threadName) {}
-
-EventThread::EventThread(VSyncSource* src, std::unique_ptr<VSyncSource> uniqueSrc,
-                         InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName)
-      : mVSyncSource(src),
-        mVSyncSourceUnique(std::move(uniqueSrc)),
+EventThread::EventThread(std::unique_ptr<VSyncSource> vsyncSource,
+                         InterceptVSyncsCallback interceptVSyncsCallback)
+      : mVSyncSource(std::move(vsyncSource)),
         mInterceptVSyncsCallback(std::move(interceptVSyncsCallback)),
-        mThreadName(threadName) {
-    if (src == nullptr) {
-        mVSyncSource = mVSyncSourceUnique.get();
-    }
+        mThreadName(mVSyncSource->getName()) {
     mVSyncSource->setCallback(this);
 
     mThread = std::thread([this]() NO_THREAD_SAFETY_ANALYSIS {
@@ -178,7 +166,7 @@ EventThread::EventThread(VSyncSource* src, std::unique_ptr<VSyncSource> uniqueSr
         threadMain(lock);
     });
 
-    pthread_setname_np(mThread.native_handle(), threadName);
+    pthread_setname_np(mThread.native_handle(), mThreadName);
 
     pid_t tid = pthread_gettid_np(mThread.native_handle());
 

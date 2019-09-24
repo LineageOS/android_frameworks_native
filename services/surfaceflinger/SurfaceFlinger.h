@@ -89,7 +89,6 @@ class EventThread;
 class HWComposer;
 class IGraphicBufferProducer;
 class IInputFlinger;
-class InjectVSyncSource;
 class Layer;
 class MessageBase;
 class RefreshRateOverlay;
@@ -931,8 +930,6 @@ private:
     // constant members (no synchronization needed for access)
     const nsecs_t mBootTime = systemTime();
     bool mGpuToCpuSupported = false;
-    std::unique_ptr<EventThread> mInjectorEventThread;
-    std::unique_ptr<InjectVSyncSource> mVSyncInjector;
 
     // Can only accessed from the main thread, these members
     // don't need synchronization
@@ -1049,8 +1046,6 @@ private:
     /* ------------------------------------------------------------------------
      * Feature prototyping
      */
-
-    bool mInjectVSyncs = false;
 
     // Static screen stats
     bool mHasPoweredOff = false;

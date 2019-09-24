@@ -101,7 +101,6 @@
 #include "Scheduler/DispSyncSource.h"
 #include "Scheduler/EventControlThread.h"
 #include "Scheduler/EventThread.h"
-#include "Scheduler/InjectVSyncSource.h"
 #include "Scheduler/MessageQueue.h"
 #include "Scheduler/PhaseOffsets.h"
 #include "Scheduler/Scheduler.h"
@@ -1195,48 +1194,20 @@ status_t SurfaceFlinger::isWideColorDisplay(const sp<IBinder>& displayToken,
 
 status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
     postMessageSync(new LambdaMessage([&] {
-        Mutex::Autolock _l(mStateLock);
+        Mutex::Autolock lock(mStateLock);
 
-        if (mInjectVSyncs == enable) {
-            return;
+        if (const auto handle = mScheduler->enableVSyncInjection(enable)) {
+            mEventQueue->setEventConnection(
+                    mScheduler->getEventConnection(enable ? handle : mSfConnectionHandle));
         }
-
-        // TODO(b/128863962): Part of the Injector should be refactored, so that it
-        // can be passed to Scheduler.
-        if (enable) {
-            ALOGV("VSync Injections enabled");
-            if (mVSyncInjector.get() == nullptr) {
-                mVSyncInjector = std::make_unique<InjectVSyncSource>();
-                mInjectorEventThread = std::make_unique<
-                        impl::EventThread>(mVSyncInjector.get(),
-                                           impl::EventThread::InterceptVSyncsCallback(),
-                                           "injEventThread");
-            }
-            mEventQueue->setEventThread(mInjectorEventThread.get(), [&] { mScheduler->resync(); });
-        } else {
-            ALOGV("VSync Injections disabled");
-            mEventQueue->setEventThread(mScheduler->getEventThread(mSfConnectionHandle),
-                                        [&] { mScheduler->resync(); });
-        }
-
-        mInjectVSyncs = enable;
     }));
 
     return NO_ERROR;
 }
 
 status_t SurfaceFlinger::injectVSync(nsecs_t when) {
-    Mutex::Autolock _l(mStateLock);
-
-    if (!mInjectVSyncs) {
-        ALOGE("VSync Injections not enabled");
-        return BAD_VALUE;
-    }
-    if (mInjectVSyncs && mInjectorEventThread.get() != nullptr) {
-        ALOGV("Injecting VSync inside SurfaceFlinger");
-        mVSyncInjector->onInjectSyncEvent(when);
-    }
-    return NO_ERROR;
+    Mutex::Autolock lock(mStateLock);
+    return mScheduler->injectVSync(when) ? NO_ERROR : BAD_VALUE;
 }
 
 status_t SurfaceFlinger::getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const

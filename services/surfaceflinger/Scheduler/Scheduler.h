@@ -36,6 +36,7 @@ namespace android {
 
 class DispSync;
 class FenceTime;
+class InjectVSyncSource;
 struct DisplayStateInfo;
 
 class Scheduler {
@@ -63,7 +64,6 @@ public:
     sp<IDisplayEventConnection> createDisplayEventConnection(ConnectionHandle,
                                                              ISurfaceComposer::ConfigChanged);
 
-    EventThread* getEventThread(ConnectionHandle);
     sp<EventThreadConnection> getEventConnection(ConnectionHandle);
 
     void onHotplugReceived(ConnectionHandle, PhysicalDisplayId, bool connected);
@@ -76,6 +76,12 @@ public:
     void setPhaseOffset(ConnectionHandle, nsecs_t phaseOffset);
 
     void getDisplayStatInfo(DisplayStatInfo* stats);
+
+    // Returns injector handle if injection has toggled, or an invalid handle otherwise.
+    ConnectionHandle enableVSyncInjection(bool enable);
+
+    // Returns false if injection is disabled.
+    bool injectVSync(nsecs_t when);
 
     void enableHardwareVsync();
     void disableHardwareVsync(bool makeUnavailable);
@@ -138,12 +144,10 @@ private:
     Scheduler(std::unique_ptr<DispSync>, std::unique_ptr<EventControlThread>,
               const scheduler::RefreshRateConfigs&);
 
-    // Creates a connection on the given EventThread and forwards the given callbacks.
-    std::unique_ptr<EventThread> makeEventThread(const char* connectionName, nsecs_t phaseOffsetNs,
-                                                 nsecs_t offsetThresholdForNextVsync,
-                                                 impl::EventThread::InterceptVSyncsCallback&&);
+    std::unique_ptr<VSyncSource> makePrimaryDispSyncSource(const char* name, nsecs_t phaseOffsetNs,
+                                                           nsecs_t offsetThresholdForNextVsync);
 
-    // Create a connection on the given EventThread and forward the resync callback.
+    // Create a connection on the given EventThread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread>);
     sp<EventThreadConnection> createConnectionInternal(EventThread*,
                                                        ISurfaceComposer::ConfigChanged);
@@ -172,6 +176,10 @@ private:
 
     ConnectionHandle::Id mNextConnectionHandleId = 0;
     std::unordered_map<ConnectionHandle, Connection> mConnections;
+
+    bool mInjectVSyncs = false;
+    InjectVSyncSource* mVSyncInjector = nullptr;
+    ConnectionHandle mInjectorConnectionHandle;
 
     std::mutex mHWVsyncLock;
     bool mPrimaryHWVsyncEnabled GUARDED_BY(mHWVsyncLock) = false;
