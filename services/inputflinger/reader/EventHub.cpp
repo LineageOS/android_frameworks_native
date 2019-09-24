@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/capability.h>
 #include <sys/epoll.h>
 #include <sys/inotify.h>
 #include <sys/ioctl.h>
@@ -237,6 +238,47 @@ bool EventHub::Device::hasValidFd() {
     return !isVirtual && enabled;
 }
 
+/**
+ * Get the capabilities for the current process.
+ * Crashes the system if unable to create / check / destroy the capabilities object.
+ */
+class Capabilities final {
+public:
+    explicit Capabilities() {
+        mCaps = cap_get_proc();
+        LOG_ALWAYS_FATAL_IF(mCaps == nullptr, "Could not get capabilities of the current process");
+    }
+
+    /**
+     * Check whether the current process has a specific capability
+     * in the set of effective capabilities.
+     * Return CAP_SET if the process has the requested capability
+     * Return CAP_CLEAR otherwise.
+     */
+    cap_flag_value_t checkEffectiveCapability(cap_value_t capability) {
+        cap_flag_value_t value;
+        const int result = cap_get_flag(mCaps, capability, CAP_EFFECTIVE, &value);
+        LOG_ALWAYS_FATAL_IF(result == -1, "Could not obtain the requested capability");
+        return value;
+    }
+
+    ~Capabilities() {
+        const int result = cap_free(mCaps);
+        LOG_ALWAYS_FATAL_IF(result == -1, "Could not release the capabilities structure");
+    }
+
+private:
+    cap_t mCaps;
+};
+
+static void ensureProcessCanBlockSuspend() {
+    Capabilities capabilities;
+    const bool canBlockSuspend =
+            capabilities.checkEffectiveCapability(CAP_BLOCK_SUSPEND) == CAP_SET;
+    LOG_ALWAYS_FATAL_IF(!canBlockSuspend,
+                        "Input must be able to block suspend to properly process events");
+}
+
 // --- EventHub ---
 
 const int EventHub::EPOLL_MAX_EVENTS;
@@ -253,6 +295,7 @@ EventHub::EventHub(void)
         mPendingEventCount(0),
         mPendingEventIndex(0),
         mPendingINotify(false) {
+    ensureProcessCanBlockSuspend();
     acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_ID);
 
     mEpollFd = epoll_create1(EPOLL_CLOEXEC);
