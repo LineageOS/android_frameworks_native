@@ -3621,9 +3621,9 @@ bool TouchInputMapper::isPointInsideSurface(int32_t x, int32_t y) {
     const float scaledX = x * mXScale;
     const float scaledY = y * mYScale;
     return x >= mRawPointerAxes.x.minValue && x <= mRawPointerAxes.x.maxValue &&
-            scaledX >= mPhysicalLeft && scaledX <= mPhysicalLeft + mPhysicalWidth &&
+            scaledX >= mSurfaceLeft && scaledX <= mSurfaceLeft + mSurfaceWidth &&
             y >= mRawPointerAxes.y.minValue && y <= mRawPointerAxes.y.maxValue &&
-            scaledY >= mPhysicalTop && scaledY <= mPhysicalTop + mPhysicalHeight;
+            scaledY >= mSurfaceTop && scaledY <= mSurfaceTop + mSurfaceHeight;
 }
 
 const TouchInputMapper::VirtualKey* TouchInputMapper::findVirtualKeyHit(int32_t x, int32_t y) {
