@@ -58,7 +58,6 @@ cc_library_shared {
         "liblog",
         "libui",
         "libutils",
-        "libhardware_legacy",
     ],
 
     header_libs: [
