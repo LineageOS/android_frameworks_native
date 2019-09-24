@@ -288,6 +288,13 @@ void OutputLayer::updateCompositionState(bool includeGeometry) {
     const auto& profile = *mOutput.getDisplayColorProfile();
 
     if (includeGeometry) {
+        // Clear the forceClientComposition flag before it is set for any
+        // reason. Note that since it can be set by some checks below when
+        // updating the geometry state, we only clear it when updating the
+        // geometry since those conditions for forcing client composition won't
+        // go away otherwise.
+        mState.forceClientComposition = false;
+
         mState.displayFrame = calculateOutputDisplayFrame();
         mState.sourceCrop = calculateOutputSourceCrop();
         mState.bufferTransform =
