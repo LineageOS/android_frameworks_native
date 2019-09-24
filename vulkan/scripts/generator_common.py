@@ -127,7 +127,7 @@ def getDispatchTableType(functionName):
       'VkCommandBuffer ' : 'Device'
   }
 
-  if len(paramDict[functionName])>0:
+  if len(paramDict[functionName]) > 0:
     return switchCase.get(paramDict[functionName][0][0], 'Global')
   return 'Global'
 
@@ -150,7 +150,7 @@ def clang_on(f, indent):
 def clang_off(f, indent):
   f.write (clang_off_spaces * indent + '// clang-format off\n')
 
-clang_off_spaces = ' '*4
+clang_off_spaces = ' ' * 4
 
 parametersList = []
 paramDict = {}
@@ -166,16 +166,13 @@ def parseVulkanRegistry():
   vulkan_registry = os.path.join(os.path.dirname(__file__),'..','..','..','..','external','vulkan-headers','registry','vk.xml')
   tree = ET.parse(vulkan_registry)
   root = tree.getroot()
-  protoset = False
-  fnName = ""
-  fnType = ""
   for commands in root.iter('commands'):
     for command in commands:
       if command.tag == 'command':
-        if protoset == True:
-          paramDict[fnName] = parametersList.copy()
         parametersList.clear()
         protoset = False
+        fnName = ""
+        fnType = ""
         if command.get('alias') != None:
           alias = command.get('alias')
           fnName = command.get('name')
@@ -184,20 +181,20 @@ def parseVulkanRegistry():
           paramDict[fnName] = paramDict[alias].copy()
           returnTypeDict[fnName] = returnTypeDict[alias]
         for params in command:
-          if(params.tag == 'param'):
+          if params.tag == 'param':
             paramtype = ""
-            if params.text!=None:
-              paramtype = params.text
+            if params.text != None and params.text.strip() != '':
+              paramtype = params.text.strip() + ' '
             typeval = params.find('type')
             paramtype = paramtype + typeval.text
-            if typeval.tail!=None:
-              paramtype = paramtype + typeval.tail
+            if typeval.tail != None:
+              paramtype += typeval.tail.strip() + ' '
             pname = params.find('name')
             paramname = pname.text
-            if pname.tail != None:
-              parametersList.append((paramtype,paramname,pname.tail))
+            if pname.tail != None and pname.tail.strip() != '':
+              parametersList.append((paramtype, paramname, pname.tail.strip()))
             else:
-              parametersList.append((paramtype,paramname))
+              parametersList.append((paramtype, paramname))
           if params.tag == 'proto':
             for c in params:
               if c.tag == 'type':
@@ -207,6 +204,8 @@ def parseVulkanRegistry():
                 protoset = True
                 allCommandsList.append(fnName)
                 returnTypeDict[fnName] = fnType
+        if protoset == True:
+          paramDict[fnName] = parametersList.copy()
 
   for exts in root.iter('extensions'):
     for extension in exts:
@@ -214,7 +213,7 @@ def parseVulkanRegistry():
       if extension.tag == 'extension':
         extname = extension.get('name')
         for req in extension:
-          if req.get('feature')!=None:
+          if req.get('feature') != None:
             apiversion = req.get('feature')
           for commands in req:
             if commands.tag == 'command':
@@ -223,19 +222,6 @@ def parseVulkanRegistry():
                 extensionsDict[commandname] = extname
                 if apiversion != "":
                   versionDict[commandname] = apiversion
-
-  # TODO(adsrini): http://b/136570819
-  extensionsDict['vkGetSwapchainGrallocUsage2ANDROID'] = 'VK_ANDROID_native_buffer'
-  allCommandsList.append('vkGetSwapchainGrallocUsage2ANDROID')
-  returnTypeDict['vkGetSwapchainGrallocUsage2ANDROID'] = 'VkResult'
-  paramDict['vkGetSwapchainGrallocUsage2ANDROID'] = [
-    ('VkDevice ', 'device'),
-    ('VkFormat ', 'format'),
-    ('VkImageUsageFlags ', 'imageUsage'),
-    ('VkSwapchainImageUsageFlagsANDROID ', 'swapchainImageUsage'),
-    ('uint64_t* ', 'grallocConsumerUsage'),
-    ('uint64_t* ', 'grallocProducerUsage')
-  ]
 
   for feature in root.iter('feature'):
     apiversion = feature.get('name')
