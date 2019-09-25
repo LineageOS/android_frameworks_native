@@ -31,6 +31,7 @@
 #include <math/mat4.h>
 #include <renderengine/RenderEngine.h>
 #include <system/window.h>
+#include <ui/DisplayInfo.h>
 #include <ui/GraphicTypes.h>
 #include <ui/HdrCapabilities.h>
 #include <ui/Region.h>
@@ -64,10 +65,6 @@ class DisplayDevice : public LightRefBase<DisplayDevice> {
 public:
     constexpr static float sDefaultMinLumiance = 0.0;
     constexpr static float sDefaultMaxLumiance = 500.0;
-
-    enum {
-        NO_LAYER_STACK = 0xFFFFFFFF,
-    };
 
     explicit DisplayDevice(DisplayDeviceCreationArgs&& args);
     virtual ~DisplayDevice();
@@ -201,7 +198,7 @@ struct DisplayDeviceState {
     int32_t sequenceId = sNextSequenceId++;
     std::optional<DisplayId> displayId;
     sp<IGraphicBufferProducer> surface;
-    uint32_t layerStack = DisplayDevice::NO_LAYER_STACK;
+    uint32_t layerStack = NO_LAYER_STACK;
     Rect viewport;
     Rect frame;
     uint8_t orientation = 0;

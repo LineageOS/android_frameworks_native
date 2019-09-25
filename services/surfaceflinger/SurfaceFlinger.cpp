@@ -813,11 +813,15 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
                 info.viewportW = uint32_t(viewport.getWidth());
                 info.viewportH = uint32_t(viewport.getHeight());
             }
+            info.layerStack = display->getLayerStack();
         } else {
             // TODO: where should this value come from?
             static const int TV_DENSITY = 213;
             info.density = TV_DENSITY / 160.0f;
             info.orientation = 0;
+
+            const auto display = getDisplayDeviceLocked(displayToken);
+            info.layerStack = display->getLayerStack();
         }
 
         info.xdpi = xdpi;

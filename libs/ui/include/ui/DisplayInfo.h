@@ -24,6 +24,8 @@
 
 namespace android {
 
+constexpr uint32_t NO_LAYER_STACK = static_cast<uint32_t>(-1);
+
 struct DisplayInfo {
     uint32_t w{0};
     uint32_t h{0};
@@ -37,6 +39,7 @@ struct DisplayInfo {
     nsecs_t presentationDeadline{0};
     uint32_t viewportW{0};
     uint32_t viewportH{0};
+    uint32_t layerStack{NO_LAYER_STACK};
 };
 
 /* Display orientations as defined in Surface.java and ISurfaceComposer.h. */
@@ -47,6 +50,6 @@ enum {
     DISPLAY_ORIENTATION_270 = 3
 };
 
-}; // namespace android
+} // namespace android
 
 #endif // ANDROID_COMPOSER_DISPLAY_INFO_H
