@@ -30,9 +30,6 @@ class CompositionEngine;
  * A parameter object for creating Display instances
  */
 struct DisplayCreationArgs {
-    // True if this display is secure
-    bool isSecure = false;
-
     // True if this display is a virtual display
     bool isVirtual = false;
 
@@ -54,17 +51,13 @@ struct DisplayCreationArgs {
  *
  * Prefer:
  *
- *  DisplayCreationArgsBuilder().setIsSecure(false).setIsVirtual(false)
+ *  DisplayCreationArgsBuilder().setIsVirtual(false)
  *      .setDisplayId(displayId).build();
  */
 class DisplayCreationArgsBuilder {
 public:
     DisplayCreationArgs build() { return std::move(mArgs); }
 
-    DisplayCreationArgsBuilder& setIsSecure(bool isSecure) {
-        mArgs.isSecure = isSecure;
-        return *this;
-    }
     DisplayCreationArgsBuilder& setIsVirtual(bool isVirtual) {
         mArgs.isVirtual = isVirtual;
         return *this;

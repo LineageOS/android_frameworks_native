@@ -44,49 +44,26 @@ FloatRect reduce(const FloatRect& win, const Region& exclude) {
 
 } // namespace
 
-std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(
+std::unique_ptr<OutputLayer> createOutputLayer(
         const compositionengine::Output& output,
         const std::shared_ptr<compositionengine::Layer>& layer,
         const sp<compositionengine::LayerFE>& layerFE) {
-    return std::make_unique<OutputLayer>(output, layer, layerFE);
+    return createOutputLayerTemplated<OutputLayer>(output, layer, layerFE);
 }
-
-OutputLayer::OutputLayer(const Output& output, const std::shared_ptr<Layer>& layer,
-                         const sp<LayerFE>& layerFE)
-      : mOutput(output), mLayer(layer), mLayerFE(layerFE) {}
 
 OutputLayer::~OutputLayer() = default;
 
 void OutputLayer::setHwcLayer(std::shared_ptr<HWC2::Layer> hwcLayer) {
+    auto& state = editState();
     if (hwcLayer) {
-        mState.hwc.emplace(hwcLayer);
+        state.hwc.emplace(std::move(hwcLayer));
     } else {
-        mState.hwc.reset();
+        state.hwc.reset();
     }
 }
 
-const compositionengine::Output& OutputLayer::getOutput() const {
-    return mOutput;
-}
-
-compositionengine::Layer& OutputLayer::getLayer() const {
-    return *mLayer;
-}
-
-compositionengine::LayerFE& OutputLayer::getLayerFE() const {
-    return *mLayerFE;
-}
-
-const OutputLayerCompositionState& OutputLayer::getState() const {
-    return mState;
-}
-
-OutputLayerCompositionState& OutputLayer::editState() {
-    return mState;
-}
-
 Rect OutputLayer::calculateInitialCrop() const {
-    const auto& layerState = mLayer->getFEState();
+    const auto& layerState = getLayer().getFEState();
 
     // apply the projection's clipping to the window crop in
     // layerstack space, and convert-back to layer space.
@@ -96,7 +73,7 @@ Rect OutputLayer::calculateInitialCrop() const {
     FloatRect activeCropFloat =
             reduce(layerState.geomLayerBounds, layerState.transparentRegionHint);
 
-    const Rect& viewport = mOutput.getState().viewport;
+    const Rect& viewport = getOutput().getState().viewport;
     const ui::Transform& layerTransform = layerState.geomLayerTransform;
     const ui::Transform& inverseLayerTransform = layerState.geomInverseLayerTransform;
     // Transform to screen space.
@@ -119,8 +96,8 @@ Rect OutputLayer::calculateInitialCrop() const {
 }
 
 FloatRect OutputLayer::calculateOutputSourceCrop() const {
-    const auto& layerState = mLayer->getFEState();
-    const auto& outputState = mOutput.getState();
+    const auto& layerState = getLayer().getFEState();
+    const auto& outputState = getOutput().getState();
 
     if (!layerState.geomUsesSourceCrop) {
         return {};
@@ -196,8 +173,8 @@ FloatRect OutputLayer::calculateOutputSourceCrop() const {
 }
 
 Rect OutputLayer::calculateOutputDisplayFrame() const {
-    const auto& layerState = mLayer->getFEState();
-    const auto& outputState = mOutput.getState();
+    const auto& layerState = getLayer().getFEState();
+    const auto& outputState = getOutput().getState();
 
     // apply the layer's transform, followed by the display's global transform
     // here we're guaranteed that the layer's transform preserves rects
@@ -243,8 +220,8 @@ Rect OutputLayer::calculateOutputDisplayFrame() const {
 }
 
 uint32_t OutputLayer::calculateOutputRelativeBufferTransform() const {
-    const auto& layerState = mLayer->getFEState();
-    const auto& outputState = mOutput.getState();
+    const auto& layerState = getLayer().getFEState();
+    const auto& outputState = getOutput().getState();
 
     /*
      * Transformations are applied in this order:
@@ -283,9 +260,10 @@ uint32_t OutputLayer::calculateOutputRelativeBufferTransform() const {
 } // namespace impl
 
 void OutputLayer::updateCompositionState(bool includeGeometry) {
-    const auto& layerFEState = mLayer->getFEState();
-    const auto& outputState = mOutput.getState();
-    const auto& profile = *mOutput.getDisplayColorProfile();
+    const auto& layerFEState = getLayer().getFEState();
+    const auto& outputState = getOutput().getState();
+    const auto& profile = *getOutput().getDisplayColorProfile();
+    auto& state = editState();
 
     if (includeGeometry) {
         // Clear the forceClientComposition flag before it is set for any
@@ -293,48 +271,49 @@ void OutputLayer::updateCompositionState(bool includeGeometry) {
         // updating the geometry state, we only clear it when updating the
         // geometry since those conditions for forcing client composition won't
         // go away otherwise.
-        mState.forceClientComposition = false;
+        state.forceClientComposition = false;
 
-        mState.displayFrame = calculateOutputDisplayFrame();
-        mState.sourceCrop = calculateOutputSourceCrop();
-        mState.bufferTransform =
+        state.displayFrame = calculateOutputDisplayFrame();
+        state.sourceCrop = calculateOutputSourceCrop();
+        state.bufferTransform =
                 static_cast<Hwc2::Transform>(calculateOutputRelativeBufferTransform());
 
         if ((layerFEState.isSecure && !outputState.isSecure) ||
-            (mState.bufferTransform & ui::Transform::ROT_INVALID)) {
-            mState.forceClientComposition = true;
+            (state.bufferTransform & ui::Transform::ROT_INVALID)) {
+            state.forceClientComposition = true;
         }
     }
 
     // Determine the output dependent dataspace for this layer. If it is
     // colorspace agnostic, it just uses the dataspace chosen for the output to
     // avoid the need for color conversion.
-    mState.dataspace = layerFEState.isColorspaceAgnostic &&
+    state.dataspace = layerFEState.isColorspaceAgnostic &&
                     outputState.targetDataspace != ui::Dataspace::UNKNOWN
             ? outputState.targetDataspace
             : layerFEState.dataspace;
 
     // These are evaluated every frame as they can potentially change at any
     // time.
-    if (layerFEState.forceClientComposition || !profile.isDataspaceSupported(mState.dataspace)) {
-        mState.forceClientComposition = true;
+    if (layerFEState.forceClientComposition || !profile.isDataspaceSupported(state.dataspace)) {
+        state.forceClientComposition = true;
     }
 }
 
 void OutputLayer::writeStateToHWC(bool includeGeometry) {
+    const auto& state = getState();
     // Skip doing this if there is no HWC interface
-    if (!mState.hwc) {
+    if (!state.hwc) {
         return;
     }
 
-    auto& hwcLayer = (*mState.hwc).hwcLayer;
+    auto& hwcLayer = (*state.hwc).hwcLayer;
     if (!hwcLayer) {
         ALOGE("[%s] failed to write composition state to HWC -- no hwcLayer for output %s",
-              mLayerFE->getDebugName(), mOutput.getName().c_str());
+              getLayerFE().getDebugName(), getOutput().getName().c_str());
         return;
     }
 
-    const auto& outputIndependentState = mLayer->getFEState();
+    const auto& outputIndependentState = getLayer().getFEState();
     auto requestedCompositionType = outputIndependentState.compositionType;
 
     if (includeGeometry) {
@@ -355,7 +334,7 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(
     if (auto error = hwcLayer->setDisplayFrame(outputDependentState.displayFrame);
         error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set display frame [%d, %d, %d, %d]: %s (%d)",
-              mLayerFE->getDebugName(), outputDependentState.displayFrame.left,
+              getLayerFE().getDebugName(), outputDependentState.displayFrame.left,
               outputDependentState.displayFrame.top, outputDependentState.displayFrame.right,
               outputDependentState.displayFrame.bottom, to_string(error).c_str(),
               static_cast<int32_t>(error));
@@ -365,15 +344,15 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(
         error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set source crop [%.3f, %.3f, %.3f, %.3f]: "
               "%s (%d)",
-              mLayerFE->getDebugName(), outputDependentState.sourceCrop.left,
+              getLayerFE().getDebugName(), outputDependentState.sourceCrop.left,
               outputDependentState.sourceCrop.top, outputDependentState.sourceCrop.right,
               outputDependentState.sourceCrop.bottom, to_string(error).c_str(),
               static_cast<int32_t>(error));
     }
 
     if (auto error = hwcLayer->setZOrder(outputDependentState.z); error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set Z %u: %s (%d)", mLayerFE->getDebugName(), outputDependentState.z,
-              to_string(error).c_str(), static_cast<int32_t>(error));
+        ALOGE("[%s] Failed to set Z %u: %s (%d)", getLayerFE().getDebugName(),
+              outputDependentState.z, to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
     // Solid-color layers should always use an identity transform.
@@ -383,7 +362,7 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(
             : static_cast<Hwc2::Transform>(0);
     if (auto error = hwcLayer->setTransform(static_cast<HWC2::Transform>(bufferTransform));
         error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set transform %s: %s (%d)", mLayerFE->getDebugName(),
+        ALOGE("[%s] Failed to set transform %s: %s (%d)", getLayerFE().getDebugName(),
               toString(outputDependentState.bufferTransform).c_str(), to_string(error).c_str(),
               static_cast<int32_t>(error));
     }
@@ -394,21 +373,21 @@ void OutputLayer::writeOutputIndependentGeometryStateToHWC(
     if (auto error = hwcLayer->setBlendMode(
                 static_cast<HWC2::BlendMode>(outputIndependentState.blendMode));
         error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set blend mode %s: %s (%d)", mLayerFE->getDebugName(),
+        ALOGE("[%s] Failed to set blend mode %s: %s (%d)", getLayerFE().getDebugName(),
               toString(outputIndependentState.blendMode).c_str(), to_string(error).c_str(),
               static_cast<int32_t>(error));
     }
 
     if (auto error = hwcLayer->setPlaneAlpha(outputIndependentState.alpha);
         error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set plane alpha %.3f: %s (%d)", mLayerFE->getDebugName(),
+        ALOGE("[%s] Failed to set plane alpha %.3f: %s (%d)", getLayerFE().getDebugName(),
               outputIndependentState.alpha, to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
     if (auto error = hwcLayer->setInfo(outputIndependentState.type, outputIndependentState.appId);
         error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set info %s (%d)", mLayerFE->getDebugName(), to_string(error).c_str(),
-              static_cast<int32_t>(error));
+        ALOGE("[%s] Failed to set info %s (%d)", getLayerFE().getDebugName(),
+              to_string(error).c_str(), static_cast<int32_t>(error));
     }
 }
 
@@ -419,14 +398,14 @@ void OutputLayer::writeOutputDependentPerFrameStateToHWC(HWC2::Layer* hwcLayer) 
     // state and should not change every frame.
     if (auto error = hwcLayer->setVisibleRegion(outputDependentState.outputSpaceVisibleRegion);
         error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set visible region: %s (%d)", mLayerFE->getDebugName(),
+        ALOGE("[%s] Failed to set visible region: %s (%d)", getLayerFE().getDebugName(),
               to_string(error).c_str(), static_cast<int32_t>(error));
         outputDependentState.outputSpaceVisibleRegion.dump(LOG_TAG);
     }
 
     if (auto error = hwcLayer->setDataspace(outputDependentState.dataspace);
         error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mLayerFE->getDebugName(),
+        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", getLayerFE().getDebugName(),
               outputDependentState.dataspace, to_string(error).c_str(),
               static_cast<int32_t>(error));
     }
@@ -441,13 +420,13 @@ void OutputLayer::writeOutputIndependentPerFrameStateToHWC(
             editState().forceClientComposition = true;
             break;
         default:
-            ALOGE("[%s] Failed to set color transform: %s (%d)", mLayerFE->getDebugName(),
+            ALOGE("[%s] Failed to set color transform: %s (%d)", getLayerFE().getDebugName(),
                   to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
     if (auto error = hwcLayer->setSurfaceDamage(outputIndependentState.surfaceDamage);
         error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set surface damage: %s (%d)", mLayerFE->getDebugName(),
+        ALOGE("[%s] Failed to set surface damage: %s (%d)", getLayerFE().getDebugName(),
               to_string(error).c_str(), static_cast<int32_t>(error));
         outputIndependentState.surfaceDamage.dump(LOG_TAG);
     }
@@ -479,7 +458,7 @@ void OutputLayer::writeSolidColorStateToHWC(HWC2::Layer* hwcLayer,
                          255};
 
     if (auto error = hwcLayer->setColor(color); error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set color: %s (%d)", mLayerFE->getDebugName(),
+        ALOGE("[%s] Failed to set color: %s (%d)", getLayerFE().getDebugName(),
               to_string(error).c_str(), static_cast<int32_t>(error));
     }
 }
@@ -488,7 +467,7 @@ void OutputLayer::writeSidebandStateToHWC(HWC2::Layer* hwcLayer,
                                           const LayerFECompositionState& outputIndependentState) {
     if (auto error = hwcLayer->setSidebandStream(outputIndependentState.sidebandStream->handle());
         error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set sideband stream %p: %s (%d)", mLayerFE->getDebugName(),
+        ALOGE("[%s] Failed to set sideband stream %p: %s (%d)", getLayerFE().getDebugName(),
               outputIndependentState.sidebandStream->handle(), to_string(error).c_str(),
               static_cast<int32_t>(error));
     }
@@ -497,11 +476,11 @@ void OutputLayer::writeSidebandStateToHWC(HWC2::Layer* hwcLayer,
 void OutputLayer::writeBufferStateToHWC(HWC2::Layer* hwcLayer,
                                         const LayerFECompositionState& outputIndependentState) {
     auto supportedPerFrameMetadata =
-            mOutput.getDisplayColorProfile()->getSupportedPerFrameMetadata();
+            getOutput().getDisplayColorProfile()->getSupportedPerFrameMetadata();
     if (auto error = hwcLayer->setPerFrameMetadata(supportedPerFrameMetadata,
                                                    outputIndependentState.hdrMetadata);
         error != HWC2::Error::None && error != HWC2::Error::Unsupported) {
-        ALOGE("[%s] Failed to set hdrMetadata: %s (%d)", mLayerFE->getDebugName(),
+        ALOGE("[%s] Failed to set hdrMetadata: %s (%d)", getLayerFE().getDebugName(),
               to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
@@ -515,7 +494,7 @@ void OutputLayer::writeBufferStateToHWC(HWC2::Layer* hwcLayer,
 
     if (auto error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, outputIndependentState.acquireFence);
         error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set buffer %p: %s (%d)", mLayerFE->getDebugName(),
+        ALOGE("[%s] Failed to set buffer %p: %s (%d)", getLayerFE().getDebugName(),
               outputIndependentState.buffer->handle, to_string(error).c_str(),
               static_cast<int32_t>(error));
     }
@@ -537,7 +516,7 @@ void OutputLayer::writeCompositionTypeToHWC(
         if (auto error = hwcLayer->setCompositionType(
                     static_cast<HWC2::Composition>(requestedCompositionType));
             error != HWC2::Error::None) {
-            ALOGE("[%s] Failed to set composition type %s: %s (%d)", mLayerFE->getDebugName(),
+            ALOGE("[%s] Failed to set composition type %s: %s (%d)", getLayerFE().getDebugName(),
                   toString(requestedCompositionType).c_str(), to_string(error).c_str(),
                   static_cast<int32_t>(error));
         }
@@ -551,8 +530,8 @@ void OutputLayer::writeCursorPositionToHWC() const {
         return;
     }
 
-    const auto& layerFEState = mLayer->getFEState();
-    const auto& outputState = mOutput.getState();
+    const auto& layerFEState = getLayer().getFEState();
+    const auto& outputState = getOutput().getState();
 
     Rect frame = layerFEState.cursorFrame;
     frame.intersect(outputState.viewport, &frame);
@@ -560,23 +539,26 @@ void OutputLayer::writeCursorPositionToHWC() const {
 
     if (auto error = hwcLayer->setCursorPosition(position.left, position.top);
         error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set cursor position to (%d, %d): %s (%d)", mLayerFE->getDebugName(),
-              position.left, position.top, to_string(error).c_str(), static_cast<int32_t>(error));
+        ALOGE("[%s] Failed to set cursor position to (%d, %d): %s (%d)",
+              getLayerFE().getDebugName(), position.left, position.top, to_string(error).c_str(),
+              static_cast<int32_t>(error));
     }
 }
 
 HWC2::Layer* OutputLayer::getHwcLayer() const {
-    return mState.hwc ? mState.hwc->hwcLayer.get() : nullptr;
+    const auto& state = getState();
+    return state.hwc ? state.hwc->hwcLayer.get() : nullptr;
 }
 
 bool OutputLayer::requiresClientComposition() const {
-    return !mState.hwc ||
-            mState.hwc->hwcCompositionType == Hwc2::IComposerClient::Composition::CLIENT;
+    const auto& state = getState();
+    return !state.hwc ||
+            state.hwc->hwcCompositionType == Hwc2::IComposerClient::Composition::CLIENT;
 }
 
 bool OutputLayer::isHardwareCursor() const {
-    return mState.hwc &&
-            mState.hwc->hwcCompositionType == Hwc2::IComposerClient::Composition::CURSOR;
+    const auto& state = getState();
+    return state.hwc && state.hwc->hwcCompositionType == Hwc2::IComposerClient::Composition::CURSOR;
 }
 
 void OutputLayer::detectDisallowedCompositionTypeChange(
@@ -602,15 +584,16 @@ void OutputLayer::detectDisallowedCompositionTypeChange(
 
     if (!result) {
         ALOGE("[%s] Invalid device requested composition type change: %s (%d) --> %s (%d)",
-              mLayerFE->getDebugName(), toString(from).c_str(), static_cast<int>(from),
+              getLayerFE().getDebugName(), toString(from).c_str(), static_cast<int>(from),
               toString(to).c_str(), static_cast<int>(to));
     }
 }
 
 void OutputLayer::applyDeviceCompositionTypeChange(
         Hwc2::IComposerClient::Composition compositionType) {
-    LOG_FATAL_IF(!mState.hwc);
-    auto& hwcState = *mState.hwc;
+    auto& state = editState();
+    LOG_FATAL_IF(!state.hwc);
+    auto& hwcState = *state.hwc;
 
     detectDisallowedCompositionTypeChange(hwcState.hwcCompositionType, compositionType);
 
@@ -618,25 +601,28 @@ void OutputLayer::applyDeviceCompositionTypeChange(
 }
 
 void OutputLayer::prepareForDeviceLayerRequests() {
-    mState.clearClientTarget = false;
+    auto& state = editState();
+    state.clearClientTarget = false;
 }
 
 void OutputLayer::applyDeviceLayerRequest(Hwc2::IComposerClient::LayerRequest request) {
+    auto& state = editState();
     switch (request) {
         case Hwc2::IComposerClient::LayerRequest::CLEAR_CLIENT_TARGET:
-            mState.clearClientTarget = true;
+            state.clearClientTarget = true;
             break;
 
         default:
-            ALOGE("[%s] Unknown device layer request %s (%d)", mLayerFE->getDebugName(),
+            ALOGE("[%s] Unknown device layer request %s (%d)", getLayerFE().getDebugName(),
                   toString(request).c_str(), static_cast<int>(request));
             break;
     }
 }
 
 bool OutputLayer::needsFiltering() const {
-    const auto& displayFrame = mState.displayFrame;
-    const auto& sourceCrop = mState.sourceCrop;
+    const auto& state = getState();
+    const auto& displayFrame = state.displayFrame;
+    const auto& sourceCrop = state.sourceCrop;
     return sourceCrop.getHeight() != displayFrame.getHeight() ||
             sourceCrop.getWidth() != displayFrame.getWidth();
 }
@@ -644,9 +630,9 @@ bool OutputLayer::needsFiltering() const {
 void OutputLayer::dump(std::string& out) const {
     using android::base::StringAppendF;
 
-    StringAppendF(&out, "  - Output Layer %p (Composition layer %p) (%s)\n", this, mLayer.get(),
-                  mLayerFE->getDebugName());
-    mState.dump(out);
+    StringAppendF(&out, "  - Output Layer %p (Composition layer %p) (%s)\n", this, &getLayer(),
+                  getLayerFE().getDebugName());
+    dumpState(out);
 }
 
 } // namespace impl

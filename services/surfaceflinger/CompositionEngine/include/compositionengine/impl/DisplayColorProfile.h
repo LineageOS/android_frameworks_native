@@ -33,7 +33,7 @@ namespace impl {
 
 class DisplayColorProfile : public compositionengine::DisplayColorProfile {
 public:
-    DisplayColorProfile(DisplayColorProfileCreationArgs&&);
+    DisplayColorProfile(const DisplayColorProfileCreationArgs&);
     ~DisplayColorProfile() override;
 
     bool isValid() const override;
@@ -91,7 +91,7 @@ private:
 };
 
 std::unique_ptr<compositionengine::DisplayColorProfile> createDisplayColorProfile(
-        DisplayColorProfileCreationArgs&&);
+        const DisplayColorProfileCreationArgs&);
 
 } // namespace impl
 } // namespace android::compositionengine

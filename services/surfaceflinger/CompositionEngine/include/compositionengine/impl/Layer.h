@@ -19,43 +19,66 @@
 #include <memory>
 
 #include <compositionengine/Layer.h>
-#include <compositionengine/LayerFECompositionState.h>
-#include <utils/RefBase.h>
+#include <compositionengine/LayerCreationArgs.h>
 #include <utils/StrongPointer.h>
 
 namespace android::compositionengine {
-
-class CompositionEngine;
-class LayerFE;
 
 struct LayerCreationArgs;
 
 namespace impl {
 
-class Display;
-
-class Layer : public compositionengine::Layer {
+// The implementation class contains the common implementation, but does not
+// actually contain the final layer state.
+class Layer : public virtual compositionengine::Layer {
 public:
-    Layer(const CompositionEngine&, compositionengine::LayerCreationArgs&&);
     ~Layer() override;
 
-    sp<LayerFE> getLayerFE() const override;
+    // compositionengine::Layer overrides
+    void dump(std::string&) const override;
 
-    const LayerFECompositionState& getFEState() const override;
-    LayerFECompositionState& editFEState() override;
-
-    void dump(std::string& result) const override;
-
-private:
-    const compositionengine::CompositionEngine& mCompositionEngine;
-    const wp<LayerFE> mLayerFE;
-
-    // State obtained from calls to LayerFE::getCompositionState
-    LayerFECompositionState mFrontEndState;
+protected:
+    // Implemented by the final implementation for the final state it uses.
+    virtual void dumpFEState(std::string&) const = 0;
 };
 
-std::shared_ptr<compositionengine::Layer> createLayer(const compositionengine::CompositionEngine&,
-                                                      compositionengine::LayerCreationArgs&&);
+// This template factory function standardizes the implementation details of the
+// final class using the types actually required by the implementation. This is
+// not possible to do in the base class as those types may not even be visible
+// to the base code.
+template <typename BaseLayer, typename LayerCreationArgs>
+std::shared_ptr<BaseLayer> createLayerTemplated(const LayerCreationArgs& args) {
+    class Layer final : public BaseLayer {
+    public:
+// Clang incorrectly complains that these are unused.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-local-typedef"
+        using LayerFE = std::remove_pointer_t<decltype(
+                std::declval<decltype(std::declval<LayerCreationArgs>().layerFE)>().unsafe_get())>;
+        using LayerFECompositionState = std::remove_const_t<
+                std::remove_reference_t<decltype(std::declval<BaseLayer>().getFEState())>>;
+#pragma clang diagnostic pop
+
+        explicit Layer(const LayerCreationArgs& args) : mLayerFE(args.layerFE) {}
+        ~Layer() override = default;
+
+    private:
+        // compositionengine::Layer overrides
+        sp<compositionengine::LayerFE> getLayerFE() const override { return mLayerFE.promote(); }
+        const LayerFECompositionState& getFEState() const override { return mFrontEndState; }
+        LayerFECompositionState& editFEState() override { return mFrontEndState; }
+
+        // compositionengine::impl::Layer overrides
+        void dumpFEState(std::string& out) const override { mFrontEndState.dump(out); }
+
+        const wp<LayerFE> mLayerFE;
+        LayerFECompositionState mFrontEndState;
+    };
+
+    return std::make_shared<Layer>(args);
+}
+
+std::shared_ptr<Layer> createLayer(const LayerCreationArgs&);
 
 } // namespace impl
 } // namespace android::compositionengine

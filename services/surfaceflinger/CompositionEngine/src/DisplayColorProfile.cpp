@@ -184,11 +184,11 @@ RenderIntent getHwcRenderIntent(const std::vector<RenderIntent>& hwcIntents, Ren
 } // anonymous namespace
 
 std::unique_ptr<compositionengine::DisplayColorProfile> createDisplayColorProfile(
-        DisplayColorProfileCreationArgs&& args) {
-    return std::make_unique<DisplayColorProfile>(std::move(args));
+        const DisplayColorProfileCreationArgs& args) {
+    return std::make_unique<DisplayColorProfile>(args);
 }
 
-DisplayColorProfile::DisplayColorProfile(DisplayColorProfileCreationArgs&& args)
+DisplayColorProfile::DisplayColorProfile(const DisplayColorProfileCreationArgs& args)
       : mHasWideColorGamut(args.hasWideColorGamut),
         mSupportedPerFrameMetadata(args.supportedPerFrameMetadata) {
     populateColorModes(args.hwcColorModes);

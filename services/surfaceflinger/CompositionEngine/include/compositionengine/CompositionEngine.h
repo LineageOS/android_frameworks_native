@@ -46,8 +46,8 @@ public:
     virtual ~CompositionEngine();
 
     // Create a composition Display
-    virtual std::shared_ptr<Display> createDisplay(DisplayCreationArgs&&) = 0;
-    virtual std::shared_ptr<Layer> createLayer(LayerCreationArgs&&) = 0;
+    virtual std::shared_ptr<Display> createDisplay(const DisplayCreationArgs&) = 0;
+    virtual std::shared_ptr<Layer> createLayer(const LayerCreationArgs&) = 0;
 
     virtual HWComposer& getHwComposer() const = 0;
     virtual void setHwComposer(std::unique_ptr<HWComposer>) = 0;
