@@ -114,8 +114,10 @@ std::optional<DisplayViewport> InputReaderConfiguration::getDisplayViewportByTyp
     std::optional<DisplayViewport> result = std::nullopt;
     for (const DisplayViewport& currentViewport : mDisplays) {
         // Return the first match
-        if (currentViewport.type == type && !result) {
-            result = std::make_optional(currentViewport);
+        if (currentViewport.type == type) {
+            if (!result) {
+                result = std::make_optional(currentViewport);
+            }
             count++;
         }
     }
