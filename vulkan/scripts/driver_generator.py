@@ -91,6 +91,8 @@ def isDriverTableEntry(functionName):
     'vkGetInstanceProcAddr' : True,
     'vkGetDeviceProcAddr' : True,
 
+    'vkQueueSubmit' : True,
+
     # VK_KHR_swapchain->VK_ANDROID_native_buffer translation
     'vkCreateImage' : True,
     'vkDestroyImage' : True,
@@ -190,6 +192,8 @@ def isIntercepted(functionName):
 
     'vkGetInstanceProcAddr' : True,
     'vkGetDeviceProcAddr' : True,
+
+    'vkQueueSubmit' : True,
 
     # VK_KHR_swapchain v69 requirement
     'vkBindImageMemory2' : True,

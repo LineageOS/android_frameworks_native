@@ -1313,5 +1313,16 @@ AllocateCommandBuffers(VkDevice device,
     return result;
 }
 
+VKAPI_ATTR VkResult QueueSubmit(VkQueue queue,
+                                uint32_t submitCount,
+                                const VkSubmitInfo* pSubmits,
+                                VkFence fence) {
+    ATRACE_CALL();
+
+    const auto& data = GetData(queue);
+
+    return data.driver.QueueSubmit(queue, submitCount, pSubmits, fence);
+}
+
 }  // namespace driver
 }  // namespace vulkan
