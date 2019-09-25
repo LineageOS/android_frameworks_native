@@ -3,6 +3,7 @@ cc_defaults {
     defaults: ["surfaceflinger_defaults"],
     cflags: [
         "-DLOG_TAG=\"CompositionEngine\"",
+        "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
     ],
     shared_libs: [
         "android.frameworks.vr.composer@2.0",
