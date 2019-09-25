@@ -4669,17 +4669,21 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args,
 
         if (const auto it = dumpers.find(flag); it != dumpers.end()) {
             (it->second)(args, asProto, result);
-        } else {
-            if (asProto) {
-                LayersProto layersProto = dumpProtoInfo(LayerVector::StateSet::Current);
-                result.append(layersProto.SerializeAsString().c_str(), layersProto.ByteSize());
-            } else {
-                dumpAllLocked(args, result);
-            }
+        } else if (!asProto) {
+            dumpAllLocked(args, result);
         }
 
         if (locked) {
             mStateLock.unlock();
+        }
+
+        LayersProto layersProto = dumpProtoFromMainThread();
+        if (asProto) {
+            result.append(layersProto.SerializeAsString().c_str(), layersProto.ByteSize());
+        } else {
+            auto layerTree = LayerProtoParser::generateLayerTree(layersProto);
+            result.append(LayerProtoParser::layerTreeToString(layerTree));
+            result.append("\n");
         }
     }
     write(fd, result.c_str(), result.size());
@@ -4923,16 +4927,20 @@ void SurfaceFlinger::dumpWideColorInfo(std::string& result) const {
     result.append("\n");
 }
 
-LayersProto SurfaceFlinger::dumpProtoInfo(LayerVector::StateSet stateSet,
-                                          uint32_t traceFlags) const {
+LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
     LayersProto layersProto;
-    const bool useDrawing = stateSet == LayerVector::StateSet::Drawing;
-    const State& state = useDrawing ? mDrawingState : mCurrentState;
-    state.traverseInZOrder([&](Layer* layer) {
+    mDrawingState.traverseInZOrder([&](Layer* layer) {
         LayerProto* layerProto = layersProto.add_layers();
-        layer->writeToProto(layerProto, stateSet, traceFlags);
+        layer->writeToProtoDrawingState(layerProto, traceFlags);
+        layer->writeToProtoCommonState(layerProto, LayerVector::StateSet::Drawing, traceFlags);
     });
 
+    return layersProto;
+}
+
+LayersProto SurfaceFlinger::dumpProtoFromMainThread(uint32_t traceFlags) {
+    LayersProto layersProto;
+    postMessageSync(new LambdaMessage([&]() { layersProto = dumpDrawingStateProto(traceFlags); }));
     return layersProto;
 }
 
@@ -4956,7 +4964,7 @@ LayersProto SurfaceFlinger::dumpVisibleLayersProtoInfo(
     mDrawingState.traverseInZOrder([&](Layer* layer) {
         if (!layer->visibleRegion.isEmpty() && !display->getOutputLayersOrderedByZ().empty()) {
             LayerProto* layerProto = layersProto.add_layers();
-            layer->writeToProto(layerProto, displayDevice);
+            layer->writeToProtoCompositionState(layerProto, displayDevice);
         }
     });
 
@@ -5019,13 +5027,6 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     StringAppendF(&result, "GraphicBufferProducers: %zu, max %zu\n",
                   mGraphicBufferProducerList.size(), mMaxGraphicBufferProducerListSize);
     colorizer.reset(result);
-
-    {
-        LayersProto layersProto = dumpProtoInfo(LayerVector::StateSet::Current);
-        auto layerTree = LayerProtoParser::generateLayerTree(layersProto);
-        result.append(LayerProtoParser::layerTreeToString(layerTree));
-        result.append("\n");
-    }
 
     {
         StringAppendF(&result, "Composition layers\n");
