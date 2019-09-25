@@ -899,6 +899,7 @@ bool Layer::setLayer(int32_t z) {
         }
         setZOrderRelativeOf(nullptr);
     }
+    mCurrentState.isRelativeOf = false;
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
@@ -942,6 +943,7 @@ bool Layer::setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relati
     mCurrentState.sequence++;
     mCurrentState.modified = true;
     mCurrentState.z = relativeZ;
+    mCurrentState.isRelativeOf = true;
 
     auto oldZOrderRelativeOf = mCurrentState.zOrderRelativeOf.promote();
     if (oldZOrderRelativeOf != nullptr) {
@@ -1540,7 +1542,7 @@ int32_t Layer::getZ() const {
 bool Layer::usingRelativeZ(LayerVector::StateSet stateSet) const {
     const bool useDrawing = stateSet == LayerVector::StateSet::Drawing;
     const State& state = useDrawing ? mDrawingState : mCurrentState;
-    return state.zOrderRelativeOf != nullptr;
+    return state.isRelativeOf;
 }
 
 __attribute__((no_sanitize("unsigned-integer-overflow"))) LayerVector Layer::makeTraversalList(
@@ -1565,8 +1567,7 @@ __attribute__((no_sanitize("unsigned-integer-overflow"))) LayerVector Layer::mak
     }
 
     for (const sp<Layer>& child : children) {
-        const State& childState = useDrawing ? child->mDrawingState : child->mCurrentState;
-        if (childState.zOrderRelativeOf != nullptr) {
+        if (child->usingRelativeZ(stateSet)) {
             continue;
         }
         traverse.add(child);
