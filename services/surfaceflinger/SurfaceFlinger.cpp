@@ -940,9 +940,14 @@ void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
         // Start receiving vsync samples now, so that we can detect a period
         // switch.
         mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
+        // We should only move to early offsets when we know that the refresh
+        // rate will change. Otherwise, we may be stuck in early offsets
+        // forever, as onRefreshRateChangeDetected will not be called.
+        if (mDesiredActiveConfig.event == Scheduler::ConfigEvent::Changed) {
+            mVsyncModulator.onRefreshRateChangeInitiated();
+        }
         mPhaseOffsets->setRefreshRateType(info.type);
         const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
-        mVsyncModulator.onRefreshRateChangeInitiated();
         mVsyncModulator.setPhaseOffsets(early, gl, late);
     }
     mDesiredActiveConfigChanged = true;
@@ -1019,6 +1024,10 @@ bool SurfaceFlinger::performSetActiveConfig() {
         std::lock_guard<std::mutex> lock(mActiveConfigLock);
         mDesiredActiveConfig.event = Scheduler::ConfigEvent::None;
         mDesiredActiveConfigChanged = false;
+        // Update scheduler with the correct vsync period as a no-op.
+        // Otherwise, there exists a race condition where we get stuck in the
+        // incorrect vsync period.
+        mScheduler->resyncToHardwareVsync(false, getVsyncPeriod());
         ATRACE_INT("DesiredActiveConfigChanged", mDesiredActiveConfigChanged);
         return false;
     }
@@ -1031,6 +1040,10 @@ bool SurfaceFlinger::performSetActiveConfig() {
         mDesiredActiveConfig.event = Scheduler::ConfigEvent::None;
         mDesiredActiveConfig.configId = display->getActiveConfig();
         mDesiredActiveConfigChanged = false;
+        // Update scheduler with the current vsync period as a no-op.
+        // Otherwise, there exists a race condition where we get stuck in the
+        // incorrect vsync period.
+        mScheduler->resyncToHardwareVsync(false, getVsyncPeriod());
         ATRACE_INT("DesiredActiveConfigChanged", mDesiredActiveConfigChanged);
         return false;
     }
@@ -1453,10 +1466,10 @@ void SurfaceFlinger::onVsyncReceived(int32_t sequenceId, hwc2_display_t hwcDispl
         return;
     }
 
-    bool periodChanged = false;
-    mScheduler->addResyncSample(timestamp, &periodChanged);
-    if (periodChanged) {
-        mVsyncModulator.onRefreshRateChangeDetected();
+    bool periodFlushed = false;
+    mScheduler->addResyncSample(timestamp, &periodFlushed);
+    if (periodFlushed) {
+        mVsyncModulator.onRefreshRateChangeCompleted();
     }
 }
 
@@ -1640,6 +1653,18 @@ bool SurfaceFlinger::previousFrameMissed() NO_THREAD_SAFETY_ANALYSIS {
             : mPreviousPresentFences[1];
 
     return fence != Fence::NO_FENCE && (fence->getStatus() == Fence::Status::Unsignaled);
+}
+
+nsecs_t SurfaceFlinger::getExpectedPresentTime() NO_THREAD_SAFETY_ANALYSIS {
+    DisplayStatInfo stats;
+    mScheduler->getDisplayStatInfo(&stats);
+    const nsecs_t presentTime = mScheduler->getDispSyncExpectedPresentTime();
+    // Inflate the expected present time if we're targetting the next vsync.
+    const nsecs_t correctedTime =
+            mVsyncModulator.getOffsets().sf < mPhaseOffsets->getOffsetThresholdForNextVsync()
+            ? presentTime
+            : presentTime + stats.vsyncPeriod;
+    return correctedTime;
 }
 
 void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
@@ -3252,8 +3277,7 @@ bool SurfaceFlinger::handlePageFlip()
     mDrawingState.traverseInZOrder([&](Layer* layer) {
         if (layer->hasReadyFrame()) {
             frameQueued = true;
-            nsecs_t expectedPresentTime;
-            expectedPresentTime = mScheduler->expectedPresentTime();
+            const nsecs_t expectedPresentTime = getExpectedPresentTime();
             if (layer->shouldPresentNow(expectedPresentTime)) {
                 mLayersWithQueuedFrames.push_back(layer);
             } else {
@@ -3650,7 +3674,7 @@ bool SurfaceFlinger::containsAnyInvalidClientState(const Vector<ComposerState>& 
 
 bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
                                                    const Vector<ComposerState>& states) {
-    nsecs_t expectedPresentTime = mScheduler->expectedPresentTime();
+    nsecs_t expectedPresentTime = getExpectedPresentTime();
     // Do not present if the desiredPresentTime has not passed unless it is more than one second
     // in the future. We ignore timestamps more than 1 second in the future for stability reasons.
     if (desiredPresentTime >= 0 && desiredPresentTime >= expectedPresentTime &&

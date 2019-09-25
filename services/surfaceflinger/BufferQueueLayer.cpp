@@ -143,7 +143,7 @@ bool BufferQueueLayer::framePresentTimeIsCurrent() const {
     }
 
     Mutex::Autolock lock(mQueueItemLock);
-    return mQueueItems[0].mTimestamp <= mFlinger->mScheduler->expectedPresentTime();
+    return mQueueItems[0].mTimestamp <= mFlinger->getExpectedPresentTime();
 }
 
 nsecs_t BufferQueueLayer::getDesiredPresentTime() {
@@ -201,7 +201,7 @@ uint64_t BufferQueueLayer::getFrameNumber() const {
     uint64_t frameNumber = mQueueItems[0].mFrameNumber;
 
     // The head of the queue will be dropped if there are signaled and timely frames behind it
-    nsecs_t expectedPresentTime = mFlinger->mScheduler->expectedPresentTime();
+    nsecs_t expectedPresentTime = mFlinger->getExpectedPresentTime();
 
     if (isRemovedFromCurrentState()) {
         expectedPresentTime = 0;
@@ -280,7 +280,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
                     getProducerStickyTransform() != 0, mName.string(), mOverrideScalingMode,
                     getTransformToDisplayInverse(), mFreezeGeometryUpdates);
 
-    nsecs_t expectedPresentTime = mFlinger->mScheduler->expectedPresentTime();
+    nsecs_t expectedPresentTime = mFlinger->getExpectedPresentTime();
 
     if (isRemovedFromCurrentState()) {
         expectedPresentTime = 0;
