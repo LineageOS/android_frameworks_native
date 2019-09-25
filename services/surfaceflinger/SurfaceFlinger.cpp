@@ -4094,6 +4094,7 @@ void SurfaceFlinger::dumpOffscreenLayersProto(LayersProto& layersProto, uint32_t
     const int32_t offscreenRootLayerId = INT32_MAX - 2;
     rootProto->set_id(offscreenRootLayerId);
     rootProto->set_name("Offscreen Root");
+    rootProto->set_parent(-1);
 
     for (Layer* offscreenLayer : mOffscreenLayers) {
         // Add layer as child of the fake root
