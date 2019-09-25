@@ -1834,6 +1834,12 @@ void SurfaceFlinger::handleMessageRefresh() {
     mVsyncModulator.onRefreshed(mHadClientComposition);
 
     mLayersWithQueuedFrames.clear();
+    if (mVisibleRegionsDirty) {
+        mVisibleRegionsDirty = false;
+        if (mTracingEnabled) {
+            mTracing.notify("visibleRegionsDirty");
+        }
+    }
 }
 
 
@@ -1843,9 +1849,6 @@ bool SurfaceFlinger::handleMessageInvalidate() {
 
     if (mVisibleRegionsDirty) {
         computeLayerBounds();
-        if (mTracingEnabled) {
-            mTracing.notify("visibleRegionsDirty");
-        }
     }
 
     for (auto& layer : mLayersPendingRefresh) {
@@ -2252,7 +2255,6 @@ void SurfaceFlinger::rebuildLayerStacks() {
     // rebuild the visible layer list per screen
     if (CC_UNLIKELY(mVisibleRegionsDirty)) {
         ATRACE_NAME("rebuildLayerStacks VR Dirty");
-        mVisibleRegionsDirty = false;
         invalidateHwcGeometry();
 
         for (const auto& pair : mDisplays) {
