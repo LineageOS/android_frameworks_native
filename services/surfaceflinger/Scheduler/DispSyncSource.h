@@ -32,6 +32,7 @@ public:
     ~DispSyncSource() override = default;
 
     // The following methods are implementation of VSyncSource.
+    const char* getName() const override { return mName; }
     void setVSyncEnabled(bool enable) override;
     void setCallback(VSyncSource::Callback* callback) override;
     void setPhaseOffset(nsecs_t phaseOffset) override;

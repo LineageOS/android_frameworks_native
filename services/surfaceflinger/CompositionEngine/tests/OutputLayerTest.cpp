@@ -458,6 +458,7 @@ public:
 TEST_F(OutputLayerUpdateCompositionStateTest, setsStateNormally) {
     mLayerFEState.isSecure = true;
     mOutputState.isSecure = true;
+    mOutputLayer.editState().forceClientComposition = true;
 
     setupGeometryChildCallValues();
 
@@ -520,13 +521,25 @@ TEST_F(OutputLayerUpdateCompositionStateTest, setsOutputLayerColorspaceCorrectly
 }
 
 TEST_F(OutputLayerUpdateCompositionStateTest, doesNotRecomputeGeometryIfNotRequested) {
+    mOutputLayer.editState().forceClientComposition = false;
+
     mOutputLayer.updateCompositionState(false);
 
     EXPECT_EQ(false, mOutputLayer.getState().forceClientComposition);
 }
 
+TEST_F(OutputLayerUpdateCompositionStateTest,
+       doesNotClearForceClientCompositionIfNotDoingGeometry) {
+    mOutputLayer.editState().forceClientComposition = true;
+
+    mOutputLayer.updateCompositionState(false);
+
+    EXPECT_EQ(true, mOutputLayer.getState().forceClientComposition);
+}
+
 TEST_F(OutputLayerUpdateCompositionStateTest, clientCompositionForcedFromFrontEndFlagAtAnyTime) {
     mLayerFEState.forceClientComposition = true;
+    mOutputLayer.editState().forceClientComposition = false;
 
     mOutputLayer.updateCompositionState(false);
 
@@ -535,6 +548,7 @@ TEST_F(OutputLayerUpdateCompositionStateTest, clientCompositionForcedFromFrontEn
 
 TEST_F(OutputLayerUpdateCompositionStateTest,
        clientCompositionForcedFromUnsupportedDataspaceAtAnyTime) {
+    mOutputLayer.editState().forceClientComposition = false;
     EXPECT_CALL(mDisplayColorProfile, isDataspaceSupported(_)).WillRepeatedly(Return(false));
 
     mOutputLayer.updateCompositionState(false);

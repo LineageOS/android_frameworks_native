@@ -42,6 +42,7 @@ public:
         }
     }
 
+    const char* getName() const override { return "inject"; }
     void setVSyncEnabled(bool) override {}
     void setPhaseOffset(nsecs_t) override {}
     void pauseVsyncCallback(bool) {}

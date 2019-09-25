@@ -84,6 +84,7 @@ struct DeviceDriverTable {
     PFN_vkGetDeviceProcAddr GetDeviceProcAddr;
     PFN_vkDestroyDevice DestroyDevice;
     PFN_vkGetDeviceQueue GetDeviceQueue;
+    PFN_vkQueueSubmit QueueSubmit;
     PFN_vkCreateImage CreateImage;
     PFN_vkDestroyImage DestroyImage;
     PFN_vkAllocateCommandBuffers AllocateCommandBuffers;
@@ -91,9 +92,9 @@ struct DeviceDriverTable {
     PFN_vkBindImageMemory2KHR BindImageMemory2KHR;
     PFN_vkGetDeviceQueue2 GetDeviceQueue2;
     PFN_vkGetSwapchainGrallocUsageANDROID GetSwapchainGrallocUsageANDROID;
+    PFN_vkGetSwapchainGrallocUsage2ANDROID GetSwapchainGrallocUsage2ANDROID;
     PFN_vkAcquireImageANDROID AcquireImageANDROID;
     PFN_vkQueueSignalReleaseImageANDROID QueueSignalReleaseImageANDROID;
-    PFN_vkGetSwapchainGrallocUsage2ANDROID GetSwapchainGrallocUsage2ANDROID;
     // clang-format on
 };
 

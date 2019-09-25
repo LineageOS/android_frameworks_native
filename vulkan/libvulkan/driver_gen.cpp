@@ -444,6 +444,13 @@ const ProcHook g_proc_hooks[] = {
         nullptr,
     },
     {
+        "vkQueueSubmit",
+        ProcHook::DEVICE,
+        ProcHook::EXTENSION_CORE,
+        reinterpret_cast<PFN_vkVoidFunction>(QueueSubmit),
+        nullptr,
+    },
+    {
         "vkSetHdrMetadataEXT",
         ProcHook::DEVICE,
         ProcHook::EXT_hdr_metadata,
@@ -537,6 +544,7 @@ bool InitDriverTable(VkDevice dev,
     INIT_PROC(true, dev, GetDeviceProcAddr);
     INIT_PROC(true, dev, DestroyDevice);
     INIT_PROC(true, dev, GetDeviceQueue);
+    INIT_PROC(true, dev, QueueSubmit);
     INIT_PROC(true, dev, CreateImage);
     INIT_PROC(true, dev, DestroyImage);
     INIT_PROC(true, dev, AllocateCommandBuffers);
@@ -544,9 +552,9 @@ bool InitDriverTable(VkDevice dev,
     INIT_PROC_EXT(KHR_bind_memory2, true, dev, BindImageMemory2KHR);
     INIT_PROC(false, dev, GetDeviceQueue2);
     INIT_PROC_EXT(ANDROID_native_buffer, false, dev, GetSwapchainGrallocUsageANDROID);
+    INIT_PROC_EXT(ANDROID_native_buffer, false, dev, GetSwapchainGrallocUsage2ANDROID);
     INIT_PROC_EXT(ANDROID_native_buffer, true, dev, AcquireImageANDROID);
     INIT_PROC_EXT(ANDROID_native_buffer, true, dev, QueueSignalReleaseImageANDROID);
-    INIT_PROC_EXT(ANDROID_native_buffer, false, dev, GetSwapchainGrallocUsage2ANDROID);
     // clang-format on
 
     return success;
