@@ -188,22 +188,6 @@ class DumpsysTest : public Test {
         EXPECT_THAT(status, Eq(0));
     }
 
-    void CallSingleService(const String16& serviceName, Vector<String16>& args, int priorityFlags,
-                           bool supportsProto, std::chrono::duration<double>& elapsedDuration,
-                           size_t& bytesWritten) {
-        CaptureStdout();
-        CaptureStderr();
-        dump_.setServiceArgs(args, supportsProto, priorityFlags);
-        status_t status = dump_.startDumpThread(serviceName, args);
-        EXPECT_THAT(status, Eq(0));
-        status = dump_.writeDump(STDOUT_FILENO, serviceName, std::chrono::milliseconds(500), false,
-                                 elapsedDuration, bytesWritten);
-        EXPECT_THAT(status, Eq(0));
-        dump_.stopDumpThread(/* dumpCompleted = */ true);
-        stdout_ = GetCapturedStdout();
-        stderr_ = GetCapturedStderr();
-    }
-
     void AssertRunningServices(const std::vector<std::string>& services) {
         std::string expected;
         if (services.size() > 1) {
@@ -215,16 +199,13 @@ class DumpsysTest : public Test {
         EXPECT_THAT(stdout_, HasSubstr(expected));
     }
 
-    void AssertOutput(const std::string& expected) {
-        EXPECT_THAT(stdout_, StrEq(expected));
-    }
-
     void AssertOutputContains(const std::string& expected) {
         EXPECT_THAT(stdout_, HasSubstr(expected));
     }
 
     void AssertDumped(const std::string& service, const std::string& dump) {
-        EXPECT_THAT(stdout_, HasSubstr("DUMP OF SERVICE " + service + ":\n" + dump));
+        EXPECT_THAT(stdout_, HasSubstr("DUMP OF SERVICE " + service + ":\n"));
+        EXPECT_THAT(stdout_, HasSubstr(dump));
         EXPECT_THAT(stdout_, HasSubstr("was the duration of dumpsys " + service + ", ending at: "));
     }
 
@@ -232,7 +213,8 @@ class DumpsysTest : public Test {
                                   const char16_t* priorityType) {
         std::string priority = String8(priorityType).c_str();
         EXPECT_THAT(stdout_,
-                    HasSubstr("DUMP OF SERVICE " + priority + " " + service + ":\n" + dump));
+                    HasSubstr("DUMP OF SERVICE " + priority + " " + service + ":\n"));
+        EXPECT_THAT(stdout_, HasSubstr(dump));
         EXPECT_THAT(stdout_, HasSubstr("was the duration of dumpsys " + service + ", ending at: "));
     }
 
@@ -313,7 +295,8 @@ TEST_F(DumpsysTest, DumpRunningService) {
 
     CallMain({"Valet"});
 
-    AssertOutput("Here's your car");
+    AssertOutputContains("Pid: " + std::to_string(getpid()));
+    AssertOutputContains("Here's your car");
 }
 
 // Tests 'dumpsys -t 1 service_name' on a service that times out after 2s
@@ -348,7 +331,7 @@ TEST_F(DumpsysTest, DumpWithArgsRunningService) {
 
     CallMain({"SERVICE", "Y", "U", "NO", "HANDLE", "ARGS"});
 
-    AssertOutput("I DO!");
+    AssertOutputContains("I DO!");
 }
 
 // Tests dumpsys passes the -a flag when called on all services
@@ -537,23 +520,6 @@ TEST_F(DumpsysTest, DumpWithPriorityHighAndProto) {
     AssertRunningServices({"runninghigh1", "runninghigh2"});
     AssertDumpedWithPriority("runninghigh1", "dump1", PriorityDumper::PRIORITY_ARG_HIGH);
     AssertDumpedWithPriority("runninghigh2", "dump2", PriorityDumper::PRIORITY_ARG_HIGH);
-}
-
-TEST_F(DumpsysTest, GetBytesWritten) {
-    const char* serviceName = "service2";
-    const char* dumpContents = "dump1";
-    ExpectDump(serviceName, dumpContents);
-
-    String16 service(serviceName);
-    Vector<String16> args;
-    std::chrono::duration<double> elapsedDuration;
-    size_t bytesWritten;
-
-    CallSingleService(service, args, IServiceManager::DUMP_FLAG_PRIORITY_ALL,
-                      /* as_proto = */ false, elapsedDuration, bytesWritten);
-
-    AssertOutput(dumpContents);
-    EXPECT_THAT(bytesWritten, Eq(strlen(dumpContents)));
 }
 
 TEST_F(DumpsysTest, WriteDumpWithoutThreadStart) {
