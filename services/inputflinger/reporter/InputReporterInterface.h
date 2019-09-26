@@ -27,7 +27,7 @@ namespace android {
  */
 class InputReporterInterface : public virtual RefBase {
 protected:
-    virtual ~InputReporterInterface() { }
+    virtual ~InputReporterInterface() {}
 
 public:
     // Report a key that was not handled by the system or apps.

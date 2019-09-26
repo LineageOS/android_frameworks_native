@@ -1,0 +1,72 @@
+// Copyright (C) 2019 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+cc_library_headers {
+    name: "libinputreader_headers",
+    export_include_dirs: [
+        "include",
+        "mapper",
+        "mapper/accumulator",
+    ],
+}
+
+cc_library_shared {
+    name: "libinputreader",
+    defaults: ["inputflinger_defaults"],
+
+    srcs: [
+        "EventHub.cpp",
+        "InputDevice.cpp",
+        "mapper/accumulator/CursorButtonAccumulator.cpp",
+        "mapper/accumulator/CursorScrollAccumulator.cpp",
+        "mapper/accumulator/SingleTouchMotionAccumulator.cpp",
+        "mapper/accumulator/TouchButtonAccumulator.cpp",
+        "mapper/CursorInputMapper.cpp",
+        "mapper/ExternalStylusInputMapper.cpp",
+        "mapper/InputMapper.cpp",
+        "mapper/JoystickInputMapper.cpp",
+        "mapper/KeyboardInputMapper.cpp",
+        "mapper/MultiTouchInputMapper.cpp",
+        "mapper/RotaryEncoderInputMapper.cpp",
+        "mapper/SingleTouchInputMapper.cpp",
+        "mapper/SwitchInputMapper.cpp",
+        "mapper/TouchInputMapper.cpp",
+        "mapper/VibratorInputMapper.cpp",
+        "InputReader.cpp",
+        "InputReaderFactory.cpp",
+        "TouchVideoDevice.cpp",
+    ],
+
+    shared_libs: [
+        "libbase",
+        "libinputflinger_base",
+        "libcrypto",
+        "libcutils",
+        "libinput",
+        "liblog",
+        "libui",
+        "libutils",
+        "libhardware_legacy",
+        "libstatslog",
+    ],
+
+    header_libs: [
+        "libinputflinger_headers",
+        "libinputreader_headers",
+    ],
+
+    export_header_lib_headers: [
+        "libinputflinger_headers",
+    ],
+}
