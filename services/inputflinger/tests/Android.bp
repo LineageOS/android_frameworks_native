@@ -32,4 +32,7 @@ cc_test {
         "libinputflinger_base",
         "libinputservice",
     ],
+    header_libs: [
+        "libinputreader_headers",
+    ],
 }
