@@ -46,7 +46,7 @@ public:
     bool disable();
     status_t writeToFile();
     bool isEnabled() const;
-    void notify(const char* where);
+    void notify(long compositionTime, const char* where);
 
     void setBufferSize(size_t bufferSizeInByte);
     void writeToFileAsync();
@@ -80,6 +80,8 @@ private:
         size_t mSizeInBytes = 0U;
         std::queue<LayersTraceProto> mStorage;
     };
+
+    long mCompositionTime;
 
     void mainLoop();
     void addFirstEntry();
