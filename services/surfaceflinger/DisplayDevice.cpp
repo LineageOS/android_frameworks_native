@@ -272,13 +272,17 @@ void DisplayDevice::setProjection(int orientation,
         scissor = displayBounds;
     }
 
+    uint32_t transformOrientation;
+
     if (isPrimary()) {
         sPrimaryDisplayOrientation = displayStateOrientationToTransformOrientation(orientation);
+        transformOrientation = displayStateOrientationToTransformOrientation(
+                (orientation + mDisplayInstallOrientation) % (DisplayState::eOrientation270 + 1));
+    } else {
+        transformOrientation = displayStateOrientationToTransformOrientation(orientation);
     }
 
-    getCompositionDisplay()->setProjection(globalTransform,
-                                           displayStateOrientationToTransformOrientation(
-                                                   orientation),
+    getCompositionDisplay()->setProjection(globalTransform, transformOrientation,
                                            frame, viewport, scissor, needsFiltering);
 }
 
