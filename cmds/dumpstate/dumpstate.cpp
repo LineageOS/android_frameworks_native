@@ -2708,7 +2708,7 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
     }
 
     /* tell activity manager we're done */
-    if (options_->do_broadcast) {
+    if (options_->do_broadcast && !CalledByApi()) {
         SendBugreportFinishedBroadcast();
         // Note that listener_ is notified in Run();
     }
