@@ -883,11 +883,14 @@ struct BufferLayerVariant : public BaseLayerVariant<LayerProperties> {
 
         FlingerLayerType layer =
                 Base::template createLayerWithFactory<BufferQueueLayer>(test, [test]() {
-                    return new BufferQueueLayer(
-                            LayerCreationArgs(test->mFlinger.mFlinger.get(), sp<Client>(),
-                                              String8("test-layer"), LayerProperties::WIDTH,
-                                              LayerProperties::HEIGHT,
-                                              LayerProperties::LAYER_FLAGS, LayerMetadata()));
+                    sp<Client> client;
+                    String8 name("test-layer");
+                    LayerCreationArgs args =
+                            LayerCreationArgs(test->mFlinger.mFlinger.get(), client, name,
+                                              LayerProperties::WIDTH, LayerProperties::HEIGHT,
+                                              LayerProperties::LAYER_FLAGS, LayerMetadata());
+                    args.textureName = test->mFlinger.mutableTexturePool().back();
+                    return new BufferQueueLayer(args);
                 });
 
         LayerProperties::setupLayerState(test, layer);

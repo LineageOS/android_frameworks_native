@@ -461,12 +461,7 @@ void BufferQueueLayer::onFirstRef() {
     sp<IGraphicBufferConsumer> consumer;
     BufferQueue::createBufferQueue(&producer, &consumer, true);
     mProducer = new MonitoredProducer(producer, mFlinger, this);
-    {
-        // Grab the SF state lock during this since it's the only safe way to access RenderEngine
-        Mutex::Autolock lock(mFlinger->mStateLock);
-        mConsumer =
-                new BufferLayerConsumer(consumer, mFlinger->getRenderEngine(), mTextureName, this);
-    }
+    mConsumer = new BufferLayerConsumer(consumer, mFlinger->getRenderEngine(), mTextureName, this);
     mConsumer->setConsumerUsageBits(getEffectiveUsage(0));
     mConsumer->setContentsChangedListener(this);
     mConsumer->setName(mName);
@@ -476,7 +471,7 @@ void BufferQueueLayer::onFirstRef() {
         mProducer->setMaxDequeuedBufferCount(2);
     }
 
-    if (const auto display = mFlinger->getDefaultDisplayDevice()) {
+    if (const auto display = mFlinger->getDefaultDisplayDeviceLocked()) {
         updateTransformHint(display);
     }
 }
@@ -529,6 +524,17 @@ void BufferQueueLayer::gatherBufferInfo() {
     mBufferInfo.mApi = mConsumer->getCurrentApi();
     mBufferInfo.mPixelFormat = mFormat;
     mBufferInfo.mTransformToDisplayInverse = mConsumer->getTransformToDisplayInverse();
+}
+
+sp<Layer> BufferQueueLayer::createClone() {
+    const String8 name = mName + " (Mirror)";
+    LayerCreationArgs args =
+            LayerCreationArgs(mFlinger.get(), nullptr, name, 0, 0, 0, LayerMetadata());
+    args.textureName = mTextureName;
+    sp<BufferQueueLayer> layer = new BufferQueueLayer(args);
+    layer->setInitialValuesForClone(this);
+
+    return layer;
 }
 
 } // namespace android

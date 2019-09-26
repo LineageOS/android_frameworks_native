@@ -58,7 +58,7 @@ namespace android {
 
 BufferLayer::BufferLayer(const LayerCreationArgs& args)
       : Layer(args),
-        mTextureName(args.flinger->getNewTexture()),
+        mTextureName(args.textureName),
         mCompositionLayer{mFlinger->getCompositionEngine().createLayer(
                 compositionengine::LayerCreationArgs{this})} {
     ALOGV("Creating Layer %s", args.name.string());
@@ -70,7 +70,13 @@ BufferLayer::BufferLayer(const LayerCreationArgs& args)
 }
 
 BufferLayer::~BufferLayer() {
-    mFlinger->deleteTextureAsync(mTextureName);
+    if (!isClone()) {
+        // The original layer and the clone layer share the same texture. Therefore, only one of
+        // the layers, in this case the original layer, needs to handle the deletion. The original
+        // layer and the clone should be removed at the same time so there shouldn't be any issue
+        // with the clone layer trying to use the deleted texture.
+        mFlinger->deleteTextureAsync(mTextureName);
+    }
     const int32_t layerID = getSequence();
     mFlinger->mTimeStats->onDestroy(layerID);
     mFlinger->mFrameTracer->onDestroy(layerID);
@@ -720,6 +726,15 @@ sp<GraphicBuffer> BufferLayer::getBuffer() const {
 void BufferLayer::getDrawingTransformMatrix(bool filteringEnabled, float outMatrix[16]) {
     GLConsumer::computeTransformMatrix(outMatrix, mBufferInfo.mBuffer, mBufferInfo.mCrop,
                                        mBufferInfo.mTransform, filteringEnabled);
+}
+
+void BufferLayer::setInitialValuesForClone(const sp<Layer>& clonedFrom) {
+    Layer::setInitialValuesForClone(clonedFrom);
+
+    sp<BufferLayer> bufferClonedFrom = static_cast<BufferLayer*>(clonedFrom.get());
+    mPremultipliedAlpha = bufferClonedFrom->mPremultipliedAlpha;
+    mPotentialCursor = bufferClonedFrom->mPotentialCursor;
+    mProtectedByApp = bufferClonedFrom->mProtectedByApp;
 }
 
 } // namespace android
