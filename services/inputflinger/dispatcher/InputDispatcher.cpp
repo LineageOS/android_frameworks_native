@@ -17,7 +17,7 @@
 #define LOG_TAG "InputDispatcher"
 #define ATRACE_TAG ATRACE_TAG_INPUT
 
-#define LOG_NDEBUG 0
+#define LOG_NDEBUG 1
 
 // Log detailed debug messages about each inbound event notification to the dispatcher.
 #define DEBUG_INBOUND_EVENT_DETAILS 0
@@ -3219,7 +3219,7 @@ void InputDispatcher::updateWindowHandlesForDisplayLocked(
                     !(info->layoutParamsFlags & InputWindowInfo::FLAG_NOT_TOUCHABLE) ||
                     !(info->layoutParamsFlags & InputWindowInfo::FLAG_NOT_FOCUSABLE);
             if (canReceiveInput && !noInputChannel) {
-                ALOGE("Window handle %s has no registered input channel",
+                ALOGV("Window handle %s has no registered input channel",
                       handle->getName().c_str());
             }
             continue;
@@ -3954,7 +3954,7 @@ status_t InputDispatcher::unregisterInputChannelLocked(const sp<InputChannel>& i
         return BAD_VALUE;
     }
 
-    const bool removed = removeByValue(mConnectionsByFd, connection);
+    [[maybe_unused]] const bool removed = removeByValue(mConnectionsByFd, connection);
     ALOG_ASSERT(removed);
     mInputChannelsByToken.erase(inputChannel->getToken());
 
