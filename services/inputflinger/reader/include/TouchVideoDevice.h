@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef _INPUTFLINGER_TOUCH_VIDEO_DEVICE_H
-#define _INPUTFLINGER_TOUCH_VIDEO_DEVICE_H
+#ifndef _UI_INPUTFLINGER_TOUCH_VIDEO_DEVICE_H
+#define _UI_INPUTFLINGER_TOUCH_VIDEO_DEVICE_H
 
-#include <array>
 #include <android-base/unique_fd.h>
 #include <input/TouchVideoFrame.h>
-#include <optional>
 #include <stdint.h>
+#include <array>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -109,9 +109,9 @@ private:
      * The constructor is private because opening a v4l2 device requires many checks.
      * To get a new TouchVideoDevice, use 'create' instead.
      */
-    explicit TouchVideoDevice(int fd, std::string&& name, std::string&& devicePath,
-            uint32_t height, uint32_t width,
-            const std::array<const int16_t*, NUM_BUFFERS>& readLocations);
+    explicit TouchVideoDevice(int fd, std::string&& name, std::string&& devicePath, uint32_t height,
+                              uint32_t width,
+                              const std::array<const int16_t*, NUM_BUFFERS>& readLocations);
     /**
      * Read all currently available frames.
      */
@@ -121,5 +121,7 @@ private:
      */
     std::optional<TouchVideoFrame> readFrame();
 };
+
 } // namespace android
-#endif //_INPUTFLINGER_TOUCH_VIDEO_DEVICE_H
+
+#endif // _UI_INPUTFLINGER_TOUCH_VIDEO_DEVICE_H
