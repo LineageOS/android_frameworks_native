@@ -56,12 +56,13 @@ class Dumpsys {
      * the output to a pipe. Thread must be stopped by a subsequent callto {@code
      * stopDumpThread}.
      * @param serviceName
+     * @param dumpPid whether to include a header with service PID information
      * @param args list of arguments to pass to service dump method.
      * @return {@code OK} thread is started successfully.
      *         {@code NAME_NOT_FOUND} service could not be found.
      *         {@code != OK} error
      */
-    status_t startDumpThread(const String16& serviceName, const Vector<String16>& args);
+    status_t startDumpThread(const String16& serviceName, bool dumpPid, const Vector<String16>& args);
 
     /**
      * Writes a section header to a file descriptor.
