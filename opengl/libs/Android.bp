@@ -72,15 +72,13 @@ cc_defaults {
         "libarect",
     ],
     header_libs: [
+        "bionic_libc_platform_headers",
         "gl_headers",
         "libsystem_headers",
         "libhardware_headers",
         "libnativebase_headers",
     ],
     export_header_lib_headers: ["gl_headers"],
-
-    // we need to access the private Bionic header <bionic_tls.h>
-    include_dirs: ["bionic/libc/private"],
 }
 
 //##############################################################################
