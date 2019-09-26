@@ -33,6 +33,7 @@
 #include <input/InputApplication.h>
 #include <input/InputTransport.h>
 #include <input/InputWindow.h>
+#include <input/LatencyStatistics.h>
 #include <limits.h>
 #include <stddef.h>
 #include <ui/Region.h>
@@ -455,6 +456,10 @@ private:
     void doOnPointerDownOutsideFocusLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
 
     // Statistics gathering.
+    static constexpr std::chrono::duration TOUCH_STATS_REPORT_PERIOD = 5min;
+    LatencyStatistics mTouchStatistics{TOUCH_STATS_REPORT_PERIOD};
+
+    void reportTouchEventForStatistics(const MotionEntry& entry);
     void updateDispatchStatistics(nsecs_t currentTime, const EventEntry* entry,
                                   int32_t injectionResult, nsecs_t timeSpentWaitingForApplication);
     void traceInboundQueueLengthLocked() REQUIRES(mLock);
