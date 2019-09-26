@@ -64,7 +64,7 @@ void LayerVector::traverseInZOrder(StateSet stateSet, const Visitor& visitor) co
         const auto& layer = (*this)[i];
         auto& state = (stateSet == StateSet::Current) ? layer->getCurrentState()
                                                       : layer->getDrawingState();
-        if (state.zOrderRelativeOf != nullptr) {
+        if (state.isRelativeOf) {
             continue;
         }
         layer->traverseInZOrder(stateSet, visitor);
@@ -76,7 +76,7 @@ void LayerVector::traverseInReverseZOrder(StateSet stateSet, const Visitor& visi
         const auto& layer = (*this)[i];
         auto& state = (stateSet == StateSet::Current) ? layer->getCurrentState()
                                                       : layer->getDrawingState();
-        if (state.zOrderRelativeOf != nullptr) {
+        if (state.isRelativeOf) {
             continue;
         }
         layer->traverseInReverseZOrder(stateSet, visitor);

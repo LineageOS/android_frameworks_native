@@ -271,9 +271,8 @@ EventHub::EventHub(void)
         ALOGI("Video device scanning disabled");
     }
 
-    struct epoll_event eventItem;
-    memset(&eventItem, 0, sizeof(eventItem));
-    eventItem.events = EPOLLIN;
+    struct epoll_event eventItem = {};
+    eventItem.events = EPOLLIN | EPOLLWAKEUP;
     eventItem.data.fd = mINotifyFd;
     int result = epoll_ctl(mEpollFd, EPOLL_CTL_ADD, mINotifyFd, &eventItem);
     LOG_ALWAYS_FATAL_IF(result != 0, "Could not add INotify to epoll instance.  errno=%d", errno);

@@ -162,12 +162,6 @@ public:
     virtual std::unique_ptr<OutputLayer> createOutputLayer(const std::shared_ptr<Layer>&,
                                                            const sp<LayerFE>&) const = 0;
 
-    // Gets the OutputLayer corresponding to the input Layer instance from the
-    // current ordered set of output layers. If there is no such layer, a new
-    // one is created and returned.
-    virtual std::unique_ptr<OutputLayer> getOrCreateOutputLayer(std::shared_ptr<Layer>,
-                                                                sp<LayerFE>) = 0;
-
     // Sets the new ordered set of output layers for this output
     virtual void setOutputLayersOrderedByZ(OutputLayers&&) = 0;
 

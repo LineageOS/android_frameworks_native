@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 
 #include <compositionengine/LayerCreationArgs.h>
+#include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/impl/Layer.h>
 #include <compositionengine/mock/CompositionEngine.h>
 #include <compositionengine/mock/LayerFE.h>
@@ -26,13 +27,28 @@ namespace {
 
 using testing::StrictMock;
 
-class LayerTest : public testing::Test {
-public:
+struct LayerTest : public testing::Test {
+    struct Layer final : public impl::Layer {
+        explicit Layer(const LayerCreationArgs& args) : mLayerFE(args.layerFE) {}
+        ~Layer() override = default;
+
+        // compositionengine::Layer overrides
+        sp<LayerFE> getLayerFE() const { return mLayerFE.promote(); }
+        const LayerFECompositionState& getFEState() const override { return mFrontEndState; }
+        LayerFECompositionState& editFEState() override { return mFrontEndState; }
+
+        // compositionengine::impl::Layer overrides
+        void dumpFEState(std::string& out) const override { mFrontEndState.dump(out); }
+
+        const wp<LayerFE> mLayerFE;
+        LayerFECompositionState mFrontEndState;
+    };
+
     ~LayerTest() override = default;
 
     StrictMock<mock::CompositionEngine> mCompositionEngine;
     sp<LayerFE> mLayerFE = new StrictMock<mock::LayerFE>();
-    impl::Layer mLayer{mCompositionEngine, LayerCreationArgs{mLayerFE}};
+    Layer mLayer{LayerCreationArgs{mLayerFE}};
 };
 
 /* ------------------------------------------------------------------------

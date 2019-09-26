@@ -813,11 +813,15 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
                 info.viewportW = uint32_t(viewport.getWidth());
                 info.viewportH = uint32_t(viewport.getHeight());
             }
+            info.layerStack = display->getLayerStack();
         } else {
             // TODO: where should this value come from?
             static const int TV_DENSITY = 213;
             info.density = TV_DENSITY / 160.0f;
             info.orientation = 0;
+
+            const auto display = getDisplayDeviceLocked(displayToken);
+            info.layerStack = display->getLayerStack();
         }
 
         info.xdpi = xdpi;
@@ -4090,6 +4094,7 @@ void SurfaceFlinger::dumpOffscreenLayersProto(LayersProto& layersProto, uint32_t
     const int32_t offscreenRootLayerId = INT32_MAX - 2;
     rootProto->set_id(offscreenRootLayerId);
     rootProto->set_name("Offscreen Root");
+    rootProto->set_parent(-1);
 
     for (Layer* offscreenLayer : mOffscreenLayers) {
         // Add layer as child of the fake root

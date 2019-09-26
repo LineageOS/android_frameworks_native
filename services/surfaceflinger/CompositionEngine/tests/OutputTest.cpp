@@ -51,11 +51,11 @@ const mat4 kNonIdentityQuarter = mat4() * 0.25;
 
 struct OutputTest : public testing::Test {
     OutputTest() {
-        mOutput.setDisplayColorProfileForTest(
+        mOutput->setDisplayColorProfileForTest(
                 std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
-        mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+        mOutput->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
 
-        mOutput.editState().bounds = kDefaultDisplaySize;
+        mOutput->editState().bounds = kDefaultDisplaySize;
     }
 
     static const Rect kDefaultDisplaySize;
@@ -63,7 +63,7 @@ struct OutputTest : public testing::Test {
     StrictMock<mock::CompositionEngine> mCompositionEngine;
     mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
     mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
-    impl::Output mOutput{mCompositionEngine};
+    std::shared_ptr<impl::Output> mOutput = impl::createOutput(mCompositionEngine);
 };
 
 const Rect OutputTest::kDefaultDisplaySize{100, 200};
@@ -77,14 +77,14 @@ TEST_F(OutputTest, canInstantiateOutput) {
     EXPECT_CALL(*mDisplayColorProfile, isValid()).WillOnce(Return(true));
     EXPECT_CALL(*mRenderSurface, isValid()).WillOnce(Return(true));
 
-    EXPECT_TRUE(mOutput.isValid());
+    EXPECT_TRUE(mOutput->isValid());
 
     // If we take away the required components, it is no longer valid.
-    mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>());
+    mOutput->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>());
 
     EXPECT_CALL(*mDisplayColorProfile, isValid()).WillOnce(Return(true));
 
-    EXPECT_FALSE(mOutput.isValid());
+    EXPECT_FALSE(mOutput->isValid());
 }
 
 /*
@@ -92,30 +92,30 @@ TEST_F(OutputTest, canInstantiateOutput) {
  */
 
 TEST_F(OutputTest, setCompositionEnabledDoesNothingIfAlreadyEnabled) {
-    mOutput.editState().isEnabled = true;
+    mOutput->editState().isEnabled = true;
 
-    mOutput.setCompositionEnabled(true);
+    mOutput->setCompositionEnabled(true);
 
-    EXPECT_TRUE(mOutput.getState().isEnabled);
-    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region()));
+    EXPECT_TRUE(mOutput->getState().isEnabled);
+    EXPECT_THAT(mOutput->getState().dirtyRegion, RegionEq(Region()));
 }
 
 TEST_F(OutputTest, setCompositionEnabledSetsEnabledAndDirtiesEntireOutput) {
-    mOutput.editState().isEnabled = false;
+    mOutput->editState().isEnabled = false;
 
-    mOutput.setCompositionEnabled(true);
+    mOutput->setCompositionEnabled(true);
 
-    EXPECT_TRUE(mOutput.getState().isEnabled);
-    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
+    EXPECT_TRUE(mOutput->getState().isEnabled);
+    EXPECT_THAT(mOutput->getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
 }
 
 TEST_F(OutputTest, setCompositionEnabledSetsDisabledAndDirtiesEntireOutput) {
-    mOutput.editState().isEnabled = true;
+    mOutput->editState().isEnabled = true;
 
-    mOutput.setCompositionEnabled(false);
+    mOutput->setCompositionEnabled(false);
 
-    EXPECT_FALSE(mOutput.getState().isEnabled);
-    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
+    EXPECT_FALSE(mOutput->getState().isEnabled);
+    EXPECT_THAT(mOutput->getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
 }
 
 /*
@@ -130,14 +130,14 @@ TEST_F(OutputTest, setProjectionTriviallyWorks) {
     const Rect scissor{9, 10, 11, 12};
     const bool needsFiltering = true;
 
-    mOutput.setProjection(transform, orientation, frame, viewport, scissor, needsFiltering);
+    mOutput->setProjection(transform, orientation, frame, viewport, scissor, needsFiltering);
 
-    EXPECT_THAT(mOutput.getState().transform, TransformEq(transform));
-    EXPECT_EQ(orientation, mOutput.getState().orientation);
-    EXPECT_EQ(frame, mOutput.getState().frame);
-    EXPECT_EQ(viewport, mOutput.getState().viewport);
-    EXPECT_EQ(scissor, mOutput.getState().scissor);
-    EXPECT_EQ(needsFiltering, mOutput.getState().needsFiltering);
+    EXPECT_THAT(mOutput->getState().transform, TransformEq(transform));
+    EXPECT_EQ(orientation, mOutput->getState().orientation);
+    EXPECT_EQ(frame, mOutput->getState().frame);
+    EXPECT_EQ(viewport, mOutput->getState().viewport);
+    EXPECT_EQ(scissor, mOutput->getState().scissor);
+    EXPECT_EQ(needsFiltering, mOutput->getState().needsFiltering);
 }
 
 /*
@@ -150,11 +150,11 @@ TEST_F(OutputTest, setBoundsSetsSizeAndDirtiesEntireOutput) {
     EXPECT_CALL(*mRenderSurface, setDisplaySize(displaySize)).Times(1);
     EXPECT_CALL(*mRenderSurface, getSize()).WillOnce(ReturnRef(displaySize));
 
-    mOutput.setBounds(displaySize);
+    mOutput->setBounds(displaySize);
 
-    EXPECT_EQ(Rect(displaySize), mOutput.getState().bounds);
+    EXPECT_EQ(Rect(displaySize), mOutput->getState().bounds);
 
-    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(Rect(displaySize))));
+    EXPECT_THAT(mOutput->getState().dirtyRegion, RegionEq(Region(Rect(displaySize))));
 }
 
 /*
@@ -163,12 +163,12 @@ TEST_F(OutputTest, setBoundsSetsSizeAndDirtiesEntireOutput) {
 
 TEST_F(OutputTest, setLayerStackFilterSetsFilterAndDirtiesEntireOutput) {
     const uint32_t layerStack = 123u;
-    mOutput.setLayerStackFilter(layerStack, true);
+    mOutput->setLayerStackFilter(layerStack, true);
 
-    EXPECT_TRUE(mOutput.getState().layerStackInternal);
-    EXPECT_EQ(layerStack, mOutput.getState().layerStackId);
+    EXPECT_TRUE(mOutput->getState().layerStackInternal);
+    EXPECT_EQ(layerStack, mOutput->getState().layerStackId);
 
-    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
+    EXPECT_THAT(mOutput->getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
 }
 
 /*
@@ -176,84 +176,84 @@ TEST_F(OutputTest, setLayerStackFilterSetsFilterAndDirtiesEntireOutput) {
  */
 
 TEST_F(OutputTest, setColorTransformWithNoChangeFlaggedSkipsUpdates) {
-    mOutput.editState().colorTransformMatrix = kIdentity;
+    mOutput->editState().colorTransformMatrix = kIdentity;
 
     // If no colorTransformMatrix is set the update should be skipped.
     CompositionRefreshArgs refreshArgs;
     refreshArgs.colorTransformMatrix = std::nullopt;
 
-    mOutput.setColorTransform(refreshArgs);
+    mOutput->setColorTransform(refreshArgs);
 
     // The internal state should be unchanged
-    EXPECT_EQ(kIdentity, mOutput.getState().colorTransformMatrix);
+    EXPECT_EQ(kIdentity, mOutput->getState().colorTransformMatrix);
 
     // No dirty region should be set
-    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region()));
+    EXPECT_THAT(mOutput->getState().dirtyRegion, RegionEq(Region()));
 }
 
 TEST_F(OutputTest, setColorTransformWithNoActualChangeSkipsUpdates) {
-    mOutput.editState().colorTransformMatrix = kIdentity;
+    mOutput->editState().colorTransformMatrix = kIdentity;
 
     // Attempting to set the same colorTransformMatrix that is already set should
     // also skip the update.
     CompositionRefreshArgs refreshArgs;
     refreshArgs.colorTransformMatrix = kIdentity;
 
-    mOutput.setColorTransform(refreshArgs);
+    mOutput->setColorTransform(refreshArgs);
 
     // The internal state should be unchanged
-    EXPECT_EQ(kIdentity, mOutput.getState().colorTransformMatrix);
+    EXPECT_EQ(kIdentity, mOutput->getState().colorTransformMatrix);
 
     // No dirty region should be set
-    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region()));
+    EXPECT_THAT(mOutput->getState().dirtyRegion, RegionEq(Region()));
 }
 
 TEST_F(OutputTest, setColorTransformPerformsUpdateToIdentity) {
-    mOutput.editState().colorTransformMatrix = kNonIdentityHalf;
+    mOutput->editState().colorTransformMatrix = kNonIdentityHalf;
 
     // Setting a different colorTransformMatrix should perform the update.
     CompositionRefreshArgs refreshArgs;
     refreshArgs.colorTransformMatrix = kIdentity;
 
-    mOutput.setColorTransform(refreshArgs);
+    mOutput->setColorTransform(refreshArgs);
 
     // The internal state should have been updated
-    EXPECT_EQ(kIdentity, mOutput.getState().colorTransformMatrix);
+    EXPECT_EQ(kIdentity, mOutput->getState().colorTransformMatrix);
 
     // The dirtyRegion should be set to the full display size
-    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
+    EXPECT_THAT(mOutput->getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
 }
 
 TEST_F(OutputTest, setColorTransformPerformsUpdateForIdentityToHalf) {
-    mOutput.editState().colorTransformMatrix = kIdentity;
+    mOutput->editState().colorTransformMatrix = kIdentity;
 
     // Setting a different colorTransformMatrix should perform the update.
     CompositionRefreshArgs refreshArgs;
     refreshArgs.colorTransformMatrix = kNonIdentityHalf;
 
-    mOutput.setColorTransform(refreshArgs);
+    mOutput->setColorTransform(refreshArgs);
 
     // The internal state should have been updated
-    EXPECT_EQ(kNonIdentityHalf, mOutput.getState().colorTransformMatrix);
+    EXPECT_EQ(kNonIdentityHalf, mOutput->getState().colorTransformMatrix);
 
     // The dirtyRegion should be set to the full display size
-    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
+    EXPECT_THAT(mOutput->getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
 }
 
 TEST_F(OutputTest, setColorTransformPerformsUpdateForHalfToQuarter) {
-    mOutput.editState().colorTransformMatrix = kNonIdentityHalf;
+    mOutput->editState().colorTransformMatrix = kNonIdentityHalf;
 
     // Setting a different colorTransformMatrix should perform the update.
     CompositionRefreshArgs refreshArgs;
     refreshArgs.colorTransformMatrix = kNonIdentityQuarter;
 
-    mOutput.setColorTransform(refreshArgs);
+    mOutput->setColorTransform(refreshArgs);
 
     // The internal state should have been updated
-    EXPECT_EQ(kNonIdentityQuarter, mOutput.getState().colorTransformMatrix);
+    EXPECT_EQ(kNonIdentityQuarter, mOutput->getState().colorTransformMatrix);
 
     // The dirtyRegion should be set to the full display size
-    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
+    EXPECT_THAT(mOutput->getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
 }
 
 /*
@@ -269,16 +269,16 @@ TEST_F(OutputTest, setColorModeSetsStateAndDirtiesOutputIfChanged) {
             .WillOnce(Return(ui::Dataspace::UNKNOWN));
     EXPECT_CALL(*mRenderSurface, setBufferDataspace(ui::Dataspace::DISPLAY_P3)).Times(1);
 
-    mOutput.setColorProfile(ColorProfile{ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
-                                         ui::RenderIntent::TONE_MAP_COLORIMETRIC,
-                                         ui::Dataspace::UNKNOWN});
+    mOutput->setColorProfile(ColorProfile{ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
+                                          ui::RenderIntent::TONE_MAP_COLORIMETRIC,
+                                          ui::Dataspace::UNKNOWN});
 
-    EXPECT_EQ(ui::ColorMode::DISPLAY_P3, mOutput.getState().colorMode);
-    EXPECT_EQ(ui::Dataspace::DISPLAY_P3, mOutput.getState().dataspace);
-    EXPECT_EQ(ui::RenderIntent::TONE_MAP_COLORIMETRIC, mOutput.getState().renderIntent);
-    EXPECT_EQ(ui::Dataspace::UNKNOWN, mOutput.getState().targetDataspace);
+    EXPECT_EQ(ui::ColorMode::DISPLAY_P3, mOutput->getState().colorMode);
+    EXPECT_EQ(ui::Dataspace::DISPLAY_P3, mOutput->getState().dataspace);
+    EXPECT_EQ(ui::RenderIntent::TONE_MAP_COLORIMETRIC, mOutput->getState().renderIntent);
+    EXPECT_EQ(ui::Dataspace::UNKNOWN, mOutput->getState().targetDataspace);
 
-    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
+    EXPECT_THAT(mOutput->getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
 }
 
 TEST_F(OutputTest, setColorModeDoesNothingIfNoChange) {
@@ -289,16 +289,16 @@ TEST_F(OutputTest, setColorModeDoesNothingIfNoChange) {
                                    ui::Dataspace::UNKNOWN))
             .WillOnce(Return(ui::Dataspace::UNKNOWN));
 
-    mOutput.editState().colorMode = ui::ColorMode::DISPLAY_P3;
-    mOutput.editState().dataspace = ui::Dataspace::DISPLAY_P3;
-    mOutput.editState().renderIntent = ui::RenderIntent::TONE_MAP_COLORIMETRIC;
-    mOutput.editState().targetDataspace = ui::Dataspace::UNKNOWN;
+    mOutput->editState().colorMode = ui::ColorMode::DISPLAY_P3;
+    mOutput->editState().dataspace = ui::Dataspace::DISPLAY_P3;
+    mOutput->editState().renderIntent = ui::RenderIntent::TONE_MAP_COLORIMETRIC;
+    mOutput->editState().targetDataspace = ui::Dataspace::UNKNOWN;
 
-    mOutput.setColorProfile(ColorProfile{ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
-                                         ui::RenderIntent::TONE_MAP_COLORIMETRIC,
-                                         ui::Dataspace::UNKNOWN});
+    mOutput->setColorProfile(ColorProfile{ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
+                                          ui::RenderIntent::TONE_MAP_COLORIMETRIC,
+                                          ui::Dataspace::UNKNOWN});
 
-    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region()));
+    EXPECT_THAT(mOutput->getState().dirtyRegion, RegionEq(Region()));
 }
 
 /*
@@ -311,9 +311,9 @@ TEST_F(OutputTest, setRenderSurfaceResetsBounds) {
     mock::RenderSurface* renderSurface = new StrictMock<mock::RenderSurface>();
     EXPECT_CALL(*renderSurface, getSize()).WillOnce(ReturnRef(newDisplaySize));
 
-    mOutput.setRenderSurface(std::unique_ptr<RenderSurface>(renderSurface));
+    mOutput->setRenderSurface(std::unique_ptr<RenderSurface>(renderSurface));
 
-    EXPECT_EQ(Rect(newDisplaySize), mOutput.getState().bounds);
+    EXPECT_EQ(Rect(newDisplaySize), mOutput->getState().bounds);
 }
 
 /*
@@ -322,11 +322,11 @@ TEST_F(OutputTest, setRenderSurfaceResetsBounds) {
 
 TEST_F(OutputTest, getDirtyRegionWithRepaintEverythingTrue) {
     const Rect viewport{100, 200};
-    mOutput.editState().viewport = viewport;
-    mOutput.editState().dirtyRegion.set(50, 300);
+    mOutput->editState().viewport = viewport;
+    mOutput->editState().dirtyRegion.set(50, 300);
 
     {
-        Region result = mOutput.getDirtyRegion(true);
+        Region result = mOutput->getDirtyRegion(true);
 
         EXPECT_THAT(result, RegionEq(Region(viewport)));
     }
@@ -334,11 +334,11 @@ TEST_F(OutputTest, getDirtyRegionWithRepaintEverythingTrue) {
 
 TEST_F(OutputTest, getDirtyRegionWithRepaintEverythingFalse) {
     const Rect viewport{100, 200};
-    mOutput.editState().viewport = viewport;
-    mOutput.editState().dirtyRegion.set(50, 300);
+    mOutput->editState().viewport = viewport;
+    mOutput->editState().dirtyRegion.set(50, 300);
 
     {
-        Region result = mOutput.getDirtyRegion(false);
+        Region result = mOutput->getDirtyRegion(false);
 
         // The dirtyRegion should be clipped to the display bounds.
         EXPECT_THAT(result, RegionEq(Region(Rect(50, 200))));
@@ -354,26 +354,26 @@ TEST_F(OutputTest, belongsInOutputFiltersAsExpected) {
     const uint32_t layerStack2 = 456u;
 
     // If the output accepts layerStack1 and internal-only layers....
-    mOutput.setLayerStackFilter(layerStack1, true);
+    mOutput->setLayerStackFilter(layerStack1, true);
 
     // A layer with no layerStack does not belong to it, internal-only or not.
-    EXPECT_FALSE(mOutput.belongsInOutput(std::nullopt, false));
-    EXPECT_FALSE(mOutput.belongsInOutput(std::nullopt, true));
+    EXPECT_FALSE(mOutput->belongsInOutput(std::nullopt, false));
+    EXPECT_FALSE(mOutput->belongsInOutput(std::nullopt, true));
 
     // Any layer with layerStack1 belongs to it, internal-only or not.
-    EXPECT_TRUE(mOutput.belongsInOutput(layerStack1, false));
-    EXPECT_TRUE(mOutput.belongsInOutput(layerStack1, true));
-    EXPECT_FALSE(mOutput.belongsInOutput(layerStack2, true));
-    EXPECT_FALSE(mOutput.belongsInOutput(layerStack2, false));
+    EXPECT_TRUE(mOutput->belongsInOutput(layerStack1, false));
+    EXPECT_TRUE(mOutput->belongsInOutput(layerStack1, true));
+    EXPECT_FALSE(mOutput->belongsInOutput(layerStack2, true));
+    EXPECT_FALSE(mOutput->belongsInOutput(layerStack2, false));
 
     // If the output accepts layerStack21 but not internal-only layers...
-    mOutput.setLayerStackFilter(layerStack1, false);
+    mOutput->setLayerStackFilter(layerStack1, false);
 
     // Only non-internal layers with layerStack1 belong to it.
-    EXPECT_TRUE(mOutput.belongsInOutput(layerStack1, false));
-    EXPECT_FALSE(mOutput.belongsInOutput(layerStack1, true));
-    EXPECT_FALSE(mOutput.belongsInOutput(layerStack2, true));
-    EXPECT_FALSE(mOutput.belongsInOutput(layerStack2, false));
+    EXPECT_TRUE(mOutput->belongsInOutput(layerStack1, false));
+    EXPECT_FALSE(mOutput->belongsInOutput(layerStack1, true));
+    EXPECT_FALSE(mOutput->belongsInOutput(layerStack2, true));
+    EXPECT_FALSE(mOutput->belongsInOutput(layerStack2, false));
 }
 
 TEST_F(OutputTest, belongsInOutputFiltersLayersAsExpected) {
@@ -386,59 +386,59 @@ TEST_F(OutputTest, belongsInOutputFiltersLayersAsExpected) {
     const uint32_t layerStack2 = 456u;
 
     // If the output accepts layerStack1 and internal-only layers....
-    mOutput.setLayerStackFilter(layerStack1, true);
+    mOutput->setLayerStackFilter(layerStack1, true);
 
     // A null layer pointer does not belong to the output
-    EXPECT_FALSE(mOutput.belongsInOutput(nullptr));
+    EXPECT_FALSE(mOutput->belongsInOutput(nullptr));
 
     // A layer with no layerStack does not belong to it, internal-only or not.
     layerFEState.layerStackId = std::nullopt;
     layerFEState.internalOnly = false;
-    EXPECT_FALSE(mOutput.belongsInOutput(&layer));
+    EXPECT_FALSE(mOutput->belongsInOutput(&layer));
 
     layerFEState.layerStackId = std::nullopt;
     layerFEState.internalOnly = true;
-    EXPECT_FALSE(mOutput.belongsInOutput(&layer));
+    EXPECT_FALSE(mOutput->belongsInOutput(&layer));
 
     // Any layer with layerStack1 belongs to it, internal-only or not.
     layerFEState.layerStackId = layerStack1;
     layerFEState.internalOnly = false;
-    EXPECT_TRUE(mOutput.belongsInOutput(&layer));
+    EXPECT_TRUE(mOutput->belongsInOutput(&layer));
 
     layerFEState.layerStackId = layerStack1;
     layerFEState.internalOnly = true;
-    EXPECT_TRUE(mOutput.belongsInOutput(&layer));
+    EXPECT_TRUE(mOutput->belongsInOutput(&layer));
 
     layerFEState.layerStackId = layerStack2;
     layerFEState.internalOnly = true;
-    EXPECT_FALSE(mOutput.belongsInOutput(&layer));
+    EXPECT_FALSE(mOutput->belongsInOutput(&layer));
 
     layerFEState.layerStackId = layerStack2;
     layerFEState.internalOnly = false;
-    EXPECT_FALSE(mOutput.belongsInOutput(&layer));
+    EXPECT_FALSE(mOutput->belongsInOutput(&layer));
 
     // If the output accepts layerStack1 but not internal-only layers...
-    mOutput.setLayerStackFilter(layerStack1, false);
+    mOutput->setLayerStackFilter(layerStack1, false);
 
     // A null layer pointer does not belong to the output
-    EXPECT_FALSE(mOutput.belongsInOutput(nullptr));
+    EXPECT_FALSE(mOutput->belongsInOutput(nullptr));
 
     // Only non-internal layers with layerStack1 belong to it.
     layerFEState.layerStackId = layerStack1;
     layerFEState.internalOnly = false;
-    EXPECT_TRUE(mOutput.belongsInOutput(&layer));
+    EXPECT_TRUE(mOutput->belongsInOutput(&layer));
 
     layerFEState.layerStackId = layerStack1;
     layerFEState.internalOnly = true;
-    EXPECT_FALSE(mOutput.belongsInOutput(&layer));
+    EXPECT_FALSE(mOutput->belongsInOutput(&layer));
 
     layerFEState.layerStackId = layerStack2;
     layerFEState.internalOnly = true;
-    EXPECT_FALSE(mOutput.belongsInOutput(&layer));
+    EXPECT_FALSE(mOutput->belongsInOutput(&layer));
 
     layerFEState.layerStackId = layerStack2;
     layerFEState.internalOnly = false;
-    EXPECT_FALSE(mOutput.belongsInOutput(&layer));
+    EXPECT_FALSE(mOutput->belongsInOutput(&layer));
 }
 
 /*
@@ -453,71 +453,24 @@ TEST_F(OutputTest, getOutputLayerForLayerWorks) {
     outputLayers.emplace_back(std::unique_ptr<OutputLayer>(outputLayer1));
     outputLayers.emplace_back(nullptr);
     outputLayers.emplace_back(std::unique_ptr<OutputLayer>(outputLayer2));
-    mOutput.setOutputLayersOrderedByZ(std::move(outputLayers));
+    mOutput->setOutputLayersOrderedByZ(std::move(outputLayers));
 
     StrictMock<mock::Layer> layer;
     StrictMock<mock::Layer> otherLayer;
 
     // If the input layer matches the first OutputLayer, it will be returned.
     EXPECT_CALL(*outputLayer1, getLayer()).WillOnce(ReturnRef(layer));
-    EXPECT_EQ(outputLayer1, mOutput.getOutputLayerForLayer(&layer));
+    EXPECT_EQ(outputLayer1, mOutput->getOutputLayerForLayer(&layer));
 
     // If the input layer matches the second OutputLayer, it will be returned.
     EXPECT_CALL(*outputLayer1, getLayer()).WillOnce(ReturnRef(otherLayer));
     EXPECT_CALL(*outputLayer2, getLayer()).WillOnce(ReturnRef(layer));
-    EXPECT_EQ(outputLayer2, mOutput.getOutputLayerForLayer(&layer));
+    EXPECT_EQ(outputLayer2, mOutput->getOutputLayerForLayer(&layer));
 
     // If the input layer does not match an output layer, null will be returned.
     EXPECT_CALL(*outputLayer1, getLayer()).WillOnce(ReturnRef(otherLayer));
     EXPECT_CALL(*outputLayer2, getLayer()).WillOnce(ReturnRef(otherLayer));
-    EXPECT_EQ(nullptr, mOutput.getOutputLayerForLayer(&layer));
-}
-
-/*
- * Output::getOrCreateOutputLayer()
- */
-
-TEST_F(OutputTest, getOrCreateOutputLayerWorks) {
-    mock::OutputLayer* existingOutputLayer = new StrictMock<mock::OutputLayer>();
-
-    Output::OutputLayers outputLayers;
-    outputLayers.emplace_back(nullptr);
-    outputLayers.emplace_back(std::unique_ptr<OutputLayer>(existingOutputLayer));
-    mOutput.setOutputLayersOrderedByZ(std::move(outputLayers));
-
-    std::shared_ptr<mock::Layer> layer{new StrictMock<mock::Layer>()};
-    sp<LayerFE> layerFE{new StrictMock<mock::LayerFE>()};
-
-    StrictMock<mock::Layer> otherLayer;
-
-    {
-        // If there is no OutputLayer corresponding to the input layer, a
-        // new OutputLayer is constructed and returned.
-        EXPECT_CALL(*existingOutputLayer, getLayer()).WillOnce(ReturnRef(otherLayer));
-        auto result = mOutput.getOrCreateOutputLayer(layer, layerFE);
-        EXPECT_NE(existingOutputLayer, result.get());
-        EXPECT_TRUE(result.get() != nullptr);
-        EXPECT_EQ(layer.get(), &result->getLayer());
-        EXPECT_EQ(layerFE.get(), &result->getLayerFE());
-
-        // The entries in the ordered array should be unchanged.
-        auto& outputLayers = mOutput.getOutputLayersOrderedByZ();
-        EXPECT_EQ(nullptr, outputLayers[0].get());
-        EXPECT_EQ(existingOutputLayer, outputLayers[1].get());
-    }
-
-    {
-        // If there is an existing OutputLayer for the requested layer, an owned
-        // pointer is returned
-        EXPECT_CALL(*existingOutputLayer, getLayer()).WillOnce(ReturnRef(*layer));
-        auto result = mOutput.getOrCreateOutputLayer(layer, layerFE);
-        EXPECT_EQ(existingOutputLayer, result.get());
-
-        // The corresponding entry in the ordered array should be cleared.
-        auto& outputLayers = mOutput.getOutputLayersOrderedByZ();
-        EXPECT_EQ(nullptr, outputLayers[0].get());
-        EXPECT_EQ(nullptr, outputLayers[1].get());
-    }
+    EXPECT_EQ(nullptr, mOutput->getOutputLayerForLayer(&layer));
 }
 
 /*
@@ -526,12 +479,19 @@ TEST_F(OutputTest, getOrCreateOutputLayerWorks) {
 
 struct OutputPrepareFrameTest : public testing::Test {
     struct OutputPartialMock : public impl::Output {
-        OutputPartialMock(const compositionengine::CompositionEngine& compositionEngine)
-              : impl::Output(compositionEngine) {}
-
         // Sets up the helper functions called by prepareFrame to use a mock
         // implementations.
         MOCK_METHOD0(chooseCompositionStrategy, void());
+
+        // compositionengine::Output overrides
+        const OutputCompositionState& getState() const override { return mState; }
+        OutputCompositionState& editState() override { return mState; }
+
+        // These need implementations though are not expected to be called.
+        MOCK_CONST_METHOD1(dumpState, void(std::string&));
+        MOCK_CONST_METHOD0(getCompositionEngine, const CompositionEngine&());
+
+        impl::OutputCompositionState mState;
     };
 
     OutputPrepareFrameTest() {
@@ -543,7 +503,7 @@ struct OutputPrepareFrameTest : public testing::Test {
     StrictMock<mock::CompositionEngine> mCompositionEngine;
     mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
     mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
-    StrictMock<OutputPartialMock> mOutput{mCompositionEngine};
+    StrictMock<OutputPartialMock> mOutput;
 };
 
 TEST_F(OutputPrepareFrameTest, takesEarlyOutIfNotEnabled) {
@@ -566,16 +526,16 @@ TEST_F(OutputPrepareFrameTest, delegatesToChooseCompositionStrategyAndRenderSurf
 // Note: Use OutputTest and not OutputPrepareFrameTest, so the real
 // base chooseCompositionStrategy() is invoked.
 TEST_F(OutputTest, prepareFrameSetsClientCompositionOnlyByDefault) {
-    mOutput.editState().isEnabled = true;
-    mOutput.editState().usesClientComposition = false;
-    mOutput.editState().usesDeviceComposition = true;
+    mOutput->editState().isEnabled = true;
+    mOutput->editState().usesClientComposition = false;
+    mOutput->editState().usesDeviceComposition = true;
 
     EXPECT_CALL(*mRenderSurface, prepareFrame(true, false));
 
-    mOutput.prepareFrame();
+    mOutput->prepareFrame();
 
-    EXPECT_TRUE(mOutput.getState().usesClientComposition);
-    EXPECT_FALSE(mOutput.getState().usesDeviceComposition);
+    EXPECT_TRUE(mOutput->getState().usesClientComposition);
+    EXPECT_FALSE(mOutput->getState().usesDeviceComposition);
 }
 
 /*
@@ -592,9 +552,6 @@ struct OutputComposeSurfacesTest : public testing::Test {
     static const mat4 kDefaultColorTransformMat;
 
     struct OutputPartialMock : public impl::Output {
-        OutputPartialMock(const compositionengine::CompositionEngine& compositionEngine)
-              : impl::Output(compositionEngine) {}
-
         // Sets up the helper functions called by composeSurfaces to use a mock
         // implementations.
         MOCK_CONST_METHOD0(getSkipColorTransform, bool());
@@ -603,6 +560,16 @@ struct OutputComposeSurfacesTest : public testing::Test {
         MOCK_METHOD2(appendRegionFlashRequests,
                      void(const Region&, std::vector<renderengine::LayerSettings>&));
         MOCK_METHOD1(setExpensiveRenderingExpected, void(bool));
+
+        // compositionengine::Output overrides
+        const OutputCompositionState& getState() const override { return mState; }
+        OutputCompositionState& editState() override { return mState; }
+
+        // These need implementations though are not expected to be called.
+        MOCK_CONST_METHOD1(dumpState, void(std::string&));
+        MOCK_CONST_METHOD0(getCompositionEngine, const CompositionEngine&());
+
+        impl::OutputCompositionState mState;
     };
 
     OutputComposeSurfacesTest() {
@@ -627,6 +594,7 @@ struct OutputComposeSurfacesTest : public testing::Test {
         mOutput.editState().usesClientComposition = true;
         mOutput.editState().usesDeviceComposition = false;
 
+        EXPECT_CALL(mOutput, getCompositionEngine()).WillRepeatedly(ReturnRef(mCompositionEngine));
         EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
     }
 
@@ -636,7 +604,7 @@ struct OutputComposeSurfacesTest : public testing::Test {
     mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
     mock::OutputLayer* mOutputLayer1 = new StrictMock<mock::OutputLayer>();
     mock::OutputLayer* mOutputLayer2 = new StrictMock<mock::OutputLayer>();
-    StrictMock<OutputPartialMock> mOutput{mCompositionEngine};
+    StrictMock<OutputPartialMock> mOutput;
     sp<GraphicBuffer> mOutputBuffer = new GraphicBuffer();
 };
 
@@ -691,14 +659,22 @@ TEST_F(OutputComposeSurfacesTest, worksIfNoClientLayersQueued) {
 
 struct GenerateClientCompositionRequestsTest : public testing::Test {
     struct OutputPartialMock : public impl::Output {
-        OutputPartialMock(const compositionengine::CompositionEngine& compositionEngine)
-              : impl::Output(compositionEngine) {}
+        // compositionengine::Output overrides
 
         std::vector<renderengine::LayerSettings> generateClientCompositionRequests(
                 bool supportsProtectedContent, Region& clearRegion) override {
             return impl::Output::generateClientCompositionRequests(supportsProtectedContent,
                                                                    clearRegion);
         }
+
+        const OutputCompositionState& getState() const override { return mState; }
+        OutputCompositionState& editState() override { return mState; }
+
+        // These need implementations though are not expected to be called.
+        MOCK_CONST_METHOD1(dumpState, void(std::string&));
+        MOCK_CONST_METHOD0(getCompositionEngine, const CompositionEngine&());
+
+        impl::OutputCompositionState mState;
     };
 
     GenerateClientCompositionRequestsTest() {
@@ -707,10 +683,9 @@ struct GenerateClientCompositionRequestsTest : public testing::Test {
         mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
     }
 
-    StrictMock<mock::CompositionEngine> mCompositionEngine;
     mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
     mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
-    StrictMock<OutputPartialMock> mOutput{mCompositionEngine};
+    StrictMock<OutputPartialMock> mOutput;
 };
 
 // TODO(b/121291683): Add more unit test coverage for generateClientCompositionRequests

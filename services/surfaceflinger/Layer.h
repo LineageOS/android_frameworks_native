@@ -170,6 +170,7 @@ public:
 
         // If non-null, a Surface this Surface's Z-order is interpreted relative to.
         wp<Layer> zOrderRelativeOf;
+        bool isRelativeOf{false};
 
         // A list of surfaces whose Z-order is interpreted relative to ours.
         SortedVector<wp<Layer>> zOrderRelatives;
