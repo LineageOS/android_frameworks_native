@@ -14,14 +14,16 @@
  * limitations under the License.
  */
 
-#include "../InputDispatcher.h"
+#include "../dispatcher/InputDispatcher.h"
+
+#include <InputDispatcherThread.h>
 
 #include <binder/Binder.h>
 
 #include <gtest/gtest.h>
 #include <linux/input.h>
 
-namespace android {
+namespace android::inputdispatcher {
 
 // An arbitrary time value.
 static const nsecs_t ARBITRARY_TIME = 1234;
@@ -1025,4 +1027,4 @@ TEST_F(InputDispatcherOnPointerDownOutsideFocus,
     mFakePolicy->assertOnPointerDownEquals(nullptr);
 }
 
-} // namespace android
+} // namespace android::inputdispatcher

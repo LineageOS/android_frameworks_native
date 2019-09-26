@@ -19,6 +19,8 @@
 //#define LOG_NDEBUG 0
 
 #include "InputManager.h"
+#include "InputDispatcherFactory.h"
+#include "InputDispatcherThread.h"
 #include "InputReaderFactory.h"
 
 #include <binder/IPCThreadState.h>
@@ -33,7 +35,7 @@ namespace android {
 InputManager::InputManager(
         const sp<InputReaderPolicyInterface>& readerPolicy,
         const sp<InputDispatcherPolicyInterface>& dispatcherPolicy) {
-    mDispatcher = new InputDispatcher(dispatcherPolicy);
+    mDispatcher = createInputDispatcher(dispatcherPolicy);
     mClassifier = new InputClassifier(mDispatcher);
     mReader = createInputReader(readerPolicy, mClassifier);
     initialize();
