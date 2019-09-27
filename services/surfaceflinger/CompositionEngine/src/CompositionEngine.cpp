@@ -101,7 +101,7 @@ void CompositionEngine::updateCursorAsync(CompositionRefreshArgs& args) {
             uniqueVisibleLayers;
 
     for (const auto& output : args.outputs) {
-        for (auto& layer : output->getOutputLayersOrderedByZ()) {
+        for (auto* layer : output->getOutputLayersOrderedByZ()) {
             if (layer->isHardwareCursor()) {
                 // Latch the cursor composition state from each front-end layer.
                 layer->getLayerFE().latchCursorCompositionState(layer->getLayer().editFEState());

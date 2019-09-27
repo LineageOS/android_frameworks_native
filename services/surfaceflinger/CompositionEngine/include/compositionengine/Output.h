@@ -17,9 +17,12 @@
 #pragma once
 
 #include <cstdint>
+#include <iterator>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
+#include <utility>
 
 #include <compositionengine/LayerFE.h>
 #include <renderengine/LayerSettings.h>
@@ -55,9 +58,66 @@ struct OutputCompositionState;
  */
 class Output {
 public:
-    using OutputLayers = std::vector<std::unique_ptr<compositionengine::OutputLayer>>;
     using ReleasedLayers = std::vector<wp<LayerFE>>;
     using UniqueFELayerStateMap = std::unordered_map<LayerFE*, LayerFECompositionState*>;
+
+    // A helper class for enumerating the output layers using a C++11 ranged-based for loop
+    template <typename T>
+    class OutputLayersEnumerator {
+    public:
+        // TODO(lpique): Consider turning this into a C++20 view when possible.
+        template <bool IsConstIter>
+        class IteratorImpl {
+        public:
+            // Required definitions to be considered an iterator
+            using iterator_category = std::forward_iterator_tag;
+            using value_type = decltype(std::declval<T>().getOutputLayerOrderedByZByIndex(0));
+            using difference_type = std::ptrdiff_t;
+            using pointer = std::conditional_t<IsConstIter, const value_type*, value_type*>;
+            using reference = std::conditional_t<IsConstIter, const value_type&, value_type&>;
+
+            IteratorImpl() = default;
+            IteratorImpl(const T* output, size_t index) : mOutput(output), mIndex(index) {}
+
+            value_type operator*() const {
+                return mOutput->getOutputLayerOrderedByZByIndex(mIndex);
+            }
+            value_type operator->() const {
+                return mOutput->getOutputLayerOrderedByZByIndex(mIndex);
+            }
+
+            bool operator==(const IteratorImpl& other) const {
+                return mOutput == other.mOutput && mIndex == other.mIndex;
+            }
+            bool operator!=(const IteratorImpl& other) const { return !operator==(other); }
+
+            IteratorImpl& operator++() {
+                ++mIndex;
+                return *this;
+            }
+            IteratorImpl operator++(int) {
+                auto prev = *this;
+                ++mIndex;
+                return prev;
+            }
+
+        private:
+            const T* mOutput{nullptr};
+            size_t mIndex{0};
+        };
+
+        using iterator = IteratorImpl<false>;
+        using const_iterator = IteratorImpl<true>;
+
+        explicit OutputLayersEnumerator(const T& output) : mOutput(output) {}
+        auto begin() const { return iterator(&mOutput, 0); }
+        auto end() const { return iterator(&mOutput, mOutput.getOutputLayerCount()); }
+        auto cbegin() const { return const_iterator(&mOutput, 0); }
+        auto cend() const { return const_iterator(&mOutput, mOutput.getOutputLayerCount()); }
+
+    private:
+        const T& mOutput;
+    };
 
     struct FrameFences {
         sp<Fence> presentFence{Fence::NO_FENCE};
@@ -152,27 +212,31 @@ public:
     virtual bool belongsInOutput(std::optional<uint32_t> layerStackId, bool internalOnly) const = 0;
 
     // Determines if a layer belongs to the output.
-    virtual bool belongsInOutput(const compositionengine::Layer*) const = 0;
+    virtual bool belongsInOutput(const Layer*) const = 0;
 
     // Returns a pointer to the output layer corresponding to the given layer on
     // this output, or nullptr if the layer does not have one
     virtual OutputLayer* getOutputLayerForLayer(Layer*) const = 0;
 
-    // Creates an OutputLayer instance for this output
-    virtual std::unique_ptr<OutputLayer> createOutputLayer(const std::shared_ptr<Layer>&,
-                                                           const sp<LayerFE>&) const = 0;
+    // Immediately clears all layers from the output.
+    virtual void clearOutputLayers() = 0;
 
-    // Sets the new ordered set of output layers for this output
-    virtual void setOutputLayersOrderedByZ(OutputLayers&&) = 0;
+    // For tests use only. Creates and appends an OutputLayer into the output.
+    virtual OutputLayer* injectOutputLayerForTest(const std::shared_ptr<Layer>&,
+                                                  const sp<LayerFE>&) = 0;
 
-    // Gets the ordered set of output layers for this output
-    virtual const OutputLayers& getOutputLayersOrderedByZ() const = 0;
+    // Gets the count of output layers managed by this output
+    virtual size_t getOutputLayerCount() const = 0;
+
+    // Gets an output layer in Z order given its index
+    virtual OutputLayer* getOutputLayerOrderedByZByIndex(size_t) const = 0;
+
+    // A helper function for enumerating all the output layers in Z order using
+    // a C++11 range-based for loop.
+    auto getOutputLayersOrderedByZ() const { return OutputLayersEnumerator(*this); }
 
     // Sets the new set of layers being released this frame
     virtual void setReleasedLayers(ReleasedLayers&&) = 0;
-
-    // Takes (moves) the set of layers being released this frame.
-    virtual ReleasedLayers takeReleasedLayers() = 0;
 
     // Prepare the output, updating the OutputLayers used in the output
     virtual void prepare(const CompositionRefreshArgs&, LayerFESet&) = 0;
@@ -187,12 +251,10 @@ protected:
     virtual void setDisplayColorProfile(std::unique_ptr<DisplayColorProfile>) = 0;
     virtual void setRenderSurface(std::unique_ptr<RenderSurface>) = 0;
 
-    virtual void rebuildLayerStacks(const compositionengine::CompositionRefreshArgs&,
-                                    LayerFESet&) = 0;
+    virtual void rebuildLayerStacks(const CompositionRefreshArgs&, LayerFESet&) = 0;
     virtual void collectVisibleLayers(const CompositionRefreshArgs&, CoverageState&) = 0;
-    virtual std::unique_ptr<OutputLayer> getOutputLayerIfVisible(
-            std::shared_ptr<compositionengine::Layer>, CoverageState&) = 0;
-    virtual void setReleasedLayers(const compositionengine::CompositionRefreshArgs&) = 0;
+    virtual void ensureOutputLayerIfVisible(std::shared_ptr<Layer>, CoverageState&) = 0;
+    virtual void setReleasedLayers(const CompositionRefreshArgs&) = 0;
 
     virtual void updateAndWriteCompositionState(const CompositionRefreshArgs&) = 0;
     virtual void setColorTransform(const CompositionRefreshArgs&) = 0;

@@ -1509,8 +1509,7 @@ void SurfaceFlinger::updateVrFlinger() {
     // any HWC layers are destroyed through that interface before it becomes
     // invalid.
     for (const auto& [token, displayDevice] : mDisplays) {
-        displayDevice->getCompositionDisplay()->setOutputLayersOrderedByZ(
-                compositionengine::Output::OutputLayers());
+        displayDevice->getCompositionDisplay()->clearOutputLayers();
     }
 
     // This DisplayDevice will no longer be relevant once resetDisplayState() is

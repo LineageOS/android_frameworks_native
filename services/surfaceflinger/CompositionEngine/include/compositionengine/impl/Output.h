@@ -60,13 +60,8 @@ public:
 
     compositionengine::OutputLayer* getOutputLayerForLayer(
             compositionengine::Layer*) const override;
-    std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(
-            const std::shared_ptr<Layer>&, const sp<LayerFE>&) const override;
-    void setOutputLayersOrderedByZ(OutputLayers&&) override;
-    const OutputLayers& getOutputLayersOrderedByZ() const override;
 
     void setReleasedLayers(ReleasedLayers&&) override;
-    ReleasedLayers takeReleasedLayers() override;
 
     void prepare(const CompositionRefreshArgs&, LayerFESet&) override;
     void present(const CompositionRefreshArgs&) override;
@@ -74,9 +69,8 @@ public:
     void rebuildLayerStacks(const CompositionRefreshArgs&, LayerFESet&) override;
     void collectVisibleLayers(const CompositionRefreshArgs&,
                               compositionengine::Output::CoverageState&) override;
-    std::unique_ptr<compositionengine::OutputLayer> getOutputLayerIfVisible(
-            std::shared_ptr<compositionengine::Layer>,
-            compositionengine::Output::CoverageState&) override;
+    void ensureOutputLayerIfVisible(std::shared_ptr<compositionengine::Layer>,
+                                    compositionengine::Output::CoverageState&) override;
     void setReleasedLayers(const compositionengine::CompositionRefreshArgs&) override;
 
     void updateLayerStateFromFE(const CompositionRefreshArgs&) const override;
@@ -95,9 +89,9 @@ public:
     void setRenderSurfaceForTest(std::unique_ptr<compositionengine::RenderSurface>);
 
 protected:
-    virtual const CompositionEngine& getCompositionEngine() const = 0;
-    std::unique_ptr<compositionengine::OutputLayer> takeOutputLayerForLayer(
-            compositionengine::Layer*);
+    std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(
+            const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&) const;
+    std::optional<size_t> findCurrentOutputLayerForLayer(compositionengine::Layer*) const;
     void chooseCompositionStrategy() override;
     bool getSkipColorTransform() const override;
     compositionengine::Output::FrameFences presentAndGetFrameFences() override;
@@ -109,7 +103,14 @@ protected:
     void dumpBase(std::string&) const;
 
     // Implemented by the final implementation for the final state it uses.
-    virtual void dumpState(std::string&) const = 0;
+    virtual compositionengine::OutputLayer* ensureOutputLayer(
+            std::optional<size_t>, const std::shared_ptr<compositionengine::Layer>&,
+            const sp<LayerFE>&) = 0;
+    virtual compositionengine::OutputLayer* injectOutputLayerForTest(
+            const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&) = 0;
+    virtual void finalizePendingOutputLayers() = 0;
+    virtual const compositionengine::CompositionEngine& getCompositionEngine() const = 0;
+    virtual void dumpState(std::string& out) const = 0;
 
 private:
     void dirtyEntireOutput();
@@ -122,7 +123,6 @@ private:
     std::unique_ptr<compositionengine::DisplayColorProfile> mDisplayColorProfile;
     std::unique_ptr<compositionengine::RenderSurface> mRenderSurface;
 
-    OutputLayers mOutputLayersOrderedByZ;
     ReleasedLayers mReleasedLayers;
 };
 
@@ -141,6 +141,8 @@ std::shared_ptr<BaseOutput> createOutputTemplated(const CompositionEngine& compo
 
         using OutputCompositionState = std::remove_const_t<
                 std::remove_reference_t<decltype(std::declval<BaseOutput>().getState())>>;
+        using OutputLayer = std::remove_pointer_t<decltype(
+                std::declval<BaseOutput>().getOutputLayerOrderedByZByIndex(0))>;
 
 #pragma clang diagnostic pop
 
@@ -151,16 +153,72 @@ std::shared_ptr<BaseOutput> createOutputTemplated(const CompositionEngine& compo
     private:
         // compositionengine::Output overrides
         const OutputCompositionState& getState() const override { return mState; }
+
         OutputCompositionState& editState() override { return mState; }
+
+        size_t getOutputLayerCount() const override {
+            return mCurrentOutputLayersOrderedByZ.size();
+        }
+
+        OutputLayer* getOutputLayerOrderedByZByIndex(size_t index) const override {
+            if (index >= mCurrentOutputLayersOrderedByZ.size()) {
+                return nullptr;
+            }
+            return mCurrentOutputLayersOrderedByZ[index].get();
+        }
 
         // compositionengine::impl::Output overrides
         const CompositionEngine& getCompositionEngine() const override {
             return mCompositionEngine;
         };
+
+        OutputLayer* ensureOutputLayer(std::optional<size_t> prevIndex,
+                                       const std::shared_ptr<compositionengine::Layer>& layer,
+                                       const sp<LayerFE>& layerFE) {
+            auto outputLayer = (prevIndex && *prevIndex <= mCurrentOutputLayersOrderedByZ.size())
+                    ? std::move(mCurrentOutputLayersOrderedByZ[*prevIndex])
+                    : BaseOutput::createOutputLayer(layer, layerFE);
+            auto result = outputLayer.get();
+            mPendingOutputLayersOrderedByZ.emplace_back(std::move(outputLayer));
+            return result;
+        }
+
+        void finalizePendingOutputLayers() override {
+            // The pending layers are added in reverse order. Reverse them to
+            // get the back-to-front ordered list of layers.
+            std::reverse(mPendingOutputLayersOrderedByZ.begin(),
+                         mPendingOutputLayersOrderedByZ.end());
+
+            mCurrentOutputLayersOrderedByZ = std::move(mPendingOutputLayersOrderedByZ);
+        }
+
         void dumpState(std::string& out) const override { mState.dump(out); }
+
+        OutputLayer* injectOutputLayerForTest(
+                const std::shared_ptr<compositionengine::Layer>& layer,
+                const sp<LayerFE>& layerFE) override {
+            auto outputLayer = BaseOutput::createOutputLayer(layer, layerFE);
+            auto result = outputLayer.get();
+            mCurrentOutputLayersOrderedByZ.emplace_back(std::move(outputLayer));
+            return result;
+        }
+
+        // Note: This is declared as a private virtual non-override so it can be
+        // an override implementation in the unit tests, but otherwise is not an
+        // accessible override for the normal implementation.
+        virtual void injectOutputLayerForTest(std::unique_ptr<OutputLayer> outputLayer) {
+            mCurrentOutputLayersOrderedByZ.emplace_back(std::move(outputLayer));
+        }
+
+        void clearOutputLayers() override {
+            mCurrentOutputLayersOrderedByZ.clear();
+            mPendingOutputLayersOrderedByZ.clear();
+        }
 
         const CompositionEngine& mCompositionEngine;
         OutputCompositionState mState;
+        std::vector<std::unique_ptr<OutputLayer>> mCurrentOutputLayersOrderedByZ;
+        std::vector<std::unique_ptr<OutputLayer>> mPendingOutputLayersOrderedByZ;
     };
 
     return std::make_shared<Output>(compositionEngine, std::forward<Args>(args)...);
