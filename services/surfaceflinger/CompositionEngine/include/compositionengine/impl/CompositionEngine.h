@@ -45,6 +45,9 @@ public:
 
     void preComposition(CompositionRefreshArgs&) override;
 
+    // Debugging
+    void dump(std::string&) const override;
+
     void updateLayerStateFromFE(CompositionRefreshArgs& args);
 
     // Testing

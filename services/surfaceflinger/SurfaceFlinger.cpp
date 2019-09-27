@@ -4226,6 +4226,12 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     result.append("\n");
 
     /*
+     * Dump CompositionEngine state
+     */
+
+    mCompositionEngine->dump(result);
+
+    /*
      * Dump SurfaceFlinger global state
      */
 
