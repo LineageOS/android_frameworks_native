@@ -236,13 +236,11 @@ int Dumpsys::main(int argc, char* const argv[]) {
         return 0;
     }
 
-    const bool dumpPid = !asProto;
-
     for (size_t i = 0; i < N; i++) {
         const String16& serviceName = services[i];
         if (IsSkipped(skippedServices, serviceName)) continue;
 
-        if (startDumpThread(serviceName, dumpPid, args) == OK) {
+        if (startDumpThread(serviceName, args) == OK) {
             bool addSeparator = (N > 1);
             if (addSeparator) {
                 writeDumpHeader(STDOUT_FILENO, serviceName, priorityFlags);
@@ -309,7 +307,7 @@ void Dumpsys::setServiceArgs(Vector<String16>& args, bool asProto, int priorityF
     }
 }
 
-status_t Dumpsys::startDumpThread(const String16& serviceName, bool dumpPid, const Vector<String16>& args) {
+status_t Dumpsys::startDumpThread(const String16& serviceName, const Vector<String16>& args) {
     sp<IBinder> service = sm_->checkService(serviceName);
     if (service == nullptr) {
         aerr << "Can't find service: " << serviceName << endl;
@@ -329,20 +327,7 @@ status_t Dumpsys::startDumpThread(const String16& serviceName, bool dumpPid, con
 
     // dump blocks until completion, so spawn a thread..
     activeThread_ = std::thread([=, remote_end{std::move(remote_end)}]() mutable {
-        if (dumpPid) {
-            pid_t pid;
-            status_t status = service->getDebugPid(&pid);
-            if (status == OK) {
-                std::ostringstream pidinfo;
-                pidinfo << "Pid: " << pid << std::endl;
-                WriteStringToFd(pidinfo.str(), remote_end.get());
-            } else {
-                aerr << "Error getting pid status_t (" << status << "): "
-                        << serviceName << endl;
-            }
-        }
-
-        status_t err = service->dump(remote_end.get(), args);
+        int err = service->dump(remote_end.get(), args);
 
         // It'd be nice to be able to close the remote end of the socketpair before the dump
         // call returns, to terminate our reads if the other end closes their copy of the
@@ -350,8 +335,8 @@ status_t Dumpsys::startDumpThread(const String16& serviceName, bool dumpPid, con
         // way to do this, though.
         remote_end.reset();
 
-        if (err != OK) {
-            aerr << "Error dumping service info status_t (" << err << "): "
+        if (err != 0) {
+            aerr << "Error dumping service info: (" << strerror(err) << ") "
                  << serviceName << endl;
         }
     });

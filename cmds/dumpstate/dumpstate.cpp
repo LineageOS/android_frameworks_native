@@ -1057,7 +1057,7 @@ static Dumpstate::RunStatus RunDumpsysTextByPriority(const std::string& title, i
         std::string path(title);
         path.append(" - ").append(String8(service).c_str());
         size_t bytes_written = 0;
-        status_t status = dumpsys.startDumpThread(service, /* dumpPid = */ true,  args);
+        status_t status = dumpsys.startDumpThread(service, args);
         if (status == OK) {
             dumpsys.writeDumpHeader(STDOUT_FILENO, service, priority);
             std::chrono::duration<double> elapsed_seconds;
@@ -1129,7 +1129,7 @@ static Dumpstate::RunStatus RunDumpsysProto(const std::string& title, int priori
             path.append("_HIGH");
         }
         path.append(kProtoExt);
-        status_t status = dumpsys.startDumpThread(service, /* dumpPid = */ false, args);
+        status_t status = dumpsys.startDumpThread(service, args);
         if (status == OK) {
             status = ds.AddZipEntryFromFd(path, dumpsys.getDumpFd(), service_timeout);
             bool dumpTerminated = (status == OK);
