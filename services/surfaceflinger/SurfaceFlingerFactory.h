@@ -54,7 +54,9 @@ class CompositionEngine;
 
 namespace scheduler {
 class PhaseOffsets;
+class RefreshRateConfigs;
 } // namespace scheduler
+
 namespace surfaceflinger {
 
 class NativeWindowSurface;
