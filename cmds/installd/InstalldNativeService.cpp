@@ -832,7 +832,7 @@ static int32_t copy_directory_recursive(const char* from, const char* to) {
     };
 
     LOG(DEBUG) << "Copying " << from << " to " << to;
-    return android_fork_execvp(ARRAY_SIZE(argv), argv, nullptr, false, true);
+    return logwrap_fork_execvp(ARRAY_SIZE(argv), argv, nullptr, false, LOG_ALOG, false, nullptr);
 }
 
 binder::Status InstalldNativeService::snapshotAppData(
