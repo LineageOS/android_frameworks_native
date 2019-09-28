@@ -126,14 +126,25 @@ void GpuStats::insert(const std::string& driverPackageName, const std::string& d
     addLoadingTime(driver, driverLoadingTime, &mAppStats[appStatsKey]);
 }
 
-void GpuStats::setCpuVulkanInUse(const std::string& appPackageName,
-                                 const uint64_t driverVersionCode) {
+void GpuStats::insertTargetStats(const std::string& appPackageName,
+                                 const uint64_t driverVersionCode, const GraphicsEnv::Stats stats,
+                                 const uint64_t /*value*/) {
+    ATRACE_CALL();
+
     const std::string appStatsKey = appPackageName + std::to_string(driverVersionCode);
+
+    std::lock_guard<std::mutex> lock(mLock);
     if (!mAppStats.count(appStatsKey)) {
         return;
     }
 
-    mAppStats[appStatsKey].cpuVulkanInUse = true;
+    switch (stats) {
+        case GraphicsEnv::Stats::CPU_VULKAN_IN_USE:
+            mAppStats[appStatsKey].cpuVulkanInUse = true;
+            break;
+        default:
+            break;
+    }
 }
 
 void GpuStats::interceptSystemDriverStatsLocked() {
