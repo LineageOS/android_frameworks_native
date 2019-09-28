@@ -75,6 +75,10 @@ bool Output::isValid() const {
             mRenderSurface->isValid();
 }
 
+std::optional<DisplayId> Output::getDisplayId() const {
+    return {};
+}
+
 const std::string& Output::getName() const {
     return mName;
 }
