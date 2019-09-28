@@ -827,11 +827,14 @@ void GLESRenderEngine::handleRoundedCorners(const DisplaySettings& display,
     drawMesh(mesh);
 
     // The middle part of the layer can turn off blending.
-    const Rect middleRect(bounds.left, bounds.top + radius, bounds.right, bounds.bottom - radius);
-    setScissor(middleRect);
-    mState.cornerRadius = 0.0;
-    disableBlending();
-    drawMesh(mesh);
+    if (topRect.bottom < bottomRect.top) {
+        const Rect middleRect(bounds.left, bounds.top + radius, bounds.right,
+                              bounds.bottom - radius);
+        setScissor(middleRect);
+        mState.cornerRadius = 0.0;
+        disableBlending();
+        drawMesh(mesh);
+    }
     disableScissor();
 }
 

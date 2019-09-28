@@ -34,6 +34,7 @@ cc_library_static {
         "libinputreporter",
         "libinputflinger_base",
         "liblog",
+        "libstatslog",
         "libui",
         "libutils",
     ],

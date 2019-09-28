@@ -201,7 +201,13 @@ int Dumpsys::main(int argc, char* const argv[]) {
             if (i == optind) {
                 services.add(String16(argv[i]));
             } else {
-                args.add(String16(argv[i]));
+                const String16 arg(argv[i]);
+                args.add(arg);
+                // For backward compatible, if the proto argument is passed to the service, the
+                // dump request is also considered to use proto.
+                if (!asProto && !arg.compare(String16(PriorityDumper::PROTO_ARG))) {
+                    asProto = true;
+                }
             }
         }
     }

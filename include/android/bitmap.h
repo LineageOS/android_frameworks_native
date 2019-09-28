@@ -64,6 +64,20 @@ enum AndroidBitmapFormat {
     ANDROID_BITMAP_FORMAT_RGBA_F16  = 9,
 };
 
+/** Bitmap alpha format */
+enum {
+    /** Pixel components are premultiplied by alpha. */
+    ANDROID_BITMAP_FLAGS_ALPHA_PREMUL   = 0,
+    /** Pixels are opaque. */
+    ANDROID_BITMAP_FLAGS_ALPHA_OPAQUE   = 1,
+    /** Pixel components are independent of alpha. */
+    ANDROID_BITMAP_FLAGS_ALPHA_UNPREMUL = 2,
+    /** Bit mask for AndroidBitmapFormat.flags to isolate the alpha. */
+    ANDROID_BITMAP_FLAGS_ALPHA_MASK     = 0x3,
+    /** Shift for AndroidBitmapFormat.flags to isolate the alpha. */
+    ANDROID_BITMAP_FLAGS_ALPHA_SHIFT    = 0,
+};
+
 /** Bitmap info, see AndroidBitmap_getInfo(). */
 typedef struct {
     /** The bitmap width in pixels. */
@@ -74,8 +88,9 @@ typedef struct {
     uint32_t    stride;
     /** The bitmap pixel format. See {@link AndroidBitmapFormat} */
     int32_t     format;
-    /** Unused. */
-    uint32_t    flags;      // 0 for now
+    /** Two bits are used to encode alpha. Use ANDROID_BITMAP_FLAGS_ALPHA_MASK
+      * and ANDROID_BITMAP_FLAGS_ALPHA_SHIFT to retrieve them. */
+    uint32_t    flags;
 } AndroidBitmapInfo;
 
 /**

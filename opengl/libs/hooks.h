@@ -46,7 +46,7 @@
 #define MAX_NUMBER_OF_GL_EXTENSIONS 256
 
 
-#include <bionic_tls.h>  /* special private C library header */
+#include <bionic/tls.h>  /* special private C library header */
 
 // ----------------------------------------------------------------------------
 namespace android {

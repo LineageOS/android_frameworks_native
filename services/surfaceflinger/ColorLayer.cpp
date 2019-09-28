@@ -107,6 +107,14 @@ ui::Dataspace ColorLayer::getDataSpace() const {
     return mDrawingState.dataspace;
 }
 
+sp<Layer> ColorLayer::createClone() {
+    String8 name = mName + " (Mirror)";
+    sp<ColorLayer> layer = new ColorLayer(
+            LayerCreationArgs(mFlinger.get(), nullptr, name, 0, 0, 0, LayerMetadata()));
+    layer->setInitialValuesForClone(this);
+    return layer;
+}
+
 // ---------------------------------------------------------------------------
 
 }; // namespace android

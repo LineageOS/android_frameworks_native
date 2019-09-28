@@ -84,7 +84,7 @@ void LatencyStatistics::reset() {
 
 bool LatencyStatistics::shouldReport() {
     std::chrono::duration timeSinceReport = std::chrono::steady_clock::now() - mLastReportTime;
-    return mCount != 0 && timeSinceReport > mReportPeriod;
+    return mCount != 0 && timeSinceReport >= mReportPeriod;
 }
 
 } // namespace android

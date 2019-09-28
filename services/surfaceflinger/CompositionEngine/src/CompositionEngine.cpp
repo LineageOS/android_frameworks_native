@@ -101,7 +101,7 @@ void CompositionEngine::updateCursorAsync(CompositionRefreshArgs& args) {
             uniqueVisibleLayers;
 
     for (const auto& output : args.outputs) {
-        for (auto& layer : output->getOutputLayersOrderedByZ()) {
+        for (auto* layer : output->getOutputLayersOrderedByZ()) {
             if (layer->isHardwareCursor()) {
                 // Latch the cursor composition state from each front-end layer.
                 layer->getLayerFE().latchCursorCompositionState(layer->getLayer().editFEState());
@@ -128,6 +128,10 @@ void CompositionEngine::preComposition(CompositionRefreshArgs& args) {
     }
 
     mNeedsAnotherUpdate = needsAnotherUpdate;
+}
+
+void CompositionEngine::dump(std::string&) const {
+    // The base class has no state to dump, but derived classes might.
 }
 
 void CompositionEngine::setNeedsAnotherUpdateForTest(bool value) {

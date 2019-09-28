@@ -50,6 +50,17 @@ const mat4 kNonIdentityHalf = mat4() * 0.5;
 const mat4 kNonIdentityQuarter = mat4() * 0.25;
 
 struct OutputTest : public testing::Test {
+    class Output : public impl::Output {
+    public:
+        using impl::Output::injectOutputLayerForTest;
+        virtual void injectOutputLayerForTest(std::unique_ptr<compositionengine::OutputLayer>) = 0;
+    };
+
+    static std::shared_ptr<Output> createOutput(
+            const compositionengine::CompositionEngine& compositionEngine) {
+        return impl::createOutputTemplated<Output>(compositionEngine);
+    }
+
     OutputTest() {
         mOutput->setDisplayColorProfileForTest(
                 std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
@@ -63,7 +74,7 @@ struct OutputTest : public testing::Test {
     StrictMock<mock::CompositionEngine> mCompositionEngine;
     mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
     mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
-    std::shared_ptr<impl::Output> mOutput = impl::createOutput(mCompositionEngine);
+    std::shared_ptr<Output> mOutput = createOutput(mCompositionEngine);
 };
 
 const Rect OutputTest::kDefaultDisplaySize{100, 200};
@@ -449,11 +460,9 @@ TEST_F(OutputTest, getOutputLayerForLayerWorks) {
     mock::OutputLayer* outputLayer1 = new StrictMock<mock::OutputLayer>();
     mock::OutputLayer* outputLayer2 = new StrictMock<mock::OutputLayer>();
 
-    Output::OutputLayers outputLayers;
-    outputLayers.emplace_back(std::unique_ptr<OutputLayer>(outputLayer1));
-    outputLayers.emplace_back(nullptr);
-    outputLayers.emplace_back(std::unique_ptr<OutputLayer>(outputLayer2));
-    mOutput->setOutputLayersOrderedByZ(std::move(outputLayers));
+    mOutput->injectOutputLayerForTest(std::unique_ptr<OutputLayer>(outputLayer1));
+    mOutput->injectOutputLayerForTest(nullptr);
+    mOutput->injectOutputLayerForTest(std::unique_ptr<OutputLayer>(outputLayer2));
 
     StrictMock<mock::Layer> layer;
     StrictMock<mock::Layer> otherLayer;
@@ -488,8 +497,21 @@ struct OutputPrepareFrameTest : public testing::Test {
         OutputCompositionState& editState() override { return mState; }
 
         // These need implementations though are not expected to be called.
+        MOCK_CONST_METHOD0(getOutputLayerCount, size_t());
+        MOCK_CONST_METHOD1(getOutputLayerOrderedByZByIndex,
+                           compositionengine::OutputLayer*(size_t));
+        MOCK_METHOD3(ensureOutputLayer,
+                     compositionengine::OutputLayer*(
+                             std::optional<size_t>,
+                             const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&));
+        MOCK_METHOD0(finalizePendingOutputLayers, void());
+        MOCK_METHOD0(clearOutputLayers, void());
         MOCK_CONST_METHOD1(dumpState, void(std::string&));
         MOCK_CONST_METHOD0(getCompositionEngine, const CompositionEngine&());
+        MOCK_METHOD2(injectOutputLayerForTest,
+                     compositionengine::OutputLayer*(
+                             const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&));
+        MOCK_METHOD1(injectOutputLayerForTest, void(std::unique_ptr<OutputLayer>));
 
         impl::OutputCompositionState mState;
     };
@@ -566,8 +588,21 @@ struct OutputComposeSurfacesTest : public testing::Test {
         OutputCompositionState& editState() override { return mState; }
 
         // These need implementations though are not expected to be called.
+        MOCK_CONST_METHOD0(getOutputLayerCount, size_t());
+        MOCK_CONST_METHOD1(getOutputLayerOrderedByZByIndex,
+                           compositionengine::OutputLayer*(size_t));
+        MOCK_METHOD3(ensureOutputLayer,
+                     compositionengine::OutputLayer*(
+                             std::optional<size_t>,
+                             const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&));
+        MOCK_METHOD0(finalizePendingOutputLayers, void());
+        MOCK_METHOD0(clearOutputLayers, void());
         MOCK_CONST_METHOD1(dumpState, void(std::string&));
         MOCK_CONST_METHOD0(getCompositionEngine, const CompositionEngine&());
+        MOCK_METHOD2(injectOutputLayerForTest,
+                     compositionengine::OutputLayer*(
+                             const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&));
+        MOCK_METHOD1(injectOutputLayerForTest, void(std::unique_ptr<OutputLayer>));
 
         impl::OutputCompositionState mState;
     };
@@ -576,11 +611,6 @@ struct OutputComposeSurfacesTest : public testing::Test {
         mOutput.setDisplayColorProfileForTest(
                 std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
         mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
-
-        Output::OutputLayers outputLayers;
-        outputLayers.emplace_back(std::unique_ptr<OutputLayer>(mOutputLayer1));
-        outputLayers.emplace_back(std::unique_ptr<OutputLayer>(mOutputLayer2));
-        mOutput.setOutputLayersOrderedByZ(std::move(outputLayers));
 
         mOutput.editState().frame = kDefaultOutputFrame;
         mOutput.editState().viewport = kDefaultOutputViewport;
@@ -594,6 +624,11 @@ struct OutputComposeSurfacesTest : public testing::Test {
         mOutput.editState().usesClientComposition = true;
         mOutput.editState().usesDeviceComposition = false;
 
+        EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(2u));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u))
+                .WillRepeatedly(Return(&mOutputLayer1));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(1u))
+                .WillRepeatedly(Return(&mOutputLayer2));
         EXPECT_CALL(mOutput, getCompositionEngine()).WillRepeatedly(ReturnRef(mCompositionEngine));
         EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
     }
@@ -602,8 +637,8 @@ struct OutputComposeSurfacesTest : public testing::Test {
     StrictMock<renderengine::mock::RenderEngine> mRenderEngine;
     mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
     mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
-    mock::OutputLayer* mOutputLayer1 = new StrictMock<mock::OutputLayer>();
-    mock::OutputLayer* mOutputLayer2 = new StrictMock<mock::OutputLayer>();
+    StrictMock<mock::OutputLayer> mOutputLayer1;
+    StrictMock<mock::OutputLayer> mOutputLayer2;
     StrictMock<OutputPartialMock> mOutput;
     sp<GraphicBuffer> mOutputBuffer = new GraphicBuffer();
 };
@@ -671,8 +706,21 @@ struct GenerateClientCompositionRequestsTest : public testing::Test {
         OutputCompositionState& editState() override { return mState; }
 
         // These need implementations though are not expected to be called.
+        MOCK_CONST_METHOD0(getOutputLayerCount, size_t());
+        MOCK_CONST_METHOD1(getOutputLayerOrderedByZByIndex,
+                           compositionengine::OutputLayer*(size_t));
+        MOCK_METHOD3(ensureOutputLayer,
+                     compositionengine::OutputLayer*(
+                             std::optional<size_t>,
+                             const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&));
+        MOCK_METHOD0(finalizePendingOutputLayers, void());
+        MOCK_METHOD0(clearOutputLayers, void());
         MOCK_CONST_METHOD1(dumpState, void(std::string&));
         MOCK_CONST_METHOD0(getCompositionEngine, const CompositionEngine&());
+        MOCK_METHOD2(injectOutputLayerForTest,
+                     compositionengine::OutputLayer*(
+                             const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&));
+        MOCK_METHOD1(injectOutputLayerForTest, void(std::unique_ptr<OutputLayer>));
 
         impl::OutputCompositionState mState;
     };
@@ -695,8 +743,8 @@ TEST_F(GenerateClientCompositionRequestsTest, worksForLandscapeModeSplitScreen) 
     // one layer on the left covering the left side of the output, and one layer
     // on the right covering that side of the output.
 
-    mock::OutputLayer* leftOutputLayer = new StrictMock<mock::OutputLayer>();
-    mock::OutputLayer* rightOutputLayer = new StrictMock<mock::OutputLayer>();
+    StrictMock<mock::OutputLayer> leftOutputLayer;
+    StrictMock<mock::OutputLayer> rightOutputLayer;
 
     StrictMock<mock::Layer> leftLayer;
     StrictMock<mock::LayerFE> leftLayerFE;
@@ -725,26 +773,27 @@ TEST_F(GenerateClientCompositionRequestsTest, worksForLandscapeModeSplitScreen) 
     renderengine::LayerSettings rightLayerRESettings;
     rightLayerRESettings.source.solidColor = rightLayerColor;
 
-    EXPECT_CALL(*leftOutputLayer, getState()).WillRepeatedly(ReturnRef(leftOutputLayerState));
-    EXPECT_CALL(*leftOutputLayer, getLayer()).WillRepeatedly(ReturnRef(leftLayer));
-    EXPECT_CALL(*leftOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(leftLayerFE));
-    EXPECT_CALL(*leftOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
-    EXPECT_CALL(*leftOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
+    EXPECT_CALL(leftOutputLayer, getState()).WillRepeatedly(ReturnRef(leftOutputLayerState));
+    EXPECT_CALL(leftOutputLayer, getLayer()).WillRepeatedly(ReturnRef(leftLayer));
+    EXPECT_CALL(leftOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(leftLayerFE));
+    EXPECT_CALL(leftOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
+    EXPECT_CALL(leftOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
     EXPECT_CALL(leftLayer, getFEState()).WillRepeatedly(ReturnRef(leftLayerFEState));
     EXPECT_CALL(leftLayerFE, prepareClientComposition(_)).WillOnce(Return(leftLayerRESettings));
 
-    EXPECT_CALL(*rightOutputLayer, getState()).WillRepeatedly(ReturnRef(rightOutputLayerState));
-    EXPECT_CALL(*rightOutputLayer, getLayer()).WillRepeatedly(ReturnRef(rightLayer));
-    EXPECT_CALL(*rightOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(rightLayerFE));
-    EXPECT_CALL(*rightOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
-    EXPECT_CALL(*rightOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
+    EXPECT_CALL(rightOutputLayer, getState()).WillRepeatedly(ReturnRef(rightOutputLayerState));
+    EXPECT_CALL(rightOutputLayer, getLayer()).WillRepeatedly(ReturnRef(rightLayer));
+    EXPECT_CALL(rightOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(rightLayerFE));
+    EXPECT_CALL(rightOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
+    EXPECT_CALL(rightOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
     EXPECT_CALL(rightLayer, getFEState()).WillRepeatedly(ReturnRef(rightLayerFEState));
     EXPECT_CALL(rightLayerFE, prepareClientComposition(_)).WillOnce(Return(rightLayerRESettings));
 
-    Output::OutputLayers outputLayers;
-    outputLayers.emplace_back(std::unique_ptr<OutputLayer>(leftOutputLayer));
-    outputLayers.emplace_back(std::unique_ptr<OutputLayer>(rightOutputLayer));
-    mOutput.setOutputLayersOrderedByZ(std::move(outputLayers));
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(2u));
+    EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u))
+            .WillRepeatedly(Return(&leftOutputLayer));
+    EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(1u))
+            .WillRepeatedly(Return(&rightOutputLayer));
 
     const Rect kPortraitFrame(0, 0, 1000, 2000);
     const Rect kPortraitViewport(0, 0, 2000, 1000);
@@ -773,7 +822,7 @@ TEST_F(GenerateClientCompositionRequestsTest, ignoresLayersThatDoNotIntersectWit
     // Layers whose visible region does not intersect with the viewport will be
     // skipped when generating client composition request state.
 
-    mock::OutputLayer* outputLayer = new StrictMock<mock::OutputLayer>();
+    StrictMock<mock::OutputLayer> outputLayer;
     StrictMock<mock::Layer> layer;
     StrictMock<mock::LayerFE> layerFE;
 
@@ -784,17 +833,16 @@ TEST_F(GenerateClientCompositionRequestsTest, ignoresLayersThatDoNotIntersectWit
     LayerFECompositionState layerFEState;
     layerFEState.isOpaque = true;
 
-    EXPECT_CALL(*outputLayer, getState()).WillRepeatedly(ReturnRef(outputLayerState));
-    EXPECT_CALL(*outputLayer, getLayer()).WillRepeatedly(ReturnRef(layer));
-    EXPECT_CALL(*outputLayer, getLayerFE()).WillRepeatedly(ReturnRef(layerFE));
-    EXPECT_CALL(*outputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
-    EXPECT_CALL(*outputLayer, needsFiltering()).WillRepeatedly(Return(false));
+    EXPECT_CALL(outputLayer, getState()).WillRepeatedly(ReturnRef(outputLayerState));
+    EXPECT_CALL(outputLayer, getLayer()).WillRepeatedly(ReturnRef(layer));
+    EXPECT_CALL(outputLayer, getLayerFE()).WillRepeatedly(ReturnRef(layerFE));
+    EXPECT_CALL(outputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
+    EXPECT_CALL(outputLayer, needsFiltering()).WillRepeatedly(Return(false));
     EXPECT_CALL(layer, getFEState()).WillRepeatedly(ReturnRef(layerFEState));
     EXPECT_CALL(layerFE, prepareClientComposition(_)).Times(0);
 
-    Output::OutputLayers outputLayers;
-    outputLayers.emplace_back(std::unique_ptr<OutputLayer>(outputLayer));
-    mOutput.setOutputLayersOrderedByZ(std::move(outputLayers));
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(1u));
+    EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u)).WillRepeatedly(Return(&outputLayer));
 
     const Rect kPortraitFrame(0, 0, 1000, 2000);
     const Rect kPortraitViewport(0, 0, 2000, 1000);
@@ -824,8 +872,8 @@ TEST_F(GenerateClientCompositionRequestsTest, clearsDeviceLayesAfterFirst) {
     // set to do so. The first layer is skipped as the frame buffer is already
     // expected to be clear.
 
-    mock::OutputLayer* leftOutputLayer = new StrictMock<mock::OutputLayer>();
-    mock::OutputLayer* rightOutputLayer = new StrictMock<mock::OutputLayer>();
+    StrictMock<mock::OutputLayer> leftOutputLayer;
+    StrictMock<mock::OutputLayer> rightOutputLayer;
 
     StrictMock<mock::Layer> leftLayer;
     StrictMock<mock::LayerFE> leftLayerFE;
@@ -851,25 +899,26 @@ TEST_F(GenerateClientCompositionRequestsTest, clearsDeviceLayesAfterFirst) {
     rightLayerRESettings.geometry.boundaries = FloatRect{456, 0, 0, 0};
     rightLayerRESettings.source.solidColor = rightLayerColor;
 
-    EXPECT_CALL(*leftOutputLayer, getState()).WillRepeatedly(ReturnRef(leftOutputLayerState));
-    EXPECT_CALL(*leftOutputLayer, getLayer()).WillRepeatedly(ReturnRef(leftLayer));
-    EXPECT_CALL(*leftOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(leftLayerFE));
-    EXPECT_CALL(*leftOutputLayer, requiresClientComposition()).WillRepeatedly(Return(false));
-    EXPECT_CALL(*leftOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
+    EXPECT_CALL(leftOutputLayer, getState()).WillRepeatedly(ReturnRef(leftOutputLayerState));
+    EXPECT_CALL(leftOutputLayer, getLayer()).WillRepeatedly(ReturnRef(leftLayer));
+    EXPECT_CALL(leftOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(leftLayerFE));
+    EXPECT_CALL(leftOutputLayer, requiresClientComposition()).WillRepeatedly(Return(false));
+    EXPECT_CALL(leftOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
     EXPECT_CALL(leftLayer, getFEState()).WillRepeatedly(ReturnRef(leftLayerFEState));
 
-    EXPECT_CALL(*rightOutputLayer, getState()).WillRepeatedly(ReturnRef(rightOutputLayerState));
-    EXPECT_CALL(*rightOutputLayer, getLayer()).WillRepeatedly(ReturnRef(rightLayer));
-    EXPECT_CALL(*rightOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(rightLayerFE));
-    EXPECT_CALL(*rightOutputLayer, requiresClientComposition()).WillRepeatedly(Return(false));
-    EXPECT_CALL(*rightOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
+    EXPECT_CALL(rightOutputLayer, getState()).WillRepeatedly(ReturnRef(rightOutputLayerState));
+    EXPECT_CALL(rightOutputLayer, getLayer()).WillRepeatedly(ReturnRef(rightLayer));
+    EXPECT_CALL(rightOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(rightLayerFE));
+    EXPECT_CALL(rightOutputLayer, requiresClientComposition()).WillRepeatedly(Return(false));
+    EXPECT_CALL(rightOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
     EXPECT_CALL(rightLayer, getFEState()).WillRepeatedly(ReturnRef(rightLayerFEState));
     EXPECT_CALL(rightLayerFE, prepareClientComposition(_)).WillOnce(Return(rightLayerRESettings));
 
-    Output::OutputLayers outputLayers;
-    outputLayers.emplace_back(std::unique_ptr<OutputLayer>(leftOutputLayer));
-    outputLayers.emplace_back(std::unique_ptr<OutputLayer>(rightOutputLayer));
-    mOutput.setOutputLayersOrderedByZ(std::move(outputLayers));
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(2u));
+    EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u))
+            .WillRepeatedly(Return(&leftOutputLayer));
+    EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(1u))
+            .WillRepeatedly(Return(&rightOutputLayer));
 
     const Rect kPortraitFrame(0, 0, 1000, 2000);
     const Rect kPortraitViewport(0, 0, 2000, 1000);
