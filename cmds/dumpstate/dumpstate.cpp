@@ -1560,6 +1560,10 @@ static Dumpstate::RunStatus DumpstateDefault() {
         RunCommand("Dmabuf dump", {"/product/bin/dmabuf_dump"});
     }
 
+    DumpFile("PSI cpu", "/proc/pressure/cpu");
+    DumpFile("PSI memory", "/proc/pressure/memory");
+    DumpFile("PSI io", "/proc/pressure/io");
+
     if (!DropRootUser()) {
         return Dumpstate::RunStatus::ERROR;
     }
