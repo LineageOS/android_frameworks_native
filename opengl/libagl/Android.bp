@@ -25,8 +25,9 @@ cc_defaults {
         "libnativewindow",
     ],
 
-    // we need to access the private Bionic header <bionic_tls.h>
-    include_dirs: ["bionic/libc/private"],
+    header_libs: [
+        "bionic_libc_platform_headers",
+    ],
 
     arch: {
         arm: {
