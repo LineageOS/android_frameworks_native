@@ -918,6 +918,31 @@ static void DoLogcat() {
                                "-v", "uid", "-d", "*:v"});
 }
 
+static void DumpIncidentReport() {
+    if (!ds.IsZipping()) {
+        MYLOGD("Not dumping incident report because it's not a zipped bugreport\n");
+        return;
+    }
+    DurationReporter duration_reporter("INCIDENT REPORT");
+    const std::string path = ds.bugreport_internal_dir_ + "/tmp_incident_report";
+    auto fd = android::base::unique_fd(TEMP_FAILURE_RETRY(open(path.c_str(),
+                O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
+                S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)));
+    if (fd < 0) {
+        MYLOGE("Could not open %s to dump incident report.\n", path.c_str());
+        return;
+    }
+    RunCommandToFd(fd, "", {"incident", "-u"}, CommandOptions::WithTimeout(120).Build());
+    bool empty = 0 == lseek(fd, 0, SEEK_END);
+    if (!empty) {
+        // Use a different name from "incident.proto"
+        // /proto/incident.proto is reserved for incident service dump
+        // i.e. metadata for debugging.
+        ds.AddZipEntry(kProtoPath + "incident_report" + kProtoExt, path);
+    }
+    unlink(path.c_str());
+}
+
 static void DumpIpTablesAsRoot() {
     RunCommand("IPTABLES", {"iptables", "-L", "-nvx"});
     RunCommand("IP6TABLES", {"ip6tables", "-L", "-nvx"});
@@ -1490,6 +1515,9 @@ static Dumpstate::RunStatus dumpstate() {
     printf("========================================================\n");
     // This differs from the usual dumpsys stats, which is the stats report data.
     RunDumpsys("STATSDSTATS", {"stats", "--metadata"});
+
+    RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(DumpIncidentReport);
+
     return Dumpstate::RunStatus::OK;
 }
 
