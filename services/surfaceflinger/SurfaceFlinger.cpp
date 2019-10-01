@@ -2311,6 +2311,9 @@ void SurfaceFlinger::postComposition()
     }
     getBE().mLastSwapTime = currentTime;
 
+    // Cleanup any outstanding resources due to rendering a prior frame.
+    getRenderEngine().cleanupPostRender();
+
     {
         std::lock_guard lock(mTexturePoolMutex);
         if (mTexturePool.size() < mTexturePoolSize) {
