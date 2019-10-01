@@ -1327,7 +1327,9 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setGeome
             break;
     }
     setMatrix(sc, matrix[0], matrix[1], matrix[2], matrix[3]);
-    setPosition(sc, x, y);
+    float offsetX = xScale * source.left;
+    float offsetY = yScale * source.top;
+    setPosition(sc, x - offsetX, y - offsetY);
 
     return *this;
 }
