@@ -871,7 +871,16 @@ int SurfaceFlinger::getActiveConfig(const sp<IBinder>& displayToken) {
         return BAD_VALUE;
     }
 
-    return display->getActiveConfig();
+    if (display->isPrimary()) {
+        std::lock_guard<std::mutex> lock(mActiveConfigLock);
+        if (mDesiredActiveConfigChanged) {
+            return mDesiredActiveConfig.configId;
+        } else {
+            return display->getActiveConfig();
+        }
+    } else {
+        return display->getActiveConfig();
+    }
 }
 
 void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
