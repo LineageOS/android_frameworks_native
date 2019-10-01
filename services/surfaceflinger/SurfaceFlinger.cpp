@@ -2600,6 +2600,7 @@ void SurfaceFlinger::commitTransactionLocked() {
     });
 
     commitOffscreenLayers();
+    mDrawingState.traverseInZOrder([&](Layer* layer) { layer->updateMirrorInfo(); });
 }
 
 void SurfaceFlinger::withTracingLock(std::function<void()> lockedOperation) {
@@ -2717,6 +2718,8 @@ bool SurfaceFlinger::handlePageFlip()
         ALOGI("Enter boot animation");
         mBootStage = BootStage::BOOTANIMATION;
     }
+
+    mDrawingState.traverseInZOrder([&](Layer* layer) { layer->updateCloneBufferInfo(); });
 
     // Only continue with the refresh if there is actually new work to do
     return !mLayersWithQueuedFrames.empty() && newDataLatched;

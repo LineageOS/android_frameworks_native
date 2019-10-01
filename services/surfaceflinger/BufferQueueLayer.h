@@ -111,8 +111,6 @@ private:
 
     PixelFormat mFormat{PIXEL_FORMAT_NONE};
 
-    // Only accessed on the main thread.
-    uint64_t mPreviousFrameNumber{0};
     bool mUpdateTexImageFailed{false};
 
     uint64_t mPreviousBufferId = 0;
