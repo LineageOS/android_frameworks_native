@@ -37,6 +37,7 @@
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 #include <cutils/properties.h>
+#include <android-base/unique_fd.h>
 
 namespace android {
 namespace os {
@@ -148,10 +149,9 @@ class DumpOptionsTest : public Test {
         options_ = Dumpstate::DumpOptions();
     }
     void TearDown() {
-        // Reset the property
-        property_set("dumpstate.options", "");
     }
     Dumpstate::DumpOptions options_;
+    android::base::unique_fd fd;
 };
 
 TEST_F(DumpOptionsTest, InitializeNone) {
@@ -174,7 +174,6 @@ TEST_F(DumpOptionsTest, InitializeNone) {
     EXPECT_FALSE(options_.do_fb);
     EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.is_remote_mode);
-    EXPECT_FALSE(options_.do_broadcast);
 }
 
 TEST_F(DumpOptionsTest, InitializeAdbBugreport) {
@@ -200,7 +199,6 @@ TEST_F(DumpOptionsTest, InitializeAdbBugreport) {
     EXPECT_FALSE(options_.do_fb);
     EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.is_remote_mode);
-    EXPECT_FALSE(options_.do_broadcast);
     EXPECT_FALSE(options_.use_socket);
 }
 
@@ -226,28 +224,13 @@ TEST_F(DumpOptionsTest, InitializeAdbShellBugreport) {
     EXPECT_FALSE(options_.do_fb);
     EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.is_remote_mode);
-    EXPECT_FALSE(options_.do_broadcast);
 }
 
 TEST_F(DumpOptionsTest, InitializeFullBugReport) {
-    // clang-format off
-    char* argv[] = {
-        const_cast<char*>("bugreport"),
-        const_cast<char*>("-d"),
-        const_cast<char*>("-p"),
-        const_cast<char*>("-B"),
-        const_cast<char*>("-z"),
-    };
-    // clang-format on
-    property_set("dumpstate.options", "bugreportfull");
-
-    Dumpstate::RunStatus status = options_.Initialize(ARRAY_SIZE(argv), argv);
-
-    EXPECT_EQ(status, Dumpstate::RunStatus::OK);
+    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_FULL, fd, fd);
     EXPECT_TRUE(options_.do_add_date);
     EXPECT_TRUE(options_.do_fb);
     EXPECT_TRUE(options_.do_zip_file);
-    EXPECT_TRUE(options_.do_broadcast);
 
     // Other options retain default values
     EXPECT_TRUE(options_.do_vibrate);
@@ -260,23 +243,8 @@ TEST_F(DumpOptionsTest, InitializeFullBugReport) {
 }
 
 TEST_F(DumpOptionsTest, InitializeInteractiveBugReport) {
-    // clang-format off
-    char* argv[] = {
-        const_cast<char*>("bugreport"),
-        const_cast<char*>("-d"),
-        const_cast<char*>("-p"),
-        const_cast<char*>("-B"),
-        const_cast<char*>("-z"),
-    };
-    // clang-format on
-
-    property_set("dumpstate.options", "bugreportplus");
-
-    Dumpstate::RunStatus status = options_.Initialize(ARRAY_SIZE(argv), argv);
-
-    EXPECT_EQ(status, Dumpstate::RunStatus::OK);
+    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE, fd, fd);
     EXPECT_TRUE(options_.do_add_date);
-    EXPECT_TRUE(options_.do_broadcast);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.do_progress_updates);
     EXPECT_TRUE(options_.do_start_service);
@@ -291,23 +259,8 @@ TEST_F(DumpOptionsTest, InitializeInteractiveBugReport) {
 }
 
 TEST_F(DumpOptionsTest, InitializeRemoteBugReport) {
-    // clang-format off
-    char* argv[] = {
-        const_cast<char*>("bugreport"),
-        const_cast<char*>("-d"),
-        const_cast<char*>("-p"),
-        const_cast<char*>("-B"),
-        const_cast<char*>("-z"),
-    };
-    // clang-format on
-
-    property_set("dumpstate.options", "bugreportremote");
-
-    Dumpstate::RunStatus status = options_.Initialize(ARRAY_SIZE(argv), argv);
-
-    EXPECT_EQ(status, Dumpstate::RunStatus::OK);
+    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_REMOTE, fd, fd);
     EXPECT_TRUE(options_.do_add_date);
-    EXPECT_TRUE(options_.do_broadcast);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.is_remote_mode);
     EXPECT_FALSE(options_.do_vibrate);
@@ -321,24 +274,9 @@ TEST_F(DumpOptionsTest, InitializeRemoteBugReport) {
 }
 
 TEST_F(DumpOptionsTest, InitializeWearBugReport) {
-    // clang-format off
-    char* argv[] = {
-        const_cast<char*>("bugreport"),
-        const_cast<char*>("-d"),
-        const_cast<char*>("-p"),
-        const_cast<char*>("-B"),
-        const_cast<char*>("-z"),
-    };
-    // clang-format on
-
-    property_set("dumpstate.options", "bugreportwear");
-
-    Dumpstate::RunStatus status = options_.Initialize(ARRAY_SIZE(argv), argv);
-
-    EXPECT_EQ(status, Dumpstate::RunStatus::OK);
+    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_WEAR, fd, fd);
     EXPECT_TRUE(options_.do_add_date);
     EXPECT_TRUE(options_.do_fb);
-    EXPECT_TRUE(options_.do_broadcast);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.do_progress_updates);
     EXPECT_TRUE(options_.do_start_service);
@@ -352,24 +290,9 @@ TEST_F(DumpOptionsTest, InitializeWearBugReport) {
 }
 
 TEST_F(DumpOptionsTest, InitializeTelephonyBugReport) {
-    // clang-format off
-    char* argv[] = {
-        const_cast<char*>("bugreport"),
-        const_cast<char*>("-d"),
-        const_cast<char*>("-p"),
-        const_cast<char*>("-B"),
-        const_cast<char*>("-z"),
-    };
-    // clang-format on
-
-    property_set("dumpstate.options", "bugreporttelephony");
-
-    Dumpstate::RunStatus status = options_.Initialize(ARRAY_SIZE(argv), argv);
-
-    EXPECT_EQ(status, Dumpstate::RunStatus::OK);
+    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_TELEPHONY, fd, fd);
     EXPECT_TRUE(options_.do_add_date);
     EXPECT_FALSE(options_.do_fb);
-    EXPECT_TRUE(options_.do_broadcast);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.telephony_only);
 
@@ -383,24 +306,9 @@ TEST_F(DumpOptionsTest, InitializeTelephonyBugReport) {
 }
 
 TEST_F(DumpOptionsTest, InitializeWifiBugReport) {
-    // clang-format off
-    char* argv[] = {
-        const_cast<char*>("bugreport"),
-        const_cast<char*>("-d"),
-        const_cast<char*>("-p"),
-        const_cast<char*>("-B"),
-        const_cast<char*>("-z"),
-    };
-    // clang-format on
-
-    property_set("dumpstate.options", "bugreportwifi");
-
-    Dumpstate::RunStatus status = options_.Initialize(ARRAY_SIZE(argv), argv);
-
-    EXPECT_EQ(status, Dumpstate::RunStatus::OK);
+    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_WIFI, fd, fd);
     EXPECT_TRUE(options_.do_add_date);
     EXPECT_FALSE(options_.do_fb);
-    EXPECT_TRUE(options_.do_broadcast);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.wifi_only);
 
@@ -420,20 +328,15 @@ TEST_F(DumpOptionsTest, InitializeDefaultBugReport) {
         const_cast<char*>("bugreport"),
         const_cast<char*>("-d"),
         const_cast<char*>("-p"),
-        const_cast<char*>("-B"),
         const_cast<char*>("-z"),
     };
     // clang-format on
-
-    property_set("dumpstate.options", "");
-
     Dumpstate::RunStatus status = options_.Initialize(ARRAY_SIZE(argv), argv);
 
     EXPECT_EQ(status, Dumpstate::RunStatus::OK);
     EXPECT_TRUE(options_.do_add_date);
     EXPECT_TRUE(options_.do_fb);
     EXPECT_TRUE(options_.do_zip_file);
-    EXPECT_TRUE(options_.do_broadcast);
 
     // Other options retain default values
     EXPECT_TRUE(options_.do_vibrate);
@@ -472,7 +375,6 @@ TEST_F(DumpOptionsTest, InitializePartial1) {
     EXPECT_FALSE(options_.do_fb);
     EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.is_remote_mode);
-    EXPECT_FALSE(options_.do_broadcast);
 }
 
 TEST_F(DumpOptionsTest, InitializePartial2) {
@@ -484,7 +386,6 @@ TEST_F(DumpOptionsTest, InitializePartial2) {
         const_cast<char*>("-p"),
         const_cast<char*>("-P"),
         const_cast<char*>("-R"),
-        const_cast<char*>("-B"),
     };
     // clang-format on
 
@@ -496,7 +397,6 @@ TEST_F(DumpOptionsTest, InitializePartial2) {
     EXPECT_TRUE(options_.do_fb);
     EXPECT_TRUE(options_.do_progress_updates);
     EXPECT_TRUE(options_.is_remote_mode);
-    EXPECT_TRUE(options_.do_broadcast);
 
     // Other options retain default values
     EXPECT_FALSE(options_.do_add_date);
@@ -544,7 +444,7 @@ TEST_F(DumpOptionsTest, ValidateOptionsNeedOutfile1) {
 }
 
 TEST_F(DumpOptionsTest, ValidateOptionsNeedOutfile2) {
-    options_.do_broadcast = true;
+    options_.do_progress_updates = true;
     // Writing to socket = !writing to file.
     options_.use_socket = true;
     EXPECT_FALSE(options_.ValidateOptions());
@@ -561,19 +461,10 @@ TEST_F(DumpOptionsTest, ValidateOptionsNeedZipfile) {
     EXPECT_TRUE(options_.ValidateOptions());
 }
 
-TEST_F(DumpOptionsTest, ValidateOptionsUpdateProgressNeedsBroadcast) {
-    options_.do_progress_updates = true;
-    EXPECT_FALSE(options_.ValidateOptions());
-
-    options_.do_broadcast = true;
-    EXPECT_TRUE(options_.ValidateOptions());
-}
-
 TEST_F(DumpOptionsTest, ValidateOptionsRemoteMode) {
     options_.is_remote_mode = true;
     EXPECT_FALSE(options_.ValidateOptions());
 
-    options_.do_broadcast = true;
     options_.do_zip_file = true;
     options_.do_add_date = true;
     EXPECT_TRUE(options_.ValidateOptions());
