@@ -213,6 +213,11 @@ bool startTrackingUidTimes() {
             attachTracepointProgram("power", "cpu_frequency");
 }
 
+std::optional<std::vector<std::vector<uint32_t>>> getCpuFreqs() {
+    if (!gInitialized && !initGlobals()) return {};
+    return gPolicyFreqs;
+}
+
 // Retrieve the times in ns that uid spent running at each CPU frequency.
 // Return contains no value on error, otherwise it contains a vector of vectors using the format:
 // [[t0_0, t0_1, ...],

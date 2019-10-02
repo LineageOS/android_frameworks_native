@@ -351,5 +351,16 @@ TEST(TimeInStateTest, RemoveUid) {
     ASSERT_EQ(allConcurrentTimes->find(uid), allConcurrentTimes->end());
 }
 
+TEST(TimeInStateTest, GetCpuFreqs) {
+    auto freqs = getCpuFreqs();
+    ASSERT_TRUE(freqs.has_value());
+
+    auto times = getUidCpuFreqTimes(0);
+    ASSERT_TRUE(times.has_value());
+
+    ASSERT_EQ(freqs->size(), times->size());
+    for (size_t i = 0; i < freqs->size(); ++i) EXPECT_EQ((*freqs)[i].size(), (*times)[i].size());
+}
+
 } // namespace bpf
 } // namespace android
