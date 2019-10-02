@@ -63,9 +63,9 @@ __BEGIN_DECLS
 
 /* attributes queriable with query() */
 enum {
-    NATIVE_WINDOW_WIDTH     = 0,
-    NATIVE_WINDOW_HEIGHT    = 1,
-    NATIVE_WINDOW_FORMAT    = 2,
+    NATIVE_WINDOW_WIDTH = 0,
+    NATIVE_WINDOW_HEIGHT = 1,
+    NATIVE_WINDOW_FORMAT = 2,
 
     /* see ANativeWindowQuery in vndk/window.h */
     NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS = ANATIVEWINDOW_QUERY_MIN_UNDEQUEUED_BUFFERS,
@@ -147,11 +147,15 @@ enum {
 
     /*
      * Returns the duration of the last dequeueBuffer call in microseconds
+     * Deprecated: please use NATIVE_WINDOW_GET_LAST_DEQUEUE_DURATION in
+     * perform() instead, which supports nanosecond precision.
      */
     NATIVE_WINDOW_LAST_DEQUEUE_DURATION = 14,
 
     /*
      * Returns the duration of the last queueBuffer call in microseconds
+     * Deprecated: please use NATIVE_WINDOW_GET_LAST_QUEUE_DURATION in
+     * perform() instead, which supports nanosecond precision.
      */
     NATIVE_WINDOW_LAST_QUEUE_DURATION = 15,
 
@@ -241,6 +245,8 @@ enum {
     NATIVE_WINDOW_SET_AUTO_PREROTATION            = 35,
     NATIVE_WINDOW_GET_LAST_DEQUEUE_START          = 36,    /* private */
     NATIVE_WINDOW_SET_DEQUEUE_TIMEOUT             = 37,    /* private */
+    NATIVE_WINDOW_GET_LAST_DEQUEUE_DURATION       = 38,    /* private */
+    NATIVE_WINDOW_GET_LAST_QUEUE_DURATION         = 39,    /* private */
     // clang-format on
 };
 
