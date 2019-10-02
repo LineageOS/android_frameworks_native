@@ -295,7 +295,7 @@ bool BufferLayer::onPostComposition(const std::optional<DisplayId>& displayId,
                                     const CompositorTiming& compositorTiming) {
     // mFrameLatencyNeeded is true when a new frame was latched for the
     // composition.
-    if (!mFrameLatencyNeeded) return false;
+    if (!mBufferInfo.mFrameLatencyNeeded) return false;
 
     // Update mFrameEventHistory.
     {
@@ -337,7 +337,7 @@ bool BufferLayer::onPostComposition(const std::optional<DisplayId>& displayId,
     }
 
     mFrameTracker.advanceFrame();
-    mFrameLatencyNeeded = false;
+    mBufferInfo.mFrameLatencyNeeded = false;
     return true;
 }
 
@@ -401,7 +401,7 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
     gatherBufferInfo();
 
     mRefreshPending = true;
-    mFrameLatencyNeeded = true;
+    mBufferInfo.mFrameLatencyNeeded = true;
     if (oldBufferInfo.mBuffer == nullptr) {
         // the first time we receive a buffer, we need to trigger a
         // geometry invalidation.
@@ -735,6 +735,35 @@ void BufferLayer::setInitialValuesForClone(const sp<Layer>& clonedFrom) {
     mPremultipliedAlpha = bufferClonedFrom->mPremultipliedAlpha;
     mPotentialCursor = bufferClonedFrom->mPotentialCursor;
     mProtectedByApp = bufferClonedFrom->mProtectedByApp;
+
+    updateCloneBufferInfo();
+}
+
+void BufferLayer::updateCloneBufferInfo() {
+    if (!isClone() || !isClonedFromAlive()) {
+        return;
+    }
+
+    sp<BufferLayer> clonedFrom = static_cast<BufferLayer*>(getClonedFrom().get());
+    mBufferInfo = clonedFrom->mBufferInfo;
+    mSidebandStream = clonedFrom->mSidebandStream;
+    surfaceDamageRegion = clonedFrom->surfaceDamageRegion;
+    mCurrentFrameNumber = clonedFrom->mCurrentFrameNumber.load();
+    mPreviousFrameNumber = clonedFrom->mPreviousFrameNumber;
+
+    // After buffer info is updated, the drawingState from the real layer needs to be copied into
+    // the cloned. This is because some properties of drawingState can change when latchBuffer is
+    // called. However, copying the drawingState would also overwrite the cloned layer's relatives.
+    // Therefore, temporarily store the relatives so they can be set in the cloned drawingState
+    // again.
+    wp<Layer> tmpZOrderRelativeOf = mDrawingState.zOrderRelativeOf;
+    SortedVector<wp<Layer>> tmpZOrderRelatives = mDrawingState.zOrderRelatives;
+    mDrawingState = clonedFrom->mDrawingState;
+    // TODO: (b/140756730) Ignore input for now since InputDispatcher doesn't support multiple
+    // InputWindows per client token yet.
+    mDrawingState.inputInfo.token = nullptr;
+    mDrawingState.zOrderRelativeOf = tmpZOrderRelativeOf;
+    mDrawingState.zOrderRelatives = tmpZOrderRelatives;
 }
 
 } // namespace android

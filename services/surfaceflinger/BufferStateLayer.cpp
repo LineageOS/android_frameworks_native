@@ -125,9 +125,10 @@ bool BufferStateLayer::shouldPresentNow(nsecs_t /*expectedPresentTime*/) const {
 
 bool BufferStateLayer::willPresentCurrentTransaction() const {
     // Returns true if the most recent Transaction applied to CurrentState will be presented.
-    return getSidebandStreamChanged() || getAutoRefresh() ||
+    return (getSidebandStreamChanged() || getAutoRefresh() ||
             (mCurrentState.modified &&
-             (mCurrentState.buffer != nullptr || mCurrentState.bgColorLayer != nullptr));
+             (mCurrentState.buffer != nullptr || mCurrentState.bgColorLayer != nullptr))) &&
+        !mLayerDetached;
 }
 
 void BufferStateLayer::pushPendingState() {

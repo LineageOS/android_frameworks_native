@@ -300,12 +300,10 @@ static const CommandOptions AS_ROOT_20 = CommandOptions::WithTimeout(20).AsRoot(
  * Returns a vector of dump fds under |dir_path| with a given |file_prefix|.
  * The returned vector is sorted by the mtimes of the dumps. If |limit_by_mtime|
  * is set, the vector only contains files that were written in the last 30 minutes.
- * If |limit_by_count| is set, the vector only contains the ten latest files.
  */
 static std::vector<DumpData> GetDumpFds(const std::string& dir_path,
                                         const std::string& file_prefix,
-                                        bool limit_by_mtime,
-                                        bool limit_by_count = true) {
+                                        bool limit_by_mtime) {
     const time_t thirty_minutes_ago = ds.now_ - 60 * 30;
 
     std::unique_ptr<DIR, decltype(&closedir)> dump_dir(opendir(dir_path.c_str()), closedir);
@@ -347,15 +345,6 @@ static std::vector<DumpData> GetDumpFds(const std::string& dir_path,
         }
 
         dump_data.emplace_back(DumpData{abs_path, std::move(fd), st.st_mtime});
-    }
-
-    // Sort in descending modification time so that we only keep the newest
-    // reports if |limit_by_count| is true.
-    std::sort(dump_data.begin(), dump_data.end(),
-              [](const DumpData& d1, const DumpData& d2) { return d1.mtime > d2.mtime; });
-
-    if (limit_by_count && dump_data.size() > 10) {
-        dump_data.erase(dump_data.begin() + 10, dump_data.end());
     }
 
     return dump_data;

@@ -780,6 +780,15 @@ uint32_t Layer::doTransaction(uint32_t flags) {
     ATRACE_CALL();
 
     if (mLayerDetached) {
+        // Ensure BLAST buffer callbacks are processed.
+        // detachChildren and mLayerDetached were implemented to avoid geometry updates
+        // to layers in the cases of animation. For BufferQueue layers buffers are still
+        // consumed as normal. This is useful as otherwise the client could get hung
+        // inevitably waiting on a buffer to return. We recreate this semantic for BufferQueue
+        // even though it is a little consistent. detachChildren is shortly slated for removal
+        // by the hierarchy mirroring work so we don't need to worry about it too much.
+        mDrawingState.callbackHandles = mCurrentState.callbackHandles;
+        mCurrentState.callbackHandles = {};
         return flags;
     }
 
@@ -2025,6 +2034,118 @@ void Layer::setInitialValuesForClone(const sp<Layer>& clonedFrom) {
     // InputWindows per client token yet.
     mDrawingState.inputInfo.token = nullptr;
 }
+
+void Layer::updateMirrorInfo() {
+    if (mClonedChild == nullptr || !mClonedChild->isClonedFromAlive()) {
+        // If mClonedChild is null, there is nothing to mirror. If isClonedFromAlive returns false,
+        // it means that there is a clone, but the layer it was cloned from has been destroyed. In
+        // that case, we want to delete the reference to the clone since we want it to get
+        // destroyed. The root, this layer, will still be around since the client can continue
+        // to hold a reference, but no cloned layers will be displayed.
+        mClonedChild = nullptr;
+        return;
+    }
+
+    std::map<sp<Layer>, sp<Layer>> clonedLayersMap;
+    // If the real layer exists and is in current state, add the clone as a child of the root.
+    // There's no need to remove from drawingState when the layer is offscreen since currentState is
+    // copied to drawingState for the root layer. So the clonedChild is always removed from
+    // drawingState and then needs to be added back each traversal.
+    if (!mClonedChild->getClonedFrom()->isRemovedFromCurrentState()) {
+        addChildToDrawing(mClonedChild);
+    }
+
+    mClonedChild->updateClonedDrawingState(clonedLayersMap);
+    mClonedChild->updateClonedChildren(this, clonedLayersMap);
+    mClonedChild->updateClonedRelatives(clonedLayersMap);
+}
+
+void Layer::updateClonedDrawingState(std::map<sp<Layer>, sp<Layer>>& clonedLayersMap) {
+    // If the layer the clone was cloned from is alive, copy the content of the drawingState
+    // to the clone. If the real layer is no longer alive, continue traversing the children
+    // since we may be able to pull out other children that are still alive.
+    if (isClonedFromAlive()) {
+        sp<Layer> clonedFrom = getClonedFrom();
+        mDrawingState = clonedFrom->mDrawingState;
+        // TODO: (b/140756730) Ignore input for now since InputDispatcher doesn't support multiple
+        // InputWindows per client token yet.
+        mDrawingState.inputInfo.token = nullptr;
+        clonedLayersMap.emplace(clonedFrom, this);
+    }
+
+    // The clone layer may have children in drawingState since they may have been created and
+    // added from a previous request to updateMirorInfo. This is to ensure we don't recreate clones
+    // that already exist, since we can just re-use them.
+    // The drawingChildren will not get overwritten by the currentChildren since the clones are
+    // not updated in the regular traversal. They are skipped since the root will lose the
+    // reference to them when it copies its currentChildren to drawing.
+    for (sp<Layer>& child : mDrawingChildren) {
+        child->updateClonedDrawingState(clonedLayersMap);
+    }
+}
+
+void Layer::updateClonedChildren(const sp<Layer>& mirrorRoot,
+                                 std::map<sp<Layer>, sp<Layer>>& clonedLayersMap) {
+    mDrawingChildren.clear();
+
+    if (!isClonedFromAlive()) {
+        return;
+    }
+
+    sp<Layer> clonedFrom = getClonedFrom();
+    for (sp<Layer>& child : clonedFrom->mDrawingChildren) {
+        if (child == mirrorRoot) {
+            // This is to avoid cyclical mirroring.
+            continue;
+        }
+        sp<Layer> clonedChild = clonedLayersMap[child];
+        if (clonedChild == nullptr) {
+            clonedChild = child->createClone();
+            clonedLayersMap[child] = clonedChild;
+        }
+        addChildToDrawing(clonedChild);
+        clonedChild->updateClonedChildren(mirrorRoot, clonedLayersMap);
+    }
+}
+
+void Layer::updateClonedRelatives(std::map<sp<Layer>, sp<Layer>> clonedLayersMap) {
+    mDrawingState.zOrderRelativeOf = nullptr;
+    mDrawingState.zOrderRelatives.clear();
+
+    if (!isClonedFromAlive()) {
+        return;
+    }
+
+    sp<Layer> clonedFrom = getClonedFrom();
+    for (wp<Layer>& relativeWeak : clonedFrom->mDrawingState.zOrderRelatives) {
+        sp<Layer> relative = relativeWeak.promote();
+        auto clonedRelative = clonedLayersMap[relative];
+        if (clonedRelative != nullptr) {
+            mDrawingState.zOrderRelatives.add(clonedRelative);
+        }
+    }
+
+    // Check if the relativeLayer for the real layer is part of the cloned hierarchy.
+    // It's possible that the layer it's relative to is outside the requested cloned hierarchy.
+    // In that case, we treat the layer as if the relativeOf has been removed. This way, it will
+    // still traverse the children, but the layer with the missing relativeOf will not be shown
+    // on screen.
+    sp<Layer> relativeOf = clonedFrom->mDrawingState.zOrderRelativeOf.promote();
+    sp<Layer> clonedRelativeOf = clonedLayersMap[relativeOf];
+    if (clonedRelativeOf != nullptr) {
+        mDrawingState.zOrderRelativeOf = clonedRelativeOf;
+    }
+
+    for (sp<Layer>& child : mDrawingChildren) {
+        child->updateClonedRelatives(clonedLayersMap);
+    }
+}
+
+void Layer::addChildToDrawing(const sp<Layer>& layer) {
+    mDrawingChildren.add(layer);
+    layer->mDrawingParent = this;
+}
+
 // ---------------------------------------------------------------------------
 
 }; // namespace android

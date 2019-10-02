@@ -876,7 +876,16 @@ int SurfaceFlinger::getActiveConfig(const sp<IBinder>& displayToken) {
         return BAD_VALUE;
     }
 
-    return display->getActiveConfig();
+    if (display->isPrimary()) {
+        std::lock_guard<std::mutex> lock(mActiveConfigLock);
+        if (mDesiredActiveConfigChanged) {
+            return mDesiredActiveConfig.configId;
+        } else {
+            return display->getActiveConfig();
+        }
+    } else {
+        return display->getActiveConfig();
+    }
 }
 
 void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
@@ -2600,6 +2609,7 @@ void SurfaceFlinger::commitTransactionLocked() {
     });
 
     commitOffscreenLayers();
+    mDrawingState.traverseInZOrder([&](Layer* layer) { layer->updateMirrorInfo(); });
 }
 
 void SurfaceFlinger::withTracingLock(std::function<void()> lockedOperation) {
@@ -2717,6 +2727,8 @@ bool SurfaceFlinger::handlePageFlip()
         ALOGI("Enter boot animation");
         mBootStage = BootStage::BOOTANIMATION;
     }
+
+    mDrawingState.traverseInZOrder([&](Layer* layer) { layer->updateCloneBufferInfo(); });
 
     // Only continue with the refresh if there is actually new work to do
     return !mLayersWithQueuedFrames.empty() && newDataLatched;

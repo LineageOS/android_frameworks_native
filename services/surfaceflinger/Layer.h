@@ -468,12 +468,29 @@ public:
     virtual Rect getCrop(const Layer::State& s) const { return s.crop_legacy; }
     virtual bool needsFiltering(const sp<const DisplayDevice>&) const { return false; }
 
-protected:
-    virtual sp<Layer> createClone() = 0;
-    sp<Layer> getClonedFrom() { return mClonedFrom != nullptr ? mClonedFrom.promote() : nullptr; }
+    // This layer is not a clone, but it's the parent to the cloned hierarchy. The
+    // variable mClonedChild represents the top layer that will be cloned so this
+    // layer will be the parent of mClonedChild.
+    // The layers in the cloned hierarchy will match the lifetime of the real layers. That is
+    // if the real layer is destroyed, then the clone layer will also be destroyed.
+    sp<Layer> mClonedChild;
 
-    bool isClone() { return getClonedFrom() != nullptr; }
+    virtual sp<Layer> createClone() = 0;
+    void updateMirrorInfo();
+    virtual void updateCloneBufferInfo(){};
+
+protected:
+    sp<Layer> getClonedFrom() { return mClonedFrom != nullptr ? mClonedFrom.promote() : nullptr; }
+    bool isClone() { return mClonedFrom != nullptr; }
+    bool isClonedFromAlive() { return getClonedFrom() != nullptr; }
+
     virtual void setInitialValuesForClone(const sp<Layer>& clonedFrom);
+
+    void updateClonedDrawingState(std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
+    void updateClonedChildren(const sp<Layer>& mirrorRoot,
+                              std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
+    void updateClonedRelatives(std::map<sp<Layer>, sp<Layer>> clonedLayersMap);
+    void addChildToDrawing(const sp<Layer>& layer);
 
 public:
     /*
@@ -838,7 +855,6 @@ protected:
     // We encode unset as -1.
     int32_t mOverrideScalingMode{-1};
     std::atomic<uint64_t> mCurrentFrameNumber{0};
-    bool mFrameLatencyNeeded{false};
     // Whether filtering is needed b/c of the drawingstate
     bool mNeedsFiltering{false};
 
