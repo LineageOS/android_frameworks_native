@@ -303,6 +303,9 @@ static const char* ENABLE_APEX_IMAGE = "enable_apex_image";
 // Location of the apex image.
 static const char* kApexImage = "/system/framework/apex.art";
 
+// Phenotype property name for enabling profiling the boot class path.
+static const char* PROFILE_BOOT_CLASS_PATH = "profilebootclasspath";
+
 class RunDex2Oat : public ExecVHelper {
   public:
     RunDex2Oat(int zip_fd,
@@ -402,7 +405,15 @@ class RunDex2Oat : public ExecVHelper {
             server_configurable_flags::GetServerConfigurableFlag(RUNTIME_NATIVE_BOOT_NAMESPACE,
                                                                  ENABLE_APEX_IMAGE,
                                                                  /*default_value=*/ "");
-        if (use_apex_image == "true") {
+
+        std::string profile_boot_class_path = GetProperty("dalvik.vm.profilebootclasspath", "");
+        profile_boot_class_path =
+            server_configurable_flags::GetServerConfigurableFlag(
+                RUNTIME_NATIVE_BOOT_NAMESPACE,
+                PROFILE_BOOT_CLASS_PATH,
+                /*default_value=*/ profile_boot_class_path);
+
+        if (use_apex_image == "true" || profile_boot_class_path == "true") {
           boot_image = StringPrintf("-Ximage:%s", kApexImage);
         } else {
           boot_image = MapPropertyToArg("dalvik.vm.boot-image", "-Ximage:%s");
