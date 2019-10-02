@@ -77,9 +77,38 @@ Formatter& dedent(Formatter& f) {
     return f;
 }
 
-void ProgramCache::primeCache(EGLContext context, bool useColorManagement) {
+void ProgramCache::primeCache(
+        EGLContext context, bool useColorManagement, bool toneMapperShaderOnly) {
     auto& cache = mCaches[context];
     uint32_t shaderCount = 0;
+
+    if (toneMapperShaderOnly) {
+        Key shaderKey;
+        // base settings used by HDR->SDR tonemap only
+        shaderKey.set(Key::BLEND_MASK | Key::INPUT_TRANSFORM_MATRIX_MASK |
+                      Key::OUTPUT_TRANSFORM_MATRIX_MASK | Key::OUTPUT_TF_MASK |
+                      Key::OPACITY_MASK | Key::ALPHA_MASK |
+                      Key::ROUNDED_CORNERS_MASK | Key::TEXTURE_MASK,
+                      Key::BLEND_NORMAL | Key::INPUT_TRANSFORM_MATRIX_ON |
+                      Key::OUTPUT_TRANSFORM_MATRIX_ON | Key::OUTPUT_TF_SRGB |
+                      Key::OPACITY_OPAQUE | Key::ALPHA_EQ_ONE |
+                      Key::ROUNDED_CORNERS_OFF | Key::TEXTURE_EXT);
+        for (int i = 0; i < 4; i++) {
+            // Cache input transfer for HLG & ST2084
+            shaderKey.set(Key::INPUT_TF_MASK, (i & 1) ?
+                    Key::INPUT_TF_HLG : Key::INPUT_TF_ST2084);
+
+            // Cache Y410 input on or off
+            shaderKey.set(Key::Y410_BT2020_MASK, (i & 2) ?
+                    Key::Y410_BT2020_ON : Key::Y410_BT2020_OFF);
+            if (cache.count(shaderKey) == 0) {
+                cache.emplace(shaderKey, generateProgram(shaderKey));
+                shaderCount++;
+            }
+        }
+        return;
+    }
+
     uint32_t keyMask = Key::BLEND_MASK | Key::OPACITY_MASK | Key::ALPHA_MASK | Key::TEXTURE_MASK
         | Key::ROUNDED_CORNERS_MASK;
     // Prime the cache for all combinations of the above masks,

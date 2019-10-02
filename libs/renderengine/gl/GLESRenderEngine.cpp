@@ -457,8 +457,10 @@ Framebuffer* GLESRenderEngine::getFramebufferForDrawing() {
 }
 
 void GLESRenderEngine::primeCache() const {
-    ProgramCache::getInstance().primeCache(mInProtectedContext ? mProtectedEGLContext : mEGLContext,
-                                           mFeatureFlags & USE_COLOR_MANAGEMENT);
+    ProgramCache::getInstance().primeCache(
+            mInProtectedContext ? mProtectedEGLContext : mEGLContext,
+                    mFeatureFlags & USE_COLOR_MANAGEMENT,
+                    mFeatureFlags & PRECACHE_TONE_MAPPER_SHADER_ONLY);
 }
 
 base::unique_fd GLESRenderEngine::flush() {
