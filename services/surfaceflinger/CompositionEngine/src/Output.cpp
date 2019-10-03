@@ -552,11 +552,8 @@ void Output::updateAndWriteCompositionState(
     ALOGV(__FUNCTION__);
 
     for (auto* layer : getOutputLayersOrderedByZ()) {
-        if (refreshArgs.devOptForceClientComposition) {
-            layer->editState().forceClientComposition = true;
-        }
-
-        layer->updateCompositionState(refreshArgs.updatingGeometryThisFrame);
+        layer->updateCompositionState(refreshArgs.updatingGeometryThisFrame,
+                                      refreshArgs.devOptForceClientComposition);
 
         // Send the updated state to the HWC, if appropriate.
         layer->writeStateToHWC(refreshArgs.updatingGeometryThisFrame);

@@ -40,7 +40,7 @@ public:
     MOCK_CONST_METHOD0(getState, const impl::OutputLayerCompositionState&());
     MOCK_METHOD0(editState, impl::OutputLayerCompositionState&());
 
-    MOCK_METHOD1(updateCompositionState, void(bool));
+    MOCK_METHOD2(updateCompositionState, void(bool, bool));
     MOCK_METHOD1(writeStateToHWC, void(bool));
     MOCK_CONST_METHOD0(writeCursorPositionToHWC, void());
 

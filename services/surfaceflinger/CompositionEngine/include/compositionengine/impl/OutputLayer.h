@@ -39,7 +39,7 @@ public:
 
     void setHwcLayer(std::shared_ptr<HWC2::Layer>) override;
 
-    void updateCompositionState(bool) override;
+    void updateCompositionState(bool includeGeometry, bool forceClientComposition) override;
     void writeStateToHWC(bool) override;
     void writeCursorPositionToHWC() const override;
 
