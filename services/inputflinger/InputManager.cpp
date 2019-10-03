@@ -20,7 +20,6 @@
 
 #include "InputManager.h"
 #include "InputDispatcherFactory.h"
-#include "InputDispatcherThread.h"
 #include "InputReaderFactory.h"
 
 #include <binder/IPCThreadState.h>
@@ -38,19 +37,14 @@ InputManager::InputManager(
     mDispatcher = createInputDispatcher(dispatcherPolicy);
     mClassifier = new InputClassifier(mDispatcher);
     mReader = createInputReader(readerPolicy, mClassifier);
-    initialize();
 }
 
 InputManager::~InputManager() {
     stop();
 }
 
-void InputManager::initialize() {
-    mDispatcherThread = new InputDispatcherThread(mDispatcher);
-}
-
 status_t InputManager::start() {
-    status_t result = mDispatcherThread->run("InputDispatcher", PRIORITY_URGENT_DISPLAY);
+    status_t result = mDispatcher->start();
     if (result) {
         ALOGE("Could not start InputDispatcher thread due to error %d.", result);
         return result;
@@ -60,7 +54,7 @@ status_t InputManager::start() {
     if (result) {
         ALOGE("Could not start InputReader due to error %d.", result);
 
-        mDispatcherThread->requestExit();
+        mDispatcher->stop();
         return result;
     }
 
@@ -68,17 +62,21 @@ status_t InputManager::start() {
 }
 
 status_t InputManager::stop() {
+    status_t status = OK;
+
     status_t result = mReader->stop();
     if (result) {
         ALOGW("Could not stop InputReader due to error %d.", result);
+        status = result;
     }
 
-    result = mDispatcherThread->requestExitAndWait();
+    result = mDispatcher->stop();
     if (result) {
         ALOGW("Could not stop InputDispatcher thread due to error %d.", result);
+        status = result;
     }
 
-    return OK;
+    return status;
 }
 
 sp<InputReaderInterface> InputManager::getReader() {

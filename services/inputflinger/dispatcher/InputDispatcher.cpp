@@ -240,6 +240,24 @@ static bool removeByValue(std::unordered_map<K, V>& map, const V& value) {
     return removed;
 }
 
+// --- InputDispatcherThread ---
+
+class InputDispatcher::InputDispatcherThread : public Thread {
+public:
+    explicit InputDispatcherThread(InputDispatcher* dispatcher)
+          : Thread(/* canCallJava */ true), mDispatcher(dispatcher) {}
+
+    ~InputDispatcherThread() {}
+
+private:
+    InputDispatcher* mDispatcher;
+
+    virtual bool threadLoop() override {
+        mDispatcher->dispatchOnce();
+        return true;
+    }
+};
+
 // --- InputDispatcher ---
 
 InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy)
@@ -264,6 +282,8 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
     mKeyRepeatState.lastKeyEntry = nullptr;
 
     policy->getDispatcherConfiguration(&mConfig);
+
+    mThread = new InputDispatcherThread(this);
 }
 
 InputDispatcher::~InputDispatcher() {
@@ -279,6 +299,28 @@ InputDispatcher::~InputDispatcher() {
         sp<Connection> connection = mConnectionsByFd.begin()->second;
         unregisterInputChannel(connection->inputChannel);
     }
+}
+
+status_t InputDispatcher::start() {
+    if (mThread->isRunning()) {
+        return ALREADY_EXISTS;
+    }
+    return mThread->run("InputDispatcher", PRIORITY_URGENT_DISPLAY);
+}
+
+status_t InputDispatcher::stop() {
+    if (!mThread->isRunning()) {
+        return OK;
+    }
+    if (gettid() == mThread->getTid()) {
+        ALOGE("InputDispatcher can only be stopped from outside of the InputDispatcherThread!");
+        return INVALID_OPERATION;
+    }
+    // Directly calling requestExitAndWait() causes the thread to not exit
+    // if mLooper is waiting for a long timeout.
+    mThread->requestExit();
+    mLooper->wake();
+    return mThread->requestExitAndWait();
 }
 
 void InputDispatcher::dispatchOnce() {
