@@ -17,8 +17,10 @@
 #undef LOG_TAG
 #define LOG_TAG "HwcComposer"
 
-#include <inttypes.h>
 #include <log/log.h>
+
+#include <algorithm>
+#include <cinttypes>
 
 #include "ComposerHal.h"
 
@@ -173,7 +175,16 @@ Composer::Composer(const std::string& serviceName)
         LOG_ALWAYS_FATAL("failed to get hwcomposer service");
     }
 
-    if (sp<IComposer> composer_2_3 = IComposer::castFrom(mComposer)) {
+    if (sp<IComposer> composer_2_4 = IComposer::castFrom(mComposer)) {
+        composer_2_4->createClient_2_4([&](const auto& tmpError, const auto& tmpClient) {
+            if (tmpError == Error::NONE) {
+                mClient = tmpClient;
+                mClient_2_2 = tmpClient;
+                mClient_2_3 = tmpClient;
+                mClient_2_4 = tmpClient;
+            }
+        });
+    } else if (sp<V2_3::IComposer> composer_2_3 = V2_3::IComposer::castFrom(mComposer)) {
         composer_2_3->createClient_2_3([&](const auto& tmpError, const auto& tmpClient) {
             if (tmpError == Error::NONE) {
                 mClient = tmpClient;
@@ -454,23 +465,6 @@ Error Composer::getDisplayRequests(Display display,
     mReader.takeDisplayRequests(display, outDisplayRequestMask,
             outLayers, outLayerRequestMasks);
     return Error::NONE;
-}
-
-Error Composer::getDisplayType(Display display,
-        IComposerClient::DisplayType* outType)
-{
-    Error error = kDefaultError;
-    mClient->getDisplayType(display,
-            [&](const auto& tmpError, const auto& tmpType) {
-                error = tmpError;
-                if (error != Error::NONE) {
-                    return;
-                }
-
-                *outType = tmpType;
-            });
-
-    return error;
 }
 
 Error Composer::getDozeSupport(Display display, bool* outSupport)
@@ -1113,23 +1107,6 @@ Error Composer::getDisplayedContentSamplingAttributes(Display display, PixelForm
     return error;
 }
 
-Error Composer::getDisplayCapabilities(Display display,
-                                       std::vector<DisplayCapability>* outCapabilities) {
-    if (!mClient_2_3) {
-        return Error::UNSUPPORTED;
-    }
-    Error error = kDefaultError;
-    mClient_2_3->getDisplayCapabilities(display,
-                                        [&](const auto& tmpError, const auto& tmpCapabilities) {
-                                            error = tmpError;
-                                            if (error != Error::NONE) {
-                                                return;
-                                            }
-                                            *outCapabilities = tmpCapabilities;
-                                        });
-    return error;
-}
-
 Error Composer::setDisplayContentSamplingEnabled(Display display, bool enabled,
                                                  uint8_t componentMask, uint64_t maxFrames) {
     if (!mClient_2_3) {
@@ -1185,6 +1162,60 @@ Error Composer::setDisplayBrightness(Display display, float brightness) {
         return Error::UNSUPPORTED;
     }
     return mClient_2_3->setDisplayBrightness(display, brightness);
+}
+
+// Composer HAL 2.4
+
+Error Composer::getDisplayCapabilities(Display display,
+                                       std::vector<DisplayCapability>* outCapabilities) {
+    if (!mClient_2_3) {
+        return Error::UNSUPPORTED;
+    }
+
+    Error error = kDefaultError;
+    if (mClient_2_4) {
+        mClient_2_4->getDisplayCapabilities_2_4(display,
+                                                [&](const auto& tmpError, const auto& tmpCaps) {
+                                                    error = tmpError;
+                                                    if (error != Error::NONE) {
+                                                        return;
+                                                    }
+                                                    *outCapabilities = tmpCaps;
+                                                });
+    } else {
+        mClient_2_3
+                ->getDisplayCapabilities(display, [&](const auto& tmpError, const auto& tmpCaps) {
+                    error = tmpError;
+                    if (error != Error::NONE) {
+                        return;
+                    }
+
+                    outCapabilities->resize(tmpCaps.size());
+                    std::transform(tmpCaps.begin(), tmpCaps.end(), outCapabilities->begin(),
+                                   [](auto cap) { return static_cast<DisplayCapability>(cap); });
+                });
+    }
+
+    return error;
+}
+
+Error Composer::getDisplayConnectionType(Display display,
+                                         IComposerClient::DisplayConnectionType* outType) {
+    if (!mClient_2_4) {
+        return Error::UNSUPPORTED;
+    }
+
+    Error error = kDefaultError;
+    mClient_2_4->getDisplayConnectionType(display, [&](const auto& tmpError, const auto& tmpType) {
+        error = tmpError;
+        if (error != Error::NONE) {
+            return;
+        }
+
+        *outType = tmpType;
+    });
+
+    return error;
 }
 
 CommandReader::~CommandReader()

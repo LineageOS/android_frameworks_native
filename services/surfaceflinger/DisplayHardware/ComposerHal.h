@@ -27,8 +27,8 @@
 #include <android/frameworks/vr/composer/2.0/IVrComposerClient.h>
 #endif // defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 #include <android/hardware/graphics/common/1.1/types.h>
-#include <android/hardware/graphics/composer/2.3/IComposer.h>
-#include <android/hardware/graphics/composer/2.3/IComposerClient.h>
+#include <android/hardware/graphics/composer/2.4/IComposer.h>
+#include <android/hardware/graphics/composer/2.4/IComposerClient.h>
 #include <composer-command-buffer/2.3/ComposerCommandBuffer.h>
 #include <gui/HdrMetadata.h>
 #include <math/mat4.h>
@@ -49,6 +49,7 @@ namespace types = hardware::graphics::common;
 namespace V2_1 = hardware::graphics::composer::V2_1;
 namespace V2_2 = hardware::graphics::composer::V2_2;
 namespace V2_3 = hardware::graphics::composer::V2_3;
+namespace V2_4 = hardware::graphics::composer::V2_4;
 
 using types::V1_0::ColorTransform;
 using types::V1_0::Transform;
@@ -65,8 +66,8 @@ using V2_1::IComposerCallback;
 using V2_1::Layer;
 using V2_3::CommandReaderBase;
 using V2_3::CommandWriterBase;
-using V2_3::IComposer;
-using V2_3::IComposerClient;
+using V2_4::IComposer;
+using V2_4::IComposerClient;
 using DisplayCapability = IComposerClient::DisplayCapability;
 using PerFrameMetadata = IComposerClient::PerFrameMetadata;
 using PerFrameMetadataKey = IComposerClient::PerFrameMetadataKey;
@@ -118,7 +119,6 @@ public:
                                      std::vector<Layer>* outLayers,
                                      std::vector<uint32_t>* outLayerRequestMasks) = 0;
 
-    virtual Error getDisplayType(Display display, IComposerClient::DisplayType* outType) = 0;
     virtual Error getDozeSupport(Display display, bool* outSupport) = 0;
     virtual Error getHdrCapabilities(Display display, std::vector<Hdr>* outTypes,
                                      float* outMaxLuminance, float* outMaxAverageLuminance,
@@ -203,11 +203,15 @@ public:
                                                    uint8_t componentMask, uint64_t maxFrames) = 0;
     virtual Error getDisplayedContentSample(Display display, uint64_t maxFrames, uint64_t timestamp,
                                             DisplayedFrameStats* outStats) = 0;
-    virtual Error getDisplayCapabilities(Display display,
-                                         std::vector<DisplayCapability>* outCapabilities) = 0;
     virtual Error setLayerPerFrameMetadataBlobs(
             Display display, Layer layer, const std::vector<PerFrameMetadataBlob>& metadata) = 0;
     virtual Error setDisplayBrightness(Display display, float brightness) = 0;
+
+    // Composer HAL 2.4
+    virtual Error getDisplayCapabilities(Display display,
+                                         std::vector<DisplayCapability>* outCapabilities) = 0;
+    virtual Error getDisplayConnectionType(Display display,
+                                           IComposerClient::DisplayConnectionType* outType) = 0;
 };
 
 namespace impl {
@@ -334,7 +338,6 @@ public:
                              std::vector<Layer>* outLayers,
                              std::vector<uint32_t>* outLayerRequestMasks) override;
 
-    Error getDisplayType(Display display, IComposerClient::DisplayType* outType) override;
     Error getDozeSupport(Display display, bool* outSupport) override;
     Error getHdrCapabilities(Display display, std::vector<Hdr>* outTypes, float* outMaxLuminance,
                              float* outMaxAverageLuminance, float* outMinLuminance) override;
@@ -414,12 +417,16 @@ public:
                                            uint64_t maxFrames) override;
     Error getDisplayedContentSample(Display display, uint64_t maxFrames, uint64_t timestamp,
                                     DisplayedFrameStats* outStats) override;
-    Error getDisplayCapabilities(Display display,
-                                 std::vector<DisplayCapability>* outCapabilities) override;
     Error setLayerPerFrameMetadataBlobs(
             Display display, Layer layer,
             const std::vector<IComposerClient::PerFrameMetadataBlob>& metadata) override;
     Error setDisplayBrightness(Display display, float brightness) override;
+
+    // Composer HAL 2.4
+    Error getDisplayCapabilities(Display display,
+                                 std::vector<DisplayCapability>* outCapabilities) override;
+    Error getDisplayConnectionType(Display display,
+                                   IComposerClient::DisplayConnectionType* outType) override;
 
 private:
 #if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
@@ -455,7 +462,8 @@ private:
 
     sp<V2_1::IComposerClient> mClient;
     sp<V2_2::IComposerClient> mClient_2_2;
-    sp<IComposerClient> mClient_2_3;
+    sp<V2_3::IComposerClient> mClient_2_3;
+    sp<IComposerClient> mClient_2_4;
 
     // 64KiB minus a small space for metadata such as read/write pointers
     static constexpr size_t kWriterInitialSize =
