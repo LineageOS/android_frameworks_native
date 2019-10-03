@@ -673,7 +673,7 @@ sp<Layer> BufferStateLayer::createClone() {
     LayerCreationArgs args =
             LayerCreationArgs(mFlinger.get(), nullptr, name, 0, 0, 0, LayerMetadata());
     args.textureName = mTextureName;
-    sp<BufferStateLayer> layer = new BufferStateLayer(args);
+    sp<BufferStateLayer> layer = mFlinger->getFactory().createBufferStateLayer(args);
     layer->mHwcSlotGenerator = mHwcSlotGenerator;
     layer->setInitialValuesForClone(this);
     return layer;

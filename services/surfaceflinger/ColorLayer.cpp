@@ -109,7 +109,7 @@ ui::Dataspace ColorLayer::getDataSpace() const {
 
 sp<Layer> ColorLayer::createClone() {
     String8 name = mName + " (Mirror)";
-    sp<ColorLayer> layer = new ColorLayer(
+    sp<ColorLayer> layer = mFlinger->getFactory().createColorLayer(
             LayerCreationArgs(mFlinger.get(), nullptr, name, 0, 0, 0, LayerMetadata()));
     layer->setInitialValuesForClone(this);
     return layer;

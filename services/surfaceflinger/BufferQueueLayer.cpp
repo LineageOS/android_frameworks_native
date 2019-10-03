@@ -531,7 +531,7 @@ sp<Layer> BufferQueueLayer::createClone() {
     LayerCreationArgs args =
             LayerCreationArgs(mFlinger.get(), nullptr, name, 0, 0, 0, LayerMetadata());
     args.textureName = mTextureName;
-    sp<BufferQueueLayer> layer = new BufferQueueLayer(args);
+    sp<BufferQueueLayer> layer = mFlinger->getFactory().createBufferQueueLayer(args);
     layer->setInitialValuesForClone(this);
 
     return layer;
