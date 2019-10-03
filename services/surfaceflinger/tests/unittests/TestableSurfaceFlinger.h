@@ -62,23 +62,19 @@ public:
     ~Factory() = default;
 
     std::unique_ptr<DispSync> createDispSync(const char*, bool) override {
-        // TODO: Use test-fixture controlled factory
         return nullptr;
     }
 
     std::unique_ptr<EventControlThread> createEventControlThread(
             std::function<void(bool)>) override {
-        // TODO: Use test-fixture controlled factory
         return nullptr;
     }
 
     std::unique_ptr<HWComposer> createHWComposer(const std::string&) override {
-        // TODO: Use test-fixture controlled factory
         return nullptr;
     }
 
     std::unique_ptr<MessageQueue> createMessageQueue() override {
-        // TODO: Use test-fixture controlled factory
         return std::make_unique<android::impl::MessageQueue>();
     }
 
@@ -88,37 +84,47 @@ public:
 
     std::unique_ptr<Scheduler> createScheduler(std::function<void(bool)>,
                                                const scheduler::RefreshRateConfigs&) override {
-        // TODO: Use test-fixture controlled factory
         return nullptr;
     }
 
     std::unique_ptr<SurfaceInterceptor> createSurfaceInterceptor(SurfaceFlinger* flinger) override {
-        // TODO: Use test-fixture controlled factory
         return std::make_unique<android::impl::SurfaceInterceptor>(flinger);
     }
 
     sp<StartPropertySetThread> createStartPropertySetThread(bool timestampPropertyValue) override {
-        // TODO: Use test-fixture controlled factory
         return new StartPropertySetThread(timestampPropertyValue);
     }
 
     sp<DisplayDevice> createDisplayDevice(DisplayDeviceCreationArgs&& creationArgs) override {
-        // TODO: Use test-fixture controlled factory
         return new DisplayDevice(std::move(creationArgs));
     }
 
     sp<GraphicBuffer> createGraphicBuffer(uint32_t width, uint32_t height, PixelFormat format,
                                           uint32_t layerCount, uint64_t usage,
                                           std::string requestorName) override {
-        // TODO: Use test-fixture controlled factory
         return new GraphicBuffer(width, height, format, layerCount, usage, requestorName);
     }
 
     void createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
                            sp<IGraphicBufferConsumer>* outConsumer,
                            bool consumerIsSurfaceFlinger) override {
-        if (!mCreateBufferQueue) return;
+        if (!mCreateBufferQueue) {
+            BufferQueue::createBufferQueue(outProducer, outConsumer, consumerIsSurfaceFlinger);
+            return;
+        }
         mCreateBufferQueue(outProducer, outConsumer, consumerIsSurfaceFlinger);
+    }
+
+    sp<IGraphicBufferProducer> createMonitoredProducer(const sp<IGraphicBufferProducer>& producer,
+                                                       const sp<SurfaceFlinger>& flinger,
+                                                       const wp<Layer>& layer) override {
+        return new MonitoredProducer(producer, flinger, layer);
+    }
+
+    sp<BufferLayerConsumer> createBufferLayerConsumer(const sp<IGraphicBufferConsumer>& consumer,
+                                                      renderengine::RenderEngine& renderEngine,
+                                                      uint32_t textureName, Layer* layer) override {
+        return new BufferLayerConsumer(consumer, renderEngine, textureName, layer);
     }
 
     std::unique_ptr<surfaceflinger::NativeWindowSurface> createNativeWindowSurface(
@@ -132,22 +138,18 @@ public:
     }
 
     sp<BufferQueueLayer> createBufferQueueLayer(const LayerCreationArgs&) override {
-        // TODO: Use test-fixture controlled factory
         return nullptr;
     }
 
     sp<BufferStateLayer> createBufferStateLayer(const LayerCreationArgs&) override {
-        // TODO: Use test-fixture controlled factory
         return nullptr;
     }
 
     sp<ColorLayer> createColorLayer(const LayerCreationArgs&) override {
-        // TODO: Use test-fixture controlled factory
         return nullptr;
     }
 
     sp<ContainerLayer> createContainerLayer(const LayerCreationArgs&) override {
-        // TODO: Use test-fixture controlled factory
         return nullptr;
     }
 
