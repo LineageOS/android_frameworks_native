@@ -168,6 +168,7 @@ filegroup {
         "Scheduler/VSyncModulator.cpp",
         "StartPropertySetThread.cpp",
         "SurfaceFlinger.cpp",
+        "SurfaceFlingerDefaultFactory.cpp",
         "SurfaceInterceptor.cpp",
         "SurfaceTracing.cpp",
         "TransactionCompletedThread.cpp",
