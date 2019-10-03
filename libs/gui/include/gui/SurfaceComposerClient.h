@@ -245,6 +245,17 @@ public:
                                                LayerMetadata metadata = LayerMetadata() // metadata
     );
 
+    // Creates a mirrored hierarchy for the mirrorFromSurface. This returns a SurfaceControl
+    // which is a parent of the root of the mirrored hierarchy.
+    //
+    //  Real Hierarchy    Mirror
+    //                      SC (value that's returned)
+    //                      |
+    //      A               A'
+    //      |               |
+    //      B               B'
+    sp<SurfaceControl> mirrorSurface(SurfaceControl* mirrorFromSurface);
+
     //! Create a virtual display
     static sp<IBinder> createDisplay(const String8& displayName, bool secure);
 

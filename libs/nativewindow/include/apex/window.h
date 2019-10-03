@@ -27,17 +27,17 @@ __BEGIN_DECLS
  * Retrieves how long it took for the last time a buffer was dequeued.
  *
  * \return a negative value on error, otherwise returns the duration in
- * microseconds.
+ * nanoseconds
  */
-int ANativeWindow_getLastDequeueDuration(ANativeWindow* window);
+int64_t ANativeWindow_getLastDequeueDuration(ANativeWindow* window);
 
 /**
  * Retrieves how long it took for the last time a buffer was queued.
  *
  * \return a negative value on error, otherwise returns the duration in
- * microseconds
+ * nanoseconds.
  */
-int ANativeWindow_getLastQueueDuration(ANativeWindow* window);
+int64_t ANativeWindow_getLastQueueDuration(ANativeWindow* window);
 
 /**
  * Retrieves the system time in nanoseconds when the last time a buffer

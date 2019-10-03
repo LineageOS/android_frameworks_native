@@ -623,6 +623,9 @@ private:
                                   uint32_t h, uint32_t flags, LayerMetadata metadata,
                                   sp<IBinder>* outHandle, sp<Layer>* outLayer);
 
+    status_t mirrorLayer(const sp<Client>& client, const sp<IBinder>& mirrorFromHandle,
+                         sp<IBinder>* outHandle);
+
     String8 getUniqueLayerName(const String8& name);
 
     // called when all clients have released all their references to

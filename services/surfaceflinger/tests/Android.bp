@@ -28,6 +28,7 @@ cc_test {
         "LayerTypeAndRenderTypeTransaction_test.cpp",
         "LayerTypeTransaction_test.cpp",
         "LayerUpdate_test.cpp",
+        "MirrorLayer_test.cpp",
         "MultiDisplayLayerBounds_test.cpp",
         "RelativeZ_test.cpp",
         "SetGeometry_test.cpp",

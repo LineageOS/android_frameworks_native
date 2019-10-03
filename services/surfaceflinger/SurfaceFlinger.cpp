@@ -3397,6 +3397,35 @@ uint32_t SurfaceFlinger::addInputWindowCommands(const InputWindowCommands& input
     return flags;
 }
 
+status_t SurfaceFlinger::mirrorLayer(const sp<Client>& client, const sp<IBinder>& mirrorFromHandle,
+                                     sp<IBinder>* outHandle) {
+    if (!mirrorFromHandle) {
+        return NAME_NOT_FOUND;
+    }
+
+    sp<Layer> mirrorLayer;
+    sp<Layer> mirrorFrom;
+    String8 uniqueName = getUniqueLayerName(String8("MirrorRoot"));
+
+    {
+        Mutex::Autolock _l(mStateLock);
+        mirrorFrom = fromHandle(mirrorFromHandle);
+        if (!mirrorFrom) {
+            return NAME_NOT_FOUND;
+        }
+
+        status_t result = createContainerLayer(client, uniqueName, -1, -1, 0, LayerMetadata(),
+                                               outHandle, &mirrorLayer);
+        if (result != NO_ERROR) {
+            return result;
+        }
+
+        mirrorLayer->mClonedChild = mirrorFrom->createClone();
+    }
+
+    return addClientLayer(client, *outHandle, nullptr, mirrorLayer, nullptr, nullptr, false);
+}
+
 status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& client, uint32_t w,
                                      uint32_t h, PixelFormat format, uint32_t flags,
                                      LayerMetadata metadata, sp<IBinder>* handle,

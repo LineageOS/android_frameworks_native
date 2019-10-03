@@ -106,6 +106,10 @@ status_t Client::createWithSurfaceParent(const String8& name, uint32_t w, uint32
                                  nullptr, layer);
 }
 
+status_t Client::mirrorSurface(const sp<IBinder>& mirrorFromHandle, sp<IBinder>* outHandle) {
+    return mFlinger->mirrorLayer(this, mirrorFromHandle, outHandle);
+}
+
 status_t Client::clearLayerFrameStats(const sp<IBinder>& handle) const {
     sp<Layer> layer = getLayerUser(handle);
     if (layer == nullptr) {

@@ -76,6 +76,8 @@ public:
      * Requires ACCESS_SURFACE_FLINGER permission
      */
     virtual status_t getLayerFrameStats(const sp<IBinder>& handle, FrameStats* outStats) const = 0;
+
+    virtual status_t mirrorSurface(const sp<IBinder>& mirrorFromHandle, sp<IBinder>* outHandle) = 0;
 };
 
 class BnSurfaceComposerClient : public SafeBnInterface<ISurfaceComposerClient> {

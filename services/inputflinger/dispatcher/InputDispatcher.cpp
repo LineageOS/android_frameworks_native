@@ -2772,7 +2772,7 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
           "yCursorPosition=%f, downTime=%" PRId64,
           args->eventTime, args->deviceId, args->source, args->displayId, args->policyFlags,
           args->action, args->actionButton, args->flags, args->metaState, args->buttonState,
-          args->edgeFlags, args->xPrecision, args->yPrecision, arg->xCursorPosition,
+          args->edgeFlags, args->xPrecision, args->yPrecision, args->xCursorPosition,
           args->yCursorPosition, args->downTime);
     for (uint32_t i = 0; i < args->pointerCount; i++) {
         ALOGD("  Pointer %d: id=%d, toolType=%d, "

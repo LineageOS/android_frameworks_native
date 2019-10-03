@@ -303,6 +303,9 @@ static const char* ENABLE_APEX_IMAGE = "enable_apex_image";
 // Location of the apex image.
 static const char* kApexImage = "/system/framework/apex.art";
 
+// Phenotype property name for enabling profiling the boot class path.
+static const char* PROFILE_BOOT_CLASS_PATH = "profilebootclasspath";
+
 class RunDex2Oat : public ExecVHelper {
   public:
     RunDex2Oat(int zip_fd,
@@ -402,7 +405,15 @@ class RunDex2Oat : public ExecVHelper {
             server_configurable_flags::GetServerConfigurableFlag(RUNTIME_NATIVE_BOOT_NAMESPACE,
                                                                  ENABLE_APEX_IMAGE,
                                                                  /*default_value=*/ "");
-        if (use_apex_image == "true") {
+
+        std::string profile_boot_class_path = GetProperty("dalvik.vm.profilebootclasspath", "");
+        profile_boot_class_path =
+            server_configurable_flags::GetServerConfigurableFlag(
+                RUNTIME_NATIVE_BOOT_NAMESPACE,
+                PROFILE_BOOT_CLASS_PATH,
+                /*default_value=*/ profile_boot_class_path);
+
+        if (use_apex_image == "true" || profile_boot_class_path == "true") {
           boot_image = StringPrintf("-Ximage:%s", kApexImage);
         } else {
           boot_image = MapPropertyToArg("dalvik.vm.boot-image", "-Ximage:%s");
@@ -709,8 +720,7 @@ class RunProfman : public ExecVHelper {
                   const unique_fd& reference_profile_fd,
                   const std::vector<unique_fd>& apk_fds,
                   const std::vector<std::string>& dex_locations,
-                  bool copy_and_update,
-                  bool store_aggregation_counters) {
+                  bool copy_and_update) {
 
         // TODO(calin): Assume for now we run in the bg compile job (which is in
         // most of the invocation). With the current data flow, is not very easy or
@@ -742,10 +752,6 @@ class RunProfman : public ExecVHelper {
             AddArg("--copy-and-update-profile-key");
         }
 
-        if (store_aggregation_counters) {
-            AddArg("--store-aggregation-counters");
-        }
-
         // Do not add after dex2oat_flags, they should override others for debugging.
         PrepareArgs(profman_bin);
     }
@@ -753,14 +759,12 @@ class RunProfman : public ExecVHelper {
     void SetupMerge(const std::vector<unique_fd>& profiles_fd,
                     const unique_fd& reference_profile_fd,
                     const std::vector<unique_fd>& apk_fds = std::vector<unique_fd>(),
-                    const std::vector<std::string>& dex_locations = std::vector<std::string>(),
-                    bool store_aggregation_counters = false) {
+                    const std::vector<std::string>& dex_locations = std::vector<std::string>()) {
         SetupArgs(profiles_fd,
                   reference_profile_fd,
                   apk_fds,
                   dex_locations,
-                  /*copy_and_update=*/false,
-                  store_aggregation_counters);
+                  /*copy_and_update=*/false);
     }
 
     void SetupCopyAndUpdate(unique_fd&& profile_fd,
@@ -777,8 +781,7 @@ class RunProfman : public ExecVHelper {
                   reference_profile_fd_,
                   apk_fds_,
                   dex_locations,
-                  /*copy_and_update=*/true,
-                  /*store_aggregation_counters=*/false);
+                  /*copy_and_update=*/true);
     }
 
     void SetupDump(const std::vector<unique_fd>& profiles_fd,
@@ -792,8 +795,7 @@ class RunProfman : public ExecVHelper {
                   reference_profile_fd,
                   apk_fds,
                   dex_locations,
-                  /*copy_and_update=*/false,
-                  /*store_aggregation_counters=*/false);
+                  /*copy_and_update=*/false);
     }
 
     void Exec() {
@@ -2828,8 +2830,7 @@ static bool create_boot_image_profile_snapshot(const std::string& package_name,
         args.SetupMerge(profiles_fd,
                         snapshot_fd,
                         apk_fds,
-                        dex_locations,
-                        /*store_aggregation_counters=*/true);
+                        dex_locations);
         pid_t pid = fork();
         if (pid == 0) {
             /* child -- drop privileges before continuing */

@@ -34,7 +34,8 @@ enum class Tag : uint32_t {
     CREATE_WITH_SURFACE_PARENT,
     CLEAR_LAYER_FRAME_STATS,
     GET_LAYER_FRAME_STATS,
-    LAST = GET_LAYER_FRAME_STATS,
+    MIRROR_SURFACE,
+    LAST = MIRROR_SURFACE,
 };
 
 } // Anonymous namespace
@@ -80,6 +81,12 @@ public:
                 &ISurfaceComposerClient::getLayerFrameStats)>(Tag::GET_LAYER_FRAME_STATS, handle,
                                                               outStats);
     }
+
+    status_t mirrorSurface(const sp<IBinder>& mirrorFromHandle, sp<IBinder>* outHandle) override {
+        return callRemote<decltype(&ISurfaceComposerClient::mirrorSurface)>(Tag::MIRROR_SURFACE,
+                                                                            mirrorFromHandle,
+                                                                            outHandle);
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -105,6 +112,8 @@ status_t BnSurfaceComposerClient::onTransact(uint32_t code, const Parcel& data, 
             return callLocal(data, reply, &ISurfaceComposerClient::clearLayerFrameStats);
         case Tag::GET_LAYER_FRAME_STATS:
             return callLocal(data, reply, &ISurfaceComposerClient::getLayerFrameStats);
+        case Tag::MIRROR_SURFACE:
+            return callLocal(data, reply, &ISurfaceComposerClient::mirrorSurface);
     }
 }
 
