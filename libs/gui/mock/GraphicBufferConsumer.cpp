@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#include "mock/gui/MockGraphicBufferProducer.h"
+#include <gui/mock/GraphicBufferConsumer.h>
 
 namespace android {
 namespace mock {
 
 // Explicit default instantiation is recommended.
-GraphicBufferProducer::GraphicBufferProducer() = default;
-GraphicBufferProducer::~GraphicBufferProducer() = default;
+GraphicBufferConsumer::GraphicBufferConsumer() = default;
+GraphicBufferConsumer::~GraphicBufferConsumer() = default;
 
 } // namespace mock
 } // namespace android
