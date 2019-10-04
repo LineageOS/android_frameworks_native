@@ -137,7 +137,7 @@ bool Access::actionAllowed(const CallingContext& sctx, const char* tctx, const c
 
 bool Access::actionAllowedFromLookup(const CallingContext& sctx, const std::string& name, const char *perm) {
     char *tctx = nullptr;
-    if (selabel_lookup(getSehandle(), &tctx, name.c_str(), 0) != 0) {
+    if (selabel_lookup(getSehandle(), &tctx, name.c_str(), SELABEL_CTX_ANDROID_SERVICE) != 0) {
         LOG(ERROR) << "SELinux: No match for " << name << " in service_contexts.\n";
         return false;
     }
