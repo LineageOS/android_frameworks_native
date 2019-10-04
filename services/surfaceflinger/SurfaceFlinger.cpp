@@ -36,6 +36,7 @@
 #include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/Display.h>
 #include <compositionengine/DisplayColorProfile.h>
+#include <compositionengine/DisplayCreationArgs.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/RenderSurface.h>
@@ -2361,16 +2362,17 @@ void SurfaceFlinger::dispatchDisplayHotplugEvent(PhysicalDisplayId displayId, bo
 }
 
 sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
-        const wp<IBinder>& displayToken, const std::optional<DisplayId>& displayId,
+        const wp<IBinder>& displayToken,
+        std::shared_ptr<compositionengine::Display> compositionDisplay,
         const DisplayDeviceState& state, const sp<compositionengine::DisplaySurface>& dispSurface,
         const sp<IGraphicBufferProducer>& producer) {
-    DisplayDeviceCreationArgs creationArgs(this, displayToken, displayId);
+    auto displayId = compositionDisplay->getDisplayId();
+    DisplayDeviceCreationArgs creationArgs(this, displayToken, compositionDisplay);
     creationArgs.sequenceId = state.sequenceId;
     creationArgs.isSecure = state.isSecure;
     creationArgs.displaySurface = dispSurface;
     creationArgs.hasWideColorGamut = false;
     creationArgs.supportedPerFrameMetadata = 0;
-    creationArgs.powerAdvisor = displayId ? &mPowerAdvisor : nullptr;
 
     if (const auto& physical = state.physical) {
         creationArgs.connectionType = physical->type;
@@ -2415,7 +2417,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     // virtual displays are always considered enabled
     creationArgs.initialPowerMode = state.isVirtual() ? HWC_POWER_MODE_NORMAL : HWC_POWER_MODE_OFF;
 
-    sp<DisplayDevice> display = getFactory().createDisplayDevice(std::move(creationArgs));
+    sp<DisplayDevice> display = getFactory().createDisplayDevice(creationArgs);
 
     if (maxFrameBufferAcquiredBuffers >= 3) {
         nativeWindowSurface->preallocateBuffers();
@@ -2521,53 +2523,68 @@ void SurfaceFlinger::processDisplayChangesLocked() {
             if (draw.indexOfKey(curr.keyAt(i)) < 0) {
                 const DisplayDeviceState& state(curr[i]);
 
+                int width = 0;
+                int height = 0;
+                ui::PixelFormat pixelFormat = static_cast<ui::PixelFormat>(PIXEL_FORMAT_UNKNOWN);
+                if (state.physical) {
+                    const auto& activeConfig =
+                            getCompositionEngine().getHwComposer().getActiveConfig(
+                                    state.physical->id);
+                    width = activeConfig->getWidth();
+                    height = activeConfig->getHeight();
+                    pixelFormat = static_cast<ui::PixelFormat>(PIXEL_FORMAT_RGBA_8888);
+                } else if (state.surface != nullptr) {
+                    int status = state.surface->query(NATIVE_WINDOW_WIDTH, &width);
+                    ALOGE_IF(status != NO_ERROR, "Unable to query width (%d)", status);
+                    status = state.surface->query(NATIVE_WINDOW_HEIGHT, &height);
+                    ALOGE_IF(status != NO_ERROR, "Unable to query height (%d)", status);
+                    int intPixelFormat;
+                    status = state.surface->query(NATIVE_WINDOW_FORMAT, &intPixelFormat);
+                    ALOGE_IF(status != NO_ERROR, "Unable to query format (%d)", status);
+                    pixelFormat = static_cast<ui::PixelFormat>(intPixelFormat);
+                } else {
+                    // Virtual displays without a surface are dormant:
+                    // they have external state (layer stack, projection,
+                    // etc.) but no internal state (i.e. a DisplayDevice).
+                    continue;
+                }
+
+                compositionengine::DisplayCreationArgsBuilder builder;
+                if (const auto& physical = state.physical) {
+                    builder.setPhysical({physical->id, physical->type});
+                }
+                builder.setPixels(ui::Size(width, height));
+                builder.setPixelFormat(pixelFormat);
+                builder.setIsSecure(state.isSecure);
+                builder.setLayerStackId(state.layerStack);
+                builder.setPowerAdvisor(&mPowerAdvisor);
+                builder.setUseHwcVirtualDisplays(mUseHwcVirtualDisplays ||
+                                                 getHwComposer().isUsingVrComposer());
+                builder.setName(state.displayName);
+                auto compositionDisplay = getCompositionEngine().createDisplay(builder.build());
+
                 sp<compositionengine::DisplaySurface> dispSurface;
                 sp<IGraphicBufferProducer> producer;
                 sp<IGraphicBufferProducer> bqProducer;
                 sp<IGraphicBufferConsumer> bqConsumer;
                 getFactory().createBufferQueue(&bqProducer, &bqConsumer, false);
 
-                std::optional<DisplayId> displayId;
+                std::optional<DisplayId> displayId = compositionDisplay->getId();
+
                 if (state.isVirtual()) {
-                    // Virtual displays without a surface are dormant:
-                    // they have external state (layer stack, projection,
-                    // etc.) but no internal state (i.e. a DisplayDevice).
-                    if (state.surface != nullptr) {
-                        // Allow VR composer to use virtual displays.
-                        if (mUseHwcVirtualDisplays || getHwComposer().isUsingVrComposer()) {
-                            int width = 0;
-                            int status = state.surface->query(NATIVE_WINDOW_WIDTH, &width);
-                            ALOGE_IF(status != NO_ERROR, "Unable to query width (%d)", status);
-                            int height = 0;
-                            status = state.surface->query(NATIVE_WINDOW_HEIGHT, &height);
-                            ALOGE_IF(status != NO_ERROR, "Unable to query height (%d)", status);
-                            int intFormat = 0;
-                            status = state.surface->query(NATIVE_WINDOW_FORMAT, &intFormat);
-                            ALOGE_IF(status != NO_ERROR, "Unable to query format (%d)", status);
-                            auto format = static_cast<ui::PixelFormat>(intFormat);
+                    sp<VirtualDisplaySurface> vds =
+                            new VirtualDisplaySurface(getHwComposer(), displayId, state.surface,
+                                                      bqProducer, bqConsumer, state.displayName);
 
-                            displayId =
-                                    getHwComposer().allocateVirtualDisplay(width, height, &format);
-                        }
-
-                        // TODO: Plumb requested format back up to consumer
-
-                        sp<VirtualDisplaySurface> vds =
-                                new VirtualDisplaySurface(getHwComposer(), displayId, state.surface,
-                                                          bqProducer, bqConsumer,
-                                                          state.displayName);
-
-                        dispSurface = vds;
-                        producer = vds;
-                    }
+                    dispSurface = vds;
+                    producer = vds;
                 } else {
                     ALOGE_IF(state.surface != nullptr,
                              "adding a supported display, but rendering "
                              "surface is provided (%p), ignoring it",
                              state.surface.get());
 
-                    LOG_FATAL_IF(!state.physical);
-                    displayId = state.physical->id;
+                    LOG_ALWAYS_FATAL_IF(!displayId);
                     dispSurface = new FramebufferSurface(getHwComposer(), *displayId, bqConsumer);
                     producer = bqProducer;
                 }
@@ -2575,7 +2592,8 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                 const wp<IBinder>& displayToken = curr.keyAt(i);
                 if (dispSurface != nullptr) {
                     mDisplays.emplace(displayToken,
-                                      setupNewDisplayDeviceInternal(displayToken, displayId, state,
+                                      setupNewDisplayDeviceInternal(displayToken,
+                                                                    compositionDisplay, state,
                                                                     dispSurface, producer));
                     if (!state.isVirtual()) {
                         LOG_ALWAYS_FATAL_IF(!displayId);
