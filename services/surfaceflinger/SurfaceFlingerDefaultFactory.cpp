@@ -90,8 +90,8 @@ sp<StartPropertySetThread> DefaultFactory::createStartPropertySetThread(
     return new StartPropertySetThread(timestampPropertyValue);
 }
 
-sp<DisplayDevice> DefaultFactory::createDisplayDevice(DisplayDeviceCreationArgs&& creationArgs) {
-    return new DisplayDevice(std::move(creationArgs));
+sp<DisplayDevice> DefaultFactory::createDisplayDevice(DisplayDeviceCreationArgs& creationArgs) {
+    return new DisplayDevice(creationArgs);
 }
 
 sp<GraphicBuffer> DefaultFactory::createGraphicBuffer(uint32_t width, uint32_t height,

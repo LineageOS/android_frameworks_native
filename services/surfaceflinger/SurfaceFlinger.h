@@ -810,7 +810,8 @@ private:
      * Display management
      */
     sp<DisplayDevice> setupNewDisplayDeviceInternal(
-            const wp<IBinder>& displayToken, const std::optional<DisplayId>& displayId,
+            const wp<IBinder>& displayToken,
+            std::shared_ptr<compositionengine::Display> compositionDisplay,
             const DisplayDeviceState& state,
             const sp<compositionengine::DisplaySurface>& dispSurface,
             const sp<IGraphicBufferProducer>& producer);
