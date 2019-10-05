@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "mock/gui/MockGraphicBufferConsumer.h"
+#include <gui/mock/GraphicBufferConsumer.h>
 
 namespace android {
 namespace mock {

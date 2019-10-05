@@ -74,7 +74,7 @@ public:
 
     // Recalculates the state of the output layer from the output-independent
     // layer. If includeGeometry is false, the geometry state can be skipped.
-    virtual void updateCompositionState(bool includeGeometry) = 0;
+    virtual void updateCompositionState(bool includeGeometry, bool forceClientComposition) = 0;
 
     // Writes the geometry state to the HWC, or does nothing if this layer does
     // not use the HWC. If includeGeometry is false, the geometry state can be

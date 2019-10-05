@@ -169,20 +169,8 @@ void Device::onHotplug(hwc2_display_t displayId, Connection connection) {
         }
         mDisplays.erase(displayId);
 
-        DisplayType displayType;
-        auto intError = mComposer->getDisplayType(displayId,
-                reinterpret_cast<Hwc2::IComposerClient::DisplayType *>(
-                        &displayType));
-        auto error = static_cast<Error>(intError);
-        if (error != Error::None) {
-            ALOGE("getDisplayType(%" PRIu64 ") failed: %s (%d). "
-                    "Aborting hotplug attempt.",
-                    displayId, to_string(error).c_str(), intError);
-            return;
-        }
-
         auto newDisplay = std::make_unique<impl::Display>(*mComposer.get(), mCapabilities,
-                                                          displayId, displayType);
+                                                          displayId, DisplayType::Physical);
         newDisplay->setConnected(true);
         mDisplays.emplace(displayId, std::move(newDisplay));
     } else if (connection == Connection::Disconnected) {

@@ -1039,6 +1039,26 @@ struct ForcedClientCompositionResultVariant : public CompositionResultBaseVarian
     static void setupCallExpectationsForDirtyFrame(CompositionTest*) {}
 };
 
+struct ForcedClientCompositionViaDebugOptionResultVariant : public CompositionResultBaseVariant {
+    static void setupLayerState(CompositionTest* test, sp<Layer>) {
+        test->mFlinger.mutableDebugDisableHWC() = true;
+    }
+
+    template <typename Case>
+    static void setupCallExpectations(CompositionTest* test) {
+        Case::Display::setupNonEmptyFrameCompositionCallExpectations(test);
+        Case::Display::setupHwcForcedClientCompositionCallExpectations(test);
+        Case::Display::setupRECompositionCallExpectations(test);
+        Case::Display::template setupRELayerCompositionCallExpectations<Case>(test);
+    }
+
+    template <typename Case>
+    static void setupCallExpectationsForDirtyGeometry(CompositionTest*) {}
+
+    template <typename Case>
+    static void setupCallExpectationsForDirtyFrame(CompositionTest*) {}
+};
+
 struct EmptyScreenshotResultVariant {
     static void setupLayerState(CompositionTest*, sp<Layer>) {}
 
@@ -1348,6 +1368,24 @@ TEST_F(CompositionTest, captureScreenNormalBufferLayerOnPoweredOffDisplay) {
     captureScreenComposition<CompositionCase<
             PoweredOffDisplaySetupVariant, BufferLayerVariant<DefaultLayerProperties>,
             NoCompositionTypeVariant, REScreenshotResultVariant>>();
+}
+
+/* ------------------------------------------------------------------------
+ *  Client composition forced through debug/developer settings
+ */
+
+TEST_F(CompositionTest, DebugOptionForcingClientCompositionOfBufferLayerWithDirtyGeometry) {
+    displayRefreshCompositionDirtyGeometry<
+            CompositionCase<DefaultDisplaySetupVariant, BufferLayerVariant<DefaultLayerProperties>,
+                            KeepCompositionTypeVariant<IComposerClient::Composition::CLIENT>,
+                            ForcedClientCompositionViaDebugOptionResultVariant>>();
+}
+
+TEST_F(CompositionTest, DebugOptionForcingClientCompositionOfBufferLayerWithDirtyFrame) {
+    displayRefreshCompositionDirtyFrame<
+            CompositionCase<DefaultDisplaySetupVariant, BufferLayerVariant<DefaultLayerProperties>,
+                            KeepCompositionTypeVariant<IComposerClient::Composition::CLIENT>,
+                            ForcedClientCompositionViaDebugOptionResultVariant>>();
 }
 
 } // namespace

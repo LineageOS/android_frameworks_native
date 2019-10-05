@@ -127,7 +127,6 @@ class DisplayTest : public ::testing::Test {
 public:
     class MockComposerClient : public FakeComposerClient {
     public:
-        MOCK_METHOD2(getDisplayType, Error(Display display, ComposerClient::DisplayType* outType));
         MOCK_METHOD4(getDisplayAttribute,
                      Error(Display display, Config config, IComposerClient::Attribute attribute,
                            int32_t* outValue));
@@ -176,9 +175,6 @@ void DisplayTest::SetUp() {
     android::hardware::ProcessState::self()->startThreadPool();
     android::ProcessState::self()->startThreadPool();
 
-    EXPECT_CALL(*mMockComposer, getDisplayType(PRIMARY_DISPLAY, _))
-            .WillOnce(DoAll(SetArgPointee<1>(IComposerClient::DisplayType::PHYSICAL),
-                            Return(Error::NONE)));
     // Primary display will be queried twice for all 5 attributes. One
     // set of queries comes from the SurfaceFlinger proper an the
     // other set from the VR composer.
@@ -270,10 +266,6 @@ bool DisplayTest::waitForHotplugEvent(PhysicalDisplayId displayId, bool connecte
 TEST_F(DisplayTest, Hotplug) {
     ALOGD("DisplayTest::Hotplug");
 
-    EXPECT_CALL(*mMockComposer, getDisplayType(EXTERNAL_DISPLAY, _))
-            .Times(2)
-            .WillRepeatedly(DoAll(SetArgPointee<1>(IComposerClient::DisplayType::PHYSICAL),
-                                  Return(Error::NONE)));
     // The attribute queries will get done twice. This is for defaults
     EXPECT_CALL(*mMockComposer, getDisplayAttribute(EXTERNAL_DISPLAY, 1, _, _))
             .Times(2 * 3)
@@ -381,10 +373,6 @@ TEST_F(DisplayTest, HotplugPrimaryDisplay) {
 
     mMockComposer->clearFrames();
 
-    EXPECT_CALL(*mMockComposer, getDisplayType(PRIMARY_DISPLAY, _))
-            .Times(2)
-            .WillRepeatedly(DoAll(SetArgPointee<1>(IComposerClient::DisplayType::PHYSICAL),
-                                  Return(Error::NONE)));
     // The attribute queries will get done twice. This is for defaults
     EXPECT_CALL(*mMockComposer, getDisplayAttribute(PRIMARY_DISPLAY, 1, _, _))
             .Times(2 * 3)

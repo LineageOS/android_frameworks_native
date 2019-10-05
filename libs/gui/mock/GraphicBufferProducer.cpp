@@ -14,28 +14,14 @@
  * limitations under the License.
  */
 
-#include <inttypes.h>
+#include <gui/mock/GraphicBufferProducer.h>
 
-#define BPF_FS_PATH "/sys/fs/bpf/"
+namespace android {
+namespace mock {
 
-#define FREQS_PER_ENTRY 32
-#define CPUS_PER_ENTRY 8
+// Explicit default instantiation is recommended.
+GraphicBufferProducer::GraphicBufferProducer() = default;
+GraphicBufferProducer::~GraphicBufferProducer() = default;
 
-struct time_key_t {
-    uint32_t uid;
-    uint32_t bucket;
-};
-
-struct tis_val_t {
-    uint64_t ar[FREQS_PER_ENTRY];
-};
-
-struct concurrent_val_t {
-    uint64_t active[CPUS_PER_ENTRY];
-    uint64_t policy[CPUS_PER_ENTRY];
-};
-
-struct freq_idx_key_t {
-    uint32_t policy;
-    uint32_t freq;
-};
+} // namespace mock
+} // namespace android

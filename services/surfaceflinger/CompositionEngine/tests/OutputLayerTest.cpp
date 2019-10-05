@@ -501,7 +501,7 @@ TEST_F(OutputLayerUpdateCompositionStateTest, setsStateNormally) {
 
     setupGeometryChildCallValues();
 
-    mOutputLayer.updateCompositionState(true);
+    mOutputLayer.updateCompositionState(true, false);
 
     validateComputedGeometryState();
 
@@ -515,7 +515,7 @@ TEST_F(OutputLayerUpdateCompositionStateTest,
 
     setupGeometryChildCallValues();
 
-    mOutputLayer.updateCompositionState(true);
+    mOutputLayer.updateCompositionState(true, false);
 
     validateComputedGeometryState();
 
@@ -531,7 +531,7 @@ TEST_F(OutputLayerUpdateCompositionStateTest,
 
     setupGeometryChildCallValues();
 
-    mOutputLayer.updateCompositionState(true);
+    mOutputLayer.updateCompositionState(true, false);
 
     validateComputedGeometryState();
 
@@ -546,7 +546,7 @@ TEST_F(OutputLayerUpdateCompositionStateTest, setsOutputLayerColorspaceCorrectly
     // should use the layers requested colorspace.
     mLayerFEState.isColorspaceAgnostic = false;
 
-    mOutputLayer.updateCompositionState(false);
+    mOutputLayer.updateCompositionState(false, false);
 
     EXPECT_EQ(ui::Dataspace::DISPLAY_P3, mOutputLayer.getState().dataspace);
 
@@ -554,7 +554,7 @@ TEST_F(OutputLayerUpdateCompositionStateTest, setsOutputLayerColorspaceCorrectly
     // should use the colorspace chosen for the whole output.
     mLayerFEState.isColorspaceAgnostic = true;
 
-    mOutputLayer.updateCompositionState(false);
+    mOutputLayer.updateCompositionState(false, false);
 
     EXPECT_EQ(ui::Dataspace::V0_SCRGB, mOutputLayer.getState().dataspace);
 }
@@ -562,7 +562,7 @@ TEST_F(OutputLayerUpdateCompositionStateTest, setsOutputLayerColorspaceCorrectly
 TEST_F(OutputLayerUpdateCompositionStateTest, doesNotRecomputeGeometryIfNotRequested) {
     mOutputLayer.editState().forceClientComposition = false;
 
-    mOutputLayer.updateCompositionState(false);
+    mOutputLayer.updateCompositionState(false, false);
 
     EXPECT_EQ(false, mOutputLayer.getState().forceClientComposition);
 }
@@ -571,7 +571,7 @@ TEST_F(OutputLayerUpdateCompositionStateTest,
        doesNotClearForceClientCompositionIfNotDoingGeometry) {
     mOutputLayer.editState().forceClientComposition = true;
 
-    mOutputLayer.updateCompositionState(false);
+    mOutputLayer.updateCompositionState(false, false);
 
     EXPECT_EQ(true, mOutputLayer.getState().forceClientComposition);
 }
@@ -580,7 +580,7 @@ TEST_F(OutputLayerUpdateCompositionStateTest, clientCompositionForcedFromFrontEn
     mLayerFEState.forceClientComposition = true;
     mOutputLayer.editState().forceClientComposition = false;
 
-    mOutputLayer.updateCompositionState(false);
+    mOutputLayer.updateCompositionState(false, false);
 
     EXPECT_EQ(true, mOutputLayer.getState().forceClientComposition);
 }
@@ -590,7 +590,24 @@ TEST_F(OutputLayerUpdateCompositionStateTest,
     mOutputLayer.editState().forceClientComposition = false;
     EXPECT_CALL(mDisplayColorProfile, isDataspaceSupported(_)).WillRepeatedly(Return(false));
 
-    mOutputLayer.updateCompositionState(false);
+    mOutputLayer.updateCompositionState(false, false);
+
+    EXPECT_EQ(true, mOutputLayer.getState().forceClientComposition);
+}
+
+TEST_F(OutputLayerUpdateCompositionStateTest, clientCompositionForcedFromArgumentFlag) {
+    mLayerFEState.forceClientComposition = false;
+    mOutputLayer.editState().forceClientComposition = false;
+
+    mOutputLayer.updateCompositionState(false, true);
+
+    EXPECT_EQ(true, mOutputLayer.getState().forceClientComposition);
+
+    mOutputLayer.editState().forceClientComposition = false;
+
+    setupGeometryChildCallValues();
+
+    mOutputLayer.updateCompositionState(true, true);
 
     EXPECT_EQ(true, mOutputLayer.getState().forceClientComposition);
 }

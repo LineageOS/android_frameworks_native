@@ -259,7 +259,7 @@ uint32_t OutputLayer::calculateOutputRelativeBufferTransform() const {
     return transform.getOrientation();
 } // namespace impl
 
-void OutputLayer::updateCompositionState(bool includeGeometry) {
+void OutputLayer::updateCompositionState(bool includeGeometry, bool forceClientComposition) {
     const auto& layerFEState = getLayer().getFEState();
     const auto& outputState = getOutput().getState();
     const auto& profile = *getOutput().getDisplayColorProfile();
@@ -294,7 +294,8 @@ void OutputLayer::updateCompositionState(bool includeGeometry) {
 
     // These are evaluated every frame as they can potentially change at any
     // time.
-    if (layerFEState.forceClientComposition || !profile.isDataspaceSupported(state.dataspace)) {
+    if (layerFEState.forceClientComposition || !profile.isDataspaceSupported(state.dataspace) ||
+        forceClientComposition) {
         state.forceClientComposition = true;
     }
 }
