@@ -32,6 +32,8 @@ cc_library_shared {
     defaults: ["libgui_bufferqueue-defaults"],
 
     srcs: [
+        ":libgui_bufferqueue_sources",
+
         "BitTube.cpp",
         "BufferHubConsumer.cpp",
         "BufferHubProducer.cpp",
@@ -104,32 +106,14 @@ cc_library_static {
     ],
 
     defaults: ["libgui_bufferqueue-defaults"],
+
+    srcs: [
+        ":libgui_bufferqueue_sources",
+    ],
 }
 
-// Common build config shared by libgui and libgui_bufferqueue_static.
-cc_defaults {
-    name: "libgui_bufferqueue-defaults",
-
-    clang: true,
-    cflags: [
-        "-Wall",
-        "-Werror",
-    ],
-
-    cppflags: [
-        "-Wextra",
-        "-DDEBUG_ONLY_CODE=0",
-    ],
-
-    product_variables: {
-        eng: {
-            cppflags: [
-                "-UDEBUG_ONLY_CODE",
-                "-DDEBUG_ONLY_CODE=1",
-            ],
-        },
-    },
-
+filegroup {
+    name: "libgui_bufferqueue_sources",
     srcs: [
         "BufferItem.cpp",
         "BufferQueue.cpp",
@@ -157,6 +141,31 @@ cc_defaults {
         "bufferqueue/2.0/H2BProducerListener.cpp",
         "bufferqueue/2.0/types.cpp",
     ],
+}
+
+// Common build config shared by libgui and libgui_bufferqueue_static.
+cc_defaults {
+    name: "libgui_bufferqueue-defaults",
+
+    clang: true,
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+
+    cppflags: [
+        "-Wextra",
+        "-DDEBUG_ONLY_CODE=0",
+    ],
+
+    product_variables: {
+        eng: {
+            cppflags: [
+                "-UDEBUG_ONLY_CODE",
+                "-DDEBUG_ONLY_CODE=1",
+            ],
+        },
+    },
 
     shared_libs: [
         "android.hardware.graphics.bufferqueue@1.0",
@@ -201,6 +210,23 @@ cc_defaults {
 
     export_include_dirs: [
         "include",
+    ],
+}
+
+// GMocks for use by external code
+cc_library_static {
+    name: "libgui_mocks",
+    vendor_available: false,
+
+    defaults: ["libgui_bufferqueue-defaults"],
+    static_libs: [
+        "libgtest",
+        "libgmock",
+    ],
+
+    srcs: [
+        "mock/GraphicBufferConsumer.cpp",
+        "mock/GraphicBufferProducer.cpp",
     ],
 }
 
