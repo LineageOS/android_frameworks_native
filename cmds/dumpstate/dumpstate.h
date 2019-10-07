@@ -456,8 +456,6 @@ class Dumpstate {
 
     // Binder object listening to progress.
     android::sp<android::os::IDumpstateListener> listener_;
-    std::string listener_name_;
-    bool report_section_;
 
     // List of open tombstone dump files.
     std::vector<DumpData> tombstone_data_;

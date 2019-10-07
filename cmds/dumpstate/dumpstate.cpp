@@ -3686,13 +3686,11 @@ void Dumpstate::UpdateProgress(int32_t delta_sec) {
     if (listener_ != nullptr) {
         if (percent % 5 == 0) {
             // We don't want to spam logcat, so only log multiples of 5.
-            MYLOGD("Setting progress (%s): %d/%d (%d%%)\n", listener_name_.c_str(), progress, max,
-                   percent);
+            MYLOGD("Setting progress: %d/%d (%d%%)\n", progress, max, percent);
         } else {
             // stderr is ignored on normal invocations, but useful when calling
             // /system/bin/dumpstate directly for debuggging.
-            fprintf(stderr, "Setting progress (%s): %d/%d (%d%%)\n", listener_name_.c_str(),
-                    progress, max, percent);
+            fprintf(stderr, "Setting progress: %d/%d (%d%%)\n", progress, max, percent);
         }
 
         listener_->onProgress(percent);

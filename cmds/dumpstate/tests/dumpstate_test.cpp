@@ -616,8 +616,8 @@ class DumpstateTest : public DumpstateBaseTest {
         ds.progress_.reset(new Progress(initial_max, progress, 1.2));
     }
 
-    std::string GetProgressMessage(const std::string& listener_name, int progress, int max,
-                                   int old_max = 0, bool update_progress = true) {
+    std::string GetProgressMessage(int progress, int max,
+            int old_max = 0, bool update_progress = true) {
         EXPECT_EQ(progress, ds.progress_->Get()) << "invalid progress";
         EXPECT_EQ(max, ds.progress_->GetMax()) << "invalid max";
 
@@ -630,9 +630,8 @@ class DumpstateTest : public DumpstateBaseTest {
         }
 
         if (update_progress) {
-            message += android::base::StringPrintf("Setting progress (%s): %d/%d (%d%%)\n",
-                                                   listener_name.c_str(), progress, max,
-                                                   (100 * progress / max));
+            message += android::base::StringPrintf("Setting progress: %d/%d (%d%%)\n",
+                                                   progress, max, (100 * progress / max));
         }
 
         return message;
@@ -787,18 +786,17 @@ TEST_F(DumpstateTest, RunCommandIsKilled) {
 TEST_F(DumpstateTest, RunCommandProgress) {
     sp<DumpstateListenerMock> listener(new DumpstateListenerMock());
     ds.listener_ = listener;
-    ds.listener_name_ = "FoxMulder";
     SetProgress(0, 30);
 
     EXPECT_CALL(*listener, onProgress(66));  // 20/30 %
     EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(20).Build()));
-    std::string progress_message = GetProgressMessage(ds.listener_name_, 20, 30);
+    std::string progress_message = GetProgressMessage(20, 30);
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
 
     EXPECT_CALL(*listener, onProgress(80));  // 24/30 %
     EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(4).Build()));
-    progress_message = GetProgressMessage(ds.listener_name_, 24, 30);
+    progress_message = GetProgressMessage(24, 30);
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
 
@@ -806,20 +804,20 @@ TEST_F(DumpstateTest, RunCommandProgress) {
     SetDryRun(true);
     EXPECT_CALL(*listener, onProgress(90));  // 27/30 %
     EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(3).Build()));
-    progress_message = GetProgressMessage(ds.listener_name_, 27, 30);
+    progress_message = GetProgressMessage(27, 30);
     EXPECT_THAT(out, IsEmpty());
     EXPECT_THAT(err, StrEq(progress_message));
 
     SetDryRun(false);
     EXPECT_CALL(*listener, onProgress(96));  // 29/30 %
     EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(2).Build()));
-    progress_message = GetProgressMessage(ds.listener_name_, 29, 30);
+    progress_message = GetProgressMessage(29, 30);
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
 
     EXPECT_CALL(*listener, onProgress(100));  // 30/30 %
     EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(1).Build()));
-    progress_message = GetProgressMessage(ds.listener_name_, 30, 30);
+    progress_message = GetProgressMessage(30, 30);
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
 
@@ -1044,14 +1042,12 @@ TEST_F(DumpstateTest, DumpFileOnDryRun) {
 TEST_F(DumpstateTest, DumpFileUpdateProgress) {
     sp<DumpstateListenerMock> listener(new DumpstateListenerMock());
     ds.listener_ = listener;
-    ds.listener_name_ = "FoxMulder";
     SetProgress(0, 30);
 
     EXPECT_CALL(*listener, onProgress(16));  // 5/30 %
     EXPECT_EQ(0, DumpFile("", kTestDataPath + "single-line.txt"));
 
-    std::string progress_message =
-        GetProgressMessage(ds.listener_name_, 5, 30);  // TODO: unhardcode WEIGHT_FILE (5)?
+    std::string progress_message = GetProgressMessage(5, 30);  // TODO: unhardcode WEIGHT_FILE (5)?
     EXPECT_THAT(err, StrEq(progress_message));
     EXPECT_THAT(out, StrEq("I AM LINE1\n"));  // dumpstate adds missing newline
 
@@ -1062,48 +1058,6 @@ class DumpstateServiceTest : public DumpstateBaseTest {
   public:
     DumpstateService dss;
 };
-
-TEST_F(DumpstateServiceTest, SetListenerNoName) {
-    sp<DumpstateListenerMock> listener(new DumpstateListenerMock());
-    sp<IDumpstateToken> token;
-    EXPECT_TRUE(dss.setListener("", listener, /* getSectionDetails = */ false, &token).isOk());
-    ASSERT_THAT(token, IsNull());
-}
-
-TEST_F(DumpstateServiceTest, SetListenerNoPointer) {
-    sp<IDumpstateToken> token;
-    EXPECT_TRUE(
-        dss.setListener("whatever", nullptr, /* getSectionDetails = */ false, &token).isOk());
-    ASSERT_THAT(token, IsNull());
-}
-
-TEST_F(DumpstateServiceTest, SetListenerTwice) {
-    sp<DumpstateListenerMock> listener(new DumpstateListenerMock());
-    sp<IDumpstateToken> token;
-    EXPECT_TRUE(
-        dss.setListener("whatever", listener, /* getSectionDetails = */ false, &token).isOk());
-    ASSERT_THAT(token, NotNull());
-    EXPECT_THAT(Dumpstate::GetInstance().listener_name_, StrEq("whatever"));
-    EXPECT_FALSE(Dumpstate::GetInstance().report_section_);
-
-    token.clear();
-    EXPECT_TRUE(
-        dss.setListener("whatsoever", listener, /* getSectionDetails = */ false, &token).isOk());
-    ASSERT_THAT(token, IsNull());
-    EXPECT_THAT(Dumpstate::GetInstance().listener_name_, StrEq("whatever"));
-    EXPECT_FALSE(Dumpstate::GetInstance().report_section_);
-}
-
-TEST_F(DumpstateServiceTest, SetListenerWithSectionDetails) {
-    sp<DumpstateListenerMock> listener(new DumpstateListenerMock());
-    sp<IDumpstateToken> token;
-    Dumpstate::GetInstance().listener_ = nullptr;
-    EXPECT_TRUE(
-        dss.setListener("whatever", listener, /* getSectionDetails = */ true, &token).isOk());
-    ASSERT_THAT(token, NotNull());
-    EXPECT_THAT(Dumpstate::GetInstance().listener_name_, StrEq("whatever"));
-    EXPECT_TRUE(Dumpstate::GetInstance().report_section_);
-}
 
 class ProgressTest : public DumpstateBaseTest {
   public:
