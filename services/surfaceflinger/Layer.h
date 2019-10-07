@@ -221,6 +221,8 @@ public:
     explicit Layer(const LayerCreationArgs& args);
     virtual ~Layer();
 
+    int getWindowType() const { return mWindowType; }
+
     void setPrimaryDisplayOnly() { mPrimaryDisplayOnly = true; }
     bool getPrimaryDisplayOnly() const { return mPrimaryDisplayOnly; }
 
@@ -885,9 +887,6 @@ protected:
 
     // Window types from WindowManager.LayoutParams
     const int mWindowType;
-
-    // This is populated if the layer is registered with Scheduler for tracking purposes.
-    std::unique_ptr<scheduler::LayerHistory::LayerHandle> mSchedulerLayerHandle;
 
 private:
     /**

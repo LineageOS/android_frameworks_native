@@ -5505,6 +5505,16 @@ sp<Layer> SurfaceFlinger::fromHandle(const sp<IBinder>& handle) {
     return nullptr;
 }
 
+void SurfaceFlinger::onLayerCreated(Layer* layer) {
+    mNumLayers++;
+    mScheduler->registerLayer(layer);
+}
+
+void SurfaceFlinger::onLayerDestroyed(Layer* layer) {
+    mNumLayers--;
+    mOffscreenLayers.erase(layer);
+}
+
 void SurfaceFlinger::bufferErased(const client_cache_t& clientCacheId) {
     getRenderEngine().unbindExternalTextureBuffer(clientCacheId.id);
 }

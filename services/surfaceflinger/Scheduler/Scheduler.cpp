@@ -20,13 +20,6 @@
 
 #include "Scheduler.h"
 
-#include <algorithm>
-#include <cinttypes>
-#include <cstdint>
-#include <functional>
-#include <memory>
-#include <numeric>
-
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
@@ -37,6 +30,14 @@
 #include <utils/Timers.h>
 #include <utils/Trace.h>
 
+#include <algorithm>
+#include <cinttypes>
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <numeric>
+
+#include "../Layer.h"
 #include "DispSync.h"
 #include "DispSyncSource.h"
 #include "EventControlThread.h"
@@ -325,37 +326,27 @@ nsecs_t Scheduler::getDispSyncExpectedPresentTime() {
     return mPrimaryDispSync->expectedPresentTime();
 }
 
-std::unique_ptr<scheduler::LayerHistory::LayerHandle> Scheduler::registerLayer(
-        std::string const& name, int windowType) {
+void Scheduler::registerLayer(Layer* layer) {
     uint32_t defaultFps, performanceFps;
     if (mRefreshRateConfigs.refreshRateSwitchingSupported()) {
         defaultFps = mRefreshRateConfigs.getRefreshRateFromType(RefreshRateType::DEFAULT).fps;
-        performanceFps =
-                mRefreshRateConfigs
-                        .getRefreshRateFromType((windowType == InputWindowInfo::TYPE_WALLPAPER)
-                                                        ? RefreshRateType::DEFAULT
-                                                        : RefreshRateType::PERFORMANCE)
-                        .fps;
+        const auto type = layer->getWindowType() == InputWindowInfo::TYPE_WALLPAPER
+                ? RefreshRateType::DEFAULT
+                : RefreshRateType::PERFORMANCE;
+        performanceFps = mRefreshRateConfigs.getRefreshRateFromType(type).fps;
     } else {
         defaultFps = mRefreshRateConfigs.getCurrentRefreshRate().second.fps;
         performanceFps = defaultFps;
     }
-    return mLayerHistory.createLayer(name, defaultFps, performanceFps);
+    mLayerHistory.registerLayer(layer, defaultFps, performanceFps);
 }
 
-void Scheduler::addLayerPresentTimeAndHDR(
-        const std::unique_ptr<scheduler::LayerHistory::LayerHandle>& layerHandle,
-        nsecs_t presentTime, bool isHDR) {
-    mLayerHistory.insert(layerHandle, presentTime, isHDR);
-}
-
-void Scheduler::setLayerVisibility(
-        const std::unique_ptr<scheduler::LayerHistory::LayerHandle>& layerHandle, bool visible) {
-    mLayerHistory.setVisibility(layerHandle, visible);
+void Scheduler::recordLayerHistory(Layer* layer, nsecs_t presentTime, bool isHDR) {
+    mLayerHistory.record(layer, presentTime, isHDR, systemTime());
 }
 
 void Scheduler::updateFpsBasedOnContent() {
-    auto [refreshRate, isHDR] = mLayerHistory.getDesiredRefreshRateAndHDR();
+    auto [refreshRate, isHDR] = mLayerHistory.summarize(systemTime());
     const uint32_t refreshRateRound = std::round(refreshRate);
     RefreshRateType newRefreshRateType;
     {
@@ -402,7 +393,7 @@ void Scheduler::notifyTouchEvent() {
 
     // Touch event will boost the refresh rate to performance.
     // Clear Layer History to get fresh FPS detection
-    mLayerHistory.clearHistory();
+    mLayerHistory.clear();
 }
 
 void Scheduler::setDisplayPowerState(bool normal) {
@@ -417,7 +408,7 @@ void Scheduler::setDisplayPowerState(bool normal) {
 
     // Display Power event will boost the refresh rate to performance.
     // Clear Layer History to get fresh FPS detection
-    mLayerHistory.clearHistory();
+    mLayerHistory.clear();
 }
 
 void Scheduler::kernelIdleTimerCallback(TimerState state) {

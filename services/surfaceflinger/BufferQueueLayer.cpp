@@ -389,8 +389,8 @@ void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
     { // Autolock scope
         if (mFlinger->mUseSmart90ForVideo) {
             const nsecs_t presentTime = item.mIsAutoTimestamp ? 0 : item.mTimestamp;
-            mFlinger->mScheduler->addLayerPresentTimeAndHDR(mSchedulerLayerHandle, presentTime,
-                                                            item.mHdrMetadata.validTypes != 0);
+            mFlinger->mScheduler->recordLayerHistory(this, presentTime,
+                                                     item.mHdrMetadata.validTypes != 0);
         }
 
         Mutex::Autolock lock(mQueueItemLock);
