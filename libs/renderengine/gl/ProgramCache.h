@@ -179,7 +179,7 @@ public:
     ~ProgramCache() = default;
 
     // Generate shaders to populate the cache
-    void primeCache(const EGLContext context, bool useColorManagement);
+    void primeCache(const EGLContext context, bool useColorManagement, bool toneMapperShaderOnly);
 
     size_t getSize(const EGLContext context) { return mCaches[context].size(); }
 
