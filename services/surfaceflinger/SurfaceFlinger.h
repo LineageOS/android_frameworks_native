@@ -338,6 +338,7 @@ private:
 
     // For unit tests
     friend class TestableSurfaceFlinger;
+    friend class TransactionApplicationTest;
 
     // This value is specified in number of frames.  Log frame stats at most
     // every half hour.

@@ -258,7 +258,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mFrameTracer(std::make_unique<FrameTracer>()),
         mEventQueue(mFactory.createMessageQueue()),
         mCompositionEngine(mFactory.createCompositionEngine()),
-        mPhaseOffsets(mFactory.createPhaseOffsets()) {}
+        mPhaseOffsets(mFactory.createPhaseOffsets()),
+        mPendingSyncInputWindows(false) {}
 
 SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipInitialization) {
     ALOGI("SurfaceFlinger is starting");
