@@ -66,6 +66,9 @@ public:
 
         // Create a protected context when if possible
         ENABLE_PROTECTED_CONTEXT = 1 << 2,
+
+        // Only precache HDR to SDR tone-mapping shaders
+        PRECACHE_TONE_MAPPER_SHADER_ONLY = 1 << 3,
     };
 
     static std::unique_ptr<impl::RenderEngine> create(int hwcFormat, uint32_t featureFlags,
