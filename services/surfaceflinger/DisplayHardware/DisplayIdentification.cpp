@@ -68,6 +68,36 @@ char getPnpLetter(uint16_t id) {
     return letter < 'A' || letter > 'Z' ? '\0' : letter;
 }
 
+DeviceProductInfo buildDeviceProductInfo(const Edid& edid) {
+    DeviceProductInfo info;
+    std::copy(edid.displayName.begin(), edid.displayName.end(), info.name.begin());
+    info.name[edid.displayName.size()] = '\0';
+
+    const auto productId = std::to_string(edid.productId);
+    std::copy(productId.begin(), productId.end(), info.productId.begin());
+    info.productId[productId.size()] = '\0';
+    info.manufacturerPnpId = edid.pnpId;
+
+    constexpr uint8_t kModelYearFlag = 0xff;
+    constexpr uint32_t kYearOffset = 1990;
+
+    const auto year = edid.manufactureOrModelYear + kYearOffset;
+    if (edid.manufactureWeek == kModelYearFlag) {
+        info.manufactureOrModelDate = DeviceProductInfo::ModelYear{.year = year};
+    } else if (edid.manufactureWeek == 0) {
+        DeviceProductInfo::ManufactureYear date;
+        date.year = year;
+        info.manufactureOrModelDate = date;
+    } else {
+        DeviceProductInfo::ManufactureWeekAndYear date;
+        date.year = year;
+        date.week = edid.manufactureWeek;
+        info.manufactureOrModelDate = date;
+    }
+
+    return info;
+}
+
 } // namespace
 
 uint16_t DisplayId::manufacturerId() const {
@@ -112,6 +142,31 @@ std::optional<Edid> parseEdid(const DisplayIdentificationData& edid) {
         return {};
     }
 
+    constexpr size_t kProductIdOffset = 10;
+    if (edid.size() < kProductIdOffset + sizeof(uint16_t)) {
+        ALOGE("Invalid EDID: product ID is truncated.");
+        return {};
+    }
+    const uint16_t productId = edid[kProductIdOffset] | (edid[kProductIdOffset + 1] << 8);
+
+    constexpr size_t kManufactureWeekOffset = 16;
+    if (edid.size() < kManufactureWeekOffset + sizeof(uint8_t)) {
+        ALOGE("Invalid EDID: manufacture week is truncated.");
+        return {};
+    }
+    const uint8_t manufactureWeek = edid[kManufactureWeekOffset];
+    ALOGW_IF(0x37 <= manufactureWeek && manufactureWeek <= 0xfe,
+             "Invalid EDID: week of manufacture cannot be in the range [0x37, 0xfe].");
+
+    constexpr size_t kManufactureYearOffset = 17;
+    if (edid.size() < kManufactureYearOffset + sizeof(uint8_t)) {
+        ALOGE("Invalid EDID: manufacture year is truncated.");
+        return {};
+    }
+    const uint8_t manufactureOrModelYear = edid[kManufactureYearOffset];
+    ALOGW_IF(manufactureOrModelYear <= 0xf,
+             "Invalid EDID: model year or manufacture year cannot be in the range [0x0, 0xf].");
+
     constexpr size_t kDescriptorOffset = 54;
     if (edid.size() < kDescriptorOffset) {
         ALOGE("Invalid EDID: descriptors are missing.");
@@ -127,6 +182,7 @@ std::optional<Edid> parseEdid(const DisplayIdentificationData& edid) {
 
     constexpr size_t kDescriptorCount = 4;
     constexpr size_t kDescriptorLength = 18;
+    static_assert(kDescriptorLength - kEdidHeaderLength < DeviceProductInfo::TEXT_BUFFER_SIZE);
 
     for (size_t i = 0; i < kDescriptorCount; i++) {
         if (view.size() < kDescriptorLength) {
@@ -166,7 +222,12 @@ std::optional<Edid> parseEdid(const DisplayIdentificationData& edid) {
         return {};
     }
 
-    return Edid{manufacturerId, *pnpId, displayName};
+    return Edid{.manufacturerId = manufacturerId,
+                .pnpId = *pnpId,
+                .displayName = displayName,
+                .productId = productId,
+                .manufactureWeek = manufactureWeek,
+                .manufactureOrModelYear = manufactureOrModelYear};
 }
 
 std::optional<PnpId> getPnpId(uint16_t manufacturerId) {
@@ -195,8 +256,9 @@ std::optional<DisplayIdentificationInfo> parseDisplayIdentificationData(
     // Hash display name instead of using product code or serial number, since the latter have been
     // observed to change on some displays with multiple inputs.
     const auto hash = static_cast<uint32_t>(std::hash<std::string_view>()(edid->displayName));
-    return DisplayIdentificationInfo{DisplayId::fromEdid(port, edid->manufacturerId, hash),
-                                     std::string(edid->displayName)};
+    return DisplayIdentificationInfo{.id = DisplayId::fromEdid(port, edid->manufacturerId, hash),
+                                     .name = std::string(edid->displayName),
+                                     .deviceProductInfo = buildDeviceProductInfo(*edid)};
 }
 
 DisplayId getFallbackDisplayId(uint8_t port) {

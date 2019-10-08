@@ -23,6 +23,7 @@
 #include <string_view>
 #include <vector>
 
+#include <ui/DeviceProductInfo.h>
 #include <ui/PhysicalDisplayId.h>
 
 namespace android {
@@ -53,15 +54,16 @@ using DisplayIdentificationData = std::vector<uint8_t>;
 struct DisplayIdentificationInfo {
     DisplayId id;
     std::string name;
+    std::optional<DeviceProductInfo> deviceProductInfo;
 };
-
-// NUL-terminated plug and play ID.
-using PnpId = std::array<char, 4>;
 
 struct Edid {
     uint16_t manufacturerId;
+    uint16_t productId;
     PnpId pnpId;
     std::string_view displayName;
+    uint8_t manufactureOrModelYear;
+    uint8_t manufactureWeek;
 };
 
 bool isEdid(const DisplayIdentificationData&);
