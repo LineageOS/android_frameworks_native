@@ -335,12 +335,6 @@ status_t Dumpsys::startDumpThread(const String16& serviceName, const Vector<Stri
     activeThread_ = std::thread([=, remote_end{std::move(remote_end)}]() mutable {
         int err = service->dump(remote_end.get(), args);
 
-        // It'd be nice to be able to close the remote end of the socketpair before the dump
-        // call returns, to terminate our reads if the other end closes their copy of the
-        // file descriptor, but then hangs for some reason. There doesn't seem to be a good
-        // way to do this, though.
-        remote_end.reset();
-
         if (err != 0) {
             aerr << "Error dumping service info: (" << strerror(err) << ") "
                  << serviceName << endl;
