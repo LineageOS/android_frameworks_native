@@ -216,8 +216,8 @@ class ZippedBugreportGenerationTest : public Test {
         duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     }
 
-    static const char* getZipFilePath() {
-        return ds.GetPath(".zip").c_str();
+    static const std::string getZipFilePath() {
+        return ds.GetPath(".zip");
     }
 };
 std::shared_ptr<std::vector<SectionInfo>> ZippedBugreportGenerationTest::sections =
@@ -226,12 +226,12 @@ Dumpstate& ZippedBugreportGenerationTest::ds = Dumpstate::GetInstance();
 std::chrono::milliseconds ZippedBugreportGenerationTest::duration = 0s;
 
 TEST_F(ZippedBugreportGenerationTest, IsGeneratedWithoutErrors) {
-    EXPECT_EQ(access(getZipFilePath(), F_OK), 0);
+    EXPECT_EQ(access(getZipFilePath().c_str(), F_OK), 0);
 }
 
 TEST_F(ZippedBugreportGenerationTest, Is3MBto30MBinSize) {
     struct stat st;
-    EXPECT_EQ(stat(getZipFilePath(), &st), 0);
+    EXPECT_EQ(stat(getZipFilePath().c_str(), &st), 0);
     EXPECT_GE(st.st_size, 3000000 /* 3MB */);
     EXPECT_LE(st.st_size, 30000000 /* 30MB */);
 }
@@ -250,7 +250,7 @@ class ZippedBugReportContentsTest : public Test {
   public:
     ZipArchiveHandle handle;
     void SetUp() {
-        ASSERT_EQ(OpenArchive(ZippedBugreportGenerationTest::getZipFilePath(), &handle), 0);
+        ASSERT_EQ(OpenArchive(ZippedBugreportGenerationTest::getZipFilePath().c_str(), &handle), 0);
     }
     void TearDown() {
         CloseArchive(handle);
@@ -314,7 +314,7 @@ TEST_F(ZippedBugReportContentsTest, ContainsSomeFileSystemFiles) {
 class BugreportSectionTest : public Test {
   public:
     static void SetUpTestCase() {
-        ParseSections(ZippedBugreportGenerationTest::getZipFilePath(),
+        ParseSections(ZippedBugreportGenerationTest::getZipFilePath().c_str(),
                       ZippedBugreportGenerationTest::sections.get());
     }
 
