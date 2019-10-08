@@ -532,7 +532,8 @@ void Sensor::flattenString8(void*& buffer, size_t& size,
     uint32_t len = static_cast<uint32_t>(string8.length());
     FlattenableUtils::write(buffer, size, len);
     memcpy(static_cast<char*>(buffer), string8.string(), len);
-    FlattenableUtils::advance(buffer, size, FlattenableUtils::align<4>(len));
+    FlattenableUtils::advance(buffer, size, len);
+    size -= FlattenableUtils::align<4>(buffer);
 }
 
 bool Sensor::unflattenString8(void const*& buffer, size_t& size, String8& outputString8) {
