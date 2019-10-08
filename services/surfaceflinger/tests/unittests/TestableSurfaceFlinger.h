@@ -35,7 +35,7 @@
 #include "Scheduler/RefreshRateConfigs.h"
 #include "StartPropertySetThread.h"
 #include "SurfaceFlinger.h"
-#include "SurfaceFlingerFactory.h"
+#include "SurfaceFlingerDefaultFactory.h"
 #include "SurfaceInterceptor.h"
 #include "TestableScheduler.h"
 
