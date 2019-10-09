@@ -171,7 +171,7 @@ std::string TimeStatsTest::inputCommand(InputCommand cmd, bool useProto) {
 }
 
 static std::string genLayerName(int32_t layerID) {
-    return (layerID < 0 ? "invalid.dummy" : "com.dummy#") + std::to_string(layerID);
+    return (layerID < 0 ? "PopupWindow:b54fcd1#0" : "com.dummy#") + std::to_string(layerID);
 }
 
 void TimeStatsTest::setTimeStamp(TimeStamp type, int32_t id, uint64_t frameNumber, nsecs_t ts) {
