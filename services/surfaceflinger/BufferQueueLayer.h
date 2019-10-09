@@ -93,6 +93,7 @@ protected:
     void onFrameAvailable(const BufferItem& item) override;
     void onFrameReplaced(const BufferItem& item) override;
     void onSidebandStreamChanged() override;
+    void onFrameDequeued(const uint64_t bufferId) override;
     // -----------------------------------------------------------------------
 
 public:

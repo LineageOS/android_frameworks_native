@@ -372,11 +372,17 @@ void BufferQueueLayer::latchPerFrameState(
 // Interface implementation for BufferLayerConsumer::ContentsChangedListener
 // -----------------------------------------------------------------------
 
+void BufferQueueLayer::onFrameDequeued(const uint64_t bufferId) {
+    const int32_t layerID = getSequence();
+    mFlinger->mFrameTracer->traceTimestamp(layerID, bufferId, FrameTracer::UNSPECIFIED_FRAME_NUMBER,
+                                           systemTime(), FrameTracer::FrameEvent::DEQUEUE, 3000);
+}
+
 void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
     const int32_t layerID = getSequence();
     mFlinger->mFrameTracer->traceNewLayer(layerID, getName().c_str());
     mFlinger->mFrameTracer->traceTimestamp(layerID, item.mGraphicBuffer->getId(), item.mFrameNumber,
-                                           systemTime(), FrameTracer::FrameEvent::POST);
+                                           systemTime(), FrameTracer::FrameEvent::QUEUE);
 
     ATRACE_CALL();
     // Add this buffer from our internal queue tracker
