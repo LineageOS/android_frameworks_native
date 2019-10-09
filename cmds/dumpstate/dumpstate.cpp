@@ -253,7 +253,7 @@ int64_t GetModuleMetadataVersion() {
         MYLOGE("Failed to retrieve module metadata package name: %s", status.toString8().c_str());
         return 0L;
     }
-    MYLOGD("Module metadata package name: %s", package_name.c_str());
+    MYLOGD("Module metadata package name: %s\n", package_name.c_str());
     int64_t version_code;
     status = package_service->getVersionCodeForPackage(android::String16(package_name.c_str()),
                                                        &version_code);
@@ -876,6 +876,17 @@ static void DoKernelLogcat() {
         CommandOptions::WithTimeoutInMs(timeout_ms).Build());
 }
 
+static void DoSystemLogcat(time_t since) {
+    char since_str[80];
+    strftime(since_str, sizeof(since_str), "%Y-%m-%d %H:%M:%S.000", localtime(&since));
+
+    unsigned long timeout_ms = logcat_timeout({"main", "system", "crash"});
+    RunCommand("SYSTEM LOG",
+               {"logcat", "-v", "threadtime", "-v", "printable", "-v", "uid", "-d", "*:v", "-T",
+                since_str},
+               CommandOptions::WithTimeoutInMs(timeout_ms).Build());
+}
+
 static void DoLogcat() {
     unsigned long timeout_ms;
     // DumpFile("EVENT LOG TAGS", "/etc/event-log-tags");
@@ -1365,8 +1376,6 @@ static Dumpstate::RunStatus dumpstate() {
         ds.TakeScreenshot();
     }
 
-    DoLogcat();
-
     AddAnrTraceFiles();
 
     // NOTE: tombstones are always added as separate entries in the zip archive
@@ -1523,6 +1532,12 @@ static Dumpstate::RunStatus DumpstateDefault() {
     // keep the system stats as close to its initial state as possible.
     RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(RunDumpsysCritical);
 
+    // Capture first logcat early on; useful to take a snapshot before dumpstate logs take over the
+    // buffer.
+    DoLogcat();
+    // Capture timestamp after first logcat to use in next logcat
+    time_t logcat_ts = time(nullptr);
+
     /* collect stack traces from Dalvik and native processes (needs root) */
     RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(ds.DumpTraces, &dump_traces_path);
 
@@ -1565,7 +1580,10 @@ static Dumpstate::RunStatus DumpstateDefault() {
     }
 
     RETURN_IF_USER_DENIED_CONSENT();
-    return dumpstate();
+    Dumpstate::RunStatus status = dumpstate();
+    // Capture logcat since the last time we did it.
+    DoSystemLogcat(logcat_ts);
+    return status;
 }
 
 // This method collects common dumpsys for telephony and wifi
