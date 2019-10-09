@@ -52,6 +52,7 @@ cc_test {
         "RegionSamplingTest.cpp",
         "TimeStatsTest.cpp",
         "FrameTracerTest.cpp",
+        "TransactionApplicationTest.cpp",
         "mock/DisplayHardware/MockComposer.cpp",
         "mock/DisplayHardware/MockDisplay.cpp",
         "mock/DisplayHardware/MockPowerAdvisor.cpp",
