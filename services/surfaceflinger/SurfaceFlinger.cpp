@@ -601,20 +601,19 @@ void SurfaceFlinger::init() {
     Mutex::Autolock _l(mStateLock);
 
     // Get a RenderEngine for the given display / config (can't fail)
-    int32_t renderEngineFeature = 0;
-    renderEngineFeature |= (useColorManagement ?
-                            renderengine::RenderEngine::USE_COLOR_MANAGEMENT : 0);
-    renderEngineFeature |= (useContextPriority ?
-                            renderengine::RenderEngine::USE_HIGH_PRIORITY_CONTEXT : 0);
-    renderEngineFeature |=
-            (enable_protected_contents(false) ? renderengine::RenderEngine::ENABLE_PROTECTED_CONTEXT
-                                              : 0);
-
     // TODO(b/77156734): We need to stop casting and use HAL types when possible.
     // Sending maxFrameBufferAcquiredBuffers as the cache size is tightly tuned to single-display.
-    mCompositionEngine->setRenderEngine(
-            renderengine::RenderEngine::create(static_cast<int32_t>(defaultCompositionPixelFormat),
-                                               renderEngineFeature, maxFrameBufferAcquiredBuffers));
+    mCompositionEngine->setRenderEngine(renderengine::RenderEngine::create(
+            renderengine::RenderEngineCreationArgs::Builder()
+                .setPixelFormat(static_cast<int32_t>(defaultCompositionPixelFormat))
+                .setImageCacheSize(maxFrameBufferAcquiredBuffers)
+                .setUseColorManagerment(useColorManagement)
+                .setEnableProtectedContext(enable_protected_contents(false))
+                .setPrecacheToneMapperShaderOnly(false)
+                .setContextPriority(useContextPriority
+                        ? renderengine::RenderEngine::ContextPriority::HIGH
+                        : renderengine::RenderEngine::ContextPriority::MEDIUM)
+                .build()));
 
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
             "Starting with vr flinger active is not currently supported.");

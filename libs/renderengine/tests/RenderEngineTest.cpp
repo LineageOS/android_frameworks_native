@@ -31,9 +31,15 @@ namespace android {
 
 struct RenderEngineTest : public ::testing::Test {
     static void SetUpTestSuite() {
-        sRE = renderengine::gl::GLESRenderEngine::create(static_cast<int32_t>(
-                                                                 ui::PixelFormat::RGBA_8888),
-                                                         0, 1);
+        sRE = renderengine::gl::GLESRenderEngine::create(
+                renderengine::RenderEngineCreationArgs::Builder()
+                    .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
+                    .setImageCacheSize(1)
+                    .setUseColorManagerment(false)
+                    .setEnableProtectedContext(false)
+                    .setPrecacheToneMapperShaderOnly(false)
+                    .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
+        .build());
     }
 
     static void TearDownTestSuite() {
