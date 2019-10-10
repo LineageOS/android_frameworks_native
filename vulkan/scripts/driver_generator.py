@@ -27,17 +27,17 @@ interceptedExtensions = [
   'VK_EXT_swapchain_colorspace',
   'VK_GOOGLE_display_timing',
   'VK_KHR_android_surface',
+  'VK_KHR_get_surface_capabilities2',
   'VK_KHR_incremental_present',
   'VK_KHR_shared_presentable_image',
   'VK_KHR_surface',
   'VK_KHR_swapchain',
-  'VK_KHR_get_surface_capabilities2'
 ]
 
 knownExtensions = interceptedExtensions + [
-  'VK_KHR_get_physical_device_properties2',
   'VK_ANDROID_external_memory_android_hardware_buffer',
-  'VK_KHR_bind_memory2'
+  'VK_KHR_bind_memory2',
+  'VK_KHR_get_physical_device_properties2',
 ]
 
 def defineProcHookType(f):

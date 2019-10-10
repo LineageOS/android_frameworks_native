@@ -78,9 +78,6 @@ PFN_vkVoidFunction GetInstanceProcAddr(const char* name);
       if isDriverFunction(cmds):
         paramList = [''.join(i) for i in gencom.paramDict[cmds]]
         f.write ('VKAPI_ATTR ' + gencom.returnTypeDict[cmds] + ' ' + cmds[2:] + '(' +', '.join(paramList) + ');\n')
-    f.write ("""VKAPI_ATTR VkResult GetSwapchainGrallocUsageANDROID(VkDevice device, VkFormat format, VkImageUsageFlags imageUsage, int* grallocUsage);
-VKAPI_ATTR VkResult AcquireImageANDROID(VkDevice device, VkImage image, int nativeFenceFd, VkSemaphore semaphore, VkFence fence);
-VKAPI_ATTR VkResult QueueSignalReleaseImageANDROID(VkQueue queue, uint32_t waitSemaphoreCount, const VkSemaphore* pWaitSemaphores, VkImage image, int* pNativeFenceFd);\n""")
     gencom.clang_on(f,0)
 
     f.write ('\n}  // namespace null_driver\n')
