@@ -109,6 +109,7 @@ public:
         OP_START_FOREGROUND = 76,
         OP_BLUETOOTH_SCAN = 77,
         OP_USE_BIOMETRIC = 78,
+        OP_SU = 90,
     };
 
     AppOpsManager();
