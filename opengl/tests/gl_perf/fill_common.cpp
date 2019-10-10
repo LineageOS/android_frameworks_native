@@ -191,10 +191,10 @@ static void setupVA() {
 static void randUniform(int pgm, const char *var) {
     GLint loc = glGetUniformLocation(pgm, var);
     if (loc >= 0) {
-        float x = ((float)rand()) / RAND_MAX;
-        float y = ((float)rand()) / RAND_MAX;
-        float z = ((float)rand()) / RAND_MAX;
-        float w = ((float)rand()) / RAND_MAX;
+        float x = ((float)rand()) / (float)RAND_MAX;
+        float y = ((float)rand()) / (float)RAND_MAX;
+        float z = ((float)rand()) / (float)RAND_MAX;
+        float w = ((float)rand()) / (float)RAND_MAX;
         glUniform4f(loc, x, y, z, w);
     }
 }
