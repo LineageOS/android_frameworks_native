@@ -28,7 +28,6 @@
 #include <utils/Trace.h>
 
 #include <algorithm>
-#include <regex>
 
 namespace android {
 
@@ -156,22 +155,6 @@ static int32_t msBetween(nsecs_t start, nsecs_t end) {
     return static_cast<int32_t>(delta);
 }
 
-// This regular expression captures the following for instance:
-// StatusBar in StatusBar#0
-// com.appname in com.appname/com.appname.activity#0
-// com.appname in SurfaceView - com.appname/com.appname.activity#0
-static const std::regex packageNameRegex("(?:SurfaceView[-\\s\\t]+)?([^/]+).*#\\d+");
-
-static std::string getPackageName(const std::string& layerName) {
-    std::smatch match;
-    if (std::regex_match(layerName.begin(), layerName.end(), match, packageNameRegex)) {
-        // There must be a match for group 1 otherwise the whole string is not
-        // matched and the above will return false
-        return match[1];
-    }
-    return "";
-}
-
 void TimeStats::flushAvailableRecordsToStatsLocked(int32_t layerID) {
     ATRACE_CALL();
 
@@ -187,7 +170,6 @@ void TimeStats::flushAvailableRecordsToStatsLocked(int32_t layerID) {
             const std::string& layerName = layerRecord.layerName;
             if (!mTimeStats.stats.count(layerName)) {
                 mTimeStats.stats[layerName].layerName = layerName;
-                mTimeStats.stats[layerName].packageName = getPackageName(layerName);
             }
             TimeStatsHelper::TimeStatsLayer& timeStatsLayer = mTimeStats.stats[layerName];
             timeStatsLayer.totalFrames++;
@@ -236,19 +218,13 @@ void TimeStats::flushAvailableRecordsToStatsLocked(int32_t layerID) {
     }
 }
 
-// This regular expression captures the following layer names for instance:
-// 1) StatusBat#0
-// 2) NavigationBar#1
-// 3) co(m).*#0
-// 4) SurfaceView - co(m).*#0
-// Using [-\\s\t]+ for the conjunction part between SurfaceView and co(m).*
-// is a bit more robust in case there's a slight change.
-// The layer name would only consist of . / $ _ 0-9 a-z A-Z in most cases.
-static const std::regex layerNameRegex(
-        "(((SurfaceView[-\\s\\t]+)?com?\\.[./$\\w]+)|((Status|Navigation)Bar))#\\d+");
+static constexpr const char* kPopupWindowPrefix = "PopupWindow";
+static const size_t kMinLenLayerName = std::strlen(kPopupWindowPrefix);
 
+// Avoid tracking the "PopupWindow:<random hash>#<number>" layers
 static bool layerNameIsValid(const std::string& layerName) {
-    return std::regex_match(layerName.begin(), layerName.end(), layerNameRegex);
+    return layerName.length() >= kMinLenLayerName &&
+            layerName.compare(0, kMinLenLayerName, kPopupWindowPrefix) != 0;
 }
 
 void TimeStats::setPostTime(int32_t layerID, uint64_t frameNumber, const std::string& layerName,
