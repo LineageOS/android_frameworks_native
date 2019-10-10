@@ -20,21 +20,36 @@
 import os
 import generator_common as gencom
 
-def isInstanceDispatchTableEntry(functionName):
-  if functionName == 'vkEnumerateDeviceLayerProperties': # deprecated, unused internally - @dbd33bc
-    return False
-  if gencom.gencom.isFunctionExported(functionName) and gencom.isInstanceDispatched(functionName):
-    return True
-  return False
+_INTERCEPTED_COMMANDS = [
+    'vkCreateDevice',
+    'vkDestroyDevice',
+    'vkDestroyInstance',
+    'vkEnumerateDeviceExtensionProperties',
+    'vkEnumerateDeviceLayerProperties',
+]
 
-def isDeviceDispatchTableEntry(functionName):
-  if gencom.gencom.isFunctionExported(functionName) and gencom.gencom.isDeviceDispatched(functionName):
-    return True
-  return False
 
-def api_genh():
+def gen_h():
+  genfile = os.path.join(os.path.dirname(__file__),
+                         '..', 'libvulkan', 'api_gen.h')
 
-  header = """#ifndef LIBVULKAN_API_GEN_H
+  with open(genfile, 'w') as f:
+    instance_dispatch_table_entries = []
+    device_dispatch_table_entries = []
+
+    for cmd in gencom.command_list:
+      if cmd not in gencom.alias_dict:
+        if gencom.is_instance_dispatch_table_entry(cmd):
+          instance_dispatch_table_entries.append(
+              'PFN_' + cmd + ' ' + gencom.base_name(cmd) + ';')
+        elif gencom.is_device_dispatch_table_entry(cmd):
+          device_dispatch_table_entries.append(
+              'PFN_' + cmd + ' ' + gencom.base_name(cmd) + ';')
+
+    f.write(gencom.copyright_and_warning(2016))
+
+    f.write("""\
+#ifndef LIBVULKAN_API_GEN_H
 #define LIBVULKAN_API_GEN_H
 
 #include <vulkan/vulkan.h>
@@ -46,9 +61,26 @@ def api_genh():
 namespace vulkan {
 namespace api {
 
-"""
+struct InstanceDispatchTable {
+    // clang-format off\n""")
 
-  tail = """
+    for entry in instance_dispatch_table_entries:
+      f.write(gencom.indent(1) + entry + '\n')
+
+    f.write("""\
+    // clang-format on
+};
+
+struct DeviceDispatchTable {
+    // clang-format off\n""")
+
+    for entry in device_dispatch_table_entries:
+      f.write(gencom.indent(1) + entry + '\n')
+
+    f.write("""\
+    // clang-format on
+};
+
 bool InitDispatchTable(
     VkInstance instance,
     PFN_vkGetInstanceProcAddr get_proc,
@@ -61,105 +93,54 @@ bool InitDispatchTable(
 }  // namespace api
 }  // namespace vulkan
 
-#endif  // LIBVULKAN_API_GEN_H
-"""
-  genfile = os.path.join(os.path.dirname(__file__),'..','libvulkan','api_gen.h')
-  with open(genfile, 'w') as f:
-    instanceDispatchTableEntries = []
-    deviceDispatchTableEntries = []
-    for commands in gencom.allCommandsList:
-      if commands not in gencom.aliasDict:
-        if gencom.isInstanceDispatchTableEntry(commands):
-          instanceDispatchTableEntries.append('PFN_'+commands+' '+commands[2:]+';')
-        elif gencom.isDeviceDispatchTableEntry(commands):
-          deviceDispatchTableEntries.append('PFN_'+commands+' '+commands[2:]+';')
+#endif  // LIBVULKAN_API_GEN_H\n""")
 
-    f.write (gencom.copyright)
-    f.write (gencom.warning)
-    f.write (header)
-    f.write ('struct InstanceDispatchTable {\n')
-    gencom.clang_off(f,1)
-    for functions in instanceDispatchTableEntries:
-      f.write(gencom.clang_off_spaces + functions + '\n')
-    gencom.clang_on(f,1)
-    f.write ('};\n\n')
-
-    f.write ('struct DeviceDispatchTable {\n')
-    gencom.clang_off(f,1)
-    for functions in deviceDispatchTableEntries:
-      f.write(gencom.clang_off_spaces + functions + '\n')
-    gencom.clang_on(f,1)
-    f.write ('};\n')
-
-    f.write (tail)
     f.close()
-  gencom.runClangFormat(genfile)
+  gencom.run_clang_format(genfile)
 
-def defineInitProc(name, f):
-  f.write ('#define UNLIKELY(expr) __builtin_expect((expr), 0)\n')
-  f.write ('\n')
-  f.write ("""#define INIT_PROC(required, obj, proc)                                 \\
-    do {                                                               \\
-        data.""" + name + """.proc =                                           \\
-            reinterpret_cast<PFN_vk##proc>(get_proc(obj, "vk" #proc)); \\
-        if (UNLIKELY(required && !data.""" + name + """.proc)) {               \\
-            ALOGE("missing " #obj " proc: vk" #proc);                  \\
-            success = false;                                           \\
-        }                                                              \\
-    } while (0)\n\n""")
 
-def defineInitProcExt(f):
-  f.write ('// Exported extension functions may be invoked even when their extensions\n')
-  f.write ('// are disabled.  Dispatch to stubs when that happens.\n')
-  f.write ("""#define INIT_PROC_EXT(ext, required, obj, proc)  \\
-    do {                                         \\
-        if (extensions[driver::ProcHook::ext])   \\
-            INIT_PROC(required, obj, proc);      \\
-        else                                     \\
-            data.dispatch.proc = disabled##proc; \\
-    } while (0)\n\n""")
+def _define_extension_stub(cmd, f):
+  if (cmd in gencom.extension_dict and gencom.is_function_exported(cmd)):
+    ext_name = gencom.extension_dict[cmd]
+    ret = gencom.return_type_dict[cmd]
+    params = gencom.param_dict[cmd]
+    first_param = params[0][0] + params[0][1]
+    tail_params = ', '.join([i[0][:-1] for i in params[1:]])
 
-def defineExtensionStub(functionName, f):
-  if functionName in gencom.extensionsDict and gencom.isFunctionExported(functionName):
-    extname = gencom.extensionsDict[functionName]
-    base_name = functionName[2:]
-    pList = gencom.paramDict[functionName]
-    firstParam = pList[0][0] + pList[0][1]
-    tailParams = [x[0][:-1] for x in pList[1:]]
-    tailP = ', '.join(tailParams)
-    f.write ('VKAPI_ATTR ' + gencom.returnTypeDict[functionName] + ' disabled' + base_name + '(' + firstParam + ', ' + tailP + ') {\n')
-    f.write (gencom.clang_off_spaces)
-    f.write ('driver::Logger(' + pList[0][1] + ').Err(' + pList[0][1] + ', \"' + extname + ' not enabled. Exported ' + functionName + ' not executed.\");\n')
-    if gencom.returnTypeDict[functionName] != 'void':
-      f.write(gencom.clang_off_spaces + 'return VK_SUCCESS;\n')
-    f.write ('}\n\n')
+    f.write('VKAPI_ATTR ' + ret + ' disabled' + gencom.base_name(cmd) +
+            '(' + first_param + ', ' + tail_params + ') {\n')
 
-def isIntercepted(functionName):
-  if gencom.isFunctionSupported(functionName):
-    if gencom.isGloballyDispatched(functionName):
-      return True
-    elif functionName == 'vkCreateDevice':
-      return True
-    elif functionName == 'vkEnumerateDeviceLayerProperties':
-      return True
-    elif functionName == 'vkEnumerateDeviceExtensionProperties':
-      return True
-    elif functionName == 'vkDestroyInstance':
-      return True
-    elif functionName == 'vkDestroyDevice':
+    f.write(gencom.indent(1) + 'driver::Logger(' + params[0][1] +
+            ').Err(' + params[0][1] + ', \"' + ext_name +
+            ' not enabled. Exported ' + cmd + ' not executed.\");\n')
+
+    if gencom.return_type_dict[cmd] != 'void':
+      f.write(gencom.indent(1) + 'return VK_SUCCESS;\n')
+
+    f.write('}\n\n')
+
+
+def _is_intercepted(cmd):
+  if gencom.is_function_supported(cmd):
+    if gencom.is_globally_dispatched(cmd) or cmd in _INTERCEPTED_COMMANDS:
       return True
   return False
 
-def interceptInstanceProcAddr(functionName, f):
-  indent = 1
-  f.write (gencom.clang_off_spaces*indent + '// global functions\n' + gencom.clang_off_spaces*indent+ 'if (instance == VK_NULL_HANDLE) {\n')
-  indent = indent + 1
-  for cmds in gencom.allCommandsList:
-    if gencom.isGloballyDispatched(cmds):
-      f.write(gencom.clang_off_spaces*indent + 'if (strcmp(pName, \"' + cmds + '\") == 0) return reinterpret_cast<PFN_vkVoidFunction>(' + cmds[2:] + ');\n')
 
-  f.write ('\n')
-  f.write ("""        ALOGE("invalid vkGetInstanceProcAddr(VK_NULL_HANDLE, \\\"%s\\\") call", pName);
+def _intercept_instance_proc_addr(f):
+  f.write("""\
+    // global functions
+    if (instance == VK_NULL_HANDLE) {\n""")
+
+  for cmd in gencom.command_list:
+    if gencom.is_globally_dispatched(cmd):
+      f.write(gencom.indent(2) +
+              'if (strcmp(pName, \"' + cmd +
+              '\") == 0) return reinterpret_cast<PFN_vkVoidFunction>(' +
+              gencom.base_name(cmd) + ');\n')
+
+  f.write("""
+        ALOGE("invalid vkGetInstanceProcAddr(VK_NULL_HANDLE, \\\"%s\\\") call", pName);
         return nullptr;
     }
 
@@ -167,14 +148,21 @@ def interceptInstanceProcAddr(functionName, f):
         const char* name;
         PFN_vkVoidFunction proc;
     } hooks[] = {\n""")
-  sortedCommandsList = sorted(gencom.allCommandsList)
-  for cmds in sortedCommandsList:
-    if gencom.isFunctionExported(cmds):
-      if gencom.isGloballyDispatched(cmds):
-        f.write (gencom.clang_off_spaces*2 + '{ \"' + cmds + '\", nullptr },\n')
-      elif isIntercepted(cmds) or cmds == 'vkGetInstanceProcAddr' or gencom.isDeviceDispatched(cmds):
-        f.write (gencom.clang_off_spaces*2 + '{ \"' + cmds + '\", reinterpret_cast<PFN_vkVoidFunction>(' + cmds[2:] + ') },\n')
-  f.write (gencom.clang_off_spaces + """};
+
+  sorted_command_list = sorted(gencom.command_list)
+  for cmd in sorted_command_list:
+    if gencom.is_function_exported(cmd):
+      if gencom.is_globally_dispatched(cmd):
+        f.write(gencom.indent(2) + '{ \"' + cmd + '\", nullptr },\n')
+      elif (_is_intercepted(cmd) or
+            cmd == 'vkGetInstanceProcAddr' or
+            gencom.is_device_dispatched(cmd)):
+        f.write(gencom.indent(2) + '{ \"' + cmd +
+                '\", reinterpret_cast<PFN_vkVoidFunction>(' +
+                gencom.base_name(cmd) + ') },\n')
+
+  f.write("""\
+    };
     // clang-format on
     constexpr size_t count = sizeof(hooks) / sizeof(hooks[0]);
     auto hook = std::lower_bound(
@@ -190,19 +178,25 @@ def interceptInstanceProcAddr(functionName, f):
     }
     // clang-format off\n\n""")
 
-def interceptDeviceProcAddr(functionName, f):
-  f.write (gencom.clang_off_spaces + """if (device == VK_NULL_HANDLE) {
+
+def _intercept_device_proc_addr(f):
+  f.write("""\
+    if (device == VK_NULL_HANDLE) {
         ALOGE("invalid vkGetDeviceProcAddr(VK_NULL_HANDLE, ...) call");
         return nullptr;
-    }\n\n""")
-  f.write (gencom.clang_off_spaces + 'static const char* const known_non_device_names[] = {\n')
-  sortedCommandsList = sorted(gencom.allCommandsList)
-  for cmds in sortedCommandsList:
-    if gencom.isFunctionSupported(cmds):
-      if not gencom.isDeviceDispatched(cmds):
-        f.write(gencom.clang_off_spaces*2 + '\"' + cmds + '\",\n')
-  f.write(gencom.clang_off_spaces + '};\n')
-  f.write(gencom.clang_off_spaces + """// clang-format on
+    }
+
+    static const char* const known_non_device_names[] = {\n""")
+
+  sorted_command_list = sorted(gencom.command_list)
+  for cmd in sorted_command_list:
+    if gencom.is_function_supported(cmd):
+      if not gencom.is_device_dispatched(cmd):
+        f.write(gencom.indent(2) + '\"' + cmd + '\",\n')
+
+  f.write("""\
+    };
+    // clang-format on
     constexpr size_t count =
         sizeof(known_non_device_names) / sizeof(known_non_device_names[0]);
     if (!pName ||
@@ -215,27 +209,38 @@ def interceptDeviceProcAddr(functionName, f):
         return nullptr;
     }
     // clang-format off\n\n""")
-  for cmds in gencom.allCommandsList:
-    if gencom.isDeviceDispatched(cmds):
-      if isIntercepted(cmds) or cmds == 'vkGetDeviceProcAddr':
-        f.write (gencom.clang_off_spaces + 'if (strcmp(pName, "' + cmds + '") == 0) return reinterpret_cast<PFN_vkVoidFunction>(' + cmds[2:] + ');\n')
-  f.write ('\n')
 
-def apiDispatch(functionName, f):
-  assert not isIntercepted(functionName)
-
-  f.write (gencom.clang_off_spaces)
-  if gencom.returnTypeDict[functionName] != 'void':
-    f.write ('return ')
-
-  paramList = gencom.paramDict[functionName]
-  p0 = paramList[0][1]
-  f.write('GetData(' + p0 + ').dispatch.' + functionName[2:] + '(' + ', '.join(i[1] for i in paramList) + ');\n')
+  for cmd in gencom.command_list:
+    if gencom.is_device_dispatched(cmd):
+      if _is_intercepted(cmd) or cmd == 'vkGetDeviceProcAddr':
+        f.write(gencom.indent(1) + 'if (strcmp(pName, "' + cmd +
+                '") == 0) return reinterpret_cast<PFN_vkVoidFunction>(' +
+                gencom.base_name(cmd) + ');\n')
+  f.write('\n')
 
 
-def api_gencpp():
-  genfile = os.path.join(os.path.dirname(__file__),'..','libvulkan','api_gen.cpp')
-  header = """#include <log/log.h>
+def _api_dispatch(cmd, f):
+  assert not _is_intercepted(cmd)
+
+  f.write(gencom.indent(1))
+  if gencom.return_type_dict[cmd] != 'void':
+    f.write('return ')
+
+  param_list = gencom.param_dict[cmd]
+  handle = param_list[0][1]
+  f.write('GetData(' + handle + ').dispatch.' + gencom.base_name(cmd) +
+          '(' + ', '.join(i[1] for i in param_list) + ');\n')
+
+
+def gen_cpp():
+  genfile = os.path.join(os.path.dirname(__file__),
+                         '..', 'libvulkan', 'api_gen.cpp')
+
+  with open(genfile, 'w') as f:
+    f.write(gencom.copyright_and_warning(2016))
+
+    f.write("""\
+#include <log/log.h>
 #include <string.h>
 
 #include <algorithm>
@@ -247,80 +252,106 @@ def api_gencpp():
 namespace vulkan {
 namespace api {
 
-"""
-  with open(genfile, 'w') as f:
-    f.write (gencom.copyright)
-    f.write (gencom.warning)
-    f.write ("""#include <log/log.h>
-#include <string.h>
+#define UNLIKELY(expr) __builtin_expect((expr), 0)
 
-#include <algorithm>
+#define INIT_PROC(required, obj, proc)                                 \\
+    do {                                                               \\
+        data.dispatch.proc =                                           \\
+            reinterpret_cast<PFN_vk##proc>(get_proc(obj, "vk" #proc)); \\
+        if (UNLIKELY(required && !data.dispatch.proc)) {               \\
+            ALOGE("missing " #obj " proc: vk" #proc);                  \\
+            success = false;                                           \\
+        }                                                              \\
+    } while (0)
 
-// to catch mismatches between vulkan.h and this file
-#undef VK_NO_PROTOTYPES
-#include "api.h"
+// Exported extension functions may be invoked even when their extensions
+// are disabled.  Dispatch to stubs when that happens.
+#define INIT_PROC_EXT(ext, required, obj, proc)  \\
+    do {                                         \\
+        if (extensions[driver::ProcHook::ext])   \\
+            INIT_PROC(required, obj, proc);      \\
+        else                                     \\
+            data.dispatch.proc = disabled##proc; \\
+    } while (0)
 
-namespace vulkan {
-namespace api {\n\n""")
-    defineInitProc('dispatch',f)
-    defineInitProcExt(f)
-    f.write ('namespace {\n\n')
-    gencom.clang_off(f,0)
-    f.write ('\n')
-    for cmds in gencom.allCommandsList:
-      defineExtensionStub(cmds,f)
-    gencom.clang_on(f,0)
-    f.write ('\n}  // namespace\n\n')
-    f.write ("""bool InitDispatchTable(
+namespace {
+
+// clang-format off\n\n""")
+
+    for cmd in gencom.command_list:
+      _define_extension_stub(cmd, f)
+
+    f.write("""\
+// clang-format on
+
+}  // namespace
+
+bool InitDispatchTable(
     VkInstance instance,
     PFN_vkGetInstanceProcAddr get_proc,
     const std::bitset<driver::ProcHook::EXTENSION_COUNT>& extensions) {
     auto& data = GetData(instance);
-    bool success = true;\n\n""")
-    gencom.clang_off(f,1)
-    for cmds in gencom.allCommandsList:
-      if gencom.isInstanceDispatchTableEntry(cmds):
-        gencom.initProc(cmds, f)
-    gencom.clang_on(f,1)
-    f.write ('\n')
-    f.write ('    return success;\n}\n\n')
-    f.write ("""bool InitDispatchTable(
+    bool success = true;
+
+    // clang-format off\n""")
+
+    for cmd in gencom.command_list:
+      if gencom.is_instance_dispatch_table_entry(cmd):
+        gencom.init_proc(cmd, f)
+
+    f.write("""\
+    // clang-format on
+
+    return success;
+}
+
+bool InitDispatchTable(
     VkDevice dev,
     PFN_vkGetDeviceProcAddr get_proc,
     const std::bitset<driver::ProcHook::EXTENSION_COUNT>& extensions) {
     auto& data = GetData(dev);
-    bool success = true;\n\n""")
+    bool success = true;
 
-    gencom.clang_off(f,1)
-    for cmds in gencom.allCommandsList:
-      if gencom.isDeviceDispatchTableEntry(cmds):
-        gencom.initProc(cmds, f)
-    gencom.clang_on(f,1)
-    f.write ('\n')
-    f.write ('    return success;\n}\n\n')
+    // clang-format off\n""")
 
-    gencom.clang_off(f,0)
+    for cmd in gencom.command_list:
+      if gencom.is_device_dispatch_table_entry(cmd):
+        gencom.init_proc(cmd, f)
 
-    f.write ('\nnamespace {\n\n')
-    f.write('// forward declarations needed by GetInstanceProcAddr and GetDeviceProcAddr\n')
-    for cmds in gencom.allCommandsList:
-      if gencom.isFunctionExported(cmds) and not isIntercepted(cmds):
-        paramList = [''.join(i) for i in gencom.paramDict[cmds]]
-        f.write ('VKAPI_ATTR '+gencom.returnTypeDict[cmds] + ' ' + cmds[2:] + '(' + ', '.join(paramList) + ');\n')
+    f.write("""\
+    // clang-format on
 
-    f.write ('\n')
+    return success;
+}
 
-    for cmds in gencom.allCommandsList:
-      if gencom.isFunctionExported(cmds) and not isIntercepted(cmds):
-        paramList = [''.join(i) for i in gencom.paramDict[cmds]]
-        f.write ('VKAPI_ATTR ' + gencom.returnTypeDict[cmds] + ' ' + cmds[2:] + '(' + ', '.join(paramList) + ') {\n')
-        if cmds == 'vkGetInstanceProcAddr':
-          interceptInstanceProcAddr(cmds, f)
-        elif cmds == 'vkGetDeviceProcAddr':
-          interceptDeviceProcAddr(cmds, f)
-        apiDispatch(cmds, f)
+// clang-format off
+
+namespace {
+
+// forward declarations needed by GetInstanceProcAddr and GetDeviceProcAddr
+""")
+
+    for cmd in gencom.command_list:
+      if gencom.is_function_exported(cmd) and not _is_intercepted(cmd):
+        param_list = [''.join(i) for i in gencom.param_dict[cmd]]
+        f.write('VKAPI_ATTR ' + gencom.return_type_dict[cmd] + ' ' +
+                gencom.base_name(cmd) + '(' + ', '.join(param_list) + ');\n')
+
+    f.write('\n')
+    for cmd in gencom.command_list:
+      if gencom.is_function_exported(cmd) and not _is_intercepted(cmd):
+        param_list = [''.join(i) for i in gencom.param_dict[cmd]]
+        f.write('VKAPI_ATTR ' + gencom.return_type_dict[cmd] + ' ' +
+                gencom.base_name(cmd) + '(' + ', '.join(param_list) + ') {\n')
+        if cmd == 'vkGetInstanceProcAddr':
+          _intercept_instance_proc_addr(f)
+        elif cmd == 'vkGetDeviceProcAddr':
+          _intercept_device_proc_addr(f)
+        _api_dispatch(cmd, f)
         f.write('}\n\n')
-    f.write ("""\n}  // anonymous namespace
+
+    f.write("""
+}  // anonymous namespace
 
 // clang-format on
 
@@ -329,18 +360,19 @@ namespace api {\n\n""")
 
 // clang-format off\n\n""")
 
-    for cmds in gencom.allCommandsList:
-      if gencom.isFunctionExported(cmds):
-        paramList = [''.join(i) for i in gencom.paramDict[cmds]]
-        f.write ('__attribute__((visibility("default")))\n')
-        f.write ('VKAPI_ATTR ' + gencom.returnTypeDict[cmds] + ' ' + cmds + '(' + ', '.join(paramList) + ') {\n')
-        f.write (gencom.clang_off_spaces)
-        if gencom.returnTypeDict[cmds] != 'void':
-          f.write ('return ')
-        paramList = gencom.paramDict[cmds]
-        f.write ('vulkan::api::' + cmds[2:] + '(' + ', '.join(i[1] for i in paramList) + ');\n')
-        f.write ('}\n\n')
+    for cmd in gencom.command_list:
+      if gencom.is_function_exported(cmd):
+        param_list = [''.join(i) for i in gencom.param_dict[cmd]]
+        f.write('__attribute__((visibility("default")))\n')
+        f.write('VKAPI_ATTR ' + gencom.return_type_dict[cmd] + ' ' +
+                cmd + '(' + ', '.join(param_list) + ') {\n')
+        f.write(gencom.indent(1))
+        if gencom.return_type_dict[cmd] != 'void':
+          f.write('return ')
+        param_list = gencom.param_dict[cmd]
+        f.write('vulkan::api::' + gencom.base_name(cmd) +
+                '(' + ', '.join(i[1] for i in param_list) + ');\n}\n\n')
 
-    gencom.clang_on(f, 0)
+    f.write('// clang-format on\n')
     f.close()
-  gencom.runClangFormat(genfile)
+  gencom.run_clang_format(genfile)
