@@ -123,7 +123,6 @@ private:
 
     status_t writeProtoFileLocked();
     const sp<const Layer> getLayer(const wp<const IBinder>& weakHandle) const;
-    const std::string getLayerName(const sp<const Layer>& layer) const;
     int32_t getLayerId(const sp<const Layer>& layer) const;
     int32_t getLayerIdFromWeakRef(const wp<const Layer>& layer) const;
     int32_t getLayerIdFromHandle(const sp<const IBinder>& weakHandle) const;

@@ -62,7 +62,7 @@ std::vector<OccupancyTracker::Segment> BufferQueueLayer::getOccupancyHistory(boo
     std::vector<OccupancyTracker::Segment> history;
     status_t result = mConsumer->getOccupancyHistory(forceFlush, &history);
     if (result != NO_ERROR) {
-        ALOGW("[%s] Failed to obtain occupancy history (%d)", mName.string(), result);
+        ALOGW("[%s] Failed to obtain occupancy history (%d)", getDebugName(), result);
         return {};
     }
     return history;
@@ -110,7 +110,7 @@ bool BufferQueueLayer::shouldPresentNow(nsecs_t expectedPresentTime) const {
     ALOGW_IF(!isPlausible,
              "[%s] Timestamp %" PRId64 " seems implausible "
              "relative to expectedPresent %" PRId64,
-             mName.string(), addedTime, expectedPresentTime);
+             getDebugName(), addedTime, expectedPresentTime);
 
     const bool isDue = addedTime < expectedPresentTime;
     return isDue || !isPlausible;
@@ -225,7 +225,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
     bool queuedBuffer = false;
     const int32_t layerID = getSequence();
     LayerRejecter r(mDrawingState, getCurrentState(), recomputeVisibleRegions,
-                    getProducerStickyTransform() != 0, mName.string(), mOverrideScalingMode,
+                    getProducerStickyTransform() != 0, mName, mOverrideScalingMode,
                     getTransformToDisplayInverse());
 
     if (isRemovedFromCurrentState()) {
@@ -398,7 +398,7 @@ void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
         while (item.mFrameNumber != mLastFrameNumberReceived + 1) {
             status_t result = mQueueItemCondition.waitRelative(mQueueItemLock, ms2ns(500));
             if (result != NO_ERROR) {
-                ALOGE("[%s] Timed out waiting on callback", mName.string());
+                ALOGE("[%s] Timed out waiting on callback", getDebugName());
             }
         }
 
@@ -426,7 +426,7 @@ void BufferQueueLayer::onFrameReplaced(const BufferItem& item) {
         while (item.mFrameNumber != mLastFrameNumberReceived + 1) {
             status_t result = mQueueItemCondition.waitRelative(mQueueItemLock, ms2ns(500));
             if (result != NO_ERROR) {
-                ALOGE("[%s] Timed out waiting on callback", mName.string());
+                ALOGE("[%s] Timed out waiting on callback", getDebugName());
             }
         }
 
@@ -464,7 +464,7 @@ void BufferQueueLayer::onFirstRef() {
     mConsumer = new BufferLayerConsumer(consumer, mFlinger->getRenderEngine(), mTextureName, this);
     mConsumer->setConsumerUsageBits(getEffectiveUsage(0));
     mConsumer->setContentsChangedListener(this);
-    mConsumer->setName(mName);
+    mConsumer->setName(String8(mName.data(), mName.size()));
 
     // BufferQueueCore::mMaxDequeuedBufferCount is default to 1
     if (!mFlinger->isLayerTripleBufferingDisabled()) {
@@ -527,9 +527,7 @@ void BufferQueueLayer::gatherBufferInfo() {
 }
 
 sp<Layer> BufferQueueLayer::createClone() {
-    const String8 name = mName + " (Mirror)";
-    LayerCreationArgs args =
-            LayerCreationArgs(mFlinger.get(), nullptr, name, 0, 0, 0, LayerMetadata());
+    LayerCreationArgs args(mFlinger.get(), nullptr, mName + " (Mirror)", 0, 0, 0, LayerMetadata());
     args.textureName = mTextureName;
     sp<BufferQueueLayer> layer = mFlinger->getFactory().createBufferQueueLayer(args);
     layer->setInitialValuesForClone(this);

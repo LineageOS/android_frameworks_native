@@ -436,7 +436,7 @@ void RegionSamplingThread::captureSample() {
             }
             if (!intersectsAnyArea) return;
 
-            ALOGV("Traversing [%s] [%d, %d, %d, %d]", layer->getName().string(), bounds.left,
+            ALOGV("Traversing [%s] [%d, %d, %d, %d]", layer->getDebugName(), bounds.left,
                   bounds.top, bounds.right, bounds.bottom);
             visitor(layer);
         };

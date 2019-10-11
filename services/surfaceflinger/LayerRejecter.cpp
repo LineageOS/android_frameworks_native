@@ -24,7 +24,7 @@
 namespace android {
 
 LayerRejecter::LayerRejecter(Layer::State& front, Layer::State& current,
-                             bool& recomputeVisibleRegions, bool stickySet, const char* name,
+                             bool& recomputeVisibleRegions, bool stickySet, const std::string& name,
                              int32_t overrideScalingMode, bool transformToDisplayInverse)
       : mFront(front),
         mCurrent(current),
@@ -90,7 +90,7 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
                  "(%4d,%4d) "
                  "}\n"
                  "            requested_legacy={ wh={%4u,%4u} }}\n",
-                 mName, bufWidth, bufHeight, item.mTransform, item.mScalingMode,
+                 mName.c_str(), bufWidth, bufHeight, item.mTransform, item.mScalingMode,
                  mFront.active_legacy.w, mFront.active_legacy.h, mFront.crop_legacy.left,
                  mFront.crop_legacy.top, mFront.crop_legacy.right, mFront.crop_legacy.bottom,
                  mFront.crop_legacy.getWidth(), mFront.crop_legacy.getHeight(),
@@ -102,7 +102,8 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
             // reject this buffer
             ALOGE("[%s] rejecting buffer: "
                   "bufWidth=%d, bufHeight=%d, front.active_legacy.{w=%d, h=%d}",
-                  mName, bufWidth, bufHeight, mFront.active_legacy.w, mFront.active_legacy.h);
+                  mName.c_str(), bufWidth, bufHeight, mFront.active_legacy.w,
+                  mFront.active_legacy.h);
             return true;
         }
     }

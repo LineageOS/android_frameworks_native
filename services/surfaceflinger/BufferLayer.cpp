@@ -61,7 +61,7 @@ BufferLayer::BufferLayer(const LayerCreationArgs& args)
         mTextureName(args.textureName),
         mCompositionLayer{mFlinger->getCompositionEngine().createLayer(
                 compositionengine::LayerCreationArgs{this})} {
-    ALOGV("Creating Layer %s", args.name.string());
+    ALOGV("Creating Layer %s", getDebugName());
 
     mPremultipliedAlpha = !(args.flags & ISurfaceComposerClient::eNonPremultiplied);
 

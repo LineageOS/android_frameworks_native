@@ -165,10 +165,6 @@ const sp<const Layer> SurfaceInterceptor::getLayer(const wp<const IBinder>& weak
     return layer;
 }
 
-const std::string SurfaceInterceptor::getLayerName(const sp<const Layer>& layer) const {
-    return layer->getName().string();
-}
-
 int32_t SurfaceInterceptor::getLayerId(const sp<const Layer>& layer) const {
     return layer->sequence;
 }
@@ -490,7 +486,7 @@ void SurfaceInterceptor::addSurfaceCreationLocked(Increment* increment,
 {
     SurfaceCreation* creation(increment->mutable_surface_creation());
     creation->set_id(getLayerId(layer));
-    creation->set_name(getLayerName(layer));
+    creation->set_name(layer->getName());
     creation->set_w(layer->mCurrentState.active_legacy.w);
     creation->set_h(layer->mCurrentState.active_legacy.h);
 }

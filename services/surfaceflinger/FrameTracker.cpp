@@ -21,7 +21,6 @@
 
 #include <android-base/stringprintf.h>
 #include <android/log.h>
-#include <utils/String8.h>
 
 #include <ui/FrameStats.h>
 
@@ -139,7 +138,7 @@ void FrameTracker::getStats(FrameStats* outStats) const {
     }
 }
 
-void FrameTracker::logAndResetStats(const String8& name) {
+void FrameTracker::logAndResetStats(const std::string_view& name) {
     Mutex::Autolock lock(mMutex);
     logStatsLocked(name);
     resetFrameCountersLocked();
@@ -217,7 +216,7 @@ void FrameTracker::resetFrameCountersLocked() {
     }
 }
 
-void FrameTracker::logStatsLocked(const String8& name) const {
+void FrameTracker::logStatsLocked(const std::string_view& name) const {
     for (int i = 0; i < NUM_FRAME_BUCKETS; i++) {
         if (mNumFrames[i] > 0) {
             EventLog::logFrameDurations(name, mNumFrames, NUM_FRAME_BUCKETS);

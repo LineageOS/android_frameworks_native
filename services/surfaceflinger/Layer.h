@@ -34,7 +34,6 @@
 #include <ui/Region.h>
 #include <ui/Transform.h>
 #include <utils/RefBase.h>
-#include <utils/String8.h>
 #include <utils/Timers.h>
 
 #include <cstdint>
@@ -79,12 +78,12 @@ class SurfaceInterceptor;
 // ---------------------------------------------------------------------------
 
 struct LayerCreationArgs {
-    LayerCreationArgs(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name,
+    LayerCreationArgs(SurfaceFlinger* flinger, const sp<Client>& client, std::string name,
                       uint32_t w, uint32_t h, uint32_t flags, LayerMetadata metadata);
 
     SurfaceFlinger* flinger;
     const sp<Client>& client;
-    const String8& name;
+    std::string name;
     uint32_t w;
     uint32_t h;
     uint32_t flags;
@@ -804,7 +803,7 @@ public:
     // Creates a new handle each time, so we only expect
     // this to be called once.
     sp<IBinder> getHandle();
-    const String8& getName() const;
+    const std::string& getName() const { return mName; }
     virtual void notifyAvailableFrames(nsecs_t /*expectedPresentTime*/) {}
     virtual PixelFormat getPixelFormat() const { return PIXEL_FORMAT_NONE; }
     bool getPremultipledAlpha() const;
@@ -820,8 +819,8 @@ protected:
     bool usingRelativeZ(LayerVector::StateSet stateSet) const;
 
     bool mPremultipliedAlpha{true};
-    String8 mName;
-    String8 mTransactionName; // A cached version of "TX - " + mName for systraces
+    const std::string mName;
+    const std::string mTransactionName{"TX - " + mName};
 
     bool mPrimaryDisplayOnly = false;
 

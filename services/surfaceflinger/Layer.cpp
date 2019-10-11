@@ -83,8 +83,6 @@ Layer::Layer(const LayerCreationArgs& args)
     if (args.flags & ISurfaceComposerClient::eOpaque) layerFlags |= layer_state_t::eLayerOpaque;
     if (args.flags & ISurfaceComposerClient::eSecure) layerFlags |= layer_state_t::eLayerSecure;
 
-    mTransactionName = String8("TX - ") + mName;
-
     mCurrentState.active_legacy.w = args.w;
     mCurrentState.active_legacy.h = args.h;
     mCurrentState.flags = layerFlags;
@@ -137,11 +135,11 @@ Layer::~Layer() {
 }
 
 LayerCreationArgs::LayerCreationArgs(SurfaceFlinger* flinger, const sp<Client>& client,
-                                     const String8& name, uint32_t w, uint32_t h, uint32_t flags,
+                                     std::string name, uint32_t w, uint32_t h, uint32_t flags,
                                      LayerMetadata metadata)
       : flinger(flinger),
         client(client),
-        name(name),
+        name(std::move(name)),
         w(w),
         h(h),
         flags(flags),
@@ -234,10 +232,6 @@ void Layer::addToCurrentState() {
 // ---------------------------------------------------------------------------
 // set-up
 // ---------------------------------------------------------------------------
-
-const String8& Layer::getName() const {
-    return mName;
-}
 
 bool Layer::getPremultipledAlpha() const {
     return mPremultipliedAlpha;
@@ -523,7 +517,7 @@ void Layer::latchCompositionState(compositionengine::LayerFECompositionState& co
 }
 
 const char* Layer::getDebugName() const {
-    return mName.string();
+    return mName.c_str();
 }
 
 // ---------------------------------------------------------------------------
@@ -614,7 +608,7 @@ void Layer::pushPendingState() {
     if (mCurrentState.barrierLayer_legacy != nullptr && !isRemovedFromCurrentState()) {
         sp<Layer> barrierLayer = mCurrentState.barrierLayer_legacy.promote();
         if (barrierLayer == nullptr) {
-            ALOGE("[%s] Unable to promote barrier Layer.", mName.string());
+            ALOGE("[%s] Unable to promote barrier Layer.", getDebugName());
             // If we can't promote the layer we are intended to wait on,
             // then it is expired or otherwise invalid. Allow this transaction
             // to be applied as per normal (no synchronization).
@@ -638,7 +632,7 @@ void Layer::pushPendingState() {
         mFlinger->setTransactionFlags(eTraversalNeeded);
     }
     mPendingStates.push_back(mCurrentState);
-    ATRACE_INT(mTransactionName.string(), mPendingStates.size());
+    ATRACE_INT(mTransactionName.c_str(), mPendingStates.size());
 }
 
 void Layer::popPendingState(State* stateToCommit) {
@@ -646,7 +640,7 @@ void Layer::popPendingState(State* stateToCommit) {
     *stateToCommit = mPendingStates[0];
 
     mPendingStates.removeAt(0);
-    ATRACE_INT(mTransactionName.string(), mPendingStates.size());
+    ATRACE_INT(mTransactionName.c_str(), mPendingStates.size());
 }
 
 bool Layer::applyPendingStates(State* stateToCommit) {
@@ -657,7 +651,7 @@ bool Layer::applyPendingStates(State* stateToCommit) {
                 // If we don't have a sync point for this, apply it anyway. It
                 // will be visually wrong, but it should keep us from getting
                 // into too much trouble.
-                ALOGE("[%s] No local sync point found", mName.string());
+                ALOGE("[%s] No local sync point found", getDebugName());
                 popPendingState(stateToCommit);
                 stateUpdateAvailable = true;
                 continue;
@@ -665,7 +659,7 @@ bool Layer::applyPendingStates(State* stateToCommit) {
 
             if (mRemoteSyncPoints.front()->getFrameNumber() !=
                 mPendingStates[0].frameNumber_legacy) {
-                ALOGE("[%s] Unexpected sync point frame number found", mName.string());
+                ALOGE("[%s] Unexpected sync point frame number found", getDebugName());
 
                 // Signal our end of the sync point and then dispose of it
                 mRemoteSyncPoints.front()->setTransactionApplied();
@@ -717,7 +711,7 @@ uint32_t Layer::doTransactionResize(uint32_t flags, State* stateToCommit) {
                  "            requested={ wh={%4u,%4u} }}\n"
                  "  drawing={ active   ={ wh={%4u,%4u} crop={%4d,%4d,%4d,%4d} (%4d,%4d) }\n"
                  "            requested={ wh={%4u,%4u} }}\n",
-                 this, getName().string(), getBufferTransform(), getEffectiveScalingMode(),
+                 this, getName().c_str(), getBufferTransform(), getEffectiveScalingMode(),
                  stateToCommit->active_legacy.w, stateToCommit->active_legacy.h,
                  stateToCommit->crop_legacy.left, stateToCommit->crop_legacy.top,
                  stateToCommit->crop_legacy.right, stateToCommit->crop_legacy.bottom,
@@ -999,9 +993,10 @@ bool Layer::setBackgroundColor(const half3& color, float alpha, ui::Dataspace da
     if (!mCurrentState.bgColorLayer && alpha != 0) {
         // create background color layer if one does not yet exist
         uint32_t flags = ISurfaceComposerClient::eFXSurfaceColor;
-        const String8& name = mName + "BackgroundColorLayer";
+        std::string name = mName + "BackgroundColorLayer";
         mCurrentState.bgColorLayer = mFlinger->getFactory().createColorLayer(
-                LayerCreationArgs(mFlinger.get(), nullptr, name, 0, 0, flags, LayerMetadata()));
+                LayerCreationArgs(mFlinger.get(), nullptr, std::move(name), 0, 0, flags,
+                                  LayerMetadata()));
 
         // add to child list
         addChild(mCurrentState.bgColorLayer);
@@ -1196,11 +1191,13 @@ void Layer::updateTransformHint(const sp<const DisplayDevice>& display) const {
 
 // TODO(marissaw): add new layer state info to layer debugging
 LayerDebugInfo Layer::getLayerDebugInfo() const {
+    using namespace std::string_literals;
+
     LayerDebugInfo info;
     const State& ds = getDrawingState();
     info.mName = getName();
     sp<Layer> parent = getParent();
-    info.mParentName = (parent == nullptr ? std::string("none") : parent->getName().string());
+    info.mParentName = parent ? parent->getName() : "none"s;
     info.mType = getType();
     info.mTransparentRegion = ds.activeTransparentRegion_legacy;
 
@@ -1267,12 +1264,12 @@ void Layer::miniDump(std::string& result, const sp<DisplayDevice>& displayDevice
     std::string name;
     if (mName.length() > 77) {
         std::string shortened;
-        shortened.append(mName.string(), 36);
+        shortened.append(mName, 0, 36);
         shortened.append("[...]");
-        shortened.append(mName.string() + (mName.length() - 36), 36);
-        name = shortened;
+        shortened.append(mName, mName.length() - 36);
+        name = std::move(shortened);
     } else {
-        name = std::string(mName.string(), mName.size());
+        name = mName;
     }
 
     StringAppendF(&result, " %s\n", name.c_str());
@@ -1319,14 +1316,14 @@ void Layer::getFrameStats(FrameStats* outStats) const {
 }
 
 void Layer::dumpFrameEvents(std::string& result) {
-    StringAppendF(&result, "- Layer %s (%s, %p)\n", getName().string(), getType(), this);
+    StringAppendF(&result, "- Layer %s (%s, %p)\n", getName().c_str(), getType(), this);
     Mutex::Autolock lock(mFrameEventHistoryMutex);
     mFrameEventHistory.checkFencesForCompletion();
     mFrameEventHistory.dump(result);
 }
 
 void Layer::dumpCallingUidPid(std::string& result) const {
-    StringAppendF(&result, "Layer %s (%s) pid:%d uid:%d\n", getName().string(), getType(),
+    StringAppendF(&result, "Layer %s (%s) pid:%d uid:%d\n", getName().c_str(), getType(),
                   mCallingPid, mCallingUid);
 }
 
