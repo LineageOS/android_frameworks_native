@@ -51,6 +51,11 @@ class Dumpsys {
      */
     static void setServiceArgs(Vector<String16>& args, bool asProto, int priorityFlags);
 
+    enum class Type {
+        DUMP,  // dump using `dump` function
+        PID,   // dump pid of server only
+    };
+
     /**
      * Starts a thread to connect to a service and get its dump output. The thread redirects
      * the output to a pipe. Thread must be stopped by a subsequent callto {@code
@@ -61,7 +66,8 @@ class Dumpsys {
      *         {@code NAME_NOT_FOUND} service could not be found.
      *         {@code != OK} error
      */
-    status_t startDumpThread(const String16& serviceName, const Vector<String16>& args);
+    status_t startDumpThread(Type type, const String16& serviceName,
+                             const Vector<String16>& args);
 
     /**
      * Writes a section header to a file descriptor.

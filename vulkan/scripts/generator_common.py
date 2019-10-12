@@ -40,41 +40,46 @@ copyright = """/*
 warning = '// WARNING: This file is generated. See ../README.md for instructions.\n\n'
 
 blacklistedExtensions = [
-    'VK_KHR_display',
-    'VK_KHR_display_swapchain',
-    'VK_KHR_mir_surface',
-    'VK_KHR_xcb_surface',
-    'VK_KHR_xlib_surface',
-    'VK_KHR_wayland_surface',
-    'VK_KHR_win32_surface',
-    'VK_KHR_external_memory_win32',
-    'VK_KHR_win32_keyed_mutex',
-    'VK_KHR_external_semaphore_win32',
-    'VK_KHR_external_fence_win32',
     'VK_EXT_acquire_xlib_display',
     'VK_EXT_direct_mode_display',
-    'VK_EXT_display_surface_counter',
     'VK_EXT_display_control',
+    'VK_EXT_display_surface_counter',
+    'VK_EXT_full_screen_exclusive',
+    'VK_EXT_headless_surface',
+    'VK_EXT_metal_surface',
     'VK_FUCHSIA_imagepipe_surface',
+    'VK_GGP_stream_descriptor_surface',
+    'VK_KHR_display',
+    'VK_KHR_display_swapchain',
+    'VK_KHR_external_fence_win32',
+    'VK_KHR_external_memory_win32',
+    'VK_KHR_external_semaphore_win32',
+    'VK_KHR_mir_surface',
+    'VK_KHR_wayland_surface',
+    'VK_KHR_win32_keyed_mutex',
+    'VK_KHR_win32_surface',
+    'VK_KHR_xcb_surface',
+    'VK_KHR_xlib_surface',
     'VK_MVK_ios_surface',
     'VK_MVK_macos_surface',
     'VK_NN_vi_surface',
+    'VK_NV_cooperative_matrix',
+    'VK_NV_coverage_reduction_mode',
     'VK_NV_external_memory_win32',
     'VK_NV_win32_keyed_mutex',
-    'VK_EXT_metal_surface', #not present in vulkan.api
-    'VK_NVX_image_view_handle', #not present in vulkan.api
-    'VK_NV_cooperative_matrix', #not present in vulkan.api
-    'VK_EXT_headless_surface', #not present in vulkan.api
-    'VK_GGP_stream_descriptor_surface', #not present in vulkan.api
-    'VK_NV_coverage_reduction_mode', #not present in vulkan.api
-    'VK_EXT_full_screen_exclusive' #not present in vulkan.api
+    'VK_NVX_image_view_handle',
 ]
 
 exportedExtensions = [
+    'VK_ANDROID_external_memory_android_hardware_buffer',
+    'VK_KHR_android_surface',
     'VK_KHR_surface',
     'VK_KHR_swapchain',
-    'VK_KHR_android_surface',
-    'VK_ANDROID_external_memory_android_hardware_buffer'
+]
+
+optionalCommands = [
+    'vkGetSwapchainGrallocUsageANDROID',
+    'vkGetSwapchainGrallocUsage2ANDROID',
 ]
 
 def runClangFormat(args):
@@ -241,7 +246,7 @@ def initProc(name, f):
 
   if name in versionDict and versionDict[name] == 'VK_VERSION_1_1':
     f.write('false, ')
-  elif name == 'vkGetSwapchainGrallocUsageANDROID' or name == 'vkGetSwapchainGrallocUsage2ANDROID': # optional in vulkan.api
+  elif name in optionalCommands:
     f.write('false, ')
   else:
     f.write('true, ')

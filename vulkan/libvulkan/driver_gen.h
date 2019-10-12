@@ -40,14 +40,14 @@ struct ProcHook {
         EXT_swapchain_colorspace,
         GOOGLE_display_timing,
         KHR_android_surface,
+        KHR_get_surface_capabilities2,
         KHR_incremental_present,
         KHR_shared_presentable_image,
         KHR_surface,
         KHR_swapchain,
-        KHR_get_surface_capabilities2,
-        KHR_get_physical_device_properties2,
         ANDROID_external_memory_android_hardware_buffer,
         KHR_bind_memory2,
+        KHR_get_physical_device_properties2,
 
         EXTENSION_CORE,  // valid bit
         EXTENSION_COUNT,

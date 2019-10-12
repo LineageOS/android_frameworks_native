@@ -68,6 +68,14 @@ public:
     void setDriverLoaded(GpuStatsInfo::Api api, bool isDriverLoaded, int64_t driverLoadingTime);
 
     /*
+     * Api for Vk/GL layer injection.  Presently, drivers enable certain
+     * profiling features when prctl(PR_GET_DUMPABLE) returns true.
+     * Calling this when layer injection metadata is present allows the driver
+     * to enable profiling even when in a non-debuggable app
+     */
+    bool setInjectLayersPrSetDumpable();
+
+    /*
      * Apis for ANGLE
      */
     // Check if the requested app should use ANGLE.
