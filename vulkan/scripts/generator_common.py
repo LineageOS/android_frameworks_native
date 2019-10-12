@@ -142,15 +142,15 @@ def run_clang_format(args):
   subprocess.check_call(clang_call)
 
 
-def is_extension_internal(extension_name):
+def is_extension_internal(ext):
   """Returns true if an extension is internal to the loader and drivers.
 
   The loader should not enumerate this extension.
 
   Args:
-    extension_name: Vulkan extension name.
+    ext: Vulkan extension name.
   """
-  return extension_name == 'VK_ANDROID_native_buffer'
+  return ext == 'VK_ANDROID_native_buffer'
 
 
 def base_name(cmd):
@@ -160,6 +160,15 @@ def base_name(cmd):
     cmd: Vulkan function name.
   """
   return cmd[2:]
+
+
+def base_ext_name(ext):
+  """Returns an extension name without the 'VK_' prefix.
+
+  Args:
+    ext: Vulkan extension name.
+  """
+  return ext[3:]
 
 
 def is_function_supported(cmd):
@@ -221,15 +230,15 @@ def is_device_dispatched(cmd):
   return is_function_supported(cmd) and get_dispatch_table_type(cmd) == 'Device'
 
 
-def is_extension_exported(extension_name):
+def is_extension_exported(ext):
   """Returns true if an extension has functions exported by the loader.
 
   E.g. applications can directly link to an extension function.
 
   Args:
-    extension_name: Vulkan extension name.
+    ext: Vulkan extension name.
   """
-  return extension_name in _EXPORTED_EXTENSIONS
+  return ext in _EXPORTED_EXTENSIONS
 
 
 def is_function_exported(cmd):
