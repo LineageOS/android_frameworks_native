@@ -3865,11 +3865,9 @@ void InputDispatcher::dumpMonitors(std::string& dump, const std::vector<Monitor>
     }
 }
 
-status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChannel,
-                                               int32_t displayId) {
+status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChannel) {
 #if DEBUG_REGISTRATION
-    ALOGD("channel '%s' ~ registerInputChannel - displayId=%" PRId32,
-          inputChannel->getName().c_str(), displayId);
+    ALOGD("channel '%s' ~ registerInputChannel", inputChannel->getName().c_str());
 #endif
 
     { // acquire lock
