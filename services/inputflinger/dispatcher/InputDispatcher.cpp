@@ -1038,7 +1038,7 @@ void InputDispatcher::dispatchEventLocked(nsecs_t currentTime, EventEntry* event
     pokeUserActivityLocked(*eventEntry);
 
     for (const InputTarget& inputTarget : inputTargets) {
-        sp<Connection> connection = getConnectionLocked(inputTarget.inputChannel);
+        sp<Connection> connection = getConnectionLocked(inputTarget.inputChannel->getToken());
         if (connection != nullptr) {
             prepareDispatchCycleLocked(currentTime, connection, eventEntry, &inputTarget);
         } else {
@@ -1126,7 +1126,7 @@ void InputDispatcher::removeWindowByTokenLocked(const sp<IBinder>& token) {
 }
 
 void InputDispatcher::resumeAfterTargetsNotReadyTimeoutLocked(
-        nsecs_t newTimeout, const sp<InputChannel>& inputChannel) {
+        nsecs_t newTimeout, const sp<IBinder>& inputConnectionToken) {
     if (newTimeout > 0) {
         // Extend the timeout.
         mInputTargetWaitTimeoutTime = now() + newTimeout;
@@ -1135,13 +1135,9 @@ void InputDispatcher::resumeAfterTargetsNotReadyTimeoutLocked(
         mInputTargetWaitTimeoutExpired = true;
 
         // Input state will not be realistic.  Mark it out of sync.
-        sp<Connection> connection = getConnectionLocked(inputChannel);
+        sp<Connection> connection = getConnectionLocked(inputConnectionToken);
         if (connection != nullptr) {
-            sp<IBinder> token = connection->inputChannel->getToken();
-
-            if (token != nullptr) {
-                removeWindowByTokenLocked(token);
-            }
+            removeWindowByTokenLocked(inputConnectionToken);
 
             if (connection->status == Connection::STATUS_NORMAL) {
                 CancelationOptions options(CancelationOptions::CANCEL_ALL_EVENTS,
@@ -1828,8 +1824,7 @@ std::string InputDispatcher::checkWindowReadyForMoreInputLocked(
     }
 
     // If the window's connection is not registered then keep waiting.
-    sp<Connection> connection =
-            getConnectionLocked(getInputChannelLocked(windowHandle->getToken()));
+    sp<Connection> connection = getConnectionLocked(windowHandle->getToken());
     if (connection == nullptr) {
         return StringPrintf("Waiting because the %s window's input channel is not "
                             "registered with the input dispatcher.  The window may be in the "
@@ -2477,7 +2472,7 @@ void InputDispatcher::synthesizeCancelationEventsForMonitorsLocked(
 
 void InputDispatcher::synthesizeCancelationEventsForInputChannelLocked(
         const sp<InputChannel>& channel, const CancelationOptions& options) {
-    sp<Connection> connection = getConnectionLocked(channel);
+    sp<Connection> connection = getConnectionLocked(channel->getToken());
     if (connection == nullptr) {
         return;
     }
@@ -3571,10 +3566,8 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
             return false;
         }
 
-        sp<InputChannel> fromChannel = getInputChannelLocked(fromToken);
-        sp<InputChannel> toChannel = getInputChannelLocked(toToken);
-        sp<Connection> fromConnection = getConnectionLocked(fromChannel);
-        sp<Connection> toConnection = getConnectionLocked(toChannel);
+        sp<Connection> fromConnection = getConnectionLocked(fromToken);
+        sp<Connection> toConnection = getConnectionLocked(toToken);
         if (fromConnection != nullptr && toConnection != nullptr) {
             fromConnection->inputState.copyPointerStateTo(toConnection->inputState);
             CancelationOptions
@@ -3873,7 +3866,7 @@ status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChan
 
     { // acquire lock
         std::scoped_lock _l(mLock);
-        sp<Connection> existingConnection = getConnectionLocked(inputChannel);
+        sp<Connection> existingConnection = getConnectionLocked(inputChannel->getToken());
         if (existingConnection != nullptr) {
             ALOGW("Attempted to register already registered input channel '%s'",
                   inputChannel->getName().c_str());
@@ -3948,7 +3941,7 @@ status_t InputDispatcher::unregisterInputChannel(const sp<InputChannel>& inputCh
 
 status_t InputDispatcher::unregisterInputChannelLocked(const sp<InputChannel>& inputChannel,
                                                        bool notify) {
-    sp<Connection> connection = getConnectionLocked(inputChannel);
+    sp<Connection> connection = getConnectionLocked(inputChannel->getToken());
     if (connection == nullptr) {
         ALOGW("Attempted to unregister already unregistered input channel '%s'",
               inputChannel->getName().c_str());
@@ -4056,14 +4049,14 @@ std::optional<int32_t> InputDispatcher::findGestureMonitorDisplayByTokenLocked(
     return std::nullopt;
 }
 
-sp<Connection> InputDispatcher::getConnectionLocked(const sp<InputChannel>& inputChannel) {
-    if (inputChannel == nullptr) {
+sp<Connection> InputDispatcher::getConnectionLocked(const sp<IBinder>& inputConnectionToken) {
+    if (inputConnectionToken == nullptr) {
         return nullptr;
     }
 
     for (const auto& pair : mConnectionsByFd) {
-        sp<Connection> connection = pair.second;
-        if (connection->inputChannel->getToken() == inputChannel->getToken()) {
+        const sp<Connection>& connection = pair.second;
+        if (connection->inputChannel->getToken() == inputConnectionToken) {
             return connection;
         }
     }
@@ -4171,17 +4164,16 @@ void InputDispatcher::doNotifyFocusChangedLockedInterruptible(CommandEntry* comm
 }
 
 void InputDispatcher::doNotifyANRLockedInterruptible(CommandEntry* commandEntry) {
+    sp<IBinder> token =
+            commandEntry->inputChannel ? commandEntry->inputChannel->getToken() : nullptr;
     mLock.unlock();
 
     nsecs_t newTimeout =
-            mPolicy->notifyANR(commandEntry->inputApplicationHandle,
-                               commandEntry->inputChannel ? commandEntry->inputChannel->getToken()
-                                                          : nullptr,
-                               commandEntry->reason);
+            mPolicy->notifyANR(commandEntry->inputApplicationHandle, token, commandEntry->reason);
 
     mLock.lock();
 
-    resumeAfterTargetsNotReadyTimeoutLocked(newTimeout, commandEntry->inputChannel);
+    resumeAfterTargetsNotReadyTimeoutLocked(newTimeout, token);
 }
 
 void InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible(
