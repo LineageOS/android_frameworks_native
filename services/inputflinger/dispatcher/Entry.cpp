@@ -59,7 +59,6 @@ VerifiedMotionEvent verifiedMotionEventFromMotionEntry(const MotionEntry& entry)
 
 EventEntry::EventEntry(int32_t id, Type type, nsecs_t eventTime, uint32_t policyFlags)
       : id(id),
-        refCount(1),
         type(type),
         eventTime(eventTime),
         policyFlags(policyFlags),
@@ -68,15 +67,6 @@ EventEntry::EventEntry(int32_t id, Type type, nsecs_t eventTime, uint32_t policy
 
 EventEntry::~EventEntry() {
     releaseInjectionState();
-}
-
-void EventEntry::release() {
-    refCount -= 1;
-    if (refCount == 0) {
-        delete this;
-    } else {
-        ALOG_ASSERT(refCount > 0);
-    }
 }
 
 void EventEntry::releaseInjectionState() {
@@ -235,22 +225,16 @@ std::string MotionEntry::getDescription() const {
 
 volatile int32_t DispatchEntry::sNextSeqAtomic;
 
-DispatchEntry::DispatchEntry(EventEntry* eventEntry, int32_t targetFlags, ui::Transform transform,
-                             float globalScaleFactor)
+DispatchEntry::DispatchEntry(std::shared_ptr<EventEntry> eventEntry, int32_t targetFlags,
+                             ui::Transform transform, float globalScaleFactor)
       : seq(nextSeq()),
-        eventEntry(eventEntry),
+        eventEntry(std::move(eventEntry)),
         targetFlags(targetFlags),
         transform(transform),
         globalScaleFactor(globalScaleFactor),
         deliveryTime(0),
         resolvedAction(0),
-        resolvedFlags(0) {
-    eventEntry->refCount += 1;
-}
-
-DispatchEntry::~DispatchEntry() {
-    eventEntry->release();
-}
+        resolvedFlags(0) {}
 
 uint32_t DispatchEntry::nextSeq() {
     // Sequence number 0 is reserved and will never be returned.

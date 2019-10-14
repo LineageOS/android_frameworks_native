@@ -54,7 +54,6 @@ struct EventEntry {
     }
 
     int32_t id;
-    mutable int32_t refCount;
     Type type;
     nsecs_t eventTime;
     uint32_t policyFlags;
@@ -79,13 +78,12 @@ struct EventEntry {
         return isInjected() || IdGenerator::getSource(id) != IdGenerator::Source::INPUT_READER;
     }
 
-    void release();
-
     virtual std::string getDescription() const = 0;
 
-protected:
     EventEntry(int32_t id, Type type, nsecs_t eventTime, uint32_t policyFlags);
     virtual ~EventEntry();
+
+protected:
     void releaseInjectionState();
 };
 
@@ -93,7 +91,6 @@ struct ConfigurationChangedEntry : EventEntry {
     explicit ConfigurationChangedEntry(int32_t id, nsecs_t eventTime);
     std::string getDescription() const override;
 
-protected:
     virtual ~ConfigurationChangedEntry();
 };
 
@@ -103,7 +100,6 @@ struct DeviceResetEntry : EventEntry {
     DeviceResetEntry(int32_t id, nsecs_t eventTime, int32_t deviceId);
     std::string getDescription() const override;
 
-protected:
     virtual ~DeviceResetEntry();
 };
 
@@ -116,7 +112,6 @@ struct FocusEntry : EventEntry {
                std::string_view reason);
     std::string getDescription() const override;
 
-protected:
     virtual ~FocusEntry();
 };
 
@@ -149,7 +144,6 @@ struct KeyEntry : EventEntry {
     std::string getDescription() const override;
     void recycle();
 
-protected:
     virtual ~KeyEntry();
 };
 
@@ -182,7 +176,6 @@ struct MotionEntry : EventEntry {
                 float xOffset, float yOffset);
     std::string getDescription() const override;
 
-protected:
     virtual ~MotionEntry();
 };
 
@@ -190,7 +183,7 @@ protected:
 struct DispatchEntry {
     const uint32_t seq; // unique sequence number, never 0
 
-    EventEntry* eventEntry; // the event to dispatch
+    std::shared_ptr<EventEntry> eventEntry; // the event to dispatch
     int32_t targetFlags;
     ui::Transform transform;
     float globalScaleFactor;
@@ -205,9 +198,8 @@ struct DispatchEntry {
     int32_t resolvedAction;
     int32_t resolvedFlags;
 
-    DispatchEntry(EventEntry* eventEntry, int32_t targetFlags, ui::Transform transform,
-                  float globalScaleFactor);
-    ~DispatchEntry();
+    DispatchEntry(std::shared_ptr<EventEntry> eventEntry, int32_t targetFlags,
+                  ui::Transform transform, float globalScaleFactor);
 
     inline bool hasForegroundTarget() const { return targetFlags & InputTarget::FLAG_FOREGROUND; }
 
@@ -252,7 +244,7 @@ struct CommandEntry {
     // parameters for the command (usage varies by command)
     sp<Connection> connection;
     nsecs_t eventTime;
-    KeyEntry* keyEntry;
+    std::shared_ptr<KeyEntry> keyEntry;
     std::shared_ptr<InputApplicationHandle> inputApplicationHandle;
     std::string reason;
     int32_t userActivityEventType;

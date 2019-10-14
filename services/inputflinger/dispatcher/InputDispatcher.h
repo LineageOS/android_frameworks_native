@@ -158,9 +158,9 @@ private:
 
     sp<Looper> mLooper;
 
-    EventEntry* mPendingEvent GUARDED_BY(mLock);
-    std::deque<EventEntry*> mInboundQueue GUARDED_BY(mLock);
-    std::deque<EventEntry*> mRecentQueue GUARDED_BY(mLock);
+    std::shared_ptr<EventEntry> mPendingEvent GUARDED_BY(mLock);
+    std::deque<std::shared_ptr<EventEntry>> mInboundQueue GUARDED_BY(mLock);
+    std::deque<std::shared_ptr<EventEntry>> mRecentQueue GUARDED_BY(mLock);
     std::deque<std::unique_ptr<CommandEntry>> mCommandQueue GUARDED_BY(mLock);
 
     DropReason mLastDropReason GUARDED_BY(mLock);
@@ -175,7 +175,7 @@ private:
     void dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) REQUIRES(mLock);
 
     // Enqueues an inbound event.  Returns true if mLooper->wake() should be called.
-    bool enqueueInboundEventLocked(EventEntry* entry) REQUIRES(mLock);
+    bool enqueueInboundEventLocked(std::unique_ptr<EventEntry> entry) REQUIRES(mLock);
 
     // Cleans up input state when dropping an inbound event.
     void dropInboundEventLocked(const EventEntry& entry, DropReason dropReason) REQUIRES(mLock);
@@ -185,7 +185,7 @@ private:
                                  std::string_view reason) REQUIRES(mLock);
 
     // Adds an event to a queue of recent events for debugging purposes.
-    void addRecentEventLocked(EventEntry* entry) REQUIRES(mLock);
+    void addRecentEventLocked(std::shared_ptr<EventEntry> entry) REQUIRES(mLock);
 
     // App switch latency optimization.
     bool mAppSwitchSawKeyDown GUARDED_BY(mLock);
@@ -197,7 +197,7 @@ private:
 
     // Blocked event latency optimization.  Drops old events when the user intends
     // to transfer focus to a new application.
-    EventEntry* mNextUnblockedEvent GUARDED_BY(mLock);
+    std::shared_ptr<EventEntry> mNextUnblockedEvent GUARDED_BY(mLock);
 
     sp<InputWindowHandle> findTouchedWindowAtLocked(int32_t displayId, int32_t x, int32_t y,
                                                     TouchState* touchState,
@@ -242,21 +242,21 @@ private:
     // Event injection and synchronization.
     std::condition_variable mInjectionResultAvailable;
     bool hasInjectionPermission(int32_t injectorPid, int32_t injectorUid);
-    void setInjectionResult(EventEntry* entry,
+    void setInjectionResult(EventEntry& entry,
                             android::os::InputEventInjectionResult injectionResult);
 
     std::condition_variable mInjectionSyncFinished;
-    void incrementPendingForegroundDispatches(EventEntry* entry);
-    void decrementPendingForegroundDispatches(EventEntry* entry);
+    void incrementPendingForegroundDispatches(EventEntry& entry);
+    void decrementPendingForegroundDispatches(EventEntry& entry);
 
     // Key repeat tracking.
     struct KeyRepeatState {
-        KeyEntry* lastKeyEntry; // or null if no repeat
+        std::shared_ptr<KeyEntry> lastKeyEntry; // or null if no repeat
         nsecs_t nextRepeatTime;
     } mKeyRepeatState GUARDED_BY(mLock);
 
     void resetKeyRepeatLocked() REQUIRES(mLock);
-    KeyEntry* synthesizeKeyRepeatLocked(nsecs_t currentTime) REQUIRES(mLock);
+    std::shared_ptr<KeyEntry> synthesizeKeyRepeatLocked(nsecs_t currentTime) REQUIRES(mLock);
 
     // Key replacement tracking
     struct KeyReplacement {
@@ -292,7 +292,7 @@ private:
     // Inbound event processing.
     void drainInboundQueueLocked() REQUIRES(mLock);
     void releasePendingEventLocked() REQUIRES(mLock);
-    void releaseInboundEventLocked(EventEntry* entry) REQUIRES(mLock);
+    void releaseInboundEventLocked(std::shared_ptr<EventEntry> entry) REQUIRES(mLock);
 
     // Dispatch state.
     bool mDispatchEnabled GUARDED_BY(mLock);
@@ -356,15 +356,17 @@ private:
                                        const std::vector<InputTarget>& targets) REQUIRES(mLock);
 
     // Dispatch inbound events.
-    bool dispatchConfigurationChangedLocked(nsecs_t currentTime, ConfigurationChangedEntry* entry)
+    bool dispatchConfigurationChangedLocked(nsecs_t currentTime,
+                                            const ConfigurationChangedEntry& entry) REQUIRES(mLock);
+    bool dispatchDeviceResetLocked(nsecs_t currentTime, const DeviceResetEntry& entry)
             REQUIRES(mLock);
-    bool dispatchDeviceResetLocked(nsecs_t currentTime, DeviceResetEntry* entry) REQUIRES(mLock);
-    bool dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry, DropReason* dropReason,
-                           nsecs_t* nextWakeupTime) REQUIRES(mLock);
-    bool dispatchMotionLocked(nsecs_t currentTime, MotionEntry* entry, DropReason* dropReason,
-                              nsecs_t* nextWakeupTime) REQUIRES(mLock);
-    void dispatchFocusLocked(nsecs_t currentTime, FocusEntry* entry) REQUIRES(mLock);
-    void dispatchEventLocked(nsecs_t currentTime, EventEntry* entry,
+    bool dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<KeyEntry> entry,
+                           DropReason* dropReason, nsecs_t* nextWakeupTime) REQUIRES(mLock);
+    bool dispatchMotionLocked(nsecs_t currentTime, std::shared_ptr<MotionEntry> entry,
+                              DropReason* dropReason, nsecs_t* nextWakeupTime) REQUIRES(mLock);
+    void dispatchFocusLocked(nsecs_t currentTime, std::shared_ptr<FocusEntry> entry)
+            REQUIRES(mLock);
+    void dispatchEventLocked(nsecs_t currentTime, std::shared_ptr<EventEntry> entry,
                              const std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
 
     void logOutboundKeyDetails(const char* prefix, const KeyEntry& entry);
@@ -478,12 +480,12 @@ private:
     // with the mutex held makes it easier to ensure that connection invariants are maintained.
     // If needed, the methods post commands to run later once the critical bits are done.
     void prepareDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection,
-                                    EventEntry* eventEntry, const InputTarget& inputTarget)
+                                    std::shared_ptr<EventEntry>, const InputTarget& inputTarget)
             REQUIRES(mLock);
     void enqueueDispatchEntriesLocked(nsecs_t currentTime, const sp<Connection>& connection,
-                                      EventEntry* eventEntry, const InputTarget& inputTarget)
+                                      std::shared_ptr<EventEntry>, const InputTarget& inputTarget)
             REQUIRES(mLock);
-    void enqueueDispatchEntryLocked(const sp<Connection>& connection, EventEntry* eventEntry,
+    void enqueueDispatchEntryLocked(const sp<Connection>& connection, std::shared_ptr<EventEntry>,
                                     const InputTarget& inputTarget, int32_t dispatchMode)
             REQUIRES(mLock);
     void startDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection)
@@ -517,7 +519,8 @@ private:
             REQUIRES(mLock);
 
     // Splitting motion events across windows.
-    MotionEntry* splitMotionEvent(const MotionEntry& originalMotionEntry, BitSet32 pointerIds);
+    std::unique_ptr<MotionEntry> splitMotionEvent(const MotionEntry& originalMotionEntry,
+                                                  BitSet32 pointerIds);
 
     // Reset and drop everything the dispatcher is doing.
     void resetAndDropEverythingLocked(const char* reason) REQUIRES(mLock);
@@ -564,10 +567,10 @@ private:
             REQUIRES(mLock);
     void doDispatchCycleFinishedLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     bool afterKeyEventLockedInterruptible(const sp<Connection>& connection,
-                                          DispatchEntry* dispatchEntry, KeyEntry* keyEntry,
+                                          DispatchEntry* dispatchEntry, KeyEntry& keyEntry,
                                           bool handled) REQUIRES(mLock);
     bool afterMotionEventLockedInterruptible(const sp<Connection>& connection,
-                                             DispatchEntry* dispatchEntry, MotionEntry* motionEntry,
+                                             DispatchEntry* dispatchEntry, MotionEntry& motionEntry,
                                              bool handled) REQUIRES(mLock);
     void doPokeUserActivityLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     KeyEvent createKeyEvent(const KeyEntry& entry);
