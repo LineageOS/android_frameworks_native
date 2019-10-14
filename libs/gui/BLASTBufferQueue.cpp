@@ -64,7 +64,7 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
                                                    : Fence::NO_FENCE);
         mNextCallbackBufferItem = BufferItem();
     }
-    mDequeueWaitCV.notify_one();
+    mDequeueWaitCV.notify_all();
     decStrong((void*)transactionCallbackThunk);
 }
 
