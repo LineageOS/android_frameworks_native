@@ -471,7 +471,7 @@ public:
             FakeInputReceiver(dispatcher, name, displayId),
             mFocused(false), mFrame(Rect(0, 0, WIDTH, HEIGHT)), mLayoutParamFlags(0) {
             mServerChannel->setToken(new BBinder());
-            mDispatcher->registerInputChannel(mServerChannel, displayId);
+            mDispatcher->registerInputChannel(mServerChannel);
 
             inputApplicationHandle->updateInfo();
             mInfo.applicationInfo = *inputApplicationHandle->getInfo();

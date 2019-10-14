@@ -126,8 +126,7 @@ public:
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual status_t registerInputChannel(const sp<InputChannel>& inputChannel,
-                                          int32_t displayId) = 0;
+    virtual status_t registerInputChannel(const sp<InputChannel>& inputChannel) = 0;
 
     /* Registers input channels to be used to monitor input events.
      *
