@@ -55,6 +55,8 @@ public:
     virtual ~BLASTBufferQueue() = default;
 
 private:
+    friend class BLASTBufferQueueHelper;
+
     // can't be copied
     BLASTBufferQueue& operator = (const BLASTBufferQueue& rhs);
     BLASTBufferQueue(const BLASTBufferQueue& rhs);

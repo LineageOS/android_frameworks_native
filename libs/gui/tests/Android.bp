@@ -13,7 +13,8 @@ cc_test {
     ],
 
     srcs: [
-        "BufferItemConsumer_test.cpp",
+        "BLASTBufferQueue_test.cpp",
+	"BufferItemConsumer_test.cpp",
         "BufferQueue_test.cpp",
         "CpuConsumer_test.cpp",
         "EndToEndNativeInputTest.cpp",

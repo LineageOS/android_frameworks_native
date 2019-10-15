@@ -128,7 +128,7 @@ void InputManager::registerInputChannel(const sp<InputChannel>& channel) {
                 "from non shell/root entity (PID: %d)", ipc->getCallingPid());
         return;
     }
-    mDispatcher->registerInputChannel(channel, false);
+    mDispatcher->registerInputChannel(channel);
 }
 
 void InputManager::unregisterInputChannel(const sp<InputChannel>& channel) {

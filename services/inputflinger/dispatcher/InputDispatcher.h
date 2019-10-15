@@ -106,8 +106,7 @@ public:
     virtual bool transferTouchFocus(const sp<IBinder>& fromToken,
                                     const sp<IBinder>& toToken) override;
 
-    virtual status_t registerInputChannel(const sp<InputChannel>& inputChannel,
-                                          int32_t displayId) override;
+    virtual status_t registerInputChannel(const sp<InputChannel>& inputChannel) override;
     virtual status_t registerInputMonitor(const sp<InputChannel>& inputChannel, int32_t displayId,
                                           bool isGestureMonitor) override;
     virtual status_t unregisterInputChannel(const sp<InputChannel>& inputChannel) override;
