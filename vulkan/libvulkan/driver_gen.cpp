@@ -562,5 +562,3 @@ bool InitDriverTable(VkDevice dev,
 
 }  // namespace driver
 }  // namespace vulkan
-
-// clang-format on
