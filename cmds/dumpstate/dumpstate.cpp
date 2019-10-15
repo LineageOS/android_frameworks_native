@@ -2526,6 +2526,8 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
         return RunStatus::OK;
     }
 
+    MYLOGD("dumpstate calling_uid = %d ; calling package = %s \n",
+            calling_uid, calling_package.c_str());
     if (options_->bugreport_fd.get() != -1) {
         // If the output needs to be copied over to the caller's fd, get user consent.
         android::String16 package(calling_package.c_str());
@@ -2703,10 +2705,10 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
         FinalizeFile();
     }
 
-    // Share the final file with the caller if the user has consented.
+    // Share the final file with the caller if the user has consented or Shell is the caller.
     Dumpstate::RunStatus status = Dumpstate::RunStatus::OK;
     if (options_->bugreport_fd.get() != -1) {
-        status = CopyBugreportIfUserConsented();
+        status = CopyBugreportIfUserConsented(calling_uid);
         if (status != Dumpstate::RunStatus::OK &&
             status != Dumpstate::RunStatus::USER_CONSENT_TIMED_OUT) {
             // Do an early return if there were errors. We make an exception for consent
@@ -2776,6 +2778,9 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
 }
 
 void Dumpstate::CheckUserConsent(int32_t calling_uid, const android::String16& calling_package) {
+    if (calling_uid == AID_SHELL) {
+        return;
+    }
     consent_callback_ = new ConsentCallback();
     const String16 incidentcompanion("incidentcompanion");
     sp<android::IBinder> ics(defaultServiceManager()->getService(incidentcompanion));
@@ -2810,10 +2815,15 @@ Dumpstate::RunStatus Dumpstate::HandleUserConsentDenied() {
     return USER_CONSENT_DENIED;
 }
 
-Dumpstate::RunStatus Dumpstate::CopyBugreportIfUserConsented() {
+Dumpstate::RunStatus Dumpstate::CopyBugreportIfUserConsented(int32_t calling_uid) {
     // If the caller has asked to copy the bugreport over to their directory, we need explicit
-    // user consent.
-    UserConsentResult consent_result = consent_callback_->getResult();
+    // user consent (unless the caller is Shell).
+    UserConsentResult consent_result;
+    if (calling_uid == AID_SHELL) {
+        consent_result = UserConsentResult::APPROVED;
+    } else {
+        consent_result = consent_callback_->getResult();
+    }
     if (consent_result == UserConsentResult::UNAVAILABLE) {
         // User has not responded yet.
         uint64_t elapsed_ms = consent_callback_->getElapsedTimeMs();

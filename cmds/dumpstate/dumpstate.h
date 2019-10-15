@@ -498,8 +498,9 @@ class Dumpstate {
 
     RunStatus HandleUserConsentDenied();
 
-    // Copies bugreport artifacts over to the caller's directories provided there is user consent.
-    RunStatus CopyBugreportIfUserConsented();
+    // Copies bugreport artifacts over to the caller's directories provided there is user consent or
+    // called by Shell.
+    RunStatus CopyBugreportIfUserConsented(int32_t calling_uid);
 
     // Used by GetInstance() only.
     explicit Dumpstate(const std::string& version = VERSION_CURRENT);
