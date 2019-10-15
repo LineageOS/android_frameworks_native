@@ -144,4 +144,63 @@ TEST_F(RelativeZTest, LayerRemovedOffscreenRelativeParent) {
         sc->checkPixel(1, 1, Color::GREEN.r, Color::GREEN.g, Color::GREEN.b);
     }
 }
+
+TEST_F(RelativeZTest, LayerAndRelativeRemoved) {
+    std::unique_ptr<ScreenCapture> sc;
+
+    // Background layer (RED)
+    // Foregroud layer (GREEN)
+    //   Child layer (BLUE) (relative to relativeToLayer layer)
+    //   Relative layer (WHITE)
+    sp<SurfaceControl> childLayer =
+            createColorLayer("Child layer", Color::BLUE, mForegroundLayer.get());
+    sp<SurfaceControl> relativeToLayer =
+            createColorLayer("Relative layer", Color::WHITE, mForegroundLayer.get());
+
+    Transaction{}
+            .setRelativeLayer(childLayer, relativeToLayer->getHandle(), 1)
+            .show(childLayer)
+            .show(relativeToLayer)
+            .apply();
+
+    {
+        // The childLayer should be in front of relativeToLayer.
+        ScreenCapture::captureScreen(&sc);
+        sc->checkPixel(1, 1, Color::BLUE.r, Color::BLUE.g, Color::BLUE.b);
+    }
+
+    // Remove layer that childLayer is relative to
+    // Background layer (RED)
+    // Foregroud layer (GREEN)
+    //   Child layer (BLUE) (relative to relativeToLayer layer)
+    Transaction{}.reparent(relativeToLayer, nullptr).apply();
+    relativeToLayer = 0;
+
+    {
+        // The child layer is relative to an deleted layer so it won't be drawn.
+        ScreenCapture::captureScreen(&sc);
+        sc->checkPixel(1, 1, Color::GREEN.r, Color::GREEN.g, Color::GREEN.b);
+    }
+
+    // Background layer (RED)
+    // Foregroud layer (GREEN)
+    Transaction{}.reparent(childLayer, nullptr).apply();
+
+    {
+        // The child layer is offscreen, so it won't be drawn.
+        ScreenCapture::captureScreen(&sc);
+        sc->checkPixel(1, 1, Color::GREEN.r, Color::GREEN.g, Color::GREEN.b);
+    }
+
+    // Background layer (RED)
+    // Foregroud layer (GREEN)
+    //   Child layer (BLUE)
+    Transaction{}.reparent(childLayer, mForegroundLayer->getHandle()).apply();
+
+    {
+        // The relative z info for child layer should be reset, leaving the child layer on top.
+        ScreenCapture::captureScreen(&sc);
+        sc->checkPixel(1, 1, Color::BLUE.r, Color::BLUE.g, Color::BLUE.b);
+    }
+}
 } // namespace android

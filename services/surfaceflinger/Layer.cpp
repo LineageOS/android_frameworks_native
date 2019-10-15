@@ -908,7 +908,6 @@ bool Layer::setLayer(int32_t z) {
         }
         setZOrderRelativeOf(nullptr);
     }
-    mCurrentState.isRelativeOf = false;
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
@@ -931,6 +930,8 @@ void Layer::setZOrderRelativeOf(const wp<Layer>& relativeOf) {
     mCurrentState.zOrderRelativeOf = relativeOf;
     mCurrentState.sequence++;
     mCurrentState.modified = true;
+    mCurrentState.isRelativeOf = relativeOf != nullptr;
+
     setTransactionFlags(eTransactionNeeded);
 }
 
@@ -952,7 +953,6 @@ bool Layer::setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relati
     mCurrentState.sequence++;
     mCurrentState.modified = true;
     mCurrentState.z = relativeZ;
-    mCurrentState.isRelativeOf = true;
 
     auto oldZOrderRelativeOf = mCurrentState.zOrderRelativeOf.promote();
     if (oldZOrderRelativeOf != nullptr) {
