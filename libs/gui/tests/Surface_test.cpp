@@ -831,6 +831,11 @@ public:
                                       std::vector<int32_t>* /*outAllowedConfigs*/) override {
         return NO_ERROR;
     }
+    status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& /*displayToken*/,
+                                          int32_t /*defaultModeId*/, float /*minRefreshRate*/,
+                                          float /*maxRefreshRate*/) override {
+        return NO_ERROR;
+    }
     status_t notifyPowerHint(int32_t /*hintId*/) override { return NO_ERROR; }
 
 protected:
