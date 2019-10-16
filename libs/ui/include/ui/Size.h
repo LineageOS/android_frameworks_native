@@ -132,7 +132,7 @@ struct Size {
         // Otherwise we leverage implicit conversion to safely compare values of
         // different types, to ensure we return a value clamped to the range of
         // ToType.
-        return v < toLowest ? toLowest : (v > toHighest ? toHighest : static_cast<ToType>(v));
+        return v < toLowest ? toLowest : (static_cast<ToType>(v) > toHighest ? toHighest : static_cast<ToType>(v));
     }
 };
 
