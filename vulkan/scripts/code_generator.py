@@ -17,16 +17,16 @@
 # This script provides the main function for generating
 # vulkan framework directly from the vulkan registry (vk.xml).
 
-import generator_common as gencom
-import api_generator as apigen
-import driver_generator as drivergen
-import null_generator as nullgen
+import api_generator
+import driver_generator
+import generator_common
+import null_generator
 
 if __name__ == '__main__':
-  gencom.parseVulkanRegistry()
-  apigen.api_genh()
-  apigen.api_gencpp()
-  drivergen.driver_genh()
-  drivergen.driver_gencpp()
-  nullgen.null_driver_genh()
-  nullgen.null_driver_gencpp()
+  generator_common.parse_vulkan_registry()
+  api_generator.gen_h()
+  api_generator.gen_cpp()
+  driver_generator.gen_h()
+  driver_generator.gen_cpp()
+  null_generator.gen_h()
+  null_generator.gen_cpp()
