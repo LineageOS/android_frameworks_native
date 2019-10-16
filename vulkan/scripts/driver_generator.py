@@ -174,8 +174,8 @@ struct ProcHook {
     };
     enum Extension {\n""")
 
-    for exts in _KNOWN_EXTENSIONS:
-      f.write(gencom.indent(2) + exts[3:] + ',\n')
+    for ext in _KNOWN_EXTENSIONS:
+      f.write(gencom.indent(2) + gencom.base_ext_name(ext) + ',\n')
 
     f.write("""
         EXTENSION_CORE,  // valid bit
@@ -441,9 +441,9 @@ const ProcHook* GetProcHook(const char* name) {
 ProcHook::Extension GetProcHookExtension(const char* name) {
     // clang-format off\n""")
 
-    for exts in _KNOWN_EXTENSIONS:
-      f.write(gencom.indent(1) + 'if (strcmp(name, \"' + exts +
-              '\") == 0) return ProcHook::' + exts[3:] + ';\n')
+    for ext in _KNOWN_EXTENSIONS:
+      f.write(gencom.indent(1) + 'if (strcmp(name, \"' + ext +
+              '\") == 0) return ProcHook::' + gencom.base_ext_name(ext) + ';\n')
 
     f.write("""\
     // clang-format on
