@@ -23,11 +23,12 @@
 #include "Access.h"
 #include "ServiceManager.h"
 
-using ::android::sp;
-using ::android::ProcessState;
-using ::android::IPCThreadState;
-using ::android::ServiceManager;
 using ::android::Access;
+using ::android::IPCThreadState;
+using ::android::ProcessState;
+using ::android::ServiceManager;
+using ::android::os::IServiceManager;
+using ::android::sp;
 
 int main(int argc, char** argv) {
     if (argc > 2) {
@@ -41,6 +42,10 @@ int main(int argc, char** argv) {
     ps->setCallRestriction(ProcessState::CallRestriction::FATAL_IF_NOT_ONEWAY);
 
     sp<ServiceManager> manager = new ServiceManager(std::make_unique<Access>());
+    if (!manager->addService("manager", manager, false /*allowIsolated*/, IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT).isOk()) {
+        LOG(ERROR) << "Could not self register servicemanager";
+    }
+
     IPCThreadState::self()->setTheContextObject(manager);
     ps->becomeContextManager(nullptr, nullptr);
 
