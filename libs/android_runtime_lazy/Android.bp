@@ -52,10 +52,6 @@ cc_library {
         "libutils",
     ],
 
-    required: [
-        "libandroid_runtime",
-    ],
-
     export_include_dirs: [
         "include",
     ],
