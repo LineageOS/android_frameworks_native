@@ -195,10 +195,10 @@ void GatherGpuInfo(VkPhysicalDevice gpu,
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .queueCreateInfoCount = 1,
         .pQueueCreateInfos = &queue_create_info,
-        .enabledExtensionCount = num_extensions,
-        .ppEnabledExtensionNames = extensions,
         .enabledLayerCount = (options.validate) ? num_layers : 0,
         .ppEnabledLayerNames = kValidationLayers,
+        .enabledExtensionCount = num_extensions,
+        .ppEnabledExtensionNames = extensions,
         .pEnabledFeatures = &info.features,
     };
     result = vkCreateDevice(gpu, &create_info, nullptr, &device);
@@ -272,10 +272,10 @@ void GatherInfo(VulkanInfo* info, const Options& options) {
     const VkInstanceCreateInfo create_info = {
         .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
         .pApplicationInfo = &application_info,
-        .enabledExtensionCount = num_extensions,
-        .ppEnabledExtensionNames = extensions,
         .enabledLayerCount = (options.validate) ? num_layers : 0,
         .ppEnabledLayerNames = kValidationLayers,
+        .enabledExtensionCount = num_extensions,
+        .ppEnabledExtensionNames = extensions,
     };
     VkInstance instance;
     result = vkCreateInstance(&create_info, nullptr, &instance);
