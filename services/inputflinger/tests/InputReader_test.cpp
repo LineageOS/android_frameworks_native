@@ -25,12 +25,17 @@
 #include <TestInputListener.h>
 #include <TouchInputMapper.h>
 
+#include <android-base/thread_annotations.h>
 #include <gtest/gtest.h>
 #include <inttypes.h>
 #include <math.h>
 
-
 namespace android {
+
+using std::chrono_literals::operator""ms;
+
+// Timeout for waiting for an expected event
+static constexpr std::chrono::duration WAIT_TIMEOUT = 100ms;
 
 // An arbitrary time value.
 static const nsecs_t ARBITRARY_TIME = 1234;
@@ -164,9 +169,13 @@ private:
 // --- FakeInputReaderPolicy ---
 
 class FakeInputReaderPolicy : public InputReaderPolicyInterface {
+    std::mutex mLock;
+    std::condition_variable mDevicesChangedCondition;
+
     InputReaderConfiguration mConfig;
     KeyedVector<int32_t, sp<FakePointerController> > mPointerControllers;
-    std::vector<InputDeviceInfo> mInputDevices;
+    std::vector<InputDeviceInfo> mInputDevices GUARDED_BY(mLock);
+    bool mInputDevicesChanged GUARDED_BY(mLock){false};
     std::vector<DisplayViewport> mViewports;
     TouchAffineTransformation transform;
 
@@ -175,6 +184,20 @@ protected:
 
 public:
     FakeInputReaderPolicy() {
+    }
+
+    void assertInputDevicesChanged() {
+        std::unique_lock<std::mutex> lock(mLock);
+        base::ScopedLockAssertion assumeLocked(mLock);
+
+        const bool devicesChanged =
+                mDevicesChangedCondition.wait_for(lock, WAIT_TIMEOUT, [this]() REQUIRES(mLock) {
+                    return mInputDevicesChanged;
+                });
+        if (!devicesChanged) {
+            FAIL() << "Timed out waiting for notifyInputDevicesChanged() to be called.";
+        }
+        mInputDevicesChanged = false;
     }
 
     virtual void clearViewports() {
@@ -291,7 +314,10 @@ private:
     }
 
     virtual void notifyInputDevicesChanged(const std::vector<InputDeviceInfo>& inputDevices) {
+        std::scoped_lock<std::mutex> lock(mLock);
         mInputDevices = inputDevices;
+        mInputDevicesChanged = true;
+        mDevicesChangedCondition.notify_all();
     }
 
     virtual sp<KeyCharacterMap> getKeyboardLayoutOverlay(const InputDeviceIdentifier&) {
@@ -342,9 +368,12 @@ class FakeEventHub : public EventHubInterface {
         }
     };
 
+    std::mutex mLock;
+    std::condition_variable mEventsCondition;
+
     KeyedVector<int32_t, Device*> mDevices;
     std::vector<std::string> mExcludedDevices;
-    List<RawEvent> mEvents;
+    List<RawEvent> mEvents GUARDED_BY(mLock);
     std::unordered_map<int32_t /*deviceId*/, std::vector<TouchVideoFrame>> mVideoFrames;
 
 public:
@@ -496,6 +525,7 @@ public:
 
     void enqueueEvent(nsecs_t when, int32_t deviceId, int32_t type,
             int32_t code, int32_t value) {
+        std::scoped_lock<std::mutex> lock(mLock);
         RawEvent event;
         event.when = when;
         event.deviceId = deviceId;
@@ -515,8 +545,14 @@ public:
     }
 
     void assertQueueIsEmpty() {
-        ASSERT_EQ(size_t(0), mEvents.size())
-                << "Expected the event queue to be empty (fully consumed).";
+        std::unique_lock<std::mutex> lock(mLock);
+        base::ScopedLockAssertion assumeLocked(mLock);
+        const bool queueIsEmpty =
+                mEventsCondition.wait_for(lock, WAIT_TIMEOUT,
+                                          [this]() REQUIRES(mLock) { return mEvents.size() == 0; });
+        if (!queueIsEmpty) {
+            FAIL() << "Timed out waiting for EventHub queue to be emptied.";
+        }
     }
 
 private:
@@ -619,12 +655,14 @@ private:
     }
 
     virtual size_t getEvents(int, RawEvent* buffer, size_t) {
+        std::scoped_lock<std::mutex> lock(mLock);
         if (mEvents.empty()) {
             return 0;
         }
 
         *buffer = *mEvents.begin();
         mEvents.erase(mEvents.begin());
+        mEventsCondition.notify_all();
         return 1;
     }
 
@@ -877,11 +915,13 @@ class FakeInputMapper : public InputMapper {
     KeyedVector<int32_t, int32_t> mScanCodeStates;
     KeyedVector<int32_t, int32_t> mSwitchStates;
     std::vector<int32_t> mSupportedKeyCodes;
-    RawEvent mLastEvent;
 
-    bool mConfigureWasCalled;
-    bool mResetWasCalled;
-    bool mProcessWasCalled;
+    std::mutex mLock;
+    std::condition_variable mStateChangedCondition;
+    bool mConfigureWasCalled GUARDED_BY(mLock);
+    bool mResetWasCalled GUARDED_BY(mLock);
+    bool mProcessWasCalled GUARDED_BY(mLock);
+    RawEvent mLastEvent GUARDED_BY(mLock);
 
     std::optional<DisplayViewport> mViewport;
 public:
@@ -903,20 +943,41 @@ public:
     }
 
     void assertConfigureWasCalled() {
-        ASSERT_TRUE(mConfigureWasCalled)
-                << "Expected configure() to have been called.";
+        std::unique_lock<std::mutex> lock(mLock);
+        base::ScopedLockAssertion assumeLocked(mLock);
+        const bool configureCalled =
+                mStateChangedCondition.wait_for(lock, WAIT_TIMEOUT, [this]() REQUIRES(mLock) {
+                    return mConfigureWasCalled;
+                });
+        if (!configureCalled) {
+            FAIL() << "Expected configure() to have been called.";
+        }
         mConfigureWasCalled = false;
     }
 
     void assertResetWasCalled() {
-        ASSERT_TRUE(mResetWasCalled)
-                << "Expected reset() to have been called.";
+        std::unique_lock<std::mutex> lock(mLock);
+        base::ScopedLockAssertion assumeLocked(mLock);
+        const bool resetCalled =
+                mStateChangedCondition.wait_for(lock, WAIT_TIMEOUT, [this]() REQUIRES(mLock) {
+                    return mResetWasCalled;
+                });
+        if (!resetCalled) {
+            FAIL() << "Expected reset() to have been called.";
+        }
         mResetWasCalled = false;
     }
 
     void assertProcessWasCalled(RawEvent* outLastEvent = nullptr) {
-        ASSERT_TRUE(mProcessWasCalled)
-                << "Expected process() to have been called.";
+        std::unique_lock<std::mutex> lock(mLock);
+        base::ScopedLockAssertion assumeLocked(mLock);
+        const bool processCalled =
+                mStateChangedCondition.wait_for(lock, WAIT_TIMEOUT, [this]() REQUIRES(mLock) {
+                    return mProcessWasCalled;
+                });
+        if (!processCalled) {
+            FAIL() << "Expected process() to have been called.";
+        }
         if (outLastEvent) {
             *outLastEvent = mLastEvent;
         }
@@ -953,6 +1014,7 @@ private:
     }
 
     virtual void configure(nsecs_t, const InputReaderConfiguration* config, uint32_t changes) {
+        std::scoped_lock<std::mutex> lock(mLock);
         mConfigureWasCalled = true;
 
         // Find the associated viewport if exist.
@@ -960,15 +1022,21 @@ private:
         if (displayPort && (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
             mViewport = config->getDisplayViewportByPort(*displayPort);
         }
+
+        mStateChangedCondition.notify_all();
     }
 
     virtual void reset(nsecs_t) {
+        std::scoped_lock<std::mutex> lock(mLock);
         mResetWasCalled = true;
+        mStateChangedCondition.notify_all();
     }
 
     virtual void process(const RawEvent* rawEvent) {
+        std::scoped_lock<std::mutex> lock(mLock);
         mLastEvent = *rawEvent;
         mProcessWasCalled = true;
+        mStateChangedCondition.notify_all();
     }
 
     virtual int32_t getKeyCodeState(uint32_t, int32_t keyCode) {
@@ -1033,23 +1101,22 @@ public:
         }
     }
 
-    void setNextDevice(InputDevice* device) {
-        mNextDevice = device;
-    }
+    void setNextDevice(InputDevice* device) { mNextDevice = device; }
 
     InputDevice* newDevice(int32_t deviceId, int32_t controllerNumber, const std::string& name,
-            uint32_t classes, const std::string& location = "") {
+                           uint32_t classes, const std::string& location = "") {
         InputDeviceIdentifier identifier;
         identifier.name = name;
         identifier.location = location;
         int32_t generation = deviceId + 1;
         return new InputDevice(&mContext, deviceId, generation, controllerNumber, identifier,
-                classes);
+                               classes);
     }
 
 protected:
     virtual InputDevice* createDeviceLocked(int32_t deviceId, int32_t controllerNumber,
-            const InputDeviceIdentifier& identifier, uint32_t classes) {
+                                            const InputDeviceIdentifier& identifier,
+                                            uint32_t classes) {
         if (mNextDevice) {
             InputDevice* device = mNextDevice;
             mNextDevice = nullptr;
@@ -1281,7 +1348,8 @@ protected:
         mFakeEventHub->finishDeviceScan();
         mReader->loopOnce();
         mReader->loopOnce();
-        mFakeEventHub->assertQueueIsEmpty();
+        ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+        ASSERT_NO_FATAL_FAILURE(mFakeEventHub->assertQueueIsEmpty());
     }
 
     void disableDevice(int32_t deviceId, InputDevice* device) {
@@ -1316,10 +1384,8 @@ TEST_F(InputReaderTest, GetInputDevices) {
     ASSERT_NO_FATAL_FAILURE(addDevice(2, "ignored",
             0, nullptr)); // no classes so device will be ignored
 
-
     std::vector<InputDeviceInfo> inputDevices;
     mReader->getInputDevices(inputDevices);
-
     ASSERT_EQ(1U, inputDevices.size());
     ASSERT_EQ(1, inputDevices[0].getId());
     ASSERT_STREQ("keyboard", inputDevices[0].getIdentifier().name.c_str());
@@ -1345,7 +1411,7 @@ TEST_F(InputReaderTest, WhenEnabledChanges_SendsDeviceResetNotification) {
     FakeInputMapper* mapper = new FakeInputMapper(device, AINPUT_SOURCE_KEYBOARD);
     device->addMapper(mapper);
     mReader->setNextDevice(device);
-    addDevice(deviceId, "fake", deviceClass, nullptr);
+    ASSERT_NO_FATAL_FAILURE(addDevice(deviceId, "fake", deviceClass, nullptr));
 
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyConfigurationChangedWasCalled(nullptr));
 
@@ -1358,20 +1424,20 @@ TEST_F(InputReaderTest, WhenEnabledChanges_SendsDeviceResetNotification) {
     disableDevice(deviceId, device);
     mReader->loopOnce();
 
-    mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
     ASSERT_EQ(ARBITRARY_TIME, resetArgs.eventTime);
     ASSERT_EQ(deviceId, resetArgs.deviceId);
     ASSERT_EQ(device->isEnabled(), false);
 
     disableDevice(deviceId, device);
     mReader->loopOnce();
-    mFakeListener->assertNotifyDeviceResetWasNotCalled();
-    mFakeListener->assertNotifyConfigurationChangedWasNotCalled();
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasNotCalled());
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyConfigurationChangedWasNotCalled());
     ASSERT_EQ(device->isEnabled(), false);
 
     enableDevice(deviceId, device);
     mReader->loopOnce();
-    mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
     ASSERT_EQ(ARBITRARY_TIME, resetArgs.eventTime);
     ASSERT_EQ(deviceId, resetArgs.deviceId);
     ASSERT_EQ(device->isEnabled(), true);
@@ -1529,7 +1595,7 @@ TEST_F(InputReaderTest, DeviceReset_IncrementsSequenceNumber) {
     FakeInputMapper* mapper = new FakeInputMapper(device, AINPUT_SOURCE_KEYBOARD);
     device->addMapper(mapper);
     mReader->setNextDevice(device);
-    addDevice(deviceId, "fake", deviceClass, nullptr);
+    ASSERT_NO_FATAL_FAILURE(addDevice(deviceId, "fake", deviceClass, nullptr));
 
     NotifyDeviceResetArgs resetArgs;
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
@@ -1537,19 +1603,19 @@ TEST_F(InputReaderTest, DeviceReset_IncrementsSequenceNumber) {
 
     disableDevice(deviceId, device);
     mReader->loopOnce();
-    mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
     ASSERT_TRUE(prevSequenceNum < resetArgs.sequenceNum);
     prevSequenceNum = resetArgs.sequenceNum;
 
     enableDevice(deviceId, device);
     mReader->loopOnce();
-    mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
     ASSERT_TRUE(prevSequenceNum < resetArgs.sequenceNum);
     prevSequenceNum = resetArgs.sequenceNum;
 
     disableDevice(deviceId, device);
     mReader->loopOnce();
-    mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
     ASSERT_TRUE(prevSequenceNum < resetArgs.sequenceNum);
     prevSequenceNum = resetArgs.sequenceNum;
 }
@@ -1577,6 +1643,7 @@ TEST_F(InputReaderTest, Device_CanDispatchToDisplay) {
             DISPLAY_ORIENTATION_0, "local:1", hdmi1, ViewportType::VIEWPORT_EXTERNAL);
     mReader->requestRefreshConfiguration(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
     mReader->loopOnce();
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyConfigurationChangedWasCalled());
 
     // Device should only dispatch to the specified display.
     ASSERT_EQ(deviceId, device->getId());

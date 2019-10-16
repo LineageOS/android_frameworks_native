@@ -17,6 +17,7 @@
 #ifndef _UI_TEST_INPUT_LISTENER_H
 #define _UI_TEST_INPUT_LISTENER_H
 
+#include <android-base/thread_annotations.h>
 #include <gtest/gtest.h>
 #include "InputListener.h"
 
@@ -25,13 +26,6 @@ namespace android {
 // --- TestInputListener ---
 
 class TestInputListener : public InputListenerInterface {
-private:
-    std::vector<NotifyConfigurationChangedArgs> mNotifyConfigurationChangedArgsQueue;
-    std::vector<NotifyDeviceResetArgs> mNotifyDeviceResetArgsQueue;
-    std::vector<NotifyKeyArgs> mNotifyKeyArgsQueue;
-    std::vector<NotifyMotionArgs> mNotifyMotionArgsQueue;
-    std::vector<NotifySwitchArgs> mNotifySwitchArgsQueue;
-
 protected:
     virtual ~TestInputListener();
 
@@ -58,15 +52,34 @@ public:
     void assertNotifySwitchWasCalled(NotifySwitchArgs* outEventArgs = nullptr);
 
 private:
-    virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args);
+    template <class NotifyArgsType>
+    void assertCalled(NotifyArgsType* outEventArgs, std::string message);
 
-    virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args);
+    template <class NotifyArgsType>
+    void assertNotCalled(std::string message);
 
-    virtual void notifyKey(const NotifyKeyArgs* args);
+    template <class NotifyArgsType>
+    void notify(const NotifyArgsType* args);
 
-    virtual void notifyMotion(const NotifyMotionArgs* args);
+    virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) override;
 
-    virtual void notifySwitch(const NotifySwitchArgs* args);
+    virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) override;
+
+    virtual void notifyKey(const NotifyKeyArgs* args) override;
+
+    virtual void notifyMotion(const NotifyMotionArgs* args) override;
+
+    virtual void notifySwitch(const NotifySwitchArgs* args) override;
+
+    std::mutex mLock;
+    std::condition_variable mCondition;
+
+    std::tuple<std::vector<NotifyConfigurationChangedArgs>, //
+               std::vector<NotifyDeviceResetArgs>,          //
+               std::vector<NotifyKeyArgs>,                  //
+               std::vector<NotifyMotionArgs>,               //
+               std::vector<NotifySwitchArgs>>               //
+            mQueues GUARDED_BY(mLock);
 };
 
 } // namespace android
