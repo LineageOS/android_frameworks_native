@@ -167,11 +167,15 @@ protected:
     virtual ~InputChannel();
 
 public:
-    static sp<InputChannel> create(const std::string& name, android::base::unique_fd fd);
+    static sp<InputChannel> create(const std::string& name, android::base::unique_fd fd,
+                                   sp<IBinder> token);
 
-    /* Creates a pair of input channels.
+    /**
+     * Create a pair of input channels.
+     * The two returned input channels are equivalent, and are labeled as "server" and "client"
+     * for convenience. The two input channels share the same token.
      *
-     * Returns OK on success.
+     * Return OK on success.
      */
     static status_t openInputChannelPair(const std::string& name,
             sp<InputChannel>& outServerChannel, sp<InputChannel>& outClientChannel);
@@ -179,46 +183,57 @@ public:
     inline std::string getName() const { return mName; }
     inline int getFd() const { return mFd.get(); }
 
-    /* Sends a message to the other endpoint.
+    /* Send a message to the other endpoint.
      *
      * If the channel is full then the message is guaranteed not to have been sent at all.
      * Try again after the consumer has sent a finished signal indicating that it has
      * consumed some of the pending messages from the channel.
      *
-     * Returns OK on success.
-     * Returns WOULD_BLOCK if the channel is full.
-     * Returns DEAD_OBJECT if the channel's peer has been closed.
+     * Return OK on success.
+     * Return WOULD_BLOCK if the channel is full.
+     * Return DEAD_OBJECT if the channel's peer has been closed.
      * Other errors probably indicate that the channel is broken.
      */
     status_t sendMessage(const InputMessage* msg);
 
-    /* Receives a message sent by the other endpoint.
+    /* Receive a message sent by the other endpoint.
      *
      * If there is no message present, try again after poll() indicates that the fd
      * is readable.
      *
-     * Returns OK on success.
-     * Returns WOULD_BLOCK if there is no message present.
-     * Returns DEAD_OBJECT if the channel's peer has been closed.
+     * Return OK on success.
+     * Return WOULD_BLOCK if there is no message present.
+     * Return DEAD_OBJECT if the channel's peer has been closed.
      * Other errors probably indicate that the channel is broken.
      */
     status_t receiveMessage(InputMessage* msg);
 
-    /* Returns a new object that has a duplicate of this channel's fd. */
+    /* Return a new object that has a duplicate of this channel's fd. */
     sp<InputChannel> dup() const;
 
     status_t write(Parcel& out) const;
     static sp<InputChannel> read(const Parcel& from);
 
-    sp<IBinder> getToken() const;
-    void setToken(const sp<IBinder>& token);
+    /**
+     * The connection token is used to identify the input connection, i.e.
+     * the pair of input channels that were created simultaneously. Input channels
+     * are always created in pairs, and the token can be used to find the server-side
+     * input channel from the client-side input channel, and vice versa.
+     *
+     * Do not use connection token to check equality of a specific input channel object
+     * to another, because two different (client and server) input channels will share the
+     * same connection token.
+     *
+     * Return the token that identifies this connection.
+     */
+    sp<IBinder> getConnectionToken() const;
 
 private:
-    InputChannel(const std::string& name, android::base::unique_fd fd);
+    InputChannel(const std::string& name, android::base::unique_fd fd, sp<IBinder> token);
     std::string mName;
     android::base::unique_fd mFd;
 
-    sp<IBinder> mToken = nullptr;
+    sp<IBinder> mToken;
 };
 
 /*
