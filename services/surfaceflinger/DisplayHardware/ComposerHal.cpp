@@ -95,6 +95,7 @@ private:
 
 // assume NO_RESOURCES when Status::isOk returns false
 constexpr Error kDefaultError = Error::NO_RESOURCES;
+constexpr V2_4::Error kDefaultError_2_4 = V2_4::Error::NO_RESOURCES;
 
 template<typename T, typename U>
 T unwrapRet(Return<T>& ret, const U& default_val)
@@ -177,7 +178,7 @@ Composer::Composer(const std::string& serviceName)
 
     if (sp<IComposer> composer_2_4 = IComposer::castFrom(mComposer)) {
         composer_2_4->createClient_2_4([&](const auto& tmpError, const auto& tmpClient) {
-            if (tmpError == Error::NONE) {
+            if (tmpError == V2_4::Error::NONE) {
                 mClient = tmpClient;
                 mClient_2_2 = tmpClient;
                 mClient_2_3 = tmpClient;
@@ -1172,12 +1173,12 @@ Error Composer::getDisplayCapabilities(Display display,
         return Error::UNSUPPORTED;
     }
 
-    Error error = kDefaultError;
+    V2_4::Error error = kDefaultError_2_4;
     if (mClient_2_4) {
         mClient_2_4->getDisplayCapabilities_2_4(display,
                                                 [&](const auto& tmpError, const auto& tmpCaps) {
                                                     error = tmpError;
-                                                    if (error != Error::NONE) {
+                                                    if (error != V2_4::Error::NONE) {
                                                         return;
                                                     }
                                                     *outCapabilities = tmpCaps;
@@ -1185,8 +1186,8 @@ Error Composer::getDisplayCapabilities(Display display,
     } else {
         mClient_2_3
                 ->getDisplayCapabilities(display, [&](const auto& tmpError, const auto& tmpCaps) {
-                    error = tmpError;
-                    if (error != Error::NONE) {
+                    error = static_cast<V2_4::Error>(tmpError);
+                    if (error != V2_4::Error::NONE) {
                         return;
                     }
 
@@ -1196,7 +1197,7 @@ Error Composer::getDisplayCapabilities(Display display,
                 });
     }
 
-    return error;
+    return static_cast<Error>(error);
 }
 
 Error Composer::getDisplayConnectionType(Display display,
@@ -1205,17 +1206,17 @@ Error Composer::getDisplayConnectionType(Display display,
         return Error::UNSUPPORTED;
     }
 
-    Error error = kDefaultError;
+    V2_4::Error error = kDefaultError_2_4;
     mClient_2_4->getDisplayConnectionType(display, [&](const auto& tmpError, const auto& tmpType) {
         error = tmpError;
-        if (error != Error::NONE) {
+        if (error != V2_4::Error::NONE) {
             return;
         }
 
         *outType = tmpType;
     });
 
-    return error;
+    return static_cast<V2_1::Error>(error);
 }
 
 CommandReader::~CommandReader()
