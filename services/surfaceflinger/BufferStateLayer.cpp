@@ -136,7 +136,7 @@ void BufferStateLayer::pushPendingState() {
         return;
     }
     mPendingStates.push_back(mCurrentState);
-    ATRACE_INT(mTransactionName.string(), mPendingStates.size());
+    ATRACE_INT(mTransactionName.c_str(), mPendingStates.size());
 }
 
 bool BufferStateLayer::applyPendingStates(Layer::State* stateToCommit) {
@@ -479,7 +479,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         (s.active.w != bufferWidth || s.active.h != bufferHeight)) {
         ALOGE("[%s] rejecting buffer: "
               "bufferWidth=%d, bufferHeight=%d, front.active.{w=%d, h=%d}",
-              mName.string(), bufferWidth, bufferHeight, s.active.w, s.active.h);
+              getDebugName(), bufferWidth, bufferHeight, s.active.w, s.active.h);
         mFlinger->mTimeStats->removeTimeRecord(layerID, mFrameNumber);
         return BAD_VALUE;
     }
@@ -669,9 +669,7 @@ Rect BufferStateLayer::computeCrop(const State& s) {
 }
 
 sp<Layer> BufferStateLayer::createClone() {
-    const String8 name = mName + " (Mirror)";
-    LayerCreationArgs args =
-            LayerCreationArgs(mFlinger.get(), nullptr, name, 0, 0, 0, LayerMetadata());
+    LayerCreationArgs args(mFlinger.get(), nullptr, mName + " (Mirror)", 0, 0, 0, LayerMetadata());
     args.textureName = mTextureName;
     sp<BufferStateLayer> layer = mFlinger->getFactory().createBufferStateLayer(args);
     layer->mHwcSlotGenerator = mHwcSlotGenerator;

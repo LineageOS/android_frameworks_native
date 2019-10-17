@@ -607,27 +607,27 @@ private:
                          sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp,
                          const sp<IBinder>& parentHandle, const sp<Layer>& parentLayer = nullptr);
 
-    status_t createBufferQueueLayer(const sp<Client>& client, const String8& name, uint32_t w,
+    status_t createBufferQueueLayer(const sp<Client>& client, std::string name, uint32_t w,
                                     uint32_t h, uint32_t flags, LayerMetadata metadata,
                                     PixelFormat& format, sp<IBinder>* outHandle,
                                     sp<IGraphicBufferProducer>* outGbp, sp<Layer>* outLayer);
 
-    status_t createBufferStateLayer(const sp<Client>& client, const String8& name, uint32_t w,
+    status_t createBufferStateLayer(const sp<Client>& client, std::string name, uint32_t w,
                                     uint32_t h, uint32_t flags, LayerMetadata metadata,
                                     sp<IBinder>* outHandle, sp<Layer>* outLayer);
 
-    status_t createColorLayer(const sp<Client>& client, const String8& name, uint32_t w, uint32_t h,
+    status_t createColorLayer(const sp<Client>& client, std::string name, uint32_t w, uint32_t h,
                               uint32_t flags, LayerMetadata metadata, sp<IBinder>* outHandle,
                               sp<Layer>* outLayer);
 
-    status_t createContainerLayer(const sp<Client>& client, const String8& name, uint32_t w,
+    status_t createContainerLayer(const sp<Client>& client, std::string name, uint32_t w,
                                   uint32_t h, uint32_t flags, LayerMetadata metadata,
                                   sp<IBinder>* outHandle, sp<Layer>* outLayer);
 
     status_t mirrorLayer(const sp<Client>& client, const sp<IBinder>& mirrorFromHandle,
                          sp<IBinder>* outHandle);
 
-    String8 getUniqueLayerName(const String8& name);
+    std::string getUniqueLayerName(const char* name);
 
     // called when all clients have released all their references to
     // this layer meaning it is entirely safe to destroy all
@@ -866,8 +866,8 @@ private:
     // Not const because each Layer needs to query Fences and cache timestamps.
     void dumpFrameEventsLocked(std::string& result);
 
-    void recordBufferingStats(const char* layerName,
-            std::vector<OccupancyTracker::Segment>&& history);
+    void recordBufferingStats(const std::string& layerName,
+                              std::vector<OccupancyTracker::Segment>&& history);
     void dumpBufferingStats(std::string& result) const;
     void dumpDisplayIdentificationData(std::string& result) const;
     void dumpRawDisplayIdentificationData(const DumpArgs&, std::string& result) const;

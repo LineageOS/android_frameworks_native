@@ -839,7 +839,7 @@ struct ColorLayerVariant : public BaseLayerVariant<LayerProperties> {
     static FlingerLayerType createLayer(CompositionTest* test) {
         FlingerLayerType layer = Base::template createLayerWithFactory<ColorLayer>(test, [test]() {
             return new ColorLayer(LayerCreationArgs(test->mFlinger.mFlinger.get(), sp<Client>(),
-                                                    String8("test-layer"), LayerProperties::WIDTH,
+                                                    "test-layer", LayerProperties::WIDTH,
                                                     LayerProperties::HEIGHT,
                                                     LayerProperties::LAYER_FLAGS, LayerMetadata()));
         });
@@ -879,11 +879,9 @@ struct BufferLayerVariant : public BaseLayerVariant<LayerProperties> {
         FlingerLayerType layer =
                 Base::template createLayerWithFactory<BufferQueueLayer>(test, [test]() {
                     sp<Client> client;
-                    String8 name("test-layer");
-                    LayerCreationArgs args =
-                            LayerCreationArgs(test->mFlinger.mFlinger.get(), client, name,
-                                              LayerProperties::WIDTH, LayerProperties::HEIGHT,
-                                              LayerProperties::LAYER_FLAGS, LayerMetadata());
+                    LayerCreationArgs args(test->mFlinger.mFlinger.get(), client, "test-layer",
+                                           LayerProperties::WIDTH, LayerProperties::HEIGHT,
+                                           LayerProperties::LAYER_FLAGS, LayerMetadata());
                     args.textureName = test->mFlinger.mutableTexturePool().back();
                     return new BufferQueueLayer(args);
                 });
