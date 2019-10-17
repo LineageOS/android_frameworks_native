@@ -40,7 +40,7 @@ std::atomic<int64_t> LayerHistory::sNextId = 0;
 LayerHistory::LayerHistory() {
     char value[PROPERTY_VALUE_MAX];
     property_get("debug.sf.layer_history_trace", value, "0");
-    mTraceEnabled = bool(atoi(value));
+    mTraceEnabled = static_cast<bool>(atoi(value));
 }
 
 LayerHistory::~LayerHistory() = default;
@@ -128,19 +128,23 @@ std::pair<float, bool> LayerHistory::getDesiredRefreshRateAndHDR() {
 
     // Iterate through all layers that have been recently updated, and find the max refresh rate.
     for (const auto& [layerId, layerInfo] : mActiveLayerInfos) {
-        const float layerRefreshRate = layerInfo->getDesiredRefreshRate();
-        if (mTraceEnabled) {
-            // Store the refresh rate in traces for easy debugging.
-            std::string layerName = "LFPS " + layerInfo->getName();
-            ATRACE_INT(layerName.c_str(), std::round(layerRefreshRate));
-            ALOGD("%s: %f", layerName.c_str(), std::round(layerRefreshRate));
-        }
-        if (layerInfo->isRecentlyActive() && layerRefreshRate > newRefreshRate) {
-            newRefreshRate = layerRefreshRate;
+        const bool recent = layerInfo->isRecentlyActive();
+        if (recent || CC_UNLIKELY(mTraceEnabled)) {
+            const float refreshRate = layerInfo->getDesiredRefreshRate();
+            if (recent && refreshRate > newRefreshRate) {
+                newRefreshRate = refreshRate;
+            }
+
+            if (CC_UNLIKELY(mTraceEnabled)) {
+                std::string name = "LFPS " + layerInfo->getName();
+                const float rate = std::round(refreshRate);
+                ATRACE_INT(name.c_str(), rate);
+                ALOGD("%s: %f", name.c_str(), rate);
+            }
         }
         isHDR |= layerInfo->getHDRContent();
     }
-    if (mTraceEnabled) {
+    if (CC_UNLIKELY(mTraceEnabled)) {
         ALOGD("LayerHistory DesiredRefreshRate: %.2f", newRefreshRate);
     }
 
@@ -158,7 +162,7 @@ void LayerHistory::removeIrrelevantLayers() {
             (!it->second->getHDRContent() && it->second->getLastUpdatedTime() < obsoleteEpsilon)) {
             // erase() function returns the iterator of the next
             // to last deleted element.
-            if (mTraceEnabled) {
+            if (CC_UNLIKELY(mTraceEnabled)) {
                 ALOGD("Layer %s obsolete", it->second->getName().c_str());
                 // Make sure to update systrace to indicate that the layer was erased.
                 std::string layerName = "LFPS " + it->second->getName();
