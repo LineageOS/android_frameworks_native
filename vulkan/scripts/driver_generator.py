@@ -272,7 +272,7 @@ def _define_proc_hook_stub(cmd, f):
   if _need_proc_hook_stub(cmd):
     return_type = gencom.return_type_dict[cmd]
     ext_name = gencom.extension_dict[cmd]
-    ext_hook = 'ProcHook::' + ext_name[3:]
+    ext_hook = 'ProcHook::' + gencom.base_ext_name(ext_name)
     handle = gencom.param_dict[cmd][0][1]
     param_types = ', '.join([''.join(i) for i in gencom.param_dict[cmd]])
     param_names = ', '.join([''.join(i[1]) for i in gencom.param_dict[cmd]])
@@ -327,7 +327,8 @@ def _define_instance_proc_hook(cmd, f):
 
   if cmd in gencom.extension_dict:
     ext_name = gencom.extension_dict[cmd]
-    f.write(gencom.indent(2) + 'ProcHook::' + ext_name[3:] + ',\n')
+    f.write(gencom.indent(2) + 'ProcHook::' +
+            gencom.base_ext_name(ext_name) + ',\n')
 
     if gencom.is_extension_internal(ext_name):
       f.write("""\
@@ -359,7 +360,8 @@ def _define_device_proc_hook(cmd, f):
 
   if cmd in gencom.extension_dict:
     ext_name = gencom.extension_dict[cmd]
-    f.write(gencom.indent(2) + 'ProcHook::' + ext_name[3:] + ',\n')
+    f.write(gencom.indent(2) + 'ProcHook::' +
+            gencom.base_ext_name(ext_name) + ',\n')
 
     if gencom.is_extension_internal(ext_name):
       f.write("""\

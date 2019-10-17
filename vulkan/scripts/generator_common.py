@@ -286,7 +286,7 @@ def init_proc(name, f):
   """
   f.write(indent(1))
   if name in extension_dict:
-    f.write('INIT_PROC_EXT(' + extension_dict[name][3:] + ', ')
+    f.write('INIT_PROC_EXT(' + base_ext_name(extension_dict[name]) + ', ')
   else:
     f.write('INIT_PROC(')
 
