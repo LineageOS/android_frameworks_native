@@ -13,13 +13,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# This script provides the functions required for generating the
-# vulkan api framework directly from the vulkan registry (vk.xml)
+
+"""Generates the api_gen.h and api_gen.cpp.
+"""
 
 import os
 import generator_common as gencom
 
+# Functions intercepted at vulkan::api level.
 _INTERCEPTED_COMMANDS = [
     'vkCreateDevice',
     'vkDestroyDevice',
@@ -30,6 +31,8 @@ _INTERCEPTED_COMMANDS = [
 
 
 def gen_h():
+  """Generates the api_gen.h file.
+  """
   genfile = os.path.join(os.path.dirname(__file__),
                          '..', 'libvulkan', 'api_gen.h')
 
@@ -100,6 +103,12 @@ bool InitDispatchTable(
 
 
 def _define_extension_stub(cmd, f):
+  """Emits a stub for an exported extension function.
+
+  Args:
+    cmd: Vulkan function name.
+    f: Output file handle.
+  """
   if (cmd in gencom.extension_dict and gencom.is_function_exported(cmd)):
     ext_name = gencom.extension_dict[cmd]
     ret = gencom.return_type_dict[cmd]
@@ -121,6 +130,11 @@ def _define_extension_stub(cmd, f):
 
 
 def _is_intercepted(cmd):
+  """Returns true if a function is intercepted by vulkan::api.
+
+  Args:
+    cmd: Vulkan function name.
+  """
   if gencom.is_function_supported(cmd):
     if gencom.is_globally_dispatched(cmd) or cmd in _INTERCEPTED_COMMANDS:
       return True
@@ -128,6 +142,11 @@ def _is_intercepted(cmd):
 
 
 def _intercept_instance_proc_addr(f):
+  """Emits code for vkGetInstanceProcAddr for function interception.
+
+  Args:
+    f: Output file handle.
+  """
   f.write("""\
     // global functions
     if (instance == VK_NULL_HANDLE) {\n""")
@@ -180,6 +199,11 @@ def _intercept_instance_proc_addr(f):
 
 
 def _intercept_device_proc_addr(f):
+  """Emits code for vkGetDeviceProcAddr for function interception.
+
+  Args:
+    f: Output file handle.
+  """
   f.write("""\
     if (device == VK_NULL_HANDLE) {
         ALOGE("invalid vkGetDeviceProcAddr(VK_NULL_HANDLE, ...) call");
@@ -220,6 +244,12 @@ def _intercept_device_proc_addr(f):
 
 
 def _api_dispatch(cmd, f):
+  """Emits code to dispatch a function.
+
+  Args:
+    cmd: Vulkan function name.
+    f: Output file handle.
+  """
   assert not _is_intercepted(cmd)
 
   f.write(gencom.indent(1))
@@ -233,6 +263,8 @@ def _api_dispatch(cmd, f):
 
 
 def gen_cpp():
+  """Generates the api_gen.cpp file.
+  """
   genfile = os.path.join(os.path.dirname(__file__),
                          '..', 'libvulkan', 'api_gen.cpp')
 

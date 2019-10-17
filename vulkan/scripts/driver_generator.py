@@ -13,13 +13,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# This script provides the functions for generating the
-# vulkan driver framework directly from the vulkan registry (vk.xml).
+
+"""Generates the driver_gen.h and driver_gen.cpp.
+"""
 
 import os
 import generator_common as gencom
 
+# Extensions intercepted at vulkan::driver level.
 _INTERCEPTED_EXTENSIONS = [
     'VK_ANDROID_native_buffer',
     'VK_EXT_debug_report',
@@ -34,12 +35,14 @@ _INTERCEPTED_EXTENSIONS = [
     'VK_KHR_swapchain',
 ]
 
+# Extensions known to vulkan::driver level.
 _KNOWN_EXTENSIONS = _INTERCEPTED_EXTENSIONS + [
     'VK_ANDROID_external_memory_android_hardware_buffer',
     'VK_KHR_bind_memory2',
     'VK_KHR_get_physical_device_properties2',
 ]
 
+# Functions needed at vulkan::driver level.
 _NEEDED_COMMANDS = [
     # Create functions of dispatchable objects
     'vkCreateDevice',
@@ -76,6 +79,7 @@ _NEEDED_COMMANDS = [
     'vkBindImageMemory2KHR',
 ]
 
+# Functions intercepted at vulkan::driver level.
 _INTERCEPTED_COMMANDS = [
     # Create functions of dispatchable objects
     'vkCreateInstance',
@@ -106,6 +110,11 @@ _INTERCEPTED_COMMANDS = [
 
 
 def _is_driver_table_entry(cmd):
+  """Returns true if a function is needed by vulkan::driver.
+
+  Args:
+    cmd: Vulkan function name.
+  """
   if gencom.is_function_supported(cmd):
     if cmd in _NEEDED_COMMANDS:
       return True
@@ -117,16 +126,28 @@ def _is_driver_table_entry(cmd):
 
 
 def _is_instance_driver_table_entry(cmd):
+  """Returns true if a instance-dispatched function is needed by vulkan::driver.
+
+  Args:
+    cmd: Vulkan function name.
+  """
   return (_is_driver_table_entry(cmd) and
           gencom.is_instance_dispatched(cmd))
 
 
 def _is_device_driver_table_entry(cmd):
+  """Returns true if a device-dispatched function is needed by vulkan::driver.
+
+  Args:
+    cmd: Vulkan function name.
+  """
   return (_is_driver_table_entry(cmd) and
           gencom.is_device_dispatched(cmd))
 
 
 def gen_h():
+  """Generates the driver_gen.h file.
+  """
   genfile = os.path.join(os.path.dirname(__file__),
                          '..', 'libvulkan', 'driver_gen.h')
 
@@ -153,8 +174,8 @@ struct ProcHook {
     };
     enum Extension {\n""")
 
-    for exts in _KNOWN_EXTENSIONS:
-      f.write(gencom.indent(2) + exts[3:] + ',\n')
+    for ext in _KNOWN_EXTENSIONS:
+      f.write(gencom.indent(2) + gencom.base_ext_name(ext) + ',\n')
 
     f.write("""
         EXTENSION_CORE,  // valid bit
@@ -214,6 +235,11 @@ bool InitDriverTable(VkDevice dev,
 
 
 def _is_intercepted(cmd):
+  """Returns true if a function is intercepted by vulkan::driver.
+
+  Args:
+    cmd: Vulkan function name.
+  """
   if gencom.is_function_supported(cmd):
     if cmd in _INTERCEPTED_COMMANDS:
       return True
@@ -224,6 +250,11 @@ def _is_intercepted(cmd):
 
 
 def _need_proc_hook_stub(cmd):
+  """Returns true if a function needs a ProcHook stub.
+
+  Args:
+    cmd: Vulkan function name.
+  """
   if _is_intercepted(cmd) and gencom.is_device_dispatched(cmd):
     if cmd in gencom.extension_dict:
       if not gencom.is_extension_internal(gencom.extension_dict[cmd]):
@@ -232,6 +263,12 @@ def _need_proc_hook_stub(cmd):
 
 
 def _define_proc_hook_stub(cmd, f):
+  """Emits a stub for ProcHook::checked_proc.
+
+  Args:
+    cmd: Vulkan function name.
+    f: Output file handle.
+  """
   if _need_proc_hook_stub(cmd):
     return_type = gencom.return_type_dict[cmd]
     ext_name = gencom.extension_dict[cmd]
@@ -259,6 +296,12 @@ def _define_proc_hook_stub(cmd, f):
 
 
 def _define_global_proc_hook(cmd, f):
+  """Emits definition of a global ProcHook.
+
+  Args:
+    cmd: Vulkan function name.
+    f: Output file handle.
+  """
   assert cmd not in gencom.extension_dict
 
   f.write(gencom.indent(1) + '{\n')
@@ -272,6 +315,12 @@ def _define_global_proc_hook(cmd, f):
 
 
 def _define_instance_proc_hook(cmd, f):
+  """Emits definition of a instance ProcHook.
+
+  Args:
+    cmd: Vulkan function name.
+    f: Output file handle.
+  """
   f.write(gencom.indent(1) + '{\n')
   f.write(gencom.indent(2) + '\"' + cmd + '\",\n')
   f.write(gencom.indent(2) + 'ProcHook::INSTANCE,\n')
@@ -298,6 +347,12 @@ def _define_instance_proc_hook(cmd, f):
 
 
 def _define_device_proc_hook(cmd, f):
+  """Emits definition of a device ProcHook.
+
+  Args:
+    cmd: Vulkan function name.
+    f: Output file handle.
+  """
   f.write(gencom.indent(1) + '{\n')
   f.write(gencom.indent(2) + '\"' + cmd + '\",\n')
   f.write(gencom.indent(2) + 'ProcHook::DEVICE,\n')
@@ -326,6 +381,8 @@ def _define_device_proc_hook(cmd, f):
 
 
 def gen_cpp():
+  """Generates the driver_gen.cpp file.
+  """
   genfile = os.path.join(os.path.dirname(__file__),
                          '..', 'libvulkan', 'driver_gen.cpp')
 
@@ -384,9 +441,9 @@ const ProcHook* GetProcHook(const char* name) {
 ProcHook::Extension GetProcHookExtension(const char* name) {
     // clang-format off\n""")
 
-    for exts in _KNOWN_EXTENSIONS:
-      f.write(gencom.indent(1) + 'if (strcmp(name, \"' + exts +
-              '\") == 0) return ProcHook::' + exts[3:] + ';\n')
+    for ext in _KNOWN_EXTENSIONS:
+      f.write(gencom.indent(1) + 'if (strcmp(name, \"' + ext +
+              '\") == 0) return ProcHook::' + gencom.base_ext_name(ext) + ';\n')
 
     f.write("""\
     // clang-format on

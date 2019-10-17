@@ -13,13 +13,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# This script provides the functions for generating the null driver
-# framework directly from the vulkan registry (vk.xml).
+
+"""Generates the null_driver_gen.h and null_driver_gen.cpp.
+"""
 
 import os
 import generator_common as gencom
 
+# Extensions implemented by the driver.
 _DRIVER_EXTENSION_DICT = {
     'VK_ANDROID_native_buffer',
     'VK_EXT_debug_report',
@@ -28,12 +29,19 @@ _DRIVER_EXTENSION_DICT = {
 
 
 def _is_driver_function(cmd):
+  """Returns true if the function is implemented by the driver.
+
+  Args:
+    cmd: Vulkan function name.
+  """
   if cmd in gencom.extension_dict:
     return gencom.extension_dict[cmd] in _DRIVER_EXTENSION_DICT
   return True
 
 
 def gen_h():
+  """Generates the null_driver_gen.h file.
+  """
   genfile = os.path.join(os.path.dirname(__file__),
                          '..', 'nulldrv', 'null_driver_gen.h')
 
@@ -72,6 +80,8 @@ PFN_vkVoidFunction GetInstanceProcAddr(const char* name);
 
 
 def gen_cpp():
+  """Generates the null_driver_gen.cpp file.
+  """
   genfile = os.path.join(os.path.dirname(__file__),
                          '..', 'nulldrv', 'null_driver_gen.cpp')
 

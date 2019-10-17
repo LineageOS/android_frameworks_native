@@ -13,9 +13,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# This script provides the main function for generating
-# vulkan framework directly from the vulkan registry (vk.xml).
+
+"""Generates vulkan framework directly from the vulkan registry (vk.xml).
+"""
 
 import api_generator
 import driver_generator

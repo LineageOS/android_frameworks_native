@@ -13,14 +13,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# This script provides the common functions for generating the
-# vulkan framework directly from the vulkan registry (vk.xml).
+
+"""Provide the utilities for framework generation.
+"""
 
 import os
 import subprocess
 import xml.etree.ElementTree as element_tree
 
+# Extensions unsupported on Android.
 _BLACKLISTED_EXTENSIONS = [
     'VK_EXT_acquire_xlib_display',
     'VK_EXT_direct_mode_display',
@@ -52,6 +53,7 @@ _BLACKLISTED_EXTENSIONS = [
     'VK_NVX_image_view_handle',
 ]
 
+# Extensions having functions exported by the loader.
 _EXPORTED_EXTENSIONS = [
     'VK_ANDROID_external_memory_android_hardware_buffer',
     'VK_KHR_android_surface',
@@ -59,11 +61,13 @@ _EXPORTED_EXTENSIONS = [
     'VK_KHR_swapchain',
 ]
 
+# Functions optional on Android even if extension is advertised.
 _OPTIONAL_COMMANDS = [
     'vkGetSwapchainGrallocUsageANDROID',
     'vkGetSwapchainGrallocUsage2ANDROID',
 ]
 
+# Dict for mapping dispatch table to a type.
 _DISPATCH_TYPE_DICT = {
     'VkInstance ': 'Instance',
     'VkPhysicalDevice ': 'Instance',
@@ -72,19 +76,40 @@ _DISPATCH_TYPE_DICT = {
     'VkCommandBuffer ': 'Device'
 }
 
+# Dict for mapping a function to its alias.
 alias_dict = {}
+
+# List of all the Vulkan functions.
 command_list = []
+
+# Dict for mapping a function to an extension.
 extension_dict = {}
+
+# Dict for mapping a function to all its parameters.
 param_dict = {}
+
+# Dict for mapping a function to its return type.
 return_type_dict = {}
+
+# Dict for mapping a function to the core Vulkan API version.
 version_dict = {}
 
 
 def indent(num):
+  """Returns the requested indents.
+
+  Args:
+    num: Number of the 4-space indents.
+  """
   return '    ' * num
 
 
 def copyright_and_warning(year):
+  """Returns the standard copyright and warning codes.
+
+  Args:
+    year: An integer year for the copyright.
+  """
   return """\
 /*
  * Copyright """ + str(year) + """ The Android Open Source Project
@@ -108,19 +133,50 @@ def copyright_and_warning(year):
 
 
 def run_clang_format(args):
+  """Run clang format on the file.
+
+  Args:
+    args: The file to be formatted.
+  """
   clang_call = ['clang-format', '--style', 'file', '-i', args]
   subprocess.check_call(clang_call)
 
 
-def is_extension_internal(extension_name):
-  return extension_name == 'VK_ANDROID_native_buffer'
+def is_extension_internal(ext):
+  """Returns true if an extension is internal to the loader and drivers.
+
+  The loader should not enumerate this extension.
+
+  Args:
+    ext: Vulkan extension name.
+  """
+  return ext == 'VK_ANDROID_native_buffer'
 
 
 def base_name(cmd):
+  """Returns a function name without the 'vk' prefix.
+
+  Args:
+    cmd: Vulkan function name.
+  """
   return cmd[2:]
 
 
+def base_ext_name(ext):
+  """Returns an extension name without the 'VK_' prefix.
+
+  Args:
+    ext: Vulkan extension name.
+  """
+  return ext[3:]
+
+
 def is_function_supported(cmd):
+  """Returns true if a function is core or from a supportable extension.
+
+  Args:
+    cmd: Vulkan function name.
+  """
   if cmd not in extension_dict:
     return True
   else:
@@ -130,6 +186,11 @@ def is_function_supported(cmd):
 
 
 def get_dispatch_table_type(cmd):
+  """Returns the dispatch table type for a function.
+
+  Args:
+    cmd: Vulkan function name.
+  """
   if cmd not in param_dict:
     return None
 
@@ -139,23 +200,55 @@ def get_dispatch_table_type(cmd):
 
 
 def is_globally_dispatched(cmd):
+  """Returns true if the function is global, which is not dispatched.
+
+  Only global functions and functions handled in the loader top without calling
+  into lower layers are not dispatched.
+
+  Args:
+    cmd: Vulkan function name.
+  """
   return is_function_supported(cmd) and get_dispatch_table_type(cmd) == 'Global'
 
 
 def is_instance_dispatched(cmd):
+  """Returns true for functions that can have instance-specific dispatch.
+
+  Args:
+    cmd: Vulkan function name.
+  """
   return (is_function_supported(cmd) and
           get_dispatch_table_type(cmd) == 'Instance')
 
 
 def is_device_dispatched(cmd):
+  """Returns true for functions that can have device-specific dispatch.
+
+  Args:
+    cmd: Vulkan function name.
+  """
   return is_function_supported(cmd) and get_dispatch_table_type(cmd) == 'Device'
 
 
-def is_extension_exported(extension_name):
-  return extension_name in _EXPORTED_EXTENSIONS
+def is_extension_exported(ext):
+  """Returns true if an extension has functions exported by the loader.
+
+  E.g. applications can directly link to an extension function.
+
+  Args:
+    ext: Vulkan extension name.
+  """
+  return ext in _EXPORTED_EXTENSIONS
 
 
 def is_function_exported(cmd):
+  """Returns true if a function is exported from the Android Vulkan library.
+
+  Functions in the core API and in loader extensions are exported.
+
+  Args:
+    cmd: Vulkan function name.
+  """
   if is_function_supported(cmd):
     if cmd in extension_dict:
       return is_extension_exported(extension_dict[cmd])
@@ -164,6 +257,11 @@ def is_function_exported(cmd):
 
 
 def is_instance_dispatch_table_entry(cmd):
+  """Returns true if a function is exported and instance-dispatched.
+
+  Args:
+    cmd: Vulkan function name.
+  """
   if cmd == 'vkEnumerateDeviceLayerProperties':
     # deprecated, unused internally - @dbd33bc
     return False
@@ -171,10 +269,21 @@ def is_instance_dispatch_table_entry(cmd):
 
 
 def is_device_dispatch_table_entry(cmd):
+  """Returns true if a function is exported and device-dispatched.
+
+  Args:
+    cmd: Vulkan function name.
+  """
   return is_function_exported(cmd) and is_device_dispatched(cmd)
 
 
 def init_proc(name, f):
+  """Emits code to invoke INIT_PROC or INIT_PROC_EXT.
+
+  Args:
+    name: Vulkan function name.
+    f: Output file handle.
+  """
   f.write(indent(1))
   if name in extension_dict:
     f.write('INIT_PROC_EXT(' + extension_dict[name][3:] + ', ')
@@ -197,6 +306,15 @@ def init_proc(name, f):
 
 
 def parse_vulkan_registry():
+  """Parses Vulkan registry into the below global variables.
+
+  alias_dict
+  command_list
+  extension_dict
+  param_dict
+  return_type_dict
+  version_dict
+  """
   registry = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..',
                           'external', 'vulkan-headers', 'registry', 'vk.xml')
   tree = element_tree.parse(registry)
