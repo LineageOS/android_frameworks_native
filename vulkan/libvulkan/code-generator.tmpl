@@ -765,6 +765,19 @@ VK_KHR_bind_memory2
 {{end}}
 
 
+
+{{/*
+------------------------------------------------------------------------------
+  Emits the ProcHook enum for core Vulkan API verions.
+------------------------------------------------------------------------------
+*/}}
+{{define "driver.GetProcHookEnum"}}
+  {{if GetAnnotation $ "vulkan1_1"}}ProcHook::EXTENSION_CORE_1_1
+  {{else}}ProcHook::EXTENSION_CORE_1_0
+  {{end}}
+{{end}}
+
+
 {{/*
 ------------------------------------------------------------------------------
   Emits true if a function needs a ProcHook stub.
@@ -778,6 +791,8 @@ VK_KHR_bind_memory2
     {{if $ext}}
       {{if not (Macro "IsExtensionInternal" $ext)}}true{{end}}
     {{end}}
+
+    {{if GetAnnotation $ "vulkan1_1"}}true{{end}}
   {{end}}
 {{end}}
 
@@ -801,7 +816,8 @@ VK_KHR_bind_memory2
           {{TrimPrefix "VK_" $e}},
         {{end}}
         ¶
-        EXTENSION_CORE, // valid bit
+        EXTENSION_CORE_1_0,
+        EXTENSION_CORE_1_1,
         EXTENSION_COUNT,
         EXTENSION_UNKNOWN,
       };
@@ -838,14 +854,21 @@ VK_KHR_bind_memory2
   {{AssertType $ "Function"}}
 
   {{if (Macro "driver.NeedProcHookStub" $)}}
+    {{$ext_name := Strings ("")}}
+    {{$ext_hook := Strings ("")}}
     {{$ext := GetAnnotation $ "extension"}}
-    {{$ext_name := index $ext.Arguments 0}}
+    {{if $ext}}
+      {{$ext_name = index $ext.Arguments 0}}
+      {{$ext_hook = Strings ("ProcHook::") (Macro "BaseName" $ext)}}
+    {{else}}
+      {{$ext_name = Strings ("VK_VERSION_1_0")}}
+      {{$ext_hook = (Macro "driver.GetProcHookEnum" $)}}
+    {{end}}
 
     {{$base := (Macro "BaseName" $)}}
 
     VKAPI_ATTR {{Node "Type" $.Return}} checked{{$base}}({{Macro "Parameters" $}}) {
       {{$p0 := index $.CallParameters 0}}
-      {{$ext_hook := Strings ("ProcHook::") (Macro "BaseName" $ext)}}
 
       if (GetData({{$p0.Name}}).hook_extensions[{{$ext_hook}}]) {
         {{if not (IsVoid $.Return.Type)}}return §{{end}}
@@ -878,7 +901,7 @@ VK_KHR_bind_memory2
   {
     "{{$.Name}}",
     ProcHook::GLOBAL,
-    ProcHook::EXTENSION_CORE,
+    {{Macro "driver.GetProcHookEnum" $}},
     reinterpret_cast<PFN_vkVoidFunction>({{$base}}),
     nullptr,
   },
@@ -911,7 +934,7 @@ VK_KHR_bind_memory2
         nullptr,
       {{end}}
     {{else}}
-      ProcHook::EXTENSION_CORE,
+      {{Macro "driver.GetProcHookEnum" $}},
       reinterpret_cast<PFN_vkVoidFunction>({{$base}}),
       nullptr,
     {{end}}
@@ -934,18 +957,23 @@ VK_KHR_bind_memory2
     ProcHook::DEVICE,
 
     {{$ext := GetAnnotation $ "extension"}}
-    {{if $ext}}
-      ProcHook::{{Macro "BaseName" $ext}},
-
-      {{if (Macro "IsExtensionInternal" $ext)}}
-        nullptr,
-        nullptr,
+    {{if or $ext (GetAnnotation $ "vulkan1_1")}}
+      {{if $ext}}
+        ProcHook::{{Macro "BaseName" $ext}},
+        {{if Macro "IsExtensionInternal" $ext}}
+          nullptr,
+          nullptr,
+        {{else}}
+          reinterpret_cast<PFN_vkVoidFunction>({{$base}}),
+          reinterpret_cast<PFN_vkVoidFunction>(checked{{$base}}),
+        {{end}}
       {{else}}
+        {{Macro "driver.GetProcHookEnum" $}},
         reinterpret_cast<PFN_vkVoidFunction>({{$base}}),
         reinterpret_cast<PFN_vkVoidFunction>(checked{{$base}}),
       {{end}}
     {{else}}
-      ProcHook::EXTENSION_CORE,
+      {{Macro "driver.GetProcHookEnum" $}},
       reinterpret_cast<PFN_vkVoidFunction>({{$base}}),
       nullptr,
     {{end}}
