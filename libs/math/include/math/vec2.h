@@ -89,7 +89,7 @@ public:
     constexpr TVec2(A v) : x(v), y(v) { }
 
     template<typename A, typename B>
-    constexpr TVec2(A x, B y) : x(x), y(y) { }
+    constexpr TVec2(A x, B y) : x(static_cast<T>(x)), y(static_cast<T>(y)) { }
 
     template<typename A>
     explicit
