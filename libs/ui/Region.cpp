@@ -339,10 +339,10 @@ Region& Region::scaleSelf(float sx, float sy) {
     size_t count = mStorage.size();
     Rect* rects = mStorage.editArray();
     while (count) {
-        rects->left = static_cast<int32_t>(rects->left * sx + 0.5f);
-        rects->right = static_cast<int32_t>(rects->right * sx + 0.5f);
-        rects->top = static_cast<int32_t>(rects->top * sy + 0.5f);
-        rects->bottom = static_cast<int32_t>(rects->bottom * sy + 0.5f);
+        rects->left = static_cast<int32_t>(static_cast<float>(rects->left) * sx + 0.5f);
+        rects->right = static_cast<int32_t>(static_cast<float>(rects->right) * sx + 0.5f);
+        rects->top = static_cast<int32_t>(static_cast<float>(rects->top) * sy + 0.5f);
+        rects->bottom = static_cast<int32_t>(static_cast<float>(rects->bottom) * sy + 0.5f);
         rects++;
         count--;
     }

@@ -364,7 +364,11 @@ std::unique_ptr<float3[]> ColorSpace::createLUT(uint32_t size, const ColorSpace&
     for (uint32_t z = 0; z < size; z++) {
         for (int32_t y = int32_t(size - 1); y >= 0; y--) {
             for (uint32_t x = 0; x < size; x++) {
-                *data++ = connector.transform({x * m, y * m, z * m});
+                *data++ = connector.transform({
+                    static_cast<float>(x) * m,
+                    static_cast<float>(y) * m,
+                    static_cast<float>(z) * m,
+                });
             }
         }
     }
