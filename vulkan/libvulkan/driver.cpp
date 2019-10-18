@@ -104,6 +104,7 @@ class CreateInfoWrapper {
 
     VkResult Validate();
     void DowngradeApiVersion();
+    void UpgradeDeviceCoreApiVersion(uint32_t api_version);
 
     const std::bitset<ProcHook::EXTENSION_COUNT>& GetHookExtensions() const;
     const std::bitset<ProcHook::EXTENSION_COUNT>& GetHalExtensions() const;
@@ -333,8 +334,12 @@ CreateInfoWrapper::CreateInfoWrapper(const VkInstanceCreateInfo& create_info,
       physical_dev_(VK_NULL_HANDLE),
       instance_info_(create_info),
       extension_filter_() {
-    hook_extensions_.set(ProcHook::EXTENSION_CORE);
-    hal_extensions_.set(ProcHook::EXTENSION_CORE);
+    // instance core versions need to match the loader api version
+    for (uint32_t i = ProcHook::EXTENSION_CORE_1_0;
+         i != ProcHook::EXTENSION_COUNT; ++i) {
+        hook_extensions_.set(i);
+        hal_extensions_.set(i);
+    }
 }
 
 CreateInfoWrapper::CreateInfoWrapper(VkPhysicalDevice physical_dev,
@@ -345,8 +350,9 @@ CreateInfoWrapper::CreateInfoWrapper(VkPhysicalDevice physical_dev,
       physical_dev_(physical_dev),
       dev_info_(create_info),
       extension_filter_() {
-    hook_extensions_.set(ProcHook::EXTENSION_CORE);
-    hal_extensions_.set(ProcHook::EXTENSION_CORE);
+    // initialize with baseline core API version
+    hook_extensions_.set(ProcHook::EXTENSION_CORE_1_0);
+    hal_extensions_.set(ProcHook::EXTENSION_CORE_1_0);
 }
 
 CreateInfoWrapper::~CreateInfoWrapper() {
@@ -545,7 +551,8 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
             case ProcHook::ANDROID_external_memory_android_hardware_buffer:
             case ProcHook::ANDROID_native_buffer:
             case ProcHook::GOOGLE_display_timing:
-            case ProcHook::EXTENSION_CORE:
+            case ProcHook::EXTENSION_CORE_1_0:
+            case ProcHook::EXTENSION_CORE_1_1:
             case ProcHook::EXTENSION_COUNT:
                 // Device and meta extensions. If we ever get here it's a bug in
                 // our code. But enumerating them lets us avoid having a default
@@ -593,7 +600,8 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
             case ProcHook::EXT_debug_report:
             case ProcHook::EXT_swapchain_colorspace:
             case ProcHook::ANDROID_native_buffer:
-            case ProcHook::EXTENSION_CORE:
+            case ProcHook::EXTENSION_CORE_1_0:
+            case ProcHook::EXTENSION_CORE_1_1:
             case ProcHook::EXTENSION_COUNT:
                 // Instance and meta extensions. If we ever get here it's a bug
                 // in our code. But enumerating them lets us avoid having a
@@ -638,6 +646,28 @@ void CreateInfoWrapper::DowngradeApiVersion() {
         application_info_ = *instance_info_.pApplicationInfo;
         instance_info_.pApplicationInfo = &application_info_;
         application_info_.apiVersion = VK_API_VERSION_1_0;
+    }
+}
+
+void CreateInfoWrapper::UpgradeDeviceCoreApiVersion(uint32_t api_version) {
+    ALOG_ASSERT(!is_instance_, "Device only API called by instance wrapper.");
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wold-style-cast"
+    api_version ^= VK_VERSION_PATCH(api_version);
+#pragma clang diagnostic pop
+    // cap the API version to the loader supported highest version
+    if (api_version > VK_API_VERSION_1_1)
+        api_version = VK_API_VERSION_1_1;
+    switch (api_version) {
+        case VK_API_VERSION_1_1:
+            hook_extensions_.set(ProcHook::EXTENSION_CORE_1_1);
+            hal_extensions_.set(ProcHook::EXTENSION_CORE_1_1);
+            [[clang::fallthrough]];
+        case VK_API_VERSION_1_0:
+            break;
+        default:
+            ALOGD("Unknown upgrade API version[%u]", api_version);
+            break;
     }
 }
 
@@ -776,7 +806,7 @@ PFN_vkVoidFunction GetInstanceProcAddr(VkInstance instance, const char* pName) {
                        : nullptr;
             break;
         case ProcHook::DEVICE:
-            proc = (hook->extension == ProcHook::EXTENSION_CORE)
+            proc = (hook->extension == ProcHook::EXTENSION_CORE_1_0)
                        ? hook->proc
                        : hook->checked_proc;
             break;
@@ -1124,6 +1154,13 @@ VkResult CreateDevice(VkPhysicalDevice physicalDevice,
     if (!data)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
+    VkPhysicalDeviceProperties properties;
+    ATRACE_BEGIN("driver.GetPhysicalDeviceProperties");
+    instance_data.driver.GetPhysicalDeviceProperties(physicalDevice,
+                                                     &properties);
+    ATRACE_END();
+
+    wrapper.UpgradeDeviceCoreApiVersion(properties.apiVersion);
     data->hook_extensions |= wrapper.GetHookExtensions();
 
     // call into the driver
@@ -1167,12 +1204,6 @@ VkResult CreateDevice(VkPhysicalDevice physicalDevice,
 
         return VK_ERROR_INCOMPATIBLE_DRIVER;
     }
-
-    VkPhysicalDeviceProperties properties;
-    ATRACE_BEGIN("driver.GetPhysicalDeviceProperties");
-    instance_data.driver.GetPhysicalDeviceProperties(physicalDevice,
-                                                     &properties);
-    ATRACE_END();
 
     if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU) {
         // Log that the app is hitting software Vulkan implementation

@@ -48,7 +48,8 @@ struct ProcHook {
         ANDROID_external_memory_android_hardware_buffer,
         KHR_bind_memory2,
 
-        EXTENSION_CORE,  // valid bit
+        EXTENSION_CORE_1_0,
+        EXTENSION_CORE_1_1,
         EXTENSION_COUNT,
         EXTENSION_UNKNOWN,
     };
