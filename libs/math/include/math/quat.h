@@ -109,7 +109,7 @@ public:
 
     // initialize from 4 values to w + xi + yj + zk
     template<typename A, typename B, typename C, typename D>
-    constexpr TQuaternion(A w, B x, C y, D z) : x(x), y(y), z(z), w(w) { }
+    constexpr TQuaternion(A w, B x, C y, D z) : x(static_cast<T>(x)), y(static_cast<T>(y)), z(static_cast<T>(z)), w(static_cast<T>(w)) { }
 
     // initialize from a vec3 + a value to : v.xi + v.yj + v.zk + w
     template<typename A, typename B>

@@ -177,8 +177,12 @@ struct ProcHook {
     for ext in _KNOWN_EXTENSIONS:
       f.write(gencom.indent(2) + gencom.base_ext_name(ext) + ',\n')
 
-    f.write("""
-        EXTENSION_CORE,  // valid bit
+    f.write('\n')
+    for version in gencom.version_code_list:
+      f.write(gencom.indent(2) + 'EXTENSION_CORE_' + version + ',\n')
+
+    # EXTENSION_COUNT must be the next enum after the highest API version.
+    f.write("""\
         EXTENSION_COUNT,
         EXTENSION_UNKNOWN,
     };
@@ -249,6 +253,18 @@ def _is_intercepted(cmd):
   return False
 
 
+def _get_proc_hook_enum(cmd):
+  """Returns the ProcHook enumeration for the corresponding core function.
+
+  Args:
+    cmd: Vulkan function name.
+  """
+  assert cmd in gencom.version_dict
+  for version in gencom.version_code_list:
+    if gencom.version_dict[cmd] == 'VK_VERSION_' + version:
+      return 'ProcHook::EXTENSION_CORE_' + version
+
+
 def _need_proc_hook_stub(cmd):
   """Returns true if a function needs a ProcHook stub.
 
@@ -259,6 +275,8 @@ def _need_proc_hook_stub(cmd):
     if cmd in gencom.extension_dict:
       if not gencom.is_extension_internal(gencom.extension_dict[cmd]):
         return True
+    elif gencom.version_dict[cmd] != 'VK_VERSION_1_0':
+      return True
   return False
 
 
@@ -271,8 +289,16 @@ def _define_proc_hook_stub(cmd, f):
   """
   if _need_proc_hook_stub(cmd):
     return_type = gencom.return_type_dict[cmd]
-    ext_name = gencom.extension_dict[cmd]
-    ext_hook = 'ProcHook::' + ext_name[3:]
+
+    ext_name = ''
+    ext_hook = ''
+    if cmd in gencom.extension_dict:
+      ext_name = gencom.extension_dict[cmd]
+      ext_hook = 'ProcHook::' + gencom.base_ext_name(ext_name)
+    else:
+      ext_name = gencom.version_dict[cmd]
+      ext_hook = _get_proc_hook_enum(cmd)
+
     handle = gencom.param_dict[cmd][0][1]
     param_types = ', '.join([''.join(i) for i in gencom.param_dict[cmd]])
     param_names = ', '.join([''.join(i[1]) for i in gencom.param_dict[cmd]])
@@ -306,12 +332,12 @@ def _define_global_proc_hook(cmd, f):
 
   f.write(gencom.indent(1) + '{\n')
   f.write(gencom.indent(2) + '\"' + cmd + '\",\n')
-  f.write("""\
-        ProcHook::GLOBAL,
-        ProcHook::EXTENSION_CORE,
-        reinterpret_cast<PFN_vkVoidFunction>(""" + gencom.base_name(cmd) + """),
-        nullptr,
-    },\n""")
+  f.write(gencom.indent(2) + 'ProcHook::GLOBAL,\n')
+  f.write(gencom.indent(2) + _get_proc_hook_enum(cmd) + ',\n')
+  f.write(gencom.indent(2) + 'reinterpret_cast<PFN_vkVoidFunction>(' +
+          gencom.base_name(cmd) + '),\n')
+  f.write(gencom.indent(2) + 'nullptr,\n')
+  f.write(gencom.indent(1) + '},\n')
 
 
 def _define_instance_proc_hook(cmd, f):
@@ -327,7 +353,8 @@ def _define_instance_proc_hook(cmd, f):
 
   if cmd in gencom.extension_dict:
     ext_name = gencom.extension_dict[cmd]
-    f.write(gencom.indent(2) + 'ProcHook::' + ext_name[3:] + ',\n')
+    f.write(gencom.indent(2) + 'ProcHook::' +
+            gencom.base_ext_name(ext_name) + ',\n')
 
     if gencom.is_extension_internal(ext_name):
       f.write("""\
@@ -338,8 +365,8 @@ def _define_instance_proc_hook(cmd, f):
         reinterpret_cast<PFN_vkVoidFunction>(""" + gencom.base_name(cmd) + """),
         nullptr,\n""")
   else:
+    f.write(gencom.indent(2) + _get_proc_hook_enum(cmd) + ',\n')
     f.write("""\
-        ProcHook::EXTENSION_CORE,
         reinterpret_cast<PFN_vkVoidFunction>(""" + gencom.base_name(cmd) + """),
         nullptr,\n""")
 
@@ -357,9 +384,17 @@ def _define_device_proc_hook(cmd, f):
   f.write(gencom.indent(2) + '\"' + cmd + '\",\n')
   f.write(gencom.indent(2) + 'ProcHook::DEVICE,\n')
 
-  if cmd in gencom.extension_dict:
-    ext_name = gencom.extension_dict[cmd]
-    f.write(gencom.indent(2) + 'ProcHook::' + ext_name[3:] + ',\n')
+  if (cmd in gencom.extension_dict or
+      gencom.version_dict[cmd] != 'VK_VERSION_1_0'):
+    ext_name = ''
+    ext_hook = ''
+    if cmd in gencom.extension_dict:
+      ext_name = gencom.extension_dict[cmd]
+      ext_hook = 'ProcHook::' + gencom.base_ext_name(ext_name)
+    else:
+      ext_name = gencom.version_dict[cmd]
+      ext_hook = _get_proc_hook_enum(cmd)
+    f.write(gencom.indent(2) + ext_hook + ',\n')
 
     if gencom.is_extension_internal(ext_name):
       f.write("""\
@@ -372,8 +407,8 @@ def _define_device_proc_hook(cmd, f):
               gencom.base_name(cmd) + '),\n')
 
   else:
+    f.write(gencom.indent(2) + _get_proc_hook_enum(cmd) + ',\n')
     f.write("""\
-        ProcHook::EXTENSION_CORE,
         reinterpret_cast<PFN_vkVoidFunction>(""" + gencom.base_name(cmd) + """),
         nullptr,\n""")
 

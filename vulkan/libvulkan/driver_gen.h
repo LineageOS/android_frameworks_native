@@ -49,7 +49,8 @@ struct ProcHook {
         KHR_bind_memory2,
         KHR_get_physical_device_properties2,
 
-        EXTENSION_CORE,  // valid bit
+        EXTENSION_CORE_1_0,
+        EXTENSION_CORE_1_1,
         EXTENSION_COUNT,
         EXTENSION_UNKNOWN,
     };

@@ -122,6 +122,8 @@
 
 namespace android {
 
+using namespace std::string_literals;
+
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
 using namespace android::sysprop;
@@ -1911,8 +1913,7 @@ void SurfaceFlinger::postComposition()
                 layer->onPostComposition(displayDevice->getId(), glCompositionDoneFenceTime,
                                          presentFenceTime, compositorTiming);
         if (frameLatched) {
-            recordBufferingStats(layer->getName().string(),
-                    layer->getOccupancyHistory(false));
+            recordBufferingStats(layer->getName(), layer->getOccupancyHistory(false));
         }
     });
 
@@ -2574,7 +2575,7 @@ void SurfaceFlinger::commitTransactionLocked() {
     if (!mLayersPendingRemoval.isEmpty()) {
         // Notify removed layers now that they can't be drawn from
         for (const auto& l : mLayersPendingRemoval) {
-            recordBufferingStats(l->getName().string(), l->getOccupancyHistory(true));
+            recordBufferingStats(l->getName(), l->getOccupancyHistory(true));
 
             // Ensure any buffers set to display on any children are released.
             if (l->isRemovedFromCurrentState()) {
@@ -3244,11 +3245,12 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         // everything else inherits layer stack from its parent.
         if (layer->hasParent()) {
             ALOGE("Attempt to set layer stack on layer with parent (%s) is invalid",
-                    layer->getName().string());
+                  layer->getDebugName());
         } else if (idx < 0) {
             ALOGE("Attempt to set layer stack on layer without parent (%s) that "
-                    "that also does not appear in the top level layer list. Something"
-                    " has gone wrong.", layer->getName().string());
+                  "that also does not appear in the top level layer list. Something"
+                  " has gone wrong.",
+                  layer->getDebugName());
         } else if (layer->setLayerStack(s.layerStack)) {
             mCurrentState.layersSortedByZ.removeAt(idx);
             mCurrentState.layersSortedByZ.add(layer);
@@ -3406,7 +3408,7 @@ status_t SurfaceFlinger::mirrorLayer(const sp<Client>& client, const sp<IBinder>
 
     sp<Layer> mirrorLayer;
     sp<Layer> mirrorFrom;
-    String8 uniqueName = getUniqueLayerName(String8("MirrorRoot"));
+    std::string uniqueName = getUniqueLayerName("MirrorRoot");
 
     {
         Mutex::Autolock _l(mStateLock);
@@ -3415,8 +3417,8 @@ status_t SurfaceFlinger::mirrorLayer(const sp<Client>& client, const sp<IBinder>
             return NAME_NOT_FOUND;
         }
 
-        status_t result = createContainerLayer(client, uniqueName, -1, -1, 0, LayerMetadata(),
-                                               outHandle, &mirrorLayer);
+        status_t result = createContainerLayer(client, std::move(uniqueName), -1, -1, 0,
+                                               LayerMetadata(), outHandle, &mirrorLayer);
         if (result != NO_ERROR) {
             return result;
         }
@@ -3447,7 +3449,7 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
 
     sp<Layer> layer;
 
-    String8 uniqueName = getUniqueLayerName(name);
+    std::string uniqueName = getUniqueLayerName(name.string());
 
     bool primaryDisplayOnly = false;
 
@@ -3463,13 +3465,13 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
 
     switch (flags & ISurfaceComposerClient::eFXSurfaceMask) {
         case ISurfaceComposerClient::eFXSurfaceBufferQueue:
-            result = createBufferQueueLayer(client, uniqueName, w, h, flags, std::move(metadata),
-                                            format, handle, gbp, &layer);
+            result = createBufferQueueLayer(client, std::move(uniqueName), w, h, flags,
+                                            std::move(metadata), format, handle, gbp, &layer);
 
             break;
         case ISurfaceComposerClient::eFXSurfaceBufferState:
-            result = createBufferStateLayer(client, uniqueName, w, h, flags, std::move(metadata),
-                                            handle, &layer);
+            result = createBufferStateLayer(client, std::move(uniqueName), w, h, flags,
+                                            std::move(metadata), handle, &layer);
             break;
         case ISurfaceComposerClient::eFXSurfaceColor:
             // check if buffer size is set for color layer.
@@ -3479,8 +3481,8 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
                 return BAD_VALUE;
             }
 
-            result = createColorLayer(client, uniqueName, w, h, flags, std::move(metadata), handle,
-                                      &layer);
+            result = createColorLayer(client, std::move(uniqueName), w, h, flags,
+                                      std::move(metadata), handle, &layer);
             break;
         case ISurfaceComposerClient::eFXSurfaceContainer:
             // check if buffer size is set for container layer.
@@ -3489,8 +3491,8 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
                       int(w), int(h));
                 return BAD_VALUE;
             }
-            result = createContainerLayer(client, uniqueName, w, h, flags, std::move(metadata),
-                                          handle, &layer);
+            result = createContainerLayer(client, std::move(uniqueName), w, h, flags,
+                                          std::move(metadata), handle, &layer);
             break;
         default:
             result = BAD_VALUE;
@@ -3517,35 +3519,32 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
     return result;
 }
 
-String8 SurfaceFlinger::getUniqueLayerName(const String8& name)
-{
-    bool matchFound = true;
-    uint32_t dupeCounter = 0;
+std::string SurfaceFlinger::getUniqueLayerName(const char* name) {
+    unsigned dupeCounter = 0;
 
     // Tack on our counter whether there is a hit or not, so everyone gets a tag
-    String8 uniqueName = name + "#" + String8(std::to_string(dupeCounter).c_str());
+    std::string uniqueName = base::StringPrintf("%s#%u", name, dupeCounter);
 
     // Grab the state lock since we're accessing mCurrentState
     Mutex::Autolock lock(mStateLock);
 
     // Loop over layers until we're sure there is no matching name
+    bool matchFound = true;
     while (matchFound) {
         matchFound = false;
         mCurrentState.traverseInZOrder([&](Layer* layer) {
             if (layer->getName() == uniqueName) {
                 matchFound = true;
-                uniqueName = name + "#" + String8(std::to_string(++dupeCounter).c_str());
+                uniqueName = base::StringPrintf("%s#%u", name, ++dupeCounter);
             }
         });
     }
 
-    ALOGV_IF(dupeCounter > 0, "duplicate layer name: changing %s to %s", name.c_str(),
-             uniqueName.c_str());
-
+    ALOGV_IF(dupeCounter > 0, "duplicate layer name: changing %s to %s", name, uniqueName.c_str());
     return uniqueName;
 }
 
-status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, const String8& name,
+status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, std::string name,
                                                 uint32_t w, uint32_t h, uint32_t flags,
                                                 LayerMetadata metadata, PixelFormat& format,
                                                 sp<IBinder>* handle,
@@ -3563,8 +3562,7 @@ status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, const 
     }
 
     sp<BufferQueueLayer> layer;
-    LayerCreationArgs args =
-            LayerCreationArgs(this, client, name, w, h, flags, std::move(metadata));
+    LayerCreationArgs args(this, client, std::move(name), w, h, flags, std::move(metadata));
     args.textureName = getNewTexture();
     {
         // Grab the SF state lock during this since it's the only safe way to access
@@ -3585,12 +3583,11 @@ status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, const 
     return err;
 }
 
-status_t SurfaceFlinger::createBufferStateLayer(const sp<Client>& client, const String8& name,
+status_t SurfaceFlinger::createBufferStateLayer(const sp<Client>& client, std::string name,
                                                 uint32_t w, uint32_t h, uint32_t flags,
                                                 LayerMetadata metadata, sp<IBinder>* handle,
                                                 sp<Layer>* outLayer) {
-    LayerCreationArgs args =
-            LayerCreationArgs(this, client, name, w, h, flags, std::move(metadata));
+    LayerCreationArgs args(this, client, std::move(name), w, h, flags, std::move(metadata));
     args.displayDevice = getDefaultDisplayDevice();
     args.textureName = getNewTexture();
     sp<BufferStateLayer> layer = getFactory().createBufferStateLayer(args);
@@ -3600,25 +3597,24 @@ status_t SurfaceFlinger::createBufferStateLayer(const sp<Client>& client, const 
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::createColorLayer(const sp<Client>& client, const String8& name, uint32_t w,
+status_t SurfaceFlinger::createColorLayer(const sp<Client>& client, std::string name, uint32_t w,
                                           uint32_t h, uint32_t flags, LayerMetadata metadata,
                                           sp<IBinder>* handle, sp<Layer>* outLayer) {
     *outLayer = getFactory().createColorLayer(
-            LayerCreationArgs(this, client, name, w, h, flags, std::move(metadata)));
+            {this, client, std::move(name), w, h, flags, std::move(metadata)});
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::createContainerLayer(const sp<Client>& client, const String8& name,
+status_t SurfaceFlinger::createContainerLayer(const sp<Client>& client, std::string name,
                                               uint32_t w, uint32_t h, uint32_t flags,
                                               LayerMetadata metadata, sp<IBinder>* handle,
                                               sp<Layer>* outLayer) {
     *outLayer = getFactory().createContainerLayer(
-            LayerCreationArgs(this, client, name, w, h, flags, std::move(metadata)));
+            {this, client, std::move(name), w, h, flags, std::move(metadata)});
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
 }
-
 
 void SurfaceFlinger::markLayerPendingRemovalLocked(const sp<Layer>& layer) {
     mLayersPendingRemoval.add(layer);
@@ -3828,8 +3824,6 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args,
                           strerror(-err), err);
         }
 
-        using namespace std::string_literals;
-
         static const std::unordered_map<std::string, Dumper> dumpers = {
                 {"--display-id"s, dumper(&SurfaceFlinger::dumpDisplayIdentificationData)},
                 {"--dispsync"s,
@@ -3885,7 +3879,7 @@ status_t SurfaceFlinger::dumpCritical(int fd, const DumpArgs&, bool asProto) {
 
 void SurfaceFlinger::listLayersLocked(std::string& result) const {
     mCurrentState.traverseInZOrder(
-            [&](Layer* layer) { StringAppendF(&result, "%s\n", layer->getName().string()); });
+            [&](Layer* layer) { StringAppendF(&result, "%s\n", layer->getDebugName()); });
 }
 
 void SurfaceFlinger::dumpStatsLocked(const DumpArgs& args, std::string& result) const {
@@ -3894,7 +3888,7 @@ void SurfaceFlinger::dumpStatsLocked(const DumpArgs& args, std::string& result) 
     if (args.size() > 1) {
         const auto name = String8(args[1]);
         mCurrentState.traverseInZOrder([&](Layer* layer) {
-            if (name == layer->getName()) {
+            if (layer->getName() == name.string()) {
                 layer->dumpFrameStats(result);
             }
         });
@@ -3904,8 +3898,11 @@ void SurfaceFlinger::dumpStatsLocked(const DumpArgs& args, std::string& result) 
 }
 
 void SurfaceFlinger::clearStatsLocked(const DumpArgs& args, std::string&) {
+    const bool clearAll = args.size() < 2;
+    const auto name = clearAll ? String8() : String8(args[1]);
+
     mCurrentState.traverseInZOrder([&](Layer* layer) {
-        if (args.size() < 2 || String8(args[1]) == layer->getName()) {
+        if (clearAll || layer->getName() == name.string()) {
             layer->clearFrameStats();
         }
     });
@@ -3924,7 +3921,7 @@ void SurfaceFlinger::logFrameStats() {
         layer->logFrameStats();
     });
 
-    mAnimFrameTracker.logAndResetStats(String8("<win-anim>"));
+    mAnimFrameTracker.logAndResetStats("<win-anim>");
 }
 
 void SurfaceFlinger::appendSfConfigString(std::string& result) const {
@@ -3982,8 +3979,8 @@ void SurfaceFlinger::dumpStaticScreenStats(std::string& result) const {
                   bucketTimeSec, percent);
 }
 
-void SurfaceFlinger::recordBufferingStats(const char* layerName,
-        std::vector<OccupancyTracker::Segment>&& history) {
+void SurfaceFlinger::recordBufferingStats(const std::string& layerName,
+                                          std::vector<OccupancyTracker::Segment>&& history) {
     Mutex::Autolock lock(getBE().mBufferingStatsMutex);
     auto& stats = getBE().mBufferingStats[layerName];
     for (const auto& segment : history) {
@@ -5031,13 +5028,14 @@ status_t SurfaceFlinger::captureLayers(
                 drawLayers();
             } else {
                 Rect bounds = getBounds();
+                uint32_t w = static_cast<uint32_t>(bounds.getWidth());
+                uint32_t h = static_cast<uint32_t>(bounds.getHeight());
                 // In the "childrenOnly" case we reparent the children to a screenshot
                 // layer which has no properties set and which does not draw.
                 sp<ContainerLayer> screenshotParentLayer =
-                        mFlinger->getFactory().createContainerLayer(
-                                LayerCreationArgs(mFlinger, nullptr, String8("Screenshot Parent"),
-                                                  bounds.getWidth(), bounds.getHeight(), 0,
-                                                  LayerMetadata()));
+                        mFlinger->getFactory().createContainerLayer({mFlinger, nullptr,
+                                                                     "Screenshot Parent"s, w, h, 0,
+                                                                     LayerMetadata()});
 
                 ReparentForDrawing reparent(mLayer, screenshotParentLayer, sourceCrop);
                 drawLayers();

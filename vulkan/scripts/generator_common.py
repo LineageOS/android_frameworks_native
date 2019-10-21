@@ -91,6 +91,9 @@ param_dict = {}
 # Dict for mapping a function to its return type.
 return_type_dict = {}
 
+# List of the sorted Vulkan version codes. e.g. '1_0', '1_1'.
+version_code_list = []
+
 # Dict for mapping a function to the core Vulkan API version.
 version_dict = {}
 
@@ -169,6 +172,15 @@ def base_ext_name(ext):
     ext: Vulkan extension name.
   """
   return ext[3:]
+
+
+def version_code(version):
+  """Returns the version code from a version string.
+
+  Args:
+    version: Vulkan version string.
+  """
+  return version[11:]
 
 
 def is_function_supported(cmd):
@@ -286,7 +298,7 @@ def init_proc(name, f):
   """
   f.write(indent(1))
   if name in extension_dict:
-    f.write('INIT_PROC_EXT(' + extension_dict[name][3:] + ', ')
+    f.write('INIT_PROC_EXT(' + base_ext_name(extension_dict[name]) + ', ')
   else:
     f.write('INIT_PROC(')
 
@@ -313,6 +325,7 @@ def parse_vulkan_registry():
   extension_dict
   param_dict
   return_type_dict
+  version_code_list
   version_dict
   """
   registry = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..',
@@ -385,3 +398,9 @@ def parse_vulkan_registry():
           cmd_name = command.get('name')
           if cmd_name in command_list:
             version_dict[cmd_name] = apiversion
+
+  version_code_set = set()
+  for version in version_dict.values():
+    version_code_set.add(version_code(version))
+  for code in sorted(version_code_set):
+    version_code_list.append(code)
