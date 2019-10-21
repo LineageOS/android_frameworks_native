@@ -49,7 +49,7 @@ public:
 
     status_t free(buffer_handle_t handle);
 
-    size_t getTotalSize() const;
+    uint64_t getTotalSize() const;
 
     void dump(std::string& res) const;
     static void dumpToSystemLog();
