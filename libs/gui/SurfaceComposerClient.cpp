@@ -222,7 +222,8 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
             for (const auto& surfaceStats : transactionStats.surfaceStats) {
                 surfaceControlStats.emplace_back(surfaceControls[surfaceStats.surfaceControl],
                                                  surfaceStats.acquireTime,
-                                                 surfaceStats.previousReleaseFence);
+                                                 surfaceStats.previousReleaseFence,
+                                                 surfaceStats.transformHint);
             }
 
             callbackFunction(transactionStats.latchTime, transactionStats.presentFence,

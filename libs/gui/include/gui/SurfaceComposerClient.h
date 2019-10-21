@@ -58,12 +58,16 @@ class Region;
 
 struct SurfaceControlStats {
     SurfaceControlStats(const sp<SurfaceControl>& sc, nsecs_t time,
-                        const sp<Fence>& prevReleaseFence)
-          : surfaceControl(sc), acquireTime(time), previousReleaseFence(prevReleaseFence) {}
+                        const sp<Fence>& prevReleaseFence, uint32_t hint)
+          : surfaceControl(sc),
+            acquireTime(time),
+            previousReleaseFence(prevReleaseFence),
+            transformHint(hint) {}
 
     sp<SurfaceControl> surfaceControl;
     nsecs_t acquireTime = -1;
     sp<Fence> previousReleaseFence;
+    uint32_t transformHint = 0;
 };
 
 using TransactionCompletedCallbackTakesContext =

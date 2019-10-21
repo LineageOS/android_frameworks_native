@@ -48,6 +48,7 @@ status_t SurfaceStats::writeToParcel(Parcel* output) const {
     } else {
         err = output->writeBool(false);
     }
+    err = output->writeUint32(transformHint);
     return err;
 }
 
@@ -72,7 +73,8 @@ status_t SurfaceStats::readFromParcel(const Parcel* input) {
             return err;
         }
     }
-    return NO_ERROR;
+    err = input->readUint32(&transformHint);
+    return err;
 }
 
 status_t TransactionStats::writeToParcel(Parcel* output) const {
