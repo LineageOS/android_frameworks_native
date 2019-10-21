@@ -24,7 +24,10 @@
 #include <dlfcn.h>
 #include <algorithm>
 #include <array>
+#include <climits>
 #include <new>
+#include <sstream>
+#include <string>
 
 #include <log/log.h>
 
@@ -153,15 +156,12 @@ class CreateInfoWrapper {
 Hal Hal::hal_;
 
 void* LoadLibrary(const android_dlextinfo& dlextinfo,
-                  const char* subname,
-                  int subname_len) {
+                  const std::string_view subname) {
     ATRACE_CALL();
 
-    const char kLibFormat[] = "vulkan.%*s.so";
-    char* name = static_cast<char*>(
-        alloca(sizeof(kLibFormat) + static_cast<size_t>(subname_len)));
-    sprintf(name, kLibFormat, subname_len, subname);
-    return android_dlopen_ext(name, RTLD_LOCAL | RTLD_NOW, &dlextinfo);
+    std::stringstream ss;
+    ss << "vulkan." << subname << ".so";
+    return android_dlopen_ext(ss.str().c_str(), RTLD_LOCAL | RTLD_NOW, &dlextinfo);
 }
 
 const std::array<const char*, 2> HAL_SUBNAME_KEY_PROPERTIES = {{
@@ -181,8 +181,9 @@ int LoadDriver(android_namespace_t* library_namespace,
     char prop[PROPERTY_VALUE_MAX];
     for (auto key : HAL_SUBNAME_KEY_PROPERTIES) {
         int prop_len = property_get(key, prop, nullptr);
-        if (prop_len > 0) {
-            so = LoadLibrary(dlextinfo, prop, prop_len);
+        if (prop_len > 0 && prop_len <= UINT_MAX) {
+            std::string_view lib_name(prop, static_cast<unsigned int>(prop_len));
+            so = LoadLibrary(dlextinfo, lib_name);
             if (so)
                 break;
         }
