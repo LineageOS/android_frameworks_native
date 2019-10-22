@@ -24,6 +24,7 @@
 #include <string.h>
 #include <sys/prctl.h>
 
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -101,9 +102,7 @@ class LayerLibrary {
     bool EnumerateLayers(size_t library_idx,
                          std::vector<Layer>& instance_layers) const;
 
-    void* GetGPA(const Layer& layer,
-                 const char* gpa_name,
-                 size_t gpa_name_len) const;
+    void* GetGPA(const Layer& layer, const std::string_view gpa_name) const;
 
     const std::string GetFilename() { return filename_; }
 
@@ -226,17 +225,10 @@ bool LayerLibrary::EnumerateLayers(size_t library_idx,
     }
 
     // get layer properties
-    VkLayerProperties* properties = static_cast<VkLayerProperties*>(alloca(
-        (num_instance_layers + num_device_layers) * sizeof(VkLayerProperties)));
-    result = enumerate_instance_layers(&num_instance_layers, properties);
-    if (result != VK_SUCCESS) {
-        ALOGE("vkEnumerateInstanceLayerProperties failed for library '%s': %d",
-              path_.c_str(), result);
-        return false;
-    }
+    auto properties = std::make_unique<VkLayerProperties[]>(num_instance_layers + num_device_layers);
     if (num_device_layers > 0) {
         result = enumerate_device_layers(VK_NULL_HANDLE, &num_device_layers,
-                                         properties + num_instance_layers);
+                                         properties.get() + num_instance_layers);
         if (result != VK_SUCCESS) {
             ALOGE(
                 "vkEnumerateDeviceLayerProperties failed for library '%s': %d",
@@ -321,21 +313,11 @@ bool LayerLibrary::EnumerateLayers(size_t library_idx,
     return true;
 }
 
-void* LayerLibrary::GetGPA(const Layer& layer,
-                           const char* gpa_name,
-                           size_t gpa_name_len) const {
-    void* gpa;
-    size_t layer_name_len =
-        std::max(size_t{2}, strlen(layer.properties.layerName));
-    char* name = static_cast<char*>(alloca(layer_name_len + gpa_name_len + 1));
-    strcpy(name, layer.properties.layerName);
-    strcpy(name + layer_name_len, gpa_name);
-    if (!(gpa = GetTrampoline(name))) {
-        strcpy(name, "vk");
-        strcpy(name + 2, gpa_name);
-        gpa = GetTrampoline(name);
-    }
-    return gpa;
+void* LayerLibrary::GetGPA(const Layer& layer, const std::string_view gpa_name) const {
+    std::string layer_name { layer.properties.layerName };
+    if (void* gpa = GetTrampoline((layer_name.append(gpa_name).c_str())))
+        return gpa;
+    return GetTrampoline((std::string {"vk"}.append(gpa_name)).c_str());
 }
 
 // ----------------------------------------------------------------------------
@@ -470,10 +452,9 @@ const VkExtensionProperties* FindExtension(
 }
 
 void* GetLayerGetProcAddr(const Layer& layer,
-                          const char* gpa_name,
-                          size_t gpa_name_len) {
+                          const std::string_view gpa_name) {
     const LayerLibrary& library = g_layer_libraries[layer.library_idx];
-    return library.GetGPA(layer, gpa_name, gpa_name_len);
+    return library.GetGPA(layer, gpa_name);
 }
 
 }  // anonymous namespace
@@ -556,13 +537,13 @@ LayerRef::LayerRef(LayerRef&& other) noexcept : layer_(other.layer_) {
 
 PFN_vkGetInstanceProcAddr LayerRef::GetGetInstanceProcAddr() const {
     return layer_ ? reinterpret_cast<PFN_vkGetInstanceProcAddr>(
-                        GetLayerGetProcAddr(*layer_, "GetInstanceProcAddr", 19))
+                        GetLayerGetProcAddr(*layer_, "GetInstanceProcAddr"))
                   : nullptr;
 }
 
 PFN_vkGetDeviceProcAddr LayerRef::GetGetDeviceProcAddr() const {
     return layer_ ? reinterpret_cast<PFN_vkGetDeviceProcAddr>(
-                        GetLayerGetProcAddr(*layer_, "GetDeviceProcAddr", 17))
+                        GetLayerGetProcAddr(*layer_, "GetDeviceProcAddr"))
                   : nullptr;
 }
 
