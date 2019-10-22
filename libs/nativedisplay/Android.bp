@@ -12,6 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+ndk_headers {
+    name: "libachoreographer_ndk_headers",
+    from: "include/android",
+    to: "android",
+    srcs: ["include/android/*.h"],
+    license: "NOTICE",
+}
+
 cc_library_headers {
     name: "libnativedisplay_headers",
     export_include_dirs: ["include"],
@@ -33,10 +41,12 @@ cc_library {
     ],
 
     srcs: [
+        "AChoreographer.cpp",
         "ADisplay.cpp",
     ],
 
     shared_libs: [
+        "libandroidfw",
         "libgui",
         "liblog",
         "libui",
