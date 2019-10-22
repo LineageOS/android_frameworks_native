@@ -93,13 +93,12 @@ inline static bool isPointerEvent(int32_t source) {
 bool InputMessage::isValid(size_t actualSize) const {
     if (size() == actualSize) {
         switch (header.type) {
-        case TYPE_KEY:
-            return true;
-        case TYPE_MOTION:
-            return body.motion.pointerCount > 0
-                    && body.motion.pointerCount <= MAX_POINTERS;
-        case TYPE_FINISHED:
-            return true;
+            case Type::KEY:
+                return true;
+            case Type::MOTION:
+                return body.motion.pointerCount > 0 && body.motion.pointerCount <= MAX_POINTERS;
+            case Type::FINISHED:
+                return true;
         }
     }
     return false;
@@ -107,12 +106,12 @@ bool InputMessage::isValid(size_t actualSize) const {
 
 size_t InputMessage::size() const {
     switch (header.type) {
-    case TYPE_KEY:
-        return sizeof(Header) + body.key.size();
-    case TYPE_MOTION:
-        return sizeof(Header) + body.motion.size();
-    case TYPE_FINISHED:
-        return sizeof(Header) + body.finished.size();
+        case Type::KEY:
+            return sizeof(Header) + body.key.size();
+        case Type::MOTION:
+            return sizeof(Header) + body.motion.size();
+        case Type::FINISHED:
+            return sizeof(Header) + body.finished.size();
     }
     return sizeof(Header);
 }
@@ -129,7 +128,7 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
 
     // Write the body
     switch(header.type) {
-        case InputMessage::TYPE_KEY: {
+        case InputMessage::Type::KEY: {
             // uint32_t seq
             msg->body.key.seq = body.key.seq;
             // nsecs_t eventTime
@@ -156,7 +155,7 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
             msg->body.key.downTime = body.key.downTime;
             break;
         }
-        case InputMessage::TYPE_MOTION: {
+        case InputMessage::Type::MOTION: {
             // uint32_t seq
             msg->body.motion.seq = body.motion.seq;
             // nsecs_t eventTime
@@ -212,7 +211,7 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
             }
             break;
         }
-        case InputMessage::TYPE_FINISHED: {
+        case InputMessage::Type::FINISHED: {
             msg->body.finished.seq = body.finished.seq;
             msg->body.finished.handled = body.finished.handled;
             break;
@@ -457,7 +456,7 @@ status_t InputPublisher::publishKeyEvent(
     }
 
     InputMessage msg;
-    msg.header.type = InputMessage::TYPE_KEY;
+    msg.header.type = InputMessage::Type::KEY;
     msg.body.key.seq = seq;
     msg.body.key.deviceId = deviceId;
     msg.body.key.source = source;
@@ -511,7 +510,7 @@ status_t InputPublisher::publishMotionEvent(
     }
 
     InputMessage msg;
-    msg.header.type = InputMessage::TYPE_MOTION;
+    msg.header.type = InputMessage::Type::MOTION;
     msg.body.motion.seq = seq;
     msg.body.motion.deviceId = deviceId;
     msg.body.motion.source = source;
@@ -553,7 +552,7 @@ status_t InputPublisher::receiveFinishedSignal(uint32_t* outSeq, bool* outHandle
         *outHandled = false;
         return result;
     }
-    if (msg.header.type != InputMessage::TYPE_FINISHED) {
+    if (msg.header.type != InputMessage::Type::FINISHED) {
         ALOGE("channel '%s' publisher ~ Received unexpected message of type %d from consumer",
                 mChannel->getName().c_str(), msg.header.type);
         return UNKNOWN_ERROR;
@@ -614,59 +613,59 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory,
         }
 
         switch (mMsg.header.type) {
-        case InputMessage::TYPE_KEY: {
-            KeyEvent* keyEvent = factory->createKeyEvent();
-            if (!keyEvent) return NO_MEMORY;
+            case InputMessage::Type::KEY: {
+                KeyEvent* keyEvent = factory->createKeyEvent();
+                if (!keyEvent) return NO_MEMORY;
 
-            initializeKeyEvent(keyEvent, &mMsg);
-            *outSeq = mMsg.body.key.seq;
-            *outEvent = keyEvent;
+                initializeKeyEvent(keyEvent, &mMsg);
+                *outSeq = mMsg.body.key.seq;
+                *outEvent = keyEvent;
 #if DEBUG_TRANSPORT_ACTIONS
             ALOGD("channel '%s' consumer ~ consumed key event, seq=%u",
                     mChannel->getName().c_str(), *outSeq);
 #endif
             break;
-        }
+            }
 
-        case InputMessage::TYPE_MOTION: {
-            ssize_t batchIndex = findBatch(mMsg.body.motion.deviceId, mMsg.body.motion.source);
-            if (batchIndex >= 0) {
-                Batch& batch = mBatches.editItemAt(batchIndex);
-                if (canAddSample(batch, &mMsg)) {
-                    batch.samples.push(mMsg);
+            case InputMessage::Type::MOTION: {
+                ssize_t batchIndex = findBatch(mMsg.body.motion.deviceId, mMsg.body.motion.source);
+                if (batchIndex >= 0) {
+                    Batch& batch = mBatches.editItemAt(batchIndex);
+                    if (canAddSample(batch, &mMsg)) {
+                        batch.samples.push(mMsg);
 #if DEBUG_TRANSPORT_ACTIONS
                     ALOGD("channel '%s' consumer ~ appended to batch event",
                             mChannel->getName().c_str());
 #endif
                     break;
-                } else if (isPointerEvent(mMsg.body.motion.source) &&
-                        mMsg.body.motion.action == AMOTION_EVENT_ACTION_CANCEL) {
-                    // No need to process events that we are going to cancel anyways
-                    const size_t count = batch.samples.size();
-                    for (size_t i = 0; i < count; i++) {
-                        const InputMessage& msg = batch.samples.itemAt(i);
-                        sendFinishedSignal(msg.body.motion.seq, false);
-                    }
-                    batch.samples.removeItemsAt(0, count);
-                    mBatches.removeAt(batchIndex);
-                } else {
-                    // We cannot append to the batch in progress, so we need to consume
-                    // the previous batch right now and defer the new message until later.
-                    mMsgDeferred = true;
-                    status_t result = consumeSamples(factory,
-                            batch, batch.samples.size(), outSeq, outEvent);
-                    mBatches.removeAt(batchIndex);
-                    if (result) {
-                        return result;
-                    }
+                    } else if (isPointerEvent(mMsg.body.motion.source) &&
+                               mMsg.body.motion.action == AMOTION_EVENT_ACTION_CANCEL) {
+                        // No need to process events that we are going to cancel anyways
+                        const size_t count = batch.samples.size();
+                        for (size_t i = 0; i < count; i++) {
+                            const InputMessage& msg = batch.samples.itemAt(i);
+                            sendFinishedSignal(msg.body.motion.seq, false);
+                        }
+                        batch.samples.removeItemsAt(0, count);
+                        mBatches.removeAt(batchIndex);
+                    } else {
+                        // We cannot append to the batch in progress, so we need to consume
+                        // the previous batch right now and defer the new message until later.
+                        mMsgDeferred = true;
+                        status_t result = consumeSamples(factory, batch, batch.samples.size(),
+                                                         outSeq, outEvent);
+                        mBatches.removeAt(batchIndex);
+                        if (result) {
+                            return result;
+                        }
 #if DEBUG_TRANSPORT_ACTIONS
                     ALOGD("channel '%s' consumer ~ consumed batch event and "
                             "deferred current event, seq=%u",
                             mChannel->getName().c_str(), *outSeq);
 #endif
                     break;
+                    }
                 }
-            }
 
             // Start a new batch if needed.
             if (mMsg.body.motion.action == AMOTION_EVENT_ACTION_MOVE
@@ -694,7 +693,7 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory,
                     mChannel->getName().c_str(), *outSeq);
 #endif
             break;
-        }
+            }
 
         default:
             ALOGE("channel '%s' consumer ~ Received unexpected message of type %d",
@@ -1074,7 +1073,7 @@ status_t InputConsumer::sendFinishedSignal(uint32_t seq, bool handled) {
 
 status_t InputConsumer::sendUnchainedFinishedSignal(uint32_t seq, bool handled) {
     InputMessage msg;
-    msg.header.type = InputMessage::TYPE_FINISHED;
+    msg.header.type = InputMessage::Type::FINISHED;
     msg.body.finished.seq = seq;
     msg.body.finished.handled = handled;
     return mChannel->sendMessage(&msg);
