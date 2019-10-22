@@ -113,14 +113,13 @@ public:
     virtual status_t pilferPointers(const sp<IBinder>& token) override;
 
 private:
-
-    enum DropReason {
-        DROP_REASON_NOT_DROPPED = 0,
-        DROP_REASON_POLICY = 1,
-        DROP_REASON_APP_SWITCH = 2,
-        DROP_REASON_DISABLED = 3,
-        DROP_REASON_BLOCKED = 4,
-        DROP_REASON_STALE = 5,
+    enum class DropReason {
+        NOT_DROPPED,
+        POLICY,
+        APP_SWITCH,
+        DISABLED,
+        BLOCKED,
+        STALE,
     };
 
     sp<InputDispatcherPolicyInterface> mPolicy;
