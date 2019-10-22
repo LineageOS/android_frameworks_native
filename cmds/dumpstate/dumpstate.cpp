@@ -231,14 +231,6 @@ static bool UnlinkAndLogOnError(const std::string& file) {
     return true;
 }
 
-static bool IsFileEmpty(const std::string& file_path) {
-    std::ifstream file(file_path, std::ios::binary | std::ios::ate);
-    if(file.bad()) {
-        MYLOGE("Cannot open file: %s\n", file_path.c_str());
-        return true;
-    }
-    return file.tellg() <= 0;
-}
 
 int64_t GetModuleMetadataVersion() {
     auto binder = defaultServiceManager()->getService(android::String16("package_native"));
@@ -288,11 +280,8 @@ static const std::string kDumpstateBoardFiles[] = {
 };
 static const int NUM_OF_DUMPS = arraysize(kDumpstateBoardFiles);
 
-static constexpr char PROPERTY_EXTRA_OPTIONS[] = "dumpstate.options";
 static constexpr char PROPERTY_LAST_ID[] = "dumpstate.last_id";
 static constexpr char PROPERTY_VERSION[] = "dumpstate.version";
-static constexpr char PROPERTY_EXTRA_TITLE[] = "dumpstate.options.title";
-static constexpr char PROPERTY_EXTRA_DESCRIPTION[] = "dumpstate.options.description";
 
 static const CommandOptions AS_ROOT_20 = CommandOptions::WithTimeout(20).AsRoot().Build();
 
@@ -696,8 +685,8 @@ void Dumpstate::PrintHeader() const {
     RunCommandToFd(STDOUT_FILENO, "", {"uptime", "-p"},
                    CommandOptions::WithTimeout(1).Always().Build());
     printf("Bugreport format version: %s\n", version_.c_str());
-    printf("Dumpstate info: id=%d pid=%d dry_run=%d args=%s extra_options=%s\n", id_, pid_,
-           PropertiesHelper::IsDryRun(), options_->args.c_str(), options_->extra_options.c_str());
+    printf("Dumpstate info: id=%d pid=%d dry_run=%d args=%s bugreport_mode=%s\n", id_, pid_,
+           PropertiesHelper::IsDryRun(), options_->args.c_str(), options_->bugreport_mode.c_str());
     printf("\n");
 }
 
@@ -1905,7 +1894,7 @@ void Dumpstate::DumpstateBoard() {
 static void ShowUsage() {
     fprintf(stderr,
             "usage: dumpstate [-h] [-b soundfile] [-e soundfile] [-d] [-p] "
-            "[-z]] [-s] [-S] [-q] [-B] [-P] [-R] [-V version]\n"
+            "[-z]] [-s] [-S] [-q] [-P] [-R] [-V version]\n"
             "  -h: display this help message\n"
             "  -b: play sound file instead of vibrate, at beginning of job\n"
             "  -e: play sound file instead of vibrate, at end of job\n"
@@ -1915,11 +1904,8 @@ static void ShowUsage() {
             "  -s: write output to control socket (for init)\n"
             "  -S: write file location to control socket (for init; requires -z)\n"
             "  -q: disable vibrate\n"
-            "  -B: send broadcast when finished\n"
-            "  -P: send broadcast when started and update system properties on "
-            "progress (requires -B)\n"
-            "  -R: take bugreport in remote mode (requires -z, -d and -B, "
-            "shouldn't be used with -P)\n"
+            "  -P: send broadcast when started and do progress updates\n"
+            "  -R: take bugreport in remote mode (requires -z and -d, shouldn't be used with -P)\n"
             "  -w: start binder service and make it wait for a call to startBugreport\n"
             "  -v: prints the dumpstate header and exit\n");
 }
@@ -1974,41 +1960,6 @@ bool Dumpstate::FinishZipFile() {
     android::os::UnlinkAndLogOnError(tmp_path_);
 
     return true;
-}
-
-static std::string SHA256_file_hash(const std::string& filepath) {
-    android::base::unique_fd fd(TEMP_FAILURE_RETRY(open(filepath.c_str(), O_RDONLY | O_NONBLOCK
-            | O_CLOEXEC | O_NOFOLLOW)));
-    if (fd == -1) {
-        MYLOGE("open(%s): %s\n", filepath.c_str(), strerror(errno));
-        return nullptr;
-    }
-
-    SHA256_CTX ctx;
-    SHA256_Init(&ctx);
-
-    std::vector<uint8_t> buffer(65536);
-    while (1) {
-        ssize_t bytes_read = TEMP_FAILURE_RETRY(read(fd.get(), buffer.data(), buffer.size()));
-        if (bytes_read == 0) {
-            break;
-        } else if (bytes_read == -1) {
-            MYLOGE("read(%s): %s\n", filepath.c_str(), strerror(errno));
-            return nullptr;
-        }
-
-        SHA256_Update(&ctx, buffer.data(), bytes_read);
-    }
-
-    uint8_t hash[SHA256_DIGEST_LENGTH];
-    SHA256_Final(hash, &ctx);
-
-    char hash_buffer[SHA256_DIGEST_LENGTH * 2 + 1];
-    for(size_t i = 0; i < SHA256_DIGEST_LENGTH; i++) {
-        sprintf(hash_buffer + (i * 2), "%02x", hash[i]);
-    }
-    hash_buffer[sizeof(hash_buffer) - 1] = 0;
-    return std::string(hash_buffer);
 }
 
 static void SendBroadcast(const std::string& action, const std::vector<std::string>& args) {
@@ -2103,37 +2054,10 @@ static void PrepareToWriteToFile() {
 }
 
 /*
- * Finalizes writing to the file by renaming or zipping the tmp file to the final location,
+ * Finalizes writing to the file by zipping the tmp file to the final location,
  * printing zipped file status, etc.
  */
 static void FinalizeFile() {
-    /* check if user changed the suffix using system properties */
-    std::string name =
-        android::base::GetProperty(android::base::StringPrintf("dumpstate.%d.name", ds.pid_), "");
-    bool change_suffix = false;
-    if (!name.empty()) {
-        /* must whitelist which characters are allowed, otherwise it could cross directories */
-        std::regex valid_regex("^[-_a-zA-Z0-9]+$");
-        if (std::regex_match(name.c_str(), valid_regex)) {
-            change_suffix = true;
-        } else {
-            MYLOGE("invalid suffix provided by user: %s\n", name.c_str());
-        }
-    }
-    if (change_suffix) {
-        MYLOGI("changing suffix from %s to %s\n", ds.name_.c_str(), name.c_str());
-        ds.name_ = name;
-        if (!ds.screenshot_path_.empty()) {
-            std::string new_screenshot_path = ds.GetPath(ds.CalledByApi() ? "-tmp.png" : ".png");
-            if (rename(ds.screenshot_path_.c_str(), new_screenshot_path.c_str())) {
-                MYLOGE("rename(%s, %s): %s\n", ds.screenshot_path_.c_str(),
-                       new_screenshot_path.c_str(), strerror(errno));
-            } else {
-                ds.screenshot_path_ = new_screenshot_path;
-            }
-        }
-    }
-
     bool do_text_file = true;
     if (ds.options_->do_zip_file) {
         if (!ds.FinishZipFile()) {
@@ -2141,25 +2065,6 @@ static void FinalizeFile() {
             do_text_file = true;
         } else {
             do_text_file = false;
-            // If the user has changed the suffix, we need to change the zip file name.
-            std::string new_path = ds.GetPath(ds.CalledByApi() ? "-tmp.zip" : ".zip");
-            if (ds.path_ != new_path) {
-                MYLOGD("Renaming zip file from %s to %s\n", ds.path_.c_str(), new_path.c_str());
-                if (rename(ds.path_.c_str(), new_path.c_str())) {
-                    MYLOGE("rename(%s, %s): %s\n", ds.path_.c_str(), new_path.c_str(),
-                           strerror(errno));
-                } else {
-                    ds.path_ = new_path;
-                }
-            }
-        }
-    }
-    if (do_text_file) {
-        ds.path_ = ds.GetPath(".txt");
-        MYLOGD("Generating .txt bugreport at %s from %s\n", ds.path_.c_str(), ds.tmp_path_.c_str());
-        if (rename(ds.tmp_path_.c_str(), ds.path_.c_str())) {
-            MYLOGE("rename(%s, %s): %s\n", ds.tmp_path_.c_str(), ds.path_.c_str(), strerror(errno));
-            ds.path_.clear();
         }
     }
     if (ds.options_->use_control_socket) {
@@ -2174,49 +2079,6 @@ static void FinalizeFile() {
     }
 }
 
-/* Broadcasts that we are done with the bugreport */
-static void SendBugreportFinishedBroadcast() {
-    // TODO(b/111441001): use callback instead of broadcast.
-    if (!ds.path_.empty()) {
-        MYLOGI("Final bugreport path: %s\n", ds.path_.c_str());
-        // clang-format off
-
-        std::vector<std::string> am_args = {
-             "--receiver-permission", "android.permission.DUMP",
-             "--ei", "android.intent.extra.ID", std::to_string(ds.id_),
-             "--ei", "android.intent.extra.PID", std::to_string(ds.pid_),
-             "--ei", "android.intent.extra.MAX", std::to_string(ds.progress_->GetMax()),
-             "--es", "android.intent.extra.BUGREPORT", ds.path_,
-             "--es", "android.intent.extra.DUMPSTATE_LOG", ds.log_path_
-        };
-        // clang-format on
-        if (ds.options_->do_fb && !android::os::IsFileEmpty(ds.screenshot_path_)) {
-            am_args.push_back("--es");
-            am_args.push_back("android.intent.extra.SCREENSHOT");
-            am_args.push_back(ds.screenshot_path_);
-        }
-        if (!ds.options_->notification_title.empty()) {
-            am_args.push_back("--es");
-            am_args.push_back("android.intent.extra.TITLE");
-            am_args.push_back(ds.options_->notification_title);
-            if (!ds.options_->notification_description.empty()) {
-                am_args.push_back("--es");
-                am_args.push_back("android.intent.extra.DESCRIPTION");
-                am_args.push_back(ds.options_->notification_description);
-            }
-        }
-        if (ds.options_->is_remote_mode) {
-            am_args.push_back("--es");
-            am_args.push_back("android.intent.extra.REMOTE_BUGREPORT_HASH");
-            am_args.push_back(SHA256_file_hash(ds.path_));
-            SendBroadcast("com.android.internal.intent.action.REMOTE_BUGREPORT_FINISHED", am_args);
-        } else {
-            SendBroadcast("com.android.internal.intent.action.BUGREPORT_FINISHED", am_args);
-        }
-    } else {
-        MYLOGE("Skipping finished broadcast because bugreport could not be generated\n");
-    }
-}
 
 static inline const char* ModeToString(Dumpstate::BugreportMode mode) {
     switch (mode) {
@@ -2238,10 +2100,9 @@ static inline const char* ModeToString(Dumpstate::BugreportMode mode) {
 }
 
 static void SetOptionsFromMode(Dumpstate::BugreportMode mode, Dumpstate::DumpOptions* options) {
-    options->extra_options = ModeToString(mode);
+    options->bugreport_mode = ModeToString(mode);
     switch (mode) {
         case Dumpstate::BugreportMode::BUGREPORT_FULL:
-            options->do_broadcast = true;
             options->do_fb = true;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE:
@@ -2249,85 +2110,29 @@ static void SetOptionsFromMode(Dumpstate::BugreportMode mode, Dumpstate::DumpOpt
             options->do_start_service = true;
             options->do_progress_updates = true;
             options->do_fb = false;
-            options->do_broadcast = true;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_REMOTE:
             options->do_vibrate = false;
             options->is_remote_mode = true;
             options->do_fb = false;
-            options->do_broadcast = true;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_WEAR:
             options->do_start_service = true;
             options->do_progress_updates = true;
             options->do_zip_file = true;
             options->do_fb = true;
-            options->do_broadcast = true;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_TELEPHONY:
             options->telephony_only = true;
             options->do_fb = false;
-            options->do_broadcast = true;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_WIFI:
             options->wifi_only = true;
             options->do_zip_file = true;
             options->do_fb = false;
-            options->do_broadcast = true;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_DEFAULT:
             break;
-    }
-}
-
-static Dumpstate::BugreportMode getBugreportModeFromProperty() {
-    // If the system property is not set, it's assumed to be a default bugreport.
-    Dumpstate::BugreportMode mode = Dumpstate::BugreportMode::BUGREPORT_DEFAULT;
-
-    std::string extra_options = android::base::GetProperty(PROPERTY_EXTRA_OPTIONS, "");
-    if (!extra_options.empty()) {
-        // Framework uses a system property to override some command-line args.
-        // Currently, it contains the type of the requested bugreport.
-        if (extra_options == "bugreportplus") {
-            mode = Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE;
-        } else if (extra_options == "bugreportfull") {
-            mode = Dumpstate::BugreportMode::BUGREPORT_FULL;
-        } else if (extra_options == "bugreportremote") {
-            mode = Dumpstate::BugreportMode::BUGREPORT_REMOTE;
-        } else if (extra_options == "bugreportwear") {
-            mode = Dumpstate::BugreportMode::BUGREPORT_WEAR;
-        } else if (extra_options == "bugreporttelephony") {
-            mode = Dumpstate::BugreportMode::BUGREPORT_TELEPHONY;
-        } else if (extra_options == "bugreportwifi") {
-            mode = Dumpstate::BugreportMode::BUGREPORT_WIFI;
-        } else {
-            MYLOGE("Unknown extra option: %s\n", extra_options.c_str());
-        }
-        // Reset the property
-        android::base::SetProperty(PROPERTY_EXTRA_OPTIONS, "");
-    }
-    return mode;
-}
-
-// TODO: Move away from system properties when we have options passed via binder calls.
-/* Sets runtime options from the system properties and then clears those properties. */
-static void SetOptionsFromProperties(Dumpstate::DumpOptions* options) {
-    Dumpstate::BugreportMode mode = getBugreportModeFromProperty();
-    SetOptionsFromMode(mode, options);
-
-    options->notification_title = android::base::GetProperty(PROPERTY_EXTRA_TITLE, "");
-    if (!options->notification_title.empty()) {
-        // Reset the property
-        android::base::SetProperty(PROPERTY_EXTRA_TITLE, "");
-
-        options->notification_description =
-            android::base::GetProperty(PROPERTY_EXTRA_DESCRIPTION, "");
-        if (!options->notification_description.empty()) {
-            // Reset the property
-            android::base::SetProperty(PROPERTY_EXTRA_DESCRIPTION, "");
-        }
-        MYLOGD("notification (title:  %s, description: %s)\n", options->notification_title.c_str(),
-               options->notification_description.c_str());
     }
 }
 
@@ -2338,7 +2143,6 @@ static void LogDumpOptions(const Dumpstate::DumpOptions& options) {
     MYLOGI("use_socket: %d\n", options.use_socket);
     MYLOGI("use_control_socket: %d\n", options.use_control_socket);
     MYLOGI("do_fb: %d\n", options.do_fb);
-    MYLOGI("do_broadcast: %d\n", options.do_broadcast);
     MYLOGI("is_remote_mode: %d\n", options.is_remote_mode);
     MYLOGI("show_header_only: %d\n", options.show_header_only);
     MYLOGI("do_start_service: %d\n", options.do_start_service);
@@ -2346,10 +2150,8 @@ static void LogDumpOptions(const Dumpstate::DumpOptions& options) {
     MYLOGI("wifi_only: %d\n", options.wifi_only);
     MYLOGI("do_progress_updates: %d\n", options.do_progress_updates);
     MYLOGI("fd: %d\n", options.bugreport_fd.get());
-    MYLOGI("extra_options: %s\n", options.extra_options.c_str());
+    MYLOGI("bugreport_mode: %s\n", options.bugreport_mode.c_str());
     MYLOGI("args: %s\n", options.args.c_str());
-    MYLOGI("notification_title: %s\n", options.notification_title.c_str());
-    MYLOGI("notification_description: %s\n", options.notification_description.c_str());
 }
 
 void Dumpstate::DumpOptions::Initialize(BugreportMode bugreport_mode,
@@ -2364,7 +2166,6 @@ void Dumpstate::DumpOptions::Initialize(BugreportMode bugreport_mode,
     bugreport_fd.reset(dup(bugreport_fd_in.get()));
     screenshot_fd.reset(dup(screenshot_fd_in.get()));
 
-    extra_options = ModeToString(bugreport_mode);
     SetOptionsFromMode(bugreport_mode, this);
 }
 
@@ -2383,7 +2184,6 @@ Dumpstate::RunStatus Dumpstate::DumpOptions::Initialize(int argc, char* argv[]) 
             case 'p': do_fb = true;                  break;
             case 'P': do_progress_updates = true;    break;
             case 'R': is_remote_mode = true;         break;
-            case 'B': do_broadcast = true;           break;
             case 'V':                                break;  // compatibility no-op
             case 'w':
                 // This was already processed
@@ -2409,7 +2209,6 @@ Dumpstate::RunStatus Dumpstate::DumpOptions::Initialize(int argc, char* argv[]) 
     // Reset next index used by getopt so this can be called multiple times, for eg, in tests.
     optind = 1;
 
-    SetOptionsFromProperties(this);
     return status;
 }
 
@@ -2418,7 +2217,7 @@ bool Dumpstate::DumpOptions::ValidateOptions() const {
         return false;
     }
 
-    if ((do_zip_file || do_add_date || do_progress_updates || do_broadcast) && !OutputToFile()) {
+    if ((do_zip_file || do_add_date || do_progress_updates) && !OutputToFile()) {
         return false;
     }
 
@@ -2426,11 +2225,7 @@ bool Dumpstate::DumpOptions::ValidateOptions() const {
         return false;
     }
 
-    if (do_progress_updates && !do_broadcast) {
-        return false;
-    }
-
-    if (is_remote_mode && (do_progress_updates || !do_broadcast || !do_zip_file || !do_add_date)) {
+    if (is_remote_mode && (do_progress_updates || !do_zip_file || !do_add_date)) {
         return false;
     }
     return true;
@@ -2528,7 +2323,7 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
 
     MYLOGD("dumpstate calling_uid = %d ; calling package = %s \n",
             calling_uid, calling_package.c_str());
-    if (options_->bugreport_fd.get() != -1) {
+    if (CalledByApi()) {
         // If the output needs to be copied over to the caller's fd, get user consent.
         android::String16 package(calling_package.c_str());
         CheckUserConsent(calling_uid, package);
@@ -2573,8 +2368,8 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
         MYLOGI("Running on dry-run mode (to disable it, call 'setprop dumpstate.dry_run false')\n");
     }
 
-    MYLOGI("dumpstate info: id=%d, args='%s', extra_options= %s)\n", id_, options_->args.c_str(),
-           options_->extra_options.c_str());
+    MYLOGI("dumpstate info: id=%d, args='%s', bugreport_mode= %s)\n", id_, options_->args.c_str(),
+           options_->bugreport_mode.c_str());
 
     MYLOGI("bugreport format version: %s\n", version_.c_str());
 
@@ -2601,18 +2396,13 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
         PrepareToWriteToFile();
 
         if (options_->do_progress_updates) {
-            if (options_->do_broadcast) {
-                // clang-format off
-                std::vector<std::string> am_args = {
-                     "--receiver-permission", "android.permission.DUMP",
-                     "--es", "android.intent.extra.NAME", name_,
-                     "--ei", "android.intent.extra.ID", std::to_string(id_),
-                     "--ei", "android.intent.extra.PID", std::to_string(pid_),
-                     "--ei", "android.intent.extra.MAX", std::to_string(progress_->GetMax()),
-                };
-                // clang-format on
-                SendBroadcast("com.android.internal.intent.action.BUGREPORT_STARTED", am_args);
-            }
+            // clang-format off
+            std::vector<std::string> am_args = {
+                 "--receiver-permission", "android.permission.DUMP",
+            };
+            // clang-format on
+            // Send STARTED broadcast for apps that listen to bugreport generation events
+            SendBroadcast("com.android.internal.intent.action.BUGREPORT_STARTED", am_args);
             if (options_->use_control_socket) {
                 dprintf(control_socket_fd_, "BEGIN:%s\n", path_.c_str());
             }
@@ -2700,14 +2490,14 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
         TEMP_FAILURE_RETRY(dup2(dup_stdout_fd, fileno(stdout)));
     }
 
-    // Rename, and/or zip the (now complete) .tmp file within the internal directory.
+    // Zip the (now complete) .tmp file within the internal directory.
     if (options_->OutputToFile()) {
         FinalizeFile();
     }
 
     // Share the final file with the caller if the user has consented or Shell is the caller.
     Dumpstate::RunStatus status = Dumpstate::RunStatus::OK;
-    if (options_->bugreport_fd.get() != -1) {
+    if (CalledByApi()) {
         status = CopyBugreportIfUserConsented(calling_uid);
         if (status != Dumpstate::RunStatus::OK &&
             status != Dumpstate::RunStatus::USER_CONSENT_TIMED_OUT) {
@@ -2746,12 +2536,6 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
             Vibrate(75);
             usleep((75 + 50) * 1000);
         }
-    }
-
-    /* tell activity manager we're done */
-    if (options_->do_broadcast && !CalledByApi()) {
-        SendBugreportFinishedBroadcast();
-        // Note that listener_ is notified in Run();
     }
 
     MYLOGD("Final progress: %d/%d (estimated %d)\n", progress_->Get(), progress_->GetMax(),

@@ -195,7 +195,6 @@ class ZippedBugreportGenerationTest : public Test {
     static Dumpstate& ds;
     static std::chrono::milliseconds duration;
     static void SetUpTestCase() {
-        property_set("dumpstate.options", "bugreportplus");
         // clang-format off
         char* argv[] = {
             (char*)"dumpstate",
