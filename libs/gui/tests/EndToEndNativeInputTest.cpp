@@ -422,9 +422,11 @@ TEST_F(InputSurfacesTest, input_ignores_transparent_region) {
     surface->expectTap(1, 1);
 }
 
-// Ensure we send the input to the right surface when the surface visibility changes due to the
-// first buffer being submitted. ref: b/120839715
-TEST_F(InputSurfacesTest, input_respects_buffer_layer_buffer) {
+// TODO(b/139494112) update tests once we define expected behavior
+// Ensure we still send input to the surface regardless of surface visibility changes due to the
+// first buffer being submitted or alpha changes.
+// Original bug ref: b/120839715
+TEST_F(InputSurfacesTest, input_ignores_buffer_layer_buffer) {
     std::unique_ptr<InputSurface> bgSurface = makeSurface(100, 100);
     std::unique_ptr<InputSurface> bufferSurface =
             InputSurface::makeBufferInputSurface(mComposerClient, 100, 100);
@@ -433,14 +435,14 @@ TEST_F(InputSurfacesTest, input_respects_buffer_layer_buffer) {
     bufferSurface->showAt(10, 10);
 
     injectTap(11, 11);
-    bgSurface->expectTap(1, 1);
+    bufferSurface->expectTap(1, 1);
 
     postBuffer(bufferSurface->mSurfaceControl);
     injectTap(11, 11);
     bufferSurface->expectTap(1, 1);
 }
 
-TEST_F(InputSurfacesTest, input_respects_buffer_layer_alpha) {
+TEST_F(InputSurfacesTest, input_ignores_buffer_layer_alpha) {
     std::unique_ptr<InputSurface> bgSurface = makeSurface(100, 100);
     std::unique_ptr<InputSurface> bufferSurface =
             InputSurface::makeBufferInputSurface(mComposerClient, 100, 100);
@@ -455,10 +457,10 @@ TEST_F(InputSurfacesTest, input_respects_buffer_layer_alpha) {
     bufferSurface->doTransaction([](auto &t, auto &sc) { t.setAlpha(sc, 0.0); });
 
     injectTap(11, 11);
-    bgSurface->expectTap(1, 1);
+    bufferSurface->expectTap(1, 1);
 }
 
-TEST_F(InputSurfacesTest, input_respects_color_layer_alpha) {
+TEST_F(InputSurfacesTest, input_ignores_color_layer_alpha) {
     std::unique_ptr<InputSurface> bgSurface = makeSurface(100, 100);
     std::unique_ptr<InputSurface> fgSurface = makeSurface(100, 100);
 
@@ -471,7 +473,7 @@ TEST_F(InputSurfacesTest, input_respects_color_layer_alpha) {
     fgSurface->doTransaction([](auto &t, auto &sc) { t.setAlpha(sc, 0.0); });
 
     injectTap(11, 11);
-    bgSurface->expectTap(1, 1);
+    fgSurface->expectTap(1, 1);
 }
 
 TEST_F(InputSurfacesTest, input_respects_container_layer_visiblity) {
