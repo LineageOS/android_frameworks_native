@@ -35,11 +35,7 @@ bool ContainerLayer::isVisible() const {
     return false;
 }
 
-bool ContainerLayer::canReceiveInput() const {
-    return !isHiddenByPolicy();
-}
 
 void ContainerLayer::setPerFrameData(const sp<const DisplayDevice>&, const ui::Transform&,
                                      const Rect&, int32_t, const ui::Dataspace) {}
-
 } // namespace android
