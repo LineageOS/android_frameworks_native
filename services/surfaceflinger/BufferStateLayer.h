@@ -149,6 +149,8 @@ private:
     bool mReleasePreviousBuffer = false;
     nsecs_t mCallbackHandleAcquireTime = -1;
 
+    mutable uint32_t mTransformHint = 0;
+
     // TODO(marissaw): support sticky transform for LEGACY camera mode
 
     class HwcSlotGenerator : public ClientCache::ErasedRecipient {

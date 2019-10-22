@@ -103,12 +103,15 @@ void BufferStateLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
     }
 }
 
-void BufferStateLayer::setTransformHint(uint32_t /*orientation*/) const {
-    // TODO(marissaw): send the transform hint to buffer owner
-    return;
+void BufferStateLayer::setTransformHint(uint32_t orientation) const {
+    mTransformHint = orientation;
 }
 
 void BufferStateLayer::releasePendingBuffer(nsecs_t /*dequeueReadyTime*/) {
+    for (const auto& handle : mDrawingState.callbackHandles) {
+        handle->transformHint = mTransformHint;
+    }
+
     mFlinger->getTransactionCompletedThread().finalizePendingCallbackHandles(
             mDrawingState.callbackHandles);
 
