@@ -33,6 +33,8 @@ public:
         virtual void OnStop(const StopArgs&) override{};
     };
 
+    static const uint64_t UNSPECIFIED_FRAME_NUMBER = std::numeric_limits<uint64_t>::max();
+
     using FrameEvent = perfetto::protos::pbzero::GraphicsFrameEvent;
 
     ~FrameTracer() = default;

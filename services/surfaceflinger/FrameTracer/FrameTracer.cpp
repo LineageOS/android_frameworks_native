@@ -133,7 +133,9 @@ void FrameTracer::traceLocked(FrameTracerDataSource::TraceContext& ctx, int32_t 
     packet->set_timestamp(timestamp);
     auto* event = packet->set_graphics_frame_event()->set_buffer_event();
     event->set_buffer_id(static_cast<uint32_t>(bufferID));
-    event->set_frame_number(frameNumber);
+    if (frameNumber != UNSPECIFIED_FRAME_NUMBER) {
+        event->set_frame_number(frameNumber);
+    }
     event->set_type(type);
 
     if (mTraceTracker.find(layerID) != mTraceTracker.end() &&
