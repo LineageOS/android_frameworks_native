@@ -2129,7 +2129,7 @@ std::shared_ptr<compositionengine::Layer> Layer::getCompositionLayer() const {
 }
 
 bool Layer::canReceiveInput() const {
-    return isVisible();
+    return !isHiddenByPolicy();
 }
 
 compositionengine::OutputLayer* Layer::findOutputLayerForDisplay(
