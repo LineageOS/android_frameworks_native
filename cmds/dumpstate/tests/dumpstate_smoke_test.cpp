@@ -195,7 +195,6 @@ class ZippedBugreportGenerationTest : public Test {
     static Dumpstate& ds;
     static std::chrono::milliseconds duration;
     static void SetUpTestCase() {
-        property_set("dumpstate.options", "bugreportplus");
         // clang-format off
         char* argv[] = {
             (char*)"dumpstate",
@@ -206,8 +205,6 @@ class ZippedBugreportGenerationTest : public Test {
         // clang-format on
         sp<DumpstateListener> listener(new DumpstateListener(dup(fileno(stdout)), sections));
         ds.listener_ = listener;
-        ds.listener_name_ = "Smokey";
-        ds.report_section_ = true;
         auto start = std::chrono::steady_clock::now();
         ds.ParseCommandlineAndRun(ARRAY_SIZE(argv), argv);
         auto end = std::chrono::steady_clock::now();

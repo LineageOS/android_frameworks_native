@@ -234,7 +234,8 @@ status_t TransactionCompletedThread::addCallbackHandle(const sp<CallbackHandle>&
     sp<IBinder> surfaceControl = handle->surfaceControl.promote();
     if (surfaceControl) {
         transactionStats->surfaceStats.emplace_back(surfaceControl, handle->acquireTime,
-                                                    handle->previousReleaseFence);
+                                                    handle->previousReleaseFence,
+                                                    handle->transformHint);
     }
     return NO_ERROR;
 }

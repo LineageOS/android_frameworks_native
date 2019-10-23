@@ -58,8 +58,6 @@ static binder::Status exception(uint32_t code, const std::string& msg) {
     exit(0);
 }
 
-class DumpstateToken : public BnDumpstateToken {};
-
 }  // namespace
 
 DumpstateService::DumpstateService() : ds_(nullptr) {
@@ -81,38 +79,6 @@ status_t DumpstateService::Start() {
     return android::OK;
 }
 
-// Note: this method is part of the old flow and is not expected to be used in combination
-// with startBugreport.
-binder::Status DumpstateService::setListener(const std::string& name,
-                                             const sp<IDumpstateListener>& listener,
-                                             bool getSectionDetails,
-                                             sp<IDumpstateToken>* returned_token) {
-    *returned_token = nullptr;
-    if (name.empty()) {
-        MYLOGE("setListener(): name not set\n");
-        return binder::Status::ok();
-    }
-    if (listener == nullptr) {
-        MYLOGE("setListener(): listener not set\n");
-        return binder::Status::ok();
-    }
-    std::lock_guard<std::mutex> lock(lock_);
-    if (ds_ == nullptr) {
-        ds_ = &(Dumpstate::GetInstance());
-    }
-    if (ds_->listener_ != nullptr) {
-        MYLOGE("setListener(%s): already set (%s)\n", name.c_str(), ds_->listener_name_.c_str());
-        return binder::Status::ok();
-    }
-
-    ds_->listener_name_ = name;
-    ds_->listener_ = listener;
-    ds_->report_section_ = getSectionDetails;
-    *returned_token = new DumpstateToken();
-
-    return binder::Status::ok();
-}
-
 binder::Status DumpstateService::startBugreport(int32_t calling_uid,
                                                 const std::string& calling_package,
                                                 const android::base::unique_fd& bugreport_fd,
@@ -121,8 +87,7 @@ binder::Status DumpstateService::startBugreport(int32_t calling_uid,
                                                 const sp<IDumpstateListener>& listener) {
     MYLOGI("startBugreport() with mode: %d\n", bugreport_mode);
 
-    // This is the bugreporting API flow, so ensure there is only one bugreport in progress at a
-    // time.
+    // Ensure there is only one bugreport in progress at a time.
     std::lock_guard<std::mutex> lock(lock_);
     if (ds_ != nullptr) {
         MYLOGE("Error! There is already a bugreport in progress. Returning.");
@@ -204,19 +169,17 @@ status_t DumpstateService::dump(int fd, const Vector<String16>&) {
     dprintf(fd, "progress:\n");
     ds_->progress_->Dump(fd, "  ");
     dprintf(fd, "args: %s\n", ds_->options_->args.c_str());
-    dprintf(fd, "extra_options: %s\n", ds_->options_->extra_options.c_str());
+    dprintf(fd, "bugreport_mode: %s\n", ds_->options_->bugreport_mode.c_str());
     dprintf(fd, "version: %s\n", ds_->version_.c_str());
     dprintf(fd, "bugreport_dir: %s\n", destination.c_str());
     dprintf(fd, "screenshot_path: %s\n", ds_->screenshot_path_.c_str());
     dprintf(fd, "log_path: %s\n", ds_->log_path_.c_str());
     dprintf(fd, "tmp_path: %s\n", ds_->tmp_path_.c_str());
     dprintf(fd, "path: %s\n", ds_->path_.c_str());
-    dprintf(fd, "extra_options: %s\n", ds_->options_->extra_options.c_str());
     dprintf(fd, "base_name: %s\n", ds_->base_name_.c_str());
     dprintf(fd, "name: %s\n", ds_->name_.c_str());
     dprintf(fd, "now: %ld\n", ds_->now_);
     dprintf(fd, "is_zipping: %s\n", ds_->IsZipping() ? "true" : "false");
-    dprintf(fd, "listener: %s\n", ds_->listener_name_.c_str());
     dprintf(fd, "notification title: %s\n", ds_->options_->notification_title.c_str());
     dprintf(fd, "notification description: %s\n", ds_->options_->notification_description.c_str());
 

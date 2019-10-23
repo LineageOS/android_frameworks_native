@@ -359,7 +359,6 @@ class Dumpstate {
         bool use_socket = false;
         bool use_control_socket = false;
         bool do_fb = false;
-        bool do_broadcast = false;
         bool is_remote_mode = false;
         bool show_header_only = false;
         bool do_start_service = false;
@@ -371,16 +370,15 @@ class Dumpstate {
         android::base::unique_fd bugreport_fd;
         // File descriptor to screenshot file.
         android::base::unique_fd screenshot_fd;
-        // TODO: rename to MODE.
-        // Extra options passed as system property.
-        std::string extra_options;
+        // Bugreport mode of the bugreport.
+        std::string bugreport_mode;
         // Command-line arguments as string
         std::string args;
         // Notification title and description
         std::string notification_title;
         std::string notification_description;
 
-        /* Initializes options from commandline arguments and system properties. */
+        /* Initializes options from commandline arguments. */
         RunStatus Initialize(int argc, char* argv[]);
 
         /* Initializes options from the requested mode. */
@@ -456,8 +454,6 @@ class Dumpstate {
 
     // Binder object listening to progress.
     android::sp<android::os::IDumpstateListener> listener_;
-    std::string listener_name_;
-    bool report_section_;
 
     // List of open tombstone dump files.
     std::vector<DumpData> tombstone_data_;

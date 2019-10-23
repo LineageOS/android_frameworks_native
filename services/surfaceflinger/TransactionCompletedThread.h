@@ -44,6 +44,7 @@ public:
     sp<Fence> previousReleaseFence;
     nsecs_t acquireTime = -1;
     nsecs_t latchTime = -1;
+    uint32_t transformHint = 0;
 };
 
 class TransactionCompletedThread {
