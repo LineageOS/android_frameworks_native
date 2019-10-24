@@ -1208,7 +1208,6 @@ VkResult CreateDevice(VkPhysicalDevice physicalDevice,
     }
 
     data->driver_device = dev;
-    data->driver_version = properties.driverVersion;
 
     *pDevice = dev;
 
