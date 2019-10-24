@@ -1279,7 +1279,7 @@ VkResult EnumerateInstanceExtensionProperties(
         return *pPropertyCount < count ? VK_INCOMPLETE : VK_SUCCESS;
     }
 
-    // TODO how about extensions from implicitly enabled layers?
+    // TODO(b/143293104): expose extensions from implicitly enabled layers
     return vulkan::driver::EnumerateInstanceExtensionProperties(
         nullptr, pPropertyCount, pProperties);
 }
@@ -1333,7 +1333,7 @@ VkResult EnumerateDeviceExtensionProperties(
         return *pPropertyCount < count ? VK_INCOMPLETE : VK_SUCCESS;
     }
 
-    // TODO how about extensions from implicitly enabled layers?
+    // TODO(b/143293104): expose extensions from implicitly enabled layers
     const InstanceData& data = GetData(physicalDevice);
     return data.dispatch.EnumerateDeviceExtensionProperties(
         physicalDevice, nullptr, pPropertyCount, pProperties);

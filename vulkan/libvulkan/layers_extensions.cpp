@@ -38,13 +38,7 @@
 #include <utils/Trace.h>
 #include <ziparchive/zip_archive.h>
 
-// TODO(jessehall): The whole way we deal with extensions is pretty hokey, and
-// not a good long-term solution. Having a hard-coded enum of extensions is
-// bad, of course. Representing sets of extensions (requested, supported, etc.)
-// as a bitset isn't necessarily bad, if the mapping from extension to bit were
-// dynamic. Need to rethink this completely when there's a little more time.
-
-// TODO(jessehall): This file currently builds up global data structures as it
+// TODO(b/143296676): This file currently builds up global data structures as it
 // loads, and never cleans them up. This means we're doing heap allocations
 // without going through an app-provided allocator, but worse, we'll leak those
 // allocations if the loader is unloaded.
