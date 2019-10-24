@@ -580,6 +580,11 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
     }
     addAndGetFrameTimestamps(nullptr, outTimestamps);
 
+    { // Autolock scope
+        std::lock_guard<std::mutex> lock(mCore->mMutex);
+        mCore->mConsumerListener->onFrameDequeued(mSlots[*outSlot].mGraphicBuffer->getId());
+    }
+
     return returnFlags;
 }
 
@@ -621,13 +626,16 @@ status_t BufferQueueProducer::detachBuffer(int slot) {
             return BAD_VALUE;
         }
 
+        listener = mCore->mConsumerListener;
+        if (listener != nullptr) {
+            listener->onFrameDetached(mSlots[slot].mGraphicBuffer->getId());
+        }
         mSlots[slot].mBufferState.detachProducer();
         mCore->mActiveBuffers.erase(slot);
         mCore->mFreeSlots.insert(slot);
         mCore->clearBufferSlotLocked(slot);
         mCore->mDequeueCondition.notify_all();
         VALIDATE_CONSISTENCY();
-        listener = mCore->mConsumerListener;
     }
 
     if (listener != nullptr) {
@@ -1083,6 +1091,9 @@ status_t BufferQueueProducer::cancelBuffer(int slot, const sp<Fence>& fence) {
         mCore->mFreeBuffers.push_back(slot);
     }
 
+    if (mCore->mConsumerListener != nullptr) {
+        mCore->mConsumerListener->onFrameCancelled(mSlots[slot].mGraphicBuffer->getId());
+    }
     mSlots[slot].mFence = fence;
     mCore->mDequeueCondition.notify_all();
     VALIDATE_CONSISTENCY();

@@ -101,6 +101,48 @@ void ConsumerBase::freeBufferLocked(int slotIndex) {
     mSlots[slotIndex].mFrameNumber = 0;
 }
 
+void ConsumerBase::onFrameDequeued(const uint64_t bufferId) {
+    CB_LOGV("onFrameDequeued");
+
+    sp<FrameAvailableListener> listener;
+    {
+        Mutex::Autolock lock(mFrameAvailableMutex);
+        listener = mFrameAvailableListener.promote();
+    }
+
+    if (listener != nullptr) {
+        listener->onFrameDequeued(bufferId);
+    }
+}
+
+void ConsumerBase::onFrameCancelled(const uint64_t bufferId) {
+    CB_LOGV("onFrameCancelled");
+
+    sp<FrameAvailableListener> listener;
+    {
+        Mutex::Autolock lock(mFrameAvailableMutex);
+        listener = mFrameAvailableListener.promote();
+    }
+
+    if (listener != nullptr) {
+        listener->onFrameCancelled(bufferId);
+    }
+}
+
+void ConsumerBase::onFrameDetached(const uint64_t bufferId) {
+    CB_LOGV("onFrameDetached");
+
+    sp<FrameAvailableListener> listener;
+    {
+        Mutex::Autolock lock(mFrameAvailableMutex);
+        listener = mFrameAvailableListener.promote();
+    }
+
+    if (listener != nullptr) {
+        listener->onFrameDetached(bufferId);
+    }
+}
+
 void ConsumerBase::onFrameAvailable(const BufferItem& item) {
     CB_LOGV("onFrameAvailable");
 
