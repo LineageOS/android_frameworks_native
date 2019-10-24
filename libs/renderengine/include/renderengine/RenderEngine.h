@@ -48,6 +48,7 @@ class BindNativeBufferAsFramebuffer;
 class Image;
 class Mesh;
 class Texture;
+struct RenderEngineCreationArgs;
 
 namespace impl {
 class RenderEngine;
@@ -60,19 +61,13 @@ enum class Protection {
 
 class RenderEngine {
 public:
-    enum FeatureFlag {
-        USE_COLOR_MANAGEMENT = 1 << 0,      // Device manages color
-        USE_HIGH_PRIORITY_CONTEXT = 1 << 1, // Use high priority context
-
-        // Create a protected context when if possible
-        ENABLE_PROTECTED_CONTEXT = 1 << 2,
-
-        // Only precache HDR to SDR tone-mapping shaders
-        PRECACHE_TONE_MAPPER_SHADER_ONLY = 1 << 3,
+    enum class ContextPriority {
+        LOW = 1,
+        MEDIUM = 2,
+        HIGH = 3,
     };
 
-    static std::unique_ptr<impl::RenderEngine> create(int hwcFormat, uint32_t featureFlags,
-                                                      uint32_t imageCacheSize);
+    static std::unique_ptr<impl::RenderEngine> create(const RenderEngineCreationArgs& args);
 
     virtual ~RenderEngine() = 0;
 
@@ -173,6 +168,76 @@ protected:
     friend class BindNativeBufferAsFramebuffer;
 };
 
+struct RenderEngineCreationArgs {
+    int pixelFormat;
+    uint32_t imageCacheSize;
+    bool useColorManagement;
+    bool enableProtectedContext;
+    bool precacheToneMapperShaderOnly;
+    RenderEngine::ContextPriority contextPriority;
+
+    struct Builder;
+
+private:
+    // must be created by Builder via constructor with full argument list
+    RenderEngineCreationArgs(
+            int _pixelFormat,
+            uint32_t _imageCacheSize,
+            bool _useColorManagement,
+            bool _enableProtectedContext,
+            bool _precacheToneMapperShaderOnly,
+            RenderEngine::ContextPriority _contextPriority)
+        : pixelFormat(_pixelFormat)
+        , imageCacheSize(_imageCacheSize)
+        , useColorManagement(_useColorManagement)
+        , enableProtectedContext(_enableProtectedContext)
+        , precacheToneMapperShaderOnly(_precacheToneMapperShaderOnly)
+        , contextPriority(_contextPriority) {}
+    RenderEngineCreationArgs() = delete;
+};
+
+struct RenderEngineCreationArgs::Builder {
+    Builder() {}
+
+    Builder& setPixelFormat(int pixelFormat) {
+        this->pixelFormat = pixelFormat;
+        return *this;
+    }
+    Builder& setImageCacheSize(uint32_t imageCacheSize) {
+        this->imageCacheSize = imageCacheSize;
+        return *this;
+    }
+    Builder& setUseColorManagerment(bool useColorManagement) {
+        this->useColorManagement = useColorManagement;
+        return *this;
+    }
+    Builder& setEnableProtectedContext(bool enableProtectedContext) {
+        this->enableProtectedContext = enableProtectedContext;
+        return *this;
+    }
+    Builder& setPrecacheToneMapperShaderOnly(bool precacheToneMapperShaderOnly) {
+        this->precacheToneMapperShaderOnly = precacheToneMapperShaderOnly;
+        return *this;
+    }
+    Builder& setContextPriority(RenderEngine::ContextPriority contextPriority) {
+        this->contextPriority = contextPriority;
+        return *this;
+    }
+    RenderEngineCreationArgs build() const {
+        return RenderEngineCreationArgs(pixelFormat, imageCacheSize, useColorManagement,
+                enableProtectedContext, precacheToneMapperShaderOnly, contextPriority);
+    }
+
+private:
+    // 1 means RGBA_8888
+    int pixelFormat = 1;
+    uint32_t imageCacheSize = 0;
+    bool useColorManagement = true;
+    bool enableProtectedContext = false;
+    bool precacheToneMapperShaderOnly = false;
+    RenderEngine::ContextPriority contextPriority = RenderEngine::ContextPriority::MEDIUM;
+};
+
 class BindNativeBufferAsFramebuffer {
 public:
     BindNativeBufferAsFramebuffer(RenderEngine& engine, ANativeWindowBuffer* buffer,
@@ -206,8 +271,8 @@ public:
     bool useWaitSync() const override;
 
 protected:
-    RenderEngine(uint32_t featureFlags);
-    const uint32_t mFeatureFlags;
+    RenderEngine(const RenderEngineCreationArgs& args);
+    const RenderEngineCreationArgs mArgs;
 };
 
 } // namespace impl

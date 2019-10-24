@@ -24,23 +24,22 @@
 namespace android {
 namespace renderengine {
 
-std::unique_ptr<impl::RenderEngine> RenderEngine::create(int hwcFormat, uint32_t featureFlags,
-                                                         uint32_t imageCacheSize) {
+std::unique_ptr<impl::RenderEngine> RenderEngine::create(const RenderEngineCreationArgs& args) {
     char prop[PROPERTY_VALUE_MAX];
     property_get(PROPERTY_DEBUG_RENDERENGINE_BACKEND, prop, "gles");
     if (strcmp(prop, "gles") == 0) {
         ALOGD("RenderEngine GLES Backend");
-        return renderengine::gl::GLESRenderEngine::create(hwcFormat, featureFlags, imageCacheSize);
+        return renderengine::gl::GLESRenderEngine::create(args);
     }
     ALOGE("UNKNOWN BackendType: %s, create GLES RenderEngine.", prop);
-    return renderengine::gl::GLESRenderEngine::create(hwcFormat, featureFlags, imageCacheSize);
+    return renderengine::gl::GLESRenderEngine::create(args);
 }
 
 RenderEngine::~RenderEngine() = default;
 
 namespace impl {
 
-RenderEngine::RenderEngine(uint32_t featureFlags) : mFeatureFlags(featureFlags) {}
+RenderEngine::RenderEngine(const RenderEngineCreationArgs& args) : mArgs(args) {}
 
 RenderEngine::~RenderEngine() = default;
 
