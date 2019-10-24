@@ -320,6 +320,46 @@ typedef enum OMX_VIDEO_DOLBYVISIONLEVELTYPE {
     OMX_VIDEO_DolbyVisionLevelmax     = 0x7FFFFFFF
 } OMX_VIDEO_DOLBYVISIONLEVELTYPE;
 
+/** AV1 Profile enum type */
+typedef enum OMX_VIDEO_AV1PROFILETYPE {
+    OMX_VIDEO_AV1ProfileMain8           = 0x00000001,
+    OMX_VIDEO_AV1ProfileMain10          = 0x00000002,
+    OMX_VIDEO_AV1ProfileMain10HDR10     = 0x00001000,
+    OMX_VIDEO_AV1ProfileMain10HDR10Plus = 0x00002000,
+    OMX_VIDEO_AV1ProfileUnknown         = 0x6EFFFFFF,
+    OMX_VIDEO_AV1ProfileMax             = 0x7FFFFFFF
+} OMX_VIDEO_AV1PROFILETYPE;
+
+/** AV1 Level enum type */
+typedef enum OMX_VIDEO_AV1LEVELTYPE {
+    OMX_VIDEO_AV1Level2         = 0x1,
+    OMX_VIDEO_AV1Level21        = 0x2,
+    OMX_VIDEO_AV1Level22        = 0x4,
+    OMX_VIDEO_AV1Level23        = 0x8,
+    OMX_VIDEO_AV1Level3         = 0x10,
+    OMX_VIDEO_AV1Level31        = 0x20,
+    OMX_VIDEO_AV1Level32        = 0x40,
+    OMX_VIDEO_AV1Level33        = 0x80,
+    OMX_VIDEO_AV1Level4         = 0x100,
+    OMX_VIDEO_AV1Level41        = 0x200,
+    OMX_VIDEO_AV1Level42        = 0x400,
+    OMX_VIDEO_AV1Level43        = 0x800,
+    OMX_VIDEO_AV1Level5         = 0x1000,
+    OMX_VIDEO_AV1Level51        = 0x2000,
+    OMX_VIDEO_AV1Level52        = 0x4000,
+    OMX_VIDEO_AV1Level53        = 0x8000,
+    OMX_VIDEO_AV1Level6         = 0x10000,
+    OMX_VIDEO_AV1Level61        = 0x20000,
+    OMX_VIDEO_AV1Level62        = 0x40000,
+    OMX_VIDEO_AV1Level63        = 0x80000,
+    OMX_VIDEO_AV1Level7         = 0x100000,
+    OMX_VIDEO_AV1Level71        = 0x200000,
+    OMX_VIDEO_AV1Level72        = 0x400000,
+    OMX_VIDEO_AV1Level73        = 0x800000,
+    OMX_VIDEO_AV1LevelUnknown   = 0x6EFFFFFF,
+    OMX_VIDEO_AV1LevelMax       = 0x7FFFFFFF
+} OMX_VIDEO_AV1LEVELTYPE;
+
 /**
  * Structure for configuring video compression intra refresh period
  *
