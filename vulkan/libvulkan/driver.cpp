@@ -693,7 +693,7 @@ VKAPI_ATTR void* DefaultReallocate(void*,
         return nullptr;
     }
 
-    // TODO(jessehall): Right now we never shrink allocations; if the new
+    // TODO(b/143295633): Right now we never shrink allocations; if the new
     // request is smaller than the existing chunk, we just continue using it.
     // Right now the loader never reallocs, so this doesn't matter. If that
     // changes, or if this code is copied into some other project, this should
