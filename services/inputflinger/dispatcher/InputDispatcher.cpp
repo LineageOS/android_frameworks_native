@@ -245,7 +245,7 @@ static bool removeByValue(std::unordered_map<K, V>& map, const V& value) {
 InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy)
       : mPolicy(policy),
         mPendingEvent(nullptr),
-        mLastDropReason(DROP_REASON_NOT_DROPPED),
+        mLastDropReason(DropReason::NOT_DROPPED),
         mAppSwitchSawKeyDown(false),
         mAppSwitchDueTime(LONG_LONG_MAX),
         mNextUnblockedEvent(nullptr),
@@ -374,11 +374,11 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
     // All events are eventually dequeued and processed this way, even if we intend to drop them.
     ALOG_ASSERT(mPendingEvent != nullptr);
     bool done = false;
-    DropReason dropReason = DROP_REASON_NOT_DROPPED;
+    DropReason dropReason = DropReason::NOT_DROPPED;
     if (!(mPendingEvent->policyFlags & POLICY_FLAG_PASS_TO_USER)) {
-        dropReason = DROP_REASON_POLICY;
+        dropReason = DropReason::POLICY;
     } else if (!mDispatchEnabled) {
-        dropReason = DROP_REASON_DISABLED;
+        dropReason = DropReason::DISABLED;
     }
 
     if (mNextUnblockedEvent == mPendingEvent) {
@@ -390,14 +390,14 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
             ConfigurationChangedEntry* typedEntry =
                     static_cast<ConfigurationChangedEntry*>(mPendingEvent);
             done = dispatchConfigurationChangedLocked(currentTime, typedEntry);
-            dropReason = DROP_REASON_NOT_DROPPED; // configuration changes are never dropped
+            dropReason = DropReason::NOT_DROPPED; // configuration changes are never dropped
             break;
         }
 
         case EventEntry::TYPE_DEVICE_RESET: {
             DeviceResetEntry* typedEntry = static_cast<DeviceResetEntry*>(mPendingEvent);
             done = dispatchDeviceResetLocked(currentTime, typedEntry);
-            dropReason = DROP_REASON_NOT_DROPPED; // device resets are never dropped
+            dropReason = DropReason::NOT_DROPPED; // device resets are never dropped
             break;
         }
 
@@ -407,15 +407,15 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
                 if (isAppSwitchKeyEvent(typedEntry)) {
                     resetPendingAppSwitchLocked(true);
                     isAppSwitchDue = false;
-                } else if (dropReason == DROP_REASON_NOT_DROPPED) {
-                    dropReason = DROP_REASON_APP_SWITCH;
+                } else if (dropReason == DropReason::NOT_DROPPED) {
+                    dropReason = DropReason::APP_SWITCH;
                 }
             }
-            if (dropReason == DROP_REASON_NOT_DROPPED && isStaleEvent(currentTime, typedEntry)) {
-                dropReason = DROP_REASON_STALE;
+            if (dropReason == DropReason::NOT_DROPPED && isStaleEvent(currentTime, typedEntry)) {
+                dropReason = DropReason::STALE;
             }
-            if (dropReason == DROP_REASON_NOT_DROPPED && mNextUnblockedEvent) {
-                dropReason = DROP_REASON_BLOCKED;
+            if (dropReason == DropReason::NOT_DROPPED && mNextUnblockedEvent) {
+                dropReason = DropReason::BLOCKED;
             }
             done = dispatchKeyLocked(currentTime, typedEntry, &dropReason, nextWakeupTime);
             break;
@@ -423,14 +423,14 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
 
         case EventEntry::TYPE_MOTION: {
             MotionEntry* typedEntry = static_cast<MotionEntry*>(mPendingEvent);
-            if (dropReason == DROP_REASON_NOT_DROPPED && isAppSwitchDue) {
-                dropReason = DROP_REASON_APP_SWITCH;
+            if (dropReason == DropReason::NOT_DROPPED && isAppSwitchDue) {
+                dropReason = DropReason::APP_SWITCH;
             }
-            if (dropReason == DROP_REASON_NOT_DROPPED && isStaleEvent(currentTime, typedEntry)) {
-                dropReason = DROP_REASON_STALE;
+            if (dropReason == DropReason::NOT_DROPPED && isStaleEvent(currentTime, typedEntry)) {
+                dropReason = DropReason::STALE;
             }
-            if (dropReason == DROP_REASON_NOT_DROPPED && mNextUnblockedEvent) {
-                dropReason = DROP_REASON_BLOCKED;
+            if (dropReason == DropReason::NOT_DROPPED && mNextUnblockedEvent) {
+                dropReason = DropReason::BLOCKED;
             }
             done = dispatchMotionLocked(currentTime, typedEntry, &dropReason, nextWakeupTime);
             break;
@@ -442,7 +442,7 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
     }
 
     if (done) {
-        if (dropReason != DROP_REASON_NOT_DROPPED) {
+        if (dropReason != DropReason::NOT_DROPPED) {
             dropInboundEventLocked(mPendingEvent, dropReason);
         }
         mLastDropReason = dropReason;
@@ -594,35 +594,36 @@ void InputDispatcher::addGestureMonitors(const std::vector<Monitor>& monitors,
 void InputDispatcher::dropInboundEventLocked(EventEntry* entry, DropReason dropReason) {
     const char* reason;
     switch (dropReason) {
-        case DROP_REASON_POLICY:
+        case DropReason::POLICY:
 #if DEBUG_INBOUND_EVENT_DETAILS
             ALOGD("Dropped event because policy consumed it.");
 #endif
             reason = "inbound event was dropped because the policy consumed it";
             break;
-        case DROP_REASON_DISABLED:
-            if (mLastDropReason != DROP_REASON_DISABLED) {
+        case DropReason::DISABLED:
+            if (mLastDropReason != DropReason::DISABLED) {
                 ALOGI("Dropped event because input dispatch is disabled.");
             }
             reason = "inbound event was dropped because input dispatch is disabled";
             break;
-        case DROP_REASON_APP_SWITCH:
+        case DropReason::APP_SWITCH:
             ALOGI("Dropped event because of pending overdue app switch.");
             reason = "inbound event was dropped because of pending overdue app switch";
             break;
-        case DROP_REASON_BLOCKED:
+        case DropReason::BLOCKED:
             ALOGI("Dropped event because the current application is not responding and the user "
                   "has started interacting with a different application.");
             reason = "inbound event was dropped because the current application is not responding "
                      "and the user has started interacting with a different application";
             break;
-        case DROP_REASON_STALE:
+        case DropReason::STALE:
             ALOGI("Dropped event because it is stale.");
             reason = "inbound event was dropped because it is stale";
             break;
-        default:
-            ALOG_ASSERT(false);
+        case DropReason::NOT_DROPPED: {
+            LOG_ALWAYS_FATAL("Should not be dropping a NOT_DROPPED event");
             return;
+        }
     }
 
     switch (entry->type) {
@@ -869,15 +870,15 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
             entry->interceptKeyResult = KeyEntry::INTERCEPT_KEY_RESULT_CONTINUE;
         }
     } else if (entry->interceptKeyResult == KeyEntry::INTERCEPT_KEY_RESULT_SKIP) {
-        if (*dropReason == DROP_REASON_NOT_DROPPED) {
-            *dropReason = DROP_REASON_POLICY;
+        if (*dropReason == DropReason::NOT_DROPPED) {
+            *dropReason = DropReason::POLICY;
         }
     }
 
     // Clean up if dropping the event.
-    if (*dropReason != DROP_REASON_NOT_DROPPED) {
+    if (*dropReason != DropReason::NOT_DROPPED) {
         setInjectionResult(entry,
-                           *dropReason == DROP_REASON_POLICY ? INPUT_EVENT_INJECTION_SUCCEEDED
+                           *dropReason == DropReason::POLICY ? INPUT_EVENT_INJECTION_SUCCEEDED
                                                              : INPUT_EVENT_INJECTION_FAILED);
         mReporter->reportDroppedKey(entry->sequenceNum);
         return true;
@@ -926,9 +927,9 @@ bool InputDispatcher::dispatchMotionLocked(nsecs_t currentTime, MotionEntry* ent
     }
 
     // Clean up if dropping the event.
-    if (*dropReason != DROP_REASON_NOT_DROPPED) {
+    if (*dropReason != DropReason::NOT_DROPPED) {
         setInjectionResult(entry,
-                           *dropReason == DROP_REASON_POLICY ? INPUT_EVENT_INJECTION_SUCCEEDED
+                           *dropReason == DropReason::POLICY ? INPUT_EVENT_INJECTION_SUCCEEDED
                                                              : INPUT_EVENT_INJECTION_FAILED);
         return true;
     }
