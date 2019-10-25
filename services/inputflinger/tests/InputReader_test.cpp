@@ -6614,20 +6614,41 @@ TEST_F(MultiTouchInputMapperTest, Viewports_SurfaceRange) {
     MultiTouchInputMapper* mapper = new MultiTouchInputMapper(mDevice);
     addConfigurationProperty("touch.deviceType", "touchScreen");
     prepareDisplay(DISPLAY_ORIENTATION_0);
-    // Let surface be different from physical display.
-    std::optional<DisplayViewport> internalViewport =
-            mFakePolicy->getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
-    internalViewport->logicalLeft = internalViewport->physicalTop + 20;
-    internalViewport->logicalTop = internalViewport->physicalRight + 20;
-    internalViewport->logicalRight = internalViewport->physicalRight - 20;
-    internalViewport->logicalBottom = internalViewport->physicalBottom - 20;
-    mFakePolicy->updateViewport(internalViewport.value());
-
     prepareAxes(POSITION);
     addMapperAndConfigure(mapper);
 
-    int32_t rawX = 10;
-    int32_t rawY = 10;
+    // Touch on left-top area should work.
+    int32_t rawX = DISPLAY_WIDTH / 2 - 1;
+    int32_t rawY = DISPLAY_HEIGHT / 2 - 1;
+    processPosition(mapper, rawX, rawY);
+    processSync(mapper);
+
+    NotifyMotionArgs args;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+
+    // Reset.
+    mapper->reset(ARBITRARY_TIME);
+
+    // Let logical display be different to physical display and rotate 90-degrees.
+    std::optional<DisplayViewport> internalViewport =
+            mFakePolicy->getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
+    internalViewport->orientation = DISPLAY_ORIENTATION_90;
+    internalViewport->logicalLeft = 0;
+    internalViewport->logicalTop = 0;
+    internalViewport->logicalRight = DISPLAY_HEIGHT;
+    internalViewport->logicalBottom = DISPLAY_WIDTH / 2;
+
+    internalViewport->physicalLeft = DISPLAY_HEIGHT;
+    internalViewport->physicalTop = DISPLAY_WIDTH / 2;
+    internalViewport->physicalRight = DISPLAY_HEIGHT;
+    internalViewport->physicalBottom = DISPLAY_WIDTH;
+
+    internalViewport->deviceWidth = DISPLAY_HEIGHT;
+    internalViewport->deviceHeight = DISPLAY_WIDTH;
+    mFakePolicy->updateViewport(internalViewport.value());
+    configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+
+    // Display align to right-top after rotate 90-degrees, touch on left-top area should not work.
     processPosition(mapper, rawX, rawY);
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
