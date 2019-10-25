@@ -317,6 +317,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
         // and return early
         if (queuedBuffer) {
             Mutex::Autolock lock(mQueueItemLock);
+            mConsumer->mergeSurfaceDamage(mQueueItems[0].mSurfaceDamage);
             mFlinger->mTimeStats->removeTimeRecord(layerID, mQueueItems[0].mFrameNumber);
             mQueueItems.removeAt(0);
             mQueuedFrames--;
@@ -352,6 +353,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
         // Remove any stale buffers that have been dropped during
         // updateTexImage
         while (mQueueItems[0].mFrameNumber != currentFrameNumber) {
+            mConsumer->mergeSurfaceDamage(mQueueItems[0].mSurfaceDamage);
             mFlinger->mTimeStats->removeTimeRecord(layerID, mQueueItems[0].mFrameNumber);
             mQueueItems.removeAt(0);
             mQueuedFrames--;

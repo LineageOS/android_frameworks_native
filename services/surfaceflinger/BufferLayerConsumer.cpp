@@ -369,6 +369,15 @@ const Region& BufferLayerConsumer::getSurfaceDamage() const {
     return mCurrentSurfaceDamage;
 }
 
+void BufferLayerConsumer::mergeSurfaceDamage(const Region& damage) {
+    if (damage.bounds() == Rect::INVALID_RECT ||
+        mCurrentSurfaceDamage.bounds() == Rect::INVALID_RECT) {
+        mCurrentSurfaceDamage = Region::INVALID_REGION;
+    } else {
+        mCurrentSurfaceDamage |= damage;
+    }
+}
+
 int BufferLayerConsumer::getCurrentApi() const {
     Mutex::Autolock lock(mMutex);
     return mCurrentApi;
@@ -485,7 +494,6 @@ void BufferLayerConsumer::onBufferAvailable(const BufferItem& item) {
         if (oldImage == nullptr || oldImage->graphicBuffer() == nullptr ||
             oldImage->graphicBuffer()->getId() != item.mGraphicBuffer->getId()) {
             mImages[item.mSlot] = std::make_shared<Image>(item.mGraphicBuffer, mRE);
-            mRE.cacheExternalTextureBuffer(item.mGraphicBuffer);
         }
     }
 }
@@ -520,6 +528,12 @@ void BufferLayerConsumer::dumpLocked(String8& result, const char* prefix) const 
                         mCurrentTransform);
 
     ConsumerBase::dumpLocked(result, prefix);
+}
+
+BufferLayerConsumer::Image::Image(const sp<GraphicBuffer>& graphicBuffer,
+                                  renderengine::RenderEngine& engine)
+      : mGraphicBuffer(graphicBuffer), mRE(engine) {
+    mRE.cacheExternalTextureBuffer(mGraphicBuffer);
 }
 
 BufferLayerConsumer::Image::~Image() {

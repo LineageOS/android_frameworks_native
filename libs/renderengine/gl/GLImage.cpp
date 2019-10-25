@@ -20,6 +20,7 @@
 
 #include <vector>
 
+#include <gui/DebugEGLImageTracker.h>
 #include <log/log.h>
 #include <utils/Trace.h>
 #include "GLESRenderEngine.h"
@@ -58,6 +59,7 @@ bool GLImage::setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtecte
         if (!eglDestroyImageKHR(mEGLDisplay, mEGLImage)) {
             ALOGE("failed to destroy image: %#x", eglGetError());
         }
+        DEBUG_EGL_IMAGE_TRACKER_DESTROY();
         mEGLImage = EGL_NO_IMAGE_KHR;
     }
 
@@ -69,6 +71,7 @@ bool GLImage::setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtecte
             ALOGE("failed to create EGLImage: %#x", eglGetError());
             return false;
         }
+        DEBUG_EGL_IMAGE_TRACKER_CREATE();
         mProtected = isProtected;
     }
 

@@ -22,6 +22,7 @@
 #include <GLES/glext.h>
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
+#include <gui/DebugEGLImageTracker.h>
 #include <nativebase/nativebase.h>
 #include <utils/Trace.h>
 #include "GLESRenderEngine.h"
@@ -47,6 +48,7 @@ bool GLFramebuffer::setNativeWindowBuffer(ANativeWindowBuffer* nativeBuffer, boo
     if (mEGLImage != EGL_NO_IMAGE_KHR) {
         if (!usingFramebufferCache) {
             eglDestroyImageKHR(mEGLDisplay, mEGLImage);
+            DEBUG_EGL_IMAGE_TRACKER_DESTROY();
         }
         mEGLImage = EGL_NO_IMAGE_KHR;
         mBufferWidth = 0;

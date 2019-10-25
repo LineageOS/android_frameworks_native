@@ -28,6 +28,7 @@
 
 #include <binder/ProcessState.h>
 #include <gui/BufferItemConsumer.h>
+#include <gui/IProducerListener.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
@@ -6057,6 +6058,99 @@ TEST_F(RelativeZTest, LayerRemovedOffscreenRelativeParent) {
         ScreenCapture::captureScreen(&sc);
         sc->checkPixel(1, 1, Color::GREEN.r, Color::GREEN.g, Color::GREEN.b);
     }
+}
+
+// This test ensures that when we drop an app buffer in SurfaceFlinger, we merge
+// the dropped buffer's damage region into the next buffer's damage region. If
+// we don't do this, we'll report an incorrect damage region to hardware
+// composer, resulting in broken rendering. This test checks the BufferQueue
+// case.
+//
+// Unfortunately, we don't currently have a way to inspect the damage region
+// SurfaceFlinger sends to hardware composer from a test, so this test requires
+// the dev to manually watch the device's screen during the test to spot broken
+// rendering. Because the results can't be automatically verified, this test is
+// marked disabled.
+TEST_F(LayerTransactionTest, DISABLED_BufferQueueLayerMergeDamageRegionWhenDroppingBuffers) {
+    const int width = mDisplayWidth;
+    const int height = mDisplayHeight;
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", width, height));
+    const auto producer = layer->getIGraphicBufferProducer();
+    const sp<IProducerListener> dummyListener(new DummyProducerListener);
+    IGraphicBufferProducer::QueueBufferOutput queueBufferOutput;
+    ASSERT_EQ(OK,
+              producer->connect(dummyListener, NATIVE_WINDOW_API_CPU, true, &queueBufferOutput));
+
+    std::map<int, sp<GraphicBuffer>> slotMap;
+    auto slotToBuffer = [&](int slot, sp<GraphicBuffer>* buf) {
+        ASSERT_NE(nullptr, buf);
+        const auto iter = slotMap.find(slot);
+        ASSERT_NE(slotMap.end(), iter);
+        *buf = iter->second;
+    };
+
+    auto dequeue = [&](int* outSlot) {
+        ASSERT_NE(nullptr, outSlot);
+        *outSlot = -1;
+        int slot;
+        sp<Fence> fence;
+        uint64_t age;
+        FrameEventHistoryDelta timestamps;
+        const status_t dequeueResult =
+                producer->dequeueBuffer(&slot, &fence, width, height, PIXEL_FORMAT_RGBA_8888,
+                                        GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                        &age, &timestamps);
+        if (dequeueResult == IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION) {
+            sp<GraphicBuffer> newBuf;
+            ASSERT_EQ(OK, producer->requestBuffer(slot, &newBuf));
+            ASSERT_NE(nullptr, newBuf.get());
+            slotMap[slot] = newBuf;
+        } else {
+            ASSERT_EQ(OK, dequeueResult);
+        }
+        *outSlot = slot;
+    };
+
+    auto queue = [&](int slot, const Region& damage, nsecs_t displayTime) {
+        IGraphicBufferProducer::QueueBufferInput input(
+                /*timestamp=*/displayTime, /*isAutoTimestamp=*/false, HAL_DATASPACE_UNKNOWN,
+                /*crop=*/Rect::EMPTY_RECT, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW,
+                /*transform=*/0, Fence::NO_FENCE);
+        input.setSurfaceDamage(damage);
+        IGraphicBufferProducer::QueueBufferOutput output;
+        ASSERT_EQ(OK, producer->queueBuffer(slot, input, &output));
+    };
+
+    auto fillAndPostBuffers = [&](const Color& color) {
+        int slot1;
+        ASSERT_NO_FATAL_FAILURE(dequeue(&slot1));
+        int slot2;
+        ASSERT_NO_FATAL_FAILURE(dequeue(&slot2));
+
+        sp<GraphicBuffer> buf1;
+        ASSERT_NO_FATAL_FAILURE(slotToBuffer(slot1, &buf1));
+        sp<GraphicBuffer> buf2;
+        ASSERT_NO_FATAL_FAILURE(slotToBuffer(slot2, &buf2));
+        fillGraphicBufferColor(buf1, Rect(width, height), color);
+        fillGraphicBufferColor(buf2, Rect(width, height), color);
+
+        const auto displayTime = systemTime() + milliseconds_to_nanoseconds(100);
+        ASSERT_NO_FATAL_FAILURE(queue(slot1, Region::INVALID_REGION, displayTime));
+        ASSERT_NO_FATAL_FAILURE(
+                queue(slot2, Region(Rect(width / 3, height / 3, 2 * width / 3, 2 * height / 3)),
+                      displayTime));
+    };
+
+    const auto startTime = systemTime();
+    const std::array<Color, 3> colors = {Color::RED, Color::GREEN, Color::BLUE};
+    int colorIndex = 0;
+    while (nanoseconds_to_seconds(systemTime() - startTime) < 10) {
+        ASSERT_NO_FATAL_FAILURE(fillAndPostBuffers(colors[colorIndex++ % colors.size()]));
+        std::this_thread::sleep_for(1s);
+    }
+
+    ASSERT_EQ(OK, producer->disconnect(NATIVE_WINDOW_API_CPU));
 }
 
 } // namespace android
