@@ -949,6 +949,7 @@ static void DumpDynamicPartitionInfo() {
     }
 
     RunCommand("LPDUMP", {"lpdump", "--all"});
+    RunCommand("DEVICE-MAPPER", {"gsid", "dump-device-mapper"});
 }
 
 static void AddAnrTraceDir(const bool add_to_zip, const std::string& anr_traces_dir) {
