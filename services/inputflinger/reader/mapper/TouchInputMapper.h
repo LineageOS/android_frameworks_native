@@ -758,6 +758,7 @@ private:
     static void assignPointerIds(const RawState* last, RawState* current);
 
     const char* modeToString(DeviceMode deviceMode);
+    void rotateAndScale(float& x, float& y);
 };
 
 } // namespace android

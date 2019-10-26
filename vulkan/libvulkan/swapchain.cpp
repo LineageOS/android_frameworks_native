@@ -694,8 +694,8 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
 
     const InstanceData& instance_data = GetData(pdev);
 
-    // TODO(jessehall): Fill out the set of supported formats. Longer term, add
-    // a new gralloc method to query whether a (format, usage) pair is
+    // TODO(b/143296550): Fill out the set of supported formats. Longer term,
+    // add a new gralloc method to query whether a (format, usage) pair is
     // supported, and check that for each gralloc format that corresponds to a
     // Vulkan format. Shorter term, just add a few more formats to the ones
     // hardcoded below.
@@ -704,8 +704,6 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
         {VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
         {VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
         {VK_FORMAT_R5G6B5_UNORM_PACK16, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
-        {VK_FORMAT_A2B10G10R10_UNORM_PACK32, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
-        {VK_FORMAT_R16G16B16A16_SFLOAT, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
     };
     const uint32_t kNumFormats = sizeof(kFormats) / sizeof(kFormats[0]);
     uint32_t total_num_formats = kNumFormats;
@@ -953,7 +951,7 @@ VkResult GetPhysicalDevicePresentRectanglesKHR(VkPhysicalDevice,
                   strerror(-err), err);
         }
 
-        // TODO: Return something better than "whole window"
+        // TODO(b/143294545): Return something better than "whole window"
         pRects[0].offset.x = 0;
         pRects[0].offset.y = 0;
         pRects[0].extent = VkExtent2D{static_cast<uint32_t>(width),
@@ -1812,7 +1810,7 @@ VkResult GetSwapchainStatusKHR(
         return VK_ERROR_OUT_OF_DATE_KHR;
     }
 
-    // TODO(chrisforbes): Implement this function properly
+    // TODO(b/143296009): Implement this function properly
 
     return result;
 }

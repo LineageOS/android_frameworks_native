@@ -60,14 +60,14 @@ class Parcel;
  * in StructLayout_test should be made.
  */
 struct InputMessage {
-    enum {
-        TYPE_KEY = 1,
-        TYPE_MOTION = 2,
-        TYPE_FINISHED = 3,
+    enum class Type : uint32_t {
+        KEY,
+        MOTION,
+        FINISHED,
     };
 
     struct Header {
-        uint32_t type;
+        Type type; // 4 bytes
         // We don't need this field in order to align the body below but we
         // leave it here because InputMessage::size() and other functions
         // compute the size of this structure as sizeof(Header) + sizeof(Body).
