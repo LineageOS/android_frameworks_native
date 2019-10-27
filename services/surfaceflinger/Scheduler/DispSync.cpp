@@ -92,9 +92,12 @@ public:
         mPeriod = period;
         if (!mModelLocked && referenceTimeChanged) {
             for (auto& eventListener : mEventListeners) {
-                eventListener.mHasFired = false;
-                eventListener.mLastEventTime =
-                        mReferenceTime - mPeriod + mPhase + eventListener.mPhase;
+                eventListener.mLastEventTime = mReferenceTime + mPhase + eventListener.mPhase;
+                // If mLastEventTime is after mReferenceTime (can happen when positive phase offsets
+                // are used) we treat it as like it happened in previous period.
+                if (eventListener.mLastEventTime > mReferenceTime) {
+                    eventListener.mLastEventTime -= mPeriod;
+                }
             }
         }
         if (mTraceDetailedInfo) {
@@ -123,13 +126,6 @@ public:
 
     void unlockModel() {
         Mutex::Autolock lock(mMutex);
-        if (mModelLocked) {
-            for (auto& eventListener : mEventListeners) {
-                if (eventListener.mLastEventTime > mReferenceTime) {
-                    eventListener.mHasFired = true;
-                }
-            }
-        }
         mModelLocked = false;
         ATRACE_INT("DispSync:ModelLocked", mModelLocked);
     }
@@ -259,10 +255,6 @@ public:
             listener.mLastCallbackTime = lastCallbackTime;
         }
 
-        if (!mModelLocked && listener.mLastEventTime > mReferenceTime) {
-            listener.mHasFired = true;
-        }
-
         mEventListeners.push_back(listener);
 
         mCond.signal();
@@ -300,12 +292,8 @@ public:
                 // new offset to allow for a seamless offset change without double-firing or
                 // skipping.
                 nsecs_t diff = oldPhase - phase;
-                if (diff > mPeriod / 2) {
-                    diff -= mPeriod;
-                } else if (diff < -mPeriod / 2) {
-                    diff += mPeriod;
-                }
                 eventListener.mLastEventTime -= diff;
+                eventListener.mLastCallbackTime -= diff;
                 mCond.signal();
                 return NO_ERROR;
             }
@@ -320,7 +308,6 @@ private:
         nsecs_t mLastEventTime;
         nsecs_t mLastCallbackTime;
         DispSync::Callback* mCallback;
-        bool mHasFired = false;
     };
 
     struct CallbackInvocation {
@@ -368,12 +355,7 @@ private:
                           eventListener.mName);
                     continue;
                 }
-                if (eventListener.mHasFired && !mModelLocked) {
-                    eventListener.mLastEventTime = t;
-                    ALOGV("[%s] [%s] Skipping event due to already firing", mName,
-                          eventListener.mName);
-                    continue;
-                }
+
                 CallbackInvocation ci;
                 ci.mCallback = eventListener.mCallback;
                 ci.mEventTime = t;
@@ -382,7 +364,6 @@ private:
                 callbackInvocations.push_back(ci);
                 eventListener.mLastEventTime = t;
                 eventListener.mLastCallbackTime = now;
-                eventListener.mHasFired = true;
             }
         }
 
@@ -687,7 +668,13 @@ void DispSync::updateModelLocked() {
         nsecs_t durationSum = 0;
         nsecs_t minDuration = INT64_MAX;
         nsecs_t maxDuration = 0;
-        for (size_t i = 1; i < mNumResyncSamples; i++) {
+        // We skip the first 2 samples because the first vsync duration on some
+        // devices may be much more inaccurate than on other devices, e.g. due
+        // to delays in ramping up from a power collapse. By doing so this
+        // actually increases the accuracy of the DispSync model even though
+        // we're effectively relying on fewer sample points.
+        static constexpr size_t numSamplesSkipped = 2;
+        for (size_t i = numSamplesSkipped; i < mNumResyncSamples; i++) {
             size_t idx = (mFirstResyncSample + i) % MAX_RESYNC_SAMPLES;
             size_t prev = (idx + MAX_RESYNC_SAMPLES - 1) % MAX_RESYNC_SAMPLES;
             nsecs_t duration = mResyncSamples[idx] - mResyncSamples[prev];
@@ -698,15 +685,14 @@ void DispSync::updateModelLocked() {
 
         // Exclude the min and max from the average
         durationSum -= minDuration + maxDuration;
-        mPeriod = durationSum / (mNumResyncSamples - 3);
+        mPeriod = durationSum / (mNumResyncSamples - numSamplesSkipped - 2);
 
         ALOGV("[%s] mPeriod = %" PRId64, mName, ns2us(mPeriod));
 
         double sampleAvgX = 0;
         double sampleAvgY = 0;
         double scale = 2.0 * M_PI / double(mPeriod);
-        // Intentionally skip the first sample
-        for (size_t i = 1; i < mNumResyncSamples; i++) {
+        for (size_t i = numSamplesSkipped; i < mNumResyncSamples; i++) {
             size_t idx = (mFirstResyncSample + i) % MAX_RESYNC_SAMPLES;
             nsecs_t sample = mResyncSamples[idx] - mReferenceTime;
             double samplePhase = double(sample % mPeriod) * scale;
@@ -714,8 +700,8 @@ void DispSync::updateModelLocked() {
             sampleAvgY += sin(samplePhase);
         }
 
-        sampleAvgX /= double(mNumResyncSamples - 1);
-        sampleAvgY /= double(mNumResyncSamples - 1);
+        sampleAvgX /= double(mNumResyncSamples - numSamplesSkipped);
+        sampleAvgY /= double(mNumResyncSamples - numSamplesSkipped);
 
         mPhase = nsecs_t(atan2(sampleAvgY, sampleAvgX) / scale);
 

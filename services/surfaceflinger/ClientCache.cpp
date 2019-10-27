@@ -55,16 +55,16 @@ bool ClientCache::getBuffer(const client_cache_t& cacheId,
     return true;
 }
 
-void ClientCache::add(const client_cache_t& cacheId, const sp<GraphicBuffer>& buffer) {
+bool ClientCache::add(const client_cache_t& cacheId, const sp<GraphicBuffer>& buffer) {
     auto& [processToken, id] = cacheId;
     if (processToken == nullptr) {
         ALOGE("failed to cache buffer: invalid process token");
-        return;
+        return false;
     }
 
     if (!buffer) {
         ALOGE("failed to cache buffer: invalid buffer");
-        return;
+        return false;
     }
 
     std::lock_guard lock(mMutex);
@@ -77,13 +77,13 @@ void ClientCache::add(const client_cache_t& cacheId, const sp<GraphicBuffer>& bu
         token = processToken.promote();
         if (!token) {
             ALOGE("failed to cache buffer: invalid token");
-            return;
+            return false;
         }
 
         status_t err = token->linkToDeath(mDeathRecipient);
         if (err != NO_ERROR) {
             ALOGE("failed to cache buffer: could not link to death");
-            return;
+            return false;
         }
         auto [itr, success] =
                 mBuffers.emplace(processToken, std::unordered_map<uint64_t, ClientCacheBuffer>());
@@ -95,10 +95,11 @@ void ClientCache::add(const client_cache_t& cacheId, const sp<GraphicBuffer>& bu
 
     if (processBuffers.size() > BUFFER_CACHE_MAX_SIZE) {
         ALOGE("failed to cache buffer: cache is full");
-        return;
+        return false;
     }
 
     processBuffers[id].buffer = buffer;
+    return true;
 }
 
 void ClientCache::erase(const client_cache_t& cacheId) {
@@ -139,16 +140,17 @@ sp<GraphicBuffer> ClientCache::get(const client_cache_t& cacheId) {
     return buf->buffer;
 }
 
-void ClientCache::registerErasedRecipient(const client_cache_t& cacheId,
+bool ClientCache::registerErasedRecipient(const client_cache_t& cacheId,
                                           const wp<ErasedRecipient>& recipient) {
     std::lock_guard lock(mMutex);
 
     ClientCacheBuffer* buf = nullptr;
     if (!getBuffer(cacheId, &buf)) {
         ALOGE("failed to register erased recipient, could not retrieve buffer");
-        return;
+        return false;
     }
     buf->recipients.insert(recipient);
+    return true;
 }
 
 void ClientCache::unregisterErasedRecipient(const client_cache_t& cacheId,

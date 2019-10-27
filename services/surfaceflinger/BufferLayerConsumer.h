@@ -140,6 +140,9 @@ public:
     // must be called from SF main thread
     const Region& getSurfaceDamage() const;
 
+    // Merge the given damage region into the current damage region value.
+    void mergeSurfaceDamage(const Region& damage);
+
     // getCurrentApi retrieves the API which queues the current buffer.
     int getCurrentApi() const;
 
@@ -220,8 +223,7 @@ private:
     // Utility class for managing GraphicBuffer references into renderengine
     class Image {
     public:
-        Image(sp<GraphicBuffer> graphicBuffer, renderengine::RenderEngine& engine)
-              : mGraphicBuffer(graphicBuffer), mRE(engine) {}
+        Image(const sp<GraphicBuffer>& graphicBuffer, renderengine::RenderEngine& engine);
         virtual ~Image();
         const sp<GraphicBuffer>& graphicBuffer() { return mGraphicBuffer; }
 

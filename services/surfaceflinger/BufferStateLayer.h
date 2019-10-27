@@ -34,6 +34,7 @@ class SlotGenerationTest;
 class BufferStateLayer : public BufferLayer {
 public:
     explicit BufferStateLayer(const LayerCreationArgs&);
+
     ~BufferStateLayer() override;
 
     // -----------------------------------------------------------------------

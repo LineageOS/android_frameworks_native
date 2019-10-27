@@ -49,6 +49,7 @@ public:
     }
 
     using RefreshRateType = scheduler::RefreshRateConfigs::RefreshRateType;
+    using GetCurrentRefreshRateTypeCallback = std::function<RefreshRateType()>;
     using ChangeRefreshRateCallback = std::function<void(RefreshRateType, ConfigEvent)>;
     using GetVsyncPeriod = std::function<nsecs_t()>;
 
@@ -96,12 +97,13 @@ public:
     virtual ~Scheduler();
 
     /** Creates an EventThread connection. */
-    sp<ConnectionHandle> createConnection(const char* connectionName, int64_t phaseOffsetNs,
-                                          ResyncCallback,
+    sp<ConnectionHandle> createConnection(const char* connectionName, nsecs_t phaseOffsetNs,
+                                          nsecs_t offsetThresholdForNextVsync, ResyncCallback,
                                           impl::EventThread::InterceptVSyncsCallback);
 
-    sp<IDisplayEventConnection> createDisplayEventConnection(const sp<ConnectionHandle>& handle,
-                                                             ResyncCallback);
+    sp<IDisplayEventConnection> createDisplayEventConnection(
+            const sp<ConnectionHandle>& handle, ResyncCallback,
+            ISurfaceComposer::ConfigChanged configChanged);
 
     // Getter methods.
     EventThread* getEventThread(const sp<ConnectionHandle>& handle);
@@ -164,7 +166,9 @@ public:
     // Updates FPS based on the most content presented.
     void updateFpsBasedOnContent();
     // Callback that gets invoked when Scheduler wants to change the refresh rate.
-    void setChangeRefreshRateCallback(const ChangeRefreshRateCallback& changeRefreshRateCallback);
+    void setChangeRefreshRateCallback(const ChangeRefreshRateCallback&& changeRefreshRateCallback);
+    void setGetCurrentRefreshRateTypeCallback(
+            const GetCurrentRefreshRateTypeCallback&& getCurrentRefreshRateType);
     void setGetVsyncPeriodCallback(const GetVsyncPeriod&& getVsyncPeriod);
 
     // Returns whether idle timer is enabled or not
@@ -176,6 +180,9 @@ public:
     // Function that resets the touch timer.
     void notifyTouchEvent();
 
+    // Function that sets whether display power mode is normal or not.
+    void setDisplayPowerState(bool normal);
+
     // Returns relevant information about Scheduler for dumpsys purposes.
     std::string doDump();
 
@@ -184,7 +191,8 @@ public:
 
 protected:
     virtual std::unique_ptr<EventThread> makeEventThread(
-            const char* connectionName, DispSync* dispSync, int64_t phaseOffsetNs,
+            const char* connectionName, DispSync* dispSync, nsecs_t phaseOffsetNs,
+            nsecs_t offsetThresholdForNextVsync,
             impl::EventThread::InterceptVSyncsCallback interceptCallback);
 
 private:
@@ -195,9 +203,11 @@ private:
     enum class ContentFeatureState { CONTENT_DETECTION_ON, CONTENT_DETECTION_OFF };
     enum class IdleTimerState { EXPIRED, RESET };
     enum class TouchState { INACTIVE, ACTIVE };
+    enum class DisplayPowerTimerState { EXPIRED, RESET };
 
     // Creates a connection on the given EventThread and forwards the given callbacks.
-    sp<EventThreadConnection> createConnectionInternal(EventThread*, ResyncCallback&&);
+    sp<EventThreadConnection> createConnectionInternal(EventThread*, ResyncCallback&&,
+                                                       ISurfaceComposer::ConfigChanged);
 
     nsecs_t calculateAverage() const;
     void updateFrameSkipping(const int64_t skipCount);
@@ -218,12 +228,15 @@ private:
     void resetTouchTimerCallback();
     // Function that is called when the touch timer expires.
     void expiredTouchTimerCallback();
+    // Function that is called when the display power timer resets.
+    void resetDisplayPowerTimerCallback();
+    // Function that is called when the display power timer expires.
+    void expiredDisplayPowerTimerCallback();
     // Sets vsync period.
     void setVsyncPeriod(const nsecs_t period);
-    // Idle timer feature's function to change the refresh rate.
-    void timerChangeRefreshRate(IdleTimerState idleTimerState);
-    // Touch timer feature's function to change the refresh rate.
-    void touchChangeRefreshRate(TouchState touchState);
+    // handles various timer features to change the refresh rate.
+    template <class T>
+    void handleTimerStateChanged(T* currentState, T newState, bool eventOnContentDetection);
     // Calculate the new refresh rate type
     RefreshRateType calculateRefreshRateType() REQUIRES(mFeatureStateLock);
     // Acquires a lock and calls the ChangeRefreshRateCallback() with given parameters.
@@ -279,7 +292,12 @@ private:
     int64_t mSetTouchTimerMs = 0;
     std::unique_ptr<scheduler::IdleTimer> mTouchTimer;
 
+    // Timer used to monitor display power mode.
+    int64_t mSetDisplayPowerTimerMs = 0;
+    std::unique_ptr<scheduler::IdleTimer> mDisplayPowerTimer;
+
     std::mutex mCallbackLock;
+    GetCurrentRefreshRateTypeCallback mGetCurrentRefreshRateTypeCallback GUARDED_BY(mCallbackLock);
     ChangeRefreshRateCallback mChangeRefreshRateCallback GUARDED_BY(mCallbackLock);
     GetVsyncPeriod mGetVsyncPeriod GUARDED_BY(mCallbackLock);
 
@@ -290,14 +308,17 @@ private:
             ContentFeatureState::CONTENT_DETECTION_OFF;
     IdleTimerState mCurrentIdleTimerState GUARDED_BY(mFeatureStateLock) = IdleTimerState::RESET;
     TouchState mCurrentTouchState GUARDED_BY(mFeatureStateLock) = TouchState::INACTIVE;
+    DisplayPowerTimerState mDisplayPowerTimerState GUARDED_BY(mFeatureStateLock) =
+            DisplayPowerTimerState::EXPIRED;
     uint32_t mContentRefreshRate GUARDED_BY(mFeatureStateLock);
     RefreshRateType mRefreshRateType GUARDED_BY(mFeatureStateLock);
     bool mIsHDRContent GUARDED_BY(mFeatureStateLock) = false;
+    bool mIsDisplayPowerStateNormal GUARDED_BY(mFeatureStateLock) = true;
 
     const scheduler::RefreshRateConfigs& mRefreshRateConfigs;
 
     // Global config to force HDR content to work on DEFAULT refreshRate
-    static constexpr bool mForceHDRContentToDefaultRefreshRate = true;
+    static constexpr bool mForceHDRContentToDefaultRefreshRate = false;
 };
 
 } // namespace android

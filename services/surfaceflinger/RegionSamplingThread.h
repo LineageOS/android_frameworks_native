@@ -117,7 +117,7 @@ private:
     std::condition_variable_any mCondition;
     bool mRunning GUARDED_BY(mThreadControlMutex) = true;
     bool mSampleRequested GUARDED_BY(mThreadControlMutex) = false;
-    bool mDiscardedFrames GUARDED_BY(mThreadControlMutex) = false;
+    uint32_t mDiscardedFrames GUARDED_BY(mThreadControlMutex) = 0;
     std::chrono::nanoseconds lastSampleTime GUARDED_BY(mThreadControlMutex);
 
     std::mutex mSamplingMutex;

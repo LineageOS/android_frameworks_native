@@ -936,6 +936,15 @@ status_t BufferQueueProducer::queueBuffer(int slot,
                     }
                 }
 
+                // Make sure to merge the damage rect from the frame we're about
+                // to drop into the new frame's damage rect.
+                if (last.mSurfaceDamage.bounds() == Rect::INVALID_RECT ||
+                    item.mSurfaceDamage.bounds() == Rect::INVALID_RECT) {
+                    item.mSurfaceDamage = Region::INVALID_REGION;
+                } else {
+                    item.mSurfaceDamage |= last.mSurfaceDamage;
+                }
+
                 // Overwrite the droppable buffer with the incoming one
                 mCore->mQueue.editItemAt(mCore->mQueue.size() - 1) = item;
                 frameReplacedListener = mCore->mConsumerListener;

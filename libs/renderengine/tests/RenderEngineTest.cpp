@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
-#include <gtest/gtest.h>
+#include <chrono>
+#include <condition_variable>
 
+#include <gtest/gtest.h>
 #include <renderengine/RenderEngine.h>
 #include <sync/sync.h>
 #include <ui/PixelFormat.h>
@@ -1001,8 +1003,15 @@ TEST_F(RenderEngineTest, drawLayers_fillsBufferAndCachesImages) {
     invokeDraw(settings, layers, mBuffer);
     uint64_t bufferId = layer.source.buffer.buffer->getId();
     EXPECT_TRUE(sRE->isImageCachedForTesting(bufferId));
-    sRE->unbindExternalTextureBuffer(bufferId);
+    std::shared_ptr<renderengine::gl::ImageManager::Barrier> barrier =
+            sRE->unbindExternalTextureBufferForTesting(bufferId);
+    std::lock_guard<std::mutex> lock(barrier->mutex);
+    ASSERT_TRUE(barrier->condition.wait_for(barrier->mutex, std::chrono::seconds(5),
+                                            [&]() REQUIRES(barrier->mutex) {
+                                                return barrier->isOpen;
+                                            }));
     EXPECT_FALSE(sRE->isImageCachedForTesting(bufferId));
+    EXPECT_EQ(NO_ERROR, barrier->result);
 }
 
 TEST_F(RenderEngineTest, drawLayers_bindExternalBufferWithNullBuffer) {
@@ -1019,21 +1028,52 @@ TEST_F(RenderEngineTest, drawLayers_bindExternalBufferCachesImages) {
     sRE->bindExternalTextureBuffer(texName, buf, nullptr);
     uint64_t bufferId = buf->getId();
     EXPECT_TRUE(sRE->isImageCachedForTesting(bufferId));
-    sRE->unbindExternalTextureBuffer(bufferId);
+    std::shared_ptr<renderengine::gl::ImageManager::Barrier> barrier =
+            sRE->unbindExternalTextureBufferForTesting(bufferId);
+    std::lock_guard<std::mutex> lock(barrier->mutex);
+    ASSERT_TRUE(barrier->condition.wait_for(barrier->mutex, std::chrono::seconds(5),
+                                            [&]() REQUIRES(barrier->mutex) {
+                                                return barrier->isOpen;
+                                            }));
+    EXPECT_EQ(NO_ERROR, barrier->result);
     EXPECT_FALSE(sRE->isImageCachedForTesting(bufferId));
 }
 
 TEST_F(RenderEngineTest, drawLayers_cacheExternalBufferWithNullBuffer) {
-    status_t result = sRE->cacheExternalTextureBuffer(nullptr);
-    ASSERT_EQ(BAD_VALUE, result);
+    std::shared_ptr<renderengine::gl::ImageManager::Barrier> barrier =
+            sRE->cacheExternalTextureBufferForTesting(nullptr);
+    std::lock_guard<std::mutex> lock(barrier->mutex);
+    ASSERT_TRUE(barrier->condition.wait_for(barrier->mutex, std::chrono::seconds(5),
+                                            [&]() REQUIRES(barrier->mutex) {
+                                                return barrier->isOpen;
+                                            }));
+    EXPECT_TRUE(barrier->isOpen);
+    EXPECT_EQ(BAD_VALUE, barrier->result);
 }
 
 TEST_F(RenderEngineTest, drawLayers_cacheExternalBufferCachesImages) {
     sp<GraphicBuffer> buf = allocateSourceBuffer(1, 1);
     uint64_t bufferId = buf->getId();
-    sRE->cacheExternalTextureBuffer(buf);
+    std::shared_ptr<renderengine::gl::ImageManager::Barrier> barrier =
+            sRE->cacheExternalTextureBufferForTesting(buf);
+    {
+        std::lock_guard<std::mutex> lock(barrier->mutex);
+        ASSERT_TRUE(barrier->condition.wait_for(barrier->mutex, std::chrono::seconds(5),
+                                                [&]() REQUIRES(barrier->mutex) {
+                                                    return barrier->isOpen;
+                                                }));
+        EXPECT_EQ(NO_ERROR, barrier->result);
+    }
     EXPECT_TRUE(sRE->isImageCachedForTesting(bufferId));
-    sRE->unbindExternalTextureBuffer(bufferId);
+    barrier = sRE->unbindExternalTextureBufferForTesting(bufferId);
+    {
+        std::lock_guard<std::mutex> lock(barrier->mutex);
+        ASSERT_TRUE(barrier->condition.wait_for(barrier->mutex, std::chrono::seconds(5),
+                                                [&]() REQUIRES(barrier->mutex) {
+                                                    return barrier->isOpen;
+                                                }));
+        EXPECT_EQ(NO_ERROR, barrier->result);
+    }
     EXPECT_FALSE(sRE->isImageCachedForTesting(bufferId));
 }
 

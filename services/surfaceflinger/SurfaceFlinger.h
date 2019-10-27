@@ -170,9 +170,9 @@ public:
 
 class SurfaceFlinger : public BnSurfaceComposer,
                        public PriorityDumper,
+                       public ClientCache::ErasedRecipient,
                        private IBinder::DeathRecipient,
-                       private HWC2::ComposerCallback
-{
+                       private HWC2::ComposerCallback {
 public:
     SurfaceFlingerBE& getBE() { return mBE; }
     const SurfaceFlingerBE& getBE() const { return mBE; }
@@ -294,15 +294,19 @@ public:
     // TODO: this should be made accessible only to EventThread
     void setPrimaryVsyncEnabled(bool enabled);
 
+    // main thread function to enable/disable h/w composer event
+    void setPrimaryVsyncEnabledInternal(bool enabled);
+
     // called on the main thread by MessageQueue when an internal message
     // is received
     // TODO: this should be made accessible only to MessageQueue
     void onMessageReceived(int32_t what);
 
-    // Returns the expected present time for this frame.
+    // populates the expected present time for this frame.
     // When we are in negative offsets, we perform a correction so that the
     // predicted vsync for the *next* frame is used instead.
-    nsecs_t getExpectedPresentTime();
+    void populateExpectedPresentTime();
+    nsecs_t getExpectedPresentTime() const { return mExpectedPresentTime; }
 
     // for debugging only
     // TODO: this should be made accessible only to HWComposer
@@ -324,6 +328,9 @@ public:
     }
 
     sp<Layer> fromHandle(const sp<IBinder>& handle) REQUIRES(mStateLock);
+
+    // Inherit from ClientCache::ErasedRecipient
+    void bufferErased(const client_cache_t& clientCacheId) override;
 
 private:
     friend class BufferLayer;
@@ -405,7 +412,9 @@ private:
             const sp<IGraphicBufferProducer>& bufferProducer) const override;
     status_t getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported) const override;
     sp<IDisplayEventConnection> createDisplayEventConnection(
-            ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp) override;
+            ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp,
+            ISurfaceComposer::ConfigChanged configChanged =
+                    ISurfaceComposer::eConfigChangedSuppress) override;
     status_t captureScreen(const sp<IBinder>& displayToken, sp<GraphicBuffer>* outBuffer,
             bool& outCapturedSecureLayers, const ui::Dataspace reqDataspace,
             const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
@@ -514,13 +523,15 @@ private:
     // Sets the desired active config bit. It obtains the lock, and sets mDesiredActiveConfig.
     void setDesiredActiveConfig(const ActiveConfigInfo& info) REQUIRES(mStateLock);
     // Once HWC has returned the present fence, this sets the active config and a new refresh
-    // rate in SF. It also triggers HWC vsync.
+    // rate in SF.
     void setActiveConfigInternal() REQUIRES(mStateLock);
     // Active config is updated on INVALIDATE call in a state machine-like manner. When the
     // desired config was set, HWC needs to update the panel on the next refresh, and when
     // we receive the fence back, we know that the process was complete. It returns whether
     // we need to wait for the next invalidate
     bool performSetActiveConfig() REQUIRES(mStateLock);
+    // Called when active config is no longer is progress
+    void desiredActiveConfigChangeDone() REQUIRES(mStateLock);
     // called on the main thread in response to setPowerMode()
     void setPowerModeInternal(const sp<DisplayDevice>& display, int mode) REQUIRES(mStateLock);
 
@@ -839,6 +850,7 @@ private:
     }
 
     bool previousFrameMissed();
+    void setVsyncEnabledInHWC(DisplayId displayId, HWC2::Vsync enabled);
 
     /*
      * Debugging & dumpsys
@@ -1113,6 +1125,7 @@ private:
 
     ui::Dataspace mDefaultCompositionDataspace;
     ui::Dataspace mWideColorGamutCompositionDataspace;
+    ui::Dataspace mColorSpaceAgnosticDataspace;
 
     SurfaceFlingerBE mBE;
     std::unique_ptr<compositionengine::CompositionEngine> mCompositionEngine;
@@ -1177,6 +1190,12 @@ private:
     // The Layer pointer is removed from the set when the destructor is called so there shouldn't
     // be any issues with a raw pointer referencing an invalid object.
     std::unordered_set<Layer*> mOffscreenLayers;
+
+    // Flags to capture the state of Vsync in HWC
+    HWC2::Vsync mHWCVsyncState = HWC2::Vsync::Disable;
+    HWC2::Vsync mHWCVsyncPendingState = HWC2::Vsync::Disable;
+
+    nsecs_t mExpectedPresentTime;
 };
 
 } // namespace android

@@ -34,6 +34,7 @@
 #include <math/mat4.h>
 
 #include <gui/BufferItem.h>
+#include <gui/DebugEGLImageTracker.h>
 #include <gui/GLConsumer.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
@@ -944,6 +945,7 @@ GLConsumer::EglImage::~EglImage() {
         if (!eglDestroyImageKHR(mEglDisplay, mEglImage)) {
            ALOGE("~EglImage: eglDestroyImageKHR failed");
         }
+        DEBUG_EGL_IMAGE_TRACKER_DESTROY();
         eglTerminate(mEglDisplay);
     }
 }
@@ -957,6 +959,7 @@ status_t GLConsumer::EglImage::createIfNeeded(EGLDisplay eglDisplay,
         if (!eglDestroyImageKHR(mEglDisplay, mEglImage)) {
            ALOGE("createIfNeeded: eglDestroyImageKHR failed");
         }
+        DEBUG_EGL_IMAGE_TRACKER_DESTROY();
         eglTerminate(mEglDisplay);
         mEglImage = EGL_NO_IMAGE_KHR;
         mEglDisplay = EGL_NO_DISPLAY;
@@ -1006,7 +1009,10 @@ EGLImageKHR GLConsumer::EglImage::createImage(EGLDisplay dpy,
         EGLint error = eglGetError();
         ALOGE("error creating EGLImage: %#x", error);
         eglTerminate(dpy);
+    } else {
+        DEBUG_EGL_IMAGE_TRACKER_CREATE();
     }
+
     return image;
 }
 

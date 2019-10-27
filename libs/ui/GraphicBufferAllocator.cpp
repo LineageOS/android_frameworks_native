@@ -20,6 +20,7 @@
 
 #include <ui/GraphicBufferAllocator.h>
 
+#include <limits.h>
 #include <stdio.h>
 
 #include <grallocusage/GrallocUsageConversion.h>
@@ -114,6 +115,14 @@ status_t GraphicBufferAllocator::allocate(uint32_t width, uint32_t height,
     if (!width || !height)
         width = height = 1;
 
+    const uint32_t bpp = bytesPerPixel(format);
+    if (std::numeric_limits<size_t>::max() / width / height < static_cast<size_t>(bpp)) {
+        ALOGE("Failed to allocate (%u x %u) layerCount %u format %d "
+              "usage %" PRIx64 ": Requesting too large a buffer size",
+              width, height, layerCount, format, usage);
+        return BAD_VALUE;
+    }
+
     // Ensure that layerCount is valid.
     if (layerCount < 1)
         layerCount = 1;
@@ -126,7 +135,6 @@ status_t GraphicBufferAllocator::allocate(uint32_t width, uint32_t height,
     if (error == NO_ERROR) {
         Mutex::Autolock _l(sLock);
         KeyedVector<buffer_handle_t, alloc_rec_t>& list(sAllocList);
-        uint32_t bpp = bytesPerPixel(format);
         alloc_rec_t rec;
         rec.width = width;
         rec.height = height;
