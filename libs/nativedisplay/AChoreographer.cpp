@@ -22,7 +22,7 @@
 #include <thread>
 
 #include <android/choreographer.h>
-#include <androidfw/DisplayEventDispatcher.h>
+#include <gui/DisplayEventDispatcher.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
 #include <utils/Looper.h>

@@ -46,7 +46,6 @@ cc_library {
     ],
 
     shared_libs: [
-        "libandroidfw",
         "libgui",
         "liblog",
         "libnativewindow",

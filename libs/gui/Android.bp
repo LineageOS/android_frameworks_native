@@ -50,6 +50,7 @@ cc_library_shared {
         "ConsumerBase.cpp",
         "CpuConsumer.cpp",
         "DebugEGLImageTracker.cpp",
+        "DisplayEventDispatcher.cpp",
         "DisplayEventReceiver.cpp",
         "GLConsumer.cpp",
         "GuiConfig.cpp",
