@@ -63,6 +63,7 @@ public:
     }
     Rect getCrop(const Layer::State& s) const;
 
+    uint32_t getTransformHint() const { return mTransformHint; }
     bool setTransform(uint32_t transform) override;
     bool setTransformToDisplayInverse(bool transformToDisplayInverse) override;
     bool setCrop(const Rect& crop) override;

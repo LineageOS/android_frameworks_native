@@ -53,9 +53,10 @@ protected:
 
     virtual sp<SurfaceControl> createLayer(const sp<SurfaceComposerClient>& client,
                                            const char* name, uint32_t width, uint32_t height,
-                                           uint32_t flags = 0, SurfaceControl* parent = nullptr) {
-        auto layer =
-                createSurface(client, name, width, height, PIXEL_FORMAT_RGBA_8888, flags, parent);
+                                           uint32_t flags = 0, SurfaceControl* parent = nullptr,
+                                           uint32_t* outTransformHint = nullptr) {
+        auto layer = createSurface(client, name, width, height, PIXEL_FORMAT_RGBA_8888, flags,
+                                   parent, outTransformHint);
 
         Transaction t;
         t.setLayerStack(layer, mDisplayLayerStack).setLayer(layer, mLayerZBase);
@@ -72,15 +73,18 @@ protected:
     virtual sp<SurfaceControl> createSurface(const sp<SurfaceComposerClient>& client,
                                              const char* name, uint32_t width, uint32_t height,
                                              PixelFormat format, uint32_t flags,
-                                             SurfaceControl* parent = nullptr) {
-        auto layer = client->createSurface(String8(name), width, height, format, flags, parent);
+                                             SurfaceControl* parent = nullptr,
+                                             uint32_t* outTransformHint = nullptr) {
+        auto layer = client->createSurface(String8(name), width, height, format, flags, parent,
+                                           LayerMetadata(), outTransformHint);
         EXPECT_NE(nullptr, layer.get()) << "failed to create SurfaceControl";
         return layer;
     }
 
     virtual sp<SurfaceControl> createLayer(const char* name, uint32_t width, uint32_t height,
-                                           uint32_t flags = 0, SurfaceControl* parent = nullptr) {
-        return createLayer(mClient, name, width, height, flags, parent);
+                                           uint32_t flags = 0, SurfaceControl* parent = nullptr,
+                                           uint32_t* outTransformHint = nullptr) {
+        return createLayer(mClient, name, width, height, flags, parent, outTransformHint);
     }
 
     sp<SurfaceControl> createColorLayer(const char* name, const Color& color,
