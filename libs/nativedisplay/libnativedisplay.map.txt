@@ -5,6 +5,8 @@ LIBNATIVEDISPLAY {
     AChoreographer_postFrameCallbackDelayed; # apex # introduced=30
     AChoreographer_postFrameCallback64; # apex # introduced=30
     AChoreographer_postFrameCallbackDelayed64; # apex # introduced=30
+    AChoreographer_registerRefreshRateCallback; # apex # introduced=30
+    AChoreographer_unregisterRefreshRateCallback; # apex # introduced=30
   local:
     *;
 };

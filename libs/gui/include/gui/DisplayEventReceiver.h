@@ -73,6 +73,7 @@ public:
 
         struct Config {
             int32_t configId;
+            nsecs_t vsyncPeriod;
         };
 
         Header header;
@@ -143,6 +144,11 @@ public:
      * if the vsync rate is > 0.
      */
     status_t requestNextVsync();
+
+    /*
+     * toggleConfigEvents() toggles delivery of config change events.
+     */
+    status_t toggleConfigEvents(ISurfaceComposer::ConfigChanged configChangeFlag);
 
 private:
     sp<IDisplayEventConnection> mEventConnection;

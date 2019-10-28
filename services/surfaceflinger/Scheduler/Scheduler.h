@@ -75,7 +75,8 @@ public:
     sp<EventThreadConnection> getEventConnection(ConnectionHandle);
 
     void onHotplugReceived(ConnectionHandle, PhysicalDisplayId, bool connected);
-    void onConfigChanged(ConnectionHandle, PhysicalDisplayId, HwcConfigIndexType configId);
+    void onConfigChanged(ConnectionHandle, PhysicalDisplayId, HwcConfigIndexType configId,
+                         nsecs_t vsyncPeriod);
 
     void onScreenAcquired(ConnectionHandle);
     void onScreenReleased(ConnectionHandle);

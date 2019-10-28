@@ -103,10 +103,11 @@ DisplayEventReceiver::Event makeVSync(PhysicalDisplayId displayId, nsecs_t times
 }
 
 DisplayEventReceiver::Event makeConfigChanged(PhysicalDisplayId displayId,
-                                              HwcConfigIndexType configId) {
+                                              HwcConfigIndexType configId, nsecs_t vsyncPeriod) {
     DisplayEventReceiver::Event event;
     event.header = {DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED, displayId, systemTime()};
     event.config.configId = configId.value();
+    event.config.vsyncPeriod = vsyncPeriod;
     return event;
 }
 
@@ -116,7 +117,7 @@ EventThreadConnection::EventThreadConnection(EventThread* eventThread,
                                              ResyncCallback resyncCallback,
                                              ISurfaceComposer::ConfigChanged configChanged)
       : resyncCallback(std::move(resyncCallback)),
-        configChanged(configChanged),
+        mConfigChanged(configChanged),
         mEventThread(eventThread),
         mChannel(gui::BitTube::DefaultSize) {}
 
@@ -143,6 +144,18 @@ status_t EventThreadConnection::setVsyncRate(uint32_t rate) {
 void EventThreadConnection::requestNextVsync() {
     ATRACE_NAME("requestNextVsync");
     mEventThread->requestNextVsync(this);
+}
+
+void EventThreadConnection::toggleConfigEvents(ISurfaceComposer::ConfigChanged configChangeFlag) {
+    ATRACE_NAME("enableConfigEvents");
+    mConfigChanged = configChangeFlag;
+
+    // In principle it's possible for rapidly toggling config events to drop an
+    // event here, but it's unlikely in practice.
+    if (configChangeFlag == ISurfaceComposer::eConfigChangedDispatch) {
+        mForcedConfigChangeDispatch = true;
+        mEventThread->requestLatestConfig();
+    }
 }
 
 status_t EventThreadConnection::postEvent(const DisplayEventReceiver::Event& event) {
@@ -257,6 +270,24 @@ void EventThread::requestNextVsync(const sp<EventThreadConnection>& connection) 
     }
 }
 
+void EventThread::requestLatestConfig() {
+    std::lock_guard<std::mutex> lock(mMutex);
+    auto pendingConfigChange =
+            std::find_if(std::begin(mPendingEvents), std::end(mPendingEvents),
+                         [&](const DisplayEventReceiver::Event& event) {
+                             return event.header.type ==
+                                     DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED;
+                         });
+
+    // If we didn't find a pending config change event, then push out the
+    // latest one we've ever seen.
+    if (pendingConfigChange == std::end(mPendingEvents)) {
+        mPendingEvents.push_back(mLastConfigChangeEvent);
+    }
+
+    mCondition.notify_all();
+}
+
 void EventThread::onScreenReleased() {
     std::lock_guard<std::mutex> lock(mMutex);
     if (!mVSyncState || mVSyncState->synthetic) {
@@ -292,10 +323,11 @@ void EventThread::onHotplugReceived(PhysicalDisplayId displayId, bool connected)
     mCondition.notify_all();
 }
 
-void EventThread::onConfigChanged(PhysicalDisplayId displayId, HwcConfigIndexType configId) {
+void EventThread::onConfigChanged(PhysicalDisplayId displayId, HwcConfigIndexType configId,
+                                  nsecs_t vsyncPeriod) {
     std::lock_guard<std::mutex> lock(mMutex);
 
-    mPendingEvents.push_back(makeConfigChanged(displayId, configId));
+    mPendingEvents.push_back(makeConfigChanged(displayId, configId, vsyncPeriod));
     mCondition.notify_all();
 }
 
@@ -324,6 +356,9 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
                     if (mInterceptVSyncsCallback) {
                         mInterceptVSyncsCallback(event->header.timestamp);
                     }
+                    break;
+                case DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED:
+                    mLastConfigChangeEvent = *event;
                     break;
             }
         }
@@ -398,8 +433,11 @@ bool EventThread::shouldConsumeEvent(const DisplayEventReceiver::Event& event,
         case DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG:
             return true;
 
-        case DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED:
-            return connection->configChanged == ISurfaceComposer::eConfigChangedDispatch;
+        case DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED: {
+            const bool forcedDispatch = connection->mForcedConfigChangeDispatch.exchange(false);
+            return forcedDispatch ||
+                    connection->mConfigChanged == ISurfaceComposer::eConfigChangedDispatch;
+        }
 
         case DisplayEventReceiver::DISPLAY_EVENT_VSYNC:
             switch (connection->vsyncRequest) {

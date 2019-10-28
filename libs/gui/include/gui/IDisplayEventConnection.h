@@ -18,7 +18,7 @@
 
 #include <binder/IInterface.h>
 #include <binder/SafeInterface.h>
-
+#include <gui/ISurfaceComposer.h>
 #include <utils/Errors.h>
 
 #include <cstdint>
@@ -51,6 +51,13 @@ public:
      * requestNextVsync() schedules the next vsync event. It has no effect if the vsync rate is > 0.
      */
     virtual void requestNextVsync() = 0; // Asynchronous
+
+    /*
+     * togglesConfigEvents() configures whether or not display config changes
+     * should be propagated.
+     */
+    virtual void toggleConfigEvents(
+            ISurfaceComposer::ConfigChanged configChangeFlag) = 0; // Asynchronous
 };
 
 class BnDisplayEventConnection : public SafeBnInterface<IDisplayEventConnection> {
