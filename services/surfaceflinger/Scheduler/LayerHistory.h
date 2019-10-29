@@ -16,75 +16,77 @@
 
 #pragma once
 
-#include <array>
-#include <cinttypes>
-#include <cstdint>
-#include <numeric>
-#include <string>
-#include <unordered_map>
-
+#include <android-base/thread_annotations.h>
+#include <utils/RefBase.h>
 #include <utils/Timers.h>
 
-#include "LayerInfo.h"
-#include "SchedulerUtils.h"
+#include <memory>
+#include <mutex>
+#include <utility>
+#include <vector>
 
 namespace android {
+
+class Layer;
+
 namespace scheduler {
 
-/*
- * This class represents information about layers that are considered current. We keep an
- * unordered map between layer name and LayerInfo.
- */
+class LayerInfo;
+
+// Records per-layer history of scheduling-related information (primarily present time),
+// heuristically categorizes layers as active or inactive, and summarizes stats about
+// active layers (primarily maximum refresh rate). See go/content-fps-detection-in-scheduler.
 class LayerHistory {
 public:
-    // Handle for each layer we keep track of.
-    class LayerHandle {
-    public:
-        LayerHandle(LayerHistory& lh, int64_t id) : mId(id), mLayerHistory(lh) {}
-        ~LayerHandle() { mLayerHistory.destroyLayer(mId); }
-
-        const int64_t mId;
-
-    private:
-        LayerHistory& mLayerHistory;
-    };
-
     LayerHistory();
     ~LayerHistory();
 
-    // When the layer is first created, register it.
-    std::unique_ptr<LayerHandle> createLayer(const std::string name, float minRefreshRate,
-                                             float maxRefreshRate);
+    // Layers are unregistered when the weak reference expires.
+    void registerLayer(Layer*, float lowRefreshRate, float highRefreshRate);
 
-    // Method for inserting layers and their requested present time into the unordered map.
-    void insert(const std::unique_ptr<LayerHandle>& layerHandle, nsecs_t presentTime, bool isHdr);
-    // Method for setting layer visibility
-    void setVisibility(const std::unique_ptr<LayerHandle>& layerHandle, bool visible);
+    // Marks the layer as active, and records the given state to its history.
+    void record(Layer*, nsecs_t presentTime, bool isHDR, nsecs_t now);
 
-    // Returns the desired refresh rate, which is a max refresh rate of all the current
-    // layers. See go/content-fps-detection-in-scheduler for more information.
-    std::pair<float, bool> getDesiredRefreshRateAndHDR();
+    struct Summary {
+        float maxRefreshRate; // Maximum refresh rate among recently active layers.
+        bool isHDR;           // True if any recently active layer has HDR content.
+    };
 
-    // Clears all layer history.
-    void clearHistory();
+    // Rebuilds sets of active/inactive layers, and accumulates stats for active layers.
+    Summary summarize(nsecs_t now);
 
-    // Removes the handle and the object from the map.
-    void destroyLayer(const int64_t id);
+    void clear();
 
 private:
-    // Removes the layers that have been idle for a given amount of time from mLayerInfos.
-    void removeIrrelevantLayers() REQUIRES(mLock);
+    friend class LayerHistoryTest;
 
-    // Information about currently active layers.
-    std::mutex mLock;
-    std::unordered_map<int64_t, std::shared_ptr<LayerInfo>> mActiveLayerInfos GUARDED_BY(mLock);
-    std::unordered_map<int64_t, std::shared_ptr<LayerInfo>> mInactiveLayerInfos GUARDED_BY(mLock);
+    using LayerPair = std::pair<wp<Layer>, std::unique_ptr<LayerInfo>>;
+    using LayerInfos = std::vector<LayerPair>;
 
-    // Each layer has it's own ID. This variable keeps track of the count.
-    static std::atomic<int64_t> sNextId;
+    struct ActiveLayers {
+        LayerInfos& infos;
+        const size_t index;
 
-    // Flag whether to log layer FPS in systrace
-    bool mTraceEnabled = false;
+        auto begin() { return infos.begin(); }
+        auto end() { return begin() + index; }
+    };
+
+    ActiveLayers activeLayers() REQUIRES(mLock) { return {mLayerInfos, mActiveLayersEnd}; }
+
+    // Iterates over layers in a single pass, swapping pairs such that active layers precede
+    // inactive layers, and inactive layers precede expired layers. Removes expired layers by
+    // truncating after inactive layers.
+    void partitionLayers(nsecs_t now) REQUIRES(mLock);
+
+    mutable std::mutex mLock;
+
+    // Partitioned such that active layers precede inactive layers. For fast lookup, the few active
+    // layers are at the front, and weak pointers are stored in contiguous memory to hit the cache.
+    LayerInfos mLayerInfos GUARDED_BY(mLock);
+    size_t mActiveLayersEnd GUARDED_BY(mLock) = 0;
+
+    // Whether to emit systrace output and debug logs.
+    const bool mTraceEnabled;
 };
 
 } // namespace scheduler

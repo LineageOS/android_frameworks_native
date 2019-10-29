@@ -48,6 +48,7 @@ public:
     auto& mutableEventControlThread() { return mEventControlThread; }
     auto& mutablePrimaryDispSync() { return mPrimaryDispSync; }
     auto& mutableHWVsyncAvailable() { return mHWVsyncAvailable; }
+    auto& mutableLayerHistory() { return mLayerHistory; }
 
     ~TestableScheduler() {
         // All these pointer and container clears help ensure that GMock does
