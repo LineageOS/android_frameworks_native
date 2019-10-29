@@ -189,6 +189,8 @@ int32_t ANativeWindow_unlockAndPost(ANativeWindow* window);
 /**
  * Set a transform that will be applied to future buffers posted to the window.
  *
+ * Available since API level 26.
+ *
  * \param transform combination of {@link ANativeWindowTransform} flags
  * \return 0 for success, or -EINVAL if \p transform is invalid
  */
@@ -208,6 +210,8 @@ int32_t ANativeWindow_setBuffersTransform(ANativeWindow* window, int32_t transfo
  * measurement data instead of color images. The default dataSpace is 0,
  * ADATASPACE_UNKNOWN, unless it has been overridden by the producer.
  *
+ * Available since API level 28.
+ *
  * \param dataSpace data space of all buffers queued after this call.
  * \return 0 for success, -EINVAL if window is invalid or the dataspace is not
  * supported.
@@ -216,6 +220,9 @@ int32_t ANativeWindow_setBuffersDataSpace(ANativeWindow* window, int32_t dataSpa
 
 /**
  * Get the dataspace of the buffers in window.
+ *
+ * Available since API level 28.
+ *
  * \return the dataspace of buffers in window, ADATASPACE_UNKNOWN is returned if
  * dataspace is unknown, or -EINVAL if window is invalid.
  */

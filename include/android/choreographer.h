@@ -59,6 +59,8 @@ typedef void (*AChoreographer_frameCallback64)(int64_t frameTimeNanos, void* dat
 /**
  * Get the AChoreographer instance for the current thread. This must be called
  * on an ALooper thread.
+ *
+ * Available since API level 24.
  */
 AChoreographer* AChoreographer_getInstance() __INTRODUCED_IN(24);
 
@@ -82,6 +84,8 @@ void AChoreographer_postFrameCallbackDelayed(AChoreographer* choreographer,
 /**
  * Power a callback to be run on the next frame.  The data pointer provided will
  * be passed to the callback function when it's called.
+ *
+ * Available since API level 29.
  */
 void AChoreographer_postFrameCallback64(AChoreographer* chroreographer,
                 AChoreographer_frameCallback64 callback, void* data) __INTRODUCED_IN(29);
@@ -90,6 +94,8 @@ void AChoreographer_postFrameCallback64(AChoreographer* chroreographer,
  * Post a callback to be run on the frame following the specified delay.  The
  * data pointer provided will be passed to the callback function when it's
  * called.
+ *
+ * Available since API level 29.
  */
 void AChoreographer_postFrameCallbackDelayed64(AChoreographer* choreographer,
                 AChoreographer_frameCallback64 callback, void* data, uint32_t delayMillis) __INTRODUCED_IN(29);

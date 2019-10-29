@@ -69,6 +69,7 @@ typedef uint64_t net_handle_t;
  *
  * This is the equivalent of: [android.net.Network#bindSocket()](https://developer.android.com/reference/android/net/Network.html#bindSocket(java.net.Socket))
  *
+ * Available since API level 23.
  */
 int android_setsocknetwork(net_handle_t network, int fd) __INTRODUCED_IN(23);
 
@@ -86,6 +87,7 @@ int android_setsocknetwork(net_handle_t network, int fd) __INTRODUCED_IN(23);
  *
  * This is the equivalent of: [android.net.ConnectivityManager#setProcessDefaultNetwork()](https://developer.android.com/reference/android/net/ConnectivityManager.html#setProcessDefaultNetwork(android.net.Network))
  *
+ * Available since API level 23.
  */
 int android_setprocnetwork(net_handle_t network) __INTRODUCED_IN(23);
 
@@ -103,6 +105,7 @@ int android_setprocnetwork(net_handle_t network) __INTRODUCED_IN(23);
  *
  * This is the equivalent of: [android.net.Network#getAllByName()](https://developer.android.com/reference/android/net/Network.html#getAllByName(java.lang.String))
  *
+ * Available since API level 23.
  */
 int android_getaddrinfofornetwork(net_handle_t network,
         const char *node, const char *service,
@@ -144,6 +147,8 @@ enum ResNsendFlags : uint32_t {
  *
  * Returns a file descriptor to watch for read events, or a negative
  * POSIX error code (see errno.h) if an immediate error occurs.
+ *
+ * Available since API level 29.
  */
 int android_res_nquery(net_handle_t network,
         const char *dname, int ns_class, int ns_type, uint32_t flags) __INTRODUCED_IN(29);
@@ -155,6 +160,8 @@ int android_res_nquery(net_handle_t network,
  *
  * Returns a file descriptor to watch for read events, or a negative
  * POSIX error code (see errno.h) if an immediate error occurs.
+ *
+ * Available since API level 29.
  */
 int android_res_nsend(net_handle_t network,
         const uint8_t *msg, size_t msglen, uint32_t flags) __INTRODUCED_IN(29);
@@ -162,6 +169,8 @@ int android_res_nsend(net_handle_t network,
 /**
  * Read a result for the query associated with the |fd| descriptor.
  * Closes |fd| before returning.
+ *
+ * Available since 29.
  *
  * Returns:
  *     < 0: negative POSIX error code (see errno.h for possible values). |rcode| is not set.
@@ -173,6 +182,8 @@ int android_res_nresult(int fd,
 /**
  * Attempts to cancel the in-progress query associated with the |nsend_fd|
  * descriptor.
+ *
+ * Available since API level 29.
  */
 void android_res_cancel(int nsend_fd) __INTRODUCED_IN(29);
 

@@ -342,6 +342,8 @@ typedef struct AHardwareBuffer AHardwareBuffer;
  * not compatible with its usage flags, the results are undefined and
  * may include program termination.
  *
+ * Available since API level 26.
+ *
  * \return 0 on success, or an error number of the allocation fails for
  * any reason. The returned buffer has a reference count of 1.
  */
@@ -352,18 +354,24 @@ int AHardwareBuffer_allocate(const AHardwareBuffer_Desc* desc,
  *
  * This prevents the object from being deleted until the last reference
  * is removed.
+ *
+ * Available since API level 26.
  */
 void AHardwareBuffer_acquire(AHardwareBuffer* buffer) __INTRODUCED_IN(26);
 
 /**
  * Remove a reference that was previously acquired with
  * AHardwareBuffer_acquire() or AHardwareBuffer_allocate().
+ *
+ * Available since API level 26.
  */
 void AHardwareBuffer_release(AHardwareBuffer* buffer) __INTRODUCED_IN(26);
 
 /**
  * Return a description of the AHardwareBuffer in the passed
  * AHardwareBuffer_Desc struct.
+ *
+ * Available since API level 26.
  */
 void AHardwareBuffer_describe(const AHardwareBuffer* buffer,
         AHardwareBuffer_Desc* outDesc) __INTRODUCED_IN(26);
@@ -413,6 +421,8 @@ void AHardwareBuffer_describe(const AHardwareBuffer* buffer,
  * simultaneously, and the contents of the buffer behave like shared
  * memory.
  *
+ * Available since API level 26.
+ *
  * \return 0 on success. -EINVAL if \a buffer is NULL, the usage flags
  * are not a combination of AHARDWAREBUFFER_USAGE_CPU_*, or the buffer
  * has more than one layer. Error number if the lock fails for any other
@@ -441,6 +451,8 @@ int AHardwareBuffer_lock(AHardwareBuffer* buffer, uint64_t usage,
  *
  * See the AHardwareBuffer_lock documentation for all other locking semantics.
  *
+ * Available since API level 29.
+ *
  * \return 0 on success. -EINVAL if \a buffer is NULL, the usage flags
  * are not a combination of AHARDWAREBUFFER_USAGE_CPU_*, or the buffer
  * has more than one layer. Error number if the lock fails for any other
@@ -462,6 +474,8 @@ int AHardwareBuffer_lockPlanes(AHardwareBuffer* buffer, uint64_t usage,
  * completed before the function returned and no further operations are
  * necessary.
  *
+ * Available since API level 26.
+ *
  * \return 0 on success. -EINVAL if \a buffer is NULL. Error number if
  * the unlock fails for any reason.
  */
@@ -470,6 +484,8 @@ int AHardwareBuffer_unlock(AHardwareBuffer* buffer, int32_t* fence) __INTRODUCED
 /**
  * Send the AHardwareBuffer to an AF_UNIX socket.
  *
+ * Available since API level 26.
+ *
  * \return 0 on success, -EINVAL if \a buffer is NULL, or an error
  * number if the operation fails for any reason.
  */
@@ -477,6 +493,8 @@ int AHardwareBuffer_sendHandleToUnixSocket(const AHardwareBuffer* buffer, int so
 
 /**
  * Receive an AHardwareBuffer from an AF_UNIX socket.
+ *
+ * Available since API level 26.
  *
  * \return 0 on success, -EINVAL if \a outBuffer is NULL, or an error
  * number if the operation fails for any reason.
@@ -501,6 +519,8 @@ int AHardwareBuffer_recvHandleFromUnixSocket(int socketFd, AHardwareBuffer** out
  * some implementations have implementation-defined limits on texture
  * size and layer count.
  *
+ * Available since API level 29.
+ *
  * \return 1 if the format and usage flag combination is allocatable,
  *     0 otherwise.
  */
@@ -514,6 +534,8 @@ int AHardwareBuffer_isSupported(const AHardwareBuffer_Desc* desc) __INTRODUCED_I
  * of the locked buffer.  If the bytes per pixel or bytes per stride are unknown
  * or variable, or if the underlying mapper implementation does not support returning
  * additional information, then this call will fail with INVALID_OPERATION
+ *
+ * Available since API level 29.
  */
 int AHardwareBuffer_lockAndGetInfo(AHardwareBuffer* buffer, uint64_t usage,
         int32_t fence, const ARect* rect, void** outVirtualAddress,
