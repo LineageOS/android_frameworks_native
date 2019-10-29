@@ -76,7 +76,21 @@ TEST_F(GraphicBufferAllocatorTest, AllocateNoError) {
     ASSERT_EQ(kTestWidth, stride);
 }
 
-TEST_F(GraphicBufferAllocatorTest, AllocateBadStride) {
+TEST_F(GraphicBufferAllocatorTest, AllocateZeroStride) {
+    android::PixelFormat format = PIXEL_FORMAT_RGBA_8888;
+    uint32_t expectedStride = 0;
+
+    mAllocator.setUpAllocateExpectations(NO_ERROR, expectedStride);
+    uint32_t stride = 0;
+    buffer_handle_t handle;
+    // a divide by zero would cause a crash
+    status_t err = mAllocator.allocate(kTestWidth, kTestHeight, format, kTestLayerCount, kTestUsage,
+                                       &handle, &stride, 0, "GraphicBufferAllocatorTest");
+    ASSERT_EQ(NO_ERROR, err);
+    ASSERT_EQ(expectedStride, stride);
+}
+
+TEST_F(GraphicBufferAllocatorTest, AllocateLargeStride) {
     uint32_t height = std::numeric_limits<uint32_t>::max();
     uint32_t bpp = 4;
     android::PixelFormat format = PIXEL_FORMAT_RGBA_8888;
