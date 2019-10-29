@@ -236,6 +236,7 @@ TEST_F(OutputLayerTest, calculateOutputRelativeBufferTransformTestsNeeded) {
         mLayerState.frontEnd.geomLayerTransform.set(entry.layer, 1920, 1080);
         mLayerState.frontEnd.geomBufferTransform = entry.buffer;
         mOutputState.orientation = entry.display;
+        mOutputState.transform = ui::Transform{entry.display};
 
         auto actual = mOutputLayer.calculateOutputRelativeBufferTransform();
         EXPECT_EQ(entry.expected, actual) << "entry " << i;
@@ -308,6 +309,21 @@ TEST_F(OutputLayerWriteStateToHWCTest, canSetsAllState) {
     expectGeometryCommonCalls();
 
     mOutputLayer.writeStateToHWC(true);
+}
+
+TEST_F(OutputLayerTest, displayInstallOrientationBufferTransformSetTo90) {
+    mLayerState.frontEnd.geomBufferUsesDisplayInverseTransform = false;
+    mLayerState.frontEnd.geomLayerTransform = ui::Transform{TR_IDENT};
+    // This test simulates a scenario where displayInstallOrientation is set to
+    // ROT_90. This only has an effect on the transform; orientation stays 0 (see
+    // DisplayDevice::setProjection).
+    mOutputState.orientation = TR_IDENT;
+    mOutputState.transform = ui::Transform{TR_ROT_90};
+    // Buffers are pre-rotated based on the transform hint (ROT_90); their
+    // geomBufferTransform is set to the inverse transform.
+    mLayerState.frontEnd.geomBufferTransform = TR_ROT_270;
+
+    EXPECT_EQ(TR_IDENT, mOutputLayer.calculateOutputRelativeBufferTransform());
 }
 
 } // namespace
