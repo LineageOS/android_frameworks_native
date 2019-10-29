@@ -17,8 +17,16 @@ cc_library_headers {
     export_include_dirs: ["include"],
 
     // we must build this module to get the required header as that is generated
-    export_shared_lib_headers: [ "android.hidl.token@1.0-utils" ],
-    shared_libs: [ "android.hidl.token@1.0-utils" ],
+    export_shared_lib_headers: [
+        "android.hidl.token@1.0-utils",
+        "android.hardware.graphics.bufferqueue@1.0",
+        "android.hardware.graphics.bufferqueue@2.0",
+    ],
+    shared_libs: [
+        "android.hidl.token@1.0-utils",
+        "android.hardware.graphics.bufferqueue@1.0",
+        "android.hardware.graphics.bufferqueue@2.0",
+    ],
 }
 
 cc_library_shared {
