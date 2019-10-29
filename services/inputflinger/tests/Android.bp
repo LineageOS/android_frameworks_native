@@ -15,6 +15,7 @@ cc_test {
         "-Werror",
         "-Wextra",
         "-Wno-unused-parameter",
+        "-Wthread-safety",
     ],
     shared_libs: [
         "android.hardware.input.classifier@1.0",
