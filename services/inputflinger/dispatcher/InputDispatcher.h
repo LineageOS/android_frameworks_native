@@ -450,7 +450,7 @@ private:
                                              DispatchEntry* dispatchEntry, MotionEntry* motionEntry,
                                              bool handled) REQUIRES(mLock);
     void doPokeUserActivityLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
-    void initializeKeyEvent(KeyEvent* event, const KeyEntry* entry);
+    KeyEvent createKeyEvent(const KeyEntry& entry);
     void doOnPointerDownOutsideFocusLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
 
     // Statistics gathering.
