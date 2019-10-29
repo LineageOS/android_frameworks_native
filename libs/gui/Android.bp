@@ -15,6 +15,10 @@ cc_library_headers {
     name: "libgui_headers",
     vendor_available: true,
     export_include_dirs: ["include"],
+
+    // we must build this module to get the required header as that is generated
+    export_shared_lib_headers: [ "android.hidl.token@1.0-utils" ],
+    shared_libs: [ "android.hidl.token@1.0-utils" ],
 }
 
 cc_library_shared {
