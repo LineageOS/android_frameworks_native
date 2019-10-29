@@ -364,6 +364,7 @@ TEST_F(OutputLayerTest, calculateOutputRelativeBufferTransformTestsNeeded) {
         mLayerFEState.geomLayerTransform.set(entry.layer, 1920, 1080);
         mLayerFEState.geomBufferTransform = entry.buffer;
         mOutputState.orientation = entry.display;
+        mOutputState.transform = ui::Transform{entry.display};
 
         auto actual = mOutputLayer.calculateOutputRelativeBufferTransform();
         EXPECT_EQ(entry.expected, actual) << "entry " << i;
@@ -422,6 +423,7 @@ TEST_F(OutputLayerTest,
         mLayerFEState.geomLayerTransform = ui::Transform{entry.layer};
         mLayerFEState.geomBufferTransform = entry.buffer;
         mOutputState.orientation = entry.display;
+        mOutputState.transform = ui::Transform{entry.display};
 
         auto actual = mOutputLayer.calculateOutputRelativeBufferTransform();
         EXPECT_EQ(entry.expected, actual) << "entry " << i;
@@ -762,6 +764,21 @@ TEST_F(OutputLayerWriteStateToHWCTest, canSetAllState) {
     expectNoSetCompositionTypeCall();
 
     mOutputLayer.writeStateToHWC(true);
+}
+
+TEST_F(OutputLayerTest, displayInstallOrientationBufferTransformSetTo90) {
+    mLayerFEState.geomBufferUsesDisplayInverseTransform = false;
+    mLayerFEState.geomLayerTransform = ui::Transform{TR_IDENT};
+    // This test simulates a scenario where displayInstallOrientation is set to
+    // ROT_90. This only has an effect on the transform; orientation stays 0 (see
+    // DisplayDevice::setProjection).
+    mOutputState.orientation = TR_IDENT;
+    mOutputState.transform = ui::Transform{TR_ROT_90};
+    // Buffers are pre-rotated based on the transform hint (ROT_90); their
+    // geomBufferTransform is set to the inverse transform.
+    mLayerFEState.geomBufferTransform = TR_ROT_270;
+
+    EXPECT_EQ(TR_IDENT, mOutputLayer.calculateOutputRelativeBufferTransform());
 }
 
 TEST_F(OutputLayerWriteStateToHWCTest, canSetPerFrameStateForSolidColor) {
