@@ -1111,6 +1111,86 @@ status_t SurfaceFlinger::setActiveColorMode(const sp<IBinder>& displayToken, Col
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::getAutoLowLatencyModeSupport(const sp<IBinder>& displayToken,
+                                                      bool* outSupport) const {
+    Mutex::Autolock _l(mStateLock);
+
+    if (!displayToken) {
+        ALOGE("getAutoLowLatencyModeSupport() failed. Missing display token.");
+        return BAD_VALUE;
+    }
+    const auto displayId = getPhysicalDisplayIdLocked(displayToken);
+    if (!displayId) {
+        ALOGE("getAutoLowLatencyModeSupport() failed. Display id for display token %p not found.",
+              displayToken.get());
+        return NAME_NOT_FOUND;
+    }
+    *outSupport = getHwComposer().hasDisplayCapability(displayId,
+                                                       HWC2::DisplayCapability::AutoLowLatencyMode);
+    return NO_ERROR;
+}
+
+void SurfaceFlinger::setAutoLowLatencyMode(const sp<IBinder>& displayToken, bool on) {
+    postMessageAsync(new LambdaMessage([=] { setAutoLowLatencyModeInternal(displayToken, on); }));
+}
+
+void SurfaceFlinger::setAutoLowLatencyModeInternal(const sp<IBinder>& displayToken, bool on) {
+    if (!displayToken) {
+        ALOGE("setAutoLowLatencyMode() failed. Missing display token.");
+        return;
+    }
+    const auto displayId = getPhysicalDisplayIdLocked(displayToken);
+    if (!displayId) {
+        ALOGE("setAutoLowLatencyMode() failed. Display id for display token %p not found.",
+              displayToken.get());
+        return;
+    }
+
+    getHwComposer().setAutoLowLatencyMode(*displayId, on);
+}
+
+status_t SurfaceFlinger::getGameContentTypeSupport(const sp<IBinder>& displayToken,
+                                                   bool* outSupport) const {
+    Mutex::Autolock _l(mStateLock);
+
+    if (!displayToken) {
+        ALOGE("getGameContentTypeSupport() failed. Missing display token.");
+        return BAD_VALUE;
+    }
+    const auto displayId = getPhysicalDisplayIdLocked(displayToken);
+    if (!displayId) {
+        ALOGE("getGameContentTypeSupport() failed. Display id for display token %p not found.",
+              displayToken.get());
+        return NAME_NOT_FOUND;
+    }
+
+    std::vector<HWC2::ContentType> outSupportedContentTypes;
+    getHwComposer().getSupportedContentTypes(*displayId, &outSupportedContentTypes);
+    *outSupport = std::find(outSupportedContentTypes.begin(), outSupportedContentTypes.end(),
+                            HWC2::ContentType::Game) != outSupportedContentTypes.end();
+    return NO_ERROR;
+}
+
+void SurfaceFlinger::setGameContentType(const sp<IBinder>& displayToken, bool on) {
+    postMessageAsync(new LambdaMessage([=] { setGameContentTypeInternal(displayToken, on); }));
+}
+
+void SurfaceFlinger::setGameContentTypeInternal(const sp<IBinder>& displayToken, bool on) {
+    if (!displayToken) {
+        ALOGE("setGameContentType() failed. Missing display token.");
+        return;
+    }
+    const auto displayId = getPhysicalDisplayIdLocked(displayToken);
+    if (!displayId) {
+        ALOGE("setGameContentType() failed. Display id for display token %p not found.",
+              displayToken.get());
+        return;
+    }
+
+    const HWC2::ContentType type = on ? HWC2::ContentType::Game : HWC2::ContentType::None;
+    getHwComposer().setContentType(*displayId, type);
+}
+
 status_t SurfaceFlinger::clearAnimationFrameStats() {
     Mutex::Autolock _l(mStateLock);
     mAnimFrameTracker.clearStats();
@@ -4438,6 +4518,10 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case SET_DESIRED_DISPLAY_CONFIG_SPECS:
         case GET_DESIRED_DISPLAY_CONFIG_SPECS:
         case SET_ACTIVE_COLOR_MODE:
+        case GET_AUTO_LOW_LATENCY_MODE_SUPPORT:
+        case SET_AUTO_LOW_LATENCY_MODE:
+        case GET_GAME_CONTENT_TYPE_SUPPORT:
+        case SET_GAME_CONTENT_TYPE:
         case INJECT_VSYNC:
         case SET_POWER_MODE:
         case GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES:

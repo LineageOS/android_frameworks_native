@@ -195,6 +195,37 @@ public:
             ui::ColorMode colorMode) = 0;
 
     /**
+     * Returns true if the connected display reports support for HDMI 2.1 Auto
+     * Low Latency Mode.
+     * For more information, see the HDMI 2.1 specification.
+     */
+    virtual status_t getAutoLowLatencyModeSupport(const sp<IBinder>& display,
+                                                  bool* outSupport) const = 0;
+
+    /**
+     * Switches Auto Low Latency Mode on/off on the connected display, if it is
+     * available. This should only be called if #getAutoLowLatencyMode returns
+     * true.
+     * For more information, see the HDMI 2.1 specification.
+     */
+    virtual void setAutoLowLatencyMode(const sp<IBinder>& display, bool on) = 0;
+
+    /**
+     * Returns true if the connected display reports support for Game Content Type.
+     * For more information, see the HDMI 1.4 specification.
+     */
+    virtual status_t getGameContentTypeSupport(const sp<IBinder>& display,
+                                               bool* outSupport) const = 0;
+
+    /**
+     * This will start sending infoframes to the connected display with
+     * ContentType=Game (if on=true). This will switch the disply to Game mode.
+     * This should only be called if #getGameContentTypeSupport returns true.
+     * For more information, see the HDMI 1.4 specification.
+     */
+    virtual void setGameContentType(const sp<IBinder>& display, bool on) = 0;
+
+    /**
      * Capture the specified screen. This requires READ_FRAME_BUFFER
      * permission.  This function will fail if there is a secure window on
      * screen.
@@ -532,6 +563,10 @@ public:
         CAPTURE_SCREEN_BY_ID,
         NOTIFY_POWER_HINT,
         SET_GLOBAL_SHADOW_SETTINGS,
+        GET_AUTO_LOW_LATENCY_MODE_SUPPORT,
+        SET_AUTO_LOW_LATENCY_MODE,
+        GET_GAME_CONTENT_TYPE_SUPPORT,
+        SET_GAME_CONTENT_TYPE,
         // Always append new enum to the end.
     };
 
