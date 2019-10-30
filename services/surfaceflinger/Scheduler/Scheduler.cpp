@@ -274,7 +274,7 @@ ResyncCallback Scheduler::makeResyncCallback(GetVsyncPeriod&& getVsyncPeriod) {
 }
 
 void Scheduler::VsyncState::resync(const GetVsyncPeriod& getVsyncPeriod) {
-    static constexpr nsecs_t kIgnoreDelay = ms2ns(500);
+    static constexpr nsecs_t kIgnoreDelay = ms2ns(750);
 
     const nsecs_t now = systemTime();
     const nsecs_t last = lastResyncTime.exchange(now);
@@ -567,8 +567,13 @@ Scheduler::RefreshRateType Scheduler::calculateRefreshRateType() {
     }
 
     // Content detection is on, find the appropriate refresh rate with minimal error
-    auto iter = min_element(mRefreshRateConfigs.getRefreshRates().cbegin(),
-                            mRefreshRateConfigs.getRefreshRates().cend(),
+    auto begin = mRefreshRateConfigs.getRefreshRates().cbegin();
+
+    // Skip POWER_SAVING config as it is not a real config
+    if (begin->first == RefreshRateType::POWER_SAVING) {
+        ++begin;
+    }
+    auto iter = min_element(begin, mRefreshRateConfigs.getRefreshRates().cend(),
                             [rate = mContentRefreshRate](const auto& l, const auto& r) -> bool {
                                 return std::abs(l.second->fps - static_cast<float>(rate)) <
                                         std::abs(r.second->fps - static_cast<float>(rate));

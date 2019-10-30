@@ -20,6 +20,7 @@
 #include "SensorList.h"
 #include "RecentEventLogger.h"
 
+#include <android-base/macros.h>
 #include <binder/AppOpsManager.h>
 #include <binder/BinderService.h>
 #include <binder/IUidObserver.h>
@@ -42,6 +43,7 @@
 #include <sys/types.h>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #if __clang__
 // Clang warns about SensorEventConnection::dump hiding BBinder::dump. The cause isn't fixable
@@ -95,9 +97,66 @@ private:
     friend class BinderService<SensorService>;
 
     // nested class/struct for internal use
-    class SensorRecord;
+    class ConnectionSafeAutolock;
+    class SensorConnectionHolder;
     class SensorEventAckReceiver;
+    class SensorRecord;
     class SensorRegistrationInfo;
+
+    // Promoting a SensorEventConnection or SensorDirectConnection from wp to sp must be done with
+    // mLock held, but destroying that sp must be done unlocked to avoid a race condition that
+    // causes a deadlock (remote dies while we hold a local sp, then our decStrong() call invokes
+    // the dtor -> cleanupConnection() tries to re-lock the mutex). This class ensures safe usage
+    // by wrapping a Mutex::Autolock on SensorService's mLock, plus vectors that hold promoted sp<>
+    // references until the lock is released, when they are safely destroyed.
+    // All read accesses to the connection lists in mConnectionHolder must be done via this class.
+    class ConnectionSafeAutolock final {
+    public:
+        // Returns a list of non-null promoted connection references
+        const std::vector<sp<SensorEventConnection>>& getActiveConnections();
+        const std::vector<sp<SensorDirectConnection>>& getDirectConnections();
+
+    private:
+        // Constructed via SensorConnectionHolder::lock()
+        friend class SensorConnectionHolder;
+        explicit ConnectionSafeAutolock(SensorConnectionHolder& holder, Mutex& mutex);
+        DISALLOW_IMPLICIT_CONSTRUCTORS(ConnectionSafeAutolock);
+
+        // NOTE: Order of these members is important, as the destructor for non-static members
+        // get invoked in the reverse order of their declaration. Here we are relying on the
+        // Autolock to be destroyed *before* the vectors, so the sp<> objects are destroyed without
+        // the lock held, which avoids the deadlock.
+        SensorConnectionHolder& mConnectionHolder;
+        std::vector<std::vector<sp<SensorEventConnection>>> mReferencedActiveConnections;
+        std::vector<std::vector<sp<SensorDirectConnection>>> mReferencedDirectConnections;
+        Mutex::Autolock mAutolock;
+
+        template<typename ConnectionType>
+        const std::vector<sp<ConnectionType>>& getConnectionsHelper(
+                const SortedVector<wp<ConnectionType>>& connectionList,
+                std::vector<std::vector<sp<ConnectionType>>>* referenceHolder);
+    };
+
+    // Encapsulates the collection of active SensorEventConection and SensorDirectConnection
+    // references. Write access is done through this class with mLock held, but all read access
+    // must be routed through ConnectionSafeAutolock.
+    class SensorConnectionHolder {
+    public:
+        void addEventConnectionIfNotPresent(const sp<SensorEventConnection>& connection);
+        void removeEventConnection(const wp<SensorEventConnection>& connection);
+
+        void addDirectConnection(const sp<SensorDirectConnection>& connection);
+        void removeDirectConnection(const wp<SensorDirectConnection>& connection);
+
+        // Pass in the mutex that protects this connection holder; acquires the lock and returns an
+        // object that can be used to safely read the lists of connections
+        ConnectionSafeAutolock lock(Mutex& mutex);
+
+    private:
+        friend class ConnectionSafeAutolock;
+        SortedVector< wp<SensorEventConnection> > mActiveConnections;
+        SortedVector< wp<SensorDirectConnection> > mDirectConnections;
+    };
 
     // If accessing a sensor we need to make sure the UID has access to it. If
     // the app UID is idle then it cannot access sensors and gets no trigger
@@ -250,7 +309,7 @@ private:
     // method checks whether all the events from these wake up sensors have been delivered to the
     // corresponding applications, if yes the wakelock is released.
     void checkWakeLockState();
-    void checkWakeLockStateLocked();
+    void checkWakeLockStateLocked(ConnectionSafeAutolock* connLock);
     bool isWakeLockAcquired();
     bool isWakeUpSensorEvent(const sensors_event_t& event) const;
 
@@ -267,10 +326,6 @@ private:
 
     // Send events from the event cache for this particular connection.
     void sendEventsFromCache(const sp<SensorEventConnection>& connection);
-
-    // Promote all weak referecences in mActiveConnections vector to strong references and add them
-    // to the output vector.
-    void populateActiveConnections( SortedVector< sp<SensorEventConnection> >* activeConnections);
 
     // If SensorService is operating in RESTRICTED mode, only select whitelisted packages are
     // allowed to register for or call flush on sensors. Typically only cts test packages are
@@ -306,10 +361,10 @@ private:
 
     // temporarily stops all active direct connections and disables all sensors
     void disableAllSensors();
-    void disableAllSensorsLocked();
+    void disableAllSensorsLocked(ConnectionSafeAutolock* connLock);
     // restarts the previously stopped direct connections and enables all sensors
     void enableAllSensors();
-    void enableAllSensorsLocked();
+    void enableAllSensorsLocked(ConnectionSafeAutolock* connLock);
 
     static uint8_t sHmacGlobalKey[128];
     static bool sHmacGlobalKeyIsValid;
@@ -327,12 +382,13 @@ private:
     mutable Mutex mLock;
     DefaultKeyedVector<int, SensorRecord*> mActiveSensors;
     std::unordered_set<int> mActiveVirtualSensors;
-    SortedVector< wp<SensorEventConnection> > mActiveConnections;
+    SensorConnectionHolder mConnectionHolder;
     bool mWakeLockAcquired;
     sensors_event_t *mSensorEventBuffer, *mSensorEventScratch;
+    // WARNING: these SensorEventConnection instances must not be promoted to sp, except via
+    // modification to add support for them in ConnectionSafeAutolock
     wp<const SensorEventConnection> * mMapFlushEventsToConnections;
     std::unordered_map<int, SensorServiceUtil::RecentEventLogger*> mRecentEvent;
-    SortedVector< wp<SensorDirectConnection> > mDirectConnections;
     Mode mCurrentOperatingMode;
 
     // This packagaName is set when SensorService is in RESTRICTED or DATA_INJECTION mode. Only

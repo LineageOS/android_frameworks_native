@@ -40,7 +40,6 @@
     <feature name="android.software.voice_recognizers" notLowRam="true" />
     <feature name="android.software.backup" />
     <feature name="android.software.home_screen" />
-    <feature name="android.software.print" />
     <feature name="android.software.companion_device_setup" />
     <feature name="android.software.autofill" />
     <feature name="android.software.cant_save_state" />
