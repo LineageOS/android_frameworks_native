@@ -246,6 +246,11 @@ public:
             Display display, Config config,
             const V2_4::IComposerClient::VsyncPeriodChangeConstraints& vsyncPeriodChangeConstraints,
             VsyncPeriodChangeTimeline* outTimeline) override;
+    V2_4::Error setAutoLowLatencyMode(Display display, bool on) override;
+    V2_4::Error getSupportedContentTypes(
+            Display display,
+            std::vector<IComposerClient::ContentType>* outSupportedContentTypes) override;
+    V2_4::Error setContentType(Display display, IComposerClient::ContentType type) override;
 
     void setClient(ComposerClient* client);
 

@@ -438,6 +438,12 @@ private:
                                        ui::DisplayPrimaries &primaries);
     ui::ColorMode getActiveColorMode(const sp<IBinder>& displayToken) override;
     status_t setActiveColorMode(const sp<IBinder>& displayToken, ui::ColorMode colorMode) override;
+    status_t getAutoLowLatencyModeSupport(const sp<IBinder>& displayToken,
+                                          bool* outSupported) const override;
+    void setAutoLowLatencyMode(const sp<IBinder>& displayToken, bool on) override;
+    status_t getGameContentTypeSupport(const sp<IBinder>& displayToken,
+                                       bool* outSupported) const override;
+    void setGameContentType(const sp<IBinder>& displayToken, bool on) override;
     void setPowerMode(const sp<IBinder>& displayToken, int mode) override;
     status_t setActiveConfig(const sp<IBinder>& displayToken, int id) override;
     status_t clearAnimationFrameStats() override;
@@ -549,6 +555,11 @@ private:
                                                   HwcConfigIndexType defaultConfig,
                                                   float minRefreshRate, float maxRefreshRate)
             EXCLUDES(mStateLock);
+
+    // called on the main thread in response to setAutoLowLatencyMode()
+    void setAutoLowLatencyModeInternal(const sp<IBinder>& displayToken, bool on);
+    // called on the main thread in response to setGameContentType()
+    void setGameContentTypeInternal(const sp<IBinder>& displayToken, bool on);
 
     // Returns whether the transaction actually modified any state
     bool handleMessageTransaction();

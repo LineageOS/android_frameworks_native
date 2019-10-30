@@ -812,6 +812,26 @@ Error Display::setDisplayBrightness(float brightness) const {
     return static_cast<Error>(intError);
 }
 
+Error Display::setAutoLowLatencyMode(bool on) const {
+    auto intError = mComposer.setAutoLowLatencyMode(mId, on);
+    return static_cast<Error>(intError);
+}
+
+Error Display::getSupportedContentTypes(std::vector<ContentType>* outSupportedContentTypes) const {
+    std::vector<Hwc2::IComposerClient::ContentType> tmpSupportedContentTypes;
+    auto intError = mComposer.getSupportedContentTypes(mId, &tmpSupportedContentTypes);
+    for (Hwc2::IComposerClient::ContentType contentType : tmpSupportedContentTypes) {
+        outSupportedContentTypes->push_back(static_cast<ContentType>(contentType));
+    }
+    return static_cast<Error>(intError);
+}
+
+Error Display::setContentType(ContentType contentType) const {
+    using Hwc2_ContentType = Hwc2::IComposerClient::ContentType;
+    auto intError = mComposer.setContentType(mId, static_cast<Hwc2_ContentType>(contentType));
+    return static_cast<Error>(intError);
+}
+
 // For use by Device
 
 void Display::setConnected(bool connected) {

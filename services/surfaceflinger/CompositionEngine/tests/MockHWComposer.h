@@ -86,6 +86,9 @@ public:
     MOCK_METHOD4(setActiveConfigWithConstraints,
                  status_t(DisplayId, size_t, const HWC2::VsyncPeriodChangeConstraints&,
                           HWC2::VsyncPeriodChangeTimeline*));
+    MOCK_METHOD2(setAutoLowLatencyMode, status_t(DisplayId, bool));
+    MOCK_METHOD2(getSupportedContentTypes, status_t(DisplayId, std::vector<HWC2::ContentType>*));
+    MOCK_METHOD2(setContentType, status_t(DisplayId, HWC2::ContentType));
 
     MOCK_CONST_METHOD1(dump, void(std::string&));
     MOCK_CONST_METHOD0(getComposer, android::Hwc2::Composer*());

@@ -750,6 +750,16 @@ public:
                            bool /*captureSecureLayers*/) override {
         return NO_ERROR;
     }
+    status_t getAutoLowLatencyModeSupport(const sp<IBinder>& /*display*/,
+                                          bool* /*outSupport*/) const override {
+        return NO_ERROR;
+    }
+    void setAutoLowLatencyMode(const sp<IBinder>& /*display*/, bool /*on*/) override {}
+    status_t getGameContentTypeSupport(const sp<IBinder>& /*display*/,
+                                       bool* /*outSupport*/) const override {
+        return NO_ERROR;
+    }
+    void setGameContentType(const sp<IBinder>& /*display*/, bool /*on*/) override {}
     status_t captureScreen(uint64_t /*displayOrLayerStack*/, ui::Dataspace* /*outDataspace*/,
                            sp<GraphicBuffer>* /*outBuffer*/) override {
         return NO_ERROR;
