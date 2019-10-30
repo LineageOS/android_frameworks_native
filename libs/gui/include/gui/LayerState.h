@@ -72,7 +72,7 @@ struct layer_state_t {
         eCropChanged_legacy = 0x00000100,
         eDeferTransaction_legacy = 0x00000200,
         eOverrideScalingModeChanged = 0x00000400,
-        // AVAILABLE 0x00000800,
+        eShadowRadiusChanged = 0x00000800,
         eReparentChildren = 0x00001000,
         eDetachChildren = 0x00002000,
         eRelativeLayerChanged = 0x00004000,
@@ -126,7 +126,8 @@ struct layer_state_t {
             colorTransform(mat4()),
             bgColorAlpha(0),
             bgColorDataspace(ui::Dataspace::UNKNOWN),
-            colorSpaceAgnostic(false) {
+            colorSpaceAgnostic(false),
+            shadowRadius(0.0f) {
         matrix.dsdx = matrix.dtdy = 1.0f;
         matrix.dsdy = matrix.dtdx = 0.0f;
         hdrMetadata.validTypes = 0;
@@ -204,6 +205,9 @@ struct layer_state_t {
     bool colorSpaceAgnostic;
 
     std::vector<ListenerCallbacks> listeners;
+
+    // Draws a shadow around the surface.
+    float shadowRadius;
 };
 
 struct ComposerState {

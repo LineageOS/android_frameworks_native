@@ -339,7 +339,8 @@ FloatRect Layer::getBoundsPreScaling(const ui::Transform& bufferScaleTransform) 
     return bufferScaleTransform.inverse().transform(mBounds);
 }
 
-void Layer::computeBounds(FloatRect parentBounds, ui::Transform parentTransform) {
+void Layer::computeBounds(FloatRect parentBounds, ui::Transform parentTransform,
+                          float parentShadowRadius) {
     const State& s(getDrawingState());
 
     // Calculate effective layer transform
@@ -362,11 +363,23 @@ void Layer::computeBounds(FloatRect parentBounds, ui::Transform parentTransform)
     mBounds = bounds;
     mScreenBounds = mEffectiveTransform.transform(mBounds);
 
+    // Use the layer's own shadow radius if set. Otherwise get the radius from
+    // parent.
+    if (s.shadowRadius > 0.f) {
+        mEffectiveShadowRadius = s.shadowRadius;
+    } else {
+        mEffectiveShadowRadius = parentShadowRadius;
+    }
+
+    // Shadow radius is passed down to only one layer so if the layer can draw shadows,
+    // don't pass it to its children.
+    const float childShadowRadius = canDrawShadows() ? 0.f : mEffectiveShadowRadius;
+
     // Add any buffer scaling to the layer's children.
     ui::Transform bufferScaleTransform = getBufferScaleTransform();
     for (const sp<Layer>& child : mDrawingChildren) {
         child->computeBounds(getBoundsPreScaling(bufferScaleTransform),
-                             getTransformWithScale(bufferScaleTransform));
+                             getTransformWithScale(bufferScaleTransform), childShadowRadius);
     }
 }
 
@@ -466,11 +479,13 @@ void Layer::latchPerFrameState(compositionengine::LayerFECompositionState& compo
     compositionState.hasProtectedContent = isProtected();
 
     const bool usesRoundedCorners = getRoundedCornerState().radius != 0.f;
+    const bool drawsShadows = mEffectiveShadowRadius != 0.f;
+
     compositionState.isOpaque =
             isOpaque(drawingState) && !usesRoundedCorners && getAlpha() == 1.0_hf;
 
     // Force client composition for special cases known only to the front-end.
-    if (isHdrY410() || usesRoundedCorners) {
+    if (isHdrY410() || usesRoundedCorners || drawsShadows) {
         compositionState.forceClientComposition = true;
     }
 }
@@ -1116,6 +1131,18 @@ uint32_t Layer::getLayerStack() const {
     return p->getLayerStack();
 }
 
+bool Layer::setShadowRadius(float shadowRadius) {
+    if (mCurrentState.shadowRadius == shadowRadius) {
+        return false;
+    }
+
+    mCurrentState.sequence++;
+    mCurrentState.shadowRadius = shadowRadius;
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
 void Layer::deferTransactionUntil_legacy(const sp<Layer>& barrierLayer, uint64_t frameNumber) {
     ATRACE_CALL();
     mCurrentState.barrierLayer_legacy = barrierLayer;
@@ -1410,8 +1437,8 @@ void Layer::setChildrenDrawingParent(const sp<Layer>& newParent) {
     for (const sp<Layer>& child : mDrawingChildren) {
         child->mDrawingParent = newParent;
         child->computeBounds(newParent->mBounds,
-                             newParent->getTransformWithScale(
-                                     newParent->getBufferScaleTransform()));
+                             newParent->getTransformWithScale(newParent->getBufferScaleTransform()),
+                             newParent->mEffectiveShadowRadius);
     }
 }
 

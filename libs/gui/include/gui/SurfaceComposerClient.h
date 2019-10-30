@@ -474,6 +474,7 @@ public:
 
         Transaction& setGeometry(const sp<SurfaceControl>& sc,
                 const Rect& source, const Rect& dst, int transform);
+        Transaction& setShadowRadius(const sp<SurfaceControl>& sc, float cornerRadius);
 
         status_t setDisplaySurface(const sp<IBinder>& token,
                 const sp<IGraphicBufferProducer>& bufferProducer);
