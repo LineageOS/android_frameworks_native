@@ -22,6 +22,7 @@
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/CompositionEngine.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
+#include <compositionengine/mock/DisplaySurface.h>
 
 #include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
@@ -173,6 +174,7 @@ public:
 
 class TestableSurfaceFlinger {
 public:
+    SurfaceFlinger* flinger() { return mFlinger.get(); }
     TestableScheduler* scheduler() { return mScheduler; }
 
     // Extend this as needed for accessing SurfaceFlinger private (and public)
@@ -207,12 +209,14 @@ public:
 
         mFlinger->mAppConnectionHandle = mScheduler->createConnection(std::move(appEventThread));
         mFlinger->mSfConnectionHandle = mScheduler->createConnection(std::move(sfEventThread));
+        resetScheduler(mScheduler);
 
-        mFlinger->mScheduler.reset(mScheduler);
         mFlinger->mVSyncModulator.emplace(*mScheduler, mFlinger->mAppConnectionHandle,
                                           mFlinger->mSfConnectionHandle,
                                           mFlinger->mPhaseOffsets->getCurrentOffsets());
     }
+
+    void resetScheduler(Scheduler* scheduler) { mFlinger->mScheduler.reset(scheduler); }
 
     using CreateBufferQueueFunction = surfaceflinger::test::Factory::CreateBufferQueueFunction;
     void setCreateBufferQueueFunction(CreateBufferQueueFunction f) {

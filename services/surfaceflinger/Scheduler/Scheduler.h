@@ -100,17 +100,11 @@ public:
     void addPresentFence(const std::shared_ptr<FenceTime>&);
     void setIgnorePresentFences(bool ignore);
     nsecs_t getDispSyncExpectedPresentTime();
-    // Registers the layer in the scheduler, and returns the handle for future references.
-    std::unique_ptr<scheduler::LayerHistory::LayerHandle> registerLayer(std::string const& name,
-                                                                        int windowType);
 
-    // Stores present time for a layer.
-    void addLayerPresentTimeAndHDR(
-            const std::unique_ptr<scheduler::LayerHistory::LayerHandle>& layerHandle,
-            nsecs_t presentTime, bool isHDR);
-    // Stores visibility for a layer.
-    void setLayerVisibility(
-            const std::unique_ptr<scheduler::LayerHistory::LayerHandle>& layerHandle, bool visible);
+    // Layers are registered on creation, and unregistered when the weak reference expires.
+    void registerLayer(Layer*);
+    void recordLayerHistory(Layer*, nsecs_t presentTime, bool isHDR);
+
     // Updates FPS based on the most content presented.
     void updateFpsBasedOnContent();
 

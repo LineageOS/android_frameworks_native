@@ -310,11 +310,8 @@ public:
     bool authenticateSurfaceTextureLocked(
         const sp<IGraphicBufferProducer>& bufferProducer) const;
 
-    inline void onLayerCreated() { mNumLayers++; }
-    inline void onLayerDestroyed(Layer* layer) {
-        mNumLayers--;
-        mOffscreenLayers.erase(layer);
-    }
+    void onLayerCreated(Layer*);
+    void onLayerDestroyed(Layer*);
 
     TransactionCompletedThread& getTransactionCompletedThread() {
         return mTransactionCompletedThread;

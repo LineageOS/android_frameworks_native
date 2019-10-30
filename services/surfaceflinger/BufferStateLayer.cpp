@@ -249,8 +249,8 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, nsecs_t postTi
 
     if (mFlinger->mUseSmart90ForVideo) {
         const nsecs_t presentTime = (desiredPresentTime == -1) ? 0 : desiredPresentTime;
-        mFlinger->mScheduler->addLayerPresentTimeAndHDR(mSchedulerLayerHandle, presentTime,
-                                                        mCurrentState.hdrMetadata.validTypes != 0);
+        mFlinger->mScheduler->recordLayerHistory(this, presentTime,
+                                                 mCurrentState.hdrMetadata.validTypes != 0);
     }
 
     return true;
