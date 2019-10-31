@@ -675,50 +675,52 @@ int32_t AConfiguration_getUiModeNight(AConfiguration* config);
  */
 void AConfiguration_setUiModeNight(AConfiguration* config, int32_t uiModeNight);
 
-#if __ANDROID_API__ >= 13
 /**
  * Return the current configuration screen width in dp units, or
  * ACONFIGURATION_SCREEN_WIDTH_DP_ANY if not set.
  */
-int32_t AConfiguration_getScreenWidthDp(AConfiguration* config) __INTRODUCED_IN(13);
+int32_t AConfiguration_getScreenWidthDp(AConfiguration* config);
 
 /**
  * Set the configuration's current screen width in dp units.
  */
-void AConfiguration_setScreenWidthDp(AConfiguration* config, int32_t value) __INTRODUCED_IN(13);
+void AConfiguration_setScreenWidthDp(AConfiguration* config, int32_t value);
 
 /**
  * Return the current configuration screen height in dp units, or
  * ACONFIGURATION_SCREEN_HEIGHT_DP_ANY if not set.
  */
-int32_t AConfiguration_getScreenHeightDp(AConfiguration* config) __INTRODUCED_IN(13);
+int32_t AConfiguration_getScreenHeightDp(AConfiguration* config);
 
 /**
  * Set the configuration's current screen width in dp units.
  */
-void AConfiguration_setScreenHeightDp(AConfiguration* config, int32_t value) __INTRODUCED_IN(13);
+void AConfiguration_setScreenHeightDp(AConfiguration* config, int32_t value);
 
 /**
  * Return the configuration's smallest screen width in dp units, or
  * ACONFIGURATION_SMALLEST_SCREEN_WIDTH_DP_ANY if not set.
  */
-int32_t AConfiguration_getSmallestScreenWidthDp(AConfiguration* config) __INTRODUCED_IN(13);
+int32_t AConfiguration_getSmallestScreenWidthDp(AConfiguration* config);
 
 /**
  * Set the configuration's smallest screen width in dp units.
  */
-void AConfiguration_setSmallestScreenWidthDp(AConfiguration* config, int32_t value) __INTRODUCED_IN(13);
-#endif /* __ANDROID_API__ >= 13 */
+void AConfiguration_setSmallestScreenWidthDp(AConfiguration* config, int32_t value);
 
 #if __ANDROID_API__ >= 17
 /**
  * Return the configuration's layout direction, or
  * ACONFIGURATION_LAYOUTDIR_ANY if not set.
+ *
+ * Available since API level 17.
  */
 int32_t AConfiguration_getLayoutDirection(AConfiguration* config) __INTRODUCED_IN(17);
 
 /**
  * Set the configuration's layout direction.
+ *
+ * Available since API level 17.
  */
 void AConfiguration_setLayoutDirection(AConfiguration* config, int32_t value) __INTRODUCED_IN(17);
 #endif /* __ANDROID_API__ >= 17 */

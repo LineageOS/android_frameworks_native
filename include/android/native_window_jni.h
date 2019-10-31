@@ -51,6 +51,8 @@ ANativeWindow* ANativeWindow_fromSurface(JNIEnv* env, jobject surface);
  * the ANativeWindow; maintains it through general Java object's life cycle;
  * and will automatically release the reference when the Java object gets garbage
  * collected.
+ *
+ * Available since API level 26.
  */
 jobject ANativeWindow_toSurface(JNIEnv* env, ANativeWindow* window) __INTRODUCED_IN(26);
 #endif

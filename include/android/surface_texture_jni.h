@@ -32,6 +32,8 @@
 
 __BEGIN_DECLS
 
+#if __ANDROID_API__ >= 28
+
 /**
  * Get a reference to the native ASurfaceTexture from the corresponding java object.
  *
@@ -40,13 +42,17 @@ __BEGIN_DECLS
  * properly once the Java object gets finalized.
  * However, this will not result in program termination.
  *
+ * Available since API level 28.
+ *
  * \param env JNI environment
  * \param surfacetexture Instance of Java SurfaceTexture object
  * \return native ASurfaceTexture reference or nullptr if the java object is not a SurfaceTexture.
  *         The returned reference MUST BE released when it's no longer needed using
  *         ASurfaceTexture_release().
  */
-ASurfaceTexture* ASurfaceTexture_fromSurfaceTexture(JNIEnv* env, jobject surfacetexture);
+ASurfaceTexture* ASurfaceTexture_fromSurfaceTexture(JNIEnv* env, jobject surfacetexture) __INTRODUCED_IN(28);
+
+#endif
 
 __END_DECLS
 

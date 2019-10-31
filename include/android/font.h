@@ -96,6 +96,8 @@ struct AFont;
 /**
  * Close an AFont.
  *
+ * Available since API level 29.
+ *
  * \param font a font returned by ASystemFontIterator_next or AFontMatchert_match.
  *        Do nothing if NULL is passed.
  */
@@ -115,6 +117,8 @@ void AFont_close(AFont* _Nullable font) __INTRODUCED_IN(29);
  *
  * The font file returned is guaranteed to be opend with O_RDONLY.
  * Note that the returned pointer is valid until AFont_close() is called for the given font.
+ *
+ * Available since API level 29.
  *
  * \param font a font object. Passing NULL is not allowed.
  * \return a string of the font file path.
@@ -184,6 +188,8 @@ const char* _Nonnull AFont_getFontFilePath(const AFont* _Nonnull font) __INTRODU
  *
  * For more information about font weight, read [OpenType usWeightClass](https://docs.microsoft.com/en-us/typography/opentype/spec/os2#usweightclass)
  *
+ * Available since API level 29.
+ *
  * \param font a font object. Passing NULL is not allowed.
  * \return a positive integer less than or equal to {@link ASYSTEM_FONT_MAX_WEIGHT} is returned.
  */
@@ -191,6 +197,8 @@ uint16_t AFont_getWeight(const AFont* _Nonnull font) __INTRODUCED_IN(29);
 
 /**
  * Return true if the current font is italic, otherwise returns false.
+ *
+ * Available since API level 29.
  *
  * \param font a font object. Passing NULL is not allowed.
  * \return true if italic, otherwise false.
@@ -204,6 +212,8 @@ bool AFont_isItalic(const AFont* _Nonnull font) __INTRODUCED_IN(29);
  *
  * Note that the returned pointer is valid until AFont_close() is called.
  *
+ * Available since API level 29.
+ *
  * \param font a font object. Passing NULL is not allowed.
  * \return a IETF BCP47 compliant language tag or nullptr if not available.
  */
@@ -215,6 +225,8 @@ const char* _Nullable AFont_getLocale(const AFont* _Nonnull font) __INTRODUCED_I
  * In case the target font file is a font collection (e.g. .ttc or .otc), this
  * returns a non-negative value as an font offset in the collection. This
  * always returns 0 if the target font file is a regular font.
+ *
+ * Available since API level 29.
  *
  * \param font a font object. Passing NULL is not allowed.
  * \return a font collection index.
@@ -247,6 +259,8 @@ size_t AFont_getCollectionIndex(const AFont* _Nonnull font) __INTRODUCED_IN(29);
  *
  * For more information about font variation settings, read [Font Variations Table](https://docs.microsoft.com/en-us/typography/opentype/spec/fvar)
  *
+ * Available since API level 29.
+ *
  * \param font a font object. Passing NULL is not allowed.
  * \return a number of font variation settings.
  */
@@ -257,6 +271,8 @@ size_t AFont_getAxisCount(const AFont* _Nonnull font) __INTRODUCED_IN(29);
  * Return an OpenType axis tag associated with the current font.
  *
  * See AFont_getAxisCount for more details.
+ *
+ * Available since API level 29.
  *
  * \param font a font object. Passing NULL is not allowed.
  * \param axisIndex an index to the font variation settings. Passing value larger than or
@@ -270,6 +286,8 @@ uint32_t AFont_getAxisTag(const AFont* _Nonnull font, uint32_t axisIndex)
  * Return an OpenType axis value associated with the current font.
  *
  * See AFont_getAxisCount for more details.
+ *
+ * Available since API level 29.
  *
  * \param font a font object. Passing NULL is not allowed.
  * \param axisIndex an index to the font variation settings. Passing value larger than or
