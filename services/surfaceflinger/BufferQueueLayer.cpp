@@ -374,13 +374,26 @@ void BufferQueueLayer::latchPerFrameState(
 
 void BufferQueueLayer::onFrameDequeued(const uint64_t bufferId) {
     const int32_t layerID = getSequence();
+    mFlinger->mFrameTracer->traceNewLayer(layerID, getName().c_str());
     mFlinger->mFrameTracer->traceTimestamp(layerID, bufferId, FrameTracer::UNSPECIFIED_FRAME_NUMBER,
-                                           systemTime(), FrameTracer::FrameEvent::DEQUEUE, 3000);
+                                           systemTime(), FrameTracer::FrameEvent::DEQUEUE);
+}
+
+void BufferQueueLayer::onFrameDetached(const uint64_t bufferId) {
+    const int32_t layerID = getSequence();
+    mFlinger->mFrameTracer->traceNewLayer(layerID, getName().c_str());
+    mFlinger->mFrameTracer->traceTimestamp(layerID, bufferId, FrameTracer::UNSPECIFIED_FRAME_NUMBER,
+                                           systemTime(), FrameTracer::FrameEvent::DETACH);
+}
+
+void BufferQueueLayer::onFrameCancelled(const uint64_t bufferId) {
+    const int32_t layerID = getSequence();
+    mFlinger->mFrameTracer->traceTimestamp(layerID, bufferId, FrameTracer::UNSPECIFIED_FRAME_NUMBER,
+                                           systemTime(), FrameTracer::FrameEvent::CANCEL);
 }
 
 void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
     const int32_t layerID = getSequence();
-    mFlinger->mFrameTracer->traceNewLayer(layerID, getName().c_str());
     mFlinger->mFrameTracer->traceTimestamp(layerID, item.mGraphicBuffer->getId(), item.mFrameNumber,
                                            systemTime(), FrameTracer::FrameEvent::QUEUE);
 
