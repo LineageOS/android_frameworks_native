@@ -29,11 +29,9 @@ sourceFiles = [
 sharedLibraries = [
     "libbase",
     "libcutils",
-    "libhardware",
     "liblog",
     "libui",
     "libutils",
-    "libnativewindow",
     "libpdx_default_transport",
 ]
 
