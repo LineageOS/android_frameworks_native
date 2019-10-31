@@ -74,7 +74,7 @@ void ATrace_endSection() __INTRODUCED_IN(23);
 
 #endif /* __ANDROID_API__ >= 23 */
 
-#if __ANDROID_API__ >= __ANDROID_API_Q__
+#if __ANDROID_API__ >= 29
 
 /**
  * Writes a trace message to indicate that a given section of code has
@@ -82,6 +82,8 @@ void ATrace_endSection() __INTRODUCED_IN(23);
  * methodName and cookie. Unlike {@link ATrace_beginSection} and {@link ATrace_endSection},
  * asynchronous events do not need to be nested. The name and cookie used to
  * begin an event must be used to end it.
+ *
+ * Available since API level 29.
  *
  * \param sectionName The method name to appear in the trace.
  * \param cookie Unique identifier for distinguishing simultaneous events
@@ -93,6 +95,8 @@ void ATrace_beginAsyncSection(const char* sectionName, int32_t cookie) __INTRODU
  * Must be called exactly once for each call to {@link ATrace_beginAsyncSection}
  * using the same name and cookie.
  *
+ * Available since API level 29.
+ *
  * \param methodName The method name to appear in the trace.
  * \param cookie Unique identifier for distinguishing simultaneous events
  */
@@ -100,6 +104,8 @@ void ATrace_endAsyncSection(const char* sectionName, int32_t cookie) __INTRODUCE
 
 /**
  * Writes trace message to indicate the value of a given counter.
+ *
+ * Available since API level 29.
  *
  * \param counterName The counter name to appear in the trace.
  * \param counterValue The counter value.
