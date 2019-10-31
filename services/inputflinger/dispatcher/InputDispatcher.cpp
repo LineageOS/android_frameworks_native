@@ -4188,8 +4188,7 @@ void InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible(
         CommandEntry* commandEntry) {
     KeyEntry* entry = commandEntry->keyEntry;
 
-    KeyEvent event;
-    initializeKeyEvent(&event, entry);
+    KeyEvent event = createKeyEvent(*entry);
 
     mLock.unlock();
 
@@ -4309,8 +4308,7 @@ bool InputDispatcher::afterKeyEventLockedInterruptible(const sp<Connection>& con
                   keyEntry->keyCode, keyEntry->action, keyEntry->repeatCount,
                   keyEntry->policyFlags);
 #endif
-            KeyEvent event;
-            initializeKeyEvent(&event, keyEntry);
+            KeyEvent event = createKeyEvent(*keyEntry);
             event.setFlags(event.getFlags() | AKEY_EVENT_FLAG_CANCELED);
 
             mLock.unlock();
@@ -4352,8 +4350,7 @@ bool InputDispatcher::afterKeyEventLockedInterruptible(const sp<Connection>& con
               "keyCode=%d, action=%d, repeatCount=%d, policyFlags=0x%08x",
               keyEntry->keyCode, keyEntry->action, keyEntry->repeatCount, keyEntry->policyFlags);
 #endif
-        KeyEvent event;
-        initializeKeyEvent(&event, keyEntry);
+        KeyEvent event = createKeyEvent(*keyEntry);
 
         mLock.unlock();
 
@@ -4470,10 +4467,12 @@ void InputDispatcher::doPokeUserActivityLockedInterruptible(CommandEntry* comman
     mLock.lock();
 }
 
-void InputDispatcher::initializeKeyEvent(KeyEvent* event, const KeyEntry* entry) {
-    event->initialize(entry->deviceId, entry->source, entry->displayId, entry->action, entry->flags,
-                      entry->keyCode, entry->scanCode, entry->metaState, entry->repeatCount,
-                      entry->downTime, entry->eventTime);
+KeyEvent InputDispatcher::createKeyEvent(const KeyEntry& entry) {
+    KeyEvent event;
+    event.initialize(entry.deviceId, entry.source, entry.displayId, entry.action, entry.flags,
+                     entry.keyCode, entry.scanCode, entry.metaState, entry.repeatCount,
+                     entry.downTime, entry.eventTime);
+    return event;
 }
 
 void InputDispatcher::updateDispatchStatistics(nsecs_t currentTime, const EventEntry& entry,
