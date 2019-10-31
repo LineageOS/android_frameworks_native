@@ -130,12 +130,16 @@ struct AFontMatcher;
  */
 
 /**
- * Creates a new AFontMatcher object
+ * Creates a new AFontMatcher object.
+ *
+ * Available since API level 29.
  */
 AFontMatcher* _Nonnull AFontMatcher_create() __INTRODUCED_IN(29);
 
 /**
  * Destroy the matcher object.
+ *
+ * Available since API level 29.
  *
  * \param matcher a matcher object. Passing NULL is not allowed.
  */
@@ -146,6 +150,8 @@ void AFontMatcher_destroy(AFontMatcher* _Nonnull matcher) __INTRODUCED_IN(29);
  *
  * If this function is not called, the matcher performs with {@link ASYSTEM_FONT_WEIGHT_NORMAL}
  * with non-italic style.
+ *
+ * Available since API level 29.
  *
  * \param matcher a matcher object. Passing NULL is not allowed.
  * \param weight a font weight value. Only from 0 to 1000 value is valid
@@ -161,6 +167,8 @@ void AFontMatcher_setStyle(
  *
  * If this function is not called, the matcher performs with empty locale list.
  *
+ * Available since API level 29.
+ *
  * \param matcher a matcher object. Passing NULL is not allowed.
  * \param languageTags a null character terminated comma separated IETF BCP47 compliant language
  *                     tags.
@@ -173,6 +181,8 @@ void AFontMatcher_setLocales(
  * Set family variant to matcher.
  *
  * If this function is not called, the matcher performs with {@link AFAMILY_VARIANT_DEFAULT}.
+ *
+ * Available since API level 29.
  *
  * \param matcher a matcher object. Passing NULL is not allowed.
  * \param familyVariant Must be one of {@link AFAMILY_VARIANT_DEFAULT},
@@ -189,6 +199,8 @@ void AFontMatcher_setFamilyVariant(
  *
  * Even if no font can render the given text, this function will return a non-null result for
  * drawing Tofu character.
+ *
+ * Available since API level 29.
  *
  * \param matcher a matcher object. Passing NULL is not allowed.
  * \param familyName a null character terminated font family name
