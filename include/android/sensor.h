@@ -564,6 +564,7 @@ ASensorManager* ASensorManager_getInstance();
  *
  *     ASensorManager* sensorManager = ASensorManager_getInstanceForPackage("foo.bar.baz");
  *
+ * Available since API level 26.
  */
 ASensorManager* ASensorManager_getInstanceForPackage(const char* packageName) __INTRODUCED_IN(26);
 #endif
@@ -583,6 +584,8 @@ ASensor const* ASensorManager_getDefaultSensor(ASensorManager* manager, int type
 /**
  * Returns the default sensor with the given type and wakeUp properties or NULL if no sensor
  * of this type and wakeUp properties exists.
+ *
+ * Available since API level 21.
  */
 ASensor const* ASensorManager_getDefaultSensorEx(ASensorManager* manager, int type, bool wakeUp) __INTRODUCED_IN(21);
 #endif
@@ -609,6 +612,8 @@ int ASensorManager_destroyEventQueue(ASensorManager* manager, ASensorEventQueue*
  * Create a direct channel of {@link ASENSOR_DIRECT_CHANNEL_TYPE_SHARED_MEMORY} to be used
  * for configuring sensor direct report.
  *
+ * Available since API level 26.
+ *
  * \param manager the {@link ASensorManager} instance obtained from
  *                {@link ASensorManager_getInstanceForPackage}.
  * \param fd      file descriptor representing a shared memory created by
@@ -626,6 +631,8 @@ int ASensorManager_createSharedMemoryDirectChannel(ASensorManager* manager, int 
  *
  * Create a direct channel of {@link ASENSOR_DIRECT_CHANNEL_TYPE_HARDWARE_BUFFER} type to be used
  * for configuring sensor direct report.
+ *
+ * Available since API level 26.
  *
  * \param manager the {@link ASensorManager} instance obtained from
  *                {@link ASensorManager_getInstanceForPackage}.
@@ -645,6 +652,8 @@ int ASensorManager_createHardwareBufferDirectChannel(
  * Destroy a direct channel previously created using {@link ASensorManager_createDirectChannel}.
  * The buffer used for creating direct channel does not get destroyed with
  * {@link ASensorManager_destroy} and has to be close or released separately.
+ *
+ * Available since API level 26.
  *
  * \param manager the {@link ASensorManager} instance obtained from
  *                {@link ASensorManager_getInstanceForPackage}.
@@ -677,6 +686,8 @@ void ASensorManager_destroyDirectChannel(ASensorManager* manager, int channelId)
  *     int channelId = ...;
  *
  *     ASensorManager_configureDirectReport(manager, sensor, channel_id, ASENSOR_DIRECT_RATE_FAST);
+ *
+ * Available since API level 26.
  *
  * \param manager   the {@link ASensorManager} instance obtained from
  *                  {@link ASensorManager_getInstanceForPackage}.
@@ -780,7 +791,7 @@ int ASensorEventQueue_hasEvents(ASensorEventQueue* queue);
  */
 ssize_t ASensorEventQueue_getEvents(ASensorEventQueue* queue, ASensorEvent* events, size_t count);
 
-#if __ANDROID_API__ >= __ANDROID_API_Q__
+#if __ANDROID_API__ >= 29
 /**
  * Request that {@link ASENSOR_TYPE_ADDITIONAL_INFO} events to be delivered on
  * the given {@link ASensorEventQueue}.
@@ -796,13 +807,15 @@ ssize_t ASensorEventQueue_getEvents(ASensorEventQueue* queue, ASensorEvent* even
  * {@link AAdditionalInfoEvent#type}, as new values may be defined in the future
  * and may delivered to the client.
  *
+ * Available since API level 29.
+ *
  * \param queue {@link ASensorEventQueue} to configure
  * \param enable true to request {@link ASENSOR_TYPE_ADDITIONAL_INFO} events,
  *        false to stop receiving events
  * \return 0 on success or a negative error code on failure
  */
-int ASensorEventQueue_requestAdditionalInfoEvents(ASensorEventQueue* queue, bool enable);
-#endif /* __ANDROID_API__ >= __ANDRDOID_API_Q__ */
+int ASensorEventQueue_requestAdditionalInfoEvents(ASensorEventQueue* queue, bool enable) __INTRODUCED_IN(29);
+#endif /* __ANDROID_API__ >= 29 */
 
 /*****************************************************************************/
 
@@ -837,26 +850,36 @@ int ASensor_getMinDelay(ASensor const* sensor);
 /**
  * Returns the maximum size of batches for this sensor. Batches will often be
  * smaller, as the hardware fifo might be used for other sensors.
+ *
+ * Available since API level 21.
  */
 int ASensor_getFifoMaxEventCount(ASensor const* sensor) __INTRODUCED_IN(21);
 
 /**
  * Returns the hardware batch fifo size reserved to this sensor.
+ *
+ * Available since API level 21.
  */
 int ASensor_getFifoReservedEventCount(ASensor const* sensor) __INTRODUCED_IN(21);
 
 /**
  * Returns this sensor's string type.
+ *
+ * Available since API level 21.
  */
 const char* ASensor_getStringType(ASensor const* sensor) __INTRODUCED_IN(21);
 
 /**
  * Returns the reporting mode for this sensor. One of AREPORTING_MODE_* constants.
+ *
+ * Available since API level 21.
  */
 int ASensor_getReportingMode(ASensor const* sensor) __INTRODUCED_IN(21);
 
 /**
  * Returns true if this is a wake up sensor, false otherwise.
+ *
+ * Available since API level 21.
  */
 bool ASensor_isWakeUpSensor(ASensor const* sensor) __INTRODUCED_IN(21);
 #endif /* __ANDROID_API__ >= 21 */
@@ -864,6 +887,8 @@ bool ASensor_isWakeUpSensor(ASensor const* sensor) __INTRODUCED_IN(21);
 #if __ANDROID_API__ >= 26
 /**
  * Test if sensor supports a certain type of direct channel.
+ *
+ * Available since API level 26.
  *
  * \param sensor  a {@link ASensor} to denote the sensor to be checked.
  * \param channelType  Channel type constant, either
@@ -874,7 +899,9 @@ bool ASensor_isWakeUpSensor(ASensor const* sensor) __INTRODUCED_IN(21);
 bool ASensor_isDirectChannelTypeSupported(ASensor const* sensor, int channelType) __INTRODUCED_IN(26);
 
 /**
- * Get the highest direct rate level that a sensor support.
+ * Get the highest direct rate level that a sensor supports.
+ *
+ * Available since API level 26.
  *
  * \param sensor  a {@link ASensor} to denote the sensor to be checked.
  *
@@ -885,7 +912,7 @@ bool ASensor_isDirectChannelTypeSupported(ASensor const* sensor, int channelType
 int ASensor_getHighestDirectReportRateLevel(ASensor const* sensor) __INTRODUCED_IN(26);
 #endif /* __ANDROID_API__ >= 26 */
 
-#if __ANDROID_API__ >= __ANDROID_API_Q__
+#if __ANDROID_API__ >= 29
 /**
  * Returns the sensor's handle.
  *
@@ -899,9 +926,11 @@ int ASensor_getHighestDirectReportRateLevel(ASensor const* sensor) __INTRODUCED_
  * It is important to note that the value returned by {@link ASensor_getHandle} is not the same as
  * the value returned by the Java API {@link android.hardware.Sensor#getId} and no mapping exists
  * between the values.
+ *
+ * Available since API level 29.
  */
-int ASensor_getHandle(ASensor const* sensor) __INTRODUCED_IN(__ANDROID_API_Q__);
-#endif /* __ANDROID_API__ >= ANDROID_API_Q__ */
+int ASensor_getHandle(ASensor const* sensor) __INTRODUCED_IN(29);
+#endif /* __ANDROID_API__ >= 29 */
 
 #ifdef __cplusplus
 };
