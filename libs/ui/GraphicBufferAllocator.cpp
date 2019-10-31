@@ -136,7 +136,8 @@ status_t GraphicBufferAllocator::allocate(uint32_t width, uint32_t height,
 
     // if stride has no meaning or is too large,
     // approximate size with the input width instead
-    if (std::numeric_limits<size_t>::max() / height / (*stride) < static_cast<size_t>(bpp)) {
+    if ((*stride) != 0 &&
+        std::numeric_limits<size_t>::max() / height / (*stride) < static_cast<size_t>(bpp)) {
         bufSize = static_cast<size_t>(width) * height * bpp;
     } else {
         bufSize = static_cast<size_t>((*stride)) * height * bpp;
