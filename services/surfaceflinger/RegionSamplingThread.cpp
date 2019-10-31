@@ -268,16 +268,6 @@ void RegionSamplingThread::binderDied(const wp<IBinder>& who) {
     mDescriptors.erase(who);
 }
 
-namespace {
-// Using Rec. 709 primaries
-inline float getLuma(float r, float g, float b) {
-    constexpr auto rec709_red_primary = 0.2126f;
-    constexpr auto rec709_green_primary = 0.7152f;
-    constexpr auto rec709_blue_primary = 0.0722f;
-    return rec709_red_primary * r + rec709_green_primary * g + rec709_blue_primary * b;
-}
-} // anonymous namespace
-
 float sampleArea(const uint32_t* data, int32_t width, int32_t height, int32_t stride,
                  uint32_t orientation, const Rect& sample_area) {
     if (!sample_area.isValid() || (sample_area.getWidth() > width) ||
@@ -298,30 +288,23 @@ float sampleArea(const uint32_t* data, int32_t width, int32_t height, int32_t st
         std::swap(area.left, area.right);
     }
 
-    std::array<int32_t, 256> brightnessBuckets = {};
-    const int32_t majoritySampleNum = area.getWidth() * area.getHeight() / 2;
+    const uint32_t pixelCount = (area.bottom - area.top) * (area.right - area.left);
+    uint32_t accumulatedLuma = 0;
 
+    // Calculates luma with approximation of Rec. 709 primaries
     for (int32_t row = area.top; row < area.bottom; ++row) {
         const uint32_t* rowBase = data + row * stride;
         for (int32_t column = area.left; column < area.right; ++column) {
             uint32_t pixel = rowBase[column];
-            const float r = pixel & 0xFF;
-            const float g = (pixel >> 8) & 0xFF;
-            const float b = (pixel >> 16) & 0xFF;
-            const uint8_t luma = std::round(getLuma(r, g, b));
-            ++brightnessBuckets[luma];
-            if (brightnessBuckets[luma] > majoritySampleNum) return luma / 255.0f;
+            const uint32_t r = pixel & 0xFF;
+            const uint32_t g = (pixel >> 8) & 0xFF;
+            const uint32_t b = (pixel >> 16) & 0xFF;
+            const uint32_t luma = (r * 7 + b * 2 + g * 23) >> 5;
+            accumulatedLuma += luma;
         }
     }
 
-    int32_t accumulated = 0;
-    size_t bucket = 0;
-    for (; bucket < brightnessBuckets.size(); bucket++) {
-        accumulated += brightnessBuckets[bucket];
-        if (accumulated > majoritySampleNum) break;
-    }
-
-    return bucket / 255.0f;
+    return accumulatedLuma / (255.0f * pixelCount);
 }
 
 std::vector<float> RegionSamplingThread::sampleBuffer(

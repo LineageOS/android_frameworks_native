@@ -326,6 +326,9 @@ void OutputLayer::writeStateToHWC(bool includeGeometry) {
     writeOutputIndependentPerFrameStateToHWC(hwcLayer.get(), outputIndependentState);
 
     writeCompositionTypeToHWC(hwcLayer.get(), requestedCompositionType);
+
+    // Always set the layer color after setting the composition type.
+    writeSolidColorStateToHWC(hwcLayer.get(), outputIndependentState);
 }
 
 void OutputLayer::writeOutputDependentGeometryStateToHWC(
@@ -435,7 +438,7 @@ void OutputLayer::writeOutputIndependentPerFrameStateToHWC(
     // Content-specific per-frame state
     switch (outputIndependentState.compositionType) {
         case Hwc2::IComposerClient::Composition::SOLID_COLOR:
-            writeSolidColorStateToHWC(hwcLayer, outputIndependentState);
+            // For compatibility, should be written AFTER the composition type.
             break;
         case Hwc2::IComposerClient::Composition::SIDEBAND:
             writeSidebandStateToHWC(hwcLayer, outputIndependentState);
@@ -453,6 +456,10 @@ void OutputLayer::writeOutputIndependentPerFrameStateToHWC(
 
 void OutputLayer::writeSolidColorStateToHWC(HWC2::Layer* hwcLayer,
                                             const LayerFECompositionState& outputIndependentState) {
+    if (outputIndependentState.compositionType != Hwc2::IComposerClient::Composition::SOLID_COLOR) {
+        return;
+    }
+
     hwc_color_t color = {static_cast<uint8_t>(std::round(255.0f * outputIndependentState.color.r)),
                          static_cast<uint8_t>(std::round(255.0f * outputIndependentState.color.g)),
                          static_cast<uint8_t>(std::round(255.0f * outputIndependentState.color.b)),

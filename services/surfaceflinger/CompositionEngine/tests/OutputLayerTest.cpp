@@ -33,6 +33,7 @@ namespace android::compositionengine {
 namespace {
 
 using testing::_;
+using testing::InSequence;
 using testing::Return;
 using testing::ReturnRef;
 using testing::StrictMock;
@@ -769,8 +770,13 @@ TEST_F(OutputLayerWriteStateToHWCTest, canSetPerFrameStateForSolidColor) {
     mLayerFEState.compositionType = Hwc2::IComposerClient::Composition::SOLID_COLOR;
 
     expectPerFrameCommonCalls();
-    expectSetColorCall();
+
+    // Setting the composition type should happen before setting the color. We
+    // check this in this test only by setting up an testing::InSeqeuence
+    // instance before setting up the two expectations.
+    InSequence s;
     expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::SOLID_COLOR);
+    expectSetColorCall();
 
     mOutputLayer.writeStateToHWC(false);
 }
