@@ -50,7 +50,7 @@ static bool isVintfDeclared(const std::string& name) {
             vintf::VintfObject::GetDeviceHalManifest(),
             vintf::VintfObject::GetFrameworkHalManifest()
         }) {
-        if (manifest->hasAidlInstance(package, iface, instance)) {
+        if (manifest != nullptr && manifest->hasAidlInstance(package, iface, instance)) {
             return true;
         }
     }
