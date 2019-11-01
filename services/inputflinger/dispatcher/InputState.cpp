@@ -249,17 +249,17 @@ void InputState::MotionMemento::setPointers(const MotionEntry& entry) {
     }
 }
 
-void InputState::synthesizeCancelationEvents(nsecs_t currentTime,
-                                             std::vector<EventEntry*>& outEvents,
-                                             const CancelationOptions& options) {
+std::vector<EventEntry*> InputState::synthesizeCancelationEvents(
+        nsecs_t currentTime, const CancelationOptions& options) {
+    std::vector<EventEntry*> events;
     for (KeyMemento& memento : mKeyMementos) {
         if (shouldCancelKey(memento, options)) {
-            outEvents.push_back(new KeyEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, currentTime,
-                                             memento.deviceId, memento.source, memento.displayId,
-                                             memento.policyFlags, AKEY_EVENT_ACTION_UP,
-                                             memento.flags | AKEY_EVENT_FLAG_CANCELED,
-                                             memento.keyCode, memento.scanCode, memento.metaState,
-                                             0, memento.downTime));
+            events.push_back(new KeyEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, currentTime,
+                                          memento.deviceId, memento.source, memento.displayId,
+                                          memento.policyFlags, AKEY_EVENT_ACTION_UP,
+                                          memento.flags | AKEY_EVENT_FLAG_CANCELED, memento.keyCode,
+                                          memento.scanCode, memento.metaState, 0 /*repeatCount*/,
+                                          memento.downTime));
         }
     }
 
@@ -267,18 +267,19 @@ void InputState::synthesizeCancelationEvents(nsecs_t currentTime,
         if (shouldCancelMotion(memento, options)) {
             const int32_t action = memento.hovering ? AMOTION_EVENT_ACTION_HOVER_EXIT
                                                     : AMOTION_EVENT_ACTION_CANCEL;
-            outEvents.push_back(
-                    new MotionEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, currentTime, memento.deviceId,
-                                    memento.source, memento.displayId, memento.policyFlags, action,
-                                    0 /*actionButton*/, memento.flags, AMETA_NONE,
-                                    0 /*buttonState*/, MotionClassification::NONE,
-                                    AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
-                                    memento.yPrecision, memento.xCursorPosition,
-                                    memento.yCursorPosition, memento.downTime, memento.pointerCount,
-                                    memento.pointerProperties, memento.pointerCoords, 0 /*xOffset*/,
-                                    0 /*yOffset*/));
+            events.push_back(new MotionEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, currentTime,
+                                             memento.deviceId, memento.source, memento.displayId,
+                                             memento.policyFlags, action, 0 /*actionButton*/,
+                                             memento.flags, AMETA_NONE, 0 /*buttonState*/,
+                                             MotionClassification::NONE,
+                                             AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
+                                             memento.yPrecision, memento.xCursorPosition,
+                                             memento.yCursorPosition, memento.downTime,
+                                             memento.pointerCount, memento.pointerProperties,
+                                             memento.pointerCoords, 0 /*xOffset*/, 0 /*yOffset*/));
         }
     }
+    return events;
 }
 
 void InputState::clear() {

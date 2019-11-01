@@ -2493,8 +2493,8 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
 
     nsecs_t currentTime = now();
 
-    std::vector<EventEntry*> cancelationEvents;
-    connection->inputState.synthesizeCancelationEvents(currentTime, cancelationEvents, options);
+    std::vector<EventEntry*> cancelationEvents =
+            connection->inputState.synthesizeCancelationEvents(currentTime, options);
 
     if (!cancelationEvents.empty()) {
 #if DEBUG_OUTBOUND_EVENT_DETAILS
