@@ -512,6 +512,12 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
             mCore->mSharedBufferSlot = found;
             mSlots[found].mBufferState.mShared = true;
         }
+
+        if (!(returnFlags & BUFFER_NEEDS_REALLOCATION)) {
+            if (mCore->mConsumerListener != nullptr) {
+                mCore->mConsumerListener->onFrameDequeued(mSlots[*outSlot].mGraphicBuffer->getId());
+            }
+        }
     } // Autolock scope
 
     if (returnFlags & BUFFER_NEEDS_REALLOCATION) {
@@ -528,6 +534,10 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
             if (error == NO_ERROR && !mCore->mIsAbandoned) {
                 graphicBuffer->setGenerationNumber(mCore->mGenerationNumber);
                 mSlots[*outSlot].mGraphicBuffer = graphicBuffer;
+                if (mCore->mConsumerListener != nullptr) {
+                    mCore->mConsumerListener->onFrameDequeued(
+                            mSlots[*outSlot].mGraphicBuffer->getId());
+                }
             }
 
             mCore->mIsAllocating = false;
@@ -579,11 +589,6 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
         *outBufferAge = mCore->mBufferAge;
     }
     addAndGetFrameTimestamps(nullptr, outTimestamps);
-
-    { // Autolock scope
-        std::lock_guard<std::mutex> lock(mCore->mMutex);
-        mCore->mConsumerListener->onFrameDequeued(mSlots[*outSlot].mGraphicBuffer->getId());
-    }
 
     return returnFlags;
 }
