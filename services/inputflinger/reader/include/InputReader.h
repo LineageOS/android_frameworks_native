@@ -21,6 +21,7 @@
 #include "InputListener.h"
 #include "InputReaderBase.h"
 #include "InputReaderContext.h"
+#include "InputThread.h"
 
 #include <utils/Condition.h>
 #include <utils/Mutex.h>
@@ -116,8 +117,7 @@ protected:
     friend class ContextImpl;
 
 private:
-    class InputReaderThread;
-    sp<InputReaderThread> mThread;
+    std::unique_ptr<InputThread> mThread;
 
     Mutex mLock;
 

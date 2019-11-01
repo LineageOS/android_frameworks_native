@@ -25,6 +25,7 @@
 #include "InputDispatcherPolicyInterface.h"
 #include "InputState.h"
 #include "InputTarget.h"
+#include "InputThread.h"
 #include "Monitor.h"
 #include "TouchState.h"
 #include "TouchedWindow.h"
@@ -124,8 +125,7 @@ private:
         STALE,
     };
 
-    class InputDispatcherThread;
-    sp<InputDispatcherThread> mThread;
+    std::unique_ptr<InputThread> mThread;
 
     sp<InputDispatcherPolicyInterface> mPolicy;
     android::InputDispatcherConfiguration mConfig;
