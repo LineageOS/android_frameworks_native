@@ -64,6 +64,7 @@ namespace {
 TEST_F(LayerHistoryTest, oneLayer) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*layer, getFrameSelectionPriority()).WillRepeatedly(Return(1));
 
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(0, activeLayerCount());
@@ -90,6 +91,7 @@ TEST_F(LayerHistoryTest, oneLayer) {
 TEST_F(LayerHistoryTest, oneHDRLayer) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*layer, getFrameSelectionPriority()).WillRepeatedly(Return(1));
 
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(0, activeLayerCount());
@@ -109,6 +111,7 @@ TEST_F(LayerHistoryTest, oneHDRLayer) {
 TEST_F(LayerHistoryTest, explicitTimestamp) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*layer, getFrameSelectionPriority()).WillRepeatedly(Return(1));
 
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(0, activeLayerCount());
@@ -130,8 +133,13 @@ TEST_F(LayerHistoryTest, multipleLayers) {
     auto layer3 = createLayer();
 
     EXPECT_CALL(*layer1, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*layer1, getFrameSelectionPriority()).WillRepeatedly(Return(1));
+
     EXPECT_CALL(*layer2, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*layer2, getFrameSelectionPriority()).WillRepeatedly(Return(1));
+
     EXPECT_CALL(*layer3, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*layer3, getFrameSelectionPriority()).WillRepeatedly(Return(1));
 
     nsecs_t time = mTime;
 

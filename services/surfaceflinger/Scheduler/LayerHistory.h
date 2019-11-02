@@ -106,6 +106,9 @@ private:
 
     // Whether to emit systrace output and debug logs.
     const bool mTraceEnabled;
+
+    // Whether to use priority sent from WindowManager to determine the relevancy of the layer.
+    const bool mUseFrameRatePriority;
 };
 
 } // namespace impl

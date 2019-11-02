@@ -1747,12 +1747,6 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
                 mGpuFrameMissedCount++;
             }
 
-            mScheduler->chooseRefreshRateForContent();
-
-            if (performSetActiveConfig()) {
-                break;
-            }
-
             if (frameMissed && mPropagateBackpressure) {
                 if ((hwcFrameMissed && !gpuFrameMissed) ||
                     mPropagateBackpressureClientComposition) {
@@ -1768,6 +1762,13 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
 
             bool refreshNeeded = handleMessageTransaction();
             refreshNeeded |= handleMessageInvalidate();
+
+            // Layers need to get updated (in the previous line) before we can use them for
+            // choosing the refresh rate.
+            mScheduler->chooseRefreshRateForContent();
+            if (performSetActiveConfig()) {
+                break;
+            }
 
             updateCursorAsync();
             updateInputFlinger();
@@ -3473,6 +3474,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     }
     if (what & layer_state_t::eShadowRadiusChanged) {
         if (layer->setShadowRadius(s.shadowRadius)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eFrameRateSelectionPriority) {
+        if (privileged && layer->setFrameRateSelectionPriority(s.frameRateSelectionPriority)) {
+            flags |= eTraversalNeeded;
+        }
     }
     // This has to happen after we reparent children because when we reparent to null we remove
     // child layers from current state and remove its relative z. If the children are reparented in

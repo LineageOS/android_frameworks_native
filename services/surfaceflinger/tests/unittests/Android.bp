@@ -49,6 +49,7 @@ cc_test {
         "SchedulerTest.cpp",
         "SchedulerUtilsTest.cpp",
         "RefreshRateConfigsTest.cpp",
+        "RefreshRateSelectionTest.cpp",
         "RefreshRateStatsTest.cpp",
         "RegionSamplingTest.cpp",
         "TimeStatsTest.cpp",

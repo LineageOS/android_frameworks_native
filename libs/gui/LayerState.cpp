@@ -110,6 +110,9 @@ status_t layer_state_t::write(Parcel& output) const
         }
     }
     output.writeFloat(shadowRadius);
+
+    output.writeInt32(frameRateSelectionPriority);
+
     return NO_ERROR;
 }
 
@@ -188,6 +191,9 @@ status_t layer_state_t::read(const Parcel& input)
         listeners.emplace_back(listener, callbackIds);
     }
     shadowRadius = input.readFloat();
+
+    frameRateSelectionPriority = input.readInt32();
+
     return NO_ERROR;
 }
 
@@ -406,12 +412,14 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eMetadataChanged;
         metadata.merge(other.metadata);
     }
-
     if (other.what & eShadowRadiusChanged) {
         what |= eShadowRadiusChanged;
         shadowRadius = other.shadowRadius;
     }
-
+    if (other.what & eFrameRateSelectionPriority) {
+        what |= eFrameRateSelectionPriority;
+        frameRateSelectionPriority = other.frameRateSelectionPriority;
+    }
     if ((other.what & what) != other.what) {
         ALOGE("Unmerged SurfaceComposer Transaction properties. LayerState::merge needs updating? "
               "other.what=0x%" PRIu64 " what=0x%" PRIu64,
