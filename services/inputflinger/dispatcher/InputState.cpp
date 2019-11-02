@@ -36,12 +36,12 @@ bool InputState::isHovering(int32_t deviceId, uint32_t source, int32_t displayId
     return false;
 }
 
-bool InputState::trackKey(const KeyEntry* entry, int32_t action, int32_t flags) {
+bool InputState::trackKey(const KeyEntry& entry, int32_t action, int32_t flags) {
     switch (action) {
         case AKEY_EVENT_ACTION_UP: {
-            if (entry->flags & AKEY_EVENT_FLAG_FALLBACK) {
+            if (entry.flags & AKEY_EVENT_FLAG_FALLBACK) {
                 for (size_t i = 0; i < mFallbackKeys.size();) {
-                    if (mFallbackKeys.valueAt(i) == entry->keyCode) {
+                    if (mFallbackKeys.valueAt(i) == entry.keyCode) {
                         mFallbackKeys.removeItemsAt(i);
                     } else {
                         i += 1;
@@ -65,7 +65,7 @@ bool InputState::trackKey(const KeyEntry* entry, int32_t action, int32_t flags) 
     #if DEBUG_OUTBOUND_EVENT_DETAILS
             ALOGD("Dropping inconsistent key up event: deviceId=%d, source=%08x, "
                     "keyCode=%d, scanCode=%d",
-                    entry->deviceId, entry->source, entry->keyCode, entry->scanCode);
+                    entry.deviceId, entry.source, entry.keyCode, entry.scanCode);
     #endif
             return false;
             */
@@ -86,7 +86,7 @@ bool InputState::trackKey(const KeyEntry* entry, int32_t action, int32_t flags) 
     }
 }
 
-bool InputState::trackMotion(const MotionEntry* entry, int32_t action, int32_t flags) {
+bool InputState::trackMotion(const MotionEntry& entry, int32_t action, int32_t flags) {
     int32_t actionMasked = action & AMOTION_EVENT_ACTION_MASK;
     switch (actionMasked) {
         case AMOTION_EVENT_ACTION_UP:
@@ -99,7 +99,7 @@ bool InputState::trackMotion(const MotionEntry* entry, int32_t action, int32_t f
 #if DEBUG_OUTBOUND_EVENT_DETAILS
             ALOGD("Dropping inconsistent motion up or cancel event: deviceId=%d, source=%08x, "
                   "displayId=%" PRId32 ", actionMasked=%d",
-                  entry->deviceId, entry->source, entry->displayId, actionMasked);
+                  entry.deviceId, entry.source, entry.displayId, actionMasked);
 #endif
             return false;
         }
@@ -116,7 +116,7 @@ bool InputState::trackMotion(const MotionEntry* entry, int32_t action, int32_t f
         case AMOTION_EVENT_ACTION_POINTER_UP:
         case AMOTION_EVENT_ACTION_POINTER_DOWN:
         case AMOTION_EVENT_ACTION_MOVE: {
-            if (entry->source & AINPUT_SOURCE_CLASS_NAVIGATION) {
+            if (entry.source & AINPUT_SOURCE_CLASS_NAVIGATION) {
                 // Trackballs can send MOVE events with a corresponding DOWN or UP. There's no need
                 // to generate cancellation events for these since they're based in relative rather
                 // than absolute units.
@@ -125,20 +125,20 @@ bool InputState::trackMotion(const MotionEntry* entry, int32_t action, int32_t f
 
             ssize_t index = findMotionMemento(entry, false /*hovering*/);
 
-            if (entry->source & AINPUT_SOURCE_CLASS_JOYSTICK) {
+            if (entry.source & AINPUT_SOURCE_CLASS_JOYSTICK) {
                 // Joysticks can send MOVE events without a corresponding DOWN or UP. Since all
                 // joystick axes are normalized to [-1, 1] we can trust that 0 means it's neutral.
                 // Any other value and we need to track the motion so we can send cancellation
                 // events for anything generating fallback events (e.g. DPad keys for joystick
                 // movements).
                 if (index >= 0) {
-                    if (entry->pointerCoords[0].isEmpty()) {
+                    if (entry.pointerCoords[0].isEmpty()) {
                         mMotionMementos.erase(mMotionMementos.begin() + index);
                     } else {
                         MotionMemento& memento = mMotionMementos[index];
                         memento.setPointers(entry);
                     }
-                } else if (!entry->pointerCoords[0].isEmpty()) {
+                } else if (!entry.pointerCoords[0].isEmpty()) {
                     addMotionMemento(entry, flags, false /*hovering*/);
                 }
 
@@ -153,7 +153,7 @@ bool InputState::trackMotion(const MotionEntry* entry, int32_t action, int32_t f
 #if DEBUG_OUTBOUND_EVENT_DETAILS
             ALOGD("Dropping inconsistent motion pointer up/down or move event: "
                   "deviceId=%d, source=%08x, displayId=%" PRId32 ", actionMasked=%d",
-                  entry->deviceId, entry->source, entry->displayId, actionMasked);
+                  entry.deviceId, entry.source, entry.displayId, actionMasked);
 #endif
             return false;
         }
@@ -167,7 +167,7 @@ bool InputState::trackMotion(const MotionEntry* entry, int32_t action, int32_t f
 #if DEBUG_OUTBOUND_EVENT_DETAILS
             ALOGD("Dropping inconsistent motion hover exit event: deviceId=%d, source=%08x, "
                   "displayId=%" PRId32,
-                  entry->deviceId, entry->source, entry->displayId);
+                  entry.deviceId, entry.source, entry.displayId);
 #endif
             return false;
         }
@@ -187,79 +187,79 @@ bool InputState::trackMotion(const MotionEntry* entry, int32_t action, int32_t f
     }
 }
 
-ssize_t InputState::findKeyMemento(const KeyEntry* entry) const {
+ssize_t InputState::findKeyMemento(const KeyEntry& entry) const {
     for (size_t i = 0; i < mKeyMementos.size(); i++) {
         const KeyMemento& memento = mKeyMementos[i];
-        if (memento.deviceId == entry->deviceId && memento.source == entry->source &&
-            memento.displayId == entry->displayId && memento.keyCode == entry->keyCode &&
-            memento.scanCode == entry->scanCode) {
+        if (memento.deviceId == entry.deviceId && memento.source == entry.source &&
+            memento.displayId == entry.displayId && memento.keyCode == entry.keyCode &&
+            memento.scanCode == entry.scanCode) {
             return i;
         }
     }
     return -1;
 }
 
-ssize_t InputState::findMotionMemento(const MotionEntry* entry, bool hovering) const {
+ssize_t InputState::findMotionMemento(const MotionEntry& entry, bool hovering) const {
     for (size_t i = 0; i < mMotionMementos.size(); i++) {
         const MotionMemento& memento = mMotionMementos[i];
-        if (memento.deviceId == entry->deviceId && memento.source == entry->source &&
-            memento.displayId == entry->displayId && memento.hovering == hovering) {
+        if (memento.deviceId == entry.deviceId && memento.source == entry.source &&
+            memento.displayId == entry.displayId && memento.hovering == hovering) {
             return i;
         }
     }
     return -1;
 }
 
-void InputState::addKeyMemento(const KeyEntry* entry, int32_t flags) {
+void InputState::addKeyMemento(const KeyEntry& entry, int32_t flags) {
     KeyMemento memento;
-    memento.deviceId = entry->deviceId;
-    memento.source = entry->source;
-    memento.displayId = entry->displayId;
-    memento.keyCode = entry->keyCode;
-    memento.scanCode = entry->scanCode;
-    memento.metaState = entry->metaState;
+    memento.deviceId = entry.deviceId;
+    memento.source = entry.source;
+    memento.displayId = entry.displayId;
+    memento.keyCode = entry.keyCode;
+    memento.scanCode = entry.scanCode;
+    memento.metaState = entry.metaState;
     memento.flags = flags;
-    memento.downTime = entry->downTime;
-    memento.policyFlags = entry->policyFlags;
+    memento.downTime = entry.downTime;
+    memento.policyFlags = entry.policyFlags;
     mKeyMementos.push_back(memento);
 }
 
-void InputState::addMotionMemento(const MotionEntry* entry, int32_t flags, bool hovering) {
+void InputState::addMotionMemento(const MotionEntry& entry, int32_t flags, bool hovering) {
     MotionMemento memento;
-    memento.deviceId = entry->deviceId;
-    memento.source = entry->source;
-    memento.displayId = entry->displayId;
+    memento.deviceId = entry.deviceId;
+    memento.source = entry.source;
+    memento.displayId = entry.displayId;
     memento.flags = flags;
-    memento.xPrecision = entry->xPrecision;
-    memento.yPrecision = entry->yPrecision;
-    memento.xCursorPosition = entry->xCursorPosition;
-    memento.yCursorPosition = entry->yCursorPosition;
-    memento.downTime = entry->downTime;
+    memento.xPrecision = entry.xPrecision;
+    memento.yPrecision = entry.yPrecision;
+    memento.xCursorPosition = entry.xCursorPosition;
+    memento.yCursorPosition = entry.yCursorPosition;
+    memento.downTime = entry.downTime;
     memento.setPointers(entry);
     memento.hovering = hovering;
-    memento.policyFlags = entry->policyFlags;
+    memento.policyFlags = entry.policyFlags;
     mMotionMementos.push_back(memento);
 }
 
-void InputState::MotionMemento::setPointers(const MotionEntry* entry) {
-    pointerCount = entry->pointerCount;
-    for (uint32_t i = 0; i < entry->pointerCount; i++) {
-        pointerProperties[i].copyFrom(entry->pointerProperties[i]);
-        pointerCoords[i].copyFrom(entry->pointerCoords[i]);
+void InputState::MotionMemento::setPointers(const MotionEntry& entry) {
+    pointerCount = entry.pointerCount;
+    for (uint32_t i = 0; i < entry.pointerCount; i++) {
+        pointerProperties[i].copyFrom(entry.pointerProperties[i]);
+        pointerCoords[i].copyFrom(entry.pointerCoords[i]);
     }
 }
 
-void InputState::synthesizeCancelationEvents(nsecs_t currentTime,
-                                             std::vector<EventEntry*>& outEvents,
-                                             const CancelationOptions& options) {
+std::vector<EventEntry*> InputState::synthesizeCancelationEvents(
+        nsecs_t currentTime, const CancelationOptions& options) {
+    std::vector<EventEntry*> events;
     for (KeyMemento& memento : mKeyMementos) {
         if (shouldCancelKey(memento, options)) {
-            outEvents.push_back(new KeyEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, currentTime,
-                                             memento.deviceId, memento.source, memento.displayId,
-                                             memento.policyFlags, AKEY_EVENT_ACTION_UP,
-                                             memento.flags | AKEY_EVENT_FLAG_CANCELED,
-                                             memento.keyCode, memento.scanCode, memento.metaState,
-                                             0, memento.downTime));
+            events.push_back(new KeyEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, currentTime,
+                                          memento.deviceId, memento.source, memento.displayId,
+                                          memento.policyFlags, AKEY_EVENT_ACTION_UP,
+                                          memento.flags | AKEY_EVENT_FLAG_CANCELED, memento.keyCode,
+                                          memento.scanCode, memento.metaState, 0 /*repeatCount*/,
+                                          memento.downTime));
         }
     }
 
@@ -267,18 +267,19 @@ void InputState::synthesizeCancelationEvents(nsecs_t currentTime,
         if (shouldCancelMotion(memento, options)) {
             const int32_t action = memento.hovering ? AMOTION_EVENT_ACTION_HOVER_EXIT
                                                     : AMOTION_EVENT_ACTION_CANCEL;
-            outEvents.push_back(
-                    new MotionEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, currentTime, memento.deviceId,
-                                    memento.source, memento.displayId, memento.policyFlags, action,
-                                    0 /*actionButton*/, memento.flags, AMETA_NONE,
-                                    0 /*buttonState*/, MotionClassification::NONE,
-                                    AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
-                                    memento.yPrecision, memento.xCursorPosition,
-                                    memento.yCursorPosition, memento.downTime, memento.pointerCount,
-                                    memento.pointerProperties, memento.pointerCoords, 0 /*xOffset*/,
-                                    0 /*yOffset*/));
+            events.push_back(new MotionEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, currentTime,
+                                             memento.deviceId, memento.source, memento.displayId,
+                                             memento.policyFlags, action, 0 /*actionButton*/,
+                                             memento.flags, AMETA_NONE, 0 /*buttonState*/,
+                                             MotionClassification::NONE,
+                                             AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
+                                             memento.yPrecision, memento.xCursorPosition,
+                                             memento.yCursorPosition, memento.downTime,
+                                             memento.pointerCount, memento.pointerProperties,
+                                             memento.pointerCoords, 0 /*xOffset*/, 0 /*yOffset*/));
         }
     }
+    return events;
 }
 
 void InputState::clear() {

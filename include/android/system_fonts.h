@@ -102,6 +102,8 @@ struct ASystemFontIterator;
  *
  * Use ASystemFont_close() to close the iterator.
  *
+ * Available since API level 29.
+ *
  * \return a pointer for a newly allocated iterator, nullptr on failure.
  */
 ASystemFontIterator* _Nullable ASystemFontIterator_open() __INTRODUCED_IN(29);
@@ -109,12 +111,16 @@ ASystemFontIterator* _Nullable ASystemFontIterator_open() __INTRODUCED_IN(29);
 /**
  * Close an opened system font iterator, freeing any related resources.
  *
+ * Available since API level 29.
+ *
  * \param iterator a pointer of an iterator for the system fonts. Do nothing if NULL is passed.
  */
 void ASystemFontIterator_close(ASystemFontIterator* _Nullable iterator) __INTRODUCED_IN(29);
 
 /**
  * Move to the next system font.
+ *
+ * Available since API level 29.
  *
  * \param iterator an iterator for the system fonts. Passing NULL is not allowed.
  * \return a font. If no more font is available, returns nullptr. You need to release the returned

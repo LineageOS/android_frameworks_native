@@ -41,16 +41,16 @@ public:
     // Records tracking information for a key event that has just been published.
     // Returns true if the event should be delivered, false if it is inconsistent
     // and should be skipped.
-    bool trackKey(const KeyEntry* entry, int32_t action, int32_t flags);
+    bool trackKey(const KeyEntry& entry, int32_t action, int32_t flags);
 
     // Records tracking information for a motion event that has just been published.
     // Returns true if the event should be delivered, false if it is inconsistent
     // and should be skipped.
-    bool trackMotion(const MotionEntry* entry, int32_t action, int32_t flags);
+    bool trackMotion(const MotionEntry& entry, int32_t action, int32_t flags);
 
     // Synthesizes cancelation events for the current state and resets the tracked state.
-    void synthesizeCancelationEvents(nsecs_t currentTime, std::vector<EventEntry*>& outEvents,
-                                     const CancelationOptions& options);
+    std::vector<EventEntry*> synthesizeCancelationEvents(nsecs_t currentTime,
+                                                         const CancelationOptions& options);
 
     // Clears the current state.
     void clear();
@@ -100,18 +100,18 @@ private:
         bool hovering;
         uint32_t policyFlags;
 
-        void setPointers(const MotionEntry* entry);
+        void setPointers(const MotionEntry& entry);
     };
 
     std::vector<KeyMemento> mKeyMementos;
     std::vector<MotionMemento> mMotionMementos;
     KeyedVector<int32_t, int32_t> mFallbackKeys;
 
-    ssize_t findKeyMemento(const KeyEntry* entry) const;
-    ssize_t findMotionMemento(const MotionEntry* entry, bool hovering) const;
+    ssize_t findKeyMemento(const KeyEntry& entry) const;
+    ssize_t findMotionMemento(const MotionEntry& entry, bool hovering) const;
 
-    void addKeyMemento(const KeyEntry* entry, int32_t flags);
-    void addMotionMemento(const MotionEntry* entry, int32_t flags, bool hovering);
+    void addKeyMemento(const KeyEntry& entry, int32_t flags);
+    void addMotionMemento(const MotionEntry& entry, int32_t flags, bool hovering);
 
     static bool shouldCancelKey(const KeyMemento& memento, const CancelationOptions& options);
     static bool shouldCancelMotion(const MotionMemento& memento, const CancelationOptions& options);

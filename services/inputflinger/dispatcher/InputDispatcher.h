@@ -144,7 +144,7 @@ private:
     bool enqueueInboundEventLocked(EventEntry* entry) REQUIRES(mLock);
 
     // Cleans up input state when dropping an inbound event.
-    void dropInboundEventLocked(EventEntry* entry, DropReason dropReason) REQUIRES(mLock);
+    void dropInboundEventLocked(const EventEntry& entry, DropReason dropReason) REQUIRES(mLock);
 
     // Adds an event to a queue of recent events for debugging purposes.
     void addRecentEventLocked(EventEntry* entry) REQUIRES(mLock);
@@ -153,12 +153,12 @@ private:
     bool mAppSwitchSawKeyDown GUARDED_BY(mLock);
     nsecs_t mAppSwitchDueTime GUARDED_BY(mLock);
 
-    bool isAppSwitchKeyEvent(KeyEntry* keyEntry);
+    bool isAppSwitchKeyEvent(const KeyEntry& keyEntry);
     bool isAppSwitchPendingLocked() REQUIRES(mLock);
     void resetPendingAppSwitchLocked(bool handled) REQUIRES(mLock);
 
     // Stale event latency optimization.
-    static bool isStaleEvent(nsecs_t currentTime, EventEntry* entry);
+    static bool isStaleEvent(nsecs_t currentTime, const EventEntry& entry);
 
     // Blocked event latency optimization.  Drops old events when the user intends
     // to transfer focus to a new application.
@@ -183,7 +183,7 @@ private:
     std::optional<int32_t> findGestureMonitorDisplayByTokenLocked(const sp<IBinder>& token)
             REQUIRES(mLock);
 
-    sp<Connection> getConnectionLocked(const sp<InputChannel>& inputChannel) REQUIRES(mLock);
+    sp<Connection> getConnectionLocked(const sp<IBinder>& inputConnectionToken) REQUIRES(mLock);
 
     // Input channels that will receive a copy of all input events sent to the provided display.
     std::unordered_map<int32_t, std::vector<Monitor>> mGlobalMonitorsByDisplay GUARDED_BY(mLock);
@@ -293,8 +293,8 @@ private:
     void dispatchEventLocked(nsecs_t currentTime, EventEntry* entry,
                              const std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
 
-    void logOutboundKeyDetails(const char* prefix, const KeyEntry* entry);
-    void logOutboundMotionDetails(const char* prefix, const MotionEntry* entry);
+    void logOutboundKeyDetails(const char* prefix, const KeyEntry& entry);
+    void logOutboundMotionDetails(const char* prefix, const MotionEntry& entry);
 
     // Keeping track of ANR timeouts.
     enum InputTargetWaitCause {
@@ -313,7 +313,7 @@ private:
     sp<InputWindowHandle> mLastHoverWindowHandle GUARDED_BY(mLock);
 
     // Finding targets for input events.
-    int32_t handleTargetsNotReadyLocked(nsecs_t currentTime, const EventEntry* entry,
+    int32_t handleTargetsNotReadyLocked(nsecs_t currentTime, const EventEntry& entry,
                                         const sp<InputApplicationHandle>& applicationHandle,
                                         const sp<InputWindowHandle>& windowHandle,
                                         nsecs_t* nextWakeupTime, const char* reason)
@@ -322,16 +322,16 @@ private:
     void removeWindowByTokenLocked(const sp<IBinder>& token) REQUIRES(mLock);
 
     void resumeAfterTargetsNotReadyTimeoutLocked(nsecs_t newTimeout,
-                                                 const sp<InputChannel>& inputChannel)
+                                                 const sp<IBinder>& inputConnectionToken)
             REQUIRES(mLock);
     nsecs_t getTimeSpentWaitingForApplicationLocked(nsecs_t currentTime) REQUIRES(mLock);
     void resetANRTimeoutsLocked() REQUIRES(mLock);
 
-    int32_t getTargetDisplayId(const EventEntry* entry);
-    int32_t findFocusedWindowTargetsLocked(nsecs_t currentTime, const EventEntry* entry,
+    int32_t getTargetDisplayId(const EventEntry& entry);
+    int32_t findFocusedWindowTargetsLocked(nsecs_t currentTime, const EventEntry& entry,
                                            std::vector<InputTarget>& inputTargets,
                                            nsecs_t* nextWakeupTime) REQUIRES(mLock);
-    int32_t findTouchedWindowTargetsLocked(nsecs_t currentTime, const MotionEntry* entry,
+    int32_t findTouchedWindowTargetsLocked(nsecs_t currentTime, const MotionEntry& entry,
                                            std::vector<InputTarget>& inputTargets,
                                            nsecs_t* nextWakeupTime,
                                            bool* outConflictingPointerActions) REQUIRES(mLock);
@@ -350,7 +350,7 @@ private:
     void addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets, int32_t displayId,
                                           float xOffset = 0, float yOffset = 0) REQUIRES(mLock);
 
-    void pokeUserActivityLocked(const EventEntry* eventEntry) REQUIRES(mLock);
+    void pokeUserActivityLocked(const EventEntry& eventEntry) REQUIRES(mLock);
     bool checkInjectionPermission(const sp<InputWindowHandle>& windowHandle,
                                   const InjectionState* injectionState);
     bool isWindowObscuredAtPointLocked(const sp<InputWindowHandle>& windowHandle, int32_t x,
@@ -361,7 +361,7 @@ private:
 
     std::string checkWindowReadyForMoreInputLocked(nsecs_t currentTime,
                                                    const sp<InputWindowHandle>& windowHandle,
-                                                   const EventEntry* eventEntry,
+                                                   const EventEntry& eventEntry,
                                                    const char* targetType) REQUIRES(mLock);
 
     // Manage the dispatch cycle for a single connection.
@@ -405,7 +405,7 @@ private:
             REQUIRES(mLock);
 
     // Splitting motion events across windows.
-    MotionEntry* splitMotionEvent(const MotionEntry* originalMotionEntry, BitSet32 pointerIds);
+    MotionEntry* splitMotionEvent(const MotionEntry& originalMotionEntry, BitSet32 pointerIds);
 
     // Reset and drop everything the dispatcher is doing.
     void resetAndDropEverythingLocked(const char* reason) REQUIRES(mLock);
@@ -450,7 +450,7 @@ private:
                                              DispatchEntry* dispatchEntry, MotionEntry* motionEntry,
                                              bool handled) REQUIRES(mLock);
     void doPokeUserActivityLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
-    void initializeKeyEvent(KeyEvent* event, const KeyEntry* entry);
+    KeyEvent createKeyEvent(const KeyEntry& entry);
     void doOnPointerDownOutsideFocusLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
 
     // Statistics gathering.
@@ -458,7 +458,7 @@ private:
     LatencyStatistics mTouchStatistics{TOUCH_STATS_REPORT_PERIOD};
 
     void reportTouchEventForStatistics(const MotionEntry& entry);
-    void updateDispatchStatistics(nsecs_t currentTime, const EventEntry* entry,
+    void updateDispatchStatistics(nsecs_t currentTime, const EventEntry& entry,
                                   int32_t injectionResult, nsecs_t timeSpentWaitingForApplication);
     void traceInboundQueueLengthLocked() REQUIRES(mLock);
     void traceOutboundQueueLength(const sp<Connection>& connection);

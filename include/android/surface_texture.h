@@ -65,6 +65,9 @@ typedef struct ASurfaceTexture ASurfaceTexture;
  * Release the reference to the native ASurfaceTexture acquired with
  * ASurfaceTexture_fromSurfaceTexture().
  * Failing to do so will result in leaked memory and graphic resources.
+ *
+ * Available since API level 28.
+ *
  * \param st A ASurfaceTexture reference acquired with ASurfaceTexture_fromSurfaceTexture()
  */
 void ASurfaceTexture_release(ASurfaceTexture* st) __INTRODUCED_IN(28);
@@ -72,6 +75,8 @@ void ASurfaceTexture_release(ASurfaceTexture* st) __INTRODUCED_IN(28);
 /**
  * Returns a reference to an ANativeWindow (i.e. the Producer) for this SurfaceTexture.
  * This is equivalent to Java's: Surface sur = new Surface(surfaceTexture);
+ *
+ * Available since API level 28.
  *
  * \param st A ASurfaceTexture reference acquired with ASurfaceTexture_fromSurfaceTexture()
  * @return A reference to an ANativeWindow. This reference MUST BE released when no longer needed
@@ -89,6 +94,8 @@ ANativeWindow* ASurfaceTexture_acquireANativeWindow(ASurfaceTexture* st) __INTRO
  * This can be used to access the SurfaceTexture image contents from multiple OpenGL ES
  * contexts.  Note, however, that the image contents are only accessible from one OpenGL ES
  * context at a time.
+ *
+ * Available since API level 28.
  *
  * \param st A ASurfaceTexture reference acquired with ASurfaceTexture_fromSurfaceTexture()
  * \param texName The name of the OpenGL ES texture that will be created.  This texture name
@@ -108,6 +115,8 @@ int ASurfaceTexture_attachToGLContext(ASurfaceTexture* st, uint32_t texName) __I
  * contexts.  Note, however, that the image contents are only accessible from one OpenGL ES
  * context at a time.
  *
+ * Available since API level 28.
+ *
  * \param st A ASurfaceTexture reference acquired with ASurfaceTexture_fromSurfaceTexture()
  * \return 0 on success, negative posix error code otherwise (see <errno.h>)
  */
@@ -117,6 +126,8 @@ int ASurfaceTexture_detachFromGLContext(ASurfaceTexture* st) __INTRODUCED_IN(28)
  * Update the texture image to the most recent frame from the image stream.  This may only be
  * called while the OpenGL ES context that owns the texture is current on the calling thread.
  * It will implicitly bind its texture to the GL_TEXTURE_EXTERNAL_OES texture target.
+ *
+ * Available since API level 28.
  *
  * \param st A ASurfaceTexture reference acquired with ASurfaceTexture_fromSurfaceTexture()
  * \return 0 on success, negative posix error code otherwise (see <errno.h>)
@@ -134,6 +145,8 @@ int ASurfaceTexture_updateTexImage(ASurfaceTexture* st) __INTRODUCED_IN(28);
  *
  * The matrix is stored in column-major order so that it may be passed directly to OpenGL ES via
  * the glLoadMatrixf or glUniformMatrix4fv functions.
+ *
+ * Available since API level 28.
  *
  * \param st A ASurfaceTexture reference acquired with ASurfaceTexture_fromSurfaceTexture()
  * \param mtx the array into which the 4x4 matrix will be stored.  The array must have exactly
@@ -155,6 +168,8 @@ void ASurfaceTexture_getTransformMatrix(ASurfaceTexture* st, float mtx[16]) __IN
  *
  * For EGL/Vulkan producers, this timestamp is the desired present time set with the
  * EGL_ANDROID_presentation_time or VK_GOOGLE_display_timing extensions
+ *
+ * Available since API level 28.
  *
  * \param st A ASurfaceTexture reference acquired with ASurfaceTexture_fromSurfaceTexture()
  */
