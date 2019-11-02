@@ -183,7 +183,7 @@ private:
     std::optional<int32_t> findGestureMonitorDisplayByTokenLocked(const sp<IBinder>& token)
             REQUIRES(mLock);
 
-    sp<Connection> getConnectionLocked(const sp<InputChannel>& inputChannel) REQUIRES(mLock);
+    sp<Connection> getConnectionLocked(const sp<IBinder>& inputConnectionToken) REQUIRES(mLock);
 
     // Input channels that will receive a copy of all input events sent to the provided display.
     std::unordered_map<int32_t, std::vector<Monitor>> mGlobalMonitorsByDisplay GUARDED_BY(mLock);
@@ -322,7 +322,7 @@ private:
     void removeWindowByTokenLocked(const sp<IBinder>& token) REQUIRES(mLock);
 
     void resumeAfterTargetsNotReadyTimeoutLocked(nsecs_t newTimeout,
-                                                 const sp<InputChannel>& inputChannel)
+                                                 const sp<IBinder>& inputConnectionToken)
             REQUIRES(mLock);
     nsecs_t getTimeSpentWaitingForApplicationLocked(nsecs_t currentTime) REQUIRES(mLock);
     void resetANRTimeoutsLocked() REQUIRES(mLock);
