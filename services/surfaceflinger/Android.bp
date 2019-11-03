@@ -163,6 +163,9 @@ cc_library_shared {
             apply_msm8974_1440p_egl_workaround: {
                 cflags: ["-DALLOW_TOO_LARGE_DIMENSIONS"],
             },
+            has_hh_vsync_issue: {
+                cflags: ["-DHH_VSYNC_ISSUE"],
+            },
             uses_qcom_um_family: {
                 cflags: ["-DQCOM_UM_FAMILY"],
                 srcs: [
