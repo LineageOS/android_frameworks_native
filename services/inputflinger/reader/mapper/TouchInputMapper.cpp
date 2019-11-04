@@ -750,6 +750,10 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
             mSurfaceTop = 0;
             mSurfaceOrientation = DISPLAY_ORIENTATION_0;
         }
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+        // Console Mode support for touch scaling/rotation
+        handleStbRotation(mSurfaceWidth, mSurfaceHeight, mSurfaceOrientation);
+#endif
     }
 
     // If moving between pointer modes, need to reset some state.
