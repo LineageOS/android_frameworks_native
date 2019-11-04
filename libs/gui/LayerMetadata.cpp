@@ -18,6 +18,8 @@
 #include <binder/Parcel.h>
 #include <gui/LayerMetadata.h>
 
+#include "android/view/LayerMetadataKey.h"
+
 using android::base::StringPrintf;
 
 namespace android {
@@ -113,12 +115,12 @@ void LayerMetadata::setInt32(uint32_t key, int32_t value) {
 
 std::string LayerMetadata::itemToString(uint32_t key, const char* separator) const {
     if (!has(key)) return std::string();
-    switch (key) {
-        case METADATA_OWNER_UID:
+    switch (static_cast<view::LayerMetadataKey>(key)) {
+        case view::LayerMetadataKey::METADATA_OWNER_UID:
             return StringPrintf("ownerUID%s%d", separator, getInt32(key, 0));
-        case METADATA_WINDOW_TYPE:
+        case view::LayerMetadataKey::METADATA_WINDOW_TYPE:
             return StringPrintf("windowType%s%d", separator, getInt32(key, 0));
-        case METADATA_TASK_ID:
+        case view::LayerMetadataKey::METADATA_TASK_ID:
             return StringPrintf("taskId%s%d", separator, getInt32(key, 0));
         default:
             return StringPrintf("%d%s%dbytes", key, separator,
