@@ -30,6 +30,7 @@
 #include <ui/FrameStats.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/GraphicTypes.h>
+#include <ui/PhysicalDisplayId.h>
 #include <ui/PixelFormat.h>
 
 #include <utils/Errors.h>
