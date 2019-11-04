@@ -59,6 +59,10 @@
 #include <input/VirtualKeyMap.h>
 #include <statslog.h>
 
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+#include "InputReaderHook.h"
+#endif
+
 #define INDENT "  "
 #define INDENT2 "    "
 #define INDENT3 "      "

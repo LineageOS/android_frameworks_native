@@ -60,6 +60,19 @@ cc_library_shared {
         "include",
     ],
 
+    product_variables: {
+        lineage: {
+            uses_nvidia_enhancements: {
+                srcs: ["InputDispatcherHook.cpp"],
+                shared_libs: [
+                    "libhidlbase",
+                    "libhidltransport",
+                    "vendor.nvidia.hardware.shieldtech.inputflinger@2.0",
+                ],
+                cppflags: ["-DNV_ANDROID_FRAMEWORK_ENHANCEMENTS"],
+            },
+        },
+    },
 }
 
 cc_library_headers {
@@ -98,6 +111,20 @@ cc_library_shared {
     export_header_lib_headers: [
         "libinputflinger_headers",
     ],
+
+    product_variables: {
+        lineage: {
+            uses_nvidia_enhancements: {
+                srcs: ["InputReaderHook.cpp"],
+                shared_libs: [
+                    "libhidlbase",
+                    "libhidltransport",
+                    "vendor.nvidia.hardware.shieldtech.inputflinger@2.0",
+                ],
+                cppflags: ["-DNV_ANDROID_FRAMEWORK_ENHANCEMENTS"],
+            },
+        },
+    },
 }
 
 cc_library_shared {

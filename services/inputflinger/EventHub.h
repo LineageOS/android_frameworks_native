@@ -39,6 +39,10 @@
 
 #include "TouchVideoDevice.h"
 
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+#include "InputReaderHook.h"
+#endif
+
 /* Convenience constants. */
 
 #define BTN_FIRST 0x100  // first button code
@@ -261,6 +265,10 @@ public:
 
 class EventHub : public EventHubInterface
 {
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    friend class InputReaderHook;
+#endif
+
 public:
     EventHub();
 
