@@ -36,6 +36,10 @@
 #include <linux/input.h>
 #include <sys/epoll.h>
 
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+#include "InputHook.h"
+#endif
+
 /* Convenience constants. */
 
 #define BTN_FIRST 0x100  // first button code
@@ -278,6 +282,10 @@ public:
 
 class EventHub : public EventHubInterface
 {
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    friend class InputHook;
+#endif
+
 public:
     EventHub();
 
