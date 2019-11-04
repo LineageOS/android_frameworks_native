@@ -116,6 +116,27 @@ cc_defaults {
     header_libs: [
         "libinputflinger_headers",
     ],
+<<<<<<< HEAD   (f1201c Merge tag 'android-11.0.0_r29' into staging/lineage-18.1_mer)
+=======
+
+    export_header_lib_headers: [
+        "libinputflinger_headers",
+    ],
+
+    product_variables: {
+        lineage: {
+            uses_nvidia_enhancements: {
+                srcs: ["InputHook.cpp"],
+                shared_libs: [
+                    "libhidlbase",
+                    "libhidltransport",
+                    "vendor.nvidia.hardware.shieldtech.inputflinger@2.0",
+                ],
+                cppflags: ["-DNV_ANDROID_FRAMEWORK_ENHANCEMENTS"],
+            },
+        },
+    },
+>>>>>>> CHANGE (6b9ff5 Add Nvidia ShieldTech hooks [2/2])
 }
 
 cc_library_shared {
