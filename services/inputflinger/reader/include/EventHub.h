@@ -38,6 +38,10 @@
 
 #include "TouchVideoDevice.h"
 
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+#include "InputReaderHook.h"
+#endif
+
 /* Convenience constants. */
 
 #define BTN_FIRST 0x100 // first button code
@@ -256,7 +260,12 @@ public:
     virtual status_t disableDevice(int32_t deviceId) = 0;
 };
 
-class EventHub : public EventHubInterface {
+class EventHub : public EventHubInterface
+{
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    friend class InputReaderHook;
+#endif
+
 public:
     EventHub();
 
