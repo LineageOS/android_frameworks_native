@@ -59,6 +59,10 @@
 #include <powermanager/PowerManager.h>
 #include <ui/Region.h>
 
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+#include "InputHook.h"
+#endif
+
 #define INDENT "  "
 #define INDENT2 "    "
 #define INDENT3 "      "
@@ -3616,10 +3620,20 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(
             KeyEntry* keyEntry = static_cast<KeyEntry*>(dispatchEntry->eventEntry);
             restartEvent = afterKeyEventLockedInterruptible(connection,
                     dispatchEntry, keyEntry, handled);
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+            if (dispatchEntry->hasForegroundTarget()) {
+                InputHook::getInstance()->notifyKeyState(keyEntry->deviceId, keyEntry->keyCode, handled);
+            }
+#endif
         } else if (dispatchEntry->eventEntry->type == EventEntry::TYPE_MOTION) {
             MotionEntry* motionEntry = static_cast<MotionEntry*>(dispatchEntry->eventEntry);
             restartEvent = afterMotionEventLockedInterruptible(connection,
                     dispatchEntry, motionEntry, handled);
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+            if (dispatchEntry->hasForegroundTarget()) {
+                InputHook::getInstance()->notifyMotionState(motionEntry->deviceId, motionEntry->pointerCoords, handled);
+            }
+#endif
         } else {
             restartEvent = false;
         }

@@ -69,6 +69,10 @@ using android::base::StringPrintf;
 
 namespace android {
 
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+static InputHook* mInputHook = NULL;
+#endif
+
 static const char *WAKE_LOCK_ID = "KeyEvents";
 static const char *DEVICE_PATH = "/dev/input";
 
@@ -159,6 +163,9 @@ EventHub::Device::Device(int fd, int32_t id, const String8& path,
 }
 
 EventHub::Device::~Device() {
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    mInputHook->filterCloseDevice(id);
+#endif
     close();
     delete configuration;
     delete virtualKeyMap;
@@ -205,6 +212,10 @@ EventHub::EventHub(void) :
         mNeedToReopenDevices(false), mNeedToScanDevices(true),
         mPendingEventCount(0), mPendingEventIndex(0), mPendingINotify(false) {
     acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_ID);
+
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    mInputHook = new InputHook(this);
+#endif
 
     mEpollFd = epoll_create(EPOLL_SIZE_HINT);
     LOG_ALWAYS_FATAL_IF(mEpollFd < 0, "Could not create epoll instance.  errno=%d", errno);
@@ -321,6 +332,9 @@ status_t EventHub::getAbsoluteAxisInfo(int32_t deviceId, int axis,
             }
             return OK;
         }
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+        return mInputHook->getAbsoluteAxisInfo(deviceId, axis, outAxisInfo);
+#endif
     }
     return -1;
 }
@@ -423,6 +437,9 @@ status_t EventHub::getAbsoluteAxisValue(int32_t deviceId, int32_t axis, int32_t*
             *outValue = info.value;
             return OK;
         }
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+        return mInputHook->getAbsoluteAxisValue(deviceId, axis, outValue);
+#endif
     }
     return -1;
 }
@@ -862,10 +879,31 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
                     ALOGE("could not get event (wrong size: %d)", readSize);
                 } else {
                     int32_t deviceId = device->id == mBuiltInKeyboardId ? 0 : device->id;
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+                    int32_t oldDeviceId = deviceId;
+#endif
 
                     size_t count = size_t(readSize) / sizeof(struct input_event);
                     for (size_t i = 0; i < count; i++) {
                         struct input_event& iev = readBuffer[i];
+
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+                        deviceId = oldDeviceId;
+
+                        InputHook::RESPONSE resp = mInputHook->filterEvent(iev, deviceId);
+                        switch (resp) {
+                        case InputHook::EVENT_DEFAULT:
+                        case InputHook::EVENT_PROCESS:
+                            break;
+                        case InputHook::EVENT_SKIP:
+                            continue;
+                        case InputHook::EVENT_ADD:
+                            // Decrement i so we reprocess this event
+                            --i;
+                            break;
+                        }
+#endif
+
                         ALOGV("%s got: time=%d.%06d, type=%d, code=%d, value=%d",
                                 device->path.string(),
                                 (int) iev.time.tv_sec, (int) iev.time.tv_usec,
@@ -1058,6 +1096,9 @@ void EventHub::scanDevicesLocked() {
     if (mDevices.indexOfKey(VIRTUAL_KEYBOARD_ID) < 0) {
         createVirtualKeyboardLocked();
     }
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    mInputHook->registerDevices();
+#endif
 }
 
 // ----------------------------------------------------------------------------
@@ -1179,6 +1220,16 @@ status_t EventHub::openDeviceLocked(const char *devicePath) {
 
     // Allocate device.  (The device object takes ownership of the fd at this point.)
     int32_t deviceId = mNextDeviceId++;
+
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    // Enable input filtering. A return of false means to discard this input
+    if (!mInputHook->filterNewDevice(fd, deviceId, String8(devicePath), identifier)) {
+        ALOGD("Input filtering has rejecting this device");
+        close(fd);
+        return -1;
+    }
+#endif
+
     Device* device = new Device(fd, deviceId, String8(devicePath), identifier);
 
     ALOGV("add device %d: %s\n", deviceId, devicePath);
