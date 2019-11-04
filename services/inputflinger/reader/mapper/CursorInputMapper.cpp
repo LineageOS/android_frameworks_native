@@ -152,7 +152,15 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
         if (config->pointerCapture) {
             if (mParameters.mode == Parameters::MODE_POINTER) {
                 mParameters.mode = Parameters::MODE_POINTER_RELATIVE;
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+                if (InputHook::getInstance() != NULL && InputHook::getInstance()->treatMouseAsTouch()) {
+                    mSource = AINPUT_SOURCE_TOUCHSCREEN;
+                } else {
+                    mSource = AINPUT_SOURCE_MOUSE_RELATIVE;
+                }
+#else
                 mSource = AINPUT_SOURCE_MOUSE_RELATIVE;
+#endif
                 // Keep PointerController around in order to preserve the pointer position.
                 mPointerController->fade(PointerControllerInterface::TRANSITION_IMMEDIATE);
             } else {
@@ -161,7 +169,15 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
         } else {
             if (mParameters.mode == Parameters::MODE_POINTER_RELATIVE) {
                 mParameters.mode = Parameters::MODE_POINTER;
-                mSource = AINPUT_SOURCE_MOUSE;
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+                if (InputHook::getInstance() != NULL && InputHook::getInstance()->treatMouseAsTouch()) {
+                    mSource = AINPUT_SOURCE_TOUCHSCREEN;
+                } else {
+                    mSource = AINPUT_SOURCE_MOUSE_RELATIVE;
+                }
+#else
+                mSource = AINPUT_SOURCE_MOUSE_RELATIVE;
+#endif
             } else {
                 ALOGE("Cannot release pointer capture, device is not in MODE_POINTER_RELATIVE");
             }

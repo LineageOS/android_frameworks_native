@@ -123,6 +123,7 @@ cc_library_shared {
     defaults: [
         "inputflinger_defaults",
         "libinputflinger_base_defaults",
+        "nvidia_enhancements_input",
     ],
     export_header_lib_headers: [
         "libinputflinger_headers",
