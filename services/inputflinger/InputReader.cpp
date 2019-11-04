@@ -59,6 +59,10 @@
 #include <input/VirtualKeyMap.h>
 #include <statslog.h>
 
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+#include "InputHook.h"
+#endif
+
 #define INDENT "  "
 #define INDENT2 "    "
 #define INDENT3 "      "
@@ -2611,7 +2615,15 @@ void CursorInputMapper::configure(nsecs_t when,
             mParameters.mode = Parameters::MODE_POINTER;
             [[fallthrough]];
         case Parameters::MODE_POINTER:
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+            if (InputHook::getInstance() != NULL && InputHook::getInstance()->treatMouseAsTouch()) {
+                mSource = AINPUT_SOURCE_TOUCHSCREEN;
+            } else {
+                mSource = AINPUT_SOURCE_MOUSE;
+            }
+#else
             mSource = AINPUT_SOURCE_MOUSE;
+#endif
             mXPrecision = 1.0f;
             mYPrecision = 1.0f;
             mXScale = 1.0f;
@@ -3655,6 +3667,10 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
             mSurfaceTop = 0;
             mSurfaceOrientation = DISPLAY_ORIENTATION_0;
         }
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+        // Console Mode support for touch scaling/rotation
+        handleStbRotation(mSurfaceWidth, mSurfaceHeight, mSurfaceOrientation);
+#endif
     }
 
     // If moving between pointer modes, need to reset some state.
