@@ -71,6 +71,10 @@ namespace android {
 
 static constexpr bool DEBUG = false;
 
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+static InputReaderHook* mInputHook = NULL;
+#endif
+
 static const char *WAKE_LOCK_ID = "KeyEvents";
 static const char *DEVICE_PATH = "/dev/input";
 // v4l2 devices go directly into /dev
@@ -207,6 +211,9 @@ EventHub::Device::Device(int fd, int32_t id, const std::string& path,
 }
 
 EventHub::Device::~Device() {
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    mInputHook->filterCloseDevice(id);
+#endif
     close();
     delete configuration;
 }
@@ -249,6 +256,10 @@ EventHub::EventHub(void) :
         mNeedToReopenDevices(false), mNeedToScanDevices(true),
         mPendingEventCount(0), mPendingEventIndex(0), mPendingINotify(false) {
     acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_ID);
+
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    mInputHook = new InputReaderHook(this);
+#endif
 
     mEpollFd = epoll_create1(EPOLL_CLOEXEC);
     LOG_ALWAYS_FATAL_IF(mEpollFd < 0, "Could not create epoll instance: %s", strerror(errno));
@@ -373,6 +384,9 @@ status_t EventHub::getAbsoluteAxisInfo(int32_t deviceId, int axis,
             }
             return OK;
         }
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+        return mInputHook->getAbsoluteAxisInfo(deviceId, axis, outAxisInfo);
+#endif
     }
     return -1;
 }
@@ -475,6 +489,9 @@ status_t EventHub::getAbsoluteAxisValue(int32_t deviceId, int32_t axis, int32_t*
             *outValue = info.value;
             return OK;
         }
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+        return mInputHook->getAbsoluteAxisValue(deviceId, axis, outValue);
+#endif
     }
     return -1;
 }
@@ -806,6 +823,10 @@ EventHub::Device* EventHub::getDeviceByFdLocked(int fd) const {
             // This is a video device event
             return device;
         }
+        if (device->id == fd) {
+            // This is an input device event
+            return device;
+        }
     }
     // We do not check mUnattachedVideoDevices here because they should not participate in epoll,
     // and therefore should never be looked up by fd.
@@ -960,11 +981,32 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
                     ALOGE("could not get event (wrong size: %d)", readSize);
                 } else {
                     int32_t deviceId = device->id == mBuiltInKeyboardId ? 0 : device->id;
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+                    int32_t oldDeviceId = deviceId;
+#endif
 
                     size_t count = size_t(readSize) / sizeof(struct input_event);
                     for (size_t i = 0; i < count; i++) {
                         struct input_event& iev = readBuffer[i];
                         event->when = processEventTimestamp(iev);
+
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+                        deviceId = oldDeviceId;
+
+                        InputReaderHook::RESPONSE resp = mInputHook->filterEvent(iev, deviceId);
+                        switch (resp) {
+                        case InputReaderHook::EVENT_DEFAULT:
+                        case InputReaderHook::EVENT_PROCESS:
+                            break;
+                        case InputReaderHook::EVENT_SKIP:
+                            continue;
+                        case InputReaderHook::EVENT_ADD:
+                            // Decrement i so we reprocess this event
+                            --i;
+                            break;
+                        }
+#endif
+
                         event->deviceId = deviceId;
                         event->type = iev.type;
                         event->code = iev.code;
@@ -1093,6 +1135,9 @@ void EventHub::scanDevicesLocked() {
     if (mDevices.indexOfKey(ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID) < 0) {
         createVirtualKeyboardLocked();
     }
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    mInputHook->registerDevices();
+#endif
 }
 
 // ----------------------------------------------------------------------------
@@ -1258,6 +1303,16 @@ status_t EventHub::openDeviceLocked(const char* devicePath) {
 
     // Allocate device.  (The device object takes ownership of the fd at this point.)
     int32_t deviceId = mNextDeviceId++;
+
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    // Enable input filtering. A return of false means to discard this input
+    if (!mInputHook->filterNewDevice(fd, deviceId, String8(devicePath), identifier)) {
+        ALOGD("Input filtering has rejecting this device");
+        close(fd);
+        return -1;
+    }
+#endif
+
     Device* device = new Device(fd, deviceId, devicePath, identifier);
 
     ALOGV("add device %d: %s\n", deviceId, devicePath);
