@@ -58,6 +58,7 @@ cc_library_static {
     defaults: [
         "inputflinger_defaults",
         "libinputdispatcher_defaults",
+        "nvidia_shieldtech_libs_defaults",
     ],
     shared_libs: [
         // This should consist only of dependencies from inputflinger. Other dependencies should be

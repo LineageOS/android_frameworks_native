@@ -68,7 +68,9 @@ cc_library_shared {
     name: "libinputreader",
     defaults: [
         "inputflinger_defaults",
-        "libinputreader_defaults"
+        "libinputreader_defaults",
+        "nvidia_shieldtech_libs_defaults",
+        "nvidia_shieldtech_reader_defaults",
     ],
     srcs: [
         "InputReaderFactory.cpp",
