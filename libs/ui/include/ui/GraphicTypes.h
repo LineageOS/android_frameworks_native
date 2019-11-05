@@ -16,18 +16,11 @@
 
 #pragma once
 
-#include <cinttypes>
-#include <cstdint>
-
 #include <android/hardware/graphics/common/1.1/types.h>
 #include <android/hardware/graphics/common/1.2/types.h>
 #include <system/graphics.h>
 
-#define ANDROID_PHYSICAL_DISPLAY_ID_FORMAT PRIu64
-
 namespace android {
-
-using PhysicalDisplayId = uint64_t;
 
 // android::ui::* in this header file will alias different types as
 // the HIDL interface is updated.

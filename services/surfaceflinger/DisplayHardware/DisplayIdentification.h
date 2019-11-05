@@ -23,7 +23,7 @@
 #include <string_view>
 #include <vector>
 
-#include <ui/GraphicTypes.h>
+#include <ui/PhysicalDisplayId.h>
 
 namespace android {
 
