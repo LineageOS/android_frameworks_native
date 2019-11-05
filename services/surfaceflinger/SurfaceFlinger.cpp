@@ -1715,7 +1715,12 @@ void SurfaceFlinger::handleMessageRefresh() {
     refreshArgs.layersWithQueuedFrames.reserve(mLayersWithQueuedFrames.size());
     for (sp<Layer> layer : mLayersWithQueuedFrames) {
         auto compositionLayer = layer->getCompositionLayer();
-        if (compositionLayer) refreshArgs.layersWithQueuedFrames.push_back(compositionLayer.get());
+        if (compositionLayer) {
+            refreshArgs.layersWithQueuedFrames.push_back(compositionLayer.get());
+            mFrameTracer->traceTimestamp(layer->getSequence(), layer->getCurrentBufferId(),
+                                         layer->getCurrentFrameNumber(), systemTime(),
+                                         FrameTracer::FrameEvent::HWC_COMPOSITION_QUEUED);
+        }
     }
 
     refreshArgs.repaintEverything = mRepaintEverything.exchange(false);

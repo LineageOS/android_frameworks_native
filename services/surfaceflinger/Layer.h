@@ -601,6 +601,8 @@ public:
 
     virtual sp<GraphicBuffer> getBuffer() const { return nullptr; }
 
+    virtual uint64_t getCurrentFrameNumber() const { return mCurrentFrameNumber; }
+
     /*
      * Returns if a frame is ready
      */
