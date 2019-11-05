@@ -38,12 +38,12 @@ struct StylusState;
  * that it sends to the input listener.  Some functions of the input reader, such as early
  * event filtering in low power states, are controlled by a separate policy object.
  *
- * The InputReader owns a collection of InputMappers.  Most of the work it does happens
- * on the input reader thread but the InputReader can receive queries from other system
+ * The InputReader owns a collection of InputMappers. InputReader starts its own thread, where
+ * most of the work happens, but the InputReader can receive queries from other system
  * components running on arbitrary threads.  To keep things manageable, the InputReader
  * uses a single Mutex to guard its state.  The Mutex may be held while calling into the
  * EventHub or the InputReaderPolicy but it is never held while calling into the
- * InputListener.
+ * InputListener. All calls to InputListener must happen from InputReader's thread.
  */
 class InputReader : public InputReaderInterface {
 public:
@@ -55,7 +55,8 @@ public:
     virtual void dump(std::string& dump) override;
     virtual void monitor() override;
 
-    virtual void loopOnce() override;
+    virtual status_t start() override;
+    virtual status_t stop() override;
 
     virtual void getInputDevices(std::vector<InputDeviceInfo>& outInputDevices) override;
 
@@ -86,6 +87,10 @@ protected:
                                             const InputDeviceIdentifier& identifier,
                                             uint32_t classes);
 
+    // With each iteration of the loop, InputReader reads and processes one incoming message from
+    // the EventHub.
+    void loopOnce();
+
     class ContextImpl : public InputReaderContext {
         InputReader* mReader;
 
@@ -111,6 +116,9 @@ protected:
     friend class ContextImpl;
 
 private:
+    class InputReaderThread;
+    sp<InputReaderThread> mThread;
+
     Mutex mLock;
 
     Condition mReaderIsAliveCondition;

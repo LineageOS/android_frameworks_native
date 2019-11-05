@@ -1113,6 +1113,9 @@ public:
                                classes);
     }
 
+    // Make the protected loopOnce method accessible to tests.
+    using InputReader::loopOnce;
+
 protected:
     virtual InputDevice* createDeviceLocked(int32_t deviceId, int32_t controllerNumber,
                                             const InputDeviceIdentifier& identifier,
@@ -1133,12 +1136,8 @@ class InputReaderPolicyTest : public testing::Test {
 protected:
     sp<FakeInputReaderPolicy> mFakePolicy;
 
-    virtual void SetUp() {
-        mFakePolicy = new FakeInputReaderPolicy();
-    }
-    virtual void TearDown() {
-        mFakePolicy.clear();
-    }
+    virtual void SetUp() override { mFakePolicy = new FakeInputReaderPolicy(); }
+    virtual void TearDown() override { mFakePolicy.clear(); }
 };
 
 /**
@@ -1321,19 +1320,18 @@ protected:
     sp<TestInputListener> mFakeListener;
     sp<FakeInputReaderPolicy> mFakePolicy;
     std::shared_ptr<FakeEventHub> mFakeEventHub;
-    sp<InstrumentedInputReader> mReader;
+    std::unique_ptr<InstrumentedInputReader> mReader;
 
-    virtual void SetUp() {
+    virtual void SetUp() override {
         mFakeEventHub = std::make_unique<FakeEventHub>();
         mFakePolicy = new FakeInputReaderPolicy();
         mFakeListener = new TestInputListener();
 
-        mReader = new InstrumentedInputReader(mFakeEventHub, mFakePolicy, mFakeListener);
+        mReader = std::make_unique<InstrumentedInputReader>(mFakeEventHub, mFakePolicy,
+                                                            mFakeListener);
     }
 
-    virtual void TearDown() {
-        mReader.clear();
-
+    virtual void TearDown() override {
         mFakeListener.clear();
         mFakePolicy.clear();
     }
@@ -1354,16 +1352,12 @@ protected:
 
     void disableDevice(int32_t deviceId, InputDevice* device) {
         mFakePolicy->addDisabledDevice(deviceId);
-        configureDevice(InputReaderConfiguration::CHANGE_ENABLED_STATE, device);
+        mReader->requestRefreshConfiguration(InputReaderConfiguration::CHANGE_ENABLED_STATE);
     }
 
     void enableDevice(int32_t deviceId, InputDevice* device) {
         mFakePolicy->removeDisabledDevice(deviceId);
-        configureDevice(InputReaderConfiguration::CHANGE_ENABLED_STATE, device);
-    }
-
-    void configureDevice(uint32_t changes, InputDevice* device) {
-        device->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(), changes);
+        mReader->requestRefreshConfiguration(InputReaderConfiguration::CHANGE_ENABLED_STATE);
     }
 
     FakeInputMapper* addDeviceWithFakeInputMapper(int32_t deviceId, int32_t controllerNumber,
@@ -1417,7 +1411,6 @@ TEST_F(InputReaderTest, WhenEnabledChanges_SendsDeviceResetNotification) {
 
     NotifyDeviceResetArgs resetArgs;
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
-    ASSERT_EQ(ARBITRARY_TIME, resetArgs.eventTime);
     ASSERT_EQ(deviceId, resetArgs.deviceId);
 
     ASSERT_EQ(device->isEnabled(), true);
@@ -1425,7 +1418,6 @@ TEST_F(InputReaderTest, WhenEnabledChanges_SendsDeviceResetNotification) {
     mReader->loopOnce();
 
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
-    ASSERT_EQ(ARBITRARY_TIME, resetArgs.eventTime);
     ASSERT_EQ(deviceId, resetArgs.deviceId);
     ASSERT_EQ(device->isEnabled(), false);
 
@@ -1438,7 +1430,6 @@ TEST_F(InputReaderTest, WhenEnabledChanges_SendsDeviceResetNotification) {
     enableDevice(deviceId, device);
     mReader->loopOnce();
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
-    ASSERT_EQ(ARBITRARY_TIME, resetArgs.eventTime);
     ASSERT_EQ(deviceId, resetArgs.deviceId);
     ASSERT_EQ(device->isEnabled(), true);
 }
@@ -1629,7 +1620,6 @@ TEST_F(InputReaderTest, Device_CanDispatchToDisplay) {
     FakeInputMapper* mapper = new FakeInputMapper(device, AINPUT_SOURCE_TOUCHSCREEN);
     device->addMapper(mapper);
     mReader->setNextDevice(device);
-    addDevice(deviceId, "fake", deviceClass, nullptr);
 
     const uint8_t hdmi1 = 1;
 
@@ -1637,13 +1627,21 @@ TEST_F(InputReaderTest, Device_CanDispatchToDisplay) {
     mFakePolicy->addInputPortAssociation(DEVICE_LOCATION, hdmi1);
 
     // Add default and second display.
+    mFakePolicy->clearViewports();
     mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
             DISPLAY_ORIENTATION_0, "local:0", NO_PORT, ViewportType::VIEWPORT_INTERNAL);
     mFakePolicy->addDisplayViewport(SECONDARY_DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
             DISPLAY_ORIENTATION_0, "local:1", hdmi1, ViewportType::VIEWPORT_EXTERNAL);
     mReader->requestRefreshConfiguration(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
     mReader->loopOnce();
+
+    // Add the device, and make sure all of the callbacks are triggered.
+    // The device is added after the input port associations are processed since
+    // we do not yet support dynamic device-to-display associations.
+    ASSERT_NO_FATAL_FAILURE(addDevice(deviceId, "fake", deviceClass, nullptr));
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyConfigurationChangedWasCalled());
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled());
+    ASSERT_NO_FATAL_FAILURE(mapper->assertConfigureWasCalled());
 
     // Device should only dispatch to the specified display.
     ASSERT_EQ(deviceId, device->getId());
@@ -1652,6 +1650,7 @@ TEST_F(InputReaderTest, Device_CanDispatchToDisplay) {
 
     // Can't dispatch event from a disabled device.
     disableDevice(deviceId, device);
+    mReader->loopOnce();
     ASSERT_FALSE(mReader->canDispatchToDisplay(deviceId, SECONDARY_DISPLAY_ID));
 }
 
@@ -1674,7 +1673,7 @@ protected:
 
     InputDevice* mDevice;
 
-    virtual void SetUp() {
+    virtual void SetUp() override {
         mFakeEventHub = std::make_unique<FakeEventHub>();
         mFakePolicy = new FakeInputReaderPolicy();
         mFakeListener = new TestInputListener();
@@ -1688,7 +1687,7 @@ protected:
                 DEVICE_CONTROLLER_NUMBER, identifier, DEVICE_CLASSES);
     }
 
-    virtual void TearDown() {
+    virtual void TearDown() override {
         delete mDevice;
 
         delete mFakeContext;
@@ -1912,7 +1911,7 @@ protected:
     FakeInputReaderContext* mFakeContext;
     InputDevice* mDevice;
 
-    virtual void SetUp() {
+    virtual void SetUp() override {
         mFakeEventHub = std::make_unique<FakeEventHub>();
         mFakePolicy = new FakeInputReaderPolicy();
         mFakeListener = new TestInputListener();
@@ -1926,7 +1925,7 @@ protected:
         mFakeEventHub->addDevice(mDevice->getId(), DEVICE_NAME, 0);
     }
 
-    virtual void TearDown() {
+    virtual void TearDown() override {
         delete mDevice;
         delete mFakeContext;
         mFakeListener.clear();
@@ -2589,7 +2588,7 @@ protected:
 
     sp<FakePointerController> mFakePointerController;
 
-    virtual void SetUp() {
+    virtual void SetUp() override {
         InputMapperTest::SetUp();
 
         mFakePointerController = new FakePointerController();
