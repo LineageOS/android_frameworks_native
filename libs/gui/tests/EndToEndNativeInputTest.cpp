@@ -69,7 +69,6 @@ public:
         mSurfaceControl = sc;
 
         InputChannel::openInputChannelPair("testchannels", mServerChannel, mClientChannel);
-        mServerChannel->setToken(new BBinder());
 
         mInputFlinger = getInputFlinger();
         mInputFlinger->registerInputChannel(mServerChannel);
@@ -165,7 +164,7 @@ private:
     }
 
     void populateInputInfo(int width, int height) {
-        mInputInfo.token = mServerChannel->getToken();
+        mInputInfo.token = mServerChannel->getConnectionToken();
         mInputInfo.name = "Test info";
         mInputInfo.layoutParamsFlags = InputWindowInfo::FLAG_NOT_TOUCH_MODAL;
         mInputInfo.layoutParamsType = InputWindowInfo::TYPE_BASE_APPLICATION;
