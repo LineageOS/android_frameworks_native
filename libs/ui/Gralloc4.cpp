@@ -32,7 +32,6 @@ using android::hardware::graphics::common::V1_2::BufferUsage;
 using android::hardware::graphics::mapper::V4_0::BufferDescriptor;
 using android::hardware::graphics::mapper::V4_0::Error;
 using android::hardware::graphics::mapper::V4_0::IMapper;
-using android::hardware::graphics::mapper::V4_0::YCbCrLayout;
 
 namespace android {
 
@@ -190,6 +189,16 @@ void Gralloc4Mapper::getTransportSize(buffer_handle_t bufferHandle, uint32_t* ou
 status_t Gralloc4Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, const Rect& bounds,
                               int acquireFence, void** outData, int32_t* outBytesPerPixel,
                               int32_t* outBytesPerStride) const {
+    // In Gralloc 4 we can get this info per plane. Clients should check per plane.
+    if (outBytesPerPixel) {
+        // TODO add support to check per plane
+        *outBytesPerPixel = -1;
+    }
+    if (outBytesPerStride) {
+        // TODO add support to check per plane
+        *outBytesPerStride = -1;
+    }
+
     auto buffer = const_cast<native_handle_t*>(bufferHandle);
 
     IMapper::Rect accessRegion = sGralloc4Rect(bounds);
@@ -205,19 +214,12 @@ status_t Gralloc4Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, cons
 
     Error error;
     auto ret = mMapper->lock(buffer, usage, accessRegion, acquireFenceHandle,
-                             [&](const auto& tmpError, const auto& tmpData,
-                                 const auto& tmpBytesPerPixel, const auto& tmpBytesPerStride) {
+                             [&](const auto& tmpError, const auto& tmpData) {
                                  error = tmpError;
                                  if (error != Error::NONE) {
                                      return;
                                  }
                                  *outData = tmpData;
-                                 if (outBytesPerPixel) {
-                                     *outBytesPerPixel = tmpBytesPerPixel;
-                                 }
-                                 if (outBytesPerStride) {
-                                     *outBytesPerStride = tmpBytesPerStride;
-                                 }
                              });
 
     // we own acquireFence even on errors
@@ -232,48 +234,11 @@ status_t Gralloc4Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, cons
     return static_cast<status_t>(error);
 }
 
-status_t Gralloc4Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, const Rect& bounds,
-                              int acquireFence, android_ycbcr* ycbcr) const {
-    auto buffer = const_cast<native_handle_t*>(bufferHandle);
-
-    IMapper::Rect accessRegion = sGralloc4Rect(bounds);
-
-    // put acquireFence in a hidl_handle
-    hardware::hidl_handle acquireFenceHandle;
-    NATIVE_HANDLE_DECLARE_STORAGE(acquireFenceStorage, 1, 0);
-    if (acquireFence >= 0) {
-        auto h = native_handle_init(acquireFenceStorage, 1, 0);
-        h->data[0] = acquireFence;
-        acquireFenceHandle = h;
-    }
-
-    YCbCrLayout layout;
-    Error error;
-    auto ret = mMapper->lockYCbCr(buffer, usage, accessRegion, acquireFenceHandle,
-                                  [&](const auto& tmpError, const auto& tmpLayout) {
-                                      error = tmpError;
-                                      if (error != Error::NONE) {
-                                          return;
-                                      }
-
-                                      layout = tmpLayout;
-                                  });
-
-    if (error == Error::NONE) {
-        ycbcr->y = layout.y;
-        ycbcr->cb = layout.cb;
-        ycbcr->cr = layout.cr;
-        ycbcr->ystride = static_cast<size_t>(layout.yStride);
-        ycbcr->cstride = static_cast<size_t>(layout.cStride);
-        ycbcr->chroma_step = static_cast<size_t>(layout.chromaStep);
-    }
-
-    // we own acquireFence even on errors
-    if (acquireFence >= 0) {
-        close(acquireFence);
-    }
-
-    return static_cast<status_t>((ret.isOk()) ? error : kTransactionError);
+status_t Gralloc4Mapper::lock(buffer_handle_t /*bufferHandle*/, uint64_t /*usage*/,
+                              const Rect& /*bounds*/, int /*acquireFence*/,
+                              android_ycbcr* /*ycbcr*/) const {
+    // TODO add lockYCbCr support
+    return static_cast<status_t>(Error::UNSUPPORTED);
 }
 
 int Gralloc4Mapper::unlock(buffer_handle_t bufferHandle) const {
