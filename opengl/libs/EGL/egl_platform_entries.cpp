@@ -61,7 +61,7 @@ namespace android {
 
 using nsecs_t = int64_t;
 
-struct extention_map_t {
+struct extension_map_t {
     const char* name;
     __eglMustCastToProperFunctionPointerType address;
 };
@@ -154,7 +154,7 @@ char const * const gClientExtensionString =
  * (keep in sync with gExtensionString above)
  *
  */
-static const extention_map_t sExtensionMap[] = {
+static const extension_map_t sExtensionMap[] = {
     // EGL_KHR_lock_surface
     { "eglLockSurfaceKHR",
             (__eglMustCastToProperFunctionPointerType)&eglLockSurfaceKHR },
@@ -257,13 +257,14 @@ static const extention_map_t sExtensionMap[] = {
          !strcmp((procname), "eglAwakenProcessIMG"))
 
 // accesses protected by sExtensionMapMutex
-static std::unordered_map<std::string, __eglMustCastToProperFunctionPointerType> sGLExtentionMap;
+static std::unordered_map<std::string, __eglMustCastToProperFunctionPointerType> sGLExtensionMap;
+static std::unordered_map<std::string, int> sGLExtensionSlotMap;
 
-static int sGLExtentionSlot = 0;
+static int sGLExtensionSlot = 0;
 static pthread_mutex_t sExtensionMapMutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void(*findProcAddress(const char* name,
-        const extention_map_t* map, size_t n))() {
+        const extension_map_t* map, size_t n))() {
     for (uint32_t i=0 ; i<n ; i++) {
         if (!strcmp(name, map[i].name)) {
             return map[i].address;
@@ -1223,7 +1224,7 @@ __eglMustCastToProperFunctionPointerType eglGetProcAddressImpl(const char *procn
     addr = findBuiltinWrapper(procname);
     if (addr) return addr;
 
-    // this protects accesses to sGLExtentionMap and sGLExtentionSlot
+    // this protects accesses to sGLExtensionMap, sGLExtensionSlot, and sGLExtensionSlotMap
     pthread_mutex_lock(&sExtensionMapMutex);
 
     /*
@@ -1244,51 +1245,69 @@ __eglMustCastToProperFunctionPointerType eglGetProcAddressImpl(const char *procn
      */
 
     const std::string name(procname);
-
-    auto& extentionMap = sGLExtentionMap;
-    auto pos = extentionMap.find(name);
-    addr = (pos != extentionMap.end()) ? pos->second : nullptr;
-    const int slot = sGLExtentionSlot;
-
-    ALOGE_IF(slot >= MAX_NUMBER_OF_GL_EXTENSIONS,
-             "no more slots for eglGetProcAddress(\"%s\")",
-             procname);
-
+    auto& extensionMap = sGLExtensionMap;
+    auto& extensionSlotMap = sGLExtensionSlotMap;
     egl_connection_t* const cnx = &gEGLImpl;
     LayerLoader& layer_loader(LayerLoader::getInstance());
 
-    if (!addr && (slot < MAX_NUMBER_OF_GL_EXTENSIONS)) {
+    // See if we've already looked up this extension
+    auto pos = extensionMap.find(name);
+    addr = (pos != extensionMap.end()) ? pos->second : nullptr;
 
-        if (cnx->dso && cnx->egl.eglGetProcAddress) {
+    if (!addr) {
+        // This is the first time we've looked this function up
+        // Ensure we have room to track it
+        const int slot = sGLExtensionSlot;
+        if (slot < MAX_NUMBER_OF_GL_EXTENSIONS) {
 
-            // Extensions are independent of the bound context
-            addr = cnx->egl.eglGetProcAddress(procname);
-            if (addr) {
+            if (cnx->dso && cnx->egl.eglGetProcAddress) {
 
-                // purposefully track the bottom of the stack in extensionMap
-                extentionMap[name] = addr;
+                // Extensions are independent of the bound context
+                addr = cnx->egl.eglGetProcAddress(procname);
+                if (addr) {
 
-                // Apply layers
-                addr = layer_loader.ApplyLayers(procname, addr);
+                    // purposefully track the bottom of the stack in extensionMap
+                    extensionMap[name] = addr;
 
-                // Track the top most entry point
-                cnx->hooks[egl_connection_t::GLESv1_INDEX]->ext.extensions[slot] =
-                cnx->hooks[egl_connection_t::GLESv2_INDEX]->ext.extensions[slot] = addr;
-                addr = gExtensionForwarders[slot];
-                sGLExtentionSlot++;
+                    // Apply layers
+                    addr = layer_loader.ApplyLayers(procname, addr);
+
+                    // Track the top most entry point return the extension forwarder
+                    cnx->hooks[egl_connection_t::GLESv1_INDEX]->ext.extensions[slot] =
+                    cnx->hooks[egl_connection_t::GLESv2_INDEX]->ext.extensions[slot] = addr;
+                    addr = gExtensionForwarders[slot];
+
+                    // Remember the slot for this extension
+                    extensionSlotMap[name] = slot;
+
+                    // Increment the global extension index
+                    sGLExtensionSlot++;
+                }
             }
+        } else {
+            // The extension forwarder has a fixed number of slots
+            ALOGE("no more slots for eglGetProcAddress(\"%s\")", procname);
         }
 
-    } else if (slot < MAX_NUMBER_OF_GL_EXTENSIONS) {
+    } else {
+        // We tracked an address, so we've seen this func before
+        // Look up the slot for this extension
+        auto slot_pos = extensionSlotMap.find(name);
+        int ext_slot = (slot_pos != extensionSlotMap.end()) ? slot_pos->second : -1;
+        if (ext_slot < 0) {
+            // Something has gone wrong, this should not happen
+            ALOGE("No extension slot found for %s", procname);
+            return nullptr;
+        }
 
-        // We've seen this func before, but we tracked the bottom, so re-apply layers
-        // More layers might have been enabled
+        // We tracked the bottom of the stack, so re-apply layers since
+        // more layers might have been enabled
         addr = layer_loader.ApplyLayers(procname, addr);
 
-        // Track the top most entry point
-        cnx->hooks[egl_connection_t::GLESv1_INDEX]->ext.extensions[slot] =
-        cnx->hooks[egl_connection_t::GLESv2_INDEX]->ext.extensions[slot] = addr;
-        addr = gExtensionForwarders[slot];
+        // Track the top most entry point and return the extension forwarder
+        cnx->hooks[egl_connection_t::GLESv1_INDEX]->ext.extensions[ext_slot] =
+        cnx->hooks[egl_connection_t::GLESv2_INDEX]->ext.extensions[ext_slot] = addr;
+        addr = gExtensionForwarders[ext_slot];
     }
 
     pthread_mutex_unlock(&sExtensionMapMutex);
