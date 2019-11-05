@@ -19,12 +19,12 @@
 
 #include "PointerControllerInterface.h"
 
+#include <input/DisplayViewport.h>
 #include <input/Input.h>
 #include <input/InputDevice.h>
-#include <input/DisplayViewport.h>
 #include <input/VelocityControl.h>
 #include <input/VelocityTracker.h>
-#include <utils/Thread.h>
+#include <utils/Errors.h>
 #include <utils/RefBase.h>
 
 #include <stddef.h>
@@ -44,7 +44,16 @@
 
 namespace android {
 
-/* Processes raw input events and sends cooked event data to an input listener. */
+// --- InputReaderInterface ---
+
+/* The interface for the InputReader shared library.
+ *
+ * Manages one or more threads that process raw input events and sends cooked event data to an
+ * input listener.
+ *
+ * The implementation must guarantee thread safety for this interface. However, since the input
+ * listener is NOT thread safe, all calls to the listener must happen from the same thread.
+ */
 class InputReaderInterface : public virtual RefBase {
 protected:
     InputReaderInterface() { }
@@ -56,18 +65,17 @@ public:
      * This method may be called on any thread (usually by the input manager). */
     virtual void dump(std::string& dump) = 0;
 
-    /* Called by the heatbeat to ensures that the reader has not deadlocked. */
+    /* Called by the heartbeat to ensures that the reader has not deadlocked. */
     virtual void monitor() = 0;
 
     /* Returns true if the input device is enabled. */
     virtual bool isInputDeviceEnabled(int32_t deviceId) = 0;
 
-    /* Runs a single iteration of the processing loop.
-     * Nominally reads and processes one incoming message from the EventHub.
-     *
-     * This method should be called on the input reader thread.
-     */
-    virtual void loopOnce() = 0;
+    /* Makes the reader start processing events from the kernel. */
+    virtual status_t start() = 0;
+
+    /* Makes the reader stop processing any more events. */
+    virtual status_t stop() = 0;
 
     /* Gets information about all input devices.
      *
@@ -104,17 +112,7 @@ public:
     virtual bool canDispatchToDisplay(int32_t deviceId, int32_t displayId) = 0;
 };
 
-/* Reads raw events from the event hub and processes them, endlessly. */
-class InputReaderThread : public Thread {
-public:
-    explicit InputReaderThread(const sp<InputReaderInterface>& reader);
-    virtual ~InputReaderThread();
-
-private:
-    sp<InputReaderInterface> mReader;
-
-    virtual bool threadLoop();
-};
+// --- InputReaderConfiguration ---
 
 /*
  * Input reader configuration.
@@ -285,6 +283,8 @@ private:
     std::vector<DisplayViewport> mDisplays;
 };
 
+// --- TouchAffineTransformation ---
+
 struct TouchAffineTransformation {
     float x_scale;
     float x_ymix;
@@ -307,6 +307,8 @@ struct TouchAffineTransformation {
     void applyTo(float& x, float& y) const;
 };
 
+// --- InputReaderPolicyInterface ---
+
 /*
  * Input reader policy interface.
  *
@@ -316,8 +318,8 @@ struct TouchAffineTransformation {
  * The actual implementation is partially supported by callbacks into the DVM
  * via JNI.  This interface is also mocked in the unit tests.
  *
- * These methods must NOT re-enter the input reader since they may be called while
- * holding the input reader lock.
+ * These methods will NOT re-enter the input reader interface, so they may be called from
+ * any method in the input reader interface.
  */
 class InputReaderPolicyInterface : public virtual RefBase {
 protected:
