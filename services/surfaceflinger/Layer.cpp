@@ -2046,14 +2046,14 @@ InputWindowInfo Layer::fillInputInfo() {
     ui::Transform t = getTransform();
     const float xScale = t.sx();
     const float yScale = t.sy();
-    float xSurfaceInset = info.surfaceInset;
-    float ySurfaceInset = info.surfaceInset;
+    int32_t xSurfaceInset = info.surfaceInset;
+    int32_t ySurfaceInset = info.surfaceInset;
     if (xScale != 1.0f || yScale != 1.0f) {
-        info.windowXScale *= 1.0f / xScale;
-        info.windowYScale *= 1.0f / yScale;
+        info.windowXScale *= (xScale != 0.0f) ? 1.0f / xScale : 0.0f;
+        info.windowYScale *= (yScale != 0.0f) ? 1.0f / yScale : 0.0f;
         info.touchableRegion.scaleSelf(xScale, yScale);
-        xSurfaceInset *= xScale;
-        ySurfaceInset *= yScale;
+        xSurfaceInset = std::round(xSurfaceInset * xScale);
+        ySurfaceInset = std::round(ySurfaceInset * yScale);
     }
 
     // Transform layer size to screen space and inset it by surface insets.
@@ -2065,6 +2065,11 @@ InputWindowInfo Layer::fillInputInfo() {
         layerBounds = getCroppedBufferSize(getDrawingState());
     }
     layerBounds = t.transform(layerBounds);
+
+    // clamp inset to layer bounds
+    xSurfaceInset = (xSurfaceInset >= 0) ? std::min(xSurfaceInset, layerBounds.getWidth() / 2) : 0;
+    ySurfaceInset = (ySurfaceInset >= 0) ? std::min(ySurfaceInset, layerBounds.getHeight() / 2) : 0;
+
     layerBounds.inset(xSurfaceInset, ySurfaceInset, xSurfaceInset, ySurfaceInset);
 
     // Input coordinate should match the layer bounds.
