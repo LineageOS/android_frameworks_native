@@ -21,22 +21,7 @@ cc_library_shared {
         "-Werror",
     ],
     cppflags: [
-        "-Weverything",
-
-        // The static constructors and destructors in this library have not been noted to
-        // introduce significant overheads
-        "-Wno-exit-time-destructors",
-        "-Wno-global-constructors",
-
-        // We only care about compiling as C++14
-        "-Wno-c++98-compat-pedantic",
-
-        // android/sensors.h uses nested anonymous unions and anonymous structs
-        "-Wno-nested-anon-types",
-        "-Wno-gnu-anonymous-struct",
-
-        // Don't warn about struct padding
-        "-Wno-padded",
+        "-Wextra",
     ],
 
     srcs: [
