@@ -2,9 +2,9 @@ LIBNATIVEWINDOW {
   global:
     AHardwareBuffer_acquire;
     AHardwareBuffer_allocate;
-    AHardwareBuffer_createFromHandle; # vndk
+    AHardwareBuffer_createFromHandle; # llndk
     AHardwareBuffer_describe;
-    AHardwareBuffer_getNativeHandle; # vndk
+    AHardwareBuffer_getNativeHandle; # llndk
     AHardwareBuffer_isSupported; # introduced=29
     AHardwareBuffer_lock;
     AHardwareBuffer_lockAndGetInfo; # introduced=29
@@ -13,32 +13,32 @@ LIBNATIVEWINDOW {
     AHardwareBuffer_release;
     AHardwareBuffer_sendHandleToUnixSocket;
     AHardwareBuffer_unlock;
-    ANativeWindowBuffer_getHardwareBuffer; # vndk
-    ANativeWindow_OemStorageGet; # vndk
-    ANativeWindow_OemStorageSet; # vndk
+    ANativeWindowBuffer_getHardwareBuffer; # llndk
+    ANativeWindow_OemStorageGet; # llndk
+    ANativeWindow_OemStorageSet; # llndk
     ANativeWindow_acquire;
-    ANativeWindow_cancelBuffer; # vndk
-    ANativeWindow_dequeueBuffer; # vndk
+    ANativeWindow_cancelBuffer; # llndk
+    ANativeWindow_dequeueBuffer; # llndk
     ANativeWindow_getBuffersDataSpace; # introduced=28
     ANativeWindow_getFormat;
     ANativeWindow_getHeight;
     ANativeWindow_getWidth;
     ANativeWindow_lock;
-    ANativeWindow_query; # vndk
-    ANativeWindow_queryf; # vndk
-    ANativeWindow_queueBuffer; # vndk
+    ANativeWindow_query; # llndk
+    ANativeWindow_queryf; # llndk
+    ANativeWindow_queueBuffer; # llndk
     ANativeWindow_release;
-    ANativeWindow_setAutoRefresh; # vndk
-    ANativeWindow_setBufferCount; # vndk
+    ANativeWindow_setAutoRefresh; # llndk
+    ANativeWindow_setBufferCount; # llndk
     ANativeWindow_setBuffersDataSpace; # introduced=28
-    ANativeWindow_setBuffersDimensions; # vndk
-    ANativeWindow_setBuffersFormat; # vndk
+    ANativeWindow_setBuffersDimensions; # llndk
+    ANativeWindow_setBuffersFormat; # llndk
     ANativeWindow_setBuffersGeometry;
-    ANativeWindow_setBuffersTimestamp; # vndk
+    ANativeWindow_setBuffersTimestamp; # llndk
     ANativeWindow_setBuffersTransform;
-    ANativeWindow_setSharedBufferMode; # vndk
-    ANativeWindow_setSwapInterval; # vndk
-    ANativeWindow_setUsage; # vndk
+    ANativeWindow_setSharedBufferMode; # llndk
+    ANativeWindow_setSwapInterval; # llndk
+    ANativeWindow_setUsage; # llndk
     ANativeWindow_unlockAndPost;
   local:
     *;
