@@ -672,7 +672,7 @@ public:
     // Copy the current list of children to the drawing state. Called by
     // SurfaceFlinger to complete a transaction.
     void commitChildList();
-    int32_t getZ() const;
+    int32_t getZ(LayerVector::StateSet stateSet) const;
     virtual void pushPendingState();
 
     /**
