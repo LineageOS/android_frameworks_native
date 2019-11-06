@@ -56,7 +56,7 @@ public:
     virtual status_t createSurface(const String8& name, uint32_t w, uint32_t h, PixelFormat format,
                                    uint32_t flags, const sp<IBinder>& parent,
                                    LayerMetadata metadata, sp<IBinder>* handle,
-                                   sp<IGraphicBufferProducer>* gbp) = 0;
+                                   sp<IGraphicBufferProducer>* gbp, uint32_t* outTransformHint) = 0;
 
     /*
      * Requires ACCESS_SURFACE_FLINGER permission
@@ -65,7 +65,8 @@ public:
                                              PixelFormat format, uint32_t flags,
                                              const sp<IGraphicBufferProducer>& parent,
                                              LayerMetadata metadata, sp<IBinder>* handle,
-                                             sp<IGraphicBufferProducer>* gbp) = 0;
+                                             sp<IGraphicBufferProducer>* gbp,
+                                             uint32_t* outTransformHint) = 0;
 
     /*
      * Requires ACCESS_SURFACE_FLINGER permission

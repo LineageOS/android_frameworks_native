@@ -82,10 +82,14 @@ public:
 
     sp<SurfaceComposerClient> getClient() const;
 
+    uint32_t getTransformHint() const;
+
+    void setTransformHint(uint32_t hint);
+
     explicit SurfaceControl(const sp<SurfaceControl>& other);
 
     SurfaceControl(const sp<SurfaceComposerClient>& client, const sp<IBinder>& handle,
-                   const sp<IGraphicBufferProducer>& gbp, bool owned);
+                   const sp<IGraphicBufferProducer>& gbp, bool owned, uint32_t transformHint = 0);
 
 private:
     // can't be copied
@@ -106,6 +110,7 @@ private:
     mutable Mutex               mLock;
     mutable sp<Surface>         mSurfaceData;
     bool                        mOwned;
+    uint32_t mTransformHint;
 };
 
 }; // namespace android

@@ -45,20 +45,21 @@ namespace android {
 //  SurfaceControl
 // ============================================================================
 
-SurfaceControl::SurfaceControl(
-        const sp<SurfaceComposerClient>& client,
-        const sp<IBinder>& handle,
-        const sp<IGraphicBufferProducer>& gbp,
-        bool owned)
-    : mClient(client), mHandle(handle), mGraphicBufferProducer(gbp), mOwned(owned)
-{
-}
+SurfaceControl::SurfaceControl(const sp<SurfaceComposerClient>& client, const sp<IBinder>& handle,
+                               const sp<IGraphicBufferProducer>& gbp, bool owned,
+                               uint32_t transform)
+      : mClient(client),
+        mHandle(handle),
+        mGraphicBufferProducer(gbp),
+        mOwned(owned),
+        mTransformHint(transform) {}
 
 SurfaceControl::SurfaceControl(const sp<SurfaceControl>& other) {
     mClient = other->mClient;
     mHandle = other->mHandle;
     mGraphicBufferProducer = other->mGraphicBufferProducer;
     mOwned = false;
+    mTransformHint = other->mTransformHint;
 }
 
 SurfaceControl::~SurfaceControl()
@@ -171,11 +172,22 @@ sp<SurfaceComposerClient> SurfaceControl::getClient() const
     return mClient;
 }
 
+uint32_t SurfaceControl::getTransformHint() const {
+    Mutex::Autolock _l(mLock);
+    return mTransformHint;
+}
+
+void SurfaceControl::setTransformHint(uint32_t hint) {
+    Mutex::Autolock _l(mLock);
+    mTransformHint = hint;
+}
+
 void SurfaceControl::writeToParcel(Parcel* parcel)
 {
     parcel->writeStrongBinder(ISurfaceComposerClient::asBinder(mClient->getClient()));
     parcel->writeStrongBinder(mHandle);
     parcel->writeStrongBinder(IGraphicBufferProducer::asBinder(mGraphicBufferProducer));
+    parcel->writeUint32(mTransformHint);
 }
 
 sp<SurfaceControl> SurfaceControl::readFromParcel(const Parcel* parcel) {
@@ -189,10 +201,12 @@ sp<SurfaceControl> SurfaceControl::readFromParcel(const Parcel* parcel) {
     sp<IBinder> gbp;
     parcel->readNullableStrongBinder(&gbp);
 
+    uint32_t transformHint = parcel->readUint32();
     // We aren't the original owner of the surface.
     return new SurfaceControl(new SurfaceComposerClient(
-                    interface_cast<ISurfaceComposerClient>(client)),
-            handle.get(), interface_cast<IGraphicBufferProducer>(gbp), false /* owned */);
+                                      interface_cast<ISurfaceComposerClient>(client)),
+                              handle.get(), interface_cast<IGraphicBufferProducer>(gbp),
+                              false /* owned */, transformHint);
 }
 
 // ----------------------------------------------------------------------------

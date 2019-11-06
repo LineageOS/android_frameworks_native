@@ -226,18 +226,18 @@ public:
                                      PixelFormat format,               // pixel-format desired
                                      uint32_t flags = 0,               // usage flags
                                      SurfaceControl* parent = nullptr, // parent
-                                     LayerMetadata metadata = LayerMetadata() // metadata
-    );
+                                     LayerMetadata metadata = LayerMetadata(), // metadata
+                                     uint32_t* outTransformHint = nullptr);
 
     status_t createSurfaceChecked(const String8& name, // name of the surface
                                   uint32_t w,          // width in pixel
                                   uint32_t h,          // height in pixel
                                   PixelFormat format,  // pixel-format desired
                                   sp<SurfaceControl>* outSurface,
-                                  uint32_t flags = 0,                      // usage flags
-                                  SurfaceControl* parent = nullptr,        // parent
-                                  LayerMetadata metadata = LayerMetadata() // metadata
-    );
+                                  uint32_t flags = 0,                       // usage flags
+                                  SurfaceControl* parent = nullptr,         // parent
+                                  LayerMetadata metadata = LayerMetadata(), // metadata
+                                  uint32_t* outTransformHint = nullptr);
 
     //! Create a surface
     sp<SurfaceControl> createWithSurfaceParent(const String8& name,       // name of the surface
@@ -246,8 +246,8 @@ public:
                                                PixelFormat format,        // pixel-format desired
                                                uint32_t flags = 0,        // usage flags
                                                Surface* parent = nullptr, // parent
-                                               LayerMetadata metadata = LayerMetadata() // metadata
-    );
+                                               LayerMetadata metadata = LayerMetadata(), // metadata
+                                               uint32_t* outTransformHint = nullptr);
 
     // Creates a mirrored hierarchy for the mirrorFromSurface. This returns a SurfaceControl
     // which is a parent of the root of the mirrored hierarchy.

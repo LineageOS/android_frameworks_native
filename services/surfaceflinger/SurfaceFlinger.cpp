@@ -3432,8 +3432,8 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
                                      uint32_t h, PixelFormat format, uint32_t flags,
                                      LayerMetadata metadata, sp<IBinder>* handle,
                                      sp<IGraphicBufferProducer>* gbp,
-                                     const sp<IBinder>& parentHandle,
-                                     const sp<Layer>& parentLayer) {
+                                     const sp<IBinder>& parentHandle, const sp<Layer>& parentLayer,
+                                     uint32_t* outTransformHint) {
     if (int32_t(w|h) < 0) {
         ALOGE("createLayer() failed, w or h is negative (w=%d, h=%d)",
                 int(w), int(h));
@@ -3470,7 +3470,7 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
             break;
         case ISurfaceComposerClient::eFXSurfaceBufferState:
             result = createBufferStateLayer(client, std::move(uniqueName), w, h, flags,
-                                            std::move(metadata), handle, &layer);
+                                            std::move(metadata), handle, outTransformHint, &layer);
             break;
         case ISurfaceComposerClient::eFXSurfaceColor:
             // check if buffer size is set for color layer.
@@ -3585,11 +3585,14 @@ status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, std::s
 status_t SurfaceFlinger::createBufferStateLayer(const sp<Client>& client, std::string name,
                                                 uint32_t w, uint32_t h, uint32_t flags,
                                                 LayerMetadata metadata, sp<IBinder>* handle,
-                                                sp<Layer>* outLayer) {
+                                                uint32_t* outTransformHint, sp<Layer>* outLayer) {
     LayerCreationArgs args(this, client, std::move(name), w, h, flags, std::move(metadata));
     args.displayDevice = getDefaultDisplayDevice();
     args.textureName = getNewTexture();
     sp<BufferStateLayer> layer = getFactory().createBufferStateLayer(args);
+    if (outTransformHint) {
+        *outTransformHint = layer->getTransformHint();
+    }
     *handle = layer->getHandle();
     *outLayer = layer;
 
