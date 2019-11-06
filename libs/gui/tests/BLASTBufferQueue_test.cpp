@@ -26,6 +26,7 @@
 #include <ui/DisplayInfo.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/GraphicTypes.h>
+#include <ui/Transform.h>
 
 #include <gtest/gtest.h>
 
@@ -201,6 +202,7 @@ TEST_F(BLASTBufferQueueTest, onFrameAvailable_Apply) {
               igbProducer->connect(new DummyProducerListener, NATIVE_WINDOW_API_CPU, false,
                                    &qbOutput));
     ASSERT_EQ(NO_ERROR, igbProducer->setMaxDequeuedBufferCount(3));
+    ASSERT_NE(ui::Transform::orientation_flags::ROT_INVALID, qbOutput.transformHint);
 
     int slot;
     sp<Fence> fence;
@@ -222,6 +224,7 @@ TEST_F(BLASTBufferQueueTest, onFrameAvailable_Apply) {
                                                    NATIVE_WINDOW_SCALING_MODE_FREEZE, 0,
                                                    Fence::NO_FENCE);
     igbProducer->queueBuffer(slot, input, &qbOutput);
+    ASSERT_NE(ui::Transform::orientation_flags::ROT_INVALID, qbOutput.transformHint);
 
     adapter.waitForCallback();
 
