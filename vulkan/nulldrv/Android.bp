@@ -23,17 +23,10 @@ cc_library_shared {
         "-fvisibility=hidden",
         "-fstrict-aliasing",
         "-DLOG_TAG=\"vknulldrv\"",
-        "-Weverything",
+        "-Wextra",
         "-Werror",
-        "-Wno-padded",
-        "-Wno-undef",
-        "-Wno-zero-length-array",
 
         "-DLOG_NDEBUG=0",
-    ],
-    cppflags: [
-        "-Wno-c++98-compat-pedantic",
-        "-Wno-c99-extensions",
     ],
 
     srcs: [
