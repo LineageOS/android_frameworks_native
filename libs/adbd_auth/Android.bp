@@ -30,6 +30,11 @@ cc_library {
 
     host_supported: true,
     recovery_available: true,
+    target: {
+        darwin: {
+            enabled: false,
+        }
+    },
 
     shared_libs: [
         "libbase",
