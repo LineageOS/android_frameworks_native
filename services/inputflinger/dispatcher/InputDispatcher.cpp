@@ -1038,7 +1038,8 @@ void InputDispatcher::dispatchEventLocked(nsecs_t currentTime, EventEntry* event
     pokeUserActivityLocked(*eventEntry);
 
     for (const InputTarget& inputTarget : inputTargets) {
-        sp<Connection> connection = getConnectionLocked(inputTarget.inputChannel->getToken());
+        sp<Connection> connection =
+                getConnectionLocked(inputTarget.inputChannel->getConnectionToken());
         if (connection != nullptr) {
             prepareDispatchCycleLocked(currentTime, connection, eventEntry, &inputTarget);
         } else {
@@ -2142,7 +2143,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
             }
 
             dispatchPointerDownOutsideFocus(motionEntry.source, dispatchEntry->resolvedAction,
-                                            inputTarget->inputChannel->getToken());
+                                            inputTarget->inputChannel->getConnectionToken());
 
             break;
         }
@@ -2472,7 +2473,7 @@ void InputDispatcher::synthesizeCancelationEventsForMonitorsLocked(
 
 void InputDispatcher::synthesizeCancelationEventsForInputChannelLocked(
         const sp<InputChannel>& channel, const CancelationOptions& options) {
-    sp<Connection> connection = getConnectionLocked(channel->getToken());
+    sp<Connection> connection = getConnectionLocked(channel->getConnectionToken());
     if (connection == nullptr) {
         return;
     }
@@ -2514,7 +2515,7 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
 
             InputTarget target;
             sp<InputWindowHandle> windowHandle =
-                    getWindowHandleLocked(connection->inputChannel->getToken());
+                    getWindowHandleLocked(connection->inputChannel->getConnectionToken());
             if (windowHandle != nullptr) {
                 const InputWindowInfo* windowInfo = windowHandle->getInfo();
                 target.xOffset = -windowInfo->frameLeft;
@@ -3866,7 +3867,7 @@ status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChan
 
     { // acquire lock
         std::scoped_lock _l(mLock);
-        sp<Connection> existingConnection = getConnectionLocked(inputChannel->getToken());
+        sp<Connection> existingConnection = getConnectionLocked(inputChannel->getConnectionToken());
         if (existingConnection != nullptr) {
             ALOGW("Attempted to register already registered input channel '%s'",
                   inputChannel->getName().c_str());
@@ -3877,7 +3878,7 @@ status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChan
 
         int fd = inputChannel->getFd();
         mConnectionsByFd[fd] = connection;
-        mInputChannelsByToken[inputChannel->getToken()] = inputChannel;
+        mInputChannelsByToken[inputChannel->getConnectionToken()] = inputChannel;
 
         mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, handleReceiveCallback, this);
     } // release lock
@@ -3897,7 +3898,7 @@ status_t InputDispatcher::registerInputMonitor(const sp<InputChannel>& inputChan
             return BAD_VALUE;
         }
 
-        if (inputChannel->getToken() == nullptr) {
+        if (inputChannel->getConnectionToken() == nullptr) {
             ALOGW("Attempted to register input monitor without an identifying token.");
             return BAD_VALUE;
         }
@@ -3906,7 +3907,7 @@ status_t InputDispatcher::registerInputMonitor(const sp<InputChannel>& inputChan
 
         const int fd = inputChannel->getFd();
         mConnectionsByFd[fd] = connection;
-        mInputChannelsByToken[inputChannel->getToken()] = inputChannel;
+        mInputChannelsByToken[inputChannel->getConnectionToken()] = inputChannel;
 
         auto& monitorsByDisplay =
                 isGestureMonitor ? mGestureMonitorsByDisplay : mGlobalMonitorsByDisplay;
@@ -3941,7 +3942,7 @@ status_t InputDispatcher::unregisterInputChannel(const sp<InputChannel>& inputCh
 
 status_t InputDispatcher::unregisterInputChannelLocked(const sp<InputChannel>& inputChannel,
                                                        bool notify) {
-    sp<Connection> connection = getConnectionLocked(inputChannel->getToken());
+    sp<Connection> connection = getConnectionLocked(inputChannel->getConnectionToken());
     if (connection == nullptr) {
         ALOGW("Attempted to unregister already unregistered input channel '%s'",
               inputChannel->getName().c_str());
@@ -3950,7 +3951,7 @@ status_t InputDispatcher::unregisterInputChannelLocked(const sp<InputChannel>& i
 
     [[maybe_unused]] const bool removed = removeByValue(mConnectionsByFd, connection);
     ALOG_ASSERT(removed);
-    mInputChannelsByToken.erase(inputChannel->getToken());
+    mInputChannelsByToken.erase(inputChannel->getConnectionToken());
 
     if (connection->monitor) {
         removeMonitorChannelLocked(inputChannel);
@@ -4010,7 +4011,7 @@ status_t InputDispatcher::pilferPointers(const sp<IBinder>& token) {
         TouchState& state = mTouchStatesByDisplay.editValueAt(stateIndex);
         std::optional<int32_t> foundDeviceId;
         for (const TouchedMonitor& touchedMonitor : state.gestureMonitors) {
-            if (touchedMonitor.monitor.inputChannel->getToken() == token) {
+            if (touchedMonitor.monitor.inputChannel->getConnectionToken() == token) {
                 foundDeviceId = state.deviceId;
             }
         }
@@ -4041,7 +4042,7 @@ std::optional<int32_t> InputDispatcher::findGestureMonitorDisplayByTokenLocked(
     for (const auto& it : mGestureMonitorsByDisplay) {
         const std::vector<Monitor>& monitors = it.second;
         for (const Monitor& monitor : monitors) {
-            if (monitor.inputChannel->getToken() == token) {
+            if (monitor.inputChannel->getConnectionToken() == token) {
                 return it.first;
             }
         }
@@ -4056,7 +4057,7 @@ sp<Connection> InputDispatcher::getConnectionLocked(const sp<IBinder>& inputConn
 
     for (const auto& pair : mConnectionsByFd) {
         const sp<Connection>& connection = pair.second;
-        if (connection->inputChannel->getToken() == inputConnectionToken) {
+        if (connection->inputChannel->getConnectionToken() == inputConnectionToken) {
             return connection;
         }
     }
@@ -4149,7 +4150,7 @@ void InputDispatcher::doNotifyInputChannelBrokenLockedInterruptible(CommandEntry
     if (connection->status != Connection::STATUS_ZOMBIE) {
         mLock.unlock();
 
-        mPolicy->notifyInputChannelBroken(connection->inputChannel->getToken());
+        mPolicy->notifyInputChannelBroken(connection->inputChannel->getConnectionToken());
 
         mLock.lock();
     }
@@ -4165,7 +4166,7 @@ void InputDispatcher::doNotifyFocusChangedLockedInterruptible(CommandEntry* comm
 
 void InputDispatcher::doNotifyANRLockedInterruptible(CommandEntry* commandEntry) {
     sp<IBinder> token =
-            commandEntry->inputChannel ? commandEntry->inputChannel->getToken() : nullptr;
+            commandEntry->inputChannel ? commandEntry->inputChannel->getConnectionToken() : nullptr;
     mLock.unlock();
 
     nsecs_t newTimeout =
@@ -4186,7 +4187,7 @@ void InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible(
 
     android::base::Timer t;
     sp<IBinder> token = commandEntry->inputChannel != nullptr
-            ? commandEntry->inputChannel->getToken()
+            ? commandEntry->inputChannel->getConnectionToken()
             : nullptr;
     nsecs_t delay = mPolicy->interceptKeyBeforeDispatching(token, &event, entry->policyFlags);
     if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
@@ -4305,7 +4306,7 @@ bool InputDispatcher::afterKeyEventLockedInterruptible(const sp<Connection>& con
 
             mLock.unlock();
 
-            mPolicy->dispatchUnhandledKey(connection->inputChannel->getToken(), &event,
+            mPolicy->dispatchUnhandledKey(connection->inputChannel->getConnectionToken(), &event,
                                           keyEntry->policyFlags, &event);
 
             mLock.lock();
@@ -4346,8 +4347,9 @@ bool InputDispatcher::afterKeyEventLockedInterruptible(const sp<Connection>& con
 
         mLock.unlock();
 
-        bool fallback = mPolicy->dispatchUnhandledKey(connection->inputChannel->getToken(), &event,
-                                                      keyEntry->policyFlags, &event);
+        bool fallback =
+                mPolicy->dispatchUnhandledKey(connection->inputChannel->getConnectionToken(),
+                                              &event, keyEntry->policyFlags, &event);
 
         mLock.lock();
 

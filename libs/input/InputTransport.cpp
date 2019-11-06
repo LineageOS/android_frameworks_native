@@ -11,7 +11,7 @@
 #define DEBUG_CHANNEL_MESSAGES 0
 
 // Log debug messages whenever InputChannel objects are created/destroyed
-#define DEBUG_CHANNEL_LIFECYCLE 0
+static constexpr bool DEBUG_CHANNEL_LIFECYCLE = false;
 
 // Log debug messages about transport actions
 #define DEBUG_TRANSPORT_ACTIONS 0
@@ -225,28 +225,28 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
 
 // --- InputChannel ---
 
-sp<InputChannel> InputChannel::create(const std::string& name, android::base::unique_fd fd) {
+sp<InputChannel> InputChannel::create(const std::string& name, android::base::unique_fd fd,
+                                      sp<IBinder> token) {
     const int result = fcntl(fd, F_SETFL, O_NONBLOCK);
     if (result != 0) {
         LOG_ALWAYS_FATAL("channel '%s' ~ Could not make socket non-blocking: %s", name.c_str(),
                          strerror(errno));
         return nullptr;
     }
-    return new InputChannel(name, std::move(fd));
+    return new InputChannel(name, std::move(fd), token);
 }
 
-InputChannel::InputChannel(const std::string& name, android::base::unique_fd fd)
-      : mName(name), mFd(std::move(fd)) {
-#if DEBUG_CHANNEL_LIFECYCLE
-    ALOGD("Input channel constructed: name='%s', fd=%d",
-            mName.c_str(), fd);
-#endif
+InputChannel::InputChannel(const std::string& name, android::base::unique_fd fd, sp<IBinder> token)
+      : mName(name), mFd(std::move(fd)), mToken(token) {
+    if (DEBUG_CHANNEL_LIFECYCLE) {
+        ALOGD("Input channel constructed: name='%s', fd=%d", mName.c_str(), mFd.get());
+    }
 }
 
 InputChannel::~InputChannel() {
-#if DEBUG_CHANNEL_LIFECYCLE
-    ALOGD("Input channel destroyed: name='%s', fd=%d", mName.c_str(), mFd.get());
-#endif
+    if (DEBUG_CHANNEL_LIFECYCLE) {
+        ALOGD("Input channel destroyed: name='%s', fd=%d", mName.c_str(), mFd.get());
+    }
 }
 
 status_t InputChannel::openInputChannelPair(const std::string& name,
@@ -267,13 +267,15 @@ status_t InputChannel::openInputChannelPair(const std::string& name,
     setsockopt(sockets[1], SOL_SOCKET, SO_SNDBUF, &bufferSize, sizeof(bufferSize));
     setsockopt(sockets[1], SOL_SOCKET, SO_RCVBUF, &bufferSize, sizeof(bufferSize));
 
+    sp<IBinder> token = new BBinder();
+
     std::string serverChannelName = name + " (server)";
     android::base::unique_fd serverFd(sockets[0]);
-    outServerChannel = InputChannel::create(serverChannelName, std::move(serverFd));
+    outServerChannel = InputChannel::create(serverChannelName, std::move(serverFd), token);
 
     std::string clientChannelName = name + " (client)";
     android::base::unique_fd clientFd(sockets[1]);
-    outClientChannel = InputChannel::create(clientChannelName, std::move(clientFd));
+    outClientChannel = InputChannel::create(clientChannelName, std::move(clientFd), token);
     return OK;
 }
 
@@ -369,7 +371,7 @@ sp<InputChannel> InputChannel::dup() const {
                             getName().c_str());
         return nullptr;
     }
-    return InputChannel::create(mName, std::move(newFd));
+    return InputChannel::create(mName, std::move(newFd), mToken);
 }
 
 status_t InputChannel::write(Parcel& out) const {
@@ -396,22 +398,11 @@ sp<InputChannel> InputChannel::read(const Parcel& from) {
         return nullptr;
     }
 
-    sp<InputChannel> channel = InputChannel::create(name, std::move(rawFd));
-    if (channel != nullptr) {
-        channel->setToken(token);
-    }
-    return channel;
+    return InputChannel::create(name, std::move(rawFd), token);
 }
 
-sp<IBinder> InputChannel::getToken() const {
+sp<IBinder> InputChannel::getConnectionToken() const {
     return mToken;
-}
-
-void InputChannel::setToken(const sp<IBinder>& token) {
-    if (mToken != nullptr) {
-        ALOGE("Assigning InputChannel (%s) a second handle?", mName.c_str());
-    }
-    mToken = token;
 }
 
 // --- InputPublisher ---

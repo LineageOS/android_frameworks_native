@@ -46,7 +46,8 @@ TEST_F(InputChannelTest, ConstructorAndDestructor_TakesOwnershipOfFileDescriptor
 
     android::base::unique_fd sendFd(pipe.sendFd);
 
-    sp<InputChannel> inputChannel = InputChannel::create("channel name", std::move(sendFd));
+    sp<InputChannel> inputChannel =
+            InputChannel::create("channel name", std::move(sendFd), new BBinder());
 
     EXPECT_NE(inputChannel, nullptr) << "channel should be successfully created";
     EXPECT_STREQ("channel name", inputChannel->getName().c_str())
@@ -59,13 +60,11 @@ TEST_F(InputChannelTest, ConstructorAndDestructor_TakesOwnershipOfFileDescriptor
 
 TEST_F(InputChannelTest, SetAndGetToken) {
     Pipe pipe;
-    sp<InputChannel> channel =
-            InputChannel::create("test channel", android::base::unique_fd(pipe.sendFd));
-    EXPECT_EQ(channel->getToken(), nullptr);
-
     sp<IBinder> token = new BBinder();
-    channel->setToken(token);
-    EXPECT_EQ(token, channel->getToken());
+    sp<InputChannel> channel =
+            InputChannel::create("test channel", android::base::unique_fd(pipe.sendFd), token);
+
+    EXPECT_EQ(token, channel->getConnectionToken());
 }
 
 TEST_F(InputChannelTest, OpenInputChannelPair_ReturnsAPairOfConnectedChannels) {
