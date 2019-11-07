@@ -2818,14 +2818,22 @@ static bool create_boot_image_profile_snapshot(const std::string& package_name,
     // We do this to avoid opening a huge a amount of files.
     static constexpr size_t kAggregationBatchSize = 10;
 
-    std::vector<unique_fd> profiles_fd;
     for (size_t i = 0; i < profiles.size(); )  {
+        std::vector<unique_fd> profiles_fd;
         for (size_t k = 0; k < kAggregationBatchSize && i < profiles.size(); k++, i++) {
             unique_fd fd = open_profile(AID_SYSTEM, profiles[i], O_RDONLY);
             if (fd.get() >= 0) {
                 profiles_fd.push_back(std::move(fd));
             }
         }
+
+        // We aggregate (read & write) into the same fd multiple times in a row.
+        // We need to reset the cursor every time to ensure we read the whole file every time.
+        if (TEMP_FAILURE_RETRY(lseek(snapshot_fd, 0, SEEK_SET)) == static_cast<off_t>(-1)) {
+            PLOG(ERROR) << "Cannot reset position for snapshot profile";
+            return false;
+        }
+
         RunProfman args;
         args.SetupMerge(profiles_fd,
                         snapshot_fd,
@@ -2843,12 +2851,27 @@ static bool create_boot_image_profile_snapshot(const std::string& package_name,
 
         /* parent */
         int return_code = wait_child(pid);
+
         if (!WIFEXITED(return_code)) {
             PLOG(WARNING) << "profman failed for " << package_name << ":" << profile_name;
             return false;
         }
-        return true;
+
+        // Verify that profman finished successfully.
+        int profman_code = WEXITSTATUS(return_code);
+        switch (profman_code) {
+            case PROFMAN_BIN_RETURN_CODE_BAD_PROFILES:  // fall through
+            case PROFMAN_BIN_RETURN_CODE_ERROR_IO:  // fall through
+            case PROFMAN_BIN_RETURN_CODE_ERROR_LOCKING:
+                LOG(WARNING) << "profman error for " << package_name << ":" << profile_name
+                        << ":" << profman_code;
+                return false;
+            default:
+                // Other return codes are ok.
+                continue;
+        }
     }
+
     return true;
 }
 
