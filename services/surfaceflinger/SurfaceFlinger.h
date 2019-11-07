@@ -602,7 +602,8 @@ private:
     status_t createLayer(const String8& name, const sp<Client>& client, uint32_t w, uint32_t h,
                          PixelFormat format, uint32_t flags, LayerMetadata metadata,
                          sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp,
-                         const sp<IBinder>& parentHandle, const sp<Layer>& parentLayer = nullptr);
+                         const sp<IBinder>& parentHandle, const sp<Layer>& parentLayer = nullptr,
+                         uint32_t* outTransformHint = nullptr);
 
     status_t createBufferQueueLayer(const sp<Client>& client, std::string name, uint32_t w,
                                     uint32_t h, uint32_t flags, LayerMetadata metadata,
@@ -611,7 +612,8 @@ private:
 
     status_t createBufferStateLayer(const sp<Client>& client, std::string name, uint32_t w,
                                     uint32_t h, uint32_t flags, LayerMetadata metadata,
-                                    sp<IBinder>* outHandle, sp<Layer>* outLayer);
+                                    sp<IBinder>* outHandle, uint32_t* outTransformHint,
+                                    sp<Layer>* outLayer);
 
     status_t createColorLayer(const sp<Client>& client, std::string name, uint32_t w, uint32_t h,
                               uint32_t flags, LayerMetadata metadata, sp<IBinder>* outHandle,

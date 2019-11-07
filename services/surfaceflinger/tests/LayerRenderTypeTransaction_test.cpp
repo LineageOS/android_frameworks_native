@@ -15,9 +15,9 @@
  */
 
 #include <gui/BufferItemConsumer.h>
+#include <ui/Transform.h>
 #include <thread>
 #include "TransactionTestHarnesses.h"
-
 namespace android {
 
 using android::hardware::graphics::common::V1_1::BufferUsage;
@@ -186,6 +186,15 @@ TEST_P(LayerRenderTypeTransactionTest, SetSizeWithScaleToWindow_BufferQueue) {
             .setOverrideScalingMode(layer, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW)
             .apply();
     getScreenCapture()->expectColor(Rect(0, 0, 64, 64), Color::RED);
+}
+
+TEST_P(LayerRenderTypeTransactionTest, CreateLayer_BufferState) {
+    uint32_t transformHint = ui::Transform::orientation_flags::ROT_INVALID;
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32,
+                                                ISurfaceComposerClient::eFXSurfaceBufferState,
+                                                /*parent*/ nullptr, &transformHint));
+    ASSERT_NE(ui::Transform::orientation_flags::ROT_INVALID, transformHint);
 }
 
 void LayerRenderTypeTransactionTest::setRelativeZBasicHelper(uint32_t layerType) {
