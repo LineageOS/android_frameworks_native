@@ -1482,7 +1482,7 @@ sp<SurfaceControl> SurfaceComposerClient::createWithSurfaceParent(const String8&
         }
         ALOGE_IF(err, "SurfaceComposerClient::createWithSurfaceParent error %s", strerror(-err));
         if (err == NO_ERROR) {
-            return new SurfaceControl(this, handle, gbp, true /* owned */);
+            return new SurfaceControl(this, handle, gbp, true /* owned */, transformHint);
         }
     }
     return nullptr;
