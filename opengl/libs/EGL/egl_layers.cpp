@@ -379,14 +379,12 @@ void LayerLoader::LoadLayers() {
                 // any symbol dependencies will be resolved by system libraries. They
                 // can't safely use libc++_shared, for example. Which is one reason
                 // (among several) we only allow them in non-user builds.
-                void* handle = nullptr;
                 auto app_namespace = android::GraphicsEnv::getInstance().getAppNamespace();
                 if (app_namespace && !android::base::StartsWith(layer, kSystemLayerLibraryDir)) {
-                    bool native_bridge = false;
                     char* error_message = nullptr;
-                    handle = OpenNativeLibraryInNamespace(
-                        app_namespace, layer.c_str(), &native_bridge, &error_message);
-                    if (!handle) {
+                    dlhandle_ = OpenNativeLibraryInNamespace(
+                        app_namespace, layer.c_str(), &native_bridge_, &error_message);
+                    if (!dlhandle_) {
                         ALOGE("Failed to load layer %s with error: %s", layer.c_str(),
                               error_message);
                         android::NativeLoaderFreeErrorMessage(error_message);
@@ -394,11 +392,11 @@ void LayerLoader::LoadLayers() {
                     }
 
                 } else {
-                    handle = dlopen(layer.c_str(), RTLD_NOW | RTLD_LOCAL);
+                    dlhandle_ = dlopen(layer.c_str(), RTLD_NOW | RTLD_LOCAL);
                 }
 
-                if (handle) {
-                    ALOGV("Loaded layer handle (%llu) for layer %s", (unsigned long long)handle,
+                if (dlhandle_) {
+                    ALOGV("Loaded layer handle (%llu) for layer %s", (unsigned long long)dlhandle_,
                           layers[i].c_str());
                 } else {
                     // If the layer is found but can't be loaded, try setenforce 0
@@ -411,8 +409,7 @@ void LayerLoader::LoadLayers() {
                 std::string init_func = "AndroidGLESLayer_Initialize";
                 ALOGV("Looking for entrypoint %s", init_func.c_str());
 
-                layer_init_func LayerInit =
-                        reinterpret_cast<layer_init_func>(dlsym(handle, init_func.c_str()));
+                layer_init_func LayerInit = GetTrampoline<layer_init_func>(init_func.c_str());
                 if (LayerInit) {
                     ALOGV("Found %s for layer %s", init_func.c_str(), layer.c_str());
                     layer_init_.push_back(LayerInit);
@@ -425,8 +422,7 @@ void LayerLoader::LoadLayers() {
                 std::string setup_func = "AndroidGLESLayer_GetProcAddress";
                 ALOGV("Looking for entrypoint %s", setup_func.c_str());
 
-                layer_setup_func LayerSetup =
-                        reinterpret_cast<layer_setup_func>(dlsym(handle, setup_func.c_str()));
+                layer_setup_func LayerSetup = GetTrampoline<layer_setup_func>(setup_func.c_str());
                 if (LayerSetup) {
                     ALOGV("Found %s for layer %s", setup_func.c_str(), layer.c_str());
                     layer_setup_.push_back(LayerSetup);
