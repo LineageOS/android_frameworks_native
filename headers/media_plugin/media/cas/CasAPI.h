@@ -56,6 +56,11 @@ typedef void (*CasPluginCallbackExt)(
         size_t size,
         const CasSessionId *sessionId);
 
+typedef void (*CasPluginStatusCallback)(
+        void *appData,
+        int32_t event,
+        int32_t arg);
+
 struct CasFactory {
     CasFactory() {}
     virtual ~CasFactory() {}
@@ -91,6 +96,10 @@ struct CasPlugin {
     CasPlugin() {}
     virtual ~CasPlugin() {}
 
+    // Provide a callback to report plugin status
+    virtual status_t setStatusCallback(
+            CasPluginStatusCallback callback) = 0;
+
     // Provide the CA private data from a CA_descriptor in the conditional
     // access table to a CasPlugin.
     virtual status_t setPrivateData(
@@ -99,6 +108,11 @@ struct CasPlugin {
     // Open a session for descrambling a program, or one or more elementary
     // streams.
     virtual status_t openSession(CasSessionId *sessionId) = 0;
+
+    // Open a session with intend and mode for descrambling a program, or one
+    // or more elementary streams.
+    virtual status_t openSession(uint32_t intent, uint32_t mode,
+                                     CasSessionId *sessionId) = 0;
 
     // Close a previously opened session.
     virtual status_t closeSession(const CasSessionId &sessionId) = 0;
