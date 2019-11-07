@@ -23,9 +23,9 @@
 #include "InputReaderContext.h"
 
 #include <utils/Condition.h>
-#include <utils/KeyedVector.h>
 #include <utils/Mutex.h>
 
+#include <unordered_map>
 #include <vector>
 
 namespace android {
@@ -131,7 +131,7 @@ private:
     static const int EVENT_BUFFER_SIZE = 256;
     RawEvent mEventBuffer[EVENT_BUFFER_SIZE];
 
-    KeyedVector<int32_t, InputDevice*> mDevices;
+    std::unordered_map<int32_t /*deviceId*/, InputDevice*> mDevices;
 
     // low-level input event decoding and device management
     void processEventsLocked(const RawEvent* rawEvents, size_t count);
