@@ -1540,8 +1540,10 @@ void Layer::setParent(const sp<Layer>& layer) {
     mCurrentParent = layer;
 }
 
-int32_t Layer::getZ() const {
-    return mDrawingState.z;
+int32_t Layer::getZ(LayerVector::StateSet stateSet) const {
+    const bool useDrawing = stateSet == LayerVector::StateSet::Drawing;
+    const State& state = useDrawing ? mDrawingState : mCurrentState;
+    return state.z;
 }
 
 bool Layer::usingRelativeZ(LayerVector::StateSet stateSet) const {
@@ -1601,7 +1603,7 @@ void Layer::traverseInZOrder(LayerVector::StateSet stateSet, const LayerVector::
             continue;
         }
 
-        if (relative->getZ() >= 0) {
+        if (relative->getZ(stateSet) >= 0) {
             break;
         }
         relative->traverseInZOrder(stateSet, visitor);
@@ -1635,7 +1637,7 @@ void Layer::traverseInReverseZOrder(LayerVector::StateSet stateSet,
             continue;
         }
 
-        if (relative->getZ() < 0) {
+        if (relative->getZ(stateSet) < 0) {
             break;
         }
         relative->traverseInReverseZOrder(stateSet, visitor);
@@ -1693,7 +1695,7 @@ void Layer::traverseChildrenInZOrderInner(const std::vector<Layer*>& layersInTre
     size_t i = 0;
     for (; i < list.size(); i++) {
         const auto& relative = list[i];
-        if (relative->getZ() >= 0) {
+        if (relative->getZ(stateSet) >= 0) {
             break;
         }
         relative->traverseChildrenInZOrderInner(layersInTree, stateSet, visitor);
