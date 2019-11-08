@@ -13,11 +13,16 @@
 // limitations under the License.
 
 ndk_headers {
-    name: "libarect_headers",
+    name: "libarect_headers_for_ndk",
     from: "include/android",
     to: "android",
     srcs: ["include/android/*.h"],
     license: "NOTICE",
+}
+
+cc_library_headers {
+    name: "libarect_headers",
+    export_include_dirs: ["include"],
 }
 
 cc_library_static {
