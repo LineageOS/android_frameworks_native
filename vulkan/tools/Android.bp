@@ -22,16 +22,8 @@ cc_binary {
 
         "-DLOG_TAG=\"vkinfo\"",
 
-        "-Weverything",
+        "-Wextra",
         "-Werror",
-        "-Wno-padded",
-        "-Wno-undef",
-        "-Wno-switch-enum",
-    ],
-    cppflags: [
-        "-Wno-c++98-compat-pedantic",
-        "-Wno-c99-extensions",
-        "-Wno-old-style-cast",
     ],
 
     srcs: ["vkinfo.cpp"],
