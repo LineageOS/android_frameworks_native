@@ -606,7 +606,7 @@ void Replayer::setDisplayProjection(SurfaceComposerClient::Transaction& t,
             pc.viewport().bottom());
     Rect frame = Rect(pc.frame().left(), pc.frame().top(), pc.frame().right(), pc.frame().bottom());
 
-    t.setDisplayProjection(mDisplays[id], pc.orientation(), viewport, frame);
+    t.setDisplayProjection(mDisplays[id], ui::toRotation(pc.orientation()), viewport, frame);
 }
 
 status_t Replayer::createSurfaceControl(

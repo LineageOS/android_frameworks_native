@@ -137,8 +137,8 @@ void SurfaceInterceptor::addInitialDisplayStateLocked(Increment* increment,
     addDisplaySurfaceLocked(transaction, display.sequenceId, display.surface);
     addDisplayLayerStackLocked(transaction, display.sequenceId, display.layerStack);
     addDisplaySizeLocked(transaction, display.sequenceId, display.width, display.height);
-    addDisplayProjectionLocked(transaction, display.sequenceId, display.orientation,
-            display.viewport, display.frame);
+    addDisplayProjectionLocked(transaction, display.sequenceId, toRotationInt(display.orientation),
+                               display.viewport, display.frame);
 }
 
 status_t SurfaceInterceptor::writeProtoFileLocked() {
@@ -467,8 +467,8 @@ void SurfaceInterceptor::addDisplayChangesLocked(Transaction* transaction,
         addDisplaySizeLocked(transaction, sequenceId, state.width, state.height);
     }
     if (state.what & DisplayState::eDisplayProjectionChanged) {
-        addDisplayProjectionLocked(transaction, sequenceId, state.orientation, state.viewport,
-                state.frame);
+        addDisplayProjectionLocked(transaction, sequenceId, toRotationInt(state.orientation),
+                                   state.viewport, state.frame);
     }
 }
 

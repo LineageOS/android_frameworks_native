@@ -34,6 +34,7 @@
 #include <ui/GraphicTypes.h>
 #include <ui/PhysicalDisplayId.h>
 #include <ui/PixelFormat.h>
+#include <ui/Rotation.h>
 
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
@@ -79,13 +80,6 @@ public:
         // thus, SurfaceFlinger should wake-up earlier to avoid missing frame deadlines. In this
         // case SurfaceFlinger will wake up at (sf vsync offset - debug.sf.early_phase_offset_ns)
         eEarlyWakeup = 0x04
-    };
-
-    enum Rotation {
-        eRotateNone = 0,
-        eRotate90   = 1,
-        eRotate180  = 2,
-        eRotate270  = 3
     };
 
     enum VsyncSource {
@@ -249,10 +243,10 @@ public:
      * it) around its center.
      */
     virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
-                                   bool& outCapturedSecureLayers, const ui::Dataspace reqDataspace,
-                                   const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
+                                   bool& outCapturedSecureLayers, ui::Dataspace reqDataspace,
+                                   ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
                                    uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
-                                   Rotation rotation = eRotateNone,
+                                   ui::Rotation rotation = ui::ROTATION_0,
                                    bool captureSecureLayers = false) = 0;
     /**
      * Capture the specified screen. This requires READ_FRAME_BUFFER
@@ -276,8 +270,9 @@ public:
      * it) around its center.
      */
     virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
-                                   Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-                                   bool useIdentityTransform, Rotation rotation = eRotateNone) {
+                                   const Rect& sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
+                                   bool useIdentityTransform,
+                                   ui::Rotation rotation = ui::ROTATION_0) {
         bool outIgnored;
         return captureScreen(display, outBuffer, outIgnored, ui::Dataspace::V0_SRGB,
                              ui::PixelFormat::RGBA_8888, sourceCrop, reqWidth, reqHeight,
@@ -301,8 +296,7 @@ public:
      */
     virtual status_t captureLayers(
             const sp<IBinder>& layerHandleBinder, sp<GraphicBuffer>* outBuffer,
-            const ui::Dataspace reqDataspace, const ui::PixelFormat reqPixelFormat,
-            const Rect& sourceCrop,
+            ui::Dataspace reqDataspace, ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
             const std::unordered_set<sp<IBinder>, SpHash<IBinder>>& excludeHandles,
             float frameScale = 1.0, bool childrenOnly = false) = 0;
 

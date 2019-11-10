@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <ui/Rotation.h>
 #include <utils/Timers.h>
 
 namespace android {
@@ -33,21 +34,13 @@ struct DisplayInfo {
     float ydpi{0};
     float fps{0};
     float density{0};
-    uint8_t orientation{0};
+    ui::Rotation orientation{ui::ROTATION_0};
     bool secure{false};
     nsecs_t appVsyncOffset{0};
     nsecs_t presentationDeadline{0};
     uint32_t viewportW{0};
     uint32_t viewportH{0};
     uint32_t layerStack{NO_LAYER_STACK};
-};
-
-/* Display orientations as defined in Surface.java and ISurfaceComposer.h. */
-enum {
-    DISPLAY_ORIENTATION_0 = 0,
-    DISPLAY_ORIENTATION_90 = 1,
-    DISPLAY_ORIENTATION_180 = 2,
-    DISPLAY_ORIENTATION_270 = 3
 };
 
 } // namespace android

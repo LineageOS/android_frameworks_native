@@ -48,8 +48,7 @@ WindowSurface::WindowSurface() {
     }
 
     uint32_t width, height;
-    if (mainDpyInfo.orientation != DISPLAY_ORIENTATION_0 &&
-            mainDpyInfo.orientation != DISPLAY_ORIENTATION_180) {
+    if (mainDpyInfo.orientation != ui::ROTATION_0 && mainDpyInfo.orientation != ui::ROTATION_180) {
         // rotated
         width = mainDpyInfo.h;
         height = mainDpyInfo.w;

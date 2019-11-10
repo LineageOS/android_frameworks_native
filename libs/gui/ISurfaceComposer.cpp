@@ -110,10 +110,10 @@ public:
     }
 
     virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
-                                   bool& outCapturedSecureLayers, const ui::Dataspace reqDataspace,
-                                   const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
+                                   bool& outCapturedSecureLayers, ui::Dataspace reqDataspace,
+                                   ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
                                    uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
-                                   ISurfaceComposer::Rotation rotation, bool captureSecureLayers) {
+                                   ui::Rotation rotation, bool captureSecureLayers) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(display);
@@ -1214,8 +1214,7 @@ status_t BnSurfaceComposer::onTransact(
             bool capturedSecureLayers = false;
             status_t res = captureScreen(display, &outBuffer, capturedSecureLayers, reqDataspace,
                                          reqPixelFormat, sourceCrop, reqWidth, reqHeight,
-                                         useIdentityTransform,
-                                         static_cast<ISurfaceComposer::Rotation>(rotation),
+                                         useIdentityTransform, ui::toRotation(rotation),
                                          captureSecureLayers);
 
             reply->writeInt32(res);

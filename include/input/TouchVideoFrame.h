@@ -19,7 +19,6 @@
 
 #include <stdint.h>
 #include <sys/time.h>
-#include <ui/DisplayInfo.h>
 #include <vector>
 
 namespace android {
