@@ -33,6 +33,7 @@ BLASTBufferQueue::BLASTBufferQueue(const sp<SurfaceControl>& surface, int width,
     mBufferItemConsumer->setBufferFreedListener(this);
     mBufferItemConsumer->setDefaultBufferSize(mWidth, mHeight);
     mBufferItemConsumer->setDefaultBufferFormat(PIXEL_FORMAT_RGBA_8888);
+    mBufferItemConsumer->setTransformHint(mSurfaceControl->getTransformHint());
 }
 
 void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, int width, int height) {
@@ -41,6 +42,7 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, int width, int 
     mWidth = width;
     mHeight = height;
     mBufferItemConsumer->setDefaultBufferSize(mWidth, mHeight);
+    mBufferItemConsumer->setTransformHint(mSurfaceControl->getTransformHint());
 }
 
 static void transactionCallbackThunk(void* context, nsecs_t latchTime,
@@ -63,6 +65,7 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
                                                    ? stats[0].previousReleaseFence
                                                    : Fence::NO_FENCE);
         mNextCallbackBufferItem = BufferItem();
+        mBufferItemConsumer->setTransformHint(stats[0].transformHint);
     }
     mDequeueWaitCV.notify_all();
     decStrong((void*)transactionCallbackThunk);

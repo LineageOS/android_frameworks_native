@@ -38,15 +38,37 @@
 #include <unistd.h>
 
 #include <log/log.h>
+#include <utils/Errors.h>
 
 #include <android-base/stringprintf.h>
 #include <input/Keyboard.h>
 #include <input/VirtualKeyMap.h>
-
+#include <utils/Thread.h>
 
 using android::base::StringPrintf;
 
 namespace android {
+
+// --- InputReader::InputReaderThread ---
+
+/* Thread that reads raw events from the event hub and processes them, endlessly. */
+class InputReader::InputReaderThread : public Thread {
+public:
+    explicit InputReaderThread(InputReader* reader)
+          : Thread(/* canCallJava */ true), mReader(reader) {}
+
+    ~InputReaderThread() {}
+
+private:
+    InputReader* mReader;
+
+    bool threadLoop() override {
+        mReader->loopOnce();
+        return true;
+    }
+};
+
+// --- InputReader ---
 
 InputReader::InputReader(std::shared_ptr<EventHubInterface> eventHub,
                          const sp<InputReaderPolicyInterface>& policy,
@@ -61,6 +83,7 @@ InputReader::InputReader(std::shared_ptr<EventHubInterface> eventHub,
         mNextTimeout(LLONG_MAX),
         mConfigurationChangesToRefresh(0) {
     mQueuedListener = new QueuedInputListener(listener);
+    mThread = new InputReaderThread(this);
 
     { // acquire lock
         AutoMutex _l(mLock);
@@ -71,9 +94,31 @@ InputReader::InputReader(std::shared_ptr<EventHubInterface> eventHub,
 }
 
 InputReader::~InputReader() {
-    for (size_t i = 0; i < mDevices.size(); i++) {
-        delete mDevices.valueAt(i);
+    for (auto& devicePair : mDevices) {
+        delete devicePair.second;
     }
+}
+
+status_t InputReader::start() {
+    if (mThread->isRunning()) {
+        return ALREADY_EXISTS;
+    }
+    return mThread->run("InputReader", PRIORITY_URGENT_DISPLAY);
+}
+
+status_t InputReader::stop() {
+    if (!mThread->isRunning()) {
+        return OK;
+    }
+    if (gettid() == mThread->getTid()) {
+        ALOGE("InputReader can only be stopped from outside of the InputReaderThread!");
+        return INVALID_OPERATION;
+    }
+    // Directly calling requestExitAndWait() causes the thread to not exit
+    // if mEventHub is waiting for a long timeout.
+    mThread->requestExit();
+    mEventHub->wake();
+    return mThread->requestExitAndWait();
 }
 
 void InputReader::loopOnce() {
@@ -179,8 +224,7 @@ void InputReader::processEventsLocked(const RawEvent* rawEvents, size_t count) {
 }
 
 void InputReader::addDeviceLocked(nsecs_t when, int32_t deviceId) {
-    ssize_t deviceIndex = mDevices.indexOfKey(deviceId);
-    if (deviceIndex >= 0) {
+    if (mDevices.find(deviceId) != mDevices.end()) {
         ALOGW("Ignoring spurious device added event for deviceId %d.", deviceId);
         return;
     }
@@ -201,7 +245,7 @@ void InputReader::addDeviceLocked(nsecs_t when, int32_t deviceId) {
               device->getSources());
     }
 
-    mDevices.add(deviceId, device);
+    mDevices.insert({deviceId, device});
     bumpGenerationLocked();
 
     if (device->getClasses() & INPUT_DEVICE_CLASS_EXTERNAL_STYLUS) {
@@ -210,15 +254,14 @@ void InputReader::addDeviceLocked(nsecs_t when, int32_t deviceId) {
 }
 
 void InputReader::removeDeviceLocked(nsecs_t when, int32_t deviceId) {
-    InputDevice* device = nullptr;
-    ssize_t deviceIndex = mDevices.indexOfKey(deviceId);
-    if (deviceIndex < 0) {
+    auto deviceIt = mDevices.find(deviceId);
+    if (deviceIt == mDevices.end()) {
         ALOGW("Ignoring spurious device removed event for deviceId %d.", deviceId);
         return;
     }
 
-    device = mDevices.valueAt(deviceIndex);
-    mDevices.removeItemsAt(deviceIndex, 1);
+    InputDevice* device = deviceIt->second;
+    mDevices.erase(deviceIt);
     bumpGenerationLocked();
 
     if (device->isIgnored()) {
@@ -315,13 +358,13 @@ InputDevice* InputReader::createDeviceLocked(int32_t deviceId, int32_t controlle
 
 void InputReader::processEventsForDeviceLocked(int32_t deviceId, const RawEvent* rawEvents,
                                                size_t count) {
-    ssize_t deviceIndex = mDevices.indexOfKey(deviceId);
-    if (deviceIndex < 0) {
+    auto deviceIt = mDevices.find(deviceId);
+    if (deviceIt == mDevices.end()) {
         ALOGW("Discarding event for unknown deviceId %d.", deviceId);
         return;
     }
 
-    InputDevice* device = mDevices.valueAt(deviceIndex);
+    InputDevice* device = deviceIt->second;
     if (device->isIgnored()) {
         // ALOGD("Discarding event for ignored deviceId %d.", deviceId);
         return;
@@ -331,8 +374,8 @@ void InputReader::processEventsForDeviceLocked(int32_t deviceId, const RawEvent*
 }
 
 void InputReader::timeoutExpiredLocked(nsecs_t when) {
-    for (size_t i = 0; i < mDevices.size(); i++) {
-        InputDevice* device = mDevices.valueAt(i);
+    for (auto& devicePair : mDevices) {
+        InputDevice* device = devicePair.second;
         if (!device->isIgnored()) {
             device->timeoutExpired(when);
         }
@@ -360,8 +403,8 @@ void InputReader::refreshConfigurationLocked(uint32_t changes) {
         if (changes & InputReaderConfiguration::CHANGE_MUST_REOPEN) {
             mEventHub->requestReopenDevices();
         } else {
-            for (size_t i = 0; i < mDevices.size(); i++) {
-                InputDevice* device = mDevices.valueAt(i);
+            for (auto& devicePair : mDevices) {
+                InputDevice* device = devicePair.second;
                 device->configure(now, &mConfig, changes);
             }
         }
@@ -371,8 +414,8 @@ void InputReader::refreshConfigurationLocked(uint32_t changes) {
 void InputReader::updateGlobalMetaStateLocked() {
     mGlobalMetaState = 0;
 
-    for (size_t i = 0; i < mDevices.size(); i++) {
-        InputDevice* device = mDevices.valueAt(i);
+    for (auto& devicePair : mDevices) {
+        InputDevice* device = devicePair.second;
         mGlobalMetaState |= device->getMetaState();
     }
 }
@@ -386,8 +429,8 @@ void InputReader::notifyExternalStylusPresenceChanged() {
 }
 
 void InputReader::getExternalStylusDevicesLocked(std::vector<InputDeviceInfo>& outDevices) {
-    for (size_t i = 0; i < mDevices.size(); i++) {
-        InputDevice* device = mDevices.valueAt(i);
+    for (auto& devicePair : mDevices) {
+        InputDevice* device = devicePair.second;
         if (device->getClasses() & INPUT_DEVICE_CLASS_EXTERNAL_STYLUS && !device->isIgnored()) {
             InputDeviceInfo info;
             device->getDeviceInfo(&info);
@@ -397,8 +440,8 @@ void InputReader::getExternalStylusDevicesLocked(std::vector<InputDeviceInfo>& o
 }
 
 void InputReader::dispatchExternalStylusState(const StylusState& state) {
-    for (size_t i = 0; i < mDevices.size(); i++) {
-        InputDevice* device = mDevices.valueAt(i);
+    for (auto& devicePair : mDevices) {
+        InputDevice* device = devicePair.second;
         device->updateExternalStylusState(state);
     }
 }
@@ -421,8 +464,8 @@ bool InputReader::shouldDropVirtualKeyLocked(nsecs_t now, InputDevice* device, i
 }
 
 void InputReader::fadePointerLocked() {
-    for (size_t i = 0; i < mDevices.size(); i++) {
-        InputDevice* device = mDevices.valueAt(i);
+    for (auto& devicePair : mDevices) {
+        InputDevice* device = devicePair.second;
         device->fadePointer();
     }
 }
@@ -446,9 +489,8 @@ void InputReader::getInputDevices(std::vector<InputDeviceInfo>& outInputDevices)
 void InputReader::getInputDevicesLocked(std::vector<InputDeviceInfo>& outInputDevices) {
     outInputDevices.clear();
 
-    size_t numDevices = mDevices.size();
-    for (size_t i = 0; i < numDevices; i++) {
-        InputDevice* device = mDevices.valueAt(i);
+    for (auto& devicePair : mDevices) {
+        InputDevice* device = devicePair.second;
         if (!device->isIgnored()) {
             InputDeviceInfo info;
             device->getDeviceInfo(&info);
@@ -479,17 +521,16 @@ int32_t InputReader::getStateLocked(int32_t deviceId, uint32_t sourceMask, int32
                                     GetStateFunc getStateFunc) {
     int32_t result = AKEY_STATE_UNKNOWN;
     if (deviceId >= 0) {
-        ssize_t deviceIndex = mDevices.indexOfKey(deviceId);
-        if (deviceIndex >= 0) {
-            InputDevice* device = mDevices.valueAt(deviceIndex);
+        auto deviceIt = mDevices.find(deviceId);
+        if (deviceIt != mDevices.end()) {
+            InputDevice* device = deviceIt->second;
             if (!device->isIgnored() && sourcesMatchMask(device->getSources(), sourceMask)) {
                 result = (device->*getStateFunc)(sourceMask, code);
             }
         }
     } else {
-        size_t numDevices = mDevices.size();
-        for (size_t i = 0; i < numDevices; i++) {
-            InputDevice* device = mDevices.valueAt(i);
+        for (auto& devicePair : mDevices) {
+            InputDevice* device = devicePair.second;
             if (!device->isIgnored() && sourcesMatchMask(device->getSources(), sourceMask)) {
                 // If any device reports AKEY_STATE_DOWN or AKEY_STATE_VIRTUAL, return that
                 // value.  Otherwise, return AKEY_STATE_UP as long as one device reports it.
@@ -506,13 +547,13 @@ int32_t InputReader::getStateLocked(int32_t deviceId, uint32_t sourceMask, int32
 }
 
 void InputReader::toggleCapsLockState(int32_t deviceId) {
-    ssize_t deviceIndex = mDevices.indexOfKey(deviceId);
-    if (deviceIndex < 0) {
+    auto deviceIt = mDevices.find(deviceId);
+    if (deviceIt == mDevices.end()) {
         ALOGW("Ignoring toggleCapsLock for unknown deviceId %" PRId32 ".", deviceId);
         return;
     }
 
-    InputDevice* device = mDevices.valueAt(deviceIndex);
+    InputDevice* device = deviceIt->second;
     if (device->isIgnored()) {
         return;
     }
@@ -533,17 +574,16 @@ bool InputReader::markSupportedKeyCodesLocked(int32_t deviceId, uint32_t sourceM
                                               uint8_t* outFlags) {
     bool result = false;
     if (deviceId >= 0) {
-        ssize_t deviceIndex = mDevices.indexOfKey(deviceId);
-        if (deviceIndex >= 0) {
-            InputDevice* device = mDevices.valueAt(deviceIndex);
+        auto deviceIt = mDevices.find(deviceId);
+        if (deviceIt != mDevices.end()) {
+            InputDevice* device = deviceIt->second;
             if (!device->isIgnored() && sourcesMatchMask(device->getSources(), sourceMask)) {
                 result = device->markSupportedKeyCodes(sourceMask, numCodes, keyCodes, outFlags);
             }
         }
     } else {
-        size_t numDevices = mDevices.size();
-        for (size_t i = 0; i < numDevices; i++) {
-            InputDevice* device = mDevices.valueAt(i);
+        for (auto& devicePair : mDevices) {
+            InputDevice* device = devicePair.second;
             if (!device->isIgnored() && sourcesMatchMask(device->getSources(), sourceMask)) {
                 result |= device->markSupportedKeyCodes(sourceMask, numCodes, keyCodes, outFlags);
             }
@@ -568,10 +608,9 @@ void InputReader::requestRefreshConfiguration(uint32_t changes) {
 void InputReader::vibrate(int32_t deviceId, const nsecs_t* pattern, size_t patternSize,
                           ssize_t repeat, int32_t token) {
     AutoMutex _l(mLock);
-
-    ssize_t deviceIndex = mDevices.indexOfKey(deviceId);
-    if (deviceIndex >= 0) {
-        InputDevice* device = mDevices.valueAt(deviceIndex);
+    auto deviceIt = mDevices.find(deviceId);
+    if (deviceIt != mDevices.end()) {
+        InputDevice* device = deviceIt->second;
         device->vibrate(pattern, patternSize, repeat, token);
     }
 }
@@ -579,9 +618,9 @@ void InputReader::vibrate(int32_t deviceId, const nsecs_t* pattern, size_t patte
 void InputReader::cancelVibrate(int32_t deviceId, int32_t token) {
     AutoMutex _l(mLock);
 
-    ssize_t deviceIndex = mDevices.indexOfKey(deviceId);
-    if (deviceIndex >= 0) {
-        InputDevice* device = mDevices.valueAt(deviceIndex);
+    auto deviceIt = mDevices.find(deviceId);
+    if (deviceIt != mDevices.end()) {
+        InputDevice* device = deviceIt->second;
         device->cancelVibrate(token);
     }
 }
@@ -589,9 +628,9 @@ void InputReader::cancelVibrate(int32_t deviceId, int32_t token) {
 bool InputReader::isInputDeviceEnabled(int32_t deviceId) {
     AutoMutex _l(mLock);
 
-    ssize_t deviceIndex = mDevices.indexOfKey(deviceId);
-    if (deviceIndex >= 0) {
-        InputDevice* device = mDevices.valueAt(deviceIndex);
+    auto deviceIt = mDevices.find(deviceId);
+    if (deviceIt != mDevices.end()) {
+        InputDevice* device = deviceIt->second;
         return device->isEnabled();
     }
     ALOGW("Ignoring invalid device id %" PRId32 ".", deviceId);
@@ -601,13 +640,13 @@ bool InputReader::isInputDeviceEnabled(int32_t deviceId) {
 bool InputReader::canDispatchToDisplay(int32_t deviceId, int32_t displayId) {
     AutoMutex _l(mLock);
 
-    ssize_t deviceIndex = mDevices.indexOfKey(deviceId);
-    if (deviceIndex < 0) {
+    auto deviceIt = mDevices.find(deviceId);
+    if (deviceIt == mDevices.end()) {
         ALOGW("Ignoring invalid device id %" PRId32 ".", deviceId);
         return false;
     }
 
-    InputDevice* device = mDevices.valueAt(deviceIndex);
+    InputDevice* device = deviceIt->second;
     if (!device->isEnabled()) {
         ALOGW("Ignoring disabled device %s", device->getName().c_str());
         return false;
@@ -635,8 +674,9 @@ void InputReader::dump(std::string& dump) {
 
     dump += "Input Reader State:\n";
 
-    for (size_t i = 0; i < mDevices.size(); i++) {
-        mDevices.valueAt(i)->dump(dump);
+    for (const auto& devicePair : mDevices) {
+        InputDevice* const device = devicePair.second;
+        device->dump(dump);
     }
 
     dump += INDENT "Configuration:\n";

@@ -23,9 +23,9 @@
 #include "InputReaderContext.h"
 
 #include <utils/Condition.h>
-#include <utils/KeyedVector.h>
 #include <utils/Mutex.h>
 
+#include <unordered_map>
 #include <vector>
 
 namespace android {
@@ -38,12 +38,12 @@ struct StylusState;
  * that it sends to the input listener.  Some functions of the input reader, such as early
  * event filtering in low power states, are controlled by a separate policy object.
  *
- * The InputReader owns a collection of InputMappers.  Most of the work it does happens
- * on the input reader thread but the InputReader can receive queries from other system
+ * The InputReader owns a collection of InputMappers. InputReader starts its own thread, where
+ * most of the work happens, but the InputReader can receive queries from other system
  * components running on arbitrary threads.  To keep things manageable, the InputReader
  * uses a single Mutex to guard its state.  The Mutex may be held while calling into the
  * EventHub or the InputReaderPolicy but it is never held while calling into the
- * InputListener.
+ * InputListener. All calls to InputListener must happen from InputReader's thread.
  */
 class InputReader : public InputReaderInterface {
 public:
@@ -55,7 +55,8 @@ public:
     virtual void dump(std::string& dump) override;
     virtual void monitor() override;
 
-    virtual void loopOnce() override;
+    virtual status_t start() override;
+    virtual status_t stop() override;
 
     virtual void getInputDevices(std::vector<InputDeviceInfo>& outInputDevices) override;
 
@@ -111,6 +112,9 @@ protected:
     friend class ContextImpl;
 
 private:
+    class InputReaderThread;
+    sp<InputReaderThread> mThread;
+
     Mutex mLock;
 
     Condition mReaderIsAliveCondition;
@@ -131,7 +135,11 @@ private:
     static const int EVENT_BUFFER_SIZE = 256;
     RawEvent mEventBuffer[EVENT_BUFFER_SIZE];
 
-    KeyedVector<int32_t, InputDevice*> mDevices;
+    std::unordered_map<int32_t /*deviceId*/, InputDevice*> mDevices;
+
+    // With each iteration of the loop, InputReader reads and processes one incoming message from
+    // the EventHub.
+    void loopOnce();
 
     // low-level input event decoding and device management
     void processEventsLocked(const RawEvent* rawEvents, size_t count);

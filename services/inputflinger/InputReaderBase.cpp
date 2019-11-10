@@ -33,20 +33,6 @@ using android::base::StringPrintf;
 
 namespace android {
 
-// --- InputReaderThread ---
-
-InputReaderThread::InputReaderThread(const sp<InputReaderInterface>& reader) :
-        Thread(/*canCallJava*/ true), mReader(reader) {
-}
-
-InputReaderThread::~InputReaderThread() {
-}
-
-bool InputReaderThread::threadLoop() {
-    mReader->loopOnce();
-    return true;
-}
-
 // --- InputReaderConfiguration ---
 
 std::string InputReaderConfiguration::changesToString(uint32_t changes) {

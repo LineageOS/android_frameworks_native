@@ -144,7 +144,7 @@ class OverrideLayerNames {
     }
 
     void GetLayersFromSettings() {
-        // These will only be available if conditions are met in GraphicsEnvironemnt
+        // These will only be available if conditions are met in GraphicsEnvironment
         // gpu_debug_layers = layer1:layer2:layerN
         const std::string layers = android::GraphicsEnv::getInstance().getDebugLayers();
         if (!layers.empty()) {
