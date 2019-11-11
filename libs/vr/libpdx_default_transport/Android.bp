@@ -39,7 +39,6 @@ cc_library_shared {
         "libcutils",
         "liblog",
         "libutils",
-        "libcrypto",
         "libselinux",
     ],
 }
