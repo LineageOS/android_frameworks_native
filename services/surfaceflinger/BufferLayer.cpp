@@ -286,7 +286,7 @@ bool BufferLayer::onPreComposition(nsecs_t refreshStartTime) {
     return hasReadyFrame();
 }
 
-bool BufferLayer::onPostComposition(const std::optional<DisplayId>& displayId,
+bool BufferLayer::onPostComposition(sp<const DisplayDevice> displayDevice,
                                     const std::shared_ptr<FenceTime>& glDoneFence,
                                     const std::shared_ptr<FenceTime>& presentFence,
                                     const CompositorTiming& compositorTiming) {
@@ -308,6 +308,14 @@ bool BufferLayer::onPostComposition(const std::optional<DisplayId>& displayId,
     const int32_t layerId = getSequence();
     mFlinger->mTimeStats->setDesiredTime(layerId, mCurrentFrameNumber, desiredPresentTime);
 
+    const auto outputLayer = findOutputLayerForDisplay(displayDevice);
+    if (outputLayer && outputLayer->requiresClientComposition()) {
+        nsecs_t clientCompositionTimestamp = outputLayer->getState().clientCompositionTimestamp;
+        mFlinger->mFrameTracer->traceTimestamp(layerId, getCurrentBufferId(), mCurrentFrameNumber,
+                                               clientCompositionTimestamp,
+                                               FrameTracer::FrameEvent::FALLBACK_COMPOSITION);
+    }
+
     std::shared_ptr<FenceTime> frameReadyFence = mBufferInfo.mFenceTime;
     if (frameReadyFence->isValid()) {
         mFrameTracker.setFrameReadyFence(std::move(frameReadyFence));
@@ -317,6 +325,7 @@ bool BufferLayer::onPostComposition(const std::optional<DisplayId>& displayId,
         mFrameTracker.setFrameReadyTime(desiredPresentTime);
     }
 
+    const auto displayId = displayDevice->getId();
     if (presentFence->isValid()) {
         mFlinger->mTimeStats->setPresentFence(layerId, mCurrentFrameNumber, presentFence);
         mFlinger->mFrameTracer->traceFence(layerId, getCurrentBufferId(), mCurrentFrameNumber,

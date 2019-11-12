@@ -98,6 +98,9 @@ struct OutputLayerCompositionState {
 
     // Debugging
     void dump(std::string& result) const;
+
+    // Timestamp for when the layer is queued for client composition
+    nsecs_t clientCompositionTimestamp;
 };
 
 } // namespace compositionengine::impl

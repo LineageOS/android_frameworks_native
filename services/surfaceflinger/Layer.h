@@ -531,7 +531,7 @@ public:
      * called after composition.
      * returns true if the layer latched a new buffer this frame.
      */
-    virtual bool onPostComposition(const std::optional<DisplayId>& /*displayId*/,
+    virtual bool onPostComposition(sp<const DisplayDevice> /*displayDevice*/,
                                    const std::shared_ptr<FenceTime>& /*glDoneFence*/,
                                    const std::shared_ptr<FenceTime>& /*presentFence*/,
                                    const CompositorTiming& /*compositorTiming*/) {
