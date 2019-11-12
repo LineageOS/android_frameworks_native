@@ -216,6 +216,7 @@ public:
         std::deque<sp<CallbackHandle>> callbackHandles;
         bool colorSpaceAgnostic;
         nsecs_t desiredPresentTime = -1;
+        float shadowRadius;
     };
 
     explicit Layer(const LayerCreationArgs& args);
@@ -329,6 +330,7 @@ public:
     };
     virtual bool setBackgroundColor(const half3& color, float alpha, ui::Dataspace dataspace);
     virtual bool setColorSpaceAgnostic(const bool agnostic);
+    bool setShadowRadius(float shadowRadius);
 
     virtual ui::Dataspace getDataSpace() const { return ui::Dataspace::UNKNOWN; }
 
@@ -362,7 +364,7 @@ public:
     FloatRect getBounds() const;
 
     // Compute bounds for the layer and cache the results.
-    void computeBounds(FloatRect parentBounds, ui::Transform parentTransform);
+    void computeBounds(FloatRect parentBounds, ui::Transform parentTransform, float shadowRadius);
 
     // Returns the buffer scale transform if a scaling mode is set.
     ui::Transform getBufferScaleTransform() const;
@@ -942,6 +944,14 @@ private:
     // this layer will update it's buffer. When mClonedFrom updates it's drawing state, children,
     // and relatives, this layer will update as well.
     wp<Layer> mClonedFrom;
+
+    // The inherited shadow radius after taking into account the layer hierarchy. This is the
+    // final shadow radius for this layer. If a shadow is specified for a layer, then effective
+    // shadow radius is the set shadow radius, otherwise its the parent's shadow radius.
+    float mEffectiveShadowRadius;
+
+    // Returns true if the layer can draw shadows on its border.
+    virtual bool canDrawShadows() const { return true; }
 };
 
 } // namespace android

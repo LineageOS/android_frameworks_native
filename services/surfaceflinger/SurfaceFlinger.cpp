@@ -2011,7 +2011,8 @@ void SurfaceFlinger::computeLayerBounds() {
                 continue;
             }
 
-            layer->computeBounds(displayDevice->getViewport().toFloatRect(), ui::Transform());
+            layer->computeBounds(displayDevice->getViewport().toFloatRect(), ui::Transform(),
+                                 0.f /* shadowRadius */);
         }
     }
 }
@@ -3334,6 +3335,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         if (layer->setColorSpaceAgnostic(s.colorSpaceAgnostic)) {
             flags |= eTraversalNeeded;
         }
+    }
+    if (what & layer_state_t::eShadowRadiusChanged) {
+        if (layer->setShadowRadius(s.shadowRadius)) flags |= eTraversalNeeded;
     }
     // This has to happen after we reparent children because when we reparent to null we remove
     // child layers from current state and remove its relative z. If the children are reparented in
@@ -5002,7 +5006,8 @@ status_t SurfaceFlinger::captureLayers(
                                const Rect& drawingBounds)
                   : oldParent(oldParent), newParent(newParent) {
                 // Compute and cache the bounds for the new parent layer.
-                newParent->computeBounds(drawingBounds.toFloatRect(), ui::Transform());
+                newParent->computeBounds(drawingBounds.toFloatRect(), ui::Transform(),
+                                         0.f /* shadowRadius */);
                 oldParent->setChildrenDrawingParent(newParent);
             }
             ~ReparentForDrawing() { oldParent->setChildrenDrawingParent(oldParent); }
