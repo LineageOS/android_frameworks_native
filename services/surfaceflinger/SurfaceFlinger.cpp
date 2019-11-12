@@ -5508,7 +5508,7 @@ sp<Layer> SurfaceFlinger::fromHandle(const sp<IBinder>& handle) {
     return nullptr;
 }
 
-void SurfaceFlinger::onLayerCreated(Layer* layer) {
+void SurfaceFlinger::onLayerFirstRef(Layer* layer) {
     mNumLayers++;
     mScheduler->registerLayer(layer);
 }
