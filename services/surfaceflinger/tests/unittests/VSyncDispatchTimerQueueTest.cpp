@@ -19,7 +19,7 @@
 #define LOG_NDEBUG 0
 
 #include "Scheduler/TimeKeeper.h"
-#include "Scheduler/VSyncDispatch.h"
+#include "Scheduler/VSyncDispatchTimerQueue.h"
 #include "Scheduler/VSyncTracker.h"
 
 #include <gmock/gmock.h>
@@ -166,7 +166,7 @@ public:
     std::chrono::milliseconds const mPauseAmount;
 };
 
-class VSyncDispatchTest : public testing::Test {
+class VSyncDispatchTimerQueueTest : public testing::Test {
 protected:
     std::unique_ptr<TimeKeeper> createTimeKeeper() {
         class TimeKeeperWrapper : public TimeKeeper {
@@ -184,7 +184,7 @@ protected:
         return std::make_unique<TimeKeeperWrapper>(mMockClock);
     }
 
-    ~VSyncDispatchTest() {
+    ~VSyncDispatchTimerQueueTest() {
         // destructor of  dispatch will cancelAlarm(). Ignore final cancel in common test.
         Mock::VerifyAndClearExpectations(&mMockClock);
     }
@@ -195,20 +195,21 @@ protected:
     static nsecs_t constexpr mDispatchGroupThreshold = 5;
     nsecs_t const mPeriod = 1000;
     NiceMock<MockVSyncTracker> mStubTracker{mPeriod};
-    VSyncDispatch mDispatch{createTimeKeeper(), mStubTracker, mDispatchGroupThreshold};
+    VSyncDispatchTimerQueue mDispatch{createTimeKeeper(), mStubTracker, mDispatchGroupThreshold};
 };
 
-TEST_F(VSyncDispatchTest, unregistersSetAlarmOnDestruction) {
+TEST_F(VSyncDispatchTimerQueueTest, unregistersSetAlarmOnDestruction) {
     EXPECT_CALL(mMockClock, alarmIn(_, 900));
     EXPECT_CALL(mMockClock, alarmCancel());
     {
-        VSyncDispatch mDispatch{createTimeKeeper(), mStubTracker, mDispatchGroupThreshold};
+        VSyncDispatchTimerQueue mDispatch{createTimeKeeper(), mStubTracker,
+                                          mDispatchGroupThreshold};
         CountingCallback cb(mDispatch);
         EXPECT_EQ(mDispatch.schedule(cb, 100, 1000), ScheduleResult::Scheduled);
     }
 }
 
-TEST_F(VSyncDispatchTest, basicAlarmSettingFuture) {
+TEST_F(VSyncDispatchTimerQueueTest, basicAlarmSettingFuture) {
     auto intended = mPeriod - 230;
     EXPECT_CALL(mMockClock, alarmIn(_, 900));
 
@@ -220,7 +221,7 @@ TEST_F(VSyncDispatchTest, basicAlarmSettingFuture) {
     EXPECT_THAT(cb.mCalls[0], Eq(mPeriod));
 }
 
-TEST_F(VSyncDispatchTest, basicAlarmSettingFutureWithAdjustmentToTrueVsync) {
+TEST_F(VSyncDispatchTimerQueueTest, basicAlarmSettingFutureWithAdjustmentToTrueVsync) {
     EXPECT_CALL(mStubTracker, nextAnticipatedVSyncTimeFrom(1000)).WillOnce(Return(1150));
     EXPECT_CALL(mMockClock, alarmIn(_, 1050));
 
@@ -232,7 +233,7 @@ TEST_F(VSyncDispatchTest, basicAlarmSettingFutureWithAdjustmentToTrueVsync) {
     EXPECT_THAT(cb.mCalls[0], Eq(1150));
 }
 
-TEST_F(VSyncDispatchTest, basicAlarmSettingAdjustmentPast) {
+TEST_F(VSyncDispatchTimerQueueTest, basicAlarmSettingAdjustmentPast) {
     auto const now = 234;
     mMockClock.advanceBy(234);
     auto const workDuration = 10 * mPeriod;
@@ -244,7 +245,7 @@ TEST_F(VSyncDispatchTest, basicAlarmSettingAdjustmentPast) {
     EXPECT_EQ(mDispatch.schedule(cb, workDuration, mPeriod), ScheduleResult::Scheduled);
 }
 
-TEST_F(VSyncDispatchTest, basicAlarmCancel) {
+TEST_F(VSyncDispatchTimerQueueTest, basicAlarmCancel) {
     EXPECT_CALL(mMockClock, alarmIn(_, 900));
     EXPECT_CALL(mMockClock, alarmCancel());
 
@@ -253,7 +254,7 @@ TEST_F(VSyncDispatchTest, basicAlarmCancel) {
     EXPECT_EQ(mDispatch.cancel(cb), CancelResult::Cancelled);
 }
 
-TEST_F(VSyncDispatchTest, basicAlarmCancelTooLate) {
+TEST_F(VSyncDispatchTimerQueueTest, basicAlarmCancelTooLate) {
     EXPECT_CALL(mMockClock, alarmIn(_, 900));
     EXPECT_CALL(mMockClock, alarmCancel());
 
@@ -263,7 +264,7 @@ TEST_F(VSyncDispatchTest, basicAlarmCancelTooLate) {
     EXPECT_EQ(mDispatch.cancel(cb), CancelResult::TooLate);
 }
 
-TEST_F(VSyncDispatchTest, basicAlarmCancelTooLateWhenRunning) {
+TEST_F(VSyncDispatchTimerQueueTest, basicAlarmCancelTooLateWhenRunning) {
     EXPECT_CALL(mMockClock, alarmIn(_, 900));
     EXPECT_CALL(mMockClock, alarmCancel());
 
@@ -277,7 +278,7 @@ TEST_F(VSyncDispatchTest, basicAlarmCancelTooLateWhenRunning) {
     pausingThread.join();
 }
 
-TEST_F(VSyncDispatchTest, unregisterSynchronizes) {
+TEST_F(VSyncDispatchTimerQueueTest, unregisterSynchronizes) {
     EXPECT_CALL(mMockClock, alarmIn(_, 900));
     EXPECT_CALL(mMockClock, alarmCancel());
 
@@ -299,7 +300,7 @@ TEST_F(VSyncDispatchTest, unregisterSynchronizes) {
     EXPECT_TRUE(cb.resourcePresent());
 }
 
-TEST_F(VSyncDispatchTest, basicTwoAlarmSetting) {
+TEST_F(VSyncDispatchTimerQueueTest, basicTwoAlarmSetting) {
     EXPECT_CALL(mStubTracker, nextAnticipatedVSyncTimeFrom(1000))
             .Times(4)
             .WillOnce(Return(1055))
@@ -327,7 +328,7 @@ TEST_F(VSyncDispatchTest, basicTwoAlarmSetting) {
     EXPECT_THAT(cb1.mCalls[0], Eq(1063));
 }
 
-TEST_F(VSyncDispatchTest, rearmsFaroutTimeoutWhenCancellingCloseOne) {
+TEST_F(VSyncDispatchTimerQueueTest, rearmsFaroutTimeoutWhenCancellingCloseOne) {
     EXPECT_CALL(mStubTracker, nextAnticipatedVSyncTimeFrom(_))
             .Times(4)
             .WillOnce(Return(10000))
@@ -348,7 +349,7 @@ TEST_F(VSyncDispatchTest, rearmsFaroutTimeoutWhenCancellingCloseOne) {
     mDispatch.cancel(cb1);
 }
 
-TEST_F(VSyncDispatchTest, noUnnecessaryRearmsWhenRescheduling) {
+TEST_F(VSyncDispatchTimerQueueTest, noUnnecessaryRearmsWhenRescheduling) {
     Sequence seq;
     EXPECT_CALL(mMockClock, alarmIn(_, 600)).InSequence(seq);
     EXPECT_CALL(mMockClock, alarmIn(_, 100)).InSequence(seq);
@@ -362,7 +363,7 @@ TEST_F(VSyncDispatchTest, noUnnecessaryRearmsWhenRescheduling) {
     advanceToNextCallback();
 }
 
-TEST_F(VSyncDispatchTest, necessaryRearmsWhenModifying) {
+TEST_F(VSyncDispatchTimerQueueTest, necessaryRearmsWhenModifying) {
     Sequence seq;
     EXPECT_CALL(mMockClock, alarmIn(_, 600)).InSequence(seq);
     EXPECT_CALL(mMockClock, alarmIn(_, 500)).InSequence(seq);
@@ -377,7 +378,7 @@ TEST_F(VSyncDispatchTest, necessaryRearmsWhenModifying) {
     advanceToNextCallback();
 }
 
-TEST_F(VSyncDispatchTest, modifyIntoGroup) {
+TEST_F(VSyncDispatchTimerQueueTest, modifyIntoGroup) {
     Sequence seq;
     EXPECT_CALL(mMockClock, alarmIn(_, 600)).InSequence(seq);
     EXPECT_CALL(mMockClock, alarmIn(_, 1000)).InSequence(seq);
@@ -412,7 +413,7 @@ TEST_F(VSyncDispatchTest, modifyIntoGroup) {
     EXPECT_THAT(cb0.mCalls[1], Eq(2000));
 }
 
-TEST_F(VSyncDispatchTest, rearmsWhenEndingAndDoesntCancel) {
+TEST_F(VSyncDispatchTimerQueueTest, rearmsWhenEndingAndDoesntCancel) {
     EXPECT_CALL(mMockClock, alarmIn(_, 900));
     EXPECT_CALL(mMockClock, alarmIn(_, 800));
     EXPECT_CALL(mMockClock, alarmIn(_, 100));
@@ -427,7 +428,7 @@ TEST_F(VSyncDispatchTest, rearmsWhenEndingAndDoesntCancel) {
     EXPECT_EQ(mDispatch.cancel(cb0), CancelResult::Cancelled);
 }
 
-TEST_F(VSyncDispatchTest, setAlarmCallsAtCorrectTimeWithChangingVsync) {
+TEST_F(VSyncDispatchTimerQueueTest, setAlarmCallsAtCorrectTimeWithChangingVsync) {
     EXPECT_CALL(mStubTracker, nextAnticipatedVSyncTimeFrom(_))
             .Times(3)
             .WillOnce(Return(950))
@@ -451,7 +452,7 @@ TEST_F(VSyncDispatchTest, setAlarmCallsAtCorrectTimeWithChangingVsync) {
     EXPECT_THAT(cb.mCalls.size(), Eq(3));
 }
 
-TEST_F(VSyncDispatchTest, callbackReentrancy) {
+TEST_F(VSyncDispatchTimerQueueTest, callbackReentrancy) {
     Sequence seq;
     EXPECT_CALL(mMockClock, alarmIn(_, 900)).InSequence(seq);
     EXPECT_CALL(mMockClock, alarmIn(_, 1000)).InSequence(seq);
@@ -463,7 +464,7 @@ TEST_F(VSyncDispatchTest, callbackReentrancy) {
     advanceToNextCallback();
 }
 
-TEST_F(VSyncDispatchTest, callbackReentrantWithPastWakeup) {
+TEST_F(VSyncDispatchTimerQueueTest, callbackReentrantWithPastWakeup) {
     VSyncDispatch::CallbackToken tmp;
     tmp = mDispatch.registerCallback(
             [&](auto) {
@@ -475,7 +476,7 @@ TEST_F(VSyncDispatchTest, callbackReentrantWithPastWakeup) {
     advanceToNextCallback();
 }
 
-TEST_F(VSyncDispatchTest, modificationsAroundVsyncTime) {
+TEST_F(VSyncDispatchTimerQueueTest, modificationsAroundVsyncTime) {
     Sequence seq;
     EXPECT_CALL(mMockClock, alarmIn(_, 1000)).InSequence(seq);
     EXPECT_CALL(mMockClock, alarmIn(_, 200)).InSequence(seq);
@@ -495,7 +496,7 @@ TEST_F(VSyncDispatchTest, modificationsAroundVsyncTime) {
     mDispatch.schedule(cb, 100, 2000);
 }
 
-TEST_F(VSyncDispatchTest, lateModifications) {
+TEST_F(VSyncDispatchTimerQueueTest, lateModifications) {
     Sequence seq;
     EXPECT_CALL(mMockClock, alarmIn(_, 500)).InSequence(seq);
     EXPECT_CALL(mMockClock, alarmIn(_, 400)).InSequence(seq);
@@ -516,7 +517,7 @@ TEST_F(VSyncDispatchTest, lateModifications) {
     advanceToNextCallback();
 }
 
-TEST_F(VSyncDispatchTest, doesntCancelPriorValidTimerForFutureMod) {
+TEST_F(VSyncDispatchTimerQueueTest, doesntCancelPriorValidTimerForFutureMod) {
     Sequence seq;
     EXPECT_CALL(mMockClock, alarmIn(_, 500)).InSequence(seq);
 
@@ -526,7 +527,7 @@ TEST_F(VSyncDispatchTest, doesntCancelPriorValidTimerForFutureMod) {
     mDispatch.schedule(cb1, 500, 20000);
 }
 
-TEST_F(VSyncDispatchTest, setsTimerAfterCancellation) {
+TEST_F(VSyncDispatchTimerQueueTest, setsTimerAfterCancellation) {
     Sequence seq;
     EXPECT_CALL(mMockClock, alarmIn(_, 500)).InSequence(seq);
     EXPECT_CALL(mMockClock, alarmCancel()).InSequence(seq);
@@ -538,19 +539,19 @@ TEST_F(VSyncDispatchTest, setsTimerAfterCancellation) {
     mDispatch.schedule(cb0, 100, 1000);
 }
 
-TEST_F(VSyncDispatchTest, makingUpIdsError) {
+TEST_F(VSyncDispatchTimerQueueTest, makingUpIdsError) {
     VSyncDispatch::CallbackToken token(100);
     EXPECT_THAT(mDispatch.schedule(token, 100, 1000), Eq(ScheduleResult::Error));
     EXPECT_THAT(mDispatch.cancel(token), Eq(CancelResult::Error));
 }
 
-TEST_F(VSyncDispatchTest, distinguishesScheduleAndReschedule) {
+TEST_F(VSyncDispatchTimerQueueTest, distinguishesScheduleAndReschedule) {
     CountingCallback cb0(mDispatch);
     EXPECT_EQ(mDispatch.schedule(cb0, 500, 1000), ScheduleResult::Scheduled);
     EXPECT_EQ(mDispatch.schedule(cb0, 100, 1000), ScheduleResult::ReScheduled);
 }
 
-TEST_F(VSyncDispatchTest, helperMove) {
+TEST_F(VSyncDispatchTimerQueueTest, helperMove) {
     EXPECT_CALL(mMockClock, alarmIn(_, 500)).Times(1);
     EXPECT_CALL(mMockClock, alarmCancel()).Times(1);
 
@@ -564,7 +565,7 @@ TEST_F(VSyncDispatchTest, helperMove) {
     cb1.cancel();
 }
 
-TEST_F(VSyncDispatchTest, helperMoveAssign) {
+TEST_F(VSyncDispatchTimerQueueTest, helperMoveAssign) {
     EXPECT_CALL(mMockClock, alarmIn(_, 500)).Times(1);
     EXPECT_CALL(mMockClock, alarmCancel()).Times(1);
 
@@ -580,22 +581,22 @@ TEST_F(VSyncDispatchTest, helperMoveAssign) {
     cb1.cancel();
 }
 
-class VSyncDispatchEntryTest : public testing::Test {
+class VSyncDispatchTimerQueueEntryTest : public testing::Test {
 protected:
     nsecs_t const mPeriod = 1000;
     NiceMock<MockVSyncTracker> mStubTracker{mPeriod};
 };
 
-TEST_F(VSyncDispatchEntryTest, stateAfterInitialization) {
+TEST_F(VSyncDispatchTimerQueueEntryTest, stateAfterInitialization) {
     std::string name("basicname");
-    impl::VSyncDispatchEntry entry(name, [](auto) {});
+    VSyncDispatchTimerQueueEntry entry(name, [](auto) {});
     EXPECT_THAT(entry.name(), Eq(name));
     EXPECT_FALSE(entry.lastExecutedVsyncTarget());
     EXPECT_FALSE(entry.wakeupTime());
 }
 
-TEST_F(VSyncDispatchEntryTest, stateScheduling) {
-    impl::VSyncDispatchEntry entry("test", [](auto) {});
+TEST_F(VSyncDispatchTimerQueueEntryTest, stateScheduling) {
+    VSyncDispatchTimerQueueEntry entry("test", [](auto) {});
 
     EXPECT_FALSE(entry.wakeupTime());
     auto const wakeup = entry.schedule(100, 500, mStubTracker, 0);
@@ -608,14 +609,14 @@ TEST_F(VSyncDispatchEntryTest, stateScheduling) {
     EXPECT_FALSE(entry.wakeupTime());
 }
 
-TEST_F(VSyncDispatchEntryTest, stateSchedulingReallyLongWakeupLatency) {
+TEST_F(VSyncDispatchTimerQueueEntryTest, stateSchedulingReallyLongWakeupLatency) {
     auto const duration = 500;
     auto const now = 8750;
 
     EXPECT_CALL(mStubTracker, nextAnticipatedVSyncTimeFrom(now + duration))
             .Times(1)
             .WillOnce(Return(10000));
-    impl::VSyncDispatchEntry entry("test", [](auto) {});
+    VSyncDispatchTimerQueueEntry entry("test", [](auto) {});
 
     EXPECT_FALSE(entry.wakeupTime());
     auto const wakeup = entry.schedule(500, 994, mStubTracker, now);
@@ -625,10 +626,10 @@ TEST_F(VSyncDispatchEntryTest, stateSchedulingReallyLongWakeupLatency) {
     EXPECT_THAT(*queried, Eq(9500));
 }
 
-TEST_F(VSyncDispatchEntryTest, runCallback) {
+TEST_F(VSyncDispatchTimerQueueEntryTest, runCallback) {
     auto callCount = 0;
     auto calledTime = 0;
-    impl::VSyncDispatchEntry entry("test", [&](auto time) {
+    VSyncDispatchTimerQueueEntry entry("test", [&](auto time) {
         callCount++;
         calledTime = time;
     });
@@ -646,13 +647,13 @@ TEST_F(VSyncDispatchEntryTest, runCallback) {
     EXPECT_THAT(*lastCalledTarget, Eq(mPeriod));
 }
 
-TEST_F(VSyncDispatchEntryTest, updateCallback) {
+TEST_F(VSyncDispatchTimerQueueEntryTest, updateCallback) {
     EXPECT_CALL(mStubTracker, nextAnticipatedVSyncTimeFrom(_))
             .Times(2)
             .WillOnce(Return(1000))
             .WillOnce(Return(1020));
 
-    impl::VSyncDispatchEntry entry("test", [](auto) {});
+    VSyncDispatchTimerQueueEntry entry("test", [](auto) {});
 
     EXPECT_FALSE(entry.wakeupTime());
     entry.update(mStubTracker, 0);
@@ -667,8 +668,8 @@ TEST_F(VSyncDispatchEntryTest, updateCallback) {
     EXPECT_THAT(*queried, Eq(920));
 }
 
-TEST_F(VSyncDispatchEntryTest, skipsUpdateIfJustScheduled) {
-    impl::VSyncDispatchEntry entry("test", [](auto) {});
+TEST_F(VSyncDispatchTimerQueueEntryTest, skipsUpdateIfJustScheduled) {
+    VSyncDispatchTimerQueueEntry entry("test", [](auto) {});
     auto const wakeup = entry.schedule(100, 500, mStubTracker, 0);
     entry.update(mStubTracker, 0);
 

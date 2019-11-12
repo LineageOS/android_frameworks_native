@@ -19,65 +19,66 @@
 #include <vector>
 
 #include "TimeKeeper.h"
-#include "VSyncDispatch.h"
+#include "VSyncDispatchTimerQueue.h"
 #include "VSyncTracker.h"
 
 namespace android::scheduler {
 
+VSyncDispatch::~VSyncDispatch() = default;
 VSyncTracker::~VSyncTracker() = default;
 TimeKeeper::~TimeKeeper() = default;
 
-impl::VSyncDispatchEntry::VSyncDispatchEntry(std::string const& name,
-                                             std::function<void(nsecs_t)> const& cb)
+VSyncDispatchTimerQueueEntry::VSyncDispatchTimerQueueEntry(std::string const& name,
+                                                           std::function<void(nsecs_t)> const& cb)
       : mName(name), mCallback(cb), mWorkDuration(0), mEarliestVsync(0) {}
 
-std::optional<nsecs_t> impl::VSyncDispatchEntry::lastExecutedVsyncTarget() const {
+std::optional<nsecs_t> VSyncDispatchTimerQueueEntry::lastExecutedVsyncTarget() const {
     return mLastDispatchTime;
 }
 
-std::string_view impl::VSyncDispatchEntry::name() const {
+std::string_view VSyncDispatchTimerQueueEntry::name() const {
     return mName;
 }
 
-std::optional<nsecs_t> impl::VSyncDispatchEntry::wakeupTime() const {
+std::optional<nsecs_t> VSyncDispatchTimerQueueEntry::wakeupTime() const {
     if (!mArmedInfo) {
         return {};
     }
     return {mArmedInfo->mActualWakeupTime};
 }
 
-nsecs_t impl::VSyncDispatchEntry::schedule(nsecs_t workDuration, nsecs_t earliestVsync,
-                                           VSyncTracker& tracker, nsecs_t now) {
+nsecs_t VSyncDispatchTimerQueueEntry::schedule(nsecs_t workDuration, nsecs_t earliestVsync,
+                                               VSyncTracker& tracker, nsecs_t now) {
     mWorkDuration = workDuration;
     mEarliestVsync = earliestVsync;
     arm(tracker, now);
     return mArmedInfo->mActualWakeupTime;
 }
 
-void impl::VSyncDispatchEntry::update(VSyncTracker& tracker, nsecs_t now) {
+void VSyncDispatchTimerQueueEntry::update(VSyncTracker& tracker, nsecs_t now) {
     if (!mArmedInfo) {
         return;
     }
     arm(tracker, now);
 }
 
-void impl::VSyncDispatchEntry::arm(VSyncTracker& tracker, nsecs_t now) {
+void VSyncDispatchTimerQueueEntry::arm(VSyncTracker& tracker, nsecs_t now) {
     auto const nextVsyncTime =
             tracker.nextAnticipatedVSyncTimeFrom(std::max(mEarliestVsync, now + mWorkDuration));
     mArmedInfo = {nextVsyncTime - mWorkDuration, nextVsyncTime};
 }
 
-void impl::VSyncDispatchEntry::disarm() {
+void VSyncDispatchTimerQueueEntry::disarm() {
     mArmedInfo.reset();
 }
 
-nsecs_t impl::VSyncDispatchEntry::executing() {
+nsecs_t VSyncDispatchTimerQueueEntry::executing() {
     mLastDispatchTime = mArmedInfo->mActualVsyncTime;
     disarm();
     return *mLastDispatchTime;
 }
 
-void impl::VSyncDispatchEntry::callback(nsecs_t t) {
+void VSyncDispatchTimerQueueEntry::callback(nsecs_t t) {
     {
         std::lock_guard<std::mutex> lk(mRunningMutex);
         mRunning = true;
@@ -90,36 +91,37 @@ void impl::VSyncDispatchEntry::callback(nsecs_t t) {
     mCv.notify_all();
 }
 
-void impl::VSyncDispatchEntry::ensureNotRunning() {
+void VSyncDispatchTimerQueueEntry::ensureNotRunning() {
     std::unique_lock<std::mutex> lk(mRunningMutex);
     mCv.wait(lk, [this]() REQUIRES(mRunningMutex) { return !mRunning; });
 }
 
-VSyncDispatch::VSyncDispatch(std::unique_ptr<TimeKeeper> tk, VSyncTracker& tracker,
-                             nsecs_t timerSlack)
+VSyncDispatchTimerQueue::VSyncDispatchTimerQueue(std::unique_ptr<TimeKeeper> tk,
+                                                 VSyncTracker& tracker, nsecs_t timerSlack)
       : mTimeKeeper(std::move(tk)), mTracker(tracker), mTimerSlack(timerSlack) {}
 
-VSyncDispatch::~VSyncDispatch() {
+VSyncDispatchTimerQueue::~VSyncDispatchTimerQueue() {
     std::lock_guard<decltype(mMutex)> lk(mMutex);
     cancelTimer();
 }
 
-void VSyncDispatch::cancelTimer() {
+void VSyncDispatchTimerQueue::cancelTimer() {
     mIntendedWakeupTime = kInvalidTime;
     mTimeKeeper->alarmCancel();
 }
 
-void VSyncDispatch::setTimer(nsecs_t targetTime, nsecs_t now) {
+void VSyncDispatchTimerQueue::setTimer(nsecs_t targetTime, nsecs_t now) {
     mIntendedWakeupTime = targetTime;
-    mTimeKeeper->alarmIn(std::bind(&VSyncDispatch::timerCallback, this), targetTime - now);
+    mTimeKeeper->alarmIn(std::bind(&VSyncDispatchTimerQueue::timerCallback, this),
+                         targetTime - now);
 }
 
-void VSyncDispatch::rearmTimer(nsecs_t now) {
+void VSyncDispatchTimerQueue::rearmTimer(nsecs_t now) {
     rearmTimerSkippingUpdateFor(now, mCallbacks.end());
 }
 
-void VSyncDispatch::rearmTimerSkippingUpdateFor(nsecs_t now,
-                                                CallbackMap::iterator const& skipUpdateIt) {
+void VSyncDispatchTimerQueue::rearmTimerSkippingUpdateFor(
+        nsecs_t now, CallbackMap::iterator const& skipUpdateIt) {
     std::optional<nsecs_t> min;
     for (auto it = mCallbacks.begin(); it != mCallbacks.end(); it++) {
         auto& callback = it->second;
@@ -143,9 +145,9 @@ void VSyncDispatch::rearmTimerSkippingUpdateFor(nsecs_t now,
     }
 }
 
-void VSyncDispatch::timerCallback() {
+void VSyncDispatchTimerQueue::timerCallback() {
     struct Invocation {
-        std::shared_ptr<impl::VSyncDispatchEntry> callback;
+        std::shared_ptr<VSyncDispatchTimerQueueEntry> callback;
         nsecs_t timestamp;
     };
     std::vector<Invocation> invocations;
@@ -174,18 +176,19 @@ void VSyncDispatch::timerCallback() {
     }
 }
 
-VSyncDispatch::CallbackToken VSyncDispatch::registerCallback(
+VSyncDispatchTimerQueue::CallbackToken VSyncDispatchTimerQueue::registerCallback(
         std::function<void(nsecs_t)> const& callbackFn, std::string callbackName) {
     std::lock_guard<decltype(mMutex)> lk(mMutex);
     return CallbackToken{
             mCallbacks
                     .emplace(++mCallbackToken,
-                             std::make_shared<impl::VSyncDispatchEntry>(callbackName, callbackFn))
+                             std::make_shared<VSyncDispatchTimerQueueEntry>(callbackName,
+                                                                            callbackFn))
                     .first->first};
 }
 
-void VSyncDispatch::unregisterCallback(CallbackToken token) {
-    std::shared_ptr<impl::VSyncDispatchEntry> entry = nullptr;
+void VSyncDispatchTimerQueue::unregisterCallback(CallbackToken token) {
+    std::shared_ptr<VSyncDispatchTimerQueueEntry> entry = nullptr;
     {
         std::lock_guard<decltype(mMutex)> lk(mMutex);
         auto it = mCallbacks.find(token);
@@ -200,8 +203,8 @@ void VSyncDispatch::unregisterCallback(CallbackToken token) {
     }
 }
 
-ScheduleResult VSyncDispatch::schedule(CallbackToken token, nsecs_t workDuration,
-                                       nsecs_t earliestVsync) {
+ScheduleResult VSyncDispatchTimerQueue::schedule(CallbackToken token, nsecs_t workDuration,
+                                                 nsecs_t earliestVsync) {
     auto result = ScheduleResult::Error;
     {
         std::lock_guard<decltype(mMutex)> lk(mMutex);
@@ -228,7 +231,7 @@ ScheduleResult VSyncDispatch::schedule(CallbackToken token, nsecs_t workDuration
     return result;
 }
 
-CancelResult VSyncDispatch::cancel(CallbackToken token) {
+CancelResult VSyncDispatchTimerQueue::cancel(CallbackToken token) {
     std::lock_guard<decltype(mMutex)> lk(mMutex);
 
     auto it = mCallbacks.find(token);
