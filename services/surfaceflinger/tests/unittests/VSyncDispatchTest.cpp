@@ -1,0 +1,680 @@
+/*
+ * Copyright 2019 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#undef LOG_TAG
+#define LOG_TAG "LibSurfaceFlingerUnittests"
+#define LOG_NDEBUG 0
+
+#include "Scheduler/TimeKeeper.h"
+#include "Scheduler/VSyncDispatch.h"
+#include "Scheduler/VSyncTracker.h"
+
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+#include <thread>
+
+using namespace testing;
+using namespace std::literals;
+namespace android::scheduler {
+
+class MockVSyncTracker : public VSyncTracker {
+public:
+    MockVSyncTracker(nsecs_t period) : mPeriod{period} {
+        ON_CALL(*this, nextAnticipatedVSyncTimeFrom(_))
+                .WillByDefault(Invoke(this, &MockVSyncTracker::nextVSyncTime));
+    }
+
+    MOCK_METHOD1(addVsyncTimestamp, void(nsecs_t));
+    MOCK_CONST_METHOD1(nextAnticipatedVSyncTimeFrom, nsecs_t(nsecs_t));
+
+    nsecs_t nextVSyncTime(nsecs_t timePoint) const {
+        if (timePoint % mPeriod == 0) {
+            return timePoint;
+        }
+        return (timePoint - (timePoint % mPeriod) + mPeriod);
+    }
+
+protected:
+    nsecs_t const mPeriod;
+};
+
+class ControllableClock : public TimeKeeper {
+public:
+    ControllableClock() {
+        ON_CALL(*this, alarmIn(_, _))
+                .WillByDefault(Invoke(this, &ControllableClock::alarmInDefaultBehavior));
+        ON_CALL(*this, now()).WillByDefault(Invoke(this, &ControllableClock::fakeTime));
+    }
+
+    MOCK_CONST_METHOD0(now, nsecs_t());
+    MOCK_METHOD2(alarmIn, void(std::function<void()> const&, nsecs_t time));
+    MOCK_METHOD0(alarmCancel, void());
+
+    void alarmInDefaultBehavior(std::function<void()> const& callback, nsecs_t time) {
+        mCallback = callback;
+        mNextCallbackTime = time + mCurrentTime;
+    }
+
+    nsecs_t fakeTime() const { return mCurrentTime; }
+
+    void advanceToNextCallback() {
+        mCurrentTime = mNextCallbackTime;
+        if (mCallback) {
+            mCallback();
+        }
+    }
+
+    void advanceBy(nsecs_t advancement) {
+        mCurrentTime += advancement;
+        if (mCurrentTime >= mNextCallbackTime && mCallback) {
+            mCallback();
+        }
+    };
+
+private:
+    std::function<void()> mCallback;
+    nsecs_t mNextCallbackTime = 0;
+    nsecs_t mCurrentTime = 0;
+};
+
+class CountingCallback {
+public:
+    CountingCallback(VSyncDispatch& dispatch)
+          : mDispatch(dispatch),
+            mToken(dispatch.registerCallback(std::bind(&CountingCallback::counter, this,
+                                                       std::placeholders::_1),
+                                             "test")) {}
+    ~CountingCallback() { mDispatch.unregisterCallback(mToken); }
+
+    operator VSyncDispatch::CallbackToken() const { return mToken; }
+
+    void counter(nsecs_t time) { mCalls.push_back(time); }
+
+    VSyncDispatch& mDispatch;
+    VSyncDispatch::CallbackToken mToken;
+    std::vector<nsecs_t> mCalls;
+};
+
+class PausingCallback {
+public:
+    PausingCallback(VSyncDispatch& dispatch, std::chrono::milliseconds pauseAmount)
+          : mDispatch(dispatch),
+            mToken(dispatch.registerCallback(std::bind(&PausingCallback::pause, this,
+                                                       std::placeholders::_1),
+                                             "test")),
+            mRegistered(true),
+            mPauseAmount(pauseAmount) {}
+    ~PausingCallback() { unregister(); }
+
+    operator VSyncDispatch::CallbackToken() const { return mToken; }
+
+    void pause(nsecs_t) {
+        std::unique_lock<std::mutex> lk(mMutex);
+        mPause = true;
+        mCv.notify_all();
+
+        mCv.wait_for(lk, mPauseAmount, [this] { return !mPause; });
+
+        mResourcePresent = (mResource.lock() != nullptr);
+    }
+
+    bool waitForPause() {
+        std::unique_lock<std::mutex> lk(mMutex);
+        auto waiting = mCv.wait_for(lk, 10s, [this] { return mPause; });
+        return waiting;
+    }
+
+    void stashResource(std::weak_ptr<void> const& resource) { mResource = resource; }
+
+    bool resourcePresent() { return mResourcePresent; }
+
+    void unpause() {
+        std::unique_lock<std::mutex> lk(mMutex);
+        mPause = false;
+        mCv.notify_all();
+    }
+
+    void unregister() {
+        if (mRegistered) {
+            mDispatch.unregisterCallback(mToken);
+            mRegistered = false;
+        }
+    }
+
+    VSyncDispatch& mDispatch;
+    VSyncDispatch::CallbackToken mToken;
+    bool mRegistered = true;
+
+    std::mutex mMutex;
+    std::condition_variable mCv;
+    bool mPause = false;
+    std::weak_ptr<void> mResource;
+    bool mResourcePresent = false;
+    std::chrono::milliseconds const mPauseAmount;
+};
+
+class VSyncDispatchTest : public testing::Test {
+protected:
+    std::unique_ptr<TimeKeeper> createTimeKeeper() {
+        class TimeKeeperWrapper : public TimeKeeper {
+        public:
+            TimeKeeperWrapper(TimeKeeper& control) : mControllableClock(control) {}
+            void alarmIn(std::function<void()> const& callback, nsecs_t time) final {
+                mControllableClock.alarmIn(callback, time);
+            }
+            void alarmCancel() final { mControllableClock.alarmCancel(); }
+            nsecs_t now() const final { return mControllableClock.now(); }
+
+        private:
+            TimeKeeper& mControllableClock;
+        };
+        return std::make_unique<TimeKeeperWrapper>(mMockClock);
+    }
+
+    ~VSyncDispatchTest() {
+        // destructor of  dispatch will cancelAlarm(). Ignore final cancel in common test.
+        Mock::VerifyAndClearExpectations(&mMockClock);
+    }
+
+    void advanceToNextCallback() { mMockClock.advanceToNextCallback(); }
+
+    NiceMock<ControllableClock> mMockClock;
+    static nsecs_t constexpr mDispatchGroupThreshold = 5;
+    nsecs_t const mPeriod = 1000;
+    NiceMock<MockVSyncTracker> mStubTracker{mPeriod};
+    VSyncDispatch mDispatch{createTimeKeeper(), mStubTracker, mDispatchGroupThreshold};
+};
+
+TEST_F(VSyncDispatchTest, unregistersSetAlarmOnDestruction) {
+    EXPECT_CALL(mMockClock, alarmIn(_, 900));
+    EXPECT_CALL(mMockClock, alarmCancel());
+    {
+        VSyncDispatch mDispatch{createTimeKeeper(), mStubTracker, mDispatchGroupThreshold};
+        CountingCallback cb(mDispatch);
+        EXPECT_EQ(mDispatch.schedule(cb, 100, 1000), ScheduleResult::Scheduled);
+    }
+}
+
+TEST_F(VSyncDispatchTest, basicAlarmSettingFuture) {
+    auto intended = mPeriod - 230;
+    EXPECT_CALL(mMockClock, alarmIn(_, 900));
+
+    CountingCallback cb(mDispatch);
+    EXPECT_EQ(mDispatch.schedule(cb, 100, intended), ScheduleResult::Scheduled);
+    advanceToNextCallback();
+
+    ASSERT_THAT(cb.mCalls.size(), Eq(1));
+    EXPECT_THAT(cb.mCalls[0], Eq(mPeriod));
+}
+
+TEST_F(VSyncDispatchTest, basicAlarmSettingFutureWithAdjustmentToTrueVsync) {
+    EXPECT_CALL(mStubTracker, nextAnticipatedVSyncTimeFrom(1000)).WillOnce(Return(1150));
+    EXPECT_CALL(mMockClock, alarmIn(_, 1050));
+
+    CountingCallback cb(mDispatch);
+    mDispatch.schedule(cb, 100, mPeriod);
+    advanceToNextCallback();
+
+    ASSERT_THAT(cb.mCalls.size(), Eq(1));
+    EXPECT_THAT(cb.mCalls[0], Eq(1150));
+}
+
+TEST_F(VSyncDispatchTest, basicAlarmSettingAdjustmentPast) {
+    auto const now = 234;
+    mMockClock.advanceBy(234);
+    auto const workDuration = 10 * mPeriod;
+    EXPECT_CALL(mStubTracker, nextAnticipatedVSyncTimeFrom(now + workDuration))
+            .WillOnce(Return(mPeriod * 11));
+    EXPECT_CALL(mMockClock, alarmIn(_, mPeriod - now));
+
+    CountingCallback cb(mDispatch);
+    EXPECT_EQ(mDispatch.schedule(cb, workDuration, mPeriod), ScheduleResult::Scheduled);
+}
+
+TEST_F(VSyncDispatchTest, basicAlarmCancel) {
+    EXPECT_CALL(mMockClock, alarmIn(_, 900));
+    EXPECT_CALL(mMockClock, alarmCancel());
+
+    CountingCallback cb(mDispatch);
+    EXPECT_EQ(mDispatch.schedule(cb, 100, mPeriod), ScheduleResult::Scheduled);
+    EXPECT_EQ(mDispatch.cancel(cb), CancelResult::Cancelled);
+}
+
+TEST_F(VSyncDispatchTest, basicAlarmCancelTooLate) {
+    EXPECT_CALL(mMockClock, alarmIn(_, 900));
+    EXPECT_CALL(mMockClock, alarmCancel());
+
+    CountingCallback cb(mDispatch);
+    EXPECT_EQ(mDispatch.schedule(cb, 100, mPeriod), ScheduleResult::Scheduled);
+    mMockClock.advanceBy(950);
+    EXPECT_EQ(mDispatch.cancel(cb), CancelResult::TooLate);
+}
+
+TEST_F(VSyncDispatchTest, basicAlarmCancelTooLateWhenRunning) {
+    EXPECT_CALL(mMockClock, alarmIn(_, 900));
+    EXPECT_CALL(mMockClock, alarmCancel());
+
+    PausingCallback cb(mDispatch, std::chrono::duration_cast<std::chrono::milliseconds>(1s));
+    EXPECT_EQ(mDispatch.schedule(cb, 100, mPeriod), ScheduleResult::Scheduled);
+
+    std::thread pausingThread([&] { mMockClock.advanceToNextCallback(); });
+    EXPECT_TRUE(cb.waitForPause());
+    EXPECT_EQ(mDispatch.cancel(cb), CancelResult::TooLate);
+    cb.unpause();
+    pausingThread.join();
+}
+
+TEST_F(VSyncDispatchTest, unregisterSynchronizes) {
+    EXPECT_CALL(mMockClock, alarmIn(_, 900));
+    EXPECT_CALL(mMockClock, alarmCancel());
+
+    auto resource = std::make_shared<int>(110);
+
+    PausingCallback cb(mDispatch, 50ms);
+    cb.stashResource(resource);
+    EXPECT_EQ(mDispatch.schedule(cb, 100, mPeriod), ScheduleResult::Scheduled);
+
+    std::thread pausingThread([&] { mMockClock.advanceToNextCallback(); });
+    EXPECT_TRUE(cb.waitForPause());
+
+    cb.unregister();
+    resource.reset();
+
+    cb.unpause();
+    pausingThread.join();
+
+    EXPECT_TRUE(cb.resourcePresent());
+}
+
+TEST_F(VSyncDispatchTest, basicTwoAlarmSetting) {
+    EXPECT_CALL(mStubTracker, nextAnticipatedVSyncTimeFrom(1000))
+            .Times(4)
+            .WillOnce(Return(1055))
+            .WillOnce(Return(1063))
+            .WillOnce(Return(1063))
+            .WillOnce(Return(1075));
+
+    Sequence seq;
+    EXPECT_CALL(mMockClock, alarmIn(_, 955)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 813)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 162)).InSequence(seq);
+
+    CountingCallback cb0(mDispatch);
+    CountingCallback cb1(mDispatch);
+
+    mDispatch.schedule(cb0, 100, mPeriod);
+    mDispatch.schedule(cb1, 250, mPeriod);
+
+    advanceToNextCallback();
+    advanceToNextCallback();
+
+    ASSERT_THAT(cb0.mCalls.size(), Eq(1));
+    EXPECT_THAT(cb0.mCalls[0], Eq(1075));
+    ASSERT_THAT(cb1.mCalls.size(), Eq(1));
+    EXPECT_THAT(cb1.mCalls[0], Eq(1063));
+}
+
+TEST_F(VSyncDispatchTest, rearmsFaroutTimeoutWhenCancellingCloseOne) {
+    EXPECT_CALL(mStubTracker, nextAnticipatedVSyncTimeFrom(_))
+            .Times(4)
+            .WillOnce(Return(10000))
+            .WillOnce(Return(1000))
+            .WillOnce(Return(10000))
+            .WillOnce(Return(10000));
+
+    Sequence seq;
+    EXPECT_CALL(mMockClock, alarmIn(_, 9900)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 750)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 9900)).InSequence(seq);
+
+    CountingCallback cb0(mDispatch);
+    CountingCallback cb1(mDispatch);
+
+    mDispatch.schedule(cb0, 100, mPeriod * 10);
+    mDispatch.schedule(cb1, 250, mPeriod);
+    mDispatch.cancel(cb1);
+}
+
+TEST_F(VSyncDispatchTest, noUnnecessaryRearmsWhenRescheduling) {
+    Sequence seq;
+    EXPECT_CALL(mMockClock, alarmIn(_, 600)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 100)).InSequence(seq);
+
+    CountingCallback cb0(mDispatch);
+    CountingCallback cb1(mDispatch);
+
+    mDispatch.schedule(cb0, 400, 1000);
+    mDispatch.schedule(cb1, 200, 1000);
+    mDispatch.schedule(cb1, 300, 1000);
+    advanceToNextCallback();
+}
+
+TEST_F(VSyncDispatchTest, necessaryRearmsWhenModifying) {
+    Sequence seq;
+    EXPECT_CALL(mMockClock, alarmIn(_, 600)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 500)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 100)).InSequence(seq);
+
+    CountingCallback cb0(mDispatch);
+    CountingCallback cb1(mDispatch);
+
+    mDispatch.schedule(cb0, 400, 1000);
+    mDispatch.schedule(cb1, 200, 1000);
+    mDispatch.schedule(cb1, 500, 1000);
+    advanceToNextCallback();
+}
+
+TEST_F(VSyncDispatchTest, modifyIntoGroup) {
+    Sequence seq;
+    EXPECT_CALL(mMockClock, alarmIn(_, 600)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 1000)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 990)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 10)).InSequence(seq);
+
+    auto offset = 400;
+    auto closeOffset = offset + mDispatchGroupThreshold - 1;
+    auto notCloseOffset = offset + 2 * mDispatchGroupThreshold;
+
+    CountingCallback cb0(mDispatch);
+    CountingCallback cb1(mDispatch);
+
+    mDispatch.schedule(cb0, 400, 1000);
+    mDispatch.schedule(cb1, 200, 1000);
+    mDispatch.schedule(cb1, closeOffset, 1000);
+
+    advanceToNextCallback();
+    ASSERT_THAT(cb0.mCalls.size(), Eq(1));
+    EXPECT_THAT(cb0.mCalls[0], Eq(mPeriod));
+    ASSERT_THAT(cb1.mCalls.size(), Eq(1));
+    EXPECT_THAT(cb1.mCalls[0], Eq(mPeriod));
+
+    mDispatch.schedule(cb0, 400, 2000);
+    mDispatch.schedule(cb1, notCloseOffset, 2000);
+    advanceToNextCallback();
+    ASSERT_THAT(cb1.mCalls.size(), Eq(2));
+    EXPECT_THAT(cb1.mCalls[1], Eq(2000));
+
+    advanceToNextCallback();
+    ASSERT_THAT(cb0.mCalls.size(), Eq(2));
+    EXPECT_THAT(cb0.mCalls[1], Eq(2000));
+}
+
+TEST_F(VSyncDispatchTest, rearmsWhenEndingAndDoesntCancel) {
+    EXPECT_CALL(mMockClock, alarmIn(_, 900));
+    EXPECT_CALL(mMockClock, alarmIn(_, 800));
+    EXPECT_CALL(mMockClock, alarmIn(_, 100));
+    EXPECT_CALL(mMockClock, alarmCancel());
+
+    CountingCallback cb0(mDispatch);
+    CountingCallback cb1(mDispatch);
+
+    mDispatch.schedule(cb0, 100, 1000);
+    mDispatch.schedule(cb1, 200, 1000);
+    advanceToNextCallback();
+    EXPECT_EQ(mDispatch.cancel(cb0), CancelResult::Cancelled);
+}
+
+TEST_F(VSyncDispatchTest, setAlarmCallsAtCorrectTimeWithChangingVsync) {
+    EXPECT_CALL(mStubTracker, nextAnticipatedVSyncTimeFrom(_))
+            .Times(3)
+            .WillOnce(Return(950))
+            .WillOnce(Return(1975))
+            .WillOnce(Return(2950));
+
+    CountingCallback cb(mDispatch);
+    mDispatch.schedule(cb, 100, 920);
+
+    mMockClock.advanceBy(850);
+    EXPECT_THAT(cb.mCalls.size(), Eq(1));
+
+    mDispatch.schedule(cb, 100, 1900);
+    mMockClock.advanceBy(900);
+    EXPECT_THAT(cb.mCalls.size(), Eq(1));
+    mMockClock.advanceBy(125);
+    EXPECT_THAT(cb.mCalls.size(), Eq(2));
+
+    mDispatch.schedule(cb, 100, 2900);
+    mMockClock.advanceBy(975);
+    EXPECT_THAT(cb.mCalls.size(), Eq(3));
+}
+
+TEST_F(VSyncDispatchTest, callbackReentrancy) {
+    Sequence seq;
+    EXPECT_CALL(mMockClock, alarmIn(_, 900)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 1000)).InSequence(seq);
+
+    VSyncDispatch::CallbackToken tmp;
+    tmp = mDispatch.registerCallback([&](auto) { mDispatch.schedule(tmp, 100, 2000); }, "o.o");
+
+    mDispatch.schedule(tmp, 100, 1000);
+    advanceToNextCallback();
+}
+
+TEST_F(VSyncDispatchTest, callbackReentrantWithPastWakeup) {
+    VSyncDispatch::CallbackToken tmp;
+    tmp = mDispatch.registerCallback(
+            [&](auto) {
+                EXPECT_EQ(mDispatch.schedule(tmp, 400, 1000), ScheduleResult::CannotSchedule);
+            },
+            "oo");
+
+    mDispatch.schedule(tmp, 999, 1000);
+    advanceToNextCallback();
+}
+
+TEST_F(VSyncDispatchTest, modificationsAroundVsyncTime) {
+    Sequence seq;
+    EXPECT_CALL(mMockClock, alarmIn(_, 1000)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 200)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 1000)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 150)).InSequence(seq);
+
+    CountingCallback cb(mDispatch);
+    mDispatch.schedule(cb, 0, 1000);
+
+    mMockClock.advanceBy(750);
+    mDispatch.schedule(cb, 50, 1000);
+
+    advanceToNextCallback();
+    mDispatch.schedule(cb, 50, 2000);
+
+    mMockClock.advanceBy(800);
+    mDispatch.schedule(cb, 100, 2000);
+}
+
+TEST_F(VSyncDispatchTest, lateModifications) {
+    Sequence seq;
+    EXPECT_CALL(mMockClock, alarmIn(_, 500)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 400)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 350)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 950)).InSequence(seq);
+
+    CountingCallback cb0(mDispatch);
+    CountingCallback cb1(mDispatch);
+
+    mDispatch.schedule(cb0, 500, 1000);
+    mDispatch.schedule(cb1, 100, 1000);
+
+    advanceToNextCallback();
+    mDispatch.schedule(cb0, 200, 2000);
+    mDispatch.schedule(cb1, 150, 1000);
+
+    advanceToNextCallback();
+    advanceToNextCallback();
+}
+
+TEST_F(VSyncDispatchTest, doesntCancelPriorValidTimerForFutureMod) {
+    Sequence seq;
+    EXPECT_CALL(mMockClock, alarmIn(_, 500)).InSequence(seq);
+
+    CountingCallback cb0(mDispatch);
+    CountingCallback cb1(mDispatch);
+    mDispatch.schedule(cb0, 500, 1000);
+    mDispatch.schedule(cb1, 500, 20000);
+}
+
+TEST_F(VSyncDispatchTest, setsTimerAfterCancellation) {
+    Sequence seq;
+    EXPECT_CALL(mMockClock, alarmIn(_, 500)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmCancel()).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 900)).InSequence(seq);
+
+    CountingCallback cb0(mDispatch);
+    mDispatch.schedule(cb0, 500, 1000);
+    mDispatch.cancel(cb0);
+    mDispatch.schedule(cb0, 100, 1000);
+}
+
+TEST_F(VSyncDispatchTest, makingUpIdsError) {
+    VSyncDispatch::CallbackToken token(100);
+    EXPECT_THAT(mDispatch.schedule(token, 100, 1000), Eq(ScheduleResult::Error));
+    EXPECT_THAT(mDispatch.cancel(token), Eq(CancelResult::Error));
+}
+
+TEST_F(VSyncDispatchTest, distinguishesScheduleAndReschedule) {
+    CountingCallback cb0(mDispatch);
+    EXPECT_EQ(mDispatch.schedule(cb0, 500, 1000), ScheduleResult::Scheduled);
+    EXPECT_EQ(mDispatch.schedule(cb0, 100, 1000), ScheduleResult::ReScheduled);
+}
+
+TEST_F(VSyncDispatchTest, helperMove) {
+    EXPECT_CALL(mMockClock, alarmIn(_, 500)).Times(1);
+    EXPECT_CALL(mMockClock, alarmCancel()).Times(1);
+
+    VSyncCallbackRegistration cb(
+            mDispatch, [](auto) {}, "");
+    VSyncCallbackRegistration cb1(std::move(cb));
+    cb.schedule(100, 1000);
+    cb.cancel();
+
+    cb1.schedule(500, 1000);
+    cb1.cancel();
+}
+
+TEST_F(VSyncDispatchTest, helperMoveAssign) {
+    EXPECT_CALL(mMockClock, alarmIn(_, 500)).Times(1);
+    EXPECT_CALL(mMockClock, alarmCancel()).Times(1);
+
+    VSyncCallbackRegistration cb(
+            mDispatch, [](auto) {}, "");
+    VSyncCallbackRegistration cb1(
+            mDispatch, [](auto) {}, "");
+    cb1 = std::move(cb);
+    cb.schedule(100, 1000);
+    cb.cancel();
+
+    cb1.schedule(500, 1000);
+    cb1.cancel();
+}
+
+class VSyncDispatchEntryTest : public testing::Test {
+protected:
+    nsecs_t const mPeriod = 1000;
+    NiceMock<MockVSyncTracker> mStubTracker{mPeriod};
+};
+
+TEST_F(VSyncDispatchEntryTest, stateAfterInitialization) {
+    std::string name("basicname");
+    impl::VSyncDispatchEntry entry(name, [](auto) {});
+    EXPECT_THAT(entry.name(), Eq(name));
+    EXPECT_FALSE(entry.lastExecutedVsyncTarget());
+    EXPECT_FALSE(entry.wakeupTime());
+}
+
+TEST_F(VSyncDispatchEntryTest, stateScheduling) {
+    impl::VSyncDispatchEntry entry("test", [](auto) {});
+
+    EXPECT_FALSE(entry.wakeupTime());
+    auto const wakeup = entry.schedule(100, 500, mStubTracker, 0);
+    auto const queried = entry.wakeupTime();
+    ASSERT_TRUE(queried);
+    EXPECT_THAT(*queried, Eq(wakeup));
+    EXPECT_THAT(*queried, Eq(900));
+
+    entry.disarm();
+    EXPECT_FALSE(entry.wakeupTime());
+}
+
+TEST_F(VSyncDispatchEntryTest, stateSchedulingReallyLongWakeupLatency) {
+    auto const duration = 500;
+    auto const now = 8750;
+
+    EXPECT_CALL(mStubTracker, nextAnticipatedVSyncTimeFrom(now + duration))
+            .Times(1)
+            .WillOnce(Return(10000));
+    impl::VSyncDispatchEntry entry("test", [](auto) {});
+
+    EXPECT_FALSE(entry.wakeupTime());
+    auto const wakeup = entry.schedule(500, 994, mStubTracker, now);
+    auto const queried = entry.wakeupTime();
+    ASSERT_TRUE(queried);
+    EXPECT_THAT(*queried, Eq(wakeup));
+    EXPECT_THAT(*queried, Eq(9500));
+}
+
+TEST_F(VSyncDispatchEntryTest, runCallback) {
+    auto callCount = 0;
+    auto calledTime = 0;
+    impl::VSyncDispatchEntry entry("test", [&](auto time) {
+        callCount++;
+        calledTime = time;
+    });
+
+    auto const wakeup = entry.schedule(100, 500, mStubTracker, 0);
+    EXPECT_THAT(wakeup, Eq(900));
+
+    entry.callback(entry.executing());
+
+    EXPECT_THAT(callCount, Eq(1));
+    EXPECT_THAT(calledTime, Eq(mPeriod));
+    EXPECT_FALSE(entry.wakeupTime());
+    auto lastCalledTarget = entry.lastExecutedVsyncTarget();
+    ASSERT_TRUE(lastCalledTarget);
+    EXPECT_THAT(*lastCalledTarget, Eq(mPeriod));
+}
+
+TEST_F(VSyncDispatchEntryTest, updateCallback) {
+    EXPECT_CALL(mStubTracker, nextAnticipatedVSyncTimeFrom(_))
+            .Times(2)
+            .WillOnce(Return(1000))
+            .WillOnce(Return(1020));
+
+    impl::VSyncDispatchEntry entry("test", [](auto) {});
+
+    EXPECT_FALSE(entry.wakeupTime());
+    entry.update(mStubTracker, 0);
+    EXPECT_FALSE(entry.wakeupTime());
+
+    auto const wakeup = entry.schedule(100, 500, mStubTracker, 0);
+    EXPECT_THAT(wakeup, Eq(900));
+
+    entry.update(mStubTracker, 0);
+    auto const queried = entry.wakeupTime();
+    ASSERT_TRUE(queried);
+    EXPECT_THAT(*queried, Eq(920));
+}
+
+TEST_F(VSyncDispatchEntryTest, skipsUpdateIfJustScheduled) {
+    impl::VSyncDispatchEntry entry("test", [](auto) {});
+    auto const wakeup = entry.schedule(100, 500, mStubTracker, 0);
+    entry.update(mStubTracker, 0);
+
+    auto const queried = entry.wakeupTime();
+    ASSERT_TRUE(queried);
+    EXPECT_THAT(*queried, Eq(wakeup));
+}
+
+} // namespace android::scheduler
