@@ -168,6 +168,7 @@ public:
 
     std::unordered_set<HWC2::Capability> mDefaultCapabilities = {HWC2::Capability::SidebandStream};
 
+    bool mDisplayOff = false;
     TestableSurfaceFlinger mFlinger;
     sp<DisplayDevice> mDisplay;
     sp<DisplayDevice> mExternalDisplay;
@@ -534,30 +535,33 @@ struct BaseLayerProperties {
     }
 
     static void setupHwcSetGeometryCallExpectations(CompositionTest* test) {
-        // TODO: Coverage of other values
-        EXPECT_CALL(*test->mComposer,
-                    setLayerBlendMode(HWC_DISPLAY, HWC_LAYER, LayerProperties::BLENDMODE))
-                .Times(1);
-        // TODO: Coverage of other values for origin
-        EXPECT_CALL(*test->mComposer,
-                    setLayerDisplayFrame(HWC_DISPLAY, HWC_LAYER,
-                                         IComposerClient::Rect({0, 0, LayerProperties::WIDTH,
-                                                                LayerProperties::HEIGHT})))
-                .Times(1);
-        EXPECT_CALL(*test->mComposer,
-                    setLayerPlaneAlpha(HWC_DISPLAY, HWC_LAYER, LayerProperties::COLOR[3]))
-                .Times(1);
-        // TODO: Coverage of other values
-        EXPECT_CALL(*test->mComposer, setLayerZOrder(HWC_DISPLAY, HWC_LAYER, 0u)).Times(1);
-        // TODO: Coverage of other values
-        EXPECT_CALL(*test->mComposer, setLayerInfo(HWC_DISPLAY, HWC_LAYER, 0u, 0u)).Times(1);
+        if (!test->mDisplayOff) {
+            // TODO: Coverage of other values
+            EXPECT_CALL(*test->mComposer,
+                        setLayerBlendMode(HWC_DISPLAY, HWC_LAYER, LayerProperties::BLENDMODE))
+                    .Times(1);
+            // TODO: Coverage of other values for origin
+            EXPECT_CALL(*test->mComposer,
+                        setLayerDisplayFrame(HWC_DISPLAY, HWC_LAYER,
+                                             IComposerClient::Rect({0, 0, LayerProperties::WIDTH,
+                                                                    LayerProperties::HEIGHT})))
+                    .Times(1);
+            EXPECT_CALL(*test->mComposer,
+                        setLayerPlaneAlpha(HWC_DISPLAY, HWC_LAYER, LayerProperties::COLOR[3]))
+                    .Times(1);
+            // TODO: Coverage of other values
+            EXPECT_CALL(*test->mComposer, setLayerZOrder(HWC_DISPLAY, HWC_LAYER, 0u)).Times(1);
+            // TODO: Coverage of other values
+            EXPECT_CALL(*test->mComposer, setLayerInfo(HWC_DISPLAY, HWC_LAYER, 0u, 0u)).Times(1);
 
-        // These expectations retire on saturation as the code path these
-        // expectations are for appears to make an extra call to them.
-        // TODO: Investigate this extra call
-        EXPECT_CALL(*test->mComposer, setLayerTransform(HWC_DISPLAY, HWC_LAYER, DEFAULT_TRANSFORM))
-                .Times(AtLeast(1))
-                .RetiresOnSaturation();
+            // These expectations retire on saturation as the code path these
+            // expectations are for appears to make an extra call to them.
+            // TODO: Investigate this extra call
+            EXPECT_CALL(*test->mComposer,
+                        setLayerTransform(HWC_DISPLAY, HWC_LAYER, DEFAULT_TRANSFORM))
+                    .Times(AtLeast(1))
+                    .RetiresOnSaturation();
+        }
     }
 
     static void setupHwcSetSourceCropBufferCallExpectations(CompositionTest* test) {
@@ -585,13 +589,16 @@ struct BaseLayerProperties {
     }
 
     static void setupHwcSetPerFrameColorCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mComposer, setLayerSurfaceDamage(HWC_DISPLAY, HWC_LAYER, _)).Times(1);
+        if (!test->mDisplayOff) {
+            EXPECT_CALL(*test->mComposer, setLayerSurfaceDamage(HWC_DISPLAY, HWC_LAYER, _))
+                    .Times(1);
 
-        // TODO: use COLOR
-        EXPECT_CALL(*test->mComposer,
-                    setLayerColor(HWC_DISPLAY, HWC_LAYER,
-                                  IComposerClient::Color({0xff, 0xff, 0xff, 0xff})))
-                .Times(1);
+            // TODO: use COLOR
+            EXPECT_CALL(*test->mComposer,
+                        setLayerColor(HWC_DISPLAY, HWC_LAYER,
+                                      IComposerClient::Color({0xff, 0xff, 0xff, 0xff})))
+                    .Times(1);
+        }
     }
 
     static void setupHwcSetPerFrameBufferCallExpectations(CompositionTest* test) {
@@ -940,9 +947,11 @@ struct KeepCompositionTypeVariant {
     static constexpr HWC2::Composition TYPE = static_cast<HWC2::Composition>(CompositionType);
 
     static void setupHwcSetCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mComposer,
-                    setLayerCompositionType(HWC_DISPLAY, HWC_LAYER, CompositionType))
-                .Times(1);
+        if (!test->mDisplayOff) {
+            EXPECT_CALL(*test->mComposer,
+                        setLayerCompositionType(HWC_DISPLAY, HWC_LAYER, CompositionType))
+                    .Times(1);
+        }
     }
 
     static void setupHwcGetCallExpectations(CompositionTest* test) {
@@ -1341,6 +1350,7 @@ TEST_F(CompositionTest, captureScreenCursorLayer) {
  */
 
 TEST_F(CompositionTest, displayOffHWCComposedNormalBufferLayerWithDirtyGeometry) {
+    mDisplayOff = true;
     displayRefreshCompositionDirtyGeometry<CompositionCase<
             PoweredOffDisplaySetupVariant, BufferLayerVariant<DefaultLayerProperties>,
             KeepCompositionTypeVariant<IComposerClient::Composition::DEVICE>,
@@ -1348,6 +1358,7 @@ TEST_F(CompositionTest, displayOffHWCComposedNormalBufferLayerWithDirtyGeometry)
 }
 
 TEST_F(CompositionTest, displayOffHWCComposedNormalBufferLayerWithDirtyFrame) {
+    mDisplayOff = true;
     displayRefreshCompositionDirtyFrame<CompositionCase<
             PoweredOffDisplaySetupVariant, BufferLayerVariant<DefaultLayerProperties>,
             KeepCompositionTypeVariant<IComposerClient::Composition::DEVICE>,
@@ -1355,6 +1366,7 @@ TEST_F(CompositionTest, displayOffHWCComposedNormalBufferLayerWithDirtyFrame) {
 }
 
 TEST_F(CompositionTest, displayOffREComposedNormalBufferLayer) {
+    mDisplayOff = true;
     displayRefreshCompositionDirtyFrame<CompositionCase<
             PoweredOffDisplaySetupVariant, BufferLayerVariant<DefaultLayerProperties>,
             ChangeCompositionTypeVariant<IComposerClient::Composition::DEVICE,
