@@ -21,6 +21,7 @@
 
 #include "Scheduler/DispSync.h"
 #include "Scheduler/EventThread.h"
+#include "Scheduler/LayerHistory.h"
 #include "Scheduler/Scheduler.h"
 
 namespace android {
@@ -28,16 +29,24 @@ namespace android {
 class TestableScheduler : public Scheduler {
 public:
     explicit TestableScheduler(const scheduler::RefreshRateConfigs& configs)
-          : Scheduler([](bool) {}, configs) {}
+          : Scheduler([](bool) {}, configs) {
+        mLayerHistory.emplace();
+    }
 
     TestableScheduler(std::unique_ptr<DispSync> primaryDispSync,
                       std::unique_ptr<EventControlThread> eventControlThread,
                       const scheduler::RefreshRateConfigs& configs)
-          : Scheduler(std::move(primaryDispSync), std::move(eventControlThread), configs) {}
+          : Scheduler(std::move(primaryDispSync), std::move(eventControlThread), configs) {
+        mLayerHistory.emplace();
+    }
 
     // Used to inject mock event thread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread> eventThread) {
         return Scheduler::createConnection(std::move(eventThread));
+    }
+
+    size_t layerHistorySize() const NO_THREAD_SAFETY_ANALYSIS {
+        return mLayerHistory->mLayerInfos.size();
     }
 
     /* ------------------------------------------------------------------------

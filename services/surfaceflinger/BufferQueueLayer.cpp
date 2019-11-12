@@ -400,11 +400,9 @@ void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
     ATRACE_CALL();
     // Add this buffer from our internal queue tracker
     { // Autolock scope
-        if (mFlinger->mUseSmart90ForVideo) {
-            const nsecs_t presentTime = item.mIsAutoTimestamp ? 0 : item.mTimestamp;
-            mFlinger->mScheduler->recordLayerHistory(this, presentTime,
-                                                     item.mHdrMetadata.validTypes != 0);
-        }
+        const nsecs_t presentTime = item.mIsAutoTimestamp ? 0 : item.mTimestamp;
+        const bool isHDR = item.mHdrMetadata.validTypes != 0;
+        mFlinger->mScheduler->recordLayerHistory(this, presentTime, isHDR);
 
         Mutex::Autolock lock(mQueueItemLock);
         // Reset the frame number tracker when we receive the first buffer after

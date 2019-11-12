@@ -793,6 +793,9 @@ struct BaseLayerVariant {
 
         sp<L> layer = factory();
 
+        // Layer should be registered with scheduler.
+        EXPECT_EQ(1, test->mFlinger.scheduler()->layerHistorySize());
+
         Mock::VerifyAndClear(test->mComposer);
         Mock::VerifyAndClear(test->mRenderEngine);
         Mock::VerifyAndClear(test->mMessageQueue);
@@ -828,6 +831,10 @@ struct BaseLayerVariant {
 
         test->mDisplay->getCompositionDisplay()->clearOutputLayers();
         test->mFlinger.mutableDrawingState().layersSortedByZ.clear();
+
+        // Layer should be unregistered with scheduler.
+        test->mFlinger.onMessageReceived(MessageQueue::INVALIDATE);
+        EXPECT_EQ(0, test->mFlinger.scheduler()->layerHistorySize());
     }
 };
 

@@ -1093,7 +1093,6 @@ private:
     /* ------------------------------------------------------------------------
      * Scheduler
      */
-    bool mUseSmart90ForVideo = false;
     std::unique_ptr<Scheduler> mScheduler;
     scheduler::ConnectionHandle mAppConnectionHandle;
     scheduler::ConnectionHandle mSfConnectionHandle;
