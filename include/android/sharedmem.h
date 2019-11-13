@@ -62,7 +62,8 @@ extern "C" {
  * Use close() to release the shared memory region.
  *
  * Use {@link android.os.ParcelFileDescriptor} to pass the file descriptor to
- * another process.
+ * another process. File descriptors may also be sent to other processes over a Unix domain
+ * socket with sendmsg and SCM_RIGHTS. See sendmsg(3) and cmsg(3) man pages for more information.
  *
  * Available since API level 26.
  *
