@@ -1825,6 +1825,7 @@ void SurfaceFlinger::handleMessageRefresh() {
     preComposition();
     rebuildLayerStacks();
     calculateWorkingSet();
+    long compositionTime = elapsedRealtimeNano();
     for (const auto& [token, display] : mDisplays) {
         beginFrame(display);
         prepareFrame(display);
@@ -1854,7 +1855,7 @@ void SurfaceFlinger::handleMessageRefresh() {
     if (mVisibleRegionsDirty) {
         mVisibleRegionsDirty = false;
         if (mTracingEnabled) {
-            mTracing.notify("visibleRegionsDirty");
+            mTracing.notify(compositionTime, "visibleRegionsDirty");
         }
     }
 }
