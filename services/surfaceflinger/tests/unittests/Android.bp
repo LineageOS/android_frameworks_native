@@ -55,6 +55,7 @@ cc_test {
         "TransactionApplicationTest.cpp",
         "StrongTypingTest.cpp",
         "VSyncDispatchTimerQueueTest.cpp",
+        "VSyncDispatchRealtimeTest.cpp",
         "mock/DisplayHardware/MockComposer.cpp",
         "mock/DisplayHardware/MockDisplay.cpp",
         "mock/DisplayHardware/MockPowerAdvisor.cpp",
