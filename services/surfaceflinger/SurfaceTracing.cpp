@@ -68,8 +68,9 @@ bool SurfaceTracing::addTraceToBuffer(LayersTraceProto& entry) {
     return mEnabled;
 }
 
-void SurfaceTracing::notify(const char* where) {
+void SurfaceTracing::notify(long compositionTime, const char* where) {
     std::scoped_lock lock(mSfLock);
+    mCompositionTime = compositionTime;
     mWhere = where;
     mCanStartTrace.notify_one();
 }
@@ -160,7 +161,7 @@ LayersTraceProto SurfaceTracing::traceLayersLocked(const char* where) {
     ATRACE_CALL();
 
     LayersTraceProto entry;
-    entry.set_elapsed_realtime_nanos(elapsedRealtimeNano());
+    entry.set_elapsed_realtime_nanos(mCompositionTime);
     entry.set_where(where);
     LayersProto layers(mFlinger.dumpDrawingStateProto(mTraceFlags));
     entry.mutable_layers()->Swap(&layers);
