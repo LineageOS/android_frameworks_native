@@ -34,6 +34,7 @@ public:
     bool isCreatedFromMainThread() const override { return true; }
 
 protected:
+    bool canDrawShadows() const override { return false; }
     sp<Layer> createClone() override;
 };
 

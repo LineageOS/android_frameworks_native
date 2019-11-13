@@ -897,7 +897,9 @@ class ProfileTest : public DexoptTest {
         std::string expected_profile_content = snap_profile_ + ".expected";
         run_cmd("rm -f " + expected_profile_content);
         run_cmd("touch " + expected_profile_content);
-        run_cmd("profman --profile-file=" + cur_profile_ +
+        // We force merging when creating the expected profile to make sure
+        // that the random profiles do not affect the output.
+        run_cmd("profman --force-merge --profile-file=" + cur_profile_ +
                 " --profile-file=" + ref_profile_ +
                 " --reference-profile-file=" + expected_profile_content +
                 " --apk=" + apk_path_);
@@ -1130,14 +1132,58 @@ TEST_F(ProfileTest, ProfilePrepareFailProfileChangedUid) {
 
 class BootProfileTest : public ProfileTest {
   public:
-    virtual void setup() {
+    std::vector<const std::string> extra_apps_;
+    std::vector<int64_t> extra_ce_data_inodes_;
+
+    virtual void SetUp() {
+
         ProfileTest::SetUp();
         intial_android_profiles_dir = android_profiles_dir;
+        // Generate profiles for some extra apps.
+        // When merging boot profile we split profiles into small groups to avoid
+        // opening a lot of file descriptors at the same time.
+        // (Currently the group size for aggregation is 10)
+        //
+        // To stress test that works fine, create profile for more apps.
+        createAppProfilesForBootMerge(21);
     }
 
     virtual void TearDown() {
         android_profiles_dir = intial_android_profiles_dir;
+        deleteAppProfilesForBootMerge();
         ProfileTest::TearDown();
+    }
+
+    void createAppProfilesForBootMerge(size_t number_of_profiles) {
+        for (size_t i = 0; i < number_of_profiles; i++) {
+            int64_t ce_data_inode;
+            std::string package_name = "dummy_test_pkg" + std::to_string(i);
+            LOG(INFO) << package_name;
+            ASSERT_BINDER_SUCCESS(service_->createAppData(
+                    volume_uuid_,
+                    package_name,
+                    kTestUserId,
+                    kAppDataFlags,
+                    kTestAppUid,
+                    se_info_,
+                    kOSdkVersion,
+                    &ce_data_inode));
+            extra_apps_.push_back(package_name);
+            extra_ce_data_inodes_.push_back(ce_data_inode);
+            std::string profile = create_current_profile_path(
+                    kTestUserId, package_name, kPrimaryProfile, /*is_secondary_dex*/ false);
+            SetupProfile(profile, kTestAppUid, kTestAppGid, 0600, 1);
+        }
+    }
+
+    void deleteAppProfilesForBootMerge() {
+        if (kDebug) {
+            return;
+        }
+        for (size_t i = 0; i < extra_apps_.size(); i++) {
+            service_->destroyAppData(
+                volume_uuid_, extra_apps_[i], kTestUserId, kAppDataFlags, extra_ce_data_inodes_[i]);
+        }
     }
 
     void UpdateAndroidProfilesDir(const std::string& profile_dir) {

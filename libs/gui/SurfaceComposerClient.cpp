@@ -1337,6 +1337,18 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setGeome
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setShadowRadius(
+        const sp<SurfaceControl>& sc, float shadowRadius) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eShadowRadiusChanged;
+    s->shadowRadius = shadowRadius;
+    return *this;
+}
+
 // ---------------------------------------------------------------------------
 
 DisplayState& SurfaceComposerClient::Transaction::getDisplayState(const sp<IBinder>& token) {
