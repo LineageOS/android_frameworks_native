@@ -79,6 +79,16 @@ TEST_F(RefreshRateConfigsTest, oneDeviceConfig_SwitchingNotSupported) {
     ASSERT_FALSE(refreshRateConfigs->refreshRateSwitchingSupported());
 }
 
+TEST_F(RefreshRateConfigsTest, invalidPolicy) {
+    std::vector<RefreshRateConfigs::InputConfig> configs{
+            {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60}}};
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+    ASSERT_LT(refreshRateConfigs->setPolicy(HwcConfigIndexType(10), 60, 60, nullptr), 0);
+    ASSERT_LT(refreshRateConfigs->setPolicy(HWC_CONFIG_ID_60, 20, 40, nullptr), 0);
+}
+
 TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_storesFullRefreshRateMap) {
     std::vector<RefreshRateConfigs::InputConfig> configs{
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
@@ -123,7 +133,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_storesFullRefreshRateMap_differe
     ASSERT_EQ(expectedDefaultConfig, minRate60);
     ASSERT_EQ(expectedDefaultConfig, performanceRate60);
 
-    refreshRateConfigs->setPolicy(HWC_CONFIG_ID_90, 60, 90);
+    ASSERT_GE(refreshRateConfigs->setPolicy(HWC_CONFIG_ID_90, 60, 90, nullptr), 0);
     refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
 
     ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
@@ -154,7 +164,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_policyChange) {
                                              90};
     ASSERT_EQ(expectedPerformanceConfig, performanceRate);
 
-    refreshRateConfigs->setPolicy(HWC_CONFIG_ID_60, 60, 60);
+    ASSERT_GE(refreshRateConfigs->setPolicy(HWC_CONFIG_ID_60, 60, 60, nullptr), 0);
     ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
 
     auto minRate60 = refreshRateConfigs->getMinRefreshRateByPolicy();
@@ -181,7 +191,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getCurrentRefreshRate) {
         EXPECT_EQ(current.configId, HWC_CONFIG_ID_90);
     }
 
-    refreshRateConfigs->setPolicy(HWC_CONFIG_ID_60, 90, 90);
+    ASSERT_GE(refreshRateConfigs->setPolicy(HWC_CONFIG_ID_90, 90, 90, nullptr), 0);
     {
         auto current = refreshRateConfigs->getCurrentRefreshRate();
         EXPECT_EQ(current.configId, HWC_CONFIG_ID_90);
@@ -207,20 +217,20 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContent) {
     ASSERT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(30.0f));
     ASSERT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(24.0f));
 
-    refreshRateConfigs->setPolicy(HWC_CONFIG_ID_60, 60, 60);
+    ASSERT_GE(refreshRateConfigs->setPolicy(HWC_CONFIG_ID_60, 60, 60, nullptr), 0);
     ASSERT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(90.0f));
     ASSERT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(60.0f));
     ASSERT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(45.0f));
     ASSERT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(30.0f));
     ASSERT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(24.0f));
 
-    refreshRateConfigs->setPolicy(HWC_CONFIG_ID_60, 90, 90);
+    ASSERT_GE(refreshRateConfigs->setPolicy(HWC_CONFIG_ID_90, 90, 90, nullptr), 0);
     ASSERT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContent(90.0f));
     ASSERT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContent(60.0f));
     ASSERT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContent(45.0f));
     ASSERT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContent(30.0f));
     ASSERT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContent(24.0f));
-    refreshRateConfigs->setPolicy(HWC_CONFIG_ID_60, 0, 120);
+    ASSERT_GE(refreshRateConfigs->setPolicy(HWC_CONFIG_ID_60, 0, 120, nullptr), 0);
     ASSERT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContent(90.0f));
     ASSERT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(60.0f));
     ASSERT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContent(45.0f));

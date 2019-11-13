@@ -1605,34 +1605,22 @@ status_t SurfaceComposerClient::setActiveConfig(const sp<IBinder>& display, int 
     return ComposerService::getComposerService()->setActiveConfig(display, id);
 }
 
-status_t SurfaceComposerClient::setAllowedDisplayConfigs(
-        const sp<IBinder>& displayToken, const std::vector<int32_t>& allowedConfigs) {
-    return ComposerService::getComposerService()->setAllowedDisplayConfigs(displayToken,
-                                                                           allowedConfigs);
-}
-
-status_t SurfaceComposerClient::getAllowedDisplayConfigs(const sp<IBinder>& displayToken,
-                                                         std::vector<int32_t>* outAllowedConfigs) {
-    return ComposerService::getComposerService()->getAllowedDisplayConfigs(displayToken,
-                                                                           outAllowedConfigs);
-}
-
 status_t SurfaceComposerClient::setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                             int32_t defaultModeId,
+                                                             int32_t defaultConfig,
                                                              float minRefreshRate,
                                                              float maxRefreshRate) {
     return ComposerService::getComposerService()->setDesiredDisplayConfigSpecs(displayToken,
-                                                                               defaultModeId,
+                                                                               defaultConfig,
                                                                                minRefreshRate,
                                                                                maxRefreshRate);
 }
 
 status_t SurfaceComposerClient::getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                             int32_t* outDefaultModeId,
+                                                             int32_t* outDefaultConfig,
                                                              float* outMinRefreshRate,
                                                              float* outMaxRefreshRate) {
     return ComposerService::getComposerService()->getDesiredDisplayConfigSpecs(displayToken,
-                                                                               outDefaultModeId,
+                                                                               outDefaultConfig,
                                                                                outMinRefreshRate,
                                                                                outMaxRefreshRate);
 }
