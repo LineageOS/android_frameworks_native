@@ -897,7 +897,9 @@ class ProfileTest : public DexoptTest {
         std::string expected_profile_content = snap_profile_ + ".expected";
         run_cmd("rm -f " + expected_profile_content);
         run_cmd("touch " + expected_profile_content);
-        run_cmd("profman --profile-file=" + cur_profile_ +
+        // We force merging when creating the expected profile to make sure
+        // that the random profiles do not affect the output.
+        run_cmd("profman --force-merge --profile-file=" + cur_profile_ +
                 " --profile-file=" + ref_profile_ +
                 " --reference-profile-file=" + expected_profile_content +
                 " --apk=" + apk_path_);
