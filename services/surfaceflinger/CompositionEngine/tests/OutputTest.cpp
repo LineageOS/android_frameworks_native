@@ -483,6 +483,31 @@ TEST_F(OutputTest, getOutputLayerForLayerWorks) {
 }
 
 /*
+ * Output::updateAndWriteCompositionState()
+ */
+
+TEST_F(OutputTest, updateAndWriteCompositionState_takesEarlyOutIfNotEnabled) {
+    mOutput->editState().isEnabled = false;
+
+    CompositionRefreshArgs args;
+    mOutput->updateAndWriteCompositionState(args);
+}
+
+TEST_F(OutputTest, updateAndWriteCompositionState_updatesLayers) {
+    mOutput->editState().isEnabled = true;
+    mock::OutputLayer* outputLayer = new StrictMock<mock::OutputLayer>();
+    mOutput->injectOutputLayerForTest(std::unique_ptr<OutputLayer>(outputLayer));
+
+    EXPECT_CALL(*outputLayer, updateCompositionState(true, true)).Times(1);
+    EXPECT_CALL(*outputLayer, writeStateToHWC(true)).Times(1);
+
+    CompositionRefreshArgs args;
+    args.updatingGeometryThisFrame = true;
+    args.devOptForceClientComposition = true;
+    mOutput->updateAndWriteCompositionState(args);
+}
+
+/*
  * Output::prepareFrame()
  */
 
