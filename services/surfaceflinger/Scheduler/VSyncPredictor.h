@@ -39,6 +39,7 @@ public:
 
     void addVsyncTimestamp(nsecs_t timestamp) final;
     nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const final;
+    nsecs_t currentPeriod() const final;
 
     /*
      * Inform the model that the period is anticipated to change to a new value.
