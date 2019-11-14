@@ -100,7 +100,6 @@ struct DeviceData {
     DeviceDriverTable driver;
 };
 
-bool Debuggable();
 bool OpenHAL();
 const VkAllocationCallbacks& GetDefaultAllocator();
 
