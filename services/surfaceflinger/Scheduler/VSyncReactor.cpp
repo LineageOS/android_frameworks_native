@@ -89,10 +89,29 @@ nsecs_t VSyncReactor::expectedPresentTime() {
 
 void VSyncReactor::setPeriod(nsecs_t period) {
     mTracker->setPeriod(period);
+    {
+        std::lock_guard<std::mutex> lk(mMutex);
+        mPeriodChangeInProgress = true;
+    }
 }
 
 nsecs_t VSyncReactor::getPeriod() {
     return mTracker->currentPeriod();
+}
+
+void VSyncReactor::beginResync() {}
+
+void VSyncReactor::endResync() {}
+
+bool VSyncReactor::addResyncSample(nsecs_t timestamp, bool* periodFlushed) {
+    assert(periodFlushed);
+    mTracker->addVsyncTimestamp(timestamp);
+    {
+        std::lock_guard<std::mutex> lk(mMutex);
+        *periodFlushed = mPeriodChangeInProgress;
+        mPeriodChangeInProgress = false;
+    }
+    return false;
 }
 
 } // namespace android::scheduler
