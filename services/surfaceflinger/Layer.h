@@ -222,6 +222,8 @@ public:
     explicit Layer(const LayerCreationArgs& args);
     virtual ~Layer();
 
+    void onFirstRef() override;
+
     int getWindowType() const { return mWindowType; }
 
     void setPrimaryDisplayOnly() { mPrimaryDisplayOnly = true; }
