@@ -1,0 +1,10 @@
+LIBNATIVEDISPLAY {
+  global:
+    AChoreographer_getInstance; # apex # introduced=30
+    AChoreographer_postFrameCallback; # apex # introduced=30
+    AChoreographer_postFrameCallbackDelayed; # apex # introduced=30
+    AChoreographer_postFrameCallback64; # apex # introduced=30
+    AChoreographer_postFrameCallbackDelayed64; # apex # introduced=30
+  local:
+    *;
+};
