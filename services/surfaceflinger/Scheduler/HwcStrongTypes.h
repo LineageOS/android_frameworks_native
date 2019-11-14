@@ -13,31 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #pragma once
 
-#include "SurfaceFlinger.h"
+#include "StrongTyping.h"
 
 namespace android {
 
-using RefreshRate = scheduler::RefreshRateConfigs::RefreshRate;
+// Strong types for the different indexes as they are referring to a different base.
+using HwcConfigIndexType = StrongTyping<int, struct HwcConfigIndexTypeTag, Compare, Add, Hash>;
+using HwcConfigGroupType = StrongTyping<int, struct HwcConfigGroupTypeTag, Compare>;
 
-class RefreshRateOverlay {
-public:
-    RefreshRateOverlay(SurfaceFlinger& flinger);
-
-    void changeRefreshRate(const RefreshRate& refreshRate);
-
-private:
-    bool createLayer();
-
-    SurfaceFlinger& mFlinger;
-    sp<Client> mClient;
-    sp<Layer> mLayer;
-    sp<IBinder> mIBinder;
-    sp<IGraphicBufferProducer> mGbp;
-
-    const half3 RED = half3(1.0f, 0.0f, 0.0f);
-    const half3 GREEN = half3(0.0f, 1.0f, 0.0f);
-};
-
-}; // namespace android
+} // namespace android

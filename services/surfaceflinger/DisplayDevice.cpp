@@ -132,11 +132,11 @@ bool DisplayDevice::isPoweredOn() const {
 }
 
 // ----------------------------------------------------------------------------
-void DisplayDevice::setActiveConfig(int mode) {
+void DisplayDevice::setActiveConfig(HwcConfigIndexType mode) {
     mActiveConfig = mode;
 }
 
-int DisplayDevice::getActiveConfig()  const {
+HwcConfigIndexType DisplayDevice::getActiveConfig() const {
     return mActiveConfig;
 }
 
@@ -285,7 +285,7 @@ void DisplayDevice::dump(std::string& result) const {
 
     result.append("   ");
     StringAppendF(&result, "powerMode=%d, ", mPowerMode);
-    StringAppendF(&result, "activeConfig=%d, ", mActiveConfig);
+    StringAppendF(&result, "activeConfig=%d, ", mActiveConfig.value());
     getCompositionDisplay()->dump(result);
 }
 

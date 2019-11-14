@@ -33,6 +33,7 @@
 #include <private/gui/BitTube.h>
 
 #include <utils/Errors.h>
+#include "HwcStrongTypes.h"
 
 // ---------------------------------------------------------------------------
 namespace android {
@@ -109,7 +110,7 @@ public:
     virtual void onHotplugReceived(PhysicalDisplayId displayId, bool connected) = 0;
 
     // called when SF changes the active config and apps needs to be notified about the change
-    virtual void onConfigChanged(PhysicalDisplayId displayId, int32_t configId) = 0;
+    virtual void onConfigChanged(PhysicalDisplayId displayId, HwcConfigIndexType configId) = 0;
 
     virtual void dump(std::string& result) const = 0;
 
@@ -146,7 +147,7 @@ public:
 
     void onHotplugReceived(PhysicalDisplayId displayId, bool connected) override;
 
-    void onConfigChanged(PhysicalDisplayId displayId, int32_t configId) override;
+    void onConfigChanged(PhysicalDisplayId displayId, HwcConfigIndexType configId) override;
 
     void dump(std::string& result) const override;
 

@@ -20,8 +20,6 @@
 
 namespace android {
 
-using RefreshRateType = scheduler::RefreshRateConfigs::RefreshRateType;
-
 RefreshRateOverlay::RefreshRateOverlay(SurfaceFlinger& flinger)
       : mFlinger(flinger), mClient(new Client(&mFlinger)) {
     createLayer();
@@ -51,8 +49,8 @@ bool RefreshRateOverlay::createLayer() {
     return true;
 }
 
-void RefreshRateOverlay::changeRefreshRate(RefreshRateType type) {
-    const half3& color = (type == RefreshRateType::PERFORMANCE) ? GREEN : RED;
+void RefreshRateOverlay::changeRefreshRate(const RefreshRate& refreshRate) {
+    const half3& color = (refreshRate.fps > 65.0f) ? GREEN : RED;
     mLayer->setColor(color);
     mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
 }

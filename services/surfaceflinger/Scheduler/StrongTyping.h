@@ -51,13 +51,22 @@ struct Compare : Ability<T, Compare> {
     inline bool operator>(T const& other) const { return !(*this < other || *this == other); }
 };
 
+template <typename T>
+struct Hash : Ability<T, Hash> {
+    [[nodiscard]] std::size_t hash() const {
+        return std::hash<typename std::remove_const<
+                typename std::remove_reference<decltype(this->base().value())>::type>::type>{}(
+                this->base().value());
+    }
+};
+
 template <typename T, typename W, template <typename> class... Ability>
 struct StrongTyping : Ability<StrongTyping<T, W, Ability...>>... {
     StrongTyping() : mValue(0) {}
     explicit StrongTyping(T const& value) : mValue(value) {}
     StrongTyping(StrongTyping const&) = default;
     StrongTyping& operator=(StrongTyping const&) = default;
-    inline operator T() const { return mValue; }
+    explicit inline operator T() const { return mValue; }
     T const& value() const { return mValue; }
     T& value() { return mValue; }
 
@@ -65,3 +74,12 @@ private:
     T mValue;
 };
 } // namespace android
+
+namespace std {
+template <typename T, typename W, template <typename> class... Ability>
+struct hash<android::StrongTyping<T, W, Ability...>> {
+    std::size_t operator()(android::StrongTyping<T, W, Ability...> const& k) const {
+        return k.hash();
+    }
+};
+} // namespace std

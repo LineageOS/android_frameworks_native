@@ -140,9 +140,6 @@ public:
     // updated time, the updated time is the present time.
     void setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now);
 
-    bool isHDR() const { return mIsHDR; }
-    void setIsHDR(bool isHDR) { mIsHDR = isHDR; }
-
     bool isRecentlyActive(nsecs_t now) const { return mPresentTimeHistory.isRecentlyActive(now); }
     bool isFrequent(nsecs_t now) const { return mPresentTimeHistory.isFrequent(now); }
 
@@ -167,7 +164,6 @@ private:
     nsecs_t mLastPresentTime = 0;
     RefreshRateHistory mRefreshRateHistory{mHighRefreshRate};
     PresentTimeHistory mPresentTimeHistory;
-    bool mIsHDR = false;
 };
 
 } // namespace scheduler

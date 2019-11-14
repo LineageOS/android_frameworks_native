@@ -182,7 +182,7 @@ void Scheduler::onScreenReleased(ConnectionHandle handle) {
 }
 
 void Scheduler::onConfigChanged(ConnectionHandle handle, PhysicalDisplayId displayId,
-                                int32_t configId) {
+                                HwcConfigIndexType configId) {
     RETURN_IF_INVALID_HANDLE(handle);
     mConnections[handle].thread->onConfigChanged(displayId, configId);
 }
@@ -280,8 +280,7 @@ void Scheduler::resync() {
     const nsecs_t last = mLastResyncTime.exchange(now);
 
     if (now - last > kIgnoreDelay) {
-        resyncToHardwareVsync(false,
-                              mRefreshRateConfigs.getCurrentRefreshRate().second.vsyncPeriod);
+        resyncToHardwareVsync(false, mRefreshRateConfigs.getCurrentRefreshRate().vsyncPeriod);
     }
 }
 
@@ -332,53 +331,49 @@ nsecs_t Scheduler::getDispSyncExpectedPresentTime() {
 void Scheduler::registerLayer(Layer* layer) {
     if (!mLayerHistory) return;
 
-    const auto type = layer->getWindowType() == InputWindowInfo::TYPE_WALLPAPER
-            ? RefreshRateType::DEFAULT
-            : RefreshRateType::PERFORMANCE;
-
-    const auto lowFps = mRefreshRateConfigs.getRefreshRateFromType(RefreshRateType::DEFAULT).fps;
-    const auto highFps = mRefreshRateConfigs.getRefreshRateFromType(type).fps;
+    const auto lowFps = mRefreshRateConfigs.getMinRefreshRate().fps;
+    const auto highFps = layer->getWindowType() == InputWindowInfo::TYPE_WALLPAPER
+            ? lowFps
+            : mRefreshRateConfigs.getMaxRefreshRate().fps;
 
     mLayerHistory->registerLayer(layer, lowFps, highFps);
 }
 
-void Scheduler::recordLayerHistory(Layer* layer, nsecs_t presentTime, bool isHDR) {
+void Scheduler::recordLayerHistory(Layer* layer, nsecs_t presentTime) {
     if (mLayerHistory) {
-        mLayerHistory->record(layer, presentTime, isHDR, systemTime());
+        mLayerHistory->record(layer, presentTime, systemTime());
     }
 }
 
 void Scheduler::chooseRefreshRateForContent() {
     if (!mLayerHistory) return;
 
-    auto [refreshRate, isHDR] = mLayerHistory->summarize(systemTime());
+    auto [refreshRate] = mLayerHistory->summarize(systemTime());
     const uint32_t refreshRateRound = std::round(refreshRate);
-    RefreshRateType newRefreshRateType;
+    HwcConfigIndexType newConfigId;
     {
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
-        if (mFeatures.contentRefreshRate == refreshRateRound && mFeatures.isHDRContent == isHDR) {
+        if (mFeatures.contentRefreshRate == refreshRateRound) {
             return;
         }
         mFeatures.contentRefreshRate = refreshRateRound;
         ATRACE_INT("ContentFPS", refreshRateRound);
 
-        mFeatures.isHDRContent = isHDR;
-        ATRACE_INT("ContentHDR", isHDR);
-
         mFeatures.contentDetection =
                 refreshRateRound > 0 ? ContentDetectionState::On : ContentDetectionState::Off;
-        newRefreshRateType = calculateRefreshRateType();
-        if (mFeatures.refreshRateType == newRefreshRateType) {
+        newConfigId = calculateRefreshRateType();
+        if (mFeatures.configId == newConfigId) {
             return;
         }
-        mFeatures.refreshRateType = newRefreshRateType;
-    }
-    changeRefreshRate(newRefreshRateType, ConfigEvent::Changed);
+        mFeatures.configId = newConfigId;
+    };
+    auto newRefreshRate = mRefreshRateConfigs.getRefreshRateFromConfigId(newConfigId);
+    changeRefreshRate(newRefreshRate, ConfigEvent::Changed);
 }
 
-void Scheduler::setChangeRefreshRateCallback(ChangeRefreshRateCallback&& callback) {
+void Scheduler::setSchedulerCallback(android::Scheduler::ISchedulerCallback* callback) {
     std::lock_guard<std::mutex> lock(mCallbackLock);
-    mChangeRefreshRateCallback = std::move(callback);
+    mSchedulerCallback = callback;
 }
 
 void Scheduler::resetIdleTimer() {
@@ -423,13 +418,16 @@ void Scheduler::setDisplayPowerState(bool normal) {
 void Scheduler::kernelIdleTimerCallback(TimerState state) {
     ATRACE_INT("ExpiredKernelIdleTimer", static_cast<int>(state));
 
+    // TODO(145561154): cleanup the kernel idle timer implementation and the refresh rate
+    // magic number
     const auto refreshRate = mRefreshRateConfigs.getCurrentRefreshRate();
-    if (state == TimerState::Reset && refreshRate.first == RefreshRateType::PERFORMANCE) {
+    constexpr float FPS_THRESHOLD_FOR_KERNEL_TIMER = 65.0f;
+    if (state == TimerState::Reset && refreshRate.fps > FPS_THRESHOLD_FOR_KERNEL_TIMER) {
         // If we're not in performance mode then the kernel timer shouldn't do
         // anything, as the refresh rate during DPU power collapse will be the
         // same.
-        resyncToHardwareVsync(true /* makeAvailable */, refreshRate.second.vsyncPeriod);
-    } else if (state == TimerState::Expired && refreshRate.first != RefreshRateType::PERFORMANCE) {
+        resyncToHardwareVsync(true /* makeAvailable */, refreshRate.vsyncPeriod);
+    } else if (state == TimerState::Expired && refreshRate.fps <= FPS_THRESHOLD_FOR_KERNEL_TIMER) {
         // Disable HW VSYNC if the timer expired, as we don't need it enabled if
         // we're not pushing frames, and if we're in PERFORMANCE mode then we'll
         // need to update the DispSync model anyway.
@@ -471,96 +469,67 @@ void Scheduler::dump(std::string& result) const {
 template <class T>
 void Scheduler::handleTimerStateChanged(T* currentState, T newState, bool eventOnContentDetection) {
     ConfigEvent event = ConfigEvent::None;
-    RefreshRateType newRefreshRateType;
+    HwcConfigIndexType newConfigId;
     {
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
         if (*currentState == newState) {
             return;
         }
         *currentState = newState;
-        newRefreshRateType = calculateRefreshRateType();
-        if (mFeatures.refreshRateType == newRefreshRateType) {
+        newConfigId = calculateRefreshRateType();
+        if (mFeatures.configId == newConfigId) {
             return;
         }
-        mFeatures.refreshRateType = newRefreshRateType;
+        mFeatures.configId = newConfigId;
         if (eventOnContentDetection && mFeatures.contentDetection == ContentDetectionState::On) {
             event = ConfigEvent::Changed;
         }
     }
-    changeRefreshRate(newRefreshRateType, event);
+    const RefreshRate& newRefreshRate = mRefreshRateConfigs.getRefreshRateFromConfigId(newConfigId);
+    changeRefreshRate(newRefreshRate, event);
 }
 
-Scheduler::RefreshRateType Scheduler::calculateRefreshRateType() {
+HwcConfigIndexType Scheduler::calculateRefreshRateType() {
     if (!mRefreshRateConfigs.refreshRateSwitchingSupported()) {
-        return RefreshRateType::DEFAULT;
-    }
-
-    // HDR content is not supported on PERFORMANCE mode
-    if (mForceHDRContentToDefaultRefreshRate && mFeatures.isHDRContent) {
-        return RefreshRateType::DEFAULT;
+        return mRefreshRateConfigs.getCurrentRefreshRate().configId;
     }
 
     // If Display Power is not in normal operation we want to be in performance mode.
     // When coming back to normal mode, a grace period is given with DisplayPowerTimer
     if (!mFeatures.isDisplayPowerStateNormal || mFeatures.displayPowerTimer == TimerState::Reset) {
-        return RefreshRateType::PERFORMANCE;
+        return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
     }
 
     // As long as touch is active we want to be in performance mode
     if (mFeatures.touch == TouchState::Active) {
-        return RefreshRateType::PERFORMANCE;
+        return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
     }
 
     // If timer has expired as it means there is no new content on the screen
     if (mFeatures.idleTimer == TimerState::Expired) {
-        return RefreshRateType::DEFAULT;
+        return mRefreshRateConfigs.getMinRefreshRateByPolicy().configId;
     }
 
     // If content detection is off we choose performance as we don't know the content fps
     if (mFeatures.contentDetection == ContentDetectionState::Off) {
-        return RefreshRateType::PERFORMANCE;
+        return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
     }
 
     // Content detection is on, find the appropriate refresh rate with minimal error
-    // TODO(b/139751853): Scan allowed refresh rates only (SurfaceFlinger::mAllowedDisplayConfigs)
-    const float rate = static_cast<float>(mFeatures.contentRefreshRate);
-    auto iter = min_element(mRefreshRateConfigs.getRefreshRateMap().cbegin(),
-                            mRefreshRateConfigs.getRefreshRateMap().cend(),
-                            [rate](const auto& lhs, const auto& rhs) -> bool {
-                                return std::abs(lhs.second.fps - rate) <
-                                        std::abs(rhs.second.fps - rate);
-                            });
-    RefreshRateType currRefreshRateType = iter->first;
-
-    // Some content aligns better on higher refresh rate. For example for 45fps we should choose
-    // 90Hz config. However we should still prefer a lower refresh rate if the content doesn't
-    // align well with both
-    constexpr float MARGIN = 0.05f;
-    float ratio = mRefreshRateConfigs.getRefreshRateFromType(currRefreshRateType).fps / rate;
-    if (std::abs(std::round(ratio) - ratio) > MARGIN) {
-        while (iter != mRefreshRateConfigs.getRefreshRateMap().cend()) {
-            ratio = iter->second.fps / rate;
-
-            if (std::abs(std::round(ratio) - ratio) <= MARGIN) {
-                currRefreshRateType = iter->first;
-                break;
-            }
-            ++iter;
-        }
-    }
-
-    return currRefreshRateType;
+    return mRefreshRateConfigs
+            .getRefreshRateForContent(static_cast<float>(mFeatures.contentRefreshRate))
+            .configId;
 }
 
-Scheduler::RefreshRateType Scheduler::getPreferredRefreshRateType() {
+std::optional<HwcConfigIndexType> Scheduler::getPreferredConfigId() {
     std::lock_guard<std::mutex> lock(mFeatureStateLock);
-    return mFeatures.refreshRateType;
+    return mFeatures.configId;
 }
 
-void Scheduler::changeRefreshRate(RefreshRateType refreshRateType, ConfigEvent configEvent) {
+void Scheduler::changeRefreshRate(const RefreshRate& refreshRate, ConfigEvent configEvent) {
     std::lock_guard<std::mutex> lock(mCallbackLock);
-    if (mChangeRefreshRateCallback) {
-        mChangeRefreshRateCallback(refreshRateType, configEvent);
+    if (mSchedulerCallback) {
+        mSchedulerCallback->changeRefreshRate(refreshRate, configEvent);
     }
 }
 

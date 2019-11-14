@@ -26,6 +26,7 @@
 
 #include "AsyncCallRecorder.h"
 #include "Scheduler/EventThread.h"
+#include "Scheduler/HwcStrongTypes.h"
 
 using namespace std::chrono_literals;
 using namespace std::placeholders;
@@ -34,6 +35,7 @@ using testing::_;
 using testing::Invoke;
 
 namespace android {
+
 namespace {
 
 constexpr PhysicalDisplayId INTERNAL_DISPLAY_ID = 111;
@@ -448,17 +450,17 @@ TEST_F(EventThreadTest, postHotplugExternalConnect) {
 }
 
 TEST_F(EventThreadTest, postConfigChangedPrimary) {
-    mThread->onConfigChanged(INTERNAL_DISPLAY_ID, 7);
+    mThread->onConfigChanged(INTERNAL_DISPLAY_ID, HwcConfigIndexType(7));
     expectConfigChangedEventReceivedByConnection(INTERNAL_DISPLAY_ID, 7);
 }
 
 TEST_F(EventThreadTest, postConfigChangedExternal) {
-    mThread->onConfigChanged(EXTERNAL_DISPLAY_ID, 5);
+    mThread->onConfigChanged(EXTERNAL_DISPLAY_ID, HwcConfigIndexType(5));
     expectConfigChangedEventReceivedByConnection(EXTERNAL_DISPLAY_ID, 5);
 }
 
 TEST_F(EventThreadTest, postConfigChangedPrimary64bit) {
-    mThread->onConfigChanged(DISPLAY_ID_64BIT, 7);
+    mThread->onConfigChanged(DISPLAY_ID_64BIT, HwcConfigIndexType(7));
     expectConfigChangedEventReceivedByConnection(DISPLAY_ID_64BIT, 7);
 }
 
@@ -468,7 +470,7 @@ TEST_F(EventThreadTest, suppressConfigChanged) {
             createConnection(suppressConnectionEventRecorder,
                              ISurfaceComposer::eConfigChangedSuppress);
 
-    mThread->onConfigChanged(INTERNAL_DISPLAY_ID, 9);
+    mThread->onConfigChanged(INTERNAL_DISPLAY_ID, HwcConfigIndexType(9));
     expectConfigChangedEventReceivedByConnection(INTERNAL_DISPLAY_ID, 9);
 
     auto args = suppressConnectionEventRecorder.waitForCall();

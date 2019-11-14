@@ -43,6 +43,7 @@
 #include "DisplayHardware/DisplayIdentification.h"
 #include "DisplayHardware/PowerAdvisor.h"
 #include "RenderArea.h"
+#include "Scheduler/HwcStrongTypes.h"
 
 namespace android {
 
@@ -141,8 +142,8 @@ public:
     /* ------------------------------------------------------------------------
      * Display active config management.
      */
-    int getActiveConfig() const;
-    void setActiveConfig(int mode);
+    HwcConfigIndexType getActiveConfig() const;
+    void setActiveConfig(HwcConfigIndexType mode);
 
     // release HWC resources (if any) for removable displays
     void disconnect();
@@ -186,7 +187,7 @@ private:
     // Current power mode
     int mPowerMode;
     // Current active config
-    int mActiveConfig;
+    HwcConfigIndexType mActiveConfig;
 
     // TODO(b/74619554): Remove special cases for primary display.
     const bool mIsPrimary;

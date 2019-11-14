@@ -44,9 +44,15 @@ protected:
     auto createLayer() { return sp<mock::MockLayer>(new mock::MockLayer(mFlinger.flinger())); }
 
     RefreshRateConfigs mConfigs{true,
-                                {RefreshRateConfigs::InputConfig{0, LO_FPS_PERIOD},
-                                 RefreshRateConfigs::InputConfig{1, HI_FPS_PERIOD}},
-                                0};
+                                {
+                                        RefreshRateConfigs::InputConfig{HwcConfigIndexType(0),
+                                                                        HwcConfigGroupType(0),
+                                                                        LO_FPS_PERIOD},
+                                        RefreshRateConfigs::InputConfig{HwcConfigIndexType(1),
+                                                                        HwcConfigGroupType(0),
+                                                                        HI_FPS_PERIOD},
+                                },
+                                HwcConfigIndexType(0)};
     TestableScheduler* const mScheduler{new TestableScheduler(mConfigs)};
     TestableSurfaceFlinger mFlinger;
 
@@ -57,7 +63,6 @@ namespace {
 
 TEST_F(LayerHistoryTest, oneLayer) {
     const auto layer = createLayer();
-    constexpr bool isHDR = false;
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
 
     EXPECT_EQ(1, layerCount());
@@ -69,14 +74,14 @@ TEST_F(LayerHistoryTest, oneLayer) {
 
     // 0 FPS is returned if active layers have insufficient history.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE - 1; i++) {
-        history().record(layer.get(), 0, isHDR, mTime);
+        history().record(layer.get(), 0, mTime);
         EXPECT_FLOAT_EQ(0, history().summarize(mTime).maxRefreshRate);
         EXPECT_EQ(1, activeLayerCount());
     }
 
     // High FPS is returned once enough history has been recorded.
     for (int i = 0; i < 10; i++) {
-        history().record(layer.get(), 0, isHDR, mTime);
+        history().record(layer.get(), 0, mTime);
         EXPECT_FLOAT_EQ(HI_FPS, history().summarize(mTime).maxRefreshRate);
         EXPECT_EQ(1, activeLayerCount());
     }
@@ -84,29 +89,25 @@ TEST_F(LayerHistoryTest, oneLayer) {
 
 TEST_F(LayerHistoryTest, oneHDRLayer) {
     const auto layer = createLayer();
-    constexpr bool isHDR = true;
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
 
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(0, activeLayerCount());
 
-    history().record(layer.get(), 0, isHDR, mTime);
+    history().record(layer.get(), 0, mTime);
     auto summary = history().summarize(mTime);
     EXPECT_FLOAT_EQ(0, summary.maxRefreshRate);
-    EXPECT_TRUE(summary.isHDR);
     EXPECT_EQ(1, activeLayerCount());
 
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(false));
 
     summary = history().summarize(mTime);
     EXPECT_FLOAT_EQ(0, summary.maxRefreshRate);
-    EXPECT_FALSE(summary.isHDR);
     EXPECT_EQ(0, activeLayerCount());
 }
 
 TEST_F(LayerHistoryTest, explicitTimestamp) {
     const auto layer = createLayer();
-    constexpr bool isHDR = false;
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
 
     EXPECT_EQ(1, layerCount());
@@ -114,7 +115,7 @@ TEST_F(LayerHistoryTest, explicitTimestamp) {
 
     nsecs_t time = mTime;
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer.get(), time, isHDR, time);
+        history().record(layer.get(), time, time);
         time += LO_FPS_PERIOD;
     }
 
@@ -127,7 +128,6 @@ TEST_F(LayerHistoryTest, multipleLayers) {
     auto layer1 = createLayer();
     auto layer2 = createLayer();
     auto layer3 = createLayer();
-    constexpr bool isHDR = false;
 
     EXPECT_CALL(*layer1, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer2, isVisible()).WillRepeatedly(Return(true));
@@ -141,7 +141,7 @@ TEST_F(LayerHistoryTest, multipleLayers) {
 
     // layer1 is active but infrequent.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer1.get(), time, isHDR, time);
+        history().record(layer1.get(), time, time);
         time += MAX_FREQUENT_LAYER_PERIOD_NS.count();
     }
 
@@ -151,12 +151,12 @@ TEST_F(LayerHistoryTest, multipleLayers) {
 
     // layer2 is frequent and has high refresh rate.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer2.get(), time, isHDR, time);
+        history().record(layer2.get(), time, time);
         time += HI_FPS_PERIOD;
     }
 
     // layer1 is still active but infrequent.
-    history().record(layer1.get(), time, isHDR, time);
+    history().record(layer1.get(), time, time);
 
     EXPECT_FLOAT_EQ(HI_FPS, history().summarize(time).maxRefreshRate);
     EXPECT_EQ(2, activeLayerCount());
@@ -165,7 +165,7 @@ TEST_F(LayerHistoryTest, multipleLayers) {
     // layer1 is no longer active.
     // layer2 is frequent and has low refresh rate.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer2.get(), time, isHDR, time);
+        history().record(layer2.get(), time, time);
         time += LO_FPS_PERIOD;
     }
 
@@ -178,10 +178,10 @@ TEST_F(LayerHistoryTest, multipleLayers) {
     constexpr int RATIO = LO_FPS_PERIOD / HI_FPS_PERIOD;
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE - 1; i++) {
         if (i % RATIO == 0) {
-            history().record(layer2.get(), time, isHDR, time);
+            history().record(layer2.get(), time, time);
         }
 
-        history().record(layer3.get(), time, isHDR, time);
+        history().record(layer3.get(), time, time);
         time += HI_FPS_PERIOD;
     }
 
@@ -190,7 +190,7 @@ TEST_F(LayerHistoryTest, multipleLayers) {
     EXPECT_EQ(2, frequentLayerCount(time));
 
     // layer3 becomes recently active.
-    history().record(layer3.get(), time, isHDR, time);
+    history().record(layer3.get(), time, time);
     EXPECT_FLOAT_EQ(HI_FPS, history().summarize(time).maxRefreshRate);
     EXPECT_EQ(2, activeLayerCount());
     EXPECT_EQ(2, frequentLayerCount(time));
@@ -205,7 +205,7 @@ TEST_F(LayerHistoryTest, multipleLayers) {
     // layer2 still has low refresh rate.
     // layer3 becomes inactive.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer2.get(), time, isHDR, time);
+        history().record(layer2.get(), time, time);
         time += LO_FPS_PERIOD;
     }
 
@@ -222,7 +222,7 @@ TEST_F(LayerHistoryTest, multipleLayers) {
 
     // layer3 becomes active and has high refresh rate.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer3.get(), time, isHDR, time);
+        history().record(layer3.get(), time, time);
         time += HI_FPS_PERIOD;
     }
 

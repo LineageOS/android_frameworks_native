@@ -48,16 +48,18 @@ PhaseOffsets::PhaseOffsets() {
             getProperty("debug.sf.phase_offset_threshold_for_next_vsync_ns")
                     .value_or(std::numeric_limits<nsecs_t>::max());
 
-    const Offsets defaultOffsets = getDefaultOffsets(thresholdForNextVsync);
-    const Offsets highFpsOffsets = getHighFpsOffsets(thresholdForNextVsync);
-
-    mOffsets.insert({RefreshRateType::DEFAULT, defaultOffsets});
-    mOffsets.insert({RefreshRateType::PERFORMANCE, highFpsOffsets});
+    mDefaultOffsets = getDefaultOffsets(thresholdForNextVsync);
+    mHighFpsOffsets = getHighFpsOffsets(thresholdForNextVsync);
 }
 
-PhaseOffsets::Offsets PhaseOffsets::getOffsetsForRefreshRate(
-        RefreshRateType refreshRateType) const {
-    return mOffsets.at(refreshRateType);
+PhaseOffsets::Offsets PhaseOffsets::getOffsetsForRefreshRate(float fps) const {
+    // TODO(145561086): Once offsets are common for all refresh rates we can remove the magic
+    // number for refresh rate
+    if (fps > 65.0f) {
+        return mHighFpsOffsets;
+    } else {
+        return mDefaultOffsets;
+    }
 }
 
 void PhaseOffsets::dump(std::string& result) const {
@@ -80,13 +82,13 @@ PhaseOffsets::Offsets PhaseOffsets::getDefaultOffsets(nsecs_t thresholdForNextVs
     const auto earlyAppOffsetNs = getProperty("debug.sf.early_app_phase_offset_ns");
     const auto earlyGlAppOffsetNs = getProperty("debug.sf.early_gl_app_phase_offset_ns");
 
-    return {{RefreshRateType::DEFAULT, earlySfOffsetNs.value_or(sfVsyncPhaseOffsetNs),
+    return {{earlySfOffsetNs.value_or(sfVsyncPhaseOffsetNs),
              earlyAppOffsetNs.value_or(vsyncPhaseOffsetNs)},
 
-            {RefreshRateType::DEFAULT, earlyGlSfOffsetNs.value_or(sfVsyncPhaseOffsetNs),
+            {earlyGlSfOffsetNs.value_or(sfVsyncPhaseOffsetNs),
              earlyGlAppOffsetNs.value_or(vsyncPhaseOffsetNs)},
 
-            {RefreshRateType::DEFAULT, sfVsyncPhaseOffsetNs, vsyncPhaseOffsetNs},
+            {sfVsyncPhaseOffsetNs, vsyncPhaseOffsetNs},
 
             thresholdForNextVsync};
 }
@@ -104,13 +106,13 @@ PhaseOffsets::Offsets PhaseOffsets::getHighFpsOffsets(nsecs_t thresholdForNextVs
     const auto highFpsEarlyGlAppOffsetNs =
             getProperty("debug.sf.high_fps_early_gl_app_phase_offset_ns");
 
-    return {{RefreshRateType::PERFORMANCE, highFpsEarlySfOffsetNs.value_or(highFpsLateSfOffsetNs),
+    return {{highFpsEarlySfOffsetNs.value_or(highFpsLateSfOffsetNs),
              highFpsEarlyAppOffsetNs.value_or(highFpsLateAppOffsetNs)},
 
-            {RefreshRateType::PERFORMANCE, highFpsEarlyGlSfOffsetNs.value_or(highFpsLateSfOffsetNs),
+            {highFpsEarlyGlSfOffsetNs.value_or(highFpsLateSfOffsetNs),
              highFpsEarlyGlAppOffsetNs.value_or(highFpsLateAppOffsetNs)},
 
-            {RefreshRateType::PERFORMANCE, highFpsLateSfOffsetNs, highFpsLateAppOffsetNs},
+            {highFpsLateSfOffsetNs, highFpsLateAppOffsetNs},
 
             thresholdForNextVsync};
 }

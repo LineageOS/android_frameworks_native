@@ -30,27 +30,19 @@ using testing::_;
 namespace android {
 namespace scheduler {
 
-using RefreshRateType = RefreshRateConfigs::RefreshRateType;
 using RefreshRate = RefreshRateConfigs::RefreshRate;
 
 class RefreshRateConfigsTest : public testing::Test {
 protected:
-    static constexpr int CONFIG_ID_60 = 0;
-    static constexpr hwc2_config_t HWC2_CONFIG_ID_60 = 0;
-    static constexpr int CONFIG_ID_90 = 1;
-    static constexpr hwc2_config_t HWC2_CONFIG_ID_90 = 1;
+    static inline const HwcConfigIndexType HWC_CONFIG_ID_60 = HwcConfigIndexType(0);
+    static inline const HwcConfigIndexType HWC_CONFIG_ID_90 = HwcConfigIndexType(1);
+    static inline const HwcConfigGroupType HWC_GROUP_ID_0 = HwcConfigGroupType(0);
+    static inline const HwcConfigGroupType HWC_GROUP_ID_1 = HwcConfigGroupType(1);
     static constexpr int64_t VSYNC_60 = 16666667;
     static constexpr int64_t VSYNC_90 = 11111111;
 
     RefreshRateConfigsTest();
     ~RefreshRateConfigsTest();
-
-    void assertRatesEqual(const RefreshRate& left, const RefreshRate& right) {
-        ASSERT_EQ(left.configId, right.configId);
-        ASSERT_EQ(left.name, right.name);
-        ASSERT_EQ(left.fps, right.fps);
-        ASSERT_EQ(left.vsyncPeriod, right.vsyncPeriod);
-    }
 };
 
 RefreshRateConfigsTest::RefreshRateConfigsTest() {
@@ -69,40 +61,173 @@ namespace {
 /* ------------------------------------------------------------------------
  * Test cases
  */
-TEST_F(RefreshRateConfigsTest, oneDeviceConfig_isRejected) {
-    std::vector<RefreshRateConfigs::InputConfig> configs{{HWC2_CONFIG_ID_60, VSYNC_60}};
+TEST_F(RefreshRateConfigsTest, oneDeviceConfig_SwitchingSupported) {
+    std::vector<RefreshRateConfigs::InputConfig> configs{
+            {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60}}};
     auto refreshRateConfigs =
             std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
-                                                 /*currentConfig=*/0);
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
+}
+
+TEST_F(RefreshRateConfigsTest, oneDeviceConfig_SwitchingNotSupported) {
+    std::vector<RefreshRateConfigs::InputConfig> configs{
+            {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60}}};
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/false, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
     ASSERT_FALSE(refreshRateConfigs->refreshRateSwitchingSupported());
 }
 
 TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_storesFullRefreshRateMap) {
-    std::vector<RefreshRateConfigs::InputConfig> configs{{HWC2_CONFIG_ID_60, VSYNC_60},
-                                                         {HWC2_CONFIG_ID_90, VSYNC_90}};
+    std::vector<RefreshRateConfigs::InputConfig> configs{
+            {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
+             {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
     auto refreshRateConfigs =
             std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
-                                                 /*currentConfig=*/0);
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
 
     ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
-    const auto& rates = refreshRateConfigs->getRefreshRateMap();
-    ASSERT_EQ(2, rates.size());
-    const auto& defaultRate = rates.find(RefreshRateType::DEFAULT);
-    const auto& performanceRate = rates.find(RefreshRateType::PERFORMANCE);
-    ASSERT_NE(rates.end(), defaultRate);
-    ASSERT_NE(rates.end(), performanceRate);
 
-    RefreshRate expectedDefaultConfig = {CONFIG_ID_60, "60fps", 60, VSYNC_60, HWC2_CONFIG_ID_60};
-    assertRatesEqual(expectedDefaultConfig, defaultRate->second);
-    RefreshRate expectedPerformanceConfig = {CONFIG_ID_90, "90fps", 90, VSYNC_90,
-                                             HWC2_CONFIG_ID_90};
-    assertRatesEqual(expectedPerformanceConfig, performanceRate->second);
+    const auto minRate = refreshRateConfigs->getMinRefreshRate();
+    const auto performanceRate = refreshRateConfigs->getMaxRefreshRate();
 
-    assertRatesEqual(expectedDefaultConfig,
-                     refreshRateConfigs->getRefreshRateFromType(RefreshRateType::DEFAULT));
-    assertRatesEqual(expectedPerformanceConfig,
-                     refreshRateConfigs->getRefreshRateFromType(RefreshRateType::PERFORMANCE));
+    RefreshRate expectedDefaultConfig = {HWC_CONFIG_ID_60, VSYNC_60, HWC_GROUP_ID_0, "60fps", 60};
+    ASSERT_EQ(expectedDefaultConfig, minRate);
+    RefreshRate expectedPerformanceConfig = {HWC_CONFIG_ID_90, VSYNC_90, HWC_GROUP_ID_0, "90fps",
+                                             90};
+    ASSERT_EQ(expectedPerformanceConfig, performanceRate);
+
+    const auto minRateByPolicy = refreshRateConfigs->getMinRefreshRateByPolicy();
+    const auto performanceRateByPolicy = refreshRateConfigs->getMaxRefreshRateByPolicy();
+    ASSERT_EQ(minRateByPolicy, minRate);
+    ASSERT_EQ(performanceRateByPolicy, performanceRate);
 }
+
+TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_storesFullRefreshRateMap_differentGroups) {
+    std::vector<RefreshRateConfigs::InputConfig> configs{
+            {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
+             {HWC_CONFIG_ID_90, HWC_GROUP_ID_1, VSYNC_90}}};
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
+    const auto minRate = refreshRateConfigs->getMinRefreshRateByPolicy();
+    const auto performanceRate = refreshRateConfigs->getMaxRefreshRate();
+    const auto minRate60 = refreshRateConfigs->getMinRefreshRateByPolicy();
+    const auto performanceRate60 = refreshRateConfigs->getMaxRefreshRateByPolicy();
+
+    RefreshRate expectedDefaultConfig = {HWC_CONFIG_ID_60, VSYNC_60, HWC_GROUP_ID_0, "60fps", 60};
+    ASSERT_EQ(expectedDefaultConfig, minRate);
+    ASSERT_EQ(expectedDefaultConfig, minRate60);
+    ASSERT_EQ(expectedDefaultConfig, performanceRate60);
+
+    refreshRateConfigs->setPolicy(HWC_CONFIG_ID_90, 60, 90);
+    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
+
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
+    const auto minRate90 = refreshRateConfigs->getMinRefreshRateByPolicy();
+    const auto performanceRate90 = refreshRateConfigs->getMaxRefreshRateByPolicy();
+
+    RefreshRate expectedPerformanceConfig = {HWC_CONFIG_ID_90, VSYNC_90, HWC_GROUP_ID_1, "90fps",
+                                             90};
+    ASSERT_EQ(expectedPerformanceConfig, performanceRate);
+    ASSERT_EQ(expectedPerformanceConfig, minRate90);
+    ASSERT_EQ(expectedPerformanceConfig, performanceRate90);
+}
+
+TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_policyChange) {
+    std::vector<RefreshRateConfigs::InputConfig> configs{
+            {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
+             {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
+    auto minRate = refreshRateConfigs->getMinRefreshRateByPolicy();
+    auto performanceRate = refreshRateConfigs->getMaxRefreshRateByPolicy();
+
+    RefreshRate expectedDefaultConfig = {HWC_CONFIG_ID_60, VSYNC_60, HWC_GROUP_ID_0, "60fps", 60};
+    ASSERT_EQ(expectedDefaultConfig, minRate);
+    RefreshRate expectedPerformanceConfig = {HWC_CONFIG_ID_90, VSYNC_90, HWC_GROUP_ID_0, "90fps",
+                                             90};
+    ASSERT_EQ(expectedPerformanceConfig, performanceRate);
+
+    refreshRateConfigs->setPolicy(HWC_CONFIG_ID_60, 60, 60);
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
+
+    auto minRate60 = refreshRateConfigs->getMinRefreshRateByPolicy();
+    auto performanceRate60 = refreshRateConfigs->getMaxRefreshRateByPolicy();
+    ASSERT_EQ(expectedDefaultConfig, minRate60);
+    ASSERT_EQ(expectedDefaultConfig, performanceRate60);
+}
+
+TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getCurrentRefreshRate) {
+    std::vector<RefreshRateConfigs::InputConfig> configs{
+            {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
+             {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+    {
+        auto current = refreshRateConfigs->getCurrentRefreshRate();
+        EXPECT_EQ(current.configId, HWC_CONFIG_ID_60);
+    }
+
+    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
+    {
+        auto current = refreshRateConfigs->getCurrentRefreshRate();
+        EXPECT_EQ(current.configId, HWC_CONFIG_ID_90);
+    }
+
+    refreshRateConfigs->setPolicy(HWC_CONFIG_ID_60, 90, 90);
+    {
+        auto current = refreshRateConfigs->getCurrentRefreshRate();
+        EXPECT_EQ(current.configId, HWC_CONFIG_ID_90);
+    }
+}
+
+TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContent) {
+    std::vector<RefreshRateConfigs::InputConfig> configs{
+            {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
+             {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
+
+    RefreshRate expected60Config = {HWC_CONFIG_ID_60, VSYNC_60, HWC_GROUP_ID_0, "60fps", 60};
+    RefreshRate expected90Config = {HWC_CONFIG_ID_90, VSYNC_90, HWC_GROUP_ID_0, "90fps", 90};
+
+    ASSERT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContent(90.0f));
+    ASSERT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(60.0f));
+    ASSERT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContent(45.0f));
+    ASSERT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(30.0f));
+    ASSERT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(24.0f));
+
+    refreshRateConfigs->setPolicy(HWC_CONFIG_ID_60, 60, 60);
+    ASSERT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(90.0f));
+    ASSERT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(60.0f));
+    ASSERT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(45.0f));
+    ASSERT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(30.0f));
+    ASSERT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(24.0f));
+
+    refreshRateConfigs->setPolicy(HWC_CONFIG_ID_60, 90, 90);
+    ASSERT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContent(90.0f));
+    ASSERT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContent(60.0f));
+    ASSERT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContent(45.0f));
+    ASSERT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContent(30.0f));
+    ASSERT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContent(24.0f));
+    refreshRateConfigs->setPolicy(HWC_CONFIG_ID_60, 0, 120);
+    ASSERT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContent(90.0f));
+    ASSERT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(60.0f));
+    ASSERT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContent(45.0f));
+    ASSERT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(30.0f));
+    ASSERT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(24.0f));
+}
+
 } // namespace
 } // namespace scheduler
 } // namespace android

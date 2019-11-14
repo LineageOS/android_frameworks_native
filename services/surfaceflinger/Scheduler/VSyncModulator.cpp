@@ -134,18 +134,13 @@ void VSyncModulator::updateOffsetsLocked() {
         return;
     }
 
-    const bool isDefault = mOffsets.fpsMode == RefreshRateType::DEFAULT;
-    const bool isPerformance = mOffsets.fpsMode == RefreshRateType::PERFORMANCE;
     const bool isEarly = &offsets == &mOffsetsConfig.early;
     const bool isEarlyGl = &offsets == &mOffsetsConfig.earlyGl;
     const bool isLate = &offsets == &mOffsetsConfig.late;
 
-    ATRACE_INT("Vsync-EarlyOffsetsOn", isDefault && isEarly);
-    ATRACE_INT("Vsync-EarlyGLOffsetsOn", isDefault && isEarlyGl);
-    ATRACE_INT("Vsync-LateOffsetsOn", isDefault && isLate);
-    ATRACE_INT("Vsync-HighFpsEarlyOffsetsOn", isPerformance && isEarly);
-    ATRACE_INT("Vsync-HighFpsEarlyGLOffsetsOn", isPerformance && isEarlyGl);
-    ATRACE_INT("Vsync-HighFpsLateOffsetsOn", isPerformance && isLate);
+    ATRACE_INT("Vsync-EarlyOffsetsOn", isEarly);
+    ATRACE_INT("Vsync-EarlyGLOffsetsOn", isEarlyGl);
+    ATRACE_INT("Vsync-LateOffsetsOn", isLate);
 }
 
 } // namespace android::scheduler

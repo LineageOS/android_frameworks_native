@@ -37,13 +37,10 @@ private:
     // switch in and out of gl composition.
     static constexpr int MIN_EARLY_GL_FRAME_COUNT_TRANSACTION = 2;
 
-    using RefreshRateType = RefreshRateConfigs::RefreshRateType;
-
 public:
     // Wrapper for a collection of surfaceflinger/app offsets for a particular
     // configuration.
     struct Offsets {
-        RefreshRateType fpsMode;
         nsecs_t sf;
         nsecs_t app;
     };
