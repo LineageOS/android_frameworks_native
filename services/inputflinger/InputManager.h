@@ -43,15 +43,15 @@ class InputDispatcherThread;
 /*
  * The input manager is the core of the system event processing.
  *
- * The input manager has two components.
+ * The input manager uses two threads.
  *
- * 1. The InputReader class starts a thread that reads and preprocesses raw input events, applies
- *    policy, and posts messages to a queue managed by the InputDispatcherThread.
+ * 1. The InputReaderThread (called "InputReader") reads and preprocesses raw input events,
+ *    applies policy, and posts messages to a queue managed by the DispatcherThread.
  * 2. The InputDispatcherThread (called "InputDispatcher") thread waits for new events on the
  *    queue and asynchronously dispatches them to applications.
  *
- * By design, the InputReader class and InputDispatcherThread class do not share any
- * internal state.  Moreover, all communication is done one way from the InputReader
+ * By design, the InputReaderThread class and InputDispatcherThread class do not share any
+ * internal state.  Moreover, all communication is done one way from the InputReaderThread
  * into the InputDispatcherThread and never the reverse.  Both classes may interact with the
  * InputDispatchPolicy, however.
  *
@@ -102,6 +102,7 @@ public:
 
 private:
     sp<InputReaderInterface> mReader;
+    sp<InputReaderThread> mReaderThread;
 
     sp<InputClassifierInterface> mClassifier;
 
