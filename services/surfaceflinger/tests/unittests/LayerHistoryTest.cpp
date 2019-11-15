@@ -29,10 +29,10 @@ protected:
 
     LayerHistoryTest() { mFlinger.resetScheduler(mScheduler); }
 
-    LayerHistory& history() { return mScheduler->mutableLayerHistory(); }
-    const LayerHistory& history() const { return mScheduler->mutableLayerHistory(); }
+    LayerHistory& history() { return *mScheduler->mutableLayerHistory(); }
+    const LayerHistory& history() const { return *mScheduler->mutableLayerHistory(); }
 
-    size_t layerCount() const NO_THREAD_SAFETY_ANALYSIS { return history().mLayerInfos.size(); }
+    size_t layerCount() const { return mScheduler->layerHistorySize(); }
     size_t activeLayerCount() const NO_THREAD_SAFETY_ANALYSIS { return history().mActiveLayersEnd; }
 
     size_t frequentLayerCount(nsecs_t now) const NO_THREAD_SAFETY_ANALYSIS {

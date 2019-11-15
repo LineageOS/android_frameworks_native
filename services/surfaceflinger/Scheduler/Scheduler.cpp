@@ -20,6 +20,7 @@
 
 #include "Scheduler.h"
 
+#include <android-base/stringprintf.h>
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
@@ -66,9 +67,11 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
         mRefreshRateConfigs(refreshRateConfig) {
     using namespace sysprop;
 
-    char value[PROPERTY_VALUE_MAX];
-    property_get("debug.sf.set_idle_timer_ms", value, "0");
-    const int setIdleTimerMs = atoi(value);
+    if (property_get_bool("debug.sf.use_smart_90_for_video", 0) || use_smart_90_for_video(false)) {
+        mLayerHistory.emplace();
+    }
+
+    const int setIdleTimerMs = property_get_int32("debug.sf.set_idle_timer_ms", 0);
 
     if (const auto millis = setIdleTimerMs ? setIdleTimerMs : set_idle_timer_ms(0); millis > 0) {
         const auto callback = mSupportKernelTimer ? &Scheduler::kernelIdleTimerCallback
@@ -327,26 +330,28 @@ nsecs_t Scheduler::getDispSyncExpectedPresentTime() {
 }
 
 void Scheduler::registerLayer(Layer* layer) {
-    uint32_t defaultFps, performanceFps;
-    if (mRefreshRateConfigs.refreshRateSwitchingSupported()) {
-        defaultFps = mRefreshRateConfigs.getRefreshRateFromType(RefreshRateType::DEFAULT).fps;
-        const auto type = layer->getWindowType() == InputWindowInfo::TYPE_WALLPAPER
-                ? RefreshRateType::DEFAULT
-                : RefreshRateType::PERFORMANCE;
-        performanceFps = mRefreshRateConfigs.getRefreshRateFromType(type).fps;
-    } else {
-        defaultFps = mRefreshRateConfigs.getCurrentRefreshRate().second.fps;
-        performanceFps = defaultFps;
-    }
-    mLayerHistory.registerLayer(layer, defaultFps, performanceFps);
+    if (!mLayerHistory) return;
+
+    const auto type = layer->getWindowType() == InputWindowInfo::TYPE_WALLPAPER
+            ? RefreshRateType::DEFAULT
+            : RefreshRateType::PERFORMANCE;
+
+    const auto lowFps = mRefreshRateConfigs.getRefreshRateFromType(RefreshRateType::DEFAULT).fps;
+    const auto highFps = mRefreshRateConfigs.getRefreshRateFromType(type).fps;
+
+    mLayerHistory->registerLayer(layer, lowFps, highFps);
 }
 
 void Scheduler::recordLayerHistory(Layer* layer, nsecs_t presentTime, bool isHDR) {
-    mLayerHistory.record(layer, presentTime, isHDR, systemTime());
+    if (mLayerHistory) {
+        mLayerHistory->record(layer, presentTime, isHDR, systemTime());
+    }
 }
 
-void Scheduler::updateFpsBasedOnContent() {
-    auto [refreshRate, isHDR] = mLayerHistory.summarize(systemTime());
+void Scheduler::chooseRefreshRateForContent() {
+    if (!mLayerHistory) return;
+
+    auto [refreshRate, isHDR] = mLayerHistory->summarize(systemTime());
     const uint32_t refreshRateRound = std::round(refreshRate);
     RefreshRateType newRefreshRateType;
     {
@@ -393,7 +398,9 @@ void Scheduler::notifyTouchEvent() {
 
     // Touch event will boost the refresh rate to performance.
     // Clear Layer History to get fresh FPS detection
-    mLayerHistory.clear();
+    if (mLayerHistory) {
+        mLayerHistory->clear();
+    }
 }
 
 void Scheduler::setDisplayPowerState(bool normal) {
@@ -408,7 +415,9 @@ void Scheduler::setDisplayPowerState(bool normal) {
 
     // Display Power event will boost the refresh rate to performance.
     // Clear Layer History to get fresh FPS detection
-    mLayerHistory.clear();
+    if (mLayerHistory) {
+        mLayerHistory->clear();
+    }
 }
 
 void Scheduler::kernelIdleTimerCallback(TimerState state) {
@@ -446,15 +455,17 @@ void Scheduler::displayPowerTimerCallback(TimerState state) {
 }
 
 void Scheduler::dump(std::string& result) const {
-    std::ostringstream stream;
-    if (mIdleTimer) {
-        stream << "+  Idle timer interval: " << mIdleTimer->interval().count() << " ms\n";
-    }
-    if (mTouchTimer) {
-        stream << "+  Touch timer interval: " << mTouchTimer->interval().count() << " ms\n";
-    }
+    using base::StringAppendF;
+    const char* const states[] = {"off", "on"};
 
-    result.append(stream.str());
+    const bool supported = mRefreshRateConfigs.refreshRateSwitchingSupported();
+    StringAppendF(&result, "+  Refresh rate switching: %s\n", states[supported]);
+    StringAppendF(&result, "+  Content detection: %s\n", states[mLayerHistory.has_value()]);
+
+    StringAppendF(&result, "+  Idle timer: %s\n",
+                  mIdleTimer ? mIdleTimer->dump().c_str() : states[0]);
+    StringAppendF(&result, "+  Touch timer: %s\n\n",
+                  mTouchTimer ? mTouchTimer->dump().c_str() : states[0]);
 }
 
 template <class T>

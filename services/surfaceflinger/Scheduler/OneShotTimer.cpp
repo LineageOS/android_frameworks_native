@@ -17,6 +17,7 @@
 #include "OneShotTimer.h"
 
 #include <chrono>
+#include <sstream>
 #include <thread>
 
 namespace android {
@@ -98,7 +99,7 @@ void OneShotTimer::loop() {
             mTimeoutCallback();
         }
     }
-} // namespace scheduler
+}
 
 void OneShotTimer::reset() {
     {
@@ -106,6 +107,12 @@ void OneShotTimer::reset() {
         mState = TimerState::RESET;
     }
     mCondition.notify_all();
+}
+
+std::string OneShotTimer::dump() const {
+    std::ostringstream stream;
+    stream << mInterval.count() << " ms";
+    return stream.str();
 }
 
 } // namespace scheduler

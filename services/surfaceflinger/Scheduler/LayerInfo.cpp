@@ -25,6 +25,8 @@ LayerInfo::LayerInfo(float lowRefreshRate, float highRefreshRate)
       : mLowRefreshRate(lowRefreshRate), mHighRefreshRate(highRefreshRate) {}
 
 void LayerInfo::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now) {
+    lastPresentTime = std::max(lastPresentTime, static_cast<nsecs_t>(0));
+
     // Buffers can come with a present time far in the future. That keeps them relevant.
     mLastUpdatedTime = std::max(lastPresentTime, now);
     mPresentTimeHistory.insertPresentTime(mLastUpdatedTime);

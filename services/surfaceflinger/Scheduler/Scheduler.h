@@ -105,8 +105,8 @@ public:
     void registerLayer(Layer*);
     void recordLayerHistory(Layer*, nsecs_t presentTime, bool isHDR);
 
-    // Updates FPS based on the most content presented.
-    void updateFpsBasedOnContent();
+    // Detects content using layer history, and selects a matching refresh rate.
+    void chooseRefreshRateForContent();
 
     // Called by Scheduler to change refresh rate.
     void setChangeRefreshRateCallback(ChangeRefreshRateCallback&&);
@@ -184,8 +184,8 @@ private:
     std::unique_ptr<DispSync> mPrimaryDispSync;
     std::unique_ptr<EventControlThread> mEventControlThread;
 
-    // Historical information about individual layers. Used for predicting the refresh rate.
-    scheduler::LayerHistory mLayerHistory;
+    // Used to choose refresh rate if content detection is enabled.
+    std::optional<scheduler::LayerHistory> mLayerHistory;
 
     // Whether to use idle timer callbacks that support the kernel timer.
     const bool mSupportKernelTimer;
