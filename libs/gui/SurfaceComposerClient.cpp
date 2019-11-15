@@ -1726,6 +1726,14 @@ status_t SurfaceComposerClient::notifyPowerHint(int32_t hintId) {
     return ComposerService::getComposerService()->notifyPowerHint(hintId);
 }
 
+status_t SurfaceComposerClient::setGlobalShadowSettings(const half4& ambientColor,
+                                                        const half4& spotColor, float lightPosY,
+                                                        float lightPosZ, float lightRadius) {
+    return ComposerService::getComposerService()->setGlobalShadowSettings(ambientColor, spotColor,
+                                                                          lightPosY, lightPosZ,
+                                                                          lightRadius);
+}
+
 // ----------------------------------------------------------------------------
 
 status_t ScreenshotClient::capture(const sp<IBinder>& display, const ui::Dataspace reqDataSpace,
