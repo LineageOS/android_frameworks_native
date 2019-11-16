@@ -828,6 +828,7 @@ private:
     bool mAnimCompositionPending;
     std::vector<sp<Layer>> mLayersWithQueuedFrames;
     sp<Fence> mPreviousPresentFence = Fence::NO_FENCE;
+    sp<Fence> mPreviousPresentFence2 = Fence::NO_FENCE;
     bool mHadClientComposition = false;
 
     enum class BootStage {
