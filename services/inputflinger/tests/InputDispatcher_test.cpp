@@ -50,43 +50,35 @@ protected:
 
 public:
     FakeInputDispatcherPolicy() {
-        mInputEventFiltered = false;
-        mTime = -1;
-        mAction = -1;
-        mDisplayId = -1;
         mOnPointerDownToken.clear();
     }
 
-    void assertFilterInputEventWasCalledWithExpectedArgs(const NotifyMotionArgs* args) {
-        ASSERT_TRUE(mInputEventFiltered)
-                << "Expected filterInputEvent() to have been called.";
+    void assertFilterInputEventWasCalled(const NotifyKeyArgs& args) {
+        ASSERT_NE(nullptr, mFilteredEvent) << "Expected filterInputEvent() to have been called.";
+        ASSERT_EQ(mFilteredEvent->getType(), AINPUT_EVENT_TYPE_KEY);
 
-        ASSERT_EQ(mTime, args->eventTime)
-                << "Expected time of filtered event was not matched";
-        ASSERT_EQ(mAction, args->action)
-                << "Expected action of filtered event was not matched";
-        ASSERT_EQ(mDisplayId, args->displayId)
-                << "Expected displayId of filtered event was not matched";
+        const KeyEvent& keyEvent = static_cast<const KeyEvent&>(*mFilteredEvent);
+        ASSERT_EQ(keyEvent.getEventTime(), args.eventTime);
+        ASSERT_EQ(keyEvent.getAction(), args.action);
+        ASSERT_EQ(keyEvent.getDisplayId(), args.displayId);
 
         reset();
     }
 
-    void assertFilterInputEventWasCalledWithExpectedArgs(const NotifyKeyArgs* args) {
-        ASSERT_TRUE(mInputEventFiltered)
-                << "Expected filterInputEvent() to have been called.";
+    void assertFilterInputEventWasCalled(const NotifyMotionArgs& args) {
+        ASSERT_NE(nullptr, mFilteredEvent) << "Expected filterInputEvent() to have been called.";
+        ASSERT_EQ(mFilteredEvent->getType(), AINPUT_EVENT_TYPE_MOTION);
 
-        ASSERT_EQ(mTime, args->eventTime)
-                << "Expected time of filtered event was not matched";
-        ASSERT_EQ(mAction, args->action)
-                << "Expected action of filtered event was not matched";
-        ASSERT_EQ(mDisplayId, args->displayId)
-                << "Expected displayId of filtered event was not matched";
+        const MotionEvent& motionEvent = static_cast<const MotionEvent&>(*mFilteredEvent);
+        ASSERT_EQ(motionEvent.getEventTime(), args.eventTime);
+        ASSERT_EQ(motionEvent.getAction(), args.action);
+        ASSERT_EQ(motionEvent.getDisplayId(), args.displayId);
 
         reset();
     }
 
     void assertFilterInputEventWasNotCalled() {
-        ASSERT_FALSE(mInputEventFiltered)
+        ASSERT_EQ(nullptr, mFilteredEvent)
                 << "Expected filterInputEvent() to not have been called.";
     }
 
@@ -97,10 +89,7 @@ public:
     }
 
 private:
-    bool mInputEventFiltered;
-    nsecs_t mTime;
-    int32_t mAction;
-    int32_t mDisplayId;
+    std::unique_ptr<InputEvent> mFilteredEvent;
     sp<IBinder> mOnPointerDownToken;
 
     virtual void notifyConfigurationChanged(nsecs_t) {
@@ -122,26 +111,20 @@ private:
         *outConfig = mConfig;
     }
 
-    virtual bool filterInputEvent(const InputEvent* inputEvent, uint32_t policyFlags) {
+    virtual bool filterInputEvent(const InputEvent* inputEvent, uint32_t policyFlags) override {
         switch (inputEvent->getType()) {
             case AINPUT_EVENT_TYPE_KEY: {
                 const KeyEvent* keyEvent = static_cast<const KeyEvent*>(inputEvent);
-                mTime = keyEvent->getEventTime();
-                mAction = keyEvent->getAction();
-                mDisplayId = keyEvent->getDisplayId();
+                mFilteredEvent = std::make_unique<KeyEvent>(*keyEvent);
                 break;
             }
 
             case AINPUT_EVENT_TYPE_MOTION: {
                 const MotionEvent* motionEvent = static_cast<const MotionEvent*>(inputEvent);
-                mTime = motionEvent->getEventTime();
-                mAction = motionEvent->getAction();
-                mDisplayId = motionEvent->getDisplayId();
+                mFilteredEvent = std::make_unique<MotionEvent>(*motionEvent);
                 break;
             }
         }
-
-        mInputEventFiltered = true;
         return true;
     }
 
@@ -176,10 +159,7 @@ private:
     }
 
     void reset() {
-        mInputEventFiltered = false;
-        mTime = -1;
-        mAction = -1;
-        mDisplayId = -1;
+        mFilteredEvent = nullptr;
         mOnPointerDownToken.clear();
     }
 };
@@ -931,7 +911,7 @@ protected:
         mDispatcher->notifyMotion(&motionArgs);
 
         if (expectToBeFiltered) {
-            mFakePolicy->assertFilterInputEventWasCalledWithExpectedArgs(&motionArgs);
+            mFakePolicy->assertFilterInputEventWasCalled(motionArgs);
         } else {
             mFakePolicy->assertFilterInputEventWasNotCalled();
         }
@@ -946,7 +926,7 @@ protected:
         mDispatcher->notifyKey(&keyArgs);
 
         if (expectToBeFiltered) {
-            mFakePolicy->assertFilterInputEventWasCalledWithExpectedArgs(&keyArgs);
+            mFakePolicy->assertFilterInputEventWasCalled(keyArgs);
         } else {
             mFakePolicy->assertFilterInputEventWasNotCalled();
         }
