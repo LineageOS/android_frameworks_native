@@ -116,6 +116,8 @@ public:
                 forceClientComposition(false),
                 compositionType(HWC2::Composition::Invalid),
                 clearClientTarget(false),
+                hintCompositionDeviceOverlay(false),
+                hintLowLatency(false),
                 transform(HWC2::Transform::None) {}
 
         HWComposer* hwc;
@@ -123,6 +125,8 @@ public:
         bool forceClientComposition;
         HWC2::Composition compositionType;
         bool clearClientTarget;
+        bool hintCompositionDeviceOverlay;
+        bool hintLowLatency;
         Rect displayFrame;
         FloatRect sourceCrop;
         HWComposerBufferCache bufferCache;
@@ -396,6 +400,10 @@ public:
     HWC2::Composition getCompositionType(int32_t hwcId) const;
     void setClearClientTarget(int32_t hwcId, bool clear);
     bool getClearClientTarget(int32_t hwcId) const;
+    void setHintCompositionDeviceOverlay(int32_t hwcId, bool enable);
+    bool getHintCompositionDeviceOverlay(int32_t hwcId) const;
+    void setHintLowLatency(int32_t hwcId, bool enable);
+    bool getHintLowLatency(int32_t hwcId) const;
     void updateCursorPosition(const sp<const DisplayDevice>& hw);
 
     /*
