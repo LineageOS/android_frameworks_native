@@ -499,17 +499,21 @@ status_t HWComposer::prepare(DisplayDevice& displayDevice) {
                 break;
         }
 
-        if (layerRequests.count(hwcLayer) != 0 &&
-                layerRequests[hwcLayer] ==
-                        HWC2::LayerRequest::ClearClientTarget) {
-            layer->setClearClientTarget(displayId, true);
-        } else {
-            if (layerRequests.count(hwcLayer) != 0) {
+        if (layerRequests.count(hwcLayer) != 0) {
+            if (((int)layerRequests[hwcLayer] & (int)HWC2::LayerRequest::ClearClientTarget) == (int)HWC2::LayerRequest::ClearClientTarget)
+                layer->setClearClientTarget(displayId, true);
+            else if (((int)layerRequests[hwcLayer] & (int)HWC2::LayerRequest::HintCompositionDeviceOverlay) == (int)HWC2::LayerRequest::HintCompositionDeviceOverlay) // TODO: Should also check hasDeviceComposition or hasClientComposition. Im unsure which one
+                layer->setHintCompositionDeviceOverlay(displayId, true);
+            else if (((int)layerRequests[hwcLayer] & (int)HWC2::LayerRequest::HintLowLatency) == (int)HWC2::LayerRequest::HintLowLatency)
+                layer->setHintLowLatency(displayId, true);
+            else
                 LOG_DISPLAY_ERROR(displayId,
                                   ("Unknown layer request " + to_string(layerRequests[hwcLayer]))
                                           .c_str());
-            }
+        } else {
             layer->setClearClientTarget(displayId, false);
+            layer->setHintCompositionDeviceOverlay(displayId, false);
+            layer->setHintLowLatency(displayId, false);
         }
     }
 
