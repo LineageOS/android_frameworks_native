@@ -491,13 +491,32 @@ status_t HWComposer::prepare(DisplayId displayId, const compositionengine::Outpu
         }
 
         state.clearClientTarget = false;
+        state.hintCompositionDeviceOverlay = false;
+        state.hintLowLatency = false;
+
         if (auto it = layerRequests.find(hwcLayer.get()); it != layerRequests.end()) {
             auto request = it->second;
-            if (request == HWC2::LayerRequest::ClearClientTarget) {
+            if ((static_cast<uint32_t>(request) &
+                 static_cast<uint32_t>(HWC2::LayerRequest::ClearClientTarget)) ==
+                 static_cast<uint32_t>(HWC2::LayerRequest::ClearClientTarget)) {
                 state.clearClientTarget = true;
-            } else {
-                LOG_DISPLAY_ERROR(displayId,
-                                  ("Unknown layer request " + to_string(request)).c_str());
+            }
+
+            if ((static_cast<uint32_t>(request) &
+                 static_cast<uint32_t>(HWC2::LayerRequest::HintCompositionDeviceOverlay)) ==
+                 static_cast<uint32_t>(HWC2::LayerRequest::HintCompositionDeviceOverlay)) {
+                (*state.hwc).hwcCompositionType = Hwc2::IComposerClient::Composition::CLIENT;
+                auto error = (*state.hwc)
+                             .hwcLayer->setCompositionType(
+                                static_cast<HWC2::Composition>(Hwc2::IComposerClient::Composition::CLIENT));
+                ALOGE_IF(error != HWC2::Error::None,
+                         "Failed to set client composition for overlay: (%d)",
+                         static_cast<int32_t>(error));
+                displayData.hasClientComposition = true;
+            }
+
+            if ((static_cast<uint32_t>(request) & static_cast<uint32_t>(HWC2::LayerRequest::HintLowLatency)) == static_cast<uint32_t>(HWC2::LayerRequest::HintLowLatency)) {
+                state.hintLowLatency = true;
             }
         }
     }

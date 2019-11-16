@@ -48,6 +48,9 @@ struct OutputLayerCompositionState {
     // If true, when doing client composition, the target may need to be cleared
     bool clearClientTarget{false};
 
+    bool hintCompositionDeviceOverlay{false};
+    bool hintLowLatency{false};
+
     // The display frame for this layer on this output
     Rect displayFrame;
 

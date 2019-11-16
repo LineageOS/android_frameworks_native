@@ -491,6 +491,8 @@ public:
     Hwc2::IComposerClient::Composition getCompositionType(
             const sp<const DisplayDevice>& display) const;
     bool getClearClientTarget(const sp<const DisplayDevice>& display) const;
+    bool getHintCompositionDeviceOverlay(const sp<const DisplayDevice>& display) const;
+    bool getHintLowLatency(const sp<const DisplayDevice>& display) const;
     void updateCursorPosition(const sp<const DisplayDevice>& display);
 
     virtual bool shouldPresentNow(nsecs_t /*expectedPresentTime*/) const { return false; }

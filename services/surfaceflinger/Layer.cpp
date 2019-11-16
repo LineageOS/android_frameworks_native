@@ -600,6 +600,18 @@ bool Layer::getClearClientTarget(const sp<const DisplayDevice>& display) const {
     return outputLayer->getState().clearClientTarget;
 }
 
+bool Layer::getHintCompositionDeviceOverlay(const sp<const DisplayDevice>& display) const {
+    const auto outputLayer = findOutputLayerForDisplay(display);
+    LOG_FATAL_IF(!outputLayer);
+    return outputLayer->getState().hintCompositionDeviceOverlay;
+}
+
+bool Layer::getHintLowLatency(const sp<const DisplayDevice>& display) const {
+    const auto outputLayer = findOutputLayerForDisplay(display);
+    LOG_FATAL_IF(!outputLayer);
+    return outputLayer->getState().hintLowLatency;
+}
+
 bool Layer::addSyncPoint(const std::shared_ptr<SyncPoint>& point) {
     if (point->getFrameNumber() <= mCurrentFrameNumber) {
         // Don't bother with a SyncPoint, since we've already latched the

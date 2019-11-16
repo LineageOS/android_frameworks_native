@@ -231,6 +231,8 @@ struct Error final : public Wrapper<HWC2::Error> {
 struct LayerRequest final : public Wrapper<HWC2::LayerRequest> {
   enum : ValueType {
     ClearClientTarget = HWC2_LAYER_REQUEST_CLEAR_CLIENT_TARGET,
+    HintCompositionDeviceOverlay = HWC2_LAYER_REQUEST_HINT_COMPOSITION_DEVICE_OVERLAY,
+    HintLowLatency = HWC2_LAYER_REQUEST_HINT_LOW_LATENCY,
   };
 
   LayerRequest() : Base(0) {}
