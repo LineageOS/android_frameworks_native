@@ -777,6 +777,38 @@ bool Layer::getClearClientTarget(int32_t hwcId) const {
     return getBE().mHwcLayers.at(hwcId).clearClientTarget;
 }
 
+void Layer::setHintCompositionDeviceOverlay(int32_t hwcId, bool enable) {
+    if (getBE().mHwcLayers.count(hwcId) == 0) {
+        ALOGE("setHintCompositionDeviceOverlay called without a valid HWC layer");
+        return;
+    }
+    getBE().mHwcLayers[hwcId].hintCompositionDeviceOverlay =  enable;
+}
+
+bool Layer::getHintCompositionDeviceOverlay(int32_t hwcId) const {
+    if (getBE().mHwcLayers.count(hwcId) == 0) {
+        ALOGE("getHintCompositionDeviceOverlay called without a valid HWC layer");
+        return false;
+    }
+    return getBE().mHwcLayers.at(hwcId).hintCompositionDeviceOverlay;
+}
+
+void Layer::setHintLowLatency(int32_t hwcId, bool enable) {
+    if (getBE().mHwcLayers.count(hwcId) == 0) {
+        ALOGE("setHintLowLatency called without a valid HWC layer");
+        return;
+    }
+    getBE().mHwcLayers[hwcId].hintLowLatency = enable;
+}
+
+bool Layer::getHintLowLatency(int32_t hwcId) const {
+    if (getBE().mHwcLayers.count(hwcId) == 0) {
+        ALOGE("getHintLowLatency called without a valid HWC layer");
+        return false;
+    }
+    return getBE().mHwcLayers.at(hwcId).hintLowLatency;
+}
+
 bool Layer::addSyncPoint(const std::shared_ptr<SyncPoint>& point) {
     if (point->getFrameNumber() <= mCurrentFrameNumber) {
         // Don't bother with a SyncPoint, since we've already latched the

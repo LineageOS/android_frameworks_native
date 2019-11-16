@@ -1567,8 +1567,8 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
     switch (what) {
         case MessageQueue::INVALIDATE: {
             bool frameMissed = !mHadClientComposition &&
-                    mPreviousPresentFence != Fence::NO_FENCE &&
-                    (mPreviousPresentFence->getSignalTime() ==
+                    mPreviousPresentFence2 != Fence::NO_FENCE &&
+                    (mPreviousPresentFence2->getSignalTime() ==
                             Fence::SIGNAL_TIME_PENDING);
             ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
             if (frameMissed) {
@@ -1632,15 +1632,27 @@ void SurfaceFlinger::handleMessageRefresh() {
     doComposition();
     postComposition(refreshStartTime);
 
+    mPreviousPresentFence2 = mPreviousPresentFence;
     mPreviousPresentFence = getBE().mHwc->getPresentFence(HWC_DISPLAY_PRIMARY);
 
     mHadClientComposition = false;
+       bool hadDeviceComposition = true;
+       bool hadLowLatency = false;
     for (size_t displayId = 0; displayId < mDisplays.size(); ++displayId) {
         const sp<DisplayDevice>& displayDevice = mDisplays[displayId];
+
+               const auto hwcId = displayDevice->getHwcDisplayId();
+
+               for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
+                       if ((layer->getCompositionType(hwcId) != HWC2::Composition::Device) || !layer->getHintCompositionDeviceOverlay(hwcId))
+                               hadDeviceComposition = false;
+                       if (layer->getHintLowLatency(hwcId))
+                               hadLowLatency = true;
+               }
         mHadClientComposition = mHadClientComposition ||
                 getBE().mHwc->hasClientComposition(displayDevice->getHwcDisplayId());
     }
-    mVsyncModulator.onRefreshed(mHadClientComposition);
+    mVsyncModulator.onRefreshed(mHadClientComposition && hadLowLatency && hadDeviceComposition);
 
     mLayersWithQueuedFrames.clear();
 }
