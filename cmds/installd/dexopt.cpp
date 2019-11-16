@@ -708,12 +708,13 @@ static void open_profile_files(uid_t uid, const std::string& package_name,
     }
 }
 
-static constexpr int PROFMAN_BIN_RETURN_CODE_COMPILE = 0;
-static constexpr int PROFMAN_BIN_RETURN_CODE_SKIP_COMPILATION = 1;
-static constexpr int PROFMAN_BIN_RETURN_CODE_BAD_PROFILES = 2;
-static constexpr int PROFMAN_BIN_RETURN_CODE_ERROR_IO = 3;
-static constexpr int PROFMAN_BIN_RETURN_CODE_ERROR_LOCKING = 4;
-static constexpr int PROFMAN_BIN_RETURN_CODE_SUCCESS = 5;
+static constexpr int PROFMAN_BIN_RETURN_CODE_SUCCESS = 0;
+static constexpr int PROFMAN_BIN_RETURN_CODE_COMPILE = 1;
+static constexpr int PROFMAN_BIN_RETURN_CODE_SKIP_COMPILATION = 2;
+static constexpr int PROFMAN_BIN_RETURN_CODE_BAD_PROFILES = 3;
+static constexpr int PROFMAN_BIN_RETURN_CODE_ERROR_IO = 4;
+static constexpr int PROFMAN_BIN_RETURN_CODE_ERROR_LOCKING = 5;
+static constexpr int PROFMAN_BIN_RETURN_CODE_ERROR_DIFFERENT_VERSIONS = 6;
 
 class RunProfman : public ExecVHelper {
   public:
@@ -888,6 +889,11 @@ static bool analyze_profiles(uid_t uid, const std::string& package_name,
                 need_to_compile = false;
                 should_clear_current_profiles = false;
                 should_clear_reference_profile = false;
+                break;
+            case PROFMAN_BIN_RETURN_CODE_ERROR_DIFFERENT_VERSIONS:
+                need_to_compile = false;
+                should_clear_current_profiles = true;
+                should_clear_reference_profile = true;
                 break;
            default:
                 // Unknown return code or error. Unlink profiles.
