@@ -1148,6 +1148,9 @@ private:
     bool mPendingSyncInputWindows GUARDED_BY(mStateLock);
     Hwc2::impl::PowerAdvisor mPowerAdvisor;
 
+    // This should only be accessed on the main thread.
+    nsecs_t mFrameStartTime = 0;
+
     std::unique_ptr<RefreshRateOverlay> mRefreshRateOverlay;
 
     // Flag used to set override allowed display configs from backdoor

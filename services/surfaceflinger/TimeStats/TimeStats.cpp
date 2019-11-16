@@ -20,14 +20,13 @@
 #include "TimeStats.h"
 
 #include <android-base/stringprintf.h>
-
 #include <log/log.h>
-
 #include <utils/String8.h>
 #include <utils/Timers.h>
 #include <utils/Trace.h>
 
 #include <algorithm>
+#include <chrono>
 
 namespace android {
 
@@ -113,6 +112,23 @@ void TimeStats::incrementClientCompositionFrames() {
     mTimeStats.clientCompositionFrames++;
 }
 
+static int32_t msBetween(nsecs_t start, nsecs_t end) {
+    int64_t delta = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::nanoseconds(end - start))
+                            .count();
+    delta = std::clamp(delta, int64_t(INT32_MIN), int64_t(INT32_MAX));
+    return static_cast<int32_t>(delta);
+}
+
+void TimeStats::recordFrameDuration(nsecs_t startTime, nsecs_t endTime) {
+    if (!mEnabled.load()) return;
+
+    std::lock_guard<std::mutex> lock(mMutex);
+    if (mPowerTime.powerMode == HWC_POWER_MODE_NORMAL) {
+        mTimeStats.frameDuration.insert(msBetween(startTime, endTime));
+    }
+}
+
 bool TimeStats::recordReadyLocked(int32_t layerId, TimeRecord* timeRecord) {
     if (!timeRecord->ready) {
         ALOGV("[%d]-[%" PRIu64 "]-presentFence is still not received", layerId,
@@ -147,12 +163,6 @@ bool TimeStats::recordReadyLocked(int32_t layerId, TimeRecord* timeRecord) {
     }
 
     return true;
-}
-
-static int32_t msBetween(nsecs_t start, nsecs_t end) {
-    int64_t delta = (end - start) / 1000000;
-    delta = std::clamp(delta, int64_t(INT32_MIN), int64_t(INT32_MAX));
-    return static_cast<int32_t>(delta);
 }
 
 void TimeStats::flushAvailableRecordsToStatsLocked(int32_t layerId) {

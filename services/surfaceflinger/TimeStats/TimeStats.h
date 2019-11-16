@@ -44,6 +44,13 @@ public:
     virtual void incrementMissedFrames() = 0;
     virtual void incrementClientCompositionFrames() = 0;
 
+    // Records the start and end times for a frame.
+    // The start time is the same as the beginning of a SurfaceFlinger
+    // invalidate message.
+    // The end time corresponds to when SurfaceFlinger finishes submitting the
+    // request to HWC to present a frame.
+    virtual void recordFrameDuration(nsecs_t startTime, nsecs_t endTime) = 0;
+
     virtual void setPostTime(int32_t layerId, uint64_t frameNumber, const std::string& layerName,
                              nsecs_t postTime) = 0;
     virtual void setLatchTime(int32_t layerId, uint64_t frameNumber, nsecs_t latchTime) = 0;
@@ -115,6 +122,8 @@ public:
     void incrementTotalFrames() override;
     void incrementMissedFrames() override;
     void incrementClientCompositionFrames() override;
+
+    void recordFrameDuration(nsecs_t startTime, nsecs_t endTime) override;
 
     void setPostTime(int32_t layerId, uint64_t frameNumber, const std::string& layerName,
                      nsecs_t postTime) override;

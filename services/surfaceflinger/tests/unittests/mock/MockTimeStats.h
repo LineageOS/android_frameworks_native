@@ -34,6 +34,7 @@ public:
     MOCK_METHOD0(incrementTotalFrames, void());
     MOCK_METHOD0(incrementMissedFrames, void());
     MOCK_METHOD0(incrementClientCompositionFrames, void());
+    MOCK_METHOD2(recordFrameDuration, void(nsecs_t, nsecs_t));
     MOCK_METHOD4(setPostTime, void(int32_t, uint64_t, const std::string&, nsecs_t));
     MOCK_METHOD3(setLatchTime, void(int32_t, uint64_t, nsecs_t));
     MOCK_METHOD3(setDesiredTime, void(int32_t, uint64_t, nsecs_t));
