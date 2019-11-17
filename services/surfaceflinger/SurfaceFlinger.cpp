@@ -6242,7 +6242,7 @@ status_t SurfaceFlinger::setAllowedDisplayConfigs(const sp<IBinder>& displayToke
         return NO_ERROR;
     }
 
-    postMessageSync(new LambdaMessage([&]() NO_THREAD_SAFETY_ANALYSIS {
+    postMessageSync(new LambdaMessage([&]() {
         const auto display = getDisplayDeviceLocked(displayToken);
         if (!display) {
             ALOGE("Attempt to set allowed display configs for invalid display token %p",
@@ -6250,6 +6250,7 @@ status_t SurfaceFlinger::setAllowedDisplayConfigs(const sp<IBinder>& displayToke
         } else if (display->isVirtual()) {
             ALOGW("Attempt to set allowed display configs for virtual display");
         } else {
+            Mutex::Autolock lock(mStateLock);
             setAllowedDisplayConfigsInternal(display, allowedConfigs);
         }
     }));
