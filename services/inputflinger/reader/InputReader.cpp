@@ -38,37 +38,15 @@
 #include <unistd.h>
 
 #include <log/log.h>
-#include <utils/Errors.h>
 
 #include <android-base/stringprintf.h>
 #include <input/Keyboard.h>
 #include <input/VirtualKeyMap.h>
-#include <utils/Thread.h>
+
 
 using android::base::StringPrintf;
 
 namespace android {
-
-// --- InputReader::InputReaderThread ---
-
-/* Thread that reads raw events from the event hub and processes them, endlessly. */
-class InputReader::InputReaderThread : public Thread {
-public:
-    explicit InputReaderThread(InputReader* reader)
-          : Thread(/* canCallJava */ true), mReader(reader) {}
-
-    ~InputReaderThread() {}
-
-private:
-    InputReader* mReader;
-
-    bool threadLoop() override {
-        mReader->loopOnce();
-        return true;
-    }
-};
-
-// --- InputReader ---
 
 InputReader::InputReader(std::shared_ptr<EventHubInterface> eventHub,
                          const sp<InputReaderPolicyInterface>& policy,
@@ -83,7 +61,6 @@ InputReader::InputReader(std::shared_ptr<EventHubInterface> eventHub,
         mNextTimeout(LLONG_MAX),
         mConfigurationChangesToRefresh(0) {
     mQueuedListener = new QueuedInputListener(listener);
-    mThread = new InputReaderThread(this);
 
     { // acquire lock
         AutoMutex _l(mLock);
@@ -97,28 +74,6 @@ InputReader::~InputReader() {
     for (auto& devicePair : mDevices) {
         delete devicePair.second;
     }
-}
-
-status_t InputReader::start() {
-    if (mThread->isRunning()) {
-        return ALREADY_EXISTS;
-    }
-    return mThread->run("InputReader", PRIORITY_URGENT_DISPLAY);
-}
-
-status_t InputReader::stop() {
-    if (!mThread->isRunning()) {
-        return OK;
-    }
-    if (gettid() == mThread->getTid()) {
-        ALOGE("InputReader can only be stopped from outside of the InputReaderThread!");
-        return INVALID_OPERATION;
-    }
-    // Directly calling requestExitAndWait() causes the thread to not exit
-    // if mEventHub is waiting for a long timeout.
-    mThread->requestExit();
-    mEventHub->wake();
-    return mThread->requestExitAndWait();
 }
 
 void InputReader::loopOnce() {

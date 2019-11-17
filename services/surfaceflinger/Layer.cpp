@@ -120,7 +120,10 @@ Layer::Layer(const LayerCreationArgs& args)
 
     mCallingPid = args.callingPid;
     mCallingUid = args.callingUid;
-    mFlinger->onLayerCreated(this);
+}
+
+void Layer::onFirstRef() {
+    mFlinger->onLayerFirstRef(this);
 }
 
 Layer::~Layer() {

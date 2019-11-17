@@ -151,7 +151,7 @@ LayerLoader& LayerLoader::getInstance() {
 const char kSystemLayerLibraryDir[] = "/data/local/debug/gles";
 
 std::string LayerLoader::GetDebugLayers() {
-    // Layers can be specified at the Java level in GraphicsEnvironemnt
+    // Layers can be specified at the Java level in GraphicsEnvironment
     // gpu_debug_layers_gles = layer1:layer2:layerN
     std::string debug_layers = android::GraphicsEnv::getInstance().getDebugLayersGLES();
 

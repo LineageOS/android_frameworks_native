@@ -565,27 +565,34 @@ struct BaseLayerProperties {
     }
 
     static void setupHwcSetSourceCropBufferCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mComposer,
-                    setLayerSourceCrop(HWC_DISPLAY, HWC_LAYER,
-                                       IComposerClient::FRect({0.f, 0.f, LayerProperties::WIDTH,
-                                                               LayerProperties::HEIGHT})))
-                .Times(1);
+        if (!test->mDisplayOff) {
+            EXPECT_CALL(*test->mComposer,
+                        setLayerSourceCrop(HWC_DISPLAY, HWC_LAYER,
+                                           IComposerClient::FRect({0.f, 0.f, LayerProperties::WIDTH,
+                                                                   LayerProperties::HEIGHT})))
+                    .Times(1);
+        }
     }
 
     static void setupHwcSetSourceCropColorCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mComposer,
-                    setLayerSourceCrop(HWC_DISPLAY, HWC_LAYER,
-                                       IComposerClient::FRect({0.f, 0.f, 0.f, 0.f})))
-                .Times(1);
+        if (!test->mDisplayOff) {
+            EXPECT_CALL(*test->mComposer,
+                        setLayerSourceCrop(HWC_DISPLAY, HWC_LAYER,
+                                           IComposerClient::FRect({0.f, 0.f, 0.f, 0.f})))
+                    .Times(1);
+        }
     }
 
     static void setupHwcSetPerFrameCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mComposer,
-                    setLayerVisibleRegion(HWC_DISPLAY, HWC_LAYER,
-                                          std::vector<IComposerClient::Rect>({IComposerClient::Rect(
-                                                  {0, 0, LayerProperties::WIDTH,
-                                                   LayerProperties::HEIGHT})})))
-                .Times(1);
+        if (!test->mDisplayOff) {
+            EXPECT_CALL(*test->mComposer,
+                        setLayerVisibleRegion(HWC_DISPLAY, HWC_LAYER,
+                                              std::vector<IComposerClient::Rect>(
+                                                      {IComposerClient::Rect(
+                                                              {0, 0, LayerProperties::WIDTH,
+                                                               LayerProperties::HEIGHT})})))
+                    .Times(1);
+        }
     }
 
     static void setupHwcSetPerFrameColorCallExpectations(CompositionTest* test) {
@@ -602,8 +609,11 @@ struct BaseLayerProperties {
     }
 
     static void setupHwcSetPerFrameBufferCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mComposer, setLayerSurfaceDamage(HWC_DISPLAY, HWC_LAYER, _)).Times(1);
-        EXPECT_CALL(*test->mComposer, setLayerBuffer(HWC_DISPLAY, HWC_LAYER, _, _, _)).Times(1);
+        if (!test->mDisplayOff) {
+            EXPECT_CALL(*test->mComposer, setLayerSurfaceDamage(HWC_DISPLAY, HWC_LAYER, _))
+                    .Times(1);
+            EXPECT_CALL(*test->mComposer, setLayerBuffer(HWC_DISPLAY, HWC_LAYER, _, _, _)).Times(1);
+        }
 
         setupBufferLayerPostFrameCallExpectations(test);
     }
@@ -800,6 +810,9 @@ struct BaseLayerVariant {
 
         sp<L> layer = factory();
 
+        // Layer should be registered with scheduler.
+        EXPECT_EQ(1, test->mFlinger.scheduler()->layerHistorySize());
+
         Mock::VerifyAndClear(test->mComposer);
         Mock::VerifyAndClear(test->mRenderEngine);
         Mock::VerifyAndClear(test->mMessageQueue);
@@ -835,6 +848,10 @@ struct BaseLayerVariant {
 
         test->mDisplay->getCompositionDisplay()->clearOutputLayers();
         test->mFlinger.mutableDrawingState().layersSortedByZ.clear();
+
+        // Layer should be unregistered with scheduler.
+        test->mFlinger.onMessageReceived(MessageQueue::INVALIDATE);
+        EXPECT_EQ(0, test->mFlinger.scheduler()->layerHistorySize());
     }
 };
 
@@ -965,9 +982,11 @@ struct ChangeCompositionTypeVariant {
     static constexpr HWC2::Composition TYPE = static_cast<HWC2::Composition>(FinalCompositionType);
 
     static void setupHwcSetCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mComposer,
-                    setLayerCompositionType(HWC_DISPLAY, HWC_LAYER, InitialCompositionType))
-                .Times(1);
+        if (!test->mDisplayOff) {
+            EXPECT_CALL(*test->mComposer,
+                        setLayerCompositionType(HWC_DISPLAY, HWC_LAYER, InitialCompositionType))
+                    .Times(1);
+        }
     }
 
     static void setupHwcGetCallExpectations(CompositionTest* test) {

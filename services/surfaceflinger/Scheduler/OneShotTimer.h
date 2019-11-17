@@ -39,14 +39,14 @@ public:
                  const TimeoutCallback& timeoutCallback);
     ~OneShotTimer();
 
-    const Interval& interval() const { return mInterval; }
-
     // Initializes and turns on the idle timer.
     void start();
     // Stops the idle timer and any held resources.
     void stop();
     // Resets the wakeup time and fires the reset callback.
     void reset();
+
+    std::string dump() const;
 
 private:
     // Enum to track in what state is the timer.

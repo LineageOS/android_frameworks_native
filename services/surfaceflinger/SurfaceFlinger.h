@@ -310,7 +310,7 @@ public:
     bool authenticateSurfaceTextureLocked(
         const sp<IGraphicBufferProducer>& bufferProducer) const;
 
-    void onLayerCreated(Layer*);
+    void onLayerFirstRef(Layer*);
     void onLayerDestroyed(Layer*);
 
     TransactionCompletedThread& getTransactionCompletedThread() {
@@ -503,9 +503,9 @@ private:
     using RefreshRateType = scheduler::RefreshRateConfigs::RefreshRateType;
 
     struct ActiveConfigInfo {
-        RefreshRateType type;
-        int configId;
-        Scheduler::ConfigEvent event;
+        RefreshRateType type = RefreshRateType::DEFAULT;
+        int configId = 0;
+        Scheduler::ConfigEvent event = Scheduler::ConfigEvent::None;
 
         bool operator!=(const ActiveConfigInfo& other) const {
             return type != other.type || configId != other.configId || event != other.event;
@@ -1093,7 +1093,6 @@ private:
     /* ------------------------------------------------------------------------
      * Scheduler
      */
-    bool mUseSmart90ForVideo = false;
     std::unique_ptr<Scheduler> mScheduler;
     scheduler::ConnectionHandle mAppConnectionHandle;
     scheduler::ConnectionHandle mSfConnectionHandle;
