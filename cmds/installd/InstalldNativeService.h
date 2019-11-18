@@ -146,6 +146,8 @@ public:
     binder::Status invalidateMounts();
     binder::Status isQuotaSupported(const std::unique_ptr<std::string>& volumeUuid,
             bool* _aidl_return);
+    binder::Status onPrivateVolumeMounted(const std::unique_ptr<std::string>& volumeUuid);
+    binder::Status onPrivateVolumeRemoved(const std::unique_ptr<std::string>& volumeUuid);
 
     binder::Status prepareAppProfile(const std::string& packageName,
             int32_t userId, int32_t appId, const std::string& profileName,

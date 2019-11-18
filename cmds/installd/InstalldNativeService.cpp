@@ -31,6 +31,7 @@
 #include <sys/file.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/mount.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
@@ -86,6 +87,9 @@ static constexpr const mode_t kRollbackFolderMode = 0700;
 static constexpr const char* kCpPath = "/system/bin/cp";
 static constexpr const char* kXattrDefault = "user.default";
 
+static constexpr const char* kDataMirrorCePath = "/data_mirror/data_ce";
+static constexpr const char* kDataMirrorDePath = "/data_mirror/data_de";
+
 static constexpr const int MIN_RESTRICTED_HOME_SDK_VERSION = 24; // > M
 
 static constexpr const char* PKG_LIB_POSTFIX = "/lib";
@@ -98,6 +102,13 @@ static constexpr int kVerityPageSize = 4096;
 static constexpr size_t kSha256Size = 32;
 static constexpr const char* kPropApkVerityMode = "ro.apk_verity.mode";
 static constexpr const char* kFuseProp = "persist.sys.fuse";
+
+/**
+ * Property to control if app data isolation is enabled.
+ */
+static constexpr const char* kAppDataIsolationEnabledProperty = "persist.zygote.app_data_isolation";
+
+static std::atomic<bool> sAppDataIsolationEnabled(false);
 
 namespace {
 
@@ -258,6 +269,8 @@ status_t InstalldNativeService::start() {
     sp<ProcessState> ps(ProcessState::self());
     ps->startThreadPool();
     ps->giveThreadPoolName();
+    sAppDataIsolationEnabled = android::base::GetBoolProperty(
+            kAppDataIsolationEnabledProperty, false);
     return android::OK;
 }
 
@@ -450,9 +463,12 @@ binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::s
 
         // And return the CE inode of the top-level data directory so we can
         // clear contents while CE storage is locked
-        if ((_aidl_return != nullptr)
-                && get_path_inode(path, reinterpret_cast<ino_t*>(_aidl_return)) != 0) {
-            return error("Failed to get_path_inode for " + path);
+        if (_aidl_return != nullptr) {
+            ino_t result;
+            if (get_path_inode(path, &result) != 0) {
+                return error("Failed to get_path_inode for " + path);
+            }
+            *_aidl_return = static_cast<uint64_t>(result);
         }
     }
     if (flags & FLAG_STORAGE_DE) {
@@ -2611,6 +2627,89 @@ binder::Status InstalldNativeService::invalidateMounts() {
         }
     }
     return ok();
+}
+
+// Mount volume's CE and DE storage to mirror
+binder::Status InstalldNativeService::onPrivateVolumeMounted(
+        const std::unique_ptr<std::string>& uuid) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_UUID(uuid);
+    if (!sAppDataIsolationEnabled) {
+        return ok();
+    }
+    if (!uuid) {
+        return error("Should not happen, mounting uuid == null");
+    }
+
+    const char* uuid_ = uuid->c_str();
+    // Mount CE mirror
+    std::string mirrorVolCePath(StringPrintf("%s/%s", kDataMirrorCePath, uuid_));
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+    if (fs_prepare_dir(mirrorVolCePath.c_str(), 0700, AID_ROOT, AID_ROOT) != 0) {
+        return error("Failed to create CE mirror");
+    }
+    auto cePath = StringPrintf("%s/user_ce", create_data_path(uuid_).c_str());
+    if (TEMP_FAILURE_RETRY(mount(cePath.c_str(), mirrorVolCePath.c_str(), NULL,
+            MS_NOSUID | MS_NODEV | MS_NOATIME | MS_BIND | MS_NOEXEC, nullptr)) == -1) {
+        return error("Failed to mount " + mirrorVolCePath);
+    }
+
+    // Mount DE mirror
+    std::string mirrorVolDePath(StringPrintf("%s/%s", kDataMirrorDePath, uuid_));
+    if (fs_prepare_dir(mirrorVolDePath.c_str(), 0700, AID_ROOT, AID_ROOT) != 0) {
+        return error("Failed to create DE mirror");
+    }
+    auto dePath = StringPrintf("%s/user_de", create_data_path(uuid_).c_str());
+    if (TEMP_FAILURE_RETRY(mount(dePath.c_str(), mirrorVolDePath.c_str(), NULL,
+            MS_NOSUID | MS_NODEV | MS_NOATIME | MS_BIND | MS_NOEXEC, nullptr)) == -1) {
+        return error("Failed to mount " + mirrorVolDePath);
+    }
+    return ok();
+}
+
+// Unmount volume's CE and DE storage from mirror
+binder::Status InstalldNativeService::onPrivateVolumeRemoved(
+        const std::unique_ptr<std::string>& uuid) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_UUID(uuid);
+    if (!sAppDataIsolationEnabled) {
+        return ok();
+    }
+    if (!uuid) {
+        // It happens when private volume failed to mount.
+        LOG(INFO) << "Ignore unmount uuid=null";
+        return ok();
+    }
+    const char* uuid_ = uuid->c_str();
+
+    binder::Status res = ok();
+
+    std::string mirrorCeVolPath(StringPrintf("%s/%s", kDataMirrorCePath, uuid_));
+    std::string mirrorDeVolPath(StringPrintf("%s/%s", kDataMirrorDePath, uuid_));
+
+    // Unmount CE storage
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+    if (TEMP_FAILURE_RETRY(umount(mirrorCeVolPath.c_str())) != 0) {
+        if (errno != ENOENT) {
+            res = error(StringPrintf("Failed to umount %s %s", mirrorCeVolPath.c_str(),
+                                strerror(errno)));
+        }
+    }
+    if (delete_dir_contents_and_dir(mirrorCeVolPath, true) != 0) {
+        res = error("Failed to delete " + mirrorCeVolPath);
+    }
+
+    // Unmount DE storage
+    if (TEMP_FAILURE_RETRY(umount(mirrorDeVolPath.c_str())) != 0) {
+        if (errno != ENOENT) {
+            res = error(StringPrintf("Failed to umount %s %s", mirrorDeVolPath.c_str(),
+                                strerror(errno)));
+        }
+    }
+    if (delete_dir_contents_and_dir(mirrorDeVolPath, true) != 0) {
+        res = error("Failed to delete " + mirrorDeVolPath);
+    }
+    return res;
 }
 
 std::string InstalldNativeService::findDataMediaPath(
