@@ -82,8 +82,8 @@ TEST_F(FrameTracerTest, traceNewLayerStartsTrackingLayerWhenTracing) {
               "FrameTracer miniDump:\nNumber of layers currently being traced is 0\n");
 
     const std::string layerName = "co.layername#0";
-    const int32_t layerID = 5;
-    mFrameTracer->traceNewLayer(layerID, layerName);
+    const int32_t layerId = 5;
+    mFrameTracer->traceNewLayer(layerId, layerName);
 
     EXPECT_EQ(mFrameTracer->miniDump(),
               "FrameTracer miniDump:\nNumber of layers currently being traced is 0\n");
@@ -92,7 +92,7 @@ TEST_F(FrameTracerTest, traceNewLayerStartsTrackingLayerWhenTracing) {
     tracingSession->StartBlocking();
     EXPECT_EQ(mFrameTracer->miniDump(),
               "FrameTracer miniDump:\nNumber of layers currently being traced is 0\n");
-    mFrameTracer->traceNewLayer(layerID, layerName);
+    mFrameTracer->traceNewLayer(layerId, layerName);
     EXPECT_EQ(mFrameTracer->miniDump(),
               "FrameTracer miniDump:\nNumber of layers currently being traced is 1\n");
     tracingSession->StopBlocking();
@@ -103,31 +103,31 @@ TEST_F(FrameTracerTest, onDestroyRemovesTheTrackedLayer) {
               "FrameTracer miniDump:\nNumber of layers currently being traced is 0\n");
 
     const std::string layerName = "co.layername#0";
-    const int32_t layerID = 5;
-    const int32_t secondLayerID = 6;
+    const int32_t layerId = 5;
+    const int32_t secondlayerId = 6;
 
     auto tracingSession = getTracingSessionForTest();
     tracingSession->StartBlocking();
-    mFrameTracer->traceNewLayer(layerID, layerName);
-    mFrameTracer->traceNewLayer(secondLayerID, layerName);
+    mFrameTracer->traceNewLayer(layerId, layerName);
+    mFrameTracer->traceNewLayer(secondlayerId, layerName);
     EXPECT_EQ(mFrameTracer->miniDump(),
               "FrameTracer miniDump:\nNumber of layers currently being traced is 2\n");
     tracingSession->StopBlocking();
 
-    mFrameTracer->onDestroy(layerID);
+    mFrameTracer->onDestroy(layerId);
     EXPECT_EQ(mFrameTracer->miniDump(),
               "FrameTracer miniDump:\nNumber of layers currently being traced is 1\n");
-    mFrameTracer->onDestroy(layerID);
+    mFrameTracer->onDestroy(layerId);
     EXPECT_EQ(mFrameTracer->miniDump(),
               "FrameTracer miniDump:\nNumber of layers currently being traced is 1\n");
-    mFrameTracer->onDestroy(secondLayerID);
+    mFrameTracer->onDestroy(secondlayerId);
     EXPECT_EQ(mFrameTracer->miniDump(),
               "FrameTracer miniDump:\nNumber of layers currently being traced is 0\n");
 }
 
 TEST_F(FrameTracerTest, canTraceAfterAddingLayer) {
     const std::string layerName = "co.layername#0";
-    const int32_t layerID = 1;
+    const int32_t layerId = 1;
     const uint32_t bufferID = 2;
     const uint64_t frameNumber = 3;
     const nsecs_t timestamp = 4;
@@ -141,9 +141,9 @@ TEST_F(FrameTracerTest, canTraceAfterAddingLayer) {
         // Clean up irrelevant traces.
         tracingSession->ReadTraceBlocking();
 
-        mFrameTracer->traceTimestamp(layerID, bufferID, frameNumber, timestamp, type, duration);
+        mFrameTracer->traceTimestamp(layerId, bufferID, frameNumber, timestamp, type, duration);
         // Create second trace packet to finalize the previous one.
-        mFrameTracer->traceTimestamp(layerID, 0, 0, 0, FrameTracer::FrameEvent::UNSPECIFIED);
+        mFrameTracer->traceTimestamp(layerId, 0, 0, 0, FrameTracer::FrameEvent::UNSPECIFIED);
         tracingSession->StopBlocking();
 
         std::vector<char> raw_trace = tracingSession->ReadTraceBlocking();
@@ -157,10 +157,10 @@ TEST_F(FrameTracerTest, canTraceAfterAddingLayer) {
         // Clean up irrelevant traces.
         tracingSession->ReadTraceBlocking();
 
-        mFrameTracer->traceNewLayer(layerID, layerName);
-        mFrameTracer->traceTimestamp(layerID, bufferID, frameNumber, timestamp, type, duration);
+        mFrameTracer->traceNewLayer(layerId, layerName);
+        mFrameTracer->traceTimestamp(layerId, bufferID, frameNumber, timestamp, type, duration);
         // Create second trace packet to finalize the previous one.
-        mFrameTracer->traceTimestamp(layerID, 0, 0, 0, FrameTracer::FrameEvent::UNSPECIFIED);
+        mFrameTracer->traceTimestamp(layerId, 0, 0, 0, FrameTracer::FrameEvent::UNSPECIFIED);
         tracingSession->StopBlocking();
 
         std::vector<char> raw_trace = tracingSession->ReadTraceBlocking();
@@ -191,7 +191,7 @@ TEST_F(FrameTracerTest, canTraceAfterAddingLayer) {
 
 TEST_F(FrameTracerTest, traceFenceTriggersOnNextTraceAfterFenceFired) {
     const std::string layerName = "co.layername#0";
-    const int32_t layerID = 5;
+    const int32_t layerId = 5;
     const uint32_t bufferID = 4;
     const uint64_t frameNumber = 3;
     const auto type = FrameTracer::FrameEvent::ACQUIRE_FENCE;
@@ -204,10 +204,10 @@ TEST_F(FrameTracerTest, traceFenceTriggersOnNextTraceAfterFenceFired) {
         // Clean up irrelevant traces.
         tracingSession->ReadTraceBlocking();
         // Trace.
-        mFrameTracer->traceNewLayer(layerID, layerName);
-        mFrameTracer->traceFence(layerID, bufferID, frameNumber, fenceTime, type);
+        mFrameTracer->traceNewLayer(layerId, layerName);
+        mFrameTracer->traceFence(layerId, bufferID, frameNumber, fenceTime, type);
         // Create extra trace packet to (hopefully not) trigger and finalize the fence packet.
-        mFrameTracer->traceTimestamp(layerID, bufferID, 0, 0, FrameTracer::FrameEvent::UNSPECIFIED);
+        mFrameTracer->traceTimestamp(layerId, bufferID, 0, 0, FrameTracer::FrameEvent::UNSPECIFIED);
         tracingSession->StopBlocking();
         std::vector<char> raw_trace = tracingSession->ReadTraceBlocking();
         EXPECT_EQ(raw_trace.size(), 0);
@@ -219,12 +219,12 @@ TEST_F(FrameTracerTest, traceFenceTriggersOnNextTraceAfterFenceFired) {
         tracingSession->StartBlocking();
         // Clean up irrelevant traces.
         tracingSession->ReadTraceBlocking();
-        mFrameTracer->traceNewLayer(layerID, layerName);
-        mFrameTracer->traceFence(layerID, bufferID, frameNumber, fenceTime, type);
+        mFrameTracer->traceNewLayer(layerId, layerName);
+        mFrameTracer->traceFence(layerId, bufferID, frameNumber, fenceTime, type);
         const nsecs_t timestamp = systemTime();
         fenceFactory.signalAllForTest(Fence::NO_FENCE, timestamp);
         // Create extra trace packet to trigger and finalize fence trace packets.
-        mFrameTracer->traceTimestamp(layerID, bufferID, 0, 0, FrameTracer::FrameEvent::UNSPECIFIED);
+        mFrameTracer->traceTimestamp(layerId, bufferID, 0, 0, FrameTracer::FrameEvent::UNSPECIFIED);
         tracingSession->StopBlocking();
 
         std::vector<char> raw_trace = tracingSession->ReadTraceBlocking();
@@ -254,7 +254,7 @@ TEST_F(FrameTracerTest, traceFenceTriggersOnNextTraceAfterFenceFired) {
 
 TEST_F(FrameTracerTest, traceFenceWithStartTimeAfterSignalTime_ShouldHaveNoDuration) {
     const std::string layerName = "co.layername#0";
-    const int32_t layerID = 5;
+    const int32_t layerId = 5;
     const uint32_t bufferID = 4;
     const uint64_t frameNumber = 3;
     const auto type = FrameTracer::FrameEvent::ACQUIRE_FENCE;
@@ -264,24 +264,24 @@ TEST_F(FrameTracerTest, traceFenceWithStartTimeAfterSignalTime_ShouldHaveNoDurat
     tracingSession->StartBlocking();
     // Clean up irrelevant traces.
     tracingSession->ReadTraceBlocking();
-    mFrameTracer->traceNewLayer(layerID, layerName);
+    mFrameTracer->traceNewLayer(layerId, layerName);
 
     // traceFence called after fence signalled.
     const nsecs_t signalTime1 = systemTime();
     const nsecs_t startTime1 = signalTime1 + 100000;
     auto fence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     fenceFactory.signalAllForTest(Fence::NO_FENCE, signalTime1);
-    mFrameTracer->traceFence(layerID, bufferID, frameNumber, fence1, type, startTime1);
+    mFrameTracer->traceFence(layerId, bufferID, frameNumber, fence1, type, startTime1);
 
     // traceFence called before fence signalled.
     const nsecs_t signalTime2 = systemTime();
     const nsecs_t startTime2 = signalTime2 + 100000;
     auto fence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
-    mFrameTracer->traceFence(layerID, bufferID, frameNumber, fence2, type, startTime2);
+    mFrameTracer->traceFence(layerId, bufferID, frameNumber, fence2, type, startTime2);
     fenceFactory.signalAllForTest(Fence::NO_FENCE, signalTime2);
 
     // Create extra trace packet to trigger and finalize fence trace packets.
-    mFrameTracer->traceTimestamp(layerID, bufferID, 0, 0, FrameTracer::FrameEvent::UNSPECIFIED);
+    mFrameTracer->traceTimestamp(layerId, bufferID, 0, 0, FrameTracer::FrameEvent::UNSPECIFIED);
     tracingSession->StopBlocking();
 
     std::vector<char> raw_trace = tracingSession->ReadTraceBlocking();
@@ -309,7 +309,7 @@ TEST_F(FrameTracerTest, traceFenceWithStartTimeAfterSignalTime_ShouldHaveNoDurat
 
 TEST_F(FrameTracerTest, traceFenceOlderThanDeadline_ShouldBeIgnored) {
     const std::string layerName = "co.layername#0";
-    const int32_t layerID = 5;
+    const int32_t layerId = 5;
     const uint32_t bufferID = 4;
     const uint64_t frameNumber = 3;
     const auto type = FrameTracer::FrameEvent::ACQUIRE_FENCE;
@@ -321,11 +321,11 @@ TEST_F(FrameTracerTest, traceFenceOlderThanDeadline_ShouldBeIgnored) {
     tracingSession->StartBlocking();
     // Clean up irrelevant traces.
     tracingSession->ReadTraceBlocking();
-    mFrameTracer->traceNewLayer(layerID, layerName);
-    mFrameTracer->traceFence(layerID, bufferID, frameNumber, fence, type);
+    mFrameTracer->traceNewLayer(layerId, layerName);
+    mFrameTracer->traceFence(layerId, bufferID, frameNumber, fence, type);
     fenceFactory.signalAllForTest(Fence::NO_FENCE, signalTime);
     // Create extra trace packet to trigger and finalize any previous fence packets.
-    mFrameTracer->traceTimestamp(layerID, bufferID, 0, 0, FrameTracer::FrameEvent::UNSPECIFIED);
+    mFrameTracer->traceTimestamp(layerId, bufferID, 0, 0, FrameTracer::FrameEvent::UNSPECIFIED);
     tracingSession->StopBlocking();
 
     std::vector<char> raw_trace = tracingSession->ReadTraceBlocking();
@@ -334,7 +334,7 @@ TEST_F(FrameTracerTest, traceFenceOlderThanDeadline_ShouldBeIgnored) {
 
 TEST_F(FrameTracerTest, traceFenceWithValidStartTime_ShouldHaveCorrectDuration) {
     const std::string layerName = "co.layername#0";
-    const int32_t layerID = 5;
+    const int32_t layerId = 5;
     const uint32_t bufferID = 4;
     const uint64_t frameNumber = 3;
     const auto type = FrameTracer::FrameEvent::ACQUIRE_FENCE;
@@ -345,24 +345,24 @@ TEST_F(FrameTracerTest, traceFenceWithValidStartTime_ShouldHaveCorrectDuration) 
     tracingSession->StartBlocking();
     // Clean up irrelevant traces.
     tracingSession->ReadTraceBlocking();
-    mFrameTracer->traceNewLayer(layerID, layerName);
+    mFrameTracer->traceNewLayer(layerId, layerName);
 
     // traceFence called after fence signalled.
     const nsecs_t signalTime1 = systemTime();
     const nsecs_t startTime1 = signalTime1 - duration;
     auto fence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     fenceFactory.signalAllForTest(Fence::NO_FENCE, signalTime1);
-    mFrameTracer->traceFence(layerID, bufferID, frameNumber, fence1, type, startTime1);
+    mFrameTracer->traceFence(layerId, bufferID, frameNumber, fence1, type, startTime1);
 
     // traceFence called before fence signalled.
     const nsecs_t signalTime2 = systemTime();
     const nsecs_t startTime2 = signalTime2 - duration;
     auto fence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
-    mFrameTracer->traceFence(layerID, bufferID, frameNumber, fence2, type, startTime2);
+    mFrameTracer->traceFence(layerId, bufferID, frameNumber, fence2, type, startTime2);
     fenceFactory.signalAllForTest(Fence::NO_FENCE, signalTime2);
 
     // Create extra trace packet to trigger and finalize fence trace packets.
-    mFrameTracer->traceTimestamp(layerID, bufferID, 0, 0, FrameTracer::FrameEvent::UNSPECIFIED);
+    mFrameTracer->traceTimestamp(layerId, bufferID, 0, 0, FrameTracer::FrameEvent::UNSPECIFIED);
     tracingSession->StopBlocking();
 
     std::vector<char> raw_trace = tracingSession->ReadTraceBlocking();

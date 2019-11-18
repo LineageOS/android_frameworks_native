@@ -44,52 +44,52 @@ void FrameTracer::registerDataSource() {
     FrameTracerDataSource::Register(dsd);
 }
 
-void FrameTracer::traceNewLayer(int32_t layerID, const std::string& layerName) {
-    FrameTracerDataSource::Trace([this, layerID, &layerName](FrameTracerDataSource::TraceContext) {
-        if (mTraceTracker.find(layerID) == mTraceTracker.end()) {
+void FrameTracer::traceNewLayer(int32_t layerId, const std::string& layerName) {
+    FrameTracerDataSource::Trace([this, layerId, &layerName](FrameTracerDataSource::TraceContext) {
+        if (mTraceTracker.find(layerId) == mTraceTracker.end()) {
             std::lock_guard<std::mutex> lock(mTraceMutex);
-            mTraceTracker[layerID].layerName = layerName;
+            mTraceTracker[layerId].layerName = layerName;
         }
     });
 }
 
-void FrameTracer::traceTimestamp(int32_t layerID, uint64_t bufferID, uint64_t frameNumber,
+void FrameTracer::traceTimestamp(int32_t layerId, uint64_t bufferID, uint64_t frameNumber,
                                  nsecs_t timestamp, FrameEvent::BufferEventType type,
                                  nsecs_t duration) {
-    FrameTracerDataSource::Trace([this, layerID, bufferID, frameNumber, timestamp, type,
+    FrameTracerDataSource::Trace([this, layerId, bufferID, frameNumber, timestamp, type,
                                   duration](FrameTracerDataSource::TraceContext ctx) {
         std::lock_guard<std::mutex> lock(mTraceMutex);
-        if (mTraceTracker.find(layerID) == mTraceTracker.end()) {
+        if (mTraceTracker.find(layerId) == mTraceTracker.end()) {
             return;
         }
 
         // Handle any pending fences for this buffer.
-        tracePendingFencesLocked(ctx, layerID, bufferID);
+        tracePendingFencesLocked(ctx, layerId, bufferID);
 
         // Complete current trace.
-        traceLocked(ctx, layerID, bufferID, frameNumber, timestamp, type, duration);
+        traceLocked(ctx, layerId, bufferID, frameNumber, timestamp, type, duration);
     });
 }
 
-void FrameTracer::traceFence(int32_t layerID, uint64_t bufferID, uint64_t frameNumber,
+void FrameTracer::traceFence(int32_t layerId, uint64_t bufferID, uint64_t frameNumber,
                              const std::shared_ptr<FenceTime>& fence,
                              FrameEvent::BufferEventType type, nsecs_t startTime) {
-    FrameTracerDataSource::Trace([this, layerID, bufferID, frameNumber, &fence, type,
+    FrameTracerDataSource::Trace([this, layerId, bufferID, frameNumber, &fence, type,
                                   startTime](FrameTracerDataSource::TraceContext ctx) {
         const nsecs_t signalTime = fence->getSignalTime();
         if (signalTime != Fence::SIGNAL_TIME_INVALID) {
             std::lock_guard<std::mutex> lock(mTraceMutex);
-            if (mTraceTracker.find(layerID) == mTraceTracker.end()) {
+            if (mTraceTracker.find(layerId) == mTraceTracker.end()) {
                 return;
             }
 
             // Handle any pending fences for this buffer.
-            tracePendingFencesLocked(ctx, layerID, bufferID);
+            tracePendingFencesLocked(ctx, layerId, bufferID);
 
             if (signalTime != Fence::SIGNAL_TIME_PENDING) {
-                traceSpanLocked(ctx, layerID, bufferID, frameNumber, type, startTime, signalTime);
+                traceSpanLocked(ctx, layerId, bufferID, frameNumber, type, startTime, signalTime);
             } else {
-                mTraceTracker[layerID].pendingFences[bufferID].push_back(
+                mTraceTracker[layerId].pendingFences[bufferID].push_back(
                         {.frameNumber = frameNumber,
                          .type = type,
                          .fence = fence,
@@ -100,9 +100,9 @@ void FrameTracer::traceFence(int32_t layerID, uint64_t bufferID, uint64_t frameN
 }
 
 void FrameTracer::tracePendingFencesLocked(FrameTracerDataSource::TraceContext& ctx,
-                                           int32_t layerID, uint64_t bufferID) {
-    if (mTraceTracker[layerID].pendingFences.count(bufferID)) {
-        auto& pendingFences = mTraceTracker[layerID].pendingFences[bufferID];
+                                           int32_t layerId, uint64_t bufferID) {
+    if (mTraceTracker[layerId].pendingFences.count(bufferID)) {
+        auto& pendingFences = mTraceTracker[layerId].pendingFences[bufferID];
         for (size_t i = 0; i < pendingFences.size(); ++i) {
             auto& pendingFence = pendingFences[i];
 
@@ -116,7 +116,7 @@ void FrameTracer::tracePendingFencesLocked(FrameTracerDataSource::TraceContext& 
 
             if (signalTime != Fence::SIGNAL_TIME_INVALID &&
                 systemTime() - signalTime < kFenceSignallingDeadline) {
-                traceSpanLocked(ctx, layerID, bufferID, pendingFence.frameNumber, pendingFence.type,
+                traceSpanLocked(ctx, layerId, bufferID, pendingFence.frameNumber, pendingFence.type,
                                 pendingFence.startTime, signalTime);
             }
 
@@ -126,7 +126,7 @@ void FrameTracer::tracePendingFencesLocked(FrameTracerDataSource::TraceContext& 
     }
 }
 
-void FrameTracer::traceLocked(FrameTracerDataSource::TraceContext& ctx, int32_t layerID,
+void FrameTracer::traceLocked(FrameTracerDataSource::TraceContext& ctx, int32_t layerId,
                               uint64_t bufferID, uint64_t frameNumber, nsecs_t timestamp,
                               FrameEvent::BufferEventType type, nsecs_t duration) {
     auto packet = ctx.NewTracePacket();
@@ -138,9 +138,9 @@ void FrameTracer::traceLocked(FrameTracerDataSource::TraceContext& ctx, int32_t 
     }
     event->set_type(type);
 
-    if (mTraceTracker.find(layerID) != mTraceTracker.end() &&
-        !mTraceTracker[layerID].layerName.empty()) {
-        const std::string& layerName = mTraceTracker[layerID].layerName;
+    if (mTraceTracker.find(layerId) != mTraceTracker.end() &&
+        !mTraceTracker[layerId].layerName.empty()) {
+        const std::string& layerName = mTraceTracker[layerId].layerName;
         event->set_layer_name(layerName.c_str(), layerName.size());
     }
 
@@ -149,7 +149,7 @@ void FrameTracer::traceLocked(FrameTracerDataSource::TraceContext& ctx, int32_t 
     }
 }
 
-void FrameTracer::traceSpanLocked(FrameTracerDataSource::TraceContext& ctx, int32_t layerID,
+void FrameTracer::traceSpanLocked(FrameTracerDataSource::TraceContext& ctx, int32_t layerId,
                                   uint64_t bufferID, uint64_t frameNumber,
                                   FrameEvent::BufferEventType type, nsecs_t startTime,
                                   nsecs_t endTime) {
@@ -159,12 +159,12 @@ void FrameTracer::traceSpanLocked(FrameTracerDataSource::TraceContext& ctx, int3
         timestamp = startTime;
         duration = endTime - startTime;
     }
-    traceLocked(ctx, layerID, bufferID, frameNumber, timestamp, type, duration);
+    traceLocked(ctx, layerId, bufferID, frameNumber, timestamp, type, duration);
 }
 
-void FrameTracer::onDestroy(int32_t layerID) {
+void FrameTracer::onDestroy(int32_t layerId) {
     std::lock_guard<std::mutex> traceLock(mTraceMutex);
-    mTraceTracker.erase(layerID);
+    mTraceTracker.erase(layerId);
 }
 
 std::string FrameTracer::miniDump() {

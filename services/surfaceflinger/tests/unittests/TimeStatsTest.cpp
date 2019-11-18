@@ -170,8 +170,8 @@ std::string TimeStatsTest::inputCommand(InputCommand cmd, bool useProto) {
     return result;
 }
 
-static std::string genLayerName(int32_t layerID) {
-    return (layerID < 0 ? "PopupWindow:b54fcd1#0" : "com.dummy#") + std::to_string(layerID);
+static std::string genLayerName(int32_t layerId) {
+    return (layerId < 0 ? "PopupWindow:b54fcd1#0" : "com.dummy#") + std::to_string(layerId);
 }
 
 void TimeStatsTest::setTimeStamp(TimeStamp type, int32_t id, uint64_t frameNumber, nsecs_t ts) {
@@ -560,22 +560,22 @@ TEST_F(TimeStatsTest, canSurviveMonkey) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
 
     for (size_t i = 0; i < 10000000; ++i) {
-        const int32_t layerID = genRandomInt32(-1, 10);
+        const int32_t layerId = genRandomInt32(-1, 10);
         const int32_t frameNumber = genRandomInt32(1, 10);
         switch (genRandomInt32(0, 100)) {
             case 0:
                 ALOGV("removeTimeRecord");
-                ASSERT_NO_FATAL_FAILURE(mTimeStats->removeTimeRecord(layerID, frameNumber));
+                ASSERT_NO_FATAL_FAILURE(mTimeStats->removeTimeRecord(layerId, frameNumber));
                 continue;
             case 1:
                 ALOGV("onDestroy");
-                ASSERT_NO_FATAL_FAILURE(mTimeStats->onDestroy(layerID));
+                ASSERT_NO_FATAL_FAILURE(mTimeStats->onDestroy(layerId));
                 continue;
         }
         TimeStamp type = static_cast<TimeStamp>(genRandomInt32(TIME_STAMP_BEGIN, TIME_STAMP_END));
         const int32_t ts = genRandomInt32(1, 1000000000);
-        ALOGV("type[%d], layerID[%d], frameNumber[%d], ts[%d]", type, layerID, frameNumber, ts);
-        setTimeStamp(type, layerID, frameNumber, ts);
+        ALOGV("type[%d], layerId[%d], frameNumber[%d], ts[%d]", type, layerId, frameNumber, ts);
+        setTimeStamp(type, layerId, frameNumber, ts);
     }
 }
 
