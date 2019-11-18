@@ -109,6 +109,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.hasColorTransform = false;
     mCurrentState.colorSpaceAgnostic = false;
     mCurrentState.metadata = args.metadata;
+    mCurrentState.shadowRadius = 0.f;
 
     // drawing state & current state are identical
     mDrawingState = mCurrentState;

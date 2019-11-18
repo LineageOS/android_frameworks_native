@@ -950,7 +950,7 @@ private:
     // The inherited shadow radius after taking into account the layer hierarchy. This is the
     // final shadow radius for this layer. If a shadow is specified for a layer, then effective
     // shadow radius is the set shadow radius, otherwise its the parent's shadow radius.
-    float mEffectiveShadowRadius;
+    float mEffectiveShadowRadius = 0.f;
 
     // Returns true if the layer can draw shadows on its border.
     virtual bool canDrawShadows() const { return true; }
