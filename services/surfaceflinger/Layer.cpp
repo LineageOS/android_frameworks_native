@@ -1356,9 +1356,9 @@ void Layer::dumpCallingUidPid(std::string& result) const {
 void Layer::onDisconnect() {
     Mutex::Autolock lock(mFrameEventHistoryMutex);
     mFrameEventHistory.onDisconnect();
-    const int32_t layerID = getSequence();
-    mFlinger->mTimeStats->onDestroy(layerID);
-    mFlinger->mFrameTracer->onDestroy(layerID);
+    const int32_t layerId = getSequence();
+    mFlinger->mTimeStats->onDestroy(layerId);
+    mFlinger->mFrameTracer->onDestroy(layerId);
 }
 
 void Layer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,

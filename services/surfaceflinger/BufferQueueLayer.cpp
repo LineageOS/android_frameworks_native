@@ -223,7 +223,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
     // BufferItem's that weren't actually queued. This can happen in shared
     // buffer mode.
     bool queuedBuffer = false;
-    const int32_t layerID = getSequence();
+    const int32_t layerId = getSequence();
     LayerRejecter r(mDrawingState, getCurrentState(), recomputeVisibleRegions,
                     getProducerStickyTransform() != 0, mName, mOverrideScalingMode,
                     getTransformToDisplayInverse());
@@ -264,7 +264,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
         if (queuedBuffer) {
             Mutex::Autolock lock(mQueueItemLock);
             mConsumer->mergeSurfaceDamage(mQueueItems[0].mSurfaceDamage);
-            mFlinger->mTimeStats->removeTimeRecord(layerID, mQueueItems[0].mFrameNumber);
+            mFlinger->mTimeStats->removeTimeRecord(layerId, mQueueItems[0].mFrameNumber);
             mQueueItems.removeAt(0);
             mQueuedFrames--;
         }
@@ -278,8 +278,8 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
             Mutex::Autolock lock(mQueueItemLock);
             mQueueItems.clear();
             mQueuedFrames = 0;
-            mFlinger->mTimeStats->onDestroy(layerID);
-            mFlinger->mFrameTracer->onDestroy(layerID);
+            mFlinger->mTimeStats->onDestroy(layerId);
+            mFlinger->mFrameTracer->onDestroy(layerId);
         }
 
         // Once we have hit this state, the shadow queue may no longer
@@ -301,19 +301,19 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
         // updateTexImage
         while (mQueueItems[0].mFrameNumber != currentFrameNumber) {
             mConsumer->mergeSurfaceDamage(mQueueItems[0].mSurfaceDamage);
-            mFlinger->mTimeStats->removeTimeRecord(layerID, mQueueItems[0].mFrameNumber);
+            mFlinger->mTimeStats->removeTimeRecord(layerId, mQueueItems[0].mFrameNumber);
             mQueueItems.removeAt(0);
             mQueuedFrames--;
         }
 
         uint64_t bufferID = mQueueItems[0].mGraphicBuffer->getId();
-        mFlinger->mTimeStats->setAcquireFence(layerID, currentFrameNumber,
+        mFlinger->mTimeStats->setAcquireFence(layerId, currentFrameNumber,
                                               mQueueItems[0].mFenceTime);
-        mFlinger->mFrameTracer->traceFence(layerID, bufferID, currentFrameNumber,
+        mFlinger->mFrameTracer->traceFence(layerId, bufferID, currentFrameNumber,
                                            mQueueItems[0].mFenceTime,
                                            FrameTracer::FrameEvent::ACQUIRE_FENCE);
-        mFlinger->mTimeStats->setLatchTime(layerID, currentFrameNumber, latchTime);
-        mFlinger->mFrameTracer->traceTimestamp(layerID, bufferID, currentFrameNumber, latchTime,
+        mFlinger->mTimeStats->setLatchTime(layerId, currentFrameNumber, latchTime);
+        mFlinger->mFrameTracer->traceTimestamp(layerId, bufferID, currentFrameNumber, latchTime,
                                                FrameTracer::FrameEvent::LATCH);
 
         mQueueItems.removeAt(0);
@@ -373,28 +373,28 @@ void BufferQueueLayer::latchPerFrameState(
 // -----------------------------------------------------------------------
 
 void BufferQueueLayer::onFrameDequeued(const uint64_t bufferId) {
-    const int32_t layerID = getSequence();
-    mFlinger->mFrameTracer->traceNewLayer(layerID, getName().c_str());
-    mFlinger->mFrameTracer->traceTimestamp(layerID, bufferId, FrameTracer::UNSPECIFIED_FRAME_NUMBER,
+    const int32_t layerId = getSequence();
+    mFlinger->mFrameTracer->traceNewLayer(layerId, getName().c_str());
+    mFlinger->mFrameTracer->traceTimestamp(layerId, bufferId, FrameTracer::UNSPECIFIED_FRAME_NUMBER,
                                            systemTime(), FrameTracer::FrameEvent::DEQUEUE);
 }
 
 void BufferQueueLayer::onFrameDetached(const uint64_t bufferId) {
-    const int32_t layerID = getSequence();
-    mFlinger->mFrameTracer->traceNewLayer(layerID, getName().c_str());
-    mFlinger->mFrameTracer->traceTimestamp(layerID, bufferId, FrameTracer::UNSPECIFIED_FRAME_NUMBER,
+    const int32_t layerId = getSequence();
+    mFlinger->mFrameTracer->traceNewLayer(layerId, getName().c_str());
+    mFlinger->mFrameTracer->traceTimestamp(layerId, bufferId, FrameTracer::UNSPECIFIED_FRAME_NUMBER,
                                            systemTime(), FrameTracer::FrameEvent::DETACH);
 }
 
 void BufferQueueLayer::onFrameCancelled(const uint64_t bufferId) {
-    const int32_t layerID = getSequence();
-    mFlinger->mFrameTracer->traceTimestamp(layerID, bufferId, FrameTracer::UNSPECIFIED_FRAME_NUMBER,
+    const int32_t layerId = getSequence();
+    mFlinger->mFrameTracer->traceTimestamp(layerId, bufferId, FrameTracer::UNSPECIFIED_FRAME_NUMBER,
                                            systemTime(), FrameTracer::FrameEvent::CANCEL);
 }
 
 void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
-    const int32_t layerID = getSequence();
-    mFlinger->mFrameTracer->traceTimestamp(layerID, item.mGraphicBuffer->getId(), item.mFrameNumber,
+    const int32_t layerId = getSequence();
+    mFlinger->mFrameTracer->traceTimestamp(layerId, item.mGraphicBuffer->getId(), item.mFrameNumber,
                                            systemTime(), FrameTracer::FrameEvent::QUEUE);
 
     ATRACE_CALL();

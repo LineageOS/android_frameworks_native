@@ -47,21 +47,21 @@ public:
     void registerDataSource();
     // Starts tracking a new layer for tracing. Needs to be called once before traceTimestamp() or
     // traceFence() for each layer.
-    void traceNewLayer(int32_t layerID, const std::string& layerName);
+    void traceNewLayer(int32_t layerId, const std::string& layerName);
     // Creates a trace point at the timestamp provided.
-    void traceTimestamp(int32_t layerID, uint64_t bufferID, uint64_t frameNumber, nsecs_t timestamp,
+    void traceTimestamp(int32_t layerId, uint64_t bufferID, uint64_t frameNumber, nsecs_t timestamp,
                         FrameEvent::BufferEventType type, nsecs_t duration = 0);
     // Creates a trace point after the provided fence has been signalled. If a startTime is provided
     // the trace will have be timestamped from startTime until fence signalling time. If no
     // startTime is provided, a durationless trace point will be created timestamped at fence
     // signalling time. If the fence hasn't signalled yet, the trace point will be created the next
     // time after signalling a trace call for this buffer occurs.
-    void traceFence(int32_t layerID, uint64_t bufferID, uint64_t frameNumber,
+    void traceFence(int32_t layerId, uint64_t bufferID, uint64_t frameNumber,
                     const std::shared_ptr<FenceTime>& fence, FrameEvent::BufferEventType type,
                     nsecs_t startTime = 0);
 
     // Takes care of cleanup when a layer is destroyed.
-    void onDestroy(int32_t layerID);
+    void onDestroy(int32_t layerId);
 
     std::string miniDump();
 
@@ -88,15 +88,15 @@ private:
 
     // Checks if any pending fences for a layer and buffer have signalled and, if they have, creates
     // trace points for them.
-    void tracePendingFencesLocked(FrameTracerDataSource::TraceContext& ctx, int32_t layerID,
+    void tracePendingFencesLocked(FrameTracerDataSource::TraceContext& ctx, int32_t layerId,
                                   uint64_t bufferID);
     // Creates a trace point by translating a start time and an end time to a timestamp and
     // duration. If startTime is later than end time it sets end time as the timestamp and the
     // duration to 0. Used by traceFence().
-    void traceSpanLocked(FrameTracerDataSource::TraceContext& ctx, int32_t layerID,
+    void traceSpanLocked(FrameTracerDataSource::TraceContext& ctx, int32_t layerId,
                          uint64_t bufferID, uint64_t frameNumber, FrameEvent::BufferEventType type,
                          nsecs_t startTime, nsecs_t endTime);
-    void traceLocked(FrameTracerDataSource::TraceContext& ctx, int32_t layerID, uint64_t bufferID,
+    void traceLocked(FrameTracerDataSource::TraceContext& ctx, int32_t layerId, uint64_t bufferID,
                      uint64_t frameNumber, nsecs_t timestamp, FrameEvent::BufferEventType type,
                      nsecs_t duration = 0);
 
