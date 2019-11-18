@@ -61,7 +61,8 @@ private:
         std::set<wp<ErasedRecipient>> recipients;
     };
     std::map<wp<IBinder> /*caching process*/,
-             std::unordered_map<uint64_t /*cache id*/, ClientCacheBuffer>>
+             std::pair<sp<IBinder> /*strong ref to caching process*/,
+                       std::unordered_map<uint64_t /*cache id*/, ClientCacheBuffer>>>
             mBuffers GUARDED_BY(mMutex);
 
     class CacheDeathRecipient : public IBinder::DeathRecipient {
