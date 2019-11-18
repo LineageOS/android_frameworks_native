@@ -23,8 +23,8 @@ class CommandVibrator;
 
 namespace vibrator {
 
-class CommandOff : public Command {
-    std::string getDescription() const override { return "Turn off vibrator."; }
+class CommandGetCapabilities : public Command {
+    std::string getDescription() const override { return "Retrieves vibrator capabilities."; }
 
     std::string getUsageSummary() const override { return ""; }
 
@@ -43,27 +43,26 @@ class CommandOff : public Command {
 
     Status doMain(Args && /*args*/) override {
         std::string statusStr;
+        int32_t cap;
         Status ret;
 
         if (auto hal = getHal<aidl::IVibrator>()) {
-            auto status = hal->call(&aidl::IVibrator::off);
+            auto status = hal->call(&aidl::IVibrator::getCapabilities, &cap);
             statusStr = status.toString8();
             ret = status.isOk() ? OK : ERROR;
-        } else if (auto hal = getHal<V1_0::IVibrator>()) {
-            auto status = hal->call(&V1_0::IVibrator::off);
-            statusStr = toString(status);
-            ret = status.isOk() && status == V1_0::Status::OK ? OK : ERROR;
         } else {
             return UNAVAILABLE;
         }
 
         std::cout << "Status: " << statusStr << std::endl;
+        std::cout << "Capabilities: " << std::bitset<32>(cap) << std::endl;
 
         return ret;
     }
 };
 
-static const auto Command = CommandRegistry<CommandVibrator>::Register<CommandOff>("off");
+static const auto Command =
+        CommandRegistry<CommandVibrator>::Register<CommandGetCapabilities>("getCapabilities");
 
 } // namespace vibrator
 } // namespace idlcli
