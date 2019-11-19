@@ -1715,7 +1715,12 @@ void SurfaceFlinger::handleMessageRefresh() {
     refreshArgs.layersWithQueuedFrames.reserve(mLayersWithQueuedFrames.size());
     for (sp<Layer> layer : mLayersWithQueuedFrames) {
         auto compositionLayer = layer->getCompositionLayer();
-        if (compositionLayer) refreshArgs.layersWithQueuedFrames.push_back(compositionLayer.get());
+        if (compositionLayer) {
+            refreshArgs.layersWithQueuedFrames.push_back(compositionLayer.get());
+            mFrameTracer->traceTimestamp(layer->getSequence(), layer->getCurrentBufferId(),
+                                         layer->getCurrentFrameNumber(), systemTime(),
+                                         FrameTracer::FrameEvent::HWC_COMPOSITION_QUEUED);
+        }
     }
 
     refreshArgs.repaintEverything = mRepaintEverything.exchange(false);
@@ -1896,9 +1901,8 @@ void SurfaceFlinger::postComposition()
     }
 
     mDrawingState.traverseInZOrder([&](Layer* layer) {
-        bool frameLatched =
-                layer->onPostComposition(displayDevice->getId(), glCompositionDoneFenceTime,
-                                         presentFenceTime, compositorTiming);
+        bool frameLatched = layer->onPostComposition(displayDevice, glCompositionDoneFenceTime,
+                                                     presentFenceTime, compositorTiming);
         if (frameLatched) {
             recordBufferingStats(layer->getName(), layer->getOccupancyHistory(false));
         }

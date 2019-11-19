@@ -805,6 +805,7 @@ TEST_F(GenerateClientCompositionRequestsTest, worksForLandscapeModeSplitScreen) 
     EXPECT_CALL(leftOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
     EXPECT_CALL(leftLayer, getFEState()).WillRepeatedly(ReturnRef(leftLayerFEState));
     EXPECT_CALL(leftLayerFE, prepareClientComposition(_)).WillOnce(Return(leftLayerRESettings));
+    EXPECT_CALL(leftOutputLayer, editState()).WillRepeatedly(ReturnRef(leftOutputLayerState));
 
     EXPECT_CALL(rightOutputLayer, getState()).WillRepeatedly(ReturnRef(rightOutputLayerState));
     EXPECT_CALL(rightOutputLayer, getLayer()).WillRepeatedly(ReturnRef(rightLayer));
@@ -813,6 +814,7 @@ TEST_F(GenerateClientCompositionRequestsTest, worksForLandscapeModeSplitScreen) 
     EXPECT_CALL(rightOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
     EXPECT_CALL(rightLayer, getFEState()).WillRepeatedly(ReturnRef(rightLayerFEState));
     EXPECT_CALL(rightLayerFE, prepareClientComposition(_)).WillOnce(Return(rightLayerRESettings));
+    EXPECT_CALL(rightOutputLayer, editState()).WillRepeatedly(ReturnRef(rightOutputLayerState));
 
     EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(2u));
     EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u))
@@ -865,6 +867,7 @@ TEST_F(GenerateClientCompositionRequestsTest, ignoresLayersThatDoNotIntersectWit
     EXPECT_CALL(outputLayer, needsFiltering()).WillRepeatedly(Return(false));
     EXPECT_CALL(layer, getFEState()).WillRepeatedly(ReturnRef(layerFEState));
     EXPECT_CALL(layerFE, prepareClientComposition(_)).Times(0);
+    EXPECT_CALL(outputLayer, editState()).WillRepeatedly(ReturnRef(outputLayerState));
 
     EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(1u));
     EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u)).WillRepeatedly(Return(&outputLayer));
@@ -930,6 +933,7 @@ TEST_F(GenerateClientCompositionRequestsTest, clearsDeviceLayesAfterFirst) {
     EXPECT_CALL(leftOutputLayer, requiresClientComposition()).WillRepeatedly(Return(false));
     EXPECT_CALL(leftOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
     EXPECT_CALL(leftLayer, getFEState()).WillRepeatedly(ReturnRef(leftLayerFEState));
+    EXPECT_CALL(leftOutputLayer, editState()).WillRepeatedly(ReturnRef(leftOutputLayerState));
 
     EXPECT_CALL(rightOutputLayer, getState()).WillRepeatedly(ReturnRef(rightOutputLayerState));
     EXPECT_CALL(rightOutputLayer, getLayer()).WillRepeatedly(ReturnRef(rightLayer));
@@ -938,6 +942,7 @@ TEST_F(GenerateClientCompositionRequestsTest, clearsDeviceLayesAfterFirst) {
     EXPECT_CALL(rightOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
     EXPECT_CALL(rightLayer, getFEState()).WillRepeatedly(ReturnRef(rightLayerFEState));
     EXPECT_CALL(rightLayerFE, prepareClientComposition(_)).WillOnce(Return(rightLayerRESettings));
+    EXPECT_CALL(rightOutputLayer, editState()).WillRepeatedly(ReturnRef(rightOutputLayerState));
 
     EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(2u));
     EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u))
