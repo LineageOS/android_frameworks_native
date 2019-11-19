@@ -166,6 +166,7 @@ filegroup {
         "Scheduler/Scheduler.cpp",
         "Scheduler/SchedulerUtils.cpp",
         "Scheduler/VSyncDispatchTimerQueue.cpp",
+        "Scheduler/Timer.cpp",
         "Scheduler/VSyncModulator.cpp",
         "StartPropertySetThread.cpp",
         "SurfaceFlinger.cpp",
