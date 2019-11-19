@@ -189,6 +189,10 @@ public:
                 std::make_unique<impl::HWComposer>(std::move(composer)));
     }
 
+    void setupTimeStats(const std::shared_ptr<TimeStats>& timeStats) {
+        mFlinger->mCompositionEngine->setTimeStats(timeStats);
+    }
+
     void setupScheduler(std::unique_ptr<DispSync> primaryDispSync,
                         std::unique_ptr<EventControlThread> eventControlThread,
                         std::unique_ptr<EventThread> appEventThread,

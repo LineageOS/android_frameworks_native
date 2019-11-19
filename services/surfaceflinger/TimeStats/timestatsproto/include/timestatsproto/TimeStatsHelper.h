@@ -62,6 +62,7 @@ public:
         int64_t displayOnTime = 0;
         Histogram presentToPresent;
         Histogram frameDuration;
+        Histogram renderEngineTiming;
         std::unordered_map<std::string, TimeStatsLayer> stats;
         std::unordered_map<uint32_t, nsecs_t> refreshRateStats;
 

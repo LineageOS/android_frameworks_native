@@ -20,6 +20,7 @@ cc_defaults {
         "liblayers_proto",
         "liblog",
         "libnativewindow",
+        "libprotobuf-cpp-lite",
         "libsync",
         "libtimestats_proto",
         "libui",
@@ -28,6 +29,7 @@ cc_defaults {
     static_libs: [
         "libmath",
         "librenderengine",
+        "libtimestats",
         "libtrace_proto",
     ],
     header_libs: [
