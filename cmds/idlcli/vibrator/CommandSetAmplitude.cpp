@@ -50,15 +50,24 @@ class CommandSetAmplitude : public Command {
     }
 
     Status doMain(Args && /*args*/) override {
-        auto ret = halCall(&V1_0::IVibrator::setAmplitude, mAmplitude);
+        std::string statusStr;
+        Status ret;
 
-        if (!ret.isOk()) {
+        if (auto hal = getHal<aidl::IVibrator>()) {
+            auto status = hal->call(&aidl::IVibrator::setAmplitude, mAmplitude);
+            statusStr = status.toString8();
+            ret = status.isOk() ? OK : ERROR;
+        } else if (auto hal = getHal<V1_0::IVibrator>()) {
+            auto status = hal->call(&V1_0::IVibrator::setAmplitude, mAmplitude);
+            statusStr = toString(status);
+            ret = status.isOk() && status == V1_0::Status::OK ? OK : ERROR;
+        } else {
             return UNAVAILABLE;
         }
 
-        std::cout << "Status: " << toString(ret) << std::endl;
+        std::cout << "Status: " << statusStr << std::endl;
 
-        return ret == V1_0::Status::OK ? OK : ERROR;
+        return ret;
     }
 
     uint8_t mAmplitude;

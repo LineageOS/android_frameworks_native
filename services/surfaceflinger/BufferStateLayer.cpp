@@ -240,10 +240,10 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, nsecs_t postTi
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
 
-    const int32_t layerID = getSequence();
-    mFlinger->mTimeStats->setPostTime(layerID, mFrameNumber, getName().c_str(), postTime);
-    mFlinger->mFrameTracer->traceNewLayer(layerID, getName().c_str());
-    mFlinger->mFrameTracer->traceTimestamp(layerID, buffer->getId(), mFrameNumber, postTime,
+    const int32_t layerId = getSequence();
+    mFlinger->mTimeStats->setPostTime(layerId, mFrameNumber, getName().c_str(), postTime);
+    mFlinger->mFrameTracer->traceNewLayer(layerId, getName().c_str());
+    mFlinger->mFrameTracer->traceTimestamp(layerId, buffer->getId(), mFrameNumber, postTime,
                                            FrameTracer::FrameEvent::POST);
     mCurrentState.desiredPresentTime = desiredPresentTime;
 
@@ -458,7 +458,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         return NO_ERROR;
     }
 
-    const int32_t layerID = getSequence();
+    const int32_t layerId = getSequence();
 
     // Reject if the layer is invalid
     uint32_t bufferWidth = s.buffer->width;
@@ -480,7 +480,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         ALOGE("[%s] rejecting buffer: "
               "bufferWidth=%d, bufferHeight=%d, front.active.{w=%d, h=%d}",
               getDebugName(), bufferWidth, bufferHeight, s.active.w, s.active.h);
-        mFlinger->mTimeStats->removeTimeRecord(layerID, mFrameNumber);
+        mFlinger->mTimeStats->removeTimeRecord(layerId, mFrameNumber);
         return BAD_VALUE;
     }
 
@@ -497,18 +497,18 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         // a GL-composited layer) not at all.
         status_t err = bindTextureImage();
         if (err != NO_ERROR) {
-            mFlinger->mTimeStats->onDestroy(layerID);
-            mFlinger->mFrameTracer->onDestroy(layerID);
+            mFlinger->mTimeStats->onDestroy(layerId);
+            mFlinger->mFrameTracer->onDestroy(layerId);
             return BAD_VALUE;
         }
     }
 
     const uint64_t bufferID = getCurrentBufferId();
-    mFlinger->mTimeStats->setAcquireFence(layerID, mFrameNumber, mBufferInfo.mFenceTime);
-    mFlinger->mFrameTracer->traceFence(layerID, bufferID, mFrameNumber, mBufferInfo.mFenceTime,
+    mFlinger->mTimeStats->setAcquireFence(layerId, mFrameNumber, mBufferInfo.mFenceTime);
+    mFlinger->mFrameTracer->traceFence(layerId, bufferID, mFrameNumber, mBufferInfo.mFenceTime,
                                        FrameTracer::FrameEvent::ACQUIRE_FENCE);
-    mFlinger->mTimeStats->setLatchTime(layerID, mFrameNumber, latchTime);
-    mFlinger->mFrameTracer->traceTimestamp(layerID, bufferID, mFrameNumber, latchTime,
+    mFlinger->mTimeStats->setLatchTime(layerId, mFrameNumber, latchTime);
+    mFlinger->mFrameTracer->traceTimestamp(layerId, bufferID, mFrameNumber, latchTime,
                                            FrameTracer::FrameEvent::LATCH);
 
     mCurrentStateModified = false;

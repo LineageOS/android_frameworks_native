@@ -15,10 +15,12 @@
  */
 
 #include <compositionengine/CompositionRefreshArgs.h>
+#include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/impl/CompositionEngine.h>
 #include <compositionengine/mock/Layer.h>
 #include <compositionengine/mock/LayerFE.h>
 #include <compositionengine/mock/Output.h>
+#include <compositionengine/mock/OutputLayer.h>
 #include <gtest/gtest.h>
 #include <renderengine/mock/RenderEngine.h>
 
@@ -31,6 +33,7 @@ using ::testing::_;
 using ::testing::InSequence;
 using ::testing::Ref;
 using ::testing::Return;
+using ::testing::ReturnRef;
 using ::testing::SaveArg;
 using ::testing::StrictMock;
 
@@ -114,6 +117,97 @@ TEST_F(CompositionEnginePresentTest, worksAsExpected) {
 
     mRefreshArgs.outputs = {mOutput1, mOutput2, mOutput3};
     mEngine.present(mRefreshArgs);
+}
+
+/*
+ * CompositionEngine::updateCursorAsync
+ */
+
+struct CompositionEngineUpdateCursorAsyncTest : public CompositionEngineTest {
+public:
+    CompositionEngineUpdateCursorAsyncTest() {
+        EXPECT_CALL(*mOutput1, getOutputLayerCount()).WillRepeatedly(Return(0));
+        EXPECT_CALL(*mOutput1, getOutputLayerOrderedByZByIndex(_)).Times(0);
+
+        EXPECT_CALL(*mOutput2, getOutputLayerCount()).WillRepeatedly(Return(1));
+        EXPECT_CALL(*mOutput2, getOutputLayerOrderedByZByIndex(0))
+                .WillRepeatedly(Return(&mOutput2OutputLayer1));
+
+        EXPECT_CALL(*mOutput3, getOutputLayerCount()).WillRepeatedly(Return(2));
+        EXPECT_CALL(*mOutput3, getOutputLayerOrderedByZByIndex(0))
+                .WillRepeatedly(Return(&mOutput3OutputLayer1));
+        EXPECT_CALL(*mOutput3, getOutputLayerOrderedByZByIndex(1))
+                .WillRepeatedly(Return(&mOutput3OutputLayer2));
+
+        EXPECT_CALL(mOutput2OutputLayer1, getLayerFE()).WillRepeatedly(ReturnRef(mOutput2Layer1FE));
+        EXPECT_CALL(mOutput3OutputLayer1, getLayerFE()).WillRepeatedly(ReturnRef(mOutput3Layer1FE));
+        EXPECT_CALL(mOutput3OutputLayer2, getLayerFE()).WillRepeatedly(ReturnRef(mOutput3Layer2FE));
+
+        EXPECT_CALL(mOutput2OutputLayer1, getLayer()).WillRepeatedly(ReturnRef(mOutput2Layer1));
+        EXPECT_CALL(mOutput3OutputLayer1, getLayer()).WillRepeatedly(ReturnRef(mOutput3Layer1));
+        EXPECT_CALL(mOutput3OutputLayer2, getLayer()).WillRepeatedly(ReturnRef(mOutput3Layer2));
+
+        EXPECT_CALL(mOutput2Layer1, editFEState()).WillRepeatedly(ReturnRef(mOutput2Layer1FEState));
+        EXPECT_CALL(mOutput3Layer1, editFEState()).WillRepeatedly(ReturnRef(mOutput3Layer1FEState));
+        EXPECT_CALL(mOutput3Layer2, editFEState()).WillRepeatedly(ReturnRef(mOutput3Layer2FEState));
+    }
+
+    StrictMock<mock::OutputLayer> mOutput2OutputLayer1;
+    StrictMock<mock::OutputLayer> mOutput3OutputLayer1;
+    StrictMock<mock::OutputLayer> mOutput3OutputLayer2;
+
+    StrictMock<mock::LayerFE> mOutput2Layer1FE;
+    StrictMock<mock::LayerFE> mOutput3Layer1FE;
+    StrictMock<mock::LayerFE> mOutput3Layer2FE;
+
+    StrictMock<mock::Layer> mOutput2Layer1;
+    StrictMock<mock::Layer> mOutput3Layer1;
+    StrictMock<mock::Layer> mOutput3Layer2;
+
+    LayerFECompositionState mOutput2Layer1FEState;
+    LayerFECompositionState mOutput3Layer1FEState;
+    LayerFECompositionState mOutput3Layer2FEState;
+};
+
+TEST_F(CompositionEngineUpdateCursorAsyncTest, handlesNoOutputs) {
+    mEngine.updateCursorAsync(mRefreshArgs);
+}
+
+TEST_F(CompositionEngineUpdateCursorAsyncTest, handlesNoLayersBeingCursorLayers) {
+    EXPECT_CALL(mOutput2OutputLayer1, isHardwareCursor()).WillRepeatedly(Return(false));
+    EXPECT_CALL(mOutput3OutputLayer1, isHardwareCursor()).WillRepeatedly(Return(false));
+    EXPECT_CALL(mOutput3OutputLayer2, isHardwareCursor()).WillRepeatedly(Return(false));
+
+    mRefreshArgs.outputs = {mOutput1, mOutput2, mOutput3};
+
+    mEngine.updateCursorAsync(mRefreshArgs);
+}
+
+TEST_F(CompositionEngineUpdateCursorAsyncTest, handlesMultipleLayersBeingCursorLayers) {
+    {
+        InSequence seq;
+        EXPECT_CALL(mOutput2OutputLayer1, isHardwareCursor()).WillRepeatedly(Return(true));
+        EXPECT_CALL(mOutput2Layer1FE, latchCursorCompositionState(Ref(mOutput2Layer1FEState)));
+        EXPECT_CALL(mOutput2OutputLayer1, writeCursorPositionToHWC());
+    }
+
+    {
+        InSequence seq;
+        EXPECT_CALL(mOutput3OutputLayer1, isHardwareCursor()).WillRepeatedly(Return(true));
+        EXPECT_CALL(mOutput3Layer1FE, latchCursorCompositionState(Ref(mOutput3Layer1FEState)));
+        EXPECT_CALL(mOutput3OutputLayer1, writeCursorPositionToHWC());
+    }
+
+    {
+        InSequence seq;
+        EXPECT_CALL(mOutput3OutputLayer2, isHardwareCursor()).WillRepeatedly(Return(true));
+        EXPECT_CALL(mOutput3Layer2FE, latchCursorCompositionState(Ref(mOutput3Layer2FEState)));
+        EXPECT_CALL(mOutput3OutputLayer2, writeCursorPositionToHWC());
+    }
+
+    mRefreshArgs.outputs = {mOutput1, mOutput2, mOutput3};
+
+    mEngine.updateCursorAsync(mRefreshArgs);
 }
 
 /*

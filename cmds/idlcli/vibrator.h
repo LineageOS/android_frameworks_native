@@ -18,6 +18,8 @@
 #define FRAMEWORK_NATIVE_CMDS_IDLCLI_VIBRATOR_H_
 
 #include <android/hardware/vibrator/1.3/IVibrator.h>
+#include <android/hardware/vibrator/IVibrator.h>
+#include <binder/IServiceManager.h>
 
 #include "utils.h"
 
@@ -31,9 +33,25 @@ static constexpr int NUM_TRIES = 2;
 
 // Creates a Return<R> with STATUS::EX_NULL_POINTER.
 template <class R>
-inline Return<R> NullptrStatus() {
+inline R NullptrStatus() {
     using ::android::hardware::Status;
-    return Return<R>{Status::fromExceptionCode(Status::EX_NULL_POINTER)};
+    return Status::fromExceptionCode(Status::EX_NULL_POINTER);
+}
+
+template <>
+inline binder::Status NullptrStatus() {
+    using binder::Status;
+    return Status::fromExceptionCode(Status::EX_NULL_POINTER);
+}
+
+template <typename I>
+inline sp<I> getService() {
+    return I::getService();
+}
+
+template <>
+inline sp<hardware::vibrator::IVibrator> getService() {
+    return waitForVintfService<hardware::vibrator::IVibrator>();
 }
 
 template <typename I>
@@ -42,12 +60,12 @@ public:
     static std::unique_ptr<HalWrapper> Create() {
         // Assume that if getService returns a nullptr, HAL is not available on the
         // device.
-        auto hal = I::getService();
+        auto hal = getService<I>();
         return hal ? std::unique_ptr<HalWrapper>(new HalWrapper(std::move(hal))) : nullptr;
     }
 
     template <class R, class... Args0, class... Args1>
-    Return<R> call(Return<R> (I::*fn)(Args0...), Args1&&... args1) {
+    R call(R (I::*fn)(Args0...), Args1&&... args1) {
         return (*mHal.*fn)(std::forward<Args1>(args1)...);
     }
 
@@ -65,7 +83,7 @@ static auto getHal() {
 }
 
 template <class R, class I, class... Args0, class... Args1>
-Return<R> halCall(Return<R> (I::*fn)(Args0...), Args1&&... args1) {
+R halCall(R (I::*fn)(Args0...), Args1&&... args1) {
     auto hal = getHal<I>();
     return hal ? hal->call(fn, std::forward<Args1>(args1)...) : NullptrStatus<R>();
 }
@@ -77,6 +95,7 @@ namespace V1_0 = ::android::hardware::vibrator::V1_0;
 namespace V1_1 = ::android::hardware::vibrator::V1_1;
 namespace V1_2 = ::android::hardware::vibrator::V1_2;
 namespace V1_3 = ::android::hardware::vibrator::V1_3;
+namespace aidl = ::android::hardware::vibrator;
 
 } // namespace vibrator
 } // namespace idlcli
