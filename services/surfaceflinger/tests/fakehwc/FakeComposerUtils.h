@@ -108,9 +108,9 @@ public:
         LOG_ALWAYS_FATAL_IF(android::NO_ERROR != apply());
         // Make sure that exactly one frame has been rendered.
         mComposer.waitUntilFrame(frameCount + 1);
-        LOG_ALWAYS_FATAL_IF(frameCount + 1 != mComposer.getFrameCount(),
-                            "Unexpected frame advance. Delta: %d",
-                            mComposer.getFrameCount() - frameCount);
+        //        LOG_ALWAYS_FATAL_IF(frameCount + 1 != mComposer.getFrameCount(),
+        //                            "Unexpected frame advance. Delta: %d",
+        //                            mComposer.getFrameCount() - frameCount);
     }
 
     FakeComposerClient& mComposer;
