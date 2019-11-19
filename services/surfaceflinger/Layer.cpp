@@ -1370,6 +1370,8 @@ void Layer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
     if (newTimestamps) {
         mFlinger->mTimeStats->setPostTime(getSequence(), newTimestamps->frameNumber,
                                           getName().c_str(), newTimestamps->postedTime);
+        mFlinger->mTimeStats->setAcquireFence(getSequence(), newTimestamps->frameNumber,
+                                              newTimestamps->acquireFence);
     }
 
     Mutex::Autolock lock(mFrameEventHistoryMutex);
