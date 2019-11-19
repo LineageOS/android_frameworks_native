@@ -23,7 +23,7 @@
 #include <unordered_map>
 #include <vector>
 #include "DispSync.h"
-
+#include "TimeKeeper.h"
 namespace android::scheduler {
 
 class Clock;
@@ -32,35 +32,38 @@ class VSyncTracker;
 class CallbackRepeater;
 
 // TODO (b/145217110): consider renaming.
-class VSyncReactor /* TODO (b/140201379): : public android::DispSync */ {
+class VSyncReactor : public android::DispSync {
 public:
     VSyncReactor(std::unique_ptr<Clock> clock, std::unique_ptr<VSyncDispatch> dispatch,
                  std::unique_ptr<VSyncTracker> tracker, size_t pendingFenceLimit);
     ~VSyncReactor();
 
-    bool addPresentFence(const std::shared_ptr<FenceTime>& fence);
-    void setIgnorePresentFences(bool ignoration);
+    bool addPresentFence(const std::shared_ptr<FenceTime>& fence) final;
+    void setIgnorePresentFences(bool ignoration) final;
 
-    nsecs_t computeNextRefresh(int periodOffset) const;
-    nsecs_t expectedPresentTime();
+    nsecs_t computeNextRefresh(int periodOffset) const final;
+    nsecs_t expectedPresentTime() final;
 
-    void setPeriod(nsecs_t period);
-    nsecs_t getPeriod();
+    void setPeriod(nsecs_t period) final;
+    nsecs_t getPeriod() final;
 
     // TODO: (b/145626181) remove begin,endResync functions from DispSync i/f when possible.
-    void beginResync();
-    bool addResyncSample(nsecs_t timestamp, bool* periodFlushed);
-    void endResync();
+    void beginResync() final;
+    bool addResyncSample(nsecs_t timestamp, bool* periodFlushed) final;
+    void endResync() final;
 
     status_t addEventListener(const char* name, nsecs_t phase, DispSync::Callback* callback,
-                              nsecs_t lastCallbackTime);
-    status_t removeEventListener(DispSync::Callback* callback, nsecs_t* outLastCallback);
-    status_t changePhaseOffset(DispSync::Callback* callback, nsecs_t phase);
+                              nsecs_t lastCallbackTime) final;
+    status_t removeEventListener(DispSync::Callback* callback, nsecs_t* outLastCallback) final;
+    status_t changePhaseOffset(DispSync::Callback* callback, nsecs_t phase) final;
+
+    void dump(std::string& result) const final;
+    void reset() final;
 
 private:
     std::unique_ptr<Clock> const mClock;
-    std::unique_ptr<VSyncDispatch> const mDispatch;
     std::unique_ptr<VSyncTracker> const mTracker;
+    std::unique_ptr<VSyncDispatch> const mDispatch;
     size_t const mPendingLimit;
 
     std::mutex mMutex;
@@ -69,6 +72,10 @@ private:
     bool mPeriodChangeInProgress GUARDED_BY(mMutex) = false;
     std::unordered_map<DispSync::Callback*, std::unique_ptr<CallbackRepeater>> mCallbacks
             GUARDED_BY(mMutex);
+};
+
+class SystemClock : public Clock {
+    nsecs_t now() const final;
 };
 
 } // namespace android::scheduler
