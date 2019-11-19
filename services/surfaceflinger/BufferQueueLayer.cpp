@@ -307,8 +307,6 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
         }
 
         uint64_t bufferID = mQueueItems[0].mGraphicBuffer->getId();
-        mFlinger->mTimeStats->setAcquireFence(layerId, currentFrameNumber,
-                                              mQueueItems[0].mFenceTime);
         mFlinger->mFrameTracer->traceFence(layerId, bufferID, currentFrameNumber,
                                            mQueueItems[0].mFenceTime,
                                            FrameTracer::FrameEvent::ACQUIRE_FENCE);
