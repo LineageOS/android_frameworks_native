@@ -44,8 +44,8 @@ public:
     std::optional<nsecs_t> lastExecutedVsyncTarget() const;
 
     // This moves the state from disarmed->armed and will calculate the wakeupTime.
-    nsecs_t schedule(nsecs_t workDuration, nsecs_t earliestVsync, VSyncTracker& tracker,
-                     nsecs_t now);
+    ScheduleResult schedule(nsecs_t workDuration, nsecs_t earliestVsync, VSyncTracker& tracker,
+                            nsecs_t now);
     // This will update armed entries with the latest vsync information. Entry remains armed.
     void update(VSyncTracker& tracker, nsecs_t now);
 
@@ -67,7 +67,6 @@ public:
     void ensureNotRunning();
 
 private:
-    void arm(VSyncTracker& tracker, nsecs_t now);
     std::string const mName;
     std::function<void(nsecs_t)> const mCallback;
 
