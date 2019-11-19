@@ -3726,6 +3726,8 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
 
     if (currentMode == HWC_POWER_MODE_OFF) {
         // Turn on the display
+        // TODO: @vhau temp fix only!  See b/141111965
+        mTransactionCompletedThread.clearAllPending();
         getHwComposer().setPowerMode(*displayId, mode);
         if (display->isPrimary() && mode != HWC_POWER_MODE_DOZE_SUSPEND) {
             setVsyncEnabledInHWC(*displayId, mHWCVsyncPendingState);
