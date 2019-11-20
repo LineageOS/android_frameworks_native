@@ -38,6 +38,7 @@ namespace android::compositionengine {
 namespace {
 
 using testing::_;
+using testing::ByMove;
 using testing::InSequence;
 using testing::Ref;
 using testing::Return;
@@ -749,7 +750,51 @@ TEST_F(OutputDevOptRepaintFlashTest, alsoComposesSurfacesAndQueuesABufferIfDirty
  * Output::finishFrame()
  */
 
-// TODO(b/144060211) - Add coverage
+struct OutputFinishFrameTest : public testing::Test {
+    struct OutputPartialMock : public OutputPartialMockBase {
+        // Sets up the helper functions called by composeSurfaces to use a mock
+        // implementations.
+        MOCK_METHOD1(composeSurfaces, std::optional<base::unique_fd>(const Region&));
+        MOCK_METHOD0(postFramebuffer, void());
+    };
+
+    OutputFinishFrameTest() {
+        mOutput.setDisplayColorProfileForTest(
+                std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
+        mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+    }
+
+    StrictMock<OutputPartialMock> mOutput;
+    mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
+    mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
+    CompositionRefreshArgs mRefreshArgs;
+};
+
+TEST_F(OutputFinishFrameTest, ifNotEnabledDoesNothing) {
+    mOutput.mState.isEnabled = false;
+
+    mOutput.finishFrame(mRefreshArgs);
+}
+
+TEST_F(OutputFinishFrameTest, takesEarlyOutifComposeSurfacesReturnsNoFence) {
+    mOutput.mState.isEnabled = true;
+
+    InSequence seq;
+    EXPECT_CALL(mOutput, composeSurfaces(RegionEq(Region::INVALID_REGION)));
+
+    mOutput.finishFrame(mRefreshArgs);
+}
+
+TEST_F(OutputFinishFrameTest, queuesBufferIfComposeSurfacesReturnsAFence) {
+    mOutput.mState.isEnabled = true;
+
+    InSequence seq;
+    EXPECT_CALL(mOutput, composeSurfaces(RegionEq(Region::INVALID_REGION)))
+            .WillOnce(Return(ByMove(base::unique_fd())));
+    EXPECT_CALL(*mRenderSurface, queueBuffer(_));
+
+    mOutput.finishFrame(mRefreshArgs);
+}
 
 /*
  * Output::postFramebuffer()
