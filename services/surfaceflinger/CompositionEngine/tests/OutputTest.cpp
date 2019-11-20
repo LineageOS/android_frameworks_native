@@ -667,6 +667,82 @@ TEST_F(OutputPresentTest, justInvokesChildFunctionsInSequence) {
  * Output::devOptRepaintFlash()
  */
 
+struct OutputDevOptRepaintFlashTest : public testing::Test {
+    struct OutputPartialMock : public OutputPartialMockBase {
+        // Sets up the helper functions called by composeSurfaces to use a mock
+        // implementations.
+        MOCK_CONST_METHOD1(getDirtyRegion, Region(bool));
+        MOCK_METHOD1(composeSurfaces, std::optional<base::unique_fd>(const Region&));
+        MOCK_METHOD0(postFramebuffer, void());
+        MOCK_METHOD0(prepareFrame, void());
+    };
+
+    OutputDevOptRepaintFlashTest() {
+        mOutput.setDisplayColorProfileForTest(
+                std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
+        mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+    }
+
+    static const Region kEmptyRegion;
+    static const Region kNotEmptyRegion;
+
+    StrictMock<OutputPartialMock> mOutput;
+    mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
+    mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
+    CompositionRefreshArgs mRefreshArgs;
+};
+
+const Region OutputDevOptRepaintFlashTest::kEmptyRegion{Rect{0, 0, 0, 0}};
+const Region OutputDevOptRepaintFlashTest::kNotEmptyRegion{Rect{0, 0, 1, 1}};
+
+TEST_F(OutputDevOptRepaintFlashTest, doesNothingIfFlashDelayNotSet) {
+    mRefreshArgs.devOptFlashDirtyRegionsDelay = {};
+    mRefreshArgs.repaintEverything = true;
+    mOutput.mState.isEnabled = true;
+
+    mOutput.devOptRepaintFlash(mRefreshArgs);
+}
+
+TEST_F(OutputDevOptRepaintFlashTest, postsAndPreparesANewFrameIfNotEnabled) {
+    mRefreshArgs.devOptFlashDirtyRegionsDelay = std::chrono::microseconds(1);
+    mRefreshArgs.repaintEverything = true;
+    mOutput.mState.isEnabled = false;
+
+    InSequence seq;
+    EXPECT_CALL(mOutput, postFramebuffer());
+    EXPECT_CALL(mOutput, prepareFrame());
+
+    mOutput.devOptRepaintFlash(mRefreshArgs);
+}
+
+TEST_F(OutputDevOptRepaintFlashTest, postsAndPreparesANewFrameIfNotDirty) {
+    mRefreshArgs.devOptFlashDirtyRegionsDelay = std::chrono::microseconds(1);
+    mRefreshArgs.repaintEverything = true;
+    mOutput.mState.isEnabled = true;
+
+    InSequence seq;
+    EXPECT_CALL(mOutput, getDirtyRegion(true)).WillOnce(Return(kEmptyRegion));
+    EXPECT_CALL(mOutput, postFramebuffer());
+    EXPECT_CALL(mOutput, prepareFrame());
+
+    mOutput.devOptRepaintFlash(mRefreshArgs);
+}
+
+TEST_F(OutputDevOptRepaintFlashTest, alsoComposesSurfacesAndQueuesABufferIfDirty) {
+    mRefreshArgs.devOptFlashDirtyRegionsDelay = std::chrono::microseconds(1);
+    mRefreshArgs.repaintEverything = false;
+    mOutput.mState.isEnabled = true;
+
+    InSequence seq;
+    EXPECT_CALL(mOutput, getDirtyRegion(false)).WillOnce(Return(kNotEmptyRegion));
+    EXPECT_CALL(mOutput, composeSurfaces(RegionEq(kNotEmptyRegion)));
+    EXPECT_CALL(*mRenderSurface, queueBuffer(_));
+    EXPECT_CALL(mOutput, postFramebuffer());
+    EXPECT_CALL(mOutput, prepareFrame());
+
+    mOutput.devOptRepaintFlash(mRefreshArgs);
+}
+
 // TODO(b/144060211) - Add coverage
 
 /*
