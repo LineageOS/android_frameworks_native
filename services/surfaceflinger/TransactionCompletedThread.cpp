@@ -189,6 +189,15 @@ status_t TransactionCompletedThread::finalizePendingCallbackHandles(
     return NO_ERROR;
 }
 
+void TransactionCompletedThread::clearAllPending() {
+    std::lock_guard lock(mMutex);
+    if (!mRunning) {
+        return;
+    }
+    mPendingTransactions.clear();
+    mConditionVariable.notify_all();
+}
+
 status_t TransactionCompletedThread::registerUnpresentedCallbackHandle(
         const sp<CallbackHandle>& handle) {
     std::lock_guard lock(mMutex);
