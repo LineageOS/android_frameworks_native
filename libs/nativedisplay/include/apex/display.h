@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <android/data_space.h>
+#include <android/hardware_buffer.h>
 #include <inttypes.h>
 
 __BEGIN_DECLS
@@ -70,6 +72,12 @@ float ADisplay_getMaxSupportedFps(ADisplay* display);
  * Queries the display's type.
  */
 ADisplayType ADisplay_getDisplayType(ADisplay* display);
+
+/**
+ * Queries the display's preferred WCG format
+ */
+void ADisplay_getPreferredWideColorFormat(ADisplay* display, ADataSpace* outDataspace,
+                                          AHardwareBuffer_Format* outPixelFormat);
 
 /**
  * Gets the current display configuration for the given display.

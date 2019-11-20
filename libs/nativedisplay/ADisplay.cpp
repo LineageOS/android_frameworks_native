@@ -18,6 +18,7 @@
 #include <gui/SurfaceComposerClient.h>
 #include <ui/DisplayInfo.h>
 #include <ui/GraphicTypes.h>
+#include <ui/PixelFormat.h>
 
 #include <algorithm>
 #include <optional>
@@ -80,6 +81,16 @@ struct DisplayImpl {
      * display.
      */
     ADisplayType type;
+
+    /**
+     * The preferred WCG dataspace
+     */
+    ADataSpace wcgDataspace;
+
+    /**
+     * The preferred WCG pixel format
+     */
+    AHardwareBuffer_Format wcgPixelFormat;
 
     /**
      * Number of supported configs
@@ -151,6 +162,17 @@ int ADisplay_acquirePhysicalDisplays(ADisplay*** outDisplays) {
 
     const std::optional<PhysicalDisplayId> internalId =
             SurfaceComposerClient::getInternalDisplayId();
+    ui::Dataspace defaultDataspace;
+    ui::PixelFormat defaultPixelFormat;
+    ui::Dataspace wcgDataspace;
+    ui::PixelFormat wcgPixelFormat;
+
+    const status_t status =
+            SurfaceComposerClient::getCompositionPreference(&defaultDataspace, &defaultPixelFormat,
+                                                            &wcgDataspace, &wcgPixelFormat);
+    if (status != NO_ERROR) {
+        return status;
+    }
 
     // Here we allocate all our required memory in one block. The layout is as
     // follows:
@@ -176,7 +198,12 @@ int ADisplay_acquirePhysicalDisplays(ADisplay*** outDisplays) {
         const std::vector<DisplayConfigImpl>& configs = configsPerDisplay[i];
         memcpy(configData, configs.data(), sizeof(DisplayConfigImpl) * configs.size());
 
-        displayData[i] = DisplayImpl{id, type, configs.size(), configData};
+        displayData[i] = DisplayImpl{id,
+                                     type,
+                                     static_cast<ADataSpace>(wcgDataspace),
+                                     static_cast<AHardwareBuffer_Format>(wcgPixelFormat),
+                                     configs.size(),
+                                     configData};
         impls[i] = displayData + i;
         // Advance the configData pointer so that future configs are written to
         // the correct display.
@@ -208,6 +235,17 @@ ADisplayType ADisplay_getDisplayType(ADisplay* display) {
     CHECK_NOT_NULL(display);
 
     return reinterpret_cast<DisplayImpl*>(display)->type;
+}
+
+void ADisplay_getPreferredWideColorFormat(ADisplay* display, ADataSpace* outDataspace,
+                                          AHardwareBuffer_Format* outPixelFormat) {
+    CHECK_NOT_NULL(display);
+    CHECK_NOT_NULL(outDataspace);
+    CHECK_NOT_NULL(outPixelFormat);
+
+    DisplayImpl* impl = reinterpret_cast<DisplayImpl*>(display);
+    *outDataspace = impl->wcgDataspace;
+    *outPixelFormat = impl->wcgPixelFormat;
 }
 
 int ADisplay_getCurrentConfig(ADisplay* display, ADisplayConfig** outConfig) {
