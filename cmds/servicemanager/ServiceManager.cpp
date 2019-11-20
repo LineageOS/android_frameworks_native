@@ -314,7 +314,7 @@ void ServiceManager::removeCallback(const wp<IBinder>& who,
     if (listeners.empty()) {
         *it = mNameToCallback.erase(*it);
     } else {
-        it++;
+        (*it)++;
     }
 }
 
