@@ -42,7 +42,7 @@ bool ClientCache::getBuffer(const client_cache_t& cacheId,
         return false;
     }
 
-    auto& processBuffers = it->second;
+    auto& processBuffers = it->second.second;
 
     auto bufItr = processBuffers.find(id);
     if (bufItr == processBuffers.end()) {
@@ -86,12 +86,14 @@ bool ClientCache::add(const client_cache_t& cacheId, const sp<GraphicBuffer>& bu
             return false;
         }
         auto [itr, success] =
-                mBuffers.emplace(processToken, std::unordered_map<uint64_t, ClientCacheBuffer>());
+                mBuffers.emplace(processToken,
+                                 std::make_pair(token,
+                                                std::unordered_map<uint64_t, ClientCacheBuffer>()));
         LOG_ALWAYS_FATAL_IF(!success, "failed to insert new process into client cache");
         it = itr;
     }
 
-    auto& processBuffers = it->second;
+    auto& processBuffers = it->second.second;
 
     if (processBuffers.size() > BUFFER_CACHE_MAX_SIZE) {
         ALOGE("failed to cache buffer: cache is full");
@@ -120,7 +122,7 @@ void ClientCache::erase(const client_cache_t& cacheId) {
             }
         }
 
-        mBuffers[processToken].erase(id);
+        mBuffers[processToken].second.erase(id);
     }
 
     for (auto& recipient : pendingErase) {
@@ -180,7 +182,7 @@ void ClientCache::removeProcess(const wp<IBinder>& processToken) {
             return;
         }
 
-        for (auto& [id, clientCacheBuffer] : itr->second) {
+        for (auto& [id, clientCacheBuffer] : itr->second.second) {
             client_cache_t cacheId = {processToken, id};
             for (auto& recipient : clientCacheBuffer.recipients) {
                 sp<ErasedRecipient> erasedRecipient = recipient.promote();

@@ -904,6 +904,7 @@ std::vector<renderengine::LayerSettings> Output::generateClientCompositionReques
                     layerSettings.disableBlending = true;
                 }
 
+                layer->editState().clientCompositionTimestamp = systemTime();
                 clientCompositionLayers.push_back(*result);
             }
         }

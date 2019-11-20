@@ -531,7 +531,7 @@ public:
      * called after composition.
      * returns true if the layer latched a new buffer this frame.
      */
-    virtual bool onPostComposition(const std::optional<DisplayId>& /*displayId*/,
+    virtual bool onPostComposition(sp<const DisplayDevice> /*displayDevice*/,
                                    const std::shared_ptr<FenceTime>& /*glDoneFence*/,
                                    const std::shared_ptr<FenceTime>& /*presentFence*/,
                                    const CompositorTiming& /*compositorTiming*/) {
@@ -600,6 +600,8 @@ public:
     virtual uint32_t getBufferTransform() const { return 0; }
 
     virtual sp<GraphicBuffer> getBuffer() const { return nullptr; }
+
+    virtual uint64_t getCurrentFrameNumber() const { return mCurrentFrameNumber; }
 
     /*
      * Returns if a frame is ready
