@@ -20,7 +20,12 @@
 #include <android/hardware_buffer.h>
 #include <inttypes.h>
 
-__BEGIN_DECLS
+// TODO: the intention of these apis is to be stable - hence they are defined in
+// an apex directory. But because they don't yet need to be stable, hold off on
+// making them stable until a Mainline module needs them.
+// __BEGIN_DECLS
+
+namespace android {
 
 /**
  * Opaque handle for a native display
@@ -130,4 +135,5 @@ int64_t ADisplayConfig_getCompositorOffsetNanos(ADisplayConfig* config);
  */
 int64_t ADisplayConfig_getAppVsyncOffsetNanos(ADisplayConfig* config);
 
-__END_DECLS
+} // namespace android
+// __END_DECLS

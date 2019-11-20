@@ -129,6 +129,8 @@ int64_t computeSfOffset(const DisplayInfo& info) {
 }
 } // namespace
 
+namespace android {
+
 int ADisplay_acquirePhysicalDisplays(ADisplay*** outDisplays) {
     const std::vector<PhysicalDisplayId> ids = SurfaceComposerClient::getPhysicalDisplayIds();
     const size_t size = ids.size();
@@ -298,3 +300,5 @@ int64_t ADisplayConfig_getAppVsyncOffsetNanos(ADisplayConfig* config) {
 
     return reinterpret_cast<DisplayConfigImpl*>(config)->appOffset;
 }
+
+} // namespace android

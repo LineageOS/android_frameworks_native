@@ -7,6 +7,28 @@ LIBNATIVEDISPLAY {
     AChoreographer_postFrameCallbackDelayed64; # apex # introduced=30
     AChoreographer_registerRefreshRateCallback; # apex # introduced=30
     AChoreographer_unregisterRefreshRateCallback; # apex # introduced=30
+    AChoreographer_create; # apex # introduced=30
+    AChoreographer_destroy; # apex # introduced=30
+    AChoreographer_getFd; # apex # introduced=30
+    AChoreographer_handlePendingEvents; # apex # introduced=30
   local:
     *;
 };
+
+LIBNATIVEDISPLAY_PLATFORM {
+  global:
+    extern "C++" {
+      android::ADisplay_acquirePhysicalDisplays*;
+      android::ADisplay_release*;
+      android::ADisplay_getMaxSupportedFps*;
+      android::ADisplay_getDisplayType*;
+      android::ADisplay_getPreferredWideColorFormat*;
+      android::ADisplay_getCurrentConfig*;
+      android::ADisplayConfig_getDensity*;
+      android::ADisplayConfig_getWidth*;
+      android::ADisplayConfig_getHeight*;
+      android::ADisplayConfig_getFps*;
+      android::ADisplayConfig_getCompositorOffsetNanos*;
+      android::ADisplayConfig_getAppVsyncOffsetNanos*;
+    };
+} LIBNATIVEDISPLAY;
