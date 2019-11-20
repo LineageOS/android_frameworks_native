@@ -33,6 +33,7 @@
 #include <ui/Region.h>
 
 #include "CallOrderStateMachineHelper.h"
+#include "MockHWC2.h"
 #include "RegionMatcher.h"
 #include "TransformMatcher.h"
 
@@ -42,8 +43,10 @@ namespace {
 using testing::_;
 using testing::ByMove;
 using testing::DoAll;
+using testing::Eq;
 using testing::InSequence;
 using testing::Mock;
+using testing::Property;
 using testing::Ref;
 using testing::Return;
 using testing::ReturnRef;
@@ -1650,7 +1653,173 @@ TEST_F(OutputFinishFrameTest, queuesBufferIfComposeSurfacesReturnsAFence) {
  * Output::postFramebuffer()
  */
 
-// TODO(b/144060211) - Add coverage
+struct OutputPostFramebufferTest : public testing::Test {
+    struct OutputPartialMock : public OutputPartialMockBase {
+        // Sets up the helper functions called by composeSurfaces to use a mock
+        // implementations.
+        MOCK_METHOD0(presentAndGetFrameFences, compositionengine::Output::FrameFences());
+    };
+
+    struct Layer {
+        Layer() {
+            EXPECT_CALL(outputLayer, getLayerFE()).WillRepeatedly(ReturnRef(layerFE));
+            EXPECT_CALL(outputLayer, getHwcLayer()).WillRepeatedly(Return(&hwc2Layer));
+        }
+
+        StrictMock<mock::OutputLayer> outputLayer;
+        StrictMock<mock::LayerFE> layerFE;
+        StrictMock<HWC2::mock::Layer> hwc2Layer;
+    };
+
+    OutputPostFramebufferTest() {
+        mOutput.setDisplayColorProfileForTest(
+                std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
+        mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+
+        EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(3u));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u))
+                .WillRepeatedly(Return(&mLayer1.outputLayer));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(1u))
+                .WillRepeatedly(Return(&mLayer2.outputLayer));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(2u))
+                .WillRepeatedly(Return(&mLayer3.outputLayer));
+    }
+
+    StrictMock<OutputPartialMock> mOutput;
+    mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
+    mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
+
+    Layer mLayer1;
+    Layer mLayer2;
+    Layer mLayer3;
+};
+
+TEST_F(OutputPostFramebufferTest, ifNotEnabledDoesNothing) {
+    mOutput.mState.isEnabled = false;
+
+    mOutput.postFramebuffer();
+}
+
+TEST_F(OutputPostFramebufferTest, ifEnabledMustFlipThenPresentThenSendPresentCompleted) {
+    mOutput.mState.isEnabled = true;
+
+    compositionengine::Output::FrameFences frameFences;
+
+    // This should happen even if there are no output layers.
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillOnce(Return(0u));
+
+    // For this test in particular we want to make sure the call expectations
+    // setup below are satisfied in the specific order.
+    InSequence seq;
+
+    EXPECT_CALL(*mRenderSurface, flip());
+    EXPECT_CALL(mOutput, presentAndGetFrameFences()).WillOnce(Return(frameFences));
+    EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
+
+    mOutput.postFramebuffer();
+}
+
+TEST_F(OutputPostFramebufferTest, releaseFencesAreSentToLayerFE) {
+    // Simulate getting release fences from each layer, and ensure they are passed to the
+    // front-end layer interface for each layer correctly.
+
+    mOutput.mState.isEnabled = true;
+
+    // Create three unique fence instances
+    sp<Fence> layer1Fence = new Fence();
+    sp<Fence> layer2Fence = new Fence();
+    sp<Fence> layer3Fence = new Fence();
+
+    compositionengine::Output::FrameFences frameFences;
+    frameFences.layerFences.emplace(&mLayer1.hwc2Layer, layer1Fence);
+    frameFences.layerFences.emplace(&mLayer2.hwc2Layer, layer2Fence);
+    frameFences.layerFences.emplace(&mLayer3.hwc2Layer, layer3Fence);
+
+    EXPECT_CALL(*mRenderSurface, flip());
+    EXPECT_CALL(mOutput, presentAndGetFrameFences()).WillOnce(Return(frameFences));
+    EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
+
+    // Compare the pointers values of each fence to make sure the correct ones
+    // are passed. This happens to work with the current implementation, but
+    // would not survive certain calls like Fence::merge() which would return a
+    // new instance.
+    EXPECT_CALL(mLayer1.layerFE,
+                onLayerDisplayed(Property(&sp<Fence>::get, Eq(layer1Fence.get()))));
+    EXPECT_CALL(mLayer2.layerFE,
+                onLayerDisplayed(Property(&sp<Fence>::get, Eq(layer2Fence.get()))));
+    EXPECT_CALL(mLayer3.layerFE,
+                onLayerDisplayed(Property(&sp<Fence>::get, Eq(layer3Fence.get()))));
+
+    mOutput.postFramebuffer();
+}
+
+TEST_F(OutputPostFramebufferTest, releaseFencesIncludeClientTargetAcquireFence) {
+    mOutput.mState.isEnabled = true;
+    mOutput.mState.usesClientComposition = true;
+
+    sp<Fence> clientTargetAcquireFence = new Fence();
+    sp<Fence> layer1Fence = new Fence();
+    sp<Fence> layer2Fence = new Fence();
+    sp<Fence> layer3Fence = new Fence();
+    compositionengine::Output::FrameFences frameFences;
+    frameFences.clientTargetAcquireFence = clientTargetAcquireFence;
+    frameFences.layerFences.emplace(&mLayer1.hwc2Layer, layer1Fence);
+    frameFences.layerFences.emplace(&mLayer2.hwc2Layer, layer2Fence);
+    frameFences.layerFences.emplace(&mLayer3.hwc2Layer, layer3Fence);
+
+    EXPECT_CALL(*mRenderSurface, flip());
+    EXPECT_CALL(mOutput, presentAndGetFrameFences()).WillOnce(Return(frameFences));
+    EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
+
+    // Fence::merge is called, and since none of the fences are actually valid,
+    // Fence::NO_FENCE is returned and passed to each onLayerDisplayed() call.
+    // This is the best we can do without creating a real kernel fence object.
+    EXPECT_CALL(mLayer1.layerFE, onLayerDisplayed(Fence::NO_FENCE));
+    EXPECT_CALL(mLayer2.layerFE, onLayerDisplayed(Fence::NO_FENCE));
+    EXPECT_CALL(mLayer3.layerFE, onLayerDisplayed(Fence::NO_FENCE));
+
+    mOutput.postFramebuffer();
+}
+
+TEST_F(OutputPostFramebufferTest, releasedLayersSentPresentFence) {
+    mOutput.mState.isEnabled = true;
+    mOutput.mState.usesClientComposition = true;
+
+    // This should happen even if there are no (current) output layers.
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillOnce(Return(0u));
+
+    // Load up the released layers with some mock instances
+    sp<StrictMock<mock::LayerFE>> releasedLayer1{new StrictMock<mock::LayerFE>()};
+    sp<StrictMock<mock::LayerFE>> releasedLayer2{new StrictMock<mock::LayerFE>()};
+    sp<StrictMock<mock::LayerFE>> releasedLayer3{new StrictMock<mock::LayerFE>()};
+    Output::ReleasedLayers layers;
+    layers.push_back(releasedLayer1);
+    layers.push_back(releasedLayer2);
+    layers.push_back(releasedLayer3);
+    mOutput.setReleasedLayers(std::move(layers));
+
+    // Set up a fake present fence
+    sp<Fence> presentFence = new Fence();
+    compositionengine::Output::FrameFences frameFences;
+    frameFences.presentFence = presentFence;
+
+    EXPECT_CALL(*mRenderSurface, flip());
+    EXPECT_CALL(mOutput, presentAndGetFrameFences()).WillOnce(Return(frameFences));
+    EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
+
+    // Each released layer should be given the presentFence.
+    EXPECT_CALL(*releasedLayer1,
+                onLayerDisplayed(Property(&sp<Fence>::get, Eq(presentFence.get()))));
+    EXPECT_CALL(*releasedLayer2,
+                onLayerDisplayed(Property(&sp<Fence>::get, Eq(presentFence.get()))));
+    EXPECT_CALL(*releasedLayer3,
+                onLayerDisplayed(Property(&sp<Fence>::get, Eq(presentFence.get()))));
+
+    mOutput.postFramebuffer();
+
+    // After the call the list of released layers should have been cleared.
+    EXPECT_TRUE(mOutput.getReleasedLayersForTest().empty());
+}
 
 /*
  * Output::composeSurfaces()
