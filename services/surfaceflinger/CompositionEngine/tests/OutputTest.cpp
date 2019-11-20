@@ -483,6 +483,31 @@ TEST_F(OutputTest, getOutputLayerForLayerWorks) {
 }
 
 /*
+ * Output::setReleasedLayers()
+ */
+
+using OutputSetReleasedLayersTest = OutputTest;
+
+TEST_F(OutputSetReleasedLayersTest, setReleasedLayersTakesGivenLayers) {
+    sp<StrictMock<mock::LayerFE>> layer1FE{new StrictMock<mock::LayerFE>()};
+    sp<StrictMock<mock::LayerFE>> layer2FE{new StrictMock<mock::LayerFE>()};
+    sp<StrictMock<mock::LayerFE>> layer3FE{new StrictMock<mock::LayerFE>()};
+
+    Output::ReleasedLayers layers;
+    layers.push_back(layer1FE);
+    layers.push_back(layer2FE);
+    layers.push_back(layer3FE);
+
+    mOutput->setReleasedLayers(std::move(layers));
+
+    const auto& setLayers = mOutput->getReleasedLayersForTest();
+    ASSERT_EQ(3u, setLayers.size());
+    ASSERT_EQ(layer1FE.get(), setLayers[0].promote().get());
+    ASSERT_EQ(layer2FE.get(), setLayers[1].promote().get());
+    ASSERT_EQ(layer3FE.get(), setLayers[2].promote().get());
+}
+
+/*
  * Output::updateAndWriteCompositionState()
  */
 
