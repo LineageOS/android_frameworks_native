@@ -32,6 +32,8 @@ public:
     void dispose();
     status_t scheduleVsync();
     void toggleConfigEvents(ISurfaceComposer::ConfigChanged configChangeFlag);
+    int getFd();
+    virtual int handleEvent(int receiveFd, int events, void* data);
 
 protected:
     virtual ~DisplayEventDispatcher() = default;
@@ -48,7 +50,6 @@ private:
     virtual void dispatchConfigChanged(nsecs_t timestamp, PhysicalDisplayId displayId,
                                        int32_t configId, nsecs_t vsyncPeriod) = 0;
 
-    virtual int handleEvent(int receiveFd, int events, void* data);
     bool processPendingEvents(nsecs_t* outTimestamp, PhysicalDisplayId* outDisplayId,
                               uint32_t* outCount);
 };
