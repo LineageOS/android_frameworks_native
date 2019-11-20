@@ -65,6 +65,7 @@
 #include "view_compiler.h"
 
 #include "CacheTracker.h"
+#include "CrateManager.h"
 #include "MatchExtensionGen.h"
 #include "QuotaUtils.h"
 
@@ -2026,6 +2027,82 @@ binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std:
     LOG(DEBUG) << "Final result " << toString(ret);
 #endif
     *_aidl_return = ret;
+    return ok();
+}
+
+binder::Status InstalldNativeService::getAppCrates(
+        const std::unique_ptr<std::string>& uuid,
+        const std::vector<std::string>& packageNames, int32_t userId,
+        std::unique_ptr<std::vector<std::unique_ptr<CrateMetadata>>>* _aidl_return) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_UUID(uuid);
+    for (const auto& packageName : packageNames) {
+        CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    }
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
+    auto retVector = std::make_unique<std::vector<std::unique_ptr<CrateMetadata>>>();
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
+
+    std::function<void(CratedFolder, std::unique_ptr<CrateMetadata> &)> onCreateCrate =
+            [&](CratedFolder cratedFolder, std::unique_ptr<CrateMetadata> &crateMetadata) -> void {
+        if (cratedFolder == nullptr) {
+            return;
+        }
+        retVector->push_back(std::move(crateMetadata));
+    };
+
+    for (const auto& packageName : packageNames) {
+#if CRATE_DEBUG
+        LOG(DEBUG) << "packageName = " << packageName;
+#endif
+        auto crateManager = std::make_unique<CrateManager>(uuid_, userId, packageName);
+        crateManager->traverseAllCrates(onCreateCrate);
+    }
+
+#if CRATE_DEBUG
+    LOG(WARNING) << "retVector->size() =" << retVector->size();
+    for (auto iter = retVector->begin(); iter != retVector->end(); ++iter) {
+        CrateManager::dump(*iter);
+    }
+#endif
+
+    *_aidl_return = std::move(retVector);
+    return ok();
+}
+
+binder::Status InstalldNativeService::getUserCrates(
+        const std::unique_ptr<std::string>& uuid, int32_t userId,
+        std::unique_ptr<std::vector<std::unique_ptr<CrateMetadata>>>* _aidl_return) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_UUID(uuid);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
+    auto retVector = std::make_unique<std::vector<std::unique_ptr<CrateMetadata>>>();
+
+    std::function<void(CratedFolder, std::unique_ptr<CrateMetadata> &)> onCreateCrate =
+            [&](CratedFolder cratedFolder, std::unique_ptr<CrateMetadata> &crateMetadata) -> void {
+        if (cratedFolder == nullptr) {
+            return;
+        }
+        retVector->push_back(std::move(crateMetadata));
+    };
+
+    std::function<void(FTSENT*)> onHandingPackage = [&](FTSENT* packageDir) -> void {
+        auto crateManager = std::make_unique<CrateManager>(uuid_, userId, packageDir->fts_name);
+        crateManager->traverseAllCrates(onCreateCrate);
+    };
+    CrateManager::traverseAllPackagesForUser(uuid, userId, onHandingPackage);
+
+#if CRATE_DEBUG
+    LOG(DEBUG) << "retVector->size() =" << retVector->size();
+    for (auto iter = retVector->begin(); iter != retVector->end(); ++iter) {
+        CrateManager::dump(*iter);
+    }
+#endif
+
+    *_aidl_return = std::move(retVector);
     return ok();
 }
 

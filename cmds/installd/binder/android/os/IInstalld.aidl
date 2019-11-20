@@ -40,6 +40,14 @@ interface IInstalld {
     long[] getUserSize(@nullable @utf8InCpp String uuid, int userId, int flags, in int[] appIds);
     long[] getExternalSize(@nullable @utf8InCpp String uuid, int userId, int flags, in int[] appIds);
 
+    @nullable
+    android.os.storage.CrateMetadata[] getAppCrates(
+            @nullable @utf8InCpp String uuid, in @utf8InCpp String[] packageNames,
+             int userId);
+    @nullable
+    android.os.storage.CrateMetadata[] getUserCrates(
+            @nullable @utf8InCpp String uuid, int userId);
+
     void setAppQuota(@nullable @utf8InCpp String uuid, int userId, int appId, long cacheQuota);
 
     void moveCompleteApp(@nullable @utf8InCpp String fromUuid, @nullable @utf8InCpp String toUuid,

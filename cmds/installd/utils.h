@@ -82,6 +82,10 @@ std::string create_data_misc_legacy_path(userid_t userid);
 
 std::string create_data_dalvik_cache_path();
 
+std::string create_system_user_ce_path(userid_t userId);
+
+std::string create_system_user_ce_package_path(userid_t userId, const char* package_name);
+
 std::string create_primary_cur_profile_dir_path(userid_t userid);
 std::string create_primary_current_profile_package_dir_path(
         userid_t user, const std::string& package_name);
