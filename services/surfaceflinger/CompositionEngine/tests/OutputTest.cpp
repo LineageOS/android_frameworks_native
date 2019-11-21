@@ -1514,6 +1514,157 @@ TEST_F(OutputUpdateColorProfile_AffectsChosenRenderIntentTest, Vendor_Hdr_Prefer
  * Output::beginFrame()
  */
 
+struct OutputBeginFrameTest : public ::testing::Test {
+    using TestType = OutputBeginFrameTest;
+
+    struct OutputPartialMock : public OutputPartialMockBase {
+        // Sets up the helper functions called by begiNFrame to use a mock
+        // implementations.
+        MOCK_CONST_METHOD1(getDirtyRegion, Region(bool));
+    };
+
+    OutputBeginFrameTest() {
+        mOutput.setDisplayColorProfileForTest(
+                std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
+        mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+    }
+
+    struct IfGetDirtyRegionExpectationState
+          : public CallOrderStateMachineHelper<TestType, IfGetDirtyRegionExpectationState> {
+        [[nodiscard]] auto ifGetDirtyRegionReturns(Region dirtyRegion) {
+            EXPECT_CALL(getInstance()->mOutput, getDirtyRegion(false))
+                    .WillOnce(Return(dirtyRegion));
+            return nextState<AndIfGetOutputLayerCountExpectationState>();
+        }
+    };
+
+    struct AndIfGetOutputLayerCountExpectationState
+          : public CallOrderStateMachineHelper<TestType, AndIfGetOutputLayerCountExpectationState> {
+        [[nodiscard]] auto andIfGetOutputLayerCountReturns(size_t layerCount) {
+            EXPECT_CALL(getInstance()->mOutput, getOutputLayerCount()).WillOnce(Return(layerCount));
+            return nextState<AndIfLastCompositionHadVisibleLayersState>();
+        }
+    };
+
+    struct AndIfLastCompositionHadVisibleLayersState
+          : public CallOrderStateMachineHelper<TestType,
+                                               AndIfLastCompositionHadVisibleLayersState> {
+        [[nodiscard]] auto andIfLastCompositionHadVisibleLayersIs(bool hadOutputLayers) {
+            getInstance()->mOutput.mState.lastCompositionHadVisibleLayers = hadOutputLayers;
+            return nextState<ThenExpectRenderSurfaceBeginFrameCallState>();
+        }
+    };
+
+    struct ThenExpectRenderSurfaceBeginFrameCallState
+          : public CallOrderStateMachineHelper<TestType,
+                                               ThenExpectRenderSurfaceBeginFrameCallState> {
+        [[nodiscard]] auto thenExpectRenderSurfaceBeginFrameCall(bool mustRecompose) {
+            EXPECT_CALL(*getInstance()->mRenderSurface, beginFrame(mustRecompose));
+            return nextState<ExecuteState>();
+        }
+    };
+
+    struct ExecuteState : public CallOrderStateMachineHelper<TestType, ExecuteState> {
+        [[nodiscard]] auto execute() {
+            getInstance()->mOutput.beginFrame();
+            return nextState<CheckPostconditionHadVisibleLayersState>();
+        }
+    };
+
+    struct CheckPostconditionHadVisibleLayersState
+          : public CallOrderStateMachineHelper<TestType, CheckPostconditionHadVisibleLayersState> {
+        void checkPostconditionHadVisibleLayers(bool expected) {
+            EXPECT_EQ(expected, getInstance()->mOutput.mState.lastCompositionHadVisibleLayers);
+        }
+    };
+
+    // Tests call one of these two helper member functions to start using the
+    // mini-DSL defined above.
+    [[nodiscard]] auto verify() { return IfGetDirtyRegionExpectationState::make(this); }
+
+    static const Region kEmptyRegion;
+    static const Region kNotEmptyRegion;
+
+    mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
+    mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
+    StrictMock<OutputPartialMock> mOutput;
+};
+
+const Region OutputBeginFrameTest::kEmptyRegion{Rect{0, 0, 0, 0}};
+const Region OutputBeginFrameTest::kNotEmptyRegion{Rect{0, 0, 1, 1}};
+
+TEST_F(OutputBeginFrameTest, hasDirtyHasLayersHadLayersLastFrame) {
+    verify().ifGetDirtyRegionReturns(kNotEmptyRegion)
+            .andIfGetOutputLayerCountReturns(1u)
+            .andIfLastCompositionHadVisibleLayersIs(true)
+            .thenExpectRenderSurfaceBeginFrameCall(true)
+            .execute()
+            .checkPostconditionHadVisibleLayers(true);
+}
+
+TEST_F(OutputBeginFrameTest, hasDirtyNotHasLayersHadLayersLastFrame) {
+    verify().ifGetDirtyRegionReturns(kNotEmptyRegion)
+            .andIfGetOutputLayerCountReturns(0u)
+            .andIfLastCompositionHadVisibleLayersIs(true)
+            .thenExpectRenderSurfaceBeginFrameCall(true)
+            .execute()
+            .checkPostconditionHadVisibleLayers(false);
+}
+
+TEST_F(OutputBeginFrameTest, hasDirtyHasLayersNotHadLayersLastFrame) {
+    verify().ifGetDirtyRegionReturns(kNotEmptyRegion)
+            .andIfGetOutputLayerCountReturns(1u)
+            .andIfLastCompositionHadVisibleLayersIs(false)
+            .thenExpectRenderSurfaceBeginFrameCall(true)
+            .execute()
+            .checkPostconditionHadVisibleLayers(true);
+}
+
+TEST_F(OutputBeginFrameTest, hasDirtyNotHasLayersNotHadLayersLastFrame) {
+    verify().ifGetDirtyRegionReturns(kNotEmptyRegion)
+            .andIfGetOutputLayerCountReturns(0u)
+            .andIfLastCompositionHadVisibleLayersIs(false)
+            .thenExpectRenderSurfaceBeginFrameCall(false)
+            .execute()
+            .checkPostconditionHadVisibleLayers(false);
+}
+
+TEST_F(OutputBeginFrameTest, notHasDirtyHasLayersHadLayersLastFrame) {
+    verify().ifGetDirtyRegionReturns(kEmptyRegion)
+            .andIfGetOutputLayerCountReturns(1u)
+            .andIfLastCompositionHadVisibleLayersIs(true)
+            .thenExpectRenderSurfaceBeginFrameCall(false)
+            .execute()
+            .checkPostconditionHadVisibleLayers(true);
+}
+
+TEST_F(OutputBeginFrameTest, notHasDirtyNotHasLayersHadLayersLastFrame) {
+    verify().ifGetDirtyRegionReturns(kEmptyRegion)
+            .andIfGetOutputLayerCountReturns(0u)
+            .andIfLastCompositionHadVisibleLayersIs(true)
+            .thenExpectRenderSurfaceBeginFrameCall(false)
+            .execute()
+            .checkPostconditionHadVisibleLayers(true);
+}
+
+TEST_F(OutputBeginFrameTest, notHasDirtyHasLayersNotHadLayersLastFrame) {
+    verify().ifGetDirtyRegionReturns(kEmptyRegion)
+            .andIfGetOutputLayerCountReturns(1u)
+            .andIfLastCompositionHadVisibleLayersIs(false)
+            .thenExpectRenderSurfaceBeginFrameCall(false)
+            .execute()
+            .checkPostconditionHadVisibleLayers(false);
+}
+
+TEST_F(OutputBeginFrameTest, notHasDirtyNotHasLayersNotHadLayersLastFrame) {
+    verify().ifGetDirtyRegionReturns(kEmptyRegion)
+            .andIfGetOutputLayerCountReturns(0u)
+            .andIfLastCompositionHadVisibleLayersIs(false)
+            .thenExpectRenderSurfaceBeginFrameCall(false)
+            .execute()
+            .checkPostconditionHadVisibleLayers(false);
+}
+
 /*
  * Output::devOptRepaintFlash()
  */
