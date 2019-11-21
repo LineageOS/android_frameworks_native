@@ -38,6 +38,7 @@ public:
     MOCK_METHOD1(addVsyncTimestamp, void(nsecs_t));
     MOCK_CONST_METHOD1(nextAnticipatedVSyncTimeFrom, nsecs_t(nsecs_t));
     MOCK_CONST_METHOD0(currentPeriod, nsecs_t());
+    MOCK_METHOD1(setPeriod, void(nsecs_t));
 };
 
 class VSyncTrackerWrapper : public VSyncTracker {
@@ -49,6 +50,7 @@ public:
         return mTracker->nextAnticipatedVSyncTimeFrom(timePoint);
     }
     nsecs_t currentPeriod() const final { return mTracker->currentPeriod(); }
+    void setPeriod(nsecs_t period) { mTracker->setPeriod(period); }
 
 private:
     std::shared_ptr<VSyncTracker> const mTracker;
@@ -232,6 +234,18 @@ TEST_F(VSyncReactorTest, queriesTrackerForNextRefreshFuture) {
     EXPECT_CALL(*mMockTracker, nextAnticipatedVSyncTimeFrom(fakeNow + numPeriodsOut * fakePeriod))
             .WillOnce(Return(fakeTimestamp));
     EXPECT_THAT(mReactor.computeNextRefresh(numPeriodsOut), Eq(fakeTimestamp));
+}
+
+TEST_F(VSyncReactorTest, getPeriod) {
+    nsecs_t const fakePeriod = 1010;
+    EXPECT_CALL(*mMockTracker, currentPeriod()).WillOnce(Return(fakePeriod));
+    EXPECT_THAT(mReactor.getPeriod(), Eq(fakePeriod));
+}
+
+TEST_F(VSyncReactorTest, setPeriod) {
+    nsecs_t const fakePeriod = 4098;
+    EXPECT_CALL(*mMockTracker, setPeriod(fakePeriod));
+    mReactor.setPeriod(fakePeriod);
 }
 
 } // namespace android::scheduler

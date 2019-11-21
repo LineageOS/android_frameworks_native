@@ -40,6 +40,9 @@ public:
     nsecs_t computeNextRefresh(int periodOffset) const;
     nsecs_t expectedPresentTime();
 
+    void setPeriod(nsecs_t period);
+    nsecs_t getPeriod();
+
 private:
     std::unique_ptr<Clock> const mClock;
     std::unique_ptr<VSyncDispatch> const mDispatch;

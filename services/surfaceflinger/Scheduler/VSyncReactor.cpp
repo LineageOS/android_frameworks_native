@@ -87,4 +87,12 @@ nsecs_t VSyncReactor::expectedPresentTime() {
     return mTracker->nextAnticipatedVSyncTimeFrom(mClock->now());
 }
 
+void VSyncReactor::setPeriod(nsecs_t period) {
+    mTracker->setPeriod(period);
+}
+
+nsecs_t VSyncReactor::getPeriod() {
+    return mTracker->currentPeriod();
+}
+
 } // namespace android::scheduler
