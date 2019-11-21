@@ -19,35 +19,6 @@
 #include <compositionengine/mock/CompositionEngine.h>
 #include <gtest/gtest.h>
 
-namespace android::hardware::graphics::common::V1_1 {
-
-// Note: These operator overloads need to be defined in the same namespace as
-// the values they print.
-
-std::ostream& operator<<(std::ostream& os, const RenderIntent& value) {
-    return os << toString(value) << " (" << static_cast<std::underlying_type_t<Dataspace>>(value)
-              << ")";
-}
-
-} // namespace android::hardware::graphics::common::V1_1
-
-namespace android::hardware::graphics::common::V1_2 {
-
-// Note: These operator overloads need to be defined in the same namespace as
-// the values they print.
-
-std::ostream& operator<<(std::ostream& os, const Dataspace& value) {
-    return os << toString(value) << " (" << static_cast<std::underlying_type_t<Dataspace>>(value)
-              << ")";
-}
-
-std::ostream& operator<<(std::ostream& os, const ColorMode& value) {
-    return os << toString(value) << " (" << static_cast<std::underlying_type_t<Dataspace>>(value)
-              << ")";
-}
-
-} // namespace android::hardware::graphics::common::V1_2
-
 namespace android::compositionengine {
 namespace {
 
