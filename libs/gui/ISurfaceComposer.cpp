@@ -978,6 +978,35 @@ public:
         }
         return NO_ERROR;
     }
+
+    virtual status_t setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
+                                             float lightPosY, float lightPosZ, float lightRadius) {
+        Parcel data, reply;
+        status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (error != NO_ERROR) {
+            ALOGE("setGlobalShadowSettings: failed to write interface token: %d", error);
+            return error;
+        }
+
+        std::vector<float> shadowConfig = {ambientColor.r, ambientColor.g, ambientColor.b,
+                                           ambientColor.a, spotColor.r,    spotColor.g,
+                                           spotColor.b,    spotColor.a,    lightPosY,
+                                           lightPosZ,      lightRadius};
+
+        error = data.writeFloatVector(shadowConfig);
+        if (error != NO_ERROR) {
+            ALOGE("setGlobalShadowSettings: failed to write shadowConfig: %d", error);
+            return error;
+        }
+
+        error = remote()->transact(BnSurfaceComposer::SET_GLOBAL_SHADOW_SETTINGS, data, &reply,
+                                   IBinder::FLAG_ONEWAY);
+        if (error != NO_ERROR) {
+            ALOGE("setGlobalShadowSettings: failed to transact: %d", error);
+            return error;
+        }
+        return NO_ERROR;
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -1592,6 +1621,25 @@ status_t BnSurfaceComposer::onTransact(
                 return error;
             }
             return notifyPowerHint(hintId);
+        }
+        case SET_GLOBAL_SHADOW_SETTINGS: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+
+            std::vector<float> shadowConfig;
+            status_t error = data.readFloatVector(&shadowConfig);
+            if (error != NO_ERROR || shadowConfig.size() != 11) {
+                ALOGE("setGlobalShadowSettings: failed to read shadowConfig: %d", error);
+                return error;
+            }
+
+            half4 ambientColor = {shadowConfig[0], shadowConfig[1], shadowConfig[2],
+                                  shadowConfig[3]};
+            half4 spotColor = {shadowConfig[4], shadowConfig[5], shadowConfig[6], shadowConfig[7]};
+            float lightPosY = shadowConfig[8];
+            float lightPosZ = shadowConfig[9];
+            float lightRadius = shadowConfig[10];
+            return setGlobalShadowSettings(ambientColor, spotColor, lightPosY, lightPosZ,
+                                           lightRadius);
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);

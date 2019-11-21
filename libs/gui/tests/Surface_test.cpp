@@ -833,6 +833,12 @@ public:
     }
     status_t notifyPowerHint(int32_t /*hintId*/) override { return NO_ERROR; }
 
+    status_t setGlobalShadowSettings(const half4& /*ambientColor*/, const half4& /*spotColor*/,
+                                     float /*lightPosY*/, float /*lightPosZ*/,
+                                     float /*lightRadius*/) override {
+        return NO_ERROR;
+    }
+
 protected:
     IBinder* onAsBinder() override { return nullptr; }
 

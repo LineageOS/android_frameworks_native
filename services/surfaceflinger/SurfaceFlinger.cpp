@@ -4390,7 +4390,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES:
         case SET_DISPLAY_CONTENT_SAMPLING_ENABLED:
         case GET_DISPLAYED_CONTENT_SAMPLE:
-        case NOTIFY_POWER_HINT: {
+        case NOTIFY_POWER_HINT:
+        case SET_GLOBAL_SHADOW_SETTINGS: {
             if (!callingThreadHasUnscopedSurfaceFlingerAccess()) {
                 IPCThreadState* ipc = IPCThreadState::self();
                 ALOGE("Permission Denial: can't access SurfaceFlinger pid=%d, uid=%d",
@@ -5505,6 +5506,12 @@ void SurfaceFlinger::onLayerDestroyed(Layer* layer) {
 
 void SurfaceFlinger::bufferErased(const client_cache_t& clientCacheId) {
     getRenderEngine().unbindExternalTextureBuffer(clientCacheId.id);
+}
+
+status_t SurfaceFlinger::setGlobalShadowSettings(const half4& /*ambientColor*/,
+                                                 const half4& /*spotColor*/, float /*lightPosY*/,
+                                                 float /*lightPosZ*/, float /*lightRadius*/) {
+    return NO_ERROR;
 }
 
 } // namespace android
