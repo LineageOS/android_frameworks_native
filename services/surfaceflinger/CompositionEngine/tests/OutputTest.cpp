@@ -38,6 +38,9 @@ namespace android::compositionengine {
 namespace {
 
 using testing::_;
+using testing::ByMove;
+using testing::InSequence;
+using testing::Ref;
 using testing::Return;
 using testing::ReturnRef;
 using testing::StrictMock;
@@ -48,6 +51,31 @@ constexpr auto TR_ROT_90 = HAL_TRANSFORM_ROT_90;
 const mat4 kIdentity;
 const mat4 kNonIdentityHalf = mat4() * 0.5;
 const mat4 kNonIdentityQuarter = mat4() * 0.25;
+
+struct OutputPartialMockBase : public impl::Output {
+    // compositionengine::Output overrides
+    const OutputCompositionState& getState() const override { return mState; }
+    OutputCompositionState& editState() override { return mState; }
+
+    // Use mocks for all the remaining virtual functions
+    // not implemented by the base implementation class.
+    MOCK_CONST_METHOD0(getOutputLayerCount, size_t());
+    MOCK_CONST_METHOD1(getOutputLayerOrderedByZByIndex, compositionengine::OutputLayer*(size_t));
+    MOCK_METHOD3(ensureOutputLayer,
+                 compositionengine::OutputLayer*(std::optional<size_t>,
+                                                 const std::shared_ptr<compositionengine::Layer>&,
+                                                 const sp<LayerFE>&));
+    MOCK_METHOD0(finalizePendingOutputLayers, void());
+    MOCK_METHOD0(clearOutputLayers, void());
+    MOCK_CONST_METHOD1(dumpState, void(std::string&));
+    MOCK_CONST_METHOD0(getCompositionEngine, const CompositionEngine&());
+    MOCK_METHOD2(injectOutputLayerForTest,
+                 compositionengine::OutputLayer*(const std::shared_ptr<compositionengine::Layer>&,
+                                                 const sp<LayerFE>&));
+    MOCK_METHOD1(injectOutputLayerForTest, void(std::unique_ptr<OutputLayer>));
+
+    impl::OutputCompositionState mState;
+};
 
 struct OutputTest : public testing::Test {
     class Output : public impl::Output {
@@ -483,6 +511,31 @@ TEST_F(OutputTest, getOutputLayerForLayerWorks) {
 }
 
 /*
+ * Output::setReleasedLayers()
+ */
+
+using OutputSetReleasedLayersTest = OutputTest;
+
+TEST_F(OutputSetReleasedLayersTest, setReleasedLayersTakesGivenLayers) {
+    sp<StrictMock<mock::LayerFE>> layer1FE{new StrictMock<mock::LayerFE>()};
+    sp<StrictMock<mock::LayerFE>> layer2FE{new StrictMock<mock::LayerFE>()};
+    sp<StrictMock<mock::LayerFE>> layer3FE{new StrictMock<mock::LayerFE>()};
+
+    Output::ReleasedLayers layers;
+    layers.push_back(layer1FE);
+    layers.push_back(layer2FE);
+    layers.push_back(layer3FE);
+
+    mOutput->setReleasedLayers(std::move(layers));
+
+    const auto& setLayers = mOutput->getReleasedLayersForTest();
+    ASSERT_EQ(3u, setLayers.size());
+    ASSERT_EQ(layer1FE.get(), setLayers[0].promote().get());
+    ASSERT_EQ(layer2FE.get(), setLayers[1].promote().get());
+    ASSERT_EQ(layer3FE.get(), setLayers[2].promote().get());
+}
+
+/*
  * Output::updateAndWriteCompositionState()
  */
 
@@ -512,33 +565,10 @@ TEST_F(OutputTest, updateAndWriteCompositionState_updatesLayers) {
  */
 
 struct OutputPrepareFrameTest : public testing::Test {
-    struct OutputPartialMock : public impl::Output {
+    struct OutputPartialMock : public OutputPartialMockBase {
         // Sets up the helper functions called by prepareFrame to use a mock
         // implementations.
         MOCK_METHOD0(chooseCompositionStrategy, void());
-
-        // compositionengine::Output overrides
-        const OutputCompositionState& getState() const override { return mState; }
-        OutputCompositionState& editState() override { return mState; }
-
-        // These need implementations though are not expected to be called.
-        MOCK_CONST_METHOD0(getOutputLayerCount, size_t());
-        MOCK_CONST_METHOD1(getOutputLayerOrderedByZByIndex,
-                           compositionengine::OutputLayer*(size_t));
-        MOCK_METHOD3(ensureOutputLayer,
-                     compositionengine::OutputLayer*(
-                             std::optional<size_t>,
-                             const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&));
-        MOCK_METHOD0(finalizePendingOutputLayers, void());
-        MOCK_METHOD0(clearOutputLayers, void());
-        MOCK_CONST_METHOD1(dumpState, void(std::string&));
-        MOCK_CONST_METHOD0(getCompositionEngine, const CompositionEngine&());
-        MOCK_METHOD2(injectOutputLayerForTest,
-                     compositionengine::OutputLayer*(
-                             const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&));
-        MOCK_METHOD1(injectOutputLayerForTest, void(std::unique_ptr<OutputLayer>));
-
-        impl::OutputCompositionState mState;
     };
 
     OutputPrepareFrameTest() {
@@ -586,6 +616,193 @@ TEST_F(OutputTest, prepareFrameSetsClientCompositionOnlyByDefault) {
 }
 
 /*
+ * Output::present()
+ */
+
+struct OutputPresentTest : public testing::Test {
+    struct OutputPartialMock : public OutputPartialMockBase {
+        // All child helper functions Output::present() are defined as mocks,
+        // and those are tested separately, allowing the present() test to
+        // just cover the high level flow.
+        MOCK_METHOD1(updateColorProfile, void(const compositionengine::CompositionRefreshArgs&));
+        MOCK_METHOD1(updateAndWriteCompositionState,
+                     void(const compositionengine::CompositionRefreshArgs&));
+        MOCK_METHOD1(setColorTransform, void(const compositionengine::CompositionRefreshArgs&));
+        MOCK_METHOD0(beginFrame, void());
+        MOCK_METHOD0(prepareFrame, void());
+        MOCK_METHOD1(devOptRepaintFlash, void(const compositionengine::CompositionRefreshArgs&));
+        MOCK_METHOD1(finishFrame, void(const compositionengine::CompositionRefreshArgs&));
+        MOCK_METHOD0(postFramebuffer, void());
+    };
+
+    StrictMock<OutputPartialMock> mOutput;
+};
+
+TEST_F(OutputPresentTest, justInvokesChildFunctionsInSequence) {
+    CompositionRefreshArgs args;
+
+    InSequence seq;
+    EXPECT_CALL(mOutput, updateColorProfile(Ref(args)));
+    EXPECT_CALL(mOutput, updateAndWriteCompositionState(Ref(args)));
+    EXPECT_CALL(mOutput, setColorTransform(Ref(args)));
+    EXPECT_CALL(mOutput, beginFrame());
+    EXPECT_CALL(mOutput, prepareFrame());
+    EXPECT_CALL(mOutput, devOptRepaintFlash(Ref(args)));
+    EXPECT_CALL(mOutput, finishFrame(Ref(args)));
+    EXPECT_CALL(mOutput, postFramebuffer());
+
+    mOutput.present(args);
+}
+
+/*
+ * Output::updateColorProfile()
+ */
+
+// TODO(b/144060211) - Add coverage
+
+/*
+ * Output::beginFrame()
+ */
+
+/*
+ * Output::devOptRepaintFlash()
+ */
+
+struct OutputDevOptRepaintFlashTest : public testing::Test {
+    struct OutputPartialMock : public OutputPartialMockBase {
+        // Sets up the helper functions called by composeSurfaces to use a mock
+        // implementations.
+        MOCK_CONST_METHOD1(getDirtyRegion, Region(bool));
+        MOCK_METHOD1(composeSurfaces, std::optional<base::unique_fd>(const Region&));
+        MOCK_METHOD0(postFramebuffer, void());
+        MOCK_METHOD0(prepareFrame, void());
+    };
+
+    OutputDevOptRepaintFlashTest() {
+        mOutput.setDisplayColorProfileForTest(
+                std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
+        mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+    }
+
+    static const Region kEmptyRegion;
+    static const Region kNotEmptyRegion;
+
+    StrictMock<OutputPartialMock> mOutput;
+    mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
+    mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
+    CompositionRefreshArgs mRefreshArgs;
+};
+
+const Region OutputDevOptRepaintFlashTest::kEmptyRegion{Rect{0, 0, 0, 0}};
+const Region OutputDevOptRepaintFlashTest::kNotEmptyRegion{Rect{0, 0, 1, 1}};
+
+TEST_F(OutputDevOptRepaintFlashTest, doesNothingIfFlashDelayNotSet) {
+    mRefreshArgs.devOptFlashDirtyRegionsDelay = {};
+    mRefreshArgs.repaintEverything = true;
+    mOutput.mState.isEnabled = true;
+
+    mOutput.devOptRepaintFlash(mRefreshArgs);
+}
+
+TEST_F(OutputDevOptRepaintFlashTest, postsAndPreparesANewFrameIfNotEnabled) {
+    mRefreshArgs.devOptFlashDirtyRegionsDelay = std::chrono::microseconds(1);
+    mRefreshArgs.repaintEverything = true;
+    mOutput.mState.isEnabled = false;
+
+    InSequence seq;
+    EXPECT_CALL(mOutput, postFramebuffer());
+    EXPECT_CALL(mOutput, prepareFrame());
+
+    mOutput.devOptRepaintFlash(mRefreshArgs);
+}
+
+TEST_F(OutputDevOptRepaintFlashTest, postsAndPreparesANewFrameIfNotDirty) {
+    mRefreshArgs.devOptFlashDirtyRegionsDelay = std::chrono::microseconds(1);
+    mRefreshArgs.repaintEverything = true;
+    mOutput.mState.isEnabled = true;
+
+    InSequence seq;
+    EXPECT_CALL(mOutput, getDirtyRegion(true)).WillOnce(Return(kEmptyRegion));
+    EXPECT_CALL(mOutput, postFramebuffer());
+    EXPECT_CALL(mOutput, prepareFrame());
+
+    mOutput.devOptRepaintFlash(mRefreshArgs);
+}
+
+TEST_F(OutputDevOptRepaintFlashTest, alsoComposesSurfacesAndQueuesABufferIfDirty) {
+    mRefreshArgs.devOptFlashDirtyRegionsDelay = std::chrono::microseconds(1);
+    mRefreshArgs.repaintEverything = false;
+    mOutput.mState.isEnabled = true;
+
+    InSequence seq;
+    EXPECT_CALL(mOutput, getDirtyRegion(false)).WillOnce(Return(kNotEmptyRegion));
+    EXPECT_CALL(mOutput, composeSurfaces(RegionEq(kNotEmptyRegion)));
+    EXPECT_CALL(*mRenderSurface, queueBuffer(_));
+    EXPECT_CALL(mOutput, postFramebuffer());
+    EXPECT_CALL(mOutput, prepareFrame());
+
+    mOutput.devOptRepaintFlash(mRefreshArgs);
+}
+
+// TODO(b/144060211) - Add coverage
+
+/*
+ * Output::finishFrame()
+ */
+
+struct OutputFinishFrameTest : public testing::Test {
+    struct OutputPartialMock : public OutputPartialMockBase {
+        // Sets up the helper functions called by composeSurfaces to use a mock
+        // implementations.
+        MOCK_METHOD1(composeSurfaces, std::optional<base::unique_fd>(const Region&));
+        MOCK_METHOD0(postFramebuffer, void());
+    };
+
+    OutputFinishFrameTest() {
+        mOutput.setDisplayColorProfileForTest(
+                std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
+        mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+    }
+
+    StrictMock<OutputPartialMock> mOutput;
+    mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
+    mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
+    CompositionRefreshArgs mRefreshArgs;
+};
+
+TEST_F(OutputFinishFrameTest, ifNotEnabledDoesNothing) {
+    mOutput.mState.isEnabled = false;
+
+    mOutput.finishFrame(mRefreshArgs);
+}
+
+TEST_F(OutputFinishFrameTest, takesEarlyOutifComposeSurfacesReturnsNoFence) {
+    mOutput.mState.isEnabled = true;
+
+    InSequence seq;
+    EXPECT_CALL(mOutput, composeSurfaces(RegionEq(Region::INVALID_REGION)));
+
+    mOutput.finishFrame(mRefreshArgs);
+}
+
+TEST_F(OutputFinishFrameTest, queuesBufferIfComposeSurfacesReturnsAFence) {
+    mOutput.mState.isEnabled = true;
+
+    InSequence seq;
+    EXPECT_CALL(mOutput, composeSurfaces(RegionEq(Region::INVALID_REGION)))
+            .WillOnce(Return(ByMove(base::unique_fd())));
+    EXPECT_CALL(*mRenderSurface, queueBuffer(_));
+
+    mOutput.finishFrame(mRefreshArgs);
+}
+
+/*
+ * Output::postFramebuffer()
+ */
+
+// TODO(b/144060211) - Add coverage
+
+/*
  * Output::composeSurfaces()
  */
 
@@ -598,7 +815,7 @@ struct OutputComposeSurfacesTest : public testing::Test {
     static const Rect kDefaultOutputScissor;
     static const mat4 kDefaultColorTransformMat;
 
-    struct OutputPartialMock : public impl::Output {
+    struct OutputPartialMock : public OutputPartialMockBase {
         // Sets up the helper functions called by composeSurfaces to use a mock
         // implementations.
         MOCK_CONST_METHOD0(getSkipColorTransform, bool());
@@ -607,29 +824,6 @@ struct OutputComposeSurfacesTest : public testing::Test {
         MOCK_METHOD2(appendRegionFlashRequests,
                      void(const Region&, std::vector<renderengine::LayerSettings>&));
         MOCK_METHOD1(setExpensiveRenderingExpected, void(bool));
-
-        // compositionengine::Output overrides
-        const OutputCompositionState& getState() const override { return mState; }
-        OutputCompositionState& editState() override { return mState; }
-
-        // These need implementations though are not expected to be called.
-        MOCK_CONST_METHOD0(getOutputLayerCount, size_t());
-        MOCK_CONST_METHOD1(getOutputLayerOrderedByZByIndex,
-                           compositionengine::OutputLayer*(size_t));
-        MOCK_METHOD3(ensureOutputLayer,
-                     compositionengine::OutputLayer*(
-                             std::optional<size_t>,
-                             const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&));
-        MOCK_METHOD0(finalizePendingOutputLayers, void());
-        MOCK_METHOD0(clearOutputLayers, void());
-        MOCK_CONST_METHOD1(dumpState, void(std::string&));
-        MOCK_CONST_METHOD0(getCompositionEngine, const CompositionEngine&());
-        MOCK_METHOD2(injectOutputLayerForTest,
-                     compositionengine::OutputLayer*(
-                             const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&));
-        MOCK_METHOD1(injectOutputLayerForTest, void(std::unique_ptr<OutputLayer>));
-
-        impl::OutputCompositionState mState;
     };
 
     OutputComposeSurfacesTest() {
@@ -718,36 +912,13 @@ TEST_F(OutputComposeSurfacesTest, worksIfNoClientLayersQueued) {
  */
 
 struct GenerateClientCompositionRequestsTest : public testing::Test {
-    struct OutputPartialMock : public impl::Output {
+    struct OutputPartialMock : public OutputPartialMockBase {
         // compositionengine::Output overrides
-
         std::vector<renderengine::LayerSettings> generateClientCompositionRequests(
                 bool supportsProtectedContent, Region& clearRegion) override {
             return impl::Output::generateClientCompositionRequests(supportsProtectedContent,
                                                                    clearRegion);
         }
-
-        const OutputCompositionState& getState() const override { return mState; }
-        OutputCompositionState& editState() override { return mState; }
-
-        // These need implementations though are not expected to be called.
-        MOCK_CONST_METHOD0(getOutputLayerCount, size_t());
-        MOCK_CONST_METHOD1(getOutputLayerOrderedByZByIndex,
-                           compositionengine::OutputLayer*(size_t));
-        MOCK_METHOD3(ensureOutputLayer,
-                     compositionengine::OutputLayer*(
-                             std::optional<size_t>,
-                             const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&));
-        MOCK_METHOD0(finalizePendingOutputLayers, void());
-        MOCK_METHOD0(clearOutputLayers, void());
-        MOCK_CONST_METHOD1(dumpState, void(std::string&));
-        MOCK_CONST_METHOD0(getCompositionEngine, const CompositionEngine&());
-        MOCK_METHOD2(injectOutputLayerForTest,
-                     compositionengine::OutputLayer*(
-                             const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&));
-        MOCK_METHOD1(injectOutputLayerForTest, void(std::unique_ptr<OutputLayer>));
-
-        impl::OutputCompositionState mState;
     };
 
     GenerateClientCompositionRequestsTest() {

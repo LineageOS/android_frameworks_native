@@ -365,17 +365,48 @@ public:
 
 class FakeInputReceiver {
 public:
-    void consumeEvent(int32_t expectedEventType, int32_t expectedAction, int32_t expectedDisplayId,
-                      int32_t expectedFlags) {
+    InputEvent* consume() {
         uint32_t consumeSeq;
         InputEvent* event;
-        status_t status = mConsumer->consume(&mEventFactory, false /*consumeBatches*/, -1,
-            &consumeSeq, &event);
 
-        ASSERT_EQ(OK, status)
-                << mName.c_str() << ": consumer consume should return OK.";
-        ASSERT_TRUE(event != nullptr)
-                << mName.c_str() << ": consumer should have returned non-NULL event.";
+        std::chrono::time_point start = std::chrono::steady_clock::now();
+        status_t status = WOULD_BLOCK;
+        while (status == WOULD_BLOCK) {
+            status = mConsumer->consume(&mEventFactory, false /*consumeBatches*/, -1, &consumeSeq,
+                                        &event);
+            std::chrono::duration elapsed = std::chrono::steady_clock::now() - start;
+            if (elapsed > 100ms) {
+                break;
+            }
+        }
+
+        if (status == WOULD_BLOCK) {
+            // Just means there's no event available.
+            return nullptr;
+        }
+
+        if (status != OK) {
+            ADD_FAILURE() << mName.c_str() << ": consumer consume should return OK.";
+            return nullptr;
+        }
+        if (event == nullptr) {
+            ADD_FAILURE() << "Consumed correctly, but received NULL event from consumer";
+            return nullptr;
+        }
+
+        status = mConsumer->sendFinishedSignal(consumeSeq, handled());
+        if (status != OK) {
+            ADD_FAILURE() << mName.c_str() << ": consumer sendFinishedSignal should return OK.";
+        }
+        return event;
+    }
+
+    void consumeEvent(int32_t expectedEventType, int32_t expectedAction, int32_t expectedDisplayId,
+                      int32_t expectedFlags) {
+        InputEvent* event = consume();
+
+        ASSERT_NE(nullptr, event) << mName.c_str()
+                                  << ": consumer should have returned non-NULL event.";
         ASSERT_EQ(expectedEventType, event->getType())
                 << mName.c_str() << ": event type should match.";
 
@@ -398,10 +429,6 @@ public:
                 FAIL() << mName.c_str() << ": invalid event type: " << expectedEventType;
             }
         }
-
-        status = mConsumer->sendFinishedSignal(consumeSeq, handled());
-        ASSERT_EQ(OK, status)
-                << mName.c_str() << ": consumer sendFinishedSignal should return OK.";
     }
 
     void consumeKeyDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
@@ -415,13 +442,10 @@ public:
     }
 
     void assertNoEvents() {
-        uint32_t consumeSeq;
-        InputEvent* event;
-        status_t status = mConsumer->consume(&mEventFactory, false /*consumeBatches*/, -1,
-            &consumeSeq, &event);
-        ASSERT_NE(OK, status)
+        InputEvent* event = consume();
+        ASSERT_EQ(nullptr, event)
                 << mName.c_str()
-                << ": should not have received any events, so consume(..) should not return OK.";
+                << ": should not have received any events, so consume() should return NULL";
     }
 
 protected:
