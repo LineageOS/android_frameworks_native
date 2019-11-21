@@ -85,6 +85,11 @@ cc_library {
     export_header_lib_headers: [
         "libnativebase_headers",
     ],
+
+    stubs: {
+        symbol_file: "libnativewindow.map.txt",
+        versions: ["29"],
+    },
 }
 
 llndk_library {

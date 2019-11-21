@@ -20,6 +20,7 @@
 #include <android/hardware_buffer.h>
 #include <private/android/AHardwareBufferHelpers.h>
 #include <android/hardware/graphics/common/1.0/types.h>
+#include <vndk/hardware_buffer.h>
 
 #include <gtest/gtest.h>
 
@@ -100,9 +101,33 @@ TEST(AHardwareBufferTest, ConvertToAndFromGrallocBits) {
             (uint64_t)BufferUsage::CPU_WRITE_RARELY,
             AHARDWAREBUFFER_USAGE_CPU_READ_RARELY | AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY));
 
-EXPECT_TRUE(TestUsageConversion(
+    EXPECT_TRUE(TestUsageConversion(
         (uint64_t)BufferUsage::GPU_RENDER_TARGET | (uint64_t)BufferUsage::GPU_TEXTURE |
-            1ull << 29 | 1ull << 57,
+        1ull << 29 | 1ull << 57,
         AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT | AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE |
         AHARDWAREBUFFER_USAGE_VENDOR_1 | AHARDWAREBUFFER_USAGE_VENDOR_13));
+}
+
+TEST(AHardwareBufferTest, GetCreateHandleTest) {
+    AHardwareBuffer_Desc desc{
+            .width = 64,
+            .height = 1,
+            .layers = 1,
+            .format = AHARDWAREBUFFER_FORMAT_BLOB,
+            .usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN,
+            .stride = 64,
+    };
+
+    AHardwareBuffer* buffer = nullptr;
+    EXPECT_EQ(0, AHardwareBuffer_allocate(&desc, &buffer));
+    const native_handle_t* handle = AHardwareBuffer_getNativeHandle(buffer);
+    EXPECT_NE(nullptr, handle);
+
+    AHardwareBuffer* otherBuffer = nullptr;
+    EXPECT_EQ(0, AHardwareBuffer_createFromHandle(
+        &desc, handle, AHARDWAREBUFFER_CREATE_FROM_HANDLE_METHOD_CLONE, &otherBuffer));
+    EXPECT_NE(nullptr, otherBuffer);
+
+    AHardwareBuffer_release(buffer);
+    AHardwareBuffer_release(otherBuffer);
 }

@@ -2,9 +2,9 @@ LIBNATIVEWINDOW {
   global:
     AHardwareBuffer_acquire;
     AHardwareBuffer_allocate;
-    AHardwareBuffer_createFromHandle; # llndk
+    AHardwareBuffer_createFromHandle; # llndk # apex
     AHardwareBuffer_describe;
-    AHardwareBuffer_getNativeHandle; # llndk
+    AHardwareBuffer_getNativeHandle; # llndk # apex
     AHardwareBuffer_isSupported; # introduced=29
     AHardwareBuffer_lock;
     AHardwareBuffer_lockAndGetInfo; # introduced=29
