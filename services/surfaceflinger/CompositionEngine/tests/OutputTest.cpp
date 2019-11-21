@@ -803,6 +803,166 @@ TEST_F(OutputTest, prepareFrameSetsClientCompositionOnlyByDefault) {
 }
 
 /*
+ * Output::prepare()
+ */
+
+struct OutputPrepareTest : public testing::Test {
+    struct OutputPartialMock : public OutputPartialMockBase {
+        // Sets up the helper functions called by the function under test to use
+        // mock implementations.
+        MOCK_METHOD2(rebuildLayerStacks,
+                     void(const compositionengine::CompositionRefreshArgs&,
+                          compositionengine::LayerFESet&));
+    };
+
+    StrictMock<OutputPartialMock> mOutput;
+    CompositionRefreshArgs mRefreshArgs;
+    compositionengine::LayerFESet mGeomSnapshots;
+};
+
+TEST_F(OutputPrepareTest, justInvokesRebuildLayerStacks) {
+    InSequence seq;
+    EXPECT_CALL(mOutput, rebuildLayerStacks(Ref(mRefreshArgs), Ref(mGeomSnapshots)));
+
+    mOutput.prepare(mRefreshArgs, mGeomSnapshots);
+}
+
+/*
+ * Output::rebuildLayerStacks()
+ */
+
+struct OutputRebuildLayerStacksTest : public testing::Test {
+    struct OutputPartialMock : public OutputPartialMockBase {
+        // Sets up the helper functions called by the function under test to use
+        // mock implementations.
+        MOCK_METHOD2(collectVisibleLayers,
+                     void(const compositionengine::CompositionRefreshArgs&,
+                          compositionengine::Output::CoverageState&));
+    };
+
+    OutputRebuildLayerStacksTest() {
+        mOutput.mState.isEnabled = true;
+        mOutput.mState.transform = kIdentityTransform;
+        mOutput.mState.bounds = kOutputBounds;
+
+        mRefreshArgs.updatingOutputGeometryThisFrame = true;
+
+        mCoverageAboveCoveredLayersToSet = Region(Rect(0, 0, 10, 10));
+
+        EXPECT_CALL(mOutput, collectVisibleLayers(Ref(mRefreshArgs), _))
+                .WillRepeatedly(Invoke(this, &OutputRebuildLayerStacksTest::setTestCoverageValues));
+    }
+
+    void setTestCoverageValues(const CompositionRefreshArgs&,
+                               compositionengine::Output::CoverageState& state) {
+        state.aboveCoveredLayers = mCoverageAboveCoveredLayersToSet;
+        state.aboveOpaqueLayers = mCoverageAboveOpaqueLayersToSet;
+        state.dirtyRegion = mCoverageDirtyRegionToSet;
+    }
+
+    static const ui::Transform kIdentityTransform;
+    static const ui::Transform kRotate90Transform;
+    static const Rect kOutputBounds;
+
+    StrictMock<OutputPartialMock> mOutput;
+    CompositionRefreshArgs mRefreshArgs;
+    compositionengine::LayerFESet mGeomSnapshots;
+    Region mCoverageAboveCoveredLayersToSet;
+    Region mCoverageAboveOpaqueLayersToSet;
+    Region mCoverageDirtyRegionToSet;
+};
+
+const ui::Transform OutputRebuildLayerStacksTest::kIdentityTransform{TR_IDENT, 1920, 1080};
+const ui::Transform OutputRebuildLayerStacksTest::kRotate90Transform{TR_ROT_90, 1920, 1080};
+const Rect OutputRebuildLayerStacksTest::kOutputBounds{0, 0, 1920, 1080};
+
+TEST_F(OutputRebuildLayerStacksTest, doesNothingIfNotEnabled) {
+    mOutput.mState.isEnabled = false;
+
+    mOutput.rebuildLayerStacks(mRefreshArgs, mGeomSnapshots);
+}
+
+TEST_F(OutputRebuildLayerStacksTest, doesNothingIfNotUpdatingGeometryThisFrame) {
+    mRefreshArgs.updatingOutputGeometryThisFrame = false;
+
+    mOutput.rebuildLayerStacks(mRefreshArgs, mGeomSnapshots);
+}
+
+TEST_F(OutputRebuildLayerStacksTest, computesUndefinedRegionWithNoRotationAndFullCoverage) {
+    mOutput.mState.transform = kIdentityTransform;
+
+    mCoverageAboveOpaqueLayersToSet = Region(Rect(0, 0, 1920, 1080));
+
+    mOutput.rebuildLayerStacks(mRefreshArgs, mGeomSnapshots);
+
+    EXPECT_THAT(mOutput.mState.undefinedRegion, RegionEq(Region(Rect(0, 0, 0, 0))));
+}
+
+TEST_F(OutputRebuildLayerStacksTest, computesUndefinedRegionWithNoRotationAndPartialCoverage) {
+    mOutput.mState.transform = kIdentityTransform;
+
+    mCoverageAboveOpaqueLayersToSet = Region(Rect(0, 0, 960, 1080));
+
+    mOutput.rebuildLayerStacks(mRefreshArgs, mGeomSnapshots);
+
+    EXPECT_THAT(mOutput.mState.undefinedRegion, RegionEq(Region(Rect(960, 0, 1920, 1080))));
+}
+
+TEST_F(OutputRebuildLayerStacksTest, computesUndefinedRegionWith90RotationAndFullCoverage) {
+    mOutput.mState.transform = kRotate90Transform;
+
+    mCoverageAboveOpaqueLayersToSet = Region(Rect(0, 0, 1080, 1920));
+
+    mOutput.rebuildLayerStacks(mRefreshArgs, mGeomSnapshots);
+
+    EXPECT_THAT(mOutput.mState.undefinedRegion, RegionEq(Region(Rect(0, 0, 0, 0))));
+}
+
+TEST_F(OutputRebuildLayerStacksTest, computesUndefinedRegionWith90RotationAndPartialCoverage) {
+    mOutput.mState.transform = kRotate90Transform;
+
+    mCoverageAboveOpaqueLayersToSet = Region(Rect(0, 0, 1080, 960));
+
+    mOutput.rebuildLayerStacks(mRefreshArgs, mGeomSnapshots);
+
+    EXPECT_THAT(mOutput.mState.undefinedRegion, RegionEq(Region(Rect(0, 0, 960, 1080))));
+}
+
+TEST_F(OutputRebuildLayerStacksTest, addsToDirtyRegionWithNoRotation) {
+    mOutput.mState.transform = kIdentityTransform;
+    mOutput.mState.dirtyRegion = Region(Rect(960, 0, 1920, 1080));
+
+    mCoverageDirtyRegionToSet = Region(Rect(0, 0, 960, 1080));
+
+    mOutput.rebuildLayerStacks(mRefreshArgs, mGeomSnapshots);
+
+    EXPECT_THAT(mOutput.mState.dirtyRegion, RegionEq(Region(Rect(0, 0, 1920, 1080))));
+}
+
+TEST_F(OutputRebuildLayerStacksTest, addsToDirtyRegionWith90Rotation) {
+    mOutput.mState.transform = kRotate90Transform;
+    mOutput.mState.dirtyRegion = Region(Rect(0, 960, 1080, 1920));
+
+    mCoverageDirtyRegionToSet = Region(Rect(0, 0, 1080, 960));
+
+    mOutput.rebuildLayerStacks(mRefreshArgs, mGeomSnapshots);
+
+    EXPECT_THAT(mOutput.mState.dirtyRegion, RegionEq(Region(Rect(0, 0, 1080, 1920))));
+}
+
+/*
+ * Output::collectVisibleLayers()
+ */
+
+// TODO(b/144060211) - Add coverage
+
+/*
+ * Output::ensureOutputLayerIfVisible()
+ */
+
+// TODO(b/144060211) - Add coverage
+
+/*
  * Output::present()
  */
 

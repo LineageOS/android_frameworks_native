@@ -33,8 +33,8 @@ Transform::Transform(const Transform&  other)
     : mMatrix(other.mMatrix), mType(other.mType) {
 }
 
-Transform::Transform(uint32_t orientation) {
-    set(orientation, 0, 0);
+Transform::Transform(uint32_t orientation, int w, int h) {
+    set(orientation, w, h);
 }
 
 Transform::~Transform() = default;
