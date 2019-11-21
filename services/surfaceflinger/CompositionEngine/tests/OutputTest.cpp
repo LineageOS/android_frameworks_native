@@ -664,23 +664,82 @@ TEST_F(OutputUpdateLayerStateFromFETest, latchesGeometryAndContentStateForAllCon
  * Output::updateAndWriteCompositionState()
  */
 
-TEST_F(OutputTest, updateAndWriteCompositionState_takesEarlyOutIfNotEnabled) {
-    mOutput->editState().isEnabled = false;
+using OutputUpdateAndWriteCompositionStateTest = OutputLatchFEStateTest;
+
+TEST_F(OutputUpdateAndWriteCompositionStateTest, doesNothingIfLayers) {
+    mOutput->editState().isEnabled = true;
 
     CompositionRefreshArgs args;
     mOutput->updateAndWriteCompositionState(args);
 }
 
-TEST_F(OutputTest, updateAndWriteCompositionState_updatesLayers) {
-    mOutput->editState().isEnabled = true;
-    mock::OutputLayer* outputLayer = new StrictMock<mock::OutputLayer>();
-    mOutput->injectOutputLayerForTest(std::unique_ptr<OutputLayer>(outputLayer));
+TEST_F(OutputUpdateAndWriteCompositionStateTest, doesNothingIfOutputNotEnabled) {
+    mOutput->editState().isEnabled = false;
 
-    EXPECT_CALL(*outputLayer, updateCompositionState(true, true)).Times(1);
-    EXPECT_CALL(*outputLayer, writeStateToHWC(true)).Times(1);
+    injectLayer(std::move(mOutputLayer1));
+    injectLayer(std::move(mOutputLayer2));
+    injectLayer(std::move(mOutputLayer3));
+
+    CompositionRefreshArgs args;
+    mOutput->updateAndWriteCompositionState(args);
+}
+
+TEST_F(OutputUpdateAndWriteCompositionStateTest, updatesLayerContentForAllLayers) {
+    EXPECT_CALL(*mOutputLayer1, updateCompositionState(false, false));
+    EXPECT_CALL(*mOutputLayer1, writeStateToHWC(false));
+    EXPECT_CALL(*mOutputLayer2, updateCompositionState(false, false));
+    EXPECT_CALL(*mOutputLayer2, writeStateToHWC(false));
+    EXPECT_CALL(*mOutputLayer3, updateCompositionState(false, false));
+    EXPECT_CALL(*mOutputLayer3, writeStateToHWC(false));
+
+    injectLayer(std::move(mOutputLayer1));
+    injectLayer(std::move(mOutputLayer2));
+    injectLayer(std::move(mOutputLayer3));
+
+    mOutput->editState().isEnabled = true;
+
+    CompositionRefreshArgs args;
+    args.updatingGeometryThisFrame = false;
+    args.devOptForceClientComposition = false;
+    mOutput->updateAndWriteCompositionState(args);
+}
+
+TEST_F(OutputUpdateAndWriteCompositionStateTest, updatesLayerGeometryAndContentForAllLayers) {
+    EXPECT_CALL(*mOutputLayer1, updateCompositionState(true, false));
+    EXPECT_CALL(*mOutputLayer1, writeStateToHWC(true));
+    EXPECT_CALL(*mOutputLayer2, updateCompositionState(true, false));
+    EXPECT_CALL(*mOutputLayer2, writeStateToHWC(true));
+    EXPECT_CALL(*mOutputLayer3, updateCompositionState(true, false));
+    EXPECT_CALL(*mOutputLayer3, writeStateToHWC(true));
+
+    injectLayer(std::move(mOutputLayer1));
+    injectLayer(std::move(mOutputLayer2));
+    injectLayer(std::move(mOutputLayer3));
+
+    mOutput->editState().isEnabled = true;
 
     CompositionRefreshArgs args;
     args.updatingGeometryThisFrame = true;
+    args.devOptForceClientComposition = false;
+    mOutput->updateAndWriteCompositionState(args);
+}
+
+TEST_F(OutputUpdateAndWriteCompositionStateTest, forcesClientCompositionForAllLayers) {
+    EXPECT_CALL(*mOutputLayer1, updateCompositionState(false, true));
+    EXPECT_CALL(*mOutputLayer1, writeStateToHWC(false));
+    EXPECT_CALL(*mOutputLayer2, updateCompositionState(false, true));
+    EXPECT_CALL(*mOutputLayer2, writeStateToHWC(false));
+    EXPECT_CALL(*mOutputLayer3, updateCompositionState(false, true));
+    EXPECT_CALL(*mOutputLayer3, writeStateToHWC(false));
+
+    injectLayer(std::move(mOutputLayer1));
+    injectLayer(std::move(mOutputLayer2));
+    injectLayer(std::move(mOutputLayer3));
+
+    mOutput->editState().isEnabled = true;
+
+    CompositionRefreshArgs args;
+    args.updatingGeometryThisFrame = false;
     args.devOptForceClientComposition = true;
     mOutput->updateAndWriteCompositionState(args);
 }
