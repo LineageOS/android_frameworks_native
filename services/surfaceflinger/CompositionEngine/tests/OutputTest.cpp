@@ -113,6 +113,44 @@ struct OutputTest : public testing::Test {
     std::shared_ptr<Output> mOutput = createOutput(mCompositionEngine);
 };
 
+// Extension of the base test useful for checking interactions with the LayerFE
+// functions to latch composition state.
+struct OutputLatchFEStateTest : public OutputTest {
+    OutputLatchFEStateTest() {
+        EXPECT_CALL(*mOutputLayer1, getLayer()).WillRepeatedly(ReturnRef(mLayer1));
+        EXPECT_CALL(*mOutputLayer2, getLayer()).WillRepeatedly(ReturnRef(mLayer2));
+        EXPECT_CALL(*mOutputLayer3, getLayer()).WillRepeatedly(ReturnRef(mLayer3));
+
+        EXPECT_CALL(*mOutputLayer1, getLayerFE()).WillRepeatedly(ReturnRef(mLayer1FE));
+        EXPECT_CALL(*mOutputLayer2, getLayerFE()).WillRepeatedly(ReturnRef(mLayer2FE));
+        EXPECT_CALL(*mOutputLayer3, getLayerFE()).WillRepeatedly(ReturnRef(mLayer3FE));
+
+        EXPECT_CALL(mLayer1, editFEState()).WillRepeatedly(ReturnRef(mLayer1FEState));
+        EXPECT_CALL(mLayer2, editFEState()).WillRepeatedly(ReturnRef(mLayer2FEState));
+        EXPECT_CALL(mLayer3, editFEState()).WillRepeatedly(ReturnRef(mLayer3FEState));
+    }
+
+    void injectLayer(std::unique_ptr<mock::OutputLayer> layer) {
+        mOutput->injectOutputLayerForTest(std::unique_ptr<OutputLayer>(layer.release()));
+    }
+
+    std::unique_ptr<mock::OutputLayer> mOutputLayer1{new StrictMock<mock::OutputLayer>};
+    std::unique_ptr<mock::OutputLayer> mOutputLayer2{new StrictMock<mock::OutputLayer>};
+    std::unique_ptr<mock::OutputLayer> mOutputLayer3{new StrictMock<mock::OutputLayer>};
+
+    StrictMock<mock::Layer> mLayer1;
+    StrictMock<mock::Layer> mLayer2;
+    StrictMock<mock::Layer> mLayer3;
+
+    StrictMock<mock::LayerFE> mLayer1FE;
+    StrictMock<mock::LayerFE> mLayer2FE;
+    StrictMock<mock::LayerFE> mLayer3FE;
+
+    LayerFECompositionState mLayer1FEState;
+    LayerFECompositionState mLayer2FEState;
+    LayerFECompositionState mLayer3FEState;
+};
+
 const Rect OutputTest::kDefaultDisplaySize{100, 200};
 
 using ColorProfile = compositionengine::Output::ColorProfile;
@@ -567,6 +605,59 @@ TEST_F(OutputSetReleasedLayersTest, setReleasedLayersTakesGivenLayers) {
     ASSERT_EQ(layer1FE.get(), setLayers[0].promote().get());
     ASSERT_EQ(layer2FE.get(), setLayers[1].promote().get());
     ASSERT_EQ(layer3FE.get(), setLayers[2].promote().get());
+}
+
+/*
+ * Output::updateLayerStateFromFE()
+ */
+
+using OutputUpdateLayerStateFromFETest = OutputLatchFEStateTest;
+
+TEST_F(OutputUpdateLayerStateFromFETest, handlesNoOutputLayerCase) {
+    CompositionRefreshArgs refreshArgs;
+
+    mOutput->updateLayerStateFromFE(refreshArgs);
+}
+
+TEST_F(OutputUpdateLayerStateFromFETest, latchesContentStateForAllContainedLayers) {
+    EXPECT_CALL(mLayer1FE,
+                latchCompositionState(Ref(mLayer1FEState), LayerFE::StateSubset::Content));
+    EXPECT_CALL(mLayer2FE,
+                latchCompositionState(Ref(mLayer2FEState), LayerFE::StateSubset::Content));
+    EXPECT_CALL(mLayer3FE,
+                latchCompositionState(Ref(mLayer3FEState), LayerFE::StateSubset::Content));
+
+    // Note: Must be performed after any expectations on these mocks
+    injectLayer(std::move(mOutputLayer1));
+    injectLayer(std::move(mOutputLayer2));
+    injectLayer(std::move(mOutputLayer3));
+
+    CompositionRefreshArgs refreshArgs;
+    refreshArgs.updatingGeometryThisFrame = false;
+
+    mOutput->updateLayerStateFromFE(refreshArgs);
+}
+
+TEST_F(OutputUpdateLayerStateFromFETest, latchesGeometryAndContentStateForAllContainedLayers) {
+    EXPECT_CALL(mLayer1FE,
+                latchCompositionState(Ref(mLayer1FEState),
+                                      LayerFE::StateSubset::GeometryAndContent));
+    EXPECT_CALL(mLayer2FE,
+                latchCompositionState(Ref(mLayer2FEState),
+                                      LayerFE::StateSubset::GeometryAndContent));
+    EXPECT_CALL(mLayer3FE,
+                latchCompositionState(Ref(mLayer3FEState),
+                                      LayerFE::StateSubset::GeometryAndContent));
+
+    // Note: Must be performed after any expectations on these mocks
+    injectLayer(std::move(mOutputLayer1));
+    injectLayer(std::move(mOutputLayer2));
+    injectLayer(std::move(mOutputLayer3));
+
+    CompositionRefreshArgs refreshArgs;
+    refreshArgs.updatingGeometryThisFrame = true;
+
+    mOutput->updateLayerStateFromFE(refreshArgs);
 }
 
 /*
