@@ -95,7 +95,7 @@ private:
 
 // assume NO_RESOURCES when Status::isOk returns false
 constexpr Error kDefaultError = Error::NO_RESOURCES;
-constexpr V2_4::Error kDefaultError_2_4 = V2_4::Error::NO_RESOURCES;
+constexpr V2_4::Error kDefaultError_2_4 = static_cast<V2_4::Error>(kDefaultError);
 
 template<typename T, typename U>
 T unwrapRet(Return<T>& ret, const U& default_val)
@@ -247,7 +247,12 @@ std::string Composer::dumpDebugInfo()
 void Composer::registerCallback(const sp<IComposerCallback>& callback)
 {
     android::hardware::setMinSchedulerPolicy(callback, SCHED_FIFO, 2);
-    auto ret = mClient->registerCallback(callback);
+    auto ret = [&]() {
+        if (mClient_2_4) {
+            return mClient_2_4->registerCallback_2_4(callback);
+        }
+        return mClient->registerCallback(callback);
+    }();
     if (!ret.isOk()) {
         ALOGE("failed to register IComposerCallback");
     }
@@ -413,15 +418,28 @@ Error Composer::getDisplayAttribute(Display display, Config config,
         IComposerClient::Attribute attribute, int32_t* outValue)
 {
     Error error = kDefaultError;
-    mClient->getDisplayAttribute(display, config, attribute,
-            [&](const auto& tmpError, const auto& tmpValue) {
-                error = tmpError;
-                if (error != Error::NONE) {
-                    return;
-                }
+    if (mClient_2_4) {
+        mClient_2_4->getDisplayAttribute_2_4(display, config, attribute,
+                                             [&](const auto& tmpError, const auto& tmpValue) {
+                                                 error = static_cast<Error>(tmpError);
+                                                 if (error != Error::NONE) {
+                                                     return;
+                                                 }
 
-                *outValue = tmpValue;
-            });
+                                                 *outValue = tmpValue;
+                                             });
+    } else {
+        mClient->getDisplayAttribute(display, config,
+                                     static_cast<V2_1::IComposerClient::Attribute>(attribute),
+                                     [&](const auto& tmpError, const auto& tmpValue) {
+                                         error = tmpError;
+                                         if (error != Error::NONE) {
+                                             return;
+                                         }
+
+                                         *outValue = tmpValue;
+                                     });
+    }
 
     return error;
 }
@@ -1200,13 +1218,14 @@ Error Composer::getDisplayCapabilities(Display display,
     return static_cast<Error>(error);
 }
 
-Error Composer::getDisplayConnectionType(Display display,
-                                         IComposerClient::DisplayConnectionType* outType) {
+V2_4::Error Composer::getDisplayConnectionType(Display display,
+                                               IComposerClient::DisplayConnectionType* outType) {
+    using Error = V2_4::Error;
     if (!mClient_2_4) {
         return Error::UNSUPPORTED;
     }
 
-    V2_4::Error error = kDefaultError_2_4;
+    Error error = kDefaultError_2_4;
     mClient_2_4->getDisplayConnectionType(display, [&](const auto& tmpError, const auto& tmpType) {
         error = tmpError;
         if (error != V2_4::Error::NONE) {
@@ -1216,7 +1235,50 @@ Error Composer::getDisplayConnectionType(Display display,
         *outType = tmpType;
     });
 
-    return static_cast<V2_1::Error>(error);
+    return error;
+}
+
+V2_4::Error Composer::getDisplayVsyncPeriod(Display display, VsyncPeriodNanos* outVsyncPeriod) {
+    using Error = V2_4::Error;
+    if (!mClient_2_4) {
+        return Error::UNSUPPORTED;
+    }
+
+    Error error = kDefaultError_2_4;
+    mClient_2_4->getDisplayVsyncPeriod(display,
+                                       [&](const auto& tmpError, const auto& tmpVsyncPeriod) {
+                                           error = tmpError;
+                                           if (error != Error::NONE) {
+                                               return;
+                                           }
+
+                                           *outVsyncPeriod = tmpVsyncPeriod;
+                                       });
+
+    return error;
+}
+
+V2_4::Error Composer::setActiveConfigWithConstraints(
+        Display display, Config config,
+        const IComposerClient::VsyncPeriodChangeConstraints& vsyncPeriodChangeConstraints,
+        VsyncPeriodChangeTimeline* outTimeline) {
+    using Error = V2_4::Error;
+    if (!mClient_2_4) {
+        return Error::UNSUPPORTED;
+    }
+
+    Error error = kDefaultError_2_4;
+    mClient_2_4->setActiveConfigWithConstraints(display, config, vsyncPeriodChangeConstraints,
+                                                [&](const auto& tmpError, const auto& tmpTimeline) {
+                                                    error = tmpError;
+                                                    if (error != Error::NONE) {
+                                                        return;
+                                                    }
+
+                                                    *outTimeline = tmpTimeline;
+                                                });
+
+    return error;
 }
 
 CommandReader::~CommandReader()

@@ -81,6 +81,11 @@ public:
     MOCK_CONST_METHOD1(getColorModes, std::vector<ui::ColorMode>(DisplayId));
     MOCK_METHOD3(setActiveColorMode, status_t(DisplayId, ui::ColorMode, ui::RenderIntent));
     MOCK_CONST_METHOD0(isUsingVrComposer, bool());
+    MOCK_CONST_METHOD1(isVsyncPeriodSwitchSupported, bool(DisplayId));
+    MOCK_CONST_METHOD1(getDisplayVsyncPeriod, nsecs_t(DisplayId));
+    MOCK_METHOD4(setActiveConfigWithConstraints,
+                 status_t(DisplayId, size_t, const HWC2::VsyncPeriodChangeConstraints&,
+                          HWC2::VsyncPeriodChangeTimeline*));
 
     MOCK_CONST_METHOD1(dump, void(std::string&));
     MOCK_CONST_METHOD0(getComposer, android::Hwc2::Composer*());

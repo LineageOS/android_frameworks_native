@@ -62,12 +62,14 @@ using types::V1_2::PixelFormat;
 using V2_1::Config;
 using V2_1::Display;
 using V2_1::Error;
-using V2_1::IComposerCallback;
 using V2_1::Layer;
 using V2_3::CommandReaderBase;
 using V2_3::CommandWriterBase;
 using V2_4::IComposer;
+using V2_4::IComposerCallback;
 using V2_4::IComposerClient;
+using V2_4::VsyncPeriodChangeTimeline;
+using V2_4::VsyncPeriodNanos;
 using DisplayCapability = IComposerClient::DisplayCapability;
 using PerFrameMetadata = IComposerClient::PerFrameMetadata;
 using PerFrameMetadataKey = IComposerClient::PerFrameMetadataKey;
@@ -208,10 +210,17 @@ public:
     virtual Error setDisplayBrightness(Display display, float brightness) = 0;
 
     // Composer HAL 2.4
+    virtual bool isVsyncPeriodSwitchSupported() = 0;
     virtual Error getDisplayCapabilities(Display display,
                                          std::vector<DisplayCapability>* outCapabilities) = 0;
-    virtual Error getDisplayConnectionType(Display display,
-                                           IComposerClient::DisplayConnectionType* outType) = 0;
+    virtual V2_4::Error getDisplayConnectionType(
+            Display display, IComposerClient::DisplayConnectionType* outType) = 0;
+    virtual V2_4::Error getDisplayVsyncPeriod(Display display,
+                                              VsyncPeriodNanos* outVsyncPeriod) = 0;
+    virtual V2_4::Error setActiveConfigWithConstraints(
+            Display display, Config config,
+            const IComposerClient::VsyncPeriodChangeConstraints& vsyncPeriodChangeConstraints,
+            VsyncPeriodChangeTimeline* outTimeline) = 0;
 };
 
 namespace impl {
@@ -423,10 +432,16 @@ public:
     Error setDisplayBrightness(Display display, float brightness) override;
 
     // Composer HAL 2.4
+    bool isVsyncPeriodSwitchSupported() override { return mClient_2_4 != nullptr; }
     Error getDisplayCapabilities(Display display,
                                  std::vector<DisplayCapability>* outCapabilities) override;
-    Error getDisplayConnectionType(Display display,
-                                   IComposerClient::DisplayConnectionType* outType) override;
+    V2_4::Error getDisplayConnectionType(Display display,
+                                         IComposerClient::DisplayConnectionType* outType) override;
+    V2_4::Error getDisplayVsyncPeriod(Display display, VsyncPeriodNanos* outVsyncPeriod) override;
+    V2_4::Error setActiveConfigWithConstraints(
+            Display display, Config config,
+            const IComposerClient::VsyncPeriodChangeConstraints& vsyncPeriodChangeConstraints,
+            VsyncPeriodChangeTimeline* outTimeline) override;
 
 private:
 #if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER

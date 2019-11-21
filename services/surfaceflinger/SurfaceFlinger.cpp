@@ -1363,8 +1363,11 @@ nsecs_t SurfaceFlinger::getVsyncPeriod() const {
 }
 
 void SurfaceFlinger::onVsyncReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId,
-                                     int64_t timestamp) {
+                                     int64_t timestamp,
+                                     std::optional<hwc2_vsync_period_t> /*vsyncPeriod*/) {
     ATRACE_NAME("SF onVsync");
+
+    // TODO(b/140201379): use vsyncPeriod in the new DispSync
 
     Mutex::Autolock lock(mStateLock);
     // Ignore any vsyncs from a previous hardware composer.
@@ -1440,6 +1443,12 @@ void SurfaceFlinger::onHotplugReceived(int32_t sequenceId, hwc2_display_t hwcDis
     }
 
     setTransactionFlags(eDisplayTransactionNeeded);
+}
+
+void SurfaceFlinger::onVsyncPeriodTimingChangedReceived(
+        int32_t /*sequenceId*/, hwc2_display_t /*display*/,
+        const hwc_vsync_period_change_timeline_t& /*updatedTimeline*/) {
+    // TODO(b/142753004): use timeline when changing refresh rate
 }
 
 void SurfaceFlinger::onRefreshReceived(int sequenceId, hwc2_display_t /*hwcDisplayId*/) {
