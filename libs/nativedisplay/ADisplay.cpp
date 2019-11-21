@@ -16,6 +16,7 @@
 
 #include <apex/display.h>
 #include <gui/SurfaceComposerClient.h>
+#include <ui/DisplayConfig.h>
 #include <ui/DisplayInfo.h>
 #include <ui/GraphicTypes.h>
 #include <ui/PixelFormat.h>
@@ -116,17 +117,12 @@ using namespace android::display::impl;
     LOG_ALWAYS_FATAL_IF(name == nullptr, "nullptr passed as " #name " argument");
 
 namespace {
+
 sp<IBinder> getToken(ADisplay* display) {
     DisplayImpl* impl = reinterpret_cast<DisplayImpl*>(display);
     return SurfaceComposerClient::getPhysicalDisplayToken(impl->id);
 }
 
-int64_t computeSfOffset(const DisplayInfo& info) {
-    // This should probably be part of the config instead of extrapolated from
-    // the presentation deadline and fudged here, but the way the math works out
-    // here we do get the right offset.
-    return static_cast<int64_t>((1000000000 / info.fps) - info.presentationDeadline + 1000000);
-}
 } // namespace
 
 namespace android {
@@ -142,9 +138,16 @@ int ADisplay_acquirePhysicalDisplays(ADisplay*** outDisplays) {
     int numConfigs = 0;
     for (int i = 0; i < size; ++i) {
         const sp<IBinder> token = SurfaceComposerClient::getPhysicalDisplayToken(ids[i]);
-        Vector<DisplayInfo> configs;
-        const status_t status = SurfaceComposerClient::getDisplayConfigs(token, &configs);
-        if (status != OK) {
+
+        DisplayInfo info;
+        if (const status_t status = SurfaceComposerClient::getDisplayInfo(token, &info);
+            status != OK) {
+            return status;
+        }
+
+        Vector<DisplayConfig> configs;
+        if (const status_t status = SurfaceComposerClient::getDisplayConfigs(token, &configs);
+            status != OK) {
             return status;
         }
         if (configs.empty()) {
@@ -154,11 +157,11 @@ int ADisplay_acquirePhysicalDisplays(ADisplay*** outDisplays) {
         numConfigs += configs.size();
         configsPerDisplay[i].reserve(configs.size());
         for (int j = 0; j < configs.size(); ++j) {
-            const DisplayInfo config = configs[j];
+            const DisplayConfig& config = configs[j];
             configsPerDisplay[i].emplace_back(
-                    DisplayConfigImpl{static_cast<int32_t>(config.w),
-                                      static_cast<int32_t>(config.h), config.density, config.fps,
-                                      computeSfOffset(config), config.appVsyncOffset});
+                    DisplayConfigImpl{config.resolution.getWidth(), config.resolution.getHeight(),
+                                      info.density, config.refreshRate, config.sfVsyncOffset,
+                                      config.appVsyncOffset});
         }
     }
 

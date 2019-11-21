@@ -16,8 +16,6 @@
 
 #pragma once
 
-#include <stdlib.h>
-
 #include <memory>
 #include <optional>
 #include <string>
@@ -30,7 +28,7 @@
 #include <math/mat4.h>
 #include <renderengine/RenderEngine.h>
 #include <system/window.h>
-#include <ui/DisplayInfo.h>
+#include <ui/DisplayState.h>
 #include <ui/GraphicTypes.h>
 #include <ui/HdrCapabilities.h>
 #include <ui/Region.h>
@@ -80,12 +78,12 @@ public:
     // secure surfaces.
     bool isSecure() const;
 
-    int         getWidth() const;
-    int         getHeight() const;
+    int getWidth() const;
+    int getHeight() const;
+    ui::Size getSize() const { return {getWidth(), getHeight()}; }
 
-    void                    setLayerStack(uint32_t stack);
-    void                    setDisplaySize(const int newWidth, const int newHeight);
-
+    void setLayerStack(ui::LayerStack);
+    void setDisplaySize(int width, int height);
     void setProjection(ui::Rotation orientation, Rect viewport, Rect frame);
 
     ui::Rotation getPhysicalOrientation() const { return mPhysicalOrientation; }
@@ -98,7 +96,7 @@ public:
     const Rect& getFrame() const;
     const Rect& getScissor() const;
     bool needsFiltering() const;
-    uint32_t getLayerStack() const;
+    ui::LayerStack getLayerStack() const;
 
     const std::optional<DisplayId>& getId() const;
     const wp<IBinder>& getDisplayToken() const { return mDisplayToken; }
@@ -185,7 +183,7 @@ struct DisplayDeviceState {
     int32_t sequenceId = sNextSequenceId++;
     std::optional<DisplayId> displayId;
     sp<IGraphicBufferProducer> surface;
-    uint32_t layerStack = NO_LAYER_STACK;
+    ui::LayerStack layerStack = ui::NO_LAYER_STACK;
     Rect viewport;
     Rect frame;
     ui::Rotation orientation = ui::ROTATION_0;

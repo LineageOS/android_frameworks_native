@@ -36,14 +36,13 @@ protected:
         const auto display = SurfaceComposerClient::getInternalDisplayToken();
         ASSERT_FALSE(display == nullptr);
 
-        DisplayInfo info;
-        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
-
-        ssize_t displayWidth = info.w;
-        ssize_t displayHeight = info.h;
+        DisplayConfig config;
+        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
+        const ui::Size& resolution = config.resolution;
 
         // Background surface
-        mBGSurfaceControl = createLayer(String8("BG Test Surface"), displayWidth, displayHeight, 0);
+        mBGSurfaceControl = createLayer(String8("BG Test Surface"), resolution.getWidth(),
+                                        resolution.getHeight(), 0);
         ASSERT_TRUE(mBGSurfaceControl != nullptr);
         ASSERT_TRUE(mBGSurfaceControl->isValid());
         TransactionUtils::fillSurfaceRGBA8(mBGSurfaceControl, 63, 63, 195);
@@ -73,7 +72,8 @@ protected:
                     .show(mFGSurfaceControl);
 
             t.setLayer(mSyncSurfaceControl, INT32_MAX - 1)
-                    .setPosition(mSyncSurfaceControl, displayWidth - 2, displayHeight - 2)
+                    .setPosition(mSyncSurfaceControl, resolution.getWidth() - 2,
+                                 resolution.getHeight() - 2)
                     .show(mSyncSurfaceControl);
         });
     }

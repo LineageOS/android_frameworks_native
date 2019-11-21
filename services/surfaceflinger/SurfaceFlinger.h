@@ -433,13 +433,13 @@ private:
             float frameScale, bool childrenOnly) override;
 
     status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats) override;
-    status_t getDisplayConfigs(const sp<IBinder>& displayToken,
-                               Vector<DisplayInfo>* configs) override;
+    status_t getDisplayState(const sp<IBinder>& displayToken, ui::DisplayState*) override;
+    status_t getDisplayInfo(const sp<IBinder>& displayToken, DisplayInfo*) override;
+    status_t getDisplayConfigs(const sp<IBinder>& displayToken, Vector<DisplayConfig>*) override;
     int getActiveConfig(const sp<IBinder>& displayToken) override;
-    status_t getDisplayColorModes(const sp<IBinder>& displayToken,
-                                  Vector<ui::ColorMode>* configs) override;
+    status_t getDisplayColorModes(const sp<IBinder>& displayToken, Vector<ui::ColorMode>*) override;
     status_t getDisplayNativePrimaries(const sp<IBinder>& displayToken,
-                                       ui::DisplayPrimaries &primaries);
+                                       ui::DisplayPrimaries&) override;
     ui::ColorMode getActiveColorMode(const sp<IBinder>& displayToken) override;
     status_t setActiveColorMode(const sp<IBinder>& displayToken, ui::ColorMode colorMode) override;
     status_t getAutoLowLatencyModeSupport(const sp<IBinder>& displayToken,
@@ -1164,6 +1164,9 @@ private:
     sp<RegionSamplingThread> mRegionSamplingThread;
     ui::DisplayPrimaries mInternalDisplayPrimaries;
 
+    const float mInternalDisplayDensity;
+    const float mEmulatedDisplayDensity;
+
     sp<IInputFlinger> mInputFlinger;
     InputWindowCommands mPendingInputWindowCommands GUARDED_BY(mStateLock);
     // Should only be accessed by the main thread.
@@ -1180,7 +1183,7 @@ private:
 
     const sp<SetInputWindowsListener> mSetInputWindowsListener = new SetInputWindowsListener(this);
 
-    bool mPendingSyncInputWindows GUARDED_BY(mStateLock);
+    bool mPendingSyncInputWindows GUARDED_BY(mStateLock) = false;
     Hwc2::impl::PowerAdvisor mPowerAdvisor;
 
     // This should only be accessed on the main thread.

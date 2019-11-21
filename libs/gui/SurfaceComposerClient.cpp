@@ -31,8 +31,6 @@
 
 #include <system/graphics.h>
 
-#include <ui/DisplayInfo.h>
-
 #include <gui/BufferItemConsumer.h>
 #include <gui/CpuConsumer.h>
 #include <gui/IGraphicBufferProducer.h>
@@ -41,6 +39,7 @@
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
+#include <ui/DisplayConfig.h>
 
 #ifndef NO_INPUT
 #include <input/InputWindow.h>
@@ -1623,15 +1622,23 @@ status_t SurfaceComposerClient::injectVSync(nsecs_t when) {
     return sf->injectVSync(when);
 }
 
-status_t SurfaceComposerClient::getDisplayConfigs(
-        const sp<IBinder>& display, Vector<DisplayInfo>* configs)
-{
+status_t SurfaceComposerClient::getDisplayState(const sp<IBinder>& display,
+                                                ui::DisplayState* state) {
+    return ComposerService::getComposerService()->getDisplayState(display, state);
+}
+
+status_t SurfaceComposerClient::getDisplayInfo(const sp<IBinder>& display, DisplayInfo* info) {
+    return ComposerService::getComposerService()->getDisplayInfo(display, info);
+}
+
+status_t SurfaceComposerClient::getDisplayConfigs(const sp<IBinder>& display,
+                                                  Vector<DisplayConfig>* configs) {
     return ComposerService::getComposerService()->getDisplayConfigs(display, configs);
 }
 
-status_t SurfaceComposerClient::getDisplayInfo(const sp<IBinder>& display,
-        DisplayInfo* info) {
-    Vector<DisplayInfo> configs;
+status_t SurfaceComposerClient::getActiveDisplayConfig(const sp<IBinder>& display,
+                                                       DisplayConfig* config) {
+    Vector<DisplayConfig> configs;
     status_t result = getDisplayConfigs(display, &configs);
     if (result != NO_ERROR) {
         return result;
@@ -1643,7 +1650,7 @@ status_t SurfaceComposerClient::getDisplayInfo(const sp<IBinder>& display,
         return NAME_NOT_FOUND;
     }
 
-    *info = configs[static_cast<size_t>(activeId)];
+    *config = configs[static_cast<size_t>(activeId)];
     return NO_ERROR;
 }
 

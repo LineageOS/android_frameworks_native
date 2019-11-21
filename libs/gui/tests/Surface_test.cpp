@@ -718,8 +718,15 @@ public:
     }
 
     void setPowerMode(const sp<IBinder>& /*display*/, int /*mode*/) override {}
-    status_t getDisplayConfigs(const sp<IBinder>& /*display*/,
-            Vector<DisplayInfo>* /*configs*/) override { return NO_ERROR; }
+    status_t getDisplayInfo(const sp<IBinder>& /*display*/, DisplayInfo*) override {
+        return NO_ERROR;
+    }
+    status_t getDisplayConfigs(const sp<IBinder>& /*display*/, Vector<DisplayConfig>*) override {
+        return NO_ERROR;
+    }
+    status_t getDisplayState(const sp<IBinder>& /*display*/, ui::DisplayState*) override {
+        return NO_ERROR;
+    }
     status_t getDisplayStats(const sp<IBinder>& /*display*/,
             DisplayStatInfo* /*stats*/) override { return NO_ERROR; }
     int getActiveConfig(const sp<IBinder>& /*display*/) override { return 0; }

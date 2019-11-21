@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_GUI_SURFACE_COMPOSER_CLIENT_H
-#define ANDROID_GUI_SURFACE_COMPOSER_CLIENT_H
+#pragma once
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -46,16 +45,11 @@
 
 namespace android {
 
-// ---------------------------------------------------------------------------
-
-struct DisplayInfo;
 class HdrCapabilities;
 class ISurfaceComposerClient;
 class IGraphicBufferProducer;
 class IRegionSamplingListener;
 class Region;
-
-// ---------------------------------------------------------------------------
 
 struct SurfaceControlStats {
     SurfaceControlStats(const sp<SurfaceControl>& sc, nsecs_t time,
@@ -102,17 +96,20 @@ public:
     status_t linkToComposerDeath(const sp<IBinder::DeathRecipient>& recipient,
             void* cookie = nullptr, uint32_t flags = 0);
 
-    // Get a list of supported configurations for a given display
-    static status_t getDisplayConfigs(const sp<IBinder>& display,
-            Vector<DisplayInfo>* configs);
+    // Get transactional state of given display.
+    static status_t getDisplayState(const sp<IBinder>& display, ui::DisplayState*);
 
-    // Get the DisplayInfo for the currently-active configuration
-    static status_t getDisplayInfo(const sp<IBinder>& display,
-            DisplayInfo* info);
+    // Get immutable information about given physical display.
+    static status_t getDisplayInfo(const sp<IBinder>& display, DisplayInfo*);
 
-    // Get the index of the current active configuration (relative to the list
-    // returned by getDisplayInfo)
+    // Get configurations supported by given physical display.
+    static status_t getDisplayConfigs(const sp<IBinder>& display, Vector<DisplayConfig>*);
+
+    // Get the ID of the active DisplayConfig, as getDisplayConfigs index.
     static int getActiveConfig(const sp<IBinder>& display);
+
+    // Shorthand for getDisplayConfigs element at getActiveConfig index.
+    static status_t getActiveDisplayConfig(const sp<IBinder>& display, DisplayConfig*);
 
     // Sets the refresh rate boundaries for display configuration.
     // For all other parameters, default configuration is used. The index for the default is
@@ -644,8 +641,4 @@ public:
     void onTransactionCompleted(ListenerStats stats) override;
 };
 
-// ---------------------------------------------------------------------------
-
-}; // namespace android
-
-#endif // ANDROID_GUI_SURFACE_COMPOSER_CLIENT_H
+} // namespace android

@@ -18,14 +18,23 @@
 
 #include <type_traits>
 
+#include <ui/Size.h>
+#include <utils/Timers.h>
+
 namespace android {
 
-// Immutable information about physical display.
-struct DisplayInfo {
-    float density = 0.f;
-    bool secure = false;
+// Configuration supported by physical display.
+struct DisplayConfig {
+    ui::Size resolution;
+    float xDpi = 0;
+    float yDpi = 0;
+
+    float refreshRate = 0;
+    nsecs_t appVsyncOffset = 0;
+    nsecs_t sfVsyncOffset = 0;
+    nsecs_t presentationDeadline = 0;
 };
 
-static_assert(std::is_trivially_copyable_v<DisplayInfo>);
+static_assert(std::is_trivially_copyable_v<DisplayConfig>);
 
 } // namespace android

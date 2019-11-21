@@ -146,12 +146,12 @@ ui::Dataspace DisplayDevice::getCompositionDataSpace() const {
     return mCompositionDisplay->getState().dataspace;
 }
 
-void DisplayDevice::setLayerStack(uint32_t stack) {
+void DisplayDevice::setLayerStack(ui::LayerStack stack) {
     mCompositionDisplay->setLayerStackFilter(stack, isPrimary());
 }
 
-void DisplayDevice::setDisplaySize(const int newWidth, const int newHeight) {
-    mCompositionDisplay->setBounds(ui::Size(newWidth, newHeight));
+void DisplayDevice::setDisplaySize(int width, int height) {
+    mCompositionDisplay->setBounds(ui::Size(width, height));
 }
 
 void DisplayDevice::setProjection(ui::Rotation orientation, Rect viewport, Rect frame) {
@@ -286,7 +286,7 @@ bool DisplayDevice::needsFiltering() const {
     return mCompositionDisplay->getState().needsFiltering;
 }
 
-uint32_t DisplayDevice::getLayerStack() const {
+ui::LayerStack DisplayDevice::getLayerStack() const {
     return mCompositionDisplay->getState().layerStackId;
 }
 
