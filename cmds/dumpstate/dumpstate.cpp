@@ -933,6 +933,31 @@ static void DumpIncidentReport() {
     unlink(path.c_str());
 }
 
+static void DumpVisibleWindowViews() {
+    if (!ds.IsZipping()) {
+        MYLOGD("Not dumping visible views because it's not a zipped bugreport\n");
+        return;
+    }
+    DurationReporter duration_reporter("VISIBLE WINDOW VIEWS");
+    const std::string path = ds.bugreport_internal_dir_ + "/tmp_visible_window_views";
+    auto fd = android::base::unique_fd(TEMP_FAILURE_RETRY(open(path.c_str(),
+                O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
+                S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)));
+    if (fd < 0) {
+        MYLOGE("Could not open %s to dump visible views.\n", path.c_str());
+        return;
+    }
+    RunCommandToFd(fd, "", {"cmd", "window", "dump-visible-window-views"},
+                   CommandOptions::WithTimeout(120).Build());
+    bool empty = 0 == lseek(fd, 0, SEEK_END);
+    if (!empty) {
+        ds.AddZipEntry("visible_windows.zip", path);
+    } else {
+        MYLOGW("Failed to dump visible windows\n");
+    }
+    unlink(path.c_str());
+}
+
 static void DumpIpTablesAsRoot() {
     RunCommand("IPTABLES", {"iptables", "-L", "-nvx"});
     RunCommand("IP6TABLES", {"ip6tables", "-L", "-nvx"});
@@ -1316,6 +1341,8 @@ static Dumpstate::RunStatus dumpstate() {
                             "pid,tid,user,pr,ni,%cpu,s,virt,res,pcy,cmd,name"});
 
     RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(RunCommand, "PROCRANK", {"procrank"}, AS_ROOT_20);
+
+    RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(DumpVisibleWindowViews);
 
     DumpFile("VIRTUAL MEMORY STATS", "/proc/vmstat");
     DumpFile("VMALLOC INFO", "/proc/vmallocinfo");
