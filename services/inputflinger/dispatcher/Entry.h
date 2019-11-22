@@ -33,11 +33,24 @@ namespace android::inputdispatcher {
 constexpr uint32_t SYNTHESIZED_EVENT_SEQUENCE_NUM = 0;
 
 struct EventEntry {
-    enum { TYPE_CONFIGURATION_CHANGED, TYPE_DEVICE_RESET, TYPE_KEY, TYPE_MOTION };
+    enum class Type { CONFIGURATION_CHANGED, DEVICE_RESET, KEY, MOTION };
+
+    static const char* typeToString(Type type) {
+        switch (type) {
+            case Type::CONFIGURATION_CHANGED:
+                return "CONFIGURATION_CHANGED";
+            case Type::DEVICE_RESET:
+                return "DEVICE_RESET";
+            case Type::KEY:
+                return "KEY";
+            case Type::MOTION:
+                return "MOTION";
+        }
+    }
 
     uint32_t sequenceNum;
     mutable int32_t refCount;
-    int32_t type;
+    Type type;
     nsecs_t eventTime;
     uint32_t policyFlags;
     InjectionState* injectionState;
@@ -66,7 +79,7 @@ struct EventEntry {
     virtual void appendDescription(std::string& msg) const = 0;
 
 protected:
-    EventEntry(uint32_t sequenceNum, int32_t type, nsecs_t eventTime, uint32_t policyFlags);
+    EventEntry(uint32_t sequenceNum, Type type, nsecs_t eventTime, uint32_t policyFlags);
     virtual ~EventEntry();
     void releaseInjectionState();
 };

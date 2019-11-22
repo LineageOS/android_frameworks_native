@@ -60,7 +60,7 @@ static std::string keyActionToString(int32_t action) {
 
 // --- EventEntry ---
 
-EventEntry::EventEntry(uint32_t sequenceNum, int32_t type, nsecs_t eventTime, uint32_t policyFlags)
+EventEntry::EventEntry(uint32_t sequenceNum, Type type, nsecs_t eventTime, uint32_t policyFlags)
       : sequenceNum(sequenceNum),
         refCount(1),
         type(type),
@@ -92,7 +92,7 @@ void EventEntry::releaseInjectionState() {
 // --- ConfigurationChangedEntry ---
 
 ConfigurationChangedEntry::ConfigurationChangedEntry(uint32_t sequenceNum, nsecs_t eventTime)
-      : EventEntry(sequenceNum, TYPE_CONFIGURATION_CHANGED, eventTime, 0) {}
+      : EventEntry(sequenceNum, Type::CONFIGURATION_CHANGED, eventTime, 0) {}
 
 ConfigurationChangedEntry::~ConfigurationChangedEntry() {}
 
@@ -103,7 +103,7 @@ void ConfigurationChangedEntry::appendDescription(std::string& msg) const {
 // --- DeviceResetEntry ---
 
 DeviceResetEntry::DeviceResetEntry(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId)
-      : EventEntry(sequenceNum, TYPE_DEVICE_RESET, eventTime, 0), deviceId(deviceId) {}
+      : EventEntry(sequenceNum, Type::DEVICE_RESET, eventTime, 0), deviceId(deviceId) {}
 
 DeviceResetEntry::~DeviceResetEntry() {}
 
@@ -117,7 +117,7 @@ KeyEntry::KeyEntry(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId, ui
                    int32_t displayId, uint32_t policyFlags, int32_t action, int32_t flags,
                    int32_t keyCode, int32_t scanCode, int32_t metaState, int32_t repeatCount,
                    nsecs_t downTime)
-      : EventEntry(sequenceNum, TYPE_KEY, eventTime, policyFlags),
+      : EventEntry(sequenceNum, Type::KEY, eventTime, policyFlags),
         deviceId(deviceId),
         source(source),
         displayId(displayId),
@@ -165,7 +165,7 @@ MotionEntry::MotionEntry(uint32_t sequenceNum, nsecs_t eventTime, int32_t device
                          float xCursorPosition, float yCursorPosition, nsecs_t downTime,
                          uint32_t pointerCount, const PointerProperties* pointerProperties,
                          const PointerCoords* pointerCoords, float xOffset, float yOffset)
-      : EventEntry(sequenceNum, TYPE_MOTION, eventTime, policyFlags),
+      : EventEntry(sequenceNum, Type::MOTION, eventTime, policyFlags),
         eventTime(eventTime),
         deviceId(deviceId),
         source(source),
