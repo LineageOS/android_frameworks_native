@@ -70,8 +70,6 @@ public:
     // Notifies the TransactionCompletedThread that a pending CallbackHandle has been presented.
     status_t finalizePendingCallbackHandles(const std::deque<sp<CallbackHandle>>& handles);
 
-    void clearAllPending();
-
     // Adds the Transaction CallbackHandle from a layer that does not need to be relatched and
     // presented this frame.
     status_t registerUnpresentedCallbackHandle(const sp<CallbackHandle>& handle);
