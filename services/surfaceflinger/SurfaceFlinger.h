@@ -470,7 +470,8 @@ private:
                                          bool* outSupport) const override;
     status_t setDisplayBrightness(const sp<IBinder>& displayToken, float brightness) const override;
     status_t notifyPowerHint(int32_t hintId) override;
-
+    status_t setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
+                                     float lightPosY, float lightPosZ, float lightRadius) override;
     /* ------------------------------------------------------------------------
      * DeathRecipient interface
      */
@@ -484,11 +485,14 @@ private:
     /* ------------------------------------------------------------------------
      * HWC2::ComposerCallback / HWComposer::EventHandler interface
      */
-    void onVsyncReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId,
-                         int64_t timestamp) override;
+    void onVsyncReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId, int64_t timestamp,
+                         std::optional<hwc2_vsync_period_t> vsyncPeriod) override;
     void onHotplugReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId,
                            HWC2::Connection connection) override;
     void onRefreshReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId) override;
+    void onVsyncPeriodTimingChangedReceived(
+            int32_t sequenceId, hwc2_display_t display,
+            const hwc_vsync_period_change_timeline_t& updatedTimeline) override;
 
     /* ------------------------------------------------------------------------
      * Message handling

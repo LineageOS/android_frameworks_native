@@ -25,6 +25,8 @@
 
 #include <gui/ITransactionCompletedListener.h>
 
+#include <math/vec4.h>
+
 #include <ui/ConfigStoreTypes.h>
 #include <ui/DisplayedFrameStats.h>
 #include <ui/FrameStats.h>
@@ -439,6 +441,28 @@ public:
      * Returns NO_ERROR upon success.
      */
     virtual status_t notifyPowerHint(int32_t hintId) = 0;
+
+    /*
+     * Sets the global configuration for all the shadows drawn by SurfaceFlinger. Shadow follows
+     * material design guidelines.
+     *
+     * ambientColor
+     *      Color to the ambient shadow. The alpha is premultiplied.
+     *
+     * spotColor
+     *      Color to the spot shadow. The alpha is premultiplied. The position of the spot shadow
+     *      depends on the light position.
+     *
+     * lightPosY/lightPosZ
+     *      Position of the light used to cast the spot shadow. The X value is always the display
+     *      width / 2.
+     *
+     * lightRadius
+     *      Radius of the light casting the shadow.
+     */
+    virtual status_t setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
+                                             float lightPosY, float lightPosZ,
+                                             float lightRadius) = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -492,6 +516,7 @@ public:
         SET_DISPLAY_BRIGHTNESS,
         CAPTURE_SCREEN_BY_ID,
         NOTIFY_POWER_HINT,
+        SET_GLOBAL_SHADOW_SETTINGS,
         // Always append new enum to the end.
     };
 

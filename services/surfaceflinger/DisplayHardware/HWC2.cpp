@@ -81,7 +81,26 @@ public:
 
     Return<void> onVsync(Hwc2::Display display, int64_t timestamp) override
     {
-        mCallback->onVsyncReceived(mSequenceId, display, timestamp);
+        mCallback->onVsyncReceived(mSequenceId, display, timestamp, std::nullopt);
+        return Void();
+    }
+
+    Return<void> onVsync_2_4(Hwc2::Display display, int64_t timestamp,
+                             Hwc2::VsyncPeriodNanos vsyncPeriodNanos) override {
+        // TODO(b/140201379): use vsyncPeriodNanos in the new DispSync
+        mCallback->onVsyncReceived(mSequenceId, display, timestamp,
+                                   std::make_optional(vsyncPeriodNanos));
+        return Void();
+    }
+
+    Return<void> onVsyncPeriodTimingChanged(
+            Hwc2::Display display,
+            const Hwc2::VsyncPeriodChangeTimeline& updatedTimeline) override {
+        hwc_vsync_period_change_timeline_t timeline;
+        timeline.newVsyncAppliedTimeNanos = updatedTimeline.newVsyncAppliedTimeNanos;
+        timeline.refreshRequired = updatedTimeline.refreshRequired;
+        timeline.refreshTimeNanos = updatedTimeline.refreshTimeNanos;
+        mCallback->onVsyncPeriodTimingChangedReceived(mSequenceId, display, timeline);
         return Void();
     }
 
@@ -330,6 +349,36 @@ Error Display::getActiveConfig(
     return Error::None;
 }
 
+bool Display::isVsyncPeriodSwitchSupported() const {
+    ALOGV("[%" PRIu64 "] isVsyncPeriodSwitchSupported()", mId);
+
+    return mComposer.isVsyncPeriodSwitchSupported();
+}
+
+Error Display::getDisplayVsyncPeriod(nsecs_t* outVsyncPeriod) const {
+    ALOGV("[%" PRIu64 "] getDisplayVsyncPeriod", mId);
+
+    Error error;
+
+    if (isVsyncPeriodSwitchSupported()) {
+        Hwc2::VsyncPeriodNanos vsyncPeriodNanos = 0;
+        auto intError = mComposer.getDisplayVsyncPeriod(mId, &vsyncPeriodNanos);
+        error = static_cast<Error>(intError);
+        *outVsyncPeriod = static_cast<nsecs_t>(vsyncPeriodNanos);
+    } else {
+        // Get the default vsync period
+        hwc2_config_t configId = 0;
+        auto intError_2_1 = mComposer.getActiveConfig(mId, &configId);
+        error = static_cast<Error>(intError_2_1);
+        if (error == Error::None) {
+            auto config = mConfigs.at(configId);
+            *outVsyncPeriod = config->getVsyncPeriod();
+        }
+    }
+
+    return error;
+}
+
 Error Display::getActiveConfigIndex(int* outIndex) const {
     ALOGV("[%" PRIu64 "] getActiveConfigIndex", mId);
     hwc2_config_t configId = 0;
@@ -345,6 +394,7 @@ Error Display::getActiveConfigIndex(int* outIndex) const {
     auto pos = mConfigs.find(configId);
     if (pos != mConfigs.end()) {
         *outIndex = std::distance(mConfigs.begin(), pos);
+        ALOGV("[%" PRIu64 "] index = %d", mId, *outIndex);
     } else {
         ALOGE("[%" PRIu64 "] getActiveConfig returned unknown config %u", mId, configId);
         // Return no error, but the caller needs to check for a negative index
@@ -582,6 +632,46 @@ Error Display::present(sp<Fence>* outPresentFence)
     return Error::None;
 }
 
+Error Display::setActiveConfigWithConstraints(
+        const std::shared_ptr<const HWC2::Display::Config>& config,
+        const VsyncPeriodChangeConstraints& constraints, VsyncPeriodChangeTimeline* outTimeline) {
+    ALOGV("[%" PRIu64 "] setActiveConfigWithConstraints", mId);
+    if (config->getDisplayId() != mId) {
+        ALOGE("setActiveConfigWithConstraints received config %u for the wrong display %" PRIu64
+              " (expected %" PRIu64 ")",
+              config->getId(), config->getDisplayId(), mId);
+        return Error::BadConfig;
+    }
+
+    if (isVsyncPeriodSwitchSupported()) {
+        Hwc2::IComposerClient::VsyncPeriodChangeConstraints hwc2Constraints;
+        hwc2Constraints.desiredTimeNanos = constraints.desiredTimeNanos;
+        hwc2Constraints.seamlessRequired = constraints.seamlessRequired;
+
+        Hwc2::VsyncPeriodChangeTimeline vsyncPeriodChangeTimeline = {};
+        auto intError =
+                mComposer.setActiveConfigWithConstraints(mId, config->getId(), hwc2Constraints,
+                                                         &vsyncPeriodChangeTimeline);
+        outTimeline->newVsyncAppliedTimeNanos = vsyncPeriodChangeTimeline.newVsyncAppliedTimeNanos;
+        outTimeline->refreshRequired = vsyncPeriodChangeTimeline.refreshRequired;
+        outTimeline->refreshTimeNanos = vsyncPeriodChangeTimeline.refreshTimeNanos;
+        return static_cast<Error>(intError);
+    }
+
+    // Use legacy setActiveConfig instead
+    ALOGV("fallback to legacy setActiveConfig");
+    const auto now = systemTime();
+    if (constraints.desiredTimeNanos > now || constraints.seamlessRequired) {
+        ALOGE("setActiveConfigWithConstraints received constraints that can't be satisfied");
+    }
+
+    auto intError_2_4 = mComposer.setActiveConfig(mId, config->getId());
+    outTimeline->newVsyncAppliedTimeNanos = std::max(now, constraints.desiredTimeNanos);
+    outTimeline->refreshRequired = true;
+    outTimeline->refreshTimeNanos = now;
+    return static_cast<Error>(intError_2_4);
+}
+
 Error Display::setActiveConfig(const std::shared_ptr<const Config>& config)
 {
     if (config->getDisplayId() != mId) {
@@ -742,12 +832,13 @@ void Display::loadConfig(hwc2_config_t configId)
     ALOGV("[%" PRIu64 "] loadConfig(%u)", mId, configId);
 
     auto config = Config::Builder(*this, configId)
-            .setWidth(getAttribute(configId, Attribute::Width))
-            .setHeight(getAttribute(configId, Attribute::Height))
-            .setVsyncPeriod(getAttribute(configId, Attribute::VsyncPeriod))
-            .setDpiX(getAttribute(configId, Attribute::DpiX))
-            .setDpiY(getAttribute(configId, Attribute::DpiY))
-            .build();
+                          .setWidth(getAttribute(configId, Attribute::Width))
+                          .setHeight(getAttribute(configId, Attribute::Height))
+                          .setVsyncPeriod(getAttribute(configId, Attribute::VsyncPeriod))
+                          .setDpiX(getAttribute(configId, Attribute::DpiX))
+                          .setDpiY(getAttribute(configId, Attribute::DpiY))
+                          .setConfigGroup(getAttribute(configId, Attribute::ConfigGroup))
+                          .build();
     mConfigs.emplace(configId, std::move(config));
 }
 

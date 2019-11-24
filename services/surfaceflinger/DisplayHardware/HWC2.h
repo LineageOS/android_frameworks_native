@@ -38,6 +38,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "../Scheduler/StrongTyping.h"
+
 namespace android {
     struct DisplayedFrameStats;
     class Fence;
@@ -54,6 +56,8 @@ namespace HWC2 {
 
 class Display;
 class Layer;
+using VsyncPeriodChangeConstraints = hwc_vsync_period_change_constraints_t;
+using VsyncPeriodChangeTimeline = hwc_vsync_period_change_timeline_t;
 
 // Implement this interface to receive hardware composer events.
 //
@@ -70,8 +74,12 @@ class ComposerCallback {
                                    Connection connection) = 0;
     virtual void onRefreshReceived(int32_t sequenceId,
                                    hwc2_display_t display) = 0;
-    virtual void onVsyncReceived(int32_t sequenceId, hwc2_display_t display,
-                                 int64_t timestamp) = 0;
+    virtual void onVsyncReceived(int32_t sequenceId, hwc2_display_t display, int64_t timestamp,
+                                 std::optional<hwc2_vsync_period_t> vsyncPeriod) = 0;
+    virtual void onVsyncPeriodTimingChangedReceived(
+            int32_t sequenceId, hwc2_display_t display,
+            const hwc_vsync_period_change_timeline_t& updatedTimeline) = 0;
+
     virtual ~ComposerCallback() = default;
 };
 
@@ -170,6 +178,10 @@ public:
                 }
                 return *this;
             }
+            Builder& setConfigGroup(int32_t configGroup) {
+                mConfig->mConfigGroup = configGroup;
+                return *this;
+            }
 
         private:
             float getDefaultDensity();
@@ -184,6 +196,7 @@ public:
         nsecs_t getVsyncPeriod() const { return mVsyncPeriod; }
         float getDpiX() const { return mDpiX; }
         float getDpiY() const { return mDpiY; }
+        int32_t getConfigGroup() const { return mConfigGroup; }
 
     private:
         Config(Display& display, hwc2_config_t id);
@@ -196,12 +209,14 @@ public:
         nsecs_t mVsyncPeriod;
         float mDpiX;
         float mDpiY;
+        int32_t mConfigGroup;
     };
 
     virtual hwc2_display_t getId() const = 0;
     virtual bool isConnected() const = 0;
     virtual void setConnected(bool connected) = 0; // For use by Device only
     virtual const std::unordered_set<DisplayCapability>& getCapabilities() const = 0;
+    virtual bool isVsyncPeriodSwitchSupported() const = 0;
 
     [[clang::warn_unused_result]] virtual Error acceptChanges() = 0;
     [[clang::warn_unused_result]] virtual Error createLayer(Layer** outLayer) = 0;
@@ -264,6 +279,12 @@ public:
             uint32_t* outNumTypes, uint32_t* outNumRequests,
             android::sp<android::Fence>* outPresentFence, uint32_t* state) = 0;
     [[clang::warn_unused_result]] virtual Error setDisplayBrightness(float brightness) const = 0;
+    [[clang::warn_unused_result]] virtual Error getDisplayVsyncPeriod(
+            nsecs_t* outVsyncPeriod) const = 0;
+    [[clang::warn_unused_result]] virtual Error setActiveConfigWithConstraints(
+            const std::shared_ptr<const HWC2::Display::Config>& config,
+            const VsyncPeriodChangeConstraints& constraints,
+            VsyncPeriodChangeTimeline* outTimeline) = 0;
 };
 
 namespace impl {
@@ -323,6 +344,10 @@ public:
     Error presentOrValidate(uint32_t* outNumTypes, uint32_t* outNumRequests,
                             android::sp<android::Fence>* outPresentFence, uint32_t* state) override;
     Error setDisplayBrightness(float brightness) const override;
+    Error getDisplayVsyncPeriod(nsecs_t* outVsyncPeriod) const override;
+    Error setActiveConfigWithConstraints(const std::shared_ptr<const HWC2::Display::Config>& config,
+                                         const VsyncPeriodChangeConstraints& constraints,
+                                         VsyncPeriodChangeTimeline* outTimeline) override;
 
     // Other Display methods
     hwc2_display_t getId() const override { return mId; }
@@ -331,6 +356,7 @@ public:
     const std::unordered_set<DisplayCapability>& getCapabilities() const override {
         return mDisplayCapabilities;
     };
+    virtual bool isVsyncPeriodSwitchSupported() const override;
 
 private:
     int32_t getAttribute(hwc2_config_t configId, Attribute attribute);
@@ -355,7 +381,9 @@ private:
     bool mIsConnected;
     DisplayType mType;
     std::unordered_map<hwc2_layer_t, std::unique_ptr<Layer>> mLayers;
+
     std::unordered_map<hwc2_config_t, std::shared_ptr<const Config>> mConfigs;
+
     std::once_flag mDisplayCapabilityQueryFlag;
     std::unordered_set<DisplayCapability> mDisplayCapabilities;
 };

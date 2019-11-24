@@ -16,6 +16,7 @@
 
 #include <cmath>
 
+#include <android-base/stringprintf.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/impl/Output.h>
 #include <compositionengine/impl/OutputCompositionState.h>
@@ -31,6 +32,8 @@
 #include <ui/Rect.h>
 #include <ui/Region.h>
 
+#include "CallOrderStateMachineHelper.h"
+#include "MockHWC2.h"
 #include "RegionMatcher.h"
 #include "TransformMatcher.h"
 
@@ -39,10 +42,15 @@ namespace {
 
 using testing::_;
 using testing::ByMove;
+using testing::DoAll;
+using testing::Eq;
 using testing::InSequence;
+using testing::Mock;
+using testing::Property;
 using testing::Ref;
 using testing::Return;
 using testing::ReturnRef;
+using testing::SetArgPointee;
 using testing::StrictMock;
 
 constexpr auto TR_IDENT = 0u;
@@ -51,6 +59,9 @@ constexpr auto TR_ROT_90 = HAL_TRANSFORM_ROT_90;
 const mat4 kIdentity;
 const mat4 kNonIdentityHalf = mat4() * 0.5;
 const mat4 kNonIdentityQuarter = mat4() * 0.25;
+
+constexpr OutputColorSetting kVendorSpecifiedOutputColorSetting =
+        static_cast<OutputColorSetting>(0x100);
 
 struct OutputPartialMockBase : public impl::Output {
     // compositionengine::Output overrides
@@ -105,7 +116,69 @@ struct OutputTest : public testing::Test {
     std::shared_ptr<Output> mOutput = createOutput(mCompositionEngine);
 };
 
+// Extension of the base test useful for checking interactions with the LayerFE
+// functions to latch composition state.
+struct OutputLatchFEStateTest : public OutputTest {
+    OutputLatchFEStateTest() {
+        EXPECT_CALL(*mOutputLayer1, getLayer()).WillRepeatedly(ReturnRef(mLayer1));
+        EXPECT_CALL(*mOutputLayer2, getLayer()).WillRepeatedly(ReturnRef(mLayer2));
+        EXPECT_CALL(*mOutputLayer3, getLayer()).WillRepeatedly(ReturnRef(mLayer3));
+
+        EXPECT_CALL(*mOutputLayer1, getLayerFE()).WillRepeatedly(ReturnRef(mLayer1FE));
+        EXPECT_CALL(*mOutputLayer2, getLayerFE()).WillRepeatedly(ReturnRef(mLayer2FE));
+        EXPECT_CALL(*mOutputLayer3, getLayerFE()).WillRepeatedly(ReturnRef(mLayer3FE));
+
+        EXPECT_CALL(mLayer1, editFEState()).WillRepeatedly(ReturnRef(mLayer1FEState));
+        EXPECT_CALL(mLayer2, editFEState()).WillRepeatedly(ReturnRef(mLayer2FEState));
+        EXPECT_CALL(mLayer3, editFEState()).WillRepeatedly(ReturnRef(mLayer3FEState));
+    }
+
+    void injectLayer(std::unique_ptr<mock::OutputLayer> layer) {
+        mOutput->injectOutputLayerForTest(std::unique_ptr<OutputLayer>(layer.release()));
+    }
+
+    std::unique_ptr<mock::OutputLayer> mOutputLayer1{new StrictMock<mock::OutputLayer>};
+    std::unique_ptr<mock::OutputLayer> mOutputLayer2{new StrictMock<mock::OutputLayer>};
+    std::unique_ptr<mock::OutputLayer> mOutputLayer3{new StrictMock<mock::OutputLayer>};
+
+    StrictMock<mock::Layer> mLayer1;
+    StrictMock<mock::Layer> mLayer2;
+    StrictMock<mock::Layer> mLayer3;
+
+    StrictMock<mock::LayerFE> mLayer1FE;
+    StrictMock<mock::LayerFE> mLayer2FE;
+    StrictMock<mock::LayerFE> mLayer3FE;
+
+    LayerFECompositionState mLayer1FEState;
+    LayerFECompositionState mLayer2FEState;
+    LayerFECompositionState mLayer3FEState;
+};
+
 const Rect OutputTest::kDefaultDisplaySize{100, 200};
+
+using ColorProfile = compositionengine::Output::ColorProfile;
+
+void dumpColorProfile(ColorProfile profile, std::string& result, const char* name) {
+    android::base::StringAppendF(&result, "%s (%s[%d] %s[%d] %s[%d] %s[%d]) ", name,
+                                 toString(profile.mode).c_str(), profile.mode,
+                                 toString(profile.dataspace).c_str(), profile.dataspace,
+                                 toString(profile.renderIntent).c_str(), profile.renderIntent,
+                                 toString(profile.colorSpaceAgnosticDataspace).c_str(),
+                                 profile.colorSpaceAgnosticDataspace);
+}
+
+// Checks for a ColorProfile match
+MATCHER_P(ColorProfileEq, expected, "") {
+    std::string buf;
+    buf.append("ColorProfiles are not equal\n");
+    dumpColorProfile(expected, buf, "expected value");
+    dumpColorProfile(arg, buf, "actual value");
+    *result_listener << buf;
+
+    return (expected.mode == arg.mode) && (expected.dataspace == arg.dataspace) &&
+            (expected.renderIntent == arg.renderIntent) &&
+            (expected.colorSpaceAgnosticDataspace == arg.colorSpaceAgnosticDataspace);
+}
 
 /*
  * Basic construction
@@ -296,10 +369,12 @@ TEST_F(OutputTest, setColorTransformPerformsUpdateForHalfToQuarter) {
 }
 
 /*
- * Output::setColorMode
+ * Output::setColorProfile
  */
 
-TEST_F(OutputTest, setColorModeSetsStateAndDirtiesOutputIfChanged) {
+using OutputSetColorProfileTest = OutputTest;
+
+TEST_F(OutputSetColorProfileTest, setsStateAndDirtiesOutputIfChanged) {
     using ColorProfile = Output::ColorProfile;
 
     EXPECT_CALL(*mDisplayColorProfile,
@@ -320,7 +395,7 @@ TEST_F(OutputTest, setColorModeSetsStateAndDirtiesOutputIfChanged) {
     EXPECT_THAT(mOutput->getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
 }
 
-TEST_F(OutputTest, setColorModeDoesNothingIfNoChange) {
+TEST_F(OutputSetColorProfileTest, doesNothingIfNoChange) {
     using ColorProfile = Output::ColorProfile;
 
     EXPECT_CALL(*mDisplayColorProfile,
@@ -536,26 +611,138 @@ TEST_F(OutputSetReleasedLayersTest, setReleasedLayersTakesGivenLayers) {
 }
 
 /*
+ * Output::updateLayerStateFromFE()
+ */
+
+using OutputUpdateLayerStateFromFETest = OutputLatchFEStateTest;
+
+TEST_F(OutputUpdateLayerStateFromFETest, handlesNoOutputLayerCase) {
+    CompositionRefreshArgs refreshArgs;
+
+    mOutput->updateLayerStateFromFE(refreshArgs);
+}
+
+TEST_F(OutputUpdateLayerStateFromFETest, latchesContentStateForAllContainedLayers) {
+    EXPECT_CALL(mLayer1FE,
+                latchCompositionState(Ref(mLayer1FEState), LayerFE::StateSubset::Content));
+    EXPECT_CALL(mLayer2FE,
+                latchCompositionState(Ref(mLayer2FEState), LayerFE::StateSubset::Content));
+    EXPECT_CALL(mLayer3FE,
+                latchCompositionState(Ref(mLayer3FEState), LayerFE::StateSubset::Content));
+
+    // Note: Must be performed after any expectations on these mocks
+    injectLayer(std::move(mOutputLayer1));
+    injectLayer(std::move(mOutputLayer2));
+    injectLayer(std::move(mOutputLayer3));
+
+    CompositionRefreshArgs refreshArgs;
+    refreshArgs.updatingGeometryThisFrame = false;
+
+    mOutput->updateLayerStateFromFE(refreshArgs);
+}
+
+TEST_F(OutputUpdateLayerStateFromFETest, latchesGeometryAndContentStateForAllContainedLayers) {
+    EXPECT_CALL(mLayer1FE,
+                latchCompositionState(Ref(mLayer1FEState),
+                                      LayerFE::StateSubset::GeometryAndContent));
+    EXPECT_CALL(mLayer2FE,
+                latchCompositionState(Ref(mLayer2FEState),
+                                      LayerFE::StateSubset::GeometryAndContent));
+    EXPECT_CALL(mLayer3FE,
+                latchCompositionState(Ref(mLayer3FEState),
+                                      LayerFE::StateSubset::GeometryAndContent));
+
+    // Note: Must be performed after any expectations on these mocks
+    injectLayer(std::move(mOutputLayer1));
+    injectLayer(std::move(mOutputLayer2));
+    injectLayer(std::move(mOutputLayer3));
+
+    CompositionRefreshArgs refreshArgs;
+    refreshArgs.updatingGeometryThisFrame = true;
+
+    mOutput->updateLayerStateFromFE(refreshArgs);
+}
+
+/*
  * Output::updateAndWriteCompositionState()
  */
 
-TEST_F(OutputTest, updateAndWriteCompositionState_takesEarlyOutIfNotEnabled) {
-    mOutput->editState().isEnabled = false;
+using OutputUpdateAndWriteCompositionStateTest = OutputLatchFEStateTest;
+
+TEST_F(OutputUpdateAndWriteCompositionStateTest, doesNothingIfLayers) {
+    mOutput->editState().isEnabled = true;
 
     CompositionRefreshArgs args;
     mOutput->updateAndWriteCompositionState(args);
 }
 
-TEST_F(OutputTest, updateAndWriteCompositionState_updatesLayers) {
-    mOutput->editState().isEnabled = true;
-    mock::OutputLayer* outputLayer = new StrictMock<mock::OutputLayer>();
-    mOutput->injectOutputLayerForTest(std::unique_ptr<OutputLayer>(outputLayer));
+TEST_F(OutputUpdateAndWriteCompositionStateTest, doesNothingIfOutputNotEnabled) {
+    mOutput->editState().isEnabled = false;
 
-    EXPECT_CALL(*outputLayer, updateCompositionState(true, true)).Times(1);
-    EXPECT_CALL(*outputLayer, writeStateToHWC(true)).Times(1);
+    injectLayer(std::move(mOutputLayer1));
+    injectLayer(std::move(mOutputLayer2));
+    injectLayer(std::move(mOutputLayer3));
+
+    CompositionRefreshArgs args;
+    mOutput->updateAndWriteCompositionState(args);
+}
+
+TEST_F(OutputUpdateAndWriteCompositionStateTest, updatesLayerContentForAllLayers) {
+    EXPECT_CALL(*mOutputLayer1, updateCompositionState(false, false));
+    EXPECT_CALL(*mOutputLayer1, writeStateToHWC(false));
+    EXPECT_CALL(*mOutputLayer2, updateCompositionState(false, false));
+    EXPECT_CALL(*mOutputLayer2, writeStateToHWC(false));
+    EXPECT_CALL(*mOutputLayer3, updateCompositionState(false, false));
+    EXPECT_CALL(*mOutputLayer3, writeStateToHWC(false));
+
+    injectLayer(std::move(mOutputLayer1));
+    injectLayer(std::move(mOutputLayer2));
+    injectLayer(std::move(mOutputLayer3));
+
+    mOutput->editState().isEnabled = true;
+
+    CompositionRefreshArgs args;
+    args.updatingGeometryThisFrame = false;
+    args.devOptForceClientComposition = false;
+    mOutput->updateAndWriteCompositionState(args);
+}
+
+TEST_F(OutputUpdateAndWriteCompositionStateTest, updatesLayerGeometryAndContentForAllLayers) {
+    EXPECT_CALL(*mOutputLayer1, updateCompositionState(true, false));
+    EXPECT_CALL(*mOutputLayer1, writeStateToHWC(true));
+    EXPECT_CALL(*mOutputLayer2, updateCompositionState(true, false));
+    EXPECT_CALL(*mOutputLayer2, writeStateToHWC(true));
+    EXPECT_CALL(*mOutputLayer3, updateCompositionState(true, false));
+    EXPECT_CALL(*mOutputLayer3, writeStateToHWC(true));
+
+    injectLayer(std::move(mOutputLayer1));
+    injectLayer(std::move(mOutputLayer2));
+    injectLayer(std::move(mOutputLayer3));
+
+    mOutput->editState().isEnabled = true;
 
     CompositionRefreshArgs args;
     args.updatingGeometryThisFrame = true;
+    args.devOptForceClientComposition = false;
+    mOutput->updateAndWriteCompositionState(args);
+}
+
+TEST_F(OutputUpdateAndWriteCompositionStateTest, forcesClientCompositionForAllLayers) {
+    EXPECT_CALL(*mOutputLayer1, updateCompositionState(false, true));
+    EXPECT_CALL(*mOutputLayer1, writeStateToHWC(false));
+    EXPECT_CALL(*mOutputLayer2, updateCompositionState(false, true));
+    EXPECT_CALL(*mOutputLayer2, writeStateToHWC(false));
+    EXPECT_CALL(*mOutputLayer3, updateCompositionState(false, true));
+    EXPECT_CALL(*mOutputLayer3, writeStateToHWC(false));
+
+    injectLayer(std::move(mOutputLayer1));
+    injectLayer(std::move(mOutputLayer2));
+    injectLayer(std::move(mOutputLayer3));
+
+    mOutput->editState().isEnabled = true;
+
+    CompositionRefreshArgs args;
+    args.updatingGeometryThisFrame = false;
     args.devOptForceClientComposition = true;
     mOutput->updateAndWriteCompositionState(args);
 }
@@ -658,11 +845,887 @@ TEST_F(OutputPresentTest, justInvokesChildFunctionsInSequence) {
  * Output::updateColorProfile()
  */
 
-// TODO(b/144060211) - Add coverage
+struct OutputUpdateColorProfileTest : public testing::Test {
+    using TestType = OutputUpdateColorProfileTest;
+
+    struct OutputPartialMock : public OutputPartialMockBase {
+        // All child helper functions Output::present() are defined as mocks,
+        // and those are tested separately, allowing the present() test to
+        // just cover the high level flow.
+        MOCK_METHOD1(setColorProfile, void(const ColorProfile&));
+    };
+
+    struct Layer {
+        Layer() {
+            EXPECT_CALL(mOutputLayer, getLayer()).WillRepeatedly(ReturnRef(mLayer));
+            EXPECT_CALL(mOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(mLayerFE));
+            EXPECT_CALL(mLayer, getFEState()).WillRepeatedly(ReturnRef(mLayerFEState));
+        }
+
+        StrictMock<mock::OutputLayer> mOutputLayer;
+        StrictMock<mock::Layer> mLayer;
+        StrictMock<mock::LayerFE> mLayerFE;
+        LayerFECompositionState mLayerFEState;
+    };
+
+    OutputUpdateColorProfileTest() {
+        mOutput.setDisplayColorProfileForTest(
+                std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
+        mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0))
+                .WillRepeatedly(Return(&mLayer1.mOutputLayer));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(1))
+                .WillRepeatedly(Return(&mLayer2.mOutputLayer));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(2))
+                .WillRepeatedly(Return(&mLayer3.mOutputLayer));
+    }
+
+    struct ExecuteState : public CallOrderStateMachineHelper<TestType, ExecuteState> {
+        void execute() { getInstance()->mOutput.updateColorProfile(getInstance()->mRefreshArgs); }
+    };
+
+    mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
+    mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
+    StrictMock<OutputPartialMock> mOutput;
+
+    Layer mLayer1;
+    Layer mLayer2;
+    Layer mLayer3;
+
+    CompositionRefreshArgs mRefreshArgs;
+};
+
+// TODO(b/144522012): Refactor Output::updateColorProfile and the related code
+// to make it easier to write unit tests.
+
+TEST_F(OutputUpdateColorProfileTest, setsAColorProfileWhenUnmanaged) {
+    // When the outputColorSetting is set to kUnmanaged, the implementation sets
+    // a simple default color profile without looking at anything else.
+
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(3));
+    EXPECT_CALL(mOutput,
+                setColorProfile(ColorProfileEq(
+                        ColorProfile{ui::ColorMode::NATIVE, ui::Dataspace::UNKNOWN,
+                                     ui::RenderIntent::COLORIMETRIC, ui::Dataspace::UNKNOWN})));
+
+    mRefreshArgs.outputColorSetting = OutputColorSetting::kUnmanaged;
+    mRefreshArgs.colorSpaceAgnosticDataspace = ui::Dataspace::UNKNOWN;
+
+    mOutput.updateColorProfile(mRefreshArgs);
+}
+
+struct OutputUpdateColorProfileTest_GetBestColorModeResultBecomesSetProfile
+      : public OutputUpdateColorProfileTest {
+    OutputUpdateColorProfileTest_GetBestColorModeResultBecomesSetProfile() {
+        EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(0));
+        mRefreshArgs.outputColorSetting = OutputColorSetting::kEnhanced;
+        mRefreshArgs.colorSpaceAgnosticDataspace = ui::Dataspace::UNKNOWN;
+    }
+
+    struct ExpectBestColorModeCallResultUsedToSetColorProfileState
+          : public CallOrderStateMachineHelper<
+                    TestType, ExpectBestColorModeCallResultUsedToSetColorProfileState> {
+        [[nodiscard]] auto expectBestColorModeCallResultUsedToSetColorProfile(
+                ui::ColorMode colorMode, ui::Dataspace dataspace, ui::RenderIntent renderIntent) {
+            EXPECT_CALL(*getInstance()->mDisplayColorProfile,
+                        getBestColorMode(ui::Dataspace::V0_SRGB, ui::RenderIntent::ENHANCE, _, _,
+                                         _))
+                    .WillOnce(DoAll(SetArgPointee<2>(dataspace), SetArgPointee<3>(colorMode),
+                                    SetArgPointee<4>(renderIntent)));
+            EXPECT_CALL(getInstance()->mOutput,
+                        setColorProfile(
+                                ColorProfileEq(ColorProfile{colorMode, dataspace, renderIntent,
+                                                            ui::Dataspace::UNKNOWN})));
+            return nextState<ExecuteState>();
+        }
+    };
+
+    // Call this member function to start using the mini-DSL defined above.
+    [[nodiscard]] auto verify() {
+        return ExpectBestColorModeCallResultUsedToSetColorProfileState::make(this);
+    }
+};
+
+TEST_F(OutputUpdateColorProfileTest_GetBestColorModeResultBecomesSetProfile,
+       Native_Unknown_Colorimetric_Set) {
+    verify().expectBestColorModeCallResultUsedToSetColorProfile(ui::ColorMode::NATIVE,
+                                                                ui::Dataspace::UNKNOWN,
+                                                                ui::RenderIntent::COLORIMETRIC)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_GetBestColorModeResultBecomesSetProfile,
+       DisplayP3_DisplayP3_Enhance_Set) {
+    verify().expectBestColorModeCallResultUsedToSetColorProfile(ui::ColorMode::DISPLAY_P3,
+                                                                ui::Dataspace::DISPLAY_P3,
+                                                                ui::RenderIntent::ENHANCE)
+            .execute();
+}
+
+struct OutputUpdateColorProfileTest_ColorSpaceAgnosticeDataspaceAffectsSetColorProfile
+      : public OutputUpdateColorProfileTest {
+    OutputUpdateColorProfileTest_ColorSpaceAgnosticeDataspaceAffectsSetColorProfile() {
+        EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(0));
+        EXPECT_CALL(*mDisplayColorProfile,
+                    getBestColorMode(ui::Dataspace::V0_SRGB, ui::RenderIntent::ENHANCE, _, _, _))
+                .WillRepeatedly(DoAll(SetArgPointee<2>(ui::Dataspace::UNKNOWN),
+                                      SetArgPointee<3>(ui::ColorMode::NATIVE),
+                                      SetArgPointee<4>(ui::RenderIntent::COLORIMETRIC)));
+        mRefreshArgs.outputColorSetting = OutputColorSetting::kEnhanced;
+    }
+
+    struct IfColorSpaceAgnosticDataspaceSetToState
+          : public CallOrderStateMachineHelper<TestType, IfColorSpaceAgnosticDataspaceSetToState> {
+        [[nodiscard]] auto ifColorSpaceAgnosticDataspaceSetTo(ui::Dataspace dataspace) {
+            getInstance()->mRefreshArgs.colorSpaceAgnosticDataspace = dataspace;
+            return nextState<ThenExpectSetColorProfileCallUsesColorSpaceAgnosticDataspaceState>();
+        }
+    };
+
+    struct ThenExpectSetColorProfileCallUsesColorSpaceAgnosticDataspaceState
+          : public CallOrderStateMachineHelper<
+                    TestType, ThenExpectSetColorProfileCallUsesColorSpaceAgnosticDataspaceState> {
+        [[nodiscard]] auto thenExpectSetColorProfileCallUsesColorSpaceAgnosticDataspace(
+                ui::Dataspace dataspace) {
+            EXPECT_CALL(getInstance()->mOutput,
+                        setColorProfile(ColorProfileEq(
+                                ColorProfile{ui::ColorMode::NATIVE, ui::Dataspace::UNKNOWN,
+                                             ui::RenderIntent::COLORIMETRIC, dataspace})));
+            return nextState<ExecuteState>();
+        }
+    };
+
+    // Call this member function to start using the mini-DSL defined above.
+    [[nodiscard]] auto verify() { return IfColorSpaceAgnosticDataspaceSetToState::make(this); }
+};
+
+TEST_F(OutputUpdateColorProfileTest_ColorSpaceAgnosticeDataspaceAffectsSetColorProfile, DisplayP3) {
+    verify().ifColorSpaceAgnosticDataspaceSetTo(ui::Dataspace::DISPLAY_P3)
+            .thenExpectSetColorProfileCallUsesColorSpaceAgnosticDataspace(ui::Dataspace::DISPLAY_P3)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_ColorSpaceAgnosticeDataspaceAffectsSetColorProfile, V0_SRGB) {
+    verify().ifColorSpaceAgnosticDataspaceSetTo(ui::Dataspace::V0_SRGB)
+            .thenExpectSetColorProfileCallUsesColorSpaceAgnosticDataspace(ui::Dataspace::V0_SRGB)
+            .execute();
+}
+
+struct OutputUpdateColorProfileTest_TopmostLayerPreferenceSetsOutputPreference
+      : public OutputUpdateColorProfileTest {
+    // Internally the implementation looks through the dataspaces of all the
+    // visible layers. The topmost one that also has an actual dataspace
+    // preference set is used to drive subsequent choices.
+
+    OutputUpdateColorProfileTest_TopmostLayerPreferenceSetsOutputPreference() {
+        mRefreshArgs.outputColorSetting = OutputColorSetting::kEnhanced;
+        mRefreshArgs.colorSpaceAgnosticDataspace = ui::Dataspace::UNKNOWN;
+
+        EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(3));
+        EXPECT_CALL(mOutput, setColorProfile(_)).WillRepeatedly(Return());
+    }
+
+    struct IfTopLayerDataspaceState
+          : public CallOrderStateMachineHelper<TestType, IfTopLayerDataspaceState> {
+        [[nodiscard]] auto ifTopLayerIs(ui::Dataspace dataspace) {
+            getInstance()->mLayer3.mLayerFEState.dataspace = dataspace;
+            return nextState<AndIfMiddleLayerDataspaceState>();
+        }
+        [[nodiscard]] auto ifTopLayerHasNoPreference() {
+            return ifTopLayerIs(ui::Dataspace::UNKNOWN);
+        }
+    };
+
+    struct AndIfMiddleLayerDataspaceState
+          : public CallOrderStateMachineHelper<TestType, AndIfMiddleLayerDataspaceState> {
+        [[nodiscard]] auto andIfMiddleLayerIs(ui::Dataspace dataspace) {
+            getInstance()->mLayer2.mLayerFEState.dataspace = dataspace;
+            return nextState<AndIfBottomLayerDataspaceState>();
+        }
+        [[nodiscard]] auto andIfMiddleLayerHasNoPreference() {
+            return andIfMiddleLayerIs(ui::Dataspace::UNKNOWN);
+        }
+    };
+
+    struct AndIfBottomLayerDataspaceState
+          : public CallOrderStateMachineHelper<TestType, AndIfBottomLayerDataspaceState> {
+        [[nodiscard]] auto andIfBottomLayerIs(ui::Dataspace dataspace) {
+            getInstance()->mLayer1.mLayerFEState.dataspace = dataspace;
+            return nextState<ThenExpectBestColorModeCallUsesState>();
+        }
+        [[nodiscard]] auto andIfBottomLayerHasNoPreference() {
+            return andIfBottomLayerIs(ui::Dataspace::UNKNOWN);
+        }
+    };
+
+    struct ThenExpectBestColorModeCallUsesState
+          : public CallOrderStateMachineHelper<TestType, ThenExpectBestColorModeCallUsesState> {
+        [[nodiscard]] auto thenExpectBestColorModeCallUses(ui::Dataspace dataspace) {
+            EXPECT_CALL(*getInstance()->mDisplayColorProfile,
+                        getBestColorMode(dataspace, _, _, _, _));
+            return nextState<ExecuteState>();
+        }
+    };
+
+    // Call this member function to start using the mini-DSL defined above.
+    [[nodiscard]] auto verify() { return IfTopLayerDataspaceState::make(this); }
+};
+
+TEST_F(OutputUpdateColorProfileTest_TopmostLayerPreferenceSetsOutputPreference,
+       noStrongLayerPrefenceUses_V0_SRGB) {
+    // If none of the layers indicate a preference, then V0_SRGB is the
+    // preferred choice (subject to additional checks).
+    verify().ifTopLayerHasNoPreference()
+            .andIfMiddleLayerHasNoPreference()
+            .andIfBottomLayerHasNoPreference()
+            .thenExpectBestColorModeCallUses(ui::Dataspace::V0_SRGB)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_TopmostLayerPreferenceSetsOutputPreference,
+       ifTopmostUses_DisplayP3_Then_DisplayP3_Chosen) {
+    // If only the topmost layer has a preference, then that is what is chosen.
+    verify().ifTopLayerIs(ui::Dataspace::DISPLAY_P3)
+            .andIfMiddleLayerHasNoPreference()
+            .andIfBottomLayerHasNoPreference()
+            .thenExpectBestColorModeCallUses(ui::Dataspace::DISPLAY_P3)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_TopmostLayerPreferenceSetsOutputPreference,
+       ifMiddleUses_DisplayP3_Then_DisplayP3_Chosen) {
+    // If only the middle layer has a preference, that that is what is chosen.
+    verify().ifTopLayerHasNoPreference()
+            .andIfMiddleLayerIs(ui::Dataspace::DISPLAY_P3)
+            .andIfBottomLayerHasNoPreference()
+            .thenExpectBestColorModeCallUses(ui::Dataspace::DISPLAY_P3)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_TopmostLayerPreferenceSetsOutputPreference,
+       ifBottomUses_DisplayP3_Then_DisplayP3_Chosen) {
+    // If only the middle layer has a preference, that that is what is chosen.
+    verify().ifTopLayerHasNoPreference()
+            .andIfMiddleLayerHasNoPreference()
+            .andIfBottomLayerIs(ui::Dataspace::DISPLAY_P3)
+            .thenExpectBestColorModeCallUses(ui::Dataspace::DISPLAY_P3)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_TopmostLayerPreferenceSetsOutputPreference,
+       ifTopUses_DisplayBT2020_AndBottomUses_DisplayP3_Then_DisplayBT2020_Chosen) {
+    // If multiple layers have a preference, the topmost value is what is used.
+    verify().ifTopLayerIs(ui::Dataspace::DISPLAY_BT2020)
+            .andIfMiddleLayerHasNoPreference()
+            .andIfBottomLayerIs(ui::Dataspace::DISPLAY_P3)
+            .thenExpectBestColorModeCallUses(ui::Dataspace::DISPLAY_BT2020)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_TopmostLayerPreferenceSetsOutputPreference,
+       ifTopUses_DisplayP3_AndBottomUses_V0_SRGB_Then_DisplayP3_Chosen) {
+    // If multiple layers have a preference, the topmost value is what is used.
+    verify().ifTopLayerIs(ui::Dataspace::DISPLAY_P3)
+            .andIfMiddleLayerHasNoPreference()
+            .andIfBottomLayerIs(ui::Dataspace::DISPLAY_BT2020)
+            .thenExpectBestColorModeCallUses(ui::Dataspace::DISPLAY_P3)
+            .execute();
+}
+
+struct OutputUpdateColorProfileTest_ForceOutputColorOverrides
+      : public OutputUpdateColorProfileTest {
+    // If CompositionRefreshArgs::forceOutputColorMode is set to some specific
+    // values, it overrides the layer dataspace choice.
+
+    OutputUpdateColorProfileTest_ForceOutputColorOverrides() {
+        mRefreshArgs.outputColorSetting = OutputColorSetting::kEnhanced;
+        mRefreshArgs.colorSpaceAgnosticDataspace = ui::Dataspace::UNKNOWN;
+
+        mLayer1.mLayerFEState.dataspace = ui::Dataspace::DISPLAY_BT2020;
+
+        EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(1));
+        EXPECT_CALL(mOutput, setColorProfile(_)).WillRepeatedly(Return());
+    }
+
+    struct IfForceOutputColorModeState
+          : public CallOrderStateMachineHelper<TestType, IfForceOutputColorModeState> {
+        [[nodiscard]] auto ifForceOutputColorMode(ui::ColorMode colorMode) {
+            getInstance()->mRefreshArgs.forceOutputColorMode = colorMode;
+            return nextState<ThenExpectBestColorModeCallUsesState>();
+        }
+        [[nodiscard]] auto ifNoOverride() { return ifForceOutputColorMode(ui::ColorMode::NATIVE); }
+    };
+
+    struct ThenExpectBestColorModeCallUsesState
+          : public CallOrderStateMachineHelper<TestType, ThenExpectBestColorModeCallUsesState> {
+        [[nodiscard]] auto thenExpectBestColorModeCallUses(ui::Dataspace dataspace) {
+            EXPECT_CALL(*getInstance()->mDisplayColorProfile,
+                        getBestColorMode(dataspace, _, _, _, _));
+            return nextState<ExecuteState>();
+        }
+    };
+
+    // Call this member function to start using the mini-DSL defined above.
+    [[nodiscard]] auto verify() { return IfForceOutputColorModeState::make(this); }
+};
+
+TEST_F(OutputUpdateColorProfileTest_ForceOutputColorOverrides, NoOverride_DoesNotOverride) {
+    // By default the layer state is used to set the preferred dataspace
+    verify().ifNoOverride()
+            .thenExpectBestColorModeCallUses(ui::Dataspace::DISPLAY_BT2020)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_ForceOutputColorOverrides, SRGB_Override_USES_V0_SRGB) {
+    // Setting ui::ColorMode::SRGB overrides it with ui::Dataspace::V0_SRGB
+    verify().ifForceOutputColorMode(ui::ColorMode::SRGB)
+            .thenExpectBestColorModeCallUses(ui::Dataspace::V0_SRGB)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_ForceOutputColorOverrides, DisplayP3_Override_Uses_DisplayP3) {
+    // Setting ui::ColorMode::DISPLAY_P3 overrides it with ui::Dataspace::DISPLAY_P3
+    verify().ifForceOutputColorMode(ui::ColorMode::DISPLAY_P3)
+            .thenExpectBestColorModeCallUses(ui::Dataspace::DISPLAY_P3)
+            .execute();
+}
+
+// HDR output requires all layers to be compatible with the chosen HDR
+// dataspace, along with there being proper support.
+struct OutputUpdateColorProfileTest_Hdr : public OutputUpdateColorProfileTest {
+    OutputUpdateColorProfileTest_Hdr() {
+        mRefreshArgs.outputColorSetting = OutputColorSetting::kEnhanced;
+        mRefreshArgs.colorSpaceAgnosticDataspace = ui::Dataspace::UNKNOWN;
+        EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(2));
+        EXPECT_CALL(mOutput, setColorProfile(_)).WillRepeatedly(Return());
+    }
+
+    static constexpr ui::Dataspace kNonHdrDataspace = ui::Dataspace::DISPLAY_P3;
+    static constexpr ui::Dataspace BT2020_PQ = ui::Dataspace::BT2020_PQ;
+    static constexpr ui::Dataspace BT2020_HLG = ui::Dataspace::BT2020_HLG;
+    static constexpr ui::Dataspace DISPLAY_P3 = ui::Dataspace::DISPLAY_P3;
+
+    struct IfTopLayerDataspaceState
+          : public CallOrderStateMachineHelper<TestType, IfTopLayerDataspaceState> {
+        [[nodiscard]] auto ifTopLayerIs(ui::Dataspace dataspace) {
+            getInstance()->mLayer2.mLayerFEState.dataspace = dataspace;
+            return nextState<AndTopLayerCompositionTypeState>();
+        }
+        [[nodiscard]] auto ifTopLayerIsNotHdr() { return ifTopLayerIs(kNonHdrDataspace); }
+    };
+
+    struct AndTopLayerCompositionTypeState
+          : public CallOrderStateMachineHelper<TestType, AndTopLayerCompositionTypeState> {
+        [[nodiscard]] auto andTopLayerIsREComposed(bool renderEngineComposed) {
+            getInstance()->mLayer2.mLayerFEState.forceClientComposition = renderEngineComposed;
+            return nextState<AndIfBottomLayerDataspaceState>();
+        }
+    };
+
+    struct AndIfBottomLayerDataspaceState
+          : public CallOrderStateMachineHelper<TestType, AndIfBottomLayerDataspaceState> {
+        [[nodiscard]] auto andIfBottomLayerIs(ui::Dataspace dataspace) {
+            getInstance()->mLayer1.mLayerFEState.dataspace = dataspace;
+            return nextState<AndBottomLayerCompositionTypeState>();
+        }
+        [[nodiscard]] auto andIfBottomLayerIsNotHdr() {
+            return andIfBottomLayerIs(kNonHdrDataspace);
+        }
+    };
+
+    struct AndBottomLayerCompositionTypeState
+          : public CallOrderStateMachineHelper<TestType, AndBottomLayerCompositionTypeState> {
+        [[nodiscard]] auto andBottomLayerIsREComposed(bool renderEngineComposed) {
+            getInstance()->mLayer1.mLayerFEState.forceClientComposition = renderEngineComposed;
+            return nextState<AndIfHasLegacySupportState>();
+        }
+    };
+
+    struct AndIfHasLegacySupportState
+          : public CallOrderStateMachineHelper<TestType, AndIfHasLegacySupportState> {
+        [[nodiscard]] auto andIfLegacySupportFor(ui::Dataspace dataspace, bool legacySupport) {
+            EXPECT_CALL(*getInstance()->mDisplayColorProfile, hasLegacyHdrSupport(dataspace))
+                    .WillOnce(Return(legacySupport));
+            return nextState<ThenExpectBestColorModeCallUsesState>();
+        }
+    };
+
+    struct ThenExpectBestColorModeCallUsesState
+          : public CallOrderStateMachineHelper<TestType, ThenExpectBestColorModeCallUsesState> {
+        [[nodiscard]] auto thenExpectBestColorModeCallUses(ui::Dataspace dataspace) {
+            EXPECT_CALL(*getInstance()->mDisplayColorProfile,
+                        getBestColorMode(dataspace, _, _, _, _));
+            return nextState<ExecuteState>();
+        }
+    };
+
+    // Call this member function to start using the mini-DSL defined above.
+    [[nodiscard]] auto verify() { return IfTopLayerDataspaceState::make(this); }
+};
+
+TEST_F(OutputUpdateColorProfileTest_Hdr, PQ_HW_On_PQ_HW_Uses_PQ) {
+    // If all layers use BT2020_PQ, and there are no other special conditions,
+    // BT2020_PQ is used.
+    verify().ifTopLayerIs(BT2020_PQ)
+            .andTopLayerIsREComposed(false)
+            .andIfBottomLayerIs(BT2020_PQ)
+            .andBottomLayerIsREComposed(false)
+            .andIfLegacySupportFor(BT2020_PQ, false)
+            .thenExpectBestColorModeCallUses(BT2020_PQ)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_Hdr, PQ_HW_On_PQ_HW_IfPQHasLegacySupport_Uses_DisplayP3) {
+    // BT2020_PQ is not used if there is only legacy support for it.
+    verify().ifTopLayerIs(BT2020_PQ)
+            .andTopLayerIsREComposed(false)
+            .andIfBottomLayerIs(BT2020_PQ)
+            .andBottomLayerIsREComposed(false)
+            .andIfLegacySupportFor(BT2020_PQ, true)
+            .thenExpectBestColorModeCallUses(DISPLAY_P3)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_Hdr, PQ_HW_On_PQ_RE_Uses_PQ) {
+    // BT2020_PQ is still used if the bottom layer is RenderEngine composed.
+    verify().ifTopLayerIs(BT2020_PQ)
+            .andTopLayerIsREComposed(false)
+            .andIfBottomLayerIs(BT2020_PQ)
+            .andBottomLayerIsREComposed(true)
+            .andIfLegacySupportFor(BT2020_PQ, false)
+            .thenExpectBestColorModeCallUses(BT2020_PQ)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_Hdr, PQ_RE_On_PQ_HW_Uses_DisplayP3) {
+    // BT2020_PQ is not used if the top layer is RenderEngine composed.
+    verify().ifTopLayerIs(BT2020_PQ)
+            .andTopLayerIsREComposed(true)
+            .andIfBottomLayerIs(BT2020_PQ)
+            .andBottomLayerIsREComposed(false)
+            .andIfLegacySupportFor(BT2020_PQ, false)
+            .thenExpectBestColorModeCallUses(DISPLAY_P3)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_Hdr, PQ_HW_On_HLG_HW_Uses_PQ) {
+    // If there is mixed HLG/PQ use, and the topmost layer is PQ, then PQ is used if there
+    // are no other special conditions.
+    verify().ifTopLayerIs(BT2020_PQ)
+            .andTopLayerIsREComposed(false)
+            .andIfBottomLayerIs(BT2020_HLG)
+            .andBottomLayerIsREComposed(false)
+            .andIfLegacySupportFor(BT2020_PQ, false)
+            .thenExpectBestColorModeCallUses(BT2020_PQ)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_Hdr, PQ_HW_On_HLG_HW_IfPQHasLegacySupport_Uses_DisplayP3) {
+    // BT2020_PQ is not used if there is only legacy support for it.
+    verify().ifTopLayerIs(BT2020_PQ)
+            .andTopLayerIsREComposed(false)
+            .andIfBottomLayerIs(BT2020_HLG)
+            .andBottomLayerIsREComposed(false)
+            .andIfLegacySupportFor(BT2020_PQ, true)
+            .thenExpectBestColorModeCallUses(DISPLAY_P3)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_Hdr, PQ_HW_On_HLG_RE_Uses_PQ) {
+    // BT2020_PQ is used if the bottom HLG layer is RenderEngine composed.
+    verify().ifTopLayerIs(BT2020_PQ)
+            .andTopLayerIsREComposed(false)
+            .andIfBottomLayerIs(BT2020_HLG)
+            .andBottomLayerIsREComposed(true)
+            .andIfLegacySupportFor(BT2020_PQ, false)
+            .thenExpectBestColorModeCallUses(BT2020_PQ)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_Hdr, PQ_RE_On_HLG_HW_Uses_DisplayP3) {
+    // BT2020_PQ is not used if the top PQ layer is RenderEngine composed.
+    verify().ifTopLayerIs(BT2020_PQ)
+            .andTopLayerIsREComposed(true)
+            .andIfBottomLayerIs(BT2020_HLG)
+            .andBottomLayerIsREComposed(false)
+            .andIfLegacySupportFor(BT2020_PQ, false)
+            .thenExpectBestColorModeCallUses(DISPLAY_P3)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_Hdr, HLG_HW_On_PQ_HW_Uses_PQ) {
+    // If there is mixed HLG/PQ use, and the topmost layer is HLG, then PQ is
+    // used if there are no other special conditions.
+    verify().ifTopLayerIs(BT2020_HLG)
+            .andTopLayerIsREComposed(false)
+            .andIfBottomLayerIs(BT2020_PQ)
+            .andBottomLayerIsREComposed(false)
+            .andIfLegacySupportFor(BT2020_PQ, false)
+            .thenExpectBestColorModeCallUses(BT2020_PQ)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_Hdr, HLG_HW_On_PQ_HW_IfPQHasLegacySupport_Uses_DisplayP3) {
+    // BT2020_PQ is not used if there is only legacy support for it.
+    verify().ifTopLayerIs(BT2020_HLG)
+            .andTopLayerIsREComposed(false)
+            .andIfBottomLayerIs(BT2020_PQ)
+            .andBottomLayerIsREComposed(false)
+            .andIfLegacySupportFor(BT2020_PQ, true)
+            .thenExpectBestColorModeCallUses(DISPLAY_P3)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_Hdr, HLG_HW_On_PQ_RE_Uses_DisplayP3) {
+    // BT2020_PQ is not used if the bottom PQ layer is RenderEngine composed.
+    verify().ifTopLayerIs(BT2020_HLG)
+            .andTopLayerIsREComposed(false)
+            .andIfBottomLayerIs(BT2020_PQ)
+            .andBottomLayerIsREComposed(true)
+            .andIfLegacySupportFor(BT2020_PQ, false)
+            .thenExpectBestColorModeCallUses(DISPLAY_P3)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_Hdr, HLG_RE_On_PQ_HW_Uses_PQ) {
+    // BT2020_PQ is still used if the top HLG layer is RenderEngine composed.
+    verify().ifTopLayerIs(BT2020_HLG)
+            .andTopLayerIsREComposed(true)
+            .andIfBottomLayerIs(BT2020_PQ)
+            .andBottomLayerIsREComposed(false)
+            .andIfLegacySupportFor(BT2020_PQ, false)
+            .thenExpectBestColorModeCallUses(BT2020_PQ)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_Hdr, HLG_HW_On_HLG_HW_Uses_HLG) {
+    // If all layers use HLG then HLG is used if there are no other special
+    // conditions.
+    verify().ifTopLayerIs(BT2020_HLG)
+            .andTopLayerIsREComposed(false)
+            .andIfBottomLayerIs(BT2020_HLG)
+            .andBottomLayerIsREComposed(false)
+            .andIfLegacySupportFor(BT2020_HLG, false)
+            .thenExpectBestColorModeCallUses(BT2020_HLG)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_Hdr, HLG_HW_On_HLG_HW_IfPQHasLegacySupport_Uses_DisplayP3) {
+    // BT2020_HLG is not used if there is legacy support for it.
+    verify().ifTopLayerIs(BT2020_HLG)
+            .andTopLayerIsREComposed(false)
+            .andIfBottomLayerIs(BT2020_HLG)
+            .andBottomLayerIsREComposed(false)
+            .andIfLegacySupportFor(BT2020_HLG, true)
+            .thenExpectBestColorModeCallUses(DISPLAY_P3)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_Hdr, HLG_HW_On_HLG_RE_Uses_HLG) {
+    // BT2020_HLG is used even if the bottom layer is client composed.
+    verify().ifTopLayerIs(BT2020_HLG)
+            .andTopLayerIsREComposed(false)
+            .andIfBottomLayerIs(BT2020_HLG)
+            .andBottomLayerIsREComposed(true)
+            .andIfLegacySupportFor(BT2020_HLG, false)
+            .thenExpectBestColorModeCallUses(BT2020_HLG)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_Hdr, HLG_RE_On_HLG_HW_Uses_HLG) {
+    // BT2020_HLG is used even if the top layer is client composed.
+    verify().ifTopLayerIs(BT2020_HLG)
+            .andTopLayerIsREComposed(true)
+            .andIfBottomLayerIs(BT2020_HLG)
+            .andBottomLayerIsREComposed(false)
+            .andIfLegacySupportFor(BT2020_HLG, false)
+            .thenExpectBestColorModeCallUses(BT2020_HLG)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_Hdr, PQ_HW_On_NonHdr_HW_Uses_PQ) {
+    // Even if there are non-HDR layers present, BT2020_PQ can still be used.
+    verify().ifTopLayerIs(BT2020_PQ)
+            .andTopLayerIsREComposed(false)
+            .andIfBottomLayerIsNotHdr()
+            .andBottomLayerIsREComposed(false)
+            .andIfLegacySupportFor(BT2020_PQ, false)
+            .thenExpectBestColorModeCallUses(BT2020_PQ)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfileTest_Hdr, HLG_HW_On_NonHdr_RE_Uses_HLG) {
+    // If all layers use HLG then HLG is used if there are no other special
+    // conditions.
+    verify().ifTopLayerIs(BT2020_HLG)
+            .andTopLayerIsREComposed(false)
+            .andIfBottomLayerIsNotHdr()
+            .andBottomLayerIsREComposed(true)
+            .andIfLegacySupportFor(BT2020_HLG, false)
+            .thenExpectBestColorModeCallUses(BT2020_HLG)
+            .execute();
+}
+
+struct OutputUpdateColorProfile_AffectsChosenRenderIntentTest
+      : public OutputUpdateColorProfileTest {
+    // The various values for CompositionRefreshArgs::outputColorSetting affect
+    // the chosen renderIntent, along with whether the preferred dataspace is an
+    // HDR dataspace or not.
+
+    OutputUpdateColorProfile_AffectsChosenRenderIntentTest() {
+        mRefreshArgs.outputColorSetting = OutputColorSetting::kEnhanced;
+        mRefreshArgs.colorSpaceAgnosticDataspace = ui::Dataspace::UNKNOWN;
+        mLayer1.mLayerFEState.dataspace = ui::Dataspace::BT2020_PQ;
+        EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(1));
+        EXPECT_CALL(mOutput, setColorProfile(_)).WillRepeatedly(Return());
+        EXPECT_CALL(*mDisplayColorProfile, hasLegacyHdrSupport(ui::Dataspace::BT2020_PQ))
+                .WillRepeatedly(Return(false));
+    }
+
+    // The tests here involve enough state and GMock setup that using a mini-DSL
+    // makes the tests much more readable, and allows the test to focus more on
+    // the intent than on some of the details.
+
+    static constexpr ui::Dataspace kNonHdrDataspace = ui::Dataspace::DISPLAY_P3;
+    static constexpr ui::Dataspace kHdrDataspace = ui::Dataspace::BT2020_PQ;
+
+    struct IfDataspaceChosenState
+          : public CallOrderStateMachineHelper<TestType, IfDataspaceChosenState> {
+        [[nodiscard]] auto ifDataspaceChosenIs(ui::Dataspace dataspace) {
+            getInstance()->mLayer1.mLayerFEState.dataspace = dataspace;
+            return nextState<AndOutputColorSettingState>();
+        }
+        [[nodiscard]] auto ifDataspaceChosenIsNonHdr() {
+            return ifDataspaceChosenIs(kNonHdrDataspace);
+        }
+        [[nodiscard]] auto ifDataspaceChosenIsHdr() { return ifDataspaceChosenIs(kHdrDataspace); }
+    };
+
+    struct AndOutputColorSettingState
+          : public CallOrderStateMachineHelper<TestType, AndOutputColorSettingState> {
+        [[nodiscard]] auto andOutputColorSettingIs(OutputColorSetting setting) {
+            getInstance()->mRefreshArgs.outputColorSetting = setting;
+            return nextState<ThenExpectBestColorModeCallUsesState>();
+        }
+    };
+
+    struct ThenExpectBestColorModeCallUsesState
+          : public CallOrderStateMachineHelper<TestType, ThenExpectBestColorModeCallUsesState> {
+        [[nodiscard]] auto thenExpectBestColorModeCallUses(ui::RenderIntent intent) {
+            EXPECT_CALL(*getInstance()->mDisplayColorProfile,
+                        getBestColorMode(getInstance()->mLayer1.mLayerFEState.dataspace, intent, _,
+                                         _, _));
+            return nextState<ExecuteState>();
+        }
+    };
+
+    // Tests call one of these two helper member functions to start using the
+    // mini-DSL defined above.
+    [[nodiscard]] auto verify() { return IfDataspaceChosenState::make(this); }
+};
+
+TEST_F(OutputUpdateColorProfile_AffectsChosenRenderIntentTest,
+       Managed_NonHdr_Prefers_Colorimetric) {
+    verify().ifDataspaceChosenIsNonHdr()
+            .andOutputColorSettingIs(OutputColorSetting::kManaged)
+            .thenExpectBestColorModeCallUses(ui::RenderIntent::COLORIMETRIC)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfile_AffectsChosenRenderIntentTest,
+       Managed_Hdr_Prefers_ToneMapColorimetric) {
+    verify().ifDataspaceChosenIsHdr()
+            .andOutputColorSettingIs(OutputColorSetting::kManaged)
+            .thenExpectBestColorModeCallUses(ui::RenderIntent::TONE_MAP_COLORIMETRIC)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfile_AffectsChosenRenderIntentTest, Enhanced_NonHdr_Prefers_Enhance) {
+    verify().ifDataspaceChosenIsNonHdr()
+            .andOutputColorSettingIs(OutputColorSetting::kEnhanced)
+            .thenExpectBestColorModeCallUses(ui::RenderIntent::ENHANCE)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfile_AffectsChosenRenderIntentTest,
+       Enhanced_Hdr_Prefers_ToneMapEnhance) {
+    verify().ifDataspaceChosenIsHdr()
+            .andOutputColorSettingIs(OutputColorSetting::kEnhanced)
+            .thenExpectBestColorModeCallUses(ui::RenderIntent::TONE_MAP_ENHANCE)
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfile_AffectsChosenRenderIntentTest, Vendor_NonHdr_Prefers_Vendor) {
+    verify().ifDataspaceChosenIsNonHdr()
+            .andOutputColorSettingIs(kVendorSpecifiedOutputColorSetting)
+            .thenExpectBestColorModeCallUses(
+                    static_cast<ui::RenderIntent>(kVendorSpecifiedOutputColorSetting))
+            .execute();
+}
+
+TEST_F(OutputUpdateColorProfile_AffectsChosenRenderIntentTest, Vendor_Hdr_Prefers_Vendor) {
+    verify().ifDataspaceChosenIsHdr()
+            .andOutputColorSettingIs(kVendorSpecifiedOutputColorSetting)
+            .thenExpectBestColorModeCallUses(
+                    static_cast<ui::RenderIntent>(kVendorSpecifiedOutputColorSetting))
+            .execute();
+}
 
 /*
  * Output::beginFrame()
  */
+
+struct OutputBeginFrameTest : public ::testing::Test {
+    using TestType = OutputBeginFrameTest;
+
+    struct OutputPartialMock : public OutputPartialMockBase {
+        // Sets up the helper functions called by begiNFrame to use a mock
+        // implementations.
+        MOCK_CONST_METHOD1(getDirtyRegion, Region(bool));
+    };
+
+    OutputBeginFrameTest() {
+        mOutput.setDisplayColorProfileForTest(
+                std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
+        mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+    }
+
+    struct IfGetDirtyRegionExpectationState
+          : public CallOrderStateMachineHelper<TestType, IfGetDirtyRegionExpectationState> {
+        [[nodiscard]] auto ifGetDirtyRegionReturns(Region dirtyRegion) {
+            EXPECT_CALL(getInstance()->mOutput, getDirtyRegion(false))
+                    .WillOnce(Return(dirtyRegion));
+            return nextState<AndIfGetOutputLayerCountExpectationState>();
+        }
+    };
+
+    struct AndIfGetOutputLayerCountExpectationState
+          : public CallOrderStateMachineHelper<TestType, AndIfGetOutputLayerCountExpectationState> {
+        [[nodiscard]] auto andIfGetOutputLayerCountReturns(size_t layerCount) {
+            EXPECT_CALL(getInstance()->mOutput, getOutputLayerCount()).WillOnce(Return(layerCount));
+            return nextState<AndIfLastCompositionHadVisibleLayersState>();
+        }
+    };
+
+    struct AndIfLastCompositionHadVisibleLayersState
+          : public CallOrderStateMachineHelper<TestType,
+                                               AndIfLastCompositionHadVisibleLayersState> {
+        [[nodiscard]] auto andIfLastCompositionHadVisibleLayersIs(bool hadOutputLayers) {
+            getInstance()->mOutput.mState.lastCompositionHadVisibleLayers = hadOutputLayers;
+            return nextState<ThenExpectRenderSurfaceBeginFrameCallState>();
+        }
+    };
+
+    struct ThenExpectRenderSurfaceBeginFrameCallState
+          : public CallOrderStateMachineHelper<TestType,
+                                               ThenExpectRenderSurfaceBeginFrameCallState> {
+        [[nodiscard]] auto thenExpectRenderSurfaceBeginFrameCall(bool mustRecompose) {
+            EXPECT_CALL(*getInstance()->mRenderSurface, beginFrame(mustRecompose));
+            return nextState<ExecuteState>();
+        }
+    };
+
+    struct ExecuteState : public CallOrderStateMachineHelper<TestType, ExecuteState> {
+        [[nodiscard]] auto execute() {
+            getInstance()->mOutput.beginFrame();
+            return nextState<CheckPostconditionHadVisibleLayersState>();
+        }
+    };
+
+    struct CheckPostconditionHadVisibleLayersState
+          : public CallOrderStateMachineHelper<TestType, CheckPostconditionHadVisibleLayersState> {
+        void checkPostconditionHadVisibleLayers(bool expected) {
+            EXPECT_EQ(expected, getInstance()->mOutput.mState.lastCompositionHadVisibleLayers);
+        }
+    };
+
+    // Tests call one of these two helper member functions to start using the
+    // mini-DSL defined above.
+    [[nodiscard]] auto verify() { return IfGetDirtyRegionExpectationState::make(this); }
+
+    static const Region kEmptyRegion;
+    static const Region kNotEmptyRegion;
+
+    mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
+    mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
+    StrictMock<OutputPartialMock> mOutput;
+};
+
+const Region OutputBeginFrameTest::kEmptyRegion{Rect{0, 0, 0, 0}};
+const Region OutputBeginFrameTest::kNotEmptyRegion{Rect{0, 0, 1, 1}};
+
+TEST_F(OutputBeginFrameTest, hasDirtyHasLayersHadLayersLastFrame) {
+    verify().ifGetDirtyRegionReturns(kNotEmptyRegion)
+            .andIfGetOutputLayerCountReturns(1u)
+            .andIfLastCompositionHadVisibleLayersIs(true)
+            .thenExpectRenderSurfaceBeginFrameCall(true)
+            .execute()
+            .checkPostconditionHadVisibleLayers(true);
+}
+
+TEST_F(OutputBeginFrameTest, hasDirtyNotHasLayersHadLayersLastFrame) {
+    verify().ifGetDirtyRegionReturns(kNotEmptyRegion)
+            .andIfGetOutputLayerCountReturns(0u)
+            .andIfLastCompositionHadVisibleLayersIs(true)
+            .thenExpectRenderSurfaceBeginFrameCall(true)
+            .execute()
+            .checkPostconditionHadVisibleLayers(false);
+}
+
+TEST_F(OutputBeginFrameTest, hasDirtyHasLayersNotHadLayersLastFrame) {
+    verify().ifGetDirtyRegionReturns(kNotEmptyRegion)
+            .andIfGetOutputLayerCountReturns(1u)
+            .andIfLastCompositionHadVisibleLayersIs(false)
+            .thenExpectRenderSurfaceBeginFrameCall(true)
+            .execute()
+            .checkPostconditionHadVisibleLayers(true);
+}
+
+TEST_F(OutputBeginFrameTest, hasDirtyNotHasLayersNotHadLayersLastFrame) {
+    verify().ifGetDirtyRegionReturns(kNotEmptyRegion)
+            .andIfGetOutputLayerCountReturns(0u)
+            .andIfLastCompositionHadVisibleLayersIs(false)
+            .thenExpectRenderSurfaceBeginFrameCall(false)
+            .execute()
+            .checkPostconditionHadVisibleLayers(false);
+}
+
+TEST_F(OutputBeginFrameTest, notHasDirtyHasLayersHadLayersLastFrame) {
+    verify().ifGetDirtyRegionReturns(kEmptyRegion)
+            .andIfGetOutputLayerCountReturns(1u)
+            .andIfLastCompositionHadVisibleLayersIs(true)
+            .thenExpectRenderSurfaceBeginFrameCall(false)
+            .execute()
+            .checkPostconditionHadVisibleLayers(true);
+}
+
+TEST_F(OutputBeginFrameTest, notHasDirtyNotHasLayersHadLayersLastFrame) {
+    verify().ifGetDirtyRegionReturns(kEmptyRegion)
+            .andIfGetOutputLayerCountReturns(0u)
+            .andIfLastCompositionHadVisibleLayersIs(true)
+            .thenExpectRenderSurfaceBeginFrameCall(false)
+            .execute()
+            .checkPostconditionHadVisibleLayers(true);
+}
+
+TEST_F(OutputBeginFrameTest, notHasDirtyHasLayersNotHadLayersLastFrame) {
+    verify().ifGetDirtyRegionReturns(kEmptyRegion)
+            .andIfGetOutputLayerCountReturns(1u)
+            .andIfLastCompositionHadVisibleLayersIs(false)
+            .thenExpectRenderSurfaceBeginFrameCall(false)
+            .execute()
+            .checkPostconditionHadVisibleLayers(false);
+}
+
+TEST_F(OutputBeginFrameTest, notHasDirtyNotHasLayersNotHadLayersLastFrame) {
+    verify().ifGetDirtyRegionReturns(kEmptyRegion)
+            .andIfGetOutputLayerCountReturns(0u)
+            .andIfLastCompositionHadVisibleLayersIs(false)
+            .thenExpectRenderSurfaceBeginFrameCall(false)
+            .execute()
+            .checkPostconditionHadVisibleLayers(false);
+}
 
 /*
  * Output::devOptRepaintFlash()
@@ -800,7 +1863,173 @@ TEST_F(OutputFinishFrameTest, queuesBufferIfComposeSurfacesReturnsAFence) {
  * Output::postFramebuffer()
  */
 
-// TODO(b/144060211) - Add coverage
+struct OutputPostFramebufferTest : public testing::Test {
+    struct OutputPartialMock : public OutputPartialMockBase {
+        // Sets up the helper functions called by composeSurfaces to use a mock
+        // implementations.
+        MOCK_METHOD0(presentAndGetFrameFences, compositionengine::Output::FrameFences());
+    };
+
+    struct Layer {
+        Layer() {
+            EXPECT_CALL(outputLayer, getLayerFE()).WillRepeatedly(ReturnRef(layerFE));
+            EXPECT_CALL(outputLayer, getHwcLayer()).WillRepeatedly(Return(&hwc2Layer));
+        }
+
+        StrictMock<mock::OutputLayer> outputLayer;
+        StrictMock<mock::LayerFE> layerFE;
+        StrictMock<HWC2::mock::Layer> hwc2Layer;
+    };
+
+    OutputPostFramebufferTest() {
+        mOutput.setDisplayColorProfileForTest(
+                std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
+        mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+
+        EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(3u));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u))
+                .WillRepeatedly(Return(&mLayer1.outputLayer));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(1u))
+                .WillRepeatedly(Return(&mLayer2.outputLayer));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(2u))
+                .WillRepeatedly(Return(&mLayer3.outputLayer));
+    }
+
+    StrictMock<OutputPartialMock> mOutput;
+    mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
+    mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
+
+    Layer mLayer1;
+    Layer mLayer2;
+    Layer mLayer3;
+};
+
+TEST_F(OutputPostFramebufferTest, ifNotEnabledDoesNothing) {
+    mOutput.mState.isEnabled = false;
+
+    mOutput.postFramebuffer();
+}
+
+TEST_F(OutputPostFramebufferTest, ifEnabledMustFlipThenPresentThenSendPresentCompleted) {
+    mOutput.mState.isEnabled = true;
+
+    compositionengine::Output::FrameFences frameFences;
+
+    // This should happen even if there are no output layers.
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillOnce(Return(0u));
+
+    // For this test in particular we want to make sure the call expectations
+    // setup below are satisfied in the specific order.
+    InSequence seq;
+
+    EXPECT_CALL(*mRenderSurface, flip());
+    EXPECT_CALL(mOutput, presentAndGetFrameFences()).WillOnce(Return(frameFences));
+    EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
+
+    mOutput.postFramebuffer();
+}
+
+TEST_F(OutputPostFramebufferTest, releaseFencesAreSentToLayerFE) {
+    // Simulate getting release fences from each layer, and ensure they are passed to the
+    // front-end layer interface for each layer correctly.
+
+    mOutput.mState.isEnabled = true;
+
+    // Create three unique fence instances
+    sp<Fence> layer1Fence = new Fence();
+    sp<Fence> layer2Fence = new Fence();
+    sp<Fence> layer3Fence = new Fence();
+
+    compositionengine::Output::FrameFences frameFences;
+    frameFences.layerFences.emplace(&mLayer1.hwc2Layer, layer1Fence);
+    frameFences.layerFences.emplace(&mLayer2.hwc2Layer, layer2Fence);
+    frameFences.layerFences.emplace(&mLayer3.hwc2Layer, layer3Fence);
+
+    EXPECT_CALL(*mRenderSurface, flip());
+    EXPECT_CALL(mOutput, presentAndGetFrameFences()).WillOnce(Return(frameFences));
+    EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
+
+    // Compare the pointers values of each fence to make sure the correct ones
+    // are passed. This happens to work with the current implementation, but
+    // would not survive certain calls like Fence::merge() which would return a
+    // new instance.
+    EXPECT_CALL(mLayer1.layerFE,
+                onLayerDisplayed(Property(&sp<Fence>::get, Eq(layer1Fence.get()))));
+    EXPECT_CALL(mLayer2.layerFE,
+                onLayerDisplayed(Property(&sp<Fence>::get, Eq(layer2Fence.get()))));
+    EXPECT_CALL(mLayer3.layerFE,
+                onLayerDisplayed(Property(&sp<Fence>::get, Eq(layer3Fence.get()))));
+
+    mOutput.postFramebuffer();
+}
+
+TEST_F(OutputPostFramebufferTest, releaseFencesIncludeClientTargetAcquireFence) {
+    mOutput.mState.isEnabled = true;
+    mOutput.mState.usesClientComposition = true;
+
+    sp<Fence> clientTargetAcquireFence = new Fence();
+    sp<Fence> layer1Fence = new Fence();
+    sp<Fence> layer2Fence = new Fence();
+    sp<Fence> layer3Fence = new Fence();
+    compositionengine::Output::FrameFences frameFences;
+    frameFences.clientTargetAcquireFence = clientTargetAcquireFence;
+    frameFences.layerFences.emplace(&mLayer1.hwc2Layer, layer1Fence);
+    frameFences.layerFences.emplace(&mLayer2.hwc2Layer, layer2Fence);
+    frameFences.layerFences.emplace(&mLayer3.hwc2Layer, layer3Fence);
+
+    EXPECT_CALL(*mRenderSurface, flip());
+    EXPECT_CALL(mOutput, presentAndGetFrameFences()).WillOnce(Return(frameFences));
+    EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
+
+    // Fence::merge is called, and since none of the fences are actually valid,
+    // Fence::NO_FENCE is returned and passed to each onLayerDisplayed() call.
+    // This is the best we can do without creating a real kernel fence object.
+    EXPECT_CALL(mLayer1.layerFE, onLayerDisplayed(Fence::NO_FENCE));
+    EXPECT_CALL(mLayer2.layerFE, onLayerDisplayed(Fence::NO_FENCE));
+    EXPECT_CALL(mLayer3.layerFE, onLayerDisplayed(Fence::NO_FENCE));
+
+    mOutput.postFramebuffer();
+}
+
+TEST_F(OutputPostFramebufferTest, releasedLayersSentPresentFence) {
+    mOutput.mState.isEnabled = true;
+    mOutput.mState.usesClientComposition = true;
+
+    // This should happen even if there are no (current) output layers.
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillOnce(Return(0u));
+
+    // Load up the released layers with some mock instances
+    sp<StrictMock<mock::LayerFE>> releasedLayer1{new StrictMock<mock::LayerFE>()};
+    sp<StrictMock<mock::LayerFE>> releasedLayer2{new StrictMock<mock::LayerFE>()};
+    sp<StrictMock<mock::LayerFE>> releasedLayer3{new StrictMock<mock::LayerFE>()};
+    Output::ReleasedLayers layers;
+    layers.push_back(releasedLayer1);
+    layers.push_back(releasedLayer2);
+    layers.push_back(releasedLayer3);
+    mOutput.setReleasedLayers(std::move(layers));
+
+    // Set up a fake present fence
+    sp<Fence> presentFence = new Fence();
+    compositionengine::Output::FrameFences frameFences;
+    frameFences.presentFence = presentFence;
+
+    EXPECT_CALL(*mRenderSurface, flip());
+    EXPECT_CALL(mOutput, presentAndGetFrameFences()).WillOnce(Return(frameFences));
+    EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
+
+    // Each released layer should be given the presentFence.
+    EXPECT_CALL(*releasedLayer1,
+                onLayerDisplayed(Property(&sp<Fence>::get, Eq(presentFence.get()))));
+    EXPECT_CALL(*releasedLayer2,
+                onLayerDisplayed(Property(&sp<Fence>::get, Eq(presentFence.get()))));
+    EXPECT_CALL(*releasedLayer3,
+                onLayerDisplayed(Property(&sp<Fence>::get, Eq(presentFence.get()))));
+
+    mOutput.postFramebuffer();
+
+    // After the call the list of released layers should have been cleared.
+    EXPECT_TRUE(mOutput.getReleasedLayersForTest().empty());
+}
 
 /*
  * Output::composeSurfaces()

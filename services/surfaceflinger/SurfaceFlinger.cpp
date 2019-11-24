@@ -1363,8 +1363,11 @@ nsecs_t SurfaceFlinger::getVsyncPeriod() const {
 }
 
 void SurfaceFlinger::onVsyncReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId,
-                                     int64_t timestamp) {
+                                     int64_t timestamp,
+                                     std::optional<hwc2_vsync_period_t> /*vsyncPeriod*/) {
     ATRACE_NAME("SF onVsync");
+
+    // TODO(b/140201379): use vsyncPeriod in the new DispSync
 
     Mutex::Autolock lock(mStateLock);
     // Ignore any vsyncs from a previous hardware composer.
@@ -1440,6 +1443,12 @@ void SurfaceFlinger::onHotplugReceived(int32_t sequenceId, hwc2_display_t hwcDis
     }
 
     setTransactionFlags(eDisplayTransactionNeeded);
+}
+
+void SurfaceFlinger::onVsyncPeriodTimingChangedReceived(
+        int32_t /*sequenceId*/, hwc2_display_t /*display*/,
+        const hwc_vsync_period_change_timeline_t& /*updatedTimeline*/) {
+    // TODO(b/142753004): use timeline when changing refresh rate
 }
 
 void SurfaceFlinger::onRefreshReceived(int sequenceId, hwc2_display_t /*hwcDisplayId*/) {
@@ -1715,12 +1724,7 @@ void SurfaceFlinger::handleMessageRefresh() {
     refreshArgs.layersWithQueuedFrames.reserve(mLayersWithQueuedFrames.size());
     for (sp<Layer> layer : mLayersWithQueuedFrames) {
         auto compositionLayer = layer->getCompositionLayer();
-        if (compositionLayer) {
-            refreshArgs.layersWithQueuedFrames.push_back(compositionLayer.get());
-            mFrameTracer->traceTimestamp(layer->getSequence(), layer->getCurrentBufferId(),
-                                         layer->getCurrentFrameNumber(), systemTime(),
-                                         FrameTracer::FrameEvent::HWC_COMPOSITION_QUEUED);
-        }
+        if (compositionLayer) refreshArgs.layersWithQueuedFrames.push_back(compositionLayer.get());
     }
 
     refreshArgs.repaintEverything = mRepaintEverything.exchange(false);
@@ -4390,7 +4394,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES:
         case SET_DISPLAY_CONTENT_SAMPLING_ENABLED:
         case GET_DISPLAYED_CONTENT_SAMPLE:
-        case NOTIFY_POWER_HINT: {
+        case NOTIFY_POWER_HINT:
+        case SET_GLOBAL_SHADOW_SETTINGS: {
             if (!callingThreadHasUnscopedSurfaceFlingerAccess()) {
                 IPCThreadState* ipc = IPCThreadState::self();
                 ALOGE("Permission Denial: can't access SurfaceFlinger pid=%d, uid=%d",
@@ -5505,6 +5510,12 @@ void SurfaceFlinger::onLayerDestroyed(Layer* layer) {
 
 void SurfaceFlinger::bufferErased(const client_cache_t& clientCacheId) {
     getRenderEngine().unbindExternalTextureBuffer(clientCacheId.id);
+}
+
+status_t SurfaceFlinger::setGlobalShadowSettings(const half4& /*ambientColor*/,
+                                                 const half4& /*spotColor*/, float /*lightPosY*/,
+                                                 float /*lightPosZ*/, float /*lightRadius*/) {
+    return NO_ERROR;
 }
 
 } // namespace android

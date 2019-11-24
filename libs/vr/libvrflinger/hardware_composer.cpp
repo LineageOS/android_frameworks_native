@@ -1201,6 +1201,20 @@ Return<void> HardwareComposer::ComposerCallback::onVsync(Hwc2::Display display,
   return Void();
 }
 
+Return<void> HardwareComposer::ComposerCallback::onVsync_2_4(
+    Hwc2::Display /*display*/, int64_t /*timestamp*/,
+    Hwc2::VsyncPeriodNanos /*vsyncPeriodNanos*/) {
+  LOG_ALWAYS_FATAL("Unexpected onVsync_2_4 callback");
+  return Void();
+}
+
+Return<void> HardwareComposer::ComposerCallback::onVsyncPeriodTimingChanged(
+    Hwc2::Display /*display*/,
+    const Hwc2::VsyncPeriodChangeTimeline& /*updatedTimeline*/) {
+  LOG_ALWAYS_FATAL("Unexpected onVsyncPeriodTimingChanged callback");
+  return Void();
+}
+
 void HardwareComposer::ComposerCallback::SetVsyncService(
     const sp<VsyncService>& vsync_service) {
   std::lock_guard<std::mutex> lock(mutex_);

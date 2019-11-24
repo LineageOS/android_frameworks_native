@@ -386,7 +386,7 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
     }
 
     switch (mPendingEvent->type) {
-        case EventEntry::TYPE_CONFIGURATION_CHANGED: {
+        case EventEntry::Type::CONFIGURATION_CHANGED: {
             ConfigurationChangedEntry* typedEntry =
                     static_cast<ConfigurationChangedEntry*>(mPendingEvent);
             done = dispatchConfigurationChangedLocked(currentTime, typedEntry);
@@ -394,14 +394,14 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
             break;
         }
 
-        case EventEntry::TYPE_DEVICE_RESET: {
+        case EventEntry::Type::DEVICE_RESET: {
             DeviceResetEntry* typedEntry = static_cast<DeviceResetEntry*>(mPendingEvent);
             done = dispatchDeviceResetLocked(currentTime, typedEntry);
             dropReason = DropReason::NOT_DROPPED; // device resets are never dropped
             break;
         }
 
-        case EventEntry::TYPE_KEY: {
+        case EventEntry::Type::KEY: {
             KeyEntry* typedEntry = static_cast<KeyEntry*>(mPendingEvent);
             if (isAppSwitchDue) {
                 if (isAppSwitchKeyEvent(*typedEntry)) {
@@ -421,7 +421,7 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
             break;
         }
 
-        case EventEntry::TYPE_MOTION: {
+        case EventEntry::Type::MOTION: {
             MotionEntry* typedEntry = static_cast<MotionEntry*>(mPendingEvent);
             if (dropReason == DropReason::NOT_DROPPED && isAppSwitchDue) {
                 dropReason = DropReason::APP_SWITCH;
@@ -435,10 +435,6 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
             done = dispatchMotionLocked(currentTime, typedEntry, &dropReason, nextWakeupTime);
             break;
         }
-
-        default:
-            ALOG_ASSERT(false);
-            break;
     }
 
     if (done) {
@@ -458,7 +454,7 @@ bool InputDispatcher::enqueueInboundEventLocked(EventEntry* entry) {
     traceInboundQueueLengthLocked();
 
     switch (entry->type) {
-        case EventEntry::TYPE_KEY: {
+        case EventEntry::Type::KEY: {
             // Optimize app switch latency.
             // If the application takes too long to catch up then we drop all events preceding
             // the app switch key.
@@ -480,7 +476,7 @@ bool InputDispatcher::enqueueInboundEventLocked(EventEntry* entry) {
             break;
         }
 
-        case EventEntry::TYPE_MOTION: {
+        case EventEntry::Type::MOTION: {
             // Optimize case where the current application is unresponsive and the user
             // decides to touch a window in a different application.
             // If the application takes too long to catch up then we drop all events preceding
@@ -506,6 +502,11 @@ bool InputDispatcher::enqueueInboundEventLocked(EventEntry* entry) {
                     needWake = true;
                 }
             }
+            break;
+        }
+        case EventEntry::Type::CONFIGURATION_CHANGED:
+        case EventEntry::Type::DEVICE_RESET: {
+            // nothing to do
             break;
         }
     }
@@ -627,12 +628,12 @@ void InputDispatcher::dropInboundEventLocked(const EventEntry& entry, DropReason
     }
 
     switch (entry.type) {
-        case EventEntry::TYPE_KEY: {
+        case EventEntry::Type::KEY: {
             CancelationOptions options(CancelationOptions::CANCEL_NON_POINTER_EVENTS, reason);
             synthesizeCancelationEventsForAllConnectionsLocked(options);
             break;
         }
-        case EventEntry::TYPE_MOTION: {
+        case EventEntry::Type::MOTION: {
             const MotionEntry& motionEntry = static_cast<const MotionEntry&>(entry);
             if (motionEntry.source & AINPUT_SOURCE_CLASS_POINTER) {
                 CancelationOptions options(CancelationOptions::CANCEL_POINTER_EVENTS, reason);
@@ -641,6 +642,11 @@ void InputDispatcher::dropInboundEventLocked(const EventEntry& entry, DropReason
                 CancelationOptions options(CancelationOptions::CANCEL_NON_POINTER_EVENTS, reason);
                 synthesizeCancelationEventsForAllConnectionsLocked(options);
             }
+            break;
+        }
+        case EventEntry::Type::CONFIGURATION_CHANGED:
+        case EventEntry::Type::DEVICE_RESET: {
+            LOG_ALWAYS_FATAL("Should not drop %s events", EventEntry::typeToString(entry.type));
             break;
         }
     }
@@ -1174,18 +1180,19 @@ void InputDispatcher::resetANRTimeoutsLocked() {
 int32_t InputDispatcher::getTargetDisplayId(const EventEntry& entry) {
     int32_t displayId;
     switch (entry.type) {
-        case EventEntry::TYPE_KEY: {
+        case EventEntry::Type::KEY: {
             const KeyEntry& keyEntry = static_cast<const KeyEntry&>(entry);
             displayId = keyEntry.displayId;
             break;
         }
-        case EventEntry::TYPE_MOTION: {
+        case EventEntry::Type::MOTION: {
             const MotionEntry& motionEntry = static_cast<const MotionEntry&>(entry);
             displayId = motionEntry.displayId;
             break;
         }
-        default: {
-            ALOGE("Unsupported event type '%" PRId32 "' for target display.", entry.type);
+        case EventEntry::Type::CONFIGURATION_CHANGED:
+        case EventEntry::Type::DEVICE_RESET: {
+            ALOGE("%s events do not have a target display", EventEntry::typeToString(entry.type));
             return ADISPLAY_ID_NONE;
         }
     }
@@ -1849,7 +1856,7 @@ std::string InputDispatcher::checkWindowReadyForMoreInputLocked(
     }
 
     // Ensure that the dispatch queues aren't too far backed up for this event.
-    if (eventEntry.type == EventEntry::TYPE_KEY) {
+    if (eventEntry.type == EventEntry::Type::KEY) {
         // If the event is a key event, then we must wait for all previous events to
         // complete before delivering it because previous events may have the
         // side-effect of transferring focus to a different window and we want to
@@ -1937,7 +1944,7 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
 
     int32_t eventType = USER_ACTIVITY_EVENT_OTHER;
     switch (eventEntry.type) {
-        case EventEntry::TYPE_MOTION: {
+        case EventEntry::Type::MOTION: {
             const MotionEntry& motionEntry = static_cast<const MotionEntry&>(eventEntry);
             if (motionEntry.action == AMOTION_EVENT_ACTION_CANCEL) {
                 return;
@@ -1948,12 +1955,18 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
             }
             break;
         }
-        case EventEntry::TYPE_KEY: {
+        case EventEntry::Type::KEY: {
             const KeyEntry& keyEntry = static_cast<const KeyEntry&>(eventEntry);
             if (keyEntry.flags & AKEY_EVENT_FLAG_CANCELED) {
                 return;
             }
             eventType = USER_ACTIVITY_EVENT_BUTTON;
+            break;
+        }
+        case EventEntry::Type::CONFIGURATION_CHANGED:
+        case EventEntry::Type::DEVICE_RESET: {
+            LOG_ALWAYS_FATAL("%s events are not user activity",
+                             EventEntry::typeToString(eventEntry.type));
             break;
         }
     }
@@ -1996,7 +2009,7 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
 
     // Split a motion event if needed.
     if (inputTarget->flags & InputTarget::FLAG_SPLIT) {
-        ALOG_ASSERT(eventEntry->type == EventEntry::TYPE_MOTION);
+        ALOG_ASSERT(eventEntry->type == EventEntry::Type::MOTION);
 
         const MotionEntry& originalMotionEntry = static_cast<const MotionEntry&>(*eventEntry);
         if (inputTarget->pointerIds.count() != originalMotionEntry.pointerCount) {
@@ -2080,7 +2093,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
 
     // Apply target flags and update the connection's input state.
     switch (eventEntry->type) {
-        case EventEntry::TYPE_KEY: {
+        case EventEntry::Type::KEY: {
             const KeyEntry& keyEntry = static_cast<const KeyEntry&>(*eventEntry);
             dispatchEntry->resolvedAction = keyEntry.action;
             dispatchEntry->resolvedFlags = keyEntry.flags;
@@ -2097,7 +2110,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
             break;
         }
 
-        case EventEntry::TYPE_MOTION: {
+        case EventEntry::Type::MOTION: {
             const MotionEntry& motionEntry = static_cast<const MotionEntry&>(*eventEntry);
             if (dispatchMode & InputTarget::FLAG_DISPATCH_AS_OUTSIDE) {
                 dispatchEntry->resolvedAction = AMOTION_EVENT_ACTION_OUTSIDE;
@@ -2145,6 +2158,12 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
             dispatchPointerDownOutsideFocus(motionEntry.source, dispatchEntry->resolvedAction,
                                             inputTarget->inputChannel->getConnectionToken());
 
+            break;
+        }
+        case EventEntry::Type::CONFIGURATION_CHANGED:
+        case EventEntry::Type::DEVICE_RESET: {
+            LOG_ALWAYS_FATAL("%s events should not go to apps",
+                             EventEntry::typeToString(eventEntry->type));
             break;
         }
     }
@@ -2206,7 +2225,7 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
         status_t status;
         EventEntry* eventEntry = dispatchEntry->eventEntry;
         switch (eventEntry->type) {
-            case EventEntry::TYPE_KEY: {
+            case EventEntry::Type::KEY: {
                 KeyEntry* keyEntry = static_cast<KeyEntry*>(eventEntry);
 
                 // Publish the key event.
@@ -2221,7 +2240,7 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                 break;
             }
 
-            case EventEntry::TYPE_MOTION: {
+            case EventEntry::Type::MOTION: {
                 MotionEntry* motionEntry = static_cast<MotionEntry*>(eventEntry);
 
                 PointerCoords scaledCoords[MAX_POINTERS];
@@ -2502,15 +2521,23 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
         for (size_t i = 0; i < cancelationEvents.size(); i++) {
             EventEntry* cancelationEventEntry = cancelationEvents[i];
             switch (cancelationEventEntry->type) {
-                case EventEntry::TYPE_KEY:
+                case EventEntry::Type::KEY: {
                     logOutboundKeyDetails("cancel - ",
                                           static_cast<const KeyEntry&>(*cancelationEventEntry));
                     break;
-                case EventEntry::TYPE_MOTION:
+                }
+                case EventEntry::Type::MOTION: {
                     logOutboundMotionDetails("cancel - ",
                                              static_cast<const MotionEntry&>(
                                                      *cancelationEventEntry));
                     break;
+                }
+                case EventEntry::Type::CONFIGURATION_CHANGED:
+                case EventEntry::Type::DEVICE_RESET: {
+                    LOG_ALWAYS_FATAL("%s event should not be found inside Connections's queue",
+                                     EventEntry::typeToString(cancelationEventEntry->type));
+                    break;
+                }
             }
 
             InputTarget target;
@@ -4237,11 +4264,11 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(CommandEntry* c
     }
 
     bool restartEvent;
-    if (dispatchEntry->eventEntry->type == EventEntry::TYPE_KEY) {
+    if (dispatchEntry->eventEntry->type == EventEntry::Type::KEY) {
         KeyEntry* keyEntry = static_cast<KeyEntry*>(dispatchEntry->eventEntry);
         restartEvent =
                 afterKeyEventLockedInterruptible(connection, dispatchEntry, keyEntry, handled);
-    } else if (dispatchEntry->eventEntry->type == EventEntry::TYPE_MOTION) {
+    } else if (dispatchEntry->eventEntry->type == EventEntry::Type::MOTION) {
         MotionEntry* motionEntry = static_cast<MotionEntry*>(dispatchEntry->eventEntry);
         restartEvent = afterMotionEventLockedInterruptible(connection, dispatchEntry, motionEntry,
                                                            handled);
