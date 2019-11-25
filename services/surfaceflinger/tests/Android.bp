@@ -18,6 +18,7 @@ cc_test {
     test_suites: ["device-tests"],
     srcs: [
         "BufferGenerator.cpp",
+        "CommonTypes_test.cpp",
         "Credentials_test.cpp",
         "DereferenceSurfaceControl_test.cpp",
         "DisplayActiveConfig_test.cpp",
@@ -41,6 +42,8 @@ cc_test {
         "libtrace_proto",
     ],
     shared_libs: [
+        "android.hardware.graphics.common@1.2",
+        "android.hardware.graphics.composer@2.1",
         "libandroid",
         "libbinder",
         "libcutils",
@@ -53,6 +56,7 @@ cc_test {
         "libtimestats_proto",
         "libui",
         "libutils",
+        "vintf-graphics-common-ndk_platform",
     ]
 }
 
