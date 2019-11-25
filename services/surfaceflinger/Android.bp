@@ -167,6 +167,7 @@ filegroup {
         "Scheduler/LayerInfo.cpp",
         "Scheduler/MessageQueue.cpp",
         "Scheduler/PhaseOffsets.cpp",
+        "Scheduler/RefreshRateConfigs.cpp",
         "Scheduler/Scheduler.cpp",
         "Scheduler/SchedulerUtils.cpp",
         "Scheduler/Timer.cpp",
