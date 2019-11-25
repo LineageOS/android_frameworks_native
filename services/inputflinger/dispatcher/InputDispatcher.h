@@ -102,6 +102,7 @@ public:
     virtual void setFocusedDisplay(int32_t displayId) override;
     virtual void setInputDispatchMode(bool enabled, bool frozen) override;
     virtual void setInputFilterEnabled(bool enabled) override;
+    virtual void setInTouchMode(bool inTouchMode) override;
 
     virtual bool transferTouchFocus(const sp<IBinder>& fromToken,
                                     const sp<IBinder>& toToken) override;
@@ -247,6 +248,7 @@ private:
     bool mDispatchEnabled GUARDED_BY(mLock);
     bool mDispatchFrozen GUARDED_BY(mLock);
     bool mInputFilterEnabled GUARDED_BY(mLock);
+    bool mInTouchMode GUARDED_BY(mLock);
 
     std::unordered_map<int32_t, std::vector<sp<InputWindowHandle>>> mWindowHandlesByDisplay
             GUARDED_BY(mLock);
