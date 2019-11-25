@@ -136,7 +136,7 @@ public:
     binder::Status deleteOdex(const std::string& apkPath, const std::string& instructionSet,
             const std::unique_ptr<std::string>& outputPath);
     binder::Status installApkVerity(const std::string& filePath,
-            const ::android::base::unique_fd& verityInput, int32_t contentSize);
+            android::base::unique_fd verityInput, int32_t contentSize);
     binder::Status assertFsverityRootHashMatches(const std::string& filePath,
             const std::vector<uint8_t>& expectedHash);
     binder::Status reconcileSecondaryDexFile(const std::string& dexPath,
