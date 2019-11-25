@@ -23,6 +23,7 @@
 #include <memory>
 
 #include <ui/PixelFormat.h>
+#include <ui/Rect.h>
 #include <utils/Singleton.h>
 
 
@@ -36,7 +37,6 @@ namespace android {
 // ---------------------------------------------------------------------------
 
 class GrallocMapper;
-class Rect;
 
 class GraphicBufferMapper : public Singleton<GraphicBufferMapper>
 {
