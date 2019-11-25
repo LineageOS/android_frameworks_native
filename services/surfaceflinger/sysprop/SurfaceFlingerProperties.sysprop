@@ -260,7 +260,7 @@ prop {
 prop {
     api_name: "color_space_agnostic_dataspace"
     type: Long
-    scope: System
+    scope: Public
     access: Readonly
     prop_name: "ro.surface_flinger.color_space_agnostic_dataspace"
 }
@@ -330,7 +330,7 @@ prop {
 prop {
     api_name: "set_display_power_timer_ms"
     type: Integer
-    scope: System
+    scope: Public
     access: Readonly
     prop_name: "ro.surface_flinger.set_display_power_timer_ms"
 }
