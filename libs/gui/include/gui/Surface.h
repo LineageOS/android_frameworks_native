@@ -21,16 +21,15 @@
 #include <gui/HdrMetadata.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/IProducerListener.h>
-
+#include <system/window.h>
 #include <ui/ANativeObjectBase.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Region.h>
-
 #include <utils/Condition.h>
 #include <utils/Mutex.h>
 #include <utils/RefBase.h>
 
-#include <system/window.h>
+#include <shared_mutex>
 
 namespace android {
 
@@ -205,6 +204,13 @@ private:
             ANativeWindowBuffer* buffer, int fenceFd);
     static int hook_setSwapInterval(ANativeWindow* window, int interval);
 
+    static int cancelBufferInternal(ANativeWindow* window, ANativeWindowBuffer* buffer,
+                                    int fenceFd);
+    static int dequeueBufferInternal(ANativeWindow* window, ANativeWindowBuffer** buffer,
+                                     int* fenceFd);
+    static int performInternal(ANativeWindow* window, int operation, va_list args);
+    static int queueBufferInternal(ANativeWindow* window, ANativeWindowBuffer* buffer, int fenceFd);
+
     static int hook_cancelBuffer_DEPRECATED(ANativeWindow* window,
             ANativeWindowBuffer* buffer);
     static int hook_dequeueBuffer_DEPRECATED(ANativeWindow* window,
@@ -252,6 +258,10 @@ private:
     int dispatchGetLastDequeueDuration(va_list args);
     int dispatchGetLastQueueDuration(va_list args);
     int dispatchSetFrameRate(va_list args);
+    int dispatchAddCancelInterceptor(va_list args);
+    int dispatchAddDequeueInterceptor(va_list args);
+    int dispatchAddPerformInterceptor(va_list args);
+    int dispatchAddQueueInterceptor(va_list args);
     bool transformToDisplayInverse();
 
 protected:
@@ -456,6 +466,18 @@ protected:
     // variables of Surface objects. It must be locked whenever the
     // member variables are accessed.
     mutable Mutex mMutex;
+
+    // mInterceptorMutex is the mutex guarding interceptors.
+    std::shared_mutex mInterceptorMutex;
+
+    ANativeWindow_cancelBufferInterceptor mCancelInterceptor = nullptr;
+    void* mCancelInterceptorData = nullptr;
+    ANativeWindow_dequeueBufferInterceptor mDequeueInterceptor = nullptr;
+    void* mDequeueInterceptorData = nullptr;
+    ANativeWindow_performInterceptor mPerformInterceptor = nullptr;
+    void* mPerformInterceptorData = nullptr;
+    ANativeWindow_queueBufferInterceptor mQueueInterceptor = nullptr;
+    void* mQueueInterceptorData = nullptr;
 
     // must be used from the lock/unlock thread
     sp<GraphicBuffer>           mLockedBuffer;
