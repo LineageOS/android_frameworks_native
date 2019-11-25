@@ -103,6 +103,8 @@ bool InputMessage::isValid(size_t actualSize) const {
                 return body.motion.pointerCount > 0 && body.motion.pointerCount <= MAX_POINTERS;
             case Type::FINISHED:
                 return true;
+            case Type::FOCUS:
+                return true;
         }
     }
     return false;
@@ -116,6 +118,8 @@ size_t InputMessage::size() const {
             return sizeof(Header) + body.motion.size();
         case Type::FINISHED:
             return sizeof(Header) + body.finished.size();
+        case Type::FOCUS:
+            return sizeof(Header) + body.focus.size();
     }
     return sizeof(Header);
 }
@@ -218,6 +222,12 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
         case InputMessage::Type::FINISHED: {
             msg->body.finished.seq = body.finished.seq;
             msg->body.finished.handled = body.finished.handled;
+            break;
+        }
+        case InputMessage::Type::FOCUS: {
+            msg->body.focus.seq = body.focus.seq;
+            msg->body.focus.hasFocus = body.focus.hasFocus;
+            msg->body.focus.inTouchMode = body.focus.inTouchMode;
             break;
         }
     }
@@ -529,6 +539,23 @@ status_t InputPublisher::publishMotionEvent(
     return mChannel->sendMessage(&msg);
 }
 
+status_t InputPublisher::publishFocusEvent(uint32_t seq, bool hasFocus, bool inTouchMode) {
+    if (ATRACE_ENABLED()) {
+        std::string message =
+                StringPrintf("publishFocusEvent(inputChannel=%s, hasFocus=%s, inTouchMode=%s)",
+                             mChannel->getName().c_str(), toString(hasFocus),
+                             toString(inTouchMode));
+        ATRACE_NAME(message.c_str());
+    }
+
+    InputMessage msg;
+    msg.header.type = InputMessage::Type::FOCUS;
+    msg.body.focus.seq = seq;
+    msg.body.focus.hasFocus = hasFocus ? 1 : 0;
+    msg.body.focus.inTouchMode = inTouchMode ? 1 : 0;
+    return mChannel->sendMessage(&msg);
+}
+
 status_t InputPublisher::receiveFinishedSignal(uint32_t* outSeq, bool* outHandled) {
     if (DEBUG_TRANSPORT_ACTIONS) {
         ALOGD("channel '%s' publisher ~ receiveFinishedSignal", mChannel->getName().c_str());
@@ -565,8 +592,8 @@ bool InputConsumer::isTouchResamplingEnabled() {
     return property_get_bool(PROPERTY_RESAMPLING_ENABLED, true);
 }
 
-status_t InputConsumer::consume(InputEventFactoryInterface* factory,
-        bool consumeBatches, nsecs_t frameTime, uint32_t* outSeq, InputEvent** outEvent) {
+status_t InputConsumer::consume(InputEventFactoryInterface* factory, bool consumeBatches,
+                                nsecs_t frameTime, uint32_t* outSeq, InputEvent** outEvent) {
     if (DEBUG_TRANSPORT_ACTIONS) {
         ALOGD("channel '%s' consumer ~ consume: consumeBatches=%s, frameTime=%" PRId64,
               mChannel->getName().c_str(), toString(consumeBatches), frameTime);
@@ -669,24 +696,34 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory,
                     break;
                 }
 
-            MotionEvent* motionEvent = factory->createMotionEvent();
-            if (! motionEvent) return NO_MEMORY;
+                MotionEvent* motionEvent = factory->createMotionEvent();
+                if (!motionEvent) return NO_MEMORY;
 
-            updateTouchState(mMsg);
-            initializeMotionEvent(motionEvent, &mMsg);
-            *outSeq = mMsg.body.motion.seq;
-            *outEvent = motionEvent;
+                updateTouchState(mMsg);
+                initializeMotionEvent(motionEvent, &mMsg);
+                *outSeq = mMsg.body.motion.seq;
+                *outEvent = motionEvent;
 
-            if (DEBUG_TRANSPORT_ACTIONS) {
-                ALOGD("channel '%s' consumer ~ consumed motion event, seq=%u",
-                      mChannel->getName().c_str(), *outSeq);
-            }
-            break;
+                if (DEBUG_TRANSPORT_ACTIONS) {
+                    ALOGD("channel '%s' consumer ~ consumed motion event, seq=%u",
+                          mChannel->getName().c_str(), *outSeq);
+                }
+                break;
             }
 
             case InputMessage::Type::FINISHED: {
                 LOG_ALWAYS_FATAL("Consumed a FINISHED message, which should never be seen by "
                                  "InputConsumer!");
+                break;
+            }
+
+            case InputMessage::Type::FOCUS: {
+                FocusEvent* focusEvent = factory->createFocusEvent();
+                if (!focusEvent) return NO_MEMORY;
+
+                initializeFocusEvent(focusEvent, &mMsg);
+                *outSeq = mMsg.body.focus.seq;
+                *outEvent = focusEvent;
                 break;
             }
         }
@@ -1111,6 +1148,10 @@ void InputConsumer::initializeKeyEvent(KeyEvent* event, const InputMessage* msg)
             msg->body.key.repeatCount,
             msg->body.key.downTime,
             msg->body.key.eventTime);
+}
+
+void InputConsumer::initializeFocusEvent(FocusEvent* event, const InputMessage* msg) {
+    event->initialize(msg->body.focus.hasFocus == 1, msg->body.focus.inTouchMode == 1);
 }
 
 void InputConsumer::initializeMotionEvent(MotionEvent* event, const InputMessage* msg) {

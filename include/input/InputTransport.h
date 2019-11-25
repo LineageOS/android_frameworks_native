@@ -64,6 +64,7 @@ struct InputMessage {
         KEY,
         MOTION,
         FINISHED,
+        FOCUS,
     };
 
     struct Header {
@@ -92,9 +93,7 @@ struct InputMessage {
             uint32_t empty2;
             nsecs_t downTime __attribute__((aligned(8)));
 
-            inline size_t size() const {
-                return sizeof(Key);
-            }
+            inline size_t size() const { return sizeof(Key); }
         } key;
 
         struct Motion {
@@ -110,7 +109,7 @@ struct InputMessage {
             int32_t metaState;
             int32_t buttonState;
             MotionClassification classification; // base type: uint8_t
-            uint8_t empty2[3];
+            uint8_t empty2[3];                   // 3 bytes to fill gap created by classification
             int32_t edgeFlags;
             nsecs_t downTime __attribute__((aligned(8)));
             float xOffset;
@@ -148,10 +147,17 @@ struct InputMessage {
             uint32_t seq;
             uint32_t handled; // actually a bool, but we must maintain 8-byte alignment
 
-            inline size_t size() const {
-                return sizeof(Finished);
-            }
+            inline size_t size() const { return sizeof(Finished); }
         } finished;
+
+        struct Focus {
+            uint32_t seq;
+            // The following two fields take up 4 bytes total
+            uint16_t hasFocus;    // actually a bool
+            uint16_t inTouchMode; // actually a bool, but we must maintain 8-byte alignment
+
+            inline size_t size() const { return sizeof(Focus); }
+        } focus;
     } __attribute__((aligned(8))) body;
 
     bool isValid(size_t actualSize) const;
@@ -294,6 +300,15 @@ public:
                                 uint32_t pointerCount, const PointerProperties* pointerProperties,
                                 const PointerCoords* pointerCoords);
 
+    /* Publishes a focus event to the input channel.
+     *
+     * Returns OK on success.
+     * Returns WOULD_BLOCK if the channel is full.
+     * Returns DEAD_OBJECT if the channel's peer has been closed.
+     * Other errors probably indicate that the channel is broken.
+     */
+    status_t publishFocusEvent(uint32_t seq, bool hasFocus, bool inTouchMode);
+
     /* Receives the finished signal from the consumer in reply to the original dispatch signal.
      * If a signal was received, returns the message sequence number,
      * and whether the consumer handled the message.
@@ -349,8 +364,8 @@ public:
      * Returns NO_MEMORY if the event could not be created.
      * Other errors probably indicate that the channel is broken.
      */
-    status_t consume(InputEventFactoryInterface* factory, bool consumeBatches,
-            nsecs_t frameTime, uint32_t* outSeq, InputEvent** outEvent);
+    status_t consume(InputEventFactoryInterface* factory, bool consumeBatches, nsecs_t frameTime,
+                     uint32_t* outSeq, InputEvent** outEvent);
 
     /* Sends a finished signal to the publisher to inform it that the message
      * with the specified sequence number has finished being process and whether
@@ -521,6 +536,7 @@ private:
     static void rewriteMessage(TouchState& state, InputMessage& msg);
     static void initializeKeyEvent(KeyEvent* event, const InputMessage* msg);
     static void initializeMotionEvent(MotionEvent* event, const InputMessage* msg);
+    static void initializeFocusEvent(FocusEvent* event, const InputMessage* msg);
     static void addSample(MotionEvent* event, const InputMessage* msg);
     static bool canAddSample(const Batch& batch, const InputMessage* msg);
     static ssize_t findSampleNoLaterThan(const Batch& batch, nsecs_t time);

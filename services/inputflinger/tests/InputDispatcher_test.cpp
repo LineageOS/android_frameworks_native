@@ -19,6 +19,7 @@
 #include <InputDispatcherThread.h>
 
 #include <binder/Binder.h>
+#include <input/Input.h>
 
 #include <gtest/gtest.h>
 #include <linux/input.h>
@@ -410,7 +411,8 @@ public:
         ASSERT_NE(nullptr, event) << mName.c_str()
                                   << ": consumer should have returned non-NULL event.";
         ASSERT_EQ(expectedEventType, event->getType())
-                << mName.c_str() << ": event type should match.";
+                << mName.c_str() << "expected " << inputEventTypeToString(expectedEventType)
+                << " event, got " << inputEventTypeToString(event->getType()) << " event";
 
         EXPECT_EQ(expectedDisplayId, event->getDisplayId());
 
