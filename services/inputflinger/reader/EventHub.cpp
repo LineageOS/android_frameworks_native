@@ -37,8 +37,6 @@
 
 #include "EventHub.h"
 
-#include <hardware_legacy/power.h>
-
 #include <android-base/stringprintf.h>
 #include <cutils/properties.h>
 #include <openssl/sha.h>
@@ -71,7 +69,6 @@ namespace android {
 
 static constexpr bool DEBUG = false;
 
-static const char* WAKE_LOCK_ID = "KeyEvents";
 static const char* DEVICE_PATH = "/dev/input";
 // v4l2 devices go directly into /dev
 static const char* VIDEO_DEVICE_PATH = "/dev";
@@ -296,7 +293,6 @@ EventHub::EventHub(void)
         mPendingEventIndex(0),
         mPendingINotify(false) {
     ensureProcessCanBlockSuspend();
-    acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_ID);
 
     mEpollFd = epoll_create1(EPOLL_CLOEXEC);
     LOG_ALWAYS_FATAL_IF(mEpollFd < 0, "Could not create epoll instance: %s", strerror(errno));
@@ -354,8 +350,6 @@ EventHub::~EventHub(void) {
     ::close(mINotifyFd);
     ::close(mWakeReadPipeFd);
     ::close(mWakeWritePipeFd);
-
-    release_wake_lock(WAKE_LOCK_ID);
 }
 
 InputDeviceIdentifier EventHub::getDeviceIdentifier(int32_t deviceId) const {
@@ -1046,26 +1040,24 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
             break;
         }
 
-        // Poll for events.  Mind the wake lock dance!
-        // We hold a wake lock at all times except during epoll_wait().  This works due to some
-        // subtle choreography.  When a device driver has pending (unread) events, it acquires
-        // a kernel wake lock.  However, once the last pending event has been read, the device
-        // driver will release the kernel wake lock.  To prevent the system from going to sleep
-        // when this happens, the EventHub holds onto its own user wake lock while the client
-        // is processing events.  Thus the system can only sleep if there are no events
-        // pending or currently being processed.
+        // Poll for events.
+        // When a device driver has pending (unread) events, it acquires
+        // a kernel wake lock.  Once the last pending event has been read, the device
+        // driver will release the kernel wake lock, but the epoll will hold the wakelock,
+        // since we are using EPOLLWAKEUP. The wakelock is released by the epoll when epoll_wait
+        // is called again for the same fd that produced the event.
+        // Thus the system can only sleep if there are no events pending or
+        // currently being processed.
         //
         // The timeout is advisory only.  If the device is asleep, it will not wake just to
         // service the timeout.
         mPendingEventIndex = 0;
 
-        mLock.unlock(); // release lock before poll, must be before release_wake_lock
-        release_wake_lock(WAKE_LOCK_ID);
+        mLock.unlock(); // release lock before poll
 
         int pollResult = epoll_wait(mEpollFd, mPendingEventItems, EPOLL_MAX_EVENTS, timeoutMillis);
 
-        acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_ID);
-        mLock.lock(); // reacquire lock after poll, must be after acquire_wake_lock
+        mLock.lock(); // reacquire lock after poll
 
         if (pollResult == 0) {
             // Timed out.
