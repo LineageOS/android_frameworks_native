@@ -416,6 +416,29 @@ TEST_F(VSyncReactorTest, changingPeriodChangesOfsetsOnNextCb) {
     mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
 }
 
+TEST_F(VSyncReactorTest, offsetsAppliedOnNextOpportunity) {
+    Sequence seq;
+    EXPECT_CALL(*mMockDispatch, registerCallback(_, std::string(mName)))
+            .InSequence(seq)
+            .WillOnce(DoAll(SaveArg<0>(&innerCb), Return(mFakeToken)));
+    EXPECT_CALL(*mMockDispatch, schedule(mFakeToken, computeWorkload(period, mPhase), _))
+            .InSequence(seq)
+            .WillOnce(Return(ScheduleResult::Scheduled));
+
+    EXPECT_CALL(*mMockDispatch, schedule(mFakeToken, computeWorkload(period, mAnotherPhase), _))
+            .InSequence(seq)
+            .WillOnce(Return(ScheduleResult::Scheduled));
+
+    EXPECT_CALL(*mMockDispatch, schedule(mFakeToken, computeWorkload(period, mAnotherPhase), _))
+            .InSequence(seq)
+            .WillOnce(Return(ScheduleResult::Scheduled));
+
+    mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
+    mReactor.changePhaseOffset(&outerCb, mAnotherPhase);
+    ASSERT_TRUE(innerCb);
+    innerCb(mFakeCbTime);
+}
+
 TEST_F(VSyncReactorTest, negativeOffsetsApplied) {
     nsecs_t const negativePhase = -4000;
     Sequence seq;
@@ -444,6 +467,26 @@ TEST_F(VSyncReactorDeathTest, invalidChange) {
     mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
     mReactor.removeEventListener(&outerCb, &lastCallbackTime);
     mReactor.changePhaseOffset(&outerCb, mPhase);
+}
+
+TEST_F(VSyncReactorDeathTest, cannotScheduleOnRegistration) {
+    ON_CALL(*mMockDispatch, schedule(_, _, _))
+            .WillByDefault(Return(ScheduleResult::CannotSchedule));
+    EXPECT_DEATH(mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime), ".*");
+}
+
+TEST_F(VSyncReactorDeathTest, cannotScheduleOnCallback) {
+    EXPECT_CALL(*mMockDispatch, registerCallback(_, std::string(mName)))
+            .WillOnce(DoAll(SaveArg<0>(&innerCb), Return(mFakeToken)));
+    EXPECT_CALL(*mMockDispatch, schedule(_, _, _)).WillOnce(Return(ScheduleResult::Scheduled));
+
+    mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
+    ASSERT_TRUE(innerCb);
+    Mock::VerifyAndClearExpectations(mMockDispatch.get());
+
+    ON_CALL(*mMockDispatch, schedule(_, _, _))
+            .WillByDefault(Return(ScheduleResult::CannotSchedule));
+    EXPECT_DEATH(innerCb(mFakeCbTime), ".*");
 }
 
 } // namespace android::scheduler

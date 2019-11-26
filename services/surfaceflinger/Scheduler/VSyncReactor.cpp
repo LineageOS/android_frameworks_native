@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#undef LOG_TAG
+#define LOG_TAG "VSyncReactor"
 //#define LOG_NDEBUG 0
 #include "VSyncReactor.h"
 #include <log/log.h>
@@ -59,8 +61,9 @@ public:
         mStopped = false;
         mOffset = offset;
 
-        // TODO: (b/145213786) check the return code here sensibly
-        mRegistration.schedule(calculateWorkload(), mLastCallTime);
+        auto const schedule_result = mRegistration.schedule(calculateWorkload(), mLastCallTime);
+        LOG_ALWAYS_FATAL_IF((schedule_result != ScheduleResult::Scheduled),
+                            "Error scheduling callback: rc %X", schedule_result);
     }
 
     void setPeriod(nsecs_t period) {
@@ -91,7 +94,9 @@ private:
 
         {
             std::lock_guard<std::mutex> lk(mMutex);
-            mRegistration.schedule(calculateWorkload(), vsynctime);
+            auto const schedule_result = mRegistration.schedule(calculateWorkload(), vsynctime);
+            LOG_ALWAYS_FATAL_IF((schedule_result != ScheduleResult::Scheduled),
+                                "Error rescheduling callback: rc %X", schedule_result);
         }
     }
 
