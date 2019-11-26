@@ -5512,9 +5512,19 @@ void SurfaceFlinger::bufferErased(const client_cache_t& clientCacheId) {
     getRenderEngine().unbindExternalTextureBuffer(clientCacheId.id);
 }
 
-status_t SurfaceFlinger::setGlobalShadowSettings(const half4& /*ambientColor*/,
-                                                 const half4& /*spotColor*/, float /*lightPosY*/,
-                                                 float /*lightPosZ*/, float /*lightRadius*/) {
+status_t SurfaceFlinger::setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
+                                                 float lightPosY, float lightPosZ,
+                                                 float lightRadius) {
+    Mutex::Autolock _l(mStateLock);
+    mCurrentState.globalShadowSettings.ambientColor = vec4(ambientColor);
+    mCurrentState.globalShadowSettings.spotColor = vec4(spotColor);
+    mCurrentState.globalShadowSettings.lightPos.y = lightPosY;
+    mCurrentState.globalShadowSettings.lightPos.z = lightPosZ;
+    mCurrentState.globalShadowSettings.lightRadius = lightRadius;
+
+    // these values are overridden when calculating the shadow settings for a layer.
+    mCurrentState.globalShadowSettings.lightPos.x = 0.f;
+    mCurrentState.globalShadowSettings.length = 0.f;
     return NO_ERROR;
 }
 
