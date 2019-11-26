@@ -86,6 +86,7 @@ status_t layer_state_t::write(Parcel& output) const
     memcpy(output.writeInplace(16 * sizeof(float)),
            colorTransform.asArray(), 16 * sizeof(float));
     output.writeFloat(cornerRadius);
+    output.writeUint32(backgroundBlurRadius);
     output.writeStrongBinder(cachedBuffer.token.promote());
     output.writeUint64(cachedBuffer.id);
     output.writeParcelable(metadata);
@@ -173,6 +174,7 @@ status_t layer_state_t::read(const Parcel& input)
 
     colorTransform = mat4(static_cast<const float*>(input.readInplace(16 * sizeof(float))));
     cornerRadius = input.readFloat();
+    backgroundBlurRadius = input.readUint32();
     cachedBuffer.token = input.readStrongBinder();
     cachedBuffer.id = input.readUint64();
     input.readParcelable(&metadata);
@@ -306,6 +308,10 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eCornerRadiusChanged) {
         what |= eCornerRadiusChanged;
         cornerRadius = other.cornerRadius;
+    }
+    if (other.what & eBackgroundBlurRadiusChanged) {
+        what |= eBackgroundBlurRadiusChanged;
+        backgroundBlurRadius = other.backgroundBlurRadius;
     }
     if (other.what & eDeferTransaction_legacy) {
         what |= eDeferTransaction_legacy;

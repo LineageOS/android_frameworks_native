@@ -109,6 +109,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.hdrMetadata.validTypes = 0;
     mCurrentState.surfaceDamageRegion = Region::INVALID_REGION;
     mCurrentState.cornerRadius = 0.0f;
+    mCurrentState.backgroundBlurRadius = 0;
     mCurrentState.api = -1;
     mCurrentState.hasColorTransform = false;
     mCurrentState.colorSpaceAgnostic = false;
@@ -448,6 +449,7 @@ void Layer::latchBasicGeometry(compositionengine::LayerFECompositionState& compo
 
     compositionState.blendMode = static_cast<Hwc2::IComposerClient::BlendMode>(blendMode);
     compositionState.alpha = alpha;
+    compositionState.backgroundBlurRadius = drawingState.backgroundBlurRadius;
 }
 
 void Layer::latchGeometry(compositionengine::LayerFECompositionState& compositionState) const {
@@ -575,6 +577,7 @@ std::optional<renderengine::LayerSettings> Layer::prepareClientComposition(
 
     layerSettings.alpha = alpha;
     layerSettings.sourceDataspace = getDataSpace();
+    layerSettings.backgroundBlurRadius = getBackgroundBlurRadius();
     return layerSettings;
 }
 
@@ -1098,6 +1101,16 @@ bool Layer::setCornerRadius(float cornerRadius) {
 
     mCurrentState.sequence++;
     mCurrentState.cornerRadius = cornerRadius;
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
+bool Layer::setBackgroundBlurRadius(int backgroundBlurRadius) {
+    if (mCurrentState.backgroundBlurRadius == backgroundBlurRadius) return false;
+
+    mCurrentState.sequence++;
+    mCurrentState.backgroundBlurRadius = backgroundBlurRadius;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
@@ -1871,6 +1884,10 @@ half Layer::getAlpha() const {
 half4 Layer::getColor() const {
     const half4 color(getDrawingState().color);
     return half4(color.r, color.g, color.b, getAlpha());
+}
+
+int32_t Layer::getBackgroundBlurRadius() const {
+    return getDrawingState().backgroundBlurRadius;
 }
 
 Layer::RoundedCornerState Layer::getRoundedCornerState() const {

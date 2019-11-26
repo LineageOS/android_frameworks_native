@@ -61,6 +61,7 @@ void LayerFECompositionState::dump(std::string& out) const {
     out.append("\n      ");
     dumpVal(out, "blend", toString(blendMode), blendMode);
     dumpVal(out, "alpha", alpha);
+    dumpVal(out, "backgroundBlurRadius", backgroundBlurRadius);
 
     out.append("\n      ");
     dumpVal(out, "type", type);

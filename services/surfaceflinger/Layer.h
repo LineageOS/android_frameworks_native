@@ -179,6 +179,7 @@ public:
 
         half4 color;
         float cornerRadius;
+        int backgroundBlurRadius;
 
         bool inputInfoChanged;
         InputWindowInfo inputInfo;
@@ -299,6 +300,9 @@ public:
     // The shape of the rounded corner rectangle is specified by the crop rectangle of the layer
     // from which we inferred the rounded corner radius.
     virtual bool setCornerRadius(float cornerRadius);
+    // When non-zero, everything below this layer will be blurred by backgroundBlurRadius, which
+    // is specified in pixels.
+    virtual bool setBackgroundBlurRadius(int backgroundBlurRadius);
     virtual bool setTransparentRegionHint(const Region& transparent);
     virtual bool setFlags(uint8_t flags, uint8_t mask);
     virtual bool setLayerStack(uint32_t layerStack);
@@ -663,6 +667,7 @@ public:
     // down the hierarchy).
     half getAlpha() const;
     half4 getColor() const;
+    int32_t getBackgroundBlurRadius() const;
 
     // Returns how rounded corners should be drawn for this layer.
     // This will traverse the hierarchy until it reaches its root, finding topmost rounded

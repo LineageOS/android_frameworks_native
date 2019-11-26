@@ -371,3 +371,12 @@ prop {
     access: Readonly
     prop_name: "ro.surface_flinger.support_kernel_idle_timer"
 }
+
+# Indicates whether background blurs are supported.
+prop {
+    api_name: "supports_background_blur"
+    type: Boolean
+    scope: Public
+    access: Readonly
+    prop_name: "ro.surface_flinger.supports_background_blur"
+}

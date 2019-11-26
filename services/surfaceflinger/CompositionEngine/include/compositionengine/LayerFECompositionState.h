@@ -63,6 +63,9 @@ struct LayerFECompositionState {
     // The alpha value for this layer
     float alpha{1.f};
 
+    // Background blur in pixels
+    int backgroundBlurRadius{0};
+
     // The transform from layer local coordinates to composition coordinates
     ui::Transform geomLayerTransform;
 
