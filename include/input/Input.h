@@ -31,8 +31,8 @@
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 #include <utils/Vector.h>
-
 #include <limits>
+#include <queue>
 
 /*
  * Additional private constants not defined in ndk/ui/input.h.
@@ -709,8 +709,8 @@ public:
     PreallocatedInputEventFactory() { }
     virtual ~PreallocatedInputEventFactory() { }
 
-    virtual KeyEvent* createKeyEvent() { return & mKeyEvent; }
-    virtual MotionEvent* createMotionEvent() { return & mMotionEvent; }
+    virtual KeyEvent* createKeyEvent() override { return &mKeyEvent; }
+    virtual MotionEvent* createMotionEvent() override { return &mMotionEvent; }
 
 private:
     KeyEvent mKeyEvent;
@@ -725,16 +725,16 @@ public:
     explicit PooledInputEventFactory(size_t maxPoolSize = 20);
     virtual ~PooledInputEventFactory();
 
-    virtual KeyEvent* createKeyEvent();
-    virtual MotionEvent* createMotionEvent();
+    virtual KeyEvent* createKeyEvent() override;
+    virtual MotionEvent* createMotionEvent() override;
 
     void recycle(InputEvent* event);
 
 private:
     const size_t mMaxPoolSize;
 
-    Vector<KeyEvent*> mKeyEventPool;
-    Vector<MotionEvent*> mMotionEventPool;
+    std::queue<std::unique_ptr<KeyEvent>> mKeyEventPool;
+    std::queue<std::unique_ptr<MotionEvent>> mMotionEventPool;
 };
 
 } // namespace android
