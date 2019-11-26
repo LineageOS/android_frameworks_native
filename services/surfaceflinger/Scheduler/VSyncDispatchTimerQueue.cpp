@@ -47,22 +47,26 @@ std::optional<nsecs_t> VSyncDispatchTimerQueueEntry::wakeupTime() const {
     return {mArmedInfo->mActualWakeupTime};
 }
 
-nsecs_t VSyncDispatchTimerQueueEntry::schedule(nsecs_t workDuration, nsecs_t earliestVsync,
-                                               VSyncTracker& tracker, nsecs_t now) {
+ScheduleResult VSyncDispatchTimerQueueEntry::schedule(nsecs_t workDuration, nsecs_t earliestVsync,
+                                                      VSyncTracker& tracker, nsecs_t now) {
+    auto const nextVsyncTime =
+            tracker.nextAnticipatedVSyncTimeFrom(std::max(earliestVsync, now + workDuration));
+    if (mLastDispatchTime >= nextVsyncTime) { // already dispatched a callback for this vsync
+        return ScheduleResult::CannotSchedule;
+    }
+
+    auto const nextWakeupTime = nextVsyncTime - workDuration;
+    auto result = mArmedInfo ? ScheduleResult::ReScheduled : ScheduleResult::Scheduled;
     mWorkDuration = workDuration;
     mEarliestVsync = earliestVsync;
-    arm(tracker, now);
-    return mArmedInfo->mActualWakeupTime;
+    mArmedInfo = {nextWakeupTime, nextVsyncTime};
+    return result;
 }
 
 void VSyncDispatchTimerQueueEntry::update(VSyncTracker& tracker, nsecs_t now) {
     if (!mArmedInfo) {
         return;
     }
-    arm(tracker, now);
-}
-
-void VSyncDispatchTimerQueueEntry::arm(VSyncTracker& tracker, nsecs_t now) {
     auto const nextVsyncTime =
             tracker.nextAnticipatedVSyncTimeFrom(std::max(mEarliestVsync, now + mWorkDuration));
     mArmedInfo = {nextVsyncTime - mWorkDuration, nextVsyncTime};
@@ -214,16 +218,13 @@ ScheduleResult VSyncDispatchTimerQueue::schedule(CallbackToken token, nsecs_t wo
             return result;
         }
         auto& callback = it->second;
-        result = callback->wakeupTime() ? ScheduleResult::ReScheduled : ScheduleResult::Scheduled;
-
         auto const now = mTimeKeeper->now();
-        auto const wakeupTime = callback->schedule(workDuration, earliestVsync, mTracker, now);
-
-        if (wakeupTime < now - mTimerSlack || callback->lastExecutedVsyncTarget() > wakeupTime) {
-            return ScheduleResult::CannotSchedule;
+        result = callback->schedule(workDuration, earliestVsync, mTracker, now);
+        if (result == ScheduleResult::CannotSchedule) {
+            return result;
         }
 
-        if (wakeupTime < mIntendedWakeupTime - mTimerSlack) {
+        if (callback->wakeupTime() < mIntendedWakeupTime - mTimerSlack) {
             rearmTimerSkippingUpdateFor(now, it);
         }
     }

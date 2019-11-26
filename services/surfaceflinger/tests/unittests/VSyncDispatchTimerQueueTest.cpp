@@ -551,6 +551,32 @@ TEST_F(VSyncDispatchTimerQueueTest, distinguishesScheduleAndReschedule) {
     EXPECT_EQ(mDispatch.schedule(cb0, 100, 1000), ScheduleResult::ReScheduled);
 }
 
+TEST_F(VSyncDispatchTimerQueueTest, canScheduleNegativeOffsetAgainstDifferentPeriods) {
+    CountingCallback cb0(mDispatch);
+    EXPECT_EQ(mDispatch.schedule(cb0, 500, 1000), ScheduleResult::Scheduled);
+    advanceToNextCallback();
+    EXPECT_EQ(mDispatch.schedule(cb0, 1100, 2000), ScheduleResult::Scheduled);
+}
+
+TEST_F(VSyncDispatchTimerQueueTest, canScheduleLargeNegativeOffset) {
+    Sequence seq;
+    EXPECT_CALL(mMockClock, alarmIn(_, 500)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 600)).InSequence(seq);
+    CountingCallback cb0(mDispatch);
+    EXPECT_EQ(mDispatch.schedule(cb0, 500, 1000), ScheduleResult::Scheduled);
+    advanceToNextCallback();
+    EXPECT_EQ(mDispatch.schedule(cb0, 1900, 2000), ScheduleResult::Scheduled);
+}
+
+TEST_F(VSyncDispatchTimerQueueTest, cannotScheduleDoesNotAffectSchedulingState) {
+    EXPECT_CALL(mMockClock, alarmIn(_, 600));
+
+    CountingCallback cb(mDispatch);
+    EXPECT_EQ(mDispatch.schedule(cb, 400, 1000), ScheduleResult::Scheduled);
+    advanceToNextCallback();
+    EXPECT_EQ(mDispatch.schedule(cb, 100, 1000), ScheduleResult::CannotSchedule);
+}
+
 TEST_F(VSyncDispatchTimerQueueTest, helperMove) {
     EXPECT_CALL(mMockClock, alarmIn(_, 500)).Times(1);
     EXPECT_CALL(mMockClock, alarmCancel()).Times(1);
@@ -599,11 +625,10 @@ TEST_F(VSyncDispatchTimerQueueEntryTest, stateScheduling) {
     VSyncDispatchTimerQueueEntry entry("test", [](auto) {});
 
     EXPECT_FALSE(entry.wakeupTime());
-    auto const wakeup = entry.schedule(100, 500, mStubTracker, 0);
-    auto const queried = entry.wakeupTime();
-    ASSERT_TRUE(queried);
-    EXPECT_THAT(*queried, Eq(wakeup));
-    EXPECT_THAT(*queried, Eq(900));
+    EXPECT_THAT(entry.schedule(100, 500, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
+    auto const wakeup = entry.wakeupTime();
+    ASSERT_TRUE(wakeup);
+    EXPECT_THAT(*wakeup, Eq(900));
 
     entry.disarm();
     EXPECT_FALSE(entry.wakeupTime());
@@ -619,11 +644,10 @@ TEST_F(VSyncDispatchTimerQueueEntryTest, stateSchedulingReallyLongWakeupLatency)
     VSyncDispatchTimerQueueEntry entry("test", [](auto) {});
 
     EXPECT_FALSE(entry.wakeupTime());
-    auto const wakeup = entry.schedule(500, 994, mStubTracker, now);
-    auto const queried = entry.wakeupTime();
-    ASSERT_TRUE(queried);
-    EXPECT_THAT(*queried, Eq(wakeup));
-    EXPECT_THAT(*queried, Eq(9500));
+    EXPECT_THAT(entry.schedule(500, 994, mStubTracker, now), Eq(ScheduleResult::Scheduled));
+    auto const wakeup = entry.wakeupTime();
+    ASSERT_TRUE(wakeup);
+    EXPECT_THAT(*wakeup, Eq(9500));
 }
 
 TEST_F(VSyncDispatchTimerQueueEntryTest, runCallback) {
@@ -634,8 +658,10 @@ TEST_F(VSyncDispatchTimerQueueEntryTest, runCallback) {
         calledTime = time;
     });
 
-    auto const wakeup = entry.schedule(100, 500, mStubTracker, 0);
-    EXPECT_THAT(wakeup, Eq(900));
+    EXPECT_THAT(entry.schedule(100, 500, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
+    auto const wakeup = entry.wakeupTime();
+    ASSERT_TRUE(wakeup);
+    EXPECT_THAT(*wakeup, Eq(900));
 
     entry.callback(entry.executing());
 
@@ -659,23 +685,40 @@ TEST_F(VSyncDispatchTimerQueueEntryTest, updateCallback) {
     entry.update(mStubTracker, 0);
     EXPECT_FALSE(entry.wakeupTime());
 
-    auto const wakeup = entry.schedule(100, 500, mStubTracker, 0);
+    EXPECT_THAT(entry.schedule(100, 500, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
+    auto wakeup = entry.wakeupTime();
+    ASSERT_TRUE(wakeup);
     EXPECT_THAT(wakeup, Eq(900));
 
     entry.update(mStubTracker, 0);
-    auto const queried = entry.wakeupTime();
-    ASSERT_TRUE(queried);
-    EXPECT_THAT(*queried, Eq(920));
+    wakeup = entry.wakeupTime();
+    ASSERT_TRUE(wakeup);
+    EXPECT_THAT(*wakeup, Eq(920));
 }
 
 TEST_F(VSyncDispatchTimerQueueEntryTest, skipsUpdateIfJustScheduled) {
     VSyncDispatchTimerQueueEntry entry("test", [](auto) {});
-    auto const wakeup = entry.schedule(100, 500, mStubTracker, 0);
+    EXPECT_THAT(entry.schedule(100, 500, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
     entry.update(mStubTracker, 0);
 
-    auto const queried = entry.wakeupTime();
-    ASSERT_TRUE(queried);
-    EXPECT_THAT(*queried, Eq(wakeup));
+    auto const wakeup = entry.wakeupTime();
+    ASSERT_TRUE(wakeup);
+    EXPECT_THAT(*wakeup, Eq(wakeup));
+}
+
+TEST_F(VSyncDispatchTimerQueueEntryTest, reportsCannotScheduleIfMissedOpportunity) {
+    VSyncDispatchTimerQueueEntry entry("test", [](auto) {});
+    EXPECT_THAT(entry.schedule(100, 500, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
+    entry.executing();
+    EXPECT_THAT(entry.schedule(200, 500, mStubTracker, 0), Eq(ScheduleResult::CannotSchedule));
+    EXPECT_THAT(entry.schedule(50, 500, mStubTracker, 0), Eq(ScheduleResult::CannotSchedule));
+    EXPECT_THAT(entry.schedule(200, 1001, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
+}
+
+TEST_F(VSyncDispatchTimerQueueEntryTest, reportsReScheduleIfStillTime) {
+    VSyncDispatchTimerQueueEntry entry("test", [](auto) {});
+    EXPECT_THAT(entry.schedule(100, 500, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
+    EXPECT_THAT(entry.schedule(200, 500, mStubTracker, 0), Eq(ScheduleResult::ReScheduled));
 }
 
 } // namespace android::scheduler
