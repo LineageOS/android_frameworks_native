@@ -54,33 +54,16 @@ public:
     }
 
     void assertFilterInputEventWasCalled(const NotifyKeyArgs& args) {
-        ASSERT_NE(nullptr, mFilteredEvent) << "Expected filterInputEvent() to have been called.";
-        ASSERT_EQ(mFilteredEvent->getType(), AINPUT_EVENT_TYPE_KEY);
-
-        const KeyEvent& keyEvent = static_cast<const KeyEvent&>(*mFilteredEvent);
-        ASSERT_EQ(keyEvent.getEventTime(), args.eventTime);
-        ASSERT_EQ(keyEvent.getAction(), args.action);
-        ASSERT_EQ(keyEvent.getDisplayId(), args.displayId);
-
-        reset();
+        assertFilterInputEventWasCalled(AINPUT_EVENT_TYPE_KEY, args.eventTime, args.action,
+                                        args.displayId);
     }
 
     void assertFilterInputEventWasCalled(const NotifyMotionArgs& args) {
-        ASSERT_NE(nullptr, mFilteredEvent) << "Expected filterInputEvent() to have been called.";
-        ASSERT_EQ(mFilteredEvent->getType(), AINPUT_EVENT_TYPE_MOTION);
-
-        const MotionEvent& motionEvent = static_cast<const MotionEvent&>(*mFilteredEvent);
-        ASSERT_EQ(motionEvent.getEventTime(), args.eventTime);
-        ASSERT_EQ(motionEvent.getAction(), args.action);
-        ASSERT_EQ(motionEvent.getDisplayId(), args.displayId);
-
-        reset();
+        assertFilterInputEventWasCalled(AINPUT_EVENT_TYPE_MOTION, args.eventTime, args.action,
+                                        args.displayId);
     }
 
-    void assertFilterInputEventWasNotCalled() {
-        ASSERT_EQ(nullptr, mFilteredEvent)
-                << "Expected filterInputEvent() to not have been called.";
-    }
+    void assertFilterInputEventWasNotCalled() { ASSERT_EQ(nullptr, mFilteredEvent); }
 
     void assertOnPointerDownEquals(const sp<IBinder>& touchedToken) {
         ASSERT_EQ(mOnPointerDownToken, touchedToken)
@@ -158,10 +141,29 @@ private:
         mOnPointerDownToken = newToken;
     }
 
-    void reset() {
+    void assertFilterInputEventWasCalled(int type, nsecs_t eventTime, int32_t action,
+                                         int32_t displayId) {
+        ASSERT_NE(nullptr, mFilteredEvent) << "Expected filterInputEvent() to have been called.";
+        ASSERT_EQ(mFilteredEvent->getType(), type);
+
+        if (type == AINPUT_EVENT_TYPE_KEY) {
+            const KeyEvent& keyEvent = static_cast<const KeyEvent&>(*mFilteredEvent);
+            EXPECT_EQ(keyEvent.getEventTime(), eventTime);
+            EXPECT_EQ(keyEvent.getAction(), action);
+            EXPECT_EQ(keyEvent.getDisplayId(), displayId);
+        } else if (type == AINPUT_EVENT_TYPE_MOTION) {
+            const MotionEvent& motionEvent = static_cast<const MotionEvent&>(*mFilteredEvent);
+            EXPECT_EQ(motionEvent.getEventTime(), eventTime);
+            EXPECT_EQ(motionEvent.getAction(), action);
+            EXPECT_EQ(motionEvent.getDisplayId(), displayId);
+        } else {
+            FAIL() << "Unknown type: " << type;
+        }
+
         mFilteredEvent = nullptr;
-        mOnPointerDownToken.clear();
     }
+
+    void reset() { mOnPointerDownToken.clear(); }
 };
 
 
