@@ -313,6 +313,8 @@ public:
     void onLayerFirstRef(Layer*);
     void onLayerDestroyed(Layer*);
 
+    void removeFromOffscreenLayers(Layer* layer);
+
     TransactionCompletedThread& getTransactionCompletedThread() {
         return mTransactionCompletedThread;
     }

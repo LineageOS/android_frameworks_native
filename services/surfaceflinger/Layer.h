@@ -662,6 +662,15 @@ public:
                                   const LayerVector::Visitor& visitor);
 
     size_t getChildrenCount() const;
+
+    // ONLY CALL THIS FROM THE LAYER DTOR!
+    // See b/141111965.  We need to add current children to offscreen layers in
+    // the layer dtor so as not to dangle layers.  Since the layer has not
+    // committed its transaction when the layer is destroyed, we must add
+    // current children.  This is safe in the dtor as we will no longer update
+    // the current state, but should not be called anywhere else!
+    LayerVector& getCurrentChildren() { return mCurrentChildren; }
+
     void addChild(const sp<Layer>& layer);
     // Returns index if removed, or negative value otherwise
     // for symmetry with Vector::remove

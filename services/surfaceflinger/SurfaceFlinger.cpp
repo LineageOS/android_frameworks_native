@@ -3732,9 +3732,6 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
     }
 
     if (currentMode == HWC_POWER_MODE_OFF) {
-        // Turn on the display
-        // TODO: @vhau temp fix only!  See b/141111965
-        mTransactionCompletedThread.clearAllPending();
         getHwComposer().setPowerMode(*displayId, mode);
         if (display->isPrimary() && mode != HWC_POWER_MODE_DOZE_SUSPEND) {
             setVsyncEnabledInHWC(*displayId, mHWCVsyncPendingState);
@@ -5516,6 +5513,20 @@ void SurfaceFlinger::onLayerFirstRef(Layer* layer) {
 
 void SurfaceFlinger::onLayerDestroyed(Layer* layer) {
     mNumLayers--;
+    removeFromOffscreenLayers(layer);
+}
+
+// WARNING: ONLY CALL THIS FROM LAYER DTOR
+// Here we add children in the current state to offscreen layers and remove the
+// layer itself from the offscreen layer list.  Since
+// this is the dtor, it is safe to access the current state.  This keeps us
+// from dangling children layers such that they are not reachable from the
+// Drawing state nor the offscreen layer list
+// See b/141111965
+void SurfaceFlinger::removeFromOffscreenLayers(Layer* layer) {
+    for (auto& child : layer->getCurrentChildren()) {
+        mOffscreenLayers.emplace(child.get());
+    }
     mOffscreenLayers.erase(layer);
 }
 
