@@ -327,7 +327,8 @@ std::string Gralloc4Allocator::dumpDebugInfo() const {
 
 status_t Gralloc4Allocator::allocate(uint32_t width, uint32_t height, android::PixelFormat format,
                                      uint32_t layerCount, uint64_t usage, uint32_t bufferCount,
-                                     uint32_t* outStride, buffer_handle_t* outBufferHandles) const {
+                                     uint32_t* outStride, buffer_handle_t* outBufferHandles,
+                                     bool importBuffers) const {
     IMapper::BufferDescriptorInfo descriptorInfo;
     sBufferDescriptorInfo(width, height, format, layerCount, usage, &descriptorInfo);
 
@@ -346,16 +347,31 @@ status_t Gralloc4Allocator::allocate(uint32_t width, uint32_t height, android::P
                                             return;
                                         }
 
-                                        // import buffers
-                                        for (uint32_t i = 0; i < bufferCount; i++) {
-                                            error = mMapper.importBuffer(tmpBuffers[i],
-                                                                         &outBufferHandles[i]);
-                                            if (error != NO_ERROR) {
-                                                for (uint32_t j = 0; j < i; j++) {
-                                                    mMapper.freeBuffer(outBufferHandles[j]);
-                                                    outBufferHandles[j] = nullptr;
+                                        if (importBuffers) {
+                                            for (uint32_t i = 0; i < bufferCount; i++) {
+                                                error = mMapper.importBuffer(tmpBuffers[i],
+                                                                             &outBufferHandles[i]);
+                                                if (error != NO_ERROR) {
+                                                    for (uint32_t j = 0; j < i; j++) {
+                                                        mMapper.freeBuffer(outBufferHandles[j]);
+                                                        outBufferHandles[j] = nullptr;
+                                                    }
+                                                    return;
                                                 }
-                                                return;
+                                            }
+                                        } else {
+                                            for (uint32_t i = 0; i < bufferCount; i++) {
+                                                outBufferHandles[i] = native_handle_clone(
+                                                        tmpBuffers[i].getNativeHandle());
+                                                if (!outBufferHandles[i]) {
+                                                    for (uint32_t j = 0; j < i; j++) {
+                                                        auto buffer = const_cast<native_handle_t*>(
+                                                                outBufferHandles[j]);
+                                                        native_handle_close(buffer);
+                                                        native_handle_delete(buffer);
+                                                        outBufferHandles[j] = nullptr;
+                                                    }
+                                                }
                                             }
                                         }
                                         *outStride = tmpStride;
