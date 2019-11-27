@@ -2295,10 +2295,12 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                 reportTouchEventForStatistics(*motionEntry);
                 break;
             }
-
-            default:
-                ALOG_ASSERT(false);
+            case EventEntry::Type::CONFIGURATION_CHANGED:
+            case EventEntry::Type::DEVICE_RESET: {
+                LOG_ALWAYS_FATAL("Should never start dispatch cycles for %s events",
+                                 EventEntry::typeToString(eventEntry->type));
                 return;
+            }
         }
 
         // Check the result.

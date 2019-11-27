@@ -1610,6 +1610,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
     ATRACE_CALL();
     switch (what) {
         case MessageQueue::INVALIDATE: {
+            const nsecs_t frameStart = systemTime();
             // calculate the expected present time once and use the cached
             // value throughout this frame to make sure all layers are
             // seeing this same value.
@@ -1674,6 +1675,13 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
                 // Signal a refresh if a transaction modified the window state,
                 // a new buffer was latched, or if HWC has requested a full
                 // repaint
+                if (mFrameStartTime <= 0) {
+                    // We should only use the time of the first invalidate
+                    // message that signals a refresh as the beginning of the
+                    // frame. Otherwise the real frame time will be
+                    // underestimated.
+                    mFrameStartTime = frameStart;
+                }
                 signalRefresh();
             }
             break;
@@ -1752,6 +1760,9 @@ void SurfaceFlinger::handleMessageRefresh() {
     mGeometryInvalid = false;
 
     mCompositionEngine->present(refreshArgs);
+    mTimeStats->recordFrameDuration(mFrameStartTime, systemTime());
+    // Reset the frame start time now that we've recorded this frame.
+    mFrameStartTime = 0;
 
     postFrame();
     postComposition();
@@ -3721,9 +3732,6 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
     }
 
     if (currentMode == HWC_POWER_MODE_OFF) {
-        // Turn on the display
-        // TODO: @vhau temp fix only!  See b/141111965
-        mTransactionCompletedThread.clearAllPending();
         getHwComposer().setPowerMode(*displayId, mode);
         if (display->isPrimary() && mode != HWC_POWER_MODE_DOZE_SUSPEND) {
             setVsyncEnabledInHWC(*displayId, mHWCVsyncPendingState);
@@ -5505,6 +5513,20 @@ void SurfaceFlinger::onLayerFirstRef(Layer* layer) {
 
 void SurfaceFlinger::onLayerDestroyed(Layer* layer) {
     mNumLayers--;
+    removeFromOffscreenLayers(layer);
+}
+
+// WARNING: ONLY CALL THIS FROM LAYER DTOR
+// Here we add children in the current state to offscreen layers and remove the
+// layer itself from the offscreen layer list.  Since
+// this is the dtor, it is safe to access the current state.  This keeps us
+// from dangling children layers such that they are not reachable from the
+// Drawing state nor the offscreen layer list
+// See b/141111965
+void SurfaceFlinger::removeFromOffscreenLayers(Layer* layer) {
+    for (auto& child : layer->getCurrentChildren()) {
+        mOffscreenLayers.emplace(child.get());
+    }
     mOffscreenLayers.erase(layer);
 }
 

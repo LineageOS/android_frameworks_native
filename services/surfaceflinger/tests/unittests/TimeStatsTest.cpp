@@ -20,11 +20,11 @@
 #include <TimeStats/TimeStats.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-
 #include <log/log.h>
 #include <utils/String16.h>
 #include <utils/Vector.h>
 
+#include <chrono>
 #include <random>
 #include <unordered_set>
 
@@ -276,6 +276,31 @@ TEST_F(TimeStatsTest, canInsertGlobalPresentToPresent) {
     const SFTimeStatsHistogramBucketProto& histogramProto = globalProto.present_to_present().Get(0);
     EXPECT_EQ(1, histogramProto.frame_count());
     EXPECT_EQ(2, histogramProto.time_millis());
+}
+
+TEST_F(TimeStatsTest, canInsertGlobalFrameDuration) {
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+
+    using namespace std::chrono_literals;
+
+    mTimeStats->setPowerMode(HWC_POWER_MODE_OFF);
+    mTimeStats
+            ->recordFrameDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count(),
+                                  std::chrono::duration_cast<std::chrono::nanoseconds>(5ms)
+                                          .count());
+    mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL);
+    mTimeStats
+            ->recordFrameDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(3ms).count(),
+                                  std::chrono::duration_cast<std::chrono::nanoseconds>(6ms)
+                                          .count());
+
+    SFTimeStatsGlobalProto globalProto;
+    ASSERT_TRUE(globalProto.ParseFromString(inputCommand(InputCommand::DUMP_ALL, FMT_PROTO)));
+
+    ASSERT_EQ(1, globalProto.frame_duration_size());
+    const SFTimeStatsHistogramBucketProto& histogramProto = globalProto.frame_duration().Get(0);
+    EXPECT_EQ(1, histogramProto.frame_count());
+    EXPECT_EQ(3, histogramProto.time_millis());
 }
 
 TEST_F(TimeStatsTest, canInsertOneLayerTimeStats) {

@@ -111,11 +111,10 @@ void GraphicBufferAllocator::dumpToSystemLog()
     ALOGD("%s", s.c_str());
 }
 
-status_t GraphicBufferAllocator::allocate(uint32_t width, uint32_t height,
-        PixelFormat format, uint32_t layerCount, uint64_t usage,
-        buffer_handle_t* handle, uint32_t* stride,
-        uint64_t /*graphicBufferId*/, std::string requestorName)
-{
+status_t GraphicBufferAllocator::allocate(uint32_t width, uint32_t height, PixelFormat format,
+                                          uint32_t layerCount, uint64_t usage,
+                                          buffer_handle_t* handle, uint32_t* stride,
+                                          std::string requestorName) {
     ATRACE_CALL();
 
     // make sure to not allocate a N x 0 or 0 x N buffer, since this is
@@ -173,6 +172,13 @@ status_t GraphicBufferAllocator::allocate(uint32_t width, uint32_t height,
                 error);
         return NO_MEMORY;
     }
+}
+
+status_t GraphicBufferAllocator::allocate(uint32_t width, uint32_t height, PixelFormat format,
+                                          uint32_t layerCount, uint64_t usage,
+                                          buffer_handle_t* handle, uint32_t* stride,
+                                          uint64_t /*graphicBufferId*/, std::string requestorName) {
+    return allocate(width, height, format, layerCount, usage, handle, stride, requestorName);
 }
 
 status_t GraphicBufferAllocator::free(buffer_handle_t handle)
