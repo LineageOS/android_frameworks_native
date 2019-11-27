@@ -27,6 +27,7 @@
 #include <utils/RefBase.h>
 
 #include <system/window.h>
+#include <thread>
 
 namespace android {
 
@@ -50,7 +51,6 @@ public:
     void setNextTransaction(SurfaceComposerClient::Transaction *t);
 
     void update(const sp<SurfaceControl>& surface, int width, int height);
-    
 
     virtual ~BLASTBufferQueue() = default;
 
@@ -61,32 +61,35 @@ private:
     BLASTBufferQueue& operator = (const BLASTBufferQueue& rhs);
     BLASTBufferQueue(const BLASTBufferQueue& rhs);
 
-    sp<SurfaceControl> mSurfaceControl;
-    
-    mutable std::mutex mMutex;
+    void processNextBufferLocked() REQUIRES(mMutex);
 
-    static const int MAX_BUFFERS = 2;
+    sp<SurfaceControl> mSurfaceControl;
+
+    std::mutex mMutex;
+    std::condition_variable mCallbackCV;
+    uint64_t mPendingCallbacks GUARDED_BY(mMutex);
+
+    static const int MAX_BUFFERS = 3;
     struct BufferInfo {
         sp<GraphicBuffer> buffer;
         int fence;
     };
-    
-    int mDequeuedBuffers = 0;
 
-    int mWidth;
-    int mHeight;
+    std::queue<const BufferItem> mShadowQueue GUARDED_BY(mMutex);
+    bool mAcquired GUARDED_BY(mMutex);
 
-    BufferItem mLastSubmittedBufferItem;
-    BufferItem mNextCallbackBufferItem;
-    sp<Fence> mLastFence;
+    int mWidth GUARDED_BY(mMutex);
+    int mHeight GUARDED_BY(mMutex);
 
-    std::condition_variable mDequeueWaitCV;
+    BufferItem mLastSubmittedBufferItem GUARDED_BY(mMutex);
+    BufferItem mNextCallbackBufferItem GUARDED_BY(mMutex);
+    sp<Fence> mLastFence GUARDED_BY(mMutex);
 
     sp<IGraphicBufferConsumer> mConsumer;
     sp<IGraphicBufferProducer> mProducer;
     sp<BufferItemConsumer> mBufferItemConsumer;
 
-    SurfaceComposerClient::Transaction* mNextTransaction = nullptr;
+    SurfaceComposerClient::Transaction* mNextTransaction GUARDED_BY(mMutex);
 };
 
 } // namespace android

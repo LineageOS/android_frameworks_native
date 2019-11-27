@@ -189,48 +189,49 @@ void TransactionCompletedListener::addSurfaceControlToCallbacks(
 }
 
 void TransactionCompletedListener::onTransactionCompleted(ListenerStats listenerStats) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::unordered_map<CallbackId, CallbackTranslation> callbacksMap;
+    {
+        std::lock_guard<std::mutex> lock(mMutex);
 
-    /* This listener knows all the sp<IBinder> to sp<SurfaceControl> for all its registered
-     * callbackIds, except for when Transactions are merged together. This probably cannot be
-     * solved before this point because the Transactions could be merged together and applied in a
-     * different process.
-     *
-     * Fortunately, we get all the callbacks for this listener for the same frame together at the
-     * same time. This means if any Transactions were merged together, we will get their callbacks
-     * at the same time. We can combine all the sp<IBinder> to sp<SurfaceControl> maps for all the
-     * callbackIds to generate one super map that contains all the sp<IBinder> to sp<SurfaceControl>
-     * that could possibly exist for the callbacks.
-     */
-    std::unordered_map<sp<IBinder>, sp<SurfaceControl>, SurfaceComposerClient::IBinderHash>
-            surfaceControls;
-    for (const auto& transactionStats : listenerStats.transactionStats) {
-        for (auto callbackId : transactionStats.callbackIds) {
-            auto& [callbackFunction, callbackSurfaceControls] = mCallbacks[callbackId];
-            surfaceControls.insert(callbackSurfaceControls.begin(), callbackSurfaceControls.end());
+        /* This listener knows all the sp<IBinder> to sp<SurfaceControl> for all its registered
+         * callbackIds, except for when Transactions are merged together. This probably cannot be
+         * solved before this point because the Transactions could be merged together and applied in
+         * a different process.
+         *
+         * Fortunately, we get all the callbacks for this listener for the same frame together at
+         * the same time. This means if any Transactions were merged together, we will get their
+         * callbacks at the same time. We can combine all the sp<IBinder> to sp<SurfaceControl> maps
+         * for all the callbackIds to generate one super map that contains all the sp<IBinder> to
+         * sp<SurfaceControl> that could possibly exist for the callbacks.
+         */
+        callbacksMap = mCallbacks;
+        for (const auto& transactionStats : listenerStats.transactionStats) {
+            for (auto& callbackId : transactionStats.callbackIds) {
+                mCallbacks.erase(callbackId);
+            }
         }
     }
-
     for (const auto& transactionStats : listenerStats.transactionStats) {
         for (auto callbackId : transactionStats.callbackIds) {
-            auto& [callbackFunction, callbackSurfaceControls] = mCallbacks[callbackId];
+            auto& [callbackFunction, callbackSurfaceControls] = callbacksMap[callbackId];
             if (!callbackFunction) {
                 ALOGE("cannot call null callback function, skipping");
                 continue;
             }
             std::vector<SurfaceControlStats> surfaceControlStats;
             for (const auto& surfaceStats : transactionStats.surfaceStats) {
-                surfaceControlStats.emplace_back(surfaceControls[surfaceStats.surfaceControl],
-                                                 surfaceStats.acquireTime,
-                                                 surfaceStats.previousReleaseFence,
-                                                 surfaceStats.transformHint);
-                surfaceControls[surfaceStats.surfaceControl]->setTransformHint(
-                        surfaceStats.transformHint);
+                surfaceControlStats
+                        .emplace_back(callbacksMap[callbackId]
+                                              .surfaceControls[surfaceStats.surfaceControl],
+                                      surfaceStats.acquireTime, surfaceStats.previousReleaseFence,
+                                      surfaceStats.transformHint);
+                callbacksMap[callbackId]
+                        .surfaceControls[surfaceStats.surfaceControl]
+                        ->setTransformHint(surfaceStats.transformHint);
             }
 
             callbackFunction(transactionStats.latchTime, transactionStats.presentFence,
                              surfaceControlStats);
-            mCallbacks.erase(callbackId);
         }
     }
 }
