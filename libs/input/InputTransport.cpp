@@ -547,7 +547,7 @@ status_t InputPublisher::receiveFinishedSignal(uint32_t* outSeq, bool* outHandle
         return UNKNOWN_ERROR;
     }
     *outSeq = msg.body.finished.seq;
-    *outHandled = msg.body.finished.handled;
+    *outHandled = msg.body.finished.handled == 1;
     return OK;
 }
 
@@ -1065,7 +1065,7 @@ status_t InputConsumer::sendUnchainedFinishedSignal(uint32_t seq, bool handled) 
     InputMessage msg;
     msg.header.type = InputMessage::Type::FINISHED;
     msg.body.finished.seq = seq;
-    msg.body.finished.handled = handled;
+    msg.body.finished.handled = handled ? 1 : 0;
     return mChannel->sendMessage(&msg);
 }
 

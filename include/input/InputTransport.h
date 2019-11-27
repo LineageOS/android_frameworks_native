@@ -121,11 +121,16 @@ struct InputMessage {
             float yCursorPosition;
             uint32_t pointerCount;
             uint32_t empty3;
-            // Note that PointerCoords requires 8 byte alignment.
+            /**
+             * The "pointers" field must be the last field of the struct InputMessage.
+             * When we send the struct InputMessage across the socket, we are not
+             * writing the entire "pointers" array, but only the pointerCount portion
+             * of it as an optimization. Adding a field after "pointers" would break this.
+             */
             struct Pointer {
                 PointerProperties properties;
                 PointerCoords coords;
-            } pointers[MAX_POINTERS];
+            } pointers[MAX_POINTERS] __attribute__((aligned(8)));
 
             int32_t getActionId() const {
                 uint32_t index = (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK)
@@ -141,7 +146,7 @@ struct InputMessage {
 
         struct Finished {
             uint32_t seq;
-            bool handled;
+            uint32_t handled; // actually a bool, but we must maintain 8-byte alignment
 
             inline size_t size() const {
                 return sizeof(Finished);
