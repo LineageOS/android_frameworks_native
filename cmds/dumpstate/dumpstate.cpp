@@ -1545,11 +1545,7 @@ static Dumpstate::RunStatus dumpstate() {
  * Returns RunStatus::USER_DENIED_CONSENT if user explicitly denied consent to sharing the bugreport
  * with the caller.
  */
-static Dumpstate::RunStatus DumpstateDefault() {
-    // Invoking the following dumpsys calls before DumpTraces() to try and
-    // keep the system stats as close to its initial state as possible.
-    RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(RunDumpsysCritical);
-
+Dumpstate::RunStatus Dumpstate::DumpstateDefaultAfterCritical() {
     // Capture first logcat early on; useful to take a snapshot before dumpstate logs take over the
     // buffer.
     DoLogcat();
@@ -1634,6 +1630,7 @@ static void DumpstateRadioCommon() {
 // This method collects dumpsys for telephony debugging only
 static void DumpstateTelephonyOnly() {
     DurationReporter duration_reporter("DUMPSTATE");
+
     const CommandOptions DUMPSYS_COMPONENTS_OPTIONS = CommandOptions::WithTimeout(60).Build();
 
     DumpstateRadioCommon();
@@ -2353,11 +2350,6 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
 
     MYLOGD("dumpstate calling_uid = %d ; calling package = %s \n",
             calling_uid, calling_package.c_str());
-    if (CalledByApi()) {
-        // If the output needs to be copied over to the caller's fd, get user consent.
-        android::String16 package(calling_package.c_str());
-        CheckUserConsent(calling_uid, package);
-    }
 
     // Redirect output if needed
     bool is_redirecting = options_->OutputToFile();
@@ -2500,13 +2492,23 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
     PrintHeader();
 
     if (options_->telephony_only) {
+        MaybeCheckUserConsent(calling_uid, calling_package);
         DumpstateTelephonyOnly();
         DumpstateBoard();
     } else if (options_->wifi_only) {
+        MaybeCheckUserConsent(calling_uid, calling_package);
         DumpstateWifiOnly();
     } else {
+        // Invoking the critical dumpsys calls before DumpTraces() to try and
+        // keep the system stats as close to its initial state as possible.
+        RunDumpsysCritical();
+
+        // Run consent check only after critical dumpsys has finished -- so the consent
+        // isn't going to pollute the system state / logs.
+        MaybeCheckUserConsent(calling_uid, calling_package);
+
         // Dump state for the default case. This also drops root.
-        RunStatus s = DumpstateDefault();
+        RunStatus s = DumpstateDefaultAfterCritical();
         if (s != RunStatus::OK) {
             if (s == RunStatus::USER_CONSENT_DENIED) {
                 HandleUserConsentDenied();
@@ -2591,17 +2593,20 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
                : RunStatus::OK;
 }
 
-void Dumpstate::CheckUserConsent(int32_t calling_uid, const android::String16& calling_package) {
-    if (calling_uid == AID_SHELL) {
+void Dumpstate::MaybeCheckUserConsent(int32_t calling_uid, const std::string& calling_package) {
+    if (calling_uid == AID_SHELL || !CalledByApi()) {
+        // No need to get consent for shell triggered dumpstates, or not through
+        // bugreporting API (i.e. no fd to copy back).
         return;
     }
     consent_callback_ = new ConsentCallback();
     const String16 incidentcompanion("incidentcompanion");
     sp<android::IBinder> ics(defaultServiceManager()->getService(incidentcompanion));
+    android::String16 package(calling_package.c_str());
     if (ics != nullptr) {
         MYLOGD("Checking user consent via incidentcompanion service\n");
         android::interface_cast<android::os::IIncidentCompanion>(ics)->authorizeReport(
-            calling_uid, calling_package, String16(), String16(),
+            calling_uid, package, String16(), String16(),
             0x1 /* FLAG_CONFIRMATION_DIALOG */, consent_callback_.get());
     } else {
         MYLOGD("Unable to check user consent; incidentcompanion service unavailable\n");
