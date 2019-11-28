@@ -23,25 +23,19 @@ class CommandVibrator;
 
 namespace vibrator {
 
-class CommandSetAmplitude : public Command {
-    std::string getDescription() const override { return "Set vibration amplitude."; }
+class CommandGetCompositionDelayMax : public Command {
+    std::string getDescription() const override {
+        return "Retrieves vibrator composition delay max.";
+    }
 
-    std::string getUsageSummary() const override { return "<amplitude>"; }
+    std::string getUsageSummary() const override { return ""; }
 
     UsageDetails getUsageDetails() const override {
-        UsageDetails details{
-                {"<amplitude>", {"1-255."}},
-        };
+        UsageDetails details{};
         return details;
     }
 
     Status doArgs(Args &args) override {
-        if (auto amplitude = args.pop<decltype(mAmplitude)>()) {
-            mAmplitude = *amplitude;
-        } else {
-            std::cerr << "Missing or Invalid Amplitude!" << std::endl;
-            return USAGE;
-        }
         if (!args.empty()) {
             std::cerr << "Unexpected Arguments!" << std::endl;
             return USAGE;
@@ -51,31 +45,27 @@ class CommandSetAmplitude : public Command {
 
     Status doMain(Args && /*args*/) override {
         std::string statusStr;
+        int32_t maxDelayMs;
         Status ret;
 
         if (auto hal = getHal<aidl::IVibrator>()) {
-            auto status = hal->call(&aidl::IVibrator::setAmplitude,
-                                    static_cast<float>(mAmplitude) / UINT8_MAX);
+            auto status = hal->call(&aidl::IVibrator::getCompositionDelayMax, &maxDelayMs);
             statusStr = status.toString8();
             ret = status.isOk() ? OK : ERROR;
-        } else if (auto hal = getHal<V1_0::IVibrator>()) {
-            auto status = hal->call(&V1_0::IVibrator::setAmplitude, mAmplitude);
-            statusStr = toString(status);
-            ret = status.isOk() && status == V1_0::Status::OK ? OK : ERROR;
         } else {
             return UNAVAILABLE;
         }
 
         std::cout << "Status: " << statusStr << std::endl;
+        std::cout << "Max Delay: " << maxDelayMs << " ms" << std::endl;
 
         return ret;
     }
-
-    uint8_t mAmplitude;
 };
 
 static const auto Command =
-        CommandRegistry<CommandVibrator>::Register<CommandSetAmplitude>("setAmplitude");
+        CommandRegistry<CommandVibrator>::Register<CommandGetCompositionDelayMax>(
+                "getCompositionDelayMax");
 
 } // namespace vibrator
 } // namespace idlcli
