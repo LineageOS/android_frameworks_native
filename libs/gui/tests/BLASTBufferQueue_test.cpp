@@ -19,6 +19,8 @@
 #include <gui/BLASTBufferQueue.h>
 
 #include <android/hardware/graphics/common/1.2/types.h>
+#include <gui/BufferQueueCore.h>
+#include <gui/BufferQueueProducer.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/IProducerListener.h>
 #include <gui/SurfaceComposerClient.h>
@@ -65,9 +67,11 @@ public:
         return mBlastBufferQueueAdapter->mSurfaceControl;
     }
 
-    void waitForCallback() {
+    void waitForCallbacks() {
         std::unique_lock lock{mBlastBufferQueueAdapter->mMutex};
-        mBlastBufferQueueAdapter->mDequeueWaitCV.wait_for(lock, 1s);
+        while (mBlastBufferQueueAdapter->mPendingCallbacks > 0) {
+            mBlastBufferQueueAdapter->mCallbackCV.wait(lock);
+        }
     }
 
 private:
@@ -114,6 +118,17 @@ protected:
                 .show(mSurfaceControl)
                 .setDataspace(mSurfaceControl, ui::Dataspace::V0_SRGB)
                 .apply();
+    }
+
+    void setUpProducer(BLASTBufferQueueHelper adapter, sp<IGraphicBufferProducer>& producer) {
+        auto igbProducer = adapter.getIGraphicBufferProducer();
+        ASSERT_NE(nullptr, igbProducer.get());
+        IGraphicBufferProducer::QueueBufferOutput qbOutput;
+        ASSERT_EQ(NO_ERROR,
+                  igbProducer->connect(new DummyProducerListener, NATIVE_WINDOW_API_CPU, false,
+                                       &qbOutput));
+        ASSERT_NE(ui::Transform::orientation_flags::ROT_INVALID, qbOutput.transformHint);
+        producer = igbProducer;
     }
 
     void fillBuffer(uint32_t* bufData, uint32_t width, uint32_t height, uint32_t stride, uint8_t r,
@@ -195,14 +210,8 @@ TEST_F(BLASTBufferQueueTest, onFrameAvailable_Apply) {
     uint8_t b = 0;
 
     BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
-    auto igbProducer = adapter.getIGraphicBufferProducer();
-    ASSERT_NE(nullptr, igbProducer.get());
-    IGraphicBufferProducer::QueueBufferOutput qbOutput;
-    ASSERT_EQ(NO_ERROR,
-              igbProducer->connect(new DummyProducerListener, NATIVE_WINDOW_API_CPU, false,
-                                   &qbOutput));
-    ASSERT_EQ(NO_ERROR, igbProducer->setMaxDequeuedBufferCount(3));
-    ASSERT_NE(ui::Transform::orientation_flags::ROT_INVALID, qbOutput.transformHint);
+    sp<IGraphicBufferProducer> igbProducer;
+    setUpProducer(adapter, igbProducer);
 
     int slot;
     sp<Fence> fence;
@@ -219,6 +228,7 @@ TEST_F(BLASTBufferQueueTest, onFrameAvailable_Apply) {
     fillBuffer(bufData, buf->getWidth(), buf->getHeight(), buf->getStride(), r, g, b);
     buf->unlock();
 
+    IGraphicBufferProducer::QueueBufferOutput qbOutput;
     IGraphicBufferProducer::QueueBufferInput input(systemTime(), false, HAL_DATASPACE_UNKNOWN,
                                                    Rect(mDisplayWidth, mDisplayHeight),
                                                    NATIVE_WINDOW_SCALING_MODE_FREEZE, 0,
@@ -226,7 +236,7 @@ TEST_F(BLASTBufferQueueTest, onFrameAvailable_Apply) {
     igbProducer->queueBuffer(slot, input, &qbOutput);
     ASSERT_NE(ui::Transform::orientation_flags::ROT_INVALID, qbOutput.transformHint);
 
-    adapter.waitForCallback();
+    sleep(1);
 
     // capture screen and verify that it is red
     bool capturedSecureLayers;
@@ -236,5 +246,44 @@ TEST_F(BLASTBufferQueueTest, onFrameAvailable_Apply) {
                                        mDisplayWidth, mDisplayHeight,
                                        /*useIdentityTransform*/ false));
     ASSERT_NO_FATAL_FAILURE(checkScreenCapture(r, g, b));
+}
+
+TEST_F(BLASTBufferQueueTest, TripleBuffering) {
+    BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
+    sp<IGraphicBufferProducer> igbProducer;
+    setUpProducer(adapter, igbProducer);
+
+    std::vector<std::pair<int, sp<Fence>>> allocated;
+    for (int i = 0; i < 3; i++) {
+        int slot;
+        sp<Fence> fence;
+        sp<GraphicBuffer> buf;
+        auto ret = igbProducer->dequeueBuffer(&slot, &fence, mDisplayWidth, mDisplayHeight,
+                                              PIXEL_FORMAT_RGBA_8888, GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                              nullptr, nullptr);
+        ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION, ret);
+        ASSERT_EQ(OK, igbProducer->requestBuffer(slot, &buf));
+        allocated.push_back({slot, fence});
+    }
+    for (int i = 0; i < allocated.size(); i++) {
+        igbProducer->cancelBuffer(allocated[i].first, allocated[i].second);
+    }
+
+    for (int i = 0; i < 10; i++) {
+        int slot;
+        sp<Fence> fence;
+        sp<GraphicBuffer> buf;
+        auto ret = igbProducer->dequeueBuffer(&slot, &fence, mDisplayWidth, mDisplayHeight,
+                                              PIXEL_FORMAT_RGBA_8888, GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                              nullptr, nullptr);
+        ASSERT_EQ(NO_ERROR, ret);
+        IGraphicBufferProducer::QueueBufferOutput qbOutput;
+        IGraphicBufferProducer::QueueBufferInput input(systemTime(), false, HAL_DATASPACE_UNKNOWN,
+                                                       Rect(mDisplayWidth, mDisplayHeight),
+                                                       NATIVE_WINDOW_SCALING_MODE_FREEZE, 0,
+                                                       Fence::NO_FENCE);
+        igbProducer->queueBuffer(slot, input, &qbOutput);
+    }
+    adapter.waitForCallbacks();
 }
 } // namespace android

@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#undef LOG_TAG
+#define LOG_TAG "BLASTBufferQueue"
+
 #include <gui/BLASTBufferQueue.h>
 #include <gui/BufferItemConsumer.h>
 
@@ -24,8 +27,14 @@ using namespace std::chrono_literals;
 namespace android {
 
 BLASTBufferQueue::BLASTBufferQueue(const sp<SurfaceControl>& surface, int width, int height)
-      : mSurfaceControl(surface), mWidth(width), mHeight(height) {
+      : mSurfaceControl(surface),
+        mPendingCallbacks(0),
+        mWidth(width),
+        mHeight(height),
+        mNextTransaction(nullptr) {
     BufferQueue::createBufferQueue(&mProducer, &mConsumer);
+    mConsumer->setMaxBufferCount(MAX_BUFFERS);
+    mProducer->setMaxDequeuedBufferCount(MAX_BUFFERS - 1);
     mBufferItemConsumer =
             new BufferItemConsumer(mConsumer, AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER, 1, true);
     mBufferItemConsumer->setName(String8("BLAST Consumer"));
@@ -34,6 +43,8 @@ BLASTBufferQueue::BLASTBufferQueue(const sp<SurfaceControl>& surface, int width,
     mBufferItemConsumer->setDefaultBufferSize(mWidth, mHeight);
     mBufferItemConsumer->setDefaultBufferFormat(PIXEL_FORMAT_RGBA_8888);
     mBufferItemConsumer->setTransformHint(mSurfaceControl->getTransformHint());
+
+    mAcquired = false;
 }
 
 void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, int width, int height) {
@@ -59,20 +70,32 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
                                            const std::vector<SurfaceControlStats>& stats) {
     std::unique_lock _lock{mMutex};
 
-    if (stats.size() > 0 && mNextCallbackBufferItem.mGraphicBuffer != nullptr) {
+    if (stats.size() > 0 && !mShadowQueue.empty()) {
         mBufferItemConsumer->releaseBuffer(mNextCallbackBufferItem,
                                            stats[0].previousReleaseFence
                                                    ? stats[0].previousReleaseFence
                                                    : Fence::NO_FENCE);
+        mAcquired = false;
         mNextCallbackBufferItem = BufferItem();
         mBufferItemConsumer->setTransformHint(stats[0].transformHint);
     }
-    mDequeueWaitCV.notify_all();
+    mPendingCallbacks--;
+    processNextBufferLocked();
+    mCallbackCV.notify_all();
     decStrong((void*)transactionCallbackThunk);
 }
 
-void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
-    std::unique_lock _lock{mMutex};
+void BLASTBufferQueue::processNextBufferLocked() {
+    if (mShadowQueue.empty()) {
+        return;
+    }
+
+    if (mAcquired) {
+        return;
+    }
+
+    BufferItem item = std::move(mShadowQueue.front());
+    mShadowQueue.pop();
 
     SurfaceComposerClient::Transaction localTransaction;
     bool applyTransaction = true;
@@ -83,11 +106,11 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
         applyTransaction = false;
     }
 
-    int status = OK;
     mNextCallbackBufferItem = mLastSubmittedBufferItem;
-
     mLastSubmittedBufferItem = BufferItem();
-    status = mBufferItemConsumer->acquireBuffer(&mLastSubmittedBufferItem, -1, false);
+
+    status_t status = mBufferItemConsumer->acquireBuffer(&mLastSubmittedBufferItem, -1, false);
+    mAcquired = true;
     if (status != OK) {
         ALOGE("Failed to acquire?");
     }
@@ -98,7 +121,6 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
         ALOGE("Null buffer");
         return;
     }
-
 
     // Ensure BLASTBufferQueue stays alive until we receive the transaction complete callback.
     incStrong((void*)transactionCallbackThunk);
@@ -112,17 +134,21 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
     t->setCrop(mSurfaceControl, {0, 0, (int32_t)buffer->getWidth(), (int32_t)buffer->getHeight()});
 
     if (applyTransaction) {
-        ALOGE("Apply transaction");
         t->apply();
-
-        if (mNextCallbackBufferItem.mGraphicBuffer != nullptr) {
-            mDequeueWaitCV.wait_for(_lock, 5000ms);
-        }
     }
 }
 
+void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
+    std::lock_guard _lock{mMutex};
+
+    // add to shadow queue
+    mShadowQueue.push(item);
+    processNextBufferLocked();
+    mPendingCallbacks++;
+}
+
 void BLASTBufferQueue::setNextTransaction(SurfaceComposerClient::Transaction* t) {
-    std::unique_lock _lock{mMutex};
+    std::lock_guard _lock{mMutex};
     mNextTransaction = t;
 }
 

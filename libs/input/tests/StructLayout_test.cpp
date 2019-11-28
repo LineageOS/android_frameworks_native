@@ -73,4 +73,20 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Finished, handled, 4);
 }
 
+void TestHeaderSize() {
+    static_assert(sizeof(InputMessage::Header) == 8);
+}
+
+/**
+ * We cannot use the Body::size() method here because it is not static for
+ * the Motion type, where "pointerCount" variable affects the size and can change at runtime.
+ */
+void TestBodySize() {
+    static_assert(sizeof(InputMessage::Body::Key) == 64);
+    static_assert(sizeof(InputMessage::Body::Motion) ==
+                  offsetof(InputMessage::Body::Motion, pointers) +
+                          sizeof(InputMessage::Body::Motion::Pointer) * MAX_POINTERS);
+    static_assert(sizeof(InputMessage::Body::Finished) == 8);
+}
+
 } // namespace android

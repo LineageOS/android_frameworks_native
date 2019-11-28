@@ -543,7 +543,6 @@ TEST_P(IGraphicBufferProducerTest, SetMaxDequeuedBufferCount_Succeeds) {
     // Should now be able to dequeue up to minBuffers times
     DequeueBufferResult result;
     for (int i = 0; i < minBuffers; ++i) {
-
         EXPECT_EQ(OK, ~IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION &
                 (dequeueBuffer(DEFAULT_WIDTH, DEFAULT_HEIGHT, DEFAULT_FORMAT,
                               TEST_PRODUCER_USAGE_BITS, &result)))
