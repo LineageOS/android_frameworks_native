@@ -36,7 +36,10 @@ cc_library {
     defaults: ["idlcli-defaults"],
     srcs: [
         "CommandVibrator.cpp",
+        "vibrator/CommandCompose.cpp",
         "vibrator/CommandGetCapabilities.cpp",
+        "vibrator/CommandGetCompositionDelayMax.cpp",
+        "vibrator/CommandGetCompositionSizeMax.cpp",
         "vibrator/CommandOff.cpp",
         "vibrator/CommandOn.cpp",
         "vibrator/CommandPerform.cpp",
