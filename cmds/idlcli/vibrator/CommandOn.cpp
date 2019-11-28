@@ -55,7 +55,7 @@ class CommandOn : public Command {
 
         if (auto hal = getHal<aidl::IVibrator>()) {
             auto status = hal->call(&aidl::IVibrator::on, mDuration, nullptr);
-            statusStr = status.toString8();
+            statusStr = status.getDescription();
             ret = status.isOk() ? OK : ERROR;
         } else if (auto hal = getHal<V1_0::IVibrator>()) {
             auto status = hal->call(&V1_0::IVibrator::on, mDuration);
