@@ -252,6 +252,10 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
         mDispatchEnabled(false),
         mDispatchFrozen(false),
         mInputFilterEnabled(false),
+        // mInTouchMode will be initialized by the WindowManager to the default device config.
+        // To avoid leaking stack in case that call never comes, and for tests,
+        // initialize it here anyways.
+        mInTouchMode(true),
         mFocusedDisplayId(ADISPLAY_ID_DEFAULT),
         mInputTargetWaitCause(INPUT_TARGET_WAIT_CAUSE_NONE) {
     mLooper = new Looper(false);
@@ -3536,6 +3540,11 @@ void InputDispatcher::setInputFilterEnabled(bool enabled) {
 
     // Wake up poll loop since there might be work to do to drop everything.
     mLooper->wake();
+}
+
+void InputDispatcher::setInTouchMode(bool inTouchMode) {
+    std::scoped_lock lock(mLock);
+    mInTouchMode = inTouchMode;
 }
 
 bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken) {
