@@ -93,21 +93,22 @@ struct InputTarget {
     sp<InputChannel> inputChannel;
 
     // Flags for the input target.
-    int32_t flags;
+    int32_t flags = 0;
 
     // The x and y offset to add to a MotionEvent as it is delivered.
     // (ignored for KeyEvents)
-    float xOffset, yOffset;
+    float xOffset = 0.0f;
+    float yOffset = 0.0f;
 
     // Scaling factor to apply to MotionEvent as it is delivered.
     // (ignored for KeyEvents)
-    float globalScaleFactor;
+    float globalScaleFactor = 1.0f;
     float windowXScale = 1.0f;
     float windowYScale = 1.0f;
 
     // The subset of pointer ids to include in motion events dispatched to this input target
     // if FLAG_SPLIT is set.
-    BitSet32 pointerIds;
+    BitSet32 pointerIds{};
 };
 
 std::string dispatchModeToString(int32_t dispatchMode);
