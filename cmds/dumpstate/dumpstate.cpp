@@ -2057,12 +2057,12 @@ static void PrepareToWriteToFile() {
                                   ? StringPrintf("[fd:%d]", ds.options_->bugreport_fd.get())
                                   : ds.bugreport_internal_dir_.c_str();
     MYLOGD(
-        "Bugreport dir: %s\n"
-        "Base name: %s\n"
-        "Suffix: %s\n"
-        "Log path: %s\n"
-        "Temporary path: %s\n"
-        "Screenshot path: %s\n",
+        "Bugreport dir: [%s] "
+        "Base name: [%s] "
+        "Suffix: [%s] "
+        "Log path: [%s] "
+        "Temporary path: [%s] "
+        "Screenshot path: [%s]\n",
         destination.c_str(), ds.base_name_.c_str(), ds.name_.c_str(), ds.log_path_.c_str(),
         ds.tmp_path_.c_str(), ds.screenshot_path_.c_str());
 
@@ -2164,21 +2164,14 @@ static void SetOptionsFromMode(Dumpstate::BugreportMode mode, Dumpstate::DumpOpt
 }
 
 static void LogDumpOptions(const Dumpstate::DumpOptions& options) {
-    MYLOGI("do_zip_file: %d\n", options.do_zip_file);
-    MYLOGI("do_add_date: %d\n", options.do_add_date);
-    MYLOGI("do_vibrate: %d\n", options.do_vibrate);
-    MYLOGI("use_socket: %d\n", options.use_socket);
-    MYLOGI("use_control_socket: %d\n", options.use_control_socket);
-    MYLOGI("do_fb: %d\n", options.do_fb);
-    MYLOGI("is_remote_mode: %d\n", options.is_remote_mode);
-    MYLOGI("show_header_only: %d\n", options.show_header_only);
-    MYLOGI("do_start_service: %d\n", options.do_start_service);
-    MYLOGI("telephony_only: %d\n", options.telephony_only);
-    MYLOGI("wifi_only: %d\n", options.wifi_only);
-    MYLOGI("do_progress_updates: %d\n", options.do_progress_updates);
-    MYLOGI("fd: %d\n", options.bugreport_fd.get());
-    MYLOGI("bugreport_mode: %s\n", options.bugreport_mode.c_str());
-    MYLOGI("args: %s\n", options.args.c_str());
+    MYLOGI(
+        "do_zip_file: %d do_vibrate: %d use_socket: %d use_control_socket: %d do_fb: %d "
+        "is_remote_mode: %d show_header_only: %d do_start_service: %d telephony_only: %d "
+        "wifi_only: %d do_progress_updates: %d fd: %d bugreport_mode: %s args: %s\n",
+        options.do_zip_file, options.do_vibrate, options.use_socket, options.use_control_socket,
+        options.do_fb, options.is_remote_mode, options.show_header_only, options.do_start_service,
+        options.telephony_only, options.wifi_only, options.do_progress_updates,
+        options.bugreport_fd.get(), options.bugreport_mode.c_str(), options.args.c_str());
 }
 
 void Dumpstate::DumpOptions::Initialize(BugreportMode bugreport_mode,
@@ -2366,8 +2359,6 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
     id_ = ++last_id;
     android::base::SetProperty(PROPERTY_LAST_ID, std::to_string(last_id));
 
-    MYLOGI("begin\n");
-
     if (acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_NAME) < 0) {
         MYLOGE("Failed to acquire wake lock: %s\n", strerror(errno));
     } else {
@@ -2390,10 +2381,8 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
         MYLOGI("Running on dry-run mode (to disable it, call 'setprop dumpstate.dry_run false')\n");
     }
 
-    MYLOGI("dumpstate info: id=%d, args='%s', bugreport_mode= %s)\n", id_, options_->args.c_str(),
-           options_->bugreport_mode.c_str());
-
-    MYLOGI("bugreport format version: %s\n", version_.c_str());
+    MYLOGI("dumpstate info: id=%d, args='%s', bugreport_mode= %s bugreport format version: %s\n",
+           id_, options_->args.c_str(), options_->bugreport_mode.c_str(), version_.c_str());
 
     do_early_screenshot_ = options_->do_progress_updates;
 
@@ -3503,8 +3492,8 @@ void Dumpstate::UpdateProgress(int32_t delta_sec) {
     }
 
     if (listener_ != nullptr) {
-        if (percent % 5 == 0) {
-            // We don't want to spam logcat, so only log multiples of 5.
+        if (percent % 10 == 0) {
+            // We don't want to spam logcat, so only log multiples of 10.
             MYLOGD("Setting progress: %d/%d (%d%%)\n", progress, max, percent);
         } else {
             // stderr is ignored on normal invocations, but useful when calling

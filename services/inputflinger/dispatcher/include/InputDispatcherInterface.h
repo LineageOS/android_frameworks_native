@@ -116,6 +116,14 @@ public:
      */
     virtual void setInputFilterEnabled(bool enabled) = 0;
 
+    /**
+     * Set the touch mode state.
+     * Touch mode is a global state that apps may enter / exit based on specific
+     * user interactions with input devices.
+     * If true, the device is in touch mode.
+     */
+    virtual void setInTouchMode(bool inTouchMode) = 0;
+
     /* Transfers touch focus from one window to another window.
      *
      * Returns true on success.  False if the window did not actually have touch focus.
