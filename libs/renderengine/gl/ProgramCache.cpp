@@ -339,9 +339,9 @@ void ProgramCache::generateToneMappingProcess(Formatter& fs, const Key& needs) {
                 default:
                     fs << R"__SHADER__(
                         highp vec3 ToneMap(highp vec3 color) {
-                            const float maxMasteringLumi = 1000.0;
-                            const float maxContentLumi = 1000.0;
-                            const float maxInLumi = min(maxMasteringLumi, maxContentLumi);
+                            float maxMasteringLumi = maxMasteringLuminance;
+                            float maxContentLumi = maxContentLuminance;
+                            float maxInLumi = min(maxMasteringLumi, maxContentLumi);
                             float maxOutLumi = displayMaxLuminance;
 
                             float nits = color.y;
@@ -633,9 +633,10 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
     }
 
     if (needs.hasTransformMatrix() || (needs.getInputTF() != needs.getOutputTF())) {
-        // Currently, display maximum luminance is needed when doing tone mapping.
         if (needs.needsToneMapping()) {
             fs << "uniform float displayMaxLuminance;";
+            fs << "uniform float maxMasteringLuminance;";
+            fs << "uniform float maxContentLuminance;";
         }
 
         if (needs.hasInputTransformMatrix()) {

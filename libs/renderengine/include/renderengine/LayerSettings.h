@@ -60,6 +60,8 @@ struct Buffer {
 
     // HDR color-space setting for Y410.
     bool isY410BT2020 = false;
+    float maxMasteringLuminance = 0.0;
+    float maxContentLuminance = 0.0;
 };
 
 // Metadata describing the layer geometry.
