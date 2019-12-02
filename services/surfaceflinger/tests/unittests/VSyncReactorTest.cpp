@@ -18,6 +18,7 @@
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 #define LOG_NDEBUG 0
 
+#include "Scheduler/TimeKeeper.h"
 #include "Scheduler/VSyncDispatch.h"
 #include "Scheduler/VSyncReactor.h"
 #include "Scheduler/VSyncTracker.h"
@@ -36,6 +37,7 @@ class MockVSyncTracker : public VSyncTracker {
 public:
     MOCK_METHOD1(addVsyncTimestamp, void(nsecs_t));
     MOCK_CONST_METHOD1(nextAnticipatedVSyncTimeFrom, nsecs_t(nsecs_t));
+    MOCK_CONST_METHOD0(currentPeriod, nsecs_t());
 };
 
 class VSyncTrackerWrapper : public VSyncTracker {
@@ -46,9 +48,25 @@ public:
     nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const final {
         return mTracker->nextAnticipatedVSyncTimeFrom(timePoint);
     }
+    nsecs_t currentPeriod() const final { return mTracker->currentPeriod(); }
 
 private:
     std::shared_ptr<VSyncTracker> const mTracker;
+};
+
+class MockClock : public Clock {
+public:
+    MOCK_CONST_METHOD0(now, nsecs_t());
+};
+
+class ClockWrapper : public Clock {
+public:
+    ClockWrapper(std::shared_ptr<Clock> const& clock) : mClock(clock) {}
+
+    nsecs_t now() const { return mClock->now(); }
+
+private:
+    std::shared_ptr<Clock> const mClock;
 };
 
 class MockVSyncDispatch : public VSyncDispatch {
@@ -107,11 +125,14 @@ protected:
     VSyncReactorTest()
           : mMockDispatch(std::make_shared<MockVSyncDispatch>()),
             mMockTracker(std::make_shared<MockVSyncTracker>()),
-            mReactor(std::make_unique<VSyncDispatchWrapper>(mMockDispatch),
+            mMockClock(std::make_shared<NiceMock<MockClock>>()),
+            mReactor(std::make_unique<ClockWrapper>(mMockClock),
+                     std::make_unique<VSyncDispatchWrapper>(mMockDispatch),
                      std::make_unique<VSyncTrackerWrapper>(mMockTracker), kPendingLimit) {}
 
     std::shared_ptr<MockVSyncDispatch> mMockDispatch;
     std::shared_ptr<MockVSyncTracker> mMockTracker;
+    std::shared_ptr<MockClock> mMockClock;
     static constexpr size_t kPendingLimit = 3;
     static constexpr nsecs_t dummyTime = 47;
     VSyncReactor mReactor;
@@ -179,6 +200,38 @@ TEST_F(VSyncReactorTest, ignoresPresentFencesWhenToldTo) {
 
     mReactor.setIgnorePresentFences(false);
     EXPECT_FALSE(mReactor.addPresentFence(generateSignalledFenceWithTime(dummyTime)));
+}
+
+TEST_F(VSyncReactorTest, queriesTrackerForNextRefreshNow) {
+    nsecs_t const fakeTimestamp = 4839;
+    EXPECT_CALL(*mMockTracker, currentPeriod()).Times(0);
+    EXPECT_CALL(*mMockTracker, nextAnticipatedVSyncTimeFrom(_))
+            .Times(1)
+            .WillOnce(Return(fakeTimestamp));
+
+    EXPECT_THAT(mReactor.computeNextRefresh(0), Eq(fakeTimestamp));
+}
+
+TEST_F(VSyncReactorTest, queriesTrackerForExpectedPresentTime) {
+    nsecs_t const fakeTimestamp = 4839;
+    EXPECT_CALL(*mMockTracker, currentPeriod()).Times(0);
+    EXPECT_CALL(*mMockTracker, nextAnticipatedVSyncTimeFrom(_))
+            .Times(1)
+            .WillOnce(Return(fakeTimestamp));
+
+    EXPECT_THAT(mReactor.expectedPresentTime(), Eq(fakeTimestamp));
+}
+
+TEST_F(VSyncReactorTest, queriesTrackerForNextRefreshFuture) {
+    nsecs_t const fakeTimestamp = 4839;
+    nsecs_t const fakePeriod = 1010;
+    nsecs_t const fakeNow = 2214;
+    int const numPeriodsOut = 3;
+    EXPECT_CALL(*mMockClock, now()).WillOnce(Return(fakeNow));
+    EXPECT_CALL(*mMockTracker, currentPeriod()).WillOnce(Return(fakePeriod));
+    EXPECT_CALL(*mMockTracker, nextAnticipatedVSyncTimeFrom(fakeNow + numPeriodsOut * fakePeriod))
+            .WillOnce(Return(fakeTimestamp));
+    EXPECT_THAT(mReactor.computeNextRefresh(numPeriodsOut), Eq(fakeTimestamp));
 }
 
 } // namespace android::scheduler

@@ -15,14 +15,18 @@
  */
 
 #include "VSyncReactor.h"
+#include "TimeKeeper.h"
 #include "VSyncDispatch.h"
 #include "VSyncTracker.h"
 
 namespace android::scheduler {
 
-VSyncReactor::VSyncReactor(std::unique_ptr<VSyncDispatch> dispatch,
+Clock::~Clock() = default;
+
+VSyncReactor::VSyncReactor(std::unique_ptr<Clock> clock, std::unique_ptr<VSyncDispatch> dispatch,
                            std::unique_ptr<VSyncTracker> tracker, size_t pendingFenceLimit)
-      : mDispatch(std::move(dispatch)),
+      : mClock(std::move(clock)),
+        mDispatch(std::move(dispatch)),
         mTracker(std::move(tracker)),
         mPendingLimit(pendingFenceLimit) {}
 
@@ -71,6 +75,16 @@ void VSyncReactor::setIgnorePresentFences(bool ignoration) {
     if (mIgnorePresentFences == true) {
         mUnfiredFences.clear();
     }
+}
+
+nsecs_t VSyncReactor::computeNextRefresh(int periodOffset) const {
+    auto const now = mClock->now();
+    auto const currentPeriod = periodOffset ? mTracker->currentPeriod() : 0;
+    return mTracker->nextAnticipatedVSyncTimeFrom(now + periodOffset * currentPeriod);
+}
+
+nsecs_t VSyncReactor::expectedPresentTime() {
+    return mTracker->nextAnticipatedVSyncTimeFrom(mClock->now());
 }
 
 } // namespace android::scheduler

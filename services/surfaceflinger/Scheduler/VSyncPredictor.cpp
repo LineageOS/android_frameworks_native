@@ -54,6 +54,11 @@ bool VSyncPredictor::validate(nsecs_t timestamp) const {
     return percent < kOutlierTolerancePercent || percent > (kMaxPercent - kOutlierTolerancePercent);
 }
 
+nsecs_t VSyncPredictor::currentPeriod() const {
+    std::lock_guard<std::mutex> lk(mMutex);
+    return std::get<0>(mRateMap.find(mIdealPeriod)->second);
+}
+
 void VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
     std::lock_guard<std::mutex> lk(mMutex);
 

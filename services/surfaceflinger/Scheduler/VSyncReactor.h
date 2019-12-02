@@ -24,19 +24,24 @@
 
 namespace android::scheduler {
 
+class Clock;
 class VSyncDispatch;
 class VSyncTracker;
 
 // TODO (b/145217110): consider renaming.
 class VSyncReactor /* TODO (b/140201379): : public android::DispSync */ {
 public:
-    VSyncReactor(std::unique_ptr<VSyncDispatch> dispatch, std::unique_ptr<VSyncTracker> tracker,
-                 size_t pendingFenceLimit);
+    VSyncReactor(std::unique_ptr<Clock> clock, std::unique_ptr<VSyncDispatch> dispatch,
+                 std::unique_ptr<VSyncTracker> tracker, size_t pendingFenceLimit);
 
     bool addPresentFence(const std::shared_ptr<FenceTime>& fence);
     void setIgnorePresentFences(bool ignoration);
 
+    nsecs_t computeNextRefresh(int periodOffset) const;
+    nsecs_t expectedPresentTime();
+
 private:
+    std::unique_ptr<Clock> const mClock;
     std::unique_ptr<VSyncDispatch> const mDispatch;
     std::unique_ptr<VSyncTracker> const mTracker;
     size_t const mPendingLimit;

@@ -21,10 +21,24 @@
 
 namespace android::scheduler {
 
+class Clock {
+public:
+    virtual ~Clock();
+    /*
+     * Returns the SYSTEM_TIME_MONOTONIC, used by testing infra to stub time.
+     */
+    virtual nsecs_t now() const = 0;
+
+protected:
+    Clock() = default;
+    Clock(Clock const&) = delete;
+    Clock& operator=(Clock const&) = delete;
+};
+
 /*
  * TimeKeeper is the interface for a single-shot timer primitive.
  */
-class TimeKeeper {
+class TimeKeeper : public Clock {
 public:
     virtual ~TimeKeeper();
 
@@ -38,11 +52,6 @@ public:
      * Cancels an existing pending callback
      */
     virtual void alarmCancel() = 0;
-
-    /*
-     * Returns the SYSTEM_TIME_MONOTONIC, used by testing infra to stub time.
-     */
-    virtual nsecs_t now() const = 0;
 
 protected:
     TimeKeeper(TimeKeeper const&) = delete;
