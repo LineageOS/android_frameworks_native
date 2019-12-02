@@ -3036,7 +3036,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
         }
 
         default:
-            ALOGW("Cannot inject event of type %d", event->getType());
+            ALOGW("Cannot inject %s events", inputEventTypeToString(event->getType()));
             return INPUT_EVENT_INJECTION_FAILED;
     }
 

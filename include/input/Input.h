@@ -167,6 +167,8 @@ namespace android {
 class Parcel;
 #endif
 
+const char* inputEventTypeToString(int32_t type);
+
 /*
  * Flags that flow alongside events in the input dispatch system to help with certain
  * policy decisions such as waking from device sleep.
@@ -687,6 +689,28 @@ protected:
 };
 
 /*
+ * Focus events.
+ */
+class FocusEvent : public InputEvent {
+public:
+    virtual ~FocusEvent() {}
+
+    virtual int32_t getType() const override { return AINPUT_EVENT_TYPE_FOCUS; }
+
+    inline bool getHasFocus() const { return mHasFocus; }
+
+    inline bool getInTouchMode() const { return mInTouchMode; }
+
+    void initialize(bool hasFocus, bool inTouchMode);
+
+    void initialize(const FocusEvent& from);
+
+protected:
+    bool mHasFocus;
+    bool mInTouchMode;
+};
+
+/*
  * Input event factory.
  */
 class InputEventFactoryInterface {
@@ -698,6 +722,7 @@ public:
 
     virtual KeyEvent* createKeyEvent() = 0;
     virtual MotionEvent* createMotionEvent() = 0;
+    virtual FocusEvent* createFocusEvent() = 0;
 };
 
 /*
@@ -711,10 +736,12 @@ public:
 
     virtual KeyEvent* createKeyEvent() override { return &mKeyEvent; }
     virtual MotionEvent* createMotionEvent() override { return &mMotionEvent; }
+    virtual FocusEvent* createFocusEvent() override { return &mFocusEvent; }
 
 private:
     KeyEvent mKeyEvent;
     MotionEvent mMotionEvent;
+    FocusEvent mFocusEvent;
 };
 
 /*
@@ -727,6 +754,7 @@ public:
 
     virtual KeyEvent* createKeyEvent() override;
     virtual MotionEvent* createMotionEvent() override;
+    virtual FocusEvent* createFocusEvent() override;
 
     void recycle(InputEvent* event);
 
@@ -735,6 +763,7 @@ private:
 
     std::queue<std::unique_ptr<KeyEvent>> mKeyEventPool;
     std::queue<std::unique_ptr<MotionEvent>> mMotionEventPool;
+    std::queue<std::unique_ptr<FocusEvent>> mFocusEventPool;
 };
 
 } // namespace android
