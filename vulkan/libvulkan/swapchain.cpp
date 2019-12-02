@@ -1311,7 +1311,14 @@ VkResult CreateSwapchainKHR(VkDevice device,
                                             &img.dequeue_fence);
         if (err != 0) {
             ALOGE("dequeueBuffer[%u] failed: %s (%d)", i, strerror(-err), err);
-            result = VK_ERROR_SURFACE_LOST_KHR;
+            switch (-err) {
+                case ENOMEM:
+                    result = VK_ERROR_OUT_OF_DEVICE_MEMORY;
+                    break;
+                default:
+                    result = VK_ERROR_SURFACE_LOST_KHR;
+                    break;
+            }
             break;
         }
         img.buffer = buffer;
