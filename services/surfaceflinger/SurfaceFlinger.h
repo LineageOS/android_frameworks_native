@@ -37,6 +37,7 @@
 #include <input/ISetInputWindowsListener.h>
 #include <layerproto/LayerProtoHeader.h>
 #include <math/mat4.h>
+#include <renderengine/LayerSettings.h>
 #include <serviceutils/PriorityDumper.h>
 #include <system/graphics.h>
 #include <ui/FenceTime.h>
@@ -367,6 +368,8 @@ private:
             if (colorMatrixChanged) {
                 colorMatrix = other.colorMatrix;
             }
+            globalShadowSettings = other.globalShadowSettings;
+
             return *this;
         }
 
@@ -376,6 +379,8 @@ private:
 
         bool colorMatrixChanged = true;
         mat4 colorMatrix;
+
+        renderengine::ShadowSettings globalShadowSettings;
 
         void traverseInZOrder(const LayerVector::Visitor& visitor) const;
         void traverseInReverseZOrder(const LayerVector::Visitor& visitor) const;

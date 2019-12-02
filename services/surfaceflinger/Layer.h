@@ -216,6 +216,9 @@ public:
         std::deque<sp<CallbackHandle>> callbackHandles;
         bool colorSpaceAgnostic;
         nsecs_t desiredPresentTime = -1;
+
+        // Length of the cast shadow. If the radius is > 0, a shadow of length shadowRadius will
+        // be rendered around the layer.
         float shadowRadius;
     };
 
@@ -649,6 +652,8 @@ public:
     // As of now, only 1 corner radius per display list is supported. Subsequent ones will be
     // ignored.
     RoundedCornerState getRoundedCornerState() const;
+
+    renderengine::ShadowSettings getShadowSettings(const Rect& viewport) const;
 
     void traverseInReverseZOrder(LayerVector::StateSet stateSet,
                                  const LayerVector::Visitor& visitor);
