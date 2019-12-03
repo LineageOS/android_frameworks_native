@@ -753,8 +753,8 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, forcesClientCompositionForAllLa
 
 struct OutputPrepareFrameTest : public testing::Test {
     struct OutputPartialMock : public OutputPartialMockBase {
-        // Sets up the helper functions called by prepareFrame to use a mock
-        // implementations.
+        // Sets up the helper functions called by the function under test to use
+        // mock implementations.
         MOCK_METHOD0(chooseCompositionStrategy, void());
     };
 
@@ -1041,9 +1041,8 @@ TEST_F(OutputCollectVisibleLayersTest, processesCandidateLayersReversedAndSetsOu
 
 struct OutputPresentTest : public testing::Test {
     struct OutputPartialMock : public OutputPartialMockBase {
-        // All child helper functions Output::present() are defined as mocks,
-        // and those are tested separately, allowing the present() test to
-        // just cover the high level flow.
+        // Sets up the helper functions called by the function under test to use
+        // mock implementations.
         MOCK_METHOD1(updateColorProfile, void(const compositionengine::CompositionRefreshArgs&));
         MOCK_METHOD1(updateAndWriteCompositionState,
                      void(const compositionengine::CompositionRefreshArgs&));
@@ -1082,9 +1081,8 @@ struct OutputUpdateColorProfileTest : public testing::Test {
     using TestType = OutputUpdateColorProfileTest;
 
     struct OutputPartialMock : public OutputPartialMockBase {
-        // All child helper functions Output::present() are defined as mocks,
-        // and those are tested separately, allowing the present() test to
-        // just cover the high level flow.
+        // Sets up the helper functions called by the function under test to use
+        // mock implementations.
         MOCK_METHOD1(setColorProfile, void(const ColorProfile&));
     };
 
@@ -1813,8 +1811,8 @@ struct OutputBeginFrameTest : public ::testing::Test {
     using TestType = OutputBeginFrameTest;
 
     struct OutputPartialMock : public OutputPartialMockBase {
-        // Sets up the helper functions called by begiNFrame to use a mock
-        // implementations.
+        // Sets up the helper functions called by the function under test to use
+        // mock implementations.
         MOCK_CONST_METHOD1(getDirtyRegion, Region(bool));
     };
 
@@ -1966,8 +1964,8 @@ TEST_F(OutputBeginFrameTest, notHasDirtyNotHasLayersNotHadLayersLastFrame) {
 
 struct OutputDevOptRepaintFlashTest : public testing::Test {
     struct OutputPartialMock : public OutputPartialMockBase {
-        // Sets up the helper functions called by composeSurfaces to use a mock
-        // implementations.
+        // Sets up the helper functions called by the function under test to use
+        // mock implementations.
         MOCK_CONST_METHOD1(getDirtyRegion, Region(bool));
         MOCK_METHOD1(composeSurfaces, std::optional<base::unique_fd>(const Region&));
         MOCK_METHOD0(postFramebuffer, void());
@@ -2048,8 +2046,8 @@ TEST_F(OutputDevOptRepaintFlashTest, alsoComposesSurfacesAndQueuesABufferIfDirty
 
 struct OutputFinishFrameTest : public testing::Test {
     struct OutputPartialMock : public OutputPartialMockBase {
-        // Sets up the helper functions called by composeSurfaces to use a mock
-        // implementations.
+        // Sets up the helper functions called by the function under test to use
+        // mock implementations.
         MOCK_METHOD1(composeSurfaces, std::optional<base::unique_fd>(const Region&));
         MOCK_METHOD0(postFramebuffer, void());
     };
@@ -2098,8 +2096,8 @@ TEST_F(OutputFinishFrameTest, queuesBufferIfComposeSurfacesReturnsAFence) {
 
 struct OutputPostFramebufferTest : public testing::Test {
     struct OutputPartialMock : public OutputPartialMockBase {
-        // Sets up the helper functions called by composeSurfaces to use a mock
-        // implementations.
+        // Sets up the helper functions called by the function under test to use
+        // mock implementations.
         MOCK_METHOD0(presentAndGetFrameFences, compositionengine::Output::FrameFences());
     };
 
@@ -2278,8 +2276,8 @@ struct OutputComposeSurfacesTest : public testing::Test {
     static const mat4 kDefaultColorTransformMat;
 
     struct OutputPartialMock : public OutputPartialMockBase {
-        // Sets up the helper functions called by composeSurfaces to use a mock
-        // implementations.
+        // Sets up the helper functions called by the function under test to use
+        // mock implementations.
         MOCK_CONST_METHOD0(getSkipColorTransform, bool());
         MOCK_METHOD2(generateClientCompositionRequests,
                      std::vector<renderengine::LayerSettings>(bool, Region&));
