@@ -21,8 +21,10 @@
 #include <compositionengine/DisplaySurface.h>
 #include <compositionengine/RenderSurfaceCreationArgs.h>
 #include <compositionengine/impl/Display.h>
+#include <compositionengine/impl/RenderSurface.h>
 #include <compositionengine/mock/CompositionEngine.h>
 #include <compositionengine/mock/DisplayColorProfile.h>
+#include <compositionengine/mock/DisplaySurface.h>
 #include <compositionengine/mock/Layer.h>
 #include <compositionengine/mock/LayerFE.h>
 #include <compositionengine/mock/NativeWindow.h>
@@ -39,6 +41,8 @@ namespace {
 
 using testing::_;
 using testing::DoAll;
+using testing::InSequence;
+using testing::NiceMock;
 using testing::Return;
 using testing::ReturnRef;
 using testing::Sequence;
@@ -46,6 +50,8 @@ using testing::SetArgPointee;
 using testing::StrictMock;
 
 constexpr DisplayId DEFAULT_DISPLAY_ID = DisplayId{42};
+constexpr int32_t DEFAULT_DISPLAY_WIDTH = 1920;
+constexpr int32_t DEFAULT_DISPLAY_HEIGHT = 1080;
 
 struct DisplayTest : public testing::Test {
     class Display : public impl::Display {
@@ -766,6 +772,60 @@ TEST_F(DisplayTest, finishFramePerformsCompositionIfRepaintEverything) {
     refreshArgs.repaintEverything = true;
 
     nonHwcDisplay->finishFrame(refreshArgs);
+}
+
+/*
+ * Display functional tests
+ */
+
+struct DisplayFunctionalTest : public testing::Test {
+    class Display : public impl::Display {
+    public:
+        explicit Display(const compositionengine::DisplayCreationArgs& args)
+              : impl::Display(args) {}
+
+        using impl::Display::injectOutputLayerForTest;
+        virtual void injectOutputLayerForTest(std::unique_ptr<compositionengine::OutputLayer>) = 0;
+    };
+
+    static std::shared_ptr<Display> createDisplay(
+            const compositionengine::CompositionEngine& compositionEngine,
+            compositionengine::DisplayCreationArgs&& args) {
+        return impl::createDisplayTemplated<Display>(compositionEngine, args);
+    }
+
+    DisplayFunctionalTest() {
+        EXPECT_CALL(mCompositionEngine, getHwComposer()).WillRepeatedly(ReturnRef(mHwComposer));
+
+        mDisplay->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+    }
+
+    NiceMock<android::mock::HWComposer> mHwComposer;
+    NiceMock<Hwc2::mock::PowerAdvisor> mPowerAdvisor;
+    NiceMock<mock::CompositionEngine> mCompositionEngine;
+    sp<mock::NativeWindow> mNativeWindow = new NiceMock<mock::NativeWindow>();
+    sp<mock::DisplaySurface> mDisplaySurface = new NiceMock<mock::DisplaySurface>();
+    std::shared_ptr<Display> mDisplay = createDisplay(mCompositionEngine,
+                                                      DisplayCreationArgsBuilder()
+                                                              .setDisplayId(DEFAULT_DISPLAY_ID)
+                                                              .setPowerAdvisor(&mPowerAdvisor)
+                                                              .build());
+    impl::RenderSurface* mRenderSurface =
+            new impl::RenderSurface{mCompositionEngine, *mDisplay,
+                                    RenderSurfaceCreationArgs{DEFAULT_DISPLAY_WIDTH,
+                                                              DEFAULT_DISPLAY_HEIGHT, mNativeWindow,
+                                                              mDisplaySurface}};
+};
+
+TEST_F(DisplayFunctionalTest, postFramebufferCriticalCallsAreOrdered) {
+    InSequence seq;
+
+    mDisplay->editState().isEnabled = true;
+
+    EXPECT_CALL(mHwComposer, presentAndGetReleaseFences(_));
+    EXPECT_CALL(*mDisplaySurface, onFrameCommitted());
+
+    mDisplay->postFramebuffer();
 }
 
 } // namespace
