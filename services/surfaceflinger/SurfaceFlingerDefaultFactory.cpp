@@ -64,8 +64,9 @@ std::unique_ptr<scheduler::PhaseOffsets> DefaultFactory::createPhaseOffsets() {
 }
 
 std::unique_ptr<Scheduler> DefaultFactory::createScheduler(
-        SetVSyncEnabled setVSyncEnabled, const scheduler::RefreshRateConfigs& configs) {
-    return std::make_unique<Scheduler>(std::move(setVSyncEnabled), configs);
+        SetVSyncEnabled setVSyncEnabled, const scheduler::RefreshRateConfigs& configs,
+        ISchedulerCallback& schedulerCallback) {
+    return std::make_unique<Scheduler>(std::move(setVSyncEnabled), configs, schedulerCallback);
 }
 
 std::unique_ptr<SurfaceInterceptor> DefaultFactory::createSurfaceInterceptor(

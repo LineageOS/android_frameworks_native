@@ -175,7 +175,7 @@ class SurfaceFlinger : public BnSurfaceComposer,
                        public ClientCache::ErasedRecipient,
                        private IBinder::DeathRecipient,
                        private HWC2::ComposerCallback,
-                       private Scheduler::ISchedulerCallback {
+                       private ISchedulerCallback {
 public:
     SurfaceFlingerBE& getBE() { return mBE; }
     const SurfaceFlingerBE& getBE() const { return mBE; }
@@ -271,9 +271,6 @@ public:
 
     // force full composition on all displays
     void repaintEverything();
-
-    // force full composition on all displays without resetting the scheduler idle timer.
-    void repaintEverythingForHWC();
 
     surfaceflinger::Factory& getFactory() { return mFactory; }
 
@@ -496,9 +493,11 @@ private:
             const hwc_vsync_period_change_timeline_t& updatedTimeline) override;
 
     /* ------------------------------------------------------------------------
-     * Scheduler::ISchedulerCallback
+     * ISchedulerCallback
      */
     void changeRefreshRate(const Scheduler::RefreshRate&, Scheduler::ConfigEvent) override;
+    // force full composition on all displays without resetting the scheduler idle timer.
+    void repaintEverythingForHWC() override;
     /* ------------------------------------------------------------------------
      * Message handling
      */

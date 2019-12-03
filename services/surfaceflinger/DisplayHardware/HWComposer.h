@@ -102,9 +102,6 @@ public:
     // set power mode
     virtual status_t setPowerMode(DisplayId displayId, int mode) = 0;
 
-    // set active config
-    virtual status_t setActiveConfig(DisplayId displayId, size_t configId) = 0;
-
     // Sets a color transform to be applied to the result of composition
     virtual status_t setColorTransform(DisplayId displayId, const mat4& transform) = 0;
 
@@ -180,6 +177,14 @@ public:
 
     virtual bool isUsingVrComposer() const = 0;
 
+    // Composer 2.4
+    virtual bool isVsyncPeriodSwitchSupported(DisplayId displayId) const = 0;
+    virtual nsecs_t getDisplayVsyncPeriod(DisplayId displayId) const = 0;
+    virtual status_t setActiveConfigWithConstraints(
+            DisplayId displayId, size_t configId,
+            const HWC2::VsyncPeriodChangeConstraints& constraints,
+            HWC2::VsyncPeriodChangeTimeline* outTimeline) = 0;
+
     // for debugging ----------------------------------------------------------
     virtual void dump(std::string& out) const = 0;
 
@@ -231,9 +236,6 @@ public:
 
     // set power mode
     status_t setPowerMode(DisplayId displayId, int mode) override;
-
-    // set active config
-    status_t setActiveConfig(DisplayId displayId, size_t configId) override;
 
     // Sets a color transform to be applied to the result of composition
     status_t setColorTransform(DisplayId displayId, const mat4& transform) override;
@@ -304,6 +306,13 @@ public:
                                 ui::RenderIntent renderIntent) override;
 
     bool isUsingVrComposer() const override;
+
+    // Composer 2.4
+    bool isVsyncPeriodSwitchSupported(DisplayId displayId) const override;
+    nsecs_t getDisplayVsyncPeriod(DisplayId displayId) const override;
+    status_t setActiveConfigWithConstraints(DisplayId displayId, size_t configId,
+                                            const HWC2::VsyncPeriodChangeConstraints& constraints,
+                                            HWC2::VsyncPeriodChangeTimeline* outTimeline) override;
 
     // for debugging ----------------------------------------------------------
     void dump(std::string& out) const override;

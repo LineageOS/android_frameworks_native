@@ -1003,11 +1003,25 @@ bool SurfaceFlinger::performSetActiveConfig() {
     LOG_ALWAYS_FATAL_IF(!displayId);
 
     ATRACE_INT("ActiveConfigFPS_HWC", refreshRate.fps);
-    getHwComposer().setActiveConfig(*displayId, mUpcomingActiveConfig.configId.value());
 
-    // we need to submit an empty frame to HWC to start the process
+    // TODO(b/142753666) use constrains
+    HWC2::VsyncPeriodChangeConstraints constraints;
+    constraints.desiredTimeNanos = systemTime();
+    constraints.seamlessRequired = false;
+
+    HWC2::VsyncPeriodChangeTimeline outTimeline;
+    auto status =
+            getHwComposer().setActiveConfigWithConstraints(*displayId,
+                                                           mUpcomingActiveConfig.configId.value(),
+                                                           constraints, &outTimeline);
+    if (status != NO_ERROR) {
+        LOG_ALWAYS_FATAL("setActiveConfigWithConstraints failed: %d", status);
+        return false;
+    }
+
+    mScheduler->onNewVsyncPeriodChangeTimeline(outTimeline);
+    // Scheduler will submit an empty frame to HWC if needed.
     mCheckPendingFence = true;
-    mEventQueue->invalidate();
     return false;
 }
 
@@ -1360,8 +1374,7 @@ nsecs_t SurfaceFlinger::getVsyncPeriod() const {
         return 0;
     }
 
-    const auto config = getHwComposer().getActiveConfig(*displayId);
-    return config ? config->getVsyncPeriod() : 0;
+    return getHwComposer().getDisplayVsyncPeriod(*displayId);
 }
 
 void SurfaceFlinger::onVsyncReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId,
@@ -1447,9 +1460,13 @@ void SurfaceFlinger::onHotplugReceived(int32_t sequenceId, hwc2_display_t hwcDis
 }
 
 void SurfaceFlinger::onVsyncPeriodTimingChangedReceived(
-        int32_t /*sequenceId*/, hwc2_display_t /*display*/,
-        const hwc_vsync_period_change_timeline_t& /*updatedTimeline*/) {
-    // TODO(b/142753004): use timeline when changing refresh rate
+        int32_t sequenceId, hwc2_display_t /*display*/,
+        const hwc_vsync_period_change_timeline_t& updatedTimeline) {
+    Mutex::Autolock lock(mStateLock);
+    if (sequenceId != getBE().mComposerSequenceId) {
+        return;
+    }
+    mScheduler->onNewVsyncPeriodChangeTimeline(updatedTimeline);
 }
 
 void SurfaceFlinger::onRefreshReceived(int sequenceId, hwc2_display_t /*hwcDisplayId*/) {
@@ -1760,10 +1777,16 @@ void SurfaceFlinger::handleMessageRefresh() {
 
     mGeometryInvalid = false;
 
+    // Store the present time just before calling to the composition engine so we could notify
+    // the scheduler.
+    const auto presentTime = systemTime();
+
     mCompositionEngine->present(refreshArgs);
     mTimeStats->recordFrameDuration(mFrameStartTime, systemTime());
     // Reset the frame start time now that we've recorded this frame.
     mFrameStartTime = 0;
+
+    mScheduler->onDisplayRefreshed(presentTime);
 
     postFrame();
     postComposition();
@@ -2550,7 +2573,7 @@ void SurfaceFlinger::initScheduler(DisplayId primaryDisplayId) {
     // start the EventThread
     mScheduler =
             getFactory().createScheduler([this](bool enabled) { setPrimaryVsyncEnabled(enabled); },
-                                         *mRefreshRateConfigs);
+                                         *mRefreshRateConfigs, *this);
     mAppConnectionHandle =
             mScheduler->createConnection("app", mPhaseOffsets->getCurrentAppOffset(),
                                          mPhaseOffsets->getOffsetThresholdForNextVsync(),
@@ -2569,8 +2592,6 @@ void SurfaceFlinger::initScheduler(DisplayId primaryDisplayId) {
     mRegionSamplingThread =
             new RegionSamplingThread(*this, *mScheduler,
                                      RegionSamplingThread::EnvironmentTimingTunables());
-
-    mScheduler->setSchedulerCallback(this);
 }
 
 void SurfaceFlinger::commitTransaction()
@@ -4306,8 +4327,8 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
                       "  refresh-rate              : %f fps\n"
                       "  x-dpi                     : %f\n"
                       "  y-dpi                     : %f\n",
-                      1e9 / activeConfig->getVsyncPeriod(), activeConfig->getDpiX(),
-                      activeConfig->getDpiY());
+                      1e9 / getHwComposer().getDisplayVsyncPeriod(*displayId),
+                      activeConfig->getDpiX(), activeConfig->getDpiY());
     }
 
     StringAppendF(&result, "  transaction time: %f us\n", inTransactionDuration / 1000.0);
@@ -5400,6 +5421,27 @@ void SurfaceFlinger::traverseLayersInDisplay(const sp<const DisplayDevice>& disp
 void SurfaceFlinger::setAllowedDisplayConfigsInternal(const sp<DisplayDevice>& display,
                                                       const std::vector<int32_t>& allowedConfigs) {
     if (!display->isPrimary()) {
+        // TODO(b/144711714): For non-primary displays we should be able to set an active config
+        // as well. For now, just call directly to setActiveConfigWithConstraints but ideally
+        // it should go thru setDesiredActiveConfig, similar to primary display.
+        ALOGV("setAllowedDisplayConfigsInternal for non-primary display");
+        const auto displayId = display->getId();
+        LOG_ALWAYS_FATAL_IF(!displayId);
+
+        HWC2::VsyncPeriodChangeConstraints constraints;
+        constraints.desiredTimeNanos = systemTime();
+        constraints.seamlessRequired = false;
+
+        HWC2::VsyncPeriodChangeTimeline timeline = {0, 0, 0};
+        getHwComposer().setActiveConfigWithConstraints(*displayId, allowedConfigs[0], constraints,
+                                                       &timeline);
+        if (timeline.refreshRequired) {
+            repaintEverythingForHWC();
+        }
+
+        auto configId = HwcConfigIndexType(allowedConfigs[0]);
+        display->setActiveConfig(configId);
+        mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value, configId);
         return;
     }
 
