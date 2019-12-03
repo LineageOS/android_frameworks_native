@@ -280,6 +280,20 @@ bool Region::isTriviallyEqual(const Region& region) const {
     return begin() == region.begin();
 }
 
+bool Region::hasSameRects(const Region& other) const {
+    size_t thisRectCount = 0;
+    android::Rect const* thisRects = getArray(&thisRectCount);
+    size_t otherRectCount = 0;
+    android::Rect const* otherRects = other.getArray(&otherRectCount);
+
+    if (thisRectCount != otherRectCount) return false;
+
+    for (size_t i = 0; i < thisRectCount; i++) {
+        if (thisRects[i] != otherRects[i]) return false;
+    }
+    return true;
+}
+
 // ----------------------------------------------------------------------------
 
 void Region::addRectUnchecked(int l, int t, int r, int b)

@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <ostream>
+
 namespace android {
 
 class FloatRect {
@@ -50,6 +52,11 @@ public:
 
 inline bool operator==(const FloatRect& a, const FloatRect& b) {
     return a.left == b.left && a.top == b.top && a.right == b.right && a.bottom == b.bottom;
+}
+
+static inline void PrintTo(const FloatRect& rect, ::std::ostream* os) {
+    *os << "FloatRect(" << rect.left << ", " << rect.top << ", " << rect.right << ", "
+        << rect.bottom << ")";
 }
 
 }  // namespace android
