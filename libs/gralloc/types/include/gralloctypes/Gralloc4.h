@@ -34,10 +34,11 @@ namespace android {
 namespace gralloc4 {
 
 #define GRALLOC4_STANDARD_METADATA_TYPE "android.hardware.graphics.common.StandardMetadataType"
-#define GRALLOC4_CHROMA_SITING "android.hardware.graphics.common.ChromaSiting"
-#define GRALLOC4_COMPRESSION "android.hardware.graphics.common.Compression"
-#define GRALLOC4_INTERLACED "android.hardware.graphics.common.Interlaced"
-#define GRALLOC4_PLANE_LAYOUT_COMPONENT_TYPE "android.hardware.graphics.common.PlaneLayoutComponentType"
+#define GRALLOC4_STANDARD_CHROMA_SITING "android.hardware.graphics.common.ChromaSiting"
+#define GRALLOC4_STANDARD_COMPRESSION "android.hardware.graphics.common.Compression"
+#define GRALLOC4_STANDARD_INTERLACED "android.hardware.graphics.common.Interlaced"
+#define GRALLOC4_STANDARD_PLANE_LAYOUT_COMPONENT_TYPE \
+    "android.hardware.graphics.common.PlaneLayoutComponentType"
 
 /*---------------------------------------------------------------------------------------------*/
 /**
@@ -118,13 +119,15 @@ static const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType Me
  * Definitions of the standard compression strategies. It is recommended that everyone uses
  * these definitions directly for standard compression strategies.
  */
-static const aidl::android::hardware::graphics::common::ExtendableType Compression_None = {
-        GRALLOC4_COMPRESSION, static_cast<int64_t>(aidl::android::hardware::graphics::common::Compression::NONE)
-};
+static const aidl::android::hardware::graphics::common::ExtendableType Compression_None =
+        {GRALLOC4_STANDARD_COMPRESSION,
+         static_cast<int64_t>(aidl::android::hardware::graphics::common::Compression::NONE)};
 
-static const aidl::android::hardware::graphics::common::ExtendableType Compression_DisplayStreamCompression = {
-        GRALLOC4_COMPRESSION, static_cast<int64_t>(aidl::android::hardware::graphics::common::Compression::DISPLAY_STREAM_COMPRESSION)
-};
+static const aidl::android::hardware::graphics::common::ExtendableType
+        Compression_DisplayStreamCompression =
+                {GRALLOC4_STANDARD_COMPRESSION,
+                 static_cast<int64_t>(aidl::android::hardware::graphics::common::Compression::
+                                              DISPLAY_STREAM_COMPRESSION)};
 
 /*---------------------------------------------------------------------------------------------*/
 
@@ -132,17 +135,17 @@ static const aidl::android::hardware::graphics::common::ExtendableType Compressi
  * Definitions of the standard interlaced strategies. It is recommended that everyone uses
  * these definitions directly for standard interlaced strategies.
  */
-static const aidl::android::hardware::graphics::common::ExtendableType Interlaced_None = {
-        GRALLOC4_INTERLACED, static_cast<int64_t>(aidl::android::hardware::graphics::common::Interlaced::NONE)
-};
+static const aidl::android::hardware::graphics::common::ExtendableType Interlaced_None =
+        {GRALLOC4_STANDARD_INTERLACED,
+         static_cast<int64_t>(aidl::android::hardware::graphics::common::Interlaced::NONE)};
 
-static const aidl::android::hardware::graphics::common::ExtendableType Interlaced_TopBottom = {
-        GRALLOC4_INTERLACED, static_cast<int64_t>(aidl::android::hardware::graphics::common::Interlaced::TOP_BOTTOM)
-};
+static const aidl::android::hardware::graphics::common::ExtendableType Interlaced_TopBottom =
+        {GRALLOC4_STANDARD_INTERLACED,
+         static_cast<int64_t>(aidl::android::hardware::graphics::common::Interlaced::TOP_BOTTOM)};
 
-static const aidl::android::hardware::graphics::common::ExtendableType Interlaced_RightLeft = {
-        GRALLOC4_INTERLACED, static_cast<int64_t>(aidl::android::hardware::graphics::common::Interlaced::RIGHT_LEFT)
-};
+static const aidl::android::hardware::graphics::common::ExtendableType Interlaced_RightLeft =
+        {GRALLOC4_STANDARD_INTERLACED,
+         static_cast<int64_t>(aidl::android::hardware::graphics::common::Interlaced::RIGHT_LEFT)};
 
 /*---------------------------------------------------------------------------------------------*/
 
@@ -150,21 +153,25 @@ static const aidl::android::hardware::graphics::common::ExtendableType Interlace
  * Definitions of the standard chroma siting. It is recommended that everyone uses
  * these definitions directly for standard chroma siting.
  */
-static const aidl::android::hardware::graphics::common::ExtendableType ChromaSiting_None = {
-        GRALLOC4_CHROMA_SITING, static_cast<int64_t>(aidl::android::hardware::graphics::common::ChromaSiting::NONE)
-};
+static const aidl::android::hardware::graphics::common::ExtendableType ChromaSiting_None =
+        {GRALLOC4_STANDARD_CHROMA_SITING,
+         static_cast<int64_t>(aidl::android::hardware::graphics::common::ChromaSiting::NONE)};
 
-static const aidl::android::hardware::graphics::common::ExtendableType ChromaSiting_Unknown = {
-        GRALLOC4_CHROMA_SITING, static_cast<int64_t>(aidl::android::hardware::graphics::common::ChromaSiting::UNKNOWN)
-};
+static const aidl::android::hardware::graphics::common::ExtendableType ChromaSiting_Unknown =
+        {GRALLOC4_STANDARD_CHROMA_SITING,
+         static_cast<int64_t>(aidl::android::hardware::graphics::common::ChromaSiting::UNKNOWN)};
 
-static const aidl::android::hardware::graphics::common::ExtendableType ChromaSiting_SitedInterstitial = {
-        GRALLOC4_CHROMA_SITING, static_cast<int64_t>(aidl::android::hardware::graphics::common::ChromaSiting::SITED_INTERSTITIAL)
-};
+static const aidl::android::hardware::graphics::common::ExtendableType
+        ChromaSiting_SitedInterstitial = {GRALLOC4_STANDARD_CHROMA_SITING,
+                                          static_cast<int64_t>(
+                                                  aidl::android::hardware::graphics::common::
+                                                          ChromaSiting::SITED_INTERSTITIAL)};
 
-static const aidl::android::hardware::graphics::common::ExtendableType ChromaSiting_CositedHorizontal = {
-        GRALLOC4_CHROMA_SITING, static_cast<int64_t>(aidl::android::hardware::graphics::common::ChromaSiting::COSITED_HORIZONTAL)
-};
+static const aidl::android::hardware::graphics::common::ExtendableType
+        ChromaSiting_CositedHorizontal = {GRALLOC4_STANDARD_CHROMA_SITING,
+                                          static_cast<int64_t>(
+                                                  aidl::android::hardware::graphics::common::
+                                                          ChromaSiting::COSITED_HORIZONTAL)};
 
 /*---------------------------------------------------------------------------------------------*/
 
@@ -172,42 +179,42 @@ static const aidl::android::hardware::graphics::common::ExtendableType ChromaSit
  * Definitions of the standard plane layout component types. It is recommended that everyone uses
  * these definitions directly for standard plane layout component types
  */
-static const aidl::android::hardware::graphics::common::ExtendableType PlaneLayoutComponentType_Y = {
-        GRALLOC4_PLANE_LAYOUT_COMPONENT_TYPE, static_cast<int64_t>(aidl::android::hardware::graphics::common::PlaneLayoutComponentType::Y)
-};
+static const aidl::android::hardware::graphics::common::ExtendableType PlaneLayoutComponentType_Y =
+        {GRALLOC4_STANDARD_PLANE_LAYOUT_COMPONENT_TYPE,
+         static_cast<int64_t>(
+                 aidl::android::hardware::graphics::common::PlaneLayoutComponentType::Y)};
 
-static const aidl::android::hardware::graphics::common::ExtendableType PlaneLayoutComponentType_CB = {
-        GRALLOC4_PLANE_LAYOUT_COMPONENT_TYPE, static_cast<int64_t>(aidl::android::hardware::graphics::common::PlaneLayoutComponentType::CB)
-};
+static const aidl::android::hardware::graphics::common::ExtendableType PlaneLayoutComponentType_CB =
+        {GRALLOC4_STANDARD_PLANE_LAYOUT_COMPONENT_TYPE,
+         static_cast<int64_t>(
+                 aidl::android::hardware::graphics::common::PlaneLayoutComponentType::CB)};
 
-static const aidl::android::hardware::graphics::common::ExtendableType PlaneLayoutComponentType_CR = {
-        GRALLOC4_PLANE_LAYOUT_COMPONENT_TYPE, static_cast<int64_t>(aidl::android::hardware::graphics::common::PlaneLayoutComponentType::CR)
-};
+static const aidl::android::hardware::graphics::common::ExtendableType PlaneLayoutComponentType_CR =
+        {GRALLOC4_STANDARD_PLANE_LAYOUT_COMPONENT_TYPE,
+         static_cast<int64_t>(
+                 aidl::android::hardware::graphics::common::PlaneLayoutComponentType::CR)};
 
-static const aidl::android::hardware::graphics::common::ExtendableType PlaneLayoutComponentType_R = {
-        GRALLOC4_PLANE_LAYOUT_COMPONENT_TYPE, static_cast<int64_t>(aidl::android::hardware::graphics::common::PlaneLayoutComponentType::R)
-};
+static const aidl::android::hardware::graphics::common::ExtendableType PlaneLayoutComponentType_R =
+        {GRALLOC4_STANDARD_PLANE_LAYOUT_COMPONENT_TYPE,
+         static_cast<int64_t>(
+                 aidl::android::hardware::graphics::common::PlaneLayoutComponentType::R)};
 
-static const aidl::android::hardware::graphics::common::ExtendableType PlaneLayoutComponentType_G = {
-        GRALLOC4_PLANE_LAYOUT_COMPONENT_TYPE, static_cast<int64_t>(aidl::android::hardware::graphics::common::PlaneLayoutComponentType::G)
-};
+static const aidl::android::hardware::graphics::common::ExtendableType PlaneLayoutComponentType_G =
+        {GRALLOC4_STANDARD_PLANE_LAYOUT_COMPONENT_TYPE,
+         static_cast<int64_t>(
+                 aidl::android::hardware::graphics::common::PlaneLayoutComponentType::G)};
 
-static const aidl::android::hardware::graphics::common::ExtendableType PlaneLayoutComponentType_B = {
-        GRALLOC4_PLANE_LAYOUT_COMPONENT_TYPE, static_cast<int64_t>(aidl::android::hardware::graphics::common::PlaneLayoutComponentType::B)
-};
+static const aidl::android::hardware::graphics::common::ExtendableType PlaneLayoutComponentType_B =
+        {GRALLOC4_STANDARD_PLANE_LAYOUT_COMPONENT_TYPE,
+         static_cast<int64_t>(
+                 aidl::android::hardware::graphics::common::PlaneLayoutComponentType::B)};
 
-static const aidl::android::hardware::graphics::common::ExtendableType PlaneLayoutComponentType_A = {
-        GRALLOC4_PLANE_LAYOUT_COMPONENT_TYPE, static_cast<int64_t>(aidl::android::hardware::graphics::common::PlaneLayoutComponentType::A)
-};
+static const aidl::android::hardware::graphics::common::ExtendableType PlaneLayoutComponentType_A =
+        {GRALLOC4_STANDARD_PLANE_LAYOUT_COMPONENT_TYPE,
+         static_cast<int64_t>(
+                 aidl::android::hardware::graphics::common::PlaneLayoutComponentType::A)};
 
 /*---------------------------------------------------------------------------------------------*/
-
-/**
- * The functions below can be used to parse a StandardMetadataType.
- */
-bool isStandardMetadataType(const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType);
-
-aidl::android::hardware::graphics::common::StandardMetadataType getStandardMetadataTypeValue(const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType);
 
 /**
  * The functions below encode and decode standard metadata into a byte stream. It is STRONGLY
@@ -264,6 +271,44 @@ status_t decodeDataspace(const android::hardware::hidl_vec<uint8_t>& dataspace, 
 
 status_t encodeBlendMode(const aidl::android::hardware::graphics::common::BlendMode& blendMode, android::hardware::hidl_vec<uint8_t>* outBlendMode);
 status_t decodeBlendMode(const android::hardware::hidl_vec<uint8_t>& blendMode, aidl::android::hardware::graphics::common::BlendMode* outBlendMode);
+
+/**
+ * The functions below can be used to parse extendable types.
+ */
+bool isStandardMetadataType(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType);
+bool isStandardCompression(
+        const aidl::android::hardware::graphics::common::ExtendableType& compression);
+bool isStandardInterlaced(
+        const aidl::android::hardware::graphics::common::ExtendableType& interlaced);
+bool isStandardChromaSiting(
+        const aidl::android::hardware::graphics::common::ExtendableType& chromaSiting);
+bool isStandardPlaneLayoutComponentType(
+        const aidl::android::hardware::graphics::common::ExtendableType& planeLayoutComponentType);
+
+aidl::android::hardware::graphics::common::StandardMetadataType getStandardMetadataTypeValue(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType);
+aidl::android::hardware::graphics::common::Compression getStandardCompressionValue(
+        const aidl::android::hardware::graphics::common::ExtendableType& compression);
+aidl::android::hardware::graphics::common::Interlaced getStandardInterlacedValue(
+        const aidl::android::hardware::graphics::common::ExtendableType& interlaced);
+aidl::android::hardware::graphics::common::ChromaSiting getStandardChromaSitingValue(
+        const aidl::android::hardware::graphics::common::ExtendableType& chromaSiting);
+aidl::android::hardware::graphics::common::PlaneLayoutComponentType
+getStandardPlaneLayoutComponentTypeValue(
+        const aidl::android::hardware::graphics::common::ExtendableType& planeLayoutComponentType);
+
+/**
+ * The functions below return string representations of ExtendableTypes
+ */
+std::string getCompressionName(
+        const aidl::android::hardware::graphics::common::ExtendableType& compression);
+std::string getInterlacedName(
+        const aidl::android::hardware::graphics::common::ExtendableType& interlaced);
+std::string getChromaSitingName(
+        const aidl::android::hardware::graphics::common::ExtendableType& chromaSiting);
+std::string getPlaneLayoutComponentTypeName(
+        const aidl::android::hardware::graphics::common::ExtendableType& planeLayoutComponentType);
 
 } // namespace gralloc4
 
