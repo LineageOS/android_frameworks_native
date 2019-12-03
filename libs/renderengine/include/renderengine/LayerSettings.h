@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <iosfwd>
+
 #include <math/mat4.h>
 #include <math/vec3.h>
 #include <renderengine/Texture.h>
@@ -148,6 +150,103 @@ struct LayerSettings {
 
     ShadowSettings shadow;
 };
+
+static inline bool operator==(const Buffer& lhs, const Buffer& rhs) {
+    return lhs.buffer == rhs.buffer && lhs.fence == rhs.fence &&
+            lhs.textureName == rhs.textureName &&
+            lhs.useTextureFiltering == rhs.useTextureFiltering &&
+            lhs.textureTransform == rhs.textureTransform &&
+            lhs.usePremultipliedAlpha == rhs.usePremultipliedAlpha &&
+            lhs.isOpaque == rhs.isOpaque && lhs.isY410BT2020 == rhs.isY410BT2020 &&
+            lhs.maxMasteringLuminance == rhs.maxMasteringLuminance &&
+            lhs.maxContentLuminance == rhs.maxContentLuminance;
+}
+
+static inline bool operator==(const Geometry& lhs, const Geometry& rhs) {
+    return lhs.boundaries == rhs.boundaries && lhs.positionTransform == rhs.positionTransform &&
+            lhs.roundedCornersRadius == rhs.roundedCornersRadius &&
+            lhs.roundedCornersCrop == rhs.roundedCornersCrop;
+}
+
+static inline bool operator==(const PixelSource& lhs, const PixelSource& rhs) {
+    return lhs.buffer == rhs.buffer && lhs.solidColor == rhs.solidColor;
+}
+
+static inline bool operator==(const ShadowSettings& lhs, const ShadowSettings& rhs) {
+    return lhs.ambientColor == rhs.ambientColor && lhs.spotColor == rhs.spotColor &&
+            lhs.lightPos == rhs.lightPos && lhs.lightRadius == rhs.lightRadius &&
+            lhs.length == rhs.length && lhs.casterIsTranslucent == rhs.casterIsTranslucent;
+}
+
+static inline bool operator==(const LayerSettings& lhs, const LayerSettings& rhs) {
+    return lhs.geometry == rhs.geometry && lhs.source == rhs.source && lhs.alpha == rhs.alpha &&
+            lhs.sourceDataspace == rhs.sourceDataspace &&
+            lhs.colorTransform == rhs.colorTransform &&
+            lhs.disableBlending == rhs.disableBlending && lhs.shadow == rhs.shadow;
+}
+
+// Defining PrintTo helps with Google Tests.
+
+static inline void PrintTo(const Buffer& settings, ::std::ostream* os) {
+    *os << "Buffer {";
+    *os << "\n    .buffer = " << settings.buffer.get();
+    *os << "\n    .fence = " << settings.fence.get();
+    *os << "\n    .textureName = " << settings.textureName;
+    *os << "\n    .useTextureFiltering = " << settings.useTextureFiltering;
+    *os << "\n    .textureTransform = " << settings.textureTransform;
+    *os << "\n    .usePremultipliedAlpha = " << settings.usePremultipliedAlpha;
+    *os << "\n    .isOpaque = " << settings.isOpaque;
+    *os << "\n    .isY410BT2020 = " << settings.isY410BT2020;
+    *os << "\n    .maxMasteringLuminance = " << settings.maxMasteringLuminance;
+    *os << "\n    .maxContentLuminance = " << settings.maxContentLuminance;
+    *os << "\n}";
+}
+
+static inline void PrintTo(const Geometry& settings, ::std::ostream* os) {
+    *os << "Geometry {";
+    *os << "\n    .boundaries = ";
+    PrintTo(settings.boundaries, os);
+    *os << "\n    .positionTransform = " << settings.positionTransform;
+    *os << "\n    .roundedCornersRadius = " << settings.roundedCornersRadius;
+    *os << "\n    .roundedCornersCrop = ";
+    PrintTo(settings.roundedCornersCrop, os);
+    *os << "\n}";
+}
+
+static inline void PrintTo(const PixelSource& settings, ::std::ostream* os) {
+    *os << "PixelSource {";
+    *os << "\n    .buffer = ";
+    PrintTo(settings.buffer, os);
+    *os << "\n    .solidColor = " << settings.solidColor;
+    *os << "\n}";
+}
+
+static inline void PrintTo(const ShadowSettings& settings, ::std::ostream* os) {
+    *os << "ShadowSettings {";
+    *os << "\n    .ambientColor = " << settings.ambientColor;
+    *os << "\n    .spotColor = " << settings.spotColor;
+    *os << "\n    .lightPos = " << settings.lightPos;
+    *os << "\n    .lightRadius = " << settings.lightRadius;
+    *os << "\n    .length = " << settings.length;
+    *os << "\n    .casterIsTranslucent = " << settings.casterIsTranslucent;
+    *os << "\n}";
+}
+
+static inline void PrintTo(const LayerSettings& settings, ::std::ostream* os) {
+    *os << "LayerSettings {";
+    *os << "\n    .geometry = ";
+    PrintTo(settings.geometry, os);
+    *os << "\n    .source = ";
+    PrintTo(settings.source, os);
+    *os << "\n    .alpha = " << settings.alpha;
+    *os << "\n    .sourceDataspace = ";
+    PrintTo(settings.sourceDataspace, os);
+    *os << "\n    .colorTransform = " << settings.colorTransform;
+    *os << "\n    .disableBlending = " << settings.disableBlending;
+    *os << "\n    .shadow = ";
+    PrintTo(settings.shadow, os);
+    *os << "\n}";
+}
 
 } // namespace renderengine
 } // namespace android
