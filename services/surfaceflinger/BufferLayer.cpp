@@ -56,6 +56,9 @@
 
 namespace android {
 
+static constexpr float defaultMaxMasteringLuminance = 1000.0;
+static constexpr float defaultMaxContentLuminance = 1000.0;
+
 BufferLayer::BufferLayer(const LayerCreationArgs& args)
       : Layer(args),
         mTextureName(args.textureName),
@@ -184,6 +187,14 @@ std::optional<renderengine::LayerSettings> BufferLayer::prepareClientComposition
         layer.source.buffer.textureName = mTextureName;
         layer.source.buffer.usePremultipliedAlpha = getPremultipledAlpha();
         layer.source.buffer.isY410BT2020 = isHdrY410();
+        bool hasSmpte2086 = mBufferInfo.mHdrMetadata.validTypes & HdrMetadata::SMPTE2086;
+        bool hasCta861_3 = mBufferInfo.mHdrMetadata.validTypes & HdrMetadata::CTA861_3;
+        layer.source.buffer.maxMasteringLuminance = hasSmpte2086
+                ? mBufferInfo.mHdrMetadata.smpte2086.maxLuminance
+                : defaultMaxMasteringLuminance;
+        layer.source.buffer.maxContentLuminance = hasCta861_3
+                ? mBufferInfo.mHdrMetadata.cta8613.maxContentLightLevel
+                : defaultMaxContentLuminance;
         // TODO: we could be more subtle with isFixedSize()
         const bool useFiltering = targetSettings.needsFiltering || mNeedsFiltering || isFixedSize();
 

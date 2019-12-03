@@ -69,6 +69,10 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Motion, pointerCount, 88);
   CHECK_OFFSET(InputMessage::Body::Motion, pointers, 96);
 
+  CHECK_OFFSET(InputMessage::Body::Focus, seq, 0);
+  CHECK_OFFSET(InputMessage::Body::Focus, hasFocus, 4);
+  CHECK_OFFSET(InputMessage::Body::Focus, inTouchMode, 6);
+
   CHECK_OFFSET(InputMessage::Body::Finished, seq, 0);
   CHECK_OFFSET(InputMessage::Body::Finished, handled, 4);
 }
@@ -87,6 +91,7 @@ void TestBodySize() {
                   offsetof(InputMessage::Body::Motion, pointers) +
                           sizeof(InputMessage::Body::Motion::Pointer) * MAX_POINTERS);
     static_assert(sizeof(InputMessage::Body::Finished) == 8);
+    static_assert(sizeof(InputMessage::Body::Focus) == 8);
 }
 
 } // namespace android

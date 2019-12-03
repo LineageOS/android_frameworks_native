@@ -90,6 +90,10 @@ private:
 
     /* location of display luminance uniform */
     GLint mDisplayMaxLuminanceLoc;
+    /* location of max mastering luminance uniform */
+    GLint mMaxMasteringLuminanceLoc;
+    /* location of max content luminance uniform */
+    GLint mMaxContentLuminanceLoc;
 
     /* location of transform matrix */
     GLint mInputTransformMatrixLoc;

@@ -33,15 +33,6 @@ namespace android {
 
 namespace gralloc4 {
 
-/**
- * This library is compiled into VNDK-SP and FWK_ONLY copies. When a device is upgraded, the vendor
- * partition may choose to use an older copy of the VNDK-SP.
- *
- * Prepend the version to every encode and decode so the system partition can fallback to an older
- * version if necessary.
- */
-#define GRALLOC4_METADATA_VERSION 1
-
 #define GRALLOC4_STANDARD_METADATA_TYPE "android.hardware.graphics.common.StandardMetadataType"
 #define GRALLOC4_CHROMA_SITING "android.hardware.graphics.common.ChromaSiting"
 #define GRALLOC4_COMPRESSION "android.hardware.graphics.common.Compression"

@@ -983,6 +983,8 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
 
     Mesh mesh(Mesh::TRIANGLE_FAN, 4, 2, 2);
     for (auto layer : layers) {
+        mState.maxMasteringLuminance = layer.source.buffer.maxMasteringLuminance;
+        mState.maxContentLuminance = layer.source.buffer.maxContentLuminance;
         mState.projectionMatrix = projectionMatrix * layer.geometry.positionTransform;
 
         const FloatRect bounds = layer.geometry.boundaries;
@@ -998,7 +1000,6 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
         bool usePremultipliedAlpha = true;
         bool disableTexture = true;
         bool isOpaque = false;
-
         if (layer.source.buffer.buffer != nullptr) {
             disableTexture = false;
             isOpaque = layer.source.buffer.isOpaque;

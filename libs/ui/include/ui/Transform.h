@@ -38,7 +38,7 @@ class Transform {
 public:
     Transform();
     Transform(const Transform&  other);
-    explicit Transform(uint32_t orientation);
+    explicit Transform(uint32_t orientation, int w = 0, int h = 0);
     ~Transform();
 
     enum orientation_flags {

@@ -60,6 +60,7 @@ protected:
 
     void PublishAndConsumeKeyEvent();
     void PublishAndConsumeMotionEvent();
+    void PublishAndConsumeFocusEvent();
 };
 
 TEST_F(InputPublisherAndConsumerTest, GetChannel_ReturnsTheChannel) {
@@ -256,12 +257,53 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
             << "publisher receiveFinishedSignal should have set handled to consumer's reply";
 }
 
+void InputPublisherAndConsumerTest::PublishAndConsumeFocusEvent() {
+    status_t status;
+
+    constexpr uint32_t seq = 15;
+    constexpr bool hasFocus = true;
+    constexpr bool inTouchMode = true;
+
+    status = mPublisher->publishFocusEvent(seq, hasFocus, inTouchMode);
+    ASSERT_EQ(OK, status) << "publisher publishKeyEvent should return OK";
+
+    uint32_t consumeSeq;
+    InputEvent* event;
+    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event);
+    ASSERT_EQ(OK, status) << "consumer consume should return OK";
+
+    ASSERT_TRUE(event != nullptr) << "consumer should have returned non-NULL event";
+    ASSERT_EQ(AINPUT_EVENT_TYPE_FOCUS, event->getType())
+            << "consumer should have returned a focus event";
+
+    FocusEvent* focusEvent = static_cast<FocusEvent*>(event);
+    EXPECT_EQ(seq, consumeSeq);
+    EXPECT_EQ(hasFocus, focusEvent->getHasFocus());
+    EXPECT_EQ(inTouchMode, focusEvent->getInTouchMode());
+
+    status = mConsumer->sendFinishedSignal(seq, true);
+    ASSERT_EQ(OK, status) << "consumer sendFinishedSignal should return OK";
+
+    uint32_t finishedSeq = 0;
+    bool handled = false;
+    status = mPublisher->receiveFinishedSignal(&finishedSeq, &handled);
+    ASSERT_EQ(OK, status) << "publisher receiveFinishedSignal should return OK";
+    ASSERT_EQ(seq, finishedSeq)
+            << "publisher receiveFinishedSignal should have returned the original sequence number";
+    ASSERT_TRUE(handled)
+            << "publisher receiveFinishedSignal should have set handled to consumer's reply";
+}
+
 TEST_F(InputPublisherAndConsumerTest, PublishKeyEvent_EndToEnd) {
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
 }
 
 TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_EndToEnd) {
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
+}
+
+TEST_F(InputPublisherAndConsumerTest, PublishFocusEvent_EndToEnd) {
+    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeFocusEvent());
 }
 
 TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenSequenceNumberIsZero_ReturnsError) {
@@ -322,6 +364,7 @@ TEST_F(InputPublisherAndConsumerTest, PublishMultipleEvents_EndToEnd) {
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
+    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeFocusEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
 }

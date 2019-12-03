@@ -71,6 +71,8 @@ struct Description {
     TransferFunction outputTransferFunction = TransferFunction::LINEAR;
 
     float displayMaxLuminance;
+    float maxMasteringLuminance;
+    float maxContentLuminance;
 
     // projection matrix
     mat4 projectionMatrix;

@@ -60,6 +60,8 @@ struct Buffer {
 
     // HDR color-space setting for Y410.
     bool isY410BT2020 = false;
+    float maxMasteringLuminance = 0.0;
+    float maxContentLuminance = 0.0;
 };
 
 // Metadata describing the layer geometry.
@@ -96,6 +98,33 @@ struct PixelSource {
     half3 solidColor = half3(0.0f, 0.0f, 0.0f);
 };
 
+/*
+ * Contains the configuration for the shadows drawn by single layer. Shadow follows
+ * material design guidelines.
+ */
+struct ShadowSettings {
+    // Color to the ambient shadow. The alpha is premultiplied.
+    vec4 ambientColor = vec4();
+
+    // Color to the spot shadow. The alpha is premultiplied. The position of the spot shadow
+    // depends on the light position.
+    vec4 spotColor = vec4();
+
+    // Position of the light source used to cast the spot shadow.
+    vec3 lightPos = vec3();
+
+    // Radius of the spot light source. Smaller radius will have sharper edges,
+    // larger radius will have softer shadows
+    float lightRadius = 0.f;
+
+    // Length of the cast shadow. If length is <= 0.f no shadows will be drawn.
+    float length = 0.f;
+
+    // If true fill in the casting layer is translucent and the shadow needs to fill the bounds.
+    // Otherwise the shadow will only be drawn around the edges of the casting layer.
+    bool casterIsTranslucent = false;
+};
+
 // The settings that RenderEngine requires for correctly rendering a Layer.
 struct LayerSettings {
     // Geometry information
@@ -116,6 +145,8 @@ struct LayerSettings {
 
     // True if blending will be forced to be disabled.
     bool disableBlending = false;
+
+    ShadowSettings shadow;
 };
 
 } // namespace renderengine

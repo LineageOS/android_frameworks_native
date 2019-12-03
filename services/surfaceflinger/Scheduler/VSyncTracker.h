@@ -47,6 +47,13 @@ public:
      */
     virtual nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const = 0;
 
+    /*
+     * The current period of the vsync signal.
+     *
+     * \return  The current period of the vsync signal
+     */
+    virtual nsecs_t currentPeriod() const = 0;
+
 protected:
     VSyncTracker(VSyncTracker const&) = delete;
     VSyncTracker& operator=(VSyncTracker const&) = delete;

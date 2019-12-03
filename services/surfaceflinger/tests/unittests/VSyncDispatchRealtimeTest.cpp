@@ -47,6 +47,8 @@ public:
         return timePoint - floor + mPeriod;
     }
 
+    nsecs_t currentPeriod() const final { return mPeriod; }
+
 private:
     nsecs_t const mPeriod;
 };
@@ -71,6 +73,11 @@ public:
         std::lock_guard<decltype(mMutex)> lk(mMutex);
         mPeriod = interval;
         mBase = last_known;
+    }
+
+    nsecs_t currentPeriod() const final {
+        std::lock_guard<decltype(mMutex)> lk(mMutex);
+        return mPeriod;
     }
 
 private:

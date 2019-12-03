@@ -1800,6 +1800,18 @@ Layer::RoundedCornerState Layer::getRoundedCornerState() const {
             : RoundedCornerState();
 }
 
+renderengine::ShadowSettings Layer::getShadowSettings(const Rect& viewport) const {
+    renderengine::ShadowSettings state = mFlinger->mDrawingState.globalShadowSettings;
+
+    // Shift the spot light x-position to the middle of the display and then
+    // offset it by casting layer's screen pos.
+    state.lightPos.x = (viewport.width() / 2.f) - mScreenBounds.left;
+    state.lightPos.y -= mScreenBounds.top;
+
+    state.length = mEffectiveShadowRadius;
+    return state;
+}
+
 void Layer::commitChildList() {
     for (size_t i = 0; i < mCurrentChildren.size(); i++) {
         const auto& child = mCurrentChildren[i];
