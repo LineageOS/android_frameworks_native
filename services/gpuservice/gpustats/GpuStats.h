@@ -37,8 +37,9 @@ public:
                 uint64_t driverVersionCode, int64_t driverBuildTime,
                 const std::string& appPackageName, const int32_t vulkanVersion,
                 GraphicsEnv::Driver driver, bool isDriverLoaded, int64_t driverLoadingTime);
-    // Set CPU Vulkan in use signal into app stats.
-    void setCpuVulkanInUse(const std::string& appPackageName, const uint64_t driverVersionCode);
+    // Insert target stats into app stats or potentially global stats as well.
+    void insertTargetStats(const std::string& appPackageName, const uint64_t driverVersionCode,
+                           const GraphicsEnv::Stats stats, const uint64_t value);
     // dumpsys interface
     void dump(const Vector<String16>& args, std::string* result);
     // Pull gpu global stats
