@@ -954,7 +954,80 @@ TEST_F(OutputRebuildLayerStacksTest, addsToDirtyRegionWith90Rotation) {
  * Output::collectVisibleLayers()
  */
 
-// TODO(b/144060211) - Add coverage
+struct OutputCollectVisibleLayersTest : public testing::Test {
+    struct OutputPartialMock : public OutputPartialMockBase {
+        // Sets up the helper functions called by the function under test to use
+        // mock implementations.
+        MOCK_METHOD2(ensureOutputLayerIfVisible,
+                     void(std::shared_ptr<compositionengine::Layer>,
+                          compositionengine::Output::CoverageState&));
+        MOCK_METHOD1(setReleasedLayers, void(const compositionengine::CompositionRefreshArgs&));
+        MOCK_METHOD0(finalizePendingOutputLayers, void());
+    };
+
+    struct Layer {
+        Layer() {
+            EXPECT_CALL(outputLayer, getState()).WillRepeatedly(ReturnRef(outputLayerState));
+            EXPECT_CALL(outputLayer, editState()).WillRepeatedly(ReturnRef(outputLayerState));
+        }
+
+        StrictMock<mock::OutputLayer> outputLayer;
+        std::shared_ptr<StrictMock<mock::Layer>> layer{new StrictMock<mock::Layer>()};
+        impl::OutputLayerCompositionState outputLayerState;
+    };
+
+    OutputCollectVisibleLayersTest() {
+        EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(3));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0))
+                .WillRepeatedly(Return(&mLayer1.outputLayer));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(1))
+                .WillRepeatedly(Return(&mLayer2.outputLayer));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(2))
+                .WillRepeatedly(Return(&mLayer3.outputLayer));
+
+        mRefreshArgs.layers.push_back(mLayer1.layer);
+        mRefreshArgs.layers.push_back(mLayer2.layer);
+        mRefreshArgs.layers.push_back(mLayer3.layer);
+    }
+
+    StrictMock<OutputPartialMock> mOutput;
+    CompositionRefreshArgs mRefreshArgs;
+    compositionengine::LayerFESet mGeomSnapshots;
+    compositionengine::Output::CoverageState mCoverageState{mGeomSnapshots};
+    Layer mLayer1;
+    Layer mLayer2;
+    Layer mLayer3;
+};
+
+TEST_F(OutputCollectVisibleLayersTest, doesMinimalWorkIfNoLayers) {
+    mRefreshArgs.layers.clear();
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(0));
+
+    EXPECT_CALL(mOutput, setReleasedLayers(Ref(mRefreshArgs)));
+    EXPECT_CALL(mOutput, finalizePendingOutputLayers());
+
+    mOutput.collectVisibleLayers(mRefreshArgs, mCoverageState);
+}
+
+TEST_F(OutputCollectVisibleLayersTest, processesCandidateLayersReversedAndSetsOutputLayerZ) {
+    // Enforce a call order sequence for this test.
+    InSequence seq;
+
+    // Layer coverage is evaluated from front to back!
+    EXPECT_CALL(mOutput, ensureOutputLayerIfVisible(Eq(mLayer3.layer), Ref(mCoverageState)));
+    EXPECT_CALL(mOutput, ensureOutputLayerIfVisible(Eq(mLayer2.layer), Ref(mCoverageState)));
+    EXPECT_CALL(mOutput, ensureOutputLayerIfVisible(Eq(mLayer1.layer), Ref(mCoverageState)));
+
+    EXPECT_CALL(mOutput, setReleasedLayers(Ref(mRefreshArgs)));
+    EXPECT_CALL(mOutput, finalizePendingOutputLayers());
+
+    mOutput.collectVisibleLayers(mRefreshArgs, mCoverageState);
+
+    // Ensure all output layers have been assigned a simple/flattened z-order.
+    EXPECT_EQ(0u, mLayer1.outputLayerState.z);
+    EXPECT_EQ(1u, mLayer2.outputLayerState.z);
+    EXPECT_EQ(2u, mLayer3.outputLayerState.z);
+}
 
 /*
  * Output::ensureOutputLayerIfVisible()
