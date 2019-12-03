@@ -54,6 +54,13 @@ public:
      */
     virtual nsecs_t currentPeriod() const = 0;
 
+    /*
+     * Inform the tracker that the period is changing and the tracker needs to recalibrate itself.
+     *
+     * \param [in] period   The period that the system is changing into.
+     */
+    virtual void setPeriod(nsecs_t period) = 0;
+
 protected:
     VSyncTracker(VSyncTracker const&) = delete;
     VSyncTracker& operator=(VSyncTracker const&) = delete;
