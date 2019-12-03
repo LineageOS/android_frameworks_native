@@ -230,6 +230,39 @@ int32_t ANativeWindow_getBuffersDataSpace(ANativeWindow* window) __INTRODUCED_IN
 
 #endif // __ANDROID_API__ >= 28
 
+#if __ANDROID_API__ >= 30
+
+/**
+ * Sets the intended frame rate for this window.
+ *
+ * On devices that are capable of running the display at different refresh
+ * rates, the system may choose a display refresh rate to better match this
+ * window's frame rate. Usage of this API won't introduce frame rate throttling,
+ * or affect other aspects of the application's frame production
+ * pipeline. However, because the system may change the display refresh rate,
+ * calls to this function may result in changes to Choreographer callback
+ * timings, and changes to the time interval at which the system releases
+ * buffers back to the application.
+ *
+ * Note that this only has an effect for windows presented on the display. If
+ * this ANativeWindow is consumed by something other than the system compositor,
+ * e.g. a media codec, this call has no effect.
+ *
+ * Available since API level 30.
+ *
+ * \param frameRate The intended frame rate of this window. 0 is a special value
+ * that indicates the app will accept the system's choice for the display frame
+ * rate, which is the default behavior if this function isn't called. The
+ * frameRate param does *not* need to be a valid refresh rate for this device's
+ * display - e.g., it's fine to pass 30fps to a device that can only run the
+ * display at 60fps.
+ *
+ * \return 0 for success, -EINVAL if the window or frame rate are invalid.
+ */
+int32_t ANativeWindow_setFrameRate(ANativeWindow* window, float frameRate) __INTRODUCED_IN(30);
+
+#endif // __ANDROID_API__ >= 30
+
 #ifdef __cplusplus
 };
 #endif

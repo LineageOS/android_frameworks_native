@@ -43,6 +43,7 @@ LIBNATIVEWINDOW {
     ANativeWindow_setDequeueTimeout; # apex # introduced=30
     ANativeWindow_setSharedBufferMode; # llndk
     ANativeWindow_setSwapInterval; # llndk
+    ANativeWindow_setFrameRate; # introduced=30
     ANativeWindow_setUsage; # llndk
     ANativeWindow_unlockAndPost;
   local:
