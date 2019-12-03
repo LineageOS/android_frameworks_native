@@ -4396,6 +4396,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case SET_ACTIVE_CONFIG:
         case SET_ALLOWED_DISPLAY_CONFIGS:
         case GET_ALLOWED_DISPLAY_CONFIGS:
+        case SET_DESIRED_DISPLAY_CONFIG_SPECS:
         case SET_ACTIVE_COLOR_MODE:
         case INJECT_VSYNC:
         case SET_POWER_MODE:
@@ -5486,6 +5487,23 @@ status_t SurfaceFlinger::getAllowedDisplayConfigs(const sp<IBinder>& displayToke
     if (display->isPrimary()) {
         outAllowedConfigs->assign(mAllowedDisplayConfigs.begin(), mAllowedDisplayConfigs.end());
     }
+
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
+                                                      int32_t defaultModeId, float minRefreshRate,
+                                                      float maxRefreshRate) {
+    ATRACE_CALL();
+
+    if (!displayToken) {
+        return BAD_VALUE;
+    }
+
+    ALOGD("setDesiredDisplayConfigSpecs: defaultId: %d min: %.f max: %.f", defaultModeId,
+          minRefreshRate, maxRefreshRate);
+    // TODO(b/142507213): In order to minimize the changelist size, this is going to be implemented
+    // in the follow up CL.
 
     return NO_ERROR;
 }

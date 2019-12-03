@@ -401,6 +401,15 @@ public:
     virtual status_t getAllowedDisplayConfigs(const sp<IBinder>& displayToken,
                                               std::vector<int32_t>* outAllowedConfigs) = 0;
     /*
+     * Sets the refresh rate boundaries for display configuration.
+     * For all other parameters, default configuration is used. The index for the default is
+     * corresponding to the configs returned from getDisplayConfigs().
+     */
+    virtual status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
+                                                  int32_t defaultModeId, float minRefreshRate,
+                                                  float maxRefreshRate) = 0;
+
+    /*
      * Gets whether brightness operations are supported on a display.
      *
      * displayToken
@@ -512,6 +521,7 @@ public:
         REMOVE_REGION_SAMPLING_LISTENER,
         SET_ALLOWED_DISPLAY_CONFIGS,
         GET_ALLOWED_DISPLAY_CONFIGS,
+        SET_DESIRED_DISPLAY_CONFIG_SPECS,
         GET_DISPLAY_BRIGHTNESS_SUPPORT,
         SET_DISPLAY_BRIGHTNESS,
         CAPTURE_SCREEN_BY_ID,

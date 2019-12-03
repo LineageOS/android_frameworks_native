@@ -129,6 +129,13 @@ public:
     static status_t getAllowedDisplayConfigs(const sp<IBinder>& displayToken,
                                              std::vector<int32_t>* outAllowedConfigs);
 
+    // Sets the refresh rate boundaries for display configuration.
+    // For all other parameters, default configuration is used. The index for the default is
+    // corresponting to the configs returned from getDisplayConfigs().
+    static status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
+                                                 int32_t defaultModeId, float minRefreshRate,
+                                                 float maxRefreshRate);
+
     // Gets the list of supported color modes for the given display
     static status_t getDisplayColorModes(const sp<IBinder>& display,
             Vector<ui::ColorMode>* outColorModes);

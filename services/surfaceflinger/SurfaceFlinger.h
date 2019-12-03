@@ -473,6 +473,8 @@ private:
                                       const std::vector<int32_t>& allowedConfigs) override;
     status_t getAllowedDisplayConfigs(const sp<IBinder>& displayToken,
                                       std::vector<int32_t>* outAllowedConfigs) override;
+    status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken, int32_t displayModeId,
+                                          float minRefreshRate, float maxRefreshRate) override;
     status_t getDisplayBrightnessSupport(const sp<IBinder>& displayToken,
                                          bool* outSupport) const override;
     status_t setDisplayBrightness(const sp<IBinder>& displayToken, float brightness) const override;
