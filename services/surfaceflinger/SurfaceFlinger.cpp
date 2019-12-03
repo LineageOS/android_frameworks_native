@@ -3129,7 +3129,13 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         listenerCallbacks.insert(listener);
     }
 
-    sp<Layer> layer(fromHandle(s.surface));
+    sp<Layer> layer = nullptr;
+    if (s.surface) {
+        layer = fromHandle(s.surface);
+    } else {
+        // The client may provide us a null handle. Treat it as if the layer was removed.
+        ALOGW("Attempt to set client state with a null layer handle");
+    }
     if (layer == nullptr) {
         for (auto& [listener, callbackIds] : s.listeners) {
             mTransactionCompletedThread.registerUnpresentedCallbackHandle(
