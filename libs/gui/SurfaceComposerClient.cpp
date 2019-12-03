@@ -1627,6 +1627,16 @@ status_t SurfaceComposerClient::setDesiredDisplayConfigSpecs(const sp<IBinder>& 
                                                                                maxRefreshRate);
 }
 
+status_t SurfaceComposerClient::getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
+                                                             int32_t* outDefaultModeId,
+                                                             float* outMinRefreshRate,
+                                                             float* outMaxRefreshRate) {
+    return ComposerService::getComposerService()->getDesiredDisplayConfigSpecs(displayToken,
+                                                                               outDefaultModeId,
+                                                                               outMinRefreshRate,
+                                                                               outMaxRefreshRate);
+}
+
 status_t SurfaceComposerClient::getDisplayColorModes(const sp<IBinder>& display,
         Vector<ColorMode>* outColorModes) {
     return ComposerService::getComposerService()->getDisplayColorModes(display, outColorModes);

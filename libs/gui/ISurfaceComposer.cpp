@@ -878,6 +878,33 @@ public:
         return reply.readInt32();
     }
 
+    virtual status_t getAllowedDisplayConfigs(const sp<IBinder>& displayToken,
+                                              std::vector<int32_t>* outAllowedConfigs) {
+        if (!outAllowedConfigs) return BAD_VALUE;
+        Parcel data, reply;
+        status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (result != NO_ERROR) {
+            ALOGE("getAllowedDisplayConfigs failed to writeInterfaceToken: %d", result);
+            return result;
+        }
+        result = data.writeStrongBinder(displayToken);
+        if (result != NO_ERROR) {
+            ALOGE("getAllowedDisplayConfigs failed to writeStrongBinder: %d", result);
+            return result;
+        }
+        result = remote()->transact(BnSurfaceComposer::GET_ALLOWED_DISPLAY_CONFIGS, data, &reply);
+        if (result != NO_ERROR) {
+            ALOGE("getAllowedDisplayConfigs failed to transact: %d", result);
+            return result;
+        }
+        result = reply.readInt32Vector(outAllowedConfigs);
+        if (result != NO_ERROR) {
+            ALOGE("getAllowedDisplayConfigs failed to readInt32Vector: %d", result);
+            return result;
+        }
+        return reply.readInt32();
+    }
+
     virtual status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
                                                   int32_t defaultModeId, float minRefreshRate,
                                                   float maxRefreshRate) {
@@ -917,28 +944,41 @@ public:
         return reply.readInt32();
     }
 
-    virtual status_t getAllowedDisplayConfigs(const sp<IBinder>& displayToken,
-                                              std::vector<int32_t>* outAllowedConfigs) {
-        if (!outAllowedConfigs) return BAD_VALUE;
+    virtual status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
+                                                  int32_t* outDefaultModeId,
+                                                  float* outMinRefreshRate,
+                                                  float* outMaxRefreshRate) {
+        if (!outDefaultModeId || !outMinRefreshRate || !outMaxRefreshRate) return BAD_VALUE;
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
-            ALOGE("getAllowedDisplayConfigs failed to writeInterfaceToken: %d", result);
+            ALOGE("getDesiredDisplayConfigSpecs failed to writeInterfaceToken: %d", result);
             return result;
         }
         result = data.writeStrongBinder(displayToken);
         if (result != NO_ERROR) {
-            ALOGE("getAllowedDisplayConfigs failed to writeStrongBinder: %d", result);
+            ALOGE("getDesiredDisplayConfigSpecs failed to writeStrongBinder: %d", result);
             return result;
         }
-        result = remote()->transact(BnSurfaceComposer::GET_ALLOWED_DISPLAY_CONFIGS, data, &reply);
+        result = remote()->transact(BnSurfaceComposer::GET_DESIRED_DISPLAY_CONFIG_SPECS, data,
+                                    &reply);
         if (result != NO_ERROR) {
-            ALOGE("getAllowedDisplayConfigs failed to transact: %d", result);
+            ALOGE("getDesiredDisplayConfigSpecs failed to transact: %d", result);
             return result;
         }
-        result = reply.readInt32Vector(outAllowedConfigs);
+        result = reply.readInt32(outDefaultModeId);
         if (result != NO_ERROR) {
-            ALOGE("getAllowedDisplayConfigs failed to readInt32Vector: %d", result);
+            ALOGE("getDesiredDisplayConfigSpecs failed to read defaultModeId: %d", result);
+            return result;
+        }
+        result = reply.readFloat(outMinRefreshRate);
+        if (result != NO_ERROR) {
+            ALOGE("getDesiredDisplayConfigSpecs failed to read minRefreshRate: %d", result);
+            return result;
+        }
+        result = reply.readFloat(outMaxRefreshRate);
+        if (result != NO_ERROR) {
+            ALOGE("getDesiredDisplayConfigSpecs failed to read maxRefreshRate: %d", result);
             return result;
         }
         return reply.readInt32();
@@ -1649,6 +1689,40 @@ status_t BnSurfaceComposer::onTransact(
                 ALOGE("setDesiredDisplayConfigSpecs: failed to call setDesiredDisplayConfigSpecs: "
                       "%d",
                       result);
+                return result;
+            }
+            reply->writeInt32(result);
+            return result;
+        }
+        case GET_DESIRED_DISPLAY_CONFIG_SPECS: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IBinder> displayToken = data.readStrongBinder();
+            int32_t defaultModeId;
+            float minRefreshRate;
+            float maxRefreshRate;
+
+            status_t result = getDesiredDisplayConfigSpecs(displayToken, &defaultModeId,
+                                                           &minRefreshRate, &maxRefreshRate);
+            if (result != NO_ERROR) {
+                ALOGE("getDesiredDisplayConfigSpecs: failed to get getDesiredDisplayConfigSpecs: "
+                      "%d",
+                      result);
+                return result;
+            }
+
+            result = reply->writeInt32(defaultModeId);
+            if (result != NO_ERROR) {
+                ALOGE("getDesiredDisplayConfigSpecs: failed to write defaultModeId: %d", result);
+                return result;
+            }
+            result = reply->writeFloat(minRefreshRate);
+            if (result != NO_ERROR) {
+                ALOGE("getDesiredDisplayConfigSpecs: failed to write minRefreshRate: %d", result);
+                return result;
+            }
+            result = reply->writeFloat(maxRefreshRate);
+            if (result != NO_ERROR) {
+                ALOGE("getDesiredDisplayConfigSpecs: failed to write maxRefreshRate: %d", result);
                 return result;
             }
             reply->writeInt32(result);
