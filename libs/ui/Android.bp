@@ -69,6 +69,10 @@ cc_library_shared {
     include_dirs: [
         "frameworks/native/include",
     ],
+    export_include_dirs: [
+        "include",
+        "include_private",
+    ],
 
     // Uncomment the following line to enable VALIDATE_REGIONS traces
     //defaults: ["libui-validate-regions-defaults"],
