@@ -5067,14 +5067,21 @@ status_t SurfaceFlinger::captureLayers(
             return PERMISSION_DENIED;
         }
 
+        Rect parentSourceBounds = parent->getCroppedBufferSize(parent->getCurrentState());
         if (sourceCrop.width() <= 0) {
             crop.left = 0;
-            crop.right = parent->getBufferSize(parent->getCurrentState()).getWidth();
+            crop.right = parentSourceBounds.getWidth();
         }
 
         if (sourceCrop.height() <= 0) {
             crop.top = 0;
-            crop.bottom = parent->getBufferSize(parent->getCurrentState()).getHeight();
+            crop.bottom = parentSourceBounds.getHeight();
+        }
+
+        if (crop.isEmpty() || frameScale <= 0.0f) {
+            // Error out if the layer has no source bounds (i.e. they are boundless) and a source
+            // crop was not specified, or an invalid frame scale was provided.
+            return BAD_VALUE;
         }
         reqWidth = crop.width() * frameScale;
         reqHeight = crop.height() * frameScale;

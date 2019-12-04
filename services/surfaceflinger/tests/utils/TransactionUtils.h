@@ -136,6 +136,11 @@ public:
         }
     }
 
+    static void fillSurfaceRGBA8(const sp<SurfaceControl>& sc, const Color& color,
+                                 bool unlock = true) {
+        fillSurfaceRGBA8(sc, color.r, color.g, color.b, unlock);
+    }
+
     // Fill an RGBA_8888 formatted surface with a single color.
     static void fillSurfaceRGBA8(const sp<SurfaceControl>& sc, uint8_t r, uint8_t g, uint8_t b,
                                  bool unlock = true) {
