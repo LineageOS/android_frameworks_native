@@ -274,7 +274,7 @@ TEST_F(CredentialsTest, CaptureLayersTest) {
         sp<GraphicBuffer> outBuffer;
         return ScreenshotClient::captureLayers(mBGSurfaceControl->getHandle(),
                                                ui::Dataspace::V0_SRGB, ui::PixelFormat::RGBA_8888,
-                                               Rect(), FRAME_SCALE, &outBuffer);
+                                               Rect(0, 0, 1, 1), FRAME_SCALE, &outBuffer);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, PERMISSION_DENIED));
 }
