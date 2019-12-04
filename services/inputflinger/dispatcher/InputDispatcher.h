@@ -81,6 +81,7 @@ public:
 
     virtual void dump(std::string& dump) override;
     virtual void monitor() override;
+    virtual bool waitForIdle() override;
 
     virtual void dispatchOnce() override;
 
@@ -129,6 +130,7 @@ private:
     std::mutex mLock;
 
     std::condition_variable mDispatcherIsAlive;
+    std::condition_variable mDispatcherEnteredIdle;
 
     sp<Looper> mLooper;
 

@@ -298,6 +298,12 @@ void InputDispatcher::dispatchOnce() {
         if (runCommandsLockedInterruptible()) {
             nextWakeupTime = LONG_LONG_MIN;
         }
+
+        // We are about to enter an infinitely long sleep, because we have no commands or
+        // pending or queued events
+        if (nextWakeupTime == LONG_LONG_MAX) {
+            mDispatcherEnteredIdle.notify_all();
+        }
     } // release lock
 
     // Wait for callback or timeout or wake.  (make sure we round up, not down)
@@ -4580,6 +4586,24 @@ void InputDispatcher::monitor() {
     std::unique_lock _l(mLock);
     mLooper->wake();
     mDispatcherIsAlive.wait(_l);
+}
+
+/**
+ * Wake up the dispatcher and wait until it processes all events and commands.
+ * The notification of mDispatcherEnteredIdle is guaranteed to happen after wake(), so
+ * this method can be safely called from any thread, as long as you've ensured that
+ * the work you are interested in completing has already been queued.
+ */
+bool InputDispatcher::waitForIdle() {
+    /**
+     * Timeout should represent the longest possible time that a device might spend processing
+     * events and commands.
+     */
+    constexpr std::chrono::duration TIMEOUT = 100ms;
+    std::unique_lock lock(mLock);
+    mLooper->wake();
+    std::cv_status result = mDispatcherEnteredIdle.wait_for(lock, TIMEOUT);
+    return result == std::cv_status::no_timeout;
 }
 
 } // namespace android::inputdispatcher
