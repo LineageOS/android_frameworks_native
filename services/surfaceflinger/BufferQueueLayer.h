@@ -29,7 +29,7 @@ namespace android {
  * This also implements onFrameAvailable(), which notifies SurfaceFlinger
  * that new data has arrived.
  */
-class BufferQueueLayer : public BufferLayer, public BufferLayerConsumer::ContentsChangedListener {
+class BufferQueueLayer : public BufferLayer {
 public:
     // Only call while mStateLock is held
     explicit BufferQueueLayer(const LayerCreationArgs&);
@@ -84,18 +84,37 @@ private:
     void latchPerFrameState(compositionengine::LayerFECompositionState&) const override;
     sp<Layer> createClone() override;
 
-    // -----------------------------------------------------------------------
-    // Interface implementation for BufferLayerConsumer::ContentsChangedListener
-    // -----------------------------------------------------------------------
+    void onFrameAvailable(const BufferItem& item);
+    void onFrameReplaced(const BufferItem& item);
+    void onSidebandStreamChanged();
+    void onFrameDequeued(const uint64_t bufferId);
+    void onFrameDetached(const uint64_t bufferId);
+    void onFrameCancelled(const uint64_t bufferId);
+
 protected:
     void gatherBufferInfo() override;
 
-    void onFrameAvailable(const BufferItem& item) override;
-    void onFrameReplaced(const BufferItem& item) override;
-    void onSidebandStreamChanged() override;
-    void onFrameDequeued(const uint64_t bufferId) override;
-    void onFrameDetached(const uint64_t bufferId) override;
-    void onFrameCancelled(const uint64_t bufferId) override;
+    // -----------------------------------------------------------------------
+    // Interface implementation for BufferLayerConsumer::ContentsChangedListener
+    // -----------------------------------------------------------------------
+    class ContentsChangedListener : public BufferLayerConsumer::ContentsChangedListener {
+    public:
+        ContentsChangedListener(BufferQueueLayer* bufferQueueLayer)
+              : mBufferQueueLayer(bufferQueueLayer) {}
+        void abandon();
+
+    protected:
+        void onFrameAvailable(const BufferItem& item) override;
+        void onFrameReplaced(const BufferItem& item) override;
+        void onSidebandStreamChanged() override;
+        void onFrameDequeued(const uint64_t bufferId) override;
+        void onFrameDetached(const uint64_t bufferId) override;
+        void onFrameCancelled(const uint64_t bufferId) override;
+
+    private:
+        BufferQueueLayer* mBufferQueueLayer = nullptr;
+        Mutex mMutex;
+    };
     // -----------------------------------------------------------------------
 
 public:
@@ -130,6 +149,8 @@ private:
     // thread-safe
     std::atomic<int32_t> mQueuedFrames{0};
     std::atomic<bool> mSidebandStreamChanged{false};
+
+    sp<ContentsChangedListener> mContentsChangedListener;
 };
 
 } // namespace android
