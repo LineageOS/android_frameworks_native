@@ -131,10 +131,10 @@ protected:
         producer = igbProducer;
     }
 
-    void fillBuffer(uint32_t* bufData, uint32_t width, uint32_t height, uint32_t stride, uint8_t r,
-                    uint8_t g, uint8_t b) {
-        for (uint32_t row = 0; row < height; row++) {
-            for (uint32_t col = 0; col < width; col++) {
+    void fillBuffer(uint32_t* bufData, Rect rect, uint32_t stride, uint8_t r, uint8_t g,
+                    uint8_t b) {
+        for (uint32_t row = rect.top; row < rect.bottom; row++) {
+            for (uint32_t col = rect.left; col < rect.right; col++) {
                 uint8_t* pixel = (uint8_t*)(bufData + (row * stride) + col);
                 *pixel = r;
                 *(pixel + 1) = g;
@@ -144,7 +144,7 @@ protected:
         }
     }
 
-    void checkScreenCapture(uint8_t r, uint8_t g, uint8_t b) {
+    void checkScreenCapture(uint8_t r, uint8_t g, uint8_t b, Rect region) {
         const auto width = mScreenCaptureBuf->getWidth();
         const auto height = mScreenCaptureBuf->getHeight();
         const auto stride = mScreenCaptureBuf->getStride();
@@ -156,9 +156,16 @@ protected:
         for (uint32_t row = 0; row < height; row++) {
             for (uint32_t col = 0; col < width; col++) {
                 uint8_t* pixel = (uint8_t*)(bufData + (row * stride) + col);
-                EXPECT_EQ(r, *(pixel));
-                EXPECT_EQ(g, *(pixel + 1));
-                EXPECT_EQ(b, *(pixel + 2));
+                if (row >= region.top && row < region.bottom && col >= region.left &&
+                    col < region.right) {
+                    EXPECT_EQ(r, *(pixel));
+                    EXPECT_EQ(g, *(pixel + 1));
+                    EXPECT_EQ(b, *(pixel + 2));
+                } else {
+                    EXPECT_EQ(0, *(pixel));
+                    EXPECT_EQ(0, *(pixel + 1));
+                    EXPECT_EQ(0, *(pixel + 2));
+                }
             }
         }
         mScreenCaptureBuf->unlock();
@@ -225,7 +232,7 @@ TEST_F(BLASTBufferQueueTest, onFrameAvailable_Apply) {
     uint32_t* bufData;
     buf->lock(static_cast<uint32_t>(GraphicBuffer::USAGE_SW_WRITE_OFTEN),
               reinterpret_cast<void**>(&bufData));
-    fillBuffer(bufData, buf->getWidth(), buf->getHeight(), buf->getStride(), r, g, b);
+    fillBuffer(bufData, Rect(buf->getWidth(), buf->getHeight()), buf->getStride(), r, g, b);
     buf->unlock();
 
     IGraphicBufferProducer::QueueBufferOutput qbOutput;
@@ -236,7 +243,7 @@ TEST_F(BLASTBufferQueueTest, onFrameAvailable_Apply) {
     igbProducer->queueBuffer(slot, input, &qbOutput);
     ASSERT_NE(ui::Transform::orientation_flags::ROT_INVALID, qbOutput.transformHint);
 
-    sleep(1);
+    adapter.waitForCallbacks();
 
     // capture screen and verify that it is red
     bool capturedSecureLayers;
@@ -245,7 +252,8 @@ TEST_F(BLASTBufferQueueTest, onFrameAvailable_Apply) {
                                        ui::Dataspace::V0_SRGB, ui::PixelFormat::RGBA_8888, Rect(),
                                        mDisplayWidth, mDisplayHeight,
                                        /*useIdentityTransform*/ false));
-    ASSERT_NO_FATAL_FAILURE(checkScreenCapture(r, g, b));
+    ASSERT_NO_FATAL_FAILURE(
+            checkScreenCapture(r, g, b, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
 }
 
 TEST_F(BLASTBufferQueueTest, TripleBuffering) {
@@ -286,4 +294,110 @@ TEST_F(BLASTBufferQueueTest, TripleBuffering) {
     }
     adapter.waitForCallbacks();
 }
+
+TEST_F(BLASTBufferQueueTest, SetCrop_Item) {
+    uint8_t r = 255;
+    uint8_t g = 0;
+    uint8_t b = 0;
+
+    BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
+    sp<IGraphicBufferProducer> igbProducer;
+    setUpProducer(adapter, igbProducer);
+    int slot;
+    sp<Fence> fence;
+    sp<GraphicBuffer> buf;
+    auto ret = igbProducer->dequeueBuffer(&slot, &fence, mDisplayWidth, mDisplayHeight,
+                                          PIXEL_FORMAT_RGBA_8888, GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                          nullptr, nullptr);
+    ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION, ret);
+    ASSERT_EQ(OK, igbProducer->requestBuffer(slot, &buf));
+
+    uint32_t* bufData;
+    buf->lock(static_cast<uint32_t>(GraphicBuffer::USAGE_SW_WRITE_OFTEN),
+              reinterpret_cast<void**>(&bufData));
+    fillBuffer(bufData, Rect(buf->getWidth(), buf->getHeight() / 2), buf->getStride(), r, g, b);
+    buf->unlock();
+
+    IGraphicBufferProducer::QueueBufferOutput qbOutput;
+    IGraphicBufferProducer::QueueBufferInput input(systemTime(), false, HAL_DATASPACE_UNKNOWN,
+                                                   Rect(mDisplayWidth, mDisplayHeight / 2),
+                                                   NATIVE_WINDOW_SCALING_MODE_FREEZE, 0,
+                                                   Fence::NO_FENCE);
+    igbProducer->queueBuffer(slot, input, &qbOutput);
+    ASSERT_NE(ui::Transform::orientation_flags::ROT_INVALID, qbOutput.transformHint);
+
+    adapter.waitForCallbacks();
+    // capture screen and verify that it is red
+    bool capturedSecureLayers;
+    ASSERT_EQ(NO_ERROR,
+              mComposer->captureScreen(mDisplayToken, &mScreenCaptureBuf, capturedSecureLayers,
+                                       ui::Dataspace::V0_SRGB, ui::PixelFormat::RGBA_8888, Rect(),
+                                       mDisplayWidth, mDisplayHeight,
+                                       /*useIdentityTransform*/ false));
+    ASSERT_NO_FATAL_FAILURE(
+            checkScreenCapture(r, g, b, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
+}
+
+TEST_F(BLASTBufferQueueTest, SetCrop_ScalingModeScaleCrop) {
+    uint8_t r = 255;
+    uint8_t g = 0;
+    uint8_t b = 0;
+
+    int32_t bufferSideLength =
+            (mDisplayWidth < mDisplayHeight) ? mDisplayWidth / 2 : mDisplayHeight / 2;
+    int32_t finalCropSideLength = bufferSideLength / 2;
+
+    auto bg = mClient->createSurface(String8("BGTest"), 0, 0, PIXEL_FORMAT_RGBA_8888,
+                                     ISurfaceComposerClient::eFXSurfaceColor);
+    ASSERT_NE(nullptr, bg.get());
+    Transaction t;
+    t.setLayerStack(bg, 0)
+            .setCrop_legacy(bg, Rect(0, 0, mDisplayWidth, mDisplayHeight))
+            .setColor(bg, half3{0, 0, 0})
+            .setLayer(bg, 0)
+            .apply();
+
+    BLASTBufferQueueHelper adapter(mSurfaceControl, bufferSideLength, bufferSideLength);
+    sp<IGraphicBufferProducer> igbProducer;
+    setUpProducer(adapter, igbProducer);
+    int slot;
+    sp<Fence> fence;
+    sp<GraphicBuffer> buf;
+    auto ret = igbProducer->dequeueBuffer(&slot, &fence, bufferSideLength, bufferSideLength,
+                                          PIXEL_FORMAT_RGBA_8888, GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                          nullptr, nullptr);
+    ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION, ret);
+    ASSERT_EQ(OK, igbProducer->requestBuffer(slot, &buf));
+
+    uint32_t* bufData;
+    buf->lock(static_cast<uint32_t>(GraphicBuffer::USAGE_SW_WRITE_OFTEN),
+              reinterpret_cast<void**>(&bufData));
+    fillBuffer(bufData, Rect(buf->getWidth(), buf->getHeight()), buf->getStride(), 0, 0, 0);
+    fillBuffer(bufData,
+               Rect(finalCropSideLength / 2, 0, buf->getWidth() - finalCropSideLength / 2,
+                    buf->getHeight()),
+               buf->getStride(), r, g, b);
+    buf->unlock();
+
+    IGraphicBufferProducer::QueueBufferOutput qbOutput;
+    IGraphicBufferProducer::QueueBufferInput input(systemTime(), false, HAL_DATASPACE_UNKNOWN,
+                                                   Rect(bufferSideLength, finalCropSideLength),
+                                                   NATIVE_WINDOW_SCALING_MODE_SCALE_CROP, 0,
+                                                   Fence::NO_FENCE);
+    igbProducer->queueBuffer(slot, input, &qbOutput);
+    ASSERT_NE(ui::Transform::orientation_flags::ROT_INVALID, qbOutput.transformHint);
+
+    adapter.waitForCallbacks();
+    // capture screen and verify that it is red
+    bool capturedSecureLayers;
+    ASSERT_EQ(NO_ERROR,
+              mComposer->captureScreen(mDisplayToken, &mScreenCaptureBuf, capturedSecureLayers,
+                                       ui::Dataspace::V0_SRGB, ui::PixelFormat::RGBA_8888, Rect(),
+                                       mDisplayWidth, mDisplayHeight,
+                                       /*useIdentityTransform*/ false));
+    ASSERT_NO_FATAL_FAILURE(
+            checkScreenCapture(r, g, b,
+                               {0, 0, (int32_t)bufferSideLength, (int32_t)bufferSideLength}));
+}
+
 } // namespace android
