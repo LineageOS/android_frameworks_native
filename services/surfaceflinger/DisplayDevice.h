@@ -246,6 +246,7 @@ public:
                       uint32_t reqHeight, ui::Dataspace reqDataSpace,
                       ui::Transform::orientation_flags rotation, bool allowSecureLayers = true)
           : RenderArea(reqWidth, reqHeight, CaptureFill::OPAQUE, reqDataSpace,
+                       device->getViewport(),
                        getDisplayRotation(rotation, device->getInstallOrientation())),
             mDevice(device),
             mSourceCrop(sourceCrop),

@@ -510,6 +510,9 @@ public:
     void latchCursorCompositionState(compositionengine::LayerFECompositionState&) const override;
     std::optional<renderengine::LayerSettings> prepareClientComposition(
             compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
+    std::optional<renderengine::LayerSettings> prepareShadowClientComposition(
+            const renderengine::LayerSettings& layerSettings, const Rect& displayViewport,
+            ui::Dataspace outputDataspace) override;
     void onLayerDisplayed(const sp<Fence>& releaseFence) override;
     const char* getDebugName() const override;
 

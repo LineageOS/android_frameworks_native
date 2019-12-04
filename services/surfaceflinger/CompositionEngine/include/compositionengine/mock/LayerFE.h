@@ -38,6 +38,10 @@ public:
     MOCK_METHOD1(prepareClientComposition,
                  std::optional<renderengine::LayerSettings>(
                          compositionengine::LayerFE::ClientCompositionTargetSettings&));
+    MOCK_METHOD3(prepareShadowClientComposition,
+                 std::optional<renderengine::LayerSettings>(const renderengine::LayerSettings&,
+                                                            const Rect&, ui::Dataspace));
+
     MOCK_METHOD1(onLayerDisplayed, void(const sp<Fence>&));
 
     MOCK_CONST_METHOD0(getDebugName, const char*());
