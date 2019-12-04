@@ -40,6 +40,7 @@ public:
     MOCK_METHOD1(addVsyncTimestamp, void(nsecs_t));
     MOCK_CONST_METHOD1(nextAnticipatedVSyncTimeFrom, nsecs_t(nsecs_t));
     MOCK_CONST_METHOD0(currentPeriod, nsecs_t());
+    MOCK_METHOD1(setPeriod, void(nsecs_t));
 
     nsecs_t nextVSyncTime(nsecs_t timePoint) const {
         if (timePoint % mPeriod == 0) {

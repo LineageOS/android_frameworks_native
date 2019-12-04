@@ -1173,6 +1173,11 @@ sp<ISensorEventConnection> SensorService::createSensorDirectConnection(
                 return nullptr;
             }
             int fd = resource->data[0];
+            if (!ashmem_valid(fd)) {
+                ALOGE("Supplied Ashmem memory region is invalid");
+                return nullptr;
+            }
+
             int size2 = ashmem_get_size_region(fd);
             // check size consistency
             if (size2 < static_cast<int64_t>(size)) {

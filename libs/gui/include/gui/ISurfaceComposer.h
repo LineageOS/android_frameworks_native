@@ -409,6 +409,10 @@ public:
                                                   int32_t defaultModeId, float minRefreshRate,
                                                   float maxRefreshRate) = 0;
 
+    virtual status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
+                                                  int32_t* outDefaultModeId,
+                                                  float* outMinRefreshRate,
+                                                  float* outMaxRefreshRate) = 0;
     /*
      * Gets whether brightness operations are supported on a display.
      *
@@ -522,6 +526,7 @@ public:
         SET_ALLOWED_DISPLAY_CONFIGS,
         GET_ALLOWED_DISPLAY_CONFIGS,
         SET_DESIRED_DISPLAY_CONFIG_SPECS,
+        GET_DESIRED_DISPLAY_CONFIG_SPECS,
         GET_DISPLAY_BRIGHTNESS_SUPPORT,
         SET_DISPLAY_BRIGHTNESS,
         CAPTURE_SCREEN_BY_ID,

@@ -31,10 +31,42 @@ protected:
     void SetUp() override { mDisplayToken = SurfaceComposerClient::getInternalDisplayToken(); }
 
     sp<IBinder> mDisplayToken;
+    int32_t defaultConfigId;
+    float minRefreshRate;
+    float maxRefreshRate;
 };
 
-TEST_F(RefreshRateRangeTest, helloWorldTest) {
-    status_t res = SurfaceComposerClient::setDesiredDisplayConfigSpecs(mDisplayToken, 0, 0, 0);
+TEST_F(RefreshRateRangeTest, simpleSetAndGet) {
+    status_t res = SurfaceComposerClient::setDesiredDisplayConfigSpecs(mDisplayToken, 1, 45, 75);
     EXPECT_EQ(res, NO_ERROR);
+
+    res = SurfaceComposerClient::getDesiredDisplayConfigSpecs(mDisplayToken, &defaultConfigId,
+                                                              &minRefreshRate, &maxRefreshRate);
+    EXPECT_EQ(res, NO_ERROR);
+    EXPECT_EQ(defaultConfigId, 1);
+    EXPECT_EQ(minRefreshRate, 45);
+    EXPECT_EQ(maxRefreshRate, 75);
+}
+
+TEST_F(RefreshRateRangeTest, complexSetAndGet) {
+    status_t res = SurfaceComposerClient::setDesiredDisplayConfigSpecs(mDisplayToken, 1, 45, 75);
+    EXPECT_EQ(res, NO_ERROR);
+
+    res = SurfaceComposerClient::getDesiredDisplayConfigSpecs(mDisplayToken, &defaultConfigId,
+                                                              &minRefreshRate, &maxRefreshRate);
+    EXPECT_EQ(res, NO_ERROR);
+    EXPECT_EQ(defaultConfigId, 1);
+    EXPECT_EQ(minRefreshRate, 45);
+    EXPECT_EQ(maxRefreshRate, 75);
+
+    // Second call overrides the first one.
+    res = SurfaceComposerClient::setDesiredDisplayConfigSpecs(mDisplayToken, 10, 145, 875);
+    EXPECT_EQ(res, NO_ERROR);
+    res = SurfaceComposerClient::getDesiredDisplayConfigSpecs(mDisplayToken, &defaultConfigId,
+                                                              &minRefreshRate, &maxRefreshRate);
+    EXPECT_EQ(res, NO_ERROR);
+    EXPECT_EQ(defaultConfigId, 10);
+    EXPECT_EQ(minRefreshRate, 145);
+    EXPECT_EQ(maxRefreshRate, 875);
 }
 } // namespace android

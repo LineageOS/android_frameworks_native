@@ -3129,7 +3129,13 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         listenerCallbacks.insert(listener);
     }
 
-    sp<Layer> layer(fromHandle(s.surface));
+    sp<Layer> layer = nullptr;
+    if (s.surface) {
+        layer = fromHandle(s.surface);
+    } else {
+        // The client may provide us a null handle. Treat it as if the layer was removed.
+        ALOGW("Attempt to set client state with a null layer handle");
+    }
     if (layer == nullptr) {
         for (auto& [listener, callbackIds] : s.listeners) {
             mTransactionCompletedThread.registerUnpresentedCallbackHandle(
@@ -3967,6 +3973,12 @@ void SurfaceFlinger::dumpVSync(std::string& result) const {
         StringAppendF(&result, "%" PRIu32 " Hz, ",
                       mRefreshRateConfigs->getRefreshRateFromConfigId(configId).fps);
     }
+    StringAppendF(&result,
+                  "DesiredDisplayConfigSpecs: default config ID: %" PRIu32
+                  ", min: %.2f Hz, max: %.2f Hz",
+                  mDesiredDisplayConfigSpecs.defaultModeId,
+                  mDesiredDisplayConfigSpecs.minRefreshRate,
+                  mDesiredDisplayConfigSpecs.maxRefreshRate);
     StringAppendF(&result, "(config override by backdoor: %s)\n\n",
                   mDebugDisplayConfigSetByBackdoor ? "yes" : "no");
 
@@ -4397,6 +4409,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case SET_ALLOWED_DISPLAY_CONFIGS:
         case GET_ALLOWED_DISPLAY_CONFIGS:
         case SET_DESIRED_DISPLAY_CONFIG_SPECS:
+        case GET_DESIRED_DISPLAY_CONFIG_SPECS:
         case SET_ACTIVE_COLOR_MODE:
         case INJECT_VSYNC:
         case SET_POWER_MODE:
@@ -5500,10 +5513,53 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecs(const sp<IBinder>& display
         return BAD_VALUE;
     }
 
-    ALOGD("setDesiredDisplayConfigSpecs: defaultId: %d min: %.f max: %.f", defaultModeId,
-          minRefreshRate, maxRefreshRate);
-    // TODO(b/142507213): In order to minimize the changelist size, this is going to be implemented
-    // in the follow up CL.
+    postMessageSync(new LambdaMessage([&]() {
+        const auto display = getDisplayDeviceLocked(displayToken);
+        if (!display) {
+            ALOGE("Attempt to set desired display configs for invalid display token %p",
+                  displayToken.get());
+        } else if (display->isVirtual()) {
+            ALOGW("Attempt to set desired display configs for virtual display");
+        } else {
+            // TODO(b/142507213): Plug through to HWC once the interface is ready.
+            Mutex::Autolock lock(mStateLock);
+            const DesiredDisplayConfigSpecs desiredDisplayConfigSpecs = {defaultModeId,
+                                                                         minRefreshRate,
+                                                                         maxRefreshRate};
+            if (desiredDisplayConfigSpecs == mDesiredDisplayConfigSpecs) {
+                return;
+            }
+            ALOGV("Updating desired display configs");
+            ALOGD("desiredDisplayConfigSpecs: defaultId: %d min: %.f max: %.f decisions: ",
+                  desiredDisplayConfigSpecs.defaultModeId, desiredDisplayConfigSpecs.minRefreshRate,
+                  desiredDisplayConfigSpecs.maxRefreshRate);
+            mDesiredDisplayConfigSpecs = desiredDisplayConfigSpecs;
+        }
+    }));
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
+                                                      int32_t* outDefaultModeId,
+                                                      float* outMinRefreshRate,
+                                                      float* outMaxRefreshRate) {
+    ATRACE_CALL();
+
+    if (!displayToken || !outDefaultModeId || !outMinRefreshRate || !outMaxRefreshRate) {
+        return BAD_VALUE;
+    }
+
+    Mutex::Autolock lock(mStateLock);
+    const auto display = getDisplayDeviceLocked(displayToken);
+    if (!display) {
+        return NAME_NOT_FOUND;
+    }
+
+    if (display->isPrimary()) {
+        *outDefaultModeId = mDesiredDisplayConfigSpecs.defaultModeId;
+        *outMinRefreshRate = mDesiredDisplayConfigSpecs.minRefreshRate;
+        *outMaxRefreshRate = mDesiredDisplayConfigSpecs.maxRefreshRate;
+    }
 
     return NO_ERROR;
 }

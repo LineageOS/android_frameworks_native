@@ -386,6 +386,17 @@ private:
         void traverseInReverseZOrder(const LayerVector::Visitor& visitor) const;
     };
 
+    struct DesiredDisplayConfigSpecs {
+        int32_t defaultModeId;
+        float minRefreshRate;
+        float maxRefreshRate;
+
+        bool operator==(const DesiredDisplayConfigSpecs& other) const {
+            return defaultModeId == other.defaultModeId && minRefreshRate == other.minRefreshRate &&
+                    maxRefreshRate == other.maxRefreshRate;
+        }
+    };
+
     /* ------------------------------------------------------------------------
      * IBinder interface
      */
@@ -475,6 +486,9 @@ private:
                                       std::vector<int32_t>* outAllowedConfigs) override;
     status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken, int32_t displayModeId,
                                           float minRefreshRate, float maxRefreshRate) override;
+    status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
+                                          int32_t* outDefaultModeId, float* outMinRefreshRate,
+                                          float* outMaxRefreshRate) override;
     status_t getDisplayBrightnessSupport(const sp<IBinder>& displayToken,
                                          bool* outSupport) const override;
     status_t setDisplayBrightness(const sp<IBinder>& displayToken, float brightness) const override;
@@ -1124,6 +1138,7 @@ private:
     // All configs are allowed if the set is empty.
     using DisplayConfigs = std::set<int32_t>;
     DisplayConfigs mAllowedDisplayConfigs GUARDED_BY(mStateLock);
+    DesiredDisplayConfigSpecs mDesiredDisplayConfigSpecs GUARDED_BY(mStateLock);
 
     std::mutex mActiveConfigLock;
     // This bit is set once we start setting the config. We read from this bit during the

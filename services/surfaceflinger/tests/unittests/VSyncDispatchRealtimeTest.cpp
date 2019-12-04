@@ -49,6 +49,8 @@ public:
 
     nsecs_t currentPeriod() const final { return mPeriod; }
 
+    void setPeriod(nsecs_t) final {}
+
 private:
     nsecs_t const mPeriod;
 };
@@ -79,6 +81,8 @@ public:
         std::lock_guard<decltype(mMutex)> lk(mMutex);
         return mPeriod;
     }
+
+    void setPeriod(nsecs_t) final {}
 
 private:
     std::mutex mutable mMutex;
