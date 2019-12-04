@@ -22,13 +22,14 @@ public:
     static float getCaptureFillValue(CaptureFill captureFill);
 
     RenderArea(uint32_t reqWidth, uint32_t reqHeight, CaptureFill captureFill,
-               ui::Dataspace reqDataSpace,
+               ui::Dataspace reqDataSpace, const Rect& displayViewport,
                ui::Transform::orientation_flags rotation = ui::Transform::ROT_0)
           : mReqWidth(reqWidth),
             mReqHeight(reqHeight),
             mReqDataSpace(reqDataSpace),
             mCaptureFill(captureFill),
-            mRotationFlags(rotation) {}
+            mRotationFlags(rotation),
+            mDisplayViewport(displayViewport) {}
 
     virtual ~RenderArea() = default;
 
@@ -80,12 +81,16 @@ public:
 
     virtual const sp<const DisplayDevice> getDisplayDevice() const = 0;
 
+    // Returns the source display viewport.
+    const Rect& getDisplayViewport() const { return mDisplayViewport; }
+
 private:
     const uint32_t mReqWidth;
     const uint32_t mReqHeight;
     const ui::Dataspace mReqDataSpace;
     const CaptureFill mCaptureFill;
     const ui::Transform::orientation_flags mRotationFlags;
+    const Rect mDisplayViewport;
 };
 
 } // namespace android

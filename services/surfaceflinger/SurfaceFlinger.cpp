@@ -4930,8 +4930,12 @@ const sp<DisplayDevice> SurfaceFlinger::getDisplayByIdOrLayerStack(uint64_t disp
     }
     // Couldn't find display by displayId. Try to get display by layerStack since virtual displays
     // may not have a displayId.
+    return getDisplayByLayerStack(displayOrLayerStack);
+}
+
+const sp<DisplayDevice> SurfaceFlinger::getDisplayByLayerStack(uint64_t layerStack) {
     for (const auto& [token, display] : mDisplays) {
-        if (display->getLayerStack() == displayOrLayerStack) {
+        if (display->getLayerStack() == layerStack) {
             return display;
         }
     }
@@ -4987,8 +4991,8 @@ status_t SurfaceFlinger::captureLayers(
     public:
         LayerRenderArea(SurfaceFlinger* flinger, const sp<Layer>& layer, const Rect crop,
                         int32_t reqWidth, int32_t reqHeight, Dataspace reqDataSpace,
-                        bool childrenOnly)
-              : RenderArea(reqWidth, reqHeight, CaptureFill::CLEAR, reqDataSpace),
+                        bool childrenOnly, const Rect& displayViewport)
+              : RenderArea(reqWidth, reqHeight, CaptureFill::CLEAR, reqDataSpace, displayViewport),
                 mLayer(layer),
                 mCrop(crop),
                 mNeedsFiltering(false),
@@ -5072,7 +5076,7 @@ status_t SurfaceFlinger::captureLayers(
     sp<Layer> parent;
     Rect crop(sourceCrop);
     std::unordered_set<sp<Layer>, ISurfaceComposer::SpHash<Layer>> excludeLayers;
-
+    Rect displayViewport;
     {
         Mutex::Autolock _l(mStateLock);
 
@@ -5117,6 +5121,13 @@ status_t SurfaceFlinger::captureLayers(
                 return NAME_NOT_FOUND;
             }
         }
+
+        auto display = getDisplayByLayerStack(parent->getLayerStack());
+        if (!display) {
+            return BAD_VALUE;
+        }
+
+        displayViewport = display->getViewport();
     } // mStateLock
 
     // really small crop or frameScale
@@ -5127,7 +5138,8 @@ status_t SurfaceFlinger::captureLayers(
         reqHeight = 1;
     }
 
-    LayerRenderArea renderArea(this, parent, crop, reqWidth, reqHeight, reqDataspace, childrenOnly);
+    LayerRenderArea renderArea(this, parent, crop, reqWidth, reqHeight, reqDataspace, childrenOnly,
+                               displayViewport);
     auto traverseLayers = [parent, childrenOnly,
                            &excludeLayers](const LayerVector::Visitor& visitor) {
         parent->traverseChildrenInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
@@ -5253,6 +5265,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     const auto rotation = renderArea.getRotationFlags();
     const auto transform = renderArea.getTransform();
     const auto sourceCrop = renderArea.getSourceCrop();
+    const auto& displayViewport = renderArea.getDisplayViewport();
 
     renderengine::DisplaySettings clientCompositionDisplay;
     std::vector<renderengine::LayerSettings> clientCompositionLayers;
@@ -5337,6 +5350,12 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
         };
         auto result = layer->prepareClientComposition(targetSettings);
         if (result) {
+            std::optional<renderengine::LayerSettings> shadowLayer =
+                    layer->prepareShadowClientComposition(*result, displayViewport,
+                                                          clientCompositionDisplay.outputDataspace);
+            if (shadowLayer) {
+                clientCompositionLayers.push_back(*shadowLayer);
+            }
             clientCompositionLayers.push_back(*result);
         }
     });
