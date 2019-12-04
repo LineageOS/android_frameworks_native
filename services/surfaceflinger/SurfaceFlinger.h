@@ -1106,7 +1106,7 @@ private:
     scheduler::ConnectionHandle mSfConnectionHandle;
 
     // Stores phase offsets configured per refresh rate.
-    const std::unique_ptr<scheduler::PhaseOffsets> mPhaseOffsets;
+    std::unique_ptr<scheduler::PhaseConfiguration> mPhaseConfiguration;
 
     // Optional to defer construction until scheduler connections are created.
     std::optional<scheduler::VSyncModulator> mVSyncModulator;

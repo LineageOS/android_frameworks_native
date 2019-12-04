@@ -30,7 +30,8 @@ public:
     std::unique_ptr<EventControlThread> createEventControlThread(SetVSyncEnabled) override;
     std::unique_ptr<HWComposer> createHWComposer(const std::string& serviceName) override;
     std::unique_ptr<MessageQueue> createMessageQueue() override;
-    std::unique_ptr<scheduler::PhaseOffsets> createPhaseOffsets() override;
+    std::unique_ptr<scheduler::PhaseConfiguration> createPhaseConfiguration(
+            const scheduler::RefreshRateConfigs&) override;
     std::unique_ptr<Scheduler> createScheduler(SetVSyncEnabled,
                                                const scheduler::RefreshRateConfigs&,
                                                ISchedulerCallback&) override;

@@ -45,6 +45,7 @@ cc_test {
         "OneShotTimerTest.cpp",
         "LayerHistoryTest.cpp",
         "LayerMetadataTest.cpp",
+        "PhaseOffsetsTest.cpp",
         "SchedulerTest.cpp",
         "SchedulerUtilsTest.cpp",
         "RefreshRateConfigsTest.cpp",

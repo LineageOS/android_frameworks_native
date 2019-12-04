@@ -125,18 +125,16 @@ DispSync& Scheduler::getPrimaryDispSync() {
     return *mPrimaryDispSync;
 }
 
-std::unique_ptr<VSyncSource> Scheduler::makePrimaryDispSyncSource(
-        const char* name, nsecs_t phaseOffsetNs, nsecs_t offsetThresholdForNextVsync) {
+std::unique_ptr<VSyncSource> Scheduler::makePrimaryDispSyncSource(const char* name,
+                                                                  nsecs_t phaseOffsetNs) {
     return std::make_unique<DispSyncSource>(mPrimaryDispSync.get(), phaseOffsetNs,
-                                            offsetThresholdForNextVsync, true /* traceVsync */,
-                                            name);
+                                            true /* traceVsync */, name);
 }
 
 Scheduler::ConnectionHandle Scheduler::createConnection(
-        const char* connectionName, nsecs_t phaseOffsetNs, nsecs_t offsetThresholdForNextVsync,
+        const char* connectionName, nsecs_t phaseOffsetNs,
         impl::EventThread::InterceptVSyncsCallback interceptCallback) {
-    auto vsyncSource =
-            makePrimaryDispSyncSource(connectionName, phaseOffsetNs, offsetThresholdForNextVsync);
+    auto vsyncSource = makePrimaryDispSyncSource(connectionName, phaseOffsetNs);
     auto eventThread = std::make_unique<impl::EventThread>(std::move(vsyncSource),
                                                            std::move(interceptCallback));
     return createConnection(std::move(eventThread));

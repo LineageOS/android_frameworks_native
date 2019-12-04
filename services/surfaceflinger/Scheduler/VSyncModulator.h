@@ -43,6 +43,10 @@ public:
     struct Offsets {
         nsecs_t sf;
         nsecs_t app;
+
+        bool operator==(const Offsets& other) const { return sf == other.sf && app == other.app; }
+
+        bool operator!=(const Offsets& other) const { return !(*this == other); }
     };
 
     struct OffsetsConfig {
@@ -50,7 +54,11 @@ public:
         Offsets earlyGl; // As above but while compositing with GL.
         Offsets late;    // Default.
 
-        nsecs_t thresholdForNextVsync;
+        bool operator==(const OffsetsConfig& other) const {
+            return early == other.early && earlyGl == other.earlyGl && late == other.late;
+        }
+
+        bool operator!=(const OffsetsConfig& other) const { return !(*this == other); }
     };
 
     VSyncModulator(Scheduler&, ConnectionHandle appConnectionHandle,
