@@ -1443,6 +1443,61 @@ TEST_F(ScreenCaptureTest, CaptureRelativeInTree) {
     mCapture->expectColor(Rect(0, 0, 9, 9), {100, 100, 100, 255});
 }
 
+TEST_F(ScreenCaptureTest, CaptureBoundlessLayerWithSourceCrop) {
+    sp<SurfaceControl> child = createColorLayer("Child layer", Color::RED, mFGSurfaceControl.get());
+    SurfaceComposerClient::Transaction().show(child).apply(true);
+
+    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+    sp<GraphicBuffer> outBuffer;
+    Rect sourceCrop(0, 0, 10, 10);
+    ASSERT_EQ(NO_ERROR, sf->captureLayers(child->getHandle(), &outBuffer, sourceCrop));
+    ScreenCapture sc(outBuffer);
+
+    sc.expectColor(Rect(0, 0, 9, 9), Color::RED);
+}
+
+TEST_F(ScreenCaptureTest, CaptureBoundedLayerWithoutSourceCrop) {
+    sp<SurfaceControl> child = createColorLayer("Child layer", Color::RED, mFGSurfaceControl.get());
+    Rect layerCrop(0, 0, 10, 10);
+    SurfaceComposerClient::Transaction().setCrop_legacy(child, layerCrop).show(child).apply(true);
+
+    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+    sp<GraphicBuffer> outBuffer;
+    Rect sourceCrop = Rect();
+    ASSERT_EQ(NO_ERROR, sf->captureLayers(child->getHandle(), &outBuffer, sourceCrop));
+    ScreenCapture sc(outBuffer);
+
+    sc.expectColor(Rect(0, 0, 9, 9), Color::RED);
+}
+
+TEST_F(ScreenCaptureTest, CaptureBoundlessLayerWithoutSourceCropFails) {
+    sp<SurfaceControl> child = createColorLayer("Child layer", Color::RED, mFGSurfaceControl.get());
+    SurfaceComposerClient::Transaction().show(child).apply(true);
+
+    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+    sp<GraphicBuffer> outBuffer;
+    Rect sourceCrop = Rect();
+
+    ASSERT_EQ(BAD_VALUE, sf->captureLayers(child->getHandle(), &outBuffer, sourceCrop));
+}
+
+TEST_F(ScreenCaptureTest, CaptureBufferLayerWithoutBufferFails) {
+    sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
+                                             PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
+    SurfaceComposerClient::Transaction().show(child).apply(true);
+
+    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+    sp<GraphicBuffer> outBuffer;
+    Rect sourceCrop = Rect();
+    ASSERT_EQ(BAD_VALUE, sf->captureLayers(child->getHandle(), &outBuffer, sourceCrop));
+
+    TransactionUtils::fillSurfaceRGBA8(child, Color::RED);
+    SurfaceComposerClient::Transaction().apply(true);
+    ASSERT_EQ(NO_ERROR, sf->captureLayers(child->getHandle(), &outBuffer, sourceCrop));
+    ScreenCapture sc(outBuffer);
+    sc.expectColor(Rect(0, 0, 9, 9), Color::RED);
+}
+
 // In the following tests we verify successful skipping of a parent layer,
 // so we use the same verification logic and only change how we mutate
 // the parent layer to verify that various properties are ignored.

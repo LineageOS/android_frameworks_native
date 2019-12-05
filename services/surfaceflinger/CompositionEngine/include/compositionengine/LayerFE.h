@@ -93,6 +93,13 @@ public:
     virtual std::optional<renderengine::LayerSettings> prepareClientComposition(
             ClientCompositionTargetSettings&) = 0;
 
+    // Returns the LayerSettings used to draw shadows around a layer. It is passed
+    // to RenderEngine::drawLayers. Returns nullopt_t if the layer does not render
+    // shadows.
+    virtual std::optional<renderengine::LayerSettings> prepareShadowClientComposition(
+            const renderengine::LayerSettings& layerSettings, const Rect& displayViewport,
+            ui::Dataspace outputDataspace) = 0;
+
     // Called after the layer is displayed to update the presentation fence
     virtual void onLayerDisplayed(const sp<Fence>&) = 0;
 

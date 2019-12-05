@@ -510,6 +510,9 @@ public:
     void latchCursorCompositionState(compositionengine::LayerFECompositionState&) const override;
     std::optional<renderengine::LayerSettings> prepareClientComposition(
             compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
+    std::optional<renderengine::LayerSettings> prepareShadowClientComposition(
+            const renderengine::LayerSettings& layerSettings, const Rect& displayViewport,
+            ui::Dataspace outputDataspace) override;
     void onLayerDisplayed(const sp<Fence>& releaseFence) override;
     const char* getDebugName() const override;
 
@@ -712,6 +715,14 @@ public:
             const sp<const DisplayDevice>& display) const;
 
     Region debugGetVisibleRegionOnDefaultDisplay() const;
+
+    /**
+     * Returns the cropped buffer size or the layer crop if the layer has no buffer. Return
+     * INVALID_RECT if the layer has no buffer and no crop.
+     * A layer with an invalid buffer size and no crop is considered to be boundless. The layer
+     * bounds are constrained by its parent bounds.
+     */
+    Rect getCroppedBufferSize(const Layer::State& s) const;
 
 protected:
     // constant
@@ -921,13 +932,6 @@ private:
                                        const LayerVector::Visitor& visitor);
     LayerVector makeChildrenTraversalList(LayerVector::StateSet stateSet,
                                           const std::vector<Layer*>& layersInTree);
-    /**
-     * Returns the cropped buffer size or the layer crop if the layer has no buffer. Return
-     * INVALID_RECT if the layer has no buffer and no crop.
-     * A layer with an invalid buffer size and no crop is considered to be boundless. The layer
-     * bounds are constrained by its parent bounds.
-     */
-    Rect getCroppedBufferSize(const Layer::State& s) const;
 
     // Cached properties computed from drawing state
     // Effective transform taking into account parent transforms and any parent scaling.

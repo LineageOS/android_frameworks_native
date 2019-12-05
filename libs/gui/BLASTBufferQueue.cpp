@@ -19,6 +19,7 @@
 
 #include <gui/BLASTBufferQueue.h>
 #include <gui/BufferItemConsumer.h>
+#include <gui/GLConsumer.h>
 
 #include <chrono>
 
@@ -131,11 +132,18 @@ void BLASTBufferQueue::processNextBufferLocked() {
     t->addTransactionCompletedCallback(transactionCallbackThunk, static_cast<void*>(this));
 
     t->setFrame(mSurfaceControl, {0, 0, (int32_t)buffer->getWidth(), (int32_t)buffer->getHeight()});
-    t->setCrop(mSurfaceControl, {0, 0, (int32_t)buffer->getWidth(), (int32_t)buffer->getHeight()});
+    t->setCrop(mSurfaceControl, computeCrop(mLastSubmittedBufferItem));
 
     if (applyTransaction) {
         t->apply();
     }
+}
+
+Rect BLASTBufferQueue::computeCrop(const BufferItem& item) {
+    if (item.mScalingMode == NATIVE_WINDOW_SCALING_MODE_SCALE_CROP) {
+        return GLConsumer::scaleDownCrop(item.mCrop, mWidth, mHeight);
+    }
+    return item.mCrop;
 }
 
 void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {

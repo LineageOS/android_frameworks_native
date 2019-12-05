@@ -63,6 +63,14 @@ public:
     /* Called by the heatbeat to ensures that the dispatcher has not deadlocked. */
     virtual void monitor() = 0;
 
+    /**
+     * Wait until dispatcher is idle. That means, there are no further events to be processed,
+     * and all of the policy callbacks have been completed.
+     * Return true if the dispatcher is idle.
+     * Return false if the timeout waiting for the dispatcher to become idle has expired.
+     */
+    virtual bool waitForIdle() = 0;
+
     /* Runs a single iteration of the dispatch loop.
      * Nominally processes one queued event, a timeout, or a response from an input consumer.
      *

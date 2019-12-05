@@ -571,6 +571,53 @@ std::optional<renderengine::LayerSettings> Layer::prepareClientComposition(
     return layerSettings;
 }
 
+std::optional<renderengine::LayerSettings> Layer::prepareShadowClientComposition(
+        const renderengine::LayerSettings& casterLayerSettings, const Rect& displayViewport,
+        ui::Dataspace outputDataspace) {
+    renderengine::ShadowSettings shadow = getShadowSettings(displayViewport);
+    if (shadow.length <= 0.f) {
+        return {};
+    }
+
+    const float casterAlpha = casterLayerSettings.alpha;
+    const bool casterIsOpaque = ((casterLayerSettings.source.buffer.buffer != nullptr) &&
+                                 casterLayerSettings.source.buffer.isOpaque);
+
+    renderengine::LayerSettings shadowLayer = casterLayerSettings;
+    shadowLayer.shadow = shadow;
+
+    // If the casting layer is translucent, we need to fill in the shadow underneath the layer.
+    // Otherwise the generated shadow will only be shown around the casting layer.
+    shadowLayer.shadow.casterIsTranslucent = !casterIsOpaque || (casterAlpha < 1.0f);
+    shadowLayer.shadow.ambientColor *= casterAlpha;
+    shadowLayer.shadow.spotColor *= casterAlpha;
+    shadowLayer.sourceDataspace = outputDataspace;
+    shadowLayer.source.buffer.buffer = nullptr;
+
+    if (shadowLayer.shadow.ambientColor.a <= 0.f && shadowLayer.shadow.spotColor.a <= 0.f) {
+        return {};
+    }
+
+    float casterCornerRadius = shadowLayer.geometry.roundedCornersRadius;
+    const FloatRect& cornerRadiusCropRect = casterLayerSettings.geometry.roundedCornersCrop;
+    const FloatRect& casterRect = shadowLayer.geometry.boundaries;
+
+    // crop used to set the corner radius may be larger than the content rect. Adjust the corner
+    // radius accordingly.
+    if (casterCornerRadius > 0.f) {
+        float cropRectOffset = std::max(std::abs(cornerRadiusCropRect.top - casterRect.top),
+                                        std::abs(cornerRadiusCropRect.left - casterRect.left));
+        if (cropRectOffset > casterCornerRadius) {
+            casterCornerRadius = 0;
+        } else {
+            casterCornerRadius -= cropRectOffset;
+        }
+        shadowLayer.geometry.roundedCornersRadius = casterCornerRadius;
+    }
+
+    return shadowLayer;
+}
+
 Hwc2::IComposerClient::Composition Layer::getCompositionType(
         const sp<const DisplayDevice>& display) const {
     const auto outputLayer = findOutputLayerForDisplay(display);

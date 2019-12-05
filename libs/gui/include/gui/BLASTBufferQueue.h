@@ -62,6 +62,7 @@ private:
     BLASTBufferQueue(const BLASTBufferQueue& rhs);
 
     void processNextBufferLocked() REQUIRES(mMutex);
+    Rect computeCrop(const BufferItem& item);
 
     sp<SurfaceControl> mSurfaceControl;
 

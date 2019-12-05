@@ -688,6 +688,7 @@ private:
                                  const sp<GraphicBuffer>& buffer, bool useIdentityTransform,
                                  bool& outCapturedSecureLayers);
     const sp<DisplayDevice> getDisplayByIdOrLayerStack(uint64_t displayOrLayerStack);
+    const sp<DisplayDevice> getDisplayByLayerStack(uint64_t layerStack);
     status_t captureScreenImplLocked(const RenderArea& renderArea,
                                      TraverseLayersFunction traverseLayers,
                                      ANativeWindowBuffer* buffer, bool useIdentityTransform,

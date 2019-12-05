@@ -2279,8 +2279,8 @@ struct OutputComposeSurfacesTest : public testing::Test {
         // Sets up the helper functions called by the function under test to use
         // mock implementations.
         MOCK_CONST_METHOD0(getSkipColorTransform, bool());
-        MOCK_METHOD2(generateClientCompositionRequests,
-                     std::vector<renderengine::LayerSettings>(bool, Region&));
+        MOCK_METHOD3(generateClientCompositionRequests,
+                     std::vector<renderengine::LayerSettings>(bool, Region&, ui::Dataspace));
         MOCK_METHOD2(appendRegionFlashRequests,
                      void(const Region&, std::vector<renderengine::LayerSettings>&));
         MOCK_METHOD1(setExpensiveRenderingExpected, void(bool));
@@ -2358,7 +2358,7 @@ TEST_F(OutputComposeSurfacesTest, worksIfNoClientLayersQueued) {
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillOnce(Return(mOutputBuffer));
 
     EXPECT_CALL(mOutput, getSkipColorTransform()).WillOnce(Return(false));
-    EXPECT_CALL(mOutput, generateClientCompositionRequests(false, _)).Times(1);
+    EXPECT_CALL(mOutput, generateClientCompositionRequests(false, _, _)).Times(1);
     EXPECT_CALL(mOutput, appendRegionFlashRequests(RegionEq(kDebugRegion), _)).Times(1);
     EXPECT_CALL(mOutput, setExpensiveRenderingExpected(true)).Times(1);
     EXPECT_CALL(mOutput, setExpensiveRenderingExpected(false)).Times(1);
@@ -2375,9 +2375,10 @@ struct GenerateClientCompositionRequestsTest : public testing::Test {
     struct OutputPartialMock : public OutputPartialMockBase {
         // compositionengine::Output overrides
         std::vector<renderengine::LayerSettings> generateClientCompositionRequests(
-                bool supportsProtectedContent, Region& clearRegion) override {
+                bool supportsProtectedContent, Region& clearRegion,
+                ui::Dataspace dataspace) override {
             return impl::Output::generateClientCompositionRequests(supportsProtectedContent,
-                                                                   clearRegion);
+                                                                   clearRegion, dataspace);
         }
     };
 
@@ -2436,6 +2437,8 @@ TEST_F(GenerateClientCompositionRequestsTest, worksForLandscapeModeSplitScreen) 
     EXPECT_CALL(leftOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
     EXPECT_CALL(leftLayer, getFEState()).WillRepeatedly(ReturnRef(leftLayerFEState));
     EXPECT_CALL(leftLayerFE, prepareClientComposition(_)).WillOnce(Return(leftLayerRESettings));
+    EXPECT_CALL(leftLayerFE, prepareShadowClientComposition(_, _, _))
+            .WillOnce(Return(std::optional<renderengine::LayerSettings>()));
     EXPECT_CALL(leftOutputLayer, editState()).WillRepeatedly(ReturnRef(leftOutputLayerState));
 
     EXPECT_CALL(rightOutputLayer, getState()).WillRepeatedly(ReturnRef(rightOutputLayerState));
@@ -2445,6 +2448,8 @@ TEST_F(GenerateClientCompositionRequestsTest, worksForLandscapeModeSplitScreen) 
     EXPECT_CALL(rightOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
     EXPECT_CALL(rightLayer, getFEState()).WillRepeatedly(ReturnRef(rightLayerFEState));
     EXPECT_CALL(rightLayerFE, prepareClientComposition(_)).WillOnce(Return(rightLayerRESettings));
+    EXPECT_CALL(rightLayerFE, prepareShadowClientComposition(_, _, _))
+            .WillOnce(Return(std::optional<renderengine::LayerSettings>()));
     EXPECT_CALL(rightOutputLayer, editState()).WillRepeatedly(ReturnRef(rightOutputLayerState));
 
     EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(2u));
@@ -2468,8 +2473,8 @@ TEST_F(GenerateClientCompositionRequestsTest, worksForLandscapeModeSplitScreen) 
 
     constexpr bool supportsProtectedContent = false;
     Region clearRegion;
-    auto requests =
-            mOutput.generateClientCompositionRequests(supportsProtectedContent, clearRegion);
+    auto requests = mOutput.generateClientCompositionRequests(supportsProtectedContent, clearRegion,
+                                                              mOutput.getState().targetDataspace);
 
     ASSERT_EQ(2u, requests.size());
     EXPECT_EQ(leftLayerColor, requests[0].source.solidColor);
@@ -2518,8 +2523,8 @@ TEST_F(GenerateClientCompositionRequestsTest, ignoresLayersThatDoNotIntersectWit
 
     constexpr bool supportsProtectedContent = false;
     Region clearRegion;
-    auto requests =
-            mOutput.generateClientCompositionRequests(supportsProtectedContent, clearRegion);
+    auto requests = mOutput.generateClientCompositionRequests(supportsProtectedContent, clearRegion,
+                                                              mOutput.getState().targetDataspace);
 
     EXPECT_EQ(0u, requests.size());
 }
@@ -2596,8 +2601,8 @@ TEST_F(GenerateClientCompositionRequestsTest, clearsDeviceLayesAfterFirst) {
 
     constexpr bool supportsProtectedContent = false;
     Region clearRegion;
-    auto requests =
-            mOutput.generateClientCompositionRequests(supportsProtectedContent, clearRegion);
+    auto requests = mOutput.generateClientCompositionRequests(supportsProtectedContent, clearRegion,
+                                                              mOutput.getState().targetDataspace);
 
     const half3 clearColor{0.f, 0.f, 0.f};
 
