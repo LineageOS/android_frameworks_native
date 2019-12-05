@@ -61,11 +61,15 @@ static void CloseDescriptor(const char* descriptor_string) {
 
 static std::vector<apex::ApexFile> ActivateApexPackages() {
     // The logic here is (partially) copied and adapted from
-    // system/apex/apexd/apexd_main.cpp.
+    // system/apex/apexd/apexd.cpp.
     //
-    // Only scan the APEX directory under /system (within the chroot dir).
-    // Cast call to void to suppress warn_unused_result.
-    static_cast<void>(apex::scanPackagesDirAndActivate(apex::kApexPackageSystemDir));
+    // Only scan the APEX directory under /system, /system_ext and /vendor (within the chroot dir).
+    std::vector<const char*> apex_dirs{apex::kApexPackageSystemDir, apex::kApexPackageSystemExtDir,
+                                       apex::kApexPackageVendorDir};
+    for (const auto& dir : apex_dirs) {
+        // Cast call to void to suppress warn_unused_result.
+        static_cast<void>(apex::scanPackagesDirAndActivate(dir));
+    }
     return apex::getActivePackages();
 }
 
