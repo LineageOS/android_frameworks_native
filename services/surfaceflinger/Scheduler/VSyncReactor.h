@@ -43,6 +43,11 @@ public:
     void setPeriod(nsecs_t period);
     nsecs_t getPeriod();
 
+    // TODO: (b/145626181) remove begin,endResync functions from DispSync i/f when possible.
+    void beginResync();
+    bool addResyncSample(nsecs_t timestamp, bool* periodFlushed);
+    void endResync();
+
 private:
     std::unique_ptr<Clock> const mClock;
     std::unique_ptr<VSyncDispatch> const mDispatch;
@@ -52,6 +57,7 @@ private:
     std::mutex mMutex;
     bool mIgnorePresentFences GUARDED_BY(mMutex) = false;
     std::vector<std::shared_ptr<FenceTime>> mUnfiredFences GUARDED_BY(mMutex);
+    bool mPeriodChangeInProgress GUARDED_BY(mMutex) = false;
 };
 
 } // namespace android::scheduler
