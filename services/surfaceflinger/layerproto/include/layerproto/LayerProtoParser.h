@@ -111,6 +111,8 @@ public:
         bool isProtected;
         float cornerRadius;
         LayerMetadata metadata;
+        LayerProtoParser::FloatRect cornerRadiusCrop;
+        float shadowRadius;
 
         std::string to_string() const;
     };

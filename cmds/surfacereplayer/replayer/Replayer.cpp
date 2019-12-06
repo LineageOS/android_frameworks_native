@@ -424,6 +424,9 @@ status_t Replayer::doSurfaceTransaction(
             case SurfaceChange::SurfaceChangeCase::kDetachChildren:
                 setDetachChildrenChange(transaction, change.id(), change.detach_children());
                 break;
+            case SurfaceChange::SurfaceChangeCase::kShadowRadius:
+                setShadowRadiusChange(transaction, change.id(), change.shadow_radius());
+                break;
             default:
                 status = 1;
                 break;
@@ -723,4 +726,9 @@ void Replayer::setReparentChildrenChange(SurfaceComposerClient::Transaction& t,
         return;
     }
     t.reparentChildren(mLayers[id], mLayers[c.parent_id()]->getHandle());
+}
+
+void Replayer::setShadowRadiusChange(SurfaceComposerClient::Transaction& t,
+        layer_id id, const ShadowRadiusChange& c) {
+    t.setShadowRadius(mLayers[id], c.radius());
 }

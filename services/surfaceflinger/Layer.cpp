@@ -1935,6 +1935,9 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags)
                                        [&]() { return layerInfo->mutable_source_bounds(); });
         LayerProtoHelper::writeToProto(mScreenBounds,
                                        [&]() { return layerInfo->mutable_screen_bounds(); });
+        LayerProtoHelper::writeToProto(getRoundedCornerState().cropRect,
+                                       [&]() { return layerInfo->mutable_corner_radius_crop(); });
+        layerInfo->set_shadow_radius(mEffectiveShadowRadius);
     }
 }
 

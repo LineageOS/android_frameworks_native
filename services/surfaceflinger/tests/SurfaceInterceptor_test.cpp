@@ -51,6 +51,7 @@ constexpr float ALPHA_UPDATE = 0.29f;
 constexpr float CORNER_RADIUS_UPDATE = 0.2f;
 constexpr float POSITION_UPDATE = 121;
 const Rect CROP_UPDATE(16, 16, 32, 32);
+const float SHADOW_RADIUS_UPDATE = 35.0f;
 
 const String8 DISPLAY_NAME("SurfaceInterceptor Display Test");
 constexpr auto TEST_BG_SURFACE_NAME = "BG Interceptor Test Surface";
@@ -190,6 +191,7 @@ public:
     bool relativeParentUpdateFound(const SurfaceChange& change, bool found);
     bool detachChildrenUpdateFound(const SurfaceChange& change, bool found);
     bool reparentChildrenUpdateFound(const SurfaceChange& change, bool found);
+    bool shadowRadiusUpdateFound(const SurfaceChange& change, bool found);
     bool surfaceUpdateFound(const Trace& trace, SurfaceChange::SurfaceChangeCase changeCase);
 
     // Find all of the updates in the single trace
@@ -226,6 +228,7 @@ public:
     void relativeParentUpdate(Transaction&);
     void detachChildrenUpdate(Transaction&);
     void reparentChildrenUpdate(Transaction&);
+    void shadowRadiusUpdate(Transaction&);
     void surfaceCreation(Transaction&);
     void displayCreation(Transaction&);
     void displayDeletion(Transaction&);
@@ -406,6 +409,10 @@ void SurfaceInterceptorTest::reparentChildrenUpdate(Transaction& t) {
     t.reparentChildren(mBGSurfaceControl, mFGSurfaceControl->getHandle());
 }
 
+void SurfaceInterceptorTest::shadowRadiusUpdate(Transaction& t) {
+    t.setShadowRadius(mBGSurfaceControl, SHADOW_RADIUS_UPDATE);
+}
+
 void SurfaceInterceptorTest::displayCreation(Transaction&) {
     sp<IBinder> testDisplay = SurfaceComposerClient::createDisplay(DISPLAY_NAME, true);
     SurfaceComposerClient::destroyDisplay(testDisplay);
@@ -435,6 +442,7 @@ void SurfaceInterceptorTest::runAllUpdates() {
     runInTransaction(&SurfaceInterceptorTest::reparentChildrenUpdate);
     runInTransaction(&SurfaceInterceptorTest::detachChildrenUpdate);
     runInTransaction(&SurfaceInterceptorTest::relativeParentUpdate);
+    runInTransaction(&SurfaceInterceptorTest::shadowRadiusUpdate);
 }
 
 void SurfaceInterceptorTest::surfaceCreation(Transaction&) {
@@ -655,6 +663,17 @@ bool SurfaceInterceptorTest::reparentChildrenUpdateFound(const SurfaceChange& ch
     return found;
 }
 
+bool SurfaceInterceptorTest::shadowRadiusUpdateFound(const SurfaceChange& change,
+                                                     bool foundShadowRadius) {
+    bool hasShadowRadius(change.shadow_radius().radius() == SHADOW_RADIUS_UPDATE);
+    if (hasShadowRadius && !foundShadowRadius) {
+        foundShadowRadius = true;
+    } else if (hasShadowRadius && foundShadowRadius) {
+        []() { FAIL(); }();
+    }
+    return foundShadowRadius;
+}
+
 bool SurfaceInterceptorTest::surfaceUpdateFound(const Trace& trace,
         SurfaceChange::SurfaceChangeCase changeCase) {
     bool foundUpdate = false;
@@ -717,6 +736,9 @@ bool SurfaceInterceptorTest::surfaceUpdateFound(const Trace& trace,
                             break;
                         case SurfaceChange::SurfaceChangeCase::kDetachChildren:
                             foundUpdate = detachChildrenUpdateFound(change, foundUpdate);
+                            break;
+                        case SurfaceChange::SurfaceChangeCase::kShadowRadius:
+                            foundUpdate = shadowRadiusUpdateFound(change, foundUpdate);
                             break;
                         case SurfaceChange::SurfaceChangeCase::SURFACECHANGE_NOT_SET:
                             break;
@@ -918,6 +940,11 @@ TEST_F(SurfaceInterceptorTest, InterceptRelativeParentUpdateWorks) {
 TEST_F(SurfaceInterceptorTest, InterceptDetachChildrenUpdateWorks) {
     captureTest(&SurfaceInterceptorTest::detachChildrenUpdate,
                 SurfaceChange::SurfaceChangeCase::kDetachChildren);
+}
+
+TEST_F(SurfaceInterceptorTest, InterceptShadowRadiusUpdateWorks) {
+    captureTest(&SurfaceInterceptorTest::shadowRadiusUpdate,
+                SurfaceChange::SurfaceChangeCase::kShadowRadius);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptAllUpdatesWorks) {

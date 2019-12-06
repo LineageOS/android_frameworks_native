@@ -165,6 +165,7 @@ private:
     void addDetachChildrenLocked(Transaction* transaction, int32_t layerId, bool detached);
     void addRelativeParentLocked(Transaction* transaction, int32_t layerId, int32_t parentId,
                                  int z);
+    void addShadowRadiusLocked(Transaction* transaction, int32_t layerId, float shadowRadius);
 
     // Add display transactions to the trace
     DisplayChange* createDisplayChangeLocked(Transaction* transaction, int32_t sequenceId);
