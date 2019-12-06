@@ -71,12 +71,15 @@ public:
      */
     virtual bool waitForIdle() = 0;
 
-    /* Runs a single iteration of the dispatch loop.
-     * Nominally processes one queued event, a timeout, or a response from an input consumer.
+    /* Make the dispatcher start processing events.
      *
-     * This method should only be called on the input dispatcher thread.
+     * The dispatcher will start consuming events from the InputListenerInterface
+     * in the order that they were received.
      */
-    virtual void dispatchOnce() = 0;
+    virtual status_t start() = 0;
+
+    /* Makes the dispatcher stop processing events. */
+    virtual status_t stop() = 0;
 
     /* Injects an input event and optionally waits for sync.
      * The synchronization mode determines whether the method blocks while waiting for

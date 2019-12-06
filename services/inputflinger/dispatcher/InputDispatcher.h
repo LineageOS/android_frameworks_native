@@ -82,8 +82,8 @@ public:
     virtual void dump(std::string& dump) override;
     virtual void monitor() override;
     virtual bool waitForIdle() override;
-
-    virtual void dispatchOnce() override;
+    virtual status_t start() override;
+    virtual status_t stop() override;
 
     virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) override;
     virtual void notifyKey(const NotifyKeyArgs* args) override;
@@ -124,6 +124,9 @@ private:
         STALE,
     };
 
+    class InputDispatcherThread;
+    sp<InputDispatcherThread> mThread;
+
     sp<InputDispatcherPolicyInterface> mPolicy;
     android::InputDispatcherConfiguration mConfig;
 
@@ -140,6 +143,11 @@ private:
     std::deque<std::unique_ptr<CommandEntry>> mCommandQueue GUARDED_BY(mLock);
 
     DropReason mLastDropReason GUARDED_BY(mLock);
+
+    // With each iteration, InputDispatcher nominally processes one queued event,
+    // a timeout, or a response from an input consumer.
+    // This method should only be called on the input dispatcher's own thread.
+    void dispatchOnce();
 
     void dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) REQUIRES(mLock);
 

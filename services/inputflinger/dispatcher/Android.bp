@@ -21,7 +21,6 @@ cc_library_static {
         "InjectionState.cpp",
         "InputDispatcher.cpp",
         "InputDispatcherFactory.cpp",
-        "InputDispatcherThread.cpp",
         "InputState.cpp",
         "InputTarget.cpp",
         "Monitor.cpp",
