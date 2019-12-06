@@ -1427,7 +1427,7 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
     // Note: This is not Case::Display::HWC_ACTIVE_CONFIG_ID as the ids are
     // remapped, and the test only ever sets up one config. If there were an error
     // looking up the remapped index, device->getActiveConfig() would be -1 instead.
-    EXPECT_EQ(0, device->getActiveConfig());
+    EXPECT_EQ(0, device->getActiveConfig().value());
     EXPECT_EQ(Case::PerFrameMetadataSupport::PER_FRAME_METADATA_KEYS,
               device->getSupportedPerFrameMetadata());
 }

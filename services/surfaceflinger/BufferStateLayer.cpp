@@ -247,8 +247,7 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, nsecs_t postTi
                                            FrameTracer::FrameEvent::POST);
     mCurrentState.desiredPresentTime = desiredPresentTime;
 
-    const bool isHDR = mCurrentState.hdrMetadata.validTypes != 0;
-    mFlinger->mScheduler->recordLayerHistory(this, desiredPresentTime, isHDR);
+    mFlinger->mScheduler->recordLayerHistory(this, desiredPresentTime);
 
     return true;
 }

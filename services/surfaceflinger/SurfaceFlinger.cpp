@@ -542,14 +542,8 @@ void SurfaceFlinger::bootFinished()
 
         if (mRefreshRateConfigs->refreshRateSwitchingSupported()) {
             // set the refresh rate according to the policy
-            const auto& performanceRefreshRate =
-                    mRefreshRateConfigs->getRefreshRateFromType(RefreshRateType::PERFORMANCE);
-
-            if (isDisplayConfigAllowed(performanceRefreshRate.configId)) {
-                setRefreshRateTo(RefreshRateType::PERFORMANCE, Scheduler::ConfigEvent::None);
-            } else {
-                setRefreshRateTo(RefreshRateType::DEFAULT, Scheduler::ConfigEvent::None);
-            }
+            const auto& performanceRefreshRate = mRefreshRateConfigs->getMaxRefreshRateByPolicy();
+            changeRefreshRateLocked(performanceRefreshRate, Scheduler::ConfigEvent::None);
         }
     }));
 }
@@ -821,9 +815,8 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
         info.xdpi = xdpi;
         info.ydpi = ydpi;
         info.fps = 1e9 / hwConfig->getVsyncPeriod();
-        const auto refreshRateType =
-                mRefreshRateConfigs->getRefreshRateTypeFromHwcConfigId(hwConfig->getId());
-        const auto offset = mPhaseOffsets->getOffsetsForRefreshRate(refreshRateType);
+
+        const auto offset = mPhaseOffsets->getOffsetsForRefreshRate(info.fps);
         info.appVsyncOffset = offset.late.app;
 
         // This is how far in advance a buffer must be queued for
@@ -873,17 +866,17 @@ int SurfaceFlinger::getActiveConfig(const sp<IBinder>& displayToken) {
     if (display->isPrimary()) {
         std::lock_guard<std::mutex> lock(mActiveConfigLock);
         if (mDesiredActiveConfigChanged) {
-            return mDesiredActiveConfig.configId;
-        } else {
-            return display->getActiveConfig();
+            return mDesiredActiveConfig.configId.value();
         }
-    } else {
-        return display->getActiveConfig();
     }
+
+    return display->getActiveConfig().value();
 }
 
 void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
     ATRACE_CALL();
+    auto refreshRate = mRefreshRateConfigs->getRefreshRateFromConfigId(info.configId);
+    ALOGV("setDesiredActiveConfig(%s)", refreshRate.name.c_str());
 
     // Don't check against the current mode yet. Worst case we set the desired
     // config twice. However event generation config might have changed so we need to update it
@@ -902,13 +895,14 @@ void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
         // As we called to set period, we will call to onRefreshRateChangeCompleted once
         // DispSync model is locked.
         mVSyncModulator->onRefreshRateChangeInitiated();
-        mPhaseOffsets->setRefreshRateType(info.type);
+
+        mPhaseOffsets->setRefreshRateFps(refreshRate.fps);
         mVSyncModulator->setPhaseOffsets(mPhaseOffsets->getCurrentOffsets());
     }
     mDesiredActiveConfigChanged = true;
 
     if (mRefreshRateOverlay) {
-        mRefreshRateOverlay->changeRefreshRate(mDesiredActiveConfig.type);
+        mRefreshRateOverlay->changeRefreshRate(refreshRate);
     }
 }
 
@@ -930,14 +924,15 @@ void SurfaceFlinger::setActiveConfigInternal() {
     }
 
     std::lock_guard<std::mutex> lock(mActiveConfigLock);
-    mRefreshRateConfigs->setCurrentConfig(mUpcomingActiveConfig.configId);
+    mRefreshRateConfigs->setCurrentConfigId(mUpcomingActiveConfig.configId);
     mRefreshRateStats->setConfigMode(mUpcomingActiveConfig.configId);
-
     display->setActiveConfig(mUpcomingActiveConfig.configId);
 
-    mPhaseOffsets->setRefreshRateType(mUpcomingActiveConfig.type);
+    auto refreshRate =
+            mRefreshRateConfigs->getRefreshRateFromConfigId(mUpcomingActiveConfig.configId);
+    mPhaseOffsets->setRefreshRateFps(refreshRate.fps);
     mVSyncModulator->setPhaseOffsets(mPhaseOffsets->getCurrentOffsets());
-    ATRACE_INT("ActiveConfigMode", mUpcomingActiveConfig.configId);
+    ATRACE_INT("ActiveConfigFPS", refreshRate.fps);
 
     if (mUpcomingActiveConfig.event != Scheduler::ConfigEvent::None) {
         mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value,
@@ -951,12 +946,15 @@ void SurfaceFlinger::desiredActiveConfigChangeDone() {
     mDesiredActiveConfigChanged = false;
 
     mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
-    mPhaseOffsets->setRefreshRateType(mUpcomingActiveConfig.type);
+    auto refreshRate =
+            mRefreshRateConfigs->getRefreshRateFromConfigId(mDesiredActiveConfig.configId);
+    mPhaseOffsets->setRefreshRateFps(refreshRate.fps);
     mVSyncModulator->setPhaseOffsets(mPhaseOffsets->getCurrentOffsets());
 }
 
 bool SurfaceFlinger::performSetActiveConfig() {
     ATRACE_CALL();
+    ALOGV("performSetActiveConfig");
     if (mCheckPendingFence) {
         if (previousFrameMissed()) {
             // fence has not signaled yet. wait for the next invalidate
@@ -980,6 +978,10 @@ bool SurfaceFlinger::performSetActiveConfig() {
         desiredActiveConfig = mDesiredActiveConfig;
     }
 
+    auto refreshRate =
+            mRefreshRateConfigs->getRefreshRateFromConfigId(desiredActiveConfig.configId);
+    ALOGV("performSetActiveConfig changing active config to %d(%s)", refreshRate.configId.value(),
+          refreshRate.name.c_str());
     const auto display = getDefaultDisplayDeviceLocked();
     if (!display || display->getActiveConfig() == desiredActiveConfig.configId) {
         // display is not valid or we are already in the requested mode
@@ -1000,8 +1002,8 @@ bool SurfaceFlinger::performSetActiveConfig() {
     const auto displayId = display->getId();
     LOG_ALWAYS_FATAL_IF(!displayId);
 
-    ATRACE_INT("ActiveConfigModeHWC", mUpcomingActiveConfig.configId);
-    getHwComposer().setActiveConfig(*displayId, mUpcomingActiveConfig.configId);
+    ATRACE_INT("ActiveConfigFPS_HWC", refreshRate.fps);
+    getHwComposer().setActiveConfig(*displayId, mUpcomingActiveConfig.configId.value());
 
     // we need to submit an empty frame to HWC to start the process
     mCheckPendingFence = true;
@@ -1396,11 +1398,12 @@ void SurfaceFlinger::getCompositorTiming(CompositorTiming* compositorTiming) {
     *compositorTiming = getBE().mCompositorTiming;
 }
 
-bool SurfaceFlinger::isDisplayConfigAllowed(int32_t configId) const {
+bool SurfaceFlinger::isDisplayConfigAllowed(HwcConfigIndexType configId) const {
     return mAllowedDisplayConfigs.empty() || mAllowedDisplayConfigs.count(configId);
 }
 
-void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate, Scheduler::ConfigEvent event) {
+void SurfaceFlinger::changeRefreshRateLocked(const RefreshRate& refreshRate,
+                                             Scheduler::ConfigEvent event) {
     const auto display = getDefaultDisplayDeviceLocked();
     if (!display || mBootStage != BootStage::FINISHED) {
         return;
@@ -1408,15 +1411,13 @@ void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate, Scheduler::Co
     ATRACE_CALL();
 
     // Don't do any updating if the current fps is the same as the new one.
-    const auto& refreshRateConfig = mRefreshRateConfigs->getRefreshRateFromType(refreshRate);
-    const int desiredConfigId = refreshRateConfig.configId;
-
-    if (!isDisplayConfigAllowed(desiredConfigId)) {
-        ALOGV("Skipping config %d as it is not part of allowed configs", desiredConfigId);
+    if (!isDisplayConfigAllowed(refreshRate.configId)) {
+        ALOGV("Skipping config %d as it is not part of allowed configs",
+              refreshRate.configId.value());
         return;
     }
 
-    setDesiredActiveConfig({refreshRate, desiredConfigId, event});
+    setDesiredActiveConfig({refreshRate.configId, event});
 }
 
 void SurfaceFlinger::onHotplugReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId,
@@ -2180,7 +2181,8 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
                                                     Dataspace::UNKNOWN});
     if (!state.isVirtual()) {
         LOG_ALWAYS_FATAL_IF(!displayId);
-        display->setActiveConfig(getHwComposer().getActiveConfigIndex(*displayId));
+        auto activeConfigId = HwcConfigIndexType(getHwComposer().getActiveConfigIndex(*displayId));
+        display->setActiveConfig(activeConfigId);
     }
 
     display->setLayerStack(state.layerStack);
@@ -2520,6 +2522,12 @@ void SurfaceFlinger::updateCursorAsync()
     mCompositionEngine->updateCursorAsync(refreshArgs);
 }
 
+void SurfaceFlinger::changeRefreshRate(const RefreshRate& refreshRate,
+                                       Scheduler::ConfigEvent event) {
+    Mutex::Autolock lock(mStateLock);
+    changeRefreshRateLocked(refreshRate, event);
+}
+
 void SurfaceFlinger::initScheduler(DisplayId primaryDisplayId) {
     if (mScheduler) {
         // In practice it's not allowed to hotplug in/out the primary display once it's been
@@ -2528,7 +2536,7 @@ void SurfaceFlinger::initScheduler(DisplayId primaryDisplayId) {
         return;
     }
 
-    int currentConfig = getHwComposer().getActiveConfigIndex(primaryDisplayId);
+    auto currentConfig = HwcConfigIndexType(getHwComposer().getActiveConfigIndex(primaryDisplayId));
     mRefreshRateConfigs =
             std::make_unique<scheduler::RefreshRateConfigs>(refresh_rate_switching(false),
                                                             getHwComposer().getConfigs(
@@ -2562,11 +2570,7 @@ void SurfaceFlinger::initScheduler(DisplayId primaryDisplayId) {
             new RegionSamplingThread(*this, *mScheduler,
                                      RegionSamplingThread::EnvironmentTimingTunables());
 
-    mScheduler->setChangeRefreshRateCallback(
-            [this](RefreshRateType type, Scheduler::ConfigEvent event) {
-                Mutex::Autolock lock(mStateLock);
-                setRefreshRateTo(type, event);
-            });
+    mScheduler->setSchedulerCallback(this);
 }
 
 void SurfaceFlinger::commitTransaction()
@@ -3969,9 +3973,10 @@ void SurfaceFlinger::dumpVSync(std::string& result) const {
                   dispSyncPresentTimeOffset, getVsyncPeriod());
 
     StringAppendF(&result, "Allowed Display Configs: ");
-    for (int32_t configId : mAllowedDisplayConfigs) {
+    for (auto configId : mAllowedDisplayConfigs) {
         StringAppendF(&result, "%" PRIu32 " Hz, ",
-                      mRefreshRateConfigs->getRefreshRateFromConfigId(configId).fps);
+                      static_cast<int32_t>(
+                              mRefreshRateConfigs->getRefreshRateFromConfigId(configId).fps));
     }
     StringAppendF(&result,
                   "DesiredDisplayConfigSpecs: default config ID: %" PRIu32
@@ -4820,13 +4825,9 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 n = data.readInt32();
                 if (n && !mRefreshRateOverlay &&
                     mRefreshRateConfigs->refreshRateSwitchingSupported()) {
-                    RefreshRateType type;
-                    {
-                        std::lock_guard<std::mutex> lock(mActiveConfigLock);
-                        type = mDesiredActiveConfig.type;
-                    }
                     mRefreshRateOverlay = std::make_unique<RefreshRateOverlay>(*this);
-                    mRefreshRateOverlay->changeRefreshRate(type);
+                    auto current = mRefreshRateConfigs->getCurrentRefreshRate();
+                    mRefreshRateOverlay->changeRefreshRate(current);
                 } else if (!n) {
                     mRefreshRateOverlay.reset();
                 }
@@ -5454,28 +5455,48 @@ void SurfaceFlinger::setAllowedDisplayConfigsInternal(const sp<DisplayDevice>& d
     mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value,
                                 display->getActiveConfig());
 
-    if (mRefreshRateConfigs->refreshRateSwitchingSupported()) {
-        const auto& type = mScheduler->getPreferredRefreshRateType();
-        const auto& config = mRefreshRateConfigs->getRefreshRateFromType(type);
-        if (isDisplayConfigAllowed(config.configId)) {
-            ALOGV("switching to Scheduler preferred config %d", config.configId);
-            setDesiredActiveConfig({type, config.configId, Scheduler::ConfigEvent::Changed});
-        } else {
-            // Set the highest allowed config by iterating backwards on available refresh rates
-            const auto& refreshRates = mRefreshRateConfigs->getRefreshRateMap();
-            for (auto iter = refreshRates.crbegin(); iter != refreshRates.crend(); ++iter) {
-                if (isDisplayConfigAllowed(iter->second.configId)) {
-                    ALOGV("switching to allowed config %d", iter->second.configId);
-                    setDesiredActiveConfig(
-                            {iter->first, iter->second.configId, Scheduler::ConfigEvent::Changed});
-                    break;
-                }
-            }
+    // Prepare the parameters needed for RefreshRateConfigs::setPolicy. This will change to just
+    // passthrough once DisplayManager provide these parameters directly.
+    const auto refreshRate =
+            mRefreshRateConfigs->getRefreshRateFromConfigId(HwcConfigIndexType(allowedConfigs[0]));
+    const auto defaultModeId = refreshRate.configId;
+    auto minRefreshRateFps = refreshRate.fps;
+    auto maxRefreshRateFps = minRefreshRateFps;
+
+    for (auto config : allowedConfigs) {
+        const auto configRefreshRate =
+                mRefreshRateConfigs->getRefreshRateFromConfigId(HwcConfigIndexType(config));
+        if (configRefreshRate.fps < minRefreshRateFps) {
+            minRefreshRateFps = configRefreshRate.fps;
+        } else if (configRefreshRate.fps > maxRefreshRateFps) {
+            maxRefreshRateFps = configRefreshRate.fps;
         }
-    } else if (!allowedConfigs.empty()) {
-        ALOGV("switching to config %d", allowedConfigs[0]);
-        setDesiredActiveConfig(
-                {RefreshRateType::DEFAULT, allowedConfigs[0], Scheduler::ConfigEvent::Changed});
+    }
+    mRefreshRateConfigs->setPolicy(defaultModeId, minRefreshRateFps, maxRefreshRateFps);
+
+    if (mRefreshRateConfigs->refreshRateSwitchingSupported()) {
+        auto configId = mScheduler->getPreferredConfigId();
+        auto preferredRefreshRate = configId
+                ? mRefreshRateConfigs->getRefreshRateFromConfigId(*configId)
+                : mRefreshRateConfigs->getMinRefreshRateByPolicy();
+        ALOGV("trying to switch to Scheduler preferred config %d (%s)",
+              preferredRefreshRate.configId.value(), preferredRefreshRate.name.c_str());
+        if (isDisplayConfigAllowed(preferredRefreshRate.configId)) {
+            ALOGV("switching to Scheduler preferred config %d",
+                  preferredRefreshRate.configId.value());
+            setDesiredActiveConfig(
+                    {preferredRefreshRate.configId, Scheduler::ConfigEvent::Changed});
+        } else {
+            // Set the highest allowed config
+            setDesiredActiveConfig({mRefreshRateConfigs->getMaxRefreshRateByPolicy().configId,
+                                    Scheduler::ConfigEvent::Changed});
+        }
+    } else {
+        if (!allowedConfigs.empty()) {
+            ALOGV("switching to config %d", allowedConfigs[0]);
+            auto configId = HwcConfigIndexType(allowedConfigs[0]);
+            setDesiredActiveConfig({configId, Scheduler::ConfigEvent::Changed});
+        }
     }
 }
 
@@ -5524,7 +5545,10 @@ status_t SurfaceFlinger::getAllowedDisplayConfigs(const sp<IBinder>& displayToke
     }
 
     if (display->isPrimary()) {
-        outAllowedConfigs->assign(mAllowedDisplayConfigs.begin(), mAllowedDisplayConfigs.end());
+        outAllowedConfigs->reserve(mAllowedDisplayConfigs.size());
+        for (auto configId : mAllowedDisplayConfigs) {
+            outAllowedConfigs->push_back(configId.value());
+        }
     }
 
     return NO_ERROR;

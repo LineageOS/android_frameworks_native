@@ -46,11 +46,10 @@ public:
     void registerLayer(Layer*, float lowRefreshRate, float highRefreshRate);
 
     // Marks the layer as active, and records the given state to its history.
-    void record(Layer*, nsecs_t presentTime, bool isHDR, nsecs_t now);
+    void record(Layer*, nsecs_t presentTime, nsecs_t now);
 
     struct Summary {
         float maxRefreshRate; // Maximum refresh rate among recently active layers.
-        bool isHDR;           // True if any recently active layer has HDR content.
     };
 
     // Rebuilds sets of active/inactive layers, and accumulates stats for active layers.

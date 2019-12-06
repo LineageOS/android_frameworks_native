@@ -32,7 +32,6 @@ namespace android::scheduler {
 class PhaseOffsets {
 public:
     using Offsets = VSyncModulator::OffsetsConfig;
-    using RefreshRateType = RefreshRateConfigs::RefreshRateType;
 
     virtual ~PhaseOffsets();
 
@@ -43,9 +42,9 @@ public:
     }
 
     virtual Offsets getCurrentOffsets() const = 0;
-    virtual Offsets getOffsetsForRefreshRate(RefreshRateType) const = 0;
+    virtual Offsets getOffsetsForRefreshRate(float fps) const = 0;
 
-    virtual void setRefreshRateType(RefreshRateType) = 0;
+    virtual void setRefreshRateFps(float fps) = 0;
 
     virtual void dump(std::string& result) const = 0;
 };
@@ -57,18 +56,14 @@ public:
     PhaseOffsets();
 
     // Returns early, early GL, and late offsets for Apps and SF for a given refresh rate.
-    Offsets getOffsetsForRefreshRate(RefreshRateType) const override;
+    Offsets getOffsetsForRefreshRate(float fps) const override;
 
     // Returns early, early GL, and late offsets for Apps and SF.
-    Offsets getCurrentOffsets() const override {
-        return getOffsetsForRefreshRate(mRefreshRateType);
-    }
+    Offsets getCurrentOffsets() const override { return getOffsetsForRefreshRate(mRefreshRateFps); }
 
     // This function should be called when the device is switching between different
     // refresh rates, to properly update the offsets.
-    void setRefreshRateType(RefreshRateType refreshRateType) override {
-        mRefreshRateType = refreshRateType;
-    }
+    void setRefreshRateFps(float fps) override { mRefreshRateFps = fps; }
 
     // Returns current offsets in human friendly format.
     void dump(std::string& result) const override;
@@ -77,9 +72,10 @@ private:
     static Offsets getDefaultOffsets(nsecs_t thresholdForNextVsync);
     static Offsets getHighFpsOffsets(nsecs_t thresholdForNextVsync);
 
-    std::atomic<RefreshRateType> mRefreshRateType = RefreshRateType::DEFAULT;
+    std::atomic<float> mRefreshRateFps = 0;
 
-    std::unordered_map<RefreshRateType, Offsets> mOffsets;
+    Offsets mDefaultOffsets;
+    Offsets mHighFpsOffsets;
 };
 
 } // namespace impl

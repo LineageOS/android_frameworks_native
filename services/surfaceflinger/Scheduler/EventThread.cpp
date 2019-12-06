@@ -36,6 +36,7 @@
 #include <utils/Trace.h>
 
 #include "EventThread.h"
+#include "HwcStrongTypes.h"
 
 using namespace std::chrono_literals;
 
@@ -101,10 +102,11 @@ DisplayEventReceiver::Event makeVSync(PhysicalDisplayId displayId, nsecs_t times
     return event;
 }
 
-DisplayEventReceiver::Event makeConfigChanged(PhysicalDisplayId displayId, int32_t configId) {
+DisplayEventReceiver::Event makeConfigChanged(PhysicalDisplayId displayId,
+                                              HwcConfigIndexType configId) {
     DisplayEventReceiver::Event event;
     event.header = {DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED, displayId, systemTime()};
-    event.config.configId = configId;
+    event.config.configId = configId.value();
     return event;
 }
 
@@ -290,7 +292,7 @@ void EventThread::onHotplugReceived(PhysicalDisplayId displayId, bool connected)
     mCondition.notify_all();
 }
 
-void EventThread::onConfigChanged(PhysicalDisplayId displayId, int32_t configId) {
+void EventThread::onConfigChanged(PhysicalDisplayId displayId, HwcConfigIndexType configId) {
     std::lock_guard<std::mutex> lock(mMutex);
 
     mPendingEvents.push_back(makeConfigChanged(displayId, configId));

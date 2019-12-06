@@ -25,16 +25,16 @@ namespace android::scheduler {
 struct FakePhaseOffsets : PhaseOffsets {
     static constexpr nsecs_t FAKE_PHASE_OFFSET_NS = 0;
 
-    Offsets getOffsetsForRefreshRate(RefreshRateType) const override { return getCurrentOffsets(); }
+    Offsets getOffsetsForRefreshRate(float) const override { return getCurrentOffsets(); }
 
     Offsets getCurrentOffsets() const override {
-        return {{RefreshRateType::DEFAULT, FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS},
-                {RefreshRateType::DEFAULT, FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS},
-                {RefreshRateType::DEFAULT, FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS},
+        return {{FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS},
+                {FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS},
+                {FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS},
                 FAKE_PHASE_OFFSET_NS};
     }
 
-    void setRefreshRateType(RefreshRateType) override {}
+    void setRefreshRateFps(float) override {}
     void dump(std::string&) const override {}
 };
 
