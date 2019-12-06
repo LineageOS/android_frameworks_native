@@ -23,11 +23,10 @@
 
 #include <utils/Log.h>
 
+#include <ui/Point.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
-#include <ui/Point.h>
-
-#include <private/ui/RegionHelper.h>
+#include <ui/RegionHelper.h>
 
 // ----------------------------------------------------------------------------
 
