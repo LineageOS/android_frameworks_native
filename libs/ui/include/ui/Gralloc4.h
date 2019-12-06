@@ -83,7 +83,7 @@ public:
 
     status_t allocate(uint32_t width, uint32_t height, PixelFormat format, uint32_t layerCount,
                       uint64_t usage, uint32_t bufferCount, uint32_t* outStride,
-                      buffer_handle_t* outBufferHandles) const override;
+                      buffer_handle_t* outBufferHandles, bool importBuffers = true) const override;
 
 private:
     const Gralloc4Mapper& mMapper;
