@@ -133,6 +133,7 @@ void BLASTBufferQueue::processNextBufferLocked() {
 
     t->setFrame(mSurfaceControl, {0, 0, (int32_t)buffer->getWidth(), (int32_t)buffer->getHeight()});
     t->setCrop(mSurfaceControl, computeCrop(mLastSubmittedBufferItem));
+    t->setTransform(mSurfaceControl, mLastSubmittedBufferItem.mTransform);
 
     if (applyTransaction) {
         t->apply();
