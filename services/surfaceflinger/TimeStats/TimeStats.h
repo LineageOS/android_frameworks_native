@@ -27,6 +27,7 @@
 #include <mutex>
 #include <optional>
 #include <unordered_map>
+#include <variant>
 
 using namespace android::surfaceflinger;
 
@@ -50,6 +51,13 @@ public:
     // The end time corresponds to when SurfaceFlinger finishes submitting the
     // request to HWC to present a frame.
     virtual void recordFrameDuration(nsecs_t startTime, nsecs_t endTime) = 0;
+    // Records the start time and end times for when RenderEngine begins work.
+    // The start time corresponds to the beginning of RenderEngine::drawLayers.
+    // The end time corresponds to when RenderEngine finishes rendering.
+    virtual void recordRenderEngineDuration(nsecs_t startTime, nsecs_t endTime) = 0;
+    // Same as above, but passes in a fence representing the end time.
+    virtual void recordRenderEngineDuration(nsecs_t startTime,
+                                            const std::shared_ptr<FenceTime>& readyFence) = 0;
 
     virtual void setPostTime(int32_t layerId, uint64_t frameNumber, const std::string& layerName,
                              nsecs_t postTime) = 0;
@@ -58,6 +66,8 @@ public:
     virtual void setAcquireTime(int32_t layerId, uint64_t frameNumber, nsecs_t acquireTime) = 0;
     virtual void setAcquireFence(int32_t layerId, uint64_t frameNumber,
                                  const std::shared_ptr<FenceTime>& acquireFence) = 0;
+    // SetPresent{Time, Fence} are not expected to be called in the critical
+    // rendering path, as they flush prior fences if those fences have fired.
     virtual void setPresentTime(int32_t layerId, uint64_t frameNumber, nsecs_t presentTime) = 0;
     virtual void setPresentFence(int32_t layerId, uint64_t frameNumber,
                                  const std::shared_ptr<FenceTime>& presentFence) = 0;
@@ -107,9 +117,15 @@ class TimeStats : public android::TimeStats {
         nsecs_t prevTime = 0;
     };
 
+    struct RenderEngineDuration {
+        nsecs_t startTime;
+        std::variant<nsecs_t, std::shared_ptr<FenceTime>> endTime;
+    };
+
     struct GlobalRecord {
         nsecs_t prevPresentTime = 0;
         std::deque<std::shared_ptr<FenceTime>> presentFences;
+        std::deque<RenderEngineDuration> renderEngineDurations;
     };
 
 public:
@@ -124,6 +140,9 @@ public:
     void incrementClientCompositionFrames() override;
 
     void recordFrameDuration(nsecs_t startTime, nsecs_t endTime) override;
+    void recordRenderEngineDuration(nsecs_t startTime, nsecs_t endTime) override;
+    void recordRenderEngineDuration(nsecs_t startTime,
+                                    const std::shared_ptr<FenceTime>& readyFence) override;
 
     void setPostTime(int32_t layerId, uint64_t frameNumber, const std::string& layerName,
                      nsecs_t postTime) override;

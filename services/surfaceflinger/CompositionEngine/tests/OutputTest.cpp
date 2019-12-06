@@ -2711,10 +2711,14 @@ struct OutputComposeSurfacesTest : public testing::Test {
                 .WillRepeatedly(Return(&mOutputLayer2));
         EXPECT_CALL(mOutput, getCompositionEngine()).WillRepeatedly(ReturnRef(mCompositionEngine));
         EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
+        EXPECT_CALL(mCompositionEngine, getTimeStats())
+                .WillRepeatedly(ReturnRef(*mTimeStats.get()));
     }
 
     StrictMock<mock::CompositionEngine> mCompositionEngine;
     StrictMock<renderengine::mock::RenderEngine> mRenderEngine;
+    // TODO: make this is a proper mock.
+    std::shared_ptr<TimeStats> mTimeStats = std::make_shared<android::impl::TimeStats>();
     mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
     mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
     StrictMock<mock::OutputLayer> mOutputLayer1;

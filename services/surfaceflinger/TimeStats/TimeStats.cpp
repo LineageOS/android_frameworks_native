@@ -129,6 +129,29 @@ void TimeStats::recordFrameDuration(nsecs_t startTime, nsecs_t endTime) {
     }
 }
 
+void TimeStats::recordRenderEngineDuration(nsecs_t startTime, nsecs_t endTime) {
+    if (!mEnabled.load()) return;
+
+    std::lock_guard<std::mutex> lock(mMutex);
+    if (mGlobalRecord.renderEngineDurations.size() == MAX_NUM_TIME_RECORDS) {
+        ALOGE("RenderEngineTimes are already at its maximum size[%zu]", MAX_NUM_TIME_RECORDS);
+        mGlobalRecord.renderEngineDurations.pop_front();
+    }
+    mGlobalRecord.renderEngineDurations.push_back({startTime, endTime});
+}
+
+void TimeStats::recordRenderEngineDuration(nsecs_t startTime,
+                                           const std::shared_ptr<FenceTime>& endTime) {
+    if (!mEnabled.load()) return;
+
+    std::lock_guard<std::mutex> lock(mMutex);
+    if (mGlobalRecord.renderEngineDurations.size() == MAX_NUM_TIME_RECORDS) {
+        ALOGE("RenderEngineTimes are already at its maximum size[%zu]", MAX_NUM_TIME_RECORDS);
+        mGlobalRecord.renderEngineDurations.pop_front();
+    }
+    mGlobalRecord.renderEngineDurations.push_back({startTime, endTime});
+}
+
 bool TimeStats::recordReadyLocked(int32_t layerId, TimeRecord* timeRecord) {
     if (!timeRecord->ready) {
         ALOGV("[%d]-[%" PRIu64 "]-presentFence is still not received", layerId,
@@ -500,6 +523,31 @@ void TimeStats::flushAvailableGlobalRecordsToStatsLocked() {
 
         mGlobalRecord.prevPresentTime = curPresentTime;
         mGlobalRecord.presentFences.pop_front();
+    }
+    while (!mGlobalRecord.renderEngineDurations.empty()) {
+        const auto duration = mGlobalRecord.renderEngineDurations.front();
+        const auto& endTime = duration.endTime;
+
+        nsecs_t endNs = -1;
+
+        if (auto val = std::get_if<nsecs_t>(&endTime)) {
+            endNs = *val;
+        } else {
+            endNs = std::get<std::shared_ptr<FenceTime>>(endTime)->getSignalTime();
+        }
+
+        if (endNs == Fence::SIGNAL_TIME_PENDING) break;
+
+        if (endNs < 0) {
+            ALOGE("RenderEngineTiming is invalid!");
+            mGlobalRecord.renderEngineDurations.pop_front();
+            continue;
+        }
+
+        const int32_t renderEngineMs = msBetween(duration.startTime, endNs);
+        mTimeStats.renderEngineTiming.insert(renderEngineMs);
+
+        mGlobalRecord.renderEngineDurations.pop_front();
     }
 }
 

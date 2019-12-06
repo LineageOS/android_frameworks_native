@@ -600,6 +600,7 @@ void SurfaceFlinger::init() {
                         ? renderengine::RenderEngine::ContextPriority::HIGH
                         : renderengine::RenderEngine::ContextPriority::MEDIUM)
                 .build()));
+    mCompositionEngine->setTimeStats(mTimeStats);
 
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
             "Starting with vr flinger active is not currently supported.");
