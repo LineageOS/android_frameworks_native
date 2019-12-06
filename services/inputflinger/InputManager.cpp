@@ -46,7 +46,6 @@ InputManager::~InputManager() {
 }
 
 void InputManager::initialize() {
-    mReaderThread = new InputReaderThread(mReader);
     mDispatcherThread = new InputDispatcherThread(mDispatcher);
 }
 
@@ -57,9 +56,9 @@ status_t InputManager::start() {
         return result;
     }
 
-    result = mReaderThread->run("InputReader", PRIORITY_URGENT_DISPLAY);
+    result = mReader->start();
     if (result) {
-        ALOGE("Could not start InputReader thread due to error %d.", result);
+        ALOGE("Could not start InputReader due to error %d.", result);
 
         mDispatcherThread->requestExit();
         return result;
@@ -69,9 +68,9 @@ status_t InputManager::start() {
 }
 
 status_t InputManager::stop() {
-    status_t result = mReaderThread->requestExitAndWait();
+    status_t result = mReader->stop();
     if (result) {
-        ALOGW("Could not stop InputReader thread due to error %d.", result);
+        ALOGW("Could not stop InputReader due to error %d.", result);
     }
 
     result = mDispatcherThread->requestExitAndWait();
