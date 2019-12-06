@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-# Provides overrides to configure the Dalvik heap for a 2G phone
+# Provides overrides to configure the Dalvik heap for a 2GB phone
 # 192m of RAM gives enough space for 5 8 megapixel camera bitmaps in RAM.
 
 PRODUCT_PROPERTY_OVERRIDES += \
