@@ -175,7 +175,8 @@ class SurfaceFlinger : public BnSurfaceComposer,
                        public PriorityDumper,
                        public ClientCache::ErasedRecipient,
                        private IBinder::DeathRecipient,
-                       private HWC2::ComposerCallback {
+                       private HWC2::ComposerCallback,
+                       private Scheduler::ISchedulerCallback {
 public:
     SurfaceFlingerBE& getBE() { return mBE; }
     const SurfaceFlingerBE& getBE() const { return mBE; }
@@ -518,6 +519,10 @@ private:
             const hwc_vsync_period_change_timeline_t& updatedTimeline) override;
 
     /* ------------------------------------------------------------------------
+     * Scheduler::ISchedulerCallback
+     */
+    void changeRefreshRate(const Scheduler::RefreshRate&, Scheduler::ConfigEvent) override;
+    /* ------------------------------------------------------------------------
      * Message handling
      */
     void waitForEvent();
@@ -527,15 +532,14 @@ private:
     void signalLayerUpdate();
     void signalRefresh();
 
-    using RefreshRateType = scheduler::RefreshRateConfigs::RefreshRateType;
+    using RefreshRate = scheduler::RefreshRateConfigs::RefreshRate;
 
     struct ActiveConfigInfo {
-        RefreshRateType type = RefreshRateType::DEFAULT;
-        int configId = 0;
+        HwcConfigIndexType configId;
         Scheduler::ConfigEvent event = Scheduler::ConfigEvent::None;
 
         bool operator!=(const ActiveConfigInfo& other) const {
-            return type != other.type || configId != other.configId || event != other.event;
+            return configId != other.configId || event != other.event;
         }
     };
 
@@ -811,9 +815,10 @@ private:
 
     // Sets the refresh rate by switching active configs, if they are available for
     // the desired refresh rate.
-    void setRefreshRateTo(RefreshRateType, Scheduler::ConfigEvent event) REQUIRES(mStateLock);
+    void changeRefreshRateLocked(const RefreshRate&, Scheduler::ConfigEvent event)
+            REQUIRES(mStateLock);
 
-    bool isDisplayConfigAllowed(int32_t configId) const REQUIRES(mStateLock);
+    bool isDisplayConfigAllowed(HwcConfigIndexType configId) const REQUIRES(mStateLock);
 
     bool previousFrameMissed(int graceTimeMs = 0);
 
@@ -1137,7 +1142,7 @@ private:
     std::atomic<nsecs_t> mExpectedPresentTime = 0;
 
     // All configs are allowed if the set is empty.
-    using DisplayConfigs = std::set<int32_t>;
+    using DisplayConfigs = std::set<HwcConfigIndexType>;
     DisplayConfigs mAllowedDisplayConfigs GUARDED_BY(mStateLock);
     DesiredDisplayConfigSpecs mDesiredDisplayConfigSpecs GUARDED_BY(mStateLock);
 

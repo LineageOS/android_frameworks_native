@@ -113,6 +113,8 @@ std::string TimeStatsHelper::TimeStatsGlobal::toString(std::optional<uint32_t> m
     result.append(presentToPresent.toString());
     StringAppendF(&result, "frameDuration histogram is as below:\n");
     result.append(frameDuration.toString());
+    StringAppendF(&result, "renderEngineTiming histogram is as below:\n");
+    result.append(renderEngineTiming.toString());
     const auto dumpStats = generateDumpStats(maxLayers);
     for (const auto& ele : dumpStats) {
         result.append(ele->toString());
@@ -162,6 +164,11 @@ SFTimeStatsGlobalProto TimeStatsHelper::TimeStatsGlobal::toProto(
     }
     for (const auto& histEle : frameDuration.hist) {
         SFTimeStatsHistogramBucketProto* histProto = globalProto.add_frame_duration();
+        histProto->set_time_millis(histEle.first);
+        histProto->set_frame_count(histEle.second);
+    }
+    for (const auto& histEle : renderEngineTiming.hist) {
+        SFTimeStatsHistogramBucketProto* histProto = globalProto.add_render_engine_timing();
         histProto->set_time_millis(histEle.first);
         histProto->set_frame_count(histEle.second);
     }

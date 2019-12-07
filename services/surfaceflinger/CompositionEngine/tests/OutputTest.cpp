@@ -817,7 +817,7 @@ struct OutputPrepareTest : public testing::Test {
 
     StrictMock<OutputPartialMock> mOutput;
     CompositionRefreshArgs mRefreshArgs;
-    compositionengine::LayerFESet mGeomSnapshots;
+    LayerFESet mGeomSnapshots;
 };
 
 TEST_F(OutputPrepareTest, justInvokesRebuildLayerStacks) {
@@ -866,7 +866,7 @@ struct OutputRebuildLayerStacksTest : public testing::Test {
 
     StrictMock<OutputPartialMock> mOutput;
     CompositionRefreshArgs mRefreshArgs;
-    compositionengine::LayerFESet mGeomSnapshots;
+    LayerFESet mGeomSnapshots;
     Region mCoverageAboveCoveredLayersToSet;
     Region mCoverageAboveOpaqueLayersToSet;
     Region mCoverageDirtyRegionToSet;
@@ -992,8 +992,8 @@ struct OutputCollectVisibleLayersTest : public testing::Test {
 
     StrictMock<OutputPartialMock> mOutput;
     CompositionRefreshArgs mRefreshArgs;
-    compositionengine::LayerFESet mGeomSnapshots;
-    compositionengine::Output::CoverageState mCoverageState{mGeomSnapshots};
+    LayerFESet mGeomSnapshots;
+    Output::CoverageState mCoverageState{mGeomSnapshots};
     Layer mLayer1;
     Layer mLayer2;
     Layer mLayer3;
@@ -1033,7 +1033,408 @@ TEST_F(OutputCollectVisibleLayersTest, processesCandidateLayersReversedAndSetsOu
  * Output::ensureOutputLayerIfVisible()
  */
 
-// TODO(b/144060211) - Add coverage
+struct OutputEnsureOutputLayerIfVisibleTest : public testing::Test {
+    struct OutputPartialMock : public OutputPartialMockBase {
+        // Sets up the helper functions called by the function under test to use
+        // mock implementations.
+        MOCK_CONST_METHOD1(belongsInOutput, bool(const compositionengine::Layer*));
+        MOCK_CONST_METHOD1(getOutputLayerOrderedByZByIndex, OutputLayer*(size_t));
+        MOCK_METHOD3(ensureOutputLayer,
+                     compositionengine::OutputLayer*(
+                             std::optional<size_t>,
+                             const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&));
+    };
+
+    OutputEnsureOutputLayerIfVisibleTest() {
+        EXPECT_CALL(*mLayer, getLayerFE()).WillRepeatedly(Return(mLayerFE));
+        EXPECT_CALL(*mLayer, getFEState()).WillRepeatedly(ReturnRef(mLayerFEState));
+        EXPECT_CALL(*mLayer, editFEState()).WillRepeatedly(ReturnRef(mLayerFEState));
+
+        EXPECT_CALL(mOutput, belongsInOutput(mLayer.get())).WillRepeatedly(Return(true));
+        EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(1));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u))
+                .WillRepeatedly(Return(&mOutputLayer));
+
+        EXPECT_CALL(mOutputLayer, getState()).WillRepeatedly(ReturnRef(mOutputLayerState));
+        EXPECT_CALL(mOutputLayer, editState()).WillRepeatedly(ReturnRef(mOutputLayerState));
+        EXPECT_CALL(mOutputLayer, getLayer()).WillRepeatedly(ReturnRef(*mLayer.get()));
+
+        mOutput.mState.bounds = Rect(0, 0, 200, 300);
+        mOutput.mState.viewport = Rect(0, 0, 200, 300);
+        mOutput.mState.transform = ui::Transform(TR_IDENT, 200, 300);
+
+        mLayerFEState.isVisible = true;
+        mLayerFEState.isOpaque = true;
+        mLayerFEState.contentDirty = true;
+        mLayerFEState.geomLayerBounds = FloatRect{0, 0, 100, 200};
+        mLayerFEState.geomLayerTransform = ui::Transform(TR_IDENT, 100, 200);
+        mLayerFEState.transparentRegionHint = Region(Rect(0, 0, 100, 100));
+
+        mOutputLayerState.visibleRegion = Region(Rect(0, 0, 50, 200));
+        mOutputLayerState.coveredRegion = Region(Rect(50, 0, 100, 200));
+
+        mGeomSnapshots.insert(mLayerFE);
+    }
+
+    static const Region kEmptyRegion;
+    static const Region kFullBoundsNoRotation;
+    static const Region kRightHalfBoundsNoRotation;
+    static const Region kLowerHalfBoundsNoRotation;
+    static const Region kFullBounds90Rotation;
+
+    StrictMock<OutputPartialMock> mOutput;
+    LayerFESet mGeomSnapshots;
+    Output::CoverageState mCoverageState{mGeomSnapshots};
+
+    std::shared_ptr<mock::Layer> mLayer{new StrictMock<mock::Layer>()};
+    sp<StrictMock<mock::LayerFE>> mLayerFE{new StrictMock<mock::LayerFE>()};
+    LayerFECompositionState mLayerFEState;
+    mock::OutputLayer mOutputLayer;
+    impl::OutputLayerCompositionState mOutputLayerState;
+};
+
+const Region OutputEnsureOutputLayerIfVisibleTest::kEmptyRegion = Region(Rect(0, 0, 0, 0));
+const Region OutputEnsureOutputLayerIfVisibleTest::kFullBoundsNoRotation =
+        Region(Rect(0, 0, 100, 200));
+const Region OutputEnsureOutputLayerIfVisibleTest::kRightHalfBoundsNoRotation =
+        Region(Rect(0, 100, 100, 200));
+const Region OutputEnsureOutputLayerIfVisibleTest::kLowerHalfBoundsNoRotation =
+        Region(Rect(50, 0, 100, 200));
+const Region OutputEnsureOutputLayerIfVisibleTest::kFullBounds90Rotation =
+        Region(Rect(0, 0, 200, 100));
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest, doesNothingIfNoLayerFE) {
+    EXPECT_CALL(*mLayer, getLayerFE).WillOnce(Return(sp<LayerFE>()));
+
+    mOutput.ensureOutputLayerIfVisible(mLayer, mCoverageState);
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest, performsGeomLatchBeforeCheckingIfLayerBelongs) {
+    EXPECT_CALL(mOutput, belongsInOutput(mLayer.get())).WillOnce(Return(false));
+    EXPECT_CALL(*mLayerFE.get(),
+                latchCompositionState(Ref(mLayerFEState),
+                                      compositionengine::LayerFE::StateSubset::BasicGeometry));
+
+    mGeomSnapshots.clear();
+
+    mOutput.ensureOutputLayerIfVisible(mLayer, mCoverageState);
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest,
+       skipsLatchIfAlreadyLatchedBeforeCheckingIfLayerBelongs) {
+    EXPECT_CALL(mOutput, belongsInOutput(mLayer.get())).WillOnce(Return(false));
+
+    mOutput.ensureOutputLayerIfVisible(mLayer, mCoverageState);
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest, takesEarlyOutIfLayerNotVisible) {
+    mLayerFEState.isVisible = false;
+
+    mOutput.ensureOutputLayerIfVisible(mLayer, mCoverageState);
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest, takesEarlyOutIfLayerHasEmptyVisibleRegion) {
+    mLayerFEState.geomLayerBounds = FloatRect{0, 0, 0, 0};
+
+    mOutput.ensureOutputLayerIfVisible(mLayer, mCoverageState);
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest, takesNotSoEarlyOutifDrawRegionEmpty) {
+    mOutput.mState.bounds = Rect(0, 0, 0, 0);
+
+    mOutput.ensureOutputLayerIfVisible(mLayer, mCoverageState);
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest,
+       handlesCreatingOutputLayerForOpaqueDirtyNotRotatedLayer) {
+    mLayerFEState.isOpaque = true;
+    mLayerFEState.contentDirty = true;
+    mLayerFEState.geomLayerTransform = ui::Transform(TR_IDENT, 100, 200);
+
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillOnce(Return(0u));
+    EXPECT_CALL(mOutput, ensureOutputLayer(Eq(std::nullopt), Eq(mLayer), Eq(mLayerFE)))
+            .WillOnce(Return(&mOutputLayer));
+
+    mOutput.ensureOutputLayerIfVisible(mLayer, mCoverageState);
+
+    EXPECT_THAT(mCoverageState.dirtyRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mCoverageState.aboveCoveredLayers, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mCoverageState.aboveOpaqueLayers, RegionEq(kFullBoundsNoRotation));
+
+    EXPECT_THAT(mOutputLayerState.visibleRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mOutputLayerState.visibleNonTransparentRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mOutputLayerState.coveredRegion, RegionEq(kEmptyRegion));
+    EXPECT_THAT(mOutputLayerState.outputSpaceVisibleRegion, RegionEq(kFullBoundsNoRotation));
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest,
+       handlesUpdatingOutputLayerForOpaqueDirtyNotRotatedLayer) {
+    mLayerFEState.isOpaque = true;
+    mLayerFEState.contentDirty = true;
+    mLayerFEState.geomLayerTransform = ui::Transform(TR_IDENT, 100, 200);
+
+    EXPECT_CALL(mOutput, ensureOutputLayer(Eq(0u), Eq(mLayer), Eq(mLayerFE)))
+            .WillOnce(Return(&mOutputLayer));
+
+    mOutput.ensureOutputLayerIfVisible(mLayer, mCoverageState);
+
+    EXPECT_THAT(mCoverageState.dirtyRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mCoverageState.aboveCoveredLayers, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mCoverageState.aboveOpaqueLayers, RegionEq(kFullBoundsNoRotation));
+
+    EXPECT_THAT(mOutputLayerState.visibleRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mOutputLayerState.visibleNonTransparentRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mOutputLayerState.coveredRegion, RegionEq(kEmptyRegion));
+    EXPECT_THAT(mOutputLayerState.outputSpaceVisibleRegion, RegionEq(kFullBoundsNoRotation));
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest,
+       handlesCreatingOutputLayerForTransparentDirtyNotRotatedLayer) {
+    mLayerFEState.isOpaque = false;
+    mLayerFEState.contentDirty = true;
+    mLayerFEState.geomLayerTransform = ui::Transform(TR_IDENT, 100, 200);
+
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillOnce(Return(0u));
+    EXPECT_CALL(mOutput, ensureOutputLayer(Eq(std::nullopt), Eq(mLayer), Eq(mLayerFE)))
+            .WillOnce(Return(&mOutputLayer));
+
+    mOutput.ensureOutputLayerIfVisible(mLayer, mCoverageState);
+
+    EXPECT_THAT(mCoverageState.dirtyRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mCoverageState.aboveCoveredLayers, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mCoverageState.aboveOpaqueLayers, RegionEq(kEmptyRegion));
+
+    EXPECT_THAT(mOutputLayerState.visibleRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mOutputLayerState.visibleNonTransparentRegion,
+                RegionEq(kRightHalfBoundsNoRotation));
+    EXPECT_THAT(mOutputLayerState.coveredRegion, RegionEq(kEmptyRegion));
+    EXPECT_THAT(mOutputLayerState.outputSpaceVisibleRegion, RegionEq(kFullBoundsNoRotation));
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest,
+       handlesUpdatingOutputLayerForTransparentDirtyNotRotatedLayer) {
+    mLayerFEState.isOpaque = false;
+    mLayerFEState.contentDirty = true;
+    mLayerFEState.geomLayerTransform = ui::Transform(TR_IDENT, 100, 200);
+
+    EXPECT_CALL(mOutput, ensureOutputLayer(Eq(0u), Eq(mLayer), Eq(mLayerFE)))
+            .WillOnce(Return(&mOutputLayer));
+
+    mOutput.ensureOutputLayerIfVisible(mLayer, mCoverageState);
+
+    EXPECT_THAT(mCoverageState.dirtyRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mCoverageState.aboveCoveredLayers, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mCoverageState.aboveOpaqueLayers, RegionEq(kEmptyRegion));
+
+    EXPECT_THAT(mOutputLayerState.visibleRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mOutputLayerState.visibleNonTransparentRegion,
+                RegionEq(kRightHalfBoundsNoRotation));
+    EXPECT_THAT(mOutputLayerState.coveredRegion, RegionEq(kEmptyRegion));
+    EXPECT_THAT(mOutputLayerState.outputSpaceVisibleRegion, RegionEq(kFullBoundsNoRotation));
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest,
+       handlesCreatingOutputLayerForOpaqueNonDirtyNotRotatedLayer) {
+    mLayerFEState.isOpaque = true;
+    mLayerFEState.contentDirty = false;
+    mLayerFEState.geomLayerTransform = ui::Transform(TR_IDENT, 100, 200);
+
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillOnce(Return(0u));
+    EXPECT_CALL(mOutput, ensureOutputLayer(Eq(std::nullopt), Eq(mLayer), Eq(mLayerFE)))
+            .WillOnce(Return(&mOutputLayer));
+
+    mOutput.ensureOutputLayerIfVisible(mLayer, mCoverageState);
+
+    EXPECT_THAT(mCoverageState.dirtyRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mCoverageState.aboveCoveredLayers, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mCoverageState.aboveOpaqueLayers, RegionEq(kFullBoundsNoRotation));
+
+    EXPECT_THAT(mOutputLayerState.visibleRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mOutputLayerState.visibleNonTransparentRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mOutputLayerState.coveredRegion, RegionEq(kEmptyRegion));
+    EXPECT_THAT(mOutputLayerState.outputSpaceVisibleRegion, RegionEq(kFullBoundsNoRotation));
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest,
+       handlesUpdatingOutputLayerForOpaqueNonDirtyNotRotatedLayer) {
+    mLayerFEState.isOpaque = true;
+    mLayerFEState.contentDirty = false;
+    mLayerFEState.geomLayerTransform = ui::Transform(TR_IDENT, 100, 200);
+
+    EXPECT_CALL(mOutput, ensureOutputLayer(Eq(0u), Eq(mLayer), Eq(mLayerFE)))
+            .WillOnce(Return(&mOutputLayer));
+
+    mOutput.ensureOutputLayerIfVisible(mLayer, mCoverageState);
+
+    EXPECT_THAT(mCoverageState.dirtyRegion, RegionEq(kLowerHalfBoundsNoRotation));
+    EXPECT_THAT(mCoverageState.aboveCoveredLayers, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mCoverageState.aboveOpaqueLayers, RegionEq(kFullBoundsNoRotation));
+
+    EXPECT_THAT(mOutputLayerState.visibleRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mOutputLayerState.visibleNonTransparentRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mOutputLayerState.coveredRegion, RegionEq(kEmptyRegion));
+    EXPECT_THAT(mOutputLayerState.outputSpaceVisibleRegion, RegionEq(kFullBoundsNoRotation));
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest,
+       handlesCreatingOutputLayerForOpaqueDirtyRotated90Layer) {
+    mLayerFEState.isOpaque = true;
+    mLayerFEState.contentDirty = true;
+    mLayerFEState.geomLayerBounds = FloatRect{0, 0, 200, 100};
+    mLayerFEState.geomLayerTransform = ui::Transform(TR_ROT_90, 100, 200);
+    mOutputLayerState.visibleRegion = Region(Rect(0, 0, 100, 100));
+    mOutputLayerState.coveredRegion = Region(Rect(100, 0, 200, 100));
+
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillOnce(Return(0u));
+    EXPECT_CALL(mOutput, ensureOutputLayer(Eq(std::nullopt), Eq(mLayer), Eq(mLayerFE)))
+            .WillOnce(Return(&mOutputLayer));
+
+    mOutput.ensureOutputLayerIfVisible(mLayer, mCoverageState);
+
+    EXPECT_THAT(mCoverageState.dirtyRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mCoverageState.aboveCoveredLayers, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mCoverageState.aboveOpaqueLayers, RegionEq(kFullBoundsNoRotation));
+
+    EXPECT_THAT(mOutputLayerState.visibleRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mOutputLayerState.visibleNonTransparentRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mOutputLayerState.coveredRegion, RegionEq(kEmptyRegion));
+    EXPECT_THAT(mOutputLayerState.outputSpaceVisibleRegion, RegionEq(kFullBoundsNoRotation));
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest,
+       handlesUpdatingOutputLayerForOpaqueDirtyRotated90Layer) {
+    mLayerFEState.isOpaque = true;
+    mLayerFEState.contentDirty = true;
+    mLayerFEState.geomLayerBounds = FloatRect{0, 0, 200, 100};
+    mLayerFEState.geomLayerTransform = ui::Transform(TR_ROT_90, 100, 200);
+    mOutputLayerState.visibleRegion = Region(Rect(0, 0, 100, 100));
+    mOutputLayerState.coveredRegion = Region(Rect(100, 0, 200, 100));
+
+    EXPECT_CALL(mOutput, ensureOutputLayer(Eq(0u), Eq(mLayer), Eq(mLayerFE)))
+            .WillOnce(Return(&mOutputLayer));
+
+    mOutput.ensureOutputLayerIfVisible(mLayer, mCoverageState);
+
+    EXPECT_THAT(mCoverageState.dirtyRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mCoverageState.aboveCoveredLayers, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mCoverageState.aboveOpaqueLayers, RegionEq(kFullBoundsNoRotation));
+
+    EXPECT_THAT(mOutputLayerState.visibleRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mOutputLayerState.visibleNonTransparentRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mOutputLayerState.coveredRegion, RegionEq(kEmptyRegion));
+    EXPECT_THAT(mOutputLayerState.outputSpaceVisibleRegion, RegionEq(kFullBoundsNoRotation));
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest,
+       handlesCreatingOutputLayerForOpaqueDirtyNotRotatedLayerRotatedOutput) {
+    mLayerFEState.isOpaque = true;
+    mLayerFEState.contentDirty = true;
+    mLayerFEState.geomLayerTransform = ui::Transform(TR_IDENT, 100, 200);
+
+    mOutput.mState.viewport = Rect(0, 0, 300, 200);
+    mOutput.mState.transform = ui::Transform(TR_ROT_90, 200, 300);
+
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillOnce(Return(0u));
+    EXPECT_CALL(mOutput, ensureOutputLayer(Eq(std::nullopt), Eq(mLayer), Eq(mLayerFE)))
+            .WillOnce(Return(&mOutputLayer));
+
+    mOutput.ensureOutputLayerIfVisible(mLayer, mCoverageState);
+
+    EXPECT_THAT(mCoverageState.dirtyRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mCoverageState.aboveCoveredLayers, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mCoverageState.aboveOpaqueLayers, RegionEq(kFullBoundsNoRotation));
+
+    EXPECT_THAT(mOutputLayerState.visibleRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mOutputLayerState.visibleNonTransparentRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mOutputLayerState.coveredRegion, RegionEq(kEmptyRegion));
+    EXPECT_THAT(mOutputLayerState.outputSpaceVisibleRegion, RegionEq(kFullBounds90Rotation));
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest,
+       handlesUpdatingOutputLayerForOpaqueDirtyNotRotatedLayerRotatedOutput) {
+    mLayerFEState.isOpaque = true;
+    mLayerFEState.contentDirty = true;
+    mLayerFEState.geomLayerTransform = ui::Transform(TR_IDENT, 100, 200);
+
+    mOutput.mState.viewport = Rect(0, 0, 300, 200);
+    mOutput.mState.transform = ui::Transform(TR_ROT_90, 200, 300);
+
+    EXPECT_CALL(mOutput, ensureOutputLayer(Eq(0u), Eq(mLayer), Eq(mLayerFE)))
+            .WillOnce(Return(&mOutputLayer));
+
+    mOutput.ensureOutputLayerIfVisible(mLayer, mCoverageState);
+
+    EXPECT_THAT(mCoverageState.dirtyRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mCoverageState.aboveCoveredLayers, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mCoverageState.aboveOpaqueLayers, RegionEq(kFullBoundsNoRotation));
+
+    EXPECT_THAT(mOutputLayerState.visibleRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mOutputLayerState.visibleNonTransparentRegion, RegionEq(kFullBoundsNoRotation));
+    EXPECT_THAT(mOutputLayerState.coveredRegion, RegionEq(kEmptyRegion));
+    EXPECT_THAT(mOutputLayerState.outputSpaceVisibleRegion, RegionEq(kFullBounds90Rotation));
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest,
+       handlesCreatingOutputLayerForOpaqueDirtyArbitraryTransformLayer) {
+    ui::Transform arbitraryTransform;
+    arbitraryTransform.set(1, 1, -1, 1);
+    arbitraryTransform.set(0, 100);
+
+    mLayerFEState.isOpaque = true;
+    mLayerFEState.contentDirty = true;
+    mLayerFEState.geomLayerBounds = FloatRect{0, 0, 100, 200};
+    mLayerFEState.geomLayerTransform = arbitraryTransform;
+
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillOnce(Return(0u));
+    EXPECT_CALL(mOutput, ensureOutputLayer(Eq(std::nullopt), Eq(mLayer), Eq(mLayerFE)))
+            .WillOnce(Return(&mOutputLayer));
+
+    mOutput.ensureOutputLayerIfVisible(mLayer, mCoverageState);
+
+    const Region kRegion = Region(Rect(0, 0, 300, 300));
+    const Region kRegionClipped = Region(Rect(0, 0, 200, 300));
+
+    EXPECT_THAT(mCoverageState.dirtyRegion, RegionEq(kRegion));
+    EXPECT_THAT(mCoverageState.aboveCoveredLayers, RegionEq(kRegion));
+    EXPECT_THAT(mCoverageState.aboveOpaqueLayers, RegionEq(kEmptyRegion));
+
+    EXPECT_THAT(mOutputLayerState.visibleRegion, RegionEq(kRegion));
+    EXPECT_THAT(mOutputLayerState.visibleNonTransparentRegion, RegionEq(kRegion));
+    EXPECT_THAT(mOutputLayerState.coveredRegion, RegionEq(kEmptyRegion));
+    EXPECT_THAT(mOutputLayerState.outputSpaceVisibleRegion, RegionEq(kRegionClipped));
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest, coverageAccumulatesTest) {
+    mLayerFEState.isOpaque = false;
+    mLayerFEState.contentDirty = true;
+    mLayerFEState.geomLayerTransform = ui::Transform(TR_IDENT, 100, 200);
+
+    mCoverageState.dirtyRegion = Region(Rect(0, 0, 500, 500));
+    mCoverageState.aboveCoveredLayers = Region(Rect(50, 0, 150, 200));
+    mCoverageState.aboveOpaqueLayers = Region(Rect(50, 0, 150, 200));
+
+    EXPECT_CALL(mOutput, ensureOutputLayer(Eq(0u), Eq(mLayer), Eq(mLayerFE)))
+            .WillOnce(Return(&mOutputLayer));
+
+    mOutput.ensureOutputLayerIfVisible(mLayer, mCoverageState);
+
+    const Region kExpectedDirtyRegion = Region(Rect(0, 0, 500, 500));
+    const Region kExpectedAboveCoveredRegion = Region(Rect(0, 0, 150, 200));
+    const Region kExpectedAboveOpaqueRegion = Region(Rect(50, 0, 150, 200));
+    const Region kExpectedLayerVisibleRegion = Region(Rect(0, 0, 50, 200));
+    const Region kExpectedLayerCoveredRegion = Region(Rect(50, 0, 100, 200));
+    const Region kExpectedLayerVisibleNonTransparentRegion = Region(Rect(0, 100, 50, 200));
+
+    EXPECT_THAT(mCoverageState.dirtyRegion, RegionEq(kExpectedDirtyRegion));
+    EXPECT_THAT(mCoverageState.aboveCoveredLayers, RegionEq(kExpectedAboveCoveredRegion));
+    EXPECT_THAT(mCoverageState.aboveOpaqueLayers, RegionEq(kExpectedAboveOpaqueRegion));
+
+    EXPECT_THAT(mOutputLayerState.visibleRegion, RegionEq(kExpectedLayerVisibleRegion));
+    EXPECT_THAT(mOutputLayerState.visibleNonTransparentRegion,
+                RegionEq(kExpectedLayerVisibleNonTransparentRegion));
+    EXPECT_THAT(mOutputLayerState.coveredRegion, RegionEq(kExpectedLayerCoveredRegion));
+    EXPECT_THAT(mOutputLayerState.outputSpaceVisibleRegion, RegionEq(kExpectedLayerVisibleRegion));
+}
 
 /*
  * Output::present()
@@ -2171,7 +2572,7 @@ TEST_F(OutputPostFramebufferTest, releaseFencesAreSentToLayerFE) {
     sp<Fence> layer2Fence = new Fence();
     sp<Fence> layer3Fence = new Fence();
 
-    compositionengine::Output::FrameFences frameFences;
+    Output::FrameFences frameFences;
     frameFences.layerFences.emplace(&mLayer1.hwc2Layer, layer1Fence);
     frameFences.layerFences.emplace(&mLayer2.hwc2Layer, layer2Fence);
     frameFences.layerFences.emplace(&mLayer3.hwc2Layer, layer3Fence);
@@ -2202,7 +2603,7 @@ TEST_F(OutputPostFramebufferTest, releaseFencesIncludeClientTargetAcquireFence) 
     sp<Fence> layer1Fence = new Fence();
     sp<Fence> layer2Fence = new Fence();
     sp<Fence> layer3Fence = new Fence();
-    compositionengine::Output::FrameFences frameFences;
+    Output::FrameFences frameFences;
     frameFences.clientTargetAcquireFence = clientTargetAcquireFence;
     frameFences.layerFences.emplace(&mLayer1.hwc2Layer, layer1Fence);
     frameFences.layerFences.emplace(&mLayer2.hwc2Layer, layer2Fence);
@@ -2241,7 +2642,7 @@ TEST_F(OutputPostFramebufferTest, releasedLayersSentPresentFence) {
 
     // Set up a fake present fence
     sp<Fence> presentFence = new Fence();
-    compositionengine::Output::FrameFences frameFences;
+    Output::FrameFences frameFences;
     frameFences.presentFence = presentFence;
 
     EXPECT_CALL(*mRenderSurface, flip());
@@ -2310,10 +2711,14 @@ struct OutputComposeSurfacesTest : public testing::Test {
                 .WillRepeatedly(Return(&mOutputLayer2));
         EXPECT_CALL(mOutput, getCompositionEngine()).WillRepeatedly(ReturnRef(mCompositionEngine));
         EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
+        EXPECT_CALL(mCompositionEngine, getTimeStats())
+                .WillRepeatedly(ReturnRef(*mTimeStats.get()));
     }
 
     StrictMock<mock::CompositionEngine> mCompositionEngine;
     StrictMock<renderengine::mock::RenderEngine> mRenderEngine;
+    // TODO: make this is a proper mock.
+    std::shared_ptr<TimeStats> mTimeStats = std::make_shared<android::impl::TimeStats>();
     mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
     mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
     StrictMock<mock::OutputLayer> mOutputLayer1;

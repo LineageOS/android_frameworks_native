@@ -189,19 +189,23 @@ public:
                 std::make_unique<impl::HWComposer>(std::move(composer)));
     }
 
+    void setupTimeStats(const std::shared_ptr<TimeStats>& timeStats) {
+        mFlinger->mCompositionEngine->setTimeStats(timeStats);
+    }
+
     void setupScheduler(std::unique_ptr<DispSync> primaryDispSync,
                         std::unique_ptr<EventControlThread> eventControlThread,
                         std::unique_ptr<EventThread> appEventThread,
                         std::unique_ptr<EventThread> sfEventThread) {
-        std::vector<scheduler::RefreshRateConfigs::InputConfig> configs{{/*hwcId=*/0, 16666667}};
-        mFlinger->mRefreshRateConfigs =
-                std::make_unique<scheduler::RefreshRateConfigs>(/*refreshRateSwitching=*/false,
-                                                                configs, /*currentConfig=*/0);
-        mFlinger->mRefreshRateStats =
-                std::make_unique<scheduler::RefreshRateStats>(*mFlinger->mRefreshRateConfigs,
-                                                              *mFlinger->mTimeStats,
-                                                              /*currentConfig=*/0,
-                                                              /*powerMode=*/HWC_POWER_MODE_OFF);
+        std::vector<scheduler::RefreshRateConfigs::InputConfig> configs{
+                {{HwcConfigIndexType(0), HwcConfigGroupType(0), 16666667}}};
+        mFlinger->mRefreshRateConfigs = std::make_unique<
+                scheduler::RefreshRateConfigs>(/*refreshRateSwitching=*/false, configs,
+                                               /*currentConfig=*/HwcConfigIndexType(0));
+        mFlinger->mRefreshRateStats = std::make_unique<
+                scheduler::RefreshRateStats>(*mFlinger->mRefreshRateConfigs, *mFlinger->mTimeStats,
+                                             /*currentConfig=*/HwcConfigIndexType(0),
+                                             /*powerMode=*/HWC_POWER_MODE_OFF);
 
         mScheduler =
                 new TestableScheduler(std::move(primaryDispSync), std::move(eventControlThread),
@@ -429,6 +433,7 @@ public:
         static constexpr int32_t DEFAULT_WIDTH = 1920;
         static constexpr int32_t DEFAULT_HEIGHT = 1280;
         static constexpr int32_t DEFAULT_REFRESH_RATE = 16'666'666;
+        static constexpr int32_t DEFAULT_CONFIG_GROUP = 7;
         static constexpr int32_t DEFAULT_DPI = 320;
         static constexpr int32_t DEFAULT_ACTIVE_CONFIG = 0;
         static constexpr int32_t DEFAULT_POWER_MODE = 2;
@@ -452,7 +457,7 @@ public:
             return *this;
         }
 
-        auto& setRefreshRate(int32_t refreshRate) {
+        auto& setRefreshRate(uint32_t refreshRate) {
             mRefreshRate = refreshRate;
             return *this;
         }
@@ -499,6 +504,7 @@ public:
             config.setVsyncPeriod(mRefreshRate);
             config.setDpiX(mDpiX);
             config.setDpiY(mDpiY);
+            config.setConfigGroup(mConfigGroup);
             display->mutableConfigs().emplace(mActiveConfig, config.build());
             display->mutableIsConnected() = true;
             display->setPowerMode(static_cast<HWC2::PowerMode>(mPowerMode));
@@ -522,8 +528,9 @@ public:
         hwc2_display_t mHwcDisplayId = DEFAULT_HWC_DISPLAY_ID;
         int32_t mWidth = DEFAULT_WIDTH;
         int32_t mHeight = DEFAULT_HEIGHT;
-        int32_t mRefreshRate = DEFAULT_REFRESH_RATE;
+        uint32_t mRefreshRate = DEFAULT_REFRESH_RATE;
         int32_t mDpiX = DEFAULT_DPI;
+        int32_t mConfigGroup = DEFAULT_CONFIG_GROUP;
         int32_t mDpiY = DEFAULT_DPI;
         int32_t mActiveConfig = DEFAULT_ACTIVE_CONFIG;
         int32_t mPowerMode = DEFAULT_POWER_MODE;

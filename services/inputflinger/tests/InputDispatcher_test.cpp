@@ -16,8 +16,6 @@
 
 #include "../dispatcher/InputDispatcher.h"
 
-#include <InputDispatcherThread.h>
-
 #include <binder/Binder.h>
 #include <input/Input.h>
 
@@ -201,20 +199,17 @@ class InputDispatcherTest : public testing::Test {
 protected:
     sp<FakeInputDispatcherPolicy> mFakePolicy;
     sp<InputDispatcher> mDispatcher;
-    sp<InputDispatcherThread> mDispatcherThread;
 
-    virtual void SetUp() {
+    virtual void SetUp() override {
         mFakePolicy = new FakeInputDispatcherPolicy();
         mDispatcher = new InputDispatcher(mFakePolicy);
         mDispatcher->setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
         //Start InputDispatcher thread
-        mDispatcherThread = new InputDispatcherThread(mDispatcher);
-        mDispatcherThread->run("InputDispatcherTest", PRIORITY_URGENT_DISPLAY);
+        ASSERT_EQ(OK, mDispatcher->start());
     }
 
-    virtual void TearDown() {
-        mDispatcherThread->requestExit();
-        mDispatcherThread.clear();
+    virtual void TearDown() override {
+        ASSERT_EQ(OK, mDispatcher->stop());
         mFakePolicy.clear();
         mDispatcher.clear();
     }
@@ -856,7 +851,7 @@ TEST_F(InputDispatcherTest, NotifyDeviceReset_CancelsMotionStream) {
 class InputDispatcherFocusOnTwoDisplaysTest : public InputDispatcherTest {
 public:
     static constexpr int32_t SECOND_DISPLAY_ID = 1;
-    virtual void SetUp() {
+    virtual void SetUp() override {
         InputDispatcherTest::SetUp();
 
         application1 = new FakeApplicationHandle();
@@ -880,7 +875,7 @@ public:
         mDispatcher->setInputWindows({windowInSecondary}, SECOND_DISPLAY_ID);
     }
 
-    virtual void TearDown() {
+    virtual void TearDown() override {
         InputDispatcherTest::TearDown();
 
         application1.clear();
@@ -1076,7 +1071,7 @@ TEST_F(InputFilterTest, KeyEvent_InputFilter) {
 }
 
 class InputDispatcherOnPointerDownOutsideFocus : public InputDispatcherTest {
-    virtual void SetUp() {
+    virtual void SetUp() override {
         InputDispatcherTest::SetUp();
 
         sp<FakeApplicationHandle> application = new FakeApplicationHandle();
@@ -1101,7 +1096,7 @@ class InputDispatcherOnPointerDownOutsideFocus : public InputDispatcherTest {
         mDispatcher->setInputWindows({mUnfocusedWindow, mFocusedWindow}, ADISPLAY_ID_DEFAULT);
     }
 
-    virtual void TearDown() {
+    virtual void TearDown() override {
         InputDispatcherTest::TearDown();
 
         mUnfocusedWindow.clear();

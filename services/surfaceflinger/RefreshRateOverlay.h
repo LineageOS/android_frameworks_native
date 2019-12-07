@@ -19,13 +19,13 @@
 
 namespace android {
 
-using RefreshRateType = scheduler::RefreshRateConfigs::RefreshRateType;
+using RefreshRate = scheduler::RefreshRateConfigs::RefreshRate;
 
 class RefreshRateOverlay {
 public:
     RefreshRateOverlay(SurfaceFlinger& flinger);
 
-    void changeRefreshRate(RefreshRateType type);
+    void changeRefreshRate(const RefreshRate& refreshRate);
 
 private:
     bool createLayer();

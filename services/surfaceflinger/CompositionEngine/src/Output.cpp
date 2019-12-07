@@ -839,9 +839,18 @@ std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion
         setExpensiveRenderingExpected(true);
     }
 
+    const nsecs_t renderEngineStart = systemTime();
     renderEngine.drawLayers(clientCompositionDisplay, clientCompositionLayers,
                             buf->getNativeBuffer(), /*useFramebufferCache=*/true, std::move(fd),
                             &readyFence);
+    auto& timeStats = getCompositionEngine().getTimeStats();
+    if (readyFence.get() < 0) {
+        timeStats.recordRenderEngineDuration(renderEngineStart, systemTime());
+    } else {
+        timeStats.recordRenderEngineDuration(renderEngineStart,
+                                             std::make_shared<FenceTime>(
+                                                     new Fence(dup(readyFence.get()))));
+    }
 
     if (expensiveRenderingExpected) {
         setExpensiveRenderingExpected(false);

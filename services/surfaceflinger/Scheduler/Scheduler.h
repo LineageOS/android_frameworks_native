@@ -34,6 +34,8 @@
 
 namespace android {
 
+using namespace std::chrono_literals;
+
 class DispSync;
 class FenceTime;
 class InjectVSyncSource;
@@ -41,10 +43,14 @@ struct DisplayStateInfo;
 
 class Scheduler {
 public:
-    using RefreshRateType = scheduler::RefreshRateConfigs::RefreshRateType;
+    using RefreshRate = scheduler::RefreshRateConfigs::RefreshRate;
     using ConfigEvent = scheduler::RefreshRateConfigEvent;
 
-    using ChangeRefreshRateCallback = std::function<void(RefreshRateType, ConfigEvent)>;
+    class ISchedulerCallback {
+    public:
+        virtual ~ISchedulerCallback() = default;
+        virtual void changeRefreshRate(const RefreshRate&, ConfigEvent) = 0;
+    };
 
     // Indicates whether to start the transaction early, or at vsync time.
     enum class TransactionStart { EARLY, NORMAL };
@@ -67,7 +73,7 @@ public:
     sp<EventThreadConnection> getEventConnection(ConnectionHandle);
 
     void onHotplugReceived(ConnectionHandle, PhysicalDisplayId, bool connected);
-    void onConfigChanged(ConnectionHandle, PhysicalDisplayId, int32_t configId);
+    void onConfigChanged(ConnectionHandle, PhysicalDisplayId, HwcConfigIndexType configId);
 
     void onScreenAcquired(ConnectionHandle);
     void onScreenReleased(ConnectionHandle);
@@ -103,13 +109,13 @@ public:
 
     // Layers are registered on creation, and unregistered when the weak reference expires.
     void registerLayer(Layer*);
-    void recordLayerHistory(Layer*, nsecs_t presentTime, bool isHDR);
+    void recordLayerHistory(Layer*, nsecs_t presentTime);
 
     // Detects content using layer history, and selects a matching refresh rate.
     void chooseRefreshRateForContent();
 
-    // Called by Scheduler to change refresh rate.
-    void setChangeRefreshRateCallback(ChangeRefreshRateCallback&&);
+    // Called by Scheduler to control SurfaceFlinger operations.
+    void setSchedulerCallback(ISchedulerCallback*);
 
     bool isIdleTimerEnabled() const { return mIdleTimer.has_value(); }
     void resetIdleTimer();
@@ -122,8 +128,8 @@ public:
     void dump(std::string&) const;
     void dump(ConnectionHandle, std::string&) const;
 
-    // Get the appropriate refresh type for current conditions.
-    RefreshRateType getPreferredRefreshRateType();
+    // Get the appropriate refresh for current conditions.
+    std::optional<HwcConfigIndexType> getPreferredConfigId();
 
 private:
     friend class TestableScheduler;
@@ -158,9 +164,9 @@ private:
 
     void setVsyncPeriod(nsecs_t period);
 
-    RefreshRateType calculateRefreshRateType() REQUIRES(mFeatureStateLock);
+    HwcConfigIndexType calculateRefreshRateType() REQUIRES(mFeatureStateLock);
     // Acquires a lock and calls the ChangeRefreshRateCallback with given parameters.
-    void changeRefreshRate(RefreshRateType, ConfigEvent);
+    void changeRefreshRate(const RefreshRate&, ConfigEvent);
 
     // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
     struct Connection {
@@ -198,7 +204,7 @@ private:
     std::optional<scheduler::OneShotTimer> mDisplayPowerTimer;
 
     std::mutex mCallbackLock;
-    ChangeRefreshRateCallback mChangeRefreshRateCallback GUARDED_BY(mCallbackLock);
+    ISchedulerCallback* mSchedulerCallback GUARDED_BY(mCallbackLock) = nullptr;
 
     // In order to make sure that the features don't override themselves, we need a state machine
     // to keep track which feature requested the config change.
@@ -210,17 +216,13 @@ private:
         TouchState touch = TouchState::Inactive;
         TimerState displayPowerTimer = TimerState::Expired;
 
-        RefreshRateType refreshRateType = RefreshRateType::DEFAULT;
+        std::optional<HwcConfigIndexType> configId;
         uint32_t contentRefreshRate = 0;
 
-        bool isHDRContent = false;
         bool isDisplayPowerStateNormal = true;
     } mFeatures GUARDED_BY(mFeatureStateLock);
 
     const scheduler::RefreshRateConfigs& mRefreshRateConfigs;
-
-    // Global config to force HDR content to work on DEFAULT refreshRate
-    static constexpr bool mForceHDRContentToDefaultRefreshRate = false;
 };
 
 } // namespace android

@@ -33,13 +33,13 @@
 #include "BufferQueueLayer.h"
 #include "ColorLayer.h"
 #include "Layer.h"
-
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/MockDispSync.h"
 #include "mock/MockEventControlThread.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockMessageQueue.h"
+#include "mock/MockTimeStats.h"
 #include "mock/system/window/MockNativeWindow.h"
 
 namespace android {
@@ -100,6 +100,7 @@ public:
                 .WillRepeatedly(DoAll(SetArgPointee<1>(DEFAULT_DISPLAY_HEIGHT), Return(0)));
 
         mFlinger.setupRenderEngine(std::unique_ptr<renderengine::RenderEngine>(mRenderEngine));
+        mFlinger.setupTimeStats(std::shared_ptr<TimeStats>(mTimeStats));
         setupComposer(0);
     }
 
@@ -181,6 +182,7 @@ public:
 
     Hwc2::mock::Composer* mComposer = nullptr;
     renderengine::mock::RenderEngine* mRenderEngine = new renderengine::mock::RenderEngine();
+    mock::TimeStats* mTimeStats = new mock::TimeStats();
     mock::MessageQueue* mMessageQueue = new mock::MessageQueue();
 
     sp<Fence> mClientTargetAcquireFence = Fence::NO_FENCE;

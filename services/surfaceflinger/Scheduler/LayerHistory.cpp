@@ -39,7 +39,7 @@ namespace android::scheduler {
 namespace {
 
 bool isLayerActive(const Layer& layer, const LayerInfo& info, nsecs_t threshold) {
-    return layer.isVisible() && (info.isHDR() || info.getLastUpdatedTime() >= threshold);
+    return layer.isVisible() && info.getLastUpdatedTime() >= threshold;
 }
 
 bool traceEnabled() {
@@ -69,7 +69,7 @@ void LayerHistory::registerLayer(Layer* layer, float lowRefreshRate, float highR
     mLayerInfos.emplace_back(layer, std::move(info));
 }
 
-void LayerHistory::record(Layer* layer, nsecs_t presentTime, bool isHDR, nsecs_t now) {
+void LayerHistory::record(Layer* layer, nsecs_t presentTime, nsecs_t now) {
     std::lock_guard lock(mLock);
 
     const auto it = std::find_if(mLayerInfos.begin(), mLayerInfos.end(),
@@ -78,7 +78,6 @@ void LayerHistory::record(Layer* layer, nsecs_t presentTime, bool isHDR, nsecs_t
 
     const auto& info = it->second;
     info->setLastPresentTime(presentTime, now);
-    info->setIsHDR(isHDR);
 
     // Activate layer if inactive.
     if (const auto end = activeLayers().end(); it >= end) {
@@ -89,7 +88,6 @@ void LayerHistory::record(Layer* layer, nsecs_t presentTime, bool isHDR, nsecs_t
 
 LayerHistory::Summary LayerHistory::summarize(nsecs_t now) {
     float maxRefreshRate = 0;
-    bool isHDR = false;
 
     std::lock_guard lock(mLock);
 
@@ -108,13 +106,12 @@ LayerHistory::Summary LayerHistory::summarize(nsecs_t now) {
                 trace(layer, std::round(refreshRate));
             }
         }
-        isHDR |= info->isHDR();
     }
     if (CC_UNLIKELY(mTraceEnabled)) {
-        ALOGD("%s: maxRefreshRate=%.2f, isHDR=%d", __FUNCTION__, maxRefreshRate, isHDR);
+        ALOGD("%s: maxRefreshRate=%.2f", __FUNCTION__, maxRefreshRate);
     }
 
-    return {maxRefreshRate, isHDR};
+    return {maxRefreshRate};
 }
 
 void LayerHistory::partitionLayers(nsecs_t now) {

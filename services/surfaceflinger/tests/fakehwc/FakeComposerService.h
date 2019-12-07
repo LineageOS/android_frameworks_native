@@ -16,22 +16,74 @@
 
 #pragma once
 
+#include <android/hardware/graphics/composer/2.4/IComposer.h>
 #include <composer-hal/2.1/ComposerClient.h>
+#include <composer-hal/2.2/ComposerClient.h>
+#include <composer-hal/2.3/ComposerClient.h>
+#include <composer-hal/2.4/ComposerClient.h>
 
-using namespace android::hardware::graphics::composer::V2_1;
-using namespace android::hardware::graphics::composer::V2_1::hal;
 using android::hardware::Return;
+
+using ComposerClient = android::hardware::graphics::composer::V2_4::hal::ComposerClient;
 
 namespace sftest {
 
-class FakeComposerService : public IComposer {
+using IComposer_2_1 = android::hardware::graphics::composer::V2_1::IComposer;
+
+class FakeComposerService_2_1 : public IComposer_2_1 {
 public:
-    explicit FakeComposerService(android::sp<ComposerClient>& client);
-    virtual ~FakeComposerService();
+    explicit FakeComposerService_2_1(android::sp<ComposerClient>& client);
+    virtual ~FakeComposerService_2_1();
 
     Return<void> getCapabilities(getCapabilities_cb hidl_cb) override;
     Return<void> dumpDebugInfo(dumpDebugInfo_cb hidl_cb) override;
     Return<void> createClient(createClient_cb hidl_cb) override;
+
+private:
+    android::sp<ComposerClient> mClient;
+};
+
+using IComposer_2_2 = android::hardware::graphics::composer::V2_2::IComposer;
+class FakeComposerService_2_2 : public IComposer_2_2 {
+public:
+    explicit FakeComposerService_2_2(android::sp<ComposerClient>& client);
+    virtual ~FakeComposerService_2_2();
+
+    Return<void> getCapabilities(getCapabilities_cb hidl_cb) override;
+    Return<void> dumpDebugInfo(dumpDebugInfo_cb hidl_cb) override;
+    Return<void> createClient(createClient_cb hidl_cb) override;
+
+private:
+    android::sp<ComposerClient> mClient;
+};
+
+using IComposer_2_3 = android::hardware::graphics::composer::V2_3::IComposer;
+class FakeComposerService_2_3 : public IComposer_2_3 {
+public:
+    explicit FakeComposerService_2_3(android::sp<ComposerClient>& client);
+    virtual ~FakeComposerService_2_3();
+
+    Return<void> getCapabilities(getCapabilities_cb hidl_cb) override;
+    Return<void> dumpDebugInfo(dumpDebugInfo_cb hidl_cb) override;
+    Return<void> createClient(createClient_cb hidl_cb) override;
+    Return<void> createClient_2_3(createClient_2_3_cb hidl_cb) override;
+
+private:
+    android::sp<ComposerClient> mClient;
+};
+
+using IComposer_2_4 = android::hardware::graphics::composer::V2_4::IComposer;
+
+class FakeComposerService_2_4 : public IComposer_2_4 {
+public:
+    explicit FakeComposerService_2_4(android::sp<ComposerClient>& client);
+    virtual ~FakeComposerService_2_4();
+
+    Return<void> getCapabilities(getCapabilities_cb hidl_cb) override;
+    Return<void> dumpDebugInfo(dumpDebugInfo_cb hidl_cb) override;
+    Return<void> createClient(createClient_cb hidl_cb) override;
+    Return<void> createClient_2_3(createClient_2_3_cb hidl_cb) override;
+    Return<void> createClient_2_4(createClient_2_4_cb hidl_cb) override;
 
 private:
     android::sp<ComposerClient> mClient;

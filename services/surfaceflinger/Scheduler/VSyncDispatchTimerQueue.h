@@ -105,7 +105,8 @@ private:
     VSyncDispatchTimerQueue(VSyncDispatchTimerQueue const&) = delete;
     VSyncDispatchTimerQueue& operator=(VSyncDispatchTimerQueue const&) = delete;
 
-    using CallbackMap = std::unordered_map<size_t, std::shared_ptr<VSyncDispatchTimerQueueEntry>>;
+    using CallbackMap =
+            std::unordered_map<CallbackToken, std::shared_ptr<VSyncDispatchTimerQueueEntry>>;
 
     void timerCallback();
     void setTimer(nsecs_t, nsecs_t) REQUIRES(mMutex);

@@ -27,7 +27,6 @@
 #include <ui/BufferHubBuffer.h>
 #endif // LIBUI_IN_VNDK
 
-#include <ui/Gralloc2.h>
 #include <ui/GraphicBufferAllocator.h>
 #include <ui/GraphicBufferMapper.h>
 #include <utils/Trace.h>

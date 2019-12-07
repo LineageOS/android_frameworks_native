@@ -56,18 +56,18 @@ TEST(StrongTypeTest, addition) {
     EXPECT_THAT(f1 + f2, Eq(FunkyType(32)));
     EXPECT_THAT(f2 + f1, Eq(FunkyType(32)));
 
-    EXPECT_THAT(++f1, Eq(11));
-    EXPECT_THAT(f1, Eq(11));
-    EXPECT_THAT(f1++, Eq(11));
-    EXPECT_THAT(f1++, Eq(12));
-    EXPECT_THAT(f1, Eq(13));
+    EXPECT_THAT(++f1.value(), Eq(11));
+    EXPECT_THAT(f1.value(), Eq(11));
+    EXPECT_THAT(f1++.value(), Eq(11));
+    EXPECT_THAT(f1++.value(), Eq(12));
+    EXPECT_THAT(f1.value(), Eq(13));
 
     auto f3 = f1;
     EXPECT_THAT(f1, Eq(f3));
     EXPECT_THAT(f1, Lt(f2));
 
     f3 += f1;
-    EXPECT_THAT(f1, Eq(13));
-    EXPECT_THAT(f3, Eq(26));
+    EXPECT_THAT(f1.value(), Eq(13));
+    EXPECT_THAT(f3.value(), Eq(26));
 }
 } // namespace android

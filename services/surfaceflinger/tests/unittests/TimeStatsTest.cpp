@@ -303,6 +303,44 @@ TEST_F(TimeStatsTest, canInsertGlobalFrameDuration) {
     EXPECT_EQ(3, histogramProto.time_millis());
 }
 
+TEST_F(TimeStatsTest, canInsertGlobalRenderEngineTiming) {
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+
+    using namespace std::chrono_literals;
+
+    mTimeStats->recordRenderEngineDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(1ms)
+                                                   .count(),
+                                           std::make_shared<FenceTime>(
+                                                   std::chrono::duration_cast<
+                                                           std::chrono::nanoseconds>(3ms)
+                                                           .count()));
+
+    mTimeStats->recordRenderEngineDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(4ms)
+                                                   .count(),
+                                           std::chrono::duration_cast<std::chrono::nanoseconds>(6ms)
+                                                   .count());
+
+    // First verify that flushing RenderEngine durations did not occur yet.
+    SFTimeStatsGlobalProto preFlushProto;
+    ASSERT_TRUE(preFlushProto.ParseFromString(inputCommand(InputCommand::DUMP_ALL, FMT_PROTO)));
+    ASSERT_EQ(0, preFlushProto.render_engine_timing_size());
+
+    // Push a dummy present fence to trigger flushing the RenderEngine timings.
+    mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL);
+    mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count()));
+
+    // Now we can verify that RenderEngine durations were flushed now.
+    SFTimeStatsGlobalProto postFlushProto;
+    ASSERT_TRUE(postFlushProto.ParseFromString(inputCommand(InputCommand::DUMP_ALL, FMT_PROTO)));
+
+    ASSERT_EQ(1, postFlushProto.render_engine_timing_size());
+    const SFTimeStatsHistogramBucketProto& histogramProto =
+            postFlushProto.render_engine_timing().Get(0);
+    EXPECT_EQ(2, histogramProto.frame_count());
+    EXPECT_EQ(2, histogramProto.time_millis());
+}
+
 TEST_F(TimeStatsTest, canInsertOneLayerTimeStats) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
 

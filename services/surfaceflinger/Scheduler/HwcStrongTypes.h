@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,14 @@
  * limitations under the License.
  */
 
-#include "InputDispatcherThread.h"
+#pragma once
 
-#include "InputDispatcherInterface.h"
+#include "StrongTyping.h"
 
 namespace android {
 
-InputDispatcherThread::InputDispatcherThread(const sp<InputDispatcherInterface>& dispatcher)
-      : Thread(/*canCallJava*/ true), mDispatcher(dispatcher) {}
-
-InputDispatcherThread::~InputDispatcherThread() {}
-
-bool InputDispatcherThread::threadLoop() {
-    mDispatcher->dispatchOnce();
-    return true;
-}
+// Strong types for the different indexes as they are referring to a different base.
+using HwcConfigIndexType = StrongTyping<int, struct HwcConfigIndexTypeTag, Compare, Add, Hash>;
+using HwcConfigGroupType = StrongTyping<int, struct HwcConfigGroupTypeTag, Compare>;
 
 } // namespace android

@@ -16,9 +16,10 @@
 
 #pragma once
 
-#include <memory>
-
+#include <TimeStats/TimeStats.h>
 #include <utils/Timers.h>
+
+#include <memory>
 
 namespace android {
 
@@ -54,6 +55,9 @@ public:
 
     virtual renderengine::RenderEngine& getRenderEngine() const = 0;
     virtual void setRenderEngine(std::unique_ptr<renderengine::RenderEngine>) = 0;
+
+    virtual TimeStats& getTimeStats() const = 0;
+    virtual void setTimeStats(const std::shared_ptr<TimeStats>&) = 0;
 
     virtual bool needsAnotherUpdate() const = 0;
     virtual nsecs_t getLastFrameRefreshTimestamp() const = 0;

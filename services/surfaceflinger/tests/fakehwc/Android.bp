@@ -10,6 +10,9 @@ cc_test {
     ],
     shared_libs: [
         "android.hardware.graphics.composer@2.1",
+        "android.hardware.graphics.composer@2.2",
+        "android.hardware.graphics.composer@2.3",
+        "android.hardware.graphics.composer@2.4",
         "android.hardware.graphics.composer@2.1-resources",
         "android.hardware.graphics.mapper@2.0",
         "android.hardware.graphics.mapper@3.0",
@@ -39,8 +42,8 @@ cc_test {
         "libtrace_proto",
     ],
     header_libs: [
-        "android.hardware.graphics.composer@2.1-command-buffer",
-        "android.hardware.graphics.composer@2.1-hal",
+        "android.hardware.graphics.composer@2.4-command-buffer",
+        "android.hardware.graphics.composer@2.4-hal",
         "libsurfaceflinger_headers",
     ],
 }

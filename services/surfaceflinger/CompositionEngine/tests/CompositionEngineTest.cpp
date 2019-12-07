@@ -25,6 +25,7 @@
 #include <renderengine/mock/RenderEngine.h>
 
 #include "MockHWComposer.h"
+#include "TimeStats/TimeStats.h"
 
 namespace android::compositionengine {
 namespace {
@@ -41,6 +42,8 @@ struct CompositionEngineTest : public testing::Test {
     android::mock::HWComposer* mHwc = new StrictMock<android::mock::HWComposer>();
     renderengine::mock::RenderEngine* mRenderEngine =
             new StrictMock<renderengine::mock::RenderEngine>();
+    std::shared_ptr<TimeStats> mTimeStats;
+
     impl::CompositionEngine mEngine;
     CompositionRefreshArgs mRefreshArgs;
 
@@ -69,6 +72,12 @@ TEST_F(CompositionEngineTest, canSetRenderEngine) {
     mEngine.setRenderEngine(std::unique_ptr<renderengine::RenderEngine>(mRenderEngine));
 
     EXPECT_EQ(mRenderEngine, &mEngine.getRenderEngine());
+}
+
+TEST_F(CompositionEngineTest, canSetTimeStats) {
+    mEngine.setTimeStats(mTimeStats);
+
+    EXPECT_EQ(mTimeStats.get(), &mEngine.getTimeStats());
 }
 
 /*

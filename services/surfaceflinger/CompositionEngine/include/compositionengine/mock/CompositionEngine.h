@@ -41,6 +41,9 @@ public:
     MOCK_CONST_METHOD0(getRenderEngine, renderengine::RenderEngine&());
     MOCK_METHOD1(setRenderEngine, void(std::unique_ptr<renderengine::RenderEngine>));
 
+    MOCK_CONST_METHOD0(getTimeStats, TimeStats&());
+    MOCK_METHOD1(setTimeStats, void(const std::shared_ptr<TimeStats>&));
+
     MOCK_CONST_METHOD0(needsAnotherUpdate, bool());
     MOCK_CONST_METHOD0(getLastFrameRefreshTimestamp, nsecs_t());
 

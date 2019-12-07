@@ -47,10 +47,10 @@ class InputDispatcherThread;
  *
  * 1. The InputReader class starts a thread that reads and preprocesses raw input events, applies
  *    policy, and posts messages to a queue managed by the InputDispatcherThread.
- * 2. The InputDispatcherThread (called "InputDispatcher") thread waits for new events on the
+ * 2. The InputDispatcher class starts a thread that waits for new events on the
  *    queue and asynchronously dispatches them to applications.
  *
- * By design, the InputReader class and InputDispatcherThread class do not share any
+ * By design, the InputReader class and InputDispatcher class do not share any
  * internal state.  Moreover, all communication is done one way from the InputReader
  * into the InputDispatcherThread and never the reverse.  Both classes may interact with the
  * InputDispatchPolicy, however.
@@ -65,10 +65,10 @@ protected:
     virtual ~InputManagerInterface() { }
 
 public:
-    /* Starts the input manager threads. */
+    /* Starts the input threads. */
     virtual status_t start() = 0;
 
-    /* Stops the input manager threads and waits for them to exit. */
+    /* Stops the input threads and waits for them to exit. */
     virtual status_t stop() = 0;
 
     /* Gets the input reader. */
@@ -106,9 +106,6 @@ private:
     sp<InputClassifierInterface> mClassifier;
 
     sp<InputDispatcherInterface> mDispatcher;
-    sp<InputDispatcherThread> mDispatcherThread;
-
-    void initialize();
 };
 
 } // namespace android
