@@ -16,7 +16,11 @@
 
 #pragma once
 
+#include <binder/IServiceManager.h>
 #include <hardware/hwcomposer_defs.h>
+#include <stats_event.h>
+#include <stats_pull_atom_callback.h>
+#include <statslog.h>
 #include <timestatsproto/TimeStatsHelper.h>
 #include <timestatsproto/TimeStatsProtoHeader.h>
 #include <ui/FenceTime.h>
@@ -36,6 +40,10 @@ namespace android {
 class TimeStats {
 public:
     virtual ~TimeStats() = default;
+
+    // Called once boot has been finished to perform additional capabilities,
+    // e.g. registration to statsd.
+    virtual void onBootFinished() = 0;
 
     virtual void parseArgs(bool asProto, const Vector<String16>& args, std::string& result) = 0;
     virtual bool isEnabled() = 0;
@@ -131,6 +139,40 @@ class TimeStats : public android::TimeStats {
 public:
     TimeStats();
 
+    // Delegate to the statsd service and associated APIs.
+    // Production code may use this class directly, whereas unit test may define
+    // a subclass for ease of testing.
+    class StatsEventDelegate {
+    public:
+        virtual ~StatsEventDelegate() = default;
+        virtual struct stats_event* addStatsEventToPullData(pulled_stats_event_list* data) {
+            return add_stats_event_to_pull_data(data);
+        }
+        virtual void registerStatsPullAtomCallback(int32_t atom_tag,
+                                                   stats_pull_atom_callback_t callback,
+                                                   pull_atom_metadata* metadata, void* cookie) {
+            return register_stats_pull_atom_callback(atom_tag, callback, metadata, cookie);
+        }
+
+        // Check if the statsd daemon exists, as otherwise callback registration
+        // will silently fail.
+        virtual bool checkStatsService();
+
+        virtual void statsEventSetAtomId(struct stats_event* event, int32_t atom_id) {
+            return stats_event_set_atom_id(event, atom_id);
+        }
+
+        virtual void statsEventWriteInt64(struct stats_event* event, int64_t field) {
+            return stats_event_write_int64(event, field);
+        }
+
+        virtual void statsEventBuild(struct stats_event* event) { return stats_event_build(event); }
+    };
+    // For testing only for injecting custom dependencies.
+    TimeStats(std::unique_ptr<StatsEventDelegate> statsDelegate);
+
+    void onBootFinished() override;
+
     void parseArgs(bool asProto, const Vector<String16>& args, std::string& result) override;
     bool isEnabled() override;
     std::string miniDump() override;
@@ -167,14 +209,19 @@ public:
     static const size_t MAX_NUM_TIME_RECORDS = 64;
 
 private:
+    static bool pullGlobalAtomCallback(int32_t atom_tag, pulled_stats_event_list* data,
+                                       const void* cookie);
     bool recordReadyLocked(int32_t layerId, TimeRecord* timeRecord);
     void flushAvailableRecordsToStatsLocked(int32_t layerId);
     void flushPowerTimeLocked();
     void flushAvailableGlobalRecordsToStatsLocked();
+    void registerToStatsdIfNeededLocked();
 
     void enable();
     void disable();
-    void clear();
+    void clearAll();
+    void clearGlobalLocked();
+    void clearLayersLocked();
     void dump(bool asProto, std::optional<uint32_t> maxLayers, std::string& result);
 
     std::atomic<bool> mEnabled = false;
@@ -187,6 +234,10 @@ private:
 
     static const size_t MAX_NUM_LAYER_RECORDS = 200;
     static const size_t MAX_NUM_LAYER_STATS = 200;
+    // Default is true, so that registration doesn't happen until the device has
+    // been booted.
+    bool mRegisteredCallback = true;
+    std::unique_ptr<StatsEventDelegate> mStatsDelegate = std::make_unique<StatsEventDelegate>();
 };
 
 } // namespace impl
