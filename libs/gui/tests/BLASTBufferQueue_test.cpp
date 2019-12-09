@@ -69,7 +69,7 @@ public:
 
     void waitForCallbacks() {
         std::unique_lock lock{mBlastBufferQueueAdapter->mMutex};
-        while (mBlastBufferQueueAdapter->mPendingCallbacks > 0) {
+        while (mBlastBufferQueueAdapter->mSubmitted.size() > 0) {
             mBlastBufferQueueAdapter->mCallbackCV.wait(lock);
         }
     }
@@ -302,7 +302,7 @@ TEST_F(BLASTBufferQueueTest, TripleBuffering) {
         igbProducer->cancelBuffer(allocated[i].first, allocated[i].second);
     }
 
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 100; i++) {
         int slot;
         sp<Fence> fence;
         sp<GraphicBuffer> buf;
