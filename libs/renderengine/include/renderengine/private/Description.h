@@ -81,6 +81,9 @@ struct Description {
     mat4 colorMatrix;
     mat4 inputTransformMatrix;
     mat4 outputTransformMatrix;
+
+    // True if this layer will draw a shadow.
+    bool drawShadows = false;
 };
 
 } // namespace renderengine

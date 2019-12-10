@@ -109,7 +109,7 @@ status_t layer_state_t::write(Parcel& output) const
             return err;
         }
     }
-
+    output.writeFloat(shadowRadius);
     return NO_ERROR;
 }
 
@@ -187,6 +187,7 @@ status_t layer_state_t::read(const Parcel& input)
         input.readInt64Vector(&callbackIds);
         listeners.emplace_back(listener, callbackIds);
     }
+    shadowRadius = input.readFloat();
     return NO_ERROR;
 }
 

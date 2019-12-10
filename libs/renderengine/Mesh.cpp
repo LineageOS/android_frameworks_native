@@ -21,38 +21,46 @@
 namespace android {
 namespace renderengine {
 
-Mesh::Mesh(Primitive primitive, size_t vertexCount, size_t vertexSize, size_t texCoordSize)
+Mesh::Mesh(Primitive primitive, size_t vertexCount, size_t vertexSize, size_t texCoordSize,
+           size_t cropCoordsSize, size_t shadowColorSize, size_t shadowParamsSize,
+           size_t indexCount)
       : mVertexCount(vertexCount),
         mVertexSize(vertexSize),
         mTexCoordsSize(texCoordSize),
-        mPrimitive(primitive) {
+        mCropCoordsSize(cropCoordsSize),
+        mShadowColorSize(shadowColorSize),
+        mShadowParamsSize(shadowParamsSize),
+        mPrimitive(primitive),
+        mIndexCount(indexCount) {
     if (vertexCount == 0) {
         mVertices.resize(1);
         mVertices[0] = 0.0f;
         mStride = 0;
         return;
     }
-
-    const size_t CROP_COORD_SIZE = 2;
-    size_t stride = vertexSize + texCoordSize + CROP_COORD_SIZE;
+    size_t stride = vertexSize + texCoordSize + cropCoordsSize + shadowColorSize + shadowParamsSize;
     size_t remainder = (stride * vertexCount) / vertexCount;
     // Since all of the input parameters are unsigned, if stride is less than
     // either vertexSize or texCoordSize, it must have overflowed. remainder
     // will be equal to stride as long as stride * vertexCount doesn't overflow.
     if ((stride < vertexSize) || (remainder != stride)) {
-        ALOGE("Overflow in Mesh(..., %zu, %zu, %zu, %zu)", vertexCount, vertexSize, texCoordSize,
-              CROP_COORD_SIZE);
+        ALOGE("Overflow in Mesh(..., %zu, %zu, %zu, %zu, %zu, %zu)", vertexCount, vertexSize,
+              texCoordSize, cropCoordsSize, shadowColorSize, shadowParamsSize);
         mVertices.resize(1);
         mVertices[0] = 0.0f;
         mVertexCount = 0;
         mVertexSize = 0;
         mTexCoordsSize = 0;
+        mCropCoordsSize = 0;
+        mShadowColorSize = 0;
+        mShadowParamsSize = 0;
         mStride = 0;
         return;
     }
 
     mVertices.resize(stride * vertexCount);
     mStride = stride;
+    mIndices.resize(indexCount);
 }
 
 Mesh::Primitive Mesh::getPrimitive() const {
@@ -80,6 +88,28 @@ float* Mesh::getCropCoords() {
     return mVertices.data() + mVertexSize + mTexCoordsSize;
 }
 
+float const* Mesh::getShadowColor() const {
+    return mVertices.data() + mVertexSize + mTexCoordsSize + mCropCoordsSize;
+}
+float* Mesh::getShadowColor() {
+    return mVertices.data() + mVertexSize + mTexCoordsSize + mCropCoordsSize;
+}
+
+float const* Mesh::getShadowParams() const {
+    return mVertices.data() + mVertexSize + mTexCoordsSize + mCropCoordsSize + mShadowColorSize;
+}
+float* Mesh::getShadowParams() {
+    return mVertices.data() + mVertexSize + mTexCoordsSize + mCropCoordsSize + mShadowColorSize;
+}
+
+uint16_t const* Mesh::getIndices() const {
+    return mIndices.data();
+}
+
+uint16_t* Mesh::getIndices() {
+    return mIndices.data();
+}
+
 size_t Mesh::getVertexCount() const {
     return mVertexCount;
 }
@@ -92,12 +122,24 @@ size_t Mesh::getTexCoordsSize() const {
     return mTexCoordsSize;
 }
 
+size_t Mesh::getShadowColorSize() const {
+    return mShadowColorSize;
+}
+
+size_t Mesh::getShadowParamsSize() const {
+    return mShadowParamsSize;
+}
+
 size_t Mesh::getByteStride() const {
     return mStride * sizeof(float);
 }
 
 size_t Mesh::getStride() const {
     return mStride;
+}
+
+size_t Mesh::getIndexCount() const {
+    return mIndexCount;
 }
 
 } // namespace renderengine
