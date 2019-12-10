@@ -106,18 +106,17 @@ void Client::detachLayer(const Layer* layer)
         }
     }
 }
-sp<Layer> Client::getLayerUser(const sp<IBinder>& handle) const
+
+bool Client::isAttached(const sp<IBinder>& handle) const
 {
     Mutex::Autolock _l(mLock);
     sp<Layer> lbc;
     wp<Layer> layer(mLayers.valueFor(handle));
     if (layer != 0) {
-        lbc = layer.promote();
-        ALOGE_IF(lbc==0, "getLayerUser(name=%p) is dead", handle.get());
+        return true;
     }
-    return lbc;
+    return false;
 }
-
 
 status_t Client::onTransact(
     uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
@@ -144,7 +143,6 @@ status_t Client::onTransact(
      return BnSurfaceComposerClient::onTransact(code, data, reply, flags);
 }
 
-
 status_t Client::createSurface(
         const String8& name,
         uint32_t w, uint32_t h, PixelFormat format, uint32_t flags,
@@ -152,22 +150,11 @@ status_t Client::createSurface(
         sp<IBinder>* handle,
         sp<IGraphicBufferProducer>* gbp)
 {
-    sp<Layer> parent = nullptr;
-    if (parentHandle != nullptr) {
-        auto layerHandle = reinterpret_cast<Layer::Handle*>(parentHandle.get());
-        parent = layerHandle->owner.promote();
-        if (parent == nullptr) {
-            return NAME_NOT_FOUND;
-        }
-    }
-    if (parent == nullptr) {
-        bool parentDied;
-        parent = getParentLayer(&parentDied);
-        // If we had a parent, but it died, we've lost all
-        // our capabilities.
-        if (parentDied) {
-            return NAME_NOT_FOUND;
-        }
+    bool parentDied;
+    sp<Layer> parentLayer;
+    if (!parentHandle) parentLayer = getParentLayer(&parentDied);
+    if (parentHandle == nullptr && parentDied) {
+        return NAME_NOT_FOUND;
     }
 
     /*
@@ -184,7 +171,8 @@ status_t Client::createSurface(
         uint32_t w, h;
         PixelFormat format;
         uint32_t flags;
-        sp<Layer>* parent;
+        const sp<IBinder>& parentHandle;
+        const sp<Layer>& parentLayer;
         int32_t windowType;
         int32_t ownerUid;
     public:
@@ -193,23 +181,25 @@ status_t Client::createSurface(
                 uint32_t w, uint32_t h, PixelFormat format, uint32_t flags,
                 sp<IBinder>* handle, int32_t windowType, int32_t ownerUid,
                 sp<IGraphicBufferProducer>* gbp,
-                sp<Layer>* parent)
+                const sp<IBinder>& parentHandle,
+                const sp<Layer>& parentLayer)
             : flinger(flinger), client(client),
               handle(handle), gbp(gbp), result(NO_ERROR),
               name(name), w(w), h(h), format(format), flags(flags),
-              parent(parent), windowType(windowType), ownerUid(ownerUid) {
+              parentHandle(parentHandle), parentLayer(parentLayer),
+              windowType(windowType), ownerUid(ownerUid) {
         }
         status_t getResult() const { return result; }
         virtual bool handler() {
             result = flinger->createLayer(name, client, w, h, format, flags,
-                    windowType, ownerUid, handle, gbp, parent);
+                    windowType, ownerUid, handle, gbp, parentHandle, parentLayer);
             return true;
         }
     };
 
     sp<MessageBase> msg = new MessageCreateLayer(mFlinger.get(),
             name, this, w, h, format, flags, handle,
-            windowType, ownerUid, gbp, &parent);
+            windowType, ownerUid, gbp, parentHandle, parentLayer);
     mFlinger->postMessageSync(msg);
     return static_cast<MessageCreateLayer*>( msg.get() )->getResult();
 }
@@ -219,21 +209,11 @@ status_t Client::destroySurface(const sp<IBinder>& handle) {
 }
 
 status_t Client::clearLayerFrameStats(const sp<IBinder>& handle) const {
-    sp<Layer> layer = getLayerUser(handle);
-    if (layer == nullptr) {
-        return NAME_NOT_FOUND;
-    }
-    layer->clearFrameStats();
-    return NO_ERROR;
+    return mFlinger->clearLayerFrameStats(this, handle);
 }
 
 status_t Client::getLayerFrameStats(const sp<IBinder>& handle, FrameStats* outStats) const {
-    sp<Layer> layer = getLayerUser(handle);
-    if (layer == nullptr) {
-        return NAME_NOT_FOUND;
-    }
-    layer->getFrameStats(outStats);
-    return NO_ERROR;
+    return mFlinger->getLayerFrameStats(this, handle, outStats);
 }
 
 // ---------------------------------------------------------------------------

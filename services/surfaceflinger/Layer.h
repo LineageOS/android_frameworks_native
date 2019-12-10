@@ -699,6 +699,8 @@ public:
         wp<Layer> owner;
     };
 
+    // Creates a new handle each time, so we only expect
+    // this to be called once.
     sp<IBinder> getHandle();
     const String8& getName() const;
     virtual void notifyAvailableFrames() {}
@@ -803,6 +805,7 @@ private:
                                        const LayerVector::Visitor& visitor);
     LayerVector makeChildrenTraversalList(LayerVector::StateSet stateSet,
                                           const std::vector<Layer*>& layersInTree);
+    bool mGetHandleCalled = false;
 };
 
 // ---------------------------------------------------------------------------
