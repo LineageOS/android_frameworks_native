@@ -350,6 +350,8 @@ public:
     bool authenticateSurfaceTextureLocked(
         const sp<IGraphicBufferProducer>& bufferProducer) const;
 
+    sp<Layer> fromHandle(const sp<IBinder>& handle) REQUIRES(mStateLock);
+
 private:
     friend class Client;
     friend class DisplayEventConnection;
@@ -537,10 +539,10 @@ private:
     /* ------------------------------------------------------------------------
      * Layer management
      */
-    status_t createLayer(const String8& name, const sp<Client>& client,
-            uint32_t w, uint32_t h, PixelFormat format, uint32_t flags,
-            int32_t windowType, int32_t ownerUid, sp<IBinder>* handle,
-            sp<IGraphicBufferProducer>* gbp, sp<Layer>* parent);
+    status_t createLayer(const String8& name, const sp<Client>& client, uint32_t w, uint32_t h,
+                         PixelFormat format, uint32_t flags, int32_t windowType, int32_t ownerUid,
+                         sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp,
+                         const sp<IBinder>& parentHandle, const sp<Layer>& parentLayer = nullptr);
 
     status_t createBufferLayer(const sp<Client>& client, const String8& name,
             uint32_t w, uint32_t h, uint32_t flags, PixelFormat& format,
@@ -570,12 +572,13 @@ private:
     status_t removeLayer(const sp<Layer>& layer, bool topLevelOnly = false);
     status_t removeLayerLocked(const Mutex&, const sp<Layer>& layer, bool topLevelOnly = false);
 
+    // remove layer from mapping
+    status_t removeLayerFromMap(Layer* layer);
+
     // add a layer to SurfaceFlinger
-    status_t addClientLayer(const sp<Client>& client,
-            const sp<IBinder>& handle,
-            const sp<IGraphicBufferProducer>& gbc,
-            const sp<Layer>& lbc,
-            const sp<Layer>& parent);
+    status_t addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
+                            const sp<IGraphicBufferProducer>& gbc, const sp<Layer>& lbc,
+                            const sp<IBinder>& parentHandle, const sp<Layer>& parentLayer);
 
     /* ------------------------------------------------------------------------
      * Boot animation, on/off animations and screen capture
@@ -844,6 +847,9 @@ private:
     // this may only be written from the main thread with mStateLock held
     // it may be read from other threads with mStateLock held
     DefaultKeyedVector< wp<IBinder>, sp<DisplayDevice> > mDisplays;
+
+    // protected by mStateLock
+    std::unordered_map<BBinder*, wp<Layer>> mLayersByLocalBinderToken;
 
     // don't use a lock for these, we don't care
     int mDebugRegion;

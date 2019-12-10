@@ -118,7 +118,6 @@ sp<Layer> Client::getLayerUser(const sp<IBinder>& handle) const
     return lbc;
 }
 
-
 status_t Client::onTransact(
     uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
 {
@@ -144,34 +143,19 @@ status_t Client::onTransact(
      return BnSurfaceComposerClient::onTransact(code, data, reply, flags);
 }
 
-
 status_t Client::createSurface(
         const String8& name,
         uint32_t w, uint32_t h, PixelFormat format, uint32_t flags,
         const sp<IBinder>& parentHandle, int32_t windowType, int32_t ownerUid,
         sp<IBinder>* handle,
-        sp<IGraphicBufferProducer>* gbp)
-{
-    sp<Layer> parent = nullptr;
-    if (parentHandle != nullptr) {
-        auto layerHandle = reinterpret_cast<Layer::Handle*>(parentHandle.get());
-        parent = layerHandle->owner.promote();
-        if (parent == nullptr) {
-            return NAME_NOT_FOUND;
-        }
+        sp<IGraphicBufferProducer>* gbp) {
+    bool parentDied;
+    sp<Layer> parentLayer = getParentLayer(&parentDied);
+    if (parentHandle == nullptr && parentDied) {
+        return NAME_NOT_FOUND;
     }
-    if (parent == nullptr) {
-        bool parentDied;
-        parent = getParentLayer(&parentDied);
-        // If we had a parent, but it died, we've lost all
-        // our capabilities.
-        if (parentDied) {
-            return NAME_NOT_FOUND;
-        }
-    }
-
     return mFlinger->createLayer(name, this, w, h, format, flags, windowType,
-                                 ownerUid, handle, gbp, &parent);
+                                 ownerUid, handle, gbp, parentHandle, parentLayer);
 }
 
 status_t Client::destroySurface(const sp<IBinder>& handle) {

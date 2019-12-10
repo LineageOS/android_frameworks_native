@@ -18,7 +18,8 @@ cc_test {
     tags: ["test"],
     test_suites: ["device-tests"],
     srcs: [
-        "Stress_test.cpp",
+        "InvalidHandles_test.cpp",
+	"Stress_test.cpp",
         "SurfaceInterceptor_test.cpp",
         "Transaction_test.cpp",
     ],
