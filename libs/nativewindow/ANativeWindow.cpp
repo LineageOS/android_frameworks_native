@@ -320,3 +320,7 @@ int ANativeWindow_setQueueBufferInterceptor(ANativeWindow* window,
                                             void* data) {
     return window->perform(window, NATIVE_WINDOW_SET_QUEUE_INTERCEPTOR, interceptor, data);
 }
+
+void ANativeWindow_allocateBuffers(ANativeWindow* window) {
+    window->perform(window, NATIVE_WINDOW_ALLOCATE_BUFFERS);
+}
