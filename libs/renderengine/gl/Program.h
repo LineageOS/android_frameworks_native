@@ -44,7 +44,13 @@ public:
         texCoords = 1,
 
         /* Crop coordinates, in pixels */
-        cropCoords = 2
+        cropCoords = 2,
+
+        /* Shadow color */
+        shadowColor = 3,
+
+        /* Shadow params */
+        shadowParams = 4,
     };
 
     Program(const ProgramCache::Key& needs, const char* vertex, const char* fragment);

@@ -566,7 +566,10 @@ void GLESRenderEngine::fillRegionWithColor(const Region& region, float red, floa
                                            float alpha) {
     size_t c;
     Rect const* r = region.getArray(&c);
-    Mesh mesh(Mesh::TRIANGLES, c * 6, 2);
+    Mesh mesh = Mesh::Builder()
+                        .setPrimitive(Mesh::TRIANGLES)
+                        .setVertices(c * 6 /* count */, 2 /* size */)
+                        .build();
     Mesh::VertexArray<vec2> position(mesh.getPositionArray<vec2>());
     for (size_t i = 0; i < c; i++, r++) {
         position[i * 6 + 0].x = r->left;
@@ -981,7 +984,12 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
         fillRegionWithColor(display.clearRegion, 0.0, 0.0, 0.0, 1.0);
     }
 
-    Mesh mesh(Mesh::TRIANGLE_FAN, 4, 2, 2);
+    Mesh mesh = Mesh::Builder()
+                        .setPrimitive(Mesh::TRIANGLE_FAN)
+                        .setVertices(4 /* count */, 2 /* size */)
+                        .setTexCoords(2 /* size */)
+                        .setCropCoords(2 /* size */)
+                        .build();
     for (auto layer : layers) {
         mState.maxMasteringLuminance = layer.source.buffer.maxMasteringLuminance;
         mState.maxContentLuminance = layer.source.buffer.maxContentLuminance;
@@ -1037,10 +1045,13 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
         }
         setSourceDataSpace(layer.sourceDataspace);
 
+        if (layer.shadow.length > 0.0f) {
+            // handle shadows
+        }
         // We only want to do a special handling for rounded corners when having rounded corners
         // is the only reason it needs to turn on blending, otherwise, we handle it like the
         // usual way since it needs to turn on blending anyway.
-        if (layer.geometry.roundedCornersRadius > 0.0 && color.a >= 1.0f && isOpaque) {
+        else if (layer.geometry.roundedCornersRadius > 0.0 && color.a >= 1.0f && isOpaque) {
             handleRoundedCorners(display, layer, mesh);
         } else {
             drawMesh(mesh);
@@ -1178,13 +1189,23 @@ void GLESRenderEngine::drawMesh(const Mesh& mesh) {
                               mesh.getByteStride(), mesh.getCropCoords());
     }
 
+    if (mState.drawShadows) {
+        glEnableVertexAttribArray(Program::shadowColor);
+        glVertexAttribPointer(Program::shadowColor, mesh.getShadowColorSize(), GL_FLOAT, GL_FALSE,
+                              mesh.getByteStride(), mesh.getShadowColor());
+
+        glEnableVertexAttribArray(Program::shadowParams);
+        glVertexAttribPointer(Program::shadowParams, mesh.getShadowParamsSize(), GL_FLOAT, GL_FALSE,
+                              mesh.getByteStride(), mesh.getShadowParams());
+    }
+
+    Description managedState = mState;
     // By default, DISPLAY_P3 is the only supported wide color output. However,
     // when HDR content is present, hardware composer may be able to handle
     // BT2020 data space, in that case, the output data space is set to be
     // BT2020_HLG or BT2020_PQ respectively. In GPU fall back we need
     // to respect this and convert non-HDR content to HDR format.
     if (mUseColorManagement) {
-        Description managedState = mState;
         Dataspace inputStandard = static_cast<Dataspace>(mDataSpace & Dataspace::STANDARD_MASK);
         Dataspace inputTransfer = static_cast<Dataspace>(mDataSpace & Dataspace::TRANSFER_MASK);
         Dataspace outputStandard =
@@ -1275,25 +1296,23 @@ void GLESRenderEngine::drawMesh(const Mesh& mesh) {
             managedState.outputTransferFunction =
                     Description::dataSpaceToTransferFunction(outputTransfer);
         }
+    }
 
-        ProgramCache::getInstance().useProgram(mInProtectedContext ? mProtectedEGLContext
-                                                                   : mEGLContext,
-                                               managedState);
+    ProgramCache::getInstance().useProgram(mInProtectedContext ? mProtectedEGLContext : mEGLContext,
+                                           managedState);
 
-        glDrawArrays(mesh.getPrimitive(), 0, mesh.getVertexCount());
-
-        if (outputDebugPPMs) {
-            static uint64_t managedColorFrameCount = 0;
-            std::ostringstream out;
-            out << "/data/texture_out" << managedColorFrameCount++;
-            writePPM(out.str().c_str(), mVpWidth, mVpHeight);
-        }
+    if (mState.drawShadows) {
+        glDrawElements(mesh.getPrimitive(), mesh.getIndexCount(), GL_UNSIGNED_SHORT,
+                       mesh.getIndices());
     } else {
-        ProgramCache::getInstance().useProgram(mInProtectedContext ? mProtectedEGLContext
-                                                                   : mEGLContext,
-                                               mState);
-
         glDrawArrays(mesh.getPrimitive(), 0, mesh.getVertexCount());
+    }
+
+    if (mUseColorManagement && outputDebugPPMs) {
+        static uint64_t managedColorFrameCount = 0;
+        std::ostringstream out;
+        out << "/data/texture_out" << managedColorFrameCount++;
+        writePPM(out.str().c_str(), mVpWidth, mVpHeight);
     }
 
     if (mesh.getTexCoordsSize()) {
@@ -1302,6 +1321,11 @@ void GLESRenderEngine::drawMesh(const Mesh& mesh) {
 
     if (mState.cornerRadius > 0.0f) {
         glDisableVertexAttribArray(Program::cropCoords);
+    }
+
+    if (mState.drawShadows) {
+        glDisableVertexAttribArray(Program::shadowColor);
+        glDisableVertexAttribArray(Program::shadowParams);
     }
 }
 
