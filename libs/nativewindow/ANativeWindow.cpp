@@ -331,3 +331,7 @@ int ANativeWindow_setQueueBufferInterceptor(ANativeWindow* window,
 void ANativeWindow_allocateBuffers(ANativeWindow* window) {
     window->perform(window, NATIVE_WINDOW_ALLOCATE_BUFFERS);
 }
+
+int64_t ANativeWindow_getNextFrameId(ANativeWindow* window) {
+    return query64(window, NATIVE_WINDOW_GET_NEXT_FRAME_ID);
+}
