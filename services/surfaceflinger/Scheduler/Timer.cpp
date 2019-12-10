@@ -85,7 +85,7 @@ void Timer::alarmIn(std::function<void()> const& cb, nsecs_t fireIn) {
     };
 
     if (timerfd_settime(mTimerFd, 0, &new_timer, &old_timer)) {
-        ALOGW("Failed to set timerfd");
+        ALOGW("Failed to set timerfd %s (%i)", strerror(errno), errno);
     }
 }
 

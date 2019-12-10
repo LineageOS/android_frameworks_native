@@ -23,6 +23,7 @@
 #include <utils/Trace.h>
 #include <algorithm>
 #include <chrono>
+#include <sstream>
 #include "SchedulerUtils.h"
 
 namespace android::scheduler {
@@ -153,12 +154,24 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
     }
 
     auto const oldest = *std::min_element(timestamps.begin(), timestamps.end());
-    auto const ordinalRequest = (timePoint - oldest + slope) / slope;
+
+    // See b/145667109, the ordinal calculation must take into account the intercept.
+    auto const zeroPoint = oldest + intercept;
+    auto const ordinalRequest = (timePoint - zeroPoint + slope) / slope;
     auto const prediction = (ordinalRequest * slope) + intercept + oldest;
 
-    ALOGV("prediction made from: %" PRId64 " prediction: %" PRId64 " (+%" PRId64 ") slope: %" PRId64
-          " intercept: %" PRId64,
-          timePoint, prediction, prediction - timePoint, slope, intercept);
+    auto const printer = [&, slope = slope, intercept = intercept] {
+        std::stringstream str;
+        str << "prediction made from: " << timePoint << "prediction: " << prediction << " (+"
+            << prediction - timePoint << ") slope: " << slope << " intercept: " << intercept
+            << "oldestTS: " << oldest << " ordinal: " << ordinalRequest;
+        return str.str();
+    };
+
+    ALOGV("%s", printer().c_str());
+    LOG_ALWAYS_FATAL_IF(prediction < timePoint, "VSyncPredictor: model miscalculation: %s",
+                        printer().c_str());
+
     return prediction;
 }
 
