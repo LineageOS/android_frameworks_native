@@ -82,7 +82,7 @@ static bool isTouchEvent(const NotifyMotionArgs& args) {
 // Check if the "deep touch" feature is on.
 static bool deepPressEnabled() {
     std::string flag_value = server_configurable_flags::GetServerConfigurableFlag(
-            INPUT_NATIVE_BOOT, DEEP_PRESS_ENABLED, "false");
+            INPUT_NATIVE_BOOT, DEEP_PRESS_ENABLED, "true");
     std::transform(flag_value.begin(), flag_value.end(), flag_value.begin(), ::tolower);
     if (flag_value == "1" || flag_value == "true") {
         ALOGI("Deep press feature enabled.");
