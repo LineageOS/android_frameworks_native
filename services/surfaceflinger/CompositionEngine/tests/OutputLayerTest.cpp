@@ -23,10 +23,8 @@
 #include <compositionengine/mock/Output.h>
 #include <gtest/gtest.h>
 
-#include "FloatRectMatcher.h"
 #include "MockHWC2.h"
 #include "MockHWComposer.h"
-#include "RectMatcher.h"
 #include "RegionMatcher.h"
 
 namespace android::compositionengine {
@@ -159,19 +157,19 @@ TEST_F(OutputLayerSourceCropTest, computesEmptyIfSourceCropNotUsed) {
     mLayerFEState.geomUsesSourceCrop = false;
 
     const FloatRect expected{};
-    EXPECT_THAT(calculateOutputSourceCrop(), FloatRectEq(expected));
+    EXPECT_THAT(calculateOutputSourceCrop(), expected);
 }
 
 TEST_F(OutputLayerSourceCropTest, correctForSimpleDefaultCase) {
     const FloatRect expected{0.f, 0.f, 1920.f, 1080.f};
-    EXPECT_THAT(calculateOutputSourceCrop(), FloatRectEq(expected));
+    EXPECT_THAT(calculateOutputSourceCrop(), expected);
 }
 
 TEST_F(OutputLayerSourceCropTest, handlesBoundsOutsideViewport) {
     mLayerFEState.geomLayerBounds = FloatRect{-2000.f, -2000.f, 2000.f, 2000.f};
 
     const FloatRect expected{0.f, 0.f, 1920.f, 1080.f};
-    EXPECT_THAT(calculateOutputSourceCrop(), FloatRectEq(expected));
+    EXPECT_THAT(calculateOutputSourceCrop(), expected);
 }
 
 TEST_F(OutputLayerSourceCropTest, handlesBoundsOutsideViewportRotated) {
@@ -179,7 +177,7 @@ TEST_F(OutputLayerSourceCropTest, handlesBoundsOutsideViewportRotated) {
     mLayerFEState.geomLayerTransform.set(HAL_TRANSFORM_ROT_90, 1920, 1080);
 
     const FloatRect expected{0.f, 0.f, 1080.f, 1080.f};
-    EXPECT_THAT(calculateOutputSourceCrop(), FloatRectEq(expected));
+    EXPECT_THAT(calculateOutputSourceCrop(), expected);
 }
 
 TEST_F(OutputLayerSourceCropTest, calculateOutputSourceCropWorksWithATransformedBuffer) {
@@ -218,7 +216,7 @@ TEST_F(OutputLayerSourceCropTest, calculateOutputSourceCropWorksWithATransformed
         mLayerFEState.geomBufferTransform = entry.buffer;
         mOutputState.orientation = entry.display;
 
-        EXPECT_THAT(calculateOutputSourceCrop(), FloatRectEq(entry.expected)) << "entry " << i;
+        EXPECT_THAT(calculateOutputSourceCrop(), entry.expected) << "entry " << i;
     }
 }
 
@@ -226,14 +224,14 @@ TEST_F(OutputLayerSourceCropTest, geomContentCropAffectsCrop) {
     mLayerFEState.geomContentCrop = Rect{0, 0, 960, 540};
 
     const FloatRect expected{0.f, 0.f, 960.f, 540.f};
-    EXPECT_THAT(calculateOutputSourceCrop(), FloatRectEq(expected));
+    EXPECT_THAT(calculateOutputSourceCrop(), expected);
 }
 
 TEST_F(OutputLayerSourceCropTest, viewportAffectsCrop) {
     mOutputState.viewport = Rect{0, 0, 960, 540};
 
     const FloatRect expected{0.f, 0.f, 960.f, 540.f};
-    EXPECT_THAT(calculateOutputSourceCrop(), FloatRectEq(expected));
+    EXPECT_THAT(calculateOutputSourceCrop(), expected);
 }
 
 /*
@@ -265,50 +263,50 @@ struct OutputLayerDisplayFrameTest : public OutputLayerTest {
 
 TEST_F(OutputLayerDisplayFrameTest, correctForSimpleDefaultCase) {
     const Rect expected{0, 0, 1920, 1080};
-    EXPECT_THAT(calculateOutputDisplayFrame(), RectEq(expected));
+    EXPECT_THAT(calculateOutputDisplayFrame(), expected);
 }
 
 TEST_F(OutputLayerDisplayFrameTest, fullActiveTransparentRegionReturnsEmptyFrame) {
     mLayerFEState.transparentRegionHint = Region{Rect{0, 0, 1920, 1080}};
     const Rect expected{0, 0, 0, 0};
-    EXPECT_THAT(calculateOutputDisplayFrame(), RectEq(expected));
+    EXPECT_THAT(calculateOutputDisplayFrame(), expected);
 }
 
 TEST_F(OutputLayerDisplayFrameTest, cropAffectsDisplayFrame) {
     mLayerFEState.geomCrop = Rect{100, 200, 300, 500};
     const Rect expected{100, 200, 300, 500};
-    EXPECT_THAT(calculateOutputDisplayFrame(), RectEq(expected));
+    EXPECT_THAT(calculateOutputDisplayFrame(), expected);
 }
 
 TEST_F(OutputLayerDisplayFrameTest, cropAffectsDisplayFrameRotated) {
     mLayerFEState.geomCrop = Rect{100, 200, 300, 500};
     mLayerFEState.geomLayerTransform.set(HAL_TRANSFORM_ROT_90, 1920, 1080);
     const Rect expected{1420, 100, 1720, 300};
-    EXPECT_THAT(calculateOutputDisplayFrame(), RectEq(expected));
+    EXPECT_THAT(calculateOutputDisplayFrame(), expected);
 }
 
 TEST_F(OutputLayerDisplayFrameTest, emptyGeomCropIsNotUsedToComputeFrame) {
     mLayerFEState.geomCrop = Rect{};
     const Rect expected{0, 0, 1920, 1080};
-    EXPECT_THAT(calculateOutputDisplayFrame(), RectEq(expected));
+    EXPECT_THAT(calculateOutputDisplayFrame(), expected);
 }
 
 TEST_F(OutputLayerDisplayFrameTest, geomLayerBoundsAffectsFrame) {
     mLayerFEState.geomLayerBounds = FloatRect{0.f, 0.f, 960.f, 540.f};
     const Rect expected{0, 0, 960, 540};
-    EXPECT_THAT(calculateOutputDisplayFrame(), RectEq(expected));
+    EXPECT_THAT(calculateOutputDisplayFrame(), expected);
 }
 
 TEST_F(OutputLayerDisplayFrameTest, viewportAffectsFrame) {
     mOutputState.viewport = Rect{0, 0, 960, 540};
     const Rect expected{0, 0, 960, 540};
-    EXPECT_THAT(calculateOutputDisplayFrame(), RectEq(expected));
+    EXPECT_THAT(calculateOutputDisplayFrame(), expected);
 }
 
 TEST_F(OutputLayerDisplayFrameTest, outputTransformAffectsDisplayFrame) {
     mOutputState.transform = ui::Transform{HAL_TRANSFORM_ROT_90};
     const Rect expected{-1080, 0, 0, 1920};
-    EXPECT_THAT(calculateOutputDisplayFrame(), RectEq(expected));
+    EXPECT_THAT(calculateOutputDisplayFrame(), expected);
 }
 
 /*

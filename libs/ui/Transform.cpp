@@ -49,6 +49,15 @@ bool Transform::absIsOne(float f) {
     return isZero(fabs(f) - 1.0f);
 }
 
+bool Transform::operator==(const Transform& other) const {
+    return mMatrix[0][0] == other.mMatrix[0][0] && mMatrix[0][1] == other.mMatrix[0][1] &&
+            mMatrix[0][2] == other.mMatrix[0][2] && mMatrix[1][0] == other.mMatrix[1][0] &&
+            mMatrix[1][1] == other.mMatrix[1][1] && mMatrix[1][2] == other.mMatrix[1][2] &&
+            mMatrix[2][0] == other.mMatrix[2][0] && mMatrix[2][1] == other.mMatrix[2][1] &&
+            mMatrix[2][2] == other.mMatrix[2][2];
+    ;
+}
+
 Transform Transform::operator * (const Transform& rhs) const
 {
     if (CC_LIKELY(mType == IDENTITY))
