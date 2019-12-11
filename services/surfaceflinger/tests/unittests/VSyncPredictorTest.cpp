@@ -319,4 +319,36 @@ TEST_F(VSyncPredictorTest, idealModelPredictionsBeforeRegressionModelIsBuilt) {
     }
 }
 
+// See b/145667109, and comment in prod code under test.
+TEST_F(VSyncPredictorTest, doesNotPredictBeforeTimePointWithHigherIntercept) {
+    std::vector<nsecs_t> const simulatedVsyncs{
+            158929578733000,
+            158929306806205, // oldest TS in ringbuffer
+            158929650879052,
+            158929661969209,
+            158929684198847,
+            158929695268171,
+            158929706370359,
+    };
+    auto const idealPeriod = 11111111;
+    auto const expectedPeriod = 11113500;
+    auto const expectedIntercept = -395335;
+
+    tracker.setPeriod(idealPeriod);
+    for (auto const& timestamp : simulatedVsyncs) {
+        tracker.addVsyncTimestamp(timestamp);
+    }
+
+    auto [slope, intercept] = tracker.getVSyncPredictionModel();
+    EXPECT_THAT(slope, IsCloseTo(expectedPeriod, mMaxRoundingError));
+    EXPECT_THAT(intercept, IsCloseTo(expectedIntercept, mMaxRoundingError));
+
+    // (timePoint - oldestTS) % expectedPeriod works out to be: 395334
+    // (timePoint - oldestTS) / expectedPeriod works out to be: 38.96
+    // so failure to account for the offset will floor the ordinal to 38, which was in the past.
+    auto const timePoint = 158929728723871;
+    auto const prediction = tracker.nextAnticipatedVSyncTimeFrom(timePoint);
+    EXPECT_THAT(prediction, Ge(timePoint));
+}
+
 } // namespace android::scheduler

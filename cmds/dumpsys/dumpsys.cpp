@@ -364,7 +364,7 @@ status_t Dumpsys::startDumpThread(Type type, const String16& serviceName,
         }
 
         if (err != OK) {
-            aerr << "Error dumping service info status_t: (" << err << ") "
+            aerr << "Error dumping service info status_t: " << statusToString(err) << " "
                  << serviceName << endl;
         }
     });

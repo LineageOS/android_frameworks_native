@@ -37,6 +37,8 @@ Program::Program(const ProgramCache::Key& /*needs*/, const char* vertex, const c
     glBindAttribLocation(programId, position, "position");
     glBindAttribLocation(programId, texCoords, "texCoords");
     glBindAttribLocation(programId, cropCoords, "cropCoords");
+    glBindAttribLocation(programId, shadowColor, "shadowColor");
+    glBindAttribLocation(programId, shadowParams, "shadowParams");
     glLinkProgram(programId);
 
     GLint status;
