@@ -38,8 +38,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../Scheduler/StrongTyping.h"
-
 namespace android {
     struct DisplayedFrameStats;
     class Fence;
