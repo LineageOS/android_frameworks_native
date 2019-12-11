@@ -40,6 +40,7 @@ class GraphicBuffer;
 class HWComposer;
 class IGraphicBufferConsumer;
 class IGraphicBufferProducer;
+class ISchedulerCallback;
 class Layer;
 class MessageQueue;
 class Scheduler;
@@ -75,7 +76,8 @@ public:
     virtual std::unique_ptr<MessageQueue> createMessageQueue() = 0;
     virtual std::unique_ptr<scheduler::PhaseOffsets> createPhaseOffsets() = 0;
     virtual std::unique_ptr<Scheduler> createScheduler(SetVSyncEnabled,
-                                                       const scheduler::RefreshRateConfigs&) = 0;
+                                                       const scheduler::RefreshRateConfigs&,
+                                                       ISchedulerCallback&) = 0;
     virtual std::unique_ptr<SurfaceInterceptor> createSurfaceInterceptor(SurfaceFlinger*) = 0;
 
     virtual sp<StartPropertySetThread> createStartPropertySetThread(

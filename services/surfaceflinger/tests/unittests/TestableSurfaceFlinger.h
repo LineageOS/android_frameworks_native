@@ -84,7 +84,8 @@ public:
     }
 
     std::unique_ptr<Scheduler> createScheduler(std::function<void(bool)>,
-                                               const scheduler::RefreshRateConfigs&) override {
+                                               const scheduler::RefreshRateConfigs&,
+                                               ISchedulerCallback&) override {
         return nullptr;
     }
 

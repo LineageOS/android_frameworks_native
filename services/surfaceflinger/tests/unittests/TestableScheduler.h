@@ -26,17 +26,17 @@
 
 namespace android {
 
-class TestableScheduler : public Scheduler {
+class TestableScheduler : public Scheduler, private ISchedulerCallback {
 public:
     explicit TestableScheduler(const scheduler::RefreshRateConfigs& configs)
-          : Scheduler([](bool) {}, configs) {
+          : Scheduler([](bool) {}, configs, *this) {
         mLayerHistory.emplace();
     }
 
     TestableScheduler(std::unique_ptr<DispSync> primaryDispSync,
                       std::unique_ptr<EventControlThread> eventControlThread,
                       const scheduler::RefreshRateConfigs& configs)
-          : Scheduler(std::move(primaryDispSync), std::move(eventControlThread), configs) {
+          : Scheduler(std::move(primaryDispSync), std::move(eventControlThread), configs, *this) {
         mLayerHistory.emplace();
     }
 
@@ -68,6 +68,10 @@ public:
         mutablePrimaryDispSync().reset();
         mConnections.clear();
     }
+
+private:
+    void changeRefreshRate(const RefreshRate&, ConfigEvent) override {}
+    void repaintEverythingForHWC() override {}
 };
 
 } // namespace android
