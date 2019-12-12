@@ -52,6 +52,8 @@ filegroup {
         "gl/GLExtensions.cpp",
         "gl/GLFramebuffer.cpp",
         "gl/GLImage.cpp",
+        "gl/GLShadowVertexGenerator.cpp",
+        "gl/GLSkiaShadowPort.cpp",
         "gl/ImageManager.cpp",
         "gl/Program.cpp",
         "gl/ProgramCache.cpp",

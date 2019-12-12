@@ -46,6 +46,7 @@
 #include "GLExtensions.h"
 #include "GLFramebuffer.h"
 #include "GLImage.h"
+#include "GLShadowVertexGenerator.h"
 #include "Program.h"
 #include "ProgramCache.h"
 
@@ -1046,7 +1047,8 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
         setSourceDataSpace(layer.sourceDataspace);
 
         if (layer.shadow.length > 0.0f) {
-            // handle shadows
+            handleShadow(layer.geometry.boundaries, layer.geometry.roundedCornersRadius,
+                         layer.shadow);
         }
         // We only want to do a special handling for rounded corners when having rounded corners
         // is the only reason it needs to turn on blending, otherwise, we handle it like the
@@ -1559,6 +1561,35 @@ void GLESRenderEngine::FlushTracer::loop() {
             mEngine->waitSync(entry.mSync, 0);
         }
     }
+}
+
+void GLESRenderEngine::handleShadow(const FloatRect& casterRect, float casterCornerRadius,
+                                    const ShadowSettings& settings) {
+    ATRACE_CALL();
+    const float casterZ = settings.length / 2.0f;
+    const GLShadowVertexGenerator shadows(casterRect, casterCornerRadius, casterZ,
+                                          settings.casterIsTranslucent, settings.ambientColor,
+                                          settings.spotColor, settings.lightPos,
+                                          settings.lightRadius);
+
+    // setup mesh for both shadows
+    Mesh mesh = Mesh::Builder()
+                        .setPrimitive(Mesh::TRIANGLES)
+                        .setVertices(shadows.getVertexCount(), 2 /* size */)
+                        .setShadowAttrs()
+                        .setIndices(shadows.getIndexCount())
+                        .build();
+
+    Mesh::VertexArray<vec2> position = mesh.getPositionArray<vec2>();
+    Mesh::VertexArray<vec4> shadowColor = mesh.getShadowColorArray<vec4>();
+    Mesh::VertexArray<vec3> shadowParams = mesh.getShadowParamsArray<vec3>();
+    shadows.fillVertices(position, shadowColor, shadowParams);
+    shadows.fillIndices(mesh.getIndicesArray());
+
+    mState.cornerRadius = 0.0f;
+    mState.drawShadows = true;
+    drawMesh(mesh);
+    mState.drawShadows = false;
 }
 
 } // namespace gl
