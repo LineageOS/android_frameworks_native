@@ -17,16 +17,17 @@
 #pragma once
 
 #include <aidl/android/hardware/graphics/common/BlendMode.h>
+#include <aidl/android/hardware/graphics/common/ChromaSiting.h>
+#include <aidl/android/hardware/graphics/common/Compression.h>
+#include <aidl/android/hardware/graphics/common/Cta861_3.h>
 #include <aidl/android/hardware/graphics/common/Dataspace.h>
 #include <aidl/android/hardware/graphics/common/ExtendableType.h>
 #include <aidl/android/hardware/graphics/common/Interlaced.h>
 #include <aidl/android/hardware/graphics/common/PlaneLayout.h>
-#include <aidl/android/hardware/graphics/common/ChromaSiting.h>
-#include <aidl/android/hardware/graphics/common/Compression.h>
-#include <aidl/android/hardware/graphics/common/Interlaced.h>
-#include <aidl/android/hardware/graphics/common/StandardMetadataType.h>
 #include <aidl/android/hardware/graphics/common/PlaneLayoutComponentType.h>
-
+#include <aidl/android/hardware/graphics/common/Smpte2086.h>
+#include <aidl/android/hardware/graphics/common/StandardMetadataType.h>
+#include <aidl/android/hardware/graphics/common/XyColor.h>
 #include <android/hardware/graphics/mapper/4.0/IMapper.h>
 
 namespace android {
@@ -112,6 +113,22 @@ static const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType Me
 static const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType MetadataType_BlendMode = {
         GRALLOC4_STANDARD_METADATA_TYPE, static_cast<int64_t>(aidl::android::hardware::graphics::common::StandardMetadataType::BLEND_MODE)
 };
+
+static const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType
+        MetadataType_Smpte2086 = {GRALLOC4_STANDARD_METADATA_TYPE,
+                                  static_cast<int64_t>(aidl::android::hardware::graphics::common::
+                                                               StandardMetadataType::SMPTE2086)};
+
+static const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType
+        MetadataType_Cta861_3 = {GRALLOC4_STANDARD_METADATA_TYPE,
+                                 static_cast<int64_t>(aidl::android::hardware::graphics::common::
+                                                              StandardMetadataType::CTA861_3)};
+
+static const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType
+        MetadataType_Smpte2094_40 = {GRALLOC4_STANDARD_METADATA_TYPE,
+                                     static_cast<int64_t>(
+                                             aidl::android::hardware::graphics::common::
+                                                     StandardMetadataType::SMPTE2094_40)};
 
 /*---------------------------------------------------------------------------------------------*/
 
@@ -271,6 +288,25 @@ status_t decodeDataspace(const android::hardware::hidl_vec<uint8_t>& dataspace, 
 
 status_t encodeBlendMode(const aidl::android::hardware::graphics::common::BlendMode& blendMode, android::hardware::hidl_vec<uint8_t>* outBlendMode);
 status_t decodeBlendMode(const android::hardware::hidl_vec<uint8_t>& blendMode, aidl::android::hardware::graphics::common::BlendMode* outBlendMode);
+
+status_t encodeSmpte2086(
+        const std::optional<aidl::android::hardware::graphics::common::Smpte2086>& smpte2086,
+        android::hardware::hidl_vec<uint8_t>* outSmpte2086);
+status_t decodeSmpte2086(
+        const android::hardware::hidl_vec<uint8_t>& smpte2086,
+        std::optional<aidl::android::hardware::graphics::common::Smpte2086>* outSmpte2086);
+
+status_t encodeCta861_3(
+        const std::optional<aidl::android::hardware::graphics::common::Cta861_3>& cta861_3,
+        android::hardware::hidl_vec<uint8_t>* outCta861_3);
+status_t decodeCta861_3(
+        const android::hardware::hidl_vec<uint8_t>& cta861_3,
+        std::optional<aidl::android::hardware::graphics::common::Cta861_3>* outCta861_3);
+
+status_t encodeSmpte2094_40(const std::optional<std::vector<uint8_t>>& smpte2094_40,
+                            android::hardware::hidl_vec<uint8_t>* outSmpte2094_40);
+status_t decodeSmpte2094_40(const android::hardware::hidl_vec<uint8_t>& smpte2094_40,
+                            std::optional<std::vector<uint8_t>>* outSmpte2094_40);
 
 /**
  * The functions below can be used to parse extendable types.
