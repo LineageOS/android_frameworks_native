@@ -79,6 +79,9 @@ struct LayerFECompositionState {
     // The bounds of the layer in layer local coordinates
     FloatRect geomLayerBounds;
 
+    // length of the shadow in screen space
+    float shadowRadius;
+
     /*
      * Geometry state
      */

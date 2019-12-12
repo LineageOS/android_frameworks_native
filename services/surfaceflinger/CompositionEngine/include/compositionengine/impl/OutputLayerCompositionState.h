@@ -52,6 +52,9 @@ struct OutputLayerCompositionState {
     // The visibleRegion transformed to output space
     Region outputSpaceVisibleRegion;
 
+    // Region cast by the layer's shadow
+    Region shadowRegion;
+
     // If true, client composition will be used on this output
     bool forceClientComposition{false};
 

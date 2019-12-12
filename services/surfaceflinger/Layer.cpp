@@ -430,6 +430,7 @@ void Layer::latchBasicGeometry(compositionengine::LayerFECompositionState& compo
     compositionState.internalOnly = getPrimaryDisplayOnly();
     compositionState.isVisible = isVisible();
     compositionState.isOpaque = opaque && !usesRoundedCorners && alpha == 1.f;
+    compositionState.shadowRadius = mEffectiveShadowRadius;
 
     compositionState.contentDirty = contentDirty;
     contentDirty = false;
@@ -585,6 +586,7 @@ std::optional<renderengine::LayerSettings> Layer::prepareShadowClientComposition
 
     renderengine::LayerSettings shadowLayer = casterLayerSettings;
     shadowLayer.shadow = shadow;
+    shadowLayer.geometry.boundaries = mBounds; // ignore transparent region
 
     // If the casting layer is translucent, we need to fill in the shadow underneath the layer.
     // Otherwise the generated shadow will only be shown around the casting layer.
