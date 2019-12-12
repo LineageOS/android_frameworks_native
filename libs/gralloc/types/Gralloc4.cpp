@@ -25,15 +25,19 @@
 
 using android::hardware::hidl_vec;
 
-using ::aidl::android::hardware::graphics::common::BlendMode;
-using ::aidl::android::hardware::graphics::common::Dataspace;
-using ::aidl::android::hardware::graphics::common::PlaneLayout;
-using ::aidl::android::hardware::graphics::common::PlaneLayoutComponent;
-using ::aidl::android::hardware::graphics::common::ExtendableType;
-using ::aidl::android::hardware::graphics::common::Rect;
-using ::aidl::android::hardware::graphics::common::StandardMetadataType;
+using aidl::android::hardware::graphics::common::BlendMode;
+using aidl::android::hardware::graphics::common::ChromaSiting;
+using aidl::android::hardware::graphics::common::Compression;
+using aidl::android::hardware::graphics::common::Dataspace;
+using aidl::android::hardware::graphics::common::ExtendableType;
+using aidl::android::hardware::graphics::common::Interlaced;
+using aidl::android::hardware::graphics::common::PlaneLayout;
+using aidl::android::hardware::graphics::common::PlaneLayoutComponent;
+using aidl::android::hardware::graphics::common::PlaneLayoutComponentType;
+using aidl::android::hardware::graphics::common::Rect;
+using aidl::android::hardware::graphics::common::StandardMetadataType;
 
-using MetadataType = ::android::hardware::graphics::mapper::V4_0::IMapper::MetadataType;
+using MetadataType = android::hardware::graphics::mapper::V4_0::IMapper::MetadataType;
 
 namespace android {
 
@@ -545,12 +549,9 @@ void clearPlaneLayouts(std::vector<PlaneLayout>* output) {
 /**
  * Public API functions
  */
-bool isStandardMetadataType(const MetadataType& metadataType) {
-    return !std::strncmp(metadataType.name.c_str(), GRALLOC4_STANDARD_METADATA_TYPE, metadataType.name.size());
-}
-
-StandardMetadataType getStandardMetadataTypeValue(const MetadataType& metadataType) {
-    return static_cast<StandardMetadataType>(metadataType.value);
+PlaneLayoutComponentType getStandardPlaneLayoutComponentTypeValue(
+        const ExtendableType& planeLayoutComponentType) {
+    return static_cast<PlaneLayoutComponentType>(planeLayoutComponentType.value);
 }
 
 status_t encodeBufferId(uint64_t bufferId, hidl_vec<uint8_t>* outBufferId) {
@@ -689,6 +690,119 @@ status_t encodeBlendMode(const BlendMode& blendMode, hidl_vec<uint8_t>* outBlend
 
 status_t decodeBlendMode(const hidl_vec<uint8_t>& blendMode, BlendMode* outBlendMode) {
     return decode(blendMode, reinterpret_cast<int32_t*>(outBlendMode), decodeInteger);
+}
+
+bool isStandardMetadataType(const MetadataType& metadataType) {
+    return !std::strncmp(metadataType.name.c_str(), GRALLOC4_STANDARD_METADATA_TYPE,
+                         metadataType.name.size());
+}
+
+bool isStandardCompression(const ExtendableType& compression) {
+    return !std::strncmp(compression.name.c_str(), GRALLOC4_STANDARD_COMPRESSION,
+                         compression.name.size());
+}
+
+bool isStandardInterlaced(const ExtendableType& interlaced) {
+    return !std::strncmp(interlaced.name.c_str(), GRALLOC4_STANDARD_INTERLACED,
+                         interlaced.name.size());
+}
+
+bool isStandardChromaSiting(const ExtendableType& chromaSiting) {
+    return !std::strncmp(chromaSiting.name.c_str(), GRALLOC4_STANDARD_CHROMA_SITING,
+                         chromaSiting.name.size());
+}
+
+bool isStandardPlaneLayoutComponentType(const ExtendableType& planeLayoutComponentType) {
+    return !std::strncmp(planeLayoutComponentType.name.c_str(), GRALLOC4_STANDARD_PLANE_LAYOUT_COMPONENT_TYPE,
+                         planeLayoutComponentType.name.size());
+}
+
+StandardMetadataType getStandardMetadataTypeValue(const MetadataType& metadataType) {
+    return static_cast<StandardMetadataType>(metadataType.value);
+}
+
+Compression getStandardCompressionValue(const ExtendableType& compression) {
+    return static_cast<Compression>(compression.value);
+}
+
+Interlaced getStandardInterlacedValue(const ExtendableType& interlaced) {
+    return static_cast<Interlaced>(interlaced.value);
+}
+
+ChromaSiting getStandardChromaSitingValue(const ExtendableType& chromaSiting) {
+    return static_cast<ChromaSiting>(chromaSiting.value);
+}
+
+std::string getCompressionName(const ExtendableType& compression) {
+    if (!isStandardCompression(compression)) {
+        std::ostringstream stream;
+        stream << compression.name << "#" << compression.value;
+        return stream.str();
+    }
+    switch (getStandardCompressionValue(compression)) {
+        case Compression::NONE:
+            return "None";
+        case Compression::DISPLAY_STREAM_COMPRESSION:
+            return "DisplayStreamCompression";
+    }
+}
+
+std::string getInterlacedName(const ExtendableType& interlaced) {
+    if (!isStandardInterlaced(interlaced)) {
+        std::ostringstream stream;
+        stream << interlaced.name << "#" << interlaced.value;
+        return stream.str();
+    }
+    switch (getStandardInterlacedValue(interlaced)) {
+        case Interlaced::NONE:
+            return "None";
+        case Interlaced::TOP_BOTTOM:
+            return "TopBottom";
+        case Interlaced::RIGHT_LEFT:
+            return "RightLeft";
+    }
+}
+
+std::string getChromaSitingName(const ExtendableType& chromaSiting) {
+    if (!isStandardChromaSiting(chromaSiting)) {
+        std::ostringstream stream;
+        stream << chromaSiting.name << "#" << chromaSiting.value;
+        return stream.str();
+    }
+    switch (getStandardChromaSitingValue(chromaSiting)) {
+        case ChromaSiting::NONE:
+            return "None";
+        case ChromaSiting::UNKNOWN:
+            return "Unknown";
+        case ChromaSiting::SITED_INTERSTITIAL:
+            return "SitedInterstitial";
+        case ChromaSiting::COSITED_HORIZONTAL:
+            return "CositedHorizontal";
+    }
+}
+
+std::string getPlaneLayoutComponentTypeName(const ExtendableType& planeLayoutComponentType) {
+    if (!isStandardPlaneLayoutComponentType(planeLayoutComponentType)) {
+        std::ostringstream stream;
+        stream << planeLayoutComponentType.name << "#" << planeLayoutComponentType.value;
+        return stream.str();
+    }
+    switch (getStandardPlaneLayoutComponentTypeValue(planeLayoutComponentType)) {
+        case PlaneLayoutComponentType::Y:
+            return "Y";
+        case PlaneLayoutComponentType::CB:
+            return "Cb";
+        case PlaneLayoutComponentType::CR:
+            return "Cr";
+        case PlaneLayoutComponentType::R:
+            return "R";
+        case PlaneLayoutComponentType::G:
+            return "G";
+        case PlaneLayoutComponentType::B:
+            return "B";
+        case PlaneLayoutComponentType::A:
+            return "A";
+    }
 }
 
 } // namespace gralloc4

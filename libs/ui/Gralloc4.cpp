@@ -27,11 +27,20 @@
 #include <sync/sync.h>
 #pragma clang diagnostic pop
 
+using aidl::android::hardware::graphics::common::ExtendableType;
+using aidl::android::hardware::graphics::common::PlaneLayoutComponentType;
+using aidl::android::hardware::graphics::common::StandardMetadataType;
+using android::hardware::hidl_vec;
 using android::hardware::graphics::allocator::V4_0::IAllocator;
 using android::hardware::graphics::common::V1_2::BufferUsage;
 using android::hardware::graphics::mapper::V4_0::BufferDescriptor;
 using android::hardware::graphics::mapper::V4_0::Error;
 using android::hardware::graphics::mapper::V4_0::IMapper;
+using BufferDump = android::hardware::graphics::mapper::V4_0::IMapper::BufferDump;
+using MetadataDump = android::hardware::graphics::mapper::V4_0::IMapper::MetadataDump;
+using MetadataType = android::hardware::graphics::mapper::V4_0::IMapper::MetadataType;
+using MetadataTypeDescription =
+        android::hardware::graphics::mapper::V4_0::IMapper::MetadataTypeDescription;
 
 namespace android {
 
@@ -59,10 +68,10 @@ static inline IMapper::Rect sGralloc4Rect(const Rect& rect) {
     outRect.height = rect.height();
     return outRect;
 }
-static inline void sBufferDescriptorInfo(uint32_t width, uint32_t height,
-                                         android::PixelFormat format, uint32_t layerCount,
-                                         uint64_t usage,
+static inline void sBufferDescriptorInfo(std::string name, uint32_t width, uint32_t height,
+                                         PixelFormat format, uint32_t layerCount, uint64_t usage,
                                          IMapper::BufferDescriptorInfo* outDescriptorInfo) {
+    outDescriptorInfo->name = name;
     outDescriptorInfo->width = width;
     outDescriptorInfo->height = height;
     outDescriptorInfo->layerCount = layerCount;
@@ -151,11 +160,12 @@ void Gralloc4Mapper::freeBuffer(buffer_handle_t bufferHandle) const {
 }
 
 status_t Gralloc4Mapper::validateBufferSize(buffer_handle_t bufferHandle, uint32_t width,
-                                            uint32_t height, android::PixelFormat format,
+                                            uint32_t height, PixelFormat format,
                                             uint32_t layerCount, uint64_t usage,
                                             uint32_t stride) const {
     IMapper::BufferDescriptorInfo descriptorInfo;
-    sBufferDescriptorInfo(width, height, format, layerCount, usage, &descriptorInfo);
+    sBufferDescriptorInfo("validateBufferSize", width, height, format, layerCount, usage,
+                          &descriptorInfo);
 
     auto buffer = const_cast<native_handle_t*>(bufferHandle);
     auto ret = mMapper->validateBufferSize(buffer, descriptorInfo, stride);
@@ -189,14 +199,36 @@ void Gralloc4Mapper::getTransportSize(buffer_handle_t bufferHandle, uint32_t* ou
 status_t Gralloc4Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, const Rect& bounds,
                               int acquireFence, void** outData, int32_t* outBytesPerPixel,
                               int32_t* outBytesPerStride) const {
-    // In Gralloc 4 we can get this info per plane. Clients should check per plane.
-    if (outBytesPerPixel) {
-        // TODO add support to check per plane
-        *outBytesPerPixel = -1;
-    }
-    if (outBytesPerStride) {
-        // TODO add support to check per plane
-        *outBytesPerStride = -1;
+    std::vector<ui::PlaneLayout> planeLayouts;
+    status_t err = getPlaneLayouts(bufferHandle, &planeLayouts);
+
+    if (err != NO_ERROR && !planeLayouts.empty()) {
+        if (outBytesPerPixel) {
+            int32_t bitsPerPixel = planeLayouts.front().sampleIncrementInBits;
+            for (const auto& planeLayout : planeLayouts) {
+                if (bitsPerPixel != planeLayout.sampleIncrementInBits) {
+                    bitsPerPixel = -1;
+                }
+            }
+            if (bitsPerPixel >= 0 && bitsPerPixel % 8 == 0) {
+                *outBytesPerPixel = bitsPerPixel / 8;
+            } else {
+                *outBytesPerPixel = -1;
+            }
+        }
+        if (outBytesPerStride) {
+            int32_t bytesPerStride = planeLayouts.front().strideInBytes;
+            for (const auto& planeLayout : planeLayouts) {
+                if (bytesPerStride != planeLayout.strideInBytes) {
+                    bytesPerStride = -1;
+                }
+            }
+            if (bytesPerStride >= 0) {
+                *outBytesPerStride = bytesPerStride;
+            } else {
+                *outBytesPerStride = -1;
+            }
+        }
     }
 
     auto buffer = const_cast<native_handle_t*>(bufferHandle);
@@ -234,10 +266,104 @@ status_t Gralloc4Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, cons
     return static_cast<status_t>(error);
 }
 
-status_t Gralloc4Mapper::lock(buffer_handle_t /*bufferHandle*/, uint64_t /*usage*/,
-                              const Rect& /*bounds*/, int /*acquireFence*/,
-                              android_ycbcr* /*ycbcr*/) const {
-    // TODO add lockYCbCr support
+status_t Gralloc4Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, const Rect& bounds,
+                              int acquireFence, android_ycbcr* outYcbcr) const {
+    if (!outYcbcr) {
+        return BAD_VALUE;
+    }
+
+    std::vector<ui::PlaneLayout> planeLayouts;
+    status_t error = getPlaneLayouts(bufferHandle, &planeLayouts);
+    if (error != NO_ERROR) {
+        return error;
+    }
+
+    void* data = nullptr;
+    error = lock(bufferHandle, usage, bounds, acquireFence, &data, nullptr, nullptr);
+    if (error != NO_ERROR) {
+        return error;
+    }
+
+    android_ycbcr ycbcr;
+
+    ycbcr.y = nullptr;
+    ycbcr.cb = nullptr;
+    ycbcr.cr = nullptr;
+    ycbcr.ystride = 0;
+    ycbcr.cstride = 0;
+    ycbcr.chroma_step = 0;
+
+    for (const auto& planeLayout : planeLayouts) {
+        for (const auto& planeLayoutComponent : planeLayout.components) {
+            if (!gralloc4::isStandardPlaneLayoutComponentType(planeLayoutComponent.type)) {
+                continue;
+            }
+            if (0 != planeLayoutComponent.offsetInBits % 8) {
+                unlock(bufferHandle);
+                return BAD_VALUE;
+            }
+
+            uint8_t* tmpData = static_cast<uint8_t*>(data) + planeLayout.offsetInBytes +
+                    (planeLayoutComponent.offsetInBits / 8);
+            uint64_t sampleIncrementInBytes;
+
+            auto type = static_cast<PlaneLayoutComponentType>(planeLayoutComponent.type.value);
+            switch (type) {
+                case PlaneLayoutComponentType::Y:
+                    if ((ycbcr.y != nullptr) || (planeLayoutComponent.sizeInBits != 8) ||
+                        (planeLayout.sampleIncrementInBits != 8)) {
+                        unlock(bufferHandle);
+                        return BAD_VALUE;
+                    }
+                    ycbcr.y = tmpData;
+                    ycbcr.ystride = planeLayout.strideInBytes;
+                    break;
+
+                case PlaneLayoutComponentType::CB:
+                case PlaneLayoutComponentType::CR:
+                    if (planeLayout.sampleIncrementInBits % 8 != 0) {
+                        unlock(bufferHandle);
+                        return BAD_VALUE;
+                    }
+
+                    sampleIncrementInBytes = planeLayout.sampleIncrementInBits / 8;
+                    if ((sampleIncrementInBytes != 1) && (sampleIncrementInBytes != 2)) {
+                        unlock(bufferHandle);
+                        return BAD_VALUE;
+                    }
+
+                    if (ycbcr.cstride == 0 && ycbcr.chroma_step == 0) {
+                        ycbcr.cstride = planeLayout.strideInBytes;
+                        ycbcr.chroma_step = sampleIncrementInBytes;
+                    } else {
+                        if ((static_cast<int64_t>(ycbcr.cstride) != planeLayout.strideInBytes) ||
+                            (ycbcr.chroma_step != sampleIncrementInBytes)) {
+                            unlock(bufferHandle);
+                            return BAD_VALUE;
+                        }
+                    }
+
+                    if (type == PlaneLayoutComponentType::CB) {
+                        if (ycbcr.cb != nullptr) {
+                            unlock(bufferHandle);
+                            return BAD_VALUE;
+                        }
+                        ycbcr.cb = tmpData;
+                    } else {
+                        if (ycbcr.cr != nullptr) {
+                            unlock(bufferHandle);
+                            return BAD_VALUE;
+                        }
+                        ycbcr.cr = tmpData;
+                    }
+                    break;
+                default:
+                    break;
+            };
+        }
+    }
+
+    *outYcbcr = ycbcr;
     return static_cast<status_t>(Error::UNSUPPORTED);
 }
 
@@ -275,11 +401,11 @@ int Gralloc4Mapper::unlock(buffer_handle_t bufferHandle) const {
     return releaseFence;
 }
 
-status_t Gralloc4Mapper::isSupported(uint32_t width, uint32_t height, android::PixelFormat format,
+status_t Gralloc4Mapper::isSupported(uint32_t width, uint32_t height, PixelFormat format,
                                      uint32_t layerCount, uint64_t usage,
                                      bool* outSupported) const {
     IMapper::BufferDescriptorInfo descriptorInfo;
-    sBufferDescriptorInfo(width, height, format, layerCount, usage, &descriptorInfo);
+    sBufferDescriptorInfo("isSupported", width, height, format, layerCount, usage, &descriptorInfo);
 
     Error error;
     auto ret = mMapper->isSupported(descriptorInfo,
@@ -305,6 +431,605 @@ status_t Gralloc4Mapper::isSupported(uint32_t width, uint32_t height, android::P
     return static_cast<status_t>(error);
 }
 
+template <class T>
+status_t Gralloc4Mapper::get(buffer_handle_t bufferHandle, const MetadataType& metadataType,
+                             DecodeFunction<T> decodeFunction, T* outMetadata) const {
+    if (!outMetadata) {
+        return BAD_VALUE;
+    }
+
+    hidl_vec<uint8_t> vec;
+    Error error;
+    auto ret = mMapper->get(const_cast<native_handle_t*>(bufferHandle), metadataType,
+                            [&](const auto& tmpError, const hidl_vec<uint8_t>& tmpVec) {
+                                error = tmpError;
+                                vec = tmpVec;
+                            });
+
+    if (!ret.isOk()) {
+        error = kTransactionError;
+    }
+
+    if (error != Error::NONE) {
+        ALOGE("get(%s, %" PRIu64 ", ...) failed with %d", metadataType.name.c_str(),
+              metadataType.value, error);
+        return static_cast<status_t>(error);
+    }
+
+    return decodeFunction(vec, outMetadata);
+}
+
+status_t Gralloc4Mapper::getBufferId(buffer_handle_t bufferHandle, uint64_t* outBufferId) const {
+    return get(bufferHandle, gralloc4::MetadataType_BufferId, gralloc4::decodeBufferId,
+               outBufferId);
+}
+
+status_t Gralloc4Mapper::getName(buffer_handle_t bufferHandle, std::string* outName) const {
+    return get(bufferHandle, gralloc4::MetadataType_Name, gralloc4::decodeName, outName);
+}
+
+status_t Gralloc4Mapper::getWidth(buffer_handle_t bufferHandle, uint64_t* outWidth) const {
+    return get(bufferHandle, gralloc4::MetadataType_Width, gralloc4::decodeWidth, outWidth);
+}
+
+status_t Gralloc4Mapper::getHeight(buffer_handle_t bufferHandle, uint64_t* outHeight) const {
+    return get(bufferHandle, gralloc4::MetadataType_Height, gralloc4::decodeHeight, outHeight);
+}
+
+status_t Gralloc4Mapper::getLayerCount(buffer_handle_t bufferHandle,
+                                       uint64_t* outLayerCount) const {
+    return get(bufferHandle, gralloc4::MetadataType_LayerCount, gralloc4::decodeLayerCount,
+               outLayerCount);
+}
+
+status_t Gralloc4Mapper::getPixelFormatRequested(buffer_handle_t bufferHandle,
+                                                 ui::PixelFormat* outPixelFormatRequested) const {
+    return get(bufferHandle, gralloc4::MetadataType_PixelFormatRequested,
+               gralloc4::decodePixelFormatRequested, outPixelFormatRequested);
+}
+
+status_t Gralloc4Mapper::getPixelFormatFourCC(buffer_handle_t bufferHandle,
+                                              uint32_t* outPixelFormatFourCC) const {
+    return get(bufferHandle, gralloc4::MetadataType_PixelFormatFourCC,
+               gralloc4::decodePixelFormatFourCC, outPixelFormatFourCC);
+}
+
+status_t Gralloc4Mapper::getPixelFormatModifier(buffer_handle_t bufferHandle,
+                                                uint64_t* outPixelFormatModifier) const {
+    return get(bufferHandle, gralloc4::MetadataType_PixelFormatModifier,
+               gralloc4::decodePixelFormatModifier, outPixelFormatModifier);
+}
+
+status_t Gralloc4Mapper::getUsage(buffer_handle_t bufferHandle, uint64_t* outUsage) const {
+    return get(bufferHandle, gralloc4::MetadataType_Usage, gralloc4::decodeUsage, outUsage);
+}
+
+status_t Gralloc4Mapper::getAllocationSize(buffer_handle_t bufferHandle,
+                                           uint64_t* outAllocationSize) const {
+    return get(bufferHandle, gralloc4::MetadataType_AllocationSize, gralloc4::decodeAllocationSize,
+               outAllocationSize);
+}
+
+status_t Gralloc4Mapper::getProtectedContent(buffer_handle_t bufferHandle,
+                                             uint64_t* outProtectedContent) const {
+    return get(bufferHandle, gralloc4::MetadataType_ProtectedContent,
+               gralloc4::decodeProtectedContent, outProtectedContent);
+}
+
+status_t Gralloc4Mapper::getCompression(buffer_handle_t bufferHandle,
+                                        ExtendableType* outCompression) const {
+    return get(bufferHandle, gralloc4::MetadataType_Compression, gralloc4::decodeCompression,
+               outCompression);
+}
+
+status_t Gralloc4Mapper::getCompression(buffer_handle_t bufferHandle,
+                                        ui::Compression* outCompression) const {
+    if (!outCompression) {
+        return BAD_VALUE;
+    }
+    ExtendableType compression;
+    status_t error = getCompression(bufferHandle, &compression);
+    if (error) {
+        return error;
+    }
+    if (!gralloc4::isStandardCompression(compression)) {
+        return BAD_TYPE;
+    }
+    *outCompression = gralloc4::getStandardCompressionValue(compression);
+    return NO_ERROR;
+}
+
+status_t Gralloc4Mapper::getInterlaced(buffer_handle_t bufferHandle,
+                                       ExtendableType* outInterlaced) const {
+    return get(bufferHandle, gralloc4::MetadataType_Interlaced, gralloc4::decodeInterlaced,
+               outInterlaced);
+}
+
+status_t Gralloc4Mapper::getInterlaced(buffer_handle_t bufferHandle,
+                                       ui::Interlaced* outInterlaced) const {
+    if (!outInterlaced) {
+        return BAD_VALUE;
+    }
+    ExtendableType interlaced;
+    status_t error = getInterlaced(bufferHandle, &interlaced);
+    if (error) {
+        return error;
+    }
+    if (!gralloc4::isStandardInterlaced(interlaced)) {
+        return BAD_TYPE;
+    }
+    *outInterlaced = gralloc4::getStandardInterlacedValue(interlaced);
+    return NO_ERROR;
+}
+
+status_t Gralloc4Mapper::getChromaSiting(buffer_handle_t bufferHandle,
+                                         ExtendableType* outChromaSiting) const {
+    return get(bufferHandle, gralloc4::MetadataType_ChromaSiting, gralloc4::decodeChromaSiting,
+               outChromaSiting);
+}
+
+status_t Gralloc4Mapper::getChromaSiting(buffer_handle_t bufferHandle,
+                                         ui::ChromaSiting* outChromaSiting) const {
+    if (!outChromaSiting) {
+        return BAD_VALUE;
+    }
+    ExtendableType chromaSiting;
+    status_t error = getChromaSiting(bufferHandle, &chromaSiting);
+    if (error) {
+        return error;
+    }
+    if (!gralloc4::isStandardChromaSiting(chromaSiting)) {
+        return BAD_TYPE;
+    }
+    *outChromaSiting = gralloc4::getStandardChromaSitingValue(chromaSiting);
+    return NO_ERROR;
+}
+
+status_t Gralloc4Mapper::getPlaneLayouts(buffer_handle_t bufferHandle,
+                                         std::vector<ui::PlaneLayout>* outPlaneLayouts) const {
+    return get(bufferHandle, gralloc4::MetadataType_PlaneLayouts, gralloc4::decodePlaneLayouts,
+               outPlaneLayouts);
+}
+
+status_t Gralloc4Mapper::getDataspace(buffer_handle_t bufferHandle,
+                                      ui::Dataspace* outDataspace) const {
+    if (!outDataspace) {
+        return BAD_VALUE;
+    }
+    aidl::android::hardware::graphics::common::Dataspace dataspace;
+    status_t error = get(bufferHandle, gralloc4::MetadataType_Dataspace, gralloc4::decodeDataspace,
+                         &dataspace);
+    if (error) {
+        return error;
+    }
+
+    // Gralloc4 uses stable AIDL dataspace but the rest of the system still uses HIDL dataspace
+    *outDataspace = static_cast<ui::Dataspace>(dataspace);
+    return NO_ERROR;
+}
+
+status_t Gralloc4Mapper::getBlendMode(buffer_handle_t bufferHandle,
+                                      ui::BlendMode* outBlendMode) const {
+    return get(bufferHandle, gralloc4::MetadataType_BlendMode, gralloc4::decodeBlendMode,
+               outBlendMode);
+}
+
+template <class T>
+status_t Gralloc4Mapper::getDefault(uint32_t width, uint32_t height, PixelFormat format,
+                                    uint32_t layerCount, uint64_t usage,
+                                    const MetadataType& metadataType,
+                                    DecodeFunction<T> decodeFunction, T* outMetadata) const {
+    if (!outMetadata) {
+        return BAD_VALUE;
+    }
+
+    IMapper::BufferDescriptorInfo descriptorInfo;
+    sBufferDescriptorInfo("getDefault", width, height, format, layerCount, usage, &descriptorInfo);
+
+    hidl_vec<uint8_t> vec;
+    Error error;
+    auto ret = mMapper->getFromBufferDescriptorInfo(descriptorInfo, metadataType,
+                                                    [&](const auto& tmpError,
+                                                        const hidl_vec<uint8_t>& tmpVec) {
+                                                        error = tmpError;
+                                                        vec = tmpVec;
+                                                    });
+
+    if (!ret.isOk()) {
+        error = kTransactionError;
+    }
+
+    if (error != Error::NONE) {
+        ALOGE("getDefault(%s, %" PRIu64 ", ...) failed with %d", metadataType.name.c_str(),
+              metadataType.value, error);
+        return static_cast<status_t>(error);
+    }
+
+    return decodeFunction(vec, outMetadata);
+}
+
+status_t Gralloc4Mapper::getDefaultPixelFormatFourCC(uint32_t width, uint32_t height,
+                                                     PixelFormat format, uint32_t layerCount,
+                                                     uint64_t usage,
+                                                     uint32_t* outPixelFormatFourCC) const {
+    return getDefault(width, height, format, layerCount, usage,
+                      gralloc4::MetadataType_PixelFormatFourCC, gralloc4::decodePixelFormatFourCC,
+                      outPixelFormatFourCC);
+}
+
+status_t Gralloc4Mapper::getDefaultPixelFormatModifier(uint32_t width, uint32_t height,
+                                                       PixelFormat format, uint32_t layerCount,
+                                                       uint64_t usage,
+                                                       uint64_t* outPixelFormatModifier) const {
+    return getDefault(width, height, format, layerCount, usage,
+                      gralloc4::MetadataType_PixelFormatModifier,
+                      gralloc4::decodePixelFormatModifier, outPixelFormatModifier);
+}
+
+status_t Gralloc4Mapper::getDefaultAllocationSize(uint32_t width, uint32_t height,
+                                                  PixelFormat format, uint32_t layerCount,
+                                                  uint64_t usage,
+                                                  uint64_t* outAllocationSize) const {
+    return getDefault(width, height, format, layerCount, usage,
+                      gralloc4::MetadataType_AllocationSize, gralloc4::decodeAllocationSize,
+                      outAllocationSize);
+}
+
+status_t Gralloc4Mapper::getDefaultProtectedContent(uint32_t width, uint32_t height,
+                                                    PixelFormat format, uint32_t layerCount,
+                                                    uint64_t usage,
+                                                    uint64_t* outProtectedContent) const {
+    return getDefault(width, height, format, layerCount, usage,
+                      gralloc4::MetadataType_ProtectedContent, gralloc4::decodeProtectedContent,
+                      outProtectedContent);
+}
+
+status_t Gralloc4Mapper::getDefaultCompression(uint32_t width, uint32_t height, PixelFormat format,
+                                               uint32_t layerCount, uint64_t usage,
+                                               ExtendableType* outCompression) const {
+    return getDefault(width, height, format, layerCount, usage, gralloc4::MetadataType_Compression,
+                      gralloc4::decodeCompression, outCompression);
+}
+
+status_t Gralloc4Mapper::getDefaultCompression(uint32_t width, uint32_t height, PixelFormat format,
+                                               uint32_t layerCount, uint64_t usage,
+                                               ui::Compression* outCompression) const {
+    if (!outCompression) {
+        return BAD_VALUE;
+    }
+    ExtendableType compression;
+    status_t error = getDefaultCompression(width, height, format, layerCount, usage, &compression);
+    if (error) {
+        return error;
+    }
+    if (!gralloc4::isStandardCompression(compression)) {
+        return BAD_TYPE;
+    }
+    *outCompression = gralloc4::getStandardCompressionValue(compression);
+    return NO_ERROR;
+}
+
+status_t Gralloc4Mapper::getDefaultInterlaced(uint32_t width, uint32_t height, PixelFormat format,
+                                              uint32_t layerCount, uint64_t usage,
+                                              ExtendableType* outInterlaced) const {
+    return getDefault(width, height, format, layerCount, usage, gralloc4::MetadataType_Interlaced,
+                      gralloc4::decodeInterlaced, outInterlaced);
+}
+
+status_t Gralloc4Mapper::getDefaultInterlaced(uint32_t width, uint32_t height, PixelFormat format,
+                                              uint32_t layerCount, uint64_t usage,
+                                              ui::Interlaced* outInterlaced) const {
+    if (!outInterlaced) {
+        return BAD_VALUE;
+    }
+    ExtendableType interlaced;
+    status_t error = getDefaultInterlaced(width, height, format, layerCount, usage, &interlaced);
+    if (error) {
+        return error;
+    }
+    if (!gralloc4::isStandardInterlaced(interlaced)) {
+        return BAD_TYPE;
+    }
+    *outInterlaced = gralloc4::getStandardInterlacedValue(interlaced);
+    return NO_ERROR;
+}
+
+status_t Gralloc4Mapper::getDefaultChromaSiting(uint32_t width, uint32_t height, PixelFormat format,
+                                                uint32_t layerCount, uint64_t usage,
+                                                ExtendableType* outChromaSiting) const {
+    return getDefault(width, height, format, layerCount, usage, gralloc4::MetadataType_ChromaSiting,
+                      gralloc4::decodeChromaSiting, outChromaSiting);
+}
+
+status_t Gralloc4Mapper::getDefaultChromaSiting(uint32_t width, uint32_t height, PixelFormat format,
+                                                uint32_t layerCount, uint64_t usage,
+                                                ui::ChromaSiting* outChromaSiting) const {
+    if (!outChromaSiting) {
+        return BAD_VALUE;
+    }
+    ExtendableType chromaSiting;
+    status_t error =
+            getDefaultChromaSiting(width, height, format, layerCount, usage, &chromaSiting);
+    if (error) {
+        return error;
+    }
+    if (!gralloc4::isStandardChromaSiting(chromaSiting)) {
+        return BAD_TYPE;
+    }
+    *outChromaSiting = gralloc4::getStandardChromaSitingValue(chromaSiting);
+    return NO_ERROR;
+}
+
+status_t Gralloc4Mapper::getDefaultPlaneLayouts(
+        uint32_t width, uint32_t height, PixelFormat format, uint32_t layerCount, uint64_t usage,
+        std::vector<ui::PlaneLayout>* outPlaneLayouts) const {
+    return getDefault(width, height, format, layerCount, usage, gralloc4::MetadataType_PlaneLayouts,
+                      gralloc4::decodePlaneLayouts, outPlaneLayouts);
+}
+
+std::vector<MetadataTypeDescription> Gralloc4Mapper::listSupportedMetadataTypes() const {
+    hidl_vec<MetadataTypeDescription> descriptions;
+    Error error;
+    auto ret = mMapper->listSupportedMetadataTypes(
+            [&](const auto& tmpError, const auto& tmpDescriptions) {
+                error = tmpError;
+                descriptions = tmpDescriptions;
+            });
+
+    if (!ret.isOk()) {
+        error = kTransactionError;
+    }
+
+    if (error != Error::NONE) {
+        ALOGE("listSupportedMetadataType() failed with %d", error);
+        return {};
+    }
+
+    return static_cast<std::vector<MetadataTypeDescription>>(descriptions);
+}
+
+template <class T>
+status_t Gralloc4Mapper::metadataDumpHelper(const BufferDump& bufferDump,
+                                            StandardMetadataType metadataType,
+                                            DecodeFunction<T> decodeFunction, T* outT) const {
+    const auto& metadataDump = bufferDump.metadataDump;
+
+    auto itr =
+            std::find_if(metadataDump.begin(), metadataDump.end(),
+                         [&](const MetadataDump& tmpMetadataDump) {
+                             if (!gralloc4::isStandardMetadataType(tmpMetadataDump.metadataType)) {
+                                 return false;
+                             }
+                             return metadataType ==
+                                     gralloc4::getStandardMetadataTypeValue(
+                                             tmpMetadataDump.metadataType);
+                         });
+    if (itr == metadataDump.end()) {
+        return BAD_VALUE;
+    }
+
+    return decodeFunction(itr->metadata, outT);
+}
+
+status_t Gralloc4Mapper::bufferDumpHelper(const BufferDump& bufferDump, std::ostringstream* outDump,
+                                          uint64_t* outAllocationSize, bool less) const {
+    uint64_t bufferId;
+    std::string name;
+    uint64_t width;
+    uint64_t height;
+    uint64_t layerCount;
+    ui::PixelFormat pixelFormatRequested;
+    uint32_t pixelFormatFourCC;
+    uint64_t pixelFormatModifier;
+    uint64_t usage;
+    uint64_t allocationSize;
+    uint64_t protectedContent;
+    ExtendableType compression;
+    ExtendableType interlaced;
+    ExtendableType chromaSiting;
+    std::vector<ui::PlaneLayout> planeLayouts;
+
+    status_t error = metadataDumpHelper(bufferDump, StandardMetadataType::BUFFER_ID,
+                                        gralloc4::decodeBufferId, &bufferId);
+    if (error != NO_ERROR) {
+        return error;
+    }
+    error = metadataDumpHelper(bufferDump, StandardMetadataType::NAME, gralloc4::decodeName, &name);
+    if (error != NO_ERROR) {
+        return error;
+    }
+    error = metadataDumpHelper(bufferDump, StandardMetadataType::WIDTH, gralloc4::decodeWidth,
+                               &width);
+    if (error != NO_ERROR) {
+        return error;
+    }
+    error = metadataDumpHelper(bufferDump, StandardMetadataType::HEIGHT, gralloc4::decodeHeight,
+                               &height);
+    if (error != NO_ERROR) {
+        return error;
+    }
+    error = metadataDumpHelper(bufferDump, StandardMetadataType::LAYER_COUNT,
+                               gralloc4::decodeLayerCount, &layerCount);
+    if (error != NO_ERROR) {
+        return error;
+    }
+    error = metadataDumpHelper(bufferDump, StandardMetadataType::PIXEL_FORMAT_REQUESTED,
+                               gralloc4::decodePixelFormatRequested, &pixelFormatRequested);
+    if (error != NO_ERROR) {
+        return error;
+    }
+    error = metadataDumpHelper(bufferDump, StandardMetadataType::PIXEL_FORMAT_FOURCC,
+                               gralloc4::decodePixelFormatFourCC, &pixelFormatFourCC);
+    if (error != NO_ERROR) {
+        return error;
+    }
+    error = metadataDumpHelper(bufferDump, StandardMetadataType::PIXEL_FORMAT_MODIFIER,
+                               gralloc4::decodePixelFormatModifier, &pixelFormatModifier);
+    if (error != NO_ERROR) {
+        return error;
+    }
+    error = metadataDumpHelper(bufferDump, StandardMetadataType::USAGE, gralloc4::decodeUsage,
+                               &usage);
+    if (error != NO_ERROR) {
+        return error;
+    }
+    error = metadataDumpHelper(bufferDump, StandardMetadataType::ALLOCATION_SIZE,
+                               gralloc4::decodeAllocationSize, &allocationSize);
+    if (error != NO_ERROR) {
+        return error;
+    }
+    error = metadataDumpHelper(bufferDump, StandardMetadataType::PROTECTED_CONTENT,
+                               gralloc4::decodeProtectedContent, &protectedContent);
+    if (error != NO_ERROR) {
+        return error;
+    }
+    error = metadataDumpHelper(bufferDump, StandardMetadataType::COMPRESSION,
+                               gralloc4::decodeCompression, &compression);
+    if (error != NO_ERROR) {
+        return error;
+    }
+    error = metadataDumpHelper(bufferDump, StandardMetadataType::INTERLACED,
+                               gralloc4::decodeInterlaced, &interlaced);
+    if (error != NO_ERROR) {
+        return error;
+    }
+    error = metadataDumpHelper(bufferDump, StandardMetadataType::CHROMA_SITING,
+                               gralloc4::decodeChromaSiting, &chromaSiting);
+    if (error != NO_ERROR) {
+        return error;
+    }
+    error = metadataDumpHelper(bufferDump, StandardMetadataType::PLANE_LAYOUTS,
+                               gralloc4::decodePlaneLayouts, &planeLayouts);
+    if (error != NO_ERROR) {
+        return error;
+    }
+
+    if (outAllocationSize) {
+        *outAllocationSize = allocationSize;
+    }
+    double allocationSizeKiB = static_cast<double>(allocationSize) / 1024;
+
+    *outDump << "+ name:" << name << ", id:" << bufferId << ", size:" << allocationSizeKiB
+             << "KiB, w/h:" << width << "x" << height << ", usage: 0x" << std::hex << usage
+             << std::dec << ", req fmt:" << static_cast<int32_t>(pixelFormatRequested)
+             << ", fourcc/mod:" << pixelFormatFourCC << "/" << pixelFormatModifier
+             << ", compressed: ";
+
+    if (less) {
+        bool isCompressed = !gralloc4::isStandardCompression(compression) ||
+                (gralloc4::getStandardCompressionValue(compression) != ui::Compression::NONE);
+        *outDump << std::boolalpha << isCompressed << "\n";
+    } else {
+        *outDump << gralloc4::getCompressionName(compression) << "\n";
+    }
+
+    bool firstPlane = true;
+    for (const auto& planeLayout : planeLayouts) {
+        if (firstPlane) {
+            firstPlane = false;
+            *outDump << "\tplanes: ";
+        } else {
+            *outDump << "\t        ";
+        }
+
+        for (size_t i = 0; i < planeLayout.components.size(); i++) {
+            const auto& planeLayoutComponent = planeLayout.components[i];
+            *outDump << gralloc4::getPlaneLayoutComponentTypeName(planeLayoutComponent.type);
+            if (i < planeLayout.components.size() - 1) {
+                *outDump << "/";
+            } else {
+                *outDump << ":\t";
+            }
+        }
+        *outDump << " w/h:" << planeLayout.widthInSamples << "x" << planeLayout.heightInSamples
+                 << ", stride:" << planeLayout.strideInBytes
+                 << " bytes, size:" << planeLayout.totalSizeInBytes;
+        if (!less) {
+            *outDump << ", inc:" << planeLayout.sampleIncrementInBits
+                     << " bits, subsampling w/h:" << planeLayout.horizontalSubsampling << "x"
+                     << planeLayout.verticalSubsampling;
+        }
+        *outDump << "\n";
+    }
+
+    if (!less) {
+        *outDump << "\tlayer cnt: " << layerCount << ", protected content: " << protectedContent
+                 << ", interlaced: " << gralloc4::getInterlacedName(interlaced)
+                 << ", chroma siting:" << gralloc4::getChromaSitingName(chromaSiting) << "\n";
+    }
+
+    return NO_ERROR;
+}
+
+std::string Gralloc4Mapper::dumpBuffer(buffer_handle_t bufferHandle, bool less) const {
+    auto buffer = const_cast<native_handle_t*>(bufferHandle);
+
+    BufferDump bufferDump;
+    Error error;
+    auto ret = mMapper->dumpBuffer(buffer, [&](const auto& tmpError, const auto& tmpBufferDump) {
+        error = tmpError;
+        bufferDump = tmpBufferDump;
+    });
+
+    if (!ret.isOk()) {
+        error = kTransactionError;
+    }
+
+    if (error != Error::NONE) {
+        ALOGE("dumpBuffer() failed with %d", error);
+        return "";
+    }
+
+    std::ostringstream stream;
+    stream.precision(2);
+
+    status_t err = bufferDumpHelper(bufferDump, &stream, nullptr, less);
+    if (err != NO_ERROR) {
+        ALOGE("bufferDumpHelper() failed with %d", err);
+        return "";
+    }
+
+    return stream.str();
+}
+
+std::string Gralloc4Mapper::dumpBuffers(bool less) const {
+    hidl_vec<BufferDump> bufferDumps;
+    Error error;
+    auto ret = mMapper->dumpBuffers([&](const auto& tmpError, const auto& tmpBufferDump) {
+        error = tmpError;
+        bufferDumps = tmpBufferDump;
+    });
+
+    if (!ret.isOk()) {
+        error = kTransactionError;
+    }
+
+    if (error != Error::NONE) {
+        ALOGE("dumpBuffer() failed with %d", error);
+        return "";
+    }
+
+    uint64_t totalAllocationSize = 0;
+    std::ostringstream stream;
+    stream.precision(2);
+
+    stream << "Imported gralloc buffers:\n";
+
+    for (const auto& bufferDump : bufferDumps) {
+        uint64_t allocationSize = 0;
+        status_t err = bufferDumpHelper(bufferDump, &stream, &allocationSize, less);
+        if (err != NO_ERROR) {
+            ALOGE("bufferDumpHelper() failed with %d", err);
+            return "";
+        }
+        totalAllocationSize += allocationSize;
+    }
+
+    double totalAllocationSizeKiB = static_cast<double>(totalAllocationSize) / 1024;
+    stream << "Total imported by gralloc: " << totalAllocationSizeKiB << "KiB\n";
+    return stream.str();
+}
+
 Gralloc4Allocator::Gralloc4Allocator(const Gralloc4Mapper& mapper) : mMapper(mapper) {
     mAllocator = IAllocator::getService();
     if (mAllocator == nullptr) {
@@ -317,20 +1042,16 @@ bool Gralloc4Allocator::isLoaded() const {
     return mAllocator != nullptr;
 }
 
-std::string Gralloc4Allocator::dumpDebugInfo() const {
-    std::string debugInfo;
-
-    mAllocator->dumpDebugInfo([&](const auto& tmpDebugInfo) { debugInfo = tmpDebugInfo.c_str(); });
-
-    return debugInfo;
+std::string Gralloc4Allocator::dumpDebugInfo(bool less) const {
+    return mMapper.dumpBuffers(less);
 }
 
-status_t Gralloc4Allocator::allocate(uint32_t width, uint32_t height, android::PixelFormat format,
-                                     uint32_t layerCount, uint64_t usage, uint32_t bufferCount,
-                                     uint32_t* outStride, buffer_handle_t* outBufferHandles,
-                                     bool importBuffers) const {
+status_t Gralloc4Allocator::allocate(std::string requestorName, uint32_t width, uint32_t height,
+                                     android::PixelFormat format, uint32_t layerCount,
+                                     uint64_t usage, uint32_t bufferCount, uint32_t* outStride,
+                                     buffer_handle_t* outBufferHandles, bool importBuffers) const {
     IMapper::BufferDescriptorInfo descriptorInfo;
-    sBufferDescriptorInfo(width, height, format, layerCount, usage, &descriptorInfo);
+    sBufferDescriptorInfo(requestorName, width, height, format, layerCount, usage, &descriptorInfo);
 
     BufferDescriptor descriptor;
     status_t error = mMapper.createDescriptor(static_cast<void*>(&descriptorInfo),

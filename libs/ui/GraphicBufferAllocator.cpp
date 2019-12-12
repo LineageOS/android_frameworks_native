@@ -78,11 +78,11 @@ uint64_t GraphicBufferAllocator::getTotalSize() const {
     return total;
 }
 
-void GraphicBufferAllocator::dump(std::string& result) const {
+void GraphicBufferAllocator::dump(std::string& result, bool less) const {
     Mutex::Autolock _l(sLock);
     KeyedVector<buffer_handle_t, alloc_rec_t>& list(sAllocList);
     uint64_t total = 0;
-    result.append("Allocated buffers:\n");
+    result.append("GraphicBufferAllocator buffers:\n");
     const size_t c = list.size();
     for (size_t i=0 ; i<c ; i++) {
         const alloc_rec_t& rec(list.valueAt(i));
@@ -99,15 +99,15 @@ void GraphicBufferAllocator::dump(std::string& result) const {
         }
         total += rec.size;
     }
-    StringAppendF(&result, "Total allocated (estimate): %.2f KB\n", static_cast<double>(total) / 1024.0);
+    StringAppendF(&result, "Total allocated by GraphicBufferAllocator (estimate): %.2f KB\n",
+                  static_cast<double>(total) / 1024.0);
 
-    result.append(mAllocator->dumpDebugInfo());
+    result.append(mAllocator->dumpDebugInfo(less));
 }
 
-void GraphicBufferAllocator::dumpToSystemLog()
-{
+void GraphicBufferAllocator::dumpToSystemLog(bool less) {
     std::string s;
-    GraphicBufferAllocator::getInstance().dump(s);
+    GraphicBufferAllocator::getInstance().dump(s, less);
     ALOGD("%s", s.c_str());
 }
 
@@ -137,8 +137,8 @@ status_t GraphicBufferAllocator::allocateHelper(uint32_t width, uint32_t height,
     // TODO(b/72323293, b/72703005): Remove these invalid bits from callers
     usage &= ~static_cast<uint64_t>((1 << 10) | (1 << 13));
 
-    status_t error = mAllocator->allocate(width, height, format, layerCount, usage, 1, stride,
-                                          handle, importBuffer);
+    status_t error = mAllocator->allocate(requestorName, width, height, format, layerCount, usage,
+                                          1, stride, handle, importBuffer);
     if (error != NO_ERROR) {
         ALOGE("Failed to allocate (%u x %u) layerCount %u format %d "
               "usage %" PRIx64 ": %d",
