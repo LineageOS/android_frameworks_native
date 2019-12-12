@@ -17,6 +17,7 @@
 #pragma once
 
 #include <android-base/thread_annotations.h>
+#include <array>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -24,6 +25,7 @@
 #include <string_view>
 #include <unordered_map>
 
+#include "SchedulerUtils.h"
 #include "VSyncDispatch.h"
 
 namespace android::scheduler {
@@ -53,6 +55,8 @@ public:
     // This will return empty if not armed, or the next calculated wakeup time if armed.
     // It will not update the wakeupTime.
     std::optional<nsecs_t> wakeupTime() const;
+
+    std::optional<nsecs_t> targetVsync() const;
 
     // This moves state from armed->disarmed.
     void disarm();
@@ -134,6 +138,17 @@ private:
 
     CallbackMap mCallbacks GUARDED_BY(mMutex);
     nsecs_t mIntendedWakeupTime GUARDED_BY(mMutex) = kInvalidTime;
+
+    struct TraceBuffer {
+        static constexpr char const kTraceNamePrefix[] = "-alarm in:";
+        static constexpr char const kTraceNameSeparator[] = " for vs:";
+        static constexpr size_t kMaxNamePrint = 4;
+        static constexpr size_t kNumTsPrinted = 2;
+        static constexpr size_t maxlen = kMaxNamePrint + arrayLen(kTraceNamePrefix) +
+                arrayLen(kTraceNameSeparator) - 1 + (kNumTsPrinted * max64print);
+        std::array<char, maxlen> str_buffer;
+        void note(std::string_view name, nsecs_t in, nsecs_t vs);
+    } mTraceBuffer GUARDED_BY(mMutex);
 };
 
 } // namespace android::scheduler

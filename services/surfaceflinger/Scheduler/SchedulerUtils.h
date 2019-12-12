@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <utils/Timers.h>
 #include <cinttypes>
 #include <numeric>
 #include <unordered_map>
@@ -69,6 +70,13 @@ auto calculate_mode(const T& v) {
     const auto compareCounts = [](ValueType l, ValueType r) { return l.second <= r.second; };
     return static_cast<int>(std::max_element(counts.begin(), counts.end(), compareCounts)->first);
 }
+
+template <class T, size_t N>
+constexpr size_t arrayLen(T (&)[N]) {
+    return N;
+}
+
+static constexpr size_t max64print = std::numeric_limits<nsecs_t>::digits10 + 1;
 
 } // namespace android::scheduler
 

@@ -25,17 +25,13 @@
 #include <chrono>
 #include <cstdint>
 
+#include "SchedulerUtils.h"
 #include "Timer.h"
 
 namespace android::scheduler {
 
 static constexpr size_t kReadPipe = 0;
 static constexpr size_t kWritePipe = 1;
-
-template <class T, size_t N>
-constexpr size_t arrayLen(T (&)[N]) {
-    return N;
-}
 
 Timer::Timer()
       : mTimerFd(timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK)),
@@ -66,11 +62,8 @@ nsecs_t Timer::now() const {
     return systemTime(SYSTEM_TIME_MONOTONIC);
 }
 
-constexpr char const* timerTraceTag = "AlarmInNs";
 void Timer::alarmIn(std::function<void()> const& cb, nsecs_t fireIn) {
     std::lock_guard<decltype(mMutex)> lk(mMutex);
-    ATRACE_INT64(timerTraceTag, fireIn);
-
     using namespace std::literals;
     static constexpr int ns_per_s =
             std::chrono::duration_cast<std::chrono::nanoseconds>(1s).count();
@@ -91,7 +84,6 @@ void Timer::alarmIn(std::function<void()> const& cb, nsecs_t fireIn) {
 
 void Timer::alarmCancel() {
     std::lock_guard<decltype(mMutex)> lk(mMutex);
-    ATRACE_INT64(timerTraceTag, 0);
 
     struct itimerspec old_timer;
     struct itimerspec new_timer {
@@ -137,7 +129,6 @@ void Timer::dispatch() {
 
     uint64_t iteration = 0;
     char const traceNamePrefix[] = "TimerIteration #";
-    static constexpr size_t max64print = std::numeric_limits<decltype(iteration)>::digits10;
     static constexpr size_t maxlen = arrayLen(traceNamePrefix) + max64print;
     std::array<char, maxlen> str_buffer;
     auto timing = true;
