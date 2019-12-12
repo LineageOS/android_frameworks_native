@@ -998,12 +998,31 @@ TEST_F(BufferQueueTest, TestOccupancyHistory) {
     ASSERT_EQ(true, thirdSegment.usedThirdBuffer);
 }
 
+struct BufferDiscardedListener : public BnProducerListener {
+public:
+    BufferDiscardedListener() = default;
+    virtual ~BufferDiscardedListener() = default;
+
+    virtual void onBufferReleased() {}
+    virtual bool needsReleaseNotify() { return false; }
+    virtual void onBuffersDiscarded(const std::vector<int32_t>& slots) {
+        mDiscardedSlots.insert(mDiscardedSlots.end(), slots.begin(), slots.end());
+    }
+
+    const std::vector<int32_t>& getDiscardedSlots() const { return mDiscardedSlots; }
+private:
+    // No need to use lock given the test triggers the listener in the same
+    // thread context.
+    std::vector<int32_t> mDiscardedSlots;
+};
+
 TEST_F(BufferQueueTest, TestDiscardFreeBuffers) {
     createBufferQueue();
     sp<DummyConsumer> dc(new DummyConsumer);
     ASSERT_EQ(OK, mConsumer->consumerConnect(dc, false));
     IGraphicBufferProducer::QueueBufferOutput output;
-    ASSERT_EQ(OK, mProducer->connect(new DummyProducerListener,
+    sp<BufferDiscardedListener> pl(new BufferDiscardedListener);
+    ASSERT_EQ(OK, mProducer->connect(pl,
             NATIVE_WINDOW_API_CPU, false, &output));
 
     int slot = BufferQueue::INVALID_BUFFER_SLOT;
@@ -1044,11 +1063,18 @@ TEST_F(BufferQueueTest, TestDiscardFreeBuffers) {
     ASSERT_EQ(OK, mConsumer->acquireBuffer(&item, 0));
     ASSERT_EQ(OK, mConsumer->releaseBuffer(item.mSlot, item.mFrameNumber,
                     EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE));
+    int releasedSlot = item.mSlot;
+
     // Acquire 1 buffer, leaving 1 filled buffer in queue
     ASSERT_EQ(OK, mConsumer->acquireBuffer(&item, 0));
 
     // Now discard the free buffers
     ASSERT_EQ(OK, mConsumer->discardFreeBuffers());
+
+    // Check onBuffersDiscarded is called with correct slots
+    auto buffersDiscarded = pl->getDiscardedSlots();
+    ASSERT_EQ(buffersDiscarded.size(), 1);
+    ASSERT_EQ(buffersDiscarded[0], releasedSlot);
 
     // Check no free buffers in dump
     String8 dumpString;

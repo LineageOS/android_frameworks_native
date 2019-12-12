@@ -1221,9 +1221,8 @@ status_t BufferQueueProducer::connect(const sp<IProducerListener>& listener,
                     }
                     mCore->mLinkedToDeath = listener;
                 }
-                if (listener->needsReleaseNotify()) {
-                    mCore->mConnectedProducerListener = listener;
-                }
+                mCore->mConnectedProducerListener = listener;
+                mCore->mBufferReleasedCbEnabled = listener->needsReleaseNotify();
             }
             break;
         default:
