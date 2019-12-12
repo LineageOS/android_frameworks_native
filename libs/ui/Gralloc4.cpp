@@ -614,6 +614,24 @@ status_t Gralloc4Mapper::getBlendMode(buffer_handle_t bufferHandle,
                outBlendMode);
 }
 
+status_t Gralloc4Mapper::getSmpte2086(buffer_handle_t bufferHandle,
+                                      std::optional<ui::Smpte2086>* outSmpte2086) const {
+    return get(bufferHandle, gralloc4::MetadataType_Smpte2086, gralloc4::decodeSmpte2086,
+               outSmpte2086);
+}
+
+status_t Gralloc4Mapper::getCta861_3(buffer_handle_t bufferHandle,
+                                     std::optional<ui::Cta861_3>* outCta861_3) const {
+    return get(bufferHandle, gralloc4::MetadataType_Cta861_3, gralloc4::decodeCta861_3,
+               outCta861_3);
+}
+
+status_t Gralloc4Mapper::getSmpte2094_40(
+        buffer_handle_t bufferHandle, std::optional<std::vector<uint8_t>>* outSmpte2094_40) const {
+    return get(bufferHandle, gralloc4::MetadataType_Smpte2094_40, gralloc4::decodeSmpte2094_40,
+               outSmpte2094_40);
+}
+
 template <class T>
 status_t Gralloc4Mapper::getDefault(uint32_t width, uint32_t height, PixelFormat format,
                                     uint32_t layerCount, uint64_t usage,

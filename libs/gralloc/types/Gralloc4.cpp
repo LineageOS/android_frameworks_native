@@ -28,6 +28,7 @@ using android::hardware::hidl_vec;
 using aidl::android::hardware::graphics::common::BlendMode;
 using aidl::android::hardware::graphics::common::ChromaSiting;
 using aidl::android::hardware::graphics::common::Compression;
+using aidl::android::hardware::graphics::common::Cta861_3;
 using aidl::android::hardware::graphics::common::Dataspace;
 using aidl::android::hardware::graphics::common::ExtendableType;
 using aidl::android::hardware::graphics::common::Interlaced;
@@ -35,7 +36,9 @@ using aidl::android::hardware::graphics::common::PlaneLayout;
 using aidl::android::hardware::graphics::common::PlaneLayoutComponent;
 using aidl::android::hardware::graphics::common::PlaneLayoutComponentType;
 using aidl::android::hardware::graphics::common::Rect;
+using aidl::android::hardware::graphics::common::Smpte2086;
 using aidl::android::hardware::graphics::common::StandardMetadataType;
+using aidl::android::hardware::graphics::common::XyColor;
 
 using MetadataType = android::hardware::graphics::mapper::V4_0::IMapper::MetadataType;
 
@@ -154,6 +157,13 @@ public:
         return mVec->size() > mOffset;
     }
 
+    size_t getRemainingSize() {
+        if (!mVec) {
+            return 0;
+        }
+        return mVec->size() - mOffset;
+    }
+
 private:
     const hidl_vec<uint8_t>* mVec;
     size_t mOffset = 0;
@@ -218,6 +228,15 @@ status_t encode(const MetadataType& metadataType, const T& input, hidl_vec<uint8
     return encodeHelper(input, &outputHidlVec);
 }
 
+template <class T>
+status_t encodeOptional(const MetadataType& metadataType, const std::optional<T>& input,
+                        hidl_vec<uint8_t>* output, EncodeHelper<T> encodeHelper) {
+    if (!input) {
+        return NO_ERROR;
+    }
+    return encode(metadataType, *input, output, encodeHelper);
+}
+
 /**
  * decode is the main decode function. It takes in a hidl_vec and uses the decodeHelper function to
  * turn the hidl_vec byte stream into T. If an error occurs, the errorHandler function cleans up
@@ -249,13 +268,32 @@ status_t decode(const MetadataType& metadataType, const hidl_vec<uint8_t>& input
     return NO_ERROR;
 }
 
+template <class T>
+status_t decodeOptional(const MetadataType& metadataType, const hidl_vec<uint8_t>& input,
+                        std::optional<T>* output, DecodeHelper<T> decodeHelper) {
+    if (!output) {
+        return BAD_VALUE;
+    }
+    if (input.size() <= 0) {
+        output->reset();
+        return NO_ERROR;
+    }
+    T tmp;
+    status_t err = decode(metadataType, input, &tmp, decodeHelper);
+    if (!err) {
+        *output = tmp;
+    }
+    return err;
+}
+
 /**
  * Private helper functions
  */
 template <class T>
 status_t encodeInteger(const T& input, OutputHidlVec* output) {
     static_assert(std::is_same<T, uint32_t>::value || std::is_same<T, int32_t>::value ||
-                  std::is_same<T, uint64_t>::value || std::is_same<T, int64_t>::value);
+                  std::is_same<T, uint64_t>::value || std::is_same<T, int64_t>::value ||
+                  std::is_same<T, float>::value || std::is_same<T, double>::value);
     if (!output) {
         return BAD_VALUE;
     }
@@ -267,7 +305,8 @@ status_t encodeInteger(const T& input, OutputHidlVec* output) {
 template <class T>
 status_t decodeInteger(InputHidlVec* input, T* output) {
     static_assert(std::is_same<T, uint32_t>::value || std::is_same<T, int32_t>::value ||
-                  std::is_same<T, uint64_t>::value || std::is_same<T, int64_t>::value);
+                  std::is_same<T, uint64_t>::value || std::is_same<T, int64_t>::value ||
+                  std::is_same<T, float>::value || std::is_same<T, double>::value);
     if (!output) {
         return BAD_VALUE;
     }
@@ -304,6 +343,38 @@ status_t decodeString(InputHidlVec* input, std::string* output) {
     }
 
     return input->decode(output, size);
+}
+
+status_t encodeByteVector(const std::vector<uint8_t>& input, OutputHidlVec* output) {
+    if (!output) {
+        return BAD_VALUE;
+    }
+
+    status_t err = encodeInteger<int64_t>(input.size(), output);
+    if (err) {
+        return err;
+    }
+
+    return output->encode(input.data(), input.size());
+}
+
+status_t decodeByteVector(InputHidlVec* input, std::vector<uint8_t>* output) {
+    if (!output) {
+        return BAD_VALUE;
+    }
+
+    int64_t size = 0;
+    status_t err = decodeInteger<int64_t>(input, &size);
+    if (err || size < 0) {
+        return err;
+    }
+
+    if (size > input->getRemainingSize()) {
+        return BAD_VALUE;
+    }
+    output->resize(size);
+
+    return input->decode(output->data(), size);
 }
 
 status_t encodeExtendableType(const ExtendableType& input, OutputHidlVec* output) {
@@ -389,6 +460,30 @@ status_t validateMetadataType(InputHidlVec* input, const MetadataType& expectedM
     }
 
     return NO_ERROR;
+}
+
+status_t encodeXyColor(const XyColor& input, OutputHidlVec* output) {
+    status_t err = encodeInteger<float>(input.x, output);
+    if (err) {
+        return err;
+    }
+    return encodeInteger<float>(input.y, output);
+}
+
+status_t decodeXyColor(InputHidlVec* input, XyColor* output) {
+    status_t err = decodeInteger<float>(input, &output->x);
+    if (err) {
+        return err;
+    }
+    return decodeInteger<float>(input, &output->y);
+}
+
+void clearXyColor(XyColor* output) {
+    if (!output) {
+        return;
+    }
+    output->x = 0;
+    output->y = 0;
 }
 
 status_t encodeRect(const Rect& input, OutputHidlVec* output) {
@@ -635,6 +730,70 @@ void clearPlaneLayouts(std::vector<PlaneLayout>* output) {
     output->clear();
 }
 
+status_t encodeSmpte2086Helper(const Smpte2086& smpte2086, OutputHidlVec* outOutputHidlVec) {
+    status_t err = encodeXyColor(smpte2086.primaryRed, outOutputHidlVec);
+    if (err) {
+        return err;
+    }
+    err = encodeXyColor(smpte2086.primaryGreen, outOutputHidlVec);
+    if (err) {
+        return err;
+    }
+    err = encodeXyColor(smpte2086.primaryBlue, outOutputHidlVec);
+    if (err) {
+        return err;
+    }
+    err = encodeXyColor(smpte2086.whitePoint, outOutputHidlVec);
+    if (err) {
+        return err;
+    }
+    err = encodeInteger<float>(smpte2086.maxLuminance, outOutputHidlVec);
+    if (err) {
+        return err;
+    }
+    return encodeInteger<float>(smpte2086.minLuminance, outOutputHidlVec);
+}
+
+status_t decodeSmpte2086Helper(InputHidlVec* inputHidlVec, Smpte2086* outSmpte2086) {
+    status_t err = decodeXyColor(inputHidlVec, &outSmpte2086->primaryRed);
+    if (err) {
+        return err;
+    }
+    err = decodeXyColor(inputHidlVec, &outSmpte2086->primaryGreen);
+    if (err) {
+        return err;
+    }
+    err = decodeXyColor(inputHidlVec, &outSmpte2086->primaryBlue);
+    if (err) {
+        return err;
+    }
+    err = decodeXyColor(inputHidlVec, &outSmpte2086->whitePoint);
+    if (err) {
+        return err;
+    }
+    err = decodeInteger<float>(inputHidlVec, &outSmpte2086->maxLuminance);
+    if (err) {
+        return err;
+    }
+    return decodeInteger<float>(inputHidlVec, &outSmpte2086->minLuminance);
+}
+
+status_t encodeCta861_3Helper(const Cta861_3& cta861_3, OutputHidlVec* outOutputHidlVec) {
+    status_t err = encodeInteger<float>(cta861_3.maxContentLightLevel, outOutputHidlVec);
+    if (err) {
+        return err;
+    }
+    return encodeInteger<float>(cta861_3.maxFrameAverageLightLevel, outOutputHidlVec);
+}
+
+status_t decodeCta861_3Helper(InputHidlVec* inputHidlVec, Cta861_3* outCta861_3) {
+    status_t err = decodeInteger<float>(inputHidlVec, &outCta861_3->maxContentLightLevel);
+    if (err) {
+        return err;
+    }
+    return decodeInteger<float>(inputHidlVec, &outCta861_3->maxFrameAverageLightLevel);
+}
+
 /**
  * Public API functions
  */
@@ -796,6 +955,36 @@ status_t encodeBlendMode(const BlendMode& blendMode, hidl_vec<uint8_t>* outBlend
 status_t decodeBlendMode(const hidl_vec<uint8_t>& blendMode, BlendMode* outBlendMode) {
     return decode(MetadataType_BlendMode, blendMode, reinterpret_cast<int32_t*>(outBlendMode),
                   decodeInteger);
+}
+
+status_t encodeSmpte2086(const std::optional<Smpte2086>& smpte2086,
+                         hidl_vec<uint8_t>* outSmpte2086) {
+    return encodeOptional(MetadataType_Smpte2086, smpte2086, outSmpte2086, encodeSmpte2086Helper);
+}
+
+status_t decodeSmpte2086(const hidl_vec<uint8_t>& smpte2086,
+                         std::optional<Smpte2086>* outSmpte2086) {
+    return decodeOptional(MetadataType_Smpte2086, smpte2086, outSmpte2086, decodeSmpte2086Helper);
+}
+
+status_t encodeCta861_3(const std::optional<Cta861_3>& cta861_3, hidl_vec<uint8_t>* outCta861_3) {
+    return encodeOptional(MetadataType_Cta861_3, cta861_3, outCta861_3, encodeCta861_3Helper);
+}
+
+status_t decodeCta861_3(const hidl_vec<uint8_t>& cta861_3, std::optional<Cta861_3>* outCta861_3) {
+    return decodeOptional(MetadataType_Cta861_3, cta861_3, outCta861_3, decodeCta861_3Helper);
+}
+
+status_t encodeSmpte2094_40(const std::optional<std::vector<uint8_t>>& smpte2094_40,
+                            hidl_vec<uint8_t>* outSmpte2094_40) {
+    return encodeOptional(MetadataType_Smpte2094_40, smpte2094_40, outSmpte2094_40,
+                          encodeByteVector);
+}
+
+status_t decodeSmpte2094_40(const hidl_vec<uint8_t>& smpte2094_40,
+                            std::optional<std::vector<uint8_t>>* outSmpte2094_40) {
+    return decodeOptional(MetadataType_Smpte2094_40, smpte2094_40, outSmpte2094_40,
+                          decodeByteVector);
 }
 
 bool isStandardMetadataType(const MetadataType& metadataType) {
