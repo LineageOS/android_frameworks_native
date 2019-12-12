@@ -32,7 +32,8 @@ public:
     std::unique_ptr<MessageQueue> createMessageQueue() override;
     std::unique_ptr<scheduler::PhaseOffsets> createPhaseOffsets() override;
     std::unique_ptr<Scheduler> createScheduler(SetVSyncEnabled,
-                                               const scheduler::RefreshRateConfigs&) override;
+                                               const scheduler::RefreshRateConfigs&,
+                                               ISchedulerCallback&) override;
     std::unique_ptr<SurfaceInterceptor> createSurfaceInterceptor(SurfaceFlinger*) override;
     sp<StartPropertySetThread> createStartPropertySetThread(bool timestampPropertyValue) override;
     sp<DisplayDevice> createDisplayDevice(DisplayDeviceCreationArgs&&) override;

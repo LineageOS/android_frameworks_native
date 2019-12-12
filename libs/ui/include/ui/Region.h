@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <ostream>
 
 #include <utils/Vector.h>
 
@@ -119,6 +120,8 @@ public:
     // returns true if the regions share the same underlying storage
     bool isTriviallyEqual(const Region& region) const;
 
+    // returns true if the regions consist of the same rectangle sequence
+    bool hasSameRects(const Region& region) const;
 
     /* various ways to access the rectangle list */
 
@@ -213,6 +216,21 @@ Region& Region::operator -= (const Region& rhs) {
 Region& Region::operator += (const Point& pt) {
     return translateSelf(pt.x, pt.y);
 }
+
+// Defining PrintTo helps with Google Tests.
+static inline void PrintTo(const Region& region, ::std::ostream* os) {
+    Region::const_iterator head = region.begin();
+    Region::const_iterator const tail = region.end();
+    bool first = true;
+    while (head != tail) {
+        *os << (first ? "Region(" : ", ");
+        PrintTo(*head, os);
+        head++;
+        first = false;
+    }
+    *os << ")";
+}
+
 // ---------------------------------------------------------------------------
 }; // namespace android
 

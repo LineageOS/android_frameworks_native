@@ -35,7 +35,6 @@
 #include "CallOrderStateMachineHelper.h"
 #include "MockHWC2.h"
 #include "RegionMatcher.h"
-#include "TransformMatcher.h"
 
 namespace android::compositionengine {
 namespace {
@@ -244,7 +243,7 @@ TEST_F(OutputTest, setProjectionTriviallyWorks) {
 
     mOutput->setProjection(transform, orientation, frame, viewport, scissor, needsFiltering);
 
-    EXPECT_THAT(mOutput->getState().transform, TransformEq(transform));
+    EXPECT_THAT(mOutput->getState().transform, transform);
     EXPECT_EQ(orientation, mOutput->getState().orientation);
     EXPECT_EQ(frame, mOutput->getState().frame);
     EXPECT_EQ(viewport, mOutput->getState().viewport);

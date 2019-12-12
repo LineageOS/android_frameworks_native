@@ -148,6 +148,8 @@ private:
     bool waitFence(base::unique_fd fenceFd);
     void clearWithColor(float red, float green, float blue, float alpha);
     void fillRegionWithColor(const Region& region, float red, float green, float blue, float alpha);
+    void handleShadow(const FloatRect& casterRect, float casterCornerRadius,
+                      const ShadowSettings& shadowSettings);
     void setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,
                             const half4& color, float cornerRadius);
     void setupLayerTexturing(const Texture& texture);

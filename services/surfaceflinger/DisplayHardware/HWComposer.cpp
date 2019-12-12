@@ -247,8 +247,8 @@ nsecs_t HWComposer::getRefreshTimestamp(DisplayId displayId) const {
     // the refresh period and whatever closest timestamp we have.
     std::lock_guard lock(displayData.lastHwVsyncLock);
     nsecs_t now = systemTime(CLOCK_MONOTONIC);
-    auto vsyncPeriod = getActiveConfig(displayId)->getVsyncPeriod();
-    return now - ((now - displayData.lastHwVsync) % vsyncPeriod);
+    auto vsyncPeriodNanos = getDisplayVsyncPeriod(displayId);
+    return now - ((now - displayData.lastHwVsync) % vsyncPeriodNanos);
 }
 
 bool HWComposer::isConnected(DisplayId displayId) const {
@@ -289,6 +289,23 @@ std::shared_ptr<const HWC2::Display::Config> HWComposer::getActiveConfig(
     }
 
     return config;
+}
+
+// Composer 2.4
+
+bool HWComposer::isVsyncPeriodSwitchSupported(DisplayId displayId) const {
+    return mDisplayData.at(displayId).hwcDisplay->isVsyncPeriodSwitchSupported();
+}
+
+nsecs_t HWComposer::getDisplayVsyncPeriod(DisplayId displayId) const {
+    nsecs_t vsyncPeriodNanos;
+    auto error = mDisplayData.at(displayId).hwcDisplay->getDisplayVsyncPeriod(&vsyncPeriodNanos);
+    if (error != HWC2::Error::None) {
+        LOG_DISPLAY_ERROR(displayId, "Failed to get Vsync Period");
+        return 0;
+    }
+
+    return vsyncPeriodNanos;
 }
 
 int HWComposer::getActiveConfigIndex(DisplayId displayId) const {
@@ -541,7 +558,9 @@ status_t HWComposer::setPowerMode(DisplayId displayId, int32_t intMode) {
     return NO_ERROR;
 }
 
-status_t HWComposer::setActiveConfig(DisplayId displayId, size_t configId) {
+status_t HWComposer::setActiveConfigWithConstraints(
+        DisplayId displayId, size_t configId, const HWC2::VsyncPeriodChangeConstraints& constraints,
+        HWC2::VsyncPeriodChangeTimeline* outTimeline) {
     RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
 
     auto& displayData = mDisplayData[displayId];
@@ -550,7 +569,9 @@ status_t HWComposer::setActiveConfig(DisplayId displayId, size_t configId) {
         return BAD_INDEX;
     }
 
-    auto error = displayData.hwcDisplay->setActiveConfig(displayData.configMap[configId]);
+    auto error =
+            displayData.hwcDisplay->setActiveConfigWithConstraints(displayData.configMap[configId],
+                                                                   constraints, outTimeline);
     RETURN_IF_HWC_ERROR(error, displayId, UNKNOWN_ERROR);
     return NO_ERROR;
 }

@@ -47,12 +47,12 @@ public:
         size_t mOffset = 0;
         VertexArray(float* data, size_t stride) : mData(data), mStride(stride) {}
 
+    public:
         // Returns a vertex array at an offset so its easier to append attributes from
         // multiple sources.
         VertexArray(VertexArray<TYPE>& other, size_t offset)
               : mData(other.mData), mStride(other.mStride), mOffset(offset) {}
 
-    public:
         TYPE& operator[](size_t index) {
             return *reinterpret_cast<TYPE*>(&mData[(index + mOffset) * mStride]);
         }

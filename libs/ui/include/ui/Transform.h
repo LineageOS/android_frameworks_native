@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <ostream>
 #include <string>
 
 #include <hardware/hardware.h>
@@ -63,6 +64,7 @@ public:
     bool        preserveRects() const;
     uint32_t    getType() const;
     uint32_t    getOrientation() const;
+    bool operator==(const Transform& other) const;
 
     const vec3& operator [] (size_t i) const;  // returns column i
     float   tx() const;
@@ -114,6 +116,12 @@ private:
     mat33               mMatrix;
     mutable uint32_t    mType;
 };
+
+static inline void PrintTo(const Transform& t, ::std::ostream* os) {
+    std::string out;
+    t.dump(out, "ui::Transform");
+    *os << out;
+}
 
 }  // namespace ui
 }  // namespace android

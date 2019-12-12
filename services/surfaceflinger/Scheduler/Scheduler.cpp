@@ -59,11 +59,13 @@
 namespace android {
 
 Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
-                     const scheduler::RefreshRateConfigs& refreshRateConfig)
+                     const scheduler::RefreshRateConfigs& refreshRateConfig,
+                     ISchedulerCallback& schedulerCallback)
       : mPrimaryDispSync(new impl::DispSync("SchedulerDispSync",
                                             sysprop::running_without_sync_framework(true))),
         mEventControlThread(new impl::EventControlThread(std::move(function))),
         mSupportKernelTimer(sysprop::support_kernel_idle_timer(false)),
+        mSchedulerCallback(schedulerCallback),
         mRefreshRateConfigs(refreshRateConfig) {
     using namespace sysprop;
 
@@ -104,10 +106,12 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
 
 Scheduler::Scheduler(std::unique_ptr<DispSync> primaryDispSync,
                      std::unique_ptr<EventControlThread> eventControlThread,
-                     const scheduler::RefreshRateConfigs& configs)
+                     const scheduler::RefreshRateConfigs& configs,
+                     ISchedulerCallback& schedulerCallback)
       : mPrimaryDispSync(std::move(primaryDispSync)),
         mEventControlThread(std::move(eventControlThread)),
         mSupportKernelTimer(false),
+        mSchedulerCallback(schedulerCallback),
         mRefreshRateConfigs(configs) {}
 
 Scheduler::~Scheduler() {
@@ -368,12 +372,7 @@ void Scheduler::chooseRefreshRateForContent() {
         mFeatures.configId = newConfigId;
     };
     auto newRefreshRate = mRefreshRateConfigs.getRefreshRateFromConfigId(newConfigId);
-    changeRefreshRate(newRefreshRate, ConfigEvent::Changed);
-}
-
-void Scheduler::setSchedulerCallback(android::Scheduler::ISchedulerCallback* callback) {
-    std::lock_guard<std::mutex> lock(mCallbackLock);
-    mSchedulerCallback = callback;
+    mSchedulerCallback.changeRefreshRate(newRefreshRate, ConfigEvent::Changed);
 }
 
 void Scheduler::resetIdleTimer() {
@@ -486,7 +485,7 @@ void Scheduler::handleTimerStateChanged(T* currentState, T newState, bool eventO
         }
     }
     const RefreshRate& newRefreshRate = mRefreshRateConfigs.getRefreshRateFromConfigId(newConfigId);
-    changeRefreshRate(newRefreshRate, event);
+    mSchedulerCallback.changeRefreshRate(newRefreshRate, event);
 }
 
 HwcConfigIndexType Scheduler::calculateRefreshRateType() {
@@ -526,10 +525,36 @@ std::optional<HwcConfigIndexType> Scheduler::getPreferredConfigId() {
     return mFeatures.configId;
 }
 
-void Scheduler::changeRefreshRate(const RefreshRate& refreshRate, ConfigEvent configEvent) {
-    std::lock_guard<std::mutex> lock(mCallbackLock);
-    if (mSchedulerCallback) {
-        mSchedulerCallback->changeRefreshRate(refreshRate, configEvent);
+void Scheduler::onNewVsyncPeriodChangeTimeline(const HWC2::VsyncPeriodChangeTimeline& timeline) {
+    if (timeline.refreshRequired) {
+        mSchedulerCallback.repaintEverythingForHWC();
+    }
+
+    std::lock_guard<std::mutex> lock(mVsyncTimelineLock);
+    mLastVsyncPeriodChangeTimeline = std::make_optional(timeline);
+
+    const auto maxAppliedTime = systemTime() + MAX_VSYNC_APPLIED_TIME.count();
+    if (timeline.newVsyncAppliedTimeNanos > maxAppliedTime) {
+        mLastVsyncPeriodChangeTimeline->newVsyncAppliedTimeNanos = maxAppliedTime;
+    }
+}
+
+void Scheduler::onDisplayRefreshed(nsecs_t timestamp) {
+    bool callRepaint = false;
+    {
+        std::lock_guard<std::mutex> lock(mVsyncTimelineLock);
+        if (mLastVsyncPeriodChangeTimeline && mLastVsyncPeriodChangeTimeline->refreshRequired) {
+            if (mLastVsyncPeriodChangeTimeline->refreshTimeNanos < timestamp) {
+                mLastVsyncPeriodChangeTimeline->refreshRequired = false;
+            } else {
+                // We need to send another refresh as refreshTimeNanos is still in the future
+                callRepaint = true;
+            }
+        }
+    }
+
+    if (callRepaint) {
+        mSchedulerCallback.repaintEverythingForHWC();
     }
 }
 

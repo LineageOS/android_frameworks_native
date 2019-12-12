@@ -41,22 +41,24 @@ class FenceTime;
 class InjectVSyncSource;
 struct DisplayStateInfo;
 
+class ISchedulerCallback {
+public:
+    virtual ~ISchedulerCallback() = default;
+    virtual void changeRefreshRate(const scheduler::RefreshRateConfigs::RefreshRate&,
+                                   scheduler::RefreshRateConfigEvent) = 0;
+    virtual void repaintEverythingForHWC() = 0;
+};
+
 class Scheduler {
 public:
     using RefreshRate = scheduler::RefreshRateConfigs::RefreshRate;
     using ConfigEvent = scheduler::RefreshRateConfigEvent;
 
-    class ISchedulerCallback {
-    public:
-        virtual ~ISchedulerCallback() = default;
-        virtual void changeRefreshRate(const RefreshRate&, ConfigEvent) = 0;
-    };
-
     // Indicates whether to start the transaction early, or at vsync time.
     enum class TransactionStart { EARLY, NORMAL };
 
     Scheduler(impl::EventControlThread::SetVSyncEnabledFunction,
-              const scheduler::RefreshRateConfigs&);
+              const scheduler::RefreshRateConfigs&, ISchedulerCallback& schedulerCallback);
 
     virtual ~Scheduler();
 
@@ -114,9 +116,6 @@ public:
     // Detects content using layer history, and selects a matching refresh rate.
     void chooseRefreshRateForContent();
 
-    // Called by Scheduler to control SurfaceFlinger operations.
-    void setSchedulerCallback(ISchedulerCallback*);
-
     bool isIdleTimerEnabled() const { return mIdleTimer.has_value(); }
     void resetIdleTimer();
 
@@ -131,6 +130,12 @@ public:
     // Get the appropriate refresh for current conditions.
     std::optional<HwcConfigIndexType> getPreferredConfigId();
 
+    // Notifies the scheduler about a refresh rate timeline change.
+    void onNewVsyncPeriodChangeTimeline(const HWC2::VsyncPeriodChangeTimeline& timeline);
+
+    // Notifies the scheduler when the display was refreshed
+    void onDisplayRefreshed(nsecs_t timestamp);
+
 private:
     friend class TestableScheduler;
 
@@ -142,7 +147,7 @@ private:
 
     // Used by tests to inject mocks.
     Scheduler(std::unique_ptr<DispSync>, std::unique_ptr<EventControlThread>,
-              const scheduler::RefreshRateConfigs&);
+              const scheduler::RefreshRateConfigs&, ISchedulerCallback& schedulerCallback);
 
     std::unique_ptr<VSyncSource> makePrimaryDispSyncSource(const char* name, nsecs_t phaseOffsetNs,
                                                            nsecs_t offsetThresholdForNextVsync);
@@ -165,8 +170,6 @@ private:
     void setVsyncPeriod(nsecs_t period);
 
     HwcConfigIndexType calculateRefreshRateType() REQUIRES(mFeatureStateLock);
-    // Acquires a lock and calls the ChangeRefreshRateCallback with given parameters.
-    void changeRefreshRate(const RefreshRate&, ConfigEvent);
 
     // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
     struct Connection {
@@ -203,8 +206,7 @@ private:
     // Timer used to monitor display power mode.
     std::optional<scheduler::OneShotTimer> mDisplayPowerTimer;
 
-    std::mutex mCallbackLock;
-    ISchedulerCallback* mSchedulerCallback GUARDED_BY(mCallbackLock) = nullptr;
+    ISchedulerCallback& mSchedulerCallback;
 
     // In order to make sure that the features don't override themselves, we need a state machine
     // to keep track which feature requested the config change.
@@ -223,6 +225,11 @@ private:
     } mFeatures GUARDED_BY(mFeatureStateLock);
 
     const scheduler::RefreshRateConfigs& mRefreshRateConfigs;
+
+    std::mutex mVsyncTimelineLock;
+    std::optional<HWC2::VsyncPeriodChangeTimeline> mLastVsyncPeriodChangeTimeline
+            GUARDED_BY(mVsyncTimelineLock);
+    static constexpr std::chrono::nanoseconds MAX_VSYNC_APPLIED_TIME = 200ms;
 };
 
 } // namespace android

@@ -16,6 +16,7 @@
 
 #include <chrono>
 #include <condition_variable>
+#include <fstream>
 
 #include <gtest/gtest.h>
 #include <renderengine/RenderEngine.h>
@@ -26,6 +27,7 @@
 constexpr int DEFAULT_DISPLAY_WIDTH = 128;
 constexpr int DEFAULT_DISPLAY_HEIGHT = 256;
 constexpr int DEFAULT_DISPLAY_OFFSET = 64;
+constexpr bool WRITE_BUFFER_TO_FILE_ON_FAILURE = false;
 
 namespace android {
 
@@ -68,21 +70,80 @@ struct RenderEngineTest : public ::testing::Test {
     RenderEngineTest() { mBuffer = allocateDefaultBuffer(); }
 
     ~RenderEngineTest() {
+        if (WRITE_BUFFER_TO_FILE_ON_FAILURE && ::testing::Test::HasFailure()) {
+            writeBufferToFile("/data/texture_out_");
+        }
         for (uint32_t texName : mTexNames) {
             sRE->deleteTextures(1, &texName);
         }
     }
 
-    void expectBufferColor(const Rect& region, uint8_t r, uint8_t g, uint8_t b, uint8_t a,
-                           uint8_t tolerance = 0) {
+    void writeBufferToFile(const char* basename) {
+        std::string filename(basename);
+        filename.append(::testing::UnitTest::GetInstance()->current_test_info()->name());
+        filename.append(".ppm");
+        std::ofstream file(filename.c_str(), std::ios::binary);
+        if (!file.is_open()) {
+            ALOGE("Unable to open file: %s", filename.c_str());
+            ALOGE("You may need to do: \"adb shell setenforce 0\" to enable "
+                  "surfaceflinger to write debug images");
+            return;
+        }
+
         uint8_t* pixels;
         mBuffer->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
                       reinterpret_cast<void**>(&pixels));
 
-        auto colorCompare = [tolerance](uint8_t a, uint8_t b) {
-            uint8_t tmp = a >= b ? a - b : b - a;
-            return tmp <= tolerance;
+        file << "P6\n";
+        file << mBuffer->getWidth() << "\n";
+        file << mBuffer->getHeight() << "\n";
+        file << 255 << "\n";
+
+        std::vector<uint8_t> outBuffer(mBuffer->getWidth() * mBuffer->getHeight() * 3);
+        auto outPtr = reinterpret_cast<uint8_t*>(outBuffer.data());
+
+        for (int32_t j = 0; j < mBuffer->getHeight(); j++) {
+            const uint8_t* src = pixels + (mBuffer->getStride() * j) * 4;
+            for (int32_t i = 0; i < mBuffer->getWidth(); i++) {
+                // Only copy R, G and B components
+                outPtr[0] = src[0];
+                outPtr[1] = src[1];
+                outPtr[2] = src[2];
+                outPtr += 3;
+
+                src += 4;
+            }
+        }
+        file.write(reinterpret_cast<char*>(outBuffer.data()), outBuffer.size());
+        mBuffer->unlock();
+    }
+
+    void expectBufferColor(const Region& region, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+        size_t c;
+        Rect const* rect = region.getArray(&c);
+        for (size_t i = 0; i < c; i++, rect++) {
+            expectBufferColor(*rect, r, g, b, a);
+        }
+    }
+
+    void expectBufferColor(const Rect& rect, uint8_t r, uint8_t g, uint8_t b, uint8_t a,
+                           uint8_t tolerance = 0) {
+        auto colorCompare = [tolerance](const uint8_t* colorA, const uint8_t* colorB) {
+            auto colorBitCompare = [tolerance](uint8_t a, uint8_t b) {
+                uint8_t tmp = a >= b ? a - b : b - a;
+                return tmp <= tolerance;
+            };
+            return std::equal(colorA, colorA + 4, colorB, colorBitCompare);
         };
+
+        expectBufferColor(rect, r, g, b, a, colorCompare);
+    }
+
+    void expectBufferColor(const Rect& region, uint8_t r, uint8_t g, uint8_t b, uint8_t a,
+                           std::function<bool(const uint8_t* a, const uint8_t* b)> colorCompare) {
+        uint8_t* pixels;
+        mBuffer->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+                      reinterpret_cast<void**>(&pixels));
         int32_t maxFails = 10;
         int32_t fails = 0;
         for (int32_t j = 0; j < region.getHeight(); j++) {
@@ -90,7 +151,7 @@ struct RenderEngineTest : public ::testing::Test {
                     pixels + (mBuffer->getStride() * (region.top + j) + region.left) * 4;
             for (int32_t i = 0; i < region.getWidth(); i++) {
                 const uint8_t expected[4] = {r, g, b, a};
-                bool equal = std::equal(src, src + 4, expected, colorCompare);
+                bool equal = colorCompare(src, expected);
                 EXPECT_TRUE(equal)
                         << "pixel @ (" << region.left + i << ", " << region.top + j << "): "
                         << "expected (" << static_cast<uint32_t>(r) << ", "
@@ -109,6 +170,64 @@ struct RenderEngineTest : public ::testing::Test {
             }
         }
         mBuffer->unlock();
+    }
+
+    void expectAlpha(const Rect& rect, uint8_t a) {
+        auto colorCompare = [](const uint8_t* colorA, const uint8_t* colorB) {
+            return colorA[3] == colorB[3];
+        };
+        expectBufferColor(rect, 0.0f /* r */, 0.0f /*g */, 0.0f /* b */, a, colorCompare);
+    }
+
+    void expectShadowColor(const renderengine::LayerSettings& castingLayer,
+                           const renderengine::ShadowSettings& shadow, const ubyte4& casterColor,
+                           const ubyte4& backgroundColor) {
+        const Rect casterRect(castingLayer.geometry.boundaries);
+        Region casterRegion = Region(casterRect);
+        const float casterCornerRadius = castingLayer.geometry.roundedCornersRadius;
+        if (casterCornerRadius > 0.0f) {
+            // ignore the corners if a corner radius is set
+            Rect cornerRect(casterCornerRadius, casterCornerRadius);
+            casterRegion.subtractSelf(cornerRect.offsetTo(casterRect.left, casterRect.top));
+            casterRegion.subtractSelf(
+                    cornerRect.offsetTo(casterRect.right - casterCornerRadius, casterRect.top));
+            casterRegion.subtractSelf(
+                    cornerRect.offsetTo(casterRect.left, casterRect.bottom - casterCornerRadius));
+            casterRegion.subtractSelf(cornerRect.offsetTo(casterRect.right - casterCornerRadius,
+                                                          casterRect.bottom - casterCornerRadius));
+        }
+
+        const float shadowInset = shadow.length * -1.0f;
+        const Rect casterWithShadow =
+                Rect(casterRect).inset(shadowInset, shadowInset, shadowInset, shadowInset);
+        const Region shadowRegion = Region(casterWithShadow).subtractSelf(casterRect);
+        const Region backgroundRegion = Region(fullscreenRect()).subtractSelf(casterWithShadow);
+
+        // verify casting layer
+        expectBufferColor(casterRegion, casterColor.r, casterColor.g, casterColor.b, casterColor.a);
+
+        // verify shadows by testing just the alpha since its difficult to validate the shadow color
+        size_t c;
+        Rect const* r = shadowRegion.getArray(&c);
+        for (size_t i = 0; i < c; i++, r++) {
+            expectAlpha(*r, 255);
+        }
+
+        // verify background
+        expectBufferColor(backgroundRegion, backgroundColor.r, backgroundColor.g, backgroundColor.b,
+                          backgroundColor.a);
+    }
+
+    static renderengine::ShadowSettings getShadowSettings(const vec2& casterPos, float shadowLength,
+                                                          bool casterIsTranslucent) {
+        renderengine::ShadowSettings shadow;
+        shadow.ambientColor = {0.0f, 0.0f, 0.0f, 0.039f};
+        shadow.spotColor = {0.0f, 0.0f, 0.0f, 0.19f};
+        shadow.lightPos = vec3(casterPos.x, casterPos.y, 0);
+        shadow.lightRadius = 0.0f;
+        shadow.length = shadowLength;
+        shadow.casterIsTranslucent = casterIsTranslucent;
+        return shadow;
     }
 
     static Rect fullscreenRect() { return Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT); }
@@ -224,6 +343,11 @@ struct RenderEngineTest : public ::testing::Test {
     void clearLeftRegion();
 
     void clearRegion();
+
+    template <typename SourceVariant>
+    void drawShadow(const renderengine::LayerSettings& castingLayer,
+                    const renderengine::ShadowSettings& shadow, const ubyte4& casterColor,
+                    const ubyte4& backgroundColor);
 
     // Keep around the same renderengine object to save on initialization time.
     // For now, exercise the GL backend directly so that some caching specifics
@@ -766,6 +890,40 @@ void RenderEngineTest::clearRegion() {
                       0, 0, 0, 0);
 }
 
+template <typename SourceVariant>
+void RenderEngineTest::drawShadow(const renderengine::LayerSettings& castingLayer,
+                                  const renderengine::ShadowSettings& shadow,
+                                  const ubyte4& casterColor, const ubyte4& backgroundColor) {
+    renderengine::DisplaySettings settings;
+    settings.physicalDisplay = fullscreenRect();
+    settings.clip = fullscreenRect();
+
+    std::vector<renderengine::LayerSettings> layers;
+
+    // add background layer
+    renderengine::LayerSettings bgLayer;
+    bgLayer.geometry.boundaries = fullscreenRect().toFloatRect();
+    ColorSourceVariant::fillColor(bgLayer, backgroundColor.r / 255.0f, backgroundColor.g / 255.0f,
+                                  backgroundColor.b / 255.0f, this);
+    bgLayer.alpha = backgroundColor.a / 255.0f;
+    layers.push_back(bgLayer);
+
+    // add shadow layer
+    renderengine::LayerSettings shadowLayer;
+    shadowLayer.geometry.boundaries = castingLayer.geometry.boundaries;
+    shadowLayer.alpha = castingLayer.alpha;
+    shadowLayer.shadow = shadow;
+    layers.push_back(shadowLayer);
+
+    // add layer casting the shadow
+    renderengine::LayerSettings layer = castingLayer;
+    SourceVariant::fillColor(layer, casterColor.r / 255.0f, casterColor.g / 255.0f,
+                             casterColor.b / 255.0f, this);
+    layers.push_back(layer);
+
+    invokeDraw(settings, layers, mBuffer);
+}
+
 TEST_F(RenderEngineTest, drawLayers_noLayersToDraw) {
     drawEmptyLayers();
 }
@@ -1081,6 +1239,103 @@ TEST_F(RenderEngineTest, drawLayers_cacheExternalBufferCachesImages) {
         EXPECT_EQ(NO_ERROR, barrier->result);
     }
     EXPECT_FALSE(sRE->isImageCachedForTesting(bufferId));
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillShadow_casterLayerMinSize) {
+    const ubyte4 casterColor(255, 0, 0, 255);
+    const ubyte4 backgroundColor(255, 255, 255, 255);
+    const float shadowLength = 5.0f;
+    Rect casterBounds(1, 1);
+    casterBounds.offsetBy(shadowLength + 1, shadowLength + 1);
+    renderengine::LayerSettings castingLayer;
+    castingLayer.geometry.boundaries = casterBounds.toFloatRect();
+    castingLayer.alpha = 1.0f;
+    renderengine::ShadowSettings settings =
+            getShadowSettings(vec2(casterBounds.left, casterBounds.top), shadowLength,
+                              false /* casterIsTranslucent */);
+
+    drawShadow<ColorSourceVariant>(castingLayer, settings, casterColor, backgroundColor);
+    expectShadowColor(castingLayer, settings, casterColor, backgroundColor);
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillShadow_casterColorLayer) {
+    const ubyte4 casterColor(255, 0, 0, 255);
+    const ubyte4 backgroundColor(255, 255, 255, 255);
+    const float shadowLength = 5.0f;
+    Rect casterBounds(DEFAULT_DISPLAY_WIDTH / 3.0f, DEFAULT_DISPLAY_HEIGHT / 3.0f);
+    casterBounds.offsetBy(shadowLength + 1, shadowLength + 1);
+    renderengine::LayerSettings castingLayer;
+    castingLayer.geometry.boundaries = casterBounds.toFloatRect();
+    castingLayer.alpha = 1.0f;
+    renderengine::ShadowSettings settings =
+            getShadowSettings(vec2(casterBounds.left, casterBounds.top), shadowLength,
+                              false /* casterIsTranslucent */);
+
+    drawShadow<ColorSourceVariant>(castingLayer, settings, casterColor, backgroundColor);
+    expectShadowColor(castingLayer, settings, casterColor, backgroundColor);
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillShadow_casterOpaqueBufferLayer) {
+    const ubyte4 casterColor(255, 0, 0, 255);
+    const ubyte4 backgroundColor(255, 255, 255, 255);
+    const float shadowLength = 5.0f;
+    Rect casterBounds(DEFAULT_DISPLAY_WIDTH / 3.0f, DEFAULT_DISPLAY_HEIGHT / 3.0f);
+    casterBounds.offsetBy(shadowLength + 1, shadowLength + 1);
+    renderengine::LayerSettings castingLayer;
+    castingLayer.geometry.boundaries = casterBounds.toFloatRect();
+    castingLayer.alpha = 1.0f;
+    renderengine::ShadowSettings settings =
+            getShadowSettings(vec2(casterBounds.left, casterBounds.top), shadowLength,
+                              false /* casterIsTranslucent */);
+
+    drawShadow<BufferSourceVariant<ForceOpaqueBufferVariant>>(castingLayer, settings, casterColor,
+                                                              backgroundColor);
+    expectShadowColor(castingLayer, settings, casterColor, backgroundColor);
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillShadow_casterWithRoundedCorner) {
+    const ubyte4 casterColor(255, 0, 0, 255);
+    const ubyte4 backgroundColor(255, 255, 255, 255);
+    const float shadowLength = 5.0f;
+    Rect casterBounds(DEFAULT_DISPLAY_WIDTH / 3.0f, DEFAULT_DISPLAY_HEIGHT / 3.0f);
+    casterBounds.offsetBy(shadowLength + 1, shadowLength + 1);
+    renderengine::LayerSettings castingLayer;
+    castingLayer.geometry.boundaries = casterBounds.toFloatRect();
+    castingLayer.geometry.roundedCornersRadius = 3.0f;
+    castingLayer.geometry.roundedCornersCrop = casterBounds.toFloatRect();
+    castingLayer.alpha = 1.0f;
+    renderengine::ShadowSettings settings =
+            getShadowSettings(vec2(casterBounds.left, casterBounds.top), shadowLength,
+                              false /* casterIsTranslucent */);
+
+    drawShadow<BufferSourceVariant<ForceOpaqueBufferVariant>>(castingLayer, settings, casterColor,
+                                                              backgroundColor);
+    expectShadowColor(castingLayer, settings, casterColor, backgroundColor);
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillShadow_translucentCasterWithAlpha) {
+    const ubyte4 casterColor(255, 0, 0, 255);
+    const ubyte4 backgroundColor(255, 255, 255, 255);
+    const float shadowLength = 5.0f;
+    Rect casterBounds(DEFAULT_DISPLAY_WIDTH / 3.0f, DEFAULT_DISPLAY_HEIGHT / 3.0f);
+    casterBounds.offsetBy(shadowLength + 1, shadowLength + 1);
+    renderengine::LayerSettings castingLayer;
+    castingLayer.geometry.boundaries = casterBounds.toFloatRect();
+    castingLayer.alpha = 0.5f;
+    renderengine::ShadowSettings settings =
+            getShadowSettings(vec2(casterBounds.left, casterBounds.top), shadowLength,
+                              true /* casterIsTranslucent */);
+
+    drawShadow<BufferSourceVariant<RelaxOpaqueBufferVariant>>(castingLayer, settings, casterColor,
+                                                              backgroundColor);
+
+    // verify only the background since the shadow will draw behind the caster
+    const float shadowInset = settings.length * -1.0f;
+    const Rect casterWithShadow =
+            Rect(casterBounds).inset(shadowInset, shadowInset, shadowInset, shadowInset);
+    const Region backgroundRegion = Region(fullscreenRect()).subtractSelf(casterWithShadow);
+    expectBufferColor(backgroundRegion, backgroundColor.r, backgroundColor.g, backgroundColor.b,
+                      backgroundColor.a);
 }
 
 } // namespace android
