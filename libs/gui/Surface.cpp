@@ -35,6 +35,7 @@
 
 #include <ui/DisplayStatInfo.h>
 #include <ui/Fence.h>
+#include <ui/GraphicBuffer.h>
 #include <ui/HdrCapabilities.h>
 #include <ui/Region.h>
 
@@ -1287,6 +1288,14 @@ int Surface::connect(int api, const sp<IProducerListener>& listener) {
 }
 
 int Surface::connect(
+        int api, bool reportBufferRemoval, const sp<SurfaceListener>& sListener) {
+    if (sListener != nullptr) {
+        mListenerProxy = new ProducerListenerProxy(this, sListener);
+    }
+    return connect(api, mListenerProxy, reportBufferRemoval);
+}
+
+int Surface::connect(
         int api, const sp<IProducerListener>& listener, bool reportBufferRemoval) {
     ATRACE_CALL();
     ALOGV("Surface::connect");
@@ -1684,6 +1693,28 @@ void Surface::freeAllBuffers() {
     }
 }
 
+status_t Surface::getAndFlushBuffersFromSlots(const std::vector<int32_t>& slots,
+        std::vector<sp<GraphicBuffer>>* outBuffers) {
+    ALOGV("Surface::getAndFlushBuffersFromSlots");
+    for (int32_t i : slots) {
+        if (i < 0 || i >= NUM_BUFFER_SLOTS) {
+            ALOGE("%s: Invalid slotIndex: %d", __FUNCTION__, i);
+            return BAD_VALUE;
+        }
+    }
+
+    Mutex::Autolock lock(mMutex);
+    for (int32_t i : slots) {
+        if (mSlots[i].buffer == nullptr) {
+            ALOGW("%s: Discarded slot %d doesn't contain buffer!", __FUNCTION__, i);
+            continue;
+        }
+        outBuffers->push_back(mSlots[i].buffer);
+        mSlots[i].buffer = nullptr;
+    }
+    return OK;
+}
+
 void Surface::setSurfaceDamage(android_native_rect_t* rects, size_t numRects) {
     ATRACE_CALL();
     ALOGV("Surface::setSurfaceDamage");
@@ -1949,6 +1980,24 @@ status_t Surface::attachAndQueueBufferWithDataspace(Surface* surface, sp<Graphic
     }
     err = surface->disconnect(NATIVE_WINDOW_API_CPU);
     return err;
+}
+
+void Surface::ProducerListenerProxy::onBuffersDiscarded(const std::vector<int32_t>& slots) {
+    ATRACE_CALL();
+    sp<Surface> parent = mParent.promote();
+    if (parent == nullptr) {
+        return;
+    }
+
+    std::vector<sp<GraphicBuffer>> discardedBufs;
+    status_t res = parent->getAndFlushBuffersFromSlots(slots, &discardedBufs);
+    if (res != OK) {
+        ALOGE("%s: Failed to get buffers from slots: %s(%d)", __FUNCTION__,
+                strerror(-res), res);
+        return;
+    }
+
+    mSurfaceListener->onBuffersDiscarded(discardedBufs);
 }
 
 }; // namespace android
