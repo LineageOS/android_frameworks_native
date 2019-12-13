@@ -221,6 +221,13 @@ public:
             Display display, Config config,
             const IComposerClient::VsyncPeriodChangeConstraints& vsyncPeriodChangeConstraints,
             VsyncPeriodChangeTimeline* outTimeline) = 0;
+
+    virtual V2_4::Error setAutoLowLatencyMode(Display displayId, bool on) = 0;
+    virtual V2_4::Error getSupportedContentTypes(
+            Display displayId,
+            std::vector<IComposerClient::ContentType>* outSupportedContentTypes) = 0;
+    virtual V2_4::Error setContentType(Display displayId,
+                                       IComposerClient::ContentType contentType) = 0;
 };
 
 namespace impl {
@@ -442,6 +449,12 @@ public:
             Display display, Config config,
             const IComposerClient::VsyncPeriodChangeConstraints& vsyncPeriodChangeConstraints,
             VsyncPeriodChangeTimeline* outTimeline) override;
+    V2_4::Error setAutoLowLatencyMode(Display displayId, bool on) override;
+    V2_4::Error getSupportedContentTypes(
+            Display displayId,
+            std::vector<IComposerClient::ContentType>* outSupportedContentTypes) override;
+    V2_4::Error setContentType(Display displayId,
+                               IComposerClient::ContentType contentType) override;
 
 private:
 #if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
