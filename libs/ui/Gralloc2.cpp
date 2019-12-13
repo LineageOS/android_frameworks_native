@@ -351,12 +351,6 @@ int Gralloc2Mapper::unlock(buffer_handle_t bufferHandle) const {
     return releaseFence;
 }
 
-status_t Gralloc2Mapper::isSupported(uint32_t /*width*/, uint32_t /*height*/,
-                                     android::PixelFormat /*format*/, uint32_t /*layerCount*/,
-                                     uint64_t /*usage*/, bool* /*outSupported*/) const {
-    return INVALID_OPERATION;
-}
-
 Gralloc2Allocator::Gralloc2Allocator(const Gralloc2Mapper& mapper) : mMapper(mapper) {
     mAllocator = IAllocator::getService();
     if (mAllocator == nullptr) {
@@ -369,7 +363,7 @@ bool Gralloc2Allocator::isLoaded() const {
     return mAllocator != nullptr;
 }
 
-std::string Gralloc2Allocator::dumpDebugInfo() const {
+std::string Gralloc2Allocator::dumpDebugInfo(bool /*less*/) const {
     std::string debugInfo;
 
     mAllocator->dumpDebugInfo([&](const auto& tmpDebugInfo) {
@@ -379,10 +373,10 @@ std::string Gralloc2Allocator::dumpDebugInfo() const {
     return debugInfo;
 }
 
-status_t Gralloc2Allocator::allocate(uint32_t width, uint32_t height, PixelFormat format,
-                                     uint32_t layerCount, uint64_t usage, uint32_t bufferCount,
-                                     uint32_t* outStride, buffer_handle_t* outBufferHandles,
-                                     bool importBuffers) const {
+status_t Gralloc2Allocator::allocate(std::string /*requestorName*/, uint32_t width, uint32_t height,
+                                     PixelFormat format, uint32_t layerCount, uint64_t usage,
+                                     uint32_t bufferCount, uint32_t* outStride,
+                                     buffer_handle_t* outBufferHandles, bool importBuffers) const {
     IMapper::BufferDescriptorInfo descriptorInfo = {};
     descriptorInfo.width = width;
     descriptorInfo.height = height;

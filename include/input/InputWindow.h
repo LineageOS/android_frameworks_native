@@ -63,7 +63,6 @@ struct InputWindowInfo {
         FLAG_DISMISS_KEYGUARD = 0x00400000,
         FLAG_SPLIT_TOUCH = 0x00800000,
         FLAG_SLIPPERY = 0x20000000,
-        FLAG_NEEDS_MENU_KEY = 0x40000000,
     };
 
     // Window types from WindowManager.LayoutParams

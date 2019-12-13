@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <iosfwd>
+
 #include <math/mat4.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Rect.h>
@@ -61,6 +63,32 @@ struct DisplaySettings {
     // The orientation of the physical display.
     uint32_t orientation = ui::Transform::ROT_0;
 };
+
+static inline bool operator==(const DisplaySettings& lhs, const DisplaySettings& rhs) {
+    return lhs.physicalDisplay == rhs.physicalDisplay && lhs.clip == rhs.clip &&
+            lhs.globalTransform == rhs.globalTransform && lhs.maxLuminance == rhs.maxLuminance &&
+            lhs.outputDataspace == rhs.outputDataspace &&
+            lhs.colorTransform == rhs.colorTransform &&
+            lhs.clearRegion.hasSameRects(rhs.clearRegion) && lhs.orientation == rhs.orientation;
+}
+
+// Defining PrintTo helps with Google Tests.
+static inline void PrintTo(const DisplaySettings& settings, ::std::ostream* os) {
+    *os << "DisplaySettings {";
+    *os << "\n    .physicalDisplay = ";
+    PrintTo(settings.physicalDisplay, os);
+    *os << "\n    .clip = ";
+    PrintTo(settings.clip, os);
+    *os << "\n    .globalTransform = " << settings.globalTransform;
+    *os << "\n    .maxLuminance = " << settings.maxLuminance;
+    *os << "\n    .outputDataspace = ";
+    PrintTo(settings.outputDataspace, os);
+    *os << "\n    .colorTransform = " << settings.colorTransform;
+    *os << "\n    .clearRegion = ";
+    PrintTo(settings.clearRegion, os);
+    *os << "\n    .orientation = " << settings.orientation;
+    *os << "\n}";
+}
 
 } // namespace renderengine
 } // namespace android

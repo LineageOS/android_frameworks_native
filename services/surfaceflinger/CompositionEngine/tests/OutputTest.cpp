@@ -41,9 +41,13 @@ namespace {
 
 using testing::_;
 using testing::ByMove;
+using testing::ByRef;
 using testing::DoAll;
+using testing::ElementsAreArray;
 using testing::Eq;
 using testing::InSequence;
+using testing::Invoke;
+using testing::IsEmpty;
 using testing::Mock;
 using testing::Property;
 using testing::Ref;
@@ -2438,8 +2442,6 @@ TEST_F(OutputDevOptRepaintFlashTest, alsoComposesSurfacesAndQueuesABufferIfDirty
     mOutput.devOptRepaintFlash(mRefreshArgs);
 }
 
-// TODO(b/144060211) - Add coverage
-
 /*
  * Output::finishFrame()
  */
@@ -2667,13 +2669,7 @@ TEST_F(OutputPostFramebufferTest, releasedLayersSentPresentFence) {
  */
 
 struct OutputComposeSurfacesTest : public testing::Test {
-    static constexpr uint32_t kDefaultOutputOrientation = TR_IDENT;
-    static constexpr ui::Dataspace kDefaultOutputDataspace = ui::Dataspace::DISPLAY_P3;
-
-    static const Rect kDefaultOutputFrame;
-    static const Rect kDefaultOutputViewport;
-    static const Rect kDefaultOutputScissor;
-    static const mat4 kDefaultColorTransformMat;
+    using TestType = OutputComposeSurfacesTest;
 
     struct OutputPartialMock : public OutputPartialMockBase {
         // Sets up the helper functions called by the function under test to use
@@ -2691,28 +2687,56 @@ struct OutputComposeSurfacesTest : public testing::Test {
                 std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
         mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
 
-        mOutput.editState().frame = kDefaultOutputFrame;
-        mOutput.editState().viewport = kDefaultOutputViewport;
-        mOutput.editState().scissor = kDefaultOutputScissor;
-        mOutput.editState().transform = ui::Transform{kDefaultOutputOrientation};
-        mOutput.editState().orientation = kDefaultOutputOrientation;
-        mOutput.editState().dataspace = kDefaultOutputDataspace;
-        mOutput.editState().colorTransformMatrix = kDefaultColorTransformMat;
-        mOutput.editState().isSecure = true;
-        mOutput.editState().needsFiltering = false;
-        mOutput.editState().usesClientComposition = true;
-        mOutput.editState().usesDeviceComposition = false;
+        mOutput.mState.frame = kDefaultOutputFrame;
+        mOutput.mState.viewport = kDefaultOutputViewport;
+        mOutput.mState.scissor = kDefaultOutputScissor;
+        mOutput.mState.transform = ui::Transform{kDefaultOutputOrientation};
+        mOutput.mState.orientation = kDefaultOutputOrientation;
+        mOutput.mState.dataspace = kDefaultOutputDataspace;
+        mOutput.mState.colorTransformMatrix = kDefaultColorTransformMat;
+        mOutput.mState.isSecure = false;
+        mOutput.mState.needsFiltering = false;
+        mOutput.mState.usesClientComposition = true;
+        mOutput.mState.usesDeviceComposition = false;
 
-        EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(2u));
-        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u))
-                .WillRepeatedly(Return(&mOutputLayer1));
-        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(1u))
-                .WillRepeatedly(Return(&mOutputLayer2));
         EXPECT_CALL(mOutput, getCompositionEngine()).WillRepeatedly(ReturnRef(mCompositionEngine));
         EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
         EXPECT_CALL(mCompositionEngine, getTimeStats())
                 .WillRepeatedly(ReturnRef(*mTimeStats.get()));
+        EXPECT_CALL(*mDisplayColorProfile, getHdrCapabilities())
+                .WillRepeatedly(ReturnRef(kHdrCapabilities));
     }
+
+    struct ExecuteState : public CallOrderStateMachineHelper<TestType, ExecuteState> {
+        auto execute() {
+            getInstance()->mReadyFence = getInstance()->mOutput.composeSurfaces(kDebugRegion);
+            return nextState<FenceCheckState>();
+        }
+    };
+
+    struct FenceCheckState : public CallOrderStateMachineHelper<TestType, FenceCheckState> {
+        void expectNoFenceWasReturned() { EXPECT_FALSE(getInstance()->mReadyFence); }
+
+        void expectAFenceWasReturned() { EXPECT_TRUE(getInstance()->mReadyFence); }
+    };
+
+    // Call this member function to start using the mini-DSL defined above.
+    [[nodiscard]] auto verify() { return ExecuteState::make(this); }
+
+    static constexpr uint32_t kDefaultOutputOrientation = TR_IDENT;
+    static constexpr ui::Dataspace kDefaultOutputDataspace = ui::Dataspace::UNKNOWN;
+    static constexpr ui::Dataspace kExpensiveOutputDataspace = ui::Dataspace::DISPLAY_P3;
+    static constexpr float kDefaultMaxLuminance = 0.9f;
+    static constexpr float kDefaultAvgLuminance = 0.7f;
+    static constexpr float kDefaultMinLuminance = 0.1f;
+
+    static const Rect kDefaultOutputFrame;
+    static const Rect kDefaultOutputViewport;
+    static const Rect kDefaultOutputScissor;
+    static const mat4 kDefaultColorTransformMat;
+
+    static const Region kDebugRegion;
+    static const HdrCapabilities kHdrCapabilities;
 
     StrictMock<mock::CompositionEngine> mCompositionEngine;
     StrictMock<renderengine::mock::RenderEngine> mRenderEngine;
@@ -2720,55 +2744,347 @@ struct OutputComposeSurfacesTest : public testing::Test {
     std::shared_ptr<TimeStats> mTimeStats = std::make_shared<android::impl::TimeStats>();
     mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
     mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
-    StrictMock<mock::OutputLayer> mOutputLayer1;
-    StrictMock<mock::OutputLayer> mOutputLayer2;
     StrictMock<OutputPartialMock> mOutput;
     sp<GraphicBuffer> mOutputBuffer = new GraphicBuffer();
+
+    std::optional<base::unique_fd> mReadyFence;
 };
 
 const Rect OutputComposeSurfacesTest::kDefaultOutputFrame{1001, 1002, 1003, 1004};
 const Rect OutputComposeSurfacesTest::kDefaultOutputViewport{1005, 1006, 1007, 1008};
 const Rect OutputComposeSurfacesTest::kDefaultOutputScissor{1009, 1010, 1011, 1012};
 const mat4 OutputComposeSurfacesTest::kDefaultColorTransformMat{mat4() * 0.5};
-
-// TODO(b/121291683): Expand unit test coverage for composeSurfaces beyond these
-// basic tests.
+const Region OutputComposeSurfacesTest::kDebugRegion{Rect{100, 101, 102, 103}};
+const HdrCapabilities OutputComposeSurfacesTest::
+        kHdrCapabilities{{},
+                         OutputComposeSurfacesTest::kDefaultMaxLuminance,
+                         OutputComposeSurfacesTest::kDefaultAvgLuminance,
+                         OutputComposeSurfacesTest::kDefaultMinLuminance};
 
 TEST_F(OutputComposeSurfacesTest, doesNothingIfNoClientComposition) {
-    mOutput.editState().usesClientComposition = false;
+    mOutput.mState.usesClientComposition = false;
 
-    Region debugRegion;
-    std::optional<base::unique_fd> readyFence = mOutput.composeSurfaces(debugRegion);
-    EXPECT_TRUE(readyFence);
+    verify().execute().expectAFenceWasReturned();
 }
 
-TEST_F(OutputComposeSurfacesTest, worksIfNoClientLayersQueued) {
-    const Region kDebugRegion{Rect{100, 101, 102, 103}};
+TEST_F(OutputComposeSurfacesTest, doesMinimalWorkIfDequeueBufferFails) {
+    EXPECT_CALL(mOutput, getSkipColorTransform()).WillRepeatedly(Return(false));
+    EXPECT_CALL(*mDisplayColorProfile, hasWideColorGamut()).WillRepeatedly(Return(true));
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
+    EXPECT_CALL(mOutput, generateClientCompositionRequests(_, _, kDefaultOutputDataspace))
+            .WillRepeatedly(Return(std::vector<renderengine::LayerSettings>{}));
+    EXPECT_CALL(mOutput, appendRegionFlashRequests(RegionEq(kDebugRegion), _))
+            .WillRepeatedly(Return());
 
-    constexpr float kDefaultMaxLuminance = 1.0f;
-    constexpr float kDefaultAvgLuminance = 0.7f;
-    constexpr float kDefaultMinLuminance = 0.1f;
-    HdrCapabilities HdrCapabilities{{},
-                                    kDefaultMaxLuminance,
-                                    kDefaultAvgLuminance,
-                                    kDefaultMinLuminance};
+    EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillOnce(Return(nullptr));
 
-    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillOnce(Return(false));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, true, _, _)).Times(1);
+    verify().execute().expectNoFenceWasReturned();
+}
 
-    EXPECT_CALL(*mDisplayColorProfile, hasWideColorGamut()).WillOnce(Return(true));
-    EXPECT_CALL(*mDisplayColorProfile, getHdrCapabilities()).WillOnce(ReturnRef(HdrCapabilities));
+TEST_F(OutputComposeSurfacesTest, handlesZeroCompositionRequests) {
+    EXPECT_CALL(mOutput, getSkipColorTransform()).WillRepeatedly(Return(false));
+    EXPECT_CALL(*mDisplayColorProfile, hasWideColorGamut()).WillRepeatedly(Return(true));
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
+    EXPECT_CALL(mOutput, generateClientCompositionRequests(_, _, kDefaultOutputDataspace))
+            .WillRepeatedly(Return(std::vector<renderengine::LayerSettings>{}));
+    EXPECT_CALL(mOutput, appendRegionFlashRequests(RegionEq(kDebugRegion), _))
+            .WillRepeatedly(Return());
 
-    EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillOnce(Return(mOutputBuffer));
+    EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
+    EXPECT_CALL(mRenderEngine, drawLayers(_, IsEmpty(), _, true, _, _))
+            .WillRepeatedly(Return(NO_ERROR));
 
-    EXPECT_CALL(mOutput, getSkipColorTransform()).WillOnce(Return(false));
-    EXPECT_CALL(mOutput, generateClientCompositionRequests(false, _, _)).Times(1);
-    EXPECT_CALL(mOutput, appendRegionFlashRequests(RegionEq(kDebugRegion), _)).Times(1);
-    EXPECT_CALL(mOutput, setExpensiveRenderingExpected(true)).Times(1);
-    EXPECT_CALL(mOutput, setExpensiveRenderingExpected(false)).Times(1);
+    verify().execute().expectAFenceWasReturned();
+}
 
-    std::optional<base::unique_fd> readyFence = mOutput.composeSurfaces(kDebugRegion);
-    EXPECT_TRUE(readyFence);
+TEST_F(OutputComposeSurfacesTest, buildsAndRendersRequestList) {
+    renderengine::LayerSettings r1;
+    renderengine::LayerSettings r2;
+
+    r1.geometry.boundaries = FloatRect{1, 2, 3, 4};
+    r2.geometry.boundaries = FloatRect{5, 6, 7, 8};
+
+    EXPECT_CALL(mOutput, getSkipColorTransform()).WillRepeatedly(Return(false));
+    EXPECT_CALL(*mDisplayColorProfile, hasWideColorGamut()).WillRepeatedly(Return(true));
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
+    EXPECT_CALL(mOutput, generateClientCompositionRequests(_, _, kDefaultOutputDataspace))
+            .WillRepeatedly(Return(std::vector<renderengine::LayerSettings>{r1}));
+    EXPECT_CALL(mOutput, appendRegionFlashRequests(RegionEq(kDebugRegion), _))
+            .WillRepeatedly(
+                    Invoke([&](const Region&,
+                               std::vector<renderengine::LayerSettings>& clientCompositionLayers) {
+                        clientCompositionLayers.emplace_back(r2);
+                    }));
+
+    EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
+    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAreArray({r1, r2}), _, true, _, _))
+            .WillRepeatedly(Return(NO_ERROR));
+
+    verify().execute().expectAFenceWasReturned();
+}
+
+struct OutputComposeSurfacesTest_UsesExpectedDisplaySettings : public OutputComposeSurfacesTest {
+    OutputComposeSurfacesTest_UsesExpectedDisplaySettings() {
+        EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
+        EXPECT_CALL(mOutput, generateClientCompositionRequests(_, _, kDefaultOutputDataspace))
+                .WillRepeatedly(Return(std::vector<renderengine::LayerSettings>{}));
+        EXPECT_CALL(mOutput, appendRegionFlashRequests(RegionEq(kDebugRegion), _))
+                .WillRepeatedly(Return());
+        EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
+    }
+
+    struct MixedCompositionState
+          : public CallOrderStateMachineHelper<TestType, MixedCompositionState> {
+        auto ifMixedCompositionIs(bool used) {
+            getInstance()->mOutput.mState.usesDeviceComposition = used;
+            return nextState<OutputUsesHdrState>();
+        }
+    };
+
+    struct OutputUsesHdrState : public CallOrderStateMachineHelper<TestType, OutputUsesHdrState> {
+        auto andIfUsesHdr(bool used) {
+            EXPECT_CALL(*getInstance()->mDisplayColorProfile, hasWideColorGamut())
+                    .WillOnce(Return(used));
+            return nextState<SkipColorTransformState>();
+        }
+    };
+
+    struct SkipColorTransformState
+          : public CallOrderStateMachineHelper<TestType, SkipColorTransformState> {
+        auto andIfSkipColorTransform(bool skip) {
+            // May be called zero or one times.
+            EXPECT_CALL(getInstance()->mOutput, getSkipColorTransform())
+                    .WillRepeatedly(Return(skip));
+            return nextState<ExpectDisplaySettingsState>();
+        }
+    };
+
+    struct ExpectDisplaySettingsState
+          : public CallOrderStateMachineHelper<TestType, ExpectDisplaySettingsState> {
+        auto thenExpectDisplaySettingsUsed(renderengine::DisplaySettings settings) {
+            EXPECT_CALL(getInstance()->mRenderEngine, drawLayers(settings, _, _, true, _, _))
+                    .WillOnce(Return(NO_ERROR));
+            return nextState<ExecuteState>();
+        }
+    };
+
+    // Call this member function to start using the mini-DSL defined above.
+    [[nodiscard]] auto verify() { return MixedCompositionState::make(this); }
+};
+
+TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrMixedComposition) {
+    verify().ifMixedCompositionIs(true)
+            .andIfUsesHdr(true)
+            .andIfSkipColorTransform(false)
+            .thenExpectDisplaySettingsUsed({kDefaultOutputScissor, kDefaultOutputScissor, mat4(),
+                                            kDefaultMaxLuminance, kDefaultOutputDataspace, mat4(),
+                                            Region::INVALID_REGION, kDefaultOutputOrientation})
+            .execute()
+            .expectAFenceWasReturned();
+}
+
+TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrMixedComposition) {
+    verify().ifMixedCompositionIs(true)
+            .andIfUsesHdr(false)
+            .andIfSkipColorTransform(false)
+            .thenExpectDisplaySettingsUsed({kDefaultOutputScissor, kDefaultOutputScissor, mat4(),
+                                            kDefaultMaxLuminance, kDefaultOutputDataspace, mat4(),
+                                            Region::INVALID_REGION, kDefaultOutputOrientation})
+            .execute()
+            .expectAFenceWasReturned();
+}
+
+TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrOnlyClientComposition) {
+    verify().ifMixedCompositionIs(false)
+            .andIfUsesHdr(true)
+            .andIfSkipColorTransform(false)
+            .thenExpectDisplaySettingsUsed({kDefaultOutputScissor, kDefaultOutputScissor, mat4(),
+                                            kDefaultMaxLuminance, kDefaultOutputDataspace,
+                                            kDefaultColorTransformMat, Region::INVALID_REGION,
+                                            kDefaultOutputOrientation})
+            .execute()
+            .expectAFenceWasReturned();
+}
+
+TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrOnlyClientComposition) {
+    verify().ifMixedCompositionIs(false)
+            .andIfUsesHdr(false)
+            .andIfSkipColorTransform(false)
+            .thenExpectDisplaySettingsUsed({kDefaultOutputScissor, kDefaultOutputScissor, mat4(),
+                                            kDefaultMaxLuminance, kDefaultOutputDataspace,
+                                            kDefaultColorTransformMat, Region::INVALID_REGION,
+                                            kDefaultOutputOrientation})
+            .execute()
+            .expectAFenceWasReturned();
+}
+
+TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
+       usesExpectedDisplaySettingsForHdrOnlyClientCompositionWithSkipClientTransform) {
+    verify().ifMixedCompositionIs(false)
+            .andIfUsesHdr(true)
+            .andIfSkipColorTransform(true)
+            .thenExpectDisplaySettingsUsed({kDefaultOutputScissor, kDefaultOutputScissor, mat4(),
+                                            kDefaultMaxLuminance, kDefaultOutputDataspace, mat4(),
+                                            Region::INVALID_REGION, kDefaultOutputOrientation})
+            .execute()
+            .expectAFenceWasReturned();
+}
+
+struct OutputComposeSurfacesTest_HandlesProtectedContent : public OutputComposeSurfacesTest {
+    struct Layer {
+        Layer() {
+            EXPECT_CALL(mOutputLayer, getLayer()).WillRepeatedly(ReturnRef(mLayer));
+            EXPECT_CALL(mLayer, getFEState()).WillRepeatedly(ReturnRef(mLayerFEState));
+        }
+
+        StrictMock<mock::OutputLayer> mOutputLayer;
+        StrictMock<mock::Layer> mLayer;
+        LayerFECompositionState mLayerFEState;
+    };
+
+    OutputComposeSurfacesTest_HandlesProtectedContent() {
+        mLayer1.mLayerFEState.hasProtectedContent = false;
+        mLayer2.mLayerFEState.hasProtectedContent = false;
+
+        EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(2u));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u))
+                .WillRepeatedly(Return(&mLayer1.mOutputLayer));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(1u))
+                .WillRepeatedly(Return(&mLayer2.mOutputLayer));
+
+        EXPECT_CALL(mOutput, getSkipColorTransform()).WillRepeatedly(Return(false));
+
+        EXPECT_CALL(*mDisplayColorProfile, hasWideColorGamut()).WillRepeatedly(Return(true));
+
+        EXPECT_CALL(mOutput, generateClientCompositionRequests(_, _, _))
+                .WillRepeatedly(Return(std::vector<renderengine::LayerSettings>{}));
+        EXPECT_CALL(mOutput, appendRegionFlashRequests(RegionEq(kDebugRegion), _))
+                .WillRepeatedly(Return());
+        EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
+        EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, true, _, _))
+                .WillRepeatedly(Return(NO_ERROR));
+    }
+
+    Layer mLayer1;
+    Layer mLayer2;
+};
+
+TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifDisplayIsNotSecure) {
+    mOutput.mState.isSecure = false;
+    mLayer2.mLayerFEState.hasProtectedContent = true;
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
+
+    mOutput.composeSurfaces(kDebugRegion);
+}
+
+TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifRenderEngineDoesNotSupportIt) {
+    mOutput.mState.isSecure = true;
+    mLayer2.mLayerFEState.hasProtectedContent = true;
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
+
+    mOutput.composeSurfaces(kDebugRegion);
+}
+
+TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNoProtectedContentLayers) {
+    mOutput.mState.isSecure = true;
+    mLayer2.mLayerFEState.hasProtectedContent = false;
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
+    EXPECT_CALL(mRenderEngine, isProtected).WillOnce(Return(true)).WillOnce(Return(false));
+    EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(true));
+    EXPECT_CALL(mRenderEngine, useProtectedContext(false));
+    EXPECT_CALL(*mRenderSurface, setProtected(false));
+
+    mOutput.composeSurfaces(kDebugRegion);
+}
+
+TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNotEnabled) {
+    mOutput.mState.isSecure = true;
+    mLayer2.mLayerFEState.hasProtectedContent = true;
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
+
+    // For this test, we also check the call order of key functions.
+    InSequence seq;
+
+    EXPECT_CALL(mRenderEngine, isProtected).WillOnce(Return(false));
+    EXPECT_CALL(mRenderEngine, useProtectedContext(true));
+    EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(false));
+    EXPECT_CALL(mRenderEngine, isProtected).WillOnce(Return(true));
+    EXPECT_CALL(*mRenderSurface, setProtected(true));
+    // Must happen after setting the protected content state.
+    EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, true, _, _)).WillOnce(Return(NO_ERROR));
+
+    mOutput.composeSurfaces(kDebugRegion);
+}
+
+TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledEverywhere) {
+    mOutput.mState.isSecure = true;
+    mLayer2.mLayerFEState.hasProtectedContent = true;
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
+    EXPECT_CALL(mRenderEngine, isProtected).WillOnce(Return(true));
+    EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(true));
+
+    mOutput.composeSurfaces(kDebugRegion);
+}
+
+TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifFailsToEnableInRenderEngine) {
+    mOutput.mState.isSecure = true;
+    mLayer2.mLayerFEState.hasProtectedContent = true;
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
+    EXPECT_CALL(mRenderEngine, isProtected).WillOnce(Return(false)).WillOnce(Return(false));
+    EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(false));
+    EXPECT_CALL(mRenderEngine, useProtectedContext(true));
+
+    mOutput.composeSurfaces(kDebugRegion);
+}
+
+TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledInRenderEngine) {
+    mOutput.mState.isSecure = true;
+    mLayer2.mLayerFEState.hasProtectedContent = true;
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
+    EXPECT_CALL(mRenderEngine, isProtected).WillOnce(Return(true)).WillOnce(Return(true));
+    EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(false));
+    EXPECT_CALL(*mRenderSurface, setProtected(true));
+
+    mOutput.composeSurfaces(kDebugRegion);
+}
+
+TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledInRenderSurface) {
+    mOutput.mState.isSecure = true;
+    mLayer2.mLayerFEState.hasProtectedContent = true;
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
+    EXPECT_CALL(mRenderEngine, isProtected).WillOnce(Return(false));
+    EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(true));
+    EXPECT_CALL(mRenderEngine, useProtectedContext(true));
+
+    mOutput.composeSurfaces(kDebugRegion);
+}
+
+struct OutputComposeSurfacesTest_SetsExpensiveRendering : public OutputComposeSurfacesTest {
+    OutputComposeSurfacesTest_SetsExpensiveRendering() {
+        EXPECT_CALL(mOutput, getSkipColorTransform()).WillRepeatedly(Return(false));
+        EXPECT_CALL(*mDisplayColorProfile, hasWideColorGamut()).WillRepeatedly(Return(true));
+        EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
+        EXPECT_CALL(mOutput, appendRegionFlashRequests(RegionEq(kDebugRegion), _))
+                .WillRepeatedly(Return());
+        EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
+    }
+};
+
+TEST_F(OutputComposeSurfacesTest_SetsExpensiveRendering, IfExepensiveOutputDataspaceIsUsed) {
+    mOutput.mState.dataspace = kExpensiveOutputDataspace;
+
+    EXPECT_CALL(mOutput, generateClientCompositionRequests(_, _, kExpensiveOutputDataspace))
+            .WillOnce(Return(std::vector<renderengine::LayerSettings>{}));
+
+    // For this test, we also check the call order of key functions.
+    InSequence seq;
+
+    EXPECT_CALL(mOutput, setExpensiveRenderingExpected(true));
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, true, _, _)).WillOnce(Return(NO_ERROR));
+    EXPECT_CALL(mOutput, setExpensiveRenderingExpected(false));
+
+    mOutput.composeSurfaces(kDebugRegion);
 }
 
 /*
@@ -2786,7 +3102,26 @@ struct GenerateClientCompositionRequestsTest : public testing::Test {
         }
     };
 
+    struct Layer {
+        Layer() {
+            EXPECT_CALL(mOutputLayer, getState()).WillRepeatedly(ReturnRef(mOutputLayerState));
+            EXPECT_CALL(mOutputLayer, editState()).WillRepeatedly(ReturnRef(mOutputLayerState));
+            EXPECT_CALL(mOutputLayer, getLayer()).WillRepeatedly(ReturnRef(mLayer));
+            EXPECT_CALL(mOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(mLayerFE));
+            EXPECT_CALL(mLayer, getFEState()).WillRepeatedly(ReturnRef(mLayerFEState));
+        }
+
+        StrictMock<mock::OutputLayer> mOutputLayer;
+        StrictMock<mock::Layer> mLayer;
+        StrictMock<mock::LayerFE> mLayerFE;
+        LayerFECompositionState mLayerFEState;
+        impl::OutputLayerCompositionState mOutputLayerState;
+        renderengine::LayerSettings mRELayerSettings;
+    };
+
     GenerateClientCompositionRequestsTest() {
+        mOutput.mState.needsFiltering = false;
+
         mOutput.setDisplayColorProfileForTest(
                 std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
         mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
@@ -2797,222 +3132,507 @@ struct GenerateClientCompositionRequestsTest : public testing::Test {
     StrictMock<OutputPartialMock> mOutput;
 };
 
-// TODO(b/121291683): Add more unit test coverage for generateClientCompositionRequests
+struct GenerateClientCompositionRequestsTest_ThreeLayers
+      : public GenerateClientCompositionRequestsTest {
+    GenerateClientCompositionRequestsTest_ThreeLayers() {
+        mOutput.mState.frame = kDisplayFrame;
+        mOutput.mState.viewport = kDisplayViewport;
+        mOutput.mState.scissor = kDisplayScissor;
+        mOutput.mState.transform = ui::Transform{kDisplayOrientation};
+        mOutput.mState.orientation = kDisplayOrientation;
+        mOutput.mState.needsFiltering = false;
+        mOutput.mState.isSecure = false;
 
-TEST_F(GenerateClientCompositionRequestsTest, worksForLandscapeModeSplitScreen) {
-    // In split-screen landscape mode, the screen is rotated 90 degrees, with
-    // one layer on the left covering the left side of the output, and one layer
-    // on the right covering that side of the output.
+        for (size_t i = 0; i < mLayers.size(); i++) {
+            mLayers[i].mOutputLayerState.clearClientTarget = false;
+            mLayers[i].mOutputLayerState.visibleRegion = Region(kDisplayFrame);
+            mLayers[i].mLayerFEState.isOpaque = true;
+            mLayers[i].mRELayerSettings.geometry.boundaries =
+                    FloatRect{static_cast<float>(i + 1), 0.f, 0.f, 0.f};
+            mLayers[i].mRELayerSettings.source.solidColor = {1.0f, 1.0f, 1.0f};
+            mLayers[i].mRELayerSettings.alpha = 1.0f;
+            mLayers[i].mRELayerSettings.disableBlending = false;
 
-    StrictMock<mock::OutputLayer> leftOutputLayer;
-    StrictMock<mock::OutputLayer> rightOutputLayer;
+            EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(i))
+                    .WillRepeatedly(Return(&mLayers[i].mOutputLayer));
+            EXPECT_CALL(mLayers[i].mOutputLayer, requiresClientComposition())
+                    .WillRepeatedly(Return(true));
+            EXPECT_CALL(mLayers[i].mOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
+        }
 
-    StrictMock<mock::Layer> leftLayer;
-    StrictMock<mock::LayerFE> leftLayerFE;
-    StrictMock<mock::Layer> rightLayer;
-    StrictMock<mock::LayerFE> rightLayerFE;
+        EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(mLayers.size()));
+    }
 
-    impl::OutputLayerCompositionState leftOutputLayerState;
-    leftOutputLayerState.clearClientTarget = false;
-    leftOutputLayerState.visibleRegion = Region{Rect{0, 0, 1000, 1000}};
+    static constexpr uint32_t kDisplayOrientation = TR_IDENT;
+    static constexpr ui::Dataspace kDisplayDataspace = ui::Dataspace::UNKNOWN;
 
-    LayerFECompositionState leftLayerFEState;
-    leftLayerFEState.isOpaque = true;
+    static const Rect kDisplayFrame;
+    static const Rect kDisplayViewport;
+    static const Rect kDisplayScissor;
 
-    const half3 leftLayerColor{1.f, 0.f, 0.f};
-    renderengine::LayerSettings leftLayerRESettings;
-    leftLayerRESettings.source.solidColor = leftLayerColor;
+    std::array<Layer, 3> mLayers;
+};
 
-    impl::OutputLayerCompositionState rightOutputLayerState;
-    rightOutputLayerState.clearClientTarget = false;
-    rightOutputLayerState.visibleRegion = Region{Rect{1000, 0, 2000, 1000}};
+const Rect GenerateClientCompositionRequestsTest_ThreeLayers::kDisplayFrame(0, 0, 100, 200);
+const Rect GenerateClientCompositionRequestsTest_ThreeLayers::kDisplayViewport(0, 0, 101, 201);
+const Rect GenerateClientCompositionRequestsTest_ThreeLayers::kDisplayScissor(0, 0, 102, 202);
 
-    LayerFECompositionState rightLayerFEState;
-    rightLayerFEState.isOpaque = true;
+TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers, handlesNoClientCompostionLayers) {
+    EXPECT_CALL(mLayers[0].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
+    EXPECT_CALL(mLayers[1].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
+    EXPECT_CALL(mLayers[2].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
 
-    const half3 rightLayerColor{0.f, 1.f, 0.f};
-    renderengine::LayerSettings rightLayerRESettings;
-    rightLayerRESettings.source.solidColor = rightLayerColor;
-
-    EXPECT_CALL(leftOutputLayer, getState()).WillRepeatedly(ReturnRef(leftOutputLayerState));
-    EXPECT_CALL(leftOutputLayer, getLayer()).WillRepeatedly(ReturnRef(leftLayer));
-    EXPECT_CALL(leftOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(leftLayerFE));
-    EXPECT_CALL(leftOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
-    EXPECT_CALL(leftOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
-    EXPECT_CALL(leftLayer, getFEState()).WillRepeatedly(ReturnRef(leftLayerFEState));
-    EXPECT_CALL(leftLayerFE, prepareClientComposition(_)).WillOnce(Return(leftLayerRESettings));
-    EXPECT_CALL(leftLayerFE, prepareShadowClientComposition(_, _, _))
-            .WillOnce(Return(std::optional<renderengine::LayerSettings>()));
-    EXPECT_CALL(leftOutputLayer, editState()).WillRepeatedly(ReturnRef(leftOutputLayerState));
-
-    EXPECT_CALL(rightOutputLayer, getState()).WillRepeatedly(ReturnRef(rightOutputLayerState));
-    EXPECT_CALL(rightOutputLayer, getLayer()).WillRepeatedly(ReturnRef(rightLayer));
-    EXPECT_CALL(rightOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(rightLayerFE));
-    EXPECT_CALL(rightOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
-    EXPECT_CALL(rightOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
-    EXPECT_CALL(rightLayer, getFEState()).WillRepeatedly(ReturnRef(rightLayerFEState));
-    EXPECT_CALL(rightLayerFE, prepareClientComposition(_)).WillOnce(Return(rightLayerRESettings));
-    EXPECT_CALL(rightLayerFE, prepareShadowClientComposition(_, _, _))
-            .WillOnce(Return(std::optional<renderengine::LayerSettings>()));
-    EXPECT_CALL(rightOutputLayer, editState()).WillRepeatedly(ReturnRef(rightOutputLayerState));
-
-    EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(2u));
-    EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u))
-            .WillRepeatedly(Return(&leftOutputLayer));
-    EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(1u))
-            .WillRepeatedly(Return(&rightOutputLayer));
-
-    const Rect kPortraitFrame(0, 0, 1000, 2000);
-    const Rect kPortraitViewport(0, 0, 2000, 1000);
-    const Rect kPortraitScissor(0, 0, 1000, 2000);
-    const uint32_t kPortraitOrientation = TR_ROT_90;
-
-    mOutput.editState().frame = kPortraitFrame;
-    mOutput.editState().viewport = kPortraitViewport;
-    mOutput.editState().scissor = kPortraitScissor;
-    mOutput.editState().transform = ui::Transform{kPortraitOrientation};
-    mOutput.editState().orientation = kPortraitOrientation;
-    mOutput.editState().needsFiltering = true;
-    mOutput.editState().isSecure = false;
-
-    constexpr bool supportsProtectedContent = false;
-    Region clearRegion;
-    auto requests = mOutput.generateClientCompositionRequests(supportsProtectedContent, clearRegion,
-                                                              mOutput.getState().targetDataspace);
-
-    ASSERT_EQ(2u, requests.size());
-    EXPECT_EQ(leftLayerColor, requests[0].source.solidColor);
-    EXPECT_EQ(rightLayerColor, requests[1].source.solidColor);
-}
-
-TEST_F(GenerateClientCompositionRequestsTest, ignoresLayersThatDoNotIntersectWithViewport) {
-    // Layers whose visible region does not intersect with the viewport will be
-    // skipped when generating client composition request state.
-
-    StrictMock<mock::OutputLayer> outputLayer;
-    StrictMock<mock::Layer> layer;
-    StrictMock<mock::LayerFE> layerFE;
-
-    impl::OutputLayerCompositionState outputLayerState;
-    outputLayerState.clearClientTarget = false;
-    outputLayerState.visibleRegion = Region{Rect{3000, 0, 4000, 1000}};
-
-    LayerFECompositionState layerFEState;
-    layerFEState.isOpaque = true;
-
-    EXPECT_CALL(outputLayer, getState()).WillRepeatedly(ReturnRef(outputLayerState));
-    EXPECT_CALL(outputLayer, getLayer()).WillRepeatedly(ReturnRef(layer));
-    EXPECT_CALL(outputLayer, getLayerFE()).WillRepeatedly(ReturnRef(layerFE));
-    EXPECT_CALL(outputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
-    EXPECT_CALL(outputLayer, needsFiltering()).WillRepeatedly(Return(false));
-    EXPECT_CALL(layer, getFEState()).WillRepeatedly(ReturnRef(layerFEState));
-    EXPECT_CALL(layerFE, prepareClientComposition(_)).Times(0);
-    EXPECT_CALL(outputLayer, editState()).WillRepeatedly(ReturnRef(outputLayerState));
-
-    EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(1u));
-    EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u)).WillRepeatedly(Return(&outputLayer));
-
-    const Rect kPortraitFrame(0, 0, 1000, 2000);
-    const Rect kPortraitViewport(0, 0, 2000, 1000);
-    const Rect kPortraitScissor(0, 0, 1000, 2000);
-    const uint32_t kPortraitOrientation = TR_ROT_90;
-
-    mOutput.editState().frame = kPortraitFrame;
-    mOutput.editState().viewport = kPortraitViewport;
-    mOutput.editState().scissor = kPortraitScissor;
-    mOutput.editState().transform = ui::Transform{kPortraitOrientation};
-    mOutput.editState().orientation = kPortraitOrientation;
-    mOutput.editState().needsFiltering = true;
-    mOutput.editState().isSecure = false;
-
-    constexpr bool supportsProtectedContent = false;
-    Region clearRegion;
-    auto requests = mOutput.generateClientCompositionRequests(supportsProtectedContent, clearRegion,
-                                                              mOutput.getState().targetDataspace);
-
+    Region accumClearRegion(Rect(10, 11, 12, 13));
+    auto requests = mOutput.generateClientCompositionRequests(false /* supportsProtectedContent */,
+                                                              accumClearRegion, kDisplayDataspace);
     EXPECT_EQ(0u, requests.size());
+    EXPECT_THAT(accumClearRegion, RegionEq(Region(Rect(10, 11, 12, 13))));
 }
 
-TEST_F(GenerateClientCompositionRequestsTest, clearsDeviceLayesAfterFirst) {
+TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers, requiresVisibleRegionAfterViewportClip) {
+    mLayers[0].mOutputLayerState.visibleRegion = Region(Rect(10, 10, 10, 10));
+    mLayers[1].mOutputLayerState.visibleRegion = Region(Rect(4000, 0, 4010, 10));
+    mLayers[2].mOutputLayerState.visibleRegion = Region(Rect(-10, -10, 0, 0));
+
+    Region accumClearRegion(Rect(10, 11, 12, 13));
+    auto requests = mOutput.generateClientCompositionRequests(false /* supportsProtectedContent */,
+                                                              accumClearRegion, kDisplayDataspace);
+    EXPECT_EQ(0u, requests.size());
+    EXPECT_THAT(accumClearRegion, RegionEq(Region(Rect(10, 11, 12, 13))));
+}
+
+TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers, gathersClientCompositionRequests) {
+    renderengine::LayerSettings mREShadowSettings;
+    mREShadowSettings.source.solidColor = {0.1f, 0.1f, 0.1f};
+
+    EXPECT_CALL(mLayers[0].mLayerFE, prepareClientComposition(_)).WillOnce(Return(std::nullopt));
+    EXPECT_CALL(mLayers[1].mLayerFE, prepareClientComposition(_))
+            .WillOnce(Return(mLayers[1].mRELayerSettings));
+    EXPECT_CALL(mLayers[1].mLayerFE,
+                prepareShadowClientComposition(mLayers[1].mRELayerSettings, kDisplayViewport,
+                                               kDisplayDataspace))
+            .WillOnce(Return(std::nullopt));
+    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientComposition(_))
+            .WillOnce(Return(mLayers[2].mRELayerSettings));
+    EXPECT_CALL(mLayers[2].mLayerFE,
+                prepareShadowClientComposition(mLayers[2].mRELayerSettings, kDisplayViewport,
+                                               kDisplayDataspace))
+            .WillOnce(Return(mREShadowSettings));
+
+    Region accumClearRegion(Rect(10, 11, 12, 13));
+    auto requests = mOutput.generateClientCompositionRequests(false /* supportsProtectedContent */,
+                                                              accumClearRegion, kDisplayDataspace);
+    ASSERT_EQ(3u, requests.size());
+    EXPECT_EQ(mLayers[1].mRELayerSettings, requests[0]);
+    EXPECT_EQ(mREShadowSettings, requests[1]);
+    EXPECT_EQ(mLayers[2].mRELayerSettings, requests[2]);
+
+    EXPECT_THAT(accumClearRegion, RegionEq(Region(Rect(10, 11, 12, 13))));
+
+    // Check that a timestamp was set for the layers that generated requests
+    EXPECT_TRUE(0 == mLayers[0].mOutputLayerState.clientCompositionTimestamp);
+    EXPECT_TRUE(0 != mLayers[1].mOutputLayerState.clientCompositionTimestamp);
+    EXPECT_TRUE(0 != mLayers[2].mOutputLayerState.clientCompositionTimestamp);
+}
+
+TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
+       onlyClientComposesClientComposedLayersIfNoClearingNeeded) {
+    EXPECT_CALL(mLayers[0].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
+    EXPECT_CALL(mLayers[1].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
+    EXPECT_CALL(mLayers[2].mOutputLayer, requiresClientComposition()).WillOnce(Return(true));
+
+    mLayers[0].mOutputLayerState.clearClientTarget = false;
+    mLayers[1].mOutputLayerState.clearClientTarget = false;
+    mLayers[2].mOutputLayerState.clearClientTarget = false;
+
+    mLayers[0].mLayerFEState.isOpaque = true;
+    mLayers[1].mLayerFEState.isOpaque = true;
+    mLayers[2].mLayerFEState.isOpaque = true;
+
+    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientComposition(_))
+            .WillOnce(Return(mLayers[2].mRELayerSettings));
+    EXPECT_CALL(mLayers[2].mLayerFE, prepareShadowClientComposition(_, _, _))
+            .WillOnce(Return(std::nullopt));
+
+    Region accumClearRegion(Rect(10, 11, 12, 13));
+    auto requests = mOutput.generateClientCompositionRequests(false /* supportsProtectedContent */,
+                                                              accumClearRegion, kDisplayDataspace);
+    ASSERT_EQ(1u, requests.size());
+    EXPECT_EQ(mLayers[2].mRELayerSettings, requests[0]);
+
+    EXPECT_THAT(accumClearRegion, RegionEq(Region(Rect(10, 11, 12, 13))));
+}
+
+TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
+       onlyClientComposesClientComposedLayersIfOthersAreNotOpaque) {
+    EXPECT_CALL(mLayers[0].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
+    EXPECT_CALL(mLayers[1].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
+    EXPECT_CALL(mLayers[2].mOutputLayer, requiresClientComposition()).WillOnce(Return(true));
+
+    mLayers[0].mOutputLayerState.clearClientTarget = true;
+    mLayers[1].mOutputLayerState.clearClientTarget = true;
+    mLayers[2].mOutputLayerState.clearClientTarget = true;
+
+    mLayers[0].mLayerFEState.isOpaque = false;
+    mLayers[1].mLayerFEState.isOpaque = false;
+    mLayers[2].mLayerFEState.isOpaque = false;
+
+    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientComposition(_))
+            .WillOnce(Return(mLayers[2].mRELayerSettings));
+    EXPECT_CALL(mLayers[2].mLayerFE, prepareShadowClientComposition(_, _, _))
+            .WillOnce(Return(std::nullopt));
+
+    Region accumClearRegion(Rect(10, 11, 12, 13));
+    auto requests = mOutput.generateClientCompositionRequests(false /* supportsProtectedContent */,
+                                                              accumClearRegion, kDisplayDataspace);
+    ASSERT_EQ(1u, requests.size());
+    EXPECT_EQ(mLayers[2].mRELayerSettings, requests[0]);
+
+    EXPECT_THAT(accumClearRegion, RegionEq(Region(Rect(10, 11, 12, 13))));
+}
+
+TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers, clearsHWCLayersIfOpaqueAndNotFirst) {
     // If client composition is performed with some layers set to use device
     // composition, device layers after the first layer (device or client) will
     // clear the frame buffer if they are opaque and if that layer has a flag
     // set to do so. The first layer is skipped as the frame buffer is already
     // expected to be clear.
 
-    StrictMock<mock::OutputLayer> leftOutputLayer;
-    StrictMock<mock::OutputLayer> rightOutputLayer;
+    EXPECT_CALL(mLayers[0].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
+    EXPECT_CALL(mLayers[1].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
+    EXPECT_CALL(mLayers[2].mOutputLayer, requiresClientComposition()).WillOnce(Return(true));
 
-    StrictMock<mock::Layer> leftLayer;
-    StrictMock<mock::LayerFE> leftLayerFE;
-    StrictMock<mock::Layer> rightLayer;
-    StrictMock<mock::LayerFE> rightLayerFE;
+    mLayers[0].mOutputLayerState.clearClientTarget = true;
+    mLayers[1].mOutputLayerState.clearClientTarget = true;
+    mLayers[2].mOutputLayerState.clearClientTarget = true;
 
-    impl::OutputLayerCompositionState leftOutputLayerState;
-    leftOutputLayerState.clearClientTarget = true;
-    leftOutputLayerState.visibleRegion = Region{Rect{0, 0, 1000, 1000}};
+    mLayers[0].mLayerFEState.isOpaque = true;
+    mLayers[1].mLayerFEState.isOpaque = true;
+    mLayers[2].mLayerFEState.isOpaque = true;
 
-    LayerFECompositionState leftLayerFEState;
-    leftLayerFEState.isOpaque = true;
+    EXPECT_CALL(mLayers[1].mLayerFE, prepareClientComposition(_))
+            .WillOnce(Return(mLayers[1].mRELayerSettings));
+    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientComposition(_))
+            .WillOnce(Return(mLayers[2].mRELayerSettings));
+    EXPECT_CALL(mLayers[2].mLayerFE, prepareShadowClientComposition(_, _, _))
+            .WillOnce(Return(std::nullopt));
 
-    impl::OutputLayerCompositionState rightOutputLayerState;
-    rightOutputLayerState.clearClientTarget = true;
-    rightOutputLayerState.visibleRegion = Region{Rect{1000, 0, 2000, 1000}};
+    Region accumClearRegion(Rect(10, 11, 12, 13));
+    auto requests = mOutput.generateClientCompositionRequests(false /* supportsProtectedContent */,
+                                                              accumClearRegion, kDisplayDataspace);
+    ASSERT_EQ(2u, requests.size());
 
-    LayerFECompositionState rightLayerFEState;
-    rightLayerFEState.isOpaque = true;
+    // The second layer is expected to be rendered as alpha=0 black with no blending
+    EXPECT_EQ(mLayers[1].mRELayerSettings.geometry.boundaries, requests[0].geometry.boundaries);
+    EXPECT_FALSE(requests[0].source.buffer.buffer);
+    EXPECT_EQ((half3{0.f, 0.f, 0.f}), requests[0].source.solidColor);
+    EXPECT_EQ(half{0.f}, requests[0].alpha);
+    EXPECT_EQ(true, requests[0].disableBlending);
 
-    const half3 rightLayerColor{0.f, 1.f, 0.f};
-    renderengine::LayerSettings rightLayerRESettings;
-    rightLayerRESettings.geometry.boundaries = FloatRect{456, 0, 0, 0};
-    rightLayerRESettings.source.solidColor = rightLayerColor;
+    EXPECT_EQ(mLayers[2].mRELayerSettings, requests[1]);
 
-    EXPECT_CALL(leftOutputLayer, getState()).WillRepeatedly(ReturnRef(leftOutputLayerState));
-    EXPECT_CALL(leftOutputLayer, getLayer()).WillRepeatedly(ReturnRef(leftLayer));
-    EXPECT_CALL(leftOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(leftLayerFE));
-    EXPECT_CALL(leftOutputLayer, requiresClientComposition()).WillRepeatedly(Return(false));
-    EXPECT_CALL(leftOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
-    EXPECT_CALL(leftLayer, getFEState()).WillRepeatedly(ReturnRef(leftLayerFEState));
-    EXPECT_CALL(leftOutputLayer, editState()).WillRepeatedly(ReturnRef(leftOutputLayerState));
+    EXPECT_THAT(accumClearRegion, RegionEq(Region(Rect(10, 11, 12, 13))));
+}
 
-    EXPECT_CALL(rightOutputLayer, getState()).WillRepeatedly(ReturnRef(rightOutputLayerState));
-    EXPECT_CALL(rightOutputLayer, getLayer()).WillRepeatedly(ReturnRef(rightLayer));
-    EXPECT_CALL(rightOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(rightLayerFE));
-    EXPECT_CALL(rightOutputLayer, requiresClientComposition()).WillRepeatedly(Return(false));
-    EXPECT_CALL(rightOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
-    EXPECT_CALL(rightLayer, getFEState()).WillRepeatedly(ReturnRef(rightLayerFEState));
-    EXPECT_CALL(rightLayerFE, prepareClientComposition(_)).WillOnce(Return(rightLayerRESettings));
-    EXPECT_CALL(rightOutputLayer, editState()).WillRepeatedly(ReturnRef(rightOutputLayerState));
+TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
+       clippedVisibleRegionUsedToGenerateRequest) {
+    mLayers[0].mOutputLayerState.visibleRegion = Region(Rect(10, 10, 20, 20));
+    mLayers[1].mOutputLayerState.visibleRegion = Region(Rect(-10, -10, 30, 30));
+    mLayers[2].mOutputLayerState.visibleRegion = Region(Rect(-10, 0, 40, 4000));
 
-    EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(2u));
-    EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u))
-            .WillRepeatedly(Return(&leftOutputLayer));
-    EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(1u))
-            .WillRepeatedly(Return(&rightOutputLayer));
+    Region accumClearRegion(Rect(10, 11, 12, 13));
+
+    compositionengine::LayerFE::ClientCompositionTargetSettings layer0TargetSettings{
+            Region(Rect(10, 10, 20, 20)),
+            false, /* identity transform */
+            false, /* needs filtering */
+            false, /* secure */
+            false, /* supports protected content */
+            accumClearRegion,
+    };
+    compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
+            Region(Rect(0, 0, 30, 30)),
+            false, /* identity transform */
+            false, /* needs filtering */
+            false, /* secure */
+            false, /* supports protected content */
+            accumClearRegion,
+    };
+    compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
+            Region(Rect(0, 0, 40, 201)),
+            false, /* identity transform */
+            false, /* needs filtering */
+            false, /* secure */
+            false, /* supports protected content */
+            accumClearRegion,
+    };
+
+    EXPECT_CALL(mLayers[0].mLayerFE, prepareClientComposition(Eq(ByRef(layer0TargetSettings))))
+            .WillOnce(Return(std::nullopt));
+    EXPECT_CALL(mLayers[1].mLayerFE, prepareClientComposition(Eq(ByRef(layer1TargetSettings))))
+            .WillOnce(Return(std::nullopt));
+    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientComposition(Eq(ByRef(layer2TargetSettings))))
+            .WillOnce(Return(std::nullopt));
+
+    static_cast<void>(
+            mOutput.generateClientCompositionRequests(false /* supportsProtectedContent */,
+                                                      accumClearRegion, kDisplayDataspace));
+}
+
+TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
+       perLayerNeedsFilteringUsedToGenerateRequests) {
+    mOutput.mState.needsFiltering = false;
+    EXPECT_CALL(mLayers[0].mOutputLayer, needsFiltering()).WillRepeatedly(Return(true));
+
+    Region accumClearRegion(Rect(10, 11, 12, 13));
+
+    compositionengine::LayerFE::ClientCompositionTargetSettings layer0TargetSettings{
+            Region(kDisplayFrame),
+            false, /* identity transform */
+            true,  /* needs filtering */
+            false, /* secure */
+            false, /* supports protected content */
+            accumClearRegion,
+    };
+    compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
+            Region(kDisplayFrame),
+            false, /* identity transform */
+            false, /* needs filtering */
+            false, /* secure */
+            false, /* supports protected content */
+            accumClearRegion,
+    };
+    compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
+            Region(kDisplayFrame),
+            false, /* identity transform */
+            false, /* needs filtering */
+            false, /* secure */
+            false, /* supports protected content */
+            accumClearRegion,
+    };
+
+    EXPECT_CALL(mLayers[0].mLayerFE, prepareClientComposition(Eq(ByRef(layer0TargetSettings))))
+            .WillOnce(Return(std::nullopt));
+    EXPECT_CALL(mLayers[1].mLayerFE, prepareClientComposition(Eq(ByRef(layer1TargetSettings))))
+            .WillOnce(Return(std::nullopt));
+    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientComposition(Eq(ByRef(layer2TargetSettings))))
+            .WillOnce(Return(std::nullopt));
+
+    static_cast<void>(
+            mOutput.generateClientCompositionRequests(false /* supportsProtectedContent */,
+                                                      accumClearRegion, kDisplayDataspace));
+}
+
+TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
+       wholeOutputNeedsFilteringUsedToGenerateRequests) {
+    mOutput.mState.needsFiltering = true;
+    EXPECT_CALL(mLayers[0].mOutputLayer, needsFiltering()).WillRepeatedly(Return(true));
+
+    Region accumClearRegion(Rect(10, 11, 12, 13));
+
+    compositionengine::LayerFE::ClientCompositionTargetSettings layer0TargetSettings{
+            Region(kDisplayFrame),
+            false, /* identity transform */
+            true,  /* needs filtering */
+            false, /* secure */
+            false, /* supports protected content */
+            accumClearRegion,
+    };
+    compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
+            Region(kDisplayFrame),
+            false, /* identity transform */
+            true,  /* needs filtering */
+            false, /* secure */
+            false, /* supports protected content */
+            accumClearRegion,
+    };
+    compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
+            Region(kDisplayFrame),
+            false, /* identity transform */
+            true,  /* needs filtering */
+            false, /* secure */
+            false, /* supports protected content */
+            accumClearRegion,
+    };
+
+    EXPECT_CALL(mLayers[0].mLayerFE, prepareClientComposition(Eq(ByRef(layer0TargetSettings))))
+            .WillOnce(Return(std::nullopt));
+    EXPECT_CALL(mLayers[1].mLayerFE, prepareClientComposition(Eq(ByRef(layer1TargetSettings))))
+            .WillOnce(Return(std::nullopt));
+    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientComposition(Eq(ByRef(layer2TargetSettings))))
+            .WillOnce(Return(std::nullopt));
+
+    static_cast<void>(
+            mOutput.generateClientCompositionRequests(false /* supportsProtectedContent */,
+                                                      accumClearRegion, kDisplayDataspace));
+}
+
+TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
+       wholeOutputSecurityUsedToGenerateRequests) {
+    mOutput.mState.isSecure = true;
+
+    Region accumClearRegion(Rect(10, 11, 12, 13));
+
+    compositionengine::LayerFE::ClientCompositionTargetSettings layer0TargetSettings{
+            Region(kDisplayFrame),
+            false, /* identity transform */
+            false, /* needs filtering */
+            true,  /* secure */
+            false, /* supports protected content */
+            accumClearRegion,
+    };
+    compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
+            Region(kDisplayFrame),
+            false, /* identity transform */
+            false, /* needs filtering */
+            true,  /* secure */
+            false, /* supports protected content */
+            accumClearRegion,
+    };
+    compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
+            Region(kDisplayFrame),
+            false, /* identity transform */
+            false, /* needs filtering */
+            true,  /* secure */
+            false, /* supports protected content */
+            accumClearRegion,
+    };
+
+    EXPECT_CALL(mLayers[0].mLayerFE, prepareClientComposition(Eq(ByRef(layer0TargetSettings))))
+            .WillOnce(Return(std::nullopt));
+    EXPECT_CALL(mLayers[1].mLayerFE, prepareClientComposition(Eq(ByRef(layer1TargetSettings))))
+            .WillOnce(Return(std::nullopt));
+    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientComposition(Eq(ByRef(layer2TargetSettings))))
+            .WillOnce(Return(std::nullopt));
+
+    static_cast<void>(
+            mOutput.generateClientCompositionRequests(false /* supportsProtectedContent */,
+                                                      accumClearRegion, kDisplayDataspace));
+}
+
+TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
+       protectedContentSupportUsedToGenerateRequests) {
+    Region accumClearRegion(Rect(10, 11, 12, 13));
+
+    compositionengine::LayerFE::ClientCompositionTargetSettings layer0TargetSettings{
+            Region(kDisplayFrame),
+            false, /* identity transform */
+            false, /* needs filtering */
+            false, /* secure */
+            true,  /* supports protected content */
+            accumClearRegion,
+    };
+    compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
+            Region(kDisplayFrame),
+            false, /* identity transform */
+            false, /* needs filtering */
+            false, /* secure */
+            true,  /* supports protected content */
+            accumClearRegion,
+    };
+    compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
+            Region(kDisplayFrame),
+            false, /* identity transform */
+            false, /* needs filtering */
+            false, /* secure */
+            true,  /* supports protected content */
+            accumClearRegion,
+    };
+
+    EXPECT_CALL(mLayers[0].mLayerFE, prepareClientComposition(Eq(ByRef(layer0TargetSettings))))
+            .WillOnce(Return(std::nullopt));
+    EXPECT_CALL(mLayers[1].mLayerFE, prepareClientComposition(Eq(ByRef(layer1TargetSettings))))
+            .WillOnce(Return(std::nullopt));
+    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientComposition(Eq(ByRef(layer2TargetSettings))))
+            .WillOnce(Return(std::nullopt));
+
+    static_cast<void>(mOutput.generateClientCompositionRequests(true /* supportsProtectedContent */,
+                                                                accumClearRegion,
+                                                                kDisplayDataspace));
+}
+
+TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenRequests) {
+    // In split-screen landscape mode, the screen is rotated 90 degrees, with
+    // one layer on the left covering the left side of the output, and one layer
+    // on the right covering that side of the output.
 
     const Rect kPortraitFrame(0, 0, 1000, 2000);
     const Rect kPortraitViewport(0, 0, 2000, 1000);
     const Rect kPortraitScissor(0, 0, 1000, 2000);
     const uint32_t kPortraitOrientation = TR_ROT_90;
+    constexpr ui::Dataspace kOutputDataspace = ui::Dataspace::DISPLAY_P3;
 
-    mOutput.editState().frame = kPortraitFrame;
-    mOutput.editState().viewport = kPortraitViewport;
-    mOutput.editState().scissor = kPortraitScissor;
-    mOutput.editState().transform = ui::Transform{kPortraitOrientation};
-    mOutput.editState().orientation = kPortraitOrientation;
-    mOutput.editState().needsFiltering = true;
-    mOutput.editState().isSecure = false;
+    mOutput.mState.frame = kPortraitFrame;
+    mOutput.mState.viewport = kPortraitViewport;
+    mOutput.mState.scissor = kPortraitScissor;
+    mOutput.mState.transform = ui::Transform{kPortraitOrientation};
+    mOutput.mState.orientation = kPortraitOrientation;
+    mOutput.mState.needsFiltering = false;
+    mOutput.mState.isSecure = true;
 
-    constexpr bool supportsProtectedContent = false;
-    Region clearRegion;
-    auto requests = mOutput.generateClientCompositionRequests(supportsProtectedContent, clearRegion,
-                                                              mOutput.getState().targetDataspace);
+    Layer leftLayer;
+    Layer rightLayer;
 
-    const half3 clearColor{0.f, 0.f, 0.f};
+    leftLayer.mOutputLayerState.clearClientTarget = false;
+    leftLayer.mOutputLayerState.visibleRegion = Region(Rect(0, 0, 1000, 1000));
+    leftLayer.mLayerFEState.isOpaque = true;
+    leftLayer.mRELayerSettings.source.solidColor = {1.f, 0.f, 0.f};
 
-    ASSERT_EQ(1u, requests.size());
-    EXPECT_EQ(456.f, requests[0].geometry.boundaries.left);
-    EXPECT_EQ(clearColor, requests[0].source.solidColor);
+    rightLayer.mOutputLayerState.clearClientTarget = false;
+    rightLayer.mOutputLayerState.visibleRegion = Region(Rect(1000, 0, 2000, 1000));
+    rightLayer.mLayerFEState.isOpaque = true;
+    rightLayer.mRELayerSettings.source.solidColor = {0.f, 1.f, 0.f};
+
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(2u));
+    EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u))
+            .WillRepeatedly(Return(&leftLayer.mOutputLayer));
+    EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(1u))
+            .WillRepeatedly(Return(&rightLayer.mOutputLayer));
+
+    Region accumClearRegion(Rect(10, 11, 12, 13));
+
+    compositionengine::LayerFE::ClientCompositionTargetSettings leftLayerSettings{
+            Region(Rect(0, 0, 1000, 1000)),
+            false, /* identity transform */
+            false, /* needs filtering */
+            true,  /* secure */
+            true,  /* supports protected content */
+            accumClearRegion,
+    };
+
+    EXPECT_CALL(leftLayer.mOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
+    EXPECT_CALL(leftLayer.mOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
+    EXPECT_CALL(leftLayer.mLayerFE, prepareClientComposition(Eq(ByRef(leftLayerSettings))))
+            .WillOnce(Return(leftLayer.mRELayerSettings));
+    EXPECT_CALL(leftLayer.mLayerFE,
+                prepareShadowClientComposition(leftLayer.mRELayerSettings, kPortraitViewport,
+                                               kOutputDataspace))
+            .WillOnce(Return(std::nullopt));
+
+    compositionengine::LayerFE::ClientCompositionTargetSettings rightLayerSettings{
+            Region(Rect(1000, 0, 2000, 1000)),
+            false, /* identity transform */
+            false, /* needs filtering */
+            true,  /* secure */
+            true,  /* supports protected content */
+            accumClearRegion,
+    };
+
+    EXPECT_CALL(rightLayer.mOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
+    EXPECT_CALL(rightLayer.mOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
+    EXPECT_CALL(rightLayer.mLayerFE, prepareClientComposition(Eq(ByRef(rightLayerSettings))))
+            .WillOnce(Return(rightLayer.mRELayerSettings));
+    EXPECT_CALL(rightLayer.mLayerFE,
+                prepareShadowClientComposition(rightLayer.mRELayerSettings, kPortraitViewport,
+                                               kOutputDataspace))
+            .WillOnce(Return(std::nullopt));
+
+    constexpr bool supportsProtectedContent = true;
+    auto requests = mOutput.generateClientCompositionRequests(supportsProtectedContent,
+                                                              accumClearRegion, kOutputDataspace);
+    ASSERT_EQ(2u, requests.size());
+    EXPECT_EQ(leftLayer.mRELayerSettings, requests[0]);
+    EXPECT_EQ(rightLayer.mRELayerSettings, requests[1]);
 }
 
 } // namespace

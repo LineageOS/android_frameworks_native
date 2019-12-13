@@ -2595,6 +2595,8 @@ binder::Status InstalldNativeService::invalidateMounts() {
         std::getline(in, ignored);
 
         if (android::base::GetBoolProperty(kFuseProp, false)) {
+            // TODO(b/146139106): Use sdcardfs mounts on devices running sdcardfs so we don't bypass
+            // it's VFS cache
             if (target.compare(0, 17, "/mnt/pass_through") == 0) {
                 LOG(DEBUG) << "Found storage mount " << source << " at " << target;
                 mStorageMounts[source] = target;
@@ -2616,6 +2618,17 @@ std::string InstalldNativeService::findDataMediaPath(
     std::lock_guard<std::recursive_mutex> lock(mMountsLock);
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     auto path = StringPrintf("%s/media", create_data_path(uuid_).c_str());
+    if (android::base::GetBoolProperty(kFuseProp, false)) {
+        // TODO(b/146139106): This is only safe on devices not running sdcardfs where there is no
+        // risk of bypassing the sdcardfs VFS cache
+
+        // Always use the lower filesystem path on FUSE enabled devices not running sdcardfs
+        // The upper filesystem path, /mnt/pass_through/<userid>/<vol>/ which was a bind mount
+        // to the lower filesytem may have been unmounted already when a user is
+        // removed and the path will now be pointing to a tmpfs without content
+        return StringPrintf("%s/%u", path.c_str(), userid);
+    }
+
     auto resolved = mStorageMounts[path];
     if (resolved.empty()) {
         LOG(WARNING) << "Failed to find storage mount for " << path;
