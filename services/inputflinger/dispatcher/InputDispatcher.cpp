@@ -4115,7 +4115,9 @@ status_t InputDispatcher::pilferPointers(const sp<IBinder>& token) {
         options.displayId = displayId;
         for (const TouchedWindow& window : state.windows) {
             sp<InputChannel> channel = getInputChannelLocked(window.windowHandle->getToken());
-            synthesizeCancelationEventsForInputChannelLocked(channel, options);
+            if (channel != nullptr) {
+                synthesizeCancelationEventsForInputChannelLocked(channel, options);
+            }
         }
         // Then clear the current touch state so we stop dispatching to them as well.
         state.filterNonMonitors();

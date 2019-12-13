@@ -488,6 +488,11 @@ public:
                      expectedFlags);
     }
 
+    void consumeMotionUp(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
+        consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_UP, expectedDisplayId,
+                     expectedFlags);
+    }
+
     void assertNoEvents() {
         InputEvent* event = consume();
         ASSERT_EQ(nullptr, event)
@@ -637,6 +642,11 @@ static int32_t injectMotionEvent(const sp<InputDispatcher>& dispatcher, int32_t 
 static int32_t injectMotionDown(const sp<InputDispatcher>& dispatcher, int32_t source,
                                 int32_t displayId, int32_t x = 100, int32_t y = 200) {
     return injectMotionEvent(dispatcher, AMOTION_EVENT_ACTION_DOWN, source, displayId, x, y);
+}
+
+static int32_t injectMotionUp(const sp<InputDispatcher>& dispatcher, int32_t source,
+                              int32_t displayId, int32_t x = 100, int32_t y = 200) {
+    return injectMotionEvent(dispatcher, AMOTION_EVENT_ACTION_UP, source, displayId, x, y);
 }
 
 static NotifyKeyArgs generateKeyArgs(int32_t action, int32_t displayId = ADISPLAY_ID_NONE) {
@@ -847,6 +857,81 @@ TEST_F(InputDispatcherTest, NotifyDeviceReset_CancelsMotionStream) {
                          0 /*expectedFlags*/);
 }
 
+class FakeMonitorReceiver : public FakeInputReceiver, public RefBase {
+public:
+    FakeMonitorReceiver(const sp<InputDispatcher>& dispatcher, const std::string name,
+                        int32_t displayId, bool isGestureMonitor = false)
+          : FakeInputReceiver(dispatcher, name, displayId) {
+        mDispatcher->registerInputMonitor(mServerChannel, displayId, isGestureMonitor);
+    }
+
+    sp<IBinder> getToken() { return mServerChannel->getConnectionToken(); }
+};
+
+// Tests for gesture monitors
+TEST_F(InputDispatcherTest, GestureMonitor_ReceivesMotionEvents) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+
+    sp<FakeMonitorReceiver> monitor =
+            new FakeMonitorReceiver(mDispatcher, "GM_1", ADISPLAY_ID_DEFAULT,
+                                    true /*isGestureMonitor*/);
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT))
+            << "Inject motion event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    window->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+    monitor->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+}
+
+TEST_F(InputDispatcherTest, GestureMonitor_DoesNotReceiveKeyEvents) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
+
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+    window->setFocus();
+
+    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+
+    sp<FakeMonitorReceiver> monitor =
+            new FakeMonitorReceiver(mDispatcher, "GM_1", ADISPLAY_ID_DEFAULT,
+                                    true /*isGestureMonitor*/);
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher, ADISPLAY_ID_DEFAULT))
+            << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    window->consumeKeyDown(ADISPLAY_ID_DEFAULT);
+    monitor->assertNoEvents();
+}
+
+TEST_F(InputDispatcherTest, GestureMonitor_CanPilferAfterWindowIsRemovedMidStream) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+
+    sp<FakeMonitorReceiver> monitor =
+            new FakeMonitorReceiver(mDispatcher, "GM_1", ADISPLAY_ID_DEFAULT,
+                                    true /*isGestureMonitor*/);
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT))
+            << "Inject motion event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    window->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+    monitor->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+
+    window->releaseChannel();
+
+    mDispatcher->pilferPointers(monitor->getToken());
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionUp(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT))
+            << "Inject motion event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    monitor->consumeMotionUp(ADISPLAY_ID_DEFAULT);
+}
+
 /* Test InputDispatcher for MultiDisplay */
 class InputDispatcherFocusOnTwoDisplaysTest : public InputDispatcherTest {
 public:
@@ -933,15 +1018,6 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, SetInputWindow_MultiDisplayFocus) 
     windowInPrimary->assertNoEvents();
     windowInSecondary->assertNoEvents();
 }
-
-class FakeMonitorReceiver : public FakeInputReceiver, public RefBase {
-public:
-    FakeMonitorReceiver(const sp<InputDispatcher>& dispatcher, const std::string name,
-            int32_t displayId, bool isGestureMonitor = false)
-            : FakeInputReceiver(dispatcher, name, displayId) {
-        mDispatcher->registerInputMonitor(mServerChannel, displayId, isGestureMonitor);
-    }
-};
 
 // Test per-display input monitors for motion event.
 TEST_F(InputDispatcherFocusOnTwoDisplaysTest, MonitorMotionEvent_MultiDisplay) {
