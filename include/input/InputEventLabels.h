@@ -405,13 +405,12 @@ static const InputEventLabel LEDS[] = {
     { nullptr, 0 }
 };
 
-static const InputEventLabel FLAGS[] = {
-    DEFINE_FLAG(VIRTUAL),
-    DEFINE_FLAG(FUNCTION),
-    DEFINE_FLAG(GESTURE),
+static const InputEventLabel FLAGS[] = {DEFINE_FLAG(VIRTUAL),
+                                        DEFINE_FLAG(FUNCTION),
+                                        DEFINE_FLAG(GESTURE),
+                                        DEFINE_FLAG(WAKE),
 
-    { nullptr, 0 }
-};
+                                        {nullptr, 0}};
 
 static int lookupValueByLabel(const char* literal, const InputEventLabel *list) {
     while (list->literal) {
