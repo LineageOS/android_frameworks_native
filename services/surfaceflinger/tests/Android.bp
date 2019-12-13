@@ -53,11 +53,15 @@ cc_test {
         "libgui",
         "liblayers_proto",
         "liblog",
+        "libnativewindow",
         "libprotobuf-cpp-full",
         "libtimestats_proto",
         "libui",
         "libutils",
-    ]
+    ],
+    header_libs: [
+        "libnativewindow_headers",
+    ],
 }
 
 cc_defaults {
