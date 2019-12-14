@@ -160,6 +160,21 @@ public:
     static status_t setActiveColorMode(const sp<IBinder>& display,
             ui::ColorMode colorMode);
 
+    // Reports whether the connected display supports Auto Low Latency Mode
+    static bool getAutoLowLatencyModeSupport(const sp<IBinder>& display);
+
+    // Switches on/off Auto Low Latency Mode on the connected display. This should only be
+    // called if the connected display supports Auto Low Latency Mode as reported by
+    // #getAutoLowLatencyModeSupport
+    static void setAutoLowLatencyMode(const sp<IBinder>& display, bool on);
+
+    // Reports whether the connected display supports Game content type
+    static bool getGameContentTypeSupport(const sp<IBinder>& display);
+
+    // Turns Game mode on/off on the connected display. This should only be called
+    // if the display supports Game content type, as reported by #getGameContentTypeSupport
+    static void setGameContentType(const sp<IBinder>& display, bool on);
+
     /* Triggers screen on/off or low power mode and waits for it to complete */
     static void setDisplayPowerMode(const sp<IBinder>& display, int mode);
 

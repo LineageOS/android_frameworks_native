@@ -286,36 +286,6 @@ public:
     virtual status_t attachBuffer(int* outSlot,
             const sp<GraphicBuffer>& buffer) = 0;
 
-    // queueBuffer indicates that the client has finished filling in the
-    // contents of the buffer associated with slot and transfers ownership of
-    // that slot back to the server.
-    //
-    // It is not valid to call queueBuffer on a slot that is not owned
-    // by the client or one for which a buffer associated via requestBuffer
-    // (an attempt to do so will fail with a return value of BAD_VALUE).
-    //
-    // In addition, the input must be described by the client (as documented
-    // below). Any other properties (zero point, etc)
-    // are client-dependent, and should be documented by the client.
-    //
-    // The slot must be in the range of [0, NUM_BUFFER_SLOTS).
-    //
-    // Upon success, the output will be filled with meaningful values
-    // (refer to the documentation below).
-    //
-    // Return of a value other than NO_ERROR means an error has occurred:
-    // * NO_INIT - the buffer queue has been abandoned or the producer is not
-    //             connected.
-    // * BAD_VALUE - one of the below conditions occurred:
-    //              * fence was NULL
-    //              * scaling mode was unknown
-    //              * both in async mode and buffer count was less than the
-    //                max numbers of buffers that can be allocated at once
-    //              * slot index was out of range (see above).
-    //              * the slot was not in the dequeued state
-    //              * the slot was enqueued without requesting a buffer
-    //              * crop rect is out of bounds of the buffer dimensions
-
     struct QueueBufferInput : public Flattenable<QueueBufferInput> {
         friend class Flattenable<QueueBufferInput>;
         explicit inline QueueBufferInput(const Parcel& parcel);
@@ -415,6 +385,35 @@ public:
         int maxBufferCount{0};
     };
 
+    // queueBuffer indicates that the client has finished filling in the
+    // contents of the buffer associated with slot and transfers ownership of
+    // that slot back to the server.
+    //
+    // It is not valid to call queueBuffer on a slot that is not owned
+    // by the client or one for which a buffer associated via requestBuffer
+    // (an attempt to do so will fail with a return value of BAD_VALUE).
+    //
+    // In addition, the input must be described by the client (as documented
+    // below). Any other properties (zero point, etc)
+    // are client-dependent, and should be documented by the client.
+    //
+    // The slot must be in the range of [0, NUM_BUFFER_SLOTS).
+    //
+    // Upon success, the output will be filled with meaningful values
+    // (refer to the documentation below).
+    //
+    // Return of a value other than NO_ERROR means an error has occurred:
+    // * NO_INIT - the buffer queue has been abandoned or the producer is not
+    //             connected.
+    // * BAD_VALUE - one of the below conditions occurred:
+    //              * fence was NULL
+    //              * scaling mode was unknown
+    //              * both in async mode and buffer count was less than the
+    //                max numbers of buffers that can be allocated at once
+    //              * slot index was out of range (see above).
+    //              * the slot was not in the dequeued state
+    //              * the slot was enqueued without requesting a buffer
+    //              * crop rect is out of bounds of the buffer dimensions
     virtual status_t queueBuffer(int slot, const QueueBufferInput& input,
             QueueBufferOutput* output) = 0;
 
