@@ -184,10 +184,6 @@ public:
             DisplayId displayId, size_t configId,
             const HWC2::VsyncPeriodChangeConstraints& constraints,
             HWC2::VsyncPeriodChangeTimeline* outTimeline) = 0;
-    virtual status_t setAutoLowLatencyMode(DisplayId displayId, bool on) = 0;
-    virtual status_t getSupportedContentTypes(
-            DisplayId displayId, std::vector<HWC2::ContentType>* outSupportedContentTypes) = 0;
-    virtual status_t setContentType(DisplayId displayId, HWC2::ContentType contentType) = 0;
 
     // for debugging ----------------------------------------------------------
     virtual void dump(std::string& out) const = 0;
@@ -317,10 +313,6 @@ public:
     status_t setActiveConfigWithConstraints(DisplayId displayId, size_t configId,
                                             const HWC2::VsyncPeriodChangeConstraints& constraints,
                                             HWC2::VsyncPeriodChangeTimeline* outTimeline) override;
-    status_t setAutoLowLatencyMode(DisplayId displayId, bool) override;
-    status_t getSupportedContentTypes(DisplayId displayId,
-                                      std::vector<HWC2::ContentType>*) override;
-    status_t setContentType(DisplayId displayId, HWC2::ContentType) override;
 
     // for debugging ----------------------------------------------------------
     void dump(std::string& out) const override;

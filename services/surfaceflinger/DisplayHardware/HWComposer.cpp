@@ -722,44 +722,6 @@ bool HWComposer::isUsingVrComposer() const {
     return getComposer()->isUsingVrComposer();
 }
 
-status_t HWComposer::setAutoLowLatencyMode(DisplayId displayId, bool on) {
-    RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
-    const auto error = mDisplayData[displayId].hwcDisplay->setAutoLowLatencyMode(on);
-    if (error == HWC2::Error::Unsupported) {
-        RETURN_IF_HWC_ERROR(error, displayId, INVALID_OPERATION);
-    }
-    if (error == HWC2::Error::BadParameter) {
-        RETURN_IF_HWC_ERROR(error, displayId, BAD_VALUE);
-    }
-    RETURN_IF_HWC_ERROR(error, displayId, UNKNOWN_ERROR);
-    return NO_ERROR;
-}
-
-status_t HWComposer::getSupportedContentTypes(
-        DisplayId displayId, std::vector<HWC2::ContentType>* outSupportedContentTypes) {
-    RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
-    const auto error =
-            mDisplayData[displayId].hwcDisplay->getSupportedContentTypes(outSupportedContentTypes);
-
-    RETURN_IF_HWC_ERROR(error, displayId, UNKNOWN_ERROR);
-
-    return NO_ERROR;
-}
-
-status_t HWComposer::setContentType(DisplayId displayId, HWC2::ContentType contentType) {
-    RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
-    const auto error = mDisplayData[displayId].hwcDisplay->setContentType(contentType);
-    if (error == HWC2::Error::Unsupported) {
-        RETURN_IF_HWC_ERROR(error, displayId, INVALID_OPERATION);
-    }
-    if (error == HWC2::Error::BadParameter) {
-        RETURN_IF_HWC_ERROR(error, displayId, BAD_VALUE);
-    }
-    RETURN_IF_HWC_ERROR(error, displayId, UNKNOWN_ERROR);
-
-    return NO_ERROR;
-}
-
 void HWComposer::dump(std::string& result) const {
     // TODO: In order to provide a dump equivalent to HWC1, we need to shadow
     // all the state going into the layers. This is probably better done in
