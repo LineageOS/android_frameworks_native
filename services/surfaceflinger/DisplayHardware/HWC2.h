@@ -283,10 +283,6 @@ public:
             const std::shared_ptr<const HWC2::Display::Config>& config,
             const VsyncPeriodChangeConstraints& constraints,
             VsyncPeriodChangeTimeline* outTimeline) = 0;
-    [[clang::warn_unused_result]] virtual Error setAutoLowLatencyMode(bool on) const = 0;
-    [[clang::warn_unused_result]] virtual Error getSupportedContentTypes(
-            std::vector<HWC2::ContentType>*) const = 0;
-    [[clang::warn_unused_result]] virtual Error setContentType(HWC2::ContentType) const = 0;
 };
 
 namespace impl {
@@ -350,10 +346,7 @@ public:
     Error setActiveConfigWithConstraints(const std::shared_ptr<const HWC2::Display::Config>& config,
                                          const VsyncPeriodChangeConstraints& constraints,
                                          VsyncPeriodChangeTimeline* outTimeline) override;
-    Error setAutoLowLatencyMode(bool on) const override;
-    Error getSupportedContentTypes(
-            std::vector<HWC2::ContentType>* outSupportedContentTypes) const override;
-    Error setContentType(HWC2::ContentType contentType) const override;
+
     // Other Display methods
     hwc2_display_t getId() const override { return mId; }
     bool isConnected() const override { return mIsConnected; }
