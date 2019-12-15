@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "libgralloctypes"
+
 #include <cstring>
 #include <cinttypes>
 #include <limits>
@@ -797,10 +799,6 @@ status_t decodeCta861_3Helper(InputHidlVec* inputHidlVec, Cta861_3* outCta861_3)
 /**
  * Public API functions
  */
-PlaneLayoutComponentType getStandardPlaneLayoutComponentTypeValue(
-        const ExtendableType& planeLayoutComponentType) {
-    return static_cast<PlaneLayoutComponentType>(planeLayoutComponentType.value);
-}
 
 status_t encodeBufferId(uint64_t bufferId, hidl_vec<uint8_t>* outBufferId) {
     return encode(MetadataType_BufferId, bufferId, outBufferId, encodeInteger);
@@ -1026,6 +1024,11 @@ Interlaced getStandardInterlacedValue(const ExtendableType& interlaced) {
 
 ChromaSiting getStandardChromaSitingValue(const ExtendableType& chromaSiting) {
     return static_cast<ChromaSiting>(chromaSiting.value);
+}
+
+PlaneLayoutComponentType getStandardPlaneLayoutComponentTypeValue(
+        const ExtendableType& planeLayoutComponentType) {
+    return static_cast<PlaneLayoutComponentType>(planeLayoutComponentType.value);
 }
 
 std::string getCompressionName(const ExtendableType& compression) {
