@@ -190,7 +190,7 @@ protected:
 
     static bool getOpacityForFormat(uint32_t format);
 
-    // from GLES
+    // from graphics API
     const uint32_t mTextureName;
 
     bool mRefreshPending{false};

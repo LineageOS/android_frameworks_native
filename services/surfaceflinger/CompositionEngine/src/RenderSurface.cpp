@@ -117,12 +117,12 @@ void RenderSurface::prepareFrame(bool usesClientComposition, bool usesDeviceComp
     if (usesClientComposition && usesDeviceComposition) {
         compositionType = DisplaySurface::COMPOSITION_MIXED;
     } else if (usesClientComposition) {
-        compositionType = DisplaySurface::COMPOSITION_GLES;
+        compositionType = DisplaySurface::COMPOSITION_GPU;
     } else if (usesDeviceComposition) {
         compositionType = DisplaySurface::COMPOSITION_HWC;
     } else {
         // Nothing to do -- when turning the screen off we get a frame like
-        // this. Call it a HWC frame since we won't be doing any GLES work but
+        // this. Call it a HWC frame since we won't be doing any GPU work but
         // will do a prepare/set cycle.
         compositionType = DisplaySurface::COMPOSITION_HWC;
     }
