@@ -315,4 +315,9 @@ TEST_F(TransactionApplicationTest, BlockWithPriorTransaction_SyncInputWindows) {
     BlockedByPriorTransaction(/*flags*/ 0, /*syncInputWindows*/ true);
 }
 
+TEST_F(TransactionApplicationTest, FromHandle) {
+    sp<IBinder> badHandle;
+    auto ret = mFlinger.fromHandle(badHandle);
+    EXPECT_EQ(nullptr, ret.get());
+}
 } // namespace android

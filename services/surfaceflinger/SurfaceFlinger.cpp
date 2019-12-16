@@ -5663,7 +5663,10 @@ void SurfaceFlinger::SetInputWindowsListener::onSetInputWindowsFinished() {
 }
 
 sp<Layer> SurfaceFlinger::fromHandle(const sp<IBinder>& handle) {
-    BBinder *b = handle->localBinder();
+    BBinder* b = nullptr;
+    if (handle) {
+        b = handle->localBinder();
+    }
     if (b == nullptr) {
         return nullptr;
     }
