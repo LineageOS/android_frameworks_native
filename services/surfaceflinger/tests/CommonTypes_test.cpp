@@ -100,21 +100,21 @@ static_assert(static_cast<uint32_t>(AidlDataspace::RANGE_LIMITED) ==
               static_cast<uint32_t>(HidlDataspace::RANGE_LIMITED));
 static_assert(static_cast<uint32_t>(AidlDataspace::RANGE_EXTENDED) ==
               static_cast<uint32_t>(HidlDataspace::RANGE_EXTENDED));
-static_assert(static_cast<uint32_t>(AidlDataspace::V0_SRGB_LINEAR) ==
+static_assert(static_cast<uint32_t>(AidlDataspace::SRGB_LINEAR) ==
               static_cast<uint32_t>(HidlDataspace::V0_SRGB_LINEAR));
-static_assert(static_cast<uint32_t>(AidlDataspace::V0_SCRGB_LINEAR) ==
+static_assert(static_cast<uint32_t>(AidlDataspace::SCRGB_LINEAR) ==
               static_cast<uint32_t>(HidlDataspace::V0_SCRGB_LINEAR));
-static_assert(static_cast<uint32_t>(AidlDataspace::V0_SRGB) ==
+static_assert(static_cast<uint32_t>(AidlDataspace::SRGB) ==
               static_cast<uint32_t>(HidlDataspace::V0_SRGB));
-static_assert(static_cast<uint32_t>(AidlDataspace::V0_SCRGB) ==
+static_assert(static_cast<uint32_t>(AidlDataspace::SCRGB) ==
               static_cast<uint32_t>(HidlDataspace::V0_SCRGB));
-static_assert(static_cast<uint32_t>(AidlDataspace::V0_JFIF) ==
+static_assert(static_cast<uint32_t>(AidlDataspace::JFIF) ==
               static_cast<uint32_t>(HidlDataspace::V0_JFIF));
-static_assert(static_cast<uint32_t>(AidlDataspace::V0_BT601_625) ==
+static_assert(static_cast<uint32_t>(AidlDataspace::BT601_625) ==
               static_cast<uint32_t>(HidlDataspace::V0_BT601_625));
-static_assert(static_cast<uint32_t>(AidlDataspace::V0_BT601_525) ==
+static_assert(static_cast<uint32_t>(AidlDataspace::BT601_525) ==
               static_cast<uint32_t>(HidlDataspace::V0_BT601_525));
-static_assert(static_cast<uint32_t>(AidlDataspace::V0_BT709) ==
+static_assert(static_cast<uint32_t>(AidlDataspace::BT709) ==
               static_cast<uint32_t>(HidlDataspace::V0_BT709));
 static_assert(static_cast<uint32_t>(AidlDataspace::DCI_P3_LINEAR) ==
               static_cast<uint32_t>(HidlDataspace::DCI_P3_LINEAR));
@@ -152,19 +152,3 @@ static_assert(static_cast<uint32_t>(AidlDataspace::JPEG_APP_SEGMENTS) ==
               static_cast<uint32_t>(HidlDataspace::JPEG_APP_SEGMENTS));
 static_assert(static_cast<uint32_t>(AidlDataspace::HEIF) ==
               static_cast<uint32_t>(HidlDataspace::HEIF));
-
-// Below are the dataspaces that have been deprecated for sometime. They are required to behave
-// the same as their V0_* counterparts. We redefined them in AIDL to be the same as the
-// their V0_* counterparts.
-static_assert(static_cast<uint32_t>(AidlDataspace::SRGB_LINEAR) ==
-              static_cast<uint32_t>(AidlDataspace::V0_SRGB_LINEAR));
-static_assert(static_cast<uint32_t>(AidlDataspace::SRGB) ==
-              static_cast<uint32_t>(AidlDataspace::V0_SRGB));
-static_assert(static_cast<uint32_t>(AidlDataspace::JFIF) ==
-              static_cast<uint32_t>(AidlDataspace::V0_JFIF));
-static_assert(static_cast<uint32_t>(AidlDataspace::BT601_625) ==
-              static_cast<uint32_t>(AidlDataspace::V0_BT601_625));
-static_assert(static_cast<uint32_t>(AidlDataspace::BT601_525) ==
-              static_cast<uint32_t>(AidlDataspace::V0_BT601_525));
-static_assert(static_cast<uint32_t>(AidlDataspace::BT709) ==
-              static_cast<uint32_t>(AidlDataspace::V0_BT709));
