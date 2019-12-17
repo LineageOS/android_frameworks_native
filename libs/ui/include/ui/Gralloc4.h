@@ -102,6 +102,12 @@ public:
                              std::vector<ui::PlaneLayout>* outPlaneLayouts) const override;
     status_t getDataspace(buffer_handle_t bufferHandle, ui::Dataspace* outDataspace) const override;
     status_t getBlendMode(buffer_handle_t bufferHandle, ui::BlendMode* outBlendMode) const override;
+    status_t getSmpte2086(buffer_handle_t bufferHandle,
+                          std::optional<ui::Smpte2086>* outSmpte2086) const override;
+    status_t getCta861_3(buffer_handle_t bufferHandle,
+                         std::optional<ui::Cta861_3>* outCta861_3) const override;
+    status_t getSmpte2094_40(buffer_handle_t bufferHandle,
+                             std::optional<std::vector<uint8_t>>* outSmpte2094_40) const override;
 
     status_t getDefaultPixelFormatFourCC(uint32_t width, uint32_t height, PixelFormat format,
                                          uint32_t layerCount, uint64_t usage,
