@@ -81,8 +81,8 @@ status_t DumpstateService::Start() {
 
 binder::Status DumpstateService::startBugreport(int32_t calling_uid,
                                                 const std::string& calling_package,
-                                                const android::base::unique_fd& bugreport_fd,
-                                                const android::base::unique_fd& screenshot_fd,
+                                                android::base::unique_fd bugreport_fd,
+                                                android::base::unique_fd screenshot_fd,
                                                 int bugreport_mode,
                                                 const sp<IDumpstateListener>& listener) {
     MYLOGI("startBugreport() with mode: %d\n", bugreport_mode);
