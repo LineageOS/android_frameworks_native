@@ -192,8 +192,8 @@ TEST_F(RenderSurfaceTest, prepareFrameHandlesMixedComposition) {
     mSurface.prepareFrame(true, true);
 }
 
-TEST_F(RenderSurfaceTest, prepareFrameHandlesOnlyGlesComposition) {
-    EXPECT_CALL(*mDisplaySurface, prepareFrame(DisplaySurface::COMPOSITION_GLES))
+TEST_F(RenderSurfaceTest, prepareFrameHandlesOnlyGpuComposition) {
+    EXPECT_CALL(*mDisplaySurface, prepareFrame(DisplaySurface::COMPOSITION_GPU))
             .WillOnce(Return(NO_ERROR));
 
     mSurface.prepareFrame(true, false);

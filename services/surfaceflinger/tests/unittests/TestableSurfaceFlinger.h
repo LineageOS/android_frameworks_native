@@ -393,6 +393,11 @@ public:
     auto& mutableInternalHwcDisplayId() { return getHwComposer().mInternalHwcDisplayId; }
     auto& mutableExternalHwcDisplayId() { return getHwComposer().mExternalHwcDisplayId; }
 
+    auto fromHandle(const sp<IBinder>& handle) {
+        Mutex::Autolock _l(mFlinger->mStateLock);
+        return mFlinger->fromHandle(handle);
+    }
+
     ~TestableSurfaceFlinger() {
         // All these pointer and container clears help ensure that GMock does
         // not report a leaked object, since the SurfaceFlinger instance may

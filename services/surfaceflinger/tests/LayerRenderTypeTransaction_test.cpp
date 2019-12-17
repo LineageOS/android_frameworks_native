@@ -72,8 +72,8 @@ TEST_P(LayerRenderTypeTransactionTest, SetPositionRounding_BufferQueue) {
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
 
-    // GLES requires only 4 bits of subpixel precision during rasterization
-    // XXX GLES composition does not match HWC composition due to precision
+    // GPU composition requires only 4 bits of subpixel precision during rasterization
+    // XXX GPU composition does not match HWC composition due to precision
     // loss (b/69315223)
     const float epsilon = 1.0f / 16.0f;
     Transaction().setPosition(layer, 0.5f - epsilon, 0.5f - epsilon).apply();
