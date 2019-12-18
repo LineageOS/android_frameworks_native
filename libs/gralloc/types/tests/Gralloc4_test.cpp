@@ -41,6 +41,8 @@ using aidl::android::hardware::graphics::common::Smpte2086;
 using aidl::android::hardware::graphics::common::StandardMetadataType;
 using aidl::android::hardware::graphics::common::XyColor;
 
+using MetadataType = android::hardware::graphics::mapper::V4_0::IMapper::MetadataType;
+
 namespace android {
 
 template<class T>
@@ -50,10 +52,19 @@ template<class T>
 using EncodeConstFunction = status_t(*)(const T&, hidl_vec<uint8_t>*);
 
 template<class T>
+using EncodeMetadataTypeFunction = status_t(*)(const MetadataType&, T, hidl_vec<uint8_t>*);
+
+template<class T>
+using EncodeMetadataTypeConstFunction = status_t(*)(const MetadataType&, const T&, hidl_vec<uint8_t>*);
+
+template<class T>
 using EncodeOptionalFunction = status_t(*)(const std::optional<T>&, hidl_vec<uint8_t>*);
 
 template<class T>
 using DecodeFunction = status_t(*)(const hidl_vec<uint8_t>&, T*);
+
+template<class T>
+using DecodeMetadataTypeFunction = status_t(*)(const MetadataType&, const hidl_vec<uint8_t>&, T*);
 
 template<class T>
 using DecodeOptionalFunction = status_t(*)(const hidl_vec<uint8_t>&, std::optional<T>*);
@@ -73,6 +84,26 @@ void testHelperConst(const T& input, EncodeConstFunction<T> encode, DecodeFuncti
     T output;
     ASSERT_EQ(NO_ERROR, encode(input, &vec));
     ASSERT_EQ(NO_ERROR, decode(vec, &output));
+    ASSERT_EQ(input, output);
+}
+
+template<class T>
+void testHelperMetadataType(const T& input, EncodeMetadataTypeFunction<T> encode, DecodeMetadataTypeFunction<T> decode) {
+    hidl_vec<uint8_t> vec;
+    MetadataType metadataType{"vendor.mycompanyname.graphics.common.MetadataType", 0};
+    T output;
+    ASSERT_EQ(NO_ERROR, encode(metadataType, input, &vec));
+    ASSERT_EQ(NO_ERROR, decode(metadataType, vec, &output));
+    ASSERT_EQ(input, output);
+}
+
+template<class T>
+void testHelperMetadataTypeConst(const T& input, EncodeMetadataTypeConstFunction<T> encode, DecodeMetadataTypeFunction<T> decode) {
+    hidl_vec<uint8_t> vec;
+    MetadataType metadataType{"vendor.mycompanyname.graphics.common.MetadataType", 0};
+    T output;
+    ASSERT_EQ(NO_ERROR, encode(metadataType, input, &vec));
+    ASSERT_EQ(NO_ERROR, decode(metadataType, vec, &output));
     ASSERT_EQ(input, output);
 }
 
@@ -100,12 +131,42 @@ void testHelperStableAidlTypeOptional(const std::optional<T>& input, EncodeOptio
     ASSERT_TRUE(*tmp == *output);
 }
 
+class Gralloc4TestUint32 : public testing::TestWithParam<uint32_t> { };
+
+INSTANTIATE_TEST_CASE_P(
+        Gralloc4TestUint32Params, Gralloc4TestUint32,
+        ::testing::Values(0, -1, 1, 5, 100, 0xFF, std::numeric_limits<uint32_t>::min(),
+                          std::numeric_limits<uint32_t>::max()));
+
+TEST_P(Gralloc4TestUint32, Uint32) {
+    ASSERT_NO_FATAL_FAILURE(testHelperMetadataType(GetParam(), gralloc4::encodeUint32, gralloc4::decodeUint32));
+}
+
+TEST_P(Gralloc4TestUint32, PixelFormatFourCC) {
+    ASSERT_NO_FATAL_FAILURE(testHelper(GetParam(), gralloc4::encodePixelFormatFourCC, gralloc4::decodePixelFormatFourCC));
+}
+
+class Gralloc4TestInt32 : public testing::TestWithParam<int32_t> { };
+
+INSTANTIATE_TEST_CASE_P(
+        Gralloc4TestInt32Params, Gralloc4TestInt32,
+        ::testing::Values(0, 1, 5, 100, 0xFF, std::numeric_limits<int32_t>::min(),
+                          std::numeric_limits<int32_t>::max()));
+
+TEST_P(Gralloc4TestInt32, Int32) {
+    ASSERT_NO_FATAL_FAILURE(testHelperMetadataType(GetParam(), gralloc4::encodeInt32, gralloc4::decodeInt32));
+}
+
 class Gralloc4TestUint64 : public testing::TestWithParam<uint64_t> { };
 
 INSTANTIATE_TEST_CASE_P(
         Gralloc4TestUint64Params, Gralloc4TestUint64,
         ::testing::Values(0, -1, 1, 5, 100, 0xFF, std::numeric_limits<uint64_t>::min(),
                           std::numeric_limits<uint64_t>::max()));
+
+TEST_P(Gralloc4TestUint64, Uint64) {
+    ASSERT_NO_FATAL_FAILURE(testHelperMetadataType(GetParam(), gralloc4::encodeUint64, gralloc4::decodeUint64));
+}
 
 TEST_P(Gralloc4TestUint64, BufferId) {
     ASSERT_NO_FATAL_FAILURE(testHelper(GetParam(), gralloc4::encodeBufferId, gralloc4::decodeBufferId));
@@ -139,25 +200,51 @@ TEST_P(Gralloc4TestUint64, ProtectedContent) {
     ASSERT_NO_FATAL_FAILURE(testHelper(GetParam(), gralloc4::encodeProtectedContent, gralloc4::decodeProtectedContent));
 }
 
+class Gralloc4TestInt64 : public testing::TestWithParam<int64_t> { };
+
+INSTANTIATE_TEST_CASE_P(
+        Gralloc4TestInt64Params, Gralloc4TestInt64,
+        ::testing::Values(0, 1, 5, 100, 0xFF, std::numeric_limits<int64_t>::min(),
+                          std::numeric_limits<int64_t>::max()));
+
+TEST_P(Gralloc4TestInt64, Int64) {
+    ASSERT_NO_FATAL_FAILURE(testHelperMetadataType(GetParam(), gralloc4::encodeInt64, gralloc4::decodeInt64));
+}
+
+class Gralloc4TestFloat : public testing::TestWithParam<float> { };
+
+INSTANTIATE_TEST_CASE_P(
+        Gralloc4TestFloatParams, Gralloc4TestFloat,
+        ::testing::Values(0.0, 1.999999, 5.5, 100.1, 1234.5678, std::numeric_limits<float>::min(),
+                          std::numeric_limits<float>::max()));
+
+TEST_P(Gralloc4TestFloat, Float) {
+    ASSERT_NO_FATAL_FAILURE(testHelperMetadataType(GetParam(), gralloc4::encodeFloat, gralloc4::decodeFloat));
+}
+
+class Gralloc4TestDouble : public testing::TestWithParam<double> { };
+
+INSTANTIATE_TEST_CASE_P(
+        Gralloc4TestDoubleParams, Gralloc4TestDouble,
+        ::testing::Values(0.0, 1.999999, 5.5, 100.1, 1234.5678, std::numeric_limits<double>::min(),
+                          std::numeric_limits<double>::max()));
+
+TEST_P(Gralloc4TestDouble, Double) {
+    ASSERT_NO_FATAL_FAILURE(testHelperMetadataType(GetParam(), gralloc4::encodeDouble, gralloc4::decodeDouble));
+}
+
 class Gralloc4TestString : public testing::TestWithParam<std::string> { };
 
 INSTANTIATE_TEST_CASE_P(
         Gralloc4TestStringParams, Gralloc4TestString,
         ::testing::Values("name", "aaaaa", "", "abcdefghijklmnopqrstuvwxyz", "0xFF"));
 
-TEST_P(Gralloc4TestString, Name) {
-    ASSERT_NO_FATAL_FAILURE(testHelperConst(GetParam(), gralloc4::encodeName, gralloc4::decodeName));
+TEST_P(Gralloc4TestString, String) {
+    ASSERT_NO_FATAL_FAILURE(testHelperMetadataTypeConst(GetParam(), gralloc4::encodeString, gralloc4::decodeString));
 }
 
-class Gralloc4TestUint32 : public testing::TestWithParam<uint32_t> { };
-
-INSTANTIATE_TEST_CASE_P(
-        Gralloc4TestUint32Params, Gralloc4TestUint32,
-        ::testing::Values(0, 1, 5, 100, 0xFF, std::numeric_limits<uint32_t>::min(),
-                          std::numeric_limits<uint32_t>::max()));
-
-TEST_P(Gralloc4TestUint32, PixelFormatFourCC) {
-    ASSERT_NO_FATAL_FAILURE(testHelper(GetParam(), gralloc4::encodePixelFormatFourCC, gralloc4::decodePixelFormatFourCC));
+TEST_P(Gralloc4TestString, Name) {
+    ASSERT_NO_FATAL_FAILURE(testHelperConst(GetParam(), gralloc4::encodeName, gralloc4::decodeName));
 }
 
 class Gralloc4TestPixelFormat : public testing::TestWithParam<PixelFormat> { };

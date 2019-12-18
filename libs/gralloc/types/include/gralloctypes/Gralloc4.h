@@ -489,6 +489,58 @@ status_t decodeSmpte2094_40(const android::hardware::hidl_vec<uint8_t>& smpte209
                             std::optional<std::vector<uint8_t>>* outSmpte2094_40);
 
 /**
+ * The functions below can be used to encode and decode vendor metadata types.
+ */
+status_t encodeUint32(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        uint32_t input, android::hardware::hidl_vec<uint8_t>* output);
+status_t decodeUint32(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        const android::hardware::hidl_vec<uint8_t>& input, uint32_t* output);
+
+status_t encodeInt32(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        int32_t input, android::hardware::hidl_vec<uint8_t>* output);
+status_t decodeInt32(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        const android::hardware::hidl_vec<uint8_t>& input, int32_t* output);
+
+status_t encodeUint64(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        uint64_t input, android::hardware::hidl_vec<uint8_t>* output);
+status_t decodeUint64(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        const android::hardware::hidl_vec<uint8_t>& input, uint64_t* output);
+
+status_t encodeInt64(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        int64_t input, android::hardware::hidl_vec<uint8_t>* output);
+status_t decodeInt64(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        const android::hardware::hidl_vec<uint8_t>& input, int64_t* output);
+
+status_t encodeFloat(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        float input, android::hardware::hidl_vec<uint8_t>* output);
+status_t decodeFloat(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        const android::hardware::hidl_vec<uint8_t>& input, float* output);
+
+status_t encodeDouble(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        double input, android::hardware::hidl_vec<uint8_t>* output);
+status_t decodeDouble(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        const android::hardware::hidl_vec<uint8_t>& input, double* output);
+
+status_t encodeString(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        const std::string& input, android::hardware::hidl_vec<uint8_t>* output);
+status_t decodeString(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        const android::hardware::hidl_vec<uint8_t>& input, std::string* output);
+
+/**
  * The functions below can be used to parse extendable types.
  */
 bool isStandardMetadataType(
