@@ -2625,7 +2625,7 @@ struct fsverity_measurement {
 #endif
 
 binder::Status InstalldNativeService::installApkVerity(const std::string& filePath,
-        const ::android::base::unique_fd& verityInputAshmem, int32_t contentSize) {
+        android::base::unique_fd verityInputAshmem, int32_t contentSize) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PATH(filePath);
     std::lock_guard<std::recursive_mutex> lock(mLock);
