@@ -28,7 +28,32 @@ public:
     void changeRefreshRate(const RefreshRate& refreshRate);
 
 private:
+    class SevenSegmentDrawer {
+    public:
+        static sp<GraphicBuffer> drawNumber(int number, const half4& color);
+        static uint32_t getHeight() { return BUFFER_HEIGHT; }
+        static uint32_t getWidth() { return BUFFER_WIDTH; }
+
+    private:
+        enum class Segment { Upper, UpperLeft, UpperRight, Middle, LowerLeft, LowerRight, Buttom };
+
+        static void drawRect(const Rect& r, const half4& color, const sp<GraphicBuffer>& buffer,
+                             uint8_t* pixels);
+        static void drawSegment(Segment segment, int left, const half4& color,
+                                const sp<GraphicBuffer>& buffer, uint8_t* pixels);
+        static void drawDigit(int digit, int left, const half4& color,
+                              const sp<GraphicBuffer>& buffer, uint8_t* pixels);
+
+        static constexpr uint32_t DIGIT_HEIGHT = 100;
+        static constexpr uint32_t DIGIT_WIDTH = 64;
+        static constexpr uint32_t DIGIT_SPACE = 16;
+        static constexpr uint32_t BUFFER_HEIGHT = DIGIT_HEIGHT;
+        static constexpr uint32_t BUFFER_WIDTH =
+                3 * DIGIT_WIDTH + 2 * DIGIT_SPACE; // Digit|Space|Digit|Space|Digit
+    };
+
     bool createLayer();
+    void primeCache();
 
     SurfaceFlinger& mFlinger;
     sp<Client> mClient;
@@ -36,8 +61,11 @@ private:
     sp<IBinder> mIBinder;
     sp<IGraphicBufferProducer> mGbp;
 
-    const half3 RED = half3(1.0f, 0.0f, 0.0f);
-    const half3 GREEN = half3(0.0f, 1.0f, 0.0f);
+    std::unordered_map<int, sp<GraphicBuffer>> mBufferCache;
+
+    static constexpr float ALPHA = 0.8f;
+    const half3 LOW_FPS_COLOR = half3(1.0f, 0.0f, 0.0f);
+    const half3 HIGH_FPS_COLOR = half3(0.0f, 1.0f, 0.0f);
 };
 
 }; // namespace android

@@ -4844,15 +4844,15 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 return NO_ERROR;
             }
             case 1034: {
-                // TODO(b/129297325): expose this via developer menu option
                 n = data.readInt32();
-                if (n && !mRefreshRateOverlay &&
-                    mRefreshRateConfigs->refreshRateSwitchingSupported()) {
+                if (n == 1 && !mRefreshRateOverlay) {
                     mRefreshRateOverlay = std::make_unique<RefreshRateOverlay>(*this);
                     auto current = mRefreshRateConfigs->getCurrentRefreshRate();
                     mRefreshRateOverlay->changeRefreshRate(current);
-                } else if (!n) {
+                } else if (n == 0) {
                     mRefreshRateOverlay.reset();
+                } else {
+                    reply->writeBool(mRefreshRateOverlay != nullptr);
                 }
                 return NO_ERROR;
             }
