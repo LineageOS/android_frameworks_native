@@ -65,6 +65,7 @@ public:
             return BAD_VALUE;
         }
         mVec->resize(mNeededResize);
+        mResized = true;
         return NO_ERROR;
     }
 
@@ -72,11 +73,17 @@ public:
         if (!mVec) {
             return BAD_VALUE;
         }
-        if (mVec->size() == 0) {
+        if (!mResized) {
             if (hasAdditionOverflow(mNeededResize, size)) {
                 clear();
                 return BAD_VALUE;
             }
+            /**
+             * Update mNeededResize and return NO_ERROR here because if (!mResized), the
+             * caller hasn't called resize(). No data will be written into the mVec until
+             * the caller resizes. We can't resize here for the caller because hidl_vec::resize()
+             * allocates a new backing array every time.
+             */
             mNeededResize += size;
             return NO_ERROR;
         }
@@ -97,12 +104,14 @@ public:
             mVec->resize(0);
         }
         mNeededResize = 0;
+        mResized = false;
         mOffset = 0;
     }
 
 private:
     hidl_vec<uint8_t>* mVec;
     size_t mNeededResize = 0;
+    size_t mResized = false;
     size_t mOffset = 0;
 };
 
@@ -142,7 +151,7 @@ public:
         if (!mVec) {
             return false;
         }
-        return mVec->size() - mOffset;
+        return mVec->size() > mOffset;
     }
 
 private:
@@ -170,6 +179,9 @@ using DecodeHelper = status_t(*)(InputHidlVec*, T*);
 template<class T>
 using ErrorHandler = void(*)(T*);
 
+status_t encodeMetadataType(const MetadataType& input, OutputHidlVec* output);
+status_t validateMetadataType(InputHidlVec* input, const MetadataType& expectedMetadataType);
+
 /**
  * encode is the main encoding function. It takes in T and uses the encodeHelper function to turn T
  * into the hidl_vec byte stream.
@@ -179,14 +191,26 @@ using ErrorHandler = void(*)(T*);
  * encodes T into the hidl_vec byte stream.
  */
 template <class T>
-status_t encode(const T& input, hidl_vec<uint8_t>* output, EncodeHelper<T> encodeHelper) {
+status_t encode(const MetadataType& metadataType, const T& input, hidl_vec<uint8_t>* output,
+                EncodeHelper<T> encodeHelper) {
     OutputHidlVec outputHidlVec{output};
-    status_t err = encodeHelper(input, &outputHidlVec);
+
+    status_t err = encodeMetadataType(metadataType, &outputHidlVec);
+    if (err) {
+        return err;
+    }
+
+    err = encodeHelper(input, &outputHidlVec);
     if (err) {
         return err;
     }
 
     err = outputHidlVec.resize();
+    if (err) {
+        return err;
+    }
+
+    err = encodeMetadataType(metadataType, &outputHidlVec);
     if (err) {
         return err;
     }
@@ -200,10 +224,16 @@ status_t encode(const T& input, hidl_vec<uint8_t>* output, EncodeHelper<T> encod
  * T.
  */
 template <class T>
-status_t decode(const hidl_vec<uint8_t>& input, T* output, DecodeHelper<T> decodeHelper,
-                ErrorHandler<T> errorHandler = nullptr) {
+status_t decode(const MetadataType& metadataType, const hidl_vec<uint8_t>& input, T* output,
+                DecodeHelper<T> decodeHelper, ErrorHandler<T> errorHandler = nullptr) {
     InputHidlVec inputHidlVec{&input};
-    status_t err = decodeHelper(&inputHidlVec, output);
+
+    status_t err = validateMetadataType(&inputHidlVec, metadataType);
+    if (err) {
+        return err;
+    }
+
+    err = decodeHelper(&inputHidlVec, output);
     if (err) {
         return err;
     }
@@ -256,7 +286,7 @@ status_t encodeString(const std::string& input, OutputHidlVec* output) {
         return err;
     }
 
-    return output->encode(reinterpret_cast<const uint8_t*>(input.c_str()), input.size());
+    return output->encode(reinterpret_cast<const uint8_t*>(input.data()), input.size());
 }
 
 status_t decodeString(InputHidlVec* input, std::string* output) {
@@ -266,8 +296,11 @@ status_t decodeString(InputHidlVec* input, std::string* output) {
 
     int64_t size = 0;
     status_t err = decodeInteger<int64_t>(input, &size);
-    if (err || size < 0) {
+    if (err) {
         return err;
+    }
+    if (size < 0) {
+        return BAD_VALUE;
     }
 
     return input->decode(output, size);
@@ -307,6 +340,55 @@ void clearExtendableType(ExtendableType* output) {
     }
     output->name.clear();
     output->value = 0;
+}
+
+status_t encodeMetadataType(const MetadataType& input, OutputHidlVec* output) {
+    status_t err = encodeString(input.name, output);
+    if (err) {
+        return err;
+    }
+
+    err = encodeInteger<int64_t>(input.value, output);
+    if (err) {
+        return err;
+    }
+
+    return NO_ERROR;
+}
+
+status_t decodeMetadataType(InputHidlVec* input, MetadataType* output) {
+    std::string name;
+    status_t err = decodeString(input, &name);
+    if (err) {
+        return err;
+    }
+    output->name = name;
+
+    err = decodeInteger<int64_t>(input, &output->value);
+    if (err) {
+        return err;
+    }
+
+    return NO_ERROR;
+}
+
+status_t validateMetadataType(InputHidlVec* input, const MetadataType& expectedMetadataType) {
+    MetadataType receivedMetadataType;
+
+    status_t err = decodeMetadataType(input, &receivedMetadataType);
+    if (err) {
+        return err;
+    }
+
+    if (expectedMetadataType.name != receivedMetadataType.name) {
+        return BAD_VALUE;
+    }
+
+    if (receivedMetadataType.value != expectedMetadataType.value) {
+        return BAD_VALUE;
+    }
+
+    return NO_ERROR;
 }
 
 status_t encodeRect(const Rect& input, OutputHidlVec* output) {
@@ -400,13 +482,17 @@ status_t decodePlaneLayoutComponents(InputHidlVec* input, std::vector<PlaneLayou
 
     int64_t size = 0;
     status_t err = decodeInteger<int64_t>(input, &size);
-    if (err || size < 0) {
+    if (err) {
         return err;
     }
+    if (size < 0 || size > 10000) {
+        return BAD_VALUE;
+    }
 
-    for (int i = 0; i < size; i++) {
-        output->emplace_back();
-        err = decodePlaneLayoutComponent(input, &output->back());
+    output->resize(size);
+
+    for (auto& planeLayoutComponent : *output) {
+        err = decodePlaneLayoutComponent(input, &planeLayoutComponent);
         if (err) {
             return err;
         }
@@ -525,8 +611,11 @@ status_t encodePlaneLayoutsHelper(const std::vector<PlaneLayout>& planeLayouts, 
 status_t decodePlaneLayoutsHelper(InputHidlVec* inputHidlVec, std::vector<PlaneLayout>* outPlaneLayouts) {
     int64_t size = 0;
     status_t err = decodeInteger<int64_t>(inputHidlVec, &size);
-    if (err || size < 0) {
+    if (err) {
         return err;
+    }
+    if (size < 0) {
+        return BAD_VALUE;
     }
 
     for (size_t i = 0; i < size; i++) {
@@ -555,141 +644,158 @@ PlaneLayoutComponentType getStandardPlaneLayoutComponentTypeValue(
 }
 
 status_t encodeBufferId(uint64_t bufferId, hidl_vec<uint8_t>* outBufferId) {
-    return encode(bufferId, outBufferId, encodeInteger);
+    return encode(MetadataType_BufferId, bufferId, outBufferId, encodeInteger);
 }
 
 status_t decodeBufferId(const hidl_vec<uint8_t>& bufferId, uint64_t* outBufferId) {
-    return decode(bufferId, outBufferId, decodeInteger);
+    return decode(MetadataType_BufferId, bufferId, outBufferId, decodeInteger);
 }
 
 status_t encodeName(const std::string& name, hidl_vec<uint8_t>* outName) {
-    return encode(name, outName, encodeString);
+    return encode(MetadataType_Name, name, outName, encodeString);
 }
 
 status_t decodeName(const hidl_vec<uint8_t>& name, std::string* outName) {
-    return decode(name, outName, decodeString);
+    return decode(MetadataType_Name, name, outName, decodeString);
 }
 
 status_t encodeWidth(uint64_t width, hidl_vec<uint8_t>* outWidth) {
-    return encode(width, outWidth, encodeInteger);
+    return encode(MetadataType_Width, width, outWidth, encodeInteger);
 }
 
 status_t decodeWidth(const hidl_vec<uint8_t>& width, uint64_t* outWidth) {
-    return decode(width, outWidth, decodeInteger);
+    return decode(MetadataType_Width, width, outWidth, decodeInteger);
 }
 
 status_t encodeHeight(uint64_t height, hidl_vec<uint8_t>* outHeight) {
-    return encode(height, outHeight, encodeInteger);
+    return encode(MetadataType_Height, height, outHeight, encodeInteger);
 }
 
 status_t decodeHeight(const hidl_vec<uint8_t>& height, uint64_t* outHeight) {
-    return decode(height, outHeight, decodeInteger);
+    return decode(MetadataType_Height, height, outHeight, decodeInteger);
 }
 
 status_t encodeLayerCount(uint64_t layerCount, hidl_vec<uint8_t>* outLayerCount) {
-    return encode(layerCount, outLayerCount, encodeInteger);
+    return encode(MetadataType_LayerCount, layerCount, outLayerCount, encodeInteger);
 }
 
 status_t decodeLayerCount(const hidl_vec<uint8_t>& layerCount, uint64_t* outLayerCount) {
-    return decode(layerCount, outLayerCount, decodeInteger);
+    return decode(MetadataType_LayerCount, layerCount, outLayerCount, decodeInteger);
 }
 
 status_t encodePixelFormatRequested(const hardware::graphics::common::V1_2::PixelFormat& pixelFormatRequested,
         hidl_vec<uint8_t>* outPixelFormatRequested) {
-    return encode(static_cast<int32_t>(pixelFormatRequested), outPixelFormatRequested, encodeInteger);
+    return encode(MetadataType_PixelFormatRequested, static_cast<int32_t>(pixelFormatRequested),
+                  outPixelFormatRequested, encodeInteger);
 }
 
 status_t decodePixelFormatRequested(const hidl_vec<uint8_t>& pixelFormatRequested,
         hardware::graphics::common::V1_2::PixelFormat* outPixelFormatRequested) {
-    return decode(pixelFormatRequested, reinterpret_cast<int32_t*>(outPixelFormatRequested), decodeInteger);
+    return decode(MetadataType_PixelFormatRequested, pixelFormatRequested,
+                  reinterpret_cast<int32_t*>(outPixelFormatRequested), decodeInteger);
 }
 
 status_t encodePixelFormatFourCC(uint32_t pixelFormatFourCC, hidl_vec<uint8_t>* outPixelFormatFourCC) {
-    return encode(pixelFormatFourCC, outPixelFormatFourCC, encodeInteger);
+    return encode(MetadataType_PixelFormatFourCC, pixelFormatFourCC, outPixelFormatFourCC,
+                  encodeInteger);
 }
 
 status_t decodePixelFormatFourCC(const hidl_vec<uint8_t>& pixelFormatFourCC, uint32_t* outPixelFormatFourCC) {
-    return decode(pixelFormatFourCC, outPixelFormatFourCC, decodeInteger);
+    return decode(MetadataType_PixelFormatFourCC, pixelFormatFourCC, outPixelFormatFourCC,
+                  decodeInteger);
 }
 
 status_t encodePixelFormatModifier(uint64_t pixelFormatModifier, hidl_vec<uint8_t>* outPixelFormatModifier) {
-    return encode(pixelFormatModifier, outPixelFormatModifier, encodeInteger);
+    return encode(MetadataType_PixelFormatModifier, pixelFormatModifier, outPixelFormatModifier,
+                  encodeInteger);
 }
 
 status_t decodePixelFormatModifier(const hidl_vec<uint8_t>& pixelFormatModifier, uint64_t* outPixelFormatModifier) {
-    return decode(pixelFormatModifier, outPixelFormatModifier, decodeInteger);
+    return decode(MetadataType_PixelFormatModifier, pixelFormatModifier, outPixelFormatModifier,
+                  decodeInteger);
 }
 
 status_t encodeUsage(uint64_t usage, hidl_vec<uint8_t>* outUsage) {
-    return encode(usage, outUsage, encodeInteger);
+    return encode(MetadataType_Usage, usage, outUsage, encodeInteger);
 }
 
 status_t decodeUsage(const hidl_vec<uint8_t>& usage, uint64_t* outUsage) {
-    return decode(usage, outUsage, decodeInteger);
+    return decode(MetadataType_Usage, usage, outUsage, decodeInteger);
 }
 
 status_t encodeAllocationSize(uint64_t allocationSize, hidl_vec<uint8_t>* outAllocationSize) {
-    return encode(allocationSize, outAllocationSize, encodeInteger);
+    return encode(MetadataType_AllocationSize, allocationSize, outAllocationSize, encodeInteger);
 }
 
 status_t decodeAllocationSize(const hidl_vec<uint8_t>& allocationSize, uint64_t* outAllocationSize) {
-    return decode(allocationSize, outAllocationSize, decodeInteger);
+    return decode(MetadataType_AllocationSize, allocationSize, outAllocationSize, decodeInteger);
 }
 
 status_t encodeProtectedContent(uint64_t protectedContent, hidl_vec<uint8_t>* outProtectedContent) {
-    return encode(protectedContent, outProtectedContent, encodeInteger);
+    return encode(MetadataType_ProtectedContent, protectedContent, outProtectedContent,
+                  encodeInteger);
 }
 
 status_t decodeProtectedContent(const hidl_vec<uint8_t>& protectedContent, uint64_t* outProtectedContent) {
-    return decode(protectedContent, outProtectedContent, decodeInteger);
+    return decode(MetadataType_ProtectedContent, protectedContent, outProtectedContent,
+                  decodeInteger);
 }
 
 status_t encodeCompression(const ExtendableType& compression, hidl_vec<uint8_t>* outCompression) {
-    return encode(compression, outCompression, encodeExtendableType);
+    return encode(MetadataType_Compression, compression, outCompression, encodeExtendableType);
 }
 
 status_t decodeCompression(const hidl_vec<uint8_t>& compression, ExtendableType* outCompression) {
-    return decode(compression, outCompression, decodeExtendableType, clearExtendableType);
+    return decode(MetadataType_Compression, compression, outCompression, decodeExtendableType,
+                  clearExtendableType);
 }
 
 status_t encodeInterlaced(const ExtendableType& interlaced, hidl_vec<uint8_t>* outInterlaced) {
-    return encode(interlaced, outInterlaced, encodeExtendableType);
+    return encode(MetadataType_Interlaced, interlaced, outInterlaced, encodeExtendableType);
 }
 
 status_t decodeInterlaced(const hidl_vec<uint8_t>& interlaced, ExtendableType* outInterlaced) {
-    return decode(interlaced, outInterlaced, decodeExtendableType, clearExtendableType);
+    return decode(MetadataType_Interlaced, interlaced, outInterlaced, decodeExtendableType,
+                  clearExtendableType);
 }
 
 status_t encodeChromaSiting(const ExtendableType& chromaSiting, hidl_vec<uint8_t>* outChromaSiting) {
-    return encode(chromaSiting, outChromaSiting, encodeExtendableType);
+    return encode(MetadataType_ChromaSiting, chromaSiting, outChromaSiting, encodeExtendableType);
 }
 
 status_t decodeChromaSiting(const hidl_vec<uint8_t>& chromaSiting, ExtendableType* outChromaSiting) {
-    return decode(chromaSiting, outChromaSiting, decodeExtendableType, clearExtendableType);
+    return decode(MetadataType_ChromaSiting, chromaSiting, outChromaSiting, decodeExtendableType,
+                  clearExtendableType);
 }
 
 status_t encodePlaneLayouts(const std::vector<PlaneLayout>& planeLayouts, hidl_vec<uint8_t>* outPlaneLayouts) {
-    return encode(planeLayouts, outPlaneLayouts, encodePlaneLayoutsHelper);
+    return encode(MetadataType_PlaneLayouts, planeLayouts, outPlaneLayouts,
+                  encodePlaneLayoutsHelper);
 }
 
 status_t decodePlaneLayouts(const hidl_vec<uint8_t>& planeLayouts, std::vector<PlaneLayout>* outPlaneLayouts) {
-    return decode(planeLayouts, outPlaneLayouts, decodePlaneLayoutsHelper, clearPlaneLayouts);
+    return decode(MetadataType_PlaneLayouts, planeLayouts, outPlaneLayouts,
+                  decodePlaneLayoutsHelper, clearPlaneLayouts);
 }
 
 status_t encodeDataspace(const Dataspace& dataspace, hidl_vec<uint8_t>* outDataspace) {
-    return encode(static_cast<int32_t>(dataspace), outDataspace, encodeInteger);
+    return encode(MetadataType_Dataspace, static_cast<int32_t>(dataspace), outDataspace,
+                  encodeInteger);
 }
 
 status_t decodeDataspace(const hidl_vec<uint8_t>& dataspace, Dataspace* outDataspace) {
-    return decode(dataspace, reinterpret_cast<int32_t*>(outDataspace), decodeInteger);
+    return decode(MetadataType_Dataspace, dataspace, reinterpret_cast<int32_t*>(outDataspace),
+                  decodeInteger);
 }
 
 status_t encodeBlendMode(const BlendMode& blendMode, hidl_vec<uint8_t>* outBlendMode) {
-    return encode(static_cast<int32_t>(blendMode), outBlendMode, encodeInteger);
+    return encode(MetadataType_BlendMode, static_cast<int32_t>(blendMode), outBlendMode,
+                  encodeInteger);
 }
 
 status_t decodeBlendMode(const hidl_vec<uint8_t>& blendMode, BlendMode* outBlendMode) {
-    return decode(blendMode, reinterpret_cast<int32_t*>(outBlendMode), decodeInteger);
+    return decode(MetadataType_BlendMode, blendMode, reinterpret_cast<int32_t*>(outBlendMode),
+                  decodeInteger);
 }
 
 bool isStandardMetadataType(const MetadataType& metadataType) {

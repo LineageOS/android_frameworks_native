@@ -311,8 +311,16 @@ void TransactionCompletedThread::threadMain() {
                     interface_cast<ITransactionCompletedListener>(listenerStats.listener)
                             ->onTransactionCompleted(listenerStats);
                     listener->unlinkToDeath(mDeathRecipient);
+                    if (transactionStatsDeque.empty()) {
+                        completedTransactionsItr =
+                                mCompletedTransactions.erase(completedTransactionsItr);
+                    } else {
+                        completedTransactionsItr++;
+                    }
+                } else {
+                    completedTransactionsItr =
+                            mCompletedTransactions.erase(completedTransactionsItr);
                 }
-                completedTransactionsItr = mCompletedTransactions.erase(completedTransactionsItr);
             } else {
                 completedTransactionsItr++;
             }
