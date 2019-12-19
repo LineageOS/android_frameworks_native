@@ -45,16 +45,6 @@ public:
                 IBinder::FLAG_ONEWAY);
     }
 
-    virtual void transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken) {
-        Parcel data, reply;
-        data.writeInterfaceToken(IInputFlinger::getInterfaceDescriptor());
-
-        data.writeStrongBinder(fromToken);
-        data.writeStrongBinder(toToken);
-        remote()->transact(BnInputFlinger::TRANSFER_TOUCH_FOCUS, data, &reply,
-                IBinder::FLAG_ONEWAY);
-    }
-
     virtual void registerInputChannel(const sp<InputChannel>& channel) {
         Parcel data, reply;
         data.writeInterfaceToken(IInputFlinger::getInterfaceDescriptor());
@@ -102,13 +92,6 @@ status_t BnInputFlinger::onTransact(
         sp<InputChannel> channel = new InputChannel();
         channel->read(data);
         unregisterInputChannel(channel);
-        break;
-    }
-    case TRANSFER_TOUCH_FOCUS: {
-        CHECK_INTERFACE(IInputFlinger, data, reply);
-        sp<IBinder> fromToken = data.readStrongBinder();
-        sp<IBinder> toToken = data.readStrongBinder();
-        transferTouchFocus(fromToken, toToken);
         break;
     }
     default:
