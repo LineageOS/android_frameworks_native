@@ -61,6 +61,8 @@ public:
     void reset() final;
 
 private:
+    bool periodChangeDetected(nsecs_t vsync_timestamp) REQUIRES(mMutex);
+
     std::unique_ptr<Clock> const mClock;
     std::unique_ptr<VSyncTracker> const mTracker;
     std::unique_ptr<VSyncDispatch> const mDispatch;
@@ -69,7 +71,11 @@ private:
     std::mutex mMutex;
     bool mIgnorePresentFences GUARDED_BY(mMutex) = false;
     std::vector<std::shared_ptr<FenceTime>> mUnfiredFences GUARDED_BY(mMutex);
-    bool mPeriodChangeInProgress GUARDED_BY(mMutex) = false;
+
+    bool mMoreSamplesNeeded GUARDED_BY(mMutex) = false;
+    std::optional<nsecs_t> mPeriodTransitioningTo GUARDED_BY(mMutex);
+    std::optional<nsecs_t> mLastHwVsync GUARDED_BY(mMutex);
+
     std::unordered_map<DispSync::Callback*, std::unique_ptr<CallbackRepeater>> mCallbacks
             GUARDED_BY(mMutex);
 };

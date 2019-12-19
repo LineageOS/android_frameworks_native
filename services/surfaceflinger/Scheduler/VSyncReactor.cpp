@@ -154,7 +154,7 @@ bool VSyncReactor::addPresentFence(const std::shared_ptr<FenceTime>& fence) {
         mTracker->addVsyncTimestamp(signalTime);
     }
 
-    return false; // TODO(b/144707443): add policy for turning on HWVsync.
+    return mMoreSamplesNeeded;
 }
 
 void VSyncReactor::setIgnorePresentFences(bool ignoration) {
@@ -176,14 +176,9 @@ nsecs_t VSyncReactor::expectedPresentTime() {
 }
 
 void VSyncReactor::setPeriod(nsecs_t period) {
-    mTracker->setPeriod(period);
-    {
-        std::lock_guard<std::mutex> lk(mMutex);
-        mPeriodChangeInProgress = true;
-        for (auto& entry : mCallbacks) {
-            entry.second->setPeriod(period);
-        }
-    }
+    std::lock_guard lk(mMutex);
+    mLastHwVsync.reset();
+    mPeriodTransitioningTo = period;
 }
 
 nsecs_t VSyncReactor::getPeriod() {
@@ -194,15 +189,40 @@ void VSyncReactor::beginResync() {}
 
 void VSyncReactor::endResync() {}
 
+bool VSyncReactor::periodChangeDetected(nsecs_t vsync_timestamp) {
+    if (!mLastHwVsync || !mPeriodTransitioningTo) {
+        return false;
+    }
+    auto const distance = vsync_timestamp - *mLastHwVsync;
+    return std::abs(distance - *mPeriodTransitioningTo) < std::abs(distance - getPeriod());
+}
+
 bool VSyncReactor::addResyncSample(nsecs_t timestamp, bool* periodFlushed) {
     assert(periodFlushed);
-    mTracker->addVsyncTimestamp(timestamp);
-    {
-        std::lock_guard<std::mutex> lk(mMutex);
-        *periodFlushed = mPeriodChangeInProgress;
-        mPeriodChangeInProgress = false;
+
+    std::lock_guard<std::mutex> lk(mMutex);
+    if (periodChangeDetected(timestamp)) {
+        mMoreSamplesNeeded = false;
+        *periodFlushed = true;
+
+        mTracker->setPeriod(*mPeriodTransitioningTo);
+        for (auto& entry : mCallbacks) {
+            entry.second->setPeriod(*mPeriodTransitioningTo);
+        }
+
+        mPeriodTransitioningTo.reset();
+        mLastHwVsync.reset();
+    } else if (mPeriodTransitioningTo) {
+        mLastHwVsync = timestamp;
+        mMoreSamplesNeeded = true;
+        *periodFlushed = false;
+    } else {
+        mMoreSamplesNeeded = false;
+        *periodFlushed = false;
     }
-    return false;
+
+    mTracker->addVsyncTimestamp(timestamp);
+    return mMoreSamplesNeeded;
 }
 
 status_t VSyncReactor::addEventListener(const char* name, nsecs_t phase,
