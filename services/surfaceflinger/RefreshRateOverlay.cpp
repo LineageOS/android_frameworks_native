@@ -18,26 +18,139 @@
 #include "Client.h"
 #include "Layer.h"
 
+#include <gui/IProducerListener.h>
+
+#undef LOG_TAG
+#define LOG_TAG "RefreshRateOverlay"
+
 namespace android {
+
+void RefreshRateOverlay::SevenSegmentDrawer::drawRect(const Rect& r, const half4& color,
+                                                      const sp<GraphicBuffer>& buffer,
+                                                      uint8_t* pixels) {
+    for (int32_t j = r.top; j < r.bottom; j++) {
+        if (j >= buffer->getHeight()) {
+            break;
+        }
+
+        for (int32_t i = r.left; i < r.right; i++) {
+            if (i >= buffer->getWidth()) {
+                break;
+            }
+
+            uint8_t* iter = pixels + 4 * (i + (buffer->getStride() * j));
+            iter[0] = uint8_t(color.r * 255);
+            iter[1] = uint8_t(color.g * 255);
+            iter[2] = uint8_t(color.b * 255);
+            iter[3] = uint8_t(color.a * 255);
+        }
+    }
+}
+
+void RefreshRateOverlay::SevenSegmentDrawer::drawSegment(Segment segment, int left,
+                                                         const half4& color,
+                                                         const sp<GraphicBuffer>& buffer,
+                                                         uint8_t* pixels) {
+    const Rect rect = [&]() {
+        switch (segment) {
+            case Segment::Upper:
+                return Rect(left, 0, left + DIGIT_WIDTH, DIGIT_SPACE);
+            case Segment::UpperLeft:
+                return Rect(left, 0, left + DIGIT_SPACE, DIGIT_HEIGHT / 2);
+            case Segment::UpperRight:
+                return Rect(left + DIGIT_WIDTH - DIGIT_SPACE, 0, left + DIGIT_WIDTH,
+                            DIGIT_HEIGHT / 2);
+            case Segment::Middle:
+                return Rect(left, DIGIT_HEIGHT / 2 - DIGIT_SPACE / 2, left + DIGIT_WIDTH,
+                            DIGIT_HEIGHT / 2 + DIGIT_SPACE / 2);
+            case Segment::LowerLeft:
+                return Rect(left, DIGIT_HEIGHT / 2, left + DIGIT_SPACE, DIGIT_HEIGHT);
+            case Segment::LowerRight:
+                return Rect(left + DIGIT_WIDTH - DIGIT_SPACE, DIGIT_HEIGHT / 2, left + DIGIT_WIDTH,
+                            DIGIT_HEIGHT);
+            case Segment::Buttom:
+                return Rect(left, DIGIT_HEIGHT - DIGIT_SPACE, left + DIGIT_WIDTH, DIGIT_HEIGHT);
+        }
+    }();
+
+    drawRect(rect, color, buffer, pixels);
+}
+
+void RefreshRateOverlay::SevenSegmentDrawer::drawDigit(int digit, int left, const half4& color,
+                                                       const sp<GraphicBuffer>& buffer,
+                                                       uint8_t* pixels) {
+    if (digit < 0 || digit > 9) return;
+
+    if (digit == 0 || digit == 2 || digit == 3 || digit == 5 || digit == 6 || digit == 7 ||
+        digit == 8 || digit == 9)
+        drawSegment(Segment::Upper, left, color, buffer, pixels);
+    if (digit == 0 || digit == 4 || digit == 5 || digit == 6 || digit == 8 || digit == 9)
+        drawSegment(Segment::UpperLeft, left, color, buffer, pixels);
+    if (digit == 0 || digit == 1 || digit == 2 || digit == 3 || digit == 4 || digit == 7 ||
+        digit == 8 || digit == 9)
+        drawSegment(Segment::UpperRight, left, color, buffer, pixels);
+    if (digit == 2 || digit == 3 || digit == 4 || digit == 5 || digit == 6 || digit == 8 ||
+        digit == 9)
+        drawSegment(Segment::Middle, left, color, buffer, pixels);
+    if (digit == 0 || digit == 2 || digit == 6 || digit == 8)
+        drawSegment(Segment::LowerLeft, left, color, buffer, pixels);
+    if (digit == 0 || digit == 1 || digit == 3 || digit == 4 || digit == 5 || digit == 6 ||
+        digit == 7 || digit == 8 || digit == 9)
+        drawSegment(Segment::LowerRight, left, color, buffer, pixels);
+    if (digit == 0 || digit == 2 || digit == 3 || digit == 5 || digit == 6 || digit == 8 ||
+        digit == 9)
+        drawSegment(Segment::Buttom, left, color, buffer, pixels);
+}
+
+sp<GraphicBuffer> RefreshRateOverlay::SevenSegmentDrawer::drawNumber(int number,
+                                                                     const half4& color) {
+    if (number < 0 || number > 1000) return nullptr;
+
+    const auto hundreds = number / 100;
+    const auto tens = (number / 10) % 10;
+    const auto ones = number % 10;
+
+    sp<GraphicBuffer> buffer =
+            new GraphicBuffer(BUFFER_WIDTH, BUFFER_HEIGHT, HAL_PIXEL_FORMAT_RGBA_8888, 1,
+                              GRALLOC_USAGE_SW_WRITE_RARELY, "RefreshRateOverlayBuffer");
+    uint8_t* pixels;
+    buffer->lock(GRALLOC_USAGE_SW_WRITE_RARELY, reinterpret_cast<void**>(&pixels));
+    int left = 0;
+    if (hundreds != 0) {
+        drawDigit(hundreds, left, color, buffer, pixels);
+        left += DIGIT_WIDTH + DIGIT_SPACE;
+    }
+
+    if (tens != 0) {
+        drawDigit(tens, left, color, buffer, pixels);
+        left += DIGIT_WIDTH + DIGIT_SPACE;
+    }
+
+    drawDigit(ones, left, color, buffer, pixels);
+    buffer->unlock();
+    return buffer;
+}
 
 RefreshRateOverlay::RefreshRateOverlay(SurfaceFlinger& flinger)
       : mFlinger(flinger), mClient(new Client(&mFlinger)) {
     createLayer();
+    primeCache();
 }
 
 bool RefreshRateOverlay::createLayer() {
     const status_t ret =
-            mFlinger.createLayer(String8("RefreshRateOverlay"), mClient, 0, 0,
-                                 PIXEL_FORMAT_RGBA_8888, ISurfaceComposerClient::eFXSurfaceColor,
-                                 LayerMetadata(), &mIBinder, &mGbp, nullptr);
+            mFlinger.createLayer(String8("RefreshRateOverlay"), mClient,
+                                 SevenSegmentDrawer::getWidth(), SevenSegmentDrawer::getHeight(),
+                                 PIXEL_FORMAT_RGBA_8888,
+                                 ISurfaceComposerClient::eFXSurfaceBufferState, LayerMetadata(),
+                                 &mIBinder, &mGbp, nullptr);
     if (ret) {
-        ALOGE("failed to create color layer");
+        ALOGE("failed to create buffer state layer");
         return false;
     }
 
     Mutex::Autolock _l(mFlinger.mStateLock);
     mLayer = mClient->getLayerUser(mIBinder);
-    mLayer->setCrop_legacy(Rect(50, 70, 200, 100));
 
     // setting Layer's Z requires resorting layersSortedByZ
     ssize_t idx = mFlinger.mCurrentState.layersSortedByZ.indexOf(mLayer);
@@ -49,9 +162,41 @@ bool RefreshRateOverlay::createLayer() {
     return true;
 }
 
+void RefreshRateOverlay::primeCache() {
+    auto allRefreshRates = mFlinger.mRefreshRateConfigs->getAllRefreshRates();
+    if (allRefreshRates.size() == 1) {
+        auto fps = allRefreshRates.begin()->second.fps;
+        half4 color = {LOW_FPS_COLOR, ALPHA};
+        mBufferCache.emplace(fps, SevenSegmentDrawer::drawNumber(fps, color));
+        return;
+    }
+
+    std::vector<uint32_t> supportedFps;
+    supportedFps.reserve(allRefreshRates.size());
+    for (auto [ignored, refreshRate] : allRefreshRates) {
+        supportedFps.push_back(refreshRate.fps);
+    }
+
+    std::sort(supportedFps.begin(), supportedFps.end());
+    const auto mLowFps = supportedFps[0];
+    const auto mHighFps = supportedFps[supportedFps.size() - 1];
+    for (auto fps : supportedFps) {
+        const auto fpsScale = float(fps - mLowFps) / (mHighFps - mLowFps);
+        half4 color;
+        color.r = HIGH_FPS_COLOR.r * fpsScale + LOW_FPS_COLOR.r * (1 - fpsScale);
+        color.g = HIGH_FPS_COLOR.g * fpsScale + LOW_FPS_COLOR.g * (1 - fpsScale);
+        color.b = HIGH_FPS_COLOR.b * fpsScale + LOW_FPS_COLOR.b * (1 - fpsScale);
+        color.a = ALPHA;
+        mBufferCache.emplace(fps, SevenSegmentDrawer::drawNumber(fps, color));
+    }
+}
+
 void RefreshRateOverlay::changeRefreshRate(const RefreshRate& refreshRate) {
-    const half3& color = (refreshRate.fps > 65.0f) ? GREEN : RED;
-    mLayer->setColor(color);
+    auto buffer = mBufferCache[refreshRate.fps];
+    mLayer->setBuffer(buffer, 0, 0, {});
+    mLayer->setFrame(Rect(20, 120, 20 + SevenSegmentDrawer::getWidth(),
+                          120 + SevenSegmentDrawer::getHeight()));
+
     mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
 }
 
