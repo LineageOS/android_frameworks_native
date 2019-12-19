@@ -24,6 +24,7 @@
 #include <system/window.h>
 #include <ui/BufferQueueDefs.h>
 #include <utils/StrongPointer.h>
+#include <utils/Timers.h>
 #include <utils/Trace.h>
 
 #include <algorithm>
@@ -228,8 +229,10 @@ struct Swapchain {
           mailbox_mode(present_mode == VK_PRESENT_MODE_MAILBOX_KHR),
           pre_transform(pre_transform_),
           frame_timestamps_enabled(false),
+          acquire_next_image_timeout(-1),
           shared(present_mode == VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR ||
-                 present_mode == VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) {
+                 present_mode ==
+                     VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) {
         ANativeWindow* window = surface.window.get();
         native_window_get_refresh_cycle_duration(
             window,
@@ -251,6 +254,7 @@ struct Swapchain {
     int pre_transform;
     bool frame_timestamps_enabled;
     int64_t refresh_duration;
+    nsecs_t acquire_next_image_timeout;
     bool shared;
 
     struct Image {
@@ -1094,6 +1098,14 @@ VkResult CreateSwapchainKHR(VkDevice device,
     ALOGW_IF(err != 0, "native_window_api_connect failed: %s (%d)",
              strerror(-err), err);
 
+    err = surface.window.get()->perform(surface.window.get(),
+                                        NATIVE_WINDOW_SET_DEQUEUE_TIMEOUT, -1);
+    if (err != android::OK) {
+        ALOGE("window->perform(SET_DEQUEUE_TIMEOUT) failed: %s (%d)",
+              strerror(-err), err);
+        return VK_ERROR_SURFACE_LOST_KHR;
+    }
+
     err = native_window_set_buffer_count(surface.window.get(), 0);
     if (err != 0) {
         ALOGE("native_window_set_buffer_count(0) failed: %s (%d)",
@@ -1447,10 +1459,6 @@ VkResult AcquireNextImageKHR(VkDevice device,
     if (swapchain.surface.swapchain_handle != swapchain_handle)
         return VK_ERROR_OUT_OF_DATE_KHR;
 
-    ALOGW_IF(
-        timeout != UINT64_MAX,
-        "vkAcquireNextImageKHR: non-infinite timeouts not yet implemented");
-
     if (swapchain.shared) {
         // In shared mode, we keep the buffer dequeued all the time, so we don't
         // want to dequeue a buffer here. Instead, just ask the driver to ensure
@@ -1461,10 +1469,27 @@ VkResult AcquireNextImageKHR(VkDevice device,
         return result;
     }
 
+    const nsecs_t acquire_next_image_timeout =
+        timeout > (uint64_t)std::numeric_limits<nsecs_t>::max() ? -1 : timeout;
+    if (acquire_next_image_timeout != swapchain.acquire_next_image_timeout) {
+        // Cache the timeout to avoid the duplicate binder cost.
+        err = window->perform(window, NATIVE_WINDOW_SET_DEQUEUE_TIMEOUT,
+                              acquire_next_image_timeout);
+        if (err != android::OK) {
+            ALOGE("window->perform(SET_DEQUEUE_TIMEOUT) failed: %s (%d)",
+                  strerror(-err), err);
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+        swapchain.acquire_next_image_timeout = acquire_next_image_timeout;
+    }
+
     ANativeWindowBuffer* buffer;
     int fence_fd;
     err = window->dequeueBuffer(window, &buffer, &fence_fd);
-    if (err != 0) {
+    if (err == android::TIMED_OUT) {
+        ALOGW("dequeueBuffer timed out: %s (%d)", strerror(-err), err);
+        return timeout ? VK_TIMEOUT : VK_NOT_READY;
+    } else if (err != android::OK) {
         ALOGE("dequeueBuffer failed: %s (%d)", strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
     }
