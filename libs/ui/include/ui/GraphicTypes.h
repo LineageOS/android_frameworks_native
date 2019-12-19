@@ -19,8 +19,10 @@
 #include <aidl/android/hardware/graphics/common/BlendMode.h>
 #include <aidl/android/hardware/graphics/common/ChromaSiting.h>
 #include <aidl/android/hardware/graphics/common/Compression.h>
+#include <aidl/android/hardware/graphics/common/Cta861_3.h>
 #include <aidl/android/hardware/graphics/common/Interlaced.h>
 #include <aidl/android/hardware/graphics/common/PlaneLayout.h>
+#include <aidl/android/hardware/graphics/common/Smpte2086.h>
 #include <android/hardware/graphics/common/1.1/types.h>
 #include <android/hardware/graphics/common/1.2/types.h>
 #include <system/graphics.h>
@@ -47,7 +49,9 @@ using android::hardware::graphics::common::V1_2::PixelFormat;
  * Stable AIDL types
  */
 using aidl::android::hardware::graphics::common::BlendMode;
+using aidl::android::hardware::graphics::common::Cta861_3;
 using aidl::android::hardware::graphics::common::PlaneLayout;
+using aidl::android::hardware::graphics::common::Smpte2086;
 
 /**
  * The following stable AIDL types below have standard platform definitions
