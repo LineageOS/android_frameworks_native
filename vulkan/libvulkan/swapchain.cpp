@@ -708,20 +708,6 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
 
     const InstanceData& instance_data = GetData(pdev);
 
-    // TODO(jessehall): Fill out the set of supported formats. Longer term, add
-    // a new gralloc method to query whether a (format, usage) pair is
-    // supported, and check that for each gralloc format that corresponds to a
-    // Vulkan format. Shorter term, just add a few more formats to the ones
-    // hardcoded below.
-
-    const VkSurfaceFormatKHR kFormats[] = {
-        {VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
-        {VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
-        {VK_FORMAT_R5G6B5_UNORM_PACK16, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
-    };
-    const uint32_t kNumFormats = sizeof(kFormats) / sizeof(kFormats[0]);
-    uint32_t total_num_formats = kNumFormats;
-
     bool wide_color_support = false;
     Surface& surface = *SurfaceFromHandle(surface_handle);
     int err = native_window_get_wide_color_support(surface.window.get(),
@@ -735,43 +721,72 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
         wide_color_support &&
         instance_data.hook_extensions.test(ProcHook::EXT_swapchain_colorspace);
 
-    const VkSurfaceFormatKHR kWideColorFormats[] = {
-        {VK_FORMAT_R8G8B8A8_UNORM,
-         VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT},
-        {VK_FORMAT_R8G8B8A8_SRGB,
-         VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT},
-        {VK_FORMAT_R16G16B16A16_SFLOAT,
-         VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT},
-        {VK_FORMAT_R16G16B16A16_SFLOAT,
-         VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT},
-        {VK_FORMAT_A2B10G10R10_UNORM_PACK32,
-         VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT},
-    };
-    const uint32_t kNumWideColorFormats =
-        sizeof(kWideColorFormats) / sizeof(kWideColorFormats[0]);
+    AHardwareBuffer_Desc desc = {};
+    desc.width = 1;
+    desc.height = 1;
+    desc.layers = 1;
+    desc.usage = surface.consumer_usage |
+                 AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE |
+                 AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER;
+
+    // We must support R8G8B8A8
+    std::vector<VkSurfaceFormatKHR> all_formats = {
+        {VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
+        {VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}};
+
     if (wide_color_support) {
-        total_num_formats += kNumWideColorFormats;
+        all_formats.emplace_back(VkSurfaceFormatKHR{
+            VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT});
+        all_formats.emplace_back(VkSurfaceFormatKHR{
+            VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT});
+    }
+
+    desc.format = AHARDWAREBUFFER_FORMAT_R5G6B5_UNORM;
+    if (AHardwareBuffer_isSupported(&desc)) {
+        all_formats.emplace_back(VkSurfaceFormatKHR{
+            VK_FORMAT_R5G6B5_UNORM_PACK16, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
+    }
+
+    desc.format = AHARDWAREBUFFER_FORMAT_R16G16B16A16_FLOAT;
+    if (AHardwareBuffer_isSupported(&desc)) {
+        all_formats.emplace_back(VkSurfaceFormatKHR{
+            VK_FORMAT_R16G16B16A16_SFLOAT, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
+        if (wide_color_support) {
+            all_formats.emplace_back(
+                VkSurfaceFormatKHR{VK_FORMAT_R16G16B16A16_SFLOAT,
+                                   VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT});
+            all_formats.emplace_back(
+                VkSurfaceFormatKHR{VK_FORMAT_R16G16B16A16_SFLOAT,
+                                   VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT});
+        }
+    }
+
+    desc.format = AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM;
+    if (AHardwareBuffer_isSupported(&desc)) {
+        all_formats.emplace_back(
+            VkSurfaceFormatKHR{VK_FORMAT_A2B10G10R10_UNORM_PACK32,
+                               VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
+        if (wide_color_support) {
+            all_formats.emplace_back(
+                VkSurfaceFormatKHR{VK_FORMAT_A2B10G10R10_UNORM_PACK32,
+                                   VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT});
+        }
     }
 
     VkResult result = VK_SUCCESS;
     if (formats) {
-        uint32_t out_count = 0;
-        uint32_t transfer_count = 0;
-        if (*count < total_num_formats)
+        uint32_t transfer_count = all_formats.size();
+        if (transfer_count > *count) {
+            transfer_count = *count;
             result = VK_INCOMPLETE;
-        transfer_count = std::min(*count, kNumFormats);
-        std::copy(kFormats, kFormats + transfer_count, formats);
-        out_count += transfer_count;
-        if (wide_color_support) {
-            transfer_count = std::min(*count - out_count, kNumWideColorFormats);
-            std::copy(kWideColorFormats, kWideColorFormats + transfer_count,
-                      formats + out_count);
-            out_count += transfer_count;
         }
-        *count = out_count;
+        std::copy(all_formats.begin(), all_formats.begin() + transfer_count,
+                  formats);
+        *count = transfer_count;
     } else {
-        *count = total_num_formats;
+        *count = all_formats.size();
     }
+
     return result;
 }
 
