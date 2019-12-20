@@ -53,7 +53,7 @@ class CommandSetExternalControl : public Command {
 
         if (auto hal = getHal<aidl::IVibrator>()) {
             auto status = hal->call(&aidl::IVibrator::setExternalControl, mEnable);
-            statusStr = status.toString8();
+            statusStr = status.getDescription();
             ret = status.isOk() ? OK : ERROR;
         } else if (auto hal = getHal<V1_3::IVibrator>()) {
             auto status = hal->call(&V1_3::IVibrator::setExternalControl, mEnable);
