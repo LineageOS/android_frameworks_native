@@ -50,7 +50,7 @@ class CommandGetCompositionSizeMax : public Command {
 
         if (auto hal = getHal<aidl::IVibrator>()) {
             auto status = hal->call(&aidl::IVibrator::getCompositionSizeMax, &maxSize);
-            statusStr = status.toString8();
+            statusStr = status.getDescription();
             ret = status.isOk() ? OK : ERROR;
         } else {
             return UNAVAILABLE;

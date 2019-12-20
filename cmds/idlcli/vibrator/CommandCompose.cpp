@@ -80,7 +80,7 @@ class CommandCompose : public Command {
         Status ret;
         if (auto hal = getHal<aidl::IVibrator>()) {
             auto status = hal->call(&aidl::IVibrator::compose, mComposite, nullptr);
-            statusStr = status.toString8();
+            statusStr = status.getDescription();
             ret = status.isOk() ? OK : ERROR;
         } else {
             return UNAVAILABLE;
