@@ -505,7 +505,7 @@ protected:
             const std::string name, int32_t displayId) :
                 mDispatcher(dispatcher), mName(name), mDisplayId(displayId) {
             InputChannel::openInputChannelPair(name, mServerChannel, mClientChannel);
-            mConsumer = new InputConsumer(mClientChannel);
+            mConsumer = std::make_unique<InputConsumer>(mClientChannel);
         }
 
         virtual ~FakeInputReceiver() {
@@ -518,7 +518,7 @@ protected:
 
         sp<InputDispatcher> mDispatcher;
         sp<InputChannel> mServerChannel, mClientChannel;
-        InputConsumer *mConsumer;
+        std::unique_ptr<InputConsumer> mConsumer;
         PreallocatedInputEventFactory mEventFactory;
 
         std::string mName;
