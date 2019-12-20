@@ -367,7 +367,7 @@ uint32_t get_num_ready_timings(Swapchain& swapchain) {
         int64_t composition_latch_time = 0;
         int64_t actual_present_time = 0;
         // Obtain timestamps:
-        int ret = native_window_get_frame_timestamps(
+        int err = native_window_get_frame_timestamps(
             swapchain.surface.window.get(), ti.native_frame_id_,
             &desired_present_time, &render_complete_time,
             &composition_latch_time,
@@ -378,7 +378,7 @@ uint32_t get_num_ready_timings(Swapchain& swapchain) {
             nullptr,  //&dequeue_ready_time,
             nullptr /*&reads_done_time*/);
 
-        if (ret != android::NO_ERROR) {
+        if (err != android::OK) {
             continue;
         }
 
@@ -534,7 +534,7 @@ VkResult CreateAndroidSurfaceKHR(
     surface->swapchain_handle = VK_NULL_HANDLE;
     int err = native_window_get_consumer_usage(surface->window.get(),
                                                &surface->consumer_usage);
-    if (err != android::NO_ERROR) {
+    if (err != android::OK) {
         ALOGE("native_window_get_consumer_usage() failed: %s (%d)",
               strerror(-err), err);
         surface->~Surface();
@@ -544,7 +544,7 @@ VkResult CreateAndroidSurfaceKHR(
 
     err =
         native_window_api_connect(surface->window.get(), NATIVE_WINDOW_API_EGL);
-    if (err != 0) {
+    if (err != android::OK) {
         ALOGE("native_window_api_connect() failed: %s (%d)", strerror(-err),
               err);
         surface->~Surface();
@@ -592,7 +592,7 @@ VkResult GetPhysicalDeviceSurfaceSupportKHR(VkPhysicalDevice /*pdev*/,
 
     int query_value;
     int err = window->query(window, NATIVE_WINDOW_FORMAT, &query_value);
-    if (err != 0 || query_value < 0) {
+    if (err != android::OK || query_value < 0) {
         ALOGE("NATIVE_WINDOW_FORMAT query failed: %s (%d) value=%d",
               strerror(-err), err, query_value);
         return VK_ERROR_SURFACE_LOST_KHR;
@@ -633,13 +633,13 @@ VkResult GetPhysicalDeviceSurfaceCapabilitiesKHR(
 
     int width, height;
     err = window->query(window, NATIVE_WINDOW_DEFAULT_WIDTH, &width);
-    if (err != 0) {
+    if (err != android::OK) {
         ALOGE("NATIVE_WINDOW_DEFAULT_WIDTH query failed: %s (%d)",
               strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
     }
     err = window->query(window, NATIVE_WINDOW_DEFAULT_HEIGHT, &height);
-    if (err != 0) {
+    if (err != android::OK) {
         ALOGE("NATIVE_WINDOW_DEFAULT_WIDTH query failed: %s (%d)",
               strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
@@ -647,7 +647,7 @@ VkResult GetPhysicalDeviceSurfaceCapabilitiesKHR(
 
     int transform_hint;
     err = window->query(window, NATIVE_WINDOW_TRANSFORM_HINT, &transform_hint);
-    if (err != 0) {
+    if (err != android::OK) {
         ALOGE("NATIVE_WINDOW_TRANSFORM_HINT query failed: %s (%d)",
               strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
@@ -655,7 +655,7 @@ VkResult GetPhysicalDeviceSurfaceCapabilitiesKHR(
 
     int max_buffer_count;
     err = window->query(window, NATIVE_WINDOW_MAX_BUFFER_COUNT, &max_buffer_count);
-    if (err != 0) {
+    if (err != android::OK) {
         ALOGE("NATIVE_WINDOW_MAX_BUFFER_COUNT query failed: %s (%d)",
               strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
@@ -860,7 +860,7 @@ VkResult GetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice pdev,
     ANativeWindow* window = SurfaceFromHandle(surface)->window.get();
 
     err = window->query(window, NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS, &query_value);
-    if (err != 0 || query_value < 0) {
+    if (err != android::OK || query_value < 0) {
         ALOGE("NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS query failed: %s (%d) value=%d",
               strerror(-err), err, query_value);
         return VK_ERROR_SURFACE_LOST_KHR;
@@ -868,7 +868,7 @@ VkResult GetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice pdev,
     uint32_t min_undequeued_buffers = static_cast<uint32_t>(query_value);
 
     err = window->query(window, NATIVE_WINDOW_MAX_BUFFER_COUNT, &query_value);
-    if (err != 0 || query_value < 0) {
+    if (err != android::OK || query_value < 0) {
         ALOGE("NATIVE_WINDOW_MAX_BUFFER_COUNT query failed: %s (%d) value=%d",
               strerror(-err), err, query_value);
         return VK_ERROR_SURFACE_LOST_KHR;
@@ -960,12 +960,12 @@ VkResult GetPhysicalDevicePresentRectanglesKHR(VkPhysicalDevice,
 
         int width = 0, height = 0;
         err = window->query(window, NATIVE_WINDOW_DEFAULT_WIDTH, &width);
-        if (err != 0) {
+        if (err != android::OK) {
             ALOGE("NATIVE_WINDOW_DEFAULT_WIDTH query failed: %s (%d)",
                   strerror(-err), err);
         }
         err = window->query(window, NATIVE_WINDOW_DEFAULT_HEIGHT, &height);
-        if (err != 0) {
+        if (err != android::OK) {
             ALOGE("NATIVE_WINDOW_DEFAULT_WIDTH query failed: %s (%d)",
                   strerror(-err), err);
         }
@@ -1089,25 +1089,23 @@ VkResult CreateSwapchainKHR(VkDevice device,
     // dequeue all buffers.
     //
     // TODO(http://b/134186185) recycle swapchain images more efficiently
-    err = native_window_api_disconnect(surface.window.get(),
-                                       NATIVE_WINDOW_API_EGL);
-    ALOGW_IF(err != 0, "native_window_api_disconnect failed: %s (%d)",
+    ANativeWindow* window = surface.window.get();
+    err = native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
+    ALOGW_IF(err != android::OK, "native_window_api_disconnect failed: %s (%d)",
              strerror(-err), err);
-    err =
-        native_window_api_connect(surface.window.get(), NATIVE_WINDOW_API_EGL);
-    ALOGW_IF(err != 0, "native_window_api_connect failed: %s (%d)",
+    err = native_window_api_connect(window, NATIVE_WINDOW_API_EGL);
+    ALOGW_IF(err != android::OK, "native_window_api_connect failed: %s (%d)",
              strerror(-err), err);
 
-    err = surface.window.get()->perform(surface.window.get(),
-                                        NATIVE_WINDOW_SET_DEQUEUE_TIMEOUT, -1);
+    err = window->perform(window, NATIVE_WINDOW_SET_DEQUEUE_TIMEOUT, -1);
     if (err != android::OK) {
         ALOGE("window->perform(SET_DEQUEUE_TIMEOUT) failed: %s (%d)",
               strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
     }
 
-    err = native_window_set_buffer_count(surface.window.get(), 0);
-    if (err != 0) {
+    err = native_window_set_buffer_count(window, 0);
+    if (err != android::OK) {
         ALOGE("native_window_set_buffer_count(0) failed: %s (%d)",
               strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
@@ -1115,22 +1113,22 @@ VkResult CreateSwapchainKHR(VkDevice device,
 
     int swap_interval =
         create_info->presentMode == VK_PRESENT_MODE_MAILBOX_KHR ? 0 : 1;
-    err = surface.window->setSwapInterval(surface.window.get(), swap_interval);
-    if (err != 0) {
+    err = window->setSwapInterval(window, swap_interval);
+    if (err != android::OK) {
         ALOGE("native_window->setSwapInterval(1) failed: %s (%d)",
               strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
     }
 
-    err = native_window_set_shared_buffer_mode(surface.window.get(), false);
-    if (err != 0) {
+    err = native_window_set_shared_buffer_mode(window, false);
+    if (err != android::OK) {
         ALOGE("native_window_set_shared_buffer_mode(false) failed: %s (%d)",
               strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
     }
 
-    err = native_window_set_auto_refresh(surface.window.get(), false);
-    if (err != 0) {
+    err = native_window_set_auto_refresh(window, false);
+    if (err != android::OK) {
         ALOGE("native_window_set_auto_refresh(false) failed: %s (%d)",
               strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
@@ -1140,25 +1138,23 @@ VkResult CreateSwapchainKHR(VkDevice device,
 
     const auto& dispatch = GetData(device).driver;
 
-    err = native_window_set_buffers_format(surface.window.get(),
-                                           native_pixel_format);
-    if (err != 0) {
+    err = native_window_set_buffers_format(window, native_pixel_format);
+    if (err != android::OK) {
         ALOGE("native_window_set_buffers_format(%d) failed: %s (%d)",
               native_pixel_format, strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
     }
-    err = native_window_set_buffers_data_space(surface.window.get(),
-                                               native_dataspace);
-    if (err != 0) {
+    err = native_window_set_buffers_data_space(window, native_dataspace);
+    if (err != android::OK) {
         ALOGE("native_window_set_buffers_data_space(%d) failed: %s (%d)",
               native_dataspace, strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
     }
 
     err = native_window_set_buffers_dimensions(
-        surface.window.get(), static_cast<int>(create_info->imageExtent.width),
+        window, static_cast<int>(create_info->imageExtent.width),
         static_cast<int>(create_info->imageExtent.height));
-    if (err != 0) {
+    if (err != android::OK) {
         ALOGE("native_window_set_buffers_dimensions(%d,%d) failed: %s (%d)",
               create_info->imageExtent.width, create_info->imageExtent.height,
               strerror(-err), err);
@@ -1174,9 +1170,8 @@ VkResult CreateSwapchainKHR(VkDevice device,
     // it's job the two transforms cancel each other out and the compositor ends
     // up applying an identity transform to the app's buffer.
     err = native_window_set_buffers_transform(
-        surface.window.get(),
-        InvertTransformToNative(create_info->preTransform));
-    if (err != 0) {
+        window, InvertTransformToNative(create_info->preTransform));
+    if (err != android::OK) {
         ALOGE("native_window_set_buffers_transform(%d) failed: %s (%d)",
               InvertTransformToNative(create_info->preTransform),
               strerror(-err), err);
@@ -1184,8 +1179,8 @@ VkResult CreateSwapchainKHR(VkDevice device,
     }
 
     err = native_window_set_scaling_mode(
-        surface.window.get(), NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
-    if (err != 0) {
+        window, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+    if (err != android::OK) {
         ALOGE("native_window_set_scaling_mode(SCALE_TO_WINDOW) failed: %s (%d)",
               strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
@@ -1195,26 +1190,25 @@ VkResult CreateSwapchainKHR(VkDevice device,
     if (create_info->presentMode == VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR ||
         create_info->presentMode == VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) {
         swapchain_image_usage |= VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_ANDROID;
-        err = native_window_set_shared_buffer_mode(surface.window.get(), true);
-        if (err != 0) {
+        err = native_window_set_shared_buffer_mode(window, true);
+        if (err != android::OK) {
             ALOGE("native_window_set_shared_buffer_mode failed: %s (%d)", strerror(-err), err);
             return VK_ERROR_SURFACE_LOST_KHR;
         }
     }
 
     if (create_info->presentMode == VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) {
-        err = native_window_set_auto_refresh(surface.window.get(), true);
-        if (err != 0) {
+        err = native_window_set_auto_refresh(window, true);
+        if (err != android::OK) {
             ALOGE("native_window_set_auto_refresh failed: %s (%d)", strerror(-err), err);
             return VK_ERROR_SURFACE_LOST_KHR;
         }
     }
 
     int query_value;
-    err = surface.window->query(surface.window.get(),
-                                NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
-                                &query_value);
-    if (err != 0 || query_value < 0) {
+    err = window->query(window, NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
+                        &query_value);
+    if (err != android::OK || query_value < 0) {
         ALOGE("window->query failed: %s (%d) value=%d", strerror(-err), err,
               query_value);
         return VK_ERROR_SURFACE_LOST_KHR;
@@ -1230,8 +1224,8 @@ VkResult CreateSwapchainKHR(VkDevice device,
     // in place for that to work yet. Note we only lie to the lower layer-- we
     // don't want to give the app back a swapchain with extra images (which they
     // can't actually use!).
-    err = native_window_set_buffer_count(surface.window.get(), std::max(2u, num_images));
-    if (err != 0) {
+    err = native_window_set_buffer_count(window, std::max(2u, num_images));
+    if (err != android::OK) {
         ALOGE("native_window_set_buffer_count(%d) failed: %s (%d)", num_images,
               strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
@@ -1269,16 +1263,15 @@ VkResult CreateSwapchainKHR(VkDevice device,
         createProtectedSwapchain = true;
         native_usage |= BufferUsage::PROTECTED;
     }
-    err = native_window_set_usage(surface.window.get(), native_usage);
-    if (err != 0) {
+    err = native_window_set_usage(window, native_usage);
+    if (err != android::OK) {
         ALOGE("native_window_set_usage failed: %s (%d)", strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
     }
 
     int transform_hint;
-    err = surface.window->query(surface.window.get(),
-                                NATIVE_WINDOW_TRANSFORM_HINT, &transform_hint);
-    if (err != 0) {
+    err = window->query(window, NATIVE_WINDOW_TRANSFORM_HINT, &transform_hint);
+    if (err != android::OK) {
         ALOGE("NATIVE_WINDOW_TRANSFORM_HINT query failed: %s (%d)",
               strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
@@ -1334,9 +1327,8 @@ VkResult CreateSwapchainKHR(VkDevice device,
         Swapchain::Image& img = swapchain->images[i];
 
         ANativeWindowBuffer* buffer;
-        err = surface.window->dequeueBuffer(surface.window.get(), &buffer,
-                                            &img.dequeue_fence);
-        if (err != 0) {
+        err = window->dequeueBuffer(window, &buffer, &img.dequeue_fence);
+        if (err != android::OK) {
             ALOGE("dequeueBuffer[%u] failed: %s (%d)", i, strerror(-err), err);
             switch (-err) {
                 case ENOMEM:
@@ -1380,8 +1372,8 @@ VkResult CreateSwapchainKHR(VkDevice device,
         Swapchain::Image& img = swapchain->images[i];
         if (img.dequeued) {
             if (!swapchain->shared) {
-                surface.window->cancelBuffer(surface.window.get(), img.buffer.get(),
-                                             img.dequeue_fence);
+                window->cancelBuffer(window, img.buffer.get(),
+                                     img.dequeue_fence);
                 img.dequeue_fence = -1;
                 img.dequeued = false;
             }
@@ -1696,7 +1688,7 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
                     uint64_t nativeFrameId = 0;
                     err = native_window_get_next_frame_id(
                             window, &nativeFrameId);
-                    if (err != android::NO_ERROR) {
+                    if (err != android::OK) {
                         ALOGE("Failed to get next native frame ID.");
                     }
 
@@ -1720,7 +1712,7 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
 
                 err = window->queueBuffer(window, img.buffer.get(), fence);
                 // queueBuffer always closes fence, even on error
-                if (err != 0) {
+                if (err != android::OK) {
                     ALOGE("queueBuffer failed: %s (%d)", strerror(-err), err);
                     swapchain_result = WorstPresentResult(
                         swapchain_result, VK_ERROR_OUT_OF_DATE_KHR);
@@ -1740,17 +1732,15 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
                     ANativeWindowBuffer* buffer;
                     int fence_fd;
                     err = window->dequeueBuffer(window, &buffer, &fence_fd);
-                    if (err != 0) {
+                    if (err != android::OK) {
                         ALOGE("dequeueBuffer failed: %s (%d)", strerror(-err), err);
                         swapchain_result = WorstPresentResult(swapchain_result,
                             VK_ERROR_SURFACE_LOST_KHR);
-                    }
-                    else if (img.buffer != buffer) {
+                    } else if (img.buffer != buffer) {
                         ALOGE("got wrong image back for shared swapchain");
                         swapchain_result = WorstPresentResult(swapchain_result,
                             VK_ERROR_SURFACE_LOST_KHR);
-                    }
-                    else {
+                    } else {
                         img.dequeue_fence = fence_fd;
                         img.dequeued = true;
                     }
@@ -1762,7 +1752,7 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
             int window_transform_hint;
             err = window->query(window, NATIVE_WINDOW_TRANSFORM_HINT,
                                 &window_transform_hint);
-            if (err != 0) {
+            if (err != android::OK) {
                 ALOGE("NATIVE_WINDOW_TRANSFORM_HINT query failed: %s (%d)",
                       strerror(-err), err);
                 swapchain_result = WorstPresentResult(
