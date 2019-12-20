@@ -13,13 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #ifndef FRAMEWORK_NATIVE_CMDS_IDLCLI_VIBRATOR_H_
 #define FRAMEWORK_NATIVE_CMDS_IDLCLI_VIBRATOR_H_
 
+#include <aidl/android/hardware/vibrator/IVibrator.h>
+#include <android/binder_manager.h>
 #include <android/hardware/vibrator/1.3/IVibrator.h>
-#include <android/hardware/vibrator/IVibrator.h>
-#include <binder/IServiceManager.h>
 
 #include "utils.h"
 
@@ -39,20 +38,25 @@ inline R NullptrStatus() {
 }
 
 template <>
-inline binder::Status NullptrStatus() {
-    using binder::Status;
-    return Status::fromExceptionCode(Status::EX_NULL_POINTER);
+inline ndk::ScopedAStatus NullptrStatus() {
+    return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_NULL_POINTER));
 }
 
 template <typename I>
-inline sp<I> getService() {
+inline auto getService() {
     return I::getService();
 }
 
 template <>
-inline sp<hardware::vibrator::IVibrator> getService() {
-    return waitForVintfService<hardware::vibrator::IVibrator>();
+inline auto getService<aidl::android::hardware::vibrator::IVibrator>() {
+    const auto instance =
+            std::string() + aidl::android::hardware::vibrator::IVibrator::descriptor + "/default";
+    auto vibBinder = ndk::SpAIBinder(AServiceManager_getService(instance.c_str()));
+    return aidl::android::hardware::vibrator::IVibrator::fromBinder(vibBinder);
 }
+
+template <typename I>
+using shared_ptr = std::result_of_t<decltype(getService<I>)&()>;
 
 template <typename I>
 class HalWrapper {
@@ -70,10 +74,10 @@ public:
     }
 
 private:
-    HalWrapper(sp<I>&& hal) : mHal(std::move(hal)) {}
+    HalWrapper(shared_ptr<I>&& hal) : mHal(std::move(hal)) {}
 
 private:
-    sp<I> mHal;
+    shared_ptr<I> mHal;
 };
 
 template <typename I>
@@ -95,7 +99,7 @@ namespace V1_0 = ::android::hardware::vibrator::V1_0;
 namespace V1_1 = ::android::hardware::vibrator::V1_1;
 namespace V1_2 = ::android::hardware::vibrator::V1_2;
 namespace V1_3 = ::android::hardware::vibrator::V1_3;
-namespace aidl = ::android::hardware::vibrator;
+namespace aidl = ::aidl::android::hardware::vibrator;
 
 } // namespace vibrator
 } // namespace idlcli
