@@ -301,8 +301,8 @@ status_t InputChannel::sendMessage(const InputMessage* msg) {
     if (nWrite < 0) {
         int error = errno;
 #if DEBUG_CHANNEL_MESSAGES
-        ALOGD("channel '%s' ~ error sending message of type %d, errno=%d", mName.c_str(),
-                msg->header.type, error);
+        ALOGD("channel '%s' ~ error sending message of type %d, %s", mName.c_str(),
+              msg->header.type, strerror(error));
 #endif
         if (error == EAGAIN || error == EWOULDBLOCK) {
             return WOULD_BLOCK;

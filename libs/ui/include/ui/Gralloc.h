@@ -165,6 +165,19 @@ public:
                                   ui::BlendMode* /*outBlendMode*/) const {
         return INVALID_OPERATION;
     }
+    virtual status_t getSmpte2086(buffer_handle_t /*bufferHandle*/,
+                                  std::optional<ui::Smpte2086>* /*outSmpte2086*/) const {
+        return INVALID_OPERATION;
+    }
+    virtual status_t getCta861_3(buffer_handle_t /*bufferHandle*/,
+                                 std::optional<ui::Cta861_3>* /*outCta861_3*/) const {
+        return INVALID_OPERATION;
+    }
+    virtual status_t getSmpte2094_40(
+            buffer_handle_t /*bufferHandle*/,
+            std::optional<std::vector<uint8_t>>* /*outSmpte2094_40*/) const {
+        return INVALID_OPERATION;
+    }
 
     virtual status_t getDefaultPixelFormatFourCC(uint32_t /*width*/, uint32_t /*height*/,
                                                  PixelFormat /*format*/, uint32_t /*layerCount*/,

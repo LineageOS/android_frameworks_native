@@ -62,8 +62,11 @@ inline bool hasMetadataKey(const std::set<Hwc2::PerFrameMetadataKey>& keys,
 
 class ComposerCallbackBridge : public Hwc2::IComposerCallback {
 public:
-    ComposerCallbackBridge(ComposerCallback* callback, int32_t sequenceId)
-            : mCallback(callback), mSequenceId(sequenceId) {}
+    ComposerCallbackBridge(ComposerCallback* callback, int32_t sequenceId,
+                           bool vsyncSwitchingSupported)
+          : mCallback(callback),
+            mSequenceId(sequenceId),
+            mVsyncSwitchingSupported(vsyncSwitchingSupported) {}
 
     Return<void> onHotplug(Hwc2::Display display,
                            IComposerCallback::Connection conn) override
@@ -81,15 +84,23 @@ public:
 
     Return<void> onVsync(Hwc2::Display display, int64_t timestamp) override
     {
-        mCallback->onVsyncReceived(mSequenceId, display, timestamp, std::nullopt);
+        if (!mVsyncSwitchingSupported) {
+            mCallback->onVsyncReceived(mSequenceId, display, timestamp, std::nullopt);
+        } else {
+            ALOGW("Unexpected onVsync callback on composer >= 2.4, ignoring.");
+        }
         return Void();
     }
 
     Return<void> onVsync_2_4(Hwc2::Display display, int64_t timestamp,
                              Hwc2::VsyncPeriodNanos vsyncPeriodNanos) override {
-        // TODO(b/140201379): use vsyncPeriodNanos in the new DispSync
-        mCallback->onVsyncReceived(mSequenceId, display, timestamp,
-                                   std::make_optional(vsyncPeriodNanos));
+        if (mVsyncSwitchingSupported) {
+            // TODO(b/140201379): use vsyncPeriodNanos in the new DispSync
+            mCallback->onVsyncReceived(mSequenceId, display, timestamp,
+                                       std::make_optional(vsyncPeriodNanos));
+        } else {
+            ALOGW("Unexpected onVsync_2_4 callback on composer <= 2.3, ignoring.");
+        }
         return Void();
     }
 
@@ -107,6 +118,7 @@ public:
 private:
     ComposerCallback* mCallback;
     int32_t mSequenceId;
+    const bool mVsyncSwitchingSupported;
 };
 
 } // namespace anonymous
@@ -126,7 +138,8 @@ void Device::registerCallback(ComposerCallback* callback, int32_t sequenceId) {
     }
     mRegisteredCallback = true;
     sp<ComposerCallbackBridge> callbackBridge(
-            new ComposerCallbackBridge(callback, sequenceId));
+            new ComposerCallbackBridge(callback, sequenceId,
+                                       mComposer->isVsyncPeriodSwitchSupported()));
     mComposer->registerCallback(callbackBridge);
 }
 

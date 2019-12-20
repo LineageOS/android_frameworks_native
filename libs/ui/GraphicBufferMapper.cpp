@@ -286,6 +286,21 @@ status_t GraphicBufferMapper::getBlendMode(buffer_handle_t bufferHandle,
     return mMapper->getBlendMode(bufferHandle, outBlendMode);
 }
 
+status_t GraphicBufferMapper::getSmpte2086(buffer_handle_t bufferHandle,
+                                           std::optional<ui::Smpte2086>* outSmpte2086) {
+    return mMapper->getSmpte2086(bufferHandle, outSmpte2086);
+}
+
+status_t GraphicBufferMapper::getCta861_3(buffer_handle_t bufferHandle,
+                                          std::optional<ui::Cta861_3>* outCta861_3) {
+    return mMapper->getCta861_3(bufferHandle, outCta861_3);
+}
+
+status_t GraphicBufferMapper::getSmpte2094_40(
+        buffer_handle_t bufferHandle, std::optional<std::vector<uint8_t>>* outSmpte2094_40) {
+    return mMapper->getSmpte2094_40(bufferHandle, outSmpte2094_40);
+}
+
 status_t GraphicBufferMapper::getDefaultPixelFormatFourCC(uint32_t width, uint32_t height,
                                                           PixelFormat format, uint32_t layerCount,
                                                           uint64_t usage,

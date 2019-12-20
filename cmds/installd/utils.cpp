@@ -278,6 +278,15 @@ std::string create_data_dalvik_cache_path() {
     return "/data/dalvik-cache";
 }
 
+std::string create_system_user_ce_path(userid_t userId) {
+    return StringPrintf("%s/system_ce/%u", create_data_path(nullptr).c_str(), userId);
+}
+
+std::string create_system_user_ce_package_path(userid_t userId, const char* package_name) {
+    check_package_name(package_name);
+    return StringPrintf("%s/%s", create_system_user_ce_path(userId).c_str(), package_name);
+}
+
 // Keep profile paths in sync with ActivityThread and LoadedApk.
 const std::string PROFILE_EXT = ".prof";
 const std::string CURRENT_PROFILE_EXT = ".cur";

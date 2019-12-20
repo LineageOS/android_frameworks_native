@@ -53,6 +53,8 @@ cc_test {
         "libpdx",
         "liblog",
         "libutils",
+    ],
+    shared_libs: [
         "libvndksupport",
     ],
 }

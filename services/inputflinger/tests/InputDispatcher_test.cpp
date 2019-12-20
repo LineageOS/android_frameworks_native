@@ -418,7 +418,7 @@ public:
         std::chrono::time_point start = std::chrono::steady_clock::now();
         status_t status = WOULD_BLOCK;
         while (status == WOULD_BLOCK) {
-            status = mConsumer->consume(&mEventFactory, false /*consumeBatches*/, -1, &consumeSeq,
+            status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq,
                                         &event);
             std::chrono::duration elapsed = std::chrono::steady_clock::now() - start;
             if (elapsed > 100ms) {
@@ -930,6 +930,32 @@ TEST_F(InputDispatcherTest, GestureMonitor_CanPilferAfterWindowIsRemovedMidStrea
               injectMotionUp(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT))
             << "Inject motion event should return INPUT_EVENT_INJECTION_SUCCEEDED";
     monitor->consumeMotionUp(ADISPLAY_ID_DEFAULT);
+}
+
+TEST_F(InputDispatcherTest, TestMoveEvent) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
+
+    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+
+    NotifyMotionArgs motionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                               ADISPLAY_ID_DEFAULT);
+
+    mDispatcher->notifyMotion(&motionArgs);
+    // Window should receive motion down event.
+    window->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+
+    motionArgs.action = AMOTION_EVENT_ACTION_MOVE;
+    motionArgs.sequenceNum += 1;
+    motionArgs.eventTime = systemTime(SYSTEM_TIME_MONOTONIC);
+    motionArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X,
+                                             motionArgs.pointerCoords[0].getX() - 10);
+
+    mDispatcher->notifyMotion(&motionArgs);
+    window->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_MOVE, ADISPLAY_ID_DEFAULT,
+                         0 /*expectedFlags*/);
 }
 
 /* Test InputDispatcher for MultiDisplay */

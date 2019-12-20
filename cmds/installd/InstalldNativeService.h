@@ -81,6 +81,16 @@ public:
             int32_t userId, int32_t flags, const std::vector<int32_t>& appIds,
             std::vector<int64_t>* _aidl_return);
 
+    binder::Status getAppCrates(const std::unique_ptr<std::string>& uuid,
+            const std::vector<std::string>& packageNames,
+            int32_t userId,
+            std::unique_ptr<std::vector<std::unique_ptr<android::os::storage::CrateMetadata>>>*
+                    _aidl_return);
+    binder::Status getUserCrates(
+            const std::unique_ptr<std::string>& uuid, int32_t userId,
+            std::unique_ptr<std::vector<std::unique_ptr<android::os::storage::CrateMetadata>>>*
+                    _aidl_return);
+
     binder::Status setAppQuota(const std::unique_ptr<std::string>& uuid,
             int32_t userId, int32_t appId, int64_t cacheQuota);
 
