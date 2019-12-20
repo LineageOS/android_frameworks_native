@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
+#undef LOG_TAG
+#define LOG_TAG "VSyncReactor"
+//#define LOG_NDEBUG 0
 #include "VSyncReactor.h"
+#include <log/log.h>
 #include "TimeKeeper.h"
 #include "VSyncDispatch.h"
 #include "VSyncTracker.h"
@@ -29,6 +33,87 @@ VSyncReactor::VSyncReactor(std::unique_ptr<Clock> clock, std::unique_ptr<VSyncDi
         mDispatch(std::move(dispatch)),
         mTracker(std::move(tracker)),
         mPendingLimit(pendingFenceLimit) {}
+
+VSyncReactor::~VSyncReactor() = default;
+
+// The DispSync interface has a 'repeat this callback at rate' semantic. This object adapts
+// VSyncDispatch's individually-scheduled callbacks so as to meet DispSync's existing semantic
+// for now.
+class CallbackRepeater {
+public:
+    CallbackRepeater(VSyncDispatch& dispatch, DispSync::Callback* cb, const char* name,
+                     nsecs_t period, nsecs_t offset, nsecs_t notBefore)
+          : mCallback(cb),
+            mRegistration(dispatch,
+                          std::bind(&CallbackRepeater::callback, this, std::placeholders::_1),
+                          std::string(name)),
+            mPeriod(period),
+            mOffset(offset),
+            mLastCallTime(notBefore) {}
+
+    ~CallbackRepeater() {
+        std::lock_guard<std::mutex> lk(mMutex);
+        mRegistration.cancel();
+    }
+
+    void start(nsecs_t offset) {
+        std::lock_guard<std::mutex> lk(mMutex);
+        mStopped = false;
+        mOffset = offset;
+
+        auto const schedule_result = mRegistration.schedule(calculateWorkload(), mLastCallTime);
+        LOG_ALWAYS_FATAL_IF((schedule_result != ScheduleResult::Scheduled),
+                            "Error scheduling callback: rc %X", schedule_result);
+    }
+
+    void setPeriod(nsecs_t period) {
+        std::lock_guard<std::mutex> lk(mMutex);
+        if (period == mPeriod) {
+            return;
+        }
+        mPeriod = period;
+    }
+
+    void stop() {
+        std::lock_guard<std::mutex> lk(mMutex);
+        LOG_ALWAYS_FATAL_IF(mStopped, "DispSyncInterface misuse: callback already stopped");
+        mStopped = true;
+        mRegistration.cancel();
+    }
+
+private:
+    void callback(nsecs_t vsynctime) {
+        nsecs_t period = 0;
+        {
+            std::lock_guard<std::mutex> lk(mMutex);
+            period = mPeriod;
+            mLastCallTime = vsynctime;
+        }
+
+        mCallback->onDispSyncEvent(vsynctime - period);
+
+        {
+            std::lock_guard<std::mutex> lk(mMutex);
+            auto const schedule_result = mRegistration.schedule(calculateWorkload(), vsynctime);
+            LOG_ALWAYS_FATAL_IF((schedule_result != ScheduleResult::Scheduled),
+                                "Error rescheduling callback: rc %X", schedule_result);
+        }
+    }
+
+    // DispSync offsets are defined as time after the vsync before presentation.
+    // VSyncReactor workloads are defined as time before the intended presentation vsync.
+    // Note change in sign between the two defnitions.
+    nsecs_t calculateWorkload() REQUIRES(mMutex) { return mPeriod - mOffset; }
+
+    DispSync::Callback* const mCallback;
+
+    std::mutex mutable mMutex;
+    VSyncCallbackRegistration mRegistration GUARDED_BY(mMutex);
+    bool mStopped GUARDED_BY(mMutex) = false;
+    nsecs_t mPeriod GUARDED_BY(mMutex);
+    nsecs_t mOffset GUARDED_BY(mMutex);
+    nsecs_t mLastCallTime GUARDED_BY(mMutex);
+};
 
 bool VSyncReactor::addPresentFence(const std::shared_ptr<FenceTime>& fence) {
     if (!fence) {
@@ -92,6 +177,9 @@ void VSyncReactor::setPeriod(nsecs_t period) {
     {
         std::lock_guard<std::mutex> lk(mMutex);
         mPeriodChangeInProgress = true;
+        for (auto& entry : mCallbacks) {
+            entry.second->setPeriod(period);
+        }
     }
 }
 
@@ -112,6 +200,49 @@ bool VSyncReactor::addResyncSample(nsecs_t timestamp, bool* periodFlushed) {
         mPeriodChangeInProgress = false;
     }
     return false;
+}
+
+status_t VSyncReactor::addEventListener(const char* name, nsecs_t phase,
+                                        DispSync::Callback* callback,
+                                        nsecs_t /* lastCallbackTime */) {
+    std::lock_guard<std::mutex> lk(mMutex);
+    auto it = mCallbacks.find(callback);
+    if (it == mCallbacks.end()) {
+        // TODO (b/146557561): resolve lastCallbackTime semantics in DispSync i/f.
+        static auto constexpr maxListeners = 3;
+        if (mCallbacks.size() >= maxListeners) {
+            ALOGE("callback %s not added, exceeded callback limit of %i (currently %zu)", name,
+                  maxListeners, mCallbacks.size());
+            return NO_MEMORY;
+        }
+
+        auto const period = mTracker->currentPeriod();
+        auto repeater = std::make_unique<CallbackRepeater>(*mDispatch, callback, name, period,
+                                                           phase, mClock->now());
+        it = mCallbacks.emplace(std::pair(callback, std::move(repeater))).first;
+    }
+
+    it->second->start(phase);
+    return NO_ERROR;
+}
+
+status_t VSyncReactor::removeEventListener(DispSync::Callback* callback,
+                                           nsecs_t* /* outLastCallback */) {
+    std::lock_guard<std::mutex> lk(mMutex);
+    auto const it = mCallbacks.find(callback);
+    LOG_ALWAYS_FATAL_IF(it == mCallbacks.end(), "callback %p not registered", callback);
+
+    it->second->stop();
+    return NO_ERROR;
+}
+
+status_t VSyncReactor::changePhaseOffset(DispSync::Callback* callback, nsecs_t phase) {
+    std::lock_guard<std::mutex> lk(mMutex);
+    auto const it = mCallbacks.find(callback);
+    LOG_ALWAYS_FATAL_IF(it == mCallbacks.end(), "callback was %p not registered", callback);
+
+    it->second->start(phase);
+    return NO_ERROR;
 }
 
 } // namespace android::scheduler

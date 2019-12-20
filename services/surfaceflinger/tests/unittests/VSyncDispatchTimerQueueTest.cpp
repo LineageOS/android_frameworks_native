@@ -196,16 +196,18 @@ protected:
     NiceMock<ControllableClock> mMockClock;
     static nsecs_t constexpr mDispatchGroupThreshold = 5;
     nsecs_t const mPeriod = 1000;
+    nsecs_t const mVsyncMoveThreshold = 300;
     NiceMock<MockVSyncTracker> mStubTracker{mPeriod};
-    VSyncDispatchTimerQueue mDispatch{createTimeKeeper(), mStubTracker, mDispatchGroupThreshold};
+    VSyncDispatchTimerQueue mDispatch{createTimeKeeper(), mStubTracker, mDispatchGroupThreshold,
+                                      mVsyncMoveThreshold};
 };
 
 TEST_F(VSyncDispatchTimerQueueTest, unregistersSetAlarmOnDestruction) {
     EXPECT_CALL(mMockClock, alarmIn(_, 900));
     EXPECT_CALL(mMockClock, alarmCancel());
     {
-        VSyncDispatchTimerQueue mDispatch{createTimeKeeper(), mStubTracker,
-                                          mDispatchGroupThreshold};
+        VSyncDispatchTimerQueue mDispatch{createTimeKeeper(), mStubTracker, mDispatchGroupThreshold,
+                                          mVsyncMoveThreshold};
         CountingCallback cb(mDispatch);
         EXPECT_EQ(mDispatch.schedule(cb, 100, 1000), ScheduleResult::Scheduled);
     }
@@ -468,14 +470,24 @@ TEST_F(VSyncDispatchTimerQueueTest, callbackReentrancy) {
 
 TEST_F(VSyncDispatchTimerQueueTest, callbackReentrantWithPastWakeup) {
     VSyncDispatch::CallbackToken tmp;
+    std::optional<nsecs_t> lastTarget;
     tmp = mDispatch.registerCallback(
-            [&](auto) {
-                EXPECT_EQ(mDispatch.schedule(tmp, 400, 1000), ScheduleResult::CannotSchedule);
+            [&](auto timestamp) {
+                EXPECT_EQ(mDispatch.schedule(tmp, 400, timestamp - mVsyncMoveThreshold),
+                          ScheduleResult::Scheduled);
+                EXPECT_EQ(mDispatch.schedule(tmp, 400, timestamp), ScheduleResult::Scheduled);
+                EXPECT_EQ(mDispatch.schedule(tmp, 400, timestamp + mVsyncMoveThreshold),
+                          ScheduleResult::Scheduled);
+                lastTarget = timestamp;
             },
             "oo");
 
     mDispatch.schedule(tmp, 999, 1000);
     advanceToNextCallback();
+    EXPECT_THAT(lastTarget, Eq(1000));
+
+    advanceToNextCallback();
+    EXPECT_THAT(lastTarget, Eq(2000));
 }
 
 TEST_F(VSyncDispatchTimerQueueTest, modificationsAroundVsyncTime) {
@@ -547,10 +559,33 @@ TEST_F(VSyncDispatchTimerQueueTest, makingUpIdsError) {
     EXPECT_THAT(mDispatch.cancel(token), Eq(CancelResult::Error));
 }
 
-TEST_F(VSyncDispatchTimerQueueTest, distinguishesScheduleAndReschedule) {
+TEST_F(VSyncDispatchTimerQueueTest, canMoveCallbackBackwardsInTime) {
     CountingCallback cb0(mDispatch);
     EXPECT_EQ(mDispatch.schedule(cb0, 500, 1000), ScheduleResult::Scheduled);
-    EXPECT_EQ(mDispatch.schedule(cb0, 100, 1000), ScheduleResult::ReScheduled);
+    EXPECT_EQ(mDispatch.schedule(cb0, 100, 1000), ScheduleResult::Scheduled);
+}
+
+// b/1450138150
+TEST_F(VSyncDispatchTimerQueueTest, doesNotMoveCallbackBackwardsAndSkipAScheduledTargetVSync) {
+    EXPECT_CALL(mMockClock, alarmIn(_, 500));
+    CountingCallback cb(mDispatch);
+    EXPECT_EQ(mDispatch.schedule(cb, 500, 1000), ScheduleResult::Scheduled);
+    mMockClock.advanceBy(400);
+
+    EXPECT_EQ(mDispatch.schedule(cb, 800, 1000), ScheduleResult::Scheduled);
+    advanceToNextCallback();
+    ASSERT_THAT(cb.mCalls.size(), Eq(1));
+}
+
+TEST_F(VSyncDispatchTimerQueueTest, targetOffsetMovingBackALittleCanStillSchedule) {
+    EXPECT_CALL(mStubTracker, nextAnticipatedVSyncTimeFrom(1000))
+            .Times(2)
+            .WillOnce(Return(1000))
+            .WillOnce(Return(1002));
+    CountingCallback cb(mDispatch);
+    EXPECT_EQ(mDispatch.schedule(cb, 500, 1000), ScheduleResult::Scheduled);
+    mMockClock.advanceBy(400);
+    EXPECT_EQ(mDispatch.schedule(cb, 400, 1000), ScheduleResult::Scheduled);
 }
 
 TEST_F(VSyncDispatchTimerQueueTest, canScheduleNegativeOffsetAgainstDifferentPeriods) {
@@ -570,13 +605,15 @@ TEST_F(VSyncDispatchTimerQueueTest, canScheduleLargeNegativeOffset) {
     EXPECT_EQ(mDispatch.schedule(cb0, 1900, 2000), ScheduleResult::Scheduled);
 }
 
-TEST_F(VSyncDispatchTimerQueueTest, cannotScheduleDoesNotAffectSchedulingState) {
+TEST_F(VSyncDispatchTimerQueueTest, scheduleUpdatesDoesNotAffectSchedulingState) {
     EXPECT_CALL(mMockClock, alarmIn(_, 600));
 
     CountingCallback cb(mDispatch);
     EXPECT_EQ(mDispatch.schedule(cb, 400, 1000), ScheduleResult::Scheduled);
+
+    EXPECT_EQ(mDispatch.schedule(cb, 1400, 1000), ScheduleResult::Scheduled);
+
     advanceToNextCallback();
-    EXPECT_EQ(mDispatch.schedule(cb, 100, 1000), ScheduleResult::CannotSchedule);
 }
 
 TEST_F(VSyncDispatchTimerQueueTest, helperMove) {
@@ -612,19 +649,22 @@ TEST_F(VSyncDispatchTimerQueueTest, helperMoveAssign) {
 class VSyncDispatchTimerQueueEntryTest : public testing::Test {
 protected:
     nsecs_t const mPeriod = 1000;
+    nsecs_t const mVsyncMoveThreshold = 200;
     NiceMock<MockVSyncTracker> mStubTracker{mPeriod};
 };
 
 TEST_F(VSyncDispatchTimerQueueEntryTest, stateAfterInitialization) {
     std::string name("basicname");
-    VSyncDispatchTimerQueueEntry entry(name, [](auto) {});
+    VSyncDispatchTimerQueueEntry entry(
+            name, [](auto) {}, mVsyncMoveThreshold);
     EXPECT_THAT(entry.name(), Eq(name));
     EXPECT_FALSE(entry.lastExecutedVsyncTarget());
     EXPECT_FALSE(entry.wakeupTime());
 }
 
 TEST_F(VSyncDispatchTimerQueueEntryTest, stateScheduling) {
-    VSyncDispatchTimerQueueEntry entry("test", [](auto) {});
+    VSyncDispatchTimerQueueEntry entry(
+            "test", [](auto) {}, mVsyncMoveThreshold);
 
     EXPECT_FALSE(entry.wakeupTime());
     EXPECT_THAT(entry.schedule(100, 500, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
@@ -643,7 +683,8 @@ TEST_F(VSyncDispatchTimerQueueEntryTest, stateSchedulingReallyLongWakeupLatency)
     EXPECT_CALL(mStubTracker, nextAnticipatedVSyncTimeFrom(now + duration))
             .Times(1)
             .WillOnce(Return(10000));
-    VSyncDispatchTimerQueueEntry entry("test", [](auto) {});
+    VSyncDispatchTimerQueueEntry entry(
+            "test", [](auto) {}, mVsyncMoveThreshold);
 
     EXPECT_FALSE(entry.wakeupTime());
     EXPECT_THAT(entry.schedule(500, 994, mStubTracker, now), Eq(ScheduleResult::Scheduled));
@@ -655,10 +696,13 @@ TEST_F(VSyncDispatchTimerQueueEntryTest, stateSchedulingReallyLongWakeupLatency)
 TEST_F(VSyncDispatchTimerQueueEntryTest, runCallback) {
     auto callCount = 0;
     auto calledTime = 0;
-    VSyncDispatchTimerQueueEntry entry("test", [&](auto time) {
-        callCount++;
-        calledTime = time;
-    });
+    VSyncDispatchTimerQueueEntry entry(
+            "test",
+            [&](auto time) {
+                callCount++;
+                calledTime = time;
+            },
+            mVsyncMoveThreshold);
 
     EXPECT_THAT(entry.schedule(100, 500, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
     auto const wakeup = entry.wakeupTime();
@@ -681,7 +725,8 @@ TEST_F(VSyncDispatchTimerQueueEntryTest, updateCallback) {
             .WillOnce(Return(1000))
             .WillOnce(Return(1020));
 
-    VSyncDispatchTimerQueueEntry entry("test", [](auto) {});
+    VSyncDispatchTimerQueueEntry entry(
+            "test", [](auto) {}, mVsyncMoveThreshold);
 
     EXPECT_FALSE(entry.wakeupTime());
     entry.update(mStubTracker, 0);
@@ -699,7 +744,8 @@ TEST_F(VSyncDispatchTimerQueueEntryTest, updateCallback) {
 }
 
 TEST_F(VSyncDispatchTimerQueueEntryTest, skipsUpdateIfJustScheduled) {
-    VSyncDispatchTimerQueueEntry entry("test", [](auto) {});
+    VSyncDispatchTimerQueueEntry entry(
+            "test", [](auto) {}, mVsyncMoveThreshold);
     EXPECT_THAT(entry.schedule(100, 500, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
     entry.update(mStubTracker, 0);
 
@@ -708,19 +754,52 @@ TEST_F(VSyncDispatchTimerQueueEntryTest, skipsUpdateIfJustScheduled) {
     EXPECT_THAT(*wakeup, Eq(wakeup));
 }
 
-TEST_F(VSyncDispatchTimerQueueEntryTest, reportsCannotScheduleIfMissedOpportunity) {
-    VSyncDispatchTimerQueueEntry entry("test", [](auto) {});
+TEST_F(VSyncDispatchTimerQueueEntryTest, willSnapToNextTargettableVSync) {
+    VSyncDispatchTimerQueueEntry entry(
+            "test", [](auto) {}, mVsyncMoveThreshold);
     EXPECT_THAT(entry.schedule(100, 500, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
-    entry.executing();
-    EXPECT_THAT(entry.schedule(200, 500, mStubTracker, 0), Eq(ScheduleResult::CannotSchedule));
-    EXPECT_THAT(entry.schedule(50, 500, mStubTracker, 0), Eq(ScheduleResult::CannotSchedule));
+    entry.executing(); // 1000 is executing
+    // had 1000 not been executing, this could have been scheduled for time 800.
+    EXPECT_THAT(entry.schedule(200, 500, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
+    EXPECT_THAT(*entry.wakeupTime(), Eq(1800));
+
+    EXPECT_THAT(entry.schedule(50, 500, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
+    EXPECT_THAT(*entry.wakeupTime(), Eq(1950));
+
     EXPECT_THAT(entry.schedule(200, 1001, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
+    EXPECT_THAT(*entry.wakeupTime(), Eq(1800));
 }
 
-TEST_F(VSyncDispatchTimerQueueEntryTest, reportsReScheduleIfStillTime) {
-    VSyncDispatchTimerQueueEntry entry("test", [](auto) {});
+TEST_F(VSyncDispatchTimerQueueEntryTest,
+       willRequestNextEstimateWhenSnappingToNextTargettableVSync) {
+    VSyncDispatchTimerQueueEntry entry(
+            "test", [](auto) {}, mVsyncMoveThreshold);
+
+    Sequence seq;
+    EXPECT_CALL(mStubTracker, nextAnticipatedVSyncTimeFrom(500))
+            .InSequence(seq)
+            .WillOnce(Return(1000));
+    EXPECT_CALL(mStubTracker, nextAnticipatedVSyncTimeFrom(500))
+            .InSequence(seq)
+            .WillOnce(Return(1000));
+    EXPECT_CALL(mStubTracker, nextAnticipatedVSyncTimeFrom(1000 + mVsyncMoveThreshold))
+            .InSequence(seq)
+            .WillOnce(Return(2000));
+
     EXPECT_THAT(entry.schedule(100, 500, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
-    EXPECT_THAT(entry.schedule(200, 500, mStubTracker, 0), Eq(ScheduleResult::ReScheduled));
+
+    entry.executing(); // 1000 is executing
+
+    EXPECT_THAT(entry.schedule(200, 500, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
+}
+
+TEST_F(VSyncDispatchTimerQueueEntryTest, reportsScheduledIfStillTime) {
+    VSyncDispatchTimerQueueEntry entry(
+            "test", [](auto) {}, mVsyncMoveThreshold);
+    EXPECT_THAT(entry.schedule(100, 500, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
+    EXPECT_THAT(entry.schedule(200, 500, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
+    EXPECT_THAT(entry.schedule(50, 500, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
+    EXPECT_THAT(entry.schedule(1200, 500, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
 }
 
 } // namespace android::scheduler
