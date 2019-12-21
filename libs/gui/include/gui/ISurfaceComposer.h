@@ -386,31 +386,16 @@ public:
     virtual status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) = 0;
 
     /*
-     * Sets the allowed display configurations to be used.
-     * The allowedConfigs in a vector of indexes corresponding to the configurations
-     * returned from getDisplayConfigs().
-     */
-    virtual status_t setAllowedDisplayConfigs(const sp<IBinder>& displayToken,
-                                              const std::vector<int32_t>& allowedConfigs) = 0;
-
-    /*
-     * Returns the allowed display configurations currently set.
-     * The allowedConfigs in a vector of indexes corresponding to the configurations
-     * returned from getDisplayConfigs().
-     */
-    virtual status_t getAllowedDisplayConfigs(const sp<IBinder>& displayToken,
-                                              std::vector<int32_t>* outAllowedConfigs) = 0;
-    /*
      * Sets the refresh rate boundaries for display configuration.
      * For all other parameters, default configuration is used. The index for the default is
      * corresponding to the configs returned from getDisplayConfigs().
      */
     virtual status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                  int32_t defaultModeId, float minRefreshRate,
+                                                  int32_t defaultConfig, float minRefreshRate,
                                                   float maxRefreshRate) = 0;
 
     virtual status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                  int32_t* outDefaultModeId,
+                                                  int32_t* outDefaultConfig,
                                                   float* outMinRefreshRate,
                                                   float* outMaxRefreshRate) = 0;
     /*
@@ -523,8 +508,6 @@ public:
         GET_PHYSICAL_DISPLAY_IDS,
         ADD_REGION_SAMPLING_LISTENER,
         REMOVE_REGION_SAMPLING_LISTENER,
-        SET_ALLOWED_DISPLAY_CONFIGS,
-        GET_ALLOWED_DISPLAY_CONFIGS,
         SET_DESIRED_DISPLAY_CONFIG_SPECS,
         GET_DESIRED_DISPLAY_CONFIG_SPECS,
         GET_DISPLAY_BRIGHTNESS_SUPPORT,

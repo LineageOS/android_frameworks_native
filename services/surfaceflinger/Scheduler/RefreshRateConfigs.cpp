@@ -110,13 +110,48 @@ RefreshRateConfigs::RefreshRateConfigs(
     init(inputConfigs, currentConfigId);
 }
 
-void RefreshRateConfigs::setPolicy(HwcConfigIndexType defaultConfigId, float minRefreshRate,
-                                   float maxRefreshRate) {
+status_t RefreshRateConfigs::setPolicy(HwcConfigIndexType defaultConfigId, float minRefreshRate,
+                                       float maxRefreshRate, bool* outPolicyChanged) {
     std::lock_guard lock(mLock);
-    mCurrentGroupId = mRefreshRates.at(defaultConfigId).configGroup;
+    bool policyChanged = defaultConfigId != mDefaultConfig ||
+            minRefreshRate != mMinRefreshRateFps || maxRefreshRate != mMaxRefreshRateFps;
+    if (outPolicyChanged) {
+        *outPolicyChanged = policyChanged;
+    }
+    if (!policyChanged) {
+        return NO_ERROR;
+    }
+    // defaultConfigId must be a valid config ID, and within the given refresh rate range.
+    if (mRefreshRates.count(defaultConfigId) == 0) {
+        return BAD_VALUE;
+    }
+    const RefreshRate& refreshRate = mRefreshRates.at(defaultConfigId);
+    if (refreshRate.fps < minRefreshRate || refreshRate.fps > maxRefreshRate) {
+        return BAD_VALUE;
+    }
+    mDefaultConfig = defaultConfigId;
     mMinRefreshRateFps = minRefreshRate;
     mMaxRefreshRateFps = maxRefreshRate;
     constructAvailableRefreshRates();
+    return NO_ERROR;
+}
+
+void RefreshRateConfigs::getPolicy(HwcConfigIndexType* defaultConfigId, float* minRefreshRate,
+                                   float* maxRefreshRate) const {
+    std::lock_guard lock(mLock);
+    *defaultConfigId = mDefaultConfig;
+    *minRefreshRate = mMinRefreshRateFps;
+    *maxRefreshRate = mMaxRefreshRateFps;
+}
+
+bool RefreshRateConfigs::isConfigAllowed(HwcConfigIndexType config) const {
+    std::lock_guard lock(mLock);
+    for (const RefreshRate* refreshRate : mAvailableRefreshRates) {
+        if (refreshRate->configId == config) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void RefreshRateConfigs::getSortedRefreshRateList(
@@ -140,15 +175,18 @@ void RefreshRateConfigs::getSortedRefreshRateList(
 
 void RefreshRateConfigs::constructAvailableRefreshRates() {
     // Filter configs based on current policy and sort based on vsync period
-    ALOGV("constructRefreshRateMap: group %d min %.2f max %.2f", mCurrentGroupId.value(),
-          mMinRefreshRateFps, mMaxRefreshRateFps);
+    HwcConfigGroupType group = mRefreshRates.at(mDefaultConfig).configGroup;
+    ALOGV("constructRefreshRateMap: default %d group %d min %.2f max %.2f", mDefaultConfig.value(),
+          group.value(), mMinRefreshRateFps, mMaxRefreshRateFps);
     getSortedRefreshRateList(
-            [this](const RefreshRate& refreshRate) REQUIRES(mLock) {
-                return refreshRate.configGroup == mCurrentGroupId &&
-                        refreshRate.fps >= mMinRefreshRateFps &&
+            [&](const RefreshRate& refreshRate) REQUIRES(mLock) {
+                return refreshRate.configGroup == group && refreshRate.fps >= mMinRefreshRateFps &&
                         refreshRate.fps <= mMaxRefreshRateFps;
             },
             &mAvailableRefreshRates);
+    LOG_ALWAYS_FATAL_IF(mAvailableRefreshRates.empty(),
+                        "No compatible display configs for default=%d min=%.0f max=%.0f",
+                        mDefaultConfig.value(), mMinRefreshRateFps, mMaxRefreshRateFps);
 }
 
 // NO_THREAD_SAFETY_ANALYSIS since this is called from the constructor
@@ -167,12 +205,12 @@ void RefreshRateConfigs::init(const std::vector<InputConfig>& configs,
         mRefreshRates.emplace(config.configId, buildRefreshRate(config));
         if (config.configId == currentHwcConfig) {
             mCurrentRefreshRate = &mRefreshRates.at(config.configId);
-            mCurrentGroupId = config.configGroup;
         }
     }
 
     std::vector<const RefreshRate*> sortedConfigs;
     getSortedRefreshRateList([](const RefreshRate&) { return true; }, &sortedConfigs);
+    mDefaultConfig = currentHwcConfig;
     mMinSupportedRefreshRate = sortedConfigs.front();
     mMaxSupportedRefreshRate = sortedConfigs.back();
     constructAvailableRefreshRates();

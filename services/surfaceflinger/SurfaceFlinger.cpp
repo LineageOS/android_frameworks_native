@@ -910,10 +910,30 @@ void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
 status_t SurfaceFlinger::setActiveConfig(const sp<IBinder>& displayToken, int mode) {
     ATRACE_CALL();
 
-    std::vector<int32_t> allowedConfig;
-    allowedConfig.push_back(mode);
+    if (!displayToken) {
+        return BAD_VALUE;
+    }
 
-    return setAllowedDisplayConfigs(displayToken, allowedConfig);
+    status_t result = NO_ERROR;
+
+    postMessageSync(new LambdaMessage([&]() {
+        const auto display = getDisplayDeviceLocked(displayToken);
+        if (!display) {
+            ALOGE("Attempt to set allowed display configs for invalid display token %p",
+                  displayToken.get());
+            result = BAD_VALUE;
+        } else if (display->isVirtual()) {
+            ALOGW("Attempt to set allowed display configs for virtual display");
+            result = BAD_VALUE;
+        } else {
+            HwcConfigIndexType config(mode);
+            const auto& refreshRate = mRefreshRateConfigs->getRefreshRateFromConfigId(config);
+            result = setDesiredDisplayConfigSpecsInternal(display, config, refreshRate.fps,
+                                                          refreshRate.fps);
+        }
+    }));
+
+    return result;
 }
 
 void SurfaceFlinger::setActiveConfigInternal() {
@@ -1413,7 +1433,7 @@ void SurfaceFlinger::getCompositorTiming(CompositorTiming* compositorTiming) {
 }
 
 bool SurfaceFlinger::isDisplayConfigAllowed(HwcConfigIndexType configId) const {
-    return mAllowedDisplayConfigs.empty() || mAllowedDisplayConfigs.count(configId);
+    return mRefreshRateConfigs->isConfigAllowed(configId);
 }
 
 void SurfaceFlinger::changeRefreshRateLocked(const RefreshRate& refreshRate,
@@ -3995,18 +4015,13 @@ void SurfaceFlinger::dumpVSync(std::string& result) const {
                   "      present offset: %9" PRId64 " ns\t     VSYNC period: %9" PRId64 " ns\n\n",
                   dispSyncPresentTimeOffset, getVsyncPeriod());
 
-    StringAppendF(&result, "Allowed Display Configs: ");
-    for (auto configId : mAllowedDisplayConfigs) {
-        StringAppendF(&result, "%" PRIu32 " Hz, ",
-                      static_cast<int32_t>(
-                              mRefreshRateConfigs->getRefreshRateFromConfigId(configId).fps));
-    }
+    HwcConfigIndexType defaultConfig;
+    float minFps, maxFps;
+    mRefreshRateConfigs->getPolicy(&defaultConfig, &minFps, &maxFps);
     StringAppendF(&result,
-                  "DesiredDisplayConfigSpecs: default config ID: %" PRIu32
+                  "DesiredDisplayConfigSpecs: default config ID: %d"
                   ", min: %.2f Hz, max: %.2f Hz",
-                  mDesiredDisplayConfigSpecs.defaultModeId,
-                  mDesiredDisplayConfigSpecs.minRefreshRate,
-                  mDesiredDisplayConfigSpecs.maxRefreshRate);
+                  defaultConfig.value(), minFps, maxFps);
     StringAppendF(&result, "(config override by backdoor: %s)\n\n",
                   mDebugDisplayConfigSetByBackdoor ? "yes" : "no");
 
@@ -4434,8 +4449,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_ANIMATION_FRAME_STATS:
         case GET_HDR_CAPABILITIES:
         case SET_ACTIVE_CONFIG:
-        case SET_ALLOWED_DISPLAY_CONFIGS:
-        case GET_ALLOWED_DISPLAY_CONFIGS:
         case SET_DESIRED_DISPLAY_CONFIG_SPECS:
         case GET_DESIRED_DISPLAY_CONFIG_SPECS:
         case SET_ACTIVE_COLOR_MODE:
@@ -4861,7 +4874,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 mDebugDisplayConfigSetByBackdoor = false;
                 if (n >= 0) {
                     const auto displayToken = getInternalDisplayToken();
-                    status_t result = setAllowedDisplayConfigs(displayToken, {n});
+                    status_t result = setActiveConfig(displayToken, n);
                     if (result != NO_ERROR) {
                         return result;
                     }
@@ -5457,8 +5470,12 @@ void SurfaceFlinger::traverseLayersInDisplay(const sp<const DisplayDevice>& disp
     }
 }
 
-void SurfaceFlinger::setAllowedDisplayConfigsInternal(const sp<DisplayDevice>& display,
-                                                      const std::vector<int32_t>& allowedConfigs) {
+status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(const sp<DisplayDevice>& display,
+                                                              HwcConfigIndexType defaultConfig,
+                                                              float minRefreshRate,
+                                                              float maxRefreshRate) {
+    Mutex::Autolock lock(mStateLock);
+
     if (!display->isPrimary()) {
         // TODO(b/144711714): For non-primary displays we should be able to set an active config
         // as well. For now, just call directly to setActiveConfigWithConstraints but ideally
@@ -5472,51 +5489,42 @@ void SurfaceFlinger::setAllowedDisplayConfigsInternal(const sp<DisplayDevice>& d
         constraints.seamlessRequired = false;
 
         HWC2::VsyncPeriodChangeTimeline timeline = {0, 0, 0};
-        getHwComposer().setActiveConfigWithConstraints(*displayId, allowedConfigs[0], constraints,
-                                                       &timeline);
+        if (getHwComposer().setActiveConfigWithConstraints(*displayId, defaultConfig.value(),
+                                                           constraints, &timeline) < 0) {
+            return BAD_VALUE;
+        }
         if (timeline.refreshRequired) {
             repaintEverythingForHWC();
         }
 
-        auto configId = HwcConfigIndexType(allowedConfigs[0]);
+        auto configId = HwcConfigIndexType(defaultConfig);
         display->setActiveConfig(configId);
         mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value, configId);
-        return;
+        return NO_ERROR;
     }
 
-    const auto allowedDisplayConfigs = DisplayConfigs(allowedConfigs.begin(),
-                                                      allowedConfigs.end());
-    if (allowedDisplayConfigs == mAllowedDisplayConfigs) {
-        return;
+    if (mDebugDisplayConfigSetByBackdoor) {
+        // ignore this request as config is overridden by backdoor
+        return NO_ERROR;
     }
 
-    ALOGV("Updating allowed configs");
-    mAllowedDisplayConfigs = std::move(allowedDisplayConfigs);
+    bool policyChanged;
+    if (mRefreshRateConfigs->setPolicy(defaultConfig, minRefreshRate, maxRefreshRate,
+                                       &policyChanged) < 0) {
+        return BAD_VALUE;
+    }
+    if (!policyChanged) {
+        return NO_ERROR;
+    }
+
+    ALOGV("Setting desired display config specs: defaultConfig: %d min: %.f max: %.f",
+          defaultConfig.value(), minRefreshRate, maxRefreshRate);
 
     // TODO(b/140204874): This hack triggers a notification that something has changed, so
     // that listeners that care about a change in allowed configs can get the notification.
     // Giving current ActiveConfig so that most other listeners would just drop the event
     mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value,
                                 display->getActiveConfig());
-
-    // Prepare the parameters needed for RefreshRateConfigs::setPolicy. This will change to just
-    // passthrough once DisplayManager provide these parameters directly.
-    const auto refreshRate =
-            mRefreshRateConfigs->getRefreshRateFromConfigId(HwcConfigIndexType(allowedConfigs[0]));
-    const auto defaultModeId = refreshRate.configId;
-    auto minRefreshRateFps = refreshRate.fps;
-    auto maxRefreshRateFps = minRefreshRateFps;
-
-    for (auto config : allowedConfigs) {
-        const auto configRefreshRate =
-                mRefreshRateConfigs->getRefreshRateFromConfigId(HwcConfigIndexType(config));
-        if (configRefreshRate.fps < minRefreshRateFps) {
-            minRefreshRateFps = configRefreshRate.fps;
-        } else if (configRefreshRate.fps > maxRefreshRateFps) {
-            maxRefreshRateFps = configRefreshRate.fps;
-        }
-    }
-    mRefreshRateConfigs->setPolicy(defaultModeId, minRefreshRateFps, maxRefreshRateFps);
 
     if (mRefreshRateConfigs->refreshRateSwitchingSupported()) {
         auto configId = mScheduler->getPreferredConfigId();
@@ -5536,70 +5544,15 @@ void SurfaceFlinger::setAllowedDisplayConfigsInternal(const sp<DisplayDevice>& d
                                     Scheduler::ConfigEvent::Changed});
         }
     } else {
-        if (!allowedConfigs.empty()) {
-            ALOGV("switching to config %d", allowedConfigs[0]);
-            auto configId = HwcConfigIndexType(allowedConfigs[0]);
-            setDesiredActiveConfig({configId, Scheduler::ConfigEvent::Changed});
-        }
-    }
-}
-
-status_t SurfaceFlinger::setAllowedDisplayConfigs(const sp<IBinder>& displayToken,
-                                                  const std::vector<int32_t>& allowedConfigs) {
-    ATRACE_CALL();
-
-    if (!displayToken || allowedConfigs.empty()) {
-        return BAD_VALUE;
-    }
-
-    if (mDebugDisplayConfigSetByBackdoor) {
-        // ignore this request as config is overridden by backdoor
-        return NO_ERROR;
-    }
-
-    postMessageSync(new LambdaMessage([&]() {
-        const auto display = getDisplayDeviceLocked(displayToken);
-        if (!display) {
-            ALOGE("Attempt to set allowed display configs for invalid display token %p",
-                  displayToken.get());
-        } else if (display->isVirtual()) {
-            ALOGW("Attempt to set allowed display configs for virtual display");
-        } else {
-            Mutex::Autolock lock(mStateLock);
-            setAllowedDisplayConfigsInternal(display, allowedConfigs);
-        }
-    }));
-
-    return NO_ERROR;
-}
-
-status_t SurfaceFlinger::getAllowedDisplayConfigs(const sp<IBinder>& displayToken,
-                                                  std::vector<int32_t>* outAllowedConfigs) {
-    ATRACE_CALL();
-
-    if (!displayToken || !outAllowedConfigs) {
-        return BAD_VALUE;
-    }
-
-    Mutex::Autolock lock(mStateLock);
-
-    const auto display = getDisplayDeviceLocked(displayToken);
-    if (!display) {
-        return NAME_NOT_FOUND;
-    }
-
-    if (display->isPrimary()) {
-        outAllowedConfigs->reserve(mAllowedDisplayConfigs.size());
-        for (auto configId : mAllowedDisplayConfigs) {
-            outAllowedConfigs->push_back(configId.value());
-        }
+        ALOGV("switching to config %d", defaultConfig.value());
+        setDesiredActiveConfig({defaultConfig, Scheduler::ConfigEvent::Changed});
     }
 
     return NO_ERROR;
 }
 
 status_t SurfaceFlinger::setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                      int32_t defaultModeId, float minRefreshRate,
+                                                      int32_t defaultConfig, float minRefreshRate,
                                                       float maxRefreshRate) {
     ATRACE_CALL();
 
@@ -5607,39 +5560,34 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecs(const sp<IBinder>& display
         return BAD_VALUE;
     }
 
+    status_t result = NO_ERROR;
+
     postMessageSync(new LambdaMessage([&]() {
         const auto display = getDisplayDeviceLocked(displayToken);
         if (!display) {
+            result = BAD_VALUE;
             ALOGE("Attempt to set desired display configs for invalid display token %p",
                   displayToken.get());
         } else if (display->isVirtual()) {
+            result = BAD_VALUE;
             ALOGW("Attempt to set desired display configs for virtual display");
         } else {
-            // TODO(b/142507213): Plug through to HWC once the interface is ready.
-            Mutex::Autolock lock(mStateLock);
-            const DesiredDisplayConfigSpecs desiredDisplayConfigSpecs = {defaultModeId,
-                                                                         minRefreshRate,
-                                                                         maxRefreshRate};
-            if (desiredDisplayConfigSpecs == mDesiredDisplayConfigSpecs) {
-                return;
-            }
-            ALOGV("Updating desired display configs");
-            ALOGD("desiredDisplayConfigSpecs: defaultId: %d min: %.f max: %.f decisions: ",
-                  desiredDisplayConfigSpecs.defaultModeId, desiredDisplayConfigSpecs.minRefreshRate,
-                  desiredDisplayConfigSpecs.maxRefreshRate);
-            mDesiredDisplayConfigSpecs = desiredDisplayConfigSpecs;
+            result =
+                    setDesiredDisplayConfigSpecsInternal(display, HwcConfigIndexType(defaultConfig),
+                                                         minRefreshRate, maxRefreshRate);
         }
     }));
-    return NO_ERROR;
+
+    return result;
 }
 
 status_t SurfaceFlinger::getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                      int32_t* outDefaultModeId,
+                                                      int32_t* outDefaultConfig,
                                                       float* outMinRefreshRate,
                                                       float* outMaxRefreshRate) {
     ATRACE_CALL();
 
-    if (!displayToken || !outDefaultModeId || !outMinRefreshRate || !outMaxRefreshRate) {
+    if (!displayToken || !outDefaultConfig || !outMinRefreshRate || !outMaxRefreshRate) {
         return BAD_VALUE;
     }
 
@@ -5650,12 +5598,23 @@ status_t SurfaceFlinger::getDesiredDisplayConfigSpecs(const sp<IBinder>& display
     }
 
     if (display->isPrimary()) {
-        *outDefaultModeId = mDesiredDisplayConfigSpecs.defaultModeId;
-        *outMinRefreshRate = mDesiredDisplayConfigSpecs.minRefreshRate;
-        *outMaxRefreshRate = mDesiredDisplayConfigSpecs.maxRefreshRate;
+        HwcConfigIndexType defaultConfig;
+        mRefreshRateConfigs->getPolicy(&defaultConfig, outMinRefreshRate, outMaxRefreshRate);
+        *outDefaultConfig = defaultConfig.value();
+        return NO_ERROR;
+    } else if (display->isVirtual()) {
+        return BAD_VALUE;
+    } else {
+        const auto displayId = display->getId();
+        if (!displayId) {
+            return BAD_VALUE;
+        }
+        *outDefaultConfig = getHwComposer().getActiveConfigIndex(*displayId);
+        auto vsyncPeriod = getHwComposer().getActiveConfig(*displayId)->getVsyncPeriod();
+        *outMinRefreshRate = 1e9f / vsyncPeriod;
+        *outMaxRefreshRate = 1e9f / vsyncPeriod;
+        return NO_ERROR;
     }
-
-    return NO_ERROR;
 }
 
 void SurfaceFlinger::SetInputWindowsListener::onSetInputWindowsFinished() {
