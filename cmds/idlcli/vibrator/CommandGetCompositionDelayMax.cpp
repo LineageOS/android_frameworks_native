@@ -50,7 +50,7 @@ class CommandGetCompositionDelayMax : public Command {
 
         if (auto hal = getHal<aidl::IVibrator>()) {
             auto status = hal->call(&aidl::IVibrator::getCompositionDelayMax, &maxDelayMs);
-            statusStr = status.toString8();
+            statusStr = status.getDescription();
             ret = status.isOk() ? OK : ERROR;
         } else {
             return UNAVAILABLE;

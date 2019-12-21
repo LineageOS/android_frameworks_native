@@ -36,7 +36,8 @@ public:
     // Valid transition: disarmed -> armed ( when scheduled )
     // Valid transition: armed -> running -> disarmed ( when timer is called)
     // Valid transition: armed -> disarmed ( when cancelled )
-    VSyncDispatchTimerQueueEntry(std::string const& name, std::function<void(nsecs_t)> const& fn);
+    VSyncDispatchTimerQueueEntry(std::string const& name, std::function<void(nsecs_t)> const& fn,
+                                 nsecs_t minVsyncDistance);
     std::string_view name() const;
 
     // Start: functions that are not threadsafe.
@@ -72,6 +73,7 @@ private:
 
     nsecs_t mWorkDuration;
     nsecs_t mEarliestVsync;
+    nsecs_t const mMinVsyncDistance;
 
     struct ArmingInfo {
         nsecs_t mActualWakeupTime;
@@ -91,8 +93,15 @@ private:
  */
 class VSyncDispatchTimerQueue : public VSyncDispatch {
 public:
+    // Constructs a VSyncDispatchTimerQueue.
+    // \param[in] tk                    A timekeeper.
+    // \param[in] tracker               A tracker.
+    // \param[in] timerSlack            The threshold at which different similarly timed callbacks
+    //                                  should be grouped into one wakeup.
+    // \param[in] minVsyncDistance      The minimum distance between two vsync estimates before the
+    //                                  vsyncs are considered the same vsync event.
     explicit VSyncDispatchTimerQueue(std::unique_ptr<TimeKeeper> tk, VSyncTracker& tracker,
-                                     nsecs_t timerSlack);
+                                     nsecs_t timerSlack, nsecs_t minVsyncDistance);
     ~VSyncDispatchTimerQueue();
 
     CallbackToken registerCallback(std::function<void(nsecs_t)> const& callbackFn,
@@ -119,6 +128,7 @@ private:
     std::unique_ptr<TimeKeeper> const mTimeKeeper;
     VSyncTracker& mTracker;
     nsecs_t const mTimerSlack;
+    nsecs_t const mMinVsyncDistance;
 
     std::mutex mutable mMutex;
     size_t mCallbackToken GUARDED_BY(mMutex) = 0;

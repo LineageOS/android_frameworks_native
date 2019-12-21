@@ -117,23 +117,11 @@ public:
     // returned by getDisplayInfo
     static status_t setActiveConfig(const sp<IBinder>& display, int id);
 
-    // Sets the allowed display configurations to be used.
-    // The allowedConfigs in a vector of indexes corresponding to the configurations
-    // returned from getDisplayConfigs().
-    static status_t setAllowedDisplayConfigs(const sp<IBinder>& displayToken,
-                                             const std::vector<int32_t>& allowedConfigs);
-
-    // Returns the allowed display configurations currently set.
-    // The allowedConfigs in a vector of indexes corresponding to the configurations
-    // returned from getDisplayConfigs().
-    static status_t getAllowedDisplayConfigs(const sp<IBinder>& displayToken,
-                                             std::vector<int32_t>* outAllowedConfigs);
-
     // Sets the refresh rate boundaries for display configuration.
     // For all other parameters, default configuration is used. The index for the default is
     // corresponting to the configs returned from getDisplayConfigs().
     static status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                 int32_t defaultModeId, float minRefreshRate,
+                                                 int32_t defaultConfig, float minRefreshRate,
                                                  float maxRefreshRate);
     // Gets the refresh rate boundaries for display configuration.
     // For all other parameters, default configuration is used. The index for the default is
@@ -141,7 +129,7 @@ public:
     // The reason is passed in for telemetry tracking, and it corresponds to the list of all
     // the policy rules that were used.
     static status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                 int32_t* outDefaultModeId,
+                                                 int32_t* outDefaultConfig,
                                                  float* outMinRefreshRate,
                                                  float* outMaxRefreshRate);
 

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "libgralloctypes"
+
 #include <cstring>
 #include <cinttypes>
 #include <limits>
@@ -797,10 +799,6 @@ status_t decodeCta861_3Helper(InputHidlVec* inputHidlVec, Cta861_3* outCta861_3)
 /**
  * Public API functions
  */
-PlaneLayoutComponentType getStandardPlaneLayoutComponentTypeValue(
-        const ExtendableType& planeLayoutComponentType) {
-    return static_cast<PlaneLayoutComponentType>(planeLayoutComponentType.value);
-}
 
 status_t encodeBufferId(uint64_t bufferId, hidl_vec<uint8_t>* outBufferId) {
     return encode(MetadataType_BufferId, bufferId, outBufferId, encodeInteger);
@@ -987,6 +985,76 @@ status_t decodeSmpte2094_40(const hidl_vec<uint8_t>& smpte2094_40,
                           decodeByteVector);
 }
 
+status_t encodeUint32(const MetadataType& metadataType, uint32_t input,
+                      hidl_vec<uint8_t>* output) {
+    return encode(metadataType, input, output, encodeInteger);
+}
+
+status_t decodeUint32(const MetadataType& metadataType, const hidl_vec<uint8_t>& input,
+                      uint32_t* output) {
+    return decode(metadataType, input, output, decodeInteger);
+}
+
+status_t encodeInt32(const MetadataType& metadataType, int32_t input,
+                     hidl_vec<uint8_t>* output) {
+    return encode(metadataType, input, output, encodeInteger);
+}
+
+status_t decodeInt32(const MetadataType& metadataType, const hidl_vec<uint8_t>& input,
+                     int32_t* output) {
+    return decode(metadataType, input, output, decodeInteger);
+}
+
+status_t encodeUint64(const MetadataType& metadataType, uint64_t input,
+                      hidl_vec<uint8_t>* output) {
+    return encode(metadataType, input, output, encodeInteger);
+}
+
+status_t decodeUint64(const MetadataType& metadataType, const hidl_vec<uint8_t>& input,
+                      uint64_t* output) {
+    return decode(metadataType, input, output, decodeInteger);
+}
+
+status_t encodeInt64(const MetadataType& metadataType, int64_t input,
+                     hidl_vec<uint8_t>* output) {
+    return encode(metadataType, input, output, encodeInteger);
+}
+
+status_t decodeInt64(const MetadataType& metadataType, const hidl_vec<uint8_t>& input,
+                     int64_t* output) {
+    return decode(metadataType, input, output, decodeInteger);
+}
+
+status_t encodeFloat(const MetadataType& metadataType, float input,
+                     hidl_vec<uint8_t>* output) {
+    return encode(metadataType, input, output, encodeInteger);
+}
+
+status_t decodeFloat(const MetadataType& metadataType, const hidl_vec<uint8_t>& input,
+                     float* output) {
+    return decode(metadataType, input, output, decodeInteger);
+}
+
+status_t encodeDouble(const MetadataType& metadataType, double input,
+                      hidl_vec<uint8_t>* output) {
+    return encode(metadataType, input, output, encodeInteger);
+}
+
+status_t decodeDouble(const MetadataType& metadataType, const hidl_vec<uint8_t>& input,
+                      double* output) {
+    return decode(metadataType, input, output, decodeInteger);
+}
+
+status_t encodeString(const MetadataType& metadataType, const std::string& input,
+                      hidl_vec<uint8_t>* output) {
+    return encode(metadataType, input, output, encodeString);
+}
+
+status_t decodeString(const MetadataType& metadataType, const hidl_vec<uint8_t>& input,
+                      std::string* output) {
+    return decode(metadataType, input, output, decodeString);
+}
+
 bool isStandardMetadataType(const MetadataType& metadataType) {
     return !std::strncmp(metadataType.name.c_str(), GRALLOC4_STANDARD_METADATA_TYPE,
                          metadataType.name.size());
@@ -1026,6 +1094,11 @@ Interlaced getStandardInterlacedValue(const ExtendableType& interlaced) {
 
 ChromaSiting getStandardChromaSitingValue(const ExtendableType& chromaSiting) {
     return static_cast<ChromaSiting>(chromaSiting.value);
+}
+
+PlaneLayoutComponentType getStandardPlaneLayoutComponentTypeValue(
+        const ExtendableType& planeLayoutComponentType) {
+    return static_cast<PlaneLayoutComponentType>(planeLayoutComponentType.value);
 }
 
 std::string getCompressionName(const ExtendableType& compression) {

@@ -24,52 +24,99 @@
 #include <cstdlib>
 #include <ctime>
 
+using MetadataType = android::hardware::graphics::mapper::V4_0::IMapper::MetadataType;
+
 void doFuzz(
-        const std::vector<GrallocTypesDecode>& decodes,
-        const std::vector<uint8_t>& input,
-        const std::vector<uint8_t>& instructions) {
+        const std::vector<GrallocTypesDecode>& decodes, uint8_t instruction,
+        const std::vector<uint8_t>& input) {
 
     ::android::hardware::hidl_vec<uint8_t> vec;
     vec.setToExternal(const_cast<uint8_t*>(input.data()), input.size(), false /*shouldOwn*/);
 
     // since we are only using a byte to index
     CHECK(decodes.size() <= 255) << decodes.size();
+    uint8_t decodeIdx = instruction % decodes.size();
 
-    for (size_t i = 0; i < instructions.size() - 1; i += 2) {
-        uint8_t a = instructions[i];
-        uint8_t decodeIdx = a % decodes.size();
+    FUZZ_LOG() << "Instruction: " << instruction << " idx: " << static_cast<size_t>(decodeIdx)
+               << " size: " << vec.size();
 
-        uint8_t b = instructions[i + 1];
+    decodes[decodeIdx](vec);
+}
 
-        FUZZ_LOG() << "Instruction: " << (i / 2) + 1 << "/" << instructions.size() / 2
-                   << " cmd: " << static_cast<size_t>(a) << " (" << static_cast<size_t>(decodeIdx)
-                   << ") arg: " << static_cast<size_t>(b) << " size: " << vec.size();
+size_t fillInMetadataType(const std::vector<uint8_t>& input, MetadataType* outMetadataType) {
+    if (input.size() < sizeof(outMetadataType->value) + 1) {
+        return 0;
+    }
+    size_t size = 0;
 
-        decodes[decodeIdx](vec, b);
+    outMetadataType->value = *(reinterpret_cast<const int64_t*>(input.data()));
+    size += sizeof(outMetadataType->value);
+
+    uint8_t nameLen = *(input.data() + size);
+    size += 1;
+
+    if (input.size() < size + nameLen) {
+        return 0;
+    }
+    std::string name(reinterpret_cast<const char*>(input.data()) + size, nameLen);
+    outMetadataType->name = name;
+    return size + nameLen;
+}
+
+void doFuzzVendorHelper(
+        const std::vector<GrallocTypesVendorHelperDecode>& decodes, uint8_t instruction,
+        const std::vector<uint8_t>& input) {
+
+    MetadataType metadataType;
+    size_t sizeUsed  = fillInMetadataType(input, &metadataType);
+    if (sizeUsed <= 0) {
+        return;
+    }
+
+    ::android::hardware::hidl_vec<uint8_t> vec;
+    vec.setToExternal(const_cast<uint8_t*>(input.data() + sizeUsed), input.size() - sizeUsed,
+                      false /*shouldOwn*/);
+
+    // since we are only using a byte to index
+    CHECK(decodes.size() <= 255) << decodes.size();
+    uint8_t decodeIdx = instruction % decodes.size();
+
+    FUZZ_LOG() << "Vendor Helper instruction: " << instruction << " idx: "
+               << static_cast<size_t>(decodeIdx) << " size: " << vec.size();
+
+    decodes[decodeIdx](metadataType, vec);
+}
+
+void fuzz(uint8_t options, uint8_t instruction, const std::vector<uint8_t>& input) {
+    uint8_t option = options & 0x1;
+
+    switch (option) {
+        case 0x0:
+            doFuzz(GRALLOCTYPES_DECODE_FUNCTIONS, instruction, input);
+            break;
+        case 0x1:
+            doFuzzVendorHelper(GRALLOCTYPES_DECODE_VENDOR_HELPER_FUNCTIONS, instruction, input);
+            break;
+        default:
+            LOG_ALWAYS_FATAL("unknown gralloc types %d", static_cast<int>(option));
     }
 }
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     if (size <= 1) return 0;  // no use
 
-    // data to fill out parcel
-    size_t inputLen = size / 2;
-    std::vector<uint8_t> input(data, data + inputLen);
-    data += inputLen;
-    size -= inputLen;
+    uint8_t options = *data;
+    data++;
+    size--;
 
-    // data to use to determine what to do
-    size_t instructionLen = size;
-    std::vector<uint8_t> instructions(data, data + instructionLen);
-    data += instructionLen;
-    size -= instructionLen;
+    uint8_t instruction = *data;
+    data++;
+    size--;
 
-    CHECK(size == 0) << "size: " << size;
+    std::vector<uint8_t> input(data, data + size);
 
-    FUZZ_LOG() << "inputLen: " << inputLen << " instructionLen: " << instructionLen;
     FUZZ_LOG() << "input: " << hexString(input);
-    FUZZ_LOG() << "instructions: " << hexString(instructions);
 
-    doFuzz(GRALLOCTYPES_DECODE_FUNCTIONS, input, instructions);
+    fuzz(options, instruction, input);
     return 0;
 }

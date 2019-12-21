@@ -99,7 +99,7 @@ class CommandPerform : public Command {
             auto status =
                     hal->call(&aidl::IVibrator::perform, static_cast<aidl::Effect>(mEffect),
                               static_cast<aidl::EffectStrength>(mStrength), nullptr, &aidlLengthMs);
-            statusStr = status.toString8();
+            statusStr = status.getDescription();
             lengthMs = static_cast<uint32_t>(aidlLengthMs);
             ret = status.isOk() ? OK : ERROR;
         } else {

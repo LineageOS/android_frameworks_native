@@ -73,9 +73,17 @@ public:
 
     using AllRefreshRatesMapType = std::unordered_map<HwcConfigIndexType, const RefreshRate>;
 
-    // Sets the current policy to choose refresh rates.
-    void setPolicy(HwcConfigIndexType defaultConfigId, float minRefreshRate, float maxRefreshRate)
-            EXCLUDES(mLock);
+    // Sets the current policy to choose refresh rates. Returns NO_ERROR if the requested policy is
+    // valid, or a negative error value otherwise. policyChanged, if non-null, will be set to true
+    // if the new policy is different from the old policy.
+    status_t setPolicy(HwcConfigIndexType defaultConfigId, float minRefreshRate,
+                       float maxRefreshRate, bool* policyChanged) EXCLUDES(mLock);
+    // Gets the current policy.
+    void getPolicy(HwcConfigIndexType* defaultConfigId, float* minRefreshRate,
+                   float* maxRefreshRate) const EXCLUDES(mLock);
+
+    // Returns true if config is allowed by the current policy.
+    bool isConfigAllowed(HwcConfigIndexType config) const EXCLUDES(mLock);
 
     // Returns true if this device is doing refresh rate switching. This won't change at runtime.
     bool refreshRateSwitchingSupported() const { return mRefreshRateSwitching; }
@@ -143,9 +151,9 @@ private:
     // the main thread, and read by the Scheduler (and other objects) on other threads.
     const RefreshRate* mCurrentRefreshRate GUARDED_BY(mLock);
 
-    // The current config group. This will change at runtime. This is set by SurfaceFlinger on
+    // The default config. This will change at runtime. This is set by SurfaceFlinger on
     // the main thread, and read by the Scheduler (and other objects) on other threads.
-    HwcConfigGroupType mCurrentGroupId GUARDED_BY(mLock);
+    HwcConfigIndexType mDefaultConfig GUARDED_BY(mLock);
 
     // The min and max FPS allowed by the policy. This will change at runtime and set by
     // SurfaceFlinger on the main thread.

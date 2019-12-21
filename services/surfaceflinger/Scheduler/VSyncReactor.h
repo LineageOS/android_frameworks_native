@@ -20,19 +20,23 @@
 #include <ui/FenceTime.h>
 #include <memory>
 #include <mutex>
+#include <unordered_map>
 #include <vector>
+#include "DispSync.h"
 
 namespace android::scheduler {
 
 class Clock;
 class VSyncDispatch;
 class VSyncTracker;
+class CallbackRepeater;
 
 // TODO (b/145217110): consider renaming.
 class VSyncReactor /* TODO (b/140201379): : public android::DispSync */ {
 public:
     VSyncReactor(std::unique_ptr<Clock> clock, std::unique_ptr<VSyncDispatch> dispatch,
                  std::unique_ptr<VSyncTracker> tracker, size_t pendingFenceLimit);
+    ~VSyncReactor();
 
     bool addPresentFence(const std::shared_ptr<FenceTime>& fence);
     void setIgnorePresentFences(bool ignoration);
@@ -48,6 +52,11 @@ public:
     bool addResyncSample(nsecs_t timestamp, bool* periodFlushed);
     void endResync();
 
+    status_t addEventListener(const char* name, nsecs_t phase, DispSync::Callback* callback,
+                              nsecs_t lastCallbackTime);
+    status_t removeEventListener(DispSync::Callback* callback, nsecs_t* outLastCallback);
+    status_t changePhaseOffset(DispSync::Callback* callback, nsecs_t phase);
+
 private:
     std::unique_ptr<Clock> const mClock;
     std::unique_ptr<VSyncDispatch> const mDispatch;
@@ -58,6 +67,8 @@ private:
     bool mIgnorePresentFences GUARDED_BY(mMutex) = false;
     std::vector<std::shared_ptr<FenceTime>> mUnfiredFences GUARDED_BY(mMutex);
     bool mPeriodChangeInProgress GUARDED_BY(mMutex) = false;
+    std::unordered_map<DispSync::Callback*, std::unique_ptr<CallbackRepeater>> mCallbacks
+            GUARDED_BY(mMutex);
 };
 
 } // namespace android::scheduler

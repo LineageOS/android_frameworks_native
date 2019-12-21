@@ -30,6 +30,186 @@
 #include <aidl/android/hardware/graphics/common/XyColor.h>
 #include <android/hardware/graphics/mapper/4.0/IMapper.h>
 
+/**
+ * Define equality operators for Stable AIDL types.
+ */
+inline bool operator==(const aidl::android::hardware::graphics::common::ExtendableType& lhs,
+                const aidl::android::hardware::graphics::common::ExtendableType& rhs) {
+    return !std::strcmp(lhs.name.c_str(), rhs.name.c_str()) && lhs.value == rhs.value;
+}
+
+inline bool operator!=(const aidl::android::hardware::graphics::common::ExtendableType& lhs,
+                const aidl::android::hardware::graphics::common::ExtendableType& rhs) {
+    return !(lhs == rhs);
+}
+
+inline bool operator==(const aidl::android::hardware::graphics::common::PlaneLayoutComponent& lhs,
+                const aidl::android::hardware::graphics::common::PlaneLayoutComponent& rhs) {
+    if (lhs.type.name != rhs.type.name) {
+        return false;
+    }
+    if (lhs.type.value != rhs.type.value) {
+        return false;
+    }
+    if (lhs.sizeInBits != rhs.sizeInBits) {
+        return false;
+    }
+    if (lhs.offsetInBits != rhs.offsetInBits) {
+        return false;
+    }
+    return true;
+}
+
+inline bool operator!=(const aidl::android::hardware::graphics::common::PlaneLayoutComponent& lhs,
+                const aidl::android::hardware::graphics::common::PlaneLayoutComponent& rhs) {
+    return !(lhs == rhs);
+}
+
+inline bool operator==(const aidl::android::hardware::graphics::common::Rect& lhs,
+                const aidl::android::hardware::graphics::common::Rect& rhs) {
+    if (lhs.left != rhs.left) {
+        return false;
+    }
+    if (lhs.top != rhs.top) {
+        return false;
+    }
+    if (lhs.right != rhs.right) {
+        return false;
+    }
+    if (lhs.bottom != rhs.bottom) {
+        return false;
+    }
+    return true;
+}
+
+inline bool operator!=(const aidl::android::hardware::graphics::common::Rect& lhs,
+                const aidl::android::hardware::graphics::common::Rect& rhs) {
+    return !(lhs == rhs);
+}
+
+inline bool operator==(const aidl::android::hardware::graphics::common::PlaneLayout& lhs,
+                const aidl::android::hardware::graphics::common::PlaneLayout& rhs) {
+    if (lhs.offsetInBytes != rhs.offsetInBytes) {
+        return false;
+    }
+    if (lhs.sampleIncrementInBits != rhs.sampleIncrementInBits) {
+        return false;
+    }
+    if (lhs.strideInBytes != rhs.strideInBytes) {
+        return false;
+    }
+    if (lhs.widthInSamples != rhs.widthInSamples) {
+        return false;
+    }
+    if (lhs.heightInSamples != rhs.heightInSamples) {
+        return false;
+    }
+    if (lhs.totalSizeInBytes != rhs.totalSizeInBytes) {
+        return false;
+    }
+    if (lhs.horizontalSubsampling != rhs.horizontalSubsampling) {
+        return false;
+    }
+    if (lhs.verticalSubsampling != rhs.verticalSubsampling) {
+        return false;
+    }
+    if (lhs.crop != rhs.crop) {
+        return false;
+    }
+    if (lhs.components.size() != rhs.components.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < lhs.components.size(); i++) {
+        if (lhs.components[i] != rhs.components[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+inline bool operator!=(const aidl::android::hardware::graphics::common::PlaneLayout& lhs,
+                const aidl::android::hardware::graphics::common::PlaneLayout& rhs) {
+    return !(lhs == rhs);
+}
+
+inline bool operator==(const std::vector<aidl::android::hardware::graphics::common::PlaneLayout>& lhs,
+                const std::vector<aidl::android::hardware::graphics::common::PlaneLayout>& rhs) {
+    if (lhs.size() != rhs.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < lhs.size(); i++) {
+        if (lhs[i] != rhs[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+inline bool operator!=(const std::vector<aidl::android::hardware::graphics::common::PlaneLayout>& lhs,
+                const std::vector<aidl::android::hardware::graphics::common::PlaneLayout>& rhs) {
+    return !(lhs == rhs);
+}
+
+inline bool operator==(const aidl::android::hardware::graphics::common::XyColor& lhs,
+                const aidl::android::hardware::graphics::common::XyColor& rhs) {
+    if (lhs.x != rhs.x) {
+        return false;
+    }
+    if (lhs.y != rhs.y) {
+        return false;
+    }
+    return true;
+}
+
+inline bool operator!=(const aidl::android::hardware::graphics::common::XyColor& lhs,
+                const aidl::android::hardware::graphics::common::XyColor& rhs) {
+    return !(lhs == rhs);
+}
+
+inline bool operator==(const aidl::android::hardware::graphics::common::Smpte2086& lhs,
+                const aidl::android::hardware::graphics::common::Smpte2086& rhs) {
+    if (lhs.primaryRed != rhs.primaryRed) {
+        return false;
+    }
+    if (lhs.primaryGreen != rhs.primaryGreen) {
+        return false;
+    }
+    if (lhs.primaryBlue != rhs.primaryBlue) {
+        return false;
+    }
+    if (lhs.whitePoint != rhs.whitePoint) {
+        return false;
+    }
+    if (lhs.maxLuminance != rhs.maxLuminance) {
+        return false;
+    }
+    if (lhs.minLuminance != rhs.minLuminance) {
+        return false;
+    }
+    return true;
+}
+
+inline bool operator!=(const aidl::android::hardware::graphics::common::Smpte2086& lhs,
+                const aidl::android::hardware::graphics::common::Smpte2086& rhs) {
+    return !(lhs == rhs);
+}
+
+inline bool operator==(const aidl::android::hardware::graphics::common::Cta861_3& lhs,
+                const aidl::android::hardware::graphics::common::Cta861_3& rhs) {
+    if (lhs.maxContentLightLevel != rhs.maxContentLightLevel) {
+        return false;
+    }
+    if (lhs.maxFrameAverageLightLevel != rhs.maxFrameAverageLightLevel) {
+        return false;
+    }
+    return true;
+}
+
+inline bool operator!=(const aidl::android::hardware::graphics::common::Cta861_3& lhs,
+                const aidl::android::hardware::graphics::common::Cta861_3& rhs) {
+    return !(lhs == rhs);
+}
+
 namespace android {
 
 namespace gralloc4 {
@@ -307,6 +487,58 @@ status_t encodeSmpte2094_40(const std::optional<std::vector<uint8_t>>& smpte2094
                             android::hardware::hidl_vec<uint8_t>* outSmpte2094_40);
 status_t decodeSmpte2094_40(const android::hardware::hidl_vec<uint8_t>& smpte2094_40,
                             std::optional<std::vector<uint8_t>>* outSmpte2094_40);
+
+/**
+ * The functions below can be used to encode and decode vendor metadata types.
+ */
+status_t encodeUint32(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        uint32_t input, android::hardware::hidl_vec<uint8_t>* output);
+status_t decodeUint32(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        const android::hardware::hidl_vec<uint8_t>& input, uint32_t* output);
+
+status_t encodeInt32(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        int32_t input, android::hardware::hidl_vec<uint8_t>* output);
+status_t decodeInt32(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        const android::hardware::hidl_vec<uint8_t>& input, int32_t* output);
+
+status_t encodeUint64(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        uint64_t input, android::hardware::hidl_vec<uint8_t>* output);
+status_t decodeUint64(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        const android::hardware::hidl_vec<uint8_t>& input, uint64_t* output);
+
+status_t encodeInt64(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        int64_t input, android::hardware::hidl_vec<uint8_t>* output);
+status_t decodeInt64(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        const android::hardware::hidl_vec<uint8_t>& input, int64_t* output);
+
+status_t encodeFloat(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        float input, android::hardware::hidl_vec<uint8_t>* output);
+status_t decodeFloat(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        const android::hardware::hidl_vec<uint8_t>& input, float* output);
+
+status_t encodeDouble(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        double input, android::hardware::hidl_vec<uint8_t>* output);
+status_t decodeDouble(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        const android::hardware::hidl_vec<uint8_t>& input, double* output);
+
+status_t encodeString(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        const std::string& input, android::hardware::hidl_vec<uint8_t>* output);
+status_t decodeString(
+        const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType& metadataType,
+        const android::hardware::hidl_vec<uint8_t>& input, std::string* output);
 
 /**
  * The functions below can be used to parse extendable types.

@@ -41,6 +41,7 @@ cc_library {
 
     export_shared_lib_headers: [
         "android.hardware.graphics.mapper@4.0",
+        "libhidlbase",
         "vintf-graphics-common-ndk_platform",
     ],
 

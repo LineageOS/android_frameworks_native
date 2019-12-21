@@ -20,6 +20,8 @@
 
 #include <vector>
 
-using GrallocTypesDecode = std::function<void(const ::android::hardware::hidl_vec<uint8_t>& vec, uint8_t data)>;
+using GrallocTypesDecode = std::function<void(const ::android::hardware::hidl_vec<uint8_t>& vec)>;
+using GrallocTypesVendorHelperDecode = std::function<void(const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType&, const ::android::hardware::hidl_vec<uint8_t>& vec)>;
 
 extern std::vector<GrallocTypesDecode> GRALLOCTYPES_DECODE_FUNCTIONS;
+extern std::vector<GrallocTypesVendorHelperDecode> GRALLOCTYPES_DECODE_VENDOR_HELPER_FUNCTIONS;

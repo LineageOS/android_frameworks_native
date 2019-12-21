@@ -26,7 +26,7 @@ namespace android::scheduler {
 class TimeKeeper;
 class VSyncTracker;
 
-enum class ScheduleResult { Scheduled, ReScheduled, CannotSchedule, Error };
+enum class ScheduleResult { Scheduled, CannotSchedule, Error };
 enum class CancelResult { Cancelled, TooLate, Error };
 
 /*
@@ -83,7 +83,6 @@ public:
      * \param [in] earliestVsync   The targeted display time. This will be snapped to the closest
      *                             predicted vsync time after earliestVsync.
      * \return                     A ScheduleResult::Scheduled if callback was scheduled.
-     *                             A ScheduleResult::ReScheduled if callback was rescheduled.
      *                             A ScheduleResult::CannotSchedule
      *                             if (workDuration - earliestVsync) is in the past, or
      *                             if a callback was dispatched for the predictedVsync already.

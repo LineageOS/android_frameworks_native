@@ -92,6 +92,7 @@ private:
 
 struct VSyncDispatchRealtimeTest : testing::Test {
     static nsecs_t constexpr mDispatchGroupThreshold = toNs(100us);
+    static nsecs_t constexpr mVsyncMoveThreshold = toNs(500us);
     static size_t constexpr mIterations = 20;
 };
 
@@ -148,7 +149,8 @@ private:
 
 TEST_F(VSyncDispatchRealtimeTest, triple_alarm) {
     FixedRateIdealStubTracker tracker;
-    VSyncDispatchTimerQueue dispatch(std::make_unique<Timer>(), tracker, mDispatchGroupThreshold);
+    VSyncDispatchTimerQueue dispatch(std::make_unique<Timer>(), tracker, mDispatchGroupThreshold,
+                                     mVsyncMoveThreshold);
 
     static size_t constexpr num_clients = 3;
     std::array<RepeatingCallbackReceiver, num_clients>
@@ -176,7 +178,8 @@ TEST_F(VSyncDispatchRealtimeTest, triple_alarm) {
 TEST_F(VSyncDispatchRealtimeTest, vascillating_vrr) {
     auto next_vsync_interval = toNs(3ms);
     VRRStubTracker tracker(next_vsync_interval);
-    VSyncDispatchTimerQueue dispatch(std::make_unique<Timer>(), tracker, mDispatchGroupThreshold);
+    VSyncDispatchTimerQueue dispatch(std::make_unique<Timer>(), tracker, mDispatchGroupThreshold,
+                                     mVsyncMoveThreshold);
 
     RepeatingCallbackReceiver cb_receiver(dispatch, toNs(1ms));
 
@@ -193,7 +196,8 @@ TEST_F(VSyncDispatchRealtimeTest, vascillating_vrr) {
 // starts at 333hz, jumps to 200hz at frame 10
 TEST_F(VSyncDispatchRealtimeTest, fixed_jump) {
     VRRStubTracker tracker(toNs(3ms));
-    VSyncDispatchTimerQueue dispatch(std::make_unique<Timer>(), tracker, mDispatchGroupThreshold);
+    VSyncDispatchTimerQueue dispatch(std::make_unique<Timer>(), tracker, mDispatchGroupThreshold,
+                                     mVsyncMoveThreshold);
 
     RepeatingCallbackReceiver cb_receiver(dispatch, toNs(1ms));
 
