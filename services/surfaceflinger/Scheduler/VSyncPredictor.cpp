@@ -38,7 +38,7 @@ VSyncPredictor::~VSyncPredictor() = default;
 
 VSyncPredictor::VSyncPredictor(nsecs_t idealPeriod, size_t historySize,
                                size_t minimumSamplesForPrediction, uint32_t outlierTolerancePercent)
-      : mTraceOn(property_get_bool("debug.sf.vsp_trace", false)),
+      : mTraceOn(property_get_bool("debug.sf.vsp_trace", true)),
         kHistorySize(historySize),
         kMinimumSamplesForPrediction(minimumSamplesForPrediction),
         kOutlierTolerancePercent(std::min(outlierTolerancePercent, kMaxPercent)),
