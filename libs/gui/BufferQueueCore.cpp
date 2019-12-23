@@ -42,6 +42,23 @@
 
 namespace android {
 
+// Macros for include BufferQueueCore information in log messages
+#define BQ_LOGV(x, ...)                                                                           \
+    ALOGV("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(), mUniqueId, \
+          mConnectedApi, mConnectedPid, mUniqueId >> 32, ##__VA_ARGS__)
+#define BQ_LOGD(x, ...)                                                                           \
+    ALOGD("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(), mUniqueId, \
+          mConnectedApi, mConnectedPid, mUniqueId >> 32, ##__VA_ARGS__)
+#define BQ_LOGI(x, ...)                                                                           \
+    ALOGI("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(), mUniqueId, \
+          mConnectedApi, mConnectedPid, mUniqueId >> 32, ##__VA_ARGS__)
+#define BQ_LOGW(x, ...)                                                                           \
+    ALOGW("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(), mUniqueId, \
+          mConnectedApi, mConnectedPid, mUniqueId >> 32, ##__VA_ARGS__)
+#define BQ_LOGE(x, ...)                                                                           \
+    ALOGE("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(), mUniqueId, \
+          mConnectedApi, mConnectedPid, mUniqueId >> 32, ##__VA_ARGS__)
+
 static String8 getUniqueName() {
     static volatile int32_t counter = 0;
     return String8::format("unnamed-%d-%d", getpid(),
@@ -52,6 +69,19 @@ static uint64_t getUniqueId() {
     static std::atomic<uint32_t> counter{0};
     static uint64_t id = static_cast<uint64_t>(getpid()) << 32;
     return id | counter++;
+}
+
+static status_t getProcessName(int pid, String8& name) {
+    FILE* fp = fopen(String8::format("/proc/%d/cmdline", pid), "r");
+    if (NULL != fp) {
+        const size_t size = 64;
+        char proc_name[size];
+        fgets(proc_name, size, fp);
+        fclose(fp);
+        name = proc_name;
+        return NO_ERROR;
+    }
+    return INVALID_OPERATION;
 }
 
 BufferQueueCore::BufferQueueCore() :
@@ -132,6 +162,20 @@ void BufferQueueCore::dumpState(const String8& prefix, String8* outResult) const
                             mTransformHintInUse, mAutoPrerotation);
 
     outResult->appendFormat("%sFIFO(%zu):\n", prefix.string(), mQueue.size());
+
+    outResult->appendFormat("%s(mConsumerName=%s, ", prefix.string(), mConsumerName.string());
+
+    outResult->appendFormat("mConnectedApi=%d, mConsumerUsageBits=%" PRIu64 ", ", mConnectedApi,
+                            mConsumerUsageBits);
+
+    String8 producerProcName = String8("\?\?\?");
+    String8 consumerProcName = String8("\?\?\?");
+    int32_t pid = getpid();
+    getProcessName(mConnectedPid, producerProcName);
+    getProcessName(pid, consumerProcName);
+    outResult->appendFormat("mId=%" PRIx64 ", producer=[%d:%s], consumer=[%d:%s])\n", mUniqueId,
+                            mConnectedPid, producerProcName.string(), pid,
+                            consumerProcName.string());
     Fifo::const_iterator current(mQueue.begin());
     while (current != mQueue.end()) {
         double timestamp = current->mTimestamp / 1e9;
