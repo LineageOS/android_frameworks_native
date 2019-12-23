@@ -66,14 +66,14 @@ private:
         ssize_t getNodeStrongRefCount();
     };
 
-    using CallbackMap = std::map<std::string, std::vector<sp<IServiceCallback>>>;
+    using ServiceCallbackMap = std::map<std::string, std::vector<sp<IServiceCallback>>>;
     using ClientCallbackMap = std::map<std::string, std::vector<sp<IClientCallback>>>;
     using ServiceMap = std::map<std::string, Service>;
 
-    // removes a callback from mNameToCallback, removing it if the vector is empty
+    // removes a callback from mNameToRegistrationCallback, removing it if the vector is empty
     // this updates iterator to the next location
-    void removeCallback(const wp<IBinder>& who,
-                        CallbackMap::iterator* it,
+    void removeRegistrationCallback(const wp<IBinder>& who,
+                        ServiceCallbackMap::iterator* it,
                         bool* found);
     ssize_t handleServiceClientCallback(const std::string& serviceName);
      // Also updates mHasClients (of what the last callback was)
@@ -84,8 +84,8 @@ private:
 
     sp<IBinder> tryGetService(const std::string& name, bool startIfNotFound);
 
-    CallbackMap mNameToCallback;
     ServiceMap mNameToService;
+    ServiceCallbackMap mNameToRegistrationCallback;
     ClientCallbackMap mNameToClientCallback;
 
     std::unique_ptr<Access> mAccess;
