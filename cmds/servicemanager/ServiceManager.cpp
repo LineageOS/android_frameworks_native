@@ -83,7 +83,7 @@ ServiceManager::ServiceManager(std::unique_ptr<Access>&& access) : mAccess(std::
 ServiceManager::~ServiceManager() {
     // this should only happen in tests
 
-    for (const auto& [name, callbacks] : mNameToCallback) {
+    for (const auto& [name, callbacks] : mNameToRegistrationCallback) {
         CHECK(!callbacks.empty()) << name;
         for (const auto& callback : callbacks) {
             CHECK(callback != nullptr) << name;
@@ -199,8 +199,8 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
         .debugPid = ctx.debugPid,
     });
 
-    auto it = mNameToCallback.find(name);
-    if (it != mNameToCallback.end()) {
+    auto it = mNameToRegistrationCallback.find(name);
+    if (it != mNameToRegistrationCallback.end()) {
         for (const sp<IServiceCallback>& cb : it->second) {
             entry.first->second.guaranteeClient = true;
             // permission checked in registerForNotifications
@@ -259,7 +259,7 @@ Status ServiceManager::registerForNotifications(
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
     }
 
-    mNameToCallback[name].push_back(callback);
+    mNameToRegistrationCallback[name].push_back(callback);
 
     if (auto it = mNameToService.find(name); it != mNameToService.end()) {
         const sp<IBinder>& binder = it->second.binder;
@@ -281,9 +281,9 @@ Status ServiceManager::unregisterForNotifications(
 
     bool found = false;
 
-    auto it = mNameToCallback.find(name);
-    if (it != mNameToCallback.end()) {
-        removeCallback(IInterface::asBinder(callback), &it, &found);
+    auto it = mNameToRegistrationCallback.find(name);
+    if (it != mNameToRegistrationCallback.end()) {
+        removeRegistrationCallback(IInterface::asBinder(callback), &it, &found);
     }
 
     if (!found) {
@@ -309,8 +309,8 @@ Status ServiceManager::isDeclared(const std::string& name, bool* outReturn) {
     return Status::ok();
 }
 
-void ServiceManager::removeCallback(const wp<IBinder>& who,
-                                    CallbackMap::iterator* it,
+void ServiceManager::removeRegistrationCallback(const wp<IBinder>& who,
+                                    ServiceCallbackMap::iterator* it,
                                     bool* found) {
     std::vector<sp<IServiceCallback>>& listeners = (*it)->second;
 
@@ -324,7 +324,7 @@ void ServiceManager::removeCallback(const wp<IBinder>& who,
     }
 
     if (listeners.empty()) {
-        *it = mNameToCallback.erase(*it);
+        *it = mNameToRegistrationCallback.erase(*it);
     } else {
         (*it)++;
     }
@@ -339,8 +339,8 @@ void ServiceManager::binderDied(const wp<IBinder>& who) {
         }
     }
 
-    for (auto it = mNameToCallback.begin(); it != mNameToCallback.end();) {
-        removeCallback(who, &it, nullptr /*found*/);
+    for (auto it = mNameToRegistrationCallback.begin(); it != mNameToRegistrationCallback.end();) {
+        removeRegistrationCallback(who, &it, nullptr /*found*/);
     }
 
     for (auto it = mNameToClientCallback.begin(); it != mNameToClientCallback.end();) {
