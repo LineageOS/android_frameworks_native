@@ -18,17 +18,100 @@
 #include <binder/IPCThreadState.h>
 #include <binder/ProcessState.h>
 #include <binder/Status.h>
+#include <sys/timerfd.h>
+#include <utils/Looper.h>
 #include <utils/StrongPointer.h>
 
 #include "Access.h"
 #include "ServiceManager.h"
 
 using ::android::Access;
+using ::android::sp;
+using ::android::Looper;
+using ::android::LooperCallback;
+using ::android::ProcessState;
 using ::android::IPCThreadState;
 using ::android::ProcessState;
 using ::android::ServiceManager;
 using ::android::os::IServiceManager;
 using ::android::sp;
+
+class BinderCallback : public LooperCallback {
+public:
+    static sp<BinderCallback> setupTo(const sp<Looper>& looper) {
+        sp<BinderCallback> cb = new BinderCallback;
+
+        int binder_fd = -1;
+        IPCThreadState::self()->setupPolling(&binder_fd);
+        LOG_ALWAYS_FATAL_IF(binder_fd < 0, "Failed to setupPolling: %d", binder_fd);
+
+        // Flush after setupPolling(), to make sure the binder driver
+        // knows about this thread handling commands.
+        IPCThreadState::self()->flushCommands();
+
+        int ret = looper->addFd(binder_fd,
+                                Looper::POLL_CALLBACK,
+                                Looper::EVENT_INPUT,
+                                cb,
+                                nullptr /*data*/);
+        LOG_ALWAYS_FATAL_IF(ret != 1, "Failed to add binder FD to Looper");
+
+        return cb;
+    }
+
+    int handleEvent(int /* fd */, int /* events */, void* /* data */) override {
+        IPCThreadState::self()->handlePolledCommands();
+        return 1;  // Continue receiving callbacks.
+    }
+};
+
+// LooperCallback for IClientCallback
+class ClientCallbackCallback : public LooperCallback {
+public:
+    static sp<ClientCallbackCallback> setupTo(const sp<Looper>& looper, const sp<ServiceManager>& manager) {
+        sp<ClientCallbackCallback> cb = new ClientCallbackCallback(manager);
+
+        int fdTimer = timerfd_create(CLOCK_MONOTONIC, 0 /*flags*/);
+        LOG_ALWAYS_FATAL_IF(fdTimer < 0, "Failed to timerfd_create: fd: %d err: %d", fdTimer, errno);
+
+        itimerspec timespec {
+            .it_interval = {
+                .tv_sec = 5,
+                .tv_nsec = 0,
+            },
+            .it_value = {
+                .tv_sec = 5,
+                .tv_nsec = 0,
+            },
+        };
+
+        int timeRes = timerfd_settime(fdTimer, 0 /*flags*/, &timespec, nullptr);
+        LOG_ALWAYS_FATAL_IF(timeRes < 0, "Failed to timerfd_settime: res: %d err: %d", timeRes, errno);
+
+        int addRes = looper->addFd(fdTimer,
+                                   Looper::POLL_CALLBACK,
+                                   Looper::EVENT_INPUT,
+                                   cb,
+                                   nullptr);
+        LOG_ALWAYS_FATAL_IF(addRes != 1, "Failed to add client callback FD to Looper");
+
+        return cb;
+    }
+
+    int handleEvent(int fd, int /*events*/, void* /*data*/) override {
+        uint64_t expirations;
+        int ret = read(fd, &expirations, sizeof(expirations));
+        if (ret != sizeof(expirations)) {
+            ALOGE("Read failed to callback FD: ret: %d err: %d", ret, errno);
+        }
+
+        mManager->handleClientCallbacks();
+        return 1;  // Continue receiving callbacks.
+    }
+private:
+    ClientCallbackCallback(const sp<ServiceManager>& manager) : mManager(manager) {}
+    sp<ServiceManager> mManager;
+};
 
 int main(int argc, char** argv) {
     if (argc > 2) {
@@ -49,7 +132,14 @@ int main(int argc, char** argv) {
     IPCThreadState::self()->setTheContextObject(manager);
     ps->becomeContextManager(nullptr, nullptr);
 
-    IPCThreadState::self()->joinThreadPool();
+    sp<Looper> looper = Looper::prepare(false /*allowNonCallbacks*/);
+
+    BinderCallback::setupTo(looper);
+    ClientCallbackCallback::setupTo(looper, manager);
+
+    while(true) {
+        looper->pollAll(-1);
+    }
 
     // should not be reached
     return EXIT_FAILURE;
