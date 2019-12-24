@@ -2729,15 +2729,13 @@ DurationReporter::DurationReporter(const std::string& title, bool logcat_only, b
 DurationReporter::~DurationReporter() {
     if (!title_.empty()) {
         float elapsed = (float)(Nanotime() - started_) / NANOS_PER_SEC;
-        if (elapsed < .5f && !verbose_) {
-            return;
+        if (elapsed >= .5f || verbose_) {
+            MYLOGD("Duration of '%s': %.2fs\n", title_.c_str(), elapsed);
         }
-        MYLOGD("Duration of '%s': %.2fs\n", title_.c_str(), elapsed);
-        if (logcat_only_) {
-            return;
+        if (!logcat_only_) {
+            // Use "Yoda grammar" to make it easier to grep|sort sections.
+            printf("------ %.3fs was the duration of '%s' ------\n", elapsed, title_.c_str());
         }
-        // Use "Yoda grammar" to make it easier to grep|sort sections.
-        printf("------ %.3fs was the duration of '%s' ------\n", elapsed, title_.c_str());
     }
 }
 

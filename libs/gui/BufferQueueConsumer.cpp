@@ -44,6 +44,28 @@
 
 namespace android {
 
+// Macros for include BufferQueueCore information in log messages
+#define BQ_LOGV(x, ...)                                                                           \
+    ALOGV("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(),            \
+          mCore->mUniqueId, mCore->mConnectedApi, mCore->mConnectedPid, (mCore->mUniqueId) >> 32, \
+          ##__VA_ARGS__)
+#define BQ_LOGD(x, ...)                                                                           \
+    ALOGD("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(),            \
+          mCore->mUniqueId, mCore->mConnectedApi, mCore->mConnectedPid, (mCore->mUniqueId) >> 32, \
+          ##__VA_ARGS__)
+#define BQ_LOGI(x, ...)                                                                           \
+    ALOGI("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(),            \
+          mCore->mUniqueId, mCore->mConnectedApi, mCore->mConnectedPid, (mCore->mUniqueId) >> 32, \
+          ##__VA_ARGS__)
+#define BQ_LOGW(x, ...)                                                                           \
+    ALOGW("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(),            \
+          mCore->mUniqueId, mCore->mConnectedApi, mCore->mConnectedPid, (mCore->mUniqueId) >> 32, \
+          ##__VA_ARGS__)
+#define BQ_LOGE(x, ...)                                                                           \
+    ALOGE("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(),            \
+          mCore->mUniqueId, mCore->mConnectedApi, mCore->mConnectedPid, (mCore->mUniqueId) >> 32, \
+          ##__VA_ARGS__)
+
 BufferQueueConsumer::BufferQueueConsumer(const sp<BufferQueueCore>& core) :
     mCore(core),
     mSlots(core->mSlots),
