@@ -10,6 +10,7 @@ cc_test {
         "InputClassifierConverter_test.cpp",
         "InputDispatcher_test.cpp",
         "InputReader_test.cpp",
+        "UinputDevice.cpp",
     ],
     cflags: [
         "-Wall",
