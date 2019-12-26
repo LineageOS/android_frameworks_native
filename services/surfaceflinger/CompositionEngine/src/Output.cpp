@@ -408,6 +408,11 @@ void Output::ensureOutputLayerIfVisible(std::shared_ptr<compositionengine::Layer
      */
     Region transparentRegion;
 
+    /*
+     * shadowRegion: Region cast by the layer's shadow.
+     */
+    Region shadowRegion;
+
     // handle hidden surfaces by setting the visible region to empty
     if (CC_UNLIKELY(!layerFEState.isVisible)) {
         return;
@@ -418,7 +423,18 @@ void Output::ensureOutputLayerIfVisible(std::shared_ptr<compositionengine::Layer
     // Get the visible region
     // TODO(b/121291683): Is it worth creating helper methods on LayerFEState
     // for computations like this?
-    visibleRegion.set(Rect(tr.transform(layerFEState.geomLayerBounds)));
+    const Rect visibleRect(tr.transform(layerFEState.geomLayerBounds));
+    visibleRegion.set(visibleRect);
+
+    if (layerFEState.shadowRadius > 0.0f) {
+        // if the layer casts a shadow, offset the layers visible region and
+        // calculate the shadow region.
+        const int32_t inset = layerFEState.shadowRadius * -1.0f;
+        Rect visibleRectWithShadows(visibleRect);
+        visibleRectWithShadows.inset(inset, inset, inset, inset);
+        visibleRegion.set(visibleRectWithShadows);
+        shadowRegion = visibleRegion.subtract(visibleRect);
+    }
 
     if (visibleRegion.isEmpty()) {
         return;
@@ -444,7 +460,7 @@ void Output::ensureOutputLayerIfVisible(std::shared_ptr<compositionengine::Layer
         // Otherwise we don't try and compute the opaque region since there may
         // be errors at the edges, and we treat the entire layer as
         // translucent.
-        opaqueRegion = visibleRegion;
+        opaqueRegion.set(visibleRect);
     }
 
     // Clip the covered region to the visible region
@@ -510,7 +526,7 @@ void Output::ensureOutputLayerIfVisible(std::shared_ptr<compositionengine::Layer
     // Compute the visible non-transparent region
     Region visibleNonTransparentRegion = visibleRegion.subtract(transparentRegion);
 
-    // Peform the final check to see if this layer is visible on this output
+    // Perform the final check to see if this layer is visible on this output
     // TODO(b/121291683): Why does this not use visibleRegion? (see outputSpaceVisibleRegion below)
     const auto& outputState = getState();
     Region drawRegion(outputState.transform.transform(visibleNonTransparentRegion));
@@ -518,6 +534,8 @@ void Output::ensureOutputLayerIfVisible(std::shared_ptr<compositionengine::Layer
     if (drawRegion.isEmpty()) {
         return;
     }
+
+    Region visibleNonShadowRegion = visibleRegion.subtract(shadowRegion);
 
     // The layer is visible. Either reuse the existing outputLayer if we have
     // one, or create a new one if we do not.
@@ -529,8 +547,9 @@ void Output::ensureOutputLayerIfVisible(std::shared_ptr<compositionengine::Layer
     outputLayerState.visibleRegion = visibleRegion;
     outputLayerState.visibleNonTransparentRegion = visibleNonTransparentRegion;
     outputLayerState.coveredRegion = coveredRegion;
-    outputLayerState.outputSpaceVisibleRegion = outputState.transform.transform(
-            outputLayerState.visibleRegion.intersect(outputState.viewport));
+    outputLayerState.outputSpaceVisibleRegion =
+            outputState.transform.transform(visibleNonShadowRegion.intersect(outputState.viewport));
+    outputLayerState.shadowRegion = shadowRegion;
 }
 
 void Output::setReleasedLayers(const compositionengine::CompositionRefreshArgs&) {
@@ -884,7 +903,7 @@ std::vector<renderengine::LayerSettings> Output::generateClientCompositionReques
             continue;
         }
 
-        bool clientComposition = layer->requiresClientComposition();
+        const bool clientComposition = layer->requiresClientComposition();
 
         // We clear the client target for non-client composed layers if
         // requested by the HWC. We skip this if the layer is not an opaque
@@ -921,8 +940,15 @@ std::vector<renderengine::LayerSettings> Output::generateClientCompositionReques
                     }
                 }
 
-                layer->editState().clientCompositionTimestamp = systemTime();
-                clientCompositionLayers.push_back(*result);
+                // If the layer casts a shadow but the content casting the shadow is occluded, skip
+                // composing the non-shadow content and only draw the shadows.
+                const bool skipNonShadowContentComposition = clientComposition &&
+                        layerState.visibleRegion.subtract(layerState.shadowRegion).isEmpty();
+
+                if (!skipNonShadowContentComposition) {
+                    layer->editState().clientCompositionTimestamp = systemTime();
+                    clientCompositionLayers.push_back(*result);
+                }
             }
         }
 

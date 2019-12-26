@@ -1439,6 +1439,87 @@ TEST_F(OutputEnsureOutputLayerIfVisibleTest, coverageAccumulatesTest) {
     EXPECT_THAT(mOutputLayerState.outputSpaceVisibleRegion, RegionEq(kExpectedLayerVisibleRegion));
 }
 
+TEST_F(OutputEnsureOutputLayerIfVisibleTest, coverageAccumulatesWithShadowsTest) {
+    ui::Transform translate;
+    translate.set(50, 50);
+    mLayerFEState.geomLayerTransform = translate;
+    mLayerFEState.shadowRadius = 10.0f;
+
+    mCoverageState.dirtyRegion = Region(Rect(0, 0, 500, 500));
+    // half of the layer including the casting shadow is covered and opaque
+    mCoverageState.aboveCoveredLayers = Region(Rect(40, 40, 100, 260));
+    mCoverageState.aboveOpaqueLayers = Region(Rect(40, 40, 100, 260));
+
+    EXPECT_CALL(mOutput, ensureOutputLayer(Eq(0u), Eq(mLayer), Eq(mLayerFE)))
+            .WillOnce(Return(&mOutputLayer));
+
+    mOutput.ensureOutputLayerIfVisible(mLayer, mCoverageState);
+
+    const Region kExpectedDirtyRegion = Region(Rect(0, 0, 500, 500));
+    const Region kExpectedAboveCoveredRegion = Region(Rect(40, 40, 160, 260));
+    // add starting opaque region to the opaque half of the casting layer bounds
+    const Region kExpectedAboveOpaqueRegion =
+            Region(Rect(40, 40, 100, 260)).orSelf(Rect(100, 50, 150, 250));
+    const Region kExpectedLayerVisibleRegion = Region(Rect(100, 40, 160, 260));
+    const Region kExpectedoutputSpaceLayerVisibleRegion = Region(Rect(100, 50, 150, 250));
+    const Region kExpectedLayerCoveredRegion = Region(Rect(40, 40, 100, 260));
+    const Region kExpectedLayerVisibleNonTransparentRegion = Region(Rect(100, 40, 160, 260));
+    const Region kExpectedLayerShadowRegion =
+            Region(Rect(40, 40, 160, 260)).subtractSelf(Rect(50, 50, 150, 250));
+
+    EXPECT_THAT(mCoverageState.dirtyRegion, RegionEq(kExpectedDirtyRegion));
+    EXPECT_THAT(mCoverageState.aboveCoveredLayers, RegionEq(kExpectedAboveCoveredRegion));
+    EXPECT_THAT(mCoverageState.aboveOpaqueLayers, RegionEq(kExpectedAboveOpaqueRegion));
+
+    EXPECT_THAT(mOutputLayerState.visibleRegion, RegionEq(kExpectedLayerVisibleRegion));
+    EXPECT_THAT(mOutputLayerState.visibleNonTransparentRegion,
+                RegionEq(kExpectedLayerVisibleNonTransparentRegion));
+    EXPECT_THAT(mOutputLayerState.coveredRegion, RegionEq(kExpectedLayerCoveredRegion));
+    EXPECT_THAT(mOutputLayerState.outputSpaceVisibleRegion,
+                RegionEq(kExpectedoutputSpaceLayerVisibleRegion));
+    EXPECT_THAT(mOutputLayerState.shadowRegion, RegionEq(kExpectedLayerShadowRegion));
+    EXPECT_FALSE(kExpectedLayerVisibleRegion.subtract(kExpectedLayerShadowRegion).isEmpty());
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest, shadowRegionOnlyTest) {
+    ui::Transform translate;
+    translate.set(50, 50);
+    mLayerFEState.geomLayerTransform = translate;
+    mLayerFEState.shadowRadius = 10.0f;
+
+    mCoverageState.dirtyRegion = Region(Rect(0, 0, 500, 500));
+    // Casting layer is covered by an opaque region leaving only part of its shadow to be drawn
+    mCoverageState.aboveCoveredLayers = Region(Rect(40, 40, 150, 260));
+    mCoverageState.aboveOpaqueLayers = Region(Rect(40, 40, 150, 260));
+
+    EXPECT_CALL(mOutput, ensureOutputLayer(Eq(0u), Eq(mLayer), Eq(mLayerFE)))
+            .WillOnce(Return(&mOutputLayer));
+
+    mOutput.ensureOutputLayerIfVisible(mLayer, mCoverageState);
+
+    const Region kExpectedLayerVisibleRegion = Region(Rect(150, 40, 160, 260));
+    const Region kExpectedLayerShadowRegion =
+            Region(Rect(40, 40, 160, 260)).subtractSelf(Rect(50, 50, 150, 250));
+
+    EXPECT_THAT(mOutputLayerState.visibleRegion, RegionEq(kExpectedLayerVisibleRegion));
+    EXPECT_THAT(mOutputLayerState.shadowRegion, RegionEq(kExpectedLayerShadowRegion));
+    EXPECT_TRUE(kExpectedLayerVisibleRegion.subtract(kExpectedLayerShadowRegion).isEmpty());
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest, takesNotSoEarlyOutifLayerWithShadowIsCovered) {
+    ui::Transform translate;
+    translate.set(50, 50);
+    mLayerFEState.geomLayerTransform = translate;
+    mLayerFEState.shadowRadius = 10.0f;
+
+    mCoverageState.dirtyRegion = Region(Rect(0, 0, 500, 500));
+    // Casting layer and its shadows are covered by an opaque region
+    mCoverageState.aboveCoveredLayers = Region(Rect(40, 40, 160, 260));
+    mCoverageState.aboveOpaqueLayers = Region(Rect(40, 40, 160, 260));
+
+    mOutput.ensureOutputLayerIfVisible(mLayer, mCoverageState);
+}
+
 /*
  * Output::present()
  */
@@ -3633,6 +3714,68 @@ TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenReq
     ASSERT_EQ(2u, requests.size());
     EXPECT_EQ(leftLayer.mRELayerSettings, requests[0]);
     EXPECT_EQ(rightLayer.mRELayerSettings, requests[1]);
+}
+
+TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
+       shadowRegionOnlyVisibleSkipsContentComposition) {
+    const Rect kContentWithShadow(40, 40, 70, 90);
+    const Rect kContent(50, 50, 60, 80);
+    const Region kShadowRegion = Region(kContentWithShadow).subtract(kContent);
+    const Region kPartialShadowRegion = Region(kContentWithShadow).subtract(Rect(40, 40, 60, 80));
+
+    renderengine::LayerSettings mREShadowSettings;
+    mREShadowSettings.source.solidColor = {0.1f, 0.1f, 0.1f};
+
+    mLayers[2].mOutputLayerState.visibleRegion = kPartialShadowRegion;
+    mLayers[2].mOutputLayerState.shadowRegion = kShadowRegion;
+
+    EXPECT_CALL(mLayers[0].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
+    EXPECT_CALL(mLayers[1].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
+    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientComposition(_))
+            .WillOnce(Return(mLayers[2].mRELayerSettings));
+    EXPECT_CALL(mLayers[2].mLayerFE,
+                prepareShadowClientComposition(mLayers[2].mRELayerSettings, kDisplayViewport,
+                                               kDisplayDataspace))
+            .WillOnce(Return(mREShadowSettings));
+
+    Region accumClearRegion(Rect(10, 11, 12, 13));
+    auto requests = mOutput.generateClientCompositionRequests(false /* supportsProtectedContent */,
+                                                              accumClearRegion, kDisplayDataspace);
+    ASSERT_EQ(1u, requests.size());
+
+    EXPECT_EQ(mREShadowSettings, requests[0]);
+}
+
+TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
+       shadowRegionWithContentVisibleRequestsContentAndShadowComposition) {
+    const Rect kContentWithShadow(40, 40, 70, 90);
+    const Rect kContent(50, 50, 60, 80);
+    const Region kShadowRegion = Region(kContentWithShadow).subtract(kContent);
+    const Region kPartialContentWithPartialShadowRegion =
+            Region(kContentWithShadow).subtract(Rect(40, 40, 50, 80));
+
+    renderengine::LayerSettings mREShadowSettings;
+    mREShadowSettings.source.solidColor = {0.1f, 0.1f, 0.1f};
+
+    mLayers[2].mOutputLayerState.visibleRegion = kPartialContentWithPartialShadowRegion;
+    mLayers[2].mOutputLayerState.shadowRegion = kShadowRegion;
+
+    EXPECT_CALL(mLayers[0].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
+    EXPECT_CALL(mLayers[1].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
+    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientComposition(_))
+            .WillOnce(Return(mLayers[2].mRELayerSettings));
+    EXPECT_CALL(mLayers[2].mLayerFE,
+                prepareShadowClientComposition(mLayers[2].mRELayerSettings, kDisplayViewport,
+                                               kDisplayDataspace))
+            .WillOnce(Return(mREShadowSettings));
+
+    Region accumClearRegion(Rect(10, 11, 12, 13));
+    auto requests = mOutput.generateClientCompositionRequests(false /* supportsProtectedContent */,
+                                                              accumClearRegion, kDisplayDataspace);
+    ASSERT_EQ(2u, requests.size());
+
+    EXPECT_EQ(mREShadowSettings, requests[0]);
+    EXPECT_EQ(mLayers[2].mRELayerSettings, requests[1]);
 }
 
 } // namespace
