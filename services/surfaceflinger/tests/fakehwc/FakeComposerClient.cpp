@@ -760,6 +760,22 @@ V2_4::Error FakeComposerClient::setActiveConfigWithConstraints(
     return V2_4::Error::UNSUPPORTED;
 }
 
+V2_4::Error FakeComposerClient::setAutoLowLatencyMode(Display, bool) {
+    ALOGV("setAutoLowLatencyMode");
+    return V2_4::Error::UNSUPPORTED;
+}
+
+V2_4::Error FakeComposerClient::getSupportedContentTypes(
+        Display, std::vector<IComposerClient::ContentType>*) {
+    ALOGV("getSupportedContentTypes");
+    return V2_4::Error::UNSUPPORTED;
+}
+
+V2_4::Error FakeComposerClient::setContentType(Display, IComposerClient::ContentType) {
+    ALOGV("setContentType");
+    return V2_4::Error::UNSUPPORTED;
+}
+
 //////////////////////////////////////////////////////////////////
 
 void FakeComposerClient::requestVSync(uint64_t vsyncTime) {

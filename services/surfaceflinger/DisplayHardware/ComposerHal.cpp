@@ -1281,6 +1281,45 @@ V2_4::Error Composer::setActiveConfigWithConstraints(
     return error;
 }
 
+V2_4::Error Composer::setAutoLowLatencyMode(Display display, bool on) {
+    using Error = V2_4::Error;
+    if (!mClient_2_4) {
+        return Error::UNSUPPORTED;
+    }
+
+    return mClient_2_4->setAutoLowLatencyMode(display, on);
+}
+
+V2_4::Error Composer::getSupportedContentTypes(
+        Display displayId, std::vector<IComposerClient::ContentType>* outSupportedContentTypes) {
+    using Error = V2_4::Error;
+    if (!mClient_2_4) {
+        return Error::UNSUPPORTED;
+    }
+
+    Error error = kDefaultError_2_4;
+    mClient_2_4->getSupportedContentTypes(displayId,
+                                          [&](const auto& tmpError,
+                                              const auto& tmpSupportedContentTypes) {
+                                              error = tmpError;
+                                              if (error != Error::NONE) {
+                                                  return;
+                                              }
+
+                                              *outSupportedContentTypes = tmpSupportedContentTypes;
+                                          });
+    return error;
+}
+
+V2_4::Error Composer::setContentType(Display display, IComposerClient::ContentType contentType) {
+    using Error = V2_4::Error;
+    if (!mClient_2_4) {
+        return Error::UNSUPPORTED;
+    }
+
+    return mClient_2_4->setContentType(display, contentType);
+}
+
 CommandReader::~CommandReader()
 {
     resetData();
