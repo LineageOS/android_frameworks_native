@@ -51,6 +51,7 @@ message SurfaceChange {
         RelativeParentChange        relative_parent         = 18;
         DetachChildrenChange        detach_children         = 19;
         ReparentChildrenChange      reparent_children       = 20;
+        ShadowRadiusChange          shadow_radius           = 22;
     }
 }
 
@@ -198,4 +199,8 @@ message RelativeParentChange {
 
 message DetachChildrenChange {
     required bool detach_children = 1;
+}
+
+message ShadowRadiusChange {
+    required float radius = 1;
 }

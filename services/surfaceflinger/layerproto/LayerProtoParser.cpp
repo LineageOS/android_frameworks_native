@@ -112,7 +112,8 @@ LayerProtoParser::Layer LayerProtoParser::generateLayer(const LayerProto& layerP
         outData.resize(dataStr.size());
         memcpy(outData.data(), dataStr.data(), dataStr.size());
     }
-
+    layer.cornerRadiusCrop = generateFloatRect(layerProto.corner_radius_crop());
+    layer.shadowRadius = layerProto.shadow_radius();
     return layer;
 }
 
@@ -307,8 +308,9 @@ std::string LayerProtoParser::Layer::to_string() const {
         first = false;
         result.append(metadata.itemToString(entry.first, ":"));
     }
-    result.append("}");
-
+    result.append("},");
+    StringAppendF(&result, " cornerRadiusCrop=%s, ", cornerRadiusCrop.to_string().c_str());
+    StringAppendF(&result, " shadowRadius=%.3f, ", shadowRadius);
     return result;
 }
 
