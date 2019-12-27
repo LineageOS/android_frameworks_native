@@ -497,8 +497,9 @@ protected:
     void updateClonedDrawingState(std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
     void updateClonedChildren(const sp<Layer>& mirrorRoot,
                               std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
-    void updateClonedRelatives(std::map<sp<Layer>, sp<Layer>> clonedLayersMap);
+    void updateClonedRelatives(const std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
     void addChildToDrawing(const sp<Layer>& layer);
+    void updateClonedInputInfo(const std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
 
 public:
     /*
@@ -972,6 +973,10 @@ private:
 
     // Returns true if the layer can draw shadows on its border.
     virtual bool canDrawShadows() const { return true; }
+
+    // Find the root of the cloned hierarchy, this means the first non cloned parent.
+    // This will return null if first non cloned parent is not found.
+    sp<Layer> getClonedRoot();
 };
 
 } // namespace android

@@ -40,6 +40,7 @@ TEST(InputWindowInfo, Parcelling) {
     sp<IBinder> touchableRegionCropHandle = new BBinder();
     InputWindowInfo i;
     i.token = new BBinder();
+    i.id = 1;
     i.name = "Foobar";
     i.layoutParamsFlags = 7;
     i.layoutParamsType = 39;
@@ -72,6 +73,7 @@ TEST(InputWindowInfo, Parcelling) {
     p.setDataPosition(0);
     InputWindowInfo i2 = InputWindowInfo::read(p);
     ASSERT_EQ(i.token, i2.token);
+    ASSERT_EQ(i.id, i2.id);
     ASSERT_EQ(i.name, i2.name);
     ASSERT_EQ(i.layoutParamsFlags, i2.layoutParamsFlags);
     ASSERT_EQ(i.layoutParamsType, i2.layoutParamsType);

@@ -119,7 +119,11 @@ struct InputWindowInfo {
     /* These values are filled in by the WM and passed through SurfaceFlinger
      * unless specified otherwise.
      */
+    // This value should NOT be used to uniquely identify the window. There may be different
+    // input windows that have the same token.
     sp<IBinder> token;
+    // This uniquely identifies the input window.
+    int32_t id = 0;
     std::string name;
     int32_t layoutParamsFlags;
     int32_t layoutParamsType;
@@ -202,6 +206,8 @@ public:
     }
 
     sp<IBinder> getToken() const;
+
+    int32_t getId() const { return mInfo.id; }
 
     sp<IBinder> getApplicationToken() {
         return mInfo.applicationInfo.token;

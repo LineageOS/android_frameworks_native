@@ -770,17 +770,20 @@ void BufferLayer::updateCloneBufferInfo() {
 
     // After buffer info is updated, the drawingState from the real layer needs to be copied into
     // the cloned. This is because some properties of drawingState can change when latchBuffer is
-    // called. However, copying the drawingState would also overwrite the cloned layer's relatives.
-    // Therefore, temporarily store the relatives so they can be set in the cloned drawingState
-    // again.
+    // called. However, copying the drawingState would also overwrite the cloned layer's relatives
+    // and touchableRegionCrop. Therefore, temporarily store the relatives so they can be set in
+    // the cloned drawingState again.
     wp<Layer> tmpZOrderRelativeOf = mDrawingState.zOrderRelativeOf;
     SortedVector<wp<Layer>> tmpZOrderRelatives = mDrawingState.zOrderRelatives;
+    wp<Layer> tmpTouchableRegionCrop = mDrawingState.touchableRegionCrop;
+    InputWindowInfo tmpInputInfo = mDrawingState.inputInfo;
+
     mDrawingState = clonedFrom->mDrawingState;
-    // TODO: (b/140756730) Ignore input for now since InputDispatcher doesn't support multiple
-    // InputWindows per client token yet.
-    mDrawingState.inputInfo.token = nullptr;
+
+    mDrawingState.touchableRegionCrop = tmpTouchableRegionCrop;
     mDrawingState.zOrderRelativeOf = tmpZOrderRelativeOf;
     mDrawingState.zOrderRelatives = tmpZOrderRelatives;
+    mDrawingState.inputInfo = tmpInputInfo;
 }
 
 } // namespace android
