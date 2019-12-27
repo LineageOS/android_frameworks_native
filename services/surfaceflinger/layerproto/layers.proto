@@ -94,6 +94,13 @@ message LayerProto {
   FloatRectProto screen_bounds = 46;
 
   InputWindowInfoProto input_window_info = 47;
+
+  // Crop used to draw the rounded corner.
+  FloatRectProto corner_radius_crop = 48;
+
+  // length of the shadow to draw around the layer, it may be set on the
+  // layer or set by a parent layer.
+  float shadow_radius = 49;
 }
 
 message PositionProto {

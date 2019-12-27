@@ -124,6 +124,7 @@ void SurfaceInterceptor::addInitialSurfaceStateLocked(Increment* increment,
     addRelativeParentLocked(transaction, layerId,
                             getLayerIdFromWeakRef(layer->mCurrentState.zOrderRelativeOf),
                             layer->mCurrentState.z);
+    addShadowRadiusLocked(transaction, layerId, layer->mCurrentState.shadowRadius);
 }
 
 void SurfaceInterceptor::addInitialDisplayStateLocked(Increment* increment,
@@ -368,6 +369,13 @@ void SurfaceInterceptor::addRelativeParentLocked(Transaction* transaction, int32
     overrideChange->set_z(z);
 }
 
+void SurfaceInterceptor::addShadowRadiusLocked(Transaction* transaction, int32_t layerId,
+                                               float shadowRadius) {
+    SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
+    ShadowRadiusChange* overrideChange(change->mutable_shadow_radius());
+    overrideChange->set_radius(shadowRadius);
+}
+
 void SurfaceInterceptor::addSurfaceChangesLocked(Transaction* transaction,
         const layer_state_t& state)
 {
@@ -440,6 +448,9 @@ void SurfaceInterceptor::addSurfaceChangesLocked(Transaction* transaction,
     if (state.what & layer_state_t::eRelativeLayerChanged) {
         addRelativeParentLocked(transaction, layerId,
                                 getLayerIdFromHandle(state.relativeLayerHandle), state.z);
+    }
+    if (state.what & layer_state_t::eShadowRadiusChanged) {
+        addShadowRadiusLocked(transaction, layerId, state.shadowRadius);
     }
 }
 

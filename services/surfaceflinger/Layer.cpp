@@ -430,6 +430,7 @@ void Layer::latchBasicGeometry(compositionengine::LayerFECompositionState& compo
     compositionState.internalOnly = getPrimaryDisplayOnly();
     compositionState.isVisible = isVisible();
     compositionState.isOpaque = opaque && !usesRoundedCorners && alpha == 1.f;
+    compositionState.shadowRadius = mEffectiveShadowRadius;
 
     compositionState.contentDirty = contentDirty;
     contentDirty = false;
@@ -585,6 +586,7 @@ std::optional<renderengine::LayerSettings> Layer::prepareShadowClientComposition
 
     renderengine::LayerSettings shadowLayer = casterLayerSettings;
     shadowLayer.shadow = shadow;
+    shadowLayer.geometry.boundaries = mBounds; // ignore transparent region
 
     // If the casting layer is translucent, we need to fill in the shadow underneath the layer.
     // Otherwise the generated shadow will only be shown around the casting layer.
@@ -1935,6 +1937,9 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags)
                                        [&]() { return layerInfo->mutable_source_bounds(); });
         LayerProtoHelper::writeToProto(mScreenBounds,
                                        [&]() { return layerInfo->mutable_screen_bounds(); });
+        LayerProtoHelper::writeToProto(getRoundedCornerState().cropRect,
+                                       [&]() { return layerInfo->mutable_corner_radius_crop(); });
+        layerInfo->set_shadow_radius(mEffectiveShadowRadius);
     }
 }
 
@@ -2025,6 +2030,7 @@ bool Layer::isRemovedFromCurrentState() const  {
 
 InputWindowInfo Layer::fillInputInfo() {
     InputWindowInfo info = mDrawingState.inputInfo;
+    info.id = sequence;
 
     if (info.displayId == ADISPLAY_ID_NONE) {
         info.displayId = getLayerStack();
@@ -2081,7 +2087,27 @@ InputWindowInfo Layer::fillInputInfo() {
         info.touchableRegion = info.touchableRegion.intersect(Rect{cropLayer->mScreenBounds});
     }
 
+    // If the layer is a clone, we need to crop the input region to cloned root to prevent
+    // touches from going outside the cloned area.
+    if (isClone()) {
+        sp<Layer> clonedRoot = getClonedRoot();
+        if (clonedRoot != nullptr) {
+            Rect rect(clonedRoot->mScreenBounds);
+            info.touchableRegion = info.touchableRegion.intersect(rect);
+        }
+    }
+
     return info;
+}
+
+sp<Layer> Layer::getClonedRoot() {
+    if (mClonedChild != nullptr) {
+        return this;
+    }
+    if (mDrawingParent == nullptr || mDrawingParent.promote() == nullptr) {
+        return nullptr;
+    }
+    return mDrawingParent.promote()->getClonedRoot();
 }
 
 bool Layer::hasInput() const {
@@ -2119,10 +2145,6 @@ void Layer::setInitialValuesForClone(const sp<Layer>& clonedFrom) {
     // copy drawing state from cloned layer
     mDrawingState = clonedFrom->mDrawingState;
     mClonedFrom = clonedFrom;
-
-    // TODO: (b/140756730) Ignore input for now since InputDispatcher doesn't support multiple
-    // InputWindows per client token yet.
-    mDrawingState.inputInfo.token = nullptr;
 }
 
 void Layer::updateMirrorInfo() {
@@ -2157,9 +2179,6 @@ void Layer::updateClonedDrawingState(std::map<sp<Layer>, sp<Layer>>& clonedLayer
     if (isClonedFromAlive()) {
         sp<Layer> clonedFrom = getClonedFrom();
         mDrawingState = clonedFrom->mDrawingState;
-        // TODO: (b/140756730) Ignore input for now since InputDispatcher doesn't support multiple
-        // InputWindows per client token yet.
-        mDrawingState.inputInfo.token = nullptr;
         clonedLayersMap.emplace(clonedFrom, this);
     }
 
@@ -2198,7 +2217,24 @@ void Layer::updateClonedChildren(const sp<Layer>& mirrorRoot,
     }
 }
 
-void Layer::updateClonedRelatives(std::map<sp<Layer>, sp<Layer>> clonedLayersMap) {
+void Layer::updateClonedInputInfo(const std::map<sp<Layer>, sp<Layer>>& clonedLayersMap) {
+    auto cropLayer = mDrawingState.touchableRegionCrop.promote();
+    if (cropLayer != nullptr) {
+        if (clonedLayersMap.count(cropLayer) == 0) {
+            // Real layer had a crop layer but it's not in the cloned hierarchy. Just set to
+            // self as crop layer to avoid going outside bounds.
+            mDrawingState.touchableRegionCrop = this;
+        } else {
+            const sp<Layer>& clonedCropLayer = clonedLayersMap.at(cropLayer);
+            mDrawingState.touchableRegionCrop = clonedCropLayer;
+        }
+    }
+    // Cloned layers shouldn't handle watch outside since their z order is not determined by
+    // WM or the client.
+    mDrawingState.inputInfo.layoutParamsFlags &= ~InputWindowInfo::FLAG_WATCH_OUTSIDE_TOUCH;
+}
+
+void Layer::updateClonedRelatives(const std::map<sp<Layer>, sp<Layer>>& clonedLayersMap) {
     mDrawingState.zOrderRelativeOf = nullptr;
     mDrawingState.zOrderRelatives.clear();
 
@@ -2206,11 +2242,11 @@ void Layer::updateClonedRelatives(std::map<sp<Layer>, sp<Layer>> clonedLayersMap
         return;
     }
 
-    sp<Layer> clonedFrom = getClonedFrom();
+    const sp<Layer>& clonedFrom = getClonedFrom();
     for (wp<Layer>& relativeWeak : clonedFrom->mDrawingState.zOrderRelatives) {
-        sp<Layer> relative = relativeWeak.promote();
-        auto clonedRelative = clonedLayersMap[relative];
-        if (clonedRelative != nullptr) {
+        const sp<Layer>& relative = relativeWeak.promote();
+        if (clonedLayersMap.count(relative) > 0) {
+            auto& clonedRelative = clonedLayersMap.at(relative);
             mDrawingState.zOrderRelatives.add(clonedRelative);
         }
     }
@@ -2220,11 +2256,13 @@ void Layer::updateClonedRelatives(std::map<sp<Layer>, sp<Layer>> clonedLayersMap
     // In that case, we treat the layer as if the relativeOf has been removed. This way, it will
     // still traverse the children, but the layer with the missing relativeOf will not be shown
     // on screen.
-    sp<Layer> relativeOf = clonedFrom->mDrawingState.zOrderRelativeOf.promote();
-    sp<Layer> clonedRelativeOf = clonedLayersMap[relativeOf];
-    if (clonedRelativeOf != nullptr) {
+    const sp<Layer>& relativeOf = clonedFrom->mDrawingState.zOrderRelativeOf.promote();
+    if (clonedLayersMap.count(relativeOf) > 0) {
+        const sp<Layer>& clonedRelativeOf = clonedLayersMap.at(relativeOf);
         mDrawingState.zOrderRelativeOf = clonedRelativeOf;
     }
+
+    updateClonedInputInfo(clonedLayersMap);
 
     for (sp<Layer>& child : mDrawingChildren) {
         child->updateClonedRelatives(clonedLayersMap);

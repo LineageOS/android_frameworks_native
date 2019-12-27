@@ -51,6 +51,9 @@ void OutputLayerCompositionState::dump(std::string& out) const {
     dumpVal(out, "output visibleRegion", outputSpaceVisibleRegion);
 
     out.append("      ");
+    dumpVal(out, "shadowRegion", shadowRegion);
+
+    out.append("      ");
     dumpVal(out, "forceClientComposition", forceClientComposition);
     dumpVal(out, "clearClientTarget", clearClientTarget);
     dumpVal(out, "displayFrame", displayFrame);
