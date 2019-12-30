@@ -18,12 +18,15 @@
 #include <InputDevice.h>
 #include <InputMapper.h>
 #include <InputReader.h>
+#include <InputReaderBase.h>
+#include <InputReaderFactory.h>
 #include <KeyboardInputMapper.h>
 #include <MultiTouchInputMapper.h>
 #include <SingleTouchInputMapper.h>
 #include <SwitchInputMapper.h>
 #include <TestInputListener.h>
 #include <TouchInputMapper.h>
+#include <UinputDevice.h>
 
 #include <android-base/thread_annotations.h>
 #include <gtest/gtest.h>
@@ -187,17 +190,19 @@ public:
     }
 
     void assertInputDevicesChanged() {
-        std::unique_lock<std::mutex> lock(mLock);
-        base::ScopedLockAssertion assumeLocked(mLock);
+        waitForInputDevices([](bool devicesChanged) {
+            if (!devicesChanged) {
+                FAIL() << "Timed out waiting for notifyInputDevicesChanged() to be called.";
+            }
+        });
+    }
 
-        const bool devicesChanged =
-                mDevicesChangedCondition.wait_for(lock, WAIT_TIMEOUT, [this]() REQUIRES(mLock) {
-                    return mInputDevicesChanged;
-                });
-        if (!devicesChanged) {
-            FAIL() << "Timed out waiting for notifyInputDevicesChanged() to be called.";
-        }
-        mInputDevicesChanged = false;
+    void assertInputDevicesNotChanged() {
+        waitForInputDevices([](bool devicesChanged) {
+            if (devicesChanged) {
+                FAIL() << "Expected notifyInputDevicesChanged() to not be called.";
+            }
+        });
     }
 
     virtual void clearViewports() {
@@ -330,6 +335,18 @@ private:
 
     virtual std::string getDeviceAlias(const InputDeviceIdentifier&) {
         return "";
+    }
+
+    void waitForInputDevices(std::function<void(bool)> processDevicesChanged) {
+        std::unique_lock<std::mutex> lock(mLock);
+        base::ScopedLockAssertion assumeLocked(mLock);
+
+        const bool devicesChanged =
+                mDevicesChangedCondition.wait_for(lock, WAIT_TIMEOUT, [this]() REQUIRES(mLock) {
+                    return mInputDevicesChanged;
+                });
+        ASSERT_NO_FATAL_FAILURE(processDevicesChanged(devicesChanged));
+        mInputDevicesChanged = false;
     }
 };
 
@@ -1658,6 +1675,119 @@ TEST_F(InputReaderTest, Device_CanDispatchToDisplay) {
     ASSERT_FALSE(mReader->canDispatchToDisplay(deviceId, SECONDARY_DISPLAY_ID));
 }
 
+// --- InputReaderIntegrationTest ---
+
+// These tests create and interact with the InputReader only through its interface.
+// The InputReader is started during SetUp(), which starts its processing in its own
+// thread. The tests use linux uinput to emulate input devices.
+// NOTE: Interacting with the physical device while these tests are running may cause
+// the tests to fail.
+class InputReaderIntegrationTest : public testing::Test {
+protected:
+    sp<TestInputListener> mTestListener;
+    sp<FakeInputReaderPolicy> mFakePolicy;
+    sp<InputReaderInterface> mReader;
+
+    virtual void SetUp() override {
+        mFakePolicy = new FakeInputReaderPolicy();
+        mTestListener = new TestInputListener();
+
+        mReader = createInputReader(mFakePolicy, mTestListener);
+        ASSERT_EQ(mReader->start(), OK);
+
+        // Since this test is run on a real device, all the input devices connected
+        // to the test device will show up in mReader. We wait for those input devices to
+        // show up before beginning the tests.
+        ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+        ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
+    }
+
+    virtual void TearDown() override {
+        ASSERT_EQ(mReader->stop(), OK);
+        mTestListener.clear();
+        mFakePolicy.clear();
+    }
+};
+
+TEST_F(InputReaderIntegrationTest, TestInvalidDevice) {
+    // An invalid input device that is only used for this test.
+    class InvalidUinputDevice : public UinputDevice {
+    public:
+        InvalidUinputDevice() : UinputDevice("Invalid Device") {}
+
+    private:
+        void configureDevice(int fd, uinput_user_dev* device) override {}
+    };
+
+    const size_t numDevices = mFakePolicy->getInputDevices().size();
+
+    // UinputDevice does not set any event or key bits, so InputReader should not
+    // consider it as a valid device.
+    std::unique_ptr<UinputDevice> invalidDevice = createUinputDevice<InvalidUinputDevice>();
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesNotChanged());
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasNotCalled());
+    ASSERT_EQ(numDevices, mFakePolicy->getInputDevices().size());
+
+    invalidDevice.reset();
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesNotChanged());
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasNotCalled());
+    ASSERT_EQ(numDevices, mFakePolicy->getInputDevices().size());
+}
+
+TEST_F(InputReaderIntegrationTest, AddNewDevice) {
+    const size_t initialNumDevices = mFakePolicy->getInputDevices().size();
+
+    std::unique_ptr<UinputHomeKey> keyboard = createUinputDevice<UinputHomeKey>();
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
+    ASSERT_EQ(initialNumDevices + 1, mFakePolicy->getInputDevices().size());
+
+    // Find the test device by its name.
+    std::vector<InputDeviceInfo> inputDevices;
+    mReader->getInputDevices(inputDevices);
+    InputDeviceInfo* keyboardInfo = nullptr;
+    const char* keyboardName = keyboard->getName();
+    for (unsigned int i = 0; i < initialNumDevices + 1; i++) {
+        if (!strcmp(inputDevices[i].getIdentifier().name.c_str(), keyboardName)) {
+            keyboardInfo = &inputDevices[i];
+            break;
+        }
+    }
+    ASSERT_NE(keyboardInfo, nullptr);
+    ASSERT_EQ(AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC, keyboardInfo->getKeyboardType());
+    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, keyboardInfo->getSources());
+    ASSERT_EQ(0U, keyboardInfo->getMotionRanges().size());
+
+    keyboard.reset();
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
+    ASSERT_EQ(initialNumDevices, mFakePolicy->getInputDevices().size());
+}
+
+TEST_F(InputReaderIntegrationTest, SendsEventsToInputListener) {
+    std::unique_ptr<UinputHomeKey> keyboard = createUinputDevice<UinputHomeKey>();
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+
+    NotifyConfigurationChangedArgs configChangedArgs;
+    ASSERT_NO_FATAL_FAILURE(
+            mTestListener->assertNotifyConfigurationChangedWasCalled(&configChangedArgs));
+    uint32_t prevSequenceNum = configChangedArgs.sequenceNum;
+    nsecs_t prevTimestamp = configChangedArgs.eventTime;
+
+    NotifyKeyArgs keyArgs;
+    keyboard->pressAndReleaseHomeKey();
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(&keyArgs));
+    ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, keyArgs.action);
+    ASSERT_LT(prevSequenceNum, keyArgs.sequenceNum);
+    prevSequenceNum = keyArgs.sequenceNum;
+    ASSERT_LE(prevTimestamp, keyArgs.eventTime);
+    prevTimestamp = keyArgs.eventTime;
+
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(&keyArgs));
+    ASSERT_EQ(AKEY_EVENT_ACTION_UP, keyArgs.action);
+    ASSERT_LT(prevSequenceNum, keyArgs.sequenceNum);
+    ASSERT_LE(prevTimestamp, keyArgs.eventTime);
+}
 
 // --- InputDeviceTest ---
 
