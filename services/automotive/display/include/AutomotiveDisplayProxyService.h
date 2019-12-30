@@ -16,12 +16,14 @@
 #pragma once
 
 #include <android/frameworks/automotive/display/1.0/IAutomotiveDisplayProxyService.h>
-#include <gui/ISurfaceComposer.h>
 #include <gui/IGraphicBufferProducer.h>
+#include <gui/ISurfaceComposer.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
 #include <ui/DisplayConfig.h>
 #include <ui/DisplayState.h>
+#include <tuple>
+#include <vector>
 
 namespace android {
 namespace frameworks {
@@ -31,32 +33,30 @@ namespace V1_0 {
 namespace implementation {
 
 using ::android::hardware::Return;
-using ::android::sp;
 using ::android::hardware::graphics::bufferqueue::V2_0::IGraphicBufferProducer;
+using ::android::sp;
+
+
+typedef struct DisplayDesc {
+    sp<IBinder>        token;
+    sp<SurfaceControl> surfaceControl;
+} DisplayDesc;
+
 
 class AutomotiveDisplayProxyService : public IAutomotiveDisplayProxyService {
 public:
-    Return<sp<IGraphicBufferProducer>> getIGraphicBufferProducer() override;
-    Return<bool> showWindow() override;
-    Return<bool> hideWindow() override;
-    Return<void> getDisplayInfo(getDisplayInfo_cb _info_cb) override {
-        HwDisplayConfig cfg;
-        cfg.setToExternal((uint8_t*)&mDpyConfig, sizeof(DisplayConfig));
-
-        HwDisplayState state;
-        state.setToExternal((uint8_t*)&mDpyState, sizeof(DisplayState));
-
-       _info_cb(cfg, state);
-        return hardware::Void();
-    }
+    Return<sp<IGraphicBufferProducer>> getIGraphicBufferProducer(uint64_t id) override;
+    Return<bool> showWindow(uint64_t id) override;
+    Return<bool> hideWindow(uint64_t id) override;
+    Return<void> getDisplayIdList(getDisplayIdList_cb _cb) override;
+    Return<void> getDisplayInfo(uint64_t, getDisplayInfo_cb _cb) override;
 
 private:
-    sp<android::Surface> mSurface;
-    sp<android::SurfaceComposerClient> mSurfaceComposerClient;
-    sp<android::SurfaceControl> mSurfaceControl;
-    DisplayConfig mDpyConfig;
-    ui::DisplayState mDpyState;
+    uint8_t getDisplayPort(const uint64_t id) { return (id & 0xF); }
+
+    std::unordered_map<uint64_t, DisplayDesc> mDisplays;
 };
+
 }  // namespace implementation
 }  // namespace V1_0
 }  // namespace display

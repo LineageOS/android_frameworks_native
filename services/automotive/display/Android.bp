@@ -36,4 +36,8 @@ cc_binary {
     local_include_dirs: [
         "include",
     ],
+
+    cflags: [
+        "-DLOG_TAG=\"AutomotiveDisplayService\""
+    ],
 }
