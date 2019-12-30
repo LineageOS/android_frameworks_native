@@ -3793,12 +3793,10 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
 
                     dump += StringPrintf(INDENT3 "%zu: name='%s', displayId=%d, "
                                                  "portalToDisplayId=%d, paused=%s, hasFocus=%s, "
-                                                 "hasWallpaper=%s, "
-                                                 "visible=%s, canReceiveKeys=%s, flags=0x%08x, "
-                                                 "type=0x%08x, layer=%d, "
+                                                 "hasWallpaper=%s, visible=%s, canReceiveKeys=%s, "
+                                                 "flags=0x%08x, type=0x%08x, "
                                                  "frame=[%d,%d][%d,%d], globalScale=%f, "
-                                                 "windowScale=(%f,%f), "
-                                                 "touchableRegion=",
+                                                 "windowScale=(%f,%f), touchableRegion=",
                                          i, windowInfo->name.c_str(), windowInfo->displayId,
                                          windowInfo->portalToDisplayId,
                                          toString(windowInfo->paused),
@@ -3807,11 +3805,10 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                          toString(windowInfo->visible),
                                          toString(windowInfo->canReceiveKeys),
                                          windowInfo->layoutParamsFlags,
-                                         windowInfo->layoutParamsType, windowInfo->layer,
-                                         windowInfo->frameLeft, windowInfo->frameTop,
-                                         windowInfo->frameRight, windowInfo->frameBottom,
-                                         windowInfo->globalScaleFactor, windowInfo->windowXScale,
-                                         windowInfo->windowYScale);
+                                         windowInfo->layoutParamsType, windowInfo->frameLeft,
+                                         windowInfo->frameTop, windowInfo->frameRight,
+                                         windowInfo->frameBottom, windowInfo->globalScaleFactor,
+                                         windowInfo->windowXScale, windowInfo->windowYScale);
                     dumpRegion(dump, windowInfo->touchableRegion);
                     dump += StringPrintf(", inputFeatures=0x%08x", windowInfo->inputFeatures);
                     dump += StringPrintf(", ownerPid=%d, ownerUid=%d, dispatchingTimeout=%0.3fms\n",

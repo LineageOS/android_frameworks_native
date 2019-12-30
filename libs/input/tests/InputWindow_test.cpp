@@ -58,7 +58,6 @@ TEST(InputWindowInfo, Parcelling) {
     i.hasFocus = false;
     i.hasWallpaper = false;
     i.paused = false;
-    i.layer = 7;
     i.ownerPid = 19;
     i.ownerUid = 24;
     i.inputFeatures = 29;
@@ -91,7 +90,6 @@ TEST(InputWindowInfo, Parcelling) {
     ASSERT_EQ(i.hasFocus, i2.hasFocus);
     ASSERT_EQ(i.hasWallpaper, i2.hasWallpaper);
     ASSERT_EQ(i.paused, i2.paused);
-    ASSERT_EQ(i.layer, i2.layer);
     ASSERT_EQ(i.ownerPid, i2.ownerPid);
     ASSERT_EQ(i.ownerUid, i2.ownerUid);
     ASSERT_EQ(i.inputFeatures, i2.inputFeatures);
