@@ -455,6 +455,10 @@ void BufferQueueLayer::onFrameReplaced(const BufferItem& item) {
         mLastFrameNumberReceived = item.mFrameNumber;
         mQueueItemCondition.broadcast();
     }
+
+    const int32_t layerId = getSequence();
+    mFlinger->mFrameTracer->traceTimestamp(layerId, item.mGraphicBuffer->getId(), item.mFrameNumber,
+                                           systemTime(), FrameTracer::FrameEvent::QUEUE);
     mConsumer->onBufferAvailable(item);
 }
 
