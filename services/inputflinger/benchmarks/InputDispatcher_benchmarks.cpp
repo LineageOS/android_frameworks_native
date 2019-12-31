@@ -19,6 +19,9 @@
 #include <binder/Binder.h>
 #include "../dispatcher/InputDispatcher.h"
 
+using android::os::InputEventInjectionResult;
+using android::os::InputEventInjectionSync;
+
 namespace android::inputdispatcher {
 
 // An arbitrary device id.
@@ -286,13 +289,13 @@ static void benchmarkInjectMotion(benchmark::State& state) {
         MotionEvent event = generateMotionEvent();
         // Send ACTION_DOWN
         dispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
-                                     INPUT_EVENT_INJECTION_SYNC_NONE, INJECT_EVENT_TIMEOUT,
+                                     InputEventInjectionSync::NONE, INJECT_EVENT_TIMEOUT,
                                      POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER);
 
         // Send ACTION_UP
         event.setAction(AMOTION_EVENT_ACTION_UP);
         dispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
-                                     INPUT_EVENT_INJECTION_SYNC_NONE, INJECT_EVENT_TIMEOUT,
+                                     InputEventInjectionSync::NONE, INJECT_EVENT_TIMEOUT,
                                      POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER);
 
         window->consumeEvent();

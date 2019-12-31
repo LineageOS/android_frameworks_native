@@ -74,6 +74,9 @@ static constexpr bool DEBUG_FOCUS = false;
 #define INDENT4 "        "
 
 using android::base::StringPrintf;
+using android::os::BlockUntrustedTouchesMode;
+using android::os::InputEventInjectionResult;
+using android::os::InputEventInjectionSync;
 
 namespace android::inputdispatcher {
 
@@ -1018,11 +1021,11 @@ void InputDispatcher::releasePendingEventLocked() {
 
 void InputDispatcher::releaseInboundEventLocked(EventEntry* entry) {
     InjectionState* injectionState = entry->injectionState;
-    if (injectionState && injectionState->injectionResult == INPUT_EVENT_INJECTION_PENDING) {
+    if (injectionState && injectionState->injectionResult == InputEventInjectionResult::PENDING) {
 #if DEBUG_DISPATCH_CYCLE
         ALOGD("Injected inbound event was dropped.");
 #endif
-        setInjectionResult(entry, INPUT_EVENT_INJECTION_FAILED);
+        setInjectionResult(entry, InputEventInjectionResult::FAILED);
     }
     if (entry == mNextUnblockedEvent) {
         mNextUnblockedEvent = nullptr;
@@ -1227,22 +1230,22 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
     // Clean up if dropping the event.
     if (*dropReason != DropReason::NOT_DROPPED) {
         setInjectionResult(entry,
-                           *dropReason == DropReason::POLICY ? INPUT_EVENT_INJECTION_SUCCEEDED
-                                                             : INPUT_EVENT_INJECTION_FAILED);
+                           *dropReason == DropReason::POLICY ? InputEventInjectionResult::SUCCEEDED
+                                                             : InputEventInjectionResult::FAILED);
         mReporter->reportDroppedKey(entry->id);
         return true;
     }
 
     // Identify targets.
     std::vector<InputTarget> inputTargets;
-    int32_t injectionResult =
+    InputEventInjectionResult injectionResult =
             findFocusedWindowTargetsLocked(currentTime, *entry, inputTargets, nextWakeupTime);
-    if (injectionResult == INPUT_EVENT_INJECTION_PENDING) {
+    if (injectionResult == InputEventInjectionResult::PENDING) {
         return false;
     }
 
     setInjectionResult(entry, injectionResult);
-    if (injectionResult != INPUT_EVENT_INJECTION_SUCCEEDED) {
+    if (injectionResult != InputEventInjectionResult::SUCCEEDED) {
         return true;
     }
 
@@ -1278,8 +1281,8 @@ bool InputDispatcher::dispatchMotionLocked(nsecs_t currentTime, MotionEntry* ent
     // Clean up if dropping the event.
     if (*dropReason != DropReason::NOT_DROPPED) {
         setInjectionResult(entry,
-                           *dropReason == DropReason::POLICY ? INPUT_EVENT_INJECTION_SUCCEEDED
-                                                             : INPUT_EVENT_INJECTION_FAILED);
+                           *dropReason == DropReason::POLICY ? InputEventInjectionResult::SUCCEEDED
+                                                             : InputEventInjectionResult::FAILED);
         return true;
     }
 
@@ -1289,7 +1292,7 @@ bool InputDispatcher::dispatchMotionLocked(nsecs_t currentTime, MotionEntry* ent
     std::vector<InputTarget> inputTargets;
 
     bool conflictingPointerActions = false;
-    int32_t injectionResult;
+    InputEventInjectionResult injectionResult;
     if (isPointerEvent) {
         // Pointer event.  (eg. touchscreen)
         injectionResult =
@@ -1300,16 +1303,16 @@ bool InputDispatcher::dispatchMotionLocked(nsecs_t currentTime, MotionEntry* ent
         injectionResult =
                 findFocusedWindowTargetsLocked(currentTime, *entry, inputTargets, nextWakeupTime);
     }
-    if (injectionResult == INPUT_EVENT_INJECTION_PENDING) {
+    if (injectionResult == InputEventInjectionResult::PENDING) {
         return false;
     }
 
     setInjectionResult(entry, injectionResult);
-    if (injectionResult == INPUT_EVENT_INJECTION_PERMISSION_DENIED) {
+    if (injectionResult == InputEventInjectionResult::PERMISSION_DENIED) {
         ALOGW("Permission denied, dropping the motion (isPointer=%s)", toString(isPointerEvent));
         return true;
     }
-    if (injectionResult != INPUT_EVENT_INJECTION_SUCCEEDED) {
+    if (injectionResult != InputEventInjectionResult::SUCCEEDED) {
         CancelationOptions::Mode mode(isPointerEvent
                                               ? CancelationOptions::CANCEL_POINTER_EVENTS
                                               : CancelationOptions::CANCEL_NON_POINTER_EVENTS);
@@ -1491,10 +1494,9 @@ bool InputDispatcher::shouldWaitToSendKeyLocked(nsecs_t currentTime,
     return false;
 }
 
-int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
-                                                        const EventEntry& entry,
-                                                        std::vector<InputTarget>& inputTargets,
-                                                        nsecs_t* nextWakeupTime) {
+InputEventInjectionResult InputDispatcher::findFocusedWindowTargetsLocked(
+        nsecs_t currentTime, const EventEntry& entry, std::vector<InputTarget>& inputTargets,
+        nsecs_t* nextWakeupTime) {
     std::string reason;
 
     int32_t displayId = getTargetDisplayId(entry);
@@ -1508,7 +1510,7 @@ int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
         ALOGI("Dropping %s event because there is no focused window or focused application in "
               "display %" PRId32 ".",
               EventEntry::typeToString(entry.type), displayId);
-        return INPUT_EVENT_INJECTION_FAILED;
+        return InputEventInjectionResult::FAILED;
     }
 
     // Compatibility behavior: raise ANR if there is a focused application, but no focused window.
@@ -1528,15 +1530,15 @@ int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
                   "window when it finishes starting up. Will wait for %" PRId64 "ms",
                   mAwaitedFocusedApplication->getName().c_str(), millis(timeout));
             *nextWakeupTime = *mNoFocusedWindowTimeoutTime;
-            return INPUT_EVENT_INJECTION_PENDING;
+            return InputEventInjectionResult::PENDING;
         } else if (currentTime > *mNoFocusedWindowTimeoutTime) {
             // Already raised ANR. Drop the event
             ALOGE("Dropping %s event because there is no focused window",
                   EventEntry::typeToString(entry.type));
-            return INPUT_EVENT_INJECTION_FAILED;
+            return InputEventInjectionResult::FAILED;
         } else {
             // Still waiting for the focused window
-            return INPUT_EVENT_INJECTION_PENDING;
+            return InputEventInjectionResult::PENDING;
         }
     }
 
@@ -1545,12 +1547,12 @@ int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
 
     // Check permissions.
     if (!checkInjectionPermission(focusedWindowHandle, entry.injectionState)) {
-        return INPUT_EVENT_INJECTION_PERMISSION_DENIED;
+        return InputEventInjectionResult::PERMISSION_DENIED;
     }
 
     if (focusedWindowHandle->getInfo()->paused) {
         ALOGI("Waiting because %s is paused", focusedWindowHandle->getName().c_str());
-        return INPUT_EVENT_INJECTION_PENDING;
+        return InputEventInjectionResult::PENDING;
     }
 
     // If the event is a key event, then we must wait for all previous events to
@@ -1567,7 +1569,7 @@ int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
     if (entry.type == EventEntry::Type::KEY) {
         if (shouldWaitToSendKeyLocked(currentTime, focusedWindowHandle->getName().c_str())) {
             *nextWakeupTime = *mKeyIsWaitingForEventsTimeout;
-            return INPUT_EVENT_INJECTION_PENDING;
+            return InputEventInjectionResult::PENDING;
         }
     }
 
@@ -1577,7 +1579,7 @@ int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
                           BitSet32(0), inputTargets);
 
     // Done.
-    return INPUT_EVENT_INJECTION_SUCCEEDED;
+    return InputEventInjectionResult::SUCCEEDED;
 }
 
 /**
@@ -1606,11 +1608,9 @@ std::vector<TouchedMonitor> InputDispatcher::selectResponsiveMonitorsLocked(
     return responsiveMonitors;
 }
 
-int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
-                                                        const MotionEntry& entry,
-                                                        std::vector<InputTarget>& inputTargets,
-                                                        nsecs_t* nextWakeupTime,
-                                                        bool* outConflictingPointerActions) {
+InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
+        nsecs_t currentTime, const MotionEntry& entry, std::vector<InputTarget>& inputTargets,
+        nsecs_t* nextWakeupTime, bool* outConflictingPointerActions) {
     ATRACE_CALL();
     enum InjectionPermission {
         INJECTION_PERMISSION_UNKNOWN,
@@ -1625,7 +1625,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
     int32_t maskedAction = action & AMOTION_EVENT_ACTION_MASK;
 
     // Update the touch state as needed based on the properties of the touch event.
-    int32_t injectionResult = INPUT_EVENT_INJECTION_PENDING;
+    InputEventInjectionResult injectionResult = InputEventInjectionResult::PENDING;
     InjectionPermission injectionPermission = INJECTION_PERMISSION_UNKNOWN;
     sp<InputWindowHandle> newHoverWindowHandle(mLastHoverWindowHandle);
     sp<InputWindowHandle> newTouchedWindowHandle;
@@ -1660,7 +1660,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
                   "in display %" PRId32,
                   displayId);
             // TODO: test multiple simultaneous input streams.
-            injectionResult = INPUT_EVENT_INJECTION_FAILED;
+            injectionResult = InputEventInjectionResult::FAILED;
             switchedDevice = false;
             wrongDevice = true;
             goto Failed;
@@ -1676,7 +1676,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
               "in display %" PRId32,
               displayId);
         // TODO: test multiple simultaneous input streams.
-        injectionResult = INPUT_EVENT_INJECTION_PERMISSION_DENIED;
+        injectionResult = InputEventInjectionResult::PERMISSION_DENIED;
         switchedDevice = false;
         wrongDevice = true;
         goto Failed;
@@ -1761,7 +1761,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
             ALOGI("Dropping event because there is no touchable window or gesture monitor at "
                   "(%d, %d) in display %" PRId32 ".",
                   x, y, displayId);
-            injectionResult = INPUT_EVENT_INJECTION_FAILED;
+            injectionResult = InputEventInjectionResult::FAILED;
             goto Failed;
         }
 
@@ -1804,7 +1804,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
                       "dropped the pointer down event in display %" PRId32,
                       displayId);
             }
-            injectionResult = INPUT_EVENT_INJECTION_FAILED;
+            injectionResult = InputEventInjectionResult::FAILED;
             goto Failed;
         }
 
@@ -1889,7 +1889,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
             if (touchedWindow.targetFlags & InputTarget::FLAG_FOREGROUND) {
                 haveForegroundWindow = true;
                 if (!checkInjectionPermission(touchedWindow.windowHandle, entry.injectionState)) {
-                    injectionResult = INPUT_EVENT_INJECTION_PERMISSION_DENIED;
+                    injectionResult = InputEventInjectionResult::PERMISSION_DENIED;
                     injectionPermission = INJECTION_PERMISSION_DENIED;
                     goto Failed;
                 }
@@ -1900,7 +1900,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
             ALOGI("Dropping event because there is no touched foreground window in display "
                   "%" PRId32 " or gesture monitor to receive it.",
                   displayId);
-            injectionResult = INPUT_EVENT_INJECTION_FAILED;
+            injectionResult = InputEventInjectionResult::FAILED;
             goto Failed;
         }
 
@@ -1957,7 +1957,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
     }
 
     // Success!  Output targets.
-    injectionResult = INPUT_EVENT_INJECTION_SUCCEEDED;
+    injectionResult = InputEventInjectionResult::SUCCEEDED;
 
     for (const TouchedWindow& touchedWindow : tempTouchState.windows) {
         addWindowTargetLocked(touchedWindow.windowHandle, touchedWindow.targetFlags,
@@ -3484,9 +3484,9 @@ void InputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
     }
 }
 
-int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injectorPid,
-                                          int32_t injectorUid, int32_t syncMode,
-                                          std::chrono::milliseconds timeout, uint32_t policyFlags) {
+InputEventInjectionResult InputDispatcher::injectInputEvent(
+        const InputEvent* event, int32_t injectorPid, int32_t injectorUid,
+        InputEventInjectionSync syncMode, std::chrono::milliseconds timeout, uint32_t policyFlags) {
 #if DEBUG_INBOUND_EVENT_DETAILS
     ALOGD("injectInputEvent - eventType=%d, injectorPid=%d, injectorUid=%d, "
           "syncMode=%d, timeout=%lld, policyFlags=0x%08x",
@@ -3505,7 +3505,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
             const KeyEvent& incomingKey = static_cast<const KeyEvent&>(*event);
             int32_t action = incomingKey.getAction();
             if (!validateKeyEvent(action)) {
-                return INPUT_EVENT_INJECTION_FAILED;
+                return InputEventInjectionResult::FAILED;
             }
 
             int32_t flags = incomingKey.getFlags();
@@ -3551,7 +3551,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
             int32_t actionButton = motionEvent->getActionButton();
             int32_t displayId = motionEvent->getDisplayId();
             if (!validateMotionEvent(action, actionButton, pointerCount, pointerProperties)) {
-                return INPUT_EVENT_INJECTION_FAILED;
+                return InputEventInjectionResult::FAILED;
             }
 
             if (!(policyFlags & POLICY_FLAG_FILTERED)) {
@@ -3604,11 +3604,11 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
 
         default:
             ALOGW("Cannot inject %s events", inputEventTypeToString(event->getType()));
-            return INPUT_EVENT_INJECTION_FAILED;
+            return InputEventInjectionResult::FAILED;
     }
 
     InjectionState* injectionState = new InjectionState(injectorPid, injectorUid);
-    if (syncMode == INPUT_EVENT_INJECTION_SYNC_NONE) {
+    if (syncMode == InputEventInjectionSync::NONE) {
         injectionState->injectionIsAsync = true;
     }
 
@@ -3627,16 +3627,16 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
         mLooper->wake();
     }
 
-    int32_t injectionResult;
+    InputEventInjectionResult injectionResult;
     { // acquire lock
         std::unique_lock _l(mLock);
 
-        if (syncMode == INPUT_EVENT_INJECTION_SYNC_NONE) {
-            injectionResult = INPUT_EVENT_INJECTION_SUCCEEDED;
+        if (syncMode == InputEventInjectionSync::NONE) {
+            injectionResult = InputEventInjectionResult::SUCCEEDED;
         } else {
             for (;;) {
                 injectionResult = injectionState->injectionResult;
-                if (injectionResult != INPUT_EVENT_INJECTION_PENDING) {
+                if (injectionResult != InputEventInjectionResult::PENDING) {
                     break;
                 }
 
@@ -3646,15 +3646,15 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
                     ALOGD("injectInputEvent - Timed out waiting for injection result "
                           "to become available.");
 #endif
-                    injectionResult = INPUT_EVENT_INJECTION_TIMED_OUT;
+                    injectionResult = InputEventInjectionResult::TIMED_OUT;
                     break;
                 }
 
                 mInjectionResultAvailable.wait_for(_l, std::chrono::nanoseconds(remainingTimeout));
             }
 
-            if (injectionResult == INPUT_EVENT_INJECTION_SUCCEEDED &&
-                syncMode == INPUT_EVENT_INJECTION_SYNC_WAIT_FOR_FINISHED) {
+            if (injectionResult == InputEventInjectionResult::SUCCEEDED &&
+                syncMode == InputEventInjectionSync::WAIT_FOR_FINISHED) {
                 while (injectionState->pendingForegroundDispatches != 0) {
 #if DEBUG_INJECTION
                     ALOGD("injectInputEvent - Waiting for %d pending foreground dispatches.",
@@ -3666,7 +3666,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
                         ALOGD("injectInputEvent - Timed out waiting for pending foreground "
                               "dispatches to finish.");
 #endif
-                        injectionResult = INPUT_EVENT_INJECTION_TIMED_OUT;
+                        injectionResult = InputEventInjectionResult::TIMED_OUT;
                         break;
                     }
 
@@ -3724,7 +3724,8 @@ bool InputDispatcher::hasInjectionPermission(int32_t injectorPid, int32_t inject
             mPolicy->checkInjectEventsPermissionNonReentrant(injectorPid, injectorUid);
 }
 
-void InputDispatcher::setInjectionResult(EventEntry* entry, int32_t injectionResult) {
+void InputDispatcher::setInjectionResult(EventEntry* entry,
+                                         InputEventInjectionResult injectionResult) {
     InjectionState* injectionState = entry->injectionState;
     if (injectionState) {
 #if DEBUG_INJECTION
@@ -3736,17 +3737,20 @@ void InputDispatcher::setInjectionResult(EventEntry* entry, int32_t injectionRes
         if (injectionState->injectionIsAsync && !(entry->policyFlags & POLICY_FLAG_FILTERED)) {
             // Log the outcome since the injector did not wait for the injection result.
             switch (injectionResult) {
-                case INPUT_EVENT_INJECTION_SUCCEEDED:
+                case InputEventInjectionResult::SUCCEEDED:
                     ALOGV("Asynchronous input event injection succeeded.");
                     break;
-                case INPUT_EVENT_INJECTION_FAILED:
+                case InputEventInjectionResult::FAILED:
                     ALOGW("Asynchronous input event injection failed.");
                     break;
-                case INPUT_EVENT_INJECTION_PERMISSION_DENIED:
+                case InputEventInjectionResult::PERMISSION_DENIED:
                     ALOGW("Asynchronous input event injection permission denied.");
                     break;
-                case INPUT_EVENT_INJECTION_TIMED_OUT:
+                case InputEventInjectionResult::TIMED_OUT:
                     ALOGW("Asynchronous input event injection timed out.");
+                    break;
+                case InputEventInjectionResult::PENDING:
+                    ALOGE("Setting result to 'PENDING' for asynchronous injection");
                     break;
             }
         }
