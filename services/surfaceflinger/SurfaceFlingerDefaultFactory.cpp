@@ -15,6 +15,7 @@
  */
 
 #include <compositionengine/impl/CompositionEngine.h>
+#include <cutils/properties.h>
 #include <ui/GraphicBuffer.h>
 
 #include "BufferLayerConsumer.h"
@@ -59,8 +60,13 @@ std::unique_ptr<MessageQueue> DefaultFactory::createMessageQueue() {
     return std::make_unique<android::impl::MessageQueue>();
 }
 
-std::unique_ptr<scheduler::PhaseOffsets> DefaultFactory::createPhaseOffsets() {
-    return std::make_unique<scheduler::impl::PhaseOffsets>();
+std::unique_ptr<scheduler::PhaseConfiguration> DefaultFactory::createPhaseConfiguration(
+        const scheduler::RefreshRateConfigs& refreshRateConfigs) {
+    if (property_get_bool("debug.sf.use_phase_offsets_as_durations", false)) {
+        return std::make_unique<scheduler::impl::PhaseDurations>(refreshRateConfigs);
+    } else {
+        return std::make_unique<scheduler::impl::PhaseOffsets>(refreshRateConfigs);
+    }
 }
 
 std::unique_ptr<Scheduler> DefaultFactory::createScheduler(

@@ -79,7 +79,8 @@ public:
         return std::make_unique<android::impl::MessageQueue>();
     }
 
-    std::unique_ptr<scheduler::PhaseOffsets> createPhaseOffsets() override {
+    std::unique_ptr<scheduler::PhaseConfiguration> createPhaseConfiguration(
+            const scheduler::RefreshRateConfigs& /*refreshRateConfigs*/) override {
         return std::make_unique<scheduler::FakePhaseOffsets>();
     }
 
@@ -207,6 +208,8 @@ public:
                 scheduler::RefreshRateStats>(*mFlinger->mRefreshRateConfigs, *mFlinger->mTimeStats,
                                              /*currentConfig=*/HwcConfigIndexType(0),
                                              /*powerMode=*/HWC_POWER_MODE_OFF);
+        mFlinger->mPhaseConfiguration =
+                mFactory.createPhaseConfiguration(*mFlinger->mRefreshRateConfigs);
 
         mScheduler =
                 new TestableScheduler(std::move(primaryDispSync), std::move(eventControlThread),
@@ -218,7 +221,7 @@ public:
 
         mFlinger->mVSyncModulator.emplace(*mScheduler, mFlinger->mAppConnectionHandle,
                                           mFlinger->mSfConnectionHandle,
-                                          mFlinger->mPhaseOffsets->getCurrentOffsets());
+                                          mFlinger->mPhaseConfiguration->getCurrentOffsets());
     }
 
     void resetScheduler(Scheduler* scheduler) { mFlinger->mScheduler.reset(scheduler); }

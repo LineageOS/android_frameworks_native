@@ -56,7 +56,7 @@ class CompositionEngine;
 } // namespace compositionengine
 
 namespace scheduler {
-class PhaseOffsets;
+class PhaseConfiguration;
 class RefreshRateConfigs;
 } // namespace scheduler
 
@@ -74,7 +74,8 @@ public:
     virtual std::unique_ptr<EventControlThread> createEventControlThread(SetVSyncEnabled) = 0;
     virtual std::unique_ptr<HWComposer> createHWComposer(const std::string& serviceName) = 0;
     virtual std::unique_ptr<MessageQueue> createMessageQueue() = 0;
-    virtual std::unique_ptr<scheduler::PhaseOffsets> createPhaseOffsets() = 0;
+    virtual std::unique_ptr<scheduler::PhaseConfiguration> createPhaseConfiguration(
+            const scheduler::RefreshRateConfigs&) = 0;
     virtual std::unique_ptr<Scheduler> createScheduler(SetVSyncEnabled,
                                                        const scheduler::RefreshRateConfigs&,
                                                        ISchedulerCallback&) = 0;

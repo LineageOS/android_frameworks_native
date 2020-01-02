@@ -35,45 +35,48 @@ std::optional<nsecs_t> getProperty(const char* name) {
 
 namespace android::scheduler {
 
-PhaseOffsets::~PhaseOffsets() = default;
+PhaseConfiguration::~PhaseConfiguration() = default;
 
 namespace impl {
 
-PhaseOffsets::PhaseOffsets() {
-    // Below defines the threshold when an offset is considered to be negative, i.e. targeting
-    // for the N+2 vsync instead of N+1. This means that:
-    // For offset < threshold, SF wake up (vsync_duration - offset) before HW vsync.
-    // For offset >= threshold, SF wake up (2 * vsync_duration - offset) before HW vsync.
-    const nsecs_t thresholdForNextVsync =
-            getProperty("debug.sf.phase_offset_threshold_for_next_vsync_ns")
-                    .value_or(std::numeric_limits<nsecs_t>::max());
-
-    mDefaultOffsets = getDefaultOffsets(thresholdForNextVsync);
-    mHighFpsOffsets = getHighFpsOffsets(thresholdForNextVsync);
-}
-
-PhaseOffsets::Offsets PhaseOffsets::getOffsetsForRefreshRate(float fps) const {
-    // TODO(145561086): Once offsets are common for all refresh rates we can remove the magic
-    // number for refresh rate
-    if (fps > 65.0f) {
-        return mHighFpsOffsets;
-    } else {
-        return mDefaultOffsets;
-    }
-}
+PhaseOffsets::PhaseOffsets(const scheduler::RefreshRateConfigs& refreshRateConfigs)
+      : // Below defines the threshold when an offset is considered to be negative, i.e. targeting
+        // for the N+2 vsync instead of N+1. This means that:
+        // For offset < threshold, SF wake up (vsync_duration - offset) before HW vsync.
+        // For offset >= threshold, SF wake up (2 * vsync_duration - offset) before HW vsync.
+        mThresholdForNextVsync(getProperty("debug.sf.phase_offset_threshold_for_next_vsync_ns")
+                                       .value_or(std::numeric_limits<nsecs_t>::max())),
+        mOffsets(initializeOffsets(refreshRateConfigs)),
+        mRefreshRateFps(refreshRateConfigs.getCurrentRefreshRate().fps) {}
 
 void PhaseOffsets::dump(std::string& result) const {
-    const auto [early, earlyGl, late, threshold] = getCurrentOffsets();
+    const auto [early, earlyGl, late] = getCurrentOffsets();
     using base::StringAppendF;
     StringAppendF(&result,
                   "           app phase: %9" PRId64 " ns\t         SF phase: %9" PRId64 " ns\n"
                   "     early app phase: %9" PRId64 " ns\t   early SF phase: %9" PRId64 " ns\n"
                   "  GL early app phase: %9" PRId64 " ns\tGL early SF phase: %9" PRId64 " ns\n"
                   "next VSYNC threshold: %9" PRId64 " ns\n",
-                  late.app, late.sf, early.app, early.sf, earlyGl.app, earlyGl.sf, threshold);
+                  late.app, late.sf, early.app, early.sf, earlyGl.app, earlyGl.sf,
+                  mThresholdForNextVsync);
 }
 
-PhaseOffsets::Offsets PhaseOffsets::getDefaultOffsets(nsecs_t thresholdForNextVsync) {
+std::unordered_map<float, PhaseDurations::Offsets> PhaseOffsets::initializeOffsets(
+        const scheduler::RefreshRateConfigs& refreshRateConfigs) const {
+    std::unordered_map<float, PhaseDurations::Offsets> offsets;
+
+    for (const auto& [ignored, refreshRate] : refreshRateConfigs.getAllRefreshRates()) {
+        const nsecs_t vsyncDuration = static_cast<nsecs_t>(1e9f / refreshRate.fps);
+        if (refreshRate.fps > 65.0f) {
+            offsets.emplace(refreshRate.fps, getHighFpsOffsets(vsyncDuration));
+        } else {
+            offsets.emplace(refreshRate.fps, getDefaultOffsets(vsyncDuration));
+        }
+    }
+    return offsets;
+}
+
+PhaseOffsets::Offsets PhaseOffsets::getDefaultOffsets(nsecs_t vsyncDuration) const {
     const int64_t vsyncPhaseOffsetNs = sysprop::vsync_event_phase_offset_ns(1000000);
     const int64_t sfVsyncPhaseOffsetNs = sysprop::vsync_sf_event_phase_offset_ns(1000000);
 
@@ -82,19 +85,32 @@ PhaseOffsets::Offsets PhaseOffsets::getDefaultOffsets(nsecs_t thresholdForNextVs
     const auto earlyAppOffsetNs = getProperty("debug.sf.early_app_phase_offset_ns");
     const auto earlyGlAppOffsetNs = getProperty("debug.sf.early_gl_app_phase_offset_ns");
 
-    return {{earlySfOffsetNs.value_or(sfVsyncPhaseOffsetNs),
-             earlyAppOffsetNs.value_or(vsyncPhaseOffsetNs)},
+    return {
+            {
+                    earlySfOffsetNs.value_or(sfVsyncPhaseOffsetNs) < mThresholdForNextVsync
+                            ? earlySfOffsetNs.value_or(sfVsyncPhaseOffsetNs)
+                            : earlySfOffsetNs.value_or(sfVsyncPhaseOffsetNs) - vsyncDuration,
 
-            {earlyGlSfOffsetNs.value_or(sfVsyncPhaseOffsetNs),
-             earlyGlAppOffsetNs.value_or(vsyncPhaseOffsetNs)},
+                    earlyAppOffsetNs.value_or(vsyncPhaseOffsetNs),
+            },
+            {
+                    earlyGlSfOffsetNs.value_or(sfVsyncPhaseOffsetNs) < mThresholdForNextVsync
+                            ? earlyGlSfOffsetNs.value_or(sfVsyncPhaseOffsetNs)
+                            : earlyGlSfOffsetNs.value_or(sfVsyncPhaseOffsetNs) - vsyncDuration,
 
-            {sfVsyncPhaseOffsetNs, vsyncPhaseOffsetNs},
+                    earlyGlAppOffsetNs.value_or(vsyncPhaseOffsetNs),
+            },
+            {
+                    sfVsyncPhaseOffsetNs < mThresholdForNextVsync
+                            ? sfVsyncPhaseOffsetNs
+                            : sfVsyncPhaseOffsetNs - vsyncDuration,
 
-            thresholdForNextVsync};
+                    vsyncPhaseOffsetNs,
+            },
+    };
 }
 
-PhaseOffsets::Offsets PhaseOffsets::getHighFpsOffsets(nsecs_t thresholdForNextVsync) {
-    // TODO(b/122905996): Define these in device.mk.
+PhaseOffsets::Offsets PhaseOffsets::getHighFpsOffsets(nsecs_t vsyncDuration) const {
     const int highFpsLateAppOffsetNs =
             getProperty("debug.sf.high_fps_late_app_phase_offset_ns").value_or(2000000);
     const int highFpsLateSfOffsetNs =
@@ -106,15 +122,195 @@ PhaseOffsets::Offsets PhaseOffsets::getHighFpsOffsets(nsecs_t thresholdForNextVs
     const auto highFpsEarlyGlAppOffsetNs =
             getProperty("debug.sf.high_fps_early_gl_app_phase_offset_ns");
 
-    return {{highFpsEarlySfOffsetNs.value_or(highFpsLateSfOffsetNs),
-             highFpsEarlyAppOffsetNs.value_or(highFpsLateAppOffsetNs)},
+    return {
+            {
+                    highFpsEarlySfOffsetNs.value_or(highFpsLateSfOffsetNs) < mThresholdForNextVsync
+                            ? highFpsEarlySfOffsetNs.value_or(highFpsLateSfOffsetNs)
+                            : highFpsEarlySfOffsetNs.value_or(highFpsLateSfOffsetNs) -
+                                    vsyncDuration,
 
-            {highFpsEarlyGlSfOffsetNs.value_or(highFpsLateSfOffsetNs),
-             highFpsEarlyGlAppOffsetNs.value_or(highFpsLateAppOffsetNs)},
+                    highFpsEarlyAppOffsetNs.value_or(highFpsLateAppOffsetNs),
+            },
+            {
+                    highFpsEarlyGlSfOffsetNs.value_or(highFpsLateSfOffsetNs) <
+                                    mThresholdForNextVsync
+                            ? highFpsEarlyGlSfOffsetNs.value_or(highFpsLateSfOffsetNs)
+                            : highFpsEarlyGlSfOffsetNs.value_or(highFpsLateSfOffsetNs) -
+                                    vsyncDuration,
 
-            {highFpsLateSfOffsetNs, highFpsLateAppOffsetNs},
+                    highFpsEarlyGlAppOffsetNs.value_or(highFpsLateAppOffsetNs),
+            },
+            {
+                    highFpsLateSfOffsetNs < mThresholdForNextVsync
+                            ? highFpsLateSfOffsetNs
+                            : highFpsLateSfOffsetNs - vsyncDuration,
 
-            thresholdForNextVsync};
+                    highFpsLateAppOffsetNs,
+            },
+    };
+}
+
+static void validateSysprops() {
+    const auto validatePropertyBool = [](const char* prop) {
+        LOG_ALWAYS_FATAL_IF(!property_get_bool(prop, false), "%s is false", prop);
+    };
+
+    validatePropertyBool("debug.sf.use_phase_offsets_as_durations");
+
+    LOG_ALWAYS_FATAL_IF(sysprop::vsync_event_phase_offset_ns(-1) != -1,
+                        "ro.surface_flinger.vsync_event_phase_offset_ns is set but expecting "
+                        "duration");
+
+    LOG_ALWAYS_FATAL_IF(sysprop::vsync_sf_event_phase_offset_ns(-1) != -1,
+                        "ro.surface_flinger.vsync_sf_event_phase_offset_ns is set but expecting "
+                        "duration");
+
+    const auto validateProperty = [](const char* prop) {
+        LOG_ALWAYS_FATAL_IF(getProperty(prop).has_value(),
+                            "%s is set to %" PRId64 " but expecting duration", prop,
+                            getProperty(prop).value_or(-1));
+    };
+
+    validateProperty("debug.sf.early_phase_offset_ns");
+    validateProperty("debug.sf.early_gl_phase_offset_ns");
+    validateProperty("debug.sf.early_app_phase_offset_ns");
+    validateProperty("debug.sf.early_gl_app_phase_offset_ns");
+    validateProperty("debug.sf.high_fps_late_app_phase_offset_ns");
+    validateProperty("debug.sf.high_fps_late_sf_phase_offset_ns");
+    validateProperty("debug.sf.high_fps_early_phase_offset_ns");
+    validateProperty("debug.sf.high_fps_early_gl_phase_offset_ns");
+    validateProperty("debug.sf.high_fps_early_app_phase_offset_ns");
+    validateProperty("debug.sf.high_fps_early_gl_app_phase_offset_ns");
+}
+
+static nsecs_t sfDurationToOffset(nsecs_t sfDuration, nsecs_t vsyncDuration) {
+    return sfDuration == -1 ? 1'000'000 : vsyncDuration - sfDuration % vsyncDuration;
+}
+
+static nsecs_t appDurationToOffset(nsecs_t appDuration, nsecs_t sfDuration, nsecs_t vsyncDuration) {
+    return sfDuration == -1 ? 1'000'000
+                            : vsyncDuration - (appDuration + sfDuration) % vsyncDuration;
+}
+
+static std::vector<float> getRefreshRatesFromConfigs(
+        const android::scheduler::RefreshRateConfigs& refreshRateConfigs) {
+    const auto& allRefreshRates = refreshRateConfigs.getAllRefreshRates();
+    std::vector<float> refreshRates;
+    refreshRates.reserve(allRefreshRates.size());
+
+    for (const auto& [ignored, refreshRate] : allRefreshRates) {
+        refreshRates.emplace_back(refreshRate.fps);
+    }
+
+    return refreshRates;
+}
+
+std::unordered_map<float, PhaseDurations::Offsets> PhaseDurations::initializeOffsets(
+        const std::vector<float>& refreshRates) const {
+    std::unordered_map<float, PhaseDurations::Offsets> offsets;
+
+    for (const auto fps : refreshRates) {
+        const nsecs_t vsyncDuration = static_cast<nsecs_t>(1e9f / fps);
+        offsets.emplace(fps,
+                        Offsets{
+                                {
+                                        mSfEarlyDuration < vsyncDuration
+                                                ? sfDurationToOffset(mSfEarlyDuration,
+                                                                     vsyncDuration)
+                                                : sfDurationToOffset(mSfEarlyDuration,
+                                                                     vsyncDuration) -
+                                                        vsyncDuration,
+
+                                        appDurationToOffset(mAppEarlyDuration, mSfEarlyDuration,
+                                                            vsyncDuration),
+                                },
+                                {
+                                        mSfEarlyGlDuration < vsyncDuration
+                                                ? sfDurationToOffset(mSfEarlyGlDuration,
+                                                                     vsyncDuration)
+                                                : sfDurationToOffset(mSfEarlyGlDuration,
+                                                                     vsyncDuration) -
+                                                        vsyncDuration,
+
+                                        appDurationToOffset(mAppEarlyGlDuration, mSfEarlyGlDuration,
+                                                            vsyncDuration),
+                                },
+                                {
+                                        mSfDuration < vsyncDuration
+                                                ? sfDurationToOffset(mSfDuration, vsyncDuration)
+                                                : sfDurationToOffset(mSfDuration, vsyncDuration) -
+                                                        vsyncDuration,
+
+                                        appDurationToOffset(mAppDuration, mSfDuration,
+                                                            vsyncDuration),
+                                },
+                        });
+    }
+    return offsets;
+}
+
+PhaseDurations::PhaseDurations(const scheduler::RefreshRateConfigs& refreshRateConfigs)
+      : PhaseDurations(getRefreshRatesFromConfigs(refreshRateConfigs),
+                       refreshRateConfigs.getCurrentRefreshRate().fps,
+                       getProperty("debug.sf.late.sf.duration").value_or(-1),
+                       getProperty("debug.sf.late.app.duration").value_or(-1),
+                       getProperty("debug.sf.early.sf.duration").value_or(mSfDuration),
+                       getProperty("debug.sf.early.app.duration").value_or(mAppDuration),
+                       getProperty("debug.sf.earlyGl.sf.duration").value_or(mSfDuration),
+                       getProperty("debug.sf.earlyGl.app.duration").value_or(mAppDuration)) {
+    validateSysprops();
+}
+
+PhaseDurations::PhaseDurations(const std::vector<float>& refreshRates, float currentFps,
+                               nsecs_t sfDuration, nsecs_t appDuration, nsecs_t sfEarlyDuration,
+                               nsecs_t appEarlyDuration, nsecs_t sfEarlyGlDuration,
+                               nsecs_t appEarlyGlDuration)
+      : mSfDuration(sfDuration),
+        mAppDuration(appDuration),
+        mSfEarlyDuration(sfEarlyDuration),
+        mAppEarlyDuration(appEarlyDuration),
+        mSfEarlyGlDuration(sfEarlyGlDuration),
+        mAppEarlyGlDuration(appEarlyGlDuration),
+        mOffsets(initializeOffsets(refreshRates)),
+        mRefreshRateFps(currentFps) {}
+
+PhaseOffsets::Offsets PhaseDurations::getOffsetsForRefreshRate(float fps) const {
+    const auto iter = mOffsets.find(fps);
+    LOG_ALWAYS_FATAL_IF(iter == mOffsets.end());
+    return iter->second;
+}
+
+void PhaseDurations::dump(std::string& result) const {
+    const auto [early, earlyGl, late] = getCurrentOffsets();
+    using base::StringAppendF;
+    StringAppendF(&result,
+                  "           app phase:    %9" PRId64 " ns\t         SF phase:    %9" PRId64
+                  " ns\n"
+                  "           app duration: %9" PRId64 " ns\t         SF duration: %9" PRId64
+                  " ns\n"
+                  "     early app phase:    %9" PRId64 " ns\t   early SF phase:    %9" PRId64
+                  " ns\n"
+                  "     early app duration: %9" PRId64 " ns\t   early SF duration: %9" PRId64
+                  " ns\n"
+                  "  GL early app phase:    %9" PRId64 " ns\tGL early SF phase:    %9" PRId64
+                  " ns\n"
+                  "  GL early app duration: %9" PRId64 " ns\tGL early SF duration: %9" PRId64
+                  " ns\n",
+                  late.app,
+
+                  late.sf,
+
+                  mAppDuration, mSfDuration,
+
+                  early.app, early.sf,
+
+                  mAppEarlyDuration, mSfEarlyDuration,
+
+                  earlyGl.app,
+
+                  earlyGl.sf,
+
+                  mAppEarlyGlDuration, mSfEarlyGlDuration);
 }
 
 } // namespace impl
