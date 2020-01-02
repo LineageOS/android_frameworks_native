@@ -161,6 +161,7 @@ cc_library_static {
 filegroup {
     name: "libgui_bufferqueue_sources",
     srcs: [
+        "BatchBufferOps.cpp",
         "BufferItem.cpp",
         "BufferQueue.cpp",
         "BufferQueueConsumer.cpp",
@@ -171,7 +172,7 @@ filegroup {
         "FrameTimestamps.cpp",
         "GLConsumerUtils.cpp",
         "HdrMetadata.cpp",
-        "QueueBufferInputOutput.cpp",
+        "IGraphicBufferProducerFlattenables.cpp",
         "bufferqueue/1.0/Conversion.cpp",
         "bufferqueue/1.0/H2BProducerListener.cpp",
         "bufferqueue/1.0/WProducerListener.cpp",
