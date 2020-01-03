@@ -66,7 +66,6 @@ public:
 
     using ConnectionHandle = scheduler::ConnectionHandle;
     ConnectionHandle createConnection(const char* connectionName, nsecs_t phaseOffsetNs,
-                                      nsecs_t offsetThresholdForNextVsync,
                                       impl::EventThread::InterceptVSyncsCallback);
 
     sp<IDisplayEventConnection> createDisplayEventConnection(ConnectionHandle,
@@ -149,8 +148,7 @@ private:
     Scheduler(std::unique_ptr<DispSync>, std::unique_ptr<EventControlThread>,
               const scheduler::RefreshRateConfigs&, ISchedulerCallback& schedulerCallback);
 
-    std::unique_ptr<VSyncSource> makePrimaryDispSyncSource(const char* name, nsecs_t phaseOffsetNs,
-                                                           nsecs_t offsetThresholdForNextVsync);
+    std::unique_ptr<VSyncSource> makePrimaryDispSyncSource(const char* name, nsecs_t phaseOffsetNs);
 
     // Create a connection on the given EventThread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread>);

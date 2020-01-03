@@ -27,16 +27,14 @@
 
 namespace android {
 
-DispSyncSource::DispSyncSource(DispSync* dispSync, nsecs_t phaseOffset,
-                               nsecs_t offsetThresholdForNextVsync, bool traceVsync,
+DispSyncSource::DispSyncSource(DispSync* dispSync, nsecs_t phaseOffset, bool traceVsync,
                                const char* name)
       : mName(name),
         mValue(base::StringPrintf("VSYNC-%s", name), 0),
         mTraceVsync(traceVsync),
         mVsyncOnLabel(base::StringPrintf("VsyncOn-%s", name)),
         mDispSync(dispSync),
-        mPhaseOffset(base::StringPrintf("VsyncOffset-%s", name), phaseOffset),
-        mOffsetThresholdForNextVsync(offsetThresholdForNextVsync) {}
+        mPhaseOffset(base::StringPrintf("VsyncOffset-%s", name), phaseOffset) {}
 
 void DispSyncSource::setVSyncEnabled(bool enable) {
     std::lock_guard lock(mVsyncMutex);
@@ -67,10 +65,6 @@ void DispSyncSource::setCallback(VSyncSource::Callback* callback) {
 void DispSyncSource::setPhaseOffset(nsecs_t phaseOffset) {
     std::lock_guard lock(mVsyncMutex);
     const nsecs_t period = mDispSync->getPeriod();
-    // Check if offset should be handled as negative
-    if (phaseOffset >= mOffsetThresholdForNextVsync) {
-        phaseOffset -= period;
-    }
 
     // Normalize phaseOffset to [-period, period)
     const int numPeriods = phaseOffset / period;

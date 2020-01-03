@@ -170,7 +170,6 @@ public:
         mInfo.hasFocus = true;
         mInfo.hasWallpaper = false;
         mInfo.paused = false;
-        mInfo.layer = 0;
         mInfo.ownerPid = INJECTOR_PID;
         mInfo.ownerUid = INJECTOR_UID;
         mInfo.inputFeatures = 0;

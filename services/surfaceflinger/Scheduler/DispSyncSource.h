@@ -26,8 +26,7 @@ namespace android {
 
 class DispSyncSource final : public VSyncSource, private DispSync::Callback {
 public:
-    DispSyncSource(DispSync* dispSync, nsecs_t phaseOffset, nsecs_t offsetThresholdForNextVsync,
-                   bool traceVsync, const char* name);
+    DispSyncSource(DispSync* dispSync, nsecs_t phaseOffset, bool traceVsync, const char* name);
 
     ~DispSyncSource() override = default;
 
@@ -55,7 +54,6 @@ private:
 
     std::mutex mVsyncMutex;
     TracedOrdinal<nsecs_t> mPhaseOffset GUARDED_BY(mVsyncMutex);
-    const nsecs_t mOffsetThresholdForNextVsync;
     bool mEnabled GUARDED_BY(mVsyncMutex) = false;
 };
 

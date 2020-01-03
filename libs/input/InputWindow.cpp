@@ -91,7 +91,6 @@ status_t InputWindowInfo::write(Parcel& output) const {
     output.writeBool(hasFocus);
     output.writeBool(hasWallpaper);
     output.writeBool(paused);
-    output.writeInt32(layer);
     output.writeInt32(ownerPid);
     output.writeInt32(ownerUid);
     output.writeInt32(inputFeatures);
@@ -135,7 +134,6 @@ InputWindowInfo InputWindowInfo::read(const Parcel& from) {
     ret.hasFocus = from.readBool();
     ret.hasWallpaper = from.readBool();
     ret.paused = from.readBool();
-    ret.layer = from.readInt32();
     ret.ownerPid = from.readInt32();
     ret.ownerUid = from.readInt32();
     ret.inputFeatures = from.readInt32();
