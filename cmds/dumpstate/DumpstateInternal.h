@@ -49,6 +49,7 @@
 
 // TODO: use functions from <chrono> instead
 const uint64_t NANOS_PER_SEC = 1000000000;
+const uint64_t NANOS_PER_MILLI = 1000000;
 uint64_t Nanotime();
 
 // Switches to non-root user and group.
