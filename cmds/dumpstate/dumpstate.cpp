@@ -135,6 +135,11 @@ typedef Dumpstate::ConsentCallback::ConsentResult UserConsentResult;
 static char cmdline_buf[16384] = "(unknown)";
 static const char *dump_traces_path = nullptr;
 static const uint64_t USER_CONSENT_TIMEOUT_MS = 30 * 1000;
+// Because telephony reports are significantly faster to collect (< 10 seconds vs. > 2 minutes),
+// it's often the case that they time out far too quickly for consent with such a hefty dialog for
+// the user to read. For telephony reports only, we increase the default timeout to 2 minutes to
+// roughly match full reports' durations.
+static const uint64_t TELEPHONY_REPORT_USER_CONSENT_TIMEOUT_MS = 2 * 60 * 1000;
 
 // TODO: variables and functions below should be part of dumpstate object
 
@@ -2876,8 +2881,13 @@ Dumpstate::RunStatus Dumpstate::CopyBugreportIfUserConsented() {
     if (consent_result == UserConsentResult::UNAVAILABLE) {
         // User has not responded yet.
         uint64_t elapsed_ms = consent_callback_->getElapsedTimeMs();
-        if (elapsed_ms < USER_CONSENT_TIMEOUT_MS) {
-            uint delay_seconds = (USER_CONSENT_TIMEOUT_MS - elapsed_ms) / 1000;
+        // Telephony is a fast report type, particularly on user builds where information may be
+        // more aggressively limited. To give the user time to read the consent dialog, increase the
+        // timeout.
+        uint64_t timeout_ms = options_->telephony_only ? TELEPHONY_REPORT_USER_CONSENT_TIMEOUT_MS
+                                                       : USER_CONSENT_TIMEOUT_MS;
+        if (elapsed_ms < timeout_ms) {
+            uint delay_seconds = (timeout_ms - elapsed_ms) / 1000;
             MYLOGD("Did not receive user consent yet; going to wait for %d seconds", delay_seconds);
             sleep(delay_seconds);
         }
