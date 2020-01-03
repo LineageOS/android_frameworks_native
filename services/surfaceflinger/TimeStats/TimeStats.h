@@ -165,10 +165,21 @@ public:
             return stats_event_write_int64(event, field);
         }
 
+        virtual void statsEventWriteString8(struct stats_event* event, const char* field) {
+            return stats_event_write_string8(event, field);
+        }
+
+        virtual void statsEventWriteByteArray(struct stats_event* event, const uint8_t* buf,
+                                              size_t numBytes) {
+            return stats_event_write_byte_array(event, buf, numBytes);
+        }
+
         virtual void statsEventBuild(struct stats_event* event) { return stats_event_build(event); }
     };
     // For testing only for injecting custom dependencies.
-    TimeStats(std::unique_ptr<StatsEventDelegate> statsDelegate);
+    TimeStats(std::unique_ptr<StatsEventDelegate> statsDelegate,
+              std::optional<size_t> maxPulledLayers,
+              std::optional<size_t> maxPulledHistogramBuckets);
 
     void onBootFinished() override;
     void parseArgs(bool asProto, const Vector<String16>& args, std::string& result) override;
@@ -207,9 +218,10 @@ public:
     static const size_t MAX_NUM_TIME_RECORDS = 64;
 
 private:
-    static status_pull_atom_return_t pullGlobalAtomCallback(int32_t atom_tag,
-                                                            pulled_stats_event_list* data,
-                                                            void* cookie);
+    static status_pull_atom_return_t pullAtomCallback(int32_t atom_tag,
+                                                      pulled_stats_event_list* data, void* cookie);
+    status_pull_atom_return_t populateGlobalAtom(pulled_stats_event_list* data);
+    status_pull_atom_return_t populateLayerAtom(pulled_stats_event_list* data);
     bool recordReadyLocked(int32_t layerId, TimeRecord* timeRecord);
     void flushAvailableRecordsToStatsLocked(int32_t layerId);
     void flushPowerTimeLocked();
@@ -233,6 +245,8 @@ private:
     static const size_t MAX_NUM_LAYER_RECORDS = 200;
     static const size_t MAX_NUM_LAYER_STATS = 200;
     std::unique_ptr<StatsEventDelegate> mStatsDelegate = std::make_unique<StatsEventDelegate>();
+    size_t mMaxPulledLayers = 8;
+    size_t mMaxPulledHistogramBuckets = 6;
 };
 
 } // namespace impl

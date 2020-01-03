@@ -24,6 +24,7 @@
 #include "TimeStats.h"
 
 #include <android-base/stringprintf.h>
+#include <android/util/ProtoOutputStream.h>
 #include <log/log.h>
 #include <utils/String8.h>
 #include <utils/Timers.h>
@@ -36,41 +37,133 @@ namespace android {
 
 namespace impl {
 
-status_pull_atom_return_t TimeStats::pullGlobalAtomCallback(int32_t atom_tag,
-                                                            pulled_stats_event_list* data,
-                                                            void* cookie) {
+status_pull_atom_return_t TimeStats::pullAtomCallback(int32_t atom_tag,
+                                                      pulled_stats_event_list* data, void* cookie) {
     impl::TimeStats* timeStats = reinterpret_cast<impl::TimeStats*>(cookie);
-    if (atom_tag != android::util::SURFACEFLINGER_STATS_GLOBAL_INFO) {
-        return STATS_PULL_SKIP;
+    if (atom_tag == android::util::SURFACEFLINGER_STATS_GLOBAL_INFO) {
+        return timeStats->populateGlobalAtom(data);
+    } else if (atom_tag == android::util::SURFACEFLINGER_STATS_LAYER_INFO) {
+        return timeStats->populateLayerAtom(data);
     }
 
-    std::lock_guard<std::mutex> lock(timeStats->mMutex);
+    return STATS_PULL_SKIP;
+}
 
-    const auto& stats = timeStats->mTimeStats;
-    if (stats.statsStart == 0) {
+status_pull_atom_return_t TimeStats::populateGlobalAtom(pulled_stats_event_list* data) {
+    std::lock_guard<std::mutex> lock(mMutex);
+
+    if (mTimeStats.statsStart == 0) {
         return STATS_PULL_SKIP;
     }
-    timeStats->flushPowerTimeLocked();
+    flushPowerTimeLocked();
 
-    struct stats_event* event = timeStats->mStatsDelegate->addStatsEventToPullData(data);
-    timeStats->mStatsDelegate->statsEventSetAtomId(event,
-                                                   android::util::SURFACEFLINGER_STATS_GLOBAL_INFO);
-    timeStats->mStatsDelegate->statsEventWriteInt64(event, stats.totalFrames);
-    timeStats->mStatsDelegate->statsEventWriteInt64(event, stats.missedFrames);
-    timeStats->mStatsDelegate->statsEventWriteInt64(event, stats.clientCompositionFrames);
-    timeStats->mStatsDelegate->statsEventWriteInt64(event, stats.displayOnTime);
-    timeStats->mStatsDelegate->statsEventWriteInt64(event, stats.presentToPresent.totalTime());
-    timeStats->mStatsDelegate->statsEventBuild(event);
-    timeStats->clearGlobalLocked();
+    struct stats_event* event = mStatsDelegate->addStatsEventToPullData(data);
+    mStatsDelegate->statsEventSetAtomId(event, android::util::SURFACEFLINGER_STATS_GLOBAL_INFO);
+    mStatsDelegate->statsEventWriteInt64(event, mTimeStats.totalFrames);
+    mStatsDelegate->statsEventWriteInt64(event, mTimeStats.missedFrames);
+    mStatsDelegate->statsEventWriteInt64(event, mTimeStats.clientCompositionFrames);
+    mStatsDelegate->statsEventWriteInt64(event, mTimeStats.displayOnTime);
+    mStatsDelegate->statsEventWriteInt64(event, mTimeStats.presentToPresent.totalTime());
+    mStatsDelegate->statsEventBuild(event);
+    clearGlobalLocked();
 
     return STATS_PULL_SUCCESS;
 }
 
-TimeStats::TimeStats() : TimeStats(nullptr) {}
+namespace {
+// Histograms align with the order of fields in SurfaceflingerStatsLayerInfo.
+const std::array<std::string, 6> kHistogramNames = {
+        "present2present", "post2present",    "acquire2present",
+        "latch2present",   "desired2present", "post2acquire",
+};
 
-TimeStats::TimeStats(std::unique_ptr<StatsEventDelegate> statsDelegate) {
+std::string histogramToProtoByteString(const std::unordered_map<int32_t, int32_t>& histogram,
+                                       size_t maxPulledHistogramBuckets) {
+    auto buckets = std::vector<std::pair<int32_t, int32_t>>(histogram.begin(), histogram.end());
+    std::sort(buckets.begin(), buckets.end(),
+              [](std::pair<int32_t, int32_t>& left, std::pair<int32_t, int32_t>& right) {
+                  return left.second > right.second;
+              });
+
+    util::ProtoOutputStream proto;
+    int histogramSize = 0;
+    for (const auto& bucket : buckets) {
+        if (++histogramSize > maxPulledHistogramBuckets) {
+            break;
+        }
+        proto.write(android::util::FIELD_TYPE_INT32 | android::util::FIELD_COUNT_REPEATED |
+                            1 /* field id */,
+                    (int32_t)bucket.first);
+        proto.write(android::util::FIELD_TYPE_INT64 | android::util::FIELD_COUNT_REPEATED |
+                            2 /* field id */,
+                    (int64_t)bucket.second);
+    }
+
+    std::string byteString;
+    proto.serializeToString(&byteString);
+    return byteString;
+}
+} // namespace
+
+status_pull_atom_return_t TimeStats::populateLayerAtom(pulled_stats_event_list* data) {
+    std::lock_guard<std::mutex> lock(mMutex);
+
+    std::vector<TimeStatsHelper::TimeStatsLayer const*> dumpStats;
+    for (const auto& ele : mTimeStats.stats) {
+        dumpStats.push_back(&ele.second);
+    }
+
+    std::sort(dumpStats.begin(), dumpStats.end(),
+              [](TimeStatsHelper::TimeStatsLayer const* l,
+                 TimeStatsHelper::TimeStatsLayer const* r) {
+                  return l->totalFrames > r->totalFrames;
+              });
+
+    if (mMaxPulledLayers < dumpStats.size()) {
+        dumpStats.resize(mMaxPulledLayers);
+    }
+
+    for (const auto& layer : dumpStats) {
+        struct stats_event* event = mStatsDelegate->addStatsEventToPullData(data);
+        mStatsDelegate->statsEventSetAtomId(event, android::util::SURFACEFLINGER_STATS_LAYER_INFO);
+        mStatsDelegate->statsEventWriteString8(event, layer->layerName.c_str());
+        mStatsDelegate->statsEventWriteInt64(event, layer->totalFrames);
+        mStatsDelegate->statsEventWriteInt64(event, layer->droppedFrames);
+
+        for (const auto& name : kHistogramNames) {
+            const auto& histogram = layer->deltas.find(name);
+            if (histogram == layer->deltas.cend()) {
+                mStatsDelegate->statsEventWriteByteArray(event, nullptr, 0);
+            } else {
+                std::string bytes = histogramToProtoByteString(histogram->second.hist,
+                                                               mMaxPulledHistogramBuckets);
+                mStatsDelegate->statsEventWriteByteArray(event, (const uint8_t*)bytes.c_str(),
+                                                         bytes.size());
+            }
+        }
+
+        mStatsDelegate->statsEventBuild(event);
+    }
+    clearLayersLocked();
+
+    return STATS_PULL_SUCCESS;
+}
+
+TimeStats::TimeStats() : TimeStats(nullptr, std::nullopt, std::nullopt) {}
+
+TimeStats::TimeStats(std::unique_ptr<StatsEventDelegate> statsDelegate,
+                     std::optional<size_t> maxPulledLayers,
+                     std::optional<size_t> maxPulledHistogramBuckets) {
     if (statsDelegate != nullptr) {
         mStatsDelegate = std::move(statsDelegate);
+    }
+
+    if (maxPulledLayers) {
+        mMaxPulledLayers = *maxPulledLayers;
+    }
+
+    if (maxPulledHistogramBuckets) {
+        mMaxPulledHistogramBuckets = *maxPulledHistogramBuckets;
     }
 }
 
@@ -634,7 +727,9 @@ void TimeStats::enable() {
     mTimeStats.statsStart = static_cast<int64_t>(std::time(0));
     mPowerTime.prevTime = systemTime();
     mStatsDelegate->registerStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
-                                                  TimeStats::pullGlobalAtomCallback, nullptr, this);
+                                                  TimeStats::pullAtomCallback, nullptr, this);
+    mStatsDelegate->registerStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO,
+                                                  TimeStats::pullAtomCallback, nullptr, this);
     ALOGD("Enabled");
 }
 
@@ -649,6 +744,7 @@ void TimeStats::disable() {
     mTimeStats.statsEnd = static_cast<int64_t>(std::time(0));
     mStatsDelegate->unregisterStatsPullAtomCallback(
             android::util::SURFACEFLINGER_STATS_GLOBAL_INFO);
+    mStatsDelegate->unregisterStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO);
     ALOGD("Disabled");
 }
 
