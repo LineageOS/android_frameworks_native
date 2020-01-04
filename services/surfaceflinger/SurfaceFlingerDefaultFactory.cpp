@@ -52,8 +52,7 @@ std::unique_ptr<EventControlThread> DefaultFactory::createEventControlThread(
 }
 
 std::unique_ptr<HWComposer> DefaultFactory::createHWComposer(const std::string& serviceName) {
-    return std::make_unique<android::impl::HWComposer>(
-            std::make_unique<Hwc2::impl::Composer>(serviceName));
+    return std::make_unique<android::impl::HWComposer>(serviceName);
 }
 
 std::unique_ptr<MessageQueue> DefaultFactory::createMessageQueue() {

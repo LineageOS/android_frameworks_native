@@ -145,6 +145,9 @@ void GpuStats::insertTargetStats(const std::string& appPackageName,
         case GpuStatsInfo::Stats::FALSE_PREROTATION:
             mAppStats[appStatsKey].falsePrerotation = true;
             break;
+        case GpuStatsInfo::Stats::GLES_1_IN_USE:
+            mAppStats[appStatsKey].gles1InUse = true;
+            break;
         default:
             break;
     }

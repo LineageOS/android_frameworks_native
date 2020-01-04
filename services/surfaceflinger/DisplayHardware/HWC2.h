@@ -52,7 +52,6 @@ namespace android {
 
 namespace HWC2 {
 
-class Display;
 class Layer;
 using VsyncPeriodChangeConstraints = hwc_vsync_period_change_constraints_t;
 using VsyncPeriodChangeTimeline = hwc_vsync_period_change_timeline_t;
@@ -79,56 +78,6 @@ class ComposerCallback {
             const hwc_vsync_period_change_timeline_t& updatedTimeline) = 0;
 
     virtual ~ComposerCallback() = default;
-};
-
-// C++ Wrapper around hwc2_device_t. Load all functions pointers
-// and handle callback registration.
-class Device
-{
-public:
-    explicit Device(std::unique_ptr<android::Hwc2::Composer> composer);
-
-    void registerCallback(ComposerCallback* callback, int32_t sequenceId);
-
-    // Required by HWC2
-
-    std::string dump() const;
-
-    const std::unordered_set<Capability>& getCapabilities() const {
-        return mCapabilities;
-    };
-
-    uint32_t getMaxVirtualDisplayCount() const;
-    Error getDisplayIdentificationData(hwc2_display_t hwcDisplayId, uint8_t* outPort,
-                                       std::vector<uint8_t>* outData) const;
-
-    Error createVirtualDisplay(uint32_t width, uint32_t height,
-            android::ui::PixelFormat* format, Display** outDisplay);
-    void destroyDisplay(hwc2_display_t displayId);
-
-    void onHotplug(hwc2_display_t displayId, Connection connection);
-
-    // Other Device methods
-
-    Display* getDisplayById(hwc2_display_t id);
-
-    android::Hwc2::Composer* getComposer() { return mComposer.get(); }
-
-    // We buffer most state changes and flush them implicitly with
-    // Display::validate, Display::present, and Display::presentOrValidate.
-    // This method provides an explicit way to flush state changes to HWC.
-    Error flushCommands();
-
-private:
-    // Initialization methods
-
-    void loadCapabilities();
-
-    // Member variables
-    std::unique_ptr<android::Hwc2::Composer> mComposer;
-    std::unordered_set<Capability> mCapabilities;
-    std::unordered_map<hwc2_display_t, std::unique_ptr<Display>> mDisplays;
-    bool mRegisteredCallback = false;
 };
 
 // Convenience C++ class to access hwc2_device_t Display functions directly.
