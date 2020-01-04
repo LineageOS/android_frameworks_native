@@ -85,6 +85,16 @@ static int comparePolicyFiles(const struct dirent **d1, const struct dirent **d2
     return policyN1 - policyN2;
 }
 
+static int bpf_obj_get_wronly(const char *pathname) {
+    union bpf_attr attr;
+
+    memset(&attr, 0, sizeof(attr));
+    attr.pathname = ptr_to_u64((void *)pathname);
+    attr.file_flags = BPF_F_WRONLY;
+
+    return syscall(__NR_bpf, BPF_OBJ_GET, &attr, sizeof(attr));
+}
+
 static bool initGlobals() {
     std::lock_guard<std::mutex> guard(gInitializedMutex);
     if (gInitialized) return true;
@@ -153,7 +163,7 @@ static bool attachTracepointProgram(const std::string &eventType, const std::str
 bool startTrackingUidTimes() {
     if (!initGlobals()) return false;
 
-    unique_fd fd(bpf_obj_get(BPF_FS_PATH "map_time_in_state_cpu_policy_map"));
+    unique_fd fd(bpf_obj_get_wronly(BPF_FS_PATH "map_time_in_state_cpu_policy_map"));
     if (fd < 0) return false;
 
     for (uint32_t i = 0; i < gPolicyCpus.size(); ++i) {
@@ -162,7 +172,7 @@ bool startTrackingUidTimes() {
         }
     }
 
-    unique_fd fd2(bpf_obj_get(BPF_FS_PATH "map_time_in_state_freq_to_idx_map"));
+    unique_fd fd2(bpf_obj_get_wronly(BPF_FS_PATH "map_time_in_state_freq_to_idx_map"));
     if (fd2 < 0) return false;
     freq_idx_key_t key;
     for (uint32_t i = 0; i < gNPolicies; ++i) {
