@@ -4522,7 +4522,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case ENABLE_VSYNC_INJECTIONS:
         case GET_ANIMATION_FRAME_STATS:
         case GET_HDR_CAPABILITIES:
-        case SET_ACTIVE_CONFIG:
         case SET_DESIRED_DISPLAY_CONFIG_SPECS:
         case GET_DESIRED_DISPLAY_CONFIG_SPECS:
         case SET_ACTIVE_COLOR_MODE:

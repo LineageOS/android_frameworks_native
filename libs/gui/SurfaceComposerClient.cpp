@@ -1601,10 +1601,6 @@ int SurfaceComposerClient::getActiveConfig(const sp<IBinder>& display) {
     return ComposerService::getComposerService()->getActiveConfig(display);
 }
 
-status_t SurfaceComposerClient::setActiveConfig(const sp<IBinder>& display, int id) {
-    return ComposerService::getComposerService()->setActiveConfig(display, id);
-}
-
 status_t SurfaceComposerClient::setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
                                                              int32_t defaultConfig,
                                                              float minRefreshRate,

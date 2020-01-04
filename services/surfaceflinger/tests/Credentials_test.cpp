@@ -215,10 +215,17 @@ TEST_F(CredentialsTest, GetDisplayNativePrimariesTest) {
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, NO_ERROR));
 }
 
-TEST_F(CredentialsTest, SetActiveConfigTest) {
+TEST_F(CredentialsTest, SetDesiredDisplayConfigsTest) {
     const auto display = SurfaceComposerClient::getInternalDisplayToken();
+    int32_t defaultConfig;
+    float minFps;
+    float maxFps;
+    status_t res = SurfaceComposerClient::getDesiredDisplayConfigSpecs(display, &defaultConfig,
+                                                                       &minFps, &maxFps);
+    ASSERT_EQ(res, NO_ERROR);
     std::function<status_t()> condition = [=]() {
-        return SurfaceComposerClient::setActiveConfig(display, 0);
+        return SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, defaultConfig, minFps,
+                                                                   maxFps);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, PERMISSION_DENIED));
 }

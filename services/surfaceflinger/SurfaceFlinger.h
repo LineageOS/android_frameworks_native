@@ -445,7 +445,6 @@ private:
                                        bool* outSupported) const override;
     void setGameContentType(const sp<IBinder>& displayToken, bool on) override;
     void setPowerMode(const sp<IBinder>& displayToken, int mode) override;
-    status_t setActiveConfig(const sp<IBinder>& displayToken, int id) override;
     status_t clearAnimationFrameStats() override;
     status_t getAnimationFrameStats(FrameStats* outStats) const override;
     status_t getHdrCapabilities(const sp<IBinder>& displayToken,
@@ -537,6 +536,7 @@ private:
     void onInitializeDisplays() REQUIRES(mStateLock);
     // Sets the desired active config bit. It obtains the lock, and sets mDesiredActiveConfig.
     void setDesiredActiveConfig(const ActiveConfigInfo& info) REQUIRES(mStateLock);
+    status_t setActiveConfig(const sp<IBinder>& displayToken, int id);
     // Once HWC has returned the present fence, this sets the active config and a new refresh
     // rate in SF.
     void setActiveConfigInternal() REQUIRES(mStateLock);

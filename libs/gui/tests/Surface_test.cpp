@@ -723,10 +723,6 @@ public:
     status_t getDisplayStats(const sp<IBinder>& /*display*/,
             DisplayStatInfo* /*stats*/) override { return NO_ERROR; }
     int getActiveConfig(const sp<IBinder>& /*display*/) override { return 0; }
-    status_t setActiveConfig(const sp<IBinder>& /*display*/, int /*id*/)
-            override {
-        return NO_ERROR;
-    }
     status_t getDisplayColorModes(const sp<IBinder>& /*display*/,
             Vector<ColorMode>* /*outColorModes*/) override {
         return NO_ERROR;

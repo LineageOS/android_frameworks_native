@@ -113,10 +113,6 @@ public:
     // returned by getDisplayInfo)
     static int getActiveConfig(const sp<IBinder>& display);
 
-    // Set a new active configuration using an index relative to the list
-    // returned by getDisplayInfo
-    static status_t setActiveConfig(const sp<IBinder>& display, int id);
-
     // Sets the refresh rate boundaries for display configuration.
     // For all other parameters, default configuration is used. The index for the default is
     // corresponting to the configs returned from getDisplayConfigs().
