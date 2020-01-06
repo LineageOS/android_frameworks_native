@@ -79,6 +79,14 @@ status_t DisplayEventReceiver::requestNextVsync() {
     return NO_INIT;
 }
 
+status_t DisplayEventReceiver::toggleConfigEvents(
+        ISurfaceComposer::ConfigChanged configChangeFlag) {
+    if (mEventConnection != nullptr) {
+        mEventConnection->toggleConfigEvents(configChangeFlag);
+        return NO_ERROR;
+    }
+    return NO_INIT;
+}
 
 ssize_t DisplayEventReceiver::getEvents(DisplayEventReceiver::Event* events,
         size_t count) {

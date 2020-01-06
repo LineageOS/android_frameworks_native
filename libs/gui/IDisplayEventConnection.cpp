@@ -26,7 +26,8 @@ enum class Tag : uint32_t {
     STEAL_RECEIVE_CHANNEL = IBinder::FIRST_CALL_TRANSACTION,
     SET_VSYNC_RATE,
     REQUEST_NEXT_VSYNC,
-    LAST = REQUEST_NEXT_VSYNC,
+    TOGGLE_CONFIG_EVENTS,
+    LAST = TOGGLE_CONFIG_EVENTS,
 };
 
 } // Anonymous namespace
@@ -53,6 +54,12 @@ public:
         callRemoteAsync<decltype(&IDisplayEventConnection::requestNextVsync)>(
                 Tag::REQUEST_NEXT_VSYNC);
     }
+
+    void toggleConfigEvents(ISurfaceComposer::ConfigChanged configChangeFlag) override {
+        callRemoteAsync<decltype(
+                &IDisplayEventConnection::toggleConfigEvents)>(Tag::TOGGLE_CONFIG_EVENTS,
+                                                               configChangeFlag);
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this translation unit (see
@@ -74,6 +81,8 @@ status_t BnDisplayEventConnection::onTransact(uint32_t code, const Parcel& data,
             return callLocal(data, reply, &IDisplayEventConnection::setVsyncRate);
         case Tag::REQUEST_NEXT_VSYNC:
             return callLocalAsync(data, reply, &IDisplayEventConnection::requestNextVsync);
+        case Tag::TOGGLE_CONFIG_EVENTS:
+            return callLocalAsync(data, reply, &IDisplayEventConnection::toggleConfigEvents);
     }
 }
 

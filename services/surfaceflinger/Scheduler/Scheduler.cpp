@@ -222,9 +222,9 @@ void Scheduler::onScreenReleased(ConnectionHandle handle) {
 }
 
 void Scheduler::onConfigChanged(ConnectionHandle handle, PhysicalDisplayId displayId,
-                                HwcConfigIndexType configId) {
+                                HwcConfigIndexType configId, nsecs_t vsyncPeriod) {
     RETURN_IF_INVALID_HANDLE(handle);
-    mConnections[handle].thread->onConfigChanged(displayId, configId);
+    mConnections[handle].thread->onConfigChanged(displayId, configId, vsyncPeriod);
 }
 
 void Scheduler::dump(ConnectionHandle handle, std::string& result) const {
