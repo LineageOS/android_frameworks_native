@@ -1930,6 +1930,11 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags)
                                        [&]() { return layerInfo->mutable_visible_region(); });
         LayerProtoHelper::writeToProto(surfaceDamageRegion,
                                        [&]() { return layerInfo->mutable_damage_region(); });
+
+        if (hasColorTransform()) {
+            LayerProtoHelper::writeToProto(getColorTransform(),
+                                           layerInfo->mutable_color_transform());
+        }
     }
 
     if (traceFlags & SurfaceTracing::TRACE_EXTRA) {
