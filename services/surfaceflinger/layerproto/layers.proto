@@ -101,6 +101,7 @@ message LayerProto {
   // length of the shadow to draw around the layer, it may be set on the
   // layer or set by a parent layer.
   float shadow_radius = 49;
+  ColorTransformProto color_transform = 50;
 }
 
 message PositionProto {
@@ -180,4 +181,9 @@ message InputWindowInfoProto {
     uint32 crop_layer_id = 13;
     bool replace_touchable_region_with_crop = 14;
     RectProto touchable_region_crop = 15;
+}
+
+message ColorTransformProto {
+  // This will be a 4x4 matrix of float values
+  repeated float val = 1;
 }
