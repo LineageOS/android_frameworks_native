@@ -39,6 +39,7 @@ protected:
     static inline const HwcConfigGroupType HWC_GROUP_ID_0 = HwcConfigGroupType(0);
     static inline const HwcConfigGroupType HWC_GROUP_ID_1 = HwcConfigGroupType(1);
     static constexpr int64_t VSYNC_60 = 16666667;
+    static constexpr int64_t VSYNC_60_POINT_4 = 16666665;
     static constexpr int64_t VSYNC_90 = 11111111;
 
     RefreshRateConfigsTest();
@@ -236,6 +237,16 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContent) {
     ASSERT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContent(45.0f));
     ASSERT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(30.0f));
     ASSERT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(24.0f));
+}
+
+TEST_F(RefreshRateConfigsTest, testInPolicy) {
+    RefreshRate expectedDefaultConfig = {HWC_CONFIG_ID_60, VSYNC_60_POINT_4, HWC_GROUP_ID_0,
+                                         "60fps", 60};
+    ASSERT_TRUE(expectedDefaultConfig.inPolicy(60.000004, 60.000004));
+    ASSERT_TRUE(expectedDefaultConfig.inPolicy(59.0f, 60.1f));
+    ASSERT_FALSE(expectedDefaultConfig.inPolicy(75.0, 90.0));
+    ASSERT_FALSE(expectedDefaultConfig.inPolicy(60.0011, 90.0));
+    ASSERT_FALSE(expectedDefaultConfig.inPolicy(50.0, 59.998));
 }
 
 } // namespace
