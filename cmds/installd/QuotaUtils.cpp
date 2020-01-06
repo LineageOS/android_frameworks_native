@@ -97,6 +97,26 @@ int64_t GetOccupiedSpaceForUid(const std::string& uuid, uid_t uid) {
     }
 }
 
+int64_t GetOccupiedSpaceForProjectId(const std::string& uuid, int projectId) {
+    const std::string device = FindQuotaDeviceForUuid(uuid);
+    if (device == "") {
+        return -1;
+    }
+    struct dqblk dq;
+    if (quotactl(QCMD(Q_GETQUOTA, PRJQUOTA), device.c_str(), projectId,
+            reinterpret_cast<char*>(&dq)) != 0) {
+        if (errno != ESRCH) {
+            PLOG(ERROR) << "Failed to quotactl " << device << " for Project ID " << projectId;
+        }
+        return -1;
+    } else {
+#if MEASURE_DEBUG
+        LOG(DEBUG) << "quotactl() for Project ID " << projectId << " " << dq.dqb_curspace;
+#endif
+        return dq.dqb_curspace;
+    }
+}
+
 int64_t GetOccupiedSpaceForGid(const std::string& uuid, gid_t gid) {
     const std::string device = FindQuotaDeviceForUuid(uuid);
     if (device == "") {
