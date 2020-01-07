@@ -57,6 +57,32 @@ static std::string keyActionToString(int32_t action) {
     }
     return StringPrintf("%" PRId32, action);
 }
+VerifiedKeyEvent verifiedKeyEventFromKeyEntry(const KeyEntry& entry) {
+    return {{VerifiedInputEvent::Type::KEY, entry.deviceId, entry.eventTime, entry.source,
+             entry.displayId},
+            entry.action,
+            entry.downTime,
+            entry.flags & VERIFIED_KEY_EVENT_FLAGS,
+            entry.keyCode,
+            entry.scanCode,
+            entry.metaState,
+            entry.repeatCount};
+}
+
+VerifiedMotionEvent verifiedMotionEventFromMotionEntry(const MotionEntry& entry) {
+    const float rawX = entry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X);
+    const float rawY = entry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y);
+    const int actionMasked = entry.action & AMOTION_EVENT_ACTION_MASK;
+    return {{VerifiedInputEvent::Type::MOTION, entry.deviceId, entry.eventTime, entry.source,
+             entry.displayId},
+            rawX,
+            rawY,
+            actionMasked,
+            entry.downTime,
+            entry.flags & VERIFIED_MOTION_EVENT_FLAGS,
+            entry.metaState,
+            entry.buttonState};
+}
 
 // --- EventEntry ---
 

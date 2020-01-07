@@ -1398,6 +1398,44 @@ TEST_F(InputDispatcherTest, TouchModeState_IsSentToApps) {
     window->assertNoEvents();
 }
 
+TEST_F(InputDispatcherTest, VerifyInputEvent_KeyEvent) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Test window", ADISPLAY_ID_DEFAULT);
+
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+    window->setFocus(true);
+
+    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    window->consumeFocusEvent(true /*hasFocus*/, true /*inTouchMode*/);
+
+    NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN);
+    mDispatcher->notifyKey(&keyArgs);
+
+    InputEvent* event = window->consume();
+    ASSERT_NE(event, nullptr);
+
+    std::unique_ptr<VerifiedInputEvent> verified = mDispatcher->verifyInputEvent(*event);
+    ASSERT_NE(verified, nullptr);
+    ASSERT_EQ(verified->type, VerifiedInputEvent::Type::KEY);
+
+    ASSERT_EQ(keyArgs.eventTime, verified->eventTimeNanos);
+    ASSERT_EQ(keyArgs.deviceId, verified->deviceId);
+    ASSERT_EQ(keyArgs.source, verified->source);
+    ASSERT_EQ(keyArgs.displayId, verified->displayId);
+
+    const VerifiedKeyEvent& verifiedKey = static_cast<const VerifiedKeyEvent&>(*verified);
+
+    ASSERT_EQ(keyArgs.action, verifiedKey.action);
+    ASSERT_EQ(keyArgs.downTime, verifiedKey.downTimeNanos);
+    ASSERT_EQ(keyArgs.eventTime, verifiedKey.eventTimeNanos);
+    ASSERT_EQ(keyArgs.flags & VERIFIED_KEY_EVENT_FLAGS, verifiedKey.flags);
+    ASSERT_EQ(keyArgs.keyCode, verifiedKey.keyCode);
+    ASSERT_EQ(keyArgs.scanCode, verifiedKey.scanCode);
+    ASSERT_EQ(keyArgs.metaState, verifiedKey.metaState);
+    ASSERT_EQ(0, verifiedKey.repeatCount);
+}
+
 /* Test InputDispatcher for MultiDisplay */
 class InputDispatcherFocusOnTwoDisplaysTest : public InputDispatcherTest {
 public:
