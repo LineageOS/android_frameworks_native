@@ -108,7 +108,7 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
     using namespace sysprop;
 
     if (property_get_bool("debug.sf.use_smart_90_for_video", 0) || use_smart_90_for_video(false)) {
-        mLayerHistory.emplace();
+        mLayerHistory = std::make_unique<scheduler::impl::LayerHistory>();
     }
 
     const int setIdleTimerMs = property_get_int32("debug.sf.set_idle_timer_ms", 0);
@@ -493,7 +493,7 @@ void Scheduler::dump(std::string& result) const {
 
     const bool supported = mRefreshRateConfigs.refreshRateSwitchingSupported();
     StringAppendF(&result, "+  Refresh rate switching: %s\n", states[supported]);
-    StringAppendF(&result, "+  Content detection: %s\n", states[mLayerHistory.has_value()]);
+    StringAppendF(&result, "+  Content detection: %s\n", states[mLayerHistory != nullptr]);
 
     StringAppendF(&result, "+  Idle timer: %s\n",
                   mIdleTimer ? mIdleTimer->dump().c_str() : states[0]);

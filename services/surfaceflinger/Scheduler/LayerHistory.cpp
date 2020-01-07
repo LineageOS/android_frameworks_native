@@ -34,7 +34,7 @@
 #include "LayerInfo.h"
 #include "SchedulerUtils.h"
 
-namespace android::scheduler {
+namespace android::scheduler::impl {
 
 namespace {
 
@@ -157,4 +157,4 @@ void LayerHistory::clear() {
     mActiveLayersEnd = 0;
 }
 
-} // namespace android::scheduler
+} // namespace android::scheduler::impl
