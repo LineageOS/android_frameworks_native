@@ -354,6 +354,9 @@ private:
     // mTransformHintInUse is to cache the mTransformHint used by the producer.
     uint32_t mTransformHintInUse;
 
+    // The frame rate the app intends to run at.
+    float mFrameRate;
+
 }; // class BufferQueueCore
 
 } // namespace android

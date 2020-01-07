@@ -1376,6 +1376,18 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setShado
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrameRate(
+        const sp<SurfaceControl>& sc, float frameRate) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eFrameRateChanged;
+    s->frameRate = frameRate;
+    return *this;
+}
+
 // ---------------------------------------------------------------------------
 
 DisplayState& SurfaceComposerClient::Transaction::getDisplayState(const sp<IBinder>& token) {

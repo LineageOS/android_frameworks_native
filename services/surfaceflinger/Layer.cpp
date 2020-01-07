@@ -111,6 +111,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.frameRateSelectionPriority = PRIORITY_UNSET;
     mCurrentState.metadata = args.metadata;
     mCurrentState.shadowRadius = 0.f;
+    mCurrentState.frameRate = 0.f;
 
     // drawing state & current state are identical
     mDrawingState = mCurrentState;
@@ -1219,6 +1220,22 @@ bool Layer::setShadowRadius(float shadowRadius) {
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
+}
+
+bool Layer::setFrameRate(float frameRate) {
+    if (mCurrentState.frameRate == frameRate) {
+        return false;
+    }
+
+    mCurrentState.sequence++;
+    mCurrentState.frameRate = frameRate;
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
+float Layer::getFrameRate() const {
+    return getDrawingState().frameRate;
 }
 
 void Layer::deferTransactionUntil_legacy(const sp<Layer>& barrierLayer, uint64_t frameNumber) {

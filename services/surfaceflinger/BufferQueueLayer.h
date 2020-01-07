@@ -55,6 +55,10 @@ public:
     int32_t getQueuedFrameCount() const override;
 
     bool shouldPresentNow(nsecs_t expectedPresentTime) const override;
+
+    bool setFrameRate(float frameRate) override;
+    float getFrameRate() const override;
+
     // -----------------------------------------------------------------------
 
     // -----------------------------------------------------------------------
@@ -151,6 +155,8 @@ private:
     std::atomic<bool> mSidebandStreamChanged{false};
 
     sp<ContentsChangedListener> mContentsChangedListener;
+
+    std::atomic<float> mLatchedFrameRate = 0.f;
 };
 
 } // namespace android
