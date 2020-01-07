@@ -953,8 +953,11 @@ void SurfaceFlinger::setActiveConfigInternal() {
     ATRACE_INT("ActiveConfigFPS", refreshRate.fps);
 
     if (mUpcomingActiveConfig.event != Scheduler::ConfigEvent::None) {
+        const nsecs_t vsyncPeriod =
+                mRefreshRateConfigs->getRefreshRateFromConfigId(mUpcomingActiveConfig.configId)
+                        .vsyncPeriod;
         mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value,
-                                    mUpcomingActiveConfig.configId);
+                                    mUpcomingActiveConfig.configId, vsyncPeriod);
     }
 }
 
@@ -2688,6 +2691,17 @@ void SurfaceFlinger::initScheduler(DisplayId primaryDisplayId) {
     mRegionSamplingThread =
             new RegionSamplingThread(*this, *mScheduler,
                                      RegionSamplingThread::EnvironmentTimingTunables());
+    // Dispatch a config change request for the primary display on scheduler
+    // initialization, so that the EventThreads always contain a reference to a
+    // prior configuration.
+    //
+    // This is a bit hacky, but this avoids a back-pointer into the main SF
+    // classes from EventThread, and there should be no run-time binder cost
+    // anyway since there are no connected apps at this point.
+    const nsecs_t vsyncPeriod =
+            mRefreshRateConfigs->getRefreshRateFromConfigId(currentConfig).vsyncPeriod;
+    mScheduler->onConfigChanged(mAppConnectionHandle, primaryDisplayId.value, currentConfig,
+                                vsyncPeriod);
 }
 
 void SurfaceFlinger::commitTransaction()
@@ -5577,7 +5591,10 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(const sp<DisplayDe
 
         auto configId = HwcConfigIndexType(defaultConfig);
         display->setActiveConfig(configId);
-        mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value, configId);
+        const nsecs_t vsyncPeriod =
+                mRefreshRateConfigs->getRefreshRateFromConfigId(configId).vsyncPeriod;
+        mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value, configId,
+                                    vsyncPeriod);
         return NO_ERROR;
     }
 
@@ -5601,8 +5618,10 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(const sp<DisplayDe
     // TODO(b/140204874): This hack triggers a notification that something has changed, so
     // that listeners that care about a change in allowed configs can get the notification.
     // Giving current ActiveConfig so that most other listeners would just drop the event
+    const nsecs_t vsyncPeriod =
+            mRefreshRateConfigs->getRefreshRateFromConfigId(display->getActiveConfig()).vsyncPeriod;
     mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value,
-                                display->getActiveConfig());
+                                display->getActiveConfig(), vsyncPeriod);
 
     if (mRefreshRateConfigs->refreshRateSwitchingSupported()) {
         auto configId = mScheduler->getPreferredConfigId();

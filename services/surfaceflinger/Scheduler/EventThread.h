@@ -81,12 +81,19 @@ public:
     status_t stealReceiveChannel(gui::BitTube* outChannel) override;
     status_t setVsyncRate(uint32_t rate) override;
     void requestNextVsync() override; // asynchronous
+    void toggleConfigEvents(ISurfaceComposer::ConfigChanged configChangeFlag) override;
 
     // Called in response to requestNextVsync.
     const ResyncCallback resyncCallback;
 
     VSyncRequest vsyncRequest = VSyncRequest::None;
-    const ISurfaceComposer::ConfigChanged configChanged;
+    std::atomic<ISurfaceComposer::ConfigChanged> mConfigChanged =
+            ISurfaceComposer::ConfigChanged::eConfigChangedSuppress;
+    // Store whether we need to force dispatching a config change separately -
+    // if mConfigChanged ever changes before the config change is dispatched
+    // then we still need to propagate an initial config to the app if we
+    // haven't already.
+    std::atomic<bool> mForcedConfigChangeDispatch = false;
 
 private:
     virtual void onFirstRef();
@@ -110,7 +117,8 @@ public:
     virtual void onHotplugReceived(PhysicalDisplayId displayId, bool connected) = 0;
 
     // called when SF changes the active config and apps needs to be notified about the change
-    virtual void onConfigChanged(PhysicalDisplayId displayId, HwcConfigIndexType configId) = 0;
+    virtual void onConfigChanged(PhysicalDisplayId displayId, HwcConfigIndexType configId,
+                                 nsecs_t vsyncPeriod) = 0;
 
     virtual void dump(std::string& result) const = 0;
 
@@ -121,6 +129,11 @@ public:
     virtual void setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& connection) = 0;
     // Requests the next vsync. If resetIdleTimer is set to true, it resets the idle timer.
     virtual void requestNextVsync(const sp<EventThreadConnection>& connection) = 0;
+
+    // Dispatches the most recent configuration
+    // Usage of this method assumes that only the primary internal display
+    // supports multiple display configurations.
+    virtual void requestLatestConfig() = 0;
 };
 
 namespace impl {
@@ -138,6 +151,7 @@ public:
     status_t registerDisplayEventConnection(const sp<EventThreadConnection>& connection) override;
     void setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& connection) override;
     void requestNextVsync(const sp<EventThreadConnection>& connection) override;
+    void requestLatestConfig() override;
 
     // called before the screen is turned off from main thread
     void onScreenReleased() override;
@@ -147,7 +161,8 @@ public:
 
     void onHotplugReceived(PhysicalDisplayId displayId, bool connected) override;
 
-    void onConfigChanged(PhysicalDisplayId displayId, HwcConfigIndexType configId) override;
+    void onConfigChanged(PhysicalDisplayId displayId, HwcConfigIndexType configId,
+                         nsecs_t vsyncPeriod) override;
 
     void dump(std::string& result) const override;
 
@@ -182,6 +197,7 @@ private:
 
     std::vector<wp<EventThreadConnection>> mDisplayEventConnections GUARDED_BY(mMutex);
     std::deque<DisplayEventReceiver::Event> mPendingEvents GUARDED_BY(mMutex);
+    DisplayEventReceiver::Event mLastConfigChangeEvent GUARDED_BY(mMutex);
 
     // VSYNC state of connected display.
     struct VSyncState {

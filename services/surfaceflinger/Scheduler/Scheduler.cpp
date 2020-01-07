@@ -47,6 +47,10 @@
 #include "OneShotTimer.h"
 #include "SchedulerUtils.h"
 #include "SurfaceFlingerProperties.h"
+#include "Timer.h"
+#include "VSyncDispatchTimerQueue.h"
+#include "VSyncPredictor.h"
+#include "VSyncReactor.h"
 
 #define RETURN_IF_INVALID_HANDLE(handle, ...)                        \
     do {                                                             \
@@ -58,11 +62,45 @@
 
 namespace android {
 
+std::unique_ptr<DispSync> createDispSync() {
+    // TODO (140302863) remove this and use the vsync_reactor system.
+    if (property_get_bool("debug.sf.vsync_reactor", false)) {
+        // TODO (144707443) tune Predictor tunables.
+        static constexpr int default_rate = 60;
+        static constexpr auto initial_period =
+                std::chrono::duration<nsecs_t, std::ratio<1, default_rate>>(1);
+        static constexpr size_t vsyncTimestampHistorySize = 20;
+        static constexpr size_t minimumSamplesForPrediction = 6;
+        static constexpr uint32_t discardOutlierPercent = 20;
+        auto tracker = std::make_unique<
+                scheduler::VSyncPredictor>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                                   initial_period)
+                                                   .count(),
+                                           vsyncTimestampHistorySize, minimumSamplesForPrediction,
+                                           discardOutlierPercent);
+
+        static constexpr auto vsyncMoveThreshold =
+                std::chrono::duration_cast<std::chrono::nanoseconds>(3ms);
+        static constexpr auto timerSlack =
+                std::chrono::duration_cast<std::chrono::nanoseconds>(500us);
+        auto dispatch = std::make_unique<
+                scheduler::VSyncDispatchTimerQueue>(std::make_unique<scheduler::Timer>(), *tracker,
+                                                    timerSlack.count(), vsyncMoveThreshold.count());
+
+        static constexpr size_t pendingFenceLimit = 20;
+        return std::make_unique<scheduler::VSyncReactor>(std::make_unique<scheduler::SystemClock>(),
+                                                         std::move(dispatch), std::move(tracker),
+                                                         pendingFenceLimit);
+    } else {
+        return std::make_unique<impl::DispSync>("SchedulerDispSync",
+                                                sysprop::running_without_sync_framework(true));
+    }
+}
+
 Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
                      const scheduler::RefreshRateConfigs& refreshRateConfig,
                      ISchedulerCallback& schedulerCallback)
-      : mPrimaryDispSync(new impl::DispSync("SchedulerDispSync",
-                                            sysprop::running_without_sync_framework(true))),
+      : mPrimaryDispSync(createDispSync()),
         mEventControlThread(new impl::EventControlThread(std::move(function))),
         mSupportKernelTimer(sysprop::support_kernel_idle_timer(false)),
         mSchedulerCallback(schedulerCallback),
@@ -184,9 +222,9 @@ void Scheduler::onScreenReleased(ConnectionHandle handle) {
 }
 
 void Scheduler::onConfigChanged(ConnectionHandle handle, PhysicalDisplayId displayId,
-                                HwcConfigIndexType configId) {
+                                HwcConfigIndexType configId, nsecs_t vsyncPeriod) {
     RETURN_IF_INVALID_HANDLE(handle);
-    mConnections[handle].thread->onConfigChanged(displayId, configId);
+    mConnections[handle].thread->onConfigChanged(displayId, configId, vsyncPeriod);
 }
 
 void Scheduler::dump(ConnectionHandle handle, std::string& result) const {

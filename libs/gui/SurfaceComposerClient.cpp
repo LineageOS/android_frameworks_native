@@ -484,14 +484,22 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Tr
         mListenerCallbacks[listener].callbackIds.insert(std::make_move_iterator(
                                                                 callbackIds.begin()),
                                                         std::make_move_iterator(callbackIds.end()));
-        // register surface controls for this listener that is merging
-        for (const auto& surfaceControl : surfaceControls) {
-            registerSurfaceControlForCallback(surfaceControl);
-        }
 
-        mListenerCallbacks[listener]
-                .surfaceControls.insert(std::make_move_iterator(surfaceControls.begin()),
-                                        std::make_move_iterator(surfaceControls.end()));
+        mListenerCallbacks[listener].surfaceControls.insert(surfaceControls.begin(),
+                                                            surfaceControls.end());
+
+        auto& currentProcessCallbackInfo =
+                mListenerCallbacks[TransactionCompletedListener::getIInstance()];
+        currentProcessCallbackInfo.surfaceControls
+                .insert(std::make_move_iterator(surfaceControls.begin()),
+                        std::make_move_iterator(surfaceControls.end()));
+
+        // register all surface controls for all callbackIds for this listener that is merging
+        for (const auto& surfaceControl : currentProcessCallbackInfo.surfaceControls) {
+            TransactionCompletedListener::getInstance()
+                    ->addSurfaceControlToCallbacks(surfaceControl,
+                                                   currentProcessCallbackInfo.callbackIds);
+        }
     }
 
     mInputWindowCommands.merge(other.mInputWindowCommands);

@@ -155,5 +155,13 @@ void LayerProtoHelper::writeToProto(
     }
 }
 
+void LayerProtoHelper::writeToProto(const mat4 matrix, ColorTransformProto* colorTransformProto) {
+    for (int i = 0; i < mat4::ROW_SIZE; i++) {
+        for (int j = 0; j < mat4::COL_SIZE; j++) {
+            colorTransformProto->add_val(matrix[i][j]);
+        }
+    }
+}
+
 } // namespace surfaceflinger
 } // namespace android

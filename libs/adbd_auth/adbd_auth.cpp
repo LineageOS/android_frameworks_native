@@ -178,6 +178,10 @@ public:
 
           this->callbacks_.key_authorized(arg, id);
           this->dispatched_prompt_ = std::nullopt;
+
+          // We need to dispatch pending prompts here upon success as well,
+          // since we might have multiple queued prompts.
+          DispatchPendingPrompt();
         } else if (packet[0] == 'N' && packet[1] == 'O') {
           CHECK_EQ(2UL, packet.length());
           // TODO: Do we want a callback if the key is denied?

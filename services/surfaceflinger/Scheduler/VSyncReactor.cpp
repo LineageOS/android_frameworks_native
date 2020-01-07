@@ -26,12 +26,15 @@
 namespace android::scheduler {
 
 Clock::~Clock() = default;
+nsecs_t SystemClock::now() const {
+    return systemTime(SYSTEM_TIME_MONOTONIC);
+}
 
 VSyncReactor::VSyncReactor(std::unique_ptr<Clock> clock, std::unique_ptr<VSyncDispatch> dispatch,
                            std::unique_ptr<VSyncTracker> tracker, size_t pendingFenceLimit)
       : mClock(std::move(clock)),
-        mDispatch(std::move(dispatch)),
         mTracker(std::move(tracker)),
+        mDispatch(std::move(dispatch)),
         mPendingLimit(pendingFenceLimit) {}
 
 VSyncReactor::~VSyncReactor() = default;
@@ -244,5 +247,11 @@ status_t VSyncReactor::changePhaseOffset(DispSync::Callback* callback, nsecs_t p
     it->second->start(phase);
     return NO_ERROR;
 }
+
+void VSyncReactor::dump(std::string& result) const {
+    result += "VsyncReactor in use\n"; // TODO (b/144927823): add more information!
+}
+
+void VSyncReactor::reset() {}
 
 } // namespace android::scheduler
