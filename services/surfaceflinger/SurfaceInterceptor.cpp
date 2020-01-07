@@ -13,6 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
 #undef LOG_TAG
 #define LOG_TAG "SurfaceInterceptor"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
@@ -677,3 +681,6 @@ void SurfaceInterceptor::savePowerModeUpdate(int32_t sequenceId, int32_t mode) {
 
 } // namespace impl
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

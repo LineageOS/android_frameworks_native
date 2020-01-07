@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <gui/BufferItemConsumer.h>
 #include <ui/Transform.h>
 #include <thread>
@@ -1841,3 +1845,6 @@ TEST_P(LayerRenderTypeTransactionTest, SetColorTransformOnChildAndParent) {
     }
 }
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

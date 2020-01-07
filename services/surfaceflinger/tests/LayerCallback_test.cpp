@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include "LayerTransactionTest.h"
 #include "utils/CallbackUtils.h"
 
@@ -870,3 +874,6 @@ TEST_F(LayerCallbackTest, DesiredPresentTime_Past) {
     EXPECT_NO_FATAL_FAILURE(waitForCallback(callback, expected, true));
 }
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

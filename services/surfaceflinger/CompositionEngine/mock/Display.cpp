@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <compositionengine/mock/Display.h>
 
 namespace android::compositionengine::mock {
@@ -24,3 +28,6 @@ Display::Display() = default;
 Display::~Display() = default;
 
 } // namespace android::compositionengine::mock
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"
