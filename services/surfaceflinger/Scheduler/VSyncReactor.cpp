@@ -185,7 +185,9 @@ nsecs_t VSyncReactor::getPeriod() {
     return mTracker->currentPeriod();
 }
 
-void VSyncReactor::beginResync() {}
+void VSyncReactor::beginResync() {
+    mTracker->resetModel();
+}
 
 void VSyncReactor::endResync() {}
 
