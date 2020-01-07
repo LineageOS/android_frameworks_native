@@ -168,9 +168,6 @@ private:
     bool isAppSwitchPendingLocked() REQUIRES(mLock);
     void resetPendingAppSwitchLocked(bool handled) REQUIRES(mLock);
 
-    // Stale event latency optimization.
-    static bool isStaleEvent(nsecs_t currentTime, const EventEntry& entry);
-
     // Blocked event latency optimization.  Drops old events when the user intends
     // to transfer focus to a new application.
     EventEntry* mNextUnblockedEvent GUARDED_BY(mLock);

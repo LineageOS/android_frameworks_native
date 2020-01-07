@@ -109,8 +109,14 @@ public:
         uint32_t consumeSeq;
         InputEvent* event;
 
+        std::chrono::time_point start = std::chrono::steady_clock::now();
         status_t result = WOULD_BLOCK;
         while (result == WOULD_BLOCK) {
+            std::chrono::duration elapsed = std::chrono::steady_clock::now() - start;
+            if (elapsed > 10ms) {
+                ALOGE("Waited too long for consumer to produce an event, giving up");
+                break;
+            }
             result = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq,
                                         &event);
         }
@@ -282,12 +288,9 @@ static void benchmarkInjectMotion(benchmark::State& state) {
 
     dispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
 
-    MotionEvent event = generateMotionEvent();
-
     for (auto _ : state) {
+        MotionEvent event = generateMotionEvent();
         // Send ACTION_DOWN
-        event.setAction(AMOTION_EVENT_ACTION_DOWN);
-        event.setDownTime(now());
         dispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
                                      INPUT_EVENT_INJECTION_SYNC_NONE, INJECT_EVENT_TIMEOUT,
                                      POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER);
