@@ -40,4 +40,39 @@ void AChoreographer_registerRefreshRateCallback(AChoreographer* choreographer,
 void AChoreographer_unregisterRefreshRateCallback(AChoreographer* choreographer,
                                                   AChoreographer_refreshRateCallback);
 
+/**
+ * Creates an instance of AChoreographer.
+ *
+ * The key differences between this method and AChoreographer_getInstance are:
+ * 1. The returned AChoreographer instance is not a thread-local, and
+ * 2. This method does not require an existing ALooper attached to the thread.
+ */
+AChoreographer* AChoreographer_create();
+
+/**
+ * Destroys a choreographer instance created from AChoreographer_create.
+ */
+void AChoreographer_destroy(AChoreographer* choreographer);
+
+/**
+ * Returns the underlying file descriptor associated with this choreographer
+ * instance.
+ *
+ * The caller can listen to the file descriptor to respond to any AChoreographer
+ * events. One such way is registering the file descriptor to a Looper instance,
+ * although this is not a requirement.
+ */
+int AChoreographer_getFd(AChoreographer* choreographer);
+
+/**
+ * Provides a callback to handle all pending events emitted by this
+ * choreographer instance. Specifically, this delegates to the callbacks
+ * previously registered to choreographer.
+ *
+ * If the associated file descriptor is attached to a Looper instance, then the
+ * callback attached to that Looper is expected to handle exceptional Looper
+ * events.
+ */
+void AChoreographer_handlePendingEvents(AChoreographer* choreographer, void* data);
+
 __END_DECLS

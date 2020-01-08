@@ -50,17 +50,20 @@ status_t DisplayEventDispatcher::initialize() {
         return result;
     }
 
-    int rc = mLooper->addFd(mReceiver.getFd(), 0, Looper::EVENT_INPUT, this, NULL);
-    if (rc < 0) {
-        return UNKNOWN_ERROR;
+    if (mLooper != nullptr) {
+        int rc = mLooper->addFd(mReceiver.getFd(), 0, Looper::EVENT_INPUT, this, NULL);
+        if (rc < 0) {
+            return UNKNOWN_ERROR;
+        }
     }
+
     return OK;
 }
 
 void DisplayEventDispatcher::dispose() {
     ALOGV("dispatcher %p ~ Disposing display event dispatcher.", this);
 
-    if (!mReceiver.initCheck()) {
+    if (!mReceiver.initCheck() && mLooper != nullptr) {
         mLooper->removeFd(mReceiver.getFd());
     }
 }
@@ -99,6 +102,10 @@ void DisplayEventDispatcher::toggleConfigEvents(ISurfaceComposer::ConfigChanged 
         return;
     }
     mConfigChangeFlag = configChangeFlag;
+}
+
+int DisplayEventDispatcher::getFd() {
+    return mReceiver.getFd();
 }
 
 int DisplayEventDispatcher::handleEvent(int, int events, void*) {

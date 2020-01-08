@@ -13,7 +13,7 @@
 // limitations under the License.
 
 ndk_headers {
-    name: "libachoreographer_ndk_headers",
+    name: "libnativedisplay_ndk_headers",
     from: "include/android",
     to: "android",
     srcs: ["include/android/*.h"],
