@@ -1672,7 +1672,7 @@ static void DumpstateRadioCommon(bool include_sensitive_info = true) {
 // information. This information MUST NOT identify user-installed packages (UIDs are OK, package
 // names are not), and MUST NOT contain logs of user application traffic.
 // TODO(b/148168577) rename this and other related fields/methods to "connectivity" instead.
-static void DumpstateTelephonyOnly() {
+static void DumpstateTelephonyOnly(const std::string& calling_package) {
     DurationReporter duration_reporter("DUMPSTATE");
 
     const CommandOptions DUMPSYS_COMPONENTS_OPTIONS = CommandOptions::WithTimeout(60).Build();
@@ -1695,11 +1695,18 @@ static void DumpstateTelephonyOnly() {
 
     RunDumpsys("DUMPSYS", {"connectivity"}, CommandOptions::WithTimeout(90).Build(),
                SEC_TO_MSEC(10));
-    // TODO(b/146521742) build out an argument to include bound services here for user builds
-    RunDumpsys("DUMPSYS", {"carrier_config"}, CommandOptions::WithTimeout(90).Build(),
-               SEC_TO_MSEC(10));
-    RunDumpsys("DUMPSYS", {"wifi"}, CommandOptions::WithTimeout(90).Build(),
-               SEC_TO_MSEC(10));
+    if (include_sensitive_info) {
+        // Carrier apps' services will be dumped below in dumpsys activity service all-non-platform.
+        RunDumpsys("DUMPSYS", {"carrier_config"}, CommandOptions::WithTimeout(90).Build(),
+                   SEC_TO_MSEC(10));
+    } else {
+        // If the caller is a carrier app and has a carrier service, dump it here since we aren't
+        // running dumpsys activity service all-non-platform below. Due to the increased output, we
+        // give a higher timeout as well.
+        RunDumpsys("DUMPSYS", {"carrier_config", "--requesting-package", calling_package},
+                   CommandOptions::WithTimeout(90).Build(), SEC_TO_MSEC(30));
+    }
+    RunDumpsys("DUMPSYS", {"wifi"}, CommandOptions::WithTimeout(90).Build(), SEC_TO_MSEC(10));
     RunDumpsys("DUMPSYS", {"netpolicy"}, CommandOptions::WithTimeout(90).Build(), SEC_TO_MSEC(10));
     RunDumpsys("DUMPSYS", {"network_management"}, CommandOptions::WithTimeout(90).Build(),
                SEC_TO_MSEC(10));
@@ -2587,7 +2594,7 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
 
     if (options_->telephony_only) {
         MaybeCheckUserConsent(calling_uid, calling_package);
-        DumpstateTelephonyOnly();
+        DumpstateTelephonyOnly(calling_package);
         DumpstateBoard();
     } else if (options_->wifi_only) {
         MaybeCheckUserConsent(calling_uid, calling_package);
