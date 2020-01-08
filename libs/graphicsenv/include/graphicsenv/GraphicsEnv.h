@@ -131,6 +131,8 @@ private:
     void updateUseAngle();
     // Link updatable driver namespace with llndk and vndk-sp libs.
     bool linkDriverNamespaceLocked(android_namespace_t* vndkNamespace);
+    // Check whether this process is ready to send stats.
+    bool readyToSendGpuStatsLocked();
     // Send the initial complete GpuStats to GpuService.
     void sendGpuStatsLocked(GpuStatsInfo::Api api, bool isDriverLoaded, int64_t driverLoadingTime);
 
@@ -141,6 +143,8 @@ private:
     std::string mSphalLibraries;
     // This mutex protects mGpuStats and get gpuservice call.
     std::mutex mStatsLock;
+    // Cache the activity launch info
+    bool mActivityLaunched = false;
     // Information bookkept for GpuStats.
     GpuStatsInfo mGpuStats;
     // Path to ANGLE libs.
