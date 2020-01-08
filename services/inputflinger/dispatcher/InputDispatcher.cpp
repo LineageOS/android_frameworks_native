@@ -256,6 +256,67 @@ static bool isStaleEvent(nsecs_t currentTime, const EventEntry& entry) {
     return currentTime - entry.eventTime >= STALE_EVENT_TIMEOUT;
 }
 
+static std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inputTarget,
+                                                          EventEntry* eventEntry,
+                                                          int32_t inputTargetFlags) {
+    if (inputTarget.useDefaultPointerInfo()) {
+        const PointerInfo& pointerInfo = inputTarget.getDefaultPointerInfo();
+        return std::make_unique<DispatchEntry>(eventEntry, // increments ref
+                                               inputTargetFlags, pointerInfo.xOffset,
+                                               pointerInfo.yOffset, inputTarget.globalScaleFactor,
+                                               pointerInfo.windowXScale, pointerInfo.windowYScale);
+    }
+
+    ALOG_ASSERT(eventEntry->type == EventEntry::Type::MOTION);
+    const MotionEntry& motionEntry = static_cast<const MotionEntry&>(*eventEntry);
+
+    PointerCoords pointerCoords[MAX_POINTERS];
+
+    // Use the first pointer information to normalize all other pointers. This could be any pointer
+    // as long as all other pointers are normalized to the same value and the final DispatchEntry
+    // uses the offset and scale for the normalized pointer.
+    const PointerInfo& firstPointerInfo =
+            inputTarget.pointerInfos[inputTarget.pointerIds.firstMarkedBit()];
+
+    // Iterate through all pointers in the event to normalize against the first.
+    for (uint32_t pointerIndex = 0; pointerIndex < motionEntry.pointerCount; pointerIndex++) {
+        const PointerProperties& pointerProperties = motionEntry.pointerProperties[pointerIndex];
+        uint32_t pointerId = uint32_t(pointerProperties.id);
+        const PointerInfo& currPointerInfo = inputTarget.pointerInfos[pointerId];
+
+        // The scale factor is the ratio of the current pointers scale to the normalized scale.
+        float scaleXDiff = currPointerInfo.windowXScale / firstPointerInfo.windowXScale;
+        float scaleYDiff = currPointerInfo.windowYScale / firstPointerInfo.windowYScale;
+
+        pointerCoords[pointerIndex].copyFrom(motionEntry.pointerCoords[pointerIndex]);
+        // First apply the current pointers offset to set the window at 0,0
+        pointerCoords[pointerIndex].applyOffset(currPointerInfo.xOffset, currPointerInfo.yOffset);
+        // Next scale the coordinates.
+        pointerCoords[pointerIndex].scale(1, scaleXDiff, scaleYDiff);
+        // Lastly, offset the coordinates so they're in the normalized pointer's frame.
+        pointerCoords[pointerIndex].applyOffset(-firstPointerInfo.xOffset,
+                                                -firstPointerInfo.yOffset);
+    }
+
+    MotionEntry* combinedMotionEntry =
+            new MotionEntry(motionEntry.sequenceNum, motionEntry.eventTime, motionEntry.deviceId,
+                            motionEntry.source, motionEntry.displayId, motionEntry.policyFlags,
+                            motionEntry.action, motionEntry.actionButton, motionEntry.flags,
+                            motionEntry.metaState, motionEntry.buttonState,
+                            motionEntry.classification, motionEntry.edgeFlags,
+                            motionEntry.xPrecision, motionEntry.yPrecision,
+                            motionEntry.xCursorPosition, motionEntry.yCursorPosition,
+                            motionEntry.downTime, motionEntry.pointerCount,
+                            motionEntry.pointerProperties, pointerCoords, 0 /* xOffset */,
+                            0 /* yOffset */);
+
+    return std::make_unique<DispatchEntry>(combinedMotionEntry, // increments ref
+                                           inputTargetFlags, firstPointerInfo.xOffset,
+                                           firstPointerInfo.yOffset, inputTarget.globalScaleFactor,
+                                           firstPointerInfo.windowXScale,
+                                           firstPointerInfo.windowYScale);
+}
+
 // --- InputDispatcherThread ---
 
 class InputDispatcher::InputDispatcherThread : public Thread {
@@ -1111,7 +1172,7 @@ void InputDispatcher::dispatchEventLocked(nsecs_t currentTime, EventEntry* event
         sp<Connection> connection =
                 getConnectionLocked(inputTarget.inputChannel->getConnectionToken());
         if (connection != nullptr) {
-            prepareDispatchCycleLocked(currentTime, connection, eventEntry, &inputTarget);
+            prepareDispatchCycleLocked(currentTime, connection, eventEntry, inputTarget);
         } else {
             if (DEBUG_FOCUS) {
                 ALOGD("Dropping event delivery to target with channel '%s' because it "
@@ -1785,23 +1846,34 @@ Unresponsive:
 void InputDispatcher::addWindowTargetLocked(const sp<InputWindowHandle>& windowHandle,
                                             int32_t targetFlags, BitSet32 pointerIds,
                                             std::vector<InputTarget>& inputTargets) {
-    sp<InputChannel> inputChannel = getInputChannelLocked(windowHandle->getToken());
-    if (inputChannel == nullptr) {
-        ALOGW("Window %s already unregistered input channel", windowHandle->getName().c_str());
-        return;
-    }
+    std::vector<InputTarget>::iterator it =
+            std::find_if(inputTargets.begin(), inputTargets.end(),
+                         [&windowHandle](const InputTarget& inputTarget) {
+                             return inputTarget.inputChannel->getConnectionToken() ==
+                                     windowHandle->getToken();
+                         });
 
     const InputWindowInfo* windowInfo = windowHandle->getInfo();
-    InputTarget target;
-    target.inputChannel = inputChannel;
-    target.flags = targetFlags;
-    target.xOffset = -windowInfo->frameLeft;
-    target.yOffset = -windowInfo->frameTop;
-    target.globalScaleFactor = windowInfo->globalScaleFactor;
-    target.windowXScale = windowInfo->windowXScale;
-    target.windowYScale = windowInfo->windowYScale;
-    target.pointerIds = pointerIds;
-    inputTargets.push_back(target);
+
+    if (it == inputTargets.end()) {
+        InputTarget inputTarget;
+        sp<InputChannel> inputChannel = getInputChannelLocked(windowHandle->getToken());
+        if (inputChannel == nullptr) {
+            ALOGW("Window %s already unregistered input channel", windowHandle->getName().c_str());
+            return;
+        }
+        inputTarget.inputChannel = inputChannel;
+        inputTarget.flags = targetFlags;
+        inputTarget.globalScaleFactor = windowInfo->globalScaleFactor;
+        inputTargets.push_back(inputTarget);
+        it = inputTargets.end() - 1;
+    }
+
+    ALOG_ASSERT(it->flags == targetFlags);
+    ALOG_ASSERT(it->globalScaleFactor == windowInfo->globalScaleFactor);
+
+    it->addPointers(pointerIds, -windowInfo->frameLeft, -windowInfo->frameTop,
+                    windowInfo->windowXScale, windowInfo->windowYScale);
 }
 
 void InputDispatcher::addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets,
@@ -1824,10 +1896,7 @@ void InputDispatcher::addMonitoringTargetLocked(const Monitor& monitor, float xO
     InputTarget target;
     target.inputChannel = monitor.inputChannel;
     target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
-    target.xOffset = xOffset;
-    target.yOffset = yOffset;
-    target.pointerIds.clear();
-    target.globalScaleFactor = 1.0f;
+    target.setDefaultPointerInfo(xOffset, yOffset, 1 /* windowXScale */, 1 /* windowYScale */);
     inputTargets.push_back(target);
 }
 
@@ -2045,7 +2114,7 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
 void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
                                                  const sp<Connection>& connection,
                                                  EventEntry* eventEntry,
-                                                 const InputTarget* inputTarget) {
+                                                 const InputTarget& inputTarget) {
     if (ATRACE_ENABLED()) {
         std::string message =
                 StringPrintf("prepareDispatchCycleLocked(inputChannel=%s, sequenceNum=%" PRIu32 ")",
@@ -2056,9 +2125,9 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
     ALOGD("channel '%s' ~ prepareDispatchCycle - flags=0x%08x, "
           "xOffset=%f, yOffset=%f, globalScaleFactor=%f, "
           "windowScaleFactor=(%f, %f), pointerIds=0x%x",
-          connection->getInputChannelName().c_str(), inputTarget->flags, inputTarget->xOffset,
-          inputTarget->yOffset, inputTarget->globalScaleFactor, inputTarget->windowXScale,
-          inputTarget->windowYScale, inputTarget->pointerIds.value);
+          connection->getInputChannelName().c_str(), inputTarget.flags, inputTarget.xOffset,
+          inputTarget.yOffset, inputTarget.globalScaleFactor, inputTarget.windowXScale,
+          inputTarget.windowYScale, inputTarget.pointerIds.value);
 #endif
 
     // Skip this event if the connection status is not normal.
@@ -2072,13 +2141,13 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
     }
 
     // Split a motion event if needed.
-    if (inputTarget->flags & InputTarget::FLAG_SPLIT) {
+    if (inputTarget.flags & InputTarget::FLAG_SPLIT) {
         ALOG_ASSERT(eventEntry->type == EventEntry::Type::MOTION);
 
         const MotionEntry& originalMotionEntry = static_cast<const MotionEntry&>(*eventEntry);
-        if (inputTarget->pointerIds.count() != originalMotionEntry.pointerCount) {
+        if (inputTarget.pointerIds.count() != originalMotionEntry.pointerCount) {
             MotionEntry* splitMotionEntry =
-                    splitMotionEvent(originalMotionEntry, inputTarget->pointerIds);
+                    splitMotionEvent(originalMotionEntry, inputTarget.pointerIds);
             if (!splitMotionEntry) {
                 return; // split event was dropped
             }
@@ -2100,7 +2169,7 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
 void InputDispatcher::enqueueDispatchEntriesLocked(nsecs_t currentTime,
                                                    const sp<Connection>& connection,
                                                    EventEntry* eventEntry,
-                                                   const InputTarget* inputTarget) {
+                                                   const InputTarget& inputTarget) {
     if (ATRACE_ENABLED()) {
         std::string message =
                 StringPrintf("enqueueDispatchEntriesLocked(inputChannel=%s, sequenceNum=%" PRIu32
@@ -2133,7 +2202,7 @@ void InputDispatcher::enqueueDispatchEntriesLocked(nsecs_t currentTime,
 
 void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connection,
                                                  EventEntry* eventEntry,
-                                                 const InputTarget* inputTarget,
+                                                 const InputTarget& inputTarget,
                                                  int32_t dispatchMode) {
     if (ATRACE_ENABLED()) {
         std::string message = StringPrintf("enqueueDispatchEntry(inputChannel=%s, dispatchMode=%s)",
@@ -2141,7 +2210,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
                                            dispatchModeToString(dispatchMode).c_str());
         ATRACE_NAME(message.c_str());
     }
-    int32_t inputTargetFlags = inputTarget->flags;
+    int32_t inputTargetFlags = inputTarget.flags;
     if (!(inputTargetFlags & dispatchMode)) {
         return;
     }
@@ -2149,11 +2218,8 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
 
     // This is a new event.
     // Enqueue a new dispatch entry onto the outbound queue for this connection.
-    DispatchEntry* dispatchEntry =
-            new DispatchEntry(eventEntry, // increments ref
-                              inputTargetFlags, inputTarget->xOffset, inputTarget->yOffset,
-                              inputTarget->globalScaleFactor, inputTarget->windowXScale,
-                              inputTarget->windowYScale);
+    std::unique_ptr<DispatchEntry> dispatchEntry =
+            createDispatchEntry(inputTarget, eventEntry, inputTargetFlags);
 
     // Apply target flags and update the connection's input state.
     switch (eventEntry->type) {
@@ -2168,7 +2234,6 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
                 ALOGD("channel '%s' ~ enqueueDispatchEntryLocked: skipping inconsistent key event",
                       connection->getInputChannelName().c_str());
 #endif
-                delete dispatchEntry;
                 return; // skip the inconsistent event
             }
             break;
@@ -2215,12 +2280,11 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
                       "event",
                       connection->getInputChannelName().c_str());
 #endif
-                delete dispatchEntry;
                 return; // skip the inconsistent event
             }
 
             dispatchPointerDownOutsideFocus(motionEntry.source, dispatchEntry->resolvedAction,
-                                            inputTarget->inputChannel->getConnectionToken());
+                                            inputTarget.inputChannel->getConnectionToken());
 
             break;
         }
@@ -2238,7 +2302,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
     }
 
     // Enqueue the dispatch entry.
-    connection->outboundQueue.push_back(dispatchEntry);
+    connection->outboundQueue.push_back(dispatchEntry.release());
     traceOutboundQueueLength(connection);
 }
 
@@ -2611,21 +2675,15 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
                     getWindowHandleLocked(connection->inputChannel->getConnectionToken());
             if (windowHandle != nullptr) {
                 const InputWindowInfo* windowInfo = windowHandle->getInfo();
-                target.xOffset = -windowInfo->frameLeft;
-                target.yOffset = -windowInfo->frameTop;
+                target.setDefaultPointerInfo(-windowInfo->frameLeft, -windowInfo->frameTop,
+                                             windowInfo->windowXScale, windowInfo->windowYScale);
                 target.globalScaleFactor = windowInfo->globalScaleFactor;
-                target.windowXScale = windowInfo->windowXScale;
-                target.windowYScale = windowInfo->windowYScale;
-            } else {
-                target.xOffset = 0;
-                target.yOffset = 0;
-                target.globalScaleFactor = 1.0f;
             }
             target.inputChannel = connection->inputChannel;
             target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
 
             enqueueDispatchEntryLocked(connection, cancelationEventEntry, // increments ref
-                                       &target, InputTarget::FLAG_DISPATCH_AS_IS);
+                                       target, InputTarget::FLAG_DISPATCH_AS_IS);
 
             cancelationEventEntry->release();
         }
