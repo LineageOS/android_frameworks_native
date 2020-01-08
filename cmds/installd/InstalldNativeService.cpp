@@ -626,10 +626,8 @@ binder::Status InstalldNativeService::clearAppData(const std::unique_ptr<std::st
                 if (delete_dir_contents(path, true) != 0) {
                     res = error("Failed to delete contents of " + path);
                 }
-                path = StringPrintf("%s/Android/obb/%s", extPath.c_str(), pkgname);
-                if (delete_dir_contents(path, true) != 0) {
-                    res = error("Failed to delete contents of " + path);
-                }
+                // Note that we explicitly don't delete OBBs - those are only removed on
+                // app uninstall.
             }
         }
     }
