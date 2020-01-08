@@ -159,7 +159,6 @@ protected:
     static constexpr nsecs_t mPhase = 3000;
     static constexpr nsecs_t mAnotherPhase = 5200;
     static constexpr nsecs_t period = 10000;
-    static constexpr nsecs_t mAnotherPeriod = 23333;
     static constexpr nsecs_t mFakeCbTime = 2093;
     static constexpr nsecs_t mFakeNow = 2214;
     static constexpr const char mName[] = "callbacky";
@@ -274,10 +273,38 @@ TEST_F(VSyncReactorTest, getPeriod) {
     EXPECT_THAT(mReactor.getPeriod(), Eq(fakePeriod));
 }
 
-TEST_F(VSyncReactorTest, setPeriod) {
-    nsecs_t const fakePeriod = 4098;
-    EXPECT_CALL(*mMockTracker, setPeriod(fakePeriod));
-    mReactor.setPeriod(fakePeriod);
+TEST_F(VSyncReactorTest, setPeriodCalledOnceConfirmedChange) {
+    nsecs_t const newPeriod = 5000;
+    EXPECT_CALL(*mMockTracker, setPeriod(_)).Times(0);
+    mReactor.setPeriod(newPeriod);
+
+    bool periodFlushed = true;
+    EXPECT_TRUE(mReactor.addResyncSample(10000, &periodFlushed));
+    EXPECT_FALSE(periodFlushed);
+
+    EXPECT_TRUE(mReactor.addResyncSample(20000, &periodFlushed));
+    EXPECT_FALSE(periodFlushed);
+
+    Mock::VerifyAndClearExpectations(mMockTracker.get());
+    EXPECT_CALL(*mMockTracker, setPeriod(newPeriod)).Times(1);
+
+    EXPECT_FALSE(mReactor.addResyncSample(25000, &periodFlushed));
+    EXPECT_TRUE(periodFlushed);
+}
+
+TEST_F(VSyncReactorTest, setPeriodCalledFirstTwoEventsNewPeriod) {
+    nsecs_t const newPeriod = 5000;
+    EXPECT_CALL(*mMockTracker, setPeriod(_)).Times(0);
+    mReactor.setPeriod(newPeriod);
+
+    bool periodFlushed = true;
+    EXPECT_TRUE(mReactor.addResyncSample(5000, &periodFlushed));
+    EXPECT_FALSE(periodFlushed);
+    Mock::VerifyAndClearExpectations(mMockTracker.get());
+
+    EXPECT_CALL(*mMockTracker, setPeriod(newPeriod)).Times(1);
+    EXPECT_FALSE(mReactor.addResyncSample(10000, &periodFlushed));
+    EXPECT_TRUE(periodFlushed);
 }
 
 TEST_F(VSyncReactorTest, addResyncSampleTypical) {
@@ -291,12 +318,43 @@ TEST_F(VSyncReactorTest, addResyncSampleTypical) {
 
 TEST_F(VSyncReactorTest, addResyncSamplePeriodChanges) {
     bool periodFlushed = false;
-    nsecs_t const fakeTimestamp = 4398;
-    nsecs_t const newPeriod = 3490;
-    EXPECT_CALL(*mMockTracker, addVsyncTimestamp(fakeTimestamp));
+    nsecs_t const newPeriod = 4000;
+
     mReactor.setPeriod(newPeriod);
-    EXPECT_FALSE(mReactor.addResyncSample(fakeTimestamp, &periodFlushed));
+
+    auto time = 0;
+    auto constexpr numTimestampSubmissions = 10;
+    for (auto i = 0; i < numTimestampSubmissions; i++) {
+        time += period;
+        EXPECT_TRUE(mReactor.addResyncSample(time, &periodFlushed));
+        EXPECT_FALSE(periodFlushed);
+    }
+
+    time += newPeriod;
+    EXPECT_FALSE(mReactor.addResyncSample(time, &periodFlushed));
     EXPECT_TRUE(periodFlushed);
+
+    for (auto i = 0; i < numTimestampSubmissions; i++) {
+        time += newPeriod;
+        EXPECT_FALSE(mReactor.addResyncSample(time, &periodFlushed));
+        EXPECT_FALSE(periodFlushed);
+    }
+}
+
+TEST_F(VSyncReactorTest, addPresentFenceWhileAwaitingPeriodConfirmationRequestsHwVsync) {
+    auto time = 0;
+    bool periodFlushed = false;
+    nsecs_t const newPeriod = 4000;
+    mReactor.setPeriod(newPeriod);
+
+    time += period;
+    mReactor.addResyncSample(time, &periodFlushed);
+    EXPECT_TRUE(mReactor.addPresentFence(generateSignalledFenceWithTime(0)));
+
+    time += newPeriod;
+    mReactor.addResyncSample(time, &periodFlushed);
+
+    EXPECT_FALSE(mReactor.addPresentFence(generateSignalledFenceWithTime(0)));
 }
 
 static nsecs_t computeWorkload(nsecs_t period, nsecs_t phase) {
@@ -399,20 +457,26 @@ TEST_F(VSyncReactorTest, addEventListenerChangePeriod) {
     mReactor.addEventListener(mName, mAnotherPhase, &outerCb, lastCallbackTime);
 }
 
-TEST_F(VSyncReactorTest, changingPeriodChangesOfsetsOnNextCb) {
+TEST_F(VSyncReactorTest, changingPeriodChangesOffsetsOnNextCb) {
+    static constexpr nsecs_t anotherPeriod = 23333;
     Sequence seq;
     EXPECT_CALL(*mMockDispatch, registerCallback(_, std::string(mName)))
             .InSequence(seq)
             .WillOnce(Return(mFakeToken));
     EXPECT_CALL(*mMockDispatch, schedule(mFakeToken, computeWorkload(period, mPhase), mFakeNow))
             .InSequence(seq);
-    EXPECT_CALL(*mMockTracker, setPeriod(mAnotherPeriod));
+    EXPECT_CALL(*mMockTracker, setPeriod(anotherPeriod));
     EXPECT_CALL(*mMockDispatch,
-                schedule(mFakeToken, computeWorkload(mAnotherPeriod, mPhase), mFakeNow))
+                schedule(mFakeToken, computeWorkload(anotherPeriod, mPhase), mFakeNow))
             .InSequence(seq);
 
     mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
-    mReactor.setPeriod(mAnotherPeriod);
+
+    bool periodFlushed = false;
+    mReactor.setPeriod(anotherPeriod);
+    EXPECT_TRUE(mReactor.addResyncSample(anotherPeriod, &periodFlushed));
+    EXPECT_FALSE(mReactor.addResyncSample(anotherPeriod * 2, &periodFlushed));
+
     mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
 }
 

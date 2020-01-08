@@ -33,16 +33,16 @@ cc_library {
     ],
 
     shared_libs: [
+        "android.hardware.graphics.common-ndk_platform",
         "android.hardware.graphics.mapper@4.0",
         "libhidlbase",
         "liblog",
-        "vintf-graphics-common-ndk_platform",
     ],
 
     export_shared_lib_headers: [
+        "android.hardware.graphics.common-ndk_platform",
         "android.hardware.graphics.mapper@4.0",
         "libhidlbase",
-        "vintf-graphics-common-ndk_platform",
     ],
 
     export_include_dirs: [

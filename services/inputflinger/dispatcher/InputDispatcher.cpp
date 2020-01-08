@@ -252,6 +252,10 @@ static bool haveSameToken(const sp<InputWindowHandle>& first, const sp<InputWind
     return first->getToken() == second->getToken();
 }
 
+static bool isStaleEvent(nsecs_t currentTime, const EventEntry& entry) {
+    return currentTime - entry.eventTime >= STALE_EVENT_TIMEOUT;
+}
+
 // --- InputDispatcherThread ---
 
 class InputDispatcher::InputDispatcherThread : public Thread {
@@ -741,10 +745,6 @@ void InputDispatcher::resetPendingAppSwitchLocked(bool handled) {
         ALOGD("App switch was abandoned.");
     }
 #endif
-}
-
-bool InputDispatcher::isStaleEvent(nsecs_t currentTime, const EventEntry& entry) {
-    return currentTime - entry.eventTime >= STALE_EVENT_TIMEOUT;
 }
 
 bool InputDispatcher::haveCommandsLocked() const {
