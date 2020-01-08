@@ -54,11 +54,7 @@ public:
     PhaseOffsets(const scheduler::RefreshRateConfigs&);
 
     // Returns early, early GL, and late offsets for Apps and SF for a given refresh rate.
-    Offsets getOffsetsForRefreshRate(float fps) const override {
-        const auto iter = mOffsets.find(fps);
-        LOG_ALWAYS_FATAL_IF(iter == mOffsets.end());
-        return iter->second;
-    }
+    Offsets getOffsetsForRefreshRate(float fps) const override;
 
     // Returns early, early GL, and late offsets for Apps and SF.
     Offsets getCurrentOffsets() const override { return getOffsetsForRefreshRate(mRefreshRateFps); }
@@ -71,7 +67,7 @@ public:
     void dump(std::string& result) const override;
 
 private:
-    std::unordered_map<float, PhaseOffsets::Offsets> initializeOffsets(
+    std::unordered_map<float, Offsets> initializeOffsets(
             const scheduler::RefreshRateConfigs&) const;
     Offsets getDefaultOffsets(nsecs_t vsyncDuration) const;
     Offsets getHighFpsOffsets(nsecs_t vsyncDuration) const;
@@ -111,8 +107,7 @@ protected:
                    nsecs_t sfEarlyGlDuration, nsecs_t appEarlyGlDuration);
 
 private:
-    std::unordered_map<float, PhaseDurations::Offsets> initializeOffsets(
-            const std::vector<float>&) const;
+    std::unordered_map<float, Offsets> initializeOffsets(const std::vector<float>&) const;
 
     const nsecs_t mSfDuration;
     const nsecs_t mAppDuration;
