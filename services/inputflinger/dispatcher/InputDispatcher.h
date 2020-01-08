@@ -378,13 +378,13 @@ private:
     // with the mutex held makes it easier to ensure that connection invariants are maintained.
     // If needed, the methods post commands to run later once the critical bits are done.
     void prepareDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection,
-                                    EventEntry* eventEntry, const InputTarget& inputTarget)
+                                    EventEntry* eventEntry, const InputTarget* inputTarget)
             REQUIRES(mLock);
     void enqueueDispatchEntriesLocked(nsecs_t currentTime, const sp<Connection>& connection,
-                                      EventEntry* eventEntry, const InputTarget& inputTarget)
+                                      EventEntry* eventEntry, const InputTarget* inputTarget)
             REQUIRES(mLock);
     void enqueueDispatchEntryLocked(const sp<Connection>& connection, EventEntry* eventEntry,
-                                    const InputTarget& inputTarget, int32_t dispatchMode)
+                                    const InputTarget* inputTarget, int32_t dispatchMode)
             REQUIRES(mLock);
     void startDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection)
             REQUIRES(mLock);
