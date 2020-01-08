@@ -160,10 +160,11 @@ void Choreographer::registerRefreshRateCallback(AChoreographer_refreshRateCallba
 void Choreographer::unregisterRefreshRateCallback(AChoreographer_refreshRateCallback cb) {
     {
         AutoMutex _l{mLock};
-        std::remove_if(mRefreshRateCallbacks.begin(), mRefreshRateCallbacks.end(),
-                       [&](const RefreshRateCallback& callback) {
-                           return cb == callback.callback;
-                       });
+        mRefreshRateCallbacks.erase(std::remove_if(mRefreshRateCallbacks.begin(),
+                                                   mRefreshRateCallbacks.end(),
+                                                   [&](const RefreshRateCallback& callback) {
+                                                       return cb == callback.callback;
+                                                   }));
         if (mRefreshRateCallbacks.empty()) {
             toggleConfigEvents(ISurfaceComposer::ConfigChanged::eConfigChangedSuppress);
         }
