@@ -35,6 +35,8 @@ int64_t GetOccupiedSpaceForUid(const std::string& uuid, uid_t uid);
 /* Get the current occupied space in bytes for a gid or -1 if fails */
 int64_t GetOccupiedSpaceForGid(const std::string& uuid, gid_t gid);
 
+/* Get the current occupied space in bytes for a project id or -1 if fails */
+int64_t GetOccupiedSpaceForProjectId(const std::string& uuid, int projectId);
 }  // namespace installd
 }  // namespace android
 
