@@ -145,6 +145,12 @@ void GraphicsEnv::setDriverPathAndSphalLibraries(const std::string path,
 void GraphicsEnv::hintActivityLaunch() {
     ATRACE_CALL();
 
+    {
+        std::lock_guard<std::mutex> lock(mStatsLock);
+        if (mActivityLaunched) return;
+        mActivityLaunched = true;
+    }
+
     std::thread trySendGpuStatsThread([this]() {
         // If there's already graphics driver preloaded in the process, just send
         // the stats info to GpuStats directly through async binder.
@@ -228,12 +234,11 @@ void GraphicsEnv::setDriverLoaded(GpuStatsInfo::Api api, bool isDriverLoaded,
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mStatsLock);
-    const bool doNotSend = mGpuStats.appPackageName.empty();
     if (api == GpuStatsInfo::Api::API_GL) {
-        if (doNotSend) mGpuStats.glDriverToSend = true;
+        mGpuStats.glDriverToSend = true;
         mGpuStats.glDriverLoadingTime = driverLoadingTime;
     } else {
-        if (doNotSend) mGpuStats.vkDriverToSend = true;
+        mGpuStats.vkDriverToSend = true;
         mGpuStats.vkDriverLoadingTime = driverLoadingTime;
     }
 
@@ -250,10 +255,18 @@ static sp<IGpuService> getGpuService() {
     return interface_cast<IGpuService>(binder);
 }
 
+bool GraphicsEnv::readyToSendGpuStatsLocked() {
+    // Only send stats for processes having at least one activity launched and that process doesn't
+    // skip the GraphicsEnvironment setup.
+    return mActivityLaunched && !mGpuStats.appPackageName.empty();
+}
+
 void GraphicsEnv::setTargetStats(const GpuStatsInfo::Stats stats, const uint64_t value) {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mStatsLock);
+    if (!readyToSendGpuStatsLocked()) return;
+
     const sp<IGpuService> gpuService = getGpuService();
     if (gpuService) {
         gpuService->setTargetStats(mGpuStats.appPackageName, mGpuStats.driverVersionCode, stats,
@@ -265,8 +278,7 @@ void GraphicsEnv::sendGpuStatsLocked(GpuStatsInfo::Api api, bool isDriverLoaded,
                                      int64_t driverLoadingTime) {
     ATRACE_CALL();
 
-    // Do not sendGpuStats for those skipping the GraphicsEnvironment setup
-    if (mGpuStats.appPackageName.empty()) return;
+    if (!readyToSendGpuStatsLocked()) return;
 
     ALOGV("sendGpuStats:\n"
           "\tdriverPackageName[%s]\n"
