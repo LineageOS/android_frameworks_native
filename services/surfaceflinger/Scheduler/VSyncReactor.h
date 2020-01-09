@@ -61,6 +61,8 @@ public:
     void reset() final;
 
 private:
+    void startPeriodTransition(nsecs_t newPeriod) REQUIRES(mMutex);
+    void endPeriodTransition() REQUIRES(mMutex);
     bool periodChangeDetected(nsecs_t vsync_timestamp) REQUIRES(mMutex);
 
     std::unique_ptr<Clock> const mClock;

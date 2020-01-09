@@ -175,10 +175,25 @@ nsecs_t VSyncReactor::expectedPresentTime() {
     return mTracker->nextAnticipatedVSyncTimeFrom(mClock->now());
 }
 
+void VSyncReactor::startPeriodTransition(nsecs_t newPeriod) {
+    mPeriodTransitioningTo = newPeriod;
+    mMoreSamplesNeeded = true;
+}
+
+void VSyncReactor::endPeriodTransition() {
+    mPeriodTransitioningTo.reset();
+    mLastHwVsync.reset();
+    mMoreSamplesNeeded = false;
+}
+
 void VSyncReactor::setPeriod(nsecs_t period) {
     std::lock_guard lk(mMutex);
     mLastHwVsync.reset();
-    mPeriodTransitioningTo = period;
+    if (period == getPeriod()) {
+        endPeriodTransition();
+    } else {
+        startPeriodTransition(period);
+    }
 }
 
 nsecs_t VSyncReactor::getPeriod() {
@@ -202,16 +217,13 @@ bool VSyncReactor::addResyncSample(nsecs_t timestamp, bool* periodFlushed) {
 
     std::lock_guard<std::mutex> lk(mMutex);
     if (periodChangeDetected(timestamp)) {
-        mMoreSamplesNeeded = false;
-        *periodFlushed = true;
-
         mTracker->setPeriod(*mPeriodTransitioningTo);
         for (auto& entry : mCallbacks) {
             entry.second->setPeriod(*mPeriodTransitioningTo);
         }
 
-        mPeriodTransitioningTo.reset();
-        mLastHwVsync.reset();
+        endPeriodTransition();
+        *periodFlushed = true;
     } else if (mPeriodTransitioningTo) {
         mLastHwVsync = timestamp;
         mMoreSamplesNeeded = true;
