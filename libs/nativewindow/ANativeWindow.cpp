@@ -138,6 +138,11 @@ int32_t ANativeWindow_setBuffersDataSpace(ANativeWindow* window, int32_t dataSpa
     static_assert(static_cast<int>(ADATASPACE_SCRGB) == static_cast<int>(HAL_DATASPACE_V0_SCRGB));
     static_assert(static_cast<int>(ADATASPACE_DISPLAY_P3) == static_cast<int>(HAL_DATASPACE_DISPLAY_P3));
     static_assert(static_cast<int>(ADATASPACE_BT2020_PQ) == static_cast<int>(HAL_DATASPACE_BT2020_PQ));
+    static_assert(static_cast<int>(ADATASPACE_ADOBE_RGB) == static_cast<int>(HAL_DATASPACE_ADOBE_RGB));
+    static_assert(static_cast<int>(ADATASPACE_BT2020) == static_cast<int>(HAL_DATASPACE_BT2020));
+    static_assert(static_cast<int>(ADATASPACE_BT709) == static_cast<int>(HAL_DATASPACE_V0_BT709));
+    static_assert(static_cast<int>(ADATASPACE_DCI_P3) == static_cast<int>(HAL_DATASPACE_DCI_P3));
+    static_assert(static_cast<int>(ADATASPACE_SRGB_LINEAR) == static_cast<int>(HAL_DATASPACE_V0_SRGB_LINEAR));
 
     if (!window || !query(window, NATIVE_WINDOW_IS_VALID) ||
             !isDataSpaceValid(window, dataSpace)) {
