@@ -85,10 +85,6 @@ public:
         mMaxY = maxY;
     }
 
-    void setDisplayId(int32_t displayId) {
-        mDisplayId = displayId;
-    }
-
     virtual void setPosition(float x, float y) {
         mX = x;
         mY = y;
@@ -109,6 +105,10 @@ public:
 
     virtual int32_t getDisplayId() const {
         return mDisplayId;
+    }
+
+    virtual void setDisplayViewport(const DisplayViewport& viewport) {
+        mDisplayId = viewport.displayId;
     }
 
     const std::map<int32_t, std::vector<int32_t>>& getSpots() {
@@ -253,6 +253,10 @@ public:
 
     void setShowTouches(bool enabled) {
         mConfig.showTouches = enabled;
+    }
+
+    void setDefaultPointerDisplayId(int32_t pointerDisplayId) {
+        mConfig.defaultPointerDisplayId = pointerDisplayId;
     }
 
 private:
@@ -3159,12 +3163,18 @@ TEST_F(CursorInputMapperTest, Process_ShouldHandleDisplayId) {
     CursorInputMapper* mapper = new CursorInputMapper(mDevice);
     addMapperAndConfigure(mapper);
 
-    // Setup PointerController for second display.
+    // Setup for second display.
     constexpr int32_t SECOND_DISPLAY_ID = 1;
+    const std::string SECOND_DISPLAY_UNIQUE_ID = "local:1";
+    mFakePolicy->addDisplayViewport(SECOND_DISPLAY_ID, 800, 480, DISPLAY_ORIENTATION_0,
+                                    SECOND_DISPLAY_UNIQUE_ID, NO_PORT,
+                                    ViewportType::VIEWPORT_EXTERNAL);
+    mFakePolicy->setDefaultPointerDisplayId(SECOND_DISPLAY_ID);
+    configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+
     mFakePointerController->setBounds(0, 0, 800 - 1, 480 - 1);
     mFakePointerController->setPosition(100, 200);
     mFakePointerController->setButtonState(0);
-    mFakePointerController->setDisplayId(SECOND_DISPLAY_ID);
 
     NotifyMotionArgs args;
     process(mapper, ARBITRARY_TIME, EV_REL, REL_X, 10);
@@ -6329,13 +6339,15 @@ TEST_F(MultiTouchInputMapperTest, Viewports_Fallback) {
 }
 
 TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShouldHandleDisplayId) {
-    // Setup PointerController for second display.
+    // Setup for second display.
     sp<FakePointerController> fakePointerController = new FakePointerController();
-    fakePointerController->setBounds(0, 0, 800 - 1, 480 - 1);
+    fakePointerController->setBounds(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1);
     fakePointerController->setPosition(100, 200);
     fakePointerController->setButtonState(0);
-    fakePointerController->setDisplayId(SECONDARY_DISPLAY_ID);
     mFakePolicy->setPointerController(mDevice->getId(), fakePointerController);
+
+    mFakePolicy->setDefaultPointerDisplayId(SECONDARY_DISPLAY_ID);
+    prepareSecondaryDisplay(ViewportType::VIEWPORT_EXTERNAL);
 
     MultiTouchInputMapper* mapper = new MultiTouchInputMapper(mDevice);
     prepareDisplay(DISPLAY_ORIENTATION_0);
