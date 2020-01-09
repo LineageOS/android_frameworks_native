@@ -44,6 +44,9 @@ inline RefreshRateConfigEvent operator|(RefreshRateConfigEvent lhs, RefreshRateC
 class RefreshRateConfigs {
 public:
     struct RefreshRate {
+        // The tolerance within which we consider FPS approximately equals.
+        static constexpr float FPS_EPSILON = 0.001f;
+
         RefreshRate(HwcConfigIndexType configId, nsecs_t vsyncPeriod,
                     HwcConfigGroupType configGroup, std::string name, float fps)
               : configId(configId),
@@ -62,6 +65,12 @@ public:
         const std::string name;
         // Refresh rate in frames per second
         const float fps = 0;
+
+        // Checks whether the fps of this RefreshRate struct is within a given min and max refresh
+        // rate passed in. FPS_EPSILON is applied to the boundaries for approximation.
+        bool inPolicy(float minRefreshRate, float maxRefreshRate) const {
+            return (fps >= (minRefreshRate - FPS_EPSILON) && fps <= (maxRefreshRate + FPS_EPSILON));
+        }
 
         bool operator!=(const RefreshRate& other) const {
             return configId != other.configId || vsyncPeriod != other.vsyncPeriod ||

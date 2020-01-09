@@ -56,6 +56,7 @@ struct RefreshRateCallback {
 
 class Choreographer : public DisplayEventDispatcher, public MessageHandler {
 public:
+    explicit Choreographer(const sp<Looper>& looper);
     void postFrameCallbackDelayed(AChoreographer_frameCallback cb,
                                   AChoreographer_frameCallback64 cb64, void* data, nsecs_t delay);
     void registerRefreshRateCallback(AChoreographer_refreshRateCallback cb, void* data);
@@ -68,12 +69,9 @@ public:
     virtual void handleMessage(const Message& message) override;
 
     static Choreographer* getForThread();
-
-protected:
     virtual ~Choreographer() = default;
 
 private:
-    explicit Choreographer(const sp<Looper>& looper);
     Choreographer(const Choreographer&) = delete;
 
     void dispatchVsync(nsecs_t timestamp, PhysicalDisplayId displayId, uint32_t count) override;
@@ -132,14 +130,22 @@ void Choreographer::postFrameCallbackDelayed(
     }
     if (callback.dueTime <= now) {
         if (std::this_thread::get_id() != mThreadId) {
-            Message m{MSG_SCHEDULE_VSYNC};
-            mLooper->sendMessage(this, m);
+            if (mLooper != nullptr) {
+                Message m{MSG_SCHEDULE_VSYNC};
+                mLooper->sendMessage(this, m);
+            } else {
+                scheduleVsync();
+            }
         } else {
             scheduleVsync();
         }
     } else {
-        Message m{MSG_SCHEDULE_CALLBACKS};
-        mLooper->sendMessageDelayed(delay, this, m);
+        if (mLooper != nullptr) {
+            Message m{MSG_SCHEDULE_CALLBACKS};
+            mLooper->sendMessageDelayed(delay, this, m);
+        } else {
+            scheduleCallbacks();
+        }
     }
 }
 
@@ -154,10 +160,11 @@ void Choreographer::registerRefreshRateCallback(AChoreographer_refreshRateCallba
 void Choreographer::unregisterRefreshRateCallback(AChoreographer_refreshRateCallback cb) {
     {
         AutoMutex _l{mLock};
-        std::remove_if(mRefreshRateCallbacks.begin(), mRefreshRateCallbacks.end(),
-                       [&](const RefreshRateCallback& callback) {
-                           return cb == callback.callback;
-                       });
+        mRefreshRateCallbacks.erase(std::remove_if(mRefreshRateCallbacks.begin(),
+                                                   mRefreshRateCallbacks.end(),
+                                                   [&](const RefreshRateCallback& callback) {
+                                                       return cb == callback.callback;
+                                                   }));
         if (mRefreshRateCallbacks.empty()) {
             toggleConfigEvents(ISurfaceComposer::ConfigChanged::eConfigChangedSuppress);
         }
@@ -238,7 +245,7 @@ void Choreographer::handleMessage(const Message& message) {
 
 /* Glue for the NDK interface */
 
-using android::Choreographer;
+using namespace android;
 
 static inline Choreographer* AChoreographer_to_Choreographer(AChoreographer* choreographer) {
     return reinterpret_cast<Choreographer*>(choreographer);
@@ -280,4 +287,33 @@ void AChoreographer_registerRefreshRateCallback(AChoreographer* choreographer,
 void AChoreographer_unregisterRefreshRateCallback(AChoreographer* choreographer,
                                                   AChoreographer_refreshRateCallback callback) {
     AChoreographer_to_Choreographer(choreographer)->unregisterRefreshRateCallback(callback);
+}
+
+AChoreographer* AChoreographer_create() {
+    Choreographer* choreographer = new Choreographer(nullptr);
+    status_t result = choreographer->initialize();
+    if (result != OK) {
+        ALOGW("Failed to initialize");
+        return nullptr;
+    }
+    return Choreographer_to_AChoreographer(choreographer);
+}
+
+void AChoreographer_destroy(AChoreographer* choreographer) {
+    if (choreographer == nullptr) {
+        return;
+    }
+
+    delete AChoreographer_to_Choreographer(choreographer);
+}
+
+int AChoreographer_getFd(AChoreographer* choreographer) {
+    return AChoreographer_to_Choreographer(choreographer)->getFd();
+}
+
+void AChoreographer_handlePendingEvents(AChoreographer* choreographer, void* data) {
+    // Pass dummy fd and events args to handleEvent, since the underlying
+    // DisplayEventDispatcher doesn't need them outside of validating that a
+    // Looper instance didn't break, but these args circumvent those checks.
+    AChoreographer_to_Choreographer(choreographer)->handleEvent(-1, Looper::EVENT_INPUT, data);
 }
