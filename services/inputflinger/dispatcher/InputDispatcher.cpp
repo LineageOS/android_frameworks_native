@@ -1111,7 +1111,7 @@ void InputDispatcher::dispatchEventLocked(nsecs_t currentTime, EventEntry* event
         sp<Connection> connection =
                 getConnectionLocked(inputTarget.inputChannel->getConnectionToken());
         if (connection != nullptr) {
-            prepareDispatchCycleLocked(currentTime, connection, eventEntry, &inputTarget);
+            prepareDispatchCycleLocked(currentTime, connection, eventEntry, inputTarget);
         } else {
             if (DEBUG_FOCUS) {
                 ALOGD("Dropping event delivery to target with channel '%s' because it "
@@ -2045,7 +2045,7 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
 void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
                                                  const sp<Connection>& connection,
                                                  EventEntry* eventEntry,
-                                                 const InputTarget* inputTarget) {
+                                                 const InputTarget& inputTarget) {
     if (ATRACE_ENABLED()) {
         std::string message =
                 StringPrintf("prepareDispatchCycleLocked(inputChannel=%s, sequenceNum=%" PRIu32 ")",
@@ -2056,9 +2056,9 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
     ALOGD("channel '%s' ~ prepareDispatchCycle - flags=0x%08x, "
           "xOffset=%f, yOffset=%f, globalScaleFactor=%f, "
           "windowScaleFactor=(%f, %f), pointerIds=0x%x",
-          connection->getInputChannelName().c_str(), inputTarget->flags, inputTarget->xOffset,
-          inputTarget->yOffset, inputTarget->globalScaleFactor, inputTarget->windowXScale,
-          inputTarget->windowYScale, inputTarget->pointerIds.value);
+          connection->getInputChannelName().c_str(), inputTarget.flags, inputTarget.xOffset,
+          inputTarget.yOffset, inputTarget.globalScaleFactor, inputTarget.windowXScale,
+          inputTarget.windowYScale, inputTarget.pointerIds.value);
 #endif
 
     // Skip this event if the connection status is not normal.
@@ -2072,13 +2072,15 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
     }
 
     // Split a motion event if needed.
-    if (inputTarget->flags & InputTarget::FLAG_SPLIT) {
-        ALOG_ASSERT(eventEntry->type == EventEntry::Type::MOTION);
+    if (inputTarget.flags & InputTarget::FLAG_SPLIT) {
+        LOG_ALWAYS_FATAL_IF(eventEntry->type != EventEntry::Type::MOTION,
+                            "Entry type %s should not have FLAG_SPLIT",
+                            EventEntry::typeToString(eventEntry->type));
 
         const MotionEntry& originalMotionEntry = static_cast<const MotionEntry&>(*eventEntry);
-        if (inputTarget->pointerIds.count() != originalMotionEntry.pointerCount) {
+        if (inputTarget.pointerIds.count() != originalMotionEntry.pointerCount) {
             MotionEntry* splitMotionEntry =
-                    splitMotionEvent(originalMotionEntry, inputTarget->pointerIds);
+                    splitMotionEvent(originalMotionEntry, inputTarget.pointerIds);
             if (!splitMotionEntry) {
                 return; // split event was dropped
             }
@@ -2100,7 +2102,7 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
 void InputDispatcher::enqueueDispatchEntriesLocked(nsecs_t currentTime,
                                                    const sp<Connection>& connection,
                                                    EventEntry* eventEntry,
-                                                   const InputTarget* inputTarget) {
+                                                   const InputTarget& inputTarget) {
     if (ATRACE_ENABLED()) {
         std::string message =
                 StringPrintf("enqueueDispatchEntriesLocked(inputChannel=%s, sequenceNum=%" PRIu32
@@ -2133,7 +2135,7 @@ void InputDispatcher::enqueueDispatchEntriesLocked(nsecs_t currentTime,
 
 void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connection,
                                                  EventEntry* eventEntry,
-                                                 const InputTarget* inputTarget,
+                                                 const InputTarget& inputTarget,
                                                  int32_t dispatchMode) {
     if (ATRACE_ENABLED()) {
         std::string message = StringPrintf("enqueueDispatchEntry(inputChannel=%s, dispatchMode=%s)",
@@ -2141,7 +2143,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
                                            dispatchModeToString(dispatchMode).c_str());
         ATRACE_NAME(message.c_str());
     }
-    int32_t inputTargetFlags = inputTarget->flags;
+    int32_t inputTargetFlags = inputTarget.flags;
     if (!(inputTargetFlags & dispatchMode)) {
         return;
     }
@@ -2149,11 +2151,11 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
 
     // This is a new event.
     // Enqueue a new dispatch entry onto the outbound queue for this connection.
-    DispatchEntry* dispatchEntry =
-            new DispatchEntry(eventEntry, // increments ref
-                              inputTargetFlags, inputTarget->xOffset, inputTarget->yOffset,
-                              inputTarget->globalScaleFactor, inputTarget->windowXScale,
-                              inputTarget->windowYScale);
+    std::unique_ptr<DispatchEntry> dispatchEntry =
+            std::make_unique<DispatchEntry>(eventEntry, // increments ref
+                                            inputTargetFlags, inputTarget.xOffset,
+                                            inputTarget.yOffset, inputTarget.globalScaleFactor,
+                                            inputTarget.windowXScale, inputTarget.windowYScale);
 
     // Apply target flags and update the connection's input state.
     switch (eventEntry->type) {
@@ -2168,7 +2170,6 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
                 ALOGD("channel '%s' ~ enqueueDispatchEntryLocked: skipping inconsistent key event",
                       connection->getInputChannelName().c_str());
 #endif
-                delete dispatchEntry;
                 return; // skip the inconsistent event
             }
             break;
@@ -2215,12 +2216,11 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
                       "event",
                       connection->getInputChannelName().c_str());
 #endif
-                delete dispatchEntry;
                 return; // skip the inconsistent event
             }
 
             dispatchPointerDownOutsideFocus(motionEntry.source, dispatchEntry->resolvedAction,
-                                            inputTarget->inputChannel->getConnectionToken());
+                                            inputTarget.inputChannel->getConnectionToken());
 
             break;
         }
@@ -2238,7 +2238,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
     }
 
     // Enqueue the dispatch entry.
-    connection->outboundQueue.push_back(dispatchEntry);
+    connection->outboundQueue.push_back(dispatchEntry.release());
     traceOutboundQueueLength(connection);
 }
 
@@ -2625,7 +2625,7 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
             target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
 
             enqueueDispatchEntryLocked(connection, cancelationEventEntry, // increments ref
-                                       &target, InputTarget::FLAG_DISPATCH_AS_IS);
+                                       target, InputTarget::FLAG_DISPATCH_AS_IS);
 
             cancelationEventEntry->release();
         }

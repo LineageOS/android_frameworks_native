@@ -108,7 +108,7 @@ struct InputTarget {
 
     // The subset of pointer ids to include in motion events dispatched to this input target
     // if FLAG_SPLIT is set.
-    BitSet32 pointerIds{};
+    BitSet32 pointerIds;
 };
 
 std::string dispatchModeToString(int32_t dispatchMode);
