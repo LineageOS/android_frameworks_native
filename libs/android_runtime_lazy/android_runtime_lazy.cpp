@@ -15,6 +15,7 @@
  */
 #define LOG_TAG "ANDROID_RUNTIME_LAZY"
 #include "android_runtime/AndroidRuntime.h"
+#include "android_os_Parcel.h"
 #include "android_util_Binder.h"
 
 #include <dlfcn.h>
@@ -28,12 +29,18 @@ namespace {
 std::once_flag loadFlag;
 
 typedef JNIEnv* (*getJNIEnv_t)();
+
+// android_util_Binder.h
 typedef sp<IBinder> (*ibinderForJavaObject_t)(JNIEnv* env, jobject obj);
 typedef jobject (*javaObjectForIBinder_t)(JNIEnv* env, const sp<IBinder>& val);
+
+// android_os_Parcel.h
+typedef Parcel* (*parcelForJavaObject_t)(JNIEnv* env, jobject obj);
 
 getJNIEnv_t _getJNIEnv;
 ibinderForJavaObject_t _ibinderForJavaObject;
 javaObjectForIBinder_t _javaObjectForIBinder;
+parcelForJavaObject_t _parcelForJavaObject;
 
 void load() {
     std::call_once(loadFlag, []() {
@@ -62,6 +69,13 @@ void load() {
                       "_ZN7android20javaObjectForIBinderEP7_JNIEnvRKNS_2spINS_7IBinderEEE"));
         if (_javaObjectForIBinder == nullptr) {
             ALOGW("Could not find javaObjectForIBinder.");
+            // no return
+        }
+
+        _parcelForJavaObject = reinterpret_cast<parcelForJavaObject_t>(
+            dlsym(handle, "_ZN7android19parcelForJavaObjectEP7_JNIEnvP8_jobject"));
+        if (_parcelForJavaObject == nullptr) {
+            ALOGW("Could not find parcelForJavaObject.");
             // no return
         }
     });
@@ -93,6 +107,14 @@ jobject javaObjectForIBinder(JNIEnv* env, const sp<IBinder>& val) {
         return nullptr;
     }
     return _javaObjectForIBinder(env, val);
+}
+
+Parcel* parcelForJavaObject(JNIEnv* env, jobject obj) {
+    load();
+    if (_parcelForJavaObject == nullptr) {
+        return nullptr;
+    }
+    return _parcelForJavaObject(env, obj);
 }
 
 } // namespace android
