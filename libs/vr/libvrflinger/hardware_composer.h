@@ -381,6 +381,7 @@ class HardwareComposer {
     hardware::Return<void> onVsyncPeriodTimingChanged(
         Hwc2::Display display,
         const Hwc2::VsyncPeriodChangeTimeline& updatedTimeline) override;
+    hardware::Return<void> onSeamlessPossible(Hwc2::Display display) override;
 
     bool GotFirstHotplug() { return got_first_hotplug_; }
     void SetVsyncService(const sp<VsyncService>& vsync_service);

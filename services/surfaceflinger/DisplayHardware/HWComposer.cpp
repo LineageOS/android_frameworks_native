@@ -125,6 +125,11 @@ public:
         return android::hardware::Void();
     }
 
+    android::hardware::Return<void> onSeamlessPossible(android::Hwc2::Display display) override {
+        mCallback->onSeamlessPossible(mSequenceId, display);
+        return android::hardware::Void();
+    }
+
 private:
     HWC2::ComposerCallback* mCallback;
     const int32_t mSequenceId;

@@ -76,6 +76,7 @@ class ComposerCallback {
     virtual void onVsyncPeriodTimingChangedReceived(
             int32_t sequenceId, hwc2_display_t display,
             const hwc_vsync_period_change_timeline_t& updatedTimeline) = 0;
+    virtual void onSeamlessPossible(int32_t sequenceId, hwc2_display_t display) = 0;
 
     virtual ~ComposerCallback() = default;
 };
