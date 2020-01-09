@@ -17,6 +17,7 @@
 #ifndef _INPUTFLINGER_POINTER_CONTROLLER_INTERFACE_H
 #define _INPUTFLINGER_POINTER_CONTROLLER_INTERFACE_H
 
+#include <input/DisplayViewport.h>
 #include <input/Input.h>
 #include <utils/BitSet.h>
 #include <utils/RefBase.h>
@@ -101,6 +102,9 @@ public:
 
     /* Gets the id of the display where the pointer should be shown. */
     virtual int32_t getDisplayId() const = 0;
+
+    /* Sets the associated display of this pointer. Pointer should show on that display. */
+    virtual void setDisplayViewport(const DisplayViewport& displayViewport) = 0;
 };
 
 } // namespace android

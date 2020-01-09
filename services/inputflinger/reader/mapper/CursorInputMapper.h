@@ -117,6 +117,7 @@ private:
     void dumpParameters(std::string& dump);
 
     void sync(nsecs_t when);
+    void updatePointerControllerDisplayViewport(const InputReaderConfiguration& config);
 };
 
 } // namespace android
