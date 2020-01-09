@@ -225,9 +225,11 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
                                               .surfaceControls[surfaceStats.surfaceControl],
                                       surfaceStats.acquireTime, surfaceStats.previousReleaseFence,
                                       surfaceStats.transformHint);
-                callbacksMap[callbackId]
-                        .surfaceControls[surfaceStats.surfaceControl]
-                        ->setTransformHint(surfaceStats.transformHint);
+                if (callbacksMap[callbackId].surfaceControls[surfaceStats.surfaceControl]) {
+                    callbacksMap[callbackId]
+                            .surfaceControls[surfaceStats.surfaceControl]
+                            ->setTransformHint(surfaceStats.transformHint);
+                }
             }
 
             callbackFunction(transactionStats.latchTime, transactionStats.presentFence,
