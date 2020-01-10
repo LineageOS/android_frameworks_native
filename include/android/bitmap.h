@@ -100,6 +100,19 @@ typedef struct {
 int AndroidBitmap_getInfo(JNIEnv* env, jobject jbitmap,
                           AndroidBitmapInfo* info);
 
+#if __ANDROID_API__ >= 30
+
+/**
+ * Given a java bitmap object, return its ADataSpace.
+ *
+ * Note that ADataSpace only exposes a few values. This may return
+ * ADATASPACE_UNKNOWN, even for Named ColorSpaces, if they have no
+ * corresponding ADataSpace.
+ */
+int32_t AndroidBitmap_getDataSpace(JNIEnv* env, jobject jbitmap)  __INTRODUCED_IN(30);
+
+#endif // __ANDROID_API__ >= 30
+
 /**
  * Given a java bitmap object, attempt to lock the pixel address.
  * Locking will ensure that the memory for the pixels will not move
