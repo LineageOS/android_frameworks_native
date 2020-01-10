@@ -22,25 +22,6 @@
 __BEGIN_DECLS
 
 /**
- * Prototype of the function that is called when the display refresh rate
- * changes. It's passed the new vsync period in nanoseconds, as well as the data
- * pointer provided by the application that registered a callback.
- */
-typedef void (*AChoreographer_refreshRateCallback)(int64_t vsyncPeriodNanos, void* data);
-
-/**
- * Registers a callback to be run when the display refresh rate changes.
- */
-void AChoreographer_registerRefreshRateCallback(AChoreographer* choreographer,
-                                                AChoreographer_refreshRateCallback, void* data);
-
-/**
- * Unregisters a callback to be run when the display refresh rate changes.
- */
-void AChoreographer_unregisterRefreshRateCallback(AChoreographer* choreographer,
-                                                  AChoreographer_refreshRateCallback);
-
-/**
  * Creates an instance of AChoreographer.
  *
  * The key differences between this method and AChoreographer_getInstance are:
