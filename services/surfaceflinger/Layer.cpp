@@ -848,7 +848,7 @@ uint32_t Layer::doTransaction(uint32_t flags) {
         // inevitably waiting on a buffer to return. We recreate this semantic for BufferQueue
         // even though it is a little consistent. detachChildren is shortly slated for removal
         // by the hierarchy mirroring work so we don't need to worry about it too much.
-        mDrawingState.callbackHandles = mCurrentState.callbackHandles;
+        forceSendCallbacks();
         mCurrentState.callbackHandles = {};
         return flags;
     }

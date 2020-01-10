@@ -77,6 +77,7 @@ public:
     bool setApi(int32_t api) override;
     bool setSidebandStream(const sp<NativeHandle>& sidebandStream) override;
     bool setTransactionCompletedListeners(const std::vector<sp<CallbackHandle>>& handles) override;
+    void forceSendCallbacks() override;
 
     // Override to ignore legacy layer state properties that are not used by BufferStateLayer
     bool setSize(uint32_t /*w*/, uint32_t /*h*/) override { return false; }

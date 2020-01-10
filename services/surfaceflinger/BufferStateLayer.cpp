@@ -344,6 +344,11 @@ bool BufferStateLayer::setTransactionCompletedListeners(
     return willPresent;
 }
 
+void BufferStateLayer::forceSendCallbacks() {
+    mFlinger->getTransactionCompletedThread().finalizePendingCallbackHandles(
+            mCurrentState.callbackHandles);
+}
+
 bool BufferStateLayer::setTransparentRegionHint(const Region& transparent) {
     mCurrentState.transparentRegionHint = transparent;
     mCurrentState.modified = true;
