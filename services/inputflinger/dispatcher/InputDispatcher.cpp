@@ -2691,59 +2691,59 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
     std::vector<EventEntry*> cancelationEvents =
             connection->inputState.synthesizeCancelationEvents(currentTime, options);
 
-    if (!cancelationEvents.empty()) {
+    if (cancelationEvents.empty()) {
+        return;
+    }
 #if DEBUG_OUTBOUND_EVENT_DETAILS
-        ALOGD("channel '%s' ~ Synthesized %zu cancelation events to bring channel back in sync "
-              "with reality: %s, mode=%d.",
-              connection->getInputChannelName().c_str(), cancelationEvents.size(), options.reason,
-              options.mode);
+    ALOGD("channel '%s' ~ Synthesized %zu cancelation events to bring channel back in sync "
+          "with reality: %s, mode=%d.",
+          connection->getInputChannelName().c_str(), cancelationEvents.size(), options.reason,
+          options.mode);
 #endif
-        for (size_t i = 0; i < cancelationEvents.size(); i++) {
-            EventEntry* cancelationEventEntry = cancelationEvents[i];
-            switch (cancelationEventEntry->type) {
-                case EventEntry::Type::KEY: {
-                    logOutboundKeyDetails("cancel - ",
-                                          static_cast<const KeyEntry&>(*cancelationEventEntry));
-                    break;
-                }
-                case EventEntry::Type::MOTION: {
-                    logOutboundMotionDetails("cancel - ",
-                                             static_cast<const MotionEntry&>(
-                                                     *cancelationEventEntry));
-                    break;
-                }
-                case EventEntry::Type::FOCUS: {
-                    LOG_ALWAYS_FATAL("Canceling focus events is not supported");
-                    break;
-                }
-                case EventEntry::Type::CONFIGURATION_CHANGED:
-                case EventEntry::Type::DEVICE_RESET: {
-                    LOG_ALWAYS_FATAL("%s event should not be found inside Connections's queue",
-                                     EventEntry::typeToString(cancelationEventEntry->type));
-                    break;
-                }
+    for (size_t i = 0; i < cancelationEvents.size(); i++) {
+        EventEntry* cancelationEventEntry = cancelationEvents[i];
+        switch (cancelationEventEntry->type) {
+            case EventEntry::Type::KEY: {
+                logOutboundKeyDetails("cancel - ",
+                                      static_cast<const KeyEntry&>(*cancelationEventEntry));
+                break;
             }
-
-            InputTarget target;
-            sp<InputWindowHandle> windowHandle =
-                    getWindowHandleLocked(connection->inputChannel->getConnectionToken());
-            if (windowHandle != nullptr) {
-                const InputWindowInfo* windowInfo = windowHandle->getInfo();
-                target.setDefaultPointerInfo(-windowInfo->frameLeft, -windowInfo->frameTop,
-                                             windowInfo->windowXScale, windowInfo->windowYScale);
-                target.globalScaleFactor = windowInfo->globalScaleFactor;
+            case EventEntry::Type::MOTION: {
+                logOutboundMotionDetails("cancel - ",
+                                         static_cast<const MotionEntry&>(*cancelationEventEntry));
+                break;
             }
-            target.inputChannel = connection->inputChannel;
-            target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
-
-            enqueueDispatchEntryLocked(connection, cancelationEventEntry, // increments ref
-                                       target, InputTarget::FLAG_DISPATCH_AS_IS);
-
-            cancelationEventEntry->release();
+            case EventEntry::Type::FOCUS: {
+                LOG_ALWAYS_FATAL("Canceling focus events is not supported");
+                break;
+            }
+            case EventEntry::Type::CONFIGURATION_CHANGED:
+            case EventEntry::Type::DEVICE_RESET: {
+                LOG_ALWAYS_FATAL("%s event should not be found inside Connections's queue",
+                                 EventEntry::typeToString(cancelationEventEntry->type));
+                break;
+            }
         }
 
-        startDispatchCycleLocked(currentTime, connection);
+        InputTarget target;
+        sp<InputWindowHandle> windowHandle =
+                getWindowHandleLocked(connection->inputChannel->getConnectionToken());
+        if (windowHandle != nullptr) {
+            const InputWindowInfo* windowInfo = windowHandle->getInfo();
+            target.setDefaultPointerInfo(-windowInfo->frameLeft, -windowInfo->frameTop,
+                                         windowInfo->windowXScale, windowInfo->windowYScale);
+            target.globalScaleFactor = windowInfo->globalScaleFactor;
+        }
+        target.inputChannel = connection->inputChannel;
+        target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
+
+        enqueueDispatchEntryLocked(connection, cancelationEventEntry, // increments ref
+                                   target, InputTarget::FLAG_DISPATCH_AS_IS);
+
+        cancelationEventEntry->release();
     }
+
+    startDispatchCycleLocked(currentTime, connection);
 }
 
 MotionEntry* InputDispatcher::splitMotionEvent(const MotionEntry& originalMotionEntry,
