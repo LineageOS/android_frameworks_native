@@ -31,6 +31,11 @@ std::optional<nsecs_t> getProperty(const char* name) {
     return std::nullopt;
 }
 
+bool fpsEqualsWithMargin(float fpsA, float fpsB) {
+    static constexpr float MARGIN = 0.01f;
+    return std::abs(fpsA - fpsB) <= MARGIN;
+}
+
 } // namespace
 
 namespace android::scheduler {
@@ -61,16 +66,15 @@ void PhaseOffsets::dump(std::string& result) const {
                   mThresholdForNextVsync);
 }
 
-std::unordered_map<float, PhaseDurations::Offsets> PhaseOffsets::initializeOffsets(
+std::unordered_map<float, PhaseOffsets::Offsets> PhaseOffsets::initializeOffsets(
         const scheduler::RefreshRateConfigs& refreshRateConfigs) const {
-    std::unordered_map<float, PhaseDurations::Offsets> offsets;
+    std::unordered_map<float, Offsets> offsets;
 
     for (const auto& [ignored, refreshRate] : refreshRateConfigs.getAllRefreshRates()) {
-        const nsecs_t vsyncDuration = static_cast<nsecs_t>(1e9f / refreshRate.fps);
         if (refreshRate.fps > 65.0f) {
-            offsets.emplace(refreshRate.fps, getHighFpsOffsets(vsyncDuration));
+            offsets.emplace(refreshRate.fps, getHighFpsOffsets(refreshRate.vsyncPeriod));
         } else {
-            offsets.emplace(refreshRate.fps, getDefaultOffsets(vsyncDuration));
+            offsets.emplace(refreshRate.fps, getDefaultOffsets(refreshRate.vsyncPeriod));
         }
     }
     return offsets;
@@ -150,6 +154,15 @@ PhaseOffsets::Offsets PhaseOffsets::getHighFpsOffsets(nsecs_t vsyncDuration) con
     };
 }
 
+PhaseOffsets::Offsets PhaseOffsets::getOffsetsForRefreshRate(float fps) const {
+    const auto iter = std::find_if(mOffsets.begin(), mOffsets.end(),
+                                   [&fps](const std::pair<float, Offsets>& candidateFps) {
+                                       return fpsEqualsWithMargin(fps, candidateFps.first);
+                                   });
+    LOG_ALWAYS_FATAL_IF(iter == mOffsets.end());
+    return iter->second;
+}
+
 static void validateSysprops() {
     const auto validatePropertyBool = [](const char* prop) {
         LOG_ALWAYS_FATAL_IF(!property_get_bool(prop, false), "%s is false", prop);
@@ -207,7 +220,7 @@ static std::vector<float> getRefreshRatesFromConfigs(
 
 std::unordered_map<float, PhaseDurations::Offsets> PhaseDurations::initializeOffsets(
         const std::vector<float>& refreshRates) const {
-    std::unordered_map<float, PhaseDurations::Offsets> offsets;
+    std::unordered_map<float, Offsets> offsets;
 
     for (const auto fps : refreshRates) {
         const nsecs_t vsyncDuration = static_cast<nsecs_t>(1e9f / fps);
@@ -275,7 +288,9 @@ PhaseDurations::PhaseDurations(const std::vector<float>& refreshRates, float cur
         mRefreshRateFps(currentFps) {}
 
 PhaseOffsets::Offsets PhaseDurations::getOffsetsForRefreshRate(float fps) const {
-    const auto iter = mOffsets.find(fps);
+    const auto iter = std::find_if(mOffsets.begin(), mOffsets.end(), [=](const auto& candidateFps) {
+        return fpsEqualsWithMargin(fps, candidateFps.first);
+    });
     LOG_ALWAYS_FATAL_IF(iter == mOffsets.end());
     return iter->second;
 }
