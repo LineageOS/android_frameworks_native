@@ -618,6 +618,8 @@ void TimeStats::clear() {
     mTimeStats.clientCompositionFrames = 0;
     mTimeStats.displayOnTime = 0;
     mTimeStats.presentToPresent.hist.clear();
+    mTimeStats.frameDuration.hist.clear();
+    mTimeStats.renderEngineTiming.hist.clear();
     mTimeStats.refreshRateStats.clear();
     mPowerTime.prevTime = systemTime();
     mGlobalRecord.prevPresentTime = 0;

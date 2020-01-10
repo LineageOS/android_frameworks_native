@@ -562,6 +562,16 @@ TEST_F(TimeStatsTest, canClearTimeStats) {
     ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementMissedFrames());
     ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementClientCompositionFrames());
     ASSERT_NO_FATAL_FAILURE(mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL));
+
+    using namespace std::chrono_literals;
+    mTimeStats
+            ->recordFrameDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(3ms).count(),
+                                  std::chrono::duration_cast<std::chrono::nanoseconds>(6ms)
+                                          .count());
+    mTimeStats->recordRenderEngineDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(4ms)
+                                                   .count(),
+                                           std::chrono::duration_cast<std::chrono::nanoseconds>(6ms)
+                                                   .count());
     ASSERT_NO_FATAL_FAILURE(
             mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(1000000)));
     ASSERT_NO_FATAL_FAILURE(
@@ -578,6 +588,8 @@ TEST_F(TimeStatsTest, canClearTimeStats) {
     EXPECT_EQ(0, globalProto.missed_frames());
     EXPECT_EQ(0, globalProto.client_composition_frames());
     EXPECT_EQ(0, globalProto.present_to_present_size());
+    EXPECT_EQ(0, globalProto.frame_duration_size());
+    EXPECT_EQ(0, globalProto.render_engine_timing_size());
     EXPECT_EQ(0, globalProto.stats_size());
 }
 
