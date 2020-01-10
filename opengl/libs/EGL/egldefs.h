@@ -17,10 +17,11 @@
 #ifndef ANDROID_EGLDEFS_H
 #define ANDROID_EGLDEFS_H
 
+#include <cutils/properties.h>
+#include <log/log.h>
+
 #include "../hooks.h"
 #include "egl_platform_entries.h"
-
-#include <log/log.h>
 
 #define VERSION_MAJOR 1
 #define VERSION_MINOR 4
@@ -42,6 +43,15 @@ struct egl_connection_t {
     enum {
         GLESv1_INDEX = 0,
         GLESv2_INDEX = 1
+    };
+
+    enum {
+        GLES_NO_DRIVER = 0, // no driver is loaded
+        GLES_SYSTEM_COMBO_DRIVER = 1, // GLES combo driver in system folder is loaded
+        GLES_SYSTEM_STANDALONE_DRIVER = 2, // standalone system drivers are loaded
+        GLES_ANGLE_STANDALONE_DRIVER = 3, // ANGLE (always standalone) drivers are loaded.
+        GLES_UPDATED_COMBO_DRIVER = 4, // GLES combo driver in updated driver folder is loaded
+        GLES_UPDATED_STANDALONE_DRIVER = 5, // standalone drivers in updated driver folder are loaded
     };
 
     inline egl_connection_t() : dso(nullptr),
@@ -83,9 +93,12 @@ struct egl_connection_t {
     bool                systemDriverUnloaded;
     bool                shouldUseAngle; // Should we attempt to load ANGLE
     bool                angleDecided;   // Have we tried to load ANGLE
-    bool                useAngle;       // Was ANGLE successfully loaded
     EGLint              angleBackend;
+    int                 loadedDriverType;
     void*               vendorEGL;
+    bool                systemDriverUseExactName;
+    bool                systemDriverUseProperty;
+    char                systemDriverProperty[PROPERTY_VALUE_MAX + 1];
 };
 // clang-format on
 

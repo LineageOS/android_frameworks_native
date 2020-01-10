@@ -202,12 +202,29 @@ static EGLBoolean egl_init_drivers_locked() {
     return cnx->dso ? EGL_TRUE : EGL_FALSE;
 }
 
+static EGLBoolean egl_init_glesv1_drivers_locked() {
+    // get our driver loader
+    Loader& loader(Loader::getInstance());
+
+    // dynamically load our GLESV1 implementation
+    egl_connection_t* cnx = &gEGLImpl;
+    return loader.load_glesv1_driver(cnx);
+}
+
 static pthread_mutex_t sInitDriverMutex = PTHREAD_MUTEX_INITIALIZER;
 
 EGLBoolean egl_init_drivers() {
     EGLBoolean res;
     pthread_mutex_lock(&sInitDriverMutex);
     res = egl_init_drivers_locked();
+    pthread_mutex_unlock(&sInitDriverMutex);
+    return res;
+}
+
+EGLBoolean egl_init_glesv1_drivers() {
+    EGLBoolean res;
+    pthread_mutex_lock(&sInitDriverMutex);
+    res = egl_init_glesv1_drivers_locked();
     pthread_mutex_unlock(&sInitDriverMutex);
     return res;
 }
