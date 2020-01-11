@@ -310,8 +310,8 @@ void TransactionCompletedThread::threadMain() {
                     // we get pointers that compare unequal in the SF process.
                     interface_cast<ITransactionCompletedListener>(listenerStats.listener)
                             ->onTransactionCompleted(listenerStats);
-                    listener->unlinkToDeath(mDeathRecipient);
                     if (transactionStatsDeque.empty()) {
+                        listener->unlinkToDeath(mDeathRecipient);
                         completedTransactionsItr =
                                 mCompletedTransactions.erase(completedTransactionsItr);
                     } else {
