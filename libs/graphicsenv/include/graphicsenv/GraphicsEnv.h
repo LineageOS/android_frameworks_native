@@ -58,6 +58,7 @@ public:
     void setDriverPathAndSphalLibraries(const std::string path, const std::string sphalLibraries);
     // Get the updatable driver namespace.
     android_namespace_t* getDriverNamespace();
+    std::string getDriverPath() const;
 
     /*
      * Apis for GpuStats

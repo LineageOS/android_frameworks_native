@@ -73,7 +73,7 @@ bool VrComposerClient::VrCommandEngine::executeSetLayerInfo(uint16_t length) {
 
   auto err = mVrHal.setLayerInfo(mCurrentDisplay, mCurrentLayer, read(), read());
   if (err != Error::NONE) {
-    mWriter.setError(getCommandLoc(), err);
+    mWriter->setError(getCommandLoc(), err);
   }
 
   return true;
@@ -86,7 +86,7 @@ bool VrComposerClient::VrCommandEngine::executeSetClientTargetMetadata(
 
   auto err = mVrHal.setClientTargetMetadata(mCurrentDisplay, readBufferMetadata());
   if (err != Error::NONE)
-    mWriter.setError(getCommandLoc(), err);
+    mWriter->setError(getCommandLoc(), err);
 
   return true;
 }
@@ -99,7 +99,7 @@ bool VrComposerClient::VrCommandEngine::executeSetLayerBufferMetadata(
   auto err = mVrHal.setLayerBufferMetadata(mCurrentDisplay, mCurrentLayer,
                                            readBufferMetadata());
   if (err != Error::NONE)
-    mWriter.setError(getCommandLoc(), err);
+    mWriter->setError(getCommandLoc(), err);
 
   return true;
 }

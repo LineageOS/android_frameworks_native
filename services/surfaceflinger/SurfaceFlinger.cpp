@@ -1570,6 +1570,11 @@ void SurfaceFlinger::onVsyncPeriodTimingChangedReceived(
     mScheduler->onNewVsyncPeriodChangeTimeline(updatedTimeline);
 }
 
+void SurfaceFlinger::onSeamlessPossible(int32_t /*sequenceId*/, hwc2_display_t /*display*/) {
+    // TODO(b/142753666): use constraints when calling to setActiveConfigWithConstrains and
+    // use this callback to know when to retry in case of SEAMLESS_NOT_POSSIBLE.
+}
+
 void SurfaceFlinger::onRefreshReceived(int sequenceId, hwc2_display_t /*hwcDisplayId*/) {
     Mutex::Autolock lock(mStateLock);
     if (sequenceId != getBE().mComposerSequenceId) {

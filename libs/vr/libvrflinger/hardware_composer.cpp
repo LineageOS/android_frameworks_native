@@ -1215,6 +1215,12 @@ Return<void> HardwareComposer::ComposerCallback::onVsyncPeriodTimingChanged(
   return Void();
 }
 
+Return<void> HardwareComposer::ComposerCallback::onSeamlessPossible(
+    Hwc2::Display /*display*/) {
+  LOG_ALWAYS_FATAL("Unexpected onSeamlessPossible callback");
+  return Void();
+}
+
 void HardwareComposer::ComposerCallback::SetVsyncService(
     const sp<VsyncService>& vsync_service) {
   std::lock_guard<std::mutex> lock(mutex_);

@@ -333,6 +333,7 @@ public:
             const std::vector<sp<CallbackHandle>>& /*handles*/) {
         return false;
     };
+    virtual void forceSendCallbacks() {}
     virtual bool setBackgroundColor(const half3& color, float alpha, ui::Dataspace dataspace);
     virtual bool setColorSpaceAgnostic(const bool agnostic);
     bool setShadowRadius(float shadowRadius);

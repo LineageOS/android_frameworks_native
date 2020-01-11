@@ -505,6 +505,7 @@ private:
     void onVsyncPeriodTimingChangedReceived(
             int32_t sequenceId, hwc2_display_t display,
             const hwc_vsync_period_change_timeline_t& updatedTimeline) override;
+    void onSeamlessPossible(int32_t sequenceId, hwc2_display_t display) override;
 
     /* ------------------------------------------------------------------------
      * ISchedulerCallback

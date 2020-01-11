@@ -611,6 +611,10 @@ android_namespace_t* GraphicsEnv::getDriverNamespace() {
     return mDriverNamespace;
 }
 
+std::string GraphicsEnv::getDriverPath() const {
+    return mDriverPath;
+}
+
 android_namespace_t* GraphicsEnv::getAngleNamespace() {
     std::lock_guard<std::mutex> lock(mNamespaceMutex);
 

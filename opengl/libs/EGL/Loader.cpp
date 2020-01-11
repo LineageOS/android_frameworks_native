@@ -238,6 +238,11 @@ void* Loader::open(egl_connection_t* cnx)
 
     bool failToLoadFromDriverSuffixProperty = false;
     if (!hnd) {
+        // If updated driver apk is set but fail to load, abort here.
+        if (android::GraphicsEnv::getInstance().getDriverNamespace()) {
+            LOG_ALWAYS_FATAL("couldn't find an OpenGL ES implementation from %s",
+                             android::GraphicsEnv::getInstance().getDriverPath().c_str());
+        }
         // Finally, try to load system driver, start by searching for the library name appended by
         // the system properties of the GLES userspace driver in both locations.
         // i.e.:
