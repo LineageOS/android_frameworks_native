@@ -881,9 +881,7 @@ private:
     virtual void disableVirtualKeysUntil(nsecs_t) {
     }
 
-    virtual bool shouldDropVirtualKey(nsecs_t, InputDevice*, int32_t, int32_t) {
-        return false;
-    }
+    virtual bool shouldDropVirtualKey(nsecs_t, int32_t, int32_t) { return false; }
 
     virtual void fadePointer() {
     }
@@ -929,12 +927,14 @@ class FakeInputMapper : public InputMapper {
 
     std::optional<DisplayViewport> mViewport;
 public:
-    FakeInputMapper(InputDevice* device, uint32_t sources) :
-            InputMapper(device),
-            mSources(sources), mKeyboardType(AINPUT_KEYBOARD_TYPE_NONE),
+    FakeInputMapper(InputDeviceContext& deviceContext, uint32_t sources)
+          : InputMapper(deviceContext),
+            mSources(sources),
+            mKeyboardType(AINPUT_KEYBOARD_TYPE_NONE),
             mMetaState(0),
-            mConfigureWasCalled(false), mResetWasCalled(false), mProcessWasCalled(false) {
-    }
+            mConfigureWasCalled(false),
+            mResetWasCalled(false),
+            mProcessWasCalled(false) {}
 
     virtual ~FakeInputMapper() { }
 
@@ -1022,7 +1022,7 @@ private:
         mConfigureWasCalled = true;
 
         // Find the associated viewport if exist.
-        const std::optional<uint8_t> displayPort = mDevice->getAssociatedDisplayPort();
+        const std::optional<uint8_t> displayPort = getDeviceContext().getAssociatedDisplayPort();
         if (displayPort && (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
             mViewport = config->getDisplayViewportByPort(*displayPort);
         }

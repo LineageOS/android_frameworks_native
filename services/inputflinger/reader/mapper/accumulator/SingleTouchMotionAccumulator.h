@@ -21,7 +21,7 @@
 
 namespace android {
 
-class InputDevice;
+class InputDeviceContext;
 struct RawEvent;
 
 /* Keeps track of the state of single-touch protocol. */
@@ -30,7 +30,7 @@ public:
     SingleTouchMotionAccumulator();
 
     void process(const RawEvent* rawEvent);
-    void reset(InputDevice* device);
+    void reset(InputDeviceContext& deviceContext);
 
     inline int32_t getAbsoluteX() const { return mAbsX; }
     inline int32_t getAbsoluteY() const { return mAbsY; }

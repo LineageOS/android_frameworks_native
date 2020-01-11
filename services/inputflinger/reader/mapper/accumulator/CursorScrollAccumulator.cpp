@@ -25,12 +25,12 @@ CursorScrollAccumulator::CursorScrollAccumulator() : mHaveRelWheel(false), mHave
     clearRelativeAxes();
 }
 
-void CursorScrollAccumulator::configure(InputDevice* device) {
-    mHaveRelWheel = device->getEventHub()->hasRelativeAxis(device->getId(), REL_WHEEL);
-    mHaveRelHWheel = device->getEventHub()->hasRelativeAxis(device->getId(), REL_HWHEEL);
+void CursorScrollAccumulator::configure(InputDeviceContext& deviceContext) {
+    mHaveRelWheel = deviceContext.hasRelativeAxis(REL_WHEEL);
+    mHaveRelHWheel = deviceContext.hasRelativeAxis(REL_HWHEEL);
 }
 
-void CursorScrollAccumulator::reset(InputDevice* device) {
+void CursorScrollAccumulator::reset(InputDeviceContext& deviceContext) {
     clearRelativeAxes();
 }
 

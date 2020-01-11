@@ -23,7 +23,7 @@ namespace android {
 
 class SwitchInputMapper : public InputMapper {
 public:
-    explicit SwitchInputMapper(InputDevice* device);
+    explicit SwitchInputMapper(InputDeviceContext& deviceContext);
     virtual ~SwitchInputMapper();
 
     virtual uint32_t getSources() override;
