@@ -292,6 +292,46 @@ TEST_F(VSyncReactorTest, setPeriodCalledOnceConfirmedChange) {
     EXPECT_TRUE(periodFlushed);
 }
 
+TEST_F(VSyncReactorTest, changingPeriodBackAbortsConfirmationProcess) {
+    nsecs_t sampleTime = 0;
+    nsecs_t const newPeriod = 5000;
+    mReactor.setPeriod(newPeriod);
+    bool periodFlushed = true;
+    EXPECT_TRUE(mReactor.addResyncSample(sampleTime += period, &periodFlushed));
+    EXPECT_FALSE(periodFlushed);
+
+    EXPECT_TRUE(mReactor.addResyncSample(sampleTime += period, &periodFlushed));
+    EXPECT_FALSE(periodFlushed);
+
+    mReactor.setPeriod(period);
+    EXPECT_FALSE(mReactor.addResyncSample(sampleTime += period, &periodFlushed));
+    EXPECT_FALSE(periodFlushed);
+}
+
+TEST_F(VSyncReactorTest, changingToAThirdPeriodWillWaitForLastPeriod) {
+    nsecs_t sampleTime = 0;
+    nsecs_t const secondPeriod = 5000;
+    nsecs_t const thirdPeriod = 2000;
+
+    mReactor.setPeriod(secondPeriod);
+    bool periodFlushed = true;
+    EXPECT_TRUE(mReactor.addResyncSample(sampleTime += period, &periodFlushed));
+    EXPECT_FALSE(periodFlushed);
+    EXPECT_TRUE(mReactor.addResyncSample(sampleTime += period, &periodFlushed));
+    EXPECT_FALSE(periodFlushed);
+    mReactor.setPeriod(thirdPeriod);
+    EXPECT_TRUE(mReactor.addResyncSample(sampleTime += secondPeriod, &periodFlushed));
+    EXPECT_FALSE(periodFlushed);
+    EXPECT_FALSE(mReactor.addResyncSample(sampleTime += thirdPeriod, &periodFlushed));
+    EXPECT_TRUE(periodFlushed);
+}
+
+TEST_F(VSyncReactorTest, presentFenceAdditionDoesNotInterruptConfirmationProcess) {
+    nsecs_t const newPeriod = 5000;
+    mReactor.setPeriod(newPeriod);
+    EXPECT_TRUE(mReactor.addPresentFence(generateSignalledFenceWithTime(0)));
+}
+
 TEST_F(VSyncReactorTest, setPeriodCalledFirstTwoEventsNewPeriod) {
     nsecs_t const newPeriod = 5000;
     EXPECT_CALL(*mMockTracker, setPeriod(_)).Times(0);
