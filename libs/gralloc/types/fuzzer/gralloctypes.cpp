@@ -31,6 +31,7 @@
 
 using ::android::status_t;
 using MetadataType = android::hardware::graphics::mapper::V4_0::IMapper::MetadataType;
+using BufferDescriptorInfo = android::hardware::graphics::mapper::V4_0::IMapper::BufferDescriptorInfo;
 
 #define GRALLOCTYPES_DECODE(T, FUNC) \
     [] (const ::android::hardware::hidl_vec<uint8_t>& vec) {\
@@ -53,6 +54,7 @@ using MetadataType = android::hardware::graphics::mapper::V4_0::IMapper::Metadat
 
 // clang-format off
 std::vector<GrallocTypesDecode> GRALLOCTYPES_DECODE_FUNCTIONS {
+    GRALLOCTYPES_DECODE(BufferDescriptorInfo, ::android::gralloc4::decodeBufferDescriptorInfo),
     GRALLOCTYPES_DECODE(uint64_t, ::android::gralloc4::decodeBufferId),
     GRALLOCTYPES_DECODE(std::string, ::android::gralloc4::decodeName),
     GRALLOCTYPES_DECODE(uint64_t, ::android::gralloc4::decodeWidth),

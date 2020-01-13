@@ -414,6 +414,12 @@ static const aidl::android::hardware::graphics::common::ExtendableType PlaneLayo
 /*---------------------------------------------------------------------------------------------*/
 
 /**
+ * The functions below encode and decode BufferDescriptorInfo into a byte stream.
+ */
+status_t encodeBufferDescriptorInfo(const android::hardware::graphics::mapper::V4_0::IMapper::BufferDescriptorInfo& bufferDescriptorInfo, android::hardware::hidl_vec<uint8_t>* outBufferDescriptorInfo);
+status_t decodeBufferDescriptorInfo(const android::hardware::hidl_vec<uint8_t>& bufferDescriptorInfo, android::hardware::graphics::mapper::V4_0::IMapper::BufferDescriptorInfo* outBufferDescriptorInfo);
+
+/**
  * The functions below encode and decode standard metadata into a byte stream. It is STRONGLY
  * recommended that both the vendor and system partitions use these functions when getting
  * and setting metadata through gralloc 4 (IMapper 4.0).
