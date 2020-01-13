@@ -102,6 +102,8 @@ message LayerProto {
   // layer or set by a parent layer.
   float shadow_radius = 49;
   ColorTransformProto color_transform = 50;
+
+  bool is_relative_of = 51;
 }
 
 message PositionProto {

@@ -1893,6 +1893,16 @@ void Layer::setInputInfo(const InputWindowInfo& info) {
     setTransactionFlags(eTransactionNeeded);
 }
 
+void Layer::writeToProto(LayersProto& layersProto, uint32_t traceFlags) const {
+    LayerProto* layerProto = layersProto.add_layers();
+    writeToProtoDrawingState(layerProto, traceFlags);
+    writeToProtoCommonState(layerProto, LayerVector::StateSet::Drawing, traceFlags);
+
+    for (const sp<Layer>& layer : mDrawingChildren) {
+        layer->writeToProto(layersProto, traceFlags);
+    }
+}
+
 void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags) const {
     ui::Transform transform = getTransform();
 
@@ -2014,6 +2024,8 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
         } else {
             layerInfo->set_z_order_relative_of(-1);
         }
+
+        layerInfo->set_is_relative_of(state.isRelativeOf);
     }
 
     if (traceFlags & SurfaceTracing::TRACE_INPUT) {
