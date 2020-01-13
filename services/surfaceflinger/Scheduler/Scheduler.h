@@ -193,7 +193,7 @@ private:
     std::unique_ptr<EventControlThread> mEventControlThread;
 
     // Used to choose refresh rate if content detection is enabled.
-    std::optional<scheduler::LayerHistory> mLayerHistory;
+    std::unique_ptr<scheduler::LayerHistory> mLayerHistory;
 
     // Whether to use idle timer callbacks that support the kernel timer.
     const bool mSupportKernelTimer;

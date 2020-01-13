@@ -29,8 +29,8 @@ protected:
 
     LayerHistoryTest() { mFlinger.resetScheduler(mScheduler); }
 
-    LayerHistory& history() { return *mScheduler->mutableLayerHistory(); }
-    const LayerHistory& history() const { return *mScheduler->mutableLayerHistory(); }
+    impl::LayerHistory& history() { return *mScheduler->mutableLayerHistory(); }
+    const impl::LayerHistory& history() const { return *mScheduler->mutableLayerHistory(); }
 
     size_t layerCount() const { return mScheduler->layerHistorySize(); }
     size_t activeLayerCount() const NO_THREAD_SAFETY_ANALYSIS { return history().mActiveLayersEnd; }
