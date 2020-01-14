@@ -4257,12 +4257,9 @@ void SurfaceFlinger::dumpWideColorInfo(std::string& result) const {
 
 LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
     LayersProto layersProto;
-    mDrawingState.traverseInZOrder([&](Layer* layer) {
-        LayerProto* layerProto = layersProto.add_layers();
-        layer->writeToProtoDrawingState(layerProto, traceFlags);
-        layer->writeToProtoCommonState(layerProto, LayerVector::StateSet::Drawing, traceFlags);
-    });
-
+    for (const sp<Layer>& layer : mDrawingState.layersSortedByZ) {
+        layer->writeToProto(layersProto, traceFlags);
+    }
     return layersProto;
 }
 
@@ -4286,15 +4283,7 @@ void SurfaceFlinger::dumpOffscreenLayersProto(LayersProto& layersProto, uint32_t
                                                 traceFlags);
         layerProto->set_parent(offscreenRootLayerId);
 
-        // Add children
-        offscreenLayer->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
-            if (layer == offscreenLayer) {
-                return;
-            }
-            LayerProto* childProto = layersProto.add_layers();
-            layer->writeToProtoDrawingState(childProto, traceFlags);
-            layer->writeToProtoCommonState(childProto, LayerVector::StateSet::Drawing, traceFlags);
-        });
+        offscreenLayer->writeToProto(layersProto, traceFlags);
     }
 }
 
