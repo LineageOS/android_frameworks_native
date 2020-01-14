@@ -788,6 +788,7 @@ std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion
                                                       outputState.usesClientComposition};
     base::unique_fd readyFence;
     if (!hasClientComposition) {
+        setExpensiveRenderingExpected(false);
         return readyFence;
     }
 
@@ -869,10 +870,6 @@ std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion
         timeStats.recordRenderEngineDuration(renderEngineStart,
                                              std::make_shared<FenceTime>(
                                                      new Fence(dup(readyFence.get()))));
-    }
-
-    if (expensiveRenderingExpected) {
-        setExpensiveRenderingExpected(false);
     }
 
     return readyFence;
