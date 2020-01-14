@@ -473,7 +473,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
     }
 
     if (s.transformToDisplayInverse) {
-        uint32_t invTransform = DisplayDevice::getPrimaryDisplayOrientationTransform();
+        uint32_t invTransform = DisplayDevice::getPrimaryDisplayRotationFlags();
         if (invTransform & ui::Transform::ROT_90) {
             std::swap(bufferWidth, bufferHeight);
         }

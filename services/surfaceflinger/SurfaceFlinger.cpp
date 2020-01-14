@@ -163,21 +163,6 @@ bool isWideColorMode(const ColorMode colorMode) {
     return false;
 }
 
-ui::Transform::orientation_flags fromSurfaceComposerRotation(ISurfaceComposer::Rotation rotation) {
-    switch (rotation) {
-        case ISurfaceComposer::eRotateNone:
-            return ui::Transform::ROT_0;
-        case ISurfaceComposer::eRotate90:
-            return ui::Transform::ROT_90;
-        case ISurfaceComposer::eRotate180:
-            return ui::Transform::ROT_180;
-        case ISurfaceComposer::eRotate270:
-            return ui::Transform::ROT_270;
-    }
-    ALOGE("Invalid rotation passed to captureScreen(): %d\n", rotation);
-    return ui::Transform::ROT_0;
-}
-
 #pragma clang diagnostic pop
 
 class ConditionalLock {
@@ -215,7 +200,7 @@ bool SurfaceFlinger::hasSyncFramework;
 bool SurfaceFlinger::useVrFlinger;
 int64_t SurfaceFlinger::maxFrameBufferAcquiredBuffers;
 bool SurfaceFlinger::hasWideColorDisplay;
-int SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientationDefault;
+ui::Rotation SurfaceFlinger::internalDisplayOrientation = ui::ROTATION_0;
 bool SurfaceFlinger::useColorManagement;
 bool SurfaceFlinger::useContextPriority;
 Dataspace SurfaceFlinger::defaultCompositionDataspace = Dataspace::V0_SRGB;
@@ -298,23 +283,21 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
 
     useContextPriority = use_context_priority(true);
 
-    auto tmpPrimaryDisplayOrientation = primary_display_orientation(
-            SurfaceFlingerProperties::primary_display_orientation_values::ORIENTATION_0);
-    switch (tmpPrimaryDisplayOrientation) {
-        case SurfaceFlingerProperties::primary_display_orientation_values::ORIENTATION_90:
-            SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientation90;
+    using Values = SurfaceFlingerProperties::primary_display_orientation_values;
+    switch (primary_display_orientation(Values::ORIENTATION_0)) {
+        case Values::ORIENTATION_0:
             break;
-        case SurfaceFlingerProperties::primary_display_orientation_values::ORIENTATION_180:
-            SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientation180;
+        case Values::ORIENTATION_90:
+            internalDisplayOrientation = ui::ROTATION_90;
             break;
-        case SurfaceFlingerProperties::primary_display_orientation_values::ORIENTATION_270:
-            SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientation270;
+        case Values::ORIENTATION_180:
+            internalDisplayOrientation = ui::ROTATION_180;
             break;
-        default:
-            SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientationDefault;
+        case Values::ORIENTATION_270:
+            internalDisplayOrientation = ui::ROTATION_270;
             break;
     }
-    ALOGV("Primary Display Orientation is set to %2d.", SurfaceFlinger::primaryDisplayOrientation);
+    ALOGV("Internal Display Orientation: %s", toCString(internalDisplayOrientation));
 
     mInternalDisplayPrimaries = sysprop::getDisplayNativePrimaries();
 
@@ -789,9 +772,8 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
             }
             info.density = density;
 
-            // TODO: this needs to go away (currently needed only by webkit)
             const auto display = getDefaultDisplayDeviceLocked();
-            info.orientation = display ? display->getOrientation() : 0;
+            info.orientation = display->getOrientation();
 
             // This is for screenrecord
             const Rect viewport = display->getViewport();
@@ -804,7 +786,6 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
             // TODO: where should this value come from?
             static const int TV_DENSITY = 213;
             info.density = TV_DENSITY / 160.0f;
-            info.orientation = 0;
 
             const auto display = getDisplayDeviceLocked(displayToken);
             info.layerStack = display->getLayerStack();
@@ -835,7 +816,8 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
         info.secure = true;
 
         if (displayId == getInternalDisplayIdLocked() &&
-            primaryDisplayOrientation & DisplayState::eOrientationSwapMask) {
+            (internalDisplayOrientation == ui::ROTATION_90 ||
+             internalDisplayOrientation == ui::ROTATION_270)) {
             std::swap(info.w, info.h);
         }
 
@@ -2284,8 +2266,8 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         nativeWindow->setSwapInterval(nativeWindow.get(), 0);
     }
 
-    creationArgs.displayInstallOrientation =
-            isInternalDisplay ? primaryDisplayOrientation : DisplayState::eOrientationDefault;
+    creationArgs.physicalOrientation =
+            isInternalDisplay ? internalDisplayOrientation : ui::ROTATION_0;
 
     // virtual displays are always considered enabled
     creationArgs.initialPowerMode = state.isVirtual() ? HWC_POWER_MODE_NORMAL : HWC_POWER_MODE_OFF;
@@ -3822,7 +3804,7 @@ void SurfaceFlinger::onInitializeDisplays() {
              DisplayState::eLayerStackChanged;
     d.token = token;
     d.layerStack = 0;
-    d.orientation = DisplayState::eOrientationDefault;
+    d.orientation = ui::ROTATION_0;
     d.frame.makeInvalid();
     d.viewport.makeInvalid();
     d.width = 0;
@@ -4431,8 +4413,8 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     if (const auto display = getDefaultDisplayDeviceLocked()) {
         display->getCompositionDisplay()->getState().undefinedRegion.dump(result,
                                                                           "undefinedRegion");
-        StringAppendF(&result, "  orientation=%d, isPoweredOn=%d\n", display->getOrientation(),
-                      display->isPoweredOn());
+        StringAppendF(&result, "  orientation=%s, isPoweredOn=%d\n",
+                      toCString(display->getOrientation()), display->isPoweredOn());
     }
     StringAppendF(&result,
                   "  transaction-flags         : %08x\n"
@@ -5009,17 +4991,19 @@ private:
 
 status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
                                        sp<GraphicBuffer>* outBuffer, bool& outCapturedSecureLayers,
-                                       const Dataspace reqDataspace,
-                                       const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
-                                       uint32_t reqWidth, uint32_t reqHeight,
-                                       bool useIdentityTransform,
-                                       ISurfaceComposer::Rotation rotation,
-                                       bool captureSecureLayers) {
+                                       Dataspace reqDataspace, ui::PixelFormat reqPixelFormat,
+                                       const Rect& sourceCrop, uint32_t reqWidth,
+                                       uint32_t reqHeight, bool useIdentityTransform,
+                                       ui::Rotation rotation, bool captureSecureLayers) {
     ATRACE_CALL();
 
     if (!displayToken) return BAD_VALUE;
 
-    auto renderAreaRotation = fromSurfaceComposerRotation(rotation);
+    auto renderAreaRotation = ui::Transform::toRotationFlags(rotation);
+    if (renderAreaRotation == ui::Transform::ROT_INVALID) {
+        ALOGE("%s: Invalid rotation: %s", __FUNCTION__, toCString(rotation));
+        renderAreaRotation = ui::Transform::ROT_0;
+    }
 
     sp<DisplayDevice> display;
     {
@@ -5081,7 +5065,7 @@ status_t SurfaceFlinger::captureScreen(uint64_t displayOrLayerStack, Dataspace* 
     sp<DisplayDevice> display;
     uint32_t width;
     uint32_t height;
-    ui::Transform::orientation_flags captureOrientation;
+    ui::Transform::RotationFlags captureOrientation;
     {
         Mutex::Autolock _l(mStateLock);
         display = getDisplayByIdOrLayerStack(displayOrLayerStack);
@@ -5092,12 +5076,25 @@ status_t SurfaceFlinger::captureScreen(uint64_t displayOrLayerStack, Dataspace* 
         width = uint32_t(display->getViewport().width());
         height = uint32_t(display->getViewport().height());
 
-        captureOrientation = fromSurfaceComposerRotation(
-                static_cast<ISurfaceComposer::Rotation>(display->getOrientation()));
-        if (captureOrientation == ui::Transform::orientation_flags::ROT_90) {
-            captureOrientation = ui::Transform::orientation_flags::ROT_270;
-        } else if (captureOrientation == ui::Transform::orientation_flags::ROT_270) {
-            captureOrientation = ui::Transform::orientation_flags::ROT_90;
+        const auto orientation = display->getOrientation();
+        captureOrientation = ui::Transform::toRotationFlags(orientation);
+
+        switch (captureOrientation) {
+            case ui::Transform::ROT_90:
+                captureOrientation = ui::Transform::ROT_270;
+                break;
+
+            case ui::Transform::ROT_270:
+                captureOrientation = ui::Transform::ROT_90;
+                break;
+
+            case ui::Transform::ROT_INVALID:
+                ALOGE("%s: Invalid orientation: %s", __FUNCTION__, toCString(orientation));
+                captureOrientation = ui::Transform::ROT_0;
+                break;
+
+            default:
+                break;
         }
         *outDataspace =
                 pickDataspaceFromColorMode(display->getCompositionDisplay()->getState().colorMode);
@@ -5145,7 +5142,7 @@ status_t SurfaceFlinger::captureLayers(
         }
         bool isSecure() const override { return false; }
         bool needsFiltering() const override { return mNeedsFiltering; }
-        const sp<const DisplayDevice> getDisplayDevice() const override { return nullptr; }
+        sp<const DisplayDevice> getDisplayDevice() const override { return nullptr; }
         Rect getSourceCrop() const override {
             if (mCrop.isEmpty()) {
                 return getBounds();

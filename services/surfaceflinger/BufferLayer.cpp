@@ -207,7 +207,7 @@ std::optional<renderengine::LayerSettings> BufferLayer::prepareClientComposition
              * the code below applies the primary display's inverse transform to
              * the texture transform
              */
-            uint32_t transform = DisplayDevice::getPrimaryDisplayOrientationTransform();
+            uint32_t transform = DisplayDevice::getPrimaryDisplayRotationFlags();
             mat4 tr = inverseOrientation(transform);
 
             /**
@@ -622,7 +622,7 @@ Rect BufferLayer::getBufferSize(const State& s) const {
     }
 
     if (getTransformToDisplayInverse()) {
-        uint32_t invTransform = DisplayDevice::getPrimaryDisplayOrientationTransform();
+        uint32_t invTransform = DisplayDevice::getPrimaryDisplayRotationFlags();
         if (invTransform & ui::Transform::ROT_90) {
             std::swap(bufWidth, bufHeight);
         }
@@ -658,7 +658,7 @@ FloatRect BufferLayer::computeSourceBounds(const FloatRect& parentBounds) const 
     }
 
     if (getTransformToDisplayInverse()) {
-        uint32_t invTransform = DisplayDevice::getPrimaryDisplayOrientationTransform();
+        uint32_t invTransform = DisplayDevice::getPrimaryDisplayRotationFlags();
         if (invTransform & ui::Transform::ROT_90) {
             std::swap(bufWidth, bufHeight);
         }

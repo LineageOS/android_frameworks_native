@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_DISPLAY_DEVICE_H
-#define ANDROID_DISPLAY_DEVICE_H
+#pragma once
 
 #include <stdlib.h>
 
@@ -83,14 +82,17 @@ public:
 
     int         getWidth() const;
     int         getHeight() const;
-    int         getInstallOrientation() const { return mDisplayInstallOrientation; }
 
     void                    setLayerStack(uint32_t stack);
     void                    setDisplaySize(const int newWidth, const int newHeight);
-    void                    setProjection(int orientation, const Rect& viewport, const Rect& frame);
 
-    int                     getOrientation() const { return mOrientation; }
-    static uint32_t         getPrimaryDisplayOrientationTransform();
+    void setProjection(ui::Rotation orientation, Rect viewport, Rect frame);
+
+    ui::Rotation getPhysicalOrientation() const { return mPhysicalOrientation; }
+    ui::Rotation getOrientation() const { return mOrientation; }
+
+    static ui::Transform::RotationFlags getPrimaryDisplayRotationFlags();
+
     const ui::Transform& getTransform() const;
     const Rect& getViewport() const;
     const Rect& getFrame() const;
@@ -156,37 +158,21 @@ public:
     void dump(std::string& result) const;
 
 private:
-    /*
-     *  Constants, set during initialization
-     */
     const sp<SurfaceFlinger> mFlinger;
     const wp<IBinder> mDisplayToken;
     const int32_t mSequenceId;
+    const bool mIsVirtual;
 
-    const int mDisplayInstallOrientation;
     const std::shared_ptr<compositionengine::Display> mCompositionDisplay;
 
     std::string mDisplayName;
-    const bool mIsVirtual;
 
-    /*
-     * Can only accessed from the main thread, these members
-     * don't need synchronization.
-     */
+    const ui::Rotation mPhysicalOrientation;
+    ui::Rotation mOrientation = ui::ROTATION_0;
 
-    /*
-     * Transaction state
-     */
-    static uint32_t displayStateOrientationToTransformOrientation(int orientation);
-    static status_t orientationToTransfrom(int orientation,
-                                           int w, int h, ui::Transform* tr);
+    static ui::Transform::RotationFlags sPrimaryDisplayRotationFlags;
 
-    int mOrientation;
-    static uint32_t sPrimaryDisplayOrientation;
-
-    // Current power mode
-    int mPowerMode;
-    // Current active config
+    int mPowerMode = HWC_POWER_MODE_OFF;
     HwcConfigIndexType mActiveConfig;
 
     // TODO(b/74619554): Remove special cases for primary display.
@@ -202,7 +188,7 @@ struct DisplayDeviceState {
     uint32_t layerStack = NO_LAYER_STACK;
     Rect viewport;
     Rect frame;
-    uint8_t orientation = 0;
+    ui::Rotation orientation = ui::ROTATION_0;
     uint32_t width = 0;
     uint32_t height = 0;
     std::string displayName;
@@ -227,7 +213,7 @@ struct DisplayDeviceCreationArgs {
     bool isSecure{false};
     sp<ANativeWindow> nativeWindow;
     sp<compositionengine::DisplaySurface> displaySurface;
-    int displayInstallOrientation{DisplayState::eOrientationDefault};
+    ui::Rotation physicalOrientation{ui::ROTATION_0};
     bool hasWideColorGamut{false};
     HdrCapabilities hdrCapabilities;
     int32_t supportedPerFrameMetadata{0};
@@ -239,31 +225,33 @@ struct DisplayDeviceCreationArgs {
 
 class DisplayRenderArea : public RenderArea {
 public:
-    DisplayRenderArea(const sp<const DisplayDevice> device,
-                      ui::Transform::orientation_flags rotation = ui::Transform::ROT_0)
-          : DisplayRenderArea(device, device->getBounds(), device->getWidth(), device->getHeight(),
-                              device->getCompositionDataSpace(), rotation) {}
-    DisplayRenderArea(const sp<const DisplayDevice> device, Rect sourceCrop, uint32_t reqWidth,
-                      uint32_t reqHeight, ui::Dataspace reqDataSpace,
-                      ui::Transform::orientation_flags rotation, bool allowSecureLayers = true)
+    DisplayRenderArea(const sp<const DisplayDevice>& display,
+                      RotationFlags rotation = ui::Transform::ROT_0)
+          : DisplayRenderArea(display, display->getBounds(), display->getWidth(),
+                              display->getHeight(), display->getCompositionDataSpace(), rotation) {}
+
+    DisplayRenderArea(sp<const DisplayDevice> display, const Rect& sourceCrop, uint32_t reqWidth,
+                      uint32_t reqHeight, ui::Dataspace reqDataSpace, RotationFlags rotation,
+                      bool allowSecureLayers = true)
           : RenderArea(reqWidth, reqHeight, CaptureFill::OPAQUE, reqDataSpace,
-                       device->getViewport(),
-                       getDisplayRotation(rotation, device->getInstallOrientation())),
-            mDevice(device),
+                       display->getViewport(),
+                       applyInversePhysicalOrientation(rotation,
+                                                       display->getPhysicalOrientation())),
+            mDisplay(std::move(display)),
             mSourceCrop(sourceCrop),
             mAllowSecureLayers(allowSecureLayers) {}
 
-    const ui::Transform& getTransform() const override { return mDevice->getTransform(); }
-    Rect getBounds() const override { return mDevice->getBounds(); }
-    int getHeight() const override { return mDevice->getHeight(); }
-    int getWidth() const override { return mDevice->getWidth(); }
-    bool isSecure() const override { return mAllowSecureLayers && mDevice->isSecure(); }
-    const sp<const DisplayDevice> getDisplayDevice() const override { return mDevice; }
+    const ui::Transform& getTransform() const override { return mDisplay->getTransform(); }
+    Rect getBounds() const override { return mDisplay->getBounds(); }
+    int getHeight() const override { return mDisplay->getHeight(); }
+    int getWidth() const override { return mDisplay->getWidth(); }
+    bool isSecure() const override { return mAllowSecureLayers && mDisplay->isSecure(); }
+    sp<const DisplayDevice> getDisplayDevice() const override { return mDisplay; }
 
     bool needsFiltering() const override {
         // check if the projection from the logical display to the physical
         // display needs filtering
-        if (mDevice->needsFiltering()) {
+        if (mDisplay->needsFiltering()) {
             return true;
         }
 
@@ -281,7 +269,7 @@ public:
     Rect getSourceCrop() const override {
         // use the projected display viewport by default.
         if (mSourceCrop.isEmpty()) {
-            return mDevice->getScissor();
+            return mDisplay->getScissor();
         }
 
         // Recompute the device transformation for the source crop.
@@ -289,27 +277,13 @@ public:
         ui::Transform translatePhysical;
         ui::Transform translateLogical;
         ui::Transform scale;
-        const Rect& viewport = mDevice->getViewport();
-        const Rect& scissor = mDevice->getScissor();
-        const Rect& frame = mDevice->getFrame();
+        const Rect& viewport = mDisplay->getViewport();
+        const Rect& scissor = mDisplay->getScissor();
+        const Rect& frame = mDisplay->getFrame();
 
-        const int orientation = mDevice->getInstallOrientation();
-        // Install orientation is transparent to the callers.  Apply it now.
-        uint32_t flags = 0x00;
-        switch (orientation) {
-            case DisplayState::eOrientation90:
-                flags = ui::Transform::ROT_90;
-                break;
-            case DisplayState::eOrientation180:
-                flags = ui::Transform::ROT_180;
-                break;
-            case DisplayState::eOrientation270:
-                flags = ui::Transform::ROT_270;
-                break;
-            default:
-                break;
-        }
+        const auto flags = ui::Transform::toRotationFlags(mDisplay->getPhysicalOrientation());
         rotation.set(flags, getWidth(), getHeight());
+
         translateLogical.set(-viewport.left, -viewport.top);
         translatePhysical.set(scissor.left, scissor.top);
         scale.set(frame.getWidth() / float(viewport.getWidth()), 0, 0,
@@ -320,49 +294,44 @@ public:
     }
 
 private:
-    // Install orientation is transparent to the callers.  We need to cancel
-    // it out by modifying rotation flags.
-    static ui::Transform::orientation_flags getDisplayRotation(
-            ui::Transform::orientation_flags rotation, int orientation) {
-        if (orientation == DisplayState::eOrientationDefault) {
-            return rotation;
-        }
+    static RotationFlags applyInversePhysicalOrientation(RotationFlags orientation,
+                                                         ui::Rotation physicalOrientation) {
+        uint32_t inverseRotate90 = 0;
+        uint32_t inverseReflect = 0;
 
-        // convert hw orientation into flag presentation
-        // here inverse transform needed
-        uint8_t hw_rot_90 = 0x00;
-        uint8_t hw_flip_hv = 0x00;
-        switch (orientation) {
-            case DisplayState::eOrientation90:
-                hw_rot_90 = ui::Transform::ROT_90;
-                hw_flip_hv = ui::Transform::ROT_180;
+        switch (physicalOrientation) {
+            case ui::ROTATION_0:
+                return orientation;
+
+            case ui::ROTATION_90:
+                inverseRotate90 = ui::Transform::ROT_90;
+                inverseReflect = ui::Transform::ROT_180;
                 break;
-            case DisplayState::eOrientation180:
-                hw_flip_hv = ui::Transform::ROT_180;
+
+            case ui::ROTATION_180:
+                inverseReflect = ui::Transform::ROT_180;
                 break;
-            case DisplayState::eOrientation270:
-                hw_rot_90 = ui::Transform::ROT_90;
+
+            case ui::ROTATION_270:
+                inverseRotate90 = ui::Transform::ROT_90;
                 break;
         }
 
-        // transform flags operation
-        // 1) flip H V if both have ROT_90 flag
-        // 2) XOR these flags
-        uint8_t rotation_rot_90 = rotation & ui::Transform::ROT_90;
-        uint8_t rotation_flip_hv = rotation & ui::Transform::ROT_180;
-        if (rotation_rot_90 & hw_rot_90) {
-            rotation_flip_hv = (~rotation_flip_hv) & ui::Transform::ROT_180;
+        const uint32_t rotate90 = orientation & ui::Transform::ROT_90;
+        uint32_t reflect = orientation & ui::Transform::ROT_180;
+
+        // Apply reflection for double rotation.
+        if (rotate90 & inverseRotate90) {
+            reflect = ~reflect & ui::Transform::ROT_180;
         }
 
-        return static_cast<ui::Transform::orientation_flags>(
-                (rotation_rot_90 ^ hw_rot_90) | (rotation_flip_hv ^ hw_flip_hv));
+        return static_cast<RotationFlags>((rotate90 ^ inverseRotate90) |
+                                          (reflect ^ inverseReflect));
     }
 
-    const sp<const DisplayDevice> mDevice;
+    const sp<const DisplayDevice> mDisplay;
     const Rect mSourceCrop;
     const bool mAllowSecureLayers;
 };
 
-}; // namespace android
-
-#endif // ANDROID_DISPLAY_DEVICE_H
+} // namespace android

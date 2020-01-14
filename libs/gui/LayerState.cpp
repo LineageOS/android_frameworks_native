@@ -203,7 +203,6 @@ status_t ComposerState::read(const Parcel& input) {
 DisplayState::DisplayState() :
     what(0),
     layerStack(0),
-    orientation(eOrientationDefault),
     viewport(Rect::EMPTY_RECT),
     frame(Rect::EMPTY_RECT),
     width(0),
@@ -215,7 +214,7 @@ status_t DisplayState::write(Parcel& output) const {
     output.writeStrongBinder(IInterface::asBinder(surface));
     output.writeUint32(what);
     output.writeUint32(layerStack);
-    output.writeUint32(orientation);
+    output.writeUint32(toRotationInt(orientation));
     output.write(viewport);
     output.write(frame);
     output.writeUint32(width);
@@ -228,7 +227,7 @@ status_t DisplayState::read(const Parcel& input) {
     surface = interface_cast<IGraphicBufferProducer>(input.readStrongBinder());
     what = input.readUint32();
     layerStack = input.readUint32();
-    orientation = input.readUint32();
+    orientation = ui::toRotation(input.readUint32());
     input.read(viewport);
     input.read(frame);
     width = input.readUint32();
