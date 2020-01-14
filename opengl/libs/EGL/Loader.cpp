@@ -25,7 +25,6 @@
 #include <dlfcn.h>
 
 #include <android/dlext.h>
-#include <cutils/properties.h>
 #include <log/log.h>
 #include <utils/Timers.h>
 
@@ -206,6 +205,7 @@ void Loader::unload_system_driver(egl_connection_t* cnx) {
     }
 
     cnx->systemDriverUnloaded = true;
+    cnx->loadedDriverType = egl_connection_t::GLES_NO_DRIVER;
 }
 
 void* Loader::open(egl_connection_t* cnx)
@@ -228,6 +228,7 @@ void* Loader::open(egl_connection_t* cnx)
     } else {
         cnx->shouldUseAngle = false;
     }
+    cnx->loadedDriverType = egl_connection_t::GLES_NO_DRIVER;
 
     // Firstly, try to load ANGLE driver.
     driver_t* hnd = attempt_to_load_angle(cnx);
@@ -237,6 +238,7 @@ void* Loader::open(egl_connection_t* cnx)
     }
 
     bool failToLoadFromDriverSuffixProperty = false;
+    cnx->systemDriverUseExactName = true;
     if (!hnd) {
         // If updated driver apk is set but fail to load, abort here.
         if (android::GraphicsEnv::getInstance().getDriverNamespace()) {
@@ -248,16 +250,19 @@ void* Loader::open(egl_connection_t* cnx)
         // i.e.:
         //      libGLES_${prop}.so, or:
         //      libEGL_${prop}.so, libGLESv1_CM_${prop}.so, libGLESv2_${prop}.so
-        char prop[PROPERTY_VALUE_MAX + 1];
         for (auto key : HAL_SUBNAME_KEY_PROPERTIES) {
-            if (property_get(key, prop, nullptr) <= 0) {
+            if (property_get(key, cnx->systemDriverProperty, nullptr) <= 0) {
                 continue;
             }
-            hnd = attempt_to_load_system_driver(cnx, prop, true);
+            hnd = attempt_to_load_system_driver(cnx, cnx->systemDriverProperty,
+                                                cnx->systemDriverUseExactName);
             if (hnd) {
+                cnx->systemDriverUseProperty = true;
                 break;
-            } else if (strcmp(key, DRIVER_SUFFIX_PROPERTY) == 0) {
-                failToLoadFromDriverSuffixProperty = true;
+            } else {
+                if (strcmp(key, DRIVER_SUFFIX_PROPERTY) == 0) {
+                    failToLoadFromDriverSuffixProperty = true;
+                }
             }
         }
     }
@@ -268,11 +273,12 @@ void* Loader::open(egl_connection_t* cnx)
         // i.e.:
         //      libGLES.so, or:
         //      libEGL.so, libGLESv1_CM.so, libGLESv2.so
-        hnd = attempt_to_load_system_driver(cnx, nullptr, true);
+        hnd = attempt_to_load_system_driver(cnx, nullptr, cnx->systemDriverUseExactName);
     }
 
     if (!hnd && !failToLoadFromDriverSuffixProperty) {
-        hnd = attempt_to_load_system_driver(cnx, nullptr, false);
+        cnx->systemDriverUseExactName = false;
+        hnd = attempt_to_load_system_driver(cnx, nullptr, cnx->systemDriverUseExactName);
     }
 
     if (!hnd) {
@@ -287,14 +293,11 @@ void* Loader::open(egl_connection_t* cnx)
     if (!cnx->libEgl) {
         cnx->libEgl = load_wrapper(EGL_WRAPPER_DIR "/libEGL.so");
     }
-    if (!cnx->libGles1) {
-        cnx->libGles1 = load_wrapper(EGL_WRAPPER_DIR "/libGLESv1_CM.so");
-    }
     if (!cnx->libGles2) {
         cnx->libGles2 = load_wrapper(EGL_WRAPPER_DIR "/libGLESv2.so");
     }
 
-    if (!cnx->libEgl || !cnx->libGles2 || !cnx->libGles1) {
+    if (!cnx->libEgl || !cnx->libGles2) {
         android::GraphicsEnv::getInstance().setDriverLoaded(android::GpuStatsInfo::Api::API_GL,
                                                             false, systemTime() - openTime);
     }
@@ -302,8 +305,7 @@ void* Loader::open(egl_connection_t* cnx)
     LOG_ALWAYS_FATAL_IF(!cnx->libEgl,
             "couldn't load system EGL wrapper libraries");
 
-    LOG_ALWAYS_FATAL_IF(!cnx->libGles2 || !cnx->libGles1,
-            "couldn't load system OpenGL ES wrapper libraries");
+    LOG_ALWAYS_FATAL_IF(!cnx->libGles2, "couldn't load system OpenGL ESv2+ wrapper libraries");
 
     android::GraphicsEnv::getInstance().setDriverLoaded(android::GpuStatsInfo::Api::API_GL, true,
                                                         systemTime() - openTime);
@@ -319,7 +321,7 @@ void Loader::close(egl_connection_t* cnx)
 
     cnx->shouldUseAngle = false;
     cnx->angleDecided = false;
-    cnx->useAngle = false;
+    cnx->loadedDriverType = egl_connection_t::GLES_NO_DRIVER;
 
     if (cnx->vendorEGL) {
         dlclose(cnx->vendorEGL);
@@ -524,7 +526,6 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
     if (so) {
         ALOGV("Loaded ANGLE %s library for '%s' (instead of native)", kind,
             android::GraphicsEnv::getInstance().getAngleAppName().c_str());
-        cnx->useAngle = true;
 
         char prop[PROPERTY_VALUE_MAX];
 
@@ -567,7 +568,6 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
     } else {
         ALOGV("Loaded native %s library for '%s' (instead of ANGLE)", kind,
             android::GraphicsEnv::getInstance().getAngleAppName().c_str());
-        cnx->useAngle = false;
     }
     cnx->angleDecided = true;
 
@@ -597,6 +597,7 @@ static void* load_updated_driver(const char* kind, android_namespace_t* ns) {
 
 Loader::driver_t* Loader::attempt_to_load_angle(egl_connection_t* cnx) {
     ATRACE_CALL();
+    assert(cnx->loadedDriverType == egl_connection_t::GLES_NO_DRIVER);
     android_namespace_t* ns = android::GraphicsEnv::getInstance().getAngleNamespace();
     if (!ns) {
         return nullptr;
@@ -611,19 +612,17 @@ Loader::driver_t* Loader::attempt_to_load_angle(egl_connection_t* cnx) {
         initialize_api(dso, cnx, EGL);
         hnd = new driver_t(dso);
 
-        dso = load_angle("GLESv1_CM", ns, cnx);
-        initialize_api(dso, cnx, GLESv1_CM);
-        hnd->set(dso, GLESv1_CM);
-
         dso = load_angle("GLESv2", ns, cnx);
         initialize_api(dso, cnx, GLESv2);
         hnd->set(dso, GLESv2);
+        cnx->loadedDriverType = egl_connection_t::GLES_ANGLE_STANDALONE_DRIVER;
     }
     return hnd;
 }
 
 Loader::driver_t* Loader::attempt_to_load_updated_driver(egl_connection_t* cnx) {
     ATRACE_CALL();
+    assert(cnx->loadedDriverType == egl_connection_t::GLES_NO_DRIVER);
 #ifndef __ANDROID_VNDK__
     android_namespace_t* ns = android::GraphicsEnv::getInstance().getDriverNamespace();
     if (!ns) {
@@ -635,8 +634,9 @@ Loader::driver_t* Loader::attempt_to_load_updated_driver(egl_connection_t* cnx) 
     driver_t* hnd = nullptr;
     void* dso = load_updated_driver("GLES", ns);
     if (dso) {
-        initialize_api(dso, cnx, EGL | GLESv1_CM | GLESv2);
+        initialize_api(dso, cnx, EGL | GLESv2);
         hnd = new driver_t(dso);
+        if (hnd) cnx->loadedDriverType = egl_connection_t::GLES_UPDATED_COMBO_DRIVER;
         return hnd;
     }
 
@@ -645,13 +645,10 @@ Loader::driver_t* Loader::attempt_to_load_updated_driver(egl_connection_t* cnx) 
         initialize_api(dso, cnx, EGL);
         hnd = new driver_t(dso);
 
-        dso = load_updated_driver("GLESv1_CM", ns);
-        initialize_api(dso, cnx, GLESv1_CM);
-        hnd->set(dso, GLESv1_CM);
-
         dso = load_updated_driver("GLESv2", ns);
         initialize_api(dso, cnx, GLESv2);
         hnd->set(dso, GLESv2);
+        cnx->loadedDriverType = egl_connection_t::GLES_UPDATED_STANDALONE_DRIVER;
     }
     return hnd;
 #else
@@ -662,28 +659,92 @@ Loader::driver_t* Loader::attempt_to_load_updated_driver(egl_connection_t* cnx) 
 Loader::driver_t* Loader::attempt_to_load_system_driver(egl_connection_t* cnx, const char* suffix,
                                                         const bool exact) {
     ATRACE_CALL();
+    assert(cnx->loadedDriverType == egl_connection_t::GLES_NO_DRIVER);
     android::GraphicsEnv::getInstance().setDriverToLoad(android::GpuStatsInfo::Driver::GL);
     driver_t* hnd = nullptr;
     void* dso = load_system_driver("GLES", suffix, exact);
     if (dso) {
-        initialize_api(dso, cnx, EGL | GLESv1_CM | GLESv2);
+        initialize_api(dso, cnx, EGL | GLESv2);
         hnd = new driver_t(dso);
+        if (hnd) cnx->loadedDriverType = egl_connection_t::GLES_SYSTEM_COMBO_DRIVER;
         return hnd;
     }
+
     dso = load_system_driver("EGL", suffix, exact);
     if (dso) {
         initialize_api(dso, cnx, EGL);
         hnd = new driver_t(dso);
 
-        dso = load_system_driver("GLESv1_CM", suffix, exact);
-        initialize_api(dso, cnx, GLESv1_CM);
-        hnd->set(dso, GLESv1_CM);
-
         dso = load_system_driver("GLESv2", suffix, exact);
         initialize_api(dso, cnx, GLESv2);
         hnd->set(dso, GLESv2);
+        cnx->loadedDriverType = egl_connection_t::GLES_SYSTEM_STANDALONE_DRIVER;
     }
     return hnd;
+}
+
+bool Loader::load_glesv1_driver(egl_connection_t* cnx) {
+    ATRACE_CALL();
+    void* dso = nullptr;
+
+    driver_t* hnd = (driver_t*)cnx->dso;
+    // EGL driver must have been loaded. if not, something went wrong.
+    if (!hnd || cnx->loadedDriverType == egl_connection_t::GLES_NO_DRIVER) {
+        return false;
+    }
+
+    if (cnx->libGles1) return EGL_TRUE;
+
+    // If there is a GLES driver, use that first
+    switch (cnx->loadedDriverType) {
+        case egl_connection_t::GLES_SYSTEM_COMBO_DRIVER:
+        case egl_connection_t::GLES_UPDATED_COMBO_DRIVER: {
+            dso = hnd->dso[0];
+            initialize_api(dso, cnx, GLESv1_CM);
+            break;
+        }
+        case egl_connection_t::GLES_ANGLE_STANDALONE_DRIVER: {
+            android_namespace_t* ns = android::GraphicsEnv::getInstance().getAngleNamespace();
+            dso = load_angle("GLESv1_CM", ns, cnx);
+            if (dso) {
+                initialize_api(dso, cnx, GLESv1_CM);
+                hnd->set(dso, GLESv1_CM);
+            }
+            break;
+        }
+        case egl_connection_t::GLES_UPDATED_STANDALONE_DRIVER: {
+            android_namespace_t* ns = android::GraphicsEnv::getInstance().getDriverNamespace();
+            void* dso = load_updated_driver("GLESv1_CM", ns);
+            if (dso) {
+                initialize_api(dso, cnx, GLESv1_CM);
+                hnd->set(dso, GLESv1_CM);
+            }
+            break;
+        }
+        case egl_connection_t::GLES_SYSTEM_STANDALONE_DRIVER: {
+            dso = load_system_driver("GLESv1_CM",
+                                     cnx->systemDriverUseProperty ? cnx->systemDriverProperty
+                                                                  : nullptr,
+                                     cnx->systemDriverUseExactName);
+            if (dso) {
+                initialize_api(dso, cnx, GLESv1_CM);
+                hnd->set(dso, GLESv1_CM);
+            }
+            break;
+        }
+        default: {
+            ALOGE("Bad loadedDriverType (%d)", cnx->loadedDriverType);
+            break;
+        }
+    }
+
+    if (!cnx->libGles1) {
+        cnx->libGles1 = load_wrapper(EGL_WRAPPER_DIR "/libGLESv1_CM.so");
+    }
+
+    LOG_ALWAYS_FATAL_IF(!cnx->libGles1, "couldn't load system OpenGL ES V1 wrapper libraries");
+
+    return dso ? true : false;
 }
 
 void Loader::initialize_api(void* dso, egl_connection_t* cnx, uint32_t mask) {

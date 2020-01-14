@@ -32,33 +32,51 @@ class TestableScheduler;
 
 namespace scheduler {
 
+class LayerHistoryTest;
 class LayerInfo;
 
-// Records per-layer history of scheduling-related information (primarily present time),
-// heuristically categorizes layers as active or inactive, and summarizes stats about
-// active layers (primarily maximum refresh rate). See go/content-fps-detection-in-scheduler.
 class LayerHistory {
 public:
-    LayerHistory();
-    ~LayerHistory();
+    virtual ~LayerHistory() = default;
 
     // Layers are unregistered when the weak reference expires.
-    void registerLayer(Layer*, float lowRefreshRate, float highRefreshRate);
+    virtual void registerLayer(Layer*, float lowRefreshRate, float highRefreshRate) = 0;
 
     // Marks the layer as active, and records the given state to its history.
-    void record(Layer*, nsecs_t presentTime, nsecs_t now);
+    virtual void record(Layer*, nsecs_t presentTime, nsecs_t now) = 0;
 
     struct Summary {
         float maxRefreshRate; // Maximum refresh rate among recently active layers.
     };
 
     // Rebuilds sets of active/inactive layers, and accumulates stats for active layers.
-    Summary summarize(nsecs_t now);
+    virtual Summary summarize(nsecs_t now) = 0;
 
-    void clear();
+    virtual void clear() = 0;
+};
+
+namespace impl {
+// Records per-layer history of scheduling-related information (primarily present time),
+// heuristically categorizes layers as active or inactive, and summarizes stats about
+// active layers (primarily maximum refresh rate). See go/content-fps-detection-in-scheduler.
+class LayerHistory : public android::scheduler::LayerHistory {
+public:
+    LayerHistory();
+    virtual ~LayerHistory();
+
+    // Layers are unregistered when the weak reference expires.
+    void registerLayer(Layer*, float lowRefreshRate, float highRefreshRate) override;
+
+    // Marks the layer as active, and records the given state to its history.
+    void record(Layer*, nsecs_t presentTime, nsecs_t now) override;
+
+    // Rebuilds sets of active/inactive layers, and accumulates stats for active layers.
+    android::scheduler::LayerHistory::Summary summarize(nsecs_t now) override;
+
+    void clear() override;
 
 private:
-    friend class LayerHistoryTest;
+    friend class android::scheduler::LayerHistoryTest;
     friend TestableScheduler;
 
     using LayerPair = std::pair<wp<Layer>, std::unique_ptr<LayerInfo>>;
@@ -90,5 +108,6 @@ private:
     const bool mTraceEnabled;
 };
 
+} // namespace impl
 } // namespace scheduler
 } // namespace android

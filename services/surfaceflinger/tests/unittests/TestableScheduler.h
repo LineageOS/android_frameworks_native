@@ -30,14 +30,14 @@ class TestableScheduler : public Scheduler, private ISchedulerCallback {
 public:
     explicit TestableScheduler(const scheduler::RefreshRateConfigs& configs)
           : Scheduler([](bool) {}, configs, *this) {
-        mLayerHistory.emplace();
+        mLayerHistory = std::make_unique<scheduler::impl::LayerHistory>();
     }
 
     TestableScheduler(std::unique_ptr<DispSync> primaryDispSync,
                       std::unique_ptr<EventControlThread> eventControlThread,
                       const scheduler::RefreshRateConfigs& configs)
           : Scheduler(std::move(primaryDispSync), std::move(eventControlThread), configs, *this) {
-        mLayerHistory.emplace();
+        mLayerHistory = std::make_unique<scheduler::impl::LayerHistory>();
     }
 
     // Used to inject mock event thread.
@@ -46,7 +46,7 @@ public:
     }
 
     size_t layerHistorySize() const NO_THREAD_SAFETY_ANALYSIS {
-        return mLayerHistory->mLayerInfos.size();
+        return static_cast<scheduler::impl::LayerHistory*>(mLayerHistory.get())->mLayerInfos.size();
     }
 
     /* ------------------------------------------------------------------------
@@ -57,7 +57,9 @@ public:
     auto& mutableEventControlThread() { return mEventControlThread; }
     auto& mutablePrimaryDispSync() { return mPrimaryDispSync; }
     auto& mutableHWVsyncAvailable() { return mHWVsyncAvailable; }
-    auto& mutableLayerHistory() { return mLayerHistory; }
+    auto mutableLayerHistory() {
+        return static_cast<scheduler::impl::LayerHistory*>(mLayerHistory.get());
+    }
 
     ~TestableScheduler() {
         // All these pointer and container clears help ensure that GMock does

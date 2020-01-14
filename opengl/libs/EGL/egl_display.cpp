@@ -220,7 +220,7 @@ EGLDisplay egl_display_t::getPlatformDisplay(EGLNativeDisplayType display,
     if (cnx->dso) {
         EGLDisplay dpy = EGL_NO_DISPLAY;
 
-        if (cnx->useAngle) {
+        if (cnx->loadedDriverType == egl_connection_t::GLES_ANGLE_STANDALONE_DRIVER) {
             EGLint error;
             dpy = getPlatformDisplayAngle(display, cnx, attrib_list, &error);
             if (error != EGL_NONE) {
@@ -464,7 +464,7 @@ EGLBoolean egl_display_t::terminate() {
         egl_connection_t* const cnx = &gEGLImpl;
         if (cnx->dso && disp.state == egl_display_t::INITIALIZED) {
             // If we're using ANGLE reset any custom DisplayPlatform
-            if (cnx->useAngle) {
+            if (cnx->loadedDriverType == egl_connection_t::GLES_ANGLE_STANDALONE_DRIVER) {
                 angle::resetAnglePlatform(disp.dpy);
             }
             if (cnx->egl.eglTerminate(disp.dpy) == EGL_FALSE) {
