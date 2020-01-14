@@ -48,7 +48,8 @@ public:
                      nsecs_t period, nsecs_t offset, nsecs_t notBefore)
           : mCallback(cb),
             mRegistration(dispatch,
-                          std::bind(&CallbackRepeater::callback, this, std::placeholders::_1),
+                          std::bind(&CallbackRepeater::callback, this, std::placeholders::_1,
+                                    std::placeholders::_2),
                           std::string(name)),
             mPeriod(period),
             mOffset(offset),
@@ -85,15 +86,13 @@ public:
     }
 
 private:
-    void callback(nsecs_t vsynctime) {
-        nsecs_t period = 0;
+    void callback(nsecs_t vsynctime, nsecs_t wakeupTime) {
         {
             std::lock_guard<std::mutex> lk(mMutex);
-            period = mPeriod;
             mLastCallTime = vsynctime;
         }
 
-        mCallback->onDispSyncEvent(vsynctime - period);
+        mCallback->onDispSyncEvent(wakeupTime);
 
         {
             std::lock_guard<std::mutex> lk(mMutex);
