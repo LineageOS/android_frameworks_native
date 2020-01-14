@@ -776,6 +776,15 @@ V2_4::Error FakeComposerClient::setContentType(Display, IComposerClient::Content
     return V2_4::Error::UNSUPPORTED;
 }
 
+V2_4::Error FakeComposerClient::validateDisplay_2_4(
+        Display /*display*/, std::vector<Layer>* /*outChangedLayers*/,
+        std::vector<IComposerClient::Composition>* /*outCompositionTypes*/,
+        uint32_t* /*outDisplayRequestMask*/, std::vector<Layer>* /*outRequestedLayers*/,
+        std::vector<uint32_t>* /*outRequestMasks*/,
+        IComposerClient::ClientTargetProperty* /*outClientTargetProperty*/) {
+    return V2_4::Error::NONE;
+}
+
 //////////////////////////////////////////////////////////////////
 
 void FakeComposerClient::requestVSync(uint64_t vsyncTime) {
