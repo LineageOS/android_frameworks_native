@@ -4290,13 +4290,8 @@ void SurfaceFlinger::dumpOffscreenLayersProto(LayersProto& layersProto, uint32_t
         rootProto->add_children(offscreenLayer->sequence);
 
         // Add layer
-        LayerProto* layerProto = layersProto.add_layers();
-        offscreenLayer->writeToProtoDrawingState(layerProto, traceFlags);
-        offscreenLayer->writeToProtoCommonState(layerProto, LayerVector::StateSet::Drawing,
-                                                traceFlags);
+        LayerProto* layerProto = offscreenLayer->writeToProto(layersProto, traceFlags);
         layerProto->set_parent(offscreenRootLayerId);
-
-        offscreenLayer->writeToProto(layersProto, traceFlags);
     }
 }
 
