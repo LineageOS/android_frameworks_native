@@ -854,7 +854,6 @@ static bool setUpUserspaceTracing()
             tags |= c.tags;
         }
     }
-    ok &= setTagsProperty(tags);
 
     bool coreServicesTagEnabled = false;
     for (size_t i = 0; i < arraysize(k_categories); i++) {
@@ -876,9 +875,11 @@ static bool setUpUserspaceTracing()
         packageList += android::base::GetProperty(k_coreServicesProp, "");
     }
     ok &= setAppCmdlineProperty(&packageList[0]);
+    ok &= setTagsProperty(tags);
+#if !ATRACE_SHMEM
     ok &= pokeBinderServices();
     pokeHalServices();
-
+#endif
     if (g_tracePdx) {
         ok &= ServiceUtility::PokeServices();
     }
