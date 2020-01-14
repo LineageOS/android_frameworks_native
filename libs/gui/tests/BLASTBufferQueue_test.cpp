@@ -123,6 +123,7 @@ protected:
     void setUpProducer(BLASTBufferQueueHelper adapter, sp<IGraphicBufferProducer>& producer) {
         auto igbProducer = adapter.getIGraphicBufferProducer();
         ASSERT_NE(nullptr, igbProducer.get());
+        ASSERT_EQ(NO_ERROR, igbProducer->setMaxDequeuedBufferCount(2));
         IGraphicBufferProducer::QueueBufferOutput qbOutput;
         ASSERT_EQ(NO_ERROR,
                   igbProducer->connect(new DummyProducerListener, NATIVE_WINDOW_API_CPU, false,
