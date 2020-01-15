@@ -36,7 +36,7 @@ public:
     // Valid transition: disarmed -> armed ( when scheduled )
     // Valid transition: armed -> running -> disarmed ( when timer is called)
     // Valid transition: armed -> disarmed ( when cancelled )
-    VSyncDispatchTimerQueueEntry(std::string const& name, std::function<void(nsecs_t)> const& fn,
+    VSyncDispatchTimerQueueEntry(std::string const& name, VSyncDispatch::Callback const& fn,
                                  nsecs_t minVsyncDistance);
     std::string_view name() const;
 
@@ -62,14 +62,14 @@ public:
     nsecs_t executing();
     // End: functions that are not threadsafe.
 
-    // Invoke the callback with the timestamp, moving the state from running->disarmed.
-    void callback(nsecs_t timestamp);
+    // Invoke the callback with the two given timestamps, moving the state from running->disarmed.
+    void callback(nsecs_t vsyncTimestamp, nsecs_t wakeupTimestamp);
     // Block calling thread while the callback is executing.
     void ensureNotRunning();
 
 private:
     std::string const mName;
-    std::function<void(nsecs_t)> const mCallback;
+    VSyncDispatch::Callback const mCallback;
 
     nsecs_t mWorkDuration;
     nsecs_t mEarliestVsync;
@@ -104,8 +104,7 @@ public:
                                      nsecs_t timerSlack, nsecs_t minVsyncDistance);
     ~VSyncDispatchTimerQueue();
 
-    CallbackToken registerCallback(std::function<void(nsecs_t)> const& callbackFn,
-                                   std::string callbackName) final;
+    CallbackToken registerCallback(Callback const& callbackFn, std::string callbackName) final;
     void unregisterCallback(CallbackToken token) final;
     ScheduleResult schedule(CallbackToken token, nsecs_t workDuration, nsecs_t earliestVsync) final;
     CancelResult cancel(CallbackToken token) final;

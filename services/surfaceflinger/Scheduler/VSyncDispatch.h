@@ -39,6 +39,14 @@ public:
     virtual ~VSyncDispatch();
 
     /*
+     * A callback that can be registered to be awoken at a given time relative to a vsync event.
+     * \param [in] vsyncTime The timestamp of the vsync the callback is for.
+     * \param [in] targetWakeupTime The timestamp of intended wakeup time of the cb.
+     *
+     */
+    using Callback = std::function<void(nsecs_t vsyncTime, nsecs_t targetWakeupTime)>;
+
+    /*
      * Registers a callback that will be called at designated points on the vsync timeline.
      * The callback can be scheduled, rescheduled targeting vsync times, or cancelled.
      * The token returned must be cleaned up via unregisterCallback.
@@ -51,7 +59,7 @@ public:
      *                          invocation of callbackFn.
      *
      */
-    virtual CallbackToken registerCallback(std::function<void(nsecs_t)> const& callbackFn,
+    virtual CallbackToken registerCallback(Callback const& callbackFn,
                                            std::string callbackName) = 0;
 
     /*
@@ -112,7 +120,7 @@ protected:
  */
 class VSyncCallbackRegistration {
 public:
-    VSyncCallbackRegistration(VSyncDispatch&, std::function<void(nsecs_t)> const& callbackFn,
+    VSyncCallbackRegistration(VSyncDispatch&, VSyncDispatch::Callback const& callbackFn,
                               std::string const& callbackName);
     VSyncCallbackRegistration(VSyncCallbackRegistration&&);
     VSyncCallbackRegistration& operator=(VSyncCallbackRegistration&&);
