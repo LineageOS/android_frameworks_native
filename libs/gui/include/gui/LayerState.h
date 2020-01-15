@@ -35,6 +35,7 @@
 #include <ui/GraphicTypes.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
+#include <ui/Rotation.h>
 
 namespace android {
 
@@ -218,15 +219,6 @@ struct ComposerState {
 
 struct DisplayState {
     enum {
-        eOrientationDefault = 0,
-        eOrientation90 = 1,
-        eOrientation180 = 2,
-        eOrientation270 = 3,
-        eOrientationUnchanged = 4,
-        eOrientationSwapMask = 0x01
-    };
-
-    enum {
         eSurfaceChanged = 0x01,
         eLayerStackChanged = 0x02,
         eDisplayProjectionChanged = 0x04,
@@ -252,7 +244,7 @@ struct DisplayState {
     // 0, layers will be scaled by a factor of 2 and translated by (20, 10).
     // When orientation is 1, layers will be additionally rotated by 90
     // degrees around the origin clockwise and translated by (W, 0).
-    uint32_t orientation;
+    ui::Rotation orientation = ui::ROTATION_0;
     Rect viewport;
     Rect frame;
 

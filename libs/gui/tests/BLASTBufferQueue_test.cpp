@@ -123,11 +123,12 @@ protected:
     void setUpProducer(BLASTBufferQueueHelper adapter, sp<IGraphicBufferProducer>& producer) {
         auto igbProducer = adapter.getIGraphicBufferProducer();
         ASSERT_NE(nullptr, igbProducer.get());
+        ASSERT_EQ(NO_ERROR, igbProducer->setMaxDequeuedBufferCount(2));
         IGraphicBufferProducer::QueueBufferOutput qbOutput;
         ASSERT_EQ(NO_ERROR,
                   igbProducer->connect(new DummyProducerListener, NATIVE_WINDOW_API_CPU, false,
                                        &qbOutput));
-        ASSERT_NE(ui::Transform::orientation_flags::ROT_INVALID, qbOutput.transformHint);
+        ASSERT_NE(ui::Transform::ROT_INVALID, qbOutput.transformHint);
         producer = igbProducer;
     }
 
@@ -266,7 +267,7 @@ TEST_F(BLASTBufferQueueTest, onFrameAvailable_Apply) {
                                                    NATIVE_WINDOW_SCALING_MODE_FREEZE, 0,
                                                    Fence::NO_FENCE);
     igbProducer->queueBuffer(slot, input, &qbOutput);
-    ASSERT_NE(ui::Transform::orientation_flags::ROT_INVALID, qbOutput.transformHint);
+    ASSERT_NE(ui::Transform::ROT_INVALID, qbOutput.transformHint);
 
     adapter.waitForCallbacks();
 
@@ -349,7 +350,7 @@ TEST_F(BLASTBufferQueueTest, SetCrop_Item) {
                                                    NATIVE_WINDOW_SCALING_MODE_FREEZE, 0,
                                                    Fence::NO_FENCE);
     igbProducer->queueBuffer(slot, input, &qbOutput);
-    ASSERT_NE(ui::Transform::orientation_flags::ROT_INVALID, qbOutput.transformHint);
+    ASSERT_NE(ui::Transform::ROT_INVALID, qbOutput.transformHint);
 
     adapter.waitForCallbacks();
     // capture screen and verify that it is red
@@ -410,7 +411,7 @@ TEST_F(BLASTBufferQueueTest, SetCrop_ScalingModeScaleCrop) {
                                                    NATIVE_WINDOW_SCALING_MODE_SCALE_CROP, 0,
                                                    Fence::NO_FENCE);
     igbProducer->queueBuffer(slot, input, &qbOutput);
-    ASSERT_NE(ui::Transform::orientation_flags::ROT_INVALID, qbOutput.transformHint);
+    ASSERT_NE(ui::Transform::ROT_INVALID, qbOutput.transformHint);
 
     adapter.waitForCallbacks();
     // capture screen and verify that it is red
@@ -456,7 +457,7 @@ public:
                                                        NATIVE_WINDOW_SCALING_MODE_FREEZE, tr,
                                                        Fence::NO_FENCE);
         igbProducer->queueBuffer(slot, input, &qbOutput);
-        ASSERT_NE(ui::Transform::orientation_flags::ROT_INVALID, qbOutput.transformHint);
+        ASSERT_NE(ui::Transform::ROT_INVALID, qbOutput.transformHint);
 
         adapter.waitForCallbacks();
         bool capturedSecureLayers;

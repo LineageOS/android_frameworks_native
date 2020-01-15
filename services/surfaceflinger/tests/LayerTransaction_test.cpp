@@ -53,7 +53,7 @@ TEST_F(LayerTransactionTest, SetFlagsSecureEUidSystem) {
     ASSERT_EQ(NO_ERROR,
               composer->captureScreen(mDisplay, &outBuffer, outCapturedSecureLayers,
                                       ui::Dataspace::V0_SRGB, ui::PixelFormat::RGBA_8888, Rect(), 0,
-                                      0, false, ISurfaceComposer::eRotateNone, true));
+                                      0, false, ui::ROTATION_0, true));
     ASSERT_EQ(true, outCapturedSecureLayers);
     ScreenCapture sc(outBuffer);
     sc.expectColor(Rect(0, 0, 32, 32), Color::RED);

@@ -2040,8 +2040,8 @@ TEST_F(HandleTransactionLockedTest, processesDisplayLayerStackChanges) {
 TEST_F(HandleTransactionLockedTest, processesDisplayTransformChanges) {
     using Case = NonHwcVirtualDisplayCase;
 
-    constexpr int oldTransform = 0;
-    constexpr int newTransform = 2;
+    constexpr ui::Rotation oldTransform = ui::ROTATION_0;
+    constexpr ui::Rotation newTransform = ui::ROTATION_180;
 
     // --------------------------------------------------------------------
     // Preconditions
@@ -2414,7 +2414,7 @@ TEST_F(DisplayTransactionTest, setDisplayStateLockedRequestsUpdateIfLayerStackCh
 
 TEST_F(DisplayTransactionTest, setDisplayStateLockedDoesNothingIfProjectionDidNotChange) {
     using Case = SimplePrimaryDisplayCase;
-    constexpr int initialOrientation = 180;
+    constexpr ui::Rotation initialOrientation = ui::ROTATION_180;
     const Rect initialFrame = {1, 2, 3, 4};
     const Rect initialViewport = {5, 6, 7, 8};
 
@@ -2458,8 +2458,8 @@ TEST_F(DisplayTransactionTest, setDisplayStateLockedDoesNothingIfProjectionDidNo
 
 TEST_F(DisplayTransactionTest, setDisplayStateLockedRequestsUpdateIfOrientationChanged) {
     using Case = SimplePrimaryDisplayCase;
-    constexpr int initialOrientation = 90;
-    constexpr int desiredOrientation = 180;
+    constexpr ui::Rotation initialOrientation = ui::ROTATION_90;
+    constexpr ui::Rotation desiredOrientation = ui::ROTATION_180;
 
     // --------------------------------------------------------------------
     // Preconditions
@@ -2721,7 +2721,7 @@ TEST_F(DisplayTransactionTest, onInitializeDisplaysSetsUpPrimaryDisplay) {
     // The layer stack state should be set to zero
     EXPECT_EQ(0u, primaryDisplayState.layerStack);
     // The orientation state should be set to zero
-    EXPECT_EQ(0, primaryDisplayState.orientation);
+    EXPECT_EQ(ui::ROTATION_0, primaryDisplayState.orientation);
 
     // The frame state should be set to INVALID
     EXPECT_EQ(Rect::INVALID_RECT, primaryDisplayState.frame);

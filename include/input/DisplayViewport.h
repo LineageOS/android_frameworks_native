@@ -17,15 +17,22 @@
 #ifndef _LIBINPUT_DISPLAY_VIEWPORT_H
 #define _LIBINPUT_DISPLAY_VIEWPORT_H
 
-#include <android-base/stringprintf.h>
-#include <ui/DisplayInfo.h>
-#include <input/Input.h>
-#include <inttypes.h>
+#include <cinttypes>
 #include <optional>
+
+#include <android-base/stringprintf.h>
+#include <input/Input.h>
 
 using android::base::StringPrintf;
 
 namespace android {
+
+enum {
+    DISPLAY_ORIENTATION_0 = 0,
+    DISPLAY_ORIENTATION_90 = 1,
+    DISPLAY_ORIENTATION_180 = 2,
+    DISPLAY_ORIENTATION_270 = 3
+};
 
 /**
  * Describes the different type of viewports supported by input flinger.

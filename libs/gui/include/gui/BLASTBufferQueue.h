@@ -69,7 +69,6 @@ private:
     std::mutex mMutex;
     std::condition_variable mCallbackCV;
 
-    static const int MAX_BUFFERS = 3;
     static const int MAX_ACQUIRED_BUFFERS = 2;
 
     int32_t mNumFrameAvailable GUARDED_BY(mMutex);

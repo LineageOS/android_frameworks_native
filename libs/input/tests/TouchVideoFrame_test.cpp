@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <input/DisplayViewport.h>
 #include <input/TouchVideoFrame.h>
 
 namespace android {

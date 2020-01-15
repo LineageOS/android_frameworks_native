@@ -41,12 +41,7 @@ namespace android {
 
 using android::base::StringAppendF;
 
-/*
- * Initialize the display to the specified values.
- *
- */
-
-uint32_t DisplayDevice::sPrimaryDisplayOrientation = 0;
+ui::Transform::RotationFlags DisplayDevice::sPrimaryDisplayRotationFlags = ui::Transform::ROT_0;
 
 DisplayDeviceCreationArgs::DisplayDeviceCreationArgs(const sp<SurfaceFlinger>& flinger,
                                                      const wp<IBinder>& displayToken,
@@ -57,13 +52,11 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
       : mFlinger(args.flinger),
         mDisplayToken(args.displayToken),
         mSequenceId(args.sequenceId),
-        mDisplayInstallOrientation(args.displayInstallOrientation),
+        mIsVirtual(args.isVirtual),
         mCompositionDisplay{mFlinger->getCompositionEngine().createDisplay(
                 compositionengine::DisplayCreationArgs{args.isVirtual, args.displayId,
                                                        args.powerAdvisor})},
-        mIsVirtual(args.isVirtual),
-        mOrientation(),
-        mActiveConfig(0),
+        mPhysicalOrientation(args.physicalOrientation),
         mIsPrimary(args.isPrimary) {
     mCompositionDisplay->editState().isSecure = args.isSecure;
     mCompositionDisplay->createRenderSurface(
@@ -88,7 +81,7 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
     setPowerMode(args.initialPowerMode);
 
     // initialize the display orientation transform.
-    setProjection(DisplayState::eOrientationDefault, Rect::INVALID_RECT, Rect::INVALID_RECT);
+    setProjection(ui::ROTATION_0, Rect::INVALID_RECT, Rect::INVALID_RECT);
 }
 
 DisplayDevice::~DisplayDevice() = default;
@@ -131,7 +124,6 @@ bool DisplayDevice::isPoweredOn() const {
     return mPowerMode != HWC_POWER_MODE_OFF;
 }
 
-// ----------------------------------------------------------------------------
 void DisplayDevice::setActiveConfig(HwcConfigIndexType mode) {
     mActiveConfig = mode;
 }
@@ -140,53 +132,19 @@ HwcConfigIndexType DisplayDevice::getActiveConfig() const {
     return mActiveConfig;
 }
 
-// ----------------------------------------------------------------------------
-
 ui::Dataspace DisplayDevice::getCompositionDataSpace() const {
     return mCompositionDisplay->getState().dataspace;
 }
 
-// ----------------------------------------------------------------------------
-
 void DisplayDevice::setLayerStack(uint32_t stack) {
     mCompositionDisplay->setLayerStackFilter(stack, isPrimary());
-}
-
-// ----------------------------------------------------------------------------
-
-uint32_t DisplayDevice::displayStateOrientationToTransformOrientation(int orientation) {
-    switch (orientation) {
-    case DisplayState::eOrientationDefault:
-        return ui::Transform::ROT_0;
-    case DisplayState::eOrientation90:
-        return ui::Transform::ROT_90;
-    case DisplayState::eOrientation180:
-        return ui::Transform::ROT_180;
-    case DisplayState::eOrientation270:
-        return ui::Transform::ROT_270;
-    default:
-        return ui::Transform::ROT_INVALID;
-    }
-}
-
-status_t DisplayDevice::orientationToTransfrom(int orientation, int w, int h, ui::Transform* tr) {
-    uint32_t flags = displayStateOrientationToTransformOrientation(orientation);
-    if (flags == ui::Transform::ROT_INVALID) {
-        return BAD_VALUE;
-    }
-    tr->set(flags, w, h);
-    return NO_ERROR;
 }
 
 void DisplayDevice::setDisplaySize(const int newWidth, const int newHeight) {
     mCompositionDisplay->setBounds(ui::Size(newWidth, newHeight));
 }
 
-void DisplayDevice::setProjection(int orientation,
-        const Rect& newViewport, const Rect& newFrame) {
-    Rect viewport(newViewport);
-    Rect frame(newFrame);
-
+void DisplayDevice::setProjection(ui::Rotation orientation, Rect viewport, Rect frame) {
     mOrientation = orientation;
 
     const Rect& displayBounds = getCompositionDisplay()->getState().bounds;
@@ -194,7 +152,10 @@ void DisplayDevice::setProjection(int orientation,
     const int h = displayBounds.height();
 
     ui::Transform R;
-    DisplayDevice::orientationToTransfrom(orientation, w, h, &R);
+    if (const auto flags = ui::Transform::toRotationFlags(orientation);
+        flags != ui::Transform::ROT_INVALID) {
+        R.set(flags, w, h);
+    }
 
     if (!frame.isValid()) {
         // the destination frame can be invalid if it has never been set,
@@ -236,9 +197,10 @@ void DisplayDevice::setProjection(int orientation,
     // need to take care of primary display rotation for globalTransform
     // for case if the panel is not installed aligned with device orientation
     if (isPrimary()) {
-        DisplayDevice::orientationToTransfrom(
-                (orientation + mDisplayInstallOrientation) % (DisplayState::eOrientation270 + 1),
-                w, h, &R);
+        if (const auto flags = ui::Transform::toRotationFlags(orientation + mPhysicalOrientation);
+            flags != ui::Transform::ROT_INVALID) {
+            R.set(flags, w, h);
+        }
     }
 
     // The viewport and frame are both in the logical orientation.
@@ -258,19 +220,18 @@ void DisplayDevice::setProjection(int orientation,
     uint32_t transformOrientation;
 
     if (isPrimary()) {
-        sPrimaryDisplayOrientation = displayStateOrientationToTransformOrientation(orientation);
-        transformOrientation = displayStateOrientationToTransformOrientation(
-                (orientation + mDisplayInstallOrientation) % (DisplayState::eOrientation270 + 1));
+        sPrimaryDisplayRotationFlags = ui::Transform::toRotationFlags(orientation);
+        transformOrientation = ui::Transform::toRotationFlags(orientation + mPhysicalOrientation);
     } else {
-        transformOrientation = displayStateOrientationToTransformOrientation(orientation);
+        transformOrientation = ui::Transform::toRotationFlags(orientation);
     }
 
     getCompositionDisplay()->setProjection(globalTransform, transformOrientation,
                                            frame, viewport, scissor, needsFiltering);
 }
 
-uint32_t DisplayDevice::getPrimaryDisplayOrientationTransform() {
-    return sPrimaryDisplayOrientation;
+ui::Transform::RotationFlags DisplayDevice::getPrimaryDisplayRotationFlags() {
+    return sPrimaryDisplayRotationFlags;
 }
 
 std::string DisplayDevice::getDebugName() const {

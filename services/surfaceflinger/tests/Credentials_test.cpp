@@ -23,7 +23,6 @@ using ui::ColorMode;
 namespace {
 const String8 DISPLAY_NAME("Credentials Display Test");
 const String8 SURFACE_NAME("Test Surface Name");
-const uint32_t ROTATION = 0;
 const float FRAME_SCALE = 1.0f;
 } // namespace
 
@@ -262,7 +261,7 @@ TEST_F(CredentialsTest, CaptureTest) {
         sp<GraphicBuffer> outBuffer;
         return ScreenshotClient::capture(display, ui::Dataspace::V0_SRGB,
                                          ui::PixelFormat::RGBA_8888, Rect(), 0 /*reqWidth*/,
-                                         0 /*reqHeight*/, false, ROTATION, &outBuffer);
+                                         0 /*reqHeight*/, false, ui::ROTATION_0, &outBuffer);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, PERMISSION_DENIED));
 }

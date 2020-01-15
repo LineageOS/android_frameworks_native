@@ -229,7 +229,7 @@ public:
     // found on devices with wide color gamut (e.g. Display-P3) display.
     static bool hasWideColorDisplay;
 
-    static int primaryDisplayOrientation;
+    static ui::Rotation internalDisplayOrientation;
 
     // Indicate if device wants color management on its display.
     static bool useColorManagement;
@@ -415,10 +415,10 @@ private:
             ISurfaceComposer::ConfigChanged configChanged =
                     ISurfaceComposer::eConfigChangedSuppress) override;
     status_t captureScreen(const sp<IBinder>& displayToken, sp<GraphicBuffer>* outBuffer,
-            bool& outCapturedSecureLayers, const ui::Dataspace reqDataspace,
-            const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
-            uint32_t reqWidth, uint32_t reqHeight,
-            bool useIdentityTransform, ISurfaceComposer::Rotation rotation, bool captureSecureLayers) override;
+                           bool& outCapturedSecureLayers, ui::Dataspace reqDataspace,
+                           ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
+                           uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
+                           ui::Rotation rotation, bool captureSecureLayers) override;
     status_t captureScreen(uint64_t displayOrLayerStack, ui::Dataspace* outDataspace,
                            sp<GraphicBuffer>* outBuffer) override;
     status_t captureLayers(

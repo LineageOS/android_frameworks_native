@@ -35,6 +35,7 @@
 #include <ui/FrameStats.h>
 #include <ui/GraphicTypes.h>
 #include <ui/PixelFormat.h>
+#include <ui/Rotation.h>
 
 #include <gui/CpuConsumer.h>
 #include <gui/ISurfaceComposer.h>
@@ -531,10 +532,8 @@ public:
          * mapped to. displayRect is specified post-orientation, that is
          * it uses the orientation seen by the end-user.
          */
-        void setDisplayProjection(const sp<IBinder>& token,
-                uint32_t orientation,
-                const Rect& layerStackRect,
-                const Rect& displayRect);
+        void setDisplayProjection(const sp<IBinder>& token, ui::Rotation orientation,
+                                  const Rect& layerStackRect, const Rect& displayRect);
         void setDisplaySize(const sp<IBinder>& token, uint32_t width, uint32_t height);
         void setAnimationTransaction();
         void setEarlyWakeup();
@@ -548,10 +547,8 @@ public:
     static status_t getHdrCapabilities(const sp<IBinder>& display,
             HdrCapabilities* outCapabilities);
 
-    static void setDisplayProjection(const sp<IBinder>& token,
-            uint32_t orientation,
-            const Rect& layerStackRect,
-            const Rect& displayRect);
+    static void setDisplayProjection(const sp<IBinder>& token, ui::Rotation orientation,
+                                     const Rect& layerStackRect, const Rect& displayRect);
 
     inline sp<ISurfaceComposerClient> getClient() { return mClient; }
 
@@ -583,23 +580,23 @@ class ScreenshotClient {
 public:
     // if cropping isn't required, callers may pass in a default Rect, e.g.:
     //   capture(display, producer, Rect(), reqWidth, ...);
-    static status_t capture(const sp<IBinder>& display, const ui::Dataspace reqDataSpace,
-                            const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
+    static status_t capture(const sp<IBinder>& display, ui::Dataspace reqDataSpace,
+                            ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
                             uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
-                            uint32_t rotation, bool captureSecureLayers,
+                            ui::Rotation rotation, bool captureSecureLayers,
                             sp<GraphicBuffer>* outBuffer, bool& outCapturedSecureLayers);
-    static status_t capture(const sp<IBinder>& display, const ui::Dataspace reqDataSpace,
-                            const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
+    static status_t capture(const sp<IBinder>& display, ui::Dataspace reqDataSpace,
+                            ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
                             uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
-                            uint32_t rotation, sp<GraphicBuffer>* outBuffer);
+                            ui::Rotation rotation, sp<GraphicBuffer>* outBuffer);
     static status_t capture(uint64_t displayOrLayerStack, ui::Dataspace* outDataspace,
                             sp<GraphicBuffer>* outBuffer);
-    static status_t captureLayers(const sp<IBinder>& layerHandle, const ui::Dataspace reqDataSpace,
-                                  const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
+    static status_t captureLayers(const sp<IBinder>& layerHandle, ui::Dataspace reqDataSpace,
+                                  ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
                                   float frameScale, sp<GraphicBuffer>* outBuffer);
     static status_t captureChildLayers(
-            const sp<IBinder>& layerHandle, const ui::Dataspace reqDataSpace,
-            const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
+            const sp<IBinder>& layerHandle, ui::Dataspace reqDataSpace,
+            ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
             const std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>&
                     excludeHandles,
             float frameScale, sp<GraphicBuffer>* outBuffer);
