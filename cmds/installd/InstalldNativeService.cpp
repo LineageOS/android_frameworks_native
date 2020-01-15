@@ -273,7 +273,7 @@ status_t InstalldNativeService::start() {
     ps->startThreadPool();
     ps->giveThreadPoolName();
     sAppDataIsolationEnabled = android::base::GetBoolProperty(
-            kAppDataIsolationEnabledProperty, false);
+            kAppDataIsolationEnabledProperty, true);
     return android::OK;
 }
 
