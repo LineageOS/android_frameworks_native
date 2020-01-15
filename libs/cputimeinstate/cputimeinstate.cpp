@@ -85,6 +85,16 @@ static int comparePolicyFiles(const struct dirent **d1, const struct dirent **d2
     return policyN1 - policyN2;
 }
 
+static int bpf_obj_get_wronly(const char *pathname) {
+    union bpf_attr attr;
+
+    memset(&attr, 0, sizeof(attr));
+    attr.pathname = ptr_to_u64((void *)pathname);
+    attr.file_flags = BPF_F_WRONLY;
+
+    return syscall(__NR_bpf, BPF_OBJ_GET, &attr, sizeof(attr));
+}
+
 static bool initGlobals() {
     std::lock_guard<std::mutex> guard(gInitializedMutex);
     if (gInitialized) return true;
@@ -153,17 +163,17 @@ static bool attachTracepointProgram(const std::string &eventType, const std::str
 bool startTrackingUidTimes() {
     if (!initGlobals()) return false;
 
-    unique_fd fd(bpf_obj_get(BPF_FS_PATH "map_time_in_state_cpu_policy_map"));
-    if (fd < 0) return false;
+    unique_fd cpuPolicyFd(bpf_obj_get_wronly(BPF_FS_PATH "map_time_in_state_cpu_policy_map"));
+    if (cpuPolicyFd < 0) return false;
 
     for (uint32_t i = 0; i < gPolicyCpus.size(); ++i) {
         for (auto &cpu : gPolicyCpus[i]) {
-            if (writeToMapEntry(fd, &cpu, &i, BPF_ANY)) return false;
+            if (writeToMapEntry(cpuPolicyFd, &cpu, &i, BPF_ANY)) return false;
         }
     }
 
-    unique_fd fd2(bpf_obj_get(BPF_FS_PATH "map_time_in_state_freq_to_idx_map"));
-    if (fd2 < 0) return false;
+    unique_fd freqToIdxFd(bpf_obj_get_wronly(BPF_FS_PATH "map_time_in_state_freq_to_idx_map"));
+    if (freqToIdxFd < 0) return false;
     freq_idx_key_t key;
     for (uint32_t i = 0; i < gNPolicies; ++i) {
         key.policy = i;
@@ -173,12 +183,39 @@ bool startTrackingUidTimes() {
             // The uid_times map still uses 0-based indexes, and the sched_switch program handles
             // conversion between them, so this does not affect our map reading code.
             uint32_t idx = j + 1;
-            if (writeToMapEntry(fd2, &key, &idx, BPF_ANY)) return false;
+            if (writeToMapEntry(freqToIdxFd, &key, &idx, BPF_ANY)) return false;
         }
+    }
+
+    unique_fd cpuLastUpdateFd(bpf_obj_get_wronly(BPF_FS_PATH "map_time_in_state_cpu_last_update_map"));
+    if (cpuLastUpdateFd < 0) return false;
+    std::vector<uint64_t> zeros(get_nprocs_conf(), 0);
+    uint32_t zero = 0;
+    if (writeToMapEntry(cpuLastUpdateFd, &zero, zeros.data(), BPF_ANY)) return false;
+
+    unique_fd nrActiveFd(bpf_obj_get_wronly(BPF_FS_PATH "map_time_in_state_nr_active_map"));
+    if (nrActiveFd < 0) return false;
+    if (writeToMapEntry(nrActiveFd, &zero, &zero, BPF_ANY)) return false;
+
+    unique_fd policyNrActiveFd(bpf_obj_get_wronly(BPF_FS_PATH "map_time_in_state_policy_nr_active_map"));
+    if (policyNrActiveFd < 0) return false;
+    for (uint32_t i = 0; i < gNPolicies; ++i) {
+        if (writeToMapEntry(policyNrActiveFd, &i, &zero, BPF_ANY)) return false;
+    }
+
+    unique_fd policyFreqIdxFd(bpf_obj_get_wronly(BPF_FS_PATH "map_time_in_state_policy_freq_idx_map"));
+    if (policyFreqIdxFd < 0) return false;
+    for (uint32_t i = 0; i < gNPolicies; ++i) {
+        if (writeToMapEntry(policyFreqIdxFd, &i, &zero, BPF_ANY)) return false;
     }
 
     return attachTracepointProgram("sched", "sched_switch") &&
             attachTracepointProgram("power", "cpu_frequency");
+}
+
+std::optional<std::vector<std::vector<uint32_t>>> getCpuFreqs() {
+    if (!gInitialized && !initGlobals()) return {};
+    return gPolicyFreqs;
 }
 
 // Retrieve the times in ns that uid spent running at each CPU frequency.
