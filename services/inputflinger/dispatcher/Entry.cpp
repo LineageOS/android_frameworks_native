@@ -111,6 +111,21 @@ void DeviceResetEntry::appendDescription(std::string& msg) const {
     msg += StringPrintf("DeviceResetEvent(deviceId=%d), policyFlags=0x%08x", deviceId, policyFlags);
 }
 
+// --- FocusEntry ---
+
+// Focus notifications always go to apps, so set the flag POLICY_FLAG_PASS_TO_USER for all entries
+FocusEntry::FocusEntry(uint32_t sequenceNum, nsecs_t eventTime, sp<IBinder> connectionToken,
+                       bool hasFocus)
+      : EventEntry(sequenceNum, Type::FOCUS, eventTime, POLICY_FLAG_PASS_TO_USER),
+        connectionToken(connectionToken),
+        hasFocus(hasFocus) {}
+
+FocusEntry::~FocusEntry() {}
+
+void FocusEntry::appendDescription(std::string& msg) const {
+    msg += StringPrintf("FocusEvent(hasFocus=%s)", hasFocus ? "true" : "false");
+}
+
 // --- KeyEntry ---
 
 KeyEntry::KeyEntry(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId, uint32_t source,

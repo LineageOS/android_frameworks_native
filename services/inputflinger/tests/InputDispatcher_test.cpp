@@ -482,10 +482,29 @@ public:
                 EXPECT_EQ(expectedFlags, motionEvent.getFlags());
                 break;
             }
+            case AINPUT_EVENT_TYPE_FOCUS: {
+                FAIL() << "Use 'consumeFocusEvent' for FOCUS events";
+            }
             default: {
                 FAIL() << mName.c_str() << ": invalid event type: " << expectedEventType;
             }
         }
+    }
+
+    void consumeFocusEvent(bool hasFocus, bool inTouchMode) {
+        InputEvent* event = consume();
+        ASSERT_NE(nullptr, event) << mName.c_str()
+                                  << ": consumer should have returned non-NULL event.";
+        ASSERT_EQ(AINPUT_EVENT_TYPE_FOCUS, event->getType())
+                << "Got " << inputEventTypeToString(event->getType())
+                << " event instead of FOCUS event";
+
+        ASSERT_EQ(ADISPLAY_ID_NONE, event->getDisplayId())
+                << mName.c_str() << ": event displayId should always be NONE.";
+
+        FocusEvent* focusEvent = static_cast<FocusEvent*>(event);
+        EXPECT_EQ(hasFocus, focusEvent->getHasFocus());
+        EXPECT_EQ(inTouchMode, focusEvent->getInTouchMode());
     }
 
     void assertNoEvents() {
@@ -508,7 +527,6 @@ class FakeWindowHandle : public InputWindowHandle {
 public:
     static const int32_t WIDTH = 600;
     static const int32_t HEIGHT = 800;
-    const std::string mName;
 
     FakeWindowHandle(const sp<InputApplicationHandle>& inputApplicationHandle,
                      const sp<InputDispatcher>& dispatcher, const std::string name,
@@ -551,7 +569,7 @@ public:
 
     virtual bool updateInfo() { return true; }
 
-    void setFocus() { mInfo.hasFocus = true; }
+    void setFocus(bool hasFocus) { mInfo.hasFocus = hasFocus; }
 
     void setFrame(const Rect& frame) {
         mInfo.frameLeft = frame.left;
@@ -586,6 +604,12 @@ public:
                      expectedFlags);
     }
 
+    void consumeFocusEvent(bool hasFocus, bool inTouchMode = true) {
+        ASSERT_NE(mInputReceiver, nullptr)
+                << "Cannot consume events from a window with no receiver";
+        mInputReceiver->consumeFocusEvent(hasFocus, inTouchMode);
+    }
+
     void consumeEvent(int32_t expectedEventType, int32_t expectedAction, int32_t expectedDisplayId,
                       int32_t expectedFlags) {
         ASSERT_NE(mInputReceiver, nullptr) << "Invalid consume event on window with no receiver";
@@ -608,7 +632,10 @@ public:
 
     sp<IBinder> getToken() { return mInfo.token; }
 
+    const std::string& getName() { return mName; }
+
 private:
+    const std::string mName;
     std::unique_ptr<FakeInputReceiver> mInputReceiver;
 };
 
@@ -759,10 +786,11 @@ TEST_F(InputDispatcherTest, SetInputWindow_FocusedWindow) {
     // Set focused application.
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
-    // Expect one focus window exist in display.
-    windowSecond->setFocus();
-
+    // Display should have only one focused window
+    windowSecond->setFocus(true);
     mDispatcher->setInputWindows({windowTop, windowSecond}, ADISPLAY_ID_DEFAULT);
+
+    windowSecond->consumeFocusEvent(true);
     ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher))
             << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
 
@@ -782,10 +810,11 @@ TEST_F(InputDispatcherTest, SetInputWindow_FocusPriority) {
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
     // Display has two focused windows. Add them to inputWindowsHandles in z-order (top most first)
-    windowTop->setFocus();
-    windowSecond->setFocus();
+    windowTop->setFocus(true);
+    windowSecond->setFocus(true);
 
     mDispatcher->setInputWindows({windowTop, windowSecond}, ADISPLAY_ID_DEFAULT);
+    windowTop->consumeFocusEvent(true);
     ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher))
             << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
 
@@ -805,11 +834,12 @@ TEST_F(InputDispatcherTest, SetInputWindow_InputWindowInfo) {
     // Set focused application.
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
-    windowTop->setFocus();
-    windowSecond->setFocus();
+    windowTop->setFocus(true);
+    windowSecond->setFocus(true);
     // Release channel for window is no longer valid.
     windowTop->releaseChannel();
     mDispatcher->setInputWindows({windowTop, windowSecond}, ADISPLAY_ID_DEFAULT);
+    windowSecond->consumeFocusEvent(true);
 
     // Test inject a key down, should dispatch to a valid window.
     ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher))
@@ -849,9 +879,10 @@ TEST_F(InputDispatcherTest, NotifyDeviceReset_CancelsKeyStream) {
     sp<FakeApplicationHandle> application = new FakeApplicationHandle();
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
-    window->setFocus();
+    window->setFocus(true);
 
     mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    window->consumeFocusEvent(true);
 
     NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN, ADISPLAY_ID_DEFAULT);
     mDispatcher->notifyKey(&keyArgs);
@@ -888,6 +919,59 @@ TEST_F(InputDispatcherTest, NotifyDeviceReset_CancelsMotionStream) {
     mDispatcher->notifyDeviceReset(&args);
     window->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_CANCEL, ADISPLAY_ID_DEFAULT,
                          0 /*expectedFlags*/);
+}
+
+TEST_F(InputDispatcherTest, FocusedWindow_ReceivesFocusEventAndKeyEvent) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
+
+    window->setFocus(true);
+    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+
+    window->consumeFocusEvent(true);
+
+    NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN, ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyKey(&keyArgs);
+
+    // Window should receive key down event.
+    window->consumeKeyDown(ADISPLAY_ID_DEFAULT);
+}
+
+TEST_F(InputDispatcherTest, UnfocusedWindow_DoesNotReceiveFocusEventOrKeyEvent) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
+
+    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+
+    NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN, ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyKey(&keyArgs);
+    mDispatcher->waitForIdle();
+
+    window->assertNoEvents();
+}
+
+// If a window is touchable, but does not have focus, it should receive motion events, but not keys
+TEST_F(InputDispatcherTest, UnfocusedWindow_ReceivesMotionsButNotKeys) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
+
+    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+
+    // Send key
+    NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN, ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyKey(&keyArgs);
+    // Send motion
+    NotifyMotionArgs motionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                               ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyMotion(&motionArgs);
+
+    // Window should receive only the motion event
+    window->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+    window->assertNoEvents(); // Key event or focus event will not be received
 }
 
 class FakeMonitorReceiver {
@@ -946,9 +1030,10 @@ TEST_F(InputDispatcherTest, GestureMonitor_DoesNotReceiveKeyEvents) {
             new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
 
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
-    window->setFocus();
+    window->setFocus(true);
 
     mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    window->consumeFocusEvent(true);
 
     FakeMonitorReceiver monitor = FakeMonitorReceiver(mDispatcher, "GM_1", ADISPLAY_ID_DEFAULT,
                                                       true /*isGestureMonitor*/);
@@ -1010,6 +1095,49 @@ TEST_F(InputDispatcherTest, TestMoveEvent) {
                          0 /*expectedFlags*/);
 }
 
+/**
+ * Dispatcher has touch mode enabled by default. Typically, the policy overrides that value to
+ * the device default right away. In the test scenario, we check both the default value,
+ * and the action of enabling / disabling.
+ */
+TEST_F(InputDispatcherTest, TouchModeState_IsSentToApps) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Test window", ADISPLAY_ID_DEFAULT);
+
+    // Set focused application.
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+    window->setFocus(true);
+
+    SCOPED_TRACE("Check default value of touch mode");
+    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    window->consumeFocusEvent(true /*hasFocus*/, true /*inTouchMode*/);
+
+    SCOPED_TRACE("Remove the window to trigger focus loss");
+    window->setFocus(false);
+    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    window->consumeFocusEvent(false /*hasFocus*/, true /*inTouchMode*/);
+
+    SCOPED_TRACE("Disable touch mode");
+    mDispatcher->setInTouchMode(false);
+    window->setFocus(true);
+    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    window->consumeFocusEvent(true /*hasFocus*/, false /*inTouchMode*/);
+
+    SCOPED_TRACE("Remove the window to trigger focus loss");
+    window->setFocus(false);
+    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    window->consumeFocusEvent(false /*hasFocus*/, false /*inTouchMode*/);
+
+    SCOPED_TRACE("Enable touch mode again");
+    mDispatcher->setInTouchMode(true);
+    window->setFocus(true);
+    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    window->consumeFocusEvent(true /*hasFocus*/, true /*inTouchMode*/);
+
+    window->assertNoEvents();
+}
+
 /* Test InputDispatcher for MultiDisplay */
 class InputDispatcherFocusOnTwoDisplaysTest : public InputDispatcherTest {
 public:
@@ -1023,8 +1151,9 @@ public:
 
         // Set focus window for primary display, but focused display would be second one.
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application1);
-        windowInPrimary->setFocus();
+        windowInPrimary->setFocus(true);
         mDispatcher->setInputWindows({windowInPrimary}, ADISPLAY_ID_DEFAULT);
+        windowInPrimary->consumeFocusEvent(true);
 
         application2 = new FakeApplicationHandle();
         windowInSecondary = new FakeWindowHandle(application2, mDispatcher, "D_2",
@@ -1034,8 +1163,9 @@ public:
         mDispatcher->setFocusedDisplay(SECOND_DISPLAY_ID);
         // Set focus window for second display.
         mDispatcher->setFocusedApplication(SECOND_DISPLAY_ID, application2);
-        windowInSecondary->setFocus();
+        windowInSecondary->setFocus(true);
         mDispatcher->setInputWindows({windowInSecondary}, SECOND_DISPLAY_ID);
+        windowInSecondary->consumeFocusEvent(true);
     }
 
     virtual void TearDown() override {
@@ -1094,6 +1224,7 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, SetInputWindow_MultiDisplayFocus) 
     ASSERT_EQ(INPUT_EVENT_INJECTION_TIMED_OUT, injectKeyDown(mDispatcher))
             << "Inject key event should return INPUT_EVENT_INJECTION_TIMED_OUT";
     windowInPrimary->assertNoEvents();
+    windowInSecondary->consumeFocusEvent(false);
     windowInSecondary->assertNoEvents();
 }
 
@@ -1244,10 +1375,11 @@ class InputDispatcherOnPointerDownOutsideFocus : public InputDispatcherTest {
 
         // Set focused application.
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
-        mFocusedWindow->setFocus();
+        mFocusedWindow->setFocus(true);
 
         // Expect one focus window exist in display.
         mDispatcher->setInputWindows({mUnfocusedWindow, mFocusedWindow}, ADISPLAY_ID_DEFAULT);
+        mFocusedWindow->consumeFocusEvent(true);
     }
 
     virtual void TearDown() override {
@@ -1350,7 +1482,7 @@ protected:
 
     void consumeMotionEvent(const sp<FakeWindowHandle>& window, int32_t expectedAction,
                             const std::vector<PointF>& points) {
-        std::string name = window->mName;
+        const std::string name = window->getName();
         InputEvent* event = window->consume();
 
         ASSERT_NE(nullptr, event) << name.c_str()

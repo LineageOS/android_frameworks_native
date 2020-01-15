@@ -530,6 +530,14 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
             break;
         }
 
+        case EventEntry::Type::FOCUS: {
+            FocusEntry* typedEntry = static_cast<FocusEntry*>(mPendingEvent);
+            dispatchFocusLocked(currentTime, typedEntry);
+            done = true;
+            dropReason = DropReason::NOT_DROPPED; // focus events are never dropped
+            break;
+        }
+
         case EventEntry::Type::KEY: {
             KeyEntry* typedEntry = static_cast<KeyEntry*>(mPendingEvent);
             if (isAppSwitchDue) {
@@ -634,7 +642,8 @@ bool InputDispatcher::enqueueInboundEventLocked(EventEntry* entry) {
             break;
         }
         case EventEntry::Type::CONFIGURATION_CHANGED:
-        case EventEntry::Type::DEVICE_RESET: {
+        case EventEntry::Type::DEVICE_RESET:
+        case EventEntry::Type::FOCUS: {
             // nothing to do
             break;
         }
@@ -773,6 +782,7 @@ void InputDispatcher::dropInboundEventLocked(const EventEntry& entry, DropReason
             }
             break;
         }
+        case EventEntry::Type::FOCUS:
         case EventEntry::Type::CONFIGURATION_CHANGED:
         case EventEntry::Type::DEVICE_RESET: {
             LOG_ALWAYS_FATAL("Should not drop %s events", EventEntry::typeToString(entry.type));
@@ -931,6 +941,25 @@ bool InputDispatcher::dispatchDeviceResetLocked(nsecs_t currentTime, DeviceReset
     options.deviceId = entry->deviceId;
     synthesizeCancelationEventsForAllConnectionsLocked(options);
     return true;
+}
+
+void InputDispatcher::enqueueFocusEventLocked(const InputWindowHandle& window, bool hasFocus) {
+    FocusEntry* focusEntry =
+            new FocusEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, now(), window.getToken(), hasFocus);
+    enqueueInboundEventLocked(focusEntry);
+}
+
+void InputDispatcher::dispatchFocusLocked(nsecs_t currentTime, FocusEntry* entry) {
+    sp<InputChannel> channel = getInputChannelLocked(entry->connectionToken);
+    if (channel == nullptr) {
+        return; // Window has gone away
+    }
+    InputTarget target;
+    target.inputChannel = channel;
+    target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
+    entry->dispatchInProgress = true;
+
+    dispatchEventLocked(currentTime, entry, {target});
 }
 
 bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
@@ -1315,6 +1344,7 @@ int32_t InputDispatcher::getTargetDisplayId(const EventEntry& entry) {
             displayId = motionEntry.displayId;
             break;
         }
+        case EventEntry::Type::FOCUS:
         case EventEntry::Type::CONFIGURATION_CHANGED:
         case EventEntry::Type::DEVICE_RESET: {
             ALOGE("%s events do not have a target display", EventEntry::typeToString(entry.type));
@@ -2062,6 +2092,10 @@ std::string InputDispatcher::getApplicationWindowLabel(
 }
 
 void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
+    if (eventEntry.type == EventEntry::Type::FOCUS) {
+        // Focus events are passed to apps, but do not represent user activity.
+        return;
+    }
     int32_t displayId = getTargetDisplayId(eventEntry);
     sp<InputWindowHandle> focusedWindowHandle =
             getValueByKey(mFocusedWindowHandlesByDisplay, displayId);
@@ -2096,6 +2130,7 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
             eventType = USER_ACTIVITY_EVENT_BUTTON;
             break;
         }
+        case EventEntry::Type::FOCUS:
         case EventEntry::Type::CONFIGURATION_CHANGED:
         case EventEntry::Type::DEVICE_RESET: {
             LOG_ALWAYS_FATAL("%s events are not user activity",
@@ -2292,6 +2327,9 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
 
             break;
         }
+        case EventEntry::Type::FOCUS: {
+            break;
+        }
         case EventEntry::Type::CONFIGURATION_CHANGED:
         case EventEntry::Type::DEVICE_RESET: {
             LOG_ALWAYS_FATAL("%s events should not go to apps",
@@ -2427,6 +2465,14 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                 reportTouchEventForStatistics(*motionEntry);
                 break;
             }
+            case EventEntry::Type::FOCUS: {
+                FocusEntry* focusEntry = static_cast<FocusEntry*>(eventEntry);
+                status = connection->inputPublisher.publishFocusEvent(dispatchEntry->seq,
+                                                                      focusEntry->hasFocus,
+                                                                      mInTouchMode);
+                break;
+            }
+
             case EventEntry::Type::CONFIGURATION_CHANGED:
             case EventEntry::Type::DEVICE_RESET: {
                 LOG_ALWAYS_FATAL("Should never start dispatch cycles for %s events",
@@ -2664,6 +2710,10 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
                     logOutboundMotionDetails("cancel - ",
                                              static_cast<const MotionEntry&>(
                                                      *cancelationEventEntry));
+                    break;
+                }
+                case EventEntry::Type::FOCUS: {
+                    LOG_ALWAYS_FATAL("Canceling focus events is not supported");
                     break;
                 }
                 case EventEntry::Type::CONFIGURATION_CHANGED:
@@ -3456,6 +3506,7 @@ void InputDispatcher::setInputWindows(const std::vector<sp<InputWindowHandle>>& 
                     CancelationOptions options(CancelationOptions::CANCEL_NON_POINTER_EVENTS,
                                                "focus left window");
                     synthesizeCancelationEventsForInputChannelLocked(focusedInputChannel, options);
+                    enqueueFocusEventLocked(*oldFocusedWindowHandle, false /*hasFocus*/);
                 }
                 mFocusedWindowHandlesByDisplay.erase(displayId);
             }
@@ -3465,6 +3516,7 @@ void InputDispatcher::setInputWindows(const std::vector<sp<InputWindowHandle>>& 
                           newFocusedWindowHandle->getName().c_str(), displayId);
                 }
                 mFocusedWindowHandlesByDisplay[displayId] = newFocusedWindowHandle;
+                enqueueFocusEventLocked(*newFocusedWindowHandle, true /*hasFocus*/);
             }
 
             if (mFocusedDisplayId == displayId) {
