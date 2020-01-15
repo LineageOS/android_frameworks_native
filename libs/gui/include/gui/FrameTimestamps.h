@@ -106,6 +106,7 @@ struct CompositorTiming {
 // producer via deltas.
 class FrameEventHistory {
 public:
+    FrameEventHistory();
     virtual ~FrameEventHistory();
 
     FrameEvents* getFrame(uint64_t frameNumber);
@@ -113,10 +114,10 @@ public:
     void checkFencesForCompletion();
     void dump(std::string& outString) const;
 
-    static constexpr size_t MAX_FRAME_HISTORY = 8;
+    static const size_t MAX_FRAME_HISTORY;
 
 protected:
-    std::array<FrameEvents, MAX_FRAME_HISTORY> mFrames;
+    std::vector<FrameEvents> mFrames;
 
     CompositorTiming mCompositorTiming;
 };
@@ -204,6 +205,7 @@ private:
 // The consumer's interface to FrameEventHistory
 class ConsumerFrameEventHistory : public FrameEventHistory {
 public:
+    ConsumerFrameEventHistory();
     ~ConsumerFrameEventHistory() override;
 
     void onDisconnect();
@@ -224,9 +226,9 @@ public:
 
 private:
     void getFrameDelta(FrameEventHistoryDelta* delta,
-            const std::array<FrameEvents, MAX_FRAME_HISTORY>::iterator& frame);
+                       const std::vector<FrameEvents>::iterator& frame);
 
-    std::array<FrameEventDirtyFields, MAX_FRAME_HISTORY> mFramesDirty;
+    std::vector<FrameEventDirtyFields> mFramesDirty;
 
     size_t mQueueOffset{0};
     size_t mCompositionOffset{0};
