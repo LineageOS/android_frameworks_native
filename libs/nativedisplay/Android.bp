@@ -40,6 +40,8 @@ cc_library {
         "-Wno-unused-function",
     ],
 
+    version_script: "libnativedisplay.map.txt",
+
     srcs: [
         "AChoreographer.cpp",
         "ADisplay.cpp",
