@@ -2842,8 +2842,10 @@ const HdrCapabilities OutputComposeSurfacesTest::
                          OutputComposeSurfacesTest::kDefaultAvgLuminance,
                          OutputComposeSurfacesTest::kDefaultMinLuminance};
 
-TEST_F(OutputComposeSurfacesTest, doesNothingIfNoClientComposition) {
+TEST_F(OutputComposeSurfacesTest, doesNothingButSignalNoExpensiveRenderingIfNoClientComposition) {
     mOutput.mState.usesClientComposition = false;
+
+    EXPECT_CALL(mOutput, setExpensiveRenderingExpected(false));
 
     verify().execute().expectAFenceWasReturned();
 }
@@ -3163,7 +3165,6 @@ TEST_F(OutputComposeSurfacesTest_SetsExpensiveRendering, IfExepensiveOutputDatas
 
     EXPECT_CALL(mOutput, setExpensiveRenderingExpected(true));
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, true, _, _)).WillOnce(Return(NO_ERROR));
-    EXPECT_CALL(mOutput, setExpensiveRenderingExpected(false));
 
     mOutput.composeSurfaces(kDebugRegion);
 }
