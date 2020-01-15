@@ -1893,7 +1893,7 @@ void Layer::setInputInfo(const InputWindowInfo& info) {
     setTransactionFlags(eTransactionNeeded);
 }
 
-void Layer::writeToProto(LayersProto& layersProto, uint32_t traceFlags) const {
+LayerProto* Layer::writeToProto(LayersProto& layersProto, uint32_t traceFlags) const {
     LayerProto* layerProto = layersProto.add_layers();
     writeToProtoDrawingState(layerProto, traceFlags);
     writeToProtoCommonState(layerProto, LayerVector::StateSet::Drawing, traceFlags);
@@ -1901,6 +1901,8 @@ void Layer::writeToProto(LayersProto& layersProto, uint32_t traceFlags) const {
     for (const sp<Layer>& layer : mDrawingChildren) {
         layer->writeToProto(layersProto, traceFlags);
     }
+
+    return layerProto;
 }
 
 void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags) const {
