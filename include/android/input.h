@@ -793,6 +793,8 @@ enum {
     AMOTION_EVENT_TOOL_TYPE_MOUSE = 3,
     /** eraser */
     AMOTION_EVENT_TOOL_TYPE_ERASER = 4,
+    /** palm */
+    AMOTION_EVENT_TOOL_TYPE_PALM = 5,
 };
 
 /**
