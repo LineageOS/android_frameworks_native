@@ -172,10 +172,6 @@ egl_connection_t* egl_get_connection() {
 
 // ----------------------------------------------------------------------------
 
-// this mutex protects:
-//    d->disp[]
-//    egl_init_drivers_locked()
-//
 static EGLBoolean egl_init_drivers_locked() {
     if (sEarlyInitState) {
         // initialized by static ctor. should be set here.
@@ -211,6 +207,8 @@ static EGLBoolean egl_init_glesv1_drivers_locked() {
     return loader.load_glesv1_driver(cnx);
 }
 
+// this mutex protects driver load logic as a critical section since it accesses to global variable
+// like gEGLImpl
 static pthread_mutex_t sInitDriverMutex = PTHREAD_MUTEX_INITIALIZER;
 
 EGLBoolean egl_init_drivers() {
