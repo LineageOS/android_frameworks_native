@@ -28,7 +28,6 @@ public:
     TimeStats();
     ~TimeStats() override;
 
-    MOCK_METHOD0(onBootFinished, void());
     MOCK_METHOD3(parseArgs, void(bool, const Vector<String16>&, std::string&));
     MOCK_METHOD0(isEnabled, bool());
     MOCK_METHOD0(miniDump, std::string());

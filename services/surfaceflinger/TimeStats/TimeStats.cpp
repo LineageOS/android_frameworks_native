@@ -32,52 +32,12 @@ namespace android {
 
 namespace impl {
 
-bool TimeStats::pullGlobalAtomCallback(int32_t atom_tag, pulled_stats_event_list* data,
-                                       const void* cookie) {
-    impl::TimeStats* timeStats =
-            const_cast<impl::TimeStats*>(reinterpret_cast<const impl::TimeStats*>(cookie));
-    if (atom_tag != android::util::SURFACEFLINGER_STATS_GLOBAL_INFO) {
-        return false;
-    }
-
-    std::lock_guard<std::mutex> lock(timeStats->mMutex);
-
-    const auto& stats = timeStats->mTimeStats;
-    if (stats.statsStart == 0) {
-        return false;
-    }
-    timeStats->flushPowerTimeLocked();
-
-    struct stats_event* event = timeStats->mStatsDelegate->addStatsEventToPullData(data);
-    timeStats->mStatsDelegate->statsEventSetAtomId(event,
-                                                   android::util::SURFACEFLINGER_STATS_GLOBAL_INFO);
-    timeStats->mStatsDelegate->statsEventWriteInt64(event, stats.totalFrames);
-    timeStats->mStatsDelegate->statsEventWriteInt64(event, stats.missedFrames);
-    timeStats->mStatsDelegate->statsEventWriteInt64(event, stats.clientCompositionFrames);
-    timeStats->mStatsDelegate->statsEventWriteInt64(event, stats.displayOnTime);
-    timeStats->mStatsDelegate->statsEventWriteInt64(event, stats.presentToPresent.totalTime());
-    timeStats->mStatsDelegate->statsEventBuild(event);
-    timeStats->clearGlobalLocked();
-
-    return true;
-}
-
 TimeStats::TimeStats() {
     // Temporarily enable TimeStats by default. Telemetry is disabled while
     // we move onto statsd, so TimeStats is currently not exercised at all
-    // during testing without enabling by default.
-    // TODO: remove this, as we should only be paying this overhead on devices
-    // where statsd exists.
+    // during testing.
+    // TODO: remove this.
     enable();
-}
-
-TimeStats::TimeStats(std::unique_ptr<StatsEventDelegate> statsDelegate) : TimeStats() {
-    mStatsDelegate = std::move(statsDelegate);
-}
-
-void TimeStats::onBootFinished() {
-    std::lock_guard<std::mutex> lock(mMutex);
-    mRegisteredCallback = false;
 }
 
 void TimeStats::parseArgs(bool asProto, const Vector<String16>& args, std::string& result) {
@@ -105,7 +65,7 @@ void TimeStats::parseArgs(bool asProto, const Vector<String16>& args, std::strin
     }
 
     if (argsMap.count("-clear")) {
-        clearAll();
+        clear();
     }
 
     if (argsMap.count("-enable")) {
@@ -589,30 +549,6 @@ void TimeStats::flushAvailableGlobalRecordsToStatsLocked() {
 
         mGlobalRecord.renderEngineDurations.pop_front();
     }
-    // Try to register to statsd at the end of every global flush, if we haven't
-    // yet.
-    registerToStatsdIfNeededLocked();
-}
-
-bool TimeStats::StatsEventDelegate::checkStatsService() {
-    ATRACE_CALL();
-    bool ret =
-            android::defaultServiceManager()->checkService(android::String16("stats")) != nullptr;
-    return ret;
-}
-
-void TimeStats::registerToStatsdIfNeededLocked() {
-    if (!mRegisteredCallback && mStatsDelegate->checkStatsService()) {
-        // Note that this assumes that statsd will never crash. To be absolutely
-        // correct we would need to register a DeathRecipient ourselves, but to
-        // minimize the cost on the rendering path let's only register once as
-        // soon as we know that statd has booted up.
-        ALOGD("Registering statsd callback");
-        mStatsDelegate
-                ->registerStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
-                                                TimeStats::pullGlobalAtomCallback, nullptr, this);
-        mRegisteredCallback = true;
-    }
 }
 
 void TimeStats::setPresentFenceGlobal(const std::shared_ptr<FenceTime>& presentFence) {
@@ -669,15 +605,12 @@ void TimeStats::disable() {
     ALOGD("Disabled");
 }
 
-void TimeStats::clearAll() {
-    std::lock_guard<std::mutex> lock(mMutex);
-    clearGlobalLocked();
-    clearLayersLocked();
-}
-
-void TimeStats::clearGlobalLocked() {
+void TimeStats::clear() {
     ATRACE_CALL();
 
+    std::lock_guard<std::mutex> lock(mMutex);
+    mTimeStatsTracker.clear();
+    mTimeStats.stats.clear();
     mTimeStats.statsStart = (mEnabled.load() ? static_cast<int64_t>(std::time(0)) : 0);
     mTimeStats.statsEnd = 0;
     mTimeStats.totalFrames = 0;
@@ -691,15 +624,7 @@ void TimeStats::clearGlobalLocked() {
     mPowerTime.prevTime = systemTime();
     mGlobalRecord.prevPresentTime = 0;
     mGlobalRecord.presentFences.clear();
-    ALOGD("Cleared global stats");
-}
-
-void TimeStats::clearLayersLocked() {
-    ATRACE_CALL();
-
-    mTimeStatsTracker.clear();
-    mTimeStats.stats.clear();
-    ALOGD("Cleared layer stats");
+    ALOGD("Cleared");
 }
 
 bool TimeStats::isEnabled() {
