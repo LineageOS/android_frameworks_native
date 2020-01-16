@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <android-base/stringprintf.h>
 #include <compositionengine/DisplayColorProfile.h>
 #include <compositionengine/Layer.h>
@@ -645,3 +649,6 @@ void OutputLayer::dump(std::string& out) const {
 
 } // namespace impl
 } // namespace android::compositionengine
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

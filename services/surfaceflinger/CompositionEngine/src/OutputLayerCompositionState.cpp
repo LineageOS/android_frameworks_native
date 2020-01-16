@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <compositionengine/impl/DumpHelpers.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 
@@ -70,3 +74,6 @@ void OutputLayerCompositionState::dump(std::string& out) const {
 }
 
 } // namespace android::compositionengine::impl
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

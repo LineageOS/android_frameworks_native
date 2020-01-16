@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <array>
 #include <unordered_set>
 #include <unordered_map>
@@ -4770,3 +4774,6 @@ TEST_F(Hwc2Test, PRESENT_VIRTUAL_DISPLAY_default_5)
     ASSERT_NO_FATAL_FAILURE(createAndPresentVirtualDisplay(layerCnt, coverage,
             virtualDisplayExceptions));
 }
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #define LOG_NDEBUG 0
 #undef LOG_TAG
 #define LOG_TAG "FakeHwcService"
@@ -170,3 +174,6 @@ Return<void> FakeComposerService_2_4::createClient_2_4(createClient_2_4_cb hidl_
 }
 
 } // namespace sftest
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

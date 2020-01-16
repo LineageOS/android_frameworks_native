@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <mutex>
 #include <array>
 #include <sstream>
@@ -789,3 +793,6 @@ int Hwc2TestOutputBuffer::getOutputBuffer(buffer_handle_t* outHandle,
 
     return 0;
 }
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

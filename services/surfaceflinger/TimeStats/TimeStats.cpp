@@ -13,6 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
 #undef LOG_TAG
 #define LOG_TAG "TimeStats"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
@@ -657,3 +661,6 @@ void TimeStats::dump(bool asProto, std::optional<uint32_t> maxLayers, std::strin
 } // namespace impl
 
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

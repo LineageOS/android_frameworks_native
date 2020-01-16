@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <sstream>
 #include <cutils/log.h>
 #include <ui/Rect.h>
@@ -780,3 +784,6 @@ const std::array<bool, 6> Hwc2TestSurfaceDamage::mCompositionSupport = {{
 const std::array<bool, 6> Hwc2TestTransform::mCompositionSupport = {{
     false,   true,    true,    false,   true,    true,
 }};
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

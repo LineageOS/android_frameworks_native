@@ -242,11 +242,11 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContent) {
 TEST_F(RefreshRateConfigsTest, testInPolicy) {
     RefreshRate expectedDefaultConfig = {HWC_CONFIG_ID_60, VSYNC_60_POINT_4, HWC_GROUP_ID_0,
                                          "60fps", 60};
-    ASSERT_TRUE(expectedDefaultConfig.inPolicy(60.000004, 60.000004));
+    ASSERT_TRUE(expectedDefaultConfig.inPolicy(60.000004f, 60.000004f));
     ASSERT_TRUE(expectedDefaultConfig.inPolicy(59.0f, 60.1f));
-    ASSERT_FALSE(expectedDefaultConfig.inPolicy(75.0, 90.0));
-    ASSERT_FALSE(expectedDefaultConfig.inPolicy(60.0011, 90.0));
-    ASSERT_FALSE(expectedDefaultConfig.inPolicy(50.0, 59.998));
+    ASSERT_FALSE(expectedDefaultConfig.inPolicy(75.0f, 90.0f));
+    ASSERT_FALSE(expectedDefaultConfig.inPolicy(60.0011f, 90.0f));
+    ASSERT_FALSE(expectedDefaultConfig.inPolicy(50.0f, 59.998f));
 }
 
 } // namespace

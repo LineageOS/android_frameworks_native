@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <compositionengine/impl/CompositionEngine.h>
 #include <cutils/properties.h>
 #include <ui/GraphicBuffer.h>
@@ -138,3 +142,6 @@ sp<ColorLayer> DefaultFactory::createColorLayer(const LayerCreationArgs& args) {
 }
 
 } // namespace android::surfaceflinger
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

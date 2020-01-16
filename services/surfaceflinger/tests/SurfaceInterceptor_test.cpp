@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <frameworks/native/cmds/surfacereplayer/proto/src/trace.pb.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 
@@ -1011,3 +1015,6 @@ TEST_F(SurfaceInterceptorTest, InterceptSimultaneousUpdatesWorks) {
     ASSERT_TRUE(singleIncrementFound(capturedTrace, Increment::IncrementCase::kSurfaceCreation));
 }
 }
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"
