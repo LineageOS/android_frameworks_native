@@ -96,6 +96,7 @@ struct LayerCreationArgs {
 
 class Layer : public compositionengine::LayerFE {
     static std::atomic<int32_t> sSequence;
+    static constexpr int32_t PRIORITY_UNSET = -1;
 
 public:
     mutable bool contentDirty{false};
@@ -220,6 +221,9 @@ public:
         // Length of the cast shadow. If the radius is > 0, a shadow of length shadowRadius will
         // be rendered around the layer.
         float shadowRadius;
+
+        // Priority of the layer assigned by Window Manager.
+        int32_t frameRateSelectionPriority;
     };
 
     explicit Layer(const LayerCreationArgs& args);
@@ -337,6 +341,10 @@ public:
     virtual bool setBackgroundColor(const half3& color, float alpha, ui::Dataspace dataspace);
     virtual bool setColorSpaceAgnostic(const bool agnostic);
     bool setShadowRadius(float shadowRadius);
+    virtual bool setFrameRateSelectionPriority(int32_t priority);
+    //  If the variable is not set on the layer, it traverses up the tree to inherit the frame
+    //  rate priority from its parent.
+    virtual int32_t getFrameRateSelectionPriority() const;
 
     virtual ui::Dataspace getDataSpace() const { return ui::Dataspace::UNKNOWN; }
 
@@ -755,6 +763,7 @@ protected:
 
     // For unit tests
     friend class TestableSurfaceFlinger;
+    friend class RefreshRateSelectionTest;
 
     virtual void commitTransaction(const State& stateToCommit);
 

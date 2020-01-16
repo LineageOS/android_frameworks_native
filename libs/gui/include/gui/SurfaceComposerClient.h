@@ -483,6 +483,9 @@ public:
         Transaction& setDesiredPresentTime(nsecs_t desiredPresentTime);
         Transaction& setColorSpaceAgnostic(const sp<SurfaceControl>& sc, const bool agnostic);
 
+        // Sets information about the priority of the frame.
+        Transaction& setFrameRateSelectionPriority(const sp<SurfaceControl>& sc, int32_t priority);
+
         Transaction& addTransactionCompletedCallback(
                 TransactionCompletedCallbackTakesContext callback, void* callbackContext);
 

@@ -108,6 +108,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.api = -1;
     mCurrentState.hasColorTransform = false;
     mCurrentState.colorSpaceAgnostic = false;
+    mCurrentState.frameRateSelectionPriority = PRIORITY_UNSET;
     mCurrentState.metadata = args.metadata;
     mCurrentState.shadowRadius = 0.f;
 
@@ -1120,6 +1121,7 @@ bool Layer::setTransparentRegionHint(const Region& transparent) {
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
+
 bool Layer::setFlags(uint8_t flags, uint8_t mask) {
     const uint32_t newFlags = (mCurrentState.flags & ~mask) | (flags & mask);
     if (mCurrentState.flags == newFlags) return false;
@@ -1174,6 +1176,29 @@ bool Layer::setColorSpaceAgnostic(const bool agnostic) {
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
+}
+
+bool Layer::setFrameRateSelectionPriority(int32_t priority) {
+    if (mCurrentState.frameRateSelectionPriority == priority) return false;
+    mCurrentState.frameRateSelectionPriority = priority;
+    mCurrentState.sequence++;
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
+int32_t Layer::getFrameRateSelectionPriority() const {
+    // Check if layer has priority set.
+    if (mDrawingState.frameRateSelectionPriority != PRIORITY_UNSET) {
+        return mDrawingState.frameRateSelectionPriority;
+    }
+    // If not, search whether its parents have it set.
+    sp<Layer> parent = getParent();
+    if (parent != nullptr) {
+        return parent->getFrameRateSelectionPriority();
+    }
+
+    return Layer::PRIORITY_UNSET;
 }
 
 uint32_t Layer::getLayerStack() const {
