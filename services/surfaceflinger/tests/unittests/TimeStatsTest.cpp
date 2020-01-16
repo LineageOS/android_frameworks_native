@@ -40,7 +40,9 @@ using namespace google::protobuf;
 namespace android {
 namespace {
 
+using testing::_;
 using testing::Contains;
+using testing::InSequence;
 using testing::SizeIs;
 using testing::UnorderedElementsAre;
 
@@ -136,7 +138,40 @@ public:
     }
 
     std::mt19937 mRandomEngine = std::mt19937(std::random_device()());
-    std::unique_ptr<TimeStats> mTimeStats = std::make_unique<impl::TimeStats>();
+
+    class FakeStatsEventDelegate : public impl::TimeStats::StatsEventDelegate {
+    public:
+        FakeStatsEventDelegate() = default;
+        ~FakeStatsEventDelegate() override = default;
+
+        struct stats_event* addStatsEventToPullData(pulled_stats_event_list*) override {
+            return mEvent;
+        }
+        void registerStatsPullAtomCallback(int32_t atom_tag, stats_pull_atom_callback_t callback,
+                                           pull_atom_metadata*, void* cookie) override {
+            mAtomTag = atom_tag;
+            mCallback = callback;
+            mCookie = cookie;
+        }
+
+        status_pull_atom_return_t makePullAtomCallback(int32_t atom_tag, void* cookie) {
+            return (*mCallback)(atom_tag, nullptr, cookie);
+        }
+
+        MOCK_METHOD1(unregisterStatsPullAtomCallback, void(int32_t));
+        MOCK_METHOD2(statsEventSetAtomId, void(struct stats_event*, uint32_t));
+        MOCK_METHOD2(statsEventWriteInt64, void(struct stats_event*, int64_t));
+        MOCK_METHOD1(statsEventBuild, void(struct stats_event*));
+
+        struct stats_event* mEvent = stats_event_obtain();
+        int32_t mAtomTag = 0;
+        stats_pull_atom_callback_t mCallback = nullptr;
+        void* mCookie = nullptr;
+    };
+
+    FakeStatsEventDelegate* mDelegate = new FakeStatsEventDelegate;
+    std::unique_ptr<TimeStats> mTimeStats =
+            std::make_unique<impl::TimeStats>(std::unique_ptr<FakeStatsEventDelegate>(mDelegate));
 };
 
 std::string TimeStatsTest::inputCommand(InputCommand cmd, bool useProto) {
@@ -213,14 +248,22 @@ int32_t TimeStatsTest::genRandomInt32(int32_t begin, int32_t end) {
     return distr(mRandomEngine);
 }
 
-TEST_F(TimeStatsTest, enabledByDefault) {
+TEST_F(TimeStatsTest, disabledByDefault) {
+    ASSERT_FALSE(mTimeStats->isEnabled());
+}
+
+TEST_F(TimeStatsTest, enabledAfterBoot) {
+    mTimeStats->onBootFinished();
     ASSERT_TRUE(mTimeStats->isEnabled());
 }
 
 TEST_F(TimeStatsTest, canEnableAndDisableTimeStats) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
     ASSERT_TRUE(mTimeStats->isEnabled());
+    EXPECT_EQ(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO, mDelegate->mAtomTag);
 
+    EXPECT_CALL(*mDelegate,
+                unregisterStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO));
     EXPECT_TRUE(inputCommand(InputCommand::DISABLE, FMT_STRING).empty());
     ASSERT_FALSE(mTimeStats->isEnabled());
 }
@@ -629,6 +672,56 @@ TEST_F(TimeStatsTest, canDumpWithInvalidMaxLayers) {
             inputCommand(InputCommand::DUMP_MAXLAYERS_INVALID, FMT_PROTO)));
 
     ASSERT_EQ(0, globalProto.stats_size());
+}
+
+TEST_F(TimeStatsTest, globalStatsCallback) {
+    constexpr size_t TOTAL_FRAMES = 5;
+    constexpr size_t MISSED_FRAMES = 4;
+    constexpr size_t CLIENT_COMPOSITION_FRAMES = 3;
+
+    mTimeStats->onBootFinished();
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+
+    for (size_t i = 0; i < TOTAL_FRAMES; i++) {
+        mTimeStats->incrementTotalFrames();
+    }
+    for (size_t i = 0; i < MISSED_FRAMES; i++) {
+        mTimeStats->incrementMissedFrames();
+    }
+    for (size_t i = 0; i < CLIENT_COMPOSITION_FRAMES; i++) {
+        mTimeStats->incrementClientCompositionFrames();
+    }
+
+    mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL);
+    mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(3000000));
+    mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(5000000));
+
+    EXPECT_EQ(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO, mDelegate->mAtomTag);
+    EXPECT_NE(nullptr, mDelegate->mCallback);
+    EXPECT_EQ(mTimeStats.get(), mDelegate->mCookie);
+
+    {
+        InSequence seq;
+        EXPECT_CALL(*mDelegate,
+                    statsEventSetAtomId(mDelegate->mEvent,
+                                        android::util::SURFACEFLINGER_STATS_GLOBAL_INFO));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, TOTAL_FRAMES));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, MISSED_FRAMES));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, CLIENT_COMPOSITION_FRAMES));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, _));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, 2));
+        EXPECT_CALL(*mDelegate, statsEventBuild(mDelegate->mEvent));
+    }
+    EXPECT_EQ(STATS_PULL_SUCCESS,
+              mDelegate->makePullAtomCallback(mDelegate->mAtomTag, mDelegate->mCookie));
+
+    SFTimeStatsGlobalProto globalProto;
+    ASSERT_TRUE(globalProto.ParseFromString(inputCommand(InputCommand::DUMP_ALL, FMT_PROTO)));
+
+    EXPECT_EQ(0, globalProto.total_frames());
+    EXPECT_EQ(0, globalProto.missed_frames());
+    EXPECT_EQ(0, globalProto.client_composition_frames());
+    EXPECT_EQ(0, globalProto.present_to_present_size());
 }
 
 TEST_F(TimeStatsTest, canSurviveMonkey) {

@@ -36,11 +36,50 @@ namespace android {
 
 namespace impl {
 
-TimeStats::TimeStats() {
+status_pull_atom_return_t TimeStats::pullGlobalAtomCallback(int32_t atom_tag,
+                                                            pulled_stats_event_list* data,
+                                                            void* cookie) {
+    impl::TimeStats* timeStats = reinterpret_cast<impl::TimeStats*>(cookie);
+    if (atom_tag != android::util::SURFACEFLINGER_STATS_GLOBAL_INFO) {
+        return STATS_PULL_SKIP;
+    }
+
+    std::lock_guard<std::mutex> lock(timeStats->mMutex);
+
+    const auto& stats = timeStats->mTimeStats;
+    if (stats.statsStart == 0) {
+        return STATS_PULL_SKIP;
+    }
+    timeStats->flushPowerTimeLocked();
+
+    struct stats_event* event = timeStats->mStatsDelegate->addStatsEventToPullData(data);
+    timeStats->mStatsDelegate->statsEventSetAtomId(event,
+                                                   android::util::SURFACEFLINGER_STATS_GLOBAL_INFO);
+    timeStats->mStatsDelegate->statsEventWriteInt64(event, stats.totalFrames);
+    timeStats->mStatsDelegate->statsEventWriteInt64(event, stats.missedFrames);
+    timeStats->mStatsDelegate->statsEventWriteInt64(event, stats.clientCompositionFrames);
+    timeStats->mStatsDelegate->statsEventWriteInt64(event, stats.displayOnTime);
+    timeStats->mStatsDelegate->statsEventWriteInt64(event, stats.presentToPresent.totalTime());
+    timeStats->mStatsDelegate->statsEventBuild(event);
+    timeStats->clearGlobalLocked();
+
+    return STATS_PULL_SUCCESS;
+}
+
+TimeStats::TimeStats() : TimeStats(nullptr) {}
+
+TimeStats::TimeStats(std::unique_ptr<StatsEventDelegate> statsDelegate) {
+    if (statsDelegate != nullptr) {
+        mStatsDelegate = std::move(statsDelegate);
+    }
+}
+
+void TimeStats::onBootFinished() {
     // Temporarily enable TimeStats by default. Telemetry is disabled while
     // we move onto statsd, so TimeStats is currently not exercised at all
-    // during testing.
-    // TODO: remove this.
+    // during testing without enabling by default.
+    // TODO: remove this, as we should only be paying this overhead on devices
+    // where statsd exists.
     enable();
 }
 
@@ -69,7 +108,7 @@ void TimeStats::parseArgs(bool asProto, const Vector<String16>& args, std::strin
     }
 
     if (argsMap.count("-clear")) {
-        clear();
+        clearAll();
     }
 
     if (argsMap.count("-enable")) {
@@ -594,6 +633,8 @@ void TimeStats::enable() {
     mEnabled.store(true);
     mTimeStats.statsStart = static_cast<int64_t>(std::time(0));
     mPowerTime.prevTime = systemTime();
+    mStatsDelegate->registerStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
+                                                  TimeStats::pullGlobalAtomCallback, nullptr, this);
     ALOGD("Enabled");
 }
 
@@ -606,15 +647,20 @@ void TimeStats::disable() {
     flushPowerTimeLocked();
     mEnabled.store(false);
     mTimeStats.statsEnd = static_cast<int64_t>(std::time(0));
+    mStatsDelegate->unregisterStatsPullAtomCallback(
+            android::util::SURFACEFLINGER_STATS_GLOBAL_INFO);
     ALOGD("Disabled");
 }
 
-void TimeStats::clear() {
+void TimeStats::clearAll() {
+    std::lock_guard<std::mutex> lock(mMutex);
+    clearGlobalLocked();
+    clearLayersLocked();
+}
+
+void TimeStats::clearGlobalLocked() {
     ATRACE_CALL();
 
-    std::lock_guard<std::mutex> lock(mMutex);
-    mTimeStatsTracker.clear();
-    mTimeStats.stats.clear();
     mTimeStats.statsStart = (mEnabled.load() ? static_cast<int64_t>(std::time(0)) : 0);
     mTimeStats.statsEnd = 0;
     mTimeStats.totalFrames = 0;
@@ -628,7 +674,15 @@ void TimeStats::clear() {
     mPowerTime.prevTime = systemTime();
     mGlobalRecord.prevPresentTime = 0;
     mGlobalRecord.presentFences.clear();
-    ALOGD("Cleared");
+    ALOGD("Cleared global stats");
+}
+
+void TimeStats::clearLayersLocked() {
+    ATRACE_CALL();
+
+    mTimeStatsTracker.clear();
+    mTimeStats.stats.clear();
+    ALOGD("Cleared layer stats");
 }
 
 bool TimeStats::isEnabled() {
