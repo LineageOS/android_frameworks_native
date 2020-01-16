@@ -73,6 +73,19 @@ enum {
     AMOTION_EVENT_FLAG_TAINTED = 0x80000000,
 };
 
+/**
+ * Allowed VerifiedKeyEvent flags. All other flags from KeyEvent do not get verified.
+ * These values must be kept in sync with VerifiedKeyEvent.java
+ */
+constexpr int32_t VERIFIED_KEY_EVENT_FLAGS = AKEY_EVENT_FLAG_CANCELED;
+
+/**
+ * Allowed VerifiedMotionEventFlags. All other flags from MotionEvent do not get verified.
+ * These values must be kept in sync with VerifiedMotionEvent.java
+ */
+constexpr int32_t VERIFIED_MOTION_EVENT_FLAGS =
+        AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED | AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED;
+
 enum {
     /* Used when a motion event is not associated with any display.
      * Typically used for non-pointer events. */
@@ -717,6 +730,55 @@ protected:
     bool mHasFocus;
     bool mInTouchMode;
 };
+
+/**
+ * Base class for verified events.
+ * Do not create a VerifiedInputEvent explicitly.
+ * Use helper functions to create them from InputEvents.
+ */
+struct __attribute__((__packed__)) VerifiedInputEvent {
+    enum class Type : int32_t {
+        KEY = AINPUT_EVENT_TYPE_KEY,
+        MOTION = AINPUT_EVENT_TYPE_MOTION,
+    };
+
+    Type type;
+    int32_t deviceId;
+    nsecs_t eventTimeNanos;
+    uint32_t source;
+    int32_t displayId;
+};
+
+/**
+ * Same as KeyEvent, but only contains the data that can be verified.
+ * If you update this class, you must also update VerifiedKeyEvent.java
+ */
+struct __attribute__((__packed__)) VerifiedKeyEvent : public VerifiedInputEvent {
+    int32_t action;
+    nsecs_t downTimeNanos;
+    int32_t flags;
+    int32_t keyCode;
+    int32_t scanCode;
+    int32_t metaState;
+    int32_t repeatCount;
+};
+
+/**
+ * Same as MotionEvent, but only contains the data that can be verified.
+ * If you update this class, you must also update VerifiedMotionEvent.java
+ */
+struct __attribute__((__packed__)) VerifiedMotionEvent : public VerifiedInputEvent {
+    float rawX;
+    float rawY;
+    int32_t actionMasked;
+    nsecs_t downTimeNanos;
+    int32_t flags;
+    int32_t metaState;
+    int32_t buttonState;
+};
+
+VerifiedKeyEvent verifiedKeyEventFromKeyEvent(const KeyEvent& event);
+VerifiedMotionEvent verifiedMotionEventFromMotionEvent(const MotionEvent& event);
 
 /*
  * Input event factory.

@@ -46,7 +46,6 @@ TEST_F(PointerCoordsTest, ClearSetsBitsToZero) {
 }
 
 TEST_F(PointerCoordsTest, AxisValues) {
-    float* valuePtr;
     PointerCoords coords;
     coords.clear();
 
