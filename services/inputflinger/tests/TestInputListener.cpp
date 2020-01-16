@@ -19,20 +19,11 @@
 
 #include "TestInputListener.h"
 
-namespace {
-
-using std::chrono_literals::operator""ms;
-
-// Timeout for waiting for an expected event
-static constexpr std::chrono::duration WAIT_TIMEOUT = 5ms;
-
-} // namespace
-
 namespace android {
 
 // --- TestInputListener ---
 
-TestInputListener::TestInputListener() { }
+TestInputListener::TestInputListener(const std::chrono::milliseconds timeout) : mTimeout(timeout) {}
 
 TestInputListener::~TestInputListener() { }
 
@@ -95,9 +86,9 @@ void TestInputListener::assertCalled(NotifyArgsType* outEventArgs, std::string m
 
     std::vector<NotifyArgsType>& queue = std::get<std::vector<NotifyArgsType>>(mQueues);
     if (queue.empty()) {
-        const bool eventReceived =
-                mCondition.wait_for(lock, WAIT_TIMEOUT,
-                                    [&queue]() REQUIRES(mLock) { return !queue.empty(); });
+        const bool eventReceived = mCondition.wait_for(lock, mTimeout, [&queue]() REQUIRES(mLock) {
+            return !queue.empty();
+        });
         if (!eventReceived) {
             FAIL() << "Timed out waiting for event: " << message.c_str();
         }
@@ -114,7 +105,7 @@ void TestInputListener::assertNotCalled(std::string message) {
     base::ScopedLockAssertion assumeLocked(mLock);
 
     std::vector<NotifyArgsType>& queue = std::get<std::vector<NotifyArgsType>>(mQueues);
-    const bool eventReceived = mCondition.wait_for(lock, WAIT_TIMEOUT, [&queue]() REQUIRES(mLock) {
+    const bool eventReceived = mCondition.wait_for(lock, mTimeout, [&queue]() REQUIRES(mLock) {
         return !queue.empty();
     });
     if (eventReceived) {
