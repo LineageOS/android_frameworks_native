@@ -678,6 +678,15 @@ public:
 
     renderengine::ShadowSettings getShadowSettings(const Rect& viewport) const;
 
+    /**
+     * Traverse this layer and it's hierarchy of children directly. Unlike traverseInZOrder
+     * which will not emit children who have relativeZOrder to another layer, this method
+     * just directly emits all children. It also emits them in no particular order.
+     * So this method is not suitable for graphical operations, as it doesn't represent
+     * the scene state, but it's also more efficient than traverseInZOrder and so useful for
+     * book-keeping.
+     */
+    void traverse(LayerVector::StateSet stateSet, const LayerVector::Visitor& visitor);
     void traverseInReverseZOrder(LayerVector::StateSet stateSet,
                                  const LayerVector::Visitor& visitor);
     void traverseInZOrder(LayerVector::StateSet stateSet, const LayerVector::Visitor& visitor);
