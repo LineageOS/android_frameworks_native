@@ -25,8 +25,6 @@
 #include <hidl/MQDescriptor.h>
 #include <hidl/Status.h>
 
-#include <binder/Binder.h>
-#include <binder/Status.h>
 #include <ui/FenceTime.h>
 #include <cutils/native_handle.h>
 #include <gui/IGraphicBufferProducer.h>
@@ -125,15 +123,6 @@ int native_handle_read_fd(native_handle_t const* nh, int index = 0);
  * not perform duplication of file descriptors, while `toTargetType()` and
  * `convertTo()` do.
  */
-
-/**
- * \brief Convert `Return<void>` to `binder::Status`.
- *
- * \param[in] t The source `Return<void>`.
- * \return The corresponding `binder::Status`.
- */
-// convert: Return<void> -> ::android::binder::Status
-::android::binder::Status toBinderStatus(Return<void> const& t);
 
 /**
  * \brief Convert `Return<void>` to `status_t`. This is for legacy binder calls.

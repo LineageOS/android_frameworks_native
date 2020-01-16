@@ -55,7 +55,11 @@ cc_library_shared {
         "DisplayEventReceiver.cpp",
         "GLConsumer.cpp",
         "GuiConfig.cpp",
+        "IConsumerListener.cpp",
         "IDisplayEventConnection.cpp",
+        "IGraphicBufferConsumer.cpp",
+        "IGraphicBufferProducer.cpp",
+        "IProducerListener.cpp",
         "IRegionSamplingListener.cpp",
         "ISurfaceComposer.cpp",
         "ISurfaceComposerClient.cpp",
@@ -63,20 +67,30 @@ cc_library_shared {
         "LayerDebugInfo.cpp",
         "LayerMetadata.cpp",
         "LayerState.cpp",
+        "OccupancyTracker.cpp",
         "StreamSplitter.cpp",
         "Surface.cpp",
         "SurfaceControl.cpp",
         "SurfaceComposerClient.cpp",
         "SyncFeatures.cpp",
         "view/Surface.cpp",
+        "bufferqueue/1.0/B2HProducerListener.cpp",
+        "bufferqueue/1.0/H2BGraphicBufferProducer.cpp",
+        "bufferqueue/2.0/B2HProducerListener.cpp",
+        "bufferqueue/2.0/H2BGraphicBufferProducer.cpp",
     ],
 
     shared_libs: [
         "android.frameworks.bufferhub@1.0",
+        "libbinder",
         "libbufferhub",
         "libbufferhubqueue", // TODO(b/70046255): Remove this once BufferHub is integrated into libgui.
         "libinput",
         "libpdx_default_transport",
+    ],
+
+    export_shared_lib_headers: [
+        "libbinder",
     ],
 
     // bufferhub is not used when building libgui for vendors
@@ -118,6 +132,7 @@ cc_library_static {
 
     cflags: [
         "-DNO_BUFFERHUB",
+        "-DNO_BINDER",
     ],
 
     defaults: ["libgui_bufferqueue-defaults"],
@@ -140,19 +155,11 @@ filegroup {
         "FrameTimestamps.cpp",
         "GLConsumerUtils.cpp",
         "HdrMetadata.cpp",
-        "IConsumerListener.cpp",
-        "IGraphicBufferConsumer.cpp",
-        "IGraphicBufferProducer.cpp",
-        "IProducerListener.cpp",
-        "OccupancyTracker.cpp",
-        "bufferqueue/1.0/B2HProducerListener.cpp",
+        "QueueBufferInputOutput.cpp",
         "bufferqueue/1.0/Conversion.cpp",
-        "bufferqueue/1.0/H2BGraphicBufferProducer.cpp",
         "bufferqueue/1.0/H2BProducerListener.cpp",
         "bufferqueue/1.0/WProducerListener.cpp",
         "bufferqueue/2.0/B2HGraphicBufferProducer.cpp",
-        "bufferqueue/2.0/B2HProducerListener.cpp",
-        "bufferqueue/2.0/H2BGraphicBufferProducer.cpp",
         "bufferqueue/2.0/H2BProducerListener.cpp",
         "bufferqueue/2.0/types.cpp",
     ],
@@ -189,7 +196,6 @@ cc_defaults {
         "android.hardware.graphics.common@1.2",
         "android.hidl.token@1.0-utils",
         "libbase",
-        "libbinder",
         "libcutils",
         "libEGL",
         "libGLESv2",
@@ -212,7 +218,6 @@ cc_defaults {
     ],
 
     export_shared_lib_headers: [
-        "libbinder",
         "libEGL",
         "libnativewindow",
         "libui",

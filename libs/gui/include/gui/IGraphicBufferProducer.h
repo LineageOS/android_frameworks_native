@@ -45,6 +45,13 @@ class IProducerListener;
 class NativeHandle;
 class Surface;
 
+using HGraphicBufferProducerV1_0 =
+        ::android::hardware::graphics::bufferqueue::V1_0::
+        IGraphicBufferProducer;
+using HGraphicBufferProducerV2_0 =
+        ::android::hardware::graphics::bufferqueue::V2_0::
+        IGraphicBufferProducer;
+
 /*
  * This class defines the Binder IPC interface for the producer side of
  * a queue of graphics buffers.  It's used to send graphics data from one
@@ -59,20 +66,15 @@ class Surface;
  *
  * This class was previously called ISurfaceTexture.
  */
-class IGraphicBufferProducer : public IInterface
-{
-public:
-    using HGraphicBufferProducerV1_0 =
-            ::android::hardware::graphics::bufferqueue::V1_0::
-            IGraphicBufferProducer;
-    using HGraphicBufferProducerV2_0 =
-            ::android::hardware::graphics::bufferqueue::V2_0::
-            IGraphicBufferProducer;
-
+#ifndef NO_BINDER
+class IGraphicBufferProducer : public IInterface {
     DECLARE_HYBRID_META_INTERFACE(GraphicBufferProducer,
                                   HGraphicBufferProducerV1_0,
                                   HGraphicBufferProducerV2_0)
-
+#else
+class IGraphicBufferProducer : public RefBase {
+#endif
+public:
     enum {
         // A flag returned by dequeueBuffer when the client needs to call
         // requestBuffer immediately thereafter.
@@ -640,6 +642,7 @@ public:
     // Sets the apps intended frame rate.
     virtual status_t setFrameRate(float frameRate);
 
+#ifndef NO_BINDER
     // Static method exports any IGraphicBufferProducer object to a parcel. It
     // handles null producer as well.
     static status_t exportToParcel(const sp<IGraphicBufferProducer>& producer,
@@ -657,10 +660,11 @@ protected:
     // it writes a strong binder object; for BufferHub, it writes a
     // ProducerQueueParcelable object.
     virtual status_t exportToParcel(Parcel* parcel);
+#endif
 };
 
 // ----------------------------------------------------------------------------
-
+#ifndef NO_BINDER
 class BnGraphicBufferProducer : public BnInterface<IGraphicBufferProducer>
 {
 public:
@@ -669,6 +673,10 @@ public:
                                     Parcel* reply,
                                     uint32_t flags = 0);
 };
+#else
+class BnGraphicBufferProducer : public IGraphicBufferProducer {
+};
+#endif
 
 // ----------------------------------------------------------------------------
 }; // namespace android

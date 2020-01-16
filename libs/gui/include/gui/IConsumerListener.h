@@ -92,6 +92,7 @@ public:
                                           FrameEventHistoryDelta* /*outDelta*/) {}
 };
 
+#ifndef NO_BINDER
 class IConsumerListener : public ConsumerListener, public IInterface {
 public:
     DECLARE_META_INTERFACE(ConsumerListener)
@@ -104,5 +105,12 @@ public:
     status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply,
                         uint32_t flags = 0) override;
 };
+
+#else
+class IConsumerListener : public ConsumerListener {
+};
+class BnConsumerListener : public IConsumerListener {
+};
+#endif
 
 } // namespace android
