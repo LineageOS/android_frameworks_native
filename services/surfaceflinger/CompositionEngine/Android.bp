@@ -22,14 +22,13 @@ cc_defaults {
         "libnativewindow",
         "libprotobuf-cpp-lite",
         "libsync",
-        "libtimestats_proto",
+        "libtimestats",
         "libui",
         "libutils",
     ],
     static_libs: [
         "libmath",
         "librenderengine",
-        "libtimestats",
         "libtrace_proto",
     ],
     header_libs: [

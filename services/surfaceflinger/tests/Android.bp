@@ -55,7 +55,6 @@ cc_test {
         "liblog",
         "libnativewindow",
         "libprotobuf-cpp-full",
-        "libtimestats_proto",
         "libui",
         "libutils",
     ],
@@ -68,7 +67,7 @@ cc_defaults {
     name: "ipc_defaults",
     cflags: [
         "-Wall",
-	"-Werror",
+        "-Werror",
     ],
 }
 
@@ -82,11 +81,11 @@ cc_test {
     ],
     cppflags: [
         "-Wall",
-	"-Werror",
-	"-Wformat",
-	"-Wthread-safety",
-	"-Wunused",
-	"-Wunreachable-code",
+        "-Werror",
+        "-Wformat",
+        "-Wthread-safety",
+        "-Wunused",
+        "-Wunreachable-code",
     ],
     shared_libs: [
         "libandroid",
@@ -98,7 +97,6 @@ cc_test {
         "liblayers_proto",
         "liblog",
         "libprotobuf-cpp-full",
-        "libtimestats_proto",
         "libui",
         "libutils",
     ],

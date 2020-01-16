@@ -26,6 +26,7 @@ bool startTrackingUidTimes();
 std::optional<std::vector<std::vector<uint64_t>>> getUidCpuFreqTimes(uint32_t uid);
 std::optional<std::unordered_map<uint32_t, std::vector<std::vector<uint64_t>>>>
     getUidsCpuFreqTimes();
+std::optional<std::vector<std::vector<uint32_t>>> getCpuFreqs();
 
 struct concurrent_time_t {
     std::vector<uint64_t> active;

@@ -51,7 +51,7 @@ cc_defaults {
         "libprocessgroup",
         "libprotobuf-cpp-lite",
         "libsync",
-        "libtimestats_proto",
+        "libtimestats",
         "libui",
         "libinput",
         "libutils",
@@ -70,7 +70,6 @@ cc_defaults {
         "libperfetto_client_experimental",
         "librenderengine",
         "libserviceutils",
-        "libtimestats",
         "libtrace_proto",
         "libvr_manager",
         "libvrflinger",
@@ -84,7 +83,6 @@ cc_defaults {
         "libcompositionengine",
         "librenderengine",
         "libserviceutils",
-        "libtimestats",
     ],
     export_shared_lib_headers: [
         "android.hardware.graphics.allocator@2.0",
@@ -96,6 +94,7 @@ cc_defaults {
         "android.hardware.graphics.composer@2.4",
         "android.hardware.power@1.3",
         "libhidlbase",
+        "libtimestats",
     ],
     // TODO (marissaw): this library is not used by surfaceflinger. This is here so
     // the library compiled in a way that is accessible to system partition when running
@@ -231,7 +230,6 @@ cc_defaults {
         "liblog",
         "libprocessgroup",
         "libsync",
-        "libtimestats_proto",
         "libutils",
     ],
     static_libs: [

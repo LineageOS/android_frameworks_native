@@ -73,7 +73,8 @@ private:
 
 class MockVSyncDispatch : public VSyncDispatch {
 public:
-    MOCK_METHOD2(registerCallback, CallbackToken(std::function<void(nsecs_t)> const&, std::string));
+    MOCK_METHOD2(registerCallback,
+                 CallbackToken(std::function<void(nsecs_t, nsecs_t)> const&, std::string));
     MOCK_METHOD1(unregisterCallback, void(CallbackToken));
     MOCK_METHOD3(schedule, ScheduleResult(CallbackToken, nsecs_t, nsecs_t));
     MOCK_METHOD1(cancel, CancelResult(CallbackToken token));
@@ -82,7 +83,7 @@ public:
 class VSyncDispatchWrapper : public VSyncDispatch {
 public:
     VSyncDispatchWrapper(std::shared_ptr<VSyncDispatch> const& dispatch) : mDispatch(dispatch) {}
-    CallbackToken registerCallback(std::function<void(nsecs_t)> const& callbackFn,
+    CallbackToken registerCallback(std::function<void(nsecs_t, nsecs_t)> const& callbackFn,
                                    std::string callbackName) final {
         return mDispatch->registerCallback(callbackFn, callbackName);
     }
@@ -159,14 +160,15 @@ protected:
     static constexpr nsecs_t mPhase = 3000;
     static constexpr nsecs_t mAnotherPhase = 5200;
     static constexpr nsecs_t period = 10000;
-    static constexpr nsecs_t mFakeCbTime = 2093;
+    static constexpr nsecs_t mFakeVSyncTime = 2093;
+    static constexpr nsecs_t mFakeWakeupTime = 1892;
     static constexpr nsecs_t mFakeNow = 2214;
     static constexpr const char mName[] = "callbacky";
     VSyncDispatch::CallbackToken const mFakeToken{2398};
 
     nsecs_t lastCallbackTime = 0;
     StubCallback outerCb;
-    std::function<void(nsecs_t)> innerCb;
+    std::function<void(nsecs_t, nsecs_t)> innerCb;
 
     VSyncReactor mReactor;
 };
@@ -439,7 +441,8 @@ TEST_F(VSyncReactorTest, eventListenerGetsACallbackAndReschedules) {
             .WillOnce(DoAll(SaveArg<0>(&innerCb), Return(mFakeToken)));
     EXPECT_CALL(*mMockDispatch, schedule(mFakeToken, computeWorkload(period, mPhase), mFakeNow))
             .InSequence(seq);
-    EXPECT_CALL(*mMockDispatch, schedule(mFakeToken, computeWorkload(period, mPhase), mFakeCbTime))
+    EXPECT_CALL(*mMockDispatch,
+                schedule(mFakeToken, computeWorkload(period, mPhase), mFakeVSyncTime))
             .Times(2)
             .InSequence(seq);
     EXPECT_CALL(*mMockDispatch, cancel(mFakeToken)).InSequence(seq);
@@ -447,24 +450,25 @@ TEST_F(VSyncReactorTest, eventListenerGetsACallbackAndReschedules) {
 
     mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
     ASSERT_TRUE(innerCb);
-    innerCb(mFakeCbTime);
-    innerCb(mFakeCbTime);
+    innerCb(mFakeVSyncTime, mFakeWakeupTime);
+    innerCb(mFakeVSyncTime, mFakeWakeupTime);
 }
 
-TEST_F(VSyncReactorTest, callbackTimestampReadapted) {
+TEST_F(VSyncReactorTest, callbackTimestampDistributedIsWakeupTime) {
     Sequence seq;
     EXPECT_CALL(*mMockDispatch, registerCallback(_, _))
             .InSequence(seq)
             .WillOnce(DoAll(SaveArg<0>(&innerCb), Return(mFakeToken)));
     EXPECT_CALL(*mMockDispatch, schedule(mFakeToken, computeWorkload(period, mPhase), mFakeNow))
             .InSequence(seq);
-    EXPECT_CALL(*mMockDispatch, schedule(mFakeToken, computeWorkload(period, mPhase), mFakeCbTime))
+    EXPECT_CALL(*mMockDispatch,
+                schedule(mFakeToken, computeWorkload(period, mPhase), mFakeVSyncTime))
             .InSequence(seq);
 
     mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
     ASSERT_TRUE(innerCb);
-    innerCb(mFakeCbTime);
-    EXPECT_THAT(outerCb.lastCallTime(), Optional(mFakeCbTime - period));
+    innerCb(mFakeVSyncTime, mFakeWakeupTime);
+    EXPECT_THAT(outerCb.lastCallTime(), Optional(mFakeWakeupTime));
 }
 
 TEST_F(VSyncReactorTest, eventListenersRemovedOnDestruction) {
@@ -540,7 +544,7 @@ TEST_F(VSyncReactorTest, offsetsAppliedOnNextOpportunity) {
     mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
     mReactor.changePhaseOffset(&outerCb, mAnotherPhase);
     ASSERT_TRUE(innerCb);
-    innerCb(mFakeCbTime);
+    innerCb(mFakeVSyncTime, mFakeWakeupTime);
 }
 
 TEST_F(VSyncReactorTest, negativeOffsetsApplied) {
@@ -590,7 +594,7 @@ TEST_F(VSyncReactorDeathTest, cannotScheduleOnCallback) {
 
     ON_CALL(*mMockDispatch, schedule(_, _, _))
             .WillByDefault(Return(ScheduleResult::CannotSchedule));
-    EXPECT_DEATH(innerCb(mFakeCbTime), ".*");
+    EXPECT_DEATH(innerCb(mFakeVSyncTime, mFakeWakeupTime), ".*");
 }
 
 } // namespace android::scheduler

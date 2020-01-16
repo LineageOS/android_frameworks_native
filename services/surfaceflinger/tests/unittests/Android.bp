@@ -79,11 +79,12 @@ cc_test {
         "libgui_mocks",
         "libperfetto_client_experimental",
         "librenderengine_mocks",
-        "libtimestats",
         "perfetto_trace_protos",
     ],
     shared_libs: [
         "libsurfaceflinger",
+        "libtimestats",
+        "libtimestats_proto",
     ],
     header_libs: [
         "libsurfaceflinger_headers",

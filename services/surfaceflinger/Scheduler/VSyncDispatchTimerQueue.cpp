@@ -29,7 +29,7 @@ VSyncTracker::~VSyncTracker() = default;
 TimeKeeper::~TimeKeeper() = default;
 
 VSyncDispatchTimerQueueEntry::VSyncDispatchTimerQueueEntry(std::string const& name,
-                                                           std::function<void(nsecs_t)> const& cb,
+                                                           VSyncDispatch::Callback const& cb,
                                                            nsecs_t minVsyncDistance)
       : mName(name),
         mCallback(cb),
@@ -97,13 +97,13 @@ nsecs_t VSyncDispatchTimerQueueEntry::executing() {
     return *mLastDispatchTime;
 }
 
-void VSyncDispatchTimerQueueEntry::callback(nsecs_t t) {
+void VSyncDispatchTimerQueueEntry::callback(nsecs_t vsyncTimestamp, nsecs_t wakeupTimestamp) {
     {
         std::lock_guard<std::mutex> lk(mRunningMutex);
         mRunning = true;
     }
 
-    mCallback(t);
+    mCallback(vsyncTimestamp, wakeupTimestamp);
 
     std::lock_guard<std::mutex> lk(mRunningMutex);
     mRunning = false;
@@ -171,7 +171,8 @@ void VSyncDispatchTimerQueue::rearmTimerSkippingUpdateFor(
 void VSyncDispatchTimerQueue::timerCallback() {
     struct Invocation {
         std::shared_ptr<VSyncDispatchTimerQueueEntry> callback;
-        nsecs_t timestamp;
+        nsecs_t vsyncTimestamp;
+        nsecs_t wakeupTimestamp;
     };
     std::vector<Invocation> invocations;
     {
@@ -186,7 +187,7 @@ void VSyncDispatchTimerQueue::timerCallback() {
             if (*wakeupTime < mIntendedWakeupTime + mTimerSlack) {
                 callback->executing();
                 invocations.emplace_back(
-                        Invocation{callback, *callback->lastExecutedVsyncTarget()});
+                        Invocation{callback, *callback->lastExecutedVsyncTarget(), *wakeupTime});
             }
         }
 
@@ -195,12 +196,12 @@ void VSyncDispatchTimerQueue::timerCallback() {
     }
 
     for (auto const& invocation : invocations) {
-        invocation.callback->callback(invocation.timestamp);
+        invocation.callback->callback(invocation.vsyncTimestamp, invocation.wakeupTimestamp);
     }
 }
 
 VSyncDispatchTimerQueue::CallbackToken VSyncDispatchTimerQueue::registerCallback(
-        std::function<void(nsecs_t)> const& callbackFn, std::string callbackName) {
+        Callback const& callbackFn, std::string callbackName) {
     std::lock_guard<decltype(mMutex)> lk(mMutex);
     return CallbackToken{
             mCallbacks
@@ -271,7 +272,7 @@ CancelResult VSyncDispatchTimerQueue::cancel(CallbackToken token) {
 }
 
 VSyncCallbackRegistration::VSyncCallbackRegistration(VSyncDispatch& dispatch,
-                                                     std::function<void(nsecs_t)> const& callbackFn,
+                                                     VSyncDispatch::Callback const& callbackFn,
                                                      std::string const& callbackName)
       : mDispatch(dispatch),
         mToken(dispatch.registerCallback(callbackFn, callbackName)),

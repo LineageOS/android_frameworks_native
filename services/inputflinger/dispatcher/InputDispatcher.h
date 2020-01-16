@@ -157,6 +157,9 @@ private:
     // Cleans up input state when dropping an inbound event.
     void dropInboundEventLocked(const EventEntry& entry, DropReason dropReason) REQUIRES(mLock);
 
+    // Enqueues a focus event.
+    void enqueueFocusEventLocked(const InputWindowHandle& window, bool hasFocus) REQUIRES(mLock);
+
     // Adds an event to a queue of recent events for debugging purposes.
     void addRecentEventLocked(EventEntry* entry) REQUIRES(mLock);
 
@@ -299,6 +302,7 @@ private:
                            nsecs_t* nextWakeupTime) REQUIRES(mLock);
     bool dispatchMotionLocked(nsecs_t currentTime, MotionEntry* entry, DropReason* dropReason,
                               nsecs_t* nextWakeupTime) REQUIRES(mLock);
+    void dispatchFocusLocked(nsecs_t currentTime, FocusEntry* entry) REQUIRES(mLock);
     void dispatchEventLocked(nsecs_t currentTime, EventEntry* entry,
                              const std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
 

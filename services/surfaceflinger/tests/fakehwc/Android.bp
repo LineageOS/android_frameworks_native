@@ -29,7 +29,7 @@ cc_test {
         "liblog",
         "libnativewindow",
         "libsync",
-        "libtimestats_proto",
+        "libtimestats",
         "libui",
         "libutils",
     ],
@@ -38,7 +38,6 @@ cc_test {
         "libgmock",
         "libperfetto_client_experimental",
         "librenderengine",
-        "libtimestats",
         "libtrace_proto",
     ],
     header_libs: [
