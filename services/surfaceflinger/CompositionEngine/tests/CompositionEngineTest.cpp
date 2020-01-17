@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
-
 #include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/impl/CompositionEngine.h>
@@ -302,6 +298,3 @@ TEST_F(CompositionTestPreComposition,
 
 } // namespace
 } // namespace android::compositionengine
-
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"

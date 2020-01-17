@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
-
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <android-base/stringprintf.h>
@@ -29,6 +25,7 @@
 #include <compositionengine/impl/DumpHelpers.h>
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <compositionengine/impl/RenderSurface.h>
+
 #include <log/log.h>
 #include <renderengine/RenderEngine.h>
 #include <sync/sync.h>
@@ -37,7 +34,14 @@
 #include <ui/Rect.h>
 #include <utils/Trace.h>
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include "DisplayHardware/HWComposer.h"
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"
 
 namespace android::compositionengine {
 
@@ -254,6 +258,3 @@ sp<GraphicBuffer>& RenderSurface::mutableGraphicBufferForTest() {
 
 } // namespace impl
 } // namespace android::compositionengine
-
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"
