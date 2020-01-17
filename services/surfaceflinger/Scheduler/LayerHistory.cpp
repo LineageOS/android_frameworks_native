@@ -43,6 +43,9 @@ namespace android::scheduler::impl {
 namespace {
 
 bool isLayerActive(const Layer& layer, const LayerInfo& info, nsecs_t threshold) {
+    if (layer.getFrameRate() > .0f) {
+        return layer.isVisible();
+    }
     return layer.isVisible() && info.getLastUpdatedTime() >= threshold;
 }
 
@@ -117,11 +120,32 @@ LayerHistory::Summary LayerHistory::summarize(nsecs_t now) {
                     // Layers should be organized by priority
                     ALOGD("Layer has priority: %d", priority);
                 }
+            }
+        }
+    }
+
+    for (const auto& [weakLayer, info] : activeLayers()) {
+        const bool recent = info->isRecentlyActive(now);
+        auto layer = weakLayer.promote();
+        // Only use the layer if the reference still exists.
+        if (layer || CC_UNLIKELY(mTraceEnabled)) {
+            float refreshRate = 0.f;
+            // Default content refresh rate is only used when dealing with recent layers.
+            if (recent) {
+                refreshRate = info->getRefreshRate(now);
+            }
+            // Check if frame rate was set on layer.
+            float frameRate = layer->getFrameRate();
+            if (frameRate > 0.f) {
+                // Override content detection refresh rate, if it was set.
+                refreshRate = frameRate;
+            }
+            if (refreshRate > maxRefreshRate) {
                 maxRefreshRate = refreshRate;
             }
 
             if (CC_UNLIKELY(mTraceEnabled)) {
-                trace(activeLayer, std::round(refreshRate));
+                trace(weakLayer, std::round(refreshRate));
             }
         }
     }
@@ -173,6 +197,22 @@ void LayerHistory::clear() {
     }
 
     mActiveLayersEnd = 0;
+}
+
+bool LayerHistory::hasClientSpecifiedFrameRate() {
+    std::lock_guard lock(mLock);
+    for (const auto& [weakLayer, info] : activeLayers()) {
+        auto layer = weakLayer.promote();
+        if (layer) {
+            float frameRate = layer->getFrameRate();
+            // Found a layer that has a frame rate set on it.
+            if (fabs(frameRate) > 0.f) {
+                return true;
+            }
+        }
+    }
+    // Did not find any layers that have frame rate.
+    return false;
 }
 
 } // namespace android::scheduler::impl

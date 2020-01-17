@@ -53,6 +53,9 @@ public:
     virtual Summary summarize(nsecs_t now) = 0;
 
     virtual void clear() = 0;
+
+    // Checks whether any of the active layers have a desired frame rate bit set on them.
+    virtual bool hasClientSpecifiedFrameRate() = 0;
 };
 
 namespace impl {
@@ -74,6 +77,10 @@ public:
     android::scheduler::LayerHistory::Summary summarize(nsecs_t now) override;
 
     void clear() override;
+
+    // Traverses all active layers and checks whether any of them have a desired frame
+    // rate bit set on them.
+    bool hasClientSpecifiedFrameRate() override;
 
 private:
     friend class android::scheduler::LayerHistoryTest;
