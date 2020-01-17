@@ -31,28 +31,23 @@ namespace renderengine {
 namespace gl {
 
 BlurFilter::BlurFilter(GLESRenderEngine& engine)
-      : mEngine(engine), mCompositionFbo(engine), mBlurredFbo(engine), mSimpleProgram(engine) {
-    mSimpleProgram.compile(getVertexShader(), getSimpleFragShader());
-    mSPosLoc = mSimpleProgram.getAttributeLocation("aPosition");
-    mSUvLoc = mSimpleProgram.getAttributeLocation("aUV");
-    mSTextureLoc = mSimpleProgram.getUniformLocation("uTexture");
+      : mEngine(engine), mCompositionFbo(engine), mBlurredFbo(engine), mMixProgram(engine) {
+    mMixProgram.compile(getVertexShader(), getMixFragShader());
+    mMPosLoc = mMixProgram.getAttributeLocation("aPosition");
+    mMUvLoc = mMixProgram.getAttributeLocation("aUV");
+    mMTextureLoc = mMixProgram.getUniformLocation("uTexture");
+    mMCompositionTextureLoc = mMixProgram.getUniformLocation("uCompositionTexture");
+    mMMixLoc = mMixProgram.getUniformLocation("uMix");
 }
 
-status_t BlurFilter::setAsDrawTarget(const DisplaySettings& display) {
+status_t BlurFilter::setAsDrawTarget(const DisplaySettings& display, uint32_t radius) {
     ATRACE_NAME("BlurFilter::setAsDrawTarget");
+    mRadius = radius;
 
     if (!mTexturesAllocated) {
         mDisplayWidth = display.physicalDisplay.width();
         mDisplayHeight = display.physicalDisplay.height();
         mCompositionFbo.allocateBuffers(mDisplayWidth, mDisplayHeight);
-
-        // Let's use mimap filtering on the offscreen composition texture,
-        // this will drastically improve overall shader quality.
-        glBindTexture(GL_TEXTURE_2D, mCompositionFbo.getTextureName());
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 3);
-        glBindTexture(GL_TEXTURE_2D, 0);
 
         const uint32_t fboWidth = floorf(mDisplayWidth * kFboScale);
         const uint32_t fboHeight = floorf(mDisplayHeight * kFboScale);
@@ -94,27 +89,41 @@ void BlurFilter::drawMesh(GLuint uv, GLuint position) {
 status_t BlurFilter::render() {
     ATRACE_NAME("BlurFilter::render");
 
-    // Now let's scale our blur up
-    mSimpleProgram.useProgram();
+    // Now let's scale our blur up. It will be interpolated with the larger composited
+    // texture for the first frames, to hide downscaling artifacts.
+    GLfloat mix = fmin(1.0, mRadius / kMaxCrossFadeRadius);
+    if (mix >= 1) {
+        mBlurredFbo.bindAsReadBuffer();
+        glBlitFramebuffer(0, 0, mBlurredFbo.getBufferWidth(), mBlurredFbo.getBufferHeight(), 0, 0,
+                          mDisplayWidth, mDisplayHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+        return NO_ERROR;
+    }
+
+    mMixProgram.useProgram();
+    glUniform1f(mMMixLoc, mix);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, mBlurredFbo.getTextureName());
-    glUniform1i(mSTextureLoc, 0);
+    glUniform1i(mMTextureLoc, 0);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, mCompositionFbo.getTextureName());
+    glUniform1i(mMCompositionTextureLoc, 1);
     mEngine.checkErrors("Setting final pass uniforms");
 
-    drawMesh(mSUvLoc, mSPosLoc);
+    drawMesh(mMUvLoc, mMPosLoc);
 
     glUseProgram(0);
+    glActiveTexture(GL_TEXTURE0);
     return NO_ERROR;
 }
 
 string BlurFilter::getVertexShader() const {
     return R"SHADER(
         #version 310 es
-        precision lowp float;
 
         in vec2 aPosition;
-        in mediump vec2 aUV;
-        out mediump vec2 vUV;
+        in highp vec2 aUV;
+        out highp vec2 vUV;
 
         void main() {
             vUV = aUV;
@@ -123,18 +132,22 @@ string BlurFilter::getVertexShader() const {
     )SHADER";
 }
 
-string BlurFilter::getSimpleFragShader() const {
+string BlurFilter::getMixFragShader() const {
     string shader = R"SHADER(
         #version 310 es
-        precision lowp float;
+        precision mediump float;
 
-        in mediump vec2 vUV;
+        in highp vec2 vUV;
         out vec4 fragColor;
 
+        uniform sampler2D uCompositionTexture;
         uniform sampler2D uTexture;
+        uniform float uMix;
 
         void main() {
-            fragColor = texture(uTexture, vUV);
+            vec4 blurred = texture(uTexture, vUV);
+            vec4 composition = texture(uCompositionTexture, vUV);
+            fragColor = mix(composition, blurred, uMix);
         }
     )SHADER";
     return shader;

@@ -62,7 +62,7 @@ void LensBlurFilter::allocateTextures() {
                                              mBlurredFbo.getBufferHeight());
 }
 
-status_t LensBlurFilter::prepare(uint32_t radius) {
+status_t LensBlurFilter::prepare() {
     ATRACE_NAME("LensBlurFilter::prepare");
 
     if (mVerticalDiagonalPassFbo.getStatus() != GL_FRAMEBUFFER_COMPLETE) {
@@ -86,11 +86,10 @@ status_t LensBlurFilter::prepare(uint32_t radius) {
     // set uniforms
     auto width = mVerticalDiagonalPassFbo.getBufferWidth();
     auto height = mVerticalDiagonalPassFbo.getBufferHeight();
-    auto radiusF = fmax(1.0f, radius * kFboScale);
+    auto radiusF = fmax(1.0f, mRadius * kFboScale);
     glViewport(0, 0, width, height);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, mCompositionFbo.getTextureName());
-    glGenerateMipmap(GL_TEXTURE_2D);
     glUniform1i(mVDTexture0Loc, 0);
     glUniform2f(mVDSizeLoc, mDisplayWidth, mDisplayHeight);
     glUniform1f(mVDRadiusLoc, radiusF);
@@ -134,8 +133,7 @@ string LensBlurFilter::getFragmentShader(bool forComposition) const {
     string shader = "#version 310 es\n#define DIRECTION ";
     shader += (forComposition ? "1" : "0");
     shader += R"SHADER(
-        precision lowp float;
-
+        precision mediump float;
         #define PI 3.14159265359
 
         uniform sampler2D uTexture0;
@@ -143,7 +141,7 @@ string LensBlurFilter::getFragmentShader(bool forComposition) const {
         uniform float uRadius;
         uniform int uNumSamples;
 
-        mediump in vec2 vUV;
+        highp in vec2 vUV;
 
         #if DIRECTION == 0
         layout(location = 0) out vec4 fragColor0;

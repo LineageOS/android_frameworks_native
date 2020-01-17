@@ -30,8 +30,10 @@ namespace gl {
 
 class GaussianBlurFilter : public BlurFilter {
 public:
+    static constexpr uint32_t kNumSamples = 12;
+
     explicit GaussianBlurFilter(GLESRenderEngine& engine);
-    status_t prepare(uint32_t radius) override;
+    status_t prepare() override;
     void allocateTextures() override;
 
 private:
@@ -45,16 +47,18 @@ private:
     GLuint mVPosLoc;
     GLuint mVUvLoc;
     GLuint mVTextureLoc;
-    GLuint mVSizeLoc;
-    GLuint mVRadiusLoc;
+    GLuint mVIncrementLoc;
+    GLuint mVNumSamplesLoc;
+    GLuint mVGaussianWeightLoc;
 
     // Horizontal pass and its uniforms
     GenericProgram mHorizontalProgram;
     GLuint mHPosLoc;
     GLuint mHUvLoc;
     GLuint mHTextureLoc;
-    GLuint mHSizeLoc;
-    GLuint mHRadiusLoc;
+    GLuint mHIncrementLoc;
+    GLuint mHNumSamplesLoc;
+    GLuint mHGaussianWeightLoc;
 };
 
 } // namespace gl

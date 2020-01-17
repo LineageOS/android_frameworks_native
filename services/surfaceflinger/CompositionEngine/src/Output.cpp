@@ -898,8 +898,7 @@ std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion
     // GPU composition can finish in time. We must reset GPU frequency afterwards,
     // because high frequency consumes extra battery.
     const bool expensiveRenderingExpected =
-            clientCompositionDisplay.outputDataspace == ui::Dataspace::DISPLAY_P3 ||
-            mLayerRequestingBackgroundBlur != nullptr;
+            clientCompositionDisplay.outputDataspace == ui::Dataspace::DISPLAY_P3;
     if (expensiveRenderingExpected) {
         setExpensiveRenderingExpected(true);
     }

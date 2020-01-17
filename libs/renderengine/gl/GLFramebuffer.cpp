@@ -122,6 +122,14 @@ void GLFramebuffer::bind() const {
     glBindFramebuffer(GL_FRAMEBUFFER, mFramebufferName);
 }
 
+void GLFramebuffer::bindAsReadBuffer() const {
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, mFramebufferName);
+}
+
+void GLFramebuffer::bindAsDrawBuffer() const {
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, mFramebufferName);
+}
+
 void GLFramebuffer::unbind() const {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
