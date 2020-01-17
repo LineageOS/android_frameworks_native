@@ -17,4 +17,4 @@
 
 package android.os;
 
-parcelable PersistableBundle cpp_header "binder/PersistableBundle.h";
+@JavaOnlyStableParcelable parcelable PersistableBundle cpp_header "binder/PersistableBundle.h";
