@@ -73,7 +73,7 @@ protected:
                                                                         HI_FPS_PERIOD},
                                 },
                                 HwcConfigIndexType(0)};
-    TestableScheduler* const mScheduler{new TestableScheduler(mConfigs)};
+    TestableScheduler* const mScheduler{new TestableScheduler(mConfigs, false)};
     TestableSurfaceFlinger mFlinger;
 
     const nsecs_t mTime = systemTime();
@@ -85,53 +85,36 @@ TEST_F(LayerHistoryTest, oneLayer) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameSelectionPriority()).WillRepeatedly(Return(1));
+    EXPECT_CALL(*layer, getFrameRate()).WillRepeatedly(Return(std::nullopt));
 
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(0, activeLayerCount());
 
-    // 0 FPS is returned if no layers are active.
-    EXPECT_FLOAT_EQ(0, history().summarize(mTime).maxRefreshRate);
+    // no layers are returned if no layers are active.
+    ASSERT_TRUE(history().summarize(mTime).empty());
     EXPECT_EQ(0, activeLayerCount());
 
-    // 0 FPS is returned if active layers have insufficient history.
+    // no layers are returned if active layers have insufficient history.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE - 1; i++) {
         history().record(layer.get(), 0, mTime);
-        EXPECT_FLOAT_EQ(0, history().summarize(mTime).maxRefreshRate);
+        ASSERT_TRUE(history().summarize(mTime).empty());
         EXPECT_EQ(1, activeLayerCount());
     }
 
     // High FPS is returned once enough history has been recorded.
     for (int i = 0; i < 10; i++) {
         history().record(layer.get(), 0, mTime);
-        EXPECT_FLOAT_EQ(HI_FPS, history().summarize(mTime).maxRefreshRate);
+        ASSERT_EQ(1, history().summarize(mTime).size());
+        EXPECT_FLOAT_EQ(HI_FPS, history().summarize(mTime)[0].desiredRefreshRate);
         EXPECT_EQ(1, activeLayerCount());
     }
-}
-
-TEST_F(LayerHistoryTest, oneHDRLayer) {
-    const auto layer = createLayer();
-    EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
-    EXPECT_CALL(*layer, getFrameSelectionPriority()).WillRepeatedly(Return(1));
-
-    EXPECT_EQ(1, layerCount());
-    EXPECT_EQ(0, activeLayerCount());
-
-    history().record(layer.get(), 0, mTime);
-    auto summary = history().summarize(mTime);
-    EXPECT_FLOAT_EQ(0, summary.maxRefreshRate);
-    EXPECT_EQ(1, activeLayerCount());
-
-    EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(false));
-
-    summary = history().summarize(mTime);
-    EXPECT_FLOAT_EQ(0, summary.maxRefreshRate);
-    EXPECT_EQ(0, activeLayerCount());
 }
 
 TEST_F(LayerHistoryTest, explicitTimestamp) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameSelectionPriority()).WillRepeatedly(Return(1));
+    EXPECT_CALL(*layer, getFrameRate()).WillRepeatedly(Return(std::nullopt));
 
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(0, activeLayerCount());
@@ -142,7 +125,8 @@ TEST_F(LayerHistoryTest, explicitTimestamp) {
         time += LO_FPS_PERIOD;
     }
 
-    EXPECT_FLOAT_EQ(LO_FPS, history().summarize(mTime).maxRefreshRate);
+    ASSERT_EQ(1, history().summarize(mTime).size());
+    EXPECT_FLOAT_EQ(LO_FPS, history().summarize(mTime)[0].desiredRefreshRate);
     EXPECT_EQ(1, activeLayerCount());
     EXPECT_EQ(1, frequentLayerCount(time));
 }
@@ -154,13 +138,15 @@ TEST_F(LayerHistoryTest, multipleLayers) {
 
     EXPECT_CALL(*layer1, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer1, getFrameSelectionPriority()).WillRepeatedly(Return(1));
+    EXPECT_CALL(*layer1, getFrameRate()).WillRepeatedly(Return(std::nullopt));
 
     EXPECT_CALL(*layer2, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer2, getFrameSelectionPriority()).WillRepeatedly(Return(1));
+    EXPECT_CALL(*layer2, getFrameRate()).WillRepeatedly(Return(std::nullopt));
 
     EXPECT_CALL(*layer3, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer3, getFrameSelectionPriority()).WillRepeatedly(Return(1));
-
+    EXPECT_CALL(*layer3, getFrameRate()).WillRepeatedly(Return(std::nullopt));
     nsecs_t time = mTime;
 
     EXPECT_EQ(3, layerCount());
@@ -173,7 +159,8 @@ TEST_F(LayerHistoryTest, multipleLayers) {
         time += MAX_FREQUENT_LAYER_PERIOD_NS.count();
     }
 
-    EXPECT_FLOAT_EQ(LO_FPS, history().summarize(time).maxRefreshRate);
+    ASSERT_EQ(1, history().summarize(time).size());
+    EXPECT_FLOAT_EQ(LO_FPS, history().summarize(time)[0].desiredRefreshRate);
     EXPECT_EQ(1, activeLayerCount());
     EXPECT_EQ(0, frequentLayerCount(time));
 
@@ -186,7 +173,9 @@ TEST_F(LayerHistoryTest, multipleLayers) {
     // layer1 is still active but infrequent.
     history().record(layer1.get(), time, time);
 
-    EXPECT_FLOAT_EQ(HI_FPS, history().summarize(time).maxRefreshRate);
+    ASSERT_EQ(2, history().summarize(time).size());
+    EXPECT_FLOAT_EQ(LO_FPS, history().summarize(time)[0].desiredRefreshRate);
+    EXPECT_FLOAT_EQ(HI_FPS, history().summarize(time)[1].desiredRefreshRate);
     EXPECT_EQ(2, activeLayerCount());
     EXPECT_EQ(1, frequentLayerCount(time));
 
@@ -197,7 +186,8 @@ TEST_F(LayerHistoryTest, multipleLayers) {
         time += LO_FPS_PERIOD;
     }
 
-    EXPECT_FLOAT_EQ(LO_FPS, history().summarize(time).maxRefreshRate);
+    ASSERT_EQ(1, history().summarize(time).size());
+    EXPECT_FLOAT_EQ(LO_FPS, history().summarize(time)[0].desiredRefreshRate);
     EXPECT_EQ(1, activeLayerCount());
     EXPECT_EQ(1, frequentLayerCount(time));
 
@@ -213,19 +203,24 @@ TEST_F(LayerHistoryTest, multipleLayers) {
         time += HI_FPS_PERIOD;
     }
 
-    EXPECT_FLOAT_EQ(LO_FPS, history().summarize(time).maxRefreshRate);
+    ASSERT_EQ(1, history().summarize(time).size());
+    EXPECT_FLOAT_EQ(LO_FPS, history().summarize(time)[0].desiredRefreshRate);
     EXPECT_EQ(2, activeLayerCount());
     EXPECT_EQ(2, frequentLayerCount(time));
 
     // layer3 becomes recently active.
     history().record(layer3.get(), time, time);
-    EXPECT_FLOAT_EQ(HI_FPS, history().summarize(time).maxRefreshRate);
+    ASSERT_EQ(2, history().summarize(time).size());
+    EXPECT_FLOAT_EQ(LO_FPS, history().summarize(time)[0].desiredRefreshRate);
+    EXPECT_FLOAT_EQ(HI_FPS, history().summarize(time)[1].desiredRefreshRate);
     EXPECT_EQ(2, activeLayerCount());
     EXPECT_EQ(2, frequentLayerCount(time));
 
     // layer1 expires.
     layer1.clear();
-    EXPECT_FLOAT_EQ(HI_FPS, history().summarize(time).maxRefreshRate);
+    ASSERT_EQ(2, history().summarize(time).size());
+    EXPECT_FLOAT_EQ(LO_FPS, history().summarize(time)[0].desiredRefreshRate);
+    EXPECT_FLOAT_EQ(HI_FPS, history().summarize(time)[1].desiredRefreshRate);
     EXPECT_EQ(2, layerCount());
     EXPECT_EQ(2, activeLayerCount());
     EXPECT_EQ(2, frequentLayerCount(time));
@@ -237,13 +232,14 @@ TEST_F(LayerHistoryTest, multipleLayers) {
         time += LO_FPS_PERIOD;
     }
 
-    EXPECT_FLOAT_EQ(LO_FPS, history().summarize(time).maxRefreshRate);
+    ASSERT_EQ(1, history().summarize(time).size());
+    EXPECT_FLOAT_EQ(LO_FPS, history().summarize(time)[0].desiredRefreshRate);
     EXPECT_EQ(1, activeLayerCount());
     EXPECT_EQ(1, frequentLayerCount(time));
 
     // layer2 expires.
     layer2.clear();
-    EXPECT_FLOAT_EQ(0, history().summarize(time).maxRefreshRate);
+    ASSERT_TRUE(history().summarize(time).empty());
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(0, activeLayerCount());
     EXPECT_EQ(0, frequentLayerCount(time));
@@ -254,14 +250,15 @@ TEST_F(LayerHistoryTest, multipleLayers) {
         time += HI_FPS_PERIOD;
     }
 
-    EXPECT_FLOAT_EQ(HI_FPS, history().summarize(time).maxRefreshRate);
+    ASSERT_EQ(1, history().summarize(time).size());
+    EXPECT_FLOAT_EQ(HI_FPS, history().summarize(time)[0].desiredRefreshRate);
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(1, activeLayerCount());
     EXPECT_EQ(1, frequentLayerCount(time));
 
     // layer3 expires.
     layer3.clear();
-    EXPECT_FLOAT_EQ(0, history().summarize(time).maxRefreshRate);
+    ASSERT_TRUE(history().summarize(time).empty());
     EXPECT_EQ(0, layerCount());
     EXPECT_EQ(0, activeLayerCount());
     EXPECT_EQ(0, frequentLayerCount(time));

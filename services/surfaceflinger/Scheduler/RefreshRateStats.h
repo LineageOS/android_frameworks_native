@@ -114,7 +114,8 @@ private:
                 mConfigModesTotalTime[mCurrentConfigMode] = 0;
             }
             mConfigModesTotalTime[mCurrentConfigMode] += timeElapsedMs;
-            fps = mRefreshRateConfigs.getRefreshRateFromConfigId(mCurrentConfigMode).fps;
+            fps = static_cast<uint32_t>(std::round(
+                    mRefreshRateConfigs.getRefreshRateFromConfigId(mCurrentConfigMode).fps));
         } else {
             mScreenOffTime += timeElapsedMs;
         }

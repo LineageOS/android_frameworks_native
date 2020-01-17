@@ -251,7 +251,8 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, nsecs_t postTi
                                            FrameTracer::FrameEvent::POST);
     mCurrentState.desiredPresentTime = desiredPresentTime;
 
-    mFlinger->mScheduler->recordLayerHistory(this, desiredPresentTime);
+    mFlinger->mScheduler->recordLayerHistory(this,
+                                             desiredPresentTime <= 0 ? 0 : desiredPresentTime);
 
     return true;
 }

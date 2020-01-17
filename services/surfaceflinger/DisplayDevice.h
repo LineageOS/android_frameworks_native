@@ -227,8 +227,10 @@ class DisplayRenderArea : public RenderArea {
 public:
     DisplayRenderArea(const sp<const DisplayDevice>& display,
                       RotationFlags rotation = ui::Transform::ROT_0)
-          : DisplayRenderArea(display, display->getBounds(), display->getWidth(),
-                              display->getHeight(), display->getCompositionDataSpace(), rotation) {}
+          : DisplayRenderArea(display, display->getBounds(),
+                              static_cast<uint32_t>(display->getWidth()),
+                              static_cast<uint32_t>(display->getHeight()),
+                              display->getCompositionDataSpace(), rotation) {}
 
     DisplayRenderArea(sp<const DisplayDevice> display, const Rect& sourceCrop, uint32_t reqWidth,
                       uint32_t reqHeight, ui::Dataspace reqDataSpace, RotationFlags rotation,

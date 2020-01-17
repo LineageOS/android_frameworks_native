@@ -1251,8 +1251,11 @@ bool Layer::setFrameRate(float frameRate) {
     return true;
 }
 
-float Layer::getFrameRate() const {
-    return getDrawingState().frameRate;
+std::optional<float> Layer::getFrameRate() const {
+    const auto frameRate = getDrawingState().frameRate;
+    if (frameRate > 0.f || frameRate == FRAME_RATE_NO_VOTE) return frameRate;
+
+    return {};
 }
 
 void Layer::deferTransactionUntil_legacy(const sp<Layer>& barrierLayer, uint64_t frameNumber) {

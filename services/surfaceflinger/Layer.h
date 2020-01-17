@@ -744,8 +744,9 @@ public:
      */
     Rect getCroppedBufferSize(const Layer::State& s) const;
 
+    constexpr static auto FRAME_RATE_NO_VOTE = -1.0f;
     virtual bool setFrameRate(float frameRate);
-    virtual float getFrameRate() const;
+    virtual std::optional<float> getFrameRate() const;
 
 protected:
     // constant

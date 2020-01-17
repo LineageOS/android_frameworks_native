@@ -27,7 +27,13 @@
 
 #include <android-base/thread_annotations.h>
 #include <ui/Fence.h>
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
 #include <ui/GraphicTypes.h>
+#pragma clang diagnostic pop
+
 #include <utils/StrongPointer.h>
 #include <utils/Timers.h>
 

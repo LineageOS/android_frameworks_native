@@ -31,6 +31,7 @@ public:
     MOCK_METHOD0(getFrameSelectionPriority, int32_t());
     MOCK_CONST_METHOD0(isVisible, bool());
     MOCK_METHOD0(createClone, sp<Layer>());
+    MOCK_CONST_METHOD0(getFrameRate, std::optional<float>());
 };
 
 } // namespace android::mock
