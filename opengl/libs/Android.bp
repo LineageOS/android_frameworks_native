@@ -161,6 +161,10 @@ cc_library_shared {
     ],
     ldflags: ["-Wl,--exclude-libs=ALL"],
     export_include_dirs: ["EGL/include"],
+    stubs: {
+        symbol_file: "libEGL.map.txt",
+        versions: ["29"],
+    },
 }
 
 cc_test {
