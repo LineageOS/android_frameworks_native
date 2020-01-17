@@ -224,6 +224,8 @@ public:
 
         // Priority of the layer assigned by Window Manager.
         int32_t frameRateSelectionPriority;
+
+        float frameRate;
     };
 
     explicit Layer(const LayerCreationArgs& args);
@@ -736,6 +738,9 @@ public:
      * bounds are constrained by its parent bounds.
      */
     Rect getCroppedBufferSize(const Layer::State& s) const;
+
+    virtual bool setFrameRate(float frameRate);
+    virtual float getFrameRate() const;
 
 protected:
     // constant

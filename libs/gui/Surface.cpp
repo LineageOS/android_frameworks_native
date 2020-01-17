@@ -1093,6 +1093,9 @@ int Surface::perform(int operation, va_list args)
     case NATIVE_WINDOW_GET_LAST_QUEUE_DURATION:
         res = dispatchGetLastQueueDuration(args);
         break;
+    case NATIVE_WINDOW_SET_FRAME_RATE:
+        res = dispatchSetFrameRate(args);
+        break;
     default:
         res = NAME_NOT_FOUND;
         break;
@@ -1319,6 +1322,11 @@ int Surface::dispatchGetLastQueueDuration(va_list args) {
     int64_t* lastQueueDuration = va_arg(args, int64_t*);
     *lastQueueDuration = mLastQueueDuration;
     return NO_ERROR;
+}
+
+int Surface::dispatchSetFrameRate(va_list args) {
+    float frameRate = static_cast<float>(va_arg(args, double));
+    return setFrameRate(frameRate);
 }
 
 bool Surface::transformToDisplayInverse() {
@@ -2062,6 +2070,13 @@ void Surface::ProducerListenerProxy::onBuffersDiscarded(const std::vector<int32_
     }
 
     mSurfaceListener->onBuffersDiscarded(discardedBufs);
+}
+
+status_t Surface::setFrameRate(float frameRate) {
+    ATRACE_CALL();
+    ALOGV("Surface::setTargetFrameRate");
+    Mutex::Autolock lock(mMutex);
+    return mGraphicBufferProducer->setFrameRate(frameRate);
 }
 
 }; // namespace android

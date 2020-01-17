@@ -637,6 +637,9 @@ public:
     // the width and height used for dequeueBuffer will be additionally swapped.
     virtual status_t setAutoPrerotation(bool autoPrerotation);
 
+    // Sets the apps intended frame rate.
+    virtual status_t setFrameRate(float frameRate);
+
     // Static method exports any IGraphicBufferProducer object to a parcel. It
     // handles null producer as well.
     static status_t exportToParcel(const sp<IGraphicBufferProducer>& producer,

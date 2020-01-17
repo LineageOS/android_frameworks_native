@@ -51,6 +51,8 @@ enum class Tag : uint32_t {
     GET_SIDEBAND_STREAM,
     GET_OCCUPANCY_HISTORY,
     DISCARD_FREE_BUFFERS,
+    SET_FRAME_RATE,
+    GET_FRAME_RATE,
     DUMP_STATE,
     LAST = DUMP_STATE,
 };
@@ -163,6 +165,16 @@ public:
                 Tag::DISCARD_FREE_BUFFERS);
     }
 
+    status_t setFrameRate(float frameRate) override {
+        using Signature = decltype(&IGraphicBufferConsumer::setFrameRate);
+        return callRemote<Signature>(Tag::SET_FRAME_RATE, frameRate);
+    }
+
+    status_t getFrameRate(float* frameRate) const override {
+        using Signature = decltype(&IGraphicBufferConsumer::getFrameRate);
+        return callRemote<Signature>(Tag::GET_FRAME_RATE, frameRate);
+    }
+
     status_t dumpState(const String8& prefix, String8* outResult) const override {
         using Signature = status_t (IGraphicBufferConsumer::*)(const String8&, String8*) const;
         return callRemote<Signature>(Tag::DUMP_STATE, prefix, outResult);
@@ -220,6 +232,10 @@ status_t BnGraphicBufferConsumer::onTransact(uint32_t code, const Parcel& data, 
             return callLocal(data, reply, &IGraphicBufferConsumer::getOccupancyHistory);
         case Tag::DISCARD_FREE_BUFFERS:
             return callLocal(data, reply, &IGraphicBufferConsumer::discardFreeBuffers);
+        case Tag::SET_FRAME_RATE:
+            return callLocal(data, reply, &IGraphicBufferConsumer::setFrameRate);
+        case Tag::GET_FRAME_RATE:
+            return callLocal(data, reply, &IGraphicBufferConsumer::getFrameRate);
         case Tag::DUMP_STATE: {
             using Signature = status_t (IGraphicBufferConsumer::*)(const String8&, String8*) const;
             return callLocal<Signature>(data, reply, &IGraphicBufferConsumer::dumpState);
