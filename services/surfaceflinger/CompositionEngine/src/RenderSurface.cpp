@@ -91,7 +91,8 @@ const sp<Fence>& RenderSurface::getClientTargetAcquireFence() const {
 }
 
 void RenderSurface::setDisplaySize(const ui::Size& size) {
-    mDisplaySurface->resizeBuffers(size.width, size.height);
+    mDisplaySurface->resizeBuffers(static_cast<uint32_t>(size.width),
+                                   static_cast<uint32_t>(size.height));
     mSize = size;
 }
 

@@ -139,14 +139,14 @@ TEST_F(CompositionEnginePresentTest, worksAsExpected) {
 struct CompositionEngineUpdateCursorAsyncTest : public CompositionEngineTest {
 public:
     CompositionEngineUpdateCursorAsyncTest() {
-        EXPECT_CALL(*mOutput1, getOutputLayerCount()).WillRepeatedly(Return(0));
+        EXPECT_CALL(*mOutput1, getOutputLayerCount()).WillRepeatedly(Return(0u));
         EXPECT_CALL(*mOutput1, getOutputLayerOrderedByZByIndex(_)).Times(0);
 
-        EXPECT_CALL(*mOutput2, getOutputLayerCount()).WillRepeatedly(Return(1));
+        EXPECT_CALL(*mOutput2, getOutputLayerCount()).WillRepeatedly(Return(1u));
         EXPECT_CALL(*mOutput2, getOutputLayerOrderedByZByIndex(0))
                 .WillRepeatedly(Return(&mOutput2OutputLayer1));
 
-        EXPECT_CALL(*mOutput3, getOutputLayerCount()).WillRepeatedly(Return(2));
+        EXPECT_CALL(*mOutput3, getOutputLayerCount()).WillRepeatedly(Return(2u));
         EXPECT_CALL(*mOutput3, getOutputLayerOrderedByZByIndex(0))
                 .WillRepeatedly(Return(&mOutput3OutputLayer1));
         EXPECT_CALL(*mOutput3, getOutputLayerOrderedByZByIndex(1))
