@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <errno.h>
 #include <stdint.h>
 #include <sys/types.h>
@@ -159,3 +163,6 @@ int MessageQueue::eventReceiver(int /*fd*/, int /*events*/) {
 
 } // namespace impl
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

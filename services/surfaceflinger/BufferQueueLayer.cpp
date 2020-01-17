@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #undef LOG_TAG
 #define LOG_TAG "BufferQueueLayer"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
@@ -115,6 +119,18 @@ bool BufferQueueLayer::shouldPresentNow(nsecs_t expectedPresentTime) const {
 
     const bool isDue = addedTime < expectedPresentTime;
     return isDue || !isPlausible;
+}
+
+bool BufferQueueLayer::setFrameRate(float frameRate) {
+    float oldFrameRate = 0.f;
+    status_t result = mConsumer->getFrameRate(&oldFrameRate);
+    bool frameRateChanged = result < 0 || frameRate != oldFrameRate;
+    mConsumer->setFrameRate(frameRate);
+    return frameRateChanged;
+}
+
+float BufferQueueLayer::getFrameRate() const {
+    return mLatchedFrameRate;
 }
 
 // -----------------------------------------------------------------------
@@ -547,6 +563,9 @@ void BufferQueueLayer::gatherBufferInfo() {
     mBufferInfo.mApi = mConsumer->getCurrentApi();
     mBufferInfo.mPixelFormat = mFormat;
     mBufferInfo.mTransformToDisplayInverse = mConsumer->getTransformToDisplayInverse();
+    float latchedFrameRate;
+    mConsumer->getFrameRate(&latchedFrameRate);
+    mLatchedFrameRate = latchedFrameRate;
 }
 
 sp<Layer> BufferQueueLayer::createClone() {
@@ -612,3 +631,6 @@ void BufferQueueLayer::ContentsChangedListener::abandon() {
 // -----------------------------------------------------------------------
 
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

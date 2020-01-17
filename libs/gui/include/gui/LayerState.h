@@ -99,6 +99,8 @@ struct layer_state_t {
         eBackgroundColorChanged = 0x4'00000000,
         eMetadataChanged = 0x8'00000000,
         eColorSpaceAgnosticChanged = 0x10'00000000,
+        eFrameRateSelectionPriority = 0x20'00000000,
+        eFrameRateChanged = 0x40'00000000,
     };
 
     layer_state_t()
@@ -128,7 +130,9 @@ struct layer_state_t {
             bgColorAlpha(0),
             bgColorDataspace(ui::Dataspace::UNKNOWN),
             colorSpaceAgnostic(false),
-            shadowRadius(0.0f) {
+            shadowRadius(0.0f),
+            frameRateSelectionPriority(-1),
+            frameRate(0.0f) {
         matrix.dsdx = matrix.dtdy = 1.0f;
         matrix.dsdy = matrix.dtdx = 0.0f;
         hdrMetadata.validTypes = 0;
@@ -209,6 +213,11 @@ struct layer_state_t {
 
     // Draws a shadow around the surface.
     float shadowRadius;
+
+    // Priority of the layer assigned by Window Manager.
+    int32_t frameRateSelectionPriority;
+
+    float frameRate;
 };
 
 struct ComposerState {

@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 //#define LOG_NDEBUG 0
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
@@ -1747,12 +1751,6 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
                 mGpuFrameMissedCount++;
             }
 
-            mScheduler->chooseRefreshRateForContent();
-
-            if (performSetActiveConfig()) {
-                break;
-            }
-
             if (frameMissed && mPropagateBackpressure) {
                 if ((hwcFrameMissed && !gpuFrameMissed) ||
                     mPropagateBackpressureClientComposition) {
@@ -1768,6 +1766,13 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
 
             bool refreshNeeded = handleMessageTransaction();
             refreshNeeded |= handleMessageInvalidate();
+
+            // Layers need to get updated (in the previous line) before we can use them for
+            // choosing the refresh rate.
+            mScheduler->chooseRefreshRateForContent();
+            if (performSetActiveConfig()) {
+                break;
+            }
 
             updateCursorAsync();
             updateInputFlinger();
@@ -3473,6 +3478,14 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     }
     if (what & layer_state_t::eShadowRadiusChanged) {
         if (layer->setShadowRadius(s.shadowRadius)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eFrameRateSelectionPriority) {
+        if (privileged && layer->setFrameRateSelectionPriority(s.frameRateSelectionPriority)) {
+            flags |= eTraversalNeeded;
+        }
+    }
+    if (what & layer_state_t::eFrameRateChanged) {
+        if (layer->setFrameRate(s.frameRate)) flags |= eTraversalNeeded;
     }
     // This has to happen after we reparent children because when we reparent to null we remove
     // child layers from current state and remove its relative z. If the children are reparented in
@@ -5772,3 +5785,6 @@ status_t SurfaceFlinger::setGlobalShadowSettings(const half4& ambientColor, cons
 #if defined(__gl2_h_)
 #error "don't include gl2/gl2.h in this file"
 #endif
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

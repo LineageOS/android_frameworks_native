@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 //#define LOG_NDEBUG 0
 #undef LOG_TAG
 #define LOG_TAG "Layer"
@@ -108,8 +112,10 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.api = -1;
     mCurrentState.hasColorTransform = false;
     mCurrentState.colorSpaceAgnostic = false;
+    mCurrentState.frameRateSelectionPriority = PRIORITY_UNSET;
     mCurrentState.metadata = args.metadata;
     mCurrentState.shadowRadius = 0.f;
+    mCurrentState.frameRate = 0.f;
 
     // drawing state & current state are identical
     mDrawingState = mCurrentState;
@@ -1120,6 +1126,7 @@ bool Layer::setTransparentRegionHint(const Region& transparent) {
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
+
 bool Layer::setFlags(uint8_t flags, uint8_t mask) {
     const uint32_t newFlags = (mCurrentState.flags & ~mask) | (flags & mask);
     if (mCurrentState.flags == newFlags) return false;
@@ -1176,6 +1183,29 @@ bool Layer::setColorSpaceAgnostic(const bool agnostic) {
     return true;
 }
 
+bool Layer::setFrameRateSelectionPriority(int32_t priority) {
+    if (mCurrentState.frameRateSelectionPriority == priority) return false;
+    mCurrentState.frameRateSelectionPriority = priority;
+    mCurrentState.sequence++;
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
+int32_t Layer::getFrameRateSelectionPriority() const {
+    // Check if layer has priority set.
+    if (mDrawingState.frameRateSelectionPriority != PRIORITY_UNSET) {
+        return mDrawingState.frameRateSelectionPriority;
+    }
+    // If not, search whether its parents have it set.
+    sp<Layer> parent = getParent();
+    if (parent != nullptr) {
+        return parent->getFrameRateSelectionPriority();
+    }
+
+    return Layer::PRIORITY_UNSET;
+}
+
 uint32_t Layer::getLayerStack() const {
     auto p = mDrawingParent.promote();
     if (p == nullptr) {
@@ -1194,6 +1224,22 @@ bool Layer::setShadowRadius(float shadowRadius) {
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
+}
+
+bool Layer::setFrameRate(float frameRate) {
+    if (mCurrentState.frameRate == frameRate) {
+        return false;
+    }
+
+    mCurrentState.sequence++;
+    mCurrentState.frameRate = frameRate;
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
+float Layer::getFrameRate() const {
+    return getDrawingState().frameRate;
 }
 
 void Layer::deferTransactionUntil_legacy(const sp<Layer>& barrierLayer, uint64_t frameNumber) {
@@ -2304,3 +2350,6 @@ void Layer::addChildToDrawing(const sp<Layer>& layer) {
 #if defined(__gl2_h_)
 #error "don't include gl2/gl2.h in this file"
 #endif
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

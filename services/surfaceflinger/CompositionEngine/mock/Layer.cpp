@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <compositionengine/mock/Layer.h>
 
 namespace android::compositionengine::mock {
@@ -24,3 +28,6 @@ Layer::Layer() = default;
 Layer::~Layer() = default;
 
 } // namespace android::compositionengine::mock
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

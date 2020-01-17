@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #undef LOG_TAG
 #define LOG_TAG "LayerHistory"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
@@ -48,6 +52,12 @@ bool traceEnabled() {
     return atoi(value);
 }
 
+bool useFrameRatePriority() {
+    char value[PROPERTY_VALUE_MAX];
+    property_get("debug.sf.use_frame_rate_priority", value, "1");
+    return atoi(value);
+}
+
 void trace(const wp<Layer>& weak, int fps) {
     const auto layer = weak.promote();
     if (!layer) return;
@@ -60,7 +70,8 @@ void trace(const wp<Layer>& weak, int fps) {
 
 } // namespace
 
-LayerHistory::LayerHistory() : mTraceEnabled(traceEnabled()) {}
+LayerHistory::LayerHistory()
+      : mTraceEnabled(traceEnabled()), mUseFrameRatePriority(useFrameRatePriority()) {}
 LayerHistory::~LayerHistory() = default;
 
 void LayerHistory::registerLayer(Layer* layer, float lowRefreshRate, float highRefreshRate) {
@@ -94,16 +105,23 @@ LayerHistory::Summary LayerHistory::summarize(nsecs_t now) {
     partitionLayers(now);
 
     // Find the maximum refresh rate among recently active layers.
-    for (const auto& [layer, info] : activeLayers()) {
+    for (const auto& [activeLayer, info] : activeLayers()) {
         const bool recent = info->isRecentlyActive(now);
+
         if (recent || CC_UNLIKELY(mTraceEnabled)) {
             const float refreshRate = info->getRefreshRate(now);
             if (recent && refreshRate > maxRefreshRate) {
+                if (const auto layer = activeLayer.promote(); layer) {
+                    const int32_t priority = layer->getFrameRateSelectionPriority();
+                    // TODO(b/142507166): This is where the scoring algorithm should live.
+                    // Layers should be organized by priority
+                    ALOGD("Layer has priority: %d", priority);
+                }
                 maxRefreshRate = refreshRate;
             }
 
             if (CC_UNLIKELY(mTraceEnabled)) {
-                trace(layer, std::round(refreshRate));
+                trace(activeLayer, std::round(refreshRate));
             }
         }
     }
@@ -158,3 +176,6 @@ void LayerHistory::clear() {
 }
 
 } // namespace android::scheduler::impl
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

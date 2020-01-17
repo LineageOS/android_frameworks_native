@@ -483,6 +483,9 @@ public:
         Transaction& setDesiredPresentTime(nsecs_t desiredPresentTime);
         Transaction& setColorSpaceAgnostic(const sp<SurfaceControl>& sc, const bool agnostic);
 
+        // Sets information about the priority of the frame.
+        Transaction& setFrameRateSelectionPriority(const sp<SurfaceControl>& sc, int32_t priority);
+
         Transaction& addTransactionCompletedCallback(
                 TransactionCompletedCallbackTakesContext callback, void* callbackContext);
 
@@ -516,6 +519,8 @@ public:
         Transaction& setGeometry(const sp<SurfaceControl>& sc,
                 const Rect& source, const Rect& dst, int transform);
         Transaction& setShadowRadius(const sp<SurfaceControl>& sc, float cornerRadius);
+
+        Transaction& setFrameRate(const sp<SurfaceControl>& sc, float frameRate);
 
         status_t setDisplaySurface(const sp<IBinder>& token,
                 const sp<IGraphicBufferProducer>& bufferProducer);

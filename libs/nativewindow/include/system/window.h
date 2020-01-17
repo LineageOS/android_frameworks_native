@@ -34,12 +34,12 @@
 #include <cutils/native_handle.h>
 #include <errno.h>
 #include <limits.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 #include <sys/cdefs.h>
 #include <system/graphics.h>
 #include <unistd.h>
-#include <stdbool.h>
 
 // system/window.h is a superset of the vndk and apex apis
 #include <apex/window.h>
@@ -247,6 +247,7 @@ enum {
     NATIVE_WINDOW_SET_DEQUEUE_TIMEOUT             = 37,    /* private */
     NATIVE_WINDOW_GET_LAST_DEQUEUE_DURATION       = 38,    /* private */
     NATIVE_WINDOW_GET_LAST_QUEUE_DURATION         = 39,    /* private */
+    NATIVE_WINDOW_SET_FRAME_RATE                  = 40,
     // clang-format on
 };
 
@@ -1006,6 +1007,10 @@ static inline int native_window_get_consumer_usage(struct ANativeWindow* window,
 static inline int native_window_set_auto_prerotation(struct ANativeWindow* window,
                                                      bool autoPrerotation) {
     return window->perform(window, NATIVE_WINDOW_SET_AUTO_PREROTATION, autoPrerotation);
+}
+
+static inline int native_window_set_frame_rate(struct ANativeWindow* window, float frameRate) {
+    return window->perform(window, NATIVE_WINDOW_SET_FRAME_RATE, (double)frameRate);
 }
 
 __END_DECLS

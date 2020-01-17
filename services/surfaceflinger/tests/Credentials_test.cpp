@@ -31,6 +31,10 @@ const float FRAME_SCALE = 1.0f;
  * Methods like EnableVsyncInjections and InjectVsync are not tested since they do not
  * return anything meaningful.
  */
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
 class CredentialsTest : public ::testing::Test {
 protected:
     void SetUp() override {
@@ -362,3 +366,6 @@ TEST_F(CredentialsTest, GetActiveColorModeBasicCorrectness) {
 }
 
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

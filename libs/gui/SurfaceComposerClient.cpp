@@ -1192,6 +1192,22 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setColor
 }
 
 SurfaceComposerClient::Transaction&
+SurfaceComposerClient::Transaction::setFrameRateSelectionPriority(const sp<SurfaceControl>& sc,
+                                                                  int32_t priority) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+
+    s->what |= layer_state_t::eFrameRateSelectionPriority;
+    s->frameRateSelectionPriority = priority;
+
+    registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
+SurfaceComposerClient::Transaction&
 SurfaceComposerClient::Transaction::addTransactionCompletedCallback(
         TransactionCompletedCallbackTakesContext callback, void* callbackContext) {
     auto listener = TransactionCompletedListener::getInstance();
@@ -1357,6 +1373,18 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setShado
     }
     s->what |= layer_state_t::eShadowRadiusChanged;
     s->shadowRadius = shadowRadius;
+    return *this;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrameRate(
+        const sp<SurfaceControl>& sc, float frameRate) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eFrameRateChanged;
+    s->frameRate = frameRate;
     return *this;
 }
 

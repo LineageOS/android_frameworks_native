@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include "MonitoredProducer.h"
 #include "Layer.h"
 #include "SurfaceFlinger.h"
@@ -158,6 +162,10 @@ status_t MonitoredProducer::setAutoPrerotation(bool autoPrerotation) {
     return mProducer->setAutoPrerotation(autoPrerotation);
 }
 
+status_t MonitoredProducer::setFrameRate(float frameRate) {
+    return mProducer->setFrameRate(frameRate);
+}
+
 IBinder* MonitoredProducer::onAsBinder() {
     return this;
 }
@@ -168,3 +176,6 @@ sp<Layer> MonitoredProducer::getLayer() const {
 
 // ---------------------------------------------------------------------------
 }; // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <compositionengine/impl/HwcBufferCache.h>
 #include <gui/BufferQueue.h>
 #include <ui/GraphicBuffer.h>
@@ -48,3 +52,6 @@ void HwcBufferCache::getHwcBuffer(int slot, const sp<GraphicBuffer>& buffer, uin
 }
 
 } // namespace android::compositionengine::impl
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

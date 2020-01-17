@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <thread>
 
 #include <android-base/stringprintf.h>
@@ -1058,3 +1062,6 @@ compositionengine::Output::FrameFences Output::presentAndGetFrameFences() {
 
 } // namespace impl
 } // namespace android::compositionengine
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"
