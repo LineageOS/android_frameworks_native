@@ -53,8 +53,6 @@ public:
     void* open(egl_connection_t* cnx);
     void close(egl_connection_t* cnx);
 
-    bool load_glesv1_driver(egl_connection_t* cnx);
-
 private:
     Loader();
     driver_t* attempt_to_load_angle(egl_connection_t* cnx);

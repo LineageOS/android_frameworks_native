@@ -277,7 +277,6 @@ static void(*findProcAddress(const char* name,
 
 extern void setGLHooksThreadSpecific(gl_hooks_t const *value);
 extern EGLBoolean egl_init_drivers();
-extern EGLBoolean egl_init_glesv1_drivers();
 extern const __eglMustCastToProperFunctionPointerType gExtensionForwarders[MAX_NUMBER_OF_GL_EXTENSIONS];
 extern gl_hooks_t gHooksTrace;
 
@@ -957,42 +956,43 @@ EGLContext eglCreateContextImpl(EGLDisplay dpy, EGLConfig config,
             egl_context_t* const c = get_context(share_list);
             share_list = c->context;
         }
-
-        // figure out if it's a GLESv1 or GLESv2
-        int gles_version_idx = egl_connection_t::GLESv1_INDEX;
-        if (attrib_list) {
-            const EGLint* ptr = attrib_list; // so that we don't modify attrib_list
-            while (*ptr != EGL_NONE) {
-                GLint attr = *ptr++;
-                GLint value = *ptr++;
-                if (attr == EGL_CONTEXT_CLIENT_VERSION) {
-                    if (value == 1) {
-                        gles_version_idx = egl_connection_t::GLESv1_INDEX;
-                    } else if (value == 2 || value == 3) {
-                        gles_version_idx = egl_connection_t::GLESv2_INDEX;
-                    }
-                } else if (attr == EGL_CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY_KHR &&
-                           cnx->driverVersion < EGL_MAKE_VERSION(1, 5, 0)) {
-                    // b/111083885 - If we are presenting EGL 1.4 interface to apps
-                    // error out on robust access attributes that are invalid
-                    // in EGL 1.4 as the driver may be fine with them but dEQP expects
-                    // tests to fail according to spec.
+        // b/111083885 - If we are presenting EGL 1.4 interface to apps
+        // error out on robust access attributes that are invalid
+        // in EGL 1.4 as the driver may be fine with them but dEQP expects
+        // tests to fail according to spec.
+        if (attrib_list && (cnx->driverVersion < EGL_MAKE_VERSION(1, 5, 0))) {
+            const EGLint* attrib_ptr = attrib_list;
+            while (*attrib_ptr != EGL_NONE) {
+                GLint attr = *attrib_ptr++;
+                GLint value = *attrib_ptr++;
+                if (attr == EGL_CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY_KHR) {
+                    // We are GL ES context with EGL 1.4, this is an invalid
+                    // attribute
                     return setError(EGL_BAD_ATTRIBUTE, EGL_NO_CONTEXT);
                 }
-            }
+            };
         }
-
-        // GLESV1 driver is lazily loaded and initialized
-        if (gles_version_idx == egl_connection_t::GLESv1_INDEX) {
-            android::GraphicsEnv::getInstance().setTargetStats(
-                    android::GpuStatsInfo::Stats::GLES_1_IN_USE);
-            if (!egl_init_glesv1_drivers()) return EGL_NO_CONTEXT;
-        }
-
         EGLContext context = cnx->egl.eglCreateContext(
                 dp->disp.dpy, config, share_list, attrib_list);
         if (context != EGL_NO_CONTEXT) {
-            egl_context_t* c = new egl_context_t(dpy, context, config, cnx, gles_version_idx);
+            // figure out if it's a GLESv1 or GLESv2
+            int version = 0;
+            if (attrib_list) {
+                while (*attrib_list != EGL_NONE) {
+                    GLint attr = *attrib_list++;
+                    GLint value = *attrib_list++;
+                    if (attr == EGL_CONTEXT_CLIENT_VERSION) {
+                        if (value == 1) {
+                            version = egl_connection_t::GLESv1_INDEX;
+                            android::GraphicsEnv::getInstance().setTargetStats(
+                                    android::GpuStatsInfo::Stats::GLES_1_IN_USE);
+                        } else if (value == 2 || value == 3) {
+                            version = egl_connection_t::GLESv2_INDEX;
+                        }
+                    }
+                };
+            }
+            egl_context_t* c = new egl_context_t(dpy, context, config, cnx, version);
             return c;
         }
     }
