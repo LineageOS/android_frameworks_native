@@ -875,7 +875,7 @@ void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
         repaintEverythingForHWC();
         // Start receiving vsync samples now, so that we can detect a period
         // switch.
-        mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
+        mScheduler->resyncToHardwareVsync(true, refreshRate.vsyncPeriod);
         // As we called to set period, we will call to onRefreshRateChangeCompleted once
         // DispSync model is locked.
         mVSyncModulator->onRefreshRateChangeInitiated();
@@ -952,9 +952,9 @@ void SurfaceFlinger::desiredActiveConfigChangeDone() {
     mDesiredActiveConfig.event = Scheduler::ConfigEvent::None;
     mDesiredActiveConfigChanged = false;
 
-    mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
-    auto refreshRate =
+    auto const refreshRate =
             mRefreshRateConfigs->getRefreshRateFromConfigId(mDesiredActiveConfig.configId);
+    mScheduler->resyncToHardwareVsync(true, refreshRate.vsyncPeriod);
     mPhaseConfiguration->setRefreshRateFps(refreshRate.fps);
     mVSyncModulator->setPhaseOffsets(mPhaseConfiguration->getCurrentOffsets());
 }

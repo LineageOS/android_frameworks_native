@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
 #undef LOG_TAG
 #define LOG_TAG "VSyncReactor"
 //#define LOG_NDEBUG 0
 #include "VSyncReactor.h"
 #include <log/log.h>
+#include <utils/Trace.h>
 #include "TimeKeeper.h"
 #include "VSyncDispatch.h"
 #include "VSyncTracker.h"
@@ -186,6 +188,7 @@ void VSyncReactor::endPeriodTransition() {
 }
 
 void VSyncReactor::setPeriod(nsecs_t period) {
+    ATRACE_INT64("VSR-setPeriod", period);
     std::lock_guard lk(mMutex);
     mLastHwVsync.reset();
     if (period == getPeriod()) {
