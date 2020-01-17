@@ -30,6 +30,8 @@
 #include <aidl/android/hardware/graphics/common/XyColor.h>
 #include <android/hardware/graphics/mapper/4.0/IMapper.h>
 
+namespace android {
+
 /**
  * Define equality operators for Stable AIDL types.
  */
@@ -209,8 +211,6 @@ inline bool operator!=(const aidl::android::hardware::graphics::common::Cta861_3
                 const aidl::android::hardware::graphics::common::Cta861_3& rhs) {
     return !(lhs == rhs);
 }
-
-namespace android {
 
 namespace gralloc4 {
 
