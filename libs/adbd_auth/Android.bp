@@ -20,11 +20,14 @@ cc_library {
         "-Wthread-safety",
         "-Werror",
     ],
+    stl: "libc++_static",
+
     srcs: ["adbd_auth.cpp"],
     export_include_dirs: ["include"],
 
     version_script: "libadbd_auth.map.txt",
     stubs: {
+        versions: ["1"],
         symbol_file: "libadbd_auth.map.txt",
     },
 
@@ -36,7 +39,7 @@ cc_library {
         }
     },
 
-    shared_libs: [
+    static_libs: [
         "libbase",
         "libcutils",
         "liblog",
