@@ -251,6 +251,12 @@ public:
             Display display,
             std::vector<IComposerClient::ContentType>* outSupportedContentTypes) override;
     V2_4::Error setContentType(Display display, IComposerClient::ContentType type) override;
+    V2_4::Error validateDisplay_2_4(
+            Display display, std::vector<Layer>* outChangedLayers,
+            std::vector<IComposerClient::Composition>* outCompositionTypes,
+            uint32_t* outDisplayRequestMask, std::vector<Layer>* outRequestedLayers,
+            std::vector<uint32_t>* outRequestMasks,
+            IComposerClient::ClientTargetProperty* outClientTargetProperty) override;
 
     void setClient(ComposerClient* client);
 

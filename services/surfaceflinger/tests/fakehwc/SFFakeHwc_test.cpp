@@ -437,7 +437,10 @@ protected:
 
         for (int i = 0; i < configs.size(); i++) {
             if (configs[i].w == 800u) {
-                EXPECT_EQ(NO_ERROR, SurfaceComposerClient::setActiveConfig(display, i));
+                EXPECT_EQ(NO_ERROR,
+                          SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, i,
+                                                                              configs[i].fps,
+                                                                              configs[i].fps));
                 waitForDisplayTransaction();
                 EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
                 break;
@@ -535,7 +538,10 @@ protected:
 
         for (int i = 0; i < configs.size(); i++) {
             if (configs[i].fps == 1e9f / 11'111'111) {
-                EXPECT_EQ(NO_ERROR, SurfaceComposerClient::setActiveConfig(display, i));
+                EXPECT_EQ(NO_ERROR,
+                          SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, i,
+                                                                              configs[i].fps,
+                                                                              configs[i].fps));
                 waitForDisplayTransaction();
                 EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
                 break;
@@ -643,7 +649,10 @@ protected:
 
         for (int i = 0; i < configs.size(); i++) {
             if (configs[i].w == 800u && configs[i].fps == 1e9f / 11'111'111) {
-                EXPECT_EQ(NO_ERROR, SurfaceComposerClient::setActiveConfig(display, i));
+                EXPECT_EQ(NO_ERROR,
+                          SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, i,
+                                                                              configs[i].fps,
+                                                                              configs[i].fps));
                 waitForDisplayTransaction();
                 EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
                 break;
@@ -683,7 +692,10 @@ protected:
 
         for (int i = 0; i < configs.size(); i++) {
             if (configs[i].fps == 1e9f / 8'333'333) {
-                EXPECT_EQ(NO_ERROR, SurfaceComposerClient::setActiveConfig(display, i));
+                EXPECT_EQ(NO_ERROR,
+                          SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, i,
+                                                                              configs[i].fps,
+                                                                              configs[i].fps));
                 waitForDisplayTransaction();
                 EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
                 break;
@@ -723,7 +735,10 @@ protected:
 
         for (int i = 0; i < configs.size(); i++) {
             if (configs[i].w == 1600 && configs[i].fps == 1e9f / 11'111'111) {
-                EXPECT_EQ(NO_ERROR, SurfaceComposerClient::setActiveConfig(display, i));
+                EXPECT_EQ(NO_ERROR,
+                          SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, i,
+                                                                              configs[i].fps,
+                                                                              configs[i].fps));
                 waitForDisplayTransaction();
                 EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
                 break;

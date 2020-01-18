@@ -109,7 +109,7 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
 
 void BLASTBufferQueue::processNextBufferLocked() {
     ATRACE_CALL();
-    if (mNumFrameAvailable == 0) {
+    if (mNumFrameAvailable == 0 || mNumAcquired == MAX_ACQUIRED_BUFFERS) {
         return;
     }
 

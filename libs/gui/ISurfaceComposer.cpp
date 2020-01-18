@@ -397,32 +397,6 @@ public:
         return reply.readInt32();
     }
 
-    virtual status_t setActiveConfig(const sp<IBinder>& display, int id)
-    {
-        Parcel data, reply;
-        status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        if (result != NO_ERROR) {
-            ALOGE("setActiveConfig failed to writeInterfaceToken: %d", result);
-            return result;
-        }
-        result = data.writeStrongBinder(display);
-        if (result != NO_ERROR) {
-            ALOGE("setActiveConfig failed to writeStrongBinder: %d", result);
-            return result;
-        }
-        result = data.writeInt32(id);
-        if (result != NO_ERROR) {
-            ALOGE("setActiveConfig failed to writeInt32: %d", result);
-            return result;
-        }
-        result = remote()->transact(BnSurfaceComposer::SET_ACTIVE_CONFIG, data, &reply);
-        if (result != NO_ERROR) {
-            ALOGE("setActiveConfig failed to transact: %d", result);
-            return result;
-        }
-        return reply.readInt32();
-    }
-
     virtual status_t getDisplayColorModes(const sp<IBinder>& display,
             Vector<ColorMode>* outColorModes) {
         Parcel data, reply;
@@ -1355,14 +1329,6 @@ status_t BnSurfaceComposer::onTransact(
             sp<IBinder> display = data.readStrongBinder();
             int id = getActiveConfig(display);
             reply->writeInt32(id);
-            return NO_ERROR;
-        }
-        case SET_ACTIVE_CONFIG: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> display = data.readStrongBinder();
-            int id = data.readInt32();
-            status_t result = setActiveConfig(display, id);
-            reply->writeInt32(result);
             return NO_ERROR;
         }
         case GET_DISPLAY_COLOR_MODES: {

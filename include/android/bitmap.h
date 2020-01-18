@@ -26,6 +26,7 @@
 #ifndef ANDROID_BITMAP_H
 #define ANDROID_BITMAP_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <jni.h>
 
@@ -132,6 +133,84 @@ int AndroidBitmap_lockPixels(JNIEnv* env, jobject jbitmap, void** addrPtr);
  * Call this to balance a successful call to AndroidBitmap_lockPixels.
  */
 int AndroidBitmap_unlockPixels(JNIEnv* env, jobject jbitmap);
+
+#if __ANDROID_API__ >= 30
+
+// Note: these values match android.graphics.Bitmap#compressFormat.
+
+/**
+ *  Specifies the formats that can be compressed to with
+ *  {@link AndroidBitmap_compress}.
+ */
+enum AndroidBitmapCompressFormat {
+    /**
+     * Compress to the JPEG format. quality of 0 means
+     * compress for the smallest size. 100 means compress for max
+     * visual quality.
+     */
+    ANDROID_BITMAP_COMPRESS_FORMAT_JPEG = 0,
+    /**
+     * Compress to the PNG format. PNG is lossless, so quality is
+     * ignored.
+     */
+    ANDROID_BITMAP_COMPRESS_FORMAT_PNG = 1,
+    /**
+     * Compress to the WEBP lossy format. quality of 0 means
+     * compress for the smallest size. 100 means compress for max
+     * visual quality.
+     */
+    ANDROID_BITMAP_COMPRESS_FORMAT_WEBP_LOSSY = 3,
+    /**
+     * Compress to the WEBP lossless format. quality refers to how
+     * much effort to put into compression. A value of 0 means to
+     * compress quickly, resulting in a relatively large file size.
+     * 100 means to spend more time compressing, resulting in a
+     * smaller file.
+     */
+    ANDROID_BITMAP_COMPRESS_FORMAT_WEBP_LOSSLESS = 4,
+};
+
+/**
+ *  User-defined function for writing the output of compression.
+ *
+ *  @param userContext Pointer to user-defined data passed to
+ *         {@link AndroidBitmap_compress}.
+ *  @param data Compressed data of |size| bytes to write.
+ *  @param size Length in bytes of data to write.
+ *  @return Whether the operation succeeded.
+ */
+typedef bool (*AndroidBitmap_compress_write_fn)(void* userContext,
+                                                const void* data,
+                                                size_t size) __INTRODUCED_IN(30);
+
+/**
+ *  Compress |pixels| as described by |info|.
+ *
+ *  @param info Description of the pixels to compress.
+ *  @param dataspace {@link ADataSpace} describing the color space of the
+ *                   pixels.
+ *  @param pixels Pointer to pixels to compress.
+ *  @param format (@link AndroidBitmapCompressFormat} to compress to.
+ *  @param quality Hint to the compressor, 0-100. The value is interpreted
+ *                 differently depending on the
+ *                 {@link AndroidBitmapCompressFormat}.
+ *  @param userContext User-defined data which will be passed to the supplied
+ *                     {@link AndroidBitmap_compress_write_fn} each time it is
+ *                     called. May be null.
+ *  @parm fn Function that writes the compressed data. Will be called each time
+ *           the compressor has compressed more data that is ready to be
+ *           written. May be called more than once for each call to this method.
+ *           May not be null.
+ *  @return AndroidBitmap functions result code.
+ */
+int AndroidBitmap_compress(const AndroidBitmapInfo* info,
+                           int32_t dataspace,
+                           const void* pixels,
+                           int32_t format, int32_t quality,
+                           void* userContext,
+                           AndroidBitmap_compress_write_fn fn) __INTRODUCED_IN(30);
+
+#endif // __ANDROID_API__ >= 30
 
 #ifdef __cplusplus
 }

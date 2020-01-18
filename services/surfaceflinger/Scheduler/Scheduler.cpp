@@ -422,18 +422,20 @@ void Scheduler::resetIdleTimer() {
 }
 
 void Scheduler::notifyTouchEvent() {
-    if (mTouchTimer) {
-        mTouchTimer->reset();
-    }
-
-    if (mSupportKernelTimer && mIdleTimer) {
-        mIdleTimer->reset();
-    }
-
     // Touch event will boost the refresh rate to performance.
-    // Clear Layer History to get fresh FPS detection
-    if (mLayerHistory) {
+    // Clear Layer History to get fresh FPS detection.
+    // NOTE: Instead of checking all the layers, we should be checking the layer
+    // that is currently on top. b/142507166 will give us this capability.
+    if (mLayerHistory && !mLayerHistory->hasClientSpecifiedFrameRate()) {
         mLayerHistory->clear();
+
+        if (mTouchTimer) {
+            mTouchTimer->reset();
+        }
+
+        if (mSupportKernelTimer && mIdleTimer) {
+            mIdleTimer->reset();
+        }
     }
 }
 
@@ -533,25 +535,31 @@ HwcConfigIndexType Scheduler::calculateRefreshRateType() {
         return mRefreshRateConfigs.getCurrentRefreshRate().configId;
     }
 
-    // If Display Power is not in normal operation we want to be in performance mode.
-    // When coming back to normal mode, a grace period is given with DisplayPowerTimer
-    if (!mFeatures.isDisplayPowerStateNormal || mFeatures.displayPowerTimer == TimerState::Reset) {
-        return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
-    }
+    // If the layer history doesn't have the frame rate specified, use the old path. NOTE:
+    // if we remove the kernel idle timer, and use our internal idle timer, this code will have to
+    // be refactored.
+    if (!mLayerHistory->hasClientSpecifiedFrameRate()) {
+        // If Display Power is not in normal operation we want to be in performance mode.
+        // When coming back to normal mode, a grace period is given with DisplayPowerTimer
+        if (!mFeatures.isDisplayPowerStateNormal ||
+            mFeatures.displayPowerTimer == TimerState::Reset) {
+            return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
+        }
 
-    // As long as touch is active we want to be in performance mode
-    if (mFeatures.touch == TouchState::Active) {
-        return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
-    }
+        // As long as touch is active we want to be in performance mode
+        if (mFeatures.touch == TouchState::Active) {
+            return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
+        }
 
-    // If timer has expired as it means there is no new content on the screen
-    if (mFeatures.idleTimer == TimerState::Expired) {
-        return mRefreshRateConfigs.getMinRefreshRateByPolicy().configId;
-    }
+        // If timer has expired as it means there is no new content on the screen
+        if (mFeatures.idleTimer == TimerState::Expired) {
+            return mRefreshRateConfigs.getMinRefreshRateByPolicy().configId;
+        }
 
-    // If content detection is off we choose performance as we don't know the content fps
-    if (mFeatures.contentDetection == ContentDetectionState::Off) {
-        return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
+        // If content detection is off we choose performance as we don't know the content fps
+        if (mFeatures.contentDetection == ContentDetectionState::Off) {
+            return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
+        }
     }
 
     // Content detection is on, find the appropriate refresh rate with minimal error

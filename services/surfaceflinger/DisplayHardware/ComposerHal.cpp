@@ -1337,8 +1337,7 @@ Error CommandReader::parse()
     uint16_t length = 0;
 
     while (!isEmpty()) {
-        auto command_2_1 = reinterpret_cast<V2_1::IComposerClient::Command*>(&command);
-        if (!beginCommand(command_2_1, &length)) {
+        if (!beginCommand(&command, &length)) {
             break;
         }
 
@@ -1364,6 +1363,9 @@ Error CommandReader::parse()
             break;
         case IComposerClient::Command ::SET_PRESENT_OR_VALIDATE_DISPLAY_RESULT:
             parsed = parseSetPresentOrValidateDisplayResult(length);
+            break;
+        case IComposerClient::Command::SET_CLIENT_TARGET_PROPERTY:
+            parsed = parseSetClientTargetProperty(length);
             break;
         default:
             parsed = false;
@@ -1499,6 +1501,15 @@ bool CommandReader::parseSetPresentOrValidateDisplayResult(uint16_t length)
         return false;
     }
     mCurrentReturnData->presentOrValidateState = read();
+    return true;
+}
+
+bool CommandReader::parseSetClientTargetProperty(uint16_t length) {
+    if (length != CommandWriterBase::kSetClientTargetPropertyLength || !mCurrentReturnData) {
+        return false;
+    }
+    mCurrentReturnData->clientTargetProperty.pixelFormat = static_cast<PixelFormat>(readSigned());
+    mCurrentReturnData->clientTargetProperty.dataspace = static_cast<Dataspace>(readSigned());
     return true;
 }
 

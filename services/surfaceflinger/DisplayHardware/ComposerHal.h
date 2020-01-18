@@ -29,7 +29,7 @@
 #include <android/hardware/graphics/common/1.1/types.h>
 #include <android/hardware/graphics/composer/2.4/IComposer.h>
 #include <android/hardware/graphics/composer/2.4/IComposerClient.h>
-#include <composer-command-buffer/2.3/ComposerCommandBuffer.h>
+#include <composer-command-buffer/2.4/ComposerCommandBuffer.h>
 #include <gui/HdrMetadata.h>
 #include <math/mat4.h>
 #include <ui/DisplayedFrameStats.h>
@@ -63,8 +63,8 @@ using V2_1::Config;
 using V2_1::Display;
 using V2_1::Error;
 using V2_1::Layer;
-using V2_3::CommandReaderBase;
-using V2_3::CommandWriterBase;
+using V2_4::CommandReaderBase;
+using V2_4::CommandWriterBase;
 using V2_4::IComposer;
 using V2_4::IComposerCallback;
 using V2_4::IComposerClient;
@@ -280,6 +280,7 @@ private:
     bool parseSetPresentFence(uint16_t length);
     bool parseSetReleaseFences(uint16_t length);
     bool parseSetPresentOrValidateDisplayResult(uint16_t length);
+    bool parseSetClientTargetProperty(uint16_t length);
 
     struct ReturnData {
         uint32_t displayRequests = 0;
@@ -296,6 +297,13 @@ private:
         std::vector<int> releaseFences;
 
         uint32_t presentOrValidateState;
+
+        // Composer 2.4 implementation can return a client target property
+        // structure to indicate the client target properties that hardware
+        // composer requests. The composer client must change the client target
+        // properties to match this request.
+        IComposerClient::ClientTargetProperty clientTargetProperty{PixelFormat::RGBA_8888,
+                                                                   Dataspace::UNKNOWN};
     };
 
     std::vector<CommandError> mErrors;

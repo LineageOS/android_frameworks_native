@@ -143,23 +143,20 @@ void AImageDecoder_delete(AImageDecoder* decoder) __INTRODUCED_IN(30);
 int AImageDecoder_setAndroidBitmapFormat(AImageDecoder*,
         int32_t format) __INTRODUCED_IN(30);
 
-/*
- * Choose the desired output format.
+/**
+ * Specify whether the output's pixels should be unpremultiplied.
  *
- * Must be one of:
- * {@link ANDROID_BITMAP_FLAGS_ALPHA_PREMUL}
- * {@link ANDROID_BITMAP_FLAGS_ALPHA_OPAQUE}
- * {@link ANDROID_BITMAP_FLAGS_ALPHA_UNPREMUL}
+ * By default, the decoder will premultiply the pixels, if they have alpha. Pass
+ * false to this method to leave them unpremultiplied. This has no effect on an
+ * opaque image.
  *
- * Note: An OPAQUE image may be set to any of them.
- *       A non-OPAQUE image may not be set to OPAQUE
- *
+ * @param required Pass true to leave the pixels unpremultiplied.
  * @return - {@link ANDROID_IMAGE_DECODER_SUCCESS} on success
  *         - {@link ANDROID_IMAGE_DECODER_INVALID_CONVERSION} if the conversion
  *           is not possible
  *         - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER} for bad parameters
  */
-int AImageDecoder_setAlphaFlags(AImageDecoder*, int alphaFlags) __INTRODUCED_IN(30);
+int AImageDecoder_setUnpremultipliedRequired(AImageDecoder*, bool required) __INTRODUCED_IN(30);
 
 /**
  * Specify the output size for a decoded image.

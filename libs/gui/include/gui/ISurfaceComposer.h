@@ -176,10 +176,6 @@ public:
      * currently active */
     virtual int getActiveConfig(const sp<IBinder>& display) = 0;
 
-    /* specifies which configuration (of those returned by getDisplayInfo)
-     * should be used */
-    virtual status_t setActiveConfig(const sp<IBinder>& display, int id) = 0;
-
     virtual status_t getDisplayColorModes(const sp<IBinder>& display,
             Vector<ui::ColorMode>* outColorModes) = 0;
     virtual status_t getDisplayNativePrimaries(const sp<IBinder>& display,
@@ -507,7 +503,6 @@ public:
         GET_SUPPORTED_FRAME_TIMESTAMPS,
         GET_DISPLAY_CONFIGS,
         GET_ACTIVE_CONFIG,
-        SET_ACTIVE_CONFIG,
         CONNECT_DISPLAY_UNUSED, // unused, fails permissions check
         CAPTURE_SCREEN,
         CAPTURE_LAYERS,
