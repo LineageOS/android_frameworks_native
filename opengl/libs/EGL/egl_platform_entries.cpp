@@ -976,21 +976,19 @@ EGLContext eglCreateContextImpl(EGLDisplay dpy, EGLConfig config,
                 dp->disp.dpy, config, share_list, attrib_list);
         if (context != EGL_NO_CONTEXT) {
             // figure out if it's a GLESv1 or GLESv2
-            int version = 0;
+            int version = egl_connection_t::GLESv1_INDEX;
             if (attrib_list) {
                 while (*attrib_list != EGL_NONE) {
                     GLint attr = *attrib_list++;
                     GLint value = *attrib_list++;
-                    if (attr == EGL_CONTEXT_CLIENT_VERSION) {
-                        if (value == 1) {
-                            version = egl_connection_t::GLESv1_INDEX;
-                            android::GraphicsEnv::getInstance().setTargetStats(
-                                    android::GpuStatsInfo::Stats::GLES_1_IN_USE);
-                        } else if (value == 2 || value == 3) {
-                            version = egl_connection_t::GLESv2_INDEX;
-                        }
+                    if (attr == EGL_CONTEXT_CLIENT_VERSION && (value == 2 || value == 3)) {
+                        version = egl_connection_t::GLESv2_INDEX;
                     }
                 };
+            }
+            if (version == egl_connection_t::GLESv1_INDEX) {
+                android::GraphicsEnv::getInstance().setTargetStats(
+                        android::GpuStatsInfo::Stats::GLES_1_IN_USE);
             }
             egl_context_t* c = new egl_context_t(dpy, context, config, cnx, version);
             return c;
