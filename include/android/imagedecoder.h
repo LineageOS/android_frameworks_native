@@ -179,6 +179,28 @@ int AImageDecoder_setUnpremultipliedRequired(AImageDecoder*, bool required) __IN
  */
 int AImageDecoder_setTargetSize(AImageDecoder*, int width, int height) __INTRODUCED_IN(30);
 
+
+/**
+ * Compute the dimensions to use for a given sampleSize.
+ *
+ * Although AImageDecoder can scale to an arbitrary target size (see
+ * {@link AImageDecoder_setTargetSize}), some sizes may be more efficient than
+ * others. This computes the most efficient target size to use to reach a
+ * particular sampleSize.
+ *
+ * @param sampleSize A subsampling rate of the original image. Must be greater
+ *                   than or equal to 1. A sampleSize of 2 means to skip every
+ *                   other pixel/line, resulting in a width and height that are
+ *                   1/2 of the original dimensions, with 1/4 the number of
+ *                   pixels.
+ * @param width Out parameter for the width sampled by sampleSize, and rounded
+ *              direction that the decoder can do most efficiently.
+ * @param height Out parameter for the height sampled by sampleSize, and rounded
+ *               direction that the decoder can do most efficiently.
+ * @return ANDROID_IMAGE_DECODER result code.
+ */
+int AImageDecoder_computeSampledSize(const AImageDecoder*, int sampleSize,
+                                     int* width, int* height) __INTRODUCED_IN(30);
 /**
  * Specify how to crop the output after scaling (if any).
  *
