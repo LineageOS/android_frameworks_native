@@ -48,4 +48,7 @@ message LayersTraceProto {
     optional string where = 2;
 
     optional LayersProto layers = 3;
+
+    // Blob for the current HWC information for all layers, reported by dumpsys.
+    optional string hwc_blob = 4;
 }
