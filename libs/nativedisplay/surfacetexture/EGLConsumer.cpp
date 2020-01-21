@@ -24,8 +24,8 @@
 #include <cutils/compiler.h>
 #include <gui/BufferItem.h>
 #include <gui/BufferQueue.h>
-#include <gui/surfacetexture/EGLConsumer.h>
-#include <gui/surfacetexture/SurfaceTexture.h>
+#include <surfacetexture/EGLConsumer.h>
+#include <surfacetexture/SurfaceTexture.h>
 #include <inttypes.h>
 #include <private/gui/SyncFeatures.h>
 #include <utils/Log.h>

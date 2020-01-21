@@ -11,6 +11,8 @@ LIBNATIVEDISPLAY {
     AChoreographer_destroy; # apex # introduced=30
     AChoreographer_getFd; # apex # introduced=30
     AChoreographer_handlePendingEvents; # apex # introduced=30
+    ASurfaceTexture_fromSurfaceTexture; # apex # introduced=30
+    ASurfaceTexture_release; # apex # introduced=30
   local:
     *;
 };
@@ -30,5 +32,16 @@ LIBNATIVEDISPLAY_PLATFORM {
       android::ADisplayConfig_getFps*;
       android::ADisplayConfig_getCompositorOffsetNanos*;
       android::ADisplayConfig_getAppVsyncOffsetNanos*;
+      android::ASurfaceTexture_getCurrentTextureTarget*;
+      android::ASurfaceTexture_takeConsumerOwnership*;
+      android::ASurfaceTexture_releaseConsumerOwnership*;
+      android::ASurfaceTexture_dequeueBuffer*;
+      android::SurfaceTexture*;
     };
+    ASurfaceTexture_acquireANativeWindow;
+    ASurfaceTexture_attachToGLContext;
+    ASurfaceTexture_detachFromGLContext;
+    ASurfaceTexture_getTimestamp;
+    ASurfaceTexture_getTransformMatrix;
+    ASurfaceTexture_updateTexImage;
 } LIBNATIVEDISPLAY;

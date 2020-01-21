@@ -15,8 +15,8 @@
  */
 
 #include <gui/BufferQueue.h>
-#include <gui/surfacetexture/ImageConsumer.h>
-#include <gui/surfacetexture/SurfaceTexture.h>
+#include <surfacetexture/ImageConsumer.h>
+#include <surfacetexture/SurfaceTexture.h>
 
 // Macro for including the SurfaceTexture name in log messages
 #define IMG_LOGE(x, ...) ALOGE("[%s] " x, st.mName.string(), ##__VA_ARGS__)
