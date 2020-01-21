@@ -209,6 +209,8 @@ int32_t MultiTouchMotionAccumulator::Slot::getToolType() const {
                 return AMOTION_EVENT_TOOL_TYPE_FINGER;
             case MT_TOOL_PEN:
                 return AMOTION_EVENT_TOOL_TYPE_STYLUS;
+            case MT_TOOL_PALM:
+                return AMOTION_EVENT_TOOL_TYPE_PALM;
         }
     }
     return AMOTION_EVENT_TOOL_TYPE_UNKNOWN;
@@ -245,6 +247,14 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
                 mMultiTouchMotionAccumulator.getSlot(inIndex);
         if (!inSlot->isInUse()) {
             continue;
+        }
+
+        if (inSlot->getToolType() == AMOTION_EVENT_TOOL_TYPE_PALM) {
+            if (!mCurrentMotionAborted) {
+                ALOGI("Canceling touch gesture from device %s because the palm event was detected",
+                      getDeviceName().c_str());
+                cancelTouch(when);
+            }
         }
 
         if (outCount >= MAX_POINTERS) {
