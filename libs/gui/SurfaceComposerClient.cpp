@@ -918,6 +918,18 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setCorne
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBackgroundBlurRadius(
+        const sp<SurfaceControl>& sc, int backgroundBlurRadius) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eBackgroundBlurRadiusChanged;
+    s->backgroundBlurRadius = backgroundBlurRadius;
+    return *this;
+}
+
 SurfaceComposerClient::Transaction&
 SurfaceComposerClient::Transaction::deferTransactionUntil_legacy(const sp<SurfaceControl>& sc,
                                                                  const sp<IBinder>& handle,

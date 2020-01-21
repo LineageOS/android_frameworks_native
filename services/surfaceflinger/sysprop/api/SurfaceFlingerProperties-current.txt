@@ -104,6 +104,10 @@ props {
     prop_name: "ro.surface_flinger.support_kernel_idle_timer"
   }
   prop {
+    api_name: "supports_background_blur"
+    prop_name: "ro.surface_flinger.supports_background_blur"
+  }
+  prop {
     api_name: "use_color_management"
     prop_name: "ro.surface_flinger.use_color_management"
   }

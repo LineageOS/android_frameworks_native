@@ -149,6 +149,8 @@ struct LayerSettings {
     bool disableBlending = false;
 
     ShadowSettings shadow;
+
+    int backgroundBlurRadius = 0;
 };
 
 static inline bool operator==(const Buffer& lhs, const Buffer& rhs) {
@@ -182,7 +184,8 @@ static inline bool operator==(const LayerSettings& lhs, const LayerSettings& rhs
     return lhs.geometry == rhs.geometry && lhs.source == rhs.source && lhs.alpha == rhs.alpha &&
             lhs.sourceDataspace == rhs.sourceDataspace &&
             lhs.colorTransform == rhs.colorTransform &&
-            lhs.disableBlending == rhs.disableBlending && lhs.shadow == rhs.shadow;
+            lhs.disableBlending == rhs.disableBlending && lhs.shadow == rhs.shadow &&
+            lhs.backgroundBlurRadius == rhs.backgroundBlurRadius;
 }
 
 // Defining PrintTo helps with Google Tests.
@@ -243,6 +246,7 @@ static inline void PrintTo(const LayerSettings& settings, ::std::ostream* os) {
     PrintTo(settings.sourceDataspace, os);
     *os << "\n    .colorTransform = " << settings.colorTransform;
     *os << "\n    .disableBlending = " << settings.disableBlending;
+    *os << "\n    .backgroundBlurRadius = " << settings.backgroundBlurRadius;
     *os << "\n    .shadow = ";
     PrintTo(settings.shadow, os);
     *os << "\n}";

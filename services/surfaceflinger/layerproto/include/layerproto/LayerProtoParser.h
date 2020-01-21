@@ -110,6 +110,7 @@ public:
         bool refreshPending;
         bool isProtected;
         float cornerRadius;
+        int backgroundBlurRadius;
         LayerMetadata metadata;
         LayerProtoParser::FloatRect cornerRadiusCrop;
         float shadowRadius;
