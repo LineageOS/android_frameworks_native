@@ -39,6 +39,7 @@ public:
     MOCK_CONST_METHOD1(nextAnticipatedVSyncTimeFrom, nsecs_t(nsecs_t));
     MOCK_CONST_METHOD0(currentPeriod, nsecs_t());
     MOCK_METHOD1(setPeriod, void(nsecs_t));
+    MOCK_METHOD0(resetModel, void());
 };
 
 class VSyncTrackerWrapper : public VSyncTracker {
@@ -50,7 +51,8 @@ public:
         return mTracker->nextAnticipatedVSyncTimeFrom(timePoint);
     }
     nsecs_t currentPeriod() const final { return mTracker->currentPeriod(); }
-    void setPeriod(nsecs_t period) { mTracker->setPeriod(period); }
+    void setPeriod(nsecs_t period) final { mTracker->setPeriod(period); }
+    void resetModel() final { mTracker->resetModel(); }
 
 private:
     std::shared_ptr<VSyncTracker> const mTracker;
@@ -557,6 +559,11 @@ TEST_F(VSyncReactorTest, negativeOffsetsApplied) {
                 schedule(mFakeToken, computeWorkload(period, negativePhase), mFakeNow))
             .InSequence(seq);
     mReactor.addEventListener(mName, negativePhase, &outerCb, lastCallbackTime);
+}
+
+TEST_F(VSyncReactorTest, beginResyncResetsModel) {
+    EXPECT_CALL(*mMockTracker, resetModel());
+    mReactor.beginResync();
 }
 
 using VSyncReactorDeathTest = VSyncReactorTest;

@@ -42,7 +42,7 @@ VSyncPredictor::VSyncPredictor(nsecs_t idealPeriod, size_t historySize,
         kMinimumSamplesForPrediction(minimumSamplesForPrediction),
         kOutlierTolerancePercent(std::min(outlierTolerancePercent, kMaxPercent)),
         mIdealPeriod(idealPeriod) {
-    mRateMap[mIdealPeriod] = {idealPeriod, 0};
+    resetModel();
 }
 
 inline size_t VSyncPredictor::next(int i) const {
@@ -203,6 +203,10 @@ void VSyncPredictor::setPeriod(nsecs_t period) {
         mRateMap[mIdealPeriod] = {period, 0};
     }
 
+    clearTimestamps();
+}
+
+void VSyncPredictor::clearTimestamps() {
     if (!timestamps.empty()) {
         mKnownTimestamp = *std::max_element(timestamps.begin(), timestamps.end());
         timestamps.clear();
@@ -225,6 +229,12 @@ bool VSyncPredictor::needsMoreSamples(nsecs_t now) const {
 
     ATRACE_INT(kNeedsSamplesTag, needsMoreSamples);
     return needsMoreSamples;
+}
+
+void VSyncPredictor::resetModel() {
+    std::lock_guard<std::mutex> lk(mMutex);
+    mRateMap[mIdealPeriod] = {mIdealPeriod, 0};
+    clearTimestamps();
 }
 
 } // namespace android::scheduler

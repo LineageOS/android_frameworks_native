@@ -50,6 +50,7 @@ public:
     nsecs_t currentPeriod() const final { return mPeriod; }
 
     void setPeriod(nsecs_t) final {}
+    void resetModel() final {}
 
 private:
     nsecs_t const mPeriod;
@@ -83,6 +84,7 @@ public:
     }
 
     void setPeriod(nsecs_t) final {}
+    void resetModel() final {}
 
 private:
     std::mutex mutable mMutex;

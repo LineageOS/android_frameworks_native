@@ -40,6 +40,7 @@ public:
     void addVsyncTimestamp(nsecs_t timestamp) final;
     nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const final;
     nsecs_t currentPeriod() const final;
+    void resetModel() final;
 
     /*
      * Inform the model that the period is anticipated to change to a new value.
@@ -48,7 +49,7 @@ public:
      *
      * \param [in] period   The new period that should be used.
      */
-    void setPeriod(nsecs_t period);
+    void setPeriod(nsecs_t period) final;
 
     /* Query if the model is in need of more samples to make a prediction at timePoint.
      * \param [in] timePoint    The timePoint to inquire of.
@@ -61,6 +62,7 @@ public:
 private:
     VSyncPredictor(VSyncPredictor const&) = delete;
     VSyncPredictor& operator=(VSyncPredictor const&) = delete;
+    void clearTimestamps() REQUIRES(mMutex);
 
     size_t const kHistorySize;
     size_t const kMinimumSamplesForPrediction;
