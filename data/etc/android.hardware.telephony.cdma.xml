@@ -18,5 +18,4 @@
 <permissions>
     <feature name="android.hardware.telephony" />
     <feature name="android.hardware.telephony.cdma" />
-    <feature name="android.hardware.telephony.data" />
 </permissions>
