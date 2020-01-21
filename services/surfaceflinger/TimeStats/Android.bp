@@ -8,6 +8,7 @@ cc_library_shared {
         "libcutils",
         "liblog",
         "libprotobuf-cpp-lite",
+        "libprotoutil",
         "libstatslog",
         "libstatspull",
         "libstatssocket",
@@ -17,6 +18,7 @@ cc_library_shared {
     ],
     export_include_dirs: ["."],
     export_shared_lib_headers: [
+        "libprotoutil",
         "libstatslog",
         "libstatspull",
         "libstatssocket",
