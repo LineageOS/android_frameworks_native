@@ -137,6 +137,10 @@ void Display::createRenderSurface(const RenderSurfaceCreationArgs& args) {
             compositionengine::impl::createRenderSurface(getCompositionEngine(), *this, args));
 }
 
+void Display::createClientCompositionCache(uint32_t cacheSize) {
+    cacheClientCompositionRequests(cacheSize);
+}
+
 std::unique_ptr<compositionengine::OutputLayer> Display::createOutputLayer(
         const std::shared_ptr<compositionengine::Layer>& layer,
         const sp<compositionengine::LayerFE>& layerFE) const {

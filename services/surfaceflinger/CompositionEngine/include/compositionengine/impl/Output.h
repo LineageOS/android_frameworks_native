@@ -18,8 +18,10 @@
 
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/Output.h>
+#include <compositionengine/impl/ClientCompositionRequestCache.h>
 #include <compositionengine/impl/OutputCompositionState.h>
-
+#include <renderengine/DisplaySettings.h>
+#include <renderengine/LayerSettings.h>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -83,6 +85,7 @@ public:
     void finishFrame(const CompositionRefreshArgs&) override;
     std::optional<base::unique_fd> composeSurfaces(const Region&) override;
     void postFramebuffer() override;
+    void cacheClientCompositionRequests(uint32_t) override;
 
     // Testing
     const ReleasedLayers& getReleasedLayersForTest() const;
@@ -96,11 +99,10 @@ protected:
     void chooseCompositionStrategy() override;
     bool getSkipColorTransform() const override;
     compositionengine::Output::FrameFences presentAndGetFrameFences() override;
-    std::vector<renderengine::LayerSettings> generateClientCompositionRequests(
+    std::vector<LayerFE::LayerSettings> generateClientCompositionRequests(
             bool supportsProtectedContent, Region& clearRegion,
             ui::Dataspace outputDataspace) override;
-    void appendRegionFlashRequests(const Region&,
-                                   std::vector<renderengine::LayerSettings>&) override;
+    void appendRegionFlashRequests(const Region&, std::vector<LayerFE::LayerSettings>&) override;
     void setExpensiveRenderingExpected(bool enabled) override;
     void dumpBase(std::string&) const;
 
@@ -128,6 +130,7 @@ private:
 
     ReleasedLayers mReleasedLayers;
     OutputLayer* mLayerRequestingBackgroundBlur = nullptr;
+    std::unique_ptr<ClientCompositionRequestCache> mClientCompositionRequestCache;
 };
 
 // This template factory function standardizes the implementation details of the

@@ -44,6 +44,7 @@ cc_library {
     name: "libcompositionengine",
     defaults: ["libcompositionengine_defaults"],
     srcs: [
+        "src/ClientCompositionRequestCache.cpp",
         "src/CompositionEngine.cpp",
         "src/Display.cpp",
         "src/DisplayColorProfile.cpp",

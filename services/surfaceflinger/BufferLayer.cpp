@@ -144,11 +144,12 @@ static constexpr mat4 inverseOrientation(uint32_t transform) {
     return inverse(tr);
 }
 
-std::optional<renderengine::LayerSettings> BufferLayer::prepareClientComposition(
+std::optional<compositionengine::LayerFE::LayerSettings> BufferLayer::prepareClientComposition(
         compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) {
     ATRACE_CALL();
 
-    auto result = Layer::prepareClientComposition(targetSettings);
+    std::optional<compositionengine::LayerFE::LayerSettings> result =
+            Layer::prepareClientComposition(targetSettings);
     if (!result) {
         return result;
     }
@@ -183,7 +184,7 @@ std::optional<renderengine::LayerSettings> BufferLayer::prepareClientComposition
     bool blackOutLayer = (isProtected() && !targetSettings.supportsProtectedContent) ||
             (isSecure() && !targetSettings.isSecure);
     const State& s(getDrawingState());
-    auto& layer = *result;
+    LayerFE::LayerSettings& layer = *result;
     if (!blackOutLayer) {
         layer.source.buffer.buffer = mBufferInfo.mBuffer;
         layer.source.buffer.isOpaque = isOpaque(s);
@@ -199,6 +200,9 @@ std::optional<renderengine::LayerSettings> BufferLayer::prepareClientComposition
         layer.source.buffer.maxContentLuminance = hasCta861_3
                 ? mBufferInfo.mHdrMetadata.cta8613.maxContentLightLevel
                 : defaultMaxContentLuminance;
+        layer.frameNumber = mCurrentFrameNumber;
+        layer.bufferId = mBufferInfo.mBuffer ? mBufferInfo.mBuffer->getId() : 0;
+
         // TODO: we could be more subtle with isFixedSize()
         const bool useFiltering = targetSettings.needsFiltering || mNeedsFiltering || isFixedSize();
 
@@ -264,9 +268,11 @@ std::optional<renderengine::LayerSettings> BufferLayer::prepareClientComposition
         // layer.
         layer.source.buffer.buffer = nullptr;
         layer.alpha = 1.0;
+        layer.frameNumber = 0;
+        layer.bufferId = 0;
     }
 
-    return result;
+    return layer;
 }
 
 bool BufferLayer::isHdrY410() const {

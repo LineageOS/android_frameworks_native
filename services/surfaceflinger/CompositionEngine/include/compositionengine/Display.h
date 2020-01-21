@@ -52,6 +52,10 @@ public:
     // Creates a render surface for the display
     virtual void createRenderSurface(const RenderSurfaceCreationArgs&) = 0;
 
+    // Creates a cache to cache duplicate client composition requests and skip
+    // similar requests if needed.
+    virtual void createClientCompositionCache(uint32_t cacheSize) = 0;
+
 protected:
     ~Display() = default;
 };

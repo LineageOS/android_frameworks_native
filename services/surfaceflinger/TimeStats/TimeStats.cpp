@@ -155,6 +155,15 @@ void TimeStats::incrementClientCompositionFrames() {
     mTimeStats.clientCompositionFrames++;
 }
 
+void TimeStats::incrementClientCompositionReusedFrames() {
+    if (!mEnabled.load()) return;
+
+    ATRACE_CALL();
+
+    std::lock_guard<std::mutex> lock(mMutex);
+    mTimeStats.clientCompositionReusedFrames++;
+}
+
 static int32_t msBetween(nsecs_t start, nsecs_t end) {
     int64_t delta = std::chrono::duration_cast<std::chrono::milliseconds>(
                             std::chrono::nanoseconds(end - start))
@@ -666,6 +675,7 @@ void TimeStats::clearGlobalLocked() {
     mTimeStats.totalFrames = 0;
     mTimeStats.missedFrames = 0;
     mTimeStats.clientCompositionFrames = 0;
+    mTimeStats.clientCompositionReusedFrames = 0;
     mTimeStats.displayOnTime = 0;
     mTimeStats.presentToPresent.hist.clear();
     mTimeStats.frameDuration.hist.clear();

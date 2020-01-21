@@ -40,6 +40,7 @@ public:
 
     MOCK_METHOD1(createDisplayColorProfile, void(const DisplayColorProfileCreationArgs&));
     MOCK_METHOD1(createRenderSurface, void(const RenderSurfaceCreationArgs&));
+    MOCK_METHOD1(createClientCompositionCache, void(uint32_t));
 };
 
 } // namespace android::compositionengine::mock

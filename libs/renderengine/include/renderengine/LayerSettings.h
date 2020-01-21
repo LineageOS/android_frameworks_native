@@ -52,7 +52,7 @@ struct Buffer {
     // Transform matrix to apply to texture coordinates.
     mat4 textureTransform = mat4();
 
-    // Wheteher to use pre-multiplied alpha
+    // Whether to use pre-multiplied alpha.
     bool usePremultipliedAlpha = true;
 
     // Override flag that alpha for each pixel in the buffer *must* be 1.0.
@@ -153,6 +153,8 @@ struct LayerSettings {
     int backgroundBlurRadius = 0;
 };
 
+// Keep in sync with custom comparison function in
+// compositionengine/impl/ClientCompositionRequestCache.cpp
 static inline bool operator==(const Buffer& lhs, const Buffer& rhs) {
     return lhs.buffer == rhs.buffer && lhs.fence == rhs.fence &&
             lhs.textureName == rhs.textureName &&

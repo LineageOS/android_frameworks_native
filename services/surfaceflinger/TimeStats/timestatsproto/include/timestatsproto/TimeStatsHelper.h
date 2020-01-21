@@ -59,6 +59,7 @@ public:
         int32_t totalFrames = 0;
         int32_t missedFrames = 0;
         int32_t clientCompositionFrames = 0;
+        int32_t clientCompositionReusedFrames = 0;
         int64_t displayOnTime = 0;
         Histogram presentToPresent;
         Histogram frameDuration;
