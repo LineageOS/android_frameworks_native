@@ -79,8 +79,11 @@ struct OutputCompositionState {
     // The logical space user viewport rectangle
     Rect viewport;
 
-    // The physical space scissor rectangle
-    Rect scissor;
+    // The physical space source clip rectangle
+    Rect sourceClip;
+
+    // The physical space destination clip rectangle
+    Rect destinationClip;
 
     // If true, RenderEngine filtering should be enabled
     bool needsFiltering{false};
