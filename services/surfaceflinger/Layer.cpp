@@ -144,7 +144,7 @@ Layer::~Layer() {
     mFlinger->onLayerDestroyed(this);
 }
 
-LayerCreationArgs::LayerCreationArgs(SurfaceFlinger* flinger, const sp<Client>& client,
+LayerCreationArgs::LayerCreationArgs(SurfaceFlinger* flinger, const sp<Client> client,
                                      std::string name, uint32_t w, uint32_t h, uint32_t flags,
                                      LayerMetadata metadata)
       : flinger(flinger),
