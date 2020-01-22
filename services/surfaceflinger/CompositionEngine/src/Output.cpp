@@ -101,7 +101,7 @@ void Output::setCompositionEnabled(bool enabled) {
     dirtyEntireOutput();
 }
 
-void Output::setProjection(const ui::Transform& transform, int32_t orientation, const Rect& frame,
+void Output::setProjection(const ui::Transform& transform, uint32_t orientation, const Rect& frame,
                            const Rect& viewport, const Rect& scissor, bool needsFiltering) {
     auto& outputState = editState();
     outputState.transform = transform;
@@ -433,7 +433,7 @@ void Output::ensureOutputLayerIfVisible(std::shared_ptr<compositionengine::Layer
     if (layerFEState.shadowRadius > 0.0f) {
         // if the layer casts a shadow, offset the layers visible region and
         // calculate the shadow region.
-        const int32_t inset = layerFEState.shadowRadius * -1.0f;
+        const auto inset = static_cast<int32_t>(ceilf(layerFEState.shadowRadius) * -1.0f);
         Rect visibleRectWithShadows(visibleRect);
         visibleRectWithShadows.inset(inset, inset, inset, inset);
         visibleRegion.set(visibleRectWithShadows);
@@ -457,7 +457,7 @@ void Output::ensureOutputLayerIfVisible(std::shared_ptr<compositionengine::Layer
     }
 
     // compute the opaque region
-    const int32_t layerOrientation = tr.getOrientation();
+    const auto layerOrientation = tr.getOrientation();
     if (layerFEState.isOpaque && ((layerOrientation & ui::Transform::ROT_INVALID) == 0)) {
         // If we one of the simple category of transforms (0/90/180/270 rotation
         // + any flip), then the opaque region is the layer's footprint.

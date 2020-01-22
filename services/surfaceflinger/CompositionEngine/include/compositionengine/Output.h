@@ -162,7 +162,7 @@ public:
     virtual void setCompositionEnabled(bool) = 0;
 
     // Sets the projection state to use
-    virtual void setProjection(const ui::Transform&, int32_t orientation, const Rect& frame,
+    virtual void setProjection(const ui::Transform&, uint32_t orientation, const Rect& frame,
                                const Rect& viewport, const Rect& scissor, bool needsFiltering) = 0;
     // Sets the bounds to use
     virtual void setBounds(const ui::Size&) = 0;
