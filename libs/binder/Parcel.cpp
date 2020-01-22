@@ -548,8 +548,10 @@ status_t Parcel::appendFrom(const Parcel *parcel, size_t offset, size_t len)
     if (numObjects > 0) {
         // grow objects
         if (mObjectsCapacity < mObjectsSize + numObjects) {
+            if ((size_t) numObjects > SIZE_MAX - mObjectsSize) return NO_MEMORY; // overflow
+            if (mObjectsSize + numObjects > SIZE_MAX / 3) return NO_MEMORY; // overflow
             size_t newSize = ((mObjectsSize + numObjects)*3)/2;
-            if (newSize*sizeof(binder_size_t) < mObjectsSize) return NO_MEMORY;   // overflow
+            if (newSize > SIZE_MAX / sizeof(binder_size_t)) return NO_MEMORY; // overflow
             binder_size_t *objects =
                 (binder_size_t*)realloc(mObjects, newSize*sizeof(binder_size_t));
             if (objects == (binder_size_t*)0) {
@@ -1350,8 +1352,10 @@ restart_write:
         if (err != NO_ERROR) return err;
     }
     if (!enoughObjects) {
+        if (mObjectsSize > SIZE_MAX - 2) return NO_MEMORY; // overflow
+        if ((mObjectsSize + 2) > SIZE_MAX / 3) return NO_MEMORY; // overflow
         size_t newSize = ((mObjectsSize+2)*3)/2;
-        if (newSize*sizeof(binder_size_t) < mObjectsSize) return NO_MEMORY;   // overflow
+        if (newSize > SIZE_MAX / sizeof(binder_size_t)) return NO_MEMORY; // overflow
         binder_size_t* objects = (binder_size_t*)realloc(mObjects, newSize*sizeof(binder_size_t));
         if (objects == NULL) return NO_MEMORY;
         mObjects = objects;
@@ -2423,6 +2427,8 @@ status_t Parcel::growData(size_t len)
         return BAD_VALUE;
     }
 
+    if (len > SIZE_MAX - mDataSize) return NO_MEMORY; // overflow
+    if (mDataSize + len > SIZE_MAX / 3) return NO_MEMORY; // overflow
     size_t newSize = ((mDataSize+len)*3)/2;
     return (newSize <= mDataSize)
             ? (status_t) NO_MEMORY
