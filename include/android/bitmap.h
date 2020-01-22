@@ -79,6 +79,14 @@ enum {
     ANDROID_BITMAP_FLAGS_ALPHA_SHIFT    = 0,
 };
 
+enum {
+    /** If this bit is set in AndroidBitmapInfo.flags, the Bitmap uses the
+      * HARDWARE Config, and its AHardwareBuffer can be retrieved via
+      * AndroidBitmap_getHardwareBuffer.
+      */
+    ANDROID_BITMAP_FLAGS_IS_HARDWARE = 1 << 31,
+};
+
 /** Bitmap info, see AndroidBitmap_getInfo(). */
 typedef struct {
     /** The bitmap width in pixels. */
@@ -90,7 +98,9 @@ typedef struct {
     /** The bitmap pixel format. See {@link AndroidBitmapFormat} */
     int32_t     format;
     /** Two bits are used to encode alpha. Use ANDROID_BITMAP_FLAGS_ALPHA_MASK
-      * and ANDROID_BITMAP_FLAGS_ALPHA_SHIFT to retrieve them. */
+      * and ANDROID_BITMAP_FLAGS_ALPHA_SHIFT to retrieve them. One bit is used
+      * to encode whether the Bitmap uses the HARDWARE Config. Use
+      * ANDROID_BITMAP_FLAGS_IS_HARDWARE to know.*/
     uint32_t    flags;
 } AndroidBitmapInfo;
 
@@ -209,6 +219,25 @@ int AndroidBitmap_compress(const AndroidBitmapInfo* info,
                            int32_t format, int32_t quality,
                            void* userContext,
                            AndroidBitmap_compress_write_fn fn) __INTRODUCED_IN(30);
+
+struct AHardwareBuffer;
+
+/**
+ *  Retrieve the native object associated with a HARDWARE Bitmap.
+ *
+ *  Client must not modify it while a Bitmap is wrapping it.
+ *
+ *  @param bitmap Handle to an android.graphics.Bitmap.
+ *  @param outBuffer On success, is set to a pointer to the
+ *         AHardwareBuffer associated with bitmap. This acquires
+ *         a reference on the buffer, and the client must call
+ *         AHardwareBuffer_release when finished with it.
+ *  @return AndroidBitmap functions result code.
+ *          ANDROID_BITMAP_RESULT_BAD_PARAMETER if bitmap is not a
+ *          HARDWARE Bitmap.
+ */
+int AndroidBitmap_getHardwareBuffer(JNIEnv* env, jobject bitmap,
+        AHardwareBuffer** outBuffer) __INTRODUCED_IN(30);
 
 #endif // __ANDROID_API__ >= 30
 
