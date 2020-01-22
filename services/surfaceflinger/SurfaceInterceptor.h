@@ -152,6 +152,8 @@ private:
     void addLayerStackLocked(Transaction* transaction, int32_t layerId, uint32_t layerStack);
     void addCropLocked(Transaction* transaction, int32_t layerId, const Rect& rect);
     void addCornerRadiusLocked(Transaction* transaction, int32_t layerId, float cornerRadius);
+    void addBackgroundBlurRadiusLocked(Transaction* transaction, int32_t layerId,
+                                       int32_t backgroundBlurRadius);
     void addDeferTransactionLocked(Transaction* transaction, int32_t layerId,
             const sp<const Layer>& layer, uint64_t frameNumber);
     void addOverrideScalingModeLocked(Transaction* transaction, int32_t layerId,

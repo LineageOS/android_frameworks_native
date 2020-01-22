@@ -16,9 +16,9 @@
 
 #include <cutils/compiler.h>
 #include <gui/BufferQueue.h>
-#include <gui/surfacetexture/ImageConsumer.h>
-#include <gui/surfacetexture/SurfaceTexture.h>
-#include <gui/surfacetexture/surface_texture_platform.h>
+#include <surfacetexture/ImageConsumer.h>
+#include <surfacetexture/SurfaceTexture.h>
+#include <surfacetexture/surface_texture_platform.h>
 #include <math/mat4.h>
 #include <system/window.h>
 #include <utils/Trace.h>
@@ -485,44 +485,6 @@ sp<GraphicBuffer> SurfaceTexture::dequeueBuffer(int* outSlotid, android_dataspac
                                           createFence, fenceWait, fencePassThroughHandle);
     memcpy(outTransformMatrix, mCurrentTransformMatrix, sizeof(mCurrentTransformMatrix));
     return buffer;
-}
-
-unsigned int ASurfaceTexture_getCurrentTextureTarget(ASurfaceTexture* st) {
-    return st->consumer->getCurrentTextureTarget();
-}
-
-void ASurfaceTexture_takeConsumerOwnership(ASurfaceTexture* texture) {
-    texture->consumer->takeConsumerOwnership();
-}
-
-void ASurfaceTexture_releaseConsumerOwnership(ASurfaceTexture* texture) {
-    texture->consumer->releaseConsumerOwnership();
-}
-
-AHardwareBuffer* ASurfaceTexture_dequeueBuffer(ASurfaceTexture* st, int* outSlotid,
-                                               android_dataspace* outDataspace,
-                                               float* outTransformMatrix, bool* outNewContent,
-                                               ASurfaceTexture_createReleaseFence createFence,
-                                               ASurfaceTexture_fenceWait fenceWait, void* handle) {
-    sp<GraphicBuffer> buffer;
-    *outNewContent = false;
-    bool queueEmpty;
-    do {
-        buffer = st->consumer->dequeueBuffer(outSlotid, outDataspace, outTransformMatrix,
-                                             &queueEmpty, createFence, fenceWait, handle);
-        if (!queueEmpty) {
-            *outNewContent = true;
-        }
-    } while (buffer.get() && (!queueEmpty));
-    return reinterpret_cast<AHardwareBuffer*>(buffer.get());
-}
-
-ASurfaceTexture* ASurfaceTexture_create(sp<SurfaceTexture> consumer,
-                                        sp<IGraphicBufferProducer> producer) {
-    ASurfaceTexture* ast = new ASurfaceTexture;
-    ast->consumer = consumer;
-    ast->producer = producer;
-    return ast;
 }
 
 } // namespace android

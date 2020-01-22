@@ -57,6 +57,10 @@ filegroup {
         "gl/ImageManager.cpp",
         "gl/Program.cpp",
         "gl/ProgramCache.cpp",
+        "gl/filters/BlurFilter.cpp",
+        "gl/filters/LensBlurFilter.cpp",
+        "gl/filters/GaussianBlurFilter.cpp",
+        "gl/filters/GenericProgram.cpp",
     ],
 }
 

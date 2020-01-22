@@ -22,17 +22,11 @@
 
 #include <system/graphics.h>
 
-#include <gui/IGraphicBufferProducer.h>
-#include <gui/surfacetexture/SurfaceTexture.h>
-
 // This file provides a facade API on top of SurfaceTexture, which avoids using
 // C++ types. This is still a C++ unstable API though. Ideally features here
 // will be exposed via public NDK API and this file will be deleted.
 
-struct ASurfaceTexture {
-    android::sp<android::SurfaceTexture> consumer;
-    android::sp<android::IGraphicBufferProducer> producer;
-};
+struct ASurfaceTexture;
 
 namespace android {
 
@@ -78,13 +72,6 @@ AHardwareBuffer* ASurfaceTexture_dequeueBuffer(ASurfaceTexture* st, int* outSlot
                                                ASurfaceTexture_createReleaseFence createFence,
                                                ASurfaceTexture_fenceWait fenceWait,
                                                void* fencePassThroughHandle);
-
-/**
- * ASurfaceTexture_create creates an ASurfaceTexture, which is
- * a simple struct containing a SurfaceTexture and an IGraphicBufferProducer.
- */
-ASurfaceTexture* ASurfaceTexture_create(sp<SurfaceTexture> consumer,
-                                        sp<IGraphicBufferProducer> producer);
 
 } // namespace android
 

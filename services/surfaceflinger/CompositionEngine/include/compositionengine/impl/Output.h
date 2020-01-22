@@ -116,6 +116,7 @@ protected:
 
 private:
     void dirtyEntireOutput();
+    compositionengine::OutputLayer* findLayerRequestingBackgroundComposition() const;
     ui::Dataspace getBestDataspace(ui::Dataspace*, bool*) const;
     compositionengine::Output::ColorProfile pickColorProfile(
             const compositionengine::CompositionRefreshArgs&) const;
@@ -126,6 +127,7 @@ private:
     std::unique_ptr<compositionengine::RenderSurface> mRenderSurface;
 
     ReleasedLayers mReleasedLayers;
+    OutputLayer* mLayerRequestingBackgroundBlur = nullptr;
 };
 
 // This template factory function standardizes the implementation details of the

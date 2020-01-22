@@ -101,6 +101,7 @@ struct layer_state_t {
         eColorSpaceAgnosticChanged = 0x10'00000000,
         eFrameRateSelectionPriority = 0x20'00000000,
         eFrameRateChanged = 0x40'00000000,
+        eBackgroundBlurRadiusChanged = 0x80'00000000,
     };
 
     layer_state_t()
@@ -117,6 +118,7 @@ struct layer_state_t {
             reserved(0),
             crop_legacy(Rect::INVALID_RECT),
             cornerRadius(0.0f),
+            backgroundBlurRadius(0),
             frameNumber_legacy(0),
             overrideScalingMode(-1),
             transform(0),
@@ -163,6 +165,7 @@ struct layer_state_t {
     matrix22_t matrix;
     Rect crop_legacy;
     float cornerRadius;
+    uint32_t backgroundBlurRadius;
     sp<IBinder> barrierHandle_legacy;
     sp<IBinder> reparentHandle;
     uint64_t frameNumber_legacy;

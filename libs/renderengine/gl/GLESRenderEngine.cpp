@@ -49,6 +49,9 @@
 #include "GLShadowVertexGenerator.h"
 #include "Program.h"
 #include "ProgramCache.h"
+#include "filters/BlurFilter.h"
+#include "filters/GaussianBlurFilter.h"
+#include "filters/LensBlurFilter.h"
 
 extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
 
@@ -422,6 +425,18 @@ GLESRenderEngine::GLESRenderEngine(const RenderEngineCreationArgs& args, EGLDisp
         mTraceGpuCompletion = true;
         mFlushTracer = std::make_unique<FlushTracer>(this);
     }
+
+    if (args.supportsBackgroundBlur) {
+        char isGaussian[PROPERTY_VALUE_MAX];
+        property_get("debug.sf.gaussianBlur", isGaussian, "1");
+        if (atoi(isGaussian)) {
+            mBlurFilter = new GaussianBlurFilter(*this);
+        } else {
+            mBlurFilter = new LensBlurFilter(*this);
+        }
+        checkErrors("BlurFilter creation");
+    }
+
     mImageManager = std::make_unique<ImageManager>(this);
     mDrawingBuffer = createFramebuffer();
 }
@@ -871,11 +886,19 @@ void GLESRenderEngine::unbindFrameBuffer(Framebuffer* /* framebuffer */) {
 }
 
 void GLESRenderEngine::checkErrors() const {
+    checkErrors(nullptr);
+}
+
+void GLESRenderEngine::checkErrors(const char* tag) const {
     do {
         // there could be more than one error flag
         GLenum error = glGetError();
         if (error == GL_NO_ERROR) break;
-        ALOGE("GL error 0x%04x", int(error));
+        if (tag == nullptr) {
+            ALOGE("GL error 0x%04x", int(error));
+        } else {
+            ALOGE("GL error: %s -> 0x%04x", tag, int(error));
+        }
     } while (true);
 }
 
@@ -957,13 +980,36 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
         return BAD_VALUE;
     }
 
-    BindNativeBufferAsFramebuffer fbo(*this, buffer, useFramebufferCache);
+    std::unique_ptr<BindNativeBufferAsFramebuffer> fbo;
+    // Let's find the topmost layer requesting background blur (if any.)
+    // Blurs in multiple layers are not supported, given the cost of the shader.
+    const LayerSettings* blurLayer = nullptr;
+    if (CC_LIKELY(mBlurFilter != nullptr)) {
+        for (auto const& layer : layers) {
+            if (layer.backgroundBlurRadius > 0) {
+                blurLayer = &layer;
+            }
+        }
+    }
 
-    if (fbo.getStatus() != NO_ERROR) {
-        ALOGE("Failed to bind framebuffer! Aborting GPU composition for buffer (%p).",
-              buffer->handle);
-        checkErrors();
-        return fbo.getStatus();
+    if (blurLayer == nullptr) {
+        fbo = std::make_unique<BindNativeBufferAsFramebuffer>(*this, buffer, useFramebufferCache);
+        if (fbo->getStatus() != NO_ERROR) {
+            ALOGE("Failed to bind framebuffer! Aborting GPU composition for buffer (%p).",
+                  buffer->handle);
+            checkErrors();
+            return fbo->getStatus();
+        }
+        setViewportAndProjection(display.physicalDisplay, display.clip);
+    } else {
+        setViewportAndProjection(display.physicalDisplay, display.clip);
+        auto status = mBlurFilter->setAsDrawTarget(display);
+        if (status != NO_ERROR) {
+            ALOGE("Failed to prepare blur filter! Aborting GPU composition for buffer (%p).",
+                  buffer->handle);
+            checkErrors();
+            return status;
+        }
     }
 
     // clear the entire buffer, sometimes when we reuse buffers we'd persist
@@ -972,8 +1018,6 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
     // probably not quite efficient on all GPUs, since we could filter out
     // opaque layers.
     clearWithColor(0.0, 0.0, 0.0, 0.0);
-
-    setViewportAndProjection(display.physicalDisplay, display.clip);
 
     setOutputDataSpace(display.outputDataspace);
     setDisplayMaxLuminance(display.maxLuminance);
@@ -991,7 +1035,36 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
                         .setTexCoords(2 /* size */)
                         .setCropCoords(2 /* size */)
                         .build();
-    for (auto layer : layers) {
+    for (auto const& layer : layers) {
+        if (blurLayer == &layer) {
+            auto status = mBlurFilter->prepare(layer.backgroundBlurRadius);
+            if (status != NO_ERROR) {
+                ALOGE("Failed to render blur effect! Aborting GPU composition for buffer (%p).",
+                      buffer->handle);
+                checkErrors("Can't render first blur pass");
+                return status;
+            }
+
+            fbo = std::make_unique<BindNativeBufferAsFramebuffer>(*this, buffer,
+                                                                  useFramebufferCache);
+            status = fbo->getStatus();
+            if (status != NO_ERROR) {
+                ALOGE("Failed to bind framebuffer! Aborting GPU composition for buffer (%p).",
+                      buffer->handle);
+                checkErrors("Can't bind native framebuffer");
+                return status;
+            }
+            setViewportAndProjection(display.physicalDisplay, display.clip);
+
+            status = mBlurFilter->render();
+            if (status != NO_ERROR) {
+                ALOGE("Failed to render blur effect! Aborting GPU composition for buffer (%p).",
+                      buffer->handle);
+                checkErrors("Can't render blur filter");
+                return status;
+            }
+        }
+
         mState.maxMasteringLuminance = layer.source.buffer.maxMasteringLuminance;
         mState.maxContentLuminance = layer.source.buffer.maxContentLuminance;
         mState.projectionMatrix = projectionMatrix * layer.geometry.positionTransform;

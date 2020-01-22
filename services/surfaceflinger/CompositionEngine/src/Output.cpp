@@ -578,13 +578,31 @@ void Output::updateAndWriteCompositionState(
         return;
     }
 
+    mLayerRequestingBackgroundBlur = findLayerRequestingBackgroundComposition();
+    bool forceClientComposition = mLayerRequestingBackgroundBlur != nullptr;
+
     for (auto* layer : getOutputLayersOrderedByZ()) {
         layer->updateCompositionState(refreshArgs.updatingGeometryThisFrame,
-                                      refreshArgs.devOptForceClientComposition);
+                                      refreshArgs.devOptForceClientComposition ||
+                                              forceClientComposition);
+
+        if (mLayerRequestingBackgroundBlur == layer) {
+            forceClientComposition = false;
+        }
 
         // Send the updated state to the HWC, if appropriate.
         layer->writeStateToHWC(refreshArgs.updatingGeometryThisFrame);
     }
+}
+
+compositionengine::OutputLayer* Output::findLayerRequestingBackgroundComposition() const {
+    compositionengine::OutputLayer* layerRequestingBgComposition = nullptr;
+    for (auto* layer : getOutputLayersOrderedByZ()) {
+        if (layer->getLayer().getFEState().backgroundBlurRadius > 0) {
+            layerRequestingBgComposition = layer;
+        }
+    }
+    return layerRequestingBgComposition;
 }
 
 void Output::updateColorProfile(const compositionengine::CompositionRefreshArgs& refreshArgs) {
@@ -854,11 +872,12 @@ std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion
     }
 
     // We boost GPU frequency here because there will be color spaces conversion
-    // and it's expensive. We boost the GPU frequency so that GPU composition can
-    // finish in time. We must reset GPU frequency afterwards, because high frequency
-    // consumes extra battery.
+    // or complex GPU shaders and it's expensive. We boost the GPU frequency so that
+    // GPU composition can finish in time. We must reset GPU frequency afterwards,
+    // because high frequency consumes extra battery.
     const bool expensiveRenderingExpected =
-            clientCompositionDisplay.outputDataspace == ui::Dataspace::DISPLAY_P3;
+            clientCompositionDisplay.outputDataspace == ui::Dataspace::DISPLAY_P3 ||
+            mLayerRequestingBackgroundBlur != nullptr;
     if (expensiveRenderingExpected) {
         setExpensiveRenderingExpected(true);
     }

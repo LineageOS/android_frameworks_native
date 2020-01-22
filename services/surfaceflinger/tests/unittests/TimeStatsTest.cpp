@@ -22,6 +22,7 @@
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 
 #include <TimeStats/TimeStats.h>
+#include <android/util/ProtoOutputStream.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <log/log.h>
@@ -40,8 +41,12 @@ using namespace google::protobuf;
 namespace android {
 namespace {
 
+using testing::_;
+using testing::AnyNumber;
 using testing::Contains;
+using testing::InSequence;
 using testing::SizeIs;
+using testing::StrEq;
 using testing::UnorderedElementsAre;
 
 // clang-format off
@@ -136,7 +141,42 @@ public:
     }
 
     std::mt19937 mRandomEngine = std::mt19937(std::random_device()());
-    std::unique_ptr<TimeStats> mTimeStats = std::make_unique<impl::TimeStats>();
+
+    class FakeStatsEventDelegate : public impl::TimeStats::StatsEventDelegate {
+    public:
+        FakeStatsEventDelegate() = default;
+        ~FakeStatsEventDelegate() override = default;
+
+        struct stats_event* addStatsEventToPullData(pulled_stats_event_list*) override {
+            return mEvent;
+        }
+        void registerStatsPullAtomCallback(int32_t atom_tag, stats_pull_atom_callback_t callback,
+                                           pull_atom_metadata*, void* cookie) override {
+            mAtomTags.push_back(atom_tag);
+            mCallback = callback;
+            mCookie = cookie;
+        }
+
+        status_pull_atom_return_t makePullAtomCallback(int32_t atom_tag, void* cookie) {
+            return (*mCallback)(atom_tag, nullptr, cookie);
+        }
+
+        MOCK_METHOD1(unregisterStatsPullAtomCallback, void(int32_t));
+        MOCK_METHOD2(statsEventSetAtomId, void(struct stats_event*, uint32_t));
+        MOCK_METHOD2(statsEventWriteInt64, void(struct stats_event*, int64_t));
+        MOCK_METHOD2(statsEventWriteString8, void(struct stats_event*, const char*));
+        MOCK_METHOD3(statsEventWriteByteArray, void(struct stats_event*, const uint8_t*, size_t));
+        MOCK_METHOD1(statsEventBuild, void(struct stats_event*));
+
+        struct stats_event* mEvent = stats_event_obtain();
+        std::vector<int32_t> mAtomTags;
+        stats_pull_atom_callback_t mCallback = nullptr;
+        void* mCookie = nullptr;
+    };
+    FakeStatsEventDelegate* mDelegate = new FakeStatsEventDelegate;
+    std::unique_ptr<TimeStats> mTimeStats =
+            std::make_unique<impl::TimeStats>(std::unique_ptr<FakeStatsEventDelegate>(mDelegate),
+                                              std::nullopt, std::nullopt);
 };
 
 std::string TimeStatsTest::inputCommand(InputCommand cmd, bool useProto) {
@@ -213,14 +253,26 @@ int32_t TimeStatsTest::genRandomInt32(int32_t begin, int32_t end) {
     return distr(mRandomEngine);
 }
 
-TEST_F(TimeStatsTest, enabledByDefault) {
+TEST_F(TimeStatsTest, disabledByDefault) {
+    ASSERT_FALSE(mTimeStats->isEnabled());
+}
+
+TEST_F(TimeStatsTest, enabledAfterBoot) {
+    mTimeStats->onBootFinished();
     ASSERT_TRUE(mTimeStats->isEnabled());
 }
 
 TEST_F(TimeStatsTest, canEnableAndDisableTimeStats) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
     ASSERT_TRUE(mTimeStats->isEnabled());
+    EXPECT_THAT(mDelegate->mAtomTags,
+                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
+                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
 
+    EXPECT_CALL(*mDelegate,
+                unregisterStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO));
+    EXPECT_CALL(*mDelegate,
+                unregisterStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO));
     EXPECT_TRUE(inputCommand(InputCommand::DISABLE, FMT_STRING).empty());
     ASSERT_FALSE(mTimeStats->isEnabled());
 }
@@ -629,6 +681,319 @@ TEST_F(TimeStatsTest, canDumpWithInvalidMaxLayers) {
             inputCommand(InputCommand::DUMP_MAXLAYERS_INVALID, FMT_PROTO)));
 
     ASSERT_EQ(0, globalProto.stats_size());
+}
+
+TEST_F(TimeStatsTest, globalStatsCallback) {
+    constexpr size_t TOTAL_FRAMES = 5;
+    constexpr size_t MISSED_FRAMES = 4;
+    constexpr size_t CLIENT_COMPOSITION_FRAMES = 3;
+
+    mTimeStats->onBootFinished();
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+
+    for (size_t i = 0; i < TOTAL_FRAMES; i++) {
+        mTimeStats->incrementTotalFrames();
+    }
+    for (size_t i = 0; i < MISSED_FRAMES; i++) {
+        mTimeStats->incrementMissedFrames();
+    }
+    for (size_t i = 0; i < CLIENT_COMPOSITION_FRAMES; i++) {
+        mTimeStats->incrementClientCompositionFrames();
+    }
+
+    mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL);
+    mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(3000000));
+    mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(5000000));
+
+    EXPECT_THAT(mDelegate->mAtomTags,
+                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
+                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
+    EXPECT_NE(nullptr, mDelegate->mCallback);
+    EXPECT_EQ(mTimeStats.get(), mDelegate->mCookie);
+
+    {
+        InSequence seq;
+        EXPECT_CALL(*mDelegate,
+                    statsEventSetAtomId(mDelegate->mEvent,
+                                        android::util::SURFACEFLINGER_STATS_GLOBAL_INFO));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, TOTAL_FRAMES));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, MISSED_FRAMES));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, CLIENT_COMPOSITION_FRAMES));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, _));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, 2));
+        EXPECT_CALL(*mDelegate, statsEventBuild(mDelegate->mEvent));
+    }
+    EXPECT_EQ(STATS_PULL_SUCCESS,
+              mDelegate->makePullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
+                                              mDelegate->mCookie));
+
+    SFTimeStatsGlobalProto globalProto;
+    ASSERT_TRUE(globalProto.ParseFromString(inputCommand(InputCommand::DUMP_ALL, FMT_PROTO)));
+
+    EXPECT_EQ(0, globalProto.total_frames());
+    EXPECT_EQ(0, globalProto.missed_frames());
+    EXPECT_EQ(0, globalProto.client_composition_frames());
+    EXPECT_EQ(0, globalProto.present_to_present_size());
+}
+
+namespace {
+std::string buildExpectedHistogramBytestring(const std::vector<int32_t>& times,
+                                             const std::vector<int32_t>& frameCounts) {
+    util::ProtoOutputStream proto;
+    for (int i = 0; i < times.size(); i++) {
+        ALOGE("Writing time: %d", times[i]);
+        proto.write(util::FIELD_TYPE_INT32 | util::FIELD_COUNT_REPEATED | 1 /* field id */,
+                    (int32_t)times[i]);
+        ALOGE("Writing count: %d", frameCounts[i]);
+        proto.write(util::FIELD_TYPE_INT64 | util::FIELD_COUNT_REPEATED | 2 /* field id */,
+                    (int64_t)frameCounts[i]);
+    }
+    std::string byteString;
+    proto.serializeToString(&byteString);
+    return byteString;
+}
+
+std::string dumpByteStringHex(const std::string& str) {
+    std::stringstream ss;
+    ss << std::hex;
+    for (const char& c : str) {
+        ss << (int)c << " ";
+    }
+
+    return ss.str();
+}
+
+} // namespace
+
+MATCHER_P2(BytesEq, bytes, size, "") {
+    std::string expected;
+    expected.append((const char*)bytes, size);
+    std::string actual;
+    actual.append((const char*)arg, size);
+
+    *result_listener << "Bytes are not equal! \n";
+    *result_listener << "size: " << size << "\n";
+    *result_listener << "expected: " << dumpByteStringHex(expected).c_str() << "\n";
+    *result_listener << "actual: " << dumpByteStringHex(actual).c_str() << "\n";
+
+    return expected == actual;
+}
+
+TEST_F(TimeStatsTest, layerStatsCallback_pullsAllHistogramsAndClears) {
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+
+    mTimeStats->onBootFinished();
+
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000);
+
+    EXPECT_THAT(mDelegate->mAtomTags,
+                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
+                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
+    EXPECT_NE(nullptr, mDelegate->mCallback);
+    EXPECT_EQ(mTimeStats.get(), mDelegate->mCookie);
+
+    std::string expectedPresentToPresent = buildExpectedHistogramBytestring({1}, {1});
+    std::string expectedPostToPresent = buildExpectedHistogramBytestring({4}, {1});
+    std::string expectedAcquireToPresent = buildExpectedHistogramBytestring({3}, {1});
+    std::string expectedLatchToPresent = buildExpectedHistogramBytestring({2}, {1});
+    std::string expectedDesiredToPresent = buildExpectedHistogramBytestring({1}, {1});
+    std::string expectedPostToAcquire = buildExpectedHistogramBytestring({1}, {1});
+    {
+        InSequence seq;
+        EXPECT_CALL(*mDelegate,
+                    statsEventSetAtomId(mDelegate->mEvent,
+                                        android::util::SURFACEFLINGER_STATS_LAYER_INFO));
+        EXPECT_CALL(*mDelegate,
+                    statsEventWriteString8(mDelegate->mEvent,
+                                           StrEq(genLayerName(LAYER_ID_0).c_str())));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, 1));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, 0));
+        EXPECT_CALL(*mDelegate,
+                    statsEventWriteByteArray(mDelegate->mEvent,
+                                             BytesEq((const uint8_t*)
+                                                             expectedPresentToPresent.c_str(),
+                                                     expectedPresentToPresent.size()),
+                                             expectedPresentToPresent.size()));
+        EXPECT_CALL(*mDelegate,
+                    statsEventWriteByteArray(mDelegate->mEvent,
+                                             BytesEq((const uint8_t*)expectedPostToPresent.c_str(),
+                                                     expectedPostToPresent.size()),
+                                             expectedPostToPresent.size()));
+        EXPECT_CALL(*mDelegate,
+                    statsEventWriteByteArray(mDelegate->mEvent,
+                                             BytesEq((const uint8_t*)
+                                                             expectedAcquireToPresent.c_str(),
+                                                     expectedAcquireToPresent.size()),
+                                             expectedAcquireToPresent.size()));
+        EXPECT_CALL(*mDelegate,
+                    statsEventWriteByteArray(mDelegate->mEvent,
+                                             BytesEq((const uint8_t*)expectedLatchToPresent.c_str(),
+                                                     expectedLatchToPresent.size()),
+                                             expectedLatchToPresent.size()));
+        EXPECT_CALL(*mDelegate,
+                    statsEventWriteByteArray(mDelegate->mEvent,
+                                             BytesEq((const uint8_t*)
+                                                             expectedDesiredToPresent.c_str(),
+                                                     expectedDesiredToPresent.size()),
+                                             expectedDesiredToPresent.size()));
+        EXPECT_CALL(*mDelegate,
+                    statsEventWriteByteArray(mDelegate->mEvent,
+                                             BytesEq((const uint8_t*)expectedPostToAcquire.c_str(),
+                                                     expectedPostToAcquire.size()),
+                                             expectedPostToAcquire.size()));
+        EXPECT_CALL(*mDelegate, statsEventBuild(mDelegate->mEvent));
+    }
+    EXPECT_EQ(STATS_PULL_SUCCESS,
+              mDelegate->makePullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO,
+                                              mDelegate->mCookie));
+
+    SFTimeStatsGlobalProto globalProto;
+    ASSERT_TRUE(globalProto.ParseFromString(inputCommand(InputCommand::DUMP_ALL, FMT_PROTO)));
+
+    EXPECT_EQ(0, globalProto.stats_size());
+}
+
+TEST_F(TimeStatsTest, layerStatsCallback_pullsMultipleLayers) {
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+
+    mTimeStats->onBootFinished();
+
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000);
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_1, 1, 2000000);
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_1, 2, 3000000);
+
+    EXPECT_THAT(mDelegate->mAtomTags,
+                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
+                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
+    EXPECT_NE(nullptr, mDelegate->mCallback);
+    EXPECT_EQ(mTimeStats.get(), mDelegate->mCookie);
+
+    EXPECT_CALL(*mDelegate,
+                statsEventSetAtomId(mDelegate->mEvent,
+                                    android::util::SURFACEFLINGER_STATS_LAYER_INFO))
+            .Times(2);
+    EXPECT_CALL(*mDelegate,
+                statsEventWriteString8(mDelegate->mEvent, StrEq(genLayerName(LAYER_ID_0).c_str())));
+    EXPECT_CALL(*mDelegate,
+                statsEventWriteString8(mDelegate->mEvent, StrEq(genLayerName(LAYER_ID_1).c_str())));
+    EXPECT_EQ(STATS_PULL_SUCCESS,
+              mDelegate->makePullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO,
+                                              mDelegate->mCookie));
+}
+
+TEST_F(TimeStatsTest, layerStatsCallback_pullsMultipleBuckets) {
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+
+    mTimeStats->onBootFinished();
+
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000);
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 3, 4000000);
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 4, 5000000);
+
+    // Now make sure that TimeStats flushes global stats to register the
+    // callback.
+    mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL);
+    mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(3000000));
+    mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(5000000));
+    EXPECT_THAT(mDelegate->mAtomTags,
+                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
+                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
+    EXPECT_NE(nullptr, mDelegate->mCallback);
+    EXPECT_EQ(mTimeStats.get(), mDelegate->mCookie);
+
+    EXPECT_THAT(mDelegate->mAtomTags,
+                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
+                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
+    std::string expectedPresentToPresent = buildExpectedHistogramBytestring({1, 2}, {2, 1});
+    {
+        InSequence seq;
+        EXPECT_CALL(*mDelegate,
+                    statsEventWriteByteArray(mDelegate->mEvent,
+                                             BytesEq((const uint8_t*)
+                                                             expectedPresentToPresent.c_str(),
+                                                     expectedPresentToPresent.size()),
+                                             expectedPresentToPresent.size()));
+        EXPECT_CALL(*mDelegate, statsEventWriteByteArray(mDelegate->mEvent, _, _))
+                .Times(AnyNumber());
+    }
+    EXPECT_EQ(STATS_PULL_SUCCESS,
+              mDelegate->makePullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO,
+                                              mDelegate->mCookie));
+}
+
+TEST_F(TimeStatsTest, layerStatsCallback_limitsHistogramBuckets) {
+    mDelegate = new FakeStatsEventDelegate;
+    mTimeStats =
+            std::make_unique<impl::TimeStats>(std::unique_ptr<FakeStatsEventDelegate>(mDelegate),
+                                              std::nullopt, 1);
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+
+    mTimeStats->onBootFinished();
+
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000);
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 3, 4000000);
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 4, 5000000);
+
+    EXPECT_THAT(mDelegate->mAtomTags,
+                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
+                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
+    EXPECT_NE(nullptr, mDelegate->mCallback);
+    EXPECT_EQ(mTimeStats.get(), mDelegate->mCookie);
+
+    EXPECT_THAT(mDelegate->mAtomTags,
+                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
+                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
+    std::string expectedPresentToPresent = buildExpectedHistogramBytestring({1}, {2});
+    {
+        InSequence seq;
+        EXPECT_CALL(*mDelegate,
+                    statsEventWriteByteArray(mDelegate->mEvent,
+                                             BytesEq((const uint8_t*)
+                                                             expectedPresentToPresent.c_str(),
+                                                     expectedPresentToPresent.size()),
+                                             expectedPresentToPresent.size()));
+        EXPECT_CALL(*mDelegate, statsEventWriteByteArray(mDelegate->mEvent, _, _))
+                .Times(AnyNumber());
+    }
+    EXPECT_EQ(STATS_PULL_SUCCESS,
+              mDelegate->makePullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO,
+                                              mDelegate->mCookie));
+}
+
+TEST_F(TimeStatsTest, layerStatsCallback_limitsLayers) {
+    mDelegate = new FakeStatsEventDelegate;
+    mTimeStats =
+            std::make_unique<impl::TimeStats>(std::unique_ptr<FakeStatsEventDelegate>(mDelegate), 1,
+                                              std::nullopt);
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+
+    mTimeStats->onBootFinished();
+
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000);
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_1, 1, 2000000);
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_1, 2, 3000000);
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_1, 4, 5000000);
+
+    EXPECT_THAT(mDelegate->mAtomTags,
+                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
+                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
+    EXPECT_NE(nullptr, mDelegate->mCallback);
+    EXPECT_EQ(mTimeStats.get(), mDelegate->mCookie);
+
+    EXPECT_CALL(*mDelegate,
+                statsEventSetAtomId(mDelegate->mEvent,
+                                    android::util::SURFACEFLINGER_STATS_LAYER_INFO))
+            .Times(1);
+    EXPECT_CALL(*mDelegate,
+                statsEventWriteString8(mDelegate->mEvent, StrEq(genLayerName(LAYER_ID_1).c_str())));
+    EXPECT_EQ(STATS_PULL_SUCCESS,
+              mDelegate->makePullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO,
+                                              mDelegate->mCookie));
 }
 
 TEST_F(TimeStatsTest, canSurviveMonkey) {

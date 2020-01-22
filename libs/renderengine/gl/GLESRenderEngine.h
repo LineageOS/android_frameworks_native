@@ -46,6 +46,7 @@ class Texture;
 namespace gl {
 
 class GLImage;
+class BlurFilter;
 
 class GLESRenderEngine : public impl::RenderEngine {
 public:
@@ -117,6 +118,7 @@ private:
     std::unique_ptr<Framebuffer> createFramebuffer();
     std::unique_ptr<Image> createImage();
     void checkErrors() const;
+    void checkErrors(const char* tag) const;
     void setScissor(const Rect& region);
     void disableScissor();
     bool waitSync(EGLSyncKHR sync, EGLint flags);
@@ -228,6 +230,9 @@ private:
 
     std::unique_ptr<Framebuffer> mDrawingBuffer;
 
+    // Blur effect processor, only instantiated when a layer requests it.
+    BlurFilter* mBlurFilter = nullptr;
+
     class FlushTracer {
     public:
         FlushTracer(GLESRenderEngine* engine);
@@ -251,6 +256,11 @@ private:
     };
     friend class FlushTracer;
     friend class ImageManager;
+    friend class GLFramebuffer;
+    friend class BlurFilter;
+    friend class GaussianBlurFilter;
+    friend class LensBlurFilter;
+    friend class GenericProgram;
     std::unique_ptr<FlushTracer> mFlushTracer;
     std::unique_ptr<ImageManager> mImageManager = std::make_unique<ImageManager>(this);
 };

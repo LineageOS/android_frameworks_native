@@ -138,6 +138,10 @@ struct OutputLatchFEStateTest : public OutputTest {
         EXPECT_CALL(mLayer1, editFEState()).WillRepeatedly(ReturnRef(mLayer1FEState));
         EXPECT_CALL(mLayer2, editFEState()).WillRepeatedly(ReturnRef(mLayer2FEState));
         EXPECT_CALL(mLayer3, editFEState()).WillRepeatedly(ReturnRef(mLayer3FEState));
+
+        EXPECT_CALL(mLayer1, getFEState()).WillRepeatedly(ReturnRef(mLayer1FEState));
+        EXPECT_CALL(mLayer2, getFEState()).WillRepeatedly(ReturnRef(mLayer2FEState));
+        EXPECT_CALL(mLayer3, getFEState()).WillRepeatedly(ReturnRef(mLayer3FEState));
     }
 
     void injectLayer(std::unique_ptr<mock::OutputLayer> layer) {
@@ -3635,6 +3639,29 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     static_cast<void>(mOutput.generateClientCompositionRequests(true /* supportsProtectedContent */,
                                                                 accumClearRegion,
                                                                 kDisplayDataspace));
+}
+
+TEST_F(OutputUpdateAndWriteCompositionStateTest, handlesBackgroundBlurRequests) {
+    // Layer requesting blur, or below, should request client composition.
+    EXPECT_CALL(*mOutputLayer1, updateCompositionState(false, true));
+    EXPECT_CALL(*mOutputLayer1, writeStateToHWC(false));
+    EXPECT_CALL(*mOutputLayer2, updateCompositionState(false, true));
+    EXPECT_CALL(*mOutputLayer2, writeStateToHWC(false));
+    EXPECT_CALL(*mOutputLayer3, updateCompositionState(false, false));
+    EXPECT_CALL(*mOutputLayer3, writeStateToHWC(false));
+
+    mLayer2FEState.backgroundBlurRadius = 10;
+
+    injectLayer(std::move(mOutputLayer1));
+    injectLayer(std::move(mOutputLayer2));
+    injectLayer(std::move(mOutputLayer3));
+
+    mOutput->editState().isEnabled = true;
+
+    CompositionRefreshArgs args;
+    args.updatingGeometryThisFrame = false;
+    args.devOptForceClientComposition = false;
+    mOutput->updateAndWriteCompositionState(args);
 }
 
 TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenRequests) {

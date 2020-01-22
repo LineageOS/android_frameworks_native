@@ -83,6 +83,8 @@ cc_test {
         "perfetto_trace_protos",
     ],
     shared_libs: [
+        "libprotoutil",
+        "libstatssocket",
         "libsurfaceflinger",
         "libtimestats",
         "libtimestats_proto",

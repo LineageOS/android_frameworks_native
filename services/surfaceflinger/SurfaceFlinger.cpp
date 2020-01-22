@@ -338,6 +338,14 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     mLayerTripleBufferingDisabled = atoi(value);
     ALOGI_IF(mLayerTripleBufferingDisabled, "Disabling Triple Buffering");
 
+    property_get("ro.surface_flinger.supports_background_blur", value, "0");
+    bool supportsBlurs = atoi(value);
+    property_get("debug.sf.disableBlurs", value, "0");
+    bool disableBlurs = atoi(value);
+    mEnableBlurs = supportsBlurs && !disableBlurs;
+    ALOGI_IF(!mEnableBlurs, "Disabling blur effects. supported: %d, disabled: %d", supportsBlurs,
+             disableBlurs);
+
     const size_t defaultListSize = MAX_LAYERS;
     auto listSize = property_get_int32("debug.sf.max_igbp_list_size", int32_t(defaultListSize));
     mMaxGraphicBufferProducerListSize = (listSize > 0) ? size_t(listSize) : defaultListSize;
@@ -494,6 +502,7 @@ void SurfaceFlinger::bootFinished()
     ALOGI("Boot is finished (%ld ms)", long(ns2ms(duration)) );
 
     mFrameTracer->initialize();
+    mTimeStats->onBootFinished();
 
     // wait patiently for the window manager death
     const String16 name("window");
@@ -580,6 +589,7 @@ void SurfaceFlinger::init() {
                 .setUseColorManagerment(useColorManagement)
                 .setEnableProtectedContext(enable_protected_contents(false))
                 .setPrecacheToneMapperShaderOnly(false)
+                .setSupportsBackgroundBlur(mEnableBlurs)
                 .setContextPriority(useContextPriority
                         ? renderengine::RenderEngine::ContextPriority::HIGH
                         : renderengine::RenderEngine::ContextPriority::MEDIUM)
@@ -875,7 +885,7 @@ void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
         repaintEverythingForHWC();
         // Start receiving vsync samples now, so that we can detect a period
         // switch.
-        mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
+        mScheduler->resyncToHardwareVsync(true, refreshRate.vsyncPeriod);
         // As we called to set period, we will call to onRefreshRateChangeCompleted once
         // DispSync model is locked.
         mVSyncModulator->onRefreshRateChangeInitiated();
@@ -952,9 +962,9 @@ void SurfaceFlinger::desiredActiveConfigChangeDone() {
     mDesiredActiveConfig.event = Scheduler::ConfigEvent::None;
     mDesiredActiveConfigChanged = false;
 
-    mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
-    auto refreshRate =
+    auto const refreshRate =
             mRefreshRateConfigs->getRefreshRateFromConfigId(mDesiredActiveConfig.configId);
+    mScheduler->resyncToHardwareVsync(true, refreshRate.vsyncPeriod);
     mPhaseConfiguration->setRefreshRateFps(refreshRate.fps);
     mVSyncModulator->setPhaseOffsets(mPhaseConfiguration->getCurrentOffsets());
 }
@@ -3378,6 +3388,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     if (what & layer_state_t::eCornerRadiusChanged) {
         if (layer->setCornerRadius(s.cornerRadius))
             flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eBackgroundBlurRadiusChanged) {
+        if (layer->setBackgroundBlurRadius(s.backgroundBlurRadius)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eLayerStackChanged) {
         ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);

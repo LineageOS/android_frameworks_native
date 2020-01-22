@@ -51,6 +51,7 @@ message SurfaceChange {
         RelativeParentChange        relative_parent         = 18;
         DetachChildrenChange        detach_children         = 19;
         ReparentChildrenChange      reparent_children       = 20;
+        BackgroundBlurRadiusChange  background_blur_radius  = 21;
         ShadowRadiusChange          shadow_radius           = 22;
     }
 }
@@ -71,6 +72,10 @@ message AlphaChange {
 
 message CornerRadiusChange {
     required float corner_radius = 1;
+}
+
+message BackgroundBlurRadiusChange {
+    required float background_blur_radius = 1;
 }
 
 message LayerChange {
