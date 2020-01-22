@@ -25,6 +25,7 @@
 
 #include <compositionengine/Display.h>
 #include <compositionengine/DisplayColorProfile.h>
+#include <compositionengine/impl/OutputCompositionState.h>
 #include <compositionengine/mock/DisplaySurface.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -1275,6 +1276,243 @@ TEST_F(GetBestColorModeTest, DataspaceDisplayP3_ColorModeDISPLAY_BT2020) {
     ASSERT_EQ(ui::Dataspace::DISPLAY_BT2020, mOutDataspace);
     ASSERT_EQ(ui::ColorMode::DISPLAY_BT2020, mOutColorMode);
     ASSERT_EQ(ui::RenderIntent::COLORIMETRIC, mOutRenderIntent);
+}
+
+/* ------------------------------------------------------------------------
+ * DisplayDevice::setProjection
+ */
+
+class DisplayDeviceSetProjectionTest : public DisplayTransactionTest {
+public:
+    static constexpr DisplayId DEFAULT_DISPLAY_ID = DisplayId{777};
+    static constexpr bool DEFAULT_DISPLAY_IS_VIRTUAL = false;
+    static constexpr bool DEFAULT_DISPLAY_IS_PRIMARY = true;
+    static constexpr int32_t DEFAULT_DISPLAY_WIDTH = 1080;  // arbitrary
+    static constexpr int32_t DEFAULT_DISPLAY_HEIGHT = 1920; // arbitrary
+
+    static constexpr int32_t TRANSFORM_FLAGS_ROT_0 = 0;
+    static constexpr int32_t TRANSFORM_FLAGS_ROT_90 = HAL_TRANSFORM_ROT_90;
+    static constexpr int32_t TRANSFORM_FLAGS_ROT_180 = HAL_TRANSFORM_FLIP_H | HAL_TRANSFORM_FLIP_V;
+    static constexpr int32_t TRANSFORM_FLAGS_ROT_270 =
+            HAL_TRANSFORM_FLIP_H | HAL_TRANSFORM_FLIP_V | HAL_TRANSFORM_ROT_90;
+
+    DisplayDeviceSetProjectionTest(ui::Size flingerDisplaySize, ui::Size hardwareDisplaySize,
+                                   ui::Rotation physicalOrientation)
+          : mFlingerDisplaySize(flingerDisplaySize),
+            mHardwareDisplaySize(hardwareDisplaySize),
+            mPhysicalOrientation(physicalOrientation),
+            mDisplayDevice(createDisplayDevice()) {}
+
+    sp<DisplayDevice> createDisplayDevice() {
+        // The DisplayDevice is required to have a framebuffer (behind the
+        // ANativeWindow interface) which uses the actual hardware display
+        // size.
+        EXPECT_CALL(*mNativeWindow, query(NATIVE_WINDOW_WIDTH, _))
+                .WillRepeatedly(DoAll(SetArgPointee<1>(mHardwareDisplaySize.width), Return(0)));
+        EXPECT_CALL(*mNativeWindow, query(NATIVE_WINDOW_HEIGHT, _))
+                .WillRepeatedly(DoAll(SetArgPointee<1>(mHardwareDisplaySize.height), Return(0)));
+        EXPECT_CALL(*mNativeWindow, perform(NATIVE_WINDOW_SET_BUFFERS_FORMAT));
+        EXPECT_CALL(*mNativeWindow, perform(NATIVE_WINDOW_API_CONNECT));
+        EXPECT_CALL(*mNativeWindow, perform(NATIVE_WINDOW_SET_USAGE64));
+        EXPECT_CALL(*mNativeWindow, perform(NATIVE_WINDOW_API_DISCONNECT));
+
+        return FakeDisplayDeviceInjector(mFlinger, DEFAULT_DISPLAY_ID, DEFAULT_DISPLAY_IS_VIRTUAL,
+                                         DEFAULT_DISPLAY_IS_PRIMARY)
+                .setNativeWindow(mNativeWindow)
+                .setPhysicalOrientation(mPhysicalOrientation)
+                .inject();
+    }
+
+    ui::Size SwapWH(const ui::Size size) const { return ui::Size(size.height, size.width); }
+
+    void setProjectionForRotation0() {
+        // A logical rotation of 0 uses the SurfaceFlinger display size
+        mDisplayDevice->setProjection(ui::ROTATION_0, Rect(mFlingerDisplaySize),
+                                      Rect(mFlingerDisplaySize));
+    }
+
+    void setProjectionForRotation90() {
+        // A logical rotation of 90 uses the SurfaceFlinger display size with
+        // the width/height swapped.
+        mDisplayDevice->setProjection(ui::ROTATION_90, Rect(SwapWH(mFlingerDisplaySize)),
+                                      Rect(SwapWH(mFlingerDisplaySize)));
+    }
+
+    void setProjectionForRotation180() {
+        // A logical rotation of 180 uses the SurfaceFlinger display size
+        mDisplayDevice->setProjection(ui::ROTATION_180, Rect(mFlingerDisplaySize),
+                                      Rect(mFlingerDisplaySize));
+    }
+
+    void setProjectionForRotation270() {
+        // A logical rotation of 270 uses the SurfaceFlinger display size with
+        // the width/height swapped.
+        mDisplayDevice->setProjection(ui::ROTATION_270, Rect(SwapWH(mFlingerDisplaySize)),
+                                      Rect(SwapWH(mFlingerDisplaySize)));
+    }
+
+    void expectStateForHardwareTransform0() {
+        const auto& compositionState = mDisplayDevice->getCompositionDisplay()->getState();
+        EXPECT_EQ(ui::Transform(TRANSFORM_FLAGS_ROT_0, mHardwareDisplaySize.width,
+                                mHardwareDisplaySize.height),
+                  compositionState.transform);
+        EXPECT_EQ(TRANSFORM_FLAGS_ROT_0, compositionState.orientation);
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.scissor);
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.frame);
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.viewport);
+        EXPECT_EQ(false, compositionState.needsFiltering);
+    }
+
+    void expectStateForHardwareTransform90() {
+        const auto& compositionState = mDisplayDevice->getCompositionDisplay()->getState();
+        EXPECT_EQ(ui::Transform(TRANSFORM_FLAGS_ROT_90, mHardwareDisplaySize.width,
+                                mHardwareDisplaySize.height),
+                  compositionState.transform);
+        EXPECT_EQ(TRANSFORM_FLAGS_ROT_90, compositionState.orientation);
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.scissor);
+        // For 90, the frame and viewport have the hardware display size width and height swapped
+        EXPECT_EQ(Rect(SwapWH(mHardwareDisplaySize)), compositionState.frame);
+        EXPECT_EQ(Rect(SwapWH(mHardwareDisplaySize)), compositionState.viewport);
+        EXPECT_EQ(false, compositionState.needsFiltering);
+    }
+
+    void expectStateForHardwareTransform180() {
+        const auto& compositionState = mDisplayDevice->getCompositionDisplay()->getState();
+        EXPECT_EQ(ui::Transform(TRANSFORM_FLAGS_ROT_180, mHardwareDisplaySize.width,
+                                mHardwareDisplaySize.height),
+                  compositionState.transform);
+        EXPECT_EQ(TRANSFORM_FLAGS_ROT_180, compositionState.orientation);
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.scissor);
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.frame);
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.viewport);
+        EXPECT_EQ(false, compositionState.needsFiltering);
+    }
+
+    void expectStateForHardwareTransform270() {
+        const auto& compositionState = mDisplayDevice->getCompositionDisplay()->getState();
+        EXPECT_EQ(ui::Transform(TRANSFORM_FLAGS_ROT_270, mHardwareDisplaySize.width,
+                                mHardwareDisplaySize.height),
+                  compositionState.transform);
+        EXPECT_EQ(TRANSFORM_FLAGS_ROT_270, compositionState.orientation);
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.scissor);
+        // For 270, the frame and viewport have the hardware display size width and height swapped
+        EXPECT_EQ(Rect(SwapWH(mHardwareDisplaySize)), compositionState.frame);
+        EXPECT_EQ(Rect(SwapWH(mHardwareDisplaySize)), compositionState.viewport);
+        EXPECT_EQ(false, compositionState.needsFiltering);
+    }
+
+    const ui::Size mFlingerDisplaySize;
+    const ui::Size mHardwareDisplaySize;
+    const ui::Rotation mPhysicalOrientation;
+    const sp<DisplayDevice> mDisplayDevice;
+};
+
+struct DisplayDeviceSetProjectionTest_Installed0 : public DisplayDeviceSetProjectionTest {
+    DisplayDeviceSetProjectionTest_Installed0()
+          : DisplayDeviceSetProjectionTest(ui::Size(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                                           ui::Size(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                                           ui::ROTATION_0) {}
+};
+
+TEST_F(DisplayDeviceSetProjectionTest_Installed0, checkWith0OutputRotation) {
+    setProjectionForRotation0();
+    expectStateForHardwareTransform0();
+}
+
+TEST_F(DisplayDeviceSetProjectionTest_Installed0, checkWith90OutputRotation) {
+    setProjectionForRotation90();
+    expectStateForHardwareTransform90();
+}
+
+TEST_F(DisplayDeviceSetProjectionTest_Installed0, checkWith180OutputRotation) {
+    setProjectionForRotation180();
+    expectStateForHardwareTransform180();
+}
+
+TEST_F(DisplayDeviceSetProjectionTest_Installed0, checkWith270OutputRotation) {
+    setProjectionForRotation270();
+    expectStateForHardwareTransform270();
+}
+
+struct DisplayDeviceSetProjectionTest_Installed90 : public DisplayDeviceSetProjectionTest {
+    DisplayDeviceSetProjectionTest_Installed90()
+          : DisplayDeviceSetProjectionTest(ui::Size(DEFAULT_DISPLAY_HEIGHT, DEFAULT_DISPLAY_WIDTH),
+                                           ui::Size(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                                           ui::ROTATION_90) {}
+};
+
+TEST_F(DisplayDeviceSetProjectionTest_Installed90, checkWith0OutputRotation) {
+    setProjectionForRotation0();
+    expectStateForHardwareTransform90();
+}
+
+TEST_F(DisplayDeviceSetProjectionTest_Installed90, checkWith90OutputRotation) {
+    setProjectionForRotation90();
+    expectStateForHardwareTransform180();
+}
+
+TEST_F(DisplayDeviceSetProjectionTest_Installed90, checkWith180OutputRotation) {
+    setProjectionForRotation180();
+    expectStateForHardwareTransform270();
+}
+
+TEST_F(DisplayDeviceSetProjectionTest_Installed90, checkWith270OutputRotation) {
+    setProjectionForRotation270();
+    expectStateForHardwareTransform0();
+}
+
+struct DisplayDeviceSetProjectionTest_Installed180 : public DisplayDeviceSetProjectionTest {
+    DisplayDeviceSetProjectionTest_Installed180()
+          : DisplayDeviceSetProjectionTest(ui::Size(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                                           ui::Size(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                                           ui::ROTATION_180) {}
+};
+
+TEST_F(DisplayDeviceSetProjectionTest_Installed180, checkWith0OutputRotation) {
+    setProjectionForRotation0();
+    expectStateForHardwareTransform180();
+}
+
+TEST_F(DisplayDeviceSetProjectionTest_Installed180, checkWith90OutputRotation) {
+    setProjectionForRotation90();
+    expectStateForHardwareTransform270();
+}
+
+TEST_F(DisplayDeviceSetProjectionTest_Installed180, checkWith180OutputRotation) {
+    setProjectionForRotation180();
+    expectStateForHardwareTransform0();
+}
+
+TEST_F(DisplayDeviceSetProjectionTest_Installed180, checkWith270OutputRotation) {
+    setProjectionForRotation270();
+    expectStateForHardwareTransform90();
+}
+
+struct DisplayDeviceSetProjectionTest_Installed270 : public DisplayDeviceSetProjectionTest {
+    DisplayDeviceSetProjectionTest_Installed270()
+          : DisplayDeviceSetProjectionTest(ui::Size(DEFAULT_DISPLAY_HEIGHT, DEFAULT_DISPLAY_WIDTH),
+                                           ui::Size(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                                           ui::ROTATION_270) {}
+};
+
+TEST_F(DisplayDeviceSetProjectionTest_Installed270, checkWith0OutputRotation) {
+    setProjectionForRotation0();
+    expectStateForHardwareTransform270();
+}
+
+TEST_F(DisplayDeviceSetProjectionTest_Installed270, checkWith90OutputRotation) {
+    setProjectionForRotation90();
+    expectStateForHardwareTransform0();
+}
+
+TEST_F(DisplayDeviceSetProjectionTest_Installed270, checkWith180OutputRotation) {
+    setProjectionForRotation180();
+    expectStateForHardwareTransform90();
+}
+
+TEST_F(DisplayDeviceSetProjectionTest_Installed270, checkWith270OutputRotation) {
+    setProjectionForRotation270();
+    expectStateForHardwareTransform180();
 }
 
 /* ------------------------------------------------------------------------
