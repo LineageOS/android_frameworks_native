@@ -235,6 +235,8 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, nsecs_t postTi
         mReleasePreviousBuffer = true;
     }
 
+    mFrameCounter++;
+
     mCurrentState.buffer = buffer;
     mCurrentState.clientCacheId = clientCacheId;
     mCurrentState.modified = true;
@@ -492,6 +494,8 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         handle->latchTime = latchTime;
     }
 
+    mFrameNumber = mFrameCounter;
+
     if (!SyncFeatures::getInstance().useNativeFenceSync()) {
         // Bind the new buffer to the GL texture.
         //
@@ -553,8 +557,6 @@ void BufferStateLayer::latchPerFrameState(
     compositionState.buffer = mBufferInfo.mBuffer;
     compositionState.bufferSlot = mBufferInfo.mBufferSlot;
     compositionState.acquireFence = mBufferInfo.mFence;
-
-    mFrameNumber++;
 }
 
 void BufferStateLayer::HwcSlotGenerator::bufferErased(const client_cache_t& clientCacheId) {
