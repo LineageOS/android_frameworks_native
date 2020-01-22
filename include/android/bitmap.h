@@ -179,7 +179,7 @@ enum AndroidBitmapCompressFormat {
  *  @param size Length in bytes of data to write.
  *  @return Whether the operation succeeded.
  */
-typedef bool (*AndroidBitmap_compress_write_fn)(void* userContext,
+typedef bool (*AndroidBitmap_CompressWriteFunc)(void* userContext,
                                                 const void* data,
                                                 size_t size) __INTRODUCED_IN(30);
 
@@ -195,7 +195,7 @@ typedef bool (*AndroidBitmap_compress_write_fn)(void* userContext,
  *                 differently depending on the
  *                 {@link AndroidBitmapCompressFormat}.
  *  @param userContext User-defined data which will be passed to the supplied
- *                     {@link AndroidBitmap_compress_write_fn} each time it is
+ *                     {@link AndroidBitmap_CompressWriteFunc} each time it is
  *                     called. May be null.
  *  @parm fn Function that writes the compressed data. Will be called each time
  *           the compressor has compressed more data that is ready to be
@@ -208,7 +208,7 @@ int AndroidBitmap_compress(const AndroidBitmapInfo* info,
                            const void* pixels,
                            int32_t format, int32_t quality,
                            void* userContext,
-                           AndroidBitmap_compress_write_fn fn) __INTRODUCED_IN(30);
+                           AndroidBitmap_CompressWriteFunc fn) __INTRODUCED_IN(30);
 
 #endif // __ANDROID_API__ >= 30
 
