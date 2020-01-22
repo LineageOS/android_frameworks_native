@@ -108,6 +108,7 @@ protected:
 
 private:
     std::unordered_map<float, Offsets> initializeOffsets(const std::vector<float>&) const;
+    PhaseDurations::Offsets constructOffsets(nsecs_t vsyncDuration) const;
 
     const nsecs_t mSfDuration;
     const nsecs_t mAppDuration;

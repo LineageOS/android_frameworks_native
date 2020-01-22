@@ -209,6 +209,32 @@ static nsecs_t appDurationToOffset(nsecs_t appDuration, nsecs_t sfDuration, nsec
                             : vsyncDuration - (appDuration + sfDuration) % vsyncDuration;
 }
 
+PhaseDurations::Offsets PhaseDurations::constructOffsets(nsecs_t vsyncDuration) const {
+    return Offsets{
+            {
+                    mSfEarlyDuration < vsyncDuration
+                            ? sfDurationToOffset(mSfEarlyDuration, vsyncDuration)
+                            : sfDurationToOffset(mSfEarlyDuration, vsyncDuration) - vsyncDuration,
+
+                    appDurationToOffset(mAppEarlyDuration, mSfEarlyDuration, vsyncDuration),
+            },
+            {
+                    mSfEarlyGlDuration < vsyncDuration
+                            ? sfDurationToOffset(mSfEarlyGlDuration, vsyncDuration)
+                            : sfDurationToOffset(mSfEarlyGlDuration, vsyncDuration) - vsyncDuration,
+
+                    appDurationToOffset(mAppEarlyGlDuration, mSfEarlyGlDuration, vsyncDuration),
+            },
+            {
+                    mSfDuration < vsyncDuration
+                            ? sfDurationToOffset(mSfDuration, vsyncDuration)
+                            : sfDurationToOffset(mSfDuration, vsyncDuration) - vsyncDuration,
+
+                    appDurationToOffset(mAppDuration, mSfDuration, vsyncDuration),
+            },
+    };
+}
+
 static std::vector<float> getRefreshRatesFromConfigs(
         const android::scheduler::RefreshRateConfigs& refreshRateConfigs) {
     const auto& allRefreshRates = refreshRateConfigs.getAllRefreshRates();
@@ -227,41 +253,7 @@ std::unordered_map<float, PhaseDurations::Offsets> PhaseDurations::initializeOff
     std::unordered_map<float, Offsets> offsets;
 
     for (const auto fps : refreshRates) {
-        const nsecs_t vsyncDuration = static_cast<nsecs_t>(1e9f / fps);
-        offsets.emplace(fps,
-                        Offsets{
-                                {
-                                        mSfEarlyDuration < vsyncDuration
-                                                ? sfDurationToOffset(mSfEarlyDuration,
-                                                                     vsyncDuration)
-                                                : sfDurationToOffset(mSfEarlyDuration,
-                                                                     vsyncDuration) -
-                                                        vsyncDuration,
-
-                                        appDurationToOffset(mAppEarlyDuration, mSfEarlyDuration,
-                                                            vsyncDuration),
-                                },
-                                {
-                                        mSfEarlyGlDuration < vsyncDuration
-                                                ? sfDurationToOffset(mSfEarlyGlDuration,
-                                                                     vsyncDuration)
-                                                : sfDurationToOffset(mSfEarlyGlDuration,
-                                                                     vsyncDuration) -
-                                                        vsyncDuration,
-
-                                        appDurationToOffset(mAppEarlyGlDuration, mSfEarlyGlDuration,
-                                                            vsyncDuration),
-                                },
-                                {
-                                        mSfDuration < vsyncDuration
-                                                ? sfDurationToOffset(mSfDuration, vsyncDuration)
-                                                : sfDurationToOffset(mSfDuration, vsyncDuration) -
-                                                        vsyncDuration,
-
-                                        appDurationToOffset(mAppDuration, mSfDuration,
-                                                            vsyncDuration),
-                                },
-                        });
+        offsets.emplace(fps, constructOffsets(static_cast<nsecs_t>(1e9f / fps)));
     }
     return offsets;
 }
@@ -295,8 +287,16 @@ PhaseOffsets::Offsets PhaseDurations::getOffsetsForRefreshRate(float fps) const 
     const auto iter = std::find_if(mOffsets.begin(), mOffsets.end(), [=](const auto& candidateFps) {
         return fpsEqualsWithMargin(fps, candidateFps.first);
     });
-    LOG_ALWAYS_FATAL_IF(iter == mOffsets.end());
-    return iter->second;
+
+    if (iter != mOffsets.end()) {
+        return iter->second;
+    }
+
+    // Unknown refresh rate. This might happen if we get a hotplug event for the default display.
+    // This happens only during tests and not during regular device operation.
+    // In this case just construct the offset.
+    ALOGW("Can't find offset for %.2f fps", fps);
+    return constructOffsets(static_cast<nsecs_t>(1e9f / fps));
 }
 
 void PhaseDurations::dump(std::string& result) const {

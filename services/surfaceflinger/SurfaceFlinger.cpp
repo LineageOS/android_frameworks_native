@@ -5600,11 +5600,10 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(const sp<DisplayDe
             repaintEverythingForHWC();
         }
 
-        auto configId = HwcConfigIndexType(defaultConfig);
-        display->setActiveConfig(configId);
+        display->setActiveConfig(defaultConfig);
         const nsecs_t vsyncPeriod =
-                mRefreshRateConfigs->getRefreshRateFromConfigId(configId).vsyncPeriod;
-        mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value, configId,
+                getHwComposer().getConfigs(*displayId)[defaultConfig.value()]->getVsyncPeriod();
+        mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value, defaultConfig,
                                     vsyncPeriod);
         return NO_ERROR;
     }
