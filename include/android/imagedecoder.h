@@ -159,6 +159,25 @@ int AImageDecoder_setAndroidBitmapFormat(AImageDecoder*,
 int AImageDecoder_setUnpremultipliedRequired(AImageDecoder*, bool required) __INTRODUCED_IN(30);
 
 /**
+ * Choose the dataspace for the output.
+ *
+ * Not supported for {@link ANDROID_BITMAP_FORMAT_A_8}, which does not support
+ * an ADataSpace.
+ *
+ * @param dataspace The {@link ADataSpace} to decode into. An ADataSpace
+ *                  specifies how to interpret the colors. By default,
+ *                  AImageDecoder will decode into the ADataSpace specified by
+ *                  {@link AImageDecoderHeaderInfo_getDataSpace}. If this
+ *                  parameter is set to a different ADataSpace, AImageDecoder
+ *                  will transform the output into the specified ADataSpace.
+ * @return - {@link ANDROID_IMAGE_DECODER_SUCCESS} on success
+ *         - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER} for a null
+ *           AImageDecoder or an integer that does not correspond to an
+ *           ADataSpace value.
+ */
+int AImageDecoder_setDataSpace(AImageDecoder*, int32_t dataspace) __INTRODUCED_IN(30);
+
+/**
  * Specify the output size for a decoded image.
  *
  * Future calls to {@link AImageDecoder_decodeImage} will sample or scale the
@@ -280,6 +299,25 @@ AndroidBitmapFormat AImageDecoderHeaderInfo_getAndroidBitmapFormat(
  * For animated images only the opacity of the first frame is reported.
  */
 int AImageDecoderHeaderInfo_getAlphaFlags(
+        const AImageDecoderHeaderInfo*) __INTRODUCED_IN(30);
+
+/**
+ * Report the dataspace the AImageDecoder will decode to by default.
+ * AImageDecoder will try to choose one that is sensible for the
+ * image and the system. Note that this may not exactly match the ICC
+ * profile (or other color information) stored in the encoded image.
+ *
+ * @return The {@link ADataSpace} most closely representing the way the colors
+ *         are encoded (or {@link ADATASPACE_UNKNOWN} if there is not an
+ *         approximate ADataSpace). This specifies how to interpret the colors
+ *         in the decoded image, unless {@link AImageDecoder_setDataSpace} is
+ *         called to decode to a different ADataSpace.
+ *
+ *         Note that ADataSpace only exposes a few values. This may return
+ *         ADATASPACE_UNKNOWN, even for Named ColorSpaces, if they have no
+ *         corresponding ADataSpace.
+ */
+int32_t AImageDecoderHeaderInfo_getDataSpace(
         const AImageDecoderHeaderInfo*) __INTRODUCED_IN(30);
 
 /**
