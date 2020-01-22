@@ -184,6 +184,7 @@ public:
     virtual bool isUsingVrComposer() const = 0;
 
     // Composer 2.4
+    virtual DisplayConnectionType getDisplayConnectionType(DisplayId) const = 0;
     virtual bool isVsyncPeriodSwitchSupported(DisplayId displayId) const = 0;
     virtual nsecs_t getDisplayVsyncPeriod(DisplayId displayId) const = 0;
     virtual status_t setActiveConfigWithConstraints(
@@ -319,6 +320,7 @@ public:
     bool isUsingVrComposer() const override;
 
     // Composer 2.4
+    DisplayConnectionType getDisplayConnectionType(DisplayId) const override;
     bool isVsyncPeriodSwitchSupported(DisplayId displayId) const override;
     nsecs_t getDisplayVsyncPeriod(DisplayId displayId) const override;
     status_t setActiveConfigWithConstraints(DisplayId displayId, size_t configId,

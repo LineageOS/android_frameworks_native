@@ -88,6 +88,7 @@ public:
     MOCK_CONST_METHOD1(getColorModes, std::vector<ui::ColorMode>(DisplayId));
     MOCK_METHOD3(setActiveColorMode, status_t(DisplayId, ui::ColorMode, ui::RenderIntent));
     MOCK_CONST_METHOD0(isUsingVrComposer, bool());
+    MOCK_CONST_METHOD1(getDisplayConnectionType, DisplayConnectionType(DisplayId));
     MOCK_CONST_METHOD1(isVsyncPeriodSwitchSupported, bool(DisplayId));
     MOCK_CONST_METHOD1(getDisplayVsyncPeriod, nsecs_t(DisplayId));
     MOCK_METHOD4(setActiveConfigWithConstraints,

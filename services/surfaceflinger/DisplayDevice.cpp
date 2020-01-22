@@ -49,16 +49,16 @@ ui::Transform::RotationFlags DisplayDevice::sPrimaryDisplayRotationFlags = ui::T
 
 DisplayDeviceCreationArgs::DisplayDeviceCreationArgs(const sp<SurfaceFlinger>& flinger,
                                                      const wp<IBinder>& displayToken,
-                                                     const std::optional<DisplayId>& displayId)
+                                                     std::optional<DisplayId> displayId)
       : flinger(flinger), displayToken(displayToken), displayId(displayId) {}
 
 DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
       : mFlinger(args.flinger),
         mDisplayToken(args.displayToken),
         mSequenceId(args.sequenceId),
-        mIsVirtual(args.isVirtual),
+        mConnectionType(args.connectionType),
         mCompositionDisplay{mFlinger->getCompositionEngine().createDisplay(
-                compositionengine::DisplayCreationArgs{args.isVirtual, args.displayId,
+                compositionengine::DisplayCreationArgs{args.isVirtual(), args.displayId,
                                                        args.powerAdvisor})},
         mPhysicalOrientation(args.physicalOrientation),
         mIsPrimary(args.isPrimary) {
@@ -248,10 +248,18 @@ ui::Transform::RotationFlags DisplayDevice::getPrimaryDisplayRotationFlags() {
 }
 
 std::string DisplayDevice::getDebugName() const {
-    const auto id = getId() ? to_string(*getId()) + ", " : std::string();
-    return base::StringPrintf("DisplayDevice{%s%s%s\"%s\"}", id.c_str(),
-                              isPrimary() ? "primary, " : "", isVirtual() ? "virtual, " : "",
-                              mDisplayName.c_str());
+    std::string displayId;
+    if (const auto id = getId()) {
+        displayId = to_string(*id) + ", ";
+    }
+
+    const char* type = "virtual";
+    if (mConnectionType) {
+        type = *mConnectionType == DisplayConnectionType::Internal ? "internal" : "external";
+    }
+
+    return base::StringPrintf("DisplayDevice{%s%s%s, \"%s\"}", displayId.c_str(), type,
+                              isPrimary() ? ", primary" : "", mDisplayName.c_str());
 }
 
 void DisplayDevice::dump(std::string& result) const {
