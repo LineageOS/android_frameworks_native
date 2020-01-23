@@ -76,6 +76,9 @@ struct InputMessage {
     } header;
 
     // Body *must* be 8 byte aligned.
+    // For keys and motions, rely on the fact that std::array takes up exactly as much space
+    // as the underlying data. This is not guaranteed by C++, but it simplifies the conversions.
+    static_assert(sizeof(std::array<uint8_t, 32>) == 32);
     union Body {
         struct Key {
             uint32_t seq;
@@ -84,6 +87,7 @@ struct InputMessage {
             int32_t deviceId;
             int32_t source;
             int32_t displayId;
+            std::array<uint8_t, 32> hmac;
             int32_t action;
             int32_t flags;
             int32_t keyCode;
@@ -103,6 +107,7 @@ struct InputMessage {
             int32_t deviceId;
             int32_t source;
             int32_t displayId;
+            std::array<uint8_t, 32> hmac;
             int32_t action;
             int32_t actionButton;
             int32_t flags;
@@ -112,6 +117,8 @@ struct InputMessage {
             uint8_t empty2[3];                   // 3 bytes to fill gap created by classification
             int32_t edgeFlags;
             nsecs_t downTime __attribute__((aligned(8)));
+            float xScale;
+            float yScale;
             float xOffset;
             float yOffset;
             float xPrecision;
@@ -269,19 +276,10 @@ public:
      * Returns BAD_VALUE if seq is 0.
      * Other errors probably indicate that the channel is broken.
      */
-    status_t publishKeyEvent(
-            uint32_t seq,
-            int32_t deviceId,
-            int32_t source,
-            int32_t displayId,
-            int32_t action,
-            int32_t flags,
-            int32_t keyCode,
-            int32_t scanCode,
-            int32_t metaState,
-            int32_t repeatCount,
-            nsecs_t downTime,
-            nsecs_t eventTime);
+    status_t publishKeyEvent(uint32_t seq, int32_t deviceId, int32_t source, int32_t displayId,
+                             std::array<uint8_t, 32> hmac, int32_t action, int32_t flags,
+                             int32_t keyCode, int32_t scanCode, int32_t metaState,
+                             int32_t repeatCount, nsecs_t downTime, nsecs_t eventTime);
 
     /* Publishes a motion event to the input channel.
      *
@@ -292,9 +290,10 @@ public:
      * Other errors probably indicate that the channel is broken.
      */
     status_t publishMotionEvent(uint32_t seq, int32_t deviceId, int32_t source, int32_t displayId,
-                                int32_t action, int32_t actionButton, int32_t flags,
-                                int32_t edgeFlags, int32_t metaState, int32_t buttonState,
-                                MotionClassification classification, float xOffset, float yOffset,
+                                std::array<uint8_t, 32> hmac, int32_t action, int32_t actionButton,
+                                int32_t flags, int32_t edgeFlags, int32_t metaState,
+                                int32_t buttonState, MotionClassification classification,
+                                float xScale, float yScale, float xOffset, float yOffset,
                                 float xPrecision, float yPrecision, float xCursorPosition,
                                 float yCursorPosition, nsecs_t downTime, nsecs_t eventTime,
                                 uint32_t pointerCount, const PointerProperties* pointerProperties,

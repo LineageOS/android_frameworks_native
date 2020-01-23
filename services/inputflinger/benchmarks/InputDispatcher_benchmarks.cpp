@@ -203,9 +203,10 @@ static MotionEvent generateMotionEvent() {
     const nsecs_t currentTime = now();
 
     MotionEvent event;
-    event.initialize(DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+    event.initialize(DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_DOWN, /* actionButton */ 0, /* flags */ 0,
                      /* edgeFlags */ 0, AMETA_NONE, /* buttonState */ 0, MotionClassification::NONE,
+                     1 /* xScale */, 1 /* yScale */,
                      /* xOffset */ 0, /* yOffset */ 0, /* xPrecision */ 0,
                      /* yPrecision */ 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, currentTime, currentTime,

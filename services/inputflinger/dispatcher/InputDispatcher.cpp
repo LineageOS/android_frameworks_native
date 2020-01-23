@@ -2410,7 +2410,7 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                 status = connection->inputPublisher
                                  .publishKeyEvent(dispatchEntry->seq, keyEntry->deviceId,
                                                   keyEntry->source, keyEntry->displayId,
-                                                  dispatchEntry->resolvedAction,
+                                                  INVALID_HMAC, dispatchEntry->resolvedAction,
                                                   dispatchEntry->resolvedFlags, keyEntry->keyCode,
                                                   keyEntry->scanCode, keyEntry->metaState,
                                                   keyEntry->repeatCount, keyEntry->downTime,
@@ -2457,12 +2457,14 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                 status = connection->inputPublisher
                                  .publishMotionEvent(dispatchEntry->seq, motionEntry->deviceId,
                                                      motionEntry->source, motionEntry->displayId,
-                                                     dispatchEntry->resolvedAction,
+                                                     INVALID_HMAC, dispatchEntry->resolvedAction,
                                                      motionEntry->actionButton,
                                                      dispatchEntry->resolvedFlags,
                                                      motionEntry->edgeFlags, motionEntry->metaState,
                                                      motionEntry->buttonState,
-                                                     motionEntry->classification, xOffset, yOffset,
+                                                     motionEntry->classification,
+                                                     dispatchEntry->windowXScale,
+                                                     dispatchEntry->windowYScale, xOffset, yOffset,
                                                      motionEntry->xPrecision,
                                                      motionEntry->yPrecision,
                                                      motionEntry->xCursorPosition,
@@ -2930,8 +2932,9 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
     accelerateMetaShortcuts(args->deviceId, args->action, keyCode, metaState);
 
     KeyEvent event;
-    event.initialize(args->deviceId, args->source, args->displayId, args->action, flags, keyCode,
-                     args->scanCode, metaState, repeatCount, args->downTime, args->eventTime);
+    event.initialize(args->deviceId, args->source, args->displayId, INVALID_HMAC, args->action,
+                     flags, keyCode, args->scanCode, metaState, repeatCount, args->downTime,
+                     args->eventTime);
 
     android::base::Timer t;
     mPolicy->interceptKeyBeforeQueueing(&event, /*byref*/ policyFlags);
@@ -3024,9 +3027,10 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
             mLock.unlock();
 
             MotionEvent event;
-            event.initialize(args->deviceId, args->source, args->displayId, args->action,
-                             args->actionButton, args->flags, args->edgeFlags, args->metaState,
-                             args->buttonState, args->classification, 0, 0, args->xPrecision,
+            event.initialize(args->deviceId, args->source, args->displayId, INVALID_HMAC,
+                             args->action, args->actionButton, args->flags, args->edgeFlags,
+                             args->metaState, args->buttonState, args->classification, 1 /*xScale*/,
+                             1 /*yScale*/, 0 /* xOffset */, 0 /* yOffset */, args->xPrecision,
                              args->yPrecision, args->xCursorPosition, args->yCursorPosition,
                              args->downTime, args->eventTime, args->pointerCount,
                              args->pointerProperties, args->pointerCoords);
@@ -3126,7 +3130,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
             accelerateMetaShortcuts(keyEvent.getDeviceId(), action,
                                     /*byref*/ keyCode, /*byref*/ metaState);
             keyEvent.initialize(keyEvent.getDeviceId(), keyEvent.getSource(),
-                                keyEvent.getDisplayId(), action, flags, keyCode,
+                                keyEvent.getDisplayId(), INVALID_HMAC, action, flags, keyCode,
                                 keyEvent.getScanCode(), metaState, keyEvent.getRepeatCount(),
                                 keyEvent.getDownTime(), keyEvent.getEventTime());
 
@@ -4682,8 +4686,8 @@ void InputDispatcher::doPokeUserActivityLockedInterruptible(CommandEntry* comman
 
 KeyEvent InputDispatcher::createKeyEvent(const KeyEntry& entry) {
     KeyEvent event;
-    event.initialize(entry.deviceId, entry.source, entry.displayId, entry.action, entry.flags,
-                     entry.keyCode, entry.scanCode, entry.metaState, entry.repeatCount,
+    event.initialize(entry.deviceId, entry.source, entry.displayId, INVALID_HMAC, entry.action,
+                     entry.flags, entry.keyCode, entry.scanCode, entry.metaState, entry.repeatCount,
                      entry.downTime, entry.eventTime);
     return event;
 }
