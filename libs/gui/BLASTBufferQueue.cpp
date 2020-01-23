@@ -48,7 +48,7 @@ BLASTBufferQueue::BLASTBufferQueue(const sp<SurfaceControl>& surface, int width,
     mBufferItemConsumer->setBufferFreedListener(this);
     mBufferItemConsumer->setDefaultBufferSize(mWidth, mHeight);
     mBufferItemConsumer->setDefaultBufferFormat(PIXEL_FORMAT_RGBA_8888);
-    mBufferItemConsumer->setTransformHint(mSurfaceControl->getTransformHint());
+    mTransformHint = mSurfaceControl->getTransformHint();
 
     mNumAcquired = 0;
     mNumFrameAvailable = 0;
@@ -62,7 +62,6 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, int width, int 
     mWidth = width;
     mHeight = height;
     mBufferItemConsumer->setDefaultBufferSize(mWidth, mHeight);
-    mBufferItemConsumer->setTransformHint(mSurfaceControl->getTransformHint());
 }
 
 static void transactionCallbackThunk(void* context, nsecs_t latchTime,
@@ -155,6 +154,7 @@ void BLASTBufferQueue::processNextBufferLocked() {
     t->setFrame(mSurfaceControl, {0, 0, (int32_t)buffer->getWidth(), (int32_t)buffer->getHeight()});
     t->setCrop(mSurfaceControl, computeCrop(bufferItem));
     t->setTransform(mSurfaceControl, bufferItem.mTransform);
+    t->setTransformToDisplayInverse(mSurfaceControl, bufferItem.mTransformToDisplayInverse);
 
     if (applyTransaction) {
         t->apply();
