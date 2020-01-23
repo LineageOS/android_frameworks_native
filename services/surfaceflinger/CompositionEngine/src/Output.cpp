@@ -231,6 +231,14 @@ void Output::setRenderSurface(std::unique_ptr<compositionengine::RenderSurface> 
     dirtyEntireOutput();
 }
 
+void Output::cacheClientCompositionRequests(uint32_t cacheSize) {
+    if (cacheSize == 0) {
+        mClientCompositionRequestCache.reset();
+    } else {
+        mClientCompositionRequestCache = std::make_unique<ClientCompositionRequestCache>(cacheSize);
+    }
+};
+
 void Output::setRenderSurfaceForTest(std::unique_ptr<compositionengine::RenderSurface> surface) {
     mRenderSurface = std::move(surface);
 }
@@ -806,6 +814,7 @@ std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion
     ALOGV(__FUNCTION__);
 
     const auto& outputState = getState();
+    OutputCompositionState& outputCompositionState = editState();
     const TracedOrdinal<bool> hasClientComposition = {"hasClientComposition",
                                                       outputState.usesClientComposition};
     base::unique_fd readyFence;
@@ -839,7 +848,7 @@ std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion
     clientCompositionDisplay.clearRegion = Region::INVALID_REGION;
 
     // Generate the client composition requests for the layers on this output.
-    std::vector<renderengine::LayerSettings> clientCompositionLayers =
+    std::vector<LayerFE::LayerSettings> clientCompositionLayers =
             generateClientCompositionRequests(supportsProtectedContent,
                                               clientCompositionDisplay.clearRegion,
                                               clientCompositionDisplay.outputDataspace);
@@ -871,6 +880,19 @@ std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion
         return std::nullopt;
     }
 
+    // Check if the client composition requests were rendered into the provided graphic buffer. If
+    // so, we can reuse the buffer and avoid client composition.
+    if (mClientCompositionRequestCache) {
+        if (mClientCompositionRequestCache->exists(buf->getId(), clientCompositionDisplay,
+                                                   clientCompositionLayers)) {
+            outputCompositionState.reusedClientComposition = true;
+            setExpensiveRenderingExpected(false);
+            return readyFence;
+        }
+        mClientCompositionRequestCache->add(buf->getId(), clientCompositionDisplay,
+                                            clientCompositionLayers);
+    }
+
     // We boost GPU frequency here because there will be color spaces conversion
     // or complex GPU shaders and it's expensive. We boost the GPU frequency so that
     // GPU composition can finish in time. We must reset GPU frequency afterwards,
@@ -882,10 +904,25 @@ std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion
         setExpensiveRenderingExpected(true);
     }
 
+    std::vector<const renderengine::LayerSettings*> clientCompositionLayerPointers;
+    clientCompositionLayerPointers.reserve(clientCompositionLayers.size());
+    std::transform(clientCompositionLayers.begin(), clientCompositionLayers.end(),
+                   std::back_inserter(clientCompositionLayerPointers),
+                   [](LayerFE::LayerSettings& settings) -> renderengine::LayerSettings* {
+                       return &settings;
+                   });
+
     const nsecs_t renderEngineStart = systemTime();
-    renderEngine.drawLayers(clientCompositionDisplay, clientCompositionLayers,
-                            buf->getNativeBuffer(), /*useFramebufferCache=*/true, std::move(fd),
-                            &readyFence);
+    status_t status =
+            renderEngine.drawLayers(clientCompositionDisplay, clientCompositionLayerPointers,
+                                    buf->getNativeBuffer(), /*useFramebufferCache=*/true,
+                                    std::move(fd), &readyFence);
+
+    if (status != NO_ERROR && mClientCompositionRequestCache) {
+        // If rendering was not successful, remove the request from the cache.
+        mClientCompositionRequestCache->remove(buf->getId());
+    }
+
     auto& timeStats = getCompositionEngine().getTimeStats();
     if (readyFence.get() < 0) {
         timeStats.recordRenderEngineDuration(renderEngineStart, systemTime());
@@ -898,9 +935,9 @@ std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion
     return readyFence;
 }
 
-std::vector<renderengine::LayerSettings> Output::generateClientCompositionRequests(
+std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
         bool supportsProtectedContent, Region& clearRegion, ui::Dataspace outputDataspace) {
-    std::vector<renderengine::LayerSettings> clientCompositionLayers;
+    std::vector<LayerFE::LayerSettings> clientCompositionLayers;
     ALOGV("Rendering client layers");
 
     const auto& outputState = getState();
@@ -944,15 +981,17 @@ std::vector<renderengine::LayerSettings> Output::generateClientCompositionReques
                     supportsProtectedContent,
                     clientComposition ? clearRegion : dummyRegion,
             };
-            if (auto result = layerFE.prepareClientComposition(targetSettings)) {
+            if (std::optional<LayerFE::LayerSettings> result =
+                        layerFE.prepareClientComposition(targetSettings)) {
                 if (!clientComposition) {
-                    auto& layerSettings = *result;
+                    LayerFE::LayerSettings& layerSettings = *result;
                     layerSettings.source.buffer.buffer = nullptr;
                     layerSettings.source.solidColor = half3(0.0, 0.0, 0.0);
                     layerSettings.alpha = half(0.0);
                     layerSettings.disableBlending = true;
+                    layerSettings.frameNumber = 0;
                 } else {
-                    std::optional<renderengine::LayerSettings> shadowLayer =
+                    std::optional<LayerFE::LayerSettings> shadowLayer =
                             layerFE.prepareShadowClientComposition(*result, outputState.viewport,
                                                                    outputDataspace);
                     if (shadowLayer) {
@@ -979,13 +1018,12 @@ std::vector<renderengine::LayerSettings> Output::generateClientCompositionReques
 }
 
 void Output::appendRegionFlashRequests(
-        const Region& flashRegion,
-        std::vector<renderengine::LayerSettings>& clientCompositionLayers) {
+        const Region& flashRegion, std::vector<LayerFE::LayerSettings>& clientCompositionLayers) {
     if (flashRegion.isEmpty()) {
         return;
     }
 
-    renderengine::LayerSettings layerSettings;
+    LayerFE::LayerSettings layerSettings;
     layerSettings.source.buffer.buffer = nullptr;
     layerSettings.source.solidColor = half3(1.0, 0.0, 1.0);
     layerSettings.alpha = half(1.0);
@@ -1065,6 +1103,7 @@ void Output::chooseCompositionStrategy() {
     auto& outputState = editState();
     outputState.usesClientComposition = true;
     outputState.usesDeviceComposition = false;
+    outputState.reusedClientComposition = false;
 }
 
 bool Output::getSkipColorTransform() const {

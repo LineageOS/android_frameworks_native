@@ -50,7 +50,7 @@ ColorLayer::ColorLayer(const LayerCreationArgs& args)
 
 ColorLayer::~ColorLayer() = default;
 
-std::optional<renderengine::LayerSettings> ColorLayer::prepareClientComposition(
+std::optional<compositionengine::LayerFE::LayerSettings> ColorLayer::prepareClientComposition(
         compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) {
     auto result = Layer::prepareClientComposition(targetSettings);
     if (!result) {

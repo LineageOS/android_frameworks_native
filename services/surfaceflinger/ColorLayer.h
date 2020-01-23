@@ -46,7 +46,7 @@ protected:
      * compositionengine::LayerFE overrides
      */
     void latchPerFrameState(compositionengine::LayerFECompositionState&) const override;
-    std::optional<renderengine::LayerSettings> prepareClientComposition(
+    std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
             compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
 
     std::shared_ptr<compositionengine::Layer> mCompositionLayer;

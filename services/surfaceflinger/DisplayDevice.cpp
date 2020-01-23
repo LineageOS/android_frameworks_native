@@ -70,6 +70,12 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
                                                                  args.nativeWindow.get()),
                                                          args.nativeWindow, args.displaySurface});
 
+    if (!mFlinger->mDisableClientCompositionCache &&
+        SurfaceFlinger::maxFrameBufferAcquiredBuffers > 0) {
+        mCompositionDisplay->createClientCompositionCache(
+                static_cast<uint32_t>(SurfaceFlinger::maxFrameBufferAcquiredBuffers));
+    }
+
     mCompositionDisplay->createDisplayColorProfile(
             compositionengine::DisplayColorProfileCreationArgs{args.hasWideColorGamut,
                                                                std::move(args.hdrCapabilities),

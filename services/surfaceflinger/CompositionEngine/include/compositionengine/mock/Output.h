@@ -107,10 +107,11 @@ public:
     MOCK_METHOD0(presentAndGetFrameFences, compositionengine::Output::FrameFences());
 
     MOCK_METHOD3(generateClientCompositionRequests,
-                 std::vector<renderengine::LayerSettings>(bool, Region&, ui::Dataspace));
+                 std::vector<LayerFE::LayerSettings>(bool, Region&, ui::Dataspace));
     MOCK_METHOD2(appendRegionFlashRequests,
-                 void(const Region&, std::vector<renderengine::LayerSettings>&));
+                 void(const Region&, std::vector<LayerFE::LayerSettings>&));
     MOCK_METHOD1(setExpensiveRenderingExpected, void(bool));
+    MOCK_METHOD1(cacheClientCompositionRequests, void(uint32_t));
 };
 
 } // namespace android::compositionengine::mock

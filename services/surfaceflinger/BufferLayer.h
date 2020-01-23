@@ -177,7 +177,7 @@ protected:
      */
     bool onPreComposition(nsecs_t) override;
     void latchPerFrameState(compositionengine::LayerFECompositionState&) const override;
-    std::optional<renderengine::LayerSettings> prepareClientComposition(
+    std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
             compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
 
     // Loads the corresponding system property once per process

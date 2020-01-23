@@ -323,6 +323,10 @@ public:
     // Inherit from ClientCache::ErasedRecipient
     void bufferErased(const client_cache_t& clientCacheId) override;
 
+    // If set, disables reusing client composition buffers. This can be set by
+    // debug.sf.disable_client_composition_cache
+    bool mDisableClientCompositionCache = false;
+
 private:
     friend class BufferLayer;
     friend class BufferQueueLayer;
@@ -987,6 +991,10 @@ private:
     // Note that it is possible for a frame to be composed via both client and device
     // composition, for example in the case of overlays.
     bool mHadDeviceComposition = false;
+    // True if in the previous frame, the client composition was skipped by reusing the buffer
+    // used in a previous composition. This can happed if the client composition requests
+    // did not change.
+    bool mReusedClientComposition = false;
 
     enum class BootStage {
         BOOTLOADER,

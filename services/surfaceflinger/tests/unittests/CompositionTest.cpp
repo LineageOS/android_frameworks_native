@@ -328,8 +328,9 @@ struct BaseDisplayVariant {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillRepeatedly(
                         [](const renderengine::DisplaySettings& displaySettings,
-                           const std::vector<renderengine::LayerSettings>&, ANativeWindowBuffer*,
-                           const bool, base::unique_fd&&, base::unique_fd*) -> status_t {
+                           const std::vector<const renderengine::LayerSettings*>&,
+                           ANativeWindowBuffer*, const bool, base::unique_fd&&,
+                           base::unique_fd*) -> status_t {
                             EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                             EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                                       displaySettings.physicalDisplay);
@@ -377,8 +378,9 @@ struct BaseDisplayVariant {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillRepeatedly(
                         [](const renderengine::DisplaySettings& displaySettings,
-                           const std::vector<renderengine::LayerSettings>&, ANativeWindowBuffer*,
-                           const bool, base::unique_fd&&, base::unique_fd*) -> status_t {
+                           const std::vector<const renderengine::LayerSettings*>&,
+                           ANativeWindowBuffer*, const bool, base::unique_fd&&,
+                           base::unique_fd*) -> status_t {
                             EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                             EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                                       displaySettings.physicalDisplay);
@@ -627,7 +629,7 @@ struct BaseLayerProperties {
     static void setupREBufferCompositionCommonCallExpectations(CompositionTest* test) {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillOnce([](const renderengine::DisplaySettings& displaySettings,
-                             const std::vector<renderengine::LayerSettings>& layerSettings,
+                             const std::vector<const renderengine::LayerSettings*>& layerSettings,
                              ANativeWindowBuffer*, const bool, base::unique_fd&&,
                              base::unique_fd*) -> status_t {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
@@ -643,16 +645,16 @@ struct BaseLayerProperties {
                                          "verification lambda";
                         return NO_ERROR;
                     }
-                    renderengine::LayerSettings layer = layerSettings.back();
-                    EXPECT_THAT(layer.source.buffer.buffer, Not(IsNull()));
-                    EXPECT_THAT(layer.source.buffer.fence, Not(IsNull()));
-                    EXPECT_EQ(DEFAULT_TEXTURE_ID, layer.source.buffer.textureName);
-                    EXPECT_EQ(false, layer.source.buffer.isY410BT2020);
-                    EXPECT_EQ(true, layer.source.buffer.usePremultipliedAlpha);
-                    EXPECT_EQ(false, layer.source.buffer.isOpaque);
-                    EXPECT_EQ(0.0, layer.geometry.roundedCornersRadius);
-                    EXPECT_EQ(ui::Dataspace::UNKNOWN, layer.sourceDataspace);
-                    EXPECT_EQ(LayerProperties::COLOR[3], layer.alpha);
+                    const renderengine::LayerSettings* layer = layerSettings.back();
+                    EXPECT_THAT(layer->source.buffer.buffer, Not(IsNull()));
+                    EXPECT_THAT(layer->source.buffer.fence, Not(IsNull()));
+                    EXPECT_EQ(DEFAULT_TEXTURE_ID, layer->source.buffer.textureName);
+                    EXPECT_EQ(false, layer->source.buffer.isY410BT2020);
+                    EXPECT_EQ(true, layer->source.buffer.usePremultipliedAlpha);
+                    EXPECT_EQ(false, layer->source.buffer.isOpaque);
+                    EXPECT_EQ(0.0, layer->geometry.roundedCornersRadius);
+                    EXPECT_EQ(ui::Dataspace::UNKNOWN, layer->sourceDataspace);
+                    EXPECT_EQ(LayerProperties::COLOR[3], layer->alpha);
                     return NO_ERROR;
                 });
     }
@@ -676,7 +678,7 @@ struct BaseLayerProperties {
     static void setupREColorCompositionCallExpectations(CompositionTest* test) {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillOnce([](const renderengine::DisplaySettings& displaySettings,
-                             const std::vector<renderengine::LayerSettings>& layerSettings,
+                             const std::vector<const renderengine::LayerSettings*>& layerSettings,
                              ANativeWindowBuffer*, const bool, base::unique_fd&&,
                              base::unique_fd*) -> status_t {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
@@ -692,14 +694,14 @@ struct BaseLayerProperties {
                                    "setupREColorCompositionCallExpectations verification lambda";
                         return NO_ERROR;
                     }
-                    renderengine::LayerSettings layer = layerSettings.back();
-                    EXPECT_THAT(layer.source.buffer.buffer, IsNull());
+                    const renderengine::LayerSettings* layer = layerSettings.back();
+                    EXPECT_THAT(layer->source.buffer.buffer, IsNull());
                     EXPECT_EQ(half3(LayerProperties::COLOR[0], LayerProperties::COLOR[1],
                                     LayerProperties::COLOR[2]),
-                              layer.source.solidColor);
-                    EXPECT_EQ(0.0, layer.geometry.roundedCornersRadius);
-                    EXPECT_EQ(ui::Dataspace::UNKNOWN, layer.sourceDataspace);
-                    EXPECT_EQ(LayerProperties::COLOR[3], layer.alpha);
+                              layer->source.solidColor);
+                    EXPECT_EQ(0.0, layer->geometry.roundedCornersRadius);
+                    EXPECT_EQ(ui::Dataspace::UNKNOWN, layer->sourceDataspace);
+                    EXPECT_EQ(LayerProperties::COLOR[3], layer->alpha);
                     return NO_ERROR;
                 });
     }
@@ -752,7 +754,7 @@ struct SecureLayerProperties : public BaseLayerProperties<SecureLayerProperties>
     static void setupInsecureREBufferCompositionCommonCallExpectations(CompositionTest* test) {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillOnce([](const renderengine::DisplaySettings& displaySettings,
-                             const std::vector<renderengine::LayerSettings>& layerSettings,
+                             const std::vector<const renderengine::LayerSettings*>& layerSettings,
                              ANativeWindowBuffer*, const bool, base::unique_fd&&,
                              base::unique_fd*) -> status_t {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
@@ -768,12 +770,12 @@ struct SecureLayerProperties : public BaseLayerProperties<SecureLayerProperties>
                                          "verification lambda";
                         return NO_ERROR;
                     }
-                    renderengine::LayerSettings layer = layerSettings.back();
-                    EXPECT_THAT(layer.source.buffer.buffer, IsNull());
-                    EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), layer.source.solidColor);
-                    EXPECT_EQ(0.0, layer.geometry.roundedCornersRadius);
-                    EXPECT_EQ(ui::Dataspace::UNKNOWN, layer.sourceDataspace);
-                    EXPECT_EQ(1.0f, layer.alpha);
+                    const renderengine::LayerSettings* layer = layerSettings.back();
+                    EXPECT_THAT(layer->source.buffer.buffer, IsNull());
+                    EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), layer->source.solidColor);
+                    EXPECT_EQ(0.0, layer->geometry.roundedCornersRadius);
+                    EXPECT_EQ(ui::Dataspace::UNKNOWN, layer->sourceDataspace);
+                    EXPECT_EQ(1.0f, layer->alpha);
                     return NO_ERROR;
                 });
     }

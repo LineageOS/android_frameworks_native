@@ -45,6 +45,9 @@ struct OutputCompositionState {
     // composition
     bool flipClientTarget{false};
 
+    // If true, the current frame reused the buffer from a previous client composition
+    bool reusedClientComposition{false};
+
     // If true, this output displays layers that are internal-only
     bool layerStackInternal{false};
 

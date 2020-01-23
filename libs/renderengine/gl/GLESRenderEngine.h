@@ -71,7 +71,8 @@ public:
     bool isProtected() const override { return mInProtectedContext; }
     bool supportsProtectedContent() const override;
     bool useProtectedContext(bool useProtectedContext) override;
-    status_t drawLayers(const DisplaySettings& display, const std::vector<LayerSettings>& layers,
+    status_t drawLayers(const DisplaySettings& display,
+                        const std::vector<const LayerSettings*>& layers,
                         ANativeWindowBuffer* buffer, const bool useFramebufferCache,
                         base::unique_fd&& bufferFence, base::unique_fd* drawFence) override;
 
