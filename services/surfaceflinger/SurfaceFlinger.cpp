@@ -353,7 +353,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     property_get("debug.sf.luma_sampling", value, "1");
     mLumaSampling = atoi(value);
 
-    property_get("debug.sf.disable_client_composition_cache", value, "1");
+    property_get("debug.sf.disable_client_composition_cache", value, "0");
     mDisableClientCompositionCache = atoi(value);
 
     // We should be reading 'persist.sys.sf.color_saturation' here
