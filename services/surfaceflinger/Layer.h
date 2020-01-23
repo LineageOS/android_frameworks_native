@@ -78,11 +78,11 @@ class SurfaceInterceptor;
 // ---------------------------------------------------------------------------
 
 struct LayerCreationArgs {
-    LayerCreationArgs(SurfaceFlinger* flinger, const sp<Client>& client, std::string name,
+    LayerCreationArgs(SurfaceFlinger* flinger, const sp<Client> client, std::string name,
                       uint32_t w, uint32_t h, uint32_t flags, LayerMetadata metadata);
 
     SurfaceFlinger* flinger;
-    const sp<Client>& client;
+    const sp<Client> client;
     std::string name;
     uint32_t w;
     uint32_t h;
