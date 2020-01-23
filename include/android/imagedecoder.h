@@ -159,6 +159,25 @@ int AImageDecoder_setAndroidBitmapFormat(AImageDecoder*,
 int AImageDecoder_setUnpremultipliedRequired(AImageDecoder*, bool required) __INTRODUCED_IN(30);
 
 /**
+ * Choose the dataspace for the output.
+ *
+ * Not supported for {@link ANDROID_BITMAP_FORMAT_A_8}, which does not support
+ * an ADataSpace.
+ *
+ * @param dataspace The {@link ADataSpace} to decode into. An ADataSpace
+ *                  specifies how to interpret the colors. By default,
+ *                  AImageDecoder will decode into the ADataSpace specified by
+ *                  {@link AImageDecoderHeaderInfo_getDataSpace}. If this
+ *                  parameter is set to a different ADataSpace, AImageDecoder
+ *                  will transform the output into the specified ADataSpace.
+ * @return - {@link ANDROID_IMAGE_DECODER_SUCCESS} on success
+ *         - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER} for a null
+ *           AImageDecoder or an integer that does not correspond to an
+ *           ADataSpace value.
+ */
+int AImageDecoder_setDataSpace(AImageDecoder*, int32_t dataspace) __INTRODUCED_IN(30);
+
+/**
  * Specify the output size for a decoded image.
  *
  * Future calls to {@link AImageDecoder_decodeImage} will sample or scale the
@@ -179,6 +198,28 @@ int AImageDecoder_setUnpremultipliedRequired(AImageDecoder*, bool required) __IN
  */
 int AImageDecoder_setTargetSize(AImageDecoder*, int width, int height) __INTRODUCED_IN(30);
 
+
+/**
+ * Compute the dimensions to use for a given sampleSize.
+ *
+ * Although AImageDecoder can scale to an arbitrary target size (see
+ * {@link AImageDecoder_setTargetSize}), some sizes may be more efficient than
+ * others. This computes the most efficient target size to use to reach a
+ * particular sampleSize.
+ *
+ * @param sampleSize A subsampling rate of the original image. Must be greater
+ *                   than or equal to 1. A sampleSize of 2 means to skip every
+ *                   other pixel/line, resulting in a width and height that are
+ *                   1/2 of the original dimensions, with 1/4 the number of
+ *                   pixels.
+ * @param width Out parameter for the width sampled by sampleSize, and rounded
+ *              direction that the decoder can do most efficiently.
+ * @param height Out parameter for the height sampled by sampleSize, and rounded
+ *               direction that the decoder can do most efficiently.
+ * @return ANDROID_IMAGE_DECODER result code.
+ */
+int AImageDecoder_computeSampledSize(const AImageDecoder*, int sampleSize,
+                                     int* width, int* height) __INTRODUCED_IN(30);
 /**
  * Specify how to crop the output after scaling (if any).
  *
@@ -258,6 +299,25 @@ AndroidBitmapFormat AImageDecoderHeaderInfo_getAndroidBitmapFormat(
  * For animated images only the opacity of the first frame is reported.
  */
 int AImageDecoderHeaderInfo_getAlphaFlags(
+        const AImageDecoderHeaderInfo*) __INTRODUCED_IN(30);
+
+/**
+ * Report the dataspace the AImageDecoder will decode to by default.
+ * AImageDecoder will try to choose one that is sensible for the
+ * image and the system. Note that this may not exactly match the ICC
+ * profile (or other color information) stored in the encoded image.
+ *
+ * @return The {@link ADataSpace} most closely representing the way the colors
+ *         are encoded (or {@link ADATASPACE_UNKNOWN} if there is not an
+ *         approximate ADataSpace). This specifies how to interpret the colors
+ *         in the decoded image, unless {@link AImageDecoder_setDataSpace} is
+ *         called to decode to a different ADataSpace.
+ *
+ *         Note that ADataSpace only exposes a few values. This may return
+ *         ADATASPACE_UNKNOWN, even for Named ColorSpaces, if they have no
+ *         corresponding ADataSpace.
+ */
+int32_t AImageDecoderHeaderInfo_getDataSpace(
         const AImageDecoderHeaderInfo*) __INTRODUCED_IN(30);
 
 /**

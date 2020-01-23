@@ -605,6 +605,11 @@ public:
             return *this;
         }
 
+        auto& setPhysicalOrientation(ui::Rotation orientation) {
+            mCreationArgs.physicalOrientation = orientation;
+            return *this;
+        }
+
         sp<DisplayDevice> inject() {
             DisplayDeviceState state;
             state.displayId = mCreationArgs.isVirtual ? std::nullopt : mCreationArgs.displayId;

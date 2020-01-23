@@ -35,7 +35,7 @@ void HwcBufferCache::getHwcBuffer(int slot, const sp<GraphicBuffer>& buffer, uin
         slot >= BufferQueue::NUM_BUFFER_SLOTS) {
         *outSlot = 0;
     } else {
-        *outSlot = slot;
+        *outSlot = static_cast<uint32_t>(slot);
     }
 
     auto& currentBuffer = mBuffers[*outSlot];
