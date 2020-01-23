@@ -223,7 +223,8 @@ int cmdMain(const std::vector<std::string_view>& argv, TextOutput& outputLog, Te
     sp<MyResultReceiver> result = new MyResultReceiver();
 
 #if DEBUG
-    ALOGD("cmd: Invoking %s in=%d, out=%d, err=%d", cmd, in, out, err);
+    ALOGD("cmd: Invoking %.*s in=%d, out=%d, err=%d",
+          static_cast<int>(cmd.size()), cmd.data(), in, out, err);
 #endif
 
     // TODO: block until a result is returned to MyResultReceiver.
