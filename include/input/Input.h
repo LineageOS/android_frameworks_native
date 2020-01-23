@@ -266,6 +266,38 @@ enum class MotionClassification : uint8_t {
 const char* motionClassificationToString(MotionClassification classification);
 
 /**
+ * Generator of unique numbers used to identify input events.
+ *
+ * Layout of ID:
+ *     |--------------------------|---------------------------|
+ *     |   2 bits for source      | 30 bits for random number |
+ *     |--------------------------|---------------------------|
+ */
+class IdGenerator {
+private:
+    static constexpr uint32_t SOURCE_SHIFT = 30;
+
+public:
+    // Used to divide integer space to ensure no conflict among these sources./
+    enum class Source : int32_t {
+        INPUT_READER = 0x0 << SOURCE_SHIFT,
+        INPUT_DISPATCHER = 0x1 << SOURCE_SHIFT,
+        OTHER = 0x3 << SOURCE_SHIFT, // E.g. app injected events
+    };
+    IdGenerator(Source source);
+
+    int32_t nextId() const;
+
+    // Extract source from given id.
+    static inline Source getSource(int32_t id) { return static_cast<Source>(SOURCE_MASK & id); }
+
+private:
+    const Source mSource;
+
+    static constexpr int32_t SOURCE_MASK = 0x3 << SOURCE_SHIFT;
+};
+
+/**
  * Invalid value for cursor position. Used for non-mouse events, tests and injected events. Don't
  * use it for direct comparison with any other value, because NaN isn't equal to itself according to
  * IEEE 754. Use isnan() instead to check if a cursor position is valid.
