@@ -30,7 +30,7 @@ namespace gl {
 class BlurFilter {
 public:
     // Downsample FBO to improve performance
-    static constexpr float kFboScale = 0.35f;
+    static constexpr float kFboScale = 0.25f;
 
     explicit BlurFilter(GLESRenderEngine& engine);
     virtual ~BlurFilter(){};
@@ -54,6 +54,8 @@ protected:
     GLFramebuffer mCompositionFbo;
     // Frame buffer holding the blur result.
     GLFramebuffer mBlurredFbo;
+    uint32_t mDisplayWidth;
+    uint32_t mDisplayHeight;
 
 private:
     bool mTexturesAllocated = false;
