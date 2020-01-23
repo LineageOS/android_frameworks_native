@@ -552,9 +552,10 @@ bool TouchInputMapper::hasExternalStylus() const {
  * Determine which DisplayViewport to use.
  * 1. If display port is specified, return the matching viewport. If matching viewport not
  * found, then return.
- * 2. If a device has associated display, get the matching viewport by either unique id or by
+ * 2. Always use the suggested viewport from WindowManagerService for pointers.
+ * 3. If a device has associated display, get the matching viewport by either unique id or by
  * the display type (internal or external).
- * 3. Otherwise, use a non-display viewport.
+ * 4. Otherwise, use a non-display viewport.
  */
 std::optional<DisplayViewport> TouchInputMapper::findViewport() {
     if (mParameters.hasAssociatedDisplay) {
@@ -562,6 +563,17 @@ std::optional<DisplayViewport> TouchInputMapper::findViewport() {
         if (displayPort) {
             // Find the viewport that contains the same port
             return mDevice->getAssociatedViewport();
+        }
+
+        if (mDeviceMode == DEVICE_MODE_POINTER) {
+            std::optional<DisplayViewport> viewport =
+                    mConfig.getDisplayViewportById(mConfig.defaultPointerDisplayId);
+            if (viewport) {
+                return viewport;
+            } else {
+                ALOGW("Can't find designated display viewport with ID %" PRId32 " for pointers.",
+                      mConfig.defaultPointerDisplayId);
+            }
         }
 
         // Check if uniqueDisplayId is specified in idc file.
@@ -749,6 +761,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
         (mDeviceMode == DEVICE_MODE_DIRECT && mConfig.showTouches)) {
         if (mPointerController == nullptr || viewportChanged) {
             mPointerController = getPolicy()->obtainPointerController(getDeviceId());
+            mPointerController->setDisplayViewport(mViewport);
         }
     } else {
         mPointerController.clear();

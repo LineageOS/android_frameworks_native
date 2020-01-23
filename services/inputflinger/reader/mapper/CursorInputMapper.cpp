@@ -189,10 +189,30 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
 
         // Update the PointerController if viewports changed.
         if (mParameters.mode == Parameters::MODE_POINTER) {
-            getPolicy()->obtainPointerController(getDeviceId());
+            updatePointerControllerDisplayViewport(*config);
         }
         bumpGeneration();
     }
+}
+
+void CursorInputMapper::updatePointerControllerDisplayViewport(
+        const InputReaderConfiguration& config) {
+    std::optional<DisplayViewport> viewport =
+            config.getDisplayViewportById(config.defaultPointerDisplayId);
+    if (!viewport) {
+        ALOGW("Can't find the designated viewport with ID %" PRId32 " to update cursor input "
+              "mapper. Fall back to default display",
+              config.defaultPointerDisplayId);
+        viewport = config.getDisplayViewportById(ADISPLAY_ID_DEFAULT);
+    }
+
+    if (!viewport) {
+        ALOGE("Still can't find a viable viewport to update cursor input mapper. Skip setting it to"
+              " PointerController.");
+        return;
+    }
+
+    mPointerController->setDisplayViewport(*viewport);
 }
 
 void CursorInputMapper::configureParameters() {
