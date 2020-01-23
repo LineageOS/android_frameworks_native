@@ -52,6 +52,13 @@ std::optional<nsecs_t> VSyncDispatchTimerQueueEntry::wakeupTime() const {
     return {mArmedInfo->mActualWakeupTime};
 }
 
+std::optional<nsecs_t> VSyncDispatchTimerQueueEntry::targetVsync() const {
+    if (!mArmedInfo) {
+        return {};
+    }
+    return {mArmedInfo->mActualVsyncTime};
+}
+
 ScheduleResult VSyncDispatchTimerQueueEntry::schedule(nsecs_t workDuration, nsecs_t earliestVsync,
                                                       VSyncTracker& tracker, nsecs_t now) {
     auto nextVsyncTime =
@@ -143,9 +150,21 @@ void VSyncDispatchTimerQueue::rearmTimer(nsecs_t now) {
     rearmTimerSkippingUpdateFor(now, mCallbacks.end());
 }
 
+void VSyncDispatchTimerQueue::TraceBuffer::note(std::string_view name, nsecs_t alarmIn,
+                                                nsecs_t vsFor) {
+    if (ATRACE_ENABLED()) {
+        snprintf(str_buffer.data(), str_buffer.size(), "%.4s%s%" PRId64 "%s%" PRId64,
+                 name.substr(0, kMaxNamePrint).data(), kTraceNamePrefix, alarmIn,
+                 kTraceNameSeparator, vsFor);
+    }
+    ATRACE_NAME(str_buffer.data());
+}
+
 void VSyncDispatchTimerQueue::rearmTimerSkippingUpdateFor(
         nsecs_t now, CallbackMap::iterator const& skipUpdateIt) {
     std::optional<nsecs_t> min;
+    std::optional<nsecs_t> targetVsync;
+    std::optional<std::string_view> nextWakeupName;
     for (auto it = mCallbacks.begin(); it != mCallbacks.end(); it++) {
         auto& callback = it->second;
         if (!callback->wakeupTime()) {
@@ -157,13 +176,19 @@ void VSyncDispatchTimerQueue::rearmTimerSkippingUpdateFor(
         }
         auto const wakeupTime = *callback->wakeupTime();
         if (!min || (min && *min > wakeupTime)) {
+            nextWakeupName = callback->name();
             min = wakeupTime;
+            targetVsync = callback->targetVsync();
         }
     }
 
     if (min && (min < mIntendedWakeupTime)) {
+        if (targetVsync && nextWakeupName) {
+            mTraceBuffer.note(*nextWakeupName, *min - now, *targetVsync - now);
+        }
         setTimer(*min, now);
     } else {
+        ATRACE_NAME("cancel timer");
         cancelTimer();
     }
 }

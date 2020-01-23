@@ -23,26 +23,33 @@
 #include "VSyncPredictor.h"
 #include <android-base/logging.h>
 #include <cutils/compiler.h>
+#include <cutils/properties.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
 #include <algorithm>
 #include <chrono>
 #include <sstream>
-#include "SchedulerUtils.h"
 
 namespace android::scheduler {
-static auto constexpr kNeedsSamplesTag = "SamplesRequested";
+
 static auto constexpr kMaxPercent = 100u;
 
 VSyncPredictor::~VSyncPredictor() = default;
 
 VSyncPredictor::VSyncPredictor(nsecs_t idealPeriod, size_t historySize,
                                size_t minimumSamplesForPrediction, uint32_t outlierTolerancePercent)
-      : kHistorySize(historySize),
+      : mTraceOn(property_get_bool("debug.sf.vsp_trace", false)),
+        kHistorySize(historySize),
         kMinimumSamplesForPrediction(minimumSamplesForPrediction),
         kOutlierTolerancePercent(std::min(outlierTolerancePercent, kMaxPercent)),
         mIdealPeriod(idealPeriod) {
     resetModel();
+}
+
+inline void VSyncPredictor::traceInt64If(const char* name, int64_t value) const {
+    if (CC_UNLIKELY(mTraceOn)) {
+        ATRACE_INT64(name, value);
+    }
 }
 
 inline size_t VSyncPredictor::next(int i) const {
@@ -68,7 +75,7 @@ void VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
     std::lock_guard<std::mutex> lk(mMutex);
 
     if (!validate(timestamp)) {
-        ALOGW("timestamp was too far off the last known timestamp");
+        ALOGV("timestamp was too far off the last known timestamp");
         return;
     }
 
@@ -114,6 +121,8 @@ void VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
     static constexpr int kScalingFactor = 10;
 
     for (auto i = 0u; i < timestamps.size(); i++) {
+        traceInt64If("VSP-ts", timestamps[i]);
+
         vsyncTS[i] = timestamps[i] - oldest_ts;
         ordinals[i] = ((vsyncTS[i] + (currentPeriod / 2)) / currentPeriod) * kScalingFactor;
     }
@@ -140,6 +149,9 @@ void VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
     nsecs_t const anticipatedPeriod = top / bottom * kScalingFactor;
     nsecs_t const intercept = meanTS - (anticipatedPeriod * meanOrdinal / kScalingFactor);
 
+    traceInt64If("VSP-period", anticipatedPeriod);
+    traceInt64If("VSP-intercept", intercept);
+
     it->second = {anticipatedPeriod, intercept};
 
     ALOGV("model update ts: %" PRId64 " slope: %" PRId64 " intercept: %" PRId64, timestamp,
@@ -152,6 +164,7 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
     auto const [slope, intercept] = getVSyncPredictionModel(lk);
 
     if (timestamps.empty()) {
+        traceInt64If("VSP-mode", 1);
         auto const knownTimestamp = mKnownTimestamp ? *mKnownTimestamp : timePoint;
         auto const numPeriodsOut = ((timePoint - knownTimestamp) / mIdealPeriod) + 1;
         return knownTimestamp + numPeriodsOut * mIdealPeriod;
@@ -163,6 +176,10 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
     auto const zeroPoint = oldest + intercept;
     auto const ordinalRequest = (timePoint - zeroPoint + slope) / slope;
     auto const prediction = (ordinalRequest * slope) + intercept + oldest;
+
+    traceInt64If("VSP-mode", 0);
+    traceInt64If("VSP-timePoint", timePoint);
+    traceInt64If("VSP-prediction", prediction);
 
     auto const printer = [&, slope = slope, intercept = intercept] {
         std::stringstream str;
@@ -227,7 +244,7 @@ bool VSyncPredictor::needsMoreSamples(nsecs_t now) const {
         }
     }
 
-    ATRACE_INT(kNeedsSamplesTag, needsMoreSamples);
+    ATRACE_INT("VSP-moreSamples", needsMoreSamples);
     return needsMoreSamples;
 }
 
