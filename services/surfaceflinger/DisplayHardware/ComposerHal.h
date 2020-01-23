@@ -228,6 +228,11 @@ public:
             std::vector<IComposerClient::ContentType>* outSupportedContentTypes) = 0;
     virtual V2_4::Error setContentType(Display displayId,
                                        IComposerClient::ContentType contentType) = 0;
+    virtual V2_4::Error setLayerGenericMetadata(Display display, Layer layer,
+                                                const std::string& key, bool mandatory,
+                                                const std::vector<uint8_t>& value) = 0;
+    virtual V2_4::Error getLayerGenericMetadataKeys(
+            std::vector<IComposerClient::LayerGenericMetadataKey>* outKeys) = 0;
 };
 
 namespace impl {
@@ -463,6 +468,10 @@ public:
             std::vector<IComposerClient::ContentType>* outSupportedContentTypes) override;
     V2_4::Error setContentType(Display displayId,
                                IComposerClient::ContentType contentType) override;
+    V2_4::Error setLayerGenericMetadata(Display display, Layer layer, const std::string& key,
+                                        bool mandatory, const std::vector<uint8_t>& value) override;
+    V2_4::Error getLayerGenericMetadataKeys(
+            std::vector<IComposerClient::LayerGenericMetadataKey>* outKeys) override;
 
 private:
 #if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER

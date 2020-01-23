@@ -257,6 +257,10 @@ public:
             uint32_t* outDisplayRequestMask, std::vector<Layer>* outRequestedLayers,
             std::vector<uint32_t>* outRequestMasks,
             IComposerClient::ClientTargetProperty* outClientTargetProperty) override;
+    V2_4::Error setLayerGenericMetadata(Display display, Layer layer, const std::string& key,
+                                        bool mandatory, const std::vector<uint8_t>& value) override;
+    V2_4::Error getLayerGenericMetadataKeys(
+            std::vector<IComposerClient::LayerGenericMetadataKey>* outKeys) override;
 
     void setClient(ComposerClient* client);
 

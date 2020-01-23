@@ -134,6 +134,11 @@ public:
     MOCK_METHOD2(getSupportedContentTypes,
                  V2_4::Error(Display, std::vector<IComposerClient::ContentType>*));
     MOCK_METHOD2(setContentType, V2_4::Error(Display, IComposerClient::ContentType));
+    MOCK_METHOD5(setLayerGenericMetadata,
+                 V2_4::Error(Display, Layer, const std::string&, bool,
+                             const std::vector<uint8_t>&));
+    MOCK_METHOD1(getLayerGenericMetadataKeys,
+                 V2_4::Error(std::vector<IComposerClient::LayerGenericMetadataKey>*));
 };
 
 } // namespace mock

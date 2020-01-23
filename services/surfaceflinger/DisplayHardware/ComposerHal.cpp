@@ -1324,6 +1324,36 @@ V2_4::Error Composer::setContentType(Display display, IComposerClient::ContentTy
     return mClient_2_4->setContentType(display, contentType);
 }
 
+V2_4::Error Composer::setLayerGenericMetadata(Display display, Layer layer, const std::string& key,
+                                              bool mandatory, const std::vector<uint8_t>& value) {
+    using Error = V2_4::Error;
+    if (!mClient_2_4) {
+        return Error::UNSUPPORTED;
+    }
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerGenericMetadata(key, mandatory, value);
+    return Error::NONE;
+}
+
+V2_4::Error Composer::getLayerGenericMetadataKeys(
+        std::vector<IComposerClient::LayerGenericMetadataKey>* outKeys) {
+    using Error = V2_4::Error;
+    if (!mClient_2_4) {
+        return Error::UNSUPPORTED;
+    }
+    Error error = kDefaultError_2_4;
+    mClient_2_4->getLayerGenericMetadataKeys([&](const auto& tmpError, const auto& tmpKeys) {
+        error = tmpError;
+        if (error != Error::NONE) {
+            return;
+        }
+
+        *outKeys = tmpKeys;
+    });
+    return error;
+}
+
 CommandReader::~CommandReader()
 {
     resetData();
