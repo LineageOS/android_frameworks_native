@@ -66,7 +66,6 @@ class SurfaceFlinger;
 class LayerDebugInfo;
 
 namespace compositionengine {
-class Layer;
 class OutputLayer;
 struct LayerFECompositionState;
 }
@@ -94,7 +93,7 @@ struct LayerCreationArgs {
     uint32_t textureName;
 };
 
-class Layer : public compositionengine::LayerFE {
+class Layer : public virtual RefBase, compositionengine::LayerFE {
     static std::atomic<int32_t> sSequence;
     static constexpr int32_t PRIORITY_UNSET = -1;
 
@@ -361,7 +360,8 @@ public:
     // visually.
     bool isLegacyDataSpace() const;
 
-    virtual std::shared_ptr<compositionengine::Layer> getCompositionLayer() const;
+    virtual sp<compositionengine::LayerFE> getCompositionEngineLayerFE() const;
+    virtual compositionengine::LayerFECompositionState* editCompositionState();
 
     // If we have received a new buffer this frame, we will pass its surface
     // damage down to hardware composer. Otherwise, we must send a region with
@@ -506,6 +506,7 @@ public:
     virtual void updateCloneBufferInfo(){};
 
 protected:
+    sp<compositionengine::LayerFE> asLayerFE() const;
     sp<Layer> getClonedFrom() { return mClonedFrom != nullptr ? mClonedFrom.promote() : nullptr; }
     bool isClone() { return mClonedFrom != nullptr; }
     bool isClonedFromAlive() { return getClonedFrom() != nullptr; }
@@ -523,10 +524,9 @@ public:
     /*
      * compositionengine::LayerFE overrides
      */
+    const compositionengine::LayerFECompositionState* getCompositionState() const override;
     bool onPreComposition(nsecs_t) override;
-    void latchCompositionState(compositionengine::LayerFECompositionState&,
-                               compositionengine::LayerFE::StateSubset subset) const override;
-    void latchCursorCompositionState(compositionengine::LayerFECompositionState&) const override;
+    void prepareCompositionState(compositionengine::LayerFE::StateSubset subset) override;
     std::optional<LayerSettings> prepareClientComposition(
             compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
     std::optional<LayerSettings> prepareShadowClientComposition(
@@ -536,9 +536,10 @@ public:
     const char* getDebugName() const override;
 
 protected:
-    void latchBasicGeometry(compositionengine::LayerFECompositionState& outState) const;
-    void latchGeometry(compositionengine::LayerFECompositionState& outState) const;
-    virtual void latchPerFrameState(compositionengine::LayerFECompositionState& outState) const;
+    void prepareBasicGeometryCompositionState();
+    void prepareGeometryCompositionState();
+    virtual void preparePerFrameCompositionState();
+    void prepareCursorCompositionState();
 
 public:
     virtual void setDefaultBufferSize(uint32_t /*w*/, uint32_t /*h*/) {}

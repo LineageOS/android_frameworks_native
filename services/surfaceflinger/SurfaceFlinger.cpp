@@ -45,6 +45,7 @@
 #include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/Display.h>
 #include <compositionengine/DisplayColorProfile.h>
+#include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/RenderSurface.h>
 #include <compositionengine/impl/OutputCompositionState.h>
@@ -1857,13 +1858,13 @@ void SurfaceFlinger::handleMessageRefresh() {
         refreshArgs.outputs.push_back(display->getCompositionDisplay());
     }
     mDrawingState.traverseInZOrder([&refreshArgs](Layer* layer) {
-        auto compositionLayer = layer->getCompositionLayer();
-        if (compositionLayer) refreshArgs.layers.push_back(compositionLayer);
+        if (auto layerFE = layer->getCompositionEngineLayerFE())
+            refreshArgs.layers.push_back(layerFE);
     });
     refreshArgs.layersWithQueuedFrames.reserve(mLayersWithQueuedFrames.size());
     for (sp<Layer> layer : mLayersWithQueuedFrames) {
-        auto compositionLayer = layer->getCompositionLayer();
-        if (compositionLayer) refreshArgs.layersWithQueuedFrames.push_back(compositionLayer.get());
+        if (auto layerFE = layer->getCompositionEngineLayerFE())
+            refreshArgs.layersWithQueuedFrames.push_back(layerFE);
     }
 
     refreshArgs.repaintEverything = mRepaintEverything.exchange(false);
@@ -4422,8 +4423,13 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     {
         StringAppendF(&result, "Composition layers\n");
         mDrawingState.traverseInZOrder([&](Layer* layer) {
-            auto compositionLayer = layer->getCompositionLayer();
-            if (compositionLayer) compositionLayer->dump(result);
+            auto* compositionState = layer->getCompositionState();
+            if (!compositionState) return;
+
+            android::base::StringAppendF(&result, "* Layer %p (%s)\n", layer,
+                                         layer->getDebugName() ? layer->getDebugName()
+                                                               : "<unknown>");
+            compositionState->dump(result);
         });
     }
 

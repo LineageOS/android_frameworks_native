@@ -21,15 +21,14 @@
 #include <vector>
 
 #include <compositionengine/Display.h>
-#include <compositionengine/Layer.h>
+#include <compositionengine/LayerFE.h>
 #include <compositionengine/OutputColorSetting.h>
 #include <math/mat4.h>
 
 namespace android::compositionengine {
 
-using Layers = std::vector<std::shared_ptr<compositionengine::Layer>>;
+using Layers = std::vector<sp<compositionengine::LayerFE>>;
 using Outputs = std::vector<std::shared_ptr<compositionengine::Output>>;
-using RawLayers = std::vector<compositionengine::Layer*>;
 
 /**
  * A parameter object for refreshing a set of outputs
@@ -44,7 +43,7 @@ struct CompositionRefreshArgs {
     Layers layers;
 
     // All the layers that have queued updates.
-    RawLayers layersWithQueuedFrames;
+    Layers layersWithQueuedFrames;
 
     // If true, forces the entire display to be considered dirty and repainted
     bool repaintEverything{false};

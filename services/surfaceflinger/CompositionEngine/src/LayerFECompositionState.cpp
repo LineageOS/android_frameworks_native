@@ -32,6 +32,8 @@ void dumpVal(std::string& out, const char* name, half4 value) {
 
 } // namespace
 
+LayerFECompositionState::~LayerFECompositionState() = default;
+
 void LayerFECompositionState::dump(std::string& out) const {
     out.append("      ");
     dumpVal(out, "isSecure", isSecure);

@@ -41,7 +41,6 @@ namespace compositionengine {
 
 class CompositionEngine;
 class Output;
-class Layer;
 class LayerFE;
 
 namespace impl {
@@ -60,9 +59,6 @@ public:
 
     // Gets the output which owns this output layer
     virtual const Output& getOutput() const = 0;
-
-    // Gets the display-independent layer which this output layer represents
-    virtual Layer& getLayer() const = 0;
 
     // Gets the front-end layer interface this output layer represents
     virtual LayerFE& getLayerFE() const = 0;

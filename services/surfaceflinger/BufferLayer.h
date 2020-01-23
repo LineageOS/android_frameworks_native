@@ -54,7 +54,8 @@ public:
     // Overriden from Layer
     // -----------------------------------------------------------------------
 public:
-    std::shared_ptr<compositionengine::Layer> getCompositionLayer() const override;
+    sp<compositionengine::LayerFE> getCompositionEngineLayerFE() const override;
+    compositionengine::LayerFECompositionState* editCompositionState() override;
 
     // If we have received a new buffer this frame, we will pass its surface
     // damage down to hardware composer. Otherwise, we must send a region with
@@ -175,8 +176,9 @@ protected:
     /*
      * compositionengine::LayerFE overrides
      */
+    const compositionengine::LayerFECompositionState* getCompositionState() const override;
     bool onPreComposition(nsecs_t) override;
-    void latchPerFrameState(compositionengine::LayerFECompositionState&) const override;
+    void preparePerFrameCompositionState() override;
     std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
             compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
 
@@ -210,7 +212,7 @@ private:
     // and its parent layer is not bounded
     Rect getBufferSize(const State& s) const override;
 
-    std::shared_ptr<compositionengine::Layer> mCompositionLayer;
+    std::unique_ptr<compositionengine::LayerFECompositionState> mCompositionState;
 
     FloatRect computeSourceBounds(const FloatRect& parentBounds) const override;
 };

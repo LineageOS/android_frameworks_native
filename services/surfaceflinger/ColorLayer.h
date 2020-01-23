@@ -28,7 +28,8 @@ public:
     explicit ColorLayer(const LayerCreationArgs&);
     ~ColorLayer() override;
 
-    std::shared_ptr<compositionengine::Layer> getCompositionLayer() const override;
+    sp<compositionengine::LayerFE> getCompositionEngineLayerFE() const override;
+    compositionengine::LayerFECompositionState* editCompositionState() override;
 
     const char* getType() const override { return "ColorLayer"; }
     bool isVisible() const override;
@@ -45,11 +46,12 @@ protected:
     /*
      * compositionengine::LayerFE overrides
      */
-    void latchPerFrameState(compositionengine::LayerFECompositionState&) const override;
+    const compositionengine::LayerFECompositionState* getCompositionState() const override;
+    void preparePerFrameCompositionState() override;
     std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
             compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
 
-    std::shared_ptr<compositionengine::Layer> mCompositionLayer;
+    std::unique_ptr<compositionengine::LayerFECompositionState> mCompositionState;
 
     sp<Layer> createClone() override;
 };

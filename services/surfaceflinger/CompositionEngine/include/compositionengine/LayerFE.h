@@ -44,6 +44,9 @@ struct LayerFECompositionState;
 // of the front-end layer
 class LayerFE : public virtual RefBase {
 public:
+    // Gets the raw front-end composition state data for the layer
+    virtual const LayerFECompositionState* getCompositionState() const = 0;
+
     // Called before composition starts. Should return true if this layer has
     // pending updates which would require an extra display refresh cycle to
     // process.
@@ -60,19 +63,18 @@ public:
         // content (buffer or color) state for the layer.
         GeometryAndContent,
 
-        // Gets the per frame content (buffer or color) state the layer.
+        // Gets the per frame content (buffer or color) state for the layer.
         Content,
+
+        // Gets the cursor state for the layer.
+        Cursor,
     };
 
-    // Latches the output-independent composition state for the layer. The
+    // Prepares the output-independent composition state for the layer. The
     // StateSubset argument selects what portion of the state is actually needed
     // by the CompositionEngine code, since computing everything may be
     // expensive.
-    virtual void latchCompositionState(LayerFECompositionState&, StateSubset) const = 0;
-
-    // Latches the minimal bit of state for the cursor for a fast asynchronous
-    // update.
-    virtual void latchCursorCompositionState(LayerFECompositionState&) const = 0;
+    virtual void prepareCompositionState(StateSubset) = 0;
 
     struct ClientCompositionTargetSettings {
         // The clip region, or visible region that is being rendered to

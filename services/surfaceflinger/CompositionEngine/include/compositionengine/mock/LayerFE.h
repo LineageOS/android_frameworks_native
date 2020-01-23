@@ -30,11 +30,11 @@ public:
     LayerFE();
     virtual ~LayerFE();
 
+    MOCK_CONST_METHOD0(getCompositionState, const LayerFECompositionState*());
+
     MOCK_METHOD1(onPreComposition, bool(nsecs_t));
 
-    MOCK_CONST_METHOD2(latchCompositionState,
-                       void(LayerFECompositionState&, compositionengine::LayerFE::StateSubset));
-    MOCK_CONST_METHOD1(latchCursorCompositionState, void(LayerFECompositionState&));
+    MOCK_METHOD1(prepareCompositionState, void(compositionengine::LayerFE::StateSubset));
     MOCK_METHOD1(prepareClientComposition,
                  std::optional<LayerSettings>(
                          compositionengine::LayerFE::ClientCompositionTargetSettings&));
