@@ -129,8 +129,11 @@ bool BufferQueueLayer::setFrameRate(float frameRate) {
     return frameRateChanged;
 }
 
-float BufferQueueLayer::getFrameRate() const {
-    return mLatchedFrameRate;
+std::optional<float> BufferQueueLayer::getFrameRate() const {
+    if (mLatchedFrameRate > 0.f || mLatchedFrameRate == FRAME_RATE_NO_VOTE)
+        return mLatchedFrameRate;
+
+    return {};
 }
 
 // -----------------------------------------------------------------------

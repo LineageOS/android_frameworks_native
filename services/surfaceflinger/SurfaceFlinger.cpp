@@ -543,6 +543,11 @@ void SurfaceFlinger::bootFinished()
             const auto& performanceRefreshRate = mRefreshRateConfigs->getMaxRefreshRateByPolicy();
             changeRefreshRateLocked(performanceRefreshRate, Scheduler::ConfigEvent::None);
         }
+
+        if (property_get_bool("sf.debug.show_refresh_rate_overlay", false)) {
+            mRefreshRateOverlay = std::make_unique<RefreshRateOverlay>(*this);
+            mRefreshRateOverlay->changeRefreshRate(mRefreshRateConfigs->getCurrentRefreshRate());
+        }
     }));
 }
 
@@ -1782,7 +1787,13 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
 
             // Layers need to get updated (in the previous line) before we can use them for
             // choosing the refresh rate.
-            mScheduler->chooseRefreshRateForContent();
+            // Hold mStateLock as chooseRefreshRateForContent promotes wp<Layer> to sp<Layer>
+            // and may eventually call to ~Layer() if it holds the last reference
+            {
+                Mutex::Autolock _l(mStateLock);
+                mScheduler->chooseRefreshRateForContent();
+            }
+
             if (performSetActiveConfig()) {
                 break;
             }
@@ -2391,6 +2402,9 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                     }
                     if (state.width != draw[i].width || state.height != draw[i].height) {
                         display->setDisplaySize(state.width, state.height);
+                        if (display->isPrimary()) {
+                            mScheduler->onPrimaryDisplayAreaChanged(state.width * state.height);
+                        }
                     }
                 }
             }
@@ -2462,6 +2476,12 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                     if (!state.isVirtual()) {
                         LOG_ALWAYS_FATAL_IF(!displayId);
                         dispatchDisplayHotplugEvent(displayId->value, true);
+                    }
+
+                    const auto displayDevice = mDisplays[displayToken];
+                    if (displayDevice->isPrimary()) {
+                        mScheduler->onPrimaryDisplayAreaChanged(displayDevice->getWidth() *
+                                                                displayDevice->getHeight());
                     }
                 }
             }
@@ -2660,8 +2680,12 @@ void SurfaceFlinger::updateCursorAsync()
 }
 
 void SurfaceFlinger::changeRefreshRate(const RefreshRate& refreshRate,
-                                       Scheduler::ConfigEvent event) {
-    Mutex::Autolock lock(mStateLock);
+                                       Scheduler::ConfigEvent event) NO_THREAD_SAFETY_ANALYSIS {
+    // If this is called from the main thread mStateLock must be locked before
+    // Currently the only way to call this function from the main thread is from
+    // Sheduler::chooseRefreshRateForContent
+
+    ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
     changeRefreshRateLocked(refreshRate, event);
 }
 
