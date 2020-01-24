@@ -419,11 +419,11 @@ void ASurfaceTransaction_setHdrMetadata_cta861_3(ASurfaceTransaction* transactio
  * callback timings, and changes to the time interval at which the system releases buffers back to
  * the application.
  *
- * |frameRate| is the intended frame rate of this surface. 0 is a special value that indicates the
- * app will accept the system's choice for the display frame rate, which is the default behavior if
- * this function isn't called. The frameRate param does *not* need to be a valid refresh rate for
- * this device's display - e.g., it's fine to pass 30fps to a device that can only run the display
- * at 60fps.
+ * |frameRate| is the intended frame rate of this surface, in frames per second. 0 is a special
+ * value that indicates the app will accept the system's choice for the display frame rate, which is
+ * the default behavior if this function isn't called. The frameRate param does *not* need to be a
+ * valid refresh rate for this device's display - e.g., it's fine to pass 30fps to a device that can
+ * only run the display at 60fps.
  *
  * Available since API level 30.
  */
