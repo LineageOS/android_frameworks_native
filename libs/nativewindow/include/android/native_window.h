@@ -250,12 +250,12 @@ int32_t ANativeWindow_getBuffersDataSpace(ANativeWindow* window) __INTRODUCED_IN
  *
  * Available since API level 30.
  *
- * \param frameRate The intended frame rate of this window. 0 is a special value
- * that indicates the app will accept the system's choice for the display frame
- * rate, which is the default behavior if this function isn't called. The
- * frameRate param does *not* need to be a valid refresh rate for this device's
- * display - e.g., it's fine to pass 30fps to a device that can only run the
- * display at 60fps.
+ * \param frameRate The intended frame rate of this window, in frames per
+ * second. 0 is a special value that indicates the app will accept the system's
+ * choice for the display frame rate, which is the default behavior if this
+ * function isn't called. The frameRate param does *not* need to be a valid
+ * refresh rate for this device's display - e.g., it's fine to pass 30fps to a
+ * device that can only run the display at 60fps.
  *
  * \return 0 for success, -EINVAL if the window or frame rate are invalid.
  */
