@@ -78,6 +78,11 @@ constexpr size_t arrayLen(T (&)[N]) {
 
 static constexpr size_t max64print = std::numeric_limits<nsecs_t>::digits10 + 1;
 
+template <typename T>
+static inline T round(float f) {
+    return static_cast<T>(std::round(f));
+}
+
 } // namespace android::scheduler
 
 namespace std {

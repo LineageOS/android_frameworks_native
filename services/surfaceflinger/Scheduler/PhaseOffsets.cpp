@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
-
 #include "PhaseOffsets.h"
 
 #include <cutils/properties.h>
@@ -119,9 +115,9 @@ PhaseOffsets::Offsets PhaseOffsets::getDefaultOffsets(nsecs_t vsyncDuration) con
 }
 
 PhaseOffsets::Offsets PhaseOffsets::getHighFpsOffsets(nsecs_t vsyncDuration) const {
-    const int highFpsLateAppOffsetNs =
+    const auto highFpsLateAppOffsetNs =
             getProperty("debug.sf.high_fps_late_app_phase_offset_ns").value_or(2000000);
-    const int highFpsLateSfOffsetNs =
+    const auto highFpsLateSfOffsetNs =
             getProperty("debug.sf.high_fps_late_sf_phase_offset_ns").value_or(1000000);
 
     const auto highFpsEarlySfOffsetNs = getProperty("debug.sf.high_fps_early_phase_offset_ns");
@@ -334,6 +330,3 @@ void PhaseDurations::dump(std::string& result) const {
 
 } // namespace impl
 } // namespace android::scheduler
-
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"
