@@ -55,6 +55,7 @@ size_t eventSizeBySensorType(int type) {
         case SENSOR_TYPE_MOTION_DETECT:
         case SENSOR_TYPE_HEART_BEAT:
         case SENSOR_TYPE_LOW_LATENCY_OFFBODY_DETECT:
+        case SENSOR_TYPE_HINGE_ANGLE:
             return 1;
 
         default:
