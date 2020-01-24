@@ -17,10 +17,6 @@
 // #define LOG_NDEBUG 0
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
-
 #include "RefreshRateConfigs.h"
 #include <android-base/stringprintf.h>
 #include <utils/Trace.h>
@@ -37,26 +33,26 @@ using RefreshRate = RefreshRateConfigs::RefreshRate;
 const RefreshRate& RefreshRateConfigs::getRefreshRateForContent(
         const std::vector<LayerRequirement>& layers) const {
     std::lock_guard lock(mLock);
-    float contentFramerate = 0.0f;
-    float explicitContentFramerate = 0.0f;
+    int contentFramerate = 0;
+    int explicitContentFramerate = 0;
     for (const auto& layer : layers) {
+        const auto desiredRefreshRateRound = round<int>(layer.desiredRefreshRate);
         if (layer.vote == LayerVoteType::Explicit) {
-            if (layer.desiredRefreshRate > explicitContentFramerate) {
-                explicitContentFramerate = layer.desiredRefreshRate;
+            if (desiredRefreshRateRound > explicitContentFramerate) {
+                explicitContentFramerate = desiredRefreshRateRound;
             }
         } else {
-            if (layer.desiredRefreshRate > contentFramerate) {
-                contentFramerate = layer.desiredRefreshRate;
+            if (desiredRefreshRateRound > contentFramerate) {
+                contentFramerate = desiredRefreshRateRound;
             }
         }
     }
 
-    if (explicitContentFramerate != 0.0f) {
+    if (explicitContentFramerate != 0) {
         contentFramerate = explicitContentFramerate;
-    } else if (contentFramerate == 0.0f) {
-        contentFramerate = mMaxSupportedRefreshRate->fps;
+    } else if (contentFramerate == 0) {
+        contentFramerate = round<int>(mMaxSupportedRefreshRate->fps);
     }
-    contentFramerate = std::round(contentFramerate);
     ATRACE_INT("ContentFPS", contentFramerate);
 
     // Find the appropriate refresh rate with minimal error
@@ -141,7 +137,7 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
 
         for (auto& [refreshRate, overallScore] : scores) {
             const auto displayPeriod = refreshRate->vsyncPeriod;
-            const auto layerPeriod = 1e9f / layer.desiredRefreshRate;
+            const auto layerPeriod = round<nsecs_t>(1e9f / layer.desiredRefreshRate);
 
             // Calculate how many display vsyncs we need to present a single frame for this layer
             auto [displayFramesQuot, displayFramesRem] = std::div(layerPeriod, displayPeriod);
@@ -183,7 +179,7 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
     for (const auto [refreshRate, score] : scores) {
         ALOGV("%s scores %.2f", refreshRate->name.c_str(), score);
 
-        ATRACE_INT(refreshRate->name.c_str(), std::round(score * 100));
+        ATRACE_INT(refreshRate->name.c_str(), round<int>(score * 100));
 
         if (score > max) {
             max = score;
@@ -239,11 +235,10 @@ RefreshRateConfigs::RefreshRateConfigs(
         HwcConfigIndexType currentConfigId)
       : mRefreshRateSwitching(refreshRateSwitching) {
     std::vector<InputConfig> inputConfigs;
-    for (auto configId = HwcConfigIndexType(0); configId < HwcConfigIndexType(configs.size());
-         ++configId) {
-        auto configGroup = HwcConfigGroupType(configs[configId.value()]->getConfigGroup());
-        inputConfigs.push_back(
-                {configId, configGroup, configs[configId.value()]->getVsyncPeriod()});
+    for (size_t configId = 0; configId < configs.size(); ++configId) {
+        auto configGroup = HwcConfigGroupType(configs[configId]->getConfigGroup());
+        inputConfigs.push_back({HwcConfigIndexType(static_cast<int>(configId)), configGroup,
+                                configs[configId]->getVsyncPeriod()});
     }
     init(inputConfigs, currentConfigId);
 }
@@ -362,5 +357,3 @@ void RefreshRateConfigs::init(const std::vector<InputConfig>& configs,
 }
 
 } // namespace android::scheduler
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"

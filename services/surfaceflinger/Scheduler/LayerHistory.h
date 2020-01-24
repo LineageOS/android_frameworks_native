@@ -95,10 +95,10 @@ private:
 
     struct ActiveLayers {
         LayerInfos& infos;
-        const long index;
+        const size_t index;
 
         auto begin() { return infos.begin(); }
-        auto end() { return begin() + index; }
+        auto end() { return begin() + static_cast<long>(index); }
     };
 
     ActiveLayers activeLayers() REQUIRES(mLock) { return {mLayerInfos, mActiveLayersEnd}; }
@@ -113,7 +113,7 @@ private:
     // Partitioned such that active layers precede inactive layers. For fast lookup, the few active
     // layers are at the front, and weak pointers are stored in contiguous memory to hit the cache.
     LayerInfos mLayerInfos GUARDED_BY(mLock);
-    long mActiveLayersEnd GUARDED_BY(mLock) = 0;
+    size_t mActiveLayersEnd GUARDED_BY(mLock) = 0;
 
     // Whether to emit systrace output and debug logs.
     const bool mTraceEnabled;

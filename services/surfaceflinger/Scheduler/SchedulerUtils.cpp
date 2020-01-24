@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
-
 #include "SchedulerUtils.h"
 
 #include <cinttypes>
@@ -34,12 +30,10 @@ int64_t calculate_median(std::vector<int64_t>* v) {
     }
 
     size_t n = v->size() / 2;
-    nth_element(v->begin(), v->begin() + n, v->end());
+    nth_element(v->begin(), v->begin() + static_cast<long>(n), v->end());
     return v->at(n);
 }
 
 } // namespace scheduler
 } // namespace android
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"

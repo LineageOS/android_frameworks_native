@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
-
 #undef LOG_TAG
 #define LOG_TAG "LayerHistory"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
@@ -141,7 +137,7 @@ LayerHistory::Summary LayerHistory::summarize(nsecs_t now) {
             }
 
             if (CC_UNLIKELY(mTraceEnabled)) {
-                trace(weakLayer, std::round(*frameRate));
+                trace(weakLayer, round<int>(*frameRate));
             }
         }
     }
@@ -179,7 +175,7 @@ void LayerHistory::partitionLayers(nsecs_t now) {
         }
     }
 
-    mLayerInfos.erase(mLayerInfos.begin() + end, mLayerInfos.end());
+    mLayerInfos.erase(mLayerInfos.begin() + static_cast<long>(end), mLayerInfos.end());
 }
 
 void LayerHistory::clear() {
@@ -194,5 +190,3 @@ void LayerHistory::clear() {
 
 } // namespace android::scheduler::impl
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"
