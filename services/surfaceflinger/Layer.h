@@ -78,11 +78,11 @@ class SurfaceInterceptor;
 // ---------------------------------------------------------------------------
 
 struct LayerCreationArgs {
-    LayerCreationArgs(SurfaceFlinger* flinger, const sp<Client>& client, std::string name,
+    LayerCreationArgs(SurfaceFlinger* flinger, const sp<Client> client, std::string name,
                       uint32_t w, uint32_t h, uint32_t flags, LayerMetadata metadata);
 
     SurfaceFlinger* flinger;
-    const sp<Client>& client;
+    const sp<Client> client;
     std::string name;
     uint32_t w;
     uint32_t h;
@@ -527,10 +527,10 @@ public:
     void latchCompositionState(compositionengine::LayerFECompositionState&,
                                compositionengine::LayerFE::StateSubset subset) const override;
     void latchCursorCompositionState(compositionengine::LayerFECompositionState&) const override;
-    std::optional<renderengine::LayerSettings> prepareClientComposition(
+    std::optional<LayerSettings> prepareClientComposition(
             compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
-    std::optional<renderengine::LayerSettings> prepareShadowClientComposition(
-            const renderengine::LayerSettings& layerSettings, const Rect& displayViewport,
+    std::optional<LayerSettings> prepareShadowClientComposition(
+            const LayerFE::LayerSettings& layerSettings, const Rect& displayViewport,
             ui::Dataspace outputDataspace) override;
     void onLayerDisplayed(const sp<Fence>& releaseFence) override;
     const char* getDebugName() const override;

@@ -789,6 +789,18 @@ V2_4::Error FakeComposerClient::validateDisplay_2_4(
     return V2_4::Error::NONE;
 }
 
+V2_4::Error FakeComposerClient::setLayerGenericMetadata(Display, Layer, const std::string&, bool,
+                                                        const std::vector<uint8_t>&) {
+    ALOGV("setLayerGenericMetadata");
+    return V2_4::Error::UNSUPPORTED;
+}
+
+V2_4::Error FakeComposerClient::getLayerGenericMetadataKeys(
+        std::vector<IComposerClient::LayerGenericMetadataKey>*) {
+    ALOGV("getLayerGenericMetadataKeys");
+    return V2_4::Error::UNSUPPORTED;
+}
+
 //////////////////////////////////////////////////////////////////
 
 void FakeComposerClient::requestVSync(uint64_t vsyncTime) {

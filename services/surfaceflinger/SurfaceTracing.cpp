@@ -188,8 +188,11 @@ void SurfaceTracing::writeProtoFileLocked() {
         ALOGE("Could not save the proto file! Permission denied");
         mLastErr = PERMISSION_DENIED;
     }
-    if (!android::base::WriteStringToFile(output, kDefaultFileName, S_IRWXU | S_IRGRP, getuid(),
-                                          getgid(), true)) {
+
+    // -rw-r--r--
+    const mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+    if (!android::base::WriteStringToFile(output, kDefaultFileName, mode, getuid(), getgid(),
+                                          true)) {
         ALOGE("Could not save the proto file! There are missing fields");
         mLastErr = PERMISSION_DENIED;
     }

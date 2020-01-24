@@ -77,12 +77,14 @@ status_t GaussianBlurFilter::prepare(uint32_t radius) {
     // set uniforms
     auto width = mVerticalPassFbo.getBufferWidth();
     auto height = mVerticalPassFbo.getBufferHeight();
+    auto radiusF = fmax(1.0f, radius * kFboScale);
     glViewport(0, 0, width, height);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, mCompositionFbo.getTextureName());
+    glGenerateMipmap(GL_TEXTURE_2D);
     glUniform1i(mVTextureLoc, 0);
     glUniform2f(mVSizeLoc, width, height);
-    glUniform1f(mVRadiusLoc, radius * kFboScale);
+    glUniform1f(mVRadiusLoc, radiusF);
     mEngine.checkErrors("Setting vertical-diagonal pass uniforms");
 
     drawMesh(mVUvLoc, mVPosLoc);
@@ -96,7 +98,7 @@ status_t GaussianBlurFilter::prepare(uint32_t radius) {
     glBindTexture(GL_TEXTURE_2D, mVerticalPassFbo.getTextureName());
     glUniform1i(mHTextureLoc, 0);
     glUniform2f(mHSizeLoc, width, height);
-    glUniform1f(mHRadiusLoc, radius * kFboScale);
+    glUniform1f(mHRadiusLoc, radiusF);
     mEngine.checkErrors("Setting vertical pass uniforms");
 
     drawMesh(mHUvLoc, mHPosLoc);
@@ -122,8 +124,7 @@ string GaussianBlurFilter::getFragmentShader(bool horizontal) const {
         uniform vec2 uSize;
         uniform float uRadius;
 
-        in mediump vec2 vUV;
-
+        mediump in vec2 vUV;
         out vec4 fragColor;
 
         #define PI 3.14159265359
@@ -131,7 +132,7 @@ string GaussianBlurFilter::getFragmentShader(bool horizontal) const {
         #define MU 0.0
         #define A 1.0 / (THETA * sqrt(2.0 * PI))
         #define K 1.0 / (2.0 * THETA * THETA)
-        #define MAX_SAMPLES 12
+        #define MAX_SAMPLES 10
 
         float gaussianBellCurve(float x) {
             float tmp = (x - MU);
@@ -139,14 +140,14 @@ string GaussianBlurFilter::getFragmentShader(bool horizontal) const {
         }
 
         vec3 gaussianBlur(sampler2D texture, mediump vec2 uv, float size,
-                          vec2 direction, float radius) {
+                          mediump vec2 direction, float radius) {
             float totalWeight = 0.0;
             vec3 blurred = vec3(0.);
-            int samples = min(int(floor(radius / 2.0)), MAX_SAMPLES);
+            int samples = min(int(ceil(radius / 2.0)), MAX_SAMPLES);
             float inc = radius / (size * 2.0);
 
             for (int i = -samples; i <= samples; i++) {
-                float normalized = (float(i) / float(samples));
+                float normalized = float(i) / float(samples);
                 float weight = gaussianBellCurve(normalized);
                 float radInc = inc * normalized;
                 blurred += weight * (texture(texture, uv + radInc * direction)).rgb;;
@@ -162,7 +163,7 @@ string GaussianBlurFilter::getFragmentShader(bool horizontal) const {
             #else
             vec3 color = gaussianBlur(uTexture, vUV, uSize.y, vec2(0.0, 1.0), uRadius);
             #endif
-            fragColor = vec4(color.r, color.g, color.b, texture(uTexture, vUV).a);
+            fragColor = vec4(color, 1.0);
         }
 
     )SHADER";

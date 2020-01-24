@@ -60,6 +60,7 @@ public:
     void createDisplayColorProfile(
             const compositionengine::DisplayColorProfileCreationArgs&) override;
     void createRenderSurface(const compositionengine::RenderSurfaceCreationArgs&) override;
+    void createClientCompositionCache(uint32_t cacheSize) override;
 
     // Internal helpers used by chooseCompositionStrategy()
     using ChangedTypes = android::HWComposer::DeviceRequestedChanges::ChangedTypes;

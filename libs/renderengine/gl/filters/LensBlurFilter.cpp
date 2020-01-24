@@ -86,12 +86,14 @@ status_t LensBlurFilter::prepare(uint32_t radius) {
     // set uniforms
     auto width = mVerticalDiagonalPassFbo.getBufferWidth();
     auto height = mVerticalDiagonalPassFbo.getBufferHeight();
+    auto radiusF = fmax(1.0f, radius * kFboScale);
     glViewport(0, 0, width, height);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, mCompositionFbo.getTextureName());
+    glGenerateMipmap(GL_TEXTURE_2D);
     glUniform1i(mVDTexture0Loc, 0);
-    glUniform2f(mVDSizeLoc, width, height);
-    glUniform1f(mVDRadiusLoc, radius * kFboScale);
+    glUniform2f(mVDSizeLoc, mDisplayWidth, mDisplayHeight);
+    glUniform1f(mVDRadiusLoc, radiusF);
     glUniform1i(mVDNumSamplesLoc, kNumSamples);
     mEngine.checkErrors("Setting vertical-diagonal pass uniforms");
 
@@ -108,8 +110,8 @@ status_t LensBlurFilter::prepare(uint32_t radius) {
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, mVerticalDiagonalPassFbo.getSecondaryTextureName());
     glUniform1i(mCTexture1Loc, 1);
-    glUniform2f(mCSizeLoc, width, height);
-    glUniform1f(mCRadiusLoc, radius * kFboScale);
+    glUniform2f(mCSizeLoc, mDisplayWidth, mDisplayHeight);
+    glUniform1f(mCRadiusLoc, radiusF);
     glUniform1i(mCNumSamplesLoc, kNumSamples);
     mEngine.checkErrors("Setting vertical pass uniforms");
 
@@ -134,7 +136,6 @@ string LensBlurFilter::getFragmentShader(bool forComposition) const {
     shader += R"SHADER(
         precision lowp float;
 
-        #define BOKEH_ANGLE 0.0
         #define PI 3.14159265359
 
         uniform sampler2D uTexture0;
@@ -142,7 +143,7 @@ string LensBlurFilter::getFragmentShader(bool forComposition) const {
         uniform float uRadius;
         uniform int uNumSamples;
 
-        in mediump vec2 vUV;
+        mediump in vec2 vUV;
 
         #if DIRECTION == 0
         layout(location = 0) out vec4 fragColor0;
@@ -152,61 +153,55 @@ string LensBlurFilter::getFragmentShader(bool forComposition) const {
         out vec4 fragColor;
         #endif
 
-        vec4 blur(const sampler2D tex, in vec2 uv, const vec2 direction, float radius,
-                  in int samples, float intensity) {
-            vec4 finalColor = vec4(vec3(0.0), 1.0);
-            float blurAmount = 0.0;
+        const vec2 verticalMult = vec2(cos(PI / 2.0), sin(PI / 2.0));
+        const vec2 diagonalMult = vec2(cos(-PI / 6.0), sin(-PI / 6.0));
+        const vec2 diagonal2Mult = vec2(cos(-5.0 * PI / 6.0), sin(-5.0 * PI / 6.0));
+
+        vec3 blur(const sampler2D tex, vec2 uv, const vec2 direction, float radius,
+                  int samples, float intensity) {
+            vec3 finalColor = vec3(0.0);
             uv += direction * 0.5;
 
             for (int i = 0; i < samples; i++){
                 float delta = radius * float(i) / float(samples);
-                vec4 color = texture(tex, uv + direction * delta);
+                vec3 color = texture(tex, uv + direction * delta).rgb;
                 color.rgb *= intensity;
-                color *= color.a;
-                blurAmount += color.a;
                 finalColor += color;
             }
 
-            return finalColor / blurAmount;
+            return finalColor / float(samples);
         }
 
-        vec4 blur(const sampler2D tex, in vec2 uv, const vec2 direction, float radius,
-                  in int samples) {
+        vec3 blur(const sampler2D tex, vec2 uv, const vec2 direction, float radius,
+                  int samples) {
             return blur(tex, uv, direction, radius, samples, 1.0);
         }
 
         vec4[2] verticalDiagonalLensBlur (vec2 uv, sampler2D texture, vec2 resolution,
                                           float radius, int samples) {
-            float coc = texture(texture, uv).a;
-
             // Vertical Blur
-            vec2 blurDirV = (coc / resolution.xy) * vec2(cos(BOKEH_ANGLE + PI / 2.0),
-                sin(BOKEH_ANGLE + PI / 2.0));
-            vec3 colorV = blur(texture, uv, blurDirV, radius, samples).rgb * coc;
+            vec2 blurDirV = 1.0 / resolution.xy * verticalMult;
+            vec3 colorV = blur(texture, uv, blurDirV, radius, samples);
 
             // Diagonal Blur
-            vec2 blurDirD = (coc / resolution.xy) * vec2(cos(BOKEH_ANGLE - PI / 6.0),
-                sin(BOKEH_ANGLE - PI / 6.0));
-            vec3 colorD = blur(texture, uv, blurDirD, radius, samples).rgb * coc;
+            vec2 blurDirD = 1.0 / resolution.xy * diagonalMult;
+            vec3 colorD = blur(texture, uv, blurDirD, radius, samples);
 
             vec4 composed[2];
-            composed[0] = vec4(colorV, coc);
+            composed[0] = vec4(colorV, 1.0);
             // added * 0.5, to remap
-            composed[1] = vec4((colorD + colorV) * 0.5, coc);
+            composed[1] = vec4((colorD + colorV) * 0.5, 1.0);
 
             return composed;
         }
 
         vec4 rhombiLensBlur (vec2 uv, sampler2D texture0, sampler2D texture1, vec2 resolution,
                              float radius, int samples) {
-            float coc1 = texture(texture0, uv).a;
-            float coc2 = texture(texture1, uv).a;
+            vec2 blurDirection1 = 1.0 / resolution.xy * diagonalMult;
+            vec3 color1 = blur(texture0, uv, blurDirection1, radius, samples);
 
-            vec2 blurDirection1 = coc1 / resolution.xy * vec2(cos(BOKEH_ANGLE - PI / 6.0), sin(BOKEH_ANGLE - PI / 6.0));
-            vec3 color1 = blur(texture0, uv, blurDirection1, radius, samples).rgb * coc1;
-
-            vec2 blurDirection2 = coc2 / resolution.xy * vec2(cos(BOKEH_ANGLE - 5.0 * PI / 6.0), sin(BOKEH_ANGLE - 5.0 * PI / 6.0));
-            vec3 color2 = blur(texture1, uv, blurDirection2, radius, samples, 2.0).rgb * coc2;
+            vec2 blurDirection2 = 1.0 / resolution.xy * diagonal2Mult;
+            vec3 color2 = blur(texture1, uv, blurDirection2, radius, samples, 2.0);
 
             return vec4((color1 + color2) * 0.33, 1.0);
         }

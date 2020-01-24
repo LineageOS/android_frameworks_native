@@ -353,6 +353,9 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     property_get("debug.sf.luma_sampling", value, "1");
     mLumaSampling = atoi(value);
 
+    property_get("debug.sf.disable_client_composition_cache", value, "1");
+    mDisableClientCompositionCache = atoi(value);
+
     // We should be reading 'persist.sys.sf.color_saturation' here
     // but since /data may be encrypted, we need to wait until after vold
     // comes online to attempt to read the property. The property is
@@ -1893,12 +1896,18 @@ void SurfaceFlinger::handleMessageRefresh() {
     mHadClientComposition =
             std::any_of(mDisplays.cbegin(), mDisplays.cend(), [](const auto& tokenDisplayPair) {
                 auto& displayDevice = tokenDisplayPair.second;
-                return displayDevice->getCompositionDisplay()->getState().usesClientComposition;
+                return displayDevice->getCompositionDisplay()->getState().usesClientComposition &&
+                        !displayDevice->getCompositionDisplay()->getState().reusedClientComposition;
             });
     mHadDeviceComposition =
             std::any_of(mDisplays.cbegin(), mDisplays.cend(), [](const auto& tokenDisplayPair) {
                 auto& displayDevice = tokenDisplayPair.second;
                 return displayDevice->getCompositionDisplay()->getState().usesDeviceComposition;
+            });
+    mReusedClientComposition =
+            std::any_of(mDisplays.cbegin(), mDisplays.cend(), [](const auto& tokenDisplayPair) {
+                auto& displayDevice = tokenDisplayPair.second;
+                return displayDevice->getCompositionDisplay()->getState().reusedClientComposition;
             });
 
     mVSyncModulator->onRefreshed(mHadClientComposition);
@@ -2077,6 +2086,10 @@ void SurfaceFlinger::postComposition()
     mTimeStats->incrementTotalFrames();
     if (mHadClientComposition) {
         mTimeStats->incrementClientCompositionFrames();
+    }
+
+    if (mReusedClientComposition) {
+        mTimeStats->incrementClientCompositionReusedFrames();
     }
 
     mTimeStats->setPresentFenceGlobal(presentFenceTime);
@@ -5408,7 +5421,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     const auto& displayViewport = renderArea.getDisplayViewport();
 
     renderengine::DisplaySettings clientCompositionDisplay;
-    std::vector<renderengine::LayerSettings> clientCompositionLayers;
+    std::vector<compositionengine::LayerFE::LayerSettings> clientCompositionLayers;
 
     // assume that bounds are never offset, and that they are the same as the
     // buffer bounds.
@@ -5469,7 +5482,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
 
     const float alpha = RenderArea::getCaptureFillValue(renderArea.getCaptureFill());
 
-    renderengine::LayerSettings fillLayer;
+    compositionengine::LayerFE::LayerSettings fillLayer;
     fillLayer.source.buffer.buffer = nullptr;
     fillLayer.source.solidColor = half3(0.0, 0.0, 0.0);
     fillLayer.geometry.boundaries = FloatRect(0.0, 0.0, 1.0, 1.0);
@@ -5490,7 +5503,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
         };
         auto result = layer->prepareClientComposition(targetSettings);
         if (result) {
-            std::optional<renderengine::LayerSettings> shadowLayer =
+            std::optional<compositionengine::LayerFE::LayerSettings> shadowLayer =
                     layer->prepareShadowClientComposition(*result, displayViewport,
                                                           clientCompositionDisplay.outputDataspace);
             if (shadowLayer) {
@@ -5500,13 +5513,20 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
         }
     });
 
+    std::vector<const renderengine::LayerSettings*> clientCompositionLayerPointers;
+    clientCompositionLayers.reserve(clientCompositionLayers.size());
+    std::transform(clientCompositionLayers.begin(), clientCompositionLayers.end(),
+                   std::back_inserter(clientCompositionLayerPointers),
+                   [](compositionengine::LayerFE::LayerSettings& settings)
+                           -> renderengine::LayerSettings* { return &settings; });
+
     clientCompositionDisplay.clearRegion = clearRegion;
     // Use an empty fence for the buffer fence, since we just created the buffer so
     // there is no need for synchronization with the GPU.
     base::unique_fd bufferFence;
     base::unique_fd drawFence;
     getRenderEngine().useProtectedContext(false);
-    getRenderEngine().drawLayers(clientCompositionDisplay, clientCompositionLayers, buffer,
+    getRenderEngine().drawLayers(clientCompositionDisplay, clientCompositionLayerPointers, buffer,
                                  /*useFramebufferCache=*/false, std::move(bufferFence), &drawFence);
 
     *outSyncFd = drawFence.release();
@@ -5600,11 +5620,10 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(const sp<DisplayDe
             repaintEverythingForHWC();
         }
 
-        auto configId = HwcConfigIndexType(defaultConfig);
-        display->setActiveConfig(configId);
+        display->setActiveConfig(defaultConfig);
         const nsecs_t vsyncPeriod =
-                mRefreshRateConfigs->getRefreshRateFromConfigId(configId).vsyncPeriod;
-        mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value, configId,
+                getHwComposer().getConfigs(*displayId)[defaultConfig.value()]->getVsyncPeriod();
+        mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value, defaultConfig,
                                     vsyncPeriod);
         return NO_ERROR;
     }

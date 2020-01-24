@@ -56,7 +56,7 @@ public:
     MOCK_CONST_METHOD0(supportsProtectedContent, bool());
     MOCK_METHOD1(useProtectedContext, bool(bool));
     MOCK_METHOD6(drawLayers,
-                 status_t(const DisplaySettings&, const std::vector<LayerSettings>&,
+                 status_t(const DisplaySettings&, const std::vector<const LayerSettings*>&,
                           ANativeWindowBuffer*, const bool, base::unique_fd&&, base::unique_fd*));
 };
 

@@ -407,6 +407,33 @@ void ASurfaceTransaction_setHdrMetadata_cta861_3(ASurfaceTransaction* transactio
 
 #endif // __ANDROID_API__ >= 29
 
+#if __ANDROID_API__ >= 30
+
+/*
+ * Sets the intended frame rate for |surface_control|.
+ *
+ * On devices that are capable of running the display at different refresh rates, the system may
+ * choose a display refresh rate to better match this surface's frame rate. Usage of this API won't
+ * directly affect the application's frame production pipeline. However, because the system may
+ * change the display refresh rate, calls to this function may result in changes to Choreographer
+ * callback timings, and changes to the time interval at which the system releases buffers back to
+ * the application.
+ *
+ * |frameRate| is the intended frame rate of this surface. 0 is a special value that indicates the
+ * app will accept the system's choice for the display frame rate, which is the default behavior if
+ * this function isn't called. The frameRate param does *not* need to be a valid refresh rate for
+ * this device's display - e.g., it's fine to pass 30fps to a device that can only run the display
+ * at 60fps.
+ *
+ * Available since API level 30.
+ */
+void ASurfaceTransaction_setFrameRate(ASurfaceTransaction* transaction,
+                                      ASurfaceControl* surface_control,
+                                      float frameRate)
+                                      __INTRODUCED_IN(30);
+
+#endif // __ANDROID_API__ >= 30
+
 __END_DECLS
 
 #endif // ANDROID_SURFACE_CONTROL_H

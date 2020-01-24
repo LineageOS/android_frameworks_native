@@ -141,7 +141,7 @@ private:
 
     std::atomic<bool> mSidebandStreamChanged{false};
 
-    mutable uint32_t mFrameNumber{0};
+    mutable uint64_t mFrameNumber{0};
     uint64_t mFrameCounter{0};
 
     sp<Fence> mPreviousReleaseFence;

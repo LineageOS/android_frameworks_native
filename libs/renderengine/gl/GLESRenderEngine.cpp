@@ -960,7 +960,7 @@ EGLImageKHR GLESRenderEngine::createFramebufferImageIfNeeded(ANativeWindowBuffer
 }
 
 status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
-                                      const std::vector<LayerSettings>& layers,
+                                      const std::vector<const LayerSettings*>& layers,
                                       ANativeWindowBuffer* const buffer,
                                       const bool useFramebufferCache, base::unique_fd&& bufferFence,
                                       base::unique_fd* drawFence) {
@@ -985,9 +985,9 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
     // Blurs in multiple layers are not supported, given the cost of the shader.
     const LayerSettings* blurLayer = nullptr;
     if (CC_LIKELY(mBlurFilter != nullptr)) {
-        for (auto const& layer : layers) {
-            if (layer.backgroundBlurRadius > 0) {
-                blurLayer = &layer;
+        for (auto const layer : layers) {
+            if (layer->backgroundBlurRadius > 0) {
+                blurLayer = layer;
             }
         }
     }
@@ -1035,9 +1035,9 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
                         .setTexCoords(2 /* size */)
                         .setCropCoords(2 /* size */)
                         .build();
-    for (auto const& layer : layers) {
-        if (blurLayer == &layer) {
-            auto status = mBlurFilter->prepare(layer.backgroundBlurRadius);
+    for (auto const layer : layers) {
+        if (blurLayer == layer) {
+            auto status = mBlurFilter->prepare(layer->backgroundBlurRadius);
             if (status != NO_ERROR) {
                 ALOGE("Failed to render blur effect! Aborting GPU composition for buffer (%p).",
                       buffer->handle);
@@ -1065,40 +1065,40 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
             }
         }
 
-        mState.maxMasteringLuminance = layer.source.buffer.maxMasteringLuminance;
-        mState.maxContentLuminance = layer.source.buffer.maxContentLuminance;
-        mState.projectionMatrix = projectionMatrix * layer.geometry.positionTransform;
+        mState.maxMasteringLuminance = layer->source.buffer.maxMasteringLuminance;
+        mState.maxContentLuminance = layer->source.buffer.maxContentLuminance;
+        mState.projectionMatrix = projectionMatrix * layer->geometry.positionTransform;
 
-        const FloatRect bounds = layer.geometry.boundaries;
+        const FloatRect bounds = layer->geometry.boundaries;
         Mesh::VertexArray<vec2> position(mesh.getPositionArray<vec2>());
         position[0] = vec2(bounds.left, bounds.top);
         position[1] = vec2(bounds.left, bounds.bottom);
         position[2] = vec2(bounds.right, bounds.bottom);
         position[3] = vec2(bounds.right, bounds.top);
 
-        setupLayerCropping(layer, mesh);
-        setColorTransform(display.colorTransform * layer.colorTransform);
+        setupLayerCropping(*layer, mesh);
+        setColorTransform(display.colorTransform * layer->colorTransform);
 
         bool usePremultipliedAlpha = true;
         bool disableTexture = true;
         bool isOpaque = false;
-        if (layer.source.buffer.buffer != nullptr) {
+        if (layer->source.buffer.buffer != nullptr) {
             disableTexture = false;
-            isOpaque = layer.source.buffer.isOpaque;
+            isOpaque = layer->source.buffer.isOpaque;
 
-            sp<GraphicBuffer> gBuf = layer.source.buffer.buffer;
-            bindExternalTextureBuffer(layer.source.buffer.textureName, gBuf,
-                                      layer.source.buffer.fence);
+            sp<GraphicBuffer> gBuf = layer->source.buffer.buffer;
+            bindExternalTextureBuffer(layer->source.buffer.textureName, gBuf,
+                                      layer->source.buffer.fence);
 
-            usePremultipliedAlpha = layer.source.buffer.usePremultipliedAlpha;
-            Texture texture(Texture::TEXTURE_EXTERNAL, layer.source.buffer.textureName);
-            mat4 texMatrix = layer.source.buffer.textureTransform;
+            usePremultipliedAlpha = layer->source.buffer.usePremultipliedAlpha;
+            Texture texture(Texture::TEXTURE_EXTERNAL, layer->source.buffer.textureName);
+            mat4 texMatrix = layer->source.buffer.textureTransform;
 
             texture.setMatrix(texMatrix.asArray());
-            texture.setFiltering(layer.source.buffer.useTextureFiltering);
+            texture.setFiltering(layer->source.buffer.useTextureFiltering);
 
             texture.setDimensions(gBuf->getWidth(), gBuf->getHeight());
-            setSourceY410BT2020(layer.source.buffer.isY410BT2020);
+            setSourceY410BT2020(layer->source.buffer.isY410BT2020);
 
             renderengine::Mesh::VertexArray<vec2> texCoords(mesh.getTexCoordArray<vec2>());
             texCoords[0] = vec2(0.0, 0.0);
@@ -1108,32 +1108,32 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
             setupLayerTexturing(texture);
         }
 
-        const half3 solidColor = layer.source.solidColor;
-        const half4 color = half4(solidColor.r, solidColor.g, solidColor.b, layer.alpha);
+        const half3 solidColor = layer->source.solidColor;
+        const half4 color = half4(solidColor.r, solidColor.g, solidColor.b, layer->alpha);
         // Buffer sources will have a black solid color ignored in the shader,
         // so in that scenario the solid color passed here is arbitrary.
         setupLayerBlending(usePremultipliedAlpha, isOpaque, disableTexture, color,
-                           layer.geometry.roundedCornersRadius);
-        if (layer.disableBlending) {
+                           layer->geometry.roundedCornersRadius);
+        if (layer->disableBlending) {
             glDisable(GL_BLEND);
         }
-        setSourceDataSpace(layer.sourceDataspace);
+        setSourceDataSpace(layer->sourceDataspace);
 
-        if (layer.shadow.length > 0.0f) {
-            handleShadow(layer.geometry.boundaries, layer.geometry.roundedCornersRadius,
-                         layer.shadow);
+        if (layer->shadow.length > 0.0f) {
+            handleShadow(layer->geometry.boundaries, layer->geometry.roundedCornersRadius,
+                         layer->shadow);
         }
         // We only want to do a special handling for rounded corners when having rounded corners
         // is the only reason it needs to turn on blending, otherwise, we handle it like the
         // usual way since it needs to turn on blending anyway.
-        else if (layer.geometry.roundedCornersRadius > 0.0 && color.a >= 1.0f && isOpaque) {
-            handleRoundedCorners(display, layer, mesh);
+        else if (layer->geometry.roundedCornersRadius > 0.0 && color.a >= 1.0f && isOpaque) {
+            handleRoundedCorners(display, *layer, mesh);
         } else {
             drawMesh(mesh);
         }
 
         // Cleanup if there's a buffer source
-        if (layer.source.buffer.buffer != nullptr) {
+        if (layer->source.buffer.buffer != nullptr) {
             disableBlending();
             setSourceY410BT2020(false);
             disableTexturing();

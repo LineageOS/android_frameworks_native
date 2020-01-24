@@ -158,6 +158,13 @@ int32_t ANativeWindow_getBuffersDataSpace(ANativeWindow* window) {
     return query(window, NATIVE_WINDOW_DATASPACE);
 }
 
+int32_t ANativeWindow_setFrameRate(ANativeWindow* window, float frameRate) {
+    if (!window || !query(window, NATIVE_WINDOW_IS_VALID) || frameRate < 0) {
+        return -EINVAL;
+    }
+    return native_window_set_frame_rate(window, frameRate);
+}
+
 /**************************************************************************************************
  * vndk-stable
  **************************************************************************************************/

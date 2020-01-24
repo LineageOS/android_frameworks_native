@@ -144,7 +144,7 @@ Layer::~Layer() {
     mFlinger->onLayerDestroyed(this);
 }
 
-LayerCreationArgs::LayerCreationArgs(SurfaceFlinger* flinger, const sp<Client>& client,
+LayerCreationArgs::LayerCreationArgs(SurfaceFlinger* flinger, const sp<Client> client,
                                      std::string name, uint32_t w, uint32_t h, uint32_t flags,
                                      LayerMetadata metadata)
       : flinger(flinger),
@@ -551,7 +551,7 @@ const char* Layer::getDebugName() const {
 // drawing...
 // ---------------------------------------------------------------------------
 
-std::optional<renderengine::LayerSettings> Layer::prepareClientComposition(
+std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareClientComposition(
         compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) {
     if (!getCompositionLayer()) {
         return {};
@@ -559,7 +559,8 @@ std::optional<renderengine::LayerSettings> Layer::prepareClientComposition(
 
     FloatRect bounds = getBounds();
     half alpha = getAlpha();
-    renderengine::LayerSettings layerSettings;
+
+    compositionengine::LayerFE::LayerSettings layerSettings;
     layerSettings.geometry.boundaries = bounds;
     if (targetSettings.useIdentityTransform) {
         layerSettings.geometry.positionTransform = mat4();
@@ -581,8 +582,8 @@ std::optional<renderengine::LayerSettings> Layer::prepareClientComposition(
     return layerSettings;
 }
 
-std::optional<renderengine::LayerSettings> Layer::prepareShadowClientComposition(
-        const renderengine::LayerSettings& casterLayerSettings, const Rect& displayViewport,
+std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareShadowClientComposition(
+        const LayerFE::LayerSettings& casterLayerSettings, const Rect& displayViewport,
         ui::Dataspace outputDataspace) {
     renderengine::ShadowSettings shadow = getShadowSettings(displayViewport);
     if (shadow.length <= 0.f) {
@@ -593,7 +594,8 @@ std::optional<renderengine::LayerSettings> Layer::prepareShadowClientComposition
     const bool casterIsOpaque = ((casterLayerSettings.source.buffer.buffer != nullptr) &&
                                  casterLayerSettings.source.buffer.isOpaque);
 
-    renderengine::LayerSettings shadowLayer = casterLayerSettings;
+    compositionengine::LayerFE::LayerSettings shadowLayer = casterLayerSettings;
+
     shadowLayer.shadow = shadow;
     shadowLayer.geometry.boundaries = mBounds; // ignore transparent region
 
@@ -604,13 +606,16 @@ std::optional<renderengine::LayerSettings> Layer::prepareShadowClientComposition
     shadowLayer.shadow.spotColor *= casterAlpha;
     shadowLayer.sourceDataspace = outputDataspace;
     shadowLayer.source.buffer.buffer = nullptr;
+    shadowLayer.source.buffer.fence = nullptr;
+    shadowLayer.frameNumber = 0;
+    shadowLayer.bufferId = 0;
 
     if (shadowLayer.shadow.ambientColor.a <= 0.f && shadowLayer.shadow.spotColor.a <= 0.f) {
         return {};
     }
 
     float casterCornerRadius = shadowLayer.geometry.roundedCornersRadius;
-    const FloatRect& cornerRadiusCropRect = casterLayerSettings.geometry.roundedCornersCrop;
+    const FloatRect& cornerRadiusCropRect = shadowLayer.geometry.roundedCornersCrop;
     const FloatRect& casterRect = shadowLayer.geometry.boundaries;
 
     // crop used to set the corner radius may be larger than the content rect. Adjust the corner

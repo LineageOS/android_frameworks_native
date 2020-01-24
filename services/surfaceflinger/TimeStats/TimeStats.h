@@ -51,6 +51,7 @@ public:
     virtual void incrementTotalFrames() = 0;
     virtual void incrementMissedFrames() = 0;
     virtual void incrementClientCompositionFrames() = 0;
+    virtual void incrementClientCompositionReusedFrames() = 0;
 
     // Records the start and end times for a frame.
     // The start time is the same as the beginning of a SurfaceFlinger
@@ -189,6 +190,7 @@ public:
     void incrementTotalFrames() override;
     void incrementMissedFrames() override;
     void incrementClientCompositionFrames() override;
+    void incrementClientCompositionReusedFrames() override;
 
     void recordFrameDuration(nsecs_t startTime, nsecs_t endTime) override;
     void recordRenderEngineDuration(nsecs_t startTime, nsecs_t endTime) override;

@@ -102,6 +102,7 @@ std::string TimeStatsHelper::TimeStatsGlobal::toString(std::optional<uint32_t> m
     StringAppendF(&result, "totalFrames = %d\n", totalFrames);
     StringAppendF(&result, "missedFrames = %d\n", missedFrames);
     StringAppendF(&result, "clientCompositionFrames = %d\n", clientCompositionFrames);
+    StringAppendF(&result, "clientCompositionReusedFrames = %d\n", clientCompositionReusedFrames);
     StringAppendF(&result, "displayOnTime = %" PRId64 " ms\n", displayOnTime);
     StringAppendF(&result, "displayConfigStats is as below:\n");
     for (const auto& [fps, duration] : refreshRateStats) {

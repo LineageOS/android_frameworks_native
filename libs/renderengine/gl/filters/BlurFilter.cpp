@@ -42,9 +42,20 @@ status_t BlurFilter::setAsDrawTarget(const DisplaySettings& display) {
     ATRACE_NAME("BlurFilter::setAsDrawTarget");
 
     if (!mTexturesAllocated) {
-        const uint32_t fboWidth = floorf(display.physicalDisplay.width() * kFboScale);
-        const uint32_t fboHeight = floorf(display.physicalDisplay.height() * kFboScale);
-        mCompositionFbo.allocateBuffers(fboWidth, fboHeight);
+        mDisplayWidth = display.physicalDisplay.width();
+        mDisplayHeight = display.physicalDisplay.height();
+        mCompositionFbo.allocateBuffers(mDisplayWidth, mDisplayHeight);
+
+        // Let's use mimap filtering on the offscreen composition texture,
+        // this will drastically improve overall shader quality.
+        glBindTexture(GL_TEXTURE_2D, mCompositionFbo.getTextureName());
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 3);
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        const uint32_t fboWidth = floorf(mDisplayWidth * kFboScale);
+        const uint32_t fboHeight = floorf(mDisplayHeight * kFboScale);
         mBlurredFbo.allocateBuffers(fboWidth, fboHeight);
         allocateTextures();
         mTexturesAllocated = true;

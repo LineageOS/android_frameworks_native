@@ -89,16 +89,26 @@ public:
         Region& clearRegion;
     };
 
+    // A superset of LayerSettings required by RenderEngine to compose a layer
+    // and buffer info to determine duplicate client composition requests.
+    struct LayerSettings : renderengine::LayerSettings {
+        // Currently latched buffer if, 0 if invalid.
+        uint64_t bufferId = 0;
+
+        // Currently latched frame number, 0 if invalid.
+        uint64_t frameNumber = 0;
+    };
+
     // Returns the LayerSettings to pass to RenderEngine::drawLayers, or
     // nullopt_t if the layer does not render
-    virtual std::optional<renderengine::LayerSettings> prepareClientComposition(
+    virtual std::optional<LayerSettings> prepareClientComposition(
             ClientCompositionTargetSettings&) = 0;
 
     // Returns the LayerSettings used to draw shadows around a layer. It is passed
     // to RenderEngine::drawLayers. Returns nullopt_t if the layer does not render
     // shadows.
-    virtual std::optional<renderengine::LayerSettings> prepareShadowClientComposition(
-            const renderengine::LayerSettings& layerSettings, const Rect& displayViewport,
+    virtual std::optional<LayerSettings> prepareShadowClientComposition(
+            const LayerSettings& layerSettings, const Rect& displayViewport,
             ui::Dataspace outputDataspace) = 0;
 
     // Called after the layer is displayed to update the presentation fence
@@ -125,6 +135,13 @@ static inline bool operator==(const LayerFE::ClientCompositionTargetSettings& lh
             lhs.clearRegion.hasSameRects(rhs.clearRegion);
 }
 
+static inline bool operator==(const LayerFE::LayerSettings& lhs,
+                              const LayerFE::LayerSettings& rhs) {
+    return static_cast<const renderengine::LayerSettings&>(lhs) ==
+            static_cast<const renderengine::LayerSettings&>(rhs) &&
+            lhs.bufferId == rhs.bufferId && lhs.frameNumber == rhs.frameNumber;
+}
+
 // Defining PrintTo helps with Google Tests.
 static inline void PrintTo(const LayerFE::ClientCompositionTargetSettings& settings,
                            ::std::ostream* os) {
@@ -137,6 +154,14 @@ static inline void PrintTo(const LayerFE::ClientCompositionTargetSettings& setti
     *os << "\n    .supportsProtectedContent = " << settings.supportsProtectedContent;
     *os << "\n    .clearRegion = ";
     PrintTo(settings.clearRegion, os);
+    *os << "\n}";
+}
+
+static inline void PrintTo(const LayerFE::LayerSettings& settings, ::std::ostream* os) {
+    *os << "LayerFE::LayerSettings{";
+    PrintTo(static_cast<const renderengine::LayerSettings&>(settings), os);
+    *os << "\n    .bufferId = " << settings.bufferId;
+    *os << "\n    .frameNumber = " << settings.frameNumber;
     *os << "\n}";
 }
 
