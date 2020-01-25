@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
-
 #include <cmath>
 
 #include <android-base/stringprintf.h>
@@ -3934,6 +3930,3 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
 
 } // namespace
 } // namespace android::compositionengine
-
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"
