@@ -198,7 +198,8 @@ public:
     void setupScheduler(std::unique_ptr<DispSync> primaryDispSync,
                         std::unique_ptr<EventControlThread> eventControlThread,
                         std::unique_ptr<EventThread> appEventThread,
-                        std::unique_ptr<EventThread> sfEventThread) {
+                        std::unique_ptr<EventThread> sfEventThread,
+                        bool useContentDetectionV2 = false) {
         std::vector<scheduler::RefreshRateConfigs::InputConfig> configs{
                 {{HwcConfigIndexType(0), HwcConfigGroupType(0), 16666667}}};
         mFlinger->mRefreshRateConfigs = std::make_unique<
@@ -213,7 +214,7 @@ public:
 
         mScheduler =
                 new TestableScheduler(std::move(primaryDispSync), std::move(eventControlThread),
-                                      *mFlinger->mRefreshRateConfigs);
+                                      *mFlinger->mRefreshRateConfigs, useContentDetectionV2);
 
         mFlinger->mAppConnectionHandle = mScheduler->createConnection(std::move(appEventThread));
         mFlinger->mSfConnectionHandle = mScheduler->createConnection(std::move(sfEventThread));
@@ -443,7 +444,7 @@ public:
         static constexpr int32_t DEFAULT_REFRESH_RATE = 16'666'666;
         static constexpr int32_t DEFAULT_CONFIG_GROUP = 7;
         static constexpr int32_t DEFAULT_DPI = 320;
-        static constexpr int32_t DEFAULT_ACTIVE_CONFIG = 0;
+        static constexpr hwc2_config_t DEFAULT_ACTIVE_CONFIG = 0;
         static constexpr int32_t DEFAULT_POWER_MODE = 2;
 
         FakeHwcDisplayInjector(DisplayId displayId, HWC2::DisplayType hwcDisplayType,
@@ -465,7 +466,7 @@ public:
             return *this;
         }
 
-        auto& setRefreshRate(uint32_t refreshRate) {
+        auto& setRefreshRate(int32_t refreshRate) {
             mRefreshRate = refreshRate;
             return *this;
         }
@@ -480,7 +481,7 @@ public:
             return *this;
         }
 
-        auto& setActiveConfig(int32_t config) {
+        auto& setActiveConfig(hwc2_config_t config) {
             mActiveConfig = config;
             return *this;
         }
@@ -513,7 +514,7 @@ public:
             config.setDpiX(mDpiX);
             config.setDpiY(mDpiY);
             config.setConfigGroup(mConfigGroup);
-            display->mutableConfigs().emplace(mActiveConfig, config.build());
+            display->mutableConfigs().emplace(static_cast<int32_t>(mActiveConfig), config.build());
             display->mutableIsConnected() = true;
             display->setPowerMode(static_cast<HWC2::PowerMode>(mPowerMode));
 
@@ -534,11 +535,11 @@ public:
         hwc2_display_t mHwcDisplayId = DEFAULT_HWC_DISPLAY_ID;
         int32_t mWidth = DEFAULT_WIDTH;
         int32_t mHeight = DEFAULT_HEIGHT;
-        uint32_t mRefreshRate = DEFAULT_REFRESH_RATE;
+        int32_t mRefreshRate = DEFAULT_REFRESH_RATE;
         int32_t mDpiX = DEFAULT_DPI;
         int32_t mConfigGroup = DEFAULT_CONFIG_GROUP;
         int32_t mDpiY = DEFAULT_DPI;
-        int32_t mActiveConfig = DEFAULT_ACTIVE_CONFIG;
+        hwc2_config_t mActiveConfig = DEFAULT_ACTIVE_CONFIG;
         int32_t mPowerMode = DEFAULT_POWER_MODE;
         const std::unordered_set<HWC2::Capability>* mCapabilities = nullptr;
     };

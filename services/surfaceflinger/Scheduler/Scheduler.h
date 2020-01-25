@@ -23,7 +23,11 @@
 #include <optional>
 #include <unordered_map>
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
 #include <ui/GraphicTypes.h>
+#pragma clang diagnostic pop
 
 #include "EventControlThread.h"
 #include "EventThread.h"
@@ -58,7 +62,8 @@ public:
     enum class TransactionStart { EARLY, NORMAL };
 
     Scheduler(impl::EventControlThread::SetVSyncEnabledFunction,
-              const scheduler::RefreshRateConfigs&, ISchedulerCallback& schedulerCallback);
+              const scheduler::RefreshRateConfigs&, ISchedulerCallback& schedulerCallback,
+              bool useContentDetectionV2);
 
     virtual ~Scheduler();
 
@@ -136,6 +141,9 @@ public:
     // Notifies the scheduler when the display was refreshed
     void onDisplayRefreshed(nsecs_t timestamp);
 
+    // Notifies the scheduler when the display size has changed. Called from SF's main thread
+    void onPrimaryDisplayAreaChanged(uint32_t displayArea);
+
 private:
     friend class TestableScheduler;
 
@@ -147,7 +155,8 @@ private:
 
     // Used by tests to inject mocks.
     Scheduler(std::unique_ptr<DispSync>, std::unique_ptr<EventControlThread>,
-              const scheduler::RefreshRateConfigs&, ISchedulerCallback& schedulerCallback);
+              const scheduler::RefreshRateConfigs&, ISchedulerCallback& schedulerCallback,
+              bool useContentDetectionV2);
 
     std::unique_ptr<VSyncSource> makePrimaryDispSyncSource(const char* name, nsecs_t phaseOffsetNs);
 
@@ -169,6 +178,8 @@ private:
     void setVsyncPeriod(nsecs_t period);
 
     HwcConfigIndexType calculateRefreshRateType() REQUIRES(mFeatureStateLock);
+
+    bool layerHistoryHasClientSpecifiedFrameRate() REQUIRES(mFeatureStateLock);
 
     // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
     struct Connection {
@@ -218,7 +229,7 @@ private:
         TimerState displayPowerTimer = TimerState::Expired;
 
         std::optional<HwcConfigIndexType> configId;
-        uint32_t contentRefreshRate = 0;
+        scheduler::LayerHistory::Summary contentRequirements;
 
         bool isDisplayPowerStateNormal = true;
     } mFeatures GUARDED_BY(mFeatureStateLock);
@@ -229,6 +240,8 @@ private:
     std::optional<HWC2::VsyncPeriodChangeTimeline> mLastVsyncPeriodChangeTimeline
             GUARDED_BY(mVsyncTimelineLock);
     static constexpr std::chrono::nanoseconds MAX_VSYNC_APPLIED_TIME = 200ms;
+
+    const bool mUseContentDetectionV2;
 };
 
 } // namespace android

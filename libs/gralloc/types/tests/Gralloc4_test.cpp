@@ -25,6 +25,7 @@
 using android::hardware::hidl_vec;
 
 using android::hardware::graphics::common::V1_2::PixelFormat;
+using android::hardware::graphics::common::V1_2::BufferUsage;
 
 using aidl::android::hardware::graphics::common::BlendMode;
 using aidl::android::hardware::graphics::common::ChromaSiting;
@@ -41,6 +42,7 @@ using aidl::android::hardware::graphics::common::Smpte2086;
 using aidl::android::hardware::graphics::common::StandardMetadataType;
 using aidl::android::hardware::graphics::common::XyColor;
 
+using BufferDescriptorInfo = android::hardware::graphics::mapper::V4_0::IMapper::BufferDescriptorInfo;
 using MetadataType = android::hardware::graphics::mapper::V4_0::IMapper::MetadataType;
 
 namespace android {
@@ -433,6 +435,19 @@ INSTANTIATE_TEST_CASE_P(
 
 TEST_P(Gralloc4TestSmpte2094_40, Smpte2094_40) {
     ASSERT_NO_FATAL_FAILURE(testHelperStableAidlTypeOptional(GetParam(), gralloc4::encodeSmpte2094_40, gralloc4::decodeSmpte2094_40));
+}
+
+class Gralloc4TestBufferDescriptorInfo : public testing::TestWithParam<BufferDescriptorInfo> { };
+
+INSTANTIATE_TEST_CASE_P(
+        Gralloc4TestBufferDescriptorInfoParams, Gralloc4TestBufferDescriptorInfo,
+        ::testing::Values(BufferDescriptorInfo{"BufferName", 64, 64, 1,
+                PixelFormat::RGBA_8888,
+                static_cast<uint64_t>(BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN),
+                1024}));
+
+TEST_P(Gralloc4TestBufferDescriptorInfo, BufferDescriptorInfo) {
+    ASSERT_NO_FATAL_FAILURE(testHelperConst(GetParam(), gralloc4::encodeBufferDescriptorInfo, gralloc4::decodeBufferDescriptorInfo));
 }
 
 class Gralloc4TestErrors : public testing::Test { };

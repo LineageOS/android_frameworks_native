@@ -76,7 +76,7 @@ SchedulerTest::SchedulerTest() {
             scheduler::RefreshRateConfigs>(/*refreshRateSwitching=*/false, configs,
                                            /*currentConfig=*/HwcConfigIndexType(0));
 
-    mScheduler = std::make_unique<TestableScheduler>(*mRefreshRateConfigs);
+    mScheduler = std::make_unique<TestableScheduler>(*mRefreshRateConfigs, false);
 
     auto eventThread = std::make_unique<mock::EventThread>();
     mEventThread = eventThread.get();

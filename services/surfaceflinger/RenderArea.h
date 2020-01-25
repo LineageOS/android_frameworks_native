@@ -71,8 +71,8 @@ public:
     RotationFlags getRotationFlags() const { return mRotationFlags; }
 
     // Returns the size of the physical render area.
-    int getReqWidth() const { return mReqWidth; }
-    int getReqHeight() const { return mReqHeight; }
+    int getReqWidth() const { return static_cast<int>(mReqWidth); }
+    int getReqHeight() const { return static_cast<int>(mReqHeight); }
 
     // Returns the composition data space of the render area.
     ui::Dataspace getReqDataSpace() const { return mReqDataSpace; }

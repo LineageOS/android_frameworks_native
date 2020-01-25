@@ -97,8 +97,39 @@ public:
     // Returns true if this device is doing refresh rate switching. This won't change at runtime.
     bool refreshRateSwitchingSupported() const { return mRefreshRateSwitching; }
 
+    // Describes the different options the layer voted for refresh rate
+    enum class LayerVoteType {
+        NoVote,    // Doesn't care about the refresh rate
+        Min,       // Minimal refresh rate available
+        Max,       // Maximal refresh rate available
+        Heuristic, // Specific refresh rate that was calculated by platform using a heuristic
+        Explicit,  // Specific refresh rate that was provided by the app
+    };
+
+    // Captures the layer requirements for a refresh rate. This will be used to determine the
+    // display refresh rate.
+    struct LayerRequirement {
+        std::string name;         // Layer's name. Used for debugging purposes.
+        LayerVoteType vote;       // Layer vote type.
+        float desiredRefreshRate; // Layer's desired refresh rate, if applicable.
+        float weight; // Layer's weight in the range of [0, 1]. The higher the weight the more
+                      // impact this layer would have on choosing the refresh rate.
+
+        bool operator==(const LayerRequirement& other) const {
+            return name == other.name && vote == other.vote &&
+                    desiredRefreshRate == other.desiredRefreshRate && weight == other.weight;
+        }
+
+        bool operator!=(const LayerRequirement& other) const { return !(*this == other); }
+    };
+
     // Returns all available refresh rates according to the current policy.
-    const RefreshRate& getRefreshRateForContent(float contentFramerate) const EXCLUDES(mLock);
+    const RefreshRate& getRefreshRateForContent(const std::vector<LayerRequirement>& layers) const
+            EXCLUDES(mLock);
+
+    // Returns all available refresh rates according to the current policy.
+    const RefreshRate& getRefreshRateForContentV2(const std::vector<LayerRequirement>& layers) const
+            EXCLUDES(mLock);
 
     // Returns all the refresh rates supported by the device. This won't change at runtime.
     const AllRefreshRatesMapType& getAllRefreshRates() const EXCLUDES(mLock);

@@ -57,7 +57,7 @@ public:
     bool shouldPresentNow(nsecs_t expectedPresentTime) const override;
 
     bool setFrameRate(float frameRate) override;
-    float getFrameRate() const override;
+    std::optional<float> getFrameRate() const override;
 
     // -----------------------------------------------------------------------
 

@@ -75,7 +75,9 @@ std::unique_ptr<scheduler::PhaseConfiguration> DefaultFactory::createPhaseConfig
 std::unique_ptr<Scheduler> DefaultFactory::createScheduler(
         SetVSyncEnabled setVSyncEnabled, const scheduler::RefreshRateConfigs& configs,
         ISchedulerCallback& schedulerCallback) {
-    return std::make_unique<Scheduler>(std::move(setVSyncEnabled), configs, schedulerCallback);
+    return std::make_unique<Scheduler>(std::move(setVSyncEnabled), configs, schedulerCallback,
+                                       property_get_bool("debug.sf.use_content_detection_v2",
+                                                         false));
 }
 
 std::unique_ptr<SurfaceInterceptor> DefaultFactory::createSurfaceInterceptor(

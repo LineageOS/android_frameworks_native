@@ -23,6 +23,10 @@
 #include <utility>
 #include <vector>
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 #include <android/frameworks/vr/composer/2.0/IVrComposerClient.h>
 #endif // defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
@@ -35,6 +39,9 @@
 #include <ui/DisplayedFrameStats.h>
 #include <ui/GraphicBuffer.h>
 #include <utils/StrongPointer.h>
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"
 
 namespace android {
 
