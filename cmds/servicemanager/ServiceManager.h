@@ -75,7 +75,7 @@ private:
     void removeRegistrationCallback(const wp<IBinder>& who,
                         ServiceCallbackMap::iterator* it,
                         bool* found);
-    ssize_t handleServiceClientCallback(const std::string& serviceName, bool isCalledOnInterval);
+    ssize_t handleServiceClientCallback(const std::string& serviceName);
      // Also updates mHasClients (of what the last callback was)
     void sendClientCallbackNotifications(const std::string& serviceName, bool hasClients);
     // removes a callback from mNameToClientCallback, deleting the entry if the vector is empty
