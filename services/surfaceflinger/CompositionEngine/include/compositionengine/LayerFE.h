@@ -20,7 +20,15 @@
 #include <ostream>
 #include <unordered_set>
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <renderengine/LayerSettings.h>
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"
+
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 
