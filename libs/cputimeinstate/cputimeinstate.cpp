@@ -49,6 +49,8 @@ namespace bpf {
 
 static std::mutex gInitializedMutex;
 static bool gInitialized = false;
+static std::mutex gTrackingMutex;
+static bool gTracking = false;
 static uint32_t gNPolicies = 0;
 static uint32_t gNCpus = 0;
 static std::vector<std::vector<uint32_t>> gPolicyFreqs;
@@ -161,7 +163,9 @@ static bool attachTracepointProgram(const std::string &eventType, const std::str
 // This function should *not* be called while tracking is already active; doing so is unnecessary
 // and can lead to accounting errors.
 bool startTrackingUidTimes() {
+    std::lock_guard<std::mutex> guard(gTrackingMutex);
     if (!initGlobals()) return false;
+    if (gTracking) return true;
 
     unique_fd cpuPolicyFd(bpf_obj_get_wronly(BPF_FS_PATH "map_time_in_state_cpu_policy_map"));
     if (cpuPolicyFd < 0) return false;
@@ -209,8 +213,9 @@ bool startTrackingUidTimes() {
         if (writeToMapEntry(policyFreqIdxFd, &i, &zero, BPF_ANY)) return false;
     }
 
-    return attachTracepointProgram("sched", "sched_switch") &&
+    gTracking = attachTracepointProgram("sched", "sched_switch") &&
             attachTracepointProgram("power", "cpu_frequency");
+    return gTracking;
 }
 
 std::optional<std::vector<std::vector<uint32_t>>> getCpuFreqs() {
