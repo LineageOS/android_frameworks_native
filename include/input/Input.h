@@ -354,9 +354,9 @@ public:
 
     inline int32_t getDeviceId() const { return mDeviceId; }
 
-    inline int32_t getSource() const { return mSource; }
+    inline uint32_t getSource() const { return mSource; }
 
-    inline void setSource(int32_t source) { mSource = source; }
+    inline void setSource(uint32_t source) { mSource = source; }
 
     inline int32_t getDisplayId() const { return mDisplayId; }
 
@@ -365,12 +365,12 @@ public:
     inline std::array<uint8_t, 32> getHmac() const { return mHmac; }
 
 protected:
-    void initialize(int32_t deviceId, int32_t source, int32_t displayId,
+    void initialize(int32_t deviceId, uint32_t source, int32_t displayId,
                     std::array<uint8_t, 32> hmac);
     void initialize(const InputEvent& from);
 
     int32_t mDeviceId;
-    int32_t mSource;
+    uint32_t mSource;
     int32_t mDisplayId;
     std::array<uint8_t, 32> mHmac;
 };
@@ -405,7 +405,7 @@ public:
     static const char* getLabel(int32_t keyCode);
     static int32_t getKeyCodeFromLabel(const char* label);
 
-    void initialize(int32_t deviceId, int32_t source, int32_t displayId,
+    void initialize(int32_t deviceId, uint32_t source, int32_t displayId,
                     std::array<uint8_t, 32> hmac, int32_t action, int32_t flags, int32_t keyCode,
                     int32_t scanCode, int32_t metaState, int32_t repeatCount, nsecs_t downTime,
                     nsecs_t eventTime);
@@ -629,7 +629,7 @@ public:
 
     ssize_t findPointerIndex(int32_t pointerId) const;
 
-    void initialize(int32_t deviceId, int32_t source, int32_t displayId,
+    void initialize(int32_t deviceId, uint32_t source, int32_t displayId,
                     std::array<uint8_t, 32> hmac, int32_t action, int32_t actionButton,
                     int32_t flags, int32_t edgeFlags, int32_t metaState, int32_t buttonState,
                     MotionClassification classification, float xScale, float yScale, float xOffset,
@@ -657,7 +657,7 @@ public:
     status_t writeToParcel(Parcel* parcel) const;
 #endif
 
-    static bool isTouchEvent(int32_t source, int32_t action);
+    static bool isTouchEvent(uint32_t source, int32_t action);
     inline bool isTouchEvent() const {
         return isTouchEvent(mSource, mAction);
     }
