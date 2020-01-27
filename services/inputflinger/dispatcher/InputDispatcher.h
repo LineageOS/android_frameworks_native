@@ -417,6 +417,9 @@ private:
                                                         const CancelationOptions& options)
             REQUIRES(mLock);
 
+    void synthesizePointerDownEventsForConnectionLocked(const sp<Connection>& connection)
+            REQUIRES(mLock);
+
     // Splitting motion events across windows.
     MotionEntry* splitMotionEvent(const MotionEntry& originalMotionEntry, BitSet32 pointerIds);
 

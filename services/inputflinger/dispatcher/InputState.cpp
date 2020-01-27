@@ -145,10 +145,13 @@ bool InputState::trackMotion(const MotionEntry& entry, int32_t action, int32_t f
                 // Joysticks and trackballs can send MOVE events without corresponding DOWN or UP.
                 return true;
             }
+
             if (index >= 0) {
                 MotionMemento& memento = mMotionMementos[index];
-                memento.setPointers(entry);
-                return true;
+                if (memento.firstNewPointerIdx < 0) {
+                    memento.setPointers(entry);
+                    return true;
+                }
             }
 #if DEBUG_OUTBOUND_EVENT_DETAILS
             ALOGD("Dropping inconsistent motion pointer up/down or move event: "
@@ -249,6 +252,17 @@ void InputState::MotionMemento::setPointers(const MotionEntry& entry) {
     }
 }
 
+void InputState::MotionMemento::mergePointerStateTo(MotionMemento& other) const {
+    for (uint32_t i = 0; i < pointerCount; i++) {
+        if (other.firstNewPointerIdx < 0) {
+            other.firstNewPointerIdx = other.pointerCount;
+        }
+        other.pointerProperties[other.pointerCount].copyFrom(pointerProperties[i]);
+        other.pointerCoords[other.pointerCount].copyFrom(pointerCoords[i]);
+        other.pointerCount++;
+    }
+}
+
 std::vector<EventEntry*> InputState::synthesizeCancelationEvents(
         nsecs_t currentTime, const CancelationOptions& options) {
     std::vector<EventEntry*> events;
@@ -282,27 +296,87 @@ std::vector<EventEntry*> InputState::synthesizeCancelationEvents(
     return events;
 }
 
+std::vector<EventEntry*> InputState::synthesizePointerDownEvents(nsecs_t currentTime) {
+    std::vector<EventEntry*> events;
+    for (MotionMemento& memento : mMotionMementos) {
+        if (!(memento.source & AINPUT_SOURCE_CLASS_POINTER)) {
+            continue;
+        }
+
+        if (memento.firstNewPointerIdx < 0) {
+            continue;
+        }
+
+        uint32_t pointerCount = 0;
+        PointerProperties pointerProperties[MAX_POINTERS];
+        PointerCoords pointerCoords[MAX_POINTERS];
+
+        // We will deliver all pointers the target already knows about
+        for (uint32_t i = 0; i < static_cast<uint32_t>(memento.firstNewPointerIdx); i++) {
+            pointerProperties[i].copyFrom(memento.pointerProperties[i]);
+            pointerCoords[i].copyFrom(memento.pointerCoords[i]);
+            pointerCount++;
+        }
+
+        // We will send explicit events for all pointers the target doesn't know about
+        for (uint32_t i = static_cast<uint32_t>(memento.firstNewPointerIdx);
+                i < memento.pointerCount; i++) {
+
+            pointerProperties[i].copyFrom(memento.pointerProperties[i]);
+            pointerCoords[i].copyFrom(memento.pointerCoords[i]);
+            pointerCount++;
+
+            // Down only if the first pointer, pointer down otherwise
+            const int32_t action = (pointerCount <= 1)
+                    ? AMOTION_EVENT_ACTION_DOWN
+                    : AMOTION_EVENT_ACTION_POINTER_DOWN
+                            | (i << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
+
+            events.push_back(new MotionEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, currentTime,
+                                             memento.deviceId, memento.source, memento.displayId,
+                                             memento.policyFlags, action, 0 /*actionButton*/,
+                                             memento.flags, AMETA_NONE, 0 /*buttonState*/,
+                                             MotionClassification::NONE,
+                                             AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
+                                             memento.yPrecision, memento.xCursorPosition,
+                                             memento.yCursorPosition, memento.downTime,
+                                             pointerCount, pointerProperties,
+                                             pointerCoords, 0 /*xOffset*/, 0 /*yOffset*/));
+        }
+
+        memento.firstNewPointerIdx = INVALID_POINTER_INDEX;
+    }
+
+    return events;
+}
+
 void InputState::clear() {
     mKeyMementos.clear();
     mMotionMementos.clear();
     mFallbackKeys.clear();
 }
 
-void InputState::copyPointerStateTo(InputState& other) const {
+void InputState::mergePointerStateTo(InputState& other) {
     for (size_t i = 0; i < mMotionMementos.size(); i++) {
-        const MotionMemento& memento = mMotionMementos[i];
+        MotionMemento& memento = mMotionMementos[i];
+        // Since we support split pointers we need to merge touch events
+        // from the same source + device + screen.
         if (memento.source & AINPUT_SOURCE_CLASS_POINTER) {
-            for (size_t j = 0; j < other.mMotionMementos.size();) {
-                const MotionMemento& otherMemento = other.mMotionMementos[j];
+            bool merged = false;
+            for (size_t j = 0; j < other.mMotionMementos.size(); j++) {
+                MotionMemento& otherMemento = other.mMotionMementos[j];
                 if (memento.deviceId == otherMemento.deviceId &&
                     memento.source == otherMemento.source &&
                     memento.displayId == otherMemento.displayId) {
-                    other.mMotionMementos.erase(other.mMotionMementos.begin() + j);
-                } else {
-                    j += 1;
+                    memento.mergePointerStateTo(otherMemento);
+                    merged = true;
+                    break;
                 }
             }
-            other.mMotionMementos.push_back(memento);
+            if (!merged) {
+                memento.firstNewPointerIdx = 0;
+                other.mMotionMementos.push_back(memento);
+            }
         }
     }
 }
