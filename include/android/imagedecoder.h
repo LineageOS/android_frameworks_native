@@ -27,7 +27,7 @@
 #define ANDROID_IMAGE_DECODER_H
 
 #include "bitmap.h"
-
+#include <android/rect.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -35,7 +35,6 @@ extern "C" {
 #endif
 
 struct AAsset;
-struct ARect;
 
 #if __ANDROID_API__ >= 30
 
@@ -92,7 +91,8 @@ typedef struct AImageDecoder AImageDecoder;
  * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or a value
  *         indicating reason for the failure.
  */
-int AImageDecoder_createFromAAsset(AAsset* asset, AImageDecoder** outDecoder) __INTRODUCED_IN(30);
+int AImageDecoder_createFromAAsset(struct AAsset* asset, AImageDecoder** outDecoder)
+        __INTRODUCED_IN(30);
 
 /**
  * Create a new AImageDecoder from a file descriptor.
