@@ -35,7 +35,8 @@ namespace android::scheduler {
 
 class MockVSyncTracker : public VSyncTracker {
 public:
-    MOCK_METHOD1(addVsyncTimestamp, void(nsecs_t));
+    MockVSyncTracker() { ON_CALL(*this, addVsyncTimestamp(_)).WillByDefault(Return(true)); }
+    MOCK_METHOD1(addVsyncTimestamp, bool(nsecs_t));
     MOCK_CONST_METHOD1(nextAnticipatedVSyncTimeFrom, nsecs_t(nsecs_t));
     MOCK_CONST_METHOD0(currentPeriod, nsecs_t());
     MOCK_METHOD1(setPeriod, void(nsecs_t));
@@ -46,7 +47,9 @@ class VSyncTrackerWrapper : public VSyncTracker {
 public:
     VSyncTrackerWrapper(std::shared_ptr<VSyncTracker> const& tracker) : mTracker(tracker) {}
 
-    void addVsyncTimestamp(nsecs_t timestamp) final { mTracker->addVsyncTimestamp(timestamp); }
+    bool addVsyncTimestamp(nsecs_t timestamp) final {
+        return mTracker->addVsyncTimestamp(timestamp);
+    }
     nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const final {
         return mTracker->nextAnticipatedVSyncTimeFrom(timePoint);
     }
@@ -239,6 +242,22 @@ TEST_F(VSyncReactorTest, ignoresPresentFencesWhenToldTo) {
     EXPECT_FALSE(mReactor.addPresentFence(generateSignalledFenceWithTime(mDummyTime)));
 }
 
+TEST_F(VSyncReactorTest, ignoresProperlyAfterAPeriodConfirmation) {
+    bool periodFlushed = true;
+    EXPECT_CALL(*mMockTracker, addVsyncTimestamp(_)).Times(2);
+    mReactor.setIgnorePresentFences(true);
+
+    nsecs_t const newPeriod = 5000;
+    mReactor.setPeriod(newPeriod);
+
+    EXPECT_TRUE(mReactor.addResyncSample(0, &periodFlushed));
+    EXPECT_FALSE(periodFlushed);
+    EXPECT_FALSE(mReactor.addResyncSample(newPeriod, &periodFlushed));
+    EXPECT_TRUE(periodFlushed);
+
+    EXPECT_TRUE(mReactor.addPresentFence(generateSignalledFenceWithTime(0)));
+}
+
 TEST_F(VSyncReactorTest, queriesTrackerForNextRefreshNow) {
     nsecs_t const fakeTimestamp = 4839;
     EXPECT_CALL(*mMockTracker, currentPeriod()).Times(0);
@@ -328,6 +347,35 @@ TEST_F(VSyncReactorTest, changingToAThirdPeriodWillWaitForLastPeriod) {
     EXPECT_FALSE(periodFlushed);
     EXPECT_FALSE(mReactor.addResyncSample(sampleTime += thirdPeriod, &periodFlushed));
     EXPECT_TRUE(periodFlushed);
+}
+
+TEST_F(VSyncReactorTest, reportedBadTimestampFromPredictorWillReactivateHwVSync) {
+    EXPECT_CALL(*mMockTracker, addVsyncTimestamp(_))
+            .WillOnce(Return(false))
+            .WillOnce(Return(true))
+            .WillOnce(Return(true));
+    EXPECT_TRUE(mReactor.addPresentFence(generateSignalledFenceWithTime(0)));
+    EXPECT_TRUE(mReactor.addPresentFence(generateSignalledFenceWithTime(0)));
+
+    nsecs_t skewyPeriod = period >> 1;
+    bool periodFlushed = false;
+    nsecs_t sampleTime = 0;
+    EXPECT_TRUE(mReactor.addResyncSample(sampleTime += skewyPeriod, &periodFlushed));
+    EXPECT_FALSE(periodFlushed);
+    EXPECT_FALSE(mReactor.addResyncSample(sampleTime += period, &periodFlushed));
+    EXPECT_FALSE(periodFlushed);
+}
+
+TEST_F(VSyncReactorTest, reportedBadTimestampFromPredictorWillReactivateHwVSyncPendingFence) {
+    EXPECT_CALL(*mMockTracker, addVsyncTimestamp(_))
+            .Times(2)
+            .WillOnce(Return(false))
+            .WillOnce(Return(true));
+
+    auto fence = generatePendingFence();
+    EXPECT_FALSE(mReactor.addPresentFence(fence));
+    signalFenceWithTime(fence, period >> 1);
+    EXPECT_TRUE(mReactor.addPresentFence(generateSignalledFenceWithTime(0)));
 }
 
 TEST_F(VSyncReactorTest, presentFenceAdditionDoesNotInterruptConfirmationProcess) {
