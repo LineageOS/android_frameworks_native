@@ -649,7 +649,7 @@ UserConsentResult Dumpstate::ConsentCallback::getResult() {
 }
 
 uint64_t Dumpstate::ConsentCallback::getElapsedTimeMs() const {
-    return Nanotime() - start_time_;
+    return (Nanotime() - start_time_) / NANOS_PER_MILLI;
 }
 
 void Dumpstate::PrintHeader() const {
