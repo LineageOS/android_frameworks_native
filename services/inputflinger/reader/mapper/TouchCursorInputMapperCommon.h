@@ -65,8 +65,8 @@ static void synthesizeButtonKey(InputReaderContext* context, int32_t action, nse
          (currentButtonState & buttonState)) ||
         (action == AKEY_EVENT_ACTION_UP && (lastButtonState & buttonState) &&
          !(currentButtonState & buttonState))) {
-        NotifyKeyArgs args(context->getNextSequenceNum(), when, deviceId, source, displayId,
-                           policyFlags, action, 0, keyCode, 0, context->getGlobalMetaState(), when);
+        NotifyKeyArgs args(context->getNextId(), when, deviceId, source, displayId, policyFlags,
+                           action, 0, keyCode, 0, context->getGlobalMetaState(), when);
         context->getListener()->notifyKey(&args);
     }
 }
