@@ -86,8 +86,8 @@ VerifiedMotionEvent verifiedMotionEventFromMotionEntry(const MotionEntry& entry)
 
 // --- EventEntry ---
 
-EventEntry::EventEntry(uint32_t sequenceNum, Type type, nsecs_t eventTime, uint32_t policyFlags)
-      : sequenceNum(sequenceNum),
+EventEntry::EventEntry(int32_t id, Type type, nsecs_t eventTime, uint32_t policyFlags)
+      : id(id),
         refCount(1),
         type(type),
         eventTime(eventTime),
@@ -117,8 +117,8 @@ void EventEntry::releaseInjectionState() {
 
 // --- ConfigurationChangedEntry ---
 
-ConfigurationChangedEntry::ConfigurationChangedEntry(uint32_t sequenceNum, nsecs_t eventTime)
-      : EventEntry(sequenceNum, Type::CONFIGURATION_CHANGED, eventTime, 0) {}
+ConfigurationChangedEntry::ConfigurationChangedEntry(int32_t id, nsecs_t eventTime)
+      : EventEntry(id, Type::CONFIGURATION_CHANGED, eventTime, 0) {}
 
 ConfigurationChangedEntry::~ConfigurationChangedEntry() {}
 
@@ -128,8 +128,8 @@ void ConfigurationChangedEntry::appendDescription(std::string& msg) const {
 
 // --- DeviceResetEntry ---
 
-DeviceResetEntry::DeviceResetEntry(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId)
-      : EventEntry(sequenceNum, Type::DEVICE_RESET, eventTime, 0), deviceId(deviceId) {}
+DeviceResetEntry::DeviceResetEntry(int32_t id, nsecs_t eventTime, int32_t deviceId)
+      : EventEntry(id, Type::DEVICE_RESET, eventTime, 0), deviceId(deviceId) {}
 
 DeviceResetEntry::~DeviceResetEntry() {}
 
@@ -140,9 +140,8 @@ void DeviceResetEntry::appendDescription(std::string& msg) const {
 // --- FocusEntry ---
 
 // Focus notifications always go to apps, so set the flag POLICY_FLAG_PASS_TO_USER for all entries
-FocusEntry::FocusEntry(uint32_t sequenceNum, nsecs_t eventTime, sp<IBinder> connectionToken,
-                       bool hasFocus)
-      : EventEntry(sequenceNum, Type::FOCUS, eventTime, POLICY_FLAG_PASS_TO_USER),
+FocusEntry::FocusEntry(int32_t id, nsecs_t eventTime, sp<IBinder> connectionToken, bool hasFocus)
+      : EventEntry(id, Type::FOCUS, eventTime, POLICY_FLAG_PASS_TO_USER),
         connectionToken(connectionToken),
         hasFocus(hasFocus) {}
 
@@ -154,11 +153,11 @@ void FocusEntry::appendDescription(std::string& msg) const {
 
 // --- KeyEntry ---
 
-KeyEntry::KeyEntry(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId, uint32_t source,
+KeyEntry::KeyEntry(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t source,
                    int32_t displayId, uint32_t policyFlags, int32_t action, int32_t flags,
                    int32_t keyCode, int32_t scanCode, int32_t metaState, int32_t repeatCount,
                    nsecs_t downTime)
-      : EventEntry(sequenceNum, Type::KEY, eventTime, policyFlags),
+      : EventEntry(id, Type::KEY, eventTime, policyFlags),
         deviceId(deviceId),
         source(source),
         displayId(displayId),
@@ -198,7 +197,7 @@ void KeyEntry::recycle() {
 
 // --- MotionEntry ---
 
-MotionEntry::MotionEntry(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId, uint32_t source,
+MotionEntry::MotionEntry(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t source,
                          int32_t displayId, uint32_t policyFlags, int32_t action,
                          int32_t actionButton, int32_t flags, int32_t metaState,
                          int32_t buttonState, MotionClassification classification,
@@ -206,7 +205,7 @@ MotionEntry::MotionEntry(uint32_t sequenceNum, nsecs_t eventTime, int32_t device
                          float xCursorPosition, float yCursorPosition, nsecs_t downTime,
                          uint32_t pointerCount, const PointerProperties* pointerProperties,
                          const PointerCoords* pointerCoords, float xOffset, float yOffset)
-      : EventEntry(sequenceNum, Type::MOTION, eventTime, policyFlags),
+      : EventEntry(id, Type::MOTION, eventTime, policyFlags),
         eventTime(eventTime),
         deviceId(deviceId),
         source(source),
