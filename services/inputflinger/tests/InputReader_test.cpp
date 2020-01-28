@@ -1642,7 +1642,7 @@ TEST_F(InputReaderTest, LoopOnce_ForwardsRawEventsToMappers) {
     ASSERT_EQ(1, event.value);
 }
 
-TEST_F(InputReaderTest, DeviceReset_IncrementsId) {
+TEST_F(InputReaderTest, DeviceReset_RandomId) {
     constexpr int32_t deviceId = END_RESERVED_ID + 1000;
     constexpr uint32_t deviceClass = INPUT_DEVICE_CLASS_KEYBOARD;
     constexpr int32_t eventHubId = 1;
@@ -1659,20 +1659,35 @@ TEST_F(InputReaderTest, DeviceReset_IncrementsId) {
     disableDevice(deviceId);
     mReader->loopOnce();
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
-    ASSERT_TRUE(prevId < resetArgs.id);
+    ASSERT_NE(prevId, resetArgs.id);
     prevId = resetArgs.id;
 
     enableDevice(deviceId);
     mReader->loopOnce();
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
-    ASSERT_TRUE(prevId < resetArgs.id);
+    ASSERT_NE(prevId, resetArgs.id);
     prevId = resetArgs.id;
 
     disableDevice(deviceId);
     mReader->loopOnce();
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
-    ASSERT_TRUE(prevId < resetArgs.id);
+    ASSERT_NE(prevId, resetArgs.id);
     prevId = resetArgs.id;
+}
+
+TEST_F(InputReaderTest, DeviceReset_GenerateIdWithInputReaderSource) {
+    constexpr int32_t deviceId = 1;
+    constexpr uint32_t deviceClass = INPUT_DEVICE_CLASS_KEYBOARD;
+    constexpr int32_t eventHubId = 1;
+    std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake");
+    // Must add at least one mapper or the device will be ignored!
+    device->addMapper<FakeInputMapper>(eventHubId, AINPUT_SOURCE_KEYBOARD);
+    mReader->setNextDevice(device);
+    ASSERT_NO_FATAL_FAILURE(addDevice(deviceId, "fake", deviceClass, nullptr));
+
+    NotifyDeviceResetArgs resetArgs;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
+    ASSERT_EQ(IdGenerator::Source::INPUT_READER, IdGenerator::getSource(resetArgs.id));
 }
 
 TEST_F(InputReaderTest, Device_CanDispatchToDisplay) {
@@ -1821,14 +1836,14 @@ TEST_F(InputReaderIntegrationTest, SendsEventsToInputListener) {
     keyboard->pressAndReleaseHomeKey();
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(&keyArgs));
     ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, keyArgs.action);
-    ASSERT_LT(prevId, keyArgs.id);
+    ASSERT_NE(prevId, keyArgs.id);
     prevId = keyArgs.id;
     ASSERT_LE(prevTimestamp, keyArgs.eventTime);
     prevTimestamp = keyArgs.eventTime;
 
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(&keyArgs));
     ASSERT_EQ(AKEY_EVENT_ACTION_UP, keyArgs.action);
-    ASSERT_LT(prevId, keyArgs.id);
+    ASSERT_NE(prevId, keyArgs.id);
     ASSERT_LE(prevTimestamp, keyArgs.eventTime);
 }
 

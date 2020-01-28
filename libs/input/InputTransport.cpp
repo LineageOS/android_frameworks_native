@@ -63,10 +63,6 @@ static const nsecs_t RESAMPLE_MAX_DELTA = 20 * NANOS_PER_MS;
 // far into the future.  This time is further bounded by 50% of the last time delta.
 static const nsecs_t RESAMPLE_MAX_PREDICTION = 8 * NANOS_PER_MS;
 
-// A placeholder sequence number used to initialize native input events before InputFlinger is
-// migrated to new sequence number system.
-static constexpr int32_t INPUT_FLINGER_SEQUENCE_NUM = 0;
-
 /**
  * System property for enabling / disabling touch resampling.
  * Resampling extrapolates / interpolates the reported touch event coordinates to better
@@ -143,6 +139,8 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
         case InputMessage::Type::KEY: {
             // uint32_t seq
             msg->body.key.seq = body.key.seq;
+            // int32_t eventId
+            msg->body.key.eventId = body.key.eventId;
             // nsecs_t eventTime
             msg->body.key.eventTime = body.key.eventTime;
             // int32_t deviceId
@@ -172,6 +170,8 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
         case InputMessage::Type::MOTION: {
             // uint32_t seq
             msg->body.motion.seq = body.motion.seq;
+            // int32_t eventId
+            msg->body.motion.eventId = body.motion.eventId;
             // nsecs_t eventTime
             msg->body.motion.eventTime = body.motion.eventTime;
             // int32_t deviceId
@@ -238,6 +238,7 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
         }
         case InputMessage::Type::FOCUS: {
             msg->body.focus.seq = body.focus.seq;
+            msg->body.focus.eventId = body.focus.eventId;
             msg->body.focus.hasFocus = body.focus.hasFocus;
             msg->body.focus.inTouchMode = body.focus.inTouchMode;
             break;
@@ -436,11 +437,12 @@ InputPublisher::InputPublisher(const sp<InputChannel>& channel) :
 InputPublisher::~InputPublisher() {
 }
 
-status_t InputPublisher::publishKeyEvent(uint32_t seq, int32_t deviceId, int32_t source,
-                                         int32_t displayId, std::array<uint8_t, 32> hmac,
-                                         int32_t action, int32_t flags, int32_t keyCode,
-                                         int32_t scanCode, int32_t metaState, int32_t repeatCount,
-                                         nsecs_t downTime, nsecs_t eventTime) {
+status_t InputPublisher::publishKeyEvent(uint32_t seq, int32_t eventId, int32_t deviceId,
+                                         int32_t source, int32_t displayId,
+                                         std::array<uint8_t, 32> hmac, int32_t action,
+                                         int32_t flags, int32_t keyCode, int32_t scanCode,
+                                         int32_t metaState, int32_t repeatCount, nsecs_t downTime,
+                                         nsecs_t eventTime) {
     if (ATRACE_ENABLED()) {
         std::string message = StringPrintf("publishKeyEvent(inputChannel=%s, keyCode=%" PRId32 ")",
                 mChannel->getName().c_str(), keyCode);
@@ -462,6 +464,7 @@ status_t InputPublisher::publishKeyEvent(uint32_t seq, int32_t deviceId, int32_t
     InputMessage msg;
     msg.header.type = InputMessage::Type::KEY;
     msg.body.key.seq = seq;
+    msg.body.key.eventId = eventId;
     msg.body.key.deviceId = deviceId;
     msg.body.key.source = source;
     msg.body.key.displayId = displayId;
@@ -478,7 +481,7 @@ status_t InputPublisher::publishKeyEvent(uint32_t seq, int32_t deviceId, int32_t
 }
 
 status_t InputPublisher::publishMotionEvent(
-        uint32_t seq, int32_t deviceId, int32_t source, int32_t displayId,
+        uint32_t seq, int32_t eventId, int32_t deviceId, int32_t source, int32_t displayId,
         std::array<uint8_t, 32> hmac, int32_t action, int32_t actionButton, int32_t flags,
         int32_t edgeFlags, int32_t metaState, int32_t buttonState,
         MotionClassification classification, float xScale, float yScale, float xOffset,
@@ -519,6 +522,7 @@ status_t InputPublisher::publishMotionEvent(
     InputMessage msg;
     msg.header.type = InputMessage::Type::MOTION;
     msg.body.motion.seq = seq;
+    msg.body.motion.eventId = eventId;
     msg.body.motion.deviceId = deviceId;
     msg.body.motion.source = source;
     msg.body.motion.displayId = displayId;
@@ -549,7 +553,8 @@ status_t InputPublisher::publishMotionEvent(
     return mChannel->sendMessage(&msg);
 }
 
-status_t InputPublisher::publishFocusEvent(uint32_t seq, bool hasFocus, bool inTouchMode) {
+status_t InputPublisher::publishFocusEvent(uint32_t seq, int32_t eventId, bool hasFocus,
+                                           bool inTouchMode) {
     if (ATRACE_ENABLED()) {
         std::string message =
                 StringPrintf("publishFocusEvent(inputChannel=%s, hasFocus=%s, inTouchMode=%s)",
@@ -561,6 +566,7 @@ status_t InputPublisher::publishFocusEvent(uint32_t seq, bool hasFocus, bool inT
     InputMessage msg;
     msg.header.type = InputMessage::Type::FOCUS;
     msg.body.focus.seq = seq;
+    msg.body.focus.eventId = eventId;
     msg.body.focus.hasFocus = hasFocus ? 1 : 0;
     msg.body.focus.inTouchMode = inTouchMode ? 1 : 0;
     return mChannel->sendMessage(&msg);
@@ -1146,7 +1152,7 @@ ssize_t InputConsumer::findTouchState(int32_t deviceId, int32_t source) const {
 }
 
 void InputConsumer::initializeKeyEvent(KeyEvent* event, const InputMessage* msg) {
-    event->initialize(INPUT_FLINGER_SEQUENCE_NUM, msg->body.key.deviceId, msg->body.key.source,
+    event->initialize(msg->body.key.eventId, msg->body.key.deviceId, msg->body.key.source,
                       msg->body.key.displayId, msg->body.key.hmac, msg->body.key.action,
                       msg->body.key.flags, msg->body.key.keyCode, msg->body.key.scanCode,
                       msg->body.key.metaState, msg->body.key.repeatCount, msg->body.key.downTime,
@@ -1154,7 +1160,7 @@ void InputConsumer::initializeKeyEvent(KeyEvent* event, const InputMessage* msg)
 }
 
 void InputConsumer::initializeFocusEvent(FocusEvent* event, const InputMessage* msg) {
-    event->initialize(INPUT_FLINGER_SEQUENCE_NUM, msg->body.focus.hasFocus == 1,
+    event->initialize(msg->body.focus.eventId, msg->body.focus.hasFocus == 1,
                       msg->body.focus.inTouchMode == 1);
 }
 
@@ -1167,17 +1173,16 @@ void InputConsumer::initializeMotionEvent(MotionEvent* event, const InputMessage
         pointerCoords[i].copyFrom(msg->body.motion.pointers[i].coords);
     }
 
-    event->initialize(INPUT_FLINGER_SEQUENCE_NUM, msg->body.motion.deviceId,
-                      msg->body.motion.source, msg->body.motion.displayId, msg->body.motion.hmac,
-                      msg->body.motion.action, msg->body.motion.actionButton,
-                      msg->body.motion.flags, msg->body.motion.edgeFlags,
-                      msg->body.motion.metaState, msg->body.motion.buttonState,
-                      msg->body.motion.classification, msg->body.motion.xScale,
-                      msg->body.motion.yScale, msg->body.motion.xOffset, msg->body.motion.yOffset,
-                      msg->body.motion.xPrecision, msg->body.motion.yPrecision,
-                      msg->body.motion.xCursorPosition, msg->body.motion.yCursorPosition,
-                      msg->body.motion.downTime, msg->body.motion.eventTime, pointerCount,
-                      pointerProperties, pointerCoords);
+    event->initialize(msg->body.motion.eventId, msg->body.motion.deviceId, msg->body.motion.source,
+                      msg->body.motion.displayId, msg->body.motion.hmac, msg->body.motion.action,
+                      msg->body.motion.actionButton, msg->body.motion.flags,
+                      msg->body.motion.edgeFlags, msg->body.motion.metaState,
+                      msg->body.motion.buttonState, msg->body.motion.classification,
+                      msg->body.motion.xScale, msg->body.motion.yScale, msg->body.motion.xOffset,
+                      msg->body.motion.yOffset, msg->body.motion.xPrecision,
+                      msg->body.motion.yPrecision, msg->body.motion.xCursorPosition,
+                      msg->body.motion.yCursorPosition, msg->body.motion.downTime,
+                      msg->body.motion.eventTime, pointerCount, pointerProperties, pointerCoords);
 }
 
 void InputConsumer::addSample(MotionEvent* event, const InputMessage* msg) {
