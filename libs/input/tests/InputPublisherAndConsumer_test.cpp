@@ -221,8 +221,8 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     EXPECT_EQ(yPrecision, motionEvent->getYPrecision());
     EXPECT_EQ(xCursorPosition, motionEvent->getRawXCursorPosition());
     EXPECT_EQ(yCursorPosition, motionEvent->getRawYCursorPosition());
-    EXPECT_EQ(xCursorPosition + xOffset, motionEvent->getXCursorPosition());
-    EXPECT_EQ(yCursorPosition + yOffset, motionEvent->getYCursorPosition());
+    EXPECT_EQ(xCursorPosition * xScale + xOffset, motionEvent->getXCursorPosition());
+    EXPECT_EQ(yCursorPosition * yScale + yOffset, motionEvent->getYCursorPosition());
     EXPECT_EQ(downTime, motionEvent->getDownTime());
     EXPECT_EQ(eventTime, motionEvent->getEventTime());
     EXPECT_EQ(pointerCount, motionEvent->getPointerCount());
@@ -237,10 +237,10 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
                 motionEvent->getRawX(i));
         EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_Y),
                 motionEvent->getRawY(i));
-        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_X) + xOffset,
-                motionEvent->getX(i));
-        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_Y) + yOffset,
-                motionEvent->getY(i));
+        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_X) * xScale + xOffset,
+                  motionEvent->getX(i));
+        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_Y) * yScale + yOffset,
+                  motionEvent->getY(i));
         EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_PRESSURE),
                 motionEvent->getPressure(i));
         EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_SIZE),
