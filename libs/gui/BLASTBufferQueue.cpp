@@ -155,6 +155,7 @@ void BLASTBufferQueue::processNextBufferLocked() {
     t->setCrop(mSurfaceControl, computeCrop(bufferItem));
     t->setTransform(mSurfaceControl, bufferItem.mTransform);
     t->setTransformToDisplayInverse(mSurfaceControl, bufferItem.mTransformToDisplayInverse);
+    t->setDesiredPresentTime(bufferItem.mTimestamp);
 
     if (applyTransaction) {
         t->apply();
