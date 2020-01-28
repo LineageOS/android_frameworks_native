@@ -331,7 +331,8 @@ size_t AImageDecoder_getMinimumStride(AImageDecoder*) __INTRODUCED_IN(30);
  *               {@link AImageDecoder_getMinimumStride}.
  * @param size Size of the pixel buffer in bytes. Must be at least
  *             stride * (height - 1) +
- *             {@link AImageDecoder_getMinimumStride}.
+ *             {@link AImageDecoder_getMinimumStride}. Must also be a multiple
+ *             of the bytes per pixel of the {@link AndroidBitmapFormat}.
  * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success, or an error code
  *         from the same enum describing the failure.
  */
