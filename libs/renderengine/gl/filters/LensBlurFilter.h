@@ -31,7 +31,7 @@ namespace gl {
 class LensBlurFilter : public BlurFilter {
 public:
     explicit LensBlurFilter(GLESRenderEngine& engine);
-    status_t prepare(uint32_t radius) override;
+    status_t prepare() override;
     void allocateTextures() override;
 
 private:

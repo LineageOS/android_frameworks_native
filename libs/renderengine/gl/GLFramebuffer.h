@@ -48,6 +48,8 @@ public:
     int32_t getBufferWidth() const { return mBufferWidth; }
     GLenum getStatus() const { return mStatus; }
     void bind() const;
+    void bindAsReadBuffer() const;
+    void bindAsDrawBuffer() const;
     void unbind() const;
 
 private:

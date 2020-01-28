@@ -26,6 +26,10 @@
 
 #include <utils/Trace.h>
 
+#define PI 3.14159265359
+#define THETA 0.352
+#define K 1.0 / (2.0 * THETA * THETA)
+
 namespace android {
 namespace renderengine {
 namespace gl {
@@ -39,22 +43,24 @@ GaussianBlurFilter::GaussianBlurFilter(GLESRenderEngine& engine)
     mVPosLoc = mVerticalProgram.getAttributeLocation("aPosition");
     mVUvLoc = mVerticalProgram.getAttributeLocation("aUV");
     mVTextureLoc = mVerticalProgram.getUniformLocation("uTexture");
-    mVSizeLoc = mVerticalProgram.getUniformLocation("uSize");
-    mVRadiusLoc = mVerticalProgram.getUniformLocation("uRadius");
+    mVIncrementLoc = mVerticalProgram.getUniformLocation("uIncrement");
+    mVNumSamplesLoc = mVerticalProgram.getUniformLocation("uSamples");
+    mVGaussianWeightLoc = mVerticalProgram.getUniformLocation("uGaussianWeights");
 
     mHorizontalProgram.compile(getVertexShader(), getFragmentShader(true));
     mHPosLoc = mHorizontalProgram.getAttributeLocation("aPosition");
     mHUvLoc = mHorizontalProgram.getAttributeLocation("aUV");
     mHTextureLoc = mHorizontalProgram.getUniformLocation("uTexture");
-    mHSizeLoc = mHorizontalProgram.getUniformLocation("uSize");
-    mHRadiusLoc = mHorizontalProgram.getUniformLocation("uRadius");
+    mHIncrementLoc = mHorizontalProgram.getUniformLocation("uIncrement");
+    mHNumSamplesLoc = mHorizontalProgram.getUniformLocation("uSamples");
+    mHGaussianWeightLoc = mHorizontalProgram.getUniformLocation("uGaussianWeights");
 }
 
 void GaussianBlurFilter::allocateTextures() {
     mVerticalPassFbo.allocateBuffers(mBlurredFbo.getBufferWidth(), mBlurredFbo.getBufferHeight());
 }
 
-status_t GaussianBlurFilter::prepare(uint32_t radius) {
+status_t GaussianBlurFilter::prepare() {
     ATRACE_NAME("GaussianBlurFilter::prepare");
 
     if (mVerticalPassFbo.getStatus() != GL_FRAMEBUFFER_COMPLETE) {
@@ -70,21 +76,38 @@ status_t GaussianBlurFilter::prepare(uint32_t radius) {
         return GL_INVALID_OPERATION;
     }
 
+    mCompositionFbo.bindAsReadBuffer();
+    mBlurredFbo.bindAsDrawBuffer();
+    glBlitFramebuffer(0, 0, mCompositionFbo.getBufferWidth(), mCompositionFbo.getBufferHeight(), 0,
+                      0, mBlurredFbo.getBufferWidth(), mBlurredFbo.getBufferHeight(),
+                      GL_COLOR_BUFFER_BIT, GL_LINEAR);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
     // First, we'll apply the vertical pass, that receives the flattened background layers.
     mVerticalPassFbo.bind();
     mVerticalProgram.useProgram();
 
+    // Precompute gaussian bell curve, and send it to the shader to avoid
+    // unnecessary computations.
+    auto samples = min(mRadius, kNumSamples);
+    GLfloat gaussianWeights[kNumSamples] = {};
+    for (size_t i = 0; i < samples; i++) {
+        float normalized = float(i) / samples;
+        gaussianWeights[i] = (float)exp(-K * normalized * normalized);
+    }
+
     // set uniforms
     auto width = mVerticalPassFbo.getBufferWidth();
     auto height = mVerticalPassFbo.getBufferHeight();
-    auto radiusF = fmax(1.0f, radius * kFboScale);
+    auto radiusF = fmax(1.0f, mRadius * kFboScale);
     glViewport(0, 0, width, height);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, mCompositionFbo.getTextureName());
-    glGenerateMipmap(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, mBlurredFbo.getTextureName());
     glUniform1i(mVTextureLoc, 0);
-    glUniform2f(mVSizeLoc, width, height);
-    glUniform1f(mVRadiusLoc, radiusF);
+    glUniform2f(mVIncrementLoc, radiusF / (width * 2.0f), radiusF / (height * 2.0f));
+    glUniform1i(mVNumSamplesLoc, samples);
+    glUniform1fv(mVGaussianWeightLoc, kNumSamples, gaussianWeights);
     mEngine.checkErrors("Setting vertical-diagonal pass uniforms");
 
     drawMesh(mVUvLoc, mVPosLoc);
@@ -97,8 +120,9 @@ status_t GaussianBlurFilter::prepare(uint32_t radius) {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, mVerticalPassFbo.getTextureName());
     glUniform1i(mHTextureLoc, 0);
-    glUniform2f(mHSizeLoc, width, height);
-    glUniform1f(mHRadiusLoc, radiusF);
+    glUniform2f(mHIncrementLoc, radiusF / (width * 2.0f), radiusF / (height * 2.0f));
+    glUniform1i(mHNumSamplesLoc, samples);
+    glUniform1fv(mHGaussianWeightLoc, kNumSamples, gaussianWeights);
     mEngine.checkErrors("Setting vertical pass uniforms");
 
     drawMesh(mHUvLoc, mHPosLoc);
@@ -115,42 +139,31 @@ status_t GaussianBlurFilter::prepare(uint32_t radius) {
 }
 
 string GaussianBlurFilter::getFragmentShader(bool horizontal) const {
-    string shader = "#version 310 es\n#define DIRECTION ";
-    shader += (horizontal ? "1" : "0");
-    shader += R"SHADER(
-        precision lowp float;
+    stringstream shader;
+    shader << "#version 310 es\n"
+           << "#define DIRECTION " << (horizontal ? "1" : "0") << "\n"
+           << "#define NUM_SAMPLES " << kNumSamples <<
+            R"SHADER(
+        precision mediump float;
 
         uniform sampler2D uTexture;
-        uniform vec2 uSize;
-        uniform float uRadius;
+        uniform vec2 uIncrement;
+        uniform float[NUM_SAMPLES] uGaussianWeights;
+        uniform int uSamples;
 
-        mediump in vec2 vUV;
+        highp in vec2 vUV;
         out vec4 fragColor;
 
-        #define PI 3.14159265359
-        #define THETA 0.352
-        #define MU 0.0
-        #define A 1.0 / (THETA * sqrt(2.0 * PI))
-        #define K 1.0 / (2.0 * THETA * THETA)
-        #define MAX_SAMPLES 10
-
-        float gaussianBellCurve(float x) {
-            float tmp = (x - MU);
-            return exp(-K * tmp * tmp);
-        }
-
-        vec3 gaussianBlur(sampler2D texture, mediump vec2 uv, float size,
-                          mediump vec2 direction, float radius) {
+        vec3 gaussianBlur(sampler2D texture, highp vec2 uv, float inc, vec2 direction) {
             float totalWeight = 0.0;
-            vec3 blurred = vec3(0.);
-            int samples = min(int(ceil(radius / 2.0)), MAX_SAMPLES);
-            float inc = radius / (size * 2.0);
+            vec3 blurred = vec3(0.0);
+            float fSamples = 1.0 / float(uSamples);
 
-            for (int i = -samples; i <= samples; i++) {
-                float normalized = float(i) / float(samples);
-                float weight = gaussianBellCurve(normalized);
+            for (int i = -uSamples; i <= uSamples; i++) {
+                float weight = uGaussianWeights[abs(i)];
+                float normalized = float(i) * fSamples;
                 float radInc = inc * normalized;
-                blurred += weight * (texture(texture, uv + radInc * direction)).rgb;;
+                blurred += weight * (texture(texture, radInc * direction + uv, 0.0)).rgb;
                 totalWeight += weight;
             }
 
@@ -159,15 +172,15 @@ string GaussianBlurFilter::getFragmentShader(bool horizontal) const {
 
         void main() {
             #if DIRECTION == 1
-            vec3 color = gaussianBlur(uTexture, vUV, uSize.x, vec2(1.0, 0.0), uRadius);
+            vec3 color = gaussianBlur(uTexture, vUV, uIncrement.x, vec2(1.0, 0.0));
             #else
-            vec3 color = gaussianBlur(uTexture, vUV, uSize.y, vec2(0.0, 1.0), uRadius);
+            vec3 color = gaussianBlur(uTexture, vUV, uIncrement.y, vec2(0.0, 1.0));
             #endif
             fragColor = vec4(color, 1.0);
         }
 
     )SHADER";
-    return shader;
+    return shader.str();
 }
 
 } // namespace gl
