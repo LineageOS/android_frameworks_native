@@ -57,16 +57,19 @@ const char* inputEventTypeToString(int32_t type) {
     return "UNKNOWN";
 }
 
-void InputEvent::initialize(int32_t deviceId, int32_t source, int32_t displayId) {
+void InputEvent::initialize(int32_t deviceId, int32_t source, int32_t displayId,
+                            std::array<uint8_t, 32> hmac) {
     mDeviceId = deviceId;
     mSource = source;
     mDisplayId = displayId;
+    mHmac = hmac;
 }
 
 void InputEvent::initialize(const InputEvent& from) {
     mDeviceId = from.mDeviceId;
     mSource = from.mSource;
     mDisplayId = from.mDisplayId;
+    mHmac = from.mHmac;
 }
 
 // --- KeyEvent ---
@@ -79,19 +82,11 @@ int32_t KeyEvent::getKeyCodeFromLabel(const char* label) {
     return getKeyCodeByLabel(label);
 }
 
-void KeyEvent::initialize(
-        int32_t deviceId,
-        int32_t source,
-        int32_t displayId,
-        int32_t action,
-        int32_t flags,
-        int32_t keyCode,
-        int32_t scanCode,
-        int32_t metaState,
-        int32_t repeatCount,
-        nsecs_t downTime,
-        nsecs_t eventTime) {
-    InputEvent::initialize(deviceId, source, displayId);
+void KeyEvent::initialize(int32_t deviceId, int32_t source, int32_t displayId,
+                          std::array<uint8_t, 32> hmac, int32_t action, int32_t flags,
+                          int32_t keyCode, int32_t scanCode, int32_t metaState, int32_t repeatCount,
+                          nsecs_t downTime, nsecs_t eventTime) {
+    InputEvent::initialize(deviceId, source, displayId, hmac);
     mAction = action;
     mFlags = flags;
     mKeyCode = keyCode;
@@ -250,15 +245,16 @@ void PointerProperties::copyFrom(const PointerProperties& other) {
 
 // --- MotionEvent ---
 
-void MotionEvent::initialize(int32_t deviceId, int32_t source, int32_t displayId, int32_t action,
-                             int32_t actionButton, int32_t flags, int32_t edgeFlags,
-                             int32_t metaState, int32_t buttonState,
-                             MotionClassification classification, float xOffset, float yOffset,
-                             float xPrecision, float yPrecision, float rawXCursorPosition,
-                             float rawYCursorPosition, nsecs_t downTime, nsecs_t eventTime,
-                             size_t pointerCount, const PointerProperties* pointerProperties,
+void MotionEvent::initialize(int32_t deviceId, int32_t source, int32_t displayId,
+                             std::array<uint8_t, 32> hmac, int32_t action, int32_t actionButton,
+                             int32_t flags, int32_t edgeFlags, int32_t metaState,
+                             int32_t buttonState, MotionClassification classification, float xScale,
+                             float yScale, float xOffset, float yOffset, float xPrecision,
+                             float yPrecision, float rawXCursorPosition, float rawYCursorPosition,
+                             nsecs_t downTime, nsecs_t eventTime, size_t pointerCount,
+                             const PointerProperties* pointerProperties,
                              const PointerCoords* pointerCoords) {
-    InputEvent::initialize(deviceId, source, displayId);
+    InputEvent::initialize(deviceId, source, displayId, hmac);
     mAction = action;
     mActionButton = actionButton;
     mFlags = flags;
@@ -266,6 +262,8 @@ void MotionEvent::initialize(int32_t deviceId, int32_t source, int32_t displayId
     mMetaState = metaState;
     mButtonState = buttonState;
     mClassification = classification;
+    mXScale = xScale;
+    mYScale = yScale;
     mXOffset = xOffset;
     mYOffset = yOffset;
     mXPrecision = xPrecision;
@@ -281,7 +279,7 @@ void MotionEvent::initialize(int32_t deviceId, int32_t source, int32_t displayId
 }
 
 void MotionEvent::copyFrom(const MotionEvent* other, bool keepHistory) {
-    InputEvent::initialize(other->mDeviceId, other->mSource, other->mDisplayId);
+    InputEvent::initialize(other->mDeviceId, other->mSource, other->mDisplayId, other->mHmac);
     mAction = other->mAction;
     mActionButton = other->mActionButton;
     mFlags = other->mFlags;
@@ -289,6 +287,8 @@ void MotionEvent::copyFrom(const MotionEvent* other, bool keepHistory) {
     mMetaState = other->mMetaState;
     mButtonState = other->mButtonState;
     mClassification = other->mClassification;
+    mXScale = other->mXScale;
+    mYScale = other->mYScale;
     mXOffset = other->mXOffset;
     mYOffset = other->mYOffset;
     mXPrecision = other->mXPrecision;
@@ -490,6 +490,12 @@ status_t MotionEvent::readFromParcel(Parcel* parcel) {
     mDeviceId = parcel->readInt32();
     mSource = parcel->readInt32();
     mDisplayId = parcel->readInt32();
+    std::vector<uint8_t> hmac;
+    status_t result = parcel->readByteVector(&hmac);
+    if (result != OK || hmac.size() != 32) {
+        return BAD_VALUE;
+    }
+    std::move(hmac.begin(), hmac.begin() + hmac.size(), mHmac.begin());
     mAction = parcel->readInt32();
     mActionButton = parcel->readInt32();
     mFlags = parcel->readInt32();
@@ -497,6 +503,8 @@ status_t MotionEvent::readFromParcel(Parcel* parcel) {
     mMetaState = parcel->readInt32();
     mButtonState = parcel->readInt32();
     mClassification = static_cast<MotionClassification>(parcel->readByte());
+    mXScale = parcel->readFloat();
+    mYScale = parcel->readFloat();
     mXOffset = parcel->readFloat();
     mYOffset = parcel->readFloat();
     mXPrecision = parcel->readFloat();
@@ -543,6 +551,8 @@ status_t MotionEvent::writeToParcel(Parcel* parcel) const {
     parcel->writeInt32(mDeviceId);
     parcel->writeInt32(mSource);
     parcel->writeInt32(mDisplayId);
+    std::vector<uint8_t> hmac(mHmac.begin(), mHmac.end());
+    parcel->writeByteVector(hmac);
     parcel->writeInt32(mAction);
     parcel->writeInt32(mActionButton);
     parcel->writeInt32(mFlags);
@@ -550,6 +560,8 @@ status_t MotionEvent::writeToParcel(Parcel* parcel) const {
     parcel->writeInt32(mMetaState);
     parcel->writeInt32(mButtonState);
     parcel->writeByte(static_cast<int8_t>(mClassification));
+    parcel->writeFloat(mXScale);
+    parcel->writeFloat(mYScale);
     parcel->writeFloat(mXOffset);
     parcel->writeFloat(mYOffset);
     parcel->writeFloat(mXPrecision);
@@ -607,7 +619,7 @@ int32_t MotionEvent::getAxisFromLabel(const char* label) {
 
 void FocusEvent::initialize(bool hasFocus, bool inTouchMode) {
     InputEvent::initialize(ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID, AINPUT_SOURCE_UNKNOWN,
-                           ADISPLAY_ID_NONE);
+                           ADISPLAY_ID_NONE, INVALID_HMAC);
     mHasFocus = hasFocus;
     mInTouchMode = inTouchMode;
 }

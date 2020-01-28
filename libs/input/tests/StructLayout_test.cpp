@@ -39,35 +39,39 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Key, deviceId, 16);
   CHECK_OFFSET(InputMessage::Body::Key, source, 20);
   CHECK_OFFSET(InputMessage::Body::Key, displayId, 24);
-  CHECK_OFFSET(InputMessage::Body::Key, action, 28);
-  CHECK_OFFSET(InputMessage::Body::Key, flags, 32);
-  CHECK_OFFSET(InputMessage::Body::Key, keyCode, 36);
-  CHECK_OFFSET(InputMessage::Body::Key, scanCode, 40);
-  CHECK_OFFSET(InputMessage::Body::Key, metaState, 44);
-  CHECK_OFFSET(InputMessage::Body::Key, repeatCount, 48);
-  CHECK_OFFSET(InputMessage::Body::Key, downTime, 56);
+  CHECK_OFFSET(InputMessage::Body::Key, hmac, 28);
+  CHECK_OFFSET(InputMessage::Body::Key, action, 60);
+  CHECK_OFFSET(InputMessage::Body::Key, flags, 64);
+  CHECK_OFFSET(InputMessage::Body::Key, keyCode, 68);
+  CHECK_OFFSET(InputMessage::Body::Key, scanCode, 72);
+  CHECK_OFFSET(InputMessage::Body::Key, metaState, 76);
+  CHECK_OFFSET(InputMessage::Body::Key, repeatCount, 80);
+  CHECK_OFFSET(InputMessage::Body::Key, downTime, 88);
 
   CHECK_OFFSET(InputMessage::Body::Motion, seq, 0);
   CHECK_OFFSET(InputMessage::Body::Motion, eventTime, 8);
   CHECK_OFFSET(InputMessage::Body::Motion, deviceId, 16);
   CHECK_OFFSET(InputMessage::Body::Motion, source, 20);
   CHECK_OFFSET(InputMessage::Body::Motion, displayId, 24);
-  CHECK_OFFSET(InputMessage::Body::Motion, action, 28);
-  CHECK_OFFSET(InputMessage::Body::Motion, actionButton, 32);
-  CHECK_OFFSET(InputMessage::Body::Motion, flags, 36);
-  CHECK_OFFSET(InputMessage::Body::Motion, metaState, 40);
-  CHECK_OFFSET(InputMessage::Body::Motion, buttonState, 44);
-  CHECK_OFFSET(InputMessage::Body::Motion, classification, 48);
-  CHECK_OFFSET(InputMessage::Body::Motion, edgeFlags, 52);
-  CHECK_OFFSET(InputMessage::Body::Motion, downTime, 56);
-  CHECK_OFFSET(InputMessage::Body::Motion, xOffset, 64);
-  CHECK_OFFSET(InputMessage::Body::Motion, yOffset, 68);
-  CHECK_OFFSET(InputMessage::Body::Motion, xPrecision, 72);
-  CHECK_OFFSET(InputMessage::Body::Motion, yPrecision, 76);
-  CHECK_OFFSET(InputMessage::Body::Motion, xCursorPosition, 80);
-  CHECK_OFFSET(InputMessage::Body::Motion, yCursorPosition, 84);
-  CHECK_OFFSET(InputMessage::Body::Motion, pointerCount, 88);
-  CHECK_OFFSET(InputMessage::Body::Motion, pointers, 96);
+  CHECK_OFFSET(InputMessage::Body::Motion, hmac, 28);
+  CHECK_OFFSET(InputMessage::Body::Motion, action, 60);
+  CHECK_OFFSET(InputMessage::Body::Motion, actionButton, 64);
+  CHECK_OFFSET(InputMessage::Body::Motion, flags, 68);
+  CHECK_OFFSET(InputMessage::Body::Motion, metaState, 72);
+  CHECK_OFFSET(InputMessage::Body::Motion, buttonState, 76);
+  CHECK_OFFSET(InputMessage::Body::Motion, classification, 80);
+  CHECK_OFFSET(InputMessage::Body::Motion, edgeFlags, 84);
+  CHECK_OFFSET(InputMessage::Body::Motion, downTime, 88);
+  CHECK_OFFSET(InputMessage::Body::Motion, xScale, 96);
+  CHECK_OFFSET(InputMessage::Body::Motion, yScale, 100);
+  CHECK_OFFSET(InputMessage::Body::Motion, xOffset, 104);
+  CHECK_OFFSET(InputMessage::Body::Motion, yOffset, 108);
+  CHECK_OFFSET(InputMessage::Body::Motion, xPrecision, 112);
+  CHECK_OFFSET(InputMessage::Body::Motion, yPrecision, 116);
+  CHECK_OFFSET(InputMessage::Body::Motion, xCursorPosition, 120);
+  CHECK_OFFSET(InputMessage::Body::Motion, yCursorPosition, 124);
+  CHECK_OFFSET(InputMessage::Body::Motion, pointerCount, 128);
+  CHECK_OFFSET(InputMessage::Body::Motion, pointers, 136);
 
   CHECK_OFFSET(InputMessage::Body::Focus, seq, 0);
   CHECK_OFFSET(InputMessage::Body::Focus, hasFocus, 4);
@@ -86,7 +90,7 @@ void TestHeaderSize() {
  * the Motion type, where "pointerCount" variable affects the size and can change at runtime.
  */
 void TestBodySize() {
-    static_assert(sizeof(InputMessage::Body::Key) == 64);
+    static_assert(sizeof(InputMessage::Body::Key) == 96);
     static_assert(sizeof(InputMessage::Body::Motion) ==
                   offsetof(InputMessage::Body::Motion, pointers) +
                           sizeof(InputMessage::Body::Motion::Pointer) * MAX_POINTERS);
