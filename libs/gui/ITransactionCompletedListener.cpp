@@ -30,6 +30,66 @@ enum class Tag : uint32_t {
 
 } // Anonymous namespace
 
+status_t FrameEventHistoryStats::writeToParcel(Parcel* output) const {
+    status_t err = output->writeUint64(frameNumber);
+    if (err != NO_ERROR) return err;
+
+    if (gpuCompositionDoneFence) {
+        err = output->writeBool(true);
+        if (err != NO_ERROR) return err;
+
+        err = output->write(*gpuCompositionDoneFence);
+    } else {
+        err = output->writeBool(false);
+    }
+    if (err != NO_ERROR) return err;
+
+    err = output->writeInt64(compositorTiming.deadline);
+    if (err != NO_ERROR) return err;
+
+    err = output->writeInt64(compositorTiming.interval);
+    if (err != NO_ERROR) return err;
+
+    err = output->writeInt64(compositorTiming.presentLatency);
+    if (err != NO_ERROR) return err;
+
+    err = output->writeInt64(refreshStartTime);
+    if (err != NO_ERROR) return err;
+
+    err = output->writeInt64(dequeueReadyTime);
+    return err;
+}
+
+status_t FrameEventHistoryStats::readFromParcel(const Parcel* input) {
+    status_t err = input->readUint64(&frameNumber);
+    if (err != NO_ERROR) return err;
+
+    bool hasFence = false;
+    err = input->readBool(&hasFence);
+    if (err != NO_ERROR) return err;
+
+    if (hasFence) {
+        gpuCompositionDoneFence = new Fence();
+        err = input->read(*gpuCompositionDoneFence);
+        if (err != NO_ERROR) return err;
+    }
+
+    err = input->readInt64(&(compositorTiming.deadline));
+    if (err != NO_ERROR) return err;
+
+    err = input->readInt64(&(compositorTiming.interval));
+    if (err != NO_ERROR) return err;
+
+    err = input->readInt64(&(compositorTiming.presentLatency));
+    if (err != NO_ERROR) return err;
+
+    err = input->readInt64(&refreshStartTime);
+    if (err != NO_ERROR) return err;
+
+    err = input->readInt64(&dequeueReadyTime);
+    return err;
+}
+
 status_t SurfaceStats::writeToParcel(Parcel* output) const {
     status_t err = output->writeStrongBinder(surfaceControl);
     if (err != NO_ERROR) {
@@ -49,6 +109,11 @@ status_t SurfaceStats::writeToParcel(Parcel* output) const {
         err = output->writeBool(false);
     }
     err = output->writeUint32(transformHint);
+    if (err != NO_ERROR) {
+        return err;
+    }
+
+    err = output->writeParcelable(eventStats);
     return err;
 }
 
@@ -74,6 +139,11 @@ status_t SurfaceStats::readFromParcel(const Parcel* input) {
         }
     }
     err = input->readUint32(&transformHint);
+    if (err != NO_ERROR) {
+        return err;
+    }
+
+    err = input->readParcelable(&eventStats);
     return err;
 }
 

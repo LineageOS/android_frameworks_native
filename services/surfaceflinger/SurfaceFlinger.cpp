@@ -2037,12 +2037,10 @@ void SurfaceFlinger::postComposition()
     ATRACE_CALL();
     ALOGV("postComposition");
 
-    // Release any buffers which were replaced this frame
     nsecs_t dequeueReadyTime = systemTime();
     for (auto& layer : mLayersWithQueuedFrames) {
         layer->releasePendingBuffer(dequeueReadyTime);
     }
-
     // |mStateLock| not needed as we are on the main thread
     const auto displayDevice = getDefaultDisplayDeviceLocked();
 
@@ -3347,6 +3345,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     // pending state will also be deferred.
     if (what & layer_state_t::eDeferTransaction_legacy) {
         layer->pushPendingState();
+    }
+
+    // Only set by BLAST adapter layers
+    if (what & layer_state_t::eProducerDisconnect) {
+        layer->onDisconnect();
     }
 
     if (what & layer_state_t::ePositionChanged) {

@@ -21,6 +21,7 @@
 #include <binder/Parcelable.h>
 #include <binder/SafeInterface.h>
 
+#include <gui/FrameTimestamps.h>
 #include <ui/Fence.h>
 #include <utils/Timers.h>
 
@@ -35,6 +36,27 @@ class ListenerCallbacks;
 
 using CallbackId = int64_t;
 
+class FrameEventHistoryStats : public Parcelable {
+public:
+    status_t writeToParcel(Parcel* output) const override;
+    status_t readFromParcel(const Parcel* input) override;
+
+    FrameEventHistoryStats() = default;
+    FrameEventHistoryStats(uint64_t fn, const sp<Fence>& gpuCompFence, CompositorTiming compTiming,
+                           nsecs_t refreshTime, nsecs_t dequeueReadyTime)
+          : frameNumber(fn),
+            gpuCompositionDoneFence(gpuCompFence),
+            compositorTiming(compTiming),
+            refreshStartTime(refreshTime),
+            dequeueReadyTime(dequeueReadyTime) {}
+
+    uint64_t frameNumber;
+    sp<Fence> gpuCompositionDoneFence;
+    CompositorTiming compositorTiming;
+    nsecs_t refreshStartTime;
+    nsecs_t dequeueReadyTime;
+};
+
 class SurfaceStats : public Parcelable {
 public:
     status_t writeToParcel(Parcel* output) const override;
@@ -42,16 +64,18 @@ public:
 
     SurfaceStats() = default;
     SurfaceStats(const sp<IBinder>& sc, nsecs_t time, const sp<Fence>& prevReleaseFence,
-                 uint32_t hint)
+                 uint32_t hint, FrameEventHistoryStats frameEventStats)
           : surfaceControl(sc),
             acquireTime(time),
             previousReleaseFence(prevReleaseFence),
-            transformHint(hint) {}
+            transformHint(hint),
+            eventStats(frameEventStats) {}
 
     sp<IBinder> surfaceControl;
     nsecs_t acquireTime = -1;
     sp<Fence> previousReleaseFence;
     uint32_t transformHint = 0;
+    FrameEventHistoryStats eventStats;
 };
 
 class TransactionStats : public Parcelable {
