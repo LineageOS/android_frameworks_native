@@ -104,12 +104,12 @@ TEST_F(UtilsTest, IsValidApkPath_Internal) {
     EXPECT_EQ(-1, validate_apk_path(badint2))
             << badint2 << " should be rejected as a invalid path";
 
-    // Only one subdir should be allowed.
-    const char *bad_path3 = TEST_APP_DIR "example.com/subdir/pkg.apk";
+    // Should not have more than two sub directories
+    const char *bad_path3 = TEST_APP_DIR "random/example.com/subdir/pkg.apk";
     EXPECT_EQ(-1, validate_apk_path(bad_path3))
             << bad_path3 << " should be rejected as a invalid path";
 
-    const char *bad_path4 = TEST_APP_DIR "example.com/subdir/../pkg.apk";
+    const char *bad_path4 = TEST_APP_DIR "random/example.com/subdir/pkg.apk";
     EXPECT_EQ(-1, validate_apk_path(bad_path4))
             << bad_path4 << " should be rejected as a invalid path";
 
@@ -120,6 +120,7 @@ TEST_F(UtilsTest, IsValidApkPath_Internal) {
 
 TEST_F(UtilsTest, IsValidApkPath_TopDir) {
     EXPECT_EQ(0, validate_apk_path(TEST_DATA_DIR "app/com.example"));
+    EXPECT_EQ(0, validate_apk_path(TEST_DATA_DIR "app/random/com.example"));
     EXPECT_EQ(0, validate_apk_path(TEST_EXPAND_DIR "app/com.example"));
     EXPECT_EQ(-1, validate_apk_path(TEST_DATA_DIR "data/com.example"));
     EXPECT_EQ(-1, validate_apk_path(TEST_EXPAND_DIR "data/com.example"));
@@ -127,6 +128,7 @@ TEST_F(UtilsTest, IsValidApkPath_TopDir) {
 
 TEST_F(UtilsTest, IsValidApkPath_TopFile) {
     EXPECT_EQ(0, validate_apk_path(TEST_DATA_DIR "app/com.example/base.apk"));
+    EXPECT_EQ(0, validate_apk_path(TEST_DATA_DIR "app/random/com.example/base.apk"));
     EXPECT_EQ(0, validate_apk_path(TEST_EXPAND_DIR "app/com.example/base.apk"));
     EXPECT_EQ(-1, validate_apk_path(TEST_DATA_DIR "data/com.example/base.apk"));
     EXPECT_EQ(-1, validate_apk_path(TEST_EXPAND_DIR "data/com.example/base.apk"));
@@ -134,6 +136,7 @@ TEST_F(UtilsTest, IsValidApkPath_TopFile) {
 
 TEST_F(UtilsTest, IsValidApkPath_OatDir) {
     EXPECT_EQ(0, validate_apk_path_subdirs(TEST_DATA_DIR "app/com.example/oat"));
+    EXPECT_EQ(0, validate_apk_path_subdirs(TEST_DATA_DIR "app/random/com.example/oat"));
     EXPECT_EQ(0, validate_apk_path_subdirs(TEST_EXPAND_DIR "app/com.example/oat"));
     EXPECT_EQ(-1, validate_apk_path_subdirs(TEST_DATA_DIR "data/com.example/oat"));
     EXPECT_EQ(-1, validate_apk_path_subdirs(TEST_EXPAND_DIR "data/com.example/oat"));
@@ -141,6 +144,7 @@ TEST_F(UtilsTest, IsValidApkPath_OatDir) {
 
 TEST_F(UtilsTest, IsValidApkPath_OatDirDir) {
     EXPECT_EQ(0, validate_apk_path_subdirs(TEST_DATA_DIR "app/com.example/oat/arm64"));
+    EXPECT_EQ(0, validate_apk_path_subdirs(TEST_DATA_DIR "app/random/com.example/oat/arm64"));
     EXPECT_EQ(0, validate_apk_path_subdirs(TEST_EXPAND_DIR "app/com.example/oat/arm64"));
     EXPECT_EQ(-1, validate_apk_path_subdirs(TEST_DATA_DIR "data/com.example/oat/arm64"));
     EXPECT_EQ(-1, validate_apk_path_subdirs(TEST_EXPAND_DIR "data/com.example/oat/arm64"));
@@ -148,6 +152,7 @@ TEST_F(UtilsTest, IsValidApkPath_OatDirDir) {
 
 TEST_F(UtilsTest, IsValidApkPath_OatDirDirFile) {
     EXPECT_EQ(0, validate_apk_path_subdirs(TEST_DATA_DIR "app/com.example/oat/arm64/base.odex"));
+    EXPECT_EQ(0, validate_apk_path_subdirs(TEST_DATA_DIR "app/random/com.example/oat/arm64/base.odex"));
     EXPECT_EQ(0, validate_apk_path_subdirs(TEST_EXPAND_DIR "app/com.example/oat/arm64/base.odex"));
     EXPECT_EQ(-1, validate_apk_path_subdirs(TEST_DATA_DIR "data/com.example/oat/arm64/base.odex"));
     EXPECT_EQ(-1, validate_apk_path_subdirs(TEST_EXPAND_DIR "data/com.example/oat/arm64/base.odex"));
@@ -164,6 +169,10 @@ TEST_F(UtilsTest, IsValidApkPath_Private) {
     EXPECT_EQ(0, validate_apk_path(path2))
             << path2 << " should be allowed as a valid path";
 
+    const char *path3 = TEST_APP_DIR "random/example.com/example.apk";
+    EXPECT_EQ(0, validate_apk_path(path3))
+            << path3 << " should be allowed as a valid path";
+
     const char *badpriv1 = TEST_APP_PRIVATE_DIR "../example.apk";
     EXPECT_EQ(-1, validate_apk_path(badpriv1))
             << badpriv1 << " should be rejected as a invalid path";
@@ -172,16 +181,16 @@ TEST_F(UtilsTest, IsValidApkPath_Private) {
     EXPECT_EQ(-1, validate_apk_path(badpriv2))
             << badpriv2 << " should be rejected as a invalid path";
 
-    // Only one subdir should be allowed.
-    const char *bad_path3 = TEST_APP_PRIVATE_DIR "example.com/subdir/pkg.apk";
+    // Only one or two subdir should be allowed.
+    const char *bad_path3 = TEST_APP_PRIVATE_DIR "random/example.com/subdir/pkg.apk";
     EXPECT_EQ(-1, validate_apk_path(bad_path3))
             << bad_path3 << " should be rejected as a invalid path";
 
-    const char *bad_path4 = TEST_APP_PRIVATE_DIR "example.com/subdir/../pkg.apk";
+    const char *bad_path4 = TEST_APP_PRIVATE_DIR "random/example.com/subdir/../pkg.apk";
     EXPECT_EQ(-1, validate_apk_path(bad_path4))
             << bad_path4 << " should be rejected as a invalid path";
 
-    const char *bad_path5 = TEST_APP_PRIVATE_DIR "example.com1/../example.com2/pkg.apk";
+    const char *bad_path5 = TEST_APP_PRIVATE_DIR "random/example.com1/../example.com2/pkg.apk";
     EXPECT_EQ(-1, validate_apk_path(bad_path5))
             << bad_path5 << " should be rejected as a invalid path";
 }
@@ -229,10 +238,16 @@ TEST_F(UtilsTest, IsValidApkPath_SubdirEscapeSingleFail) {
             << badasec6 << " should be rejected as a invalid path";
 }
 
-TEST_F(UtilsTest, IsValidApkPath_TwoSubdirFail) {
-    const char *badasec7 = TEST_ASEC_DIR "com.example.asec/subdir1/pkg.apk";
-    EXPECT_EQ(-1, validate_apk_path(badasec7))
-            << badasec7 << " should be rejected as a invalid path";
+TEST_F(UtilsTest, IsValidApkPath_TwoSubdir) {
+    const char *badasec7 = TEST_ASEC_DIR "random/com.example.asec/pkg.apk";
+    EXPECT_EQ(0, validate_apk_path(badasec7))
+            << badasec7 << " should be allowed as a valid path";
+}
+
+TEST_F(UtilsTest, IsValidApkPath_ThreeSubdirFail) {
+    const char *badasec8 = TEST_ASEC_DIR "random/com.example.asec/subdir/pkg.apk";
+    EXPECT_EQ(-1, validate_apk_path(badasec8))
+            << badasec8 << " should be rejcted as an invalid path";
 }
 
 TEST_F(UtilsTest, CheckSystemApp_Dir1) {
@@ -511,8 +526,8 @@ TEST_F(UtilsTest, ValidateApkPath) {
     EXPECT_EQ(0, validate_apk_path("/data/app/com.example"));
     EXPECT_EQ(0, validate_apk_path("/data/app/com.example/file"));
     EXPECT_EQ(0, validate_apk_path("/data/app/com.example//file"));
-    EXPECT_NE(0, validate_apk_path("/data/app/com.example/dir/"));
-    EXPECT_NE(0, validate_apk_path("/data/app/com.example/dir/file"));
+    EXPECT_EQ(0, validate_apk_path("/data/app/random/com.example/"));
+    EXPECT_EQ(0, validate_apk_path("/data/app/random/com.example/file"));
     EXPECT_NE(0, validate_apk_path("/data/app/com.example/dir/dir/file"));
     EXPECT_NE(0, validate_apk_path("/data/app/com.example/dir/dir//file"));
     EXPECT_NE(0, validate_apk_path("/data/app/com.example/dir/dir/dir/file"));
@@ -527,8 +542,10 @@ TEST_F(UtilsTest, ValidateApkPathSubdirs) {
     EXPECT_EQ(0, validate_apk_path_subdirs("/data/app/com.example/dir/file"));
     EXPECT_EQ(0, validate_apk_path_subdirs("/data/app/com.example/dir/dir/file"));
     EXPECT_EQ(0, validate_apk_path_subdirs("/data/app/com.example/dir/dir//file"));
-    EXPECT_NE(0, validate_apk_path_subdirs("/data/app/com.example/dir/dir/dir/file"));
-    EXPECT_NE(0, validate_apk_path_subdirs("/data/app/com.example/dir/dir/dir//file"));
+    EXPECT_EQ(0, validate_apk_path_subdirs("/data/app/com.example/dir/dir/dir/file"));
+    EXPECT_EQ(0, validate_apk_path_subdirs("/data/app/com.example/dir/dir/dir//file"));
+    EXPECT_NE(0, validate_apk_path_subdirs("/data/app/com.example/dir/dir/dir/dir/file"));
+    EXPECT_NE(0, validate_apk_path_subdirs("/data/app/com.example/dir/dir/dir/dir//file"));
 }
 
 TEST_F(UtilsTest, MatchExtension_Valid) {
