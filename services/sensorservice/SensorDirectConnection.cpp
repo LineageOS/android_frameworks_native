@@ -16,11 +16,15 @@
 
 #include "SensorDevice.h"
 #include "SensorDirectConnection.h"
+#include <android/util/ProtoOutputStream.h>
+#include <frameworks/base/core/proto/android/service/sensor_service.proto.h>
 #include <hardware/sensors.h>
 
 #define UNUSED(x) (void)(x)
 
 namespace android {
+
+using util::ProtoOutputStream;
 
 SensorService::SensorDirectConnection::SensorDirectConnection(const sp<SensorService>& service,
         uid_t uid, const sensors_direct_mem_t *mem, int32_t halChannelHandle,
@@ -61,6 +65,27 @@ void SensorService::SensorDirectConnection::dump(String8& result) const {
             String8(mOpPackageName).string(), getHalChannelHandle(), mActivated.size());
     for (auto &i : mActivated) {
         result.appendFormat("\t\tSensor %#08x, rate %d\n", i.first, i.second);
+    }
+}
+
+/**
+ * Dump debugging information as android.service.SensorDirectConnectionProto protobuf message using
+ * ProtoOutputStream.
+ *
+ * See proto definition and some notes about ProtoOutputStream in
+ * frameworks/base/core/proto/android/service/sensor_service.proto
+ */
+void SensorService::SensorDirectConnection::dump(ProtoOutputStream* proto) const {
+    using namespace service::SensorDirectConnectionProto;
+    Mutex::Autolock _l(mConnectionLock);
+    proto->write(PACKAGE_NAME, std::string(String8(mOpPackageName).string()));
+    proto->write(HAL_CHANNEL_HANDLE, getHalChannelHandle());
+    proto->write(NUM_SENSOR_ACTIVATED, int(mActivated.size()));
+    for (auto &i : mActivated) {
+        uint64_t token = proto->start(SENSORS);
+        proto->write(SensorProto::SENSOR, i.first);
+        proto->write(SensorProto::RATE, i.second);
+        proto->end(token);
     }
 }
 

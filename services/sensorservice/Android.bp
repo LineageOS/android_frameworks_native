@@ -42,6 +42,7 @@ cc_library_shared {
         "libbinder",
         "libsensor",
         "libsensorprivacy",
+        "libprotoutil",
         "libcrypto",
         "libbase",
         "libhidlbase",
@@ -51,6 +52,8 @@ cc_library_shared {
     ],
 
     static_libs: ["android.hardware.sensors@1.0-convert"],
+
+    generated_headers: ["framework-cppstream-protos"],
 
     // our public headers depend on libsensor and libsensorprivacy
     export_shared_lib_headers: ["libsensor", "libsensorprivacy"],

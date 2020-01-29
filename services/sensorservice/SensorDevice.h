@@ -123,7 +123,8 @@ public:
     bool isSensorActive(int handle) const;
 
     // Dumpable
-    virtual std::string dump() const;
+    virtual std::string dump() const override;
+    virtual void dump(util::ProtoOutputStream* proto) const override;
 private:
     friend class Singleton<SensorDevice>;
 

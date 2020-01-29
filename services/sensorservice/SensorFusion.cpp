@@ -18,6 +18,9 @@
 #include "SensorFusion.h"
 #include "SensorService.h"
 
+#include <android/util/ProtoOutputStream.h>
+#include <frameworks/base/core/proto/android/service/sensor_service.proto.h>
+
 namespace android {
 // ---------------------------------------------------------------------------
 
@@ -183,7 +186,7 @@ int32_t SensorFusion::getMinDelay() const {
     return mAcc.getMinDelay();
 }
 
-void SensorFusion::dump(String8& result) {
+void SensorFusion::dump(String8& result) const {
     const Fusion& fusion_9axis(mFusions[FUSION_9AXIS]);
     result.appendFormat("9-axis fusion %s (%zd clients), gyro-rate=%7.2fHz, "
             "q=< %g, %g, %g, %g > (%g), "
@@ -233,6 +236,43 @@ void SensorFusion::dump(String8& result) {
             fusion_nogyro.getBias().x,
             fusion_nogyro.getBias().y,
             fusion_nogyro.getBias().z);
+}
+
+void SensorFusion::dumpFusion(FUSION_MODE mode, util::ProtoOutputStream* proto) const {
+    using namespace service::SensorFusionProto::FusionProto;
+    const Fusion& fusion(mFusions[mode]);
+    proto->write(ENABLED, mEnabled[mode]);
+    proto->write(NUM_CLIENTS, (int)mClients[mode].size());
+    proto->write(ESTIMATED_GYRO_RATE, mEstimatedGyroRate);
+    proto->write(ATTITUDE_X, fusion.getAttitude().x);
+    proto->write(ATTITUDE_Y, fusion.getAttitude().y);
+    proto->write(ATTITUDE_Z, fusion.getAttitude().z);
+    proto->write(ATTITUDE_W, fusion.getAttitude().w);
+    proto->write(ATTITUDE_LENGTH, length(fusion.getAttitude()));
+    proto->write(BIAS_X, fusion.getBias().x);
+    proto->write(BIAS_Y, fusion.getBias().y);
+    proto->write(BIAS_Z, fusion.getBias().z);
+}
+
+/**
+ * Dump debugging information as android.service.SensorFusionProto protobuf message using
+ * ProtoOutputStream.
+ *
+ * See proto definition and some notes about ProtoOutputStream in
+ * frameworks/base/core/proto/android/service/sensor_service.proto
+ */
+void SensorFusion::dump(util::ProtoOutputStream* proto) const {
+    uint64_t token = proto->start(service::SensorFusionProto::FUSION_9AXIS);
+    dumpFusion(FUSION_9AXIS, proto);
+    proto->end(token);
+
+    token = proto->start(service::SensorFusionProto::FUSION_NOMAG);
+    dumpFusion(FUSION_NOMAG, proto);
+    proto->end(token);
+
+    token = proto->start(service::SensorFusionProto::FUSION_NOGYRO);
+    dumpFusion(FUSION_NOGYRO, proto);
+    proto->end(token);
 }
 
 // ---------------------------------------------------------------------------
