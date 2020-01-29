@@ -258,22 +258,25 @@ TEST_F(TimeStatsTest, disabledByDefault) {
     ASSERT_FALSE(mTimeStats->isEnabled());
 }
 
-TEST_F(TimeStatsTest, enabledAfterBoot) {
+TEST_F(TimeStatsTest, registersCallbacksAfterBoot) {
     mTimeStats->onBootFinished();
-    ASSERT_TRUE(mTimeStats->isEnabled());
+    EXPECT_THAT(mDelegate->mAtomTags,
+                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
+                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
+}
+
+TEST_F(TimeStatsTest, unregistersCallbacksOnDestruction) {
+    EXPECT_CALL(*mDelegate,
+                unregisterStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO));
+    EXPECT_CALL(*mDelegate,
+                unregisterStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO));
+    mTimeStats.reset();
 }
 
 TEST_F(TimeStatsTest, canEnableAndDisableTimeStats) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
     ASSERT_TRUE(mTimeStats->isEnabled());
-    EXPECT_THAT(mDelegate->mAtomTags,
-                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
-                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
 
-    EXPECT_CALL(*mDelegate,
-                unregisterStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO));
-    EXPECT_CALL(*mDelegate,
-                unregisterStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO));
     EXPECT_TRUE(inputCommand(InputCommand::DISABLE, FMT_STRING).empty());
     ASSERT_FALSE(mTimeStats->isEnabled());
 }
