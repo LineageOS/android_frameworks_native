@@ -945,11 +945,11 @@ static int validate_apk_path_internal(const std::string& path, int maxSubdirs) {
 }
 
 int validate_apk_path(const char* path) {
-    return validate_apk_path_internal(path, 1 /* maxSubdirs */);
+    return validate_apk_path_internal(path, 2 /* maxSubdirs */);
 }
 
 int validate_apk_path_subdirs(const char* path) {
-    return validate_apk_path_internal(path, 3 /* maxSubdirs */);
+    return validate_apk_path_internal(path, 4 /* maxSubdirs */);
 }
 
 int ensure_config_user_dirs(userid_t userid) {
