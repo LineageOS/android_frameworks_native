@@ -98,6 +98,8 @@ void BufferStateLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
         }
     }
 
+    mPreviousReleaseFence = releaseFence;
+
     // Prevent tracing the same release multiple times.
     if (mPreviousFrameNumber != mPreviousReleasedFrameNumber) {
         mFlinger->mFrameTracer->traceFence(getSequence(), mPreviousBufferId, mPreviousFrameNumber,
@@ -111,7 +113,7 @@ void BufferStateLayer::setTransformHint(uint32_t orientation) const {
     mTransformHint = orientation;
 }
 
-void BufferStateLayer::releasePendingBuffer(nsecs_t /*dequeueReadyTime*/) {
+void BufferStateLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
     for (const auto& handle : mDrawingState.callbackHandles) {
         handle->transformHint = mTransformHint;
     }
@@ -120,6 +122,16 @@ void BufferStateLayer::releasePendingBuffer(nsecs_t /*dequeueReadyTime*/) {
             mDrawingState.callbackHandles);
 
     mDrawingState.callbackHandles = {};
+
+    const sp<Fence>& releaseFence(mPreviousReleaseFence);
+    std::shared_ptr<FenceTime> releaseFenceTime = std::make_shared<FenceTime>(releaseFence);
+    {
+        Mutex::Autolock lock(mFrameEventHistoryMutex);
+        if (mPreviousFrameNumber != 0) {
+            mFrameEventHistory.addRelease(mPreviousFrameNumber, dequeueReadyTime,
+                                          std::move(releaseFenceTime));
+        }
+    }
 }
 
 bool BufferStateLayer::shouldPresentNow(nsecs_t /*expectedPresentTime*/) const {
@@ -233,8 +245,21 @@ bool BufferStateLayer::setFrame(const Rect& frame) {
     return true;
 }
 
-bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, nsecs_t postTime,
-                                 nsecs_t desiredPresentTime, const client_cache_t& clientCacheId) {
+bool BufferStateLayer::updateFrameEventHistory(const sp<Fence>& acquireFence, nsecs_t postedTime,
+                                               nsecs_t desiredPresentTime) {
+    Mutex::Autolock lock(mFrameEventHistoryMutex);
+    mAcquireTimeline.updateSignalTimes();
+    std::shared_ptr<FenceTime> acquireFenceTime =
+            std::make_shared<FenceTime>((acquireFence ? acquireFence : Fence::NO_FENCE));
+    NewFrameEventsEntry newTimestamps = {mCurrentState.frameNumber, postedTime, desiredPresentTime,
+                                         acquireFenceTime};
+    mFrameEventHistory.addQueue(newTimestamps);
+    return true;
+}
+
+bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence>& acquireFence,
+                                 nsecs_t postTime, nsecs_t desiredPresentTime,
+                                 const client_cache_t& clientCacheId) {
     if (mCurrentState.buffer) {
         mReleasePreviousBuffer = true;
     }
@@ -257,6 +282,7 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, nsecs_t postTi
     mFlinger->mScheduler->recordLayerHistory(this,
                                              desiredPresentTime <= 0 ? 0 : desiredPresentTime);
 
+    updateFrameEventHistory(acquireFence, postTime, desiredPresentTime);
     return true;
 }
 
@@ -553,10 +579,14 @@ status_t BufferStateLayer::updateActiveBuffer() {
     return NO_ERROR;
 }
 
-status_t BufferStateLayer::updateFrameNumber(nsecs_t /*latchTime*/) {
+status_t BufferStateLayer::updateFrameNumber(nsecs_t latchTime) {
     // TODO(marissaw): support frame history events
     mPreviousFrameNumber = mCurrentFrameNumber;
     mCurrentFrameNumber = mDrawingState.frameNumber;
+    {
+        Mutex::Autolock lock(mFrameEventHistoryMutex);
+        mFrameEventHistory.addLatch(mCurrentFrameNumber, latchTime);
+    }
     return NO_ERROR;
 }
 

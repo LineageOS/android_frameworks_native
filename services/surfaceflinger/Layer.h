@@ -329,8 +329,8 @@ public:
     virtual bool setTransformToDisplayInverse(bool /*transformToDisplayInverse*/) { return false; };
     virtual bool setCrop(const Rect& /*crop*/) { return false; };
     virtual bool setFrame(const Rect& /*frame*/) { return false; };
-    virtual bool setBuffer(const sp<GraphicBuffer>& /*buffer*/, nsecs_t /*postTime*/,
-                           nsecs_t /*desiredPresentTime*/,
+    virtual bool setBuffer(const sp<GraphicBuffer>& /*buffer*/, const sp<Fence>& /*acquireFence*/,
+                           nsecs_t /*postTime*/, nsecs_t /*desiredPresentTime*/,
                            const client_cache_t& /*clientCacheId*/) {
         return false;
     };
