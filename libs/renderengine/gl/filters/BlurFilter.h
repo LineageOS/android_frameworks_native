@@ -31,22 +31,25 @@ class BlurFilter {
 public:
     // Downsample FBO to improve performance
     static constexpr float kFboScale = 0.25f;
+    // To avoid downscaling artifacts, we interpolate the blurred fbo with the full composited
+    // image, up to this radius.
+    static constexpr float kMaxCrossFadeRadius = 15.0f;
 
     explicit BlurFilter(GLESRenderEngine& engine);
     virtual ~BlurFilter(){};
 
     // Set up render targets, redirecting output to offscreen texture.
-    status_t setAsDrawTarget(const DisplaySettings&);
+    status_t setAsDrawTarget(const DisplaySettings&, uint32_t radius);
     // Allocate any textures needed for the filter.
     virtual void allocateTextures() = 0;
     // Execute blur passes, rendering to offscreen texture.
-    virtual status_t prepare(uint32_t radius) = 0;
+    virtual status_t prepare() = 0;
     // Render blur to the bound framebuffer (screen).
     status_t render();
 
 protected:
+    uint32_t mRadius;
     void drawMesh(GLuint uv, GLuint position);
-    string getSimpleFragShader() const;
     string getVertexShader() const;
 
     GLESRenderEngine& mEngine;
@@ -58,12 +61,15 @@ protected:
     uint32_t mDisplayHeight;
 
 private:
+    string getMixFragShader() const;
     bool mTexturesAllocated = false;
 
-    GenericProgram mSimpleProgram;
-    GLuint mSPosLoc;
-    GLuint mSUvLoc;
-    GLuint mSTextureLoc;
+    GenericProgram mMixProgram;
+    GLuint mMPosLoc;
+    GLuint mMUvLoc;
+    GLuint mMMixLoc;
+    GLuint mMTextureLoc;
+    GLuint mMCompositionTextureLoc;
 };
 
 } // namespace gl

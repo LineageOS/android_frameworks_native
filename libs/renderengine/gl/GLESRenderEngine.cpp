@@ -1003,7 +1003,7 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
         setViewportAndProjection(display.physicalDisplay, display.clip);
     } else {
         setViewportAndProjection(display.physicalDisplay, display.clip);
-        auto status = mBlurFilter->setAsDrawTarget(display);
+        auto status = mBlurFilter->setAsDrawTarget(display, blurLayer->backgroundBlurRadius);
         if (status != NO_ERROR) {
             ALOGE("Failed to prepare blur filter! Aborting GPU composition for buffer (%p).",
                   buffer->handle);
@@ -1037,7 +1037,7 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
                         .build();
     for (auto const layer : layers) {
         if (blurLayer == layer) {
-            auto status = mBlurFilter->prepare(layer->backgroundBlurRadius);
+            auto status = mBlurFilter->prepare();
             if (status != NO_ERROR) {
                 ALOGE("Failed to render blur effect! Aborting GPU composition for buffer (%p).",
                       buffer->handle);

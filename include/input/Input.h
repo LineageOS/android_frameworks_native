@@ -31,6 +31,7 @@
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 #include <utils/Vector.h>
+#include <array>
 #include <limits>
 #include <queue>
 
@@ -258,6 +259,11 @@ const char* motionClassificationToString(MotionClassification classification);
  */
 constexpr float AMOTION_EVENT_INVALID_CURSOR_POSITION = std::numeric_limits<float>::quiet_NaN();
 
+/**
+ * Invalid value of HMAC - SHA256. Any events with this HMAC value will be marked as not verified.
+ */
+constexpr std::array<uint8_t, 32> INVALID_HMAC = {0};
+
 /*
  * Pointer coordinate data.
  */
@@ -356,14 +362,17 @@ public:
 
     inline void setDisplayId(int32_t displayId) { mDisplayId = displayId; }
 
+    inline std::array<uint8_t, 32> getHmac() const { return mHmac; }
 
 protected:
-    void initialize(int32_t deviceId, int32_t source, int32_t displayId);
+    void initialize(int32_t deviceId, int32_t source, int32_t displayId,
+                    std::array<uint8_t, 32> hmac);
     void initialize(const InputEvent& from);
 
     int32_t mDeviceId;
     int32_t mSource;
     int32_t mDisplayId;
+    std::array<uint8_t, 32> mHmac;
 };
 
 /*
@@ -396,18 +405,10 @@ public:
     static const char* getLabel(int32_t keyCode);
     static int32_t getKeyCodeFromLabel(const char* label);
 
-    void initialize(
-            int32_t deviceId,
-            int32_t source,
-            int32_t displayId,
-            int32_t action,
-            int32_t flags,
-            int32_t keyCode,
-            int32_t scanCode,
-            int32_t metaState,
-            int32_t repeatCount,
-            nsecs_t downTime,
-            nsecs_t eventTime);
+    void initialize(int32_t deviceId, int32_t source, int32_t displayId,
+                    std::array<uint8_t, 32> hmac, int32_t action, int32_t flags, int32_t keyCode,
+                    int32_t scanCode, int32_t metaState, int32_t repeatCount, nsecs_t downTime,
+                    nsecs_t eventTime);
     void initialize(const KeyEvent& from);
 
 protected:
@@ -462,6 +463,10 @@ public:
     inline int32_t getActionButton() const { return mActionButton; }
 
     inline void setActionButton(int32_t button) { mActionButton = button; }
+
+    inline float getXScale() const { return mXScale; }
+
+    inline float getYScale() const { return mYScale; }
 
     inline float getXOffset() const { return mXOffset; }
 
@@ -624,9 +629,10 @@ public:
 
     ssize_t findPointerIndex(int32_t pointerId) const;
 
-    void initialize(int32_t deviceId, int32_t source, int32_t displayId, int32_t action,
-                    int32_t actionButton, int32_t flags, int32_t edgeFlags, int32_t metaState,
-                    int32_t buttonState, MotionClassification classification, float xOffset,
+    void initialize(int32_t deviceId, int32_t source, int32_t displayId,
+                    std::array<uint8_t, 32> hmac, int32_t action, int32_t actionButton,
+                    int32_t flags, int32_t edgeFlags, int32_t metaState, int32_t buttonState,
+                    MotionClassification classification, float xScale, float yScale, float xOffset,
                     float yOffset, float xPrecision, float yPrecision, float rawXCursorPosition,
                     float rawYCursorPosition, nsecs_t downTime, nsecs_t eventTime,
                     size_t pointerCount, const PointerProperties* pointerProperties,
@@ -676,6 +682,8 @@ protected:
     int32_t mMetaState;
     int32_t mButtonState;
     MotionClassification mClassification;
+    float mXScale;
+    float mYScale;
     float mXOffset;
     float mYOffset;
     float mXPrecision;
