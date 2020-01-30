@@ -164,6 +164,11 @@ const std::array<const char*, 2> HAL_SUBNAME_KEY_PROPERTIES = {{
     "ro.board.platform",
 }};
 
+// LoadDriver returns:
+// * 0 when succeed, or
+// * -ENOENT when fail to open binary libraries, or
+// * -EINVAL when fail to find HAL_MODULE_INFO_SYM_AS_STR or
+//   HWVULKAN_HARDWARE_MODULE_ID in the library.
 int LoadDriver(android_namespace_t* library_namespace,
                const hwvulkan_module_t** module) {
     ATRACE_CALL();
@@ -221,7 +226,13 @@ int LoadUpdatedDriver(const hwvulkan_module_t** module) {
         return -ENOENT;
     android::GraphicsEnv::getInstance().setDriverToLoad(
         android::GpuStatsInfo::Driver::VULKAN_UPDATED);
-    return LoadDriver(ns, module);
+    int result = LoadDriver(ns, module);
+    if (result != 0) {
+        LOG_ALWAYS_FATAL(
+            "couldn't find an updated Vulkan implementation from %s",
+            android::GraphicsEnv::getInstance().getDriverPath().c_str());
+    }
+    return result;
 }
 
 bool Hal::Open() {
