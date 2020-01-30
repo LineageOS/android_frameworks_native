@@ -40,13 +40,18 @@ namespace impl {
 status_pull_atom_return_t TimeStats::pullAtomCallback(int32_t atom_tag,
                                                       pulled_stats_event_list* data, void* cookie) {
     impl::TimeStats* timeStats = reinterpret_cast<impl::TimeStats*>(cookie);
+    status_pull_atom_return_t result = STATS_PULL_SKIP;
     if (atom_tag == android::util::SURFACEFLINGER_STATS_GLOBAL_INFO) {
-        return timeStats->populateGlobalAtom(data);
+        result = timeStats->populateGlobalAtom(data);
     } else if (atom_tag == android::util::SURFACEFLINGER_STATS_LAYER_INFO) {
-        return timeStats->populateLayerAtom(data);
+        result = timeStats->populateLayerAtom(data);
     }
 
-    return STATS_PULL_SKIP;
+    // Enable timestats now. The first full pull for a given build is expected to
+    // have empty or very little stats, as stats are first enabled after the
+    // first pull is completed for either the global or layer stats.
+    timeStats->enable();
+    return result;
 }
 
 status_pull_atom_return_t TimeStats::populateGlobalAtom(pulled_stats_event_list* data) {
@@ -167,13 +172,19 @@ TimeStats::TimeStats(std::unique_ptr<StatsEventDelegate> statsDelegate,
     }
 }
 
+TimeStats::~TimeStats() {
+    std::lock_guard<std::mutex> lock(mMutex);
+    mStatsDelegate->unregisterStatsPullAtomCallback(
+            android::util::SURFACEFLINGER_STATS_GLOBAL_INFO);
+    mStatsDelegate->unregisterStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO);
+}
+
 void TimeStats::onBootFinished() {
-    // Temporarily enable TimeStats by default. Telemetry is disabled while
-    // we move onto statsd, so TimeStats is currently not exercised at all
-    // during testing without enabling by default.
-    // TODO: remove this, as we should only be paying this overhead on devices
-    // where statsd exists.
-    enable();
+    std::lock_guard<std::mutex> lock(mMutex);
+    mStatsDelegate->registerStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
+                                                  TimeStats::pullAtomCallback, nullptr, this);
+    mStatsDelegate->registerStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO,
+                                                  TimeStats::pullAtomCallback, nullptr, this);
 }
 
 void TimeStats::parseArgs(bool asProto, const Vector<String16>& args, std::string& result) {
@@ -735,10 +746,6 @@ void TimeStats::enable() {
     mEnabled.store(true);
     mTimeStats.statsStart = static_cast<int64_t>(std::time(0));
     mPowerTime.prevTime = systemTime();
-    mStatsDelegate->registerStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
-                                                  TimeStats::pullAtomCallback, nullptr, this);
-    mStatsDelegate->registerStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO,
-                                                  TimeStats::pullAtomCallback, nullptr, this);
     ALOGD("Enabled");
 }
 
@@ -751,9 +758,6 @@ void TimeStats::disable() {
     flushPowerTimeLocked();
     mEnabled.store(false);
     mTimeStats.statsEnd = static_cast<int64_t>(std::time(0));
-    mStatsDelegate->unregisterStatsPullAtomCallback(
-            android::util::SURFACEFLINGER_STATS_GLOBAL_INFO);
-    mStatsDelegate->unregisterStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO);
     ALOGD("Disabled");
 }
 

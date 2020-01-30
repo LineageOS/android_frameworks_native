@@ -182,6 +182,8 @@ public:
               std::optional<size_t> maxPulledLayers,
               std::optional<size_t> maxPulledHistogramBuckets);
 
+    ~TimeStats() override;
+
     void onBootFinished() override;
     void parseArgs(bool asProto, const Vector<String16>& args, std::string& result) override;
     bool isEnabled() override;
