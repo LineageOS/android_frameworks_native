@@ -101,6 +101,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.active.w = UINT32_MAX;
     mCurrentState.active.h = UINT32_MAX;
     mCurrentState.active.transform.set(0, 0);
+    mCurrentState.frameNumber = 0;
     mCurrentState.transform = 0;
     mCurrentState.transformToDisplayInverse = false;
     mCurrentState.crop.makeInvalid();

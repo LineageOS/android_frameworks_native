@@ -189,6 +189,7 @@ public:
         ui::Dataspace dataspace;
 
         // The fields below this point are only used by BufferStateLayer
+        uint64_t frameNumber;
         Geometry active;
 
         uint32_t transform;
