@@ -40,6 +40,8 @@ public:
     MOCK_METHOD2(recordRenderEngineDuration, void(nsecs_t, nsecs_t));
     MOCK_METHOD2(recordRenderEngineDuration, void(nsecs_t, const std::shared_ptr<FenceTime>&));
     MOCK_METHOD4(setPostTime, void(int32_t, uint64_t, const std::string&, nsecs_t));
+    MOCK_METHOD2(incrementLatchSkipped, void(int32_t layerId, LatchSkipReason reason));
+    MOCK_METHOD1(incrementBadDesiredPresent, void(int32_t layerId));
     MOCK_METHOD3(setLatchTime, void(int32_t, uint64_t, nsecs_t));
     MOCK_METHOD3(setDesiredTime, void(int32_t, uint64_t, nsecs_t));
     MOCK_METHOD3(setAcquireTime, void(int32_t, uint64_t, nsecs_t));

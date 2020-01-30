@@ -352,7 +352,12 @@ void TimeStats::flushAvailableRecordsToStatsLocked(int32_t layerId) {
             TimeStatsHelper::TimeStatsLayer& timeStatsLayer = mTimeStats.stats[layerName];
             timeStatsLayer.totalFrames++;
             timeStatsLayer.droppedFrames += layerRecord.droppedFrames;
+            timeStatsLayer.lateAcquireFrames += layerRecord.lateAcquireFrames;
+            timeStatsLayer.badDesiredPresentFrames += layerRecord.badDesiredPresentFrames;
+
             layerRecord.droppedFrames = 0;
+            layerRecord.lateAcquireFrames = 0;
+            layerRecord.badDesiredPresentFrames = 0;
 
             const int32_t postToAcquireMs = msBetween(timeRecords[0].frameTime.postTime,
                                                       timeRecords[0].frameTime.acquireTime);
@@ -464,6 +469,36 @@ void TimeStats::setLatchTime(int32_t layerId, uint64_t frameNumber, nsecs_t latc
     if (timeRecord.frameTime.frameNumber == frameNumber) {
         timeRecord.frameTime.latchTime = latchTime;
     }
+}
+
+void TimeStats::incrementLatchSkipped(int32_t layerId, LatchSkipReason reason) {
+    if (!mEnabled.load()) return;
+
+    ATRACE_CALL();
+    ALOGV("[%d]-LatchSkipped-Reason[%d]", layerId,
+          static_cast<std::underlying_type<LatchSkipReason>::type>(reason));
+
+    std::lock_guard<std::mutex> lock(mMutex);
+    if (!mTimeStatsTracker.count(layerId)) return;
+    LayerRecord& layerRecord = mTimeStatsTracker[layerId];
+
+    switch (reason) {
+        case LatchSkipReason::LateAcquire:
+            layerRecord.lateAcquireFrames++;
+            break;
+    }
+}
+
+void TimeStats::incrementBadDesiredPresent(int32_t layerId) {
+    if (!mEnabled.load()) return;
+
+    ATRACE_CALL();
+    ALOGV("[%d]-BadDesiredPresent", layerId);
+
+    std::lock_guard<std::mutex> lock(mMutex);
+    if (!mTimeStatsTracker.count(layerId)) return;
+    LayerRecord& layerRecord = mTimeStatsTracker[layerId];
+    layerRecord.badDesiredPresentFrames++;
 }
 
 void TimeStats::setDesiredTime(int32_t layerId, uint64_t frameNumber, nsecs_t desiredTime) {

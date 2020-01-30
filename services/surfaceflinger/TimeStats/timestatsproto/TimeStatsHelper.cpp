@@ -83,6 +83,8 @@ std::string TimeStatsHelper::TimeStatsLayer::toString() const {
     StringAppendF(&result, "packageName = %s\n", packageName.c_str());
     StringAppendF(&result, "totalFrames = %d\n", totalFrames);
     StringAppendF(&result, "droppedFrames = %d\n", droppedFrames);
+    StringAppendF(&result, "lateAcquireFrames = %d\n", lateAcquireFrames);
+    StringAppendF(&result, "badDesiredPresentFrames = %d\n", badDesiredPresentFrames);
     const auto iter = deltas.find("present2present");
     if (iter != deltas.end()) {
         StringAppendF(&result, "averageFPS = %.3f\n", 1000.0 / iter->second.averageTime());
