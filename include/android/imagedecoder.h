@@ -349,20 +349,20 @@ int AImageDecoderHeaderInfo_getAlphaFlags(
         const AImageDecoderHeaderInfo*) __INTRODUCED_IN(30);
 
 /**
- * Report the dataspace the {@link AImageDecoder} will decode to by default.
- * AImageDecoder will try to choose one that is sensible for the
- * image and the system. Note that this may not exactly match the ICC
- * profile (or other color information) stored in the encoded image.
+ * Report the dataspace the AImageDecoder will decode to by default.
  *
- * @return The {@link ADataSpace} most closely representing the way the colors
- *         are encoded (or {@link ADATASPACE_UNKNOWN} if there is not an
- *         approximate ADataSpace). This specifies how to interpret the colors
+ * By default, {@link AImageDecoder_decodeImage} will not do any color
+ * conversion.
+ *
+ * @return The {@link ADataSpace} representing the way the colors
+ *         are encoded (or {@link ADATASPACE_UNKNOWN} if there is not a
+ *         corresponding ADataSpace). This specifies how to interpret the colors
  *         in the decoded image, unless {@link AImageDecoder_setDataSpace} is
  *         called to decode to a different ADataSpace.
  *
  *         Note that ADataSpace only exposes a few values. This may return
- *         ADATASPACE_UNKNOWN, even for Named ColorSpaces, if they have no
- *         corresponding ADataSpace.
+ *         {@link ADATASPACE_UNKNOWN}, even for Named ColorSpaces, if they have
+ *         no corresponding {@link ADataSpace}.
  */
 int32_t AImageDecoderHeaderInfo_getDataSpace(
         const AImageDecoderHeaderInfo*) __INTRODUCED_IN(30);
