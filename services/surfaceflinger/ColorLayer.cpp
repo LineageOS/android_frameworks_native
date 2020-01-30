@@ -61,7 +61,7 @@ std::optional<compositionengine::LayerFE::LayerSettings> ColorLayer::prepareClie
 }
 
 bool ColorLayer::isVisible() const {
-    return !isHiddenByPolicy() && getAlpha() > 0.0f;
+    return !isHiddenByPolicy() && getAlpha() > 0.0_hf;
 }
 
 bool ColorLayer::setColor(const half3& color) {
@@ -104,7 +104,9 @@ std::shared_ptr<compositionengine::Layer> ColorLayer::getCompositionLayer() cons
 }
 
 bool ColorLayer::isOpaque(const Layer::State& s) const {
-    return (s.flags & layer_state_t::eLayerOpaque) != 0;
+    // Consider the layer to be opaque if its opaque flag is set or its effective
+    // alpha (considering the alpha of its parents as well) is 1.0;
+    return (s.flags & layer_state_t::eLayerOpaque) != 0 || getAlpha() == 1.0_hf;
 }
 
 ui::Dataspace ColorLayer::getDataSpace() const {
