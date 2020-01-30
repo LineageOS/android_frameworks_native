@@ -495,7 +495,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_30_60
     EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
 
     lr.desiredRefreshRate = 45.0f;
-    EXPECT_EQ(expected30Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
 
     lr.desiredRefreshRate = 30.0f;
     EXPECT_EQ(expected30Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
@@ -700,6 +700,32 @@ TEST_F(RefreshRateConfigsTest, testInPolicy) {
     ASSERT_FALSE(expectedDefaultConfig.inPolicy(75.0f, 90.0f));
     ASSERT_FALSE(expectedDefaultConfig.inPolicy(60.0011f, 90.0f));
     ASSERT_FALSE(expectedDefaultConfig.inPolicy(50.0f, 59.998f));
+}
+
+TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_75HzContent) {
+    std::vector<RefreshRateConfigs::InputConfig> configs{
+            {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
+             {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
+
+    RefreshRate expected30Config = {HWC_CONFIG_ID_30, VSYNC_30, HWC_GROUP_ID_0, "30fps", 30};
+    RefreshRate expected60Config = {HWC_CONFIG_ID_60, VSYNC_60, HWC_GROUP_ID_0, "60fps", 60};
+    RefreshRate expected90Config = {HWC_CONFIG_ID_90, VSYNC_90, HWC_GROUP_ID_0, "90fps", 90};
+
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
+    auto& lr = layers[0];
+
+    lr.vote = LayerVoteType::Explicit;
+    for (float fps = 75.0f; fps < 100.0f; fps += 0.1f) {
+        lr.desiredRefreshRate = fps;
+        const auto& refreshRate = refreshRateConfigs->getRefreshRateForContentV2(layers);
+        printf("%.2fHz chooses %s\n", fps, refreshRate.name.c_str());
+        EXPECT_EQ(expected90Config, refreshRate);
+    }
 }
 
 } // namespace

@@ -34,6 +34,7 @@ namespace android::scheduler {
 
 class LayerHistoryTestV2 : public testing::Test {
 protected:
+    static constexpr auto FREQUENT_LAYER_WINDOW_SIZE = LayerInfoV2::FREQUENT_LAYER_WINDOW_SIZE;
     static constexpr auto PRESENT_TIME_HISTORY_SIZE = LayerInfoV2::HISTORY_SIZE;
     static constexpr auto MAX_FREQUENT_LAYER_PERIOD_NS = LayerInfoV2::MAX_FREQUENT_LAYER_PERIOD_NS;
 
@@ -105,7 +106,10 @@ TEST_F(LayerHistoryTestV2, oneLayer) {
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE - 1; i++) {
         history().record(layer.get(), 0, mTime);
         ASSERT_EQ(1, history().summarize(mTime).size());
-        EXPECT_EQ(LayerHistory::LayerVoteType::Max, history().summarize(mTime)[0].vote);
+        const auto expectedType = (i + 1 < FREQUENT_LAYER_WINDOW_SIZE)
+                ? LayerHistory::LayerVoteType::Min
+                : LayerHistory::LayerVoteType::Max;
+        EXPECT_EQ(expectedType, history().summarize(mTime)[0].vote);
         EXPECT_EQ(1, activeLayerCount());
     }
 
@@ -129,7 +133,8 @@ TEST_F(LayerHistoryTestV2, oneInvisibleLayer) {
     history().record(layer.get(), 0, mTime);
     auto summary = history().summarize(mTime);
     ASSERT_EQ(1, history().summarize(mTime).size());
-    EXPECT_EQ(LayerHistory::LayerVoteType::Max, history().summarize(mTime)[0].vote);
+    // Layer is still considered inactive so we expect to get Min
+    EXPECT_EQ(LayerHistory::LayerVoteType::Min, history().summarize(mTime)[0].vote);
     EXPECT_EQ(1, activeLayerCount());
 
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(false));
