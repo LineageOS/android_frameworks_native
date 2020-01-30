@@ -130,10 +130,11 @@ bool VSyncReactor::addPresentFence(const std::shared_ptr<FenceTime>& fence) {
     }
 
     std::lock_guard<std::mutex> lk(mMutex);
-    if (mIgnorePresentFences) {
+    if (mExternalIgnoreFences || mInternalIgnoreFences) {
         return true;
     }
 
+    bool timestampAccepted = true;
     for (auto it = mUnfiredFences.begin(); it != mUnfiredFences.end();) {
         auto const time = (*it)->getCachedSignalTime();
         if (time == Fence::SIGNAL_TIME_PENDING) {
@@ -141,7 +142,8 @@ bool VSyncReactor::addPresentFence(const std::shared_ptr<FenceTime>& fence) {
         } else if (time == Fence::SIGNAL_TIME_INVALID) {
             it = mUnfiredFences.erase(it);
         } else {
-            mTracker->addVsyncTimestamp(time);
+            timestampAccepted &= mTracker->addVsyncTimestamp(time);
+
             it = mUnfiredFences.erase(it);
         }
     }
@@ -152,7 +154,13 @@ bool VSyncReactor::addPresentFence(const std::shared_ptr<FenceTime>& fence) {
         }
         mUnfiredFences.push_back(fence);
     } else {
-        mTracker->addVsyncTimestamp(signalTime);
+        timestampAccepted &= mTracker->addVsyncTimestamp(signalTime);
+    }
+
+    if (!timestampAccepted) {
+        mMoreSamplesNeeded = true;
+        setIgnorePresentFencesInternal(true);
+        mPeriodConfirmationInProgress = true;
     }
 
     return mMoreSamplesNeeded;
@@ -160,8 +168,17 @@ bool VSyncReactor::addPresentFence(const std::shared_ptr<FenceTime>& fence) {
 
 void VSyncReactor::setIgnorePresentFences(bool ignoration) {
     std::lock_guard<std::mutex> lk(mMutex);
-    mIgnorePresentFences = ignoration;
-    if (mIgnorePresentFences == true) {
+    mExternalIgnoreFences = ignoration;
+    updateIgnorePresentFencesInternal();
+}
+
+void VSyncReactor::setIgnorePresentFencesInternal(bool ignoration) {
+    mInternalIgnoreFences = ignoration;
+    updateIgnorePresentFencesInternal();
+}
+
+void VSyncReactor::updateIgnorePresentFencesInternal() {
+    if (mExternalIgnoreFences || mInternalIgnoreFences) {
         mUnfiredFences.clear();
     }
 }
@@ -177,14 +194,18 @@ nsecs_t VSyncReactor::expectedPresentTime() {
 }
 
 void VSyncReactor::startPeriodTransition(nsecs_t newPeriod) {
+    mPeriodConfirmationInProgress = true;
     mPeriodTransitioningTo = newPeriod;
     mMoreSamplesNeeded = true;
+    setIgnorePresentFencesInternal(true);
 }
 
 void VSyncReactor::endPeriodTransition() {
-    mPeriodTransitioningTo.reset();
-    mLastHwVsync.reset();
+    setIgnorePresentFencesInternal(false);
     mMoreSamplesNeeded = false;
+    mPeriodTransitioningTo.reset();
+    mPeriodConfirmationInProgress = false;
+    mLastHwVsync.reset();
 }
 
 void VSyncReactor::setPeriod(nsecs_t period) {
@@ -208,27 +229,33 @@ void VSyncReactor::beginResync() {
 
 void VSyncReactor::endResync() {}
 
-bool VSyncReactor::periodChangeDetected(nsecs_t vsync_timestamp) {
-    if (!mLastHwVsync || !mPeriodTransitioningTo) {
+bool VSyncReactor::periodConfirmed(nsecs_t vsync_timestamp) {
+    if (!mLastHwVsync || !mPeriodConfirmationInProgress) {
         return false;
     }
+    auto const period = mPeriodTransitioningTo ? *mPeriodTransitioningTo : getPeriod();
+
+    static constexpr int allowancePercent = 10;
+    static constexpr std::ratio<allowancePercent, 100> allowancePercentRatio;
+    auto const allowance = period * allowancePercentRatio.num / allowancePercentRatio.den;
     auto const distance = vsync_timestamp - *mLastHwVsync;
-    return std::abs(distance - *mPeriodTransitioningTo) < std::abs(distance - getPeriod());
+    return std::abs(distance - period) < allowance;
 }
 
 bool VSyncReactor::addResyncSample(nsecs_t timestamp, bool* periodFlushed) {
     assert(periodFlushed);
 
     std::lock_guard<std::mutex> lk(mMutex);
-    if (periodChangeDetected(timestamp)) {
-        mTracker->setPeriod(*mPeriodTransitioningTo);
-        for (auto& entry : mCallbacks) {
-            entry.second->setPeriod(*mPeriodTransitioningTo);
+    if (periodConfirmed(timestamp)) {
+        if (mPeriodTransitioningTo) {
+            mTracker->setPeriod(*mPeriodTransitioningTo);
+            for (auto& entry : mCallbacks) {
+                entry.second->setPeriod(*mPeriodTransitioningTo);
+            }
+            *periodFlushed = true;
         }
-
         endPeriodTransition();
-        *periodFlushed = true;
-    } else if (mPeriodTransitioningTo) {
+    } else if (mPeriodConfirmationInProgress) {
         mLastHwVsync = timestamp;
         mMoreSamplesNeeded = true;
         *periodFlushed = false;

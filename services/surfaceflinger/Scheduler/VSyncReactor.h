@@ -61,9 +61,11 @@ public:
     void reset() final;
 
 private:
+    void setIgnorePresentFencesInternal(bool ignoration) REQUIRES(mMutex);
+    void updateIgnorePresentFencesInternal() REQUIRES(mMutex);
     void startPeriodTransition(nsecs_t newPeriod) REQUIRES(mMutex);
     void endPeriodTransition() REQUIRES(mMutex);
-    bool periodChangeDetected(nsecs_t vsync_timestamp) REQUIRES(mMutex);
+    bool periodConfirmed(nsecs_t vsync_timestamp) REQUIRES(mMutex);
 
     std::unique_ptr<Clock> const mClock;
     std::unique_ptr<VSyncTracker> const mTracker;
@@ -71,10 +73,12 @@ private:
     size_t const mPendingLimit;
 
     std::mutex mMutex;
-    bool mIgnorePresentFences GUARDED_BY(mMutex) = false;
+    bool mInternalIgnoreFences GUARDED_BY(mMutex) = false;
+    bool mExternalIgnoreFences GUARDED_BY(mMutex) = false;
     std::vector<std::shared_ptr<FenceTime>> mUnfiredFences GUARDED_BY(mMutex);
 
     bool mMoreSamplesNeeded GUARDED_BY(mMutex) = false;
+    bool mPeriodConfirmationInProgress GUARDED_BY(mMutex) = false;
     std::optional<nsecs_t> mPeriodTransitioningTo GUARDED_BY(mMutex);
     std::optional<nsecs_t> mLastHwVsync GUARDED_BY(mMutex);
 

@@ -71,12 +71,12 @@ nsecs_t VSyncPredictor::currentPeriod() const {
     return std::get<0>(mRateMap.find(mIdealPeriod)->second);
 }
 
-void VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
+bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
     std::lock_guard<std::mutex> lk(mMutex);
 
     if (!validate(timestamp)) {
         ALOGV("timestamp was too far off the last known timestamp");
-        return;
+        return false;
     }
 
     if (timestamps.size() != kHistorySize) {
@@ -89,7 +89,7 @@ void VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
 
     if (timestamps.size() < kMinimumSamplesForPrediction) {
         mRateMap[mIdealPeriod] = {mIdealPeriod, 0};
-        return;
+        return true;
     }
 
     // This is a 'simple linear regression' calculation of Y over X, with Y being the
@@ -143,7 +143,7 @@ void VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
 
     if (CC_UNLIKELY(bottom == 0)) {
         it->second = {mIdealPeriod, 0};
-        return;
+        return false;
     }
 
     nsecs_t const anticipatedPeriod = top / bottom * kScalingFactor;
@@ -156,6 +156,7 @@ void VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
 
     ALOGV("model update ts: %" PRId64 " slope: %" PRId64 " intercept: %" PRId64, timestamp,
           anticipatedPeriod, intercept);
+    return true;
 }
 
 nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {

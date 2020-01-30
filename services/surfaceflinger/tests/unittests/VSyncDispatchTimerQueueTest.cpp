@@ -39,9 +39,10 @@ public:
     MockVSyncTracker(nsecs_t period) : mPeriod{period} {
         ON_CALL(*this, nextAnticipatedVSyncTimeFrom(_))
                 .WillByDefault(Invoke(this, &MockVSyncTracker::nextVSyncTime));
+        ON_CALL(*this, addVsyncTimestamp(_)).WillByDefault(Return(true));
     }
 
-    MOCK_METHOD1(addVsyncTimestamp, void(nsecs_t));
+    MOCK_METHOD1(addVsyncTimestamp, bool(nsecs_t));
     MOCK_CONST_METHOD1(nextAnticipatedVSyncTimeFrom, nsecs_t(nsecs_t));
     MOCK_CONST_METHOD0(currentPeriod, nsecs_t());
     MOCK_METHOD1(setPeriod, void(nsecs_t));
