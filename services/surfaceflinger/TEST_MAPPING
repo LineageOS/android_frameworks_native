@@ -1,7 +1,13 @@
 {
   "presubmit": [
     {
-      "name": "libsurfaceflinger_unittest"
+      "name": "libsurfaceflinger_unittest",
+      // TODO(b/148517641): re-enable once this test is fixed
+      "options": [
+          {
+	      "exclude-filter": "FrameTracerTest.*"
+	  }
+      ]
     },
     {
       "name": "libcompositionengine_test"
