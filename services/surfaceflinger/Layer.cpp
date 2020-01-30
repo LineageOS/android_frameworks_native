@@ -1804,6 +1804,15 @@ void Layer::traverseInReverseZOrder(LayerVector::StateSet stateSet,
     }
 }
 
+void Layer::traverse(LayerVector::StateSet state, const LayerVector::Visitor& visitor) {
+    visitor(this);
+    const LayerVector& children =
+            state == LayerVector::StateSet::Drawing ? mDrawingChildren : mCurrentChildren;
+    for (const sp<Layer>& child : children) {
+        child->traverse(state, visitor);
+    }
+}
+
 LayerVector Layer::makeChildrenTraversalList(LayerVector::StateSet stateSet,
                                              const std::vector<Layer*>& layersInTree) {
     LOG_ALWAYS_FATAL_IF(stateSet == LayerVector::StateSet::Invalid,

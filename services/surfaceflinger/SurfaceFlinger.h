@@ -384,6 +384,7 @@ private:
 
         renderengine::ShadowSettings globalShadowSettings;
 
+        void traverse(const LayerVector::Visitor& visitor) const;
         void traverseInZOrder(const LayerVector::Visitor& visitor) const;
         void traverseInReverseZOrder(const LayerVector::Visitor& visitor) const;
     };
