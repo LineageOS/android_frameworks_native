@@ -57,7 +57,7 @@ const char* inputEventTypeToString(int32_t type) {
     return "UNKNOWN";
 }
 
-void InputEvent::initialize(int32_t deviceId, int32_t source, int32_t displayId,
+void InputEvent::initialize(int32_t deviceId, uint32_t source, int32_t displayId,
                             std::array<uint8_t, 32> hmac) {
     mDeviceId = deviceId;
     mSource = source;
@@ -82,7 +82,7 @@ int32_t KeyEvent::getKeyCodeFromLabel(const char* label) {
     return getKeyCodeByLabel(label);
 }
 
-void KeyEvent::initialize(int32_t deviceId, int32_t source, int32_t displayId,
+void KeyEvent::initialize(int32_t deviceId, uint32_t source, int32_t displayId,
                           std::array<uint8_t, 32> hmac, int32_t action, int32_t flags,
                           int32_t keyCode, int32_t scanCode, int32_t metaState, int32_t repeatCount,
                           nsecs_t downTime, nsecs_t eventTime) {
@@ -245,7 +245,7 @@ void PointerProperties::copyFrom(const PointerProperties& other) {
 
 // --- MotionEvent ---
 
-void MotionEvent::initialize(int32_t deviceId, int32_t source, int32_t displayId,
+void MotionEvent::initialize(int32_t deviceId, uint32_t source, int32_t displayId,
                              std::array<uint8_t, 32> hmac, int32_t action, int32_t actionButton,
                              int32_t flags, int32_t edgeFlags, int32_t metaState,
                              int32_t buttonState, MotionClassification classification, float xScale,
@@ -488,7 +488,7 @@ status_t MotionEvent::readFromParcel(Parcel* parcel) {
     }
 
     mDeviceId = parcel->readInt32();
-    mSource = parcel->readInt32();
+    mSource = parcel->readUint32();
     mDisplayId = parcel->readInt32();
     std::vector<uint8_t> hmac;
     status_t result = parcel->readByteVector(&hmac);
@@ -549,7 +549,7 @@ status_t MotionEvent::writeToParcel(Parcel* parcel) const {
     parcel->writeInt32(sampleCount);
 
     parcel->writeInt32(mDeviceId);
-    parcel->writeInt32(mSource);
+    parcel->writeUint32(mSource);
     parcel->writeInt32(mDisplayId);
     std::vector<uint8_t> hmac(mHmac.begin(), mHmac.end());
     parcel->writeByteVector(hmac);
@@ -590,7 +590,7 @@ status_t MotionEvent::writeToParcel(Parcel* parcel) const {
 }
 #endif
 
-bool MotionEvent::isTouchEvent(int32_t source, int32_t action) {
+bool MotionEvent::isTouchEvent(uint32_t source, int32_t action) {
     if (source & AINPUT_SOURCE_CLASS_POINTER) {
         // Specifically excludes HOVER_MOVE and SCROLL.
         switch (action & AMOTION_EVENT_ACTION_MASK) {

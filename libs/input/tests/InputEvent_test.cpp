@@ -189,7 +189,7 @@ TEST_F(KeyEventTest, Properties) {
 
     ASSERT_EQ(AINPUT_EVENT_TYPE_KEY, event.getType());
     ASSERT_EQ(2, event.getDeviceId());
-    ASSERT_EQ(static_cast<int>(AINPUT_SOURCE_GAMEPAD), event.getSource());
+    ASSERT_EQ(AINPUT_SOURCE_GAMEPAD, event.getSource());
     ASSERT_EQ(DISPLAY_ID, event.getDisplayId());
     EXPECT_EQ(HMAC, event.getHmac());
     ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, event.getAction());
@@ -203,7 +203,7 @@ TEST_F(KeyEventTest, Properties) {
 
     // Set source.
     event.setSource(AINPUT_SOURCE_JOYSTICK);
-    ASSERT_EQ(static_cast<int>(AINPUT_SOURCE_JOYSTICK), event.getSource());
+    ASSERT_EQ(AINPUT_SOURCE_JOYSTICK, event.getSource());
 
     // Set display id.
     constexpr int32_t newDisplayId = 2;
@@ -311,7 +311,7 @@ void MotionEventTest::assertEqualsEventWithHistory(const MotionEvent* event) {
     // Check properties.
     ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, event->getType());
     ASSERT_EQ(2, event->getDeviceId());
-    ASSERT_EQ(static_cast<int>(AINPUT_SOURCE_TOUCHSCREEN), event->getSource());
+    ASSERT_EQ(AINPUT_SOURCE_TOUCHSCREEN, event->getSource());
     ASSERT_EQ(DISPLAY_ID, event->getDisplayId());
     EXPECT_EQ(HMAC, event->getHmac());
     ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, event->getAction());
@@ -448,7 +448,7 @@ TEST_F(MotionEventTest, Properties) {
 
     // Set source.
     event.setSource(AINPUT_SOURCE_JOYSTICK);
-    ASSERT_EQ(static_cast<int>(AINPUT_SOURCE_JOYSTICK), event.getSource());
+    ASSERT_EQ(AINPUT_SOURCE_JOYSTICK, event.getSource());
 
     // Set displayId.
     constexpr int32_t newDisplayId = 2;
