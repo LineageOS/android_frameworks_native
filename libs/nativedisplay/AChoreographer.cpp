@@ -60,7 +60,7 @@ public:
     void postFrameCallbackDelayed(AChoreographer_frameCallback cb,
                                   AChoreographer_frameCallback64 cb64, void* data, nsecs_t delay);
     void registerRefreshRateCallback(AChoreographer_refreshRateCallback cb, void* data);
-    void unregisterRefreshRateCallback(AChoreographer_refreshRateCallback cb);
+    void unregisterRefreshRateCallback(AChoreographer_refreshRateCallback cb, void* data);
 
     enum {
         MSG_SCHEDULE_CALLBACKS = 0,
@@ -152,21 +152,34 @@ void Choreographer::postFrameCallbackDelayed(
 void Choreographer::registerRefreshRateCallback(AChoreographer_refreshRateCallback cb, void* data) {
     {
         AutoMutex _l{mLock};
+        for (const auto& callback : mRefreshRateCallbacks) {
+            // Don't re-add callbacks.
+            if (cb == callback.callback && data == callback.data) {
+                return;
+            }
+        }
         mRefreshRateCallbacks.emplace_back(RefreshRateCallback{cb, data});
         toggleConfigEvents(ISurfaceComposer::ConfigChanged::eConfigChangedDispatch);
     }
 }
 
-void Choreographer::unregisterRefreshRateCallback(AChoreographer_refreshRateCallback cb) {
+void Choreographer::unregisterRefreshRateCallback(AChoreographer_refreshRateCallback cb,
+                                                  void* data) {
     {
         AutoMutex _l{mLock};
         mRefreshRateCallbacks.erase(std::remove_if(mRefreshRateCallbacks.begin(),
                                                    mRefreshRateCallbacks.end(),
                                                    [&](const RefreshRateCallback& callback) {
-                                                       return cb == callback.callback;
-                                                   }));
+                                                       return cb == callback.callback &&
+                                                               data == callback.data;
+                                                   }),
+                                    mRefreshRateCallbacks.end());
         if (mRefreshRateCallbacks.empty()) {
             toggleConfigEvents(ISurfaceComposer::ConfigChanged::eConfigChangedSuppress);
+            // If callbacks are empty then clear out the most recently seen
+            // vsync period so that when another callback is registered then the
+            // up-to-date refresh rate can be communicated to the app again.
+            mVsyncPeriod = 0;
         }
     }
 }
@@ -224,9 +237,9 @@ void Choreographer::dispatchConfigChanged(nsecs_t, PhysicalDisplayId, int32_t,
             // on every single configuration change.
             if (mVsyncPeriod != vsyncPeriod) {
                 cb.callback(vsyncPeriod, cb.data);
-                mVsyncPeriod = vsyncPeriod;
             }
         }
+        mVsyncPeriod = vsyncPeriod;
     }
 }
 
@@ -285,8 +298,9 @@ void AChoreographer_registerRefreshRateCallback(AChoreographer* choreographer,
     AChoreographer_to_Choreographer(choreographer)->registerRefreshRateCallback(callback, data);
 }
 void AChoreographer_unregisterRefreshRateCallback(AChoreographer* choreographer,
-                                                  AChoreographer_refreshRateCallback callback) {
-    AChoreographer_to_Choreographer(choreographer)->unregisterRefreshRateCallback(callback);
+                                                  AChoreographer_refreshRateCallback callback,
+                                                  void* data) {
+    AChoreographer_to_Choreographer(choreographer)->unregisterRefreshRateCallback(callback, data);
 }
 
 AChoreographer* AChoreographer_create() {
