@@ -355,6 +355,10 @@ void ConsumerFrameEventHistory::onDisconnect() {
     mProducerWantsEvents = false;
 }
 
+void ConsumerFrameEventHistory::setProducerWantsEvents() {
+    mProducerWantsEvents = true;
+}
+
 void ConsumerFrameEventHistory::initializeCompositorTiming(
         const CompositorTiming& compositorTiming) {
     mCompositorTiming = compositorTiming;
