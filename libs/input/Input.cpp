@@ -321,17 +321,17 @@ void MotionEvent::addSample(
 
 float MotionEvent::getXCursorPosition() const {
     const float rawX = getRawXCursorPosition();
-    return rawX + mXOffset;
+    return rawX * mXScale + mXOffset;
 }
 
 float MotionEvent::getYCursorPosition() const {
     const float rawY = getRawYCursorPosition();
-    return rawY + mYOffset;
+    return rawY * mYScale + mYOffset;
 }
 
 void MotionEvent::setCursorPosition(float x, float y) {
-    mRawXCursorPosition = x - mXOffset;
-    mRawYCursorPosition = y - mYOffset;
+    mRawXCursorPosition = (x - mXOffset) / mXScale;
+    mRawYCursorPosition = (y - mYOffset) / mYScale;
 }
 
 const PointerCoords* MotionEvent::getRawPointerCoords(size_t pointerIndex) const {
@@ -346,9 +346,9 @@ float MotionEvent::getAxisValue(int32_t axis, size_t pointerIndex) const {
     float value = getRawPointerCoords(pointerIndex)->getAxisValue(axis);
     switch (axis) {
     case AMOTION_EVENT_AXIS_X:
-        return value + mXOffset;
+        return value * mXScale + mXOffset;
     case AMOTION_EVENT_AXIS_Y:
-        return value + mYOffset;
+        return value * mYScale + mYOffset;
     }
     return value;
 }
@@ -368,9 +368,9 @@ float MotionEvent::getHistoricalAxisValue(int32_t axis, size_t pointerIndex,
     float value = getHistoricalRawPointerCoords(pointerIndex, historicalIndex)->getAxisValue(axis);
     switch (axis) {
     case AMOTION_EVENT_AXIS_X:
-        return value + mXOffset;
+        return value * mXScale + mXOffset;
     case AMOTION_EVENT_AXIS_Y:
-        return value + mYOffset;
+        return value * mYScale + mYOffset;
     }
     return value;
 }
@@ -442,11 +442,11 @@ void MotionEvent::transform(const float matrix[9]) {
     float oldXOffset = mXOffset;
     float oldYOffset = mYOffset;
     float newX, newY;
-    float rawX = getRawX(0);
-    float rawY = getRawY(0);
-    transformPoint(matrix, rawX + oldXOffset, rawY + oldYOffset, &newX, &newY);
-    mXOffset = newX - rawX;
-    mYOffset = newY - rawY;
+    float scaledRawX = getRawX(0) * mXScale;
+    float scaledRawY = getRawY(0) * mYScale;
+    transformPoint(matrix, scaledRawX + oldXOffset, scaledRawY + oldYOffset, &newX, &newY);
+    mXOffset = newX - scaledRawX;
+    mYOffset = newY - scaledRawY;
 
     // Determine how the origin is transformed by the matrix so that we
     // can transform orientation vectors.
@@ -455,22 +455,22 @@ void MotionEvent::transform(const float matrix[9]) {
 
     // Apply the transformation to cursor position.
     if (isValidCursorPosition(mRawXCursorPosition, mRawYCursorPosition)) {
-        float x = mRawXCursorPosition + oldXOffset;
-        float y = mRawYCursorPosition + oldYOffset;
+        float x = mRawXCursorPosition * mXScale + oldXOffset;
+        float y = mRawYCursorPosition * mYScale + oldYOffset;
         transformPoint(matrix, x, y, &x, &y);
-        mRawXCursorPosition = x - mXOffset;
-        mRawYCursorPosition = y - mYOffset;
+        mRawXCursorPosition = (x - mXOffset) / mXScale;
+        mRawYCursorPosition = (y - mYOffset) / mYScale;
     }
 
     // Apply the transformation to all samples.
     size_t numSamples = mSamplePointerCoords.size();
     for (size_t i = 0; i < numSamples; i++) {
         PointerCoords& c = mSamplePointerCoords.editItemAt(i);
-        float x = c.getAxisValue(AMOTION_EVENT_AXIS_X) + oldXOffset;
-        float y = c.getAxisValue(AMOTION_EVENT_AXIS_Y) + oldYOffset;
+        float x = c.getAxisValue(AMOTION_EVENT_AXIS_X) * mXScale + oldXOffset;
+        float y = c.getAxisValue(AMOTION_EVENT_AXIS_Y) * mYScale + oldYOffset;
         transformPoint(matrix, x, y, &x, &y);
-        c.setAxisValue(AMOTION_EVENT_AXIS_X, x - mXOffset);
-        c.setAxisValue(AMOTION_EVENT_AXIS_Y, y - mYOffset);
+        c.setAxisValue(AMOTION_EVENT_AXIS_X, (x - mXOffset) / mXScale);
+        c.setAxisValue(AMOTION_EVENT_AXIS_Y, (y - mYOffset) / mYScale);
 
         float orientation = c.getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION);
         c.setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION,

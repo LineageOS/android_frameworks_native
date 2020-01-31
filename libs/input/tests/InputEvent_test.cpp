@@ -375,19 +375,19 @@ void MotionEventTest::assertEqualsEventWithHistory(const MotionEvent* event) {
     ASSERT_EQ(211, event->getRawY(0));
     ASSERT_EQ(221, event->getRawY(1));
 
-    ASSERT_EQ(X_OFFSET + 10, event->getHistoricalX(0, 0));
-    ASSERT_EQ(X_OFFSET + 20, event->getHistoricalX(1, 0));
-    ASSERT_EQ(X_OFFSET + 110, event->getHistoricalX(0, 1));
-    ASSERT_EQ(X_OFFSET + 120, event->getHistoricalX(1, 1));
-    ASSERT_EQ(X_OFFSET + 210, event->getX(0));
-    ASSERT_EQ(X_OFFSET + 220, event->getX(1));
+    ASSERT_EQ(X_OFFSET + 10 * X_SCALE, event->getHistoricalX(0, 0));
+    ASSERT_EQ(X_OFFSET + 20 * X_SCALE, event->getHistoricalX(1, 0));
+    ASSERT_EQ(X_OFFSET + 110 * X_SCALE, event->getHistoricalX(0, 1));
+    ASSERT_EQ(X_OFFSET + 120 * X_SCALE, event->getHistoricalX(1, 1));
+    ASSERT_EQ(X_OFFSET + 210 * X_SCALE, event->getX(0));
+    ASSERT_EQ(X_OFFSET + 220 * X_SCALE, event->getX(1));
 
-    ASSERT_EQ(Y_OFFSET + 11, event->getHistoricalY(0, 0));
-    ASSERT_EQ(Y_OFFSET + 21, event->getHistoricalY(1, 0));
-    ASSERT_EQ(Y_OFFSET + 111, event->getHistoricalY(0, 1));
-    ASSERT_EQ(Y_OFFSET + 121, event->getHistoricalY(1, 1));
-    ASSERT_EQ(Y_OFFSET + 211, event->getY(0));
-    ASSERT_EQ(Y_OFFSET + 221, event->getY(1));
+    ASSERT_EQ(Y_OFFSET + 11 * Y_SCALE, event->getHistoricalY(0, 0));
+    ASSERT_EQ(Y_OFFSET + 21 * Y_SCALE, event->getHistoricalY(1, 0));
+    ASSERT_EQ(Y_OFFSET + 111 * Y_SCALE, event->getHistoricalY(0, 1));
+    ASSERT_EQ(Y_OFFSET + 121 * Y_SCALE, event->getHistoricalY(1, 1));
+    ASSERT_EQ(Y_OFFSET + 211 * Y_SCALE, event->getY(0));
+    ASSERT_EQ(Y_OFFSET + 221 * Y_SCALE, event->getY(1));
 
     ASSERT_EQ(12, event->getHistoricalPressure(0, 0));
     ASSERT_EQ(22, event->getHistoricalPressure(1, 0));
@@ -513,8 +513,8 @@ TEST_F(MotionEventTest, Scale) {
 
     ASSERT_EQ(210 * 2, event.getRawX(0));
     ASSERT_EQ(211 * 2, event.getRawY(0));
-    ASSERT_EQ((X_OFFSET + 210) * 2, event.getX(0));
-    ASSERT_EQ((Y_OFFSET + 211) * 2, event.getY(0));
+    ASSERT_EQ((X_OFFSET + 210 * X_SCALE) * 2, event.getX(0));
+    ASSERT_EQ((Y_OFFSET + 211 * Y_SCALE) * 2, event.getY(0));
     ASSERT_EQ(212, event.getPressure(0));
     ASSERT_EQ(213, event.getSize(0));
     ASSERT_EQ(214 * 2, event.getTouchMajor(0));

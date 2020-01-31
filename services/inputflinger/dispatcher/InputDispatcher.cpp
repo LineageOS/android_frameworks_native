@@ -2424,26 +2424,28 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                 PointerCoords scaledCoords[MAX_POINTERS];
                 const PointerCoords* usingCoords = motionEntry->pointerCoords;
 
-                // Set the X and Y offset depending on the input source.
-                float xOffset, yOffset;
+                // Set the X and Y offset and X and Y scale depending on the input source.
+                float xOffset = 0.0f, yOffset = 0.0f;
+                float xScale = 1.0f, yScale = 1.0f;
                 if ((motionEntry->source & AINPUT_SOURCE_CLASS_POINTER) &&
                     !(dispatchEntry->targetFlags & InputTarget::FLAG_ZERO_COORDS)) {
                     float globalScaleFactor = dispatchEntry->globalScaleFactor;
-                    float wxs = dispatchEntry->windowXScale;
-                    float wys = dispatchEntry->windowYScale;
-                    xOffset = dispatchEntry->xOffset * wxs;
-                    yOffset = dispatchEntry->yOffset * wys;
-                    if (wxs != 1.0f || wys != 1.0f || globalScaleFactor != 1.0f) {
+                    xScale = dispatchEntry->windowXScale;
+                    yScale = dispatchEntry->windowYScale;
+                    xOffset = dispatchEntry->xOffset * xScale;
+                    yOffset = dispatchEntry->yOffset * yScale;
+                    if (globalScaleFactor != 1.0f) {
                         for (uint32_t i = 0; i < motionEntry->pointerCount; i++) {
                             scaledCoords[i] = motionEntry->pointerCoords[i];
-                            scaledCoords[i].scale(globalScaleFactor, wxs, wys);
+                            // Don't apply window scale here since we don't want scale to affect raw
+                            // coordinates. The scale will be sent back to the client and applied
+                            // later when requesting relative coordinates.
+                            scaledCoords[i].scale(globalScaleFactor, 1 /* windowXScale */,
+                                                  1 /* windowYScale */);
                         }
                         usingCoords = scaledCoords;
                     }
                 } else {
-                    xOffset = 0.0f;
-                    yOffset = 0.0f;
-
                     // We don't want the dispatch target to know.
                     if (dispatchEntry->targetFlags & InputTarget::FLAG_ZERO_COORDS) {
                         for (uint32_t i = 0; i < motionEntry->pointerCount; i++) {
@@ -2462,10 +2464,8 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                                                      dispatchEntry->resolvedFlags,
                                                      motionEntry->edgeFlags, motionEntry->metaState,
                                                      motionEntry->buttonState,
-                                                     motionEntry->classification,
-                                                     dispatchEntry->windowXScale,
-                                                     dispatchEntry->windowYScale, xOffset, yOffset,
-                                                     motionEntry->xPrecision,
+                                                     motionEntry->classification, xScale, yScale,
+                                                     xOffset, yOffset, motionEntry->xPrecision,
                                                      motionEntry->yPrecision,
                                                      motionEntry->xCursorPosition,
                                                      motionEntry->yCursorPosition,
