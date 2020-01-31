@@ -325,24 +325,6 @@ static std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inp
     return dispatchEntry;
 }
 
-// --- InputDispatcherThread ---
-
-class InputDispatcher::InputDispatcherThread : public Thread {
-public:
-    explicit InputDispatcherThread(InputDispatcher* dispatcher)
-          : Thread(/* canCallJava */ true), mDispatcher(dispatcher) {}
-
-    ~InputDispatcherThread() {}
-
-private:
-    InputDispatcher* mDispatcher;
-
-    virtual bool threadLoop() override {
-        mDispatcher->dispatchOnce();
-        return true;
-    }
-};
-
 // --- InputDispatcher ---
 
 InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy)
@@ -367,8 +349,6 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
     mKeyRepeatState.lastKeyEntry = nullptr;
 
     policy->getDispatcherConfiguration(&mConfig);
-
-    mThread = new InputDispatcherThread(this);
 }
 
 InputDispatcher::~InputDispatcher() {
@@ -387,25 +367,21 @@ InputDispatcher::~InputDispatcher() {
 }
 
 status_t InputDispatcher::start() {
-    if (mThread->isRunning()) {
+    if (mThread) {
         return ALREADY_EXISTS;
     }
-    return mThread->run("InputDispatcher", PRIORITY_URGENT_DISPLAY);
+    mThread = std::make_unique<InputThread>(
+            "InputDispatcher", [this]() { dispatchOnce(); }, [this]() { mLooper->wake(); });
+    return OK;
 }
 
 status_t InputDispatcher::stop() {
-    if (!mThread->isRunning()) {
-        return OK;
-    }
-    if (gettid() == mThread->getTid()) {
-        ALOGE("InputDispatcher can only be stopped from outside of the InputDispatcherThread!");
+    if (mThread && mThread->isCallingThread()) {
+        ALOGE("InputDispatcher cannot be stopped from its own thread!");
         return INVALID_OPERATION;
     }
-    // Directly calling requestExitAndWait() causes the thread to not exit
-    // if mLooper is waiting for a long timeout.
-    mThread->requestExit();
-    mLooper->wake();
-    return mThread->requestExitAndWait();
+    mThread.reset();
+    return OK;
 }
 
 void InputDispatcher::dispatchOnce() {
