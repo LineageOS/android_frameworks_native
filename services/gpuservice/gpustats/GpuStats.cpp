@@ -74,10 +74,11 @@ static void addLoadingTime(GpuStatsInfo::Driver driver, int64_t driverLoadingTim
     }
 }
 
-void GpuStats::insert(const std::string& driverPackageName, const std::string& driverVersionName,
-                      uint64_t driverVersionCode, int64_t driverBuildTime,
-                      const std::string& appPackageName, const int32_t vulkanVersion,
-                      GpuStatsInfo::Driver driver, bool isDriverLoaded, int64_t driverLoadingTime) {
+void GpuStats::insertDriverStats(const std::string& driverPackageName,
+                                 const std::string& driverVersionName, uint64_t driverVersionCode,
+                                 int64_t driverBuildTime, const std::string& appPackageName,
+                                 const int32_t vulkanVersion, GpuStatsInfo::Driver driver,
+                                 bool isDriverLoaded, int64_t driverLoadingTime) {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mLock);
@@ -191,6 +192,11 @@ void GpuStats::dump(const Vector<String16>& args, std::string* result) {
         dumpAll = false;
     }
 
+    if (dumpAll) {
+        dumpGlobalLocked(result);
+        dumpAppLocked(result);
+    }
+
     if (argsSet.count("--clear")) {
         bool clearAll = true;
 
@@ -208,13 +214,6 @@ void GpuStats::dump(const Vector<String16>& args, std::string* result) {
             mGlobalStats.clear();
             mAppStats.clear();
         }
-
-        dumpAll = false;
-    }
-
-    if (dumpAll) {
-        dumpGlobalLocked(result);
-        dumpAppLocked(result);
     }
 }
 
