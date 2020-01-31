@@ -423,11 +423,12 @@ ssize_t ServiceManager::Service::getNodeStrongRefCount() {
 
 void ServiceManager::handleClientCallbacks() {
     for (const auto& [name, service] : mNameToService) {
-        handleServiceClientCallback(name);
+        handleServiceClientCallback(name, true);
     }
 }
 
-ssize_t ServiceManager::handleServiceClientCallback(const std::string& serviceName) {
+ssize_t ServiceManager::handleServiceClientCallback(const std::string& serviceName,
+                                                    bool isCalledOnInterval) {
     auto serviceIt = mNameToService.find(serviceName);
     if (serviceIt == mNameToService.end() || mNameToClientCallback.count(serviceName) < 1) {
         return -1;
@@ -451,14 +452,17 @@ ssize_t ServiceManager::handleServiceClientCallback(const std::string& serviceNa
         service.guaranteeClient = false;
     }
 
-    if (hasClients && !service.hasClients) {
-        // client was retrieved in some other way
-        sendClientCallbackNotifications(serviceName, true);
-    }
+    // only send notifications if this was called via the interval checking workflow
+    if (isCalledOnInterval) {
+        if (hasClients && !service.hasClients) {
+            // client was retrieved in some other way
+            sendClientCallbackNotifications(serviceName, true);
+        }
 
-    // there are no more clients, but the callback has not been called yet
-    if (!hasClients && service.hasClients) {
-        sendClientCallbackNotifications(serviceName, false);
+        // there are no more clients, but the callback has not been called yet
+        if (!hasClients && service.hasClients) {
+            sendClientCallbackNotifications(serviceName, false);
+        }
     }
 
     return count;
@@ -518,7 +522,7 @@ Status ServiceManager::tryUnregisterService(const std::string& name, const sp<IB
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
     }
 
-    int clients = handleServiceClientCallback(name);
+    int clients = handleServiceClientCallback(name, false);
 
     // clients < 0: feature not implemented or other error. Assume clients.
     // Otherwise:
@@ -527,7 +531,7 @@ Status ServiceManager::tryUnregisterService(const std::string& name, const sp<IB
     // So, if clients > 2, then at least one other service on the system must hold a refcount.
     if (clients < 0 || clients > 2) {
         // client callbacks are either disabled or there are other clients
-        LOG(INFO) << "Tried to unregister " << name << " but there are clients: " << clients;
+        LOG(INFO) << "Tried to unregister " << name << ", but there are clients: " << clients;
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
     }
 
