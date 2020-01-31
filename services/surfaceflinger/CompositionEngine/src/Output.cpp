@@ -107,11 +107,13 @@ void Output::setCompositionEnabled(bool enabled) {
 }
 
 void Output::setProjection(const ui::Transform& transform, uint32_t orientation, const Rect& frame,
-                           const Rect& viewport, const Rect& scissor, bool needsFiltering) {
+                           const Rect& viewport, const Rect& sourceClip,
+                           const Rect& destinationClip, bool needsFiltering) {
     auto& outputState = editState();
     outputState.transform = transform;
     outputState.orientation = orientation;
-    outputState.scissor = scissor;
+    outputState.sourceClip = sourceClip;
+    outputState.destinationClip = destinationClip;
     outputState.frame = frame;
     outputState.viewport = viewport;
     outputState.needsFiltering = needsFiltering;
@@ -834,8 +836,8 @@ std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion
     const bool supportsProtectedContent = renderEngine.supportsProtectedContent();
 
     renderengine::DisplaySettings clientCompositionDisplay;
-    clientCompositionDisplay.physicalDisplay = outputState.scissor;
-    clientCompositionDisplay.clip = outputState.scissor;
+    clientCompositionDisplay.physicalDisplay = outputState.destinationClip;
+    clientCompositionDisplay.clip = outputState.sourceClip;
     clientCompositionDisplay.globalTransform = outputState.transform.asMatrix4();
     clientCompositionDisplay.orientation = outputState.orientation;
     clientCompositionDisplay.outputDataspace = mDisplayColorProfile->hasWideColorGamut()
