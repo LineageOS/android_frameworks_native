@@ -37,7 +37,8 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContent(
     int explicitContentFramerate = 0;
     for (const auto& layer : layers) {
         const auto desiredRefreshRateRound = round<int>(layer.desiredRefreshRate);
-        if (layer.vote == LayerVoteType::Explicit) {
+        if (layer.vote == LayerVoteType::ExplicitDefault ||
+            layer.vote == LayerVoteType::ExplicitExactOrMultiple) {
             if (desiredRefreshRateRound > explicitContentFramerate) {
                 explicitContentFramerate = desiredRefreshRateRound;
             }
@@ -94,7 +95,8 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
     int noVoteLayers = 0;
     int minVoteLayers = 0;
     int maxVoteLayers = 0;
-    int explicitVoteLayers = 0;
+    int explicitDefaultVoteLayers = 0;
+    int explicitExactOrMultipleVoteLayers = 0;
     for (const auto& layer : layers) {
         if (layer.vote == LayerVoteType::NoVote)
             noVoteLayers++;
@@ -102,8 +104,10 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
             minVoteLayers++;
         else if (layer.vote == LayerVoteType::Max)
             maxVoteLayers++;
-        else if (layer.vote == LayerVoteType::Explicit)
-            explicitVoteLayers++;
+        else if (layer.vote == LayerVoteType::ExplicitDefault)
+            explicitDefaultVoteLayers++;
+        else if (layer.vote == LayerVoteType::ExplicitExactOrMultiple)
+            explicitExactOrMultipleVoteLayers++;
     }
 
     // Only if all layers want Min we should return Min
@@ -112,7 +116,7 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
     }
 
     // If we have some Max layers and no Explicit we should return Max
-    if (maxVoteLayers > 0 && explicitVoteLayers == 0) {
+    if (maxVoteLayers > 0 && explicitDefaultVoteLayers + explicitExactOrMultipleVoteLayers == 0) {
         return *mAvailableRefreshRates.back();
     }
 
@@ -131,9 +135,22 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
             continue;
         }
 
-        // If we have Explicit layers, ignore the Hueristic ones
-        if (explicitVoteLayers > 0 && layer.vote == LayerVoteType::Heuristic) {
-            continue;
+        // Adjust the weight in case we have explicit layers. The priority is:
+        //  - ExplicitExactOrMultiple
+        //  - ExplicitDefault
+        //  - Heuristic
+        auto weight = layer.weight;
+        if (explicitExactOrMultipleVoteLayers + explicitDefaultVoteLayers > 0) {
+            if (layer.vote == LayerVoteType::Heuristic) {
+                weight /= 2.f;
+            }
+        }
+
+        if (explicitExactOrMultipleVoteLayers > 0) {
+            if (layer.vote == LayerVoteType::Heuristic ||
+                layer.vote == LayerVoteType::ExplicitDefault) {
+                weight /= 2.f;
+            }
         }
 
         for (auto& [refreshRate, overallScore] : scores) {
@@ -152,10 +169,10 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
             static constexpr size_t MAX_FRAMES_TO_FIT = 10; // Stop calculating when score < 0.1
             if (displayFramesRem == 0) {
                 // Layer desired refresh rate matches the display rate.
-                layerScore = layer.weight * 1.0f;
+                layerScore = weight * 1.0f;
             } else if (displayFramesQuot == 0) {
                 // Layer desired refresh rate is higher the display rate.
-                layerScore = layer.weight *
+                layerScore = weight *
                         (static_cast<float>(layerPeriod) / static_cast<float>(displayPeriod)) *
                         (1.0f / (MAX_FRAMES_TO_FIT + 1));
             } else {
@@ -168,11 +185,11 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
                     iter++;
                 }
 
-                layerScore = layer.weight * (1.0f / iter);
+                layerScore = weight * (1.0f / iter);
             }
 
-            ALOGV("%s (weight %.2f) %.2fHz gives %s score of %.2f", layer.name.c_str(),
-                  layer.weight, 1e9f / layerPeriod, refreshRate->name.c_str(), layerScore);
+            ALOGV("%s (weight %.2f) %.2fHz gives %s score of %.2f", layer.name.c_str(), weight,
+                  1e9f / layerPeriod, refreshRate->name.c_str(), layerScore);
             overallScore += layerScore;
         }
     }

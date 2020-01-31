@@ -136,6 +136,34 @@ public:
         float radius = 0.0f;
     };
 
+    // FrameRateCompatibility specifies how we should interpret the frame rate associated with
+    // the layer.
+    enum class FrameRateCompatibility {
+        Default, // Layer didn't specify any specific handling strategy
+
+        ExactOrMultiple, // Layer needs the exact frame rate (or a multiple of it) to present the
+                         // content properly. Any other value will result in a pull down.
+
+        NoVote, // Layer doesn't have any requirements for the refresh rate and
+                // should not be considered when the display refresh rate is determined.
+    };
+
+    // Encapsulates the frame rate and compatibility of the layer. This information will be used
+    // when the display refresh rate is determined.
+    struct FrameRate {
+        float rate;
+        FrameRateCompatibility type;
+
+        FrameRate() : rate(0), type(FrameRateCompatibility::Default) {}
+        FrameRate(float rate, FrameRateCompatibility type) : rate(rate), type(type) {}
+
+        bool operator==(const FrameRate& other) const {
+            return rate == other.rate && type == other.type;
+        }
+
+        bool operator!=(const FrameRate& other) const { return !(*this == other); }
+    };
+
     struct State {
         Geometry active_legacy;
         Geometry requested_legacy;
@@ -227,7 +255,7 @@ public:
         // Priority of the layer assigned by Window Manager.
         int32_t frameRateSelectionPriority;
 
-        float frameRate;
+        FrameRate frameRate;
     };
 
     explicit Layer(const LayerCreationArgs& args);
@@ -754,9 +782,8 @@ public:
      */
     Rect getCroppedBufferSize(const Layer::State& s) const;
 
-    constexpr static auto FRAME_RATE_NO_VOTE = -1.0f;
-    virtual bool setFrameRate(float frameRate);
-    virtual std::optional<float> getFrameRate() const;
+    virtual bool setFrameRate(FrameRate frameRate);
+    virtual FrameRate getFrameRate() const;
 
 protected:
     // constant

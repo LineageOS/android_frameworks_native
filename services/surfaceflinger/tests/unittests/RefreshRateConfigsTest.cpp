@@ -432,6 +432,77 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_30_60
     EXPECT_EQ(expected72Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
 }
 
+TEST_F(RefreshRateConfigsTest,
+       twoDeviceConfigs_getRefreshRateForContentV2_30_60_90_120_DifferentTypes) {
+    std::vector<RefreshRateConfigs::InputConfig> configs{
+            {{HWC_CONFIG_ID_30, HWC_GROUP_ID_0, VSYNC_30},
+             {HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
+             {HWC_CONFIG_ID_72, HWC_GROUP_ID_0, VSYNC_72},
+             {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90},
+             {HWC_CONFIG_ID_120, HWC_GROUP_ID_0, VSYNC_120}}};
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    RefreshRate expected30Config = {HWC_CONFIG_ID_30, VSYNC_30, HWC_GROUP_ID_0, "30fps", 30};
+    RefreshRate expected60Config = {HWC_CONFIG_ID_60, VSYNC_60, HWC_GROUP_ID_0, "60fps", 60};
+    RefreshRate expected72Config = {HWC_CONFIG_ID_72, VSYNC_72, HWC_GROUP_ID_0, "72fps", 72};
+    RefreshRate expected90Config = {HWC_CONFIG_ID_90, VSYNC_90, HWC_GROUP_ID_0, "90fps", 90};
+    RefreshRate expected120Config = {HWC_CONFIG_ID_120, VSYNC_120, HWC_GROUP_ID_0, "120fps", 120};
+
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f},
+                                                LayerRequirement{.weight = 1.0f}};
+    auto& lr1 = layers[0];
+    auto& lr2 = layers[1];
+
+    lr1.desiredRefreshRate = 24.0f;
+    lr1.vote = LayerVoteType::ExplicitDefault;
+    lr2.desiredRefreshRate = 60.0f;
+    lr2.vote = LayerVoteType::Heuristic;
+    EXPECT_EQ(expected120Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+
+    lr1.desiredRefreshRate = 24.0f;
+    lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr2.desiredRefreshRate = 60.0f;
+    lr2.vote = LayerVoteType::Heuristic;
+    EXPECT_EQ(expected120Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+
+    lr1.desiredRefreshRate = 24.0f;
+    lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr2.desiredRefreshRate = 60.0f;
+    lr2.vote = LayerVoteType::ExplicitDefault;
+    EXPECT_EQ(expected120Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+
+    lr1.desiredRefreshRate = 24.0f;
+    lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr2.desiredRefreshRate = 90.0f;
+    lr2.vote = LayerVoteType::Heuristic;
+    EXPECT_EQ(expected120Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+
+    lr1.desiredRefreshRate = 24.0f;
+    lr1.vote = LayerVoteType::ExplicitDefault;
+    lr2.desiredRefreshRate = 90.0f;
+    lr2.vote = LayerVoteType::Heuristic;
+    EXPECT_EQ(expected120Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+
+    lr1.desiredRefreshRate = 24.0f;
+    lr1.vote = LayerVoteType::Heuristic;
+    lr2.desiredRefreshRate = 90.0f;
+    lr2.vote = LayerVoteType::ExplicitDefault;
+    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+
+    lr1.desiredRefreshRate = 24.0f;
+    lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr2.desiredRefreshRate = 90.0f;
+    lr2.vote = LayerVoteType::ExplicitDefault;
+    EXPECT_EQ(expected120Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+
+    lr1.desiredRefreshRate = 24.0f;
+    lr1.vote = LayerVoteType::ExplicitDefault;
+    lr2.desiredRefreshRate = 90.0f;
+    lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
+    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+}
+
 TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_30_60) {
     std::vector<RefreshRateConfigs::InputConfig> configs{
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
@@ -535,7 +606,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_Prior
     EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
 
     lr1.vote = LayerVoteType::Min;
-    lr2.vote = LayerVoteType::Explicit;
+    lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.desiredRefreshRate = 24.0f;
     EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
 
@@ -545,7 +616,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_Prior
     EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
 
     lr1.vote = LayerVoteType::Max;
-    lr2.vote = LayerVoteType::Explicit;
+    lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.desiredRefreshRate = 60.0f;
     EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
 
@@ -557,7 +628,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_Prior
 
     lr1.vote = LayerVoteType::Heuristic;
     lr1.desiredRefreshRate = 30.0f;
-    lr2.vote = LayerVoteType::Explicit;
+    lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.desiredRefreshRate = 45.0f;
     EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
 }
@@ -576,7 +647,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_24Fps
     auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
     auto& lr = layers[0];
 
-    lr.vote = LayerVoteType::Explicit;
+    lr.vote = LayerVoteType::ExplicitExactOrMultiple;
     for (float fps = 23.0f; fps < 25.0f; fps += 0.1f) {
         lr.desiredRefreshRate = fps;
         const auto& refreshRate = refreshRateConfigs->getRefreshRateForContentV2(layers);
@@ -602,13 +673,13 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContent_Explici
 
     lr1.vote = LayerVoteType::Heuristic;
     lr1.desiredRefreshRate = 60.0f;
-    lr2.vote = LayerVoteType::Explicit;
+    lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.desiredRefreshRate = 90.0f;
     EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContent(layers));
 
     lr1.vote = LayerVoteType::Heuristic;
     lr1.desiredRefreshRate = 90.0f;
-    lr2.vote = LayerVoteType::Explicit;
+    lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.desiredRefreshRate = 60.0f;
     EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContent(layers));
 }
@@ -630,13 +701,13 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_Expli
 
     lr1.vote = LayerVoteType::Heuristic;
     lr1.desiredRefreshRate = 60.0f;
-    lr2.vote = LayerVoteType::Explicit;
+    lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.desiredRefreshRate = 90.0f;
     EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
 
     lr1.vote = LayerVoteType::Heuristic;
     lr1.desiredRefreshRate = 90.0f;
-    lr2.vote = LayerVoteType::Explicit;
+    lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.desiredRefreshRate = 60.0f;
     EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
 }
@@ -665,7 +736,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_75HzC
     auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
     auto& lr = layers[0];
 
-    lr.vote = LayerVoteType::Explicit;
+    lr.vote = LayerVoteType::ExplicitExactOrMultiple;
     for (float fps = 75.0f; fps < 100.0f; fps += 0.1f) {
         lr.desiredRefreshRate = fps;
         const auto& refreshRate = refreshRateConfigs->getRefreshRateForContentV2(layers);

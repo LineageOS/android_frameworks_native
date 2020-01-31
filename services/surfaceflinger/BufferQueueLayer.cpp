@@ -125,21 +125,16 @@ bool BufferQueueLayer::shouldPresentNow(nsecs_t expectedPresentTime) const {
     return isDue || !isPlausible;
 }
 
-bool BufferQueueLayer::setFrameRate(float frameRate) {
+bool BufferQueueLayer::setFrameRate(FrameRate frameRate) {
     float oldFrameRate = 0.f;
     status_t result = mConsumer->getFrameRate(&oldFrameRate);
-    bool frameRateChanged = result < 0 || frameRate != oldFrameRate;
-    mConsumer->setFrameRate(frameRate);
+    bool frameRateChanged = result < 0 || frameRate.rate != oldFrameRate;
+    mConsumer->setFrameRate(frameRate.rate);
     return frameRateChanged;
 }
 
-std::optional<float> BufferQueueLayer::getFrameRate() const {
-    const auto frameRate = mLatchedFrameRate.load();
-    if (frameRate > 0.f || frameRate == FRAME_RATE_NO_VOTE) {
-        return frameRate;
-    }
-
-    return {};
+Layer::FrameRate BufferQueueLayer::getFrameRate() const {
+    return FrameRate(mLatchedFrameRate, Layer::FrameRateCompatibility::Default);
 }
 
 // -----------------------------------------------------------------------

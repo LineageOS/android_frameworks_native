@@ -3548,7 +3548,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         }
     }
     if (what & layer_state_t::eFrameRateChanged) {
-        if (layer->setFrameRate(s.frameRate)) flags |= eTraversalNeeded;
+        if (layer->setFrameRate(
+                    Layer::FrameRate(s.frameRate, Layer::FrameRateCompatibility::Default)))
+            flags |= eTraversalNeeded;
     }
     // This has to happen after we reparent children because when we reparent to null we remove
     // child layers from current state and remove its relative z. If the children are reparented in
