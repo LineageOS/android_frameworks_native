@@ -2059,7 +2059,7 @@ void SurfaceFlinger::postComposition()
         compositorTiming = getBE().mCompositorTiming;
     }
 
-    mDrawingState.traverseInZOrder([&](Layer* layer) {
+    mDrawingState.traverse([&](Layer* layer) {
         bool frameLatched = layer->onPostComposition(displayDevice, glCompositionDoneFenceTime,
                                                      presentFenceTime, compositorTiming);
         if (frameLatched) {
@@ -2496,7 +2496,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
     const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
 
     // Notify all layers of available frames
-    mCurrentState.traverseInZOrder([expectedPresentTime](Layer* layer) {
+    mCurrentState.traverse([expectedPresentTime](Layer* layer) {
         layer->notifyAvailableFrames(expectedPresentTime);
     });
 
@@ -2506,7 +2506,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
      */
 
     if ((transactionFlags & eTraversalNeeded) || mTraversalNeededMainThread) {
-        mCurrentState.traverseInZOrder([&](Layer* layer) {
+        mCurrentState.traverse([&](Layer* layer) {
             uint32_t trFlags = layer->getTransactionFlags(eTransactionNeeded);
             if (!trFlags) return;
 
@@ -2553,7 +2553,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
         sp<const DisplayDevice> hintDisplay;
         uint32_t currentlayerStack = 0;
         bool first = true;
-        mCurrentState.traverseInZOrder([&](Layer* layer) {
+        mCurrentState.traverse([&](Layer* layer) {
             // NOTE: we rely on the fact that layers are sorted by
             // layerStack first (so we don't have to traverse the list
             // of displays for every layer).
@@ -2781,7 +2781,7 @@ void SurfaceFlinger::commitTransactionLocked() {
     // clear the "changed" flags in current state
     mCurrentState.colorMatrixChanged = false;
 
-    mDrawingState.traverseInZOrder([&](Layer* layer) {
+    mDrawingState.traverse([&](Layer* layer) {
         layer->commitChildList();
 
         // If the layer can be reached when traversing mDrawingState, then the layer is no
@@ -2792,7 +2792,7 @@ void SurfaceFlinger::commitTransactionLocked() {
     });
 
     commitOffscreenLayers();
-    mDrawingState.traverseInZOrder([&](Layer* layer) { layer->updateMirrorInfo(); });
+    mDrawingState.traverse([&](Layer* layer) { layer->updateMirrorInfo(); });
 }
 
 void SurfaceFlinger::withTracingLock(std::function<void()> lockedOperation) {
@@ -2817,7 +2817,7 @@ void SurfaceFlinger::withTracingLock(std::function<void()> lockedOperation) {
 
 void SurfaceFlinger::commitOffscreenLayers() {
     for (Layer* offscreenLayer : mOffscreenLayers) {
-        offscreenLayer->traverseInZOrder(LayerVector::StateSet::Drawing, [](Layer* layer) {
+        offscreenLayer->traverse(LayerVector::StateSet::Drawing, [](Layer* layer) {
             uint32_t trFlags = layer->getTransactionFlags(eTransactionNeeded);
             if (!trFlags) return;
 
@@ -2858,7 +2858,7 @@ bool SurfaceFlinger::handlePageFlip()
     // 3.) Layer 1 is latched.
     // Display is now waiting on Layer 1's frame, which is behind layer 0's
     // second frame. But layer 0's second frame could be waiting on display.
-    mDrawingState.traverseInZOrder([&](Layer* layer) {
+    mDrawingState.traverse([&](Layer* layer) {
         if (layer->hasReadyFrame()) {
             frameQueued = true;
             if (layer->shouldPresentNow(expectedPresentTime)) {
@@ -2876,7 +2876,7 @@ bool SurfaceFlinger::handlePageFlip()
     // be shown on screen. Therefore, we need to latch and release buffers of offscreen
     // layers to ensure dequeueBuffer doesn't block indefinitely.
     for (Layer* offscreenLayer : mOffscreenLayers) {
-        offscreenLayer->traverseInZOrder(LayerVector::StateSet::Drawing,
+        offscreenLayer->traverse(LayerVector::StateSet::Drawing,
                                          [&](Layer* l) { l->latchAndReleaseBuffer(); });
     }
 
@@ -2911,7 +2911,7 @@ bool SurfaceFlinger::handlePageFlip()
         mBootStage = BootStage::BOOTANIMATION;
     }
 
-    mDrawingState.traverseInZOrder([&](Layer* layer) { layer->updateCloneBufferInfo(); });
+    mDrawingState.traverse([&](Layer* layer) { layer->updateCloneBufferInfo(); });
 
     // Only continue with the refresh if there is actually new work to do
     return !mLayersWithQueuedFrames.empty() && newDataLatched;
@@ -3733,7 +3733,7 @@ std::string SurfaceFlinger::getUniqueLayerName(const char* name) {
     bool matchFound = true;
     while (matchFound) {
         matchFound = false;
-        mCurrentState.traverseInZOrder([&](Layer* layer) {
+        mCurrentState.traverse([&](Layer* layer) {
             if (layer->getName() == uniqueName) {
                 matchFound = true;
                 uniqueName = base::StringPrintf("%s#%u", name, ++dupeCounter);
@@ -4104,7 +4104,7 @@ void SurfaceFlinger::clearStatsLocked(const DumpArgs& args, std::string&) {
     const bool clearAll = args.size() < 2;
     const auto name = clearAll ? String8() : String8(args[1]);
 
-    mCurrentState.traverseInZOrder([&](Layer* layer) {
+    mCurrentState.traverse([&](Layer* layer) {
         if (clearAll || layer->getName() == name.string()) {
             layer->clearFrameStats();
         }
@@ -4120,7 +4120,7 @@ void SurfaceFlinger::dumpTimeStats(const DumpArgs& args, bool asProto, std::stri
 // This should only be called from the main thread.  Otherwise it would need
 // the lock and should use mCurrentState rather than mDrawingState.
 void SurfaceFlinger::logFrameStats() {
-    mDrawingState.traverseInZOrder([&](Layer* layer) {
+    mDrawingState.traverse([&](Layer* layer) {
         layer->logFrameStats();
     });
 
@@ -4355,7 +4355,7 @@ void SurfaceFlinger::dumpOffscreenLayers(std::string& result) {
     result.append("Offscreen Layers:\n");
     postMessageSync(new LambdaMessage([&]() {
         for (Layer* offscreenLayer : mOffscreenLayers) {
-            offscreenLayer->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
+            offscreenLayer->traverse(LayerVector::StateSet::Drawing, [&](Layer* layer) {
                 layer->dumpCallingUidPid(result);
             });
         }
@@ -5587,6 +5587,10 @@ void SurfaceFlinger::setInputWindowsFinished() {
 }
 
 // ---------------------------------------------------------------------------
+
+void SurfaceFlinger::State::traverse(const LayerVector::Visitor& visitor) const {
+    layersSortedByZ.traverse(visitor);
+}
 
 void SurfaceFlinger::State::traverseInZOrder(const LayerVector::Visitor& visitor) const {
     layersSortedByZ.traverseInZOrder(stateSet, visitor);

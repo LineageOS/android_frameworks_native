@@ -33,8 +33,10 @@ public:
      * to the model.
      *
      * \param [in] timestamp    The timestamp when the vsync signal was.
+     * \return                  True if the timestamp was consistent with the internal model,
+     *                          False otherwise
      */
-    virtual void addVsyncTimestamp(nsecs_t timestamp) = 0;
+    virtual bool addVsyncTimestamp(nsecs_t timestamp) = 0;
 
     /*
      * Access the next anticipated vsync time such that the anticipated time >= timePoint.

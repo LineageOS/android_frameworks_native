@@ -37,7 +37,7 @@ class FixedRateIdealStubTracker : public VSyncTracker {
 public:
     FixedRateIdealStubTracker() : mPeriod{toNs(3ms)} {}
 
-    void addVsyncTimestamp(nsecs_t) final {}
+    bool addVsyncTimestamp(nsecs_t) final { return true; }
 
     nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const final {
         auto const floor = timePoint % mPeriod;
@@ -60,7 +60,7 @@ class VRRStubTracker : public VSyncTracker {
 public:
     VRRStubTracker(nsecs_t period) : mPeriod{period} {}
 
-    void addVsyncTimestamp(nsecs_t) final {}
+    bool addVsyncTimestamp(nsecs_t) final { return true; }
 
     nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t time_point) const final {
         std::lock_guard<decltype(mMutex)> lk(mMutex);

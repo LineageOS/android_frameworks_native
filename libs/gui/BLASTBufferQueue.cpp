@@ -83,6 +83,7 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
         if (stats.size() > 0) {
             mPendingReleaseItem.releaseFence = stats[0].previousReleaseFence;
             mTransformHint = stats[0].transformHint;
+            mBufferItemConsumer->setTransformHint(mTransformHint);
         } else {
             ALOGE("Warning: no SurfaceControlStats returned in BLASTBufferQueue callback");
             mPendingReleaseItem.releaseFence = nullptr;
@@ -151,7 +152,7 @@ void BLASTBufferQueue::processNextBufferLocked() {
                        bufferItem.mFence ? new Fence(bufferItem.mFence->dup()) : Fence::NO_FENCE);
     t->addTransactionCompletedCallback(transactionCallbackThunk, static_cast<void*>(this));
 
-    t->setFrame(mSurfaceControl, {0, 0, (int32_t)buffer->getWidth(), (int32_t)buffer->getHeight()});
+    t->setFrame(mSurfaceControl, {0, 0, mWidth, mHeight});
     t->setCrop(mSurfaceControl, computeCrop(bufferItem));
     t->setTransform(mSurfaceControl, bufferItem.mTransform);
     t->setTransformToDisplayInverse(mSurfaceControl, bufferItem.mTransformToDisplayInverse);
