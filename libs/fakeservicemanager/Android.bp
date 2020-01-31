@@ -1,0 +1,25 @@
+cc_defaults {
+    name: "fakeservicemanager_defaults",
+    srcs: [
+        "ServiceManager.cpp",
+    ],
+
+    shared_libs: [
+        "libbinder",
+        "libutils",
+    ],
+}
+
+cc_library {
+    name: "libfakeservicemanager",
+    defaults: ["fakeservicemanager_defaults"],
+}
+
+cc_test_host {
+    name: "fakeservicemanager_test",
+    defaults: ["fakeservicemanager_defaults"],
+    srcs: [
+        "test_sm.cpp",
+    ],
+    static_libs: ["libgmock"],
+}
