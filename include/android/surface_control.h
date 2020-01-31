@@ -425,12 +425,15 @@ void ASurfaceTransaction_setHdrMetadata_cta861_3(ASurfaceTransaction* transactio
  * valid refresh rate for this device's display - e.g., it's fine to pass 30fps to a device that can
  * only run the display at 60fps.
  *
+ * |compatibility| The frame rate compatibility of this surface. The compatibility value may
+ * influence the system's choice of display frame rate. To specify a compatibility use the
+ * ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_* enum.
+ *
  * Available since API level 30.
  */
 void ASurfaceTransaction_setFrameRate(ASurfaceTransaction* transaction,
-                                      ASurfaceControl* surface_control,
-                                      float frameRate)
-                                      __INTRODUCED_IN(30);
+                                      ASurfaceControl* surface_control, float frameRate,
+                                      int8_t compatibility) __INTRODUCED_IN(30);
 
 #endif // __ANDROID_API__ >= 30
 

@@ -26,6 +26,7 @@
 #include "Layer.h"
 
 #include <android-base/stringprintf.h>
+#include <android/native_window.h>
 #include <binder/IPCThreadState.h>
 #include <compositionengine/Display.h>
 #include <compositionengine/LayerFECompositionState.h>
@@ -2444,6 +2445,18 @@ void Layer::updateClonedRelatives(const std::map<sp<Layer>, sp<Layer>>& clonedLa
 void Layer::addChildToDrawing(const sp<Layer>& layer) {
     mDrawingChildren.add(layer);
     layer->mDrawingParent = this;
+}
+
+Layer::FrameRateCompatibility Layer::FrameRate::convertCompatibility(int8_t compatibility) {
+    switch (compatibility) {
+        case ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT:
+            return FrameRateCompatibility::Default;
+        case ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE:
+            return FrameRateCompatibility::ExactOrMultiple;
+        default:
+            LOG_ALWAYS_FATAL("Invalid frame rate compatibility value %d", compatibility);
+            return FrameRateCompatibility::Default;
+    }
 }
 
 // ---------------------------------------------------------------------------

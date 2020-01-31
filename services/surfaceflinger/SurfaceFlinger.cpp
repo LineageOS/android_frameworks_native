@@ -34,6 +34,8 @@
 #include <optional>
 #include <unordered_map>
 
+#include <android/native_window.h>
+
 #include <cutils/properties.h>
 #include <log/log.h>
 
@@ -58,6 +60,7 @@
 #include <gui/IProducerListener.h>
 #include <gui/LayerDebugInfo.h>
 #include <gui/LayerMetadata.h>
+#include <gui/LayerState.h>
 #include <gui/Surface.h>
 #include <input/IInputFlinger.h>
 #include <renderengine/RenderEngine.h>
@@ -3574,9 +3577,13 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         }
     }
     if (what & layer_state_t::eFrameRateChanged) {
-        if (layer->setFrameRate(
-                    Layer::FrameRate(s.frameRate, Layer::FrameRateCompatibility::Default)))
+        if (ValidateFrameRate(s.frameRate, s.frameRateCompatibility,
+                              "SurfaceFlinger::setClientStateLocked") &&
+            layer->setFrameRate(Layer::FrameRate(s.frameRate,
+                                                 Layer::FrameRate::convertCompatibility(
+                                                         s.frameRateCompatibility)))) {
             flags |= eTraversalNeeded;
+        }
     }
     // This has to happen after we reparent children because when we reparent to null we remove
     // child layers from current state and remove its relative z. If the children are reparented in
@@ -4674,6 +4681,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_COMPOSITION_PREFERENCE:
         case GET_PROTECTED_CONTENT_SUPPORT:
         case IS_WIDE_COLOR_DISPLAY:
+        // setFrameRate() is deliberately available for apps to call without any
+        // special permissions.
+        case SET_FRAME_RATE:
         case GET_DISPLAY_BRIGHTNESS_SUPPORT:
         case SET_DISPLAY_BRIGHTNESS: {
             return OK;
@@ -5885,6 +5895,27 @@ const std::unordered_map<std::string, uint32_t>& SurfaceFlinger::getGenericLayer
             {"org.chromium.arc.V1_0.CursorInfo", METADATA_MOUSE_CURSOR},
     };
     return genericLayerMetadataKeyMap;
+}
+
+status_t SurfaceFlinger::setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
+                                      int8_t compatibility) {
+    if (!ValidateFrameRate(frameRate, compatibility, "SurfaceFlinger::setFrameRate")) {
+        return BAD_VALUE;
+    }
+
+    Mutex::Autolock lock(mStateLock);
+    if (authenticateSurfaceTextureLocked(surface)) {
+        sp<Layer> layer = (static_cast<MonitoredProducer*>(surface.get()))->getLayer();
+        if (layer->setFrameRate(
+                    Layer::FrameRate(frameRate,
+                                     Layer::FrameRate::convertCompatibility(compatibility)))) {
+            setTransactionFlags(eTraversalNeeded);
+        }
+    } else {
+        ALOGE("Attempt to set frame rate on an unrecognized IGraphicBufferProducer");
+        return BAD_VALUE;
+    }
+    return NO_ERROR;
 }
 
 } // namespace android

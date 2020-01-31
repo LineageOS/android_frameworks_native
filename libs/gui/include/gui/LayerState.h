@@ -20,8 +20,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include <utils/Errors.h>
-
+#include <android/native_window.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/ITransactionCompletedListener.h>
 #include <math/mat4.h>
@@ -36,6 +35,7 @@
 #include <ui/Rect.h>
 #include <ui/Region.h>
 #include <ui/Rotation.h>
+#include <utils/Errors.h>
 
 namespace android {
 
@@ -135,7 +135,8 @@ struct layer_state_t {
             colorSpaceAgnostic(false),
             shadowRadius(0.0f),
             frameRateSelectionPriority(-1),
-            frameRate(0.0f) {
+            frameRate(0.0f),
+            frameRateCompatibility(ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT) {
         matrix.dsdx = matrix.dtdy = 1.0f;
         matrix.dsdy = matrix.dtdx = 0.0f;
         hdrMetadata.validTypes = 0;
@@ -221,7 +222,9 @@ struct layer_state_t {
     // Priority of the layer assigned by Window Manager.
     int32_t frameRateSelectionPriority;
 
+    // Layer frame rate and compatibility. See ANativeWindow_setFrameRate().
     float frameRate;
+    int8_t frameRateCompatibility;
 };
 
 struct ComposerState {
@@ -291,6 +294,12 @@ static inline int compare_type(const ComposerState& lhs, const ComposerState& rh
 static inline int compare_type(const DisplayState& lhs, const DisplayState& rhs) {
     return compare_type(lhs.token, rhs.token);
 }
+
+// Returns true if the frameRate and compatibility are valid values, false
+// othwerise. If either of the params are invalid, an error log is printed, and
+// functionName is added to the log to indicate which function call failed.
+// functionName can be null.
+bool ValidateFrameRate(float frameRate, int8_t compatibility, const char* functionName);
 
 }; // namespace android
 

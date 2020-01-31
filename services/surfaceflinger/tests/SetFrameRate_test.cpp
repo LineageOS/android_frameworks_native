@@ -58,17 +58,23 @@ protected:
 
 TEST_F(SetFrameRateTest, BufferQueueLayerSetFrameRate) {
     CreateLayer(ISurfaceComposerClient::eFXSurfaceBufferQueue);
-    native_window_set_frame_rate(mLayer->getSurface().get(), 100.f);
+    native_window_set_frame_rate(mLayer->getSurface().get(), 100.f,
+                                 ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT);
     ASSERT_NO_FATAL_FAILURE(PostBuffers(Color::RED));
-    Transaction().setFrameRate(mLayer, 200.f).apply();
+    Transaction()
+            .setFrameRate(mLayer, 200.f, ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT)
+            .apply();
     ASSERT_NO_FATAL_FAILURE(PostBuffers(Color::RED));
-    native_window_set_frame_rate(mLayer->getSurface().get(), 300.f);
+    native_window_set_frame_rate(mLayer->getSurface().get(), 300.f,
+                                 ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT);
     ASSERT_NO_FATAL_FAILURE(PostBuffers(Color::RED));
 }
 
 TEST_F(SetFrameRateTest, BufferStateLayerSetFrameRate) {
     CreateLayer(ISurfaceComposerClient::eFXSurfaceBufferState);
-    Transaction().setFrameRate(mLayer, 400.f).apply();
+    Transaction()
+            .setFrameRate(mLayer, 400.f, ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT)
+            .apply();
     ASSERT_NO_FATAL_FAILURE(PostBuffers(Color::GREEN));
 }
 
