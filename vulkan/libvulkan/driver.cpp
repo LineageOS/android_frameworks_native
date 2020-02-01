@@ -724,10 +724,6 @@ void FreeDeviceData(DeviceData* data, const VkAllocationCallbacks& allocator) {
 
 }  // anonymous namespace
 
-bool Debuggable() {
-    return (prctl(PR_GET_DUMPABLE, 0, 0, 0, 0) >= 0);
-}
-
 bool OpenHAL() {
     return Hal::Open();
 }

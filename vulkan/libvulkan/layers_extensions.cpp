@@ -484,8 +484,7 @@ void* GetLayerGetProcAddr(const Layer& layer,
 void DiscoverLayers() {
     ATRACE_CALL();
 
-    if (property_get_bool("ro.debuggable", false) &&
-        prctl(PR_GET_DUMPABLE, 0, 0, 0, 0)) {
+    if (android::GraphicsEnv::getInstance().isDebuggable()) {
         DiscoverLayersInPathList(kSystemLayerLibraryDir);
     }
     if (!android::GraphicsEnv::getInstance().getLayerPaths().empty())
