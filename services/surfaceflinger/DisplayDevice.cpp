@@ -222,10 +222,13 @@ void DisplayDevice::setProjection(ui::Rotation orientation, Rect viewport, Rect 
     const bool needsFiltering =
             (!globalTransform.preserveRects() || (type >= ui::Transform::SCALE));
 
-    Rect scissor = globalTransform.transform(viewport);
-    if (scissor.isEmpty()) {
-        scissor = displayBounds;
+    Rect sourceClip = globalTransform.transform(viewport);
+    if (sourceClip.isEmpty()) {
+        sourceClip = displayBounds;
     }
+    // For normal display use we always set the source and destination clip
+    // rectangles to the same values.
+    const Rect& destinationClip = sourceClip;
 
     uint32_t transformOrientation;
 
@@ -236,8 +239,8 @@ void DisplayDevice::setProjection(ui::Rotation orientation, Rect viewport, Rect 
         transformOrientation = ui::Transform::toRotationFlags(orientation);
     }
 
-    getCompositionDisplay()->setProjection(globalTransform, transformOrientation,
-                                           frame, viewport, scissor, needsFiltering);
+    getCompositionDisplay()->setProjection(globalTransform, transformOrientation, frame, viewport,
+                                           sourceClip, destinationClip, needsFiltering);
 }
 
 ui::Transform::RotationFlags DisplayDevice::getPrimaryDisplayRotationFlags() {
@@ -302,8 +305,8 @@ const Rect& DisplayDevice::getFrame() const {
     return mCompositionDisplay->getState().frame;
 }
 
-const Rect& DisplayDevice::getScissor() const {
-    return mCompositionDisplay->getState().scissor;
+const Rect& DisplayDevice::getSourceClip() const {
+    return mCompositionDisplay->getState().sourceClip;
 }
 
 bool DisplayDevice::hasWideColorGamut() const {

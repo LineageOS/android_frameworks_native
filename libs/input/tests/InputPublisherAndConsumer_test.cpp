@@ -73,7 +73,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
 
     constexpr uint32_t seq = 15;
     constexpr int32_t deviceId = 1;
-    constexpr int32_t source = AINPUT_SOURCE_KEYBOARD;
+    constexpr uint32_t source = AINPUT_SOURCE_KEYBOARD;
     constexpr int32_t displayId = ADISPLAY_ID_DEFAULT;
     constexpr std::array<uint8_t, 32> hmac = {31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21,
                                               20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10,
@@ -139,7 +139,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
 
     constexpr uint32_t seq = 15;
     constexpr int32_t deviceId = 1;
-    constexpr int32_t source = AINPUT_SOURCE_TOUCHSCREEN;
+    constexpr uint32_t source = AINPUT_SOURCE_TOUCHSCREEN;
     constexpr int32_t displayId = ADISPLAY_ID_DEFAULT;
     constexpr std::array<uint8_t, 32> hmac = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10,
                                               11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
@@ -221,8 +221,8 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     EXPECT_EQ(yPrecision, motionEvent->getYPrecision());
     EXPECT_EQ(xCursorPosition, motionEvent->getRawXCursorPosition());
     EXPECT_EQ(yCursorPosition, motionEvent->getRawYCursorPosition());
-    EXPECT_EQ(xCursorPosition + xOffset, motionEvent->getXCursorPosition());
-    EXPECT_EQ(yCursorPosition + yOffset, motionEvent->getYCursorPosition());
+    EXPECT_EQ(xCursorPosition * xScale + xOffset, motionEvent->getXCursorPosition());
+    EXPECT_EQ(yCursorPosition * yScale + yOffset, motionEvent->getYCursorPosition());
     EXPECT_EQ(downTime, motionEvent->getDownTime());
     EXPECT_EQ(eventTime, motionEvent->getEventTime());
     EXPECT_EQ(pointerCount, motionEvent->getPointerCount());
@@ -237,10 +237,10 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
                 motionEvent->getRawX(i));
         EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_Y),
                 motionEvent->getRawY(i));
-        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_X) + xOffset,
-                motionEvent->getX(i));
-        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_Y) + yOffset,
-                motionEvent->getY(i));
+        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_X) * xScale + xOffset,
+                  motionEvent->getX(i));
+        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_Y) * yScale + yOffset,
+                  motionEvent->getY(i));
         EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_PRESSURE),
                 motionEvent->getPressure(i));
         EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_SIZE),

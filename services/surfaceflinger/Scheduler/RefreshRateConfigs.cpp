@@ -125,12 +125,13 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
     }
 
     for (const auto& layer : layers) {
+        ALOGV("Calculating score for %s (type: %d)", layer.name.c_str(), layer.vote);
         if (layer.vote == LayerVoteType::NoVote || layer.vote == LayerVoteType::Min ||
             layer.vote == LayerVoteType::Max) {
             continue;
         }
 
-        // If we have Explicit layers, ignore the Huristic ones
+        // If we have Explicit layers, ignore the Hueristic ones
         if (explicitVoteLayers > 0 && layer.vote == LayerVoteType::Heuristic) {
             continue;
         }
@@ -148,24 +149,26 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
             }
 
             float layerScore;
+            static constexpr size_t MAX_FRAMES_TO_FIT = 10; // Stop calculating when score < 0.1
             if (displayFramesRem == 0) {
                 // Layer desired refresh rate matches the display rate.
                 layerScore = layer.weight * 1.0f;
             } else if (displayFramesQuot == 0) {
                 // Layer desired refresh rate is higher the display rate.
-                layerScore = layer.weight * layerPeriod / displayPeriod;
+                layerScore = layer.weight *
+                        (static_cast<float>(layerPeriod) / static_cast<float>(displayPeriod)) *
+                        (1.0f / (MAX_FRAMES_TO_FIT + 1));
             } else {
                 // Layer desired refresh rate is lower the display rate. Check how well it fits the
                 // cadence
                 auto diff = std::abs(displayFramesRem - (displayPeriod - displayFramesRem));
                 int iter = 2;
-                static constexpr size_t MAX_ITERATOR = 10; // Stop calculating when score < 0.1
-                while (diff > MARGIN && iter < MAX_ITERATOR) {
+                while (diff > MARGIN && iter < MAX_FRAMES_TO_FIT) {
                     diff = diff - (displayPeriod - diff);
                     iter++;
                 }
 
-                layerScore = layer.weight * 1.0f / iter;
+                layerScore = layer.weight * (1.0f / iter);
             }
 
             ALOGV("%s (weight %.2f) %.2fHz gives %s score of %.2f", layer.name.c_str(),

@@ -57,7 +57,7 @@ bool LayerInfoV2::isRecentlyActive(nsecs_t now) const {
 bool LayerInfoV2::isFrequent(nsecs_t now) const {
     // Assume layer is infrequent if too few present times have been recorded.
     if (mFrameTimes.size() < FREQUENT_LAYER_WINDOW_SIZE) {
-        return true;
+        return false;
     }
 
     // Layer is frequent if the earliest value in the window of most recent present times is
@@ -100,8 +100,7 @@ std::optional<float> LayerInfoV2::calculateRefreshRateIfPossible() {
             static_cast<float>(totalPresentTimeDeltas) / (mFrameTimes.size() - 1);
 
     // Now once we calculated the refresh rate we need to make sure that all the frames we captured
-    // are evenly distrubuted and we don't calculate the average across some burst of frames.
-
+    // are evenly distributed and we don't calculate the average across some burst of frames.
     for (auto it = mFrameTimes.begin(); it != mFrameTimes.end() - 1; ++it) {
         const nsecs_t presentTimeDeltas =
                 std::max(((it + 1)->presetTime - it->presetTime), mHighRefreshRatePeriod);

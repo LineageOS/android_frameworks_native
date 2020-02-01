@@ -40,7 +40,8 @@ void OutputCompositionState::dump(std::string& out) const {
 
     dumpVal(out, "frame", frame);
     dumpVal(out, "viewport", viewport);
-    dumpVal(out, "scissor", scissor);
+    dumpVal(out, "sourceClip", sourceClip);
+    dumpVal(out, "destinationClip", destinationClip);
     dumpVal(out, "needsFiltering", needsFiltering);
 
     out.append("\n   ");
