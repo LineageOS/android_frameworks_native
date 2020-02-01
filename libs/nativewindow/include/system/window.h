@@ -252,6 +252,7 @@ enum {
     NATIVE_WINDOW_SET_DEQUEUE_INTERCEPTOR         = 42,    /* private */
     NATIVE_WINDOW_SET_PERFORM_INTERCEPTOR         = 43,    /* private */
     NATIVE_WINDOW_SET_QUEUE_INTERCEPTOR           = 44,    /* private */
+    NATIVE_WINDOW_ALLOCATE_BUFFERS                = 45,    /* private */
     // clang-format on
 };
 

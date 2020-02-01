@@ -200,8 +200,16 @@ int64_t ANativeWindow_getLastDequeueStartTime(ANativeWindow* window);
  * made by the window will return -ETIMEDOUT after the timeout if the dequeue
  * takes too long.
  *
- * \return NO_ERROR on succes, -errno on error.
+ * \return NO_ERROR on success, -errno on error.
  */
 int ANativeWindow_setDequeueTimeout(ANativeWindow* window, int64_t timeout);
+
+/**
+ * Provides a hint to the window that buffers should be preallocated ahead of
+ * time. Note that the window implementation is not guaranteed to preallocate
+ * any buffers, for instance if a private API disallows allocation of new
+ * buffers. As such no success/error status is returned.
+ */
+void ANativeWindow_allocateBuffers(ANativeWindow* window);
 
 __END_DECLS

@@ -1176,6 +1176,10 @@ int Surface::perform(int operation, va_list args)
     case NATIVE_WINDOW_SET_QUEUE_INTERCEPTOR:
         res = dispatchAddQueueInterceptor(args);
         break;
+    case NATIVE_WINDOW_ALLOCATE_BUFFERS:
+        allocateBuffers();
+        res = NO_ERROR;
+        break;
     default:
         res = NAME_NOT_FOUND;
         break;
