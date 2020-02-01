@@ -46,6 +46,8 @@ public:
         std::string packageName;
         int32_t totalFrames = 0;
         int32_t droppedFrames = 0;
+        int32_t lateAcquireFrames = 0;
+        int32_t badDesiredPresentFrames = 0;
         std::unordered_map<std::string, Histogram> deltas;
 
         std::string toString() const;
