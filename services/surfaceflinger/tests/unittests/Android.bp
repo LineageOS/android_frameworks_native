@@ -32,7 +32,6 @@ cc_test {
         // option to false temporarily.
         address: true,
     },
-    data: ["libsurfaceflinger_unittest.filter"],
     srcs: [
         ":libsurfaceflinger_sources",
         "libsurfaceflinger_unittest_main.cpp",
