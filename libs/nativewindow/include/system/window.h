@@ -207,16 +207,16 @@ enum {
  */
 enum {
     // clang-format off
-    NATIVE_WINDOW_SET_USAGE                       =  0,   /* deprecated */
+    NATIVE_WINDOW_SET_USAGE                       =  ANATIVEWINDOW_PERFORM_SET_USAGE,   /* deprecated */
     NATIVE_WINDOW_CONNECT                         =  1,   /* deprecated */
     NATIVE_WINDOW_DISCONNECT                      =  2,   /* deprecated */
     NATIVE_WINDOW_SET_CROP                        =  3,   /* private */
     NATIVE_WINDOW_SET_BUFFER_COUNT                =  4,
-    NATIVE_WINDOW_SET_BUFFERS_GEOMETRY            =  5,   /* deprecated */
+    NATIVE_WINDOW_SET_BUFFERS_GEOMETRY            =  ANATIVEWINDOW_PERFORM_SET_BUFFERS_GEOMETRY,   /* deprecated */
     NATIVE_WINDOW_SET_BUFFERS_TRANSFORM           =  6,
     NATIVE_WINDOW_SET_BUFFERS_TIMESTAMP           =  7,
     NATIVE_WINDOW_SET_BUFFERS_DIMENSIONS          =  8,
-    NATIVE_WINDOW_SET_BUFFERS_FORMAT              =  9,
+    NATIVE_WINDOW_SET_BUFFERS_FORMAT              =  ANATIVEWINDOW_PERFORM_SET_BUFFERS_FORMAT,
     NATIVE_WINDOW_SET_SCALING_MODE                = 10,   /* private */
     NATIVE_WINDOW_LOCK                            = 11,   /* private */
     NATIVE_WINDOW_UNLOCK_AND_POST                 = 12,   /* private */
@@ -237,7 +237,7 @@ enum {
     NATIVE_WINDOW_GET_FRAME_TIMESTAMPS            = 27,
     NATIVE_WINDOW_GET_WIDE_COLOR_SUPPORT          = 28,
     NATIVE_WINDOW_GET_HDR_SUPPORT                 = 29,
-    NATIVE_WINDOW_SET_USAGE64                     = 30,
+    NATIVE_WINDOW_SET_USAGE64                     = ANATIVEWINDOW_PERFORM_SET_USAGE64,
     NATIVE_WINDOW_GET_CONSUMER_USAGE64            = 31,
     NATIVE_WINDOW_SET_BUFFERS_SMPTE2086_METADATA  = 32,
     NATIVE_WINDOW_SET_BUFFERS_CTA861_3_METADATA   = 33,
@@ -248,6 +248,11 @@ enum {
     NATIVE_WINDOW_GET_LAST_DEQUEUE_DURATION       = 38,    /* private */
     NATIVE_WINDOW_GET_LAST_QUEUE_DURATION         = 39,    /* private */
     NATIVE_WINDOW_SET_FRAME_RATE                  = 40,
+    NATIVE_WINDOW_SET_CANCEL_INTERCEPTOR          = 41,    /* private */
+    NATIVE_WINDOW_SET_DEQUEUE_INTERCEPTOR         = 42,    /* private */
+    NATIVE_WINDOW_SET_PERFORM_INTERCEPTOR         = 43,    /* private */
+    NATIVE_WINDOW_SET_QUEUE_INTERCEPTOR           = 44,    /* private */
+    NATIVE_WINDOW_ALLOCATE_BUFFERS                = 45,    /* private */
     // clang-format on
 };
 

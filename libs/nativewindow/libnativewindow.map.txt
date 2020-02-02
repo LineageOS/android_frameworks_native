@@ -17,6 +17,7 @@ LIBNATIVEWINDOW {
     ANativeWindow_OemStorageGet; # llndk
     ANativeWindow_OemStorageSet; # llndk
     ANativeWindow_acquire;
+    ANativeWindow_allocateBuffers; # apex # introduced=30
     ANativeWindow_cancelBuffer; # llndk
     ANativeWindow_dequeueBuffer; # llndk
     ANativeWindow_getBuffersDataSpace; # introduced=28
@@ -30,6 +31,10 @@ LIBNATIVEWINDOW {
     ANativeWindow_query; # llndk
     ANativeWindow_queryf; # llndk
     ANativeWindow_queueBuffer; # llndk
+    ANativeWindow_setCancelBufferInterceptor; # apex # introduced=30
+    ANativeWindow_setDequeueBufferInterceptor; # apex # introduced=30
+    ANativeWindow_setPerformInterceptor; # apex # introduced=30
+    ANativeWindow_setQueueBufferInterceptor; # apex # introduced=30
     ANativeWindow_release;
     ANativeWindow_setAutoPrerotation; # llndk
     ANativeWindow_setAutoRefresh; # llndk

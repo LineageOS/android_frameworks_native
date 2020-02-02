@@ -713,7 +713,9 @@ struct BaseLayerProperties {
 
 struct DefaultLayerProperties : public BaseLayerProperties<DefaultLayerProperties> {};
 
-struct ColorLayerProperties : public BaseLayerProperties<ColorLayerProperties> {};
+struct ColorLayerProperties : public BaseLayerProperties<ColorLayerProperties> {
+    static constexpr IComposerClient::BlendMode BLENDMODE = IComposerClient::BlendMode::NONE;
+};
 
 struct SidebandLayerProperties : public BaseLayerProperties<SidebandLayerProperties> {
     using Base = BaseLayerProperties<SidebandLayerProperties>;

@@ -403,7 +403,14 @@ bool BufferStateLayer::fenceHasSignaled() const {
         return true;
     }
 
-    return getDrawingState().acquireFence->getStatus() == Fence::Status::Signaled;
+    const bool fenceSignaled =
+            getDrawingState().acquireFence->getStatus() == Fence::Status::Signaled;
+    if (!fenceSignaled) {
+        mFlinger->mTimeStats->incrementLatchSkipped(getSequence(),
+                                                    TimeStats::LatchSkipReason::LateAcquire);
+    }
+
+    return fenceSignaled;
 }
 
 bool BufferStateLayer::framePresentTimeIsCurrent(nsecs_t expectedPresentTime) const {
