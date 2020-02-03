@@ -37,6 +37,7 @@
 
 using namespace android::surfaceflinger;
 using namespace google::protobuf;
+using namespace std::chrono_literals;
 
 namespace android {
 namespace {
@@ -359,6 +360,45 @@ TEST_F(TimeStatsTest, canIncreaseClientCompositionReusedFrames) {
     EXPECT_THAT(result, HasSubstr(expectedResult));
 }
 
+TEST_F(TimeStatsTest, canAverageFrameDuration) {
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+    mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL);
+    mTimeStats
+            ->recordFrameDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count(),
+                                  std::chrono::duration_cast<std::chrono::nanoseconds>(6ms)
+                                          .count());
+    mTimeStats
+            ->recordFrameDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count(),
+                                  std::chrono::duration_cast<std::chrono::nanoseconds>(16ms)
+                                          .count());
+
+    const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
+    EXPECT_THAT(result, HasSubstr("averageFrameDuration = 10.000 ms"));
+}
+
+TEST_F(TimeStatsTest, canAverageRenderEngineTimings) {
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+    mTimeStats->recordRenderEngineDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(1ms)
+                                                   .count(),
+                                           std::make_shared<FenceTime>(
+                                                   std::chrono::duration_cast<
+                                                           std::chrono::nanoseconds>(3ms)
+                                                           .count()));
+
+    mTimeStats->recordRenderEngineDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(4ms)
+                                                   .count(),
+                                           std::chrono::duration_cast<std::chrono::nanoseconds>(8ms)
+                                                   .count());
+
+    // Push a dummy present fence to trigger flushing the RenderEngine timings.
+    mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL);
+    mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count()));
+
+    const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
+    EXPECT_THAT(result, HasSubstr("averageRenderEngineTiming = 3.000 ms"));
+}
+
 TEST_F(TimeStatsTest, canInsertGlobalPresentToPresent) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
 
@@ -391,8 +431,6 @@ TEST_F(TimeStatsTest, canInsertGlobalPresentToPresent) {
 TEST_F(TimeStatsTest, canInsertGlobalFrameDuration) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
 
-    using namespace std::chrono_literals;
-
     mTimeStats->setPowerMode(HWC_POWER_MODE_OFF);
     mTimeStats
             ->recordFrameDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count(),
@@ -415,8 +453,6 @@ TEST_F(TimeStatsTest, canInsertGlobalFrameDuration) {
 
 TEST_F(TimeStatsTest, canInsertGlobalRenderEngineTiming) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
-
-    using namespace std::chrono_literals;
 
     mTimeStats->recordRenderEngineDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(1ms)
                                                    .count(),
@@ -673,7 +709,6 @@ TEST_F(TimeStatsTest, canClearTimeStats) {
     ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementClientCompositionFrames());
     ASSERT_NO_FATAL_FAILURE(mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL));
 
-    using namespace std::chrono_literals;
     mTimeStats
             ->recordFrameDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(3ms).count(),
                                   std::chrono::duration_cast<std::chrono::nanoseconds>(6ms)
@@ -703,14 +738,27 @@ TEST_F(TimeStatsTest, canClearTimeStats) {
     EXPECT_EQ(0, globalProto.stats_size());
 }
 
-TEST_F(TimeStatsTest, canClearClientCompositionReusedFrames) {
-    // this stat is not in the proto so verify by checking the string dump
+TEST_F(TimeStatsTest, canClearDumpOnlyTimeStats) {
+    // These stats are not in the proto so verify by checking the string dump.
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
     ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementClientCompositionReusedFrames());
+    mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL);
+    mTimeStats
+            ->recordFrameDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count(),
+                                  std::chrono::duration_cast<std::chrono::nanoseconds>(5ms)
+                                          .count());
+    mTimeStats->recordRenderEngineDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(4ms)
+                                                   .count(),
+                                           std::chrono::duration_cast<std::chrono::nanoseconds>(6ms)
+                                                   .count());
+    mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count()));
     EXPECT_TRUE(inputCommand(InputCommand::CLEAR, FMT_STRING).empty());
 
     const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
     EXPECT_THAT(result, HasSubstr("clientCompositionReusedFrames = 0"));
+    EXPECT_THAT(result, HasSubstr("averageFrameDuration = 0.000 ms"));
+    EXPECT_THAT(result, HasSubstr("averageRenderEngineTiming = 0.000 ms"));
 }
 
 TEST_F(TimeStatsTest, canDumpWithMaxLayers) {

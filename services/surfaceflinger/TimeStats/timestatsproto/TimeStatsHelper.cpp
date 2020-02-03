@@ -114,8 +114,14 @@ std::string TimeStatsHelper::TimeStatsGlobal::toString(std::optional<uint32_t> m
     StringAppendF(&result, "totalP2PTime = %" PRId64 " ms\n", presentToPresent.totalTime());
     StringAppendF(&result, "presentToPresent histogram is as below:\n");
     result.append(presentToPresent.toString());
+    const float averageFrameDuration = frameDuration.averageTime();
+    StringAppendF(&result, "averageFrameDuration = %.3f ms\n",
+                  std::isnan(averageFrameDuration) ? 0.0f : averageFrameDuration);
     StringAppendF(&result, "frameDuration histogram is as below:\n");
     result.append(frameDuration.toString());
+    const float averageRenderEngineTiming = renderEngineTiming.averageTime();
+    StringAppendF(&result, "averageRenderEngineTiming = %.3f ms\n",
+                  std::isnan(averageRenderEngineTiming) ? 0.0f : averageRenderEngineTiming);
     StringAppendF(&result, "renderEngineTiming histogram is as below:\n");
     result.append(renderEngineTiming.toString());
     const auto dumpStats = generateDumpStats(maxLayers);
