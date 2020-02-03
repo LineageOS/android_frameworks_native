@@ -1,6 +1,0 @@
-{
-        // TODO(b/148517641): re-enable once this test is fixed
-        "presubmit": {
-            "filter": "*:-FrameTracerTest.*"
-        }
-}
