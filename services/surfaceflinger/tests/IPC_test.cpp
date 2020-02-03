@@ -14,23 +14,19 @@
  * limitations under the License.
  */
 
-#include <gtest/gtest.h>
-
 #include <binder/IInterface.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/ProcessState.h>
-
+#include <gtest/gtest.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
+#include <ui/DisplayConfig.h>
+#include <utils/String8.h>
 
 #include <limits>
-
-#include <ui/DisplayInfo.h>
-
-#include <utils/String8.h>
 
 #include "BufferGenerator.h"
 #include "utils/CallbackUtils.h"
@@ -231,10 +227,10 @@ public:
         ASSERT_EQ(NO_ERROR, mClient->initCheck());
 
         mPrimaryDisplay = mClient->getInternalDisplayToken();
-        DisplayInfo info;
-        mClient->getDisplayInfo(mPrimaryDisplay, &info);
-        mDisplayWidth = info.w;
-        mDisplayHeight = info.h;
+        DisplayConfig config;
+        mClient->getActiveDisplayConfig(mPrimaryDisplay, &config);
+        mDisplayWidth = config.resolution.getWidth();
+        mDisplayHeight = config.resolution.getHeight();
 
         Transaction setupTransaction;
         setupTransaction.setDisplayLayerStack(mPrimaryDisplay, 0);

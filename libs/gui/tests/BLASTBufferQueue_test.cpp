@@ -25,7 +25,7 @@
 #include <gui/IProducerListener.h>
 #include <gui/SurfaceComposerClient.h>
 #include <private/gui/ComposerService.h>
-#include <ui/DisplayInfo.h>
+#include <ui/DisplayConfig.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Transform.h>
@@ -103,10 +103,11 @@ protected:
         t.apply();
         t.clear();
 
-        DisplayInfo info;
-        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(mDisplayToken, &info));
-        mDisplayWidth = info.w;
-        mDisplayHeight = info.h;
+        DisplayConfig config;
+        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(mDisplayToken, &config));
+        const ui::Size& resolution = config.resolution;
+        mDisplayWidth = resolution.getWidth();
+        mDisplayHeight = resolution.getHeight();
 
         mSurfaceControl = mClient->createSurface(String8("TestSurface"), mDisplayWidth,
                                                  mDisplayHeight, PIXEL_FORMAT_RGBA_8888,
@@ -114,7 +115,7 @@ protected:
                                                  /*parent*/ nullptr);
         t.setLayerStack(mSurfaceControl, 0)
                 .setLayer(mSurfaceControl, std::numeric_limits<int32_t>::max())
-                .setFrame(mSurfaceControl, Rect(0, 0, mDisplayWidth, mDisplayHeight))
+                .setFrame(mSurfaceControl, Rect(resolution))
                 .show(mSurfaceControl)
                 .setDataspace(mSurfaceControl, ui::Dataspace::V0_SRGB)
                 .apply();

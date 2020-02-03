@@ -34,8 +34,10 @@
 
 #include <system/graphics.h>
 
+#include <ui/DisplayConfig.h>
 #include <ui/DisplayInfo.h>
 #include <ui/DisplayStatInfo.h>
+#include <ui/DisplayState.h>
 #include <ui/HdrCapabilities.h>
 
 #include <utils/Log.h>
@@ -351,22 +353,43 @@ public:
         remote()->transact(BnSurfaceComposer::SET_POWER_MODE, data, &reply);
     }
 
-    virtual status_t getDisplayConfigs(const sp<IBinder>& display,
-            Vector<DisplayInfo>* configs)
-    {
+    virtual status_t getDisplayState(const sp<IBinder>& display, ui::DisplayState* state) {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        data.writeStrongBinder(display);
+        remote()->transact(BnSurfaceComposer::GET_DISPLAY_STATE, data, &reply);
+        const status_t result = reply.readInt32();
+        if (result == NO_ERROR) {
+            memcpy(state, reply.readInplace(sizeof(ui::DisplayState)), sizeof(ui::DisplayState));
+        }
+        return result;
+    }
+
+    virtual status_t getDisplayInfo(const sp<IBinder>& display, DisplayInfo* info) {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        data.writeStrongBinder(display);
+        remote()->transact(BnSurfaceComposer::GET_DISPLAY_INFO, data, &reply);
+        const status_t result = reply.readInt32();
+        if (result == NO_ERROR) {
+            memcpy(info, reply.readInplace(sizeof(DisplayInfo)), sizeof(DisplayInfo));
+        }
+        return result;
+    }
+
+    virtual status_t getDisplayConfigs(const sp<IBinder>& display, Vector<DisplayConfig>* configs) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(display);
         remote()->transact(BnSurfaceComposer::GET_DISPLAY_CONFIGS, data, &reply);
-        status_t result = reply.readInt32();
+        const status_t result = reply.readInt32();
         if (result == NO_ERROR) {
-            size_t numConfigs = reply.readUint32();
+            const size_t numConfigs = reply.readUint32();
             configs->clear();
             configs->resize(numConfigs);
             for (size_t c = 0; c < numConfigs; ++c) {
-                memcpy(&(configs->editItemAt(c)),
-                        reply.readInplace(sizeof(DisplayInfo)),
-                        sizeof(DisplayInfo));
+                memcpy(&(configs->editItemAt(c)), reply.readInplace(sizeof(DisplayConfig)),
+                       sizeof(DisplayConfig));
             }
         }
         return result;
@@ -1297,17 +1320,40 @@ status_t BnSurfaceComposer::onTransact(
             reply->writeStrongBinder(display);
             return NO_ERROR;
         }
+        case GET_DISPLAY_STATE: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            ui::DisplayState state;
+            const sp<IBinder> display = data.readStrongBinder();
+            const status_t result = getDisplayState(display, &state);
+            reply->writeInt32(result);
+            if (result == NO_ERROR) {
+                memcpy(reply->writeInplace(sizeof(ui::DisplayState)), &state,
+                       sizeof(ui::DisplayState));
+            }
+            return NO_ERROR;
+        }
+        case GET_DISPLAY_INFO: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            DisplayInfo info;
+            const sp<IBinder> display = data.readStrongBinder();
+            const status_t result = getDisplayInfo(display, &info);
+            reply->writeInt32(result);
+            if (result == NO_ERROR) {
+                memcpy(reply->writeInplace(sizeof(DisplayInfo)), &info, sizeof(DisplayInfo));
+            }
+            return NO_ERROR;
+        }
         case GET_DISPLAY_CONFIGS: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            Vector<DisplayInfo> configs;
-            sp<IBinder> display = data.readStrongBinder();
-            status_t result = getDisplayConfigs(display, &configs);
+            Vector<DisplayConfig> configs;
+            const sp<IBinder> display = data.readStrongBinder();
+            const status_t result = getDisplayConfigs(display, &configs);
             reply->writeInt32(result);
             if (result == NO_ERROR) {
                 reply->writeUint32(static_cast<uint32_t>(configs.size()));
                 for (size_t c = 0; c < configs.size(); ++c) {
-                    memcpy(reply->writeInplace(sizeof(DisplayInfo)),
-                            &configs[c], sizeof(DisplayInfo));
+                    memcpy(reply->writeInplace(sizeof(DisplayConfig)), &configs[c],
+                           sizeof(DisplayConfig));
                 }
             }
             return NO_ERROR;
