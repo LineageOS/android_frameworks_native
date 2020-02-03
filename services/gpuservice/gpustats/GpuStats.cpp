@@ -17,7 +17,7 @@
 #define LOG_TAG "GpuStats"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include "GpuStats.h"
+#include <gpustats/GpuStats.h>
 
 #include <cutils/properties.h>
 #include <log/log.h>
