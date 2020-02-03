@@ -54,21 +54,40 @@ bool LayerInfoV2::isRecentlyActive(nsecs_t now) const {
     return mFrameTimes.back().queueTime >= getActiveLayerThreshold(now);
 }
 
+bool LayerInfoV2::isFrameTimeValid(const FrameTimeData& frameTime) const {
+    return frameTime.queueTime >= std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                          mFrameTimeValidSince.time_since_epoch())
+                                          .count();
+}
+
 bool LayerInfoV2::isFrequent(nsecs_t now) const {
-    // Assume layer is infrequent if too few present times have been recorded.
+    // If we know nothing about this layer we consider it as frequent as it might be the start
+    // of an animation.
     if (mFrameTimes.size() < FREQUENT_LAYER_WINDOW_SIZE) {
-        return false;
+        return true;
     }
 
     // Layer is frequent if the earliest value in the window of most recent present times is
     // within threshold.
     const auto it = mFrameTimes.end() - FREQUENT_LAYER_WINDOW_SIZE;
+    if (!isFrameTimeValid(*it)) {
+        return true;
+    }
+
     const nsecs_t threshold = now - MAX_FREQUENT_LAYER_PERIOD_NS.count();
     return it->queueTime >= threshold;
 }
 
 bool LayerInfoV2::hasEnoughDataForHeuristic() const {
     // The layer had to publish at least HISTORY_SIZE or HISTORY_TIME of updates
+    if (mFrameTimes.size() < 2) {
+        return false;
+    }
+
+    if (!isFrameTimeValid(mFrameTimes.front())) {
+        return false;
+    }
+
     if (mFrameTimes.size() < HISTORY_SIZE &&
         mFrameTimes.back().queueTime - mFrameTimes.front().queueTime < HISTORY_TIME.count()) {
         return false;
