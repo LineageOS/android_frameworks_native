@@ -32,6 +32,7 @@
 #include <renderengine/RenderEngine.h>
 #include <renderengine/private/Description.h>
 #include <sys/types.h>
+#include "GLShadowTexture.h"
 #include "ImageManager.h"
 
 #define EGL_NO_CONFIG ((EGLConfig)0)
@@ -183,6 +184,7 @@ private:
     GLuint mVpWidth;
     GLuint mVpHeight;
     Description mState;
+    GLShadowTexture mShadowTexture;
 
     mat4 mSrgbToXyz;
     mat4 mDisplayP3ToXyz;

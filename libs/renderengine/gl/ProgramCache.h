@@ -128,6 +128,7 @@ public:
         }
 
         inline bool isTexturing() const { return (mKey & TEXTURE_MASK) != TEXTURE_OFF; }
+        inline bool hasTextureCoords() const { return isTexturing() && !drawShadows(); }
         inline int getTextureTarget() const { return (mKey & TEXTURE_MASK); }
         inline bool isPremultiplied() const { return (mKey & BLEND_MASK) == BLEND_PREMULT; }
         inline bool isOpaque() const { return (mKey & OPACITY_MASK) == OPACITY_OPAQUE; }
