@@ -20,6 +20,7 @@ cc_defaults {
         "libbase",
         "libbinder",
         "libcutils",
+        "libgfxstats",
         "libgraphicsenv",
         "liblog",
         "libutils",
@@ -52,7 +53,6 @@ filegroup {
     name: "libgpuservice_sources",
     srcs: [
         "GpuService.cpp",
-        "gpustats/GpuStats.cpp"
     ],
 }
 

@@ -24,13 +24,12 @@
 #include <binder/Parcel.h>
 #include <binder/PermissionCache.h>
 #include <cutils/properties.h>
+#include <gpustats/GpuStats.h>
 #include <private/android_filesystem_config.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
 
 #include <vkjson.h>
-
-#include "gpustats/GpuStats.h"
 
 namespace android {
 
