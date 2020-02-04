@@ -202,7 +202,8 @@ public:
         std::vector<scheduler::RefreshRateConfigs::InputConfig> configs{
                 {{HwcConfigIndexType(0), HwcConfigGroupType(0), 16666667}}};
         mFlinger->mRefreshRateConfigs = std::make_unique<
-                scheduler::RefreshRateConfigs>(configs, /*currentConfig=*/HwcConfigIndexType(0));
+                scheduler::RefreshRateConfigs>(/*refreshRateSwitching=*/false, configs,
+                                               /*currentConfig=*/HwcConfigIndexType(0));
         mFlinger->mRefreshRateStats = std::make_unique<
                 scheduler::RefreshRateStats>(*mFlinger->mRefreshRateConfigs, *mFlinger->mTimeStats,
                                              /*currentConfig=*/HwcConfigIndexType(0),
