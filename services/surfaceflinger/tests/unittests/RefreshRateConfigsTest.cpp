@@ -74,14 +74,26 @@ TEST_F(RefreshRateConfigsTest, oneDeviceConfig_SwitchingSupported) {
     std::vector<RefreshRateConfigs::InputConfig> configs{
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60}}};
     auto refreshRateConfigs =
-            std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/HWC_CONFIG_ID_60);
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
+}
+
+TEST_F(RefreshRateConfigsTest, oneDeviceConfig_SwitchingNotSupported) {
+    std::vector<RefreshRateConfigs::InputConfig> configs{
+            {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60}}};
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/false, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+    ASSERT_FALSE(refreshRateConfigs->refreshRateSwitchingSupported());
 }
 
 TEST_F(RefreshRateConfigsTest, invalidPolicy) {
     std::vector<RefreshRateConfigs::InputConfig> configs{
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60}}};
     auto refreshRateConfigs =
-            std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/HWC_CONFIG_ID_60);
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
     ASSERT_LT(refreshRateConfigs->setPolicy(HwcConfigIndexType(10), 60, 60, nullptr), 0);
     ASSERT_LT(refreshRateConfigs->setPolicy(HWC_CONFIG_ID_60, 20, 40, nullptr), 0);
 }
@@ -91,7 +103,10 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_storesFullRefreshRateMap) {
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
              {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
     auto refreshRateConfigs =
-            std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/HWC_CONFIG_ID_60);
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
 
     const auto minRate = refreshRateConfigs->getMinRefreshRate();
     const auto performanceRate = refreshRateConfigs->getMaxRefreshRate();
@@ -113,8 +128,10 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_storesFullRefreshRateMap_differe
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
              {HWC_CONFIG_ID_90, HWC_GROUP_ID_1, VSYNC_90}}};
     auto refreshRateConfigs =
-            std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/HWC_CONFIG_ID_60);
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
 
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
     const auto minRate = refreshRateConfigs->getMinRefreshRateByPolicy();
     const auto performanceRate = refreshRateConfigs->getMaxRefreshRate();
     const auto minRate60 = refreshRateConfigs->getMinRefreshRateByPolicy();
@@ -128,6 +145,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_storesFullRefreshRateMap_differe
     ASSERT_GE(refreshRateConfigs->setPolicy(HWC_CONFIG_ID_90, 60, 90, nullptr), 0);
     refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
 
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
     const auto minRate90 = refreshRateConfigs->getMinRefreshRateByPolicy();
     const auto performanceRate90 = refreshRateConfigs->getMaxRefreshRateByPolicy();
 
@@ -143,8 +161,9 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_policyChange) {
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
              {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
     auto refreshRateConfigs =
-            std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/HWC_CONFIG_ID_60);
-
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
     auto minRate = refreshRateConfigs->getMinRefreshRateByPolicy();
     auto performanceRate = refreshRateConfigs->getMaxRefreshRateByPolicy();
 
@@ -155,6 +174,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_policyChange) {
     ASSERT_EQ(expectedPerformanceConfig, performanceRate);
 
     ASSERT_GE(refreshRateConfigs->setPolicy(HWC_CONFIG_ID_60, 60, 60, nullptr), 0);
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
 
     auto minRate60 = refreshRateConfigs->getMinRefreshRateByPolicy();
     auto performanceRate60 = refreshRateConfigs->getMaxRefreshRateByPolicy();
@@ -167,7 +187,8 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getCurrentRefreshRate) {
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
              {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
     auto refreshRateConfigs =
-            std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/HWC_CONFIG_ID_60);
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
     {
         auto current = refreshRateConfigs->getCurrentRefreshRate();
         EXPECT_EQ(current.configId, HWC_CONFIG_ID_60);
@@ -191,7 +212,10 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContent) {
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
              {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
     auto refreshRateConfigs =
-            std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/HWC_CONFIG_ID_60);
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
 
     RefreshRate expected60Config = {HWC_CONFIG_ID_60, VSYNC_60, HWC_GROUP_ID_0, "60fps", 60};
     RefreshRate expected90Config = {HWC_CONFIG_ID_90, VSYNC_90, HWC_GROUP_ID_0, "90fps", 90};
@@ -252,7 +276,10 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_60_90
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
              {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
     auto refreshRateConfigs =
-            std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/HWC_CONFIG_ID_60);
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
 
     RefreshRate expected60Config = {HWC_CONFIG_ID_60, VSYNC_60, HWC_GROUP_ID_0, "60fps", 60};
     RefreshRate expected90Config = {HWC_CONFIG_ID_90, VSYNC_90, HWC_GROUP_ID_0, "90fps", 90};
@@ -360,7 +387,10 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_60_72
              {HWC_CONFIG_ID_72, HWC_GROUP_ID_0, VSYNC_72},
              {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
     auto refreshRateConfigs =
-            std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/HWC_CONFIG_ID_60);
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
 
     RefreshRate expected60Config = {HWC_CONFIG_ID_60, VSYNC_60, HWC_GROUP_ID_0, "60fps", 60};
     RefreshRate expected72Config = {HWC_CONFIG_ID_72, VSYNC_72, HWC_GROUP_ID_0, "72fps", 70};
@@ -400,7 +430,10 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_30_60
              {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90},
              {HWC_CONFIG_ID_120, HWC_GROUP_ID_0, VSYNC_120}}};
     auto refreshRateConfigs =
-            std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/HWC_CONFIG_ID_60);
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
 
     RefreshRate expected30Config = {HWC_CONFIG_ID_30, VSYNC_30, HWC_GROUP_ID_0, "30fps", 30};
     RefreshRate expected60Config = {HWC_CONFIG_ID_60, VSYNC_60, HWC_GROUP_ID_0, "60fps", 60};
@@ -508,7 +541,10 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_30_60
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
              {HWC_CONFIG_ID_30, HWC_GROUP_ID_0, VSYNC_30}}};
     auto refreshRateConfigs =
-            std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/HWC_CONFIG_ID_60);
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
 
     RefreshRate expected60Config = {HWC_CONFIG_ID_60, VSYNC_60, HWC_GROUP_ID_0, "60fps", 60};
     RefreshRate expected30Config = {HWC_CONFIG_ID_30, VSYNC_30, HWC_GROUP_ID_0, "30fps", 30};
@@ -546,7 +582,10 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_30_60
              {HWC_CONFIG_ID_72, HWC_GROUP_ID_0, VSYNC_72},
              {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
     auto refreshRateConfigs =
-            std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/HWC_CONFIG_ID_60);
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
 
     RefreshRate expected30Config = {HWC_CONFIG_ID_30, VSYNC_30, HWC_GROUP_ID_0, "30fps", 30};
     RefreshRate expected60Config = {HWC_CONFIG_ID_60, VSYNC_60, HWC_GROUP_ID_0, "60fps", 60};
@@ -585,7 +624,10 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_Prior
              {HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
              {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
     auto refreshRateConfigs =
-            std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/HWC_CONFIG_ID_60);
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
 
     RefreshRate expected30Config = {HWC_CONFIG_ID_30, VSYNC_30, HWC_GROUP_ID_0, "30fps", 30};
     RefreshRate expected60Config = {HWC_CONFIG_ID_60, VSYNC_60, HWC_GROUP_ID_0, "60fps", 60};
@@ -638,7 +680,10 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_24Fps
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
              {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
     auto refreshRateConfigs =
-            std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/HWC_CONFIG_ID_60);
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
 
     RefreshRate expected30Config = {HWC_CONFIG_ID_30, VSYNC_30, HWC_GROUP_ID_0, "30fps", 30};
     RefreshRate expected60Config = {HWC_CONFIG_ID_60, VSYNC_60, HWC_GROUP_ID_0, "60fps", 60};
@@ -661,7 +706,10 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContent_Explici
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
              {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
     auto refreshRateConfigs =
-            std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/HWC_CONFIG_ID_60);
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
 
     RefreshRate expected60Config = {HWC_CONFIG_ID_60, VSYNC_60, HWC_GROUP_ID_0, "60fps", 60};
     RefreshRate expected90Config = {HWC_CONFIG_ID_90, VSYNC_90, HWC_GROUP_ID_0, "90fps", 90};
@@ -689,7 +737,10 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_Expli
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
              {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
     auto refreshRateConfigs =
-            std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/HWC_CONFIG_ID_60);
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
 
     RefreshRate expected60Config = {HWC_CONFIG_ID_60, VSYNC_60, HWC_GROUP_ID_0, "60fps", 60};
     RefreshRate expected90Config = {HWC_CONFIG_ID_90, VSYNC_90, HWC_GROUP_ID_0, "90fps", 90};
@@ -727,7 +778,10 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_75HzC
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
              {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
     auto refreshRateConfigs =
-            std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/HWC_CONFIG_ID_60);
+            std::make_unique<RefreshRateConfigs>(/*refreshRateSwitching=*/true, configs,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    ASSERT_TRUE(refreshRateConfigs->refreshRateSwitchingSupported());
 
     RefreshRate expected30Config = {HWC_CONFIG_ID_30, VSYNC_30, HWC_GROUP_ID_0, "30fps", 30};
     RefreshRate expected60Config = {HWC_CONFIG_ID_60, VSYNC_60, HWC_GROUP_ID_0, "60fps", 60};
