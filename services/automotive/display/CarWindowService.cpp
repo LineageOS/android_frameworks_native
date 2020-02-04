@@ -17,8 +17,6 @@
 #include <utility>
 
 #include <gui/bufferqueue/2.0/B2HGraphicBufferProducer.h>
-#include <ui/DisplayConfig.h>
-#include <ui/DisplayState.h>
 
 #include "CarWindowService.h"
 
@@ -48,26 +46,24 @@ Return<sp<IGraphicBufferProducer>>
             return nullptr;
         }
 
-        DisplayConfig displayConfig;
-        err = SurfaceComposerClient::getActiveDisplayConfig(displayToken, &displayConfig);
+        err = SurfaceComposerClient::getActiveDisplayConfig(displayToken, &mDpyConfig);
         if (err != NO_ERROR) {
             ALOGE("Failed to get active display config");
             return nullptr;
         }
 
-        ui::DisplayState displayState;
-        err = SurfaceComposerClient::getDisplayState(displayToken, &displayState);
+        err = SurfaceComposerClient::getDisplayState(displayToken, &mDpyState);
         if (err != NO_ERROR) {
             ALOGE("Failed to get display state");
             return nullptr;
         }
 
-        const ui::Size& resolution = displayConfig.resolution;
+        const ui::Size& resolution = mDpyConfig.resolution;
         auto width = resolution.getWidth();
         auto height = resolution.getHeight();
 
-        if (displayState.orientation == ui::ROTATION_90 ||
-            displayState.orientation == ui::ROTATION_270) {
+        if (mDpyState.orientation == ui::ROTATION_90 ||
+            mDpyState.orientation == ui::ROTATION_270) {
             std::swap(width, height);
         }
 
