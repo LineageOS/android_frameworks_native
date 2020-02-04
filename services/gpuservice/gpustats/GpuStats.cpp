@@ -21,11 +21,22 @@
 
 #include <cutils/properties.h>
 #include <log/log.h>
+#include <stats_event.h>
+#include <statslog.h>
 #include <utils/Trace.h>
 
 #include <unordered_set>
 
 namespace android {
+
+GpuStats::GpuStats() {
+    AStatsManager_registerPullAtomCallback(android::util::GPU_STATS_GLOBAL_INFO,
+                                           GpuStats::pullAtomCallback, nullptr, this);
+}
+
+GpuStats::~GpuStats() {
+    AStatsManager_unregisterPullAtomCallback(android::util::GPU_STATS_GLOBAL_INFO);
+}
 
 static void addLoadingCount(GpuStatsInfo::Driver driver, bool isDriverLoaded,
                             GpuStatsGlobalInfo* const outGlobalInfo) {
@@ -231,6 +242,52 @@ void GpuStats::dumpAppLocked(std::string* result) {
         result->append(ele.second.toString());
         result->append("\n");
     }
+}
+
+AStatsManager_PullAtomCallbackReturn GpuStats::pullGlobalInfoAtom(AStatsEventList* data) {
+    ATRACE_CALL();
+
+    std::lock_guard<std::mutex> lock(mLock);
+    // flush cpuVulkanVersion and glesVersion to builtin driver stats
+    interceptSystemDriverStatsLocked();
+
+    if (data) {
+        for (const auto& ele : mGlobalStats) {
+            AStatsEvent* event = AStatsEventList_addStatsEvent(data);
+            AStatsEvent_setAtomId(event, android::util::GPU_STATS_GLOBAL_INFO);
+            AStatsEvent_writeString(event, ele.second.driverPackageName.c_str());
+            AStatsEvent_writeString(event, ele.second.driverVersionName.c_str());
+            AStatsEvent_writeInt64(event, ele.second.driverVersionCode);
+            AStatsEvent_writeInt64(event, ele.second.driverBuildTime);
+            AStatsEvent_writeInt64(event, ele.second.glLoadingCount);
+            AStatsEvent_writeInt64(event, ele.second.glLoadingFailureCount);
+            AStatsEvent_writeInt64(event, ele.second.vkLoadingCount);
+            AStatsEvent_writeInt64(event, ele.second.vkLoadingFailureCount);
+            AStatsEvent_writeInt32(event, ele.second.vulkanVersion);
+            AStatsEvent_writeInt32(event, ele.second.cpuVulkanVersion);
+            AStatsEvent_writeInt32(event, ele.second.glesVersion);
+            AStatsEvent_writeInt64(event, ele.second.angleLoadingCount);
+            AStatsEvent_writeInt64(event, ele.second.angleLoadingFailureCount);
+            AStatsEvent_build(event);
+        }
+    }
+
+    mGlobalStats.clear();
+
+    return AStatsManager_PULL_SUCCESS;
+}
+
+AStatsManager_PullAtomCallbackReturn GpuStats::pullAtomCallback(int32_t atomTag,
+                                                                AStatsEventList* data,
+                                                                void* cookie) {
+    ATRACE_CALL();
+
+    GpuStats* pGpuStats = reinterpret_cast<GpuStats*>(cookie);
+    if (atomTag == android::util::GPU_STATS_GLOBAL_INFO) {
+        return pGpuStats->pullGlobalInfoAtom(data);
+    }
+
+    return AStatsManager_PULL_SKIP;
 }
 
 } // namespace android

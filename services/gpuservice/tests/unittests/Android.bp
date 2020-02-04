@@ -26,6 +26,8 @@ cc_test {
         "libgfxstats",
         "libgraphicsenv",
         "liblog",
+        "libstatslog",
+        "libstatspull",
         "libutils",
     ],
     static_libs: [

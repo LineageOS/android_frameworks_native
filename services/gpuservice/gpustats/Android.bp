@@ -7,9 +7,16 @@ cc_library_shared {
         "libcutils",
         "libgraphicsenv",
         "liblog",
+        "libstatslog",
+        "libstatspull",
+        "libstatssocket",
         "libutils",
     ],
     export_include_dirs: ["include"],
+    export_shared_lib_headers: [
+        "libstatspull",
+        "libstatssocket",
+    ],
     cppflags: [
         "-Wall",
         "-Werror",
