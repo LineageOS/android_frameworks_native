@@ -208,7 +208,7 @@ void RefreshRateOverlay::changeRefreshRate(const RefreshRate& refreshRate) {
     const int32_t buttom = top + display->getHeight() / 32;
 
     auto buffer = mBufferCache[refreshRate.fps];
-    mLayer->setBuffer(buffer, 0, 0, {});
+    mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, {});
 
     mLayer->setFrame(Rect(left, top, right, buttom));
 

@@ -3590,7 +3590,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         buffer = s.buffer;
     }
     if (buffer) {
-        if (layer->setBuffer(buffer, postTime, desiredPresentTime, s.cachedBuffer)) {
+        if (layer->setBuffer(buffer, s.acquireFence, postTime, desiredPresentTime,
+                             s.cachedBuffer)) {
             flags |= eTraversalNeeded;
         }
     }
