@@ -61,8 +61,10 @@
 #include <renderengine/RenderEngine.h>
 #include <ui/ColorSpace.h>
 #include <ui/DebugUtils.h>
+#include <ui/DisplayConfig.h>
 #include <ui/DisplayInfo.h>
 #include <ui/DisplayStatInfo.h>
+#include <ui/DisplayState.h>
 #include <ui/GraphicBufferAllocator.h>
 #include <ui/PixelFormat.h>
 #include <ui/UiConfig.h>
@@ -115,6 +117,7 @@
 #include "android-base/parseint.h"
 #include "android-base/stringprintf.h"
 
+#include <android/configuration.h>
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/types.h>
@@ -181,6 +184,19 @@ private:
     Mutex& mMutex;
     bool mLocked;
 };
+
+// TODO(b/141333600): Consolidate with HWC2::Display::Config::Builder::getDefaultDensity.
+constexpr float FALLBACK_DENSITY = ACONFIGURATION_DENSITY_TV / 160.f;
+
+float getDensityFromProperty(const char* property, bool required) {
+    char value[PROPERTY_VALUE_MAX];
+    const float density = property_get(property, value, nullptr) > 0 ? std::atof(value) : 0.f;
+    if (!density && required) {
+        ALOGE("%s must be defined as a build property", property);
+        return FALLBACK_DENSITY;
+    }
+    return density / 160.f;
+}
 
 // Currently we only support V0_SRGB and DISPLAY_P3 as composition preference.
 bool validateCompositionDataspace(Dataspace dataspace) {
@@ -249,7 +265,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mFrameTracer(std::make_unique<FrameTracer>()),
         mEventQueue(mFactory.createMessageQueue()),
         mCompositionEngine(mFactory.createCompositionEngine()),
-        mPendingSyncInputWindows(false) {}
+        mInternalDisplayDensity(getDensityFromProperty("ro.sf.lcd_density", true)),
+        mEmulatedDisplayDensity(getDensityFromProperty("qemu.sf.lcd_density", false)) {}
 
 SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipInitialization) {
     ALOGI("SurfaceFlinger is starting");
@@ -538,12 +555,6 @@ void SurfaceFlinger::bootFinished()
         readPersistentProperties();
         mBootStage = BootStage::FINISHED;
 
-        if (mRefreshRateConfigs->refreshRateSwitchingSupported()) {
-            // set the refresh rate according to the policy
-            const auto& performanceRefreshRate = mRefreshRateConfigs->getMaxRefreshRateByPolicy();
-            changeRefreshRateLocked(performanceRefreshRate, Scheduler::ConfigEvent::None);
-        }
-
         if (property_get_bool("sf.debug.show_refresh_rate_overlay", false)) {
             mRefreshRateOverlay = std::make_unique<RefreshRateOverlay>(*this);
             mRefreshRateOverlay->changeRefreshRate(mRefreshRateConfigs->getCurrentRefreshRate());
@@ -734,8 +745,56 @@ status_t SurfaceFlinger::getSupportedFrameTimestamps(
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::getDisplayState(const sp<IBinder>& displayToken, ui::DisplayState* state) {
+    if (!displayToken || !state) {
+        return BAD_VALUE;
+    }
+
+    Mutex::Autolock lock(mStateLock);
+
+    const auto display = getDisplayDeviceLocked(displayToken);
+    if (!display) {
+        return NAME_NOT_FOUND;
+    }
+
+    state->layerStack = display->getLayerStack();
+    state->orientation = display->getOrientation();
+
+    const Rect viewport = display->getViewport();
+    state->viewport = viewport.isValid() ? viewport.getSize() : display->getSize();
+
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::getDisplayInfo(const sp<IBinder>& displayToken, DisplayInfo* info) {
+    if (!displayToken || !info) {
+        return BAD_VALUE;
+    }
+
+    Mutex::Autolock lock(mStateLock);
+
+    const auto display = getDisplayDeviceLocked(displayToken);
+    if (!display) {
+        return NAME_NOT_FOUND;
+    }
+
+    if (display->isVirtual()) {
+        return INVALID_OPERATION;
+    }
+
+    if (mEmulatedDisplayDensity) {
+        info->density = mEmulatedDisplayDensity;
+    } else {
+        info->density = display->isPrimary() ? mInternalDisplayDensity : FALLBACK_DENSITY;
+    }
+
+    info->secure = display->isSecure();
+
+    return NO_ERROR;
+}
+
 status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
-                                           Vector<DisplayInfo>* configs) {
+                                           Vector<DisplayConfig>* configs) {
     if (!displayToken || !configs) {
         return BAD_VALUE;
     }
@@ -747,78 +806,42 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
         return NAME_NOT_FOUND;
     }
 
-    // TODO: Not sure if display density should handled by SF any longer
-    class Density {
-        static float getDensityFromProperty(char const* propName) {
-            char property[PROPERTY_VALUE_MAX];
-            float density = 0.0f;
-            if (property_get(propName, property, nullptr) > 0) {
-                density = strtof(property, nullptr);
-            }
-            return density;
-        }
-    public:
-        static float getEmuDensity() {
-            return getDensityFromProperty("qemu.sf.lcd_density"); }
-        static float getBuildDensity()  {
-            return getDensityFromProperty("ro.sf.lcd_density"); }
-    };
+    const bool isInternal = (displayId == getInternalDisplayIdLocked());
 
     configs->clear();
 
     for (const auto& hwConfig : getHwComposer().getConfigs(*displayId)) {
-        DisplayInfo info = DisplayInfo();
+        DisplayConfig config;
 
-        float xdpi = hwConfig->getDpiX();
-        float ydpi = hwConfig->getDpiY();
+        auto width = hwConfig->getWidth();
+        auto height = hwConfig->getHeight();
 
-        info.w = hwConfig->getWidth();
-        info.h = hwConfig->getHeight();
-        // Default display viewport to display width and height
-        info.viewportW = info.w;
-        info.viewportH = info.h;
+        auto xDpi = hwConfig->getDpiX();
+        auto yDpi = hwConfig->getDpiY();
 
-        if (displayId == getInternalDisplayIdLocked()) {
-            // The density of the device is provided by a build property
-            float density = Density::getBuildDensity() / 160.0f;
-            if (density == 0) {
-                // the build doesn't provide a density -- this is wrong!
-                // use xdpi instead
-                ALOGE("ro.sf.lcd_density must be defined as a build property");
-                density = xdpi / 160.0f;
-            }
-            if (Density::getEmuDensity()) {
-                // if "qemu.sf.lcd_density" is specified, it overrides everything
-                xdpi = ydpi = density = Density::getEmuDensity();
-                density /= 160.0f;
-            }
-            info.density = density;
-
-            const auto display = getDefaultDisplayDeviceLocked();
-            info.orientation = display->getOrientation();
-
-            // This is for screenrecord
-            const Rect viewport = display->getViewport();
-            if (viewport.isValid()) {
-                info.viewportW = uint32_t(viewport.getWidth());
-                info.viewportH = uint32_t(viewport.getHeight());
-            }
-            info.layerStack = display->getLayerStack();
-        } else {
-            // TODO: where should this value come from?
-            static const int TV_DENSITY = 213;
-            info.density = TV_DENSITY / 160.0f;
-
-            const auto display = getDisplayDeviceLocked(displayToken);
-            info.layerStack = display->getLayerStack();
+        if (isInternal &&
+            (internalDisplayOrientation == ui::ROTATION_90 ||
+             internalDisplayOrientation == ui::ROTATION_270)) {
+            std::swap(width, height);
+            std::swap(xDpi, yDpi);
         }
 
-        info.xdpi = xdpi;
-        info.ydpi = ydpi;
-        info.fps = 1e9 / hwConfig->getVsyncPeriod();
+        config.resolution = ui::Size(width, height);
 
-        const auto offset = mPhaseConfiguration->getOffsetsForRefreshRate(info.fps);
-        info.appVsyncOffset = offset.late.app;
+        if (mEmulatedDisplayDensity) {
+            config.xDpi = mEmulatedDisplayDensity;
+            config.yDpi = mEmulatedDisplayDensity;
+        } else {
+            config.xDpi = xDpi;
+            config.yDpi = yDpi;
+        }
+
+        const nsecs_t period = hwConfig->getVsyncPeriod();
+        config.refreshRate = 1e9f / period;
+
+        const auto offsets = mPhaseConfiguration->getOffsetsForRefreshRate(config.refreshRate);
+        config.appVsyncOffset = offsets.late.app;
+        config.sfVsyncOffset = offsets.late.sf;
 
         // This is how far in advance a buffer must be queued for
         // presentation at a given time.  If you want a buffer to appear
@@ -832,18 +855,9 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
         //
         // We add an additional 1ms to allow for processing time and
         // differences between the ideal and actual refresh rate.
-        info.presentationDeadline = hwConfig->getVsyncPeriod() - offset.late.sf + 1000000;
+        config.presentationDeadline = period - config.sfVsyncOffset + 1000000;
 
-        // All non-virtual displays are currently considered secure.
-        info.secure = true;
-
-        if (displayId == getInternalDisplayIdLocked() &&
-            (internalDisplayOrientation == ui::ROTATION_90 ||
-             internalDisplayOrientation == ui::ROTATION_270)) {
-            std::swap(info.w, info.h);
-        }
-
-        configs->push_back(info);
+        configs->push_back(config);
     }
 
     return NO_ERROR;
@@ -2699,8 +2713,7 @@ void SurfaceFlinger::initScheduler(DisplayId primaryDisplayId) {
 
     auto currentConfig = HwcConfigIndexType(getHwComposer().getActiveConfigIndex(primaryDisplayId));
     mRefreshRateConfigs =
-            std::make_unique<scheduler::RefreshRateConfigs>(refresh_rate_switching(false),
-                                                            getHwComposer().getConfigs(
+            std::make_unique<scheduler::RefreshRateConfigs>(getHwComposer().getConfigs(
                                                                     primaryDisplayId),
                                                             currentConfig);
     mRefreshRateStats =
@@ -4614,7 +4627,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_PHYSICAL_DISPLAY_TOKEN:
         case GET_DISPLAY_COLOR_MODES:
         case GET_DISPLAY_NATIVE_PRIMARIES:
+        case GET_DISPLAY_INFO:
         case GET_DISPLAY_CONFIGS:
+        case GET_DISPLAY_STATE:
         case GET_DISPLAY_STATS:
         case GET_SUPPORTED_FRAME_TIMESTAMPS:
         // Calling setTransactionState is safe, because you need to have been
@@ -4643,12 +4658,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
                 return PERMISSION_DENIED;
             }
             return OK;
-        }
-        // The following codes are deprecated and should never be allowed to access SF.
-        case CONNECT_DISPLAY_UNUSED:
-        case CREATE_GRAPHIC_BUFFER_ALLOC_UNUSED: {
-            ALOGE("Attempting to access SurfaceFlinger with unused code: %u", code);
-            return PERMISSION_DENIED;
         }
         case CAPTURE_SCREEN_BY_ID: {
             IPCThreadState* ipc = IPCThreadState::self();
@@ -5681,26 +5690,19 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(const sp<DisplayDe
     mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value,
                                 display->getActiveConfig(), vsyncPeriod);
 
-    if (mRefreshRateConfigs->refreshRateSwitchingSupported()) {
-        auto configId = mScheduler->getPreferredConfigId();
-        auto preferredRefreshRate = configId
-                ? mRefreshRateConfigs->getRefreshRateFromConfigId(*configId)
-                : mRefreshRateConfigs->getMinRefreshRateByPolicy();
-        ALOGV("trying to switch to Scheduler preferred config %d (%s)",
-              preferredRefreshRate.configId.value(), preferredRefreshRate.name.c_str());
-        if (isDisplayConfigAllowed(preferredRefreshRate.configId)) {
-            ALOGV("switching to Scheduler preferred config %d",
-                  preferredRefreshRate.configId.value());
-            setDesiredActiveConfig(
-                    {preferredRefreshRate.configId, Scheduler::ConfigEvent::Changed});
-        } else {
-            // Set the highest allowed config
-            setDesiredActiveConfig({mRefreshRateConfigs->getMaxRefreshRateByPolicy().configId,
-                                    Scheduler::ConfigEvent::Changed});
-        }
+    auto configId = mScheduler->getPreferredConfigId();
+    auto preferredRefreshRate = configId
+            ? mRefreshRateConfigs->getRefreshRateFromConfigId(*configId)
+            // NOTE: Choose the default config ID, if Scheduler doesn't have one in mind.
+            : mRefreshRateConfigs->getRefreshRateFromConfigId(defaultConfig);
+    ALOGV("trying to switch to Scheduler preferred config %d (%s)",
+          preferredRefreshRate.configId.value(), preferredRefreshRate.name.c_str());
+
+    if (isDisplayConfigAllowed(preferredRefreshRate.configId)) {
+        ALOGV("switching to Scheduler preferred config %d", preferredRefreshRate.configId.value());
+        setDesiredActiveConfig({preferredRefreshRate.configId, Scheduler::ConfigEvent::Changed});
     } else {
-        ALOGV("switching to config %d", defaultConfig.value());
-        setDesiredActiveConfig({defaultConfig, Scheduler::ConfigEvent::Changed});
+        LOG_ALWAYS_FATAL("Desired config not allowed: %d", preferredRefreshRate.configId.value());
     }
 
     return NO_ERROR;

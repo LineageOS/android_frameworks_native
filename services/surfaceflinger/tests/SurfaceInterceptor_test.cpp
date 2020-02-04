@@ -20,18 +20,13 @@
 
 #include <frameworks/native/cmds/surfacereplayer/proto/src/trace.pb.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
-
 #include <gtest/gtest.h>
-
-#include <android/native_window.h>
-
 #include <gui/ISurfaceComposer.h>
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
-
 #include <private/gui/ComposerService.h>
-#include <ui/DisplayInfo.h>
+#include <ui/DisplayConfig.h>
 
 #include <fstream>
 #include <random>
@@ -271,21 +266,21 @@ void SurfaceInterceptorTest::setupBackgroundSurface() {
     const auto display = SurfaceComposerClient::getInternalDisplayToken();
     ASSERT_FALSE(display == nullptr);
 
-    DisplayInfo info;
-    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
-
-    ssize_t displayWidth = info.w;
-    ssize_t displayHeight = info.h;
+    DisplayConfig config;
+    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
+    const ui::Size& resolution = config.resolution;
 
     // Background surface
-    mBGSurfaceControl = mComposerClient->createSurface(String8(TEST_BG_SURFACE_NAME), displayWidth,
-                                                       displayHeight, PIXEL_FORMAT_RGBA_8888, 0);
+    mBGSurfaceControl =
+            mComposerClient->createSurface(String8(TEST_BG_SURFACE_NAME), resolution.getWidth(),
+                                           resolution.getHeight(), PIXEL_FORMAT_RGBA_8888, 0);
     ASSERT_TRUE(mBGSurfaceControl != nullptr);
     ASSERT_TRUE(mBGSurfaceControl->isValid());
 
     // Foreground surface
-    mFGSurfaceControl = mComposerClient->createSurface(String8(TEST_FG_SURFACE_NAME), displayWidth,
-                                                       displayHeight, PIXEL_FORMAT_RGBA_8888, 0);
+    mFGSurfaceControl =
+            mComposerClient->createSurface(String8(TEST_FG_SURFACE_NAME), resolution.getWidth(),
+                                           resolution.getHeight(), PIXEL_FORMAT_RGBA_8888, 0);
     ASSERT_TRUE(mFGSurfaceControl != nullptr);
     ASSERT_TRUE(mFGSurfaceControl->isValid());
 

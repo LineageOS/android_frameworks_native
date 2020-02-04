@@ -16,16 +16,25 @@
 
 #pragma once
 
+#include <ui/Rotation.h>
+#include <ui/Size.h>
+
+#include <cstdint>
 #include <type_traits>
 
-namespace android {
+namespace android::ui {
 
-// Immutable information about physical display.
-struct DisplayInfo {
-    float density = 0.f;
-    bool secure = false;
+using LayerStack = uint32_t;
+constexpr LayerStack NO_LAYER_STACK = static_cast<LayerStack>(-1);
+
+// Transactional state of physical or virtual display. Note that libgui defines
+// android::DisplayState as a superset of android::ui::DisplayState.
+struct DisplayState {
+    LayerStack layerStack = NO_LAYER_STACK;
+    Rotation orientation = ROTATION_0;
+    Size viewport;
 };
 
-static_assert(std::is_trivially_copyable_v<DisplayInfo>);
+static_assert(std::is_trivially_copyable_v<DisplayState>);
 
-} // namespace android
+} // namespace android::ui

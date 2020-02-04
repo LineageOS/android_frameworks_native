@@ -16,41 +16,10 @@
 #ifndef ANDROID_TRANSACTION_TEST_HARNESSES
 #define ANDROID_TRANSACTION_TEST_HARNESSES
 
-/*#include <algorithm>
-#include <chrono>
-#include <cinttypes>
-#include <functional>
-#include <limits>
-#include <ostream>
+#include <ui/DisplayState.h>
 
-#include <android/native_window.h>
-
-#include <binder/ProcessState.h>
-#include <gui/BufferItemConsumer.h>
-#include <gui/IProducerListener.h>
-#include <gui/ISurfaceComposer.h>
-#include <gui/LayerState.h>
-#include <gui/Surface.h>
-#include <gui/SurfaceComposerClient.h>
-#include <hardware/hwcomposer_defs.h>
-#include <private/android_filesystem_config.h>
-#include <private/gui/ComposerService.h>
-
-#include <ui/DisplayInfo.h>
-
-#include <math.h>
-#include <math/vec3.h>
-#include <sys/types.h>
-#include <unistd.h>
-
-#include "BufferGenerator.h"
-*/
 #include "LayerTransactionTest.h"
-/*#include "utils/CallbackUtils.h"
-#include "utils/ColorUtils.h"
-#include "utils/ScreenshotUtils.h"
-#include "utils/TransactionUtils.h"
-*/
+
 namespace android {
 
 using android::hardware::graphics::common::V1_1::BufferUsage;
@@ -66,9 +35,14 @@ public:
                 return mDelegate->screenshot();
             case RenderPath::VIRTUAL_DISPLAY:
 
-                const auto mainDisplay = SurfaceComposerClient::getInternalDisplayToken();
-                DisplayInfo mainDisplayInfo;
-                SurfaceComposerClient::getDisplayInfo(mainDisplay, &mainDisplayInfo);
+                const auto displayToken = SurfaceComposerClient::getInternalDisplayToken();
+
+                ui::DisplayState displayState;
+                SurfaceComposerClient::getDisplayState(displayToken, &displayState);
+
+                DisplayConfig displayConfig;
+                SurfaceComposerClient::getActiveDisplayConfig(displayToken, &displayConfig);
+                const ui::Size& resolution = displayConfig.resolution;
 
                 sp<IBinder> vDisplay;
                 sp<IGraphicBufferProducer> producer;
@@ -77,7 +51,7 @@ public:
                 BufferQueue::createBufferQueue(&producer, &consumer);
 
                 consumer->setConsumerName(String8("Virtual disp consumer"));
-                consumer->setDefaultBufferSize(mainDisplayInfo.w, mainDisplayInfo.h);
+                consumer->setDefaultBufferSize(resolution.getWidth(), resolution.getHeight());
 
                 itemConsumer = new BufferItemConsumer(consumer,
                                                       // Sample usage bits from screenrecord
@@ -90,9 +64,8 @@ public:
                 SurfaceComposerClient::Transaction t;
                 t.setDisplaySurface(vDisplay, producer);
                 t.setDisplayLayerStack(vDisplay, 0);
-                t.setDisplayProjection(vDisplay, mainDisplayInfo.orientation,
-                                       Rect(mainDisplayInfo.viewportW, mainDisplayInfo.viewportH),
-                                       Rect(mainDisplayInfo.w, mainDisplayInfo.h));
+                t.setDisplayProjection(vDisplay, displayState.orientation,
+                                       Rect(displayState.viewport), Rect(resolution));
                 t.apply();
                 SurfaceComposerClient::Transaction().apply(true);
                 BufferItem item;

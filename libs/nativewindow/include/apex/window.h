@@ -212,4 +212,11 @@ int ANativeWindow_setDequeueTimeout(ANativeWindow* window, int64_t timeout);
  */
 void ANativeWindow_allocateBuffers(ANativeWindow* window);
 
+/**
+ * Retrieves an identifier for the next frame to be queued by this window.
+ *
+ * \return -errno on error, otherwise returns the next frame id.
+ */
+int64_t ANativeWindow_getNextFrameId(ANativeWindow* window);
+
 __END_DECLS

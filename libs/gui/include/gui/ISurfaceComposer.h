@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_GUI_ISURFACE_COMPOSER_H
-#define ANDROID_GUI_ISURFACE_COMPOSER_H
+#pragma once
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -46,13 +45,13 @@
 #include <vector>
 
 namespace android {
-// ----------------------------------------------------------------------------
 
 struct client_cache_t;
 struct ComposerState;
-struct DisplayState;
+struct DisplayConfig;
 struct DisplayInfo;
 struct DisplayStatInfo;
+struct DisplayState;
 struct InputWindowCommands;
 class LayerDebugInfo;
 class HdrCapabilities;
@@ -62,6 +61,12 @@ class ISurfaceComposerClient;
 class IRegionSamplingListener;
 class Rect;
 enum class FrameEvent;
+
+namespace ui {
+
+struct DisplayState;
+
+} // namespace ui
 
 /*
  * This class defines the Binder IPC interface for accessing various
@@ -161,10 +166,6 @@ public:
      */
     virtual void setPowerMode(const sp<IBinder>& display, int mode) = 0;
 
-    /* returns information for each configuration of the given display
-     * intended to be used to get information about built-in displays */
-    virtual status_t getDisplayConfigs(const sp<IBinder>& display,
-            Vector<DisplayInfo>* configs) = 0;
 
     /* returns display statistics for a given display
      * intended to be used by the media framework to properly schedule
@@ -172,8 +173,25 @@ public:
     virtual status_t getDisplayStats(const sp<IBinder>& display,
             DisplayStatInfo* stats) = 0;
 
-    /* indicates which of the configurations returned by getDisplayInfo is
-     * currently active */
+    /**
+     * Get transactional state of given display.
+     */
+    virtual status_t getDisplayState(const sp<IBinder>& display, ui::DisplayState*) = 0;
+
+    /**
+     * Get immutable information about given physical display.
+     */
+    virtual status_t getDisplayInfo(const sp<IBinder>& display, DisplayInfo*) = 0;
+
+    /**
+     * Get configurations supported by given physical display.
+     */
+    virtual status_t getDisplayConfigs(const sp<IBinder>& display, Vector<DisplayConfig>*) = 0;
+
+    /**
+     * Get the index into configurations returned by getDisplayConfigs,
+     * corresponding to the active configuration.
+     */
     virtual int getActiveConfig(const sp<IBinder>& display) = 0;
 
     virtual status_t getDisplayColorModes(const sp<IBinder>& display,
@@ -493,7 +511,7 @@ public:
         // Java by ActivityManagerService.
         BOOT_FINISHED = IBinder::FIRST_CALL_TRANSACTION,
         CREATE_CONNECTION,
-        CREATE_GRAPHIC_BUFFER_ALLOC_UNUSED, // unused, fails permissions check
+        GET_DISPLAY_INFO,
         CREATE_DISPLAY_EVENT_CONNECTION,
         CREATE_DISPLAY,
         DESTROY_DISPLAY,
@@ -503,7 +521,7 @@ public:
         GET_SUPPORTED_FRAME_TIMESTAMPS,
         GET_DISPLAY_CONFIGS,
         GET_ACTIVE_CONFIG,
-        CONNECT_DISPLAY_UNUSED, // unused, fails permissions check
+        GET_DISPLAY_STATE,
         CAPTURE_SCREEN,
         CAPTURE_LAYERS,
         CLEAR_ANIMATION_FRAME_STATS,
@@ -546,8 +564,4 @@ public:
             Parcel* reply, uint32_t flags = 0);
 };
 
-// ----------------------------------------------------------------------------
-
-}; // namespace android
-
-#endif // ANDROID_GUI_ISURFACE_COMPOSER_H
+} // namespace android

@@ -301,18 +301,6 @@ prop {
     prop_name: "ro.surface_flinger.display_primary_white"
 }
 
-# refreshRateSwitching indicates whether SurfaceFlinger should use refresh rate
-# switching on the device, e.g. to switch between 60 and 90 Hz. The settings
-# below that are related to refresh rate switching will only have an effect if
-# refresh_rate_switching is enabled.
-prop {
-    api_name: "refresh_rate_switching"
-    type: Boolean
-    scope: System
-    access: Readonly
-    prop_name: "ro.surface_flinger.refresh_rate_switching"
-}
-
 prop {
     api_name: "set_idle_timer_ms"
     type: Integer

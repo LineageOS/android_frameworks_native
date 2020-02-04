@@ -13,8 +13,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-#include <ui/DisplayInfo.h>
+
+#include <utility>
+
 #include <gui/bufferqueue/2.0/B2HGraphicBufferProducer.h>
+#include <ui/DisplayConfig.h>
+#include <ui/DisplayState.h>
 
 #include "CarWindowService.h"
 
@@ -38,31 +42,37 @@ Return<sp<IGraphicBufferProducer>>
             return nullptr;
         }
 
-        // Get main display parameters.
-        sp<IBinder> mainDpy = SurfaceComposerClient::getInternalDisplayToken();
-        if (mainDpy == nullptr) {
+        const auto displayToken = SurfaceComposerClient::getInternalDisplayToken();
+        if (displayToken == nullptr) {
             ALOGE("Failed to get internal display ");
             return nullptr;
         }
-        DisplayInfo mainDpyInfo;
-        err = SurfaceComposerClient::getDisplayInfo(mainDpy, &mainDpyInfo);
+
+        DisplayConfig displayConfig;
+        err = SurfaceComposerClient::getActiveDisplayConfig(displayToken, &displayConfig);
         if (err != NO_ERROR) {
-            ALOGE("Failed to get display characteristics");
+            ALOGE("Failed to get active display config");
             return nullptr;
         }
-        unsigned int mWidth, mHeight;
-        if (mainDpyInfo.orientation != ui::ROTATION_0 &&
-            mainDpyInfo.orientation != ui::ROTATION_180) {
-            // rotated
-            mWidth = mainDpyInfo.h;
-            mHeight = mainDpyInfo.w;
-        } else {
-            mWidth = mainDpyInfo.w;
-            mHeight = mainDpyInfo.h;
+
+        ui::DisplayState displayState;
+        err = SurfaceComposerClient::getDisplayState(displayToken, &displayState);
+        if (err != NO_ERROR) {
+            ALOGE("Failed to get display state");
+            return nullptr;
+        }
+
+        const ui::Size& resolution = displayConfig.resolution;
+        auto width = resolution.getWidth();
+        auto height = resolution.getHeight();
+
+        if (displayState.orientation == ui::ROTATION_90 ||
+            displayState.orientation == ui::ROTATION_270) {
+            std::swap(width, height);
         }
 
         mSurfaceControl = mSurfaceComposerClient->createSurface(
-                String8("Automotive Display"), mWidth, mHeight,
+                String8("Automotive Display"), width, height,
                 PIXEL_FORMAT_RGBX_8888, ISurfaceComposerClient::eOpaque);
         if (mSurfaceControl == nullptr || !mSurfaceControl->isValid()) {
             ALOGE("Failed to create SurfaceControl");

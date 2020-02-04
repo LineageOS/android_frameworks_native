@@ -41,7 +41,7 @@
 #include <hwbinder/ProcessState.h>
 #include <log/log.h>
 #include <private/gui/ComposerService.h>
-#include <ui/DisplayInfo.h>
+#include <ui/DisplayConfig.h>
 #include <utils/Looper.h>
 
 #include <gmock/gmock.h>
@@ -338,15 +338,16 @@ protected:
             const auto display = SurfaceComposerClient::getPhysicalDisplayToken(EXTERNAL_DISPLAY);
             EXPECT_FALSE(display == nullptr);
 
-            DisplayInfo info;
-            EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
-            EXPECT_EQ(200u, info.w);
-            EXPECT_EQ(400u, info.h);
-            EXPECT_EQ(1e9f / 16'666'666, info.fps);
+            DisplayConfig config;
+            EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
+            const ui::Size& resolution = config.resolution;
+            EXPECT_EQ(ui::Size(200, 400), resolution);
+            EXPECT_EQ(1e9f / 16'666'666, config.refreshRate);
 
             auto surfaceControl =
-                    mComposerClient->createSurface(String8("Display Test Surface Foo"), info.w,
-                                                   info.h, PIXEL_FORMAT_RGBA_8888, 0);
+                    mComposerClient->createSurface(String8("Display Test Surface Foo"),
+                                                   resolution.getWidth(), resolution.getHeight(),
+                                                   PIXEL_FORMAT_RGBA_8888, 0);
             EXPECT_TRUE(surfaceControl != nullptr);
             EXPECT_TRUE(surfaceControl->isValid());
             fillSurfaceRGBA8(surfaceControl, BLUE);
@@ -369,8 +370,8 @@ protected:
             const auto display = SurfaceComposerClient::getPhysicalDisplayToken(EXTERNAL_DISPLAY);
             EXPECT_TRUE(display == nullptr);
 
-            DisplayInfo info;
-            EXPECT_NE(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
+            DisplayConfig config;
+            EXPECT_NE(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
         }
     }
 
@@ -398,17 +399,18 @@ protected:
         const auto display = SurfaceComposerClient::getPhysicalDisplayToken(EXTERNAL_DISPLAY);
         EXPECT_FALSE(display == nullptr);
 
-        DisplayInfo info;
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
-        EXPECT_EQ(200u, info.w);
-        EXPECT_EQ(400u, info.h);
-        EXPECT_EQ(1e9f / 16'666'666, info.fps);
+        DisplayConfig config;
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
+        EXPECT_EQ(ui::Size(200, 400), config.resolution);
+        EXPECT_EQ(1e9f / 16'666'666, config.refreshRate);
 
         mFakeComposerClient->clearFrames();
         {
+            const ui::Size& resolution = config.resolution;
             auto surfaceControl =
-                    mComposerClient->createSurface(String8("Display Test Surface Foo"), info.w,
-                                                   info.h, PIXEL_FORMAT_RGBA_8888, 0);
+                    mComposerClient->createSurface(String8("Display Test Surface Foo"),
+                                                   resolution.getWidth(), resolution.getHeight(),
+                                                   PIXEL_FORMAT_RGBA_8888, 0);
             EXPECT_TRUE(surfaceControl != nullptr);
             EXPECT_TRUE(surfaceControl->isValid());
             fillSurfaceRGBA8(surfaceControl, BLUE);
@@ -421,7 +423,7 @@ protected:
             }
         }
 
-        Vector<DisplayInfo> configs;
+        Vector<DisplayConfig> configs;
         EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayConfigs(display, &configs));
         EXPECT_EQ(configs.size(), 2);
 
@@ -436,27 +438,29 @@ protected:
         }
 
         for (int i = 0; i < configs.size(); i++) {
-            if (configs[i].w == 800u) {
+            const auto& config = configs[i];
+            if (config.resolution.getWidth() == 800) {
                 EXPECT_EQ(NO_ERROR,
                           SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, i,
-                                                                              configs[i].fps,
-                                                                              configs[i].fps));
+                                                                              config.refreshRate,
+                                                                              config.refreshRate));
                 waitForDisplayTransaction();
                 EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
                 break;
             }
         }
 
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
-        EXPECT_EQ(800u, info.w);
-        EXPECT_EQ(1600u, info.h);
-        EXPECT_EQ(1e9f / 11'111'111, info.fps);
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
+        EXPECT_EQ(ui::Size(800, 1600), config.resolution);
+        EXPECT_EQ(1e9f / 11'111'111, config.refreshRate);
 
         mFakeComposerClient->clearFrames();
         {
+            const ui::Size& resolution = config.resolution;
             auto surfaceControl =
-                    mComposerClient->createSurface(String8("Display Test Surface Foo"), info.w,
-                                                   info.h, PIXEL_FORMAT_RGBA_8888, 0);
+                    mComposerClient->createSurface(String8("Display Test Surface Foo"),
+                                                   resolution.getWidth(), resolution.getHeight(),
+                                                   PIXEL_FORMAT_RGBA_8888, 0);
             EXPECT_TRUE(surfaceControl != nullptr);
             EXPECT_TRUE(surfaceControl->isValid());
             fillSurfaceRGBA8(surfaceControl, BLUE);
@@ -500,17 +504,18 @@ protected:
         const auto display = SurfaceComposerClient::getPhysicalDisplayToken(EXTERNAL_DISPLAY);
         EXPECT_FALSE(display == nullptr);
 
-        DisplayInfo info;
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
-        EXPECT_EQ(800u, info.w);
-        EXPECT_EQ(1600u, info.h);
-        EXPECT_EQ(1e9f / 16'666'666, info.fps);
+        DisplayConfig config;
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
+        EXPECT_EQ(ui::Size(800, 1600), config.resolution);
+        EXPECT_EQ(1e9f / 16'666'666, config.refreshRate);
 
         mFakeComposerClient->clearFrames();
         {
+            const ui::Size& resolution = config.resolution;
             auto surfaceControl =
-                    mComposerClient->createSurface(String8("Display Test Surface Foo"), info.w,
-                                                   info.h, PIXEL_FORMAT_RGBA_8888, 0);
+                    mComposerClient->createSurface(String8("Display Test Surface Foo"),
+                                                   resolution.getWidth(), resolution.getHeight(),
+                                                   PIXEL_FORMAT_RGBA_8888, 0);
             EXPECT_TRUE(surfaceControl != nullptr);
             EXPECT_TRUE(surfaceControl->isValid());
             fillSurfaceRGBA8(surfaceControl, BLUE);
@@ -523,7 +528,7 @@ protected:
             }
         }
 
-        Vector<DisplayInfo> configs;
+        Vector<DisplayConfig> configs;
         EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayConfigs(display, &configs));
         EXPECT_EQ(configs.size(), 2);
 
@@ -537,27 +542,29 @@ protected:
         }
 
         for (int i = 0; i < configs.size(); i++) {
-            if (configs[i].fps == 1e9f / 11'111'111) {
+            const auto& config = configs[i];
+            if (config.refreshRate == 1e9f / 11'111'111) {
                 EXPECT_EQ(NO_ERROR,
                           SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, i,
-                                                                              configs[i].fps,
-                                                                              configs[i].fps));
+                                                                              config.refreshRate,
+                                                                              config.refreshRate));
                 waitForDisplayTransaction();
                 EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
                 break;
             }
         }
 
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
-        EXPECT_EQ(800u, info.w);
-        EXPECT_EQ(1600u, info.h);
-        EXPECT_EQ(1e9f / 11'111'111, info.fps);
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
+        EXPECT_EQ(ui::Size(800, 1600), config.resolution);
+        EXPECT_EQ(1e9f / 11'111'111, config.refreshRate);
 
         mFakeComposerClient->clearFrames();
         {
+            const ui::Size& resolution = config.resolution;
             auto surfaceControl =
-                    mComposerClient->createSurface(String8("Display Test Surface Foo"), info.w,
-                                                   info.h, PIXEL_FORMAT_RGBA_8888, 0);
+                    mComposerClient->createSurface(String8("Display Test Surface Foo"),
+                                                   resolution.getWidth(), resolution.getHeight(),
+                                                   PIXEL_FORMAT_RGBA_8888, 0);
             EXPECT_TRUE(surfaceControl != nullptr);
             EXPECT_TRUE(surfaceControl->isValid());
             fillSurfaceRGBA8(surfaceControl, BLUE);
@@ -611,17 +618,18 @@ protected:
         const auto display = SurfaceComposerClient::getPhysicalDisplayToken(EXTERNAL_DISPLAY);
         EXPECT_FALSE(display == nullptr);
 
-        DisplayInfo info;
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
-        EXPECT_EQ(800u, info.w);
-        EXPECT_EQ(1600u, info.h);
-        EXPECT_EQ(1e9f / 16'666'666, info.fps);
+        DisplayConfig config;
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
+        EXPECT_EQ(ui::Size(800, 1600), config.resolution);
+        EXPECT_EQ(1e9f / 16'666'666, config.refreshRate);
 
         mFakeComposerClient->clearFrames();
         {
+            const ui::Size& resolution = config.resolution;
             auto surfaceControl =
-                    mComposerClient->createSurface(String8("Display Test Surface Foo"), info.w,
-                                                   info.h, PIXEL_FORMAT_RGBA_8888, 0);
+                    mComposerClient->createSurface(String8("Display Test Surface Foo"),
+                                                   resolution.getWidth(), resolution.getHeight(),
+                                                   PIXEL_FORMAT_RGBA_8888, 0);
             EXPECT_TRUE(surfaceControl != nullptr);
             EXPECT_TRUE(surfaceControl->isValid());
             fillSurfaceRGBA8(surfaceControl, BLUE);
@@ -634,7 +642,7 @@ protected:
             }
         }
 
-        Vector<DisplayInfo> configs;
+        Vector<DisplayConfig> configs;
         EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayConfigs(display, &configs));
         EXPECT_EQ(configs.size(), 4);
 
@@ -648,27 +656,29 @@ protected:
         }
 
         for (int i = 0; i < configs.size(); i++) {
-            if (configs[i].w == 800u && configs[i].fps == 1e9f / 11'111'111) {
+            const auto& config = configs[i];
+            if (config.resolution.getWidth() == 800 && config.refreshRate == 1e9f / 11'111'111) {
                 EXPECT_EQ(NO_ERROR,
                           SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, i,
-                                                                              configs[i].fps,
-                                                                              configs[i].fps));
+                                                                              configs[i].refreshRate,
+                                                                              configs[i].refreshRate));
                 waitForDisplayTransaction();
                 EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
                 break;
             }
         }
 
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
-        EXPECT_EQ(800u, info.w);
-        EXPECT_EQ(1600u, info.h);
-        EXPECT_EQ(1e9f / 11'111'111, info.fps);
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
+        EXPECT_EQ(ui::Size(800, 1600), config.resolution);
+        EXPECT_EQ(1e9f / 11'111'111, config.refreshRate);
 
         mFakeComposerClient->clearFrames();
         {
+            const ui::Size& resolution = config.resolution;
             auto surfaceControl =
-                    mComposerClient->createSurface(String8("Display Test Surface Foo"), info.w,
-                                                   info.h, PIXEL_FORMAT_RGBA_8888, 0);
+                    mComposerClient->createSurface(String8("Display Test Surface Foo"),
+                                                   resolution.getWidth(), resolution.getHeight(),
+                                                   PIXEL_FORMAT_RGBA_8888, 0);
             EXPECT_TRUE(surfaceControl != nullptr);
             EXPECT_TRUE(surfaceControl->isValid());
             fillSurfaceRGBA8(surfaceControl, BLUE);
@@ -691,27 +701,29 @@ protected:
         }
 
         for (int i = 0; i < configs.size(); i++) {
-            if (configs[i].fps == 1e9f / 8'333'333) {
+            const auto& config = configs[i];
+            if (config.refreshRate == 1e9f / 8'333'333) {
                 EXPECT_EQ(NO_ERROR,
                           SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, i,
-                                                                              configs[i].fps,
-                                                                              configs[i].fps));
+                                                                              config.refreshRate,
+                                                                              config.refreshRate));
                 waitForDisplayTransaction();
                 EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
                 break;
             }
         }
 
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
-        EXPECT_EQ(1600u, info.w);
-        EXPECT_EQ(3200u, info.h);
-        EXPECT_EQ(1e9f / 8'333'333, info.fps);
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
+        EXPECT_EQ(ui::Size(1600, 3200), config.resolution);
+        EXPECT_EQ(1e9f / 8'333'333, config.refreshRate);
 
         mFakeComposerClient->clearFrames();
         {
+            const ui::Size& resolution = config.resolution;
             auto surfaceControl =
-                    mComposerClient->createSurface(String8("Display Test Surface Foo"), info.w,
-                                                   info.h, PIXEL_FORMAT_RGBA_8888, 0);
+                    mComposerClient->createSurface(String8("Display Test Surface Foo"),
+                                                   resolution.getWidth(), resolution.getHeight(),
+                                                   PIXEL_FORMAT_RGBA_8888, 0);
             EXPECT_TRUE(surfaceControl != nullptr);
             EXPECT_TRUE(surfaceControl->isValid());
             fillSurfaceRGBA8(surfaceControl, BLUE);
@@ -734,27 +746,29 @@ protected:
         }
 
         for (int i = 0; i < configs.size(); i++) {
-            if (configs[i].w == 1600 && configs[i].fps == 1e9f / 11'111'111) {
+            const auto& config = configs[i];
+            if (config.resolution.getWidth() == 1600 && config.refreshRate == 1e9f / 11'111'111) {
                 EXPECT_EQ(NO_ERROR,
                           SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, i,
-                                                                              configs[i].fps,
-                                                                              configs[i].fps));
+                                                                              config.refreshRate,
+                                                                              config.refreshRate));
                 waitForDisplayTransaction();
                 EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
                 break;
             }
         }
 
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
-        EXPECT_EQ(1600u, info.w);
-        EXPECT_EQ(3200u, info.h);
-        EXPECT_EQ(1e9f / 11'111'111, info.fps);
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
+        EXPECT_EQ(ui::Size(1600, 3200), config.resolution);
+        EXPECT_EQ(1e9f / 11'111'111, config.refreshRate);
 
         mFakeComposerClient->clearFrames();
         {
+            const ui::Size& resolution = config.resolution;
             auto surfaceControl =
-                    mComposerClient->createSurface(String8("Display Test Surface Foo"), info.w,
-                                                   info.h, PIXEL_FORMAT_RGBA_8888, 0);
+                    mComposerClient->createSurface(String8("Display Test Surface Foo"),
+                                                   resolution.getWidth(), resolution.getHeight(),
+                                                   PIXEL_FORMAT_RGBA_8888, 0);
             EXPECT_TRUE(surfaceControl != nullptr);
             EXPECT_TRUE(surfaceControl->isValid());
             fillSurfaceRGBA8(surfaceControl, BLUE);
@@ -787,8 +801,8 @@ protected:
             const auto display = SurfaceComposerClient::getPhysicalDisplayToken(PRIMARY_DISPLAY);
             EXPECT_TRUE(display == nullptr);
 
-            DisplayInfo info;
-            auto result = SurfaceComposerClient::getDisplayInfo(display, &info);
+            DisplayConfig config;
+            auto result = SurfaceComposerClient::getActiveDisplayConfig(display, &config);
             EXPECT_NE(NO_ERROR, result);
         }
 
@@ -813,12 +827,11 @@ protected:
             const auto display = SurfaceComposerClient::getPhysicalDisplayToken(PRIMARY_DISPLAY);
             EXPECT_FALSE(display == nullptr);
 
-            DisplayInfo info;
-            auto result = SurfaceComposerClient::getDisplayInfo(display, &info);
+            DisplayConfig config;
+            auto result = SurfaceComposerClient::getActiveDisplayConfig(display, &config);
             EXPECT_EQ(NO_ERROR, result);
-            ASSERT_EQ(400u, info.w);
-            ASSERT_EQ(200u, info.h);
-            EXPECT_EQ(1e9f / 16'666'666, info.fps);
+            ASSERT_EQ(ui::Size(400, 200), config.resolution);
+            EXPECT_EQ(1e9f / 16'666'666, config.refreshRate);
         }
     }
 
@@ -968,11 +981,12 @@ protected:
         const auto display = SurfaceComposerClient::getPhysicalDisplayToken(PRIMARY_DISPLAY);
         ASSERT_FALSE(display == nullptr);
 
-        DisplayInfo info;
-        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
+        DisplayConfig config;
+        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
 
-        mDisplayWidth = info.w;
-        mDisplayHeight = info.h;
+        const ui::Size& resolution = config.resolution;
+        mDisplayWidth = resolution.getWidth();
+        mDisplayHeight = resolution.getHeight();
 
         // Background surface
         mBGSurfaceControl =

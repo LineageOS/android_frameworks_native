@@ -13,17 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef ANDROID_LAYER_TRANSACTION_TEST_H
-#define ANDROID_LAYER_TRANSACTION_TEST_H
+
+#pragma once
 
 #include <gtest/gtest.h>
-
 #include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
 #include <hardware/hwcomposer_defs.h>
 #include <private/gui/ComposerService.h>
-
-#include <ui/DisplayInfo.h>
+#include <ui/DisplayConfig.h>
 
 #include "BufferGenerator.h"
 #include "utils/ScreenshotUtils.h"
@@ -255,18 +253,16 @@ private:
         mDisplay = mClient->getInternalDisplayToken();
         ASSERT_FALSE(mDisplay == nullptr) << "failed to get display";
 
-        // get display width/height
-        DisplayInfo info;
-        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(mDisplay, &info));
-        mDisplayWidth = info.w;
-        mDisplayHeight = info.h;
-        mDisplayRect =
-                Rect(static_cast<int32_t>(mDisplayWidth), static_cast<int32_t>(mDisplayHeight));
+        DisplayConfig config;
+        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(mDisplay, &config));
+        mDisplayRect = Rect(config.resolution);
+        mDisplayWidth = mDisplayRect.getWidth();
+        mDisplayHeight = mDisplayRect.getHeight();
 
         // After a new buffer is queued, SurfaceFlinger is notified and will
         // latch the new buffer on next vsync.  Let's heuristically wait for 3
         // vsyncs.
-        mBufferPostDelay = int32_t(1e6 / info.fps) * 3;
+        mBufferPostDelay = static_cast<int32_t>(1e6 / config.refreshRate) * 3;
 
         mDisplayLayerStack = 0;
 
@@ -295,6 +291,5 @@ private:
 
     friend class LayerRenderPathTestHarness;
 };
-} // namespace android
 
-#endif
+} // namespace android
