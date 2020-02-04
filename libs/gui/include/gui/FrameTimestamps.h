@@ -207,6 +207,7 @@ public:
     ~ConsumerFrameEventHistory() override;
 
     void onDisconnect();
+    void setProducerWantsEvents();
 
     void initializeCompositorTiming(const CompositorTiming& compositorTiming);
 
