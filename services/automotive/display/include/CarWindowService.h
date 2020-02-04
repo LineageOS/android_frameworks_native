@@ -55,7 +55,7 @@ private:
     sp<android::SurfaceComposerClient> mSurfaceComposerClient;
     sp<android::SurfaceControl> mSurfaceControl;
     DisplayConfig mDpyConfig;
-    DisplayState  mDpyState;
+    ui::DisplayState mDpyState;
 };
 }  // namespace implementation
 }  // namespace V1_0
