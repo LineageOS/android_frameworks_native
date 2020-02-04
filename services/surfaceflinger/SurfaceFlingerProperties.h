@@ -73,8 +73,6 @@ int32_t wcg_composition_pixel_format(
 int64_t color_space_agnostic_dataspace(
         android::hardware::graphics::common::V1_2::Dataspace defaultValue);
 
-bool refresh_rate_switching(bool defaultValue);
-
 int32_t set_idle_timer_ms(int32_t defaultValue);
 
 int32_t set_touch_timer_ms(int32_t defaultValue);
