@@ -155,6 +155,7 @@ void add_mountinfo();
 #define WLUTIL "/vendor/xbin/wlutil"
 #define WMTRACE_DATA_DIR "/data/misc/wmtrace"
 #define OTA_METADATA_DIR "/metadata/ota"
+#define SNAPSHOTCTL_LOG_DIR "/data/misc/snapshotctl_log"
 
 // TODO(narayan): Since this information has to be kept in sync
 // with tombstoned, we should just put it in a common header.
@@ -1551,6 +1552,7 @@ static Dumpstate::RunStatus DumpstateDefault() {
     ds.AddDir(RECOVERY_DATA_DIR, true);
     ds.AddDir(UPDATE_ENGINE_LOG_DIR, true);
     ds.AddDir(LOGPERSIST_DATA_DIR, false);
+    ds.AddDir(SNAPSHOTCTL_LOG_DIR, false);
     if (!PropertiesHelper::IsUserBuild()) {
         ds.AddDir(PROFILE_DATA_DIR_CUR, true);
         ds.AddDir(PROFILE_DATA_DIR_REF, true);
