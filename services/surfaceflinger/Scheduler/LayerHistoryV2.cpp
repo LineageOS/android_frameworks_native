@@ -40,7 +40,7 @@ namespace android::scheduler::impl {
 namespace {
 
 bool isLayerActive(const Layer& layer, const LayerInfoV2& info, nsecs_t threshold) {
-    if (layer.getFrameRate().has_value()) {
+    if (layer.getFrameRate().rate > 0) {
         return layer.isVisible();
     }
     return layer.isVisible() && info.getLastUpdatedTime() >= threshold;
@@ -63,13 +63,17 @@ void trace(const wp<Layer>& weak, LayerHistory::LayerVoteType type, int fps) {
     const auto& name = layer->getName();
     const auto noVoteTag = "LFPS NoVote " + name;
     const auto heuristicVoteTag = "LFPS Heuristic " + name;
-    const auto explicitVoteTag = "LFPS Explicit " + name;
+    const auto explicitDefaultVoteTag = "LFPS ExplicitDefault" + name;
+    const auto explicitExactOrMultipleVoteTag = "LFPS ExplicitExactOrMultiple" + name;
     const auto minVoteTag = "LFPS Min " + name;
     const auto maxVoteTag = "LFPS Max " + name;
 
     ATRACE_INT(noVoteTag.c_str(), type == LayerHistory::LayerVoteType::NoVote ? 1 : 0);
     ATRACE_INT(heuristicVoteTag.c_str(), type == LayerHistory::LayerVoteType::Heuristic ? fps : 0);
-    ATRACE_INT(explicitVoteTag.c_str(), type == LayerHistory::LayerVoteType::Explicit ? fps : 0);
+    ATRACE_INT(explicitDefaultVoteTag.c_str(),
+               type == LayerHistory::LayerVoteType::ExplicitDefault ? fps : 0);
+    ATRACE_INT(explicitExactOrMultipleVoteTag.c_str(),
+               type == LayerHistory::LayerVoteType::ExplicitExactOrMultiple ? fps : 0);
     ATRACE_INT(minVoteTag.c_str(), type == LayerHistory::LayerVoteType::Min ? 1 : 0);
     ATRACE_INT(maxVoteTag.c_str(), type == LayerHistory::LayerVoteType::Max ? 1 : 0);
 
@@ -160,12 +164,18 @@ void LayerHistoryV2::partitionLayers(nsecs_t now) {
             i++;
             // Set layer vote if set
             const auto frameRate = layer->getFrameRate();
-            if (frameRate.has_value()) {
-                if (*frameRate == Layer::FRAME_RATE_NO_VOTE) {
-                    info->setLayerVote(LayerVoteType::NoVote, 0.f);
-                } else {
-                    info->setLayerVote(LayerVoteType::Explicit, *frameRate);
+            const auto voteType = [&]() {
+                switch (frameRate.type) {
+                    case Layer::FrameRateCompatibility::Default:
+                        return LayerVoteType::ExplicitDefault;
+                    case Layer::FrameRateCompatibility::ExactOrMultiple:
+                        return LayerVoteType::ExplicitExactOrMultiple;
+                    case Layer::FrameRateCompatibility::NoVote:
+                        return LayerVoteType::NoVote;
                 }
+            }();
+            if (frameRate.rate > 0 || voteType == LayerVoteType::NoVote) {
+                info->setLayerVote(voteType, frameRate.rate);
             } else {
                 info->resetLayerVote();
             }

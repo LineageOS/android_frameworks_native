@@ -408,7 +408,8 @@ void Scheduler::registerLayer(Layer* layer) {
                         "SurfaceView - "
                         "com.google.android.youtube/"
                         "com.google.android.apps.youtube.app.WatchWhileActivity#0") {
-                layer->setFrameRate(vote);
+                layer->setFrameRate(
+                        Layer::FrameRate(vote, Layer::FrameRateCompatibility::ExactOrMultiple));
             }
         }
     }
@@ -562,7 +563,8 @@ void Scheduler::handleTimerStateChanged(T* currentState, T newState, bool eventO
 
 bool Scheduler::layerHistoryHasClientSpecifiedFrameRate() {
     for (const auto& layer : mFeatures.contentRequirements) {
-        if (layer.vote == scheduler::RefreshRateConfigs::LayerVoteType::Explicit) {
+        if (layer.vote == scheduler::RefreshRateConfigs::LayerVoteType::ExplicitDefault ||
+            layer.vote == scheduler::RefreshRateConfigs::LayerVoteType::ExplicitExactOrMultiple) {
             return true;
         }
     }

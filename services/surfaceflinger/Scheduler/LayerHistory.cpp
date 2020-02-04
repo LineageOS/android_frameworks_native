@@ -39,7 +39,7 @@ namespace android::scheduler::impl {
 namespace {
 
 bool isLayerActive(const Layer& layer, const LayerInfo& info, nsecs_t threshold) {
-    if (layer.getFrameRate().has_value()) {
+    if (layer.getFrameRate().rate > 0) {
         return layer.isVisible();
     }
     return layer.isVisible() && info.getLastUpdatedTime() >= threshold;
@@ -126,18 +126,27 @@ LayerHistory::Summary LayerHistory::summarize(nsecs_t now) {
         // Only use the layer if the reference still exists.
         if (layer || CC_UNLIKELY(mTraceEnabled)) {
             // Check if frame rate was set on layer.
-            auto frameRate = layer->getFrameRate();
-            if (frameRate.has_value() && frameRate.value() > 0.f) {
-                summary.push_back(
-                        {layer->getName(), LayerVoteType::Explicit, *frameRate, /* weight */ 1.0f});
+            const auto frameRate = layer->getFrameRate();
+            if (frameRate.rate > 0.f) {
+                const auto voteType = [&]() {
+                    switch (frameRate.type) {
+                        case Layer::FrameRateCompatibility::Default:
+                            return LayerVoteType::ExplicitDefault;
+                        case Layer::FrameRateCompatibility::ExactOrMultiple:
+                            return LayerVoteType::ExplicitExactOrMultiple;
+                        case Layer::FrameRateCompatibility::NoVote:
+                            return LayerVoteType::NoVote;
+                    }
+                }();
+                summary.push_back({layer->getName(), voteType, frameRate.rate, /* weight */ 1.0f});
             } else if (recent) {
-                frameRate = info->getRefreshRate(now);
-                summary.push_back({layer->getName(), LayerVoteType::Heuristic, *frameRate,
+                summary.push_back({layer->getName(), LayerVoteType::Heuristic,
+                                   info->getRefreshRate(now),
                                    /* weight */ 1.0f});
             }
 
             if (CC_UNLIKELY(mTraceEnabled)) {
-                trace(weakLayer, round<int>(*frameRate));
+                trace(weakLayer, round<int>(frameRate.rate));
             }
         }
     }
