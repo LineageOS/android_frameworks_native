@@ -59,8 +59,6 @@ private:
                      const std::string& appPackageName, const int32_t vulkanVersion,
                      GpuStatsInfo::Driver driver, bool isDriverLoaded,
                      int64_t driverLoadingTime) override;
-    status_t getGpuStatsGlobalInfo(std::vector<GpuStatsGlobalInfo>* outStats) const override;
-    status_t getGpuStatsAppInfo(std::vector<GpuStatsAppInfo>* outStats) const override;
     void setTargetStats(const std::string& appPackageName, const uint64_t driverVersionCode,
                         const GpuStatsInfo::Stats stats, const uint64_t value) override;
 

@@ -43,10 +43,6 @@ public:
                            const GpuStatsInfo::Stats stats, const uint64_t value);
     // dumpsys interface
     void dump(const Vector<String16>& args, std::string* result);
-    // Pull gpu global stats
-    void pullGlobalStats(std::vector<GpuStatsGlobalInfo>* outStats);
-    // Pull gpu app stats
-    void pullAppStats(std::vector<GpuStatsAppInfo>* outStats);
 
     // This limits the worst case number of loading times tracked.
     static const size_t MAX_NUM_LOADING_TIMES = 50;
