@@ -66,8 +66,6 @@ public:
 
     virtual int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode) override;
 
-    virtual void fadePointer() override;
-
     virtual std::optional<int32_t> getAssociatedDisplayId() override;
 
 private:
@@ -117,7 +115,6 @@ private:
     void dumpParameters(std::string& dump);
 
     void sync(nsecs_t when);
-    void updatePointerControllerDisplayViewport(const InputReaderConfiguration& config);
 };
 
 } // namespace android

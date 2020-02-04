@@ -132,7 +132,7 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
                 mYPrecision = 1.0f;
                 mXScale = 1.0f;
                 mYScale = 1.0f;
-                mPointerController = getPolicy()->obtainPointerController(getDeviceId());
+                mPointerController = getContext()->getPointerController(getDeviceId());
                 break;
             case Parameters::MODE_NAVIGATION:
                 mSource = AINPUT_SOURCE_TRACKBALL;
@@ -189,32 +189,8 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
             }
         }
 
-        // Update the PointerController if viewports changed.
-        if (mParameters.mode == Parameters::MODE_POINTER) {
-            updatePointerControllerDisplayViewport(*config);
-        }
         bumpGeneration();
     }
-}
-
-void CursorInputMapper::updatePointerControllerDisplayViewport(
-        const InputReaderConfiguration& config) {
-    std::optional<DisplayViewport> viewport =
-            config.getDisplayViewportById(config.defaultPointerDisplayId);
-    if (!viewport) {
-        ALOGW("Can't find the designated viewport with ID %" PRId32 " to update cursor input "
-              "mapper. Fall back to default display",
-              config.defaultPointerDisplayId);
-        viewport = config.getDisplayViewportById(ADISPLAY_ID_DEFAULT);
-    }
-
-    if (!viewport) {
-        ALOGE("Still can't find a viable viewport to update cursor input mapper. Skip setting it to"
-              " PointerController.");
-        return;
-    }
-
-    mPointerController->setDisplayViewport(*viewport);
 }
 
 void CursorInputMapper::configureParameters() {
@@ -478,12 +454,6 @@ int32_t CursorInputMapper::getScanCodeState(uint32_t sourceMask, int32_t scanCod
         return getDeviceContext().getScanCodeState(scanCode);
     } else {
         return AKEY_STATE_UNKNOWN;
-    }
-}
-
-void CursorInputMapper::fadePointer() {
-    if (mPointerController != nullptr) {
-        mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
     }
 }
 

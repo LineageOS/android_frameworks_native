@@ -756,16 +756,11 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
         mOrientedRanges.clear();
     }
 
-    // Create or update pointer controller if needed.
+    // Create pointer controller if needed.
     if (mDeviceMode == DEVICE_MODE_POINTER ||
         (mDeviceMode == DEVICE_MODE_DIRECT && mConfig.showTouches)) {
-        if (mPointerController == nullptr || viewportChanged) {
-            mPointerController = getPolicy()->obtainPointerController(getDeviceId());
-            // Set the DisplayViewport for the PointerController to the default pointer display
-            // that is recommended by the configuration before using it.
-            std::optional<DisplayViewport> defaultViewport =
-                    mConfig.getDisplayViewportById(mConfig.defaultPointerDisplayId);
-            mPointerController->setDisplayViewport(defaultViewport.value_or(mViewport));
+        if (mPointerController == nullptr) {
+            mPointerController = getContext()->getPointerController(getDeviceId());
         }
     } else {
         mPointerController.clear();
@@ -3622,12 +3617,6 @@ bool TouchInputMapper::updateMovedPointers(const PointerProperties* inProperties
         }
     }
     return changed;
-}
-
-void TouchInputMapper::fadePointer() {
-    if (mPointerController != nullptr) {
-        mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
-    }
 }
 
 void TouchInputMapper::cancelTouch(nsecs_t when) {

@@ -449,10 +449,6 @@ void InputDevice::updateMetaState(int32_t keyCode) {
     for_each_mapper([keyCode](InputMapper& mapper) { mapper.updateMetaState(keyCode); });
 }
 
-void InputDevice::fadePointer() {
-    for_each_mapper([](InputMapper& mapper) { mapper.fadePointer(); });
-}
-
 void InputDevice::bumpGeneration() {
     mGeneration = mContext->bumpGeneration();
 }
