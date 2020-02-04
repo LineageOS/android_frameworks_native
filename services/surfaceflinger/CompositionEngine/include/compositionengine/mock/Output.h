@@ -18,7 +18,6 @@
 
 #include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/DisplayColorProfile.h>
-#include <compositionengine/Layer.h>
 #include <compositionengine/LayerFE.h>
 #include <compositionengine/Output.h>
 #include <compositionengine/OutputLayer.h>
@@ -62,14 +61,13 @@ public:
 
     MOCK_CONST_METHOD1(getDirtyRegion, Region(bool));
     MOCK_CONST_METHOD2(belongsInOutput, bool(std::optional<uint32_t>, bool));
-    MOCK_CONST_METHOD1(belongsInOutput, bool(const compositionengine::Layer*));
+    MOCK_CONST_METHOD1(belongsInOutput, bool(const sp<compositionengine::LayerFE>&));
 
     MOCK_CONST_METHOD1(getOutputLayerForLayer,
-                       compositionengine::OutputLayer*(compositionengine::Layer*));
+                       compositionengine::OutputLayer*(const sp<compositionengine::LayerFE>&));
     MOCK_METHOD0(clearOutputLayers, void());
-    MOCK_METHOD2(injectOutputLayerForTest,
-                 compositionengine::OutputLayer*(const std::shared_ptr<compositionengine::Layer>&,
-                                                 const sp<compositionengine::LayerFE>&));
+    MOCK_METHOD1(injectOutputLayerForTest,
+                 compositionengine::OutputLayer*(const sp<compositionengine::LayerFE>&));
     MOCK_CONST_METHOD0(getOutputLayerCount, size_t());
     MOCK_CONST_METHOD1(getOutputLayerOrderedByZByIndex, OutputLayer*(size_t));
 
@@ -84,8 +82,7 @@ public:
                  void(const compositionengine::CompositionRefreshArgs&,
                       compositionengine::Output::CoverageState&));
     MOCK_METHOD2(ensureOutputLayerIfVisible,
-                 void(std::shared_ptr<compositionengine::Layer>,
-                      compositionengine::Output::CoverageState&));
+                 void(sp<compositionengine::LayerFE>&, compositionengine::Output::CoverageState&));
     MOCK_METHOD1(setReleasedLayers, void(const compositionengine::CompositionRefreshArgs&));
 
     MOCK_CONST_METHOD1(updateLayerStateFromFE, void(const CompositionRefreshArgs&));

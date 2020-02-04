@@ -27,7 +27,6 @@
 
 #include <limits>
 
-#include <compositionengine/Layer.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <gui/BufferQueue.h>
 #include <private/gui/SyncFeatures.h>
@@ -464,9 +463,8 @@ bool BufferStateLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
     if (mSidebandStreamChanged.exchange(false)) {
         const State& s(getDrawingState());
         // mSidebandStreamChanged was true
-        LOG_ALWAYS_FATAL_IF(!getCompositionLayer());
         mSidebandStream = s.sidebandStream;
-        getCompositionLayer()->editFEState().sidebandStream = mSidebandStream;
+        editCompositionState()->sidebandStream = mSidebandStream;
         if (mSidebandStream != nullptr) {
             setTransactionFlags(eTransactionNeeded);
             mFlinger->setTransactionFlags(eTraversalNeeded);
@@ -573,8 +571,7 @@ status_t BufferStateLayer::updateActiveBuffer() {
     mPreviousBufferId = getCurrentBufferId();
     mBufferInfo.mBuffer = s.buffer;
     mBufferInfo.mFence = s.acquireFence;
-    auto& layerCompositionState = getCompositionLayer()->editFEState();
-    layerCompositionState.buffer = mBufferInfo.mBuffer;
+    editCompositionState()->buffer = mBufferInfo.mBuffer;
 
     return NO_ERROR;
 }
@@ -590,16 +587,17 @@ status_t BufferStateLayer::updateFrameNumber(nsecs_t latchTime) {
     return NO_ERROR;
 }
 
-void BufferStateLayer::latchPerFrameState(
-        compositionengine::LayerFECompositionState& compositionState) const {
-    BufferLayer::latchPerFrameState(compositionState);
-    if (compositionState.compositionType == Hwc2::IComposerClient::Composition::SIDEBAND) {
+void BufferStateLayer::preparePerFrameCompositionState() {
+    BufferLayer::preparePerFrameCompositionState();
+
+    auto* compositionState = editCompositionState();
+    if (compositionState->compositionType == Hwc2::IComposerClient::Composition::SIDEBAND) {
         return;
     }
 
-    compositionState.buffer = mBufferInfo.mBuffer;
-    compositionState.bufferSlot = mBufferInfo.mBufferSlot;
-    compositionState.acquireFence = mBufferInfo.mFence;
+    compositionState->buffer = mBufferInfo.mBuffer;
+    compositionState->bufferSlot = mBufferInfo.mBufferSlot;
+    compositionState->acquireFence = mBufferInfo.mFence;
 }
 
 void BufferStateLayer::HwcSlotGenerator::bufferErased(const client_cache_t& clientCacheId) {

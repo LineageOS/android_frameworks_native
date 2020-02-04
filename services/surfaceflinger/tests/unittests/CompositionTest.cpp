@@ -842,8 +842,8 @@ struct BaseLayerVariant {
         EXPECT_CALL(*test->mComposer, createLayer(HWC_DISPLAY, _))
                 .WillOnce(DoAll(SetArgPointee<1>(HWC_LAYER), Return(Error::NONE)));
 
-        auto outputLayer = test->mDisplay->getCompositionDisplay()
-                                   ->injectOutputLayerForTest(layer->getCompositionLayer(), layer);
+        auto outputLayer = test->mDisplay->getCompositionDisplay()->injectOutputLayerForTest(
+                layer->getCompositionEngineLayerFE());
         outputLayer->editState().visibleRegion = Region(Rect(0, 0, 100, 100));
         outputLayer->editState().outputSpaceVisibleRegion = Region(Rect(0, 0, 100, 100));
 

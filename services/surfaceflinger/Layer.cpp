@@ -28,7 +28,6 @@
 #include <android-base/stringprintf.h>
 #include <binder/IPCThreadState.h>
 #include <compositionengine/Display.h>
-#include <compositionengine/Layer.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
@@ -415,7 +414,7 @@ void Layer::setupRoundedCornersCropCoordinates(Rect win,
     win.bottom -= roundedCornersCrop.top;
 }
 
-void Layer::latchBasicGeometry(compositionengine::LayerFECompositionState& compositionState) const {
+void Layer::prepareBasicGeometryCompositionState() {
     const auto& drawingState{getDrawingState()};
     const uint32_t layerStack = getLayerStack();
     const auto alpha = static_cast<float>(getAlpha());
@@ -428,31 +427,28 @@ void Layer::latchBasicGeometry(compositionengine::LayerFECompositionState& compo
                                         : Hwc2::IComposerClient::BlendMode::COVERAGE;
     }
 
-    // TODO(b/121291683): Instead of filling in a passed-in compositionState
-    // structure, switch to Layer owning the structure and have
-    // CompositionEngine be able to get a reference to it.
-
-    compositionState.layerStackId =
+    auto* compositionState = editCompositionState();
+    compositionState->layerStackId =
             (layerStack != ~0u) ? std::make_optional(layerStack) : std::nullopt;
-    compositionState.internalOnly = getPrimaryDisplayOnly();
-    compositionState.isVisible = isVisible();
-    compositionState.isOpaque = opaque && !usesRoundedCorners && alpha == 1.f;
-    compositionState.shadowRadius = mEffectiveShadowRadius;
+    compositionState->internalOnly = getPrimaryDisplayOnly();
+    compositionState->isVisible = isVisible();
+    compositionState->isOpaque = opaque && !usesRoundedCorners && alpha == 1.f;
+    compositionState->shadowRadius = mEffectiveShadowRadius;
 
-    compositionState.contentDirty = contentDirty;
+    compositionState->contentDirty = contentDirty;
     contentDirty = false;
 
-    compositionState.geomLayerBounds = mBounds;
-    compositionState.geomLayerTransform = getTransform();
-    compositionState.geomInverseLayerTransform = compositionState.geomLayerTransform.inverse();
-    compositionState.transparentRegionHint = getActiveTransparentRegion(drawingState);
+    compositionState->geomLayerBounds = mBounds;
+    compositionState->geomLayerTransform = getTransform();
+    compositionState->geomInverseLayerTransform = compositionState->geomLayerTransform.inverse();
+    compositionState->transparentRegionHint = getActiveTransparentRegion(drawingState);
 
-    compositionState.blendMode = static_cast<Hwc2::IComposerClient::BlendMode>(blendMode);
-    compositionState.alpha = alpha;
-    compositionState.backgroundBlurRadius = drawingState.backgroundBlurRadius;
+    compositionState->blendMode = static_cast<Hwc2::IComposerClient::BlendMode>(blendMode);
+    compositionState->alpha = alpha;
+    compositionState->backgroundBlurRadius = drawingState.backgroundBlurRadius;
 }
 
-void Layer::latchGeometry(compositionengine::LayerFECompositionState& compositionState) const {
+void Layer::prepareGeometryCompositionState() {
     const auto& drawingState{getDrawingState()};
 
     int type = drawingState.metadata.getInt32(METADATA_WINDOW_TYPE, 0);
@@ -468,45 +464,48 @@ void Layer::latchGeometry(compositionengine::LayerFECompositionState& compositio
         }
     }
 
-    compositionState.geomBufferSize = getBufferSize(drawingState);
-    compositionState.geomContentCrop = getBufferCrop();
-    compositionState.geomCrop = getCrop(drawingState);
-    compositionState.geomBufferTransform = getBufferTransform();
-    compositionState.geomBufferUsesDisplayInverseTransform = getTransformToDisplayInverse();
-    compositionState.geomUsesSourceCrop = usesSourceCrop();
-    compositionState.isSecure = isSecure();
+    auto* compositionState = editCompositionState();
 
-    compositionState.type = type;
-    compositionState.appId = appId;
+    compositionState->geomBufferSize = getBufferSize(drawingState);
+    compositionState->geomContentCrop = getBufferCrop();
+    compositionState->geomCrop = getCrop(drawingState);
+    compositionState->geomBufferTransform = getBufferTransform();
+    compositionState->geomBufferUsesDisplayInverseTransform = getTransformToDisplayInverse();
+    compositionState->geomUsesSourceCrop = usesSourceCrop();
+    compositionState->isSecure = isSecure();
+
+    compositionState->type = type;
+    compositionState->appId = appId;
 }
 
-void Layer::latchPerFrameState(compositionengine::LayerFECompositionState& compositionState) const {
+void Layer::preparePerFrameCompositionState() {
     const auto& drawingState{getDrawingState()};
-    compositionState.forceClientComposition = false;
+    auto* compositionState = editCompositionState();
 
-    compositionState.isColorspaceAgnostic = isColorSpaceAgnostic();
-    compositionState.dataspace = getDataSpace();
-    compositionState.colorTransform = getColorTransform();
-    compositionState.colorTransformIsIdentity = !hasColorTransform();
-    compositionState.surfaceDamage = surfaceDamageRegion;
-    compositionState.hasProtectedContent = isProtected();
+    compositionState->forceClientComposition = false;
+
+    compositionState->isColorspaceAgnostic = isColorSpaceAgnostic();
+    compositionState->dataspace = getDataSpace();
+    compositionState->colorTransform = getColorTransform();
+    compositionState->colorTransformIsIdentity = !hasColorTransform();
+    compositionState->surfaceDamage = surfaceDamageRegion;
+    compositionState->hasProtectedContent = isProtected();
 
     const bool usesRoundedCorners = getRoundedCornerState().radius != 0.f;
     const bool drawsShadows = mEffectiveShadowRadius != 0.f;
 
-    compositionState.isOpaque =
+    compositionState->isOpaque =
             isOpaque(drawingState) && !usesRoundedCorners && getAlpha() == 1.0_hf;
 
     // Force client composition for special cases known only to the front-end.
     if (isHdrY410() || usesRoundedCorners || drawsShadows) {
-        compositionState.forceClientComposition = true;
+        compositionState->forceClientComposition = true;
     }
 }
 
-void Layer::latchCursorCompositionState(
-        compositionengine::LayerFECompositionState& compositionState) const {
-    // This gives us only the "orientation" component of the transform
+void Layer::prepareCursorCompositionState() {
     const State& drawingState{getDrawingState()};
+    auto* compositionState = editCompositionState();
 
     // Apply the layer's transform, followed by the display's global transform
     // Here we're guaranteed that the layer's transform preserves rects
@@ -515,30 +514,50 @@ void Layer::latchCursorCompositionState(
     Rect bounds = reduce(win, getActiveTransparentRegion(drawingState));
     Rect frame(getTransform().transform(bounds));
 
-    compositionState.cursorFrame = frame;
+    compositionState->cursorFrame = frame;
+}
+
+sp<compositionengine::LayerFE> Layer::asLayerFE() const {
+    return const_cast<compositionengine::LayerFE*>(
+            static_cast<const compositionengine::LayerFE*>(this));
+}
+
+sp<compositionengine::LayerFE> Layer::getCompositionEngineLayerFE() const {
+    return nullptr;
+}
+
+compositionengine::LayerFECompositionState* Layer::editCompositionState() {
+    return nullptr;
+}
+
+const compositionengine::LayerFECompositionState* Layer::getCompositionState() const {
+    return nullptr;
 }
 
 bool Layer::onPreComposition(nsecs_t) {
     return false;
 }
 
-void Layer::latchCompositionState(compositionengine::LayerFECompositionState& compositionState,
-                                  compositionengine::LayerFE::StateSubset subset) const {
+void Layer::prepareCompositionState(compositionengine::LayerFE::StateSubset subset) {
     using StateSubset = compositionengine::LayerFE::StateSubset;
 
     switch (subset) {
         case StateSubset::BasicGeometry:
-            latchBasicGeometry(compositionState);
+            prepareBasicGeometryCompositionState();
             break;
 
         case StateSubset::GeometryAndContent:
-            latchBasicGeometry(compositionState);
-            latchGeometry(compositionState);
-            latchPerFrameState(compositionState);
+            prepareBasicGeometryCompositionState();
+            prepareGeometryCompositionState();
+            preparePerFrameCompositionState();
             break;
 
         case StateSubset::Content:
-            latchPerFrameState(compositionState);
+            preparePerFrameCompositionState();
+            break;
+
+        case StateSubset::Cursor:
+            prepareCursorCompositionState();
             break;
     }
 }
@@ -553,7 +572,7 @@ const char* Layer::getDebugName() const {
 
 std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareClientComposition(
         compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) {
-    if (!getCompositionLayer()) {
+    if (!getCompositionState()) {
         return {};
     }
 
@@ -1418,7 +1437,7 @@ void Layer::miniDump(std::string& result, const sp<DisplayDevice>& displayDevice
     StringAppendF(&result, " %s\n", name.c_str());
 
     const State& layerState(getDrawingState());
-    const auto& compositionState = outputLayer->getState();
+    const auto& outputLayerState = outputLayer->getState();
 
     if (layerState.zOrderRelativeOf != nullptr || mDrawingParent != nullptr) {
         StringAppendF(&result, "  rel %6d | ", layerState.z);
@@ -1427,13 +1446,10 @@ void Layer::miniDump(std::string& result, const sp<DisplayDevice>& displayDevice
     }
     StringAppendF(&result, "  %10d | ", mWindowType);
     StringAppendF(&result, "%10s | ", toString(getCompositionType(displayDevice)).c_str());
-    StringAppendF(&result, "%10s | ",
-                  toString(getCompositionLayer() ? compositionState.bufferTransform
-                                                 : static_cast<Hwc2::Transform>(0))
-                          .c_str());
-    const Rect& frame = compositionState.displayFrame;
+    StringAppendF(&result, "%10s | ", toString(outputLayerState.bufferTransform).c_str());
+    const Rect& frame = outputLayerState.displayFrame;
     StringAppendF(&result, "%4d %4d %4d %4d | ", frame.left, frame.top, frame.right, frame.bottom);
-    const FloatRect& crop = compositionState.sourceCrop;
+    const FloatRect& crop = outputLayerState.sourceCrop;
     StringAppendF(&result, "%6.1f %6.1f %6.1f %6.1f\n", crop.left, crop.top, crop.right,
                   crop.bottom);
 
@@ -2210,17 +2226,13 @@ bool Layer::hasInput() const {
     return mDrawingState.inputInfo.token != nullptr;
 }
 
-std::shared_ptr<compositionengine::Layer> Layer::getCompositionLayer() const {
-    return nullptr;
-}
-
 bool Layer::canReceiveInput() const {
     return !isHiddenByPolicy();
 }
 
 compositionengine::OutputLayer* Layer::findOutputLayerForDisplay(
         const sp<const DisplayDevice>& display) const {
-    return display->getCompositionDisplay()->getOutputLayerForLayer(getCompositionLayer().get());
+    return display->getCompositionDisplay()->getOutputLayerForLayer(getCompositionEngineLayerFE());
 }
 
 Region Layer::debugGetVisibleRegionOnDefaultDisplay() const {

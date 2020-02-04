@@ -29,8 +29,6 @@
 #include <sys/types.h>
 
 #include <compositionengine/CompositionEngine.h>
-#include <compositionengine/Layer.h>
-#include <compositionengine/LayerCreationArgs.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <renderengine/RenderEngine.h>
 #include <ui/GraphicBuffer.h>
@@ -45,8 +43,7 @@ namespace android {
 
 ColorLayer::ColorLayer(const LayerCreationArgs& args)
       : Layer(args),
-        mCompositionLayer{mFlinger->getCompositionEngine().createLayer(
-                compositionengine::LayerCreationArgs{this})} {}
+        mCompositionState{mFlinger->getCompositionEngine().createLayerFECompositionState()} {}
 
 ColorLayer::~ColorLayer() = default;
 
@@ -91,16 +88,24 @@ bool ColorLayer::setDataspace(ui::Dataspace dataspace) {
     return true;
 }
 
-void ColorLayer::latchPerFrameState(
-        compositionengine::LayerFECompositionState& compositionState) const {
-    Layer::latchPerFrameState(compositionState);
+void ColorLayer::preparePerFrameCompositionState() {
+    Layer::preparePerFrameCompositionState();
 
-    compositionState.color = getColor();
-    compositionState.compositionType = Hwc2::IComposerClient::Composition::SOLID_COLOR;
+    auto* compositionState = editCompositionState();
+    compositionState->color = getColor();
+    compositionState->compositionType = Hwc2::IComposerClient::Composition::SOLID_COLOR;
 }
 
-std::shared_ptr<compositionengine::Layer> ColorLayer::getCompositionLayer() const {
-    return mCompositionLayer;
+sp<compositionengine::LayerFE> ColorLayer::getCompositionEngineLayerFE() const {
+    return asLayerFE();
+}
+
+compositionengine::LayerFECompositionState* ColorLayer::editCompositionState() {
+    return mCompositionState.get();
+}
+
+const compositionengine::LayerFECompositionState* ColorLayer::getCompositionState() const {
+    return mCompositionState.get();
 }
 
 bool ColorLayer::isOpaque(const Layer::State& s) const {

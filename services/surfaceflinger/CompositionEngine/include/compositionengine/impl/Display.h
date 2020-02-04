@@ -73,8 +73,7 @@ public:
     virtual void applyLayerRequestsToLayers(const LayerRequests&);
 
     // Internal
-    std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(
-            const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&) const;
+    std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(const sp<LayerFE>&) const;
 
 private:
     const bool mIsVirtual;

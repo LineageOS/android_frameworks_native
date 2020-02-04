@@ -85,7 +85,7 @@ private:
     status_t updateActiveBuffer() override;
     status_t updateFrameNumber(nsecs_t latchTime) override;
 
-    void latchPerFrameState(compositionengine::LayerFECompositionState&) const override;
+    void preparePerFrameCompositionState() override;
     sp<Layer> createClone() override;
 
     void onFrameAvailable(const BufferItem& item);

@@ -60,10 +60,9 @@ public:
 
     Region getDirtyRegion(bool repaintEverything) const override;
     bool belongsInOutput(std::optional<uint32_t>, bool) const override;
-    bool belongsInOutput(const compositionengine::Layer*) const override;
+    bool belongsInOutput(const sp<LayerFE>&) const override;
 
-    compositionengine::OutputLayer* getOutputLayerForLayer(
-            compositionengine::Layer*) const override;
+    compositionengine::OutputLayer* getOutputLayerForLayer(const sp<LayerFE>&) const override;
 
     void setReleasedLayers(ReleasedLayers&&) override;
 
@@ -73,7 +72,7 @@ public:
     void rebuildLayerStacks(const CompositionRefreshArgs&, LayerFESet&) override;
     void collectVisibleLayers(const CompositionRefreshArgs&,
                               compositionengine::Output::CoverageState&) override;
-    void ensureOutputLayerIfVisible(std::shared_ptr<compositionengine::Layer>,
+    void ensureOutputLayerIfVisible(sp<compositionengine::LayerFE>&,
                                     compositionengine::Output::CoverageState&) override;
     void setReleasedLayers(const compositionengine::CompositionRefreshArgs&) override;
 
@@ -94,9 +93,9 @@ public:
     void setRenderSurfaceForTest(std::unique_ptr<compositionengine::RenderSurface>);
 
 protected:
-    std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(
-            const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&) const;
-    std::optional<size_t> findCurrentOutputLayerForLayer(compositionengine::Layer*) const;
+    std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(const sp<LayerFE>&) const;
+    std::optional<size_t> findCurrentOutputLayerForLayer(
+            const sp<compositionengine::LayerFE>&) const;
     void chooseCompositionStrategy() override;
     bool getSkipColorTransform() const override;
     compositionengine::Output::FrameFences presentAndGetFrameFences() override;
@@ -108,11 +107,9 @@ protected:
     void dumpBase(std::string&) const;
 
     // Implemented by the final implementation for the final state it uses.
-    virtual compositionengine::OutputLayer* ensureOutputLayer(
-            std::optional<size_t>, const std::shared_ptr<compositionengine::Layer>&,
-            const sp<LayerFE>&) = 0;
-    virtual compositionengine::OutputLayer* injectOutputLayerForTest(
-            const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&) = 0;
+    virtual compositionengine::OutputLayer* ensureOutputLayer(std::optional<size_t>,
+                                                              const sp<LayerFE>&) = 0;
+    virtual compositionengine::OutputLayer* injectOutputLayerForTest(const sp<LayerFE>&) = 0;
     virtual void finalizePendingOutputLayers() = 0;
     virtual const compositionengine::CompositionEngine& getCompositionEngine() const = 0;
     virtual void dumpState(std::string& out) const = 0;
@@ -181,11 +178,10 @@ std::shared_ptr<BaseOutput> createOutputTemplated(const CompositionEngine& compo
         };
 
         OutputLayer* ensureOutputLayer(std::optional<size_t> prevIndex,
-                                       const std::shared_ptr<compositionengine::Layer>& layer,
                                        const sp<LayerFE>& layerFE) {
             auto outputLayer = (prevIndex && *prevIndex <= mCurrentOutputLayersOrderedByZ.size())
                     ? std::move(mCurrentOutputLayersOrderedByZ[*prevIndex])
-                    : BaseOutput::createOutputLayer(layer, layerFE);
+                    : BaseOutput::createOutputLayer(layerFE);
             auto result = outputLayer.get();
             mPendingOutputLayersOrderedByZ.emplace_back(std::move(outputLayer));
             return result;
@@ -202,10 +198,8 @@ std::shared_ptr<BaseOutput> createOutputTemplated(const CompositionEngine& compo
 
         void dumpState(std::string& out) const override { mState.dump(out); }
 
-        OutputLayer* injectOutputLayerForTest(
-                const std::shared_ptr<compositionengine::Layer>& layer,
-                const sp<LayerFE>& layerFE) override {
-            auto outputLayer = BaseOutput::createOutputLayer(layer, layerFE);
+        OutputLayer* injectOutputLayerForTest(const sp<LayerFE>& layerFE) override {
+            auto outputLayer = BaseOutput::createOutputLayer(layerFE);
             auto result = outputLayer.get();
             mCurrentOutputLayersOrderedByZ.emplace_back(std::move(outputLayer));
             return result;

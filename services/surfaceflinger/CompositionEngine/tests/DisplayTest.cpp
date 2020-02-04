@@ -25,7 +25,6 @@
 #include <compositionengine/mock/CompositionEngine.h>
 #include <compositionengine/mock/DisplayColorProfile.h>
 #include <compositionengine/mock/DisplaySurface.h>
-#include <compositionengine/mock/Layer.h>
 #include <compositionengine/mock/LayerFE.h>
 #include <compositionengine/mock/NativeWindow.h>
 #include <compositionengine/mock/OutputLayer.h>
@@ -53,6 +52,27 @@ constexpr DisplayId DEFAULT_DISPLAY_ID = DisplayId{42};
 constexpr int32_t DEFAULT_DISPLAY_WIDTH = 1920;
 constexpr int32_t DEFAULT_DISPLAY_HEIGHT = 1080;
 
+struct Layer {
+    Layer() {
+        EXPECT_CALL(*outputLayer, getLayerFE()).WillRepeatedly(ReturnRef(*layerFE));
+        EXPECT_CALL(*outputLayer, getHwcLayer()).WillRepeatedly(Return(&hwc2Layer));
+    }
+
+    sp<mock::LayerFE> layerFE = new StrictMock<mock::LayerFE>();
+    StrictMock<mock::OutputLayer>* outputLayer = new StrictMock<mock::OutputLayer>();
+    StrictMock<HWC2::mock::Layer> hwc2Layer;
+};
+
+struct LayerNoHWC2Layer {
+    LayerNoHWC2Layer() {
+        EXPECT_CALL(*outputLayer, getLayerFE()).WillRepeatedly(ReturnRef(*layerFE));
+        EXPECT_CALL(*outputLayer, getHwcLayer()).WillRepeatedly(Return(nullptr));
+    }
+
+    sp<mock::LayerFE> layerFE = new StrictMock<mock::LayerFE>();
+    StrictMock<mock::OutputLayer>* outputLayer = new StrictMock<mock::OutputLayer>();
+};
+
 struct DisplayTest : public testing::Test {
     class Display : public impl::Display {
     public:
@@ -71,28 +91,24 @@ struct DisplayTest : public testing::Test {
 
     DisplayTest() {
         EXPECT_CALL(mCompositionEngine, getHwComposer()).WillRepeatedly(ReturnRef(mHwComposer));
-        EXPECT_CALL(*mLayer1, getHwcLayer()).WillRepeatedly(Return(&mHWC2Layer1));
-        EXPECT_CALL(*mLayer2, getHwcLayer()).WillRepeatedly(Return(&mHWC2Layer2));
-        EXPECT_CALL(*mLayer3, getHwcLayer()).WillRepeatedly(Return(nullptr));
 
         mDisplay->injectOutputLayerForTest(
-                std::unique_ptr<compositionengine::OutputLayer>(mLayer1));
+                std::unique_ptr<compositionengine::OutputLayer>(mLayer1.outputLayer));
         mDisplay->injectOutputLayerForTest(
-                std::unique_ptr<compositionengine::OutputLayer>(mLayer2));
+                std::unique_ptr<compositionengine::OutputLayer>(mLayer2.outputLayer));
         mDisplay->injectOutputLayerForTest(
-                std::unique_ptr<compositionengine::OutputLayer>(mLayer3));
+                std::unique_ptr<compositionengine::OutputLayer>(mLayer3.outputLayer));
     }
 
     StrictMock<android::mock::HWComposer> mHwComposer;
     StrictMock<Hwc2::mock::PowerAdvisor> mPowerAdvisor;
     StrictMock<mock::CompositionEngine> mCompositionEngine;
     sp<mock::NativeWindow> mNativeWindow = new StrictMock<mock::NativeWindow>();
-    StrictMock<HWC2::mock::Layer> mHWC2Layer1;
-    StrictMock<HWC2::mock::Layer> mHWC2Layer2;
-    StrictMock<HWC2::mock::Layer> mHWC2LayerUnknown;
-    mock::OutputLayer* mLayer1 = new StrictMock<mock::OutputLayer>();
-    mock::OutputLayer* mLayer2 = new StrictMock<mock::OutputLayer>();
-    mock::OutputLayer* mLayer3 = new StrictMock<mock::OutputLayer>();
+    Layer mLayer1;
+    Layer mLayer2;
+    LayerNoHWC2Layer mLayer3;
+    StrictMock<HWC2::mock::Layer> hwc2LayerUnknown;
+
     std::shared_ptr<Display> mDisplay = createDisplay(mCompositionEngine,
                                                       DisplayCreationArgsBuilder()
                                                               .setDisplayId(DEFAULT_DISPLAY_ID)
@@ -283,12 +299,11 @@ TEST_F(DisplayTest, createRenderSurfaceSetsRenderSurface) {
 
 TEST_F(DisplayTest, createOutputLayerSetsHwcLayer) {
     sp<mock::LayerFE> layerFE = new StrictMock<mock::LayerFE>();
-    auto layer = std::make_shared<StrictMock<mock::Layer>>();
     StrictMock<HWC2::mock::Layer> hwcLayer;
 
     EXPECT_CALL(mHwComposer, createLayer(DEFAULT_DISPLAY_ID)).WillOnce(Return(&hwcLayer));
 
-    auto outputLayer = mDisplay->createOutputLayer(layer, layerFE);
+    auto outputLayer = mDisplay->createOutputLayer(layerFE);
 
     EXPECT_EQ(&hwcLayer, outputLayer->getHwcLayer());
 
@@ -305,7 +320,6 @@ TEST_F(DisplayTest, setReleasedLayersDoesNothingIfNotHwcDisplay) {
             impl::createDisplay(mCompositionEngine, DisplayCreationArgsBuilder().build())};
 
     sp<mock::LayerFE> layerXLayerFE = new StrictMock<mock::LayerFE>();
-    mock::Layer layerXLayer;
 
     {
         Output::ReleasedLayers releasedLayers;
@@ -314,7 +328,7 @@ TEST_F(DisplayTest, setReleasedLayersDoesNothingIfNotHwcDisplay) {
     }
 
     CompositionRefreshArgs refreshArgs;
-    refreshArgs.layersWithQueuedFrames.push_back(&layerXLayer);
+    refreshArgs.layersWithQueuedFrames.push_back(layerXLayerFE);
 
     nonHwcDisplay->setReleasedLayers(refreshArgs);
 
@@ -339,34 +353,19 @@ TEST_F(DisplayTest, setReleasedLayersDoesNothingIfNoLayersWithQueuedFrames) {
 }
 
 TEST_F(DisplayTest, setReleasedLayers) {
-    sp<mock::LayerFE> layer1LayerFE = new StrictMock<mock::LayerFE>();
-    sp<mock::LayerFE> layer2LayerFE = new StrictMock<mock::LayerFE>();
-    sp<mock::LayerFE> layer3LayerFE = new StrictMock<mock::LayerFE>();
-    sp<mock::LayerFE> layerXLayerFE = new StrictMock<mock::LayerFE>();
-    mock::Layer layer1Layer;
-    mock::Layer layer2Layer;
-    mock::Layer layer3Layer;
-    mock::Layer layerXLayer;
-
-    EXPECT_CALL(*mLayer1, getLayer()).WillRepeatedly(ReturnRef(layer1Layer));
-    EXPECT_CALL(*mLayer1, getLayerFE()).WillRepeatedly(ReturnRef(*layer1LayerFE.get()));
-    EXPECT_CALL(*mLayer2, getLayer()).WillRepeatedly(ReturnRef(layer2Layer));
-    EXPECT_CALL(*mLayer2, getLayerFE()).WillRepeatedly(ReturnRef(*layer2LayerFE.get()));
-    EXPECT_CALL(*mLayer3, getLayer()).WillRepeatedly(ReturnRef(layer3Layer));
-    EXPECT_CALL(*mLayer3, getLayerFE()).WillRepeatedly(ReturnRef(*layer3LayerFE.get()));
+    sp<mock::LayerFE> unknownLayer = new StrictMock<mock::LayerFE>();
 
     CompositionRefreshArgs refreshArgs;
-    refreshArgs.layersWithQueuedFrames.push_back(&layer1Layer);
-    refreshArgs.layersWithQueuedFrames.push_back(&layer2Layer);
-    refreshArgs.layersWithQueuedFrames.push_back(&layerXLayer);
-    refreshArgs.layersWithQueuedFrames.push_back(nullptr);
+    refreshArgs.layersWithQueuedFrames.push_back(mLayer1.layerFE);
+    refreshArgs.layersWithQueuedFrames.push_back(mLayer2.layerFE);
+    refreshArgs.layersWithQueuedFrames.push_back(unknownLayer);
 
     mDisplay->setReleasedLayers(refreshArgs);
 
     const auto& releasedLayers = mDisplay->getReleasedLayersForTest();
     ASSERT_EQ(2, releasedLayers.size());
-    ASSERT_EQ(layer1LayerFE.get(), releasedLayers[0].promote().get());
-    ASSERT_EQ(layer2LayerFE.get(), releasedLayers[1].promote().get());
+    ASSERT_EQ(mLayer1.layerFE.get(), releasedLayers[0].promote().get());
+    ASSERT_EQ(mLayer2.layerFE.get(), releasedLayers[1].promote().get());
 }
 
 /*
@@ -400,16 +399,12 @@ struct DisplayChooseCompositionStrategyTest : public testing::Test {
         MOCK_CONST_METHOD0(getOutputLayerCount, size_t());
         MOCK_CONST_METHOD1(getOutputLayerOrderedByZByIndex,
                            compositionengine::OutputLayer*(size_t));
-        MOCK_METHOD3(ensureOutputLayer,
-                     compositionengine::OutputLayer*(
-                             std::optional<size_t>,
-                             const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&));
+        MOCK_METHOD2(ensureOutputLayer,
+                     compositionengine::OutputLayer*(std::optional<size_t>, const sp<LayerFE>&));
         MOCK_METHOD0(finalizePendingOutputLayers, void());
         MOCK_METHOD0(clearOutputLayers, void());
         MOCK_CONST_METHOD1(dumpState, void(std::string&));
-        MOCK_METHOD2(injectOutputLayerForTest,
-                     compositionengine::OutputLayer*(
-                             const std::shared_ptr<compositionengine::Layer>&, const sp<LayerFE>&));
+        MOCK_METHOD1(injectOutputLayerForTest, compositionengine::OutputLayer*(const sp<LayerFE>&));
         MOCK_METHOD1(injectOutputLayerForTest, void(std::unique_ptr<OutputLayer>));
 
         const compositionengine::CompositionEngine& mCompositionEngine;
@@ -523,16 +518,16 @@ TEST_F(DisplayTest, getSkipColorTransformChecksHwcCapability) {
  */
 
 TEST_F(DisplayTest, anyLayersRequireClientCompositionReturnsFalse) {
-    EXPECT_CALL(*mLayer1, requiresClientComposition()).WillOnce(Return(false));
-    EXPECT_CALL(*mLayer2, requiresClientComposition()).WillOnce(Return(false));
-    EXPECT_CALL(*mLayer3, requiresClientComposition()).WillOnce(Return(false));
+    EXPECT_CALL(*mLayer1.outputLayer, requiresClientComposition()).WillOnce(Return(false));
+    EXPECT_CALL(*mLayer2.outputLayer, requiresClientComposition()).WillOnce(Return(false));
+    EXPECT_CALL(*mLayer3.outputLayer, requiresClientComposition()).WillOnce(Return(false));
 
     EXPECT_FALSE(mDisplay->anyLayersRequireClientComposition());
 }
 
 TEST_F(DisplayTest, anyLayersRequireClientCompositionReturnsTrue) {
-    EXPECT_CALL(*mLayer1, requiresClientComposition()).WillOnce(Return(false));
-    EXPECT_CALL(*mLayer2, requiresClientComposition()).WillOnce(Return(true));
+    EXPECT_CALL(*mLayer1.outputLayer, requiresClientComposition()).WillOnce(Return(false));
+    EXPECT_CALL(*mLayer2.outputLayer, requiresClientComposition()).WillOnce(Return(true));
 
     EXPECT_TRUE(mDisplay->anyLayersRequireClientComposition());
 }
@@ -542,16 +537,16 @@ TEST_F(DisplayTest, anyLayersRequireClientCompositionReturnsTrue) {
  */
 
 TEST_F(DisplayTest, allLayersRequireClientCompositionReturnsTrue) {
-    EXPECT_CALL(*mLayer1, requiresClientComposition()).WillOnce(Return(true));
-    EXPECT_CALL(*mLayer2, requiresClientComposition()).WillOnce(Return(true));
-    EXPECT_CALL(*mLayer3, requiresClientComposition()).WillOnce(Return(true));
+    EXPECT_CALL(*mLayer1.outputLayer, requiresClientComposition()).WillOnce(Return(true));
+    EXPECT_CALL(*mLayer2.outputLayer, requiresClientComposition()).WillOnce(Return(true));
+    EXPECT_CALL(*mLayer3.outputLayer, requiresClientComposition()).WillOnce(Return(true));
 
     EXPECT_TRUE(mDisplay->allLayersRequireClientComposition());
 }
 
 TEST_F(DisplayTest, allLayersRequireClientCompositionReturnsFalse) {
-    EXPECT_CALL(*mLayer1, requiresClientComposition()).WillOnce(Return(true));
-    EXPECT_CALL(*mLayer2, requiresClientComposition()).WillOnce(Return(false));
+    EXPECT_CALL(*mLayer1.outputLayer, requiresClientComposition()).WillOnce(Return(true));
+    EXPECT_CALL(*mLayer2.outputLayer, requiresClientComposition()).WillOnce(Return(false));
 
     EXPECT_FALSE(mDisplay->allLayersRequireClientComposition());
 }
@@ -565,17 +560,17 @@ TEST_F(DisplayTest, applyChangedTypesToLayersTakesEarlyOutIfNoChangedLayers) {
 }
 
 TEST_F(DisplayTest, applyChangedTypesToLayersAppliesChanges) {
-    EXPECT_CALL(*mLayer1,
+    EXPECT_CALL(*mLayer1.outputLayer,
                 applyDeviceCompositionTypeChange(Hwc2::IComposerClient::Composition::CLIENT))
             .Times(1);
-    EXPECT_CALL(*mLayer2,
+    EXPECT_CALL(*mLayer2.outputLayer,
                 applyDeviceCompositionTypeChange(Hwc2::IComposerClient::Composition::DEVICE))
             .Times(1);
 
     mDisplay->applyChangedTypesToLayers(impl::Display::ChangedTypes{
-            {&mHWC2Layer1, HWC2::Composition::Client},
-            {&mHWC2Layer2, HWC2::Composition::Device},
-            {&mHWC2LayerUnknown, HWC2::Composition::SolidColor},
+            {&mLayer1.hwc2Layer, HWC2::Composition::Client},
+            {&mLayer2.hwc2Layer, HWC2::Composition::Device},
+            {&hwc2LayerUnknown, HWC2::Composition::SolidColor},
     });
 }
 
@@ -616,25 +611,25 @@ TEST_F(DisplayTest, applyDisplayRequestsToLayersHandlesAllRequestFlagsSet) {
  */
 
 TEST_F(DisplayTest, applyLayerRequestsToLayersPreparesAllLayers) {
-    EXPECT_CALL(*mLayer1, prepareForDeviceLayerRequests()).Times(1);
-    EXPECT_CALL(*mLayer2, prepareForDeviceLayerRequests()).Times(1);
-    EXPECT_CALL(*mLayer3, prepareForDeviceLayerRequests()).Times(1);
+    EXPECT_CALL(*mLayer1.outputLayer, prepareForDeviceLayerRequests()).Times(1);
+    EXPECT_CALL(*mLayer2.outputLayer, prepareForDeviceLayerRequests()).Times(1);
+    EXPECT_CALL(*mLayer3.outputLayer, prepareForDeviceLayerRequests()).Times(1);
 
     mDisplay->applyLayerRequestsToLayers(impl::Display::LayerRequests());
 }
 
 TEST_F(DisplayTest, applyLayerRequestsToLayers2) {
-    EXPECT_CALL(*mLayer1, prepareForDeviceLayerRequests()).Times(1);
-    EXPECT_CALL(*mLayer2, prepareForDeviceLayerRequests()).Times(1);
-    EXPECT_CALL(*mLayer3, prepareForDeviceLayerRequests()).Times(1);
+    EXPECT_CALL(*mLayer1.outputLayer, prepareForDeviceLayerRequests()).Times(1);
+    EXPECT_CALL(*mLayer2.outputLayer, prepareForDeviceLayerRequests()).Times(1);
+    EXPECT_CALL(*mLayer3.outputLayer, prepareForDeviceLayerRequests()).Times(1);
 
-    EXPECT_CALL(*mLayer1,
+    EXPECT_CALL(*mLayer1.outputLayer,
                 applyDeviceLayerRequest(Hwc2::IComposerClient::LayerRequest::CLEAR_CLIENT_TARGET))
             .Times(1);
 
     mDisplay->applyLayerRequestsToLayers(impl::Display::LayerRequests{
-            {&mHWC2Layer1, HWC2::LayerRequest::ClearClientTarget},
-            {&mHWC2LayerUnknown, HWC2::LayerRequest::ClearClientTarget},
+            {&mLayer1.hwc2Layer, HWC2::LayerRequest::ClearClientTarget},
+            {&hwc2LayerUnknown, HWC2::LayerRequest::ClearClientTarget},
     });
 }
 
@@ -660,9 +655,9 @@ TEST_F(DisplayTest, presentAndGetFrameFencesReturnsPresentAndLayerFences) {
 
     EXPECT_CALL(mHwComposer, presentAndGetReleaseFences(DEFAULT_DISPLAY_ID)).Times(1);
     EXPECT_CALL(mHwComposer, getPresentFence(DEFAULT_DISPLAY_ID)).WillOnce(Return(presentFence));
-    EXPECT_CALL(mHwComposer, getLayerReleaseFence(DEFAULT_DISPLAY_ID, &mHWC2Layer1))
+    EXPECT_CALL(mHwComposer, getLayerReleaseFence(DEFAULT_DISPLAY_ID, &mLayer1.hwc2Layer))
             .WillOnce(Return(layer1Fence));
-    EXPECT_CALL(mHwComposer, getLayerReleaseFence(DEFAULT_DISPLAY_ID, &mHWC2Layer2))
+    EXPECT_CALL(mHwComposer, getLayerReleaseFence(DEFAULT_DISPLAY_ID, &mLayer2.hwc2Layer))
             .WillOnce(Return(layer2Fence));
     EXPECT_CALL(mHwComposer, clearReleaseFences(DEFAULT_DISPLAY_ID)).Times(1);
 
@@ -671,10 +666,10 @@ TEST_F(DisplayTest, presentAndGetFrameFencesReturnsPresentAndLayerFences) {
     EXPECT_EQ(presentFence, result.presentFence);
 
     EXPECT_EQ(2u, result.layerFences.size());
-    ASSERT_EQ(1, result.layerFences.count(&mHWC2Layer1));
-    EXPECT_EQ(layer1Fence, result.layerFences[&mHWC2Layer1]);
-    ASSERT_EQ(1, result.layerFences.count(&mHWC2Layer2));
-    EXPECT_EQ(layer2Fence, result.layerFences[&mHWC2Layer2]);
+    ASSERT_EQ(1, result.layerFences.count(&mLayer1.hwc2Layer));
+    EXPECT_EQ(layer1Fence, result.layerFences[&mLayer1.hwc2Layer]);
+    ASSERT_EQ(1, result.layerFences.count(&mLayer2.hwc2Layer));
+    EXPECT_EQ(layer2Fence, result.layerFences[&mLayer2.hwc2Layer]);
 }
 
 /*
