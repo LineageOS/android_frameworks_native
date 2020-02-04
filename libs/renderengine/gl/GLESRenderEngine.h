@@ -262,7 +262,7 @@ private:
     friend class GLFramebuffer;
     friend class BlurFilter;
     friend class GaussianBlurFilter;
-    friend class LensBlurFilter;
+    friend class KawaseBlurFilter;
     friend class GenericProgram;
     std::unique_ptr<FlushTracer> mFlushTracer;
     std::unique_ptr<ImageManager> mImageManager = std::make_unique<ImageManager>(this);
