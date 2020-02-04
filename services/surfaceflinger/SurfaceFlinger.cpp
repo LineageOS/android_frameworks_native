@@ -228,6 +228,7 @@ Dataspace SurfaceFlinger::defaultCompositionDataspace = Dataspace::V0_SRGB;
 ui::PixelFormat SurfaceFlinger::defaultCompositionPixelFormat = ui::PixelFormat::RGBA_8888;
 Dataspace SurfaceFlinger::wideColorGamutCompositionDataspace = Dataspace::V0_SRGB;
 ui::PixelFormat SurfaceFlinger::wideColorGamutCompositionPixelFormat = ui::PixelFormat::RGBA_8888;
+bool SurfaceFlinger::useFrameRateApi;
 
 std::string getHwcServiceName() {
     char value[PROPERTY_VALUE_MAX] = {};
@@ -387,6 +388,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
         // for production purposes later on.
         setenv("TREBLE_TESTING_OVERRIDE", "true", true);
     }
+
+    useFrameRateApi = use_frame_rate_api(true);
 }
 
 void SurfaceFlinger::onFirstRef()

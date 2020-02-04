@@ -87,6 +87,8 @@ bool enable_protected_contents(bool defaultValue);
 
 bool support_kernel_idle_timer(bool defaultValue);
 
+bool use_frame_rate_api(bool defaultValue);
+
 android::ui::DisplayPrimaries getDisplayNativePrimaries();
 } // namespace sysprop
 } // namespace android
