@@ -555,12 +555,6 @@ void SurfaceFlinger::bootFinished()
         readPersistentProperties();
         mBootStage = BootStage::FINISHED;
 
-        if (mRefreshRateConfigs->refreshRateSwitchingSupported()) {
-            // set the refresh rate according to the policy
-            const auto& performanceRefreshRate = mRefreshRateConfigs->getMaxRefreshRateByPolicy();
-            changeRefreshRateLocked(performanceRefreshRate, Scheduler::ConfigEvent::None);
-        }
-
         if (property_get_bool("sf.debug.show_refresh_rate_overlay", false)) {
             mRefreshRateOverlay = std::make_unique<RefreshRateOverlay>(*this);
             mRefreshRateOverlay->changeRefreshRate(mRefreshRateConfigs->getCurrentRefreshRate());
@@ -2719,8 +2713,7 @@ void SurfaceFlinger::initScheduler(DisplayId primaryDisplayId) {
 
     auto currentConfig = HwcConfigIndexType(getHwComposer().getActiveConfigIndex(primaryDisplayId));
     mRefreshRateConfigs =
-            std::make_unique<scheduler::RefreshRateConfigs>(refresh_rate_switching(false),
-                                                            getHwComposer().getConfigs(
+            std::make_unique<scheduler::RefreshRateConfigs>(getHwComposer().getConfigs(
                                                                     primaryDisplayId),
                                                             currentConfig);
     mRefreshRateStats =
@@ -5700,26 +5693,19 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(const sp<DisplayDe
     mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value,
                                 display->getActiveConfig(), vsyncPeriod);
 
-    if (mRefreshRateConfigs->refreshRateSwitchingSupported()) {
-        auto configId = mScheduler->getPreferredConfigId();
-        auto preferredRefreshRate = configId
-                ? mRefreshRateConfigs->getRefreshRateFromConfigId(*configId)
-                : mRefreshRateConfigs->getMinRefreshRateByPolicy();
-        ALOGV("trying to switch to Scheduler preferred config %d (%s)",
-              preferredRefreshRate.configId.value(), preferredRefreshRate.name.c_str());
-        if (isDisplayConfigAllowed(preferredRefreshRate.configId)) {
-            ALOGV("switching to Scheduler preferred config %d",
-                  preferredRefreshRate.configId.value());
-            setDesiredActiveConfig(
-                    {preferredRefreshRate.configId, Scheduler::ConfigEvent::Changed});
-        } else {
-            // Set the highest allowed config
-            setDesiredActiveConfig({mRefreshRateConfigs->getMaxRefreshRateByPolicy().configId,
-                                    Scheduler::ConfigEvent::Changed});
-        }
+    auto configId = mScheduler->getPreferredConfigId();
+    auto preferredRefreshRate = configId
+            ? mRefreshRateConfigs->getRefreshRateFromConfigId(*configId)
+            // NOTE: Choose the default config ID, if Scheduler doesn't have one in mind.
+            : mRefreshRateConfigs->getRefreshRateFromConfigId(defaultConfig);
+    ALOGV("trying to switch to Scheduler preferred config %d (%s)",
+          preferredRefreshRate.configId.value(), preferredRefreshRate.name.c_str());
+
+    if (isDisplayConfigAllowed(preferredRefreshRate.configId)) {
+        ALOGV("switching to Scheduler preferred config %d", preferredRefreshRate.configId.value());
+        setDesiredActiveConfig({preferredRefreshRate.configId, Scheduler::ConfigEvent::Changed});
     } else {
-        ALOGV("switching to config %d", defaultConfig.value());
-        setDesiredActiveConfig({defaultConfig, Scheduler::ConfigEvent::Changed});
+        LOG_ALWAYS_FATAL("Desired config not allowed: %d", preferredRefreshRate.configId.value());
     }
 
     return NO_ERROR;
