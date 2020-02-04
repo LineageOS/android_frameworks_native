@@ -32,11 +32,12 @@ public:
     GpuStats() = default;
     ~GpuStats() = default;
 
-    // Insert new gpu stats into global stats and app stats.
-    void insert(const std::string& driverPackageName, const std::string& driverVersionName,
-                uint64_t driverVersionCode, int64_t driverBuildTime,
-                const std::string& appPackageName, const int32_t vulkanVersion,
-                GpuStatsInfo::Driver driver, bool isDriverLoaded, int64_t driverLoadingTime);
+    // Insert new gpu driver stats into global stats and app stats.
+    void insertDriverStats(const std::string& driverPackageName,
+                           const std::string& driverVersionName, uint64_t driverVersionCode,
+                           int64_t driverBuildTime, const std::string& appPackageName,
+                           const int32_t vulkanVersion, GpuStatsInfo::Driver driver,
+                           bool isDriverLoaded, int64_t driverLoadingTime);
     // Insert target stats into app stats or potentially global stats as well.
     void insertTargetStats(const std::string& appPackageName, const uint64_t driverVersionCode,
                            const GpuStatsInfo::Stats stats, const uint64_t value);
