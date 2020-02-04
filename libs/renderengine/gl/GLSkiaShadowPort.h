@@ -17,13 +17,11 @@
 #pragma once
 
 #include <math/vec4.h>
+#include <renderengine/Mesh.h>
 #include <ui/Rect.h>
 
 namespace android {
 namespace renderengine {
-
-class Mesh;
-
 namespace gl {
 
 /**
@@ -78,6 +76,20 @@ void fillVerticesForGeometry(const Geometry& shadowGeometry, int vertexCount,
 
 void fillIndicesForGeometry(const Geometry& shadowGeometry, int indexCount,
                             int startingVertexOffset, uint16_t* indices);
+
+/**
+ * Maps shadow geometry 'alpha' varying (1 for darkest, 0 for transparent) to
+ * darkness at that spot. Values are determined by an exponential falloff
+ * function provided by UX.
+ *
+ * The texture is used for quick lookup in theshadow shader.
+ *
+ * textureData - filled with shadow texture data that needs to be at least of
+ *               size textureWidth
+ *
+ * textureWidth - width of the texture, height is always 1
+ */
+void fillShadowTextureData(uint8_t* textureData, size_t textureWidth);
 
 } // namespace gl
 } // namespace renderengine
