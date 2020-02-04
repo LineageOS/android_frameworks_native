@@ -108,7 +108,8 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
         mUseContentDetectionV2(useContentDetectionV2) {
     using namespace sysprop;
 
-    if (property_get_bool("debug.sf.use_smart_90_for_video", 0) || use_smart_90_for_video(false)) {
+    if (property_get_bool("debug.sf.use_content_detection_for_refresh_rate", 0) ||
+        use_content_detection_for_refresh_rate(false)) {
         if (mUseContentDetectionV2) {
             mLayerHistory = std::make_unique<scheduler::impl::LayerHistoryV2>();
         } else {

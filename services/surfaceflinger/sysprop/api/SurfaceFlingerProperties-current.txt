@@ -112,12 +112,17 @@ props {
     prop_name: "ro.surface_flinger.use_color_management"
   }
   prop {
+    api_name: "use_content_detection_for_refresh_rate"
+    prop_name: "ro.surface_flinger.use_content_detection_for_refresh_rate"
+  }
+  prop {
     api_name: "use_context_priority"
     prop_name: "ro.surface_flinger.use_context_priority"
   }
   prop {
     api_name: "use_smart_90_for_video"
     prop_name: "ro.surface_flinger.use_smart_90_for_video"
+    deprecated: true
   }
   prop {
     api_name: "use_vr_flinger"
