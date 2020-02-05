@@ -156,6 +156,7 @@ void add_mountinfo();
 #define WMTRACE_DATA_DIR "/data/misc/wmtrace"
 #define OTA_METADATA_DIR "/metadata/ota"
 #define SNAPSHOTCTL_LOG_DIR "/data/misc/snapshotctl_log"
+#define LINKERCONFIG_DIR "/linkerconfig"
 
 // TODO(narayan): Since this information has to be kept in sync
 // with tombstoned, we should just put it in a common header.
@@ -1532,6 +1533,9 @@ static Dumpstate::RunStatus dumpstate() {
     printf("========================================================\n");
     // This differs from the usual dumpsys stats, which is the stats report data.
     RunDumpsys("STATSDSTATS", {"stats", "--metadata"});
+
+    // Add linker configuration directory
+    ds.AddDir(LINKERCONFIG_DIR, true);
 
     RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(DumpIncidentReport);
 
