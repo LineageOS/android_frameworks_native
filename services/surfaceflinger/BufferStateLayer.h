@@ -50,7 +50,9 @@ public:
     uint32_t doTransactionResize(uint32_t flags, Layer::State* /*stateToCommit*/) override {
         return flags;
     }
-    void pushPendingState() override;
+    /*TODO:vhau return to using BufferStateLayer override once WM
+     * has removed deferred transactions!
+    void pushPendingState() override;*/
     bool applyPendingStates(Layer::State* stateToCommit) override;
 
     uint32_t getActiveWidth(const Layer::State& s) const override { return s.active.w; }

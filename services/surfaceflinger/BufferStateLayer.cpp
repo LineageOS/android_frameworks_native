@@ -149,6 +149,8 @@ bool BufferStateLayer::willPresentCurrentTransaction() const {
         !mLayerDetached;
 }
 
+/* TODO: vhau uncomment once deferred transaction migration complete in
+ * WindowManager
 void BufferStateLayer::pushPendingState() {
     if (!mCurrentState.modified) {
         return;
@@ -156,13 +158,12 @@ void BufferStateLayer::pushPendingState() {
     mPendingStates.push_back(mCurrentState);
     ATRACE_INT(mTransactionName.c_str(), mPendingStates.size());
 }
+*/
 
 bool BufferStateLayer::applyPendingStates(Layer::State* stateToCommit) {
-    const bool stateUpdateAvailable = !mPendingStates.empty();
-    while (!mPendingStates.empty()) {
-        popPendingState(stateToCommit);
-    }
-    mCurrentStateModified = stateUpdateAvailable && mCurrentState.modified;
+    mCurrentStateModified = mCurrentState.modified;
+    bool stateUpdateAvailable = Layer::applyPendingStates(stateToCommit);
+    mCurrentStateModified = stateUpdateAvailable && mCurrentStateModified;
     mCurrentState.modified = false;
     return stateUpdateAvailable;
 }
