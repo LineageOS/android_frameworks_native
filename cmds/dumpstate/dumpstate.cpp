@@ -64,6 +64,8 @@
 #include <android-base/unique_fd.h>
 #include <android/content/pm/IPackageManagerNative.h>
 #include <android/hardware/dumpstate/1.0/IDumpstateDevice.h>
+#include <android/hardware/dumpstate/1.1/IDumpstateDevice.h>
+#include <android/hardware/dumpstate/1.1/types.h>
 #include <android/hidl/manager/1.0/IServiceManager.h>
 #include <android/os/IIncidentCompanion.h>
 #include <binder/IServiceManager.h>
@@ -85,7 +87,11 @@
 #include "DumpstateService.h"
 #include "dumpstate.h"
 
-using ::android::hardware::dumpstate::V1_0::IDumpstateDevice;
+using IDumpstateDevice_1_0 = ::android::hardware::dumpstate::V1_0::IDumpstateDevice;
+using IDumpstateDevice_1_1 = ::android::hardware::dumpstate::V1_1::IDumpstateDevice;
+using ::android::hardware::dumpstate::V1_1::DumpstateMode;
+using ::android::hardware::dumpstate::V1_1::DumpstateStatus;
+using ::android::hardware::dumpstate::V1_1::toString;
 using ::std::literals::chrono_literals::operator""ms;
 using ::std::literals::chrono_literals::operator""s;
 
@@ -1892,8 +1898,8 @@ void Dumpstate::DumpstateBoard() {
             std::bind([](std::string path) { android::os::UnlinkAndLogOnError(path); }, paths[i])));
     }
 
-    sp<IDumpstateDevice> dumpstate_device(IDumpstateDevice::getService());
-    if (dumpstate_device == nullptr) {
+    sp<IDumpstateDevice_1_0> dumpstate_device_1_0(IDumpstateDevice_1_0::getService());
+    if (dumpstate_device_1_0 == nullptr) {
         MYLOGE("No IDumpstateDevice implementation\n");
         return;
     }
@@ -1924,29 +1930,54 @@ void Dumpstate::DumpstateBoard() {
         handle.get()->data[i] = fd.release();
     }
 
-    // Given that bugreport is required to diagnose failures, it's better to
-    // set an arbitrary amount of timeout for IDumpstateDevice than to block the
-    // rest of bugreport. In the timeout case, we will kill dumpstate board HAL
-    // and grab whatever dumped
-    std::packaged_task<bool()>
-            dumpstate_task([paths, dumpstate_device, &handle]() -> bool {
-            android::hardware::Return<void> status = dumpstate_device->dumpstateBoard(handle.get());
+    // Given that bugreport is required to diagnose failures, it's better to set an arbitrary amount
+    // of timeout for IDumpstateDevice than to block the rest of bugreport. In the timeout case, we
+    // will kill the HAL and grab whatever it dumped in time.
+    constexpr size_t timeout_sec = 30;
+    // Prefer version 1.1 if available. New devices launching with R are no longer allowed to
+    // implement just 1.0.
+    const char* descriptor_to_kill;
+    using DumpstateBoardTask = std::packaged_task<bool()>;
+    DumpstateBoardTask dumpstate_board_task;
+    sp<IDumpstateDevice_1_1> dumpstate_device_1_1(
+        IDumpstateDevice_1_1::castFrom(dumpstate_device_1_0));
+    if (dumpstate_device_1_1 != nullptr) {
+        MYLOGI("Using IDumpstateDevice v1.1");
+        descriptor_to_kill = IDumpstateDevice_1_1::descriptor;
+        dumpstate_board_task = DumpstateBoardTask([this, dumpstate_device_1_1, &handle]() -> bool {
+            ::android::hardware::Return<DumpstateStatus> status =
+                dumpstate_device_1_1->dumpstateBoard_1_1(handle.get(), options_->dumpstate_hal_mode,
+                                                         SEC_TO_MSEC(timeout_sec));
+            if (!status.isOk()) {
+                MYLOGE("dumpstateBoard failed: %s\n", status.description().c_str());
+                return false;
+            } else if (status != DumpstateStatus::OK) {
+                MYLOGE("dumpstateBoard failed with DumpstateStatus::%s\n", toString(status).c_str());
+                return false;
+            }
+            return true;
+        });
+    } else {
+        MYLOGI("Using IDumpstateDevice v1.0");
+        descriptor_to_kill = IDumpstateDevice_1_0::descriptor;
+        dumpstate_board_task = DumpstateBoardTask([dumpstate_device_1_0, &handle]() -> bool {
+            ::android::hardware::Return<void> status =
+                dumpstate_device_1_0->dumpstateBoard(handle.get());
             if (!status.isOk()) {
                 MYLOGE("dumpstateBoard failed: %s\n", status.description().c_str());
                 return false;
             }
             return true;
         });
+    }
+    auto result = dumpstate_board_task.get_future();
+    std::thread(std::move(dumpstate_board_task)).detach();
 
-    auto result = dumpstate_task.get_future();
-    std::thread(std::move(dumpstate_task)).detach();
-
-    constexpr size_t timeout_sec = 30;
     if (result.wait_for(std::chrono::seconds(timeout_sec)) != std::future_status::ready) {
         MYLOGE("dumpstateBoard timed out after %zus, killing dumpstate vendor HAL\n", timeout_sec);
-        if (!android::base::SetProperty("ctl.interface_restart",
-                                        android::base::StringPrintf("%s/default",
-                                                                    IDumpstateDevice::descriptor))) {
+        if (!android::base::SetProperty(
+                "ctl.interface_restart",
+                android::base::StringPrintf("%s/default", descriptor_to_kill))) {
             MYLOGE("Couldn't restart dumpstate HAL\n");
         }
     }
@@ -1978,15 +2009,14 @@ void Dumpstate::DumpstateBoard() {
             continue;
         }
         AddZipEntry(kDumpstateBoardFiles[i], paths[i]);
+        printf("*** See %s entry ***\n", kDumpstateBoardFiles[i].c_str());
     }
-
-    printf("*** See dumpstate-board.txt entry ***\n");
 }
 
 static void ShowUsage() {
     fprintf(stderr,
             "usage: dumpstate [-h] [-b soundfile] [-e soundfile] [-d] [-p] "
-            "[-z]] [-s] [-S] [-q] [-P] [-R] [-V version]\n"
+            "[-z] [-s] [-S] [-q] [-P] [-R] [-V version]\n"
             "  -h: display this help message\n"
             "  -b: play sound file instead of vibrate, at beginning of job\n"
             "  -e: play sound file instead of vibrate, at end of job\n"
@@ -2196,33 +2226,40 @@ static void SetOptionsFromMode(Dumpstate::BugreportMode mode, Dumpstate::DumpOpt
     switch (mode) {
         case Dumpstate::BugreportMode::BUGREPORT_FULL:
             options->do_fb = true;
+            options->dumpstate_hal_mode = DumpstateMode::FULL;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE:
             // Currently, the dumpstate binder is only used by Shell to update progress.
             options->do_start_service = true;
             options->do_progress_updates = true;
             options->do_fb = false;
+            options->dumpstate_hal_mode = DumpstateMode::INTERACTIVE;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_REMOTE:
             options->do_vibrate = false;
             options->is_remote_mode = true;
             options->do_fb = false;
+            options->dumpstate_hal_mode = DumpstateMode::REMOTE;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_WEAR:
             options->do_start_service = true;
             options->do_progress_updates = true;
             options->do_zip_file = true;
             options->do_fb = true;
+            options->dumpstate_hal_mode = DumpstateMode::WEAR;
             break;
+        // TODO(b/148168577) rename TELEPHONY everywhere to CONNECTIVITY.
         case Dumpstate::BugreportMode::BUGREPORT_TELEPHONY:
             options->telephony_only = true;
             options->do_progress_updates = true;
             options->do_fb = false;
+            options->dumpstate_hal_mode = DumpstateMode::CONNECTIVITY;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_WIFI:
             options->wifi_only = true;
             options->do_zip_file = true;
             options->do_fb = false;
+            options->dumpstate_hal_mode = DumpstateMode::WIFI;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_DEFAULT:
             break;
@@ -2233,11 +2270,13 @@ static void LogDumpOptions(const Dumpstate::DumpOptions& options) {
     MYLOGI(
         "do_zip_file: %d do_vibrate: %d use_socket: %d use_control_socket: %d do_fb: %d "
         "is_remote_mode: %d show_header_only: %d do_start_service: %d telephony_only: %d "
-        "wifi_only: %d do_progress_updates: %d fd: %d bugreport_mode: %s args: %s\n",
+        "wifi_only: %d do_progress_updates: %d fd: %d bugreport_mode: %s dumpstate_hal_mode: %s "
+        "args: %s\n",
         options.do_zip_file, options.do_vibrate, options.use_socket, options.use_control_socket,
         options.do_fb, options.is_remote_mode, options.show_header_only, options.do_start_service,
         options.telephony_only, options.wifi_only, options.do_progress_updates,
-        options.bugreport_fd.get(), options.bugreport_mode.c_str(), options.args.c_str());
+        options.bugreport_fd.get(), options.bugreport_mode.c_str(),
+        toString(options.dumpstate_hal_mode).c_str(), options.args.c_str());
 }
 
 void Dumpstate::DumpOptions::Initialize(BugreportMode bugreport_mode,
