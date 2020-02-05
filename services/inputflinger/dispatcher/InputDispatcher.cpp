@@ -2686,6 +2686,19 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
           connection->getInputChannelName().c_str(), cancelationEvents.size(), options.reason,
           options.mode);
 #endif
+
+    InputTarget target;
+    sp<InputWindowHandle> windowHandle =
+            getWindowHandleLocked(connection->inputChannel->getConnectionToken());
+    if (windowHandle != nullptr) {
+        const InputWindowInfo* windowInfo = windowHandle->getInfo();
+        target.setDefaultPointerInfo(-windowInfo->frameLeft, -windowInfo->frameTop,
+                                     windowInfo->windowXScale, windowInfo->windowYScale);
+        target.globalScaleFactor = windowInfo->globalScaleFactor;
+    }
+    target.inputChannel = connection->inputChannel;
+    target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
+
     for (size_t i = 0; i < cancelationEvents.size(); i++) {
         EventEntry* cancelationEventEntry = cancelationEvents[i];
         switch (cancelationEventEntry->type) {
@@ -2711,22 +2724,69 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
             }
         }
 
-        InputTarget target;
-        sp<InputWindowHandle> windowHandle =
-                getWindowHandleLocked(connection->inputChannel->getConnectionToken());
-        if (windowHandle != nullptr) {
-            const InputWindowInfo* windowInfo = windowHandle->getInfo();
-            target.setDefaultPointerInfo(-windowInfo->frameLeft, -windowInfo->frameTop,
-                                         windowInfo->windowXScale, windowInfo->windowYScale);
-            target.globalScaleFactor = windowInfo->globalScaleFactor;
-        }
-        target.inputChannel = connection->inputChannel;
-        target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
-
         enqueueDispatchEntryLocked(connection, cancelationEventEntry, // increments ref
                                    target, InputTarget::FLAG_DISPATCH_AS_IS);
 
         cancelationEventEntry->release();
+    }
+
+    startDispatchCycleLocked(currentTime, connection);
+}
+
+void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
+        const sp<Connection>& connection) {
+    if (connection->status == Connection::STATUS_BROKEN) {
+        return;
+    }
+
+    nsecs_t currentTime = now();
+
+    std::vector<EventEntry*> downEvents =
+            connection->inputState.synthesizePointerDownEvents(currentTime);
+
+    if (downEvents.empty()) {
+        return;
+    }
+
+#if DEBUG_OUTBOUND_EVENT_DETAILS
+        ALOGD("channel '%s' ~ Synthesized %zu down events to ensure consistent event stream.",
+              connection->getInputChannelName().c_str(), downEvents.size());
+#endif
+
+    InputTarget target;
+    sp<InputWindowHandle> windowHandle =
+            getWindowHandleLocked(connection->inputChannel->getConnectionToken());
+    if (windowHandle != nullptr) {
+        const InputWindowInfo* windowInfo = windowHandle->getInfo();
+        target.setDefaultPointerInfo(-windowInfo->frameLeft, -windowInfo->frameTop,
+                                     windowInfo->windowXScale, windowInfo->windowYScale);
+        target.globalScaleFactor = windowInfo->globalScaleFactor;
+    }
+    target.inputChannel = connection->inputChannel;
+    target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
+
+    for (EventEntry* downEventEntry : downEvents) {
+        switch (downEventEntry->type) {
+            case EventEntry::Type::MOTION: {
+                logOutboundMotionDetails("down - ",
+                        static_cast<const MotionEntry&>(*downEventEntry));
+                break;
+            }
+
+            case EventEntry::Type::KEY:
+            case EventEntry::Type::FOCUS:
+            case EventEntry::Type::CONFIGURATION_CHANGED:
+            case EventEntry::Type::DEVICE_RESET: {
+                LOG_ALWAYS_FATAL("%s event should not be found inside Connections's queue",
+                                     EventEntry::typeToString(downEventEntry->type));
+                break;
+            }
+        }
+
+        enqueueDispatchEntryLocked(connection, downEventEntry, // increments ref
+                                   target, InputTarget::FLAG_DISPATCH_AS_IS);
+
+        downEventEntry->release();
     }
 
     startDispatchCycleLocked(currentTime, connection);
@@ -3770,11 +3830,12 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
         sp<Connection> fromConnection = getConnectionLocked(fromToken);
         sp<Connection> toConnection = getConnectionLocked(toToken);
         if (fromConnection != nullptr && toConnection != nullptr) {
-            fromConnection->inputState.copyPointerStateTo(toConnection->inputState);
+            fromConnection->inputState.mergePointerStateTo(toConnection->inputState);
             CancelationOptions
                     options(CancelationOptions::CANCEL_POINTER_EVENTS,
                             "transferring touch focus from this window to another window");
             synthesizeCancelationEventsForConnectionLocked(fromConnection, options);
+            synthesizePointerDownEventsForConnectionLocked(toConnection);
         }
 
         if (DEBUG_FOCUS) {
