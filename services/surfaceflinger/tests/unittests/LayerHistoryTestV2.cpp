@@ -34,7 +34,6 @@ namespace android::scheduler {
 
 class LayerHistoryTestV2 : public testing::Test {
 protected:
-    static constexpr auto FREQUENT_LAYER_WINDOW_SIZE = LayerInfoV2::FREQUENT_LAYER_WINDOW_SIZE;
     static constexpr auto PRESENT_TIME_HISTORY_SIZE = LayerInfoV2::HISTORY_SIZE;
     static constexpr auto MAX_FREQUENT_LAYER_PERIOD_NS = LayerInfoV2::MAX_FREQUENT_LAYER_PERIOD_NS;
 
@@ -72,7 +71,8 @@ protected:
 
     auto createLayer() { return sp<mock::MockLayer>(new mock::MockLayer(mFlinger.flinger())); }
 
-    RefreshRateConfigs mConfigs{{
+    RefreshRateConfigs mConfigs{true,
+                                {
                                         RefreshRateConfigs::InputConfig{HwcConfigIndexType(0),
                                                                         HwcConfigGroupType(0),
                                                                         LO_FPS_PERIOD},
@@ -84,7 +84,6 @@ protected:
     TestableScheduler* const mScheduler{new TestableScheduler(mConfigs, true)};
     TestableSurfaceFlinger mFlinger;
 
-    const nsecs_t mTime = systemTime();
 };
 
 namespace {
@@ -92,31 +91,30 @@ namespace {
 TEST_F(LayerHistoryTestV2, oneLayer) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
-    EXPECT_CALL(*layer, getFrameRate()).WillRepeatedly(Return(std::nullopt));
+    EXPECT_CALL(*layer, getFrameRate()).WillRepeatedly(Return(Layer::FrameRate()));
 
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(0, activeLayerCount());
 
+    const nsecs_t time = systemTime();
+
     // No layers returned if no layers are active.
-    EXPECT_TRUE(history().summarize(mTime).empty());
+    EXPECT_TRUE(history().summarize(time).empty());
     EXPECT_EQ(0, activeLayerCount());
 
     // Max returned if active layers have insufficient history.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE - 1; i++) {
-        history().record(layer.get(), 0, mTime);
-        ASSERT_EQ(1, history().summarize(mTime).size());
-        const auto expectedType = (i + 1 < FREQUENT_LAYER_WINDOW_SIZE)
-                ? LayerHistory::LayerVoteType::Min
-                : LayerHistory::LayerVoteType::Max;
-        EXPECT_EQ(expectedType, history().summarize(mTime)[0].vote);
+        history().record(layer.get(), 0, time);
+        ASSERT_EQ(1, history().summarize(time).size());
+        EXPECT_EQ(LayerHistory::LayerVoteType::Max, history().summarize(time)[0].vote);
         EXPECT_EQ(1, activeLayerCount());
     }
 
     // Max is returned since we have enough history but there is no timestamp votes.
     for (int i = 0; i < 10; i++) {
-        history().record(layer.get(), 0, mTime);
-        ASSERT_EQ(1, history().summarize(mTime).size());
-        EXPECT_EQ(LayerHistory::LayerVoteType::Max, history().summarize(mTime)[0].vote);
+        history().record(layer.get(), 0, time);
+        ASSERT_EQ(1, history().summarize(time).size());
+        EXPECT_EQ(LayerHistory::LayerVoteType::Max, history().summarize(time)[0].vote);
         EXPECT_EQ(1, activeLayerCount());
     }
 }
@@ -124,34 +122,36 @@ TEST_F(LayerHistoryTestV2, oneLayer) {
 TEST_F(LayerHistoryTestV2, oneInvisibleLayer) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
-    EXPECT_CALL(*layer, getFrameRate()).WillRepeatedly(Return(std::nullopt));
+    EXPECT_CALL(*layer, getFrameRate()).WillRepeatedly(Return(Layer::FrameRate()));
 
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(0, activeLayerCount());
 
-    history().record(layer.get(), 0, mTime);
-    auto summary = history().summarize(mTime);
-    ASSERT_EQ(1, history().summarize(mTime).size());
+    nsecs_t time = systemTime();
+
+    history().record(layer.get(), 0, time);
+    auto summary = history().summarize(time);
+    ASSERT_EQ(1, history().summarize(time).size());
     // Layer is still considered inactive so we expect to get Min
-    EXPECT_EQ(LayerHistory::LayerVoteType::Min, history().summarize(mTime)[0].vote);
+    EXPECT_EQ(LayerHistory::LayerVoteType::Max, history().summarize(time)[0].vote);
     EXPECT_EQ(1, activeLayerCount());
 
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(false));
 
-    summary = history().summarize(mTime);
-    EXPECT_TRUE(history().summarize(mTime).empty());
+    summary = history().summarize(time);
+    EXPECT_TRUE(history().summarize(time).empty());
     EXPECT_EQ(0, activeLayerCount());
 }
 
 TEST_F(LayerHistoryTestV2, explicitTimestamp) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
-    EXPECT_CALL(*layer, getFrameRate()).WillRepeatedly(Return(std::nullopt));
+    EXPECT_CALL(*layer, getFrameRate()).WillRepeatedly(Return(Layer::FrameRate()));
 
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(0, activeLayerCount());
 
-    nsecs_t time = mTime;
+    nsecs_t time = systemTime();
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
         history().record(layer.get(), time, time);
         time += LO_FPS_PERIOD;
@@ -167,14 +167,14 @@ TEST_F(LayerHistoryTestV2, explicitTimestamp) {
 TEST_F(LayerHistoryTestV2, oneLayerNoVote) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
-    EXPECT_CALL(*layer, getFrameRate()).WillRepeatedly(Return(std::nullopt));
+    EXPECT_CALL(*layer, getFrameRate()).WillRepeatedly(Return(Layer::FrameRate()));
 
     setLayerInfoVote(layer.get(), LayerHistory::LayerVoteType::NoVote);
 
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(0, activeLayerCount());
 
-    nsecs_t time = mTime;
+    nsecs_t time = systemTime();
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
         history().record(layer.get(), time, time);
         time += HI_FPS_PERIOD;
@@ -194,14 +194,14 @@ TEST_F(LayerHistoryTestV2, oneLayerNoVote) {
 TEST_F(LayerHistoryTestV2, oneLayerMinVote) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
-    EXPECT_CALL(*layer, getFrameRate()).WillRepeatedly(Return(std::nullopt));
+    EXPECT_CALL(*layer, getFrameRate()).WillRepeatedly(Return(Layer::FrameRate()));
 
     setLayerInfoVote(layer.get(), LayerHistory::LayerVoteType::Min);
 
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(0, activeLayerCount());
 
-    nsecs_t time = mTime;
+    nsecs_t time = systemTime();
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
         history().record(layer.get(), time, time);
         time += HI_FPS_PERIOD;
@@ -222,14 +222,14 @@ TEST_F(LayerHistoryTestV2, oneLayerMinVote) {
 TEST_F(LayerHistoryTestV2, oneLayerMaxVote) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
-    EXPECT_CALL(*layer, getFrameRate()).WillRepeatedly(Return(std::nullopt));
+    EXPECT_CALL(*layer, getFrameRate()).WillRepeatedly(Return(Layer::FrameRate()));
 
     setLayerInfoVote(layer.get(), LayerHistory::LayerVoteType::Max);
 
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(0, activeLayerCount());
 
-    nsecs_t time = mTime;
+    nsecs_t time = systemTime();
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
         history().record(layer.get(), time, time);
         time += LO_FPS_PERIOD;
@@ -250,19 +250,53 @@ TEST_F(LayerHistoryTestV2, oneLayerMaxVote) {
 TEST_F(LayerHistoryTestV2, oneLayerExplicitVote) {
     auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
-    EXPECT_CALL(*layer, getFrameRate()).WillRepeatedly(Return(73.4f));
+    EXPECT_CALL(*layer, getFrameRate())
+            .WillRepeatedly(
+                    Return(Layer::FrameRate(73.4f, Layer::FrameRateCompatibility::Default)));
 
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(0, activeLayerCount());
 
-    nsecs_t time = mTime;
+    nsecs_t time = systemTime();
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
         history().record(layer.get(), time, time);
         time += HI_FPS_PERIOD;
     }
 
     ASSERT_EQ(1, history().summarize(time).size());
-    EXPECT_EQ(LayerHistory::LayerVoteType::Explicit, history().summarize(time)[0].vote);
+    EXPECT_EQ(LayerHistory::LayerVoteType::ExplicitDefault, history().summarize(time)[0].vote);
+    EXPECT_FLOAT_EQ(73.4f, history().summarize(time)[0].desiredRefreshRate);
+    EXPECT_EQ(1, activeLayerCount());
+    EXPECT_EQ(1, frequentLayerCount(time));
+
+    // layer became inactive
+    setLayerInfoVote(layer.get(), LayerHistory::LayerVoteType::Heuristic);
+    time += MAX_ACTIVE_LAYER_PERIOD_NS.count();
+    ASSERT_TRUE(history().summarize(time).empty());
+    // TODO: activeLayerCount() should be 0 but it is 1 since getFrameRate() returns a value > 0
+    EXPECT_EQ(1, activeLayerCount());
+    EXPECT_EQ(0, frequentLayerCount(time));
+}
+
+TEST_F(LayerHistoryTestV2, oneLayerExplicitExactVote) {
+    auto layer = createLayer();
+    EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*layer, getFrameRate())
+            .WillRepeatedly(Return(
+                    Layer::FrameRate(73.4f, Layer::FrameRateCompatibility::ExactOrMultiple)));
+
+    EXPECT_EQ(1, layerCount());
+    EXPECT_EQ(0, activeLayerCount());
+
+    nsecs_t time = systemTime();
+    for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
+        history().record(layer.get(), time, time);
+        time += HI_FPS_PERIOD;
+    }
+
+    ASSERT_EQ(1, history().summarize(time).size());
+    EXPECT_EQ(LayerHistory::LayerVoteType::ExplicitExactOrMultiple,
+              history().summarize(time)[0].vote);
     EXPECT_FLOAT_EQ(73.4f, history().summarize(time)[0].desiredRefreshRate);
     EXPECT_EQ(1, activeLayerCount());
     EXPECT_EQ(1, frequentLayerCount(time));
@@ -282,15 +316,15 @@ TEST_F(LayerHistoryTestV2, multipleLayers) {
     auto layer3 = createLayer();
 
     EXPECT_CALL(*layer1, isVisible()).WillRepeatedly(Return(true));
-    EXPECT_CALL(*layer1, getFrameRate()).WillRepeatedly(Return(std::nullopt));
+    EXPECT_CALL(*layer1, getFrameRate()).WillRepeatedly(Return(Layer::FrameRate()));
 
     EXPECT_CALL(*layer2, isVisible()).WillRepeatedly(Return(true));
-    EXPECT_CALL(*layer2, getFrameRate()).WillRepeatedly(Return(std::nullopt));
+    EXPECT_CALL(*layer2, getFrameRate()).WillRepeatedly(Return(Layer::FrameRate()));
 
     EXPECT_CALL(*layer3, isVisible()).WillRepeatedly(Return(true));
-    EXPECT_CALL(*layer3, getFrameRate()).WillRepeatedly(Return(std::nullopt));
+    EXPECT_CALL(*layer3, getFrameRate()).WillRepeatedly(Return(Layer::FrameRate()));
 
-    nsecs_t time = mTime;
+    nsecs_t time = systemTime();
 
     EXPECT_EQ(3, layerCount());
     EXPECT_EQ(0, activeLayerCount());
@@ -318,7 +352,7 @@ TEST_F(LayerHistoryTestV2, multipleLayers) {
 
     ASSERT_EQ(2, history().summarize(time).size());
     EXPECT_EQ(LayerHistory::LayerVoteType::Min, history().summarize(time)[0].vote);
-    EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, history().summarize(time)[1].vote);
+    ASSERT_EQ(LayerHistory::LayerVoteType::Heuristic, history().summarize(time)[1].vote);
     EXPECT_FLOAT_EQ(HI_FPS, history().summarize(time)[1].desiredRefreshRate);
     EXPECT_EQ(2, activeLayerCount());
     EXPECT_EQ(1, frequentLayerCount(time));

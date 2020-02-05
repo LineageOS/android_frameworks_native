@@ -18,7 +18,6 @@
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <compositionengine/mock/CompositionEngine.h>
 #include <compositionengine/mock/DisplayColorProfile.h>
-#include <compositionengine/mock/Layer.h>
 #include <compositionengine/mock/LayerFE.h>
 #include <compositionengine/mock/Output.h>
 #include <gtest/gtest.h>
@@ -56,15 +55,12 @@ MATCHER_P(ColorEq, expected, "") {
 
 struct OutputLayerTest : public testing::Test {
     struct OutputLayer final : public impl::OutputLayer {
-        OutputLayer(const compositionengine::Output& output,
-                    std::shared_ptr<compositionengine::Layer> layer,
-                    sp<compositionengine::LayerFE> layerFE)
-              : mOutput(output), mLayer(layer), mLayerFE(layerFE) {}
+        OutputLayer(const compositionengine::Output& output, sp<compositionengine::LayerFE> layerFE)
+              : mOutput(output), mLayerFE(layerFE) {}
         ~OutputLayer() override = default;
 
         // compositionengine::OutputLayer overrides
         const compositionengine::Output& getOutput() const override { return mOutput; }
-        compositionengine::Layer& getLayer() const override { return *mLayer; }
         compositionengine::LayerFE& getLayerFE() const override { return *mLayerFE; }
         const impl::OutputLayerCompositionState& getState() const override { return mState; }
         impl::OutputLayerCompositionState& editState() override { return mState; }
@@ -73,7 +69,6 @@ struct OutputLayerTest : public testing::Test {
         void dumpState(std::string& out) const override { mState.dump(out); }
 
         const compositionengine::Output& mOutput;
-        std::shared_ptr<compositionengine::Layer> mLayer;
         sp<compositionengine::LayerFE> mLayerFE;
         impl::OutputLayerCompositionState mState;
     };
@@ -82,16 +77,14 @@ struct OutputLayerTest : public testing::Test {
         EXPECT_CALL(*mLayerFE, getDebugName()).WillRepeatedly(Return("Test LayerFE"));
         EXPECT_CALL(mOutput, getName()).WillRepeatedly(ReturnRef(kOutputName));
 
-        EXPECT_CALL(*mLayer, getFEState()).WillRepeatedly(ReturnRef(mLayerFEState));
+        EXPECT_CALL(*mLayerFE, getCompositionState()).WillRepeatedly(Return(&mLayerFEState));
         EXPECT_CALL(mOutput, getState()).WillRepeatedly(ReturnRef(mOutputState));
     }
 
     compositionengine::mock::Output mOutput;
-    std::shared_ptr<compositionengine::mock::Layer> mLayer{
-            new StrictMock<compositionengine::mock::Layer>()};
     sp<compositionengine::mock::LayerFE> mLayerFE{
             new StrictMock<compositionengine::mock::LayerFE>()};
-    OutputLayer mOutputLayer{mOutput, mLayer, mLayerFE};
+    OutputLayer mOutputLayer{mOutput, mLayerFE};
 
     LayerFECompositionState mLayerFEState;
     impl::OutputCompositionState mOutputState;
@@ -436,9 +429,8 @@ TEST_F(OutputLayerTest,
 
 struct OutputLayerPartialMockForUpdateCompositionState : public impl::OutputLayer {
     OutputLayerPartialMockForUpdateCompositionState(const compositionengine::Output& output,
-                                                    std::shared_ptr<compositionengine::Layer> layer,
                                                     sp<compositionengine::LayerFE> layerFE)
-          : mOutput(output), mLayer(layer), mLayerFE(layerFE) {}
+          : mOutput(output), mLayerFE(layerFE) {}
     // Mock everything called by updateCompositionState to simplify testing it.
     MOCK_CONST_METHOD0(calculateOutputSourceCrop, FloatRect());
     MOCK_CONST_METHOD0(calculateOutputDisplayFrame, Rect());
@@ -446,7 +438,6 @@ struct OutputLayerPartialMockForUpdateCompositionState : public impl::OutputLaye
 
     // compositionengine::OutputLayer overrides
     const compositionengine::Output& getOutput() const override { return mOutput; }
-    compositionengine::Layer& getLayer() const override { return *mLayer; }
     compositionengine::LayerFE& getLayerFE() const override { return *mLayerFE; }
     const impl::OutputLayerCompositionState& getState() const override { return mState; }
     impl::OutputLayerCompositionState& editState() override { return mState; }
@@ -455,7 +446,6 @@ struct OutputLayerPartialMockForUpdateCompositionState : public impl::OutputLaye
     MOCK_CONST_METHOD1(dumpState, void(std::string&));
 
     const compositionengine::Output& mOutput;
-    std::shared_ptr<compositionengine::Layer> mLayer;
     sp<compositionengine::LayerFE> mLayerFE;
     impl::OutputLayerCompositionState mState;
 };
@@ -463,7 +453,6 @@ struct OutputLayerPartialMockForUpdateCompositionState : public impl::OutputLaye
 struct OutputLayerUpdateCompositionStateTest : public OutputLayerTest {
 public:
     OutputLayerUpdateCompositionStateTest() {
-        EXPECT_CALL(*mLayer, getFEState()).WillRepeatedly(ReturnRef(mLayerFEState));
         EXPECT_CALL(mOutput, getState()).WillRepeatedly(ReturnRef(mOutputState));
         EXPECT_CALL(mOutput, getDisplayColorProfile())
                 .WillRepeatedly(Return(&mDisplayColorProfile));
@@ -491,9 +480,15 @@ public:
     uint32_t mBufferTransform{21};
 
     using OutputLayer = OutputLayerPartialMockForUpdateCompositionState;
-    StrictMock<OutputLayer> mOutputLayer{mOutput, mLayer, mLayerFE};
+    StrictMock<OutputLayer> mOutputLayer{mOutput, mLayerFE};
     StrictMock<mock::DisplayColorProfile> mDisplayColorProfile;
 };
+
+TEST_F(OutputLayerUpdateCompositionStateTest, doesNothingIfNoFECompositionState) {
+    EXPECT_CALL(*mLayerFE, getCompositionState()).WillOnce(Return(nullptr));
+
+    mOutputLayer.updateCompositionState(true, false);
+}
 
 TEST_F(OutputLayerUpdateCompositionStateTest, setsStateNormally) {
     mLayerFEState.isSecure = true;
@@ -745,6 +740,12 @@ native_handle_t* OutputLayerWriteStateToHWCTest::kSidebandStreamHandle =
 const sp<GraphicBuffer> OutputLayerWriteStateToHWCTest::kBuffer;
 const sp<Fence> OutputLayerWriteStateToHWCTest::kFence;
 
+TEST_F(OutputLayerWriteStateToHWCTest, doesNothingIfNoFECompositionState) {
+    EXPECT_CALL(*mLayerFE, getCompositionState()).WillOnce(Return(nullptr));
+
+    mOutputLayer.writeStateToHWC(true);
+}
+
 TEST_F(OutputLayerWriteStateToHWCTest, doesNothingIfNoHWCState) {
     mOutputLayer.editState().hwc.reset();
 
@@ -887,6 +888,12 @@ struct OutputLayerWriteCursorPositionToHWCTest : public OutputLayerTest {
 
 const Rect OutputLayerWriteCursorPositionToHWCTest::kDefaultDisplayViewport{0, 0, 1920, 1080};
 const Rect OutputLayerWriteCursorPositionToHWCTest::kDefaultCursorFrame{1, 2, 3, 4};
+
+TEST_F(OutputLayerWriteCursorPositionToHWCTest, doesNothingIfNoFECompositionState) {
+    EXPECT_CALL(*mLayerFE, getCompositionState()).WillOnce(Return(nullptr));
+
+    mOutputLayer.writeCursorPositionToHWC();
+}
 
 TEST_F(OutputLayerWriteCursorPositionToHWCTest, writeCursorPositionToHWCHandlesNoHwcState) {
     mOutputLayer.editState().hwc.reset();

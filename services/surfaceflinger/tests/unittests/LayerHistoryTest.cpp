@@ -63,7 +63,8 @@ protected:
 
     auto createLayer() { return sp<mock::MockLayer>(new mock::MockLayer(mFlinger.flinger())); }
 
-    RefreshRateConfigs mConfigs{{
+    RefreshRateConfigs mConfigs{true,
+                                {
                                         RefreshRateConfigs::InputConfig{HwcConfigIndexType(0),
                                                                         HwcConfigGroupType(0),
                                                                         LO_FPS_PERIOD},
@@ -84,7 +85,7 @@ TEST_F(LayerHistoryTest, oneLayer) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameSelectionPriority()).WillRepeatedly(Return(1));
-    EXPECT_CALL(*layer, getFrameRate()).WillRepeatedly(Return(std::nullopt));
+    EXPECT_CALL(*layer, getFrameRate()).WillRepeatedly(Return(Layer::FrameRate()));
 
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(0, activeLayerCount());
@@ -113,7 +114,7 @@ TEST_F(LayerHistoryTest, explicitTimestamp) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameSelectionPriority()).WillRepeatedly(Return(1));
-    EXPECT_CALL(*layer, getFrameRate()).WillRepeatedly(Return(std::nullopt));
+    EXPECT_CALL(*layer, getFrameRate()).WillRepeatedly(Return(Layer::FrameRate()));
 
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(0, activeLayerCount());
@@ -137,15 +138,15 @@ TEST_F(LayerHistoryTest, multipleLayers) {
 
     EXPECT_CALL(*layer1, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer1, getFrameSelectionPriority()).WillRepeatedly(Return(1));
-    EXPECT_CALL(*layer1, getFrameRate()).WillRepeatedly(Return(std::nullopt));
+    EXPECT_CALL(*layer1, getFrameRate()).WillRepeatedly(Return(Layer::FrameRate()));
 
     EXPECT_CALL(*layer2, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer2, getFrameSelectionPriority()).WillRepeatedly(Return(1));
-    EXPECT_CALL(*layer2, getFrameRate()).WillRepeatedly(Return(std::nullopt));
+    EXPECT_CALL(*layer2, getFrameRate()).WillRepeatedly(Return(Layer::FrameRate()));
 
     EXPECT_CALL(*layer3, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer3, getFrameSelectionPriority()).WillRepeatedly(Return(1));
-    EXPECT_CALL(*layer3, getFrameRate()).WillRepeatedly(Return(std::nullopt));
+    EXPECT_CALL(*layer3, getFrameRate()).WillRepeatedly(Return(Layer::FrameRate()));
     nsecs_t time = mTime;
 
     EXPECT_EQ(3, layerCount());

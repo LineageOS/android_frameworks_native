@@ -147,9 +147,8 @@ void Display::createClientCompositionCache(uint32_t cacheSize) {
 }
 
 std::unique_ptr<compositionengine::OutputLayer> Display::createOutputLayer(
-        const std::shared_ptr<compositionengine::Layer>& layer,
         const sp<compositionengine::LayerFE>& layerFE) const {
-    auto result = impl::createOutputLayer(*this, layer, layerFE);
+    auto result = impl::createOutputLayer(*this, layerFE);
 
     if (result && mId) {
         auto& hwc = getCompositionEngine().getHwComposer();
@@ -184,16 +183,18 @@ void Display::setReleasedLayers(const compositionengine::CompositionRefreshArgs&
 
     // Any non-null entries in the current list of layers are layers that are no
     // longer going to be visible
-    for (auto* layer : getOutputLayersOrderedByZ()) {
-        if (!layer) {
+    for (auto* outputLayer : getOutputLayersOrderedByZ()) {
+        if (!outputLayer) {
             continue;
         }
 
-        sp<compositionengine::LayerFE> layerFE(&layer->getLayerFE());
+        compositionengine::LayerFE* layerFE = &outputLayer->getLayerFE();
         const bool hasQueuedFrames =
-                std::find(refreshArgs.layersWithQueuedFrames.cbegin(),
-                          refreshArgs.layersWithQueuedFrames.cend(),
-                          &layer->getLayer()) != refreshArgs.layersWithQueuedFrames.cend();
+                std::any_of(refreshArgs.layersWithQueuedFrames.cbegin(),
+                            refreshArgs.layersWithQueuedFrames.cend(),
+                            [layerFE](sp<compositionengine::LayerFE> layerWithQueuedFrames) {
+                                return layerFE == layerWithQueuedFrames.get();
+                            });
 
         if (hasQueuedFrames) {
             releasedLayers.emplace_back(layerFE);

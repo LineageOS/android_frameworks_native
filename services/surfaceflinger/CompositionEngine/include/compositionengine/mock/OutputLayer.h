@@ -17,7 +17,6 @@
 #pragma once
 
 #include <compositionengine/CompositionEngine.h>
-#include <compositionengine/Layer.h>
 #include <compositionengine/LayerFE.h>
 #include <compositionengine/Output.h>
 #include <compositionengine/OutputLayer.h>
@@ -34,7 +33,6 @@ public:
     MOCK_METHOD1(setHwcLayer, void(std::shared_ptr<HWC2::Layer>));
 
     MOCK_CONST_METHOD0(getOutput, const compositionengine::Output&());
-    MOCK_CONST_METHOD0(getLayer, compositionengine::Layer&());
     MOCK_CONST_METHOD0(getLayerFE, compositionengine::LayerFE&());
 
     MOCK_CONST_METHOD0(getState, const impl::OutputLayerCompositionState&());

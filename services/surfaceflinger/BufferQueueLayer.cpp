@@ -23,7 +23,6 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 #include "BufferQueueLayer.h"
 
-#include <compositionengine/Layer.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <gui/BufferQueueConsumer.h>
 #include <system/window.h>
@@ -125,21 +124,16 @@ bool BufferQueueLayer::shouldPresentNow(nsecs_t expectedPresentTime) const {
     return isDue || !isPlausible;
 }
 
-bool BufferQueueLayer::setFrameRate(float frameRate) {
+bool BufferQueueLayer::setFrameRate(FrameRate frameRate) {
     float oldFrameRate = 0.f;
     status_t result = mConsumer->getFrameRate(&oldFrameRate);
-    bool frameRateChanged = result < 0 || frameRate != oldFrameRate;
-    mConsumer->setFrameRate(frameRate);
+    bool frameRateChanged = result < 0 || frameRate.rate != oldFrameRate;
+    mConsumer->setFrameRate(frameRate.rate);
     return frameRateChanged;
 }
 
-std::optional<float> BufferQueueLayer::getFrameRate() const {
-    const auto frameRate = mLatchedFrameRate.load();
-    if (frameRate > 0.f || frameRate == FRAME_RATE_NO_VOTE) {
-        return frameRate;
-    }
-
-    return {};
+Layer::FrameRate BufferQueueLayer::getFrameRate() const {
+    return FrameRate(mLatchedFrameRate, Layer::FrameRateCompatibility::Default);
 }
 
 // -----------------------------------------------------------------------
@@ -228,9 +222,9 @@ bool BufferQueueLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
     if (mSidebandStreamChanged.compare_exchange_strong(sidebandStreamChanged, false)) {
         // mSidebandStreamChanged was changed to false
         mSidebandStream = mConsumer->getSidebandStream();
-        auto& layerCompositionState = getCompositionLayer()->editFEState();
-        layerCompositionState.sidebandStream = mSidebandStream;
-        if (layerCompositionState.sidebandStream != nullptr) {
+        auto* layerCompositionState = editCompositionState();
+        layerCompositionState->sidebandStream = mSidebandStream;
+        if (layerCompositionState->sidebandStream != nullptr) {
             setTransactionFlags(eTransactionNeeded);
             mFlinger->setTransactionFlags(eTraversalNeeded);
         }
@@ -364,8 +358,8 @@ status_t BufferQueueLayer::updateActiveBuffer() {
     mPreviousBufferId = getCurrentBufferId();
     mBufferInfo.mBuffer =
             mConsumer->getCurrentBuffer(&mBufferInfo.mBufferSlot, &mBufferInfo.mFence);
-    auto& layerCompositionState = getCompositionLayer()->editFEState();
-    layerCompositionState.buffer = mBufferInfo.mBuffer;
+    auto* layerCompositionState = editCompositionState();
+    layerCompositionState->buffer = mBufferInfo.mBuffer;
 
     if (mBufferInfo.mBuffer == nullptr) {
         // this can only happen if the very first buffer was rejected.
@@ -385,18 +379,19 @@ status_t BufferQueueLayer::updateFrameNumber(nsecs_t latchTime) {
     return NO_ERROR;
 }
 
-void BufferQueueLayer::latchPerFrameState(
-        compositionengine::LayerFECompositionState& compositionState) const {
-    BufferLayer::latchPerFrameState(compositionState);
-    if (compositionState.compositionType == Hwc2::IComposerClient::Composition::SIDEBAND) {
+void BufferQueueLayer::preparePerFrameCompositionState() {
+    BufferLayer::preparePerFrameCompositionState();
+
+    auto* compositionState = editCompositionState();
+    if (compositionState->compositionType == Hwc2::IComposerClient::Composition::SIDEBAND) {
         return;
     }
 
-    compositionState.buffer = mBufferInfo.mBuffer;
-    compositionState.bufferSlot = (mBufferInfo.mBufferSlot == BufferQueue::INVALID_BUFFER_SLOT)
+    compositionState->buffer = mBufferInfo.mBuffer;
+    compositionState->bufferSlot = (mBufferInfo.mBufferSlot == BufferQueue::INVALID_BUFFER_SLOT)
             ? 0
             : mBufferInfo.mBufferSlot;
-    compositionState.acquireFence = mBufferInfo.mFence;
+    compositionState->acquireFence = mBufferInfo.mFence;
 }
 
 // -----------------------------------------------------------------------

@@ -1661,6 +1661,7 @@ void GLESRenderEngine::handleShadow(const FloatRect& casterRect, float casterCor
 
     mState.cornerRadius = 0.0f;
     mState.drawShadows = true;
+    setupLayerTexturing(mShadowTexture.getTexture());
     drawMesh(mesh);
     mState.drawShadows = false;
 }

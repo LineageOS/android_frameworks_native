@@ -17,7 +17,6 @@
 #include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/impl/CompositionEngine.h>
-#include <compositionengine/mock/Layer.h>
 #include <compositionengine/mock/LayerFE.h>
 #include <compositionengine/mock/Output.h>
 #include <compositionengine/mock/OutputLayer.h>
@@ -50,11 +49,6 @@ struct CompositionEngineTest : public testing::Test {
     std::shared_ptr<mock::Output> mOutput1{std::make_shared<StrictMock<mock::Output>>()};
     std::shared_ptr<mock::Output> mOutput2{std::make_shared<StrictMock<mock::Output>>()};
     std::shared_ptr<mock::Output> mOutput3{std::make_shared<StrictMock<mock::Output>>()};
-
-    std::shared_ptr<mock::Layer> mLayer1{std::make_shared<StrictMock<mock::Layer>>()};
-    std::shared_ptr<mock::Layer> mLayer2{std::make_shared<StrictMock<mock::Layer>>()};
-    std::shared_ptr<mock::Layer> mLayer3{std::make_shared<StrictMock<mock::Layer>>()};
-    std::shared_ptr<mock::Layer> mLayer4{std::make_shared<StrictMock<mock::Layer>>()};
 };
 
 TEST_F(CompositionEngineTest, canInstantiateCompositionEngine) {
@@ -134,48 +128,32 @@ TEST_F(CompositionEnginePresentTest, worksAsExpected) {
 
 struct CompositionEngineUpdateCursorAsyncTest : public CompositionEngineTest {
 public:
+    struct Layer {
+        Layer() { EXPECT_CALL(outputLayer, getLayerFE()).WillRepeatedly(ReturnRef(layerFE)); }
+
+        StrictMock<mock::OutputLayer> outputLayer;
+        StrictMock<mock::LayerFE> layerFE;
+        LayerFECompositionState layerFEState;
+    };
+
     CompositionEngineUpdateCursorAsyncTest() {
         EXPECT_CALL(*mOutput1, getOutputLayerCount()).WillRepeatedly(Return(0u));
         EXPECT_CALL(*mOutput1, getOutputLayerOrderedByZByIndex(_)).Times(0);
 
         EXPECT_CALL(*mOutput2, getOutputLayerCount()).WillRepeatedly(Return(1u));
         EXPECT_CALL(*mOutput2, getOutputLayerOrderedByZByIndex(0))
-                .WillRepeatedly(Return(&mOutput2OutputLayer1));
+                .WillRepeatedly(Return(&mOutput2Layer1.outputLayer));
 
         EXPECT_CALL(*mOutput3, getOutputLayerCount()).WillRepeatedly(Return(2u));
         EXPECT_CALL(*mOutput3, getOutputLayerOrderedByZByIndex(0))
-                .WillRepeatedly(Return(&mOutput3OutputLayer1));
+                .WillRepeatedly(Return(&mOutput3Layer1.outputLayer));
         EXPECT_CALL(*mOutput3, getOutputLayerOrderedByZByIndex(1))
-                .WillRepeatedly(Return(&mOutput3OutputLayer2));
-
-        EXPECT_CALL(mOutput2OutputLayer1, getLayerFE()).WillRepeatedly(ReturnRef(mOutput2Layer1FE));
-        EXPECT_CALL(mOutput3OutputLayer1, getLayerFE()).WillRepeatedly(ReturnRef(mOutput3Layer1FE));
-        EXPECT_CALL(mOutput3OutputLayer2, getLayerFE()).WillRepeatedly(ReturnRef(mOutput3Layer2FE));
-
-        EXPECT_CALL(mOutput2OutputLayer1, getLayer()).WillRepeatedly(ReturnRef(mOutput2Layer1));
-        EXPECT_CALL(mOutput3OutputLayer1, getLayer()).WillRepeatedly(ReturnRef(mOutput3Layer1));
-        EXPECT_CALL(mOutput3OutputLayer2, getLayer()).WillRepeatedly(ReturnRef(mOutput3Layer2));
-
-        EXPECT_CALL(mOutput2Layer1, editFEState()).WillRepeatedly(ReturnRef(mOutput2Layer1FEState));
-        EXPECT_CALL(mOutput3Layer1, editFEState()).WillRepeatedly(ReturnRef(mOutput3Layer1FEState));
-        EXPECT_CALL(mOutput3Layer2, editFEState()).WillRepeatedly(ReturnRef(mOutput3Layer2FEState));
+                .WillRepeatedly(Return(&mOutput3Layer2.outputLayer));
     }
 
-    StrictMock<mock::OutputLayer> mOutput2OutputLayer1;
-    StrictMock<mock::OutputLayer> mOutput3OutputLayer1;
-    StrictMock<mock::OutputLayer> mOutput3OutputLayer2;
-
-    StrictMock<mock::LayerFE> mOutput2Layer1FE;
-    StrictMock<mock::LayerFE> mOutput3Layer1FE;
-    StrictMock<mock::LayerFE> mOutput3Layer2FE;
-
-    StrictMock<mock::Layer> mOutput2Layer1;
-    StrictMock<mock::Layer> mOutput3Layer1;
-    StrictMock<mock::Layer> mOutput3Layer2;
-
-    LayerFECompositionState mOutput2Layer1FEState;
-    LayerFECompositionState mOutput3Layer1FEState;
-    LayerFECompositionState mOutput3Layer2FEState;
+    Layer mOutput2Layer1;
+    Layer mOutput3Layer1;
+    Layer mOutput3Layer2;
 };
 
 TEST_F(CompositionEngineUpdateCursorAsyncTest, handlesNoOutputs) {
@@ -183,9 +161,9 @@ TEST_F(CompositionEngineUpdateCursorAsyncTest, handlesNoOutputs) {
 }
 
 TEST_F(CompositionEngineUpdateCursorAsyncTest, handlesNoLayersBeingCursorLayers) {
-    EXPECT_CALL(mOutput2OutputLayer1, isHardwareCursor()).WillRepeatedly(Return(false));
-    EXPECT_CALL(mOutput3OutputLayer1, isHardwareCursor()).WillRepeatedly(Return(false));
-    EXPECT_CALL(mOutput3OutputLayer2, isHardwareCursor()).WillRepeatedly(Return(false));
+    EXPECT_CALL(mOutput3Layer1.outputLayer, isHardwareCursor()).WillRepeatedly(Return(false));
+    EXPECT_CALL(mOutput3Layer2.outputLayer, isHardwareCursor()).WillRepeatedly(Return(false));
+    EXPECT_CALL(mOutput2Layer1.outputLayer, isHardwareCursor()).WillRepeatedly(Return(false));
 
     mRefreshArgs.outputs = {mOutput1, mOutput2, mOutput3};
 
@@ -195,23 +173,23 @@ TEST_F(CompositionEngineUpdateCursorAsyncTest, handlesNoLayersBeingCursorLayers)
 TEST_F(CompositionEngineUpdateCursorAsyncTest, handlesMultipleLayersBeingCursorLayers) {
     {
         InSequence seq;
-        EXPECT_CALL(mOutput2OutputLayer1, isHardwareCursor()).WillRepeatedly(Return(true));
-        EXPECT_CALL(mOutput2Layer1FE, latchCursorCompositionState(Ref(mOutput2Layer1FEState)));
-        EXPECT_CALL(mOutput2OutputLayer1, writeCursorPositionToHWC());
+        EXPECT_CALL(mOutput2Layer1.outputLayer, isHardwareCursor()).WillRepeatedly(Return(true));
+        EXPECT_CALL(mOutput2Layer1.layerFE, prepareCompositionState(LayerFE::StateSubset::Cursor));
+        EXPECT_CALL(mOutput2Layer1.outputLayer, writeCursorPositionToHWC());
     }
 
     {
         InSequence seq;
-        EXPECT_CALL(mOutput3OutputLayer1, isHardwareCursor()).WillRepeatedly(Return(true));
-        EXPECT_CALL(mOutput3Layer1FE, latchCursorCompositionState(Ref(mOutput3Layer1FEState)));
-        EXPECT_CALL(mOutput3OutputLayer1, writeCursorPositionToHWC());
+        EXPECT_CALL(mOutput3Layer1.outputLayer, isHardwareCursor()).WillRepeatedly(Return(true));
+        EXPECT_CALL(mOutput3Layer1.layerFE, prepareCompositionState(LayerFE::StateSubset::Cursor));
+        EXPECT_CALL(mOutput3Layer1.outputLayer, writeCursorPositionToHWC());
     }
 
     {
         InSequence seq;
-        EXPECT_CALL(mOutput3OutputLayer2, isHardwareCursor()).WillRepeatedly(Return(true));
-        EXPECT_CALL(mOutput3Layer2FE, latchCursorCompositionState(Ref(mOutput3Layer2FEState)));
-        EXPECT_CALL(mOutput3OutputLayer2, writeCursorPositionToHWC());
+        EXPECT_CALL(mOutput3Layer2.outputLayer, isHardwareCursor()).WillRepeatedly(Return(true));
+        EXPECT_CALL(mOutput3Layer2.layerFE, prepareCompositionState(LayerFE::StateSubset::Cursor));
+        EXPECT_CALL(mOutput3Layer2.outputLayer, writeCursorPositionToHWC());
     }
 
     mRefreshArgs.outputs = {mOutput1, mOutput2, mOutput3};
@@ -224,14 +202,6 @@ TEST_F(CompositionEngineUpdateCursorAsyncTest, handlesMultipleLayersBeingCursorL
  */
 
 struct CompositionTestPreComposition : public CompositionEngineTest {
-    CompositionTestPreComposition() {
-        EXPECT_CALL(*mLayer1, getLayerFE()).WillRepeatedly(Return(mLayer1FE));
-        EXPECT_CALL(*mLayer2, getLayerFE()).WillRepeatedly(Return(mLayer2FE));
-        EXPECT_CALL(*mLayer3, getLayerFE()).WillRepeatedly(Return(mLayer3FE));
-        // getLayerFE() can return nullptr. Ensure that this is handled.
-        EXPECT_CALL(*mLayer4, getLayerFE()).WillRepeatedly(Return(nullptr));
-    }
-
     sp<StrictMock<mock::LayerFE>> mLayer1FE{new StrictMock<mock::LayerFE>()};
     sp<StrictMock<mock::LayerFE>> mLayer2FE{new StrictMock<mock::LayerFE>()};
     sp<StrictMock<mock::LayerFE>> mLayer3FE{new StrictMock<mock::LayerFE>()};
@@ -256,7 +226,7 @@ TEST_F(CompositionTestPreComposition, preCompositionInvokesLayerPreCompositionWi
     EXPECT_CALL(*mLayer3FE, onPreComposition(_)).WillOnce(DoAll(SaveArg<0>(&ts3), Return(false)));
 
     mRefreshArgs.outputs = {mOutput1};
-    mRefreshArgs.layers = {mLayer1, mLayer2, mLayer3, mLayer4};
+    mRefreshArgs.layers = {mLayer1FE, mLayer2FE, mLayer3FE};
 
     mEngine.preComposition(mRefreshArgs);
 
@@ -274,7 +244,7 @@ TEST_F(CompositionTestPreComposition, preCompositionDefaultsToNoUpdateNeeded) {
     mEngine.setNeedsAnotherUpdateForTest(true);
 
     mRefreshArgs.outputs = {mOutput1};
-    mRefreshArgs.layers = {mLayer1, mLayer2, mLayer3, mLayer4};
+    mRefreshArgs.layers = {mLayer1FE, mLayer2FE, mLayer3FE};
 
     mEngine.preComposition(mRefreshArgs);
 
@@ -289,7 +259,7 @@ TEST_F(CompositionTestPreComposition,
     EXPECT_CALL(*mLayer3FE, onPreComposition(_)).WillOnce(Return(false));
 
     mRefreshArgs.outputs = {mOutput1};
-    mRefreshArgs.layers = {mLayer1, mLayer2, mLayer3, mLayer4};
+    mRefreshArgs.layers = {mLayer1FE, mLayer2FE, mLayer3FE};
 
     mEngine.preComposition(mRefreshArgs);
 

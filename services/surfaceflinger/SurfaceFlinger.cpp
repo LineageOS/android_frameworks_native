@@ -45,6 +45,7 @@
 #include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/Display.h>
 #include <compositionengine/DisplayColorProfile.h>
+#include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/RenderSurface.h>
 #include <compositionengine/impl/OutputCompositionState.h>
@@ -554,6 +555,12 @@ void SurfaceFlinger::bootFinished()
     postMessageAsync(new LambdaMessage([this]() NO_THREAD_SAFETY_ANALYSIS {
         readPersistentProperties();
         mBootStage = BootStage::FINISHED;
+
+        if (mRefreshRateConfigs->refreshRateSwitchingSupported()) {
+            // set the refresh rate according to the policy
+            const auto& performanceRefreshRate = mRefreshRateConfigs->getMaxRefreshRateByPolicy();
+            changeRefreshRateLocked(performanceRefreshRate, Scheduler::ConfigEvent::None);
+        }
 
         if (property_get_bool("sf.debug.show_refresh_rate_overlay", false)) {
             mRefreshRateOverlay = std::make_unique<RefreshRateOverlay>(*this);
@@ -1871,13 +1878,13 @@ void SurfaceFlinger::handleMessageRefresh() {
         refreshArgs.outputs.push_back(display->getCompositionDisplay());
     }
     mDrawingState.traverseInZOrder([&refreshArgs](Layer* layer) {
-        auto compositionLayer = layer->getCompositionLayer();
-        if (compositionLayer) refreshArgs.layers.push_back(compositionLayer);
+        if (auto layerFE = layer->getCompositionEngineLayerFE())
+            refreshArgs.layers.push_back(layerFE);
     });
     refreshArgs.layersWithQueuedFrames.reserve(mLayersWithQueuedFrames.size());
     for (sp<Layer> layer : mLayersWithQueuedFrames) {
-        auto compositionLayer = layer->getCompositionLayer();
-        if (compositionLayer) refreshArgs.layersWithQueuedFrames.push_back(compositionLayer.get());
+        if (auto layerFE = layer->getCompositionEngineLayerFE())
+            refreshArgs.layersWithQueuedFrames.push_back(layerFE);
     }
 
     refreshArgs.repaintEverything = mRepaintEverything.exchange(false);
@@ -2713,7 +2720,8 @@ void SurfaceFlinger::initScheduler(DisplayId primaryDisplayId) {
 
     auto currentConfig = HwcConfigIndexType(getHwComposer().getActiveConfigIndex(primaryDisplayId));
     mRefreshRateConfigs =
-            std::make_unique<scheduler::RefreshRateConfigs>(getHwComposer().getConfigs(
+            std::make_unique<scheduler::RefreshRateConfigs>(refresh_rate_switching(false),
+                                                            getHwComposer().getConfigs(
                                                                     primaryDisplayId),
                                                             currentConfig);
     mRefreshRateStats =
@@ -3548,7 +3556,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         }
     }
     if (what & layer_state_t::eFrameRateChanged) {
-        if (layer->setFrameRate(s.frameRate)) flags |= eTraversalNeeded;
+        if (layer->setFrameRate(
+                    Layer::FrameRate(s.frameRate, Layer::FrameRateCompatibility::Default)))
+            flags |= eTraversalNeeded;
     }
     // This has to happen after we reparent children because when we reparent to null we remove
     // child layers from current state and remove its relative z. If the children are reparented in
@@ -3590,7 +3600,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         buffer = s.buffer;
     }
     if (buffer) {
-        if (layer->setBuffer(buffer, postTime, desiredPresentTime, s.cachedBuffer)) {
+        if (layer->setBuffer(buffer, s.acquireFence, postTime, desiredPresentTime,
+                             s.cachedBuffer)) {
             flags |= eTraversalNeeded;
         }
     }
@@ -4435,8 +4446,13 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     {
         StringAppendF(&result, "Composition layers\n");
         mDrawingState.traverseInZOrder([&](Layer* layer) {
-            auto compositionLayer = layer->getCompositionLayer();
-            if (compositionLayer) compositionLayer->dump(result);
+            auto* compositionState = layer->getCompositionState();
+            if (!compositionState) return;
+
+            android::base::StringAppendF(&result, "* Layer %p (%s)\n", layer,
+                                         layer->getDebugName() ? layer->getDebugName()
+                                                               : "<unknown>");
+            compositionState->dump(result);
         });
     }
 
@@ -5690,19 +5706,26 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(const sp<DisplayDe
     mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value,
                                 display->getActiveConfig(), vsyncPeriod);
 
-    auto configId = mScheduler->getPreferredConfigId();
-    auto preferredRefreshRate = configId
-            ? mRefreshRateConfigs->getRefreshRateFromConfigId(*configId)
-            // NOTE: Choose the default config ID, if Scheduler doesn't have one in mind.
-            : mRefreshRateConfigs->getRefreshRateFromConfigId(defaultConfig);
-    ALOGV("trying to switch to Scheduler preferred config %d (%s)",
-          preferredRefreshRate.configId.value(), preferredRefreshRate.name.c_str());
-
-    if (isDisplayConfigAllowed(preferredRefreshRate.configId)) {
-        ALOGV("switching to Scheduler preferred config %d", preferredRefreshRate.configId.value());
-        setDesiredActiveConfig({preferredRefreshRate.configId, Scheduler::ConfigEvent::Changed});
+    if (mRefreshRateConfigs->refreshRateSwitchingSupported()) {
+        auto configId = mScheduler->getPreferredConfigId();
+        auto preferredRefreshRate = configId
+                ? mRefreshRateConfigs->getRefreshRateFromConfigId(*configId)
+                : mRefreshRateConfigs->getMinRefreshRateByPolicy();
+        ALOGV("trying to switch to Scheduler preferred config %d (%s)",
+              preferredRefreshRate.configId.value(), preferredRefreshRate.name.c_str());
+        if (isDisplayConfigAllowed(preferredRefreshRate.configId)) {
+            ALOGV("switching to Scheduler preferred config %d",
+                  preferredRefreshRate.configId.value());
+            setDesiredActiveConfig(
+                    {preferredRefreshRate.configId, Scheduler::ConfigEvent::Changed});
+        } else {
+            // Set the highest allowed config
+            setDesiredActiveConfig({mRefreshRateConfigs->getMaxRefreshRateByPolicy().configId,
+                                    Scheduler::ConfigEvent::Changed});
+        }
     } else {
-        LOG_ALWAYS_FATAL("Desired config not allowed: %d", preferredRefreshRate.configId.value());
+        ALOGV("switching to config %d", defaultConfig.value());
+        setDesiredActiveConfig({defaultConfig, Scheduler::ConfigEvent::Changed});
     }
 
     return NO_ERROR;

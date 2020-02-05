@@ -64,7 +64,7 @@ namespace android {
 
 std::unique_ptr<DispSync> createDispSync() {
     // TODO (140302863) remove this and use the vsync_reactor system.
-    if (property_get_bool("debug.sf.vsync_reactor", false)) {
+    if (property_get_bool("debug.sf.vsync_reactor", true)) {
         // TODO (144707443) tune Predictor tunables.
         static constexpr int default_rate = 60;
         static constexpr auto initial_period =
@@ -408,7 +408,8 @@ void Scheduler::registerLayer(Layer* layer) {
                         "SurfaceView - "
                         "com.google.android.youtube/"
                         "com.google.android.apps.youtube.app.WatchWhileActivity#0") {
-                layer->setFrameRate(vote);
+                layer->setFrameRate(
+                        Layer::FrameRate(vote, Layer::FrameRateCompatibility::ExactOrMultiple));
             }
         }
     }
@@ -529,6 +530,8 @@ void Scheduler::dump(std::string& result) const {
     using base::StringAppendF;
     const char* const states[] = {"off", "on"};
 
+    const bool supported = mRefreshRateConfigs.refreshRateSwitchingSupported();
+    StringAppendF(&result, "+  Refresh rate switching: %s\n", states[supported]);
     StringAppendF(&result, "+  Content detection: %s\n", states[mLayerHistory != nullptr]);
 
     StringAppendF(&result, "+  Idle timer: %s\n",
@@ -562,7 +565,8 @@ void Scheduler::handleTimerStateChanged(T* currentState, T newState, bool eventO
 
 bool Scheduler::layerHistoryHasClientSpecifiedFrameRate() {
     for (const auto& layer : mFeatures.contentRequirements) {
-        if (layer.vote == scheduler::RefreshRateConfigs::LayerVoteType::Explicit) {
+        if (layer.vote == scheduler::RefreshRateConfigs::LayerVoteType::ExplicitDefault ||
+            layer.vote == scheduler::RefreshRateConfigs::LayerVoteType::ExplicitExactOrMultiple) {
             return true;
         }
     }
@@ -571,44 +575,35 @@ bool Scheduler::layerHistoryHasClientSpecifiedFrameRate() {
 }
 
 HwcConfigIndexType Scheduler::calculateRefreshRateType() {
-    // This block of the code checks whether any layers used the SetFrameRate API. If they have,
-    // their request should be honored regardless of whether the device has refresh rate switching
-    // turned off.
-    if (layerHistoryHasClientSpecifiedFrameRate()) {
-        if (!mUseContentDetectionV2) {
-            return mRefreshRateConfigs.getRefreshRateForContent(mFeatures.contentRequirements)
-                    .configId;
-        } else {
-            return mRefreshRateConfigs.getRefreshRateForContentV2(mFeatures.contentRequirements)
-                    .configId;
-        }
+    if (!mRefreshRateConfigs.refreshRateSwitchingSupported()) {
+        return mRefreshRateConfigs.getCurrentRefreshRate().configId;
     }
 
     // If the layer history doesn't have the frame rate specified, use the old path. NOTE:
     // if we remove the kernel idle timer, and use our internal idle timer, this code will have to
     // be refactored.
-    // If Display Power is not in normal operation we want to be in performance mode.
-    // When coming back to normal mode, a grace period is given with DisplayPowerTimer
-    if (mDisplayPowerTimer &&
-        (!mFeatures.isDisplayPowerStateNormal ||
-         mFeatures.displayPowerTimer == TimerState::Reset)) {
-        return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
-    }
+    if (!layerHistoryHasClientSpecifiedFrameRate()) {
+        // If Display Power is not in normal operation we want to be in performance mode.
+        // When coming back to normal mode, a grace period is given with DisplayPowerTimer
+        if (!mFeatures.isDisplayPowerStateNormal ||
+            mFeatures.displayPowerTimer == TimerState::Reset) {
+            return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
+        }
 
-    // As long as touch is active we want to be in performance mode
-    if (mTouchTimer && mFeatures.touch == TouchState::Active) {
-        return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
-    }
+        // As long as touch is active we want to be in performance mode
+        if (mFeatures.touch == TouchState::Active) {
+            return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
+        }
 
-    // If timer has expired as it means there is no new content on the screen
-    if (mIdleTimer && mFeatures.idleTimer == TimerState::Expired) {
-        return mRefreshRateConfigs.getMinRefreshRateByPolicy().configId;
+        // If timer has expired as it means there is no new content on the screen
+        if (mFeatures.idleTimer == TimerState::Expired) {
+            return mRefreshRateConfigs.getMinRefreshRateByPolicy().configId;
+        }
     }
 
     if (!mUseContentDetectionV2) {
-        // If content detection is off we choose performance as we don't know the content fps.
+        // If content detection is off we choose performance as we don't know the content fps
         if (mFeatures.contentDetection == ContentDetectionState::Off) {
-            // TODO(b/148428554): Be careful to not always call this.
             return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
         }
 

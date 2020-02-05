@@ -550,7 +550,7 @@ void ProgramCache::generateOETF(Formatter& fs, const Key& needs) {
 
 String8 ProgramCache::generateVertexShader(const Key& needs) {
     Formatter vs;
-    if (needs.isTexturing()) {
+    if (needs.hasTextureCoords()) {
         vs << "attribute vec4 texCoords;"
            << "varying vec2 outTexCoords;";
     }
@@ -559,16 +559,16 @@ String8 ProgramCache::generateVertexShader(const Key& needs) {
         vs << "varying lowp vec2 outCropCoords;";
     }
     if (needs.drawShadows()) {
-        vs << "attribute vec4 shadowColor;";
-        vs << "varying vec4 outShadowColor;";
-        vs << "attribute vec4 shadowParams;";
-        vs << "varying vec3 outShadowParams;";
+        vs << "attribute lowp vec4 shadowColor;";
+        vs << "varying lowp vec4 outShadowColor;";
+        vs << "attribute lowp vec4 shadowParams;";
+        vs << "varying lowp vec3 outShadowParams;";
     }
     vs << "attribute vec4 position;"
        << "uniform mat4 projection;"
        << "uniform mat4 texture;"
        << "void main(void) {" << indent << "gl_Position = projection * position;";
-    if (needs.isTexturing()) {
+    if (needs.hasTextureCoords()) {
         vs << "outTexCoords = (texture * texCoords).st;";
     }
     if (needs.hasRoundedCorners()) {
@@ -592,11 +592,13 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
     fs << "precision mediump float;";
 
     if (needs.getTextureTarget() == Key::TEXTURE_EXT) {
-        fs << "uniform samplerExternalOES sampler;"
-           << "varying vec2 outTexCoords;";
+        fs << "uniform samplerExternalOES sampler;";
     } else if (needs.getTextureTarget() == Key::TEXTURE_2D) {
-        fs << "uniform sampler2D sampler;"
-           << "varying vec2 outTexCoords;";
+        fs << "uniform sampler2D sampler;";
+    }
+
+    if (needs.hasTextureCoords()) {
+        fs << "varying vec2 outTexCoords;";
     }
 
     if (needs.hasRoundedCorners()) {
@@ -625,19 +627,17 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
 
     if (needs.drawShadows()) {
         fs << R"__SHADER__(
-            varying vec4 outShadowColor;
-            varying vec3 outShadowParams;
+            varying lowp vec4 outShadowColor;
+            varying lowp vec3 outShadowParams;
 
             /**
              * Returns the shadow color.
              */
             vec4 getShadowColor()
             {
-                // exponential falloff function provided by UX
-                float d = length(outShadowParams.xy);
-                float distance = outShadowParams.z * (1.0 - d);
-                float factor = 1.0 - clamp(distance, 0.0, 1.0);
-                factor = exp(-factor * factor * 4.0) - 0.018;
+                lowp float d = length(outShadowParams.xy);
+                vec2 uv = vec2(outShadowParams.z * (1.0 - d), 0.5);
+                lowp float factor = texture2D(sampler, uv).a;
                 return outShadowColor * factor;
             }
             )__SHADER__";

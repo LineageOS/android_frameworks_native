@@ -82,12 +82,25 @@ public:
     // updated time, the updated time is the present time.
     nsecs_t getLastUpdatedTime() const { return mLastUpdatedTime; }
 
-    void clearHistory() { mFrameTimes.clear(); }
+    void clearHistory() {
+        // Mark mFrameTimeValidSince to now to ignore all previous frame times.
+        // We are not deleting the old frame to keep track of whether we should treat the first
+        // buffer as Max as we don't know anything about this layer or Min as this layer is
+        // posting infrequent updates.
+        mFrameTimeValidSince = std::chrono::steady_clock::now();
+    }
 
 private:
+    // Used to store the layer timestamps
+    struct FrameTimeData {
+        nsecs_t presetTime; // desiredPresentTime, if provided
+        nsecs_t queueTime;  // buffer queue time
+    };
+
     bool isFrequent(nsecs_t now) const;
     bool hasEnoughDataForHeuristic() const;
     std::optional<float> calculateRefreshRateIfPossible();
+    bool isFrameTimeValid(const FrameTimeData&) const;
 
     // Used for sanitizing the heuristic data
     const nsecs_t mHighRefreshRatePeriod;
@@ -103,12 +116,9 @@ private:
         float fps;
     } mLayerVote;
 
-    // Used to store the layer timestamps
-    struct FrameTimeData {
-        nsecs_t presetTime; // desiredPresentTime, if provided
-        nsecs_t queueTime;  // buffer queue time
-    };
     std::deque<FrameTimeData> mFrameTimes;
+    std::chrono::time_point<std::chrono::steady_clock> mFrameTimeValidSince =
+            std::chrono::steady_clock::now();
     static constexpr size_t HISTORY_SIZE = 90;
     static constexpr std::chrono::nanoseconds HISTORY_TIME = 1s;
 };

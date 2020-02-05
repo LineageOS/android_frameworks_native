@@ -644,6 +644,13 @@ std::unique_ptr<Geometry> getSpotShadowGeometry(const FloatRect& casterRect,
                              2.0f * devSpaceSpotBlur, std::abs(insetWidth));
 }
 
+void fillShadowTextureData(uint8_t* data, size_t shadowTextureWidth) {
+    for (int i = 0; i < shadowTextureWidth; i++) {
+        const float d = 1 - i / ((shadowTextureWidth * 1.0f) - 1.0f);
+        data[i] = static_cast<uint8_t>((exp(-4.0f * d * d) - 0.018f) * 255);
+    }
+}
+
 } // namespace gl
 } // namespace renderengine
 } // namespace android

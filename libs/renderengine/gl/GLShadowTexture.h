@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 The Android Open Source Project
+ * Copyright 2020 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +14,31 @@
  * limitations under the License.
  */
 
-#include <compositionengine/mock/Layer.h>
+#pragma once
 
-namespace android::compositionengine::mock {
+#include <renderengine/Texture.h>
+#include <cstdint>
 
-// The Google Mock documentation recommends explicit non-header instantiations
-// for better compile time performance.
-Layer::Layer() = default;
-Layer::~Layer() = default;
+namespace android {
+namespace renderengine {
+namespace gl {
 
-} // namespace android::compositionengine::mock
+class GLShadowTexture {
+public:
+    GLShadowTexture();
+    ~GLShadowTexture();
+
+    const Texture& getTexture();
+
+private:
+    static constexpr int SHADOW_TEXTURE_WIDTH = 128;
+    static constexpr int SHADOW_TEXTURE_HEIGHT = 1;
+
+    GLuint mName;
+    Texture mTexture;
+    uint8_t mTextureData[SHADOW_TEXTURE_WIDTH];
+};
+
+} // namespace gl
+} // namespace renderengine
+} // namespace android

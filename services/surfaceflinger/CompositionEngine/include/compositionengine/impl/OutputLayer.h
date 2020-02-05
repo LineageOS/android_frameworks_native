@@ -81,7 +81,6 @@ private:
 // to the base code.
 template <typename BaseOutputLayer>
 std::unique_ptr<BaseOutputLayer> createOutputLayerTemplated(const Output& output,
-                                                            std::shared_ptr<Layer> layer,
                                                             sp<LayerFE> layerFE) {
     class OutputLayer final : public BaseOutputLayer {
     public:
@@ -93,21 +92,18 @@ std::unique_ptr<BaseOutputLayer> createOutputLayerTemplated(const Output& output
                 std::remove_reference_t<decltype(std::declval<BaseOutputLayer>().getState())>>;
         using Output = std::remove_const_t<
                 std::remove_reference_t<decltype(std::declval<BaseOutputLayer>().getOutput())>>;
-        using Layer = std::remove_reference_t<decltype(std::declval<BaseOutputLayer>().getLayer())>;
         using LayerFE =
                 std::remove_reference_t<decltype(std::declval<BaseOutputLayer>().getLayerFE())>;
 
 #pragma clang diagnostic pop
 
-        OutputLayer(const Output& output, const std::shared_ptr<Layer>& layer,
-                    const sp<LayerFE>& layerFE)
-              : mOutput(output), mLayer(layer), mLayerFE(layerFE) {}
+        OutputLayer(const Output& output, const sp<LayerFE>& layerFE)
+              : mOutput(output), mLayerFE(layerFE) {}
         ~OutputLayer() override = default;
 
     private:
         // compositionengine::OutputLayer overrides
         const Output& getOutput() const override { return mOutput; }
-        Layer& getLayer() const override { return *mLayer; }
         LayerFE& getLayerFE() const override { return *mLayerFE; }
         const OutputLayerCompositionState& getState() const override { return mState; }
         OutputLayerCompositionState& editState() override { return mState; }
@@ -116,16 +112,14 @@ std::unique_ptr<BaseOutputLayer> createOutputLayerTemplated(const Output& output
         void dumpState(std::string& out) const override { mState.dump(out); }
 
         const Output& mOutput;
-        const std::shared_ptr<Layer> mLayer;
         const sp<LayerFE> mLayerFE;
         OutputLayerCompositionState mState;
     };
 
-    return std::make_unique<OutputLayer>(output, layer, layerFE);
+    return std::make_unique<OutputLayer>(output, layerFE);
 }
 
 std::unique_ptr<OutputLayer> createOutputLayer(const compositionengine::Output&,
-                                               const std::shared_ptr<compositionengine::Layer>&,
                                                const sp<LayerFE>&);
 
 } // namespace impl

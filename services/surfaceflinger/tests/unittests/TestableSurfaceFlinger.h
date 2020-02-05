@@ -17,7 +17,6 @@
 #pragma once
 
 #include <compositionengine/Display.h>
-#include <compositionengine/Layer.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/CompositionEngine.h>
@@ -203,7 +202,8 @@ public:
         std::vector<scheduler::RefreshRateConfigs::InputConfig> configs{
                 {{HwcConfigIndexType(0), HwcConfigGroupType(0), 16666667}}};
         mFlinger->mRefreshRateConfigs = std::make_unique<
-                scheduler::RefreshRateConfigs>(configs, /*currentConfig=*/HwcConfigIndexType(0));
+                scheduler::RefreshRateConfigs>(/*refreshRateSwitching=*/false, configs,
+                                               /*currentConfig=*/HwcConfigIndexType(0));
         mFlinger->mRefreshRateStats = std::make_unique<
                 scheduler::RefreshRateStats>(*mFlinger->mRefreshRateConfigs, *mFlinger->mTimeStats,
                                              /*currentConfig=*/HwcConfigIndexType(0),
@@ -251,7 +251,7 @@ public:
     void setLayerSidebandStream(sp<Layer> layer, sp<NativeHandle> sidebandStream) {
         layer->mDrawingState.sidebandStream = sidebandStream;
         layer->mSidebandStream = sidebandStream;
-        layer->getCompositionLayer()->editFEState().sidebandStream = sidebandStream;
+        layer->editCompositionState()->sidebandStream = sidebandStream;
     }
 
     void setLayerCompositionType(sp<Layer> layer, HWC2::Composition type) {

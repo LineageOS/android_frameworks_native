@@ -19,7 +19,7 @@
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/DisplayCreationArgs.h>
-#include <compositionengine/LayerCreationArgs.h>
+#include <compositionengine/LayerFECompositionState.h>
 #include <gmock/gmock.h>
 #include <renderengine/RenderEngine.h>
 
@@ -33,7 +33,8 @@ public:
     ~CompositionEngine() override;
 
     MOCK_METHOD1(createDisplay, std::shared_ptr<Display>(const DisplayCreationArgs&));
-    MOCK_METHOD1(createLayer, std::shared_ptr<Layer>(const LayerCreationArgs&));
+    MOCK_METHOD0(createLayerFECompositionState,
+                 std::unique_ptr<compositionengine::LayerFECompositionState>());
 
     MOCK_CONST_METHOD0(getHwComposer, HWComposer&());
     MOCK_METHOD1(setHwComposer, void(std::unique_ptr<HWComposer>));

@@ -68,8 +68,8 @@ public:
     bool setTransformToDisplayInverse(bool transformToDisplayInverse) override;
     bool setCrop(const Rect& crop) override;
     bool setFrame(const Rect& frame) override;
-    bool setBuffer(const sp<GraphicBuffer>& buffer, nsecs_t postTime, nsecs_t desiredPresentTime,
-                   const client_cache_t& clientCacheId) override;
+    bool setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence>& acquireFence, nsecs_t postTime,
+                   nsecs_t desiredPresentTime, const client_cache_t& clientCacheId) override;
     bool setAcquireFence(const sp<Fence>& fence) override;
     bool setDataspace(ui::Dataspace dataspace) override;
     bool setHdrMetadata(const HdrMetadata& hdrMetadata) override;
@@ -109,6 +109,9 @@ protected:
     void gatherBufferInfo() override;
 
 private:
+    bool updateFrameEventHistory(const sp<Fence>& acquireFence, nsecs_t postedTime,
+                                 nsecs_t requestedPresentTime);
+
     uint64_t getFrameNumber(nsecs_t expectedPresentTime) const override;
 
     bool getAutoRefresh() const override;
@@ -125,7 +128,7 @@ private:
     status_t updateActiveBuffer() override;
     status_t updateFrameNumber(nsecs_t latchTime) override;
 
-    void latchPerFrameState(compositionengine::LayerFECompositionState&) const override;
+    void preparePerFrameCompositionState() override;
     sp<Layer> createClone() override;
 
     // Crop that applies to the buffer

@@ -155,7 +155,7 @@ bool RefreshRateOverlay::createLayer() {
 
     Mutex::Autolock _l(mFlinger.mStateLock);
     mLayer = mClient->getLayerUser(mIBinder);
-    mLayer->setFrameRate(Layer::FRAME_RATE_NO_VOTE);
+    mLayer->setFrameRate(Layer::FrameRate(0, Layer::FrameRateCompatibility::NoVote));
 
     // setting Layer's Z requires resorting layersSortedByZ
     ssize_t idx = mFlinger.mCurrentState.layersSortedByZ.indexOf(mLayer);
@@ -208,7 +208,7 @@ void RefreshRateOverlay::changeRefreshRate(const RefreshRate& refreshRate) {
     const int32_t buttom = top + display->getHeight() / 32;
 
     auto buffer = mBufferCache[refreshRate.fps];
-    mLayer->setBuffer(buffer, 0, 0, {});
+    mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, {});
 
     mLayer->setFrame(Rect(left, top, right, buttom));
 

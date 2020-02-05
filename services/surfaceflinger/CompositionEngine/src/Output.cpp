@@ -20,7 +20,6 @@
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/DisplayColorProfile.h>
-#include <compositionengine/Layer.h>
 #include <compositionengine/LayerFE.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/RenderSurface.h>
@@ -267,31 +266,26 @@ bool Output::belongsInOutput(std::optional<uint32_t> layerStackId, bool internal
             (!internalOnly || outputState.layerStackInternal);
 }
 
-bool Output::belongsInOutput(const compositionengine::Layer* layer) const {
-    if (!layer) {
-        return false;
-    }
-
-    const auto& layerFEState = layer->getFEState();
-    return belongsInOutput(layerFEState.layerStackId, layerFEState.internalOnly);
+bool Output::belongsInOutput(const sp<compositionengine::LayerFE>& layerFE) const {
+    const auto* layerFEState = layerFE->getCompositionState();
+    return layerFEState && belongsInOutput(layerFEState->layerStackId, layerFEState->internalOnly);
 }
 
 std::unique_ptr<compositionengine::OutputLayer> Output::createOutputLayer(
-        const std::shared_ptr<compositionengine::Layer>& layer, const sp<LayerFE>& layerFE) const {
-    return impl::createOutputLayer(*this, layer, layerFE);
+        const sp<LayerFE>& layerFE) const {
+    return impl::createOutputLayer(*this, layerFE);
 }
 
-compositionengine::OutputLayer* Output::getOutputLayerForLayer(
-        compositionengine::Layer* layer) const {
-    auto index = findCurrentOutputLayerForLayer(layer);
+compositionengine::OutputLayer* Output::getOutputLayerForLayer(const sp<LayerFE>& layerFE) const {
+    auto index = findCurrentOutputLayerForLayer(layerFE);
     return index ? getOutputLayerOrderedByZByIndex(*index) : nullptr;
 }
 
 std::optional<size_t> Output::findCurrentOutputLayerForLayer(
-        compositionengine::Layer* layer) const {
+        const sp<compositionengine::LayerFE>& layer) const {
     for (size_t i = 0; i < getOutputLayerCount(); i++) {
         auto outputLayer = getOutputLayerOrderedByZByIndex(i);
-        if (outputLayer && &outputLayer->getLayer() == layer) {
+        if (outputLayer && &outputLayer->getLayerFE() == layer.get()) {
             return i;
         }
     }
@@ -354,7 +348,7 @@ void Output::collectVisibleLayers(const compositionengine::CompositionRefreshArg
     // Evaluate the layers from front to back to determine what is visible. This
     // also incrementally calculates the coverage information for each layer as
     // well as the entire output.
-    for (auto& layer : reversed(refreshArgs.layers)) {
+    for (auto layer : reversed(refreshArgs.layers)) {
         // Incrementally process the coverage for each layer
         ensureOutputLayerIfVisible(layer, coverage);
 
@@ -373,28 +367,29 @@ void Output::collectVisibleLayers(const compositionengine::CompositionRefreshArg
     }
 }
 
-void Output::ensureOutputLayerIfVisible(std::shared_ptr<compositionengine::Layer> layer,
+void Output::ensureOutputLayerIfVisible(sp<compositionengine::LayerFE>& layerFE,
                                         compositionengine::Output::CoverageState& coverage) {
-    // Note: Converts a wp<LayerFE> to a sp<LayerFE>
-    auto layerFE = layer->getLayerFE();
-    if (layerFE == nullptr) {
-        return;
-    }
-
     // Ensure we have a snapshot of the basic geometry layer state. Limit the
     // snapshots to once per frame for each candidate layer, as layers may
     // appear on multiple outputs.
     if (!coverage.latchedLayers.count(layerFE)) {
         coverage.latchedLayers.insert(layerFE);
-        layerFE->latchCompositionState(layer->editFEState(),
-                                       compositionengine::LayerFE::StateSubset::BasicGeometry);
+        layerFE->prepareCompositionState(compositionengine::LayerFE::StateSubset::BasicGeometry);
     }
 
-    // Obtain a read-only reference to the front-end layer state
-    const auto& layerFEState = layer->getFEState();
-
     // Only consider the layers on the given layer stack
-    if (!belongsInOutput(layer.get())) {
+    if (!belongsInOutput(layerFE)) {
+        return;
+    }
+
+    // Obtain a read-only pointer to the front-end layer state
+    const auto* layerFEState = layerFE->getCompositionState();
+    if (CC_UNLIKELY(!layerFEState)) {
+        return;
+    }
+
+    // handle hidden surfaces by setting the visible region to empty
+    if (CC_UNLIKELY(!layerFEState->isVisible)) {
         return;
     }
 
@@ -432,23 +427,18 @@ void Output::ensureOutputLayerIfVisible(std::shared_ptr<compositionengine::Layer
      */
     Region shadowRegion;
 
-    // handle hidden surfaces by setting the visible region to empty
-    if (CC_UNLIKELY(!layerFEState.isVisible)) {
-        return;
-    }
-
-    const ui::Transform& tr = layerFEState.geomLayerTransform;
+    const ui::Transform& tr = layerFEState->geomLayerTransform;
 
     // Get the visible region
     // TODO(b/121291683): Is it worth creating helper methods on LayerFEState
     // for computations like this?
-    const Rect visibleRect(tr.transform(layerFEState.geomLayerBounds));
+    const Rect visibleRect(tr.transform(layerFEState->geomLayerBounds));
     visibleRegion.set(visibleRect);
 
-    if (layerFEState.shadowRadius > 0.0f) {
+    if (layerFEState->shadowRadius > 0.0f) {
         // if the layer casts a shadow, offset the layers visible region and
         // calculate the shadow region.
-        const auto inset = static_cast<int32_t>(ceilf(layerFEState.shadowRadius) * -1.0f);
+        const auto inset = static_cast<int32_t>(ceilf(layerFEState->shadowRadius) * -1.0f);
         Rect visibleRectWithShadows(visibleRect);
         visibleRectWithShadows.inset(inset, inset, inset, inset);
         visibleRegion.set(visibleRectWithShadows);
@@ -460,10 +450,10 @@ void Output::ensureOutputLayerIfVisible(std::shared_ptr<compositionengine::Layer
     }
 
     // Remove the transparent area from the visible region
-    if (!layerFEState.isOpaque) {
+    if (!layerFEState->isOpaque) {
         if (tr.preserveRects()) {
             // transform the transparent region
-            transparentRegion = tr.transform(layerFEState.transparentRegionHint);
+            transparentRegion = tr.transform(layerFEState->transparentRegionHint);
         } else {
             // transformation too complex, can't do the
             // transparent region optimization.
@@ -473,7 +463,7 @@ void Output::ensureOutputLayerIfVisible(std::shared_ptr<compositionengine::Layer
 
     // compute the opaque region
     const auto layerOrientation = tr.getOrientation();
-    if (layerFEState.isOpaque && ((layerOrientation & ui::Transform::ROT_INVALID) == 0)) {
+    if (layerFEState->isOpaque && ((layerOrientation & ui::Transform::ROT_INVALID) == 0)) {
         // If we one of the simple category of transforms (0/90/180/270 rotation
         // + any flip), then the opaque region is the layer's footprint.
         // Otherwise we don't try and compute the opaque region since there may
@@ -497,7 +487,7 @@ void Output::ensureOutputLayerIfVisible(std::shared_ptr<compositionengine::Layer
 
     // Get coverage information for the layer as previously displayed,
     // also taking over ownership from mOutputLayersorderedByZ.
-    auto prevOutputLayerIndex = findCurrentOutputLayerForLayer(layer.get());
+    auto prevOutputLayerIndex = findCurrentOutputLayerForLayer(layerFE);
     auto prevOutputLayer =
             prevOutputLayerIndex ? getOutputLayerOrderedByZByIndex(*prevOutputLayerIndex) : nullptr;
 
@@ -511,7 +501,7 @@ void Output::ensureOutputLayerIfVisible(std::shared_ptr<compositionengine::Layer
 
     // compute this layer's dirty region
     Region dirty;
-    if (layerFEState.contentDirty) {
+    if (layerFEState->contentDirty) {
         // we need to invalidate the whole region
         dirty = visibleRegion;
         // as well, as the old visible region
@@ -558,7 +548,7 @@ void Output::ensureOutputLayerIfVisible(std::shared_ptr<compositionengine::Layer
 
     // The layer is visible. Either reuse the existing outputLayer if we have
     // one, or create a new one if we do not.
-    auto result = ensureOutputLayer(prevOutputLayerIndex, layer, layerFE);
+    auto result = ensureOutputLayer(prevOutputLayerIndex, layerFE);
 
     // Store the layer coverage information into the layer state as some of it
     // is useful later.
@@ -577,10 +567,9 @@ void Output::setReleasedLayers(const compositionengine::CompositionRefreshArgs&)
 
 void Output::updateLayerStateFromFE(const CompositionRefreshArgs& args) const {
     for (auto* layer : getOutputLayersOrderedByZ()) {
-        layer->getLayerFE().latchCompositionState(layer->getLayer().editFEState(),
-                                                  args.updatingGeometryThisFrame
-                                                          ? LayerFE::StateSubset::GeometryAndContent
-                                                          : LayerFE::StateSubset::Content);
+        layer->getLayerFE().prepareCompositionState(
+                args.updatingGeometryThisFrame ? LayerFE::StateSubset::GeometryAndContent
+                                               : LayerFE::StateSubset::Content);
     }
 }
 
@@ -613,7 +602,7 @@ void Output::updateAndWriteCompositionState(
 compositionengine::OutputLayer* Output::findLayerRequestingBackgroundComposition() const {
     compositionengine::OutputLayer* layerRequestingBgComposition = nullptr;
     for (auto* layer : getOutputLayersOrderedByZ()) {
-        if (layer->getLayer().getFEState().backgroundBlurRadius > 0) {
+        if (layer->getLayerFE().getCompositionState()->backgroundBlurRadius > 0) {
             layerRequestingBgComposition = layer;
         }
     }
@@ -639,7 +628,7 @@ ui::Dataspace Output::getBestDataspace(ui::Dataspace* outHdrDataSpace,
     *outHdrDataSpace = ui::Dataspace::UNKNOWN;
 
     for (const auto* layer : getOutputLayersOrderedByZ()) {
-        switch (layer->getLayer().getFEState().dataspace) {
+        switch (layer->getLayerFE().getCompositionState()->dataspace) {
             case ui::Dataspace::V0_SCRGB:
             case ui::Dataspace::V0_SCRGB_LINEAR:
             case ui::Dataspace::BT2020:
@@ -655,7 +644,8 @@ ui::Dataspace Output::getBestDataspace(ui::Dataspace* outHdrDataSpace,
             case ui::Dataspace::BT2020_ITU_PQ:
                 bestDataSpace = ui::Dataspace::DISPLAY_P3;
                 *outHdrDataSpace = ui::Dataspace::BT2020_PQ;
-                *outIsHdrClientComposition = layer->getLayer().getFEState().forceClientComposition;
+                *outIsHdrClientComposition =
+                        layer->getLayerFE().getCompositionState()->forceClientComposition;
                 break;
             case ui::Dataspace::BT2020_HLG:
             case ui::Dataspace::BT2020_ITU_HLG:
@@ -867,7 +857,7 @@ std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion
     if (outputState.isSecure && supportsProtectedContent) {
         auto layers = getOutputLayersOrderedByZ();
         bool needsProtected = std::any_of(layers.begin(), layers.end(), [](auto* layer) {
-            return layer->getLayer().getFEState().hasProtectedContent;
+            return layer->getLayerFE().getCompositionState()->hasProtectedContent;
         });
         if (needsProtected != renderEngine.isProtected()) {
             renderEngine.useProtectedContext(needsProtected);
@@ -955,7 +945,7 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
 
     for (auto* layer : getOutputLayersOrderedByZ()) {
         const auto& layerState = layer->getState();
-        const auto& layerFEState = layer->getLayer().getFEState();
+        const auto* layerFEState = layer->getLayerFE().getCompositionState();
         auto& layerFE = layer->getLayerFE();
 
         const Region clip(viewportRegion.intersect(layerState.visibleRegion));
@@ -974,7 +964,7 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
         // underneath. We also skip the first layer as the buffer target is
         // guaranteed to start out cleared.
         bool clearClientComposition =
-                layerState.clearClientTarget && layerFEState.isOpaque && !firstLayer;
+                layerState.clearClientTarget && layerFEState->isOpaque && !firstLayer;
 
         ALOGV("  Composition type: client %d clear %d", clientComposition, clearClientComposition);
 

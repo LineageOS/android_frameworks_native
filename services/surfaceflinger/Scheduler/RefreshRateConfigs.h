@@ -94,13 +94,19 @@ public:
     // Returns true if config is allowed by the current policy.
     bool isConfigAllowed(HwcConfigIndexType config) const EXCLUDES(mLock);
 
+    // Returns true if this device is doing refresh rate switching. This won't change at runtime.
+    bool refreshRateSwitchingSupported() const { return mRefreshRateSwitching; }
+
     // Describes the different options the layer voted for refresh rate
     enum class LayerVoteType {
-        NoVote,    // Doesn't care about the refresh rate
-        Min,       // Minimal refresh rate available
-        Max,       // Maximal refresh rate available
-        Heuristic, // Specific refresh rate that was calculated by platform using a heuristic
-        Explicit,  // Specific refresh rate that was provided by the app
+        NoVote,          // Doesn't care about the refresh rate
+        Min,             // Minimal refresh rate available
+        Max,             // Maximal refresh rate available
+        Heuristic,       // Specific refresh rate that was calculated by platform using a heuristic
+        ExplicitDefault, // Specific refresh rate that was provided by the app with Default
+                         // compatibility
+        ExplicitExactOrMultiple // Specific refresh rate that was provided by the app with
+                                // ExactOrMultiple compatibility
     };
 
     // Captures the layer requirements for a refresh rate. This will be used to determine the
@@ -161,9 +167,10 @@ public:
         nsecs_t vsyncPeriod = 0;
     };
 
-    RefreshRateConfigs(const std::vector<InputConfig>& configs,
+    RefreshRateConfigs(bool refreshRateSwitching, const std::vector<InputConfig>& configs,
                        HwcConfigIndexType currentHwcConfig);
-    RefreshRateConfigs(const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs,
+    RefreshRateConfigs(bool refreshRateSwitching,
+                       const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs,
                        HwcConfigIndexType currentConfigId);
 
 private:
@@ -200,6 +207,8 @@ private:
     // This will not change at runtime.
     const RefreshRate* mMinSupportedRefreshRate;
     const RefreshRate* mMaxSupportedRefreshRate;
+
+    const bool mRefreshRateSwitching;
 
     mutable std::mutex mLock;
 };

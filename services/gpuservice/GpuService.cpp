@@ -52,8 +52,9 @@ void GpuService::setGpuStats(const std::string& driverPackageName,
                              int64_t driverBuildTime, const std::string& appPackageName,
                              const int32_t vulkanVersion, GpuStatsInfo::Driver driver,
                              bool isDriverLoaded, int64_t driverLoadingTime) {
-    mGpuStats->insert(driverPackageName, driverVersionName, driverVersionCode, driverBuildTime,
-                      appPackageName, vulkanVersion, driver, isDriverLoaded, driverLoadingTime);
+    mGpuStats->insertDriverStats(driverPackageName, driverVersionName, driverVersionCode,
+                                 driverBuildTime, appPackageName, vulkanVersion, driver,
+                                 isDriverLoaded, driverLoadingTime);
 }
 
 status_t GpuService::getGpuStatsGlobalInfo(std::vector<GpuStatsGlobalInfo>* outStats) const {

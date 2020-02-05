@@ -26,8 +26,6 @@
 #include "BufferLayer.h"
 
 #include <compositionengine/CompositionEngine.h>
-#include <compositionengine/Layer.h>
-#include <compositionengine/LayerCreationArgs.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
@@ -66,8 +64,7 @@ static constexpr float defaultMaxContentLuminance = 1000.0;
 BufferLayer::BufferLayer(const LayerCreationArgs& args)
       : Layer(args),
         mTextureName(args.textureName),
-        mCompositionLayer{mFlinger->getCompositionEngine().createLayer(
-                compositionengine::LayerCreationArgs{this})} {
+        mCompositionState{mFlinger->getCompositionEngine().createLayerFECompositionState()} {
     ALOGV("Creating Layer %s", getDebugName());
 
     mPremultipliedAlpha = !(args.flags & ISurfaceComposerClient::eNonPremultiplied);
@@ -184,7 +181,7 @@ std::optional<compositionengine::LayerFE::LayerSettings> BufferLayer::prepareCli
     bool blackOutLayer = (isProtected() && !targetSettings.supportsProtectedContent) ||
             (isSecure() && !targetSettings.isSecure);
     const State& s(getDrawingState());
-    LayerFE::LayerSettings& layer = *result;
+    compositionengine::LayerFE::LayerSettings& layer = *result;
     if (!blackOutLayer) {
         layer.source.buffer.buffer = mBufferInfo.mBuffer;
         layer.source.buffer.isOpaque = isOpaque(s);
@@ -282,17 +279,29 @@ bool BufferLayer::isHdrY410() const {
             mBufferInfo.mBuffer->getPixelFormat() == HAL_PIXEL_FORMAT_RGBA_1010102);
 }
 
-void BufferLayer::latchPerFrameState(
-        compositionengine::LayerFECompositionState& compositionState) const {
-    Layer::latchPerFrameState(compositionState);
+sp<compositionengine::LayerFE> BufferLayer::getCompositionEngineLayerFE() const {
+    return asLayerFE();
+}
+
+compositionengine::LayerFECompositionState* BufferLayer::editCompositionState() {
+    return mCompositionState.get();
+}
+
+const compositionengine::LayerFECompositionState* BufferLayer::getCompositionState() const {
+    return mCompositionState.get();
+}
+
+void BufferLayer::preparePerFrameCompositionState() {
+    Layer::preparePerFrameCompositionState();
 
     // Sideband layers
-    if (compositionState.sidebandStream.get()) {
-        compositionState.compositionType = Hwc2::IComposerClient::Composition::SIDEBAND;
+    auto* compositionState = editCompositionState();
+    if (compositionState->sidebandStream.get()) {
+        compositionState->compositionType = Hwc2::IComposerClient::Composition::SIDEBAND;
     } else {
         // Normal buffer layers
-        compositionState.hdrMetadata = mBufferInfo.mHdrMetadata;
-        compositionState.compositionType = mPotentialCursor
+        compositionState->hdrMetadata = mBufferInfo.mHdrMetadata;
+        compositionState->compositionType = mPotentialCursor
                 ? Hwc2::IComposerClient::Composition::CURSOR
                 : Hwc2::IComposerClient::Composition::DEVICE;
     }
@@ -639,10 +648,6 @@ Rect BufferLayer::getBufferSize(const State& s) const {
     }
 
     return Rect(bufWidth, bufHeight);
-}
-
-std::shared_ptr<compositionengine::Layer> BufferLayer::getCompositionLayer() const {
-    return mCompositionLayer;
 }
 
 FloatRect BufferLayer::computeSourceBounds(const FloatRect& parentBounds) const {

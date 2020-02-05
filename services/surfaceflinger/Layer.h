@@ -66,7 +66,6 @@ class SurfaceFlinger;
 class LayerDebugInfo;
 
 namespace compositionengine {
-class Layer;
 class OutputLayer;
 struct LayerFECompositionState;
 }
@@ -94,7 +93,7 @@ struct LayerCreationArgs {
     uint32_t textureName;
 };
 
-class Layer : public compositionengine::LayerFE {
+class Layer : public virtual RefBase, compositionengine::LayerFE {
     static std::atomic<int32_t> sSequence;
     static constexpr int32_t PRIORITY_UNSET = -1;
 
@@ -134,6 +133,34 @@ public:
         FloatRect cropRect = FloatRect();
         // Radius of the rounded rectangle.
         float radius = 0.0f;
+    };
+
+    // FrameRateCompatibility specifies how we should interpret the frame rate associated with
+    // the layer.
+    enum class FrameRateCompatibility {
+        Default, // Layer didn't specify any specific handling strategy
+
+        ExactOrMultiple, // Layer needs the exact frame rate (or a multiple of it) to present the
+                         // content properly. Any other value will result in a pull down.
+
+        NoVote, // Layer doesn't have any requirements for the refresh rate and
+                // should not be considered when the display refresh rate is determined.
+    };
+
+    // Encapsulates the frame rate and compatibility of the layer. This information will be used
+    // when the display refresh rate is determined.
+    struct FrameRate {
+        float rate;
+        FrameRateCompatibility type;
+
+        FrameRate() : rate(0), type(FrameRateCompatibility::Default) {}
+        FrameRate(float rate, FrameRateCompatibility type) : rate(rate), type(type) {}
+
+        bool operator==(const FrameRate& other) const {
+            return rate == other.rate && type == other.type;
+        }
+
+        bool operator!=(const FrameRate& other) const { return !(*this == other); }
     };
 
     struct State {
@@ -227,7 +254,7 @@ public:
         // Priority of the layer assigned by Window Manager.
         int32_t frameRateSelectionPriority;
 
-        float frameRate;
+        FrameRate frameRate;
     };
 
     explicit Layer(const LayerCreationArgs& args);
@@ -329,8 +356,8 @@ public:
     virtual bool setTransformToDisplayInverse(bool /*transformToDisplayInverse*/) { return false; };
     virtual bool setCrop(const Rect& /*crop*/) { return false; };
     virtual bool setFrame(const Rect& /*frame*/) { return false; };
-    virtual bool setBuffer(const sp<GraphicBuffer>& /*buffer*/, nsecs_t /*postTime*/,
-                           nsecs_t /*desiredPresentTime*/,
+    virtual bool setBuffer(const sp<GraphicBuffer>& /*buffer*/, const sp<Fence>& /*acquireFence*/,
+                           nsecs_t /*postTime*/, nsecs_t /*desiredPresentTime*/,
                            const client_cache_t& /*clientCacheId*/) {
         return false;
     };
@@ -362,7 +389,8 @@ public:
     // visually.
     bool isLegacyDataSpace() const;
 
-    virtual std::shared_ptr<compositionengine::Layer> getCompositionLayer() const;
+    virtual sp<compositionengine::LayerFE> getCompositionEngineLayerFE() const;
+    virtual compositionengine::LayerFECompositionState* editCompositionState();
 
     // If we have received a new buffer this frame, we will pass its surface
     // damage down to hardware composer. Otherwise, we must send a region with
@@ -507,6 +535,7 @@ public:
     virtual void updateCloneBufferInfo(){};
 
 protected:
+    sp<compositionengine::LayerFE> asLayerFE() const;
     sp<Layer> getClonedFrom() { return mClonedFrom != nullptr ? mClonedFrom.promote() : nullptr; }
     bool isClone() { return mClonedFrom != nullptr; }
     bool isClonedFromAlive() { return getClonedFrom() != nullptr; }
@@ -524,10 +553,9 @@ public:
     /*
      * compositionengine::LayerFE overrides
      */
+    const compositionengine::LayerFECompositionState* getCompositionState() const override;
     bool onPreComposition(nsecs_t) override;
-    void latchCompositionState(compositionengine::LayerFECompositionState&,
-                               compositionengine::LayerFE::StateSubset subset) const override;
-    void latchCursorCompositionState(compositionengine::LayerFECompositionState&) const override;
+    void prepareCompositionState(compositionengine::LayerFE::StateSubset subset) override;
     std::optional<LayerSettings> prepareClientComposition(
             compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
     std::optional<LayerSettings> prepareShadowClientComposition(
@@ -537,9 +565,10 @@ public:
     const char* getDebugName() const override;
 
 protected:
-    void latchBasicGeometry(compositionengine::LayerFECompositionState& outState) const;
-    void latchGeometry(compositionengine::LayerFECompositionState& outState) const;
-    virtual void latchPerFrameState(compositionengine::LayerFECompositionState& outState) const;
+    void prepareBasicGeometryCompositionState();
+    void prepareGeometryCompositionState();
+    virtual void preparePerFrameCompositionState();
+    void prepareCursorCompositionState();
 
 public:
     virtual void setDefaultBufferSize(uint32_t /*w*/, uint32_t /*h*/) {}
@@ -754,9 +783,8 @@ public:
      */
     Rect getCroppedBufferSize(const Layer::State& s) const;
 
-    constexpr static auto FRAME_RATE_NO_VOTE = -1.0f;
-    virtual bool setFrameRate(float frameRate);
-    virtual std::optional<float> getFrameRate() const;
+    virtual bool setFrameRate(FrameRate frameRate);
+    virtual FrameRate getFrameRate() const;
 
 protected:
     // constant
