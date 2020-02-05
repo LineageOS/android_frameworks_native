@@ -39,8 +39,6 @@ using testing::HasSubstr;
 #define UPDATED_DRIVER_VER_CODE   1
 #define UPDATED_DRIVER_BUILD_TIME 234
 #define VULKAN_VERSION            345
-#define CPU_VULKAN_VERSION        456
-#define OPENGLES_VERSION          567
 #define APP_PKG_NAME_1            "testapp1"
 #define APP_PKG_NAME_2            "testapp2"
 #define DRIVER_LOADING_TIME_1     678
@@ -74,10 +72,8 @@ public:
     std::string inputCommand(InputCommand cmd);
 
     void SetUp() override {
-        property_set("ro.cpuvulkan.version", std::to_string(CPU_VULKAN_VERSION).c_str());
-        property_set("ro.opengles.version", std::to_string(OPENGLES_VERSION).c_str());
-        mCpuVulkanVersion = property_get_int32("ro.cpuvulkan.version", CPU_VULKAN_VERSION);
-        mGlesVersion = property_get_int32("ro.opengles.version", OPENGLES_VERSION);
+        mCpuVulkanVersion = property_get_int32("ro.cpuvulkan.version", 0);
+        mGlesVersion = property_get_int32("ro.opengles.version", 0);
     }
 
     std::unique_ptr<GpuStats> mGpuStats = std::make_unique<GpuStats>();
