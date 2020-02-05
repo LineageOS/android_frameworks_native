@@ -286,5 +286,22 @@ TEST_F(GpuStatsTest, canPullGlobalAtom) {
     EXPECT_FALSE(inputCommand(InputCommand::DUMP_APP).empty());
 }
 
+TEST_F(GpuStatsTest, canPullAppAtom) {
+    TestableGpuStats testableGpuStats(mGpuStats.get());
+    mGpuStats->insertDriverStats(BUILTIN_DRIVER_PKG_NAME, BUILTIN_DRIVER_VER_NAME,
+                                 BUILTIN_DRIVER_VER_CODE, BUILTIN_DRIVER_BUILD_TIME, APP_PKG_NAME_1,
+                                 VULKAN_VERSION, GpuStatsInfo::Driver::GL, true,
+                                 DRIVER_LOADING_TIME_1);
+
+    EXPECT_FALSE(inputCommand(InputCommand::DUMP_GLOBAL).empty());
+    EXPECT_FALSE(inputCommand(InputCommand::DUMP_APP).empty());
+
+    EXPECT_TRUE(testableGpuStats.makePullAtomCallback(android::util::GPU_STATS_APP_INFO) ==
+                AStatsManager_PULL_SUCCESS);
+
+    EXPECT_FALSE(inputCommand(InputCommand::DUMP_GLOBAL).empty());
+    EXPECT_TRUE(inputCommand(InputCommand::DUMP_APP).empty());
+}
+
 } // namespace
 } // namespace android

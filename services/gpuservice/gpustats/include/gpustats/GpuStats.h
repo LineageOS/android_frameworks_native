@@ -58,6 +58,8 @@ private:
                                                                  void* cookie);
     // Pull global into into global atom.
     AStatsManager_PullAtomCallbackReturn pullGlobalInfoAtom(AStatsEventList* data);
+    // Pull app into into app atom.
+    AStatsManager_PullAtomCallbackReturn pullAppInfoAtom(AStatsEventList* data);
     // Dump global stats
     void dumpGlobalLocked(std::string* result);
     // Dump app stats

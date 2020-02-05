@@ -17,8 +17,9 @@
 #define LOG_TAG "GpuStats"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include <gpustats/GpuStats.h>
+#include "gpustats/GpuStats.h"
 
+#include <android/util/ProtoOutputStream.h>
 #include <cutils/properties.h>
 #include <log/log.h>
 #include <stats_event.h>
@@ -32,10 +33,13 @@ namespace android {
 GpuStats::GpuStats() {
     AStatsManager_registerPullAtomCallback(android::util::GPU_STATS_GLOBAL_INFO,
                                            GpuStats::pullAtomCallback, nullptr, this);
+    AStatsManager_registerPullAtomCallback(android::util::GPU_STATS_APP_INFO,
+                                           GpuStats::pullAtomCallback, nullptr, this);
 }
 
 GpuStats::~GpuStats() {
     AStatsManager_unregisterPullAtomCallback(android::util::GPU_STATS_GLOBAL_INFO);
+    AStatsManager_unregisterPullAtomCallback(android::util::GPU_STATS_APP_INFO);
 }
 
 static void addLoadingCount(GpuStatsInfo::Driver driver, bool isDriverLoaded,
@@ -244,6 +248,68 @@ void GpuStats::dumpAppLocked(std::string* result) {
     }
 }
 
+static std::string protoOutputStreamToByteString(android::util::ProtoOutputStream& proto) {
+    if (!proto.size()) return "";
+
+    std::string byteString;
+    sp<android::util::ProtoReader> reader = proto.data();
+    while (reader->readBuffer() != nullptr) {
+        const size_t toRead = reader->currentToRead();
+        byteString.append((char*)reader->readBuffer(), toRead);
+        reader->move(toRead);
+    }
+
+    if (byteString.size() != proto.size()) return "";
+
+    return byteString;
+}
+
+static std::string int64VectorToProtoByteString(const std::vector<int64_t>& value) {
+    if (value.empty()) return "";
+
+    android::util::ProtoOutputStream proto;
+    for (const auto& ele : value) {
+        proto.write(android::util::FIELD_TYPE_INT64 | android::util::FIELD_COUNT_REPEATED |
+                            1 /* field id */,
+                    (long long)ele);
+    }
+
+    return protoOutputStreamToByteString(proto);
+}
+
+AStatsManager_PullAtomCallbackReturn GpuStats::pullAppInfoAtom(AStatsEventList* data) {
+    ATRACE_CALL();
+
+    std::lock_guard<std::mutex> lock(mLock);
+
+    if (data) {
+        for (const auto& ele : mAppStats) {
+            AStatsEvent* event = AStatsEventList_addStatsEvent(data);
+            AStatsEvent_setAtomId(event, android::util::GPU_STATS_APP_INFO);
+            AStatsEvent_writeString(event, ele.second.appPackageName.c_str());
+            AStatsEvent_writeInt64(event, ele.second.driverVersionCode);
+
+            std::string bytes = int64VectorToProtoByteString(ele.second.glDriverLoadingTime);
+            AStatsEvent_writeByteArray(event, (const uint8_t*)bytes.c_str(), bytes.length());
+
+            bytes = int64VectorToProtoByteString(ele.second.vkDriverLoadingTime);
+            AStatsEvent_writeByteArray(event, (const uint8_t*)bytes.c_str(), bytes.length());
+
+            bytes = int64VectorToProtoByteString(ele.second.angleDriverLoadingTime);
+            AStatsEvent_writeByteArray(event, (const uint8_t*)bytes.c_str(), bytes.length());
+
+            AStatsEvent_writeBool(event, ele.second.cpuVulkanInUse);
+            AStatsEvent_writeBool(event, ele.second.falsePrerotation);
+            AStatsEvent_writeBool(event, ele.second.gles1InUse);
+            AStatsEvent_build(event);
+        }
+    }
+
+    mAppStats.clear();
+
+    return AStatsManager_PULL_SUCCESS;
+}
+
 AStatsManager_PullAtomCallbackReturn GpuStats::pullGlobalInfoAtom(AStatsEventList* data) {
     ATRACE_CALL();
 
@@ -285,6 +351,8 @@ AStatsManager_PullAtomCallbackReturn GpuStats::pullAtomCallback(int32_t atomTag,
     GpuStats* pGpuStats = reinterpret_cast<GpuStats*>(cookie);
     if (atomTag == android::util::GPU_STATS_GLOBAL_INFO) {
         return pGpuStats->pullGlobalInfoAtom(data);
+    } else if (atomTag == android::util::GPU_STATS_APP_INFO) {
+        return pGpuStats->pullAppInfoAtom(data);
     }
 
     return AStatsManager_PULL_SKIP;
