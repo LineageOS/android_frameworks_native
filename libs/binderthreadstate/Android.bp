@@ -63,15 +63,3 @@ cc_test {
     ],
     require_root: true,
 }
-
-// TODO(b/148692216): remove empty lib
-cc_library {
-    name: "libbinderthreadstate",
-    recovery_available: true,
-    vendor_available: false,
-    vndk: {
-        enabled: true,
-        support_system_process: true,
-    },
-    host_supported: true,
-}
