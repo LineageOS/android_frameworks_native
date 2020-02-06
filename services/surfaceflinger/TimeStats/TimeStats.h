@@ -159,37 +159,38 @@ public:
     class StatsEventDelegate {
     public:
         virtual ~StatsEventDelegate() = default;
-        virtual struct stats_event* addStatsEventToPullData(pulled_stats_event_list* data) {
-            return add_stats_event_to_pull_data(data);
+        virtual AStatsEvent* addStatsEventToPullData(AStatsEventList* data) {
+            return AStatsEventList_addStatsEvent(data);
         }
         virtual void registerStatsPullAtomCallback(int32_t atom_tag,
-                                                   stats_pull_atom_callback_t callback,
-                                                   pull_atom_metadata* metadata, void* cookie) {
-            return register_stats_pull_atom_callback(atom_tag, callback, metadata, cookie);
+                                                   AStatsManager_PullAtomCallback callback,
+                                                   AStatsManager_PullAtomMetadata* metadata,
+                                                   void* cookie) {
+            return AStatsManager_registerPullAtomCallback(atom_tag, callback, metadata, cookie);
         }
 
         virtual void unregisterStatsPullAtomCallback(int32_t atom_tag) {
-            return unregister_stats_pull_atom_callback(atom_tag);
+            return AStatsManager_unregisterPullAtomCallback(atom_tag);
         }
 
-        virtual void statsEventSetAtomId(struct stats_event* event, uint32_t atom_id) {
-            return stats_event_set_atom_id(event, atom_id);
+        virtual void statsEventSetAtomId(AStatsEvent* event, uint32_t atom_id) {
+            return AStatsEvent_setAtomId(event, atom_id);
         }
 
-        virtual void statsEventWriteInt64(struct stats_event* event, int64_t field) {
-            return stats_event_write_int64(event, field);
+        virtual void statsEventWriteInt64(AStatsEvent* event, int64_t field) {
+            return AStatsEvent_writeInt64(event, field);
         }
 
-        virtual void statsEventWriteString8(struct stats_event* event, const char* field) {
-            return stats_event_write_string8(event, field);
+        virtual void statsEventWriteString8(AStatsEvent* event, const char* field) {
+            return AStatsEvent_writeString(event, field);
         }
 
-        virtual void statsEventWriteByteArray(struct stats_event* event, const uint8_t* buf,
+        virtual void statsEventWriteByteArray(AStatsEvent* event, const uint8_t* buf,
                                               size_t numBytes) {
-            return stats_event_write_byte_array(event, buf, numBytes);
+            return AStatsEvent_writeByteArray(event, buf, numBytes);
         }
 
-        virtual void statsEventBuild(struct stats_event* event) { return stats_event_build(event); }
+        virtual void statsEventBuild(AStatsEvent* event) { return AStatsEvent_build(event); }
     };
     // For testing only for injecting custom dependencies.
     TimeStats(std::unique_ptr<StatsEventDelegate> statsDelegate,
@@ -238,10 +239,11 @@ public:
     static const size_t MAX_NUM_TIME_RECORDS = 64;
 
 private:
-    static status_pull_atom_return_t pullAtomCallback(int32_t atom_tag,
-                                                      pulled_stats_event_list* data, void* cookie);
-    status_pull_atom_return_t populateGlobalAtom(pulled_stats_event_list* data);
-    status_pull_atom_return_t populateLayerAtom(pulled_stats_event_list* data);
+    static AStatsManager_PullAtomCallbackReturn pullAtomCallback(int32_t atom_tag,
+                                                                 AStatsEventList* data,
+                                                                 void* cookie);
+    AStatsManager_PullAtomCallbackReturn populateGlobalAtom(AStatsEventList* data);
+    AStatsManager_PullAtomCallbackReturn populateLayerAtom(AStatsEventList* data);
     bool recordReadyLocked(int32_t layerId, TimeRecord* timeRecord);
     void flushAvailableRecordsToStatsLocked(int32_t layerId);
     void flushPowerTimeLocked();

@@ -149,30 +149,31 @@ public:
         FakeStatsEventDelegate() = default;
         ~FakeStatsEventDelegate() override = default;
 
-        struct stats_event* addStatsEventToPullData(pulled_stats_event_list*) override {
+        struct AStatsEvent* addStatsEventToPullData(AStatsEventList*) override {
             return mEvent;
         }
-        void registerStatsPullAtomCallback(int32_t atom_tag, stats_pull_atom_callback_t callback,
-                                           pull_atom_metadata*, void* cookie) override {
+        void registerStatsPullAtomCallback(int32_t atom_tag,
+                                           AStatsManager_PullAtomCallback callback,
+                                           AStatsManager_PullAtomMetadata*, void* cookie) override {
             mAtomTags.push_back(atom_tag);
             mCallback = callback;
             mCookie = cookie;
         }
 
-        status_pull_atom_return_t makePullAtomCallback(int32_t atom_tag, void* cookie) {
+        AStatsManager_PullAtomCallbackReturn makePullAtomCallback(int32_t atom_tag, void* cookie) {
             return (*mCallback)(atom_tag, nullptr, cookie);
         }
 
         MOCK_METHOD1(unregisterStatsPullAtomCallback, void(int32_t));
-        MOCK_METHOD2(statsEventSetAtomId, void(struct stats_event*, uint32_t));
-        MOCK_METHOD2(statsEventWriteInt64, void(struct stats_event*, int64_t));
-        MOCK_METHOD2(statsEventWriteString8, void(struct stats_event*, const char*));
-        MOCK_METHOD3(statsEventWriteByteArray, void(struct stats_event*, const uint8_t*, size_t));
-        MOCK_METHOD1(statsEventBuild, void(struct stats_event*));
+        MOCK_METHOD2(statsEventSetAtomId, void(AStatsEvent*, uint32_t));
+        MOCK_METHOD2(statsEventWriteInt64, void(AStatsEvent*, int64_t));
+        MOCK_METHOD2(statsEventWriteString8, void(AStatsEvent*, const char*));
+        MOCK_METHOD3(statsEventWriteByteArray, void(AStatsEvent*, const uint8_t*, size_t));
+        MOCK_METHOD1(statsEventBuild, void(AStatsEvent*));
 
-        struct stats_event* mEvent = stats_event_obtain();
+        AStatsEvent* mEvent = AStatsEvent_obtain();
         std::vector<int32_t> mAtomTags;
-        stats_pull_atom_callback_t mCallback = nullptr;
+        AStatsManager_PullAtomCallback mCallback = nullptr;
         void* mCookie = nullptr;
     };
     FakeStatsEventDelegate* mDelegate = new FakeStatsEventDelegate;
@@ -835,7 +836,7 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
         EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, 2));
         EXPECT_CALL(*mDelegate, statsEventBuild(mDelegate->mEvent));
     }
-    EXPECT_EQ(STATS_PULL_SUCCESS,
+    EXPECT_EQ(AStatsManager_PULL_SUCCESS,
               mDelegate->makePullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
                                               mDelegate->mCookie));
 
@@ -956,7 +957,7 @@ TEST_F(TimeStatsTest, layerStatsCallback_pullsAllHistogramsAndClears) {
                                              expectedPostToAcquire.size()));
         EXPECT_CALL(*mDelegate, statsEventBuild(mDelegate->mEvent));
     }
-    EXPECT_EQ(STATS_PULL_SUCCESS,
+    EXPECT_EQ(AStatsManager_PULL_SUCCESS,
               mDelegate->makePullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO,
                                               mDelegate->mCookie));
 
@@ -990,7 +991,7 @@ TEST_F(TimeStatsTest, layerStatsCallback_pullsMultipleLayers) {
                 statsEventWriteString8(mDelegate->mEvent, StrEq(genLayerName(LAYER_ID_0).c_str())));
     EXPECT_CALL(*mDelegate,
                 statsEventWriteString8(mDelegate->mEvent, StrEq(genLayerName(LAYER_ID_1).c_str())));
-    EXPECT_EQ(STATS_PULL_SUCCESS,
+    EXPECT_EQ(AStatsManager_PULL_SUCCESS,
               mDelegate->makePullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO,
                                               mDelegate->mCookie));
 }
@@ -1031,7 +1032,7 @@ TEST_F(TimeStatsTest, layerStatsCallback_pullsMultipleBuckets) {
         EXPECT_CALL(*mDelegate, statsEventWriteByteArray(mDelegate->mEvent, _, _))
                 .Times(AnyNumber());
     }
-    EXPECT_EQ(STATS_PULL_SUCCESS,
+    EXPECT_EQ(AStatsManager_PULL_SUCCESS,
               mDelegate->makePullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO,
                                               mDelegate->mCookie));
 }
@@ -1071,7 +1072,7 @@ TEST_F(TimeStatsTest, layerStatsCallback_limitsHistogramBuckets) {
         EXPECT_CALL(*mDelegate, statsEventWriteByteArray(mDelegate->mEvent, _, _))
                 .Times(AnyNumber());
     }
-    EXPECT_EQ(STATS_PULL_SUCCESS,
+    EXPECT_EQ(AStatsManager_PULL_SUCCESS,
               mDelegate->makePullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO,
                                               mDelegate->mCookie));
 }
@@ -1103,7 +1104,7 @@ TEST_F(TimeStatsTest, layerStatsCallback_limitsLayers) {
             .Times(1);
     EXPECT_CALL(*mDelegate,
                 statsEventWriteString8(mDelegate->mEvent, StrEq(genLayerName(LAYER_ID_1).c_str())));
-    EXPECT_EQ(STATS_PULL_SUCCESS,
+    EXPECT_EQ(AStatsManager_PULL_SUCCESS,
               mDelegate->makePullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO,
                                               mDelegate->mCookie));
 }
