@@ -48,50 +48,6 @@ public:
         remote()->transact(BnGpuService::SET_GPU_STATS, data, &reply, IBinder::FLAG_ONEWAY);
     }
 
-    virtual status_t getGpuStatsGlobalInfo(std::vector<GpuStatsGlobalInfo>* outStats) const {
-        if (!outStats) return UNEXPECTED_NULL;
-
-        Parcel data, reply;
-        status_t status;
-
-        if ((status = data.writeInterfaceToken(IGpuService::getInterfaceDescriptor())) != OK)
-            return status;
-
-        if ((status = remote()->transact(BnGpuService::GET_GPU_STATS_GLOBAL_INFO, data, &reply)) !=
-            OK)
-            return status;
-
-        int32_t result = 0;
-        if ((status = reply.readInt32(&result)) != OK) return status;
-        if (result != OK) return result;
-
-        outStats->clear();
-        return reply.readParcelableVector(outStats);
-    }
-
-    virtual status_t getGpuStatsAppInfo(std::vector<GpuStatsAppInfo>* outStats) const {
-        if (!outStats) return UNEXPECTED_NULL;
-
-        Parcel data, reply;
-        status_t status;
-
-        if ((status = data.writeInterfaceToken(IGpuService::getInterfaceDescriptor())) != OK) {
-            return status;
-        }
-
-        if ((status = remote()->transact(BnGpuService::GET_GPU_STATS_APP_INFO, data, &reply)) !=
-            OK) {
-            return status;
-        }
-
-        int32_t result = 0;
-        if ((status = reply.readInt32(&result)) != OK) return status;
-        if (result != OK) return result;
-
-        outStats->clear();
-        return reply.readParcelableVector(outStats);
-    }
-
     virtual void setTargetStats(const std::string& appPackageName, const uint64_t driverVersionCode,
                                 const GpuStatsInfo::Stats stats, const uint64_t value) {
         Parcel data, reply;
@@ -147,32 +103,6 @@ status_t BnGpuService::onTransact(uint32_t code, const Parcel& data, Parcel* rep
             setGpuStats(driverPackageName, driverVersionName, driverVersionCode, driverBuildTime,
                         appPackageName, vulkanVersion, static_cast<GpuStatsInfo::Driver>(driver),
                         isDriverLoaded, driverLoadingTime);
-
-            return OK;
-        }
-        case GET_GPU_STATS_GLOBAL_INFO: {
-            CHECK_INTERFACE(IGpuService, data, reply);
-
-            std::vector<GpuStatsGlobalInfo> stats;
-            const status_t result = getGpuStatsGlobalInfo(&stats);
-
-            if ((status = reply->writeInt32(result)) != OK) return status;
-            if (result != OK) return result;
-
-            if ((status = reply->writeParcelableVector(stats)) != OK) return status;
-
-            return OK;
-        }
-        case GET_GPU_STATS_APP_INFO: {
-            CHECK_INTERFACE(IGpuService, data, reply);
-
-            std::vector<GpuStatsAppInfo> stats;
-            const status_t result = getGpuStatsAppInfo(&stats);
-
-            if ((status = reply->writeInt32(result)) != OK) return status;
-            if (result != OK) return result;
-
-            if ((status = reply->writeParcelableVector(stats)) != OK) return status;
 
             return OK;
         }

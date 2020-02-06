@@ -57,16 +57,6 @@ void GpuService::setGpuStats(const std::string& driverPackageName,
                                  isDriverLoaded, driverLoadingTime);
 }
 
-status_t GpuService::getGpuStatsGlobalInfo(std::vector<GpuStatsGlobalInfo>* outStats) const {
-    mGpuStats->pullGlobalStats(outStats);
-    return OK;
-}
-
-status_t GpuService::getGpuStatsAppInfo(std::vector<GpuStatsAppInfo>* outStats) const {
-    mGpuStats->pullAppStats(outStats);
-    return OK;
-}
-
 void GpuService::setTargetStats(const std::string& appPackageName, const uint64_t driverVersionCode,
                                 const GpuStatsInfo::Stats stats, const uint64_t value) {
     mGpuStats->insertTargetStats(appPackageName, driverVersionCode, stats, value);
