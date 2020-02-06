@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 The Android Open Source Project
+ * Copyright 2020 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,36 +28,25 @@ namespace android {
 namespace renderengine {
 namespace gl {
 
-class LensBlurFilter : public BlurFilter {
+class KawaseBlurFilter : public BlurFilter {
 public:
-    explicit LensBlurFilter(GLESRenderEngine& engine);
+    static constexpr uint32_t kMaxPasses = 8;
+
+    explicit KawaseBlurFilter(GLESRenderEngine& engine);
     status_t prepare() override;
     void allocateTextures() override;
 
 private:
-    string getFragmentShader(bool forComposition) const;
+    string getFragmentShader() const;
+    void blit(GLFramebuffer& read, GLFramebuffer& draw) const;
 
-    // Intermediate render pass
-    GLFramebuffer mVerticalDiagonalPassFbo;
+    GLFramebuffer mFbo;
 
-    // Vertical/diagonal pass and its uniforms
-    GenericProgram mVerticalDiagonalProgram;
-    GLuint mVDPosLoc;
-    GLuint mVDUvLoc;
-    GLuint mVDTexture0Loc;
-    GLuint mVDSizeLoc;
-    GLuint mVDRadiusLoc;
-    GLuint mVDNumSamplesLoc;
-
-    // Blur composition pass and its uniforms
-    GenericProgram mCombinedProgram;
-    GLuint mCPosLoc;
-    GLuint mCUvLoc;
-    GLuint mCTexture0Loc;
-    GLuint mCTexture1Loc;
-    GLuint mCSizeLoc;
-    GLuint mCRadiusLoc;
-    GLuint mCNumSamplesLoc;
+    GenericProgram mProgram;
+    GLuint mPosLoc;
+    GLuint mUvLoc;
+    GLuint mTextureLoc;
+    GLuint mOffsetLoc;
 };
 
 } // namespace gl

@@ -51,7 +51,7 @@
 #include "ProgramCache.h"
 #include "filters/BlurFilter.h"
 #include "filters/GaussianBlurFilter.h"
-#include "filters/LensBlurFilter.h"
+#include "filters/KawaseBlurFilter.h"
 
 extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
 
@@ -285,6 +285,9 @@ std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(const RenderEngineCre
     // now figure out what version of GL did we actually get
     GlesVersion version = parseGlesVersion(extensions.getVersion());
 
+    LOG_ALWAYS_FATAL_IF(args.supportsBackgroundBlur && version < GLES_VERSION_3_0,
+        "Blurs require OpenGL ES 3.0. Please unset ro.surface_flinger.supports_background_blur");
+
     // initialize the renderer while GL is current
     std::unique_ptr<GLESRenderEngine> engine;
     switch (version) {
@@ -428,11 +431,11 @@ GLESRenderEngine::GLESRenderEngine(const RenderEngineCreationArgs& args, EGLDisp
 
     if (args.supportsBackgroundBlur) {
         char isGaussian[PROPERTY_VALUE_MAX];
-        property_get("debug.sf.gaussianBlur", isGaussian, "1");
+        property_get("debug.sf.gaussianBlur", isGaussian, "0");
         if (atoi(isGaussian)) {
             mBlurFilter = new GaussianBlurFilter(*this);
         } else {
-            mBlurFilter = new LensBlurFilter(*this);
+            mBlurFilter = new KawaseBlurFilter(*this);
         }
         checkErrors("BlurFilter creation");
     }
