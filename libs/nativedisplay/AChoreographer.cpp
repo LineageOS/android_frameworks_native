@@ -264,6 +264,11 @@ static inline Choreographer* AChoreographer_to_Choreographer(AChoreographer* cho
     return reinterpret_cast<Choreographer*>(choreographer);
 }
 
+static inline const Choreographer* AChoreographer_to_Choreographer(
+        const AChoreographer* choreographer) {
+    return reinterpret_cast<const Choreographer*>(choreographer);
+}
+
 static inline AChoreographer* Choreographer_to_AChoreographer(Choreographer* choreographer) {
     return reinterpret_cast<AChoreographer*>(choreographer);
 }
@@ -321,7 +326,7 @@ void AChoreographer_destroy(AChoreographer* choreographer) {
     delete AChoreographer_to_Choreographer(choreographer);
 }
 
-int AChoreographer_getFd(AChoreographer* choreographer) {
+int AChoreographer_getFd(const AChoreographer* choreographer) {
     return AChoreographer_to_Choreographer(choreographer)->getFd();
 }
 

@@ -32,7 +32,7 @@ public:
     void dispose();
     status_t scheduleVsync();
     void toggleConfigEvents(ISurfaceComposer::ConfigChanged configChangeFlag);
-    int getFd();
+    int getFd() const;
     virtual int handleEvent(int receiveFd, int events, void* data);
 
 protected:
