@@ -62,6 +62,7 @@ public:
     bool removeSensor(int32_t handle);
     void setFirstFlushPending(int32_t handle, bool value);
     void dump(String8& result);
+    void dump(util::ProtoOutputStream* proto) const;
     bool needsWakeLock();
     void resetWakeLockRefCount();
     String8 getPackageName() const;

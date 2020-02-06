@@ -17,6 +17,8 @@
 #include <sys/socket.h>
 #include <utils/threads.h>
 
+#include <android/util/ProtoOutputStream.h>
+#include <frameworks/base/core/proto/android/service/sensor_service.proto.h>
 #include <sensor/SensorEventQueue.h>
 
 #include "vec.h"
@@ -107,6 +109,51 @@ void SensorService::SensorEventConnection::dump(String8& result) {
             mEventsReceived - (mEventsSentFromCache + mEventsSent + mCacheSize),
             mTotalAcksNeeded,
             mTotalAcksReceived);
+#endif
+}
+
+/**
+ * Dump debugging information as android.service.SensorEventConnectionProto protobuf message using
+ * ProtoOutputStream.
+ *
+ * See proto definition and some notes about ProtoOutputStream in
+ * frameworks/base/core/proto/android/service/sensor_service.proto
+ */
+void SensorService::SensorEventConnection::dump(util::ProtoOutputStream* proto) const {
+    using namespace service::SensorEventConnectionProto;
+    Mutex::Autolock _l(mConnectionLock);
+
+    if (!mService->isWhiteListedPackage(getPackageName())) {
+        proto->write(OPERATING_MODE, OP_MODE_RESTRICTED);
+    } else if (mDataInjectionMode) {
+        proto->write(OPERATING_MODE, OP_MODE_DATA_INJECTION);
+    } else {
+        proto->write(OPERATING_MODE, OP_MODE_NORMAL);
+    }
+    proto->write(PACKAGE_NAME, std::string(mPackageName.string()));
+    proto->write(WAKE_LOCK_REF_COUNT, int32_t(mWakeLockRefCount));
+    proto->write(UID, int32_t(mUid));
+    proto->write(CACHE_SIZE, int32_t(mCacheSize));
+    proto->write(MAX_CACHE_SIZE, int32_t(mMaxCacheSize));
+    for (size_t i = 0; i < mSensorInfo.size(); ++i) {
+        const FlushInfo& flushInfo = mSensorInfo.valueAt(i);
+        const uint64_t token = proto->start(FLUSH_INFOS);
+        proto->write(FlushInfoProto::SENSOR_NAME,
+                std::string(mService->getSensorName(mSensorInfo.keyAt(i))));
+        proto->write(FlushInfoProto::SENSOR_HANDLE, mSensorInfo.keyAt(i));
+        proto->write(FlushInfoProto::FIRST_FLUSH_PENDING, flushInfo.mFirstFlushPending);
+        proto->write(FlushInfoProto::PENDING_FLUSH_EVENTS_TO_SEND,
+                flushInfo.mPendingFlushEventsToSend);
+        proto->end(token);
+    }
+#if DEBUG_CONNECTIONS
+    proto->write(EVENTS_RECEIVED, mEventsReceived);
+    proto->write(EVENTS_SENT, mEventsSent);
+    proto->write(EVENTS_CACHE, mEventsSentFromCache);
+    proto->write(EVENTS_DROPPED, mEventsReceived - (mEventsSentFromCache + mEventsSent +
+            mCacheSize));
+    proto->write(TOTAL_ACKS_NEEDED, mTotalAcksNeeded);
+    proto->write(TOTAL_ACKS_RECEIVED, mTotalAcksReceived);
 #endif
 }
 
