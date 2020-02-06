@@ -982,6 +982,7 @@ private:
     // constant members (no synchronization needed for access)
     const nsecs_t mBootTime = systemTime();
     bool mGpuToCpuSupported = false;
+    bool mIsUserBuild = true;
 
     // Can only accessed from the main thread, these members
     // don't need synchronization
@@ -1225,6 +1226,11 @@ private:
     // Flags to capture the state of Vsync in HWC
     HWC2::Vsync mHWCVsyncState = HWC2::Vsync::Disable;
     HWC2::Vsync mHWCVsyncPendingState = HWC2::Vsync::Disable;
+
+    // Fields tracking the current jank event: when it started and how many
+    // janky frames there are.
+    nsecs_t mMissedFrameJankStart = 0;
+    int32_t mMissedFrameJankCount = 0;
 };
 
 } // namespace android
