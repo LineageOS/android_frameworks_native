@@ -47,8 +47,8 @@ protected:
     ~RefreshRateStatsTest();
 
     void init(const std::vector<RefreshRateConfigs::InputConfig>& configs) {
-        mRefreshRateConfigs = std::make_unique<RefreshRateConfigs>(
-                /*refreshRateSwitching=*/true, configs, /*currentConfig=*/CONFIG_ID_0);
+        mRefreshRateConfigs =
+                std::make_unique<RefreshRateConfigs>(configs, /*currentConfig=*/CONFIG_ID_0);
         mRefreshRateStats =
                 std::make_unique<RefreshRateStats>(*mRefreshRateConfigs, mTimeStats,
                                                    /*currentConfigId=*/CONFIG_ID_0,

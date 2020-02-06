@@ -19,6 +19,7 @@
 #include <android/hardware/configstore/1.1/types.h>
 #include <configstore/Utils.h>
 
+#include <log/log.h>
 #include <cstdlib>
 #include <tuple>
 
@@ -227,8 +228,12 @@ int64_t color_space_agnostic_dataspace(Dataspace defaultValue) {
 }
 
 bool refresh_rate_switching(bool defaultValue) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     auto temp = SurfaceFlingerProperties::refresh_rate_switching();
+#pragma clang diagnostic pop
     if (temp.has_value()) {
+        ALOGW("Using deprecated refresh_rate_switching sysprop. Value: %d", *temp);
         return *temp;
     }
     return defaultValue;
