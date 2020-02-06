@@ -237,9 +237,13 @@ status_t TransactionCompletedThread::addCallbackHandle(const sp<CallbackHandle>&
     // destroyed the client side is dead and there won't be anyone to send the callback to.
     sp<IBinder> surfaceControl = handle->surfaceControl.promote();
     if (surfaceControl) {
+        FrameEventHistoryStats eventStats(handle->frameNumber,
+                                          handle->gpuCompositionDoneFence->getSnapshot().fence,
+                                          handle->compositorTiming, handle->refreshStartTime,
+                                          handle->dequeueReadyTime);
         transactionStats->surfaceStats.emplace_back(surfaceControl, handle->acquireTime,
                                                     handle->previousReleaseFence,
-                                                    handle->transformHint);
+                                                    handle->transformHint, eventStats);
     }
     return NO_ERROR;
 }

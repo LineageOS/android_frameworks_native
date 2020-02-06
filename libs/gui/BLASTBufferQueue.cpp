@@ -31,6 +31,68 @@ using namespace std::chrono_literals;
 
 namespace android {
 
+void BLASTBufferItemConsumer::onDisconnect() {
+    Mutex::Autolock lock(mFrameEventHistoryMutex);
+    mPreviouslyConnected = mCurrentlyConnected;
+    mCurrentlyConnected = false;
+    if (mPreviouslyConnected) {
+        mDisconnectEvents.push(mCurrentFrameNumber);
+    }
+    mFrameEventHistory.onDisconnect();
+}
+
+void BLASTBufferItemConsumer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
+                                                       FrameEventHistoryDelta* outDelta) {
+    Mutex::Autolock lock(mFrameEventHistoryMutex);
+    if (newTimestamps) {
+        // BufferQueueProducer only adds a new timestamp on
+        // queueBuffer
+        mCurrentFrameNumber = newTimestamps->frameNumber;
+        mFrameEventHistory.addQueue(*newTimestamps);
+    }
+    if (outDelta) {
+        // frame event histories will be processed
+        // only after the producer connects and requests
+        // deltas for the first time.  Forward this intent
+        // to SF-side to turn event processing back on
+        mPreviouslyConnected = mCurrentlyConnected;
+        mCurrentlyConnected = true;
+        mFrameEventHistory.getAndResetDelta(outDelta);
+    }
+}
+
+void BLASTBufferItemConsumer::updateFrameTimestamps(uint64_t frameNumber, nsecs_t refreshStartTime,
+                                                    const sp<Fence>& glDoneFence,
+                                                    const sp<Fence>& presentFence,
+                                                    const sp<Fence>& prevReleaseFence,
+                                                    CompositorTiming compositorTiming,
+                                                    nsecs_t latchTime, nsecs_t dequeueReadyTime) {
+    Mutex::Autolock lock(mFrameEventHistoryMutex);
+
+    // if the producer is not connected, don't bother updating,
+    // the next producer that connects won't access this frame event
+    if (!mCurrentlyConnected) return;
+    std::shared_ptr<FenceTime> glDoneFenceTime = std::make_shared<FenceTime>(glDoneFence);
+    std::shared_ptr<FenceTime> presentFenceTime = std::make_shared<FenceTime>(presentFence);
+    std::shared_ptr<FenceTime> releaseFenceTime = std::make_shared<FenceTime>(prevReleaseFence);
+
+    mFrameEventHistory.addLatch(frameNumber, latchTime);
+    mFrameEventHistory.addRelease(frameNumber, dequeueReadyTime, std::move(releaseFenceTime));
+    mFrameEventHistory.addPreComposition(frameNumber, refreshStartTime);
+    mFrameEventHistory.addPostComposition(frameNumber, glDoneFenceTime, presentFenceTime,
+                                          compositorTiming);
+}
+
+void BLASTBufferItemConsumer::getConnectionEvents(uint64_t frameNumber, bool* needsDisconnect) {
+    bool disconnect = false;
+    Mutex::Autolock lock(mFrameEventHistoryMutex);
+    while (!mDisconnectEvents.empty() && mDisconnectEvents.front() <= frameNumber) {
+        disconnect = true;
+        mDisconnectEvents.pop();
+    }
+    if (needsDisconnect != nullptr) *needsDisconnect = disconnect;
+}
+
 BLASTBufferQueue::BLASTBufferQueue(const sp<SurfaceControl>& surface, int width, int height)
       : mSurfaceControl(surface),
         mWidth(width),
@@ -39,7 +101,7 @@ BLASTBufferQueue::BLASTBufferQueue(const sp<SurfaceControl>& surface, int width,
     BufferQueue::createBufferQueue(&mProducer, &mConsumer);
     mConsumer->setMaxAcquiredBufferCount(MAX_ACQUIRED_BUFFERS);
     mBufferItemConsumer =
-            new BufferItemConsumer(mConsumer, AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER, 1, true);
+            new BLASTBufferItemConsumer(mConsumer, AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER, 1, true);
     static int32_t id = 0;
     auto name = std::string("BLAST Consumer") + std::to_string(id);
     id++;
@@ -79,11 +141,21 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
     std::unique_lock _lock{mMutex};
     ATRACE_CALL();
 
+    if (!stats.empty()) {
+        mTransformHint = stats[0].transformHint;
+        mBufferItemConsumer->setTransformHint(mTransformHint);
+        mBufferItemConsumer->updateFrameTimestamps(stats[0].frameEventStats.frameNumber,
+                                                   stats[0].frameEventStats.refreshStartTime,
+                                                   stats[0].frameEventStats.gpuCompositionDoneFence,
+                                                   stats[0].presentFence,
+                                                   stats[0].previousReleaseFence,
+                                                   stats[0].frameEventStats.compositorTiming,
+                                                   stats[0].latchTime,
+                                                   stats[0].frameEventStats.dequeueReadyTime);
+    }
     if (mPendingReleaseItem.item.mGraphicBuffer != nullptr) {
-        if (stats.size() > 0) {
+        if (!stats.empty()) {
             mPendingReleaseItem.releaseFence = stats[0].previousReleaseFence;
-            mTransformHint = stats[0].transformHint;
-            mBufferItemConsumer->setTransformHint(mTransformHint);
         } else {
             ALOGE("Warning: no SurfaceControlStats returned in BLASTBufferQueue callback");
             mPendingReleaseItem.releaseFence = nullptr;
@@ -143,6 +215,14 @@ void BLASTBufferQueue::processNextBufferLocked() {
 
     mNumAcquired++;
     mSubmitted.push(bufferItem);
+
+    bool needsDisconnect = false;
+    mBufferItemConsumer->getConnectionEvents(bufferItem.mFrameNumber, &needsDisconnect);
+
+    // if producer disconnected before, notify SurfaceFlinger
+    if (needsDisconnect) {
+        t->notifyProducerDisconnect(mSurfaceControl);
+    }
 
     // Ensure BLASTBufferQueue stays alive until we receive the transaction complete callback.
     incStrong((void*)transactionCallbackThunk);

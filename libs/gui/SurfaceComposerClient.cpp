@@ -222,8 +222,10 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
                 surfaceControlStats
                         .emplace_back(callbacksMap[callbackId]
                                               .surfaceControls[surfaceStats.surfaceControl],
-                                      surfaceStats.acquireTime, surfaceStats.previousReleaseFence,
-                                      surfaceStats.transformHint);
+                                      transactionStats.latchTime, surfaceStats.acquireTime,
+                                      transactionStats.presentFence,
+                                      surfaceStats.previousReleaseFence, surfaceStats.transformHint,
+                                      surfaceStats.eventStats);
                 if (callbacksMap[callbackId].surfaceControls[surfaceStats.surfaceControl]) {
                     callbacksMap[callbackId]
                             .surfaceControls[surfaceStats.surfaceControl]
@@ -1232,6 +1234,18 @@ SurfaceComposerClient::Transaction::addTransactionCompletedCallback(
 
     mListenerCallbacks[TransactionCompletedListener::getIInstance()].callbackIds.emplace(
             callbackId);
+    return *this;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::notifyProducerDisconnect(
+        const sp<SurfaceControl>& sc) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+
+    s->what |= layer_state_t::eProducerDisconnect;
     return *this;
 }
 

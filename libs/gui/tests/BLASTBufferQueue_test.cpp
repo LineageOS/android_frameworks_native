@@ -21,6 +21,7 @@
 #include <android/hardware/graphics/common/1.2/types.h>
 #include <gui/BufferQueueCore.h>
 #include <gui/BufferQueueProducer.h>
+#include <gui/FrameTimestamps.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/IProducerListener.h>
 #include <gui/SurfaceComposerClient.h>
@@ -646,5 +647,80 @@ TEST_F(BLASTBufferQueueTransformTest, setTransform_ROT_180) {
 
 TEST_F(BLASTBufferQueueTransformTest, setTransform_ROT_270) {
     test(ui::Transform::ROT_270);
+}
+
+class BLASTFrameEventHistoryTest : public BLASTBufferQueueTest {
+public:
+    void setUpAndQueueBuffer(const sp<IGraphicBufferProducer>& igbProducer,
+                             nsecs_t* requestedPresentTime, nsecs_t* postedTime,
+                             IGraphicBufferProducer::QueueBufferOutput* qbOutput,
+                             bool getFrameTimestamps) {
+        int slot;
+        sp<Fence> fence;
+        sp<GraphicBuffer> buf;
+        auto ret = igbProducer->dequeueBuffer(&slot, &fence, mDisplayWidth, mDisplayHeight,
+                                              PIXEL_FORMAT_RGBA_8888, GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                              nullptr, nullptr);
+        ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION, ret);
+        ASSERT_EQ(OK, igbProducer->requestBuffer(slot, &buf));
+
+        nsecs_t requestedTime = systemTime();
+        if (requestedPresentTime) *requestedPresentTime = requestedTime;
+        IGraphicBufferProducer::QueueBufferInput input(requestedTime, false, HAL_DATASPACE_UNKNOWN,
+                                                       Rect(mDisplayWidth, mDisplayHeight),
+                                                       NATIVE_WINDOW_SCALING_MODE_FREEZE, 0,
+                                                       Fence::NO_FENCE, /*sticky*/ 0,
+                                                       getFrameTimestamps);
+        if (postedTime) *postedTime = systemTime();
+        igbProducer->queueBuffer(slot, input, qbOutput);
+    }
+};
+
+TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_Basic) {
+    BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
+    sp<IGraphicBufferProducer> igbProducer;
+    ProducerFrameEventHistory history;
+    setUpProducer(adapter, igbProducer);
+
+    IGraphicBufferProducer::QueueBufferOutput qbOutput;
+    nsecs_t requestedPresentTimeA = 0;
+    nsecs_t postedTimeA = 0;
+    setUpAndQueueBuffer(igbProducer, &requestedPresentTimeA, &postedTimeA, &qbOutput, true);
+    history.applyDelta(qbOutput.frameTimestamps);
+
+    FrameEvents* events = nullptr;
+    events = history.getFrame(1);
+    ASSERT_NE(nullptr, events);
+    ASSERT_EQ(1, events->frameNumber);
+    ASSERT_EQ(requestedPresentTimeA, events->requestedPresentTime);
+    ASSERT_GE(events->postedTime, postedTimeA);
+
+    adapter.waitForCallbacks();
+
+    // queue another buffer so we query for frame event deltas
+    nsecs_t requestedPresentTimeB = 0;
+    nsecs_t postedTimeB = 0;
+    setUpAndQueueBuffer(igbProducer, &requestedPresentTimeB, &postedTimeB, &qbOutput, true);
+    history.applyDelta(qbOutput.frameTimestamps);
+    events = history.getFrame(1);
+    ASSERT_NE(nullptr, events);
+
+    // frame number, requestedPresentTime, and postTime should not have changed
+    ASSERT_EQ(1, events->frameNumber);
+    ASSERT_EQ(requestedPresentTimeA, events->requestedPresentTime);
+    ASSERT_GE(events->postedTime, postedTimeA);
+
+    ASSERT_GE(events->latchTime, postedTimeA);
+    ASSERT_GE(events->dequeueReadyTime, events->latchTime);
+    ASSERT_NE(nullptr, events->gpuCompositionDoneFence);
+    ASSERT_NE(nullptr, events->displayPresentFence);
+    ASSERT_NE(nullptr, events->releaseFence);
+
+    // we should also have gotten the initial values for the next frame
+    events = history.getFrame(2);
+    ASSERT_NE(nullptr, events);
+    ASSERT_EQ(2, events->frameNumber);
+    ASSERT_EQ(requestedPresentTimeB, events->requestedPresentTime);
+    ASSERT_GE(events->postedTime, postedTimeB);
 }
 } // namespace android
