@@ -12,6 +12,59 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// DO NOT ADD NEW USAGES OF THIS
+// See comments in header file.
+cc_library_static {
+    name: "libbinderthreadstateutils",
+    double_loadable: true,
+    vendor_available: true,
+    host_supported: true,
+
+    shared_libs: [
+        "libbinder",
+        "libhidlbase",  // libhwbinder is in here
+    ],
+
+    export_include_dirs: ["include"],
+
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+}
+
+hidl_package_root {
+    name: "binderthreadstateutilstest",
+}
+
+aidl_interface {
+    name: "binderthreadstateutilstest.aidl",
+    srcs: ["IAidlStuff.aidl"],
+}
+
+cc_test {
+    name: "libbinderthreadstateutils_test",
+    srcs: ["test.cpp"],
+    static_libs: [
+        "binderthreadstateutilstest@1.0",
+        "binderthreadstateutilstest.aidl-cpp",
+        "libbinderthreadstateutils",
+    ],
+    shared_libs: [
+        "libbase",
+        "libbinder",
+        "libcutils",
+        "libhidlbase",
+        "libutils",
+        "liblog",
+    ],
+    test_suites: [
+        "general-tests",
+    ],
+    require_root: true,
+}
+
+// TODO(b/148692216): remove empty lib
 cc_library {
     name: "libbinderthreadstate",
     recovery_available: true,
@@ -21,28 +74,4 @@ cc_library {
         support_system_process: true,
     },
     host_supported: true,
-
-    srcs: [
-        "IPCThreadStateBase.cpp",
-    ],
-
-    header_libs: [
-        "libbase_headers",
-        "libutils_headers",
-    ],
-
-    shared_libs: [
-        "liblog",
-    ],
-
-    export_include_dirs: ["include"],
-
-    sanitize: {
-        misc_undefined: ["integer"],
-    },
-
-    cflags: [
-        "-Wall",
-        "-Werror",
-    ],
 }
