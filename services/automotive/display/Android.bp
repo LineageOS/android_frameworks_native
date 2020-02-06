@@ -18,8 +18,8 @@ cc_binary {
     name: "android.frameworks.automotive.display@1.0-service",
     defaults: ["hidl_defaults"],
     srcs: [
-        "main_automotivedisplay.cpp",
-        "CarWindowService.cpp",
+        "main_automotivedisplayproxy.cpp",
+        "AutomotiveDisplayProxyService.cpp",
     ],
     init_rc: ["android.frameworks.automotive.display@1.0-service.rc"],
 

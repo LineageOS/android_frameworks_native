@@ -18,7 +18,7 @@
 
 #include <gui/bufferqueue/2.0/B2HGraphicBufferProducer.h>
 
-#include "CarWindowService.h"
+#include "AutomotiveDisplayProxyService.h"
 
 namespace android {
 namespace frameworks {
@@ -28,7 +28,7 @@ namespace V1_0 {
 namespace implementation {
 
 Return<sp<IGraphicBufferProducer>>
-    CarWindowService::getIGraphicBufferProducer() {
+AutomotiveDisplayProxyService::getIGraphicBufferProducer() {
     if (mSurface == nullptr) {
         status_t err;
         mSurfaceComposerClient = new SurfaceComposerClient();
@@ -86,7 +86,7 @@ Return<sp<IGraphicBufferProducer>>
                         mSurface->getIGraphicBufferProducer());
 }
 
-Return<bool> CarWindowService::showWindow() {
+Return<bool> AutomotiveDisplayProxyService::showWindow() {
     status_t status = NO_ERROR;
 
     if (mSurfaceControl != nullptr) {
@@ -103,7 +103,7 @@ Return<bool> CarWindowService::showWindow() {
     return status == NO_ERROR;
 }
 
-Return<bool> CarWindowService::hideWindow() {
+Return<bool> AutomotiveDisplayProxyService::hideWindow() {
     status_t status = NO_ERROR;
 
     if (mSurfaceControl != nullptr) {

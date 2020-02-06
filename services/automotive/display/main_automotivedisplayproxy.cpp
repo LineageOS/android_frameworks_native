@@ -23,14 +23,14 @@
 #include <utils/Errors.h>
 #include <utils/StrongPointer.h>
 
-#include "CarWindowService.h"
+#include "AutomotiveDisplayProxyService.h"
 
 // libhidl:
 using android::hardware::configureRpcThreadpool;
 using android::hardware::joinRpcThreadpool;
 
 // Generated HIDL files
-using android::frameworks::automotive::display::V1_0::ICarWindowService;
+using android::frameworks::automotive::display::V1_0::IAutomotiveDisplayProxyService;
 
 // The namespace in which all our implementation code lives
 using namespace android::frameworks::automotive::display::V1_0::implementation;
@@ -41,7 +41,7 @@ const static char kServiceName[] = "default";
 int main() {
     ALOGI("Car Window Service is starting");
 
-    android::sp<ICarWindowService> service = new CarWindowService();
+    android::sp<IAutomotiveDisplayProxyService> service = new AutomotiveDisplayProxyService();
 
     configureRpcThreadpool(1, true /* callerWillJoin */);
 
