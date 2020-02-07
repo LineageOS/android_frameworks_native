@@ -520,6 +520,10 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
 status_t SensorService::dumpProtoLocked(int fd, ConnectionSafeAutolock* connLock) const {
     using namespace service::SensorServiceProto;
     util::ProtoOutputStream proto;
+    proto.write(INIT_STATUS, int(SensorDevice::getInstance().initCheck()));
+    if (!mSensors.hasAnySensor()) {
+        return proto.flush(fd) ? OK : UNKNOWN_ERROR;
+    }
     const bool privileged = IPCThreadState::self()->getCallingUid() == 0;
 
     timespec curTime;
