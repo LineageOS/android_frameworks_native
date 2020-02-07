@@ -149,6 +149,10 @@ public:
     // Returns the current refresh rate
     const RefreshRate& getCurrentRefreshRate() const EXCLUDES(mLock);
 
+    // Returns the current refresh rate, if allowed. Otherwise the default that is allowed by
+    // the policy.
+    const RefreshRate& getCurrentRefreshRateByPolicy() const;
+
     // Returns the refresh rate that corresponds to a HwcConfigIndexType. This won't change at
     // runtime.
     const RefreshRate& getRefreshRateFromConfigId(HwcConfigIndexType configId) const {

@@ -229,6 +229,15 @@ const RefreshRate& RefreshRateConfigs::getCurrentRefreshRate() const {
     return *mCurrentRefreshRate;
 }
 
+const RefreshRate& RefreshRateConfigs::getCurrentRefreshRateByPolicy() const {
+    std::lock_guard lock(mLock);
+    if (std::find(mAvailableRefreshRates.begin(), mAvailableRefreshRates.end(),
+                  mCurrentRefreshRate) != mAvailableRefreshRates.end()) {
+        return *mCurrentRefreshRate;
+    }
+    return mRefreshRates.at(mDefaultConfig);
+}
+
 void RefreshRateConfigs::setCurrentConfigId(HwcConfigIndexType configId) {
     std::lock_guard lock(mLock);
     mCurrentRefreshRate = &mRefreshRates.at(configId);

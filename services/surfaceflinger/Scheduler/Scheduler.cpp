@@ -625,8 +625,8 @@ HwcConfigIndexType Scheduler::calculateRefreshRateType() {
                 .configId;
     }
 
-    // There are no signals for refresh rate, just leave it as is
-    return mRefreshRateConfigs.getCurrentRefreshRate().configId;
+    // There are no signals for refresh rate, just leave it as is.
+    return mRefreshRateConfigs.getCurrentRefreshRateByPolicy().configId;
 }
 
 std::optional<HwcConfigIndexType> Scheduler::getPreferredConfigId() {
