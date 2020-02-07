@@ -18,6 +18,7 @@
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/types.h>
 #include <configstore/Utils.h>
+#include <utils/Log.h>
 
 #include <log/log.h>
 #include <cstdlib>
@@ -263,8 +264,17 @@ int32_t set_display_power_timer_ms(int32_t defaultValue) {
     return defaultValue;
 }
 
-bool use_smart_90_for_video(bool defaultValue) {
-    auto temp = SurfaceFlingerProperties::use_smart_90_for_video();
+bool use_content_detection_for_refresh_rate(bool defaultValue) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    auto smart_90_deprecated = SurfaceFlingerProperties::use_smart_90_for_video();
+#pragma clang diagnostic pop
+    if (smart_90_deprecated.has_value()) {
+        ALOGW("Using deprecated use_smart_90_for_video sysprop. Value: %d", *smart_90_deprecated);
+        return *smart_90_deprecated;
+    }
+
+    auto temp = SurfaceFlingerProperties::use_content_detection_for_refresh_rate();
     if (temp.has_value()) {
         return *temp;
     }
