@@ -46,33 +46,21 @@ namespace android {
 // ============================================================================
 
 SurfaceControl::SurfaceControl(const sp<SurfaceComposerClient>& client, const sp<IBinder>& handle,
-                               const sp<IGraphicBufferProducer>& gbp, bool owned,
+                               const sp<IGraphicBufferProducer>& gbp,
                                uint32_t transform)
       : mClient(client),
         mHandle(handle),
         mGraphicBufferProducer(gbp),
-        mOwned(owned),
         mTransformHint(transform) {}
 
 SurfaceControl::SurfaceControl(const sp<SurfaceControl>& other) {
     mClient = other->mClient;
     mHandle = other->mHandle;
     mGraphicBufferProducer = other->mGraphicBufferProducer;
-    mOwned = false;
     mTransformHint = other->mTransformHint;
 }
 
 SurfaceControl::~SurfaceControl()
-{
-    // Avoid reparenting the server-side surface to null if we are not the owner of it,
-    // meaning that we retrieved it from another process.
-    if (mHandle != nullptr && mOwned) {
-        SurfaceComposerClient::doDropReferenceTransaction(mHandle);
-    }
-    release();
-}
-
-void SurfaceControl::release()
 {
     // Trigger an IPC now, to make sure things
     // happen without delay, since these resources are quite heavy.
@@ -157,7 +145,6 @@ sp<Surface> SurfaceControl::createSurface() const
 
 sp<IBinder> SurfaceControl::getHandle() const
 {
-    Mutex::Autolock lock(mLock);
     return mHandle;
 }
 
@@ -206,7 +193,7 @@ sp<SurfaceControl> SurfaceControl::readFromParcel(const Parcel* parcel) {
     return new SurfaceControl(new SurfaceComposerClient(
                                       interface_cast<ISurfaceComposerClient>(client)),
                               handle.get(), interface_cast<IGraphicBufferProducer>(gbp),
-                              false /* owned */, transformHint);
+                               transformHint);
 }
 
 // ----------------------------------------------------------------------------

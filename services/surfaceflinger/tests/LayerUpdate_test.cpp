@@ -542,6 +542,7 @@ TEST_F(ChildLayerTest, ChildrenSurviveParentDestruction) {
         mCapture->checkPixel(64, 64, 111, 111, 111);
     }
 
+    Transaction().reparent(mChild, nullptr).apply();
     mChild.clear();
 
     {
@@ -1702,6 +1703,7 @@ TEST_F(ScreenCaptureTest, CaptureInvalidLayer) {
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(redLayer, Color::RED, 60, 60));
 
     auto redLayerHandle = redLayer->getHandle();
+    Transaction().reparent(redLayer, nullptr).apply();
     redLayer.clear();
     SurfaceComposerClient::Transaction().apply(true);
 

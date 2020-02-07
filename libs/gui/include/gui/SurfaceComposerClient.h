@@ -184,12 +184,6 @@ public:
     static bool getProtectedContentSupport();
 
     /**
-     * Called from SurfaceControl d'tor to 'destroy' the surface (or rather, reparent it
-     * to null), but without needing an sp<SurfaceControl> to avoid infinite ressurection.
-     */
-    static void doDropReferenceTransaction(const sp<IBinder>& handle);
-
-    /**
      * Uncaches a buffer in ISurfaceComposer. It must be uncached via a transaction so that it is
      * in order with other transactions that use buffers.
      */
