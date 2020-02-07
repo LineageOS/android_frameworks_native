@@ -73,7 +73,8 @@ SchedulerTest::SchedulerTest() {
     std::vector<scheduler::RefreshRateConfigs::InputConfig> configs{
             {{HwcConfigIndexType(0), HwcConfigGroupType(0), 16666667}}};
     mRefreshRateConfigs = std::make_unique<
-            scheduler::RefreshRateConfigs>(configs, /*currentConfig=*/HwcConfigIndexType(0));
+            scheduler::RefreshRateConfigs>(/*refreshRateSwitching=*/false, configs,
+                                           /*currentConfig=*/HwcConfigIndexType(0));
 
     mScheduler = std::make_unique<TestableScheduler>(*mRefreshRateConfigs, false);
 
