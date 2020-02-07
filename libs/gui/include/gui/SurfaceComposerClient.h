@@ -52,17 +52,24 @@ class IRegionSamplingListener;
 class Region;
 
 struct SurfaceControlStats {
-    SurfaceControlStats(const sp<SurfaceControl>& sc, nsecs_t time,
-                        const sp<Fence>& prevReleaseFence, uint32_t hint)
+    SurfaceControlStats(const sp<SurfaceControl>& sc, nsecs_t latchTime, nsecs_t acquireTime,
+                        const sp<Fence>& presentFence, const sp<Fence>& prevReleaseFence,
+                        uint32_t hint, FrameEventHistoryStats eventStats)
           : surfaceControl(sc),
-            acquireTime(time),
+            latchTime(latchTime),
+            acquireTime(acquireTime),
+            presentFence(presentFence),
             previousReleaseFence(prevReleaseFence),
-            transformHint(hint) {}
+            transformHint(hint),
+            frameEventStats(eventStats) {}
 
     sp<SurfaceControl> surfaceControl;
+    nsecs_t latchTime = -1;
     nsecs_t acquireTime = -1;
+    sp<Fence> presentFence;
     sp<Fence> previousReleaseFence;
     uint32_t transformHint = 0;
+    FrameEventHistoryStats frameEventStats;
 };
 
 using TransactionCompletedCallbackTakesContext =
@@ -483,6 +490,9 @@ public:
 
         Transaction& addTransactionCompletedCallback(
                 TransactionCompletedCallbackTakesContext callback, void* callbackContext);
+
+        // ONLY FOR BLAST ADAPTER
+        Transaction& notifyProducerDisconnect(const sp<SurfaceControl>& sc);
 
         // Detaches all child surfaces (and their children recursively)
         // from their SurfaceControl.

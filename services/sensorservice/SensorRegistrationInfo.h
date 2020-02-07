@@ -17,10 +17,14 @@
 #ifndef ANDROID_SENSOR_REGISTRATION_INFO_H
 #define ANDROID_SENSOR_REGISTRATION_INFO_H
 
-#include "SensorServiceUtils.h"
-#include <utils/Thread.h>
+#include <ctime>
 #include <iomanip>
 #include <sstream>
+#include <utils/Thread.h>
+
+#include <android/util/ProtoOutputStream.h>
+#include <frameworks/base/core/proto/android/service/sensor_service.proto.h>
+#include "SensorServiceUtils.h"
 
 namespace android {
 
@@ -30,7 +34,7 @@ class SensorService::SensorRegistrationInfo : public SensorServiceUtil::Dumpable
 public:
     SensorRegistrationInfo() : mPackageName() {
         mSensorHandle = mSamplingRateUs = mMaxReportLatencyUs = INT32_MIN;
-        mHour = mMin = mSec = INT8_MIN;
+        mRealtimeSec = 0;
         mActivated = false;
     }
 
@@ -47,25 +51,26 @@ public:
         mPid = (thread != nullptr) ? thread->getCallingPid() : -1;
         mUid = (thread != nullptr) ? thread->getCallingUid() : -1;
 
-        time_t rawtime = time(nullptr);
-        struct tm * timeinfo = localtime(&rawtime);
-        mHour = static_cast<int8_t>(timeinfo->tm_hour);
-        mMin = static_cast<int8_t>(timeinfo->tm_min);
-        mSec = static_cast<int8_t>(timeinfo->tm_sec);
+        timespec curTime;
+        clock_gettime(CLOCK_REALTIME_COARSE, &curTime);
+        mRealtimeSec = curTime.tv_sec;
     }
 
     static bool isSentinel(const SensorRegistrationInfo& info) {
-       return (info.mHour == INT8_MIN &&
-               info.mMin == INT8_MIN &&
-               info.mSec == INT8_MIN);
+       return (info.mSensorHandle == INT32_MIN && info.mRealtimeSec == 0);
     }
 
     // Dumpable interface
     virtual std::string dump() const override {
+        struct tm* timeinfo = localtime(&mRealtimeSec);
+        const int8_t hour = static_cast<int8_t>(timeinfo->tm_hour);
+        const int8_t min = static_cast<int8_t>(timeinfo->tm_min);
+        const int8_t sec = static_cast<int8_t>(timeinfo->tm_sec);
+
         std::ostringstream ss;
-        ss << std::setfill('0') << std::setw(2) << static_cast<int>(mHour) << ":"
-           << std::setw(2) << static_cast<int>(mMin) << ":"
-           << std::setw(2) << static_cast<int>(mSec)
+        ss << std::setfill('0') << std::setw(2) << static_cast<int>(hour) << ":"
+           << std::setw(2) << static_cast<int>(min) << ":"
+           << std::setw(2) << static_cast<int>(sec)
            << (mActivated ? " +" : " -")
            << " 0x" << std::hex << std::setw(8) << mSensorHandle << std::dec
            << std::setfill(' ') << " pid=" << std::setw(5) << mPid
@@ -77,6 +82,25 @@ public:
         return ss.str();
     }
 
+    /**
+     * Dump debugging information as android.service.SensorRegistrationInfoProto protobuf message
+     * using ProtoOutputStream.
+     *
+     * See proto definition and some notes about ProtoOutputStream in
+     * frameworks/base/core/proto/android/service/sensor_service.proto
+     */
+    virtual void dump(util::ProtoOutputStream* proto) const override {
+        using namespace service::SensorRegistrationInfoProto;
+        proto->write(TIMESTAMP_SEC, int64_t(mRealtimeSec));
+        proto->write(SENSOR_HANDLE, mSensorHandle);
+        proto->write(PACKAGE_NAME, std::string(mPackageName.string()));
+        proto->write(PID, int32_t(mPid));
+        proto->write(UID, int32_t(mUid));
+        proto->write(SAMPLING_RATE_US, mSamplingRateUs);
+        proto->write(MAX_REPORT_LATENCY_US, mMaxReportLatencyUs);
+        proto->write(ACTIVATED, mActivated);
+    }
+
 private:
     int32_t mSensorHandle;
     String8 mPackageName;
@@ -85,8 +109,7 @@ private:
     int64_t mSamplingRateUs;
     int64_t mMaxReportLatencyUs;
     bool mActivated;
-    int8_t mHour, mMin, mSec;
-
+    time_t mRealtimeSec;
 };
 
 } // namespace android;

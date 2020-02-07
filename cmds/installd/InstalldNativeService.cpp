@@ -1102,7 +1102,7 @@ binder::Status InstalldNativeService::destroyAppDataSnapshot(
 binder::Status InstalldNativeService::moveCompleteApp(const std::unique_ptr<std::string>& fromUuid,
         const std::unique_ptr<std::string>& toUuid, const std::string& packageName,
         const std::string& dataAppName, int32_t appId, const std::string& seInfo,
-        int32_t targetSdkVersion) {
+        int32_t targetSdkVersion, const std::string& fromCodePath) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(fromUuid);
     CHECK_ARGUMENT_UUID(toUuid);
@@ -1119,13 +1119,12 @@ binder::Status InstalldNativeService::moveCompleteApp(const std::unique_ptr<std:
 
     // Copy app
     {
-        auto from = create_data_app_package_path(from_uuid, data_app_name);
         auto to = create_data_app_package_path(to_uuid, data_app_name);
         auto to_parent = create_data_app_path(to_uuid);
 
-        int rc = copy_directory_recursive(from.c_str(), to_parent.c_str());
+        int rc = copy_directory_recursive(fromCodePath.c_str(), to_parent.c_str());
         if (rc != 0) {
-            res = error(rc, "Failed copying " + from + " to " + to);
+            res = error(rc, "Failed copying " + fromCodePath + " to " + to);
             goto fail;
         }
 

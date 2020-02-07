@@ -21,6 +21,8 @@
 #include "SensorService.h"
 
 #include <android-base/logging.h>
+#include <android/util/ProtoOutputStream.h>
+#include <frameworks/base/core/proto/android/service/sensor_service.proto.h>
 #include <sensors/convert.h>
 #include <cutils/atomic.h>
 #include <utils/Errors.h>
@@ -39,6 +41,7 @@ using android::hardware::sensors::V2_0::WakeLockQueueFlagBits;
 using android::hardware::hidl_vec;
 using android::hardware::Return;
 using android::SensorDeviceUtils::HidlServiceRegistrationWaiter;
+using android::util::ProtoOutputStream;
 
 namespace android {
 // ---------------------------------------------------------------------------
@@ -394,6 +397,43 @@ std::string SensorDevice::dump() const {
     }
 
     return result.string();
+}
+
+/**
+ * Dump debugging information as android.service.SensorDeviceProto protobuf message using
+ * ProtoOutputStream.
+ *
+ * See proto definition and some notes about ProtoOutputStream in
+ * frameworks/base/core/proto/android/service/sensor_service.proto
+ */
+void SensorDevice::dump(ProtoOutputStream* proto) const {
+    using namespace service::SensorDeviceProto;
+    if (mSensors == nullptr) {
+        proto->write(INITIALIZED , false);
+        return;
+    }
+    proto->write(INITIALIZED , true);
+    proto->write(TOTAL_SENSORS , int(mSensorList.size()));
+    proto->write(ACTIVE_SENSORS , int(mActivationCount.size()));
+
+    Mutex::Autolock _l(mLock);
+    for (const auto & s : mSensorList) {
+        int32_t handle = s.handle;
+        const Info& info = mActivationCount.valueFor(handle);
+        if (info.numActiveClients() == 0) continue;
+
+        uint64_t token = proto->start(SENSORS);
+        proto->write(SensorProto::HANDLE , handle);
+        proto->write(SensorProto::ACTIVE_COUNT , int(info.batchParams.size()));
+        for (size_t j = 0; j < info.batchParams.size(); j++) {
+            const BatchParams& params = info.batchParams[j];
+            proto->write(SensorProto::SAMPLING_PERIOD_MS , params.mTSample / 1e6f);
+            proto->write(SensorProto::BATCHING_PERIOD_MS , params.mTBatch / 1e6f);
+        }
+        proto->write(SensorProto::SAMPLING_PERIOD_SELECTED , info.bestBatchParams.mTSample / 1e6f);
+        proto->write(SensorProto::BATCHING_PERIOD_SELECTED , info.bestBatchParams.mTBatch / 1e6f);
+        proto->end(token);
+    }
 }
 
 ssize_t SensorDevice::getSensorList(sensor_t const** list) {

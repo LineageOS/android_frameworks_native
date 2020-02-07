@@ -21,11 +21,17 @@
 #include <string>
 
 namespace android {
+
+namespace util {
+class ProtoOutputStream;
+}
+
 namespace SensorServiceUtil {
 
 class Dumpable {
 public:
     virtual std::string dump() const = 0;
+    virtual void dump(util::ProtoOutputStream*) const {}
     virtual void setFormat(std::string ) {}
     virtual ~Dumpable() {}
 };

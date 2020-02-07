@@ -33,6 +33,35 @@ namespace android {
 
 class BufferItemConsumer;
 
+class BLASTBufferItemConsumer : public BufferItemConsumer {
+public:
+    BLASTBufferItemConsumer(const sp<IGraphicBufferConsumer>& consumer, uint64_t consumerUsage,
+                            int bufferCount, bool controlledByApp)
+          : BufferItemConsumer(consumer, consumerUsage, bufferCount, controlledByApp),
+            mCurrentlyConnected(false),
+            mPreviouslyConnected(false) {}
+
+    void onDisconnect() override;
+    void addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
+                                  FrameEventHistoryDelta* outDelta) override
+            REQUIRES(mFrameEventHistoryMutex);
+    void updateFrameTimestamps(uint64_t frameNumber, nsecs_t refreshStartTime,
+                               const sp<Fence>& gpuCompositionDoneFence,
+                               const sp<Fence>& presentFence, const sp<Fence>& prevReleaseFence,
+                               CompositorTiming compositorTiming, nsecs_t latchTime,
+                               nsecs_t dequeueReadyTime) REQUIRES(mFrameEventHistoryMutex);
+    void getConnectionEvents(uint64_t frameNumber, bool* needsDisconnect);
+
+private:
+    uint64_t mCurrentFrameNumber = 0;
+
+    Mutex mFrameEventHistoryMutex;
+    ConsumerFrameEventHistory mFrameEventHistory GUARDED_BY(mFrameEventHistoryMutex);
+    std::queue<uint64_t> mDisconnectEvents GUARDED_BY(mFrameEventHistoryMutex);
+    bool mCurrentlyConnected GUARDED_BY(mFrameEventHistoryMutex);
+    bool mPreviouslyConnected GUARDED_BY(mFrameEventHistoryMutex);
+};
+
 class BLASTBufferQueue
     : public ConsumerBase::FrameAvailableListener, public BufferItemConsumer::BufferFreedListener
 {
@@ -89,7 +118,7 @@ private:
 
     sp<IGraphicBufferConsumer> mConsumer;
     sp<IGraphicBufferProducer> mProducer;
-    sp<BufferItemConsumer> mBufferItemConsumer;
+    sp<BLASTBufferItemConsumer> mBufferItemConsumer;
 
     SurfaceComposerClient::Transaction* mNextTransaction GUARDED_BY(mMutex);
 };

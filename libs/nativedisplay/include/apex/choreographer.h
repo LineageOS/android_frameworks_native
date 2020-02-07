@@ -43,7 +43,7 @@ void AChoreographer_destroy(AChoreographer* choreographer);
  * events. One such way is registering the file descriptor to a Looper instance,
  * although this is not a requirement.
  */
-int AChoreographer_getFd(AChoreographer* choreographer);
+int AChoreographer_getFd(const AChoreographer* choreographer);
 
 /**
  * Provides a callback to handle all pending events emitted by this

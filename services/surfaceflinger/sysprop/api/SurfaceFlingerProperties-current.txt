@@ -75,6 +75,7 @@ props {
   prop {
     api_name: "refresh_rate_switching"
     prop_name: "ro.surface_flinger.refresh_rate_switching"
+    deprecated: true
   }
   prop {
     api_name: "running_without_sync_framework"

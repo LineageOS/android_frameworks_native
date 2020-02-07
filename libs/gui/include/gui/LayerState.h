@@ -102,6 +102,7 @@ struct layer_state_t {
         eFrameRateSelectionPriority = 0x20'00000000,
         eFrameRateChanged = 0x40'00000000,
         eBackgroundBlurRadiusChanged = 0x80'00000000,
+        eProducerDisconnect = 0x100'00000000,
     };
 
     layer_state_t()

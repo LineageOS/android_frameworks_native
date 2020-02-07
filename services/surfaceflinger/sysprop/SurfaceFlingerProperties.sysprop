@@ -311,6 +311,7 @@ prop {
     scope: System
     access: Readonly
     prop_name: "ro.surface_flinger.refresh_rate_switching"
+    deprecated: true
 }
 
 prop {

@@ -97,15 +97,21 @@ typedef struct {
     uint32_t    stride;
     /** The bitmap pixel format. See {@link AndroidBitmapFormat} */
     int32_t     format;
-    /** Two bits are used to encode alpha. Use ANDROID_BITMAP_FLAGS_ALPHA_MASK
-      * and ANDROID_BITMAP_FLAGS_ALPHA_SHIFT to retrieve them. One bit is used
-      * to encode whether the Bitmap uses the HARDWARE Config. Use
-      * ANDROID_BITMAP_FLAGS_IS_HARDWARE to know.*/
+    /** Bitfield containing information about the bitmap.
+     *
+     * <p>Two bits are used to encode alpha. Use {@link ANDROID_BITMAP_FLAGS_ALPHA_MASK}
+     * and {@link ANDROID_BITMAP_FLAGS_ALPHA_SHIFT} to retrieve them.</p>
+     *
+     * <p>One bit is used to encode whether the Bitmap uses the HARDWARE Config. Use
+     * {@link ANDROID_BITMAP_FLAGS_IS_HARDWARE} to know.</p>
+     *
+     * <p>These flags were introduced in API level 30.</p>
+     */
     uint32_t    flags;
 } AndroidBitmapInfo;
 
 /**
- * Given a java bitmap object, fill out the AndroidBitmapInfo struct for it.
+ * Given a java bitmap object, fill out the {@link AndroidBitmapInfo} struct for it.
  * If the call fails, the info parameter will be ignored.
  */
 int AndroidBitmap_getInfo(JNIEnv* env, jobject jbitmap,

@@ -286,6 +286,7 @@ private:
     virtual int setOperationParameter(
             int32_t handle, int32_t type, const Vector<float> &floats, const Vector<int32_t> &ints);
     virtual status_t dump(int fd, const Vector<String16>& args);
+    status_t dumpProtoLocked(int fd, ConnectionSafeAutolock* connLock) const;
     String8 getSensorName(int handle) const;
     bool isVirtualSensor(int handle) const;
     sp<SensorInterface> getSensorInterfaceFromHandle(int handle) const;

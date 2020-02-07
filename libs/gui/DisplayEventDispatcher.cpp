@@ -104,7 +104,7 @@ void DisplayEventDispatcher::toggleConfigEvents(ISurfaceComposer::ConfigChanged 
     mConfigChangeFlag = configChangeFlag;
 }
 
-int DisplayEventDispatcher::getFd() {
+int DisplayEventDispatcher::getFd() const {
     return mReceiver.getFd();
 }
 

@@ -174,7 +174,6 @@ struct NewFrameEventsEntry {
     std::shared_ptr<FenceTime> acquireFence{FenceTime::NO_FENCE};
 };
 
-
 // Used by the consumer to keep track of which fields it already sent to
 // the producer.
 class FrameEventDirtyFields {

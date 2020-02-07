@@ -530,8 +530,6 @@ void Scheduler::dump(std::string& result) const {
     using base::StringAppendF;
     const char* const states[] = {"off", "on"};
 
-    const bool supported = mRefreshRateConfigs.refreshRateSwitchingSupported();
-    StringAppendF(&result, "+  Refresh rate switching: %s\n", states[supported]);
     StringAppendF(&result, "+  Content detection: %s\n", states[mLayerHistory != nullptr]);
 
     StringAppendF(&result, "+  Idle timer: %s\n",
@@ -575,35 +573,44 @@ bool Scheduler::layerHistoryHasClientSpecifiedFrameRate() {
 }
 
 HwcConfigIndexType Scheduler::calculateRefreshRateType() {
-    if (!mRefreshRateConfigs.refreshRateSwitchingSupported()) {
-        return mRefreshRateConfigs.getCurrentRefreshRate().configId;
+    // This block of the code checks whether any layers used the SetFrameRate API. If they have,
+    // their request should be honored regardless of whether the device has refresh rate switching
+    // turned off.
+    if (layerHistoryHasClientSpecifiedFrameRate()) {
+        if (!mUseContentDetectionV2) {
+            return mRefreshRateConfigs.getRefreshRateForContent(mFeatures.contentRequirements)
+                    .configId;
+        } else {
+            return mRefreshRateConfigs.getRefreshRateForContentV2(mFeatures.contentRequirements)
+                    .configId;
+        }
     }
 
     // If the layer history doesn't have the frame rate specified, use the old path. NOTE:
     // if we remove the kernel idle timer, and use our internal idle timer, this code will have to
     // be refactored.
-    if (!layerHistoryHasClientSpecifiedFrameRate()) {
-        // If Display Power is not in normal operation we want to be in performance mode.
-        // When coming back to normal mode, a grace period is given with DisplayPowerTimer
-        if (!mFeatures.isDisplayPowerStateNormal ||
-            mFeatures.displayPowerTimer == TimerState::Reset) {
-            return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
-        }
+    // If Display Power is not in normal operation we want to be in performance mode.
+    // When coming back to normal mode, a grace period is given with DisplayPowerTimer
+    if (mDisplayPowerTimer &&
+        (!mFeatures.isDisplayPowerStateNormal ||
+         mFeatures.displayPowerTimer == TimerState::Reset)) {
+        return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
+    }
 
-        // As long as touch is active we want to be in performance mode
-        if (mFeatures.touch == TouchState::Active) {
-            return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
-        }
+    // As long as touch is active we want to be in performance mode
+    if (mTouchTimer && mFeatures.touch == TouchState::Active) {
+        return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
+    }
 
-        // If timer has expired as it means there is no new content on the screen
-        if (mFeatures.idleTimer == TimerState::Expired) {
-            return mRefreshRateConfigs.getMinRefreshRateByPolicy().configId;
-        }
+    // If timer has expired as it means there is no new content on the screen
+    if (mIdleTimer && mFeatures.idleTimer == TimerState::Expired) {
+        return mRefreshRateConfigs.getMinRefreshRateByPolicy().configId;
     }
 
     if (!mUseContentDetectionV2) {
-        // If content detection is off we choose performance as we don't know the content fps
+        // If content detection is off we choose performance as we don't know the content fps.
         if (mFeatures.contentDetection == ContentDetectionState::Off) {
+            // TODO(b/148428554): Be careful to not always call this.
             return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
         }
 
@@ -623,6 +630,10 @@ HwcConfigIndexType Scheduler::calculateRefreshRateType() {
 
 std::optional<HwcConfigIndexType> Scheduler::getPreferredConfigId() {
     std::lock_guard<std::mutex> lock(mFeatureStateLock);
+    // Make sure that the default config ID is first updated, before returned.
+    if (mFeatures.configId.has_value()) {
+        mFeatures.configId = calculateRefreshRateType();
+    }
     return mFeatures.configId;
 }
 
