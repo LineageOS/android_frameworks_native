@@ -1271,11 +1271,6 @@ class Dex2oatFileWrapper {
 Dex2oatFileWrapper maybe_open_app_image(const char* out_oat_path,
         bool generate_app_image, bool is_public, int uid, bool is_secondary_dex) {
 
-    // We don't create an image for secondary dex files.
-    if (is_secondary_dex) {
-        return Dex2oatFileWrapper();
-    }
-
     const std::string image_path = create_image_filename(out_oat_path);
     if (image_path.empty()) {
         // Happens when the out_oat_path has an unknown extension.
