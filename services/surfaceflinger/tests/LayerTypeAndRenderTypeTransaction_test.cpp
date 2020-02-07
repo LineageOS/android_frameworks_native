@@ -279,6 +279,48 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetBackgroundBlurRadius) {
                       50 /* tolerance */);
 }
 
+TEST_P(LayerTypeAndRenderTypeTransactionTest, SetBackgroundBlurRadiusOnMultipleLayers) {
+    char value[PROPERTY_VALUE_MAX];
+    property_get("ro.surface_flinger.supports_background_blur", value, "0");
+    if (!atoi(value)) {
+        // This device doesn't support blurs, no-op.
+        return;
+    }
+
+    auto size = 256;
+    auto center = size / 2;
+    auto blurRadius = 50;
+
+    sp<SurfaceControl> backgroundLayer;
+    ASSERT_NO_FATAL_FAILURE(backgroundLayer = createLayer("background", size, size));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(backgroundLayer, Color::GREEN, size, size));
+
+    sp<SurfaceControl> leftLayer;
+    ASSERT_NO_FATAL_FAILURE(leftLayer = createLayer("left", size / 2, size));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(leftLayer, Color::RED, size / 2, size));
+
+    sp<SurfaceControl> blurLayer1;
+    auto centralSquareSize = size / 2;
+    ASSERT_NO_FATAL_FAILURE(blurLayer1 =
+                                    createLayer("blur1", centralSquareSize, centralSquareSize));
+    ASSERT_NO_FATAL_FAILURE(
+            fillLayerColor(blurLayer1, Color::BLUE, centralSquareSize, centralSquareSize));
+
+    sp<SurfaceControl> blurLayer2;
+    ASSERT_NO_FATAL_FAILURE(blurLayer2 = createLayer("blur2", size, size));
+    ASSERT_NO_FATAL_FAILURE(
+            fillLayerColor(blurLayer2, Color::TRANSPARENT, centralSquareSize, centralSquareSize));
+
+    Transaction()
+            .setBackgroundBlurRadius(blurLayer1, blurRadius)
+            .setBackgroundBlurRadius(blurLayer2, blurRadius)
+            .apply();
+
+    auto shot = getScreenCapture();
+    shot->expectColor(Rect(center - 5, center - 5, center, center), Color{100, 100, 100, 255},
+                      40 /* tolerance */);
+}
+
 TEST_P(LayerTypeAndRenderTypeTransactionTest, SetColorWithBuffer) {
     sp<SurfaceControl> bufferLayer;
     ASSERT_NO_FATAL_FAILURE(bufferLayer = createLayer("test", 32, 32));
