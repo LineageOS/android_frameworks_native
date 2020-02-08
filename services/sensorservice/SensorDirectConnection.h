@@ -40,6 +40,7 @@ public:
             const sensors_direct_mem_t *mem, int32_t halChannelHandle,
             const String16& opPackageName);
     void dump(String8& result) const;
+    void dump(util::ProtoOutputStream* proto) const;
     uid_t getUid() const { return mUid; }
     int32_t getHalChannelHandle() const;
     bool isEquivalent(const sensors_direct_mem_t *mem) const;

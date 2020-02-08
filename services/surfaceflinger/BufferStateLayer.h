@@ -45,12 +45,17 @@ public:
     void setTransformHint(uint32_t orientation) const override;
     void releasePendingBuffer(nsecs_t dequeueReadyTime) override;
 
+    void finalizeFrameEventHistory(const std::shared_ptr<FenceTime>& glDoneFence,
+                                   const CompositorTiming& compositorTiming) override;
+
     bool shouldPresentNow(nsecs_t expectedPresentTime) const override;
 
     uint32_t doTransactionResize(uint32_t flags, Layer::State* /*stateToCommit*/) override {
         return flags;
     }
-    void pushPendingState() override;
+    /*TODO:vhau return to using BufferStateLayer override once WM
+     * has removed deferred transactions!
+    void pushPendingState() override;*/
     bool applyPendingStates(Layer::State* stateToCommit) override;
 
     uint32_t getActiveWidth(const Layer::State& s) const override { return s.active.w; }
@@ -78,6 +83,8 @@ public:
     bool setSidebandStream(const sp<NativeHandle>& sidebandStream) override;
     bool setTransactionCompletedListeners(const std::vector<sp<CallbackHandle>>& handles) override;
     void forceSendCallbacks() override;
+    bool addFrameEvent(const sp<Fence>& acquireFence, nsecs_t postedTime,
+                       nsecs_t requestedPresentTime) override;
 
     // Override to ignore legacy layer state properties that are not used by BufferStateLayer
     bool setSize(uint32_t /*w*/, uint32_t /*h*/) override { return false; }
@@ -104,6 +111,7 @@ public:
     // -----------------------------------------------------------------------
     bool fenceHasSignaled() const override;
     bool framePresentTimeIsCurrent(nsecs_t expectedPresentTime) const override;
+    bool onPreComposition(nsecs_t refreshStartTime) override;
 
 protected:
     void gatherBufferInfo() override;

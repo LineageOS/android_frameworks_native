@@ -15,6 +15,7 @@
  */
 
 #include <binder/IPCThreadState.h>
+#include <binderthreadstate/CallerUtils.h>
 #include <hwbinder/IPCThreadState.h>
 #include <private/gui/BufferQueueThreadState.h>
 #include <unistd.h>
@@ -22,14 +23,14 @@
 namespace android {
 
 uid_t BufferQueueThreadState::getCallingUid() {
-    if (hardware::IPCThreadState::self()->isServingCall()) {
+    if (getCurrentServingCall() == BinderCallType::HWBINDER) {
         return hardware::IPCThreadState::self()->getCallingUid();
     }
     return IPCThreadState::self()->getCallingUid();
 }
 
 pid_t BufferQueueThreadState::getCallingPid() {
-    if (hardware::IPCThreadState::self()->isServingCall()) {
+    if (getCurrentServingCall() == BinderCallType::HWBINDER) {
         return hardware::IPCThreadState::self()->getCallingPid();
     }
     return IPCThreadState::self()->getCallingPid();

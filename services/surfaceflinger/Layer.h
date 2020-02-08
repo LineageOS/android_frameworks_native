@@ -372,6 +372,10 @@ public:
         return false;
     };
     virtual void forceSendCallbacks() {}
+    virtual bool addFrameEvent(const sp<Fence>& /*acquireFence*/, nsecs_t /*postedTime*/,
+                               nsecs_t /*requestedPresentTime*/) {
+        return false;
+    }
     virtual bool setBackgroundColor(const half3& color, float alpha, ui::Dataspace dataspace);
     virtual bool setColorSpaceAgnostic(const bool agnostic);
     bool setShadowRadius(float shadowRadius);
@@ -596,6 +600,8 @@ public:
     // If a buffer was replaced this frame, release the former buffer
     virtual void releasePendingBuffer(nsecs_t /*dequeueReadyTime*/) { }
 
+    virtual void finalizeFrameEventHistory(const std::shared_ptr<FenceTime>& /*glDoneFence*/,
+                                           const CompositorTiming& /*compositorTiming*/) {}
     /*
      * doTransaction - process the transaction. This is a good place to figure
      * out which attributes of the surface have changed.

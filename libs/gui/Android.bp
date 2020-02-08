@@ -202,6 +202,10 @@ cc_defaults {
         "libvndksupport",
     ],
 
+    static_libs: [
+        "libbinderthreadstateutils",
+    ],
+
     header_libs: [
         "libgui_headers",
         "libnativebase_headers",

@@ -71,8 +71,18 @@ status_t BlurFilter::setAsDrawTarget(const DisplaySettings& display, uint32_t ra
 }
 
 void BlurFilter::drawMesh(GLuint uv, GLuint position) {
-    GLfloat positions[] = {-1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f, 1.0f, -1.0f};
-    GLfloat texCoords[] = {0.0, 0.0, 0.0, 1.0f, 1.0f, 1.0f, 1.0f, 0};
+    static constexpr auto size = 2.0f;
+    static constexpr auto translation = 1.0f;
+    GLfloat positions[] = {
+        translation-size, -translation-size,
+        translation-size, -translation+size,
+        translation+size, -translation+size
+    };
+    GLfloat texCoords[] = {
+        0.0f, 0.0f-translation,
+        0.0f, size-translation,
+        size, size-translation
+    };
 
     // set attributes
     glEnableVertexAttribArray(uv);
@@ -82,7 +92,7 @@ void BlurFilter::drawMesh(GLuint uv, GLuint position) {
                           positions);
 
     // draw mesh
-    glDrawArrays(GL_TRIANGLE_FAN, 0 /* first */, 4 /* count */);
+    glDrawArrays(GL_TRIANGLES, 0 /* first */, 3 /* count */);
     mEngine.checkErrors("Drawing blur mesh");
 }
 

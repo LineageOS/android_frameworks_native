@@ -77,7 +77,7 @@ std::unique_ptr<Scheduler> DefaultFactory::createScheduler(
         ISchedulerCallback& schedulerCallback) {
     return std::make_unique<Scheduler>(std::move(setVSyncEnabled), configs, schedulerCallback,
                                        property_get_bool("debug.sf.use_content_detection_v2",
-                                                         false));
+                                                         true));
 }
 
 std::unique_ptr<SurfaceInterceptor> DefaultFactory::createSurfaceInterceptor(

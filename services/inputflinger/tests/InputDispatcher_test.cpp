@@ -594,12 +594,40 @@ public:
                      expectedFlags);
     }
 
-    void consumeMotionDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
+    void consumeMotionCancel(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
+            int32_t expectedFlags = 0) {
+        consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_CANCEL, expectedDisplayId,
+                     expectedFlags);
+    }
+
+    void consumeMotionMove(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
+            int32_t expectedFlags = 0) {
+        consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_MOVE, expectedDisplayId,
+                     expectedFlags);
+    }
+
+    void consumeMotionDown(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
+            int32_t expectedFlags = 0) {
         consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_DOWN, expectedDisplayId,
                      expectedFlags);
     }
 
-    void consumeMotionUp(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
+    void consumeMotionPointerDown(int32_t pointerIdx,
+            int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT, int32_t expectedFlags = 0) {
+        int32_t action = AMOTION_EVENT_ACTION_POINTER_DOWN
+                | (pointerIdx << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
+        consumeEvent(AINPUT_EVENT_TYPE_MOTION, action, expectedDisplayId, expectedFlags);
+    }
+
+    void consumeMotionPointerUp(int32_t pointerIdx, int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
+            int32_t expectedFlags = 0) {
+        int32_t action = AMOTION_EVENT_ACTION_POINTER_UP
+                | (pointerIdx << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
+        consumeEvent(AINPUT_EVENT_TYPE_MOTION, action, expectedDisplayId, expectedFlags);
+    }
+
+    void consumeMotionUp(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
+            int32_t expectedFlags = 0) {
         consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_UP, expectedDisplayId,
                      expectedFlags);
     }
@@ -921,6 +949,161 @@ TEST_F(InputDispatcherTest, NotifyDeviceReset_CancelsMotionStream) {
     mDispatcher->notifyDeviceReset(&args);
     window->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_CANCEL, ADISPLAY_ID_DEFAULT,
                          0 /*expectedFlags*/);
+}
+
+TEST_F(InputDispatcherTest, TransferTouchFocus_OnePointer) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+
+    // Create a couple of windows
+    sp<FakeWindowHandle> firstWindow = new FakeWindowHandle(application, mDispatcher,
+            "First Window", ADISPLAY_ID_DEFAULT);
+    sp<FakeWindowHandle> secondWindow = new FakeWindowHandle(application, mDispatcher,
+            "Second Window", ADISPLAY_ID_DEFAULT);
+
+    // Add the windows to the dispatcher
+    mDispatcher->setInputWindows({firstWindow, secondWindow}, ADISPLAY_ID_DEFAULT);
+
+    // Send down to the first window
+    NotifyMotionArgs downMotionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_DOWN,
+            AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyMotion(&downMotionArgs);
+    // Only the first window should get the down event
+    firstWindow->consumeMotionDown();
+    secondWindow->assertNoEvents();
+
+    // Transfer touch focus to the second window
+    mDispatcher->transferTouchFocus(firstWindow->getToken(), secondWindow->getToken());
+    // The first window gets cancel and the second gets down
+    firstWindow->consumeMotionCancel();
+    secondWindow->consumeMotionDown();
+
+    // Send up event to the second window
+    NotifyMotionArgs upMotionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_UP,
+            AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyMotion(&upMotionArgs);
+    // The first  window gets no events and the second gets up
+    firstWindow->assertNoEvents();
+    secondWindow->consumeMotionUp();
+}
+
+TEST_F(InputDispatcherTest, TransferTouchFocus_TwoPointerNoSplitTouch) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+
+    PointF touchPoint = {10, 10};
+
+    // Create a couple of windows
+    sp<FakeWindowHandle> firstWindow = new FakeWindowHandle(application, mDispatcher,
+            "First Window", ADISPLAY_ID_DEFAULT);
+    sp<FakeWindowHandle> secondWindow = new FakeWindowHandle(application, mDispatcher,
+            "Second Window", ADISPLAY_ID_DEFAULT);
+
+    // Add the windows to the dispatcher
+    mDispatcher->setInputWindows({firstWindow, secondWindow}, ADISPLAY_ID_DEFAULT);
+
+    // Send down to the first window
+    NotifyMotionArgs downMotionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_DOWN,
+            AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT, {touchPoint});
+    mDispatcher->notifyMotion(&downMotionArgs);
+    // Only the first window should get the down event
+    firstWindow->consumeMotionDown();
+    secondWindow->assertNoEvents();
+
+    // Send pointer down to the first window
+    NotifyMotionArgs pointerDownMotionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_POINTER_DOWN
+            | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+            AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT, {touchPoint, touchPoint});
+    mDispatcher->notifyMotion(&pointerDownMotionArgs);
+    // Only the first window should get the pointer down event
+    firstWindow->consumeMotionPointerDown(1);
+    secondWindow->assertNoEvents();
+
+    // Transfer touch focus to the second window
+    mDispatcher->transferTouchFocus(firstWindow->getToken(), secondWindow->getToken());
+    // The first window gets cancel and the second gets down and pointer down
+    firstWindow->consumeMotionCancel();
+    secondWindow->consumeMotionDown();
+    secondWindow->consumeMotionPointerDown(1);
+
+    // Send pointer up to the second window
+    NotifyMotionArgs pointerUpMotionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_POINTER_UP
+            | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+            AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT, {touchPoint, touchPoint});
+    mDispatcher->notifyMotion(&pointerUpMotionArgs);
+    // The first window gets nothing and the second gets pointer up
+    firstWindow->assertNoEvents();
+    secondWindow->consumeMotionPointerUp(1);
+
+    // Send up event to the second window
+    NotifyMotionArgs upMotionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_UP,
+            AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyMotion(&upMotionArgs);
+    // The first window gets nothing and the second gets up
+    firstWindow->assertNoEvents();
+    secondWindow->consumeMotionUp();
+}
+
+TEST_F(InputDispatcherTest, TransferTouchFocus_TwoPointersSplitTouch) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+
+    // Create a non touch modal window that supports split touch
+    sp<FakeWindowHandle> firstWindow = new FakeWindowHandle(application, mDispatcher,
+            "First Window", ADISPLAY_ID_DEFAULT);
+    firstWindow->setFrame(Rect(0, 0, 600, 400));
+    firstWindow->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL
+            | InputWindowInfo::FLAG_SPLIT_TOUCH);
+
+    // Create a non touch modal window that supports split touch
+    sp<FakeWindowHandle> secondWindow = new FakeWindowHandle(application, mDispatcher,
+            "Second Window", ADISPLAY_ID_DEFAULT);
+    secondWindow->setFrame(Rect(0, 400, 600, 800));
+    secondWindow->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL
+            | InputWindowInfo::FLAG_SPLIT_TOUCH);
+
+    // Add the windows to the dispatcher
+    mDispatcher->setInputWindows({firstWindow, secondWindow}, ADISPLAY_ID_DEFAULT);
+
+    PointF pointInFirst = {300, 200};
+    PointF pointInSecond = {300, 600};
+
+    // Send down to the first window
+    NotifyMotionArgs firstDownMotionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_DOWN,
+            AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT, {pointInFirst});
+    mDispatcher->notifyMotion(&firstDownMotionArgs);
+    // Only the first window should get the down event
+    firstWindow->consumeMotionDown();
+    secondWindow->assertNoEvents();
+
+    // Send down to the second window
+    NotifyMotionArgs secondDownMotionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_POINTER_DOWN
+            | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+            AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT, {pointInFirst, pointInSecond});
+    mDispatcher->notifyMotion(&secondDownMotionArgs);
+    // The first window gets a move and the second a down
+    firstWindow->consumeMotionMove();
+    secondWindow->consumeMotionDown();
+
+    // Transfer touch focus to the second window
+    mDispatcher->transferTouchFocus(firstWindow->getToken(), secondWindow->getToken());
+    // The first window gets cancel and the new gets pointer down (it already saw down)
+    firstWindow->consumeMotionCancel();
+    secondWindow->consumeMotionPointerDown(1);
+
+    // Send pointer up to the second window
+    NotifyMotionArgs pointerUpMotionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_POINTER_UP
+            | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+            AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT, {pointInFirst, pointInSecond});
+    mDispatcher->notifyMotion(&pointerUpMotionArgs);
+    // The first window gets nothing and the second gets pointer up
+    firstWindow->assertNoEvents();
+    secondWindow->consumeMotionPointerUp(1);
+
+    // Send up event to the second window
+    NotifyMotionArgs upMotionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_UP,
+            AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyMotion(&upMotionArgs);
+    // The first window gets nothing and the second gets up
+    firstWindow->assertNoEvents();
+    secondWindow->consumeMotionUp();
 }
 
 TEST_F(InputDispatcherTest, FocusedWindow_ReceivesFocusEventAndKeyEvent) {

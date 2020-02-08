@@ -115,6 +115,7 @@ void BufferStateLayer::setTransformHint(uint32_t orientation) const {
 void BufferStateLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
     for (const auto& handle : mDrawingState.callbackHandles) {
         handle->transformHint = mTransformHint;
+        handle->dequeueReadyTime = dequeueReadyTime;
     }
 
     mFlinger->getTransactionCompletedThread().finalizePendingCallbackHandles(
@@ -130,6 +131,14 @@ void BufferStateLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
             mFrameEventHistory.addRelease(mPreviousFrameNumber, dequeueReadyTime,
                                           std::move(releaseFenceTime));
         }
+    }
+}
+
+void BufferStateLayer::finalizeFrameEventHistory(const std::shared_ptr<FenceTime>& glDoneFence,
+                                                 const CompositorTiming& compositorTiming) {
+    for (const auto& handle : mDrawingState.callbackHandles) {
+        handle->gpuCompositionDoneFence = glDoneFence;
+        handle->compositorTiming = compositorTiming;
     }
 }
 
@@ -149,6 +158,8 @@ bool BufferStateLayer::willPresentCurrentTransaction() const {
         !mLayerDetached;
 }
 
+/* TODO: vhau uncomment once deferred transaction migration complete in
+ * WindowManager
 void BufferStateLayer::pushPendingState() {
     if (!mCurrentState.modified) {
         return;
@@ -156,13 +167,12 @@ void BufferStateLayer::pushPendingState() {
     mPendingStates.push_back(mCurrentState);
     ATRACE_INT(mTransactionName.c_str(), mPendingStates.size());
 }
+*/
 
 bool BufferStateLayer::applyPendingStates(Layer::State* stateToCommit) {
-    const bool stateUpdateAvailable = !mPendingStates.empty();
-    while (!mPendingStates.empty()) {
-        popPendingState(stateToCommit);
-    }
-    mCurrentStateModified = stateUpdateAvailable && mCurrentState.modified;
+    mCurrentStateModified = mCurrentState.modified;
+    bool stateUpdateAvailable = Layer::applyPendingStates(stateToCommit);
+    mCurrentStateModified = stateUpdateAvailable && mCurrentStateModified;
     mCurrentState.modified = false;
     return stateUpdateAvailable;
 }
@@ -244,14 +254,15 @@ bool BufferStateLayer::setFrame(const Rect& frame) {
     return true;
 }
 
-bool BufferStateLayer::updateFrameEventHistory(const sp<Fence>& acquireFence, nsecs_t postedTime,
-                                               nsecs_t desiredPresentTime) {
+bool BufferStateLayer::addFrameEvent(const sp<Fence>& acquireFence, nsecs_t postedTime,
+                                     nsecs_t desiredPresentTime) {
     Mutex::Autolock lock(mFrameEventHistoryMutex);
     mAcquireTimeline.updateSignalTimes();
     std::shared_ptr<FenceTime> acquireFenceTime =
             std::make_shared<FenceTime>((acquireFence ? acquireFence : Fence::NO_FENCE));
     NewFrameEventsEntry newTimestamps = {mCurrentState.frameNumber, postedTime, desiredPresentTime,
                                          acquireFenceTime};
+    mFrameEventHistory.setProducerWantsEvents();
     mFrameEventHistory.addQueue(newTimestamps);
     return true;
 }
@@ -276,12 +287,12 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence
     mFlinger->mFrameTracer->traceNewLayer(layerId, getName().c_str());
     mFlinger->mFrameTracer->traceTimestamp(layerId, buffer->getId(), mCurrentState.frameNumber,
                                            postTime, FrameTracer::FrameEvent::POST);
+    desiredPresentTime = desiredPresentTime <= 0 ? 0 : desiredPresentTime;
     mCurrentState.desiredPresentTime = desiredPresentTime;
 
-    mFlinger->mScheduler->recordLayerHistory(this,
-                                             desiredPresentTime <= 0 ? 0 : desiredPresentTime);
+    mFlinger->mScheduler->recordLayerHistory(this, desiredPresentTime);
 
-    updateFrameEventHistory(acquireFence, postTime, desiredPresentTime);
+    addFrameEvent(acquireFence, postTime, desiredPresentTime);
     return true;
 }
 
@@ -446,6 +457,13 @@ bool BufferStateLayer::framePresentTimeIsCurrent(nsecs_t expectedPresentTime) co
     return mCurrentState.desiredPresentTime <= expectedPresentTime;
 }
 
+bool BufferStateLayer::onPreComposition(nsecs_t refreshStartTime) {
+    for (const auto& handle : mDrawingState.callbackHandles) {
+        handle->refreshStartTime = refreshStartTime;
+    }
+    return BufferLayer::onPreComposition(refreshStartTime);
+}
+
 uint64_t BufferStateLayer::getFrameNumber(nsecs_t /*expectedPresentTime*/) const {
     return mDrawingState.frameNumber;
 }
@@ -529,6 +547,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
 
     for (auto& handle : mDrawingState.callbackHandles) {
         handle->latchTime = latchTime;
+        handle->frameNumber = mDrawingState.frameNumber;
     }
 
     if (!SyncFeatures::getInstance().useNativeFenceSync()) {

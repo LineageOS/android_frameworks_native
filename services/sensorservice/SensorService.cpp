@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 #include <android/content/pm/IPackageManagerNative.h>
+#include <android/util/ProtoOutputStream.h>
+#include <frameworks/base/core/proto/android/service/sensor_service.proto.h>
 #include <binder/ActivityManager.h>
 #include <binder/BinderService.h>
 #include <binder/IServiceManager.h>
@@ -404,6 +406,8 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
                 // Transition to data injection mode supported only from NORMAL mode.
                 return INVALID_OPERATION;
             }
+        } else if (args.size() == 1 && args[0] == String16("--proto")) {
+            return dumpProtoLocked(fd, &connLock);
         } else if (!mSensors.hasAnySensor()) {
             result.append("No Sensors on the device\n");
             result.appendFormat("devInitCheck : %d\n", SensorDevice::getInstance().initCheck());
@@ -504,6 +508,124 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
     }
     write(fd, result.string(), result.size());
     return NO_ERROR;
+}
+
+/**
+ * Dump debugging information as android.service.SensorServiceProto protobuf message using
+ * ProtoOutputStream.
+ *
+ * See proto definition and some notes about ProtoOutputStream in
+ * frameworks/base/core/proto/android/service/sensor_service.proto
+ */
+status_t SensorService::dumpProtoLocked(int fd, ConnectionSafeAutolock* connLock) const {
+    using namespace service::SensorServiceProto;
+    util::ProtoOutputStream proto;
+    const bool privileged = IPCThreadState::self()->getCallingUid() == 0;
+
+    timespec curTime;
+    clock_gettime(CLOCK_REALTIME, &curTime);
+    proto.write(CURRENT_TIME_MS, curTime.tv_sec * 1000 + ns2ms(curTime.tv_nsec));
+
+    // Write SensorDeviceProto
+    uint64_t token = proto.start(SENSOR_DEVICE);
+    SensorDevice::getInstance().dump(&proto);
+    proto.end(token);
+
+    // Write SensorListProto
+    token = proto.start(SENSORS);
+    mSensors.dump(&proto);
+    proto.end(token);
+
+    // Write SensorFusionProto
+    token = proto.start(FUSION_STATE);
+    SensorFusion::getInstance().dump(&proto);
+    proto.end(token);
+
+    // Write SensorEventsProto
+    token = proto.start(SENSOR_EVENTS);
+    for (auto&& i : mRecentEvent) {
+        sp<SensorInterface> s = mSensors.getInterface(i.first);
+        if (!i.second->isEmpty()) {
+            i.second->setFormat(privileged || s->getSensor().getRequiredPermission().isEmpty() ?
+                    "normal" : "mask_data");
+            const uint64_t mToken = proto.start(service::SensorEventsProto::RECENT_EVENTS_LOGS);
+            proto.write(service::SensorEventsProto::RecentEventsLog::NAME,
+                    std::string(s->getSensor().getName().string()));
+            i.second->dump(&proto);
+            proto.end(mToken);
+        }
+    }
+    proto.end(token);
+
+    // Write ActiveSensorProto
+    SensorDevice& dev = SensorDevice::getInstance();
+    for (size_t i=0 ; i<mActiveSensors.size() ; i++) {
+        int handle = mActiveSensors.keyAt(i);
+        if (dev.isSensorActive(handle)) {
+            token = proto.start(ACTIVE_SENSORS);
+            proto.write(service::ActiveSensorProto::NAME,
+                    std::string(getSensorName(handle).string()));
+            proto.write(service::ActiveSensorProto::HANDLE, handle);
+            proto.write(service::ActiveSensorProto::NUM_CONNECTIONS,
+                    int(mActiveSensors.valueAt(i)->getNumConnections()));
+            proto.end(token);
+        }
+    }
+
+    proto.write(SOCKET_BUFFER_SIZE, int(mSocketBufferSize));
+    proto.write(SOCKET_BUFFER_SIZE_IN_EVENTS, int(mSocketBufferSize / sizeof(sensors_event_t)));
+    proto.write(WAKE_LOCK_ACQUIRED, mWakeLockAcquired);
+
+    switch(mCurrentOperatingMode) {
+        case NORMAL:
+            proto.write(OPERATING_MODE, OP_MODE_NORMAL);
+            break;
+        case RESTRICTED:
+            proto.write(OPERATING_MODE, OP_MODE_RESTRICTED);
+            proto.write(WHITELISTED_PACKAGE, std::string(mWhiteListedPackage.string()));
+            break;
+        case DATA_INJECTION:
+            proto.write(OPERATING_MODE, OP_MODE_DATA_INJECTION);
+            proto.write(WHITELISTED_PACKAGE, std::string(mWhiteListedPackage.string()));
+            break;
+        default:
+            proto.write(OPERATING_MODE, OP_MODE_UNKNOWN);
+    }
+    proto.write(SENSOR_PRIVACY, mSensorPrivacyPolicy->isSensorPrivacyEnabled());
+
+    // Write repeated SensorEventConnectionProto
+    const auto& activeConnections = connLock->getActiveConnections();
+    for (size_t i = 0; i < activeConnections.size(); i++) {
+        token = proto.start(ACTIVE_CONNECTIONS);
+        activeConnections[i]->dump(&proto);
+        proto.end(token);
+    }
+
+    // Write repeated SensorDirectConnectionProto
+    const auto& directConnections = connLock->getDirectConnections();
+    for (size_t i = 0 ; i < directConnections.size() ; i++) {
+        token = proto.start(DIRECT_CONNECTIONS);
+        directConnections[i]->dump(&proto);
+        proto.end(token);
+    }
+
+    // Write repeated SensorRegistrationInfoProto
+    const int startIndex = mNextSensorRegIndex;
+    int curr = startIndex;
+    do {
+        const SensorRegistrationInfo& reg_info = mLastNSensorRegistrations[curr];
+        if (SensorRegistrationInfo::isSentinel(reg_info)) {
+            // Ignore sentinel, proceed to next item.
+            curr = (curr + 1 + SENSOR_REGISTRATIONS_BUF_SIZE) % SENSOR_REGISTRATIONS_BUF_SIZE;
+            continue;
+        }
+        token = proto.start(PREVIOUS_REGISTRATIONS);
+        reg_info.dump(&proto);
+        proto.end(token);
+        curr = (curr + 1 + SENSOR_REGISTRATIONS_BUF_SIZE) % SENSOR_REGISTRATIONS_BUF_SIZE;
+    } while (startIndex != curr);
+
+    return proto.flush(fd) ? OK : UNKNOWN_ERROR;
 }
 
 void SensorService::disableAllSensors() {
