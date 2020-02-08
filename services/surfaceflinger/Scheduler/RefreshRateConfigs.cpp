@@ -216,20 +216,12 @@ const AllRefreshRatesMapType& RefreshRateConfigs::getAllRefreshRates() const {
 
 const RefreshRate& RefreshRateConfigs::getMinRefreshRateByPolicy() const {
     std::lock_guard lock(mLock);
-    if (!mRefreshRateSwitching) {
-        return *mCurrentRefreshRate;
-    } else {
-        return *mAvailableRefreshRates.front();
-    }
+    return *mAvailableRefreshRates.front();
 }
 
 const RefreshRate& RefreshRateConfigs::getMaxRefreshRateByPolicy() const {
     std::lock_guard lock(mLock);
-    if (!mRefreshRateSwitching) {
-        return *mCurrentRefreshRate;
-    } else {
         return *mAvailableRefreshRates.back();
-    }
 }
 
 const RefreshRate& RefreshRateConfigs::getCurrentRefreshRate() const {
@@ -237,23 +229,28 @@ const RefreshRate& RefreshRateConfigs::getCurrentRefreshRate() const {
     return *mCurrentRefreshRate;
 }
 
+const RefreshRate& RefreshRateConfigs::getCurrentRefreshRateByPolicy() const {
+    std::lock_guard lock(mLock);
+    if (std::find(mAvailableRefreshRates.begin(), mAvailableRefreshRates.end(),
+                  mCurrentRefreshRate) != mAvailableRefreshRates.end()) {
+        return *mCurrentRefreshRate;
+    }
+    return mRefreshRates.at(mDefaultConfig);
+}
+
 void RefreshRateConfigs::setCurrentConfigId(HwcConfigIndexType configId) {
     std::lock_guard lock(mLock);
     mCurrentRefreshRate = &mRefreshRates.at(configId);
 }
 
-RefreshRateConfigs::RefreshRateConfigs(bool refreshRateSwitching,
-                                       const std::vector<InputConfig>& configs,
-                                       HwcConfigIndexType currentHwcConfig)
-      : mRefreshRateSwitching(refreshRateSwitching) {
+RefreshRateConfigs::RefreshRateConfigs(const std::vector<InputConfig>& configs,
+                                       HwcConfigIndexType currentHwcConfig) {
     init(configs, currentHwcConfig);
 }
 
 RefreshRateConfigs::RefreshRateConfigs(
-        bool refreshRateSwitching,
         const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs,
-        HwcConfigIndexType currentConfigId)
-      : mRefreshRateSwitching(refreshRateSwitching) {
+        HwcConfigIndexType currentConfigId) {
     std::vector<InputConfig> inputConfigs;
     for (size_t configId = 0; configId < configs.size(); ++configId) {
         auto configGroup = HwcConfigGroupType(configs[configId]->getConfigGroup());

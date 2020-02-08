@@ -21,12 +21,12 @@
 #include <sys/types.h>
 #include <ostream>
 
-#include <utils/Vector.h>
-
 #include <ui/Rect.h>
 #include <utils/Flattenable.h>
 
 #include <android-base/macros.h>
+
+#include "FatVector.h"
 
 #include <string>
 
@@ -180,7 +180,7 @@ private:
     // with an extra Rect as the last element which is set to the
     // bounds of the region. However, if the region is
     // a simple Rect then mStorage contains only that rect.
-    Vector<Rect> mStorage;
+    FatVector<Rect> mStorage;
 };
 
 
@@ -235,4 +235,3 @@ static inline void PrintTo(const Region& region, ::std::ostream* os) {
 }; // namespace android
 
 #endif // ANDROID_UI_REGION_H
-

@@ -239,7 +239,7 @@ TEST_F(BLASTBufferQueueTest, SetNextTransaction) {
     ASSERT_EQ(&next, adapter.getNextTransaction());
 }
 
-TEST_F(BLASTBufferQueueTest, onFrameAvailable_ApplyDesiredPresentTime) {
+TEST_F(BLASTBufferQueueTest, DISABLED_onFrameAvailable_ApplyDesiredPresentTime) {
     BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
     sp<IGraphicBufferProducer> igbProducer;
     setUpProducer(adapter, igbProducer);

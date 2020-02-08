@@ -71,8 +71,7 @@ protected:
 
     auto createLayer() { return sp<mock::MockLayer>(new mock::MockLayer(mFlinger.flinger())); }
 
-    RefreshRateConfigs mConfigs{true,
-                                {
+    RefreshRateConfigs mConfigs{{
                                         RefreshRateConfigs::InputConfig{HwcConfigIndexType(0),
                                                                         HwcConfigGroupType(0),
                                                                         LO_FPS_PERIOD},

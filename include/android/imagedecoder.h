@@ -20,9 +20,18 @@
  * Functions for converting encoded images into RGBA pixels.
  *
  * Similar to the Java counterpart android.graphics.ImageDecoder, it can be used
- * to decode images like PNG, JPEG, GIF, WEBP and HEIF. It has similar options
- * for scaling, cropping, and choosing the output format. Unlike the Java API,
- * which can create an android.graphics.Bitmap or
+ * to decode images in the following formats:
+ * - JPEG
+ * - PNG
+ * - GIF
+ * - WebP
+ * - BMP
+ * - ICO
+ * - WBMP
+ * - HEIF
+ * - Digital negatives (via the DNG SDK)
+ * <p>It has similar options for scaling, cropping, and choosing the output format.
+ * Unlike the Java API, which can create an android.graphics.Bitmap or
  * android.graphics.drawable.Drawable object, AImageDecoder decodes directly
  * into memory provided by the client. For more information, see the
  * <a href="https://developer.android.com/ndk/guides/image-decoder">Image decoder</a>
@@ -62,7 +71,7 @@ enum {
      */
     ANDROID_IMAGE_DECODER_SUCCESS = 0,
     /**
-     * The input was incomplete.
+     * The input is incomplete.
      */
     ANDROID_IMAGE_DECODER_INCOMPLETE = -1,
     /**
@@ -80,7 +89,7 @@ enum {
      */
     ANDROID_IMAGE_DECODER_INVALID_SCALE = -4,
     /**
-     * Some other parameter was bad.
+     * Some other parameter is invalid.
      */
     ANDROID_IMAGE_DECODER_BAD_PARAMETER = -5,
     /**
@@ -133,6 +142,19 @@ typedef struct AImageDecoder AImageDecoder;
  *                   responsible for calling {@link AImageDecoder_delete} on it.
  * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or a value
  *         indicating the reason for the failure.
+ *
+ * Errors:
+ * - {@link ANDROID_IMAGE_DECODER_INCOMPLETE}: The asset was truncated before
+ *   reading the image header.
+ * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: One of the parameters is
+ *   null.
+ * - {@link ANDROID_IMAGE_DECODER_INVALID_INPUT}: There is an error in the
+ *   header.
+ * - {@link ANDROID_IMAGE_DECODER_SEEK_ERROR}: The asset failed to seek.
+ * - {@link ANDROID_IMAGE_DECODER_INTERNAL_ERROR}: Some other error, like a
+ *   failure to allocate memory.
+ * - {@link ANDROID_IMAGE_DECODER_UNSUPPORTED_FORMAT}: The format is not
+ *   supported.
  */
 int AImageDecoder_createFromAAsset(struct AAsset* asset, AImageDecoder** outDecoder)
         __INTRODUCED_IN(30);
@@ -149,6 +171,19 @@ int AImageDecoder_createFromAAsset(struct AAsset* asset, AImageDecoder** outDeco
  *                   responsible for calling {@link AImageDecoder_delete} on it.
  * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or a value
  *         indicating the reason for the failure.
+ *
+ * Errors:
+ * - {@link ANDROID_IMAGE_DECODER_INCOMPLETE}: The file was truncated before
+ *   reading the image header.
+ * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: The {@link AImageDecoder} is
+ *   null, or |fd| does not represent a valid, seekable file descriptor.
+ * - {@link ANDROID_IMAGE_DECODER_INVALID_INPUT}: There is an error in the
+ *   header.
+ * - {@link ANDROID_IMAGE_DECODER_SEEK_ERROR}: The descriptor failed to seek.
+ * - {@link ANDROID_IMAGE_DECODER_INTERNAL_ERROR}: Some other error, like a
+ *   failure to allocate memory.
+ * - {@link ANDROID_IMAGE_DECODER_UNSUPPORTED_FORMAT}: The format is not
+ *   supported.
  */
 int AImageDecoder_createFromFd(int fd, AImageDecoder** outDecoder) __INTRODUCED_IN(30);
 
@@ -163,7 +198,19 @@ int AImageDecoder_createFromFd(int fd, AImageDecoder** outDecoder) __INTRODUCED_
  *                   a newly created {@link AImageDecoder}. Caller is
  *                   responsible for calling {@link AImageDecoder_delete} on it.
  * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or a value
- *         indicating reason for the failure.
+ *         indicating the reason for the failure.
+ *
+ * Errors:
+ * - {@link ANDROID_IMAGE_DECODER_INCOMPLETE}: The encoded image was truncated before
+ *   reading the image header.
+ * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: One of the parameters is
+ *   invalid.
+ * - {@link ANDROID_IMAGE_DECODER_INVALID_INPUT}: There is an error in the
+ *   header.
+ * - {@link ANDROID_IMAGE_DECODER_INTERNAL_ERROR}: Some other error, like a
+ *   failure to allocate memory.
+ * - {@link ANDROID_IMAGE_DECODER_UNSUPPORTED_FORMAT}: The format is not
+ *   supported.
  */
 int AImageDecoder_createFromBuffer(const void* buffer, size_t length,
                                    AImageDecoder** outDecoder) __INTRODUCED_IN(30);
@@ -177,11 +224,18 @@ void AImageDecoder_delete(AImageDecoder* decoder) __INTRODUCED_IN(30);
  * Choose the desired output format.
  *
  * @param format {@link AndroidBitmapFormat} to use for the output.
- * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} if the format is compatible
- *         with the image and {@link ANDROID_IMAGE_DECODER_INVALID_CONVERSION}
- *         otherwise. In the latter case, the {@link AImageDecoder} uses the
- *         format it was already planning to use (either its default
- *         or a previously successful setting from this function).
+ * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or a value
+ *         indicating the reason for the failure. On failure, the
+ *         {@link AImageDecoder} uses the format it was already planning
+ *         to use (either its default or a previously successful setting
+ *         from this function).
+ *
+ * Errors:
+ * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: The
+ *   {@link AImageDecoder} is null or |format| does not correspond to an
+ *   {@link AndroidBitmapFormat}.
+ * - {@link ANDROID_IMAGE_DECODER_INVALID_CONVERSION}: The
+ *   {@link AndroidBitmapFormat} is incompatible with the image.
  */
 int AImageDecoder_setAndroidBitmapFormat(AImageDecoder*,
         int32_t format) __INTRODUCED_IN(30);
@@ -194,11 +248,15 @@ int AImageDecoder_setAndroidBitmapFormat(AImageDecoder*,
  * opaque image.
  *
  * @param unpremultipliedRequired Pass true to leave the pixels unpremultiplied.
- * @return an enum describing whether the call succeeded.
- *         - {@link ANDROID_IMAGE_DECODER_SUCCESS} on success
- *         - {@link ANDROID_IMAGE_DECODER_INVALID_CONVERSION} if the conversion
- *           is not possible
- *         - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER} for bad parameters
+ * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or a value
+ *         indicating the reason for the failure.
+ *
+ * Errors:
+ * - {@link ANDROID_IMAGE_DECODER_INVALID_CONVERSION}: Unpremultiplied is not
+ *   possible due to an existing scale set by
+ *   {@link AImageDecoder_setTargetSize}.
+ * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: The
+ *   {@link AImageDecoder} is null.
  */
 int AImageDecoder_setUnpremultipliedRequired(AImageDecoder*,
                                              bool unpremultipliedRequired) __INTRODUCED_IN(30);
@@ -215,10 +273,13 @@ int AImageDecoder_setUnpremultipliedRequired(AImageDecoder*,
  *                  {@link AImageDecoderHeaderInfo_getDataSpace}. If this
  *                  parameter is set to a different ADataSpace, AImageDecoder
  *                  will transform the output into the specified ADataSpace.
- * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or
- *         {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER} for a null
- *         {@link AImageDecoder} or an integer that does not correspond to an
- *         {@link ADataSpace} value.
+ * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or a value
+ *         indicating the reason for the failure.
+ *
+ * Errors:
+ * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: The
+ *   {@link AImageDecoder} is null or |dataspace| does not correspond to an
+ *   {@link ADataSpace} value.
  */
 int AImageDecoder_setDataSpace(AImageDecoder*, int32_t dataspace) __INTRODUCED_IN(30);
 
@@ -236,11 +297,16 @@ int AImageDecoder_setDataSpace(AImageDecoder*, int32_t dataspace) __INTRODUCED_I
  *              {@link AImageDecoder_getMinimumStride}, which will now return
  *              a value based on this width.
  * @param height Height of the output (prior to cropping).
- * @return an enum describing whether the call succeeded.
- * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or
- *         {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER} if the {@link AImageDecoder}
- *         pointer is null, width or height is <= 0, or any existing crop is
- *         not contained by the new image dimensions.
+ * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or a value
+ *         indicating the reason for the failure.
+ *
+ * Errors:
+ * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: The
+ *   {@link AImageDecoder} is null.
+ * - {@link ANDROID_IMAGE_DECODER_INVALID_SCALE}: |width| or |height| is <= 0,
+ *   the size is too big, any existing crop is not contained by the new image dimensions,
+ *   or the scale is incompatible with a previous call to
+ *   {@link AImageDecoder_setUnpremultipliedRequired}(true).
  */
 int AImageDecoder_setTargetSize(AImageDecoder*, int32_t width, int32_t height) __INTRODUCED_IN(30);
 
@@ -262,8 +328,12 @@ int AImageDecoder_setTargetSize(AImageDecoder*, int32_t width, int32_t height) _
  *              in the direction that the decoder can do most efficiently.
  * @param height Out parameter for the height sampled by sampleSize, and rounded
  *               in the direction that the decoder can do most efficiently.
- * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or
- *         {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER} for bad input.
+ * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or a value
+ *         indicating the reason for the failure.
+ *
+ * Errors:
+ * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: The
+ *   {@link AImageDecoder}, |width| or |height| is null or |sampleSize| is < 1.
  */
 int AImageDecoder_computeSampledSize(const AImageDecoder*, int sampleSize,
                                      int32_t* width, int32_t* height) __INTRODUCED_IN(30);
@@ -282,18 +352,21 @@ int AImageDecoder_computeSampledSize(const AImageDecoder*, int sampleSize,
  *             specifically { 0, 0, 0, 0 } - may be used to remove the cropping
  *             behavior. Any other empty or unsorted ARects will result in
  *             returning {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}.
- * @return an enum describing whether the call succeeded.
- * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or
- *         {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER} if the {@link AImageDecoder}
- *         pointer is null or the crop is not contained by the image
- *         dimensions.
+ * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or a value
+ *         indicating the reason for the failure.
+ *
+ * Errors:
+ * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: The
+ *   {@link AImageDecoder} is null or the crop is not contained by the
+ *   (possibly scaled) image dimensions.
  */
 int AImageDecoder_setCrop(AImageDecoder*, ARect crop) __INTRODUCED_IN(30);
 
 struct AImageDecoderHeaderInfo;
 /**
- * Opaque handle for representing information about the encoded image. It can
- * be passed to methods like {@link AImageDecoderHeaderInfo_getWidth} and
+ * Opaque handle for representing information about the encoded image. Retrieved
+ * using {@link AImageDecoder_getHeaderInfo} and passed to methods like
+ * {@link AImageDecoderHeaderInfo_getWidth} and
  * {@link AImageDecoderHeaderInfo_getHeight}.
  */
 typedef struct AImageDecoderHeaderInfo AImageDecoderHeaderInfo;
@@ -310,14 +383,16 @@ const AImageDecoderHeaderInfo* AImageDecoder_getHeaderInfo(
 /**
  * Report the native width of the encoded image. This is also the logical
  * pixel width of the output, unless {@link AImageDecoder_setTargetSize} is
- * used to choose a different size.
+ * used to choose a different size or {@link AImageDecoder_setCrop} is used to
+ * set a crop rect.
  */
 int32_t AImageDecoderHeaderInfo_getWidth(const AImageDecoderHeaderInfo*) __INTRODUCED_IN(30);
 
 /**
  * Report the native height of the encoded image. This is also the logical
  * pixel height of the output, unless {@link AImageDecoder_setTargetSize} is
- * used to choose a different size.
+ * used to choose a different size or {@link AImageDecoder_setCrop} is used to
+ * set a crop rect.
  */
 int32_t AImageDecoderHeaderInfo_getHeight(const AImageDecoderHeaderInfo*) __INTRODUCED_IN(30);
 
@@ -349,20 +424,20 @@ int AImageDecoderHeaderInfo_getAlphaFlags(
         const AImageDecoderHeaderInfo*) __INTRODUCED_IN(30);
 
 /**
- * Report the dataspace the {@link AImageDecoder} will decode to by default.
- * AImageDecoder will try to choose one that is sensible for the
- * image and the system. Note that this may not exactly match the ICC
- * profile (or other color information) stored in the encoded image.
+ * Report the dataspace the AImageDecoder will decode to by default.
  *
- * @return The {@link ADataSpace} most closely representing the way the colors
- *         are encoded (or {@link ADATASPACE_UNKNOWN} if there is not an
- *         approximate ADataSpace). This specifies how to interpret the colors
+ * By default, {@link AImageDecoder_decodeImage} will not do any color
+ * conversion.
+ *
+ * @return The {@link ADataSpace} representing the way the colors
+ *         are encoded (or {@link ADATASPACE_UNKNOWN} if there is not a
+ *         corresponding ADataSpace). This specifies how to interpret the colors
  *         in the decoded image, unless {@link AImageDecoder_setDataSpace} is
  *         called to decode to a different ADataSpace.
  *
  *         Note that ADataSpace only exposes a few values. This may return
- *         ADATASPACE_UNKNOWN, even for Named ColorSpaces, if they have no
- *         corresponding ADataSpace.
+ *         {@link ADATASPACE_UNKNOWN}, even for Named ColorSpaces, if they have
+ *         no corresponding {@link ADataSpace}.
  */
 int32_t AImageDecoderHeaderInfo_getDataSpace(
         const AImageDecoderHeaderInfo*) __INTRODUCED_IN(30);
@@ -392,11 +467,23 @@ size_t AImageDecoder_getMinimumStride(AImageDecoder*) __INTRODUCED_IN(30);
  * @param size Size of the pixel buffer in bytes. Must be at least
  *             stride * (height - 1) +
  *             {@link AImageDecoder_getMinimumStride}.
- * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success, or an error code
- *         from the same enum describing the failure.
- *         {@link ANDROID_IMAGE_DECODER_INCOMPLETE} or
- *         {@link ANDROID_IMAGE_DECODER_ERROR} means that a partial image was
- *         decoded, and undecoded lines have been initialized to all zeroes.
+ * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or a value
+ *         indicating the reason for the failure.
+ *
+ * Errors:
+ * - {@link ANDROID_IMAGE_DECODER_INCOMPLETE}: The image was truncated. A
+ *   partial image was decoded, and undecoded lines have been initialized to all
+ *   zeroes.
+ * - {@link ANDROID_IMAGE_DECODER_ERROR}: The image contained an error. A
+ *   partial image was decoded, and undecoded lines have been initialized to all
+ *   zeroes.
+ * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: The {@link AImageDecoder} or
+ *   |pixels| is null, the stride is not large enough or not pixel aligned, or
+ *   |size| is not large enough.
+ * - {@link ANDROID_IMAGE_DECODER_SEEK_ERROR}: The asset or file descriptor
+ *   failed to seek.
+ * - {@link ANDROID_IMAGE_DECODER_INTERNAL_ERROR}: Some other error, like a
+ *   failure to allocate memory.
  */
 int AImageDecoder_decodeImage(AImageDecoder* decoder,
                               void* pixels, size_t stride,

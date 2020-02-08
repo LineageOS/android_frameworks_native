@@ -15,7 +15,7 @@
 //
 #pragma once
 
-#include <android/frameworks/automotive/display/1.0/ICarWindowService.h>
+#include <android/frameworks/automotive/display/1.0/IAutomotiveDisplayProxyService.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/Surface.h>
@@ -34,7 +34,7 @@ using ::android::hardware::Return;
 using ::android::sp;
 using ::android::hardware::graphics::bufferqueue::V2_0::IGraphicBufferProducer;
 
-class CarWindowService : public ICarWindowService {
+class AutomotiveDisplayProxyService : public IAutomotiveDisplayProxyService {
 public:
     Return<sp<IGraphicBufferProducer>> getIGraphicBufferProducer() override;
     Return<bool> showWindow() override;

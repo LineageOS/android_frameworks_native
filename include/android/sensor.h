@@ -15,6 +15,9 @@
  */
 
 /**
+ * Structures and functions to receive and process sensor events in
+ * native code.
+ *
  * @addtogroup Sensor
  * @{
  */
@@ -40,12 +43,6 @@
  *   - DO NOT MODIFY CONSTANTS OR FUNCTIONAL MACROS
  *   - DO NOT CHANGE THE SIGNATURE OF FUNCTIONS IN ANY WAY
  *   - DO NOT CHANGE THE LAYOUT OR SIZE OF STRUCTURES
- */
-
-/**
- * Structures and functions to receive and process sensor events in
- * native code.
- *
  */
 
 #include <android/looper.h>
