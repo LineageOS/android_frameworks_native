@@ -299,9 +299,10 @@ const char* select_execution_binary(
 // Namespace for Android Runtime flags applied during boot time.
 static const char* RUNTIME_NATIVE_BOOT_NAMESPACE = "runtime_native_boot";
 // Feature flag name for running the JIT in Zygote experiment, b/119800099.
-static const char* ENABLE_APEX_IMAGE = "enable_apex_image";
-// Location of the apex image.
-static const char* kApexImage = "/system/framework/apex.art";
+static const char* ENABLE_JITZYGOTE_IMAGE = "enable_apex_image";
+// Location of the JIT Zygote image.
+static const char* kJitZygoteImage =
+    "boot.art:/nonx/boot-framework.art!/system/etc/boot-image.prof";
 
 // Phenotype property name for enabling profiling the boot class path.
 static const char* PROFILE_BOOT_CLASS_PATH = "profilebootclasspath";
@@ -405,9 +406,9 @@ class RunDex2Oat : public ExecVHelper {
                 GetBoolProperty(kMinidebugInfoSystemProperty, kMinidebugInfoSystemPropertyDefault);
 
         std::string boot_image;
-        std::string use_apex_image =
+        std::string use_jitzygote_image =
             server_configurable_flags::GetServerConfigurableFlag(RUNTIME_NATIVE_BOOT_NAMESPACE,
-                                                                 ENABLE_APEX_IMAGE,
+                                                                 ENABLE_JITZYGOTE_IMAGE,
                                                                  /*default_value=*/ "");
 
         std::string profile_boot_class_path = GetProperty("dalvik.vm.profilebootclasspath", "");
@@ -417,10 +418,10 @@ class RunDex2Oat : public ExecVHelper {
                 PROFILE_BOOT_CLASS_PATH,
                 /*default_value=*/ profile_boot_class_path);
 
-        if (use_apex_image == "true" || profile_boot_class_path == "true") {
-          boot_image = StringPrintf("-Ximage:%s", kApexImage);
+        if (use_jitzygote_image == "true" || profile_boot_class_path == "true") {
+          boot_image = StringPrintf("--boot-image=%s", kJitZygoteImage);
         } else {
-          boot_image = MapPropertyToArg("dalvik.vm.boot-image", "-Ximage:%s");
+          boot_image = MapPropertyToArg("dalvik.vm.boot-image", "--boot-image=%s");
         }
 
         // clang FORTIFY doesn't let us use strlen in constant array bounds, so we
@@ -513,7 +514,8 @@ class RunDex2Oat : public ExecVHelper {
         AddArg(instruction_set_variant_arg);
         AddArg(instruction_set_features_arg);
 
-        AddRuntimeArg(boot_image);
+        AddArg(boot_image);
+
         AddRuntimeArg(bootclasspath);
         AddRuntimeArg(dex2oat_Xms_arg);
         AddRuntimeArg(dex2oat_Xmx_arg);
