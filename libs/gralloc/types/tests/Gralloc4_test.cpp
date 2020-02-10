@@ -321,10 +321,6 @@ TEST_F(Gralloc4TestPlaneLayouts, PlaneLayouts) {
     planeLayoutA.totalSizeInBytes = planeLayoutA.strideInBytes * height;
     planeLayoutA.horizontalSubsampling = 1;
     planeLayoutA.verticalSubsampling = 1;
-    planeLayoutA.crop.left = 0;
-    planeLayoutA.crop.top = 0;
-    planeLayoutA.crop.right = width;
-    planeLayoutA.crop.bottom = height;
 
     component.type = gralloc4::PlaneLayoutComponentType_A;
     component.offsetInBits = 0;
@@ -341,11 +337,6 @@ TEST_F(Gralloc4TestPlaneLayouts, PlaneLayouts) {
     planeLayoutRGB.totalSizeInBytes = planeLayoutRGB.strideInBytes * height;
     planeLayoutRGB.horizontalSubsampling = 1;
     planeLayoutRGB.verticalSubsampling = 1;
-    planeLayoutRGB.crop.left = 0;
-    planeLayoutRGB.crop.top = 0;
-    planeLayoutRGB.crop.right = width;
-    planeLayoutRGB.crop.bottom = height;
-
     component.type = gralloc4::PlaneLayoutComponentType_R;
     planeLayoutRGB.components.push_back(component);
     component.type = gralloc4::PlaneLayoutComponentType_G;
@@ -356,6 +347,33 @@ TEST_F(Gralloc4TestPlaneLayouts, PlaneLayouts) {
     planeLayouts.push_back(planeLayoutRGB);
 
     ASSERT_NO_FATAL_FAILURE(testHelperStableAidlType(planeLayouts, gralloc4::encodePlaneLayouts, gralloc4::decodePlaneLayouts));
+}
+
+class Gralloc4TestCrop : public testing::Test { };
+
+TEST_F(Gralloc4TestCrop, Crop) {
+    std::vector<Rect> crops;
+    Rect crop1, crop2, crop3;
+
+    crop1.left = 0;
+    crop1.top = 0;
+    crop1.right = 64;
+    crop1.bottom = 64;
+    crops.push_back(crop1);
+
+    crop2.left = std::numeric_limits<int32_t>::min();
+    crop2.top = 0xFF;
+    crop2.right = std::numeric_limits<int32_t>::max();
+    crop2.bottom = 0xFFFF;
+    crops.push_back(crop2);
+
+    crop3.left = 0;
+    crop3.top = 0;
+    crop3.right = -1;
+    crop3.bottom = -1;
+    crops.push_back(crop3);
+
+    ASSERT_NO_FATAL_FAILURE(testHelperStableAidlType(crops, gralloc4::encodeCrop, gralloc4::decodeCrop));
 }
 
 class Gralloc4TestDataspace : public testing::TestWithParam<Dataspace> { };
