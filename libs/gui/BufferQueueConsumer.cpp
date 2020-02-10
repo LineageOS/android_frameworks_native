@@ -66,6 +66,8 @@ namespace android {
           mCore->mUniqueId, mCore->mConnectedApi, mCore->mConnectedPid, (mCore->mUniqueId) >> 32, \
           ##__VA_ARGS__)
 
+ConsumerListener::~ConsumerListener() = default;
+
 BufferQueueConsumer::BufferQueueConsumer(const sp<BufferQueueCore>& core) :
     mCore(core),
     mSlots(core->mSlots),
@@ -291,8 +293,9 @@ status_t BufferQueueConsumer::acquireBuffer(BufferItem* outBuffer,
 
         ATRACE_INT(mCore->mConsumerName.string(),
                 static_cast<int32_t>(mCore->mQueue.size()));
+#ifndef NO_BINDER
         mCore->mOccupancyTracker.registerOccupancyChange(mCore->mQueue.size());
-
+#endif
         VALIDATE_CONSISTENCY();
     }
 
@@ -765,7 +768,12 @@ status_t BufferQueueConsumer::getSidebandStream(sp<NativeHandle>* outStream) con
 status_t BufferQueueConsumer::getOccupancyHistory(bool forceFlush,
         std::vector<OccupancyTracker::Segment>* outHistory) {
     std::lock_guard<std::mutex> lock(mCore->mMutex);
+#ifndef NO_BINDER
     *outHistory = mCore->mOccupancyTracker.getSegmentHistory(forceFlush);
+#else
+    (void)forceFlush;
+    outHistory->clear();
+#endif
     return NO_ERROR;
 }
 
@@ -798,7 +806,7 @@ status_t BufferQueueConsumer::dumpState(const String8& prefix, String8* outResul
 
     bool denied = false;
     const uid_t uid = BufferQueueThreadState::getCallingUid();
-#ifndef __ANDROID_VNDK__
+#if !defined(__ANDROID_VNDK__) && !defined(NO_BINDER)
     // permission check can't be done for vendors as vendors have no access to
     // the PermissionController. We need to do a runtime check as well, since
     // the system variant of libgui can be loaded in a vendor process. For eg:

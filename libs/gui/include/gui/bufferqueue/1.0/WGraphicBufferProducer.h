@@ -49,7 +49,6 @@ typedef ::android::hardware::graphics::bufferqueue::V1_0::
 
 typedef ::android::IGraphicBufferProducer BGraphicBufferProducer;
 typedef ::android::IProducerListener BProducerListener;
-using ::android::BnGraphicBufferProducer;
 
 #ifndef LOG
 struct LOG_dummy {

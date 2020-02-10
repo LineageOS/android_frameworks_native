@@ -90,7 +90,6 @@ public:
 // Out-of-line virtual method definitions to trigger vtable emission in this translation unit (see
 // clang warning -Wweak-vtables)
 BpConsumerListener::~BpConsumerListener() = default;
-ConsumerListener::~ConsumerListener() = default;
 
 IMPLEMENT_META_INTERFACE(ConsumerListener, "android.gui.IConsumerListener");
 

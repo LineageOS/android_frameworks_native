@@ -45,6 +45,7 @@ using ::android::hardware::hidl_string;
 using ::android::hardware::hidl_vec;
 
 using ::android::hardware::graphics::common::V1_2::HardwareBuffer;
+struct Obituary;
 
 class B2HGraphicBufferProducer : public HGraphicBufferProducer {
 public:
@@ -108,6 +109,7 @@ public:
 
 protected:
     sp<BGraphicBufferProducer> mBase;
+    sp<Obituary> mObituary;
 };
 
 
