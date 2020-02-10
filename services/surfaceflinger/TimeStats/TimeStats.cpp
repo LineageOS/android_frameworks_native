@@ -148,6 +148,9 @@ AStatsManager_PullAtomCallbackReturn TimeStats::populateLayerAtom(AStatsEventLis
             }
         }
 
+        mStatsDelegate->statsEventWriteInt64(event, layer->lateAcquireFrames);
+        mStatsDelegate->statsEventWriteInt64(event, layer->badDesiredPresentFrames);
+
         mStatsDelegate->statsEventBuild(event);
     }
     clearLayersLocked();

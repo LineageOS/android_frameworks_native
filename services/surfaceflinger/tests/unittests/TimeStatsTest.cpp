@@ -892,12 +892,20 @@ MATCHER_P2(BytesEq, bytes, size, "") {
     return expected == actual;
 }
 
-TEST_F(TimeStatsTest, layerStatsCallback_pullsAllHistogramsAndClears) {
+TEST_F(TimeStatsTest, layerStatsCallback_pullsAllAndClears) {
+    constexpr size_t LATE_ACQUIRE_FRAMES = 2;
+    constexpr size_t BAD_DESIRED_PRESENT_FRAMES = 3;
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
 
     mTimeStats->onBootFinished();
 
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
+    for (size_t i = 0; i < LATE_ACQUIRE_FRAMES; i++) {
+        mTimeStats->incrementLatchSkipped(LAYER_ID_0, TimeStats::LatchSkipReason::LateAcquire);
+    }
+    for (size_t i = 0; i < BAD_DESIRED_PRESENT_FRAMES; i++) {
+        mTimeStats->incrementBadDesiredPresent(LAYER_ID_0);
+    }
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000);
 
     EXPECT_THAT(mDelegate->mAtomTags,
@@ -955,6 +963,9 @@ TEST_F(TimeStatsTest, layerStatsCallback_pullsAllHistogramsAndClears) {
                                              BytesEq((const uint8_t*)expectedPostToAcquire.c_str(),
                                                      expectedPostToAcquire.size()),
                                              expectedPostToAcquire.size()));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, LATE_ACQUIRE_FRAMES));
+        EXPECT_CALL(*mDelegate,
+                    statsEventWriteInt64(mDelegate->mEvent, BAD_DESIRED_PRESENT_FRAMES));
         EXPECT_CALL(*mDelegate, statsEventBuild(mDelegate->mEvent));
     }
     EXPECT_EQ(AStatsManager_PULL_SUCCESS,
