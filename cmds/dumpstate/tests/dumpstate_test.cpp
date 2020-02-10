@@ -372,12 +372,12 @@ TEST_F(DumpOptionsTest, InitializeTelephonyBugReport) {
     EXPECT_TRUE(options_.do_broadcast);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.telephony_only);
+    EXPECT_TRUE(options_.do_progress_updates);
 
     // Other options retain default values
     EXPECT_TRUE(options_.do_vibrate);
     EXPECT_FALSE(options_.use_control_socket);
     EXPECT_FALSE(options_.show_header_only);
-    EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.is_remote_mode);
     EXPECT_FALSE(options_.use_socket);
 }
