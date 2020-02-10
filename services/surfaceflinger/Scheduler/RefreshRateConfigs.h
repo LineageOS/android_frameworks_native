@@ -182,6 +182,12 @@ private:
             const std::function<bool(const RefreshRate&)>& shouldAddRefreshRate,
             std::vector<const RefreshRate*>* outRefreshRates);
 
+    // Returns the refresh rate with the highest score in the collection specified from begin
+    // to end. If there are more than one with the same highest refresh rate, the first one is
+    // returned.
+    template <typename Iter>
+    const RefreshRate* getBestRefreshRate(Iter begin, Iter end) const;
+
     // The list of refresh rates, indexed by display config ID. This must not change after this
     // object is initialized.
     AllRefreshRatesMapType mRefreshRates;
