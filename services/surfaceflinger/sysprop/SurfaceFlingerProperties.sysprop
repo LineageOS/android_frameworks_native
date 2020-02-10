@@ -393,3 +393,13 @@ prop {
     access: Readonly
     prop_name: "ro.surface_flinger.supports_background_blur"
 }
+
+# Indicates whether Scheduler should use frame rate API when adjusting the
+# display refresh rate.
+prop {
+    api_name: "use_frame_rate_api"
+    type: Boolean
+    scope: Public
+    access: Readonly
+    prop_name: "ro.surface_flinger.use_frame_rate_api"
+}

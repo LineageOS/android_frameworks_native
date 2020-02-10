@@ -177,7 +177,10 @@ private:
 
     void setVsyncPeriod(nsecs_t period);
 
-    HwcConfigIndexType calculateRefreshRateType() REQUIRES(mFeatureStateLock);
+    // This function checks whether individual features that are affecting the refresh rate
+    // selection were initialized, prioritizes them, and calculates the HwcConfigIndexType
+    // for the suggested refresh rate.
+    HwcConfigIndexType calculateRefreshRateConfigIndexType() REQUIRES(mFeatureStateLock);
 
     bool layerHistoryHasClientSpecifiedFrameRate() REQUIRES(mFeatureStateLock);
 

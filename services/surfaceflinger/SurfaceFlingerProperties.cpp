@@ -297,6 +297,14 @@ bool support_kernel_idle_timer(bool defaultValue) {
     return defaultValue;
 }
 
+bool use_frame_rate_api(bool defaultValue) {
+    auto temp = SurfaceFlingerProperties::use_frame_rate_api();
+    if (temp.has_value()) {
+        return *temp;
+    }
+    return defaultValue;
+}
+
 #define DISPLAY_PRIMARY_SIZE 3
 
 constexpr float kSrgbRedX = 0.4123f;
