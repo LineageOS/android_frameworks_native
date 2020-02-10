@@ -710,7 +710,7 @@ public:
     // corner definition and converting it into current layer's coordinates.
     // As of now, only 1 corner radius per display list is supported. Subsequent ones will be
     // ignored.
-    RoundedCornerState getRoundedCornerState() const;
+    virtual RoundedCornerState getRoundedCornerState() const;
 
     renderengine::ShadowSettings getShadowSettings(const Rect& viewport) const;
 

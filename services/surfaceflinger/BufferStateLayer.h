@@ -103,6 +103,7 @@ public:
 
     Rect getBufferSize(const State& s) const override;
     FloatRect computeSourceBounds(const FloatRect& parentBounds) const override;
+    Layer::RoundedCornerState getRoundedCornerState() const override;
 
     // -----------------------------------------------------------------------
 

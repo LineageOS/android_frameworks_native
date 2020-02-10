@@ -199,10 +199,17 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadius) {
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", size, size));
     ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED, size, size));
 
-    Transaction()
-            .setCornerRadius(layer, cornerRadius)
-            .setCrop_legacy(layer, Rect(0, 0, size, size))
-            .apply();
+    if (mLayerType == ISurfaceComposerClient::eFXSurfaceBufferQueue) {
+        Transaction()
+                .setCornerRadius(layer, cornerRadius)
+                .setCrop_legacy(layer, Rect(0, 0, size, size))
+                .apply();
+    } else {
+        Transaction()
+                .setCornerRadius(layer, cornerRadius)
+                .setFrame(layer, Rect(0, 0, size, size))
+                .apply();
+    }
     {
         const uint8_t bottom = size - 1;
         const uint8_t right = size - 1;
@@ -226,12 +233,21 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadiusChildCrop) {
     ASSERT_NO_FATAL_FAILURE(child = createLayer("child", size, size / 2));
     ASSERT_NO_FATAL_FAILURE(fillLayerColor(child, Color::GREEN, size, size / 2));
 
-    Transaction()
-            .setCornerRadius(parent, cornerRadius)
-            .setCrop_legacy(parent, Rect(0, 0, size, size))
-            .reparent(child, parent->getHandle())
-            .setPosition(child, 0, size / 2)
-            .apply();
+    if (mLayerType == ISurfaceComposerClient::eFXSurfaceBufferQueue) {
+        Transaction()
+                .setCornerRadius(parent, cornerRadius)
+                .setCrop_legacy(parent, Rect(0, 0, size, size))
+                .reparent(child, parent->getHandle())
+                .setPosition(child, 0, size / 2)
+                .apply();
+    } else {
+        Transaction()
+                .setCornerRadius(parent, cornerRadius)
+                .setFrame(parent, Rect(0, 0, size, size))
+                .reparent(child, parent->getHandle())
+                .setFrame(child, Rect(0, size / 2, size, size))
+                .apply();
+    }
     {
         const uint8_t bottom = size - 1;
         const uint8_t right = size - 1;
