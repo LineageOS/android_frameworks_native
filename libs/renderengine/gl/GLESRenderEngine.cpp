@@ -984,18 +984,19 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
     }
 
     std::unique_ptr<BindNativeBufferAsFramebuffer> fbo;
-    // Let's find the topmost layer requesting background blur (if any.)
-    // Blurs in multiple layers are not supported, given the cost of the shader.
-    const LayerSettings* blurLayer = nullptr;
+    // Gathering layers that requested blur, we'll need them to decide when to render to an
+    // offscreen buffer, and when to render to the native buffer.
+    std::deque<const LayerSettings*> blurLayers;
     if (CC_LIKELY(mBlurFilter != nullptr)) {
-        for (auto const layer : layers) {
+        for (auto layer : layers) {
             if (layer->backgroundBlurRadius > 0) {
-                blurLayer = layer;
+                blurLayers.push_back(layer);
             }
         }
     }
+    const auto blurLayersSize = blurLayers.size();
 
-    if (blurLayer == nullptr) {
+    if (blurLayersSize == 0) {
         fbo = std::make_unique<BindNativeBufferAsFramebuffer>(*this, buffer, useFramebufferCache);
         if (fbo->getStatus() != NO_ERROR) {
             ALOGE("Failed to bind framebuffer! Aborting GPU composition for buffer (%p).",
@@ -1006,7 +1007,8 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
         setViewportAndProjection(display.physicalDisplay, display.clip);
     } else {
         setViewportAndProjection(display.physicalDisplay, display.clip);
-        auto status = mBlurFilter->setAsDrawTarget(display, blurLayer->backgroundBlurRadius);
+        auto status =
+                mBlurFilter->setAsDrawTarget(display, blurLayers.front()->backgroundBlurRadius);
         if (status != NO_ERROR) {
             ALOGE("Failed to prepare blur filter! Aborting GPU composition for buffer (%p).",
                   buffer->handle);
@@ -1039,7 +1041,9 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
                         .setCropCoords(2 /* size */)
                         .build();
     for (auto const layer : layers) {
-        if (blurLayer == layer) {
+        if (blurLayers.size() > 0 && blurLayers.front() == layer) {
+            blurLayers.pop_front();
+
             auto status = mBlurFilter->prepare();
             if (status != NO_ERROR) {
                 ALOGE("Failed to render blur effect! Aborting GPU composition for buffer (%p).",
@@ -1048,18 +1052,26 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
                 return status;
             }
 
-            fbo = std::make_unique<BindNativeBufferAsFramebuffer>(*this, buffer,
-                                                                  useFramebufferCache);
-            status = fbo->getStatus();
+            if (blurLayers.size() == 0) {
+                // Done blurring, time to bind the native FBO and render our blur onto it.
+                fbo = std::make_unique<BindNativeBufferAsFramebuffer>(*this, buffer,
+                                                                      useFramebufferCache);
+                status = fbo->getStatus();
+                setViewportAndProjection(display.physicalDisplay, display.clip);
+            } else {
+                // There's still something else to blur, so let's keep rendering to our FBO
+                // instead of to the display.
+                status = mBlurFilter->setAsDrawTarget(display,
+                                                      blurLayers.front()->backgroundBlurRadius);
+            }
             if (status != NO_ERROR) {
                 ALOGE("Failed to bind framebuffer! Aborting GPU composition for buffer (%p).",
                       buffer->handle);
                 checkErrors("Can't bind native framebuffer");
                 return status;
             }
-            setViewportAndProjection(display.physicalDisplay, display.clip);
 
-            status = mBlurFilter->render();
+            status = mBlurFilter->render(blurLayersSize > 1);
             if (status != NO_ERROR) {
                 ALOGE("Failed to render blur effect! Aborting GPU composition for buffer (%p).",
                       buffer->handle);
