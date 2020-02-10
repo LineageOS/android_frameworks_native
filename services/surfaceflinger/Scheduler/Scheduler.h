@@ -109,7 +109,8 @@ public:
 
     // Passes a vsync sample to DispSync. periodFlushed will be true if
     // DispSync detected that the vsync period changed, and false otherwise.
-    void addResyncSample(nsecs_t timestamp, bool* periodFlushed);
+    void addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriod,
+                         bool* periodFlushed);
     void addPresentFence(const std::shared_ptr<FenceTime>&);
     void setIgnorePresentFences(bool ignore);
     nsecs_t getDispSyncExpectedPresentTime();
