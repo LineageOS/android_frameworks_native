@@ -578,12 +578,13 @@ sp<Fence> HWComposer::getPresentFence(DisplayId displayId) const {
 
 sp<Fence> HWComposer::getLayerReleaseFence(DisplayId displayId, HWC2::Layer* layer) const {
     RETURN_IF_INVALID_DISPLAY(displayId, Fence::NO_FENCE);
-    auto displayFences = mDisplayData.at(displayId).releaseFences;
-    if (displayFences.count(layer) == 0) {
+    const auto& displayFences = mDisplayData.at(displayId).releaseFences;
+    auto fence = displayFences.find(layer);
+    if (fence == displayFences.end()) {
         ALOGV("getLayerReleaseFence: Release fence not found");
         return Fence::NO_FENCE;
     }
-    return displayFences[layer];
+    return fence->second;
 }
 
 status_t HWComposer::presentAndGetReleaseFences(DisplayId displayId) {
