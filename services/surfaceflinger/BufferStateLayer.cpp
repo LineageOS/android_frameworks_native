@@ -468,6 +468,32 @@ uint64_t BufferStateLayer::getFrameNumber(nsecs_t /*expectedPresentTime*/) const
     return mDrawingState.frameNumber;
 }
 
+/**
+ * This is the frameNumber used for deferred transaction signalling. We need to use this because
+ * of cases where we defer a transaction for a surface to itself. In the BLAST world this
+ * may not make a huge amount of sense (Why not just merge the Buffer transaction with the
+ * deferred transaction?) but this is an important legacy use case, for example moving
+ * a window at the same time it draws makes use of this kind of technique. So anyway
+ * imagine we have something like this:
+ *
+ * Transaction { // containing
+ *     Buffer -> frameNumber = 2
+ *     DeferTransactionUntil -> frameNumber = 2
+ *     Random other stuff
+ *  }
+ * Now imagine getHeadFrameNumber returned mDrawingState.mFrameNumber (or mCurrentFrameNumber).
+ * Prior to doTransaction SurfaceFlinger will call notifyAvailableFrames, but because we
+ * haven't swapped mCurrentState to mDrawingState yet we will think the sync point
+ * is not ready. So we will return false from applyPendingState and not swap
+ * current state to drawing state. But because we don't swap current state
+ * to drawing state the number will never update and we will be stuck. This way
+ * we can see we need to return the frame number for the buffer we are about
+ * to apply.
+ */
+uint64_t BufferStateLayer::getHeadFrameNumber(nsecs_t /* expectedPresentTime */) const {
+    return mCurrentState.frameNumber;
+}
+
 bool BufferStateLayer::getAutoRefresh() const {
     // TODO(marissaw): support shared buffer mode
     return false;
