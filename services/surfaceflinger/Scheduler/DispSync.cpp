@@ -542,8 +542,7 @@ void DispSync::beginResync() {
     resetLocked();
 }
 
-bool DispSync::addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> /*hwcVsyncPeriod*/,
-                               bool* periodFlushed) {
+bool DispSync::addResyncSample(nsecs_t timestamp, bool* periodFlushed) {
     Mutex::Autolock lock(mMutex);
 
     ALOGV("[%s] addResyncSample(%" PRId64 ")", mName, ns2us(timestamp));

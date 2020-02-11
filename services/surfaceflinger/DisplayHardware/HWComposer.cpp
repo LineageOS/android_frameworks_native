@@ -109,6 +109,7 @@ public:
             android::Hwc2::Display display, int64_t timestamp,
             android::Hwc2::VsyncPeriodNanos vsyncPeriodNanos) override {
         if (mVsyncSwitchingSupported) {
+            // TODO(b/140201379): use vsyncPeriodNanos in the new DispSync
             mCallback->onVsyncReceived(mSequenceId, display, timestamp,
                                        std::make_optional(vsyncPeriodNanos));
         } else {
