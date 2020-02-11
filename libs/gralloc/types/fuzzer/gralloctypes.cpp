@@ -70,6 +70,7 @@ std::vector<GrallocTypesDecode> GRALLOCTYPES_DECODE_FUNCTIONS {
     GRALLOCTYPES_DECODE(aidl::android::hardware::graphics::common::ExtendableType, ::android::gralloc4::decodeInterlaced),
     GRALLOCTYPES_DECODE(aidl::android::hardware::graphics::common::ExtendableType, ::android::gralloc4::decodeChromaSiting),
     GRALLOCTYPES_DECODE(std::vector<aidl::android::hardware::graphics::common::PlaneLayout>, ::android::gralloc4::decodePlaneLayouts),
+    GRALLOCTYPES_DECODE(std::vector<aidl::android::hardware::graphics::common::Rect>, ::android::gralloc4::decodeCrop),
     GRALLOCTYPES_DECODE(aidl::android::hardware::graphics::common::Dataspace, ::android::gralloc4::decodeDataspace),
     GRALLOCTYPES_DECODE(aidl::android::hardware::graphics::common::BlendMode, ::android::gralloc4::decodeBlendMode),
     GRALLOCTYPES_DECODE(std::optional<aidl::android::hardware::graphics::common::Smpte2086>, ::android::gralloc4::decodeSmpte2086),

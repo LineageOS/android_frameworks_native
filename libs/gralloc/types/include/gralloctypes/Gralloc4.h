@@ -89,6 +89,24 @@ inline bool operator!=(const aidl::android::hardware::graphics::common::Rect& lh
     return !(lhs == rhs);
 }
 
+inline bool operator==(const std::vector<aidl::android::hardware::graphics::common::Rect>& lhs,
+                const std::vector<aidl::android::hardware::graphics::common::Rect>& rhs) {
+    if (lhs.size() != rhs.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < lhs.size(); i++) {
+        if (lhs[i] != rhs[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+inline bool operator!=(const std::vector<aidl::android::hardware::graphics::common::Rect>& lhs,
+                const std::vector<aidl::android::hardware::graphics::common::Rect>& rhs) {
+    return !(lhs == rhs);
+}
+
 inline bool operator==(const aidl::android::hardware::graphics::common::PlaneLayout& lhs,
                 const aidl::android::hardware::graphics::common::PlaneLayout& rhs) {
     if (lhs.offsetInBytes != rhs.offsetInBytes) {
@@ -113,9 +131,6 @@ inline bool operator==(const aidl::android::hardware::graphics::common::PlaneLay
         return false;
     }
     if (lhs.verticalSubsampling != rhs.verticalSubsampling) {
-        return false;
-    }
-    if (lhs.crop != rhs.crop) {
         return false;
     }
     if (lhs.components.size() != rhs.components.size()) {
@@ -284,6 +299,10 @@ static const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType Me
 
 static const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType MetadataType_PlaneLayouts = {
         GRALLOC4_STANDARD_METADATA_TYPE, static_cast<int64_t>(aidl::android::hardware::graphics::common::StandardMetadataType::PLANE_LAYOUTS)
+};
+
+static const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType MetadataType_Crop = {
+        GRALLOC4_STANDARD_METADATA_TYPE, static_cast<int64_t>(aidl::android::hardware::graphics::common::StandardMetadataType::CROP)
 };
 
 static const android::hardware::graphics::mapper::V4_0::IMapper::MetadataType MetadataType_Dataspace = {
@@ -468,6 +487,9 @@ status_t decodeChromaSiting(const android::hardware::hidl_vec<uint8_t>& chromaSi
 
 status_t encodePlaneLayouts(const std::vector<aidl::android::hardware::graphics::common::PlaneLayout>& planeLayouts, android::hardware::hidl_vec<uint8_t>* outPlaneLayouts);
 status_t decodePlaneLayouts(const android::hardware::hidl_vec<uint8_t>& planeLayouts, std::vector<aidl::android::hardware::graphics::common::PlaneLayout>* outPlaneLayouts);
+
+status_t encodeCrop(const std::vector<aidl::android::hardware::graphics::common::Rect>& crop, android::hardware::hidl_vec<uint8_t>* outCrop);
+status_t decodeCrop(const android::hardware::hidl_vec<uint8_t>& crop, std::vector<aidl::android::hardware::graphics::common::Rect>* outCrop);
 
 status_t encodeDataspace(const aidl::android::hardware::graphics::common::Dataspace& dataspace, android::hardware::hidl_vec<uint8_t>* outDataspace);
 status_t decodeDataspace(const android::hardware::hidl_vec<uint8_t>& dataspace, aidl::android::hardware::graphics::common::Dataspace* outDataspace);
