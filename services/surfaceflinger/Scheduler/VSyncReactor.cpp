@@ -229,33 +229,24 @@ void VSyncReactor::beginResync() {
 
 void VSyncReactor::endResync() {}
 
-bool VSyncReactor::periodConfirmed(nsecs_t vsync_timestamp, std::optional<nsecs_t> HwcVsyncPeriod) {
-    if (!mPeriodConfirmationInProgress) {
+bool VSyncReactor::periodConfirmed(nsecs_t vsync_timestamp) {
+    if (!mLastHwVsync || !mPeriodConfirmationInProgress) {
         return false;
     }
-
-    if (!mLastHwVsync && !HwcVsyncPeriod) {
-        return false;
-    }
-
     auto const period = mPeriodTransitioningTo ? *mPeriodTransitioningTo : getPeriod();
+
     static constexpr int allowancePercent = 10;
     static constexpr std::ratio<allowancePercent, 100> allowancePercentRatio;
     auto const allowance = period * allowancePercentRatio.num / allowancePercentRatio.den;
-    if (HwcVsyncPeriod) {
-        return std::abs(*HwcVsyncPeriod - period) < allowance;
-    }
-
     auto const distance = vsync_timestamp - *mLastHwVsync;
     return std::abs(distance - period) < allowance;
 }
 
-bool VSyncReactor::addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriod,
-                                   bool* periodFlushed) {
+bool VSyncReactor::addResyncSample(nsecs_t timestamp, bool* periodFlushed) {
     assert(periodFlushed);
 
     std::lock_guard<std::mutex> lk(mMutex);
-    if (periodConfirmed(timestamp, hwcVsyncPeriod)) {
+    if (periodConfirmed(timestamp)) {
         if (mPeriodTransitioningTo) {
             mTracker->setPeriod(*mPeriodTransitioningTo);
             for (auto& entry : mCallbacks) {
