@@ -16,13 +16,13 @@
 
 #pragma once
 
+#include <cutils/compiler.h>
+#include <utils/StrongPointer.h>
+
 #include <cinttypes>
 #include <functional>
 #include <memory>
 #include <string>
-
-#include <cutils/compiler.h>
-#include <utils/StrongPointer.h>
 
 namespace android {
 

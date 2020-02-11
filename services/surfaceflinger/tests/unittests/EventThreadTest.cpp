@@ -19,9 +19,7 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-
 #include <log/log.h>
-
 #include <utils/Errors.h>
 
 #include "AsyncCallRecorder.h"
@@ -399,6 +397,34 @@ TEST_F(EventThreadTest, connectionsRemovedIfEventDeliveryError) {
 
     // EventThread should disable vsync callbacks with the second event
     expectVSyncSetEnabledCallReceived(false);
+}
+
+TEST_F(EventThreadTest, tracksEventConnections) {
+    EXPECT_EQ(1, mThread->getEventThreadConnectionCount());
+    ConnectionEventRecorder errorConnectionEventRecorder{NO_MEMORY};
+    sp<MockEventThreadConnection> errorConnection =
+            createConnection(errorConnectionEventRecorder,
+                             ISurfaceComposer::eConfigChangedSuppress);
+    mThread->setVsyncRate(1, errorConnection);
+    EXPECT_EQ(2, mThread->getEventThreadConnectionCount());
+    ConnectionEventRecorder secondConnectionEventRecorder{0};
+    sp<MockEventThreadConnection> secondConnection =
+            createConnection(secondConnectionEventRecorder,
+                             ISurfaceComposer::eConfigChangedSuppress);
+    mThread->setVsyncRate(1, secondConnection);
+    EXPECT_EQ(3, mThread->getEventThreadConnectionCount());
+
+    // EventThread should enable vsync callbacks.
+    expectVSyncSetEnabledCallReceived(true);
+
+    // The first event will be seen by the interceptor, and by the connection,
+    // which then returns an error.
+    mCallback->onVSyncEvent(123);
+    expectInterceptCallReceived(123);
+    expectVsyncEventReceivedByConnection("errorConnection", errorConnectionEventRecorder, 123, 1u);
+    expectVsyncEventReceivedByConnection("successConnection", secondConnectionEventRecorder, 123,
+                                         1u);
+    EXPECT_EQ(2, mThread->getEventThreadConnectionCount());
 }
 
 TEST_F(EventThreadTest, eventsDroppedIfNonfatalEventDeliveryError) {

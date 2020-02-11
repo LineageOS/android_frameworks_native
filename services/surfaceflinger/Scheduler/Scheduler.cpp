@@ -233,6 +233,11 @@ void Scheduler::onConfigChanged(ConnectionHandle handle, PhysicalDisplayId displ
     mConnections[handle].thread->onConfigChanged(displayId, configId, vsyncPeriod);
 }
 
+size_t Scheduler::getEventThreadConnectionCount(ConnectionHandle handle) {
+    RETURN_IF_INVALID_HANDLE(handle, 0);
+    return mConnections[handle].thread->getEventThreadConnectionCount();
+}
+
 void Scheduler::dump(ConnectionHandle handle, std::string& result) const {
     RETURN_IF_INVALID_HANDLE(handle);
     mConnections.at(handle).thread->dump(result);

@@ -16,7 +16,12 @@
 
 #pragma once
 
+#include <android-base/thread_annotations.h>
+#include <gui/DisplayEventReceiver.h>
+#include <gui/IDisplayEventConnection.h>
+#include <private/gui/BitTube.h>
 #include <sys/types.h>
+#include <utils/Errors.h>
 
 #include <condition_variable>
 #include <cstdint>
@@ -26,13 +31,6 @@
 #include <thread>
 #include <vector>
 
-#include <android-base/thread_annotations.h>
-
-#include <gui/DisplayEventReceiver.h>
-#include <gui/IDisplayEventConnection.h>
-#include <private/gui/BitTube.h>
-
-#include <utils/Errors.h>
 #include "HwcStrongTypes.h"
 
 // ---------------------------------------------------------------------------
@@ -134,6 +132,9 @@ public:
     // Usage of this method assumes that only the primary internal display
     // supports multiple display configurations.
     virtual void requestLatestConfig() = 0;
+
+    // Retrieves the number of event connections tracked by this EventThread.
+    virtual size_t getEventThreadConnectionCount() = 0;
 };
 
 namespace impl {
@@ -167,6 +168,8 @@ public:
     void dump(std::string& result) const override;
 
     void setPhaseOffset(nsecs_t phaseOffset) override;
+
+    size_t getEventThreadConnectionCount() override;
 
 private:
     friend EventThreadTest;
