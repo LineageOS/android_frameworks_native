@@ -145,6 +145,7 @@ protected:
         mBGSurfaceControl.clear();
         mFGSurfaceControl.clear();
         mComposerClient.clear();
+        system("setenforce 1");
     }
 
     sp<SurfaceComposerClient> mComposerClient;
