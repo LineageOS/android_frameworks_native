@@ -248,6 +248,11 @@ public:
     static ui::Dataspace wideColorGamutCompositionDataspace;
     static ui::PixelFormat wideColorGamutCompositionPixelFormat;
 
+    // Whether to use frame rate API when deciding about the refresh rate of the display. This
+    // variable is caches in SF, so that we can check it with each layer creation, and a void the
+    // overhead that is caused by reading from sysprop.
+    static bool useFrameRateApi;
+
     static char const* getServiceName() ANDROID_API {
         return "SurfaceFlinger";
     }

@@ -67,6 +67,7 @@ namespace android {
           ##__VA_ARGS__)
 
 static constexpr uint32_t BQ_LAYER_COUNT = 1;
+ProducerListener::~ProducerListener() = default;
 
 BufferQueueProducer::BufferQueueProducer(const sp<BufferQueueCore>& core,
         bool consumerIsSurfaceFlinger) :
@@ -1005,8 +1006,9 @@ status_t BufferQueueProducer::queueBuffer(int slot,
 
         ATRACE_INT(mCore->mConsumerName.string(),
                 static_cast<int32_t>(mCore->mQueue.size()));
+#ifndef NO_BINDER
         mCore->mOccupancyTracker.registerOccupancyChange(mCore->mQueue.size());
-
+#endif
         // Take a ticket for the callback functions
         callbackTicket = mNextCallbackTicket++;
 
@@ -1252,6 +1254,7 @@ status_t BufferQueueProducer::connect(const sp<IProducerListener>& listener,
             if (listener != nullptr) {
                 // Set up a death notification so that we can disconnect
                 // automatically if the remote producer dies
+#ifndef NO_BINDER
                 if (IInterface::asBinder(listener)->remoteBinder() != nullptr) {
                     status = IInterface::asBinder(listener)->linkToDeath(
                             static_cast<IBinder::DeathRecipient*>(this));
@@ -1261,6 +1264,7 @@ status_t BufferQueueProducer::connect(const sp<IProducerListener>& listener,
                     }
                     mCore->mLinkedToDeath = listener;
                 }
+#endif
                 mCore->mConnectedProducerListener = listener;
                 mCore->mBufferReleasedCbEnabled = listener->needsReleaseNotify();
             }
@@ -1329,6 +1333,7 @@ status_t BufferQueueProducer::disconnect(int api, DisconnectMode mode) {
                 if (mCore->mConnectedApi == api) {
                     mCore->freeAllBuffersLocked();
 
+#ifndef NO_BINDER
                     // Remove our death notification callback if we have one
                     if (mCore->mLinkedToDeath != nullptr) {
                         sp<IBinder> token =
@@ -1338,6 +1343,7 @@ status_t BufferQueueProducer::disconnect(int api, DisconnectMode mode) {
                         token->unlinkToDeath(
                                 static_cast<IBinder::DeathRecipient*>(this));
                     }
+#endif
                     mCore->mSharedBufferSlot =
                             BufferQueueCore::INVALID_BUFFER_SLOT;
                     mCore->mLinkedToDeath = nullptr;

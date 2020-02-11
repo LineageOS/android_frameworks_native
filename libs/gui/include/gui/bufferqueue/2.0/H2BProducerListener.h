@@ -33,12 +33,20 @@ using HProducerListener = ::android::hardware::graphics::bufferqueue::V2_0::
 
 using BProducerListener = ::android::IProducerListener;
 
+#ifndef NO_BINDER
 class H2BProducerListener
       : public H2BConverter<HProducerListener, BnProducerListener> {
+#else
+class H2BProducerListener
+      : public BProducerListener {
+    sp<HProducerListener> mBase;
+
+#endif
 public:
     H2BProducerListener(sp<HProducerListener> const& base);
     virtual void onBufferReleased() override;
     virtual bool needsReleaseNotify() override;
+    virtual void onBuffersDiscarded(const std::vector<int32_t>& slots) override;
 };
 
 }  // namespace utils

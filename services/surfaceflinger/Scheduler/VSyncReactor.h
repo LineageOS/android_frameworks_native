@@ -49,7 +49,8 @@ public:
 
     // TODO: (b/145626181) remove begin,endResync functions from DispSync i/f when possible.
     void beginResync() final;
-    bool addResyncSample(nsecs_t timestamp, bool* periodFlushed) final;
+    bool addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriod,
+                         bool* periodFlushed) final;
     void endResync() final;
 
     status_t addEventListener(const char* name, nsecs_t phase, DispSync::Callback* callback,
@@ -65,7 +66,8 @@ private:
     void updateIgnorePresentFencesInternal() REQUIRES(mMutex);
     void startPeriodTransition(nsecs_t newPeriod) REQUIRES(mMutex);
     void endPeriodTransition() REQUIRES(mMutex);
-    bool periodConfirmed(nsecs_t vsync_timestamp) REQUIRES(mMutex);
+    bool periodConfirmed(nsecs_t vsync_timestamp, std::optional<nsecs_t> hwcVsyncPeriod)
+            REQUIRES(mMutex);
 
     std::unique_ptr<Clock> const mClock;
     std::unique_ptr<VSyncTracker> const mTracker;

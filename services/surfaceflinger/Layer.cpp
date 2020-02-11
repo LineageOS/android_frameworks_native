@@ -80,7 +80,6 @@ Layer::Layer(const LayerCreationArgs& args)
         mName(args.name),
         mClientRef(args.client),
         mWindowType(args.metadata.getInt32(METADATA_WINDOW_TYPE, 0)) {
-
     uint32_t layerFlags = 0;
     if (args.flags & ISurfaceComposerClient::eHidden) layerFlags |= layer_state_t::eLayerHidden;
     if (args.flags & ISurfaceComposerClient::eOpaque) layerFlags |= layer_state_t::eLayerOpaque;
@@ -1264,6 +1263,9 @@ bool Layer::setShadowRadius(float shadowRadius) {
 }
 
 bool Layer::setFrameRate(FrameRate frameRate) {
+    if (!mFlinger->useFrameRateApi) {
+        return false;
+    }
     if (mCurrentState.frameRate == frameRate) {
         return false;
     }

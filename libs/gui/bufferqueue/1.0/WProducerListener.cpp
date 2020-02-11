@@ -46,5 +46,7 @@ void LWProducerListener::onBufferReleased() {
 bool LWProducerListener::needsReleaseNotify() {
     return static_cast<bool>(mBase->needsReleaseNotify());
 }
+void LWProducerListener::onBuffersDiscarded(const std::vector<int32_t>& /*slots*/) {
+}
 
 }  // namespace android

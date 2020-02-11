@@ -742,6 +742,33 @@ sp<Layer> BufferStateLayer::createClone() {
     layer->setInitialValuesForClone(this);
     return layer;
 }
+
+Layer::RoundedCornerState BufferStateLayer::getRoundedCornerState() const {
+    const auto& p = mDrawingParent.promote();
+    if (p != nullptr) {
+        RoundedCornerState parentState = p->getRoundedCornerState();
+        if (parentState.radius > 0) {
+            ui::Transform t = getActiveTransform(getDrawingState());
+            t = t.inverse();
+            parentState.cropRect = t.transform(parentState.cropRect);
+            // The rounded corners shader only accepts 1 corner radius for performance reasons,
+            // but a transform matrix can define horizontal and vertical scales.
+            // Let's take the average between both of them and pass into the shader, practically we
+            // never do this type of transformation on windows anyway.
+            parentState.radius *= (t[0][0] + t[1][1]) / 2.0f;
+            return parentState;
+        }
+    }
+    const float radius = getDrawingState().cornerRadius;
+    const State& s(getDrawingState());
+    if (radius <= 0 || (getActiveWidth(s) == UINT32_MAX && getActiveHeight(s) == UINT32_MAX))
+        return RoundedCornerState();
+    return RoundedCornerState(FloatRect(static_cast<float>(s.active.transform.tx()),
+                                        static_cast<float>(s.active.transform.ty()),
+                                        static_cast<float>(s.active.transform.tx() + s.active.w),
+                                        static_cast<float>(s.active.transform.ty() + s.active.h)),
+                              radius);
+}
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues

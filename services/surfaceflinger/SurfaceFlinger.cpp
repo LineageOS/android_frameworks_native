@@ -228,6 +228,7 @@ Dataspace SurfaceFlinger::defaultCompositionDataspace = Dataspace::V0_SRGB;
 ui::PixelFormat SurfaceFlinger::defaultCompositionPixelFormat = ui::PixelFormat::RGBA_8888;
 Dataspace SurfaceFlinger::wideColorGamutCompositionDataspace = Dataspace::V0_SRGB;
 ui::PixelFormat SurfaceFlinger::wideColorGamutCompositionPixelFormat = ui::PixelFormat::RGBA_8888;
+bool SurfaceFlinger::useFrameRateApi;
 
 std::string getHwcServiceName() {
     char value[PROPERTY_VALUE_MAX] = {};
@@ -387,6 +388,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
         // for production purposes later on.
         setenv("TREBLE_TESTING_OVERRIDE", "true", true);
     }
+
+    useFrameRateApi = use_frame_rate_api(true);
 }
 
 void SurfaceFlinger::onFirstRef()
@@ -1499,10 +1502,8 @@ nsecs_t SurfaceFlinger::getVsyncPeriod() const {
 
 void SurfaceFlinger::onVsyncReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId,
                                      int64_t timestamp,
-                                     std::optional<hwc2_vsync_period_t> /*vsyncPeriod*/) {
+                                     std::optional<hwc2_vsync_period_t> vsyncPeriod) {
     ATRACE_NAME("SF onVsync");
-
-    // TODO(b/140201379): use vsyncPeriod in the new DispSync
 
     Mutex::Autolock lock(mStateLock);
     // Ignore any vsyncs from a previous hardware composer.
@@ -1520,7 +1521,7 @@ void SurfaceFlinger::onVsyncReceived(int32_t sequenceId, hwc2_display_t hwcDispl
     }
 
     bool periodFlushed = false;
-    mScheduler->addResyncSample(timestamp, &periodFlushed);
+    mScheduler->addResyncSample(timestamp, vsyncPeriod, &periodFlushed);
     if (periodFlushed) {
         mVSyncModulator->onRefreshRateChangeCompleted();
     }

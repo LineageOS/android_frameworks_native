@@ -66,7 +66,6 @@ void trace(const wp<Layer>& weak, int fps) {
     ATRACE_INT(tag.c_str(), fps);
     ALOGD("%s: %s @ %d Hz", __FUNCTION__, name.c_str(), fps);
 }
-
 } // namespace
 
 LayerHistory::LayerHistory()
@@ -101,23 +100,6 @@ LayerHistory::Summary LayerHistory::summarize(nsecs_t now) {
     std::lock_guard lock(mLock);
 
     partitionLayers(now);
-
-    // Find the maximum refresh rate among recently active layers.
-    for (const auto& [activeLayer, info] : activeLayers()) {
-        const bool recent = info->isRecentlyActive(now);
-
-        if (recent || CC_UNLIKELY(mTraceEnabled)) {
-            const float refreshRate = info->getRefreshRate(now);
-            if (recent && refreshRate > 0.0f) {
-                if (const auto layer = activeLayer.promote(); layer) {
-                    const int32_t priority = layer->getFrameRateSelectionPriority();
-                    // TODO(b/142507166): This is where the scoring algorithm should live.
-                    // Layers should be organized by priority
-                    ALOGD("Layer has priority: %d", priority);
-                }
-            }
-        }
-    }
 
     LayerHistory::Summary summary;
     for (const auto& [weakLayer, info] : activeLayers()) {
@@ -196,6 +178,5 @@ void LayerHistory::clear() {
 
     mActiveLayersEnd = 0;
 }
-
 } // namespace android::scheduler::impl
 
