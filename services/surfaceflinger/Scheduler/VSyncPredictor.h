@@ -83,8 +83,8 @@ private:
 
     std::unordered_map<nsecs_t, std::tuple<nsecs_t, nsecs_t>> mutable mRateMap GUARDED_BY(mMutex);
 
-    int lastTimestampIndex GUARDED_BY(mMutex) = 0;
-    std::vector<nsecs_t> timestamps GUARDED_BY(mMutex);
+    int mLastTimestampIndex GUARDED_BY(mMutex) = 0;
+    std::vector<nsecs_t> mTimestamps GUARDED_BY(mMutex);
 };
 
 } // namespace android::scheduler
