@@ -374,6 +374,10 @@ public:
 
     // Composer HAL 2.3
     [[clang::warn_unused_result]] virtual Error setColorTransform(const android::mat4& matrix) = 0;
+
+    // Composer HAL 2.4
+    [[clang::warn_unused_result]] virtual Error setLayerGenericMetadata(
+            const std::string& name, bool mandatory, const std::vector<uint8_t>& value) = 0;
 };
 
 namespace impl {
@@ -382,8 +386,7 @@ namespace impl {
 
 class Layer : public HWC2::Layer {
 public:
-    Layer(android::Hwc2::Composer& composer,
-          const std::unordered_set<Capability>& capabilities,
+    Layer(android::Hwc2::Composer& composer, const std::unordered_set<Capability>& capabilities,
           hwc2_display_t displayId, hwc2_layer_t layerId);
     ~Layer() override;
 
@@ -411,6 +414,10 @@ public:
 
     // Composer HAL 2.3
     Error setColorTransform(const android::mat4& matrix) override;
+
+    // Composer HAL 2.4
+    Error setLayerGenericMetadata(const std::string& name, bool mandatory,
+                                  const std::vector<uint8_t>& value) override;
 
 private:
     // These are references to data owned by HWC2::Device, which will outlive

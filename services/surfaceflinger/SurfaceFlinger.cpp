@@ -57,6 +57,7 @@
 #include <gui/IDisplayEventConnection.h>
 #include <gui/IProducerListener.h>
 #include <gui/LayerDebugInfo.h>
+#include <gui/LayerMetadata.h>
 #include <gui/Surface.h>
 #include <input/IInputFlinger.h>
 #include <renderengine/RenderEngine.h>
@@ -622,7 +623,7 @@ void SurfaceFlinger::init() {
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
             "Starting with vr flinger active is not currently supported.");
     mCompositionEngine->setHwComposer(getFactory().createHWComposer(getBE().mHwcServiceName));
-    mCompositionEngine->getHwComposer().registerCallback(this, getBE().mComposerSequenceId);
+    mCompositionEngine->getHwComposer().setConfiguration(this, getBE().mComposerSequenceId);
     // Process any initial hotplug and resulting display changes.
     processDisplayHotplugEventsLocked();
     const auto display = getDefaultDisplayDeviceLocked();
@@ -1682,7 +1683,7 @@ void SurfaceFlinger::updateVrFlinger() {
     mCompositionEngine->setHwComposer(std::unique_ptr<HWComposer>());
     mCompositionEngine->setHwComposer(getFactory().createHWComposer(
             vrFlingerRequestsDisplay ? "vr" : getBE().mHwcServiceName));
-    getHwComposer().registerCallback(this, ++getBE().mComposerSequenceId);
+    mCompositionEngine->getHwComposer().setConfiguration(this, ++getBE().mComposerSequenceId);
 
     LOG_ALWAYS_FATAL_IF(!getHwComposer().getComposer()->isRemote(),
                         "Switched to non-remote hardware composer");

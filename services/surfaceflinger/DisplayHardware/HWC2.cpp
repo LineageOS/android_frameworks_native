@@ -734,12 +734,11 @@ namespace impl {
 
 Layer::Layer(android::Hwc2::Composer& composer, const std::unordered_set<Capability>& capabilities,
              hwc2_display_t displayId, hwc2_layer_t layerId)
-  : mComposer(composer),
-    mCapabilities(capabilities),
-    mDisplayId(displayId),
-    mId(layerId),
-    mColorMatrix(android::mat4())
-{
+      : mComposer(composer),
+        mCapabilities(capabilities),
+        mDisplayId(displayId),
+        mId(layerId),
+        mColorMatrix(android::mat4()) {
     ALOGV("Created layer %" PRIu64 " on display %" PRIu64, layerId, displayId);
 }
 
@@ -977,6 +976,13 @@ Error Layer::setColorTransform(const android::mat4& matrix) {
     }
     mColorMatrix = matrix;
     return error;
+}
+
+// Composer HAL 2.4
+Error Layer::setLayerGenericMetadata(const std::string& name, bool mandatory,
+                                     const std::vector<uint8_t>& value) {
+    auto intError = mComposer.setLayerGenericMetadata(mDisplayId, mId, name, mandatory, value);
+    return static_cast<Error>(intError);
 }
 
 } // namespace impl

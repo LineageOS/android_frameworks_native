@@ -148,20 +148,20 @@ HWComposer::~HWComposer() = default;
 namespace impl {
 
 HWComposer::HWComposer(std::unique_ptr<Hwc2::Composer> composer) : mComposer(std::move(composer)) {
-    loadCapabilities();
 }
 
 HWComposer::HWComposer(const std::string& composerServiceName)
       : mComposer(std::make_unique<Hwc2::impl::Composer>(composerServiceName)) {
-    loadCapabilities();
 }
 
 HWComposer::~HWComposer() {
     mDisplayData.clear();
 }
 
-void HWComposer::registerCallback(HWC2::ComposerCallback* callback,
-                                  int32_t sequenceId) {
+void HWComposer::setConfiguration(HWC2::ComposerCallback* callback, int32_t sequenceId) {
+    loadCapabilities();
+    loadLayerMetadataSupport();
+
     if (mRegisteredCallback) {
         ALOGW("Callback already registered. Ignored extra registration attempt.");
         return;
@@ -871,6 +871,10 @@ status_t HWComposer::setContentType(DisplayId displayId, HWC2::ContentType conte
     return NO_ERROR;
 }
 
+const std::unordered_map<std::string, bool>& HWComposer::getSupportedLayerGenericMetadata() const {
+    return mSupportedLayerGenericMetadata;
+}
+
 void HWComposer::dump(std::string& result) const {
     result.append(mComposer->dumpDebugInfo());
 }
@@ -943,6 +947,22 @@ void HWComposer::loadCapabilities() {
     auto capabilities = mComposer->getCapabilities();
     for (auto capability : capabilities) {
         mCapabilities.emplace(static_cast<HWC2::Capability>(capability));
+    }
+}
+
+void HWComposer::loadLayerMetadataSupport() {
+    mSupportedLayerGenericMetadata.clear();
+
+    std::vector<Hwc2::IComposerClient::LayerGenericMetadataKey> supportedMetadataKeyInfo;
+    const auto error = mComposer->getLayerGenericMetadataKeys(&supportedMetadataKeyInfo);
+    if (error != hardware::graphics::composer::V2_4::Error::NONE) {
+        ALOGE("%s: %s failed: %s (%d)", __FUNCTION__, "getLayerGenericMetadataKeys",
+              toString(error).c_str(), static_cast<int32_t>(error));
+        return;
+    }
+
+    for (const auto& [name, mandatory] : supportedMetadataKeyInfo) {
+        mSupportedLayerGenericMetadata.emplace(name, mandatory);
     }
 }
 

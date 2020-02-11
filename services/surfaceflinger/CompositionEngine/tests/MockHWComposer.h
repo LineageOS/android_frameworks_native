@@ -36,7 +36,7 @@ public:
     HWComposer();
     ~HWComposer() override;
 
-    MOCK_METHOD2(registerCallback, void(HWC2::ComposerCallback*, int32_t));
+    MOCK_METHOD2(setConfiguration, void(HWC2::ComposerCallback*, int32_t));
     MOCK_CONST_METHOD3(getDisplayIdentificationData,
                        bool(hwc2_display_t, uint8_t*, DisplayIdentificationData*));
     MOCK_CONST_METHOD1(hasCapability, bool(HWC2::Capability));
@@ -96,6 +96,8 @@ public:
     MOCK_METHOD2(setAutoLowLatencyMode, status_t(DisplayId, bool));
     MOCK_METHOD2(getSupportedContentTypes, status_t(DisplayId, std::vector<HWC2::ContentType>*));
     MOCK_METHOD2(setContentType, status_t(DisplayId, HWC2::ContentType));
+    MOCK_CONST_METHOD0(getSupportedLayerGenericMetadata,
+                       const std::unordered_map<std::string, bool>&());
 
     MOCK_CONST_METHOD1(dump, void(std::string&));
     MOCK_CONST_METHOD0(getComposer, android::Hwc2::Composer*());
