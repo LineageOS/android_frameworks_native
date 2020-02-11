@@ -154,6 +154,7 @@ void add_mountinfo();
 #define RECOVERY_DATA_DIR "/data/misc/recovery"
 #define UPDATE_ENGINE_LOG_DIR "/data/misc/update_engine_log"
 #define LOGPERSIST_DATA_DIR "/data/misc/logd"
+#define PREREBOOT_DATA_DIR "/data/misc/prereboot"
 #define PROFILE_DATA_DIR_CUR "/data/misc/profiles/cur"
 #define PROFILE_DATA_DIR_REF "/data/misc/profiles/ref"
 #define XFRM_STAT_PROC_FILE "/proc/net/xfrm_stat"
@@ -1573,6 +1574,7 @@ static Dumpstate::RunStatus DumpstateDefault() {
         ds.AddDir(PROFILE_DATA_DIR_CUR, true);
         ds.AddDir(PROFILE_DATA_DIR_REF, true);
     }
+    ds.AddDir(PREREBOOT_DATA_DIR, false);
     add_mountinfo();
     DumpIpTablesAsRoot();
     DumpDynamicPartitionInfo();
