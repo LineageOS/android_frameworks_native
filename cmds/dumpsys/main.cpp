@@ -21,10 +21,9 @@
 #include "dumpsys.h"
 
 #include <binder/IServiceManager.h>
-#include <binder/TextOutput.h>
 
+#include <iostream>
 #include <signal.h>
-#include <stdio.h>
 
 using namespace android;
 
@@ -34,7 +33,7 @@ int main(int argc, char* const argv[]) {
     fflush(stdout);
     if (sm == nullptr) {
         ALOGE("Unable to get default service manager!");
-        aerr << "dumpsys: Unable to get default service manager!" << endl;
+        std::cerr << "dumpsys: Unable to get default service manager!" << std::endl;
         return 20;
     }
 
