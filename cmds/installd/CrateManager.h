@@ -17,6 +17,8 @@
 #ifndef ANDROID_INSTALLD_CRATE_INFO_MANAGER_H
 #define ANDROID_INSTALLD_CRATE_INFO_MANAGER_H
 
+#ifdef ENABLE_STORAGE_CRATES
+
 #include <android/os/storage/CrateMetadata.h>
 #include <cutils/multiuser.h>
 #include <fts.h>
@@ -78,5 +80,10 @@ private:
 
 } // namespace installd
 } // namespace android
+
+#else // ENABLE_STORAGE_CRATES
+#include <android/os/storage/CrateMetadata.h>
+using android::os::storage::CrateMetadata;
+#endif // ENABLE_STORAGE_CRATES
 
 #endif // ANDROID_INSTALLD_CRATE_INFO_MANAGER_H

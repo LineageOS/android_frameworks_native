@@ -16,6 +16,8 @@
 
 #include "CrateManager.h"
 
+#ifdef ENABLE_STORAGE_CRATES
+
 #include <android-base/logging.h>
 #include <android-base/stringprintf.h>
 #include <android/log.h>
@@ -127,3 +129,5 @@ void CrateManager::dump(std::unique_ptr<CrateMetadata>& CrateMetadata) {
 
 } // namespace installd
 } // namespace android
+
+#endif // ENABLE_STORAGE_CRATES
