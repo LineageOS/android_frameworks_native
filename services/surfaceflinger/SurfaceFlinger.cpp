@@ -83,10 +83,10 @@
 #include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
 #include "Client.h"
-#include "ColorLayer.h"
 #include "Colorizer.h"
 #include "ContainerLayer.h"
 #include "DisplayDevice.h"
+#include "EffectLayer.h"
 #include "Layer.h"
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
@@ -3694,7 +3694,7 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
             result = createBufferStateLayer(client, std::move(uniqueName), w, h, flags,
                                             std::move(metadata), handle, outTransformHint, &layer);
             break;
-        case ISurfaceComposerClient::eFXSurfaceColor:
+        case ISurfaceComposerClient::eFXSurfaceEffect:
             // check if buffer size is set for color layer.
             if (w > 0 || h > 0) {
                 ALOGE("createLayer() failed, w or h cannot be set for color layer (w=%d, h=%d)",
@@ -3702,8 +3702,8 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
                 return BAD_VALUE;
             }
 
-            result = createColorLayer(client, std::move(uniqueName), w, h, flags,
-                                      std::move(metadata), handle, &layer);
+            result = createEffectLayer(client, std::move(uniqueName), w, h, flags,
+                                       std::move(metadata), handle, &layer);
             break;
         case ISurfaceComposerClient::eFXSurfaceContainer:
             // check if buffer size is set for container layer.
@@ -3821,10 +3821,10 @@ status_t SurfaceFlinger::createBufferStateLayer(const sp<Client>& client, std::s
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::createColorLayer(const sp<Client>& client, std::string name, uint32_t w,
-                                          uint32_t h, uint32_t flags, LayerMetadata metadata,
-                                          sp<IBinder>* handle, sp<Layer>* outLayer) {
-    *outLayer = getFactory().createColorLayer(
+status_t SurfaceFlinger::createEffectLayer(const sp<Client>& client, std::string name, uint32_t w,
+                                           uint32_t h, uint32_t flags, LayerMetadata metadata,
+                                           sp<IBinder>* handle, sp<Layer>* outLayer) {
+    *outLayer = getFactory().createEffectLayer(
             {this, client, std::move(name), w, h, flags, std::move(metadata)});
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;

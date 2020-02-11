@@ -183,7 +183,7 @@ protected:
         mBackgroundLayer =
                 mSurfaceComposerClient->createSurface(String8("Background RegionSamplingTest"), 0,
                                                       0, PIXEL_FORMAT_RGBA_8888,
-                                                      ISurfaceComposerClient::eFXSurfaceColor);
+                                                      ISurfaceComposerClient::eFXSurfaceEffect);
         uint32_t layerPositionBottom = 0x7E000000;
         SurfaceComposerClient::Transaction{}
                 .setLayer(mBackgroundLayer, layerPositionBottom)

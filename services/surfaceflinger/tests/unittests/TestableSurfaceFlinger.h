@@ -25,9 +25,9 @@
 
 #include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
-#include "ColorLayer.h"
 #include "ContainerLayer.h"
 #include "DisplayDevice.h"
+#include "EffectLayer.h"
 #include "FakePhaseOffsets.h"
 #include "Layer.h"
 #include "NativeWindowSurface.h"
@@ -147,9 +147,7 @@ public:
         return nullptr;
     }
 
-    sp<ColorLayer> createColorLayer(const LayerCreationArgs&) override {
-        return nullptr;
-    }
+    sp<EffectLayer> createEffectLayer(const LayerCreationArgs&) override { return nullptr; }
 
     sp<ContainerLayer> createContainerLayer(const LayerCreationArgs&) override {
         return nullptr;

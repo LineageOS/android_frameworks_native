@@ -44,7 +44,7 @@ public:
         eCursorWindow = 0x00002000,
 
         eFXSurfaceBufferQueue = 0x00000000,
-        eFXSurfaceColor = 0x00020000,
+        eFXSurfaceEffect = 0x00020000,
         eFXSurfaceBufferState = 0x00040000,
         eFXSurfaceContainer = 0x00080000,
         eFXSurfaceMask = 0x000F0000,

@@ -55,7 +55,7 @@ public:
     std::unique_ptr<compositionengine::CompositionEngine> createCompositionEngine() override;
     sp<BufferQueueLayer> createBufferQueueLayer(const LayerCreationArgs& args) override;
     sp<BufferStateLayer> createBufferStateLayer(const LayerCreationArgs& args) override;
-    sp<ColorLayer> createColorLayer(const LayerCreationArgs& args) override;
+    sp<EffectLayer> createEffectLayer(const LayerCreationArgs& args) override;
     sp<ContainerLayer> createContainerLayer(const LayerCreationArgs& args) override;
 };
 
