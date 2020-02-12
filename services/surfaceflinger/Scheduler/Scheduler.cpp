@@ -439,7 +439,7 @@ void Scheduler::chooseRefreshRateForContent() {
             return;
         }
         mFeatures.contentRequirements = summary;
-        mFeatures.contentDetection =
+        mFeatures.contentDetectionV1 =
                 !summary.empty() ? ContentDetectionState::On : ContentDetectionState::Off;
 
         newConfigId = calculateRefreshRateConfigIndexType();
@@ -466,7 +466,7 @@ void Scheduler::notifyTouchEvent() {
     // NOTE: Instead of checking all the layers, we should be checking the layer
     // that is currently on top. b/142507166 will give us this capability.
     std::lock_guard<std::mutex> lock(mFeatureStateLock);
-    if (mLayerHistory && !layerHistoryHasClientSpecifiedFrameRate()) {
+    if (mLayerHistory) {
         mLayerHistory->clear();
 
         mTouchTimer->reset();
@@ -556,7 +556,7 @@ void Scheduler::handleTimerStateChanged(T* currentState, T newState, bool eventO
             return;
         }
         mFeatures.configId = newConfigId;
-        if (eventOnContentDetection && mFeatures.contentDetection == ContentDetectionState::On) {
+        if (eventOnContentDetection && !mFeatures.contentRequirements.empty()) {
             event = ConfigEvent::Changed;
         }
     }
@@ -564,33 +564,10 @@ void Scheduler::handleTimerStateChanged(T* currentState, T newState, bool eventO
     mSchedulerCallback.changeRefreshRate(newRefreshRate, event);
 }
 
-bool Scheduler::layerHistoryHasClientSpecifiedFrameRate() {
-    // Traverse all the layers to see if any of them requested frame rate.
-    for (const auto& layer : mFeatures.contentRequirements) {
-        if (layer.vote == scheduler::RefreshRateConfigs::LayerVoteType::ExplicitDefault ||
-            layer.vote == scheduler::RefreshRateConfigs::LayerVoteType::ExplicitExactOrMultiple) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 HwcConfigIndexType Scheduler::calculateRefreshRateConfigIndexType() {
-    // This block of the code checks whether any layers used the SetFrameRate API. If they have,
-    // their request should be honored depending on other active layers.
-    if (layerHistoryHasClientSpecifiedFrameRate()) {
-        if (!mUseContentDetectionV2) {
-            return mRefreshRateConfigs.getRefreshRateForContent(mFeatures.contentRequirements)
-                    .configId;
-        } else {
-            return mRefreshRateConfigs.getRefreshRateForContentV2(mFeatures.contentRequirements)
-                    .configId;
-        }
-    }
+    ATRACE_CALL();
 
-    // If the layer history doesn't have the frame rate specified, check for other features and
-    // honor them. NOTE: If we remove the kernel idle timer, and use our internal idle timer, this
+    // NOTE: If we remove the kernel idle timer, and use our internal idle timer, this
     // code will have to be refactored. If Display Power is not in normal operation we want to be in
     // performance mode. When coming back to normal mode, a grace period is given with
     // DisplayPowerTimer.
@@ -600,9 +577,11 @@ HwcConfigIndexType Scheduler::calculateRefreshRateConfigIndexType() {
         return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
     }
 
-    // As long as touch is active we want to be in performance mode.
-    if (mTouchTimer && mFeatures.touch == TouchState::Active) {
-        return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
+    if (!mUseContentDetectionV2) {
+        // As long as touch is active we want to be in performance mode.
+        if (mTouchTimer && mFeatures.touch == TouchState::Active) {
+            return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
+        }
     }
 
     // If timer has expired as it means there is no new content on the screen.
@@ -612,7 +591,7 @@ HwcConfigIndexType Scheduler::calculateRefreshRateConfigIndexType() {
 
     if (!mUseContentDetectionV2) {
         // If content detection is off we choose performance as we don't know the content fps.
-        if (mFeatures.contentDetection == ContentDetectionState::Off) {
+        if (mFeatures.contentDetectionV1 == ContentDetectionState::Off) {
             // NOTE: V1 always calls this, but this is not a default behavior for V2.
             return mRefreshRateConfigs.getMaxRefreshRateByPolicy().configId;
         }
@@ -621,14 +600,10 @@ HwcConfigIndexType Scheduler::calculateRefreshRateConfigIndexType() {
         return mRefreshRateConfigs.getRefreshRateForContent(mFeatures.contentRequirements).configId;
     }
 
-    // Content detection is on, find the appropriate refresh rate with minimal error
-    if (mFeatures.contentDetection == ContentDetectionState::On) {
-        return mRefreshRateConfigs.getRefreshRateForContentV2(mFeatures.contentRequirements)
-                .configId;
-    }
-
-    // There are no signals for refresh rate, just leave it as is.
-    return mRefreshRateConfigs.getCurrentRefreshRateByPolicy().configId;
+    return mRefreshRateConfigs
+            .getRefreshRateForContentV2(mFeatures.contentRequirements,
+                                        mTouchTimer && mFeatures.touch == TouchState::Active)
+            .configId;
 }
 
 std::optional<HwcConfigIndexType> Scheduler::getPreferredConfigId() {

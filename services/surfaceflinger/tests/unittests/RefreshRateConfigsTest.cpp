@@ -247,7 +247,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContent) {
               refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(24.0f)));
 }
 
-TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_60_90) {
+TEST_F(RefreshRateConfigsTest, getRefreshRateForContentV2_60_90) {
     std::vector<RefreshRateConfigs::InputConfig> configs{
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
              {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
@@ -261,100 +261,136 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_60_90
     auto& lr = layers[0];
 
     lr.vote = LayerVoteType::Min;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr.name = "Min";
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.vote = LayerVoteType::Max;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr.name = "Max";
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 90.0f;
     lr.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr.name = "90Hz Heuristic";
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 60.0f;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr.name = "60Hz Heuristic";
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 45.0f;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr.name = "45Hz Heuristic";
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 30.0f;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr.name = "30Hz Heuristic";
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 24.0f;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr.name = "24Hz Heuristic";
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
+    lr.name = "";
     ASSERT_GE(refreshRateConfigs->setPolicy(HWC_CONFIG_ID_60, 60, 60, nullptr), 0);
 
     lr.vote = LayerVoteType::Min;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.vote = LayerVoteType::Max;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 90.0f;
     lr.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 60.0f;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 45.0f;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 30.0f;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 24.0f;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     ASSERT_GE(refreshRateConfigs->setPolicy(HWC_CONFIG_ID_90, 90, 90, nullptr), 0);
 
     lr.vote = LayerVoteType::Min;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.vote = LayerVoteType::Max;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 90.0f;
     lr.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 60.0f;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 45.0f;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 30.0f;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 24.0f;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     ASSERT_GE(refreshRateConfigs->setPolicy(HWC_CONFIG_ID_60, 0, 120, nullptr), 0);
     lr.vote = LayerVoteType::Min;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.vote = LayerVoteType::Max;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 90.0f;
     lr.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 60.0f;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 45.0f;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 30.0f;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 24.0f;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 }
 
-TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_60_72_90) {
+TEST_F(RefreshRateConfigsTest, getRefreshRateForContentV2_60_72_90) {
     std::vector<RefreshRateConfigs::InputConfig> configs{
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
              {HWC_CONFIG_ID_72, HWC_GROUP_ID_0, VSYNC_72},
@@ -370,29 +406,36 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_60_72
     auto& lr = layers[0];
 
     lr.vote = LayerVoteType::Min;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.vote = LayerVoteType::Max;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 90.0f;
     lr.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 60.0f;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 45.0f;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 30.0f;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 24.0f;
-    EXPECT_EQ(expected72Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected72Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 }
 
-TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_30_60_72_90_120) {
+TEST_F(RefreshRateConfigsTest, getRefreshRateForContentV2_30_60_72_90_120) {
     std::vector<RefreshRateConfigs::InputConfig> configs{
             {{HWC_CONFIG_ID_30, HWC_GROUP_ID_0, VSYNC_30},
              {HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
@@ -417,23 +460,25 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_30_60
     lr1.vote = LayerVoteType::Heuristic;
     lr2.desiredRefreshRate = 60.0f;
     lr2.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(expected120Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected120Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr1.desiredRefreshRate = 24.0f;
     lr1.vote = LayerVoteType::Heuristic;
     lr2.desiredRefreshRate = 48.0f;
     lr2.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(expected72Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected72Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr1.desiredRefreshRate = 24.0f;
     lr1.vote = LayerVoteType::Heuristic;
     lr2.desiredRefreshRate = 48.0f;
     lr2.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(expected72Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected72Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 }
 
-TEST_F(RefreshRateConfigsTest,
-       twoDeviceConfigs_getRefreshRateForContentV2_30_60_90_120_DifferentTypes) {
+TEST_F(RefreshRateConfigsTest, getRefreshRateForContentV2_30_60_90_120_DifferentTypes) {
     std::vector<RefreshRateConfigs::InputConfig> configs{
             {{HWC_CONFIG_ID_30, HWC_GROUP_ID_0, VSYNC_30},
              {HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
@@ -456,54 +501,87 @@ TEST_F(RefreshRateConfigsTest,
 
     lr1.desiredRefreshRate = 24.0f;
     lr1.vote = LayerVoteType::ExplicitDefault;
+    lr1.name = "24Hz ExplicitDefault";
     lr2.desiredRefreshRate = 60.0f;
     lr2.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(expected120Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr2.name = "60Hz Heuristic";
+    EXPECT_EQ(expected120Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr1.desiredRefreshRate = 24.0f;
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr1.name = "24Hz ExplicitExactOrMultiple";
     lr2.desiredRefreshRate = 60.0f;
     lr2.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(expected120Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr2.name = "60Hz Heuristic";
+    EXPECT_EQ(expected120Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr1.desiredRefreshRate = 24.0f;
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr1.name = "24Hz ExplicitExactOrMultiple";
     lr2.desiredRefreshRate = 60.0f;
     lr2.vote = LayerVoteType::ExplicitDefault;
-    EXPECT_EQ(expected120Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr2.name = "60Hz ExplicitDefault";
+    EXPECT_EQ(expected120Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr1.desiredRefreshRate = 24.0f;
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr1.name = "24Hz ExplicitExactOrMultiple";
     lr2.desiredRefreshRate = 90.0f;
     lr2.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(expected120Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr2.name = "90Hz Heuristic";
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
+
+    lr1.desiredRefreshRate = 24.0f;
+    lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr1.name = "24Hz ExplicitExactOrMultiple";
+    lr2.desiredRefreshRate = 90.0f;
+    lr2.vote = LayerVoteType::ExplicitDefault;
+    lr2.name = "90Hz Heuristic";
+    EXPECT_EQ(expected72Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr1.desiredRefreshRate = 24.0f;
     lr1.vote = LayerVoteType::ExplicitDefault;
+    lr1.name = "24Hz ExplicitDefault";
     lr2.desiredRefreshRate = 90.0f;
     lr2.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(expected120Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr2.name = "90Hz Heuristic";
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr1.desiredRefreshRate = 24.0f;
     lr1.vote = LayerVoteType::Heuristic;
+    lr1.name = "24Hz Heuristic";
     lr2.desiredRefreshRate = 90.0f;
     lr2.vote = LayerVoteType::ExplicitDefault;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr2.name = "90Hz ExplicitDefault";
+    EXPECT_EQ(expected72Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr1.desiredRefreshRate = 24.0f;
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr1.name = "24Hz ExplicitExactOrMultiple";
     lr2.desiredRefreshRate = 90.0f;
     lr2.vote = LayerVoteType::ExplicitDefault;
-    EXPECT_EQ(expected120Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr2.name = "90Hz ExplicitDefault";
+    EXPECT_EQ(expected72Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr1.desiredRefreshRate = 24.0f;
     lr1.vote = LayerVoteType::ExplicitDefault;
+    lr1.name = "24Hz ExplicitDefault";
     lr2.desiredRefreshRate = 90.0f;
     lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr2.name = "90Hz ExplicitExactOrMultiple";
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 }
 
-TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_30_60) {
+TEST_F(RefreshRateConfigsTest, getRefreshRateForContentV2_30_60) {
     std::vector<RefreshRateConfigs::InputConfig> configs{
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
              {HWC_CONFIG_ID_30, HWC_GROUP_ID_0, VSYNC_30}}};
@@ -517,29 +595,36 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_30_60
     auto& lr = layers[0];
 
     lr.vote = LayerVoteType::Min;
-    EXPECT_EQ(expected30Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected30Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.vote = LayerVoteType::Max;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 90.0f;
     lr.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 60.0f;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 45.0f;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 30.0f;
-    EXPECT_EQ(expected30Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected30Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 24.0f;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 }
 
-TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_30_60_72_90) {
+TEST_F(RefreshRateConfigsTest, getRefreshRateForContentV2_30_60_72_90) {
     std::vector<RefreshRateConfigs::InputConfig> configs{
             {{HWC_CONFIG_ID_30, HWC_GROUP_ID_0, VSYNC_30},
              {HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
@@ -557,29 +642,59 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_30_60
     auto& lr = layers[0];
 
     lr.vote = LayerVoteType::Min;
-    EXPECT_EQ(expected30Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr.name = "Min";
+    EXPECT_EQ(expected30Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.vote = LayerVoteType::Max;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr.name = "Max";
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 90.0f;
     lr.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr.name = "90Hz Heuristic";
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr.desiredRefreshRate = 60.0f;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr.name = "60Hz Heuristic";
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ true));
 
     lr.desiredRefreshRate = 45.0f;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr.name = "45Hz Heuristic";
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ true));
 
     lr.desiredRefreshRate = 30.0f;
-    EXPECT_EQ(expected30Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr.name = "30Hz Heuristic";
+    EXPECT_EQ(expected30Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ true));
 
     lr.desiredRefreshRate = 24.0f;
-    EXPECT_EQ(expected72Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr.name = "24Hz Heuristic";
+    EXPECT_EQ(expected72Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ true));
+
+    lr.desiredRefreshRate = 24.0f;
+    lr.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr.name = "24Hz ExplicitExactOrMultiple";
+    EXPECT_EQ(expected72Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ true));
 }
 
-TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_PriorityTest) {
+TEST_F(RefreshRateConfigsTest, getRefreshRateForContentV2_PriorityTest) {
     std::vector<RefreshRateConfigs::InputConfig> configs{
             {{HWC_CONFIG_ID_30, HWC_GROUP_ID_0, VSYNC_30},
              {HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
@@ -598,42 +713,49 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_Prior
 
     lr1.vote = LayerVoteType::Min;
     lr2.vote = LayerVoteType::Max;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr1.vote = LayerVoteType::Min;
     lr2.vote = LayerVoteType::Heuristic;
     lr2.desiredRefreshRate = 24.0f;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr1.vote = LayerVoteType::Min;
     lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.desiredRefreshRate = 24.0f;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr1.vote = LayerVoteType::Max;
     lr2.vote = LayerVoteType::Heuristic;
     lr2.desiredRefreshRate = 60.0f;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr1.vote = LayerVoteType::Max;
     lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.desiredRefreshRate = 60.0f;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr1.vote = LayerVoteType::Heuristic;
     lr1.desiredRefreshRate = 15.0f;
     lr2.vote = LayerVoteType::Heuristic;
     lr2.desiredRefreshRate = 45.0f;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr1.vote = LayerVoteType::Heuristic;
     lr1.desiredRefreshRate = 30.0f;
     lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.desiredRefreshRate = 45.0f;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 }
 
-TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_24FpsVideo) {
+TEST_F(RefreshRateConfigsTest, getRefreshRateForContentV2_24FpsVideo) {
     std::vector<RefreshRateConfigs::InputConfig> configs{
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
              {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
@@ -650,7 +772,8 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_24Fps
     lr.vote = LayerVoteType::ExplicitExactOrMultiple;
     for (float fps = 23.0f; fps < 25.0f; fps += 0.1f) {
         lr.desiredRefreshRate = fps;
-        const auto& refreshRate = refreshRateConfigs->getRefreshRateForContentV2(layers);
+        const auto& refreshRate =
+                refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false);
         printf("%.2fHz chooses %s\n", fps, refreshRate.name.c_str());
         EXPECT_EQ(expected60Config, refreshRate);
     }
@@ -703,13 +826,22 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_Expli
     lr1.desiredRefreshRate = 60.0f;
     lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.desiredRefreshRate = 90.0f;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
+
+    lr1.vote = LayerVoteType::ExplicitDefault;
+    lr1.desiredRefreshRate = 90.0f;
+    lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr2.desiredRefreshRate = 60.0f;
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr1.vote = LayerVoteType::Heuristic;
     lr1.desiredRefreshRate = 90.0f;
     lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.desiredRefreshRate = 60.0f;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 }
 
 TEST_F(RefreshRateConfigsTest, testInPolicy) {
@@ -722,7 +854,7 @@ TEST_F(RefreshRateConfigsTest, testInPolicy) {
     ASSERT_FALSE(expectedDefaultConfig.inPolicy(50.0f, 59.998f));
 }
 
-TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_75HzContent) {
+TEST_F(RefreshRateConfigsTest, getRefreshRateForContentV2_75HzContent) {
     std::vector<RefreshRateConfigs::InputConfig> configs{
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
              {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
@@ -739,13 +871,14 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_75HzC
     lr.vote = LayerVoteType::ExplicitExactOrMultiple;
     for (float fps = 75.0f; fps < 100.0f; fps += 0.1f) {
         lr.desiredRefreshRate = fps;
-        const auto& refreshRate = refreshRateConfigs->getRefreshRateForContentV2(layers);
+        const auto& refreshRate =
+                refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false);
         printf("%.2fHz chooses %s\n", fps, refreshRate.name.c_str());
         EXPECT_EQ(expected90Config, refreshRate);
     }
 }
 
-TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_Multiples) {
+TEST_F(RefreshRateConfigsTest, getRefreshRateForContentV2_Multiples) {
     std::vector<RefreshRateConfigs::InputConfig> configs{
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
              {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
@@ -762,25 +895,99 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_Multi
 
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr1.desiredRefreshRate = 60.0f;
+    lr1.name = "60Hz ExplicitExactOrMultiple";
     lr2.vote = LayerVoteType::Heuristic;
     lr2.desiredRefreshRate = 90.0f;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr2.name = "90Hz Heuristic";
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr1.desiredRefreshRate = 60.0f;
+    lr1.name = "60Hz ExplicitExactOrMultiple";
+    lr2.vote = LayerVoteType::ExplicitDefault;
+    lr2.desiredRefreshRate = 90.0f;
+    lr2.name = "90Hz ExplicitDefault";
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
+
+    lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr1.desiredRefreshRate = 60.0f;
+    lr1.name = "60Hz ExplicitExactOrMultiple";
     lr2.vote = LayerVoteType::Max;
-    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr2.name = "Max";
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr1.desiredRefreshRate = 30.0f;
+    lr1.name = "30Hz ExplicitExactOrMultiple";
     lr2.vote = LayerVoteType::Heuristic;
     lr2.desiredRefreshRate = 90.0f;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr2.name = "90Hz Heuristic";
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
 
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr1.desiredRefreshRate = 30.0f;
+    lr1.name = "30Hz ExplicitExactOrMultiple";
     lr2.vote = LayerVoteType::Max;
-    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+    lr2.name = "Max";
+    EXPECT_EQ(expected90Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false));
+}
+
+TEST_F(RefreshRateConfigsTest, scrollWhileWatching60fps_60_90) {
+    std::vector<RefreshRateConfigs::InputConfig> configs{
+            {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
+             {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    RefreshRate expected60Config = {HWC_CONFIG_ID_60, VSYNC_60, HWC_GROUP_ID_0, "60fps", 60};
+    RefreshRate expected90Config = {HWC_CONFIG_ID_90, VSYNC_90, HWC_GROUP_ID_0, "90fps", 90};
+
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f},
+                                                LayerRequirement{.weight = 1.0f}};
+    auto& lr1 = layers[0];
+    auto& lr2 = layers[1];
+
+    lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr1.desiredRefreshRate = 60.0f;
+    lr1.name = "60Hz ExplicitExactOrMultiple";
+    lr2.vote = LayerVoteType::NoVote;
+    lr2.name = "NoVote";
+    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers, false));
+
+    lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr1.desiredRefreshRate = 60.0f;
+    lr1.name = "60Hz ExplicitExactOrMultiple";
+    lr2.vote = LayerVoteType::NoVote;
+    lr2.name = "NoVote";
+    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers, true));
+
+    lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr1.desiredRefreshRate = 60.0f;
+    lr1.name = "60Hz ExplicitExactOrMultiple";
+    lr2.vote = LayerVoteType::Max;
+    lr2.name = "Max";
+    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers, true));
+
+    lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr1.desiredRefreshRate = 60.0f;
+    lr1.name = "60Hz ExplicitExactOrMultiple";
+    lr2.vote = LayerVoteType::Max;
+    lr2.name = "Max";
+    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers, false));
+
+    // The other layer starts to provide buffers
+    lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr1.desiredRefreshRate = 60.0f;
+    lr1.name = "60Hz ExplicitExactOrMultiple";
+    lr2.vote = LayerVoteType::Heuristic;
+    lr2.desiredRefreshRate = 90.0f;
+    lr2.name = "90Hz Heuristic";
+    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers, false));
 }
 
 } // namespace

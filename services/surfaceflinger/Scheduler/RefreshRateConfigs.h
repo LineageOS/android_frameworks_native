@@ -28,6 +28,7 @@
 #include "Scheduler/StrongTyping.h"
 
 namespace android::scheduler {
+using namespace std::chrono_literals;
 
 enum class RefreshRateConfigEvent : unsigned { None = 0b0, Changed = 0b1 };
 
@@ -43,6 +44,10 @@ inline RefreshRateConfigEvent operator|(RefreshRateConfigEvent lhs, RefreshRateC
  */
 class RefreshRateConfigs {
 public:
+    // Margin used when matching refresh rates to the content desired ones.
+    static constexpr nsecs_t MARGIN_FOR_PERIOD_CALCULATION =
+        std::chrono::nanoseconds(800us).count();
+
     struct RefreshRate {
         // The tolerance within which we consider FPS approximately equals.
         static constexpr float FPS_EPSILON = 0.001f;
@@ -123,13 +128,15 @@ public:
         bool operator!=(const LayerRequirement& other) const { return !(*this == other); }
     };
 
-    // Returns all available refresh rates according to the current policy.
+    // Returns the refresh rate that fits best to the given layers.
     const RefreshRate& getRefreshRateForContent(const std::vector<LayerRequirement>& layers) const
             EXCLUDES(mLock);
 
-    // Returns all available refresh rates according to the current policy.
-    const RefreshRate& getRefreshRateForContentV2(const std::vector<LayerRequirement>& layers) const
-            EXCLUDES(mLock);
+    // Returns the refresh rate that fits best to the given layers. This function also gets a
+    // boolean flag that indicates whether user touched the screen recently to be factored in when
+    // choosing the refresh rate.
+    const RefreshRate& getRefreshRateForContentV2(const std::vector<LayerRequirement>& layers,
+                                                  bool touchActive) const EXCLUDES(mLock);
 
     // Returns all the refresh rates supported by the device. This won't change at runtime.
     const AllRefreshRatesMapType& getAllRefreshRates() const EXCLUDES(mLock);
@@ -187,6 +194,10 @@ private:
     // returned.
     template <typename Iter>
     const RefreshRate* getBestRefreshRate(Iter begin, Iter end) const;
+
+    // Returns number of display frames and remainder when dividing the layer refresh period by
+    // display refresh period.
+    std::pair<nsecs_t, nsecs_t> getDisplayFrames(nsecs_t layerPeriod, nsecs_t displayPeriod) const;
 
     // The list of refresh rates, indexed by display config ID. This must not change after this
     // object is initialized.
