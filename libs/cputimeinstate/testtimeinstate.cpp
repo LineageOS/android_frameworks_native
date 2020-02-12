@@ -115,71 +115,169 @@ TEST(TimeInStateTest, SingleUidTimesConsistent) {
 }
 
 TEST(TimeInStateTest, AllUidTimeInState) {
-    vector<size_t> sizes;
-    auto map = getUidsCpuFreqTimes();
-    ASSERT_TRUE(map.has_value());
+    uint64_t zero = 0;
+    auto maps = {getUidsCpuFreqTimes(), getUidsUpdatedCpuFreqTimes(&zero)};
+    for (const auto &map : maps) {
+        ASSERT_TRUE(map.has_value());
 
-    ASSERT_FALSE(map->empty());
+        ASSERT_FALSE(map->empty());
 
-    auto firstEntry = map->begin()->second;
-    for (const auto &subEntry : firstEntry) sizes.emplace_back(subEntry.size());
+        vector<size_t> sizes;
+        auto firstEntry = map->begin()->second;
+        for (const auto &subEntry : firstEntry) sizes.emplace_back(subEntry.size());
 
-    for (const auto &vec : *map) {
-        ASSERT_EQ(vec.second.size(), sizes.size());
-        for (size_t i = 0; i < vec.second.size(); ++i) ASSERT_EQ(vec.second[i].size(), sizes[i]);
+        for (const auto &vec : *map) {
+            ASSERT_EQ(vec.second.size(), sizes.size());
+            for (size_t i = 0; i < vec.second.size(); ++i) ASSERT_EQ(vec.second[i].size(), sizes[i]);
+        }
+    }
+}
+
+void TestCheckUpdate(const std::vector<std::vector<uint64_t>> &before,
+                     const std::vector<std::vector<uint64_t>> &after) {
+    ASSERT_EQ(before.size(), after.size());
+    uint64_t sumBefore = 0, sumAfter = 0;
+    for (size_t i = 0; i < before.size(); ++i) {
+        ASSERT_EQ(before[i].size(), after[i].size());
+        for (size_t j = 0; j < before[i].size(); ++j) {
+            // Times should never decrease
+            ASSERT_LE(before[i][j], after[i][j]);
+        }
+        sumBefore += std::accumulate(before[i].begin(), before[i].end(), (uint64_t)0);
+        sumAfter += std::accumulate(after[i].begin(), after[i].end(), (uint64_t)0);
+    }
+    ASSERT_LE(sumBefore, sumAfter);
+    ASSERT_LE(sumAfter - sumBefore, NSEC_PER_SEC);
+}
+
+TEST(TimeInStateTest, AllUidUpdatedTimeInState) {
+    uint64_t lastUpdate = 0;
+    auto map1 = getUidsUpdatedCpuFreqTimes(&lastUpdate);
+    ASSERT_TRUE(map1.has_value());
+    ASSERT_FALSE(map1->empty());
+    ASSERT_NE(lastUpdate, (uint64_t)0);
+    uint64_t oldLastUpdate = lastUpdate;
+
+    // Sleep briefly to trigger a context switch, ensuring we see at least one update.
+    struct timespec ts;
+    ts.tv_sec = 0;
+    ts.tv_nsec = 1000000;
+    nanosleep (&ts, NULL);
+
+    auto map2 = getUidsUpdatedCpuFreqTimes(&lastUpdate);
+    ASSERT_TRUE(map2.has_value());
+    ASSERT_FALSE(map2->empty());
+    ASSERT_NE(lastUpdate, oldLastUpdate);
+
+    bool someUidsExcluded = false;
+    for (const auto &[uid, v] : *map1) {
+        if (map2->find(uid) == map2->end()) {
+            someUidsExcluded = true;
+            break;
+        }
+    }
+    ASSERT_TRUE(someUidsExcluded);
+
+    for (const auto &[uid, newTimes] : *map2) {
+        ASSERT_NE(map1->find(uid), map1->end());
+        ASSERT_NO_FATAL_FAILURE(TestCheckUpdate((*map1)[uid], newTimes));
     }
 }
 
 TEST(TimeInStateTest, SingleAndAllUidTimeInStateConsistent) {
-    auto map = getUidsCpuFreqTimes();
-    ASSERT_TRUE(map.has_value());
-    ASSERT_FALSE(map->empty());
+    uint64_t zero = 0;
+    auto maps = {getUidsCpuFreqTimes(), getUidsUpdatedCpuFreqTimes(&zero)};
+    for (const auto &map : maps) {
+        ASSERT_TRUE(map.has_value());
+        ASSERT_FALSE(map->empty());
 
-    for (const auto &kv : *map) {
-        uint32_t uid = kv.first;
-        auto times1 = kv.second;
-        auto times2 = getUidCpuFreqTimes(uid);
-        ASSERT_TRUE(times2.has_value());
+        for (const auto &kv : *map) {
+            uint32_t uid = kv.first;
+            auto times1 = kv.second;
+            auto times2 = getUidCpuFreqTimes(uid);
+            ASSERT_TRUE(times2.has_value());
 
-        ASSERT_EQ(times1.size(), times2->size());
-        for (uint32_t i = 0; i < times1.size(); ++i) {
-            ASSERT_EQ(times1[i].size(), (*times2)[i].size());
-            for (uint32_t j = 0; j < times1[i].size(); ++j) {
-                ASSERT_LE((*times2)[i][j] - times1[i][j], NSEC_PER_SEC);
+            ASSERT_EQ(times1.size(), times2->size());
+            for (uint32_t i = 0; i < times1.size(); ++i) {
+                ASSERT_EQ(times1[i].size(), (*times2)[i].size());
+                for (uint32_t j = 0; j < times1[i].size(); ++j) {
+                    ASSERT_LE((*times2)[i][j] - times1[i][j], NSEC_PER_SEC);
+                }
             }
         }
     }
 }
 
 TEST(TimeInStateTest, AllUidConcurrentTimes) {
-    auto map = getUidsConcurrentTimes();
-    ASSERT_TRUE(map.has_value());
-    ASSERT_FALSE(map->empty());
+    uint64_t zero = 0;
+    auto maps = {getUidsConcurrentTimes(), getUidsUpdatedConcurrentTimes(&zero)};
+    for (const auto &map : maps) {
+        ASSERT_TRUE(map.has_value());
+        ASSERT_FALSE(map->empty());
 
-    auto firstEntry = map->begin()->second;
-    for (const auto &kv : *map) {
-        ASSERT_EQ(kv.second.active.size(), firstEntry.active.size());
-        ASSERT_EQ(kv.second.policy.size(), firstEntry.policy.size());
-        for (size_t i = 0; i < kv.second.policy.size(); ++i) {
-            ASSERT_EQ(kv.second.policy[i].size(), firstEntry.policy[i].size());
+        auto firstEntry = map->begin()->second;
+        for (const auto &kv : *map) {
+            ASSERT_EQ(kv.second.active.size(), firstEntry.active.size());
+            ASSERT_EQ(kv.second.policy.size(), firstEntry.policy.size());
+            for (size_t i = 0; i < kv.second.policy.size(); ++i) {
+                ASSERT_EQ(kv.second.policy[i].size(), firstEntry.policy[i].size());
+            }
         }
     }
 }
 
-TEST(TimeInStateTest, SingleAndAllUidConcurrentTimesConsistent) {
-    auto map = getUidsConcurrentTimes();
-    ASSERT_TRUE(map.has_value());
-    for (const auto &kv : *map) {
-        uint32_t uid = kv.first;
-        auto times1 = kv.second;
-        auto times2 = getUidConcurrentTimes(uid);
-        ASSERT_TRUE(times2.has_value());
-        for (uint32_t i = 0; i < times1.active.size(); ++i) {
-            ASSERT_LE(times2->active[i] - times1.active[i], NSEC_PER_SEC);
+TEST(TimeInStateTest, AllUidUpdatedConcurrentTimes) {
+    uint64_t lastUpdate = 0;
+    auto map1 = getUidsUpdatedConcurrentTimes(&lastUpdate);
+    ASSERT_TRUE(map1.has_value());
+    ASSERT_FALSE(map1->empty());
+    ASSERT_NE(lastUpdate, (uint64_t)0);
+
+    // Sleep briefly to trigger a context switch, ensuring we see at least one update.
+    struct timespec ts;
+    ts.tv_sec = 0;
+    ts.tv_nsec = 1000000;
+    nanosleep (&ts, NULL);
+
+    uint64_t oldLastUpdate = lastUpdate;
+    auto map2 = getUidsUpdatedConcurrentTimes(&lastUpdate);
+    ASSERT_TRUE(map2.has_value());
+    ASSERT_FALSE(map2->empty());
+    ASSERT_NE(lastUpdate, oldLastUpdate);
+
+    bool someUidsExcluded = false;
+    for (const auto &[uid, v] : *map1) {
+        if (map2->find(uid) == map2->end()) {
+            someUidsExcluded = true;
+            break;
         }
-        for (uint32_t i = 0; i < times1.policy.size(); ++i) {
-            for (uint32_t j = 0; j < times1.policy[i].size(); ++j) {
-                ASSERT_LE(times2->policy[i][j] - times1.policy[i][j], NSEC_PER_SEC);
+    }
+    ASSERT_TRUE(someUidsExcluded);
+
+    for (const auto &[uid, newTimes] : *map2) {
+        ASSERT_NE(map1->find(uid), map1->end());
+        ASSERT_NO_FATAL_FAILURE(TestCheckUpdate({(*map1)[uid].active},{newTimes.active}));
+        ASSERT_NO_FATAL_FAILURE(TestCheckUpdate((*map1)[uid].policy, newTimes.policy));
+    }
+}
+
+TEST(TimeInStateTest, SingleAndAllUidConcurrentTimesConsistent) {
+    uint64_t zero = 0;
+    auto maps = {getUidsConcurrentTimes(), getUidsUpdatedConcurrentTimes(&zero)};
+    for (const auto &map : maps) {
+        ASSERT_TRUE(map.has_value());
+        for (const auto &kv : *map) {
+            uint32_t uid = kv.first;
+            auto times1 = kv.second;
+            auto times2 = getUidConcurrentTimes(uid);
+            ASSERT_TRUE(times2.has_value());
+            for (uint32_t i = 0; i < times1.active.size(); ++i) {
+                ASSERT_LE(times2->active[i] - times1.active[i], NSEC_PER_SEC);
+            }
+            for (uint32_t i = 0; i < times1.policy.size(); ++i) {
+                for (uint32_t j = 0; j < times1.policy[i].size(); ++j) {
+                    ASSERT_LE(times2->policy[i][j] - times1.policy[i][j], NSEC_PER_SEC);
+                }
             }
         }
     }
@@ -242,45 +340,51 @@ TEST(TimeInStateTest, AllUidConcurrentTimesMonotonic) {
 }
 
 TEST(TimeInStateTest, AllUidTimeInStateSanityCheck) {
-    auto map = getUidsCpuFreqTimes();
-    ASSERT_TRUE(map.has_value());
+    uint64_t zero = 0;
+    auto maps = {getUidsCpuFreqTimes(), getUidsUpdatedCpuFreqTimes(&zero)};
+    for (const auto &map : maps) {
+        ASSERT_TRUE(map.has_value());
 
-    bool foundLargeValue = false;
-    for (const auto &kv : *map) {
-        for (const auto &timeVec : kv.second) {
-            for (const auto &time : timeVec) {
-                ASSERT_LE(time, NSEC_PER_YEAR);
-                if (time > UINT32_MAX) foundLargeValue = true;
+        bool foundLargeValue = false;
+        for (const auto &kv : *map) {
+            for (const auto &timeVec : kv.second) {
+                for (const auto &time : timeVec) {
+                    ASSERT_LE(time, NSEC_PER_YEAR);
+                    if (time > UINT32_MAX) foundLargeValue = true;
+                }
             }
         }
+        // UINT32_MAX nanoseconds is less than 5 seconds, so if every part of our pipeline is using
+        // uint64_t as expected, we should have some times higher than that.
+        ASSERT_TRUE(foundLargeValue);
     }
-    // UINT32_MAX nanoseconds is less than 5 seconds, so if every part of our pipeline is using
-    // uint64_t as expected, we should have some times higher than that.
-    ASSERT_TRUE(foundLargeValue);
 }
 
 TEST(TimeInStateTest, AllUidConcurrentTimesSanityCheck) {
-    auto concurrentMap = getUidsConcurrentTimes();
-    ASSERT_TRUE(concurrentMap);
+    uint64_t zero = 0;
+    auto maps = {getUidsConcurrentTimes(), getUidsUpdatedConcurrentTimes(&zero)};
+    for (const auto &concurrentMap : maps) {
+        ASSERT_TRUE(concurrentMap);
 
-    bool activeFoundLargeValue = false;
-    bool policyFoundLargeValue = false;
-    for (const auto &kv : *concurrentMap) {
-        for (const auto &time : kv.second.active) {
-            ASSERT_LE(time, NSEC_PER_YEAR);
-            if (time > UINT32_MAX) activeFoundLargeValue = true;
-        }
-        for (const auto &policyTimeVec : kv.second.policy) {
-            for (const auto &time : policyTimeVec) {
+        bool activeFoundLargeValue = false;
+        bool policyFoundLargeValue = false;
+        for (const auto &kv : *concurrentMap) {
+            for (const auto &time : kv.second.active) {
                 ASSERT_LE(time, NSEC_PER_YEAR);
-                if (time > UINT32_MAX) policyFoundLargeValue = true;
+                if (time > UINT32_MAX) activeFoundLargeValue = true;
+            }
+            for (const auto &policyTimeVec : kv.second.policy) {
+                for (const auto &time : policyTimeVec) {
+                    ASSERT_LE(time, NSEC_PER_YEAR);
+                    if (time > UINT32_MAX) policyFoundLargeValue = true;
+                }
             }
         }
+        // UINT32_MAX nanoseconds is less than 5 seconds, so if every part of our pipeline is using
+        // uint64_t as expected, we should have some times higher than that.
+        ASSERT_TRUE(activeFoundLargeValue);
+        ASSERT_TRUE(policyFoundLargeValue);
     }
-    // UINT32_MAX nanoseconds is less than 5 seconds, so if every part of our pipeline is using
-    // uint64_t as expected, we should have some times higher than that.
-    ASSERT_TRUE(activeFoundLargeValue);
-    ASSERT_TRUE(policyFoundLargeValue);
 }
 
 TEST(TimeInStateTest, AllUidTimesConsistent) {
