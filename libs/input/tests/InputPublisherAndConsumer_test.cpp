@@ -38,6 +38,7 @@ protected:
     virtual void SetUp() {
         status_t result = InputChannel::openInputChannelPair("channel name",
                 serverChannel, clientChannel);
+        ASSERT_EQ(OK, result);
 
         mPublisher = new InputPublisher(serverChannel);
         mConsumer = new InputConsumer(clientChannel);

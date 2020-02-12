@@ -98,4 +98,34 @@ void TestBodySize() {
     static_assert(sizeof(InputMessage::Body::Focus) == 8);
 }
 
+// --- VerifiedInputEvent ---
+// Ensure that VerifiedInputEvent, VerifiedKeyEvent, VerifiedMotionEvent are packed.
+// We will treat them as byte collections when signing them. There should not be any uninitialized
+// data in-between fields. Otherwise, the padded data will affect the hmac value and verifications
+// will fail.
+
+void TestVerifiedEventSize() {
+    // VerifiedInputEvent
+    constexpr size_t VERIFIED_INPUT_EVENT_SIZE = sizeof(VerifiedInputEvent::type) +
+            sizeof(VerifiedInputEvent::deviceId) + sizeof(VerifiedInputEvent::eventTimeNanos) +
+            sizeof(VerifiedInputEvent::source) + sizeof(VerifiedInputEvent::displayId);
+    static_assert(sizeof(VerifiedInputEvent) == VERIFIED_INPUT_EVENT_SIZE);
+
+    // VerifiedKeyEvent
+    constexpr size_t VERIFIED_KEY_EVENT_SIZE = VERIFIED_INPUT_EVENT_SIZE +
+            sizeof(VerifiedKeyEvent::action) + sizeof(VerifiedKeyEvent::downTimeNanos) +
+            sizeof(VerifiedKeyEvent::flags) + sizeof(VerifiedKeyEvent::keyCode) +
+            sizeof(VerifiedKeyEvent::scanCode) + sizeof(VerifiedKeyEvent::metaState) +
+            sizeof(VerifiedKeyEvent::repeatCount);
+    static_assert(sizeof(VerifiedKeyEvent) == VERIFIED_KEY_EVENT_SIZE);
+
+    // VerifiedMotionEvent
+    constexpr size_t VERIFIED_MOTION_EVENT_SIZE = VERIFIED_INPUT_EVENT_SIZE +
+            sizeof(VerifiedMotionEvent::rawX) + sizeof(VerifiedMotionEvent::rawY) +
+            sizeof(VerifiedMotionEvent::actionMasked) + sizeof(VerifiedMotionEvent::downTimeNanos) +
+            sizeof(VerifiedMotionEvent::flags) + sizeof(VerifiedMotionEvent::metaState) +
+            sizeof(VerifiedMotionEvent::buttonState);
+    static_assert(sizeof(VerifiedMotionEvent) == VERIFIED_MOTION_EVENT_SIZE);
+}
+
 } // namespace android

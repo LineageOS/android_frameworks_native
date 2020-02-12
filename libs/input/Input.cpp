@@ -57,6 +57,30 @@ const char* inputEventTypeToString(int32_t type) {
     return "UNKNOWN";
 }
 
+VerifiedKeyEvent verifiedKeyEventFromKeyEvent(const KeyEvent& event) {
+    return {{VerifiedInputEvent::Type::KEY, event.getDeviceId(), event.getEventTime(),
+             event.getSource(), event.getDisplayId()},
+            event.getAction(),
+            event.getDownTime(),
+            event.getFlags() & VERIFIED_KEY_EVENT_FLAGS,
+            event.getKeyCode(),
+            event.getScanCode(),
+            event.getMetaState(),
+            event.getRepeatCount()};
+}
+
+VerifiedMotionEvent verifiedMotionEventFromMotionEvent(const MotionEvent& event) {
+    return {{VerifiedInputEvent::Type::MOTION, event.getDeviceId(), event.getEventTime(),
+             event.getSource(), event.getDisplayId()},
+            event.getRawX(0),
+            event.getRawY(0),
+            event.getActionMasked(),
+            event.getDownTime(),
+            event.getFlags() & VERIFIED_MOTION_EVENT_FLAGS,
+            event.getMetaState(),
+            event.getButtonState()};
+}
+
 void InputEvent::initialize(int32_t deviceId, uint32_t source, int32_t displayId,
                             std::array<uint8_t, 32> hmac) {
     mDeviceId = deviceId;
