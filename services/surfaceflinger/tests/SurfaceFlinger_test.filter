@@ -1,5 +1,5 @@
 {
         "presubmit": {
-            "filter": "*:-LayerTypeAndRenderTypeTransactionTests/LayerTypeAndRenderTypeTransactionTest.SetCornerRadius/2:LayerTypeAndRenderTypeTransactionTests/LayerTypeAndRenderTypeTransactionTest.SetCornerRadius/3:LayerTypeAndRenderTypeTransactionTests/LayerTypeAndRenderTypeTransactionTest.SetCornerRadiusChildCrop/2:LayerTypeAndRenderTypeTransactionTests/LayerTypeAndRenderTypeTransactionTest.SetCornerRadiusChildCrop/3"
+            "filter": ""
         }
 }

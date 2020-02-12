@@ -734,12 +734,7 @@ status_t encodePlaneLayout(const PlaneLayout& input, OutputHidlVec* output) {
     if (err) {
         return err;
     }
-    err = encodeInteger<int64_t>(static_cast<int32_t>(input.verticalSubsampling), output);
-    if (err) {
-        return err;
-    }
-
-    return encodeRect(input.crop, output);
+    return encodeInteger<int64_t>(static_cast<int32_t>(input.verticalSubsampling), output);
 }
 
 status_t decodePlaneLayout(InputHidlVec* input, PlaneLayout* output) {
@@ -780,12 +775,7 @@ status_t decodePlaneLayout(InputHidlVec* input, PlaneLayout* output) {
     if (err) {
         return err;
     }
-    err = decodeInteger<int64_t>(input, &output->verticalSubsampling);
-    if (err) {
-        return err;
-    }
-
-    return decodeRect(input, &output->crop);
+    return decodeInteger<int64_t>(input, &output->verticalSubsampling);
 }
 
 status_t encodePlaneLayoutsHelper(const std::vector<PlaneLayout>& planeLayouts, OutputHidlVec* outOutputHidlVec) {
@@ -825,6 +815,49 @@ status_t decodePlaneLayoutsHelper(InputHidlVec* inputHidlVec, std::vector<PlaneL
 }
 
 void clearPlaneLayouts(std::vector<PlaneLayout>* output) {
+    if (!output) {
+        return;
+    }
+    output->clear();
+}
+
+status_t encodeCropHelper(const std::vector<Rect>& crops, OutputHidlVec* outOutputHidlVec) {
+    status_t err = encodeInteger<int64_t>(static_cast<int64_t>(crops.size()), outOutputHidlVec);
+    if (err) {
+        return err;
+    }
+
+    for (const auto& crop : crops) {
+        err = encodeRect(crop, outOutputHidlVec);
+        if (err) {
+            return err;
+        }
+    }
+
+    return NO_ERROR;
+}
+
+status_t decodeCropHelper(InputHidlVec* inputHidlVec, std::vector<Rect>* outCrops) {
+    int64_t size = 0;
+    status_t err = decodeInteger<int64_t>(inputHidlVec, &size);
+    if (err) {
+        return err;
+    }
+    if (size < 0) {
+        return BAD_VALUE;
+    }
+
+    for (size_t i = 0; i < size; i++) {
+        outCrops->emplace_back();
+        err = decodeRect(inputHidlVec, &outCrops->back());
+        if (err) {
+            return err;
+        }
+    }
+    return NO_ERROR;
+}
+
+void clearCrop(std::vector<Rect>* output) {
     if (!output) {
         return;
     }
@@ -1041,6 +1074,14 @@ status_t encodePlaneLayouts(const std::vector<PlaneLayout>& planeLayouts, hidl_v
 status_t decodePlaneLayouts(const hidl_vec<uint8_t>& planeLayouts, std::vector<PlaneLayout>* outPlaneLayouts) {
     return decodeMetadata(MetadataType_PlaneLayouts, planeLayouts, outPlaneLayouts,
                   decodePlaneLayoutsHelper, clearPlaneLayouts);
+}
+
+status_t encodeCrop(const std::vector<Rect>& crop, hidl_vec<uint8_t>* outCrop) {
+    return encodeMetadata(MetadataType_Crop, crop, outCrop, encodeCropHelper);
+}
+
+status_t decodeCrop(const hidl_vec<uint8_t>& crop, std::vector<Rect>* outCrop) {
+    return decodeMetadata(MetadataType_Crop, crop, outCrop, decodeCropHelper, clearCrop);
 }
 
 status_t encodeDataspace(const Dataspace& dataspace, hidl_vec<uint8_t>* outDataspace) {

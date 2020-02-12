@@ -338,13 +338,15 @@ void Scheduler::setVsyncPeriod(nsecs_t period) {
     }
 }
 
-void Scheduler::addResyncSample(nsecs_t timestamp, bool* periodFlushed) {
+void Scheduler::addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriod,
+                                bool* periodFlushed) {
     bool needsHwVsync = false;
     *periodFlushed = false;
     { // Scope for the lock
         std::lock_guard<std::mutex> lock(mHWVsyncLock);
         if (mPrimaryHWVsyncEnabled) {
-            needsHwVsync = mPrimaryDispSync->addResyncSample(timestamp, periodFlushed);
+            needsHwVsync =
+                    mPrimaryDispSync->addResyncSample(timestamp, hwcVsyncPeriod, periodFlushed);
         }
     }
 
