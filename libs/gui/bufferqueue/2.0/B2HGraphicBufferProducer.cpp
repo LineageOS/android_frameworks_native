@@ -288,10 +288,12 @@ Return<void> B2HGraphicBufferProducer::connect(
                                &bOutput),
                 &hStatus) &&
             b2h(bOutput, &hOutput);
-    if (converted) {
+#ifdef NO_BINDER
+    if (converted && hListener != nullptr) {
         mObituary = new Obituary(this, hListener, hConnectionType);
         hListener->linkToDeath(mObituary, 0);
     }
+#endif // NO_BINDER
     _hidl_cb(converted ? hStatus : HStatus::UNKNOWN_ERROR, hOutput);
     return {};
 }
@@ -304,10 +306,12 @@ Return<HStatus> B2HGraphicBufferProducer::disconnect(
     }
     HStatus hStatus{};
     bool converted = b2h(mBase->disconnect(bConnectionType), &hStatus);
+#ifdef NO_BINDER
     if (mObituary != nullptr) {
         mObituary->listener->unlinkToDeath(mObituary);
         mObituary.clear();
     }
+#endif // NO_BINDER
     return {converted ? hStatus : HStatus::UNKNOWN_ERROR};
 }
 
