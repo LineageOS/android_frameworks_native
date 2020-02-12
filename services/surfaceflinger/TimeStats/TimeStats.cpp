@@ -70,6 +70,7 @@ AStatsManager_PullAtomCallbackReturn TimeStats::populateGlobalAtom(AStatsEventLi
     mStatsDelegate->statsEventWriteInt64(event, mTimeStats.clientCompositionFrames);
     mStatsDelegate->statsEventWriteInt64(event, mTimeStats.displayOnTime);
     mStatsDelegate->statsEventWriteInt64(event, mTimeStats.presentToPresent.totalTime());
+    mStatsDelegate->statsEventWriteInt32(event, mTimeStats.displayEventConnectionsCount);
     mStatsDelegate->statsEventBuild(event);
     clearGlobalLocked();
 
@@ -270,6 +271,16 @@ void TimeStats::incrementClientCompositionReusedFrames() {
 
     std::lock_guard<std::mutex> lock(mMutex);
     mTimeStats.clientCompositionReusedFrames++;
+}
+
+void TimeStats::recordDisplayEventConnectionCount(int32_t count) {
+    if (!mEnabled.load()) return;
+
+    ATRACE_CALL();
+
+    std::lock_guard<std::mutex> lock(mMutex);
+    mTimeStats.displayEventConnectionsCount =
+            std::max(mTimeStats.displayEventConnectionsCount, count);
 }
 
 static int32_t msBetween(nsecs_t start, nsecs_t end) {
@@ -815,6 +826,7 @@ void TimeStats::clearGlobalLocked() {
     mTimeStats.missedFrames = 0;
     mTimeStats.clientCompositionFrames = 0;
     mTimeStats.clientCompositionReusedFrames = 0;
+    mTimeStats.displayEventConnectionsCount = 0;
     mTimeStats.displayOnTime = 0;
     mTimeStats.presentToPresent.hist.clear();
     mTimeStats.frameDuration.hist.clear();

@@ -2119,6 +2119,10 @@ void SurfaceFlinger::postComposition()
 
     mTimeStats->setPresentFenceGlobal(presentFenceTime);
 
+    const size_t sfConnections = mScheduler->getEventThreadConnectionCount(mSfConnectionHandle);
+    const size_t appConnections = mScheduler->getEventThreadConnectionCount(mAppConnectionHandle);
+    mTimeStats->recordDisplayEventConnectionCount(sfConnections + appConnections);
+
     if (displayDevice && getHwComposer().isConnected(*displayDevice->getId()) &&
         !displayDevice->isPoweredOn()) {
         return;
