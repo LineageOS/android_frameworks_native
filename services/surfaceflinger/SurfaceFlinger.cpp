@@ -2385,7 +2385,8 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
                 }
 
                 DisplayDeviceState state;
-                state.physical = {displayId, getHwComposer().getDisplayConnectionType(displayId)};
+                state.physical = {displayId, getHwComposer().getDisplayConnectionType(displayId),
+                                  event.hwcDisplayId};
                 state.isSecure = true; // All physical displays are currently considered secure.
                 state.displayName = info->name;
 
@@ -2394,6 +2395,12 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
                 mPhysicalDisplayTokens.emplace(displayId, std::move(token));
 
                 mInterceptor->saveDisplayCreation(state);
+            } else {
+                ALOGV("Recreating display %s", to_string(displayId).c_str());
+
+                const auto token = it->second;
+                auto& state = mCurrentState.displays.editValueFor(token);
+                state.sequenceId = DisplayDeviceState{}.sequenceId;
             }
         } else {
             ALOGV("Removing display %s", to_string(displayId).c_str());
@@ -2571,20 +2578,17 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
         producer = bqProducer;
     }
 
-    if (displaySurface != nullptr) {
-        mDisplays.emplace(displayToken,
-                          setupNewDisplayDeviceInternal(displayToken, compositionDisplay, state,
-                                                        displaySurface, producer));
-        if (!state.isVirtual()) {
-            LOG_ALWAYS_FATAL_IF(!displayId);
-            dispatchDisplayHotplugEvent(displayId->value, true);
-        }
+    LOG_FATAL_IF(!displaySurface);
+    const auto display = setupNewDisplayDeviceInternal(displayToken, compositionDisplay, state,
+                                                       displaySurface, producer);
+    mDisplays.emplace(displayToken, display);
+    if (!state.isVirtual()) {
+        LOG_FATAL_IF(!displayId);
+        dispatchDisplayHotplugEvent(displayId->value, true);
+    }
 
-        const auto displayDevice = mDisplays[displayToken];
-        if (displayDevice->isPrimary()) {
-            mScheduler->onPrimaryDisplayAreaChanged(displayDevice->getWidth() *
-                                                    displayDevice->getHeight());
-        }
+    if (display->isPrimary()) {
+        mScheduler->onPrimaryDisplayAreaChanged(display->getWidth() * display->getHeight());
     }
 }
 
@@ -2595,7 +2599,7 @@ void SurfaceFlinger::processDisplayRemoved(const wp<IBinder>& displayToken) {
         display->disconnect();
 
         if (!display->isVirtual()) {
-            LOG_ALWAYS_FATAL_IF(!displayId);
+            LOG_FATAL_IF(!displayId);
             dispatchDisplayHotplugEvent(displayId->value, false);
         }
     }
@@ -2608,13 +2612,19 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
                                            const DisplayDeviceState& drawingState) {
     const sp<IBinder> currentBinder = IInterface::asBinder(currentState.surface);
     const sp<IBinder> drawingBinder = IInterface::asBinder(drawingState.surface);
-    if (currentBinder != drawingBinder) {
+    if (currentBinder != drawingBinder || currentState.sequenceId != drawingState.sequenceId) {
         // changing the surface is like destroying and recreating the DisplayDevice
         if (const auto display = getDisplayDeviceLocked(displayToken)) {
             display->disconnect();
         }
         mDisplays.erase(displayToken);
+        if (const auto& physical = currentState.physical) {
+            getHwComposer().allocatePhysicalDisplay(physical->hwcDisplayId, physical->id);
+        }
         processDisplayAdded(displayToken, currentState);
+        if (currentState.physical) {
+            initializeDisplays();
+        }
         return;
     }
 
