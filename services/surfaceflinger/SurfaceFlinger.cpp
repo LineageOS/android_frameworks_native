@@ -2081,7 +2081,8 @@ void SurfaceFlinger::postComposition()
         }
     });
 
-    if (presentFenceTime->isValid()) {
+    if (displayDevice && displayDevice->isPrimary() &&
+        displayDevice->getPowerMode() == HWC_POWER_MODE_NORMAL && presentFenceTime->isValid()) {
         mScheduler->addPresentFence(presentFenceTime);
     }
 
