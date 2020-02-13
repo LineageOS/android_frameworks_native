@@ -2684,7 +2684,7 @@ binder::Status InstalldNativeService::invalidateMounts() {
 }
 
 // Mount volume's CE and DE storage to mirror
-binder::Status InstalldNativeService::onPrivateVolumeMounted(
+binder::Status InstalldNativeService::tryMountDataMirror(
         const std::unique_ptr<std::string>& uuid) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
@@ -2696,24 +2696,50 @@ binder::Status InstalldNativeService::onPrivateVolumeMounted(
     }
 
     const char* uuid_ = uuid->c_str();
-    // Mount CE mirror
+
     std::string mirrorVolCePath(StringPrintf("%s/%s", kDataMirrorCePath, uuid_));
     std::lock_guard<std::recursive_mutex> lock(mLock);
-    if (fs_prepare_dir(mirrorVolCePath.c_str(), 0700, AID_ROOT, AID_ROOT) != 0) {
+    if (fs_prepare_dir(mirrorVolCePath.c_str(), 0711, AID_SYSTEM, AID_SYSTEM) != 0) {
         return error("Failed to create CE mirror");
     }
-    auto cePath = StringPrintf("%s/user_ce", create_data_path(uuid_).c_str());
+
+    std::string mirrorVolDePath(StringPrintf("%s/%s", kDataMirrorDePath, uuid_));
+    if (fs_prepare_dir(mirrorVolDePath.c_str(), 0711, AID_SYSTEM, AID_SYSTEM) != 0) {
+        return error("Failed to create DE mirror");
+    }
+
+    auto cePath = StringPrintf("%s/user", create_data_path(uuid_).c_str());
+    auto dePath = StringPrintf("%s/user_de", create_data_path(uuid_).c_str());
+
+    if (access(cePath.c_str(), F_OK) != 0) {
+        return error("Cannot access CE path: " + cePath);
+    }
+    if (access(dePath.c_str(), F_OK) != 0) {
+        return error("Cannot access DE path: " + dePath);
+    }
+
+    struct stat ceStat, mirrorCeStat;
+    if (stat(cePath.c_str(), &ceStat) != 0) {
+        return error("Failed to stat " + cePath);
+    }
+    if (stat(mirrorVolCePath.c_str(), &mirrorCeStat) != 0) {
+        return error("Failed to stat " + mirrorVolCePath);
+    }
+
+    if (mirrorCeStat.st_ino == ceStat.st_ino) {
+        // As it's being called by prepareUserStorage, it can be called multiple times.
+        // Hence, we if we mount it already, we should skip it.
+        LOG(WARNING) << "CE dir is mounted already: " + cePath;
+        return ok();
+    }
+
+    // Mount CE mirror
     if (TEMP_FAILURE_RETRY(mount(cePath.c_str(), mirrorVolCePath.c_str(), NULL,
             MS_NOSUID | MS_NODEV | MS_NOATIME | MS_BIND | MS_NOEXEC, nullptr)) == -1) {
         return error("Failed to mount " + mirrorVolCePath);
     }
 
     // Mount DE mirror
-    std::string mirrorVolDePath(StringPrintf("%s/%s", kDataMirrorDePath, uuid_));
-    if (fs_prepare_dir(mirrorVolDePath.c_str(), 0700, AID_ROOT, AID_ROOT) != 0) {
-        return error("Failed to create DE mirror");
-    }
-    auto dePath = StringPrintf("%s/user_de", create_data_path(uuid_).c_str());
     if (TEMP_FAILURE_RETRY(mount(dePath.c_str(), mirrorVolDePath.c_str(), NULL,
             MS_NOSUID | MS_NODEV | MS_NOATIME | MS_BIND | MS_NOEXEC, nullptr)) == -1) {
         return error("Failed to mount " + mirrorVolDePath);
