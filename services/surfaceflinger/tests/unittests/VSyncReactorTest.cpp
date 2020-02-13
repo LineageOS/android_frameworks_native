@@ -534,6 +534,30 @@ TEST_F(VSyncReactorTest, eventListenersRemovedOnDestruction) {
     mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
 }
 
+// b/149221293
+TEST_F(VSyncReactorTest, selfRemovingEventListenerStopsCallbacks) {
+    class SelfRemovingCallback : public DispSync::Callback {
+    public:
+        SelfRemovingCallback(VSyncReactor& vsr) : mVsr(vsr) {}
+        void onDispSyncEvent(nsecs_t when) final { mVsr.removeEventListener(this, &when); }
+
+    private:
+        VSyncReactor& mVsr;
+    } selfRemover(mReactor);
+
+    Sequence seq;
+    EXPECT_CALL(*mMockDispatch, registerCallback(_, std::string(mName)))
+            .InSequence(seq)
+            .WillOnce(DoAll(SaveArg<0>(&innerCb), Return(mFakeToken)));
+    EXPECT_CALL(*mMockDispatch, schedule(mFakeToken, computeWorkload(period, mPhase), mFakeNow))
+            .InSequence(seq);
+    EXPECT_CALL(*mMockDispatch, cancel(mFakeToken)).Times(2).InSequence(seq);
+    EXPECT_CALL(*mMockDispatch, unregisterCallback(mFakeToken)).InSequence(seq);
+
+    mReactor.addEventListener(mName, mPhase, &selfRemover, lastCallbackTime);
+    innerCb(0, 0);
+}
+
 TEST_F(VSyncReactorTest, addEventListenerChangePeriod) {
     Sequence seq;
     EXPECT_CALL(*mMockDispatch, registerCallback(_, std::string(mName)))
