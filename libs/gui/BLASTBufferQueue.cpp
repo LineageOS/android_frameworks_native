@@ -174,7 +174,9 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
     }
     mPendingReleaseItem.item = std::move(mSubmitted.front());
     mSubmitted.pop();
-    processNextBufferLocked();
+    if (mNextTransaction == nullptr) {
+        processNextBufferLocked();
+    }
     mCallbackCV.notify_all();
     decStrong((void*)transactionCallbackThunk);
 }
@@ -252,8 +254,13 @@ Rect BLASTBufferQueue::computeCrop(const BufferItem& item) {
 
 void BLASTBufferQueue::onFrameAvailable(const BufferItem& /*item*/) {
     ATRACE_CALL();
-    std::lock_guard _lock{mMutex};
+    std::unique_lock _lock{mMutex};
 
+    if (mNextTransaction != nullptr) {
+        while (mNumFrameAvailable > 0 || mNumAcquired == MAX_ACQUIRED_BUFFERS) {
+            mCallbackCV.wait(_lock);
+        }
+    }
     // add to shadow queue
     mNumFrameAvailable++;
     processNextBufferLocked();
