@@ -3340,6 +3340,10 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
     return injectionResult;
 }
 
+std::unique_ptr<VerifiedInputEvent> InputDispatcher::verifyInputEvent(const InputEvent& event) {
+    return nullptr;
+}
+
 bool InputDispatcher::hasInjectionPermission(int32_t injectorPid, int32_t injectorUid) {
     return injectorUid == 0 ||
             mPolicy->checkInjectEventsPermissionNonReentrant(injectorPid, injectorUid);

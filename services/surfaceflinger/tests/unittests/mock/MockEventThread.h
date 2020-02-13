@@ -42,6 +42,7 @@ public:
     MOCK_METHOD1(requestNextVsync, void(const sp<android::EventThreadConnection> &));
     MOCK_METHOD0(requestLatestConfig, void());
     MOCK_METHOD1(pauseVsyncCallback, void(bool));
+    MOCK_METHOD0(getEventThreadConnectionCount, size_t());
 };
 
 } // namespace mock

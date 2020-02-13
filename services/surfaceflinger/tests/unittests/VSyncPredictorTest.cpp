@@ -36,7 +36,7 @@ using namespace std::literals;
 namespace android::scheduler {
 
 MATCHER_P2(IsCloseTo, value, tolerance, "is within tolerance") {
-    return arg <= value + tolerance && value >= value - tolerance;
+    return arg <= value + tolerance && arg >= value - tolerance;
 }
 
 std::vector<nsecs_t> generateVsyncTimestamps(size_t count, nsecs_t period, nsecs_t bias) {
@@ -368,6 +368,26 @@ TEST_F(VSyncPredictorTest, resetsWhenInstructed) {
     tracker.resetModel();
     EXPECT_THAT(std::get<0>(tracker.getVSyncPredictionModel()),
                 IsCloseTo(idealPeriod, mMaxRoundingError));
+}
+
+TEST_F(VSyncPredictorTest, slopeAlwaysValid) {
+    constexpr auto kNumVsyncs = 100;
+    auto invalidPeriod = mPeriod;
+    auto now = 0;
+    for (int i = 0; i < kNumVsyncs; i++) {
+        tracker.addVsyncTimestamp(now);
+        now += invalidPeriod;
+        invalidPeriod *= 0.9f;
+
+        auto [slope, intercept] = tracker.getVSyncPredictionModel();
+        EXPECT_THAT(slope, IsCloseTo(mPeriod, mPeriod * kOutlierTolerancePercent / 100.f));
+
+        // When VsyncPredictor returns the period it means that it doesn't know how to predict and
+        // it needs to get more samples
+        if (slope == mPeriod && intercept == 0) {
+            EXPECT_TRUE(tracker.needsMoreSamples(now));
+        }
+    }
 }
 
 } // namespace android::scheduler

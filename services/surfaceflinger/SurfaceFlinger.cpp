@@ -2081,7 +2081,8 @@ void SurfaceFlinger::postComposition()
         }
     });
 
-    if (presentFenceTime->isValid()) {
+    if (displayDevice && displayDevice->isPrimary() &&
+        displayDevice->getPowerMode() == HWC_POWER_MODE_NORMAL && presentFenceTime->isValid()) {
         mScheduler->addPresentFence(presentFenceTime);
     }
 
@@ -2118,6 +2119,10 @@ void SurfaceFlinger::postComposition()
     }
 
     mTimeStats->setPresentFenceGlobal(presentFenceTime);
+
+    const size_t sfConnections = mScheduler->getEventThreadConnectionCount(mSfConnectionHandle);
+    const size_t appConnections = mScheduler->getEventThreadConnectionCount(mAppConnectionHandle);
+    mTimeStats->recordDisplayEventConnectionCount(sfConnections + appConnections);
 
     if (displayDevice && getHwComposer().isConnected(*displayDevice->getId()) &&
         !displayDevice->isPoweredOn()) {

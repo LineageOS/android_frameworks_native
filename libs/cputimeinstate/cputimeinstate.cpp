@@ -58,6 +58,7 @@ static std::vector<std::vector<uint32_t>> gPolicyCpus;
 static std::set<uint32_t> gAllFreqs;
 static unique_fd gTisMapFd;
 static unique_fd gConcurrentMapFd;
+static unique_fd gUidLastUpdateMapFd;
 
 static std::optional<std::vector<uint32_t>> readNumbersFromFile(const std::string &path) {
     std::string data;
@@ -143,6 +144,10 @@ static bool initGlobals() {
     gConcurrentMapFd =
             unique_fd{bpf_obj_get(BPF_FS_PATH "map_time_in_state_uid_concurrent_times_map")};
     if (gConcurrentMapFd < 0) return false;
+
+    gUidLastUpdateMapFd =
+            unique_fd{bpf_obj_get(BPF_FS_PATH "map_time_in_state_uid_last_update_map")};
+    if (gUidLastUpdateMapFd < 0) return false;
 
     gInitialized = true;
     return true;
@@ -263,6 +268,18 @@ std::optional<std::vector<std::vector<uint64_t>>> getUidCpuFreqTimes(uint32_t ui
     return out;
 }
 
+static std::optional<bool> uidUpdatedSince(uint32_t uid, uint64_t lastUpdate,
+                                           uint64_t *newLastUpdate) {
+    uint64_t uidLastUpdate;
+    if (findMapEntry(gUidLastUpdateMapFd, &uid, &uidLastUpdate)) return {};
+    // Updates that occurred during the previous read may have been missed. To mitigate
+    // this, don't ignore entries updated up to 1s before *lastUpdate
+    constexpr uint64_t NSEC_PER_SEC = 1000000000;
+    if (uidLastUpdate + NSEC_PER_SEC < lastUpdate) return false;
+    if (uidLastUpdate > *newLastUpdate) *newLastUpdate = uidLastUpdate;
+    return true;
+}
+
 // Retrieve the times in ns that each uid spent running at each CPU freq.
 // Return contains no value on error, otherwise it contains a map from uids to vectors of vectors
 // using the format:
@@ -271,6 +288,14 @@ std::optional<std::vector<std::vector<uint64_t>>> getUidCpuFreqTimes(uint32_t ui
 // where ti_j_k is the ns uid i spent running on the jth cluster at the cluster's kth lowest freq.
 std::optional<std::unordered_map<uint32_t, std::vector<std::vector<uint64_t>>>>
 getUidsCpuFreqTimes() {
+    return getUidsUpdatedCpuFreqTimes(nullptr);
+}
+
+// Retrieve the times in ns that each uid spent running at each CPU freq, excluding UIDs that have
+// not run since before lastUpdate.
+// Return format is the same as getUidsCpuFreqTimes()
+std::optional<std::unordered_map<uint32_t, std::vector<std::vector<uint64_t>>>>
+getUidsUpdatedCpuFreqTimes(uint64_t *lastUpdate) {
     if (!gInitialized && !initGlobals()) return {};
     time_key_t key, prevKey;
     std::unordered_map<uint32_t, std::vector<std::vector<uint64_t>>> map;
@@ -282,8 +307,14 @@ getUidsCpuFreqTimes() {
     std::vector<std::vector<uint64_t>> mapFormat;
     for (const auto &freqList : gPolicyFreqs) mapFormat.emplace_back(freqList.size(), 0);
 
+    uint64_t newLastUpdate = lastUpdate ? *lastUpdate : 0;
     std::vector<tis_val_t> vals(gNCpus);
     do {
+        if (lastUpdate) {
+            auto uidUpdated = uidUpdatedSince(key.uid, *lastUpdate, &newLastUpdate);
+            if (!uidUpdated.has_value()) return {};
+            if (!*uidUpdated) continue;
+        }
         if (findMapEntry(gTisMapFd, &key, vals.data())) return {};
         if (map.find(key.uid) == map.end()) map.emplace(key.uid, mapFormat);
 
@@ -299,8 +330,9 @@ getUidsCpuFreqTimes() {
             }
         }
         prevKey = key;
-    } while (!getNextMapKey(gTisMapFd, &prevKey, &key));
+    } while (prevKey = key, !getNextMapKey(gTisMapFd, &prevKey, &key));
     if (errno != ENOENT) return {};
+    if (lastUpdate && newLastUpdate > *lastUpdate) *lastUpdate = newLastUpdate;
     return map;
 }
 
@@ -365,6 +397,15 @@ std::optional<concurrent_time_t> getUidConcurrentTimes(uint32_t uid, bool retry)
 // where ai is the ns spent running concurrently with tasks on i other cpus and pi_j is the ns spent
 // running on the ith cluster, concurrently with tasks on j other cpus in the same cluster.
 std::optional<std::unordered_map<uint32_t, concurrent_time_t>> getUidsConcurrentTimes() {
+    return getUidsUpdatedConcurrentTimes(nullptr);
+}
+
+// Retrieve the times in ns that each uid spent running concurrently with each possible number of
+// other tasks on each cluster (policy times) and overall (active times), excluding UIDs that have
+// not run since before lastUpdate.
+// Return format is the same as getUidsConcurrentTimes()
+std::optional<std::unordered_map<uint32_t, concurrent_time_t>> getUidsUpdatedConcurrentTimes(
+        uint64_t *lastUpdate) {
     if (!gInitialized && !initGlobals()) return {};
     time_key_t key, prevKey;
     std::unordered_map<uint32_t, concurrent_time_t> ret;
@@ -379,7 +420,13 @@ std::optional<std::unordered_map<uint32_t, concurrent_time_t>> getUidsConcurrent
     std::vector<concurrent_val_t> vals(gNCpus);
     std::vector<uint64_t>::iterator activeBegin, activeEnd, policyBegin, policyEnd;
 
+    uint64_t newLastUpdate = lastUpdate ? *lastUpdate : 0;
     do {
+        if (lastUpdate) {
+            auto uidUpdated = uidUpdatedSince(key.uid, *lastUpdate, &newLastUpdate);
+            if (!uidUpdated.has_value()) return {};
+            if (!*uidUpdated) continue;
+        }
         if (findMapEntry(gConcurrentMapFd, &key, vals.data())) return {};
         if (ret.find(key.uid) == ret.end()) ret.emplace(key.uid, retFormat);
 
@@ -405,8 +452,7 @@ std::optional<std::unordered_map<uint32_t, concurrent_time_t>> getUidsConcurrent
                                std::plus<uint64_t>());
             }
         }
-        prevKey = key;
-    } while (!getNextMapKey(gConcurrentMapFd, &prevKey, &key));
+    } while (prevKey = key, !getNextMapKey(gConcurrentMapFd, &prevKey, &key));
     if (errno != ENOENT) return {};
     for (const auto &[key, value] : ret) {
         if (!verifyConcurrentTimes(value)) {
@@ -414,6 +460,7 @@ std::optional<std::unordered_map<uint32_t, concurrent_time_t>> getUidsConcurrent
             if (val.has_value()) ret[key] = val.value();
         }
     }
+    if (lastUpdate && newLastUpdate > *lastUpdate) *lastUpdate = newLastUpdate;
     return ret;
 }
 
@@ -446,6 +493,8 @@ bool clearUidTimes(uint32_t uid) {
             return false;
         if (deleteMapEntry(gConcurrentMapFd, &key) && errno != ENOENT) return false;
     }
+
+    if (deleteMapEntry(gUidLastUpdateMapFd, &uid) && errno != ENOENT) return false;
     return true;
 }
 

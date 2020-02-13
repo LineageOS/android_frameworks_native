@@ -745,6 +745,44 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_75HzC
     }
 }
 
+TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContentV2_Multiples) {
+    std::vector<RefreshRateConfigs::InputConfig> configs{
+            {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
+             {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    RefreshRate expected60Config = {HWC_CONFIG_ID_60, VSYNC_60, HWC_GROUP_ID_0, "60fps", 60};
+    RefreshRate expected90Config = {HWC_CONFIG_ID_90, VSYNC_90, HWC_GROUP_ID_0, "90fps", 90};
+
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f},
+                                                LayerRequirement{.weight = 1.0f}};
+    auto& lr1 = layers[0];
+    auto& lr2 = layers[1];
+
+    lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr1.desiredRefreshRate = 60.0f;
+    lr2.vote = LayerVoteType::Heuristic;
+    lr2.desiredRefreshRate = 90.0f;
+    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+
+    lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr1.desiredRefreshRate = 60.0f;
+    lr2.vote = LayerVoteType::Max;
+    EXPECT_EQ(expected60Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+
+    lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr1.desiredRefreshRate = 30.0f;
+    lr2.vote = LayerVoteType::Heuristic;
+    lr2.desiredRefreshRate = 90.0f;
+    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+
+    lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr1.desiredRefreshRate = 30.0f;
+    lr2.vote = LayerVoteType::Max;
+    EXPECT_EQ(expected90Config, refreshRateConfigs->getRefreshRateForContentV2(layers));
+}
+
 } // namespace
 } // namespace scheduler
 } // namespace android

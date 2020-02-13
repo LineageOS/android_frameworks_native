@@ -52,6 +52,9 @@ public:
     virtual void incrementMissedFrames() = 0;
     virtual void incrementClientCompositionFrames() = 0;
     virtual void incrementClientCompositionReusedFrames() = 0;
+    // Records the most up-to-date count of display event connections.
+    // The stored count will be the maximum ever recoded.
+    virtual void recordDisplayEventConnectionCount(int32_t count) = 0;
 
     // Records the start and end times for a frame.
     // The start time is the same as the beginning of a SurfaceFlinger
@@ -177,6 +180,10 @@ public:
             return AStatsEvent_setAtomId(event, atom_id);
         }
 
+        virtual void statsEventWriteInt32(AStatsEvent* event, int32_t field) {
+            return AStatsEvent_writeInt32(event, field);
+        }
+
         virtual void statsEventWriteInt64(AStatsEvent* event, int64_t field) {
             return AStatsEvent_writeInt64(event, field);
         }
@@ -208,6 +215,7 @@ public:
     void incrementMissedFrames() override;
     void incrementClientCompositionFrames() override;
     void incrementClientCompositionReusedFrames() override;
+    void recordDisplayEventConnectionCount(int32_t count) override;
 
     void recordFrameDuration(nsecs_t startTime, nsecs_t endTime) override;
     void recordRenderEngineDuration(nsecs_t startTime, nsecs_t endTime) override;

@@ -159,6 +159,11 @@ TEST_F(SchedulerTest, validConnectionHandle) {
 
     EXPECT_CALL(*mEventThread, setPhaseOffset(10)).Times(1);
     ASSERT_NO_FATAL_FAILURE(mScheduler->setPhaseOffset(mConnectionHandle, 10));
+
+    static constexpr size_t kEventConnections = 5;
+    ON_CALL(*mEventThread, getEventThreadConnectionCount())
+            .WillByDefault(Return(kEventConnections));
+    EXPECT_EQ(kEventConnections, mScheduler->getEventThreadConnectionCount(mConnectionHandle));
 }
 
 } // namespace

@@ -145,6 +145,8 @@ public:
     // Notifies the scheduler when the display size has changed. Called from SF's main thread
     void onPrimaryDisplayAreaChanged(uint32_t displayArea);
 
+    size_t getEventThreadConnectionCount(ConnectionHandle handle);
+
 private:
     friend class TestableScheduler;
 

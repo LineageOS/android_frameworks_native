@@ -166,6 +166,7 @@ public:
 
         MOCK_METHOD1(unregisterStatsPullAtomCallback, void(int32_t));
         MOCK_METHOD2(statsEventSetAtomId, void(AStatsEvent*, uint32_t));
+        MOCK_METHOD2(statsEventWriteInt32, void(AStatsEvent*, int32_t));
         MOCK_METHOD2(statsEventWriteInt64, void(AStatsEvent*, int64_t));
         MOCK_METHOD2(statsEventWriteString8, void(AStatsEvent*, const char*));
         MOCK_METHOD3(statsEventWriteByteArray, void(AStatsEvent*, const uint8_t*, size_t));
@@ -800,6 +801,7 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
     constexpr size_t TOTAL_FRAMES = 5;
     constexpr size_t MISSED_FRAMES = 4;
     constexpr size_t CLIENT_COMPOSITION_FRAMES = 3;
+    constexpr size_t DISPLAY_EVENT_CONNECTIONS = 14;
 
     mTimeStats->onBootFinished();
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
@@ -813,6 +815,8 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
     for (size_t i = 0; i < CLIENT_COMPOSITION_FRAMES; i++) {
         mTimeStats->incrementClientCompositionFrames();
     }
+
+    mTimeStats->recordDisplayEventConnectionCount(DISPLAY_EVENT_CONNECTIONS);
 
     mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL);
     mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(3000000));
@@ -834,6 +838,7 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
         EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, CLIENT_COMPOSITION_FRAMES));
         EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, _));
         EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, 2));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, DISPLAY_EVENT_CONNECTIONS));
         EXPECT_CALL(*mDelegate, statsEventBuild(mDelegate->mEvent));
     }
     EXPECT_EQ(AStatsManager_PULL_SUCCESS,

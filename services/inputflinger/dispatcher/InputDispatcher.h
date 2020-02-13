@@ -96,6 +96,8 @@ public:
                                      int32_t injectorUid, int32_t syncMode, int32_t timeoutMillis,
                                      uint32_t policyFlags) override;
 
+    virtual std::unique_ptr<VerifiedInputEvent> verifyInputEvent(const InputEvent& event) override;
+
     virtual void setInputWindows(
             const std::vector<sp<InputWindowHandle>>& inputWindowHandles, int32_t displayId,
             const sp<ISetInputWindowsListener>& setInputWindowsListener = nullptr) override;

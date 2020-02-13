@@ -10,12 +10,12 @@ cc_test {
         "LatencyStatistics_test.cpp",
         "TouchVideoFrame_test.cpp",
         "VelocityTracker_test.cpp",
+        "VerifiedInputEvent_test.cpp",
     ],
     cflags: [
         "-Wall",
         "-Wextra",
         "-Werror",
-        "-Wno-unused-variable",
     ],
     shared_libs: [
         "libinput",
