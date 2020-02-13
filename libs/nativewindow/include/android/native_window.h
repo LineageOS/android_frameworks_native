@@ -261,6 +261,17 @@ int32_t ANativeWindow_getBuffersDataSpace(ANativeWindow* window) __INTRODUCED_IN
  */
 int32_t ANativeWindow_setFrameRate(ANativeWindow* window, float frameRate) __INTRODUCED_IN(30);
 
+/**
+ * Provides a hint to the window that buffers should be preallocated ahead of
+ * time. Note that the window implementation is not guaranteed to preallocate
+ * any buffers, for instance if an implementation disallows allocation of new
+ * buffers, or if there is insufficient memory in the system to preallocate
+ * additional buffers
+ *
+ * Available since API level 30.
+ */
+void ANativeWindow_tryAllocateBuffers(ANativeWindow* window);
+
 #endif // __ANDROID_API__ >= 30
 
 #ifdef __cplusplus
