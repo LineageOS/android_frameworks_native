@@ -61,6 +61,8 @@ static constexpr bool DEBUG_FOCUS = false;
 #include <android-base/stringprintf.h>
 #include <binder/Binder.h>
 #include <log/log.h>
+#include <openssl/hmac.h>
+#include <openssl/rand.h>
 #include <powermanager/PowerManager.h>
 #include <utils/Trace.h>
 
@@ -323,6 +325,55 @@ static std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inp
                                             firstPointerInfo.windowYScale);
     combinedMotionEntry->release();
     return dispatchEntry;
+}
+
+static std::array<uint8_t, 128> getRandomKey() {
+    std::array<uint8_t, 128> key;
+    if (RAND_bytes(key.data(), key.size()) != 1) {
+        LOG_ALWAYS_FATAL("Can't generate HMAC key");
+    }
+    return key;
+}
+
+// --- HmacKeyManager ---
+
+HmacKeyManager::HmacKeyManager() : mHmacKey(getRandomKey()) {}
+
+std::array<uint8_t, 32> HmacKeyManager::sign(const VerifiedInputEvent& event) const {
+    size_t size;
+    switch (event.type) {
+        case VerifiedInputEvent::Type::KEY: {
+            size = sizeof(VerifiedKeyEvent);
+            break;
+        }
+        case VerifiedInputEvent::Type::MOTION: {
+            size = sizeof(VerifiedMotionEvent);
+            break;
+        }
+    }
+    std::vector<uint8_t> data;
+    const uint8_t* start = reinterpret_cast<const uint8_t*>(&event);
+    data.assign(start, start + size);
+    return sign(data);
+}
+
+std::array<uint8_t, 32> HmacKeyManager::sign(const std::vector<uint8_t>& data) const {
+    // SHA256 always generates 32-bytes result
+    std::array<uint8_t, 32> hash;
+    unsigned int hashLen = 0;
+    uint8_t* result = HMAC(EVP_sha256(), mHmacKey.data(), mHmacKey.size(), data.data(), data.size(),
+                           hash.data(), &hashLen);
+    if (result == nullptr) {
+        ALOGE("Could not sign the data using HMAC");
+        return INVALID_HMAC;
+    }
+
+    if (hashLen != hash.size()) {
+        ALOGE("HMAC-SHA256 has unexpected length");
+        return INVALID_HMAC;
+    }
+
+    return hash;
 }
 
 // --- InputDispatcher ---

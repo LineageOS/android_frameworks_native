@@ -56,6 +56,16 @@ namespace android::inputdispatcher {
 
 class Connection;
 
+class HmacKeyManager {
+public:
+    HmacKeyManager();
+    std::array<uint8_t, 32> sign(const VerifiedInputEvent& event) const;
+
+private:
+    std::array<uint8_t, 32> sign(const std::vector<uint8_t>& data) const;
+    const std::array<uint8_t, 128> mHmacKey;
+};
+
 /* Dispatches events to input targets.  Some functions of the input dispatcher, such as
  * identifying input targets, are controlled by a separate policy object.
  *
