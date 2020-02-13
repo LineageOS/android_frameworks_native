@@ -98,6 +98,9 @@ private:
 
         {
             std::lock_guard<std::mutex> lk(mMutex);
+            if (mStopped) {
+                return;
+            }
             auto const schedule_result = mRegistration.schedule(calculateWorkload(), vsynctime);
             LOG_ALWAYS_FATAL_IF((schedule_result != ScheduleResult::Scheduled),
                                 "Error rescheduling callback: rc %X", schedule_result);
