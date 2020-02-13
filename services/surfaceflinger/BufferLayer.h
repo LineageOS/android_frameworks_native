@@ -173,14 +173,15 @@ protected:
     BufferInfo mBufferInfo;
     virtual void gatherBufferInfo() = 0;
 
+    std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
+            compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
+
     /*
      * compositionengine::LayerFE overrides
      */
     const compositionengine::LayerFECompositionState* getCompositionState() const override;
     bool onPreComposition(nsecs_t) override;
     void preparePerFrameCompositionState() override;
-    std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
-            compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
 
     // Loads the corresponding system property once per process
     static bool latchUnsignaledBuffers();

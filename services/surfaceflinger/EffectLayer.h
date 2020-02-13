@@ -52,12 +52,17 @@ protected:
      */
     const compositionengine::LayerFECompositionState* getCompositionState() const override;
     void preparePerFrameCompositionState() override;
-    std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
-            compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
+    std::vector<compositionengine::LayerFE::LayerSettings> prepareClientCompositionList(
+            compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) override;
 
     std::unique_ptr<compositionengine::LayerFECompositionState> mCompositionState;
 
     sp<Layer> createClone() override;
+
+private:
+    // Returns true if there is a valid color to fill.
+    bool fillsColor() const;
+    bool hasSomethingToDraw() const { return fillsColor() || drawShadows(); }
 };
 
 } // namespace android

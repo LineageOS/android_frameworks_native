@@ -552,6 +552,14 @@ protected:
     void updateClonedRelatives(const std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
     void addChildToDrawing(const sp<Layer>& layer);
     void updateClonedInputInfo(const std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
+    virtual std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
+            compositionengine::LayerFE::ClientCompositionTargetSettings&);
+    virtual std::optional<compositionengine::LayerFE::LayerSettings> prepareShadowClientComposition(
+            const LayerFE::LayerSettings& layerSettings, const Rect& displayViewport,
+            ui::Dataspace outputDataspace);
+    // Modifies the passed in layer settings to clear the contents. If the blackout flag is set,
+    // the settings clears the content with a solid black fill.
+    void prepareClearClientComposition(LayerFE::LayerSettings& layerSettings, bool blackout) const;
 
 public:
     /*
@@ -560,11 +568,8 @@ public:
     const compositionengine::LayerFECompositionState* getCompositionState() const override;
     bool onPreComposition(nsecs_t) override;
     void prepareCompositionState(compositionengine::LayerFE::StateSubset subset) override;
-    std::optional<LayerSettings> prepareClientComposition(
+    std::vector<compositionengine::LayerFE::LayerSettings> prepareClientCompositionList(
             compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
-    std::optional<LayerSettings> prepareShadowClientComposition(
-            const LayerFE::LayerSettings& layerSettings, const Rect& displayViewport,
-            ui::Dataspace outputDataspace) override;
     void onLayerDisplayed(const sp<Fence>& releaseFence) override;
     const char* getDebugName() const override;
 
@@ -704,6 +709,7 @@ public:
     half getAlpha() const;
     half4 getColor() const;
     int32_t getBackgroundBlurRadius() const;
+    bool drawShadows() const { return mEffectiveShadowRadius > 0.f; };
 
     // Returns how rounded corners should be drawn for this layer.
     // This will traverse the hierarchy until it reaches its root, finding topmost rounded

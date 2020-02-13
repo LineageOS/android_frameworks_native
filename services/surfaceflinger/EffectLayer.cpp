@@ -47,18 +47,35 @@ EffectLayer::EffectLayer(const LayerCreationArgs& args)
 
 EffectLayer::~EffectLayer() = default;
 
-std::optional<compositionengine::LayerFE::LayerSettings> EffectLayer::prepareClientComposition(
+std::vector<compositionengine::LayerFE::LayerSettings> EffectLayer::prepareClientCompositionList(
         compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) {
-    auto result = Layer::prepareClientComposition(targetSettings);
-    if (!result) {
-        return result;
+    std::vector<compositionengine::LayerFE::LayerSettings> results;
+    std::optional<compositionengine::LayerFE::LayerSettings> layerSettings =
+            prepareClientComposition(targetSettings);
+    // Nothing to render.
+    if (!layerSettings) {
+        return {};
     }
-    result->source.solidColor = getColor().rgb;
-    return result;
+
+    std::optional<compositionengine::LayerFE::LayerSettings> shadowSettings =
+            prepareShadowClientComposition(*layerSettings, targetSettings.viewport,
+                                           targetSettings.dataspace);
+    if (shadowSettings) {
+        results.push_back(*shadowSettings);
+    }
+
+    // If fill bounds are occluded or the fill color is invalid skip the fill settings.
+    if (targetSettings.realContentIsVisible && fillsColor()) {
+        // Set color for color fill settings.
+        layerSettings->source.solidColor = getColor().rgb;
+        results.push_back(*layerSettings);
+    }
+
+    return results;
 }
 
 bool EffectLayer::isVisible() const {
-    return !isHiddenByPolicy() && getAlpha() > 0.0_hf;
+    return !isHiddenByPolicy() && getAlpha() > 0.0_hf && hasSomethingToDraw();
 }
 
 bool EffectLayer::setColor(const half3& color) {
@@ -124,6 +141,11 @@ sp<Layer> EffectLayer::createClone() {
                               LayerMetadata()));
     layer->setInitialValuesForClone(this);
     return layer;
+}
+
+bool EffectLayer::fillsColor() const {
+    return mDrawingState.color.r >= 0.0_hf && mDrawingState.color.g >= 0.0_hf &&
+            mDrawingState.color.b >= 0.0_hf;
 }
 
 } // namespace android

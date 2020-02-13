@@ -35,11 +35,9 @@ public:
     MOCK_METHOD1(onPreComposition, bool(nsecs_t));
 
     MOCK_METHOD1(prepareCompositionState, void(compositionengine::LayerFE::StateSubset));
-    MOCK_METHOD1(prepareClientComposition,
-                 std::optional<LayerSettings>(
+    MOCK_METHOD1(prepareClientCompositionList,
+                 std::vector<compositionengine::LayerFE::LayerSettings>(
                          compositionengine::LayerFE::ClientCompositionTargetSettings&));
-    MOCK_METHOD3(prepareShadowClientComposition,
-                 std::optional<LayerSettings>(const LayerSettings&, const Rect&, ui::Dataspace));
 
     MOCK_METHOD1(onLayerDisplayed, void(const sp<Fence>&));
 
