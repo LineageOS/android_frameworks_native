@@ -120,7 +120,7 @@ binder::Status DumpstateService::startBugreport(int32_t calling_uid,
     options->Initialize(static_cast<Dumpstate::BugreportMode>(bugreport_mode), bugreport_fd,
                         screenshot_fd);
 
-    if (bugreport_fd.get() == -1 || (options->do_fb && screenshot_fd.get() == -1)) {
+    if (bugreport_fd.get() == -1 || (options->do_screenshot && screenshot_fd.get() == -1)) {
         MYLOGE("Invalid filedescriptor");
         signalErrorAndExit(listener, IDumpstateListener::BUGREPORT_ERROR_INVALID_INPUT);
     }
