@@ -1114,7 +1114,7 @@ TEST_F(BoundlessLayerTest, BufferLayerIgnoresSize) {
 TEST_F(BoundlessLayerTest, BoundlessColorLayerFillsParentBufferBounds) {
     sp<SurfaceControl> colorLayer =
             createSurface(mClient, "ColorLayer", 0, 0, PIXEL_FORMAT_RGBA_8888,
-                          ISurfaceComposerClient::eFXSurfaceColor, mFGSurfaceControl.get());
+                          ISurfaceComposerClient::eFXSurfaceEffect, mFGSurfaceControl.get());
     ASSERT_TRUE(colorLayer->isValid());
     asTransaction([&](Transaction& t) {
         t.setColor(colorLayer, half3{0, 0, 0});
@@ -1139,7 +1139,7 @@ TEST_F(BoundlessLayerTest, BoundlessColorLayerFillsParentCropBounds) {
     ASSERT_TRUE(cropLayer->isValid());
     sp<SurfaceControl> colorLayer =
             createSurface(mClient, "ColorLayer", 0, 0, PIXEL_FORMAT_RGBA_8888,
-                          ISurfaceComposerClient::eFXSurfaceColor, cropLayer.get());
+                          ISurfaceComposerClient::eFXSurfaceEffect, cropLayer.get());
     ASSERT_TRUE(colorLayer->isValid());
     asTransaction([&](Transaction& t) {
         t.setCrop_legacy(cropLayer, Rect(5, 5, 10, 10));
@@ -1164,7 +1164,7 @@ TEST_F(BoundlessLayerTest, BoundlessColorLayerFillsParentCropBounds) {
 TEST_F(BoundlessLayerTest, BoundlessColorLayerTransformHasNoEffect) {
     sp<SurfaceControl> colorLayer =
             createSurface(mClient, "ColorLayer", 0, 0, PIXEL_FORMAT_RGBA_8888,
-                          ISurfaceComposerClient::eFXSurfaceColor, mFGSurfaceControl.get());
+                          ISurfaceComposerClient::eFXSurfaceEffect, mFGSurfaceControl.get());
     ASSERT_TRUE(colorLayer->isValid());
     asTransaction([&](Transaction& t) {
         t.setPosition(colorLayer, 320, 320);
@@ -1195,7 +1195,7 @@ TEST_F(BoundlessLayerTest, IntermediateBoundlessLayerCanSetTransform) {
     ASSERT_TRUE(boundlessLayerDownShift->isValid());
     sp<SurfaceControl> colorLayer =
             createSurface(mClient, "ColorLayer", 0, 0, PIXEL_FORMAT_RGBA_8888,
-                          ISurfaceComposerClient::eFXSurfaceColor, boundlessLayerDownShift.get());
+                          ISurfaceComposerClient::eFXSurfaceEffect, boundlessLayerDownShift.get());
     ASSERT_TRUE(colorLayer->isValid());
     asTransaction([&](Transaction& t) {
         t.setPosition(boundlessLayerRightShift, 32, 0);
@@ -1229,7 +1229,7 @@ TEST_F(BoundlessLayerTest, IntermediateBoundlessLayerDoNotCrop) {
     ASSERT_TRUE(boundlessLayer->isValid());
     sp<SurfaceControl> colorLayer =
             mClient->createSurface(String8("ColorLayer"), 0, 0, PIXEL_FORMAT_RGBA_8888,
-                                   ISurfaceComposerClient::eFXSurfaceColor, boundlessLayer.get());
+                                   ISurfaceComposerClient::eFXSurfaceEffect, boundlessLayer.get());
     ASSERT_TRUE(colorLayer != nullptr);
     ASSERT_TRUE(colorLayer->isValid());
     asTransaction([&](Transaction& t) {
@@ -1261,7 +1261,7 @@ TEST_F(BoundlessLayerTest, RootBoundlessLayerCanSetTransform) {
     ASSERT_TRUE(rootBoundlessLayer->isValid());
     sp<SurfaceControl> colorLayer =
             createSurface(mClient, "ColorLayer", 0, 0, PIXEL_FORMAT_RGBA_8888,
-                          ISurfaceComposerClient::eFXSurfaceColor, rootBoundlessLayer.get());
+                          ISurfaceComposerClient::eFXSurfaceEffect, rootBoundlessLayer.get());
 
     ASSERT_TRUE(colorLayer->isValid());
     asTransaction([&](Transaction& t) {

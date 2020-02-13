@@ -25,9 +25,9 @@
 #include "BufferLayerConsumer.h"
 #include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
-#include "ColorLayer.h"
 #include "ContainerLayer.h"
 #include "DisplayDevice.h"
+#include "EffectLayer.h"
 #include "Layer.h"
 #include "MonitoredProducer.h"
 #include "NativeWindowSurface.h"
@@ -139,8 +139,8 @@ sp<BufferStateLayer> DefaultFactory::createBufferStateLayer(const LayerCreationA
     return new BufferStateLayer(args);
 }
 
-sp<ColorLayer> DefaultFactory::createColorLayer(const LayerCreationArgs& args) {
-    return new ColorLayer(args);
+sp<EffectLayer> DefaultFactory::createEffectLayer(const LayerCreationArgs& args) {
+    return new EffectLayer(args);
 }
 
 } // namespace android::surfaceflinger

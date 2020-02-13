@@ -212,7 +212,7 @@ public:
         InputWindowInfo inputInfo;
         wp<Layer> touchableRegionCrop;
 
-        // dataspace is only used by BufferStateLayer and ColorLayer
+        // dataspace is only used by BufferStateLayer and EffectLayer
         ui::Dataspace dataspace;
 
         // The fields below this point are only used by BufferStateLayer

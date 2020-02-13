@@ -56,10 +56,10 @@
 #include <sstream>
 
 #include "BufferLayer.h"
-#include "ColorLayer.h"
 #include "Colorizer.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWComposer.h"
+#include "EffectLayer.h"
 #include "FrameTracer/FrameTracer.h"
 #include "LayerProtoHelper.h"
 #include "LayerRejecter.h"
@@ -164,7 +164,7 @@ LayerCreationArgs::LayerCreationArgs(SurfaceFlinger* flinger, const sp<Client> c
 /*
  * onLayerDisplayed is only meaningful for BufferLayer, but, is called through
  * Layer.  So, the implementation is done in BufferLayer.  When called on a
- * ColorLayer object, it's essentially a NOP.
+ * EffectLayer object, it's essentially a NOP.
  */
 void Layer::onLayerDisplayed(const sp<Fence>& /*releaseFence*/) {}
 
@@ -1091,9 +1091,9 @@ bool Layer::setBackgroundColor(const half3& color, float alpha, ui::Dataspace da
 
     if (!mCurrentState.bgColorLayer && alpha != 0) {
         // create background color layer if one does not yet exist
-        uint32_t flags = ISurfaceComposerClient::eFXSurfaceColor;
+        uint32_t flags = ISurfaceComposerClient::eFXSurfaceEffect;
         std::string name = mName + "BackgroundColorLayer";
-        mCurrentState.bgColorLayer = mFlinger->getFactory().createColorLayer(
+        mCurrentState.bgColorLayer = mFlinger->getFactory().createEffectLayer(
                 LayerCreationArgs(mFlinger.get(), nullptr, std::move(name), 0, 0, flags,
                                   LayerMetadata()));
 

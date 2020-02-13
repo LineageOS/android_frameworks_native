@@ -32,7 +32,7 @@
 #include <private/gui/SyncFeatures.h>
 #include <renderengine/Image.h>
 
-#include "ColorLayer.h"
+#include "EffectLayer.h"
 #include "FrameTracer/FrameTracer.h"
 #include "TimeStats/TimeStats.h"
 

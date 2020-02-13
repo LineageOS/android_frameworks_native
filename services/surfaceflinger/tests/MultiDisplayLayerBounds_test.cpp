@@ -66,7 +66,7 @@ protected:
     void createColorLayer(uint32_t layerStack) {
         mColorLayer =
                 createSurface(mClient, "ColorLayer", 0 /* buffer width */, 0 /* buffer height */,
-                              PIXEL_FORMAT_RGBA_8888, ISurfaceComposerClient::eFXSurfaceColor);
+                              PIXEL_FORMAT_RGBA_8888, ISurfaceComposerClient::eFXSurfaceEffect);
         ASSERT_TRUE(mColorLayer != nullptr);
         ASSERT_TRUE(mColorLayer->isValid());
         asTransaction([&](Transaction& t) {

@@ -82,7 +82,8 @@ public:
                                                                int width, int height) {
         sp<SurfaceControl> surfaceControl =
                 scc->createSurface(String8("Test Surface"), 0 /* bufHeight */, 0 /* bufWidth */,
-                                   PIXEL_FORMAT_RGBA_8888, ISurfaceComposerClient::eFXSurfaceColor);
+                                   PIXEL_FORMAT_RGBA_8888,
+                                   ISurfaceComposerClient::eFXSurfaceEffect);
         return std::make_unique<InputSurface>(surfaceControl, width, height);
     }
 
