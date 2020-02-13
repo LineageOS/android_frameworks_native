@@ -16,7 +16,8 @@
 
 #include "EventHub.h"
 
-#include <android-base/stringprintf.h>
+#include "UinputDevice.h"
+
 #include <gtest/gtest.h>
 #include <inttypes.h>
 #include <linux/uinput.h>
@@ -25,16 +26,16 @@
 
 #define TAG "EventHub_test"
 
+using android::createUinputDevice;
 using android::EventHub;
 using android::EventHubInterface;
 using android::InputDeviceIdentifier;
 using android::RawEvent;
 using android::sp;
-using android::base::StringPrintf;
+using android::UinputHomeKey;
 using std::chrono_literals::operator""ms;
 
 static constexpr bool DEBUG = false;
-static const char* DEVICE_NAME = "EventHub Test Device";
 
 static void dumpEvents(const std::vector<RawEvent>& events) {
     for (const RawEvent& event : events) {
@@ -62,27 +63,26 @@ class EventHubTest : public testing::Test {
 protected:
     std::unique_ptr<EventHubInterface> mEventHub;
     // We are only going to emulate a single input device currently.
-    android::base::unique_fd mDeviceFd;
+    std::unique_ptr<UinputHomeKey> mKeyboard;
     int32_t mDeviceId;
+
     virtual void SetUp() override {
         mEventHub = std::make_unique<EventHub>();
         consumeInitialDeviceAddedEvents();
-        createDevice();
+        mKeyboard = createUinputDevice<UinputHomeKey>();
         mDeviceId = waitForDeviceCreation();
     }
     virtual void TearDown() override {
-        mDeviceFd.reset();
+        mKeyboard.reset();
         waitForDeviceClose(mDeviceId);
     }
 
-    void createDevice();
     /**
      * Return the device id of the created device.
      */
     int32_t waitForDeviceCreation();
     void waitForDeviceClose(int32_t deviceId);
     void consumeInitialDeviceAddedEvents();
-    void sendEvent(uint16_t type, uint16_t code, int32_t value);
     std::vector<RawEvent> getEvents(std::chrono::milliseconds timeout = 5ms);
 };
 
@@ -103,48 +103,6 @@ std::vector<RawEvent> EventHubTest::getEvents(std::chrono::milliseconds timeout)
         dumpEvents(events);
     }
     return events;
-}
-
-void EventHubTest::createDevice() {
-    mDeviceFd = android::base::unique_fd(open("/dev/uinput", O_WRONLY | O_NONBLOCK));
-    if (mDeviceFd < 0) {
-        FAIL() << "Can't open /dev/uinput :" << strerror(errno);
-    }
-
-    /**
-     * Signal which type of events this input device supports.
-     * We will emulate a keyboard here.
-     */
-    // enable key press/release event
-    if (ioctl(mDeviceFd, UI_SET_EVBIT, EV_KEY)) {
-        ADD_FAILURE() << "Error in ioctl : UI_SET_EVBIT : EV_KEY: " << strerror(errno);
-    }
-
-    // enable set of KEY events
-    if (ioctl(mDeviceFd, UI_SET_KEYBIT, KEY_HOME)) {
-        ADD_FAILURE() << "Error in ioctl : UI_SET_KEYBIT : KEY_HOME: " << strerror(errno);
-    }
-
-    // enable synchronization event
-    if (ioctl(mDeviceFd, UI_SET_EVBIT, EV_SYN)) {
-        ADD_FAILURE() << "Error in ioctl : UI_SET_EVBIT : EV_SYN: " << strerror(errno);
-    }
-
-    struct uinput_user_dev keyboard = {};
-    strlcpy(keyboard.name, DEVICE_NAME, UINPUT_MAX_NAME_SIZE);
-    keyboard.id.bustype = BUS_USB;
-    keyboard.id.vendor = 0x01;
-    keyboard.id.product = 0x01;
-    keyboard.id.version = 1;
-
-    if (write(mDeviceFd, &keyboard, sizeof(keyboard)) < 0) {
-        FAIL() << "Could not write uinput_user_dev struct into uinput file descriptor: "
-               << strerror(errno);
-    }
-
-    if (ioctl(mDeviceFd, UI_DEV_CREATE)) {
-        FAIL() << "Error in ioctl : UI_DEV_CREATE: " << strerror(errno);
-    }
 }
 
 /**
@@ -176,7 +134,7 @@ int32_t EventHubTest::waitForDeviceCreation() {
     EXPECT_EQ(static_cast<int32_t>(EventHubInterface::DEVICE_ADDED), deviceAddedEvent.type);
     InputDeviceIdentifier identifier = mEventHub->getDeviceIdentifier(deviceAddedEvent.deviceId);
     const int32_t deviceId = deviceAddedEvent.deviceId;
-    EXPECT_EQ(identifier.name, DEVICE_NAME);
+    EXPECT_EQ(identifier.name, mKeyboard->getName());
     const RawEvent& finishedDeviceScanEvent = events[1];
     EXPECT_EQ(static_cast<int32_t>(EventHubInterface::FINISHED_DEVICE_SCAN),
               finishedDeviceScanEvent.type);
@@ -194,22 +152,6 @@ void EventHubTest::waitForDeviceClose(int32_t deviceId) {
               finishedDeviceScanEvent.type);
 }
 
-void EventHubTest::sendEvent(uint16_t type, uint16_t code, int32_t value) {
-    struct input_event event = {};
-    event.type = type;
-    event.code = code;
-    event.value = value;
-    event.time = {}; // uinput ignores the timestamp
-
-    if (write(mDeviceFd, &event, sizeof(input_event)) < 0) {
-        std::string msg = StringPrintf("Could not write event %" PRIu16 " %" PRIu16
-                                       " with value %" PRId32 " : %s",
-                                       type, code, value, strerror(errno));
-        ALOGE("%s", msg.c_str());
-        ADD_FAILURE() << msg.c_str();
-    }
-}
-
 /**
  * Ensure that input_events are generated with monotonic clock.
  * That means input_event should receive a timestamp that is in the future of the time
@@ -218,13 +160,7 @@ void EventHubTest::sendEvent(uint16_t type, uint16_t code, int32_t value) {
  */
 TEST_F(EventHubTest, InputEvent_TimestampIsMonotonic) {
     nsecs_t lastEventTime = systemTime(SYSTEM_TIME_MONOTONIC);
-    // key press
-    sendEvent(EV_KEY, KEY_HOME, 1);
-    sendEvent(EV_SYN, SYN_REPORT, 0);
-
-    // key release
-    sendEvent(EV_KEY, KEY_HOME, 0);
-    sendEvent(EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mKeyboard->pressAndReleaseHomeKey());
 
     std::vector<RawEvent> events = getEvents();
     ASSERT_EQ(4U, events.size()) << "Expected to receive 2 keys and 2 syncs, total of 4 events";
