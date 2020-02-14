@@ -165,6 +165,14 @@ int32_t ANativeWindow_setFrameRate(ANativeWindow* window, float frameRate) {
     return native_window_set_frame_rate(window, frameRate);
 }
 
+void ANativeWindow_tryAllocateBuffers(ANativeWindow* window) {
+    if (!window || !query(window, NATIVE_WINDOW_IS_VALID)) {
+        return;
+    }
+    window->perform(window, NATIVE_WINDOW_ALLOCATE_BUFFERS);
+}
+
+
 /**************************************************************************************************
  * vndk-stable
  **************************************************************************************************/
@@ -326,10 +334,6 @@ int ANativeWindow_setQueueBufferInterceptor(ANativeWindow* window,
                                             ANativeWindow_queueBufferInterceptor interceptor,
                                             void* data) {
     return window->perform(window, NATIVE_WINDOW_SET_QUEUE_INTERCEPTOR, interceptor, data);
-}
-
-void ANativeWindow_allocateBuffers(ANativeWindow* window) {
-    window->perform(window, NATIVE_WINDOW_ALLOCATE_BUFFERS);
 }
 
 int64_t ANativeWindow_getNextFrameId(ANativeWindow* window) {

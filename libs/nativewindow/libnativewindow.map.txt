@@ -17,7 +17,6 @@ LIBNATIVEWINDOW {
     ANativeWindow_OemStorageGet; # llndk
     ANativeWindow_OemStorageSet; # llndk
     ANativeWindow_acquire;
-    ANativeWindow_allocateBuffers; # apex # introduced=30
     ANativeWindow_cancelBuffer; # llndk
     ANativeWindow_dequeueBuffer; # llndk
     ANativeWindow_getBuffersDataSpace; # introduced=28
@@ -51,6 +50,7 @@ LIBNATIVEWINDOW {
     ANativeWindow_setSwapInterval; # llndk
     ANativeWindow_setFrameRate; # introduced=30
     ANativeWindow_setUsage; # llndk
+    ANativeWindow_tryAllocateBuffers; # introduced=30
     ANativeWindow_unlockAndPost;
   local:
     *;
