@@ -136,7 +136,7 @@ filegroup {
         "BufferStateLayer.cpp",
         "ClientCache.cpp",
         "Client.cpp",
-        "ColorLayer.cpp",
+        "EffectLayer.cpp",
         "ContainerLayer.cpp",
         "DisplayDevice.cpp",
         "DisplayHardware/ComposerHal.cpp",

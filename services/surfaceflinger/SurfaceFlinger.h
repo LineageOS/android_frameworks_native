@@ -653,9 +653,9 @@ private:
                                     sp<IBinder>* outHandle, uint32_t* outTransformHint,
                                     sp<Layer>* outLayer);
 
-    status_t createColorLayer(const sp<Client>& client, std::string name, uint32_t w, uint32_t h,
-                              uint32_t flags, LayerMetadata metadata, sp<IBinder>* outHandle,
-                              sp<Layer>* outLayer);
+    status_t createEffectLayer(const sp<Client>& client, std::string name, uint32_t w, uint32_t h,
+                               uint32_t flags, LayerMetadata metadata, sp<IBinder>* outHandle,
+                               sp<Layer>* outLayer);
 
     status_t createContainerLayer(const sp<Client>& client, std::string name, uint32_t w,
                                   uint32_t h, uint32_t flags, LayerMetadata metadata,

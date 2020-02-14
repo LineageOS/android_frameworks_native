@@ -1827,10 +1827,11 @@ class ChildColorLayerTest : public ChildLayerTest<FakeComposerService> {
 protected:
     void SetUp() override {
         Base::SetUp();
-        Base::mChild = Base::mComposerClient->createSurface(String8("Child surface"), 0, 0,
-                                                            PIXEL_FORMAT_RGBA_8888,
-                                                            ISurfaceComposerClient::eFXSurfaceColor,
-                                                            Base::mFGSurfaceControl.get());
+        Base::mChild =
+                Base::mComposerClient->createSurface(String8("Child surface"), 0, 0,
+                                                     PIXEL_FORMAT_RGBA_8888,
+                                                     ISurfaceComposerClient::eFXSurfaceEffect,
+                                                     Base::mFGSurfaceControl.get());
         {
             TransactionScope ts(*Base::sFakeComposer);
             ts.setColor(Base::mChild,

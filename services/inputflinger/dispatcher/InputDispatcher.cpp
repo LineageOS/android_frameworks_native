@@ -60,7 +60,10 @@ static constexpr bool DEBUG_FOCUS = false;
 #include <android-base/chrono_utils.h>
 #include <android-base/stringprintf.h>
 #include <binder/Binder.h>
+#include <input/InputDevice.h>
 #include <log/log.h>
+#include <openssl/hmac.h>
+#include <openssl/rand.h>
 #include <powermanager/PowerManager.h>
 #include <utils/Trace.h>
 
@@ -323,6 +326,55 @@ static std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inp
                                             firstPointerInfo.windowYScale);
     combinedMotionEntry->release();
     return dispatchEntry;
+}
+
+static std::array<uint8_t, 128> getRandomKey() {
+    std::array<uint8_t, 128> key;
+    if (RAND_bytes(key.data(), key.size()) != 1) {
+        LOG_ALWAYS_FATAL("Can't generate HMAC key");
+    }
+    return key;
+}
+
+// --- HmacKeyManager ---
+
+HmacKeyManager::HmacKeyManager() : mHmacKey(getRandomKey()) {}
+
+std::array<uint8_t, 32> HmacKeyManager::sign(const VerifiedInputEvent& event) const {
+    size_t size;
+    switch (event.type) {
+        case VerifiedInputEvent::Type::KEY: {
+            size = sizeof(VerifiedKeyEvent);
+            break;
+        }
+        case VerifiedInputEvent::Type::MOTION: {
+            size = sizeof(VerifiedMotionEvent);
+            break;
+        }
+    }
+    std::vector<uint8_t> data;
+    const uint8_t* start = reinterpret_cast<const uint8_t*>(&event);
+    data.assign(start, start + size);
+    return sign(data);
+}
+
+std::array<uint8_t, 32> HmacKeyManager::sign(const std::vector<uint8_t>& data) const {
+    // SHA256 always generates 32-bytes result
+    std::array<uint8_t, 32> hash;
+    unsigned int hashLen = 0;
+    uint8_t* result = HMAC(EVP_sha256(), mHmacKey.data(), mHmacKey.size(), data.data(), data.size(),
+                           hash.data(), &hashLen);
+    if (result == nullptr) {
+        ALOGE("Could not sign the data using HMAC");
+        return INVALID_HMAC;
+    }
+
+    if (hashLen != hash.size()) {
+        ALOGE("HMAC-SHA256 has unexpected length");
+        return INVALID_HMAC;
+    }
+
+    return hash;
 }
 
 // --- InputDispatcher ---
@@ -3153,22 +3205,22 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
     std::queue<EventEntry*> injectedEntries;
     switch (event->getType()) {
         case AINPUT_EVENT_TYPE_KEY: {
-            KeyEvent keyEvent;
-            keyEvent.initialize(*static_cast<const KeyEvent*>(event));
-            int32_t action = keyEvent.getAction();
+            const KeyEvent& incomingKey = static_cast<const KeyEvent&>(*event);
+            int32_t action = incomingKey.getAction();
             if (!validateKeyEvent(action)) {
                 return INPUT_EVENT_INJECTION_FAILED;
             }
 
-            int32_t flags = keyEvent.getFlags();
-            int32_t keyCode = keyEvent.getKeyCode();
-            int32_t metaState = keyEvent.getMetaState();
-            accelerateMetaShortcuts(keyEvent.getDeviceId(), action,
+            int32_t flags = incomingKey.getFlags();
+            int32_t keyCode = incomingKey.getKeyCode();
+            int32_t metaState = incomingKey.getMetaState();
+            accelerateMetaShortcuts(VIRTUAL_KEYBOARD_ID, action,
                                     /*byref*/ keyCode, /*byref*/ metaState);
-            keyEvent.initialize(keyEvent.getDeviceId(), keyEvent.getSource(),
-                                keyEvent.getDisplayId(), INVALID_HMAC, action, flags, keyCode,
-                                keyEvent.getScanCode(), metaState, keyEvent.getRepeatCount(),
-                                keyEvent.getDownTime(), keyEvent.getEventTime());
+            KeyEvent keyEvent;
+            keyEvent.initialize(VIRTUAL_KEYBOARD_ID, incomingKey.getSource(),
+                                incomingKey.getDisplayId(), INVALID_HMAC, action, flags, keyCode,
+                                incomingKey.getScanCode(), metaState, incomingKey.getRepeatCount(),
+                                incomingKey.getDownTime(), incomingKey.getEventTime());
 
             if (flags & AKEY_EVENT_FLAG_VIRTUAL_HARD_KEY) {
                 policyFlags |= POLICY_FLAG_VIRTUAL;
@@ -3186,11 +3238,10 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
             mLock.lock();
             KeyEntry* injectedEntry =
                     new KeyEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, keyEvent.getEventTime(),
-                                 keyEvent.getDeviceId(), keyEvent.getSource(),
-                                 keyEvent.getDisplayId(), policyFlags, action, flags,
-                                 keyEvent.getKeyCode(), keyEvent.getScanCode(),
-                                 keyEvent.getMetaState(), keyEvent.getRepeatCount(),
-                                 keyEvent.getDownTime());
+                                 VIRTUAL_KEYBOARD_ID, keyEvent.getSource(), keyEvent.getDisplayId(),
+                                 policyFlags, action, flags, keyEvent.getKeyCode(),
+                                 keyEvent.getScanCode(), keyEvent.getMetaState(),
+                                 keyEvent.getRepeatCount(), keyEvent.getDownTime());
             injectedEntries.push(injectedEntry);
             break;
         }
@@ -3221,7 +3272,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
             const PointerCoords* samplePointerCoords = motionEvent->getSamplePointerCoords();
             MotionEntry* injectedEntry =
                     new MotionEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, *sampleEventTimes,
-                                    motionEvent->getDeviceId(), motionEvent->getSource(),
+                                    VIRTUAL_KEYBOARD_ID, motionEvent->getSource(),
                                     motionEvent->getDisplayId(), policyFlags, action, actionButton,
                                     motionEvent->getFlags(), motionEvent->getMetaState(),
                                     motionEvent->getButtonState(), motionEvent->getClassification(),
@@ -3238,7 +3289,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
                 samplePointerCoords += pointerCount;
                 MotionEntry* nextInjectedEntry =
                         new MotionEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, *sampleEventTimes,
-                                        motionEvent->getDeviceId(), motionEvent->getSource(),
+                                        VIRTUAL_KEYBOARD_ID, motionEvent->getSource(),
                                         motionEvent->getDisplayId(), policyFlags, action,
                                         actionButton, motionEvent->getFlags(),
                                         motionEvent->getMetaState(), motionEvent->getButtonState(),
