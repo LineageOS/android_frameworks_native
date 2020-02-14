@@ -1180,6 +1180,9 @@ int Surface::perform(int operation, va_list args)
         allocateBuffers();
         res = NO_ERROR;
         break;
+    case NATIVE_WINDOW_GET_LAST_QUEUED_BUFFER:
+        res = dispatchGetLastQueuedBuffer(args);
+        break;
     default:
         res = NAME_NOT_FOUND;
         break;
@@ -1450,6 +1453,30 @@ int Surface::dispatchAddQueueInterceptor(va_list args) {
     mQueueInterceptor = interceptor;
     mQueueInterceptorData = data;
     return NO_ERROR;
+}
+
+int Surface::dispatchGetLastQueuedBuffer(va_list args) {
+    AHardwareBuffer** buffer = va_arg(args, AHardwareBuffer**);
+    int* fence = va_arg(args, int*);
+    float* matrix = va_arg(args, float*);
+    sp<GraphicBuffer> graphicBuffer;
+    sp<Fence> spFence;
+
+    int result = mGraphicBufferProducer->getLastQueuedBuffer(&graphicBuffer, &spFence, matrix);
+
+    if (graphicBuffer != nullptr) {
+        *buffer = reinterpret_cast<AHardwareBuffer*>(graphicBuffer.get());
+        AHardwareBuffer_acquire(*buffer);
+    } else {
+        *buffer = nullptr;
+    }
+
+    if (spFence != nullptr) {
+        *fence = spFence->dup();
+    } else {
+        *fence = -1;
+    }
+    return result;
 }
 
 bool Surface::transformToDisplayInverse() {
