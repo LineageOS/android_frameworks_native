@@ -57,6 +57,7 @@
 #include <gui/IDisplayEventConnection.h>
 #include <gui/IProducerListener.h>
 #include <gui/LayerDebugInfo.h>
+#include <gui/LayerMetadata.h>
 #include <gui/Surface.h>
 #include <input/IInputFlinger.h>
 #include <renderengine/RenderEngine.h>
@@ -622,7 +623,7 @@ void SurfaceFlinger::init() {
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
             "Starting with vr flinger active is not currently supported.");
     mCompositionEngine->setHwComposer(getFactory().createHWComposer(getBE().mHwcServiceName));
-    mCompositionEngine->getHwComposer().registerCallback(this, getBE().mComposerSequenceId);
+    mCompositionEngine->getHwComposer().setConfiguration(this, getBE().mComposerSequenceId);
     // Process any initial hotplug and resulting display changes.
     processDisplayHotplugEventsLocked();
     const auto display = getDefaultDisplayDeviceLocked();
@@ -1682,7 +1683,7 @@ void SurfaceFlinger::updateVrFlinger() {
     mCompositionEngine->setHwComposer(std::unique_ptr<HWComposer>());
     mCompositionEngine->setHwComposer(getFactory().createHWComposer(
             vrFlingerRequestsDisplay ? "vr" : getBE().mHwcServiceName));
-    getHwComposer().registerCallback(this, ++getBE().mComposerSequenceId);
+    mCompositionEngine->getHwComposer().setConfiguration(this, ++getBE().mComposerSequenceId);
 
     LOG_ALWAYS_FATAL_IF(!getHwComposer().getComposer()->isRemote(),
                         "Switched to non-remote hardware composer");
@@ -5853,6 +5854,21 @@ status_t SurfaceFlinger::setGlobalShadowSettings(const half4& ambientColor, cons
     mCurrentState.globalShadowSettings.lightPos.x = 0.f;
     mCurrentState.globalShadowSettings.length = 0.f;
     return NO_ERROR;
+}
+
+const std::unordered_map<std::string, uint32_t>& SurfaceFlinger::getGenericLayerMetadataKeyMap()
+        const {
+    // TODO(b/149500060): Remove this fixed/static mapping. Please prefer taking
+    // on the work to remove the table in that bug rather than adding more to
+    // it.
+    static const std::unordered_map<std::string, uint32_t> genericLayerMetadataKeyMap{
+            // Note: METADATA_OWNER_UID and METADATA_WINDOW_TYPE are officially
+            // supported, and exposed via the
+            // IVrComposerClient::VrCommand::SET_LAYER_INFO command.
+            {"org.chromium.arc.V1_0.TaskId", METADATA_TASK_ID},
+            {"org.chromium.arc.V1_0.CursorInfo", METADATA_MOUSE_CURSOR},
+    };
+    return genericLayerMetadataKeyMap;
 }
 
 } // namespace android

@@ -201,8 +201,6 @@ void DisplayTransactionTest::injectMockScheduler() {
 
 void DisplayTransactionTest::injectMockComposer(int virtualDisplayCount) {
     mComposer = new Hwc2::mock::Composer();
-    EXPECT_CALL(*mComposer, getCapabilities())
-            .WillOnce(Return(std::vector<IComposer::Capability>()));
     EXPECT_CALL(*mComposer, getMaxVirtualDisplayCount()).WillOnce(Return(virtualDisplayCount));
     mFlinger.setupComposer(std::unique_ptr<Hwc2::Composer>(mComposer));
 

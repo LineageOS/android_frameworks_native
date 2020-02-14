@@ -625,6 +625,8 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
     static constexpr ui::Dataspace kDataspace = static_cast<ui::Dataspace>(71);
     static constexpr int kSupportedPerFrameMetadata = 101;
     static constexpr int kExpectedHwcSlot = 0;
+    static constexpr bool kLayerGenericMetadata1Mandatory = true;
+    static constexpr bool kLayerGenericMetadata2Mandatory = true;
 
     static const half4 kColor;
     static const Rect kDisplayFrame;
@@ -635,6 +637,10 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
     static native_handle_t* kSidebandStreamHandle;
     static const sp<GraphicBuffer> kBuffer;
     static const sp<Fence> kFence;
+    static const std::string kLayerGenericMetadata1Key;
+    static const std::vector<uint8_t> kLayerGenericMetadata1Value;
+    static const std::string kLayerGenericMetadata2Key;
+    static const std::vector<uint8_t> kLayerGenericMetadata2Value;
 
     OutputLayerWriteStateToHWCTest() {
         auto& outputLayerState = mOutputLayer.editState();
@@ -668,6 +674,13 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
 
     // Some tests may need to simulate unsupported HWC calls
     enum class SimulateUnsupported { None, ColorTransform };
+
+    void includeGenericLayerMetadataInState() {
+        mLayerFEState.metadata[kLayerGenericMetadata1Key] = {kLayerGenericMetadata1Mandatory,
+                                                             kLayerGenericMetadata1Value};
+        mLayerFEState.metadata[kLayerGenericMetadata2Key] = {kLayerGenericMetadata2Mandatory,
+                                                             kLayerGenericMetadata2Value};
+    }
 
     void expectGeometryCommonCalls() {
         EXPECT_CALL(*mHwcLayer, setDisplayFrame(kDisplayFrame)).WillOnce(Return(kError));
@@ -720,6 +733,18 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
         EXPECT_CALL(*mHwcLayer, setBuffer(kExpectedHwcSlot, kBuffer, kFence));
     }
 
+    void expectGenericLayerMetadataCalls() {
+        // Note: Can be in any order.
+        EXPECT_CALL(*mHwcLayer,
+                    setLayerGenericMetadata(kLayerGenericMetadata1Key,
+                                            kLayerGenericMetadata1Mandatory,
+                                            kLayerGenericMetadata1Value));
+        EXPECT_CALL(*mHwcLayer,
+                    setLayerGenericMetadata(kLayerGenericMetadata2Key,
+                                            kLayerGenericMetadata2Mandatory,
+                                            kLayerGenericMetadata2Value));
+    }
+
     std::shared_ptr<HWC2::mock::Layer> mHwcLayer{std::make_shared<StrictMock<HWC2::mock::Layer>>()};
     StrictMock<mock::DisplayColorProfile> mDisplayColorProfile;
 };
@@ -739,6 +764,13 @@ native_handle_t* OutputLayerWriteStateToHWCTest::kSidebandStreamHandle =
         reinterpret_cast<native_handle_t*>(1031);
 const sp<GraphicBuffer> OutputLayerWriteStateToHWCTest::kBuffer;
 const sp<Fence> OutputLayerWriteStateToHWCTest::kFence;
+const std::string OutputLayerWriteStateToHWCTest::kLayerGenericMetadata1Key =
+        "com.example.metadata.1";
+const std::vector<uint8_t> OutputLayerWriteStateToHWCTest::kLayerGenericMetadata1Value{{1, 2, 3}};
+const std::string OutputLayerWriteStateToHWCTest::kLayerGenericMetadata2Key =
+        "com.example.metadata.2";
+const std::vector<uint8_t> OutputLayerWriteStateToHWCTest::kLayerGenericMetadata2Value{
+        {4, 5, 6, 7}};
 
 TEST_F(OutputLayerWriteStateToHWCTest, doesNothingIfNoFECompositionState) {
     EXPECT_CALL(*mLayerFE, getCompositionState()).WillOnce(Return(nullptr));
@@ -858,6 +890,30 @@ TEST_F(OutputLayerWriteStateToHWCTest, compositionTypeIsSetToClientIfClientCompo
     expectPerFrameCommonCalls();
     expectSetColorCall();
     expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::CLIENT);
+
+    mOutputLayer.writeStateToHWC(false);
+}
+
+TEST_F(OutputLayerWriteStateToHWCTest, allStateIncludesMetadataIfPresent) {
+    mLayerFEState.compositionType = Hwc2::IComposerClient::Composition::DEVICE;
+    includeGenericLayerMetadataInState();
+
+    expectGeometryCommonCalls();
+    expectPerFrameCommonCalls();
+    expectSetHdrMetadataAndBufferCalls();
+    expectGenericLayerMetadataCalls();
+    expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::DEVICE);
+
+    mOutputLayer.writeStateToHWC(true);
+}
+
+TEST_F(OutputLayerWriteStateToHWCTest, perFrameStateDoesNotIncludeMetadataIfPresent) {
+    mLayerFEState.compositionType = Hwc2::IComposerClient::Composition::DEVICE;
+    includeGenericLayerMetadataInState();
+
+    expectPerFrameCommonCalls();
+    expectSetHdrMetadataAndBufferCalls();
+    expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::DEVICE);
 
     mOutputLayer.writeStateToHWC(false);
 }

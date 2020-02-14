@@ -475,6 +475,26 @@ void Layer::prepareGeometryCompositionState() {
 
     compositionState->type = type;
     compositionState->appId = appId;
+
+    compositionState->metadata.clear();
+    const auto& supportedMetadata = mFlinger->getHwComposer().getSupportedLayerGenericMetadata();
+    for (const auto& [key, mandatory] : supportedMetadata) {
+        const auto& genericLayerMetadataCompatibilityMap =
+                mFlinger->getGenericLayerMetadataKeyMap();
+        auto compatIter = genericLayerMetadataCompatibilityMap.find(key);
+        if (compatIter == std::end(genericLayerMetadataCompatibilityMap)) {
+            continue;
+        }
+        const uint32_t id = compatIter->second;
+
+        auto it = drawingState.metadata.mMap.find(id);
+        if (it == std::end(drawingState.metadata.mMap)) {
+            continue;
+        }
+
+        compositionState->metadata
+                .emplace(key, compositionengine::GenericLayerMetadataEntry{mandatory, it->second});
+    }
 }
 
 void Layer::preparePerFrameCompositionState() {

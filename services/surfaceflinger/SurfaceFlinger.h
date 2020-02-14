@@ -1153,6 +1153,15 @@ private:
 
     std::atomic<nsecs_t> mExpectedPresentTime = 0;
 
+    /* ------------------------------------------------------------------------
+     * Generic Layer Metadata
+     */
+    const std::unordered_map<std::string, uint32_t>& getGenericLayerMetadataKeyMap() const;
+
+    /* ------------------------------------------------------------------------
+     * Misc
+     */
+
     std::mutex mActiveConfigLock;
     // This bit is set once we start setting the config. We read from this bit during the
     // process. If at the end, this bit is different than mDesiredActiveConfig, we restart
