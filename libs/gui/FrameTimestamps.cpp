@@ -18,6 +18,7 @@
 
 #define LOG_TAG "FrameEvents"
 
+#include <LibGuiProperties.sysprop.h>
 #include <android-base/stringprintf.h>
 #include <cutils/compiler.h>  // For CC_[UN]LIKELY
 #include <inttypes.h>
@@ -166,6 +167,11 @@ struct FrameNumberEqual {
 };
 
 }  // namespace
+
+const size_t FrameEventHistory::MAX_FRAME_HISTORY =
+        sysprop::LibGuiProperties::frame_event_history_size().value_or(8);
+
+FrameEventHistory::FrameEventHistory() : mFrames(std::vector<FrameEvents>(MAX_FRAME_HISTORY)) {}
 
 FrameEventHistory::~FrameEventHistory() = default;
 
@@ -348,6 +354,9 @@ std::shared_ptr<FenceTime> ProducerFrameEventHistory::createFenceTime(
 // ConsumerFrameEventHistory
 // ============================================================================
 
+ConsumerFrameEventHistory::ConsumerFrameEventHistory()
+      : mFramesDirty(std::vector<FrameEventDirtyFields>(MAX_FRAME_HISTORY)) {}
+
 ConsumerFrameEventHistory::~ConsumerFrameEventHistory() = default;
 
 void ConsumerFrameEventHistory::onDisconnect() {
@@ -443,9 +452,8 @@ void ConsumerFrameEventHistory::addRelease(uint64_t frameNumber,
     mFramesDirty[mReleaseOffset].setDirty<FrameEvent::RELEASE>();
 }
 
-void ConsumerFrameEventHistory::getFrameDelta(
-        FrameEventHistoryDelta* delta,
-        const std::array<FrameEvents, MAX_FRAME_HISTORY>::iterator& frame) {
+void ConsumerFrameEventHistory::getFrameDelta(FrameEventHistoryDelta* delta,
+                                              const std::vector<FrameEvents>::iterator& frame) {
     mProducerWantsEvents = true;
     size_t i = static_cast<size_t>(std::distance(mFrames.begin(), frame));
     if (mFramesDirty[i].anyDirty()) {
