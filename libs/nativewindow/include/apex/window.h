@@ -173,25 +173,22 @@ int ANativeWindow_setQueueBufferInterceptor(ANativeWindow* window,
 /**
  * Retrieves how long it took for the last time a buffer was dequeued.
  *
- * \return a negative value on error, otherwise returns the duration in
- * nanoseconds
+ * \return the dequeue duration in nanoseconds
  */
 int64_t ANativeWindow_getLastDequeueDuration(ANativeWindow* window);
 
 /**
  * Retrieves how long it took for the last time a buffer was queued.
  *
- * \return a negative value on error, otherwise returns the duration in
- * nanoseconds.
+ * \return the queue duration in nanoseconds
  */
 int64_t ANativeWindow_getLastQueueDuration(ANativeWindow* window);
 
 /**
  * Retrieves the system time in nanoseconds when the last time a buffer
- * was dequeued.
+ * started to be dequeued.
  *
- * \return a negative value on error, otherwise returns the duration in
- * nanoseconds.
+ * \return the start time in nanoseconds
  */
 int64_t ANativeWindow_getLastDequeueStartTime(ANativeWindow* window);
 
@@ -200,23 +197,14 @@ int64_t ANativeWindow_getLastDequeueStartTime(ANativeWindow* window);
  * made by the window will return -ETIMEDOUT after the timeout if the dequeue
  * takes too long.
  *
- * \return NO_ERROR on success, -errno on error.
+ * If the provided timeout is negative, hen this removes the previously configured
+ * timeout. The window then behaves as if ANativeWindow_setDequeueTimeout was
+ * never called.
+ *
+ * \return NO_ERROR on success
+ * \return BAD_VALUE if the dequeue timeout was unabled to be updated, as
+ * updating the dequeue timeout may change internals of the underlying window.
  */
 int ANativeWindow_setDequeueTimeout(ANativeWindow* window, int64_t timeout);
-
-/**
- * Provides a hint to the window that buffers should be preallocated ahead of
- * time. Note that the window implementation is not guaranteed to preallocate
- * any buffers, for instance if a private API disallows allocation of new
- * buffers. As such no success/error status is returned.
- */
-void ANativeWindow_allocateBuffers(ANativeWindow* window);
-
-/**
- * Retrieves an identifier for the next frame to be queued by this window.
- *
- * \return -errno on error, otherwise returns the next frame id.
- */
-int64_t ANativeWindow_getNextFrameId(ANativeWindow* window);
 
 __END_DECLS
