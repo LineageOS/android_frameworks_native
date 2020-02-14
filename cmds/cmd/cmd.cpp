@@ -185,7 +185,7 @@ int cmdMain(const std::vector<std::string_view>& argv, TextOutput& outputLog, Te
     int argc = argv.size();
 
     if (argc == 0) {
-        errorLog << "cmd: No service specified; use -l to list all services" << endl;
+        errorLog << "cmd: No service specified; use -l to list all running services. Use -w to start and wait for a service." << endl;
         return 20;
     }
 
@@ -203,14 +203,22 @@ int cmdMain(const std::vector<std::string_view>& argv, TextOutput& outputLog, Te
         return 0;
     }
 
-    const auto cmd = argv[0];
+    bool waitForService = ((argc > 1) && (argv[0] == "-w"));
+    int serviceIdx = (waitForService) ? 1 : 0;
+    const auto cmd = argv[serviceIdx];
 
     Vector<String16> args;
     String16 serviceName = String16(cmd.data(), cmd.size());
-    for (int i = 1; i < argc; i++) {
+    for (int i = serviceIdx + 1; i < argc; i++) {
         args.add(String16(argv[i].data(), argv[i].size()));
     }
-    sp<IBinder> service = sm->checkService(serviceName);
+    sp<IBinder> service;
+    if(waitForService) {
+        service = sm->waitForService(serviceName);
+    } else {
+        service = sm->checkService(serviceName);
+    }
+
     if (service == nullptr) {
         if (runMode == RunMode::kStandalone) {
             ALOGW("Can't find service %.*s", static_cast<int>(cmd.size()), cmd.data());
