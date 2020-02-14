@@ -203,11 +203,11 @@ protected:
     void updateCloneBufferInfo() override;
     uint64_t mPreviousFrameNumber = 0;
 
+    virtual uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const;
+
 private:
     // Returns true if this layer requires filtering
     bool needsFiltering(const sp<const DisplayDevice>& displayDevice) const override;
-
-    uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const;
 
     // BufferStateLayers can return Rect::INVALID_RECT if the layer does not have a display frame
     // and its parent layer is not bounded
