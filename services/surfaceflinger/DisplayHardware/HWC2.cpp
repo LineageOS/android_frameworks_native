@@ -95,13 +95,13 @@ float Display::Config::Builder::getDefaultDensity() {
 }
 
 namespace impl {
+
 Display::Display(android::Hwc2::Composer& composer,
                  const std::unordered_set<Capability>& capabilities, hwc2_display_t id,
                  DisplayType type)
       : mComposer(composer),
         mCapabilities(capabilities),
         mId(id),
-        mIsConnected(false),
         mType(type) {
     ALOGV("Created display %" PRIu64, id);
 }
@@ -109,20 +109,27 @@ Display::Display(android::Hwc2::Composer& composer,
 Display::~Display() {
     mLayers.clear();
 
-    if (mType == DisplayType::Virtual) {
-        ALOGV("Destroying virtual display");
-        auto intError = mComposer.destroyVirtualDisplay(mId);
-        auto error = static_cast<Error>(intError);
-        ALOGE_IF(error != Error::None, "destroyVirtualDisplay(%" PRIu64
-                ") failed: %s (%d)", mId, to_string(error).c_str(), intError);
-    } else if (mType == DisplayType::Physical) {
-        auto error = setVsyncEnabled(HWC2::Vsync::Disable);
-        if (error != Error::None) {
-            ALOGE("~Display: Failed to disable vsync for display %" PRIu64
-                    ": %s (%d)", mId, to_string(error).c_str(),
-                    static_cast<int32_t>(error));
-        }
+    Error error = Error::None;
+    const char* msg;
+    switch (mType) {
+        case DisplayType::Physical:
+            error = setVsyncEnabled(HWC2::Vsync::Disable);
+            msg = "disable VSYNC for";
+            break;
+
+        case DisplayType::Virtual:
+            error = static_cast<Error>(mComposer.destroyVirtualDisplay(mId));
+            msg = "destroy virtual";
+            break;
+
+        case DisplayType::Invalid: // Used in unit tests.
+            break;
     }
+
+    ALOGE_IF(error != Error::None, "%s: Failed to %s display %" PRIu64 ": %s (%d)", __FUNCTION__,
+             msg, mId, to_string(error).c_str(), static_cast<int32_t>(error));
+
+    ALOGV("Destroyed display %" PRIu64, mId);
 }
 
 // Required by HWC2 display
@@ -372,9 +379,19 @@ Error Display::getRequests(HWC2::DisplayRequest* outDisplayRequests,
     return Error::None;
 }
 
-Error Display::getType(DisplayType* outType) const
-{
-    *outType = mType;
+Error Display::getConnectionType(android::DisplayConnectionType* outType) const {
+    if (mType != DisplayType::Physical) return Error::BadDisplay;
+
+    using ConnectionType = Hwc2::IComposerClient::DisplayConnectionType;
+    ConnectionType connectionType;
+    const auto error = static_cast<Error>(mComposer.getDisplayConnectionType(mId, &connectionType));
+    if (error != Error::None) {
+        return error;
+    }
+
+    *outType = connectionType == ConnectionType::INTERNAL
+            ? android::DisplayConnectionType::Internal
+            : android::DisplayConnectionType::External;
     return Error::None;
 }
 

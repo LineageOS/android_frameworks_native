@@ -284,13 +284,14 @@ struct BaseDisplayVariant {
         EXPECT_CALL(*test->mNativeWindow, perform(NATIVE_WINDOW_SET_BUFFERS_FORMAT)).Times(1);
         EXPECT_CALL(*test->mNativeWindow, perform(NATIVE_WINDOW_API_CONNECT)).Times(1);
         EXPECT_CALL(*test->mNativeWindow, perform(NATIVE_WINDOW_SET_USAGE64)).Times(1);
-        test->mDisplay = FakeDisplayDeviceInjector(test->mFlinger, DEFAULT_DISPLAY_ID,
-                                                   false /* isVirtual */, true /* isPrimary */)
-                                 .setDisplaySurface(test->mDisplaySurface)
-                                 .setNativeWindow(test->mNativeWindow)
-                                 .setSecure(Derived::IS_SECURE)
-                                 .setPowerMode(Derived::INIT_POWER_MODE)
-                                 .inject();
+        test->mDisplay =
+                FakeDisplayDeviceInjector(test->mFlinger, DEFAULT_DISPLAY_ID,
+                                          DisplayConnectionType::Internal, true /* isPrimary */)
+                        .setDisplaySurface(test->mDisplaySurface)
+                        .setNativeWindow(test->mNativeWindow)
+                        .setSecure(Derived::IS_SECURE)
+                        .setPowerMode(Derived::INIT_POWER_MODE)
+                        .inject();
         Mock::VerifyAndClear(test->mNativeWindow);
         test->mDisplay->setLayerStack(DEFAULT_LAYER_STACK);
     }

@@ -405,18 +405,32 @@ std::shared_ptr<const HWC2::Display::Config> HWComposer::getActiveConfig(
 
 // Composer 2.4
 
+DisplayConnectionType HWComposer::getDisplayConnectionType(DisplayId displayId) const {
+    RETURN_IF_INVALID_DISPLAY(displayId, DisplayConnectionType::Internal);
+    const auto& hwcDisplay = mDisplayData.at(displayId).hwcDisplay;
+
+    DisplayConnectionType type;
+    const auto error = hwcDisplay->getConnectionType(&type);
+
+    const auto FALLBACK_TYPE = hwcDisplay->getId() == mInternalHwcDisplayId
+            ? DisplayConnectionType::Internal
+            : DisplayConnectionType::External;
+
+    RETURN_IF_HWC_ERROR(error, displayId, FALLBACK_TYPE);
+    return type;
+}
+
 bool HWComposer::isVsyncPeriodSwitchSupported(DisplayId displayId) const {
+    RETURN_IF_INVALID_DISPLAY(displayId, false);
     return mDisplayData.at(displayId).hwcDisplay->isVsyncPeriodSwitchSupported();
 }
 
 nsecs_t HWComposer::getDisplayVsyncPeriod(DisplayId displayId) const {
+    RETURN_IF_INVALID_DISPLAY(displayId, 0);
+
     nsecs_t vsyncPeriodNanos;
     auto error = mDisplayData.at(displayId).hwcDisplay->getDisplayVsyncPeriod(&vsyncPeriodNanos);
-    if (error != HWC2::Error::None) {
-        LOG_DISPLAY_ERROR(displayId, "Failed to get Vsync Period");
-        return 0;
-    }
-
+    RETURN_IF_HWC_ERROR(error, displayId, 0);
     return vsyncPeriodNanos;
 }
 

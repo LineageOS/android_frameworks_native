@@ -783,14 +783,18 @@ status_t SurfaceFlinger::getDisplayInfo(const sp<IBinder>& displayToken, Display
         return NAME_NOT_FOUND;
     }
 
-    if (display->isVirtual()) {
+    if (const auto connectionType = display->getConnectionType())
+        info->connectionType = *connectionType;
+    else {
         return INVALID_OPERATION;
     }
 
     if (mEmulatedDisplayDensity) {
         info->density = mEmulatedDisplayDensity;
     } else {
-        info->density = display->isPrimary() ? mInternalDisplayDensity : FALLBACK_DENSITY;
+        info->density = info->connectionType == DisplayConnectionType::Internal
+                ? mInternalDisplayDensity
+                : FALLBACK_DENSITY;
     }
 
     info->secure = display->isSecure();
@@ -2242,30 +2246,38 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
             continue;
         }
 
+        const DisplayId displayId = info->id;
+        const auto it = mPhysicalDisplayTokens.find(displayId);
+
         if (event.connection == HWC2::Connection::Connected) {
-            if (!mPhysicalDisplayTokens.count(info->id)) {
-                ALOGV("Creating display %s", to_string(info->id).c_str());
+            if (it == mPhysicalDisplayTokens.end()) {
+                ALOGV("Creating display %s", to_string(displayId).c_str());
+
                 if (event.hwcDisplayId == getHwComposer().getInternalHwcDisplayId()) {
-                    initScheduler(info->id);
+                    initScheduler(displayId);
                 }
-                mPhysicalDisplayTokens[info->id] = new BBinder();
+
                 DisplayDeviceState state;
-                state.displayId = info->id;
+                state.physical = {displayId, getHwComposer().getDisplayConnectionType(displayId)};
                 state.isSecure = true; // All physical displays are currently considered secure.
                 state.displayName = info->name;
-                mCurrentState.displays.add(mPhysicalDisplayTokens[info->id], state);
+
+                sp<IBinder> token = new BBinder();
+                mCurrentState.displays.add(token, state);
+                mPhysicalDisplayTokens.emplace(displayId, std::move(token));
+
                 mInterceptor->saveDisplayCreation(state);
             }
         } else {
-            ALOGV("Removing display %s", to_string(info->id).c_str());
+            ALOGV("Removing display %s", to_string(displayId).c_str());
 
-            ssize_t index = mCurrentState.displays.indexOfKey(mPhysicalDisplayTokens[info->id]);
+            const ssize_t index = mCurrentState.displays.indexOfKey(it->second);
             if (index >= 0) {
                 const DisplayDeviceState& state = mCurrentState.displays.valueAt(index);
                 mInterceptor->saveDisplayDeletion(state.sequenceId);
                 mCurrentState.displays.removeItemsAt(index);
             }
-            mPhysicalDisplayTokens.erase(info->id);
+            mPhysicalDisplayTokens.erase(it);
         }
 
         processDisplayChangesLocked();
@@ -2285,12 +2297,15 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const sp<IGraphicBufferProducer>& producer) {
     DisplayDeviceCreationArgs creationArgs(this, displayToken, displayId);
     creationArgs.sequenceId = state.sequenceId;
-    creationArgs.isVirtual = state.isVirtual();
     creationArgs.isSecure = state.isSecure;
     creationArgs.displaySurface = dispSurface;
     creationArgs.hasWideColorGamut = false;
     creationArgs.supportedPerFrameMetadata = 0;
     creationArgs.powerAdvisor = displayId ? &mPowerAdvisor : nullptr;
+
+    if (const auto& physical = state.physical) {
+        creationArgs.connectionType = physical->type;
+    }
 
     const bool isInternalDisplay = displayId && displayId == getInternalDisplayIdLocked();
     creationArgs.isPrimary = isInternalDisplay;
@@ -2482,8 +2497,8 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                              "surface is provided (%p), ignoring it",
                              state.surface.get());
 
-                    displayId = state.displayId;
-                    LOG_ALWAYS_FATAL_IF(!displayId);
+                    LOG_FATAL_IF(!state.physical);
+                    displayId = state.physical->id;
                     dispSurface = new FramebufferSurface(getHwComposer(), *displayId, bqConsumer);
                     producer = bqProducer;
                 }
