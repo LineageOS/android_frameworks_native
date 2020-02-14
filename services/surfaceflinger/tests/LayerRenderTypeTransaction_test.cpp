@@ -747,10 +747,24 @@ TEST_P(LayerRenderTypeTransactionTest, SetColorClamped) {
                                                 ISurfaceComposerClient::eFXSurfaceEffect));
     Transaction()
             .setCrop_legacy(colorLayer, Rect(0, 0, 32, 32))
-            .setColor(colorLayer, half3(2.0f, -1.0f, 0.0f))
+            .setColor(colorLayer, half3(2.0f, 0.0f, 0.0f))
             .apply();
 
     getScreenCapture()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+}
+
+// An invalid color will not render a color and the layer will not be visible.
+TEST_P(LayerRenderTypeTransactionTest, SetInvalidColor) {
+    sp<SurfaceControl> colorLayer;
+    ASSERT_NO_FATAL_FAILURE(colorLayer =
+                                    createLayer("test", 0 /* buffer width */, 0 /* buffer height */,
+                                                ISurfaceComposerClient::eFXSurfaceEffect));
+    Transaction()
+            .setCrop_legacy(colorLayer, Rect(0, 0, 32, 32))
+            .setColor(colorLayer, half3(1.0f, -1.0f, 0.5f))
+            .apply();
+
+    getScreenCapture()->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
 }
 
 TEST_P(LayerRenderTypeTransactionTest, SetColorWithAlpha) {

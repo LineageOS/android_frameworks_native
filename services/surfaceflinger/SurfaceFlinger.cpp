@@ -5552,17 +5552,18 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
                 renderArea.isSecure(),
                 supportProtectedContent,
                 clearRegion,
+                displayViewport,
+                clientCompositionDisplay.outputDataspace,
+                true,  /* realContentIsVisible */
+                false, /* clearContent */
         };
-        auto result = layer->prepareClientComposition(targetSettings);
-        if (result) {
-            std::optional<compositionengine::LayerFE::LayerSettings> shadowLayer =
-                    layer->prepareShadowClientComposition(*result, displayViewport,
-                                                          clientCompositionDisplay.outputDataspace);
-            if (shadowLayer) {
-                clientCompositionLayers.push_back(*shadowLayer);
-            }
-            clientCompositionLayers.push_back(*result);
-        }
+        std::vector<compositionengine::LayerFE::LayerSettings> results =
+                layer->prepareClientCompositionList(targetSettings);
+        clientCompositionLayers.insert(clientCompositionLayers.end(),
+                                       std::make_move_iterator(results.begin()),
+                                       std::make_move_iterator(results.end()));
+        results.clear();
+
     });
 
     std::vector<const renderengine::LayerSettings*> clientCompositionLayerPointers;
