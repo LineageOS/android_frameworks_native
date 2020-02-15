@@ -18,7 +18,16 @@
 
 #include "InputDevice.h"
 
-#include "InputMapper.h"
+#include "CursorInputMapper.h"
+#include "ExternalStylusInputMapper.h"
+#include "InputReaderContext.h"
+#include "JoystickInputMapper.h"
+#include "KeyboardInputMapper.h"
+#include "MultiTouchInputMapper.h"
+#include "RotaryEncoderInputMapper.h"
+#include "SingleTouchInputMapper.h"
+#include "SwitchInputMapper.h"
+#include "VibratorInputMapper.h"
 
 namespace android {
 
@@ -36,13 +45,7 @@ InputDevice::InputDevice(InputReaderContext* context, int32_t id, int32_t genera
         mHasMic(false),
         mDropUntilNextSync(false) {}
 
-InputDevice::~InputDevice() {
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        delete mMappers[i];
-    }
-    mMappers.clear();
-}
+InputDevice::~InputDevice() {}
 
 bool InputDevice::isEnabled() {
     return getEventHub()->isDeviceEnabled(mId);
@@ -110,15 +113,80 @@ void InputDevice::dump(std::string& dump) {
         }
     }
 
-    size_t numMappers = mMappers.size();
-    for (size_t i = 0; i < numMappers; i++) {
-        InputMapper* mapper = mMappers[i];
-        mapper->dump(dump);
-    }
+    for_each_mapper([&dump](InputMapper& mapper) { mapper.dump(dump); });
 }
 
-void InputDevice::addMapper(InputMapper* mapper) {
-    mMappers.push_back(mapper);
+void InputDevice::populateMappers() {
+    uint32_t classes = mClasses;
+    std::vector<std::unique_ptr<InputMapper>>& mappers = mMappers;
+
+    // External devices.
+    if (classes & INPUT_DEVICE_CLASS_EXTERNAL) {
+        setExternal(true);
+    }
+
+    // Devices with mics.
+    if (classes & INPUT_DEVICE_CLASS_MIC) {
+        setMic(true);
+    }
+
+    // Switch-like devices.
+    if (classes & INPUT_DEVICE_CLASS_SWITCH) {
+        mappers.push_back(std::make_unique<SwitchInputMapper>(this));
+    }
+
+    // Scroll wheel-like devices.
+    if (classes & INPUT_DEVICE_CLASS_ROTARY_ENCODER) {
+        mappers.push_back(std::make_unique<RotaryEncoderInputMapper>(this));
+    }
+
+    // Vibrator-like devices.
+    if (classes & INPUT_DEVICE_CLASS_VIBRATOR) {
+        mappers.push_back(std::make_unique<VibratorInputMapper>(this));
+    }
+
+    // Keyboard-like devices.
+    uint32_t keyboardSource = 0;
+    int32_t keyboardType = AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC;
+    if (classes & INPUT_DEVICE_CLASS_KEYBOARD) {
+        keyboardSource |= AINPUT_SOURCE_KEYBOARD;
+    }
+    if (classes & INPUT_DEVICE_CLASS_ALPHAKEY) {
+        keyboardType = AINPUT_KEYBOARD_TYPE_ALPHABETIC;
+    }
+    if (classes & INPUT_DEVICE_CLASS_DPAD) {
+        keyboardSource |= AINPUT_SOURCE_DPAD;
+    }
+    if (classes & INPUT_DEVICE_CLASS_GAMEPAD) {
+        keyboardSource |= AINPUT_SOURCE_GAMEPAD;
+    }
+
+    if (keyboardSource != 0) {
+        mappers.push_back(
+                std::make_unique<KeyboardInputMapper>(this, keyboardSource, keyboardType));
+    }
+
+    // Cursor-like devices.
+    if (classes & INPUT_DEVICE_CLASS_CURSOR) {
+        mappers.push_back(std::make_unique<CursorInputMapper>(this));
+    }
+
+    // Touchscreens and touchpad devices.
+    if (classes & INPUT_DEVICE_CLASS_TOUCH_MT) {
+        mappers.push_back(std::make_unique<MultiTouchInputMapper>(this));
+    } else if (classes & INPUT_DEVICE_CLASS_TOUCH) {
+        mappers.push_back(std::make_unique<SingleTouchInputMapper>(this));
+    }
+
+    // Joystick-like devices.
+    if (classes & INPUT_DEVICE_CLASS_JOYSTICK) {
+        mappers.push_back(std::make_unique<JoystickInputMapper>(this));
+    }
+
+    // External stylus-like devices.
+    if (classes & INPUT_DEVICE_CLASS_EXTERNAL_STYLUS) {
+        mappers.push_back(std::make_unique<ExternalStylusInputMapper>(this));
+    }
 }
 
 void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config,
@@ -193,10 +261,10 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
             }
         }
 
-        for (InputMapper* mapper : mMappers) {
-            mapper->configure(when, config, changes);
-            mSources |= mapper->getSources();
-        }
+        for_each_mapper([this, when, config, changes](InputMapper& mapper) {
+            mapper.configure(when, config, changes);
+            mSources |= mapper.getSources();
+        });
 
         // If a device is just plugged but it might be disabled, we need to update some info like
         // axis range of touch from each InputMapper first, then disable it.
@@ -207,9 +275,7 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
 }
 
 void InputDevice::reset(nsecs_t when) {
-    for (InputMapper* mapper : mMappers) {
-        mapper->reset(when);
-    }
+    for_each_mapper([when](InputMapper& mapper) { mapper.reset(when); });
 
     mContext->updateGlobalMetaState();
 
@@ -244,32 +310,25 @@ void InputDevice::process(const RawEvent* rawEvents, size_t count) {
             mDropUntilNextSync = true;
             reset(rawEvent->when);
         } else {
-            for (InputMapper* mapper : mMappers) {
-                mapper->process(rawEvent);
-            }
+            for_each_mapper([rawEvent](InputMapper& mapper) { mapper.process(rawEvent); });
         }
         --count;
     }
 }
 
 void InputDevice::timeoutExpired(nsecs_t when) {
-    for (InputMapper* mapper : mMappers) {
-        mapper->timeoutExpired(when);
-    }
+    for_each_mapper([when](InputMapper& mapper) { mapper.timeoutExpired(when); });
 }
 
 void InputDevice::updateExternalStylusState(const StylusState& state) {
-    for (InputMapper* mapper : mMappers) {
-        mapper->updateExternalStylusState(state);
-    }
+    for_each_mapper([state](InputMapper& mapper) { mapper.updateExternalStylusState(state); });
 }
 
 void InputDevice::getDeviceInfo(InputDeviceInfo* outDeviceInfo) {
     outDeviceInfo->initialize(mId, mGeneration, mControllerNumber, mIdentifier, mAlias, mIsExternal,
                               mHasMic);
-    for (InputMapper* mapper : mMappers) {
-        mapper->populateDeviceInfo(outDeviceInfo);
-    }
+    for_each_mapper(
+            [outDeviceInfo](InputMapper& mapper) { mapper.populateDeviceInfo(outDeviceInfo); });
 }
 
 int32_t InputDevice::getKeyCodeState(uint32_t sourceMask, int32_t keyCode) {
@@ -286,11 +345,12 @@ int32_t InputDevice::getSwitchState(uint32_t sourceMask, int32_t switchCode) {
 
 int32_t InputDevice::getState(uint32_t sourceMask, int32_t code, GetStateFunc getStateFunc) {
     int32_t result = AKEY_STATE_UNKNOWN;
-    for (InputMapper* mapper : mMappers) {
-        if (sourcesMatchMask(mapper->getSources(), sourceMask)) {
+    for (auto& mapperPtr : mMappers) {
+        InputMapper& mapper = *mapperPtr;
+        if (sourcesMatchMask(mapper.getSources(), sourceMask)) {
             // If any mapper reports AKEY_STATE_DOWN or AKEY_STATE_VIRTUAL, return that
             // value.  Otherwise, return AKEY_STATE_UP as long as one mapper reports it.
-            int32_t currentResult = (mapper->*getStateFunc)(sourceMask, code);
+            int32_t currentResult = (mapper.*getStateFunc)(sourceMask, code);
             if (currentResult >= AKEY_STATE_DOWN) {
                 return currentResult;
             } else if (currentResult == AKEY_STATE_UP) {
@@ -304,51 +364,41 @@ int32_t InputDevice::getState(uint32_t sourceMask, int32_t code, GetStateFunc ge
 bool InputDevice::markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
                                         const int32_t* keyCodes, uint8_t* outFlags) {
     bool result = false;
-    for (InputMapper* mapper : mMappers) {
-        if (sourcesMatchMask(mapper->getSources(), sourceMask)) {
-            result |= mapper->markSupportedKeyCodes(sourceMask, numCodes, keyCodes, outFlags);
+    for_each_mapper([&result, sourceMask, numCodes, keyCodes, outFlags](InputMapper& mapper) {
+        if (sourcesMatchMask(mapper.getSources(), sourceMask)) {
+            result |= mapper.markSupportedKeyCodes(sourceMask, numCodes, keyCodes, outFlags);
         }
-    }
+    });
     return result;
 }
 
 void InputDevice::vibrate(const nsecs_t* pattern, size_t patternSize, ssize_t repeat,
                           int32_t token) {
-    for (InputMapper* mapper : mMappers) {
-        mapper->vibrate(pattern, patternSize, repeat, token);
-    }
+    for_each_mapper([pattern, patternSize, repeat, token](InputMapper& mapper) {
+        mapper.vibrate(pattern, patternSize, repeat, token);
+    });
 }
 
 void InputDevice::cancelVibrate(int32_t token) {
-    for (InputMapper* mapper : mMappers) {
-        mapper->cancelVibrate(token);
-    }
+    for_each_mapper([token](InputMapper& mapper) { mapper.cancelVibrate(token); });
 }
 
 void InputDevice::cancelTouch(nsecs_t when) {
-    for (InputMapper* mapper : mMappers) {
-        mapper->cancelTouch(when);
-    }
+    for_each_mapper([when](InputMapper& mapper) { mapper.cancelTouch(when); });
 }
 
 int32_t InputDevice::getMetaState() {
     int32_t result = 0;
-    for (InputMapper* mapper : mMappers) {
-        result |= mapper->getMetaState();
-    }
+    for_each_mapper([&result](InputMapper& mapper) { result |= mapper.getMetaState(); });
     return result;
 }
 
 void InputDevice::updateMetaState(int32_t keyCode) {
-    for (InputMapper* mapper : mMappers) {
-        mapper->updateMetaState(keyCode);
-    }
+    for_each_mapper([keyCode](InputMapper& mapper) { mapper.updateMetaState(keyCode); });
 }
 
 void InputDevice::fadePointer() {
-    for (InputMapper* mapper : mMappers) {
-        mapper->fadePointer();
-    }
+    for_each_mapper([](InputMapper& mapper) { mapper.fadePointer(); });
 }
 
 void InputDevice::bumpGeneration() {
@@ -367,14 +417,8 @@ std::optional<int32_t> InputDevice::getAssociatedDisplayId() {
     }
 
     // No associated display port, check if some InputMapper is associated.
-    for (InputMapper* mapper : mMappers) {
-        std::optional<int32_t> associatedDisplayId = mapper->getAssociatedDisplayId();
-        if (associatedDisplayId) {
-            return associatedDisplayId;
-        }
-    }
-
-    return std::nullopt;
+    return first_in_mappers<int32_t>(
+            [](InputMapper& mapper) { return mapper.getAssociatedDisplayId(); });
 }
 
 } // namespace android

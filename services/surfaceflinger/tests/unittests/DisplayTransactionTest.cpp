@@ -201,8 +201,6 @@ void DisplayTransactionTest::injectMockScheduler() {
 
 void DisplayTransactionTest::injectMockComposer(int virtualDisplayCount) {
     mComposer = new Hwc2::mock::Composer();
-    EXPECT_CALL(*mComposer, getCapabilities())
-            .WillOnce(Return(std::vector<IComposer::Capability>()));
     EXPECT_CALL(*mComposer, getMaxVirtualDisplayCount()).WillOnce(Return(virtualDisplayCount));
     mFlinger.setupComposer(std::unique_ptr<Hwc2::Composer>(mComposer));
 
@@ -312,6 +310,16 @@ struct DisplayIdGetter<NoDisplayId> {
     static std::optional<DisplayId> get() { return {}; }
 };
 
+template <typename>
+struct DisplayConnectionTypeGetter {
+    static constexpr std::optional<DisplayConnectionType> value;
+};
+
+template <typename PhysicalDisplay>
+struct DisplayConnectionTypeGetter<PhysicalDisplayId<PhysicalDisplay>> {
+    static constexpr std::optional<DisplayConnectionType> value = PhysicalDisplay::CONNECTION_TYPE;
+};
+
 // DisplayIdType can be:
 //     1) PhysicalDisplayId<...> for generated ID of physical display backed by HWC.
 //     2) VirtualDisplayId<...> for hard-coded ID of virtual display backed by HWC.
@@ -320,6 +328,7 @@ template <typename DisplayIdType, int width, int height, Critical critical, Asyn
           Secure secure, Primary primary, int grallocUsage>
 struct DisplayVariant {
     using DISPLAY_ID = DisplayIdGetter<DisplayIdType>;
+    using CONNECTION_TYPE = DisplayConnectionTypeGetter<DisplayIdType>;
 
     // The display width and height
     static constexpr int WIDTH = width;
@@ -345,8 +354,8 @@ struct DisplayVariant {
 
     static auto makeFakeExistingDisplayInjector(DisplayTransactionTest* test) {
         auto injector =
-                FakeDisplayDeviceInjector(test->mFlinger, DISPLAY_ID::get(),
-                                          static_cast<bool>(VIRTUAL), static_cast<bool>(PRIMARY));
+                FakeDisplayDeviceInjector(test->mFlinger, DISPLAY_ID::get(), CONNECTION_TYPE::value,
+                                          static_cast<bool>(PRIMARY));
 
         injector.setSecure(static_cast<bool>(SECURE));
         injector.setNativeWindow(test->mNativeWindow);
@@ -450,6 +459,15 @@ struct HwcDisplayVariant {
     }
 
     static void setupHwcHotplugCallExpectations(DisplayTransactionTest* test) {
+        constexpr auto CONNECTION_TYPE =
+                PhysicalDisplay::CONNECTION_TYPE == DisplayConnectionType::Internal
+                ? IComposerClient::DisplayConnectionType::INTERNAL
+                : IComposerClient::DisplayConnectionType::EXTERNAL;
+
+        EXPECT_CALL(*test->mComposer, getDisplayConnectionType(HWC_DISPLAY_ID, _))
+                .WillOnce(
+                        DoAll(SetArgPointee<1>(CONNECTION_TYPE), Return(Hwc2::V2_4::Error::NONE)));
+
         EXPECT_CALL(*test->mComposer, setClientTargetSlotCount(_)).WillOnce(Return(Error::NONE));
         EXPECT_CALL(*test->mComposer, getDisplayConfigs(HWC_DISPLAY_ID, _))
                 .WillOnce(DoAll(SetArgPointee<1>(std::vector<unsigned>{HWC_ACTIVE_CONFIG_ID}),
@@ -514,6 +532,7 @@ struct PhysicalDisplayVariant
 
 template <bool hasIdentificationData>
 struct PrimaryDisplay {
+    static constexpr auto CONNECTION_TYPE = DisplayConnectionType::Internal;
     static constexpr Primary PRIMARY = Primary::TRUE;
     static constexpr uint8_t PORT = 255;
     static constexpr bool HAS_IDENTIFICATION_DATA = hasIdentificationData;
@@ -522,6 +541,7 @@ struct PrimaryDisplay {
 
 template <bool hasIdentificationData>
 struct ExternalDisplay {
+    static constexpr auto CONNECTION_TYPE = DisplayConnectionType::External;
     static constexpr Primary PRIMARY = Primary::FALSE;
     static constexpr uint8_t PORT = 254;
     static constexpr bool HAS_IDENTIFICATION_DATA = hasIdentificationData;
@@ -1183,7 +1203,8 @@ public:
 
     GetBestColorModeTest()
           : DisplayTransactionTest(),
-            mInjector(FakeDisplayDeviceInjector(mFlinger, DEFAULT_DISPLAY_ID, false /* isVirtual */,
+            mInjector(FakeDisplayDeviceInjector(mFlinger, DEFAULT_DISPLAY_ID,
+                                                DisplayConnectionType::Internal,
                                                 true /* isPrimary */)) {}
 
     void setHasWideColorGamut(bool hasWideColorGamut) { mHasWideColorGamut = hasWideColorGamut; }
@@ -1285,8 +1306,6 @@ TEST_F(GetBestColorModeTest, DataspaceDisplayP3_ColorModeDISPLAY_BT2020) {
 class DisplayDeviceSetProjectionTest : public DisplayTransactionTest {
 public:
     static constexpr DisplayId DEFAULT_DISPLAY_ID = DisplayId{777};
-    static constexpr bool DEFAULT_DISPLAY_IS_VIRTUAL = false;
-    static constexpr bool DEFAULT_DISPLAY_IS_PRIMARY = true;
     static constexpr int32_t DEFAULT_DISPLAY_WIDTH = 1080;  // arbitrary
     static constexpr int32_t DEFAULT_DISPLAY_HEIGHT = 1920; // arbitrary
 
@@ -1316,8 +1335,8 @@ public:
         EXPECT_CALL(*mNativeWindow, perform(NATIVE_WINDOW_SET_USAGE64));
         EXPECT_CALL(*mNativeWindow, perform(NATIVE_WINDOW_API_DISCONNECT));
 
-        return FakeDisplayDeviceInjector(mFlinger, DEFAULT_DISPLAY_ID, DEFAULT_DISPLAY_IS_VIRTUAL,
-                                         DEFAULT_DISPLAY_IS_PRIMARY)
+        return FakeDisplayDeviceInjector(mFlinger, DEFAULT_DISPLAY_ID,
+                                         DisplayConnectionType::Internal, true /* isPrimary */)
                 .setNativeWindow(mNativeWindow)
                 .setPhysicalOrientation(mPhysicalOrientation)
                 .inject();
@@ -1647,8 +1666,12 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
     // Invocation
 
     DisplayDeviceState state;
-    state.displayId = static_cast<bool>(Case::Display::VIRTUAL) ? std::nullopt
-                                                                : Case::Display::DISPLAY_ID::get();
+    if (const auto connectionType = Case::Display::CONNECTION_TYPE::value) {
+        const auto displayId = Case::Display::DISPLAY_ID::get();
+        ASSERT_TRUE(displayId);
+        state.physical = {*displayId, *connectionType};
+    }
+
     state.isSecure = static_cast<bool>(Case::Display::SECURE);
 
     auto device =
@@ -1660,6 +1683,7 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
 
     ASSERT_TRUE(device != nullptr);
     EXPECT_EQ(Case::Display::DISPLAY_ID::get(), device->getId());
+    EXPECT_EQ(Case::Display::CONNECTION_TYPE::value, device->getConnectionType());
     EXPECT_EQ(static_cast<bool>(Case::Display::VIRTUAL), device->isVirtual());
     EXPECT_EQ(static_cast<bool>(Case::Display::SECURE), device->isSecure());
     EXPECT_EQ(static_cast<bool>(Case::Display::PRIMARY), device->isPrimary());
@@ -1823,21 +1847,24 @@ void HandleTransactionLockedTest::verifyDisplayIsConnected(const sp<IBinder>& di
     EXPECT_EQ(static_cast<bool>(Case::Display::SECURE), device->isSecure());
     EXPECT_EQ(static_cast<bool>(Case::Display::PRIMARY), device->isPrimary());
 
+    std::optional<DisplayDeviceState::Physical> expectedPhysical;
+    if (const auto connectionType = Case::Display::CONNECTION_TYPE::value) {
+        const auto displayId = Case::Display::DISPLAY_ID::get();
+        ASSERT_TRUE(displayId);
+        expectedPhysical = {*displayId, *connectionType};
+    }
+
     // The display should have been set up in the current display state
     ASSERT_TRUE(hasCurrentDisplayState(displayToken));
     const auto& current = getCurrentDisplayState(displayToken);
     EXPECT_EQ(static_cast<bool>(Case::Display::VIRTUAL), current.isVirtual());
-    EXPECT_EQ(static_cast<bool>(Case::Display::VIRTUAL) ? std::nullopt
-                                                        : Case::Display::DISPLAY_ID::get(),
-              current.displayId);
+    EXPECT_EQ(expectedPhysical, current.physical);
 
     // The display should have been set up in the drawing display state
     ASSERT_TRUE(hasDrawingDisplayState(displayToken));
     const auto& draw = getDrawingDisplayState(displayToken);
     EXPECT_EQ(static_cast<bool>(Case::Display::VIRTUAL), draw.isVirtual());
-    EXPECT_EQ(static_cast<bool>(Case::Display::VIRTUAL) ? std::nullopt
-                                                        : Case::Display::DISPLAY_ID::get(),
-              draw.displayId);
+    EXPECT_EQ(expectedPhysical, draw.physical);
 }
 
 template <typename Case>

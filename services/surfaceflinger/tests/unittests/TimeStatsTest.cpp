@@ -797,63 +797,6 @@ TEST_F(TimeStatsTest, canDumpWithInvalidMaxLayers) {
     ASSERT_EQ(0, globalProto.stats_size());
 }
 
-TEST_F(TimeStatsTest, globalStatsCallback) {
-    constexpr size_t TOTAL_FRAMES = 5;
-    constexpr size_t MISSED_FRAMES = 4;
-    constexpr size_t CLIENT_COMPOSITION_FRAMES = 3;
-    constexpr size_t DISPLAY_EVENT_CONNECTIONS = 14;
-
-    mTimeStats->onBootFinished();
-    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
-
-    for (size_t i = 0; i < TOTAL_FRAMES; i++) {
-        mTimeStats->incrementTotalFrames();
-    }
-    for (size_t i = 0; i < MISSED_FRAMES; i++) {
-        mTimeStats->incrementMissedFrames();
-    }
-    for (size_t i = 0; i < CLIENT_COMPOSITION_FRAMES; i++) {
-        mTimeStats->incrementClientCompositionFrames();
-    }
-
-    mTimeStats->recordDisplayEventConnectionCount(DISPLAY_EVENT_CONNECTIONS);
-
-    mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL);
-    mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(3000000));
-    mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(5000000));
-
-    EXPECT_THAT(mDelegate->mAtomTags,
-                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
-                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
-    EXPECT_NE(nullptr, mDelegate->mCallback);
-    EXPECT_EQ(mTimeStats.get(), mDelegate->mCookie);
-
-    {
-        InSequence seq;
-        EXPECT_CALL(*mDelegate,
-                    statsEventSetAtomId(mDelegate->mEvent,
-                                        android::util::SURFACEFLINGER_STATS_GLOBAL_INFO));
-        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, TOTAL_FRAMES));
-        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, MISSED_FRAMES));
-        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, CLIENT_COMPOSITION_FRAMES));
-        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, _));
-        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, 2));
-        EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, DISPLAY_EVENT_CONNECTIONS));
-        EXPECT_CALL(*mDelegate, statsEventBuild(mDelegate->mEvent));
-    }
-    EXPECT_EQ(AStatsManager_PULL_SUCCESS,
-              mDelegate->makePullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
-                                              mDelegate->mCookie));
-
-    SFTimeStatsGlobalProto globalProto;
-    ASSERT_TRUE(globalProto.ParseFromString(inputCommand(InputCommand::DUMP_ALL, FMT_PROTO)));
-
-    EXPECT_EQ(0, globalProto.total_frames());
-    EXPECT_EQ(0, globalProto.missed_frames());
-    EXPECT_EQ(0, globalProto.client_composition_frames());
-    EXPECT_EQ(0, globalProto.present_to_present_size());
-}
-
 namespace {
 std::string buildExpectedHistogramBytestring(const std::vector<int32_t>& times,
                                              const std::vector<int32_t>& frameCounts) {
@@ -895,6 +838,80 @@ MATCHER_P2(BytesEq, bytes, size, "") {
     *result_listener << "actual: " << dumpByteStringHex(actual).c_str() << "\n";
 
     return expected == actual;
+}
+
+TEST_F(TimeStatsTest, globalStatsCallback) {
+    constexpr size_t TOTAL_FRAMES = 5;
+    constexpr size_t MISSED_FRAMES = 4;
+    constexpr size_t CLIENT_COMPOSITION_FRAMES = 3;
+    constexpr size_t DISPLAY_EVENT_CONNECTIONS = 14;
+
+    mTimeStats->onBootFinished();
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+
+    for (size_t i = 0; i < TOTAL_FRAMES; i++) {
+        mTimeStats->incrementTotalFrames();
+    }
+    for (size_t i = 0; i < MISSED_FRAMES; i++) {
+        mTimeStats->incrementMissedFrames();
+    }
+    for (size_t i = 0; i < CLIENT_COMPOSITION_FRAMES; i++) {
+        mTimeStats->incrementClientCompositionFrames();
+    }
+
+    mTimeStats->recordDisplayEventConnectionCount(DISPLAY_EVENT_CONNECTIONS);
+    mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL);
+    mTimeStats->recordFrameDuration(1000000, 3000000);
+    mTimeStats->recordRenderEngineDuration(2000000, 4000000);
+    mTimeStats->recordRenderEngineDuration(2000000, std::make_shared<FenceTime>(3000000));
+
+    mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(3000000));
+    mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(5000000));
+
+    EXPECT_THAT(mDelegate->mAtomTags,
+                UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
+                                     android::util::SURFACEFLINGER_STATS_LAYER_INFO));
+    EXPECT_NE(nullptr, mDelegate->mCallback);
+    EXPECT_EQ(mTimeStats.get(), mDelegate->mCookie);
+
+    std::string expectedFrameDuration = buildExpectedHistogramBytestring({2}, {1});
+    std::string expectedRenderEngineTiming = buildExpectedHistogramBytestring({1, 2}, {1, 1});
+
+    {
+        InSequence seq;
+        EXPECT_CALL(*mDelegate,
+                    statsEventSetAtomId(mDelegate->mEvent,
+                                        android::util::SURFACEFLINGER_STATS_GLOBAL_INFO));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, TOTAL_FRAMES));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, MISSED_FRAMES));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, CLIENT_COMPOSITION_FRAMES));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, _));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt64(mDelegate->mEvent, 2));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, DISPLAY_EVENT_CONNECTIONS));
+        EXPECT_CALL(*mDelegate,
+                    statsEventWriteByteArray(mDelegate->mEvent,
+                                             BytesEq((const uint8_t*)expectedFrameDuration.c_str(),
+                                                     expectedFrameDuration.size()),
+                                             expectedFrameDuration.size()));
+        EXPECT_CALL(*mDelegate,
+                    statsEventWriteByteArray(mDelegate->mEvent,
+                                             BytesEq((const uint8_t*)
+                                                             expectedRenderEngineTiming.c_str(),
+                                                     expectedRenderEngineTiming.size()),
+                                             expectedRenderEngineTiming.size()));
+        EXPECT_CALL(*mDelegate, statsEventBuild(mDelegate->mEvent));
+    }
+    EXPECT_EQ(AStatsManager_PULL_SUCCESS,
+              mDelegate->makePullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
+                                              mDelegate->mCookie));
+
+    SFTimeStatsGlobalProto globalProto;
+    ASSERT_TRUE(globalProto.ParseFromString(inputCommand(InputCommand::DUMP_ALL, FMT_PROTO)));
+
+    EXPECT_EQ(0, globalProto.total_frames());
+    EXPECT_EQ(0, globalProto.missed_frames());
+    EXPECT_EQ(0, globalProto.client_composition_frames());
+    EXPECT_EQ(0, globalProto.present_to_present_size());
 }
 
 TEST_F(TimeStatsTest, layerStatsCallback_pullsAllAndClears) {

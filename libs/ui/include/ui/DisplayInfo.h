@@ -20,8 +20,11 @@
 
 namespace android {
 
+enum class DisplayConnectionType { Internal, External };
+
 // Immutable information about physical display.
 struct DisplayInfo {
+    DisplayConnectionType connectionType = DisplayConnectionType::Internal;
     float density = 0.f;
     bool secure = false;
 };

@@ -18,32 +18,21 @@
 
 #include "InputReader.h"
 
-#include "CursorInputMapper.h"
-#include "ExternalStylusInputMapper.h"
-#include "InputReaderContext.h"
-#include "JoystickInputMapper.h"
-#include "KeyboardInputMapper.h"
-#include "MultiTouchInputMapper.h"
-#include "RotaryEncoderInputMapper.h"
-#include "SingleTouchInputMapper.h"
-#include "SwitchInputMapper.h"
-#include "VibratorInputMapper.h"
-
+#include <android-base/stringprintf.h>
 #include <errno.h>
+#include <input/Keyboard.h>
+#include <input/VirtualKeyMap.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <log/log.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <unistd.h>
-
-#include <log/log.h>
 #include <utils/Errors.h>
-
-#include <android-base/stringprintf.h>
-#include <input/Keyboard.h>
-#include <input/VirtualKeyMap.h>
 #include <utils/Thread.h>
+
+#include "InputDevice.h"
 
 using android::base::StringPrintf;
 
@@ -261,74 +250,7 @@ InputDevice* InputReader::createDeviceLocked(int32_t deviceId, int32_t controlle
                                              uint32_t classes) {
     InputDevice* device = new InputDevice(&mContext, deviceId, bumpGenerationLocked(),
                                           controllerNumber, identifier, classes);
-
-    // External devices.
-    if (classes & INPUT_DEVICE_CLASS_EXTERNAL) {
-        device->setExternal(true);
-    }
-
-    // Devices with mics.
-    if (classes & INPUT_DEVICE_CLASS_MIC) {
-        device->setMic(true);
-    }
-
-    // Switch-like devices.
-    if (classes & INPUT_DEVICE_CLASS_SWITCH) {
-        device->addMapper(new SwitchInputMapper(device));
-    }
-
-    // Scroll wheel-like devices.
-    if (classes & INPUT_DEVICE_CLASS_ROTARY_ENCODER) {
-        device->addMapper(new RotaryEncoderInputMapper(device));
-    }
-
-    // Vibrator-like devices.
-    if (classes & INPUT_DEVICE_CLASS_VIBRATOR) {
-        device->addMapper(new VibratorInputMapper(device));
-    }
-
-    // Keyboard-like devices.
-    uint32_t keyboardSource = 0;
-    int32_t keyboardType = AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC;
-    if (classes & INPUT_DEVICE_CLASS_KEYBOARD) {
-        keyboardSource |= AINPUT_SOURCE_KEYBOARD;
-    }
-    if (classes & INPUT_DEVICE_CLASS_ALPHAKEY) {
-        keyboardType = AINPUT_KEYBOARD_TYPE_ALPHABETIC;
-    }
-    if (classes & INPUT_DEVICE_CLASS_DPAD) {
-        keyboardSource |= AINPUT_SOURCE_DPAD;
-    }
-    if (classes & INPUT_DEVICE_CLASS_GAMEPAD) {
-        keyboardSource |= AINPUT_SOURCE_GAMEPAD;
-    }
-
-    if (keyboardSource != 0) {
-        device->addMapper(new KeyboardInputMapper(device, keyboardSource, keyboardType));
-    }
-
-    // Cursor-like devices.
-    if (classes & INPUT_DEVICE_CLASS_CURSOR) {
-        device->addMapper(new CursorInputMapper(device));
-    }
-
-    // Touchscreens and touchpad devices.
-    if (classes & INPUT_DEVICE_CLASS_TOUCH_MT) {
-        device->addMapper(new MultiTouchInputMapper(device));
-    } else if (classes & INPUT_DEVICE_CLASS_TOUCH) {
-        device->addMapper(new SingleTouchInputMapper(device));
-    }
-
-    // Joystick-like devices.
-    if (classes & INPUT_DEVICE_CLASS_JOYSTICK) {
-        device->addMapper(new JoystickInputMapper(device));
-    }
-
-    // External stylus-like devices.
-    if (classes & INPUT_DEVICE_CLASS_EXTERNAL_STYLUS) {
-        device->addMapper(new ExternalStylusInputMapper(device));
-    }
-
+    device->populateMappers();
     return device;
 }
 

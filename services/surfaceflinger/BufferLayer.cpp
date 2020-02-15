@@ -180,94 +180,90 @@ std::optional<compositionengine::LayerFE::LayerSettings> BufferLayer::prepareCli
     }
     bool blackOutLayer = (isProtected() && !targetSettings.supportsProtectedContent) ||
             (isSecure() && !targetSettings.isSecure);
-    const State& s(getDrawingState());
     compositionengine::LayerFE::LayerSettings& layer = *result;
-    if (!blackOutLayer) {
-        layer.source.buffer.buffer = mBufferInfo.mBuffer;
-        layer.source.buffer.isOpaque = isOpaque(s);
-        layer.source.buffer.fence = mBufferInfo.mFence;
-        layer.source.buffer.textureName = mTextureName;
-        layer.source.buffer.usePremultipliedAlpha = getPremultipledAlpha();
-        layer.source.buffer.isY410BT2020 = isHdrY410();
-        bool hasSmpte2086 = mBufferInfo.mHdrMetadata.validTypes & HdrMetadata::SMPTE2086;
-        bool hasCta861_3 = mBufferInfo.mHdrMetadata.validTypes & HdrMetadata::CTA861_3;
-        layer.source.buffer.maxMasteringLuminance = hasSmpte2086
-                ? mBufferInfo.mHdrMetadata.smpte2086.maxLuminance
-                : defaultMaxMasteringLuminance;
-        layer.source.buffer.maxContentLuminance = hasCta861_3
-                ? mBufferInfo.mHdrMetadata.cta8613.maxContentLightLevel
-                : defaultMaxContentLuminance;
-        layer.frameNumber = mCurrentFrameNumber;
-        layer.bufferId = mBufferInfo.mBuffer ? mBufferInfo.mBuffer->getId() : 0;
-
-        // TODO: we could be more subtle with isFixedSize()
-        const bool useFiltering = targetSettings.needsFiltering || mNeedsFiltering || isFixedSize();
-
-        // Query the texture matrix given our current filtering mode.
-        float textureMatrix[16];
-        getDrawingTransformMatrix(useFiltering, textureMatrix);
-
-        if (getTransformToDisplayInverse()) {
-            /*
-             * the code below applies the primary display's inverse transform to
-             * the texture transform
-             */
-            uint32_t transform = DisplayDevice::getPrimaryDisplayRotationFlags();
-            mat4 tr = inverseOrientation(transform);
-
-            /**
-             * TODO(b/36727915): This is basically a hack.
-             *
-             * Ensure that regardless of the parent transformation,
-             * this buffer is always transformed from native display
-             * orientation to display orientation. For example, in the case
-             * of a camera where the buffer remains in native orientation,
-             * we want the pixels to always be upright.
-             */
-            sp<Layer> p = mDrawingParent.promote();
-            if (p != nullptr) {
-                const auto parentTransform = p->getTransform();
-                tr = tr * inverseOrientation(parentTransform.getOrientation());
-            }
-
-            // and finally apply it to the original texture matrix
-            const mat4 texTransform(mat4(static_cast<const float*>(textureMatrix)) * tr);
-            memcpy(textureMatrix, texTransform.asArray(), sizeof(textureMatrix));
-        }
-
-        const Rect win{getBounds()};
-        float bufferWidth = getBufferSize(s).getWidth();
-        float bufferHeight = getBufferSize(s).getHeight();
-
-        // BufferStateLayers can have a "buffer size" of [0, 0, -1, -1] when no display frame has
-        // been set and there is no parent layer bounds. In that case, the scale is meaningless so
-        // ignore them.
-        if (!getBufferSize(s).isValid()) {
-            bufferWidth = float(win.right) - float(win.left);
-            bufferHeight = float(win.bottom) - float(win.top);
-        }
-
-        const float scaleHeight = (float(win.bottom) - float(win.top)) / bufferHeight;
-        const float scaleWidth = (float(win.right) - float(win.left)) / bufferWidth;
-        const float translateY = float(win.top) / bufferHeight;
-        const float translateX = float(win.left) / bufferWidth;
-
-        // Flip y-coordinates because GLConsumer expects OpenGL convention.
-        mat4 tr = mat4::translate(vec4(.5, .5, 0, 1)) * mat4::scale(vec4(1, -1, 1, 1)) *
-                mat4::translate(vec4(-.5, -.5, 0, 1)) *
-                mat4::translate(vec4(translateX, translateY, 0, 1)) *
-                mat4::scale(vec4(scaleWidth, scaleHeight, 1.0, 1.0));
-
-        layer.source.buffer.useTextureFiltering = useFiltering;
-        layer.source.buffer.textureTransform = mat4(static_cast<const float*>(textureMatrix)) * tr;
-    } else {
-        // If layer is blacked out, force alpha to 1 so that we draw a black color
-        // layer.
-        layer.source.buffer.buffer = nullptr;
-        layer.alpha = 1.0;
-        layer.frameNumber = 0;
-        layer.bufferId = 0;
+    if (blackOutLayer) {
+        prepareClearClientComposition(layer, true /* blackout */);
+        return layer;
     }
+
+    const State& s(getDrawingState());
+    layer.source.buffer.buffer = mBufferInfo.mBuffer;
+    layer.source.buffer.isOpaque = isOpaque(s);
+    layer.source.buffer.fence = mBufferInfo.mFence;
+    layer.source.buffer.textureName = mTextureName;
+    layer.source.buffer.usePremultipliedAlpha = getPremultipledAlpha();
+    layer.source.buffer.isY410BT2020 = isHdrY410();
+    bool hasSmpte2086 = mBufferInfo.mHdrMetadata.validTypes & HdrMetadata::SMPTE2086;
+    bool hasCta861_3 = mBufferInfo.mHdrMetadata.validTypes & HdrMetadata::CTA861_3;
+    layer.source.buffer.maxMasteringLuminance = hasSmpte2086
+            ? mBufferInfo.mHdrMetadata.smpte2086.maxLuminance
+            : defaultMaxMasteringLuminance;
+    layer.source.buffer.maxContentLuminance = hasCta861_3
+            ? mBufferInfo.mHdrMetadata.cta8613.maxContentLightLevel
+            : defaultMaxContentLuminance;
+    layer.frameNumber = mCurrentFrameNumber;
+    layer.bufferId = mBufferInfo.mBuffer ? mBufferInfo.mBuffer->getId() : 0;
+
+    // TODO: we could be more subtle with isFixedSize()
+    const bool useFiltering = targetSettings.needsFiltering || mNeedsFiltering || isFixedSize();
+
+    // Query the texture matrix given our current filtering mode.
+    float textureMatrix[16];
+    getDrawingTransformMatrix(useFiltering, textureMatrix);
+
+    if (getTransformToDisplayInverse()) {
+        /*
+         * the code below applies the primary display's inverse transform to
+         * the texture transform
+         */
+        uint32_t transform = DisplayDevice::getPrimaryDisplayRotationFlags();
+        mat4 tr = inverseOrientation(transform);
+
+        /**
+         * TODO(b/36727915): This is basically a hack.
+         *
+         * Ensure that regardless of the parent transformation,
+         * this buffer is always transformed from native display
+         * orientation to display orientation. For example, in the case
+         * of a camera where the buffer remains in native orientation,
+         * we want the pixels to always be upright.
+         */
+        sp<Layer> p = mDrawingParent.promote();
+        if (p != nullptr) {
+            const auto parentTransform = p->getTransform();
+            tr = tr * inverseOrientation(parentTransform.getOrientation());
+        }
+
+        // and finally apply it to the original texture matrix
+        const mat4 texTransform(mat4(static_cast<const float*>(textureMatrix)) * tr);
+        memcpy(textureMatrix, texTransform.asArray(), sizeof(textureMatrix));
+    }
+
+    const Rect win{getBounds()};
+    float bufferWidth = getBufferSize(s).getWidth();
+    float bufferHeight = getBufferSize(s).getHeight();
+
+    // BufferStateLayers can have a "buffer size" of [0, 0, -1, -1] when no display frame has
+    // been set and there is no parent layer bounds. In that case, the scale is meaningless so
+    // ignore them.
+    if (!getBufferSize(s).isValid()) {
+        bufferWidth = float(win.right) - float(win.left);
+        bufferHeight = float(win.bottom) - float(win.top);
+    }
+
+    const float scaleHeight = (float(win.bottom) - float(win.top)) / bufferHeight;
+    const float scaleWidth = (float(win.right) - float(win.left)) / bufferWidth;
+    const float translateY = float(win.top) / bufferHeight;
+    const float translateX = float(win.left) / bufferWidth;
+
+    // Flip y-coordinates because GLConsumer expects OpenGL convention.
+    mat4 tr = mat4::translate(vec4(.5, .5, 0, 1)) * mat4::scale(vec4(1, -1, 1, 1)) *
+            mat4::translate(vec4(-.5, -.5, 0, 1)) *
+            mat4::translate(vec4(translateX, translateY, 0, 1)) *
+            mat4::scale(vec4(scaleWidth, scaleHeight, 1.0, 1.0));
+
+    layer.source.buffer.useTextureFiltering = useFiltering;
+    layer.source.buffer.textureTransform = mat4(static_cast<const float*>(textureMatrix)) * tr;
 
     return layer;
 }

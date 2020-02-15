@@ -262,6 +262,7 @@ private:
     int dispatchAddDequeueInterceptor(va_list args);
     int dispatchAddPerformInterceptor(va_list args);
     int dispatchAddQueueInterceptor(va_list args);
+    int dispatchGetLastQueuedBuffer(va_list args);
     bool transformToDisplayInverse();
 
 protected:

@@ -475,6 +475,26 @@ void Layer::prepareGeometryCompositionState() {
 
     compositionState->type = type;
     compositionState->appId = appId;
+
+    compositionState->metadata.clear();
+    const auto& supportedMetadata = mFlinger->getHwComposer().getSupportedLayerGenericMetadata();
+    for (const auto& [key, mandatory] : supportedMetadata) {
+        const auto& genericLayerMetadataCompatibilityMap =
+                mFlinger->getGenericLayerMetadataKeyMap();
+        auto compatIter = genericLayerMetadataCompatibilityMap.find(key);
+        if (compatIter == std::end(genericLayerMetadataCompatibilityMap)) {
+            continue;
+        }
+        const uint32_t id = compatIter->second;
+
+        auto it = drawingState.metadata.mMap.find(id);
+        if (it == std::end(drawingState.metadata.mMap)) {
+            continue;
+        }
+
+        compositionState->metadata
+                .emplace(key, compositionengine::GenericLayerMetadataEntry{mandatory, it->second});
+    }
 }
 
 void Layer::preparePerFrameCompositionState() {
@@ -491,13 +511,12 @@ void Layer::preparePerFrameCompositionState() {
     compositionState->hasProtectedContent = isProtected();
 
     const bool usesRoundedCorners = getRoundedCornerState().radius != 0.f;
-    const bool drawsShadows = mEffectiveShadowRadius != 0.f;
 
     compositionState->isOpaque =
             isOpaque(drawingState) && !usesRoundedCorners && getAlpha() == 1.0_hf;
 
     // Force client composition for special cases known only to the front-end.
-    if (isHdrY410() || usesRoundedCorners || drawsShadows) {
+    if (isHdrY410() || usesRoundedCorners || drawShadows()) {
         compositionState->forceClientComposition = true;
     }
 }
@@ -650,6 +669,49 @@ std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareShadowCli
     }
 
     return shadowLayer;
+}
+
+void Layer::prepareClearClientComposition(LayerFE::LayerSettings& layerSettings,
+                                          bool blackout) const {
+    layerSettings.source.buffer.buffer = nullptr;
+    layerSettings.source.solidColor = half3(0.0, 0.0, 0.0);
+    layerSettings.disableBlending = true;
+    layerSettings.frameNumber = 0;
+
+    // If layer is blacked out, force alpha to 1 so that we draw a black color layer.
+    layerSettings.alpha = blackout ? 1.0f : 0.0f;
+}
+
+std::vector<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCompositionList(
+        compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) {
+    std::optional<compositionengine::LayerFE::LayerSettings> layerSettings =
+            prepareClientComposition(targetSettings);
+    // Nothing to render.
+    if (!layerSettings) {
+        return {};
+    }
+
+    // HWC requests to clear this layer.
+    if (targetSettings.clearContent) {
+        prepareClearClientComposition(*layerSettings, false /* blackout */);
+        return {*layerSettings};
+    }
+
+    std::optional<compositionengine::LayerFE::LayerSettings> shadowSettings =
+            prepareShadowClientComposition(*layerSettings, targetSettings.viewport,
+                                           targetSettings.dataspace);
+    // There are no shadows to render.
+    if (!shadowSettings) {
+        return {*layerSettings};
+    }
+
+    // If the layer casts a shadow but the content casting the shadow is occluded, skip
+    // composing the non-shadow content and only draw the shadows.
+    if (targetSettings.realContentIsVisible) {
+        return {*shadowSettings, *layerSettings};
+    }
+
+    return {*shadowSettings};
 }
 
 Hwc2::IComposerClient::Composition Layer::getCompositionType(

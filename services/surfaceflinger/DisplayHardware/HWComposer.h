@@ -55,11 +55,16 @@ namespace compositionengine {
 class Output;
 } // namespace compositionengine
 
+struct KnownHWCGenericLayerMetadata {
+    const char* name;
+    const uint32_t id;
+};
+
 class HWComposer {
 public:
     virtual ~HWComposer();
 
-    virtual void registerCallback(HWC2::ComposerCallback* callback, int32_t sequenceId) = 0;
+    virtual void setConfiguration(HWC2::ComposerCallback* callback, int32_t sequenceId) = 0;
 
     virtual bool getDisplayIdentificationData(hwc2_display_t hwcDisplayId, uint8_t* outPort,
                                               DisplayIdentificationData* outData) const = 0;
@@ -184,6 +189,7 @@ public:
     virtual bool isUsingVrComposer() const = 0;
 
     // Composer 2.4
+    virtual DisplayConnectionType getDisplayConnectionType(DisplayId) const = 0;
     virtual bool isVsyncPeriodSwitchSupported(DisplayId displayId) const = 0;
     virtual nsecs_t getDisplayVsyncPeriod(DisplayId displayId) const = 0;
     virtual status_t setActiveConfigWithConstraints(
@@ -194,6 +200,8 @@ public:
     virtual status_t getSupportedContentTypes(
             DisplayId displayId, std::vector<HWC2::ContentType>* outSupportedContentTypes) = 0;
     virtual status_t setContentType(DisplayId displayId, HWC2::ContentType contentType) = 0;
+    virtual const std::unordered_map<std::string, bool>& getSupportedLayerGenericMetadata()
+            const = 0;
 
     // for debugging ----------------------------------------------------------
     virtual void dump(std::string& out) const = 0;
@@ -217,7 +225,7 @@ public:
 
     ~HWComposer() override;
 
-    void registerCallback(HWC2::ComposerCallback* callback, int32_t sequenceId) override;
+    void setConfiguration(HWC2::ComposerCallback* callback, int32_t sequenceId) override;
 
     bool getDisplayIdentificationData(hwc2_display_t hwcDisplayId, uint8_t* outPort,
                                       DisplayIdentificationData* outData) const override;
@@ -319,6 +327,7 @@ public:
     bool isUsingVrComposer() const override;
 
     // Composer 2.4
+    DisplayConnectionType getDisplayConnectionType(DisplayId) const override;
     bool isVsyncPeriodSwitchSupported(DisplayId displayId) const override;
     nsecs_t getDisplayVsyncPeriod(DisplayId displayId) const override;
     status_t setActiveConfigWithConstraints(DisplayId displayId, size_t configId,
@@ -328,6 +337,8 @@ public:
     status_t getSupportedContentTypes(DisplayId displayId,
                                       std::vector<HWC2::ContentType>*) override;
     status_t setContentType(DisplayId displayId, HWC2::ContentType) override;
+
+    const std::unordered_map<std::string, bool>& getSupportedLayerGenericMetadata() const override;
 
     // for debugging ----------------------------------------------------------
     void dump(std::string& out) const override;
@@ -351,6 +362,7 @@ private:
 
     std::optional<DisplayIdentificationInfo> onHotplugConnect(hwc2_display_t hwcDisplayId);
     void loadCapabilities();
+    void loadLayerMetadataSupport();
     uint32_t getMaxVirtualDisplayCount() const;
 
     struct DisplayData {
@@ -379,6 +391,7 @@ private:
 
     std::unique_ptr<android::Hwc2::Composer> mComposer;
     std::unordered_set<HWC2::Capability> mCapabilities;
+    std::unordered_map<std::string, bool> mSupportedLayerGenericMetadata;
     bool mRegisteredCallback = false;
 
     std::unordered_map<hwc2_display_t, DisplayId> mPhysicalDisplayIdMap;

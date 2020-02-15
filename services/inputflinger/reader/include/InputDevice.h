@@ -67,7 +67,7 @@ public:
     void setEnabled(bool enabled, nsecs_t when);
 
     void dump(std::string& dump);
-    void addMapper(InputMapper* mapper);
+    void populateMappers();
     void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes);
     void reset(nsecs_t when);
     void process(const RawEvent* rawEvents, size_t count);
@@ -116,6 +116,14 @@ public:
 
     std::optional<int32_t> getAssociatedDisplayId();
 
+    // construct and add a mapper to the input device
+    template <class T, typename... Args>
+    T& addMapper(Args... args) {
+        T* mapper = new T(this, args...);
+        mMappers.emplace_back(mapper);
+        return *mapper;
+    }
+
 private:
     InputReaderContext* mContext;
     int32_t mId;
@@ -125,7 +133,7 @@ private:
     std::string mAlias;
     uint32_t mClasses;
 
-    std::vector<InputMapper*> mMappers;
+    std::vector<std::unique_ptr<InputMapper>> mMappers;
 
     uint32_t mSources;
     bool mIsExternal;
@@ -138,6 +146,26 @@ private:
     int32_t getState(uint32_t sourceMask, int32_t code, GetStateFunc getStateFunc);
 
     PropertyMap mConfiguration;
+
+    // run a function against every mapper
+    inline void for_each_mapper(std::function<void(InputMapper&)> f) {
+        for (auto& mapperPtr : mMappers) {
+            f(*mapperPtr);
+        }
+    }
+
+    // return the first value returned by a function over every mapper.
+    // if all mappers return nullopt, return nullopt.
+    template <typename T>
+    inline std::optional<T> first_in_mappers(std::function<std::optional<T>(InputMapper&)> f) {
+        for (auto& mapperPtr : mMappers) {
+            std::optional<T> ret = f(*mapperPtr);
+            if (ret) {
+                return ret;
+            }
+        }
+        return std::nullopt;
+    }
 };
 
 } // namespace android
