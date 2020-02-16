@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "AutomotiveDisplayService"
-
 #include <unistd.h>
 
 #include <hidl/HidlTransportSupport.h>
@@ -39,9 +37,10 @@ using namespace android;
 const static char kServiceName[] = "default";
 
 int main() {
-    ALOGI("Car Window Service is starting");
+    ALOGI("Automotive Display Proxy Service is starting");
 
-    android::sp<IAutomotiveDisplayProxyService> service = new AutomotiveDisplayProxyService();
+    android::sp<IAutomotiveDisplayProxyService> service =
+        new AutomotiveDisplayProxyService();
 
     configureRpcThreadpool(1, true /* callerWillJoin */);
 
@@ -56,7 +55,7 @@ int main() {
     }
 
     // In normal operation, we don't expect the thread pool to exit
-    ALOGE("Car Window Service is shutting down");
+    ALOGE("Automotive Window Service is shutting down");
 
     return 1;
 }
