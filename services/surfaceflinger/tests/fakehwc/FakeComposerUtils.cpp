@@ -183,6 +183,7 @@ void FakeHwcEnvironment::TearDown() {
     // Wait for mock call signaling teardown?
     property_set("debug.sf.nobootanimation", "0");
     property_set("debug.sf.hwc_service_name", "default");
+    system("setenforce 1");
     ALOGI("Test env tear down - done");
 }
 
