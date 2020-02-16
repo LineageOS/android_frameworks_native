@@ -36,7 +36,7 @@ AutomotiveDisplayProxyService::getIGraphicBufferProducer(uint64_t id) {
     if (it == mDisplays.end()) {
         displayToken = SurfaceComposerClient::getPhysicalDisplayToken(id);
         if (displayToken == nullptr) {
-            ALOGE("Given display id, 0x%lX, is invalid.", id);
+            ALOGE("Given display id, 0x%lX, is invalid.", (unsigned long)id);
             return nullptr;
         }
 
@@ -45,7 +45,7 @@ AutomotiveDisplayProxyService::getIGraphicBufferProducer(uint64_t id) {
         auto err = SurfaceComposerClient::getActiveDisplayConfig(displayToken, &displayConfig);
         if (err != NO_ERROR) {
             ALOGE("Failed to get display configuration of %lX.  "
-                  "This display will be ignored.", id);
+                  "This display will be ignored.", (unsigned long)id);
             return nullptr;
         }
 
@@ -53,7 +53,7 @@ AutomotiveDisplayProxyService::getIGraphicBufferProducer(uint64_t id) {
         err = SurfaceComposerClient::getDisplayState(displayToken, &displayState);
         if (err != NO_ERROR) {
             ALOGE("Failed to get current display status of %lX.  "
-                  "This display will be ignored.", id);
+                  "This display will be ignored.", (unsigned long)id);
             return nullptr;
         }
 
@@ -73,7 +73,7 @@ AutomotiveDisplayProxyService::getIGraphicBufferProducer(uint64_t id) {
 
         // Create a SurfaceControl instance
         surfaceControl = surfaceClient->createSurface(
-                String8::format("AutomotiveDisplay::%lX", id),
+                String8::format("AutomotiveDisplay::%lX", (unsigned long)id),
                 displayWidth, displayHeight,
                 PIXEL_FORMAT_RGBX_8888, ISurfaceComposerClient::eOpaque);
         if (surfaceControl == nullptr || !surfaceControl->isValid()) {
@@ -106,7 +106,7 @@ Return<bool> AutomotiveDisplayProxyService::showWindow(uint64_t id) {
     ui::DisplayState displayState;
     auto err = SurfaceComposerClient::getDisplayState(it->second.token, &displayState);
     if (err != NO_ERROR) {
-        ALOGE("Failed to get current state of the display 0x%lX", id);
+        ALOGE("Failed to get current state of the display 0x%lX", (unsigned long)id);
         return false;
     }
 
@@ -159,20 +159,20 @@ Return<void> AutomotiveDisplayProxyService::getDisplayInfo(uint64_t id, getDispl
 
     auto displayToken = SurfaceComposerClient::getPhysicalDisplayToken(id);
     if (displayToken == nullptr) {
-        ALOGE("Given display id, 0x%lX, is invalid.", id);
+        ALOGE("Given display id, 0x%lX, is invalid.", (unsigned long)id);
     } else {
         DisplayConfig displayConfig = {};
         auto err = SurfaceComposerClient::getActiveDisplayConfig(displayToken, &displayConfig);
         if (err != NO_ERROR) {
             ALOGW("Failed to get display configuration of %lX.  "
-                  "This display will be ignored.", id);
+                  "This display will be ignored.", (unsigned long)id);
         }
 
         ui::DisplayState displayState = {};
         err = SurfaceComposerClient::getDisplayState(displayToken, &displayState);
         if (err != NO_ERROR) {
             ALOGW("Failed to get current display status of %lX.  "
-                  "This display will be ignored.", id);
+                  "This display will be ignored.", (unsigned long)id);
         }
 
         activeConfig.setToExternal((uint8_t*)&displayConfig, sizeof(DisplayConfig));
