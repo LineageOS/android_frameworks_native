@@ -19,6 +19,8 @@
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include <cutils/properties.h>
+
 #include <gui/BLASTBufferQueue.h>
 #include <gui/BufferItemConsumer.h>
 #include <gui/GLConsumer.h>
@@ -99,7 +101,11 @@ BLASTBufferQueue::BLASTBufferQueue(const sp<SurfaceControl>& surface, int width,
         mHeight(height),
         mNextTransaction(nullptr) {
     BufferQueue::createBufferQueue(&mProducer, &mConsumer);
-    mConsumer->setMaxAcquiredBufferCount(MAX_ACQUIRED_BUFFERS);
+
+    int8_t disableTripleBuffer = property_get_bool("ro.sf.disable_triple_buffer", 0);
+    if (!disableTripleBuffer) {
+        mProducer->setMaxDequeuedBufferCount(2);
+    }
     mBufferItemConsumer =
             new BLASTBufferItemConsumer(mConsumer, AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER, 1, true);
     static int32_t id = 0;
@@ -183,7 +189,7 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
 
 void BLASTBufferQueue::processNextBufferLocked() {
     ATRACE_CALL();
-    if (mNumFrameAvailable == 0 || mNumAcquired == MAX_ACQUIRED_BUFFERS) {
+    if (mNumFrameAvailable == 0 || mNumAcquired == MAX_ACQUIRED_BUFFERS + 1) {
         return;
     }
 

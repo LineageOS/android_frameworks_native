@@ -325,6 +325,7 @@ bool BufferLayer::onPostComposition(sp<const DisplayDevice> displayDevice,
         Mutex::Autolock lock(mFrameEventHistoryMutex);
         mFrameEventHistory.addPostComposition(mCurrentFrameNumber, glDoneFence, presentFence,
                                               compositorTiming);
+        finalizeFrameEventHistory(glDoneFence, compositorTiming);
     }
 
     // Update mFrameTracker.
