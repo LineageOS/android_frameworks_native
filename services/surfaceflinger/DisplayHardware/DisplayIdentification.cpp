@@ -70,12 +70,8 @@ char getPnpLetter(uint16_t id) {
 
 DeviceProductInfo buildDeviceProductInfo(const Edid& edid) {
     DeviceProductInfo info;
-    std::copy(edid.displayName.begin(), edid.displayName.end(), info.name.begin());
-    info.name[edid.displayName.size()] = '\0';
-
-    const auto productId = std::to_string(edid.productId);
-    std::copy(productId.begin(), productId.end(), info.productId.begin());
-    info.productId[productId.size()] = '\0';
+    info.name.assign(edid.displayName);
+    info.productId = std::to_string(edid.productId);
     info.manufacturerPnpId = edid.pnpId;
 
     constexpr uint8_t kModelYearFlag = 0xff;
@@ -181,7 +177,6 @@ std::optional<Edid> parseEdid(const DisplayIdentificationData& edid) {
 
     constexpr size_t kDescriptorCount = 4;
     constexpr size_t kDescriptorLength = 18;
-    static_assert(kDescriptorLength - kEdidHeaderLength < DeviceProductInfo::TEXT_BUFFER_SIZE);
 
     for (size_t i = 0; i < kDescriptorCount; i++) {
         if (view.size() < kDescriptorLength) {

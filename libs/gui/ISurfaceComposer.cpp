@@ -371,10 +371,8 @@ public:
         data.writeStrongBinder(display);
         remote()->transact(BnSurfaceComposer::GET_DISPLAY_INFO, data, &reply);
         const status_t result = reply.readInt32();
-        if (result == NO_ERROR) {
-            memcpy(info, reply.readInplace(sizeof(DisplayInfo)), sizeof(DisplayInfo));
-        }
-        return result;
+        if (result != NO_ERROR) return result;
+        return reply.read(*info);
     }
 
     virtual status_t getDisplayConfigs(const sp<IBinder>& display, Vector<DisplayConfig>* configs) {
@@ -1377,10 +1375,8 @@ status_t BnSurfaceComposer::onTransact(
             const sp<IBinder> display = data.readStrongBinder();
             const status_t result = getDisplayInfo(display, &info);
             reply->writeInt32(result);
-            if (result == NO_ERROR) {
-                memcpy(reply->writeInplace(sizeof(DisplayInfo)), &info, sizeof(DisplayInfo));
-            }
-            return NO_ERROR;
+            if (result != NO_ERROR) return result;
+            return reply->write(info);
         }
         case GET_DISPLAY_CONFIGS: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);

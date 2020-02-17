@@ -46,7 +46,7 @@ cc_library_static {
 
     apex_available: [
         "//apex_available:anyapex",
-	"//apex_available:platform",
+        "//apex_available:platform",
     ],
     shared_libs: [
         "libutils",
@@ -97,6 +97,8 @@ cc_library_shared {
         "BufferHubEventFd.cpp",
         "BufferHubMetadata.cpp",
         "DebugUtils.cpp",
+        "DeviceProductInfo.cpp",
+        "DisplayInfo.cpp",
         "Fence.cpp",
         "FenceTime.cpp",
         "FrameStats.cpp",
