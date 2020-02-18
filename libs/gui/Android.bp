@@ -189,6 +189,10 @@ cc_defaults {
         },
     },
 
+    whole_static_libs: [
+        "LibGuiProperties",
+    ],
+
     shared_libs: [
         "android.hardware.graphics.bufferqueue@1.0",
         "android.hardware.graphics.bufferqueue@2.0",

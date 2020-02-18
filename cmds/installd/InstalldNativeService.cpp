@@ -2054,6 +2054,7 @@ binder::Status InstalldNativeService::getAppCrates(
     for (const auto& packageName : packageNames) {
         CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     }
+#ifdef ENABLE_STORAGE_CRATES
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     auto retVector = std::make_unique<std::vector<std::unique_ptr<CrateMetadata>>>();
@@ -2083,6 +2084,14 @@ binder::Status InstalldNativeService::getAppCrates(
 #endif
 
     *_aidl_return = std::move(retVector);
+#else // ENABLE_STORAGE_CRATES
+    *_aidl_return = nullptr;
+
+    /* prevent compile warning fail */
+    if (userId < 0) {
+        return error();
+    }
+#endif // ENABLE_STORAGE_CRATES
     return ok();
 }
 
@@ -2091,6 +2100,7 @@ binder::Status InstalldNativeService::getUserCrates(
         std::unique_ptr<std::vector<std::unique_ptr<CrateMetadata>>>* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
+#ifdef ENABLE_STORAGE_CRATES
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
@@ -2118,6 +2128,14 @@ binder::Status InstalldNativeService::getUserCrates(
 #endif
 
     *_aidl_return = std::move(retVector);
+#else // ENABLE_STORAGE_CRATES
+    *_aidl_return = nullptr;
+
+    /* prevent compile warning fail */
+    if (userId < 0) {
+        return error();
+    }
+#endif // ENABLE_STORAGE_CRATES
     return ok();
 }
 
