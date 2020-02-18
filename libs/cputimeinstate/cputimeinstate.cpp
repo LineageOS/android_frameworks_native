@@ -156,7 +156,7 @@ static bool initGlobals() {
 static bool attachTracepointProgram(const std::string &eventType, const std::string &eventName) {
     std::string path = StringPrintf(BPF_FS_PATH "prog_time_in_state_tracepoint_%s_%s",
                                     eventType.c_str(), eventName.c_str());
-    int prog_fd = bpf_obj_get(path.c_str());
+    int prog_fd = bpfFdGet(path.c_str(), BPF_F_RDONLY);
     if (prog_fd < 0) return false;
     return bpf_attach_tracepoint(prog_fd, eventType.c_str(), eventName.c_str()) >= 0;
 }
