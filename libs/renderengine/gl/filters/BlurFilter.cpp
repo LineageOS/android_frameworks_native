@@ -132,8 +132,7 @@ status_t BlurFilter::render(bool multiPass) {
 }
 
 string BlurFilter::getVertexShader() const {
-    return R"SHADER(
-        #version 310 es
+    return R"SHADER(#version 310 es
 
         in vec2 aPosition;
         in highp vec2 aUV;
@@ -147,8 +146,7 @@ string BlurFilter::getVertexShader() const {
 }
 
 string BlurFilter::getMixFragShader() const {
-    string shader = R"SHADER(
-        #version 310 es
+    string shader = R"SHADER(#version 310 es
         precision mediump float;
 
         in highp vec2 vUV;

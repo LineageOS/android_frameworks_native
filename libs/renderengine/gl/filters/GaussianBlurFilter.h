@@ -28,9 +28,12 @@ namespace android {
 namespace renderengine {
 namespace gl {
 
+// Class that implements a Gaussian Filter that uses Linear Sampling
+// to halve the number of samples and reduce runtime by 40% as described in:
+// http://rastergrid.com/blog/2010/09/efficient-gaussian-blur-with-linear-sampling
 class GaussianBlurFilter : public BlurFilter {
 public:
-    static constexpr uint32_t kNumSamples = 12;
+    static constexpr uint32_t kNumSamples = 22;
 
     explicit GaussianBlurFilter(GLESRenderEngine& engine);
     status_t prepare() override;
@@ -47,7 +50,7 @@ private:
     GLuint mVPosLoc;
     GLuint mVUvLoc;
     GLuint mVTextureLoc;
-    GLuint mVIncrementLoc;
+    GLuint mVGaussianOffsetLoc;
     GLuint mVNumSamplesLoc;
     GLuint mVGaussianWeightLoc;
 
@@ -56,7 +59,7 @@ private:
     GLuint mHPosLoc;
     GLuint mHUvLoc;
     GLuint mHTextureLoc;
-    GLuint mHIncrementLoc;
+    GLuint mHGaussianOffsetLoc;
     GLuint mHNumSamplesLoc;
     GLuint mHGaussianWeightLoc;
 };
