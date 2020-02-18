@@ -70,8 +70,8 @@ public:
     MultiTouchMotionAccumulator();
     ~MultiTouchMotionAccumulator();
 
-    void configure(InputDevice* device, size_t slotCount, bool usingSlotsProtocol);
-    void reset(InputDevice* device);
+    void configure(InputDeviceContext& deviceContext, size_t slotCount, bool usingSlotsProtocol);
+    void reset(InputDeviceContext& deviceContext);
     void process(const RawEvent* rawEvent);
     void finishSync();
     bool hasStylus() const;
@@ -91,7 +91,7 @@ private:
 
 class MultiTouchInputMapper : public TouchInputMapper {
 public:
-    explicit MultiTouchInputMapper(InputDevice* device);
+    explicit MultiTouchInputMapper(InputDeviceContext& deviceContext);
     virtual ~MultiTouchInputMapper();
 
     virtual void reset(nsecs_t when) override;

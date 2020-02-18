@@ -42,8 +42,7 @@ public:
     virtual int32_t getGlobalMetaState() = 0;
 
     virtual void disableVirtualKeysUntil(nsecs_t time) = 0;
-    virtual bool shouldDropVirtualKey(nsecs_t now, InputDevice* device, int32_t keyCode,
-                                      int32_t scanCode) = 0;
+    virtual bool shouldDropVirtualKey(nsecs_t now, int32_t keyCode, int32_t scanCode) = 0;
 
     virtual void fadePointer() = 0;
 

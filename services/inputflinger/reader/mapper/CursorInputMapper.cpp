@@ -30,7 +30,7 @@ CursorMotionAccumulator::CursorMotionAccumulator() {
     clearRelativeAxes();
 }
 
-void CursorMotionAccumulator::reset(InputDevice* device) {
+void CursorMotionAccumulator::reset(InputDeviceContext& deviceContext) {
     clearRelativeAxes();
 }
 
@@ -58,7 +58,8 @@ void CursorMotionAccumulator::finishSync() {
 
 // --- CursorInputMapper ---
 
-CursorInputMapper::CursorInputMapper(InputDevice* device) : InputMapper(device) {}
+CursorInputMapper::CursorInputMapper(InputDeviceContext& deviceContext)
+      : InputMapper(deviceContext) {}
 
 CursorInputMapper::~CursorInputMapper() {}
 
@@ -113,7 +114,7 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
     InputMapper::configure(when, config, changes);
 
     if (!changes) { // first time only
-        mCursorScrollAccumulator.configure(getDevice());
+        mCursorScrollAccumulator.configure(getDeviceContext());
 
         // Configure basic parameters.
         configureParameters();
@@ -167,7 +168,8 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
         }
         bumpGeneration();
         if (changes) {
-            getDevice()->notifyReset(when);
+            NotifyDeviceResetArgs args(getContext()->getNextSequenceNum(), when, getDeviceId());
+            getListener()->notifyDeviceReset(&args);
         }
     }
 
@@ -218,7 +220,8 @@ void CursorInputMapper::updatePointerControllerDisplayViewport(
 void CursorInputMapper::configureParameters() {
     mParameters.mode = Parameters::MODE_POINTER;
     String8 cursorModeString;
-    if (getDevice()->getConfiguration().tryGetProperty(String8("cursor.mode"), cursorModeString)) {
+    if (getDeviceContext().getConfiguration().tryGetProperty(String8("cursor.mode"),
+                                                             cursorModeString)) {
         if (cursorModeString == "navigation") {
             mParameters.mode = Parameters::MODE_NAVIGATION;
         } else if (cursorModeString != "pointer" && cursorModeString != "default") {
@@ -227,8 +230,8 @@ void CursorInputMapper::configureParameters() {
     }
 
     mParameters.orientationAware = false;
-    getDevice()->getConfiguration().tryGetProperty(String8("cursor.orientationAware"),
-                                                   mParameters.orientationAware);
+    getDeviceContext().getConfiguration().tryGetProperty(String8("cursor.orientationAware"),
+                                                         mParameters.orientationAware);
 
     mParameters.hasAssociatedDisplay = false;
     if (mParameters.mode == Parameters::MODE_POINTER || mParameters.orientationAware) {
@@ -266,9 +269,9 @@ void CursorInputMapper::reset(nsecs_t when) {
     mWheelXVelocityControl.reset();
     mWheelYVelocityControl.reset();
 
-    mCursorButtonAccumulator.reset(getDevice());
-    mCursorMotionAccumulator.reset(getDevice());
-    mCursorScrollAccumulator.reset(getDevice());
+    mCursorButtonAccumulator.reset(getDeviceContext());
+    mCursorMotionAccumulator.reset(getDeviceContext());
+    mCursorScrollAccumulator.reset(getDeviceContext());
 
     InputMapper::reset(when);
 }
@@ -369,7 +372,7 @@ void CursorInputMapper::sync(nsecs_t when) {
     // the device in your pocket.
     // TODO: Use the input device configuration to control this behavior more finely.
     uint32_t policyFlags = 0;
-    if ((buttonsPressed || moved || scrolled) && getDevice()->isExternal()) {
+    if ((buttonsPressed || moved || scrolled) && getDeviceContext().isExternal()) {
         policyFlags |= POLICY_FLAG_WAKE;
     }
 
@@ -379,7 +382,7 @@ void CursorInputMapper::sync(nsecs_t when) {
 
     // Send motion event.
     if (downChanged || moved || scrolled || buttonsChanged) {
-        int32_t metaState = mContext->getGlobalMetaState();
+        int32_t metaState = getContext()->getGlobalMetaState();
         int32_t buttonState = lastButtonState;
         int32_t motionEventAction;
         if (downChanged) {
@@ -395,8 +398,8 @@ void CursorInputMapper::sync(nsecs_t when) {
             while (!released.isEmpty()) {
                 int32_t actionButton = BitSet32::valueForBit(released.clearFirstMarkedBit());
                 buttonState &= ~actionButton;
-                NotifyMotionArgs releaseArgs(mContext->getNextSequenceNum(), when, getDeviceId(),
-                                             mSource, displayId, policyFlags,
+                NotifyMotionArgs releaseArgs(getContext()->getNextSequenceNum(), when,
+                                             getDeviceId(), mSource, displayId, policyFlags,
                                              AMOTION_EVENT_ACTION_BUTTON_RELEASE, actionButton, 0,
                                              metaState, buttonState, MotionClassification::NONE,
                                              AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
@@ -407,7 +410,7 @@ void CursorInputMapper::sync(nsecs_t when) {
             }
         }
 
-        NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(), mSource,
+        NotifyMotionArgs args(getContext()->getNextSequenceNum(), when, getDeviceId(), mSource,
                               displayId, policyFlags, motionEventAction, 0, 0, metaState,
                               currentButtonState, MotionClassification::NONE,
                               AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties, &pointerCoords,
@@ -420,7 +423,7 @@ void CursorInputMapper::sync(nsecs_t when) {
             while (!pressed.isEmpty()) {
                 int32_t actionButton = BitSet32::valueForBit(pressed.clearFirstMarkedBit());
                 buttonState |= actionButton;
-                NotifyMotionArgs pressArgs(mContext->getNextSequenceNum(), when, getDeviceId(),
+                NotifyMotionArgs pressArgs(getContext()->getNextSequenceNum(), when, getDeviceId(),
                                            mSource, displayId, policyFlags,
                                            AMOTION_EVENT_ACTION_BUTTON_PRESS, actionButton, 0,
                                            metaState, buttonState, MotionClassification::NONE,
@@ -436,9 +439,10 @@ void CursorInputMapper::sync(nsecs_t when) {
 
         // Send hover move after UP to tell the application that the mouse is hovering now.
         if (motionEventAction == AMOTION_EVENT_ACTION_UP && (mSource == AINPUT_SOURCE_MOUSE)) {
-            NotifyMotionArgs hoverArgs(mContext->getNextSequenceNum(), when, getDeviceId(), mSource,
-                                       displayId, policyFlags, AMOTION_EVENT_ACTION_HOVER_MOVE, 0,
-                                       0, metaState, currentButtonState, MotionClassification::NONE,
+            NotifyMotionArgs hoverArgs(getContext()->getNextSequenceNum(), when, getDeviceId(),
+                                       mSource, displayId, policyFlags,
+                                       AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0, metaState,
+                                       currentButtonState, MotionClassification::NONE,
                                        AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
                                        &pointerCoords, mXPrecision, mYPrecision, xCursorPosition,
                                        yCursorPosition, downTime, /* videoFrames */ {});
@@ -450,7 +454,7 @@ void CursorInputMapper::sync(nsecs_t when) {
             pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_VSCROLL, vscroll);
             pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_HSCROLL, hscroll);
 
-            NotifyMotionArgs scrollArgs(mContext->getNextSequenceNum(), when, getDeviceId(),
+            NotifyMotionArgs scrollArgs(getContext()->getNextSequenceNum(), when, getDeviceId(),
                                         mSource, displayId, policyFlags,
                                         AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState,
                                         currentButtonState, MotionClassification::NONE,
@@ -471,7 +475,7 @@ void CursorInputMapper::sync(nsecs_t when) {
 
 int32_t CursorInputMapper::getScanCodeState(uint32_t sourceMask, int32_t scanCode) {
     if (scanCode >= BTN_MOUSE && scanCode < BTN_JOYSTICK) {
-        return getEventHub()->getScanCodeState(getDeviceId(), scanCode);
+        return getDeviceContext().getScanCodeState(scanCode);
     } else {
         return AKEY_STATE_UNKNOWN;
     }

@@ -101,8 +101,7 @@ protected:
         virtual void updateGlobalMetaState() override;
         virtual int32_t getGlobalMetaState() override;
         virtual void disableVirtualKeysUntil(nsecs_t time) override;
-        virtual bool shouldDropVirtualKey(nsecs_t now, InputDevice* device, int32_t keyCode,
-                                          int32_t scanCode) override;
+        virtual bool shouldDropVirtualKey(nsecs_t now, int32_t keyCode, int32_t scanCode) override;
         virtual void fadePointer() override;
         virtual void requestTimeoutAtTime(nsecs_t when) override;
         virtual int32_t bumpGeneration() override;
@@ -168,8 +167,7 @@ private:
 
     nsecs_t mDisableVirtualKeysTimeout;
     void disableVirtualKeysUntilLocked(nsecs_t time);
-    bool shouldDropVirtualKeyLocked(nsecs_t now, InputDevice* device, int32_t keyCode,
-                                    int32_t scanCode);
+    bool shouldDropVirtualKeyLocked(nsecs_t now, int32_t keyCode, int32_t scanCode);
 
     nsecs_t mNextTimeout;
     void requestTimeoutAtTimeLocked(nsecs_t when);
