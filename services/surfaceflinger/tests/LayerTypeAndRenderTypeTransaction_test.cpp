@@ -92,7 +92,8 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetRelativeZBug64572777) {
             .setRelativeLayer(layerG, layerR->getHandle(), 1)
             .apply();
 
-    layerG.clear();
+    Transaction().reparent(layerG, nullptr).apply();
+
     // layerG should have been removed
     getScreenCapture()->expectColor(Rect(0, 0, 32, 32), Color::RED);
 }
