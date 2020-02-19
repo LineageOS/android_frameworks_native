@@ -33,6 +33,7 @@ struct DisplayConfig {
     nsecs_t appVsyncOffset = 0;
     nsecs_t sfVsyncOffset = 0;
     nsecs_t presentationDeadline = 0;
+    int configGroup = -1;
 };
 
 static_assert(std::is_trivially_copyable_v<DisplayConfig>);
