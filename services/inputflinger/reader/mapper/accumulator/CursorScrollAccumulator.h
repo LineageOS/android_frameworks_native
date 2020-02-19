@@ -21,7 +21,7 @@
 
 namespace android {
 
-class InputDevice;
+class InputDeviceContext;
 struct RawEvent;
 
 /* Keeps track of cursor scrolling motions. */
@@ -29,8 +29,8 @@ struct RawEvent;
 class CursorScrollAccumulator {
 public:
     CursorScrollAccumulator();
-    void configure(InputDevice* device);
-    void reset(InputDevice* device);
+    void configure(InputDeviceContext& deviceContext);
+    void reset(InputDeviceContext& deviceContext);
 
     void process(const RawEvent* rawEvent);
     void finishSync();

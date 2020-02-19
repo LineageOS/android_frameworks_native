@@ -244,6 +244,9 @@ enum {
     ASENSOR_TYPE_ACCELEROMETER_UNCALIBRATED = 35,
     /**
      * {@link ASENSOR_TYPE_HINGE_ANGLE}
+     * reporting-mode: on-change
+     *
+     * The hinge angle sensor value is returned in degrees.
      */
     ASENSOR_TYPE_HINGE_ANGLE = 36,
 };

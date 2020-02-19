@@ -43,12 +43,14 @@ InputDevice::InputDevice(InputReaderContext* context, int32_t id, int32_t genera
         mSources(0),
         mIsExternal(false),
         mHasMic(false),
-        mDropUntilNextSync(false) {}
+        mDropUntilNextSync(false) {
+    mDeviceContext = std::make_unique<InputDeviceContext>(*this);
+}
 
 InputDevice::~InputDevice() {}
 
 bool InputDevice::isEnabled() {
-    return getEventHub()->isDeviceEnabled(mId);
+    return mDeviceContext->isDeviceEnabled();
 }
 
 void InputDevice::setEnabled(bool enabled, nsecs_t when) {
@@ -64,11 +66,11 @@ void InputDevice::setEnabled(bool enabled, nsecs_t when) {
     }
 
     if (enabled) {
-        getEventHub()->enableDevice(mId);
+        mDeviceContext->enableDevice();
         reset(when);
     } else {
         reset(when);
-        getEventHub()->disableDevice(mId);
+        mDeviceContext->disableDevice();
     }
     // Must change generation to flag this device as changed
     bumpGeneration();
@@ -119,6 +121,7 @@ void InputDevice::dump(std::string& dump) {
 void InputDevice::populateMappers() {
     uint32_t classes = mClasses;
     std::vector<std::unique_ptr<InputMapper>>& mappers = mMappers;
+    std::unique_ptr<InputDeviceContext>& contextPtr = mDeviceContext;
 
     // External devices.
     if (classes & INPUT_DEVICE_CLASS_EXTERNAL) {
@@ -132,17 +135,17 @@ void InputDevice::populateMappers() {
 
     // Switch-like devices.
     if (classes & INPUT_DEVICE_CLASS_SWITCH) {
-        mappers.push_back(std::make_unique<SwitchInputMapper>(this));
+        mappers.push_back(std::make_unique<SwitchInputMapper>(*contextPtr));
     }
 
     // Scroll wheel-like devices.
     if (classes & INPUT_DEVICE_CLASS_ROTARY_ENCODER) {
-        mappers.push_back(std::make_unique<RotaryEncoderInputMapper>(this));
+        mappers.push_back(std::make_unique<RotaryEncoderInputMapper>(*contextPtr));
     }
 
     // Vibrator-like devices.
     if (classes & INPUT_DEVICE_CLASS_VIBRATOR) {
-        mappers.push_back(std::make_unique<VibratorInputMapper>(this));
+        mappers.push_back(std::make_unique<VibratorInputMapper>(*contextPtr));
     }
 
     // Keyboard-like devices.
@@ -163,29 +166,29 @@ void InputDevice::populateMappers() {
 
     if (keyboardSource != 0) {
         mappers.push_back(
-                std::make_unique<KeyboardInputMapper>(this, keyboardSource, keyboardType));
+                std::make_unique<KeyboardInputMapper>(*contextPtr, keyboardSource, keyboardType));
     }
 
     // Cursor-like devices.
     if (classes & INPUT_DEVICE_CLASS_CURSOR) {
-        mappers.push_back(std::make_unique<CursorInputMapper>(this));
+        mappers.push_back(std::make_unique<CursorInputMapper>(*contextPtr));
     }
 
     // Touchscreens and touchpad devices.
     if (classes & INPUT_DEVICE_CLASS_TOUCH_MT) {
-        mappers.push_back(std::make_unique<MultiTouchInputMapper>(this));
+        mappers.push_back(std::make_unique<MultiTouchInputMapper>(*contextPtr));
     } else if (classes & INPUT_DEVICE_CLASS_TOUCH) {
-        mappers.push_back(std::make_unique<SingleTouchInputMapper>(this));
+        mappers.push_back(std::make_unique<SingleTouchInputMapper>(*contextPtr));
     }
 
     // Joystick-like devices.
     if (classes & INPUT_DEVICE_CLASS_JOYSTICK) {
-        mappers.push_back(std::make_unique<JoystickInputMapper>(this));
+        mappers.push_back(std::make_unique<JoystickInputMapper>(*contextPtr));
     }
 
     // External stylus-like devices.
     if (classes & INPUT_DEVICE_CLASS_EXTERNAL_STYLUS) {
-        mappers.push_back(std::make_unique<ExternalStylusInputMapper>(this));
+        mappers.push_back(std::make_unique<ExternalStylusInputMapper>(*contextPtr));
     }
 }
 
@@ -195,14 +198,14 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
 
     if (!isIgnored()) {
         if (!changes) { // first time only
-            mContext->getEventHub()->getConfiguration(mId, &mConfiguration);
+            mDeviceContext->getConfiguration(&mConfiguration);
         }
 
         if (!changes || (changes & InputReaderConfiguration::CHANGE_KEYBOARD_LAYOUTS)) {
             if (!(mClasses & INPUT_DEVICE_CLASS_VIRTUAL)) {
                 sp<KeyCharacterMap> keyboardLayout =
                         mContext->getPolicy()->getKeyboardLayoutOverlay(mIdentifier);
-                if (mContext->getEventHub()->setKeyboardLayoutOverlay(mId, keyboardLayout)) {
+                if (mDeviceContext->setKeyboardLayoutOverlay(keyboardLayout)) {
                     bumpGeneration();
                 }
             }
@@ -420,5 +423,13 @@ std::optional<int32_t> InputDevice::getAssociatedDisplayId() {
     return first_in_mappers<int32_t>(
             [](InputMapper& mapper) { return mapper.getAssociatedDisplayId(); });
 }
+
+InputDeviceContext::InputDeviceContext(InputDevice& device)
+      : mDevice(device),
+        mContext(device.getContext()),
+        mEventHub(device.getContext()->getEventHub()),
+        mId(device.getId()) {}
+
+InputDeviceContext::~InputDeviceContext() {}
 
 } // namespace android

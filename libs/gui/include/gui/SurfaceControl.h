@@ -58,10 +58,6 @@ public:
     static bool isSameSurface(
             const sp<SurfaceControl>& lhs, const sp<SurfaceControl>& rhs);
 
-    // Release the handles assosciated with the SurfaceControl, without reparenting
-    // them off-screen. At the moment if this isn't executed before ~SurfaceControl
-    // is called then the destructor will reparent the layer off-screen for you.
-    void        release();
     // Reparent off-screen and release. This is invoked by the destructor.
     void destroy();
 
@@ -89,7 +85,7 @@ public:
     explicit SurfaceControl(const sp<SurfaceControl>& other);
 
     SurfaceControl(const sp<SurfaceComposerClient>& client, const sp<IBinder>& handle,
-                   const sp<IGraphicBufferProducer>& gbp, bool owned, uint32_t transformHint = 0);
+                   const sp<IGraphicBufferProducer>& gbp, uint32_t transformHint = 0);
 
 private:
     // can't be copied
@@ -109,7 +105,6 @@ private:
     sp<IGraphicBufferProducer>  mGraphicBufferProducer;
     mutable Mutex               mLock;
     mutable sp<Surface>         mSurfaceData;
-    bool                        mOwned;
     uint32_t mTransformHint;
 };
 

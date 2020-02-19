@@ -38,17 +38,17 @@ MultiTouchMotionAccumulator::~MultiTouchMotionAccumulator() {
     delete[] mSlots;
 }
 
-void MultiTouchMotionAccumulator::configure(InputDevice* device, size_t slotCount,
+void MultiTouchMotionAccumulator::configure(InputDeviceContext& deviceContext, size_t slotCount,
                                             bool usingSlotsProtocol) {
     mSlotCount = slotCount;
     mUsingSlotsProtocol = usingSlotsProtocol;
-    mHaveStylus = device->hasAbsoluteAxis(ABS_MT_TOOL_TYPE);
+    mHaveStylus = deviceContext.hasAbsoluteAxis(ABS_MT_TOOL_TYPE);
 
     delete[] mSlots;
     mSlots = new Slot[slotCount];
 }
 
-void MultiTouchMotionAccumulator::reset(InputDevice* device) {
+void MultiTouchMotionAccumulator::reset(InputDeviceContext& deviceContext) {
     // Unfortunately there is no way to read the initial contents of the slots.
     // So when we reset the accumulator, we must assume they are all zeroes.
     if (mUsingSlotsProtocol) {
@@ -62,8 +62,7 @@ void MultiTouchMotionAccumulator::reset(InputDevice* device) {
         // This can cause the touch point to "jump", but at least there will be
         // no stuck touches.
         int32_t initialSlot;
-        status_t status = device->getEventHub()->getAbsoluteAxisValue(device->getId(), ABS_MT_SLOT,
-                                                                      &initialSlot);
+        status_t status = deviceContext.getAbsoluteAxisValue(ABS_MT_SLOT, &initialSlot);
         if (status) {
             ALOGD("Could not retrieve current multitouch slot index.  status=%d", status);
             initialSlot = -1;
@@ -218,12 +217,13 @@ int32_t MultiTouchMotionAccumulator::Slot::getToolType() const {
 
 // --- MultiTouchInputMapper ---
 
-MultiTouchInputMapper::MultiTouchInputMapper(InputDevice* device) : TouchInputMapper(device) {}
+MultiTouchInputMapper::MultiTouchInputMapper(InputDeviceContext& deviceContext)
+      : TouchInputMapper(deviceContext) {}
 
 MultiTouchInputMapper::~MultiTouchInputMapper() {}
 
 void MultiTouchInputMapper::reset(nsecs_t when) {
-    mMultiTouchMotionAccumulator.reset(getDevice());
+    mMultiTouchMotionAccumulator.reset(getDeviceContext());
 
     mPointerIdBits.clear();
 
@@ -353,9 +353,10 @@ void MultiTouchInputMapper::configureRawPointerAxes() {
                   getDeviceName().c_str(), slotCount, MAX_SLOTS);
             slotCount = MAX_SLOTS;
         }
-        mMultiTouchMotionAccumulator.configure(getDevice(), slotCount, true /*usingSlotsProtocol*/);
+        mMultiTouchMotionAccumulator.configure(getDeviceContext(), slotCount,
+                                               true /*usingSlotsProtocol*/);
     } else {
-        mMultiTouchMotionAccumulator.configure(getDevice(), MAX_POINTERS,
+        mMultiTouchMotionAccumulator.configure(getDeviceContext(), MAX_POINTERS,
                                                false /*usingSlotsProtocol*/);
     }
 }

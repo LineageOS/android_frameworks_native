@@ -180,9 +180,9 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
     }
     mPendingReleaseItem.item = std::move(mSubmitted.front());
     mSubmitted.pop();
-    if (mNextTransaction == nullptr) {
-        processNextBufferLocked();
-    }
+
+    processNextBufferLocked();
+
     mCallbackCV.notify_all();
     decStrong((void*)transactionCallbackThunk);
 }
@@ -201,7 +201,7 @@ void BLASTBufferQueue::processNextBufferLocked() {
     SurfaceComposerClient::Transaction localTransaction;
     bool applyTransaction = true;
     SurfaceComposerClient::Transaction* t = &localTransaction;
-    if (mNextTransaction != nullptr) {
+    if (mNextTransaction != nullptr && mUseNextTransaction) {
         t = mNextTransaction;
         mNextTransaction = nullptr;
         applyTransaction = false;
@@ -263,9 +263,10 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& /*item*/) {
     std::unique_lock _lock{mMutex};
 
     if (mNextTransaction != nullptr) {
-        while (mNumFrameAvailable > 0 || mNumAcquired == MAX_ACQUIRED_BUFFERS) {
+        while (mNumFrameAvailable > 0 || mNumAcquired == MAX_ACQUIRED_BUFFERS + 1) {
             mCallbackCV.wait(_lock);
         }
+        mUseNextTransaction = true;
     }
     // add to shadow queue
     mNumFrameAvailable++;
@@ -274,6 +275,7 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& /*item*/) {
 
 void BLASTBufferQueue::setNextTransaction(SurfaceComposerClient::Transaction* t) {
     std::lock_guard _lock{mMutex};
+    mUseNextTransaction = false;
     mNextTransaction = t;
 }
 

@@ -348,13 +348,11 @@ void InputReader::disableVirtualKeysUntilLocked(nsecs_t time) {
     mDisableVirtualKeysTimeout = time;
 }
 
-bool InputReader::shouldDropVirtualKeyLocked(nsecs_t now, InputDevice* device, int32_t keyCode,
-                                             int32_t scanCode) {
+bool InputReader::shouldDropVirtualKeyLocked(nsecs_t now, int32_t keyCode, int32_t scanCode) {
     if (now < mDisableVirtualKeysTimeout) {
-        ALOGI("Dropping virtual key from device %s because virtual keys are "
+        ALOGI("Dropping virtual key from device because virtual keys are "
               "temporarily disabled for the next %0.3fms.  keyCode=%d, scanCode=%d",
-              device->getName().c_str(), (mDisableVirtualKeysTimeout - now) * 0.000001, keyCode,
-              scanCode);
+              (mDisableVirtualKeysTimeout - now) * 0.000001, keyCode, scanCode);
         return true;
     } else {
         return false;
@@ -662,10 +660,10 @@ void InputReader::ContextImpl::disableVirtualKeysUntil(nsecs_t time) {
     mReader->disableVirtualKeysUntilLocked(time);
 }
 
-bool InputReader::ContextImpl::shouldDropVirtualKey(nsecs_t now, InputDevice* device,
-                                                    int32_t keyCode, int32_t scanCode) {
+bool InputReader::ContextImpl::shouldDropVirtualKey(nsecs_t now, int32_t keyCode,
+                                                    int32_t scanCode) {
     // lock is already held by the input loop
-    return mReader->shouldDropVirtualKeyLocked(now, device, keyCode, scanCode);
+    return mReader->shouldDropVirtualKeyLocked(now, keyCode, scanCode);
 }
 
 void InputReader::ContextImpl::fadePointer() {
