@@ -19,7 +19,7 @@
 
 #include "SensorDeviceUtils.h"
 #include "SensorServiceUtils.h"
-#include "SensorsWrapper.h"
+#include "ISensorsWrapper.h"
 
 #include <fmq/MessageQueue.h>
 #include <sensor/SensorEventQueue.h>
@@ -112,7 +112,7 @@ public:
 
     using Result = ::android::hardware::sensors::V1_0::Result;
     hardware::Return<void> onDynamicSensorsConnected(
-            const hardware::hidl_vec<hardware::sensors::V1_0::SensorInfo> &dynamicSensorsAdded);
+            const hardware::hidl_vec<hardware::sensors::V2_1::SensorInfo> &dynamicSensorsAdded);
     hardware::Return<void> onDynamicSensorsDisconnected(
             const hardware::hidl_vec<int32_t> &dynamicSensorHandlesRemoved);
 
@@ -128,7 +128,7 @@ public:
 private:
     friend class Singleton<SensorDevice>;
 
-    sp<SensorServiceUtil::ISensorsWrapper> mSensors;
+    sp<::android::hardware::sensors::V2_1::implementation::ISensorsWrapperBase> mSensors;
     Vector<sensor_t> mSensorList;
     std::unordered_map<int32_t, sensor_t*> mConnectedDynamicSensors;
 
@@ -205,6 +205,8 @@ private:
     };
     HalConnectionStatus connectHidlServiceV1_0();
     HalConnectionStatus connectHidlServiceV2_0();
+    HalConnectionStatus connectHidlServiceV2_1();
+    HalConnectionStatus initializeHidlServiceV2_X();
 
     ssize_t pollHal(sensors_event_t* buffer, size_t count);
     ssize_t pollFmq(sensors_event_t* buffer, size_t count);
@@ -226,8 +228,8 @@ private:
     bool isClientDisabled(void* ident);
     bool isClientDisabledLocked(void* ident);
 
-    using Event = hardware::sensors::V1_0::Event;
-    using SensorInfo = hardware::sensors::V1_0::SensorInfo;
+    using Event = hardware::sensors::V2_1::Event;
+    using SensorInfo = hardware::sensors::V2_1::SensorInfo;
 
     void convertToSensorEvent(const Event &src, sensors_event_t *dst);
 
@@ -238,9 +240,7 @@ private:
 
     bool mIsDirectReportSupported;
 
-    typedef hardware::MessageQueue<Event, hardware::kSynchronizedReadWrite> EventMessageQueue;
     typedef hardware::MessageQueue<uint32_t, hardware::kSynchronizedReadWrite> WakeLockQueue;
-    std::unique_ptr<EventMessageQueue> mEventQueue;
     std::unique_ptr<WakeLockQueue> mWakeLockQueue;
 
     hardware::EventFlag* mEventQueueFlag;
