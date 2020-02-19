@@ -1051,4 +1051,15 @@ static inline int ANativeWindow_getLastQueuedBuffer(ANativeWindow* window,
                            outTransformMatrix);
 }
 
+/**
+ * Retrieves an identifier for the next frame to be queued by this window.
+ *
+ * \return the next frame id.
+ */
+static inline int64_t ANativeWindow_getNextFrameId(ANativeWindow* window) {
+    int64_t value;
+    window->perform(window, NATIVE_WINDOW_GET_NEXT_FRAME_ID, &value);
+    return value;
+}
+
 __END_DECLS
