@@ -97,6 +97,7 @@ void LayerHistory::record(Layer* layer, nsecs_t presentTime, nsecs_t now) {
 }
 
 LayerHistory::Summary LayerHistory::summarize(nsecs_t now) {
+    ATRACE_CALL();
     std::lock_guard lock(mLock);
 
     partitionLayers(now);
