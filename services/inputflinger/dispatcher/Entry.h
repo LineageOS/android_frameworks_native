@@ -220,6 +220,9 @@ private:
     static uint32_t nextSeq();
 };
 
+VerifiedKeyEvent verifiedKeyEventFromKeyEntry(const KeyEntry& entry);
+VerifiedMotionEvent verifiedMotionEventFromMotionEntry(const MotionEntry& entry);
+
 class InputDispatcher;
 // A command entry captures state and behavior for an action to be performed in the
 // dispatch loop after the initial processing has taken place.  It is essentially
