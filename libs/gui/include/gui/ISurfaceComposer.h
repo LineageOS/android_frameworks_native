@@ -500,6 +500,12 @@ public:
     virtual status_t setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
                                              float lightPosY, float lightPosZ,
                                              float lightRadius) = 0;
+
+    /*
+     * Sets the intended frame rate for a surface. See ANativeWindow_setFrameRate() for more info.
+     */
+    virtual status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
+                                  int8_t compatibility) = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -557,6 +563,7 @@ public:
         SET_AUTO_LOW_LATENCY_MODE,
         GET_GAME_CONTENT_TYPE_SUPPORT,
         SET_GAME_CONTENT_TYPE,
+        SET_FRAME_RATE,
         // Always append new enum to the end.
     };
 

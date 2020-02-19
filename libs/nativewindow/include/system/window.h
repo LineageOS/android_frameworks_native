@@ -1015,8 +1015,10 @@ static inline int native_window_set_auto_prerotation(struct ANativeWindow* windo
     return window->perform(window, NATIVE_WINDOW_SET_AUTO_PREROTATION, autoPrerotation);
 }
 
-static inline int native_window_set_frame_rate(struct ANativeWindow* window, float frameRate) {
-    return window->perform(window, NATIVE_WINDOW_SET_FRAME_RATE, (double)frameRate);
+static inline int native_window_set_frame_rate(struct ANativeWindow* window, float frameRate,
+                                               int8_t compatibility) {
+    return window->perform(window, NATIVE_WINDOW_SET_FRAME_RATE, (double)frameRate,
+                           (int)compatibility);
 }
 
 // ------------------------------------------------------------------------------------------------

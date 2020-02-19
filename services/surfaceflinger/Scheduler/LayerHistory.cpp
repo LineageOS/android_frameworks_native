@@ -180,4 +180,3 @@ void LayerHistory::clear() {
     mActiveLayersEnd = 0;
 }
 } // namespace android::scheduler::impl
-

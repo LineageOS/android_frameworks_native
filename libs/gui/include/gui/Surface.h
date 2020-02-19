@@ -179,7 +179,7 @@ public:
     status_t getConsumerUsage(uint64_t* outUsage) const;
 
     // See IGraphicBufferProducer::setFrameRate
-    status_t setFrameRate(float frameRate);
+    status_t setFrameRate(float frameRate, int8_t compatibility);
 
 protected:
     virtual ~Surface();

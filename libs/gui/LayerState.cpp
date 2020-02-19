@@ -24,6 +24,8 @@
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/LayerState.h>
 
+#include <cmath>
+
 namespace android {
 
 status_t layer_state_t::write(Parcel& output) const
@@ -113,6 +115,7 @@ status_t layer_state_t::write(Parcel& output) const
     output.writeFloat(shadowRadius);
     output.writeInt32(frameRateSelectionPriority);
     output.writeFloat(frameRate);
+    output.writeByte(frameRateCompatibility);
     return NO_ERROR;
 }
 
@@ -194,6 +197,7 @@ status_t layer_state_t::read(const Parcel& input)
     shadowRadius = input.readFloat();
     frameRateSelectionPriority = input.readInt32();
     frameRate = input.readFloat();
+    frameRateCompatibility = input.readByte();
     return NO_ERROR;
 }
 
@@ -427,6 +431,7 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eFrameRateChanged) {
         what |= eFrameRateChanged;
         frameRate = other.frameRate;
+        frameRateCompatibility = other.frameRateCompatibility;
     }
     if ((other.what & what) != other.what) {
         ALOGE("Unmerged SurfaceComposer Transaction properties. LayerState::merge needs updating? "
@@ -472,6 +477,23 @@ void InputWindowCommands::read(const Parcel& input) {
     }
 
     syncInputWindows = input.readBool();
+}
+
+bool ValidateFrameRate(float frameRate, int8_t compatibility, const char* inFunctionName) {
+    const char* functionName = inFunctionName != nullptr ? inFunctionName : "call";
+    int floatClassification = std::fpclassify(frameRate);
+    if (frameRate < 0 || floatClassification == FP_INFINITE || floatClassification == FP_NAN) {
+        ALOGE("%s failed - invalid frame rate %f", functionName, frameRate);
+        return false;
+    }
+
+    if (compatibility != ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT &&
+        compatibility != ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE) {
+        ALOGE("%s failed - invalid compatibility value %d", functionName, compatibility);
+        return false;
+    }
+
+    return true;
 }
 
 }; // namespace android
