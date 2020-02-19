@@ -28,6 +28,7 @@
 
 namespace android {
 
+class GpuMem;
 class GpuStats;
 
 class GpuService : public BnGpuService, public PriorityDumper {
@@ -72,6 +73,7 @@ private:
     /*
      * Attributes
      */
+    std::unique_ptr<GpuMem> mGpuMem;
     std::unique_ptr<GpuStats> mGpuStats;
 };
 
