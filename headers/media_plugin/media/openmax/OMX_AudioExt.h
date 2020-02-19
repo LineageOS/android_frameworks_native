@@ -116,6 +116,8 @@ typedef struct OMX_AUDIO_PARAM_ANDROID_AACDRCPRESENTATIONTYPE {
     OMX_S32 nEncodedTargetLevel;   /**< Target reference level assumed at the encoder, between 0 and 127, -1 if unspecified */
     OMX_S32 nPCMLimiterEnable;     /**< Signal level limiting, 0 for disable, 1 for enable, -1 if unspecified */
     OMX_S32 nDrcEffectType;        /**< MPEG-D DRC effect type, between -1 and 6, -2 if unspecified */
+    OMX_S32 nDrcOutputLoudness;    /**< MPEG-D DRC Output Loudness, between -1 and 231, -2 if unspecified */
+    OMX_S32 nDrcAlbumMode;         /**< MPEG-D DRC Album Mode, between 0 and 1, -1 if unspecified */
 } OMX_AUDIO_PARAM_ANDROID_AACDRCPRESENTATIONTYPE;
 
 typedef struct OMX_AUDIO_PARAM_ANDROID_PROFILETYPE {
