@@ -403,3 +403,15 @@ prop {
     access: Readonly
     prop_name: "ro.surface_flinger.use_frame_rate_api"
 }
+
+# Sets the timeout used to rate limit DISPLAY_UPDATE_IMMINENT Power HAL notifications.
+# SurfaceFlinger wakeups will trigger this boost whenever they are separated by more than this
+# duration (specified in milliseconds). A value of 0 disables the rate limit, and will result in
+# Power HAL notifications every time SF wakes up.
+prop {
+    api_name: "display_update_imminent_timeout_ms"
+    type: Integer
+    scope: Public
+    access: Readonly
+    prop_name: "ro.surface_flinger.display_update_imminent_timeout_ms"
+}

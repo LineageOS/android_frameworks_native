@@ -305,6 +305,14 @@ bool use_frame_rate_api(bool defaultValue) {
     return defaultValue;
 }
 
+int32_t display_update_imminent_timeout_ms(int32_t defaultValue) {
+    auto temp = SurfaceFlingerProperties::display_update_imminent_timeout_ms();
+    if (temp.has_value()) {
+        return *temp;
+    }
+    return defaultValue;
+}
+
 #define DISPLAY_PRIMARY_SIZE 3
 
 constexpr float kSrgbRedX = 0.4123f;
