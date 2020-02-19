@@ -2463,7 +2463,9 @@ struct OutputDevOptRepaintFlashTest : public testing::Test {
         // Sets up the helper functions called by the function under test to use
         // mock implementations.
         MOCK_CONST_METHOD1(getDirtyRegion, Region(bool));
-        MOCK_METHOD1(composeSurfaces, std::optional<base::unique_fd>(const Region&));
+        MOCK_METHOD2(composeSurfaces,
+                     std::optional<base::unique_fd>(
+                             const Region&, const compositionengine::CompositionRefreshArgs&));
         MOCK_METHOD0(postFramebuffer, void());
         MOCK_METHOD0(prepareFrame, void());
     };
@@ -2526,7 +2528,7 @@ TEST_F(OutputDevOptRepaintFlashTest, alsoComposesSurfacesAndQueuesABufferIfDirty
 
     InSequence seq;
     EXPECT_CALL(mOutput, getDirtyRegion(false)).WillOnce(Return(kNotEmptyRegion));
-    EXPECT_CALL(mOutput, composeSurfaces(RegionEq(kNotEmptyRegion)));
+    EXPECT_CALL(mOutput, composeSurfaces(RegionEq(kNotEmptyRegion), Ref(mRefreshArgs)));
     EXPECT_CALL(*mRenderSurface, queueBuffer(_));
     EXPECT_CALL(mOutput, postFramebuffer());
     EXPECT_CALL(mOutput, prepareFrame());
@@ -2542,7 +2544,9 @@ struct OutputFinishFrameTest : public testing::Test {
     struct OutputPartialMock : public OutputPartialMockBase {
         // Sets up the helper functions called by the function under test to use
         // mock implementations.
-        MOCK_METHOD1(composeSurfaces, std::optional<base::unique_fd>(const Region&));
+        MOCK_METHOD2(composeSurfaces,
+                     std::optional<base::unique_fd>(
+                             const Region&, const compositionengine::CompositionRefreshArgs&));
         MOCK_METHOD0(postFramebuffer, void());
     };
 
@@ -2568,7 +2572,7 @@ TEST_F(OutputFinishFrameTest, takesEarlyOutifComposeSurfacesReturnsNoFence) {
     mOutput.mState.isEnabled = true;
 
     InSequence seq;
-    EXPECT_CALL(mOutput, composeSurfaces(RegionEq(Region::INVALID_REGION)));
+    EXPECT_CALL(mOutput, composeSurfaces(RegionEq(Region::INVALID_REGION), _));
 
     mOutput.finishFrame(mRefreshArgs);
 }
@@ -2577,7 +2581,7 @@ TEST_F(OutputFinishFrameTest, queuesBufferIfComposeSurfacesReturnsAFence) {
     mOutput.mState.isEnabled = true;
 
     InSequence seq;
-    EXPECT_CALL(mOutput, composeSurfaces(RegionEq(Region::INVALID_REGION)))
+    EXPECT_CALL(mOutput, composeSurfaces(RegionEq(Region::INVALID_REGION), _))
             .WillOnce(Return(ByMove(base::unique_fd())));
     EXPECT_CALL(*mRenderSurface, queueBuffer(_));
 
@@ -2804,7 +2808,8 @@ struct OutputComposeSurfacesTest : public testing::Test {
 
     struct ExecuteState : public CallOrderStateMachineHelper<TestType, ExecuteState> {
         auto execute() {
-            getInstance()->mReadyFence = getInstance()->mOutput.composeSurfaces(kDebugRegion);
+            getInstance()->mReadyFence =
+                    getInstance()->mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
             return nextState<FenceCheckState>();
         }
     };
@@ -2832,6 +2837,7 @@ struct OutputComposeSurfacesTest : public testing::Test {
     static const mat4 kDefaultColorTransformMat;
 
     static const Region kDebugRegion;
+    static const compositionengine::CompositionRefreshArgs kDefaultRefreshArgs;
     static const HdrCapabilities kHdrCapabilities;
 
     StrictMock<mock::CompositionEngine> mCompositionEngine;
@@ -2851,6 +2857,7 @@ const Rect OutputComposeSurfacesTest::kDefaultOutputViewport{1005, 1006, 1007, 1
 const Rect OutputComposeSurfacesTest::kDefaultOutputSourceClip{1009, 1010, 1011, 1012};
 const Rect OutputComposeSurfacesTest::kDefaultOutputDestinationClip{1013, 1014, 1015, 1016};
 const mat4 OutputComposeSurfacesTest::kDefaultColorTransformMat{mat4() * 0.5f};
+const compositionengine::CompositionRefreshArgs OutputComposeSurfacesTest::kDefaultRefreshArgs;
 const Region OutputComposeSurfacesTest::kDebugRegion{Rect{100, 101, 102, 103}};
 const HdrCapabilities OutputComposeSurfacesTest::
         kHdrCapabilities{{},
@@ -3193,7 +3200,7 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifDisplayIsNotSecure) 
     mLayer2.mLayerFEState.hasProtectedContent = true;
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
 
-    mOutput.composeSurfaces(kDebugRegion);
+    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifRenderEngineDoesNotSupportIt) {
@@ -3201,7 +3208,7 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifRenderEngineDoesNotS
     mLayer2.mLayerFEState.hasProtectedContent = true;
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
 
-    mOutput.composeSurfaces(kDebugRegion);
+    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNoProtectedContentLayers) {
@@ -3213,7 +3220,7 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNoProtectedContentLa
     EXPECT_CALL(mRenderEngine, useProtectedContext(false));
     EXPECT_CALL(*mRenderSurface, setProtected(false));
 
-    mOutput.composeSurfaces(kDebugRegion);
+    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNotEnabled) {
@@ -3233,7 +3240,7 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNotEnabled) {
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, true, _, _)).WillOnce(Return(NO_ERROR));
 
-    mOutput.composeSurfaces(kDebugRegion);
+    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledEverywhere) {
@@ -3243,7 +3250,7 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledEveryw
     EXPECT_CALL(mRenderEngine, isProtected).WillOnce(Return(true));
     EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(true));
 
-    mOutput.composeSurfaces(kDebugRegion);
+    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifFailsToEnableInRenderEngine) {
@@ -3254,7 +3261,7 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifFailsToEnableInRende
     EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(false));
     EXPECT_CALL(mRenderEngine, useProtectedContext(true));
 
-    mOutput.composeSurfaces(kDebugRegion);
+    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledInRenderEngine) {
@@ -3265,7 +3272,7 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledInRend
     EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(false));
     EXPECT_CALL(*mRenderSurface, setProtected(true));
 
-    mOutput.composeSurfaces(kDebugRegion);
+    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledInRenderSurface) {
@@ -3276,7 +3283,7 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledInRend
     EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(true));
     EXPECT_CALL(mRenderEngine, useProtectedContext(true));
 
-    mOutput.composeSurfaces(kDebugRegion);
+    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
 }
 
 struct OutputComposeSurfacesTest_SetsExpensiveRendering : public OutputComposeSurfacesTest {
@@ -3302,7 +3309,43 @@ TEST_F(OutputComposeSurfacesTest_SetsExpensiveRendering, IfExepensiveOutputDatas
     EXPECT_CALL(mOutput, setExpensiveRenderingExpected(true));
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, true, _, _)).WillOnce(Return(NO_ERROR));
 
-    mOutput.composeSurfaces(kDebugRegion);
+    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
+}
+
+struct OutputComposeSurfacesTest_SetsExpensiveRendering_ForBlur
+      : public OutputComposeSurfacesTest_SetsExpensiveRendering {
+    OutputComposeSurfacesTest_SetsExpensiveRendering_ForBlur() {
+        mLayer.layerFEState.backgroundBlurRadius = 10;
+        mOutput.editState().isEnabled = true;
+
+        EXPECT_CALL(mLayer.outputLayer, updateCompositionState(false, true));
+        EXPECT_CALL(mLayer.outputLayer, writeStateToHWC(false));
+        EXPECT_CALL(mOutput, generateClientCompositionRequests(_, _, kDefaultOutputDataspace))
+                .WillOnce(Return(std::vector<LayerFE::LayerSettings>{}));
+        EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, true, _, _)).WillOnce(Return(NO_ERROR));
+        EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(1u));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u))
+                .WillRepeatedly(Return(&mLayer.outputLayer));
+    }
+
+    NonInjectedLayer mLayer;
+    compositionengine::CompositionRefreshArgs mRefreshArgs;
+};
+
+TEST_F(OutputComposeSurfacesTest_SetsExpensiveRendering_ForBlur, IfBlursAreExpensive) {
+    mRefreshArgs.blursAreExpensive = true;
+    mOutput.updateAndWriteCompositionState(mRefreshArgs);
+
+    EXPECT_CALL(mOutput, setExpensiveRenderingExpected(true));
+    mOutput.composeSurfaces(kDebugRegion, mRefreshArgs);
+}
+
+TEST_F(OutputComposeSurfacesTest_SetsExpensiveRendering_ForBlur, IfBlursAreNotExpensive) {
+    mRefreshArgs.blursAreExpensive = false;
+    mOutput.updateAndWriteCompositionState(mRefreshArgs);
+
+    EXPECT_CALL(mOutput, setExpensiveRenderingExpected(true)).Times(0);
+    mOutput.composeSurfaces(kDebugRegion, mRefreshArgs);
 }
 
 /*

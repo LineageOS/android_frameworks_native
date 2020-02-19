@@ -57,6 +57,9 @@ struct CompositionRefreshArgs {
     // Forces a color mode on the outputs being refreshed
     ui::ColorMode forceOutputColorMode{ui::ColorMode::NATIVE};
 
+    // If true, GPU clocks will be increased when rendering blurs
+    bool blursAreExpensive{false};
+
     // If true, the complete output geometry needs to be recomputed this frame
     bool updatingOutputGeometryThisFrame{false};
 

@@ -774,7 +774,7 @@ void Output::devOptRepaintFlash(const compositionengine::CompositionRefreshArgs&
         if (!dirtyRegion.isEmpty()) {
             base::unique_fd readyFence;
             // redraw the whole screen
-            static_cast<void>(composeSurfaces(dirtyRegion));
+            static_cast<void>(composeSurfaces(dirtyRegion, refreshArgs));
 
             mRenderSurface->queueBuffer(std::move(readyFence));
         }
@@ -787,7 +787,7 @@ void Output::devOptRepaintFlash(const compositionengine::CompositionRefreshArgs&
     prepareFrame();
 }
 
-void Output::finishFrame(const compositionengine::CompositionRefreshArgs&) {
+void Output::finishFrame(const compositionengine::CompositionRefreshArgs& refreshArgs) {
     ATRACE_CALL();
     ALOGV(__FUNCTION__);
 
@@ -797,7 +797,7 @@ void Output::finishFrame(const compositionengine::CompositionRefreshArgs&) {
 
     // Repaint the framebuffer (if needed), getting the optional fence for when
     // the composition completes.
-    auto optReadyFence = composeSurfaces(Region::INVALID_REGION);
+    auto optReadyFence = composeSurfaces(Region::INVALID_REGION, refreshArgs);
     if (!optReadyFence) {
         return;
     }
@@ -806,7 +806,8 @@ void Output::finishFrame(const compositionengine::CompositionRefreshArgs&) {
     mRenderSurface->queueBuffer(std::move(*optReadyFence));
 }
 
-std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion) {
+std::optional<base::unique_fd> Output::composeSurfaces(
+        const Region& debugRegion, const compositionengine::CompositionRefreshArgs& refreshArgs) {
     ATRACE_CALL();
     ALOGV(__FUNCTION__);
 
@@ -894,8 +895,10 @@ std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion
     // or complex GPU shaders and it's expensive. We boost the GPU frequency so that
     // GPU composition can finish in time. We must reset GPU frequency afterwards,
     // because high frequency consumes extra battery.
+    const bool expensiveBlurs =
+            refreshArgs.blursAreExpensive && mLayerRequestingBackgroundBlur != nullptr;
     const bool expensiveRenderingExpected =
-            clientCompositionDisplay.outputDataspace == ui::Dataspace::DISPLAY_P3;
+            clientCompositionDisplay.outputDataspace == ui::Dataspace::DISPLAY_P3 || expensiveBlurs;
     if (expensiveRenderingExpected) {
         setExpensiveRenderingExpected(true);
     }
