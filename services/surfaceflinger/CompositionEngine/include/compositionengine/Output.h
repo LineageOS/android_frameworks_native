@@ -265,7 +265,8 @@ protected:
     virtual void prepareFrame() = 0;
     virtual void devOptRepaintFlash(const CompositionRefreshArgs&) = 0;
     virtual void finishFrame(const CompositionRefreshArgs&) = 0;
-    virtual std::optional<base::unique_fd> composeSurfaces(const Region&) = 0;
+    virtual std::optional<base::unique_fd> composeSurfaces(
+            const Region&, const compositionengine::CompositionRefreshArgs& refreshArgs) = 0;
     virtual void postFramebuffer() = 0;
     virtual void chooseCompositionStrategy() = 0;
     virtual bool getSkipColorTransform() const = 0;
