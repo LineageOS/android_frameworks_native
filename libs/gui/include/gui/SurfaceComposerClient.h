@@ -519,7 +519,8 @@ public:
                 const Rect& source, const Rect& dst, int transform);
         Transaction& setShadowRadius(const sp<SurfaceControl>& sc, float cornerRadius);
 
-        Transaction& setFrameRate(const sp<SurfaceControl>& sc, float frameRate);
+        Transaction& setFrameRate(const sp<SurfaceControl>& sc, float frameRate,
+                                  int8_t compatibility);
 
         status_t setDisplaySurface(const sp<IBinder>& token,
                 const sp<IGraphicBufferProducer>& bufferProducer);

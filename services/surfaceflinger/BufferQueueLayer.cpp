@@ -124,18 +124,6 @@ bool BufferQueueLayer::shouldPresentNow(nsecs_t expectedPresentTime) const {
     return isDue || !isPlausible;
 }
 
-bool BufferQueueLayer::setFrameRate(FrameRate frameRate) {
-    float oldFrameRate = 0.f;
-    status_t result = mConsumer->getFrameRate(&oldFrameRate);
-    bool frameRateChanged = result < 0 || frameRate.rate != oldFrameRate;
-    mConsumer->setFrameRate(frameRate.rate);
-    return frameRateChanged;
-}
-
-Layer::FrameRate BufferQueueLayer::getFrameRate() const {
-    return FrameRate(mLatchedFrameRate, Layer::FrameRateCompatibility::Default);
-}
-
 // -----------------------------------------------------------------------
 // Interface implementation for BufferLayer
 // -----------------------------------------------------------------------
@@ -578,7 +566,6 @@ void BufferQueueLayer::gatherBufferInfo() {
     mBufferInfo.mTransformToDisplayInverse = mConsumer->getTransformToDisplayInverse();
     float latchedFrameRate;
     mConsumer->getFrameRate(&latchedFrameRate);
-    mLatchedFrameRate = latchedFrameRate;
 }
 
 sp<Layer> BufferQueueLayer::createClone() {

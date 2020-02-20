@@ -61,21 +61,35 @@ bool LayerInfoV2::isFrameTimeValid(const FrameTimeData& frameTime) const {
 }
 
 bool LayerInfoV2::isFrequent(nsecs_t now) const {
+    // Find the first valid frame time
+    auto it = mFrameTimes.begin();
+    for (; it != mFrameTimes.end(); ++it) {
+        if (isFrameTimeValid(*it)) {
+            break;
+        }
+    }
+
     // If we know nothing about this layer we consider it as frequent as it might be the start
     // of an animation.
-    if (mFrameTimes.size() < FREQUENT_LAYER_WINDOW_SIZE) {
+    if (std::distance(it, mFrameTimes.end()) < FREQUENT_LAYER_WINDOW_SIZE) {
         return true;
     }
 
-    // Layer is frequent if the earliest value in the window of most recent present times is
-    // within threshold.
-    const auto it = mFrameTimes.end() - FREQUENT_LAYER_WINDOW_SIZE;
-    if (!isFrameTimeValid(*it)) {
-        return true;
+    // Find the first active frame
+    for (; it != mFrameTimes.end(); ++it) {
+        if (it->queueTime >= getActiveLayerThreshold(now)) {
+            break;
+        }
     }
 
-    const nsecs_t threshold = now - MAX_FREQUENT_LAYER_PERIOD_NS.count();
-    return it->queueTime >= threshold;
+    const auto numFrames = std::distance(it, mFrameTimes.end()) - 1;
+    if (numFrames <= 0) {
+        return false;
+    }
+
+    // Layer is considered frequent if the average frame rate is higher than the threshold
+    const auto totalTime = mFrameTimes.back().queueTime - it->queueTime;
+    return (1e9f * numFrames) / totalTime >= MIN_FPS_FOR_FREQUENT_LAYER;
 }
 
 bool LayerInfoV2::hasEnoughDataForHeuristic() const {

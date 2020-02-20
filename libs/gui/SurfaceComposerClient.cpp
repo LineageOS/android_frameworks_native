@@ -1387,14 +1387,19 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setShado
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrameRate(
-        const sp<SurfaceControl>& sc, float frameRate) {
+        const sp<SurfaceControl>& sc, float frameRate, int8_t compatibility) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
     }
+    if (!ValidateFrameRate(frameRate, compatibility, "Transaction::setFrameRate")) {
+        mStatus = BAD_VALUE;
+        return *this;
+    }
     s->what |= layer_state_t::eFrameRateChanged;
     s->frameRate = frameRate;
+    s->frameRateCompatibility = compatibility;
     return *this;
 }
 

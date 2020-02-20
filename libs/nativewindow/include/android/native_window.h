@@ -33,6 +33,7 @@
 #ifndef ANDROID_NATIVE_WINDOW_H
 #define ANDROID_NATIVE_WINDOW_H
 
+#include <stdint.h>
 #include <sys/cdefs.h>
 
 #include <android/data_space.h>
@@ -232,6 +233,24 @@ int32_t ANativeWindow_getBuffersDataSpace(ANativeWindow* window) __INTRODUCED_IN
 
 #if __ANDROID_API__ >= 30
 
+/* Parameter for ANativeWindow_setFrameRate */
+enum {
+    /**
+     * There are no inherent restrictions on the frame rate of this window.
+     */
+    ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT = 0,
+    /**
+     * This window is being used to display content with an inherently fixed
+     * frame rate, e.g. a video that has a specific frame rate. When the system
+     * selects a frame rate other than what the app requested, the app will need
+     * to do pull down or use some other technique to adapt to the system's
+     * frame rate. The user experience is likely to be worse (e.g. more frame
+     * stuttering) than it would be if the system had chosen the app's requested
+     * frame rate.
+     */
+    ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE = 1
+};
+
 /**
  * Sets the intended frame rate for this window.
  *
@@ -257,9 +276,15 @@ int32_t ANativeWindow_getBuffersDataSpace(ANativeWindow* window) __INTRODUCED_IN
  * refresh rate for this device's display - e.g., it's fine to pass 30fps to a
  * device that can only run the display at 60fps.
  *
- * \return 0 for success, -EINVAL if the window or frame rate are invalid.
+ * \param compatibility The frame rate compatibility of this window. The
+ * compatibility value may influence the system's choice of display refresh
+ * rate. See the ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_* values for more info.
+ *
+ * \return 0 for success, -EINVAL if the window, frame rate, or compatibility
+ * value are invalid.
  */
-int32_t ANativeWindow_setFrameRate(ANativeWindow* window, float frameRate) __INTRODUCED_IN(30);
+int32_t ANativeWindow_setFrameRate(ANativeWindow* window, float frameRate, int8_t compatibility)
+        __INTRODUCED_IN(30);
 
 /**
  * Provides a hint to the window that buffers should be preallocated ahead of

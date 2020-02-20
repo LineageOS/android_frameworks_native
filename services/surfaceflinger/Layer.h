@@ -161,6 +161,10 @@ public:
         }
 
         bool operator!=(const FrameRate& other) const { return !(*this == other); }
+
+        // Convert an ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_* value to a
+        // Layer::FrameRateCompatibility. Logs fatal if the compatibility value is invalid.
+        static FrameRateCompatibility convertCompatibility(int8_t compatibility);
     };
 
     struct State {
@@ -795,7 +799,7 @@ public:
      */
     Rect getCroppedBufferSize(const Layer::State& s) const;
 
-    virtual bool setFrameRate(FrameRate frameRate);
+    bool setFrameRate(FrameRate frameRate);
     virtual FrameRate getFrameRate() const;
 
 protected:

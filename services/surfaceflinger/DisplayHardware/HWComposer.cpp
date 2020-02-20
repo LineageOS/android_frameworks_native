@@ -208,7 +208,9 @@ std::optional<DisplayIdentificationInfo> HWComposer::onHotplug(hwc2_display_t hw
     std::optional<DisplayIdentificationInfo> info;
 
     if (const auto displayId = toPhysicalDisplayId(hwcDisplayId)) {
-        info = DisplayIdentificationInfo{*displayId, std::string()};
+        info = DisplayIdentificationInfo{.id = *displayId,
+                                         .name = std::string(),
+                                         .deviceProductInfo = std::nullopt};
     } else {
         if (connection == HWC2::Connection::Disconnected) {
             ALOGE("Ignoring disconnection of invalid HWC display %" PRIu64, hwcDisplayId);
@@ -951,9 +953,11 @@ std::optional<DisplayIdentificationInfo> HWComposer::onHotplugConnect(hwc2_displ
 
     if (info) return info;
 
-    return DisplayIdentificationInfo{getFallbackDisplayId(port),
-                                     hwcDisplayId == mInternalHwcDisplayId ? "Internal display"
-                                                                           : "External display"};
+    return DisplayIdentificationInfo{.id = getFallbackDisplayId(port),
+                                     .name = hwcDisplayId == mInternalHwcDisplayId
+                                             ? "Internal display"
+                                             : "External display",
+                                     .deviceProductInfo = std::nullopt};
 }
 
 void HWComposer::loadCapabilities() {

@@ -185,8 +185,6 @@ private:
     // for the suggested refresh rate.
     HwcConfigIndexType calculateRefreshRateConfigIndexType() REQUIRES(mFeatureStateLock);
 
-    bool layerHistoryHasClientSpecifiedFrameRate() REQUIRES(mFeatureStateLock);
-
     // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
     struct Connection {
         sp<EventThreadConnection> connection;
@@ -229,7 +227,7 @@ private:
     std::mutex mFeatureStateLock;
 
     struct {
-        ContentDetectionState contentDetection = ContentDetectionState::Off;
+        ContentDetectionState contentDetectionV1 = ContentDetectionState::Off;
         TimerState idleTimer = TimerState::Reset;
         TouchState touch = TouchState::Inactive;
         TimerState displayPowerTimer = TimerState::Expired;

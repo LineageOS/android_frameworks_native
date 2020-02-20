@@ -23,8 +23,6 @@
 #include <chrono>
 #include <cmath>
 
-using namespace std::chrono_literals;
-
 namespace android::scheduler {
 
 using AllRefreshRatesMapType = RefreshRateConfigs::AllRefreshRatesMapType;
@@ -84,13 +82,30 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContent(
     return *bestSoFar;
 }
 
+std::pair<nsecs_t, nsecs_t> RefreshRateConfigs::getDisplayFrames(nsecs_t layerPeriod,
+                                                                 nsecs_t displayPeriod) const {
+    auto [displayFramesQuot, displayFramesRem] = std::div(layerPeriod, displayPeriod);
+    if (displayFramesRem <= MARGIN_FOR_PERIOD_CALCULATION ||
+        std::abs(displayFramesRem - displayPeriod) <= MARGIN_FOR_PERIOD_CALCULATION) {
+        displayFramesQuot++;
+        displayFramesRem = 0;
+    }
+
+    return {displayFramesQuot, displayFramesRem};
+}
+
 const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
-        const std::vector<LayerRequirement>& layers) const {
-    constexpr nsecs_t MARGIN = std::chrono::nanoseconds(800us).count();
+        const std::vector<LayerRequirement>& layers, bool touchActive) const {
     ATRACE_CALL();
     ALOGV("getRefreshRateForContent %zu layers", layers.size());
 
     std::lock_guard lock(mLock);
+
+    // For now if the touch is active return the peak refresh rate
+    // This should be optimized to consider other layers as well.
+    if (touchActive) {
+        return *mAvailableRefreshRates.back();
+    }
 
     int noVoteLayers = 0;
     int minVoteLayers = 0;
@@ -115,11 +130,6 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
         return *mAvailableRefreshRates.front();
     }
 
-    // If we have some Max layers and no Explicit we should return Max
-    if (maxVoteLayers > 0 && explicitDefaultVoteLayers + explicitExactOrMultipleVoteLayers == 0) {
-        return *mAvailableRefreshRates.back();
-    }
-
     // Find the best refresh rate based on score
     std::vector<std::pair<const RefreshRate*, float>> scores;
     scores.reserve(mAvailableRefreshRates.size());
@@ -130,67 +140,85 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
 
     for (const auto& layer : layers) {
         ALOGV("Calculating score for %s (type: %d)", layer.name.c_str(), layer.vote);
-        if (layer.vote == LayerVoteType::NoVote || layer.vote == LayerVoteType::Min ||
-            layer.vote == LayerVoteType::Max) {
+        if (layer.vote == LayerVoteType::NoVote || layer.vote == LayerVoteType::Min) {
             continue;
         }
 
-        // Adjust the weight in case we have explicit layers. The priority is:
-        //  - ExplicitExactOrMultiple
-        //  - ExplicitDefault
-        //  - Heuristic
         auto weight = layer.weight;
-        if (explicitExactOrMultipleVoteLayers + explicitDefaultVoteLayers > 0) {
-            if (layer.vote == LayerVoteType::Heuristic) {
-                weight /= 2.f;
-            }
-        }
 
-        if (explicitExactOrMultipleVoteLayers > 0) {
-            if (layer.vote == LayerVoteType::Heuristic ||
-                layer.vote == LayerVoteType::ExplicitDefault) {
-                weight /= 2.f;
+        for (auto i = 0u; i < scores.size(); i++) {
+            // If the layer wants Max, give higher score to the higher refresh rate
+            if (layer.vote == LayerVoteType::Max) {
+                const auto ratio = scores[i].first->fps / scores.back().first->fps;
+                // use ratio^2 to get a lower score the more we get further from peak
+                const auto layerScore = ratio * ratio;
+                ALOGV("%s (Max, weight %.2f) gives %s score of %.2f", layer.name.c_str(), weight,
+                      scores[i].first->name.c_str(), layerScore);
+                scores[i].second += weight * layerScore;
+                continue;
             }
-        }
 
-        for (auto& [refreshRate, overallScore] : scores) {
-            const auto displayPeriod = refreshRate->vsyncPeriod;
+            const auto displayPeriod = scores[i].first->vsyncPeriod;
             const auto layerPeriod = round<nsecs_t>(1e9f / layer.desiredRefreshRate);
+            if (layer.vote == LayerVoteType::ExplicitDefault) {
+                const auto layerScore = [&]() {
+                    const auto [displayFramesQuot, displayFramesRem] =
+                            getDisplayFrames(layerPeriod, displayPeriod);
+                    if (displayFramesQuot == 0) {
+                        // Layer desired refresh rate is higher the display rate.
+                        return static_cast<float>(layerPeriod) / static_cast<float>(displayPeriod);
+                    }
 
-            // Calculate how many display vsyncs we need to present a single frame for this layer
-            auto [displayFramesQuot, displayFramesRem] = std::div(layerPeriod, displayPeriod);
-            if (displayFramesRem <= MARGIN ||
-                std::abs(displayFramesRem - displayPeriod) <= MARGIN) {
-                displayFramesQuot++;
-                displayFramesRem = 0;
+                    return 1.0f -
+                            (static_cast<float>(displayFramesRem) /
+                             static_cast<float>(layerPeriod));
+                }();
+
+                ALOGV("%s (ExplicitDefault, weight %.2f) %.2fHz gives %s score of %.2f",
+                      layer.name.c_str(), weight, 1e9f / layerPeriod, scores[i].first->name.c_str(),
+                      layerScore);
+                scores[i].second += weight * layerScore;
+                continue;
             }
 
-            float layerScore;
-            static constexpr size_t MAX_FRAMES_TO_FIT = 10; // Stop calculating when score < 0.1
-            if (displayFramesRem == 0) {
-                // Layer desired refresh rate matches the display rate.
-                layerScore = weight * 1.0f;
-            } else if (displayFramesQuot == 0) {
-                // Layer desired refresh rate is higher the display rate.
-                layerScore = weight *
-                        (static_cast<float>(layerPeriod) / static_cast<float>(displayPeriod)) *
-                        (1.0f / (MAX_FRAMES_TO_FIT + 1));
-            } else {
-                // Layer desired refresh rate is lower the display rate. Check how well it fits the
-                // cadence
-                auto diff = std::abs(displayFramesRem - (displayPeriod - displayFramesRem));
-                int iter = 2;
-                while (diff > MARGIN && iter < MAX_FRAMES_TO_FIT) {
-                    diff = diff - (displayPeriod - diff);
-                    iter++;
-                }
+            if (layer.vote == LayerVoteType::ExplicitExactOrMultiple ||
+                layer.vote == LayerVoteType::Heuristic) {
+                const auto layerScore = [&]() {
+                    // Calculate how many display vsyncs we need to present a single frame for this
+                    // layer
+                    const auto [displayFramesQuot, displayFramesRem] =
+                            getDisplayFrames(layerPeriod, displayPeriod);
+                    static constexpr size_t MAX_FRAMES_TO_FIT =
+                            10; // Stop calculating when score < 0.1
+                    if (displayFramesRem == 0) {
+                        // Layer desired refresh rate matches the display rate.
+                        return 1.0f;
+                    }
 
-                layerScore = weight * (1.0f / iter);
+                    if (displayFramesQuot == 0) {
+                        // Layer desired refresh rate is higher the display rate.
+                        return (static_cast<float>(layerPeriod) /
+                                static_cast<float>(displayPeriod)) *
+                                (1.0f / (MAX_FRAMES_TO_FIT + 1));
+                    }
+
+                    // Layer desired refresh rate is lower the display rate. Check how well it fits
+                    // the cadence
+                    auto diff = std::abs(displayFramesRem - (displayPeriod - displayFramesRem));
+                    int iter = 2;
+                    while (diff > MARGIN_FOR_PERIOD_CALCULATION && iter < MAX_FRAMES_TO_FIT) {
+                        diff = diff - (displayPeriod - diff);
+                        iter++;
+                    }
+
+                    return 1.0f / iter;
+                }();
+                ALOGV("%s (ExplicitExactOrMultiple, weight %.2f) %.2fHz gives %s score of %.2f",
+                      layer.name.c_str(), weight, 1e9f / layerPeriod, scores[i].first->name.c_str(),
+                      layerScore);
+                scores[i].second += weight * layerScore;
+                continue;
             }
-
-            ALOGV("%s (weight %.2f) %.2fHz gives %s score of %.2f", layer.name.c_str(), weight,
-                  1e9f / layerPeriod, refreshRate->name.c_str(), layerScore);
-            overallScore += layerScore;
         }
     }
 

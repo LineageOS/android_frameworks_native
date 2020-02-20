@@ -16,8 +16,10 @@
 
 #include "SensorDevice.h"
 
-#include "android/hardware/sensors/2.0/ISensorsCallback.h"
 #include "android/hardware/sensors/2.0/types.h"
+#include "android/hardware/sensors/2.1/ISensorsCallback.h"
+#include "android/hardware/sensors/2.1/types.h"
+#include "convertV2_1.h"
 #include "SensorService.h"
 
 #include <android-base/logging.h>
@@ -35,9 +37,15 @@
 using namespace android::hardware::sensors;
 using namespace android::hardware::sensors::V1_0;
 using namespace android::hardware::sensors::V1_0::implementation;
-using android::hardware::sensors::V2_0::ISensorsCallback;
 using android::hardware::sensors::V2_0::EventQueueFlagBits;
 using android::hardware::sensors::V2_0::WakeLockQueueFlagBits;
+using android::hardware::sensors::V2_1::ISensorsCallback;
+using android::hardware::sensors::V2_1::implementation::convertToOldSensorInfo;
+using android::hardware::sensors::V2_1::implementation::convertToNewSensorInfos;
+using android::hardware::sensors::V2_1::implementation::convertToNewEvents;
+using android::hardware::sensors::V2_1::implementation::ISensorsWrapperV1_0;
+using android::hardware::sensors::V2_1::implementation::ISensorsWrapperV2_0;
+using android::hardware::sensors::V2_1::implementation::ISensorsWrapperV2_1;
 using android::hardware::hidl_vec;
 using android::hardware::Return;
 using android::SensorDeviceUtils::HidlServiceRegistrationWaiter;
@@ -87,9 +95,17 @@ void SensorsHalDeathReceivier::serviceDied(
 
 struct SensorsCallback : public ISensorsCallback {
     using Result = ::android::hardware::sensors::V1_0::Result;
-    Return<void> onDynamicSensorsConnected(
+    using SensorInfo = ::android::hardware::sensors::V2_1::SensorInfo;
+
+    Return<void> onDynamicSensorsConnected_2_1(
             const hidl_vec<SensorInfo> &dynamicSensorsAdded) override {
         return SensorDevice::getInstance().onDynamicSensorsConnected(dynamicSensorsAdded);
+    }
+
+    Return<void> onDynamicSensorsConnected(
+            const hidl_vec<V1_0::SensorInfo> &dynamicSensorsAdded) override {
+        return SensorDevice::getInstance().onDynamicSensorsConnected(
+                convertToNewSensorInfos(dynamicSensorsAdded));
     }
 
     Return<void> onDynamicSensorsDisconnected(
@@ -126,7 +142,7 @@ void SensorDevice::initializeSensorList() {
                 Info model;
                 for (size_t i=0 ; i < count; i++) {
                     sensor_t sensor;
-                    convertToSensor(list[i], &sensor);
+                    convertToSensor(convertToOldSensorInfo(list[i]), &sensor);
                     // Sanity check and clamp power if it is 0 (or close)
                     if (sensor.power < minPowerMa) {
                         ALOGI("Reported power %f not deemed sane, clamping to %f",
@@ -160,7 +176,11 @@ SensorDevice::~SensorDevice() {
 }
 
 bool SensorDevice::connectHidlService() {
-    HalConnectionStatus status = connectHidlServiceV2_0();
+    HalConnectionStatus status = connectHidlServiceV2_1();
+    if (status == HalConnectionStatus::DOES_NOT_EXIST) {
+        status = connectHidlServiceV2_0();
+    }
+
     if (status == HalConnectionStatus::DOES_NOT_EXIST) {
         status = connectHidlServiceV1_0();
     }
@@ -180,7 +200,7 @@ SensorDevice::HalConnectionStatus SensorDevice::connectHidlServiceV1_0() {
             break;
         }
 
-        mSensors = new SensorServiceUtil::SensorsWrapperV1_0(sensors);
+        mSensors = new ISensorsWrapperV1_0(sensors);
         mRestartWaiter->reset();
         // Poke ISensor service. If it has lingering connection from previous generation of
         // system server, it will kill itself. There is no intention to handle the poll result,
@@ -208,40 +228,55 @@ SensorDevice::HalConnectionStatus SensorDevice::connectHidlServiceV2_0() {
     if (sensors == nullptr) {
         connectionStatus = HalConnectionStatus::DOES_NOT_EXIST;
     } else {
-        mSensors = new SensorServiceUtil::SensorsWrapperV2_0(sensors);
+        mSensors = new ISensorsWrapperV2_0(sensors);
+        connectionStatus = initializeHidlServiceV2_X();
+    }
 
-        mEventQueue = std::make_unique<EventMessageQueue>(
-                SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT,
-                true /* configureEventFlagWord */);
+    return connectionStatus;
+}
 
-        mWakeLockQueue = std::make_unique<WakeLockQueue>(
-                SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT,
-                true /* configureEventFlagWord */);
+SensorDevice::HalConnectionStatus SensorDevice::connectHidlServiceV2_1() {
+    HalConnectionStatus connectionStatus = HalConnectionStatus::UNKNOWN;
+    sp<V2_1::ISensors> sensors = V2_1::ISensors::getService();
 
-        hardware::EventFlag::deleteEventFlag(&mEventQueueFlag);
-        hardware::EventFlag::createEventFlag(mEventQueue->getEventFlagWord(), &mEventQueueFlag);
+    if (sensors == nullptr) {
+        connectionStatus = HalConnectionStatus::DOES_NOT_EXIST;
+    } else {
+        mSensors = new ISensorsWrapperV2_1(sensors);
+        connectionStatus = initializeHidlServiceV2_X();
+    }
 
-        hardware::EventFlag::deleteEventFlag(&mWakeLockQueueFlag);
-        hardware::EventFlag::createEventFlag(mWakeLockQueue->getEventFlagWord(),
-                                             &mWakeLockQueueFlag);
+    return connectionStatus;
+}
 
-        CHECK(mSensors != nullptr && mEventQueue != nullptr &&
-                mWakeLockQueue != nullptr && mEventQueueFlag != nullptr &&
-                mWakeLockQueueFlag != nullptr);
+SensorDevice::HalConnectionStatus SensorDevice::initializeHidlServiceV2_X() {
+    HalConnectionStatus connectionStatus = HalConnectionStatus::UNKNOWN;
 
-        status_t status = checkReturnAndGetStatus(mSensors->initialize(
-                *mEventQueue->getDesc(),
-                *mWakeLockQueue->getDesc(),
-                new SensorsCallback()));
+    mWakeLockQueue = std::make_unique<WakeLockQueue>(
+            SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT,
+            true /* configureEventFlagWord */);
 
-        if (status != NO_ERROR) {
-            connectionStatus = HalConnectionStatus::FAILED_TO_CONNECT;
-            ALOGE("Failed to initialize Sensors HAL (%s)", strerror(-status));
-        } else {
-            connectionStatus = HalConnectionStatus::CONNECTED;
-            mSensorsHalDeathReceiver = new SensorsHalDeathReceivier();
-            sensors->linkToDeath(mSensorsHalDeathReceiver, 0 /* cookie */);
-        }
+    hardware::EventFlag::deleteEventFlag(&mEventQueueFlag);
+    hardware::EventFlag::createEventFlag(mSensors->getEventQueue()->getEventFlagWord(), &mEventQueueFlag);
+
+    hardware::EventFlag::deleteEventFlag(&mWakeLockQueueFlag);
+    hardware::EventFlag::createEventFlag(mWakeLockQueue->getEventFlagWord(),
+                                            &mWakeLockQueueFlag);
+
+    CHECK(mSensors != nullptr && mWakeLockQueue != nullptr &&
+            mEventQueueFlag != nullptr && mWakeLockQueueFlag != nullptr);
+
+    status_t status = checkReturnAndGetStatus(mSensors->initialize(
+            *mWakeLockQueue->getDesc(),
+            new SensorsCallback()));
+
+    if (status != NO_ERROR) {
+        connectionStatus = HalConnectionStatus::FAILED_TO_CONNECT;
+        ALOGE("Failed to initialize Sensors HAL (%s)", strerror(-status));
+    } else {
+        connectionStatus = HalConnectionStatus::CONNECTED;
+        mSensorsHalDeathReceiver = new SensorsHalDeathReceivier();
+        mSensors->linkToDeath(mSensorsHalDeathReceiver, 0 /* cookie */);
     }
 
     return connectionStatus;
@@ -473,7 +508,8 @@ ssize_t SensorDevice::pollHal(sensors_event_t* buffer, size_t count) {
                     const auto &events,
                     const auto &dynamicSensorsAdded) {
                     if (result == Result::OK) {
-                        convertToSensorEvents(events, dynamicSensorsAdded, buffer);
+                        convertToSensorEvents(convertToNewEvents(events),
+                                convertToNewSensorInfos(dynamicSensorsAdded), buffer);
                         err = (ssize_t)events.size();
                     } else {
                         err = statusFromResult(result);
@@ -507,7 +543,7 @@ ssize_t SensorDevice::pollHal(sensors_event_t* buffer, size_t count) {
 
 ssize_t SensorDevice::pollFmq(sensors_event_t* buffer, size_t maxNumEventsToRead) {
     ssize_t eventsRead = 0;
-    size_t availableEvents = mEventQueue->availableToRead();
+    size_t availableEvents = mSensors->getEventQueue()->availableToRead();
 
     if (availableEvents == 0) {
         uint32_t eventFlagState = 0;
@@ -518,7 +554,7 @@ ssize_t SensorDevice::pollFmq(sensors_event_t* buffer, size_t maxNumEventsToRead
         // additional latency in delivering events to applications.
         mEventQueueFlag->wait(asBaseType(EventQueueFlagBits::READ_AND_PROCESS) |
                               asBaseType(INTERNAL_WAKE), &eventFlagState);
-        availableEvents = mEventQueue->availableToRead();
+        availableEvents = mSensors->getEventQueue()->availableToRead();
 
         if ((eventFlagState & asBaseType(INTERNAL_WAKE)) && mReconnecting) {
             ALOGD("Event FMQ internal wake, returning from poll with no events");
@@ -528,7 +564,7 @@ ssize_t SensorDevice::pollFmq(sensors_event_t* buffer, size_t maxNumEventsToRead
 
     size_t eventsToRead = std::min({availableEvents, maxNumEventsToRead, mEventBuffer.size()});
     if (eventsToRead > 0) {
-        if (mEventQueue->read(mEventBuffer.data(), eventsToRead)) {
+        if (mSensors->getEventQueue()->read(mEventBuffer.data(), eventsToRead)) {
             // Notify the Sensors HAL that sensor events have been read. This is required to support
             // the use of writeBlocking by the Sensors HAL.
             mEventQueueFlag->wake(asBaseType(EventQueueFlagBits::EVENTS_READ));
@@ -557,7 +593,7 @@ Return<void> SensorDevice::onDynamicSensorsConnected(
         CHECK(it == mConnectedDynamicSensors.end());
 
         sensor_t *sensor = new sensor_t();
-        convertToSensor(info, sensor);
+        convertToSensor(convertToOldSensorInfo(info), sensor);
 
         mConnectedDynamicSensors.insert(
                 std::make_pair(sensor->handle, sensor));
@@ -858,7 +894,7 @@ status_t SensorDevice::injectSensorData(
             injected_sensor_event->data[5]);
 
     Event ev;
-    convertFromSensorEvent(*injected_sensor_event, &ev);
+    V2_1::implementation::convertFromSensorEvent(*injected_sensor_event, &ev);
 
     return checkReturnAndGetStatus(mSensors->injectSensorData(ev));
 }
@@ -1021,10 +1057,9 @@ bool SensorDevice::isDirectReportSupported() const {
 
 void SensorDevice::convertToSensorEvent(
         const Event &src, sensors_event_t *dst) {
-    ::android::hardware::sensors::V1_0::implementation::convertToSensorEvent(
-            src, dst);
+    V2_1::implementation::convertToSensorEvent(src, dst);
 
-    if (src.sensorType == SensorType::DYNAMIC_SENSOR_META) {
+    if (src.sensorType == V2_1::SensorType::DYNAMIC_SENSOR_META) {
         const DynamicSensorInfo &dyn = src.u.dynamic;
 
         dst->dynamic_sensor_meta.connected = dyn.connected;
@@ -1052,7 +1087,7 @@ void SensorDevice::convertToSensorEvents(
     }
 
     for (size_t i = 0; i < src.size(); ++i) {
-        convertToSensorEvent(src[i], &dst[i]);
+        V2_1::implementation::convertToSensorEvent(src[i], &dst[i]);
     }
 }
 

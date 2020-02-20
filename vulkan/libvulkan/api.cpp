@@ -124,8 +124,7 @@ class OverrideLayerNames {
     };
 
     void AddImplicitLayers() {
-        if (!is_instance_ ||
-            !android::GraphicsEnv::getInstance().isDebuggable())
+        if (!is_instance_)
             return;
 
         GetLayersFromSettings();

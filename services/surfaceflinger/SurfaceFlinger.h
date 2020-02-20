@@ -493,6 +493,8 @@ private:
     status_t notifyPowerHint(int32_t hintId) override;
     status_t setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
                                      float lightPosY, float lightPosZ, float lightRadius) override;
+    status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
+                          int8_t compatibility) override;
     /* ------------------------------------------------------------------------
      * DeathRecipient interface
      */
@@ -757,6 +759,8 @@ private:
         }
         return nullptr;
     }
+
+    std::optional<DeviceProductInfo> getDeviceProductInfoLocked(const DisplayDevice&) const;
 
     // mark a region of a layer stack dirty. this updates the dirty
     // region of all screens presenting this layer stack.
