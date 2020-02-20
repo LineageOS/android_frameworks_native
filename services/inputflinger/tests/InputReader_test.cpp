@@ -1714,7 +1714,7 @@ protected:
         mFakePolicy = new FakeInputReaderPolicy();
         mTestListener = new TestInputListener();
 
-        mReader = createInputReader(mFakePolicy, mTestListener);
+        mReader = new InputReader(std::make_shared<EventHub>(), mFakePolicy, mTestListener);
         ASSERT_EQ(mReader->start(), OK);
 
         // Since this test is run on a real device, all the input devices connected
