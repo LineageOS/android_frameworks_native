@@ -17,17 +17,18 @@
 #ifndef _UI_INPUTREADER_INPUT_DEVICE_H
 #define _UI_INPUTREADER_INPUT_DEVICE_H
 
+#include <input/DisplayViewport.h>
+#include <input/InputDevice.h>
+#include <stdint.h>
+#include <utils/PropertyMap.h>
+
+#include <optional>
+#include <unordered_map>
+#include <vector>
+
 #include "EventHub.h"
 #include "InputReaderBase.h"
 #include "InputReaderContext.h"
-
-#include <input/DisplayViewport.h>
-#include <input/InputDevice.h>
-#include <utils/PropertyMap.h>
-
-#include <stdint.h>
-#include <optional>
-#include <vector>
 
 namespace android {
 
@@ -38,8 +39,7 @@ class InputMapper;
 class InputDevice {
 public:
     InputDevice(InputReaderContext* context, int32_t id, int32_t generation,
-                int32_t controllerNumber, const InputDeviceIdentifier& identifier,
-                uint32_t classes);
+                const InputDeviceIdentifier& identifier);
     ~InputDevice();
 
     inline InputReaderContext* getContext() { return mContext; }
@@ -50,25 +50,25 @@ public:
     inline const std::string getDescriptor() { return mIdentifier.descriptor; }
     inline uint32_t getClasses() const { return mClasses; }
     inline uint32_t getSources() const { return mSources; }
+    inline bool hasEventHubDevices() const { return !mDevices.empty(); }
 
     inline bool isExternal() { return mIsExternal; }
-    inline void setExternal(bool external) { mIsExternal = external; }
     inline std::optional<uint8_t> getAssociatedDisplayPort() const {
         return mAssociatedDisplayPort;
     }
     inline std::optional<DisplayViewport> getAssociatedViewport() const {
         return mAssociatedViewport;
     }
-    inline void setMic(bool hasMic) { mHasMic = hasMic; }
     inline bool hasMic() const { return mHasMic; }
 
-    inline bool isIgnored() { return mMappers.empty(); }
+    inline bool isIgnored() { return !getMapperCount(); }
 
     bool isEnabled();
     void setEnabled(bool enabled, nsecs_t when);
 
     void dump(std::string& dump);
-    void populateMappers();
+    void addEventHubDevice(int32_t eventHubId, bool populateMappers = true);
+    void removeEventHubDevice(int32_t eventHubId);
     void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes);
     void reset(nsecs_t when);
     void process(const RawEvent* rawEvents, size_t count);
@@ -99,11 +99,20 @@ public:
 
     std::optional<int32_t> getAssociatedDisplayId();
 
+    size_t getMapperCount();
+
     // construct and add a mapper to the input device
     template <class T, typename... Args>
-    T& addMapper(Args... args) {
-        T* mapper = new T(*mDeviceContext, args...);
-        mMappers.emplace_back(mapper);
+    T& addMapper(int32_t eventHubId, Args... args) {
+        // ensure a device entry exists for this eventHubId
+        addEventHubDevice(eventHubId, false);
+
+        // create mapper
+        auto& devicePair = mDevices[eventHubId];
+        auto& deviceContext = devicePair.first;
+        auto& mappers = devicePair.second;
+        T* mapper = new T(*deviceContext, args...);
+        mappers.emplace_back(mapper);
         return *mapper;
     }
 
@@ -116,8 +125,10 @@ private:
     std::string mAlias;
     uint32_t mClasses;
 
-    std::unique_ptr<InputDeviceContext> mDeviceContext;
-    std::vector<std::unique_ptr<InputMapper>> mMappers;
+    // map from eventHubId to device context and mappers
+    using MapperVector = std::vector<std::unique_ptr<InputMapper>>;
+    using DevicePair = std::pair<std::unique_ptr<InputDeviceContext>, MapperVector>;
+    std::unordered_map<int32_t, DevicePair> mDevices;
 
     uint32_t mSources;
     bool mIsExternal;
@@ -131,10 +142,37 @@ private:
 
     PropertyMap mConfiguration;
 
-    // run a function against every mapper
+    // helpers to interate over the devices collection
+    // run a function against every mapper on every subdevice
     inline void for_each_mapper(std::function<void(InputMapper&)> f) {
-        for (auto& mapperPtr : mMappers) {
-            f(*mapperPtr);
+        for (auto& deviceEntry : mDevices) {
+            auto& devicePair = deviceEntry.second;
+            auto& mappers = devicePair.second;
+            for (auto& mapperPtr : mappers) {
+                f(*mapperPtr);
+            }
+        }
+    }
+
+    // run a function against every mapper on a specific subdevice
+    inline void for_each_mapper_in_subdevice(int32_t eventHubDevice,
+                                             std::function<void(InputMapper&)> f) {
+        auto deviceIt = mDevices.find(eventHubDevice);
+        if (deviceIt != mDevices.end()) {
+            auto& devicePair = deviceIt->second;
+            auto& mappers = devicePair.second;
+            for (auto& mapperPtr : mappers) {
+                f(*mapperPtr);
+            }
+        }
+    }
+
+    // run a function against every subdevice
+    inline void for_each_subdevice(std::function<void(InputDeviceContext&)> f) {
+        for (auto& deviceEntry : mDevices) {
+            auto& devicePair = deviceEntry.second;
+            auto& contextPtr = devicePair.first;
+            f(*contextPtr);
         }
     }
 
@@ -142,10 +180,14 @@ private:
     // if all mappers return nullopt, return nullopt.
     template <typename T>
     inline std::optional<T> first_in_mappers(std::function<std::optional<T>(InputMapper&)> f) {
-        for (auto& mapperPtr : mMappers) {
-            std::optional<T> ret = f(*mapperPtr);
-            if (ret) {
-                return ret;
+        for (auto& deviceEntry : mDevices) {
+            auto& devicePair = deviceEntry.second;
+            auto& mappers = devicePair.second;
+            for (auto& mapperPtr : mappers) {
+                std::optional<T> ret = f(*mapperPtr);
+                if (ret) {
+                    return ret;
+                }
             }
         }
         return std::nullopt;
@@ -159,11 +201,12 @@ private:
  */
 class InputDeviceContext {
 public:
-    InputDeviceContext(InputDevice& device);
+    InputDeviceContext(InputDevice& device, int32_t eventHubId);
     ~InputDeviceContext();
 
     inline InputReaderContext* getContext() { return mContext; }
-    inline int32_t getId() { return mId; }
+    inline int32_t getId() { return mDeviceId; }
+    inline int32_t getEventHubId() { return mId; }
 
     inline uint32_t getDeviceClasses() const { return mEventHub->getDeviceClasses(mId); }
     inline InputDeviceIdentifier getDeviceIdentifier() const {
@@ -259,6 +302,7 @@ private:
     InputReaderContext* mContext;
     EventHubInterface* mEventHub;
     int32_t mId;
+    int32_t mDeviceId;
 };
 
 } // namespace android

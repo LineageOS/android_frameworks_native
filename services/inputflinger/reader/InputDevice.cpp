@@ -18,6 +18,8 @@
 
 #include "InputDevice.h"
 
+#include <algorithm>
+
 #include "CursorInputMapper.h"
 #include "ExternalStylusInputMapper.h"
 #include "InputReaderContext.h"
@@ -32,25 +34,28 @@
 namespace android {
 
 InputDevice::InputDevice(InputReaderContext* context, int32_t id, int32_t generation,
-                         int32_t controllerNumber, const InputDeviceIdentifier& identifier,
-                         uint32_t classes)
+                         const InputDeviceIdentifier& identifier)
       : mContext(context),
         mId(id),
         mGeneration(generation),
-        mControllerNumber(controllerNumber),
+        mControllerNumber(0),
         mIdentifier(identifier),
-        mClasses(classes),
+        mClasses(0),
         mSources(0),
         mIsExternal(false),
         mHasMic(false),
-        mDropUntilNextSync(false) {
-    mDeviceContext = std::make_unique<InputDeviceContext>(*this);
-}
+        mDropUntilNextSync(false) {}
 
 InputDevice::~InputDevice() {}
 
 bool InputDevice::isEnabled() {
-    return mDeviceContext->isDeviceEnabled();
+    if (!hasEventHubDevices()) {
+        return false;
+    }
+    // devices are either all enabled or all disabled, so we only need to check the first
+    auto& devicePair = mDevices.begin()->second;
+    auto& contextPtr = devicePair.first;
+    return contextPtr->isDeviceEnabled();
 }
 
 void InputDevice::setEnabled(bool enabled, nsecs_t when) {
@@ -65,12 +70,15 @@ void InputDevice::setEnabled(bool enabled, nsecs_t when) {
         return;
     }
 
+    // When resetting some devices, the driver needs to be queried to ensure that a proper reset is
+    // performed. The querying must happen when the device is enabled, so we reset after enabling
+    // but before disabling the device. See MultiTouchMotionAccumulator::reset for more information.
     if (enabled) {
-        mDeviceContext->enableDevice();
+        for_each_subdevice([](auto& context) { context.enableDevice(); });
         reset(when);
     } else {
         reset(when);
-        mDeviceContext->disableDevice();
+        for_each_subdevice([](auto& context) { context.disableDevice(); });
     }
     // Must change generation to flag this device as changed
     bumpGeneration();
@@ -118,19 +126,18 @@ void InputDevice::dump(std::string& dump) {
     for_each_mapper([&dump](InputMapper& mapper) { mapper.dump(dump); });
 }
 
-void InputDevice::populateMappers() {
-    uint32_t classes = mClasses;
-    std::vector<std::unique_ptr<InputMapper>>& mappers = mMappers;
-    std::unique_ptr<InputDeviceContext>& contextPtr = mDeviceContext;
-
-    // External devices.
-    if (classes & INPUT_DEVICE_CLASS_EXTERNAL) {
-        setExternal(true);
+void InputDevice::addEventHubDevice(int32_t eventHubId, bool populateMappers) {
+    if (mDevices.find(eventHubId) != mDevices.end()) {
+        return;
     }
+    std::unique_ptr<InputDeviceContext> contextPtr(new InputDeviceContext(*this, eventHubId));
+    uint32_t classes = contextPtr->getDeviceClasses();
+    std::vector<std::unique_ptr<InputMapper>> mappers;
 
-    // Devices with mics.
-    if (classes & INPUT_DEVICE_CLASS_MIC) {
-        setMic(true);
+    // Check if we should skip population
+    if (!populateMappers) {
+        mDevices.insert({eventHubId, std::make_pair(std::move(contextPtr), std::move(mappers))});
+        return;
     }
 
     // Switch-like devices.
@@ -190,22 +197,58 @@ void InputDevice::populateMappers() {
     if (classes & INPUT_DEVICE_CLASS_EXTERNAL_STYLUS) {
         mappers.push_back(std::make_unique<ExternalStylusInputMapper>(*contextPtr));
     }
+
+    // insert the context into the devices set
+    mDevices.insert({eventHubId, std::make_pair(std::move(contextPtr), std::move(mappers))});
+}
+
+void InputDevice::removeEventHubDevice(int32_t eventHubId) {
+    mDevices.erase(eventHubId);
 }
 
 void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config,
                             uint32_t changes) {
     mSources = 0;
+    mClasses = 0;
+    mControllerNumber = 0;
+
+    for_each_subdevice([this](InputDeviceContext& context) {
+        mClasses |= context.getDeviceClasses();
+        int32_t controllerNumber = context.getDeviceControllerNumber();
+        if (controllerNumber > 0) {
+            if (mControllerNumber && mControllerNumber != controllerNumber) {
+                ALOGW("InputDevice::configure(): composite device contains multiple unique "
+                      "controller numbers");
+            }
+            mControllerNumber = controllerNumber;
+        }
+    });
+
+    mIsExternal = !!(mClasses & INPUT_DEVICE_CLASS_EXTERNAL);
+    mHasMic = !!(mClasses & INPUT_DEVICE_CLASS_MIC);
 
     if (!isIgnored()) {
         if (!changes) { // first time only
-            mDeviceContext->getConfiguration(&mConfiguration);
+            mConfiguration.clear();
+            for_each_subdevice([this](InputDeviceContext& context) {
+                PropertyMap configuration;
+                context.getConfiguration(&configuration);
+                mConfiguration.addAll(&configuration);
+            });
         }
 
         if (!changes || (changes & InputReaderConfiguration::CHANGE_KEYBOARD_LAYOUTS)) {
             if (!(mClasses & INPUT_DEVICE_CLASS_VIRTUAL)) {
                 sp<KeyCharacterMap> keyboardLayout =
                         mContext->getPolicy()->getKeyboardLayoutOverlay(mIdentifier);
-                if (mDeviceContext->setKeyboardLayoutOverlay(keyboardLayout)) {
+                bool shouldBumpGeneration = false;
+                for_each_subdevice(
+                        [&keyboardLayout, &shouldBumpGeneration](InputDeviceContext& context) {
+                            if (context.setKeyboardLayoutOverlay(keyboardLayout)) {
+                                shouldBumpGeneration = true;
+                            }
+                        });
+                if (shouldBumpGeneration) {
                     bumpGeneration();
                 }
             }
@@ -313,7 +356,9 @@ void InputDevice::process(const RawEvent* rawEvents, size_t count) {
             mDropUntilNextSync = true;
             reset(rawEvent->when);
         } else {
-            for_each_mapper([rawEvent](InputMapper& mapper) { mapper.process(rawEvent); });
+            for_each_mapper_in_subdevice(rawEvent->deviceId, [rawEvent](InputMapper& mapper) {
+                mapper.process(rawEvent);
+            });
         }
         --count;
     }
@@ -348,16 +393,20 @@ int32_t InputDevice::getSwitchState(uint32_t sourceMask, int32_t switchCode) {
 
 int32_t InputDevice::getState(uint32_t sourceMask, int32_t code, GetStateFunc getStateFunc) {
     int32_t result = AKEY_STATE_UNKNOWN;
-    for (auto& mapperPtr : mMappers) {
-        InputMapper& mapper = *mapperPtr;
-        if (sourcesMatchMask(mapper.getSources(), sourceMask)) {
-            // If any mapper reports AKEY_STATE_DOWN or AKEY_STATE_VIRTUAL, return that
-            // value.  Otherwise, return AKEY_STATE_UP as long as one mapper reports it.
-            int32_t currentResult = (mapper.*getStateFunc)(sourceMask, code);
-            if (currentResult >= AKEY_STATE_DOWN) {
-                return currentResult;
-            } else if (currentResult == AKEY_STATE_UP) {
-                result = currentResult;
+    for (auto& deviceEntry : mDevices) {
+        auto& devicePair = deviceEntry.second;
+        auto& mappers = devicePair.second;
+        for (auto& mapperPtr : mappers) {
+            InputMapper& mapper = *mapperPtr;
+            if (sourcesMatchMask(mapper.getSources(), sourceMask)) {
+                // If any mapper reports AKEY_STATE_DOWN or AKEY_STATE_VIRTUAL, return that
+                // value.  Otherwise, return AKEY_STATE_UP as long as one mapper reports it.
+                int32_t currentResult = (mapper.*getStateFunc)(sourceMask, code);
+                if (currentResult >= AKEY_STATE_DOWN) {
+                    return currentResult;
+                } else if (currentResult == AKEY_STATE_UP) {
+                    result = currentResult;
+                }
             }
         }
     }
@@ -424,11 +473,23 @@ std::optional<int32_t> InputDevice::getAssociatedDisplayId() {
             [](InputMapper& mapper) { return mapper.getAssociatedDisplayId(); });
 }
 
-InputDeviceContext::InputDeviceContext(InputDevice& device)
+// returns the number of mappers associated with the device
+size_t InputDevice::getMapperCount() {
+    size_t count = 0;
+    for (auto& deviceEntry : mDevices) {
+        auto& devicePair = deviceEntry.second;
+        auto& mappers = devicePair.second;
+        count += mappers.size();
+    }
+    return count;
+}
+
+InputDeviceContext::InputDeviceContext(InputDevice& device, int32_t eventHubId)
       : mDevice(device),
         mContext(device.getContext()),
         mEventHub(device.getContext()->getEventHub()),
-        mId(device.getId()) {}
+        mId(eventHubId),
+        mDeviceId(device.getId()) {}
 
 InputDeviceContext::~InputDeviceContext() {}
 
