@@ -101,6 +101,9 @@ BLASTBufferQueue::BLASTBufferQueue(const sp<SurfaceControl>& surface, int width,
         mHeight(height),
         mNextTransaction(nullptr) {
     BufferQueue::createBufferQueue(&mProducer, &mConsumer);
+    // since the adapter is in the client process, set dequeue timeout
+    // explicitly so that dequeueBuffer will block
+    mProducer->setDequeueTimeout(std::numeric_limits<int64_t>::max());
 
     int8_t disableTripleBuffer = property_get_bool("ro.sf.disable_triple_buffer", 0);
     if (!disableTripleBuffer) {
