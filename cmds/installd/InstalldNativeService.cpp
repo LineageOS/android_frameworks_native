@@ -1103,7 +1103,7 @@ binder::Status InstalldNativeService::destroyAppDataSnapshot(
 
 binder::Status InstalldNativeService::moveCompleteApp(const std::unique_ptr<std::string>& fromUuid,
         const std::unique_ptr<std::string>& toUuid, const std::string& packageName,
-        const std::string& dataAppName, int32_t appId, const std::string& seInfo,
+        int32_t appId, const std::string& seInfo,
         int32_t targetSdkVersion, const std::string& fromCodePath) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(fromUuid);
@@ -1114,24 +1114,24 @@ binder::Status InstalldNativeService::moveCompleteApp(const std::unique_ptr<std:
     const char* from_uuid = fromUuid ? fromUuid->c_str() : nullptr;
     const char* to_uuid = toUuid ? toUuid->c_str() : nullptr;
     const char* package_name = packageName.c_str();
-    const char* data_app_name = dataAppName.c_str();
 
     binder::Status res = ok();
     std::vector<userid_t> users = get_known_users(from_uuid);
 
+    auto to_app_package_path_parent = create_data_app_path(to_uuid);
+    auto to_app_package_path = StringPrintf("%s/%s", to_app_package_path_parent.c_str(),
+                                            android::base::Basename(fromCodePath).c_str());
+
     // Copy app
     {
-        auto to = create_data_app_package_path(to_uuid, data_app_name);
-        auto to_parent = create_data_app_path(to_uuid);
-
-        int rc = copy_directory_recursive(fromCodePath.c_str(), to_parent.c_str());
+        int rc = copy_directory_recursive(fromCodePath.c_str(), to_app_package_path_parent.c_str());
         if (rc != 0) {
-            res = error(rc, "Failed copying " + fromCodePath + " to " + to);
+            res = error(rc, "Failed copying " + fromCodePath + " to " + to_app_package_path);
             goto fail;
         }
 
-        if (selinux_android_restorecon(to.c_str(), SELINUX_ANDROID_RESTORECON_RECURSE) != 0) {
-            res = error("Failed to restorecon " + to);
+        if (selinux_android_restorecon(to_app_package_path.c_str(), SELINUX_ANDROID_RESTORECON_RECURSE) != 0) {
+            res = error("Failed to restorecon " + to_app_package_path);
             goto fail;
         }
     }
@@ -1188,9 +1188,8 @@ binder::Status InstalldNativeService::moveCompleteApp(const std::unique_ptr<std:
 fail:
     // Nuke everything we might have already copied
     {
-        auto to = create_data_app_package_path(to_uuid, data_app_name);
-        if (delete_dir_contents(to.c_str(), 1, nullptr) != 0) {
-            LOG(WARNING) << "Failed to rollback " << to;
+        if (delete_dir_contents(to_app_package_path.c_str(), 1, nullptr) != 0) {
+            LOG(WARNING) << "Failed to rollback " << to_app_package_path;
         }
     }
     for (auto user : users) {
