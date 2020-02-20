@@ -84,9 +84,10 @@ public:
 
 protected:
     // These members are protected so they can be instrumented by test cases.
-    virtual InputDevice* createDeviceLocked(int32_t deviceId, int32_t controllerNumber,
-                                            const InputDeviceIdentifier& identifier,
-                                            uint32_t classes);
+    virtual std::shared_ptr<InputDevice> createDeviceLocked(int32_t deviceId,
+                                                            int32_t controllerNumber,
+                                                            const InputDeviceIdentifier& identifier,
+                                                            uint32_t classes);
 
     // With each iteration of the loop, InputReader reads and processes one incoming message from
     // the EventHub.
@@ -138,7 +139,7 @@ private:
     static const int EVENT_BUFFER_SIZE = 256;
     RawEvent mEventBuffer[EVENT_BUFFER_SIZE];
 
-    std::unordered_map<int32_t /*deviceId*/, InputDevice*> mDevices;
+    std::unordered_map<int32_t /*deviceId*/, std::shared_ptr<InputDevice>> mDevices;
 
     // low-level input event decoding and device management
     void processEventsLocked(const RawEvent* rawEvents, size_t count);

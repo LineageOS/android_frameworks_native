@@ -1108,7 +1108,7 @@ private:
 // --- InstrumentedInputReader ---
 
 class InstrumentedInputReader : public InputReader {
-    InputDevice* mNextDevice;
+    std::shared_ptr<InputDevice> mNextDevice;
 
 public:
     InstrumentedInputReader(std::shared_ptr<EventHubInterface> eventHub,
@@ -1116,33 +1116,31 @@ public:
                             const sp<InputListenerInterface>& listener)
           : InputReader(eventHub, policy, listener), mNextDevice(nullptr) {}
 
-    virtual ~InstrumentedInputReader() {
-        if (mNextDevice) {
-            delete mNextDevice;
-        }
-    }
+    virtual ~InstrumentedInputReader() {}
 
-    void setNextDevice(InputDevice* device) { mNextDevice = device; }
+    void setNextDevice(std::shared_ptr<InputDevice> device) { mNextDevice = device; }
 
-    InputDevice* newDevice(int32_t deviceId, int32_t controllerNumber, const std::string& name,
-                           uint32_t classes, const std::string& location = "") {
+    std::shared_ptr<InputDevice> newDevice(int32_t deviceId, int32_t controllerNumber,
+                                           const std::string& name, uint32_t classes,
+                                           const std::string& location = "") {
         InputDeviceIdentifier identifier;
         identifier.name = name;
         identifier.location = location;
         int32_t generation = deviceId + 1;
-        return new InputDevice(&mContext, deviceId, generation, controllerNumber, identifier,
-                               classes);
+        return std::make_shared<InputDevice>(&mContext, deviceId, generation, controllerNumber,
+                                             identifier, classes);
     }
 
     // Make the protected loopOnce method accessible to tests.
     using InputReader::loopOnce;
 
 protected:
-    virtual InputDevice* createDeviceLocked(int32_t deviceId, int32_t controllerNumber,
-                                            const InputDeviceIdentifier& identifier,
-                                            uint32_t classes) {
+    virtual std::shared_ptr<InputDevice> createDeviceLocked(int32_t deviceId,
+                                                            int32_t controllerNumber,
+                                                            const InputDeviceIdentifier& identifier,
+                                                            uint32_t classes) {
         if (mNextDevice) {
-            InputDevice* device = mNextDevice;
+            std::shared_ptr<InputDevice> device(mNextDevice);
             mNextDevice = nullptr;
             return device;
         }
@@ -1385,7 +1383,8 @@ protected:
                                                   const std::string& name, uint32_t classes,
                                                   uint32_t sources,
                                                   const PropertyMap* configuration) {
-        InputDevice* device = mReader->newDevice(deviceId, controllerNumber, name, classes);
+        std::shared_ptr<InputDevice> device =
+                mReader->newDevice(deviceId, controllerNumber, name, classes);
         FakeInputMapper& mapper = device->addMapper<FakeInputMapper>(sources);
         mReader->setNextDevice(device);
         addDevice(deviceId, name, classes, configuration);
@@ -1421,7 +1420,8 @@ TEST_F(InputReaderTest, GetInputDevices) {
 TEST_F(InputReaderTest, WhenEnabledChanges_SendsDeviceResetNotification) {
     constexpr int32_t deviceId = 1;
     constexpr uint32_t deviceClass = INPUT_DEVICE_CLASS_KEYBOARD;
-    InputDevice* device = mReader->newDevice(deviceId, 0 /*controllerNumber*/, "fake", deviceClass);
+    std::shared_ptr<InputDevice> device =
+            mReader->newDevice(deviceId, 0 /*controllerNumber*/, "fake", deviceClass);
     // Must add at least one mapper or the device will be ignored!
     device->addMapper<FakeInputMapper>(AINPUT_SOURCE_KEYBOARD);
     mReader->setNextDevice(device);
@@ -1601,7 +1601,8 @@ TEST_F(InputReaderTest, LoopOnce_ForwardsRawEventsToMappers) {
 TEST_F(InputReaderTest, DeviceReset_IncrementsSequenceNumber) {
     constexpr int32_t deviceId = 1;
     constexpr uint32_t deviceClass = INPUT_DEVICE_CLASS_KEYBOARD;
-    InputDevice* device = mReader->newDevice(deviceId, 0 /*controllerNumber*/, "fake", deviceClass);
+    std::shared_ptr<InputDevice> device =
+            mReader->newDevice(deviceId, 0 /*controllerNumber*/, "fake", deviceClass);
     // Must add at least one mapper or the device will be ignored!
     device->addMapper<FakeInputMapper>(AINPUT_SOURCE_KEYBOARD);
     mReader->setNextDevice(device);
@@ -1634,8 +1635,8 @@ TEST_F(InputReaderTest, Device_CanDispatchToDisplay) {
     constexpr int32_t deviceId = 1;
     constexpr uint32_t deviceClass = INPUT_DEVICE_CLASS_KEYBOARD;
     const char* DEVICE_LOCATION = "USB1";
-    InputDevice* device = mReader->newDevice(deviceId, 0 /*controllerNumber*/, "fake", deviceClass,
-            DEVICE_LOCATION);
+    std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, 0 /*controllerNumber*/,
+                                                             "fake", deviceClass, DEVICE_LOCATION);
     FakeInputMapper& mapper = device->addMapper<FakeInputMapper>(AINPUT_SOURCE_TOUCHSCREEN);
     mReader->setNextDevice(device);
 
@@ -1801,7 +1802,7 @@ protected:
     sp<TestInputListener> mFakeListener;
     FakeInputReaderContext* mFakeContext;
 
-    InputDevice* mDevice;
+    std::shared_ptr<InputDevice> mDevice;
 
     virtual void SetUp() override {
         mFakeEventHub = std::make_unique<FakeEventHub>();
@@ -1813,13 +1814,13 @@ protected:
         InputDeviceIdentifier identifier;
         identifier.name = DEVICE_NAME;
         identifier.location = DEVICE_LOCATION;
-        mDevice = new InputDevice(mFakeContext, DEVICE_ID, DEVICE_GENERATION,
-                DEVICE_CONTROLLER_NUMBER, identifier, DEVICE_CLASSES);
+        mDevice =
+                std::make_shared<InputDevice>(mFakeContext, DEVICE_ID, DEVICE_GENERATION,
+                                              DEVICE_CONTROLLER_NUMBER, identifier, DEVICE_CLASSES);
     }
 
     virtual void TearDown() override {
-        delete mDevice;
-
+        mDevice = nullptr;
         delete mFakeContext;
         mFakeListener.clear();
         mFakePolicy.clear();
