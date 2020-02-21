@@ -363,11 +363,13 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
 
     property_get("ro.surface_flinger.supports_background_blur", value, "0");
     bool supportsBlurs = atoi(value);
-    property_get("debug.sf.disableBlurs", value, "0");
+    property_get("debug.sf.disable_blurs", value, "0");
     bool disableBlurs = atoi(value);
     mEnableBlurs = supportsBlurs && !disableBlurs;
     ALOGI_IF(!mEnableBlurs, "Disabling blur effects. supported: %d, disabled: %d", supportsBlurs,
              disableBlurs);
+    property_get("ro.sf.blurs_are_expensive", value, "0");
+    mBlursAreExpensive = atoi(value);
 
     const size_t defaultListSize = MAX_LAYERS;
     auto listSize = property_get_int32("debug.sf.max_igbp_list_size", int32_t(defaultListSize));
@@ -1924,6 +1926,7 @@ void SurfaceFlinger::handleMessageRefresh() {
 
     refreshArgs.updatingOutputGeometryThisFrame = mVisibleRegionsDirty;
     refreshArgs.updatingGeometryThisFrame = mGeometryInvalid || mVisibleRegionsDirty;
+    refreshArgs.blursAreExpensive = mBlursAreExpensive;
 
     if (CC_UNLIKELY(mDrawingState.colorMatrixChanged)) {
         refreshArgs.colorTransformMatrix = mDrawingState.colorMatrix;

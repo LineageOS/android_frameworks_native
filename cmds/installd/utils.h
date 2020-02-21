@@ -47,7 +47,6 @@ constexpr const char* kXattrCacheTombstone = "user.cache_tombstone";
 std::string create_data_path(const char* volume_uuid);
 
 std::string create_data_app_path(const char* volume_uuid);
-std::string create_data_app_package_path(const char* volume_uuid, const char* package_name);
 
 std::string create_data_user_ce_path(const char* volume_uuid, userid_t userid);
 std::string create_data_user_de_path(const char* volume_uuid, userid_t userid);

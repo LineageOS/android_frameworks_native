@@ -2433,12 +2433,16 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
         switch (eventEntry->type) {
             case EventEntry::Type::KEY: {
                 KeyEntry* keyEntry = static_cast<KeyEntry*>(eventEntry);
+                VerifiedKeyEvent verifiedEvent = verifiedKeyEventFromKeyEntry(*keyEntry);
+                verifiedEvent.flags = dispatchEntry->resolvedFlags & VERIFIED_KEY_EVENT_FLAGS;
+                verifiedEvent.action = dispatchEntry->resolvedAction;
+                std::array<uint8_t, 32> hmac = mHmacKeyManager.sign(verifiedEvent);
 
                 // Publish the key event.
                 status = connection->inputPublisher
                                  .publishKeyEvent(dispatchEntry->seq, keyEntry->deviceId,
                                                   keyEntry->source, keyEntry->displayId,
-                                                  INVALID_HMAC, dispatchEntry->resolvedAction,
+                                                  std::move(hmac), dispatchEntry->resolvedAction,
                                                   dispatchEntry->resolvedFlags, keyEntry->keyCode,
                                                   keyEntry->scanCode, keyEntry->metaState,
                                                   keyEntry->repeatCount, keyEntry->downTime,
@@ -2482,12 +2486,18 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                         usingCoords = scaledCoords;
                     }
                 }
+                VerifiedMotionEvent verifiedEvent =
+                        verifiedMotionEventFromMotionEntry(*motionEntry);
+                verifiedEvent.actionMasked =
+                        dispatchEntry->resolvedAction & AMOTION_EVENT_ACTION_MASK;
+                verifiedEvent.flags = dispatchEntry->resolvedFlags & VERIFIED_MOTION_EVENT_FLAGS;
+                std::array<uint8_t, 32> hmac = mHmacKeyManager.sign(verifiedEvent);
 
                 // Publish the motion event.
                 status = connection->inputPublisher
                                  .publishMotionEvent(dispatchEntry->seq, motionEntry->deviceId,
                                                      motionEntry->source, motionEntry->displayId,
-                                                     INVALID_HMAC, dispatchEntry->resolvedAction,
+                                                     std::move(hmac), dispatchEntry->resolvedAction,
                                                      motionEntry->actionButton,
                                                      dispatchEntry->resolvedFlags,
                                                      motionEntry->edgeFlags, motionEntry->metaState,
@@ -3392,7 +3402,36 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
 }
 
 std::unique_ptr<VerifiedInputEvent> InputDispatcher::verifyInputEvent(const InputEvent& event) {
-    return nullptr;
+    std::array<uint8_t, 32> calculatedHmac;
+    std::unique_ptr<VerifiedInputEvent> result;
+    switch (event.getType()) {
+        case AINPUT_EVENT_TYPE_KEY: {
+            const KeyEvent& keyEvent = static_cast<const KeyEvent&>(event);
+            VerifiedKeyEvent verifiedKeyEvent = verifiedKeyEventFromKeyEvent(keyEvent);
+            result = std::make_unique<VerifiedKeyEvent>(verifiedKeyEvent);
+            calculatedHmac = mHmacKeyManager.sign(verifiedKeyEvent);
+            break;
+        }
+        case AINPUT_EVENT_TYPE_MOTION: {
+            const MotionEvent& motionEvent = static_cast<const MotionEvent&>(event);
+            VerifiedMotionEvent verifiedMotionEvent =
+                    verifiedMotionEventFromMotionEvent(motionEvent);
+            result = std::make_unique<VerifiedMotionEvent>(verifiedMotionEvent);
+            calculatedHmac = mHmacKeyManager.sign(verifiedMotionEvent);
+            break;
+        }
+        default: {
+            ALOGE("Cannot verify events of type %" PRId32, event.getType());
+            return nullptr;
+        }
+    }
+    if (calculatedHmac == INVALID_HMAC) {
+        return nullptr;
+    }
+    if (calculatedHmac != event.getHmac()) {
+        return nullptr;
+    }
+    return result;
 }
 
 bool InputDispatcher::hasInjectionPermission(int32_t injectorPid, int32_t injectorUid) {

@@ -161,6 +161,17 @@ static bool attachTracepointProgram(const std::string &eventType, const std::str
     return bpf_attach_tracepoint(prog_fd, eventType.c_str(), eventName.c_str()) >= 0;
 }
 
+static std::optional<uint32_t> getPolicyFreqIdx(uint32_t policy) {
+    auto path = StringPrintf("/sys/devices/system/cpu/cpufreq/policy%u/scaling_cur_freq",
+                             gPolicyCpus[policy][0]);
+    auto freqVec = readNumbersFromFile(path);
+    if (!freqVec.has_value() || freqVec->size() != 1) return {};
+    for (uint32_t idx = 0; idx < gPolicyFreqs[policy].size(); ++idx) {
+        if ((*freqVec)[0] == gPolicyFreqs[policy][idx]) return idx + 1;
+    }
+    return {};
+}
+
 // Start tracking and aggregating data to be reported by getUidCpuFreqTimes and getUidsCpuFreqTimes.
 // Returns true on success, false otherwise.
 // Tracking is active only once a live process has successfully called this function; if the calling
@@ -215,7 +226,9 @@ bool startTrackingUidTimes() {
     unique_fd policyFreqIdxFd(bpf_obj_get_wronly(BPF_FS_PATH "map_time_in_state_policy_freq_idx_map"));
     if (policyFreqIdxFd < 0) return false;
     for (uint32_t i = 0; i < gNPolicies; ++i) {
-        if (writeToMapEntry(policyFreqIdxFd, &i, &zero, BPF_ANY)) return false;
+        auto freqIdx = getPolicyFreqIdx(i);
+        if (!freqIdx.has_value()) return false;
+        if (writeToMapEntry(policyFreqIdxFd, &i, &(*freqIdx), BPF_ANY)) return false;
     }
 
     gTracking = attachTracepointProgram("sched", "sched_switch") &&

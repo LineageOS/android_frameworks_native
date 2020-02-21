@@ -217,6 +217,8 @@ private:
     // the pointer stream in order to claim it for a system gesture.
     std::unordered_map<int32_t, std::vector<Monitor>> mGestureMonitorsByDisplay GUARDED_BY(mLock);
 
+    HmacKeyManager mHmacKeyManager;
+
     // Event injection and synchronization.
     std::condition_variable mInjectionResultAvailable;
     bool hasInjectionPermission(int32_t injectorPid, int32_t injectorUid);

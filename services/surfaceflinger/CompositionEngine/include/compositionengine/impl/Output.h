@@ -83,7 +83,8 @@ public:
     void prepareFrame() override;
     void devOptRepaintFlash(const CompositionRefreshArgs&) override;
     void finishFrame(const CompositionRefreshArgs&) override;
-    std::optional<base::unique_fd> composeSurfaces(const Region&) override;
+    std::optional<base::unique_fd> composeSurfaces(
+            const Region&, const compositionengine::CompositionRefreshArgs& refreshArgs) override;
     void postFramebuffer() override;
     void cacheClientCompositionRequests(uint32_t) override;
 
