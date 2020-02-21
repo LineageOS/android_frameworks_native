@@ -27,7 +27,7 @@ cc_library {
 
     version_script: "libadbd_auth.map.txt",
     stubs: {
-        versions: ["1"],
+        versions: ["30"],
         symbol_file: "libadbd_auth.map.txt",
     },
 
