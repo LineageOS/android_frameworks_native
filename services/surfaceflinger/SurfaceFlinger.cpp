@@ -1493,11 +1493,13 @@ void SurfaceFlinger::waitForEvent() {
 
 void SurfaceFlinger::signalTransaction() {
     mScheduler->resetIdleTimer();
+    mPowerAdvisor.notifyDisplayUpdateImminent();
     mEventQueue->invalidate();
 }
 
 void SurfaceFlinger::signalLayerUpdate() {
     mScheduler->resetIdleTimer();
+    mPowerAdvisor.notifyDisplayUpdateImminent();
     mEventQueue->invalidate();
 }
 
@@ -5100,6 +5102,7 @@ void SurfaceFlinger::repaintEverything() {
 
 void SurfaceFlinger::repaintEverythingForHWC() {
     mRepaintEverything = true;
+    mPowerAdvisor.notifyDisplayUpdateImminent();
     mEventQueue->invalidate();
 }
 
