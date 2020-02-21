@@ -847,6 +847,7 @@ class FakeInputReaderContext : public InputReaderContext {
     bool mUpdateGlobalMetaStateWasCalled;
     int32_t mGeneration;
     uint32_t mNextSequenceNum;
+    wp<PointerControllerInterface> mPointerController;
 
 public:
     FakeInputReaderContext(std::shared_ptr<EventHubInterface> eventHub,
@@ -874,6 +875,18 @@ public:
         return mGeneration;
     }
 
+    void updatePointerDisplay() {
+        sp<PointerControllerInterface> controller = mPointerController.promote();
+        if (controller != nullptr) {
+            InputReaderConfiguration config;
+            mPolicy->getReaderConfiguration(&config);
+            auto viewport = config.getDisplayViewportById(config.defaultPointerDisplayId);
+            if (viewport) {
+                controller->setDisplayViewport(*viewport);
+            }
+        }
+    }
+
 private:
     virtual void updateGlobalMetaState() {
         mUpdateGlobalMetaStateWasCalled = true;
@@ -899,6 +912,16 @@ private:
     }
 
     virtual bool shouldDropVirtualKey(nsecs_t, int32_t, int32_t) { return false; }
+
+    virtual sp<PointerControllerInterface> getPointerController(int32_t deviceId) {
+        sp<PointerControllerInterface> controller = mPointerController.promote();
+        if (controller == nullptr) {
+            controller = mPolicy->obtainPointerController(deviceId);
+            mPointerController = controller;
+            updatePointerDisplay();
+        }
+        return controller;
+    }
 
     virtual void fadePointer() {
     }
@@ -2095,6 +2118,9 @@ protected:
     }
 
     void configureDevice(uint32_t changes) {
+        if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
+            mFakeContext->updatePointerDisplay();
+        }
         mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(), changes);
     }
 
