@@ -33,6 +33,17 @@ enum {
     USER_ACTIVITY_EVENT_LAST = USER_ACTIVITY_EVENT_ACCESSIBILITY, // Last valid event code.
 };
 
+/** Keep in sync with android.os.temprature and hardware/interfaces/thermal/2.0/types.hal */
+enum class ThermalStatus : uint32_t {
+    THERMAL_STATUS_NONE = 0,
+    THERMAL_STATUS_LIGHT = 1,
+    THERMAL_STATUS_MODERATE = 2,
+    THERMAL_STATUS_SEVERE = 3,
+    THERMAL_STATUS_CRITICAL = 4,
+    THERMAL_STATUS_EMERGENCY = 5,
+    THERMAL_STATUS_SHUTDOWN = 6,
+};
+
 }; // namespace android
 
 #endif // ANDROID_POWERMANAGER_H
