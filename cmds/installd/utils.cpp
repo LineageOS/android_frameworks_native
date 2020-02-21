@@ -26,6 +26,7 @@
 #include <sys/xattr.h>
 #include <sys/statvfs.h>
 
+#include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/strings.h>
 #include <android-base/stringprintf.h>
@@ -34,9 +35,11 @@
 #include <cutils/properties.h>
 #include <log/log.h>
 #include <private/android_filesystem_config.h>
+#include <private/android_projectid_config.h>
 
 #include "dexopt_return_codes.h"
 #include "globals.h"  // extern variables.
+#include "QuotaUtils.h"
 
 #ifndef LOG_TAG
 #define LOG_TAG "installd"
@@ -1058,6 +1061,51 @@ int prepare_app_cache_dir(const std::string& parent, const char* name, mode_t ta
     }
     fts_close(fts);
     return 0;
+}
+
+static const char* kProcFilesystems = "/proc/filesystems";
+bool supports_sdcardfs() {
+    std::string supported;
+    if (!android::base::ReadFileToString(kProcFilesystems, &supported)) {
+        PLOG(ERROR) << "Failed to read supported filesystems";
+        return false;
+    }
+    return supported.find("sdcardfs\n") != std::string::npos;
+}
+
+int64_t get_occupied_app_space_external(const std::string& uuid, int32_t userId, int32_t appId) {
+    static const bool supportsSdcardFs = supports_sdcardfs();
+
+    if (supportsSdcardFs) {
+        int extGid = multiuser_get_ext_gid(userId, appId);
+
+        if (extGid == -1) {
+            return -1;
+        }
+
+        return GetOccupiedSpaceForGid(uuid, extGid);
+    } else {
+        uid_t uid = multiuser_get_uid(userId, appId);
+        long projectId = uid - AID_APP_START + PROJECT_ID_EXT_DATA_START;
+        return GetOccupiedSpaceForProjectId(uuid, projectId);
+    }
+}
+int64_t get_occupied_app_cache_space_external(const std::string& uuid, int32_t userId, int32_t appId) {
+    static const bool supportsSdcardFs = supports_sdcardfs();
+
+    if (supportsSdcardFs) {
+        int extCacheGid = multiuser_get_ext_cache_gid(userId, appId);
+
+        if (extCacheGid == -1) {
+            return -1;
+        }
+
+        return GetOccupiedSpaceForGid(uuid, extCacheGid);
+    } else {
+        uid_t uid = multiuser_get_uid(userId, appId);
+        long projectId = uid - AID_APP_START + PROJECT_ID_EXT_CACHE_START;
+        return GetOccupiedSpaceForProjectId(uuid, projectId);
+    }
 }
 
 // Collect all non empty profiles from the given directory and puts then into profile_paths.
