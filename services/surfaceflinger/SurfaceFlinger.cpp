@@ -374,6 +374,10 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     const size_t defaultListSize = MAX_LAYERS;
     auto listSize = property_get_int32("debug.sf.max_igbp_list_size", int32_t(defaultListSize));
     mMaxGraphicBufferProducerListSize = (listSize > 0) ? size_t(listSize) : defaultListSize;
+    mGraphicBufferProducerListSizeLogThreshold =
+            std::max(static_cast<int>(0.95 *
+                                      static_cast<double>(mMaxGraphicBufferProducerListSize)),
+                     1);
 
     property_get("debug.sf.luma_sampling", value, "1");
     mLumaSampling = atoi(value);
@@ -3030,6 +3034,11 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
                                 "Suspected IGBP leak: %zu IGBPs (%zu max), %zu Layers",
                                 mGraphicBufferProducerList.size(),
                                 mMaxGraphicBufferProducerListSize, mNumLayers.load());
+            if (mGraphicBufferProducerList.size() > mGraphicBufferProducerListSizeLogThreshold) {
+                ALOGW("Suspected IGBP leak: %zu IGBPs (%zu max), %zu Layers",
+                      mGraphicBufferProducerList.size(), mMaxGraphicBufferProducerListSize,
+                      mNumLayers.load());
+            }
         }
         mLayersAdded = true;
     }
