@@ -5558,8 +5558,8 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
 
 void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
                                             TraverseLayersFunction traverseLayers,
-                                            ANativeWindowBuffer* buffer, bool useIdentityTransform,
-                                            int* outSyncFd) {
+                                            const sp<GraphicBuffer>& buffer,
+                                            bool useIdentityTransform, int* outSyncFd) {
     ATRACE_CALL();
 
     const auto reqWidth = renderArea.getReqWidth();
@@ -5684,7 +5684,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
 
 status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
                                                  TraverseLayersFunction traverseLayers,
-                                                 ANativeWindowBuffer* buffer,
+                                                 const sp<GraphicBuffer>& buffer,
                                                  bool useIdentityTransform, bool forSystem,
                                                  int* outSyncFd, bool& outCapturedSecureLayers) {
     ATRACE_CALL();

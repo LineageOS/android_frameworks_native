@@ -314,9 +314,10 @@ public:
 
     auto onMessageReceived(int32_t what) { return mFlinger->onMessageReceived(what); }
 
-    auto captureScreenImplLocked(
-            const RenderArea& renderArea, SurfaceFlinger::TraverseLayersFunction traverseLayers,
-            ANativeWindowBuffer* buffer, bool useIdentityTransform, bool forSystem, int* outSyncFd) {
+    auto captureScreenImplLocked(const RenderArea& renderArea,
+                                 SurfaceFlinger::TraverseLayersFunction traverseLayers,
+                                 const sp<GraphicBuffer>& buffer, bool useIdentityTransform,
+                                 bool forSystem, int* outSyncFd) {
         bool ignored;
         return mFlinger->captureScreenImplLocked(renderArea, traverseLayers, buffer,
                                                  useIdentityTransform, forSystem, outSyncFd,

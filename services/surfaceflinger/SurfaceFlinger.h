@@ -692,7 +692,7 @@ private:
     using TraverseLayersFunction = std::function<void(const LayerVector::Visitor&)>;
 
     void renderScreenImplLocked(const RenderArea& renderArea, TraverseLayersFunction traverseLayers,
-                                ANativeWindowBuffer* buffer, bool useIdentityTransform,
+                                const sp<GraphicBuffer>& buffer, bool useIdentityTransform,
                                 int* outSyncFd);
     status_t captureScreenCommon(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
                                  sp<GraphicBuffer>* outBuffer, const ui::PixelFormat reqPixelFormat,
@@ -704,7 +704,7 @@ private:
     const sp<DisplayDevice> getDisplayByLayerStack(uint64_t layerStack);
     status_t captureScreenImplLocked(const RenderArea& renderArea,
                                      TraverseLayersFunction traverseLayers,
-                                     ANativeWindowBuffer* buffer, bool useIdentityTransform,
+                                     const sp<GraphicBuffer>& buffer, bool useIdentityTransform,
                                      bool forSystem, int* outSyncFd, bool& outCapturedSecureLayers);
     void traverseLayersInDisplay(const sp<const DisplayDevice>& display,
                                  const LayerVector::Visitor& visitor);

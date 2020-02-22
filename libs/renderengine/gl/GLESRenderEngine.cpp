@@ -964,7 +964,7 @@ EGLImageKHR GLESRenderEngine::createFramebufferImageIfNeeded(ANativeWindowBuffer
 
 status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
                                       const std::vector<const LayerSettings*>& layers,
-                                      ANativeWindowBuffer* const buffer,
+                                      const sp<GraphicBuffer>& buffer,
                                       const bool useFramebufferCache, base::unique_fd&& bufferFence,
                                       base::unique_fd* drawFence) {
     ATRACE_CALL();
@@ -997,7 +997,9 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
     const auto blurLayersSize = blurLayers.size();
 
     if (blurLayersSize == 0) {
-        fbo = std::make_unique<BindNativeBufferAsFramebuffer>(*this, buffer, useFramebufferCache);
+        fbo = std::make_unique<BindNativeBufferAsFramebuffer>(*this,
+                                                              buffer.get()->getNativeBuffer(),
+                                                              useFramebufferCache);
         if (fbo->getStatus() != NO_ERROR) {
             ALOGE("Failed to bind framebuffer! Aborting GPU composition for buffer (%p).",
                   buffer->handle);
@@ -1054,7 +1056,9 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
 
             if (blurLayers.size() == 0) {
                 // Done blurring, time to bind the native FBO and render our blur onto it.
-                fbo = std::make_unique<BindNativeBufferAsFramebuffer>(*this, buffer,
+                fbo = std::make_unique<BindNativeBufferAsFramebuffer>(*this,
+                                                                      buffer.get()
+                                                                              ->getNativeBuffer(),
                                                                       useFramebufferCache);
                 status = fbo->getStatus();
                 setViewportAndProjection(display.physicalDisplay, display.clip);

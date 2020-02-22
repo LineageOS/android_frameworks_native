@@ -913,9 +913,8 @@ std::optional<base::unique_fd> Output::composeSurfaces(
 
     const nsecs_t renderEngineStart = systemTime();
     status_t status =
-            renderEngine.drawLayers(clientCompositionDisplay, clientCompositionLayerPointers,
-                                    buf->getNativeBuffer(), /*useFramebufferCache=*/true,
-                                    std::move(fd), &readyFence);
+            renderEngine.drawLayers(clientCompositionDisplay, clientCompositionLayerPointers, buf,
+                                    /*useFramebufferCache=*/true, std::move(fd), &readyFence);
 
     if (status != NO_ERROR && mClientCompositionRequestCache) {
         // If rendering was not successful, remove the request from the cache.

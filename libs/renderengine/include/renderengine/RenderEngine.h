@@ -155,7 +155,7 @@ public:
     // now, this always returns NO_ERROR.
     virtual status_t drawLayers(const DisplaySettings& display,
                                 const std::vector<const LayerSettings*>& layers,
-                                ANativeWindowBuffer* buffer, const bool useFramebufferCache,
+                                const sp<GraphicBuffer>& buffer, const bool useFramebufferCache,
                                 base::unique_fd&& bufferFence, base::unique_fd* drawFence) = 0;
 
 protected:
