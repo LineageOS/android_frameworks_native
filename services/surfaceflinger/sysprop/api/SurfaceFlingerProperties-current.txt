@@ -36,6 +36,11 @@ props {
     prop_name: "ro.surface_flinger.display_primary_white"
   }
   prop {
+    api_name: "display_update_imminent_timeout_ms"
+    type: Integer
+    prop_name: "ro.surface_flinger.display_update_imminent_timeout_ms"
+  }
+  prop {
     api_name: "enable_protected_contents"
     prop_name: "ro.surface_flinger.protected_contents"
   }

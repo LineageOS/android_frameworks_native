@@ -88,8 +88,6 @@ public:
     int32_t getMetaState();
     void updateMetaState(int32_t keyCode);
 
-    void fadePointer();
-
     void bumpGeneration();
 
     void notifyReset(nsecs_t when);

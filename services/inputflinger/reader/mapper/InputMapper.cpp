@@ -71,8 +71,6 @@ void InputMapper::updateMetaState(int32_t keyCode) {}
 
 void InputMapper::updateExternalStylusState(const StylusState& state) {}
 
-void InputMapper::fadePointer() {}
-
 status_t InputMapper::getAbsoluteAxisInfo(int32_t axis, RawAbsoluteAxisInfo* axisInfo) {
     return getDeviceContext().getAbsoluteAxisInfo(axis, axisInfo);
 }

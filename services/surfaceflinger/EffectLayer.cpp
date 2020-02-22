@@ -69,6 +69,8 @@ std::vector<compositionengine::LayerFE::LayerSettings> EffectLayer::prepareClien
         // Set color for color fill settings.
         layerSettings->source.solidColor = getColor().rgb;
         results.push_back(*layerSettings);
+    } else if (hasBlur()) {
+        results.push_back(*layerSettings);
     }
 
     return results;
@@ -146,6 +148,10 @@ sp<Layer> EffectLayer::createClone() {
 bool EffectLayer::fillsColor() const {
     return mDrawingState.color.r >= 0.0_hf && mDrawingState.color.g >= 0.0_hf &&
             mDrawingState.color.b >= 0.0_hf;
+}
+
+bool EffectLayer::hasBlur() const {
+    return getBackgroundBlurRadius() > 0;
 }
 
 } // namespace android

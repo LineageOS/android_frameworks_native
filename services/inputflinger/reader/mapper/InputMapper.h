@@ -71,7 +71,6 @@ public:
 
     virtual void updateExternalStylusState(const StylusState& state);
 
-    virtual void fadePointer();
     virtual std::optional<int32_t> getAssociatedDisplayId() { return std::nullopt; }
 
 protected:

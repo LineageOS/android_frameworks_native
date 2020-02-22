@@ -62,7 +62,9 @@ protected:
 private:
     // Returns true if there is a valid color to fill.
     bool fillsColor() const;
-    bool hasSomethingToDraw() const { return fillsColor() || drawShadows(); }
+    // Returns true if this layer has a blur value.
+    bool hasBlur() const;
+    bool hasSomethingToDraw() const { return fillsColor() || drawShadows() || hasBlur(); }
 };
 
 } // namespace android

@@ -54,6 +54,7 @@
 #include <log/log.h>               // TODO: Move everything to base/logging.
 #include <logwrap/logwrap.h>
 #include <private/android_filesystem_config.h>
+#include <private/android_projectid_config.h>
 #include <selinux/android.h>
 #include <system/thread_defs.h>
 #include <utils/Trace.h>
@@ -1487,8 +1488,8 @@ static std::string toString(std::vector<int64_t> values) {
 static void collectQuotaStats(const std::string& uuid, int32_t userId,
         int32_t appId, struct stats* stats, struct stats* extStats) {
     int64_t space;
+    uid_t uid = multiuser_get_uid(userId, appId);
     if (stats != nullptr) {
-        uid_t uid = multiuser_get_uid(userId, appId);
         if ((space = GetOccupiedSpaceForUid(uuid, uid)) != -1) {
             stats->dataSize += space;
         }
@@ -1509,19 +1510,43 @@ static void collectQuotaStats(const std::string& uuid, int32_t userId,
     }
 
     if (extStats != nullptr) {
-        int extGid = multiuser_get_ext_gid(userId, appId);
-        if (extGid != -1) {
-            if ((space = GetOccupiedSpaceForGid(uuid, extGid)) != -1) {
-                extStats->dataSize += space;
+        static const bool supportsSdCardFs = supports_sdcardfs();
+        space = get_occupied_app_space_external(uuid, userId, appId);
+
+        if (space != -1) {
+            extStats->dataSize += space;
+            if (!supportsSdCardFs && stats != nullptr) {
+                // On devices without sdcardfs, if internal and external are on
+                // the same volume, a uid such as u0_a123 is used for
+                // application dirs on both internal and external storage;
+                // therefore, substract that amount from internal to make sure
+                // we don't count it double.
+                stats->dataSize -= space;
             }
         }
 
-        int extCacheGid = multiuser_get_ext_cache_gid(userId, appId);
-        if (extCacheGid != -1) {
-            if ((space = GetOccupiedSpaceForGid(uuid, extCacheGid)) != -1) {
-                extStats->dataSize += space;
-                extStats->cacheSize += space;
+        space = get_occupied_app_cache_space_external(uuid, userId, appId);
+        if (space != -1) {
+            extStats->dataSize += space; // cache counts for "data"
+            extStats->cacheSize += space;
+            if (!supportsSdCardFs && stats != nullptr) {
+                // On devices without sdcardfs, if internal and external are on
+                // the same volume, a uid such as u0_a123 is used for both
+                // internal and external storage; therefore, substract that
+                // amount from internal to make sure we don't count it double.
+                stats->dataSize -= space;
             }
+        }
+
+        if (!supportsSdCardFs && stats != nullptr) {
+            // On devices without sdcardfs, the UID of OBBs on external storage
+            // matches the regular app UID (eg u0_a123); therefore, to avoid
+            // OBBs being include in stats->dataSize, compute the OBB size for
+            // this app, and substract it from the size reported on internal
+            // storage
+            long obbProjectId = uid - AID_APP_START + PROJECT_ID_EXT_OBB_START;
+            int64_t appObbSize = GetOccupiedSpaceForProjectId(uuid, obbProjectId);
+            stats->dataSize -= appObbSize;
         }
     }
 }
@@ -1771,6 +1796,106 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
     return ok();
 }
 
+struct external_sizes {
+    int64_t audioSize;
+    int64_t videoSize;
+    int64_t imageSize;
+    int64_t totalSize; // excludes OBBs (Android/obb), but includes app data + cache
+    int64_t obbSize;
+};
+
+#define PER_USER_RANGE 100000
+
+static long getProjectIdForUser(int userId, long projectId) {
+    return userId * PER_USER_RANGE + projectId;
+}
+
+static external_sizes getExternalSizesForUserWithQuota(const std::string& uuid, int32_t userId, const std::vector<int32_t>& appIds) {
+    struct external_sizes sizes = {};
+    int64_t space;
+
+    if (supports_sdcardfs()) {
+        uid_t uid = multiuser_get_uid(userId, AID_MEDIA_RW);
+        if ((space = GetOccupiedSpaceForUid(uuid, uid)) != -1) {
+            sizes.totalSize = space;
+        }
+
+        gid_t audioGid = multiuser_get_uid(userId, AID_MEDIA_AUDIO);
+        if ((space = GetOccupiedSpaceForGid(uuid, audioGid)) != -1) {
+            sizes.audioSize = space;
+        }
+
+        gid_t videoGid = multiuser_get_uid(userId, AID_MEDIA_VIDEO);
+        if ((space = GetOccupiedSpaceForGid(uuid, videoGid)) != -1) {
+            sizes.videoSize = space;
+        }
+
+        gid_t imageGid = multiuser_get_uid(userId, AID_MEDIA_IMAGE);
+        if ((space = GetOccupiedSpaceForGid(uuid, imageGid)) != -1) {
+            sizes.imageSize = space;
+        }
+
+        if ((space = GetOccupiedSpaceForGid(uuid, AID_MEDIA_OBB)) != -1) {
+            sizes.obbSize = space;
+        }
+    } else {
+        int64_t totalSize = 0;
+        long defaultProjectId = getProjectIdForUser(userId, PROJECT_ID_EXT_DEFAULT);
+        if ((space = GetOccupiedSpaceForProjectId(uuid, defaultProjectId)) != -1) {
+            // This is all files that are not audio/video/images, excluding
+            // OBBs and app-private data
+            totalSize += space;
+        }
+
+        long audioProjectId = getProjectIdForUser(userId, PROJECT_ID_EXT_MEDIA_AUDIO);
+        if ((space = GetOccupiedSpaceForProjectId(uuid, audioProjectId)) != -1) {
+            sizes.audioSize = space;
+            totalSize += space;
+        }
+
+        long videoProjectId = getProjectIdForUser(userId, PROJECT_ID_EXT_MEDIA_VIDEO);
+        if ((space = GetOccupiedSpaceForProjectId(uuid, videoProjectId)) != -1) {
+            sizes.videoSize = space;
+            totalSize += space;
+        }
+
+        long imageProjectId = getProjectIdForUser(userId, PROJECT_ID_EXT_MEDIA_IMAGE);
+        if ((space = GetOccupiedSpaceForProjectId(uuid, imageProjectId)) != -1) {
+            sizes.imageSize = space;
+            totalSize += space;
+        }
+
+        int64_t totalAppDataSize = 0;
+        int64_t totalAppCacheSize = 0;
+        int64_t totalAppObbSize = 0;
+        for (auto appId : appIds) {
+            if (appId >= AID_APP_START) {
+                // App data
+                uid_t uid = multiuser_get_uid(userId, appId);
+                long projectId = uid - AID_APP_START + PROJECT_ID_EXT_DATA_START;
+                totalAppDataSize += GetOccupiedSpaceForProjectId(uuid, projectId);
+
+                // App cache
+                long cacheProjectId = uid - AID_APP_START + PROJECT_ID_EXT_CACHE_START;
+                totalAppCacheSize += GetOccupiedSpaceForProjectId(uuid, cacheProjectId);
+
+                // App OBBs
+                long obbProjectId = uid - AID_APP_START + PROJECT_ID_EXT_OBB_START;
+                totalAppObbSize += GetOccupiedSpaceForProjectId(uuid, obbProjectId);
+            }
+        }
+        // Total size should include app data + cache
+        totalSize += totalAppDataSize;
+        totalSize += totalAppCacheSize;
+        sizes.totalSize = totalSize;
+
+        // Only OBB is separate
+        sizes.obbSize = totalAppObbSize;
+    }
+
+    return sizes;
+}
+
 binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::string>& uuid,
         int32_t userId, int32_t flags, const std::vector<int32_t>& appIds,
         std::vector<int64_t>* _aidl_return) {
@@ -1799,14 +1924,6 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
     }
 
     if (flags & FLAG_USE_QUOTA) {
-        int64_t space;
-
-        ATRACE_BEGIN("obb");
-        if ((space = GetOccupiedSpaceForGid(uuidString, AID_MEDIA_OBB)) != -1) {
-            extStats.codeSize += space;
-        }
-        ATRACE_END();
-
         ATRACE_BEGIN("code");
         calculate_tree_size(create_data_app_path(uuid_), &stats.codeSize, -1, -1, true);
         ATRACE_END();
@@ -1828,10 +1945,9 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
         }
 
         ATRACE_BEGIN("external");
-        uid_t uid = multiuser_get_uid(userId, AID_MEDIA_RW);
-        if ((space = GetOccupiedSpaceForUid(uuidString, uid)) != -1) {
-            extStats.dataSize += space;
-        }
+        auto sizes = getExternalSizesForUserWithQuota(uuidString, userId, appIds);
+        extStats.dataSize += sizes.totalSize;
+        extStats.codeSize += sizes.obbSize;
         ATRACE_END();
 
         if (!uuid) {
@@ -1842,13 +1958,11 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
                     -1, -1, true);
             ATRACE_END();
         }
-
         ATRACE_BEGIN("quota");
         int64_t dataSize = extStats.dataSize;
         for (auto appId : appIds) {
             if (appId >= AID_APP_START) {
                 collectQuotaStats(uuidString, userId, appId, &stats, &extStats);
-
 #if MEASURE_DEBUG
                 // Sleep to make sure we don't lose logs
                 usleep(1);
@@ -1944,29 +2058,13 @@ binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std:
     }
 
     if (flags & FLAG_USE_QUOTA) {
-        int64_t space;
-
         ATRACE_BEGIN("quota");
-        uid_t uid = multiuser_get_uid(userId, AID_MEDIA_RW);
-        if ((space = GetOccupiedSpaceForUid(uuidString, uid)) != -1) {
-            totalSize = space;
-        }
-
-        gid_t audioGid = multiuser_get_uid(userId, AID_MEDIA_AUDIO);
-        if ((space = GetOccupiedSpaceForGid(uuidString, audioGid)) != -1) {
-            audioSize = space;
-        }
-        gid_t videoGid = multiuser_get_uid(userId, AID_MEDIA_VIDEO);
-        if ((space = GetOccupiedSpaceForGid(uuidString, videoGid)) != -1) {
-            videoSize = space;
-        }
-        gid_t imageGid = multiuser_get_uid(userId, AID_MEDIA_IMAGE);
-        if ((space = GetOccupiedSpaceForGid(uuidString, imageGid)) != -1) {
-            imageSize = space;
-        }
-        if ((space = GetOccupiedSpaceForGid(uuidString, AID_MEDIA_OBB)) != -1) {
-            obbSize = space;
-        }
+        auto sizes = getExternalSizesForUserWithQuota(uuidString, userId, appIds);
+        totalSize = sizes.totalSize;
+        audioSize = sizes.audioSize;
+        videoSize = sizes.videoSize;
+        imageSize = sizes.imageSize;
+        obbSize = sizes.obbSize;
         ATRACE_END();
 
         ATRACE_BEGIN("apps");

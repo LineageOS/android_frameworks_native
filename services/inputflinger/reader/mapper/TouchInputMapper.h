@@ -148,7 +148,6 @@ public:
     virtual bool markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
                                        const int32_t* keyCodes, uint8_t* outFlags) override;
 
-    virtual void fadePointer() override;
     virtual void cancelTouch(nsecs_t when) override;
     virtual void timeoutExpired(nsecs_t when) override;
     virtual void updateExternalStylusState(const StylusState& state) override;

@@ -23,6 +23,7 @@
 #include "InputReaderContext.h"
 #include "InputThread.h"
 
+#include <PointerControllerInterface.h>
 #include <utils/Condition.h>
 #include <utils/Mutex.h>
 
@@ -102,6 +103,7 @@ protected:
         virtual void disableVirtualKeysUntil(nsecs_t time) override;
         virtual bool shouldDropVirtualKey(nsecs_t now, int32_t keyCode, int32_t scanCode) override;
         virtual void fadePointer() override;
+        virtual sp<PointerControllerInterface> getPointerController(int32_t deviceId) override;
         virtual void requestTimeoutAtTime(nsecs_t when) override;
         virtual int32_t bumpGeneration() override;
         virtual void getExternalStylusDevices(std::vector<InputDeviceInfo>& outDevices) override;
@@ -159,6 +161,10 @@ private:
     void getExternalStylusDevicesLocked(std::vector<InputDeviceInfo>& outDevices);
     void dispatchExternalStylusState(const StylusState& state);
 
+    // The PointerController that is shared among all the input devices that need it.
+    wp<PointerControllerInterface> mPointerController;
+    sp<PointerControllerInterface> getPointerControllerLocked(int32_t deviceId);
+    void updatePointerDisplayLocked();
     void fadePointerLocked();
 
     int32_t mGeneration;
