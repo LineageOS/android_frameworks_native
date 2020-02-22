@@ -846,7 +846,7 @@ class FakeInputReaderContext : public InputReaderContext {
     int32_t mGlobalMetaState;
     bool mUpdateGlobalMetaStateWasCalled;
     int32_t mGeneration;
-    uint32_t mNextSequenceNum;
+    int32_t mNextId;
     wp<PointerControllerInterface> mPointerController;
 
 public:
@@ -857,7 +857,7 @@ public:
             mPolicy(policy),
             mListener(listener),
             mGlobalMetaState(0),
-            mNextSequenceNum(1) {}
+            mNextId(1) {}
 
     virtual ~FakeInputReaderContext() { }
 
@@ -941,9 +941,7 @@ private:
 
     }
 
-    virtual uint32_t getNextSequenceNum() {
-        return mNextSequenceNum++;
-    }
+    virtual int32_t getNextId() { return mNextId++; }
 };
 
 
@@ -1644,7 +1642,7 @@ TEST_F(InputReaderTest, LoopOnce_ForwardsRawEventsToMappers) {
     ASSERT_EQ(1, event.value);
 }
 
-TEST_F(InputReaderTest, DeviceReset_IncrementsSequenceNumber) {
+TEST_F(InputReaderTest, DeviceReset_RandomId) {
     constexpr int32_t deviceId = END_RESERVED_ID + 1000;
     constexpr uint32_t deviceClass = INPUT_DEVICE_CLASS_KEYBOARD;
     constexpr int32_t eventHubId = 1;
@@ -1656,25 +1654,40 @@ TEST_F(InputReaderTest, DeviceReset_IncrementsSequenceNumber) {
 
     NotifyDeviceResetArgs resetArgs;
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
-    uint32_t prevSequenceNum = resetArgs.sequenceNum;
+    int32_t prevId = resetArgs.id;
 
     disableDevice(deviceId);
     mReader->loopOnce();
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
-    ASSERT_TRUE(prevSequenceNum < resetArgs.sequenceNum);
-    prevSequenceNum = resetArgs.sequenceNum;
+    ASSERT_NE(prevId, resetArgs.id);
+    prevId = resetArgs.id;
 
     enableDevice(deviceId);
     mReader->loopOnce();
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
-    ASSERT_TRUE(prevSequenceNum < resetArgs.sequenceNum);
-    prevSequenceNum = resetArgs.sequenceNum;
+    ASSERT_NE(prevId, resetArgs.id);
+    prevId = resetArgs.id;
 
     disableDevice(deviceId);
     mReader->loopOnce();
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
-    ASSERT_TRUE(prevSequenceNum < resetArgs.sequenceNum);
-    prevSequenceNum = resetArgs.sequenceNum;
+    ASSERT_NE(prevId, resetArgs.id);
+    prevId = resetArgs.id;
+}
+
+TEST_F(InputReaderTest, DeviceReset_GenerateIdWithInputReaderSource) {
+    constexpr int32_t deviceId = 1;
+    constexpr uint32_t deviceClass = INPUT_DEVICE_CLASS_KEYBOARD;
+    constexpr int32_t eventHubId = 1;
+    std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake");
+    // Must add at least one mapper or the device will be ignored!
+    device->addMapper<FakeInputMapper>(eventHubId, AINPUT_SOURCE_KEYBOARD);
+    mReader->setNextDevice(device);
+    ASSERT_NO_FATAL_FAILURE(addDevice(deviceId, "fake", deviceClass, nullptr));
+
+    NotifyDeviceResetArgs resetArgs;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
+    ASSERT_EQ(IdGenerator::Source::INPUT_READER, IdGenerator::getSource(resetArgs.id));
 }
 
 TEST_F(InputReaderTest, Device_CanDispatchToDisplay) {
@@ -1816,21 +1829,21 @@ TEST_F(InputReaderIntegrationTest, SendsEventsToInputListener) {
     NotifyConfigurationChangedArgs configChangedArgs;
     ASSERT_NO_FATAL_FAILURE(
             mTestListener->assertNotifyConfigurationChangedWasCalled(&configChangedArgs));
-    uint32_t prevSequenceNum = configChangedArgs.sequenceNum;
+    int32_t prevId = configChangedArgs.id;
     nsecs_t prevTimestamp = configChangedArgs.eventTime;
 
     NotifyKeyArgs keyArgs;
     keyboard->pressAndReleaseHomeKey();
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(&keyArgs));
     ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, keyArgs.action);
-    ASSERT_LT(prevSequenceNum, keyArgs.sequenceNum);
-    prevSequenceNum = keyArgs.sequenceNum;
+    ASSERT_NE(prevId, keyArgs.id);
+    prevId = keyArgs.id;
     ASSERT_LE(prevTimestamp, keyArgs.eventTime);
     prevTimestamp = keyArgs.eventTime;
 
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(&keyArgs));
     ASSERT_EQ(AKEY_EVENT_ACTION_UP, keyArgs.action);
-    ASSERT_LT(prevSequenceNum, keyArgs.sequenceNum);
+    ASSERT_NE(prevId, keyArgs.id);
     ASSERT_LE(prevTimestamp, keyArgs.eventTime);
 }
 

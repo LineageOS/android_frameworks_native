@@ -94,6 +94,7 @@ protected:
 
     class ContextImpl : public InputReaderContext {
         InputReader* mReader;
+        IdGenerator mIdGenerator;
 
     public:
         explicit ContextImpl(InputReader* reader);
@@ -111,7 +112,7 @@ protected:
         virtual InputReaderPolicyInterface* getPolicy() override;
         virtual InputListenerInterface* getListener() override;
         virtual EventHubInterface* getEventHub() override;
-        virtual uint32_t getNextSequenceNum() override;
+        virtual int32_t getNextId() override;
     } mContext;
 
     friend class ContextImpl;
@@ -131,9 +132,6 @@ private:
     sp<QueuedInputListener> mQueuedListener;
 
     InputReaderConfiguration mConfig;
-
-    // used by InputReaderContext::getNextSequenceNum() as a counter for event sequence numbers
-    uint32_t mNextSequenceNum;
 
     // The event queue.
     static const int EVENT_BUFFER_SIZE = 256;

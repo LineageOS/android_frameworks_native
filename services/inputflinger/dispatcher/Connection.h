@@ -58,7 +58,7 @@ public:
     // yet received a "finished" response from the application.
     std::deque<DispatchEntry*> waitQueue;
 
-    explicit Connection(const sp<InputChannel>& inputChannel, bool monitor);
+    Connection(const sp<InputChannel>& inputChannel, bool monitor, const IdGenerator& idGenerator);
 
     inline const std::string getInputChannelName() const { return inputChannel->getName(); }
 
