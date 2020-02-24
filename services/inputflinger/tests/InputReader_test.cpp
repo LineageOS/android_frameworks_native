@@ -1137,17 +1137,17 @@ private:
 // --- InstrumentedInputReader ---
 
 class InstrumentedInputReader : public InputReader {
-    std::shared_ptr<InputDevice> mNextDevice;
+    std::queue<std::shared_ptr<InputDevice>> mNextDevices;
 
 public:
     InstrumentedInputReader(std::shared_ptr<EventHubInterface> eventHub,
                             const sp<InputReaderPolicyInterface>& policy,
                             const sp<InputListenerInterface>& listener)
-          : InputReader(eventHub, policy, listener), mNextDevice(nullptr) {}
+          : InputReader(eventHub, policy, listener) {}
 
     virtual ~InstrumentedInputReader() {}
 
-    void setNextDevice(std::shared_ptr<InputDevice> device) { mNextDevice = device; }
+    void pushNextDevice(std::shared_ptr<InputDevice> device) { mNextDevices.push(device); }
 
     std::shared_ptr<InputDevice> newDevice(int32_t deviceId, const std::string& name,
                                            const std::string& location = "") {
@@ -1164,9 +1164,9 @@ public:
 protected:
     virtual std::shared_ptr<InputDevice> createDeviceLocked(
             int32_t eventHubId, const InputDeviceIdentifier& identifier) {
-        if (mNextDevice) {
-            std::shared_ptr<InputDevice> device(mNextDevice);
-            mNextDevice = nullptr;
+        if (!mNextDevices.empty()) {
+            std::shared_ptr<InputDevice> device(std::move(mNextDevices.front()));
+            mNextDevices.pop();
             return device;
         }
         return InputReader::createDeviceLocked(eventHubId, identifier);
@@ -1415,7 +1415,7 @@ protected:
                                                   const PropertyMap* configuration) {
         std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, name);
         FakeInputMapper& mapper = device->addMapper<FakeInputMapper>(eventHubId, sources);
-        mReader->setNextDevice(device);
+        mReader->pushNextDevice(device);
         addDevice(eventHubId, name, classes, configuration);
         return mapper;
     }
@@ -1452,7 +1452,7 @@ TEST_F(InputReaderTest, WhenEnabledChanges_SendsDeviceResetNotification) {
     std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake");
     // Must add at least one mapper or the device will be ignored!
     device->addMapper<FakeInputMapper>(eventHubId, AINPUT_SOURCE_KEYBOARD);
-    mReader->setNextDevice(device);
+    mReader->pushNextDevice(device);
     ASSERT_NO_FATAL_FAILURE(addDevice(eventHubId, "fake", deviceClass, nullptr));
 
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyConfigurationChangedWasCalled(nullptr));
@@ -1661,7 +1661,7 @@ TEST_F(InputReaderTest, DeviceReset_RandomId) {
     std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake");
     // Must add at least one mapper or the device will be ignored!
     device->addMapper<FakeInputMapper>(eventHubId, AINPUT_SOURCE_KEYBOARD);
-    mReader->setNextDevice(device);
+    mReader->pushNextDevice(device);
     ASSERT_NO_FATAL_FAILURE(addDevice(eventHubId, "fake", deviceClass, nullptr));
 
     NotifyDeviceResetArgs resetArgs;
@@ -1694,7 +1694,7 @@ TEST_F(InputReaderTest, DeviceReset_GenerateIdWithInputReaderSource) {
     std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake");
     // Must add at least one mapper or the device will be ignored!
     device->addMapper<FakeInputMapper>(eventHubId, AINPUT_SOURCE_KEYBOARD);
-    mReader->setNextDevice(device);
+    mReader->pushNextDevice(device);
     ASSERT_NO_FATAL_FAILURE(addDevice(deviceId, "fake", deviceClass, nullptr));
 
     NotifyDeviceResetArgs resetArgs;
@@ -1710,7 +1710,7 @@ TEST_F(InputReaderTest, Device_CanDispatchToDisplay) {
     std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake", DEVICE_LOCATION);
     FakeInputMapper& mapper =
             device->addMapper<FakeInputMapper>(eventHubId, AINPUT_SOURCE_TOUCHSCREEN);
-    mReader->setNextDevice(device);
+    mReader->pushNextDevice(device);
 
     const uint8_t hdmi1 = 1;
 
@@ -1745,6 +1745,73 @@ TEST_F(InputReaderTest, Device_CanDispatchToDisplay) {
     disableDevice(deviceId);
     mReader->loopOnce();
     ASSERT_FALSE(mReader->canDispatchToDisplay(deviceId, SECONDARY_DISPLAY_ID));
+}
+
+TEST_F(InputReaderTest, WhenEnabledChanges_AllSubdevicesAreUpdated) {
+    constexpr int32_t deviceId = END_RESERVED_ID + 1000;
+    constexpr Flags<InputDeviceClass> deviceClass = InputDeviceClass::KEYBOARD;
+    constexpr int32_t eventHubIds[2] = {END_RESERVED_ID, END_RESERVED_ID + 1};
+    std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake");
+    // Must add at least one mapper or the device will be ignored!
+    device->addMapper<FakeInputMapper>(eventHubIds[0], AINPUT_SOURCE_KEYBOARD);
+    device->addMapper<FakeInputMapper>(eventHubIds[1], AINPUT_SOURCE_KEYBOARD);
+    mReader->pushNextDevice(device);
+    mReader->pushNextDevice(device);
+    ASSERT_NO_FATAL_FAILURE(addDevice(eventHubIds[0], "fake1", deviceClass, nullptr));
+    ASSERT_NO_FATAL_FAILURE(addDevice(eventHubIds[1], "fake2", deviceClass, nullptr));
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyConfigurationChangedWasCalled(nullptr));
+
+    NotifyDeviceResetArgs resetArgs;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
+    ASSERT_EQ(deviceId, resetArgs.deviceId);
+    ASSERT_TRUE(device->isEnabled());
+    ASSERT_TRUE(mFakeEventHub->isDeviceEnabled(eventHubIds[0]));
+    ASSERT_TRUE(mFakeEventHub->isDeviceEnabled(eventHubIds[1]));
+
+    disableDevice(deviceId);
+    mReader->loopOnce();
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
+    ASSERT_EQ(deviceId, resetArgs.deviceId);
+    ASSERT_FALSE(device->isEnabled());
+    ASSERT_FALSE(mFakeEventHub->isDeviceEnabled(eventHubIds[0]));
+    ASSERT_FALSE(mFakeEventHub->isDeviceEnabled(eventHubIds[1]));
+
+    enableDevice(deviceId);
+    mReader->loopOnce();
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
+    ASSERT_EQ(deviceId, resetArgs.deviceId);
+    ASSERT_TRUE(device->isEnabled());
+    ASSERT_TRUE(mFakeEventHub->isDeviceEnabled(eventHubIds[0]));
+    ASSERT_TRUE(mFakeEventHub->isDeviceEnabled(eventHubIds[1]));
+}
+
+TEST_F(InputReaderTest, GetKeyCodeState_ForwardsRequestsToSubdeviceMappers) {
+    constexpr int32_t deviceId = END_RESERVED_ID + 1000;
+    constexpr Flags<InputDeviceClass> deviceClass = InputDeviceClass::KEYBOARD;
+    constexpr int32_t eventHubIds[2] = {END_RESERVED_ID, END_RESERVED_ID + 1};
+    // Add two subdevices to device
+    std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake");
+    FakeInputMapper& mapperDevice1 =
+            device->addMapper<FakeInputMapper>(eventHubIds[0], AINPUT_SOURCE_KEYBOARD);
+    FakeInputMapper& mapperDevice2 =
+            device->addMapper<FakeInputMapper>(eventHubIds[1], AINPUT_SOURCE_KEYBOARD);
+    mReader->pushNextDevice(device);
+    mReader->pushNextDevice(device);
+    ASSERT_NO_FATAL_FAILURE(addDevice(eventHubIds[0], "fake1", deviceClass, nullptr));
+    ASSERT_NO_FATAL_FAILURE(addDevice(eventHubIds[1], "fake2", deviceClass, nullptr));
+
+    mapperDevice1.setKeyCodeState(AKEYCODE_A, AKEY_STATE_DOWN);
+    mapperDevice2.setKeyCodeState(AKEYCODE_B, AKEY_STATE_DOWN);
+
+    ASSERT_EQ(AKEY_STATE_DOWN,
+              mReader->getKeyCodeState(deviceId, AINPUT_SOURCE_KEYBOARD, AKEYCODE_A));
+    ASSERT_EQ(AKEY_STATE_DOWN,
+              mReader->getKeyCodeState(deviceId, AINPUT_SOURCE_KEYBOARD, AKEYCODE_B));
+    ASSERT_EQ(AKEY_STATE_UNKNOWN,
+              mReader->getKeyCodeState(deviceId, AINPUT_SOURCE_KEYBOARD, AKEYCODE_C));
 }
 
 // --- InputReaderIntegrationTest ---
