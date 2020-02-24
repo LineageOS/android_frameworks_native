@@ -99,15 +99,14 @@ static int stat_mode(const char* path) {
 class ServiceTest : public testing::Test {
 protected:
     InstalldNativeService* service;
-    std::unique_ptr<std::string> testUuid;
+    std::optional<std::string> testUuid;
 
     virtual void SetUp() {
         setenv("ANDROID_LOG_TAGS", "*:v", 1);
         android::base::InitLogging(nullptr);
 
         service = new InstalldNativeService();
-        testUuid = std::make_unique<std::string>();
-        *testUuid = std::string(kTestUuid);
+        testUuid = kTestUuid;
         system("mkdir -p /data/local/tmp/user/0");
 
         init_globals_from_data_and_root();
@@ -322,7 +321,7 @@ TEST_F(AppDataSnapshotTest, CreateAppDataSnapshot) {
 
   // Request a snapshot of the CE content but not the DE content.
   int64_t ce_snapshot_inode;
-  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_unique<std::string>("TEST"),
+  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_optional<std::string>("TEST"),
           "com.foo", 0, 37, FLAG_STORAGE_CE, &ce_snapshot_inode));
   struct stat buf;
   memset(&buf, 0, sizeof(buf));
@@ -344,7 +343,7 @@ TEST_F(AppDataSnapshotTest, CreateAppDataSnapshot) {
           0700, 10000, 20000, false /* follow_symlinks */));
 
   // Request a snapshot of the DE content but not the CE content.
-  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_unique<std::string>("TEST"),
+  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_optional<std::string>("TEST"),
           "com.foo", 0, 37, FLAG_STORAGE_DE, &ce_snapshot_inode));
   // Only DE content snapshot was requested.
   ASSERT_EQ(ce_snapshot_inode, 0);
@@ -365,7 +364,7 @@ TEST_F(AppDataSnapshotTest, CreateAppDataSnapshot) {
           0700, 10000, 20000, false /* follow_symlinks */));
 
   // Request a snapshot of both the CE as well as the DE content.
-  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_unique<std::string>("TEST"),
+  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_optional<std::string>("TEST"),
           "com.foo", 0, 37, FLAG_STORAGE_DE | FLAG_STORAGE_CE, nullptr));
 
   ASSERT_TRUE(android::base::ReadFileToString(
@@ -407,10 +406,10 @@ TEST_F(AppDataSnapshotTest, CreateAppDataSnapshot_TwoSnapshotsWithTheSameId) {
           0700, 10000, 20000, false /* follow_symlinks */));
 
   // Request snapshot for the package com.foo.
-  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_unique<std::string>("TEST"),
+  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_optional<std::string>("TEST"),
           "com.foo", 0, 67, FLAG_STORAGE_DE | FLAG_STORAGE_CE, nullptr));
   // Now request snapshot with the same id for the package com.bar
-  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_unique<std::string>("TEST"),
+  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_optional<std::string>("TEST"),
           "com.bar", 0, 67, FLAG_STORAGE_DE | FLAG_STORAGE_CE, nullptr));
 
   // Check that both snapshots have correct data in them.
@@ -439,9 +438,9 @@ TEST_F(AppDataSnapshotTest, CreateAppDataSnapshot_AppDataAbsent) {
   ASSERT_EQ(0, delete_dir_contents_and_dir(fake_package_de_path, true));
 
   int64_t ce_snapshot_inode;
-  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_unique<std::string>("TEST"),
+  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_optional<std::string>("TEST"),
           "com.foo", 0, 73, FLAG_STORAGE_CE, &ce_snapshot_inode));
-  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_unique<std::string>("TEST"),
+  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_optional<std::string>("TEST"),
           "com.foo", 0, 73, FLAG_STORAGE_DE, nullptr));
   // No CE content snapshot was performed.
   ASSERT_EQ(ce_snapshot_inode, 0);
@@ -476,7 +475,7 @@ TEST_F(AppDataSnapshotTest, CreateAppDataSnapshot_ClearsExistingSnapshot) {
           "TEST_CONTENT_2_DE", fake_package_de_path + "/file2",
           0700, 10000, 20000, false /* follow_symlinks */));
 
-  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_unique<std::string>("TEST"),
+  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_optional<std::string>("TEST"),
           "com.foo", 0, 13, FLAG_STORAGE_DE | FLAG_STORAGE_CE, nullptr));
 
   // Previous snapshot (with data for file1) must be cleared.
@@ -497,7 +496,7 @@ TEST_F(AppDataSnapshotTest, SnapshotAppData_WrongVolumeUuid) {
   ASSERT_TRUE(mkdirs(rollback_ce_dir, 0700));
   ASSERT_TRUE(mkdirs(rollback_de_dir, 0700));
 
-  EXPECT_BINDER_FAIL(service->snapshotAppData(std::make_unique<std::string>("FOO"),
+  EXPECT_BINDER_FAIL(service->snapshotAppData(std::make_optional<std::string>("FOO"),
           "com.foo", 0, 17, FLAG_STORAGE_DE, nullptr));
 }
 
@@ -524,7 +523,7 @@ TEST_F(AppDataSnapshotTest, CreateAppDataSnapshot_ClearsCache) {
   ASSERT_TRUE(android::base::WriteStringToFile(
           "TEST_CONTENT_DE", fake_package_de_code_cache_path + "/file1",
           0700, 10000, 20000, false /* follow_symlinks */));
-  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_unique<std::string>("TEST"),
+  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_optional<std::string>("TEST"),
           "com.foo", 0, 23, FLAG_STORAGE_CE | FLAG_STORAGE_DE, nullptr));
   // The snapshot call must clear cache.
   struct stat sb;
@@ -558,7 +557,7 @@ TEST_F(AppDataSnapshotTest, RestoreAppDataSnapshot) {
           "TEST_CONTENT_DE", fake_package_de_path + "/file1",
           0700, 10000, 20000, false /* follow_symlinks */));
 
-  ASSERT_BINDER_SUCCESS(service->restoreAppDataSnapshot(std::make_unique<std::string>("TEST"),
+  ASSERT_BINDER_SUCCESS(service->restoreAppDataSnapshot(std::make_optional<std::string>("TEST"),
           "com.foo", 10000, "", 0, 239, FLAG_STORAGE_DE | FLAG_STORAGE_CE));
 
   std::string ce_content, de_content;
@@ -584,7 +583,7 @@ TEST_F(AppDataSnapshotTest, CreateSnapshotThenDestroyIt) {
 
   int64_t ce_snapshot_inode;
   // Request a snapshot of both the CE as well as the DE content.
-  ASSERT_TRUE(service->snapshotAppData(std::make_unique<std::string>("TEST"),
+  ASSERT_TRUE(service->snapshotAppData(std::make_optional<std::string>("TEST"),
           "com.foo", 0, 57, FLAG_STORAGE_DE | FLAG_STORAGE_CE, &ce_snapshot_inode).isOk());
   // Because CE data snapshot was requested, ce_snapshot_inode can't be null.
   ASSERT_NE(0, ce_snapshot_inode);
@@ -594,7 +593,7 @@ TEST_F(AppDataSnapshotTest, CreateSnapshotThenDestroyIt) {
   ASSERT_EQ(0, stat((rollback_de_dir + "/com.foo").c_str(), &sb));
 
 
-  ASSERT_TRUE(service->destroyAppDataSnapshot(std::make_unique<std::string>("TEST"),
+  ASSERT_TRUE(service->destroyAppDataSnapshot(std::make_optional<std::string>("TEST"),
           "com.foo", 0, ce_snapshot_inode, 57, FLAG_STORAGE_DE | FLAG_STORAGE_CE).isOk());
   // Check snapshot is deleted.
   ASSERT_EQ(-1, stat((rollback_ce_dir + "/com.foo").c_str(), &sb));
@@ -615,7 +614,7 @@ TEST_F(AppDataSnapshotTest, DestroyAppDataSnapshot_CeSnapshotInodeIsZero) {
           "DE_RESTORE_CONTENT", rollback_de_dir + "/com.foo/file1",
           0700, 10000, 20000, false /* follow_symlinks */));
 
-  ASSERT_TRUE(service->destroyAppDataSnapshot(std::make_unique<std::string>("TEST"),
+  ASSERT_TRUE(service->destroyAppDataSnapshot(std::make_optional<std::string>("TEST"),
           "com.foo", 0, 0, 1543, FLAG_STORAGE_DE | FLAG_STORAGE_CE).isOk());
 
   // Check snapshot is deleted.
@@ -624,7 +623,7 @@ TEST_F(AppDataSnapshotTest, DestroyAppDataSnapshot_CeSnapshotInodeIsZero) {
   ASSERT_EQ(-1, stat((rollback_de_dir + "/com.foo").c_str(), &sb));
 
   // Check that deleting already deleted snapshot is no-op.
-  ASSERT_TRUE(service->destroyAppDataSnapshot(std::make_unique<std::string>("TEST"),
+  ASSERT_TRUE(service->destroyAppDataSnapshot(std::make_optional<std::string>("TEST"),
           "com.foo", 0, 0, 1543, FLAG_STORAGE_DE | FLAG_STORAGE_CE).isOk());
 }
 
@@ -637,7 +636,7 @@ TEST_F(AppDataSnapshotTest, DestroyAppDataSnapshot_WrongVolumeUuid) {
   ASSERT_TRUE(mkdirs(rollback_ce_dir, 0700));
   ASSERT_TRUE(mkdirs(rollback_de_dir, 0700));
 
-  ASSERT_FALSE(service->destroyAppDataSnapshot(std::make_unique<std::string>("BAR"),
+  ASSERT_FALSE(service->destroyAppDataSnapshot(std::make_optional<std::string>("BAR"),
           "com.foo", 0, 0, 43, FLAG_STORAGE_DE).isOk());
 }
 
@@ -650,7 +649,7 @@ TEST_F(AppDataSnapshotTest, RestoreAppDataSnapshot_WrongVolumeUuid) {
   ASSERT_TRUE(mkdirs(rollback_ce_dir, 0700));
   ASSERT_TRUE(mkdirs(rollback_de_dir, 0700));
 
-  EXPECT_BINDER_FAIL(service->restoreAppDataSnapshot(std::make_unique<std::string>("BAR"),
+  EXPECT_BINDER_FAIL(service->restoreAppDataSnapshot(std::make_optional<std::string>("BAR"),
           "com.foo", 10000, "", 0, 41, FLAG_STORAGE_DE));
 }
 
