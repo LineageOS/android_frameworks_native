@@ -67,20 +67,19 @@ const Region Region::INVALID_REGION(Rect::INVALID_RECT);
 // ----------------------------------------------------------------------------
 
 Region::Region() {
-    mStorage.push_back(Rect(0, 0));
+    mStorage.add(Rect(0,0));
 }
 
 Region::Region(const Region& rhs)
+    : mStorage(rhs.mStorage)
 {
-    mStorage.clear();
-    mStorage.insert(mStorage.begin(), rhs.mStorage.begin(), rhs.mStorage.end());
 #if defined(VALIDATE_REGIONS)
     validate(rhs, "rhs copy-ctor");
 #endif
 }
 
 Region::Region(const Rect& rhs) {
-    mStorage.push_back(rhs);
+    mStorage.add(rhs);
 }
 
 Region::~Region()
@@ -101,8 +100,8 @@ Region::~Region()
  * final, correctly ordered region buffer. Each rectangle will be compared with the span directly
  * above it, and subdivided to resolve any remaining T-junctions.
  */
-static void reverseRectsResolvingJunctions(const Rect* begin, const Rect* end, FatVector<Rect>& dst,
-                                           int spanDirection) {
+static void reverseRectsResolvingJunctions(const Rect* begin, const Rect* end,
+        Vector<Rect>& dst, int spanDirection) {
     dst.clear();
 
     const Rect* current = end - 1;
@@ -110,7 +109,7 @@ static void reverseRectsResolvingJunctions(const Rect* begin, const Rect* end, F
 
     // add first span immediately
     do {
-        dst.push_back(*current);
+        dst.add(*current);
         current--;
     } while (current->top == lastTop && current >= begin);
 
@@ -148,12 +147,12 @@ static void reverseRectsResolvingJunctions(const Rect* begin, const Rect* end, F
                 if (prev.right <= left) break;
 
                 if (prev.right > left && prev.right < right) {
-                    dst.push_back(Rect(prev.right, top, right, bottom));
+                    dst.add(Rect(prev.right, top, right, bottom));
                     right = prev.right;
                 }
 
                 if (prev.left > left && prev.left < right) {
-                    dst.push_back(Rect(prev.left, top, right, bottom));
+                    dst.add(Rect(prev.left, top, right, bottom));
                     right = prev.left;
                 }
 
@@ -167,12 +166,12 @@ static void reverseRectsResolvingJunctions(const Rect* begin, const Rect* end, F
                 if (prev.left >= right) break;
 
                 if (prev.left > left && prev.left < right) {
-                    dst.push_back(Rect(left, top, prev.left, bottom));
+                    dst.add(Rect(left, top, prev.left, bottom));
                     left = prev.left;
                 }
 
                 if (prev.right > left && prev.right < right) {
-                    dst.push_back(Rect(left, top, prev.right, bottom));
+                    dst.add(Rect(left, top, prev.right, bottom));
                     left = prev.right;
                 }
                 // if an entry in the previous span is too far left, nothing further right in the
@@ -184,7 +183,7 @@ static void reverseRectsResolvingJunctions(const Rect* begin, const Rect* end, F
         }
 
         if (left < right) {
-            dst.push_back(Rect(left, top, right, bottom));
+            dst.add(Rect(left, top, right, bottom));
         }
 
         current--;
@@ -202,14 +201,13 @@ Region Region::createTJunctionFreeRegion(const Region& r) {
     if (r.isEmpty()) return r;
     if (r.isRect()) return r;
 
-    FatVector<Rect> reversed;
+    Vector<Rect> reversed;
     reverseRectsResolvingJunctions(r.begin(), r.end(), reversed, direction_RTL);
 
     Region outputRegion;
-    reverseRectsResolvingJunctions(reversed.data(), reversed.data() + reversed.size(),
-                                   outputRegion.mStorage, direction_LTR);
-    outputRegion.mStorage.push_back(
-            r.getBounds()); // to make region valid, mStorage must end with bounds
+    reverseRectsResolvingJunctions(reversed.begin(), reversed.end(),
+            outputRegion.mStorage, direction_LTR);
+    outputRegion.mStorage.add(r.getBounds()); // to make region valid, mStorage must end with bounds
 
 #if defined(VALIDATE_REGIONS)
     validate(outputRegion, "T-Junction free region");
@@ -224,8 +222,7 @@ Region& Region::operator = (const Region& rhs)
     validate(*this, "this->operator=");
     validate(rhs, "rhs.operator=");
 #endif
-    mStorage.clear();
-    mStorage.insert(mStorage.begin(), rhs.mStorage.begin(), rhs.mStorage.end());
+    mStorage = rhs.mStorage;
     return *this;
 }
 
@@ -234,7 +231,7 @@ Region& Region::makeBoundsSelf()
     if (mStorage.size() >= 2) {
         const Rect bounds(getBounds());
         mStorage.clear();
-        mStorage.push_back(bounds);
+        mStorage.add(bounds);
     }
     return *this;
 }
@@ -258,25 +255,25 @@ bool Region::contains(int x, int y) const {
 void Region::clear()
 {
     mStorage.clear();
-    mStorage.push_back(Rect(0, 0));
+    mStorage.add(Rect(0,0));
 }
 
 void Region::set(const Rect& r)
 {
     mStorage.clear();
-    mStorage.push_back(r);
+    mStorage.add(r);
 }
 
 void Region::set(int32_t w, int32_t h)
 {
     mStorage.clear();
-    mStorage.push_back(Rect(w, h));
+    mStorage.add(Rect(w, h));
 }
 
 void Region::set(uint32_t w, uint32_t h)
 {
     mStorage.clear();
-    mStorage.push_back(Rect(w, h));
+    mStorage.add(Rect(w, h));
 }
 
 bool Region::isTriviallyEqual(const Region& region) const {
@@ -302,7 +299,8 @@ bool Region::hasSameRects(const Region& other) const {
 void Region::addRectUnchecked(int l, int t, int r, int b)
 {
     Rect rect(l,t,r,b);
-    mStorage.insert(mStorage.end() - 1, rect);
+    size_t where = mStorage.size() - 1;
+    mStorage.insertAt(rect, where, 1);
 }
 
 // ----------------------------------------------------------------------------
@@ -352,7 +350,7 @@ Region& Region::translateSelf(int x, int y) {
 
 Region& Region::scaleSelf(float sx, float sy) {
     size_t count = mStorage.size();
-    Rect* rects = mStorage.data();
+    Rect* rects = mStorage.editArray();
     while (count) {
         rects->left = static_cast<int32_t>(static_cast<float>(rects->left) * sx + 0.5f);
         rects->right = static_cast<int32_t>(static_cast<float>(rects->right) * sx + 0.5f);
@@ -457,10 +455,10 @@ const Region Region::operation(const Region& rhs, int dx, int dy, uint32_t op) c
 class Region::rasterizer : public region_operator<Rect>::region_rasterizer
 {
     Rect bounds;
-    FatVector<Rect>& storage;
+    Vector<Rect>& storage;
     Rect* head;
     Rect* tail;
-    FatVector<Rect> span;
+    Vector<Rect> span;
     Rect* cur;
 public:
     explicit rasterizer(Region& reg)
@@ -487,8 +485,8 @@ Region::rasterizer::~rasterizer()
         flushSpan();
     }
     if (storage.size()) {
-        bounds.top = storage.front().top;
-        bounds.bottom = storage.back().bottom;
+        bounds.top = storage.itemAt(0).top;
+        bounds.bottom = storage.top().bottom;
         if (storage.size() == 1) {
             storage.clear();
         }
@@ -496,7 +494,7 @@ Region::rasterizer::~rasterizer()
         bounds.left  = 0;
         bounds.right = 0;
     }
-    storage.push_back(bounds);
+    storage.add(bounds);
 }
 
 void Region::rasterizer::operator()(const Rect& rect)
@@ -511,15 +509,15 @@ void Region::rasterizer::operator()(const Rect& rect)
             return;
         }
     }
-    span.push_back(rect);
-    cur = span.data() + (span.size() - 1);
+    span.add(rect);
+    cur = span.editArray() + (span.size() - 1);
 }
 
 void Region::rasterizer::flushSpan()
 {
     bool merge = false;
     if (tail-head == ssize_t(span.size())) {
-        Rect const* p = span.data();
+        Rect const* p = span.editArray();
         Rect const* q = head;
         if (p->top == q->bottom) {
             merge = true;
@@ -534,17 +532,17 @@ void Region::rasterizer::flushSpan()
         }
     }
     if (merge) {
-        const int bottom = span.front().bottom;
+        const int bottom = span[0].bottom;
         Rect* r = head;
         while (r != tail) {
             r->bottom = bottom;
             r++;
         }
     } else {
-        bounds.left = min(span.front().left, bounds.left);
-        bounds.right = max(span.back().right, bounds.right);
-        storage.insert(storage.end(), span.begin(), span.end());
-        tail = storage.data() + storage.size();
+        bounds.left = min(span.itemAt(0).left, bounds.left);
+        bounds.right = max(span.top().right, bounds.right);
+        storage.appendVector(span);
+        tail = storage.editArray() + storage.size();
         head = tail - span.size();
     }
     span.clear();
@@ -552,7 +550,7 @@ void Region::rasterizer::flushSpan()
 
 bool Region::validate(const Region& reg, const char* name, bool silent)
 {
-    if (reg.mStorage.empty()) {
+    if (reg.mStorage.isEmpty()) {
         ALOGE_IF(!silent, "%s: mStorage is empty, which is never valid", name);
         // return immediately as the code below assumes mStorage is non-empty
         return false;
@@ -691,8 +689,9 @@ void Region::boolean_operation(uint32_t op, Region& dst,
     }
     sk_dst.op(sk_lhs, sk_rhs, sk_op);
 
-    if (sk_dst.empty() && dst.empty()) return;
-
+    if (sk_dst.isEmpty() && dst.isEmpty())
+        return;
+    
     bool same = true;
     Region::const_iterator head = dst.begin();
     Region::const_iterator const tail = dst.end();
@@ -787,7 +786,7 @@ void Region::translate(Region& reg, int dx, int dy)
         validate(reg, "translate (before)");
 #endif
         size_t count = reg.mStorage.size();
-        Rect* rects = reg.mStorage.data();
+        Rect* rects = reg.mStorage.editArray();
         while (count) {
             rects->offsetBy(dx, dy);
             rects++;
@@ -867,25 +866,24 @@ status_t Region::unflatten(void const* buffer, size_t size) {
         ALOGE("Region::unflatten() failed, invalid region");
         return BAD_VALUE;
     }
-    mStorage.clear();
-    mStorage.insert(mStorage.begin(), result.mStorage.begin(), result.mStorage.end());
+    mStorage = result.mStorage;
     return NO_ERROR;
 }
 
 // ----------------------------------------------------------------------------
 
 Region::const_iterator Region::begin() const {
-    return mStorage.data();
+    return mStorage.array();
 }
 
 Region::const_iterator Region::end() const {
     // Workaround for b/77643177
     // mStorage should never be empty, but somehow it is and it's causing
     // an abort in ubsan
-    if (mStorage.empty()) return mStorage.data();
+    if (mStorage.isEmpty()) return mStorage.array();
 
     size_t numRects = isRect() ? 1 : mStorage.size() - 1;
-    return mStorage.data() + numRects;
+    return mStorage.array() + numRects;
 }
 
 Rect const* Region::getArray(size_t* count) const {
