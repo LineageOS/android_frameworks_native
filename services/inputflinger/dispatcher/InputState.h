@@ -30,7 +30,7 @@ static constexpr int32_t INVALID_POINTER_INDEX = -1;
  * synthesized when events are dropped. */
 class InputState {
 public:
-    InputState();
+    explicit InputState(const IdGenerator& idGenerator);
     ~InputState();
 
     // Returns true if there is no state to be canceled.
@@ -110,6 +110,8 @@ private:
         void setPointers(const MotionEntry& entry);
         void mergePointerStateTo(MotionMemento& other) const;
     };
+
+    const IdGenerator& mIdGenerator; // InputDispatcher owns it so we won't have dangling reference.
 
     std::vector<KeyMemento> mKeyMementos;
     std::vector<MotionMemento> mMotionMementos;
