@@ -49,9 +49,9 @@ struct PointF {
 static KeyEvent getTestKeyEvent() {
     KeyEvent event;
 
-    event.initialize(DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE, INVALID_HMAC,
-                     AKEY_EVENT_ACTION_DOWN, 0, AKEYCODE_A, KEY_A, AMETA_NONE, 0, ARBITRARY_TIME,
-                     ARBITRARY_TIME);
+    event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE,
+                     INVALID_HMAC, AKEY_EVENT_ACTION_DOWN, 0, AKEYCODE_A, KEY_A, AMETA_NONE, 0,
+                     ARBITRARY_TIME, ARBITRARY_TIME);
     return event;
 }
 
@@ -300,7 +300,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesKeyEvents) {
     KeyEvent event;
 
     // Rejects undefined key actions.
-    event.initialize(DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE, INVALID_HMAC,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE,
+                     INVALID_HMAC,
                      /*action*/ -1, 0, AKEYCODE_A, KEY_A, AMETA_NONE, 0, ARBITRARY_TIME,
                      ARBITRARY_TIME);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED, mDispatcher->injectInputEvent(
@@ -309,8 +310,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesKeyEvents) {
             << "Should reject key events with undefined action.";
 
     // Rejects ACTION_MULTIPLE since it is not supported despite being defined in the API.
-    event.initialize(DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE, INVALID_HMAC,
-                     AKEY_EVENT_ACTION_MULTIPLE, 0, AKEYCODE_A, KEY_A, AMETA_NONE, 0,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE,
+                     INVALID_HMAC, AKEY_EVENT_ACTION_MULTIPLE, 0, AKEYCODE_A, KEY_A, AMETA_NONE, 0,
                      ARBITRARY_TIME, ARBITRARY_TIME);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED, mDispatcher->injectInputEvent(
             &event,
@@ -335,7 +336,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     constexpr MotionClassification classification = MotionClassification::NONE;
 
     // Rejects undefined motion actions.
-    event.initialize(DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      /*action*/ -1, 0, 0, edgeFlags, metaState, 0, classification, 1 /* xScale */,
                      1 /* yScale */, 0, 0, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
@@ -346,7 +347,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
             << "Should reject motion events with undefined action.";
 
     // Rejects pointer down with invalid index.
-    event.initialize(DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_POINTER_DOWN |
                              (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                      0, 0, edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */,
@@ -358,7 +359,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
             INJECTOR_PID, INJECTOR_UID, INPUT_EVENT_INJECTION_SYNC_NONE, 0, 0))
             << "Should reject motion events with pointer down index too large.";
 
-    event.initialize(DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_POINTER_DOWN |
                              (~0U << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                      0, 0, edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */,
@@ -371,7 +372,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
             << "Should reject motion events with pointer down index too small.";
 
     // Rejects pointer up with invalid index.
-    event.initialize(DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_POINTER_UP |
                              (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                      0, 0, edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */,
@@ -383,7 +384,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
             INJECTOR_PID, INJECTOR_UID, INPUT_EVENT_INJECTION_SYNC_NONE, 0, 0))
             << "Should reject motion events with pointer up index too large.";
 
-    event.initialize(DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_POINTER_UP |
                              (~0U << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                      0, 0, edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */,
@@ -396,20 +397,22 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
             << "Should reject motion events with pointer up index too small.";
 
     // Rejects motion events with invalid number of pointers.
-    event.initialize(DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0, 0,
-                     edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */, 0, 0,
-                     0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
+                     AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
+                     1 /* xScale */, 1 /* yScale */, 0, 0, 0, 0,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 0, pointerProperties, pointerCoords);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED, mDispatcher->injectInputEvent(
             &event,
             INJECTOR_PID, INJECTOR_UID, INPUT_EVENT_INJECTION_SYNC_NONE, 0, 0))
             << "Should reject motion events with 0 pointers.";
 
-    event.initialize(DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0, 0,
-                     edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */, 0, 0,
-                     0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
+                     AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
+                     1 /* xScale */, 1 /* yScale */, 0, 0, 0, 0,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ MAX_POINTERS + 1, pointerProperties, pointerCoords);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED, mDispatcher->injectInputEvent(
             &event,
@@ -418,10 +421,11 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
 
     // Rejects motion events with invalid pointer ids.
     pointerProperties[0].id = -1;
-    event.initialize(DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0, 0,
-                     edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */, 0, 0,
-                     0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
+                     AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
+                     1 /* xScale */, 1 /* yScale */, 0, 0, 0, 0,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED, mDispatcher->injectInputEvent(
             &event,
@@ -429,10 +433,11 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
             << "Should reject motion events with pointer ids less than 0.";
 
     pointerProperties[0].id = MAX_POINTER_ID + 1;
-    event.initialize(DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0, 0,
-                     edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */, 0, 0,
-                     0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
+                     AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
+                     1 /* xScale */, 1 /* yScale */, 0, 0, 0, 0,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED, mDispatcher->injectInputEvent(
             &event,
@@ -442,10 +447,11 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     // Rejects motion events with duplicate pointer ids.
     pointerProperties[0].id = 1;
     pointerProperties[1].id = 1;
-    event.initialize(DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0, 0,
-                     edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */, 0, 0,
-                     0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
+                     AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
+                     1 /* xScale */, 1 /* yScale */, 0, 0, 0, 0,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 2, pointerProperties, pointerCoords);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED, mDispatcher->injectInputEvent(
             &event,
@@ -748,8 +754,9 @@ static int32_t injectKeyDown(const sp<InputDispatcher>& dispatcher,
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
 
     // Define a valid key down event.
-    event.initialize(DEVICE_ID, AINPUT_SOURCE_KEYBOARD, displayId, INVALID_HMAC,
-                     AKEY_EVENT_ACTION_DOWN, /* flags */ 0, AKEYCODE_A, KEY_A, AMETA_NONE,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_KEYBOARD, displayId,
+                     INVALID_HMAC, AKEY_EVENT_ACTION_DOWN, /* flags */ 0, AKEYCODE_A, KEY_A,
+                     AMETA_NONE,
                      /* repeatCount */ 0, currentTime, currentTime);
 
     // Inject event until dispatch out.
@@ -777,7 +784,8 @@ static int32_t injectMotionEvent(const sp<InputDispatcher>& dispatcher, int32_t 
 
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
     // Define a valid motion down event.
-    event.initialize(DEVICE_ID, source, displayId, INVALID_HMAC, action, /* actionButton */ 0,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, displayId, INVALID_HMAC, action,
+                     /* actionButton */ 0,
                      /* flags */ 0,
                      /* edgeFlags */ 0, AMETA_NONE, /* buttonState */ 0, MotionClassification::NONE,
                      /* xScale */ 1, /* yScale */ 1, /* xOffset */ 0, /* yOffset */ 0,

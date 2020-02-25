@@ -3030,9 +3030,9 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
     accelerateMetaShortcuts(args->deviceId, args->action, keyCode, metaState);
 
     KeyEvent event;
-    event.initialize(args->deviceId, args->source, args->displayId, INVALID_HMAC, args->action,
-                     flags, keyCode, args->scanCode, metaState, repeatCount, args->downTime,
-                     args->eventTime);
+    event.initialize(args->sequenceNum, args->deviceId, args->source, args->displayId, INVALID_HMAC,
+                     args->action, flags, keyCode, args->scanCode, metaState, repeatCount,
+                     args->downTime, args->eventTime);
 
     android::base::Timer t;
     mPolicy->interceptKeyBeforeQueueing(&event, /*byref*/ policyFlags);
@@ -3125,13 +3125,14 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
             mLock.unlock();
 
             MotionEvent event;
-            event.initialize(args->deviceId, args->source, args->displayId, INVALID_HMAC,
-                             args->action, args->actionButton, args->flags, args->edgeFlags,
-                             args->metaState, args->buttonState, args->classification, 1 /*xScale*/,
-                             1 /*yScale*/, 0 /* xOffset */, 0 /* yOffset */, args->xPrecision,
-                             args->yPrecision, args->xCursorPosition, args->yCursorPosition,
-                             args->downTime, args->eventTime, args->pointerCount,
-                             args->pointerProperties, args->pointerCoords);
+            event.initialize(args->sequenceNum, args->deviceId, args->source, args->displayId,
+                             INVALID_HMAC, args->action, args->actionButton, args->flags,
+                             args->edgeFlags, args->metaState, args->buttonState,
+                             args->classification, 1 /*xScale*/, 1 /*yScale*/, 0 /* xOffset */,
+                             0 /* yOffset */, args->xPrecision, args->yPrecision,
+                             args->xCursorPosition, args->yCursorPosition, args->downTime,
+                             args->eventTime, args->pointerCount, args->pointerProperties,
+                             args->pointerCoords);
 
             policyFlags |= POLICY_FLAG_FILTERED;
             if (!mPolicy->filterInputEvent(&event, policyFlags)) {
@@ -3227,7 +3228,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
             accelerateMetaShortcuts(VIRTUAL_KEYBOARD_ID, action,
                                     /*byref*/ keyCode, /*byref*/ metaState);
             KeyEvent keyEvent;
-            keyEvent.initialize(VIRTUAL_KEYBOARD_ID, incomingKey.getSource(),
+            keyEvent.initialize(incomingKey.getId(), VIRTUAL_KEYBOARD_ID, incomingKey.getSource(),
                                 incomingKey.getDisplayId(), INVALID_HMAC, action, flags, keyCode,
                                 incomingKey.getScanCode(), metaState, incomingKey.getRepeatCount(),
                                 incomingKey.getDownTime(), incomingKey.getEventTime());
@@ -3247,11 +3248,12 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
 
             mLock.lock();
             KeyEntry* injectedEntry =
-                    new KeyEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, keyEvent.getEventTime(),
-                                 VIRTUAL_KEYBOARD_ID, keyEvent.getSource(), keyEvent.getDisplayId(),
-                                 policyFlags, action, flags, keyEvent.getKeyCode(),
-                                 keyEvent.getScanCode(), keyEvent.getMetaState(),
-                                 keyEvent.getRepeatCount(), keyEvent.getDownTime());
+                    new KeyEntry(incomingKey.getId(), incomingKey.getEventTime(),
+                                 VIRTUAL_KEYBOARD_ID, incomingKey.getSource(),
+                                 incomingKey.getDisplayId(), policyFlags, action, flags,
+                                 incomingKey.getKeyCode(), incomingKey.getScanCode(),
+                                 incomingKey.getMetaState(), incomingKey.getRepeatCount(),
+                                 incomingKey.getDownTime());
             injectedEntries.push(injectedEntry);
             break;
         }
@@ -3281,13 +3283,12 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
             const nsecs_t* sampleEventTimes = motionEvent->getSampleEventTimes();
             const PointerCoords* samplePointerCoords = motionEvent->getSamplePointerCoords();
             MotionEntry* injectedEntry =
-                    new MotionEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, *sampleEventTimes,
-                                    VIRTUAL_KEYBOARD_ID, motionEvent->getSource(),
-                                    motionEvent->getDisplayId(), policyFlags, action, actionButton,
-                                    motionEvent->getFlags(), motionEvent->getMetaState(),
-                                    motionEvent->getButtonState(), motionEvent->getClassification(),
-                                    motionEvent->getEdgeFlags(), motionEvent->getXPrecision(),
-                                    motionEvent->getYPrecision(),
+                    new MotionEntry(motionEvent->getId(), *sampleEventTimes, VIRTUAL_KEYBOARD_ID,
+                                    motionEvent->getSource(), motionEvent->getDisplayId(),
+                                    policyFlags, action, actionButton, motionEvent->getFlags(),
+                                    motionEvent->getMetaState(), motionEvent->getButtonState(),
+                                    motionEvent->getClassification(), motionEvent->getEdgeFlags(),
+                                    motionEvent->getXPrecision(), motionEvent->getYPrecision(),
                                     motionEvent->getRawXCursorPosition(),
                                     motionEvent->getRawYCursorPosition(),
                                     motionEvent->getDownTime(), uint32_t(pointerCount),
@@ -3298,7 +3299,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
                 sampleEventTimes += 1;
                 samplePointerCoords += pointerCount;
                 MotionEntry* nextInjectedEntry =
-                        new MotionEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, *sampleEventTimes,
+                        new MotionEntry(motionEvent->getId(), *sampleEventTimes,
                                         VIRTUAL_KEYBOARD_ID, motionEvent->getSource(),
                                         motionEvent->getDisplayId(), policyFlags, action,
                                         actionButton, motionEvent->getFlags(),
@@ -4817,9 +4818,9 @@ void InputDispatcher::doPokeUserActivityLockedInterruptible(CommandEntry* comman
 
 KeyEvent InputDispatcher::createKeyEvent(const KeyEntry& entry) {
     KeyEvent event;
-    event.initialize(entry.deviceId, entry.source, entry.displayId, INVALID_HMAC, entry.action,
-                     entry.flags, entry.keyCode, entry.scanCode, entry.metaState, entry.repeatCount,
-                     entry.downTime, entry.eventTime);
+    event.initialize(entry.sequenceNum, entry.deviceId, entry.source, entry.displayId, INVALID_HMAC,
+                     entry.action, entry.flags, entry.keyCode, entry.scanCode, entry.metaState,
+                     entry.repeatCount, entry.downTime, entry.eventTime);
     return event;
 }
 
