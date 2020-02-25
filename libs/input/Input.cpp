@@ -17,7 +17,9 @@
 #define LOG_TAG "Input"
 //#define LOG_NDEBUG 0
 
+#include <cutils/compiler.h>
 #include <limits.h>
+#include <string.h>
 
 #include <input/Input.h>
 #include <input/InputDevice.h>
@@ -25,6 +27,7 @@
 
 #ifdef __ANDROID__
 #include <binder/Parcel.h>
+#include <sys/random.h>
 #endif
 
 namespace android {
@@ -38,6 +41,32 @@ const char* motionClassificationToString(MotionClassification classification) {
         case MotionClassification::DEEP_PRESS:
             return "DEEP_PRESS";
     }
+}
+
+// --- IdGenerator ---
+IdGenerator::IdGenerator(Source source) : mSource(source) {}
+
+int32_t IdGenerator::nextId() const {
+    constexpr uint32_t SEQUENCE_NUMBER_MASK = ~SOURCE_MASK;
+    int32_t id = 0;
+
+// Avoid building against syscall getrandom(2) on host, which will fail build on Mac. Host doesn't
+// use sequence number so just always return mSource.
+#ifdef __ANDROID__
+    constexpr size_t BUF_LEN = sizeof(id);
+    size_t totalBytes = 0;
+    while (totalBytes < BUF_LEN) {
+        ssize_t bytes = TEMP_FAILURE_RETRY(getrandom(&id, BUF_LEN, GRND_NONBLOCK));
+        if (CC_UNLIKELY(bytes < 0)) {
+            ALOGW("Failed to fill in random number for sequence number: %s.", strerror(errno));
+            id = 0;
+            break;
+        }
+        totalBytes += bytes;
+    }
+#endif // __ANDROID__
+
+    return (id & SEQUENCE_NUMBER_MASK) | static_cast<int32_t>(mSource);
 }
 
 // --- InputEvent ---
