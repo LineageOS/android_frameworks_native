@@ -16,9 +16,11 @@
 
 #include "InputState.h"
 
+#include "InputDispatcher.h"
+
 namespace android::inputdispatcher {
 
-InputState::InputState() {}
+InputState::InputState(const IdGenerator& idGenerator) : mIdGenerator(idGenerator) {}
 
 InputState::~InputState() {}
 
@@ -268,7 +270,7 @@ std::vector<EventEntry*> InputState::synthesizeCancelationEvents(
     std::vector<EventEntry*> events;
     for (KeyMemento& memento : mKeyMementos) {
         if (shouldCancelKey(memento, options)) {
-            events.push_back(new KeyEntry(SYNTHESIZED_EVENT_ID, currentTime, memento.deviceId,
+            events.push_back(new KeyEntry(mIdGenerator.nextId(), currentTime, memento.deviceId,
                                           memento.source, memento.displayId, memento.policyFlags,
                                           AKEY_EVENT_ACTION_UP,
                                           memento.flags | AKEY_EVENT_FLAG_CANCELED, memento.keyCode,
@@ -281,7 +283,7 @@ std::vector<EventEntry*> InputState::synthesizeCancelationEvents(
         if (shouldCancelMotion(memento, options)) {
             const int32_t action = memento.hovering ? AMOTION_EVENT_ACTION_HOVER_EXIT
                                                     : AMOTION_EVENT_ACTION_CANCEL;
-            events.push_back(new MotionEntry(SYNTHESIZED_EVENT_ID, currentTime, memento.deviceId,
+            events.push_back(new MotionEntry(mIdGenerator.nextId(), currentTime, memento.deviceId,
                                              memento.source, memento.displayId, memento.policyFlags,
                                              action, 0 /*actionButton*/, memento.flags, AMETA_NONE,
                                              0 /*buttonState*/, MotionClassification::NONE,
@@ -331,7 +333,7 @@ std::vector<EventEntry*> InputState::synthesizePointerDownEvents(nsecs_t current
                     : AMOTION_EVENT_ACTION_POINTER_DOWN
                             | (i << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
 
-            events.push_back(new MotionEntry(SYNTHESIZED_EVENT_ID, currentTime, memento.deviceId,
+            events.push_back(new MotionEntry(mIdGenerator.nextId(), currentTime, memento.deviceId,
                                              memento.source, memento.displayId, memento.policyFlags,
                                              action, 0 /*actionButton*/, memento.flags, AMETA_NONE,
                                              0 /*buttonState*/, MotionClassification::NONE,

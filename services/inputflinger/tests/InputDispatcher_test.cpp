@@ -16,12 +16,17 @@
 
 #include "../dispatcher/InputDispatcher.h"
 
+#include <android-base/stringprintf.h>
 #include <binder/Binder.h>
 #include <input/Input.h>
 
 #include <gtest/gtest.h>
 #include <linux/input.h>
+#include <cinttypes>
+#include <unordered_set>
 #include <vector>
+
+using android::base::StringPrintf;
 
 namespace android::inputdispatcher {
 
@@ -105,6 +110,11 @@ public:
     void assertOnPointerDownWasNotCalled() {
         ASSERT_TRUE(mOnPointerDownToken == nullptr)
                 << "Expected onPointerDownOutsideFocus to not have been called";
+    }
+
+    void setKeyRepeatConfiguration(nsecs_t timeout, nsecs_t delay) {
+        mConfig.keyRepeatTimeout = timeout;
+        mConfig.keyRepeatDelay = delay;
     }
 
 private:
@@ -1441,6 +1451,105 @@ TEST_F(InputDispatcherTest, VerifyInputEvent_KeyEvent) {
     ASSERT_EQ(keyArgs.scanCode, verifiedKey.scanCode);
     ASSERT_EQ(keyArgs.metaState, verifiedKey.metaState);
     ASSERT_EQ(0, verifiedKey.repeatCount);
+}
+
+class InputDispatcherKeyRepeatTest : public InputDispatcherTest {
+protected:
+    static constexpr nsecs_t KEY_REPEAT_TIMEOUT = 40 * 1000000; // 40 ms
+    static constexpr nsecs_t KEY_REPEAT_DELAY = 40 * 1000000;   // 40 ms
+
+    sp<FakeApplicationHandle> mApp;
+    sp<FakeWindowHandle> mWindow;
+
+    virtual void SetUp() override {
+        mFakePolicy = new FakeInputDispatcherPolicy();
+        mFakePolicy->setKeyRepeatConfiguration(KEY_REPEAT_TIMEOUT, KEY_REPEAT_DELAY);
+        mDispatcher = new InputDispatcher(mFakePolicy);
+        mDispatcher->setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
+        ASSERT_EQ(OK, mDispatcher->start());
+
+        setUpWindow();
+    }
+
+    void setUpWindow() {
+        mApp = new FakeApplicationHandle();
+        mWindow = new FakeWindowHandle(mApp, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
+
+        mWindow->setFocus(true);
+        mDispatcher->setInputWindows({mWindow}, ADISPLAY_ID_DEFAULT);
+
+        mWindow->consumeFocusEvent(true);
+    }
+
+    void sendAndConsumeKeyDown() {
+        NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN, ADISPLAY_ID_DEFAULT);
+        keyArgs.policyFlags |= POLICY_FLAG_TRUSTED; // Otherwise it won't generate repeat event
+        mDispatcher->notifyKey(&keyArgs);
+
+        // Window should receive key down event.
+        mWindow->consumeKeyDown(ADISPLAY_ID_DEFAULT);
+    }
+
+    void expectKeyRepeatOnce(int32_t repeatCount) {
+        SCOPED_TRACE(StringPrintf("Checking event with repeat count %" PRId32, repeatCount));
+        InputEvent* repeatEvent = mWindow->consume();
+        ASSERT_NE(nullptr, repeatEvent);
+
+        uint32_t eventType = repeatEvent->getType();
+        ASSERT_EQ(AINPUT_EVENT_TYPE_KEY, eventType);
+
+        KeyEvent* repeatKeyEvent = static_cast<KeyEvent*>(repeatEvent);
+        uint32_t eventAction = repeatKeyEvent->getAction();
+        EXPECT_EQ(AKEY_EVENT_ACTION_DOWN, eventAction);
+        EXPECT_EQ(repeatCount, repeatKeyEvent->getRepeatCount());
+    }
+
+    void sendAndConsumeKeyUp() {
+        NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT);
+        keyArgs.policyFlags |= POLICY_FLAG_TRUSTED; // Unless it won't generate repeat event
+        mDispatcher->notifyKey(&keyArgs);
+
+        // Window should receive key down event.
+        mWindow->consumeEvent(AINPUT_EVENT_TYPE_KEY, AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT,
+                              0 /*expectedFlags*/);
+    }
+};
+
+TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_ReceivesKeyRepeat) {
+    sendAndConsumeKeyDown();
+    for (int32_t repeatCount = 1; repeatCount <= 10; ++repeatCount) {
+        expectKeyRepeatOnce(repeatCount);
+    }
+}
+
+TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_StopsKeyRepeatAfterUp) {
+    sendAndConsumeKeyDown();
+    expectKeyRepeatOnce(1 /*repeatCount*/);
+    sendAndConsumeKeyUp();
+    mWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_RepeatKeyEventsUseEventIdFromInputDispatcher) {
+    sendAndConsumeKeyDown();
+    for (int32_t repeatCount = 1; repeatCount <= 10; ++repeatCount) {
+        InputEvent* repeatEvent = mWindow->consume();
+        ASSERT_NE(nullptr, repeatEvent) << "Didn't receive event with repeat count " << repeatCount;
+        EXPECT_EQ(IdGenerator::Source::INPUT_DISPATCHER,
+                  IdGenerator::getSource(repeatEvent->getId()));
+    }
+}
+
+TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_RepeatKeyEventsUseUniqueEventId) {
+    sendAndConsumeKeyDown();
+
+    std::unordered_set<int32_t> idSet;
+    for (int32_t repeatCount = 1; repeatCount <= 10; ++repeatCount) {
+        InputEvent* repeatEvent = mWindow->consume();
+        ASSERT_NE(nullptr, repeatEvent) << "Didn't receive event with repeat count " << repeatCount;
+        int32_t id = repeatEvent->getId();
+        EXPECT_EQ(idSet.end(), idSet.find(id));
+        idSet.insert(id);
+    }
 }
 
 /* Test InputDispatcher for MultiDisplay */
