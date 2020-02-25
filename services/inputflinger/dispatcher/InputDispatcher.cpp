@@ -302,7 +302,7 @@ static std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inp
     }
 
     MotionEntry* combinedMotionEntry =
-            new MotionEntry(motionEntry.sequenceNum, motionEntry.eventTime, motionEntry.deviceId,
+            new MotionEntry(motionEntry.id, motionEntry.eventTime, motionEntry.deviceId,
                             motionEntry.source, motionEntry.displayId, motionEntry.policyFlags,
                             motionEntry.action, motionEntry.actionButton, motionEntry.flags,
                             motionEntry.metaState, motionEntry.buttonState,
@@ -930,9 +930,9 @@ KeyEntry* InputDispatcher::synthesizeKeyRepeatLocked(nsecs_t currentTime) {
         entry->repeatCount += 1;
     } else {
         KeyEntry* newEntry =
-                new KeyEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, currentTime, entry->deviceId,
-                             entry->source, entry->displayId, policyFlags, entry->action,
-                             entry->flags, entry->keyCode, entry->scanCode, entry->metaState,
+                new KeyEntry(SYNTHESIZED_EVENT_ID, currentTime, entry->deviceId, entry->source,
+                             entry->displayId, policyFlags, entry->action, entry->flags,
+                             entry->keyCode, entry->scanCode, entry->metaState,
                              entry->repeatCount + 1, entry->downTime);
 
         mKeyRepeatState.lastKeyEntry = newEntry;
@@ -981,7 +981,7 @@ bool InputDispatcher::dispatchDeviceResetLocked(nsecs_t currentTime, DeviceReset
 
 void InputDispatcher::enqueueFocusEventLocked(const InputWindowHandle& window, bool hasFocus) {
     FocusEntry* focusEntry =
-            new FocusEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, now(), window.getToken(), hasFocus);
+            new FocusEntry(SYNTHESIZED_EVENT_ID, now(), window.getToken(), hasFocus);
     enqueueInboundEventLocked(focusEntry);
 }
 
@@ -1076,7 +1076,7 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
         setInjectionResult(entry,
                            *dropReason == DropReason::POLICY ? INPUT_EVENT_INJECTION_SUCCEEDED
                                                              : INPUT_EVENT_INJECTION_FAILED);
-        mReporter->reportDroppedKey(entry->sequenceNum);
+        mReporter->reportDroppedKey(entry->id);
         return true;
     }
 
@@ -2188,8 +2188,8 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
                                                  const InputTarget& inputTarget) {
     if (ATRACE_ENABLED()) {
         std::string message =
-                StringPrintf("prepareDispatchCycleLocked(inputChannel=%s, sequenceNum=%" PRIu32 ")",
-                             connection->getInputChannelName().c_str(), eventEntry->sequenceNum);
+                StringPrintf("prepareDispatchCycleLocked(inputChannel=%s, id=%" PRIx32 ")",
+                             connection->getInputChannelName().c_str(), eventEntry->id);
         ATRACE_NAME(message.c_str());
     }
 #if DEBUG_DISPATCH_CYCLE
@@ -2244,9 +2244,8 @@ void InputDispatcher::enqueueDispatchEntriesLocked(nsecs_t currentTime,
                                                    const InputTarget& inputTarget) {
     if (ATRACE_ENABLED()) {
         std::string message =
-                StringPrintf("enqueueDispatchEntriesLocked(inputChannel=%s, sequenceNum=%" PRIu32
-                             ")",
-                             connection->getInputChannelName().c_str(), eventEntry->sequenceNum);
+                StringPrintf("enqueueDispatchEntriesLocked(inputChannel=%s, id=%" PRIx32 ")",
+                             connection->getInputChannelName().c_str(), eventEntry->id);
         ATRACE_NAME(message.c_str());
     }
 
@@ -2922,7 +2921,7 @@ MotionEntry* InputDispatcher::splitMotionEvent(const MotionEntry& originalMotion
     }
 
     MotionEntry* splitMotionEntry =
-            new MotionEntry(originalMotionEntry.sequenceNum, originalMotionEntry.eventTime,
+            new MotionEntry(originalMotionEntry.id, originalMotionEntry.eventTime,
                             originalMotionEntry.deviceId, originalMotionEntry.source,
                             originalMotionEntry.displayId, originalMotionEntry.policyFlags, action,
                             originalMotionEntry.actionButton, originalMotionEntry.flags,
@@ -2951,7 +2950,7 @@ void InputDispatcher::notifyConfigurationChanged(const NotifyConfigurationChange
         std::scoped_lock _l(mLock);
 
         ConfigurationChangedEntry* newEntry =
-                new ConfigurationChangedEntry(args->sequenceNum, args->eventTime);
+                new ConfigurationChangedEntry(args->id, args->eventTime);
         needWake = enqueueInboundEventLocked(newEntry);
     } // release lock
 
@@ -3030,7 +3029,7 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
     accelerateMetaShortcuts(args->deviceId, args->action, keyCode, metaState);
 
     KeyEvent event;
-    event.initialize(args->sequenceNum, args->deviceId, args->source, args->displayId, INVALID_HMAC,
+    event.initialize(args->id, args->deviceId, args->source, args->displayId, INVALID_HMAC,
                      args->action, flags, keyCode, args->scanCode, metaState, repeatCount,
                      args->downTime, args->eventTime);
 
@@ -3057,7 +3056,7 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
         }
 
         KeyEntry* newEntry =
-                new KeyEntry(args->sequenceNum, args->eventTime, args->deviceId, args->source,
+                new KeyEntry(args->id, args->eventTime, args->deviceId, args->source,
                              args->displayId, policyFlags, args->action, flags, keyCode,
                              args->scanCode, metaState, repeatCount, args->downTime);
 
@@ -3076,15 +3075,15 @@ bool InputDispatcher::shouldSendKeyToInputFilterLocked(const NotifyKeyArgs* args
 
 void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
 #if DEBUG_INBOUND_EVENT_DETAILS
-    ALOGD("notifyMotion - eventTime=%" PRId64 ", deviceId=%d, source=0x%x, displayId=%" PRId32
-          ", policyFlags=0x%x, "
+    ALOGD("notifyMotion - id=%" PRIx32 " eventTime=%" PRId64 ", deviceId=%d, source=0x%x, "
+          "displayId=%" PRId32 ", policyFlags=0x%x, "
           "action=0x%x, actionButton=0x%x, flags=0x%x, metaState=0x%x, buttonState=0x%x, "
           "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, xCursorPosition=%f, "
           "yCursorPosition=%f, downTime=%" PRId64,
-          args->eventTime, args->deviceId, args->source, args->displayId, args->policyFlags,
-          args->action, args->actionButton, args->flags, args->metaState, args->buttonState,
-          args->edgeFlags, args->xPrecision, args->yPrecision, args->xCursorPosition,
-          args->yCursorPosition, args->downTime);
+          args->id, args->eventTime, args->deviceId, args->source, args->displayId,
+          args->policyFlags, args->action, args->actionButton, args->flags, args->metaState,
+          args->buttonState, args->edgeFlags, args->xPrecision, args->yPrecision,
+          args->xCursorPosition, args->yCursorPosition, args->downTime);
     for (uint32_t i = 0; i < args->pointerCount; i++) {
         ALOGD("  Pointer %d: id=%d, toolType=%d, "
               "x=%f, y=%f, pressure=%f, size=%f, "
@@ -3125,14 +3124,13 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
             mLock.unlock();
 
             MotionEvent event;
-            event.initialize(args->sequenceNum, args->deviceId, args->source, args->displayId,
-                             INVALID_HMAC, args->action, args->actionButton, args->flags,
-                             args->edgeFlags, args->metaState, args->buttonState,
-                             args->classification, 1 /*xScale*/, 1 /*yScale*/, 0 /* xOffset */,
-                             0 /* yOffset */, args->xPrecision, args->yPrecision,
-                             args->xCursorPosition, args->yCursorPosition, args->downTime,
-                             args->eventTime, args->pointerCount, args->pointerProperties,
-                             args->pointerCoords);
+            event.initialize(args->id, args->deviceId, args->source, args->displayId, INVALID_HMAC,
+                             args->action, args->actionButton, args->flags, args->edgeFlags,
+                             args->metaState, args->buttonState, args->classification, 1 /*xScale*/,
+                             1 /*yScale*/, 0 /* xOffset */, 0 /* yOffset */, args->xPrecision,
+                             args->yPrecision, args->xCursorPosition, args->yCursorPosition,
+                             args->downTime, args->eventTime, args->pointerCount,
+                             args->pointerProperties, args->pointerCoords);
 
             policyFlags |= POLICY_FLAG_FILTERED;
             if (!mPolicy->filterInputEvent(&event, policyFlags)) {
@@ -3144,7 +3142,7 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
 
         // Just enqueue a new motion event.
         MotionEntry* newEntry =
-                new MotionEntry(args->sequenceNum, args->eventTime, args->deviceId, args->source,
+                new MotionEntry(args->id, args->eventTime, args->deviceId, args->source,
                                 args->displayId, policyFlags, args->action, args->actionButton,
                                 args->flags, args->metaState, args->buttonState,
                                 args->classification, args->edgeFlags, args->xPrecision,
@@ -3188,7 +3186,7 @@ void InputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
         std::scoped_lock _l(mLock);
 
         DeviceResetEntry* newEntry =
-                new DeviceResetEntry(args->sequenceNum, args->eventTime, args->deviceId);
+                new DeviceResetEntry(args->id, args->eventTime, args->deviceId);
         needWake = enqueueInboundEventLocked(newEntry);
     } // release lock
 
@@ -4631,7 +4629,7 @@ bool InputDispatcher::afterKeyEventLockedInterruptible(const sp<Connection>& con
     if (keyEntry->flags & AKEY_EVENT_FLAG_FALLBACK) {
         if (!handled) {
             // Report the key as unhandled, since the fallback was not handled.
-            mReporter->reportUnhandledKey(keyEntry->sequenceNum);
+            mReporter->reportUnhandledKey(keyEntry->id);
         }
         return false;
     }
@@ -4796,7 +4794,7 @@ bool InputDispatcher::afterKeyEventLockedInterruptible(const sp<Connection>& con
 #endif
 
             // Report the key as unhandled, since there is no fallback key.
-            mReporter->reportUnhandledKey(keyEntry->sequenceNum);
+            mReporter->reportUnhandledKey(keyEntry->id);
         }
     }
     return false;
@@ -4818,7 +4816,7 @@ void InputDispatcher::doPokeUserActivityLockedInterruptible(CommandEntry* comman
 
 KeyEvent InputDispatcher::createKeyEvent(const KeyEntry& entry) {
     KeyEvent event;
-    event.initialize(entry.sequenceNum, entry.deviceId, entry.source, entry.displayId, INVALID_HMAC,
+    event.initialize(entry.id, entry.deviceId, entry.source, entry.displayId, INVALID_HMAC,
                      entry.action, entry.flags, entry.keyCode, entry.scanCode, entry.metaState,
                      entry.repeatCount, entry.downTime, entry.eventTime);
     return event;
