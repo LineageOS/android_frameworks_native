@@ -111,7 +111,7 @@ protected:
         virtual InputReaderPolicyInterface* getPolicy() override;
         virtual InputListenerInterface* getListener() override;
         virtual EventHubInterface* getEventHub() override;
-        virtual uint32_t getNextSequenceNum() override;
+        virtual int32_t getNextId() override;
     } mContext;
 
     friend class ContextImpl;
@@ -132,8 +132,8 @@ private:
 
     InputReaderConfiguration mConfig;
 
-    // used by InputReaderContext::getNextSequenceNum() as a counter for event sequence numbers
-    uint32_t mNextSequenceNum;
+    // used by InputReaderContext::getNextId() as a counter for event sequence numbers
+    uint32_t mNextId;
 
     // The event queue.
     static const int EVENT_BUFFER_SIZE = 256;
