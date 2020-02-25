@@ -677,6 +677,7 @@ void Layer::prepareClearClientComposition(LayerFE::LayerSettings& layerSettings,
     layerSettings.source.buffer.buffer = nullptr;
     layerSettings.source.solidColor = half3(0.0, 0.0, 0.0);
     layerSettings.disableBlending = true;
+    layerSettings.bufferId = 0;
     layerSettings.frameNumber = 0;
 
     // If layer is blacked out, force alpha to 1 so that we draw a black color layer.
