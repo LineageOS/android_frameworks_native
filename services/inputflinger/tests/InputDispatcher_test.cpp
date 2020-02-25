@@ -89,7 +89,7 @@ public:
 
     void assertNotifySwitchWasCalled(const NotifySwitchArgs& args) {
         ASSERT_TRUE(mLastNotifySwitch);
-        // We do not check sequenceNum because it is not exposed to the policy
+        // We do not check id because it is not exposed to the policy
         EXPECT_EQ(args.eventTime, mLastNotifySwitch->eventTime);
         EXPECT_EQ(args.policyFlags, mLastNotifySwitch->policyFlags);
         EXPECT_EQ(args.switchValues, mLastNotifySwitch->switchValues);
@@ -171,8 +171,7 @@ private:
         /** We simply reconstruct NotifySwitchArgs in policy because InputDispatcher is
          * essentially a passthrough for notifySwitch.
          */
-        mLastNotifySwitch =
-                NotifySwitchArgs(1 /*sequenceNum*/, when, policyFlags, switchValues, switchMask);
+        mLastNotifySwitch = NotifySwitchArgs(1 /*id*/, when, policyFlags, switchValues, switchMask);
     }
 
     virtual void pokeUserActivity(nsecs_t, int32_t) {
@@ -463,7 +462,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
 
 TEST_F(InputDispatcherTest, NotifyConfigurationChanged_CallsPolicy) {
     constexpr nsecs_t eventTime = 20;
-    NotifyConfigurationChangedArgs args(10 /*sequenceNum*/, eventTime);
+    NotifyConfigurationChangedArgs args(10 /*id*/, eventTime);
     mDispatcher->notifyConfigurationChanged(&args);
     ASSERT_TRUE(mDispatcher->waitForIdle());
 
@@ -471,8 +470,8 @@ TEST_F(InputDispatcherTest, NotifyConfigurationChanged_CallsPolicy) {
 }
 
 TEST_F(InputDispatcherTest, NotifySwitch_CallsPolicy) {
-    NotifySwitchArgs args(10 /*sequenceNum*/, 20 /*eventTime*/, 0 /*policyFlags*/,
-                          1 /*switchValues*/, 2 /*switchMask*/);
+    NotifySwitchArgs args(10 /*id*/, 20 /*eventTime*/, 0 /*policyFlags*/, 1 /*switchValues*/,
+                          2 /*switchMask*/);
     mDispatcher->notifySwitch(&args);
 
     // InputDispatcher adds POLICY_FLAG_TRUSTED because the event went through InputListener
@@ -813,9 +812,9 @@ static int32_t injectMotionUp(const sp<InputDispatcher>& dispatcher, int32_t sou
 static NotifyKeyArgs generateKeyArgs(int32_t action, int32_t displayId = ADISPLAY_ID_NONE) {
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
     // Define a valid key event.
-    NotifyKeyArgs args(/* sequenceNum */ 0, currentTime, DEVICE_ID, AINPUT_SOURCE_KEYBOARD,
-            displayId, POLICY_FLAG_PASS_TO_USER, action, /* flags */ 0,
-            AKEYCODE_A, KEY_A, AMETA_NONE, currentTime);
+    NotifyKeyArgs args(/* id */ 0, currentTime, DEVICE_ID, AINPUT_SOURCE_KEYBOARD, displayId,
+                       POLICY_FLAG_PASS_TO_USER, action, /* flags */ 0, AKEYCODE_A, KEY_A,
+                       AMETA_NONE, currentTime);
 
     return args;
 }
@@ -842,7 +841,7 @@ static NotifyMotionArgs generateMotionArgs(int32_t action, int32_t source, int32
 
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
     // Define a valid motion event.
-    NotifyMotionArgs args(/* sequenceNum */ 0, currentTime, DEVICE_ID, source, displayId,
+    NotifyMotionArgs args(/* id */ 0, currentTime, DEVICE_ID, source, displayId,
                           POLICY_FLAG_PASS_TO_USER, action, /* actionButton */ 0, /* flags */ 0,
                           AMETA_NONE, /* buttonState */ 0, MotionClassification::NONE,
                           AMOTION_EVENT_EDGE_FLAG_NONE, pointerCount, pointerProperties,
@@ -1005,7 +1004,7 @@ TEST_F(InputDispatcherTest, NotifyDeviceReset_CancelsKeyStream) {
 
     // When device reset happens, that key stream should be terminated with FLAG_CANCELED
     // on the app side.
-    NotifyDeviceResetArgs args(10 /*sequenceNum*/, 20 /*eventTime*/, DEVICE_ID);
+    NotifyDeviceResetArgs args(10 /*id*/, 20 /*eventTime*/, DEVICE_ID);
     mDispatcher->notifyDeviceReset(&args);
     window->consumeEvent(AINPUT_EVENT_TYPE_KEY, AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT,
                          AKEY_EVENT_FLAG_CANCELED);
@@ -1028,7 +1027,7 @@ TEST_F(InputDispatcherTest, NotifyDeviceReset_CancelsMotionStream) {
 
     // When device reset happens, that motion stream should be terminated with ACTION_CANCEL
     // on the app side.
-    NotifyDeviceResetArgs args(10 /*sequenceNum*/, 20 /*eventTime*/, DEVICE_ID);
+    NotifyDeviceResetArgs args(10 /*id*/, 20 /*eventTime*/, DEVICE_ID);
     mDispatcher->notifyDeviceReset(&args);
     window->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_CANCEL, ADISPLAY_ID_DEFAULT,
                          0 /*expectedFlags*/);
@@ -1353,7 +1352,7 @@ TEST_F(InputDispatcherTest, TestMoveEvent) {
     window->consumeMotionDown(ADISPLAY_ID_DEFAULT);
 
     motionArgs.action = AMOTION_EVENT_ACTION_MOVE;
-    motionArgs.sequenceNum += 1;
+    motionArgs.id += 1;
     motionArgs.eventTime = systemTime(SYSTEM_TIME_MONOTONIC);
     motionArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X,
                                              motionArgs.pointerCoords[0].getX() - 10);

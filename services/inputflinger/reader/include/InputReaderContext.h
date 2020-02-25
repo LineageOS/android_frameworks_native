@@ -58,7 +58,7 @@ public:
     virtual InputListenerInterface* getListener() = 0;
     virtual EventHubInterface* getEventHub() = 0;
 
-    virtual uint32_t getNextSequenceNum() = 0;
+    virtual int32_t getNextId() = 0;
 };
 
 } // namespace android
