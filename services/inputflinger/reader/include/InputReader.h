@@ -94,6 +94,7 @@ protected:
 
     class ContextImpl : public InputReaderContext {
         InputReader* mReader;
+        IdGenerator mIdGenerator;
 
     public:
         explicit ContextImpl(InputReader* reader);
@@ -131,9 +132,6 @@ private:
     sp<QueuedInputListener> mQueuedListener;
 
     InputReaderConfiguration mConfig;
-
-    // used by InputReaderContext::getNextId() as a counter for event sequence numbers
-    uint32_t mNextId;
 
     // The event queue.
     static const int EVENT_BUFFER_SIZE = 256;
