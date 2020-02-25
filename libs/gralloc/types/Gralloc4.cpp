@@ -1317,6 +1317,8 @@ std::string getPlaneLayoutComponentTypeName(const ExtendableType& planeLayoutCom
             return "G";
         case PlaneLayoutComponentType::B:
             return "B";
+        case PlaneLayoutComponentType::RAW:
+            return "RAW";
         case PlaneLayoutComponentType::A:
             return "A";
     }
