@@ -82,7 +82,7 @@ struct InputMessage {
     union Body {
         struct Key {
             uint32_t seq;
-            uint32_t empty1;
+            int32_t eventId;
             nsecs_t eventTime __attribute__((aligned(8)));
             int32_t deviceId;
             int32_t source;
@@ -102,7 +102,7 @@ struct InputMessage {
 
         struct Motion {
             uint32_t seq;
-            uint32_t empty1;
+            int32_t eventId;
             nsecs_t eventTime __attribute__((aligned(8)));
             int32_t deviceId;
             int32_t source;
@@ -159,6 +159,8 @@ struct InputMessage {
 
         struct Focus {
             uint32_t seq;
+            int32_t eventId;
+            uint32_t empty1;
             // The following two fields take up 4 bytes total
             uint16_t hasFocus;    // actually a bool
             uint16_t inTouchMode; // actually a bool, but we must maintain 8-byte alignment
@@ -276,9 +278,9 @@ public:
      * Returns BAD_VALUE if seq is 0.
      * Other errors probably indicate that the channel is broken.
      */
-    status_t publishKeyEvent(uint32_t seq, int32_t deviceId, int32_t source, int32_t displayId,
-                             std::array<uint8_t, 32> hmac, int32_t action, int32_t flags,
-                             int32_t keyCode, int32_t scanCode, int32_t metaState,
+    status_t publishKeyEvent(uint32_t seq, int32_t eventId, int32_t deviceId, int32_t source,
+                             int32_t displayId, std::array<uint8_t, 32> hmac, int32_t action,
+                             int32_t flags, int32_t keyCode, int32_t scanCode, int32_t metaState,
                              int32_t repeatCount, nsecs_t downTime, nsecs_t eventTime);
 
     /* Publishes a motion event to the input channel.
@@ -289,14 +291,15 @@ public:
      * Returns BAD_VALUE if seq is 0 or if pointerCount is less than 1 or greater than MAX_POINTERS.
      * Other errors probably indicate that the channel is broken.
      */
-    status_t publishMotionEvent(uint32_t seq, int32_t deviceId, int32_t source, int32_t displayId,
-                                std::array<uint8_t, 32> hmac, int32_t action, int32_t actionButton,
-                                int32_t flags, int32_t edgeFlags, int32_t metaState,
-                                int32_t buttonState, MotionClassification classification,
-                                float xScale, float yScale, float xOffset, float yOffset,
-                                float xPrecision, float yPrecision, float xCursorPosition,
-                                float yCursorPosition, nsecs_t downTime, nsecs_t eventTime,
-                                uint32_t pointerCount, const PointerProperties* pointerProperties,
+    status_t publishMotionEvent(uint32_t seq, int32_t eventId, int32_t deviceId, int32_t source,
+                                int32_t displayId, std::array<uint8_t, 32> hmac, int32_t action,
+                                int32_t actionButton, int32_t flags, int32_t edgeFlags,
+                                int32_t metaState, int32_t buttonState,
+                                MotionClassification classification, float xScale, float yScale,
+                                float xOffset, float yOffset, float xPrecision, float yPrecision,
+                                float xCursorPosition, float yCursorPosition, nsecs_t downTime,
+                                nsecs_t eventTime, uint32_t pointerCount,
+                                const PointerProperties* pointerProperties,
                                 const PointerCoords* pointerCoords);
 
     /* Publishes a focus event to the input channel.
@@ -306,7 +309,7 @@ public:
      * Returns DEAD_OBJECT if the channel's peer has been closed.
      * Other errors probably indicate that the channel is broken.
      */
-    status_t publishFocusEvent(uint32_t seq, bool hasFocus, bool inTouchMode);
+    status_t publishFocusEvent(uint32_t seq, int32_t eventId, bool hasFocus, bool inTouchMode);
 
     /* Receives the finished signal from the consumer in reply to the original dispatch signal.
      * If a signal was received, returns the message sequence number,

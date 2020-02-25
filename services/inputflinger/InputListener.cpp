@@ -16,12 +16,18 @@
 
 #define LOG_TAG "InputListener"
 
+#define ATRACE_TAG ATRACE_TAG_INPUT
+
 //#define LOG_NDEBUG 0
 
 #include "InputListener.h"
 
+#include <android-base/stringprintf.h>
 #include <android/log.h>
 #include <math.h>
+#include <utils/Trace.h>
+
+using android::base::StringPrintf;
 
 namespace android {
 
@@ -228,6 +234,13 @@ void NotifyDeviceResetArgs::notify(const sp<InputListenerInterface>& listener) c
 
 // --- QueuedInputListener ---
 
+static inline void traceEvent(const char* functionName, int32_t id) {
+    if (ATRACE_ENABLED()) {
+        std::string message = StringPrintf("%s(id=0x%" PRIx32 ")", functionName, id);
+        ATRACE_NAME(message.c_str());
+    }
+}
+
 QueuedInputListener::QueuedInputListener(const sp<InputListenerInterface>& innerListener) :
         mInnerListener(innerListener) {
 }
@@ -241,22 +254,27 @@ QueuedInputListener::~QueuedInputListener() {
 
 void QueuedInputListener::notifyConfigurationChanged(
         const NotifyConfigurationChangedArgs* args) {
+    traceEvent(__func__, args->id);
     mArgsQueue.push_back(new NotifyConfigurationChangedArgs(*args));
 }
 
 void QueuedInputListener::notifyKey(const NotifyKeyArgs* args) {
+    traceEvent(__func__, args->id);
     mArgsQueue.push_back(new NotifyKeyArgs(*args));
 }
 
 void QueuedInputListener::notifyMotion(const NotifyMotionArgs* args) {
+    traceEvent(__func__, args->id);
     mArgsQueue.push_back(new NotifyMotionArgs(*args));
 }
 
 void QueuedInputListener::notifySwitch(const NotifySwitchArgs* args) {
+    traceEvent(__func__, args->id);
     mArgsQueue.push_back(new NotifySwitchArgs(*args));
 }
 
 void QueuedInputListener::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
+    traceEvent(__func__, args->id);
     mArgsQueue.push_back(new NotifyDeviceResetArgs(*args));
 }
 
