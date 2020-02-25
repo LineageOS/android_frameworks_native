@@ -46,7 +46,6 @@ InputReader::InputReader(std::shared_ptr<EventHubInterface> eventHub,
       : mContext(this),
         mEventHub(eventHub),
         mPolicy(policy),
-        mNextId(1),
         mGlobalMetaState(0),
         mGeneration(1),
         mNextInputDeviceId(END_RESERVED_ID),
@@ -697,7 +696,8 @@ void InputReader::monitor() {
 
 // --- InputReader::ContextImpl ---
 
-InputReader::ContextImpl::ContextImpl(InputReader* reader) : mReader(reader) {}
+InputReader::ContextImpl::ContextImpl(InputReader* reader)
+      : mReader(reader), mIdGenerator(IdGenerator::Source::INPUT_READER) {}
 
 void InputReader::ContextImpl::updateGlobalMetaState() {
     // lock is already held by the input loop
@@ -762,7 +762,7 @@ EventHubInterface* InputReader::ContextImpl::getEventHub() {
 }
 
 int32_t InputReader::ContextImpl::getNextId() {
-    return (mReader->mNextId)++;
+    return mIdGenerator.nextId();
 }
 
 } // namespace android

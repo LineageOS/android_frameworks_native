@@ -108,6 +108,7 @@ cc_defaults {
     srcs: [":libinputflinger_base_sources"],
     shared_libs: [
         "libbase",
+        "libcutils",
         "libinput",
         "liblog",
         "libutils",
