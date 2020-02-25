@@ -63,6 +63,10 @@ static const nsecs_t RESAMPLE_MAX_DELTA = 20 * NANOS_PER_MS;
 // far into the future.  This time is further bounded by 50% of the last time delta.
 static const nsecs_t RESAMPLE_MAX_PREDICTION = 8 * NANOS_PER_MS;
 
+// A placeholder sequence number used to initialize native input events before InputFlinger is
+// migrated to new sequence number system.
+static constexpr int32_t INPUT_FLINGER_SEQUENCE_NUM = 0;
+
 /**
  * System property for enabling / disabling touch resampling.
  * Resampling extrapolates / interpolates the reported touch event coordinates to better
@@ -1142,14 +1146,16 @@ ssize_t InputConsumer::findTouchState(int32_t deviceId, int32_t source) const {
 }
 
 void InputConsumer::initializeKeyEvent(KeyEvent* event, const InputMessage* msg) {
-    event->initialize(msg->body.key.deviceId, msg->body.key.source, msg->body.key.displayId,
-                      msg->body.key.hmac, msg->body.key.action, msg->body.key.flags,
-                      msg->body.key.keyCode, msg->body.key.scanCode, msg->body.key.metaState,
-                      msg->body.key.repeatCount, msg->body.key.downTime, msg->body.key.eventTime);
+    event->initialize(INPUT_FLINGER_SEQUENCE_NUM, msg->body.key.deviceId, msg->body.key.source,
+                      msg->body.key.displayId, msg->body.key.hmac, msg->body.key.action,
+                      msg->body.key.flags, msg->body.key.keyCode, msg->body.key.scanCode,
+                      msg->body.key.metaState, msg->body.key.repeatCount, msg->body.key.downTime,
+                      msg->body.key.eventTime);
 }
 
 void InputConsumer::initializeFocusEvent(FocusEvent* event, const InputMessage* msg) {
-    event->initialize(msg->body.focus.hasFocus == 1, msg->body.focus.inTouchMode == 1);
+    event->initialize(INPUT_FLINGER_SEQUENCE_NUM, msg->body.focus.hasFocus == 1,
+                      msg->body.focus.inTouchMode == 1);
 }
 
 void InputConsumer::initializeMotionEvent(MotionEvent* event, const InputMessage* msg) {
@@ -1161,16 +1167,17 @@ void InputConsumer::initializeMotionEvent(MotionEvent* event, const InputMessage
         pointerCoords[i].copyFrom(msg->body.motion.pointers[i].coords);
     }
 
-    event->initialize(msg->body.motion.deviceId, msg->body.motion.source,
-                      msg->body.motion.displayId, msg->body.motion.hmac, msg->body.motion.action,
-                      msg->body.motion.actionButton, msg->body.motion.flags,
-                      msg->body.motion.edgeFlags, msg->body.motion.metaState,
-                      msg->body.motion.buttonState, msg->body.motion.classification,
-                      msg->body.motion.xScale, msg->body.motion.yScale, msg->body.motion.xOffset,
-                      msg->body.motion.yOffset, msg->body.motion.xPrecision,
-                      msg->body.motion.yPrecision, msg->body.motion.xCursorPosition,
-                      msg->body.motion.yCursorPosition, msg->body.motion.downTime,
-                      msg->body.motion.eventTime, pointerCount, pointerProperties, pointerCoords);
+    event->initialize(INPUT_FLINGER_SEQUENCE_NUM, msg->body.motion.deviceId,
+                      msg->body.motion.source, msg->body.motion.displayId, msg->body.motion.hmac,
+                      msg->body.motion.action, msg->body.motion.actionButton,
+                      msg->body.motion.flags, msg->body.motion.edgeFlags,
+                      msg->body.motion.metaState, msg->body.motion.buttonState,
+                      msg->body.motion.classification, msg->body.motion.xScale,
+                      msg->body.motion.yScale, msg->body.motion.xOffset, msg->body.motion.yOffset,
+                      msg->body.motion.xPrecision, msg->body.motion.yPrecision,
+                      msg->body.motion.xCursorPosition, msg->body.motion.yCursorPosition,
+                      msg->body.motion.downTime, msg->body.motion.eventTime, pointerCount,
+                      pointerProperties, pointerCoords);
 }
 
 void InputConsumer::addSample(MotionEvent* event, const InputMessage* msg) {

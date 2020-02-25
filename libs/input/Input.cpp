@@ -110,8 +110,9 @@ VerifiedMotionEvent verifiedMotionEventFromMotionEvent(const MotionEvent& event)
             event.getButtonState()};
 }
 
-void InputEvent::initialize(int32_t deviceId, uint32_t source, int32_t displayId,
+void InputEvent::initialize(int32_t id, int32_t deviceId, uint32_t source, int32_t displayId,
                             std::array<uint8_t, 32> hmac) {
+    mId = id;
     mDeviceId = deviceId;
     mSource = source;
     mDisplayId = displayId;
@@ -119,10 +120,16 @@ void InputEvent::initialize(int32_t deviceId, uint32_t source, int32_t displayId
 }
 
 void InputEvent::initialize(const InputEvent& from) {
+    mId = from.mId;
     mDeviceId = from.mDeviceId;
     mSource = from.mSource;
     mDisplayId = from.mDisplayId;
     mHmac = from.mHmac;
+}
+
+int32_t InputEvent::nextId() {
+    static IdGenerator idGen(IdGenerator::Source::OTHER);
+    return idGen.nextId();
 }
 
 // --- KeyEvent ---
@@ -135,11 +142,11 @@ int32_t KeyEvent::getKeyCodeFromLabel(const char* label) {
     return getKeyCodeByLabel(label);
 }
 
-void KeyEvent::initialize(int32_t deviceId, uint32_t source, int32_t displayId,
+void KeyEvent::initialize(int32_t id, int32_t deviceId, uint32_t source, int32_t displayId,
                           std::array<uint8_t, 32> hmac, int32_t action, int32_t flags,
                           int32_t keyCode, int32_t scanCode, int32_t metaState, int32_t repeatCount,
                           nsecs_t downTime, nsecs_t eventTime) {
-    InputEvent::initialize(deviceId, source, displayId, hmac);
+    InputEvent::initialize(id, deviceId, source, displayId, hmac);
     mAction = action;
     mFlags = flags;
     mKeyCode = keyCode;
@@ -298,7 +305,7 @@ void PointerProperties::copyFrom(const PointerProperties& other) {
 
 // --- MotionEvent ---
 
-void MotionEvent::initialize(int32_t deviceId, uint32_t source, int32_t displayId,
+void MotionEvent::initialize(int32_t id, int32_t deviceId, uint32_t source, int32_t displayId,
                              std::array<uint8_t, 32> hmac, int32_t action, int32_t actionButton,
                              int32_t flags, int32_t edgeFlags, int32_t metaState,
                              int32_t buttonState, MotionClassification classification, float xScale,
@@ -307,7 +314,7 @@ void MotionEvent::initialize(int32_t deviceId, uint32_t source, int32_t displayI
                              nsecs_t downTime, nsecs_t eventTime, size_t pointerCount,
                              const PointerProperties* pointerProperties,
                              const PointerCoords* pointerCoords) {
-    InputEvent::initialize(deviceId, source, displayId, hmac);
+    InputEvent::initialize(id, deviceId, source, displayId, hmac);
     mAction = action;
     mActionButton = actionButton;
     mFlags = flags;
@@ -332,7 +339,8 @@ void MotionEvent::initialize(int32_t deviceId, uint32_t source, int32_t displayI
 }
 
 void MotionEvent::copyFrom(const MotionEvent* other, bool keepHistory) {
-    InputEvent::initialize(other->mDeviceId, other->mSource, other->mDisplayId, other->mHmac);
+    InputEvent::initialize(other->mId, other->mDeviceId, other->mSource, other->mDisplayId,
+                           other->mHmac);
     mAction = other->mAction;
     mActionButton = other->mActionButton;
     mFlags = other->mFlags;
@@ -540,6 +548,7 @@ status_t MotionEvent::readFromParcel(Parcel* parcel) {
         return BAD_VALUE;
     }
 
+    mId = parcel->readInt32();
     mDeviceId = parcel->readInt32();
     mSource = parcel->readUint32();
     mDisplayId = parcel->readInt32();
@@ -601,6 +610,7 @@ status_t MotionEvent::writeToParcel(Parcel* parcel) const {
     parcel->writeInt32(pointerCount);
     parcel->writeInt32(sampleCount);
 
+    parcel->writeInt32(mId);
     parcel->writeInt32(mDeviceId);
     parcel->writeUint32(mSource);
     parcel->writeInt32(mDisplayId);
@@ -670,8 +680,8 @@ int32_t MotionEvent::getAxisFromLabel(const char* label) {
 
 // --- FocusEvent ---
 
-void FocusEvent::initialize(bool hasFocus, bool inTouchMode) {
-    InputEvent::initialize(ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID, AINPUT_SOURCE_UNKNOWN,
+void FocusEvent::initialize(int32_t id, bool hasFocus, bool inTouchMode) {
+    InputEvent::initialize(id, ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID, AINPUT_SOURCE_UNKNOWN,
                            ADISPLAY_ID_NONE, INVALID_HMAC);
     mHasFocus = hasFocus;
     mInTouchMode = inTouchMode;

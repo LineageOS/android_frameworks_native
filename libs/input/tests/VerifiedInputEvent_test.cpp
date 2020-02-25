@@ -21,9 +21,10 @@ namespace android {
 
 static KeyEvent getKeyEventWithFlags(int32_t flags) {
     KeyEvent event;
-    event.initialize(2 /*deviceId*/, AINPUT_SOURCE_GAMEPAD, ADISPLAY_ID_DEFAULT, INVALID_HMAC,
-                     AKEY_EVENT_ACTION_DOWN, flags, AKEYCODE_BUTTON_X, 121 /*scanCode*/,
-                     AMETA_ALT_ON, 1 /*repeatCount*/, 1000 /*downTime*/, 2000 /*eventTime*/);
+    event.initialize(InputEvent::nextId(), 2 /*deviceId*/, AINPUT_SOURCE_GAMEPAD,
+                     ADISPLAY_ID_DEFAULT, INVALID_HMAC, AKEY_EVENT_ACTION_DOWN, flags,
+                     AKEYCODE_BUTTON_X, 121 /*scanCode*/, AMETA_ALT_ON, 1 /*repeatCount*/,
+                     1000 /*downTime*/, 2000 /*eventTime*/);
     return event;
 }
 
@@ -38,8 +39,8 @@ static MotionEvent getMotionEventWithFlags(int32_t flags) {
         pointerCoords[i].clear();
     }
 
-    event.initialize(0 /*deviceId*/, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_DEFAULT, INVALID_HMAC,
-                     AMOTION_EVENT_ACTION_DOWN, 0 /*actionButton*/, flags,
+    event.initialize(InputEvent::nextId(), 0 /*deviceId*/, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_DEFAULT,
+                     INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0 /*actionButton*/, flags,
                      AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0 /*buttonState*/,
                      MotionClassification::NONE, 2 /*xScale*/, 3 /*yScale*/, 4 /*xOffset*/,
                      5 /*yOffset*/, 0.1 /*xPrecision*/, 0.2 /*yPrecision*/, 280 /*xCursorPosition*/,
