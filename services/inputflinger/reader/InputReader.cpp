@@ -46,7 +46,7 @@ InputReader::InputReader(std::shared_ptr<EventHubInterface> eventHub,
       : mContext(this),
         mEventHub(eventHub),
         mPolicy(policy),
-        mNextSequenceNum(1),
+        mNextId(1),
         mGlobalMetaState(0),
         mGeneration(1),
         mNextInputDeviceId(END_RESERVED_ID),
@@ -313,7 +313,7 @@ void InputReader::handleConfigurationChangedLocked(nsecs_t when) {
     updateGlobalMetaStateLocked();
 
     // Enqueue configuration changed.
-    NotifyConfigurationChangedArgs args(mContext.getNextSequenceNum(), when);
+    NotifyConfigurationChangedArgs args(mContext.getNextId(), when);
     mQueuedListener->notifyConfigurationChanged(&args);
 }
 
@@ -761,8 +761,8 @@ EventHubInterface* InputReader::ContextImpl::getEventHub() {
     return mReader->mEventHub.get();
 }
 
-uint32_t InputReader::ContextImpl::getNextSequenceNum() {
-    return (mReader->mNextSequenceNum)++;
+int32_t InputReader::ContextImpl::getNextId() {
+    return (mReader->mNextId)++;
 }
 
 } // namespace android

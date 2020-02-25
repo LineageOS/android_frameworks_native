@@ -454,7 +454,7 @@ void InputDevice::bumpGeneration() {
 }
 
 void InputDevice::notifyReset(nsecs_t when) {
-    NotifyDeviceResetArgs args(mContext->getNextSequenceNum(), when, mId);
+    NotifyDeviceResetArgs args(mContext->getNextId(), when, mId);
     mContext->getListener()->notifyDeviceReset(&args);
 }
 
