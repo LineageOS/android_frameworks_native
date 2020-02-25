@@ -199,6 +199,10 @@ private:
     // display refresh period.
     std::pair<nsecs_t, nsecs_t> getDisplayFrames(nsecs_t layerPeriod, nsecs_t displayPeriod) const;
 
+    // Returns the current refresh rate, if allowed. Otherwise the default that is allowed by
+    // the policy.
+    const RefreshRate& getCurrentRefreshRateByPolicyLocked() const REQUIRES(mLock);
+
     // The list of refresh rates, indexed by display config ID. This must not change after this
     // object is initialized.
     AllRefreshRatesMapType mRefreshRates;
