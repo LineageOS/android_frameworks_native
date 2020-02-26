@@ -86,7 +86,7 @@ void CrateManager::traverseChildDir(const std::string& targetDir,
 }
 
 void CrateManager::traverseAllPackagesForUser(
-        const std::unique_ptr<std::string>& uuid, userid_t userId,
+        const std::optional<std::string>& uuid, userid_t userId,
         std::function<void(FTSENT*)>& onHandlingPackage) {
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
 
@@ -96,21 +96,21 @@ void CrateManager::traverseAllPackagesForUser(
 
 void CrateManager::createCrate(
         CratedFolder cratedFolder,
-        std::function<void(CratedFolder, std::unique_ptr<CrateMetadata>&)>& onCreateCrate) {
+        std::function<void(CratedFolder, CrateMetadata&&)>& onCreateCrate) {
     const char* path = cratedFolder->fts_path;
     if (path == nullptr || *path == '\0') {
         return;
     }
 
-    std::unique_ptr<CrateMetadata> crateMetadata = std::make_unique<CrateMetadata>();
-    crateMetadata->uid = cratedFolder->fts_statp->st_uid;
-    crateMetadata->packageName = mPackageName;
-    crateMetadata->id = getValidatedCratedPath(path);
+    CrateMetadata crateMetadata;
+    crateMetadata.uid = cratedFolder->fts_statp->st_uid;
+    crateMetadata.packageName = mPackageName;
+    crateMetadata.id = getValidatedCratedPath(path);
 
-    onCreateCrate(cratedFolder, crateMetadata);
+    onCreateCrate(cratedFolder, std::move(crateMetadata));
 }
 
-void CrateManager::traverseAllCrates(std::function<void(CratedFolder, std::unique_ptr<CrateMetadata>&)>& onCreateCrate) {
+void CrateManager::traverseAllCrates(std::function<void(CratedFolder, CrateMetadata&&)>& onCreateCrate) {
     std::function<void(FTSENT*)> onVisitCrateDir = [&](FTSENT* cratedFolder) -> void {
         createCrate(cratedFolder, onCreateCrate);
     };
@@ -118,11 +118,11 @@ void CrateManager::traverseAllCrates(std::function<void(CratedFolder, std::uniqu
 }
 
 #if CRATE_DEBUG
-void CrateManager::dump(std::unique_ptr<CrateMetadata>& CrateMetadata) {
+void CrateManager::dump(const CrateMetadata& CrateMetadata) {
     LOG(DEBUG) << "CrateMetadata = {"
-            << "uid : \"" << CrateMetadata->uid
-            << "\", packageName : \"" << CrateMetadata->packageName
-            << "\", id : \"" << CrateMetadata->id
+            << "uid : \"" << CrateMetadata.uid
+            << "\", packageName : \"" << CrateMetadata.packageName
+            << "\", id : \"" << CrateMetadata.id
             << "\"}";
 }
 #endif
