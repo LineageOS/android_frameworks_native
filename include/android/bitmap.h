@@ -227,6 +227,7 @@ int AndroidBitmap_compress(const AndroidBitmapInfo* info,
                            AndroidBitmap_CompressWriteFunc fn) __INTRODUCED_IN(30);
 
 struct AHardwareBuffer;
+typedef struct AHardwareBuffer AHardwareBuffer;
 
 /**
  *  Retrieve the native object associated with a HARDWARE Bitmap.
