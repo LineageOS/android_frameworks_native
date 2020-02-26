@@ -104,6 +104,7 @@ cc_test {
     static_libs: [
         "libcompositionengine",
         "libcompositionengine_mocks",
+        "libgui_mocks",
         "librenderengine_mocks",
         "libgmock",
         "libgtest",

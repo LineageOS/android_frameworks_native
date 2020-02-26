@@ -16,11 +16,15 @@
 
 #pragma once
 
-#include <compositionengine/Display.h>
-#include <compositionengine/DisplayCreationArgs.h>
-#include <compositionengine/impl/Output.h>
-
 #include <memory>
+
+#include <compositionengine/Display.h>
+#include <compositionengine/DisplayColorProfile.h>
+#include <compositionengine/DisplayCreationArgs.h>
+#include <compositionengine/RenderSurface.h>
+#include <compositionengine/impl/Output.h>
+#include <ui/PixelFormat.h>
+#include <ui/Size.h>
 
 #include "DisplayHardware/DisplayIdentification.h"
 #include "DisplayHardware/HWComposer.h"
@@ -36,11 +40,11 @@ namespace impl {
 // actually contain the final display state.
 class Display : public compositionengine::impl::Output, public virtual compositionengine::Display {
 public:
-    explicit Display(const compositionengine::DisplayCreationArgs&);
     virtual ~Display();
 
     // compositionengine::Output overrides
     std::optional<DisplayId> getDisplayId() const override;
+    bool isValid() const override;
     void dump(std::string&) const override;
     using compositionengine::impl::Output::setReleasedLayers;
     void setReleasedLayers(const CompositionRefreshArgs&) override;
@@ -73,22 +77,33 @@ public:
     virtual void applyLayerRequestsToLayers(const LayerRequests&);
 
     // Internal
+    virtual void setConfiguration(const compositionengine::DisplayCreationArgs&);
+    virtual std::optional<DisplayId> maybeAllocateDisplayIdForVirtualDisplay(ui::Size,
+                                                                             ui::PixelFormat) const;
     std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(const sp<LayerFE>&) const;
 
+    // Testing
+    void setDisplayIdForTesting(std::optional<DisplayId> displayId);
+
 private:
-    const bool mIsVirtual;
+    bool mIsVirtual = false;
     std::optional<DisplayId> mId;
-    Hwc2::PowerAdvisor* const mPowerAdvisor{nullptr};
+    Hwc2::PowerAdvisor* mPowerAdvisor = nullptr;
 };
 
 // This template factory function standardizes the implementation details of the
 // final class using the types actually required by the implementation. This is
 // not possible to do in the base class as those types may not even be visible
 // to the base code.
-template <typename BaseDisplay, typename CompositionEngine, typename DisplayCreationArgs>
-std::shared_ptr<BaseDisplay> createDisplayTemplated(const CompositionEngine& compositionEngine,
-                                                    const DisplayCreationArgs& args) {
-    return createOutputTemplated<BaseDisplay>(compositionEngine, args);
+template <typename BaseDisplay, typename CompositionEngine>
+std::shared_ptr<BaseDisplay> createDisplayTemplated(
+        const CompositionEngine& compositionEngine,
+        const compositionengine::DisplayCreationArgs& args) {
+    auto display = createOutputTemplated<BaseDisplay>(compositionEngine);
+
+    display->setConfiguration(args);
+
+    return display;
 }
 
 std::shared_ptr<Display> createDisplay(const compositionengine::CompositionEngine&,
