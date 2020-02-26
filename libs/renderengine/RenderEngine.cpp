@@ -20,19 +20,33 @@
 #include <log/log.h>
 #include <private/gui/SyncFeatures.h>
 #include "gl/GLESRenderEngine.h"
+#include "threaded/RenderEngineThreaded.h"
 
 namespace android {
 namespace renderengine {
 
 std::unique_ptr<impl::RenderEngine> RenderEngine::create(const RenderEngineCreationArgs& args) {
+    RenderEngineType renderEngineType = args.renderEngineType;
+
+    // Keep the ability to override by PROPERTIES:
     char prop[PROPERTY_VALUE_MAX];
-    property_get(PROPERTY_DEBUG_RENDERENGINE_BACKEND, prop, "gles");
+    property_get(PROPERTY_DEBUG_RENDERENGINE_BACKEND, prop, "");
     if (strcmp(prop, "gles") == 0) {
-        ALOGD("RenderEngine GLES Backend");
-        return renderengine::gl::GLESRenderEngine::create(args);
+        renderEngineType = RenderEngineType::GLES;
     }
-    ALOGE("UNKNOWN BackendType: %s, create GLES RenderEngine.", prop);
-    return renderengine::gl::GLESRenderEngine::create(args);
+    if (strcmp(prop, "threaded") == 0) {
+        renderEngineType = RenderEngineType::THREADED;
+    }
+
+    switch (renderEngineType) {
+        case RenderEngineType::THREADED:
+            ALOGD("Threaded RenderEngine with GLES Backend");
+            return renderengine::threaded::RenderEngineThreaded::create(args);
+        case RenderEngineType::GLES:
+        default:
+            ALOGD("RenderEngine with GLES Backend");
+            return renderengine::gl::GLESRenderEngine::create(args);
+    }
 }
 
 RenderEngine::~RenderEngine() = default;
