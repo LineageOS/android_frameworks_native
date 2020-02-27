@@ -64,7 +64,7 @@ public:
 
     Scheduler(impl::EventControlThread::SetVSyncEnabledFunction,
               const scheduler::RefreshRateConfigs&, ISchedulerCallback& schedulerCallback,
-              bool useContentDetectionV2);
+              bool useContentDetectionV2, bool useContentDetection);
 
     virtual ~Scheduler();
 
@@ -160,7 +160,7 @@ private:
     // Used by tests to inject mocks.
     Scheduler(std::unique_ptr<DispSync>, std::unique_ptr<EventControlThread>,
               const scheduler::RefreshRateConfigs&, ISchedulerCallback& schedulerCallback,
-              bool useContentDetectionV2);
+              bool useContentDetectionV2, bool useContentDetection);
 
     std::unique_ptr<VSyncSource> makePrimaryDispSyncSource(const char* name, nsecs_t phaseOffsetNs);
 
@@ -246,6 +246,9 @@ private:
             GUARDED_BY(mVsyncTimelineLock);
     static constexpr std::chrono::nanoseconds MAX_VSYNC_APPLIED_TIME = 200ms;
 
+    // This variable indicates whether to use the content detection feature at all.
+    const bool mUseContentDetection;
+    // This variable indicates whether to use V2 version of the content detection.
     const bool mUseContentDetectionV2;
 };
 
