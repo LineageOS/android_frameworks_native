@@ -107,6 +107,12 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
         return *mAvailableRefreshRates.back();
     }
 
+    // If there are not layers, there is not content detection, so return the current
+    // refresh rate.
+    if (layers.empty()) {
+        return getCurrentRefreshRateByPolicyLocked();
+    }
+
     int noVoteLayers = 0;
     int minVoteLayers = 0;
     int maxVoteLayers = 0;
@@ -272,6 +278,10 @@ const RefreshRate& RefreshRateConfigs::getCurrentRefreshRate() const {
 
 const RefreshRate& RefreshRateConfigs::getCurrentRefreshRateByPolicy() const {
     std::lock_guard lock(mLock);
+    return getCurrentRefreshRateByPolicyLocked();
+}
+
+const RefreshRate& RefreshRateConfigs::getCurrentRefreshRateByPolicyLocked() const {
     if (std::find(mAvailableRefreshRates.begin(), mAvailableRefreshRates.end(),
                   mCurrentRefreshRate) != mAvailableRefreshRates.end()) {
         return *mCurrentRefreshRate;
