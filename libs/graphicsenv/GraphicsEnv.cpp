@@ -76,26 +76,25 @@ enum NativeLibrary {
     VNDKSP = 1,
 };
 
-static constexpr const char* kNativeLibrariesSystemConfigPath[] = {"/etc/llndk.libraries.txt",
-                                                                   "/etc/vndksp.libraries.txt"};
+static constexpr const char* kNativeLibrariesSystemConfigPath[] =
+        {"/apex/com.android.vndk.v{}/etc/llndk.libraries.{}.txt",
+         "/apex/com.android.vndk.v{}/etc/vndksp.libraries.{}.txt"};
 
 static std::string vndkVersionStr() {
 #ifdef __BIONIC__
-    std::string version = android::base::GetProperty("ro.vndk.version", "");
-    if (version != "" && version != "current") {
-        return "." + version;
-    }
+    return android::base::GetProperty("ro.vndk.version", "");
 #endif
     return "";
 }
 
 static void insertVndkVersionStr(std::string* fileName) {
     LOG_ALWAYS_FATAL_IF(!fileName, "fileName should never be nullptr");
-    size_t insertPos = fileName->find_last_of(".");
-    if (insertPos == std::string::npos) {
-        insertPos = fileName->length();
+    std::string version = vndkVersionStr();
+    size_t pos = fileName->find("{}");
+    while (pos != std::string::npos) {
+        fileName->replace(pos, 2, version);
+        pos = fileName->find("{}", pos + version.size());
     }
-    fileName->insert(insertPos, vndkVersionStr());
 }
 
 static bool readConfig(const std::string& configFile, std::vector<std::string>* soNames) {
@@ -118,11 +117,7 @@ static bool readConfig(const std::string& configFile, std::vector<std::string>* 
 }
 
 static const std::string getSystemNativeLibraries(NativeLibrary type) {
-    static const char* androidRootEnv = getenv("ANDROID_ROOT");
-    static const std::string rootDir = androidRootEnv != nullptr ? androidRootEnv : "/system";
-
-    std::string nativeLibrariesSystemConfig = rootDir + kNativeLibrariesSystemConfigPath[type];
-
+    std::string nativeLibrariesSystemConfig = kNativeLibrariesSystemConfigPath[type];
     insertVndkVersionStr(&nativeLibrariesSystemConfig);
 
     std::vector<std::string> soNames;
