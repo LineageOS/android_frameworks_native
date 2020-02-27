@@ -51,6 +51,7 @@ public:
     virtual void changeRefreshRate(const scheduler::RefreshRateConfigs::RefreshRate&,
                                    scheduler::RefreshRateConfigEvent) = 0;
     virtual void repaintEverythingForHWC() = 0;
+    virtual void kernelTimerChanged(bool expired) = 0;
 };
 
 class Scheduler {

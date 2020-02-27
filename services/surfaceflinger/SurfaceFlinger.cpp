@@ -208,6 +208,7 @@ const String16 sHardwareTest("android.permission.HARDWARE_TEST");
 const String16 sAccessSurfaceFlinger("android.permission.ACCESS_SURFACE_FLINGER");
 const String16 sReadFramebuffer("android.permission.READ_FRAME_BUFFER");
 const String16 sDump("android.permission.DUMP");
+const char* KERNEL_IDLE_TIMER_PROP = "vendor.display.enable_kernel_idle_timer";
 
 // ---------------------------------------------------------------------------
 int64_t SurfaceFlinger::dispSyncPresentTimeOffset;
@@ -5163,6 +5164,36 @@ void SurfaceFlinger::repaintEverythingForHWC() {
     mRepaintEverything = true;
     mPowerAdvisor.notifyDisplayUpdateImminent();
     mEventQueue->invalidate();
+}
+
+void SurfaceFlinger::kernelTimerChanged(bool expired) {
+    static bool updateOverlay =
+            property_get_bool("debug.sf.kernel_idle_timer_update_overlay", true);
+    if (!updateOverlay || !mRefreshRateOverlay) return;
+
+    // Update the overlay on the main thread to avoid race conditions with
+    // mRefreshRateConfigs->getCurrentRefreshRate()
+    postMessageAsync(new LambdaMessage([this, expired]() NO_THREAD_SAFETY_ANALYSIS {
+        if (mRefreshRateOverlay) {
+            const auto kernelTimerEnabled = property_get_bool(KERNEL_IDLE_TIMER_PROP, false);
+            const bool timerExpired = kernelTimerEnabled && expired;
+            const auto& current = [this]() {
+                std::lock_guard<std::mutex> lock(mActiveConfigLock);
+                if (mDesiredActiveConfigChanged) {
+                    return mRefreshRateConfigs->getRefreshRateFromConfigId(
+                            mDesiredActiveConfig.configId);
+                }
+
+                return mRefreshRateConfigs->getCurrentRefreshRate();
+            }();
+            const auto& min = mRefreshRateConfigs->getMinRefreshRate();
+
+            if (current != min) {
+                mRefreshRateOverlay->changeRefreshRate(timerExpired ? min : current);
+                mEventQueue->invalidate();
+            }
+        }
+    }));
 }
 
 // A simple RAII class to disconnect from an ANativeWindow* when it goes out of scope

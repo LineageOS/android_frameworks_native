@@ -528,6 +528,8 @@ void Scheduler::kernelIdleTimerCallback(TimerState state) {
         // need to update the DispSync model anyway.
         disableHardwareVsync(false /* makeUnavailable */);
     }
+
+    mSchedulerCallback.kernelTimerChanged(state == TimerState::Expired);
 }
 
 void Scheduler::idleTimerCallback(TimerState state) {
