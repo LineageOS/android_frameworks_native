@@ -173,14 +173,15 @@ protected:
     BufferInfo mBufferInfo;
     virtual void gatherBufferInfo() = 0;
 
+    std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
+            compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
+
     /*
      * compositionengine::LayerFE overrides
      */
     const compositionengine::LayerFECompositionState* getCompositionState() const override;
     bool onPreComposition(nsecs_t) override;
     void preparePerFrameCompositionState() override;
-    std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
-            compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
 
     // Loads the corresponding system property once per process
     static bool latchUnsignaledBuffers();
@@ -202,11 +203,11 @@ protected:
     void updateCloneBufferInfo() override;
     uint64_t mPreviousFrameNumber = 0;
 
+    virtual uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const;
+
 private:
     // Returns true if this layer requires filtering
     bool needsFiltering(const sp<const DisplayDevice>& displayDevice) const override;
-
-    uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const;
 
     // BufferStateLayers can return Rect::INVALID_RECT if the layer does not have a display frame
     // and its parent layer is not bounded

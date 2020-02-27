@@ -69,13 +69,13 @@ TEST_P(LayerTypeTransactionTest, SetRelativeZNegative) {
 TEST_P(LayerTypeTransactionTest, SetLayerAndRelative) {
     sp<SurfaceControl> parent =
             LayerTransactionTest::createLayer("Parent", 0 /* buffer width */, 0 /* buffer height */,
-                                              ISurfaceComposerClient::eFXSurfaceColor);
+                                              ISurfaceComposerClient::eFXSurfaceEffect);
 
     sp<SurfaceControl> childLayer;
     ASSERT_NO_FATAL_FAILURE(
             childLayer = LayerTransactionTest::createLayer("childLayer", 0 /* buffer width */,
                                                            0 /* buffer height */,
-                                                           ISurfaceComposerClient::eFXSurfaceColor,
+                                                           ISurfaceComposerClient::eFXSurfaceEffect,
                                                            parent.get()));
     Transaction()
             .setColor(childLayer, half3{1.0f, 0.0f, 0.0f})
@@ -116,17 +116,17 @@ TEST_P(LayerTypeTransactionTest, SetLayerAndRelative) {
 TEST_P(LayerTypeTransactionTest, HideRelativeParentHidesLayer) {
     sp<SurfaceControl> parent =
             LayerTransactionTest::createLayer("Parent", 0 /* buffer width */, 0 /* buffer height */,
-                                              ISurfaceComposerClient::eFXSurfaceColor);
+                                              ISurfaceComposerClient::eFXSurfaceEffect);
     sp<SurfaceControl> relativeParent =
             LayerTransactionTest::createLayer("RelativeParent", 0 /* buffer width */,
                                               0 /* buffer height */,
-                                              ISurfaceComposerClient::eFXSurfaceColor);
+                                              ISurfaceComposerClient::eFXSurfaceEffect);
 
     sp<SurfaceControl> childLayer;
     ASSERT_NO_FATAL_FAILURE(
             childLayer = LayerTransactionTest::createLayer("childLayer", 0 /* buffer width */,
                                                            0 /* buffer height */,
-                                                           ISurfaceComposerClient::eFXSurfaceColor,
+                                                           ISurfaceComposerClient::eFXSurfaceEffect,
                                                            parent.get()));
     Transaction()
             .setColor(childLayer, half3{1.0f, 0.0f, 0.0f})

@@ -253,6 +253,7 @@ enum {
     NATIVE_WINDOW_SET_PERFORM_INTERCEPTOR         = 43,    /* private */
     NATIVE_WINDOW_SET_QUEUE_INTERCEPTOR           = 44,    /* private */
     NATIVE_WINDOW_ALLOCATE_BUFFERS                = 45,    /* private */
+    NATIVE_WINDOW_GET_LAST_QUEUED_BUFFER          = 46,    /* private */
     // clang-format on
 };
 
@@ -1014,8 +1015,51 @@ static inline int native_window_set_auto_prerotation(struct ANativeWindow* windo
     return window->perform(window, NATIVE_WINDOW_SET_AUTO_PREROTATION, autoPrerotation);
 }
 
-static inline int native_window_set_frame_rate(struct ANativeWindow* window, float frameRate) {
-    return window->perform(window, NATIVE_WINDOW_SET_FRAME_RATE, (double)frameRate);
+static inline int native_window_set_frame_rate(struct ANativeWindow* window, float frameRate,
+                                               int8_t compatibility) {
+    return window->perform(window, NATIVE_WINDOW_SET_FRAME_RATE, (double)frameRate,
+                           (int)compatibility);
+}
+
+// ------------------------------------------------------------------------------------------------
+// Candidates for APEX visibility
+// These functions are planned to be made stable for APEX modules, but have not
+// yet been stabilized to a specific api version.
+// ------------------------------------------------------------------------------------------------
+
+/**
+ * Retrieves the last queued buffer for this window, along with the fence that
+ * fires when the buffer is ready to be read, and the 4x4 coordinate
+ * transform matrix that should be applied to the buffer's content. The
+ * transform matrix is represented in column-major order.
+ *
+ * If there was no buffer previously queued, then outBuffer will be NULL and
+ * the value of outFence will be -1.
+ *
+ * Note that if outBuffer is not NULL, then the caller will hold a reference
+ * onto the buffer. Accordingly, the caller must call AHardwareBuffer_release
+ * when the buffer is no longer needed so that the system may reclaim the
+ * buffer.
+ *
+ * \return NO_ERROR on success.
+ * \return NO_MEMORY if there was insufficient memory.
+ */
+static inline int ANativeWindow_getLastQueuedBuffer(ANativeWindow* window,
+                                                    AHardwareBuffer** outBuffer, int* outFence,
+                                                    float outTransformMatrix[16]) {
+    return window->perform(window, NATIVE_WINDOW_GET_LAST_QUEUED_BUFFER, outBuffer, outFence,
+                           outTransformMatrix);
+}
+
+/**
+ * Retrieves an identifier for the next frame to be queued by this window.
+ *
+ * \return the next frame id.
+ */
+static inline int64_t ANativeWindow_getNextFrameId(ANativeWindow* window) {
+    int64_t value;
+    window->perform(window, NATIVE_WINDOW_GET_NEXT_FRAME_ID, &value);
+    return value;
 }
 
 __END_DECLS

@@ -92,6 +92,13 @@ public:
                                      int32_t injectorUid, int32_t syncMode, int32_t timeoutMillis,
                                      uint32_t policyFlags) = 0;
 
+    /*
+     * Check whether InputEvent actually happened by checking the signature of the event.
+     *
+     * Return nullptr if the event cannot be verified.
+     */
+    virtual std::unique_ptr<VerifiedInputEvent> verifyInputEvent(const InputEvent& event) = 0;
+
     /* Sets the list of input windows.
      *
      * This method may be called on any thread (usually by the input manager).

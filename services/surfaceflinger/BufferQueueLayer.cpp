@@ -124,18 +124,6 @@ bool BufferQueueLayer::shouldPresentNow(nsecs_t expectedPresentTime) const {
     return isDue || !isPlausible;
 }
 
-bool BufferQueueLayer::setFrameRate(FrameRate frameRate) {
-    float oldFrameRate = 0.f;
-    status_t result = mConsumer->getFrameRate(&oldFrameRate);
-    bool frameRateChanged = result < 0 || frameRate.rate != oldFrameRate;
-    mConsumer->setFrameRate(frameRate.rate);
-    return frameRateChanged;
-}
-
-Layer::FrameRate BufferQueueLayer::getFrameRate() const {
-    return FrameRate(mLatchedFrameRate, Layer::FrameRateCompatibility::Default);
-}
-
 // -----------------------------------------------------------------------
 // Interface implementation for BufferLayer
 // -----------------------------------------------------------------------
@@ -441,6 +429,7 @@ void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
             status_t result = mQueueItemCondition.waitRelative(mQueueItemLock, ms2ns(500));
             if (result != NO_ERROR) {
                 ALOGE("[%s] Timed out waiting on callback", getDebugName());
+                break;
             }
         }
 
@@ -469,6 +458,7 @@ void BufferQueueLayer::onFrameReplaced(const BufferItem& item) {
             status_t result = mQueueItemCondition.waitRelative(mQueueItemLock, ms2ns(500));
             if (result != NO_ERROR) {
                 ALOGE("[%s] Timed out waiting on callback", getDebugName());
+                break;
             }
         }
 
@@ -576,7 +566,6 @@ void BufferQueueLayer::gatherBufferInfo() {
     mBufferInfo.mTransformToDisplayInverse = mConsumer->getTransformToDisplayInverse();
     float latchedFrameRate;
     mConsumer->getFrameRate(&latchedFrameRate);
-    mLatchedFrameRate = latchedFrameRate;
 }
 
 sp<Layer> BufferQueueLayer::createClone() {

@@ -17,13 +17,15 @@
 #ifndef ANDROID_INSTALLD_CRATE_INFO_MANAGER_H
 #define ANDROID_INSTALLD_CRATE_INFO_MANAGER_H
 
+#ifdef ENABLE_STORAGE_CRATES
+
 #include <android/os/storage/CrateMetadata.h>
 #include <cutils/multiuser.h>
 #include <fts.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -53,18 +55,18 @@ public:
     CrateManager(const char* uuid, userid_t userId, const std::string& packageName);
     ~CrateManager();
 
-    void traverseAllCrates(std::function<void(CratedFolder, std::unique_ptr<CrateMetadata>&)>& onCreateCrate);
+    void traverseAllCrates(std::function<void(CratedFolder, CrateMetadata&&)>& onCreateCrate);
 
     static void traverseChildDir(const std::string& targetDir,
             std::function<void(FTSENT*)>& onVisitChildDir);
 
     static void traverseAllPackagesForUser(
-        const std::unique_ptr<std::string>& uuid,
+        const std::optional<std::string>& uuid,
         userid_t userId,
         std::function<void(FTSENT*)>& onHandlingPackage);
 
 #if CRATE_DEBUG
-    static void dump(std::unique_ptr<CrateMetadata>& CrateMetadata);
+    static void dump(const CrateMetadata& CrateMetadata);
 #endif
 private:
     std::string mRoot;
@@ -73,10 +75,15 @@ private:
 
     void createCrate(
         CratedFolder cratedFolder,
-        std::function<void(CratedFolder, std::unique_ptr<CrateMetadata>&)>& onCreateCrate);
+        std::function<void(CratedFolder, CrateMetadata&&)>& onCreateCrate);
 };
 
 } // namespace installd
 } // namespace android
+
+#else // ENABLE_STORAGE_CRATES
+#include <android/os/storage/CrateMetadata.h>
+using android::os::storage::CrateMetadata;
+#endif // ENABLE_STORAGE_CRATES
 
 #endif // ANDROID_INSTALLD_CRATE_INFO_MANAGER_H

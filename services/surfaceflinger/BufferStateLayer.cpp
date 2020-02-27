@@ -32,7 +32,7 @@
 #include <private/gui/SyncFeatures.h>
 #include <renderengine/Image.h>
 
-#include "ColorLayer.h"
+#include "EffectLayer.h"
 #include "FrameTracer/FrameTracer.h"
 #include "TimeStats/TimeStats.h"
 
@@ -468,6 +468,32 @@ uint64_t BufferStateLayer::getFrameNumber(nsecs_t /*expectedPresentTime*/) const
     return mDrawingState.frameNumber;
 }
 
+/**
+ * This is the frameNumber used for deferred transaction signalling. We need to use this because
+ * of cases where we defer a transaction for a surface to itself. In the BLAST world this
+ * may not make a huge amount of sense (Why not just merge the Buffer transaction with the
+ * deferred transaction?) but this is an important legacy use case, for example moving
+ * a window at the same time it draws makes use of this kind of technique. So anyway
+ * imagine we have something like this:
+ *
+ * Transaction { // containing
+ *     Buffer -> frameNumber = 2
+ *     DeferTransactionUntil -> frameNumber = 2
+ *     Random other stuff
+ *  }
+ * Now imagine getHeadFrameNumber returned mDrawingState.mFrameNumber (or mCurrentFrameNumber).
+ * Prior to doTransaction SurfaceFlinger will call notifyAvailableFrames, but because we
+ * haven't swapped mCurrentState to mDrawingState yet we will think the sync point
+ * is not ready. So we will return false from applyPendingState and not swap
+ * current state to drawing state. But because we don't swap current state
+ * to drawing state the number will never update and we will be stuck. This way
+ * we can see we need to return the frame number for the buffer we are about
+ * to apply.
+ */
+uint64_t BufferStateLayer::getHeadFrameNumber(nsecs_t /* expectedPresentTime */) const {
+    return mCurrentState.frameNumber;
+}
+
 bool BufferStateLayer::getAutoRefresh() const {
     // TODO(marissaw): support shared buffer mode
     return false;
@@ -741,6 +767,33 @@ sp<Layer> BufferStateLayer::createClone() {
     layer->mHwcSlotGenerator = mHwcSlotGenerator;
     layer->setInitialValuesForClone(this);
     return layer;
+}
+
+Layer::RoundedCornerState BufferStateLayer::getRoundedCornerState() const {
+    const auto& p = mDrawingParent.promote();
+    if (p != nullptr) {
+        RoundedCornerState parentState = p->getRoundedCornerState();
+        if (parentState.radius > 0) {
+            ui::Transform t = getActiveTransform(getDrawingState());
+            t = t.inverse();
+            parentState.cropRect = t.transform(parentState.cropRect);
+            // The rounded corners shader only accepts 1 corner radius for performance reasons,
+            // but a transform matrix can define horizontal and vertical scales.
+            // Let's take the average between both of them and pass into the shader, practically we
+            // never do this type of transformation on windows anyway.
+            parentState.radius *= (t[0][0] + t[1][1]) / 2.0f;
+            return parentState;
+        }
+    }
+    const float radius = getDrawingState().cornerRadius;
+    const State& s(getDrawingState());
+    if (radius <= 0 || (getActiveWidth(s) == UINT32_MAX && getActiveHeight(s) == UINT32_MAX))
+        return RoundedCornerState();
+    return RoundedCornerState(FloatRect(static_cast<float>(s.active.transform.tx()),
+                                        static_cast<float>(s.active.transform.ty()),
+                                        static_cast<float>(s.active.transform.tx() + s.active.w),
+                                        static_cast<float>(s.active.transform.ty() + s.active.h)),
+                              radius);
 }
 } // namespace android
 

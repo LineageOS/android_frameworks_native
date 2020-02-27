@@ -64,6 +64,8 @@
 #include <android-base/unique_fd.h>
 #include <android/content/pm/IPackageManagerNative.h>
 #include <android/hardware/dumpstate/1.0/IDumpstateDevice.h>
+#include <android/hardware/dumpstate/1.1/IDumpstateDevice.h>
+#include <android/hardware/dumpstate/1.1/types.h>
 #include <android/hidl/manager/1.0/IServiceManager.h>
 #include <android/os/IIncidentCompanion.h>
 #include <binder/IServiceManager.h>
@@ -85,7 +87,11 @@
 #include "DumpstateService.h"
 #include "dumpstate.h"
 
-using ::android::hardware::dumpstate::V1_0::IDumpstateDevice;
+using IDumpstateDevice_1_0 = ::android::hardware::dumpstate::V1_0::IDumpstateDevice;
+using IDumpstateDevice_1_1 = ::android::hardware::dumpstate::V1_1::IDumpstateDevice;
+using ::android::hardware::dumpstate::V1_1::DumpstateMode;
+using ::android::hardware::dumpstate::V1_1::DumpstateStatus;
+using ::android::hardware::dumpstate::V1_1::toString;
 using ::std::literals::chrono_literals::operator""ms;
 using ::std::literals::chrono_literals::operator""s;
 
@@ -135,6 +141,11 @@ typedef Dumpstate::ConsentCallback::ConsentResult UserConsentResult;
 static char cmdline_buf[16384] = "(unknown)";
 static const char *dump_traces_path = nullptr;
 static const uint64_t USER_CONSENT_TIMEOUT_MS = 30 * 1000;
+// Because telephony reports are significantly faster to collect (< 10 seconds vs. > 2 minutes),
+// it's often the case that they time out far too quickly for consent with such a hefty dialog for
+// the user to read. For telephony reports only, we increase the default timeout to 2 minutes to
+// roughly match full reports' durations.
+static const uint64_t TELEPHONY_REPORT_USER_CONSENT_TIMEOUT_MS = 2 * 60 * 1000;
 
 // TODO: variables and functions below should be part of dumpstate object
 
@@ -149,6 +160,7 @@ void add_mountinfo();
 #define RECOVERY_DATA_DIR "/data/misc/recovery"
 #define UPDATE_ENGINE_LOG_DIR "/data/misc/update_engine_log"
 #define LOGPERSIST_DATA_DIR "/data/misc/logd"
+#define PREREBOOT_DATA_DIR "/data/misc/prereboot"
 #define PROFILE_DATA_DIR_CUR "/data/misc/profiles/cur"
 #define PROFILE_DATA_DIR_REF "/data/misc/profiles/ref"
 #define XFRM_STAT_PROC_FILE "/proc/net/xfrm_stat"
@@ -879,6 +891,14 @@ static void DoSystemLogcat(time_t since) {
                CommandOptions::WithTimeoutInMs(timeout_ms).Build());
 }
 
+static void DoRadioLogcat() {
+    unsigned long timeout_ms = logcat_timeout({"radio"});
+    RunCommand(
+        "RADIO LOG",
+        {"logcat", "-b", "radio", "-v", "threadtime", "-v", "printable", "-v", "uid", "-d", "*:v"},
+        CommandOptions::WithTimeoutInMs(timeout_ms).Build(), true /* verbose_duration */);
+}
+
 static void DoLogcat() {
     unsigned long timeout_ms;
     // DumpFile("EVENT LOG TAGS", "/etc/event-log-tags");
@@ -897,11 +917,7 @@ static void DoLogcat() {
         "STATS LOG",
         {"logcat", "-b", "stats", "-v", "threadtime", "-v", "printable", "-v", "uid", "-d", "*:v"},
         CommandOptions::WithTimeoutInMs(timeout_ms).Build(), true /* verbose_duration */);
-    timeout_ms = logcat_timeout({"radio"});
-    RunCommand(
-        "RADIO LOG",
-        {"logcat", "-b", "radio", "-v", "threadtime", "-v", "printable", "-v", "uid", "-d", "*:v"},
-        CommandOptions::WithTimeoutInMs(timeout_ms).Build(), true /* verbose_duration */);
+    DoRadioLogcat();
 
     RunCommand("LOG STATISTICS", {"logcat", "-b", "all", "-S"});
 
@@ -1429,11 +1445,14 @@ static Dumpstate::RunStatus dumpstate() {
     RunCommand("FILESYSTEMS & FREE SPACE", {"df"});
 
     /* Binder state is expensive to look at as it uses a lot of memory. */
-    DumpFile("BINDER FAILED TRANSACTION LOG", "/sys/kernel/debug/binder/failed_transaction_log");
-    DumpFile("BINDER TRANSACTION LOG", "/sys/kernel/debug/binder/transaction_log");
-    DumpFile("BINDER TRANSACTIONS", "/sys/kernel/debug/binder/transactions");
-    DumpFile("BINDER STATS", "/sys/kernel/debug/binder/stats");
-    DumpFile("BINDER STATE", "/sys/kernel/debug/binder/state");
+    std::string binder_logs_dir = access("/dev/binderfs/binder_logs", R_OK) ?
+            "/sys/kernel/debug/binder" : "/dev/binderfs/binder_logs";
+
+    DumpFile("BINDER FAILED TRANSACTION LOG", binder_logs_dir + "/failed_transaction_log");
+    DumpFile("BINDER TRANSACTION LOG", binder_logs_dir + "/transaction_log");
+    DumpFile("BINDER TRANSACTIONS", binder_logs_dir + "/transactions");
+    DumpFile("BINDER STATS", binder_logs_dir + "/stats");
+    DumpFile("BINDER STATE", binder_logs_dir + "/state");
 
     /* Add window and surface trace files. */
     if (!PropertiesHelper::IsUserBuild()) {
@@ -1573,6 +1592,7 @@ Dumpstate::RunStatus Dumpstate::DumpstateDefaultAfterCritical() {
         ds.AddDir(PROFILE_DATA_DIR_CUR, true);
         ds.AddDir(PROFILE_DATA_DIR_REF, true);
     }
+    ds.AddDir(PREREBOOT_DATA_DIR, false);
     add_mountinfo();
     DumpIpTablesAsRoot();
     DumpDynamicPartitionInfo();
@@ -1611,8 +1631,10 @@ Dumpstate::RunStatus Dumpstate::DumpstateDefaultAfterCritical() {
     return status;
 }
 
-// This method collects common dumpsys for telephony and wifi
-static void DumpstateRadioCommon() {
+// This method collects common dumpsys for telephony and wifi. Typically, wifi
+// reports are fine to include all information, but telephony reports on user
+// builds need to strip some content (see DumpstateTelephonyOnly).
+static void DumpstateRadioCommon(bool include_sensitive_info = true) {
     DumpIpTablesAsRoot();
 
     ds.AddDir(LOGPERSIST_DATA_DIR, false);
@@ -1621,27 +1643,51 @@ static void DumpstateRadioCommon() {
         return;
     }
 
-    do_dmesg();
-    DoLogcat();
+    // We need to be picky about some stuff for telephony reports on user builds.
+    if (!include_sensitive_info) {
+        // Only dump the radio log buffer (other buffers and dumps contain too much unrelated info).
+        DoRadioLogcat();
+    } else {
+        // Contains various system properties and process startup info.
+        do_dmesg();
+        // Logs other than the radio buffer may contain package/component names and potential PII.
+        DoLogcat();
+        // Too broad for connectivity problems.
+        DoKmsg();
+        // Contains unrelated hardware info (camera, NFC, biometrics, ...).
+        DumpHals();
+    }
+
     DumpPacketStats();
-    DoKmsg();
     DumpIpAddrAndRules();
     dump_route_tables();
-    DumpHals();
-
     RunDumpsys("NETWORK DIAGNOSTICS", {"connectivity", "--diag"},
                CommandOptions::WithTimeout(10).Build());
 }
 
-// This method collects dumpsys for telephony debugging only
-static void DumpstateTelephonyOnly() {
+// We use "telephony" here for legacy reasons, though this now really means "connectivity" (cellular
+// + wifi + networking). This method collects dumpsys for connectivity debugging only. General rules
+// for what can be included on user builds: all reported information MUST directly relate to
+// connectivity debugging or customer support and MUST NOT contain unrelated personally identifiable
+// information. This information MUST NOT identify user-installed packages (UIDs are OK, package
+// names are not), and MUST NOT contain logs of user application traffic.
+// TODO(b/148168577) rename this and other related fields/methods to "connectivity" instead.
+static void DumpstateTelephonyOnly(const std::string& calling_package) {
     DurationReporter duration_reporter("DUMPSTATE");
 
     const CommandOptions DUMPSYS_COMPONENTS_OPTIONS = CommandOptions::WithTimeout(60).Build();
 
-    DumpstateRadioCommon();
+    const bool include_sensitive_info = !PropertiesHelper::IsUserBuild();
 
-    RunCommand("SYSTEM PROPERTIES", {"getprop"});
+    DumpstateRadioCommon(include_sensitive_info);
+
+    if (include_sensitive_info) {
+        // Contains too much unrelated PII, and given the unstructured nature of sysprops, we can't
+        // really cherrypick all of the connectivity-related ones. Apps generally have no business
+        // reading these anyway, and there should be APIs to supply the info in a more app-friendly
+        // way.
+        RunCommand("SYSTEM PROPERTIES", {"getprop"});
+    }
 
     printf("========================================================\n");
     printf("== Android Framework Services\n");
@@ -1649,15 +1695,35 @@ static void DumpstateTelephonyOnly() {
 
     RunDumpsys("DUMPSYS", {"connectivity"}, CommandOptions::WithTimeout(90).Build(),
                SEC_TO_MSEC(10));
-    RunDumpsys("DUMPSYS", {"connmetrics"}, CommandOptions::WithTimeout(90).Build(),
+    if (include_sensitive_info) {
+        // Carrier apps' services will be dumped below in dumpsys activity service all-non-platform.
+        RunDumpsys("DUMPSYS", {"carrier_config"}, CommandOptions::WithTimeout(90).Build(),
+                   SEC_TO_MSEC(10));
+    } else {
+        // If the caller is a carrier app and has a carrier service, dump it here since we aren't
+        // running dumpsys activity service all-non-platform below. Due to the increased output, we
+        // give a higher timeout as well.
+        RunDumpsys("DUMPSYS", {"carrier_config", "--requesting-package", calling_package},
+                   CommandOptions::WithTimeout(90).Build(), SEC_TO_MSEC(30));
+    }
+    RunDumpsys("DUMPSYS", {"wifi"}, CommandOptions::WithTimeout(90).Build(), SEC_TO_MSEC(10));
+    RunDumpsys("DUMPSYS", {"netpolicy"}, CommandOptions::WithTimeout(90).Build(), SEC_TO_MSEC(10));
+    RunDumpsys("DUMPSYS", {"network_management"}, CommandOptions::WithTimeout(90).Build(),
                SEC_TO_MSEC(10));
-    RunDumpsys("DUMPSYS", {"netd"}, CommandOptions::WithTimeout(90).Build(), SEC_TO_MSEC(10));
-    RunDumpsys("DUMPSYS", {"carrier_config"}, CommandOptions::WithTimeout(90).Build(),
-               SEC_TO_MSEC(10));
-    RunDumpsys("DUMPSYS", {"wifi"}, CommandOptions::WithTimeout(90).Build(),
-               SEC_TO_MSEC(10));
-    RunDumpsys("BATTERYSTATS", {"batterystats"}, CommandOptions::WithTimeout(90).Build(),
-               SEC_TO_MSEC(10));
+    if (include_sensitive_info) {
+        // Contains raw IP addresses, omit from reports on user builds.
+        RunDumpsys("DUMPSYS", {"netd"}, CommandOptions::WithTimeout(90).Build(), SEC_TO_MSEC(10));
+        // Contains raw destination IP/MAC addresses, omit from reports on user builds.
+        RunDumpsys("DUMPSYS", {"connmetrics"}, CommandOptions::WithTimeout(90).Build(),
+                   SEC_TO_MSEC(10));
+        // Contains package/component names, omit from reports on user builds.
+        RunDumpsys("BATTERYSTATS", {"batterystats"}, CommandOptions::WithTimeout(90).Build(),
+                   SEC_TO_MSEC(10));
+        // Contains package names, but should be relatively simple to remove them (also contains
+        // UIDs already), omit from reports on user builds.
+        RunDumpsys("BATTERYSTATS", {"deviceidle"}, CommandOptions::WithTimeout(90).Build(),
+                   SEC_TO_MSEC(10));
+    }
 
     printf("========================================================\n");
     printf("== Running Application Services\n");
@@ -1665,18 +1731,24 @@ static void DumpstateTelephonyOnly() {
 
     RunDumpsys("TELEPHONY SERVICES", {"activity", "service", "TelephonyDebugService"});
 
-    printf("========================================================\n");
-    printf("== Running Application Services (non-platform)\n");
-    printf("========================================================\n");
+    if (include_sensitive_info) {
+        printf("========================================================\n");
+        printf("== Running Application Services (non-platform)\n");
+        printf("========================================================\n");
 
-    RunDumpsys("APP SERVICES NON-PLATFORM", {"activity", "service", "all-non-platform"},
-            DUMPSYS_COMPONENTS_OPTIONS);
+        // Contains package/component names and potential PII, omit from reports on user builds.
+        // To get dumps of the active CarrierService(s) on user builds, we supply an argument to the
+        // carrier_config dumpsys instead.
+        RunDumpsys("APP SERVICES NON-PLATFORM", {"activity", "service", "all-non-platform"},
+                   DUMPSYS_COMPONENTS_OPTIONS);
 
-    printf("========================================================\n");
-    printf("== Checkins\n");
-    printf("========================================================\n");
+        printf("========================================================\n");
+        printf("== Checkins\n");
+        printf("========================================================\n");
 
-    RunDumpsys("CHECKIN BATTERYSTATS", {"batterystats", "-c"});
+        // Contains package/component names, omit from reports on user builds.
+        RunDumpsys("CHECKIN BATTERYSTATS", {"batterystats", "-c"});
+    }
 
     printf("========================================================\n");
     printf("== dumpstate: done (id %d)\n", ds.id_);
@@ -1833,8 +1905,8 @@ void Dumpstate::DumpstateBoard() {
             std::bind([](std::string path) { android::os::UnlinkAndLogOnError(path); }, paths[i])));
     }
 
-    sp<IDumpstateDevice> dumpstate_device(IDumpstateDevice::getService());
-    if (dumpstate_device == nullptr) {
+    sp<IDumpstateDevice_1_0> dumpstate_device_1_0(IDumpstateDevice_1_0::getService());
+    if (dumpstate_device_1_0 == nullptr) {
         MYLOGE("No IDumpstateDevice implementation\n");
         return;
     }
@@ -1865,29 +1937,54 @@ void Dumpstate::DumpstateBoard() {
         handle.get()->data[i] = fd.release();
     }
 
-    // Given that bugreport is required to diagnose failures, it's better to
-    // set an arbitrary amount of timeout for IDumpstateDevice than to block the
-    // rest of bugreport. In the timeout case, we will kill dumpstate board HAL
-    // and grab whatever dumped
-    std::packaged_task<bool()>
-            dumpstate_task([paths, dumpstate_device, &handle]() -> bool {
-            android::hardware::Return<void> status = dumpstate_device->dumpstateBoard(handle.get());
+    // Given that bugreport is required to diagnose failures, it's better to set an arbitrary amount
+    // of timeout for IDumpstateDevice than to block the rest of bugreport. In the timeout case, we
+    // will kill the HAL and grab whatever it dumped in time.
+    constexpr size_t timeout_sec = 30;
+    // Prefer version 1.1 if available. New devices launching with R are no longer allowed to
+    // implement just 1.0.
+    const char* descriptor_to_kill;
+    using DumpstateBoardTask = std::packaged_task<bool()>;
+    DumpstateBoardTask dumpstate_board_task;
+    sp<IDumpstateDevice_1_1> dumpstate_device_1_1(
+        IDumpstateDevice_1_1::castFrom(dumpstate_device_1_0));
+    if (dumpstate_device_1_1 != nullptr) {
+        MYLOGI("Using IDumpstateDevice v1.1");
+        descriptor_to_kill = IDumpstateDevice_1_1::descriptor;
+        dumpstate_board_task = DumpstateBoardTask([this, dumpstate_device_1_1, &handle]() -> bool {
+            ::android::hardware::Return<DumpstateStatus> status =
+                dumpstate_device_1_1->dumpstateBoard_1_1(handle.get(), options_->dumpstate_hal_mode,
+                                                         SEC_TO_MSEC(timeout_sec));
+            if (!status.isOk()) {
+                MYLOGE("dumpstateBoard failed: %s\n", status.description().c_str());
+                return false;
+            } else if (status != DumpstateStatus::OK) {
+                MYLOGE("dumpstateBoard failed with DumpstateStatus::%s\n", toString(status).c_str());
+                return false;
+            }
+            return true;
+        });
+    } else {
+        MYLOGI("Using IDumpstateDevice v1.0");
+        descriptor_to_kill = IDumpstateDevice_1_0::descriptor;
+        dumpstate_board_task = DumpstateBoardTask([dumpstate_device_1_0, &handle]() -> bool {
+            ::android::hardware::Return<void> status =
+                dumpstate_device_1_0->dumpstateBoard(handle.get());
             if (!status.isOk()) {
                 MYLOGE("dumpstateBoard failed: %s\n", status.description().c_str());
                 return false;
             }
             return true;
         });
+    }
+    auto result = dumpstate_board_task.get_future();
+    std::thread(std::move(dumpstate_board_task)).detach();
 
-    auto result = dumpstate_task.get_future();
-    std::thread(std::move(dumpstate_task)).detach();
-
-    constexpr size_t timeout_sec = 30;
     if (result.wait_for(std::chrono::seconds(timeout_sec)) != std::future_status::ready) {
         MYLOGE("dumpstateBoard timed out after %zus, killing dumpstate vendor HAL\n", timeout_sec);
-        if (!android::base::SetProperty("ctl.interface_restart",
-                                        android::base::StringPrintf("%s/default",
-                                                                    IDumpstateDevice::descriptor))) {
+        if (!android::base::SetProperty(
+                "ctl.interface_restart",
+                android::base::StringPrintf("%s/default", descriptor_to_kill))) {
             MYLOGE("Couldn't restart dumpstate HAL\n");
         }
     }
@@ -1919,15 +2016,14 @@ void Dumpstate::DumpstateBoard() {
             continue;
         }
         AddZipEntry(kDumpstateBoardFiles[i], paths[i]);
+        printf("*** See %s entry ***\n", kDumpstateBoardFiles[i].c_str());
     }
-
-    printf("*** See dumpstate-board.txt entry ***\n");
 }
 
 static void ShowUsage() {
     fprintf(stderr,
             "usage: dumpstate [-h] [-b soundfile] [-e soundfile] [-d] [-p] "
-            "[-z]] [-s] [-S] [-q] [-P] [-R] [-V version]\n"
+            "[-z] [-s] [-S] [-q] [-P] [-R] [-V version]\n"
             "  -h: display this help message\n"
             "  -b: play sound file instead of vibrate, at beginning of job\n"
             "  -e: play sound file instead of vibrate, at end of job\n"
@@ -2137,32 +2233,40 @@ static void SetOptionsFromMode(Dumpstate::BugreportMode mode, Dumpstate::DumpOpt
     switch (mode) {
         case Dumpstate::BugreportMode::BUGREPORT_FULL:
             options->do_fb = true;
+            options->dumpstate_hal_mode = DumpstateMode::FULL;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE:
             // Currently, the dumpstate binder is only used by Shell to update progress.
             options->do_start_service = true;
             options->do_progress_updates = true;
             options->do_fb = false;
+            options->dumpstate_hal_mode = DumpstateMode::INTERACTIVE;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_REMOTE:
             options->do_vibrate = false;
             options->is_remote_mode = true;
             options->do_fb = false;
+            options->dumpstate_hal_mode = DumpstateMode::REMOTE;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_WEAR:
             options->do_start_service = true;
             options->do_progress_updates = true;
             options->do_zip_file = true;
             options->do_fb = true;
+            options->dumpstate_hal_mode = DumpstateMode::WEAR;
             break;
+        // TODO(b/148168577) rename TELEPHONY everywhere to CONNECTIVITY.
         case Dumpstate::BugreportMode::BUGREPORT_TELEPHONY:
             options->telephony_only = true;
+            options->do_progress_updates = true;
             options->do_fb = false;
+            options->dumpstate_hal_mode = DumpstateMode::CONNECTIVITY;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_WIFI:
             options->wifi_only = true;
             options->do_zip_file = true;
             options->do_fb = false;
+            options->dumpstate_hal_mode = DumpstateMode::WIFI;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_DEFAULT:
             break;
@@ -2173,11 +2277,13 @@ static void LogDumpOptions(const Dumpstate::DumpOptions& options) {
     MYLOGI(
         "do_zip_file: %d do_vibrate: %d use_socket: %d use_control_socket: %d do_fb: %d "
         "is_remote_mode: %d show_header_only: %d do_start_service: %d telephony_only: %d "
-        "wifi_only: %d do_progress_updates: %d fd: %d bugreport_mode: %s args: %s\n",
+        "wifi_only: %d do_progress_updates: %d fd: %d bugreport_mode: %s dumpstate_hal_mode: %s "
+        "args: %s\n",
         options.do_zip_file, options.do_vibrate, options.use_socket, options.use_control_socket,
         options.do_fb, options.is_remote_mode, options.show_header_only, options.do_start_service,
         options.telephony_only, options.wifi_only, options.do_progress_updates,
-        options.bugreport_fd.get(), options.bugreport_mode.c_str(), options.args.c_str());
+        options.bugreport_fd.get(), options.bugreport_mode.c_str(),
+        toString(options.dumpstate_hal_mode).c_str(), options.args.c_str());
 }
 
 void Dumpstate::DumpOptions::Initialize(BugreportMode bugreport_mode,
@@ -2488,7 +2594,7 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
 
     if (options_->telephony_only) {
         MaybeCheckUserConsent(calling_uid, calling_package);
-        DumpstateTelephonyOnly();
+        DumpstateTelephonyOnly(calling_package);
         DumpstateBoard();
     } else if (options_->wifi_only) {
         MaybeCheckUserConsent(calling_uid, calling_package);
@@ -2641,8 +2747,13 @@ Dumpstate::RunStatus Dumpstate::CopyBugreportIfUserConsented(int32_t calling_uid
     if (consent_result == UserConsentResult::UNAVAILABLE) {
         // User has not responded yet.
         uint64_t elapsed_ms = consent_callback_->getElapsedTimeMs();
-        if (elapsed_ms < USER_CONSENT_TIMEOUT_MS) {
-            uint delay_seconds = (USER_CONSENT_TIMEOUT_MS - elapsed_ms) / 1000;
+        // Telephony is a fast report type, particularly on user builds where information may be
+        // more aggressively limited. To give the user time to read the consent dialog, increase the
+        // timeout.
+        uint64_t timeout_ms = options_->telephony_only ? TELEPHONY_REPORT_USER_CONSENT_TIMEOUT_MS
+                                                       : USER_CONSENT_TIMEOUT_MS;
+        if (elapsed_ms < timeout_ms) {
+            uint delay_seconds = (timeout_ms - elapsed_ms) / 1000;
             MYLOGD("Did not receive user consent yet; going to wait for %d seconds", delay_seconds);
             sleep(delay_seconds);
         }

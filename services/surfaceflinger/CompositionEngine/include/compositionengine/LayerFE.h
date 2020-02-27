@@ -97,6 +97,21 @@ public:
         // Modified by each call to prepareClientComposition to indicate the
         // region of the target buffer that should be cleared.
         Region& clearRegion;
+
+        // Viewport of the target being rendered to. This is used to determine
+        // the shadow light position.
+        const Rect& viewport;
+
+        // Dataspace of the output so we can optimize how to render the shadow
+        // by avoiding unnecessary color space conversions.
+        const ui::Dataspace dataspace;
+
+        // True if the region excluding the shadow is visible.
+        const bool realContentIsVisible;
+
+        // If set to true, change the layer settings to render a clear output.
+        // This may be requested by the HWC
+        const bool clearContent;
     };
 
     // A superset of LayerSettings required by RenderEngine to compose a layer
@@ -109,17 +124,11 @@ public:
         uint64_t frameNumber = 0;
     };
 
-    // Returns the LayerSettings to pass to RenderEngine::drawLayers, or
-    // nullopt_t if the layer does not render
-    virtual std::optional<LayerSettings> prepareClientComposition(
+    // Returns the z-ordered list of LayerSettings to pass to RenderEngine::drawLayers. The list
+    // may contain shadows casted by the layer or the content of the layer itself.  If the layer
+    // does not render then an empty list will be returned.
+    virtual std::vector<LayerSettings> prepareClientCompositionList(
             ClientCompositionTargetSettings&) = 0;
-
-    // Returns the LayerSettings used to draw shadows around a layer. It is passed
-    // to RenderEngine::drawLayers. Returns nullopt_t if the layer does not render
-    // shadows.
-    virtual std::optional<LayerSettings> prepareShadowClientComposition(
-            const LayerSettings& layerSettings, const Rect& displayViewport,
-            ui::Dataspace outputDataspace) = 0;
 
     // Called after the layer is displayed to update the presentation fence
     virtual void onLayerDisplayed(const sp<Fence>&) = 0;
@@ -142,7 +151,10 @@ static inline bool operator==(const LayerFE::ClientCompositionTargetSettings& lh
             lhs.useIdentityTransform == rhs.useIdentityTransform &&
             lhs.needsFiltering == rhs.needsFiltering && lhs.isSecure == rhs.isSecure &&
             lhs.supportsProtectedContent == rhs.supportsProtectedContent &&
-            lhs.clearRegion.hasSameRects(rhs.clearRegion);
+            lhs.clearRegion.hasSameRects(rhs.clearRegion) && lhs.viewport == rhs.viewport &&
+            lhs.dataspace == rhs.dataspace &&
+            lhs.realContentIsVisible == rhs.realContentIsVisible &&
+            lhs.clearContent == rhs.clearContent;
 }
 
 static inline bool operator==(const LayerFE::LayerSettings& lhs,
@@ -164,6 +176,12 @@ static inline void PrintTo(const LayerFE::ClientCompositionTargetSettings& setti
     *os << "\n    .supportsProtectedContent = " << settings.supportsProtectedContent;
     *os << "\n    .clearRegion = ";
     PrintTo(settings.clearRegion, os);
+    *os << "\n    .viewport = ";
+    PrintTo(settings.viewport, os);
+    *os << "\n    .dataspace = ";
+    PrintTo(settings.dataspace, os);
+    *os << "\n    .realContentIsVisible = " << settings.realContentIsVisible;
+    *os << "\n    .clearContent = " << settings.clearContent;
     *os << "\n}";
 }
 

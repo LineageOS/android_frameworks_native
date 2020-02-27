@@ -103,6 +103,7 @@ public:
 
     Rect getBufferSize(const State& s) const override;
     FloatRect computeSourceBounds(const FloatRect& parentBounds) const override;
+    Layer::RoundedCornerState getRoundedCornerState() const override;
 
     // -----------------------------------------------------------------------
 
@@ -115,6 +116,7 @@ public:
 
 protected:
     void gatherBufferInfo() override;
+    uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const;
 
 private:
     bool updateFrameEventHistory(const sp<Fence>& acquireFence, nsecs_t postedTime,

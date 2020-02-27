@@ -57,7 +57,8 @@ public:
     MOCK_METHOD1(useProtectedContext, bool(bool));
     MOCK_METHOD6(drawLayers,
                  status_t(const DisplaySettings&, const std::vector<const LayerSettings*>&,
-                          ANativeWindowBuffer*, const bool, base::unique_fd&&, base::unique_fd*));
+                          const sp<GraphicBuffer>&, const bool, base::unique_fd&&,
+                          base::unique_fd*));
 };
 
 } // namespace mock

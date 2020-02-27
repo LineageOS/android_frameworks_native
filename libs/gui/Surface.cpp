@@ -43,6 +43,7 @@
 #include <gui/IProducerListener.h>
 
 #include <gui/ISurfaceComposer.h>
+#include <gui/LayerState.h>
 #include <private/gui/ComposerService.h>
 
 namespace android {
@@ -1180,6 +1181,9 @@ int Surface::perform(int operation, va_list args)
         allocateBuffers();
         res = NO_ERROR;
         break;
+    case NATIVE_WINDOW_GET_LAST_QUEUED_BUFFER:
+        res = dispatchGetLastQueuedBuffer(args);
+        break;
     default:
         res = NAME_NOT_FOUND;
         break;
@@ -1410,7 +1414,8 @@ int Surface::dispatchGetLastQueueDuration(va_list args) {
 
 int Surface::dispatchSetFrameRate(va_list args) {
     float frameRate = static_cast<float>(va_arg(args, double));
-    return setFrameRate(frameRate);
+    int8_t compatibility = static_cast<int8_t>(va_arg(args, int));
+    return setFrameRate(frameRate, compatibility);
 }
 
 int Surface::dispatchAddCancelInterceptor(va_list args) {
@@ -1450,6 +1455,30 @@ int Surface::dispatchAddQueueInterceptor(va_list args) {
     mQueueInterceptor = interceptor;
     mQueueInterceptorData = data;
     return NO_ERROR;
+}
+
+int Surface::dispatchGetLastQueuedBuffer(va_list args) {
+    AHardwareBuffer** buffer = va_arg(args, AHardwareBuffer**);
+    int* fence = va_arg(args, int*);
+    float* matrix = va_arg(args, float*);
+    sp<GraphicBuffer> graphicBuffer;
+    sp<Fence> spFence;
+
+    int result = mGraphicBufferProducer->getLastQueuedBuffer(&graphicBuffer, &spFence, matrix);
+
+    if (graphicBuffer != nullptr) {
+        *buffer = reinterpret_cast<AHardwareBuffer*>(graphicBuffer.get());
+        AHardwareBuffer_acquire(*buffer);
+    } else {
+        *buffer = nullptr;
+    }
+
+    if (spFence != nullptr) {
+        *fence = spFence->dup();
+    } else {
+        *fence = -1;
+    }
+    return result;
 }
 
 bool Surface::transformToDisplayInverse() {
@@ -2195,11 +2224,15 @@ void Surface::ProducerListenerProxy::onBuffersDiscarded(const std::vector<int32_
     mSurfaceListener->onBuffersDiscarded(discardedBufs);
 }
 
-status_t Surface::setFrameRate(float frameRate) {
+status_t Surface::setFrameRate(float frameRate, int8_t compatibility) {
     ATRACE_CALL();
-    ALOGV("Surface::setTargetFrameRate");
-    Mutex::Autolock lock(mMutex);
-    return mGraphicBufferProducer->setFrameRate(frameRate);
+    ALOGV("Surface::setFrameRate");
+
+    if (!ValidateFrameRate(frameRate, compatibility, "Surface::setFrameRate")) {
+        return BAD_VALUE;
+    }
+
+    return composerService()->setFrameRate(mGraphicBufferProducer, frameRate, compatibility);
 }
 
 }; // namespace android

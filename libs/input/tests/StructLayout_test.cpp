@@ -35,6 +35,7 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage, body, 8);
 
   CHECK_OFFSET(InputMessage::Body::Key, seq, 0);
+  CHECK_OFFSET(InputMessage::Body::Key, eventId, 4);
   CHECK_OFFSET(InputMessage::Body::Key, eventTime, 8);
   CHECK_OFFSET(InputMessage::Body::Key, deviceId, 16);
   CHECK_OFFSET(InputMessage::Body::Key, source, 20);
@@ -49,6 +50,7 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Key, downTime, 88);
 
   CHECK_OFFSET(InputMessage::Body::Motion, seq, 0);
+  CHECK_OFFSET(InputMessage::Body::Motion, eventId, 4);
   CHECK_OFFSET(InputMessage::Body::Motion, eventTime, 8);
   CHECK_OFFSET(InputMessage::Body::Motion, deviceId, 16);
   CHECK_OFFSET(InputMessage::Body::Motion, source, 20);
@@ -74,8 +76,9 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Motion, pointers, 136);
 
   CHECK_OFFSET(InputMessage::Body::Focus, seq, 0);
-  CHECK_OFFSET(InputMessage::Body::Focus, hasFocus, 4);
-  CHECK_OFFSET(InputMessage::Body::Focus, inTouchMode, 6);
+  CHECK_OFFSET(InputMessage::Body::Focus, eventId, 4);
+  CHECK_OFFSET(InputMessage::Body::Focus, hasFocus, 12);
+  CHECK_OFFSET(InputMessage::Body::Focus, inTouchMode, 14);
 
   CHECK_OFFSET(InputMessage::Body::Finished, seq, 0);
   CHECK_OFFSET(InputMessage::Body::Finished, handled, 4);
@@ -95,7 +98,37 @@ void TestBodySize() {
                   offsetof(InputMessage::Body::Motion, pointers) +
                           sizeof(InputMessage::Body::Motion::Pointer) * MAX_POINTERS);
     static_assert(sizeof(InputMessage::Body::Finished) == 8);
-    static_assert(sizeof(InputMessage::Body::Focus) == 8);
+    static_assert(sizeof(InputMessage::Body::Focus) == 16);
+}
+
+// --- VerifiedInputEvent ---
+// Ensure that VerifiedInputEvent, VerifiedKeyEvent, VerifiedMotionEvent are packed.
+// We will treat them as byte collections when signing them. There should not be any uninitialized
+// data in-between fields. Otherwise, the padded data will affect the hmac value and verifications
+// will fail.
+
+void TestVerifiedEventSize() {
+    // VerifiedInputEvent
+    constexpr size_t VERIFIED_INPUT_EVENT_SIZE = sizeof(VerifiedInputEvent::type) +
+            sizeof(VerifiedInputEvent::deviceId) + sizeof(VerifiedInputEvent::eventTimeNanos) +
+            sizeof(VerifiedInputEvent::source) + sizeof(VerifiedInputEvent::displayId);
+    static_assert(sizeof(VerifiedInputEvent) == VERIFIED_INPUT_EVENT_SIZE);
+
+    // VerifiedKeyEvent
+    constexpr size_t VERIFIED_KEY_EVENT_SIZE = VERIFIED_INPUT_EVENT_SIZE +
+            sizeof(VerifiedKeyEvent::action) + sizeof(VerifiedKeyEvent::downTimeNanos) +
+            sizeof(VerifiedKeyEvent::flags) + sizeof(VerifiedKeyEvent::keyCode) +
+            sizeof(VerifiedKeyEvent::scanCode) + sizeof(VerifiedKeyEvent::metaState) +
+            sizeof(VerifiedKeyEvent::repeatCount);
+    static_assert(sizeof(VerifiedKeyEvent) == VERIFIED_KEY_EVENT_SIZE);
+
+    // VerifiedMotionEvent
+    constexpr size_t VERIFIED_MOTION_EVENT_SIZE = VERIFIED_INPUT_EVENT_SIZE +
+            sizeof(VerifiedMotionEvent::rawX) + sizeof(VerifiedMotionEvent::rawY) +
+            sizeof(VerifiedMotionEvent::actionMasked) + sizeof(VerifiedMotionEvent::downTimeNanos) +
+            sizeof(VerifiedMotionEvent::flags) + sizeof(VerifiedMotionEvent::metaState) +
+            sizeof(VerifiedMotionEvent::buttonState);
+    static_assert(sizeof(VerifiedMotionEvent) == VERIFIED_MOTION_EVENT_SIZE);
 }
 
 } // namespace android

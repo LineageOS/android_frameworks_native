@@ -25,9 +25,9 @@
 
 #include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
-#include "ColorLayer.h"
 #include "ContainerLayer.h"
 #include "DisplayDevice.h"
+#include "EffectLayer.h"
 #include "FakePhaseOffsets.h"
 #include "Layer.h"
 #include "NativeWindowSurface.h"
@@ -147,9 +147,7 @@ public:
         return nullptr;
     }
 
-    sp<ColorLayer> createColorLayer(const LayerCreationArgs&) override {
-        return nullptr;
-    }
+    sp<EffectLayer> createEffectLayer(const LayerCreationArgs&) override { return nullptr; }
 
     sp<ContainerLayer> createContainerLayer(const LayerCreationArgs&) override {
         return nullptr;
@@ -316,9 +314,10 @@ public:
 
     auto onMessageReceived(int32_t what) { return mFlinger->onMessageReceived(what); }
 
-    auto captureScreenImplLocked(
-            const RenderArea& renderArea, SurfaceFlinger::TraverseLayersFunction traverseLayers,
-            ANativeWindowBuffer* buffer, bool useIdentityTransform, bool forSystem, int* outSyncFd) {
+    auto captureScreenImplLocked(const RenderArea& renderArea,
+                                 SurfaceFlinger::TraverseLayersFunction traverseLayers,
+                                 const sp<GraphicBuffer>& buffer, bool useIdentityTransform,
+                                 bool forSystem, int* outSyncFd) {
         bool ignored;
         return mFlinger->captureScreenImplLocked(renderArea, traverseLayers, buffer,
                                                  useIdentityTransform, forSystem, outSyncFd,
@@ -545,10 +544,11 @@ public:
     class FakeDisplayDeviceInjector {
     public:
         FakeDisplayDeviceInjector(TestableSurfaceFlinger& flinger,
-                                  const std::optional<DisplayId>& displayId, bool isVirtual,
+                                  std::optional<DisplayId> displayId,
+                                  std::optional<DisplayConnectionType> connectionType,
                                   bool isPrimary)
               : mFlinger(flinger), mCreationArgs(flinger.mFlinger.get(), mDisplayToken, displayId) {
-            mCreationArgs.isVirtual = isVirtual;
+            mCreationArgs.connectionType = connectionType;
             mCreationArgs.isPrimary = isPrimary;
         }
 
@@ -611,7 +611,12 @@ public:
 
         sp<DisplayDevice> inject() {
             DisplayDeviceState state;
-            state.displayId = mCreationArgs.isVirtual ? std::nullopt : mCreationArgs.displayId;
+            if (const auto type = mCreationArgs.connectionType) {
+                const auto id = mCreationArgs.displayId;
+                LOG_ALWAYS_FATAL_IF(!id);
+                state.physical = {*id, *type};
+            }
+
             state.isSecure = mCreationArgs.isSecure;
 
             sp<DisplayDevice> device = new DisplayDevice(std::move(mCreationArgs));
@@ -619,9 +624,8 @@ public:
             mFlinger.mutableCurrentState().displays.add(mDisplayToken, state);
             mFlinger.mutableDrawingState().displays.add(mDisplayToken, state);
 
-            if (!mCreationArgs.isVirtual) {
-                LOG_ALWAYS_FATAL_IF(!state.displayId);
-                mFlinger.mutablePhysicalDisplayTokens()[*state.displayId] = mDisplayToken;
+            if (const auto& physical = state.physical) {
+                mFlinger.mutablePhysicalDisplayTokens()[physical->id] = mDisplayToken;
             }
 
             return device;

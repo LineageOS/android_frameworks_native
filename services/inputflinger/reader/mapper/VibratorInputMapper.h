@@ -23,7 +23,7 @@ namespace android {
 
 class VibratorInputMapper : public InputMapper {
 public:
-    explicit VibratorInputMapper(InputDevice* device);
+    explicit VibratorInputMapper(InputDeviceContext& deviceContext);
     virtual ~VibratorInputMapper();
 
     virtual uint32_t getSources() override;

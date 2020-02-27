@@ -16,12 +16,17 @@
 
 #include "../dispatcher/InputDispatcher.h"
 
+#include <android-base/stringprintf.h>
 #include <binder/Binder.h>
 #include <input/Input.h>
 
 #include <gtest/gtest.h>
 #include <linux/input.h>
+#include <cinttypes>
+#include <unordered_set>
 #include <vector>
+
+using android::base::StringPrintf;
 
 namespace android::inputdispatcher {
 
@@ -42,6 +47,18 @@ struct PointF {
     float x;
     float y;
 };
+
+/**
+ * Return a DOWN key event with KEYCODE_A.
+ */
+static KeyEvent getTestKeyEvent() {
+    KeyEvent event;
+
+    event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE,
+                     INVALID_HMAC, AKEY_EVENT_ACTION_DOWN, 0, AKEYCODE_A, KEY_A, AMETA_NONE, 0,
+                     ARBITRARY_TIME, ARBITRARY_TIME);
+    return event;
+}
 
 // --- FakeInputDispatcherPolicy ---
 
@@ -77,7 +94,7 @@ public:
 
     void assertNotifySwitchWasCalled(const NotifySwitchArgs& args) {
         ASSERT_TRUE(mLastNotifySwitch);
-        // We do not check sequenceNum because it is not exposed to the policy
+        // We do not check id because it is not exposed to the policy
         EXPECT_EQ(args.eventTime, mLastNotifySwitch->eventTime);
         EXPECT_EQ(args.policyFlags, mLastNotifySwitch->policyFlags);
         EXPECT_EQ(args.switchValues, mLastNotifySwitch->switchValues);
@@ -93,6 +110,11 @@ public:
     void assertOnPointerDownWasNotCalled() {
         ASSERT_TRUE(mOnPointerDownToken == nullptr)
                 << "Expected onPointerDownOutsideFocus to not have been called";
+    }
+
+    void setKeyRepeatConfiguration(nsecs_t timeout, nsecs_t delay) {
+        mConfig.keyRepeatTimeout = timeout;
+        mConfig.keyRepeatDelay = delay;
     }
 
 private:
@@ -159,8 +181,7 @@ private:
         /** We simply reconstruct NotifySwitchArgs in policy because InputDispatcher is
          * essentially a passthrough for notifySwitch.
          */
-        mLastNotifySwitch =
-                NotifySwitchArgs(1 /*sequenceNum*/, when, policyFlags, switchValues, switchMask);
+        mLastNotifySwitch = NotifySwitchArgs(1 /*id*/, when, policyFlags, switchValues, switchMask);
     }
 
     virtual void pokeUserActivity(nsecs_t, int32_t) {
@@ -197,6 +218,69 @@ private:
     }
 };
 
+// --- HmacKeyManagerTest ---
+
+class HmacKeyManagerTest : public testing::Test {
+protected:
+    HmacKeyManager mHmacKeyManager;
+};
+
+/**
+ * Ensure that separate calls to sign the same data are generating the same key.
+ * We avoid asserting against INVALID_HMAC. Since the key is random, there is a non-zero chance
+ * that a specific key and data combination would produce INVALID_HMAC, which would cause flaky
+ * tests.
+ */
+TEST_F(HmacKeyManagerTest, GeneratedHmac_IsConsistent) {
+    KeyEvent event = getTestKeyEvent();
+    VerifiedKeyEvent verifiedEvent = verifiedKeyEventFromKeyEvent(event);
+
+    std::array<uint8_t, 32> hmac1 = mHmacKeyManager.sign(verifiedEvent);
+    std::array<uint8_t, 32> hmac2 = mHmacKeyManager.sign(verifiedEvent);
+    ASSERT_EQ(hmac1, hmac2);
+}
+
+/**
+ * Ensure that changes in VerifiedKeyEvent produce a different hmac.
+ */
+TEST_F(HmacKeyManagerTest, GeneratedHmac_ChangesWhenFieldsChange) {
+    KeyEvent event = getTestKeyEvent();
+    VerifiedKeyEvent verifiedEvent = verifiedKeyEventFromKeyEvent(event);
+    std::array<uint8_t, 32> initialHmac = mHmacKeyManager.sign(verifiedEvent);
+
+    verifiedEvent.deviceId += 1;
+    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
+
+    verifiedEvent.source += 1;
+    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
+
+    verifiedEvent.eventTimeNanos += 1;
+    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
+
+    verifiedEvent.displayId += 1;
+    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
+
+    verifiedEvent.action += 1;
+    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
+
+    verifiedEvent.downTimeNanos += 1;
+    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
+
+    verifiedEvent.flags += 1;
+    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
+
+    verifiedEvent.keyCode += 1;
+    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
+
+    verifiedEvent.scanCode += 1;
+    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
+
+    verifiedEvent.metaState += 1;
+    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
+
+    verifiedEvent.repeatCount += 1;
+    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
+}
 
 // --- InputDispatcherTest ---
 
@@ -225,7 +309,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesKeyEvents) {
     KeyEvent event;
 
     // Rejects undefined key actions.
-    event.initialize(DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE, INVALID_HMAC,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE,
+                     INVALID_HMAC,
                      /*action*/ -1, 0, AKEYCODE_A, KEY_A, AMETA_NONE, 0, ARBITRARY_TIME,
                      ARBITRARY_TIME);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED, mDispatcher->injectInputEvent(
@@ -234,8 +319,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesKeyEvents) {
             << "Should reject key events with undefined action.";
 
     // Rejects ACTION_MULTIPLE since it is not supported despite being defined in the API.
-    event.initialize(DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE, INVALID_HMAC,
-                     AKEY_EVENT_ACTION_MULTIPLE, 0, AKEYCODE_A, KEY_A, AMETA_NONE, 0,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE,
+                     INVALID_HMAC, AKEY_EVENT_ACTION_MULTIPLE, 0, AKEYCODE_A, KEY_A, AMETA_NONE, 0,
                      ARBITRARY_TIME, ARBITRARY_TIME);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED, mDispatcher->injectInputEvent(
             &event,
@@ -260,7 +345,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     constexpr MotionClassification classification = MotionClassification::NONE;
 
     // Rejects undefined motion actions.
-    event.initialize(DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      /*action*/ -1, 0, 0, edgeFlags, metaState, 0, classification, 1 /* xScale */,
                      1 /* yScale */, 0, 0, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
@@ -271,7 +356,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
             << "Should reject motion events with undefined action.";
 
     // Rejects pointer down with invalid index.
-    event.initialize(DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_POINTER_DOWN |
                              (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                      0, 0, edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */,
@@ -283,7 +368,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
             INJECTOR_PID, INJECTOR_UID, INPUT_EVENT_INJECTION_SYNC_NONE, 0, 0))
             << "Should reject motion events with pointer down index too large.";
 
-    event.initialize(DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_POINTER_DOWN |
                              (~0U << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                      0, 0, edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */,
@@ -296,7 +381,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
             << "Should reject motion events with pointer down index too small.";
 
     // Rejects pointer up with invalid index.
-    event.initialize(DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_POINTER_UP |
                              (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                      0, 0, edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */,
@@ -308,7 +393,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
             INJECTOR_PID, INJECTOR_UID, INPUT_EVENT_INJECTION_SYNC_NONE, 0, 0))
             << "Should reject motion events with pointer up index too large.";
 
-    event.initialize(DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_POINTER_UP |
                              (~0U << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                      0, 0, edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */,
@@ -321,20 +406,22 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
             << "Should reject motion events with pointer up index too small.";
 
     // Rejects motion events with invalid number of pointers.
-    event.initialize(DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0, 0,
-                     edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */, 0, 0,
-                     0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
+                     AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
+                     1 /* xScale */, 1 /* yScale */, 0, 0, 0, 0,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 0, pointerProperties, pointerCoords);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED, mDispatcher->injectInputEvent(
             &event,
             INJECTOR_PID, INJECTOR_UID, INPUT_EVENT_INJECTION_SYNC_NONE, 0, 0))
             << "Should reject motion events with 0 pointers.";
 
-    event.initialize(DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0, 0,
-                     edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */, 0, 0,
-                     0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
+                     AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
+                     1 /* xScale */, 1 /* yScale */, 0, 0, 0, 0,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ MAX_POINTERS + 1, pointerProperties, pointerCoords);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED, mDispatcher->injectInputEvent(
             &event,
@@ -343,10 +430,11 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
 
     // Rejects motion events with invalid pointer ids.
     pointerProperties[0].id = -1;
-    event.initialize(DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0, 0,
-                     edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */, 0, 0,
-                     0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
+                     AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
+                     1 /* xScale */, 1 /* yScale */, 0, 0, 0, 0,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED, mDispatcher->injectInputEvent(
             &event,
@@ -354,10 +442,11 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
             << "Should reject motion events with pointer ids less than 0.";
 
     pointerProperties[0].id = MAX_POINTER_ID + 1;
-    event.initialize(DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0, 0,
-                     edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */, 0, 0,
-                     0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
+                     AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
+                     1 /* xScale */, 1 /* yScale */, 0, 0, 0, 0,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED, mDispatcher->injectInputEvent(
             &event,
@@ -367,10 +456,11 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     // Rejects motion events with duplicate pointer ids.
     pointerProperties[0].id = 1;
     pointerProperties[1].id = 1;
-    event.initialize(DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0, 0,
-                     edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */, 0, 0,
-                     0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
+                     AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
+                     1 /* xScale */, 1 /* yScale */, 0, 0, 0, 0,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 2, pointerProperties, pointerCoords);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED, mDispatcher->injectInputEvent(
             &event,
@@ -382,7 +472,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
 
 TEST_F(InputDispatcherTest, NotifyConfigurationChanged_CallsPolicy) {
     constexpr nsecs_t eventTime = 20;
-    NotifyConfigurationChangedArgs args(10 /*sequenceNum*/, eventTime);
+    NotifyConfigurationChangedArgs args(10 /*id*/, eventTime);
     mDispatcher->notifyConfigurationChanged(&args);
     ASSERT_TRUE(mDispatcher->waitForIdle());
 
@@ -390,8 +480,8 @@ TEST_F(InputDispatcherTest, NotifyConfigurationChanged_CallsPolicy) {
 }
 
 TEST_F(InputDispatcherTest, NotifySwitch_CallsPolicy) {
-    NotifySwitchArgs args(10 /*sequenceNum*/, 20 /*eventTime*/, 0 /*policyFlags*/,
-                          1 /*switchValues*/, 2 /*switchMask*/);
+    NotifySwitchArgs args(10 /*id*/, 20 /*eventTime*/, 0 /*policyFlags*/, 1 /*switchValues*/,
+                          2 /*switchMask*/);
     mDispatcher->notifySwitch(&args);
 
     // InputDispatcher adds POLICY_FLAG_TRUSTED because the event went through InputListener
@@ -673,8 +763,9 @@ static int32_t injectKeyDown(const sp<InputDispatcher>& dispatcher,
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
 
     // Define a valid key down event.
-    event.initialize(DEVICE_ID, AINPUT_SOURCE_KEYBOARD, displayId, INVALID_HMAC,
-                     AKEY_EVENT_ACTION_DOWN, /* flags */ 0, AKEYCODE_A, KEY_A, AMETA_NONE,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_KEYBOARD, displayId,
+                     INVALID_HMAC, AKEY_EVENT_ACTION_DOWN, /* flags */ 0, AKEYCODE_A, KEY_A,
+                     AMETA_NONE,
                      /* repeatCount */ 0, currentTime, currentTime);
 
     // Inject event until dispatch out.
@@ -702,7 +793,8 @@ static int32_t injectMotionEvent(const sp<InputDispatcher>& dispatcher, int32_t 
 
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
     // Define a valid motion down event.
-    event.initialize(DEVICE_ID, source, displayId, INVALID_HMAC, action, /* actionButton */ 0,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, source, displayId, INVALID_HMAC, action,
+                     /* actionButton */ 0,
                      /* flags */ 0,
                      /* edgeFlags */ 0, AMETA_NONE, /* buttonState */ 0, MotionClassification::NONE,
                      /* xScale */ 1, /* yScale */ 1, /* xOffset */ 0, /* yOffset */ 0,
@@ -730,9 +822,9 @@ static int32_t injectMotionUp(const sp<InputDispatcher>& dispatcher, int32_t sou
 static NotifyKeyArgs generateKeyArgs(int32_t action, int32_t displayId = ADISPLAY_ID_NONE) {
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
     // Define a valid key event.
-    NotifyKeyArgs args(/* sequenceNum */ 0, currentTime, DEVICE_ID, AINPUT_SOURCE_KEYBOARD,
-            displayId, POLICY_FLAG_PASS_TO_USER, action, /* flags */ 0,
-            AKEYCODE_A, KEY_A, AMETA_NONE, currentTime);
+    NotifyKeyArgs args(/* id */ 0, currentTime, DEVICE_ID, AINPUT_SOURCE_KEYBOARD, displayId,
+                       POLICY_FLAG_PASS_TO_USER, action, /* flags */ 0, AKEYCODE_A, KEY_A,
+                       AMETA_NONE, currentTime);
 
     return args;
 }
@@ -759,7 +851,7 @@ static NotifyMotionArgs generateMotionArgs(int32_t action, int32_t source, int32
 
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
     // Define a valid motion event.
-    NotifyMotionArgs args(/* sequenceNum */ 0, currentTime, DEVICE_ID, source, displayId,
+    NotifyMotionArgs args(/* id */ 0, currentTime, DEVICE_ID, source, displayId,
                           POLICY_FLAG_PASS_TO_USER, action, /* actionButton */ 0, /* flags */ 0,
                           AMETA_NONE, /* buttonState */ 0, MotionClassification::NONE,
                           AMOTION_EVENT_EDGE_FLAG_NONE, pointerCount, pointerProperties,
@@ -922,7 +1014,7 @@ TEST_F(InputDispatcherTest, NotifyDeviceReset_CancelsKeyStream) {
 
     // When device reset happens, that key stream should be terminated with FLAG_CANCELED
     // on the app side.
-    NotifyDeviceResetArgs args(10 /*sequenceNum*/, 20 /*eventTime*/, DEVICE_ID);
+    NotifyDeviceResetArgs args(10 /*id*/, 20 /*eventTime*/, DEVICE_ID);
     mDispatcher->notifyDeviceReset(&args);
     window->consumeEvent(AINPUT_EVENT_TYPE_KEY, AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT,
                          AKEY_EVENT_FLAG_CANCELED);
@@ -945,7 +1037,7 @@ TEST_F(InputDispatcherTest, NotifyDeviceReset_CancelsMotionStream) {
 
     // When device reset happens, that motion stream should be terminated with ACTION_CANCEL
     // on the app side.
-    NotifyDeviceResetArgs args(10 /*sequenceNum*/, 20 /*eventTime*/, DEVICE_ID);
+    NotifyDeviceResetArgs args(10 /*id*/, 20 /*eventTime*/, DEVICE_ID);
     mDispatcher->notifyDeviceReset(&args);
     window->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_CANCEL, ADISPLAY_ID_DEFAULT,
                          0 /*expectedFlags*/);
@@ -1270,7 +1362,7 @@ TEST_F(InputDispatcherTest, TestMoveEvent) {
     window->consumeMotionDown(ADISPLAY_ID_DEFAULT);
 
     motionArgs.action = AMOTION_EVENT_ACTION_MOVE;
-    motionArgs.sequenceNum += 1;
+    motionArgs.id += 1;
     motionArgs.eventTime = systemTime(SYSTEM_TIME_MONOTONIC);
     motionArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X,
                                              motionArgs.pointerCoords[0].getX() - 10);
@@ -1321,6 +1413,143 @@ TEST_F(InputDispatcherTest, TouchModeState_IsSentToApps) {
     window->consumeFocusEvent(true /*hasFocus*/, true /*inTouchMode*/);
 
     window->assertNoEvents();
+}
+
+TEST_F(InputDispatcherTest, VerifyInputEvent_KeyEvent) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Test window", ADISPLAY_ID_DEFAULT);
+
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+    window->setFocus(true);
+
+    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    window->consumeFocusEvent(true /*hasFocus*/, true /*inTouchMode*/);
+
+    NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN);
+    mDispatcher->notifyKey(&keyArgs);
+
+    InputEvent* event = window->consume();
+    ASSERT_NE(event, nullptr);
+
+    std::unique_ptr<VerifiedInputEvent> verified = mDispatcher->verifyInputEvent(*event);
+    ASSERT_NE(verified, nullptr);
+    ASSERT_EQ(verified->type, VerifiedInputEvent::Type::KEY);
+
+    ASSERT_EQ(keyArgs.eventTime, verified->eventTimeNanos);
+    ASSERT_EQ(keyArgs.deviceId, verified->deviceId);
+    ASSERT_EQ(keyArgs.source, verified->source);
+    ASSERT_EQ(keyArgs.displayId, verified->displayId);
+
+    const VerifiedKeyEvent& verifiedKey = static_cast<const VerifiedKeyEvent&>(*verified);
+
+    ASSERT_EQ(keyArgs.action, verifiedKey.action);
+    ASSERT_EQ(keyArgs.downTime, verifiedKey.downTimeNanos);
+    ASSERT_EQ(keyArgs.eventTime, verifiedKey.eventTimeNanos);
+    ASSERT_EQ(keyArgs.flags & VERIFIED_KEY_EVENT_FLAGS, verifiedKey.flags);
+    ASSERT_EQ(keyArgs.keyCode, verifiedKey.keyCode);
+    ASSERT_EQ(keyArgs.scanCode, verifiedKey.scanCode);
+    ASSERT_EQ(keyArgs.metaState, verifiedKey.metaState);
+    ASSERT_EQ(0, verifiedKey.repeatCount);
+}
+
+class InputDispatcherKeyRepeatTest : public InputDispatcherTest {
+protected:
+    static constexpr nsecs_t KEY_REPEAT_TIMEOUT = 40 * 1000000; // 40 ms
+    static constexpr nsecs_t KEY_REPEAT_DELAY = 40 * 1000000;   // 40 ms
+
+    sp<FakeApplicationHandle> mApp;
+    sp<FakeWindowHandle> mWindow;
+
+    virtual void SetUp() override {
+        mFakePolicy = new FakeInputDispatcherPolicy();
+        mFakePolicy->setKeyRepeatConfiguration(KEY_REPEAT_TIMEOUT, KEY_REPEAT_DELAY);
+        mDispatcher = new InputDispatcher(mFakePolicy);
+        mDispatcher->setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
+        ASSERT_EQ(OK, mDispatcher->start());
+
+        setUpWindow();
+    }
+
+    void setUpWindow() {
+        mApp = new FakeApplicationHandle();
+        mWindow = new FakeWindowHandle(mApp, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
+
+        mWindow->setFocus(true);
+        mDispatcher->setInputWindows({mWindow}, ADISPLAY_ID_DEFAULT);
+
+        mWindow->consumeFocusEvent(true);
+    }
+
+    void sendAndConsumeKeyDown() {
+        NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN, ADISPLAY_ID_DEFAULT);
+        keyArgs.policyFlags |= POLICY_FLAG_TRUSTED; // Otherwise it won't generate repeat event
+        mDispatcher->notifyKey(&keyArgs);
+
+        // Window should receive key down event.
+        mWindow->consumeKeyDown(ADISPLAY_ID_DEFAULT);
+    }
+
+    void expectKeyRepeatOnce(int32_t repeatCount) {
+        SCOPED_TRACE(StringPrintf("Checking event with repeat count %" PRId32, repeatCount));
+        InputEvent* repeatEvent = mWindow->consume();
+        ASSERT_NE(nullptr, repeatEvent);
+
+        uint32_t eventType = repeatEvent->getType();
+        ASSERT_EQ(AINPUT_EVENT_TYPE_KEY, eventType);
+
+        KeyEvent* repeatKeyEvent = static_cast<KeyEvent*>(repeatEvent);
+        uint32_t eventAction = repeatKeyEvent->getAction();
+        EXPECT_EQ(AKEY_EVENT_ACTION_DOWN, eventAction);
+        EXPECT_EQ(repeatCount, repeatKeyEvent->getRepeatCount());
+    }
+
+    void sendAndConsumeKeyUp() {
+        NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT);
+        keyArgs.policyFlags |= POLICY_FLAG_TRUSTED; // Unless it won't generate repeat event
+        mDispatcher->notifyKey(&keyArgs);
+
+        // Window should receive key down event.
+        mWindow->consumeEvent(AINPUT_EVENT_TYPE_KEY, AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT,
+                              0 /*expectedFlags*/);
+    }
+};
+
+TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_ReceivesKeyRepeat) {
+    sendAndConsumeKeyDown();
+    for (int32_t repeatCount = 1; repeatCount <= 10; ++repeatCount) {
+        expectKeyRepeatOnce(repeatCount);
+    }
+}
+
+TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_StopsKeyRepeatAfterUp) {
+    sendAndConsumeKeyDown();
+    expectKeyRepeatOnce(1 /*repeatCount*/);
+    sendAndConsumeKeyUp();
+    mWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_RepeatKeyEventsUseEventIdFromInputDispatcher) {
+    sendAndConsumeKeyDown();
+    for (int32_t repeatCount = 1; repeatCount <= 10; ++repeatCount) {
+        InputEvent* repeatEvent = mWindow->consume();
+        ASSERT_NE(nullptr, repeatEvent) << "Didn't receive event with repeat count " << repeatCount;
+        EXPECT_EQ(IdGenerator::Source::INPUT_DISPATCHER,
+                  IdGenerator::getSource(repeatEvent->getId()));
+    }
+}
+
+TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_RepeatKeyEventsUseUniqueEventId) {
+    sendAndConsumeKeyDown();
+
+    std::unordered_set<int32_t> idSet;
+    for (int32_t repeatCount = 1; repeatCount <= 10; ++repeatCount) {
+        InputEvent* repeatEvent = mWindow->consume();
+        ASSERT_NE(nullptr, repeatEvent) << "Didn't receive event with repeat count " << repeatCount;
+        int32_t id = repeatEvent->getId();
+        EXPECT_EQ(idSet.end(), idSet.find(id));
+        idSet.insert(id);
+    }
 }
 
 /* Test InputDispatcher for MultiDisplay */

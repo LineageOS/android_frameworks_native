@@ -203,8 +203,9 @@ static MotionEvent generateMotionEvent() {
     const nsecs_t currentTime = now();
 
     MotionEvent event;
-    event.initialize(DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT, INVALID_HMAC,
-                     AMOTION_EVENT_ACTION_DOWN, /* actionButton */ 0, /* flags */ 0,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN,
+                     ADISPLAY_ID_DEFAULT, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN,
+                     /* actionButton */ 0, /* flags */ 0,
                      /* edgeFlags */ 0, AMETA_NONE, /* buttonState */ 0, MotionClassification::NONE,
                      1 /* xScale */, 1 /* yScale */,
                      /* xOffset */ 0, /* yOffset */ 0, /* xPrecision */ 0,
@@ -228,7 +229,7 @@ static NotifyMotionArgs generateMotionArgs() {
 
     const nsecs_t currentTime = now();
     // Define a valid motion event.
-    NotifyMotionArgs args(/* sequenceNum */ 0, currentTime, DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN,
+    NotifyMotionArgs args(/* id */ 0, currentTime, DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN,
                           ADISPLAY_ID_DEFAULT, POLICY_FLAG_PASS_TO_USER, AMOTION_EVENT_ACTION_DOWN,
                           /* actionButton */ 0, /* flags */ 0, AMETA_NONE, /* buttonState */ 0,
                           MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,
@@ -258,14 +259,14 @@ static void benchmarkNotifyMotion(benchmark::State& state) {
     for (auto _ : state) {
         // Send ACTION_DOWN
         motionArgs.action = AMOTION_EVENT_ACTION_DOWN;
-        motionArgs.sequenceNum = 0;
+        motionArgs.id = 0;
         motionArgs.downTime = now();
         motionArgs.eventTime = motionArgs.downTime;
         dispatcher->notifyMotion(&motionArgs);
 
         // Send ACTION_UP
         motionArgs.action = AMOTION_EVENT_ACTION_UP;
-        motionArgs.sequenceNum = 1;
+        motionArgs.id = 1;
         motionArgs.eventTime = now();
         dispatcher->notifyMotion(&motionArgs);
 

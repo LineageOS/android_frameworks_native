@@ -16,13 +16,13 @@
 
 #pragma once
 
+#include <cutils/compiler.h>
+#include <utils/StrongPointer.h>
+
 #include <cinttypes>
 #include <functional>
 #include <memory>
 #include <string>
-
-#include <cutils/compiler.h>
-#include <utils/StrongPointer.h>
 
 namespace android {
 
@@ -31,7 +31,7 @@ typedef int32_t PixelFormat;
 class BufferQueueLayer;
 class BufferStateLayer;
 class BufferLayerConsumer;
-class ColorLayer;
+class EffectLayer;
 class ContainerLayer;
 class DisplayDevice;
 class DispSync;
@@ -104,7 +104,7 @@ public:
 
     virtual sp<BufferQueueLayer> createBufferQueueLayer(const LayerCreationArgs& args) = 0;
     virtual sp<BufferStateLayer> createBufferStateLayer(const LayerCreationArgs& args) = 0;
-    virtual sp<ColorLayer> createColorLayer(const LayerCreationArgs& args) = 0;
+    virtual sp<EffectLayer> createEffectLayer(const LayerCreationArgs& args) = 0;
     virtual sp<ContainerLayer> createContainerLayer(const LayerCreationArgs& args) = 0;
 
 protected:

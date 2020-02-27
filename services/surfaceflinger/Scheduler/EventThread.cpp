@@ -335,6 +335,11 @@ void EventThread::onConfigChanged(PhysicalDisplayId displayId, HwcConfigIndexTyp
     mCondition.notify_all();
 }
 
+size_t EventThread::getEventThreadConnectionCount() {
+    std::lock_guard<std::mutex> lock(mMutex);
+    return mDisplayEventConnections.size();
+}
+
 void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
     DisplayEventConsumers consumers;
 

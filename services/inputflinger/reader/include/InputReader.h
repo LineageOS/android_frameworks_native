@@ -23,6 +23,7 @@
 #include "InputReaderContext.h"
 #include "InputThread.h"
 
+#include <PointerControllerInterface.h>
 #include <utils/Condition.h>
 #include <utils/Mutex.h>
 
@@ -84,9 +85,8 @@ public:
 
 protected:
     // These members are protected so they can be instrumented by test cases.
-    virtual InputDevice* createDeviceLocked(int32_t deviceId, int32_t controllerNumber,
-                                            const InputDeviceIdentifier& identifier,
-                                            uint32_t classes);
+    virtual std::shared_ptr<InputDevice> createDeviceLocked(
+            int32_t deviceId, const InputDeviceIdentifier& identifier);
 
     // With each iteration of the loop, InputReader reads and processes one incoming message from
     // the EventHub.
@@ -94,6 +94,7 @@ protected:
 
     class ContextImpl : public InputReaderContext {
         InputReader* mReader;
+        IdGenerator mIdGenerator;
 
     public:
         explicit ContextImpl(InputReader* reader);
@@ -101,9 +102,9 @@ protected:
         virtual void updateGlobalMetaState() override;
         virtual int32_t getGlobalMetaState() override;
         virtual void disableVirtualKeysUntil(nsecs_t time) override;
-        virtual bool shouldDropVirtualKey(nsecs_t now, InputDevice* device, int32_t keyCode,
-                                          int32_t scanCode) override;
+        virtual bool shouldDropVirtualKey(nsecs_t now, int32_t keyCode, int32_t scanCode) override;
         virtual void fadePointer() override;
+        virtual sp<PointerControllerInterface> getPointerController(int32_t deviceId) override;
         virtual void requestTimeoutAtTime(nsecs_t when) override;
         virtual int32_t bumpGeneration() override;
         virtual void getExternalStylusDevices(std::vector<InputDeviceInfo>& outDevices) override;
@@ -111,7 +112,7 @@ protected:
         virtual InputReaderPolicyInterface* getPolicy() override;
         virtual InputListenerInterface* getListener() override;
         virtual EventHubInterface* getEventHub() override;
-        virtual uint32_t getNextSequenceNum() override;
+        virtual int32_t getNextId() override;
     } mContext;
 
     friend class ContextImpl;
@@ -132,21 +133,20 @@ private:
 
     InputReaderConfiguration mConfig;
 
-    // used by InputReaderContext::getNextSequenceNum() as a counter for event sequence numbers
-    uint32_t mNextSequenceNum;
-
     // The event queue.
     static const int EVENT_BUFFER_SIZE = 256;
     RawEvent mEventBuffer[EVENT_BUFFER_SIZE];
 
-    std::unordered_map<int32_t /*deviceId*/, InputDevice*> mDevices;
+    // An input device can represent a collection of EventHub devices. This map provides a way
+    // to lookup the input device instance from the EventHub device id.
+    std::unordered_map<int32_t /*eventHubId*/, std::shared_ptr<InputDevice>> mDevices;
 
     // low-level input event decoding and device management
     void processEventsLocked(const RawEvent* rawEvents, size_t count);
 
-    void addDeviceLocked(nsecs_t when, int32_t deviceId);
-    void removeDeviceLocked(nsecs_t when, int32_t deviceId);
-    void processEventsForDeviceLocked(int32_t deviceId, const RawEvent* rawEvents, size_t count);
+    void addDeviceLocked(nsecs_t when, int32_t eventHubId);
+    void removeDeviceLocked(nsecs_t when, int32_t eventHubId);
+    void processEventsForDeviceLocked(int32_t eventHubId, const RawEvent* rawEvents, size_t count);
     void timeoutExpiredLocked(nsecs_t when);
 
     void handleConfigurationChangedLocked(nsecs_t when);
@@ -159,17 +159,23 @@ private:
     void getExternalStylusDevicesLocked(std::vector<InputDeviceInfo>& outDevices);
     void dispatchExternalStylusState(const StylusState& state);
 
+    // The PointerController that is shared among all the input devices that need it.
+    wp<PointerControllerInterface> mPointerController;
+    sp<PointerControllerInterface> getPointerControllerLocked(int32_t deviceId);
+    void updatePointerDisplayLocked();
     void fadePointerLocked();
 
     int32_t mGeneration;
     int32_t bumpGenerationLocked();
 
+    int32_t mNextInputDeviceId;
+    int32_t nextInputDeviceIdLocked();
+
     void getInputDevicesLocked(std::vector<InputDeviceInfo>& outInputDevices);
 
     nsecs_t mDisableVirtualKeysTimeout;
     void disableVirtualKeysUntilLocked(nsecs_t time);
-    bool shouldDropVirtualKeyLocked(nsecs_t now, InputDevice* device, int32_t keyCode,
-                                    int32_t scanCode);
+    bool shouldDropVirtualKeyLocked(nsecs_t now, int32_t keyCode, int32_t scanCode);
 
     nsecs_t mNextTimeout;
     void requestTimeoutAtTimeLocked(nsecs_t when);
@@ -183,6 +189,9 @@ private:
                            GetStateFunc getStateFunc);
     bool markSupportedKeyCodesLocked(int32_t deviceId, uint32_t sourceMask, size_t numCodes,
                                      const int32_t* keyCodes, uint8_t* outFlags);
+
+    // find an InputDevice from an InputDevice id
+    InputDevice* findInputDevice(int32_t deviceId);
 };
 
 } // namespace android

@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
+#ifndef NO_BINDER
 #include <binder/IPCThreadState.h>
 #include <binderthreadstate/CallerUtils.h>
+#endif // NO_BINDER
 #include <hwbinder/IPCThreadState.h>
 #include <private/gui/BufferQueueThreadState.h>
 #include <unistd.h>
@@ -23,17 +25,25 @@
 namespace android {
 
 uid_t BufferQueueThreadState::getCallingUid() {
+#ifndef NO_BINDER
     if (getCurrentServingCall() == BinderCallType::HWBINDER) {
         return hardware::IPCThreadState::self()->getCallingUid();
     }
     return IPCThreadState::self()->getCallingUid();
+#else // NO_BINDER
+    return hardware::IPCThreadState::self()->getCallingUid();
+#endif // NO_BINDER
 }
 
 pid_t BufferQueueThreadState::getCallingPid() {
+#ifndef NO_BINDER
     if (getCurrentServingCall() == BinderCallType::HWBINDER) {
         return hardware::IPCThreadState::self()->getCallingPid();
     }
     return IPCThreadState::self()->getCallingPid();
+#else // NO_BINDER
+    return hardware::IPCThreadState::self()->getCallingPid();
+#endif // NO_BINDER
 }
 
 } // namespace android

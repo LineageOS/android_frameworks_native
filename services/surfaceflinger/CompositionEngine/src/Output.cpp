@@ -774,7 +774,7 @@ void Output::devOptRepaintFlash(const compositionengine::CompositionRefreshArgs&
         if (!dirtyRegion.isEmpty()) {
             base::unique_fd readyFence;
             // redraw the whole screen
-            static_cast<void>(composeSurfaces(dirtyRegion));
+            static_cast<void>(composeSurfaces(dirtyRegion, refreshArgs));
 
             mRenderSurface->queueBuffer(std::move(readyFence));
         }
@@ -787,7 +787,7 @@ void Output::devOptRepaintFlash(const compositionengine::CompositionRefreshArgs&
     prepareFrame();
 }
 
-void Output::finishFrame(const compositionengine::CompositionRefreshArgs&) {
+void Output::finishFrame(const compositionengine::CompositionRefreshArgs& refreshArgs) {
     ATRACE_CALL();
     ALOGV(__FUNCTION__);
 
@@ -797,7 +797,7 @@ void Output::finishFrame(const compositionengine::CompositionRefreshArgs&) {
 
     // Repaint the framebuffer (if needed), getting the optional fence for when
     // the composition completes.
-    auto optReadyFence = composeSurfaces(Region::INVALID_REGION);
+    auto optReadyFence = composeSurfaces(Region::INVALID_REGION, refreshArgs);
     if (!optReadyFence) {
         return;
     }
@@ -806,7 +806,8 @@ void Output::finishFrame(const compositionengine::CompositionRefreshArgs&) {
     mRenderSurface->queueBuffer(std::move(*optReadyFence));
 }
 
-std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion) {
+std::optional<base::unique_fd> Output::composeSurfaces(
+        const Region& debugRegion, const compositionengine::CompositionRefreshArgs& refreshArgs) {
     ATRACE_CALL();
     ALOGV(__FUNCTION__);
 
@@ -894,8 +895,10 @@ std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion
     // or complex GPU shaders and it's expensive. We boost the GPU frequency so that
     // GPU composition can finish in time. We must reset GPU frequency afterwards,
     // because high frequency consumes extra battery.
+    const bool expensiveBlurs =
+            refreshArgs.blursAreExpensive && mLayerRequestingBackgroundBlur != nullptr;
     const bool expensiveRenderingExpected =
-            clientCompositionDisplay.outputDataspace == ui::Dataspace::DISPLAY_P3;
+            clientCompositionDisplay.outputDataspace == ui::Dataspace::DISPLAY_P3 || expensiveBlurs;
     if (expensiveRenderingExpected) {
         setExpensiveRenderingExpected(true);
     }
@@ -910,9 +913,8 @@ std::optional<base::unique_fd> Output::composeSurfaces(const Region& debugRegion
 
     const nsecs_t renderEngineStart = systemTime();
     status_t status =
-            renderEngine.drawLayers(clientCompositionDisplay, clientCompositionLayerPointers,
-                                    buf->getNativeBuffer(), /*useFramebufferCache=*/true,
-                                    std::move(fd), &readyFence);
+            renderEngine.drawLayers(clientCompositionDisplay, clientCompositionLayerPointers, buf,
+                                    /*useFramebufferCache=*/true, std::move(fd), &readyFence);
 
     if (status != NO_ERROR && mClientCompositionRequestCache) {
         // If rendering was not successful, remove the request from the cache.
@@ -963,10 +965,15 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
         // rectangle, as by definition the layer must blend with whatever is
         // underneath. We also skip the first layer as the buffer target is
         // guaranteed to start out cleared.
-        bool clearClientComposition =
+        const bool clearClientComposition =
                 layerState.clearClientTarget && layerFEState->isOpaque && !firstLayer;
 
         ALOGV("  Composition type: client %d clear %d", clientComposition, clearClientComposition);
+
+        // If the layer casts a shadow but the content casting the shadow is occluded, skip
+        // composing the non-shadow content and only draw the shadows.
+        const bool realContentIsVisible = clientComposition &&
+                !layerState.visibleRegion.subtract(layerState.shadowRegion).isEmpty();
 
         if (clientComposition || clearClientComposition) {
             compositionengine::LayerFE::ClientCompositionTargetSettings targetSettings{
@@ -976,35 +983,21 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
                     outputState.isSecure,
                     supportsProtectedContent,
                     clientComposition ? clearRegion : dummyRegion,
+                    outputState.viewport,
+                    outputDataspace,
+                    realContentIsVisible,
+                    !clientComposition, /* clearContent  */
             };
-            if (std::optional<LayerFE::LayerSettings> result =
-                        layerFE.prepareClientComposition(targetSettings)) {
-                if (!clientComposition) {
-                    LayerFE::LayerSettings& layerSettings = *result;
-                    layerSettings.source.buffer.buffer = nullptr;
-                    layerSettings.source.solidColor = half3(0.0, 0.0, 0.0);
-                    layerSettings.alpha = half(0.0);
-                    layerSettings.disableBlending = true;
-                    layerSettings.frameNumber = 0;
-                } else {
-                    std::optional<LayerFE::LayerSettings> shadowLayer =
-                            layerFE.prepareShadowClientComposition(*result, outputState.viewport,
-                                                                   outputDataspace);
-                    if (shadowLayer) {
-                        clientCompositionLayers.push_back(*shadowLayer);
-                    }
-                }
-
-                // If the layer casts a shadow but the content casting the shadow is occluded, skip
-                // composing the non-shadow content and only draw the shadows.
-                const bool skipNonShadowContentComposition = clientComposition &&
-                        layerState.visibleRegion.subtract(layerState.shadowRegion).isEmpty();
-
-                if (!skipNonShadowContentComposition) {
-                    layer->editState().clientCompositionTimestamp = systemTime();
-                    clientCompositionLayers.push_back(*result);
-                }
+            std::vector<LayerFE::LayerSettings> results =
+                    layerFE.prepareClientCompositionList(targetSettings);
+            if (realContentIsVisible && !results.empty()) {
+                layer->editState().clientCompositionTimestamp = systemTime();
             }
+
+            clientCompositionLayers.insert(clientCompositionLayers.end(),
+                                           std::make_move_iterator(results.begin()),
+                                           std::make_move_iterator(results.end()));
+            results.clear();
         }
 
         firstLayer = false;

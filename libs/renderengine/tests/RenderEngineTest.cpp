@@ -252,8 +252,8 @@ struct RenderEngineTest : public ::testing::Test {
                     std::vector<const renderengine::LayerSettings*> layers,
                     sp<GraphicBuffer> buffer) {
         base::unique_fd fence;
-        status_t status = sRE->drawLayers(settings, layers, buffer->getNativeBuffer(), true,
-                                          base::unique_fd(), &fence);
+        status_t status =
+                sRE->drawLayers(settings, layers, buffer, true, base::unique_fd(), &fence);
         sCurrentBuffer = buffer;
 
         int fd = fence.release();
@@ -1008,8 +1008,7 @@ TEST_F(RenderEngineTest, drawLayers_nullOutputFence) {
     layer.alpha = 1.0;
     layers.push_back(&layer);
 
-    status_t status = sRE->drawLayers(settings, layers, mBuffer->getNativeBuffer(), true,
-                                      base::unique_fd(), nullptr);
+    status_t status = sRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd(), nullptr);
     sCurrentBuffer = mBuffer;
     ASSERT_EQ(NO_ERROR, status);
     expectBufferColor(fullscreenRect(), 255, 0, 0, 255);
@@ -1027,8 +1026,7 @@ TEST_F(RenderEngineTest, drawLayers_doesNotCacheFramebuffer) {
     layer.alpha = 1.0;
     layers.push_back(&layer);
 
-    status_t status = sRE->drawLayers(settings, layers, mBuffer->getNativeBuffer(), false,
-                                      base::unique_fd(), nullptr);
+    status_t status = sRE->drawLayers(settings, layers, mBuffer, false, base::unique_fd(), nullptr);
     sCurrentBuffer = mBuffer;
     ASSERT_EQ(NO_ERROR, status);
     ASSERT_FALSE(sRE->isFramebufferImageCachedForTesting(mBuffer->getId()));

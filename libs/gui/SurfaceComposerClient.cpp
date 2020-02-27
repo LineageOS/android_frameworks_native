@@ -526,21 +526,6 @@ void SurfaceComposerClient::Transaction::clear() {
     mDesiredPresentTime = -1;
 }
 
-void SurfaceComposerClient::doDropReferenceTransaction(const sp<IBinder>& handle) {
-    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-    Vector<ComposerState> composerStates;
-    Vector<DisplayState> displayStates;
-
-    ComposerState s;
-    s.state.surface = handle;
-    s.state.what |= layer_state_t::eReparent;
-    s.state.parentHandleForChild = nullptr;
-
-    composerStates.add(s);
-    sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
-    sf->setTransactionState(composerStates, displayStates, 0, applyToken, {}, -1, {}, false, {});
-}
-
 void SurfaceComposerClient::doUncacheBufferTransaction(uint64_t cacheId) {
     sp<ISurfaceComposer> sf(ComposerService::getComposerService());
 
@@ -1402,14 +1387,19 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setShado
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrameRate(
-        const sp<SurfaceControl>& sc, float frameRate) {
+        const sp<SurfaceControl>& sc, float frameRate, int8_t compatibility) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
     }
+    if (!ValidateFrameRate(frameRate, compatibility, "Transaction::setFrameRate")) {
+        mStatus = BAD_VALUE;
+        return *this;
+    }
     s->what |= layer_state_t::eFrameRateChanged;
     s->frameRate = frameRate;
+    s->frameRateCompatibility = compatibility;
     return *this;
 }
 
@@ -1558,7 +1548,7 @@ sp<SurfaceControl> SurfaceComposerClient::createWithSurfaceParent(const String8&
         }
         ALOGE_IF(err, "SurfaceComposerClient::createWithSurfaceParent error %s", strerror(-err));
         if (err == NO_ERROR) {
-            return new SurfaceControl(this, handle, gbp, true /* owned */, transformHint);
+            return new SurfaceControl(this, handle, gbp, transformHint);
         }
     }
     return nullptr;
@@ -1589,7 +1579,7 @@ status_t SurfaceComposerClient::createSurfaceChecked(const String8& name, uint32
         }
         ALOGE_IF(err, "SurfaceComposerClient::createSurface error %s", strerror(-err));
         if (err == NO_ERROR) {
-            *outSurface = new SurfaceControl(this, handle, gbp, true /* owned */, transformHint);
+            *outSurface = new SurfaceControl(this, handle, gbp, transformHint);
         }
     }
     return err;

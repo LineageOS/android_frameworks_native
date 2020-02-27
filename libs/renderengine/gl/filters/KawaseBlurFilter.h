@@ -30,7 +30,7 @@ namespace gl {
 
 class KawaseBlurFilter : public BlurFilter {
 public:
-    static constexpr uint32_t kMaxPasses = 8;
+    static constexpr uint32_t kMaxPasses = 6;
 
     explicit KawaseBlurFilter(GLESRenderEngine& engine);
     status_t prepare() override;

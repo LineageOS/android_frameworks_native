@@ -595,8 +595,8 @@ void SurfaceInterceptor::addDisplayCreationLocked(Increment* increment,
     creation->set_id(info.sequenceId);
     creation->set_name(info.displayName);
     creation->set_is_secure(info.isSecure);
-    if (info.displayId) {
-        creation->set_display_id(info.displayId->value);
+    if (info.physical) {
+        creation->set_display_id(info.physical->id.value);
     }
 }
 

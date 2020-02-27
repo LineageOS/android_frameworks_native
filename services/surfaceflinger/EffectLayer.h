@@ -23,15 +23,19 @@
 
 namespace android {
 
-class ColorLayer : public Layer {
+// A layer that can render a combination of the following effects.
+//   * fill the bounds of the layer with a color
+//   * render a shadow cast by the bounds of the layer
+// If no effects are enabled, the layer is considered to be invisible.
+class EffectLayer : public Layer {
 public:
-    explicit ColorLayer(const LayerCreationArgs&);
-    ~ColorLayer() override;
+    explicit EffectLayer(const LayerCreationArgs&);
+    ~EffectLayer() override;
 
     sp<compositionengine::LayerFE> getCompositionEngineLayerFE() const override;
     compositionengine::LayerFECompositionState* editCompositionState() override;
 
-    const char* getType() const override { return "ColorLayer"; }
+    const char* getType() const override { return "EffectLayer"; }
     bool isVisible() const override;
 
     bool setColor(const half3& color) override;
@@ -48,12 +52,19 @@ protected:
      */
     const compositionengine::LayerFECompositionState* getCompositionState() const override;
     void preparePerFrameCompositionState() override;
-    std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
-            compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
+    std::vector<compositionengine::LayerFE::LayerSettings> prepareClientCompositionList(
+            compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) override;
 
     std::unique_ptr<compositionengine::LayerFECompositionState> mCompositionState;
 
     sp<Layer> createClone() override;
+
+private:
+    // Returns true if there is a valid color to fill.
+    bool fillsColor() const;
+    // Returns true if this layer has a blur value.
+    bool hasBlur() const;
+    bool hasSomethingToDraw() const { return fillsColor() || drawShadows() || hasBlur(); }
 };
 
 } // namespace android

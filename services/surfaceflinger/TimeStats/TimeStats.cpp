@@ -55,27 +55,6 @@ AStatsManager_PullAtomCallbackReturn TimeStats::pullAtomCallback(int32_t atom_ta
     return result;
 }
 
-AStatsManager_PullAtomCallbackReturn TimeStats::populateGlobalAtom(AStatsEventList* data) {
-    std::lock_guard<std::mutex> lock(mMutex);
-
-    if (mTimeStats.statsStart == 0) {
-        return AStatsManager_PULL_SKIP;
-    }
-    flushPowerTimeLocked();
-
-    AStatsEvent* event = mStatsDelegate->addStatsEventToPullData(data);
-    mStatsDelegate->statsEventSetAtomId(event, android::util::SURFACEFLINGER_STATS_GLOBAL_INFO);
-    mStatsDelegate->statsEventWriteInt64(event, mTimeStats.totalFrames);
-    mStatsDelegate->statsEventWriteInt64(event, mTimeStats.missedFrames);
-    mStatsDelegate->statsEventWriteInt64(event, mTimeStats.clientCompositionFrames);
-    mStatsDelegate->statsEventWriteInt64(event, mTimeStats.displayOnTime);
-    mStatsDelegate->statsEventWriteInt64(event, mTimeStats.presentToPresent.totalTime());
-    mStatsDelegate->statsEventBuild(event);
-    clearGlobalLocked();
-
-    return AStatsManager_PULL_SUCCESS;
-}
-
 namespace {
 // Histograms align with the order of fields in SurfaceflingerStatsLayerInfo.
 const std::array<std::string, 6> kHistogramNames = {
@@ -110,6 +89,37 @@ std::string histogramToProtoByteString(const std::unordered_map<int32_t, int32_t
     return byteString;
 }
 } // namespace
+
+AStatsManager_PullAtomCallbackReturn TimeStats::populateGlobalAtom(AStatsEventList* data) {
+    std::lock_guard<std::mutex> lock(mMutex);
+
+    if (mTimeStats.statsStart == 0) {
+        return AStatsManager_PULL_SKIP;
+    }
+    flushPowerTimeLocked();
+
+    AStatsEvent* event = mStatsDelegate->addStatsEventToPullData(data);
+    mStatsDelegate->statsEventSetAtomId(event, android::util::SURFACEFLINGER_STATS_GLOBAL_INFO);
+    mStatsDelegate->statsEventWriteInt64(event, mTimeStats.totalFrames);
+    mStatsDelegate->statsEventWriteInt64(event, mTimeStats.missedFrames);
+    mStatsDelegate->statsEventWriteInt64(event, mTimeStats.clientCompositionFrames);
+    mStatsDelegate->statsEventWriteInt64(event, mTimeStats.displayOnTime);
+    mStatsDelegate->statsEventWriteInt64(event, mTimeStats.presentToPresent.totalTime());
+    mStatsDelegate->statsEventWriteInt32(event, mTimeStats.displayEventConnectionsCount);
+    std::string frameDurationBytes =
+            histogramToProtoByteString(mTimeStats.frameDuration.hist, mMaxPulledHistogramBuckets);
+    mStatsDelegate->statsEventWriteByteArray(event, (const uint8_t*)frameDurationBytes.c_str(),
+                                             frameDurationBytes.size());
+    std::string renderEngineTimingBytes =
+            histogramToProtoByteString(mTimeStats.renderEngineTiming.hist,
+                                       mMaxPulledHistogramBuckets);
+    mStatsDelegate->statsEventWriteByteArray(event, (const uint8_t*)renderEngineTimingBytes.c_str(),
+                                             renderEngineTimingBytes.size());
+    mStatsDelegate->statsEventBuild(event);
+    clearGlobalLocked();
+
+    return AStatsManager_PULL_SUCCESS;
+}
 
 AStatsManager_PullAtomCallbackReturn TimeStats::populateLayerAtom(AStatsEventList* data) {
     std::lock_guard<std::mutex> lock(mMutex);
@@ -147,6 +157,9 @@ AStatsManager_PullAtomCallbackReturn TimeStats::populateLayerAtom(AStatsEventLis
                                                          bytes.size());
             }
         }
+
+        mStatsDelegate->statsEventWriteInt64(event, layer->lateAcquireFrames);
+        mStatsDelegate->statsEventWriteInt64(event, layer->badDesiredPresentFrames);
 
         mStatsDelegate->statsEventBuild(event);
     }
@@ -267,6 +280,16 @@ void TimeStats::incrementClientCompositionReusedFrames() {
 
     std::lock_guard<std::mutex> lock(mMutex);
     mTimeStats.clientCompositionReusedFrames++;
+}
+
+void TimeStats::recordDisplayEventConnectionCount(int32_t count) {
+    if (!mEnabled.load()) return;
+
+    ATRACE_CALL();
+
+    std::lock_guard<std::mutex> lock(mMutex);
+    mTimeStats.displayEventConnectionsCount =
+            std::max(mTimeStats.displayEventConnectionsCount, count);
 }
 
 static int32_t msBetween(nsecs_t start, nsecs_t end) {
@@ -812,6 +835,7 @@ void TimeStats::clearGlobalLocked() {
     mTimeStats.missedFrames = 0;
     mTimeStats.clientCompositionFrames = 0;
     mTimeStats.clientCompositionReusedFrames = 0;
+    mTimeStats.displayEventConnectionsCount = 0;
     mTimeStats.displayOnTime = 0;
     mTimeStats.presentToPresent.hist.clear();
     mTimeStats.frameDuration.hist.clear();

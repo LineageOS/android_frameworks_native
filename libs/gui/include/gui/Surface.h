@@ -179,7 +179,7 @@ public:
     status_t getConsumerUsage(uint64_t* outUsage) const;
 
     // See IGraphicBufferProducer::setFrameRate
-    status_t setFrameRate(float frameRate);
+    status_t setFrameRate(float frameRate, int8_t compatibility);
 
 protected:
     virtual ~Surface();
@@ -262,6 +262,7 @@ private:
     int dispatchAddDequeueInterceptor(va_list args);
     int dispatchAddPerformInterceptor(va_list args);
     int dispatchAddQueueInterceptor(va_list args);
+    int dispatchGetLastQueuedBuffer(va_list args);
     bool transformToDisplayInverse();
 
 protected:

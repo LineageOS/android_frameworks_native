@@ -47,7 +47,6 @@ constexpr const char* kXattrCacheTombstone = "user.cache_tombstone";
 std::string create_data_path(const char* volume_uuid);
 
 std::string create_data_app_path(const char* volume_uuid);
-std::string create_data_app_package_path(const char* volume_uuid, const char* package_name);
 
 std::string create_data_user_ce_path(const char* volume_uuid, userid_t userid);
 std::string create_data_user_de_path(const char* volume_uuid, userid_t userid);
@@ -153,6 +152,10 @@ int wait_child(pid_t pid);
 
 int prepare_app_cache_dir(const std::string& parent, const char* name, mode_t target_mode,
         uid_t uid, gid_t gid);
+
+bool supports_sdcardfs();
+int64_t get_occupied_app_space_external(const std::string& uuid, int32_t userId, int32_t appId);
+int64_t get_occupied_app_cache_space_external(const std::string& uuid, int32_t userId, int32_t appId);
 
 // Collect all non empty profiles from the global profile directory and
 // put then into profile_paths. The profiles are identified based on PROFILE_EXT extension.

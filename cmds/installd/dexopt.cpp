@@ -299,9 +299,10 @@ const char* select_execution_binary(
 // Namespace for Android Runtime flags applied during boot time.
 static const char* RUNTIME_NATIVE_BOOT_NAMESPACE = "runtime_native_boot";
 // Feature flag name for running the JIT in Zygote experiment, b/119800099.
-static const char* ENABLE_APEX_IMAGE = "enable_apex_image";
-// Location of the apex image.
-static const char* kApexImage = "/system/framework/apex.art";
+static const char* ENABLE_JITZYGOTE_IMAGE = "enable_apex_image";
+// Location of the JIT Zygote image.
+static const char* kJitZygoteImage =
+    "boot.art:/nonx/boot-framework.art!/system/etc/boot-image.prof";
 
 // Phenotype property name for enabling profiling the boot class path.
 static const char* PROFILE_BOOT_CLASS_PATH = "profilebootclasspath";
@@ -405,9 +406,9 @@ class RunDex2Oat : public ExecVHelper {
                 GetBoolProperty(kMinidebugInfoSystemProperty, kMinidebugInfoSystemPropertyDefault);
 
         std::string boot_image;
-        std::string use_apex_image =
+        std::string use_jitzygote_image =
             server_configurable_flags::GetServerConfigurableFlag(RUNTIME_NATIVE_BOOT_NAMESPACE,
-                                                                 ENABLE_APEX_IMAGE,
+                                                                 ENABLE_JITZYGOTE_IMAGE,
                                                                  /*default_value=*/ "");
 
         std::string profile_boot_class_path = GetProperty("dalvik.vm.profilebootclasspath", "");
@@ -417,10 +418,10 @@ class RunDex2Oat : public ExecVHelper {
                 PROFILE_BOOT_CLASS_PATH,
                 /*default_value=*/ profile_boot_class_path);
 
-        if (use_apex_image == "true" || profile_boot_class_path == "true") {
-          boot_image = StringPrintf("-Ximage:%s", kApexImage);
+        if (use_jitzygote_image == "true" || profile_boot_class_path == "true") {
+          boot_image = StringPrintf("--boot-image=%s", kJitZygoteImage);
         } else {
-          boot_image = MapPropertyToArg("dalvik.vm.boot-image", "-Ximage:%s");
+          boot_image = MapPropertyToArg("dalvik.vm.boot-image", "--boot-image=%s");
         }
 
         // clang FORTIFY doesn't let us use strlen in constant array bounds, so we
@@ -513,7 +514,8 @@ class RunDex2Oat : public ExecVHelper {
         AddArg(instruction_set_variant_arg);
         AddArg(instruction_set_features_arg);
 
-        AddRuntimeArg(boot_image);
+        AddArg(boot_image);
+
         AddRuntimeArg(bootclasspath);
         AddRuntimeArg(dex2oat_Xms_arg);
         AddRuntimeArg(dex2oat_Xmx_arg);
@@ -2275,7 +2277,7 @@ enum ReconcileSecondaryDexResult {
 //   out_secondary_dex_exists will be set to false.
 bool reconcile_secondary_dex_file(const std::string& dex_path,
         const std::string& pkgname, int uid, const std::vector<std::string>& isas,
-        const std::unique_ptr<std::string>& volume_uuid, int storage_flag,
+        const std::optional<std::string>& volume_uuid, int storage_flag,
         /*out*/bool* out_secondary_dex_exists) {
     *out_secondary_dex_exists = false;  // start by assuming the file does not exist.
     if (isas.size() == 0) {
@@ -2296,7 +2298,7 @@ bool reconcile_secondary_dex_file(const std::string& dex_path,
         /* child -- drop privileges before continuing */
         drop_capabilities(uid);
 
-        const char* volume_uuid_cstr = volume_uuid == nullptr ? nullptr : volume_uuid->c_str();
+        const char* volume_uuid_cstr = volume_uuid ? volume_uuid->c_str() : nullptr;
         if (!validate_secondary_dex_path(pkgname, dex_path, volume_uuid_cstr,
                 uid, storage_flag)) {
             LOG(ERROR) << "Could not validate secondary dex path " << dex_path;
@@ -2397,11 +2399,11 @@ bool reconcile_secondary_dex_file(const std::string& dex_path,
 // the app.
 // For any other errors (e.g. if any of the parameters are invalid) returns false.
 bool hash_secondary_dex_file(const std::string& dex_path, const std::string& pkgname, int uid,
-        const std::unique_ptr<std::string>& volume_uuid, int storage_flag,
+        const std::optional<std::string>& volume_uuid, int storage_flag,
         std::vector<uint8_t>* out_secondary_dex_hash) {
     out_secondary_dex_hash->clear();
 
-    const char* volume_uuid_cstr = volume_uuid == nullptr ? nullptr : volume_uuid->c_str();
+    const char* volume_uuid_cstr = volume_uuid ? volume_uuid->c_str() : nullptr;
 
     if (storage_flag != FLAG_STORAGE_CE && storage_flag != FLAG_STORAGE_DE) {
         LOG(ERROR) << "hash_secondary_dex_file called with invalid storage_flag: "
@@ -2922,7 +2924,7 @@ bool prepare_app_profile(const std::string& package_name,
                          appid_t app_id,
                          const std::string& profile_name,
                          const std::string& code_path,
-                         const std::unique_ptr<std::string>& dex_metadata) {
+                         const std::optional<std::string>& dex_metadata) {
     // Prepare the current profile.
     std::string cur_profile  = create_current_profile_path(user_id, package_name, profile_name,
             /*is_secondary_dex*/ false);
@@ -2933,7 +2935,7 @@ bool prepare_app_profile(const std::string& package_name,
     }
 
     // Check if we need to install the profile from the dex metadata.
-    if (dex_metadata == nullptr) {
+    if (!dex_metadata) {
         return true;
     }
 

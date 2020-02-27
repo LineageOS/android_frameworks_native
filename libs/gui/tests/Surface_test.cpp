@@ -854,6 +854,11 @@ public:
         return NO_ERROR;
     }
 
+    status_t setFrameRate(const sp<IGraphicBufferProducer>& /*surface*/, float /*frameRate*/,
+                          int8_t /*compatibility*/) override {
+        return NO_ERROR;
+    }
+
 protected:
     IBinder* onAsBinder() override { return nullptr; }
 

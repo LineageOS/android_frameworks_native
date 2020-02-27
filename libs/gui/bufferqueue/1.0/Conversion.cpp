@@ -109,20 +109,6 @@ status_t toStatusT(Return<void> const& t) {
 }
 
 /**
- * \brief Convert `Return<void>` to `binder::Status`.
- *
- * \param[in] t The source `Return<void>`.
- * \return The corresponding `binder::Status`.
- */
-// convert: Return<void> -> ::android::binder::Status
-::android::binder::Status toBinderStatus(
-        Return<void> const& t) {
-    return ::android::binder::Status::fromExceptionCode(
-            toStatusT(t),
-            t.description().c_str());
-}
-
-/**
  * \brief Wrap `native_handle_t*` in `hidl_handle`.
  *
  * \param[in] nh The source `native_handle_t*`.
@@ -1337,57 +1323,6 @@ status_t unflatten(
     return unflatten(&(t->surfaceDamage), buffer, size);
 }
 
-/**
- * \brief Wrap `BGraphicBufferProducer::QueueBufferInput` in
- * `HGraphicBufferProducer::QueueBufferInput`.
- *
- * \param[out] t The wrapper of type
- * `HGraphicBufferProducer::QueueBufferInput`.
- * \param[out] nh The underlying native handle for `t->fence`.
- * \param[in] l The source `BGraphicBufferProducer::QueueBufferInput`.
- *
- * If the return value is `true` and `t->fence` contains a valid file
- * descriptor, \p nh will be a newly created native handle holding that file
- * descriptor. \p nh needs to be deleted with `native_handle_delete()`
- * afterwards.
- */
-bool wrapAs(
-        HGraphicBufferProducer::QueueBufferInput* t,
-        native_handle_t** nh,
-        BGraphicBufferProducer::QueueBufferInput const& l) {
-
-    size_t const baseSize = l.getFlattenedSize();
-    std::unique_ptr<uint8_t[]> baseBuffer(
-            new (std::nothrow) uint8_t[baseSize]);
-    if (!baseBuffer) {
-        return false;
-    }
-
-    size_t const baseNumFds = l.getFdCount();
-    std::unique_ptr<int[]> baseFds(
-            new (std::nothrow) int[baseNumFds]);
-    if (!baseFds) {
-        return false;
-    }
-
-    void* buffer = static_cast<void*>(baseBuffer.get());
-    size_t size = baseSize;
-    int* fds = baseFds.get();
-    size_t numFds = baseNumFds;
-    if (l.flatten(buffer, size, fds, numFds) != NO_ERROR) {
-        return false;
-    }
-
-    void const* constBuffer = static_cast<void const*>(baseBuffer.get());
-    size = baseSize;
-    int const* constFds = static_cast<int const*>(baseFds.get());
-    numFds = baseNumFds;
-    if (unflatten(t, nh, constBuffer, size, constFds, numFds) != NO_ERROR) {
-        return false;
-    }
-
-    return true;
-}
 
 /**
  * \brief Convert `HGraphicBufferProducer::QueueBufferInput` to

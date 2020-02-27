@@ -36,6 +36,11 @@ props {
     prop_name: "ro.surface_flinger.display_primary_white"
   }
   prop {
+    api_name: "display_update_imminent_timeout_ms"
+    type: Integer
+    prop_name: "ro.surface_flinger.display_update_imminent_timeout_ms"
+  }
+  prop {
     api_name: "enable_protected_contents"
     prop_name: "ro.surface_flinger.protected_contents"
   }
@@ -113,12 +118,21 @@ props {
     prop_name: "ro.surface_flinger.use_color_management"
   }
   prop {
+    api_name: "use_content_detection_for_refresh_rate"
+    prop_name: "ro.surface_flinger.use_content_detection_for_refresh_rate"
+  }
+  prop {
     api_name: "use_context_priority"
     prop_name: "ro.surface_flinger.use_context_priority"
   }
   prop {
+    api_name: "use_frame_rate_api"
+    prop_name: "ro.surface_flinger.use_frame_rate_api"
+  }
+  prop {
     api_name: "use_smart_90_for_video"
     prop_name: "ro.surface_flinger.use_smart_90_for_video"
+    deprecated: true
   }
   prop {
     api_name: "use_vr_flinger"

@@ -51,7 +51,7 @@ interface IInstalld {
     void setAppQuota(@nullable @utf8InCpp String uuid, int userId, int appId, long cacheQuota);
 
     void moveCompleteApp(@nullable @utf8InCpp String fromUuid, @nullable @utf8InCpp String toUuid,
-            @utf8InCpp String packageName, @utf8InCpp String dataAppName, int appId,
+            @utf8InCpp String packageName, int appId,
             @utf8InCpp String seInfo, int targetSdkVersion, @utf8InCpp String fromCodePath);
 
     void dexopt(@utf8InCpp String apkPath, int uid, @nullable @utf8InCpp String packageName,
@@ -116,7 +116,7 @@ interface IInstalld {
             int appId, @utf8InCpp String seInfo, int user, int snapshotId, int storageflags);
     void destroyAppDataSnapshot(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
             int userId, long ceSnapshotInode, int snapshotId, int storageFlags);
-    void onPrivateVolumeMounted(@nullable @utf8InCpp String volumeUuid);
+    void tryMountDataMirror(@nullable @utf8InCpp String volumeUuid);
     void onPrivateVolumeRemoved(@nullable @utf8InCpp String volumeUuid);
 
     void migrateLegacyObbData();

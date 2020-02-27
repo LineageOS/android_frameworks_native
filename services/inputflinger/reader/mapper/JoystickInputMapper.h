@@ -23,7 +23,7 @@ namespace android {
 
 class JoystickInputMapper : public InputMapper {
 public:
-    explicit JoystickInputMapper(InputDevice* device);
+    explicit JoystickInputMapper(InputDeviceContext& deviceContext);
     virtual ~JoystickInputMapper();
 
     virtual uint32_t getSources() override;

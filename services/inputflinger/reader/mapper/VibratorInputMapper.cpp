@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#include "Macros.h"
+#include "../Macros.h"
 
 #include "VibratorInputMapper.h"
 
 namespace android {
 
-VibratorInputMapper::VibratorInputMapper(InputDevice* device)
-      : InputMapper(device), mVibrating(false) {}
+VibratorInputMapper::VibratorInputMapper(InputDeviceContext& deviceContext)
+      : InputMapper(deviceContext), mVibrating(false) {}
 
 VibratorInputMapper::~VibratorInputMapper() {}
 
@@ -100,12 +100,12 @@ void VibratorInputMapper::nextStep() {
 #if DEBUG_VIBRATOR
         ALOGD("nextStep: sending vibrate deviceId=%d, duration=%" PRId64, getDeviceId(), duration);
 #endif
-        getEventHub()->vibrate(getDeviceId(), duration);
+        getDeviceContext().vibrate(duration);
     } else {
 #if DEBUG_VIBRATOR
         ALOGD("nextStep: sending cancel vibrate deviceId=%d", getDeviceId());
 #endif
-        getEventHub()->cancelVibrate(getDeviceId());
+        getDeviceContext().cancelVibrate();
     }
     nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
     mNextStepTime = now + duration;
@@ -120,7 +120,7 @@ void VibratorInputMapper::stopVibrating() {
 #if DEBUG_VIBRATOR
     ALOGD("stopVibrating: sending cancel vibrate deviceId=%d", getDeviceId());
 #endif
-    getEventHub()->cancelVibrate(getDeviceId());
+    getDeviceContext().cancelVibrate();
 }
 
 void VibratorInputMapper::dump(std::string& dump) {

@@ -38,6 +38,7 @@ protected:
     virtual void SetUp() {
         status_t result = InputChannel::openInputChannelPair("channel name",
                 serverChannel, clientChannel);
+        ASSERT_EQ(OK, result);
 
         mPublisher = new InputPublisher(serverChannel);
         mConsumer = new InputConsumer(clientChannel);
@@ -72,6 +73,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
     status_t status;
 
     constexpr uint32_t seq = 15;
+    int32_t eventId = InputEvent::nextId();
     constexpr int32_t deviceId = 1;
     constexpr uint32_t source = AINPUT_SOURCE_KEYBOARD;
     constexpr int32_t displayId = ADISPLAY_ID_DEFAULT;
@@ -87,8 +89,8 @@ void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
     constexpr nsecs_t downTime = 3;
     constexpr nsecs_t eventTime = 4;
 
-    status = mPublisher->publishKeyEvent(seq, deviceId, source, displayId, hmac, action, flags,
-                                         keyCode, scanCode, metaState, repeatCount, downTime,
+    status = mPublisher->publishKeyEvent(seq, eventId, deviceId, source, displayId, hmac, action,
+                                         flags, keyCode, scanCode, metaState, repeatCount, downTime,
                                          eventTime);
     ASSERT_EQ(OK, status)
             << "publisher publishKeyEvent should return OK";
@@ -106,6 +108,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
 
     KeyEvent* keyEvent = static_cast<KeyEvent*>(event);
     EXPECT_EQ(seq, consumeSeq);
+    EXPECT_EQ(eventId, keyEvent->getId());
     EXPECT_EQ(deviceId, keyEvent->getDeviceId());
     EXPECT_EQ(source, keyEvent->getSource());
     EXPECT_EQ(displayId, keyEvent->getDisplayId());
@@ -138,6 +141,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     status_t status;
 
     constexpr uint32_t seq = 15;
+    int32_t eventId = InputEvent::nextId();
     constexpr int32_t deviceId = 1;
     constexpr uint32_t source = AINPUT_SOURCE_TOUCHSCREEN;
     constexpr int32_t displayId = ADISPLAY_ID_DEFAULT;
@@ -181,7 +185,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
         pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 3.5 * i);
     }
 
-    status = mPublisher->publishMotionEvent(seq, deviceId, source, displayId, hmac, action,
+    status = mPublisher->publishMotionEvent(seq, eventId, deviceId, source, displayId, hmac, action,
                                             actionButton, flags, edgeFlags, metaState, buttonState,
                                             classification, xScale, yScale, xOffset, yOffset,
                                             xPrecision, yPrecision, xCursorPosition,
@@ -203,6 +207,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
 
     MotionEvent* motionEvent = static_cast<MotionEvent*>(event);
     EXPECT_EQ(seq, consumeSeq);
+    EXPECT_EQ(eventId, motionEvent->getId());
     EXPECT_EQ(deviceId, motionEvent->getDeviceId());
     EXPECT_EQ(source, motionEvent->getSource());
     EXPECT_EQ(displayId, motionEvent->getDisplayId());
@@ -276,10 +281,11 @@ void InputPublisherAndConsumerTest::PublishAndConsumeFocusEvent() {
     status_t status;
 
     constexpr uint32_t seq = 15;
+    int32_t eventId = InputEvent::nextId();
     constexpr bool hasFocus = true;
     constexpr bool inTouchMode = true;
 
-    status = mPublisher->publishFocusEvent(seq, hasFocus, inTouchMode);
+    status = mPublisher->publishFocusEvent(seq, eventId, hasFocus, inTouchMode);
     ASSERT_EQ(OK, status) << "publisher publishKeyEvent should return OK";
 
     uint32_t consumeSeq;
@@ -293,6 +299,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeFocusEvent() {
 
     FocusEvent* focusEvent = static_cast<FocusEvent*>(event);
     EXPECT_EQ(seq, consumeSeq);
+    EXPECT_EQ(eventId, focusEvent->getId());
     EXPECT_EQ(hasFocus, focusEvent->getHasFocus());
     EXPECT_EQ(inTouchMode, focusEvent->getInTouchMode());
 
@@ -331,8 +338,8 @@ TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenSequenceNumberIsZer
         pointerCoords[i].clear();
     }
 
-    status = mPublisher->publishMotionEvent(0, 0, 0, 0, INVALID_HMAC, 0, 0, 0, 0, 0, 0,
-                                            MotionClassification::NONE, 1 /* xScale */,
+    status = mPublisher->publishMotionEvent(0, InputEvent::nextId(), 0, 0, 0, INVALID_HMAC, 0, 0, 0,
+                                            0, 0, 0, MotionClassification::NONE, 1 /* xScale */,
                                             1 /* yScale */, 0, 0, 0, 0,
                                             AMOTION_EVENT_INVALID_CURSOR_POSITION,
                                             AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0,
@@ -347,8 +354,8 @@ TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenPointerCountLessTha
     PointerProperties pointerProperties[pointerCount];
     PointerCoords pointerCoords[pointerCount];
 
-    status = mPublisher->publishMotionEvent(1, 0, 0, 0, INVALID_HMAC, 0, 0, 0, 0, 0, 0,
-                                            MotionClassification::NONE, 1 /* xScale */,
+    status = mPublisher->publishMotionEvent(1, InputEvent::nextId(), 0, 0, 0, INVALID_HMAC, 0, 0, 0,
+                                            0, 0, 0, MotionClassification::NONE, 1 /* xScale */,
                                             1 /* yScale */, 0, 0, 0, 0,
                                             AMOTION_EVENT_INVALID_CURSOR_POSITION,
                                             AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0,
@@ -368,8 +375,8 @@ TEST_F(InputPublisherAndConsumerTest,
         pointerCoords[i].clear();
     }
 
-    status = mPublisher->publishMotionEvent(1, 0, 0, 0, INVALID_HMAC, 0, 0, 0, 0, 0, 0,
-                                            MotionClassification::NONE, 1 /* xScale */,
+    status = mPublisher->publishMotionEvent(1, InputEvent::nextId(), 0, 0, 0, INVALID_HMAC, 0, 0, 0,
+                                            0, 0, 0, MotionClassification::NONE, 1 /* xScale */,
                                             1 /* yScale */, 0, 0, 0, 0,
                                             AMOTION_EVENT_INVALID_CURSOR_POSITION,
                                             AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0,

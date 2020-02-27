@@ -24,7 +24,7 @@ namespace android {
 
 class SingleTouchInputMapper : public TouchInputMapper {
 public:
-    explicit SingleTouchInputMapper(InputDevice* device);
+    explicit SingleTouchInputMapper(InputDeviceContext& deviceContext);
     virtual ~SingleTouchInputMapper();
 
     virtual void reset(nsecs_t when) override;

@@ -109,7 +109,8 @@ public:
 
     // Passes a vsync sample to DispSync. periodFlushed will be true if
     // DispSync detected that the vsync period changed, and false otherwise.
-    void addResyncSample(nsecs_t timestamp, bool* periodFlushed);
+    void addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriod,
+                         bool* periodFlushed);
     void addPresentFence(const std::shared_ptr<FenceTime>&);
     void setIgnorePresentFences(bool ignore);
     nsecs_t getDispSyncExpectedPresentTime();
@@ -144,6 +145,8 @@ public:
     // Notifies the scheduler when the display size has changed. Called from SF's main thread
     void onPrimaryDisplayAreaChanged(uint32_t displayArea);
 
+    size_t getEventThreadConnectionCount(ConnectionHandle handle);
+
 private:
     friend class TestableScheduler;
 
@@ -177,9 +180,10 @@ private:
 
     void setVsyncPeriod(nsecs_t period);
 
-    HwcConfigIndexType calculateRefreshRateType() REQUIRES(mFeatureStateLock);
-
-    bool layerHistoryHasClientSpecifiedFrameRate() REQUIRES(mFeatureStateLock);
+    // This function checks whether individual features that are affecting the refresh rate
+    // selection were initialized, prioritizes them, and calculates the HwcConfigIndexType
+    // for the suggested refresh rate.
+    HwcConfigIndexType calculateRefreshRateConfigIndexType() REQUIRES(mFeatureStateLock);
 
     // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
     struct Connection {
@@ -223,7 +227,7 @@ private:
     std::mutex mFeatureStateLock;
 
     struct {
-        ContentDetectionState contentDetection = ContentDetectionState::Off;
+        ContentDetectionState contentDetectionV1 = ContentDetectionState::Off;
         TimerState idleTimer = TimerState::Reset;
         TouchState touch = TouchState::Inactive;
         TimerState displayPowerTimer = TimerState::Expired;

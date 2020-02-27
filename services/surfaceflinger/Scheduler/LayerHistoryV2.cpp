@@ -79,7 +79,6 @@ void trace(const wp<Layer>& weak, LayerHistory::LayerVoteType type, int fps) {
 
     ALOGD("%s: %s @ %d Hz", __FUNCTION__, name.c_str(), fps);
 }
-
 } // namespace
 
 LayerHistoryV2::LayerHistoryV2()
@@ -123,6 +122,10 @@ LayerHistoryV2::Summary LayerHistoryV2::summarize(nsecs_t now) {
         if (!strong) {
             continue;
         }
+
+        // TODO(b/144307188): This needs to be plugged into layer summary as
+        //  an additional parameter.
+        ALOGV("Layer has priority: %d", strong->getFrameRateSelectionPriority());
 
         const bool recent = info->isRecentlyActive(now);
         if (recent) {
@@ -212,5 +215,4 @@ void LayerHistoryV2::clear() {
 
     mActiveLayersEnd = 0;
 }
-
 } // namespace android::scheduler::impl

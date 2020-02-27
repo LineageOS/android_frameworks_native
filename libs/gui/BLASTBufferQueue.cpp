@@ -19,6 +19,8 @@
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include <cutils/properties.h>
+
 #include <gui/BLASTBufferQueue.h>
 #include <gui/BufferItemConsumer.h>
 #include <gui/GLConsumer.h>
@@ -99,7 +101,14 @@ BLASTBufferQueue::BLASTBufferQueue(const sp<SurfaceControl>& surface, int width,
         mHeight(height),
         mNextTransaction(nullptr) {
     BufferQueue::createBufferQueue(&mProducer, &mConsumer);
-    mConsumer->setMaxAcquiredBufferCount(MAX_ACQUIRED_BUFFERS);
+    // since the adapter is in the client process, set dequeue timeout
+    // explicitly so that dequeueBuffer will block
+    mProducer->setDequeueTimeout(std::numeric_limits<int64_t>::max());
+
+    int8_t disableTripleBuffer = property_get_bool("ro.sf.disable_triple_buffer", 0);
+    if (!disableTripleBuffer) {
+        mProducer->setMaxDequeuedBufferCount(2);
+    }
     mBufferItemConsumer =
             new BLASTBufferItemConsumer(mConsumer, AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER, 1, true);
     static int32_t id = 0;
@@ -174,14 +183,16 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
     }
     mPendingReleaseItem.item = std::move(mSubmitted.front());
     mSubmitted.pop();
+
     processNextBufferLocked();
+
     mCallbackCV.notify_all();
     decStrong((void*)transactionCallbackThunk);
 }
 
 void BLASTBufferQueue::processNextBufferLocked() {
     ATRACE_CALL();
-    if (mNumFrameAvailable == 0 || mNumAcquired == MAX_ACQUIRED_BUFFERS) {
+    if (mNumFrameAvailable == 0 || mNumAcquired == MAX_ACQUIRED_BUFFERS + 1) {
         return;
     }
 
@@ -193,7 +204,7 @@ void BLASTBufferQueue::processNextBufferLocked() {
     SurfaceComposerClient::Transaction localTransaction;
     bool applyTransaction = true;
     SurfaceComposerClient::Transaction* t = &localTransaction;
-    if (mNextTransaction != nullptr) {
+    if (mNextTransaction != nullptr && mUseNextTransaction) {
         t = mNextTransaction;
         mNextTransaction = nullptr;
         applyTransaction = false;
@@ -252,8 +263,14 @@ Rect BLASTBufferQueue::computeCrop(const BufferItem& item) {
 
 void BLASTBufferQueue::onFrameAvailable(const BufferItem& /*item*/) {
     ATRACE_CALL();
-    std::lock_guard _lock{mMutex};
+    std::unique_lock _lock{mMutex};
 
+    if (mNextTransaction != nullptr) {
+        while (mNumFrameAvailable > 0 || mNumAcquired == MAX_ACQUIRED_BUFFERS + 1) {
+            mCallbackCV.wait(_lock);
+        }
+        mUseNextTransaction = true;
+    }
     // add to shadow queue
     mNumFrameAvailable++;
     processNextBufferLocked();
@@ -261,6 +278,7 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& /*item*/) {
 
 void BLASTBufferQueue::setNextTransaction(SurfaceComposerClient::Transaction* t) {
     std::lock_guard _lock{mMutex};
+    mUseNextTransaction = false;
     mNextTransaction = t;
 }
 

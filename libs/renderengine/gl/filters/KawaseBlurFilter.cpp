@@ -106,21 +106,19 @@ string KawaseBlurFilter::getFragmentShader() const {
         precision mediump float;
 
         uniform sampler2D uTexture;
-        highp uniform vec2 uOffset;
+        uniform vec2 uOffset;
 
         highp in vec2 vUV;
         out vec4 fragColor;
 
-        vec4 kawaseBlur() {
-            return (texture(uTexture, vec2(-1.0, 1.0) * uOffset + vUV, 0.0)
-                    + texture(uTexture, uOffset + vUV, 0.0)
-                    + texture(uTexture, vec2(1.0, -1.0) * uOffset + vUV, 0.0)
-                    + texture(uTexture, vec2(-1.0) * uOffset + vUV, 0.0))
-                * 0.25;
-        }
-
         void main() {
-            fragColor = kawaseBlur();
+            fragColor  = texture(uTexture, vUV, 0.0);
+            fragColor += texture(uTexture, vUV + vec2( uOffset.x,  uOffset.y), 0.0);
+            fragColor += texture(uTexture, vUV + vec2( uOffset.x, -uOffset.y), 0.0);
+            fragColor += texture(uTexture, vUV + vec2(-uOffset.x,  uOffset.y), 0.0);
+            fragColor += texture(uTexture, vUV + vec2(-uOffset.x, -uOffset.y), 0.0);
+
+            fragColor = vec4(fragColor.rgb * 0.2, 1.0);
         }
     )SHADER";
 }

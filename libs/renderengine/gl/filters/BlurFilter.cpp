@@ -96,13 +96,17 @@ void BlurFilter::drawMesh(GLuint uv, GLuint position) {
     mEngine.checkErrors("Drawing blur mesh");
 }
 
-status_t BlurFilter::render() {
+status_t BlurFilter::render(bool multiPass) {
     ATRACE_NAME("BlurFilter::render");
 
     // Now let's scale our blur up. It will be interpolated with the larger composited
     // texture for the first frames, to hide downscaling artifacts.
     GLfloat mix = fmin(1.0, mRadius / kMaxCrossFadeRadius);
-    if (mix >= 1) {
+
+    // When doing multiple passes, we cannot try to read mCompositionFbo, given that we'll
+    // be writing onto it. Let's disable the crossfade, otherwise we'd need 1 extra frame buffer,
+    // as large as the screen size.
+    if (mix >= 1 || multiPass) {
         mBlurredFbo.bindAsReadBuffer();
         glBlitFramebuffer(0, 0, mBlurredFbo.getBufferWidth(), mBlurredFbo.getBufferHeight(), 0, 0,
                           mDisplayWidth, mDisplayHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
@@ -128,8 +132,7 @@ status_t BlurFilter::render() {
 }
 
 string BlurFilter::getVertexShader() const {
-    return R"SHADER(
-        #version 310 es
+    return R"SHADER(#version 310 es
 
         in vec2 aPosition;
         in highp vec2 aUV;
@@ -143,8 +146,7 @@ string BlurFilter::getVertexShader() const {
 }
 
 string BlurFilter::getMixFragShader() const {
-    string shader = R"SHADER(
-        #version 310 es
+    string shader = R"SHADER(#version 310 es
         precision mediump float;
 
         in highp vec2 vUV;

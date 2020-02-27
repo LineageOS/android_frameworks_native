@@ -27,7 +27,7 @@
 
 #include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
-#include "ColorLayer.h"
+#include "EffectLayer.h"
 #include "Layer.h"
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
@@ -68,7 +68,7 @@ protected:
     void setupComposer(int virtualDisplayCount);
     sp<BufferQueueLayer> createBufferQueueLayer();
     sp<BufferStateLayer> createBufferStateLayer();
-    sp<ColorLayer> createColorLayer();
+    sp<EffectLayer> createEffectLayer();
 
     void setParent(Layer* child, Layer* parent);
     void commitTransaction(Layer* layer);
@@ -111,11 +111,11 @@ sp<BufferStateLayer> RefreshRateSelectionTest::createBufferStateLayer() {
     return new BufferStateLayer(args);
 }
 
-sp<ColorLayer> RefreshRateSelectionTest::createColorLayer() {
+sp<EffectLayer> RefreshRateSelectionTest::createEffectLayer() {
     sp<Client> client;
     LayerCreationArgs args(mFlinger.flinger(), client, "color-layer", WIDTH, HEIGHT, LAYER_FLAGS,
                            LayerMetadata());
-    return new ColorLayer(args);
+    return new EffectLayer(args);
 }
 
 void RefreshRateSelectionTest::setParent(Layer* child, Layer* parent) {
@@ -153,8 +153,6 @@ void RefreshRateSelectionTest::setupScheduler() {
 
 void RefreshRateSelectionTest::setupComposer(int virtualDisplayCount) {
     mComposer = new Hwc2::mock::Composer();
-    EXPECT_CALL(*mComposer, getCapabilities())
-            .WillOnce(Return(std::vector<IComposer::Capability>()));
     EXPECT_CALL(*mComposer, getMaxVirtualDisplayCount()).WillOnce(Return(virtualDisplayCount));
     mFlinger.setupComposer(std::unique_ptr<Hwc2::Composer>(mComposer));
 
@@ -244,11 +242,11 @@ TEST_F(RefreshRateSelectionTest, testPriorityOnBufferStateLayers) {
     ASSERT_EQ(1, mGrandChild->getFrameRateSelectionPriority());
 }
 
-TEST_F(RefreshRateSelectionTest, testPriorityOnColorLayers) {
-    mParent = createColorLayer();
-    mChild = createColorLayer();
+TEST_F(RefreshRateSelectionTest, testPriorityOnEffectLayers) {
+    mParent = createEffectLayer();
+    mChild = createEffectLayer();
     setParent(mChild.get(), mParent.get());
-    mGrandChild = createColorLayer();
+    mGrandChild = createEffectLayer();
     setParent(mGrandChild.get(), mChild.get());
 
     ASSERT_EQ(PRIORITY_UNSET, mParent->getFrameRateSelectionPriority());

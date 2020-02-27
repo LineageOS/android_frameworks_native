@@ -28,6 +28,7 @@
 #include <math/mat4.h>
 #include <renderengine/RenderEngine.h>
 #include <system/window.h>
+#include <ui/DisplayInfo.h>
 #include <ui/DisplayState.h>
 #include <ui/GraphicTypes.h>
 #include <ui/HdrCapabilities.h>
@@ -52,7 +53,6 @@ class SurfaceFlinger;
 
 struct CompositionInfo;
 struct DisplayDeviceCreationArgs;
-struct DisplayInfo;
 
 namespace compositionengine {
 class Display;
@@ -71,7 +71,9 @@ public:
         return mCompositionDisplay;
     }
 
-    bool isVirtual() const { return mIsVirtual; }
+    std::optional<DisplayConnectionType> getConnectionType() const { return mConnectionType; }
+
+    bool isVirtual() const { return !mConnectionType; }
     bool isPrimary() const { return mIsPrimary; }
 
     // isSecure indicates whether this display can be trusted to display
@@ -159,7 +161,7 @@ private:
     const sp<SurfaceFlinger> mFlinger;
     const wp<IBinder> mDisplayToken;
     const int32_t mSequenceId;
-    const bool mIsVirtual;
+    const std::optional<DisplayConnectionType> mConnectionType;
 
     const std::shared_ptr<compositionengine::Display> mCompositionDisplay;
 
@@ -178,10 +180,19 @@ private:
 };
 
 struct DisplayDeviceState {
-    bool isVirtual() const { return !displayId.has_value(); }
+    struct Physical {
+        DisplayId id;
+        DisplayConnectionType type;
+
+        bool operator==(const Physical& other) const {
+            return id == other.id && type == other.type;
+        }
+    };
+
+    bool isVirtual() const { return !physical; }
 
     int32_t sequenceId = sNextSequenceId++;
-    std::optional<DisplayId> displayId;
+    std::optional<Physical> physical;
     sp<IGraphicBufferProducer> surface;
     ui::LayerStack layerStack = ui::NO_LAYER_STACK;
     Rect viewport;
@@ -199,15 +210,17 @@ private:
 struct DisplayDeviceCreationArgs {
     // We use a constructor to ensure some of the values are set, without
     // assuming a default value.
-    DisplayDeviceCreationArgs(const sp<SurfaceFlinger>& flinger, const wp<IBinder>& displayToken,
-                              const std::optional<DisplayId>& displayId);
+    DisplayDeviceCreationArgs(const sp<SurfaceFlinger>&, const wp<IBinder>& displayToken,
+                              std::optional<DisplayId>);
+
+    bool isVirtual() const { return !connectionType; }
 
     const sp<SurfaceFlinger> flinger;
     const wp<IBinder> displayToken;
     const std::optional<DisplayId> displayId;
 
     int32_t sequenceId{0};
-    bool isVirtual{false};
+    std::optional<DisplayConnectionType> connectionType;
     bool isSecure{false};
     sp<ANativeWindow> nativeWindow;
     sp<compositionengine::DisplaySurface> displaySurface;

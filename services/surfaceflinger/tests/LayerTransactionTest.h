@@ -89,7 +89,7 @@ protected:
                                         SurfaceControl* parent = nullptr) {
         auto colorLayer = createSurface(mClient, name, 0 /* buffer width */, 0 /* buffer height */,
                                         PIXEL_FORMAT_RGBA_8888,
-                                        ISurfaceComposerClient::eFXSurfaceColor, parent);
+                                        ISurfaceComposerClient::eFXSurfaceEffect, parent);
         asTransaction([&](Transaction& t) {
             t.setColor(colorLayer, half3{color.r / 255.0f, color.g / 255.0f, color.b / 255.0f});
             t.setAlpha(colorLayer, color.a / 255.0f);
@@ -268,7 +268,7 @@ private:
 
         mBlackBgSurface =
                 createSurface(mClient, "BaseSurface", 0 /* buffer width */, 0 /* buffer height */,
-                              PIXEL_FORMAT_RGBA_8888, ISurfaceComposerClient::eFXSurfaceColor);
+                              PIXEL_FORMAT_RGBA_8888, ISurfaceComposerClient::eFXSurfaceEffect);
 
         // set layer stack (b/68888219)
         Transaction t;

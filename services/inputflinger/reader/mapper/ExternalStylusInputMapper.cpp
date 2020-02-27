@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "Macros.h"
+#include "../Macros.h"
 
 #include "ExternalStylusInputMapper.h"
 
@@ -23,7 +23,8 @@
 
 namespace android {
 
-ExternalStylusInputMapper::ExternalStylusInputMapper(InputDevice* device) : InputMapper(device) {}
+ExternalStylusInputMapper::ExternalStylusInputMapper(InputDeviceContext& deviceContext)
+      : InputMapper(deviceContext) {}
 
 uint32_t ExternalStylusInputMapper::getSources() {
     return AINPUT_SOURCE_STYLUS;
@@ -46,13 +47,12 @@ void ExternalStylusInputMapper::dump(std::string& dump) {
 void ExternalStylusInputMapper::configure(nsecs_t when, const InputReaderConfiguration* config,
                                           uint32_t changes) {
     getAbsoluteAxisInfo(ABS_PRESSURE, &mRawPressureAxis);
-    mTouchButtonAccumulator.configure(getDevice());
+    mTouchButtonAccumulator.configure(getDeviceContext());
 }
 
 void ExternalStylusInputMapper::reset(nsecs_t when) {
-    InputDevice* device = getDevice();
-    mSingleTouchMotionAccumulator.reset(device);
-    mTouchButtonAccumulator.reset(device);
+    mSingleTouchMotionAccumulator.reset(getDeviceContext());
+    mTouchButtonAccumulator.reset(getDeviceContext());
     InputMapper::reset(when);
 }
 
@@ -86,7 +86,7 @@ void ExternalStylusInputMapper::sync(nsecs_t when) {
 
     mStylusState.buttons = mTouchButtonAccumulator.getButtonState();
 
-    mContext->dispatchExternalStylusState(mStylusState);
+    getContext()->dispatchExternalStylusState(mStylusState);
 }
 
 } // namespace android

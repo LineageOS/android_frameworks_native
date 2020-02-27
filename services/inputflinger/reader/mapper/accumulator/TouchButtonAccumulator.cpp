@@ -25,29 +25,31 @@ TouchButtonAccumulator::TouchButtonAccumulator() : mHaveBtnTouch(false), mHaveSt
     clearButtons();
 }
 
-void TouchButtonAccumulator::configure(InputDevice* device) {
-    mHaveBtnTouch = device->hasKey(BTN_TOUCH);
-    mHaveStylus = device->hasKey(BTN_TOOL_PEN) || device->hasKey(BTN_TOOL_RUBBER) ||
-            device->hasKey(BTN_TOOL_BRUSH) || device->hasKey(BTN_TOOL_PENCIL) ||
-            device->hasKey(BTN_TOOL_AIRBRUSH);
+void TouchButtonAccumulator::configure(InputDeviceContext& deviceContext) {
+    mHaveBtnTouch = deviceContext.hasScanCode(BTN_TOUCH);
+    mHaveStylus = deviceContext.hasScanCode(BTN_TOOL_PEN) ||
+            deviceContext.hasScanCode(BTN_TOOL_RUBBER) ||
+            deviceContext.hasScanCode(BTN_TOOL_BRUSH) ||
+            deviceContext.hasScanCode(BTN_TOOL_PENCIL) ||
+            deviceContext.hasScanCode(BTN_TOOL_AIRBRUSH);
 }
 
-void TouchButtonAccumulator::reset(InputDevice* device) {
-    mBtnTouch = device->isKeyPressed(BTN_TOUCH);
-    mBtnStylus = device->isKeyPressed(BTN_STYLUS);
+void TouchButtonAccumulator::reset(InputDeviceContext& deviceContext) {
+    mBtnTouch = deviceContext.isKeyPressed(BTN_TOUCH);
+    mBtnStylus = deviceContext.isKeyPressed(BTN_STYLUS);
     // BTN_0 is what gets mapped for the HID usage Digitizers.SecondaryBarrelSwitch
-    mBtnStylus2 = device->isKeyPressed(BTN_STYLUS2) || device->isKeyPressed(BTN_0);
-    mBtnToolFinger = device->isKeyPressed(BTN_TOOL_FINGER);
-    mBtnToolPen = device->isKeyPressed(BTN_TOOL_PEN);
-    mBtnToolRubber = device->isKeyPressed(BTN_TOOL_RUBBER);
-    mBtnToolBrush = device->isKeyPressed(BTN_TOOL_BRUSH);
-    mBtnToolPencil = device->isKeyPressed(BTN_TOOL_PENCIL);
-    mBtnToolAirbrush = device->isKeyPressed(BTN_TOOL_AIRBRUSH);
-    mBtnToolMouse = device->isKeyPressed(BTN_TOOL_MOUSE);
-    mBtnToolLens = device->isKeyPressed(BTN_TOOL_LENS);
-    mBtnToolDoubleTap = device->isKeyPressed(BTN_TOOL_DOUBLETAP);
-    mBtnToolTripleTap = device->isKeyPressed(BTN_TOOL_TRIPLETAP);
-    mBtnToolQuadTap = device->isKeyPressed(BTN_TOOL_QUADTAP);
+    mBtnStylus2 = deviceContext.isKeyPressed(BTN_STYLUS2) || deviceContext.isKeyPressed(BTN_0);
+    mBtnToolFinger = deviceContext.isKeyPressed(BTN_TOOL_FINGER);
+    mBtnToolPen = deviceContext.isKeyPressed(BTN_TOOL_PEN);
+    mBtnToolRubber = deviceContext.isKeyPressed(BTN_TOOL_RUBBER);
+    mBtnToolBrush = deviceContext.isKeyPressed(BTN_TOOL_BRUSH);
+    mBtnToolPencil = deviceContext.isKeyPressed(BTN_TOOL_PENCIL);
+    mBtnToolAirbrush = deviceContext.isKeyPressed(BTN_TOOL_AIRBRUSH);
+    mBtnToolMouse = deviceContext.isKeyPressed(BTN_TOOL_MOUSE);
+    mBtnToolLens = deviceContext.isKeyPressed(BTN_TOOL_LENS);
+    mBtnToolDoubleTap = deviceContext.isKeyPressed(BTN_TOOL_DOUBLETAP);
+    mBtnToolTripleTap = deviceContext.isKeyPressed(BTN_TOOL_TRIPLETAP);
+    mBtnToolQuadTap = deviceContext.isKeyPressed(BTN_TOOL_QUADTAP);
 }
 
 void TouchButtonAccumulator::clearButtons() {

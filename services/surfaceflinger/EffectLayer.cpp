@@ -20,9 +20,9 @@
 
 // #define LOG_NDEBUG 0
 #undef LOG_TAG
-#define LOG_TAG "ColorLayer"
+#define LOG_TAG "EffectLayer"
 
-#include "ColorLayer.h"
+#include "EffectLayer.h"
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -41,27 +41,46 @@
 namespace android {
 // ---------------------------------------------------------------------------
 
-ColorLayer::ColorLayer(const LayerCreationArgs& args)
+EffectLayer::EffectLayer(const LayerCreationArgs& args)
       : Layer(args),
         mCompositionState{mFlinger->getCompositionEngine().createLayerFECompositionState()} {}
 
-ColorLayer::~ColorLayer() = default;
+EffectLayer::~EffectLayer() = default;
 
-std::optional<compositionengine::LayerFE::LayerSettings> ColorLayer::prepareClientComposition(
+std::vector<compositionengine::LayerFE::LayerSettings> EffectLayer::prepareClientCompositionList(
         compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) {
-    auto result = Layer::prepareClientComposition(targetSettings);
-    if (!result) {
-        return result;
+    std::vector<compositionengine::LayerFE::LayerSettings> results;
+    std::optional<compositionengine::LayerFE::LayerSettings> layerSettings =
+            prepareClientComposition(targetSettings);
+    // Nothing to render.
+    if (!layerSettings) {
+        return {};
     }
-    result->source.solidColor = getColor().rgb;
-    return result;
+
+    std::optional<compositionengine::LayerFE::LayerSettings> shadowSettings =
+            prepareShadowClientComposition(*layerSettings, targetSettings.viewport,
+                                           targetSettings.dataspace);
+    if (shadowSettings) {
+        results.push_back(*shadowSettings);
+    }
+
+    // If fill bounds are occluded or the fill color is invalid skip the fill settings.
+    if (targetSettings.realContentIsVisible && fillsColor()) {
+        // Set color for color fill settings.
+        layerSettings->source.solidColor = getColor().rgb;
+        results.push_back(*layerSettings);
+    } else if (hasBlur()) {
+        results.push_back(*layerSettings);
+    }
+
+    return results;
 }
 
-bool ColorLayer::isVisible() const {
-    return !isHiddenByPolicy() && getAlpha() > 0.0_hf;
+bool EffectLayer::isVisible() const {
+    return !isHiddenByPolicy() && getAlpha() > 0.0_hf && hasSomethingToDraw();
 }
 
-bool ColorLayer::setColor(const half3& color) {
+bool EffectLayer::setColor(const half3& color) {
     if (mCurrentState.color.r == color.r && mCurrentState.color.g == color.g &&
         mCurrentState.color.b == color.b) {
         return false;
@@ -76,7 +95,7 @@ bool ColorLayer::setColor(const half3& color) {
     return true;
 }
 
-bool ColorLayer::setDataspace(ui::Dataspace dataspace) {
+bool EffectLayer::setDataspace(ui::Dataspace dataspace) {
     if (mCurrentState.dataspace == dataspace) {
         return false;
     }
@@ -88,7 +107,7 @@ bool ColorLayer::setDataspace(ui::Dataspace dataspace) {
     return true;
 }
 
-void ColorLayer::preparePerFrameCompositionState() {
+void EffectLayer::preparePerFrameCompositionState() {
     Layer::preparePerFrameCompositionState();
 
     auto* compositionState = editCompositionState();
@@ -96,34 +115,43 @@ void ColorLayer::preparePerFrameCompositionState() {
     compositionState->compositionType = Hwc2::IComposerClient::Composition::SOLID_COLOR;
 }
 
-sp<compositionengine::LayerFE> ColorLayer::getCompositionEngineLayerFE() const {
+sp<compositionengine::LayerFE> EffectLayer::getCompositionEngineLayerFE() const {
     return asLayerFE();
 }
 
-compositionengine::LayerFECompositionState* ColorLayer::editCompositionState() {
+compositionengine::LayerFECompositionState* EffectLayer::editCompositionState() {
     return mCompositionState.get();
 }
 
-const compositionengine::LayerFECompositionState* ColorLayer::getCompositionState() const {
+const compositionengine::LayerFECompositionState* EffectLayer::getCompositionState() const {
     return mCompositionState.get();
 }
 
-bool ColorLayer::isOpaque(const Layer::State& s) const {
+bool EffectLayer::isOpaque(const Layer::State& s) const {
     // Consider the layer to be opaque if its opaque flag is set or its effective
     // alpha (considering the alpha of its parents as well) is 1.0;
     return (s.flags & layer_state_t::eLayerOpaque) != 0 || getAlpha() == 1.0_hf;
 }
 
-ui::Dataspace ColorLayer::getDataSpace() const {
+ui::Dataspace EffectLayer::getDataSpace() const {
     return mDrawingState.dataspace;
 }
 
-sp<Layer> ColorLayer::createClone() {
-    sp<ColorLayer> layer = mFlinger->getFactory().createColorLayer(
+sp<Layer> EffectLayer::createClone() {
+    sp<EffectLayer> layer = mFlinger->getFactory().createEffectLayer(
             LayerCreationArgs(mFlinger.get(), nullptr, mName + " (Mirror)", 0, 0, 0,
                               LayerMetadata()));
     layer->setInitialValuesForClone(this);
     return layer;
+}
+
+bool EffectLayer::fillsColor() const {
+    return mDrawingState.color.r >= 0.0_hf && mDrawingState.color.g >= 0.0_hf &&
+            mDrawingState.color.b >= 0.0_hf;
+}
+
+bool EffectLayer::hasBlur() const {
+    return getBackgroundBlurRadius() > 0;
 }
 
 } // namespace android

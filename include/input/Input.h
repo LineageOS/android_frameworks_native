@@ -73,6 +73,19 @@ enum {
     AMOTION_EVENT_FLAG_TAINTED = 0x80000000,
 };
 
+/**
+ * Allowed VerifiedKeyEvent flags. All other flags from KeyEvent do not get verified.
+ * These values must be kept in sync with VerifiedKeyEvent.java
+ */
+constexpr int32_t VERIFIED_KEY_EVENT_FLAGS = AKEY_EVENT_FLAG_CANCELED;
+
+/**
+ * Allowed VerifiedMotionEventFlags. All other flags from MotionEvent do not get verified.
+ * These values must be kept in sync with VerifiedMotionEvent.java
+ */
+constexpr int32_t VERIFIED_MOTION_EVENT_FLAGS =
+        AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED | AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED;
+
 enum {
     /* Used when a motion event is not associated with any display.
      * Typically used for non-pointer events. */
@@ -253,6 +266,38 @@ enum class MotionClassification : uint8_t {
 const char* motionClassificationToString(MotionClassification classification);
 
 /**
+ * Generator of unique numbers used to identify input events.
+ *
+ * Layout of ID:
+ *     |--------------------------|---------------------------|
+ *     |   2 bits for source      | 30 bits for random number |
+ *     |--------------------------|---------------------------|
+ */
+class IdGenerator {
+private:
+    static constexpr uint32_t SOURCE_SHIFT = 30;
+
+public:
+    // Used to divide integer space to ensure no conflict among these sources./
+    enum class Source : int32_t {
+        INPUT_READER = 0x0 << SOURCE_SHIFT,
+        INPUT_DISPATCHER = 0x1 << SOURCE_SHIFT,
+        OTHER = 0x3 << SOURCE_SHIFT, // E.g. app injected events
+    };
+    IdGenerator(Source source);
+
+    int32_t nextId() const;
+
+    // Extract source from given id.
+    static inline Source getSource(int32_t id) { return static_cast<Source>(SOURCE_MASK & id); }
+
+private:
+    const Source mSource;
+
+    static constexpr int32_t SOURCE_MASK = 0x3 << SOURCE_SHIFT;
+};
+
+/**
  * Invalid value for cursor position. Used for non-mouse events, tests and injected events. Don't
  * use it for direct comparison with any other value, because NaN isn't equal to itself according to
  * IEEE 754. Use isnan() instead to check if a cursor position is valid.
@@ -352,6 +397,8 @@ public:
 
     virtual int32_t getType() const = 0;
 
+    inline int32_t getId() const { return mId; }
+
     inline int32_t getDeviceId() const { return mDeviceId; }
 
     inline uint32_t getSource() const { return mSource; }
@@ -364,11 +411,15 @@ public:
 
     inline std::array<uint8_t, 32> getHmac() const { return mHmac; }
 
+    static int32_t nextId();
+
 protected:
-    void initialize(int32_t deviceId, uint32_t source, int32_t displayId,
+    void initialize(int32_t id, int32_t deviceId, uint32_t source, int32_t displayId,
                     std::array<uint8_t, 32> hmac);
+
     void initialize(const InputEvent& from);
 
+    int32_t mId;
     int32_t mDeviceId;
     uint32_t mSource;
     int32_t mDisplayId;
@@ -405,7 +456,7 @@ public:
     static const char* getLabel(int32_t keyCode);
     static int32_t getKeyCodeFromLabel(const char* label);
 
-    void initialize(int32_t deviceId, uint32_t source, int32_t displayId,
+    void initialize(int32_t id, int32_t deviceId, uint32_t source, int32_t displayId,
                     std::array<uint8_t, 32> hmac, int32_t action, int32_t flags, int32_t keyCode,
                     int32_t scanCode, int32_t metaState, int32_t repeatCount, nsecs_t downTime,
                     nsecs_t eventTime);
@@ -629,7 +680,7 @@ public:
 
     ssize_t findPointerIndex(int32_t pointerId) const;
 
-    void initialize(int32_t deviceId, uint32_t source, int32_t displayId,
+    void initialize(int32_t id, int32_t deviceId, uint32_t source, int32_t displayId,
                     std::array<uint8_t, 32> hmac, int32_t action, int32_t actionButton,
                     int32_t flags, int32_t edgeFlags, int32_t metaState, int32_t buttonState,
                     MotionClassification classification, float xScale, float yScale, float xOffset,
@@ -709,7 +760,7 @@ public:
 
     inline bool getInTouchMode() const { return mInTouchMode; }
 
-    void initialize(bool hasFocus, bool inTouchMode);
+    void initialize(int32_t id, bool hasFocus, bool inTouchMode);
 
     void initialize(const FocusEvent& from);
 
@@ -717,6 +768,55 @@ protected:
     bool mHasFocus;
     bool mInTouchMode;
 };
+
+/**
+ * Base class for verified events.
+ * Do not create a VerifiedInputEvent explicitly.
+ * Use helper functions to create them from InputEvents.
+ */
+struct __attribute__((__packed__)) VerifiedInputEvent {
+    enum class Type : int32_t {
+        KEY = AINPUT_EVENT_TYPE_KEY,
+        MOTION = AINPUT_EVENT_TYPE_MOTION,
+    };
+
+    Type type;
+    int32_t deviceId;
+    nsecs_t eventTimeNanos;
+    uint32_t source;
+    int32_t displayId;
+};
+
+/**
+ * Same as KeyEvent, but only contains the data that can be verified.
+ * If you update this class, you must also update VerifiedKeyEvent.java
+ */
+struct __attribute__((__packed__)) VerifiedKeyEvent : public VerifiedInputEvent {
+    int32_t action;
+    nsecs_t downTimeNanos;
+    int32_t flags;
+    int32_t keyCode;
+    int32_t scanCode;
+    int32_t metaState;
+    int32_t repeatCount;
+};
+
+/**
+ * Same as MotionEvent, but only contains the data that can be verified.
+ * If you update this class, you must also update VerifiedMotionEvent.java
+ */
+struct __attribute__((__packed__)) VerifiedMotionEvent : public VerifiedInputEvent {
+    float rawX;
+    float rawY;
+    int32_t actionMasked;
+    nsecs_t downTimeNanos;
+    int32_t flags;
+    int32_t metaState;
+    int32_t buttonState;
+};
+
+VerifiedKeyEvent verifiedKeyEventFromKeyEvent(const KeyEvent& event);
+VerifiedMotionEvent verifiedMotionEventFromMotionEvent(const MotionEvent& event);
 
 /*
  * Input event factory.

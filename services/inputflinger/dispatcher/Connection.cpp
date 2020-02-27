@@ -20,11 +20,13 @@
 
 namespace android::inputdispatcher {
 
-Connection::Connection(const sp<InputChannel>& inputChannel, bool monitor)
+Connection::Connection(const sp<InputChannel>& inputChannel, bool monitor,
+                       const IdGenerator& idGenerator)
       : status(STATUS_NORMAL),
         inputChannel(inputChannel),
         monitor(monitor),
         inputPublisher(inputChannel),
+        inputState(idGenerator),
         inputPublisherBlocked(false) {}
 
 Connection::~Connection() {}

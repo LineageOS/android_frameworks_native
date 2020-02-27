@@ -239,7 +239,7 @@ TEST_F(BLASTBufferQueueTest, SetNextTransaction) {
     ASSERT_EQ(&next, adapter.getNextTransaction());
 }
 
-TEST_F(BLASTBufferQueueTest, onFrameAvailable_ApplyDesiredPresentTime) {
+TEST_F(BLASTBufferQueueTest, DISABLED_onFrameAvailable_ApplyDesiredPresentTime) {
     BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
     sp<IGraphicBufferProducer> igbProducer;
     setUpProducer(adapter, igbProducer);
@@ -403,7 +403,7 @@ TEST_F(BLASTBufferQueueTest, SetCrop_ScalingModeScaleCrop) {
     int32_t finalCropSideLength = bufferSideLength / 2;
 
     auto bg = mClient->createSurface(String8("BGTest"), 0, 0, PIXEL_FORMAT_RGBA_8888,
-                                     ISurfaceComposerClient::eFXSurfaceColor);
+                                     ISurfaceComposerClient::eFXSurfaceEffect);
     ASSERT_NE(nullptr, bg.get());
     Transaction t;
     t.setLayerStack(bg, 0)

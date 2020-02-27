@@ -531,7 +531,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetColorBasic) {
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(bufferLayer, Color::RED, 32, 32));
     ASSERT_NO_FATAL_FAILURE(colorLayer =
                                     createLayer("test", 0 /* buffer width */, 0 /* buffer height */,
-                                                ISurfaceComposerClient::eFXSurfaceColor));
+                                                ISurfaceComposerClient::eFXSurfaceEffect));
 
     Transaction()
             .setCrop_legacy(colorLayer, Rect(0, 0, 32, 32))
@@ -570,7 +570,7 @@ void LayerRenderTypeTransactionTest::setBackgroundColorHelper(uint32_t layerType
     Color priorBgColor = Color::BLUE;
     Color expectedColor = Color::BLACK;
     switch (layerType) {
-        case ISurfaceComposerClient::eFXSurfaceColor:
+        case ISurfaceComposerClient::eFXSurfaceEffect:
             ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 0, 0, layerType));
             Transaction()
                     .setCrop_legacy(layer, Rect(0, 0, width, height))
@@ -599,7 +599,7 @@ void LayerRenderTypeTransactionTest::setBackgroundColorHelper(uint32_t layerType
             return;
     }
 
-    if (priorColor && layerType != ISurfaceComposerClient::eFXSurfaceColor) {
+    if (priorColor && layerType != ISurfaceComposerClient::eFXSurfaceEffect) {
         Transaction()
                 .setBackgroundColor(layer, half3(0, 0, 1.0f), 1.0f, ui::Dataspace::UNKNOWN)
                 .apply();
@@ -628,7 +628,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetBackgroundColor_Color_NoEffect) {
     bool bufferFill = false;
     float alpha = 1.0f;
     Color finalColor = Color::RED;
-    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceColor,
+    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceEffect,
                                                      priorColor, bufferFill, alpha, finalColor));
 }
 
@@ -744,13 +744,27 @@ TEST_P(LayerRenderTypeTransactionTest, SetColorClamped) {
     sp<SurfaceControl> colorLayer;
     ASSERT_NO_FATAL_FAILURE(colorLayer =
                                     createLayer("test", 0 /* buffer width */, 0 /* buffer height */,
-                                                ISurfaceComposerClient::eFXSurfaceColor));
+                                                ISurfaceComposerClient::eFXSurfaceEffect));
     Transaction()
             .setCrop_legacy(colorLayer, Rect(0, 0, 32, 32))
-            .setColor(colorLayer, half3(2.0f, -1.0f, 0.0f))
+            .setColor(colorLayer, half3(2.0f, 0.0f, 0.0f))
             .apply();
 
     getScreenCapture()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+}
+
+// An invalid color will not render a color and the layer will not be visible.
+TEST_P(LayerRenderTypeTransactionTest, SetInvalidColor) {
+    sp<SurfaceControl> colorLayer;
+    ASSERT_NO_FATAL_FAILURE(colorLayer =
+                                    createLayer("test", 0 /* buffer width */, 0 /* buffer height */,
+                                                ISurfaceComposerClient::eFXSurfaceEffect));
+    Transaction()
+            .setCrop_legacy(colorLayer, Rect(0, 0, 32, 32))
+            .setColor(colorLayer, half3(1.0f, -1.0f, 0.5f))
+            .apply();
+
+    getScreenCapture()->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
 }
 
 TEST_P(LayerRenderTypeTransactionTest, SetColorWithAlpha) {
@@ -760,7 +774,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetColorWithAlpha) {
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(bufferLayer, Color::RED, 32, 32));
     ASSERT_NO_FATAL_FAILURE(colorLayer =
                                     createLayer("test", 0 /* buffer width */, 0 /* buffer height */,
-                                                ISurfaceComposerClient::eFXSurfaceColor));
+                                                ISurfaceComposerClient::eFXSurfaceEffect));
     Transaction().setCrop_legacy(colorLayer, Rect(0, 0, 32, 32)).apply();
 
     const half3 color(15.0f / 255.0f, 51.0f / 255.0f, 85.0f / 255.0f);
@@ -787,7 +801,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetColorWithParentAlpha_Bug74220420) {
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(bufferLayer, Color::RED, 32, 32));
     ASSERT_NO_FATAL_FAILURE(colorLayer = createLayer("childWithColor", 0 /* buffer width */,
                                                      0 /* buffer height */,
-                                                     ISurfaceComposerClient::eFXSurfaceColor));
+                                                     ISurfaceComposerClient::eFXSurfaceEffect));
     Transaction().setCrop_legacy(colorLayer, Rect(0, 0, 32, 32)).apply();
     const half3 color(15.0f / 255.0f, 51.0f / 255.0f, 85.0f / 255.0f);
     const float alpha = 0.25f;
@@ -1663,7 +1677,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetColorTransformBasic) {
     sp<SurfaceControl> colorLayer;
     ASSERT_NO_FATAL_FAILURE(colorLayer =
                                     createLayer("test", 0 /* buffer width */, 0 /* buffer height */,
-                                                ISurfaceComposerClient::eFXSurfaceColor));
+                                                ISurfaceComposerClient::eFXSurfaceEffect));
     Transaction()
             .setCrop_legacy(colorLayer, Rect(0, 0, 32, 32))
             .setLayer(colorLayer, mLayerZBase + 1)
@@ -1719,7 +1733,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetColorTransformOnParent) {
                                                       ISurfaceComposerClient::eFXSurfaceContainer));
     ASSERT_NO_FATAL_FAILURE(
             colorLayer = createLayer("test", 0 /* buffer width */, 0 /* buffer height */,
-                                     ISurfaceComposerClient::eFXSurfaceColor, parentLayer.get()));
+                                     ISurfaceComposerClient::eFXSurfaceEffect, parentLayer.get()));
 
     Transaction()
             .setCrop_legacy(parentLayer, Rect(0, 0, 100, 100))
@@ -1780,7 +1794,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetColorTransformOnChildAndParent) {
                                                       ISurfaceComposerClient::eFXSurfaceContainer));
     ASSERT_NO_FATAL_FAILURE(
             colorLayer = createLayer("test", 0 /* buffer width */, 0 /* buffer height */,
-                                     ISurfaceComposerClient::eFXSurfaceColor, parentLayer.get()));
+                                     ISurfaceComposerClient::eFXSurfaceEffect, parentLayer.get()));
 
     Transaction()
             .setCrop_legacy(parentLayer, Rect(0, 0, 100, 100))

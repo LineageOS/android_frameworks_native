@@ -75,8 +75,7 @@ void CacheTracker::loadStats() {
 
 bool CacheTracker::loadQuotaStats() {
     int cacheGid = multiuser_get_cache_gid(mUserId, mAppId);
-    int extCacheGid = multiuser_get_ext_cache_gid(mUserId, mAppId);
-    if (IsQuotaSupported(mUuid) && cacheGid != -1 && extCacheGid != -1) {
+    if (IsQuotaSupported(mUuid) && cacheGid != -1) {
         int64_t space;
         if ((space = GetOccupiedSpaceForGid(mUuid, cacheGid)) != -1) {
             cacheUsed += space;
@@ -84,7 +83,7 @@ bool CacheTracker::loadQuotaStats() {
             return false;
         }
 
-        if ((space = GetOccupiedSpaceForGid(mUuid, extCacheGid)) != -1) {
+        if ((space = get_occupied_app_cache_space_external(mUuid, mUserId, mAppId)) != -1) {
             cacheUsed += space;
         } else {
             return false;

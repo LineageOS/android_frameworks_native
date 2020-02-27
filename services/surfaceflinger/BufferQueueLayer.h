@@ -56,9 +56,6 @@ public:
 
     bool shouldPresentNow(nsecs_t expectedPresentTime) const override;
 
-    bool setFrameRate(FrameRate frameRate) override;
-    FrameRate getFrameRate() const override;
-
     // -----------------------------------------------------------------------
 
     // -----------------------------------------------------------------------
@@ -155,8 +152,6 @@ private:
     std::atomic<bool> mSidebandStreamChanged{false};
 
     sp<ContentsChangedListener> mContentsChangedListener;
-
-    std::atomic<float> mLatchedFrameRate = 0.f;
 };
 
 } // namespace android

@@ -248,6 +248,11 @@ public:
     static ui::Dataspace wideColorGamutCompositionDataspace;
     static ui::PixelFormat wideColorGamutCompositionPixelFormat;
 
+    // Whether to use frame rate API when deciding about the refresh rate of the display. This
+    // variable is caches in SF, so that we can check it with each layer creation, and a void the
+    // overhead that is caused by reading from sysprop.
+    static bool useFrameRateApi;
+
     static char const* getServiceName() ANDROID_API {
         return "SurfaceFlinger";
     }
@@ -488,6 +493,8 @@ private:
     status_t notifyPowerHint(int32_t hintId) override;
     status_t setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
                                      float lightPosY, float lightPosZ, float lightRadius) override;
+    status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
+                          int8_t compatibility) override;
     /* ------------------------------------------------------------------------
      * DeathRecipient interface
      */
@@ -648,9 +655,9 @@ private:
                                     sp<IBinder>* outHandle, uint32_t* outTransformHint,
                                     sp<Layer>* outLayer);
 
-    status_t createColorLayer(const sp<Client>& client, std::string name, uint32_t w, uint32_t h,
-                              uint32_t flags, LayerMetadata metadata, sp<IBinder>* outHandle,
-                              sp<Layer>* outLayer);
+    status_t createEffectLayer(const sp<Client>& client, std::string name, uint32_t w, uint32_t h,
+                               uint32_t flags, LayerMetadata metadata, sp<IBinder>* outHandle,
+                               sp<Layer>* outLayer);
 
     status_t createContainerLayer(const sp<Client>& client, std::string name, uint32_t w,
                                   uint32_t h, uint32_t flags, LayerMetadata metadata,
@@ -685,7 +692,7 @@ private:
     using TraverseLayersFunction = std::function<void(const LayerVector::Visitor&)>;
 
     void renderScreenImplLocked(const RenderArea& renderArea, TraverseLayersFunction traverseLayers,
-                                ANativeWindowBuffer* buffer, bool useIdentityTransform,
+                                const sp<GraphicBuffer>& buffer, bool useIdentityTransform,
                                 int* outSyncFd);
     status_t captureScreenCommon(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
                                  sp<GraphicBuffer>* outBuffer, const ui::PixelFormat reqPixelFormat,
@@ -697,7 +704,7 @@ private:
     const sp<DisplayDevice> getDisplayByLayerStack(uint64_t layerStack);
     status_t captureScreenImplLocked(const RenderArea& renderArea,
                                      TraverseLayersFunction traverseLayers,
-                                     ANativeWindowBuffer* buffer, bool useIdentityTransform,
+                                     const sp<GraphicBuffer>& buffer, bool useIdentityTransform,
                                      bool forSystem, int* outSyncFd, bool& outCapturedSecureLayers);
     void traverseLayersInDisplay(const sp<const DisplayDevice>& display,
                                  const LayerVector::Visitor& visitor);
@@ -752,6 +759,8 @@ private:
         }
         return nullptr;
     }
+
+    std::optional<DeviceProductInfo> getDeviceProductInfoLocked(const DisplayDevice&) const;
 
     // mark a region of a layer stack dirty. this updates the dirty
     // region of all screens presenting this layer stack.
@@ -963,6 +972,10 @@ private:
     // Can't be unordered_set because wp<> isn't hashable
     std::set<wp<IBinder>> mGraphicBufferProducerList;
     size_t mMaxGraphicBufferProducerListSize = MAX_LAYERS;
+    // If there are more GraphicBufferProducers tracked by SurfaceFlinger than
+    // this threshold, then begin logging.
+    size_t mGraphicBufferProducerListSizeLogThreshold =
+            static_cast<size_t>(0.95 * static_cast<double>(MAX_LAYERS));
 
     // protected by mStateLock (but we could use another lock)
     bool mLayersRemoved = false;
@@ -973,6 +986,7 @@ private:
     // constant members (no synchronization needed for access)
     const nsecs_t mBootTime = systemTime();
     bool mGpuToCpuSupported = false;
+    bool mIsUserBuild = true;
 
     // Can only accessed from the main thread, these members
     // don't need synchronization
@@ -1034,7 +1048,10 @@ private:
     const std::shared_ptr<TimeStats> mTimeStats;
     const std::unique_ptr<FrameTracer> mFrameTracer;
     bool mUseHwcVirtualDisplays = false;
+    // Disable blurs, for debugging
     bool mEnableBlurs = false;
+    // If blurs are considered expensive and should require high GPU frequency.
+    bool mBlursAreExpensive = false;
     std::atomic<uint32_t> mFrameMissedCount = 0;
     std::atomic<uint32_t> mHwcFrameMissedCount = 0;
     std::atomic<uint32_t> mGpuFrameMissedCount = 0;
@@ -1148,6 +1165,15 @@ private:
 
     std::atomic<nsecs_t> mExpectedPresentTime = 0;
 
+    /* ------------------------------------------------------------------------
+     * Generic Layer Metadata
+     */
+    const std::unordered_map<std::string, uint32_t>& getGenericLayerMetadataKeyMap() const;
+
+    /* ------------------------------------------------------------------------
+     * Misc
+     */
+
     std::mutex mActiveConfigLock;
     // This bit is set once we start setting the config. We read from this bit during the
     // process. If at the end, this bit is different than mDesiredActiveConfig, we restart
@@ -1204,6 +1230,11 @@ private:
     // Flags to capture the state of Vsync in HWC
     HWC2::Vsync mHWCVsyncState = HWC2::Vsync::Disable;
     HWC2::Vsync mHWCVsyncPendingState = HWC2::Vsync::Disable;
+
+    // Fields tracking the current jank event: when it started and how many
+    // janky frames there are.
+    nsecs_t mMissedFrameJankStart = 0;
+    int32_t mMissedFrameJankCount = 0;
 };
 
 } // namespace android

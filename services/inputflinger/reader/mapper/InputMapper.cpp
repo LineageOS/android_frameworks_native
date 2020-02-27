@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "Macros.h"
+#include "../Macros.h"
 
 #include "InputMapper.h"
 
@@ -22,7 +22,7 @@
 
 namespace android {
 
-InputMapper::InputMapper(InputDevice* device) : mDevice(device), mContext(device->getContext()) {}
+InputMapper::InputMapper(InputDeviceContext& deviceContext) : mDeviceContext(deviceContext) {}
 
 InputMapper::~InputMapper() {}
 
@@ -71,14 +71,12 @@ void InputMapper::updateMetaState(int32_t keyCode) {}
 
 void InputMapper::updateExternalStylusState(const StylusState& state) {}
 
-void InputMapper::fadePointer() {}
-
 status_t InputMapper::getAbsoluteAxisInfo(int32_t axis, RawAbsoluteAxisInfo* axisInfo) {
-    return getEventHub()->getAbsoluteAxisInfo(getDeviceId(), axis, axisInfo);
+    return getDeviceContext().getAbsoluteAxisInfo(axis, axisInfo);
 }
 
 void InputMapper::bumpGeneration() {
-    mDevice->bumpGeneration();
+    getDeviceContext().bumpGeneration();
 }
 
 void InputMapper::dumpRawAbsoluteAxisInfo(std::string& dump, const RawAbsoluteAxisInfo& axis,

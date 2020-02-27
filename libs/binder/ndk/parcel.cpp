@@ -15,6 +15,7 @@
  */
 
 #include <android/binder_parcel.h>
+#include <android/binder_parcel_platform.h>
 #include "parcel_internal.h"
 
 #include "ibinder_internal.h"
@@ -242,24 +243,16 @@ binder_status_t AParcel_readStrongBinder(const AParcel* parcel, AIBinder** binde
 }
 
 binder_status_t AParcel_writeParcelFileDescriptor(AParcel* parcel, int fd) {
-    std::unique_ptr<ParcelFileDescriptor> parcelFd;
-
     if (fd < 0) {
         if (fd != -1) {
             return STATUS_UNKNOWN_ERROR;
         }
-        // parcelFd = nullptr
-    } else {  // fd >= 0
-        parcelFd = std::make_unique<ParcelFileDescriptor>(unique_fd(fd));
+        return PruneStatusT(parcel->get()->writeInt32(0));  // null
     }
+    status_t status = parcel->get()->writeInt32(1);  // not-null
+    if (status != STATUS_OK) return PruneStatusT(status);
 
-    status_t status = parcel->get()->writeNullableParcelable(parcelFd);
-
-    // ownership is retained by caller
-    if (parcelFd != nullptr) {
-        (void)parcelFd->release().release();
-    }
-
+    status = parcel->get()->writeDupParcelFileDescriptor(fd);
     return PruneStatusT(status);
 }
 
@@ -648,6 +641,10 @@ binder_status_t AParcel_readCharArray(const AParcel* parcel, void* arrayData,
 binder_status_t AParcel_readByteArray(const AParcel* parcel, void* arrayData,
                                       AParcel_byteArrayAllocator allocator) {
     return ReadArray<int8_t>(parcel, arrayData, allocator);
+}
+
+bool AParcel_getAllowFds(const AParcel* parcel) {
+    return parcel->get()->allowFds();
 }
 
 // @END

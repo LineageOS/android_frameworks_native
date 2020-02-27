@@ -27,6 +27,7 @@
 
 #include <android-base/macros.h>
 #include <android-base/unique_fd.h>
+#include <android/hardware/dumpstate/1.1/types.h>
 #include <android/os/BnIncidentAuthListener.h>
 #include <android/os/IDumpstate.h>
 #include <android/os/IDumpstateListener.h>
@@ -366,6 +367,11 @@ class Dumpstate {
         bool wifi_only = false;
         // Whether progress updates should be published.
         bool do_progress_updates = false;
+        // The mode we'll use when calling IDumpstateDevice::dumpstateBoard.
+        // TODO(b/148168577) get rid of the AIDL values, replace them with the HAL values instead.
+        // The HAL is actually an API surface that can be validated, while the AIDL is not (@hide).
+        ::android::hardware::dumpstate::V1_1::DumpstateMode dumpstate_hal_mode =
+            ::android::hardware::dumpstate::V1_1::DumpstateMode::DEFAULT;
         // File descriptor to output zip file.
         android::base::unique_fd bugreport_fd;
         // File descriptor to screenshot file.

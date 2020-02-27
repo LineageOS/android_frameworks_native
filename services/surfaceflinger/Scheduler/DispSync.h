@@ -49,7 +49,8 @@ public:
     virtual void reset() = 0;
     virtual bool addPresentFence(const std::shared_ptr<FenceTime>&) = 0;
     virtual void beginResync() = 0;
-    virtual bool addResyncSample(nsecs_t timestamp, bool* periodFlushed) = 0;
+    virtual bool addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriod,
+                                 bool* periodFlushed) = 0;
     virtual void endResync() = 0;
     virtual void setPeriod(nsecs_t period) = 0;
     virtual nsecs_t getPeriod() = 0;
@@ -125,7 +126,8 @@ public:
     // down the DispSync model, and false otherwise.
     // periodFlushed will be set to true if mPendingPeriod is flushed to
     // mIntendedPeriod, and false otherwise.
-    bool addResyncSample(nsecs_t timestamp, bool* periodFlushed) override;
+    bool addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriod,
+                         bool* periodFlushed) override;
     void endResync() override;
 
     // The setPeriod method sets the vsync event model's period to a specific

@@ -16,14 +16,21 @@
 
 #pragma once
 
+#include <optional>
 #include <type_traits>
+
+#include <ui/DeviceProductInfo.h>
 
 namespace android {
 
+enum class DisplayConnectionType { Internal, External };
+
 // Immutable information about physical display.
 struct DisplayInfo {
+    DisplayConnectionType connectionType = DisplayConnectionType::Internal;
     float density = 0.f;
     bool secure = false;
+    std::optional<DeviceProductInfo> deviceProductInfo;
 };
 
 static_assert(std::is_trivially_copyable_v<DisplayInfo>);

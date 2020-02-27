@@ -109,7 +109,6 @@ public:
             android::Hwc2::Display display, int64_t timestamp,
             android::Hwc2::VsyncPeriodNanos vsyncPeriodNanos) override {
         if (mVsyncSwitchingSupported) {
-            // TODO(b/140201379): use vsyncPeriodNanos in the new DispSync
             mCallback->onVsyncReceived(mSequenceId, display, timestamp,
                                        std::make_optional(vsyncPeriodNanos));
         } else {
@@ -149,20 +148,20 @@ HWComposer::~HWComposer() = default;
 namespace impl {
 
 HWComposer::HWComposer(std::unique_ptr<Hwc2::Composer> composer) : mComposer(std::move(composer)) {
-    loadCapabilities();
 }
 
 HWComposer::HWComposer(const std::string& composerServiceName)
       : mComposer(std::make_unique<Hwc2::impl::Composer>(composerServiceName)) {
-    loadCapabilities();
 }
 
 HWComposer::~HWComposer() {
     mDisplayData.clear();
 }
 
-void HWComposer::registerCallback(HWC2::ComposerCallback* callback,
-                                  int32_t sequenceId) {
+void HWComposer::setConfiguration(HWC2::ComposerCallback* callback, int32_t sequenceId) {
+    loadCapabilities();
+    loadLayerMetadataSupport();
+
     if (mRegisteredCallback) {
         ALOGW("Callback already registered. Ignored extra registration attempt.");
         return;
@@ -209,7 +208,9 @@ std::optional<DisplayIdentificationInfo> HWComposer::onHotplug(hwc2_display_t hw
     std::optional<DisplayIdentificationInfo> info;
 
     if (const auto displayId = toPhysicalDisplayId(hwcDisplayId)) {
-        info = DisplayIdentificationInfo{*displayId, std::string()};
+        info = DisplayIdentificationInfo{.id = *displayId,
+                                         .name = std::string(),
+                                         .deviceProductInfo = std::nullopt};
     } else {
         if (connection == HWC2::Connection::Disconnected) {
             ALOGE("Ignoring disconnection of invalid HWC display %" PRIu64, hwcDisplayId);
@@ -406,18 +407,32 @@ std::shared_ptr<const HWC2::Display::Config> HWComposer::getActiveConfig(
 
 // Composer 2.4
 
+DisplayConnectionType HWComposer::getDisplayConnectionType(DisplayId displayId) const {
+    RETURN_IF_INVALID_DISPLAY(displayId, DisplayConnectionType::Internal);
+    const auto& hwcDisplay = mDisplayData.at(displayId).hwcDisplay;
+
+    DisplayConnectionType type;
+    const auto error = hwcDisplay->getConnectionType(&type);
+
+    const auto FALLBACK_TYPE = hwcDisplay->getId() == mInternalHwcDisplayId
+            ? DisplayConnectionType::Internal
+            : DisplayConnectionType::External;
+
+    RETURN_IF_HWC_ERROR(error, displayId, FALLBACK_TYPE);
+    return type;
+}
+
 bool HWComposer::isVsyncPeriodSwitchSupported(DisplayId displayId) const {
+    RETURN_IF_INVALID_DISPLAY(displayId, false);
     return mDisplayData.at(displayId).hwcDisplay->isVsyncPeriodSwitchSupported();
 }
 
 nsecs_t HWComposer::getDisplayVsyncPeriod(DisplayId displayId) const {
+    RETURN_IF_INVALID_DISPLAY(displayId, 0);
+
     nsecs_t vsyncPeriodNanos;
     auto error = mDisplayData.at(displayId).hwcDisplay->getDisplayVsyncPeriod(&vsyncPeriodNanos);
-    if (error != HWC2::Error::None) {
-        LOG_DISPLAY_ERROR(displayId, "Failed to get Vsync Period");
-        return 0;
-    }
-
+    RETURN_IF_HWC_ERROR(error, displayId, 0);
     return vsyncPeriodNanos;
 }
 
@@ -579,12 +594,13 @@ sp<Fence> HWComposer::getPresentFence(DisplayId displayId) const {
 
 sp<Fence> HWComposer::getLayerReleaseFence(DisplayId displayId, HWC2::Layer* layer) const {
     RETURN_IF_INVALID_DISPLAY(displayId, Fence::NO_FENCE);
-    auto displayFences = mDisplayData.at(displayId).releaseFences;
-    if (displayFences.count(layer) == 0) {
+    const auto& displayFences = mDisplayData.at(displayId).releaseFences;
+    auto fence = displayFences.find(layer);
+    if (fence == displayFences.end()) {
         ALOGV("getLayerReleaseFence: Release fence not found");
         return Fence::NO_FENCE;
     }
-    return displayFences[layer];
+    return fence->second;
 }
 
 status_t HWComposer::presentAndGetReleaseFences(DisplayId displayId) {
@@ -871,6 +887,10 @@ status_t HWComposer::setContentType(DisplayId displayId, HWC2::ContentType conte
     return NO_ERROR;
 }
 
+const std::unordered_map<std::string, bool>& HWComposer::getSupportedLayerGenericMetadata() const {
+    return mSupportedLayerGenericMetadata;
+}
+
 void HWComposer::dump(std::string& result) const {
     result.append(mComposer->dumpDebugInfo());
 }
@@ -933,9 +953,11 @@ std::optional<DisplayIdentificationInfo> HWComposer::onHotplugConnect(hwc2_displ
 
     if (info) return info;
 
-    return DisplayIdentificationInfo{getFallbackDisplayId(port),
-                                     hwcDisplayId == mInternalHwcDisplayId ? "Internal display"
-                                                                           : "External display"};
+    return DisplayIdentificationInfo{.id = getFallbackDisplayId(port),
+                                     .name = hwcDisplayId == mInternalHwcDisplayId
+                                             ? "Internal display"
+                                             : "External display",
+                                     .deviceProductInfo = std::nullopt};
 }
 
 void HWComposer::loadCapabilities() {
@@ -943,6 +965,22 @@ void HWComposer::loadCapabilities() {
     auto capabilities = mComposer->getCapabilities();
     for (auto capability : capabilities) {
         mCapabilities.emplace(static_cast<HWC2::Capability>(capability));
+    }
+}
+
+void HWComposer::loadLayerMetadataSupport() {
+    mSupportedLayerGenericMetadata.clear();
+
+    std::vector<Hwc2::IComposerClient::LayerGenericMetadataKey> supportedMetadataKeyInfo;
+    const auto error = mComposer->getLayerGenericMetadataKeys(&supportedMetadataKeyInfo);
+    if (error != hardware::graphics::composer::V2_4::Error::NONE) {
+        ALOGE("%s: %s failed: %s (%d)", __FUNCTION__, "getLayerGenericMetadataKeys",
+              toString(error).c_str(), static_cast<int32_t>(error));
+        return;
+    }
+
+    for (const auto& [name, mandatory] : supportedMetadataKeyInfo) {
+        mSupportedLayerGenericMetadata.emplace(name, mandatory);
     }
 }
 

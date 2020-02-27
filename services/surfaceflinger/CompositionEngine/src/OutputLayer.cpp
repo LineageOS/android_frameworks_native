@@ -406,6 +406,14 @@ void OutputLayer::writeOutputIndependentGeometryStateToHWC(
         ALOGE("[%s] Failed to set info %s (%d)", getLayerFE().getDebugName(),
               to_string(error).c_str(), static_cast<int32_t>(error));
     }
+
+    for (const auto& [name, entry] : outputIndependentState.metadata) {
+        if (auto error = hwcLayer->setLayerGenericMetadata(name, entry.mandatory, entry.value);
+            error != HWC2::Error::None) {
+            ALOGE("[%s] Failed to set generic metadata %s %s (%d)", getLayerFE().getDebugName(),
+                  name.c_str(), to_string(error).c_str(), static_cast<int32_t>(error));
+        }
+    }
 }
 
 void OutputLayer::writeOutputDependentPerFrameStateToHWC(HWC2::Layer* hwcLayer) {
@@ -661,4 +669,3 @@ void OutputLayer::dump(std::string& out) const {
 
 } // namespace impl
 } // namespace android::compositionengine
-

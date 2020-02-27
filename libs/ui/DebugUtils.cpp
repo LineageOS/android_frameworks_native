@@ -15,12 +15,14 @@
  */
 
 #include <ui/DebugUtils.h>
+#include <ui/DeviceProductInfo.h>
 #include <ui/PixelFormat.h>
 #include <ui/Rect.h>
 
 #include <android-base/stringprintf.h>
 #include <string>
 
+using android::base::StringAppendF;
 using android::base::StringPrintf;
 using android::ui::ColorMode;
 using android::ui::RenderIntent;
@@ -85,12 +87,11 @@ std::string decodeStandard(android_dataspace dataspace) {
                 case HAL_DATASPACE_UNKNOWN:
                 // Fallthrough
                 default:
-                    return android::base::StringPrintf("Unknown deprecated dataspace code %d",
-                                                       dataspace);
+                    return StringPrintf("Unknown deprecated dataspace code %d", dataspace);
             }
     }
 
-    return android::base::StringPrintf("Unknown dataspace code %d", dataspaceSelect);
+    return StringPrintf("Unknown dataspace code %d", dataspaceSelect);
 }
 
 std::string decodeTransfer(android_dataspace dataspace) {
@@ -147,7 +148,7 @@ std::string decodeTransfer(android_dataspace dataspace) {
             return std::string("STD-B67");
     }
 
-    return android::base::StringPrintf("Unknown dataspace transfer %d", dataspaceTransfer);
+    return StringPrintf("Unknown dataspace transfer %d", dataspaceTransfer);
 }
 
 std::string decodeRange(android_dataspace dataspace) {
@@ -187,16 +188,15 @@ std::string decodeRange(android_dataspace dataspace) {
             return std::string("Extended range");
     }
 
-    return android::base::StringPrintf("Unknown dataspace range %d", dataspaceRange);
+    return StringPrintf("Unknown dataspace range %d", dataspaceRange);
 }
 
 std::string dataspaceDetails(android_dataspace dataspace) {
     if (dataspace == 0) {
         return "Default";
     }
-    return android::base::StringPrintf("%s %s %s", decodeStandard(dataspace).c_str(),
-                                       decodeTransfer(dataspace).c_str(),
-                                       decodeRange(dataspace).c_str());
+    return StringPrintf("%s %s %s", decodeStandard(dataspace).c_str(),
+                        decodeTransfer(dataspace).c_str(), decodeRange(dataspace).c_str());
 }
 
 std::string decodeColorMode(ColorMode colorMode) {
@@ -244,7 +244,7 @@ std::string decodeColorMode(ColorMode colorMode) {
             return std::string("ColorMode::BT2100_HLG");
     }
 
-    return android::base::StringPrintf("Unknown color mode %d", colorMode);
+    return StringPrintf("Unknown color mode %d", colorMode);
 }
 
 std::string decodeColorTransform(android_color_transform colorTransform) {
@@ -271,7 +271,7 @@ std::string decodeColorTransform(android_color_transform colorTransform) {
             return std::string("Correct tritanopia");
     }
 
-    return android::base::StringPrintf("Unknown color transform %d", colorTransform);
+    return StringPrintf("Unknown color transform %d", colorTransform);
 }
 
 // Converts a PixelFormat to a human-readable string.  Max 11 chars.
@@ -303,7 +303,7 @@ std::string decodePixelFormat(android::PixelFormat format) {
         case android::PIXEL_FORMAT_BGRA_8888:
             return std::string("BGRA_8888");
         default:
-            return android::base::StringPrintf("Unknown %#08x", format);
+            return StringPrintf("Unknown %#08x", format);
     }
 }
 
@@ -323,4 +323,29 @@ std::string decodeRenderIntent(RenderIntent renderIntent) {
 
 std::string to_string(const android::Rect& rect) {
     return StringPrintf("(%4d,%4d,%4d,%4d)", rect.left, rect.top, rect.right, rect.bottom);
+}
+
+std::string toString(const android::DeviceProductInfo::ManufactureOrModelDate& date) {
+    using ModelYear = android::DeviceProductInfo::ModelYear;
+    using ManufactureYear = android::DeviceProductInfo::ManufactureYear;
+    using ManufactureWeekAndYear = android::DeviceProductInfo::ManufactureWeekAndYear;
+
+    if (const auto* model = std::get_if<ModelYear>(&date)) {
+        return StringPrintf("ModelYear{%d}", model->year);
+    } else if (const auto* manufacture = std::get_if<ManufactureYear>(&date)) {
+        return StringPrintf("ManufactureDate{year=%d}", manufacture->year);
+    } else if (const auto* manufacture = std::get_if<ManufactureWeekAndYear>(&date)) {
+        return StringPrintf("ManufactureDate{week=%d, year=%d}", manufacture->week,
+                            manufacture->year);
+    } else {
+        LOG_FATAL("Unknown alternative for variant DeviceProductInfo::ManufactureOrModelDate");
+        return {};
+    }
+}
+
+std::string toString(const android::DeviceProductInfo& info) {
+    return StringPrintf("DeviceProductInfo{name=%s, productId=%s, manufacturerPnpId=%s, "
+                        "manufactureOrModelDate=%s}",
+                        info.name.data(), info.productId.data(), info.manufacturerPnpId.data(),
+                        toString(info.manufactureOrModelDate).c_str());
 }

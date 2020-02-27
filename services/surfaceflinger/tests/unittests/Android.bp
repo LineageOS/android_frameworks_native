@@ -42,6 +42,7 @@ cc_test {
         "DisplayTransactionTest.cpp",
         "EventControlThreadTest.cpp",
         "EventThreadTest.cpp",
+        "HWComposerTest.cpp",
         "OneShotTimerTest.cpp",
         "LayerHistoryTest.cpp",
         "LayerHistoryTestV2.cpp",

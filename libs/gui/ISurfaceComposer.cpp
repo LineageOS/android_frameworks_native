@@ -1112,6 +1112,42 @@ public:
         }
         return NO_ERROR;
     }
+
+    virtual status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
+                                  int8_t compatibility) {
+        Parcel data, reply;
+        status_t err = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (err != NO_ERROR) {
+            ALOGE("setFrameRate: failed writing interface token: %s (%d)", strerror(-err), -err);
+            return err;
+        }
+
+        err = data.writeStrongBinder(IInterface::asBinder(surface));
+        if (err != NO_ERROR) {
+            ALOGE("setFrameRate: failed writing strong binder: %s (%d)", strerror(-err), -err);
+            return err;
+        }
+
+        err = data.writeFloat(frameRate);
+        if (err != NO_ERROR) {
+            ALOGE("setFrameRate: failed writing float: %s (%d)", strerror(-err), -err);
+            return err;
+        }
+
+        err = data.writeByte(compatibility);
+        if (err != NO_ERROR) {
+            ALOGE("setFrameRate: failed writing byte: %s (%d)", strerror(-err), -err);
+            return err;
+        }
+
+        err = remote()->transact(BnSurfaceComposer::SET_FRAME_RATE, data, &reply,
+                                 IBinder::FLAG_ONEWAY);
+        if (err != NO_ERROR) {
+            ALOGE("setFrameRate: failed to transact: %s (%d)", strerror(-err), err);
+            return err;
+        }
+        return NO_ERROR;
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -1876,6 +1912,36 @@ status_t BnSurfaceComposer::onTransact(
             float lightRadius = shadowConfig[10];
             return setGlobalShadowSettings(ambientColor, spotColor, lightPosY, lightPosZ,
                                            lightRadius);
+        }
+        case SET_FRAME_RATE: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IBinder> binder;
+            status_t err = data.readStrongBinder(&binder);
+            if (err != NO_ERROR) {
+                ALOGE("setFrameRate: failed to read strong binder: %s (%d)", strerror(-err), -err);
+                return err;
+            }
+            sp<IGraphicBufferProducer> surface = interface_cast<IGraphicBufferProducer>(binder);
+            if (!surface) {
+                ALOGE("setFrameRate: failed to cast to IGraphicBufferProducer: %s (%d)",
+                      strerror(-err), -err);
+                return err;
+            }
+            float frameRate;
+            err = data.readFloat(&frameRate);
+            if (err != NO_ERROR) {
+                ALOGE("setFrameRate: failed to read float: %s (%d)", strerror(-err), -err);
+                return err;
+            }
+            int8_t compatibility;
+            err = data.readByte(&compatibility);
+            if (err != NO_ERROR) {
+                ALOGE("setFrameRate: failed to read byte: %s (%d)", strerror(-err), -err);
+                return err;
+            }
+            status_t result = setFrameRate(surface, frameRate, compatibility);
+            reply->writeInt32(result);
+            return NO_ERROR;
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);

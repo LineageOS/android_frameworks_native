@@ -45,7 +45,7 @@ public:
     // Execute blur passes, rendering to offscreen texture.
     virtual status_t prepare() = 0;
     // Render blur to the bound framebuffer (screen).
-    status_t render();
+    status_t render(bool multiPass);
 
 protected:
     uint32_t mRadius;

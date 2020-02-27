@@ -36,7 +36,7 @@ class CursorScrollAccumulator;
 class CursorMotionAccumulator {
 public:
     CursorMotionAccumulator();
-    void reset(InputDevice* device);
+    void reset(InputDeviceContext& deviceContext);
 
     void process(const RawEvent* rawEvent);
     void finishSync();
@@ -53,7 +53,7 @@ private:
 
 class CursorInputMapper : public InputMapper {
 public:
-    explicit CursorInputMapper(InputDevice* device);
+    explicit CursorInputMapper(InputDeviceContext& deviceContext);
     virtual ~CursorInputMapper();
 
     virtual uint32_t getSources() override;
@@ -65,8 +65,6 @@ public:
     virtual void process(const RawEvent* rawEvent) override;
 
     virtual int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode) override;
-
-    virtual void fadePointer() override;
 
     virtual std::optional<int32_t> getAssociatedDisplayId() override;
 
@@ -117,7 +115,6 @@ private:
     void dumpParameters(std::string& dump);
 
     void sync(nsecs_t when);
-    void updatePointerControllerDisplayViewport(const InputReaderConfiguration& config);
 };
 
 } // namespace android

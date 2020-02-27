@@ -139,6 +139,8 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
         case InputMessage::Type::KEY: {
             // uint32_t seq
             msg->body.key.seq = body.key.seq;
+            // int32_t eventId
+            msg->body.key.eventId = body.key.eventId;
             // nsecs_t eventTime
             msg->body.key.eventTime = body.key.eventTime;
             // int32_t deviceId
@@ -168,6 +170,8 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
         case InputMessage::Type::MOTION: {
             // uint32_t seq
             msg->body.motion.seq = body.motion.seq;
+            // int32_t eventId
+            msg->body.motion.eventId = body.motion.eventId;
             // nsecs_t eventTime
             msg->body.motion.eventTime = body.motion.eventTime;
             // int32_t deviceId
@@ -234,6 +238,7 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
         }
         case InputMessage::Type::FOCUS: {
             msg->body.focus.seq = body.focus.seq;
+            msg->body.focus.eventId = body.focus.eventId;
             msg->body.focus.hasFocus = body.focus.hasFocus;
             msg->body.focus.inTouchMode = body.focus.inTouchMode;
             break;
@@ -432,11 +437,12 @@ InputPublisher::InputPublisher(const sp<InputChannel>& channel) :
 InputPublisher::~InputPublisher() {
 }
 
-status_t InputPublisher::publishKeyEvent(uint32_t seq, int32_t deviceId, int32_t source,
-                                         int32_t displayId, std::array<uint8_t, 32> hmac,
-                                         int32_t action, int32_t flags, int32_t keyCode,
-                                         int32_t scanCode, int32_t metaState, int32_t repeatCount,
-                                         nsecs_t downTime, nsecs_t eventTime) {
+status_t InputPublisher::publishKeyEvent(uint32_t seq, int32_t eventId, int32_t deviceId,
+                                         int32_t source, int32_t displayId,
+                                         std::array<uint8_t, 32> hmac, int32_t action,
+                                         int32_t flags, int32_t keyCode, int32_t scanCode,
+                                         int32_t metaState, int32_t repeatCount, nsecs_t downTime,
+                                         nsecs_t eventTime) {
     if (ATRACE_ENABLED()) {
         std::string message = StringPrintf("publishKeyEvent(inputChannel=%s, keyCode=%" PRId32 ")",
                 mChannel->getName().c_str(), keyCode);
@@ -458,6 +464,7 @@ status_t InputPublisher::publishKeyEvent(uint32_t seq, int32_t deviceId, int32_t
     InputMessage msg;
     msg.header.type = InputMessage::Type::KEY;
     msg.body.key.seq = seq;
+    msg.body.key.eventId = eventId;
     msg.body.key.deviceId = deviceId;
     msg.body.key.source = source;
     msg.body.key.displayId = displayId;
@@ -474,7 +481,7 @@ status_t InputPublisher::publishKeyEvent(uint32_t seq, int32_t deviceId, int32_t
 }
 
 status_t InputPublisher::publishMotionEvent(
-        uint32_t seq, int32_t deviceId, int32_t source, int32_t displayId,
+        uint32_t seq, int32_t eventId, int32_t deviceId, int32_t source, int32_t displayId,
         std::array<uint8_t, 32> hmac, int32_t action, int32_t actionButton, int32_t flags,
         int32_t edgeFlags, int32_t metaState, int32_t buttonState,
         MotionClassification classification, float xScale, float yScale, float xOffset,
@@ -515,6 +522,7 @@ status_t InputPublisher::publishMotionEvent(
     InputMessage msg;
     msg.header.type = InputMessage::Type::MOTION;
     msg.body.motion.seq = seq;
+    msg.body.motion.eventId = eventId;
     msg.body.motion.deviceId = deviceId;
     msg.body.motion.source = source;
     msg.body.motion.displayId = displayId;
@@ -545,7 +553,8 @@ status_t InputPublisher::publishMotionEvent(
     return mChannel->sendMessage(&msg);
 }
 
-status_t InputPublisher::publishFocusEvent(uint32_t seq, bool hasFocus, bool inTouchMode) {
+status_t InputPublisher::publishFocusEvent(uint32_t seq, int32_t eventId, bool hasFocus,
+                                           bool inTouchMode) {
     if (ATRACE_ENABLED()) {
         std::string message =
                 StringPrintf("publishFocusEvent(inputChannel=%s, hasFocus=%s, inTouchMode=%s)",
@@ -557,6 +566,7 @@ status_t InputPublisher::publishFocusEvent(uint32_t seq, bool hasFocus, bool inT
     InputMessage msg;
     msg.header.type = InputMessage::Type::FOCUS;
     msg.body.focus.seq = seq;
+    msg.body.focus.eventId = eventId;
     msg.body.focus.hasFocus = hasFocus ? 1 : 0;
     msg.body.focus.inTouchMode = inTouchMode ? 1 : 0;
     return mChannel->sendMessage(&msg);
@@ -1142,14 +1152,16 @@ ssize_t InputConsumer::findTouchState(int32_t deviceId, int32_t source) const {
 }
 
 void InputConsumer::initializeKeyEvent(KeyEvent* event, const InputMessage* msg) {
-    event->initialize(msg->body.key.deviceId, msg->body.key.source, msg->body.key.displayId,
-                      msg->body.key.hmac, msg->body.key.action, msg->body.key.flags,
-                      msg->body.key.keyCode, msg->body.key.scanCode, msg->body.key.metaState,
-                      msg->body.key.repeatCount, msg->body.key.downTime, msg->body.key.eventTime);
+    event->initialize(msg->body.key.eventId, msg->body.key.deviceId, msg->body.key.source,
+                      msg->body.key.displayId, msg->body.key.hmac, msg->body.key.action,
+                      msg->body.key.flags, msg->body.key.keyCode, msg->body.key.scanCode,
+                      msg->body.key.metaState, msg->body.key.repeatCount, msg->body.key.downTime,
+                      msg->body.key.eventTime);
 }
 
 void InputConsumer::initializeFocusEvent(FocusEvent* event, const InputMessage* msg) {
-    event->initialize(msg->body.focus.hasFocus == 1, msg->body.focus.inTouchMode == 1);
+    event->initialize(msg->body.focus.eventId, msg->body.focus.hasFocus == 1,
+                      msg->body.focus.inTouchMode == 1);
 }
 
 void InputConsumer::initializeMotionEvent(MotionEvent* event, const InputMessage* msg) {
@@ -1161,7 +1173,7 @@ void InputConsumer::initializeMotionEvent(MotionEvent* event, const InputMessage
         pointerCoords[i].copyFrom(msg->body.motion.pointers[i].coords);
     }
 
-    event->initialize(msg->body.motion.deviceId, msg->body.motion.source,
+    event->initialize(msg->body.motion.eventId, msg->body.motion.deviceId, msg->body.motion.source,
                       msg->body.motion.displayId, msg->body.motion.hmac, msg->body.motion.action,
                       msg->body.motion.actionButton, msg->body.motion.flags,
                       msg->body.motion.edgeFlags, msg->body.motion.metaState,
