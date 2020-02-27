@@ -364,7 +364,7 @@ status_t Gralloc4Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, cons
     }
 
     *outYcbcr = ycbcr;
-    return static_cast<status_t>(Error::UNSUPPORTED);
+    return static_cast<status_t>(Error::NONE);
 }
 
 int Gralloc4Mapper::unlock(buffer_handle_t bufferHandle) const {
