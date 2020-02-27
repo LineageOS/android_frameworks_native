@@ -441,6 +441,7 @@ GLESRenderEngine::GLESRenderEngine(const RenderEngineCreationArgs& args, EGLDisp
     }
 
     mImageManager = std::make_unique<ImageManager>(this);
+    mImageManager->initThread();
     mDrawingBuffer = createFramebuffer();
 }
 
