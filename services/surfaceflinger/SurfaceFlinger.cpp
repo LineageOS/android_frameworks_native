@@ -21,28 +21,17 @@
 //#define LOG_NDEBUG 0
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include <sys/types.h>
-#include <errno.h>
-#include <dlfcn.h>
+#include "SurfaceFlinger.h"
 
-#include <algorithm>
-#include <cinttypes>
-#include <cmath>
-#include <cstdint>
-#include <functional>
-#include <mutex>
-#include <optional>
-#include <unordered_map>
-
+#include <android/configuration.h>
+#include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
+#include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
+#include <android/hardware/configstore/1.1/types.h>
+#include <android/hardware/power/1.0/IPower.h>
 #include <android/native_window.h>
-
-#include <cutils/properties.h>
-#include <log/log.h>
-
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/PermissionCache.h>
-
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/Display.h>
@@ -51,10 +40,14 @@
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/RenderSurface.h>
 #include <compositionengine/impl/OutputCompositionState.h>
+#include <configstore/Utils.h>
+#include <cutils/compiler.h>
+#include <cutils/properties.h>
+#include <dlfcn.h>
 #include <dvr/vr_flinger.h>
+#include <errno.h>
 #include <gui/BufferQueue.h>
 #include <gui/DebugEGLImageTracker.h>
-
 #include <gui/GuiConfig.h>
 #include <gui/IDisplayEventConnection.h>
 #include <gui/IProducerListener.h>
@@ -63,7 +56,13 @@
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
 #include <input/IInputFlinger.h>
+#include <layerproto/LayerProtoParser.h>
+#include <log/log.h>
+#include <private/android_filesystem_config.h>
+#include <private/gui/SyncFeatures.h>
 #include <renderengine/RenderEngine.h>
+#include <statslog.h>
+#include <sys/types.h>
 #include <ui/ColorSpace.h>
 #include <ui/DebugUtils.h>
 #include <ui/DisplayConfig.h>
@@ -80,8 +79,14 @@
 #include <utils/Trace.h>
 #include <utils/misc.h>
 
-#include <private/android_filesystem_config.h>
-#include <private/gui/SyncFeatures.h>
+#include <algorithm>
+#include <cinttypes>
+#include <cmath>
+#include <cstdint>
+#include <functional>
+#include <mutex>
+#include <optional>
+#include <unordered_map>
 
 #include "BufferLayer.h"
 #include "BufferQueueLayer.h"
@@ -90,23 +95,19 @@
 #include "Colorizer.h"
 #include "ContainerLayer.h"
 #include "DisplayDevice.h"
-#include "EffectLayer.h"
-#include "Layer.h"
-#include "LayerVector.h"
-#include "MonitoredProducer.h"
-#include "NativeWindowSurface.h"
-#include "RefreshRateOverlay.h"
-#include "StartPropertySetThread.h"
-#include "SurfaceFlinger.h"
-#include "SurfaceInterceptor.h"
-
 #include "DisplayHardware/ComposerHal.h"
 #include "DisplayHardware/DisplayIdentification.h"
 #include "DisplayHardware/FramebufferSurface.h"
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/VirtualDisplaySurface.h"
+#include "EffectLayer.h"
 #include "Effects/Daltonizer.h"
 #include "FrameTracer/FrameTracer.h"
+#include "Layer.h"
+#include "LayerVector.h"
+#include "MonitoredProducer.h"
+#include "NativeWindowSurface.h"
+#include "RefreshRateOverlay.h"
 #include "RegionSamplingThread.h"
 #include "Scheduler/DispSync.h"
 #include "Scheduler/DispSyncSource.h"
@@ -115,22 +116,12 @@
 #include "Scheduler/MessageQueue.h"
 #include "Scheduler/PhaseOffsets.h"
 #include "Scheduler/Scheduler.h"
+#include "StartPropertySetThread.h"
+#include "SurfaceFlingerProperties.h"
+#include "SurfaceInterceptor.h"
 #include "TimeStats/TimeStats.h"
-
-#include <cutils/compiler.h>
-
 #include "android-base/parseint.h"
 #include "android-base/stringprintf.h"
-
-#include <android/configuration.h>
-#include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
-#include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
-#include <android/hardware/configstore/1.1/types.h>
-#include <android/hardware/power/1.0/IPower.h>
-#include <configstore/Utils.h>
-
-#include <layerproto/LayerProtoParser.h>
-#include "SurfaceFlingerProperties.h"
 
 namespace android {
 
@@ -334,6 +325,9 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
 
     property_get("ro.bq.gpu_to_cpu_unsupported", value, "0");
     mGpuToCpuSupported = !atoi(value);
+
+    property_get("ro.build.type", value, "user");
+    mIsUserBuild = strcmp(value, "user") == 0;
 
     property_get("debug.sf.showupdates", value, "0");
     mDebugRegion = atoi(value);
@@ -1813,6 +1807,10 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
             if (frameMissed) {
                 mFrameMissedCount++;
                 mTimeStats->incrementMissedFrames();
+                if (mMissedFrameJankCount == 0) {
+                    mMissedFrameJankStart = systemTime();
+                }
+                mMissedFrameJankCount++;
             }
 
             if (hwcFrameMissed) {
@@ -1828,6 +1826,40 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
                     mPropagateBackpressureClientComposition) {
                     signalLayerUpdate();
                     break;
+                }
+            }
+
+            // Our jank window is always at least 100ms since we missed a
+            // frame...
+            static constexpr nsecs_t kMinJankyDuration =
+                    std::chrono::duration_cast<std::chrono::nanoseconds>(100ms).count();
+            // ...but if it's larger than 1s then we missed the trace cutoff.
+            static constexpr nsecs_t kMaxJankyDuration =
+                    std::chrono::duration_cast<std::chrono::nanoseconds>(1s).count();
+            // If we're in a user build then don't push any atoms
+            if (!mIsUserBuild && mMissedFrameJankCount > 0) {
+                const auto displayDevice = getDefaultDisplayDeviceLocked();
+                // Only report jank when the display is on, as displays in DOZE
+                // power mode may operate at a different frame rate than is
+                // reported in their config, which causes noticeable (but less
+                // severe) jank.
+                if (displayDevice && displayDevice->getPowerMode() == HWC_POWER_MODE_NORMAL) {
+                    const nsecs_t currentTime = systemTime();
+                    const nsecs_t jankDuration = currentTime - mMissedFrameJankStart;
+                    if (jankDuration > kMinJankyDuration && jankDuration < kMaxJankyDuration) {
+                        ATRACE_NAME("Jank detected");
+                        ALOGD("Detected janky event. Missed frames: %d", mMissedFrameJankCount);
+                        const int32_t jankyDurationMillis = jankDuration / (1000 * 1000);
+                        android::util::stats_write(android::util::DISPLAY_JANK_REPORTED,
+                                                   jankyDurationMillis, mMissedFrameJankCount);
+                    }
+
+                    // We either reported a jank event or we missed the trace
+                    // window, so clear counters here.
+                    if (jankDuration > kMinJankyDuration) {
+                        mMissedFrameJankCount = 0;
+                        mMissedFrameJankStart = 0;
+                    }
                 }
             }
 
