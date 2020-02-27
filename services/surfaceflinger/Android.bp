@@ -52,6 +52,7 @@ cc_defaults {
         "libpdx_default_transport",
         "libprocessgroup",
         "libprotobuf-cpp-lite",
+        "libstatslog",
         "libsync",
         "libtimestats",
         "libui",
