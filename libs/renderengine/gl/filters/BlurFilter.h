@@ -63,11 +63,13 @@ private:
     GLESRenderEngine& mEngine;
     // Frame buffer holding the composited background.
     GLFramebuffer mCompositionFbo;
-    // Frame buffer holding the blur result.
-    GLFramebuffer mBlurredFbo;
+    // Frame buffers holding the blur passes.
+    GLFramebuffer mPingFbo;
+    GLFramebuffer mPongFbo;
     uint32_t mDisplayWidth;
     uint32_t mDisplayHeight;
-    GLFramebuffer mPingPongFbo;
+    // Buffer holding the final blur pass.
+    GLFramebuffer* mLastDrawTarget;
     bool mTexturesAllocated = false;
 
     GenericProgram mMixProgram;

@@ -33,8 +33,8 @@ namespace gl {
 BlurFilter::BlurFilter(GLESRenderEngine& engine)
       : mEngine(engine),
         mCompositionFbo(engine),
-        mBlurredFbo(engine),
-        mPingPongFbo(engine),
+        mPingFbo(engine),
+        mPongFbo(engine),
         mMixProgram(engine),
         mBlurProgram(engine) {
     mMixProgram.compile(getVertexShader(), getMixFragShader());
@@ -62,14 +62,14 @@ status_t BlurFilter::setAsDrawTarget(const DisplaySettings& display, uint32_t ra
 
         const uint32_t fboWidth = floorf(mDisplayWidth * kFboScale);
         const uint32_t fboHeight = floorf(mDisplayHeight * kFboScale);
-        mBlurredFbo.allocateBuffers(fboWidth, fboHeight);
-        mPingPongFbo.allocateBuffers(fboWidth, fboHeight);
+        mPingFbo.allocateBuffers(fboWidth, fboHeight);
+        mPongFbo.allocateBuffers(fboWidth, fboHeight);
         mTexturesAllocated = true;
     }
 
-    if (mBlurredFbo.getStatus() != GL_FRAMEBUFFER_COMPLETE) {
+    if (mPingFbo.getStatus() != GL_FRAMEBUFFER_COMPLETE) {
         ALOGE("Invalid blur buffer");
-        return mBlurredFbo.getStatus();
+        return mPingFbo.getStatus();
     }
     if (mCompositionFbo.getStatus() != GL_FRAMEBUFFER_COMPLETE) {
         ALOGE("Invalid composition buffer");
@@ -110,16 +110,16 @@ void BlurFilter::drawMesh(GLuint uv, GLuint position) {
 status_t BlurFilter::prepare() {
     ATRACE_NAME("BlurFilter::prepare");
 
-    if (mPingPongFbo.getStatus() != GL_FRAMEBUFFER_COMPLETE) {
+    if (mPongFbo.getStatus() != GL_FRAMEBUFFER_COMPLETE) {
         ALOGE("Invalid FBO");
-        return mPingPongFbo.getStatus();
+        return mPongFbo.getStatus();
     }
     if (!mBlurProgram.isValid()) {
         ALOGE("Invalid shader");
         return GL_INVALID_OPERATION;
     }
 
-    blit(mCompositionFbo, mBlurredFbo);
+    blit(mCompositionFbo, mPingFbo);
 
     // Kawase is an approximation of Gaussian, but it behaves differently from it.
     // A radius transformation is required for approximating them, and also to introduce
@@ -132,8 +132,8 @@ status_t BlurFilter::prepare() {
 
     // We'll ping pong between our textures, to accumulate the result of various offsets.
     mBlurProgram.useProgram();
-    GLFramebuffer* draw = &mPingPongFbo;
-    GLFramebuffer* read = &mBlurredFbo;
+    GLFramebuffer* read = &mPingFbo;
+    GLFramebuffer* draw = &mPongFbo;
     float stepX = radius / (float)mCompositionFbo.getBufferWidth() / (float)passes;
     float stepY = radius / (float)mCompositionFbo.getBufferHeight() / (float)passes;
     glActiveTexture(GL_TEXTURE0);
@@ -154,11 +154,7 @@ status_t BlurFilter::prepare() {
         draw = read;
         read = tmp;
     }
-
-    // Copy texture, given that we're expected to end on mBlurredFbo.
-    if (draw == &mBlurredFbo) {
-        blit(mPingPongFbo, mBlurredFbo);
-    }
+    mLastDrawTarget = read;
 
     // Cleanup
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -177,9 +173,10 @@ status_t BlurFilter::render(bool multiPass) {
     // be writing onto it. Let's disable the crossfade, otherwise we'd need 1 extra frame buffer,
     // as large as the screen size.
     if (mix >= 1 || multiPass) {
-        mBlurredFbo.bindAsReadBuffer();
-        glBlitFramebuffer(0, 0, mBlurredFbo.getBufferWidth(), mBlurredFbo.getBufferHeight(), 0, 0,
-                          mDisplayWidth, mDisplayHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+        mLastDrawTarget->bindAsReadBuffer();
+        glBlitFramebuffer(0, 0, mLastDrawTarget->getBufferWidth(),
+                          mLastDrawTarget->getBufferHeight(), 0, 0, mDisplayWidth, mDisplayHeight,
+                          GL_COLOR_BUFFER_BIT, GL_LINEAR);
         glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
         return NO_ERROR;
     }
@@ -187,7 +184,7 @@ status_t BlurFilter::render(bool multiPass) {
     mMixProgram.useProgram();
     glUniform1f(mMMixLoc, mix);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, mBlurredFbo.getTextureName());
+    glBindTexture(GL_TEXTURE_2D, mLastDrawTarget->getTextureName());
     glUniform1i(mMTextureLoc, 0);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, mCompositionFbo.getTextureName());
