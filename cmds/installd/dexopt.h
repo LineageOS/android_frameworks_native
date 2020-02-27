@@ -21,6 +21,8 @@
 
 #include <sys/types.h>
 
+#include <optional>
+
 #include <cutils/multiuser.h>
 
 namespace android {
@@ -98,17 +100,17 @@ bool prepare_app_profile(const std::string& package_name,
                          appid_t app_id,
                          const std::string& profile_name,
                          const std::string& code_path,
-                         const std::unique_ptr<std::string>& dex_metadata);
+                         const std::optional<std::string>& dex_metadata);
 
 bool delete_odex(const char* apk_path, const char* instruction_set, const char* output_path);
 
 bool reconcile_secondary_dex_file(const std::string& dex_path,
         const std::string& pkgname, int uid, const std::vector<std::string>& isas,
-        const std::unique_ptr<std::string>& volumeUuid, int storage_flag,
+        const std::optional<std::string>& volumeUuid, int storage_flag,
         /*out*/bool* out_secondary_dex_exists);
 
 bool hash_secondary_dex_file(const std::string& dex_path,
-        const std::string& pkgname, int uid, const std::unique_ptr<std::string>& volume_uuid,
+        const std::string& pkgname, int uid, const std::optional<std::string>& volume_uuid,
         int storage_flag, std::vector<uint8_t>* out_secondary_dex_hash);
 
 int dexopt(const char *apk_path, uid_t uid, const char *pkgName, const char *instruction_set,
