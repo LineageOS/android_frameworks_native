@@ -83,7 +83,7 @@ public:
 
     virtual sp<StartPropertySetThread> createStartPropertySetThread(
             bool timestampPropertyValue) = 0;
-    virtual sp<DisplayDevice> createDisplayDevice(DisplayDeviceCreationArgs&&) = 0;
+    virtual sp<DisplayDevice> createDisplayDevice(DisplayDeviceCreationArgs&) = 0;
     virtual sp<GraphicBuffer> createGraphicBuffer(uint32_t width, uint32_t height,
                                                   PixelFormat format, uint32_t layerCount,
                                                   uint64_t usage, std::string requestorName) = 0;
