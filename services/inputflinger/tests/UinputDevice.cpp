@@ -119,12 +119,79 @@ void UinputKeyboard::pressAndReleaseKey(int key) {
     EXPECT_NO_FATAL_FAILURE(releaseKey(key));
 }
 
-// --- UinputHomeKey---
+// --- UinputHomeKey ---
 
 UinputHomeKey::UinputHomeKey() : UinputKeyboard({KEY_HOME}) {}
 
 void UinputHomeKey::pressAndReleaseHomeKey() {
     EXPECT_NO_FATAL_FAILURE(pressAndReleaseKey(KEY_HOME));
+}
+
+// --- UinputTouchScreen ---
+UinputTouchScreen::UinputTouchScreen(const Rect* size)
+      : UinputDevice(UinputTouchScreen::DEVICE_NAME), mSize(*size) {}
+
+void UinputTouchScreen::configureDevice(int fd, uinput_user_dev* device) {
+    // Setup the touch screen device
+    ioctl(fd, UI_SET_EVBIT, EV_KEY);
+    ioctl(fd, UI_SET_EVBIT, EV_REL);
+    ioctl(fd, UI_SET_EVBIT, EV_ABS);
+    ioctl(fd, UI_SET_ABSBIT, ABS_MT_SLOT);
+    ioctl(fd, UI_SET_ABSBIT, ABS_MT_TOUCH_MAJOR);
+    ioctl(fd, UI_SET_ABSBIT, ABS_MT_POSITION_X);
+    ioctl(fd, UI_SET_ABSBIT, ABS_MT_POSITION_Y);
+    ioctl(fd, UI_SET_ABSBIT, ABS_MT_TRACKING_ID);
+    ioctl(fd, UI_SET_ABSBIT, ABS_MT_TOOL_TYPE);
+    ioctl(fd, UI_SET_PROPBIT, INPUT_PROP_DIRECT);
+    ioctl(fd, UI_SET_KEYBIT, BTN_TOUCH);
+
+    device->absmin[ABS_MT_SLOT] = RAW_SLOT_MIN;
+    device->absmax[ABS_MT_SLOT] = RAW_SLOT_MAX;
+    device->absmin[ABS_MT_TOUCH_MAJOR] = RAW_TOUCH_MIN;
+    device->absmax[ABS_MT_TOUCH_MAJOR] = RAW_TOUCH_MAX;
+    device->absmin[ABS_MT_POSITION_X] = mSize.left;
+    device->absmax[ABS_MT_POSITION_X] = mSize.right - 1;
+    device->absmin[ABS_MT_POSITION_Y] = mSize.top;
+    device->absmax[ABS_MT_POSITION_Y] = mSize.bottom - 1;
+    device->absmin[ABS_MT_TRACKING_ID] = RAW_ID_MIN;
+    device->absmax[ABS_MT_TRACKING_ID] = RAW_ID_MAX;
+}
+
+void UinputTouchScreen::sendSlot(int32_t slot) {
+    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_ABS, ABS_MT_SLOT, slot));
+}
+
+void UinputTouchScreen::sendTrackingId(int32_t trackingId) {
+    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_ABS, ABS_MT_TRACKING_ID, trackingId));
+}
+
+void UinputTouchScreen::sendDown(const Point& point) {
+    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_KEY, BTN_TOUCH, 1));
+    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_ABS, ABS_MT_POSITION_X, point.x));
+    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_ABS, ABS_MT_POSITION_Y, point.y));
+    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_SYN, SYN_REPORT, 0));
+}
+
+void UinputTouchScreen::sendMove(const Point& point) {
+    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_ABS, ABS_MT_POSITION_X, point.x));
+    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_ABS, ABS_MT_POSITION_Y, point.y));
+    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_SYN, SYN_REPORT, 0));
+}
+
+void UinputTouchScreen::sendUp() {
+    sendTrackingId(0xffffffff);
+    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_KEY, BTN_TOUCH, 0));
+    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_SYN, SYN_REPORT, 0));
+}
+
+void UinputTouchScreen::sendToolType(int32_t toolType) {
+    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_ABS, ABS_MT_TOOL_TYPE, toolType));
+    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_SYN, SYN_REPORT, 0));
+}
+
+// Get the center x, y base on the range definition.
+const Point UinputTouchScreen::getCenterPoint() {
+    return Point(mSize.left + mSize.width() / 2, mSize.top + mSize.height() / 2);
 }
 
 } // namespace android
