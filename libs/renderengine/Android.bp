@@ -59,8 +59,6 @@ filegroup {
         "gl/Program.cpp",
         "gl/ProgramCache.cpp",
         "gl/filters/BlurFilter.cpp",
-        "gl/filters/KawaseBlurFilter.cpp",
-        "gl/filters/GaussianBlurFilter.cpp",
         "gl/filters/GenericProgram.cpp",
     ],
 }

@@ -27,10 +27,17 @@ namespace android {
 namespace renderengine {
 namespace gl {
 
+/**
+ * This is an implementation of a Kawase blur, as described in here:
+ * https://community.arm.com/cfs-file/__key/communityserver-blogs-components-weblogfiles/
+ * 00-00-00-20-66/siggraph2015_2D00_mmg_2D00_marius_2D00_notes.pdf
+ */
 class BlurFilter {
 public:
     // Downsample FBO to improve performance
     static constexpr float kFboScale = 0.25f;
+    // Maximum number of render passes
+    static constexpr uint32_t kMaxPasses = 6;
     // To avoid downscaling artifacts, we interpolate the blurred fbo with the full composited
     // image, up to this radius.
     static constexpr float kMaxCrossFadeRadius = 30.0f;
@@ -40,28 +47,29 @@ public:
 
     // Set up render targets, redirecting output to offscreen texture.
     status_t setAsDrawTarget(const DisplaySettings&, uint32_t radius);
-    // Allocate any textures needed for the filter.
-    virtual void allocateTextures() = 0;
     // Execute blur passes, rendering to offscreen texture.
-    virtual status_t prepare() = 0;
+    status_t prepare();
     // Render blur to the bound framebuffer (screen).
     status_t render(bool multiPass);
 
-protected:
+private:
     uint32_t mRadius;
     void drawMesh(GLuint uv, GLuint position);
+    void blit(GLFramebuffer& read, GLFramebuffer& draw) const;
     string getVertexShader() const;
+    string getFragmentShader() const;
+    string getMixFragShader() const;
 
     GLESRenderEngine& mEngine;
     // Frame buffer holding the composited background.
     GLFramebuffer mCompositionFbo;
-    // Frame buffer holding the blur result.
-    GLFramebuffer mBlurredFbo;
+    // Frame buffers holding the blur passes.
+    GLFramebuffer mPingFbo;
+    GLFramebuffer mPongFbo;
     uint32_t mDisplayWidth;
     uint32_t mDisplayHeight;
-
-private:
-    string getMixFragShader() const;
+    // Buffer holding the final blur pass.
+    GLFramebuffer* mLastDrawTarget;
     bool mTexturesAllocated = false;
 
     GenericProgram mMixProgram;
@@ -70,6 +78,12 @@ private:
     GLuint mMMixLoc;
     GLuint mMTextureLoc;
     GLuint mMCompositionTextureLoc;
+
+    GenericProgram mBlurProgram;
+    GLuint mBPosLoc;
+    GLuint mBUvLoc;
+    GLuint mBTextureLoc;
+    GLuint mBOffsetLoc;
 };
 
 } // namespace gl

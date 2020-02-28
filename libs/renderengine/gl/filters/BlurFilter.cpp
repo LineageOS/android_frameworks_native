@@ -31,13 +31,24 @@ namespace renderengine {
 namespace gl {
 
 BlurFilter::BlurFilter(GLESRenderEngine& engine)
-      : mEngine(engine), mCompositionFbo(engine), mBlurredFbo(engine), mMixProgram(engine) {
+      : mEngine(engine),
+        mCompositionFbo(engine),
+        mPingFbo(engine),
+        mPongFbo(engine),
+        mMixProgram(engine),
+        mBlurProgram(engine) {
     mMixProgram.compile(getVertexShader(), getMixFragShader());
     mMPosLoc = mMixProgram.getAttributeLocation("aPosition");
     mMUvLoc = mMixProgram.getAttributeLocation("aUV");
     mMTextureLoc = mMixProgram.getUniformLocation("uTexture");
     mMCompositionTextureLoc = mMixProgram.getUniformLocation("uCompositionTexture");
     mMMixLoc = mMixProgram.getUniformLocation("uMix");
+
+    mBlurProgram.compile(getVertexShader(), getFragmentShader());
+    mBPosLoc = mBlurProgram.getAttributeLocation("aPosition");
+    mBUvLoc = mBlurProgram.getAttributeLocation("aUV");
+    mBTextureLoc = mBlurProgram.getUniformLocation("uTexture");
+    mBOffsetLoc = mBlurProgram.getUniformLocation("uOffset");
 }
 
 status_t BlurFilter::setAsDrawTarget(const DisplaySettings& display, uint32_t radius) {
@@ -51,14 +62,14 @@ status_t BlurFilter::setAsDrawTarget(const DisplaySettings& display, uint32_t ra
 
         const uint32_t fboWidth = floorf(mDisplayWidth * kFboScale);
         const uint32_t fboHeight = floorf(mDisplayHeight * kFboScale);
-        mBlurredFbo.allocateBuffers(fboWidth, fboHeight);
-        allocateTextures();
+        mPingFbo.allocateBuffers(fboWidth, fboHeight);
+        mPongFbo.allocateBuffers(fboWidth, fboHeight);
         mTexturesAllocated = true;
     }
 
-    if (mBlurredFbo.getStatus() != GL_FRAMEBUFFER_COMPLETE) {
+    if (mPingFbo.getStatus() != GL_FRAMEBUFFER_COMPLETE) {
         ALOGE("Invalid blur buffer");
-        return mBlurredFbo.getStatus();
+        return mPingFbo.getStatus();
     }
     if (mCompositionFbo.getStatus() != GL_FRAMEBUFFER_COMPLETE) {
         ALOGE("Invalid composition buffer");
@@ -96,6 +107,61 @@ void BlurFilter::drawMesh(GLuint uv, GLuint position) {
     mEngine.checkErrors("Drawing blur mesh");
 }
 
+status_t BlurFilter::prepare() {
+    ATRACE_NAME("BlurFilter::prepare");
+
+    if (mPongFbo.getStatus() != GL_FRAMEBUFFER_COMPLETE) {
+        ALOGE("Invalid FBO");
+        return mPongFbo.getStatus();
+    }
+    if (!mBlurProgram.isValid()) {
+        ALOGE("Invalid shader");
+        return GL_INVALID_OPERATION;
+    }
+
+    blit(mCompositionFbo, mPingFbo);
+
+    // Kawase is an approximation of Gaussian, but it behaves differently from it.
+    // A radius transformation is required for approximating them, and also to introduce
+    // non-integer steps, necessary to smoothly interpolate large radii.
+    auto radius = mRadius / 6.0f;
+
+    // Calculate how many passes we'll do, based on the radius.
+    // Too many passes will make the operation expensive.
+    auto passes = min(kMaxPasses, (uint32_t)ceil(radius));
+
+    // We'll ping pong between our textures, to accumulate the result of various offsets.
+    mBlurProgram.useProgram();
+    GLFramebuffer* read = &mPingFbo;
+    GLFramebuffer* draw = &mPongFbo;
+    float stepX = radius / (float)mCompositionFbo.getBufferWidth() / (float)passes;
+    float stepY = radius / (float)mCompositionFbo.getBufferHeight() / (float)passes;
+    glActiveTexture(GL_TEXTURE0);
+    glUniform1i(mBTextureLoc, 0);
+    for (auto i = 0; i < passes; i++) {
+        ATRACE_NAME("BlurFilter::renderPass");
+        draw->bind();
+
+        glViewport(0, 0, draw->getBufferWidth(), draw->getBufferHeight());
+        glBindTexture(GL_TEXTURE_2D, read->getTextureName());
+        glUniform2f(mBOffsetLoc, stepX * i, stepY * i);
+        mEngine.checkErrors("Setting uniforms");
+
+        drawMesh(mBUvLoc, mBPosLoc);
+
+        // Swap buffers for next iteration
+        auto tmp = draw;
+        draw = read;
+        read = tmp;
+    }
+    mLastDrawTarget = read;
+
+    // Cleanup
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    return NO_ERROR;
+}
+
 status_t BlurFilter::render(bool multiPass) {
     ATRACE_NAME("BlurFilter::render");
 
@@ -107,9 +173,10 @@ status_t BlurFilter::render(bool multiPass) {
     // be writing onto it. Let's disable the crossfade, otherwise we'd need 1 extra frame buffer,
     // as large as the screen size.
     if (mix >= 1 || multiPass) {
-        mBlurredFbo.bindAsReadBuffer();
-        glBlitFramebuffer(0, 0, mBlurredFbo.getBufferWidth(), mBlurredFbo.getBufferHeight(), 0, 0,
-                          mDisplayWidth, mDisplayHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+        mLastDrawTarget->bindAsReadBuffer();
+        glBlitFramebuffer(0, 0, mLastDrawTarget->getBufferWidth(),
+                          mLastDrawTarget->getBufferHeight(), 0, 0, mDisplayWidth, mDisplayHeight,
+                          GL_COLOR_BUFFER_BIT, GL_LINEAR);
         glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
         return NO_ERROR;
     }
@@ -117,7 +184,7 @@ status_t BlurFilter::render(bool multiPass) {
     mMixProgram.useProgram();
     glUniform1f(mMMixLoc, mix);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, mBlurredFbo.getTextureName());
+    glBindTexture(GL_TEXTURE_2D, mLastDrawTarget->getTextureName());
     glUniform1i(mMTextureLoc, 0);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, mCompositionFbo.getTextureName());
@@ -145,6 +212,28 @@ string BlurFilter::getVertexShader() const {
     )SHADER";
 }
 
+string BlurFilter::getFragmentShader() const {
+    return R"SHADER(#version 310 es
+        precision mediump float;
+
+        uniform sampler2D uTexture;
+        uniform vec2 uOffset;
+
+        highp in vec2 vUV;
+        out vec4 fragColor;
+
+        void main() {
+            fragColor  = texture(uTexture, vUV, 0.0);
+            fragColor += texture(uTexture, vUV + vec2( uOffset.x,  uOffset.y), 0.0);
+            fragColor += texture(uTexture, vUV + vec2( uOffset.x, -uOffset.y), 0.0);
+            fragColor += texture(uTexture, vUV + vec2(-uOffset.x,  uOffset.y), 0.0);
+            fragColor += texture(uTexture, vUV + vec2(-uOffset.x, -uOffset.y), 0.0);
+
+            fragColor = vec4(fragColor.rgb * 0.2, 1.0);
+        }
+    )SHADER";
+}
+
 string BlurFilter::getMixFragShader() const {
     string shader = R"SHADER(#version 310 es
         precision mediump float;
@@ -163,6 +252,15 @@ string BlurFilter::getMixFragShader() const {
         }
     )SHADER";
     return shader;
+}
+
+void BlurFilter::blit(GLFramebuffer& read, GLFramebuffer& draw) const {
+    read.bindAsReadBuffer();
+    draw.bindAsDrawBuffer();
+    glBlitFramebuffer(0, 0, read.getBufferWidth(), read.getBufferHeight(), 0, 0,
+                      draw.getBufferWidth(), draw.getBufferHeight(), GL_COLOR_BUFFER_BIT,
+                      GL_LINEAR);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 } // namespace gl
