@@ -33,6 +33,7 @@
 #include "NativeWindowSurface.h"
 #include "StartPropertySetThread.h"
 #include "SurfaceFlingerDefaultFactory.h"
+#include "SurfaceFlingerProperties.h"
 #include "SurfaceInterceptor.h"
 
 #include "DisplayHardware/ComposerHal.h"
@@ -76,8 +77,8 @@ std::unique_ptr<Scheduler> DefaultFactory::createScheduler(
         SetVSyncEnabled setVSyncEnabled, const scheduler::RefreshRateConfigs& configs,
         ISchedulerCallback& schedulerCallback) {
     return std::make_unique<Scheduler>(std::move(setVSyncEnabled), configs, schedulerCallback,
-                                       property_get_bool("debug.sf.use_content_detection_v2",
-                                                         true));
+                                       property_get_bool("debug.sf.use_content_detection_v2", true),
+                                       sysprop::use_content_detection_for_refresh_rate(false));
 }
 
 std::unique_ptr<SurfaceInterceptor> DefaultFactory::createSurfaceInterceptor(
@@ -90,8 +91,8 @@ sp<StartPropertySetThread> DefaultFactory::createStartPropertySetThread(
     return new StartPropertySetThread(timestampPropertyValue);
 }
 
-sp<DisplayDevice> DefaultFactory::createDisplayDevice(DisplayDeviceCreationArgs&& creationArgs) {
-    return new DisplayDevice(std::move(creationArgs));
+sp<DisplayDevice> DefaultFactory::createDisplayDevice(DisplayDeviceCreationArgs& creationArgs) {
+    return new DisplayDevice(creationArgs);
 }
 
 sp<GraphicBuffer> DefaultFactory::createGraphicBuffer(uint32_t width, uint32_t height,

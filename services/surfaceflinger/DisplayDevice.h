@@ -64,7 +64,7 @@ public:
     constexpr static float sDefaultMinLumiance = 0.0;
     constexpr static float sDefaultMaxLumiance = 500.0;
 
-    explicit DisplayDevice(DisplayDeviceCreationArgs&& args);
+    explicit DisplayDevice(DisplayDeviceCreationArgs& args);
     virtual ~DisplayDevice();
 
     std::shared_ptr<compositionengine::Display> getCompositionDisplay() const {
@@ -211,13 +211,10 @@ struct DisplayDeviceCreationArgs {
     // We use a constructor to ensure some of the values are set, without
     // assuming a default value.
     DisplayDeviceCreationArgs(const sp<SurfaceFlinger>&, const wp<IBinder>& displayToken,
-                              std::optional<DisplayId>);
-
-    bool isVirtual() const { return !connectionType; }
-
+                              std::shared_ptr<compositionengine::Display>);
     const sp<SurfaceFlinger> flinger;
     const wp<IBinder> displayToken;
-    const std::optional<DisplayId> displayId;
+    const std::shared_ptr<compositionengine::Display> compositionDisplay;
 
     int32_t sequenceId{0};
     std::optional<DisplayConnectionType> connectionType;
@@ -231,7 +228,6 @@ struct DisplayDeviceCreationArgs {
     std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>> hwcColorModes;
     int initialPowerMode{HWC_POWER_MODE_NORMAL};
     bool isPrimary{false};
-    Hwc2::PowerAdvisor* powerAdvisor{nullptr};
 };
 
 class DisplayRenderArea : public RenderArea {

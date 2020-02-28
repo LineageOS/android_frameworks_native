@@ -47,10 +47,35 @@ std::shared_ptr<Display> createDisplay(
     return createDisplayTemplated<Display>(compositionEngine, args);
 }
 
-Display::Display(const DisplayCreationArgs& args)
-      : mIsVirtual(args.isVirtual), mId(args.displayId), mPowerAdvisor(args.powerAdvisor) {}
-
 Display::~Display() = default;
+
+void Display::setConfiguration(const compositionengine::DisplayCreationArgs& args) {
+    mIsVirtual = !args.physical;
+    mId = args.physical ? std::make_optional(args.physical->id) : std::nullopt;
+    mPowerAdvisor = args.powerAdvisor;
+
+    editState().isSecure = args.isSecure;
+
+    setLayerStackFilter(args.layerStackId,
+                        args.physical ? args.physical->type == DisplayConnectionType::Internal
+                                      : false);
+    setName(args.name);
+
+    if (!args.physical && args.useHwcVirtualDisplays) {
+        mId = maybeAllocateDisplayIdForVirtualDisplay(args.pixels, args.pixelFormat);
+    }
+}
+
+std::optional<DisplayId> Display::maybeAllocateDisplayIdForVirtualDisplay(
+        ui::Size pixels, ui::PixelFormat pixelFormat) const {
+    auto& hwc = getCompositionEngine().getHwComposer();
+    return hwc.allocateVirtualDisplay(static_cast<uint32_t>(pixels.width),
+                                      static_cast<uint32_t>(pixels.height), &pixelFormat);
+}
+
+bool Display::isValid() const {
+    return Output::isValid() && mPowerAdvisor;
+}
 
 const std::optional<DisplayId>& Display::getId() const {
     return mId;
@@ -66,6 +91,10 @@ bool Display::isVirtual() const {
 
 std::optional<DisplayId> Display::getDisplayId() const {
     return mId;
+}
+
+void Display::setDisplayIdForTesting(std::optional<DisplayId> displayId) {
+    mId = displayId;
 }
 
 void Display::disconnect() {

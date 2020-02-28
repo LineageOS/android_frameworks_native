@@ -524,6 +524,8 @@ private:
     void changeRefreshRate(const Scheduler::RefreshRate&, Scheduler::ConfigEvent) override;
     // force full composition on all displays without resetting the scheduler idle timer.
     void repaintEverythingForHWC() override;
+    // Called when kernel idle timer has expired. Used to update the refresh rate overlay.
+    void kernelTimerChanged(bool expired) override;
     /* ------------------------------------------------------------------------
      * Message handling
      */
@@ -810,7 +812,8 @@ private:
      * Display management
      */
     sp<DisplayDevice> setupNewDisplayDeviceInternal(
-            const wp<IBinder>& displayToken, const std::optional<DisplayId>& displayId,
+            const wp<IBinder>& displayToken,
+            std::shared_ptr<compositionengine::Display> compositionDisplay,
             const DisplayDeviceState& state,
             const sp<compositionengine::DisplaySurface>& dispSurface,
             const sp<IGraphicBufferProducer>& producer);

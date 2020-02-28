@@ -29,7 +29,7 @@ namespace android {
 class TestableScheduler : public Scheduler, private ISchedulerCallback {
 public:
     TestableScheduler(const scheduler::RefreshRateConfigs& configs, bool useContentDetectionV2)
-          : Scheduler([](bool) {}, configs, *this, useContentDetectionV2) {
+          : Scheduler([](bool) {}, configs, *this, useContentDetectionV2, true) {
         if (mUseContentDetectionV2) {
             mLayerHistory = std::make_unique<scheduler::impl::LayerHistoryV2>();
         } else {
@@ -41,7 +41,7 @@ public:
                       std::unique_ptr<EventControlThread> eventControlThread,
                       const scheduler::RefreshRateConfigs& configs, bool useContentDetectionV2)
           : Scheduler(std::move(primaryDispSync), std::move(eventControlThread), configs, *this,
-                      useContentDetectionV2) {
+                      useContentDetectionV2, true) {
         if (mUseContentDetectionV2) {
             mLayerHistory = std::make_unique<scheduler::impl::LayerHistoryV2>();
         } else {
@@ -92,6 +92,7 @@ public:
 private:
     void changeRefreshRate(const RefreshRate&, ConfigEvent) override {}
     void repaintEverythingForHWC() override {}
+    void kernelTimerChanged(bool /*expired*/) override {}
 };
 
 } // namespace android
