@@ -65,6 +65,7 @@ class DumpstateListenerMock : public IDumpstateListener {
     MOCK_METHOD1(onProgress, binder::Status(int32_t progress));
     MOCK_METHOD1(onError, binder::Status(int32_t error_code));
     MOCK_METHOD0(onFinished, binder::Status());
+    MOCK_METHOD1(onScreenshotTaken, binder::Status(bool success));
 
   protected:
     MOCK_METHOD0(onAsBinder, IBinder*());
@@ -173,7 +174,7 @@ TEST_F(DumpOptionsTest, InitializeNone) {
     EXPECT_FALSE(options_.use_control_socket);
     EXPECT_FALSE(options_.show_header_only);
     EXPECT_TRUE(options_.do_vibrate);
-    EXPECT_FALSE(options_.do_fb);
+    EXPECT_FALSE(options_.do_screenshot);
     EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.is_remote_mode);
     EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::DEFAULT);
@@ -199,7 +200,7 @@ TEST_F(DumpOptionsTest, InitializeAdbBugreport) {
     // Other options retain default values
     EXPECT_TRUE(options_.do_vibrate);
     EXPECT_FALSE(options_.show_header_only);
-    EXPECT_FALSE(options_.do_fb);
+    EXPECT_FALSE(options_.do_screenshot);
     EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.is_remote_mode);
     EXPECT_FALSE(options_.use_socket);
@@ -225,7 +226,7 @@ TEST_F(DumpOptionsTest, InitializeAdbShellBugreport) {
     EXPECT_FALSE(options_.do_zip_file);
     EXPECT_FALSE(options_.use_control_socket);
     EXPECT_FALSE(options_.show_header_only);
-    EXPECT_FALSE(options_.do_fb);
+    EXPECT_FALSE(options_.do_screenshot);
     EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.is_remote_mode);
     EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::DEFAULT);
@@ -234,7 +235,7 @@ TEST_F(DumpOptionsTest, InitializeAdbShellBugreport) {
 TEST_F(DumpOptionsTest, InitializeFullBugReport) {
     options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_FULL, fd, fd);
     EXPECT_TRUE(options_.do_add_date);
-    EXPECT_TRUE(options_.do_fb);
+    EXPECT_TRUE(options_.do_screenshot);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::FULL);
 
@@ -254,7 +255,7 @@ TEST_F(DumpOptionsTest, InitializeInteractiveBugReport) {
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.do_progress_updates);
     EXPECT_TRUE(options_.do_start_service);
-    EXPECT_FALSE(options_.do_fb);
+    EXPECT_TRUE(options_.do_screenshot);
     EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::INTERACTIVE);
 
     // Other options retain default values
@@ -271,7 +272,7 @@ TEST_F(DumpOptionsTest, InitializeRemoteBugReport) {
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.is_remote_mode);
     EXPECT_FALSE(options_.do_vibrate);
-    EXPECT_FALSE(options_.do_fb);
+    EXPECT_FALSE(options_.do_screenshot);
     EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::REMOTE);
 
     // Other options retain default values
@@ -284,7 +285,7 @@ TEST_F(DumpOptionsTest, InitializeRemoteBugReport) {
 TEST_F(DumpOptionsTest, InitializeWearBugReport) {
     options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_WEAR, fd, fd);
     EXPECT_TRUE(options_.do_add_date);
-    EXPECT_TRUE(options_.do_fb);
+    EXPECT_TRUE(options_.do_screenshot);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.do_progress_updates);
     EXPECT_TRUE(options_.do_start_service);
@@ -301,7 +302,7 @@ TEST_F(DumpOptionsTest, InitializeWearBugReport) {
 TEST_F(DumpOptionsTest, InitializeTelephonyBugReport) {
     options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_TELEPHONY, fd, fd);
     EXPECT_TRUE(options_.do_add_date);
-    EXPECT_FALSE(options_.do_fb);
+    EXPECT_FALSE(options_.do_screenshot);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.telephony_only);
     EXPECT_TRUE(options_.do_progress_updates);
@@ -318,7 +319,7 @@ TEST_F(DumpOptionsTest, InitializeTelephonyBugReport) {
 TEST_F(DumpOptionsTest, InitializeWifiBugReport) {
     options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_WIFI, fd, fd);
     EXPECT_TRUE(options_.do_add_date);
-    EXPECT_FALSE(options_.do_fb);
+    EXPECT_FALSE(options_.do_screenshot);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.wifi_only);
     EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::WIFI);
@@ -346,7 +347,7 @@ TEST_F(DumpOptionsTest, InitializeDefaultBugReport) {
 
     EXPECT_EQ(status, Dumpstate::RunStatus::OK);
     EXPECT_TRUE(options_.do_add_date);
-    EXPECT_TRUE(options_.do_fb);
+    EXPECT_TRUE(options_.do_screenshot);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::DEFAULT);
 
@@ -384,7 +385,7 @@ TEST_F(DumpOptionsTest, InitializePartial1) {
     // Other options retain default values
     EXPECT_FALSE(options_.show_header_only);
     EXPECT_TRUE(options_.do_vibrate);
-    EXPECT_FALSE(options_.do_fb);
+    EXPECT_FALSE(options_.do_screenshot);
     EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.is_remote_mode);
     EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::DEFAULT);
@@ -407,7 +408,7 @@ TEST_F(DumpOptionsTest, InitializePartial2) {
     EXPECT_EQ(status, Dumpstate::RunStatus::OK);
     EXPECT_TRUE(options_.show_header_only);
     EXPECT_FALSE(options_.do_vibrate);
-    EXPECT_TRUE(options_.do_fb);
+    EXPECT_TRUE(options_.do_screenshot);
     EXPECT_TRUE(options_.do_progress_updates);
     EXPECT_TRUE(options_.is_remote_mode);
 
