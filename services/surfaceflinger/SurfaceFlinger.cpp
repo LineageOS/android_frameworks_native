@@ -853,6 +853,7 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
         const auto offsets = mPhaseConfiguration->getOffsetsForRefreshRate(config.refreshRate);
         config.appVsyncOffset = offsets.late.app;
         config.sfVsyncOffset = offsets.late.sf;
+        config.configGroup = hwConfig->getConfigGroup();
 
         // This is how far in advance a buffer must be queued for
         // presentation at a given time.  If you want a buffer to appear
