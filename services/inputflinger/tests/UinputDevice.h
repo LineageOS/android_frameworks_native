@@ -22,6 +22,8 @@
 #include <inttypes.h>
 #include <linux/uinput.h>
 #include <log/log.h>
+#include <ui/Point.h>
+#include <ui/Rect.h>
 
 #include <memory>
 
@@ -104,6 +106,40 @@ public:
 
 private:
     UinputHomeKey();
+};
+
+// --- UinputTouchScreen ---
+// A touch screen device with specific size.
+class UinputTouchScreen : public UinputDevice {
+public:
+    static constexpr const char* DEVICE_NAME = "Test Touch Screen";
+    static const int32_t RAW_TOUCH_MIN = 0;
+    static const int32_t RAW_TOUCH_MAX = 31;
+    static const int32_t RAW_ID_MIN = 0;
+    static const int32_t RAW_ID_MAX = 9;
+    static const int32_t RAW_SLOT_MIN = 0;
+    static const int32_t RAW_SLOT_MAX = 9;
+    static const int32_t RAW_PRESSURE_MIN = 0;
+    static const int32_t RAW_PRESSURE_MAX = 255;
+
+    template <class D, class... Ts>
+    friend std::unique_ptr<D> createUinputDevice(Ts... args);
+
+    void sendSlot(int32_t slot);
+    void sendTrackingId(int32_t trackingId);
+    void sendDown(const Point& point);
+    void sendMove(const Point& point);
+    void sendUp();
+    void sendToolType(int32_t toolType);
+
+    const Point getCenterPoint();
+
+protected:
+    UinputTouchScreen(const Rect* size);
+
+private:
+    void configureDevice(int fd, uinput_user_dev* device) override;
+    const Rect mSize;
 };
 
 } // namespace android
