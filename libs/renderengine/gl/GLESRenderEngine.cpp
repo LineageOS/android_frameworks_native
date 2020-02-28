@@ -50,8 +50,6 @@
 #include "Program.h"
 #include "ProgramCache.h"
 #include "filters/BlurFilter.h"
-#include "filters/GaussianBlurFilter.h"
-#include "filters/KawaseBlurFilter.h"
 
 extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
 
@@ -430,17 +428,12 @@ GLESRenderEngine::GLESRenderEngine(const RenderEngineCreationArgs& args, EGLDisp
     }
 
     if (args.supportsBackgroundBlur) {
-        char isGaussian[PROPERTY_VALUE_MAX];
-        property_get("debug.sf.gaussianBlur", isGaussian, "0");
-        if (atoi(isGaussian)) {
-            mBlurFilter = new GaussianBlurFilter(*this);
-        } else {
-            mBlurFilter = new KawaseBlurFilter(*this);
-        }
+        mBlurFilter = new BlurFilter(*this);
         checkErrors("BlurFilter creation");
     }
 
     mImageManager = std::make_unique<ImageManager>(this);
+    mImageManager->initThread();
     mDrawingBuffer = createFramebuffer();
 }
 

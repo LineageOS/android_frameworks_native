@@ -524,6 +524,8 @@ private:
     void changeRefreshRate(const Scheduler::RefreshRate&, Scheduler::ConfigEvent) override;
     // force full composition on all displays without resetting the scheduler idle timer.
     void repaintEverythingForHWC() override;
+    // Called when kernel idle timer has expired. Used to update the refresh rate overlay.
+    void kernelTimerChanged(bool expired) override;
     /* ------------------------------------------------------------------------
      * Message handling
      */
@@ -810,7 +812,8 @@ private:
      * Display management
      */
     sp<DisplayDevice> setupNewDisplayDeviceInternal(
-            const wp<IBinder>& displayToken, const std::optional<DisplayId>& displayId,
+            const wp<IBinder>& displayToken,
+            std::shared_ptr<compositionengine::Display> compositionDisplay,
             const DisplayDeviceState& state,
             const sp<compositionengine::DisplaySurface>& dispSurface,
             const sp<IGraphicBufferProducer>& producer);
@@ -982,6 +985,7 @@ private:
     // constant members (no synchronization needed for access)
     const nsecs_t mBootTime = systemTime();
     bool mGpuToCpuSupported = false;
+    bool mIsUserBuild = true;
 
     // Can only accessed from the main thread, these members
     // don't need synchronization
@@ -1225,6 +1229,11 @@ private:
     // Flags to capture the state of Vsync in HWC
     HWC2::Vsync mHWCVsyncState = HWC2::Vsync::Disable;
     HWC2::Vsync mHWCVsyncPendingState = HWC2::Vsync::Disable;
+
+    // Fields tracking the current jank event: when it started and how many
+    // janky frames there are.
+    nsecs_t mMissedFrameJankStart = 0;
+    int32_t mMissedFrameJankCount = 0;
 };
 
 } // namespace android

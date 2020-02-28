@@ -247,6 +247,31 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContent) {
               refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(24.0f)));
 }
 
+TEST_F(RefreshRateConfigsTest, getRefreshRateForContentV2_noLayers) {
+    std::vector<RefreshRateConfigs::InputConfig> configs{
+            {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
+             {HWC_CONFIG_ID_72, HWC_GROUP_ID_0, VSYNC_72},
+             {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90}}};
+    auto refreshRateConfigs = std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/
+                                                                   HWC_CONFIG_ID_72);
+
+    RefreshRate expected60Config = {HWC_CONFIG_ID_60, VSYNC_60, HWC_GROUP_ID_0, "60fps", 60};
+    RefreshRate expected72Config = {HWC_CONFIG_ID_72, VSYNC_72, HWC_GROUP_ID_0, "72fps", 72};
+
+    // If there are not layers, there is not content detection, so return the current
+    // refresh rate.
+    auto layers = std::vector<LayerRequirement>{};
+    EXPECT_EQ(expected72Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/
+                                                             false));
+
+    // Current refresh rate can always be changed.
+    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_60);
+    EXPECT_EQ(expected60Config,
+              refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/
+                                                             false));
+}
+
 TEST_F(RefreshRateConfigsTest, getRefreshRateForContentV2_60_90) {
     std::vector<RefreshRateConfigs::InputConfig> configs{
             {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},

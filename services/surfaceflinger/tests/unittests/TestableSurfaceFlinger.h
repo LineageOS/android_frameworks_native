@@ -20,6 +20,7 @@
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/CompositionEngine.h>
+#include <compositionengine/impl/Display.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <compositionengine/mock/DisplaySurface.h>
 
@@ -97,8 +98,8 @@ public:
         return new StartPropertySetThread(timestampPropertyValue);
     }
 
-    sp<DisplayDevice> createDisplayDevice(DisplayDeviceCreationArgs&& creationArgs) override {
-        return new DisplayDevice(std::move(creationArgs));
+    sp<DisplayDevice> createDisplayDevice(DisplayDeviceCreationArgs& creationArgs) override {
+        return new DisplayDevice(creationArgs);
     }
 
     sp<GraphicBuffer> createGraphicBuffer(uint32_t width, uint32_t height, PixelFormat format,
@@ -277,13 +278,14 @@ public:
 
     auto resetDisplayState() { return mFlinger->resetDisplayState(); }
 
-    auto setupNewDisplayDeviceInternal(const wp<IBinder>& displayToken,
-                                       const std::optional<DisplayId>& displayId,
-                                       const DisplayDeviceState& state,
-                                       const sp<compositionengine::DisplaySurface>& dispSurface,
-                                       const sp<IGraphicBufferProducer>& producer) {
-        return mFlinger->setupNewDisplayDeviceInternal(displayToken, displayId, state, dispSurface,
-                                                       producer);
+    auto setupNewDisplayDeviceInternal(
+            const wp<IBinder>& displayToken,
+            std::shared_ptr<compositionengine::Display> compositionDisplay,
+            const DisplayDeviceState& state,
+            const sp<compositionengine::DisplaySurface>& dispSurface,
+            const sp<IGraphicBufferProducer>& producer) {
+        return mFlinger->setupNewDisplayDeviceInternal(displayToken, compositionDisplay, state,
+                                                       dispSurface, producer);
     }
 
     auto handleTransactionLocked(uint32_t transactionFlags) {
@@ -359,6 +361,7 @@ public:
     auto& getHwComposer() const {
         return static_cast<impl::HWComposer&>(mFlinger->getHwComposer());
     }
+    auto& getCompositionEngine() const { return mFlinger->getCompositionEngine(); }
 
     const auto& getCompositorTiming() const { return mFlinger->getBE().mCompositorTiming; }
 
@@ -543,10 +546,11 @@ public:
     class FakeDisplayDeviceInjector {
     public:
         FakeDisplayDeviceInjector(TestableSurfaceFlinger& flinger,
-                                  std::optional<DisplayId> displayId,
+                                  std::shared_ptr<compositionengine::Display> compositionDisplay,
                                   std::optional<DisplayConnectionType> connectionType,
                                   bool isPrimary)
-              : mFlinger(flinger), mCreationArgs(flinger.mFlinger.get(), mDisplayToken, displayId) {
+              : mFlinger(flinger),
+                mCreationArgs(flinger.mFlinger.get(), mDisplayToken, compositionDisplay) {
             mCreationArgs.connectionType = connectionType;
             mCreationArgs.isPrimary = isPrimary;
         }
@@ -609,16 +613,17 @@ public:
         }
 
         sp<DisplayDevice> inject() {
+            const auto displayId = mCreationArgs.compositionDisplay->getDisplayId();
+
             DisplayDeviceState state;
             if (const auto type = mCreationArgs.connectionType) {
-                const auto id = mCreationArgs.displayId;
-                LOG_ALWAYS_FATAL_IF(!id);
-                state.physical = {*id, *type};
+                LOG_ALWAYS_FATAL_IF(!displayId);
+                state.physical = {*displayId, *type};
             }
 
             state.isSecure = mCreationArgs.isSecure;
 
-            sp<DisplayDevice> device = new DisplayDevice(std::move(mCreationArgs));
+            sp<DisplayDevice> device = new DisplayDevice(mCreationArgs);
             mFlinger.mutableDisplays().emplace(mDisplayToken, device);
             mFlinger.mutableCurrentState().displays.add(mDisplayToken, state);
             mFlinger.mutableDrawingState().displays.add(mDisplayToken, state);

@@ -21,40 +21,34 @@
 //#define LOG_NDEBUG 0
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include <sys/types.h>
-#include <errno.h>
-#include <dlfcn.h>
+#include "SurfaceFlinger.h"
 
-#include <algorithm>
-#include <cinttypes>
-#include <cmath>
-#include <cstdint>
-#include <functional>
-#include <mutex>
-#include <optional>
-#include <unordered_map>
-
+#include <android/configuration.h>
+#include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
+#include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
+#include <android/hardware/configstore/1.1/types.h>
+#include <android/hardware/power/1.0/IPower.h>
 #include <android/native_window.h>
-
-#include <cutils/properties.h>
-#include <log/log.h>
-
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/PermissionCache.h>
-
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/Display.h>
 #include <compositionengine/DisplayColorProfile.h>
+#include <compositionengine/DisplayCreationArgs.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/RenderSurface.h>
 #include <compositionengine/impl/OutputCompositionState.h>
+#include <configstore/Utils.h>
+#include <cutils/compiler.h>
+#include <cutils/properties.h>
+#include <dlfcn.h>
 #include <dvr/vr_flinger.h>
+#include <errno.h>
 #include <gui/BufferQueue.h>
 #include <gui/DebugEGLImageTracker.h>
-
 #include <gui/GuiConfig.h>
 #include <gui/IDisplayEventConnection.h>
 #include <gui/IProducerListener.h>
@@ -63,7 +57,13 @@
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
 #include <input/IInputFlinger.h>
+#include <layerproto/LayerProtoParser.h>
+#include <log/log.h>
+#include <private/android_filesystem_config.h>
+#include <private/gui/SyncFeatures.h>
 #include <renderengine/RenderEngine.h>
+#include <statslog.h>
+#include <sys/types.h>
 #include <ui/ColorSpace.h>
 #include <ui/DebugUtils.h>
 #include <ui/DisplayConfig.h>
@@ -80,8 +80,14 @@
 #include <utils/Trace.h>
 #include <utils/misc.h>
 
-#include <private/android_filesystem_config.h>
-#include <private/gui/SyncFeatures.h>
+#include <algorithm>
+#include <cinttypes>
+#include <cmath>
+#include <cstdint>
+#include <functional>
+#include <mutex>
+#include <optional>
+#include <unordered_map>
 
 #include "BufferLayer.h"
 #include "BufferQueueLayer.h"
@@ -90,23 +96,19 @@
 #include "Colorizer.h"
 #include "ContainerLayer.h"
 #include "DisplayDevice.h"
-#include "EffectLayer.h"
-#include "Layer.h"
-#include "LayerVector.h"
-#include "MonitoredProducer.h"
-#include "NativeWindowSurface.h"
-#include "RefreshRateOverlay.h"
-#include "StartPropertySetThread.h"
-#include "SurfaceFlinger.h"
-#include "SurfaceInterceptor.h"
-
 #include "DisplayHardware/ComposerHal.h"
 #include "DisplayHardware/DisplayIdentification.h"
 #include "DisplayHardware/FramebufferSurface.h"
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/VirtualDisplaySurface.h"
+#include "EffectLayer.h"
 #include "Effects/Daltonizer.h"
 #include "FrameTracer/FrameTracer.h"
+#include "Layer.h"
+#include "LayerVector.h"
+#include "MonitoredProducer.h"
+#include "NativeWindowSurface.h"
+#include "RefreshRateOverlay.h"
 #include "RegionSamplingThread.h"
 #include "Scheduler/DispSync.h"
 #include "Scheduler/DispSyncSource.h"
@@ -115,22 +117,12 @@
 #include "Scheduler/MessageQueue.h"
 #include "Scheduler/PhaseOffsets.h"
 #include "Scheduler/Scheduler.h"
+#include "StartPropertySetThread.h"
+#include "SurfaceFlingerProperties.h"
+#include "SurfaceInterceptor.h"
 #include "TimeStats/TimeStats.h"
-
-#include <cutils/compiler.h>
-
 #include "android-base/parseint.h"
 #include "android-base/stringprintf.h"
-
-#include <android/configuration.h>
-#include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
-#include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
-#include <android/hardware/configstore/1.1/types.h>
-#include <android/hardware/power/1.0/IPower.h>
-#include <configstore/Utils.h>
-
-#include <layerproto/LayerProtoParser.h>
-#include "SurfaceFlingerProperties.h"
 
 namespace android {
 
@@ -216,6 +208,7 @@ const String16 sHardwareTest("android.permission.HARDWARE_TEST");
 const String16 sAccessSurfaceFlinger("android.permission.ACCESS_SURFACE_FLINGER");
 const String16 sReadFramebuffer("android.permission.READ_FRAME_BUFFER");
 const String16 sDump("android.permission.DUMP");
+const char* KERNEL_IDLE_TIMER_PROP = "vendor.display.enable_kernel_idle_timer";
 
 // ---------------------------------------------------------------------------
 int64_t SurfaceFlinger::dispSyncPresentTimeOffset;
@@ -333,6 +326,9 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
 
     property_get("ro.bq.gpu_to_cpu_unsupported", value, "0");
     mGpuToCpuSupported = !atoi(value);
+
+    property_get("ro.build.type", value, "user");
+    mIsUserBuild = strcmp(value, "user") == 0;
 
     property_get("debug.sf.showupdates", value, "0");
     mDebugRegion = atoi(value);
@@ -1812,6 +1808,10 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
             if (frameMissed) {
                 mFrameMissedCount++;
                 mTimeStats->incrementMissedFrames();
+                if (mMissedFrameJankCount == 0) {
+                    mMissedFrameJankStart = systemTime();
+                }
+                mMissedFrameJankCount++;
             }
 
             if (hwcFrameMissed) {
@@ -1827,6 +1827,40 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
                     mPropagateBackpressureClientComposition) {
                     signalLayerUpdate();
                     break;
+                }
+            }
+
+            // Our jank window is always at least 100ms since we missed a
+            // frame...
+            static constexpr nsecs_t kMinJankyDuration =
+                    std::chrono::duration_cast<std::chrono::nanoseconds>(100ms).count();
+            // ...but if it's larger than 1s then we missed the trace cutoff.
+            static constexpr nsecs_t kMaxJankyDuration =
+                    std::chrono::duration_cast<std::chrono::nanoseconds>(1s).count();
+            // If we're in a user build then don't push any atoms
+            if (!mIsUserBuild && mMissedFrameJankCount > 0) {
+                const auto displayDevice = getDefaultDisplayDeviceLocked();
+                // Only report jank when the display is on, as displays in DOZE
+                // power mode may operate at a different frame rate than is
+                // reported in their config, which causes noticeable (but less
+                // severe) jank.
+                if (displayDevice && displayDevice->getPowerMode() == HWC_POWER_MODE_NORMAL) {
+                    const nsecs_t currentTime = systemTime();
+                    const nsecs_t jankDuration = currentTime - mMissedFrameJankStart;
+                    if (jankDuration > kMinJankyDuration && jankDuration < kMaxJankyDuration) {
+                        ATRACE_NAME("Jank detected");
+                        ALOGD("Detected janky event. Missed frames: %d", mMissedFrameJankCount);
+                        const int32_t jankyDurationMillis = jankDuration / (1000 * 1000);
+                        android::util::stats_write(android::util::DISPLAY_JANK_REPORTED,
+                                                   jankyDurationMillis, mMissedFrameJankCount);
+                    }
+
+                    // We either reported a jank event or we missed the trace
+                    // window, so clear counters here.
+                    if (jankDuration > kMinJankyDuration) {
+                        mMissedFrameJankCount = 0;
+                        mMissedFrameJankStart = 0;
+                    }
                 }
             }
 
@@ -2325,16 +2359,17 @@ void SurfaceFlinger::dispatchDisplayHotplugEvent(PhysicalDisplayId displayId, bo
 }
 
 sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
-        const wp<IBinder>& displayToken, const std::optional<DisplayId>& displayId,
+        const wp<IBinder>& displayToken,
+        std::shared_ptr<compositionengine::Display> compositionDisplay,
         const DisplayDeviceState& state, const sp<compositionengine::DisplaySurface>& dispSurface,
         const sp<IGraphicBufferProducer>& producer) {
-    DisplayDeviceCreationArgs creationArgs(this, displayToken, displayId);
+    auto displayId = compositionDisplay->getDisplayId();
+    DisplayDeviceCreationArgs creationArgs(this, displayToken, compositionDisplay);
     creationArgs.sequenceId = state.sequenceId;
     creationArgs.isSecure = state.isSecure;
     creationArgs.displaySurface = dispSurface;
     creationArgs.hasWideColorGamut = false;
     creationArgs.supportedPerFrameMetadata = 0;
-    creationArgs.powerAdvisor = displayId ? &mPowerAdvisor : nullptr;
 
     if (const auto& physical = state.physical) {
         creationArgs.connectionType = physical->type;
@@ -2379,7 +2414,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     // virtual displays are always considered enabled
     creationArgs.initialPowerMode = state.isVirtual() ? HWC_POWER_MODE_NORMAL : HWC_POWER_MODE_OFF;
 
-    sp<DisplayDevice> display = getFactory().createDisplayDevice(std::move(creationArgs));
+    sp<DisplayDevice> display = getFactory().createDisplayDevice(creationArgs);
 
     if (maxFrameBufferAcquiredBuffers >= 3) {
         nativeWindowSurface->preallocateBuffers();
@@ -2485,53 +2520,68 @@ void SurfaceFlinger::processDisplayChangesLocked() {
             if (draw.indexOfKey(curr.keyAt(i)) < 0) {
                 const DisplayDeviceState& state(curr[i]);
 
+                int width = 0;
+                int height = 0;
+                ui::PixelFormat pixelFormat = static_cast<ui::PixelFormat>(PIXEL_FORMAT_UNKNOWN);
+                if (state.physical) {
+                    const auto& activeConfig =
+                            getCompositionEngine().getHwComposer().getActiveConfig(
+                                    state.physical->id);
+                    width = activeConfig->getWidth();
+                    height = activeConfig->getHeight();
+                    pixelFormat = static_cast<ui::PixelFormat>(PIXEL_FORMAT_RGBA_8888);
+                } else if (state.surface != nullptr) {
+                    int status = state.surface->query(NATIVE_WINDOW_WIDTH, &width);
+                    ALOGE_IF(status != NO_ERROR, "Unable to query width (%d)", status);
+                    status = state.surface->query(NATIVE_WINDOW_HEIGHT, &height);
+                    ALOGE_IF(status != NO_ERROR, "Unable to query height (%d)", status);
+                    int intPixelFormat;
+                    status = state.surface->query(NATIVE_WINDOW_FORMAT, &intPixelFormat);
+                    ALOGE_IF(status != NO_ERROR, "Unable to query format (%d)", status);
+                    pixelFormat = static_cast<ui::PixelFormat>(intPixelFormat);
+                } else {
+                    // Virtual displays without a surface are dormant:
+                    // they have external state (layer stack, projection,
+                    // etc.) but no internal state (i.e. a DisplayDevice).
+                    continue;
+                }
+
+                compositionengine::DisplayCreationArgsBuilder builder;
+                if (const auto& physical = state.physical) {
+                    builder.setPhysical({physical->id, physical->type});
+                }
+                builder.setPixels(ui::Size(width, height));
+                builder.setPixelFormat(pixelFormat);
+                builder.setIsSecure(state.isSecure);
+                builder.setLayerStackId(state.layerStack);
+                builder.setPowerAdvisor(&mPowerAdvisor);
+                builder.setUseHwcVirtualDisplays(mUseHwcVirtualDisplays ||
+                                                 getHwComposer().isUsingVrComposer());
+                builder.setName(state.displayName);
+                auto compositionDisplay = getCompositionEngine().createDisplay(builder.build());
+
                 sp<compositionengine::DisplaySurface> dispSurface;
                 sp<IGraphicBufferProducer> producer;
                 sp<IGraphicBufferProducer> bqProducer;
                 sp<IGraphicBufferConsumer> bqConsumer;
                 getFactory().createBufferQueue(&bqProducer, &bqConsumer, false);
 
-                std::optional<DisplayId> displayId;
+                std::optional<DisplayId> displayId = compositionDisplay->getId();
+
                 if (state.isVirtual()) {
-                    // Virtual displays without a surface are dormant:
-                    // they have external state (layer stack, projection,
-                    // etc.) but no internal state (i.e. a DisplayDevice).
-                    if (state.surface != nullptr) {
-                        // Allow VR composer to use virtual displays.
-                        if (mUseHwcVirtualDisplays || getHwComposer().isUsingVrComposer()) {
-                            int width = 0;
-                            int status = state.surface->query(NATIVE_WINDOW_WIDTH, &width);
-                            ALOGE_IF(status != NO_ERROR, "Unable to query width (%d)", status);
-                            int height = 0;
-                            status = state.surface->query(NATIVE_WINDOW_HEIGHT, &height);
-                            ALOGE_IF(status != NO_ERROR, "Unable to query height (%d)", status);
-                            int intFormat = 0;
-                            status = state.surface->query(NATIVE_WINDOW_FORMAT, &intFormat);
-                            ALOGE_IF(status != NO_ERROR, "Unable to query format (%d)", status);
-                            auto format = static_cast<ui::PixelFormat>(intFormat);
+                    sp<VirtualDisplaySurface> vds =
+                            new VirtualDisplaySurface(getHwComposer(), displayId, state.surface,
+                                                      bqProducer, bqConsumer, state.displayName);
 
-                            displayId =
-                                    getHwComposer().allocateVirtualDisplay(width, height, &format);
-                        }
-
-                        // TODO: Plumb requested format back up to consumer
-
-                        sp<VirtualDisplaySurface> vds =
-                                new VirtualDisplaySurface(getHwComposer(), displayId, state.surface,
-                                                          bqProducer, bqConsumer,
-                                                          state.displayName);
-
-                        dispSurface = vds;
-                        producer = vds;
-                    }
+                    dispSurface = vds;
+                    producer = vds;
                 } else {
                     ALOGE_IF(state.surface != nullptr,
                              "adding a supported display, but rendering "
                              "surface is provided (%p), ignoring it",
                              state.surface.get());
 
-                    LOG_FATAL_IF(!state.physical);
-                    displayId = state.physical->id;
+                    LOG_ALWAYS_FATAL_IF(!displayId);
                     dispSurface = new FramebufferSurface(getHwComposer(), *displayId, bqConsumer);
                     producer = bqProducer;
                 }
@@ -2539,7 +2589,8 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                 const wp<IBinder>& displayToken = curr.keyAt(i);
                 if (dispSurface != nullptr) {
                     mDisplays.emplace(displayToken,
-                                      setupNewDisplayDeviceInternal(displayToken, displayId, state,
+                                      setupNewDisplayDeviceInternal(displayToken,
+                                                                    compositionDisplay, state,
                                                                     dispSurface, producer));
                     if (!state.isVirtual()) {
                         LOG_ALWAYS_FATAL_IF(!displayId);
@@ -5104,6 +5155,36 @@ void SurfaceFlinger::repaintEverythingForHWC() {
     mRepaintEverything = true;
     mPowerAdvisor.notifyDisplayUpdateImminent();
     mEventQueue->invalidate();
+}
+
+void SurfaceFlinger::kernelTimerChanged(bool expired) {
+    static bool updateOverlay =
+            property_get_bool("debug.sf.kernel_idle_timer_update_overlay", true);
+    if (!updateOverlay || !mRefreshRateOverlay) return;
+
+    // Update the overlay on the main thread to avoid race conditions with
+    // mRefreshRateConfigs->getCurrentRefreshRate()
+    postMessageAsync(new LambdaMessage([this, expired]() NO_THREAD_SAFETY_ANALYSIS {
+        if (mRefreshRateOverlay) {
+            const auto kernelTimerEnabled = property_get_bool(KERNEL_IDLE_TIMER_PROP, false);
+            const bool timerExpired = kernelTimerEnabled && expired;
+            const auto& current = [this]() {
+                std::lock_guard<std::mutex> lock(mActiveConfigLock);
+                if (mDesiredActiveConfigChanged) {
+                    return mRefreshRateConfigs->getRefreshRateFromConfigId(
+                            mDesiredActiveConfig.configId);
+                }
+
+                return mRefreshRateConfigs->getCurrentRefreshRate();
+            }();
+            const auto& min = mRefreshRateConfigs->getMinRefreshRate();
+
+            if (current != min) {
+                mRefreshRateOverlay->changeRefreshRate(timerExpired ? min : current);
+                mEventQueue->invalidate();
+            }
+        }
+    }));
 }
 
 // A simple RAII class to disconnect from an ANativeWindow* when it goes out of scope

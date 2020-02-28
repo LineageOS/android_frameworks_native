@@ -47,19 +47,17 @@ using android::base::StringAppendF;
 
 ui::Transform::RotationFlags DisplayDevice::sPrimaryDisplayRotationFlags = ui::Transform::ROT_0;
 
-DisplayDeviceCreationArgs::DisplayDeviceCreationArgs(const sp<SurfaceFlinger>& flinger,
-                                                     const wp<IBinder>& displayToken,
-                                                     std::optional<DisplayId> displayId)
-      : flinger(flinger), displayToken(displayToken), displayId(displayId) {}
+DisplayDeviceCreationArgs::DisplayDeviceCreationArgs(
+        const sp<SurfaceFlinger>& flinger, const wp<IBinder>& displayToken,
+        std::shared_ptr<compositionengine::Display> compositionDisplay)
+      : flinger(flinger), displayToken(displayToken), compositionDisplay(compositionDisplay) {}
 
-DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
+DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs& args)
       : mFlinger(args.flinger),
         mDisplayToken(args.displayToken),
         mSequenceId(args.sequenceId),
         mConnectionType(args.connectionType),
-        mCompositionDisplay{mFlinger->getCompositionEngine().createDisplay(
-                compositionengine::DisplayCreationArgs{args.isVirtual(), args.displayId,
-                                                       args.powerAdvisor})},
+        mCompositionDisplay{args.compositionDisplay},
         mPhysicalOrientation(args.physicalOrientation),
         mIsPrimary(args.isPrimary) {
     mCompositionDisplay->editState().isSecure = args.isSecure;

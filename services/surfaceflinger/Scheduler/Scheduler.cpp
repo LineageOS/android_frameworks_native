@@ -99,12 +99,14 @@ std::unique_ptr<DispSync> createDispSync() {
 
 Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
                      const scheduler::RefreshRateConfigs& refreshRateConfig,
-                     ISchedulerCallback& schedulerCallback, bool useContentDetectionV2)
+                     ISchedulerCallback& schedulerCallback, bool useContentDetectionV2,
+                     bool useContentDetection)
       : mPrimaryDispSync(createDispSync()),
         mEventControlThread(new impl::EventControlThread(std::move(function))),
         mSupportKernelTimer(sysprop::support_kernel_idle_timer(false)),
         mSchedulerCallback(schedulerCallback),
         mRefreshRateConfigs(refreshRateConfig),
+        mUseContentDetection(useContentDetection),
         mUseContentDetectionV2(useContentDetectionV2) {
     using namespace sysprop;
 
@@ -147,12 +149,14 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
 Scheduler::Scheduler(std::unique_ptr<DispSync> primaryDispSync,
                      std::unique_ptr<EventControlThread> eventControlThread,
                      const scheduler::RefreshRateConfigs& configs,
-                     ISchedulerCallback& schedulerCallback, bool useContentDetectionV2)
+                     ISchedulerCallback& schedulerCallback, bool useContentDetectionV2,
+                     bool useContentDetection)
       : mPrimaryDispSync(std::move(primaryDispSync)),
         mEventControlThread(std::move(eventControlThread)),
         mSupportKernelTimer(false),
         mSchedulerCallback(schedulerCallback),
         mRefreshRateConfigs(configs),
+        mUseContentDetection(useContentDetection),
         mUseContentDetectionV2(useContentDetectionV2) {}
 
 Scheduler::~Scheduler() {
@@ -381,6 +385,17 @@ nsecs_t Scheduler::getDispSyncExpectedPresentTime() {
 void Scheduler::registerLayer(Layer* layer) {
     if (!mLayerHistory) return;
 
+    // If the content detection feature is off, all layers are registered at NoVote. We still
+    // keep the layer history, since we use it for other features (like Frame Rate API), so layers
+    // still need to be registered.
+    if (!mUseContentDetection) {
+        mLayerHistory->registerLayer(layer, mRefreshRateConfigs.getMinRefreshRate().fps,
+                                     mRefreshRateConfigs.getMaxRefreshRate().fps,
+                                     scheduler::LayerHistory::LayerVoteType::NoVote);
+        return;
+    }
+
+    // In V1 of content detection, all layers are registered as Heuristic (unless it's wallpaper).
     if (!mUseContentDetectionV2) {
         const auto lowFps = mRefreshRateConfigs.getMinRefreshRate().fps;
         const auto highFps = layer->getWindowType() == InputWindowInfo::TYPE_WALLPAPER
@@ -391,6 +406,7 @@ void Scheduler::registerLayer(Layer* layer) {
                                      scheduler::LayerHistory::LayerVoteType::Heuristic);
     } else {
         if (layer->getWindowType() == InputWindowInfo::TYPE_WALLPAPER) {
+            // Running Wallpaper at Min is considered as part of content detection.
             mLayerHistory->registerLayer(layer, mRefreshRateConfigs.getMinRefreshRate().fps,
                                          mRefreshRateConfigs.getMaxRefreshRate().fps,
                                          scheduler::LayerHistory::LayerVoteType::Min);
@@ -512,6 +528,8 @@ void Scheduler::kernelIdleTimerCallback(TimerState state) {
         // need to update the DispSync model anyway.
         disableHardwareVsync(false /* makeUnavailable */);
     }
+
+    mSchedulerCallback.kernelTimerChanged(state == TimerState::Expired);
 }
 
 void Scheduler::idleTimerCallback(TimerState state) {
@@ -537,8 +555,10 @@ void Scheduler::dump(std::string& result) const {
 
     StringAppendF(&result, "+  Idle timer: %s\n",
                   mIdleTimer ? mIdleTimer->dump().c_str() : states[0]);
-    StringAppendF(&result, "+  Touch timer: %s\n\n",
+    StringAppendF(&result, "+  Touch timer: %s\n",
                   mTouchTimer ? mTouchTimer->dump().c_str() : states[0]);
+    StringAppendF(&result, "+  Use content detection: %s\n\n",
+                  sysprop::use_content_detection_for_refresh_rate(false) ? "on" : "off");
 }
 
 template <class T>
