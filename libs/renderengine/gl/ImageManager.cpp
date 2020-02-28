@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+//#define LOG_NDEBUG 0
+#undef LOG_TAG
+#define LOG_TAG "RenderEngine"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <pthread.h>
@@ -27,7 +30,10 @@ namespace android {
 namespace renderengine {
 namespace gl {
 
-ImageManager::ImageManager(GLESRenderEngine* engine) : mEngine(engine) {
+ImageManager::ImageManager(GLESRenderEngine* engine) : mEngine(engine) {}
+
+void ImageManager::initThread() {
+    mThread = std::thread([this]() { threadMain(); });
     pthread_setname_np(mThread.native_handle(), "ImageManager");
     // Use SCHED_FIFO to minimize jitter
     struct sched_param param = {0};
@@ -133,6 +139,8 @@ void ImageManager::threadMain() {
             entry.barrier->condition.notify_one();
         }
     }
+
+    ALOGD("Reached end of threadMain, terminating ImageManager thread!");
 }
 
 } // namespace gl
