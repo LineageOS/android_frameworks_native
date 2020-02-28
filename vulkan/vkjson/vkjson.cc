@@ -591,6 +591,13 @@ inline bool Iterate(Visitor* visitor,
 }
 
 template <typename Visitor>
+inline bool Iterate(Visitor* visitor,
+                    VkJsonExtShaderFloat16Int8Features* features) {
+  return visitor->Visit("shaderFloat16Int8FeaturesKHR",
+                        &features->shader_float16_int8_features_khr);
+}
+
+template <typename Visitor>
 inline bool Iterate(Visitor* visitor, VkMemoryType* type) {
   return
     visitor->Visit("propertyFlags", &type->propertyFlags) &&
@@ -688,6 +695,13 @@ inline bool Iterate(Visitor* visitor,
   return visitor->Visit("variablePointersStorageBuffer",
                         &features->variablePointersStorageBuffer) &&
          visitor->Visit("variablePointers", &features->variablePointers);
+}
+
+template <typename Visitor>
+inline bool Iterate(Visitor* visitor,
+                    VkPhysicalDeviceShaderFloat16Int8FeaturesKHR* features) {
+  return visitor->Visit("shaderFloat16", &features->shaderFloat16) &&
+         visitor->Visit("shaderInt8", &features->shaderInt8);
 }
 
 template <typename Visitor>
@@ -823,6 +837,10 @@ inline bool Iterate(Visitor* visitor, VkJsonDevice* device) {
       if (device->ext_variable_pointer_features.reported) {
         ret &= visitor->Visit("VK_KHR_variable_pointers",
                             &device->ext_variable_pointer_features);
+      }
+      if (device->ext_shader_float16_int8_features.reported) {
+        ret &= visitor->Visit("VK_KHR_shader_float16_int8",
+                              &device->ext_shader_float16_int8_features);
       }
   }
   return ret;
