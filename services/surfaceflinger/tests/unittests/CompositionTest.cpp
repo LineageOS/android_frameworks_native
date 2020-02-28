@@ -39,6 +39,7 @@
 #include "Layer.h"
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
+#include "mock/DisplayHardware/MockPowerAdvisor.h"
 #include "mock/MockDispSync.h"
 #include "mock/MockEventControlThread.h"
 #include "mock/MockEventThread.h"
@@ -186,6 +187,7 @@ public:
     renderengine::mock::RenderEngine* mRenderEngine = new renderengine::mock::RenderEngine();
     mock::TimeStats* mTimeStats = new mock::TimeStats();
     mock::MessageQueue* mMessageQueue = new mock::MessageQueue();
+    Hwc2::mock::PowerAdvisor mPowerAdvisor;
 
     sp<Fence> mClientTargetAcquireFence = Fence::NO_FENCE;
 
@@ -284,8 +286,27 @@ struct BaseDisplayVariant {
         EXPECT_CALL(*test->mNativeWindow, perform(NATIVE_WINDOW_SET_BUFFERS_FORMAT)).Times(1);
         EXPECT_CALL(*test->mNativeWindow, perform(NATIVE_WINDOW_API_CONNECT)).Times(1);
         EXPECT_CALL(*test->mNativeWindow, perform(NATIVE_WINDOW_SET_USAGE64)).Times(1);
+
+        const ::testing::TestInfo* const test_info =
+                ::testing::UnitTest::GetInstance()->current_test_info();
+
+        auto ceDisplayArgs =
+                compositionengine::DisplayCreationArgsBuilder()
+                        .setPhysical({DEFAULT_DISPLAY_ID, DisplayConnectionType::Internal})
+                        .setPixels({DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT})
+                        .setIsSecure(Derived::IS_SECURE)
+                        .setLayerStackId(DEFAULT_LAYER_STACK)
+                        .setPowerAdvisor(&test->mPowerAdvisor)
+                        .setName(std::string("Injected display for ") +
+                                 test_info->test_case_name() + "." + test_info->name())
+                        .build();
+
+        auto compositionDisplay =
+                compositionengine::impl::createDisplay(test->mFlinger.getCompositionEngine(),
+                                                       ceDisplayArgs);
+
         test->mDisplay =
-                FakeDisplayDeviceInjector(test->mFlinger, DEFAULT_DISPLAY_ID,
+                FakeDisplayDeviceInjector(test->mFlinger, compositionDisplay,
                                           DisplayConnectionType::Internal, true /* isPrimary */)
                         .setDisplaySurface(test->mDisplaySurface)
                         .setNativeWindow(test->mNativeWindow)
@@ -325,18 +346,17 @@ struct BaseDisplayVariant {
     template <typename Case>
     static void setupCommonScreensCaptureCallExpectations(CompositionTest* test) {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
-                .WillRepeatedly(
-                        [](const renderengine::DisplaySettings& displaySettings,
-                           const std::vector<const renderengine::LayerSettings*>&,
-                           ANativeWindowBuffer*, const bool, base::unique_fd&&,
-                           base::unique_fd*) -> status_t {
-                            EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
-                            EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
-                                      displaySettings.physicalDisplay);
-                            EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
-                                      displaySettings.clip);
-                            return NO_ERROR;
-                        });
+                .WillRepeatedly([](const renderengine::DisplaySettings& displaySettings,
+                                   const std::vector<const renderengine::LayerSettings*>&,
+                                   ANativeWindowBuffer*, const bool, base::unique_fd&&,
+                                   base::unique_fd*) -> status_t {
+                    EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
+                    EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                              displaySettings.physicalDisplay);
+                    EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                              displaySettings.clip);
+                    return NO_ERROR;
+                });
     }
 
     static void setupNonEmptyFrameCompositionCallExpectations(CompositionTest* test) {
@@ -375,19 +395,18 @@ struct BaseDisplayVariant {
                 .WillOnce(DoAll(SetArgPointee<0>(test->mNativeWindowBuffer), SetArgPointee<1>(-1),
                                 Return(0)));
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
-                .WillRepeatedly(
-                        [](const renderengine::DisplaySettings& displaySettings,
-                           const std::vector<const renderengine::LayerSettings*>&,
-                           ANativeWindowBuffer*, const bool, base::unique_fd&&,
-                           base::unique_fd*) -> status_t {
-                            EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
-                            EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
-                                      displaySettings.physicalDisplay);
-                            EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
-                                      displaySettings.clip);
-                            EXPECT_EQ(ui::Dataspace::UNKNOWN, displaySettings.outputDataspace);
-                            return NO_ERROR;
-                        });
+                .WillRepeatedly([](const renderengine::DisplaySettings& displaySettings,
+                                   const std::vector<const renderengine::LayerSettings*>&,
+                                   ANativeWindowBuffer*, const bool, base::unique_fd&&,
+                                   base::unique_fd*) -> status_t {
+                    EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
+                    EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                              displaySettings.physicalDisplay);
+                    EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                              displaySettings.clip);
+                    EXPECT_EQ(ui::Dataspace::UNKNOWN, displaySettings.outputDataspace);
+                    return NO_ERROR;
+                });
     }
 
     template <typename Case>

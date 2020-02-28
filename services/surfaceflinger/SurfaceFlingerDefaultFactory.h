@@ -37,7 +37,7 @@ public:
                                                ISchedulerCallback&) override;
     std::unique_ptr<SurfaceInterceptor> createSurfaceInterceptor(SurfaceFlinger*) override;
     sp<StartPropertySetThread> createStartPropertySetThread(bool timestampPropertyValue) override;
-    sp<DisplayDevice> createDisplayDevice(DisplayDeviceCreationArgs&&) override;
+    sp<DisplayDevice> createDisplayDevice(DisplayDeviceCreationArgs&) override;
     sp<GraphicBuffer> createGraphicBuffer(uint32_t width, uint32_t height, PixelFormat format,
                                           uint32_t layerCount, uint64_t usage,
                                           std::string requestorName) override;
