@@ -4562,7 +4562,7 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
         StringAppendF(&result, "Composition layers\n");
         mDrawingState.traverseInZOrder([&](Layer* layer) {
             auto* compositionState = layer->getCompositionState();
-            if (!compositionState) return;
+            if (!compositionState || !compositionState->isVisible) return;
 
             android::base::StringAppendF(&result, "* Layer %p (%s)\n", layer,
                                          layer->getDebugName() ? layer->getDebugName()
