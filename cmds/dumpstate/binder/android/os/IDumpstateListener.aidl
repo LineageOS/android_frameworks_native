@@ -61,4 +61,9 @@ interface IDumpstateListener {
      * Called when taking bugreport finishes successfully.
      */
     void onFinished();
+
+    /**
+     * Called when screenshot is taken.
+     */
+    void onScreenshotTaken(boolean success);
 }
