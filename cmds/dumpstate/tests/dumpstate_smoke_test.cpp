@@ -167,6 +167,12 @@ class DumpstateListener : public BnDumpstateListener {
         return binder::Status::ok();
     }
 
+    binder::Status onScreenshotTaken(bool success) override {
+        std::lock_guard<std::mutex> lock(lock_);
+        dprintf(out_fd_, "\rResult of taking screenshot: %s", success ? "success" : "failure");
+        return binder::Status::ok();
+    }
+
     bool getIsFinished() {
         std::lock_guard<std::mutex> lock(lock_);
         return is_finished_;
