@@ -359,7 +359,8 @@ class Dumpstate {
         // Writes bugreport content to a socket; only flatfile format is supported.
         bool use_socket = false;
         bool use_control_socket = false;
-        bool do_fb = false;
+        bool do_screenshot = false;
+        bool is_screenshot_copied = false;
         bool is_remote_mode = false;
         bool show_header_only = false;
         bool do_start_service = false;
@@ -493,6 +494,8 @@ class Dumpstate {
     RunStatus RunInternal(int32_t calling_uid, const std::string& calling_package);
 
     RunStatus DumpstateDefaultAfterCritical();
+
+    void MaybeTakeEarlyScreenshot();
 
     void MaybeCheckUserConsent(int32_t calling_uid, const std::string& calling_package);
 
