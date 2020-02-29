@@ -2,9 +2,11 @@ cc_library_shared {
     name: "libpowermanager",
 
     srcs: [
-        "IPowerManager.cpp",
-        "Temperature.cpp",
+        "BatterySaverPolicyConfig.cpp",
         "CoolingDevice.cpp",
+        "PowerSaveState.cpp",
+        "Temperature.cpp",
+        "WorkSource.cpp",
         ":libpowermanager_aidl",
     ],
 
@@ -46,10 +48,10 @@ cc_test {
     ],
     shared_libs: [
         "libbase",
+        "libbinder",
         "libhidlbase",
         "liblog",
         "libpowermanager",
-        "libbinder",
         "libutils",
     ],
 }
