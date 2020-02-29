@@ -21,6 +21,8 @@
 #include <gtest/gtest.h>
 #include "InputListener.h"
 
+using std::chrono_literals::operator""ms;
+
 namespace android {
 
 // --- TestInputListener ---
@@ -30,7 +32,7 @@ protected:
     virtual ~TestInputListener();
 
 public:
-    TestInputListener();
+    TestInputListener(const std::chrono::milliseconds timeout = 5ms);
 
     void assertNotifyConfigurationChangedWasCalled(
             NotifyConfigurationChangedArgs* outEventArgs = nullptr);
@@ -73,6 +75,7 @@ private:
 
     std::mutex mLock;
     std::condition_variable mCondition;
+    const std::chrono::milliseconds mTimeout;
 
     std::tuple<std::vector<NotifyConfigurationChangedArgs>, //
                std::vector<NotifyDeviceResetArgs>,          //

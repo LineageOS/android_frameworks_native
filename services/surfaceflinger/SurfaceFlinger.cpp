@@ -857,6 +857,7 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
         const auto offsets = mPhaseConfiguration->getOffsetsForRefreshRate(config.refreshRate);
         config.appVsyncOffset = offsets.late.app;
         config.sfVsyncOffset = offsets.late.sf;
+        config.configGroup = hwConfig->getConfigGroup();
 
         // This is how far in advance a buffer must be queued for
         // presentation at a given time.  If you want a buffer to appear
@@ -4562,7 +4563,7 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
         StringAppendF(&result, "Composition layers\n");
         mDrawingState.traverseInZOrder([&](Layer* layer) {
             auto* compositionState = layer->getCompositionState();
-            if (!compositionState) return;
+            if (!compositionState || !compositionState->isVisible) return;
 
             android::base::StringAppendF(&result, "* Layer %p (%s)\n", layer,
                                          layer->getDebugName() ? layer->getDebugName()

@@ -647,6 +647,24 @@ android::binder::Status Dumpstate::ConsentCallback::onReportApproved() {
     std::lock_guard<std::mutex> lock(lock_);
     result_ = APPROVED;
     MYLOGD("User approved consent to share bugreport\n");
+
+    // Maybe copy screenshot so calling app can display the screenshot to the user as soon as
+    // consent is granted.
+    if (ds.options_->is_screenshot_copied) {
+        return android::binder::Status::ok();
+    }
+
+    if (!ds.options_->do_screenshot || ds.options_->screenshot_fd.get() == -1 ||
+        !ds.do_early_screenshot_) {
+        return android::binder::Status::ok();
+    }
+
+    bool copy_succeeded = android::os::CopyFileToFd(ds.screenshot_path_,
+                                                    ds.options_->screenshot_fd.get());
+    ds.options_->is_screenshot_copied = copy_succeeded;
+    if (copy_succeeded) {
+        android::os::UnlinkAndLogOnError(ds.screenshot_path_);
+    }
     return android::binder::Status::ok();
 }
 
@@ -1407,7 +1425,7 @@ static Dumpstate::RunStatus dumpstate() {
     /* Dump Bluetooth HCI logs */
     ds.AddDir("/data/misc/bluetooth/logs", true);
 
-    if (ds.options_->do_fb && !ds.do_early_screenshot_) {
+    if (ds.options_->do_screenshot && !ds.do_early_screenshot_) {
         MYLOGI("taking late screenshot\n");
         ds.TakeScreenshot();
     }
@@ -2149,7 +2167,7 @@ static void PrepareToWriteToFile() {
         ds.base_name_ += "-wifi";
     }
 
-    if (ds.options_->do_fb) {
+    if (ds.options_->do_screenshot) {
         ds.screenshot_path_ = ds.GetPath(ds.CalledByApi() ? "-tmp.png" : ".png");
     }
     ds.tmp_path_ = ds.GetPath(".tmp");
@@ -2229,43 +2247,45 @@ static inline const char* ModeToString(Dumpstate::BugreportMode mode) {
 }
 
 static void SetOptionsFromMode(Dumpstate::BugreportMode mode, Dumpstate::DumpOptions* options) {
+    // Modify com.android.shell.BugreportProgressService#isDefaultScreenshotRequired as well for
+    // default system screenshots.
     options->bugreport_mode = ModeToString(mode);
     switch (mode) {
         case Dumpstate::BugreportMode::BUGREPORT_FULL:
-            options->do_fb = true;
+            options->do_screenshot = true;
             options->dumpstate_hal_mode = DumpstateMode::FULL;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE:
             // Currently, the dumpstate binder is only used by Shell to update progress.
             options->do_start_service = true;
             options->do_progress_updates = true;
-            options->do_fb = false;
+            options->do_screenshot = true;
             options->dumpstate_hal_mode = DumpstateMode::INTERACTIVE;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_REMOTE:
             options->do_vibrate = false;
             options->is_remote_mode = true;
-            options->do_fb = false;
+            options->do_screenshot = false;
             options->dumpstate_hal_mode = DumpstateMode::REMOTE;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_WEAR:
             options->do_start_service = true;
             options->do_progress_updates = true;
             options->do_zip_file = true;
-            options->do_fb = true;
+            options->do_screenshot = true;
             options->dumpstate_hal_mode = DumpstateMode::WEAR;
             break;
         // TODO(b/148168577) rename TELEPHONY everywhere to CONNECTIVITY.
         case Dumpstate::BugreportMode::BUGREPORT_TELEPHONY:
             options->telephony_only = true;
             options->do_progress_updates = true;
-            options->do_fb = false;
+            options->do_screenshot = false;
             options->dumpstate_hal_mode = DumpstateMode::CONNECTIVITY;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_WIFI:
             options->wifi_only = true;
             options->do_zip_file = true;
-            options->do_fb = false;
+            options->do_screenshot = false;
             options->dumpstate_hal_mode = DumpstateMode::WIFI;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_DEFAULT:
@@ -2275,12 +2295,13 @@ static void SetOptionsFromMode(Dumpstate::BugreportMode mode, Dumpstate::DumpOpt
 
 static void LogDumpOptions(const Dumpstate::DumpOptions& options) {
     MYLOGI(
-        "do_zip_file: %d do_vibrate: %d use_socket: %d use_control_socket: %d do_fb: %d "
+        "do_zip_file: %d do_vibrate: %d use_socket: %d use_control_socket: %d do_screenshot: %d "
         "is_remote_mode: %d show_header_only: %d do_start_service: %d telephony_only: %d "
         "wifi_only: %d do_progress_updates: %d fd: %d bugreport_mode: %s dumpstate_hal_mode: %s "
         "args: %s\n",
         options.do_zip_file, options.do_vibrate, options.use_socket, options.use_control_socket,
-        options.do_fb, options.is_remote_mode, options.show_header_only, options.do_start_service,
+        options.do_screenshot, options.is_remote_mode, options.show_header_only,
+        options.do_start_service,
         options.telephony_only, options.wifi_only, options.do_progress_updates,
         options.bugreport_fd.get(), options.bugreport_mode.c_str(),
         toString(options.dumpstate_hal_mode).c_str(), options.args.c_str());
@@ -2313,7 +2334,7 @@ Dumpstate::RunStatus Dumpstate::DumpOptions::Initialize(int argc, char* argv[]) 
             case 'S': use_control_socket = true;     break;
             case 'v': show_header_only = true;       break;
             case 'q': do_vibrate = false;            break;
-            case 'p': do_fb = true;                  break;
+            case 'p': do_screenshot = true;          break;
             case 'P': do_progress_updates = true;    break;
             case 'R': is_remote_mode = true;         break;
             case 'V':                                break;  // compatibility no-op
@@ -2543,11 +2564,6 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
         Vibrate(150);
     }
 
-    if (options_->do_fb && do_early_screenshot_) {
-        MYLOGI("taking early screenshot\n");
-        TakeScreenshot();
-    }
-
     if (options_->do_zip_file && zip_file != nullptr) {
         if (chown(path_.c_str(), AID_SHELL, AID_SHELL)) {
             MYLOGE("Unable to change ownership of zip file %s: %s\n", path_.c_str(),
@@ -2593,19 +2609,20 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
     PrintHeader();
 
     if (options_->telephony_only) {
+        MaybeTakeEarlyScreenshot();
         MaybeCheckUserConsent(calling_uid, calling_package);
         DumpstateTelephonyOnly(calling_package);
         DumpstateBoard();
     } else if (options_->wifi_only) {
+        MaybeTakeEarlyScreenshot();
         MaybeCheckUserConsent(calling_uid, calling_package);
         DumpstateWifiOnly();
     } else {
-        // Invoking the critical dumpsys calls before DumpTraces() to try and
-        // keep the system stats as close to its initial state as possible.
+        // Invoke critical dumpsys first to preserve system state, before doing anything else.
         RunDumpsysCritical();
 
-        // Run consent check only after critical dumpsys has finished -- so the consent
-        // isn't going to pollute the system state / logs.
+        // Take screenshot and get consent only after critical dumpsys has finished.
+        MaybeTakeEarlyScreenshot();
         MaybeCheckUserConsent(calling_uid, calling_package);
 
         // Dump state for the default case. This also drops root.
@@ -2640,7 +2657,9 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
             MYLOGI("User denied consent. Returning\n");
             return status;
         }
-        if (options_->do_fb && options_->screenshot_fd.get() != -1) {
+        if (options_->do_screenshot &&
+            options_->screenshot_fd.get() != -1 &&
+            !options_->is_screenshot_copied) {
             bool copy_succeeded = android::os::CopyFileToFd(screenshot_path_,
                                                             options_->screenshot_fd.get());
             if (copy_succeeded) {
@@ -2692,6 +2711,14 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
             consent_callback_->getResult() == UserConsentResult::UNAVAILABLE)
                ? USER_CONSENT_TIMED_OUT
                : RunStatus::OK;
+}
+
+void Dumpstate::MaybeTakeEarlyScreenshot() {
+    if (!options_->do_screenshot || !do_early_screenshot_) {
+        return;
+    }
+
+    TakeScreenshot();
 }
 
 void Dumpstate::MaybeCheckUserConsent(int32_t calling_uid, const std::string& calling_package) {
@@ -3629,6 +3656,11 @@ void Dumpstate::TakeScreenshot(const std::string& path) {
         MYLOGD("Screenshot saved on %s\n", real_path.c_str());
     } else {
         MYLOGE("Failed to take screenshot on %s\n", real_path.c_str());
+    }
+    if (listener_ != nullptr) {
+        // Show a visual indication to indicate screenshot is taken via
+        // IDumpstateListener.onScreenshotTaken()
+        listener_->onScreenshotTaken(status == 0);
     }
 }
 
