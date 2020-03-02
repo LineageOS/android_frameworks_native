@@ -9,6 +9,23 @@ message LayersProto {
   repeated LayerProto layers = 1;
 }
 
+// Must match definition in the IComposerClient HAL
+enum HwcCompositionType {
+    // Invalid composition type
+    INVALID = 0;
+    // Layer was composited by the client into the client target buffer
+    CLIENT = 1;
+    // Layer was composited by the device through hardware overlays
+    DEVICE = 2;
+    // Layer was composited by the device using a color
+    SOLID_COLOR = 3;
+    // Similar to DEVICE, but the layer position may have been asynchronously set
+    // through setCursorPosition
+    CURSOR = 4;
+    // Layer was composited by the device via a sideband stream.
+    SIDEBAND = 5;
+}
+
 // Information about each layer.
 message LayerProto {
   // unique id per layer.
@@ -73,7 +90,7 @@ message LayerProto {
   int32 window_type = 33 [deprecated=true];
   int32 app_id = 34 [deprecated=true];
   // The layer's composition type
-  int32 hwc_composition_type = 35;
+  HwcCompositionType hwc_composition_type = 35;
   // If it's a buffer layer, indicate if the content is protected
   bool is_protected = 36;
   // Current frame number being rendered.
