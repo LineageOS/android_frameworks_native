@@ -149,12 +149,6 @@ public:
     // See IGraphicBufferConsumer::discardFreeBuffers
     virtual status_t discardFreeBuffers() override;
 
-    // See IGraphicBufferConsumer::setFrameRate.
-    virtual status_t setFrameRate(float frameRate) override;
-
-    // See IGraphicBufferConsumer::getFrameRate.
-    virtual status_t getFrameRate(float* frameRate) const override;
-
     // dump our state in a String
     status_t dumpState(const String8& prefix, String8* outResult) const override;
 

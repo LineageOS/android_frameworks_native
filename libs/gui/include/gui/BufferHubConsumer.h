@@ -93,12 +93,6 @@ public:
     // See |IGraphicBufferConsumer::discardFreeBuffers|
     status_t discardFreeBuffers() override;
 
-    // See |IGraphicBufferConsumer::setFrameRate|
-    status_t setFrameRate(float frameRate) override;
-
-    // See |IGraphicBufferConsumer::getFrameRate|
-    status_t getFrameRate(float* frameRate) const override;
-
     // See |IGraphicBufferConsumer::dumpState|
     status_t dumpState(const String8& prefix, String8* outResult) const override;
 
