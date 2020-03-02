@@ -36,6 +36,7 @@ class LayerHistoryTestV2 : public testing::Test {
 protected:
     static constexpr auto PRESENT_TIME_HISTORY_SIZE = LayerInfoV2::HISTORY_SIZE;
     static constexpr auto MAX_FREQUENT_LAYER_PERIOD_NS = LayerInfoV2::MAX_FREQUENT_LAYER_PERIOD_NS;
+    static constexpr auto FREQUENT_LAYER_WINDOW_SIZE = LayerInfoV2::FREQUENT_LAYER_WINDOW_SIZE;
 
     static constexpr float LO_FPS = 30.f;
     static constexpr auto LO_FPS_PERIOD = static_cast<nsecs_t>(1e9f / LO_FPS);
@@ -449,6 +450,62 @@ TEST_F(LayerHistoryTestV2, multipleLayers) {
     EXPECT_EQ(0, layerCount());
     EXPECT_EQ(0, activeLayerCount());
     EXPECT_EQ(0, frequentLayerCount(time));
+}
+
+TEST_F(LayerHistoryTestV2, inactiveLayers) {
+    auto layer = createLayer();
+
+    EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*layer, getFrameRate()).WillRepeatedly(Return(Layer::FrameRate()));
+
+    nsecs_t time = systemTime();
+
+    // the very first updates makes the layer frequent
+    for (int i = 0; i < FREQUENT_LAYER_WINDOW_SIZE - 1; i++) {
+        history().record(layer.get(), time, time);
+        time += MAX_FREQUENT_LAYER_PERIOD_NS.count();
+
+        EXPECT_EQ(1, layerCount());
+        ASSERT_EQ(1, history().summarize(time).size());
+        EXPECT_EQ(LayerHistory::LayerVoteType::Max, history().summarize(time)[0].vote);
+        EXPECT_EQ(1, activeLayerCount());
+        EXPECT_EQ(1, frequentLayerCount(time));
+    }
+
+    // the next update with the MAX_FREQUENT_LAYER_PERIOD_NS will get us to infrequent
+    history().record(layer.get(), time, time);
+    time += MAX_FREQUENT_LAYER_PERIOD_NS.count();
+
+    EXPECT_EQ(1, layerCount());
+    ASSERT_EQ(1, history().summarize(time).size());
+    EXPECT_EQ(LayerHistory::LayerVoteType::Min, history().summarize(time)[0].vote);
+    EXPECT_EQ(1, activeLayerCount());
+    EXPECT_EQ(0, frequentLayerCount(time));
+
+    // advance the time for the previous frame to be inactive
+    time += MAX_ACTIVE_LAYER_PERIOD_NS.count();
+
+    // Now event if we post a quick few frame we should stay infrequent
+    for (int i = 0; i < FREQUENT_LAYER_WINDOW_SIZE - 1; i++) {
+        history().record(layer.get(), time, time);
+        time += HI_FPS_PERIOD;
+
+        EXPECT_EQ(1, layerCount());
+        ASSERT_EQ(1, history().summarize(time).size());
+        EXPECT_EQ(LayerHistory::LayerVoteType::Min, history().summarize(time)[0].vote);
+        EXPECT_EQ(1, activeLayerCount());
+        EXPECT_EQ(0, frequentLayerCount(time));
+    }
+
+    // More quick frames will get us to frequent again
+    history().record(layer.get(), time, time);
+    time += HI_FPS_PERIOD;
+
+    EXPECT_EQ(1, layerCount());
+    ASSERT_EQ(1, history().summarize(time).size());
+    EXPECT_EQ(LayerHistory::LayerVoteType::Max, history().summarize(time)[0].vote);
+    EXPECT_EQ(1, activeLayerCount());
+    EXPECT_EQ(1, frequentLayerCount(time));
 }
 
 } // namespace
