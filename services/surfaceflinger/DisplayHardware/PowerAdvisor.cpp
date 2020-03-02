@@ -124,24 +124,20 @@ public:
     static std::unique_ptr<HalWrapper> connect() {
         // Power HAL 1.3 is not guaranteed to be available, thus we need to query
         // Power HAL 1.0 first and try to cast it to Power HAL 1.3.
-        // Power HAL 1.0 is always available, thus if we fail to query it, it means
-        // Power HAL is not available temporarily and we should retry later. However,
-        // if Power HAL 1.0 is available and we can't cast it to Power HAL 1.3,
-        // it means Power HAL 1.3 is not available at all, so we should stop trying.
         sp<V1_3::IPower> powerHal = nullptr;
-        if (sHasPowerHal_1_3) {
-            sp<V1_0::IPower> powerHal_1_0 = V1_0::IPower::getService();
-            if (powerHal_1_0 != nullptr) {
-                // Try to cast to Power HAL 1.3
-                powerHal = V1_3::IPower::castFrom(powerHal_1_0);
-                if (powerHal == nullptr) {
-                    ALOGW("No Power HAL 1.3 service in system");
-                    sHasPowerHal_1_3 = false;
-                } else {
-                    ALOGI("Loaded Power HAL 1.3 service");
-                }
+        sp<V1_0::IPower> powerHal_1_0 = V1_0::IPower::getService();
+        if (powerHal_1_0 != nullptr) {
+            // Try to cast to Power HAL 1.3
+            powerHal = V1_3::IPower::castFrom(powerHal_1_0);
+            if (powerHal == nullptr) {
+                ALOGW("No Power HAL 1.3 service in system, disabling PowerAdvisor");
+            } else {
+                ALOGI("Loaded Power HAL 1.3 service");
             }
+        } else {
+            ALOGW("No Power HAL found, disabling PowerAdvisor");
         }
+
         if (powerHal == nullptr) {
             return nullptr;
         }
@@ -162,11 +158,8 @@ public:
     }
 
 private:
-    static bool sHasPowerHal_1_3;
     const sp<V1_3::IPower> mPowerHal = nullptr;
 };
-
-bool HidlPowerHalWrapper::sHasPowerHal_1_3 = true;
 
 class AidlPowerHalWrapper : public PowerAdvisor::HalWrapper {
 public:
@@ -226,7 +219,13 @@ private:
 
 PowerAdvisor::HalWrapper* PowerAdvisor::getPowerHal() {
     static std::unique_ptr<HalWrapper> sHalWrapper = nullptr;
+    static bool sHasHal = true;
 
+    if (!sHasHal) {
+        return nullptr;
+    }
+
+    // If we used to have a HAL, but it stopped responding, attempt to reconnect
     if (mReconnectPowerHal) {
         sHalWrapper = nullptr;
         mReconnectPowerHal = false;
@@ -242,6 +241,12 @@ PowerAdvisor::HalWrapper* PowerAdvisor::getPowerHal() {
     // If that didn't succeed, attempt to connect to the HIDL Power HAL
     if (sHalWrapper == nullptr) {
         sHalWrapper = HidlPowerHalWrapper::connect();
+    }
+
+    // If we make it to this point and still don't have a HAL, it's unlikely we
+    // will, so stop trying
+    if (sHalWrapper == nullptr) {
+        sHasHal = false;
     }
 
     return sHalWrapper.get();
