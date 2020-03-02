@@ -170,6 +170,12 @@ LayersTraceProto SurfaceTracing::traceLayersLocked(const char* where) {
     mFlinger.dumpOffscreenLayersProto(layers);
     entry.mutable_layers()->Swap(&layers);
 
+    if (mTraceFlags & SurfaceTracing::TRACE_HWC) {
+        std::string hwcDump;
+        mFlinger.dumpHwc(hwcDump);
+        entry.set_hwc_blob(hwcDump);
+    }
+
     return entry;
 }
 
