@@ -104,9 +104,8 @@ uint16_t DisplayId::manufacturerId() const {
     return static_cast<uint16_t>(value >> 40);
 }
 
-DisplayId DisplayId::fromEdid(uint8_t port, uint16_t manufacturerId, uint32_t displayNameHash) {
-    return {(static_cast<Type>(manufacturerId) << 40) | (static_cast<Type>(displayNameHash) << 8) |
-            port};
+DisplayId DisplayId::fromEdid(uint8_t port, uint16_t manufacturerId, uint32_t modelHash) {
+    return {(static_cast<Type>(manufacturerId) << 40) | (static_cast<Type>(modelHash) << 8) | port};
 }
 
 bool isEdid(const DisplayIdentificationData& data) {
@@ -209,23 +208,30 @@ std::optional<Edid> parseEdid(const DisplayIdentificationData& edid) {
         view.remove_prefix(kDescriptorLength);
     }
 
-    if (displayName.empty()) {
+    std::string_view modelString = displayName;
+
+    if (modelString.empty()) {
         ALOGW("Invalid EDID: falling back to serial number due to missing display name.");
-        displayName = serialNumber;
+        modelString = serialNumber;
     }
-    if (displayName.empty()) {
+    if (modelString.empty()) {
         ALOGW("Invalid EDID: falling back to ASCII text due to missing serial number.");
-        displayName = asciiText;
+        modelString = asciiText;
     }
-    if (displayName.empty()) {
+    if (modelString.empty()) {
         ALOGE("Invalid EDID: display name and fallback descriptors are missing.");
         return {};
     }
 
+    // Hash model string instead of using product code or (integer) serial number, since the latter
+    // have been observed to change on some displays with multiple inputs.
+    const auto modelHash = static_cast<uint32_t>(std::hash<std::string_view>()(modelString));
+
     return Edid{.manufacturerId = manufacturerId,
-                .pnpId = *pnpId,
-                .displayName = displayName,
                 .productId = productId,
+                .pnpId = *pnpId,
+                .modelHash = modelHash,
+                .displayName = displayName,
                 .manufactureWeek = manufactureWeek,
                 .manufactureOrModelYear = manufactureOrModelYear};
 }
@@ -253,10 +259,8 @@ std::optional<DisplayIdentificationInfo> parseDisplayIdentificationData(
         return {};
     }
 
-    // Hash display name instead of using product code or serial number, since the latter have been
-    // observed to change on some displays with multiple inputs.
-    const auto hash = static_cast<uint32_t>(std::hash<std::string_view>()(edid->displayName));
-    return DisplayIdentificationInfo{.id = DisplayId::fromEdid(port, edid->manufacturerId, hash),
+    const auto displayId = DisplayId::fromEdid(port, edid->manufacturerId, edid->modelHash);
+    return DisplayIdentificationInfo{.id = displayId,
                                      .name = std::string(edid->displayName),
                                      .deviceProductInfo = buildDeviceProductInfo(*edid)};
 }
