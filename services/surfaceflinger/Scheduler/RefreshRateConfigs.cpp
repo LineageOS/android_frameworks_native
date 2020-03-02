@@ -235,13 +235,13 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
             ? getBestRefreshRate(scores.rbegin(), scores.rend())
             : getBestRefreshRate(scores.begin(), scores.end());
 
-    return bestRefreshRate == nullptr ? *mCurrentRefreshRate : *bestRefreshRate;
+    return *bestRefreshRate;
 }
 
 template <typename Iter>
 const RefreshRate* RefreshRateConfigs::getBestRefreshRate(Iter begin, Iter end) const {
-    const RefreshRate* bestRefreshRate = nullptr;
-    float max = 0;
+    const RefreshRate* bestRefreshRate = begin->first;
+    float max = begin->second;
     for (auto i = begin; i != end; ++i) {
         const auto [refreshRate, score] = *i;
         ALOGV("%s scores %.2f", refreshRate->name.c_str(), score);
