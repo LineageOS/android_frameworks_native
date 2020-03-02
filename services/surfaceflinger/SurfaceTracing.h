@@ -56,6 +56,7 @@ public:
         TRACE_CRITICAL = 1 << 0,
         TRACE_INPUT = 1 << 1,
         TRACE_EXTRA = 1 << 2,
+        TRACE_HWC = 1 << 3,
         TRACE_ALL = 0xffffffff
     };
     void setTraceFlags(uint32_t flags);
