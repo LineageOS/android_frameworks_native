@@ -82,14 +82,14 @@ bool LayerInfoV2::isFrequent(nsecs_t now) const {
         }
     }
 
-    const auto numFrames = std::distance(it, mFrameTimes.end()) - 1;
-    if (numFrames <= 0) {
+    const auto numFrames = std::distance(it, mFrameTimes.end());
+    if (numFrames < FREQUENT_LAYER_WINDOW_SIZE) {
         return false;
     }
 
     // Layer is considered frequent if the average frame rate is higher than the threshold
     const auto totalTime = mFrameTimes.back().queueTime - it->queueTime;
-    return (1e9f * numFrames) / totalTime >= MIN_FPS_FOR_FREQUENT_LAYER;
+    return (1e9f * (numFrames - 1)) / totalTime >= MIN_FPS_FOR_FREQUENT_LAYER;
 }
 
 bool LayerInfoV2::hasEnoughDataForHeuristic() const {
