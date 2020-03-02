@@ -34,8 +34,6 @@ cc_test {
         "Hwc2TestPixelComparator.cpp",
     ],
     static_libs: [
-        "libadf",
-        "libadfhwc",
         "libbase",
         "libmath",
     ],
