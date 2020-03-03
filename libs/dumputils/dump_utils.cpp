@@ -16,7 +16,9 @@
 #include <set>
 
 #include <android-base/file.h>
+#include <android-base/properties.h>
 #include <android-base/stringprintf.h>
+#include <android-base/strings.h>
 #include <android/hidl/manager/1.0/IServiceManager.h>
 #include <dumputils/dump_utils.h>
 #include <log/log.h>
@@ -62,16 +64,40 @@ static const char* hal_interfaces_to_dump[] {
         "android.hardware.sensors@1.0::ISensors",
         "android.hardware.thermal@2.0::IThermal",
         "android.hardware.vr@1.0::IVr",
+        "android.hardware.automotive.audiocontrol@1.0::IAudioControl",
+        "android.hardware.automotive.vehicle@2.0::IVehicle",
+        "android.hardware.automotive.evs@1.0::IEvsCamera",
         NULL,
 };
 
-bool should_dump_hal_interface(const char* interface) {
+/* list of extra hal interfaces to dump containing process during native dumps */
+// This is filled when dumpstate is called.
+static std::set<const std::string> extra_hal_interfaces_to_dump;
+
+static void read_extra_hals_to_dump_from_property() {
+    // extra hals to dump are already filled
+    if (extra_hal_interfaces_to_dump.size() > 0) {
+        return;
+    }
+    std::string value = android::base::GetProperty("ro.dump.hals.extra", "");
+    std::vector<std::string> tokens = android::base::Split(value, ",");
+    for (const auto &token : tokens) {
+        std::string trimmed_token = android::base::Trim(token);
+        if (trimmed_token.length() == 0) {
+            continue;
+        }
+        extra_hal_interfaces_to_dump.insert(trimmed_token);
+    }
+}
+
+// check if interface is included in either default hal list or extra hal list
+bool should_dump_hal_interface(const std::string& interface) {
     for (const char** i = hal_interfaces_to_dump; *i; i++) {
-        if (!strcmp(*i, interface)) {
+        if (interface == *i) {
             return true;
         }
     }
-    return false;
+    return extra_hal_interfaces_to_dump.find(interface) != extra_hal_interfaces_to_dump.end();
 }
 
 bool should_dump_native_traces(const char* path) {
@@ -91,13 +117,15 @@ std::set<int> get_interesting_hal_pids() {
     sp<IServiceManager> manager = IServiceManager::getService();
     std::set<int> pids;
 
+    read_extra_hals_to_dump_from_property();
+
     Return<void> ret = manager->debugDump([&](auto& hals) {
         for (const auto &info : hals) {
             if (info.pid == static_cast<int>(IServiceManager::PidConstant::NO_PID)) {
                 continue;
             }
 
-            if (!should_dump_hal_interface(info.interfaceName.c_str())) {
+            if (!should_dump_hal_interface(info.interfaceName)) {
                 continue;
             }
 

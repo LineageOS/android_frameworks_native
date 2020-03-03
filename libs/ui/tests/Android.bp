@@ -29,6 +29,26 @@ cc_test {
 }
 
 cc_test {
+    name: "GraphicBufferAllocator_test",
+    header_libs: [
+        "libdvr_headers",
+        "libnativewindow_headers",
+    ],
+    static_libs: [
+        "libgmock",
+    ],
+    shared_libs: [
+        "liblog",
+	"libui",
+    ],
+    srcs: [
+        "GraphicBufferAllocator_test.cpp",
+        "mock/MockGrallocAllocator.cpp",
+    ],
+    cflags: ["-Wall", "-Werror"],
+}
+
+cc_test {
     name: "GraphicBuffer_test",
     header_libs: [
         "libdvr_headers",
