@@ -4459,11 +4459,18 @@ void SurfaceFlinger::dumpWideColorInfo(std::string& result) const {
 }
 
 LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
+    Mutex::Autolock _l(mStateLock);
+    const auto device = getDefaultDisplayDeviceLocked();
     LayersProto layersProto;
     for (const sp<Layer>& layer : mDrawingState.layersSortedByZ) {
-        layer->writeToProto(layersProto, traceFlags);
+        layer->writeToProto(layersProto, traceFlags, device);
     }
+
     return layersProto;
+}
+
+void SurfaceFlinger::dumpHwc(std::string& result) const {
+    getHwComposer().dump(result);
 }
 
 void SurfaceFlinger::dumpOffscreenLayersProto(LayersProto& layersProto, uint32_t traceFlags) const {
@@ -4480,7 +4487,8 @@ void SurfaceFlinger::dumpOffscreenLayersProto(LayersProto& layersProto, uint32_t
         rootProto->add_children(offscreenLayer->sequence);
 
         // Add layer
-        LayerProto* layerProto = offscreenLayer->writeToProto(layersProto, traceFlags);
+        LayerProto* layerProto =
+                offscreenLayer->writeToProto(layersProto, traceFlags, nullptr /*device*/);
         layerProto->set_parent(offscreenRootLayerId);
     }
 }
