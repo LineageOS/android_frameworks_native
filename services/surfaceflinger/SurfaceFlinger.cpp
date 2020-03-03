@@ -906,15 +906,24 @@ void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
     auto refreshRate = mRefreshRateConfigs->getRefreshRateFromConfigId(info.configId);
     ALOGV("setDesiredActiveConfig(%s)", refreshRate.name.c_str());
 
-    // Don't check against the current mode yet. Worst case we set the desired
-    // config twice. However event generation config might have changed so we need to update it
-    // accordingly
     std::lock_guard<std::mutex> lock(mActiveConfigLock);
-    const Scheduler::ConfigEvent prevConfig = mDesiredActiveConfig.event;
-    mDesiredActiveConfig = info;
-    mDesiredActiveConfig.event = mDesiredActiveConfig.event | prevConfig;
+    if (mDesiredActiveConfigChanged) {
+        // If a config change is pending, just cache the latest request in
+        // mDesiredActiveConfig
+        const Scheduler::ConfigEvent prevConfig = mDesiredActiveConfig.event;
+        mDesiredActiveConfig = info;
+        mDesiredActiveConfig.event = mDesiredActiveConfig.event | prevConfig;
+    } else {
+        // Check is we are already at the desired config
+        const auto display = getDefaultDisplayDeviceLocked();
+        if (!display || display->getActiveConfig() == refreshRate.configId) {
+            return;
+        }
 
-    if (!mDesiredActiveConfigChanged) {
+        // Initiate a config change.
+        mDesiredActiveConfigChanged = true;
+        mDesiredActiveConfig = info;
+
         // This will trigger HWC refresh without resetting the idle timer.
         repaintEverythingForHWC();
         // Start receiving vsync samples now, so that we can detect a period
@@ -927,7 +936,6 @@ void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
         mPhaseConfiguration->setRefreshRateFps(refreshRate.fps);
         mVSyncModulator->setPhaseOffsets(mPhaseConfiguration->getCurrentOffsets());
     }
-    mDesiredActiveConfigChanged = true;
 
     if (mRefreshRateOverlay) {
         mRefreshRateOverlay->changeRefreshRate(refreshRate);
