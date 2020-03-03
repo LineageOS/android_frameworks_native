@@ -2178,7 +2178,7 @@ binder::Status InstalldNativeService::getAppCrates(
 #if CRATE_DEBUG
     LOG(WARNING) << "retVector.size() =" << retVector.size();
     for (auto& item : retVector) {
-        CrateManager::dump(item);
+        CrateManager::dump(*item);
     }
 #endif
 
@@ -2210,7 +2210,7 @@ binder::Status InstalldNativeService::getUserCrates(
         if (cratedFolder == nullptr) {
             return;
         }
-        retVector->push_back(std::move(crateMetadata));
+        retVector.push_back(std::move(crateMetadata));
     };
 
     std::function<void(FTSENT*)> onHandingPackage = [&](FTSENT* packageDir) -> void {
@@ -2222,7 +2222,7 @@ binder::Status InstalldNativeService::getUserCrates(
 #if CRATE_DEBUG
     LOG(DEBUG) << "retVector.size() =" << retVector.size();
     for (auto& item : retVector) {
-        CrateManager::dump(item);
+        CrateManager::dump(*item);
     }
 #endif
 
