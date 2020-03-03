@@ -178,7 +178,6 @@ public:
     status_t getUniqueId(uint64_t* outId) const;
     status_t getConsumerUsage(uint64_t* outUsage) const;
 
-    // See IGraphicBufferProducer::setFrameRate
     status_t setFrameRate(float frameRate, int8_t compatibility);
 
 protected:
