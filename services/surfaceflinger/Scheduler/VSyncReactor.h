@@ -30,6 +30,7 @@ class Clock;
 class VSyncDispatch;
 class VSyncTracker;
 class CallbackRepeater;
+class PredictedVsyncTracer;
 
 // TODO (b/145217110): consider renaming.
 class VSyncReactor : public android::DispSync {
@@ -86,6 +87,8 @@ private:
 
     std::unordered_map<DispSync::Callback*, std::unique_ptr<CallbackRepeater>> mCallbacks
             GUARDED_BY(mMutex);
+
+    const std::unique_ptr<PredictedVsyncTracer> mPredictedVsyncTracer;
 };
 
 class SystemClock : public Clock {
