@@ -120,7 +120,7 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
     // We latch the transparent region here, instead of above where we latch
     // the rest of the geometry because it is only content but not necessarily
     // resize dependent.
-    if (!mFront.activeTransparentRegion_legacy.isTriviallyEqual(
+    if (!mFront.activeTransparentRegion_legacy.hasSameRects(
                 mFront.requestedTransparentRegion_legacy)) {
         mFront.activeTransparentRegion_legacy = mFront.requestedTransparentRegion_legacy;
 
