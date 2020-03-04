@@ -1078,7 +1078,9 @@ bool SurfaceFlinger::performSetActiveConfig() {
                                                            mUpcomingActiveConfig.configId.value(),
                                                            constraints, &outTimeline);
     if (status != NO_ERROR) {
-        LOG_ALWAYS_FATAL("setActiveConfigWithConstraints failed: %d", status);
+        // setActiveConfigWithConstraints may fail if a hotplug event is just about
+        // to be sent. We just log the error in this case.
+        ALOGW("setActiveConfigWithConstraints failed: %d", status);
         return false;
     }
 
