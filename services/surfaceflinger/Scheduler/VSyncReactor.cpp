@@ -19,8 +19,10 @@
 #define LOG_TAG "VSyncReactor"
 //#define LOG_NDEBUG 0
 #include "VSyncReactor.h"
+#include <cutils/properties.h>
 #include <log/log.h>
 #include <utils/Trace.h>
+#include "../TracedOrdinal.h"
 #include "TimeKeeper.h"
 #include "VSyncDispatch.h"
 #include "VSyncTracker.h"
@@ -32,12 +34,35 @@ nsecs_t SystemClock::now() const {
     return systemTime(SYSTEM_TIME_MONOTONIC);
 }
 
+class PredictedVsyncTracer {
+public:
+    PredictedVsyncTracer(VSyncDispatch& dispatch)
+          : mRegistration(dispatch,
+                          std::bind(&PredictedVsyncTracer::callback, this, std::placeholders::_1,
+                                    std::placeholders::_2),
+                          "PredictedVsyncTracer") {
+        mRegistration.schedule(0, 0);
+    }
+
+private:
+    TracedOrdinal<bool> mParity = {"VSYNC-predicted", 0};
+    VSyncCallbackRegistration mRegistration;
+
+    void callback(nsecs_t /*vsyncTime*/, nsecs_t /*targetWakeupTim*/) {
+        mParity = !mParity;
+        mRegistration.schedule(0, 0);
+    }
+};
+
 VSyncReactor::VSyncReactor(std::unique_ptr<Clock> clock, std::unique_ptr<VSyncDispatch> dispatch,
                            std::unique_ptr<VSyncTracker> tracker, size_t pendingFenceLimit)
       : mClock(std::move(clock)),
         mTracker(std::move(tracker)),
         mDispatch(std::move(dispatch)),
-        mPendingLimit(pendingFenceLimit) {}
+        mPendingLimit(pendingFenceLimit),
+        mPredictedVsyncTracer(property_get_bool("debug.sf.show_predicted_vsync", false)
+                                      ? std::make_unique<PredictedVsyncTracer>(*mDispatch)
+                                      : nullptr) {}
 
 VSyncReactor::~VSyncReactor() = default;
 
@@ -287,7 +312,7 @@ status_t VSyncReactor::addEventListener(const char* name, nsecs_t phase,
     auto it = mCallbacks.find(callback);
     if (it == mCallbacks.end()) {
         // TODO (b/146557561): resolve lastCallbackTime semantics in DispSync i/f.
-        static auto constexpr maxListeners = 3;
+        static auto constexpr maxListeners = 4;
         if (mCallbacks.size() >= maxListeners) {
             ALOGE("callback %s not added, exceeded callback limit of %i (currently %zu)", name,
                   maxListeners, mCallbacks.size());

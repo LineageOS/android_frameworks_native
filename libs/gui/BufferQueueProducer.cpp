@@ -1676,14 +1676,4 @@ status_t BufferQueueProducer::setAutoPrerotation(bool autoPrerotation) {
     return NO_ERROR;
 }
 
-status_t BufferQueueProducer::setFrameRate(float frameRate) {
-    ATRACE_CALL();
-    BQ_LOGV("setFrameRate: %.0f", frameRate);
-
-    std::lock_guard<std::mutex> lock(mCore->mMutex);
-
-    mCore->mFrameRate = frameRate;
-    return NO_ERROR;
-}
-
 } // namespace android

@@ -74,7 +74,6 @@ enum {
     GET_CONSUMER_USAGE,
     SET_LEGACY_BUFFER_DROP,
     SET_AUTO_PREROTATION,
-    SET_FRAME_RATE,
 };
 
 class BpGraphicBufferProducer : public BpInterface<IGraphicBufferProducer>
@@ -560,14 +559,6 @@ public:
         }
         return result;
     }
-
-    virtual status_t setFrameRate(float frameRate) {
-        Parcel data, reply;
-        data.writeInterfaceToken(IGraphicBufferProducer::getInterfaceDescriptor());
-        data.writeFloat(frameRate);
-        status_t result = remote()->transact(SET_FRAME_RATE, data, &reply, IBinder::FLAG_ONEWAY);
-        return result;
-    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -700,8 +691,6 @@ public:
     status_t setAutoPrerotation(bool autoPrerotation) override {
         return mBase->setAutoPrerotation(autoPrerotation);
     }
-
-    status_t setFrameRate(float frameRate) override { return mBase->setFrameRate(frameRate); }
 };
 
 IMPLEMENT_HYBRID_META_INTERFACE(GraphicBufferProducer,
@@ -718,12 +707,6 @@ status_t IGraphicBufferProducer::setLegacyBufferDrop(bool drop) {
 status_t IGraphicBufferProducer::setAutoPrerotation(bool autoPrerotation) {
     // No-op for IGBP other than BufferQueue.
     (void)autoPrerotation;
-    return INVALID_OPERATION;
-}
-
-status_t IGraphicBufferProducer::setFrameRate(float frameRate) {
-    // No-op for IGBP other than BufferQueue.
-    (void)frameRate;
     return INVALID_OPERATION;
 }
 
@@ -1093,13 +1076,6 @@ status_t BnGraphicBufferProducer::onTransact(
             CHECK_INTERFACE(IGraphicBuffer, data, reply);
             bool autoPrerotation = data.readBool();
             status_t result = setAutoPrerotation(autoPrerotation);
-            reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case SET_FRAME_RATE: {
-            CHECK_INTERFACE(IGraphicBuffer, data, reply);
-            float frameRate = data.readFloat();
-            status_t result = setFrameRate(frameRate);
             reply->writeInt32(result);
             return NO_ERROR;
         }

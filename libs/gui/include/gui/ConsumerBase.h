@@ -111,12 +111,6 @@ public:
     // See IGraphicBufferConsumer::discardFreeBuffers
     status_t discardFreeBuffers();
 
-    // See IGraphicBufferConsumer::setFrameRate
-    status_t setFrameRate(float frameRate);
-
-    // See IGraphicBufferConsumer::getFrameRate
-    status_t getFrameRate(float* frameRate);
-
 private:
     ConsumerBase(const ConsumerBase&);
     void operator=(const ConsumerBase&);
