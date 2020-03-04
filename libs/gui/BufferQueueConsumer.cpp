@@ -783,18 +783,6 @@ status_t BufferQueueConsumer::discardFreeBuffers() {
     return NO_ERROR;
 }
 
-status_t BufferQueueConsumer::setFrameRate(float frameRate) {
-    std::lock_guard<std::mutex> lock(mCore->mMutex);
-    mCore->mFrameRate = frameRate;
-    return NO_ERROR;
-}
-
-status_t BufferQueueConsumer::getFrameRate(float* frameRate) const {
-    std::lock_guard<std::mutex> lock(mCore->mMutex);
-    *frameRate = mCore->mFrameRate;
-    return NO_ERROR;
-}
-
 status_t BufferQueueConsumer::dumpState(const String8& prefix, String8* outResult) const {
     struct passwd* pwd = getpwnam("shell");
     uid_t shellUid = pwd ? pwd->pw_uid : 0;

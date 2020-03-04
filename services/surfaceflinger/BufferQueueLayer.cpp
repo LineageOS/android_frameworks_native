@@ -564,8 +564,6 @@ void BufferQueueLayer::gatherBufferInfo() {
     mBufferInfo.mApi = mConsumer->getCurrentApi();
     mBufferInfo.mPixelFormat = mFormat;
     mBufferInfo.mTransformToDisplayInverse = mConsumer->getTransformToDisplayInverse();
-    float latchedFrameRate;
-    mConsumer->getFrameRate(&latchedFrameRate);
 }
 
 sp<Layer> BufferQueueLayer::createClone() {
