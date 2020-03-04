@@ -406,7 +406,7 @@ bool ListCommand::addEntryWithInstance(const TableEntry& entry,
         return false;
     }
 
-    if (fqInstance.getPackage() == gIBaseFqName.package()) {
+    if (fqInstance.getPackage() == "android.hidl.base") {
         return true; // always remove IBase from manifest
     }
 
