@@ -363,24 +363,6 @@ status_t ConsumerBase::discardFreeBuffers() {
     return OK;
 }
 
-status_t ConsumerBase::setFrameRate(float frameRate) {
-    Mutex::Autolock _l(mMutex);
-    if (mAbandoned) {
-        CB_LOGE("setFrameRate: ConsumerBase is abandoned!");
-        return NO_INIT;
-    }
-    return mConsumer->setFrameRate(frameRate);
-}
-
-status_t ConsumerBase::getFrameRate(float* frameRate) {
-    Mutex::Autolock _l(mMutex);
-    if (mAbandoned) {
-        CB_LOGE("getFrameRate: ConsumerBase is abandoned!");
-        return NO_INIT;
-    }
-    return mConsumer->getFrameRate(frameRate);
-}
-
 void ConsumerBase::dumpState(String8& result) const {
     dumpState(result, "");
 }
