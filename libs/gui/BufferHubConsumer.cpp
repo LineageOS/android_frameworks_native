@@ -147,16 +147,6 @@ status_t BufferHubConsumer::discardFreeBuffers() {
     return INVALID_OPERATION;
 }
 
-status_t BufferHubConsumer::setFrameRate(float /*frameRate*/) {
-    ALOGE("BufferHubConsumer::setFrameRate: not implemented.");
-    return INVALID_OPERATION;
-}
-
-status_t BufferHubConsumer::getFrameRate(float* /*frameRate*/) const {
-    ALOGE("BufferHubConsumer::getFrameRate: not implemented.");
-    return INVALID_OPERATION;
-}
-
 status_t BufferHubConsumer::dumpState(const String8& /*prefix*/, String8* /*outResult*/) const {
     ALOGE("BufferHubConsumer::dumpState: not implemented.");
     return INVALID_OPERATION;
