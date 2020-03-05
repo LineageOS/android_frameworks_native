@@ -367,7 +367,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     property_get("ro.sf.blurs_are_expensive", value, "0");
     mBlursAreExpensive = atoi(value);
 
-    const size_t defaultListSize = MAX_LAYERS;
+    const size_t defaultListSize = ISurfaceComposer::MAX_LAYERS;
     auto listSize = property_get_int32("debug.sf.max_igbp_list_size", int32_t(defaultListSize));
     mMaxGraphicBufferProducerListSize = (listSize > 0) ? size_t(listSize) : defaultListSize;
 
@@ -1074,7 +1074,9 @@ bool SurfaceFlinger::performSetActiveConfig() {
                                                            mUpcomingActiveConfig.configId.value(),
                                                            constraints, &outTimeline);
     if (status != NO_ERROR) {
-        LOG_ALWAYS_FATAL("setActiveConfigWithConstraints failed: %d", status);
+        // setActiveConfigWithConstraints may fail if a hotplug event is just about
+        // to be sent. We just log the error in this case.
+        ALOGW("setActiveConfigWithConstraints failed: %d", status);
         return false;
     }
 
@@ -3066,9 +3068,9 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
             parent = parentLayer;
         }
 
-        if (mNumLayers >= MAX_LAYERS) {
+        if (mNumLayers >= ISurfaceComposer::MAX_LAYERS) {
             ALOGE("AddClientLayer failed, mNumLayers (%zu) >= MAX_LAYERS (%zu)", mNumLayers.load(),
-                  MAX_LAYERS);
+                  ISurfaceComposer::MAX_LAYERS);
             return NO_MEMORY;
         }
 

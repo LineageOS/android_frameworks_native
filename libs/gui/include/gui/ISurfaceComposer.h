@@ -76,6 +76,8 @@ class ISurfaceComposer: public IInterface {
 public:
     DECLARE_META_INTERFACE(SurfaceComposer)
 
+    static constexpr size_t MAX_LAYERS = 4096;
+
     // flags for setTransactionState()
     enum {
         eSynchronous = 0x01,
