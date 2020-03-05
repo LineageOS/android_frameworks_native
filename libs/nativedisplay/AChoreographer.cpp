@@ -185,9 +185,18 @@ void Choreographer::unregisterRefreshRateCallback(AChoreographer_refreshRateCall
 }
 
 void Choreographer::scheduleCallbacks() {
-    AutoMutex _{mLock};
-    nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
-    if (mFrameCallbacks.top().dueTime <= now) {
+    const nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
+    nsecs_t dueTime;
+    {
+        AutoMutex _{mLock};
+        // If there are no pending callbacks then don't schedule a vsync
+        if (mFrameCallbacks.empty()) {
+            return;
+        }
+        dueTime = mFrameCallbacks.top().dueTime;
+    }
+
+    if (dueTime <= now) {
         ALOGV("choreographer %p ~ scheduling vsync", this);
         scheduleVsync();
         return;
