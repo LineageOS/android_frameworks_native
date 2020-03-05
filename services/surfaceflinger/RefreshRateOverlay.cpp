@@ -168,9 +168,9 @@ bool RefreshRateOverlay::createLayer() {
 }
 
 void RefreshRateOverlay::primeCache() {
-    auto allRefreshRates = mFlinger.mRefreshRateConfigs->getAllRefreshRates();
+    auto& allRefreshRates = mFlinger.mRefreshRateConfigs->getAllRefreshRates();
     if (allRefreshRates.size() == 1) {
-        auto fps = allRefreshRates.begin()->second.fps;
+        auto fps = allRefreshRates.begin()->second->fps;
         half4 color = {LOW_FPS_COLOR, ALPHA};
         mBufferCache.emplace(fps, SevenSegmentDrawer::drawNumber(fps, color));
         return;
@@ -178,8 +178,8 @@ void RefreshRateOverlay::primeCache() {
 
     std::vector<uint32_t> supportedFps;
     supportedFps.reserve(allRefreshRates.size());
-    for (auto [ignored, refreshRate] : allRefreshRates) {
-        supportedFps.push_back(refreshRate.fps);
+    for (auto& [ignored, refreshRate] : allRefreshRates) {
+        supportedFps.push_back(refreshRate->fps);
     }
 
     std::sort(supportedFps.begin(), supportedFps.end());
