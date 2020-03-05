@@ -1281,6 +1281,9 @@ status_t BnSurfaceComposer::onTransact(
 
             std::unordered_set<sp<IBinder>, SpHash<IBinder>> excludeHandles;
             int numExcludeHandles = data.readInt32();
+            if (numExcludeHandles >= static_cast<int>(MAX_LAYERS)) {
+                return BAD_VALUE;
+            }
             excludeHandles.reserve(numExcludeHandles);
             for (int i = 0; i < numExcludeHandles; i++) {
                 excludeHandles.emplace(data.readStrongBinder());

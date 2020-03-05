@@ -27,6 +27,10 @@
 // ---------------------------------------------------------------------------
 namespace android {
 
+namespace internal {
+class Stability;
+};
+
 using binder_proxy_limit_callback = void(*)(int);
 
 class BpBinder : public IBinder
@@ -116,6 +120,9 @@ protected:
 private:
     const   int32_t             mHandle;
 
+    friend ::android::internal::Stability;
+            int32_t             mStability;
+
     struct Obituary {
         wp<DeathRecipient> recipient;
         void* cookie;
@@ -126,13 +133,12 @@ private:
             bool                isDescriptorCached() const;
 
     mutable Mutex               mLock;
-            volatile int32_t    mAlive;
-            volatile int32_t    mObitsSent;
+            int32_t             mTrackedUid;
+            volatile bool       mAlive;
+            volatile bool       mObitsSent;
             Vector<Obituary>*   mObituaries;
             ObjectManager       mObjects;
-            Parcel*             mConstantData;
     mutable String16            mDescriptorCache;
-            int32_t             mTrackedUid;
 
     static Mutex                                sTrackingLock;
     static std::unordered_map<int32_t,uint32_t> sTrackingMap;

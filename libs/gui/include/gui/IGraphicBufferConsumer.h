@@ -275,16 +275,6 @@ public:
     // call to free up any of its locally cached buffers.
     virtual status_t discardFreeBuffers() = 0;
 
-    // Set the frame rate the producer will run at.
-    //
-    // Return of a value other than NO_ERROR means an unknown error has occurred.
-    virtual status_t setFrameRate(float frameRate) = 0;
-
-    // Get the frame rate the producer will run at.
-    //
-    // Return of a value other than NO_ERROR means an unknown error has occurred.
-    virtual status_t getFrameRate(float* frameRate) const = 0;
-
     // dump state into a string
     virtual status_t dumpState(const String8& prefix, String8* outResult) const = 0;
 
