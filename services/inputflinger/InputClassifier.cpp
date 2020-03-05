@@ -46,8 +46,6 @@ using namespace android::hardware::input;
 
 namespace android {
 
-static constexpr bool DEBUG = false;
-
 // Category (=namespace) name for the input settings that are applied at boot time
 static const char* INPUT_NATIVE_BOOT = "input_native_boot";
 // Feature flag name for the deep press feature
@@ -141,66 +139,51 @@ std::optional<int32_t> ClassifierEvent::getDeviceId() const {
 
 // --- MotionClassifier ---
 
-MotionClassifier::MotionClassifier(sp<android::hardware::hidl_death_recipient> deathRecipient) :
-        mDeathRecipient(deathRecipient), mEvents(MAX_EVENTS) {
-    mHalThread = std::thread(&MotionClassifier::callInputClassifierHal, this);
-#if defined(__linux__)
-    // Set the thread name for debugging
-    pthread_setname_np(mHalThread.native_handle(), "InputClassifier");
-#endif
-}
-
-/**
- * This function may block for some time to initialize the HAL, so it should only be called
- * from the "InputClassifier HAL" thread.
- */
-bool MotionClassifier::init() {
-    ensureHalThread(__func__);
-    sp<android::hardware::input::classifier::V1_0::IInputClassifier> service =
-            classifier::V1_0::IInputClassifier::getService();
-    if (!service) {
-        // Not really an error, maybe the device does not have this HAL,
-        // but somehow the feature flag is flipped
-        ALOGI("Could not obtain InputClassifier HAL");
-        return false;
-    }
-
-    sp<android::hardware::hidl_death_recipient> recipient = mDeathRecipient.promote();
-    if (recipient != nullptr) {
-        const bool linked = service->linkToDeath(recipient, 0 /* cookie */).withDefault(false);
-        if (!linked) {
-            ALOGE("Could not link MotionClassifier to the HAL death");
-            return false;
-        }
-    }
-
+MotionClassifier::MotionClassifier(
+        sp<android::hardware::input::classifier::V1_0::IInputClassifier> service)
+      : mEvents(MAX_EVENTS), mService(service) {
     // Under normal operation, we do not need to reset the HAL here. But in the case where system
     // crashed, but HAL didn't, we may be connecting to an existing HAL process that might already
     // have received events in the past. That means, that HAL could be in an inconsistent state
     // once it receives events from the newly created MotionClassifier.
     mEvents.push(ClassifierEvent::createHalResetEvent());
 
-    {
-        std::scoped_lock lock(mLock);
-        if (mService) {
-            ALOGE("MotionClassifier::%s should only be called once", __func__);
-        }
-        mService = service;
+    mHalThread = std::thread(&MotionClassifier::processEvents, this);
+#if defined(__linux__)
+    // Set the thread name for debugging
+    pthread_setname_np(mHalThread.native_handle(), "InputClassifier");
+#endif
+}
+
+std::unique_ptr<MotionClassifierInterface> MotionClassifier::create(
+        sp<android::hardware::hidl_death_recipient> deathRecipient) {
+    if (!deepPressEnabled()) {
+        // If feature is not enabled, MotionClassifier should stay null to avoid unnecessary work.
+        // When MotionClassifier is null, InputClassifier will forward all events
+        // to the next InputListener, unmodified.
+        return nullptr;
     }
-    return true;
+    sp<android::hardware::input::classifier::V1_0::IInputClassifier> service =
+            classifier::V1_0::IInputClassifier::getService();
+    if (!service) {
+        // Not really an error, maybe the device does not have this HAL,
+        // but somehow the feature flag is flipped
+        ALOGI("Could not obtain InputClassifier HAL");
+        return nullptr;
+    }
+
+    const bool linked = service->linkToDeath(deathRecipient, 0 /* cookie */).withDefault(false);
+    if (!linked) {
+        ALOGE("Could not link death recipient to the HAL death");
+        return nullptr;
+    }
+    // Using 'new' to access a non-public constructor
+    return std::unique_ptr<MotionClassifier>(new MotionClassifier(service));
 }
 
 MotionClassifier::~MotionClassifier() {
     requestExit();
     mHalThread.join();
-}
-
-void MotionClassifier::ensureHalThread(const char* function) {
-    if (DEBUG) {
-        if (std::this_thread::get_id() != mHalThread.get_id()) {
-            LOG_FATAL("Function %s should only be called from InputClassifier thread", function);
-        }
-    }
 }
 
 /**
@@ -213,23 +196,7 @@ void MotionClassifier::ensureHalThread(const char* function) {
  * To remove any possibility of negatively affecting the touch latency, the HAL
  * is called from a dedicated thread.
  */
-void MotionClassifier::callInputClassifierHal() {
-    ensureHalThread(__func__);
-    const bool initialized = init();
-    if (!initialized) {
-        // MotionClassifier no longer useful.
-        // Deliver death notification from a separate thread
-        // because ~MotionClassifier may be invoked, which calls mHalThread.join()
-        std::thread([deathRecipient = mDeathRecipient](){
-                sp<android::hardware::hidl_death_recipient> recipient = deathRecipient.promote();
-                if (recipient != nullptr) {
-                    recipient->serviceDied(0 /*cookie*/, nullptr);
-                }
-        }).detach();
-        return;
-    }
-    // From this point on, mService is guaranteed to be non-null.
-
+void MotionClassifier::processEvents() {
     while (true) {
         ClassifierEvent event = mEvents.pop();
         bool halResponseOk = true;
@@ -383,24 +350,30 @@ void MotionClassifier::dump(std::string& dump) {
     }
 }
 
+// --- HalDeathRecipient
+
+InputClassifier::HalDeathRecipient::HalDeathRecipient(InputClassifier& parent) : mParent(parent) {}
+
+void InputClassifier::HalDeathRecipient::serviceDied(
+        uint64_t cookie, const wp<android::hidl::base::V1_0::IBase>& who) {
+    sp<android::hidl::base::V1_0::IBase> service = who.promote();
+    if (service) {
+        service->unlinkToDeath(this);
+    }
+    mParent.setMotionClassifier(nullptr);
+}
 
 // --- InputClassifier ---
 
-InputClassifier::InputClassifier(const sp<InputListenerInterface>& listener) :
-        mListener(listener) {
-    // The rest of the initialization is done in onFirstRef, because we need to obtain
-    // an sp to 'this' in order to register for HAL death notifications
-}
-
-void InputClassifier::onFirstRef() {
-    if (!deepPressEnabled()) {
-        // If feature is not enabled, MotionClassifier should stay null to avoid unnecessary work.
-        // When MotionClassifier is null, InputClassifier will forward all events
-        // to the next InputListener, unmodified.
-        return;
-    }
-    std::scoped_lock lock(mLock);
-    mMotionClassifier = std::make_unique<MotionClassifier>(this);
+InputClassifier::InputClassifier(const sp<InputListenerInterface>& listener)
+      : mListener(listener), mHalDeathRecipient(new HalDeathRecipient(*this)) {
+    mInitializeMotionClassifierThread = std::thread(
+            [this] { setMotionClassifier(MotionClassifier::create(mHalDeathRecipient)); });
+#if defined(__linux__)
+    // Set the thread name for debugging
+    pthread_setname_np(mInitializeMotionClassifierThread.native_handle(),
+                       "Create MotionClassifier");
+#endif
 }
 
 void InputClassifier::notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) {
@@ -441,15 +414,10 @@ void InputClassifier::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
     mListener->notifyDeviceReset(args);
 }
 
-void InputClassifier::serviceDied(uint64_t /*cookie*/,
-        const wp<android::hidl::base::V1_0::IBase>& who) {
+void InputClassifier::setMotionClassifier(
+        std::unique_ptr<MotionClassifierInterface> motionClassifier) {
     std::scoped_lock lock(mLock);
-    ALOGE("InputClassifier HAL has died. Setting mMotionClassifier to null");
-    mMotionClassifier = nullptr;
-    sp<android::hidl::base::V1_0::IBase> service = who.promote();
-    if (service) {
-        service->unlinkToDeath(this);
-    }
+    mMotionClassifier = std::move(motionClassifier);
 }
 
 void InputClassifier::dump(std::string& dump) {
@@ -463,6 +431,10 @@ void InputClassifier::dump(std::string& dump) {
         dump += INDENT2 "<nullptr>";
     }
     dump += "\n";
+}
+
+InputClassifier::~InputClassifier() {
+    mInitializeMotionClassifierThread.join();
 }
 
 } // namespace android
