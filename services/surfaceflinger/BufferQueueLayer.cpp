@@ -346,8 +346,6 @@ status_t BufferQueueLayer::updateActiveBuffer() {
     mPreviousBufferId = getCurrentBufferId();
     mBufferInfo.mBuffer =
             mConsumer->getCurrentBuffer(&mBufferInfo.mBufferSlot, &mBufferInfo.mFence);
-    auto* layerCompositionState = editCompositionState();
-    layerCompositionState->buffer = mBufferInfo.mBuffer;
 
     if (mBufferInfo.mBuffer == nullptr) {
         // this can only happen if the very first buffer was rejected.
