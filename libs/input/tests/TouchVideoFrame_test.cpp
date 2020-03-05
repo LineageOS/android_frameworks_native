@@ -85,14 +85,14 @@ TEST(TouchVideoFrame, Rotate90_1x1) {
 
 TEST(TouchVideoFrame, Rotate90_2x2) {
     TouchVideoFrame frame(2, 2, {1, 2, 3, 4}, TIMESTAMP);
-    TouchVideoFrame frameRotated(2, 2, {3, 1, 4, 2}, TIMESTAMP);
+    TouchVideoFrame frameRotated(2, 2, {2, 4, 1, 3}, TIMESTAMP);
     frame.rotate(DISPLAY_ORIENTATION_90);
     ASSERT_EQ(frame, frameRotated);
 }
 
 TEST(TouchVideoFrame, Rotate90_3x2) {
     TouchVideoFrame frame(3, 2, {1, 2, 3, 4, 5, 6}, TIMESTAMP);
-    TouchVideoFrame frameRotated(2, 3, {5, 3, 1, 6, 4, 2}, TIMESTAMP);
+    TouchVideoFrame frameRotated(2, 3, {2, 4, 6, 1, 3, 5}, TIMESTAMP);
     frame.rotate(DISPLAY_ORIENTATION_90);
     ASSERT_EQ(frame, frameRotated);
 }
@@ -170,14 +170,14 @@ TEST(TouchVideoFrame, Rotate270_1x1) {
 
 TEST(TouchVideoFrame, Rotate270_2x2) {
     TouchVideoFrame frame(2, 2, {1, 2, 3, 4}, TIMESTAMP);
-    TouchVideoFrame frameRotated(2, 2, {2, 4, 1, 3}, TIMESTAMP);
+    TouchVideoFrame frameRotated(2, 2, {3, 1, 4, 2}, TIMESTAMP);
     frame.rotate(DISPLAY_ORIENTATION_270);
     ASSERT_EQ(frame, frameRotated);
 }
 
 TEST(TouchVideoFrame, Rotate270_3x2) {
     TouchVideoFrame frame(3, 2, {1, 2, 3, 4, 5, 6}, TIMESTAMP);
-    TouchVideoFrame frameRotated(2, 3, {2, 4, 6, 1, 3, 5}, TIMESTAMP);
+    TouchVideoFrame frameRotated(2, 3, {5, 3, 1, 6, 4, 2}, TIMESTAMP);
     frame.rotate(DISPLAY_ORIENTATION_270);
     ASSERT_EQ(frame, frameRotated);
 }
