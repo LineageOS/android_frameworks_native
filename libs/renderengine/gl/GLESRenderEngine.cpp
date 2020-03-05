@@ -381,15 +381,6 @@ GLESRenderEngine::GLESRenderEngine(const RenderEngineCreationArgs& args, EGLDisp
         LOG_ALWAYS_FATAL_IF(!success, "can't make default context current");
     }
 
-    const uint16_t protTexData[] = {0};
-    glGenTextures(1, &mProtectedTexName);
-    glBindTexture(GL_TEXTURE_2D, mProtectedTexName);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1, 1, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, protTexData);
-
     // mColorBlindnessCorrection = M;
 
     if (mUseColorManagement) {

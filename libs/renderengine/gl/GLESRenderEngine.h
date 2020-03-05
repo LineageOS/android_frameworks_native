@@ -178,7 +178,6 @@ private:
     EGLSurface mDummySurface;
     EGLContext mProtectedEGLContext;
     EGLSurface mProtectedDummySurface;
-    GLuint mProtectedTexName;
     GLint mMaxViewportDims[2];
     GLint mMaxTextureSize;
     GLuint mVpWidth;
