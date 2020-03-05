@@ -95,22 +95,19 @@ std::pair<nsecs_t, nsecs_t> RefreshRateConfigs::getDisplayFrames(nsecs_t layerPe
 }
 
 const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
-        const std::vector<LayerRequirement>& layers, bool touchActive) const {
+        const std::vector<LayerRequirement>& layers, bool touchActive,
+        bool* touchConsidered) const {
     ATRACE_CALL();
     ALOGV("getRefreshRateForContent %zu layers", layers.size());
 
+    *touchConsidered = false;
     std::lock_guard lock(mLock);
-
-    // For now if the touch is active return the peak refresh rate
-    // This should be optimized to consider other layers as well.
-    if (touchActive) {
-        return *mAvailableRefreshRates.back();
-    }
 
     // If there are not layers, there is not content detection, so return the current
     // refresh rate.
     if (layers.empty()) {
-        return getCurrentRefreshRateByPolicyLocked();
+        *touchConsidered = touchActive;
+        return touchActive ? *mAvailableRefreshRates.back() : getCurrentRefreshRateByPolicyLocked();
     }
 
     int noVoteLayers = 0;
@@ -118,17 +115,30 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
     int maxVoteLayers = 0;
     int explicitDefaultVoteLayers = 0;
     int explicitExactOrMultipleVoteLayers = 0;
+    float maxExplicitWeight = 0;
     for (const auto& layer : layers) {
-        if (layer.vote == LayerVoteType::NoVote)
+        if (layer.vote == LayerVoteType::NoVote) {
             noVoteLayers++;
-        else if (layer.vote == LayerVoteType::Min)
+        } else if (layer.vote == LayerVoteType::Min) {
             minVoteLayers++;
-        else if (layer.vote == LayerVoteType::Max)
+        } else if (layer.vote == LayerVoteType::Max) {
             maxVoteLayers++;
-        else if (layer.vote == LayerVoteType::ExplicitDefault)
+        } else if (layer.vote == LayerVoteType::ExplicitDefault) {
             explicitDefaultVoteLayers++;
-        else if (layer.vote == LayerVoteType::ExplicitExactOrMultiple)
+            maxExplicitWeight = std::max(maxExplicitWeight, layer.weight);
+        } else if (layer.vote == LayerVoteType::ExplicitExactOrMultiple) {
             explicitExactOrMultipleVoteLayers++;
+            maxExplicitWeight = std::max(maxExplicitWeight, layer.weight);
+        }
+    }
+
+    // Consider the touch event if there are no ExplicitDefault layers.
+    // ExplicitDefault are mostly interactive (as opposed to ExplicitExactOrMultiple)
+    // and therefore if those posted an explicit vote we should not change it
+    // if get get a touch event.
+    if (touchActive && explicitDefaultVoteLayers == 0) {
+        *touchConsidered = true;
+        return *mAvailableRefreshRates.back();
     }
 
     // Only if all layers want Min we should return Min
