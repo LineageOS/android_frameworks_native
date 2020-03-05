@@ -12,6 +12,64 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+cc_defaults {
+    name: "libui-defaults",
+    clang: true,
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+    cppflags: [
+        "-Wextra",
+    ],
+
+    sanitize: {
+        integer_overflow: true,
+        misc_undefined: ["bounds"],
+    },
+
+}
+
+cc_library_static {
+    name: "libui-types",
+    vendor_available: true,
+    host_supported: true,
+    target: {
+        windows: {
+            enabled: true,
+        }
+    },
+
+    defaults: [
+        "libui-defaults",
+    ],
+
+    apex_available: [
+        "//apex_available:anyapex",
+	"//apex_available:platform",
+    ],
+    shared_libs: [
+        "libutils",
+    ],
+
+    static_libs: [
+        "libmath",
+    ],
+
+    srcs: [
+        "ColorSpace.cpp",
+    ],
+
+    export_include_dirs: [
+        "include_types",
+    ],
+
+    export_static_lib_headers: [
+        "libmath",
+    ],
+
+}
+
 cc_library_shared {
     name: "libui",
     vendor_available: true,
@@ -35,7 +93,6 @@ cc_library_shared {
     },
 
     srcs: [
-        "ColorSpace.cpp",
         "BufferHubBuffer.cpp",
         "BufferHubEventFd.cpp",
         "BufferHubMetadata.cpp",
@@ -68,8 +125,11 @@ cc_library_shared {
         "include_private",
     ],
 
-    // Uncomment the following line to enable VALIDATE_REGIONS traces
-    //defaults: ["libui-validate-regions-defaults"],
+    defaults: [
+        "libui-defaults",
+        // Uncomment the following line to enable VALIDATE_REGIONS traces
+        //defaults: ["libui-validate-regions-defaults"],
+    ],
 
     shared_libs: [
         "android.frameworks.bufferhub@1.0",
@@ -102,6 +162,10 @@ cc_library_shared {
         "libarect",
         "libgrallocusage",
         "libmath",
+    ],
+
+    whole_static_libs: [
+        "libui-types",
     ],
 
     // bufferhub is not used when building libgui for vendors
