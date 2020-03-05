@@ -18,10 +18,12 @@
 
 #include "Connection.h"
 
+#include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <cutils/atomic.h>
 #include <inttypes.h>
 
+using android::base::GetBoolProperty;
 using android::base::StringPrintf;
 
 namespace android::inputdispatcher {
@@ -133,7 +135,11 @@ KeyEntry::KeyEntry(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId, ui
 KeyEntry::~KeyEntry() {}
 
 void KeyEntry::appendDescription(std::string& msg) const {
-    msg += StringPrintf("KeyEvent(deviceId=%d, source=0x%08x, displayId=%" PRId32 ", action=%s, "
+    msg += StringPrintf("KeyEvent");
+    if (!GetBoolProperty("ro.debuggable", false)) {
+        return;
+    }
+    msg += StringPrintf("(deviceId=%d, source=0x%08x, displayId=%" PRId32 ", action=%s, "
                         "flags=0x%08x, keyCode=%d, scanCode=%d, metaState=0x%08x, "
                         "repeatCount=%d), policyFlags=0x%08x",
                         deviceId, source, displayId, keyActionToString(action).c_str(), flags,
@@ -186,7 +192,11 @@ MotionEntry::MotionEntry(uint32_t sequenceNum, nsecs_t eventTime, int32_t device
 MotionEntry::~MotionEntry() {}
 
 void MotionEntry::appendDescription(std::string& msg) const {
-    msg += StringPrintf("MotionEvent(deviceId=%d, source=0x%08x, displayId=%" PRId32
+    msg += StringPrintf("MotionEvent");
+    if (!GetBoolProperty("ro.debuggable", false)) {
+        return;
+    }
+    msg += StringPrintf("(deviceId=%d, source=0x%08x, displayId=%" PRId32
                         ", action=%s, actionButton=0x%08x, flags=0x%08x, metaState=0x%08x, "
                         "buttonState=0x%08x, "
                         "classification=%s, edgeFlags=0x%08x, xPrecision=%.1f, yPrecision=%.1f, "

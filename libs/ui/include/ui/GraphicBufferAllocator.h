@@ -54,7 +54,7 @@ public:
     void dump(std::string& res) const;
     static void dumpToSystemLog();
 
-private:
+protected:
     struct alloc_rec_t {
         uint32_t width;
         uint32_t height;
