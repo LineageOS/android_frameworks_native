@@ -189,8 +189,12 @@ private:
     sp<IProducerListener> mLinkedToDeath;
 
     // mConnectedProducerListener is used to handle the onBufferReleased
-    // notification.
+    // and onBuffersDiscarded notification.
     sp<IProducerListener> mConnectedProducerListener;
+    // mBufferReleasedCbEnabled is used to indicate whether onBufferReleased()
+    // callback is registered by the listener. When set to false,
+    // mConnectedProducerListener will not trigger onBufferReleased() callback.
+    bool mBufferReleasedCbEnabled;
 
     // mSlots is an array of buffer slots that must be mirrored on the producer
     // side. This allows buffer ownership to be transferred between the producer
