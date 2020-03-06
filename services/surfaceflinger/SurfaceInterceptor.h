@@ -67,7 +67,7 @@ public:
     // Intercept surface data
     virtual void saveSurfaceCreation(const sp<const Layer>& layer) = 0;
     virtual void saveSurfaceDeletion(const sp<const Layer>& layer) = 0;
-    virtual void saveBufferUpdate(const sp<const Layer>& layer, uint32_t width, uint32_t height,
+    virtual void saveBufferUpdate(int32_t layerId, uint32_t width, uint32_t height,
                                   uint64_t frameNumber) = 0;
 
     // Intercept display data
@@ -102,7 +102,7 @@ public:
     // Intercept surface data
     void saveSurfaceCreation(const sp<const Layer>& layer) override;
     void saveSurfaceDeletion(const sp<const Layer>& layer) override;
-    void saveBufferUpdate(const sp<const Layer>& layer, uint32_t width, uint32_t height,
+    void saveBufferUpdate(int32_t layerId, uint32_t width, uint32_t height,
                           uint64_t frameNumber) override;
 
     // Intercept display data
@@ -130,7 +130,7 @@ private:
     Increment* createTraceIncrementLocked();
     void addSurfaceCreationLocked(Increment* increment, const sp<const Layer>& layer);
     void addSurfaceDeletionLocked(Increment* increment, const sp<const Layer>& layer);
-    void addBufferUpdateLocked(Increment* increment, const sp<const Layer>& layer, uint32_t width,
+    void addBufferUpdateLocked(Increment* increment, int32_t layerId, uint32_t width,
             uint32_t height, uint64_t frameNumber);
     void addVSyncUpdateLocked(Increment* increment, nsecs_t timestamp);
     void addDisplayCreationLocked(Increment* increment, const DisplayDeviceState& info);
