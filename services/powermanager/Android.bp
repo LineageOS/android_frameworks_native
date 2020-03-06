@@ -9,7 +9,7 @@ cc_library_shared {
     ],
 
     aidl: {
-       local_include_dirs: ["."],
+       local_include_dirs: ["include"],
        include_dirs: [
            "frameworks/base/core/java/android/os",
        ],
@@ -27,6 +27,11 @@ cc_library_shared {
         "-Werror",
         "-Wunused",
         "-Wunreachable-code",
+    ],
+
+    local_include_dirs: ["include"],
+    export_include_dirs: [
+         "include",
     ],
 }
 
