@@ -71,10 +71,10 @@ std::unordered_map<float, PhaseOffsets::Offsets> PhaseOffsets::initializeOffsets
     std::unordered_map<float, Offsets> offsets;
 
     for (const auto& [ignored, refreshRate] : refreshRateConfigs.getAllRefreshRates()) {
-        if (refreshRate.fps > 65.0f) {
-            offsets.emplace(refreshRate.fps, getHighFpsOffsets(refreshRate.vsyncPeriod));
+        if (refreshRate->fps > 65.0f) {
+            offsets.emplace(refreshRate->fps, getHighFpsOffsets(refreshRate->vsyncPeriod));
         } else {
-            offsets.emplace(refreshRate.fps, getDefaultOffsets(refreshRate.vsyncPeriod));
+            offsets.emplace(refreshRate->fps, getDefaultOffsets(refreshRate->vsyncPeriod));
         }
     }
     return offsets;
@@ -238,7 +238,7 @@ static std::vector<float> getRefreshRatesFromConfigs(
     refreshRates.reserve(allRefreshRates.size());
 
     for (const auto& [ignored, refreshRate] : allRefreshRates) {
-        refreshRates.emplace_back(refreshRate.fps);
+        refreshRates.emplace_back(refreshRate->fps);
     }
 
     return refreshRates;
