@@ -485,6 +485,10 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
         }
     }
 
+    if (recomputeVisibleRegions == true) {
+        maybeDirtyInput();
+    }
+
     return true;
 }
 
