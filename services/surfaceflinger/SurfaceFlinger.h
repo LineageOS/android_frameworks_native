@@ -1235,6 +1235,11 @@ private:
     // janky frames there are.
     nsecs_t mMissedFrameJankStart = 0;
     int32_t mMissedFrameJankCount = 0;
+
+    // See updateInputWindowInfo() for details
+    std::atomic<bool> mInputDirty = true;
+    void dirtyInput() { mInputDirty = true; }
+    bool inputDirty() { return mInputDirty; }
 };
 
 } // namespace android
