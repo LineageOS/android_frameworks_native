@@ -158,13 +158,16 @@ static bool addAnglePlatformAttributes(egl_connection_t* const cnx,
             // NOTE: This is only valid if the backend is OpenGL
             attrs.push_back(EGL_PLATFORM_ANGLE_EGL_HANDLE_ANGLE);
             attrs.push_back(vendorEGL);
+
+            // Context virtualization is only available on GL back-end.
+            // Needed to support threading with GL back-end
+            attrs.push_back(EGL_PLATFORM_ANGLE_CONTEXT_VIRTUALIZATION_ANGLE);
+            attrs.push_back(EGL_FALSE);
             break;
         default:
-            ALOGV("%s: Requesting Unknown (%d) ANGLE back-end", __FUNCTION__, cnx->angleBackend);
+            ALOGE("%s: Requesting Unknown (%d) ANGLE back-end", __FUNCTION__, cnx->angleBackend);
             break;
     }
-    attrs.push_back(EGL_PLATFORM_ANGLE_CONTEXT_VIRTUALIZATION_ANGLE);
-    attrs.push_back(EGL_FALSE);
 
     return true;
 }
