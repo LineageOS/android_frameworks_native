@@ -535,13 +535,13 @@ Status<void> Endpoint::ReceiveMessageForChannel(
   *message = Message{info};
   auto* state = static_cast<MessageState*>(message->GetState());
   state->request = std::move(request);
-  if (request.send_len > 0 && !request.is_impulse) {
-    state->request_data.resize(request.send_len);
+  if (state->request.send_len > 0 && !state->request.is_impulse) {
+    state->request_data.resize(state->request.send_len);
     status = ReceiveData(channel_fd, state->request_data.data(),
                          state->request_data.size());
   }
 
-  if (status && request.is_impulse)
+  if (status && state->request.is_impulse)
     status = ReenableEpollEvent(channel_fd);
 
   if (!status) {
