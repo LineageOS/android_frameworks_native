@@ -286,12 +286,12 @@ const RefreshRate& RefreshRateConfigs::getCurrentRefreshRateByPolicyLocked() con
                   mCurrentRefreshRate) != mAvailableRefreshRates.end()) {
         return *mCurrentRefreshRate;
     }
-    return mRefreshRates.at(mDefaultConfig);
+    return *mRefreshRates.at(mDefaultConfig);
 }
 
 void RefreshRateConfigs::setCurrentConfigId(HwcConfigIndexType configId) {
     std::lock_guard lock(mLock);
-    mCurrentRefreshRate = &mRefreshRates.at(configId);
+    mCurrentRefreshRate = mRefreshRates.at(configId).get();
 }
 
 RefreshRateConfigs::RefreshRateConfigs(const std::vector<InputConfig>& configs,
@@ -326,7 +326,7 @@ status_t RefreshRateConfigs::setPolicy(HwcConfigIndexType defaultConfigId, float
     if (mRefreshRates.count(defaultConfigId) == 0) {
         return BAD_VALUE;
     }
-    const RefreshRate& refreshRate = mRefreshRates.at(defaultConfigId);
+    const RefreshRate& refreshRate = *mRefreshRates.at(defaultConfigId);
     if (!refreshRate.inPolicy(minRefreshRate, maxRefreshRate)) {
         return BAD_VALUE;
     }
@@ -361,10 +361,10 @@ void RefreshRateConfigs::getSortedRefreshRateList(
     outRefreshRates->clear();
     outRefreshRates->reserve(mRefreshRates.size());
     for (const auto& [type, refreshRate] : mRefreshRates) {
-        if (shouldAddRefreshRate(refreshRate)) {
+        if (shouldAddRefreshRate(*refreshRate)) {
             ALOGV("getSortedRefreshRateList: config %d added to list policy",
-                  refreshRate.configId.value());
-            outRefreshRates->push_back(&refreshRate);
+                  refreshRate->configId.value());
+            outRefreshRates->push_back(refreshRate.get());
         }
     }
 
@@ -376,7 +376,7 @@ void RefreshRateConfigs::getSortedRefreshRateList(
 
 void RefreshRateConfigs::constructAvailableRefreshRates() {
     // Filter configs based on current policy and sort based on vsync period
-    HwcConfigGroupType group = mRefreshRates.at(mDefaultConfig).configGroup;
+    HwcConfigGroupType group = mRefreshRates.at(mDefaultConfig)->configGroup;
     ALOGV("constructAvailableRefreshRates: default %d group %d min %.2f max %.2f",
           mDefaultConfig.value(), group.value(), mMinRefreshRateFps, mMaxRefreshRateFps);
     getSortedRefreshRateList(
@@ -403,16 +403,15 @@ void RefreshRateConfigs::init(const std::vector<InputConfig>& configs,
     LOG_ALWAYS_FATAL_IF(configs.empty());
     LOG_ALWAYS_FATAL_IF(currentHwcConfig.value() >= configs.size());
 
-    auto buildRefreshRate = [&](InputConfig config) -> RefreshRate {
-        const float fps = 1e9f / config.vsyncPeriod;
-        return RefreshRate(config.configId, config.vsyncPeriod, config.configGroup,
-                           base::StringPrintf("%2.ffps", fps), fps);
-    };
-
     for (const auto& config : configs) {
-        mRefreshRates.emplace(config.configId, buildRefreshRate(config));
+        const float fps = 1e9f / config.vsyncPeriod;
+        mRefreshRates.emplace(config.configId,
+                              std::make_unique<RefreshRate>(config.configId, config.vsyncPeriod,
+                                                            config.configGroup,
+                                                            base::StringPrintf("%2.ffps", fps),
+                                                            fps));
         if (config.configId == currentHwcConfig) {
-            mCurrentRefreshRate = &mRefreshRates.at(config.configId);
+            mCurrentRefreshRate = mRefreshRates.at(config.configId).get();
         }
     }
 
