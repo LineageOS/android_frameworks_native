@@ -1445,12 +1445,48 @@ TEST_F(InputDispatcherTest, VerifyInputEvent_KeyEvent) {
 
     ASSERT_EQ(keyArgs.action, verifiedKey.action);
     ASSERT_EQ(keyArgs.downTime, verifiedKey.downTimeNanos);
-    ASSERT_EQ(keyArgs.eventTime, verifiedKey.eventTimeNanos);
     ASSERT_EQ(keyArgs.flags & VERIFIED_KEY_EVENT_FLAGS, verifiedKey.flags);
     ASSERT_EQ(keyArgs.keyCode, verifiedKey.keyCode);
     ASSERT_EQ(keyArgs.scanCode, verifiedKey.scanCode);
     ASSERT_EQ(keyArgs.metaState, verifiedKey.metaState);
     ASSERT_EQ(0, verifiedKey.repeatCount);
+}
+
+TEST_F(InputDispatcherTest, VerifyInputEvent_MotionEvent) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Test window", ADISPLAY_ID_DEFAULT);
+
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+
+    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+
+    NotifyMotionArgs motionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                               ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyMotion(&motionArgs);
+
+    InputEvent* event = window->consume();
+    ASSERT_NE(event, nullptr);
+
+    std::unique_ptr<VerifiedInputEvent> verified = mDispatcher->verifyInputEvent(*event);
+    ASSERT_NE(verified, nullptr);
+    ASSERT_EQ(verified->type, VerifiedInputEvent::Type::MOTION);
+
+    EXPECT_EQ(motionArgs.eventTime, verified->eventTimeNanos);
+    EXPECT_EQ(motionArgs.deviceId, verified->deviceId);
+    EXPECT_EQ(motionArgs.source, verified->source);
+    EXPECT_EQ(motionArgs.displayId, verified->displayId);
+
+    const VerifiedMotionEvent& verifiedMotion = static_cast<const VerifiedMotionEvent&>(*verified);
+
+    EXPECT_EQ(motionArgs.pointerCoords[0].getX(), verifiedMotion.rawX);
+    EXPECT_EQ(motionArgs.pointerCoords[0].getY(), verifiedMotion.rawY);
+    EXPECT_EQ(motionArgs.action & AMOTION_EVENT_ACTION_MASK, verifiedMotion.actionMasked);
+    EXPECT_EQ(motionArgs.downTime, verifiedMotion.downTimeNanos);
+    EXPECT_EQ(motionArgs.flags & VERIFIED_MOTION_EVENT_FLAGS, verifiedMotion.flags);
+    EXPECT_EQ(motionArgs.metaState, verifiedMotion.metaState);
+    EXPECT_EQ(motionArgs.buttonState, verifiedMotion.buttonState);
 }
 
 class InputDispatcherKeyRepeatTest : public InputDispatcherTest {
