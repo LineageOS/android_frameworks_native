@@ -903,7 +903,7 @@ int SurfaceFlinger::getActiveConfig(const sp<IBinder>& displayToken) {
 
 void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
     ATRACE_CALL();
-    auto refreshRate = mRefreshRateConfigs->getRefreshRateFromConfigId(info.configId);
+    auto& refreshRate = mRefreshRateConfigs->getRefreshRateFromConfigId(info.configId);
     ALOGV("setDesiredActiveConfig(%s)", refreshRate.name.c_str());
 
     std::lock_guard<std::mutex> lock(mActiveConfigLock);
@@ -984,7 +984,7 @@ void SurfaceFlinger::setActiveConfigInternal() {
     mRefreshRateStats->setConfigMode(mUpcomingActiveConfig.configId);
     display->setActiveConfig(mUpcomingActiveConfig.configId);
 
-    auto refreshRate =
+    auto& refreshRate =
             mRefreshRateConfigs->getRefreshRateFromConfigId(mUpcomingActiveConfig.configId);
     mPhaseConfiguration->setRefreshRateFps(refreshRate.fps);
     mVSyncModulator->setPhaseOffsets(mPhaseConfiguration->getCurrentOffsets());
@@ -1004,7 +1004,7 @@ void SurfaceFlinger::desiredActiveConfigChangeDone() {
     mDesiredActiveConfig.event = Scheduler::ConfigEvent::None;
     mDesiredActiveConfigChanged = false;
 
-    auto const refreshRate =
+    const auto& refreshRate =
             mRefreshRateConfigs->getRefreshRateFromConfigId(mDesiredActiveConfig.configId);
     mScheduler->resyncToHardwareVsync(true, refreshRate.vsyncPeriod);
     mPhaseConfiguration->setRefreshRateFps(refreshRate.fps);
@@ -1037,7 +1037,7 @@ bool SurfaceFlinger::performSetActiveConfig() {
         desiredActiveConfig = mDesiredActiveConfig;
     }
 
-    auto refreshRate =
+    auto& refreshRate =
             mRefreshRateConfigs->getRefreshRateFromConfigId(desiredActiveConfig.configId);
     ALOGV("performSetActiveConfig changing active config to %d(%s)", refreshRate.configId.value(),
           refreshRate.name.c_str());
@@ -5138,7 +5138,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 n = data.readInt32();
                 if (n == 1 && !mRefreshRateOverlay) {
                     mRefreshRateOverlay = std::make_unique<RefreshRateOverlay>(*this);
-                    auto current = mRefreshRateConfigs->getCurrentRefreshRate();
+                    auto& current = mRefreshRateConfigs->getCurrentRefreshRate();
                     mRefreshRateOverlay->changeRefreshRate(current);
                 } else if (n == 0) {
                     mRefreshRateOverlay.reset();
@@ -5187,7 +5187,7 @@ void SurfaceFlinger::kernelTimerChanged(bool expired) {
         if (mRefreshRateOverlay) {
             const auto kernelTimerEnabled = property_get_bool(KERNEL_IDLE_TIMER_PROP, false);
             const bool timerExpired = kernelTimerEnabled && expired;
-            const auto& current = [this]() {
+            const auto& current = [this]() -> const RefreshRate& {
                 std::lock_guard<std::mutex> lock(mActiveConfigLock);
                 if (mDesiredActiveConfigChanged) {
                     return mRefreshRateConfigs->getRefreshRateFromConfigId(
@@ -5867,7 +5867,7 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(const sp<DisplayDe
                                 display->getActiveConfig(), vsyncPeriod);
 
     auto configId = mScheduler->getPreferredConfigId();
-    auto preferredRefreshRate = configId
+    auto& preferredRefreshRate = configId
             ? mRefreshRateConfigs->getRefreshRateFromConfigId(*configId)
             // NOTE: Choose the default config ID, if Scheduler doesn't have one in mind.
             : mRefreshRateConfigs->getRefreshRateFromConfigId(defaultConfig);

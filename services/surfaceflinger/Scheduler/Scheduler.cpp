@@ -463,7 +463,7 @@ void Scheduler::chooseRefreshRateForContent() {
             return;
         }
         mFeatures.configId = newConfigId;
-        auto newRefreshRate = mRefreshRateConfigs.getRefreshRateFromConfigId(newConfigId);
+        auto& newRefreshRate = mRefreshRateConfigs.getRefreshRateFromConfigId(newConfigId);
         mSchedulerCallback.changeRefreshRate(newRefreshRate, ConfigEvent::Changed);
     }
 }
@@ -515,7 +515,7 @@ void Scheduler::kernelIdleTimerCallback(TimerState state) {
 
     // TODO(145561154): cleanup the kernel idle timer implementation and the refresh rate
     // magic number
-    const auto refreshRate = mRefreshRateConfigs.getCurrentRefreshRate();
+    const auto& refreshRate = mRefreshRateConfigs.getCurrentRefreshRate();
     constexpr float FPS_THRESHOLD_FOR_KERNEL_TIMER = 65.0f;
     if (state == TimerState::Reset && refreshRate.fps > FPS_THRESHOLD_FOR_KERNEL_TIMER) {
         // If we're not in performance mode then the kernel timer shouldn't do
