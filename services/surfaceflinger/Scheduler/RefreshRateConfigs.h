@@ -59,6 +59,8 @@ public:
                 configGroup(configGroup),
                 name(std::move(name)),
                 fps(fps) {}
+
+        RefreshRate(const RefreshRate&) = delete;
         // This config ID corresponds to the position of the config in the vector that is stored
         // on the device.
         const HwcConfigIndexType configId;
@@ -85,7 +87,8 @@ public:
         bool operator==(const RefreshRate& other) const { return !(*this != other); }
     };
 
-    using AllRefreshRatesMapType = std::unordered_map<HwcConfigIndexType, const RefreshRate>;
+    using AllRefreshRatesMapType =
+            std::unordered_map<HwcConfigIndexType, std::unique_ptr<const RefreshRate>>;
 
     // Sets the current policy to choose refresh rates. Returns NO_ERROR if the requested policy is
     // valid, or a negative error value otherwise. policyChanged, if non-null, will be set to true
@@ -163,7 +166,7 @@ public:
     // Returns the refresh rate that corresponds to a HwcConfigIndexType. This won't change at
     // runtime.
     const RefreshRate& getRefreshRateFromConfigId(HwcConfigIndexType configId) const {
-        return mRefreshRates.at(configId);
+        return *mRefreshRates.at(configId);
     };
 
     // Stores the current configId the device operates at
