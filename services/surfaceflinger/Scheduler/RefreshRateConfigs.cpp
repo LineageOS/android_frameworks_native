@@ -23,6 +23,9 @@
 #include <chrono>
 #include <cmath>
 
+#undef LOG_TAG
+#define LOG_TAG "RefreshRateConfigs"
+
 namespace android::scheduler {
 
 using AllRefreshRatesMapType = RefreshRateConfigs::AllRefreshRatesMapType;
@@ -178,16 +181,17 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
             const auto layerPeriod = round<nsecs_t>(1e9f / layer.desiredRefreshRate);
             if (layer.vote == LayerVoteType::ExplicitDefault) {
                 const auto layerScore = [&]() {
-                    const auto [displayFramesQuot, displayFramesRem] =
-                            getDisplayFrames(layerPeriod, displayPeriod);
-                    if (displayFramesQuot == 0) {
-                        // Layer desired refresh rate is higher the display rate.
-                        return static_cast<float>(layerPeriod) / static_cast<float>(displayPeriod);
+                    // Find the actual rate the layer will render, assuming
+                    // that layerPeriod is the minimal time to render a frame
+                    auto actualLayerPeriod = displayPeriod;
+                    int multiplier = 1;
+                    while (layerPeriod > actualLayerPeriod + MARGIN_FOR_PERIOD_CALCULATION) {
+                        multiplier++;
+                        actualLayerPeriod = displayPeriod * multiplier;
                     }
-
-                    return 1.0f -
-                            (static_cast<float>(displayFramesRem) /
-                             static_cast<float>(layerPeriod));
+                    return std::min(1.0f,
+                                    static_cast<float>(layerPeriod) /
+                                            static_cast<float>(actualLayerPeriod));
                 }();
 
                 ALOGV("%s (ExplicitDefault, weight %.2f) %.2fHz gives %s score of %.2f",
@@ -250,6 +254,7 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
 
 template <typename Iter>
 const RefreshRate* RefreshRateConfigs::getBestRefreshRate(Iter begin, Iter end) const {
+    constexpr auto EPSILON = 0.001f;
     const RefreshRate* bestRefreshRate = begin->first;
     float max = begin->second;
     for (auto i = begin; i != end; ++i) {
@@ -258,7 +263,7 @@ const RefreshRate* RefreshRateConfigs::getBestRefreshRate(Iter begin, Iter end) 
 
         ATRACE_INT(refreshRate->name.c_str(), round<int>(score * 100));
 
-        if (score > max) {
+        if (score > max * (1 + EPSILON)) {
             max = score;
             bestRefreshRate = refreshRate;
         }

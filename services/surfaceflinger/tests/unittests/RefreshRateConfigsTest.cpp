@@ -1170,6 +1170,54 @@ TEST_F(RefreshRateConfigsTest, touchConsidered) {
     EXPECT_EQ(false, touchConsidered);
 }
 
+TEST_F(RefreshRateConfigsTest, getRefreshRateForContentV2_ExplicitDefault) {
+    bool ignored;
+    std::vector<RefreshRateConfigs::InputConfig> configs{
+            {{HWC_CONFIG_ID_60, HWC_GROUP_ID_0, VSYNC_60},
+             {HWC_CONFIG_ID_72, HWC_GROUP_ID_0, VSYNC_72},
+             {HWC_CONFIG_ID_90, HWC_GROUP_ID_0, VSYNC_90},
+             {HWC_CONFIG_ID_120, HWC_GROUP_ID_0, VSYNC_120}}};
+
+    auto refreshRateConfigs = std::make_unique<RefreshRateConfigs>(configs, /*currentConfigId=*/
+                                                                   HWC_CONFIG_ID_60);
+
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
+    auto& lr = layers[0];
+
+    // Prepare a table with the vote and the expected refresh rate
+    const std::vector<std::pair<float, float>> testCases = {
+            {130, 120}, {120, 120}, {119, 120}, {110, 120},
+
+            {100, 90},  {90, 90},   {89, 90},
+
+            {80, 72},   {73, 72},   {72, 72},   {71, 72},   {70, 72},
+
+            {65, 60},   {60, 60},   {59, 60},   {58, 60},
+
+            {55, 90},   {50, 90},   {45, 90},
+
+            {42, 120},  {40, 120},  {39, 120},
+
+            {37, 72},   {36, 72},   {35, 72},
+
+            {30, 60},
+    };
+
+    for (const auto& test : testCases) {
+        lr.vote = LayerVoteType::ExplicitDefault;
+        lr.desiredRefreshRate = test.first;
+
+        std::stringstream ss;
+        ss << "ExplicitDefault " << test.first << " fps";
+        lr.name = ss.str();
+
+        const auto& refreshRate =
+                refreshRateConfigs->getRefreshRateForContentV2(layers, false, &ignored);
+        EXPECT_FLOAT_EQ(refreshRate.fps, test.second)
+                << "Expecting " << test.first << "fps => " << test.second << "Hz";
+    }
+}
+
 } // namespace
 } // namespace scheduler
 } // namespace android
