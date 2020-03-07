@@ -134,6 +134,17 @@ status_t GraphicBufferAllocator::allocate(uint32_t width, uint32_t height,
 
     status_t error =
             mAllocator->allocate(width, height, format, layerCount, usage, 1, stride, handle);
+    size_t bufSize;
+
+    // if stride has no meaning or is too large,
+    // approximate size with the input width instead
+    if ((*stride) != 0 &&
+        std::numeric_limits<size_t>::max() / height / (*stride) < static_cast<size_t>(bpp)) {
+        bufSize = static_cast<size_t>(width) * height * bpp;
+    } else {
+        bufSize = static_cast<size_t>((*stride)) * height * bpp;
+    }
+
     if (error == NO_ERROR) {
         Mutex::Autolock _l(sLock);
         KeyedVector<buffer_handle_t, alloc_rec_t>& list(sAllocList);
@@ -144,7 +155,7 @@ status_t GraphicBufferAllocator::allocate(uint32_t width, uint32_t height,
         rec.format = format;
         rec.layerCount = layerCount;
         rec.usage = usage;
-        rec.size = static_cast<size_t>(height * (*stride) * bpp);
+        rec.size = bufSize;
         rec.requestorName = std::move(requestorName);
         list.add(*handle, rec);
 

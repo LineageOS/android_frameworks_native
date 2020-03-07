@@ -31,8 +31,6 @@ public:
     const char* getTypeId() const override { return "ContainerLayer"; }
     bool isVisible() const override;
 
-    bool canReceiveInput() const override;
-
     void setPerFrameData(const sp<const DisplayDevice>& display, const ui::Transform& transform,
                          const Rect& viewport, int32_t supportedPerFrameMetadata,
                          const ui::Dataspace targetDataspace) override;
