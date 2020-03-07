@@ -1290,15 +1290,6 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setInput
     return *this;
 }
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::transferTouchFocus(
-        const sp<IBinder>& fromToken, const sp<IBinder>& toToken) {
-    InputWindowCommands::TransferTouchFocusCommand transferTouchFocusCommand;
-    transferTouchFocusCommand.fromToken = fromToken;
-    transferTouchFocusCommand.toToken = toToken;
-    mInputWindowCommands.transferTouchFocusCommands.emplace_back(transferTouchFocusCommand);
-    return *this;
-}
-
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::syncInputWindows() {
     mInputWindowCommands.syncInputWindows = true;
     return *this;
