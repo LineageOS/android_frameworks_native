@@ -443,39 +443,18 @@ void layer_state_t::merge(const layer_state_t& other) {
 // ------------------------------- InputWindowCommands ----------------------------------------
 
 void InputWindowCommands::merge(const InputWindowCommands& other) {
-    transferTouchFocusCommands
-            .insert(transferTouchFocusCommands.end(),
-                    std::make_move_iterator(other.transferTouchFocusCommands.begin()),
-                    std::make_move_iterator(other.transferTouchFocusCommands.end()));
-
     syncInputWindows |= other.syncInputWindows;
 }
 
 void InputWindowCommands::clear() {
-    transferTouchFocusCommands.clear();
     syncInputWindows = false;
 }
 
 void InputWindowCommands::write(Parcel& output) const {
-    output.writeUint32(static_cast<uint32_t>(transferTouchFocusCommands.size()));
-    for (const auto& transferTouchFocusCommand : transferTouchFocusCommands) {
-        output.writeStrongBinder(transferTouchFocusCommand.fromToken);
-        output.writeStrongBinder(transferTouchFocusCommand.toToken);
-    }
-
     output.writeBool(syncInputWindows);
 }
 
 void InputWindowCommands::read(const Parcel& input) {
-    size_t count = input.readUint32();
-    transferTouchFocusCommands.clear();
-    for (size_t i = 0; i < count; i++) {
-        TransferTouchFocusCommand transferTouchFocusCommand;
-        transferTouchFocusCommand.fromToken = input.readStrongBinder();
-        transferTouchFocusCommand.toToken = input.readStrongBinder();
-        transferTouchFocusCommands.emplace_back(transferTouchFocusCommand);
-    }
-
     syncInputWindows = input.readBool();
 }
 

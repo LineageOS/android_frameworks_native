@@ -507,7 +507,6 @@ public:
 
 #ifndef NO_INPUT
         Transaction& setInputWindowInfo(const sp<SurfaceControl>& sc, const InputWindowInfo& info);
-        Transaction& transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken);
         Transaction& syncInputWindows();
 #endif
 
