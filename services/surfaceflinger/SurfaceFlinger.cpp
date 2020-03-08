@@ -3754,10 +3754,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(
 
 uint32_t SurfaceFlinger::addInputWindowCommands(const InputWindowCommands& inputWindowCommands) {
     uint32_t flags = 0;
-    if (!inputWindowCommands.transferTouchFocusCommands.empty()) {
-        flags |= eTraversalNeeded;
-    }
-
     if (inputWindowCommands.syncInputWindows) {
         flags |= eTraversalNeeded;
     }
