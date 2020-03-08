@@ -271,12 +271,6 @@ struct DisplayState {
 };
 
 struct InputWindowCommands {
-    struct TransferTouchFocusCommand {
-        sp<IBinder> fromToken;
-        sp<IBinder> toToken;
-    };
-
-    std::vector<TransferTouchFocusCommand> transferTouchFocusCommands;
     bool syncInputWindows{false};
 
     void merge(const InputWindowCommands& other);
