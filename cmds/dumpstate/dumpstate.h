@@ -390,7 +390,8 @@ class Dumpstate {
 
         /* Initializes options from the requested mode. */
         void Initialize(BugreportMode bugreport_mode, const android::base::unique_fd& bugreport_fd,
-                        const android::base::unique_fd& screenshot_fd);
+                        const android::base::unique_fd& screenshot_fd,
+                        bool is_screenshot_requested);
 
         /* Returns true if the options set so far are consistent. */
         bool ValidateOptions() const;
