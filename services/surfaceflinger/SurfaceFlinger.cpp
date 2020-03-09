@@ -2812,7 +2812,7 @@ void SurfaceFlinger::updateInputWindowInfo() {
 }
 
 void SurfaceFlinger::commitInputWindowCommands() {
-    mInputWindowCommands = mPendingInputWindowCommands;
+    mInputWindowCommands.merge(mPendingInputWindowCommands);
     mPendingInputWindowCommands.clear();
 }
 
@@ -5788,6 +5788,7 @@ void SurfaceFlinger::setInputWindowsFinished() {
     Mutex::Autolock _l(mStateLock);
 
     mPendingSyncInputWindows = false;
+
     mTransactionCV.broadcast();
 }
 
