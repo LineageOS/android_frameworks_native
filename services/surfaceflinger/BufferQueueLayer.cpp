@@ -441,7 +441,7 @@ void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
         mQueueItemCondition.broadcast();
     }
 
-    mFlinger->mInterceptor->saveBufferUpdate(this, item.mGraphicBuffer->getWidth(),
+    mFlinger->mInterceptor->saveBufferUpdate(layerId, item.mGraphicBuffer->getWidth(),
                                              item.mGraphicBuffer->getHeight(), item.mFrameNumber);
 
     mFlinger->signalLayerUpdate();
