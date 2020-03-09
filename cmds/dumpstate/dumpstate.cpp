@@ -1437,6 +1437,8 @@ static Dumpstate::RunStatus dumpstate() {
         ds.AddDir(WMTRACE_DATA_DIR, false);
     }
 
+    ds.AddDir(SNAPSHOTCTL_LOG_DIR, false);
+
     RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(ds.DumpstateBoard);
 
     /* Migrate the ril_dumpstate to a device specific dumpstate? */
@@ -1569,7 +1571,6 @@ static Dumpstate::RunStatus DumpstateDefault() {
     ds.AddDir(RECOVERY_DATA_DIR, true);
     ds.AddDir(UPDATE_ENGINE_LOG_DIR, true);
     ds.AddDir(LOGPERSIST_DATA_DIR, false);
-    ds.AddDir(SNAPSHOTCTL_LOG_DIR, false);
     if (!PropertiesHelper::IsUserBuild()) {
         ds.AddDir(PROFILE_DATA_DIR_CUR, true);
         ds.AddDir(PROFILE_DATA_DIR_REF, true);
