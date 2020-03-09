@@ -524,11 +524,11 @@ void SurfaceInterceptor::addSurfaceDeletionLocked(Increment* increment,
     deletion->set_id(getLayerId(layer));
 }
 
-void SurfaceInterceptor::addBufferUpdateLocked(Increment* increment, const sp<const Layer>& layer,
+void SurfaceInterceptor::addBufferUpdateLocked(Increment* increment, int32_t layerId,
         uint32_t width, uint32_t height, uint64_t frameNumber)
 {
     BufferUpdate* update(increment->mutable_buffer_update());
-    update->set_id(getLayerId(layer));
+    update->set_id(layerId);
     update->set_w(width);
     update->set_h(height);
     update->set_frame_number(frameNumber);
@@ -644,15 +644,22 @@ void SurfaceInterceptor::saveSurfaceDeletion(const sp<const Layer>& layer) {
     addSurfaceDeletionLocked(createTraceIncrementLocked(), layer);
 }
 
-void SurfaceInterceptor::saveBufferUpdate(const sp<const Layer>& layer, uint32_t width,
+/**
+ * Here we pass the layer by ID instead of by sp<> since this is called without
+ * holding the state-lock from a Binder thread. If we required the caller
+ * to pass 'this' by sp<> the temporary sp<> constructed could end up
+ * being the last reference and we might accidentally destroy the Layer
+ * from this binder thread.
+ */
+void SurfaceInterceptor::saveBufferUpdate(int32_t layerId, uint32_t width,
         uint32_t height, uint64_t frameNumber)
 {
-    if (!mEnabled || layer == nullptr) {
+    if (!mEnabled) {
         return;
     }
     ATRACE_CALL();
     std::lock_guard<std::mutex> protoGuard(mTraceMutex);
-    addBufferUpdateLocked(createTraceIncrementLocked(), layer, width, height, frameNumber);
+    addBufferUpdateLocked(createTraceIncrementLocked(), layerId, width, height, frameNumber);
 }
 
 void SurfaceInterceptor::saveVSyncEvent(nsecs_t timestamp) {
