@@ -137,9 +137,11 @@ public:
 
     // Returns the refresh rate that fits best to the given layers. This function also gets a
     // boolean flag that indicates whether user touched the screen recently to be factored in when
-    // choosing the refresh rate.
+    // choosing the refresh rate and returns whether the refresh rate was chosen as a result of
+    // a touch event.
     const RefreshRate& getRefreshRateForContentV2(const std::vector<LayerRequirement>& layers,
-                                                  bool touchActive) const EXCLUDES(mLock);
+                                                  bool touchActive, bool* touchConsidered) const
+            EXCLUDES(mLock);
 
     // Returns all the refresh rates supported by the device. This won't change at runtime.
     const AllRefreshRatesMapType& getAllRefreshRates() const EXCLUDES(mLock);
