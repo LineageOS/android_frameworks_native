@@ -483,7 +483,7 @@ void Scheduler::notifyTouchEvent() {
     // that is currently on top. b/142507166 will give us this capability.
     std::lock_guard<std::mutex> lock(mFeatureStateLock);
     if (mLayerHistory) {
-        mLayerHistory->clear();
+        // Layer History will be cleared based on RefreshRateConfigs::getRefreshRateForContentV2
 
         mTouchTimer->reset();
 
@@ -620,10 +620,21 @@ HwcConfigIndexType Scheduler::calculateRefreshRateConfigIndexType() {
         return mRefreshRateConfigs.getRefreshRateForContent(mFeatures.contentRequirements).configId;
     }
 
-    return mRefreshRateConfigs
-            .getRefreshRateForContentV2(mFeatures.contentRequirements,
-                                        mTouchTimer && mFeatures.touch == TouchState::Active)
-            .configId;
+    bool touchConsidered;
+    const auto& ret =
+            mRefreshRateConfigs
+                    .getRefreshRateForContentV2(mFeatures.contentRequirements,
+                                                mTouchTimer &&
+                                                        mFeatures.touch == TouchState::Active,
+                                                &touchConsidered)
+                    .configId;
+    if (touchConsidered) {
+        // Clear layer history if refresh rate was selected based on touch to allow
+        // the hueristic to pick up with the new rate.
+        mLayerHistory->clear();
+    }
+
+    return ret;
 }
 
 std::optional<HwcConfigIndexType> Scheduler::getPreferredConfigId() {
