@@ -67,6 +67,26 @@ prop {
     prop_name: "ro.surface_flinger.max_frame_buffer_acquired_buffers"
 }
 
+# Controls the maximum width in pixels that the graphics pipeline can support for GPU fallback
+# composition. For example, 8k displays with 4k GPUs, or 4k displays with 2k GPUs.
+prop {
+    api_name: "max_graphics_width"
+    type: Integer
+    scope: System
+    access: Readonly
+    prop_name: "ro.surface_flinger.max_graphics_width"
+}
+
+# Controls the maximum height in pixels that the graphics pipeline can support for GPU fallback
+# composition. For example, 8k displays with 4k GPUs, or 4k displays with 2k GPUs.
+prop {
+    api_name: "max_graphics_height"
+    type: Integer
+    scope: System
+    access: Readonly
+    prop_name: "ro.surface_flinger.max_graphics_height"
+}
+
 # hasWideColorDisplay indicates that the device has
 # or can support a wide-color display, e.g. color space
 # greater than sRGB. Typical display may have same

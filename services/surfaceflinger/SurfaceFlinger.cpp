@@ -217,6 +217,8 @@ uint64_t SurfaceFlinger::maxVirtualDisplaySize;
 bool SurfaceFlinger::hasSyncFramework;
 bool SurfaceFlinger::useVrFlinger;
 int64_t SurfaceFlinger::maxFrameBufferAcquiredBuffers;
+uint32_t SurfaceFlinger::maxGraphicsWidth;
+uint32_t SurfaceFlinger::maxGraphicsHeight;
 bool SurfaceFlinger::hasWideColorDisplay;
 ui::Rotation SurfaceFlinger::internalDisplayOrientation = ui::ROTATION_0;
 bool SurfaceFlinger::useColorManagement;
@@ -282,6 +284,9 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     useVrFlinger = use_vr_flinger(false);
 
     maxFrameBufferAcquiredBuffers = max_frame_buffer_acquired_buffers(2);
+
+    maxGraphicsWidth = std::max(max_graphics_width(0), 0);
+    maxGraphicsHeight = std::max(max_graphics_height(0), 0);
 
     hasWideColorDisplay = has_wide_color_display(false);
 
@@ -2597,7 +2602,8 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                              state.surface.get());
 
                     LOG_ALWAYS_FATAL_IF(!displayId);
-                    dispSurface = new FramebufferSurface(getHwComposer(), *displayId, bqConsumer);
+                    dispSurface = new FramebufferSurface(getHwComposer(), *displayId, bqConsumer,
+                                                         maxGraphicsWidth, maxGraphicsHeight);
                     producer = bqProducer;
                 }
 
