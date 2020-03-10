@@ -1729,6 +1729,8 @@ static void DumpstateTelephonyOnly(const std::string& calling_package) {
     RunDumpsys("DUMPSYS", {"netpolicy"}, CommandOptions::WithTimeout(90).Build(), SEC_TO_MSEC(10));
     RunDumpsys("DUMPSYS", {"network_management"}, CommandOptions::WithTimeout(90).Build(),
                SEC_TO_MSEC(10));
+    RunDumpsys("DUMPSYS", {"telephony.registry"}, CommandOptions::WithTimeout(90).Build(),
+               SEC_TO_MSEC(10));
     if (include_sensitive_info) {
         // Contains raw IP addresses, omit from reports on user builds.
         RunDumpsys("DUMPSYS", {"netd"}, CommandOptions::WithTimeout(90).Build(), SEC_TO_MSEC(10));
