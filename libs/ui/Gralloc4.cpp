@@ -77,6 +77,7 @@ static inline void sBufferDescriptorInfo(std::string name, uint32_t width, uint3
     outDescriptorInfo->layerCount = layerCount;
     outDescriptorInfo->format = static_cast<hardware::graphics::common::V1_2::PixelFormat>(format);
     outDescriptorInfo->usage = usage;
+    outDescriptorInfo->reservedSize = 0;
 }
 
 } // anonymous namespace
