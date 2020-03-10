@@ -37,6 +37,9 @@ bool use_context_priority(bool defaultValue);
 
 int64_t max_frame_buffer_acquired_buffers(int64_t defaultValue);
 
+int32_t max_graphics_width(int32_t defaultValue);
+int32_t max_graphics_height(int32_t defaultValue);
+
 bool has_wide_color_display(bool defaultValue);
 
 bool running_without_sync_framework(bool defaultValue);
