@@ -62,6 +62,16 @@ props {
     prop_name: "ro.surface_flinger.max_frame_buffer_acquired_buffers"
   }
   prop {
+    api_name: "max_graphics_height"
+    type: Integer
+    prop_name: "ro.surface_flinger.max_graphics_height"
+  }
+  prop {
+    api_name: "max_graphics_width"
+    type: Integer
+    prop_name: "ro.surface_flinger.max_graphics_width"
+  }
+  prop {
     api_name: "max_virtual_display_dimension"
     type: Long
     prop_name: "ro.surface_flinger.max_virtual_display_dimension"
