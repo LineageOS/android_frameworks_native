@@ -957,9 +957,13 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
         return NO_ERROR;
     }
 
-    if (bufferFence.get() >= 0 && !waitFence(std::move(bufferFence))) {
-        ATRACE_NAME("Waiting before draw");
-        sync_wait(bufferFence.get(), -1);
+    if (bufferFence.get() >= 0) {
+        // Duplicate the fence for passing to waitFence.
+        base::unique_fd bufferFenceDup(dup(bufferFence.get()));
+        if (bufferFenceDup < 0 || !waitFence(std::move(bufferFenceDup))) {
+            ATRACE_NAME("Waiting before draw");
+            sync_wait(bufferFence.get(), -1);
+        }
     }
 
     if (buffer == nullptr) {
