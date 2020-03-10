@@ -212,7 +212,5 @@ void LayerHistoryV2::clear() {
     for (const auto& [layer, info] : activeLayers()) {
         info->clearHistory();
     }
-
-    mActiveLayersEnd = 0;
 }
 } // namespace android::scheduler::impl
