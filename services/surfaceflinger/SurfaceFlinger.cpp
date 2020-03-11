@@ -413,6 +413,7 @@ SurfaceFlinger::~SurfaceFlinger() = default;
 void SurfaceFlinger::binderDied(const wp<IBinder>& /* who */)
 {
     // the window manager died on us. prepare its eulogy.
+    mBootFinished = false;
 
     // restore initial conditions (default device unblank, etc)
     initializeDisplays();
@@ -529,6 +530,11 @@ compositionengine::CompositionEngine& SurfaceFlinger::getCompositionEngine() con
 
 void SurfaceFlinger::bootFinished()
 {
+    if (mBootFinished == true) {
+        ALOGE("Extra call to bootFinished");
+        return;
+    }
+    mBootFinished = true;
     if (mStartPropertySetThread->join() != NO_ERROR) {
         ALOGE("Join StartPropertySetThread failed!");
     }
