@@ -2800,7 +2800,7 @@ void SurfaceFlinger::updateInputWindowInfo() {
     // input changes but all input changes will spring from these transactions
     // so the cache is safe but not optimal. It seems like it might be annoyingly
     // costly to cache and comapre the actual InputWindowHandle vector though.
-    if (!mInputDirty) {
+    if (!mInputDirty && !mInputWindowCommands.syncInputWindows) {
         return;
     }
 
