@@ -34,7 +34,7 @@ struct DisplayId {
 
     uint16_t manufacturerId() const;
 
-    static DisplayId fromEdid(uint8_t port, uint16_t manufacturerId, uint32_t displayNameHash);
+    static DisplayId fromEdid(uint8_t port, uint16_t manufacturerId, uint32_t modelHash);
 };
 
 inline bool operator==(DisplayId lhs, DisplayId rhs) {
@@ -61,6 +61,7 @@ struct Edid {
     uint16_t manufacturerId;
     uint16_t productId;
     PnpId pnpId;
+    uint32_t modelHash;
     std::string_view displayName;
     uint8_t manufactureOrModelYear;
     uint8_t manufactureWeek;
