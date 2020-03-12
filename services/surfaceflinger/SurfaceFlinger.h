@@ -820,9 +820,14 @@ private:
             const wp<IBinder>& displayToken,
             std::shared_ptr<compositionengine::Display> compositionDisplay,
             const DisplayDeviceState& state,
-            const sp<compositionengine::DisplaySurface>& dispSurface,
+            const sp<compositionengine::DisplaySurface>& displaySurface,
             const sp<IGraphicBufferProducer>& producer);
     void processDisplayChangesLocked();
+    void processDisplayAdded(const wp<IBinder>& displayToken, const DisplayDeviceState& state);
+    void processDisplayRemoved(const wp<IBinder>& displayToken);
+    void processDisplayChanged(const wp<IBinder>& displayToken,
+                               const DisplayDeviceState& currentState,
+                               const DisplayDeviceState& drawingState);
     void processDisplayHotplugEventsLocked();
 
     void dispatchDisplayHotplugEvent(PhysicalDisplayId displayId, bool connected);
