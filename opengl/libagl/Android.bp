@@ -33,14 +33,6 @@ cc_defaults {
         arm: {
             cflags: ["-fstrict-aliasing"],
         },
-
-        mips: {
-            cflags: [
-                "-fstrict-aliasing",
-                // The graphics code can generate division by zero
-                "-mno-check-zero-division",
-            ],
-        },
     },
 }
 
@@ -66,12 +58,6 @@ cc_library_shared {
                 "fixed_asm.S",
                 "iterators.S",
             ],
-        },
-
-        mips: {
-            rev6: {
-                srcs: ["arch-mips/fixed_asm.S"],
-            },
         },
     },
 
