@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#include <functional>
+#include <string_view>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -124,6 +127,10 @@ DisplayIdentificationData asDisplayIdentificationData(const unsigned char (&byte
     return DisplayIdentificationData(bytes, bytes + N - 1);
 }
 
+uint32_t hash(const char* str) {
+    return static_cast<uint32_t>(std::hash<std::string_view>()(str));
+}
+
 } // namespace
 
 const DisplayIdentificationData& getInternalEdid() {
@@ -173,7 +180,8 @@ TEST(DisplayIdentificationTest, parseEdid) {
     EXPECT_EQ(0x4ca3u, edid->manufacturerId);
     EXPECT_STREQ("SEC", edid->pnpId.data());
     // ASCII text should be used as fallback if display name and serial number are missing.
-    EXPECT_EQ("121AT11-801", edid->displayName);
+    EXPECT_EQ(hash("121AT11-801"), edid->modelHash);
+    EXPECT_TRUE(edid->displayName.empty());
     EXPECT_EQ(12610, edid->productId);
     EXPECT_EQ(21, edid->manufactureOrModelYear);
     EXPECT_EQ(0, edid->manufactureWeek);
@@ -182,6 +190,7 @@ TEST(DisplayIdentificationTest, parseEdid) {
     ASSERT_TRUE(edid);
     EXPECT_EQ(0x22f0u, edid->manufacturerId);
     EXPECT_STREQ("HWP", edid->pnpId.data());
+    EXPECT_EQ(hash("HP ZR30w"), edid->modelHash);
     EXPECT_EQ("HP ZR30w", edid->displayName);
     EXPECT_EQ(10348, edid->productId);
     EXPECT_EQ(22, edid->manufactureOrModelYear);
@@ -191,6 +200,7 @@ TEST(DisplayIdentificationTest, parseEdid) {
     ASSERT_TRUE(edid);
     EXPECT_EQ(0x4c2du, edid->manufacturerId);
     EXPECT_STREQ("SAM", edid->pnpId.data());
+    EXPECT_EQ(hash("SAMSUNG"), edid->modelHash);
     EXPECT_EQ("SAMSUNG", edid->displayName);
     EXPECT_EQ(2302, edid->productId);
     EXPECT_EQ(21, edid->manufactureOrModelYear);
@@ -200,6 +210,7 @@ TEST(DisplayIdentificationTest, parseEdid) {
     ASSERT_TRUE(edid);
     EXPECT_EQ(13481, edid->manufacturerId);
     EXPECT_STREQ("MEI", edid->pnpId.data());
+    EXPECT_EQ(hash("Panasonic-TV"), edid->modelHash);
     EXPECT_EQ("Panasonic-TV", edid->displayName);
     EXPECT_EQ(41622, edid->productId);
     EXPECT_EQ(29, edid->manufactureOrModelYear);
@@ -209,6 +220,7 @@ TEST(DisplayIdentificationTest, parseEdid) {
     ASSERT_TRUE(edid);
     EXPECT_EQ(8355, edid->manufacturerId);
     EXPECT_STREQ("HEC", edid->pnpId.data());
+    EXPECT_EQ(hash("Hisense"), edid->modelHash);
     EXPECT_EQ("Hisense", edid->displayName);
     EXPECT_EQ(0, edid->productId);
     EXPECT_EQ(29, edid->manufactureOrModelYear);
@@ -218,6 +230,7 @@ TEST(DisplayIdentificationTest, parseEdid) {
     ASSERT_TRUE(edid);
     EXPECT_EQ(3724, edid->manufacturerId);
     EXPECT_STREQ("CTL", edid->pnpId.data());
+    EXPECT_EQ(hash("LP2361"), edid->modelHash);
     EXPECT_EQ("LP2361", edid->displayName);
     EXPECT_EQ(9373, edid->productId);
     EXPECT_EQ(23, edid->manufactureOrModelYear);
@@ -234,13 +247,15 @@ TEST(DisplayIdentificationTest, parseInvalidEdid) {
     auto edid = parseEdid(data);
     ASSERT_TRUE(edid);
     // Serial number should be used as fallback if display name is invalid.
-    EXPECT_EQ("CN4202137Q", edid->displayName);
+    const auto modelHash = hash("CN4202137Q");
+    EXPECT_EQ(modelHash, edid->modelHash);
+    EXPECT_TRUE(edid->displayName.empty());
 
     // Parsing should succeed even if EDID is truncated.
     data.pop_back();
     edid = parseEdid(data);
     ASSERT_TRUE(edid);
-    EXPECT_EQ("CN4202137Q", edid->displayName);
+    EXPECT_EQ(modelHash, edid->modelHash);
 }
 
 TEST(DisplayIdentificationTest, getPnpId) {
@@ -278,7 +293,7 @@ TEST(DisplayIdentificationTest, deviceProductInfo) {
         ASSERT_TRUE(displayIdInfo);
         ASSERT_TRUE(displayIdInfo->deviceProductInfo);
         const auto& info = *displayIdInfo->deviceProductInfo;
-        EXPECT_STREQ("121AT11-801", info.name.data());
+        EXPECT_STREQ("", info.name.data());
         EXPECT_STREQ("SEC", info.manufacturerPnpId.data());
         EXPECT_STREQ("12610", info.productId.data());
         ASSERT_TRUE(std::holds_alternative<ManufactureYear>(info.manufactureOrModelDate));
