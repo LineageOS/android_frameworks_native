@@ -923,7 +923,8 @@ private:
     void dumpDisplayIdentificationData(std::string& result) const;
     void dumpRawDisplayIdentificationData(const DumpArgs&, std::string& result) const;
     void dumpWideColorInfo(std::string& result) const;
-    LayersProto dumpDrawingStateProto(uint32_t traceFlags = SurfaceTracing::TRACE_ALL) const;
+    LayersProto dumpDrawingStateProto(uint32_t traceFlags = SurfaceTracing::TRACE_ALL,
+                                      const sp<const DisplayDevice>& displayDevice = nullptr) const;
     void dumpOffscreenLayersProto(LayersProto& layersProto,
                                   uint32_t traceFlags = SurfaceTracing::TRACE_ALL) const;
     // Dumps state from HW Composer
@@ -1133,6 +1134,10 @@ private:
 
     // to linkToDeath
     sp<IBinder> mWindowManager;
+    // We want to avoid multiple calls to BOOT_FINISHED as they come in on
+    // different threads without a lock and could trigger unsynchronized writes to
+    // to mWindowManager or mInputFlinger
+    std::atomic<bool> mBootFinished = false;
 
     std::unique_ptr<dvr::VrFlinger> mVrFlinger;
     std::atomic<bool> mVrFlingerRequestsDisplay = false;

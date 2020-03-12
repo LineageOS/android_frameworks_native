@@ -413,6 +413,7 @@ SurfaceFlinger::~SurfaceFlinger() = default;
 void SurfaceFlinger::binderDied(const wp<IBinder>& /* who */)
 {
     // the window manager died on us. prepare its eulogy.
+    mBootFinished = false;
 
     // restore initial conditions (default device unblank, etc)
     initializeDisplays();
@@ -529,6 +530,11 @@ compositionengine::CompositionEngine& SurfaceFlinger::getCompositionEngine() con
 
 void SurfaceFlinger::bootFinished()
 {
+    if (mBootFinished == true) {
+        ALOGE("Extra call to bootFinished");
+        return;
+    }
+    mBootFinished = true;
     if (mStartPropertySetThread->join() != NO_ERROR) {
         ALOGE("Join StartPropertySetThread failed!");
     }
@@ -2798,7 +2804,7 @@ void SurfaceFlinger::updateInputWindowInfo() {
     // input changes but all input changes will spring from these transactions
     // so the cache is safe but not optimal. It seems like it might be annoyingly
     // costly to cache and comapre the actual InputWindowHandle vector though.
-    if (!mInputDirty) {
+    if (!mInputDirty && !mInputWindowCommands.syncInputWindows) {
         return;
     }
 
@@ -4485,12 +4491,11 @@ void SurfaceFlinger::dumpWideColorInfo(std::string& result) const {
     result.append("\n");
 }
 
-LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
-    Mutex::Autolock _l(mStateLock);
-    const auto device = getDefaultDisplayDeviceLocked();
+LayersProto SurfaceFlinger::dumpDrawingStateProto(
+        uint32_t traceFlags, const sp<const DisplayDevice>& displayDevice) const {
     LayersProto layersProto;
     for (const sp<Layer>& layer : mDrawingState.layersSortedByZ) {
-        layer->writeToProto(layersProto, traceFlags, device);
+        layer->writeToProto(layersProto, traceFlags, displayDevice);
     }
 
     return layersProto;
@@ -4522,7 +4527,10 @@ void SurfaceFlinger::dumpOffscreenLayersProto(LayersProto& layersProto, uint32_t
 
 LayersProto SurfaceFlinger::dumpProtoFromMainThread(uint32_t traceFlags) {
     LayersProto layersProto;
-    postMessageSync(new LambdaMessage([&]() { layersProto = dumpDrawingStateProto(traceFlags); }));
+    postMessageSync(new LambdaMessage([&]() {
+        const auto& displayDevice = getDefaultDisplayDeviceLocked();
+        layersProto = dumpDrawingStateProto(traceFlags, displayDevice);
+    }));
     return layersProto;
 }
 
