@@ -233,7 +233,7 @@ TEST_F(DumpOptionsTest, InitializeAdbShellBugreport) {
 }
 
 TEST_F(DumpOptionsTest, InitializeFullBugReport) {
-    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_FULL, fd, fd);
+    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_FULL, fd, fd, true);
     EXPECT_TRUE(options_.do_add_date);
     EXPECT_TRUE(options_.do_screenshot);
     EXPECT_TRUE(options_.do_zip_file);
@@ -250,7 +250,7 @@ TEST_F(DumpOptionsTest, InitializeFullBugReport) {
 }
 
 TEST_F(DumpOptionsTest, InitializeInteractiveBugReport) {
-    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE, fd, fd);
+    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE, fd, fd, true);
     EXPECT_TRUE(options_.do_add_date);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.do_progress_updates);
@@ -267,7 +267,7 @@ TEST_F(DumpOptionsTest, InitializeInteractiveBugReport) {
 }
 
 TEST_F(DumpOptionsTest, InitializeRemoteBugReport) {
-    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_REMOTE, fd, fd);
+    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_REMOTE, fd, fd, false);
     EXPECT_TRUE(options_.do_add_date);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.is_remote_mode);
@@ -283,7 +283,7 @@ TEST_F(DumpOptionsTest, InitializeRemoteBugReport) {
 }
 
 TEST_F(DumpOptionsTest, InitializeWearBugReport) {
-    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_WEAR, fd, fd);
+    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_WEAR, fd, fd, true);
     EXPECT_TRUE(options_.do_add_date);
     EXPECT_TRUE(options_.do_screenshot);
     EXPECT_TRUE(options_.do_zip_file);
@@ -300,7 +300,7 @@ TEST_F(DumpOptionsTest, InitializeWearBugReport) {
 }
 
 TEST_F(DumpOptionsTest, InitializeTelephonyBugReport) {
-    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_TELEPHONY, fd, fd);
+    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_TELEPHONY, fd, fd, false);
     EXPECT_TRUE(options_.do_add_date);
     EXPECT_FALSE(options_.do_screenshot);
     EXPECT_TRUE(options_.do_zip_file);
@@ -317,7 +317,7 @@ TEST_F(DumpOptionsTest, InitializeTelephonyBugReport) {
 }
 
 TEST_F(DumpOptionsTest, InitializeWifiBugReport) {
-    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_WIFI, fd, fd);
+    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_WIFI, fd, fd, false);
     EXPECT_TRUE(options_.do_add_date);
     EXPECT_FALSE(options_.do_screenshot);
     EXPECT_TRUE(options_.do_zip_file);
