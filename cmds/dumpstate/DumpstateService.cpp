@@ -84,7 +84,8 @@ binder::Status DumpstateService::startBugreport(int32_t calling_uid,
                                                 android::base::unique_fd bugreport_fd,
                                                 android::base::unique_fd screenshot_fd,
                                                 int bugreport_mode,
-                                                const sp<IDumpstateListener>& listener) {
+                                                const sp<IDumpstateListener>& listener,
+                                                bool is_screenshot_requested) {
     MYLOGI("startBugreport() with mode: %d\n", bugreport_mode);
 
     // Ensure there is only one bugreport in progress at a time.
@@ -118,7 +119,7 @@ binder::Status DumpstateService::startBugreport(int32_t calling_uid,
 
     std::unique_ptr<Dumpstate::DumpOptions> options = std::make_unique<Dumpstate::DumpOptions>();
     options->Initialize(static_cast<Dumpstate::BugreportMode>(bugreport_mode), bugreport_fd,
-                        screenshot_fd);
+                        screenshot_fd, is_screenshot_requested);
 
     if (bugreport_fd.get() == -1 || (options->do_screenshot && screenshot_fd.get() == -1)) {
         MYLOGE("Invalid filedescriptor");
