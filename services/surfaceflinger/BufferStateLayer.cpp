@@ -616,7 +616,6 @@ status_t BufferStateLayer::updateActiveBuffer() {
     mPreviousBufferId = getCurrentBufferId();
     mBufferInfo.mBuffer = s.buffer;
     mBufferInfo.mFence = s.acquireFence;
-    editCompositionState()->buffer = mBufferInfo.mBuffer;
 
     return NO_ERROR;
 }
