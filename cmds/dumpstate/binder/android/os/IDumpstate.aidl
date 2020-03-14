@@ -64,10 +64,12 @@ interface IDumpstate {
      * @param screenshotFd the file to which screenshot should be written
      * @param bugreportMode the mode that specifies other run time options; must be one of above
      * @param listener callback for updates; optional
+     * @param isScreenshotRequested indicates screenshot is requested or not
      */
     void startBugreport(int callingUid, @utf8InCpp String callingPackage,
                         FileDescriptor bugreportFd, FileDescriptor screenshotFd,
-                        int bugreportMode, IDumpstateListener listener);
+                        int bugreportMode, IDumpstateListener listener,
+                        boolean isScreenshotRequested);
 
     /*
      * Cancels the bugreport currently in progress.
