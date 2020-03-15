@@ -1060,8 +1060,10 @@ private:
     const std::shared_ptr<TimeStats> mTimeStats;
     const std::unique_ptr<FrameTracer> mFrameTracer;
     bool mUseHwcVirtualDisplays = false;
+    // If blurs should be enabled on this device.
+    bool mSupportsBlur = false;
     // Disable blurs, for debugging
-    bool mEnableBlurs = false;
+    std::atomic<bool> mDisableBlurs = false;
     // If blurs are considered expensive and should require high GPU frequency.
     bool mBlursAreExpensive = false;
     std::atomic<uint32_t> mFrameMissedCount = 0;
