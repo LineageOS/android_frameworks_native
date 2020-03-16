@@ -116,6 +116,9 @@ interface IInstalld {
             int appId, @utf8InCpp String seInfo, int user, int snapshotId, int storageflags);
     void destroyAppDataSnapshot(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
             int userId, long ceSnapshotInode, int snapshotId, int storageFlags);
+    void destroyCeSnapshotsNotSpecified(@nullable @utf8InCpp String uuid, int userId,
+            in int[] retainSnapshotIds);
+
     void tryMountDataMirror(@nullable @utf8InCpp String volumeUuid);
     void onPrivateVolumeRemoved(@nullable @utf8InCpp String volumeUuid);
 
