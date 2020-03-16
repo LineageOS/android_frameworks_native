@@ -164,7 +164,10 @@ cc_library_shared {
         "aconfig_lib_cc_static_link.defaults",
         "egl_libs_defaults",
     ],
-    cflags: select(soong_config_variable("EGL", "USE_DISPLAY_ARRAY"), {
+    cflags: select(soong_config_variable("NV_ANDROID", "FRAMEWORK_ENHANCEMENTS"), {
+        "true": ["-DNV_ANDROID_FRAMEWORK_ENHANCEMENTS"],
+        default: [],
+    }) + select(soong_config_variable("EGL", "USE_DISPLAY_ARRAY"), {
         "true": ["-DEGL_DISPLAY_ARRAY"],
         default: [],
     }),
