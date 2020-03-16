@@ -109,6 +109,8 @@ interface IInstalld {
             int userId, int snapshotId, int storageFlags);
     void restoreAppDataSnapshot(@nullable @utf8InCpp String uuid, in @utf8InCpp String packageName,
             int appId, @utf8InCpp String seInfo, int user, int snapshotId, int storageflags);
+    void destroyCeSnapshotsNotSpecified(@nullable @utf8InCpp String uuid, int userId,
+            in int[] retainSnapshotIds);
     void destroyAppDataSnapshot(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
             int userId, long ceSnapshotInode, int snapshotId, int storageFlags);
 
