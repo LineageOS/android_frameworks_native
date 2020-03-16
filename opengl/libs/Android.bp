@@ -166,6 +166,10 @@ cc_library_shared {
     defaults: [
         "egl_libs_defaults",
     ],
+    cflags: select(soong_config_variable("NV_ANDROID", "FRAMEWORK_ENHANCEMENTS"), {
+        "true": ["-DNV_ANDROID_FRAMEWORK_ENHANCEMENTS"],
+        default: [],
+    }),
     llndk: {
         symbol_file: "libEGL.map.txt",
         export_llndk_headers: ["gl_headers"],
