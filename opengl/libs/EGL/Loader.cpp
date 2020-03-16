@@ -671,6 +671,11 @@ void Loader::initialize_api(void* dso, egl_connection_t* cnx, uint32_t mask) {
         ALOGE_IF(!getProcAddress,
                 "can't find eglGetProcAddress() in EGL driver library");
 
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+        // This internally sets a bit in the main Nvidia EGL driver to enable desktop openGL
+        getProcAddress("eglSentinelForNVFrameworks");
+#endif
+
         egl_t* egl = &cnx->egl;
         __eglMustCastToProperFunctionPointerType* curr =
             (__eglMustCastToProperFunctionPointerType*)egl;

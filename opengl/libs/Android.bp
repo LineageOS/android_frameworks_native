@@ -151,7 +151,10 @@ cc_library_static {
 
 cc_library_shared {
     name: "libEGL",
-    defaults: ["egl_libs_defaults"],
+    defaults: [
+        "egl_libs_defaults",
+        "nvidia_enhancements_defaults"
+    ],
     llndk: {
         symbol_file: "libEGL.map.txt",
         export_llndk_headers: ["gl_headers"],
