@@ -1140,8 +1140,7 @@ public:
             return err;
         }
 
-        err = remote()->transact(BnSurfaceComposer::SET_FRAME_RATE, data, &reply,
-                                 IBinder::FLAG_ONEWAY);
+        err = remote()->transact(BnSurfaceComposer::SET_FRAME_RATE, data, &reply);
         if (err != NO_ERROR) {
             ALOGE("setFrameRate: failed to transact: %s (%d)", strerror(-err), err);
             return err;

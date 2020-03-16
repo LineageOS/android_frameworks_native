@@ -6069,18 +6069,22 @@ status_t SurfaceFlinger::setFrameRate(const sp<IGraphicBufferProducer>& surface,
         return BAD_VALUE;
     }
 
-    Mutex::Autolock lock(mStateLock);
-    if (authenticateSurfaceTextureLocked(surface)) {
-        sp<Layer> layer = (static_cast<MonitoredProducer*>(surface.get()))->getLayer();
-        if (layer->setFrameRate(
-                    Layer::FrameRate(frameRate,
-                                     Layer::FrameRate::convertCompatibility(compatibility)))) {
-            setTransactionFlags(eTraversalNeeded);
+    postMessageAsync(new LambdaMessage([=]() NO_THREAD_SAFETY_ANALYSIS {
+        Mutex::Autolock lock(mStateLock);
+        if (authenticateSurfaceTextureLocked(surface)) {
+            sp<Layer> layer = (static_cast<MonitoredProducer*>(surface.get()))->getLayer();
+            if (layer->setFrameRate(
+                        Layer::FrameRate(frameRate,
+                                         Layer::FrameRate::convertCompatibility(compatibility)))) {
+                setTransactionFlags(eTraversalNeeded);
+            }
+        } else {
+            ALOGE("Attempt to set frame rate on an unrecognized IGraphicBufferProducer");
+            return BAD_VALUE;
         }
-    } else {
-        ALOGE("Attempt to set frame rate on an unrecognized IGraphicBufferProducer");
-        return BAD_VALUE;
-    }
+        return NO_ERROR;
+    }));
+
     return NO_ERROR;
 }
 
