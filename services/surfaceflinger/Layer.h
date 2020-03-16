@@ -259,6 +259,9 @@ public:
         int32_t frameRateSelectionPriority;
 
         FrameRate frameRate;
+
+        // Indicates whether parents / children of this layer had set FrameRate
+        bool treeHasFrameRateVote;
     };
 
     explicit Layer(const LayerCreationArgs& args);
@@ -344,7 +347,8 @@ public:
     virtual void deferTransactionUntil_legacy(const sp<Layer>& barrierLayer, uint64_t frameNumber);
     virtual bool setOverrideScalingMode(int32_t overrideScalingMode);
     virtual bool setMetadata(const LayerMetadata& data);
-    virtual bool reparentChildren(const sp<IBinder>& layer);
+    bool reparentChildren(const sp<IBinder>& newParentHandle);
+    void reparentChildren(const sp<Layer>& newParent);
     virtual void setChildrenDrawingParent(const sp<Layer>& layer);
     virtual bool reparent(const sp<IBinder>& newParentHandle);
     virtual bool detachChildren();
@@ -801,7 +805,7 @@ public:
     Rect getCroppedBufferSize(const Layer::State& s) const;
 
     bool setFrameRate(FrameRate frameRate);
-    virtual FrameRate getFrameRate() const;
+    virtual FrameRate getFrameRateForLayerTree() const;
 
 protected:
     // constant
@@ -830,6 +834,7 @@ protected:
     // For unit tests
     friend class TestableSurfaceFlinger;
     friend class RefreshRateSelectionTest;
+    friend class SetFrameRateTest;
 
     virtual void commitTransaction(const State& stateToCommit);
 
@@ -1016,6 +1021,8 @@ private:
                                        const LayerVector::Visitor& visitor);
     LayerVector makeChildrenTraversalList(LayerVector::StateSet stateSet,
                                           const std::vector<Layer*>& layersInTree);
+
+    void updateTreeHasFrameRateVote();
 
     // Cached properties computed from drawing state
     // Effective transform taking into account parent transforms and any parent scaling.
