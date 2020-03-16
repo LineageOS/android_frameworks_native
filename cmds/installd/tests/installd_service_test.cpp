@@ -641,6 +641,46 @@ TEST_F(AppDataSnapshotTest, DestroyAppDataSnapshot_WrongVolumeUuid) {
           "com.foo", 0, 0, 43, FLAG_STORAGE_DE).isOk());
 }
 
+TEST_F(AppDataSnapshotTest, DestroyCeSnapshotsNotSpecified) {
+  auto rollback_ce_dir_in_1 = create_data_misc_ce_rollback_path("TEST", 0, 1543);
+  auto rollback_ce_dir_in_2 = create_data_misc_ce_rollback_path("TEST", 0, 77);
+  auto rollback_ce_dir_out_1 = create_data_misc_ce_rollback_path("TEST", 0, 1500);
+  auto rollback_ce_dir_out_2 = create_data_misc_ce_rollback_path("TEST", 0, 2);
+
+  // Create snapshots
+  ASSERT_TRUE(mkdirs(rollback_ce_dir_in_1 + "/com.foo/", 0700));
+  ASSERT_TRUE(android::base::WriteStringToFile(
+          "CE_RESTORE_CONTENT", rollback_ce_dir_in_1 + "/com.foo/file1",
+          0700, 10000, 20000, false /* follow_symlinks */));
+
+  ASSERT_TRUE(mkdirs(rollback_ce_dir_in_2 + "/com.foo/", 0700));
+  ASSERT_TRUE(android::base::WriteStringToFile(
+          "CE_RESTORE_CONTENT", rollback_ce_dir_in_2 + "/com.foo/file1",
+          0700, 10000, 20000, false /* follow_symlinks */));
+
+  ASSERT_TRUE(mkdirs(rollback_ce_dir_out_1 + "/com.foo/", 0700));
+  ASSERT_TRUE(android::base::WriteStringToFile(
+          "CE_RESTORE_CONTENT", rollback_ce_dir_out_1 + "/com.foo/file1",
+          0700, 10000, 20000, false /* follow_symlinks */));
+
+  ASSERT_TRUE(mkdirs(rollback_ce_dir_out_2 + "/com.foo/", 0700));
+  ASSERT_TRUE(android::base::WriteStringToFile(
+          "CE_RESTORE_CONTENT", rollback_ce_dir_out_2 + "/com.foo/file1",
+          0700, 10000, 20000, false /* follow_symlinks */));
+
+  ASSERT_TRUE(service->destroyCeSnapshotsNotSpecified(
+          std::make_unique<std::string>("TEST"), 0, { 1543, 77 }).isOk());
+
+  // Check only snapshots not specified are deleted.
+  struct stat sb;
+  ASSERT_EQ(0, stat((rollback_ce_dir_in_1 + "/com.foo").c_str(), &sb));
+  ASSERT_EQ(0, stat((rollback_ce_dir_in_2 + "/com.foo").c_str(), &sb));
+  ASSERT_EQ(-1, stat((rollback_ce_dir_out_1 + "/com.foo").c_str(), &sb));
+  ASSERT_EQ(ENOENT, errno);
+  ASSERT_EQ(-1, stat((rollback_ce_dir_out_2 + "/com.foo").c_str(), &sb));
+  ASSERT_EQ(ENOENT, errno);
+}
+
 TEST_F(AppDataSnapshotTest, RestoreAppDataSnapshot_WrongVolumeUuid) {
   // Setup rollback data to make sure that fails due to wrong volumeUuid being
   // passed, not because of some other reason.
