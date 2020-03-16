@@ -116,6 +116,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.frameRateSelectionPriority = PRIORITY_UNSET;
     mCurrentState.metadata = args.metadata;
     mCurrentState.shadowRadius = 0.f;
+    mCurrentState.treeHasFrameRateVote = false;
 
     // drawing state & current state are identical
     mDrawingState = mCurrentState;
@@ -1334,6 +1335,44 @@ bool Layer::setShadowRadius(float shadowRadius) {
     return true;
 }
 
+void Layer::updateTreeHasFrameRateVote() {
+    const auto traverseTree = [&](const LayerVector::Visitor& visitor) {
+        auto parent = getParent();
+        while (parent) {
+            visitor(parent.get());
+            parent = parent->getParent();
+        }
+
+        traverse(LayerVector::StateSet::Current, visitor);
+    };
+
+    // update parents and children about the vote
+    // First traverse the tree and count how many layers has votes
+    int layersWithVote = 0;
+    traverseTree([&layersWithVote](Layer* layer) {
+        if (layer->mCurrentState.frameRate.rate > 0 ||
+            layer->mCurrentState.frameRate.type == FrameRateCompatibility::NoVote) {
+            layersWithVote++;
+        }
+    });
+
+    // Now update the other layers
+    bool transactionNeeded = false;
+    traverseTree([layersWithVote, &transactionNeeded](Layer* layer) {
+        if (layer->mCurrentState.treeHasFrameRateVote != layersWithVote > 0) {
+            layer->mCurrentState.sequence++;
+            layer->mCurrentState.treeHasFrameRateVote = layersWithVote > 0;
+            layer->mCurrentState.modified = true;
+            layer->setTransactionFlags(eTransactionNeeded);
+            transactionNeeded = true;
+        }
+    });
+
+    if (transactionNeeded) {
+        mFlinger->setTransactionFlags(eTraversalNeeded);
+    }
+}
+
 bool Layer::setFrameRate(FrameRate frameRate) {
     if (!mFlinger->useFrameRateApi) {
         return false;
@@ -1345,12 +1384,26 @@ bool Layer::setFrameRate(FrameRate frameRate) {
     mCurrentState.sequence++;
     mCurrentState.frameRate = frameRate;
     mCurrentState.modified = true;
+
+    updateTreeHasFrameRateVote();
+
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
 
-Layer::FrameRate Layer::getFrameRate() const {
-    return getDrawingState().frameRate;
+Layer::FrameRate Layer::getFrameRateForLayerTree() const {
+    const auto frameRate = getDrawingState().frameRate;
+    if (frameRate.rate > 0 || frameRate.type == FrameRateCompatibility::NoVote) {
+        return frameRate;
+    }
+
+    // This layer doesn't have a frame rate. If one of its ancestors or successors
+    // have a vote, return a NoVote for ancestors/successors to set the vote
+    if (getDrawingState().treeHasFrameRateVote) {
+        return {0, FrameRateCompatibility::NoVote};
+    }
+
+    return frameRate;
 }
 
 void Layer::deferTransactionUntil_legacy(const sp<Layer>& barrierLayer, uint64_t frameNumber) {
@@ -1608,6 +1661,7 @@ void Layer::addChild(const sp<Layer>& layer) {
 
     mCurrentChildren.add(layer);
     layer->setParent(this);
+    updateTreeHasFrameRateVote();
 }
 
 ssize_t Layer::removeChild(const sp<Layer>& layer) {
@@ -1615,7 +1669,24 @@ ssize_t Layer::removeChild(const sp<Layer>& layer) {
     setTransactionFlags(eTransactionNeeded);
 
     layer->setParent(nullptr);
-    return mCurrentChildren.remove(layer);
+    const auto removeResult = mCurrentChildren.remove(layer);
+
+    updateTreeHasFrameRateVote();
+    layer->updateTreeHasFrameRateVote();
+
+    return removeResult;
+}
+
+void Layer::reparentChildren(const sp<Layer>& newParent) {
+    if (attachChildren()) {
+        setTransactionFlags(eTransactionNeeded);
+    }
+
+    for (const sp<Layer>& child : mCurrentChildren) {
+        newParent->addChild(child);
+    }
+    mCurrentChildren.clear();
+    updateTreeHasFrameRateVote();
 }
 
 bool Layer::reparentChildren(const sp<IBinder>& newParentHandle) {
@@ -1631,13 +1702,7 @@ bool Layer::reparentChildren(const sp<IBinder>& newParentHandle) {
         return false;
     }
 
-    if (attachChildren()) {
-        setTransactionFlags(eTransactionNeeded);
-    }
-    for (const sp<Layer>& child : mCurrentChildren) {
-        newParent->addChild(child);
-    }
-    mCurrentChildren.clear();
+    reparentChildren(newParent);
 
     return true;
 }
