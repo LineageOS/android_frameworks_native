@@ -39,7 +39,7 @@ namespace android::scheduler::impl {
 namespace {
 
 bool isLayerActive(const Layer& layer, const LayerInfo& info, nsecs_t threshold) {
-    if (layer.getFrameRate().rate > 0) {
+    if (layer.getFrameRateForLayerTree().rate > 0) {
         return layer.isVisible();
     }
     return layer.isVisible() && info.getLastUpdatedTime() >= threshold;
@@ -109,7 +109,7 @@ LayerHistory::Summary LayerHistory::summarize(nsecs_t now) {
         // Only use the layer if the reference still exists.
         if (layer || CC_UNLIKELY(mTraceEnabled)) {
             // Check if frame rate was set on layer.
-            const auto frameRate = layer->getFrameRate();
+            const auto frameRate = layer->getFrameRateForLayerTree();
             if (frameRate.rate > 0.f) {
                 const auto voteType = [&]() {
                     switch (frameRate.type) {

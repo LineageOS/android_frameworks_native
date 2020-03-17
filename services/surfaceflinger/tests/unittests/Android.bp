@@ -50,6 +50,7 @@ cc_test {
         "PhaseOffsetsTest.cpp",
         "SchedulerTest.cpp",
         "SchedulerUtilsTest.cpp",
+        "SetFrameRateTest.cpp",
         "RefreshRateConfigsTest.cpp",
         "RefreshRateSelectionTest.cpp",
         "RefreshRateStatsTest.cpp",
