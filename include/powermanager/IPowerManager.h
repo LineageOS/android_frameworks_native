@@ -46,10 +46,10 @@ public:
         IS_POWER_SAVE_MODE           = IBinder::FIRST_CALL_TRANSACTION + 12,
         GET_POWER_SAVE_STATE         = IBinder::FIRST_CALL_TRANSACTION + 13,
         SET_POWER_SAVE_MODE_ENABLED  = IBinder::FIRST_CALL_TRANSACTION + 14,
-        REBOOT                       = IBinder::FIRST_CALL_TRANSACTION + 17,
-        REBOOT_SAFE_MODE             = IBinder::FIRST_CALL_TRANSACTION + 18,
-        SHUTDOWN                     = IBinder::FIRST_CALL_TRANSACTION + 19,
-        CRASH                        = IBinder::FIRST_CALL_TRANSACTION + 20,
+        REBOOT                       = IBinder::FIRST_CALL_TRANSACTION + 21,
+        REBOOT_SAFE_MODE             = IBinder::FIRST_CALL_TRANSACTION + 22,
+        SHUTDOWN                     = IBinder::FIRST_CALL_TRANSACTION + 23,
+        CRASH                        = IBinder::FIRST_CALL_TRANSACTION + 24,
     };
 
     DECLARE_META_INTERFACE(PowerManager)
