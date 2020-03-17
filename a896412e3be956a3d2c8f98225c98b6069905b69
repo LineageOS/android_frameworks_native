@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "f3f9aca7_e18ecee2",
+        "filename": "opengl/libs/EGL/Loader.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 731,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2020-03-17T19:16:11Z",
+      "side": 1,
+      "message": "Where is this cpp flag being set?",
+      "range": {
+        "startLine": 731,
+        "startChar": 7,
+        "endLine": 731,
+        "endChar": 40
+      },
+      "revId": "a896412e3be956a3d2c8f98225c98b6069905b69",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
+    }
+  ]
+}
