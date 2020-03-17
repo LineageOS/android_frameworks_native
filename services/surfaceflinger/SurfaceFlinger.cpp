@@ -364,11 +364,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
 
     property_get("ro.surface_flinger.supports_background_blur", value, "0");
     bool supportsBlurs = atoi(value);
-    property_get("debug.sf.disable_blurs", value, "0");
-    bool disableBlurs = atoi(value);
-    mEnableBlurs = supportsBlurs && !disableBlurs;
-    ALOGI_IF(!mEnableBlurs, "Disabling blur effects. supported: %d, disabled: %d", supportsBlurs,
-             disableBlurs);
+    mSupportsBlur = supportsBlurs;
+    ALOGI_IF(!mSupportsBlur, "Disabling blur effects, they are not supported.");
     property_get("ro.sf.blurs_are_expensive", value, "0");
     mBlursAreExpensive = atoi(value);
 
@@ -629,7 +626,7 @@ void SurfaceFlinger::init() {
                 .setUseColorManagerment(useColorManagement)
                 .setEnableProtectedContext(enable_protected_contents(false))
                 .setPrecacheToneMapperShaderOnly(false)
-                .setSupportsBackgroundBlur(mEnableBlurs)
+                .setSupportsBackgroundBlur(mSupportsBlur)
                 .setContextPriority(useContextPriority
                         ? renderengine::RenderEngine::ContextPriority::HIGH
                         : renderengine::RenderEngine::ContextPriority::MEDIUM)
@@ -711,6 +708,11 @@ void SurfaceFlinger::readPersistentProperties() {
 
     property_get("persist.sys.sf.color_mode", value, "0");
     mForceColorMode = static_cast<ColorMode>(atoi(value));
+
+    property_get("persist.sys.sf.disable_blurs", value, "0");
+    bool disableBlurs = atoi(value);
+    mDisableBlurs = disableBlurs;
+    ALOGI_IF(disableBlurs, "Disabling blur effects, user preference.");
 }
 
 void SurfaceFlinger::startBootAnim() {
@@ -3603,7 +3605,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         if (layer->setCornerRadius(s.cornerRadius))
             flags |= eTraversalNeeded;
     }
-    if (what & layer_state_t::eBackgroundBlurRadiusChanged) {
+    if (what & layer_state_t::eBackgroundBlurRadiusChanged && !mDisableBlurs) {
         if (layer->setBackgroundBlurRadius(s.backgroundBlurRadius)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eLayerStackChanged) {
