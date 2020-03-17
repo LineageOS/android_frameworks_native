@@ -101,7 +101,7 @@ private:
     std::condition_variable mCanStartTrace;
 
     std::mutex& mSfLock;
-    uint32_t mTraceFlags GUARDED_BY(mSfLock) = TRACE_ALL;
+    uint32_t mTraceFlags GUARDED_BY(mSfLock) = TRACE_CRITICAL | TRACE_INPUT;
     const char* mWhere GUARDED_BY(mSfLock) = "";
 
     mutable std::mutex mTraceLock;
