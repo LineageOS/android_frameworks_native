@@ -220,6 +220,9 @@ void Layer::removeFromCurrentState() {
     }
 
     mFlinger->markLayerPendingRemovalLocked(this);
+    if (hasInput()) {
+        mFlinger->dirtyInput();
+    }
 }
 
 void Layer::onRemovedFromCurrentState() {
