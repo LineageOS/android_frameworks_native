@@ -30,16 +30,11 @@
 
 namespace android {
 
-GpuStats::GpuStats() {
-    AStatsManager_registerPullAtomCallback(android::util::GPU_STATS_GLOBAL_INFO,
-                                           GpuStats::pullAtomCallback, nullptr, this);
-    AStatsManager_registerPullAtomCallback(android::util::GPU_STATS_APP_INFO,
-                                           GpuStats::pullAtomCallback, nullptr, this);
-}
-
 GpuStats::~GpuStats() {
-    AStatsManager_unregisterPullAtomCallback(android::util::GPU_STATS_GLOBAL_INFO);
-    AStatsManager_unregisterPullAtomCallback(android::util::GPU_STATS_APP_INFO);
+    if (mStatsdRegistered) {
+        AStatsManager_unregisterPullAtomCallback(android::util::GPU_STATS_GLOBAL_INFO);
+        AStatsManager_unregisterPullAtomCallback(android::util::GPU_STATS_APP_INFO);
+    }
 }
 
 static void addLoadingCount(GpuStatsInfo::Driver driver, bool isDriverLoaded,
@@ -97,6 +92,7 @@ void GpuStats::insertDriverStats(const std::string& driverPackageName,
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mLock);
+    registerStatsdCallbacksIfNeeded();
     ALOGV("Received:\n"
           "\tdriverPackageName[%s]\n"
           "\tdriverVersionName[%s]\n"
@@ -150,6 +146,7 @@ void GpuStats::insertTargetStats(const std::string& appPackageName,
     const std::string appStatsKey = appPackageName + std::to_string(driverVersionCode);
 
     std::lock_guard<std::mutex> lock(mLock);
+    registerStatsdCallbacksIfNeeded();
     if (!mAppStats.count(appStatsKey)) {
         return;
     }
@@ -177,6 +174,16 @@ void GpuStats::interceptSystemDriverStatsLocked() {
 
     mGlobalStats[0].cpuVulkanVersion = property_get_int32("ro.cpuvulkan.version", 0);
     mGlobalStats[0].glesVersion = property_get_int32("ro.opengles.version", 0);
+}
+
+void GpuStats::registerStatsdCallbacksIfNeeded() {
+    if (!mStatsdRegistered) {
+        AStatsManager_registerPullAtomCallback(android::util::GPU_STATS_GLOBAL_INFO,
+                                               GpuStats::pullAtomCallback, nullptr, this);
+        AStatsManager_registerPullAtomCallback(android::util::GPU_STATS_APP_INFO,
+                                               GpuStats::pullAtomCallback, nullptr, this);
+        mStatsdRegistered = true;
+    }
 }
 
 void GpuStats::dump(const Vector<String16>& args, std::string* result) {
