@@ -75,7 +75,6 @@ interface IInstalld {
     void idmap(@utf8InCpp String targetApkPath, @utf8InCpp String overlayApkPath, int uid);
     void removeIdmap(@utf8InCpp String overlayApkPath);
     void rmPackageDir(@utf8InCpp String packageDir);
-    void markBootComplete(@utf8InCpp String instructionSet);
     void freeCache(@nullable @utf8InCpp String uuid, long targetFreeBytes,
             long cacheReservedBytes, int flags);
     void linkNativeLibraryDirectory(@nullable @utf8InCpp String uuid,

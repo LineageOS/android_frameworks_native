@@ -2136,26 +2136,6 @@ binder::Status InstalldNativeService::compileLayouts(const std::string& apkPath,
     return *_aidl_return ? ok() : error("viewcompiler failed");
 }
 
-binder::Status InstalldNativeService::markBootComplete(const std::string& instructionSet) {
-    ENFORCE_UID(AID_SYSTEM);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
-
-    const char* instruction_set = instructionSet.c_str();
-
-    char boot_marker_path[PKG_PATH_MAX];
-    sprintf(boot_marker_path,
-          "%s/%s/%s/.booting",
-          android_data_dir.c_str(),
-          DALVIK_CACHE,
-          instruction_set);
-
-    ALOGV("mark_boot_complete : %s", boot_marker_path);
-    if (unlink(boot_marker_path) != 0) {
-        return error(StringPrintf("Failed to unlink %s", boot_marker_path));
-    }
-    return ok();
-}
-
 binder::Status InstalldNativeService::linkNativeLibraryDirectory(
         const std::unique_ptr<std::string>& uuid, const std::string& packageName,
         const std::string& nativeLibPath32, int32_t userId) {
