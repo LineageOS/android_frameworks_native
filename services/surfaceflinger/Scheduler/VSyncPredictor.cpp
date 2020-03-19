@@ -115,10 +115,10 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
     auto it = mRateMap.find(mIdealPeriod);
     auto const currentPeriod = std::get<0>(it->second);
     // TODO (b/144707443): its important that there's some precision in the mean of the ordinals
-    //                     for the intercept calculation, so scale the ordinals by 10 to continue
+    //                     for the intercept calculation, so scale the ordinals by 1000 to continue
     //                     fixed point calculation. Explore expanding
     //                     scheduler::utils::calculate_mean to have a fixed point fractional part.
-    static constexpr int kScalingFactor = 10;
+    static constexpr int64_t kScalingFactor = 1000;
 
     for (auto i = 0u; i < mTimestamps.size(); i++) {
         traceInt64If("VSP-ts", mTimestamps[i]);
@@ -147,7 +147,7 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
         return false;
     }
 
-    nsecs_t const anticipatedPeriod = top / bottom * kScalingFactor;
+    nsecs_t const anticipatedPeriod = top * kScalingFactor / bottom;
     nsecs_t const intercept = meanTS - (anticipatedPeriod * meanOrdinal / kScalingFactor);
 
     auto const percent = std::abs(anticipatedPeriod - mIdealPeriod) * kMaxPercent / mIdealPeriod;

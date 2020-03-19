@@ -204,7 +204,7 @@ TEST_F(VSyncPredictorTest, againstOutliersDiscontinuous_500hzLowVariance) {
     };
     auto idealPeriod = 2000000;
     auto expectedPeriod = 1999892;
-    auto expectedIntercept = 175409;
+    auto expectedIntercept = 86342;
 
     tracker.setPeriod(idealPeriod);
     for (auto const& timestamp : simulatedVsyncs) {
@@ -335,8 +335,8 @@ TEST_F(VSyncPredictorTest, doesNotPredictBeforeTimePointWithHigherIntercept) {
             158929706370359,
     };
     auto const idealPeriod = 11111111;
-    auto const expectedPeriod = 11113500;
-    auto const expectedIntercept = -395335;
+    auto const expectedPeriod = 11113919;
+    auto const expectedIntercept = -1195945;
 
     tracker.setPeriod(idealPeriod);
     for (auto const& timestamp : simulatedVsyncs) {
@@ -353,6 +353,32 @@ TEST_F(VSyncPredictorTest, doesNotPredictBeforeTimePointWithHigherIntercept) {
     auto const timePoint = 158929728723871;
     auto const prediction = tracker.nextAnticipatedVSyncTimeFrom(timePoint);
     EXPECT_THAT(prediction, Ge(timePoint));
+}
+
+// See b/151146131
+TEST_F(VSyncPredictorTest, hasEnoughPrecision) {
+    VSyncPredictor tracker{mPeriod, 20, kMinimumSamplesForPrediction, kOutlierTolerancePercent};
+    std::vector<nsecs_t> const simulatedVsyncs{840873348817, 840890049444, 840906762675,
+                                               840923581635, 840940161584, 840956868096,
+                                               840973702473, 840990256277, 841007116851,
+                                               841023722530, 841040452167, 841057073002,
+                                               841073800920, 841090474360, 841107278632,
+                                               841123898634, 841140750875, 841157287127,
+                                               841591357014, 840856664232
+
+    };
+    auto const idealPeriod = 16666666;
+    auto const expectedPeriod = 16698426;
+    auto const expectedIntercept = 58055;
+
+    tracker.setPeriod(idealPeriod);
+    for (auto const& timestamp : simulatedVsyncs) {
+        tracker.addVsyncTimestamp(timestamp);
+    }
+
+    auto [slope, intercept] = tracker.getVSyncPredictionModel();
+    EXPECT_THAT(slope, IsCloseTo(expectedPeriod, mMaxRoundingError));
+    EXPECT_THAT(intercept, IsCloseTo(expectedIntercept, mMaxRoundingError));
 }
 
 TEST_F(VSyncPredictorTest, resetsWhenInstructed) {
@@ -388,6 +414,22 @@ TEST_F(VSyncPredictorTest, slopeAlwaysValid) {
             EXPECT_TRUE(tracker.needsMoreSamples(now));
         }
     }
+}
+
+constexpr nsecs_t operator""_years(unsigned long long years) noexcept {
+    using namespace std::chrono_literals;
+    return years * 365 * 24 * 3600 *
+            std::chrono::duration_cast<std::chrono::nanoseconds>(1s).count();
+}
+TEST_F(VSyncPredictorTest, aPhoneThatHasBeenAroundAWhileCanStillComputePeriod) {
+    constexpr nsecs_t timeBase = 100_years;
+
+    for (auto i = 0; i < kHistorySize; i++) {
+        tracker.addVsyncTimestamp(timeBase + i * mPeriod);
+    }
+    auto [slope, intercept] = tracker.getVSyncPredictionModel();
+    EXPECT_THAT(slope, IsCloseTo(mPeriod, mMaxRoundingError));
+    EXPECT_THAT(intercept, Eq(0));
 }
 
 } // namespace android::scheduler
