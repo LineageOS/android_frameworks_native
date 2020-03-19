@@ -30,7 +30,6 @@ namespace android {
 
 class GpuStats {
 public:
-    GpuStats();
     ~GpuStats();
 
     // Insert new gpu driver stats into global stats and app stats.
@@ -66,12 +65,16 @@ private:
     void dumpAppLocked(std::string* result);
     // Append cpuVulkanVersion and glesVersion to system driver stats
     void interceptSystemDriverStatsLocked();
+    // Registers statsd callbacks if they have not already been registered
+    void registerStatsdCallbacksIfNeeded();
 
     // Below limits the memory usage of GpuStats to be less than 10KB. This is
     // the preferred number for statsd while maintaining nice data quality.
     static const size_t MAX_NUM_APP_RECORDS = 100;
     // GpuStats access should be guarded by mLock.
     std::mutex mLock;
+    // True if statsd callbacks have been registered.
+    bool mStatsdRegistered = false;
     // Key is driver version code.
     std::unordered_map<uint64_t, GpuStatsGlobalInfo> mGlobalStats;
     // Key is <app package name>+<driver version code>.
