@@ -42,7 +42,6 @@ public:
     void allocateBuffers(uint32_t width, uint32_t height);
     EGLImageKHR getEGLImage() const { return mEGLImage; }
     uint32_t getTextureName() const { return mTextureName; }
-    uint32_t getSecondaryTextureName() const { return mSecondaryTextureName; }
     uint32_t getFramebufferName() const { return mFramebufferName; }
     int32_t getBufferHeight() const { return mBufferHeight; }
     int32_t getBufferWidth() const { return mBufferWidth; }
@@ -59,7 +58,6 @@ private:
     bool usingFramebufferCache = false;
     GLenum mStatus = GL_FRAMEBUFFER_UNSUPPORTED;
     uint32_t mTextureName, mFramebufferName;
-    uint32_t mSecondaryTextureName = -1;
 
     int32_t mBufferHeight = 0;
     int32_t mBufferWidth = 0;
