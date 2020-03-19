@@ -101,7 +101,6 @@ struct DeviceData {
     uint32_t driver_version;
 };
 
-bool Debuggable();
 bool OpenHAL();
 const VkAllocationCallbacks& GetDefaultAllocator();
 

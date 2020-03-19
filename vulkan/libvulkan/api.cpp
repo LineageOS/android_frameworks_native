@@ -124,7 +124,7 @@ class OverrideLayerNames {
     };
 
     void AddImplicitLayers() {
-        if (!is_instance_ || !driver::Debuggable())
+        if (!is_instance_)
             return;
 
         GetLayersFromSettings();
@@ -370,7 +370,8 @@ class OverrideExtensionNames {
 
    private:
     bool EnableDebugCallback() const {
-        return (is_instance_ && driver::Debuggable() &&
+        return (is_instance_ &&
+                android::GraphicsEnv::getInstance().isDebuggable() &&
                 property_get_bool("debug.vulkan.enable_callback", false));
     }
 
