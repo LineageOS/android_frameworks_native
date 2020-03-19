@@ -990,6 +990,9 @@ void SurfaceFlinger::setActiveConfigInternal() {
         return;
     }
 
+    auto& oldRefreshRate =
+            mRefreshRateConfigs->getRefreshRateFromConfigId(display->getActiveConfig());
+
     std::lock_guard<std::mutex> lock(mActiveConfigLock);
     mRefreshRateConfigs->setCurrentConfigId(mUpcomingActiveConfig.configId);
     mRefreshRateStats->setConfigMode(mUpcomingActiveConfig.configId);
@@ -997,6 +1000,9 @@ void SurfaceFlinger::setActiveConfigInternal() {
 
     auto& refreshRate =
             mRefreshRateConfigs->getRefreshRateFromConfigId(mUpcomingActiveConfig.configId);
+    if (refreshRate.vsyncPeriod != oldRefreshRate.vsyncPeriod) {
+        mTimeStats->incrementRefreshRateSwitches();
+    }
     mPhaseConfiguration->setRefreshRateFps(refreshRate.fps);
     mVSyncModulator->setPhaseOffsets(mPhaseConfiguration->getCurrentOffsets());
     ATRACE_INT("ActiveConfigFPS", refreshRate.fps);

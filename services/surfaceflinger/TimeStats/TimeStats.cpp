@@ -282,6 +282,15 @@ void TimeStats::incrementClientCompositionReusedFrames() {
     mTimeStats.clientCompositionReusedFrames++;
 }
 
+void TimeStats::incrementRefreshRateSwitches() {
+    if (!mEnabled.load()) return;
+
+    ATRACE_CALL();
+
+    std::lock_guard<std::mutex> lock(mMutex);
+    mTimeStats.refreshRateSwitches++;
+}
+
 void TimeStats::recordDisplayEventConnectionCount(int32_t count) {
     if (!mEnabled.load()) return;
 
@@ -835,6 +844,7 @@ void TimeStats::clearGlobalLocked() {
     mTimeStats.missedFrames = 0;
     mTimeStats.clientCompositionFrames = 0;
     mTimeStats.clientCompositionReusedFrames = 0;
+    mTimeStats.refreshRateSwitches = 0;
     mTimeStats.displayEventConnectionsCount = 0;
     mTimeStats.displayOnTime = 0;
     mTimeStats.presentToPresent.hist.clear();
