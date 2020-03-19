@@ -1993,13 +1993,13 @@ bool InputDispatcher::isWindowObscuredAtPointLocked(const sp<InputWindowHandle>&
     int32_t displayId = windowHandle->getInfo()->displayId;
     const std::vector<sp<InputWindowHandle>> windowHandles = getWindowHandlesLocked(displayId);
     for (const sp<InputWindowHandle>& otherHandle : windowHandles) {
-        if (otherHandle == windowHandle) {
+        if (haveSameToken(otherHandle, windowHandle)) {
             break;
         }
 
         const InputWindowInfo* otherInfo = otherHandle->getInfo();
-        if (otherInfo->displayId == displayId && otherInfo->visible &&
-            !otherInfo->isTrustedOverlay() && otherInfo->frameContainsPoint(x, y)) {
+        if (otherInfo->visible && !otherInfo->isTrustedOverlay() &&
+            otherInfo->frameContainsPoint(x, y)) {
             return true;
         }
     }
@@ -2011,13 +2011,13 @@ bool InputDispatcher::isWindowObscuredLocked(const sp<InputWindowHandle>& window
     const std::vector<sp<InputWindowHandle>> windowHandles = getWindowHandlesLocked(displayId);
     const InputWindowInfo* windowInfo = windowHandle->getInfo();
     for (const sp<InputWindowHandle>& otherHandle : windowHandles) {
-        if (otherHandle == windowHandle) {
+        if (haveSameToken(otherHandle, windowHandle)) {
             break;
         }
 
         const InputWindowInfo* otherInfo = otherHandle->getInfo();
-        if (otherInfo->displayId == displayId && otherInfo->visible &&
-            !otherInfo->isTrustedOverlay() && otherInfo->overlaps(windowInfo)) {
+        if (otherInfo->visible && !otherInfo->isTrustedOverlay() &&
+            otherInfo->overlaps(windowInfo)) {
             return true;
         }
     }
