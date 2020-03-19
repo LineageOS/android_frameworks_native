@@ -52,7 +52,6 @@ cc_defaults {
         "libstatslog",
         "libutils",
         "libui",
-        "server_configurable_flags",
     ],
 }
 
