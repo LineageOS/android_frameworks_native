@@ -32,23 +32,14 @@ namespace renderengine {
 namespace gl {
 
 GLFramebuffer::GLFramebuffer(GLESRenderEngine& engine)
-      : GLFramebuffer(engine, false /* multiTarget */) {}
-
-GLFramebuffer::GLFramebuffer(GLESRenderEngine& engine, bool multiTarget)
       : mEngine(engine), mEGLDisplay(engine.getEGLDisplay()), mEGLImage(EGL_NO_IMAGE_KHR) {
     glGenTextures(1, &mTextureName);
-    if (multiTarget) {
-        glGenTextures(1, &mSecondaryTextureName);
-    }
     glGenFramebuffers(1, &mFramebufferName);
 }
 
 GLFramebuffer::~GLFramebuffer() {
     glDeleteFramebuffers(1, &mFramebufferName);
     glDeleteTextures(1, &mTextureName);
-    if (mSecondaryTextureName != -1) {
-        glDeleteTextures(1, &mSecondaryTextureName);
-    }
 }
 
 bool GLFramebuffer::setNativeWindowBuffer(ANativeWindowBuffer* nativeBuffer, bool isProtected,
@@ -87,28 +78,12 @@ void GLFramebuffer::allocateBuffers(uint32_t width, uint32_t height) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
 
-    const bool multiTarget = mSecondaryTextureName != -1;
-    if (multiTarget) {
-        glBindTexture(GL_TEXTURE_2D, mSecondaryTextureName);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
-    }
-
     mBufferHeight = height;
     mBufferWidth = width;
     mEngine.checkErrors("Allocating Fbo texture");
 
     bind();
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mTextureName, 0);
-    if (multiTarget) {
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1_EXT, GL_TEXTURE_2D,
-                               mSecondaryTextureName, 0);
-        GLenum buffers[] = {GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT};
-        glDrawBuffers(2, buffers);
-    }
     mStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     unbind();
     glBindTexture(GL_TEXTURE_2D, 0);
