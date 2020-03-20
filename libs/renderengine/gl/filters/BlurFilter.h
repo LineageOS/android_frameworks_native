@@ -19,6 +19,7 @@
 #include <ui/GraphicTypes.h>
 #include "../GLESRenderEngine.h"
 #include "../GLFramebuffer.h"
+#include "../GLVertexBuffer.h"
 #include "GenericProgram.h"
 
 using namespace std;
@@ -71,6 +72,9 @@ private:
     // Buffer holding the final blur pass.
     GLFramebuffer* mLastDrawTarget;
     bool mTexturesAllocated = false;
+
+    // VBO containing vertex and uv data of a fullscreen triangle.
+    GLVertexBuffer mMeshBuffer;
 
     GenericProgram mMixProgram;
     GLuint mMPosLoc;
