@@ -55,6 +55,7 @@ filegroup {
         "gl/GLShadowTexture.cpp",
         "gl/GLShadowVertexGenerator.cpp",
         "gl/GLSkiaShadowPort.cpp",
+        "gl/GLVertexBuffer.cpp",
         "gl/ImageManager.cpp",
         "gl/Program.cpp",
         "gl/ProgramCache.cpp",
