@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <ostream>
 #include <type_traits>
 #include <utility>
 
@@ -113,13 +114,12 @@ struct Size {
                     std::numeric_limits<Size::remove_cv_reference_t<ToType>>::is_bounded &&
                             std::numeric_limits<Size::remove_cv_reference_t<FromType>>::is_bounded,
                     FromType&&>::type v) {
-        static constexpr auto toHighest = std::numeric_limits<remove_cv_reference_t<ToType>>::max();
-        static constexpr auto toLowest =
-                std::numeric_limits<remove_cv_reference_t<ToType>>::lowest();
-        static constexpr auto fromHighest =
-                std::numeric_limits<remove_cv_reference_t<FromType>>::max();
-        static constexpr auto fromLowest =
-                std::numeric_limits<remove_cv_reference_t<FromType>>::lowest();
+        using BareToType = remove_cv_reference_t<ToType>;
+        using BareFromType = remove_cv_reference_t<FromType>;
+        static constexpr auto toHighest = std::numeric_limits<BareToType>::max();
+        static constexpr auto toLowest = std::numeric_limits<BareToType>::lowest();
+        static constexpr auto fromHighest = std::numeric_limits<BareFromType>::max();
+        static constexpr auto fromLowest = std::numeric_limits<BareFromType>::lowest();
 
         // A clamp is needed if the range of FromType is not a subset of the range of ToType
         static constexpr bool isClampNeeded = (toLowest > fromLowest) || (toHighest < fromHighest);
@@ -129,10 +129,13 @@ struct Size {
             return static_cast<ToType>(v);
         }
 
-        // Otherwise we leverage implicit conversion to safely compare values of
-        // different types, to ensure we return a value clamped to the range of
-        // ToType.
-        return v < toLowest ? toLowest : (static_cast<ToType>(v) > toHighest ? toHighest : static_cast<ToType>(v));
+        // Otherwise we need to carefully compare the limits of ToType (casted
+        // for the comparisons to be warning free to FromType) while still
+        // ensuring we return a value clamped to the range of ToType.
+        return v < static_cast<const BareFromType>(toLowest)
+                ? toLowest
+                : (v > static_cast<const BareFromType>(toHighest) ? toHighest
+                                                                  : static_cast<ToType>(v));
     }
 };
 
@@ -152,6 +155,11 @@ inline bool operator<(const Size& lhs, const Size& rhs) {
     // Orders by increasing width, then height.
     if (lhs.width != rhs.width) return lhs.width < rhs.width;
     return lhs.height < rhs.height;
+}
+
+// Defining PrintTo helps with Google Tests.
+static inline void PrintTo(const Size& size, ::std::ostream* os) {
+    *os << "Size(" << size.width << ", " << size.height << ")";
 }
 
 } // namespace ui

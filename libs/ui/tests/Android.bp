@@ -111,6 +111,7 @@ cc_test {
 
 cc_test {
     name: "Size_test",
+    test_suites: ["device-tests"],
     shared_libs: ["libui"],
     srcs: ["Size_test.cpp"],
     cflags: ["-Wall", "-Werror"],
