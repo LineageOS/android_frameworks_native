@@ -332,7 +332,7 @@ private:
     const uint32_t mTexName;
 
     // The layer for this BufferLayerConsumer
-    const wp<Layer> mLayer;
+    Layer* mLayer;
 
     wp<ContentsChangedListener> mContentsChangedListener;
 
