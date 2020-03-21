@@ -132,6 +132,28 @@ TEST_F(InputClassifierTest, SendToNextStage_NotifyDeviceResetArgs) {
     ASSERT_EQ(args, outArgs);
 }
 
+TEST_F(InputClassifierTest, SetMotionClassifier_Enabled) {
+    mClassifier->setMotionClassifierEnabled(true);
+}
+
+TEST_F(InputClassifierTest, SetMotionClassifier_Disabled) {
+    mClassifier->setMotionClassifierEnabled(false);
+}
+
+/**
+ * Try to break it by calling setMotionClassifierEnabled multiple times.
+ */
+TEST_F(InputClassifierTest, SetMotionClassifier_Multiple) {
+    mClassifier->setMotionClassifierEnabled(true);
+    mClassifier->setMotionClassifierEnabled(true);
+    mClassifier->setMotionClassifierEnabled(true);
+    mClassifier->setMotionClassifierEnabled(false);
+    mClassifier->setMotionClassifierEnabled(false);
+    mClassifier->setMotionClassifierEnabled(true);
+    mClassifier->setMotionClassifierEnabled(true);
+    mClassifier->setMotionClassifierEnabled(true);
+}
+
 /**
  * A minimal implementation of IInputClassifier.
  */

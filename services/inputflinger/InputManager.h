@@ -100,6 +100,8 @@ public:
     virtual void registerInputChannel(const sp<InputChannel>& channel);
     virtual void unregisterInputChannel(const sp<InputChannel>& channel);
 
+    void setMotionClassifierEnabled(bool enabled);
+
 private:
     sp<InputReaderInterface> mReader;
     sp<InputReaderThread> mReaderThread;

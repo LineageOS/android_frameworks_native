@@ -90,6 +90,7 @@ public:
  */
 class InputClassifierInterface : public virtual RefBase, public InputListenerInterface {
 public:
+    virtual void setMotionClassifierEnabled(bool enabled) = 0;
     /**
      * Dump the state of the input classifier.
      * This method may be called on any thread (usually by the input manager).
@@ -231,6 +232,9 @@ public:
     virtual void dump(std::string& dump) override;
 
     ~InputClassifier();
+
+    // Called from InputManager
+    virtual void setMotionClassifierEnabled(bool enabled) override;
 
 private:
     // Protect access to mMotionClassifier, since it may become null via a hidl callback
