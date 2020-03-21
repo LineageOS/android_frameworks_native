@@ -188,17 +188,16 @@ TimeStats::TimeStats(std::unique_ptr<StatsEventDelegate> statsDelegate,
 
 TimeStats::~TimeStats() {
     std::lock_guard<std::mutex> lock(mMutex);
-    mStatsDelegate->unregisterStatsPullAtomCallback(
-            android::util::SURFACEFLINGER_STATS_GLOBAL_INFO);
-    mStatsDelegate->unregisterStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO);
+    mStatsDelegate->clearStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO);
+    mStatsDelegate->clearStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO);
 }
 
 void TimeStats::onBootFinished() {
     std::lock_guard<std::mutex> lock(mMutex);
-    mStatsDelegate->registerStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
-                                                  TimeStats::pullAtomCallback, nullptr, this);
-    mStatsDelegate->registerStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO,
-                                                  TimeStats::pullAtomCallback, nullptr, this);
+    mStatsDelegate->setStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
+                                             nullptr, TimeStats::pullAtomCallback, this);
+    mStatsDelegate->setStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO,
+                                             nullptr, TimeStats::pullAtomCallback, this);
 }
 
 void TimeStats::parseArgs(bool asProto, const Vector<String16>& args, std::string& result) {
