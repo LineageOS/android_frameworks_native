@@ -443,10 +443,7 @@ void BufferLayerConsumer::freeBufferLocked(int slotIndex) {
 }
 
 void BufferLayerConsumer::onDisconnect() {
-    sp<Layer> l = mLayer.promote();
-    if (l.get()) {
-        l->onDisconnect();
-    }
+    mLayer->onDisconnect();
 }
 
 void BufferLayerConsumer::onSidebandStreamChanged() {
@@ -480,10 +477,7 @@ void BufferLayerConsumer::onBufferAvailable(const BufferItem& item) {
 
 void BufferLayerConsumer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
                                                    FrameEventHistoryDelta* outDelta) {
-    sp<Layer> l = mLayer.promote();
-    if (l.get()) {
-        l->addAndGetFrameTimestamps(newTimestamps, outDelta);
-    }
+    mLayer->addAndGetFrameTimestamps(newTimestamps, outDelta);
 }
 
 void BufferLayerConsumer::abandonLocked() {
