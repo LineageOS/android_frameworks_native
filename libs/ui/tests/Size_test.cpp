@@ -19,7 +19,17 @@
 #include <cmath>
 #include <cstdlib>
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic error "-Wimplicit-int-float-conversion"
+#pragma clang diagnostic error "-Wconversion"
+#endif // __clang__
+
 #include <ui/Size.h>
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif // __clang__
 
 #include <gtest/gtest.h>
 
