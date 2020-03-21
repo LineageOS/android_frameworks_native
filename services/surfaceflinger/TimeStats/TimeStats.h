@@ -165,15 +165,15 @@ public:
         virtual AStatsEvent* addStatsEventToPullData(AStatsEventList* data) {
             return AStatsEventList_addStatsEvent(data);
         }
-        virtual void registerStatsPullAtomCallback(int32_t atom_tag,
-                                                   AStatsManager_PullAtomCallback callback,
-                                                   AStatsManager_PullAtomMetadata* metadata,
-                                                   void* cookie) {
-            return AStatsManager_registerPullAtomCallback(atom_tag, callback, metadata, cookie);
+        virtual void setStatsPullAtomCallback(int32_t atom_tag,
+                                              AStatsManager_PullAtomMetadata* metadata,
+                                              AStatsManager_PullAtomCallback callback,
+                                              void* cookie) {
+            return AStatsManager_setPullAtomCallback(atom_tag, metadata, callback, cookie);
         }
 
-        virtual void unregisterStatsPullAtomCallback(int32_t atom_tag) {
-            return AStatsManager_unregisterPullAtomCallback(atom_tag);
+        virtual void clearStatsPullAtomCallback(int32_t atom_tag) {
+            return AStatsManager_clearPullAtomCallback(atom_tag);
         }
 
         virtual void statsEventSetAtomId(AStatsEvent* event, uint32_t atom_id) {
