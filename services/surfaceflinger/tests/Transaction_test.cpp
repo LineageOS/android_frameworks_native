@@ -356,9 +356,9 @@ protected:
 
     virtual sp<SurfaceControl> createLayer(const sp<SurfaceComposerClient>& client,
                                            const char* name, uint32_t width, uint32_t height,
-                                           uint32_t flags = 0, SurfaceControl* parent = nullptr) {
-        auto layer =
-                createSurface(client, name, width, height, PIXEL_FORMAT_RGBA_8888, flags, parent);
+                                           uint32_t flags = 0, SurfaceControl* parent = nullptr,
+                                           PixelFormat format = PIXEL_FORMAT_RGBA_8888) {
+        auto layer = createSurface(client, name, width, height, format, flags, parent);
 
         Transaction t;
         t.setLayerStack(layer, mDisplayLayerStack).setLayer(layer, mLayerZBase);
@@ -382,8 +382,9 @@ protected:
     }
 
     virtual sp<SurfaceControl> createLayer(const char* name, uint32_t width, uint32_t height,
-                                           uint32_t flags = 0, SurfaceControl* parent = nullptr) {
-        return createLayer(mClient, name, width, height, flags, parent);
+                                           uint32_t flags = 0, SurfaceControl* parent = nullptr,
+                                           PixelFormat format = PIXEL_FORMAT_RGBA_8888) {
+        return createLayer(mClient, name, width, height, flags, parent, format);
     }
 
     sp<SurfaceControl> createColorLayer(const char* name, const Color& color,
@@ -644,12 +645,14 @@ public:
     LayerTypeTransactionHarness(uint32_t layerType) : mLayerType(layerType) {}
 
     sp<SurfaceControl> createLayer(const char* name, uint32_t width, uint32_t height,
-                                   uint32_t flags = 0, SurfaceControl* parent = nullptr) {
+                                   uint32_t flags = 0, SurfaceControl* parent = nullptr,
+                                   PixelFormat format = PIXEL_FORMAT_RGBA_8888) {
         // if the flags already have a layer type specified, return an error
         if (flags & ISurfaceComposerClient::eFXSurfaceMask) {
             return nullptr;
         }
-        return LayerTransactionTest::createLayer(name, width, height, flags | mLayerType, parent);
+        return LayerTransactionTest::createLayer(name, width, height, flags | mLayerType, parent,
+                                                 format);
     }
 
     void fillLayerColor(const sp<SurfaceControl>& layer, const Color& color, int32_t bufferWidth,
@@ -1943,6 +1946,65 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetLayerStackBasic) {
     {
         SCOPED_TRACE("original layer stack");
         getScreenCapture()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    }
+}
+
+TEST_P(LayerTypeAndRenderTypeTransactionTest, SetBufferFormat) {
+    int32_t width = 100;
+    int32_t height = 100;
+    Rect crop = Rect(0, 0, width, height);
+
+    sp<SurfaceControl> behindLayer = createColorLayer("Behind layer", Color::RED);
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", width, height, 0, nullptr, PIXEL_FORMAT_RGBX_8888));
+
+    Transaction()
+            .setLayer(layer, INT32_MAX - 1)
+            .show(layer)
+            .setLayerStack(behindLayer, mDisplayLayerStack)
+            .setCrop_legacy(behindLayer, crop)
+            .setLayer(behindLayer, INT32_MAX - 2)
+            .show(behindLayer)
+            .apply();
+
+    sp<Surface> surface = layer->getSurface();
+
+    sp<GraphicBuffer> buffer =
+            new GraphicBuffer(width, height, PIXEL_FORMAT_RGBX_8888, 1,
+                              BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                      BufferUsage::COMPOSER_OVERLAY,
+                              "test");
+    ASSERT_NO_FATAL_FAILURE(fillGraphicBufferColor(buffer, crop, Color::TRANSPARENT));
+
+    if (mLayerType == ISurfaceComposerClient::eFXSurfaceBufferQueue) {
+        Surface::attachAndQueueBufferWithDataspace(surface.get(), buffer, ui::Dataspace::V0_SRGB);
+    } else {
+        Transaction().setBuffer(layer, buffer).apply();
+    }
+
+    {
+        SCOPED_TRACE("Buffer Opaque Format");
+        auto shot = screenshot();
+        shot->expectColor(crop, Color::BLACK);
+    }
+
+    buffer = new GraphicBuffer(width, height, PIXEL_FORMAT_RGBA_8888, 1,
+                               BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                       BufferUsage::COMPOSER_OVERLAY,
+                               "test");
+    ASSERT_NO_FATAL_FAILURE(fillGraphicBufferColor(buffer, crop, Color::TRANSPARENT));
+
+    if (mLayerType == ISurfaceComposerClient::eFXSurfaceBufferQueue) {
+        Surface::attachAndQueueBufferWithDataspace(surface.get(), buffer, ui::Dataspace::V0_SRGB);
+    } else {
+        Transaction().setBuffer(layer, buffer).apply();
+    }
+
+    {
+        SCOPED_TRACE("Buffer Transparent Format");
+        auto shot = screenshot();
+        shot->expectColor(crop, Color::RED);
     }
 }
 
