@@ -132,4 +132,8 @@ void InputManager::unregisterInputChannel(const sp<InputChannel>& channel) {
     mDispatcher->unregisterInputChannel(channel);
 }
 
+void InputManager::setMotionClassifierEnabled(bool enabled) {
+    mClassifier->setMotionClassifierEnabled(enabled);
+}
+
 } // namespace android
