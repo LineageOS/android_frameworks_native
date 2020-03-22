@@ -152,9 +152,9 @@ public:
         struct AStatsEvent* addStatsEventToPullData(AStatsEventList*) override {
             return mEvent;
         }
-        void registerStatsPullAtomCallback(int32_t atom_tag,
-                                           AStatsManager_PullAtomCallback callback,
-                                           AStatsManager_PullAtomMetadata*, void* cookie) override {
+        void setStatsPullAtomCallback(int32_t atom_tag, AStatsManager_PullAtomMetadata*,
+                                      AStatsManager_PullAtomCallback callback,
+                                      void* cookie) override {
             mAtomTags.push_back(atom_tag);
             mCallback = callback;
             mCookie = cookie;
@@ -164,7 +164,7 @@ public:
             return (*mCallback)(atom_tag, nullptr, cookie);
         }
 
-        MOCK_METHOD1(unregisterStatsPullAtomCallback, void(int32_t));
+        MOCK_METHOD1(clearStatsPullAtomCallback, void(int32_t));
         MOCK_METHOD2(statsEventSetAtomId, void(AStatsEvent*, uint32_t));
         MOCK_METHOD2(statsEventWriteInt32, void(AStatsEvent*, int32_t));
         MOCK_METHOD2(statsEventWriteInt64, void(AStatsEvent*, int64_t));
@@ -261,18 +261,18 @@ TEST_F(TimeStatsTest, disabledByDefault) {
     ASSERT_FALSE(mTimeStats->isEnabled());
 }
 
-TEST_F(TimeStatsTest, registersCallbacksAfterBoot) {
+TEST_F(TimeStatsTest, setsCallbacksAfterBoot) {
     mTimeStats->onBootFinished();
     EXPECT_THAT(mDelegate->mAtomTags,
                 UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
                                      android::util::SURFACEFLINGER_STATS_LAYER_INFO));
 }
 
-TEST_F(TimeStatsTest, unregistersCallbacksOnDestruction) {
+TEST_F(TimeStatsTest, clearsCallbacksOnDestruction) {
     EXPECT_CALL(*mDelegate,
-                unregisterStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO));
+                clearStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO));
     EXPECT_CALL(*mDelegate,
-                unregisterStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO));
+                clearStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO));
     mTimeStats.reset();
 }
 
@@ -1039,8 +1039,7 @@ TEST_F(TimeStatsTest, layerStatsCallback_pullsMultipleBuckets) {
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 3, 4000000);
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 4, 5000000);
 
-    // Now make sure that TimeStats flushes global stats to register the
-    // callback.
+    // Now make sure that TimeStats flushes global stats to set the callback.
     mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL);
     mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(3000000));
     mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(5000000));
