@@ -15,7 +15,7 @@
 module: "android.sysprop.SurfaceFlingerProperties"
 owner: Platform
 
-# The following two propertiess define (respectively):
+# The following two properties define (respectively):
 #
 # - The phase offset between hardware vsync and when apps are woken up by the
 #   Choreographer callback
@@ -299,6 +299,18 @@ prop {
     scope: System
     access: Readonly
     prop_name: "ro.surface_flinger.display_primary_white"
+}
+
+# refreshRateSwitching indicates whether SurfaceFlinger should use refresh rate
+# switching on the device, e.g. to switch between 60 and 90 Hz. The settings
+# below that are related to refresh rate switching will only have an effect if
+# refresh_rate_switching is enabled.
+prop {
+    api_name: "refresh_rate_switching"
+    type: Boolean
+    scope: System
+    access: Readonly
+    prop_name: "ro.surface_flinger.refresh_rate_switching"
 }
 
 # setIdleTimerMs indicates what is considered a timeout in milliseconds for Scheduler. This value is

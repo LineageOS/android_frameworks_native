@@ -32,11 +32,11 @@
 #include "Layer.h"
 #include "NativeWindowSurface.h"
 #include "Scheduler/MessageQueue.h"
+#include "Scheduler/RefreshRateConfigs.h"
 #include "StartPropertySetThread.h"
 #include "SurfaceFlinger.h"
 #include "SurfaceFlingerFactory.h"
 #include "SurfaceInterceptor.h"
-
 #include "TimeStats/TimeStats.h"
 
 namespace android {
@@ -342,6 +342,8 @@ public:
     auto& mutableAppConnectionHandle() { return mFlinger->mAppConnectionHandle; }
     auto& mutableSfConnectionHandle() { return mFlinger->mSfConnectionHandle; }
     auto& mutableRefreshRateConfigs() { return mFlinger->mRefreshRateConfigs; }
+    auto& mutableRefreshRateStats() { return mFlinger->mRefreshRateStats; }
+    auto& mutableTimeStats() { return mFlinger->mTimeStats; }
 
     ~TestableSurfaceFlinger() {
         // All these pointer and container clears help ensure that GMock does
