@@ -71,13 +71,18 @@ std::unordered_map<float, PhaseOffsets::Offsets> PhaseOffsets::initializeOffsets
     std::unordered_map<float, Offsets> offsets;
 
     for (const auto& [ignored, refreshRate] : refreshRateConfigs.getAllRefreshRates()) {
-        if (refreshRate->fps > 65.0f) {
-            offsets.emplace(refreshRate->fps, getHighFpsOffsets(refreshRate->vsyncPeriod));
-        } else {
-            offsets.emplace(refreshRate->fps, getDefaultOffsets(refreshRate->vsyncPeriod));
-        }
+        const float fps = refreshRate->fps;
+        offsets.emplace(fps, getPhaseOffsets(fps, refreshRate->vsyncPeriod));
     }
     return offsets;
+}
+
+PhaseOffsets::Offsets PhaseOffsets::getPhaseOffsets(float fps, nsecs_t vsyncPeriod) const {
+    if (fps > 65.0f) {
+        return getHighFpsOffsets(vsyncPeriod);
+    } else {
+        return getDefaultOffsets(vsyncPeriod);
+    }
 }
 
 PhaseOffsets::Offsets PhaseOffsets::getDefaultOffsets(nsecs_t vsyncDuration) const {
@@ -159,8 +164,15 @@ PhaseOffsets::Offsets PhaseOffsets::getOffsetsForRefreshRate(float fps) const {
                                    [&fps](const std::pair<float, Offsets>& candidateFps) {
                                        return fpsEqualsWithMargin(fps, candidateFps.first);
                                    });
-    LOG_ALWAYS_FATAL_IF(iter == mOffsets.end());
-    return iter->second;
+
+    if (iter != mOffsets.end()) {
+        return iter->second;
+    }
+
+    // Unknown refresh rate. This might happen if we get a hotplug event for an external display.
+    // In this case just construct the offset.
+    ALOGW("Can't find offset for %.2f fps", fps);
+    return getPhaseOffsets(fps, static_cast<nsecs_t>(1e9f / fps));
 }
 
 static void validateSysprops() {
@@ -288,8 +300,7 @@ PhaseOffsets::Offsets PhaseDurations::getOffsetsForRefreshRate(float fps) const 
         return iter->second;
     }
 
-    // Unknown refresh rate. This might happen if we get a hotplug event for the default display.
-    // This happens only during tests and not during regular device operation.
+    // Unknown refresh rate. This might happen if we get a hotplug event for an external display.
     // In this case just construct the offset.
     ALOGW("Can't find offset for %.2f fps", fps);
     return constructOffsets(static_cast<nsecs_t>(1e9f / fps));
