@@ -35,6 +35,7 @@ class PowerAdvisor {
 public:
     virtual ~PowerAdvisor();
 
+    virtual void onBootFinished() = 0;
     virtual void setExpensiveRenderingExpected(DisplayId displayId, bool expected) = 0;
     virtual void notifyDisplayUpdateImminent() = 0;
 };
@@ -56,12 +57,14 @@ public:
     PowerAdvisor();
     ~PowerAdvisor() override;
 
+    void onBootFinished() override;
     void setExpensiveRenderingExpected(DisplayId displayId, bool expected) override;
     void notifyDisplayUpdateImminent() override;
 
 private:
     HalWrapper* getPowerHal();
 
+    std::atomic_bool mBootFinished = false;
     bool mReconnectPowerHal = false;
 
     std::unordered_set<DisplayId> mExpensiveDisplays;

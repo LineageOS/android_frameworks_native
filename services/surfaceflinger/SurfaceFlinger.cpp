@@ -567,6 +567,7 @@ void SurfaceFlinger::bootFinished()
 
     postMessageAsync(new LambdaMessage([this]() NO_THREAD_SAFETY_ANALYSIS {
         readPersistentProperties();
+        mPowerAdvisor.onBootFinished();
         mBootStage = BootStage::FINISHED;
 
         if (property_get_bool("sf.debug.show_refresh_rate_overlay", false)) {
