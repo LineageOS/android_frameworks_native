@@ -226,6 +226,14 @@ int64_t color_space_agnostic_dataspace(Dataspace defaultValue) {
     return static_cast<int64_t>(defaultValue);
 }
 
+bool refresh_rate_switching(bool defaultValue) {
+    auto temp = SurfaceFlingerProperties::refresh_rate_switching();
+    if (temp.has_value()) {
+        return *temp;
+    }
+    return defaultValue;
+}
+
 int32_t set_idle_timer_ms(int32_t defaultValue) {
     auto temp = SurfaceFlingerProperties::set_idle_timer_ms();
     if (temp.has_value()) {
