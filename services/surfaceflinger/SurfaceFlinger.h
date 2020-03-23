@@ -844,7 +844,21 @@ private:
 
     bool isDisplayConfigAllowed(HwcConfigIndexType configId) const REQUIRES(mStateLock);
 
-    bool previousFrameMissed(int graceTimeMs = 0);
+    // Gets the fence for the previous frame.
+    // Must be called on the main thread.
+    sp<Fence> previousFrameFence();
+
+    // Whether the previous frame has not yet been presented to the display.
+    // If graceTimeMs is positive, this method waits for at most the provided
+    // grace period before reporting if the frame missed.
+    // Must be called on the main thread.
+    bool previousFramePending(int graceTimeMs = 0);
+
+    // Returns the previous time that the frame was presented. If the frame has
+    // not been presented yet, then returns Fence::SIGNAL_TIME_PENDING. If there
+    // is no pending frame, then returns Fence::SIGNAL_TIME_INVALID.
+    // Must be called on the main thread.
+    nsecs_t previousFramePresentTime();
 
     // Populates the expected present time for this frame. For negative offsets, performs a
     // correction using the predicted vsync for the next frame instead.
