@@ -1028,7 +1028,7 @@ bool SurfaceFlinger::performSetActiveConfig() {
     ATRACE_CALL();
     ALOGV("performSetActiveConfig");
     if (mCheckPendingFence) {
-        if (previousFrameMissed()) {
+        if (previousFramePending()) {
             // fence has not signaled yet. wait for the next invalidate
             mEventQueue->invalidate();
             return true;
@@ -1775,13 +1775,17 @@ void SurfaceFlinger::updateVrFlinger() {
     setTransactionFlags(eDisplayTransactionNeeded);
 }
 
-bool SurfaceFlinger::previousFrameMissed(int graceTimeMs) NO_THREAD_SAFETY_ANALYSIS {
-    ATRACE_CALL();
+sp<Fence> SurfaceFlinger::previousFrameFence() NO_THREAD_SAFETY_ANALYSIS {
     // We are storing the last 2 present fences. If sf's phase offset is to be
     // woken up before the actual vsync but targeting the next vsync, we need to check
     // fence N-2
-    const sp<Fence>& fence = mVSyncModulator->getOffsets().sf > 0 ? mPreviousPresentFences[0]
-                                                                  : mPreviousPresentFences[1];
+    return mVSyncModulator->getOffsets().sf > 0 ? mPreviousPresentFences[0]
+                                                : mPreviousPresentFences[1];
+}
+
+bool SurfaceFlinger::previousFramePending(int graceTimeMs) NO_THREAD_SAFETY_ANALYSIS {
+    ATRACE_CALL();
+    const sp<Fence>& fence = previousFrameFence();
 
     if (fence == Fence::NO_FENCE) {
         return false;
@@ -1792,6 +1796,16 @@ bool SurfaceFlinger::previousFrameMissed(int graceTimeMs) NO_THREAD_SAFETY_ANALY
     }
 
     return (fence->getStatus() == Fence::Status::Unsignaled);
+}
+
+nsecs_t SurfaceFlinger::previousFramePresentTime() NO_THREAD_SAFETY_ANALYSIS {
+    const sp<Fence>& fence = previousFrameFence();
+
+    if (fence == Fence::NO_FENCE) {
+        return Fence::SIGNAL_TIME_INVALID;
+    }
+
+    return fence->getSignalTime();
 }
 
 void SurfaceFlinger::populateExpectedPresentTime() {
@@ -1811,6 +1825,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
             // calculate the expected present time once and use the cached
             // value throughout this frame to make sure all layers are
             // seeing this same value.
+            const nsecs_t lastExpectedPresentTime = mExpectedPresentTime.load();
             populateExpectedPresentTime();
 
             // When Backpressure propagation is enabled we want to give a small grace period
@@ -1821,12 +1836,32 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
                      (mPropagateBackpressureClientComposition || !mHadClientComposition))
                     ? 1
                     : 0;
-            const TracedOrdinal<bool> frameMissed = {"FrameMissed",
-                                                     previousFrameMissed(
-                                                             graceTimeForPresentFenceMs)};
-            const TracedOrdinal<bool> hwcFrameMissed = {"HwcFrameMissed",
+
+            // Pending frames may trigger backpressure propagation.
+            const TracedOrdinal<bool> framePending = {"PrevFramePending",
+                                                      previousFramePending(
+                                                              graceTimeForPresentFenceMs)};
+
+            // Frame missed counts for metrics tracking.
+            // A frame is missed if the prior frame is still pending. If no longer pending,
+            // then we still count the frame as missed if the predicted present time
+            // was further in the past than when the fence actually fired.
+
+            // Add some slop to correct for drift. This should generally be
+            // smaller than a typical frame duration, but should not be so small
+            // that it reports reasonable drift as a missed frame.
+            DisplayStatInfo stats;
+            mScheduler->getDisplayStatInfo(&stats);
+            const nsecs_t frameMissedSlop = stats.vsyncPeriod / 2;
+            const nsecs_t previousPresentTime = previousFramePresentTime();
+            const TracedOrdinal<bool> frameMissed =
+                    {"PrevFrameMissed",
+                     framePending ||
+                             (previousPresentTime >= 0 &&
+                              (lastExpectedPresentTime < previousPresentTime - frameMissedSlop))};
+            const TracedOrdinal<bool> hwcFrameMissed = {"PrevHwcFrameMissed",
                                                         mHadDeviceComposition && frameMissed};
-            const TracedOrdinal<bool> gpuFrameMissed = {"GpuFrameMissed",
+            const TracedOrdinal<bool> gpuFrameMissed = {"PrevGpuFrameMissed",
                                                         mHadClientComposition && frameMissed};
 
             if (frameMissed) {
@@ -1846,7 +1881,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
                 mGpuFrameMissedCount++;
             }
 
-            if (frameMissed && mPropagateBackpressure) {
+            if (framePending && mPropagateBackpressure) {
                 if ((hwcFrameMissed && !gpuFrameMissed) ||
                     mPropagateBackpressureClientComposition) {
                     signalLayerUpdate();
