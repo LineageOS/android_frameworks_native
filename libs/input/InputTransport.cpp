@@ -1130,6 +1130,16 @@ bool InputConsumer::hasPendingBatch() const {
     return !mBatches.isEmpty();
 }
 
+int32_t InputConsumer::getPendingBatchSource() const {
+    if (mBatches.isEmpty()) {
+        return AINPUT_SOURCE_CLASS_NONE;
+    }
+
+    const Batch& batch = mBatches.itemAt(0);
+    const InputMessage& head = batch.samples.itemAt(0);
+    return head.body.motion.source;
+}
+
 ssize_t InputConsumer::findBatch(int32_t deviceId, int32_t source) const {
     for (size_t i = 0; i < mBatches.size(); i++) {
         const Batch& batch = mBatches.itemAt(i);
