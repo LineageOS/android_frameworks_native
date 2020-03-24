@@ -200,6 +200,15 @@ bool validateCompositionDataspace(Dataspace dataspace) {
     return dataspace == Dataspace::V0_SRGB || dataspace == Dataspace::DISPLAY_P3;
 }
 
+class FrameRateFlexibilityToken : public BBinder {
+public:
+    FrameRateFlexibilityToken(std::function<void()> callback) : mCallback(callback) {}
+    virtual ~FrameRateFlexibilityToken() { mCallback(); }
+
+private:
+    std::function<void()> mCallback;
+};
+
 }  // namespace anonymous
 
 // ---------------------------------------------------------------------------
@@ -977,8 +986,11 @@ status_t SurfaceFlinger::setActiveConfig(const sp<IBinder>& displayToken, int mo
         } else {
             HwcConfigIndexType config(mode);
             const auto& refreshRate = mRefreshRateConfigs->getRefreshRateFromConfigId(config);
-            result = setDesiredDisplayConfigSpecsInternal(display, config, refreshRate.fps,
-                                                          refreshRate.fps);
+            result = setDesiredDisplayConfigSpecsInternal(display,
+                                                          scheduler::RefreshRateConfigs::
+                                                                  Policy{config, refreshRate.fps,
+                                                                         refreshRate.fps},
+                                                          /*overridePolicy=*/false);
         }
     }));
 
@@ -3496,12 +3508,13 @@ uint32_t SurfaceFlinger::setDisplayStateLocked(const DisplayState& s) {
     return flags;
 }
 
-bool SurfaceFlinger::callingThreadHasUnscopedSurfaceFlingerAccess() {
+bool SurfaceFlinger::callingThreadHasUnscopedSurfaceFlingerAccess(bool usePermissionCache) {
     IPCThreadState* ipc = IPCThreadState::self();
     const int pid = ipc->getCallingPid();
     const int uid = ipc->getCallingUid();
     if ((uid != AID_GRAPHICS && uid != AID_SYSTEM) &&
-        !PermissionCache::checkPermission(sAccessSurfaceFlinger, pid, uid)) {
+        (usePermissionCache ? !PermissionCache::checkPermission(sAccessSurfaceFlinger, pid, uid)
+                            : !checkPermission(sAccessSurfaceFlinger, pid, uid))) {
         return false;
     }
     return true;
@@ -4373,13 +4386,11 @@ void SurfaceFlinger::dumpVSync(std::string& result) const {
                   "      present offset: %9" PRId64 " ns\t     VSYNC period: %9" PRId64 " ns\n\n",
                   dispSyncPresentTimeOffset, getVsyncPeriod());
 
-    HwcConfigIndexType defaultConfig;
-    float minFps, maxFps;
-    mRefreshRateConfigs->getPolicy(&defaultConfig, &minFps, &maxFps);
+    scheduler::RefreshRateConfigs::Policy policy = mRefreshRateConfigs->getDisplayManagerPolicy();
     StringAppendF(&result,
                   "DesiredDisplayConfigSpecs: default config ID: %d"
                   ", min: %.2f Hz, max: %.2f Hz",
-                  defaultConfig.value(), minFps, maxFps);
+                  policy.defaultConfig.value(), policy.minRefreshRate, policy.maxRefreshRate);
     StringAppendF(&result, "(config override by backdoor: %s)\n\n",
                   mDebugDisplayConfigSetByBackdoor ? "yes" : "no");
 
@@ -4818,8 +4829,12 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case SET_DISPLAY_CONTENT_SAMPLING_ENABLED:
         case GET_DISPLAYED_CONTENT_SAMPLE:
         case NOTIFY_POWER_HINT:
-        case SET_GLOBAL_SHADOW_SETTINGS: {
-            if (!callingThreadHasUnscopedSurfaceFlingerAccess()) {
+        case SET_GLOBAL_SHADOW_SETTINGS:
+        case ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN: {
+            // ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN is used by CTS tests, which acquire the
+            // necessary permission dynamically. Don't use the permission cache for this check.
+            bool usePermissionCache = code != ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN;
+            if (!callingThreadHasUnscopedSurfaceFlingerAccess(usePermissionCache)) {
                 IPCThreadState* ipc = IPCThreadState::self();
                 ALOGE("Permission Denial: can't access SurfaceFlinger pid=%d, uid=%d",
                         ipc->getCallingPid(), ipc->getCallingUid());
@@ -5908,11 +5923,14 @@ void SurfaceFlinger::traverseLayersInDisplay(const sp<const DisplayDevice>& disp
     }
 }
 
-status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(const sp<DisplayDevice>& display,
-                                                              HwcConfigIndexType defaultConfig,
-                                                              float minRefreshRate,
-                                                              float maxRefreshRate) {
+status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(
+        const sp<DisplayDevice>& display,
+        const std::optional<scheduler::RefreshRateConfigs::Policy>& policy, bool overridePolicy) {
     Mutex::Autolock lock(mStateLock);
+
+    LOG_ALWAYS_FATAL_IF(!display->isPrimary() && overridePolicy,
+                        "Can only set override policy on the primary display");
+    LOG_ALWAYS_FATAL_IF(!policy && !overridePolicy, "Can only clear the override policy");
 
     if (!display->isPrimary()) {
         // TODO(b/144711714): For non-primary displays we should be able to set an active config
@@ -5927,7 +5945,8 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(const sp<DisplayDe
         constraints.seamlessRequired = false;
 
         HWC2::VsyncPeriodChangeTimeline timeline = {0, 0, 0};
-        if (getHwComposer().setActiveConfigWithConstraints(*displayId, defaultConfig.value(),
+        if (getHwComposer().setActiveConfigWithConstraints(*displayId,
+                                                           policy->defaultConfig.value(),
                                                            constraints, &timeline) < 0) {
             return BAD_VALUE;
         }
@@ -5935,11 +5954,12 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(const sp<DisplayDe
             repaintEverythingForHWC();
         }
 
-        display->setActiveConfig(defaultConfig);
-        const nsecs_t vsyncPeriod =
-                getHwComposer().getConfigs(*displayId)[defaultConfig.value()]->getVsyncPeriod();
-        mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value, defaultConfig,
-                                    vsyncPeriod);
+        display->setActiveConfig(policy->defaultConfig);
+        const nsecs_t vsyncPeriod = getHwComposer()
+                                            .getConfigs(*displayId)[policy->defaultConfig.value()]
+                                            ->getVsyncPeriod();
+        mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value,
+                                    policy->defaultConfig, vsyncPeriod);
         return NO_ERROR;
     }
 
@@ -5948,17 +5968,20 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(const sp<DisplayDe
         return NO_ERROR;
     }
 
-    bool policyChanged;
-    if (mRefreshRateConfigs->setPolicy(defaultConfig, minRefreshRate, maxRefreshRate,
-                                       &policyChanged) < 0) {
+    status_t setPolicyResult = overridePolicy
+            ? mRefreshRateConfigs->setOverridePolicy(policy)
+            : mRefreshRateConfigs->setDisplayManagerPolicy(*policy);
+    if (setPolicyResult < 0) {
         return BAD_VALUE;
     }
-    if (!policyChanged) {
+    if (setPolicyResult == scheduler::RefreshRateConfigs::CURRENT_POLICY_UNCHANGED) {
         return NO_ERROR;
     }
+    scheduler::RefreshRateConfigs::Policy currentPolicy = mRefreshRateConfigs->getCurrentPolicy();
 
     ALOGV("Setting desired display config specs: defaultConfig: %d min: %.f max: %.f",
-          defaultConfig.value(), minRefreshRate, maxRefreshRate);
+          currentPolicy.defaultConfig.value(), currentPolicy.minRefreshRate,
+          currentPolicy.maxRefreshRate);
 
     // TODO(b/140204874): This hack triggers a notification that something has changed, so
     // that listeners that care about a change in allowed configs can get the notification.
@@ -5972,7 +5995,7 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(const sp<DisplayDe
     auto& preferredRefreshRate = configId
             ? mRefreshRateConfigs->getRefreshRateFromConfigId(*configId)
             // NOTE: Choose the default config ID, if Scheduler doesn't have one in mind.
-            : mRefreshRateConfigs->getRefreshRateFromConfigId(defaultConfig);
+            : mRefreshRateConfigs->getRefreshRateFromConfigId(currentPolicy.defaultConfig);
     ALOGV("trying to switch to Scheduler preferred config %d (%s)",
           preferredRefreshRate.configId.value(), preferredRefreshRate.name.c_str());
 
@@ -6007,9 +6030,13 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecs(const sp<IBinder>& display
             result = BAD_VALUE;
             ALOGW("Attempt to set desired display configs for virtual display");
         } else {
-            result =
-                    setDesiredDisplayConfigSpecsInternal(display, HwcConfigIndexType(defaultConfig),
-                                                         minRefreshRate, maxRefreshRate);
+            result = setDesiredDisplayConfigSpecsInternal(display,
+                                                          scheduler::RefreshRateConfigs::
+                                                                  Policy{HwcConfigIndexType(
+                                                                                 defaultConfig),
+                                                                         minRefreshRate,
+                                                                         maxRefreshRate},
+                                                          /*overridePolicy=*/false);
         }
     }));
 
@@ -6033,9 +6060,11 @@ status_t SurfaceFlinger::getDesiredDisplayConfigSpecs(const sp<IBinder>& display
     }
 
     if (display->isPrimary()) {
-        HwcConfigIndexType defaultConfig;
-        mRefreshRateConfigs->getPolicy(&defaultConfig, outMinRefreshRate, outMaxRefreshRate);
-        *outDefaultConfig = defaultConfig.value();
+        scheduler::RefreshRateConfigs::Policy policy =
+                mRefreshRateConfigs->getDisplayManagerPolicy();
+        *outDefaultConfig = policy.defaultConfig.value();
+        *outMinRefreshRate = policy.minRefreshRate;
+        *outMaxRefreshRate = policy.maxRefreshRate;
         return NO_ERROR;
     } else if (display->isVirtual()) {
         return BAD_VALUE;
@@ -6153,6 +6182,68 @@ status_t SurfaceFlinger::setFrameRate(const sp<IGraphicBufferProducer>& surface,
     }));
 
     return NO_ERROR;
+}
+
+status_t SurfaceFlinger::acquireFrameRateFlexibilityToken(sp<IBinder>* outToken) {
+    if (!outToken) {
+        return BAD_VALUE;
+    }
+    status_t result = NO_ERROR;
+    postMessageSync(new LambdaMessage([&]() {
+        if (mFrameRateFlexibilityTokenCount == 0) {
+            // |mStateLock| not needed as we are on the main thread
+            const auto display = getDefaultDisplayDeviceLocked();
+
+            // This is a little racy, but not in a way that hurts anything. As we grab the
+            // defaultConfig from the display manager policy, we could be setting a new display
+            // manager policy, leaving us using a stale defaultConfig. The defaultConfig doesn't
+            // matter for the override policy though, since we set allowGroupSwitching to true, so
+            // it's not a problem.
+            scheduler::RefreshRateConfigs::Policy overridePolicy;
+            overridePolicy.defaultConfig =
+                    mRefreshRateConfigs->getDisplayManagerPolicy().defaultConfig;
+            overridePolicy.allowGroupSwitching = true;
+            result = setDesiredDisplayConfigSpecsInternal(display, overridePolicy,
+                                                          /*overridePolicy=*/true);
+        }
+
+        if (result == NO_ERROR) {
+            mFrameRateFlexibilityTokenCount++;
+            // Handing out a reference to the SurfaceFlinger object, as we're doing in the line
+            // below, is something to consider carefully. The lifetime of the
+            // FrameRateFlexibilityToken isn't tied to SurfaceFlinger object lifetime, so if this
+            // SurfaceFlinger object were to be destroyed while the token still exists, the token
+            // destructor would be accessing a stale SurfaceFlinger reference, and crash. This is ok
+            // in this case, for two reasons:
+            //   1. Once SurfaceFlinger::run() is called by main_surfaceflinger.cpp, the only way
+            //   the program exits is via a crash. So we won't have a situation where the
+            //   SurfaceFlinger object is dead but the process is still up.
+            //   2. The frame rate flexibility token is acquired/released only by CTS tests, so even
+            //   if condition 1 were changed, the problem would only show up when running CTS tests,
+            //   not on end user devices, so we could spot it and fix it without serious impact.
+            *outToken = new FrameRateFlexibilityToken(
+                    [this]() { onFrameRateFlexibilityTokenReleased(); });
+            ALOGD("Frame rate flexibility token acquired. count=%d",
+                  mFrameRateFlexibilityTokenCount);
+        }
+    }));
+    return result;
+}
+
+void SurfaceFlinger::onFrameRateFlexibilityTokenReleased() {
+    postMessageAsync(new LambdaMessage([&]() {
+        LOG_ALWAYS_FATAL_IF(mFrameRateFlexibilityTokenCount == 0,
+                            "Failed tracking frame rate flexibility tokens");
+        mFrameRateFlexibilityTokenCount--;
+        ALOGD("Frame rate flexibility token released. count=%d", mFrameRateFlexibilityTokenCount);
+        if (mFrameRateFlexibilityTokenCount == 0) {
+            // |mStateLock| not needed as we are on the main thread
+            const auto display = getDefaultDisplayDeviceLocked();
+            status_t result =
+                    setDesiredDisplayConfigSpecsInternal(display, {}, /*overridePolicy=*/true);
+            LOG_ALWAYS_FATAL_IF(result < 0, "Failed releasing frame rate flexibility token");
+        }
+    }));
 }
 
 } // namespace android
