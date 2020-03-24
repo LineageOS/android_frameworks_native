@@ -72,6 +72,10 @@ PowerAdvisor::PowerAdvisor()
     }
 }
 
+void PowerAdvisor::onBootFinished() {
+    mBootFinished.store(true);
+}
+
 void PowerAdvisor::setExpensiveRenderingExpected(DisplayId displayId, bool expected) {
     if (expected) {
         mExpensiveDisplays.insert(displayId);
@@ -97,6 +101,12 @@ void PowerAdvisor::setExpensiveRenderingExpected(DisplayId displayId, bool expec
 }
 
 void PowerAdvisor::notifyDisplayUpdateImminent() {
+    // Only start sending this notification once the system has booted so we don't introduce an
+    // early-boot dependency on Power HAL
+    if (!mBootFinished.load()) {
+        return;
+    }
+
     if (mSendUpdateImminent.load()) {
         HalWrapper* const halWrapper = getPowerHal();
         if (halWrapper == nullptr) {
