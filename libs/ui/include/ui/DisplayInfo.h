@@ -20,19 +20,23 @@
 #include <type_traits>
 
 #include <ui/DeviceProductInfo.h>
+#include <utils/Flattenable.h>
 
 namespace android {
 
 enum class DisplayConnectionType { Internal, External };
 
 // Immutable information about physical display.
-struct DisplayInfo {
+struct DisplayInfo : LightFlattenable<DisplayInfo> {
     DisplayConnectionType connectionType = DisplayConnectionType::Internal;
     float density = 0.f;
     bool secure = false;
     std::optional<DeviceProductInfo> deviceProductInfo;
-};
 
-static_assert(std::is_trivially_copyable_v<DisplayInfo>);
+    bool isFixedSize() const { return false; }
+    size_t getFlattenedSize() const;
+    status_t flatten(void* buffer, size_t size) const;
+    status_t unflatten(void const* buffer, size_t size);
+};
 
 } // namespace android
