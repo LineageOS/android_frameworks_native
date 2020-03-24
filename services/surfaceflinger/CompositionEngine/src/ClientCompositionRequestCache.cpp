@@ -35,7 +35,8 @@ inline bool equalIgnoringSource(const renderengine::LayerSettings& lhs,
     return lhs.geometry == rhs.geometry && lhs.alpha == rhs.alpha &&
             lhs.sourceDataspace == rhs.sourceDataspace &&
             lhs.colorTransform == rhs.colorTransform &&
-            lhs.disableBlending == rhs.disableBlending && lhs.shadow == rhs.shadow;
+            lhs.disableBlending == rhs.disableBlending && lhs.shadow == rhs.shadow &&
+            lhs.backgroundBlurRadius == rhs.backgroundBlurRadius;
 }
 
 inline bool equalIgnoringBuffer(const renderengine::Buffer& lhs, const renderengine::Buffer& rhs) {
