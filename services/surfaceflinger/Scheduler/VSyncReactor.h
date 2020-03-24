@@ -75,7 +75,7 @@ private:
     std::unique_ptr<VSyncDispatch> const mDispatch;
     size_t const mPendingLimit;
 
-    std::mutex mMutex;
+    mutable std::mutex mMutex;
     bool mInternalIgnoreFences GUARDED_BY(mMutex) = false;
     bool mExternalIgnoreFences GUARDED_BY(mMutex) = false;
     std::vector<std::shared_ptr<FenceTime>> mUnfiredFences GUARDED_BY(mMutex);
