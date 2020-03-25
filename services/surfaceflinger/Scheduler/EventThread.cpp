@@ -425,7 +425,12 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
             // display is off, keep feeding clients at 60 Hz.
             const auto timeout = mState == State::SyntheticVSync ? 16ms : 1000ms;
             if (mCondition.wait_for(lock, timeout) == std::cv_status::timeout) {
-                ALOGW_IF(mState == State::VSync, "Faking VSYNC due to driver stall");
+                if (mState == State::VSync) {
+                    ALOGW("Faking VSYNC due to driver stall for thread %s", mThreadName);
+                    std::string debugInfo = "VsyncSource debug info:\n";
+                    mVSyncSource->dump(debugInfo);
+                    ALOGW("%s", debugInfo.c_str());
+                }
 
                 LOG_FATAL_IF(!mVSyncState);
                 mPendingEvents.push_back(makeVSync(mVSyncState->displayId,
