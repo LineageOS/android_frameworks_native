@@ -69,8 +69,9 @@ public:
 private:
     std::unordered_map<float, Offsets> initializeOffsets(
             const scheduler::RefreshRateConfigs&) const;
-    Offsets getDefaultOffsets(nsecs_t vsyncDuration) const;
-    Offsets getHighFpsOffsets(nsecs_t vsyncDuration) const;
+    Offsets getDefaultOffsets(nsecs_t vsyncPeriod) const;
+    Offsets getHighFpsOffsets(nsecs_t vsyncPeriod) const;
+    Offsets getPhaseOffsets(float fps, nsecs_t vsyncPeriod) const;
 
     const nsecs_t mThresholdForNextVsync;
     const std::unordered_map<float, Offsets> mOffsets;

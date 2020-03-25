@@ -1,6 +1,6 @@
 /*
- * Copyright 2019 The Android Open Source Project
-
+ * Copyright (C) 2020 The Android Open Source Project
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -14,26 +14,15 @@
  * limitations under the License.
  */
 
-#pragma once
+package android.content.pm;
 
-#include <gmock/gmock.h>
+import android.content.pm.PackageChangeEvent;
 
-#include "DisplayHardware/PowerAdvisor.h"
-
-namespace android {
-namespace Hwc2 {
-namespace mock {
-
-class PowerAdvisor : public android::Hwc2::PowerAdvisor {
-public:
-    PowerAdvisor();
-    ~PowerAdvisor() override;
-
-    MOCK_METHOD0(onBootFinished, void());
-    MOCK_METHOD2(setExpensiveRenderingExpected, void(DisplayId displayId, bool expected));
-    MOCK_METHOD0(notifyDisplayUpdateImminent, void());
-};
-
-} // namespace mock
-} // namespace Hwc2
-} // namespace android
+/**
+ * This is a non-blocking notification when a package has changed.
+ *
+ * @hide
+ */
+oneway interface IPackageChangeObserver {
+  void onPackageChanged(in PackageChangeEvent event);
+}
