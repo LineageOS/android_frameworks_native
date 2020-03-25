@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 cc_test {
     name: "powermanager_test",
     test_suites: ["device-tests"],
     srcs: [
+        "PowerHalControllerTest.cpp",
         "PowerHalLoaderTest.cpp",
         "PowerHalWrapperAidlTest.cpp",
         "PowerHalWrapperHidlV1_0Test.cpp",
