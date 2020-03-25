@@ -71,6 +71,8 @@ public:
     // Block calling thread while the callback is executing.
     void ensureNotRunning();
 
+    void dump(std::string& result) const;
+
 private:
     std::string const mName;
     VSyncDispatch::Callback const mCallback;
@@ -86,7 +88,7 @@ private:
     std::optional<ArmingInfo> mArmedInfo;
     std::optional<nsecs_t> mLastDispatchTime;
 
-    std::mutex mRunningMutex;
+    mutable std::mutex mRunningMutex;
     std::condition_variable mCv;
     bool mRunning GUARDED_BY(mRunningMutex) = false;
 };
@@ -112,6 +114,7 @@ public:
     void unregisterCallback(CallbackToken token) final;
     ScheduleResult schedule(CallbackToken token, nsecs_t workDuration, nsecs_t earliestVsync) final;
     CancelResult cancel(CallbackToken token) final;
+    void dump(std::string& result) const final;
 
 private:
     VSyncDispatchTimerQueue(VSyncDispatchTimerQueue const&) = delete;

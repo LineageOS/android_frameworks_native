@@ -48,6 +48,7 @@ public:
     MOCK_METHOD1(setCallback, void(VSyncSource::Callback*));
     MOCK_METHOD1(setPhaseOffset, void(nsecs_t));
     MOCK_METHOD1(pauseVsyncCallback, void(bool));
+    MOCK_CONST_METHOD1(dump, void(std::string&));
 };
 
 } // namespace
