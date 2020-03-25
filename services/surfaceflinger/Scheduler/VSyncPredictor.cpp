@@ -22,6 +22,7 @@
 //#define LOG_NDEBUG 0
 #include "VSyncPredictor.h"
 #include <android-base/logging.h>
+#include <android-base/stringprintf.h>
 #include <cutils/compiler.h>
 #include <cutils/properties.h>
 #include <utils/Log.h>
@@ -31,6 +32,7 @@
 #include <sstream>
 
 namespace android::scheduler {
+using base::StringAppendF;
 
 static auto constexpr kMaxPercent = 100u;
 
@@ -261,6 +263,18 @@ void VSyncPredictor::resetModel() {
     std::lock_guard<std::mutex> lk(mMutex);
     mRateMap[mIdealPeriod] = {mIdealPeriod, 0};
     clearTimestamps();
+}
+
+void VSyncPredictor::dump(std::string& result) const {
+    std::lock_guard<std::mutex> lk(mMutex);
+    StringAppendF(&result, "\tmIdealPeriod=%.2f\n", mIdealPeriod / 1e6f);
+    StringAppendF(&result, "\tRefresh Rate Map:\n");
+    for (const auto& [idealPeriod, periodInterceptTuple] : mRateMap) {
+        StringAppendF(&result,
+                      "\t\tFor ideal period %.2fms: period = %.2fms, intercept = %" PRId64 "\n",
+                      idealPeriod / 1e6f, std::get<0>(periodInterceptTuple) / 1e6f,
+                      std::get<1>(periodInterceptTuple));
+    }
 }
 
 } // namespace android::scheduler

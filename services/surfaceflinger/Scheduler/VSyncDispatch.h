@@ -108,6 +108,8 @@ public:
      */
     virtual CancelResult cancel(CallbackToken token) = 0;
 
+    virtual void dump(std::string& result) const = 0;
+
 protected:
     VSyncDispatch() = default;
     VSyncDispatch(VSyncDispatch const&) = delete;
