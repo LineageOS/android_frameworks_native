@@ -1157,14 +1157,16 @@ bool InputDispatcher::dispatchMotionLocked(nsecs_t currentTime, MotionEntry* ent
     }
 
     setInjectionResult(entry, injectionResult);
+    if (injectionResult == INPUT_EVENT_INJECTION_PERMISSION_DENIED) {
+        ALOGW("Permission denied, dropping the motion (isPointer=%s)", toString(isPointerEvent));
+        return true;
+    }
     if (injectionResult != INPUT_EVENT_INJECTION_SUCCEEDED) {
-        if (injectionResult != INPUT_EVENT_INJECTION_PERMISSION_DENIED) {
-            CancelationOptions::Mode mode(isPointerEvent
-                                                  ? CancelationOptions::CANCEL_POINTER_EVENTS
-                                                  : CancelationOptions::CANCEL_NON_POINTER_EVENTS);
-            CancelationOptions options(mode, "input event injection failed");
-            synthesizeCancelationEventsForMonitorsLocked(options);
-        }
+        CancelationOptions::Mode mode(isPointerEvent
+                                              ? CancelationOptions::CANCEL_POINTER_EVENTS
+                                              : CancelationOptions::CANCEL_NON_POINTER_EVENTS);
+        CancelationOptions options(mode, "input event injection failed");
+        synthesizeCancelationEventsForMonitorsLocked(options);
         return true;
     }
 
@@ -1349,13 +1351,6 @@ void InputDispatcher::resumeAfterTargetsNotReadyTimeoutLocked(
     }
 }
 
-nsecs_t InputDispatcher::getTimeSpentWaitingForApplicationLocked(nsecs_t currentTime) {
-    if (mInputTargetWaitCause == INPUT_TARGET_WAIT_CAUSE_APPLICATION_NOT_READY) {
-        return currentTime - mInputTargetWaitStartTime;
-    }
-    return 0;
-}
-
 void InputDispatcher::resetAnrTimeoutsLocked() {
     if (DEBUG_FOCUS) {
         ALOGD("Resetting ANR timeouts.");
@@ -1398,7 +1393,6 @@ int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
                                                         const EventEntry& entry,
                                                         std::vector<InputTarget>& inputTargets,
                                                         nsecs_t* nextWakeupTime) {
-    int32_t injectionResult;
     std::string reason;
 
     int32_t displayId = getTargetDisplayId(entry);
@@ -1411,54 +1405,38 @@ int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
     // then drop the event.
     if (focusedWindowHandle == nullptr) {
         if (focusedApplicationHandle != nullptr) {
-            injectionResult =
-                    handleTargetsNotReadyLocked(currentTime, entry, focusedApplicationHandle,
-                                                nullptr, nextWakeupTime,
-                                                "Waiting because no window has focus but there is "
-                                                "a focused application that may eventually add a "
-                                                "window when it finishes starting up.");
-            goto Unresponsive;
+            return handleTargetsNotReadyLocked(currentTime, entry, focusedApplicationHandle,
+                                               nullptr, nextWakeupTime,
+                                               "Waiting because no window has focus but there is "
+                                               "a focused application that may eventually add a "
+                                               "window when it finishes starting up.");
         }
 
         ALOGI("Dropping event because there is no focused window or focused application in display "
               "%" PRId32 ".",
               displayId);
-        injectionResult = INPUT_EVENT_INJECTION_FAILED;
-        goto Failed;
+        return INPUT_EVENT_INJECTION_FAILED;
     }
 
     // Check permissions.
     if (!checkInjectionPermission(focusedWindowHandle, entry.injectionState)) {
-        injectionResult = INPUT_EVENT_INJECTION_PERMISSION_DENIED;
-        goto Failed;
+        return INPUT_EVENT_INJECTION_PERMISSION_DENIED;
     }
 
     // Check whether the window is ready for more input.
     reason = checkWindowReadyForMoreInputLocked(currentTime, focusedWindowHandle, entry, "focused");
     if (!reason.empty()) {
-        injectionResult =
-                handleTargetsNotReadyLocked(currentTime, entry, focusedApplicationHandle,
-                                            focusedWindowHandle, nextWakeupTime, reason.c_str());
-        goto Unresponsive;
+        return handleTargetsNotReadyLocked(currentTime, entry, focusedApplicationHandle,
+                                           focusedWindowHandle, nextWakeupTime, reason.c_str());
     }
 
     // Success!  Output targets.
-    injectionResult = INPUT_EVENT_INJECTION_SUCCEEDED;
     addWindowTargetLocked(focusedWindowHandle,
                           InputTarget::FLAG_FOREGROUND | InputTarget::FLAG_DISPATCH_AS_IS,
                           BitSet32(0), inputTargets);
 
     // Done.
-Failed:
-Unresponsive:
-    nsecs_t timeSpentWaitingForApplication = getTimeSpentWaitingForApplicationLocked(currentTime);
-    updateDispatchStatistics(currentTime, entry, injectionResult, timeSpentWaitingForApplication);
-    if (DEBUG_FOCUS) {
-        ALOGD("findFocusedWindow finished: injectionResult=%d, "
-              "timeSpentWaitingForApplication=%0.1fms",
-              injectionResult, timeSpentWaitingForApplication / 1000000.0);
-    }
-    return injectionResult;
+    return INPUT_EVENT_INJECTION_SUCCEEDED;
 }
 
 int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
@@ -1750,10 +1728,9 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
                     checkWindowReadyForMoreInputLocked(currentTime, touchedWindow.windowHandle,
                                                        entry, "touched");
             if (!reason.empty()) {
-                injectionResult = handleTargetsNotReadyLocked(currentTime, entry, nullptr,
-                                                              touchedWindow.windowHandle,
-                                                              nextWakeupTime, reason.c_str());
-                goto Unresponsive;
+                return handleTargetsNotReadyLocked(currentTime, entry, nullptr,
+                                                   touchedWindow.windowHandle, nextWakeupTime,
+                                                   reason.c_str());
             }
         }
     }
@@ -1813,92 +1790,81 @@ Failed:
         }
     }
 
+    if (injectionPermission != INJECTION_PERMISSION_GRANTED) {
+        return injectionResult;
+    }
+
     // Update final pieces of touch state if the injector had permission.
-    if (injectionPermission == INJECTION_PERMISSION_GRANTED) {
-        if (!wrongDevice) {
-            if (switchedDevice) {
+    if (!wrongDevice) {
+        if (switchedDevice) {
+            if (DEBUG_FOCUS) {
+                ALOGD("Conflicting pointer actions: Switched to a different device.");
+            }
+            *outConflictingPointerActions = true;
+        }
+
+        if (isHoverAction) {
+            // Started hovering, therefore no longer down.
+            if (oldState && oldState->down) {
                 if (DEBUG_FOCUS) {
-                    ALOGD("Conflicting pointer actions: Switched to a different device.");
+                    ALOGD("Conflicting pointer actions: Hover received while pointer was "
+                          "down.");
                 }
                 *outConflictingPointerActions = true;
             }
+            tempTouchState.reset();
+            if (maskedAction == AMOTION_EVENT_ACTION_HOVER_ENTER ||
+                maskedAction == AMOTION_EVENT_ACTION_HOVER_MOVE) {
+                tempTouchState.deviceId = entry.deviceId;
+                tempTouchState.source = entry.source;
+                tempTouchState.displayId = displayId;
+            }
+        } else if (maskedAction == AMOTION_EVENT_ACTION_UP ||
+                   maskedAction == AMOTION_EVENT_ACTION_CANCEL) {
+            // All pointers up or canceled.
+            tempTouchState.reset();
+        } else if (maskedAction == AMOTION_EVENT_ACTION_DOWN) {
+            // First pointer went down.
+            if (oldState && oldState->down) {
+                if (DEBUG_FOCUS) {
+                    ALOGD("Conflicting pointer actions: Down received while already down.");
+                }
+                *outConflictingPointerActions = true;
+            }
+        } else if (maskedAction == AMOTION_EVENT_ACTION_POINTER_UP) {
+            // One pointer went up.
+            if (isSplit) {
+                int32_t pointerIndex = getMotionEventActionPointerIndex(action);
+                uint32_t pointerId = entry.pointerProperties[pointerIndex].id;
 
-            if (isHoverAction) {
-                // Started hovering, therefore no longer down.
-                if (oldState && oldState->down) {
-                    if (DEBUG_FOCUS) {
-                        ALOGD("Conflicting pointer actions: Hover received while pointer was "
-                              "down.");
-                    }
-                    *outConflictingPointerActions = true;
-                }
-                tempTouchState.reset();
-                if (maskedAction == AMOTION_EVENT_ACTION_HOVER_ENTER ||
-                    maskedAction == AMOTION_EVENT_ACTION_HOVER_MOVE) {
-                    tempTouchState.deviceId = entry.deviceId;
-                    tempTouchState.source = entry.source;
-                    tempTouchState.displayId = displayId;
-                }
-            } else if (maskedAction == AMOTION_EVENT_ACTION_UP ||
-                       maskedAction == AMOTION_EVENT_ACTION_CANCEL) {
-                // All pointers up or canceled.
-                tempTouchState.reset();
-            } else if (maskedAction == AMOTION_EVENT_ACTION_DOWN) {
-                // First pointer went down.
-                if (oldState && oldState->down) {
-                    if (DEBUG_FOCUS) {
-                        ALOGD("Conflicting pointer actions: Down received while already down.");
-                    }
-                    *outConflictingPointerActions = true;
-                }
-            } else if (maskedAction == AMOTION_EVENT_ACTION_POINTER_UP) {
-                // One pointer went up.
-                if (isSplit) {
-                    int32_t pointerIndex = getMotionEventActionPointerIndex(action);
-                    uint32_t pointerId = entry.pointerProperties[pointerIndex].id;
-
-                    for (size_t i = 0; i < tempTouchState.windows.size();) {
-                        TouchedWindow& touchedWindow = tempTouchState.windows[i];
-                        if (touchedWindow.targetFlags & InputTarget::FLAG_SPLIT) {
-                            touchedWindow.pointerIds.clearBit(pointerId);
-                            if (touchedWindow.pointerIds.isEmpty()) {
-                                tempTouchState.windows.erase(tempTouchState.windows.begin() + i);
-                                continue;
-                            }
+                for (size_t i = 0; i < tempTouchState.windows.size();) {
+                    TouchedWindow& touchedWindow = tempTouchState.windows[i];
+                    if (touchedWindow.targetFlags & InputTarget::FLAG_SPLIT) {
+                        touchedWindow.pointerIds.clearBit(pointerId);
+                        if (touchedWindow.pointerIds.isEmpty()) {
+                            tempTouchState.windows.erase(tempTouchState.windows.begin() + i);
+                            continue;
                         }
-                        i += 1;
                     }
+                    i += 1;
                 }
             }
+        }
 
-            // Save changes unless the action was scroll in which case the temporary touch
-            // state was only valid for this one action.
-            if (maskedAction != AMOTION_EVENT_ACTION_SCROLL) {
-                if (tempTouchState.displayId >= 0) {
-                    mTouchStatesByDisplay[displayId] = tempTouchState;
-                } else {
-                    mTouchStatesByDisplay.erase(displayId);
-                }
+        // Save changes unless the action was scroll in which case the temporary touch
+        // state was only valid for this one action.
+        if (maskedAction != AMOTION_EVENT_ACTION_SCROLL) {
+            if (tempTouchState.displayId >= 0) {
+                mTouchStatesByDisplay[displayId] = tempTouchState;
+            } else {
+                mTouchStatesByDisplay.erase(displayId);
             }
+        }
 
-            // Update hover state.
-            mLastHoverWindowHandle = newHoverWindowHandle;
-        }
-    } else {
-        if (DEBUG_FOCUS) {
-            ALOGD("Not updating touch focus because injection was denied.");
-        }
+        // Update hover state.
+        mLastHoverWindowHandle = newHoverWindowHandle;
     }
 
-Unresponsive:
-
-    nsecs_t timeSpentWaitingForApplication = getTimeSpentWaitingForApplicationLocked(currentTime);
-    updateDispatchStatistics(currentTime, entry, injectionResult, timeSpentWaitingForApplication);
-    if (DEBUG_FOCUS) {
-        ALOGD("findTouchedWindow finished: injectionResult=%d, injectionPermission=%d, "
-              "timeSpentWaitingForApplication=%0.1fms",
-              injectionResult, injectionPermission, timeSpentWaitingForApplication / 1000000.0);
-    }
     return injectionResult;
 }
 
@@ -4658,6 +4624,7 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(CommandEntry* c
         dispatchEntry->eventEntry->appendDescription(msg);
         ALOGI("%s", msg.c_str());
     }
+    reportDispatchStatistics(std::chrono::nanoseconds(eventDuration), *connection, handled);
 
     bool restartEvent;
     if (dispatchEntry->eventEntry->type == EventEntry::Type::KEY) {
@@ -4892,9 +4859,8 @@ KeyEvent InputDispatcher::createKeyEvent(const KeyEntry& entry) {
     return event;
 }
 
-void InputDispatcher::updateDispatchStatistics(nsecs_t currentTime, const EventEntry& entry,
-                                               int32_t injectionResult,
-                                               nsecs_t timeSpentWaitingForApplication) {
+void InputDispatcher::reportDispatchStatistics(std::chrono::nanoseconds eventDuration,
+                                               const Connection& connection, bool handled) {
     // TODO Write some statistics about how long we spend waiting.
 }
 
