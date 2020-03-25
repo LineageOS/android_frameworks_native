@@ -4,6 +4,7 @@ cc_library_shared {
     srcs: [
         "BatterySaverPolicyConfig.cpp",
         "CoolingDevice.cpp",
+        "PowerHalWrapper.cpp",
         "PowerSaveState.cpp",
         "Temperature.cpp",
         "WorkSource.cpp",
@@ -19,9 +20,13 @@ cc_library_shared {
     },
 
     shared_libs: [
-        "libutils",
         "libbinder",
-        "liblog"
+        "libhidlbase",
+        "liblog",
+        "libutils",
+        "android.hardware.power@1.0",
+        "android.hardware.power@1.1",
+        "android.hardware.power-cpp",
     ],
 
     cflags: [
@@ -34,24 +39,5 @@ cc_library_shared {
     local_include_dirs: ["include"],
     export_include_dirs: [
          "include",
-    ],
-}
-
-cc_test {
-    name: "thermalmanager-test",
-    srcs: ["IThermalManagerTest.cpp",
-          ],
-    cflags: [
-        "-Wall",
-        "-Werror",
-        "-Wextra",
-    ],
-    shared_libs: [
-        "libbase",
-        "libbinder",
-        "libhidlbase",
-        "liblog",
-        "libpowermanager",
-        "libutils",
     ],
 }
