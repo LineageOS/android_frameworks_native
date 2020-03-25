@@ -28,6 +28,7 @@
 #include "VSyncTracker.h"
 
 namespace android::scheduler {
+using base::StringAppendF;
 
 Clock::~Clock() = default;
 nsecs_t SystemClock::now() const {
@@ -73,11 +74,12 @@ class CallbackRepeater {
 public:
     CallbackRepeater(VSyncDispatch& dispatch, DispSync::Callback* cb, const char* name,
                      nsecs_t period, nsecs_t offset, nsecs_t notBefore)
-          : mCallback(cb),
+          : mName(name),
+            mCallback(cb),
             mRegistration(dispatch,
                           std::bind(&CallbackRepeater::callback, this, std::placeholders::_1,
                                     std::placeholders::_2),
-                          std::string(name)),
+                          mName),
             mPeriod(period),
             mOffset(offset),
             mLastCallTime(notBefore) {}
@@ -112,6 +114,13 @@ public:
         mRegistration.cancel();
     }
 
+    void dump(std::string& result) const {
+        std::lock_guard<std::mutex> lk(mMutex);
+        StringAppendF(&result, "\t%s: mPeriod=%.2f last vsync time %.2fms relative to now (%s)\n",
+                      mName.c_str(), mPeriod / 1e6f, (mLastCallTime - systemTime()) / 1e6f,
+                      mStopped ? "stopped" : "running");
+    }
+
 private:
     void callback(nsecs_t vsynctime, nsecs_t wakeupTime) {
         {
@@ -137,6 +146,7 @@ private:
     // Note change in sign between the two defnitions.
     nsecs_t calculateWorkload() REQUIRES(mMutex) { return mPeriod - mOffset; }
 
+    const std::string mName;
     DispSync::Callback* const mCallback;
 
     std::mutex mutable mMutex;
@@ -349,7 +359,35 @@ status_t VSyncReactor::changePhaseOffset(DispSync::Callback* callback, nsecs_t p
 }
 
 void VSyncReactor::dump(std::string& result) const {
-    result += "VsyncReactor in use\n"; // TODO (b/144927823): add more information!
+    std::lock_guard<std::mutex> lk(mMutex);
+    StringAppendF(&result, "VsyncReactor in use\n");
+    StringAppendF(&result, "Has %zu unfired fences\n", mUnfiredFences.size());
+    StringAppendF(&result, "mInternalIgnoreFences=%d mExternalIgnoreFences=%d\n",
+                  mInternalIgnoreFences, mExternalIgnoreFences);
+    StringAppendF(&result, "mMoreSamplesNeeded=%d mPeriodConfirmationInProgress=%d\n",
+                  mMoreSamplesNeeded, mPeriodConfirmationInProgress);
+    if (mPeriodTransitioningTo) {
+        StringAppendF(&result, "mPeriodTransitioningTo=%" PRId64 "\n", *mPeriodTransitioningTo);
+    } else {
+        StringAppendF(&result, "mPeriodTransitioningTo=nullptr\n");
+    }
+
+    if (mLastHwVsync) {
+        StringAppendF(&result, "Last HW vsync was %.2fms ago\n",
+                      (mClock->now() - *mLastHwVsync) / 1e6f);
+    } else {
+        StringAppendF(&result, "No Last HW vsync\n");
+    }
+
+    StringAppendF(&result, "CallbackRepeaters:\n");
+    for (const auto& [callback, repeater] : mCallbacks) {
+        repeater->dump(result);
+    }
+
+    StringAppendF(&result, "VSyncTracker:\n");
+    mTracker->dump(result);
+    StringAppendF(&result, "VSyncDispatch:\n");
+    mDispatch->dump(result);
 }
 
 void VSyncReactor::reset() {}
