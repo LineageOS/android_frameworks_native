@@ -36,6 +36,8 @@ public:
     void setCallback(VSyncSource::Callback* callback) override;
     void setPhaseOffset(nsecs_t phaseOffset) override;
 
+    void dump(std::string&) const override;
+
 private:
     // The following method is the implementation of the DispSync::Callback.
     virtual void onDispSyncEvent(nsecs_t when);
@@ -52,7 +54,7 @@ private:
     std::mutex mCallbackMutex;
     VSyncSource::Callback* mCallback GUARDED_BY(mCallbackMutex) = nullptr;
 
-    std::mutex mVsyncMutex;
+    mutable std::mutex mVsyncMutex;
     TracedOrdinal<nsecs_t> mPhaseOffset GUARDED_BY(mVsyncMutex);
     bool mEnabled GUARDED_BY(mVsyncMutex) = false;
 };
