@@ -30,6 +30,7 @@
 #include "EventThread.h"
 
 namespace android {
+using base::StringAppendF;
 
 DispSyncSource::DispSyncSource(DispSync* dispSync, nsecs_t phaseOffset, bool traceVsync,
                                const char* name)
@@ -105,6 +106,12 @@ void DispSyncSource::onDispSyncEvent(nsecs_t when) {
     if (callback != nullptr) {
         callback->onVSyncEvent(when);
     }
+}
+
+void DispSyncSource::dump(std::string& result) const {
+    std::lock_guard lock(mVsyncMutex);
+    StringAppendF(&result, "DispSyncSource: %s(%s)\n", mName, mEnabled ? "enabled" : "disabled");
+    mDispSync->dump(result);
 }
 
 } // namespace android

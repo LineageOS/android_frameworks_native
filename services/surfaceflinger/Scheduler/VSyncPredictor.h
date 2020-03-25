@@ -60,6 +60,8 @@ public:
 
     std::tuple<nsecs_t /* slope */, nsecs_t /* intercept */> getVSyncPredictionModel() const;
 
+    void dump(std::string& result) const final;
+
 private:
     VSyncPredictor(VSyncPredictor const&) = delete;
     VSyncPredictor& operator=(VSyncPredictor const&) = delete;
