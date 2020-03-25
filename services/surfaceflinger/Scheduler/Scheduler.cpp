@@ -419,20 +419,6 @@ void Scheduler::registerLayer(Layer* layer) {
                                          mRefreshRateConfigs.getMaxRefreshRate().fps,
                                          scheduler::LayerHistory::LayerVoteType::Heuristic);
         }
-
-        // TODO(146935143): Simulate youtube app vote. This should be removed once youtube calls the
-        // API to set desired rate
-        {
-            const auto vote = property_get_int32("experimental.sf.force_youtube_vote", 0);
-            if (vote != 0 &&
-                layer->getName() ==
-                        "SurfaceView - "
-                        "com.google.android.youtube/"
-                        "com.google.android.apps.youtube.app.WatchWhileActivity#0") {
-                layer->setFrameRate(
-                        Layer::FrameRate(vote, Layer::FrameRateCompatibility::ExactOrMultiple));
-            }
-        }
     }
 }
 
