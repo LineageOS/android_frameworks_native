@@ -41,6 +41,7 @@ public:
     MOCK_CONST_METHOD0(currentPeriod, nsecs_t());
     MOCK_METHOD1(setPeriod, void(nsecs_t));
     MOCK_METHOD0(resetModel, void());
+    MOCK_CONST_METHOD1(dump, void(std::string&));
 };
 
 class VSyncTrackerWrapper : public VSyncTracker {
@@ -56,6 +57,7 @@ public:
     nsecs_t currentPeriod() const final { return mTracker->currentPeriod(); }
     void setPeriod(nsecs_t period) final { mTracker->setPeriod(period); }
     void resetModel() final { mTracker->resetModel(); }
+    void dump(std::string& result) const final { mTracker->dump(result); }
 
 private:
     std::shared_ptr<VSyncTracker> const mTracker;
@@ -83,6 +85,7 @@ public:
     MOCK_METHOD1(unregisterCallback, void(CallbackToken));
     MOCK_METHOD3(schedule, ScheduleResult(CallbackToken, nsecs_t, nsecs_t));
     MOCK_METHOD1(cancel, CancelResult(CallbackToken token));
+    MOCK_CONST_METHOD1(dump, void(std::string&));
 };
 
 class VSyncDispatchWrapper : public VSyncDispatch {
@@ -101,6 +104,8 @@ public:
     }
 
     CancelResult cancel(CallbackToken token) final { return mDispatch->cancel(token); }
+
+    void dump(std::string& result) const final { return mDispatch->dump(result); }
 
 private:
     std::shared_ptr<VSyncDispatch> const mDispatch;

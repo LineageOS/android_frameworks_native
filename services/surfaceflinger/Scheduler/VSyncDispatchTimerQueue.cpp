@@ -15,6 +15,7 @@
  */
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
+#include <android-base/stringprintf.h>
 #include <utils/Trace.h>
 #include <vector>
 
@@ -23,6 +24,7 @@
 #include "VSyncTracker.h"
 
 namespace android::scheduler {
+using base::StringAppendF;
 
 VSyncDispatch::~VSyncDispatch() = default;
 VSyncTracker::~VSyncTracker() = default;
@@ -120,6 +122,28 @@ void VSyncDispatchTimerQueueEntry::callback(nsecs_t vsyncTimestamp, nsecs_t wake
 void VSyncDispatchTimerQueueEntry::ensureNotRunning() {
     std::unique_lock<std::mutex> lk(mRunningMutex);
     mCv.wait(lk, [this]() REQUIRES(mRunningMutex) { return !mRunning; });
+}
+
+void VSyncDispatchTimerQueueEntry::dump(std::string& result) const {
+    std::lock_guard<std::mutex> lk(mRunningMutex);
+    std::string armedInfo;
+    if (mArmedInfo) {
+        StringAppendF(&armedInfo, "[wake up in %.2fms for vsync %.2fms from now]",
+                      (mArmedInfo->mActualWakeupTime - systemTime()) / 1e6f,
+                      (mArmedInfo->mActualVsyncTime - systemTime()) / 1e6f);
+    }
+
+    StringAppendF(&result, "\t\t%s: %s %s\n", mName.c_str(),
+                  mRunning ? "(in callback function)" : "", armedInfo.c_str());
+    StringAppendF(&result, "\t\t\tmWorkDuration: %.2fms mEarliestVsync: %.2fms relative to now\n",
+                  mWorkDuration / 1e6f, (mEarliestVsync - systemTime()) / 1e6f);
+
+    if (mLastDispatchTime) {
+        StringAppendF(&result, "\t\t\tmLastDispatchTime: %.2fms ago\n",
+                      (systemTime() - *mLastDispatchTime) / 1e6f);
+    } else {
+        StringAppendF(&result, "\t\t\tmLastDispatchTime unknown\n");
+    }
 }
 
 VSyncDispatchTimerQueue::VSyncDispatchTimerQueue(std::unique_ptr<TimeKeeper> tk,
@@ -294,6 +318,18 @@ CancelResult VSyncDispatchTimerQueue::cancel(CallbackToken token) {
         return CancelResult::Cancelled;
     }
     return CancelResult::TooLate;
+}
+
+void VSyncDispatchTimerQueue::dump(std::string& result) const {
+    std::lock_guard<decltype(mMutex)> lk(mMutex);
+    StringAppendF(&result, "\tmTimerSlack: %.2fms mMinVsyncDistance: %.2fms\n", mTimerSlack / 1e6f,
+                  mMinVsyncDistance / 1e6f);
+    StringAppendF(&result, "\tmIntendedWakeupTime: %.2fms from now\n",
+                  (mIntendedWakeupTime - systemTime()) / 1e6f);
+    StringAppendF(&result, "\tCallbacks:\n");
+    for (const auto& [token, entry] : mCallbacks) {
+        entry->dump(result);
+    }
 }
 
 VSyncCallbackRegistration::VSyncCallbackRegistration(VSyncDispatch& dispatch,
