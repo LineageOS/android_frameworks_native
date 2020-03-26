@@ -23,7 +23,6 @@
 
 #include <utils/Vector.h>
 #include <utils/SortedVector.h>
-#include <utils/KeyedVector.h>
 #include <utils/threads.h>
 #include <utils/AndroidThreads.h>
 #include <utils/RefBase.h>
@@ -60,6 +59,7 @@ public:
     bool hasOneShotSensors() const;
     bool addSensor(int32_t handle);
     bool removeSensor(int32_t handle);
+    std::vector<int32_t> getActiveSensorHandles() const;
     void setFirstFlushPending(int32_t handle, bool value);
     void dump(String8& result);
     void dump(util::ProtoOutputStream* proto) const;
@@ -169,8 +169,8 @@ private:
 
         FlushInfo() : mPendingFlushEventsToSend(0), mFirstFlushPending(false) {}
     };
-    // protected by SensorService::mLock. Key for this vector is the sensor handle.
-    KeyedVector<int, FlushInfo> mSensorInfo;
+    // protected by SensorService::mLock. Key for this map is the sensor handle.
+    std::unordered_map<int32_t, FlushInfo> mSensorInfo;
 
     sensors_event_t *mEventCache;
     int mCacheSize, mMaxCacheSize;
