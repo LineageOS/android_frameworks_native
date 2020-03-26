@@ -40,4 +40,8 @@ cc_binary {
     cflags: [
         "-DLOG_TAG=\"AutomotiveDisplayService\""
     ],
+
+    vintf_fragments: [
+        "manifest_android.frameworks.automotive.display@1.0.xml",
+    ],
 }
