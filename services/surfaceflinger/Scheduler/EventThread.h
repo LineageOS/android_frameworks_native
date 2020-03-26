@@ -66,6 +66,8 @@ public:
     virtual void setVSyncEnabled(bool enable) = 0;
     virtual void setCallback(Callback* callback) = 0;
     virtual void setPhaseOffset(nsecs_t phaseOffset) = 0;
+
+    virtual void dump(std::string& result) const = 0;
 };
 
 class EventThreadConnection : public BnDisplayEventConnection {
