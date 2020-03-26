@@ -3621,6 +3621,18 @@ void InputDispatcher::updateWindowHandlesForDisplayLocked(
     mWindowHandlesByDisplay[displayId] = newHandles;
 }
 
+void InputDispatcher::setInputWindows(
+        const std::unordered_map<int32_t, std::vector<sp<InputWindowHandle>>>& handlesPerDisplay) {
+    { // acquire lock
+        std::scoped_lock _l(mLock);
+        for (auto const& i : handlesPerDisplay) {
+            setInputWindowsLocked(i.second, i.first);
+        }
+    }
+    // Wake up poll loop since it may need to make new input dispatching choices.
+    mLooper->wake();
+}
+
 /**
  * Called from InputManagerService, update window handle list by displayId that can receive input.
  * A window handle contains information about InputChannel, Touch Region, Types, Focused,...
@@ -3628,9 +3640,8 @@ void InputDispatcher::updateWindowHandlesForDisplayLocked(
  * For focused handle, check if need to change and send a cancel event to previous one.
  * For removed handle, check if need to send a cancel event if already in touch.
  */
-void InputDispatcher::setInputWindows(const std::vector<sp<InputWindowHandle>>& inputWindowHandles,
-                                      int32_t displayId,
-                                      const sp<ISetInputWindowsListener>& setInputWindowsListener) {
+void InputDispatcher::setInputWindowsLocked(
+        const std::vector<sp<InputWindowHandle>>& inputWindowHandles, int32_t displayId) {
     if (DEBUG_FOCUS) {
         std::string windowList;
         for (const sp<InputWindowHandle>& iwh : inputWindowHandles) {
@@ -3638,109 +3649,97 @@ void InputDispatcher::setInputWindows(const std::vector<sp<InputWindowHandle>>& 
         }
         ALOGD("setInputWindows displayId=%" PRId32 " %s", displayId, windowList.c_str());
     }
-    { // acquire lock
-        std::scoped_lock _l(mLock);
 
-        // Copy old handles for release if they are no longer present.
-        const std::vector<sp<InputWindowHandle>> oldWindowHandles =
-                getWindowHandlesLocked(displayId);
+    // Copy old handles for release if they are no longer present.
+    const std::vector<sp<InputWindowHandle>> oldWindowHandles = getWindowHandlesLocked(displayId);
 
-        updateWindowHandlesForDisplayLocked(inputWindowHandles, displayId);
+    updateWindowHandlesForDisplayLocked(inputWindowHandles, displayId);
 
-        sp<InputWindowHandle> newFocusedWindowHandle = nullptr;
-        bool foundHoveredWindow = false;
-        for (const sp<InputWindowHandle>& windowHandle : getWindowHandlesLocked(displayId)) {
-            // Set newFocusedWindowHandle to the top most focused window instead of the last one
-            if (!newFocusedWindowHandle && windowHandle->getInfo()->hasFocus &&
-                windowHandle->getInfo()->visible) {
-                newFocusedWindowHandle = windowHandle;
+    sp<InputWindowHandle> newFocusedWindowHandle = nullptr;
+    bool foundHoveredWindow = false;
+    for (const sp<InputWindowHandle>& windowHandle : getWindowHandlesLocked(displayId)) {
+        // Set newFocusedWindowHandle to the top most focused window instead of the last one
+        if (!newFocusedWindowHandle && windowHandle->getInfo()->hasFocus &&
+            windowHandle->getInfo()->visible) {
+            newFocusedWindowHandle = windowHandle;
+        }
+        if (windowHandle == mLastHoverWindowHandle) {
+            foundHoveredWindow = true;
+        }
+    }
+
+    if (!foundHoveredWindow) {
+        mLastHoverWindowHandle = nullptr;
+    }
+
+    sp<InputWindowHandle> oldFocusedWindowHandle =
+            getValueByKey(mFocusedWindowHandlesByDisplay, displayId);
+
+    if (!haveSameToken(oldFocusedWindowHandle, newFocusedWindowHandle)) {
+        if (oldFocusedWindowHandle != nullptr) {
+            if (DEBUG_FOCUS) {
+                ALOGD("Focus left window: %s in display %" PRId32,
+                      oldFocusedWindowHandle->getName().c_str(), displayId);
             }
-            if (windowHandle == mLastHoverWindowHandle) {
-                foundHoveredWindow = true;
+            sp<InputChannel> focusedInputChannel =
+                    getInputChannelLocked(oldFocusedWindowHandle->getToken());
+            if (focusedInputChannel != nullptr) {
+                CancelationOptions options(CancelationOptions::CANCEL_NON_POINTER_EVENTS,
+                                           "focus left window");
+                synthesizeCancelationEventsForInputChannelLocked(focusedInputChannel, options);
+                enqueueFocusEventLocked(*oldFocusedWindowHandle, false /*hasFocus*/);
             }
+            mFocusedWindowHandlesByDisplay.erase(displayId);
+        }
+        if (newFocusedWindowHandle != nullptr) {
+            if (DEBUG_FOCUS) {
+                ALOGD("Focus entered window: %s in display %" PRId32,
+                      newFocusedWindowHandle->getName().c_str(), displayId);
+            }
+            mFocusedWindowHandlesByDisplay[displayId] = newFocusedWindowHandle;
+            enqueueFocusEventLocked(*newFocusedWindowHandle, true /*hasFocus*/);
         }
 
-        if (!foundHoveredWindow) {
-            mLastHoverWindowHandle = nullptr;
+        if (mFocusedDisplayId == displayId) {
+            onFocusChangedLocked(oldFocusedWindowHandle, newFocusedWindowHandle);
         }
+    }
 
-        sp<InputWindowHandle> oldFocusedWindowHandle =
-                getValueByKey(mFocusedWindowHandlesByDisplay, displayId);
-
-        if (!haveSameToken(oldFocusedWindowHandle, newFocusedWindowHandle)) {
-            if (oldFocusedWindowHandle != nullptr) {
+    ssize_t stateIndex = mTouchStatesByDisplay.indexOfKey(displayId);
+    if (stateIndex >= 0) {
+        TouchState& state = mTouchStatesByDisplay.editValueAt(stateIndex);
+        for (size_t i = 0; i < state.windows.size();) {
+            TouchedWindow& touchedWindow = state.windows[i];
+            if (!hasWindowHandleLocked(touchedWindow.windowHandle)) {
                 if (DEBUG_FOCUS) {
-                    ALOGD("Focus left window: %s in display %" PRId32,
-                          oldFocusedWindowHandle->getName().c_str(), displayId);
+                    ALOGD("Touched window was removed: %s in display %" PRId32,
+                          touchedWindow.windowHandle->getName().c_str(), displayId);
                 }
-                sp<InputChannel> focusedInputChannel =
-                        getInputChannelLocked(oldFocusedWindowHandle->getToken());
-                if (focusedInputChannel != nullptr) {
-                    CancelationOptions options(CancelationOptions::CANCEL_NON_POINTER_EVENTS,
-                                               "focus left window");
-                    synthesizeCancelationEventsForInputChannelLocked(focusedInputChannel, options);
-                    enqueueFocusEventLocked(*oldFocusedWindowHandle, false /*hasFocus*/);
+                sp<InputChannel> touchedInputChannel =
+                        getInputChannelLocked(touchedWindow.windowHandle->getToken());
+                if (touchedInputChannel != nullptr) {
+                    CancelationOptions options(CancelationOptions::CANCEL_POINTER_EVENTS,
+                                               "touched window was removed");
+                    synthesizeCancelationEventsForInputChannelLocked(touchedInputChannel, options);
                 }
-                mFocusedWindowHandlesByDisplay.erase(displayId);
-            }
-            if (newFocusedWindowHandle != nullptr) {
-                if (DEBUG_FOCUS) {
-                    ALOGD("Focus entered window: %s in display %" PRId32,
-                          newFocusedWindowHandle->getName().c_str(), displayId);
-                }
-                mFocusedWindowHandlesByDisplay[displayId] = newFocusedWindowHandle;
-                enqueueFocusEventLocked(*newFocusedWindowHandle, true /*hasFocus*/);
-            }
-
-            if (mFocusedDisplayId == displayId) {
-                onFocusChangedLocked(oldFocusedWindowHandle, newFocusedWindowHandle);
+                state.windows.erase(state.windows.begin() + i);
+            } else {
+                ++i;
             }
         }
+    }
 
-        ssize_t stateIndex = mTouchStatesByDisplay.indexOfKey(displayId);
-        if (stateIndex >= 0) {
-            TouchState& state = mTouchStatesByDisplay.editValueAt(stateIndex);
-            for (size_t i = 0; i < state.windows.size();) {
-                TouchedWindow& touchedWindow = state.windows[i];
-                if (!hasWindowHandleLocked(touchedWindow.windowHandle)) {
-                    if (DEBUG_FOCUS) {
-                        ALOGD("Touched window was removed: %s in display %" PRId32,
-                              touchedWindow.windowHandle->getName().c_str(), displayId);
-                    }
-                    sp<InputChannel> touchedInputChannel =
-                            getInputChannelLocked(touchedWindow.windowHandle->getToken());
-                    if (touchedInputChannel != nullptr) {
-                        CancelationOptions options(CancelationOptions::CANCEL_POINTER_EVENTS,
-                                                   "touched window was removed");
-                        synthesizeCancelationEventsForInputChannelLocked(touchedInputChannel,
-                                                                         options);
-                    }
-                    state.windows.erase(state.windows.begin() + i);
-                } else {
-                    ++i;
-                }
+    // Release information for windows that are no longer present.
+    // This ensures that unused input channels are released promptly.
+    // Otherwise, they might stick around until the window handle is destroyed
+    // which might not happen until the next GC.
+    for (const sp<InputWindowHandle>& oldWindowHandle : oldWindowHandles) {
+        if (!hasWindowHandleLocked(oldWindowHandle)) {
+            if (DEBUG_FOCUS) {
+                ALOGD("Window went away: %s", oldWindowHandle->getName().c_str());
             }
+            oldWindowHandle->releaseChannel();
         }
-
-        // Release information for windows that are no longer present.
-        // This ensures that unused input channels are released promptly.
-        // Otherwise, they might stick around until the window handle is destroyed
-        // which might not happen until the next GC.
-        for (const sp<InputWindowHandle>& oldWindowHandle : oldWindowHandles) {
-            if (!hasWindowHandleLocked(oldWindowHandle)) {
-                if (DEBUG_FOCUS) {
-                    ALOGD("Window went away: %s", oldWindowHandle->getName().c_str());
-                }
-                oldWindowHandle->releaseChannel();
-            }
-        }
-    } // release lock
-
-    // Wake up poll loop since it may need to make new input dispatching choices.
-    mLooper->wake();
-
-    if (setInputWindowsListener) {
-        setInputWindowsListener->onSetInputWindowsFinished();
     }
 }
 
