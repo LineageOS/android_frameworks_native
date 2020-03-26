@@ -1196,6 +1196,23 @@ bool EnsureInitialized() {
     return initialized;
 }
 
+template <typename Functor>
+void ForEachLayerFromSettings(Functor functor) {
+    const std::string layersSetting =
+        android::GraphicsEnv::getInstance().getDebugLayers();
+    if (!layersSetting.empty()) {
+        std::vector<std::string> layers =
+            android::base::Split(layersSetting, ":");
+        for (uint32_t i = 0; i < layers.size(); i++) {
+            const Layer* layer = FindLayer(layers[i].c_str());
+            if (!layer) {
+                continue;
+            }
+            functor(layer);
+        }
+    }
+}
+
 }  // anonymous namespace
 
 VkResult CreateInstance(const VkInstanceCreateInfo* pCreateInfo,
@@ -1291,28 +1308,18 @@ VkResult EnumerateInstanceExtensionProperties(
     std::unordered_set<std::string> extensionNames;
 
     // Expose extensions from implicitly enabled layers.
-    const std::string layersSetting =
-        android::GraphicsEnv::getInstance().getDebugLayers();
-    if (!layersSetting.empty()) {
-        std::vector<std::string> layers =
-            android::base::Split(layersSetting, ":");
-        for (uint32_t i = 0; i < layers.size(); i++) {
-            const Layer* layer = FindLayer(layers[i].c_str());
-            if (!layer) {
-                continue;
-            }
-            uint32_t count = 0;
-            const VkExtensionProperties* props =
-                GetLayerInstanceExtensions(*layer, count);
-            if (count > 0) {
-                for (uint32_t i = 0; i < count; ++i) {
-                    if (extensionNames.emplace(props[i].extensionName).second) {
-                        properties.push_back(props[i]);
-                    }
+    ForEachLayerFromSettings([&](const Layer* layer) {
+        uint32_t count = 0;
+        const VkExtensionProperties* props =
+            GetLayerInstanceExtensions(*layer, count);
+        if (count > 0) {
+            for (uint32_t i = 0; i < count; ++i) {
+                if (extensionNames.emplace(props[i].extensionName).second) {
+                    properties.push_back(props[i]);
                 }
             }
         }
-    }
+    });
 
     // TODO(b/143293104): Parse debug.vulkan.layers properties
 
@@ -1393,10 +1400,57 @@ VkResult EnumerateDeviceExtensionProperties(
         return *pPropertyCount < count ? VK_INCOMPLETE : VK_SUCCESS;
     }
 
-    // TODO(b/143293104): expose extensions from implicitly enabled layers
-    const InstanceData& data = GetData(physicalDevice);
-    return data.dispatch.EnumerateDeviceExtensionProperties(
-        physicalDevice, nullptr, pPropertyCount, pProperties);
+    // If the pLayerName is nullptr, we must advertise all device extensions
+    // from all implicitly enabled layers and the driver implementation. If
+    // there are duplicates among layers and the driver implementation, always
+    // only preserve the top layer closest to the application regardless of the
+    // spec version.
+    std::vector<VkExtensionProperties> properties;
+    std::unordered_set<std::string> extensionNames;
+
+    // Expose extensions from implicitly enabled layers.
+    ForEachLayerFromSettings([&](const Layer* layer) {
+        uint32_t count = 0;
+        const VkExtensionProperties* props =
+            GetLayerDeviceExtensions(*layer, count);
+        if (count > 0) {
+            for (uint32_t i = 0; i < count; ++i) {
+                if (extensionNames.emplace(props[i].extensionName).second) {
+                    properties.push_back(props[i]);
+                }
+            }
+        }
+    });
+
+    // TODO(b/143293104): Parse debug.vulkan.layers properties
+
+    // Expose extensions from driver implementation.
+    {
+        const InstanceData& data = GetData(physicalDevice);
+        uint32_t count = 0;
+        VkResult result = data.dispatch.EnumerateDeviceExtensionProperties(
+            physicalDevice, nullptr, &count, nullptr);
+        if (result == VK_SUCCESS && count > 0) {
+            std::vector<VkExtensionProperties> props(count);
+            result = data.dispatch.EnumerateDeviceExtensionProperties(
+                physicalDevice, nullptr, &count, props.data());
+            for (auto prop : props) {
+                if (extensionNames.emplace(prop.extensionName).second) {
+                    properties.push_back(prop);
+                }
+            }
+        }
+    }
+
+    uint32_t totalCount = properties.size();
+    if (!pProperties || *pPropertyCount > totalCount) {
+        *pPropertyCount = totalCount;
+    }
+    if (pProperties) {
+        std::copy(properties.data(), properties.data() + *pPropertyCount,
+                  pProperties);
+    }
+    return *pPropertyCount < totalCount ? VK_INCOMPLETE : VK_SUCCESS;
 }
 
 VkResult EnumerateInstanceVersion(uint32_t* pApiVersion) {
