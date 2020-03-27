@@ -138,10 +138,10 @@ class OTAPreoptService {
             return 4;
         }
 
-        PrepareEnvironment();
+        PrepareEnvironmentVariables();
 
-        if (!PrepareBootImage(/* force */ false)) {
-            LOG(ERROR) << "Failed preparing boot image.";
+        if (!EnsureBootImageAndDalvikCache()) {
+            LOG(ERROR) << "Bad boot image.";
             return 5;
         }
 
@@ -302,7 +302,7 @@ private:
         return parameters_.ReadArguments(argc, const_cast<const char**>(argv));
     }
 
-    void PrepareEnvironment() {
+    void PrepareEnvironmentVariables() {
         environ_.push_back(StringPrintf("BOOTCLASSPATH=%s", boot_classpath_.c_str()));
         environ_.push_back(StringPrintf("ANDROID_DATA=%s", GetOTADataDirectory().c_str()));
         environ_.push_back(StringPrintf("ANDROID_ROOT=%s", android_root_.c_str()));
@@ -312,9 +312,8 @@ private:
         }
     }
 
-    // Ensure that we have the right boot image. The first time any app is
-    // compiled, we'll try to generate it.
-    bool PrepareBootImage(bool force) const {
+    // Ensure that we have the right boot image and cache file structures.
+    bool EnsureBootImageAndDalvikCache() const {
         if (parameters_.instruction_set == nullptr) {
             LOG(ERROR) << "Instruction set missing.";
             return false;
@@ -340,34 +339,19 @@ private:
             }
         }
 
-        // Check whether we have files in /data.
+        // Clear cached artifacts.
+        ClearDirectory(isa_path);
+
+        // Check whether we have a boot image.
         // TODO: check that the files are correct wrt/ jars.
-        std::string art_path = isa_path + "/system@framework@boot.art";
-        std::string oat_path = isa_path + "/system@framework@boot.oat";
-        bool cleared = false;
-        if (access(art_path.c_str(), F_OK) == 0 && access(oat_path.c_str(), F_OK) == 0) {
-            // Files exist, assume everything is alright if not forced. Otherwise clean up.
-            if (!force) {
-                return true;
-            }
-            ClearDirectory(isa_path);
-            cleared = true;
+        std::string preopted_boot_art_path =
+            StringPrintf("/apex/com.android.art/javalib/%s/boot.art", isa);
+        if (access(preopted_boot_art_path.c_str(), F_OK) != 0) {
+            PLOG(ERROR) << "Bad access() to " << preopted_boot_art_path;
+            return false;
         }
 
-        // Check whether we have an image in /system.
-        // TODO: check that the files are correct wrt/ jars.
-        std::string preopted_boot_art_path = StringPrintf("/system/framework/%s/boot.art", isa);
-        if (access(preopted_boot_art_path.c_str(), F_OK) == 0) {
-            // Note: we ignore |force| here.
-            return true;
-        }
-
-
-        if (!cleared) {
-            ClearDirectory(isa_path);
-        }
-
-        return Dex2oatBootImage(boot_classpath_, art_path, oat_path, isa);
+        return true;
     }
 
     static bool CreatePath(const std::string& path) {
@@ -430,77 +414,6 @@ private:
             }
         }
         CHECK_EQ(0, closedir(c_dir)) << "Unable to close directory.";
-    }
-
-    bool Dex2oatBootImage(const std::string& boot_cp,
-                          const std::string& art_path,
-                          const std::string& oat_path,
-                          const char* isa) const {
-        // This needs to be kept in sync with ART, see art/runtime/gc/space/image_space.cc.
-        std::vector<std::string> cmd;
-        cmd.push_back(kDex2oatPath);
-        cmd.push_back(StringPrintf("--image=%s", art_path.c_str()));
-        for (const std::string& boot_part : Split(boot_cp, ":")) {
-            cmd.push_back(StringPrintf("--dex-file=%s", boot_part.c_str()));
-        }
-        cmd.push_back(StringPrintf("--oat-file=%s", oat_path.c_str()));
-
-        int32_t base_offset = ChooseRelocationOffsetDelta(
-                art::imagevalues::GetImageMinBaseAddressDelta(),
-                art::imagevalues::GetImageMaxBaseAddressDelta());
-        cmd.push_back(StringPrintf("--base=0x%x",
-                art::imagevalues::GetImageBaseAddress() + base_offset));
-
-        cmd.push_back(StringPrintf("--instruction-set=%s", isa));
-
-        // These things are pushed by AndroidRuntime, see frameworks/base/core/jni/AndroidRuntime.cpp.
-        AddCompilerOptionFromSystemProperty("dalvik.vm.image-dex2oat-Xms",
-                "-Xms",
-                true,
-                cmd);
-        AddCompilerOptionFromSystemProperty("dalvik.vm.image-dex2oat-Xmx",
-                "-Xmx",
-                true,
-                cmd);
-        AddCompilerOptionFromSystemProperty("dalvik.vm.image-dex2oat-filter",
-                "--compiler-filter=",
-                false,
-                cmd);
-        cmd.push_back("--profile-file=/system/etc/boot-image.prof");
-        // TODO: Compiled-classes.
-        const std::string* extra_opts =
-                system_properties_.GetProperty("dalvik.vm.image-dex2oat-flags");
-        if (extra_opts != nullptr) {
-            std::vector<std::string> extra_vals = Split(*extra_opts, " ");
-            cmd.insert(cmd.end(), extra_vals.begin(), extra_vals.end());
-        }
-        // TODO: Should we lower this? It's usually set close to max, because
-        //       normally there's not much else going on at boot.
-        AddCompilerOptionFromSystemProperty("dalvik.vm.image-dex2oat-threads",
-                "-j",
-                false,
-                cmd);
-        AddCompilerOptionFromSystemProperty("dalvik.vm.image-dex2oat-cpu-set",
-                "--cpu-set=",
-                false,
-                cmd);
-        AddCompilerOptionFromSystemProperty(
-                StringPrintf("dalvik.vm.isa.%s.variant", isa).c_str(),
-                "--instruction-set-variant=",
-                false,
-                cmd);
-        AddCompilerOptionFromSystemProperty(
-                StringPrintf("dalvik.vm.isa.%s.features", isa).c_str(),
-                "--instruction-set-features=",
-                false,
-                cmd);
-
-        std::string error_msg;
-        bool result = Exec(cmd, &error_msg);
-        if (!result) {
-            LOG(ERROR) << "Could not generate boot image: " << error_msg;
-        }
-        return result;
     }
 
     static const char* ParseNull(const char* arg) {
@@ -590,22 +503,6 @@ private:
         int dexopt_result = Dexopt();
         if (dexopt_result == 0) {
             return 0;
-        }
-
-        // If the dexopt failed, we may have a stale boot image from a previous OTA run.
-        // Then regenerate and retry.
-        if (WEXITSTATUS(dexopt_result) ==
-                static_cast<int>(::art::dex2oat::ReturnCode::kCreateRuntime)) {
-            if (!PrepareBootImage(/* force */ true)) {
-                LOG(ERROR) << "Forced boot image creating failed. Original error return was "
-                        << dexopt_result;
-                return dexopt_result;
-            }
-
-            int dexopt_result_boot_image_retry = Dexopt();
-            if (dexopt_result_boot_image_retry == 0) {
-                return 0;
-            }
         }
 
         // If this was a profile-guided run, we may have profile version issues. Try to downgrade,

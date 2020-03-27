@@ -2171,7 +2171,7 @@ static void PrepareToWriteToFile() {
     }
 
     if (ds.options_->do_screenshot) {
-        ds.screenshot_path_ = ds.GetPath(ds.CalledByApi() ? "-tmp.png" : ".png");
+        ds.screenshot_path_ = ds.GetPath(ds.CalledByApi() ? "-png.tmp" : ".png");
     }
     ds.tmp_path_ = ds.GetPath(".tmp");
     ds.log_path_ = ds.GetPath("-dumpstate_log-" + std::to_string(ds.pid_) + ".txt");
@@ -2190,7 +2190,7 @@ static void PrepareToWriteToFile() {
         ds.tmp_path_.c_str(), ds.screenshot_path_.c_str());
 
     if (ds.options_->do_zip_file) {
-        ds.path_ = ds.GetPath(ds.CalledByApi() ? "-tmp.zip" : ".zip");
+        ds.path_ = ds.GetPath(ds.CalledByApi() ? "-zip.tmp" : ".zip");
         MYLOGD("Creating initial .zip file (%s)\n", ds.path_.c_str());
         create_parent_dirs(ds.path_.c_str());
         ds.zip_file.reset(fopen(ds.path_.c_str(), "wb"));
