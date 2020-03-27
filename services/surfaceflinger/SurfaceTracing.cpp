@@ -129,7 +129,12 @@ void SurfaceTracing::enable() {
 }
 
 status_t SurfaceTracing::writeToFile() {
-    mThread.join();
+    std::thread thread;
+    {
+        std::scoped_lock lock(mTraceLock);
+        thread = std::move(mThread);
+    }
+    thread.join();
     return mLastErr;
 }
 
