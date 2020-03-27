@@ -111,10 +111,8 @@ void InputManager::setInputWindows(const std::vector<InputWindowInfo>& infos,
         handlesPerDisplay.emplace(info.displayId, std::vector<sp<InputWindowHandle>>());
         handlesPerDisplay[info.displayId].push_back(new BinderWindowHandle(info));
     }
-    mDispatcher->setInputWindows(handlesPerDisplay);
-
-    if (setInputWindowsListener) {
-        setInputWindowsListener->onSetInputWindowsFinished();
+    for (auto const& i : handlesPerDisplay) {
+        mDispatcher->setInputWindows(i.second, i.first, setInputWindowsListener);
     }
 }
 
