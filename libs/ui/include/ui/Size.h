@@ -109,11 +109,11 @@ struct Size {
     // Takes a value of type FromType, and ensures it can be represented as a value of type ToType,
     // clamping the input value to the output range if necessary.
     template <typename ToType, typename FromType>
-    static Size::remove_cv_reference_t<ToType> clamp(
-            typename std::enable_if<
-                    std::numeric_limits<Size::remove_cv_reference_t<ToType>>::is_bounded &&
-                            std::numeric_limits<Size::remove_cv_reference_t<FromType>>::is_bounded,
-                    FromType&&>::type v) {
+    static Size::remove_cv_reference_t<ToType>
+    clamp(typename std::enable_if<
+            std::numeric_limits<Size::remove_cv_reference_t<ToType>>::is_specialized &&
+                    std::numeric_limits<Size::remove_cv_reference_t<FromType>>::is_specialized,
+            FromType>::type v) {
         using BareToType = remove_cv_reference_t<ToType>;
         using BareFromType = remove_cv_reference_t<FromType>;
         static constexpr auto toHighest = std::numeric_limits<BareToType>::max();
@@ -121,21 +121,58 @@ struct Size {
         static constexpr auto fromHighest = std::numeric_limits<BareFromType>::max();
         static constexpr auto fromLowest = std::numeric_limits<BareFromType>::lowest();
 
-        // A clamp is needed if the range of FromType is not a subset of the range of ToType
-        static constexpr bool isClampNeeded = (toLowest > fromLowest) || (toHighest < fromHighest);
+        // Get the closest representation of [toLowest, toHighest] in type
+        // FromType to use to clamp the input value before conversion.
+
+        // std::common_type<...> is used to get a value-preserving type for the
+        // top end of the range.
+        using CommonHighestType = std::common_type_t<BareToType, BareFromType>;
+
+        // std::make_signed<std::common_type<...>> is used to get a
+        // value-preserving type for the bottom end of the range, except this is
+        // a bit trickier for non-integer types like float.
+        using CommonLowestType =
+                std::conditional_t<std::numeric_limits<CommonHighestType>::is_integer,
+                                   std::make_signed_t<std::conditional_t<
+                                           std::numeric_limits<CommonHighestType>::is_integer,
+                                           CommonHighestType, int /* not used */>>,
+                                   CommonHighestType>;
+
+        // We can then compute the clamp range in a way that can be later
+        // trivially converted to either the 'from' or 'to' types, and be
+        // representabile in either.
+        static constexpr auto commonClampHighest =
+                std::min(static_cast<CommonHighestType>(fromHighest),
+                         static_cast<CommonHighestType>(toHighest));
+        static constexpr auto commonClampLowest =
+                std::max(static_cast<CommonLowestType>(fromLowest),
+                         static_cast<CommonLowestType>(toLowest));
+
+        static constexpr auto fromClampHighest = static_cast<BareFromType>(commonClampHighest);
+        static constexpr auto fromClampLowest = static_cast<BareFromType>(commonClampLowest);
+
+        // A clamp is needed only if the range we are clamping to is not the
+        // same as the range of the input.
+        static constexpr bool isClampNeeded =
+                (fromLowest != fromClampLowest) || (fromHighest != fromClampHighest);
 
         // If a clamp is not needed, the conversion is just a trivial cast.
         if (!isClampNeeded) {
-            return static_cast<ToType>(v);
+            return static_cast<BareToType>(v);
         }
 
-        // Otherwise we need to carefully compare the limits of ToType (casted
-        // for the comparisons to be warning free to FromType) while still
-        // ensuring we return a value clamped to the range of ToType.
-        return v < static_cast<const BareFromType>(toLowest)
-                ? toLowest
-                : (v > static_cast<const BareFromType>(toHighest) ? toHighest
-                                                                  : static_cast<ToType>(v));
+        // Note: Clang complains about the value of INT32_MAX not being
+        // convertible back to int32_t from float if this is made "constexpr",
+        // when clamping a float value to an int32_t value. This is however
+        // covered by a test case to ensure the run-time cast works correctly.
+        const auto toClampHighest = static_cast<BareToType>(commonClampHighest);
+        const auto toClampLowest = static_cast<BareToType>(commonClampLowest);
+
+        // Otherwise clamping is done by using the already computed endpoints
+        // for each type.
+        return (v <= fromClampLowest)
+                ? toClampLowest
+                : ((v >= fromClampHighest) ? toClampHighest : static_cast<BareToType>(v));
     }
 };
 
