@@ -19,7 +19,6 @@
 
 #include <InputListener.h>
 #include <input/ISetInputWindowsListener.h>
-#include <unordered_map>
 
 namespace android {
 
@@ -100,13 +99,13 @@ public:
      */
     virtual std::unique_ptr<VerifiedInputEvent> verifyInputEvent(const InputEvent& event) = 0;
 
-    /* Sets the list of input windows per display.
+    /* Sets the list of input windows.
      *
      * This method may be called on any thread (usually by the input manager).
      */
     virtual void setInputWindows(
-            const std::unordered_map<int32_t, std::vector<sp<InputWindowHandle>>>&
-                    handlesPerDisplay) = 0;
+            const std::vector<sp<InputWindowHandle> >& inputWindowHandles, int32_t displayId,
+            const sp<ISetInputWindowsListener>& setInputWindowsListener = nullptr) = 0;
 
     /* Sets the focused application on the given display.
      *
