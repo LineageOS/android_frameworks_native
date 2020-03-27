@@ -109,7 +109,7 @@ typedef struct AThermalManager AThermalManager;
  * It's passed the updated thermal status as parameter, as well as the
  * pointer provided by the client that registered a callback.
  */
-typedef int (*AThermal_StatusCallback)(void *data, AThermalStatus status);
+typedef void (*AThermal_StatusCallback)(void *data, AThermalStatus status);
 
 /**
   * Acquire an instance of the thermal manager. This must be freed using
