@@ -109,8 +109,8 @@ public:
     virtual std::unique_ptr<VerifiedInputEvent> verifyInputEvent(const InputEvent& event) override;
 
     virtual void setInputWindows(
-            const std::vector<sp<InputWindowHandle>>& inputWindowHandles, int32_t displayId,
-            const sp<ISetInputWindowsListener>& setInputWindowsListener = nullptr) override;
+            const std::unordered_map<int32_t, std::vector<sp<InputWindowHandle>>>&
+                    handlesPerDisplay) override;
     virtual void setFocusedApplication(
             int32_t displayId, const sp<InputApplicationHandle>& inputApplicationHandle) override;
     virtual void setFocusedDisplay(int32_t displayId) override;
@@ -278,6 +278,8 @@ private:
 
     std::unordered_map<int32_t, std::vector<sp<InputWindowHandle>>> mWindowHandlesByDisplay
             GUARDED_BY(mLock);
+    void setInputWindowsLocked(const std::vector<sp<InputWindowHandle>>& inputWindowHandles,
+                               int32_t displayId) REQUIRES(mLock);
     // Get window handles by display, return an empty vector if not found.
     std::vector<sp<InputWindowHandle>> getWindowHandlesLocked(int32_t displayId) const
             REQUIRES(mLock);
