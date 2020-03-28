@@ -522,6 +522,11 @@ Status ServiceManager::tryUnregisterService(const std::string& name, const sp<IB
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
     }
 
+    if (serviceIt->second.guaranteeClient) {
+        LOG(INFO) << "Tried to unregister " << name << ", but there is about to be a client.";
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
+    }
+
     int clients = handleServiceClientCallback(name, false);
 
     // clients < 0: feature not implemented or other error. Assume clients.
@@ -532,6 +537,8 @@ Status ServiceManager::tryUnregisterService(const std::string& name, const sp<IB
     if (clients < 0 || clients > 2) {
         // client callbacks are either disabled or there are other clients
         LOG(INFO) << "Tried to unregister " << name << ", but there are clients: " << clients;
+        // Set this flag to ensure the clients are acknowledged in the next callback
+        serviceIt->second.guaranteeClient = true;
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
     }
 
