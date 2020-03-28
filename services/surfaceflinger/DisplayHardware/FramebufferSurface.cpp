@@ -183,10 +183,7 @@ void FramebufferSurface::onFrameCommitted() {
 }
 
 ui::Size FramebufferSurface::limitFramebufferSize(uint32_t width, uint32_t height) {
-    // TODO(b/149495759): Use the ui::Size constructor once it no longer is broken.
-    ui::Size framebufferSize;
-    framebufferSize.width = width;
-    framebufferSize.height = height;
+    ui::Size framebufferSize(width, height);
     bool wasLimited = true;
     if (width > mMaxWidth && mMaxWidth != 0) {
         float aspectRatio = float(width) / float(height);
