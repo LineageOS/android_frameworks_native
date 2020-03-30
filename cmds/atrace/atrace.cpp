@@ -233,6 +233,7 @@ static const TracingCategory k_categories[] = {
         { REQ,      "events/filemap/enable" },
     } },
     { "memory",  "Memory", 0, {
+        { OPT,      "events/mm_event/mm_event_record/enable" },
         { OPT,      "events/kmem/rss_stat/enable" },
         { OPT,      "events/kmem/ion_heap_grow/enable" },
         { OPT,      "events/kmem/ion_heap_shrink/enable" },
