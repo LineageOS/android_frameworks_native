@@ -233,15 +233,15 @@ int32_t ANativeWindow_getBuffersDataSpace(ANativeWindow* window) __INTRODUCED_IN
 
 #if __ANDROID_API__ >= 30
 
-/* Parameter for ANativeWindow_setFrameRate */
-enum {
+/** Compatibility value for ANativeWindow_setFrameRate. */
+enum ANativeWindow_FrameRateCompatibility {
     /**
      * There are no inherent restrictions on the frame rate of this window.
      */
     ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT = 0,
     /**
      * This window is being used to display content with an inherently fixed
-     * frame rate, e.g. a video that has a specific frame rate. When the system
+     * frame rate, e.g.\ a video that has a specific frame rate. When the system
      * selects a frame rate other than what the app requested, the app will need
      * to do pull down or use some other technique to adapt to the system's
      * frame rate. The user experience is likely to be worse (e.g. more frame
@@ -272,9 +272,9 @@ enum {
  * \param frameRate The intended frame rate of this window, in frames per
  * second. 0 is a special value that indicates the app will accept the system's
  * choice for the display frame rate, which is the default behavior if this
- * function isn't called. The frameRate param does *not* need to be a valid
- * refresh rate for this device's display - e.g., it's fine to pass 30fps to a
- * device that can only run the display at 60fps.
+ * function isn't called. The frameRate param does <em>not</em> need to be a
+ * valid refresh rate for this device's display - e.g., it's fine to pass 30fps
+ * to a device that can only run the display at 60fps.
  *
  * \param compatibility The frame rate compatibility of this window. The
  * compatibility value may influence the system's choice of display refresh
