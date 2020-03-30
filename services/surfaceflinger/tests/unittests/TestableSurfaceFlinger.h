@@ -550,9 +550,10 @@ public:
         FakeDisplayDeviceInjector(TestableSurfaceFlinger& flinger,
                                   std::shared_ptr<compositionengine::Display> compositionDisplay,
                                   std::optional<DisplayConnectionType> connectionType,
-                                  bool isPrimary)
+                                  std::optional<hwc2_display_t> hwcDisplayId, bool isPrimary)
               : mFlinger(flinger),
-                mCreationArgs(flinger.mFlinger.get(), mDisplayToken, compositionDisplay) {
+                mCreationArgs(flinger.mFlinger.get(), mDisplayToken, compositionDisplay),
+                mHwcDisplayId(hwcDisplayId) {
             mCreationArgs.connectionType = connectionType;
             mCreationArgs.isPrimary = isPrimary;
         }
@@ -620,7 +621,8 @@ public:
             DisplayDeviceState state;
             if (const auto type = mCreationArgs.connectionType) {
                 LOG_ALWAYS_FATAL_IF(!displayId);
-                state.physical = {*displayId, *type};
+                LOG_ALWAYS_FATAL_IF(!mHwcDisplayId);
+                state.physical = {*displayId, *type, *mHwcDisplayId};
             }
 
             state.isSecure = mCreationArgs.isSecure;
@@ -641,6 +643,7 @@ public:
         TestableSurfaceFlinger& mFlinger;
         sp<BBinder> mDisplayToken = new BBinder();
         DisplayDeviceCreationArgs mCreationArgs;
+        const std::optional<hwc2_display_t> mHwcDisplayId;
     };
 
     surfaceflinger::test::Factory mFactory;
