@@ -334,6 +334,9 @@ class Dumpstate {
 
     RunStatus ParseCommandlineAndRun(int argc, char* argv[]);
 
+    /* Deletes in-progress files */
+    void Cancel();
+
     /* Sets runtime options. */
     void SetOptions(std::unique_ptr<DumpOptions> options);
 
@@ -502,7 +505,7 @@ class Dumpstate {
 
     // Removes the in progress files output files (tmp file, zip/txt file, screenshot),
     // but leaves the log file alone.
-    void CleanupFiles();
+    void CleanupTmpFiles();
 
     RunStatus HandleUserConsentDenied();
 
