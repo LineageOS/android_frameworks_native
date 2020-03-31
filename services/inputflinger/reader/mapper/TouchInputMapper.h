@@ -407,12 +407,16 @@ private:
     // The surface orientation, width and height set by configureSurface().
     // The width and height are derived from the viewport but are specified
     // in the natural orientation.
+    // They could be used for calculating diagonal, scaling factors, and virtual keys.
+    int32_t mRawSurfaceWidth;
+    int32_t mRawSurfaceHeight;
+
     // The surface origin specifies how the surface coordinates should be translated
     // to align with the logical display coordinate space.
-    int32_t mSurfaceWidth;
-    int32_t mSurfaceHeight;
     int32_t mSurfaceLeft;
     int32_t mSurfaceTop;
+    int32_t mSurfaceRight;
+    int32_t mSurfaceBottom;
 
     // Similar to the surface coordinates, but in the raw display coordinate space rather than in
     // the logical coordinate space.
