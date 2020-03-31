@@ -45,6 +45,7 @@ public:
 
     MOCK_METHOD3(allocateVirtualDisplay,
                  std::optional<DisplayId>(uint32_t, uint32_t, ui::PixelFormat*));
+    MOCK_METHOD2(allocatePhysicalDisplay, void(hwc2_display_t, DisplayId));
     MOCK_METHOD1(createLayer, HWC2::Layer*(DisplayId));
     MOCK_METHOD2(destroyLayer, void(DisplayId, HWC2::Layer*));
     MOCK_METHOD3(getDeviceCompositionChanges,
