@@ -57,6 +57,7 @@ static const char* hal_interfaces_to_dump[] {
         "android.hardware.audio@5.0::IDevicesFactory",
         "android.hardware.audio@6.0::IDevicesFactory",
         "android.hardware.automotive.audiocontrol@1.0::IAudioControl",
+        "android.hardware.automotive.audiocontrol@2.0::IAudioControl",
         "android.hardware.automotive.evs@1.0::IEvsCamera",
         "android.hardware.automotive.vehicle@2.0::IVehicle",
         "android.hardware.biometrics.face@1.0::IBiometricsFace",

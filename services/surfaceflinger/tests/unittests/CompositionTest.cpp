@@ -305,14 +305,14 @@ struct BaseDisplayVariant {
                 compositionengine::impl::createDisplay(test->mFlinger.getCompositionEngine(),
                                                        ceDisplayArgs);
 
-        test->mDisplay =
-                FakeDisplayDeviceInjector(test->mFlinger, compositionDisplay,
-                                          DisplayConnectionType::Internal, true /* isPrimary */)
-                        .setDisplaySurface(test->mDisplaySurface)
-                        .setNativeWindow(test->mNativeWindow)
-                        .setSecure(Derived::IS_SECURE)
-                        .setPowerMode(Derived::INIT_POWER_MODE)
-                        .inject();
+        test->mDisplay = FakeDisplayDeviceInjector(test->mFlinger, compositionDisplay,
+                                                   DisplayConnectionType::Internal, HWC_DISPLAY,
+                                                   true /* isPrimary */)
+                                 .setDisplaySurface(test->mDisplaySurface)
+                                 .setNativeWindow(test->mNativeWindow)
+                                 .setSecure(Derived::IS_SECURE)
+                                 .setPowerMode(Derived::INIT_POWER_MODE)
+                                 .inject();
         Mock::VerifyAndClear(test->mNativeWindow);
         test->mDisplay->setLayerStack(DEFAULT_LAYER_STACK);
     }

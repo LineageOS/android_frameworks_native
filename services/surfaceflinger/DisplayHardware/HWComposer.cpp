@@ -205,56 +205,14 @@ bool HWComposer::hasDisplayCapability(const std::optional<DisplayId>& displayId,
 
 std::optional<DisplayIdentificationInfo> HWComposer::onHotplug(hwc2_display_t hwcDisplayId,
                                                                HWC2::Connection connection) {
-    std::optional<DisplayIdentificationInfo> info;
-
-    if (const auto displayId = toPhysicalDisplayId(hwcDisplayId)) {
-        info = DisplayIdentificationInfo{.id = *displayId,
-                                         .name = std::string(),
-                                         .deviceProductInfo = std::nullopt};
-    } else {
-        if (connection == HWC2::Connection::Disconnected) {
-            ALOGE("Ignoring disconnection of invalid HWC display %" PRIu64, hwcDisplayId);
+    switch (connection) {
+        case HWC2::Connection::Connected:
+            return onHotplugConnect(hwcDisplayId);
+        case HWC2::Connection::Disconnected:
+            return onHotplugDisconnect(hwcDisplayId);
+        case HWC2::Connection::Invalid:
             return {};
-        }
-
-        info = onHotplugConnect(hwcDisplayId);
-        if (!info) return {};
     }
-
-    ALOGV("%s: %s %s display %s with HWC ID %" PRIu64, __FUNCTION__, to_string(connection).c_str(),
-          hwcDisplayId == mInternalHwcDisplayId ? "internal" : "external",
-          to_string(info->id).c_str(), hwcDisplayId);
-
-    if (connection == HWC2::Connection::Connected) {
-        auto& displayData = mDisplayData[info->id];
-        // If we get a hotplug connected event for a display we already have,
-        // destroy the display and recreate it. This will force us to requery
-        // the display params and recreate all layers on that display.
-        if (displayData.hwcDisplay != nullptr && displayData.hwcDisplay->isConnected()) {
-            ALOGI("Hotplug connecting an already connected display."
-                  " Clearing old display state.");
-        }
-        displayData.hwcDisplay.reset();
-        auto newDisplay =
-                std::make_unique<HWC2::impl::Display>(*mComposer.get(), mCapabilities, hwcDisplayId,
-                                                      HWC2::DisplayType::Physical);
-        newDisplay->setConnected(true);
-        displayData.hwcDisplay = std::move(newDisplay);
-        mPhysicalDisplayIdMap[hwcDisplayId] = info->id;
-    } else if (connection == HWC2::Connection::Disconnected) {
-        // The display will later be destroyed by a call to
-        // destroyDisplay(). For now we just mark it disconnected.
-        auto& displayData = mDisplayData[info->id];
-        if (displayData.hwcDisplay) {
-            displayData.hwcDisplay->setConnected(false);
-        } else {
-            ALOGW("Attempted to disconnect unknown display %" PRIu64, hwcDisplayId);
-        }
-        // The cleanup of Disconnect is handled through HWComposer::disconnectDisplay
-        // via SurfaceFlinger's onHotplugReceived callback handling
-    }
-
-    return info;
 }
 
 bool HWComposer::onVsync(hwc2_display_t hwcDisplayId, int64_t timestamp) {
@@ -335,6 +293,22 @@ std::optional<DisplayId> HWComposer::allocateVirtualDisplay(uint32_t width, uint
 
     --mRemainingHwcVirtualDisplays;
     return displayId;
+}
+
+void HWComposer::allocatePhysicalDisplay(hwc2_display_t hwcDisplayId, DisplayId displayId) {
+    if (!mInternalHwcDisplayId) {
+        mInternalHwcDisplayId = hwcDisplayId;
+    } else if (mInternalHwcDisplayId != hwcDisplayId && !mExternalHwcDisplayId) {
+        mExternalHwcDisplayId = hwcDisplayId;
+    }
+
+    auto& displayData = mDisplayData[displayId];
+    auto newDisplay =
+            std::make_unique<HWC2::impl::Display>(*mComposer.get(), mCapabilities, hwcDisplayId,
+                                                  HWC2::DisplayType::Physical);
+    newDisplay->setConnected(true);
+    displayData.hwcDisplay = std::move(newDisplay);
+    mPhysicalDisplayIdMap[hwcDisplayId] = displayId;
 }
 
 HWC2::Layer* HWComposer::createLayer(DisplayId displayId) {
@@ -911,52 +885,93 @@ std::optional<hwc2_display_t> HWComposer::fromPhysicalDisplayId(DisplayId displa
     return {};
 }
 
-std::optional<DisplayIdentificationInfo> HWComposer::onHotplugConnect(hwc2_display_t hwcDisplayId) {
+bool HWComposer::shouldIgnoreHotplugConnect(hwc2_display_t hwcDisplayId,
+                                            bool hasDisplayIdentificationData) const {
     if (isUsingVrComposer() && mInternalHwcDisplayId) {
         ALOGE("Ignoring connection of external display %" PRIu64 " in VR mode", hwcDisplayId);
-        return {};
+        return true;
     }
 
-    uint8_t port;
-    DisplayIdentificationData data;
-    const bool hasMultiDisplaySupport = getDisplayIdentificationData(hwcDisplayId, &port, &data);
-
-    if (mPhysicalDisplayIdMap.empty()) {
-        mHasMultiDisplaySupport = hasMultiDisplaySupport;
-        ALOGI("Switching to %s multi-display mode",
-              hasMultiDisplaySupport ? "generalized" : "legacy");
-    } else if (mHasMultiDisplaySupport && !hasMultiDisplaySupport) {
+    if (mHasMultiDisplaySupport && !hasDisplayIdentificationData) {
         ALOGE("Ignoring connection of display %" PRIu64 " without identification data",
               hwcDisplayId);
-        return {};
+        return true;
     }
 
-    std::optional<DisplayIdentificationInfo> info;
-
-    if (mHasMultiDisplaySupport) {
-        info = parseDisplayIdentificationData(port, data);
-        ALOGE_IF(!info, "Failed to parse identification data for display %" PRIu64, hwcDisplayId);
-    } else if (mInternalHwcDisplayId && mExternalHwcDisplayId) {
+    if (!mHasMultiDisplaySupport && mInternalHwcDisplayId && mExternalHwcDisplayId) {
         ALOGE("Ignoring connection of tertiary display %" PRIu64, hwcDisplayId);
-        return {};
+        return true;
+    }
+
+    return false;
+}
+
+std::optional<DisplayIdentificationInfo> HWComposer::onHotplugConnect(hwc2_display_t hwcDisplayId) {
+    std::optional<DisplayIdentificationInfo> info;
+    if (const auto displayId = toPhysicalDisplayId(hwcDisplayId)) {
+        info = DisplayIdentificationInfo{.id = *displayId,
+                                         .name = std::string(),
+                                         .deviceProductInfo = std::nullopt};
     } else {
-        ALOGW_IF(hasMultiDisplaySupport, "Ignoring identification data for display %" PRIu64,
-                 hwcDisplayId);
-        port = mInternalHwcDisplayId ? HWC_DISPLAY_EXTERNAL : HWC_DISPLAY_PRIMARY;
+        uint8_t port;
+        DisplayIdentificationData data;
+        const bool hasDisplayIdentificationData =
+                getDisplayIdentificationData(hwcDisplayId, &port, &data);
+        if (mPhysicalDisplayIdMap.empty()) {
+            mHasMultiDisplaySupport = hasDisplayIdentificationData;
+            ALOGI("Switching to %s multi-display mode",
+                  mHasMultiDisplaySupport ? "generalized" : "legacy");
+        }
+
+        if (shouldIgnoreHotplugConnect(hwcDisplayId, hasDisplayIdentificationData)) {
+            return {};
+        }
+
+        info = [this, hwcDisplayId, &port, &data, hasDisplayIdentificationData] {
+            const bool isPrimary = !mInternalHwcDisplayId;
+            if (mHasMultiDisplaySupport) {
+                if (const auto info = parseDisplayIdentificationData(port, data)) {
+                    return *info;
+                }
+                ALOGE("Failed to parse identification data for display %" PRIu64, hwcDisplayId);
+            } else {
+                ALOGW_IF(hasDisplayIdentificationData,
+                         "Ignoring identification data for display %" PRIu64, hwcDisplayId);
+                port = isPrimary ? HWC_DISPLAY_PRIMARY : HWC_DISPLAY_EXTERNAL;
+            }
+
+            return DisplayIdentificationInfo{.id = getFallbackDisplayId(port),
+                                             .name = isPrimary ? "Internal display"
+                                                               : "External display",
+                                             .deviceProductInfo = std::nullopt};
+        }();
     }
 
-    if (!mInternalHwcDisplayId) {
-        mInternalHwcDisplayId = hwcDisplayId;
-    } else if (!mExternalHwcDisplayId) {
-        mExternalHwcDisplayId = hwcDisplayId;
+    if (!isConnected(info->id)) {
+        allocatePhysicalDisplay(hwcDisplayId, info->id);
+    }
+    return info;
+}
+
+std::optional<DisplayIdentificationInfo> HWComposer::onHotplugDisconnect(
+        hwc2_display_t hwcDisplayId) {
+    const auto displayId = toPhysicalDisplayId(hwcDisplayId);
+    if (!displayId) {
+        ALOGE("Ignoring disconnection of invalid HWC display %" PRIu64, hwcDisplayId);
+        return {};
     }
 
-    if (info) return info;
-
-    return DisplayIdentificationInfo{.id = getFallbackDisplayId(port),
-                                     .name = hwcDisplayId == mInternalHwcDisplayId
-                                             ? "Internal display"
-                                             : "External display",
+    // The display will later be destroyed by a call to
+    // destroyDisplay(). For now we just mark it disconnected.
+    if (isConnected(*displayId)) {
+        mDisplayData[*displayId].hwcDisplay->setConnected(false);
+    } else {
+        ALOGW("Attempted to disconnect unknown display %" PRIu64, hwcDisplayId);
+    }
+    // The cleanup of Disconnect is handled through HWComposer::disconnectDisplay
+    // via SurfaceFlinger's onHotplugReceived callback handling
+    return DisplayIdentificationInfo{.id = *displayId,
+                                     .name = std::string(),
                                      .deviceProductInfo = std::nullopt};
 }
 
