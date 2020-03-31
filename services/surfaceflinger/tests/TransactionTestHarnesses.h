@@ -88,13 +88,14 @@ public:
 
     sp<SurfaceControl> createLayer(const char* name, uint32_t width, uint32_t height,
                                    uint32_t flags = 0, SurfaceControl* parent = nullptr,
-                                   uint32_t* outTransformHint = nullptr) {
+                                   uint32_t* outTransformHint = nullptr,
+                                   PixelFormat format = PIXEL_FORMAT_RGBA_8888) {
         // if the flags already have a layer type specified, return an error
         if (flags & ISurfaceComposerClient::eFXSurfaceMask) {
             return nullptr;
         }
         return LayerTransactionTest::createLayer(name, width, height, flags | mLayerType, parent,
-                                                 outTransformHint);
+                                                 outTransformHint, format);
     }
 
     void fillLayerColor(const sp<SurfaceControl>& layer, const Color& color, int32_t bufferWidth,
