@@ -4151,6 +4151,9 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
     }
 
     if (currentMode == HWC_POWER_MODE_OFF) {
+        if (SurfaceFlinger::setSchedFifo(true) != NO_ERROR) {
+            ALOGW("Couldn't set SCHED_FIFO on display on: %s\n", strerror(errno));
+        }
         getHwComposer().setPowerMode(*displayId, mode);
         if (display->isPrimary() && mode != HWC_POWER_MODE_DOZE_SUSPEND) {
             setVsyncEnabledInHWC(*displayId, mHWCVsyncPendingState);
@@ -4161,19 +4164,11 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
         mVisibleRegionsDirty = true;
         mHasPoweredOff = true;
         repaintEverything();
-
-        struct sched_param param = {0};
-        param.sched_priority = 1;
-        if (sched_setscheduler(0, SCHED_FIFO, &param) != 0) {
-            ALOGW("Couldn't set SCHED_FIFO on display on");
-        }
     } else if (mode == HWC_POWER_MODE_OFF) {
         // Turn off the display
-        struct sched_param param = {0};
-        if (sched_setscheduler(0, SCHED_OTHER, &param) != 0) {
-            ALOGW("Couldn't set SCHED_OTHER on display off");
+        if (SurfaceFlinger::setSchedFifo(false) != NO_ERROR) {
+            ALOGW("Couldn't set SCHED_OTHER on display off: %s\n", strerror(errno));
         }
-
         if (display->isPrimary() && currentMode != HWC_POWER_MODE_DOZE_SUSPEND) {
             mScheduler->disableHardwareVsync(true);
             mScheduler->onScreenReleased(mAppConnectionHandle);
@@ -5358,6 +5353,26 @@ static Dataspace pickDataspaceFromColorMode(const ColorMode colorMode) {
         default:
             return Dataspace::V0_SRGB;
     }
+}
+
+status_t SurfaceFlinger::setSchedFifo(bool enabled) {
+    static constexpr int kFifoPriority = 2;
+    static constexpr int kOtherPriority = 0;
+
+    struct sched_param param = {0};
+    int sched_policy;
+    if (enabled) {
+        sched_policy = SCHED_FIFO;
+        param.sched_priority = kFifoPriority;
+    } else {
+        sched_policy = SCHED_OTHER;
+        param.sched_priority = kOtherPriority;
+    }
+
+    if (sched_setscheduler(0, sched_policy, &param) != 0) {
+        return -errno;
+    }
+    return NO_ERROR;
 }
 
 const sp<DisplayDevice> SurfaceFlinger::getDisplayByIdOrLayerStack(uint64_t displayOrLayerStack) {
