@@ -42,6 +42,7 @@
 
 #include <android-base/file.h>
 #include <android-base/logging.h>
+#include <android-base/parseint.h>
 #include <android-base/properties.h>
 #include <android-base/scopeguard.h>
 #include <android-base/stringprintf.h>
@@ -74,6 +75,7 @@
 #define LOG_TAG "installd"
 #endif
 
+using android::base::ParseUint;
 using android::base::StringPrintf;
 using std::endl;
 
@@ -1090,6 +1092,43 @@ binder::Status InstalldNativeService::destroyAppDataSnapshot(
     return ok();
 }
 
+binder::Status InstalldNativeService::destroyCeSnapshotsNotSpecified(
+        const std::optional<std::string> &volumeUuid, const int32_t user,
+        const std::vector<int32_t>& retainSnapshotIds) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_UUID_IS_TEST_OR_NULL(volumeUuid);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
+    const char* volume_uuid = volumeUuid ? volumeUuid->c_str() : nullptr;
+
+    auto base_path = create_data_misc_ce_rollback_base_path(volume_uuid, user);
+
+    std::unique_ptr<DIR, decltype(&closedir)> dir(opendir(base_path.c_str()), closedir);
+    if (!dir) {
+        return error(-1, "Failed to open rollback base dir " + base_path);
+    }
+
+    struct dirent* ent;
+    while ((ent = readdir(dir.get()))) {
+        if (ent->d_type != DT_DIR) {
+            continue;
+        }
+
+        uint snapshot_id;
+        bool parse_ok = ParseUint(ent->d_name, &snapshot_id);
+        if (parse_ok &&
+                std::find(retainSnapshotIds.begin(), retainSnapshotIds.end(),
+                          snapshot_id) == retainSnapshotIds.end()) {
+            auto rollback_path = create_data_misc_ce_rollback_path(
+                volume_uuid, user, snapshot_id);
+            int res = delete_dir_contents_and_dir(rollback_path, true /* ignore_if_missing */);
+            if (res != 0) {
+                return error(res, "Failed clearing snapshot " + rollback_path);
+            }
+        }
+    }
+    return ok();
+}
 
 binder::Status InstalldNativeService::moveCompleteApp(const std::optional<std::string>& fromUuid,
         const std::optional<std::string>& toUuid, const std::string& packageName,
