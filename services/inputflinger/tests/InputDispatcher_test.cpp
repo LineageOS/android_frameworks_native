@@ -871,7 +871,7 @@ TEST_F(InputDispatcherTest, SetInputWindow_SingleWindowTouch) {
     sp<FakeWindowHandle> window = new FakeWindowHandle(application, mDispatcher, "Fake Window",
             ADISPLAY_ID_DEFAULT);
 
-    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectMotionDown(mDispatcher,
             AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT))
             << "Inject motion event should return INPUT_EVENT_INJECTION_SUCCEEDED";
@@ -888,7 +888,7 @@ TEST_F(InputDispatcherTest, SetInputWindow_MultiWindowsTouch) {
     sp<FakeWindowHandle> windowSecond = new FakeWindowHandle(application, mDispatcher, "Second",
             ADISPLAY_ID_DEFAULT);
 
-    mDispatcher->setInputWindows({windowTop, windowSecond}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowTop, windowSecond}}});
     ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectMotionDown(mDispatcher,
             AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT))
             << "Inject motion event should return INPUT_EVENT_INJECTION_SUCCEEDED";
@@ -910,7 +910,7 @@ TEST_F(InputDispatcherTest, SetInputWindow_FocusedWindow) {
 
     // Display should have only one focused window
     windowSecond->setFocus(true);
-    mDispatcher->setInputWindows({windowTop, windowSecond}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowTop, windowSecond}}});
 
     windowSecond->consumeFocusEvent(true);
     ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher))
@@ -935,7 +935,7 @@ TEST_F(InputDispatcherTest, SetInputWindow_FocusPriority) {
     windowTop->setFocus(true);
     windowSecond->setFocus(true);
 
-    mDispatcher->setInputWindows({windowTop, windowSecond}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowTop, windowSecond}}});
     windowTop->consumeFocusEvent(true);
     ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher))
             << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
@@ -960,7 +960,7 @@ TEST_F(InputDispatcherTest, SetInputWindow_InputWindowInfo) {
     windowSecond->setFocus(true);
     // Release channel for window is no longer valid.
     windowTop->releaseChannel();
-    mDispatcher->setInputWindows({windowTop, windowSecond}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowTop, windowSecond}}});
     windowSecond->consumeFocusEvent(true);
 
     // Test inject a key down, should dispatch to a valid window.
@@ -986,7 +986,7 @@ TEST_F(InputDispatcherTest, DispatchMouseEventsUnderCursor) {
 
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
-    mDispatcher->setInputWindows({windowLeft, windowRight}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowLeft, windowRight}}});
 
     // Inject an event with coordinate in the area of right window, with mouse cursor in the area of
     // left window. This event should be dispatched to the left window.
@@ -1003,7 +1003,7 @@ TEST_F(InputDispatcherTest, NotifyDeviceReset_CancelsKeyStream) {
             new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
     window->setFocus(true);
 
-    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     window->consumeFocusEvent(true);
 
     NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN, ADISPLAY_ID_DEFAULT);
@@ -1025,7 +1025,7 @@ TEST_F(InputDispatcherTest, NotifyDeviceReset_CancelsMotionStream) {
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
 
-    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
 
     NotifyMotionArgs motionArgs =
             generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
@@ -1053,7 +1053,7 @@ TEST_F(InputDispatcherTest, TransferTouchFocus_OnePointer) {
             "Second Window", ADISPLAY_ID_DEFAULT);
 
     // Add the windows to the dispatcher
-    mDispatcher->setInputWindows({firstWindow, secondWindow}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {firstWindow, secondWindow}}});
 
     // Send down to the first window
     NotifyMotionArgs downMotionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_DOWN,
@@ -1090,7 +1090,7 @@ TEST_F(InputDispatcherTest, TransferTouchFocus_TwoPointerNoSplitTouch) {
             "Second Window", ADISPLAY_ID_DEFAULT);
 
     // Add the windows to the dispatcher
-    mDispatcher->setInputWindows({firstWindow, secondWindow}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {firstWindow, secondWindow}}});
 
     // Send down to the first window
     NotifyMotionArgs downMotionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_DOWN,
@@ -1152,7 +1152,7 @@ TEST_F(InputDispatcherTest, TransferTouchFocus_TwoPointersSplitTouch) {
             | InputWindowInfo::FLAG_SPLIT_TOUCH);
 
     // Add the windows to the dispatcher
-    mDispatcher->setInputWindows({firstWindow, secondWindow}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {firstWindow, secondWindow}}});
 
     PointF pointInFirst = {300, 200};
     PointF pointInSecond = {300, 600};
@@ -1204,7 +1204,7 @@ TEST_F(InputDispatcherTest, FocusedWindow_ReceivesFocusEventAndKeyEvent) {
             new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
 
     window->setFocus(true);
-    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
 
     window->consumeFocusEvent(true);
 
@@ -1220,7 +1220,7 @@ TEST_F(InputDispatcherTest, UnfocusedWindow_DoesNotReceiveFocusEventOrKeyEvent) 
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
 
-    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
 
     NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN, ADISPLAY_ID_DEFAULT);
     mDispatcher->notifyKey(&keyArgs);
@@ -1235,7 +1235,7 @@ TEST_F(InputDispatcherTest, UnfocusedWindow_ReceivesMotionsButNotKeys) {
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
 
-    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
 
     // Send key
     NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN, ADISPLAY_ID_DEFAULT);
@@ -1289,7 +1289,7 @@ TEST_F(InputDispatcherTest, GestureMonitor_ReceivesMotionEvents) {
     sp<FakeApplicationHandle> application = new FakeApplicationHandle();
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
-    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
 
     FakeMonitorReceiver monitor = FakeMonitorReceiver(mDispatcher, "GM_1", ADISPLAY_ID_DEFAULT,
                                                       true /*isGestureMonitor*/);
@@ -1309,7 +1309,7 @@ TEST_F(InputDispatcherTest, GestureMonitor_DoesNotReceiveKeyEvents) {
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
     window->setFocus(true);
 
-    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     window->consumeFocusEvent(true);
 
     FakeMonitorReceiver monitor = FakeMonitorReceiver(mDispatcher, "GM_1", ADISPLAY_ID_DEFAULT,
@@ -1325,7 +1325,7 @@ TEST_F(InputDispatcherTest, GestureMonitor_CanPilferAfterWindowIsRemovedMidStrea
     sp<FakeApplicationHandle> application = new FakeApplicationHandle();
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
-    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
 
     FakeMonitorReceiver monitor = FakeMonitorReceiver(mDispatcher, "GM_1", ADISPLAY_ID_DEFAULT,
                                                       true /*isGestureMonitor*/);
@@ -1351,7 +1351,7 @@ TEST_F(InputDispatcherTest, TestMoveEvent) {
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
 
-    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
 
     NotifyMotionArgs motionArgs =
             generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
@@ -1387,29 +1387,29 @@ TEST_F(InputDispatcherTest, TouchModeState_IsSentToApps) {
     window->setFocus(true);
 
     SCOPED_TRACE("Check default value of touch mode");
-    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     window->consumeFocusEvent(true /*hasFocus*/, true /*inTouchMode*/);
 
     SCOPED_TRACE("Remove the window to trigger focus loss");
     window->setFocus(false);
-    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     window->consumeFocusEvent(false /*hasFocus*/, true /*inTouchMode*/);
 
     SCOPED_TRACE("Disable touch mode");
     mDispatcher->setInTouchMode(false);
     window->setFocus(true);
-    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     window->consumeFocusEvent(true /*hasFocus*/, false /*inTouchMode*/);
 
     SCOPED_TRACE("Remove the window to trigger focus loss");
     window->setFocus(false);
-    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     window->consumeFocusEvent(false /*hasFocus*/, false /*inTouchMode*/);
 
     SCOPED_TRACE("Enable touch mode again");
     mDispatcher->setInTouchMode(true);
     window->setFocus(true);
-    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     window->consumeFocusEvent(true /*hasFocus*/, true /*inTouchMode*/);
 
     window->assertNoEvents();
@@ -1423,7 +1423,7 @@ TEST_F(InputDispatcherTest, VerifyInputEvent_KeyEvent) {
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
     window->setFocus(true);
 
-    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     window->consumeFocusEvent(true /*hasFocus*/, true /*inTouchMode*/);
 
     NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN);
@@ -1459,7 +1459,7 @@ TEST_F(InputDispatcherTest, VerifyInputEvent_MotionEvent) {
 
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
-    mDispatcher->setInputWindows({window}, ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
 
     NotifyMotionArgs motionArgs =
             generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
@@ -1512,7 +1512,7 @@ protected:
         mWindow = new FakeWindowHandle(mApp, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
 
         mWindow->setFocus(true);
-        mDispatcher->setInputWindows({mWindow}, ADISPLAY_ID_DEFAULT);
+        mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow}}});
 
         mWindow->consumeFocusEvent(true);
     }
@@ -1602,7 +1602,7 @@ public:
         // Set focus window for primary display, but focused display would be second one.
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application1);
         windowInPrimary->setFocus(true);
-        mDispatcher->setInputWindows({windowInPrimary}, ADISPLAY_ID_DEFAULT);
+        mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowInPrimary}}});
         windowInPrimary->consumeFocusEvent(true);
 
         application2 = new FakeApplicationHandle();
@@ -1614,7 +1614,7 @@ public:
         // Set focus window for second display.
         mDispatcher->setFocusedApplication(SECOND_DISPLAY_ID, application2);
         windowInSecondary->setFocus(true);
-        mDispatcher->setInputWindows({windowInSecondary}, SECOND_DISPLAY_ID);
+        mDispatcher->setInputWindows({{SECOND_DISPLAY_ID, {windowInSecondary}}});
         windowInSecondary->consumeFocusEvent(true);
     }
 
@@ -1664,7 +1664,7 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, SetInputWindow_MultiDisplayFocus) 
     windowInSecondary->consumeKeyDown(ADISPLAY_ID_NONE);
 
     // Remove all windows in secondary display.
-    mDispatcher->setInputWindows({}, SECOND_DISPLAY_ID);
+    mDispatcher->setInputWindows({{SECOND_DISPLAY_ID, {}}});
 
     // Expect old focus should receive a cancel event.
     windowInSecondary->consumeEvent(AINPUT_EVENT_TYPE_KEY, AKEY_EVENT_ACTION_UP, ADISPLAY_ID_NONE,
@@ -1828,7 +1828,7 @@ class InputDispatcherOnPointerDownOutsideFocus : public InputDispatcherTest {
         mFocusedWindow->setFocus(true);
 
         // Expect one focus window exist in display.
-        mDispatcher->setInputWindows({mUnfocusedWindow, mFocusedWindow}, ADISPLAY_ID_DEFAULT);
+        mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mUnfocusedWindow, mFocusedWindow}}});
         mFocusedWindow->consumeFocusEvent(true);
     }
 
@@ -1916,7 +1916,7 @@ class InputDispatcherMultiWindowSameTokenTests : public InputDispatcherTest {
         mWindow2->setId(1);
         mWindow2->setFrame(Rect(100, 100, 200, 200));
 
-        mDispatcher->setInputWindows({mWindow1, mWindow2}, ADISPLAY_ID_DEFAULT);
+        mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow1, mWindow2}}});
     }
 
 protected:
