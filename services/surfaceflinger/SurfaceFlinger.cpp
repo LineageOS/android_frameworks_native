@@ -5792,6 +5792,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     fillLayer.alpha = half(alpha);
     clientCompositionLayers.push_back(fillLayer);
 
+    std::vector<Layer*> renderedLayers;
     Region clearRegion = Region::INVALID_REGION;
     traverseLayers([&](Layer* layer) {
         const bool supportProtectedContent = false;
@@ -5810,19 +5811,19 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
         };
         std::vector<compositionengine::LayerFE::LayerSettings> results =
                 layer->prepareClientCompositionList(targetSettings);
-        clientCompositionLayers.insert(clientCompositionLayers.end(),
-                                       std::make_move_iterator(results.begin()),
-                                       std::make_move_iterator(results.end()));
-        results.clear();
-
+        if (results.size() > 0) {
+            clientCompositionLayers.insert(clientCompositionLayers.end(),
+                                           std::make_move_iterator(results.begin()),
+                                           std::make_move_iterator(results.end()));
+            renderedLayers.push_back(layer);
+        }
     });
 
-    std::vector<const renderengine::LayerSettings*> clientCompositionLayerPointers;
-    clientCompositionLayers.reserve(clientCompositionLayers.size());
+    std::vector<const renderengine::LayerSettings*> clientCompositionLayerPointers(
+            clientCompositionLayers.size());
     std::transform(clientCompositionLayers.begin(), clientCompositionLayers.end(),
-                   std::back_inserter(clientCompositionLayerPointers),
-                   [](compositionengine::LayerFE::LayerSettings& settings)
-                           -> renderengine::LayerSettings* { return &settings; });
+                   clientCompositionLayerPointers.begin(),
+                   std::pointer_traits<renderengine::LayerSettings*>::pointer_to);
 
     clientCompositionDisplay.clearRegion = clearRegion;
     // Use an empty fence for the buffer fence, since we just created the buffer so
@@ -5834,6 +5835,13 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
                                  /*useFramebufferCache=*/false, std::move(bufferFence), &drawFence);
 
     *outSyncFd = drawFence.release();
+
+    if (*outSyncFd >= 0) {
+        sp<Fence> releaseFence = new Fence(dup(*outSyncFd));
+        for (auto* layer : renderedLayers) {
+            layer->onLayerDisplayed(releaseFence);
+        }
+    }
 }
 
 status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
