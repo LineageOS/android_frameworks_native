@@ -6990,51 +6990,7 @@ TEST_F(MultiTouchInputMapperTest, Configure_EnabledForAssociatedDisplay) {
     ASSERT_EQ(SECONDARY_DISPLAY_ID, args.displayId);
 }
 
-/**
- * Test touch should not work if outside of surface.
- */
-TEST_F(MultiTouchInputMapperTest, Viewports_SurfaceRange) {
-    addConfigurationProperty("touch.deviceType", "touchScreen");
-    prepareDisplay(DISPLAY_ORIENTATION_0);
-    prepareAxes(POSITION);
-    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
 
-    // Touch on left-top area should work.
-    int32_t rawX = DISPLAY_WIDTH / 2 - 1;
-    int32_t rawY = DISPLAY_HEIGHT / 2 - 1;
-    processPosition(mapper, rawX, rawY);
-    processSync(mapper);
-
-    NotifyMotionArgs args;
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
-
-    // Reset.
-    mapper.reset(ARBITRARY_TIME);
-
-    // Let logical display be different to physical display and rotate 90-degrees.
-    std::optional<DisplayViewport> internalViewport =
-            mFakePolicy->getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
-    internalViewport->orientation = DISPLAY_ORIENTATION_90;
-    internalViewport->logicalLeft = 0;
-    internalViewport->logicalTop = 0;
-    internalViewport->logicalRight = DISPLAY_HEIGHT;
-    internalViewport->logicalBottom = DISPLAY_WIDTH / 2;
-
-    internalViewport->physicalLeft = DISPLAY_HEIGHT;
-    internalViewport->physicalTop = DISPLAY_WIDTH / 2;
-    internalViewport->physicalRight = DISPLAY_HEIGHT;
-    internalViewport->physicalBottom = DISPLAY_WIDTH;
-
-    internalViewport->deviceWidth = DISPLAY_HEIGHT;
-    internalViewport->deviceHeight = DISPLAY_WIDTH;
-    mFakePolicy->updateViewport(internalViewport.value());
-    configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
-
-    // Display align to right-top after rotate 90-degrees, touch on left-top area should not work.
-    processPosition(mapper, rawX, rawY);
-    processSync(mapper);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
-}
 
 TEST_F(MultiTouchInputMapperTest, Process_ShouldHandleSingleTouch) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
@@ -7160,5 +7116,131 @@ TEST_F(MultiTouchInputMapperTest_ExternalDevice, Viewports_Fallback) {
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
     ASSERT_EQ(SECONDARY_DISPLAY_ID, motionArgs.displayId);
+}
+
+/**
+ * Test touch should not work if outside of surface.
+ */
+class MultiTouchInputMapperTest_SurfaceRange : public MultiTouchInputMapperTest {
+protected:
+    void halfDisplayToCenterHorizontal(int32_t orientation) {
+        std::optional<DisplayViewport> internalViewport =
+                mFakePolicy->getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
+
+        // Half display to (width/4, 0, width * 3/4, height) to make display has offset.
+        internalViewport->orientation = orientation;
+        if (orientation == DISPLAY_ORIENTATION_90 || orientation == DISPLAY_ORIENTATION_270) {
+            internalViewport->logicalLeft = 0;
+            internalViewport->logicalTop = 0;
+            internalViewport->logicalRight = DISPLAY_HEIGHT;
+            internalViewport->logicalBottom = DISPLAY_WIDTH / 2;
+
+            internalViewport->physicalLeft = 0;
+            internalViewport->physicalTop = DISPLAY_WIDTH / 4;
+            internalViewport->physicalRight = DISPLAY_HEIGHT;
+            internalViewport->physicalBottom = DISPLAY_WIDTH * 3 / 4;
+
+            internalViewport->deviceWidth = DISPLAY_HEIGHT;
+            internalViewport->deviceHeight = DISPLAY_WIDTH;
+        } else {
+            internalViewport->logicalLeft = 0;
+            internalViewport->logicalTop = 0;
+            internalViewport->logicalRight = DISPLAY_WIDTH / 2;
+            internalViewport->logicalBottom = DISPLAY_HEIGHT;
+
+            internalViewport->physicalLeft = DISPLAY_WIDTH / 4;
+            internalViewport->physicalTop = 0;
+            internalViewport->physicalRight = DISPLAY_WIDTH * 3 / 4;
+            internalViewport->physicalBottom = DISPLAY_HEIGHT;
+
+            internalViewport->deviceWidth = DISPLAY_WIDTH;
+            internalViewport->deviceHeight = DISPLAY_HEIGHT;
+        }
+
+        mFakePolicy->updateViewport(internalViewport.value());
+        configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+    }
+
+    void processPositionAndVerify(MultiTouchInputMapper& mapper, int32_t xInside, int32_t yInside,
+                                  int32_t xOutside, int32_t yOutside, int32_t xExpected,
+                                  int32_t yExpected) {
+        // touch on outside area should not work.
+        processPosition(mapper, toRawX(xOutside), toRawY(yOutside));
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+
+        // touch on inside area should receive the event.
+        NotifyMotionArgs args;
+        processPosition(mapper, toRawX(xInside), toRawY(yInside));
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+        ASSERT_NEAR(xExpected, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X), 1);
+        ASSERT_NEAR(yExpected, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y), 1);
+
+        // Reset.
+        mapper.reset(ARBITRARY_TIME);
+    }
+};
+
+TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    // Touch on center of normal display should work.
+    const int32_t x = DISPLAY_WIDTH / 4;
+    const int32_t y = DISPLAY_HEIGHT / 2;
+    processPosition(mapper, toRawX(x), toRawY(y));
+    processSync(mapper);
+    NotifyMotionArgs args;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_NO_FATAL_FAILURE(assertPointerCoords(args.pointerCoords[0], x, y, 1.0f, 0.0f, 0.0f, 0.0f,
+                                                0.0f, 0.0f, 0.0f, 0.0f));
+    // Reset.
+    mapper.reset(ARBITRARY_TIME);
+
+    // Let physical display be different to device, and make surface and physical could be 1:1.
+    halfDisplayToCenterHorizontal(DISPLAY_ORIENTATION_0);
+
+    const int32_t xExpected = (x + 1) - (DISPLAY_WIDTH / 4);
+    const int32_t yExpected = y;
+    processPositionAndVerify(mapper, x - 1, y, x + 1, y, xExpected, yExpected);
+}
+
+TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_90) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    // Half display to (width/4, 0, width * 3/4, height) and rotate 90-degrees.
+    halfDisplayToCenterHorizontal(DISPLAY_ORIENTATION_90);
+
+    const int32_t x = DISPLAY_WIDTH / 4;
+    const int32_t y = DISPLAY_HEIGHT / 2;
+
+    // expect x/y = swap x/y then reverse y.
+    const int32_t xExpected = y;
+    const int32_t yExpected = (DISPLAY_WIDTH * 3 / 4) - (x + 1);
+    processPositionAndVerify(mapper, x - 1, y, x + 1, y, xExpected, yExpected);
+}
+
+TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_270) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    // Half display to (width/4, 0, width * 3/4, height) and rotate 270-degrees.
+    halfDisplayToCenterHorizontal(DISPLAY_ORIENTATION_270);
+
+    const int32_t x = DISPLAY_WIDTH / 4;
+    const int32_t y = DISPLAY_HEIGHT / 2;
+
+    // expect x/y = swap x/y then reverse x.
+    constexpr int32_t xExpected = DISPLAY_HEIGHT - y;
+    constexpr int32_t yExpected = (x + 1) - DISPLAY_WIDTH / 4;
+    processPositionAndVerify(mapper, x - 1, y, x + 1, y, xExpected, yExpected);
 }
 } // namespace android

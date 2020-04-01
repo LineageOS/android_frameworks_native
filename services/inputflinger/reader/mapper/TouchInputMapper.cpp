@@ -160,8 +160,8 @@ TouchInputMapper::TouchInputMapper(InputDeviceContext& deviceContext)
       : InputMapper(deviceContext),
         mSource(0),
         mDeviceMode(DEVICE_MODE_DISABLED),
-        mSurfaceWidth(-1),
-        mSurfaceHeight(-1),
+        mRawSurfaceWidth(-1),
+        mRawSurfaceHeight(-1),
         mSurfaceLeft(0),
         mSurfaceTop(0),
         mPhysicalWidth(-1),
@@ -680,7 +680,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
                     naturalLogicalHeight = mViewport.logicalRight - mViewport.logicalLeft;
                     naturalPhysicalWidth = mViewport.physicalBottom - mViewport.physicalTop;
                     naturalPhysicalHeight = mViewport.physicalRight - mViewport.physicalLeft;
-                    naturalPhysicalLeft = mViewport.deviceHeight - naturalPhysicalWidth;
+                    naturalPhysicalLeft = mViewport.deviceHeight - mViewport.physicalBottom;
                     naturalPhysicalTop = mViewport.physicalLeft;
                     naturalDeviceWidth = mViewport.deviceHeight;
                     naturalDeviceHeight = mViewport.deviceWidth;
@@ -701,7 +701,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
                     naturalPhysicalWidth = mViewport.physicalBottom - mViewport.physicalTop;
                     naturalPhysicalHeight = mViewport.physicalRight - mViewport.physicalLeft;
                     naturalPhysicalLeft = mViewport.physicalTop;
-                    naturalPhysicalTop = mViewport.deviceWidth - naturalPhysicalHeight;
+                    naturalPhysicalTop = mViewport.deviceWidth - mViewport.physicalRight;
                     naturalDeviceWidth = mViewport.deviceHeight;
                     naturalDeviceHeight = mViewport.deviceWidth;
                     break;
@@ -729,10 +729,12 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
             mPhysicalLeft = naturalPhysicalLeft;
             mPhysicalTop = naturalPhysicalTop;
 
-            mSurfaceWidth = naturalLogicalWidth * naturalDeviceWidth / naturalPhysicalWidth;
-            mSurfaceHeight = naturalLogicalHeight * naturalDeviceHeight / naturalPhysicalHeight;
+            mRawSurfaceWidth = naturalLogicalWidth * naturalDeviceWidth / naturalPhysicalWidth;
+            mRawSurfaceHeight = naturalLogicalHeight * naturalDeviceHeight / naturalPhysicalHeight;
             mSurfaceLeft = naturalPhysicalLeft * naturalLogicalWidth / naturalPhysicalWidth;
             mSurfaceTop = naturalPhysicalTop * naturalLogicalHeight / naturalPhysicalHeight;
+            mSurfaceRight = mSurfaceLeft + naturalLogicalWidth;
+            mSurfaceBottom = mSurfaceTop + naturalLogicalHeight;
 
             mSurfaceOrientation =
                     mParameters.orientationAware ? mViewport.orientation : DISPLAY_ORIENTATION_0;
@@ -742,8 +744,8 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
             mPhysicalLeft = 0;
             mPhysicalTop = 0;
 
-            mSurfaceWidth = rawWidth;
-            mSurfaceHeight = rawHeight;
+            mRawSurfaceWidth = rawWidth;
+            mRawSurfaceHeight = rawHeight;
             mSurfaceLeft = 0;
             mSurfaceTop = 0;
             mSurfaceOrientation = DISPLAY_ORIENTATION_0;
@@ -769,12 +771,12 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
     if (viewportChanged || deviceModeChanged) {
         ALOGI("Device reconfigured: id=%d, name='%s', size %dx%d, orientation %d, mode %d, "
               "display id %d",
-              getDeviceId(), getDeviceName().c_str(), mSurfaceWidth, mSurfaceHeight,
+              getDeviceId(), getDeviceName().c_str(), mRawSurfaceWidth, mRawSurfaceHeight,
               mSurfaceOrientation, mDeviceMode, mViewport.displayId);
 
         // Configure X and Y factors.
-        mXScale = float(mSurfaceWidth) / rawWidth;
-        mYScale = float(mSurfaceHeight) / rawHeight;
+        mXScale = float(mRawSurfaceWidth) / rawWidth;
+        mYScale = float(mRawSurfaceHeight) / rawHeight;
         mXTranslate = -mSurfaceLeft;
         mYTranslate = -mSurfaceTop;
         mXPrecision = 1.0f / mXScale;
@@ -793,7 +795,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
         mGeometricScale = avg(mXScale, mYScale);
 
         // Size of diagonal axis.
-        float diagonalSize = hypotf(mSurfaceWidth, mSurfaceHeight);
+        float diagonalSize = hypotf(mRawSurfaceWidth, mRawSurfaceHeight);
 
         // Size factors.
         if (mCalibration.sizeCalibration != Calibration::SIZE_CALIBRATION_NONE) {
@@ -956,13 +958,13 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
                 mOrientedYPrecision = mXPrecision;
 
                 mOrientedRanges.x.min = mYTranslate;
-                mOrientedRanges.x.max = mSurfaceHeight + mYTranslate - 1;
+                mOrientedRanges.x.max = mRawSurfaceHeight + mYTranslate - 1;
                 mOrientedRanges.x.flat = 0;
                 mOrientedRanges.x.fuzz = 0;
                 mOrientedRanges.x.resolution = mRawPointerAxes.y.resolution * mYScale;
 
                 mOrientedRanges.y.min = mXTranslate;
-                mOrientedRanges.y.max = mSurfaceWidth + mXTranslate - 1;
+                mOrientedRanges.y.max = mRawSurfaceWidth + mXTranslate - 1;
                 mOrientedRanges.y.flat = 0;
                 mOrientedRanges.y.fuzz = 0;
                 mOrientedRanges.y.resolution = mRawPointerAxes.x.resolution * mXScale;
@@ -973,13 +975,13 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
                 mOrientedYPrecision = mYPrecision;
 
                 mOrientedRanges.x.min = mXTranslate;
-                mOrientedRanges.x.max = mSurfaceWidth + mXTranslate - 1;
+                mOrientedRanges.x.max = mRawSurfaceWidth + mXTranslate - 1;
                 mOrientedRanges.x.flat = 0;
                 mOrientedRanges.x.fuzz = 0;
                 mOrientedRanges.x.resolution = mRawPointerAxes.x.resolution * mXScale;
 
                 mOrientedRanges.y.min = mYTranslate;
-                mOrientedRanges.y.max = mSurfaceHeight + mYTranslate - 1;
+                mOrientedRanges.y.max = mRawSurfaceHeight + mYTranslate - 1;
                 mOrientedRanges.y.flat = 0;
                 mOrientedRanges.y.fuzz = 0;
                 mOrientedRanges.y.resolution = mRawPointerAxes.y.resolution * mYScale;
@@ -992,7 +994,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
         if (mDeviceMode == DEVICE_MODE_POINTER) {
             // Compute pointer gesture detection parameters.
             float rawDiagonal = hypotf(rawWidth, rawHeight);
-            float displayDiagonal = hypotf(mSurfaceWidth, mSurfaceHeight);
+            float displayDiagonal = hypotf(mRawSurfaceWidth, mRawSurfaceHeight);
 
             // Scale movements such that one whole swipe of the touch pad covers a
             // given area relative to the diagonal size of the display when no acceleration
@@ -1027,10 +1029,12 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
 
 void TouchInputMapper::dumpSurface(std::string& dump) {
     dump += StringPrintf(INDENT3 "%s\n", mViewport.toString().c_str());
-    dump += StringPrintf(INDENT3 "SurfaceWidth: %dpx\n", mSurfaceWidth);
-    dump += StringPrintf(INDENT3 "SurfaceHeight: %dpx\n", mSurfaceHeight);
+    dump += StringPrintf(INDENT3 "RawSurfaceWidth: %dpx\n", mRawSurfaceWidth);
+    dump += StringPrintf(INDENT3 "RawSurfaceHeight: %dpx\n", mRawSurfaceHeight);
     dump += StringPrintf(INDENT3 "SurfaceLeft: %d\n", mSurfaceLeft);
     dump += StringPrintf(INDENT3 "SurfaceTop: %d\n", mSurfaceTop);
+    dump += StringPrintf(INDENT3 "SurfaceRight: %d\n", mSurfaceRight);
+    dump += StringPrintf(INDENT3 "SurfaceBottom: %d\n", mSurfaceBottom);
     dump += StringPrintf(INDENT3 "PhysicalWidth: %dpx\n", mPhysicalWidth);
     dump += StringPrintf(INDENT3 "PhysicalHeight: %dpx\n", mPhysicalHeight);
     dump += StringPrintf(INDENT3 "PhysicalLeft: %d\n", mPhysicalLeft);
@@ -1074,16 +1078,16 @@ void TouchInputMapper::configureVirtualKeys() {
         int32_t halfHeight = virtualKeyDefinition.height / 2;
 
         virtualKey.hitLeft =
-                (virtualKeyDefinition.centerX - halfWidth) * touchScreenWidth / mSurfaceWidth +
+                (virtualKeyDefinition.centerX - halfWidth) * touchScreenWidth / mRawSurfaceWidth +
                 touchScreenLeft;
         virtualKey.hitRight =
-                (virtualKeyDefinition.centerX + halfWidth) * touchScreenWidth / mSurfaceWidth +
+                (virtualKeyDefinition.centerX + halfWidth) * touchScreenWidth / mRawSurfaceWidth +
                 touchScreenLeft;
-        virtualKey.hitTop =
-                (virtualKeyDefinition.centerY - halfHeight) * touchScreenHeight / mSurfaceHeight +
+        virtualKey.hitTop = (virtualKeyDefinition.centerY - halfHeight) * touchScreenHeight /
+                        mRawSurfaceHeight +
                 touchScreenTop;
-        virtualKey.hitBottom =
-                (virtualKeyDefinition.centerY + halfHeight) * touchScreenHeight / mSurfaceHeight +
+        virtualKey.hitBottom = (virtualKeyDefinition.centerY + halfHeight) * touchScreenHeight /
+                        mRawSurfaceHeight +
                 touchScreenTop;
         mVirtualKeys.push_back(virtualKey);
     }
@@ -2188,13 +2192,10 @@ void TouchInputMapper::cookPointerData() {
         rotateAndScale(xTransformed, yTransformed);
 
         // Adjust X, Y, and coverage coords for surface orientation.
-        float x, y;
         float left, top, right, bottom;
 
         switch (mSurfaceOrientation) {
             case DISPLAY_ORIENTATION_90:
-                x = yTransformed + mYTranslate;
-                y = xTransformed + mXTranslate;
                 left = float(rawTop - mRawPointerAxes.y.minValue) * mYScale + mYTranslate;
                 right = float(rawBottom - mRawPointerAxes.y.minValue) * mYScale + mYTranslate;
                 bottom = float(mRawPointerAxes.x.maxValue - rawLeft) * mXScale + mXTranslate;
@@ -2207,8 +2208,6 @@ void TouchInputMapper::cookPointerData() {
                 }
                 break;
             case DISPLAY_ORIENTATION_180:
-                x = xTransformed + mXTranslate;
-                y = yTransformed + mYTranslate;
                 left = float(mRawPointerAxes.x.maxValue - rawRight) * mXScale;
                 right = float(mRawPointerAxes.x.maxValue - rawLeft) * mXScale;
                 bottom = float(mRawPointerAxes.y.maxValue - rawTop) * mYScale + mYTranslate;
@@ -2221,8 +2220,6 @@ void TouchInputMapper::cookPointerData() {
                 }
                 break;
             case DISPLAY_ORIENTATION_270:
-                x = yTransformed + mYTranslate;
-                y = xTransformed + mXTranslate;
                 left = float(mRawPointerAxes.y.maxValue - rawBottom) * mYScale;
                 right = float(mRawPointerAxes.y.maxValue - rawTop) * mYScale;
                 bottom = float(rawRight - mRawPointerAxes.x.minValue) * mXScale + mXTranslate;
@@ -2235,8 +2232,6 @@ void TouchInputMapper::cookPointerData() {
                 }
                 break;
             default:
-                x = xTransformed + mXTranslate;
-                y = yTransformed + mYTranslate;
                 left = float(rawLeft - mRawPointerAxes.x.minValue) * mXScale + mXTranslate;
                 right = float(rawRight - mRawPointerAxes.x.minValue) * mXScale + mXTranslate;
                 bottom = float(rawBottom - mRawPointerAxes.y.minValue) * mYScale + mYTranslate;
@@ -2247,8 +2242,8 @@ void TouchInputMapper::cookPointerData() {
         // Write output coords.
         PointerCoords& out = mCurrentCookedState.cookedPointerData.pointerCoords[i];
         out.clear();
-        out.setAxisValue(AMOTION_EVENT_AXIS_X, x);
-        out.setAxisValue(AMOTION_EVENT_AXIS_Y, y);
+        out.setAxisValue(AMOTION_EVENT_AXIS_X, xTransformed);
+        out.setAxisValue(AMOTION_EVENT_AXIS_Y, yTransformed);
         out.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, pressure);
         out.setAxisValue(AMOTION_EVENT_AXIS_SIZE, size);
         out.setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR, touchMajor);
@@ -3624,34 +3619,47 @@ void TouchInputMapper::cancelTouch(nsecs_t when) {
     abortTouches(when, 0 /* policyFlags*/);
 }
 
+// Transform raw coordinate to surface coordinate
 void TouchInputMapper::rotateAndScale(float& x, float& y) {
+    // Scale to surface coordinate.
+    const float xScaled = float(x - mRawPointerAxes.x.minValue) * mXScale;
+    const float yScaled = float(y - mRawPointerAxes.y.minValue) * mYScale;
+
+    // Rotate to surface coordinate.
+    // 0 - no swap and reverse.
+    // 90 - swap x/y and reverse y.
+    // 180 - reverse x, y.
+    // 270 - swap x/y and reverse x.
     switch (mSurfaceOrientation) {
+        case DISPLAY_ORIENTATION_0:
+            x = xScaled + mXTranslate;
+            y = yScaled + mYTranslate;
+            break;
         case DISPLAY_ORIENTATION_90:
-            x = float(mRawPointerAxes.x.maxValue - x) * mXScale;
-            y = float(y - mRawPointerAxes.y.minValue) * mYScale;
+            y = mSurfaceRight - xScaled;
+            x = yScaled + mYTranslate;
             break;
         case DISPLAY_ORIENTATION_180:
-            x = float(mRawPointerAxes.x.maxValue - x) * mXScale;
-            y = float(mRawPointerAxes.y.maxValue - y) * mYScale;
+            x = mSurfaceRight - xScaled;
+            y = mSurfaceBottom - yScaled;
             break;
         case DISPLAY_ORIENTATION_270:
-            x = float(x - mRawPointerAxes.x.minValue) * mXScale;
-            y = float(mRawPointerAxes.y.maxValue - y) * mYScale;
+            y = xScaled + mXTranslate;
+            x = mSurfaceBottom - yScaled;
             break;
         default:
-            x = float(x - mRawPointerAxes.x.minValue) * mXScale;
-            y = float(y - mRawPointerAxes.y.minValue) * mYScale;
-            break;
+            assert(false);
     }
 }
 
 bool TouchInputMapper::isPointInsideSurface(int32_t x, int32_t y) {
-    float xTransformed = x, yTransformed = y;
-    rotateAndScale(xTransformed, yTransformed);
+    const float xScaled = (x - mRawPointerAxes.x.minValue) * mXScale;
+    const float yScaled = (y - mRawPointerAxes.y.minValue) * mYScale;
+
     return x >= mRawPointerAxes.x.minValue && x <= mRawPointerAxes.x.maxValue &&
-            xTransformed >= mSurfaceLeft && xTransformed <= mSurfaceLeft + mSurfaceWidth &&
+            xScaled >= mSurfaceLeft && xScaled <= mSurfaceRight &&
             y >= mRawPointerAxes.y.minValue && y <= mRawPointerAxes.y.maxValue &&
-            yTransformed >= mSurfaceTop && yTransformed <= mSurfaceTop + mSurfaceHeight;
+            yScaled >= mSurfaceTop && yScaled <= mSurfaceBottom;
 }
 
 const TouchInputMapper::VirtualKey* TouchInputMapper::findVirtualKeyHit(int32_t x, int32_t y) {

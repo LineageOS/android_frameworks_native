@@ -239,13 +239,15 @@ static bool CopyFileToFd(const std::string& input_file, int out_fd) {
 }
 
 static bool UnlinkAndLogOnError(const std::string& file) {
+    if (file.empty()) {
+        return false;
+    }
     if (unlink(file.c_str())) {
         MYLOGE("Failed to unlink file (%s): %s\n", file.c_str(), strerror(errno));
         return false;
     }
     return true;
 }
-
 
 int64_t GetModuleMetadataVersion() {
     auto binder = defaultServiceManager()->getService(android::String16("package_native"));
@@ -2419,6 +2421,17 @@ Dumpstate::RunStatus Dumpstate::Run(int32_t calling_uid, const std::string& call
     return status;
 }
 
+void Dumpstate::Cancel() {
+    CleanupTmpFiles();
+    android::os::UnlinkAndLogOnError(log_path_);
+    for (int i = 0; i < NUM_OF_DUMPS; i++) {
+        android::os::UnlinkAndLogOnError(ds.bugreport_internal_dir_ + "/" +
+                                         kDumpstateBoardFiles[i]);
+    }
+    tombstone_data_.clear();
+    anr_data_.clear();
+}
+
 /*
  * Dumps relevant information to a bugreport based on the given options.
  *
@@ -2755,7 +2768,7 @@ bool Dumpstate::CalledByApi() const {
     return ds.options_->bugreport_fd.get() != -1 ? true : false;
 }
 
-void Dumpstate::CleanupFiles() {
+void Dumpstate::CleanupTmpFiles() {
     android::os::UnlinkAndLogOnError(tmp_path_);
     android::os::UnlinkAndLogOnError(screenshot_path_);
     android::os::UnlinkAndLogOnError(path_);
@@ -2763,7 +2776,7 @@ void Dumpstate::CleanupFiles() {
 
 Dumpstate::RunStatus Dumpstate::HandleUserConsentDenied() {
     MYLOGD("User denied consent; deleting files and returning\n");
-    CleanupFiles();
+    CleanupTmpFiles();
     return USER_CONSENT_DENIED;
 }
 

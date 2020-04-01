@@ -194,7 +194,7 @@ int32_t SurfaceInterceptor::getLayerIdFromHandle(const sp<const IBinder>& handle
 
 Increment* SurfaceInterceptor::createTraceIncrementLocked() {
     Increment* increment(mTrace.add_increment());
-    increment->set_time_stamp(systemTime());
+    increment->set_time_stamp(elapsedRealtimeNano());
     return increment;
 }
 

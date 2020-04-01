@@ -259,6 +259,9 @@ public:
     // overhead that is caused by reading from sysprop.
     static bool useFrameRateApi;
 
+    // set main thread scheduling policy
+    static status_t setSchedFifo(bool enabled) ANDROID_API;
+
     static char const* getServiceName() ANDROID_API {
         return "SurfaceFlinger";
     }
