@@ -132,8 +132,6 @@ private:
     sp<BufferLayerConsumer> mConsumer;
     sp<IGraphicBufferProducer> mProducer;
 
-    PixelFormat mFormat{PIXEL_FORMAT_NONE};
-
     bool mUpdateTexImageFailed{false};
 
     uint64_t mPreviousBufferId = 0;

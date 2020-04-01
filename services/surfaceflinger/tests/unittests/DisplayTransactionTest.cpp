@@ -246,6 +246,7 @@ sp<DisplayDevice> DisplayTransactionTest::injectDefaultInternalDisplay(
     constexpr DisplayId DEFAULT_DISPLAY_ID = DisplayId{777};
     constexpr int DEFAULT_DISPLAY_WIDTH = 1080;
     constexpr int DEFAULT_DISPLAY_HEIGHT = 1920;
+    constexpr hwc2_display_t DEFAULT_DISPLAY_HWC_DISPLAY_ID = 0;
 
     // The DisplayDevice is required to have a framebuffer (behind the
     // ANativeWindow interface) which uses the actual hardware display
@@ -270,7 +271,7 @@ sp<DisplayDevice> DisplayTransactionTest::injectDefaultInternalDisplay(
 
     auto injector =
             FakeDisplayDeviceInjector(mFlinger, compositionDisplay, DisplayConnectionType::Internal,
-                                      true /* isPrimary */);
+                                      DEFAULT_DISPLAY_HWC_DISPLAY_ID, true /* isPrimary */);
 
     injector.setNativeWindow(mNativeWindow);
     if (injectExtra) {
@@ -373,6 +374,23 @@ struct DisplayConnectionTypeGetter<PhysicalDisplayId<PhysicalDisplay>> {
     static constexpr std::optional<DisplayConnectionType> value = PhysicalDisplay::CONNECTION_TYPE;
 };
 
+template <typename>
+struct HwcDisplayIdGetter {
+    static constexpr std::optional<hwc2_display_t> value;
+};
+
+constexpr hwc2_display_t HWC_VIRTUAL_DISPLAY_HWC_DISPLAY_ID = 1010;
+
+template <DisplayId::Type displayId>
+struct HwcDisplayIdGetter<VirtualDisplayId<displayId>> {
+    static constexpr std::optional<hwc2_display_t> value = HWC_VIRTUAL_DISPLAY_HWC_DISPLAY_ID;
+};
+
+template <typename PhysicalDisplay>
+struct HwcDisplayIdGetter<PhysicalDisplayId<PhysicalDisplay>> {
+    static constexpr std::optional<hwc2_display_t> value = PhysicalDisplay::HWC_DISPLAY_ID;
+};
+
 // DisplayIdType can be:
 //     1) PhysicalDisplayId<...> for generated ID of physical display backed by HWC.
 //     2) VirtualDisplayId<...> for hard-coded ID of virtual display backed by HWC.
@@ -382,6 +400,7 @@ template <typename DisplayIdType, int width, int height, Critical critical, Asyn
 struct DisplayVariant {
     using DISPLAY_ID = DisplayIdGetter<DisplayIdType>;
     using CONNECTION_TYPE = DisplayConnectionTypeGetter<DisplayIdType>;
+    using HWC_DISPLAY_ID_OPT = HwcDisplayIdGetter<DisplayIdType>;
 
     // The display width and height
     static constexpr int WIDTH = width;
@@ -418,9 +437,9 @@ struct DisplayVariant {
                 compositionengine::impl::createDisplay(test->mFlinger.getCompositionEngine(),
                                                        ceDisplayArgs.build());
 
-        auto injector =
-                FakeDisplayDeviceInjector(test->mFlinger, compositionDisplay,
-                                          CONNECTION_TYPE::value, static_cast<bool>(PRIMARY));
+        auto injector = FakeDisplayDeviceInjector(test->mFlinger, compositionDisplay,
+                                                  CONNECTION_TYPE::value, HWC_DISPLAY_ID_OPT::value,
+                                                  static_cast<bool>(PRIMARY));
 
         injector.setSecure(static_cast<bool>(SECURE));
         injector.setNativeWindow(test->mNativeWindow);
@@ -603,12 +622,11 @@ struct HwcDisplayVariant {
 constexpr uint32_t GRALLOC_USAGE_PHYSICAL_DISPLAY =
         GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_FB;
 
-template <hwc2_display_t hwcDisplayId, typename PhysicalDisplay, int width, int height,
-          Critical critical>
+template <typename PhysicalDisplay, int width, int height, Critical critical>
 struct PhysicalDisplayVariant
       : DisplayVariant<PhysicalDisplayId<PhysicalDisplay>, width, height, critical, Async::FALSE,
                        Secure::TRUE, PhysicalDisplay::PRIMARY, GRALLOC_USAGE_PHYSICAL_DISPLAY>,
-        HwcDisplayVariant<hwcDisplayId, HWC2::DisplayType::Physical,
+        HwcDisplayVariant<PhysicalDisplay::HWC_DISPLAY_ID, HWC2::DisplayType::Physical,
                           DisplayVariant<PhysicalDisplayId<PhysicalDisplay>, width, height,
                                          critical, Async::FALSE, Secure::TRUE,
                                          PhysicalDisplay::PRIMARY, GRALLOC_USAGE_PHYSICAL_DISPLAY>,
@@ -619,6 +637,7 @@ struct PrimaryDisplay {
     static constexpr auto CONNECTION_TYPE = DisplayConnectionType::Internal;
     static constexpr Primary PRIMARY = Primary::TRUE;
     static constexpr uint8_t PORT = 255;
+    static constexpr hwc2_display_t HWC_DISPLAY_ID = 1001;
     static constexpr bool HAS_IDENTIFICATION_DATA = hasIdentificationData;
     static constexpr auto GET_IDENTIFICATION_DATA = getInternalEdid;
 };
@@ -628,6 +647,7 @@ struct ExternalDisplay {
     static constexpr auto CONNECTION_TYPE = DisplayConnectionType::External;
     static constexpr Primary PRIMARY = Primary::FALSE;
     static constexpr uint8_t PORT = 254;
+    static constexpr hwc2_display_t HWC_DISPLAY_ID = 1002;
     static constexpr bool HAS_IDENTIFICATION_DATA = hasIdentificationData;
     static constexpr auto GET_IDENTIFICATION_DATA = getExternalEdid;
 };
@@ -635,19 +655,19 @@ struct ExternalDisplay {
 struct TertiaryDisplay {
     static constexpr Primary PRIMARY = Primary::FALSE;
     static constexpr uint8_t PORT = 253;
+    static constexpr hwc2_display_t HWC_DISPLAY_ID = 1003;
     static constexpr auto GET_IDENTIFICATION_DATA = getExternalEdid;
 };
 
 // A primary display is a physical display that is critical
 using PrimaryDisplayVariant =
-        PhysicalDisplayVariant<1001, PrimaryDisplay<false>, 3840, 2160, Critical::TRUE>;
+        PhysicalDisplayVariant<PrimaryDisplay<false>, 3840, 2160, Critical::TRUE>;
 
 // An external display is physical display that is not critical.
 using ExternalDisplayVariant =
-        PhysicalDisplayVariant<1002, ExternalDisplay<false>, 1920, 1280, Critical::FALSE>;
+        PhysicalDisplayVariant<ExternalDisplay<false>, 1920, 1280, Critical::FALSE>;
 
-using TertiaryDisplayVariant =
-        PhysicalDisplayVariant<1003, TertiaryDisplay, 1600, 1200, Critical::FALSE>;
+using TertiaryDisplayVariant = PhysicalDisplayVariant<TertiaryDisplay, 1600, 1200, Critical::FALSE>;
 
 // A virtual display not supported by the HWC.
 constexpr uint32_t GRALLOC_USAGE_NONHWC_VIRTUAL_DISPLAY = 0;
@@ -696,7 +716,7 @@ struct HwcVirtualDisplayVariant
       : DisplayVariant<VirtualDisplayId<42>, width, height, Critical::FALSE, Async::TRUE, secure,
                        Primary::FALSE, GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY>,
         HwcDisplayVariant<
-                1010, HWC2::DisplayType::Virtual,
+                HWC_VIRTUAL_DISPLAY_HWC_DISPLAY_ID, HWC2::DisplayType::Virtual,
                 DisplayVariant<VirtualDisplayId<42>, width, height, Critical::FALSE, Async::TRUE,
                                secure, Primary::FALSE, GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY>> {
     using Base = DisplayVariant<VirtualDisplayId<42>, width, height, Critical::FALSE, Async::TRUE,
@@ -1767,7 +1787,9 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
     if (const auto connectionType = Case::Display::CONNECTION_TYPE::value) {
         const auto displayId = Case::Display::DISPLAY_ID::get();
         ASSERT_TRUE(displayId);
-        state.physical = {*displayId, *connectionType};
+        const auto hwcDisplayId = Case::Display::HWC_DISPLAY_ID_OPT::value;
+        ASSERT_TRUE(hwcDisplayId);
+        state.physical = {*displayId, *connectionType, *hwcDisplayId};
     }
 
     state.isSecure = static_cast<bool>(Case::Display::SECURE);
@@ -1941,7 +1963,9 @@ void HandleTransactionLockedTest::verifyDisplayIsConnected(const sp<IBinder>& di
     if (const auto connectionType = Case::Display::CONNECTION_TYPE::value) {
         const auto displayId = Case::Display::DISPLAY_ID::get();
         ASSERT_TRUE(displayId);
-        expectedPhysical = {*displayId, *connectionType};
+        const auto hwcDisplayId = Case::Display::HWC_DISPLAY_ID_OPT::value;
+        ASSERT_TRUE(hwcDisplayId);
+        expectedPhysical = {*displayId, *connectionType, *hwcDisplayId};
     }
 
     // The display should have been set up in the current display state
@@ -2124,11 +2148,11 @@ TEST_F(HandleTransactionLockedTest, ignoresHotplugConnectIfExternalForVrComposer
     ignoresHotplugConnectCommon<SimpleExternalDisplayCase>();
 }
 
-TEST_F(HandleTransactionLockedTest, processHotplugDisconnectPrimaryDisplay) {
+TEST_F(HandleTransactionLockedTest, processesHotplugDisconnectPrimaryDisplay) {
     processesHotplugDisconnectCommon<SimplePrimaryDisplayCase>();
 }
 
-TEST_F(HandleTransactionLockedTest, processHotplugDisconnectExternalDisplay) {
+TEST_F(HandleTransactionLockedTest, processesHotplugDisconnectExternalDisplay) {
     processesHotplugDisconnectCommon<SimpleExternalDisplayCase>();
 }
 

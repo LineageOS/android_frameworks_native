@@ -525,8 +525,6 @@ status_t BufferQueueLayer::setDefaultBufferProperties(uint32_t w, uint32_t h, Pi
         return BAD_VALUE;
     }
 
-    mFormat = format;
-
     setDefaultBufferSize(w, h);
     mConsumer->setDefaultBufferFormat(format);
     mConsumer->setConsumerUsageBits(getEffectiveUsage(0));
@@ -550,6 +548,8 @@ uint32_t BufferQueueLayer::getProducerStickyTransform() const {
 }
 
 void BufferQueueLayer::gatherBufferInfo() {
+    BufferLayer::gatherBufferInfo();
+
     mBufferInfo.mDesiredPresentTime = mConsumer->getTimestamp();
     mBufferInfo.mFenceTime = mConsumer->getCurrentFenceTime();
     mBufferInfo.mFence = mConsumer->getCurrentFence();
@@ -560,7 +560,6 @@ void BufferQueueLayer::gatherBufferInfo() {
     mBufferInfo.mSurfaceDamage = mConsumer->getSurfaceDamage();
     mBufferInfo.mHdrMetadata = mConsumer->getCurrentHdrMetadata();
     mBufferInfo.mApi = mConsumer->getCurrentApi();
-    mBufferInfo.mPixelFormat = mFormat;
     mBufferInfo.mTransformToDisplayInverse = mConsumer->getTransformToDisplayInverse();
 }
 

@@ -183,9 +183,10 @@ struct DisplayDeviceState {
     struct Physical {
         DisplayId id;
         DisplayConnectionType type;
+        hwc2_display_t hwcDisplayId;
 
         bool operator==(const Physical& other) const {
-            return id == other.id && type == other.type;
+            return id == other.id && type == other.type && hwcDisplayId == other.hwcDisplayId;
         }
     };
 

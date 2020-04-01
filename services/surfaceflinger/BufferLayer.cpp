@@ -272,7 +272,7 @@ bool BufferLayer::isHdrY410() const {
     // pixel format is HDR Y410 masquerading as RGBA_1010102
     return (mBufferInfo.mDataspace == ui::Dataspace::BT2020_ITU_PQ &&
             mBufferInfo.mApi == NATIVE_WINDOW_API_MEDIA &&
-            mBufferInfo.mBuffer->getPixelFormat() == HAL_PIXEL_FORMAT_RGBA_1010102);
+            mBufferInfo.mPixelFormat == HAL_PIXEL_FORMAT_RGBA_1010102);
 }
 
 sp<compositionengine::LayerFE> BufferLayer::getCompositionEngineLayerFE() const {
@@ -374,6 +374,12 @@ bool BufferLayer::onPostComposition(sp<const DisplayDevice> displayDevice,
     return true;
 }
 
+void BufferLayer::gatherBufferInfo() {
+    mBufferInfo.mPixelFormat =
+            !mBufferInfo.mBuffer ? PIXEL_FORMAT_NONE : mBufferInfo.mBuffer->format;
+    mBufferInfo.mFrameLatencyNeeded = true;
+}
+
 bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
                               nsecs_t expectedPresentTime) {
     ATRACE_CALL();
@@ -434,7 +440,6 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
     gatherBufferInfo();
 
     mRefreshPending = true;
-    mBufferInfo.mFrameLatencyNeeded = true;
     if (oldBufferInfo.mBuffer == nullptr) {
         // the first time we receive a buffer, we need to trigger a
         // geometry invalidation.

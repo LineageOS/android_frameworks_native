@@ -365,6 +365,67 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetLayerStackBasic) {
         getScreenCapture()->expectColor(Rect(0, 0, 32, 32), Color::RED);
     }
 }
+
+TEST_P(LayerTypeAndRenderTypeTransactionTest, SetBufferFormat) {
+    int32_t width = 100;
+    int32_t height = 100;
+    Rect crop = Rect(0, 0, width, height);
+
+    sp<SurfaceControl> behindLayer = createColorLayer("Behind layer", Color::RED);
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", width, height, 0, nullptr, nullptr,
+                                                PIXEL_FORMAT_RGBX_8888));
+
+    Transaction()
+            .setLayer(layer, INT32_MAX - 1)
+            .show(layer)
+            .setLayerStack(behindLayer, mDisplayLayerStack)
+            .setCrop_legacy(behindLayer, crop)
+            .setLayer(behindLayer, INT32_MAX - 2)
+            .show(behindLayer)
+            .apply();
+
+    sp<Surface> surface = layer->getSurface();
+
+    sp<GraphicBuffer> buffer =
+            new GraphicBuffer(width, height, PIXEL_FORMAT_RGBX_8888, 1,
+                              BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                      BufferUsage::COMPOSER_OVERLAY,
+                              "test");
+    ASSERT_NO_FATAL_FAILURE(
+            TransactionUtils::fillGraphicBufferColor(buffer, crop, Color::TRANSPARENT));
+
+    if (mLayerType == ISurfaceComposerClient::eFXSurfaceBufferQueue) {
+        Surface::attachAndQueueBufferWithDataspace(surface.get(), buffer, ui::Dataspace::V0_SRGB);
+    } else {
+        Transaction().setBuffer(layer, buffer).apply();
+    }
+
+    {
+        SCOPED_TRACE("Buffer Opaque Format");
+        auto shot = screenshot();
+        shot->expectColor(crop, Color::BLACK);
+    }
+
+    buffer = new GraphicBuffer(width, height, PIXEL_FORMAT_RGBA_8888, 1,
+                               BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                       BufferUsage::COMPOSER_OVERLAY,
+                               "test");
+    ASSERT_NO_FATAL_FAILURE(
+            TransactionUtils::fillGraphicBufferColor(buffer, crop, Color::TRANSPARENT));
+
+    if (mLayerType == ISurfaceComposerClient::eFXSurfaceBufferQueue) {
+        Surface::attachAndQueueBufferWithDataspace(surface.get(), buffer, ui::Dataspace::V0_SRGB);
+    } else {
+        Transaction().setBuffer(layer, buffer).apply();
+    }
+
+    {
+        SCOPED_TRACE("Buffer Transparent Format");
+        auto shot = screenshot();
+        shot->expectColor(crop, Color::RED);
+    }
+}
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
