@@ -1,6 +1,18 @@
 #!/bin/bash
 set -u
 set -e
+
+if [ -z "$ANDROID_BUILD_TOP" ] ; then
+    echo "ANDROID_BUILD_TOP is not set, did you run lunch?"
+    exit 1
+fi
+
+# Avoid spewing files in any location other than the intended one.
+if [ ! -x "$PWD/gen" ] ; then
+    echo "Run this script from its parent directory".
+    exit 1
+fi
+
 rm -rf out generated
 
 mkdir out
@@ -92,7 +104,7 @@ rm src/*.class
 
 # Add UnsupportedAppUsage.java to known sources.
 mkdir -p out/android/compat/annotation
-cp ../../../../../tools/platform-compat/annotation/src/java/android/compat/annotation/UnsupportedAppUsage.java out/android/compat/annotation
+cp ${ANDROID_BUILD_TOP}/tools/platform-compat/java/android/compat/annotation/UnsupportedAppUsage.java out/android/compat/annotation
 
 pushd out > /dev/null
 mkdir classes
@@ -153,23 +165,23 @@ compareGenerated() {
     fi
 }
 
-compareGenerated ../../../../base/core/jni generated/C com_google_android_gles_jni_GLImpl.cpp
-compareGenerated ../../../../base/opengl/java/com/google/android/gles_jni generated/com/google/android/gles_jni GLImpl.java
+compareGenerated ${ANDROID_BUILD_TOP}/frameworks/base/core/jni generated/C com_google_android_gles_jni_GLImpl.cpp
+compareGenerated ${ANDROID_BUILD_TOP}/frameworks/base/opengl/java/com/google/android/gles_jni generated/com/google/android/gles_jni GLImpl.java
 
 for x in GL.java GL10.java GL10Ext.java GL11.java GL11Ext.java GL11ExtensionPack.java
 do
-    compareGenerated ../../../../base/opengl/java/javax/microedition/khronos/opengles generated/javax/microedition/khronos/opengles $x
+    compareGenerated ${ANDROID_BUILD_TOP}/frameworks/base/opengl/java/javax/microedition/khronos/opengles generated/javax/microedition/khronos/opengles $x
 done
 
 for x in EGL14 EGL15 EGLExt GLES10 GLES10Ext GLES11 GLES11Ext GLES20 GLES30 GLES31 GLES31Ext GLES32
 do
-    compareGenerated ../../../../base/opengl/java/android/opengl generated/android/opengl ${x}.java
-    compareGenerated ../../../../base/core/jni generated/C android_opengl_${x}.cpp
+    compareGenerated ${ANDROID_BUILD_TOP}/frameworks/base/opengl/java/android/opengl generated/android/opengl ${x}.java
+    compareGenerated ${ANDROID_BUILD_TOP}/frameworks/base/core/jni generated/C android_opengl_${x}.cpp
 done
 
 for x in EGLConfig EGLContext EGLDisplay EGLObjectHandle EGLSurface EGLImage EGLSync
 do
-    compareGenerated ../../../../base/opengl/java/android/opengl generated/android/opengl ${x}.java
+    compareGenerated ${ANDROID_BUILD_TOP}/frameworks/base/opengl/java/android/opengl generated/android/opengl ${x}.java
 done
 
 if [ $KEEP_GENERATED == "0" ] ; then
