@@ -301,7 +301,10 @@ void SensorService::onFirstRef() {
 
 void SensorService::setSensorAccess(uid_t uid, bool hasAccess) {
     ConnectionSafeAutolock connLock = mConnectionHolder.lock(mLock);
-    for (const sp<SensorEventConnection>& conn : connLock.getActiveConnections()) {
+    const auto& connections = connLock.getActiveConnections();
+
+    mLock.unlock();
+    for (const sp<SensorEventConnection>& conn : connections) {
         if (conn->getUid() == uid) {
             conn->setSensorAccess(hasAccess);
         }
@@ -638,6 +641,9 @@ void SensorService::disableAllSensors() {
 
 void SensorService::disableAllSensorsLocked(ConnectionSafeAutolock* connLock) {
     SensorDevice& dev(SensorDevice::getInstance());
+    for (const sp<SensorEventConnection>& connection : connLock->getActiveConnections()) {
+        connection->updateSensorSubscriptions();
+    }
     for (const sp<SensorDirectConnection>& connection : connLock->getDirectConnections()) {
         connection->stopAll(true /* backupRecord */);
     }
@@ -666,6 +672,9 @@ void SensorService::enableAllSensorsLocked(ConnectionSafeAutolock* connLock) {
     }
     SensorDevice& dev(SensorDevice::getInstance());
     dev.enableAllSensors();
+    for (const sp<SensorEventConnection>& connection : connLock->getActiveConnections()) {
+        connection->updateSensorSubscriptions();
+    }
     for (const sp<SensorDirectConnection>& connection : connLock->getDirectConnections()) {
         connection->recoverAll();
     }
@@ -1589,7 +1598,7 @@ status_t SensorService::enable(const sp<SensorEventConnection>& connection,
         }
     }
 
-    if (connection->addSensor(handle)) {
+    if (connection->addSensor(handle, samplingPeriodNs, maxBatchReportLatencyNs, reservedFlags)) {
         BatteryService::enableSensor(connection->getUid(), handle);
         // the sensor was added (which means it wasn't already there)
         // so, see if this connection becomes active
@@ -1739,18 +1748,22 @@ status_t SensorService::flushSensor(const sp<SensorEventConnection>& connection,
     const int halVersion = dev.getHalDeviceVersion();
     status_t err(NO_ERROR);
     Mutex::Autolock _l(mLock);
+
+    size_t numSensors = 0;
     // Loop through all sensors for this connection and call flush on each of them.
-    for (size_t i = 0; i < connection->mSensorInfo.size(); ++i) {
-        const int handle = connection->mSensorInfo.keyAt(i);
+    for (int handle : connection->getActiveSensorHandles()) {
         sp<SensorInterface> sensor = getSensorInterfaceFromHandle(handle);
         if (sensor == nullptr) {
             continue;
         }
+        numSensors++;
+
         if (sensor->getSensor().getReportingMode() == AREPORTING_MODE_ONE_SHOT) {
             ALOGE("flush called on a one-shot sensor");
             err = INVALID_OPERATION;
             continue;
         }
+
         if (halVersion <= SENSORS_DEVICE_API_VERSION_1_0 || isVirtualSensor(handle)) {
             // For older devices just increment pending flush count which will send a trivial
             // flush complete event.
@@ -1768,7 +1781,8 @@ status_t SensorService::flushSensor(const sp<SensorEventConnection>& connection,
             err = (err_flush != NO_ERROR) ? err_flush : err;
         }
     }
-    return err;
+
+    return (numSensors == 0) ? INVALID_OPERATION : err;
 }
 
 bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
