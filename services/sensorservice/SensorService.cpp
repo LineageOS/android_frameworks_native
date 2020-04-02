@@ -301,7 +301,10 @@ void SensorService::onFirstRef() {
 
 void SensorService::setSensorAccess(uid_t uid, bool hasAccess) {
     ConnectionSafeAutolock connLock = mConnectionHolder.lock(mLock);
-    for (const sp<SensorEventConnection>& conn : connLock.getActiveConnections()) {
+    const auto& connections = connLock.getActiveConnections();
+
+    mLock.unlock();
+    for (const sp<SensorEventConnection>& conn : connections) {
         if (conn->getUid() == uid) {
             conn->setSensorAccess(hasAccess);
         }
@@ -638,6 +641,9 @@ void SensorService::disableAllSensors() {
 
 void SensorService::disableAllSensorsLocked(ConnectionSafeAutolock* connLock) {
     SensorDevice& dev(SensorDevice::getInstance());
+    for (const sp<SensorEventConnection>& connection : connLock->getActiveConnections()) {
+        connection->updateSensorSubscriptions();
+    }
     for (const sp<SensorDirectConnection>& connection : connLock->getDirectConnections()) {
         connection->stopAll(true /* backupRecord */);
     }
@@ -666,6 +672,9 @@ void SensorService::enableAllSensorsLocked(ConnectionSafeAutolock* connLock) {
     }
     SensorDevice& dev(SensorDevice::getInstance());
     dev.enableAllSensors();
+    for (const sp<SensorEventConnection>& connection : connLock->getActiveConnections()) {
+        connection->updateSensorSubscriptions();
+    }
     for (const sp<SensorDirectConnection>& connection : connLock->getDirectConnections()) {
         connection->recoverAll();
     }
@@ -1589,7 +1598,7 @@ status_t SensorService::enable(const sp<SensorEventConnection>& connection,
         }
     }
 
-    if (connection->addSensor(handle)) {
+    if (connection->addSensor(handle, samplingPeriodNs, maxBatchReportLatencyNs, reservedFlags)) {
         BatteryService::enableSensor(connection->getUid(), handle);
         // the sensor was added (which means it wasn't already there)
         // so, see if this connection becomes active
