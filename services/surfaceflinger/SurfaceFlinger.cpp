@@ -1929,8 +1929,18 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
             // potentially trigger a display handoff.
             updateVrFlinger();
 
-            bool refreshNeeded = handleMessageTransaction();
-            refreshNeeded |= handleMessageInvalidate();
+            bool refreshNeeded;
+            withTracingLock([&]() {
+                refreshNeeded = handleMessageTransaction();
+                refreshNeeded |= handleMessageInvalidate();
+                if (mTracingEnabled) {
+                    mAddCompositionStateToTrace =
+                            mTracing.flagIsSetLocked(SurfaceTracing::TRACE_COMPOSITION);
+                    if (mVisibleRegionsDirty && !mAddCompositionStateToTrace) {
+                        mTracing.notifyLocked("visibleRegionsDirty");
+                    }
+                }
+            });
 
             // Layers need to get updated (in the previous line) before we can use them for
             // choosing the refresh rate.
@@ -2074,7 +2084,7 @@ void SurfaceFlinger::handleMessageRefresh() {
     mLayersWithQueuedFrames.clear();
     if (mVisibleRegionsDirty) {
         mVisibleRegionsDirty = false;
-        if (mTracingEnabled) {
+        if (mTracingEnabled && mAddCompositionStateToTrace) {
             mTracing.notify("visibleRegionsDirty");
         }
     }
@@ -2946,8 +2956,7 @@ void SurfaceFlinger::initScheduler(DisplayId primaryDisplayId) {
 
 void SurfaceFlinger::commitTransaction()
 {
-    withTracingLock([this]() { commitTransactionLocked(); });
-
+    commitTransactionLocked();
     mTransactionPending = false;
     mAnimTransactionPending = false;
     mTransactionCV.broadcast();

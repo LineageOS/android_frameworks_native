@@ -51,4 +51,10 @@ message LayersTraceProto {
 
     // Blob for the current HWC information for all layers, reported by dumpsys.
     optional string hwc_blob = 4;
+
+    /* Includes state sent during composition like visible region and composition type. */
+    optional bool excludes_composition_state = 5;
+
+    /* Number of missed entries since the last entry was recorded. */
+    optional int32 missed_entries = 6;
 }
