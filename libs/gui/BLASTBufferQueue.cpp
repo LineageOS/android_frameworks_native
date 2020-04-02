@@ -110,7 +110,7 @@ BLASTBufferQueue::BLASTBufferQueue(const sp<SurfaceControl>& surface, int width,
         mProducer->setMaxDequeuedBufferCount(2);
     }
     mBufferItemConsumer =
-            new BLASTBufferItemConsumer(mConsumer, AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER, 1, true);
+        new BLASTBufferItemConsumer(mConsumer, GraphicBuffer::USAGE_HW_COMPOSER, 1, true);
     static int32_t id = 0;
     auto name = std::string("BLAST Consumer") + std::to_string(id);
     id++;
