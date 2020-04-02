@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <cinttypes>
 #include <sys/socket.h>
 #include <utils/threads.h>
 
@@ -69,17 +70,17 @@ void SensorService::SensorEventConnection::onFirstRef() {
 }
 
 bool SensorService::SensorEventConnection::needsWakeLock() {
-    Mutex::Autolock _l(mConnectionLock);
+    std::lock_guard<std::recursive_mutex> _l(mConnectionLock);
     return !mDead && mWakeLockRefCount > 0;
 }
 
 void SensorService::SensorEventConnection::resetWakeLockRefCount() {
-    Mutex::Autolock _l(mConnectionLock);
+    std::lock_guard<std::recursive_mutex> _l(mConnectionLock);
     mWakeLockRefCount = 0;
 }
 
 void SensorService::SensorEventConnection::dump(String8& result) {
-    Mutex::Autolock _l(mConnectionLock);
+    std::lock_guard<std::recursive_mutex> _l(mConnectionLock);
     result.appendFormat("\tOperating Mode: ");
     if (!mService->isWhiteListedPackage(getPackageName())) {
         result.append("RESTRICTED\n");
@@ -92,7 +93,7 @@ void SensorService::SensorEventConnection::dump(String8& result) {
             "max cache size %d\n", mPackageName.string(), mWakeLockRefCount, mUid, mCacheSize,
             mMaxCacheSize);
     for (auto& it : mSensorInfo) {
-        const FlushInfo& flushInfo = it.second;
+        const FlushInfo& flushInfo = it.second.flushInfo;
         result.appendFormat("\t %s 0x%08x | status: %s | pending flush events %d \n",
                             mService->getSensorName(it.first).string(),
                             it.first,
@@ -121,7 +122,7 @@ void SensorService::SensorEventConnection::dump(String8& result) {
  */
 void SensorService::SensorEventConnection::dump(util::ProtoOutputStream* proto) const {
     using namespace service::SensorEventConnectionProto;
-    Mutex::Autolock _l(mConnectionLock);
+    std::lock_guard<std::recursive_mutex> _l(mConnectionLock);
 
     if (!mService->isWhiteListedPackage(getPackageName())) {
         proto->write(OPERATING_MODE, OP_MODE_RESTRICTED);
@@ -136,7 +137,7 @@ void SensorService::SensorEventConnection::dump(util::ProtoOutputStream* proto) 
     proto->write(CACHE_SIZE, int32_t(mCacheSize));
     proto->write(MAX_CACHE_SIZE, int32_t(mMaxCacheSize));
     for (auto& it : mSensorInfo) {
-        const FlushInfo& flushInfo = it.second;
+        const FlushInfo& flushInfo = it.second.flushInfo;
         const uint64_t token = proto->start(FLUSH_INFOS);
         proto->write(FlushInfoProto::SENSOR_NAME,
                 std::string(mService->getSensorName(it.first)));
@@ -157,28 +158,33 @@ void SensorService::SensorEventConnection::dump(util::ProtoOutputStream* proto) 
 #endif
 }
 
-bool SensorService::SensorEventConnection::addSensor(int32_t handle) {
-    Mutex::Autolock _l(mConnectionLock);
+bool SensorService::SensorEventConnection::addSensor(
+    int32_t handle, nsecs_t samplingPeriodNs, nsecs_t maxBatchReportLatencyNs, int reservedFlags) {
+    std::lock_guard<std::recursive_mutex> _l(mConnectionLock);
     sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
     if (si == nullptr ||
         !canAccessSensor(si->getSensor(), "Tried adding", mOpPackageName) ||
         mSensorInfo.count(handle) > 0) {
         return false;
     }
-    mSensorInfo[handle] = FlushInfo();
+
+    SensorRequest request = {
+      .samplingPeriodNs = samplingPeriodNs,
+      .maxBatchReportLatencyNs = maxBatchReportLatencyNs,
+      .reservedFlags = reservedFlags
+    };
+
+    mSensorInfo[handle] = request;
     return true;
 }
 
 bool SensorService::SensorEventConnection::removeSensor(int32_t handle) {
-    Mutex::Autolock _l(mConnectionLock);
-    if (mSensorInfo.erase(handle) >= 0) {
-        return true;
-    }
-    return false;
+    std::lock_guard<std::recursive_mutex> _l(mConnectionLock);
+    return mSensorInfo.erase(handle) > 0;
 }
 
 std::vector<int32_t> SensorService::SensorEventConnection::getActiveSensorHandles() const {
-    Mutex::Autolock _l(mConnectionLock);
+    std::lock_guard<std::recursive_mutex> _l(mConnectionLock);
     std::vector<int32_t> list;
     for (auto& it : mSensorInfo) {
         list.push_back(it.first);
@@ -187,17 +193,17 @@ std::vector<int32_t> SensorService::SensorEventConnection::getActiveSensorHandle
 }
 
 bool SensorService::SensorEventConnection::hasSensor(int32_t handle) const {
-    Mutex::Autolock _l(mConnectionLock);
-    return mSensorInfo.count(handle) > 0;
+    std::lock_guard<std::recursive_mutex> _l(mConnectionLock);
+    return mSensorInfo.count(handle) + mSensorInfoBackup.count(handle) > 0;
 }
 
 bool SensorService::SensorEventConnection::hasAnySensor() const {
-    Mutex::Autolock _l(mConnectionLock);
-    return mSensorInfo.size() ? true : false;
+    std::lock_guard<std::recursive_mutex> _l(mConnectionLock);
+    return mSensorInfo.size() + mSensorInfoBackup.size() ? true : false;
 }
 
 bool SensorService::SensorEventConnection::hasOneShotSensors() const {
-    Mutex::Autolock _l(mConnectionLock);
+    std::lock_guard<std::recursive_mutex> _l(mConnectionLock);
     for (auto &it : mSensorInfo) {
         const int handle = it.first;
         sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
@@ -214,15 +220,15 @@ String8 SensorService::SensorEventConnection::getPackageName() const {
 
 void SensorService::SensorEventConnection::setFirstFlushPending(int32_t handle,
                                 bool value) {
-    Mutex::Autolock _l(mConnectionLock);
+    std::lock_guard<std::recursive_mutex> _l(mConnectionLock);
     if (mSensorInfo.count(handle) > 0) {
-        FlushInfo& flushInfo = mSensorInfo[handle];
+        FlushInfo& flushInfo = mSensorInfo[handle].flushInfo;
         flushInfo.mFirstFlushPending = value;
     }
 }
 
 void SensorService::SensorEventConnection::updateLooperRegistration(const sp<Looper>& looper) {
-    Mutex::Autolock _l(mConnectionLock);
+    std::lock_guard<std::recursive_mutex> _l(mConnectionLock);
     updateLooperRegistrationLocked(looper);
 }
 
@@ -273,9 +279,9 @@ void SensorService::SensorEventConnection::updateLooperRegistrationLocked(
 }
 
 void SensorService::SensorEventConnection::incrementPendingFlushCount(int32_t handle) {
-    Mutex::Autolock _l(mConnectionLock);
+    std::lock_guard<std::recursive_mutex> _l(mConnectionLock);
     if (mSensorInfo.count(handle) > 0) {
-        FlushInfo& flushInfo = mSensorInfo[handle];
+        FlushInfo& flushInfo = mSensorInfo[handle].flushInfo;
         flushInfo.mPendingFlushEventsToSend++;
     }
 }
@@ -289,7 +295,7 @@ status_t SensorService::SensorEventConnection::sendEvents(
     std::unique_ptr<sensors_event_t[]> sanitizedBuffer;
 
     int count = 0;
-    Mutex::Autolock _l(mConnectionLock);
+    std::lock_guard<std::recursive_mutex> _l(mConnectionLock);
     if (scratch) {
         size_t i=0;
         while (i<numEvents) {
@@ -310,7 +316,7 @@ status_t SensorService::SensorEventConnection::sendEvents(
                 continue;
             }
 
-            FlushInfo& flushInfo = mSensorInfo[sensor_handle];
+            FlushInfo& flushInfo = mSensorInfo[sensor_handle].flushInfo;
             // Check if there is a pending flush_complete event for this sensor on this connection.
             if (buffer[i].type == SENSOR_TYPE_META_DATA && flushInfo.mFirstFlushPending == true &&
                     mapFlushEventsToConnections[i] == this) {
@@ -431,9 +437,55 @@ status_t SensorService::SensorEventConnection::sendEvents(
     return size < 0 ? status_t(size) : status_t(NO_ERROR);
 }
 
+void SensorService::SensorEventConnection::updateSensorSubscriptions() {
+    if (!hasSensorAccess()) {
+        stopAll();
+    } else {
+        recoverAll();
+    }
+}
+
 void SensorService::SensorEventConnection::setSensorAccess(const bool hasAccess) {
-    Mutex::Autolock _l(mConnectionLock);
-    mHasSensorAccess = hasAccess;
+    if (mHasSensorAccess != hasAccess) {
+        mHasSensorAccess = hasAccess;
+        updateSensorSubscriptions();
+    }
+}
+
+void SensorService::SensorEventConnection::stopAll() {
+    std::lock_guard<std::recursive_mutex> _l(mConnectionLock);
+    if (!mSensorInfo.empty()) {
+        mSensorInfoBackup = mSensorInfo;
+        mSensorInfo.clear();
+
+        for (auto& it : mSensorInfoBackup) {
+            int32_t handle = it.first;
+
+            status_t err =  mService->disable(this, handle);
+
+            if (err != NO_ERROR) {
+                ALOGE("Error disabling sensor %d", handle);
+            }
+        }
+    }
+}
+
+void SensorService::SensorEventConnection::recoverAll() {
+    std::lock_guard<std::recursive_mutex> _l(mConnectionLock);
+    for (auto& it : mSensorInfoBackup) {
+        int32_t handle = it.first;
+        SensorRequest &request = it.second;
+
+        status_t err =  mService->enable(
+            this, handle, request.samplingPeriodNs, request.maxBatchReportLatencyNs,
+            request.reservedFlags, mOpPackageName);
+
+        if (err != NO_ERROR) {
+            ALOGE("Error recovering sensor %d", handle);
+        }
+    }
+
+    mSensorInfoBackup.clear();
 }
 
 bool SensorService::SensorEventConnection::hasSensorAccess() {
@@ -535,7 +587,7 @@ void SensorService::SensorEventConnection::sendPendingFlushEventsLocked() {
             continue;
         }
 
-        FlushInfo& flushInfo = it.second;
+        FlushInfo& flushInfo = it.second.flushInfo;
         while (flushInfo.mPendingFlushEventsToSend > 0) {
             flushCompleteEvent.meta_data.sensor = handle;
             bool wakeUpSensor = si->getSensor().isWakeUpSensor();
@@ -560,7 +612,7 @@ void SensorService::SensorEventConnection::writeToSocketFromCache() {
     // half the size of the socket buffer allocated in BitTube whichever is smaller.
     const int maxWriteSize = helpers::min(SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT/2,
             int(mService->mSocketBufferSize/(sizeof(sensors_event_t)*2)));
-    Mutex::Autolock _l(mConnectionLock);
+    std::lock_guard<std::recursive_mutex> _l(mConnectionLock);
     // Send pending flush complete events (if any)
     sendPendingFlushEventsLocked();
     for (int numEventsSent = 0; numEventsSent < mCacheSize;) {
@@ -627,7 +679,7 @@ void SensorService::SensorEventConnection::countFlushCompleteEventsLocked(
                 continue;
             }
 
-            FlushInfo& flushInfo = mSensorInfo[scratch[j].meta_data.sensor];
+            FlushInfo& flushInfo = mSensorInfo[scratch[j].meta_data.sensor].flushInfo;
             flushInfo.mPendingFlushEventsToSend++;
             ALOGD_IF(DEBUG_CONNECTIONS, "increment pendingFlushCount %d",
                      flushInfo.mPendingFlushEventsToSend);
@@ -663,13 +715,21 @@ status_t SensorService::SensorEventConnection::enableDisable(
     } else {
         err = mService->disable(this, handle);
     }
+
     return err;
 }
 
 status_t SensorService::SensorEventConnection::setEventRate(
         int handle, nsecs_t samplingPeriodNs)
 {
-    return mService->setEventRate(this, handle, samplingPeriodNs, mOpPackageName);
+    status_t err = mService->setEventRate(this, handle, samplingPeriodNs, mOpPackageName);
+
+    std::lock_guard<std::recursive_mutex> _l(mConnectionLock);
+    if (err == NO_ERROR && mSensorInfo.count(handle) > 0) {
+        mSensorInfo[handle].samplingPeriodNs = samplingPeriodNs;
+    }
+
+    return err;
 }
 
 status_t  SensorService::SensorEventConnection::flush() {
@@ -690,7 +750,7 @@ int SensorService::SensorEventConnection::handleEvent(int fd, int events, void* 
             // and remove the fd from Looper. Call checkWakeLockState to know if SensorService
             // can release the wake-lock.
             ALOGD_IF(DEBUG_CONNECTIONS, "%p Looper error %d", this, fd);
-            Mutex::Autolock _l(mConnectionLock);
+            std::lock_guard<std::recursive_mutex> _l(mConnectionLock);
             mDead = true;
             mWakeLockRefCount = 0;
             updateLooperRegistrationLocked(mService->getLooper());
@@ -709,7 +769,7 @@ int SensorService::SensorEventConnection::handleEvent(int fd, int events, void* 
         unsigned char buf[sizeof(sensors_event_t)];
         ssize_t numBytesRead = ::recv(fd, buf, sizeof(buf), MSG_DONTWAIT);
         {
-            Mutex::Autolock _l(mConnectionLock);
+            std::lock_guard<std::recursive_mutex> _l(mConnectionLock);
             if (numBytesRead == sizeof(sensors_event_t)) {
                 if (!mDataInjectionMode) {
                     ALOGE("Data injected in normal mode, dropping event"
