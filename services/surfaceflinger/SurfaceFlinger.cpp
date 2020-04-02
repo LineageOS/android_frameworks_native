@@ -27,7 +27,7 @@
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/types.h>
-#include <android/hardware/power/1.0/IPower.h>
+#include <android/hardware/power/Boost.h>
 #include <android/native_window.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
@@ -132,7 +132,7 @@ using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
 using namespace android::sysprop;
 
-using android::hardware::power::V1_0::PowerHint;
+using android::hardware::power::Boost;
 using base::StringAppendF;
 using ui::ColorMode;
 using ui::Dataspace;
@@ -1505,10 +1505,10 @@ status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken, f
     return result;
 }
 
-status_t SurfaceFlinger::notifyPowerHint(int32_t hintId) {
-    PowerHint powerHint = static_cast<PowerHint>(hintId);
+status_t SurfaceFlinger::notifyPowerBoost(int32_t boostId) {
+    Boost powerBoost = static_cast<Boost>(boostId);
 
-    if (powerHint == PowerHint::INTERACTION) {
+    if (powerBoost == Boost::INTERACTION) {
         mScheduler->notifyTouchEvent();
     }
 
@@ -4844,7 +4844,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES:
         case SET_DISPLAY_CONTENT_SAMPLING_ENABLED:
         case GET_DISPLAYED_CONTENT_SAMPLE:
-        case NOTIFY_POWER_HINT:
+        case NOTIFY_POWER_BOOST:
         case SET_GLOBAL_SHADOW_SETTINGS:
         case ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN: {
             // ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN is used by CTS tests, which acquire the

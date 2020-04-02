@@ -1842,8 +1842,8 @@ status_t SurfaceComposerClient::setDisplayBrightness(const sp<IBinder>& displayT
     return ComposerService::getComposerService()->setDisplayBrightness(displayToken, brightness);
 }
 
-status_t SurfaceComposerClient::notifyPowerHint(int32_t hintId) {
-    return ComposerService::getComposerService()->notifyPowerHint(hintId);
+status_t SurfaceComposerClient::notifyPowerBoost(int32_t boostId) {
+    return ComposerService::getComposerService()->notifyPowerBoost(boostId);
 }
 
 status_t SurfaceComposerClient::setGlobalShadowSettings(const half4& ambientColor,
