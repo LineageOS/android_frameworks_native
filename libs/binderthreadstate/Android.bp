@@ -21,6 +21,7 @@ cc_library_static {
     host_supported: true,
 
     apex_available: [
+        "//apex_available:platform",
         "com.android.media",
     ],
 
