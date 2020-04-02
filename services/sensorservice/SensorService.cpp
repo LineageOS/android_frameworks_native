@@ -1740,8 +1740,7 @@ status_t SensorService::flushSensor(const sp<SensorEventConnection>& connection,
     status_t err(NO_ERROR);
     Mutex::Autolock _l(mLock);
     // Loop through all sensors for this connection and call flush on each of them.
-    for (size_t i = 0; i < connection->mSensorInfo.size(); ++i) {
-        const int handle = connection->mSensorInfo.keyAt(i);
+    for (int handle : connection->getActiveSensorHandles()) {
         sp<SensorInterface> sensor = getSensorInterfaceFromHandle(handle);
         if (sensor == nullptr) {
             continue;

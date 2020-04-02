@@ -91,11 +91,11 @@ void SensorService::SensorEventConnection::dump(String8& result) {
     result.appendFormat("\t %s | WakeLockRefCount %d | uid %d | cache size %d | "
             "max cache size %d\n", mPackageName.string(), mWakeLockRefCount, mUid, mCacheSize,
             mMaxCacheSize);
-    for (size_t i = 0; i < mSensorInfo.size(); ++i) {
-        const FlushInfo& flushInfo = mSensorInfo.valueAt(i);
+    for (auto& it : mSensorInfo) {
+        const FlushInfo& flushInfo = it.second;
         result.appendFormat("\t %s 0x%08x | status: %s | pending flush events %d \n",
-                            mService->getSensorName(mSensorInfo.keyAt(i)).string(),
-                            mSensorInfo.keyAt(i),
+                            mService->getSensorName(it.first).string(),
+                            it.first,
                             flushInfo.mFirstFlushPending ? "First flush pending" :
                                                            "active",
                             flushInfo.mPendingFlushEventsToSend);
@@ -135,12 +135,12 @@ void SensorService::SensorEventConnection::dump(util::ProtoOutputStream* proto) 
     proto->write(UID, int32_t(mUid));
     proto->write(CACHE_SIZE, int32_t(mCacheSize));
     proto->write(MAX_CACHE_SIZE, int32_t(mMaxCacheSize));
-    for (size_t i = 0; i < mSensorInfo.size(); ++i) {
-        const FlushInfo& flushInfo = mSensorInfo.valueAt(i);
+    for (auto& it : mSensorInfo) {
+        const FlushInfo& flushInfo = it.second;
         const uint64_t token = proto->start(FLUSH_INFOS);
         proto->write(FlushInfoProto::SENSOR_NAME,
-                std::string(mService->getSensorName(mSensorInfo.keyAt(i))));
-        proto->write(FlushInfoProto::SENSOR_HANDLE, mSensorInfo.keyAt(i));
+                std::string(mService->getSensorName(it.first)));
+        proto->write(FlushInfoProto::SENSOR_HANDLE, it.first);
         proto->write(FlushInfoProto::FIRST_FLUSH_PENDING, flushInfo.mFirstFlushPending);
         proto->write(FlushInfoProto::PENDING_FLUSH_EVENTS_TO_SEND,
                 flushInfo.mPendingFlushEventsToSend);
@@ -162,24 +162,33 @@ bool SensorService::SensorEventConnection::addSensor(int32_t handle) {
     sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
     if (si == nullptr ||
         !canAccessSensor(si->getSensor(), "Tried adding", mOpPackageName) ||
-        mSensorInfo.indexOfKey(handle) >= 0) {
+        mSensorInfo.count(handle) > 0) {
         return false;
     }
-    mSensorInfo.add(handle, FlushInfo());
+    mSensorInfo[handle] = FlushInfo();
     return true;
 }
 
 bool SensorService::SensorEventConnection::removeSensor(int32_t handle) {
     Mutex::Autolock _l(mConnectionLock);
-    if (mSensorInfo.removeItem(handle) >= 0) {
+    if (mSensorInfo.erase(handle) >= 0) {
         return true;
     }
     return false;
 }
 
+std::vector<int32_t> SensorService::SensorEventConnection::getActiveSensorHandles() const {
+    Mutex::Autolock _l(mConnectionLock);
+    std::vector<int32_t> list;
+    for (auto& it : mSensorInfo) {
+        list.push_back(it.first);
+    }
+    return list;
+}
+
 bool SensorService::SensorEventConnection::hasSensor(int32_t handle) const {
     Mutex::Autolock _l(mConnectionLock);
-    return mSensorInfo.indexOfKey(handle) >= 0;
+    return mSensorInfo.count(handle) > 0;
 }
 
 bool SensorService::SensorEventConnection::hasAnySensor() const {
@@ -189,8 +198,8 @@ bool SensorService::SensorEventConnection::hasAnySensor() const {
 
 bool SensorService::SensorEventConnection::hasOneShotSensors() const {
     Mutex::Autolock _l(mConnectionLock);
-    for (size_t i = 0; i < mSensorInfo.size(); ++i) {
-        const int handle = mSensorInfo.keyAt(i);
+    for (auto &it : mSensorInfo) {
+        const int handle = it.first;
         sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
         if (si != nullptr && si->getSensor().getReportingMode() == AREPORTING_MODE_ONE_SHOT) {
             return true;
@@ -206,9 +215,8 @@ String8 SensorService::SensorEventConnection::getPackageName() const {
 void SensorService::SensorEventConnection::setFirstFlushPending(int32_t handle,
                                 bool value) {
     Mutex::Autolock _l(mConnectionLock);
-    ssize_t index = mSensorInfo.indexOfKey(handle);
-    if (index >= 0) {
-        FlushInfo& flushInfo = mSensorInfo.editValueAt(index);
+    if (mSensorInfo.count(handle) > 0) {
+        FlushInfo& flushInfo = mSensorInfo[handle];
         flushInfo.mFirstFlushPending = value;
     }
 }
@@ -233,8 +241,8 @@ void SensorService::SensorEventConnection::updateLooperRegistrationLocked(
     int looper_flags = 0;
     if (mCacheSize > 0) looper_flags |= ALOOPER_EVENT_OUTPUT;
     if (mDataInjectionMode) looper_flags |= ALOOPER_EVENT_INPUT;
-    for (size_t i = 0; i < mSensorInfo.size(); ++i) {
-        const int handle = mSensorInfo.keyAt(i);
+    for (auto& it : mSensorInfo) {
+        const int handle = it.first;
         sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
         if (si != nullptr && si->getSensor().isWakeUpSensor()) {
             looper_flags |= ALOOPER_EVENT_INPUT;
@@ -266,9 +274,8 @@ void SensorService::SensorEventConnection::updateLooperRegistrationLocked(
 
 void SensorService::SensorEventConnection::incrementPendingFlushCount(int32_t handle) {
     Mutex::Autolock _l(mConnectionLock);
-    ssize_t index = mSensorInfo.indexOfKey(handle);
-    if (index >= 0) {
-        FlushInfo& flushInfo = mSensorInfo.editValueAt(index);
+    if (mSensorInfo.count(handle) > 0) {
+        FlushInfo& flushInfo = mSensorInfo[handle];
         flushInfo.mPendingFlushEventsToSend++;
     }
 }
@@ -296,15 +303,14 @@ status_t SensorService::SensorEventConnection::sendEvents(
                 sensor_handle = buffer[i].meta_data.sensor;
             }
 
-            ssize_t index = mSensorInfo.indexOfKey(sensor_handle);
             // Check if this connection has registered for this sensor. If not continue to the
             // next sensor_event.
-            if (index < 0) {
+            if (mSensorInfo.count(sensor_handle) == 0) {
                 ++i;
                 continue;
             }
 
-            FlushInfo& flushInfo = mSensorInfo.editValueAt(index);
+            FlushInfo& flushInfo = mSensorInfo[sensor_handle];
             // Check if there is a pending flush_complete event for this sensor on this connection.
             if (buffer[i].type == SENSOR_TYPE_META_DATA && flushInfo.mFirstFlushPending == true &&
                     mapFlushEventsToConnections[i] == this) {
@@ -522,14 +528,14 @@ void SensorService::SensorEventConnection::sendPendingFlushEventsLocked() {
     flushCompleteEvent.type = SENSOR_TYPE_META_DATA;
     // Loop through all the sensors for this connection and check if there are any pending
     // flush complete events to be sent.
-    for (size_t i = 0; i < mSensorInfo.size(); ++i) {
-        const int handle = mSensorInfo.keyAt(i);
+    for (auto& it : mSensorInfo) {
+        const int handle = it.first;
         sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
         if (si == nullptr) {
             continue;
         }
 
-        FlushInfo& flushInfo = mSensorInfo.editValueAt(i);
+        FlushInfo& flushInfo = it.second;
         while (flushInfo.mPendingFlushEventsToSend > 0) {
             flushCompleteEvent.meta_data.sensor = handle;
             bool wakeUpSensor = si->getSensor().isWakeUpSensor();
@@ -615,14 +621,13 @@ void SensorService::SensorEventConnection::countFlushCompleteEventsLocked(
     // separately before the next batch of events.
     for (int j = 0; j < numEventsDropped; ++j) {
         if (scratch[j].type == SENSOR_TYPE_META_DATA) {
-            ssize_t index = mSensorInfo.indexOfKey(scratch[j].meta_data.sensor);
-            if (index < 0) {
+            if (mSensorInfo.count(scratch[j].meta_data.sensor) == 0) {
                 ALOGW("%s: sensor 0x%x is not found in connection",
                       __func__, scratch[j].meta_data.sensor);
                 continue;
             }
 
-            FlushInfo& flushInfo = mSensorInfo.editValueAt(index);
+            FlushInfo& flushInfo = mSensorInfo[scratch[j].meta_data.sensor];
             flushInfo.mPendingFlushEventsToSend++;
             ALOGD_IF(DEBUG_CONNECTIONS, "increment pendingFlushCount %d",
                      flushInfo.mPendingFlushEventsToSend);
@@ -764,8 +769,8 @@ int SensorService::SensorEventConnection::handleEvent(int fd, int events, void* 
 int SensorService::SensorEventConnection::computeMaxCacheSizeLocked() const {
     size_t fifoWakeUpSensors = 0;
     size_t fifoNonWakeUpSensors = 0;
-    for (size_t i = 0; i < mSensorInfo.size(); ++i) {
-        sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(mSensorInfo.keyAt(i));
+    for (auto& it : mSensorInfo) {
+        sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(it.first);
         if (si == nullptr) {
             continue;
         }
