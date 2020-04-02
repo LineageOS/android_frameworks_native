@@ -119,7 +119,9 @@ BLASTBufferQueue::BLASTBufferQueue(const sp<SurfaceControl>& surface, int width,
     mBufferItemConsumer->setBufferFreedListener(this);
     mBufferItemConsumer->setDefaultBufferSize(mWidth, mHeight);
     mBufferItemConsumer->setDefaultBufferFormat(PIXEL_FORMAT_RGBA_8888);
+
     mTransformHint = mSurfaceControl->getTransformHint();
+    mBufferItemConsumer->setTransformHint(mTransformHint);
 
     mNumAcquired = 0;
     mNumFrameAvailable = 0;
