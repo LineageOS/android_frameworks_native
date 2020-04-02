@@ -52,9 +52,10 @@ protected:
     virtual sp<SurfaceControl> createLayer(const sp<SurfaceComposerClient>& client,
                                            const char* name, uint32_t width, uint32_t height,
                                            uint32_t flags = 0, SurfaceControl* parent = nullptr,
-                                           uint32_t* outTransformHint = nullptr) {
-        auto layer = createSurface(client, name, width, height, PIXEL_FORMAT_RGBA_8888, flags,
-                                   parent, outTransformHint);
+                                           uint32_t* outTransformHint = nullptr,
+                                           PixelFormat format = PIXEL_FORMAT_RGBA_8888) {
+        auto layer =
+                createSurface(client, name, width, height, format, flags, parent, outTransformHint);
 
         Transaction t;
         t.setLayerStack(layer, mDisplayLayerStack).setLayer(layer, mLayerZBase);
@@ -81,8 +82,9 @@ protected:
 
     virtual sp<SurfaceControl> createLayer(const char* name, uint32_t width, uint32_t height,
                                            uint32_t flags = 0, SurfaceControl* parent = nullptr,
-                                           uint32_t* outTransformHint = nullptr) {
-        return createLayer(mClient, name, width, height, flags, parent, outTransformHint);
+                                           uint32_t* outTransformHint = nullptr,
+                                           PixelFormat format = PIXEL_FORMAT_RGBA_8888) {
+        return createLayer(mClient, name, width, height, flags, parent, outTransformHint, format);
     }
 
     sp<SurfaceControl> createColorLayer(const char* name, const Color& color,

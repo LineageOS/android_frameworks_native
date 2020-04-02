@@ -161,7 +161,7 @@ protected:
         Region mSurfaceDamage;
         HdrMetadata mHdrMetadata;
         int mApi;
-        PixelFormat mPixelFormat;
+        PixelFormat mPixelFormat{PIXEL_FORMAT_NONE};
         bool mTransformToDisplayInverse{false};
 
         sp<GraphicBuffer> mBuffer;

@@ -718,8 +718,9 @@ void BufferStateLayer::HwcSlotGenerator::eraseBufferLocked(const client_cache_t&
 }
 
 void BufferStateLayer::gatherBufferInfo() {
-    const State& s(getDrawingState());
+    BufferLayer::gatherBufferInfo();
 
+    const State& s(getDrawingState());
     mBufferInfo.mDesiredPresentTime = s.desiredPresentTime;
     mBufferInfo.mFenceTime = std::make_shared<FenceTime>(s.acquireFence);
     mBufferInfo.mFence = s.acquireFence;
@@ -730,8 +731,6 @@ void BufferStateLayer::gatherBufferInfo() {
     mBufferInfo.mSurfaceDamage = s.surfaceDamageRegion;
     mBufferInfo.mHdrMetadata = s.hdrMetadata;
     mBufferInfo.mApi = s.api;
-    mBufferInfo.mPixelFormat =
-            !mBufferInfo.mBuffer ? PIXEL_FORMAT_NONE : mBufferInfo.mBuffer->format;
     mBufferInfo.mTransformToDisplayInverse = s.transformToDisplayInverse;
     mBufferInfo.mBufferSlot = mHwcSlotGenerator->getHwcCacheSlot(s.clientCacheId);
 }
