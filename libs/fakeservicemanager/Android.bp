@@ -1,5 +1,6 @@
 cc_defaults {
     name: "fakeservicemanager_defaults",
+    host_supported: true,
     srcs: [
         "ServiceManager.cpp",
     ],
