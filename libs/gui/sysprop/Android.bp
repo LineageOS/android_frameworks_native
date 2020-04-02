@@ -1,6 +1,7 @@
 sysprop_library {
     name: "LibGuiProperties",
     apex_available: [
+        "//apex_available:platform",
         "com.android.media",
         "com.android.media.swcodec",
     ],
