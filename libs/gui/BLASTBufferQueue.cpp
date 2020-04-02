@@ -132,9 +132,12 @@ BLASTBufferQueue::BLASTBufferQueue(const sp<SurfaceControl>& surface, int width,
 void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, int width, int height) {
     std::unique_lock _lock{mMutex};
     mSurfaceControl = surface;
-    mWidth = width;
-    mHeight = height;
-    mBufferItemConsumer->setDefaultBufferSize(mWidth, mHeight);
+
+    if (mWidth != width || mHeight != height) {
+        mWidth = width;
+        mHeight = height;
+        mBufferItemConsumer->setDefaultBufferSize(mWidth, mHeight);
+    }
 }
 
 static void transactionCallbackThunk(void* context, nsecs_t latchTime,
