@@ -110,7 +110,7 @@ BLASTBufferQueue::BLASTBufferQueue(const sp<SurfaceControl>& surface, int width,
         mProducer->setMaxDequeuedBufferCount(2);
     }
     mBufferItemConsumer =
-            new BLASTBufferItemConsumer(mConsumer, AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER, 1, true);
+        new BLASTBufferItemConsumer(mConsumer, GraphicBuffer::USAGE_HW_COMPOSER, 1, true);
     static int32_t id = 0;
     auto name = std::string("BLAST Consumer") + std::to_string(id);
     id++;
@@ -119,7 +119,9 @@ BLASTBufferQueue::BLASTBufferQueue(const sp<SurfaceControl>& surface, int width,
     mBufferItemConsumer->setBufferFreedListener(this);
     mBufferItemConsumer->setDefaultBufferSize(mWidth, mHeight);
     mBufferItemConsumer->setDefaultBufferFormat(PIXEL_FORMAT_RGBA_8888);
+
     mTransformHint = mSurfaceControl->getTransformHint();
+    mBufferItemConsumer->setTransformHint(mTransformHint);
 
     mNumAcquired = 0;
     mNumFrameAvailable = 0;
@@ -130,9 +132,12 @@ BLASTBufferQueue::BLASTBufferQueue(const sp<SurfaceControl>& surface, int width,
 void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, int width, int height) {
     std::unique_lock _lock{mMutex};
     mSurfaceControl = surface;
-    mWidth = width;
-    mHeight = height;
-    mBufferItemConsumer->setDefaultBufferSize(mWidth, mHeight);
+
+    if (mWidth != width || mHeight != height) {
+        mWidth = width;
+        mHeight = height;
+        mBufferItemConsumer->setDefaultBufferSize(mWidth, mHeight);
+    }
 }
 
 static void transactionCallbackThunk(void* context, nsecs_t latchTime,
