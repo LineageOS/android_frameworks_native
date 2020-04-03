@@ -69,7 +69,10 @@ status_t BlurFilter::setAsDrawTarget(const DisplaySettings& display, uint32_t ra
     ATRACE_NAME("BlurFilter::setAsDrawTarget");
     mRadius = radius;
 
-    if (!mTexturesAllocated) {
+    if (mDisplayWidth < display.physicalDisplay.width() ||
+        mDisplayHeight < display.physicalDisplay.height()) {
+        ATRACE_NAME("BlurFilter::allocatingTextures");
+
         mDisplayWidth = display.physicalDisplay.width();
         mDisplayHeight = display.physicalDisplay.height();
         mCompositionFbo.allocateBuffers(mDisplayWidth, mDisplayHeight);
@@ -78,7 +81,6 @@ status_t BlurFilter::setAsDrawTarget(const DisplaySettings& display, uint32_t ra
         const uint32_t fboHeight = floorf(mDisplayHeight * kFboScale);
         mPingFbo.allocateBuffers(fboWidth, fboHeight);
         mPongFbo.allocateBuffers(fboWidth, fboHeight);
-        mTexturesAllocated = true;
 
         if (mPingFbo.getStatus() != GL_FRAMEBUFFER_COMPLETE) {
             ALOGE("Invalid ping buffer");
