@@ -137,6 +137,8 @@ binder::Status DumpstateService::startBugreport(int32_t calling_uid,
     ds_info->calling_package = calling_package;
 
     pthread_t thread;
+    // Initialize dumpstate
+    ds_->Initialize();
     status_t err = pthread_create(&thread, nullptr, dumpstate_thread_main, ds_info);
     if (err != 0) {
         delete ds_info;

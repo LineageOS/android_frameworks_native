@@ -216,6 +216,9 @@ class Dumpstate {
     /* Checkes whether dumpstate is generating a zipped bugreport. */
     bool IsZipping() const;
 
+    /* Initialize dumpstate fields before starting bugreport generation */
+    void Initialize();
+
     /*
      * Forks a command, waits for it to finish, and returns its status.
      *
@@ -329,7 +332,12 @@ class Dumpstate {
 
     struct DumpOptions;
 
-    /* Main entry point for running a complete bugreport. */
+    /*
+     * Main entry point for running a complete bugreport.
+     *
+     * Initialize() dumpstate before calling this method.
+     *
+     */
     RunStatus Run(int32_t calling_uid, const std::string& calling_package);
 
     RunStatus ParseCommandlineAndRun(int argc, char* argv[]);
