@@ -190,17 +190,10 @@ bool HWComposer::hasCapability(HWC2::Capability capability) const {
     return mCapabilities.count(capability) > 0;
 }
 
-bool HWComposer::hasDisplayCapability(const std::optional<DisplayId>& displayId,
+bool HWComposer::hasDisplayCapability(DisplayId displayId,
                                       HWC2::DisplayCapability capability) const {
-    if (!displayId) {
-        // Checkout global capabilities for displays without a corresponding HWC display.
-        if (capability == HWC2::DisplayCapability::SkipClientColorTransform) {
-            return hasCapability(HWC2::Capability::SkipClientColorTransform);
-        }
-        return false;
-    }
-    RETURN_IF_INVALID_DISPLAY(*displayId, false);
-    return mDisplayData.at(*displayId).hwcDisplay->getCapabilities().count(capability) > 0;
+    RETURN_IF_INVALID_DISPLAY(displayId, false);
+    return mDisplayData.at(displayId).hwcDisplay->getCapabilities().count(capability) > 0;
 }
 
 std::optional<DisplayIdentificationInfo> HWComposer::onHotplug(hwc2_display_t hwcDisplayId,

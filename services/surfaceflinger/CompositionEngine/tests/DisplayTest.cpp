@@ -681,15 +681,17 @@ TEST_F(DisplayChooseCompositionStrategyTest, normalOperationWithChanges) {
 
 using DisplayGetSkipColorTransformTest = DisplayWithLayersTestCommon;
 
-TEST_F(DisplayGetSkipColorTransformTest, doesNothingIfNonHwcDisplay) {
+TEST_F(DisplayGetSkipColorTransformTest, checksCapabilityIfNonHwcDisplay) {
+    EXPECT_CALL(mHwComposer, hasCapability(HWC2::Capability::SkipClientColorTransform))
+            .WillOnce(Return(true));
     auto args = getDisplayCreationArgsForNonHWCVirtualDisplay();
     auto nonHwcDisplay{impl::createDisplay(mCompositionEngine, args)};
-    EXPECT_FALSE(nonHwcDisplay->getSkipColorTransform());
+    EXPECT_TRUE(nonHwcDisplay->getSkipColorTransform());
 }
 
-TEST_F(DisplayGetSkipColorTransformTest, checksHwcCapability) {
+TEST_F(DisplayGetSkipColorTransformTest, checksDisplayCapability) {
     EXPECT_CALL(mHwComposer,
-                hasDisplayCapability(std::make_optional(DEFAULT_DISPLAY_ID),
+                hasDisplayCapability(DEFAULT_DISPLAY_ID,
                                      HWC2::DisplayCapability::SkipClientColorTransform))
             .WillOnce(Return(true));
     EXPECT_TRUE(mDisplay->getSkipColorTransform());

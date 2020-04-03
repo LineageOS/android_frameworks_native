@@ -40,8 +40,7 @@ public:
     MOCK_CONST_METHOD3(getDisplayIdentificationData,
                        bool(hwc2_display_t, uint8_t*, DisplayIdentificationData*));
     MOCK_CONST_METHOD1(hasCapability, bool(HWC2::Capability));
-    MOCK_CONST_METHOD2(hasDisplayCapability,
-                       bool(const std::optional<DisplayId>&, HWC2::DisplayCapability));
+    MOCK_CONST_METHOD2(hasDisplayCapability, bool(DisplayId, HWC2::DisplayCapability));
 
     MOCK_METHOD3(allocateVirtualDisplay,
                  std::optional<DisplayId>(uint32_t, uint32_t, ui::PixelFormat*));
