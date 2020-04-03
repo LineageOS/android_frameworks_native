@@ -34,6 +34,7 @@ using android::RawEvent;
 using android::sp;
 using android::UinputHomeKey;
 using std::chrono_literals::operator""ms;
+using std::chrono_literals::operator""s;
 
 static constexpr bool DEBUG = false;
 
@@ -70,11 +71,12 @@ protected:
         mEventHub = std::make_unique<EventHub>();
         consumeInitialDeviceAddedEvents();
         mKeyboard = createUinputDevice<UinputHomeKey>();
-        mDeviceId = waitForDeviceCreation();
+        ASSERT_NO_FATAL_FAILURE(mDeviceId = waitForDeviceCreation());
     }
     virtual void TearDown() override {
         mKeyboard.reset();
         waitForDeviceClose(mDeviceId);
+        assertNoMoreEvents();
     }
 
     /**
@@ -83,21 +85,38 @@ protected:
     int32_t waitForDeviceCreation();
     void waitForDeviceClose(int32_t deviceId);
     void consumeInitialDeviceAddedEvents();
-    std::vector<RawEvent> getEvents(std::chrono::milliseconds timeout = 5ms);
+    void assertNoMoreEvents();
+    /**
+     * Read events from the EventHub.
+     *
+     * If expectedEvents is set, wait for a significant period of time to try and ensure that
+     * the expected number of events has been read. The number of returned events
+     * may be smaller (if timeout has been reached) or larger than expectedEvents.
+     *
+     * If expectedEvents is not set, return all of the immediately available events.
+     */
+    std::vector<RawEvent> getEvents(std::optional<size_t> expectedEvents = std::nullopt);
 };
 
-std::vector<RawEvent> EventHubTest::getEvents(std::chrono::milliseconds timeout) {
+std::vector<RawEvent> EventHubTest::getEvents(std::optional<size_t> expectedEvents) {
     static constexpr size_t EVENT_BUFFER_SIZE = 256;
     std::array<RawEvent, EVENT_BUFFER_SIZE> eventBuffer;
     std::vector<RawEvent> events;
 
     while (true) {
-        size_t count =
+        std::chrono::milliseconds timeout = 0s;
+        if (expectedEvents) {
+            timeout = 2s;
+        }
+        const size_t count =
                 mEventHub->getEvents(timeout.count(), eventBuffer.data(), eventBuffer.size());
         if (count == 0) {
             break;
         }
         events.insert(events.end(), eventBuffer.begin(), eventBuffer.begin() + count);
+        if (expectedEvents && events.size() >= *expectedEvents) {
+            break;
+        }
     }
     if (DEBUG) {
         dumpEvents(events);
@@ -111,7 +130,7 @@ std::vector<RawEvent> EventHubTest::getEvents(std::chrono::milliseconds timeout)
  * it will return a lot of "device added" type of events.
  */
 void EventHubTest::consumeInitialDeviceAddedEvents() {
-    std::vector<RawEvent> events = getEvents(0ms);
+    std::vector<RawEvent> events = getEvents();
     std::set<int32_t /*deviceId*/> existingDevices;
     // All of the events should be DEVICE_ADDED type, except the last one.
     for (size_t i = 0; i < events.size() - 1; i++) {
@@ -128,8 +147,11 @@ void EventHubTest::consumeInitialDeviceAddedEvents() {
 
 int32_t EventHubTest::waitForDeviceCreation() {
     // Wait a little longer than usual, to ensure input device has time to be created
-    std::vector<RawEvent> events = getEvents(20ms);
-    EXPECT_EQ(2U, events.size()); // Using "expect" because the function is non-void.
+    std::vector<RawEvent> events = getEvents(2);
+    if (events.size() != 2) {
+        ADD_FAILURE() << "Instead of 2 events, received " << events.size();
+        return 0; // this value is unused
+    }
     const RawEvent& deviceAddedEvent = events[0];
     EXPECT_EQ(static_cast<int32_t>(EventHubInterface::DEVICE_ADDED), deviceAddedEvent.type);
     InputDeviceIdentifier identifier = mEventHub->getDeviceIdentifier(deviceAddedEvent.deviceId);
@@ -142,7 +164,7 @@ int32_t EventHubTest::waitForDeviceCreation() {
 }
 
 void EventHubTest::waitForDeviceClose(int32_t deviceId) {
-    std::vector<RawEvent> events = getEvents(20ms);
+    std::vector<RawEvent> events = getEvents(2);
     ASSERT_EQ(2U, events.size());
     const RawEvent& deviceRemovedEvent = events[0];
     EXPECT_EQ(static_cast<int32_t>(EventHubInterface::DEVICE_REMOVED), deviceRemovedEvent.type);
@@ -150,6 +172,11 @@ void EventHubTest::waitForDeviceClose(int32_t deviceId) {
     const RawEvent& finishedDeviceScanEvent = events[1];
     EXPECT_EQ(static_cast<int32_t>(EventHubInterface::FINISHED_DEVICE_SCAN),
               finishedDeviceScanEvent.type);
+}
+
+void EventHubTest::assertNoMoreEvents() {
+    std::vector<RawEvent> events = getEvents();
+    ASSERT_TRUE(events.empty());
 }
 
 /**
@@ -162,7 +189,7 @@ TEST_F(EventHubTest, InputEvent_TimestampIsMonotonic) {
     nsecs_t lastEventTime = systemTime(SYSTEM_TIME_MONOTONIC);
     ASSERT_NO_FATAL_FAILURE(mKeyboard->pressAndReleaseHomeKey());
 
-    std::vector<RawEvent> events = getEvents();
+    std::vector<RawEvent> events = getEvents(4);
     ASSERT_EQ(4U, events.size()) << "Expected to receive 2 keys and 2 syncs, total of 4 events";
     for (const RawEvent& event : events) {
         // Cannot use strict comparison because the events may happen too quickly
