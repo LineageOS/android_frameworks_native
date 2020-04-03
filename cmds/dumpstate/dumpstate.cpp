@@ -2395,6 +2395,13 @@ void Dumpstate::SetOptions(std::unique_ptr<DumpOptions> options) {
     options_ = std::move(options);
 }
 
+void Dumpstate::Initialize() {
+    /* gets the sequential id */
+    uint32_t last_id = android::base::GetIntProperty(PROPERTY_LAST_ID, 0);
+    id_ = ++last_id;
+    android::base::SetProperty(PROPERTY_LAST_ID, std::to_string(last_id));
+}
+
 Dumpstate::RunStatus Dumpstate::Run(int32_t calling_uid, const std::string& calling_package) {
     Dumpstate::RunStatus status = RunInternal(calling_uid, calling_package);
     if (listener_ != nullptr) {
@@ -2504,11 +2511,6 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
             ? android::base::StringPrintf("%s/dumpstate-stats.txt", bugreport_internal_dir_.c_str())
             : "";
     progress_.reset(new Progress(stats_path));
-
-    /* gets the sequential id */
-    uint32_t last_id = android::base::GetIntProperty(PROPERTY_LAST_ID, 0);
-    id_ = ++last_id;
-    android::base::SetProperty(PROPERTY_LAST_ID, std::to_string(last_id));
 
     if (acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_NAME) < 0) {
         MYLOGE("Failed to acquire wake lock: %s\n", strerror(errno));
@@ -2837,8 +2839,9 @@ Dumpstate::RunStatus Dumpstate::ParseCommandlineAndRun(int argc, char* argv[]) {
         assert(options_->bugreport_fd.get() == -1);
 
         // calling_uid and calling_package are for user consent to share the bugreport with
-        // an app; they are irrelvant here because bugreport is only written to a local
-        // directory, and not shared.
+        // an app; they are irrelevant here because bugreport is triggered via command line.
+        // Update Last ID before calling Run().
+        Initialize();
         status = Run(-1 /* calling_uid */, "" /* calling_package */);
     }
     return status;
