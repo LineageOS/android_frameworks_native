@@ -475,14 +475,13 @@ private:
     status_t getCompositionPreference(ui::Dataspace* outDataspace, ui::PixelFormat* outPixelFormat,
                                       ui::Dataspace* outWideColorGamutDataspace,
                                       ui::PixelFormat* outWideColorGamutPixelFormat) const override;
-    status_t getDisplayedContentSamplingAttributes(const sp<IBinder>& display,
+    status_t getDisplayedContentSamplingAttributes(const sp<IBinder>& displayToken,
                                                    ui::PixelFormat* outFormat,
                                                    ui::Dataspace* outDataspace,
                                                    uint8_t* outComponentMask) const override;
-    status_t setDisplayContentSamplingEnabled(const sp<IBinder>& display, bool enable,
-                                              uint8_t componentMask,
-                                              uint64_t maxFrames) const override;
-    status_t getDisplayedContentSample(const sp<IBinder>& display, uint64_t maxFrames,
+    status_t setDisplayContentSamplingEnabled(const sp<IBinder>& displayToken, bool enable,
+                                              uint8_t componentMask, uint64_t maxFrames) override;
+    status_t getDisplayedContentSample(const sp<IBinder>& displayToken, uint64_t maxFrames,
                                        uint64_t timestamp,
                                        DisplayedFrameStats* outStats) const override;
     status_t getProtectedContentSupport(bool* outSupported) const override;
@@ -498,7 +497,7 @@ private:
                                           float* outMaxRefreshRate) override;
     status_t getDisplayBrightnessSupport(const sp<IBinder>& displayToken,
                                          bool* outSupport) const override;
-    status_t setDisplayBrightness(const sp<IBinder>& displayToken, float brightness) const override;
+    status_t setDisplayBrightness(const sp<IBinder>& displayToken, float brightness) override;
     status_t notifyPowerHint(int32_t hintId) override;
     status_t setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
                                      float lightPosY, float lightPosZ, float lightRadius) override;
@@ -580,11 +579,6 @@ private:
             const sp<DisplayDevice>& display,
             const std::optional<scheduler::RefreshRateConfigs::Policy>& policy, bool overridePolicy)
             EXCLUDES(mStateLock);
-
-    // called on the main thread in response to setAutoLowLatencyMode()
-    void setAutoLowLatencyModeInternal(const sp<IBinder>& displayToken, bool on);
-    // called on the main thread in response to setGameContentType()
-    void setGameContentTypeInternal(const sp<IBinder>& displayToken, bool on);
 
     // Returns whether the transaction actually modified any state
     bool handleMessageTransaction();
@@ -739,16 +733,6 @@ private:
      */
     // called when starting, or restarting after system_server death
     void initializeDisplays();
-
-    sp<const DisplayDevice> getDisplayDevice(const wp<IBinder>& displayToken) const {
-        Mutex::Autolock _l(mStateLock);
-        return getDisplayDeviceLocked(displayToken);
-    }
-
-    sp<DisplayDevice> getDisplayDevice(const wp<IBinder>& displayToken) {
-        Mutex::Autolock _l(mStateLock);
-        return getDisplayDeviceLocked(displayToken);
-    }
 
     // NOTE: can only be called from the main thread or with mStateLock held
     sp<const DisplayDevice> getDisplayDeviceLocked(const wp<IBinder>& displayToken) const {
