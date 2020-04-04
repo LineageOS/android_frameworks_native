@@ -36,22 +36,21 @@ SurfaceTracing::SurfaceTracing(SurfaceFlinger& flinger)
       : mFlinger(flinger), mSfLock(flinger.mDrawingStateLock) {}
 
 void SurfaceTracing::mainLoop() {
-    addFirstEntry();
-    bool enabled = true;
+    bool enabled = addFirstEntry();
     while (enabled) {
         LayersTraceProto entry = traceWhenNotified();
         enabled = addTraceToBuffer(entry);
     }
 }
 
-void SurfaceTracing::addFirstEntry() {
+bool SurfaceTracing::addFirstEntry() {
     const auto displayDevice = mFlinger.getDefaultDisplayDevice();
     LayersTraceProto entry;
     {
         std::scoped_lock lock(mSfLock);
         entry = traceLayersLocked("tracing.enable", displayDevice);
     }
-    addTraceToBuffer(entry);
+    return addTraceToBuffer(entry);
 }
 
 LayersTraceProto SurfaceTracing::traceWhenNotified() {
