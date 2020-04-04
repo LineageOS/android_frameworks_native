@@ -36,6 +36,7 @@ public:
     MOCK_METHOD0(incrementMissedFrames, void());
     MOCK_METHOD0(incrementClientCompositionFrames, void());
     MOCK_METHOD0(incrementClientCompositionReusedFrames, void());
+    MOCK_METHOD0(incrementRefreshRateSwitches, void());
     MOCK_METHOD1(recordDisplayEventConnectionCount, void(int32_t));
     MOCK_METHOD2(recordFrameDuration, void(nsecs_t, nsecs_t));
     MOCK_METHOD2(recordRenderEngineDuration, void(nsecs_t, nsecs_t));
