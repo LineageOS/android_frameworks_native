@@ -31,6 +31,10 @@ using PnpId = std::array<char, 4>;
 // product information about the intermediate device.
 struct DeviceProductInfo {
     static constexpr size_t TEXT_BUFFER_SIZE = 20;
+    static constexpr size_t RELATIVE_ADDRESS_SIZE = 4;
+
+    using RelativeAddress = std::array<uint8_t, RELATIVE_ADDRESS_SIZE>;
+    static constexpr RelativeAddress NO_RELATIVE_ADDRESS = {0xff, 0xff, 0xff, 0xff};
 
     struct ModelYear {
         uint32_t year;
@@ -54,6 +58,11 @@ struct DeviceProductInfo {
 
     using ManufactureOrModelDate = std::variant<ModelYear, ManufactureYear, ManufactureWeekAndYear>;
     ManufactureOrModelDate manufactureOrModelDate;
+
+    // Relative address in the display network. Unavailable address is indicated
+    // by all elements equal to 255.
+    // For example, for HDMI connected device this will be the physical address.
+    RelativeAddress relativeAddress;
 };
 
 } // namespace android
