@@ -54,6 +54,9 @@ public:
     // called by SensorService when return to NORMAL mode.
     void recoverAll();
 
+    void updateSensorSubscriptions();
+
+    void setSensorAccess(bool hasAccess);
 protected:
     virtual ~SensorDirectConnection();
     // ISensorEventConnection functions
@@ -66,6 +69,7 @@ protected:
     virtual int32_t configureChannel(int handle, int rateLevel);
     virtual void destroy();
 private:
+    bool hasSensorAccess() const;
     const sp<SensorService> mService;
     const uid_t mUid;
     const sensors_direct_mem_t mMem;
@@ -75,6 +79,8 @@ private:
     mutable Mutex mConnectionLock;
     std::unordered_map<int, int> mActivated;
     std::unordered_map<int, int> mActivatedBackup;
+
+    std::atomic_bool mHasSensorAccess = true;
 
     mutable Mutex mDestroyLock;
     bool mDestroyed;
