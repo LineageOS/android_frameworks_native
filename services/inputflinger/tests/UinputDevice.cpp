@@ -44,9 +44,7 @@ void UinputDevice::init() {
     device.id.product = 0x01;
     device.id.version = 1;
 
-    // Using EXPECT instead of ASSERT to allow the device creation to continue even when
-    // some failures are reported when configuring the device.
-    EXPECT_NO_FATAL_FAILURE(configureDevice(mDeviceFd, &device));
+    ASSERT_NO_FATAL_FAILURE(configureDevice(mDeviceFd, &device));
 
     if (write(mDeviceFd, &device, sizeof(device)) < 0) {
         FAIL() << "Could not write uinput_user_dev struct into uinput file descriptor: "
@@ -70,7 +68,7 @@ void UinputDevice::injectEvent(uint16_t type, uint16_t code, int32_t value) {
                                              " with value %" PRId32 " : %s",
                                              type, code, value, strerror(errno));
         ALOGE("%s", msg.c_str());
-        ADD_FAILURE() << msg.c_str();
+        FAIL() << msg.c_str();
     }
 }
 
@@ -82,41 +80,41 @@ UinputKeyboard::UinputKeyboard(std::initializer_list<int> keys)
 void UinputKeyboard::configureDevice(int fd, uinput_user_dev* device) {
     // enable key press/release event
     if (ioctl(fd, UI_SET_EVBIT, EV_KEY)) {
-        ADD_FAILURE() << "Error in ioctl : UI_SET_EVBIT : EV_KEY: " << strerror(errno);
+        FAIL() << "Error in ioctl : UI_SET_EVBIT : EV_KEY: " << strerror(errno);
     }
 
     // enable set of KEY events
     std::for_each(mKeys.begin(), mKeys.end(), [fd](int key) {
         if (ioctl(fd, UI_SET_KEYBIT, key)) {
-            ADD_FAILURE() << "Error in ioctl : UI_SET_KEYBIT : " << key << " : " << strerror(errno);
+            FAIL() << "Error in ioctl : UI_SET_KEYBIT : " << key << " : " << strerror(errno);
         }
     });
 
     // enable synchronization event
     if (ioctl(fd, UI_SET_EVBIT, EV_SYN)) {
-        ADD_FAILURE() << "Error in ioctl : UI_SET_EVBIT : EV_SYN: " << strerror(errno);
+        FAIL() << "Error in ioctl : UI_SET_EVBIT : EV_SYN: " << strerror(errno);
     }
 }
 
 void UinputKeyboard::pressKey(int key) {
     if (mKeys.find(key) == mKeys.end()) {
-        ADD_FAILURE() << mName << ": Cannot inject key press: Key not found: " << key;
+        FAIL() << mName << ": Cannot inject key press: Key not found: " << key;
     }
-    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_KEY, key, 1));
-    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_SYN, SYN_REPORT, 0));
+    injectEvent(EV_KEY, key, 1);
+    injectEvent(EV_SYN, SYN_REPORT, 0);
 }
 
 void UinputKeyboard::releaseKey(int key) {
     if (mKeys.find(key) == mKeys.end()) {
-        ADD_FAILURE() << mName << ": Cannot inject key release: Key not found: " << key;
+        FAIL() << mName << ": Cannot inject key release: Key not found: " << key;
     }
-    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_KEY, key, 0));
-    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_SYN, SYN_REPORT, 0));
+    injectEvent(EV_KEY, key, 0);
+    injectEvent(EV_SYN, SYN_REPORT, 0);
 }
 
 void UinputKeyboard::pressAndReleaseKey(int key) {
-    EXPECT_NO_FATAL_FAILURE(pressKey(key));
-    EXPECT_NO_FATAL_FAILURE(releaseKey(key));
+    pressKey(key);
+    releaseKey(key);
 }
 
 // --- UinputHomeKey ---
@@ -124,7 +122,7 @@ void UinputKeyboard::pressAndReleaseKey(int key) {
 UinputHomeKey::UinputHomeKey() : UinputKeyboard({KEY_HOME}) {}
 
 void UinputHomeKey::pressAndReleaseHomeKey() {
-    EXPECT_NO_FATAL_FAILURE(pressAndReleaseKey(KEY_HOME));
+    pressAndReleaseKey(KEY_HOME);
 }
 
 // --- UinputTouchScreen ---
@@ -158,35 +156,35 @@ void UinputTouchScreen::configureDevice(int fd, uinput_user_dev* device) {
 }
 
 void UinputTouchScreen::sendSlot(int32_t slot) {
-    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_ABS, ABS_MT_SLOT, slot));
+    injectEvent(EV_ABS, ABS_MT_SLOT, slot);
 }
 
 void UinputTouchScreen::sendTrackingId(int32_t trackingId) {
-    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_ABS, ABS_MT_TRACKING_ID, trackingId));
+    injectEvent(EV_ABS, ABS_MT_TRACKING_ID, trackingId);
 }
 
 void UinputTouchScreen::sendDown(const Point& point) {
-    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_KEY, BTN_TOUCH, 1));
-    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_ABS, ABS_MT_POSITION_X, point.x));
-    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_ABS, ABS_MT_POSITION_Y, point.y));
-    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_SYN, SYN_REPORT, 0));
+    injectEvent(EV_KEY, BTN_TOUCH, 1);
+    injectEvent(EV_ABS, ABS_MT_POSITION_X, point.x);
+    injectEvent(EV_ABS, ABS_MT_POSITION_Y, point.y);
+    injectEvent(EV_SYN, SYN_REPORT, 0);
 }
 
 void UinputTouchScreen::sendMove(const Point& point) {
-    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_ABS, ABS_MT_POSITION_X, point.x));
-    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_ABS, ABS_MT_POSITION_Y, point.y));
-    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_SYN, SYN_REPORT, 0));
+    injectEvent(EV_ABS, ABS_MT_POSITION_X, point.x);
+    injectEvent(EV_ABS, ABS_MT_POSITION_Y, point.y);
+    injectEvent(EV_SYN, SYN_REPORT, 0);
 }
 
 void UinputTouchScreen::sendUp() {
     sendTrackingId(0xffffffff);
-    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_KEY, BTN_TOUCH, 0));
-    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_SYN, SYN_REPORT, 0));
+    injectEvent(EV_KEY, BTN_TOUCH, 0);
+    injectEvent(EV_SYN, SYN_REPORT, 0);
 }
 
 void UinputTouchScreen::sendToolType(int32_t toolType) {
-    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_ABS, ABS_MT_TOOL_TYPE, toolType));
-    EXPECT_NO_FATAL_FAILURE(injectEvent(EV_SYN, SYN_REPORT, 0));
+    injectEvent(EV_ABS, ABS_MT_TOOL_TYPE, toolType);
+    injectEvent(EV_SYN, SYN_REPORT, 0);
 }
 
 // Get the center x, y base on the range definition.
