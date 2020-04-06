@@ -29,6 +29,13 @@ cc_test {
 }
 
 cc_test {
+    name: "FlattenableHelpers_test",
+    shared_libs: ["libui"],
+    srcs: ["FlattenableHelpers_test.cpp"],
+    cflags: ["-Wall", "-Werror"],
+}
+
+cc_test {
     name: "GraphicBufferAllocator_test",
     header_libs: [
         "libnativewindow_headers",

@@ -16,56 +16,143 @@
 
 #pragma once
 
+#include <numeric>
 #include <optional>
 #include <type_traits>
+#include <vector>
 
 #include <utils/Flattenable.h>
+
+#define RETURN_IF_ERROR(op) \
+    if (const status_t status = (op); status != OK) return status;
 
 namespace android {
 
 struct FlattenableHelpers {
-    // Flattenable helpers for reading and writing std::string
-    static size_t getFlattenedSize(const std::string& str) { return str.length() + 1; }
-
-    static void write(void*& buffer, size_t& size, const std::string& str) {
-        strcpy(reinterpret_cast<char*>(buffer), str.c_str());
-        FlattenableUtils::advance(buffer, size, getFlattenedSize(str));
+    // Helpers for reading and writing POD structures
+    template <class T, typename = std::enable_if_t<std::is_trivially_copyable_v<T>>>
+    static constexpr size_t getFlattenedSize(const T&) {
+        return sizeof(T);
     }
 
-    static void read(void const*& buffer, size_t& size, std::string* str) {
-        str->assign(reinterpret_cast<const char*>(buffer));
-        FlattenableUtils::advance(buffer, size, getFlattenedSize(*str));
+    template <class T, typename = std::enable_if_t<std::is_trivially_copyable_v<T>>>
+    static status_t flatten(void** buffer, size_t* size, const T& value) {
+        if (*size < sizeof(T)) return NO_MEMORY;
+        FlattenableUtils::write(*buffer, *size, value);
+        return OK;
     }
 
-    // Flattenable utils for reading and writing std::optional
-    template <class T, typename = std::enable_if_t<std::is_base_of_v<LightFlattenable<T>, T>>>
+    template <class T, typename = std::enable_if_t<std::is_trivially_copyable_v<T>>>
+    static status_t unflatten(const void** buffer, size_t* size, T* value) {
+        if (*size < sizeof(T)) return NO_MEMORY;
+        FlattenableUtils::read(*buffer, *size, *value);
+        return OK;
+    }
+
+    // Helpers for reading and writing std::string
+    static size_t getFlattenedSize(const std::string& str) { return sizeof(size_t) + str.length(); }
+
+    static status_t flatten(void** buffer, size_t* size, const std::string& str) {
+        if (*size < getFlattenedSize(str)) return NO_MEMORY;
+        flatten(buffer, size, str.length());
+        memcpy(reinterpret_cast<char*>(*buffer), str.c_str(), str.length());
+        FlattenableUtils::advance(*buffer, *size, str.length());
+        return OK;
+    }
+
+    static status_t unflatten(const void** buffer, size_t* size, std::string* str) {
+        size_t length;
+        RETURN_IF_ERROR(unflatten(buffer, size, &length));
+        if (*size < length) return NO_MEMORY;
+        str->assign(reinterpret_cast<const char*>(*buffer), length);
+        FlattenableUtils::advance(*buffer, *size, length);
+        return OK;
+    }
+
+    // Helpers for reading and writing LightFlattenable
+    template <class T>
+    static size_t getFlattenedSize(const LightFlattenable<T>& value) {
+        return value.getFlattenedSize();
+    }
+
+    template <class T>
+    static status_t flatten(void** buffer, size_t* size, const LightFlattenable<T>& value) {
+        RETURN_IF_ERROR(value.flatten(*buffer, *size));
+        FlattenableUtils::advance(*buffer, *size, value.getFlattenedSize());
+        return OK;
+    }
+
+    template <class T>
+    static status_t unflatten(const void** buffer, size_t* size, LightFlattenable<T>* value) {
+        RETURN_IF_ERROR(value->unflatten(*buffer, *size));
+        FlattenableUtils::advance(*buffer, *size, value->getFlattenedSize());
+        return OK;
+    }
+
+    // Helpers for reading and writing std::optional
+    template <class T, typename = std::enable_if_t<std::negation_v<std::is_trivially_copyable<T>>>>
     static size_t getFlattenedSize(const std::optional<T>& value) {
-        return sizeof(bool) + (value ? value->getFlattenedSize() : 0);
+        return sizeof(bool) + (value ? getFlattenedSize(*value) : 0);
     }
 
-    template <class T, typename = std::enable_if_t<std::is_base_of_v<LightFlattenable<T>, T>>>
-    static void write(void*& buffer, size_t& size, const std::optional<T>& value) {
+    template <class T, typename = std::enable_if_t<std::negation_v<std::is_trivially_copyable<T>>>>
+    static status_t flatten(void** buffer, size_t* size, const std::optional<T>& value) {
         if (value) {
-            FlattenableUtils::write(buffer, size, true);
-            value->flatten(buffer, size);
-            FlattenableUtils::advance(buffer, size, value->getFlattenedSize());
+            RETURN_IF_ERROR(flatten(buffer, size, true));
+            RETURN_IF_ERROR(flatten(buffer, size, *value));
         } else {
-            FlattenableUtils::write(buffer, size, false);
+            RETURN_IF_ERROR(flatten(buffer, size, false));
         }
+        return OK;
     }
 
-    template <class T, typename = std::enable_if_t<std::is_base_of_v<LightFlattenable<T>, T>>>
-    static void read(void const*& buffer, size_t& size, std::optional<T>* value) {
+    template <class T, typename = std::enable_if_t<std::negation_v<std::is_trivially_copyable<T>>>>
+    static status_t unflatten(const void** buffer, size_t* size, std::optional<T>* value) {
         bool isPresent;
-        FlattenableUtils::read(buffer, size, isPresent);
+        RETURN_IF_ERROR(unflatten(buffer, size, &isPresent));
         if (isPresent) {
             *value = T();
-            (*value)->unflatten(buffer, size);
-            FlattenableUtils::advance(buffer, size, (*value)->getFlattenedSize());
+            RETURN_IF_ERROR(unflatten(buffer, size, &(**value)));
         } else {
             value->reset();
         }
+        return OK;
+    }
+
+    // Helpers for reading and writing std::vector
+    template <class T>
+    static size_t getFlattenedSize(const std::vector<T>& value) {
+        return std::accumulate(value.begin(), value.end(), sizeof(size_t),
+                               [](size_t sum, const T& element) {
+                                   return sum + getFlattenedSize(element);
+                               });
+    }
+
+    template <class T>
+    static status_t flatten(void** buffer, size_t* size, const std::vector<T>& value) {
+        RETURN_IF_ERROR(flatten(buffer, size, value.size()));
+        for (const auto& element : value) {
+            RETURN_IF_ERROR(flatten(buffer, size, element));
+        }
+        return OK;
+    }
+
+    template <class T>
+    static status_t unflatten(const void** buffer, size_t* size, std::vector<T>* value) {
+        size_t numElements;
+        RETURN_IF_ERROR(unflatten(buffer, size, &numElements));
+        // We don't need an extra size check since each iteration of the loop does that
+        std::vector<T> elements;
+        for (size_t i = 0; i < numElements; i++) {
+            T element;
+            RETURN_IF_ERROR(unflatten(buffer, size, &element));
+            elements.push_back(element);
+        }
+        *value = std::move(elements);
+        return OK;
     }
 };
 
 } // namespace android
+
+#undef RETURN_IF_ERROR

@@ -20,10 +20,15 @@
 
 #include <ui/FlattenableHelpers.h>
 
+#define RETURN_IF_ERROR(op) \
+    if (const status_t status = (op); status != OK) return status;
+
 namespace android {
 
 size_t DisplayInfo::getFlattenedSize() const {
-    return sizeof(connectionType) + sizeof(density) + sizeof(secure) +
+    return FlattenableHelpers::getFlattenedSize(connectionType) +
+            FlattenableHelpers::getFlattenedSize(density) +
+            FlattenableHelpers::getFlattenedSize(secure) +
             FlattenableHelpers::getFlattenedSize(deviceProductInfo);
 }
 
@@ -31,24 +36,19 @@ status_t DisplayInfo::flatten(void* buffer, size_t size) const {
     if (size < getFlattenedSize()) {
         return NO_MEMORY;
     }
-    FlattenableUtils::write(buffer, size, connectionType);
-    FlattenableUtils::write(buffer, size, density);
-    FlattenableUtils::write(buffer, size, secure);
-    FlattenableHelpers::write(buffer, size, deviceProductInfo);
-
-    return NO_ERROR;
+    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, connectionType));
+    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, density));
+    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, secure));
+    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, deviceProductInfo));
+    return OK;
 }
 
 status_t DisplayInfo::unflatten(void const* buffer, size_t size) {
-    if (size < getFlattenedSize()) {
-        return NO_MEMORY;
-    }
-    FlattenableUtils::read(buffer, size, connectionType);
-    FlattenableUtils::read(buffer, size, density);
-    FlattenableUtils::read(buffer, size, secure);
-    FlattenableHelpers::read(buffer, size, &deviceProductInfo);
-
-    return NO_ERROR;
+    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &connectionType));
+    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &density));
+    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &secure));
+    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &deviceProductInfo));
+    return OK;
 }
 
 } // namespace android

@@ -22,6 +22,7 @@
 #include <string>
 #include <type_traits>
 #include <variant>
+#include <vector>
 
 #include <utils/Flattenable.h>
 
@@ -57,6 +58,11 @@ struct DeviceProductInfo : LightFlattenable<DeviceProductInfo> {
     using ManufactureOrModelDate = std::variant<ModelYear, ManufactureYear, ManufactureWeekAndYear>;
     static_assert(std::is_trivially_copyable_v<ManufactureOrModelDate>);
     ManufactureOrModelDate manufactureOrModelDate;
+
+    // Relative address in the display network. Empty vector indicates that the
+    // address is unavailable.
+    // For example, for HDMI connected device this will be the physical address.
+    std::vector<uint8_t> relativeAddress;
 
     bool isFixedSize() const { return false; }
     size_t getFlattenedSize() const;
