@@ -57,6 +57,26 @@ struct DisplayIdentificationInfo {
     std::optional<DeviceProductInfo> deviceProductInfo;
 };
 
+struct ExtensionBlock {
+    uint8_t tag;
+    uint8_t revisionNumber;
+};
+
+struct HdmiPhysicalAddress {
+    // The address describes the path from the display sink in the network of connected HDMI
+    // devices. The format of the address is "a.b.c.d". For example, address 2.1.0.0 means we are
+    // connected to port 1 of a device which is connected to port 2 of the sink.
+    uint8_t a, b, c, d;
+};
+
+struct HdmiVendorDataBlock {
+    std::optional<HdmiPhysicalAddress> physicalAddress;
+};
+
+struct Cea861ExtensionBlock : ExtensionBlock {
+    std::optional<HdmiVendorDataBlock> hdmiVendorDataBlock;
+};
+
 struct Edid {
     uint16_t manufacturerId;
     uint16_t productId;
@@ -65,6 +85,7 @@ struct Edid {
     std::string_view displayName;
     uint8_t manufactureOrModelYear;
     uint8_t manufactureWeek;
+    std::optional<Cea861ExtensionBlock> cea861Block;
 };
 
 bool isEdid(const DisplayIdentificationData&);
