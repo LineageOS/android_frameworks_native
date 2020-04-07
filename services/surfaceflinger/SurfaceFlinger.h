@@ -1073,6 +1073,7 @@ private:
     std::unique_ptr<SurfaceInterceptor> mInterceptor;
     SurfaceTracing mTracing{*this};
     bool mTracingEnabled = false;
+    bool mAddCompositionStateToTrace = false;
     bool mTracingEnabledChanged GUARDED_BY(mStateLock) = false;
     const std::shared_ptr<TimeStats> mTimeStats;
     const std::unique_ptr<FrameTracer> mFrameTracer;
