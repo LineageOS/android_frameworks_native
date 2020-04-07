@@ -301,7 +301,7 @@ const RefreshRate& RefreshRateConfigs::getCurrentRefreshRateByPolicyLocked() con
                   mCurrentRefreshRate) != mAvailableRefreshRates.end()) {
         return *mCurrentRefreshRate;
     }
-    return *mRefreshRates.at(mDefaultConfig);
+    return *mRefreshRates.at(getCurrentPolicyLocked()->defaultConfig);
 }
 
 void RefreshRateConfigs::setCurrentConfigId(HwcConfigIndexType configId) {
@@ -326,38 +326,59 @@ RefreshRateConfigs::RefreshRateConfigs(
     init(inputConfigs, currentConfigId);
 }
 
-status_t RefreshRateConfigs::setPolicy(HwcConfigIndexType defaultConfigId, float minRefreshRate,
-                                       float maxRefreshRate, bool* outPolicyChanged) {
+bool RefreshRateConfigs::isPolicyValid(const Policy& policy) {
+    // defaultConfig must be a valid config, and within the given refresh rate range.
+    auto iter = mRefreshRates.find(policy.defaultConfig);
+    if (iter == mRefreshRates.end()) {
+        return false;
+    }
+    const RefreshRate& refreshRate = *iter->second;
+    if (!refreshRate.inPolicy(policy.minRefreshRate, policy.maxRefreshRate)) {
+        return false;
+    }
+    return true;
+}
+
+status_t RefreshRateConfigs::setDisplayManagerPolicy(const Policy& policy) {
     std::lock_guard lock(mLock);
-    bool policyChanged = defaultConfigId != mDefaultConfig ||
-            minRefreshRate != mMinRefreshRateFps || maxRefreshRate != mMaxRefreshRateFps;
-    if (outPolicyChanged) {
-        *outPolicyChanged = policyChanged;
-    }
-    if (!policyChanged) {
-        return NO_ERROR;
-    }
-    // defaultConfigId must be a valid config ID, and within the given refresh rate range.
-    if (mRefreshRates.count(defaultConfigId) == 0) {
+    if (!isPolicyValid(policy)) {
         return BAD_VALUE;
     }
-    const RefreshRate& refreshRate = *mRefreshRates.at(defaultConfigId);
-    if (!refreshRate.inPolicy(minRefreshRate, maxRefreshRate)) {
-        return BAD_VALUE;
+    Policy previousPolicy = *getCurrentPolicyLocked();
+    mDisplayManagerPolicy = policy;
+    if (*getCurrentPolicyLocked() == previousPolicy) {
+        return CURRENT_POLICY_UNCHANGED;
     }
-    mDefaultConfig = defaultConfigId;
-    mMinRefreshRateFps = minRefreshRate;
-    mMaxRefreshRateFps = maxRefreshRate;
     constructAvailableRefreshRates();
     return NO_ERROR;
 }
 
-void RefreshRateConfigs::getPolicy(HwcConfigIndexType* defaultConfigId, float* minRefreshRate,
-                                   float* maxRefreshRate) const {
+status_t RefreshRateConfigs::setOverridePolicy(const std::optional<Policy>& policy) {
     std::lock_guard lock(mLock);
-    *defaultConfigId = mDefaultConfig;
-    *minRefreshRate = mMinRefreshRateFps;
-    *maxRefreshRate = mMaxRefreshRateFps;
+    if (policy && !isPolicyValid(*policy)) {
+        return BAD_VALUE;
+    }
+    Policy previousPolicy = *getCurrentPolicyLocked();
+    mOverridePolicy = policy;
+    if (*getCurrentPolicyLocked() == previousPolicy) {
+        return CURRENT_POLICY_UNCHANGED;
+    }
+    constructAvailableRefreshRates();
+    return NO_ERROR;
+}
+
+const RefreshRateConfigs::Policy* RefreshRateConfigs::getCurrentPolicyLocked() const {
+    return mOverridePolicy ? &mOverridePolicy.value() : &mDisplayManagerPolicy;
+}
+
+RefreshRateConfigs::Policy RefreshRateConfigs::getCurrentPolicy() const {
+    std::lock_guard lock(mLock);
+    return *getCurrentPolicyLocked();
+}
+
+RefreshRateConfigs::Policy RefreshRateConfigs::getDisplayManagerPolicy() const {
+    std::lock_guard lock(mLock);
+    return mDisplayManagerPolicy;
 }
 
 bool RefreshRateConfigs::isConfigAllowed(HwcConfigIndexType config) const {
@@ -385,19 +406,25 @@ void RefreshRateConfigs::getSortedRefreshRateList(
 
     std::sort(outRefreshRates->begin(), outRefreshRates->end(),
               [](const auto refreshRate1, const auto refreshRate2) {
-                  return refreshRate1->vsyncPeriod > refreshRate2->vsyncPeriod;
+                  if (refreshRate1->vsyncPeriod != refreshRate2->vsyncPeriod) {
+                      return refreshRate1->vsyncPeriod > refreshRate2->vsyncPeriod;
+                  } else {
+                      return refreshRate1->configGroup > refreshRate2->configGroup;
+                  }
               });
 }
 
 void RefreshRateConfigs::constructAvailableRefreshRates() {
     // Filter configs based on current policy and sort based on vsync period
-    HwcConfigGroupType group = mRefreshRates.at(mDefaultConfig)->configGroup;
+    const Policy* policy = getCurrentPolicyLocked();
+    HwcConfigGroupType group = mRefreshRates.at(policy->defaultConfig)->configGroup;
     ALOGV("constructAvailableRefreshRates: default %d group %d min %.2f max %.2f",
-          mDefaultConfig.value(), group.value(), mMinRefreshRateFps, mMaxRefreshRateFps);
+          policy->defaultConfig.value(), group.value(), policy->minRefreshRate,
+          policy->maxRefreshRate);
     getSortedRefreshRateList(
             [&](const RefreshRate& refreshRate) REQUIRES(mLock) {
-                return refreshRate.configGroup == group &&
-                        refreshRate.inPolicy(mMinRefreshRateFps, mMaxRefreshRateFps);
+                return (policy->allowGroupSwitching || refreshRate.configGroup == group) &&
+                        refreshRate.inPolicy(policy->minRefreshRate, policy->maxRefreshRate);
             },
             &mAvailableRefreshRates);
 
@@ -409,7 +436,8 @@ void RefreshRateConfigs::constructAvailableRefreshRates() {
     ALOGV("Available refresh rates: %s", availableRefreshRates.c_str());
     LOG_ALWAYS_FATAL_IF(mAvailableRefreshRates.empty(),
                         "No compatible display configs for default=%d min=%.0f max=%.0f",
-                        mDefaultConfig.value(), mMinRefreshRateFps, mMaxRefreshRateFps);
+                        policy->defaultConfig.value(), policy->minRefreshRate,
+                        policy->maxRefreshRate);
 }
 
 // NO_THREAD_SAFETY_ANALYSIS since this is called from the constructor
@@ -432,7 +460,7 @@ void RefreshRateConfigs::init(const std::vector<InputConfig>& configs,
 
     std::vector<const RefreshRate*> sortedConfigs;
     getSortedRefreshRateList([](const RefreshRate&) { return true; }, &sortedConfigs);
-    mDefaultConfig = currentHwcConfig;
+    mDisplayManagerPolicy.defaultConfig = currentHwcConfig;
     mMinSupportedRefreshRate = sortedConfigs.front();
     mMaxSupportedRefreshRate = sortedConfigs.back();
     constructAvailableRefreshRates();
