@@ -168,6 +168,7 @@ void VSyncDispatchTimerQueue::setTimer(nsecs_t targetTime, nsecs_t now) {
     mIntendedWakeupTime = targetTime;
     mTimeKeeper->alarmIn(std::bind(&VSyncDispatchTimerQueue::timerCallback, this),
                          targetTime - now);
+    mLastTimerSchedule = mTimeKeeper->now();
 }
 
 void VSyncDispatchTimerQueue::rearmTimer(nsecs_t now) {
@@ -226,6 +227,7 @@ void VSyncDispatchTimerQueue::timerCallback() {
     std::vector<Invocation> invocations;
     {
         std::lock_guard<decltype(mMutex)> lk(mMutex);
+        mLastTimerCallback = mTimeKeeper->now();
         for (auto it = mCallbacks.begin(); it != mCallbacks.end(); it++) {
             auto& callback = it->second;
             auto const wakeupTime = callback->wakeupTime();
@@ -322,10 +324,15 @@ CancelResult VSyncDispatchTimerQueue::cancel(CallbackToken token) {
 
 void VSyncDispatchTimerQueue::dump(std::string& result) const {
     std::lock_guard<decltype(mMutex)> lk(mMutex);
+    StringAppendF(&result, "\tTimer:\n");
+    mTimeKeeper->dump(result);
     StringAppendF(&result, "\tmTimerSlack: %.2fms mMinVsyncDistance: %.2fms\n", mTimerSlack / 1e6f,
                   mMinVsyncDistance / 1e6f);
     StringAppendF(&result, "\tmIntendedWakeupTime: %.2fms from now\n",
-                  (mIntendedWakeupTime - systemTime()) / 1e6f);
+                  (mIntendedWakeupTime - mTimeKeeper->now()) / 1e6f);
+    StringAppendF(&result, "\tmLastTimerCallback: %.2fms ago mLastTimerSchedule: %.2fms ago\n",
+                  (mTimeKeeper->now() - mLastTimerCallback) / 1e6f,
+                  (mTimeKeeper->now() - mLastTimerSchedule) / 1e6f);
     StringAppendF(&result, "\tCallbacks:\n");
     for (const auto& [token, entry] : mCallbacks) {
         entry->dump(result);
