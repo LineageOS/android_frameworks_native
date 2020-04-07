@@ -508,6 +508,14 @@ public:
      */
     virtual status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
                                   int8_t compatibility) = 0;
+
+    /*
+     * Acquire a frame rate flexibility token from SurfaceFlinger. While this token is acquired,
+     * surface flinger will freely switch between frame rates in any way it sees fit, regardless of
+     * the current restrictions applied by DisplayManager. This is useful to get consistent behavior
+     * for tests. Release the token by releasing the returned IBinder reference.
+     */
+    virtual status_t acquireFrameRateFlexibilityToken(sp<IBinder>* outToken) = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -566,6 +574,7 @@ public:
         GET_GAME_CONTENT_TYPE_SUPPORT,
         SET_GAME_CONTENT_TYPE,
         SET_FRAME_RATE,
+        ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN,
         // Always append new enum to the end.
     };
 

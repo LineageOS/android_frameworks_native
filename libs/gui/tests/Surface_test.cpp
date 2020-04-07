@@ -859,6 +859,8 @@ public:
         return NO_ERROR;
     }
 
+    status_t acquireFrameRateFlexibilityToken(sp<IBinder>* /*outToken*/) { return NO_ERROR; }
+
 protected:
     IBinder* onAsBinder() override { return nullptr; }
 
