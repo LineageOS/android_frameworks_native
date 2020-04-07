@@ -3100,9 +3100,8 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrMixedComposi
             .andIfUsesHdr(true)
             .andIfSkipColorTransform(false)
             .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputSourceClip,
-                                            mat4(), kDefaultMaxLuminance, kDefaultOutputDataspace,
-                                            mat4(), Region::INVALID_REGION,
-                                            kDefaultOutputOrientation})
+                                            kDefaultMaxLuminance, kDefaultOutputDataspace, mat4(),
+                                            Region::INVALID_REGION, kDefaultOutputOrientation})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3112,9 +3111,8 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrMixedComp
             .andIfUsesHdr(false)
             .andIfSkipColorTransform(false)
             .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputSourceClip,
-                                            mat4(), kDefaultMaxLuminance, kDefaultOutputDataspace,
-                                            mat4(), Region::INVALID_REGION,
-                                            kDefaultOutputOrientation})
+                                            kDefaultMaxLuminance, kDefaultOutputDataspace, mat4(),
+                                            Region::INVALID_REGION, kDefaultOutputOrientation})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3124,7 +3122,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrOnlyClientCo
             .andIfUsesHdr(true)
             .andIfSkipColorTransform(false)
             .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputSourceClip,
-                                            mat4(), kDefaultMaxLuminance, kDefaultOutputDataspace,
+                                            kDefaultMaxLuminance, kDefaultOutputDataspace,
                                             kDefaultColorTransformMat, Region::INVALID_REGION,
                                             kDefaultOutputOrientation})
             .execute()
@@ -3136,7 +3134,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrOnlyClien
             .andIfUsesHdr(false)
             .andIfSkipColorTransform(false)
             .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputSourceClip,
-                                            mat4(), kDefaultMaxLuminance, kDefaultOutputDataspace,
+                                            kDefaultMaxLuminance, kDefaultOutputDataspace,
                                             kDefaultColorTransformMat, Region::INVALID_REGION,
                                             kDefaultOutputOrientation})
             .execute()
@@ -3149,9 +3147,8 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
             .andIfUsesHdr(true)
             .andIfSkipColorTransform(true)
             .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputSourceClip,
-                                            mat4(), kDefaultMaxLuminance, kDefaultOutputDataspace,
-                                            mat4(), Region::INVALID_REGION,
-                                            kDefaultOutputOrientation})
+                                            kDefaultMaxLuminance, kDefaultOutputDataspace, mat4(),
+                                            Region::INVALID_REGION, kDefaultOutputOrientation})
             .execute()
             .expectAFenceWasReturned();
 }
