@@ -2134,10 +2134,12 @@ LayerProto* Layer::writeToProto(LayersProto& layersProto, uint32_t traceFlags,
     writeToProtoDrawingState(layerProto, traceFlags);
     writeToProtoCommonState(layerProto, LayerVector::StateSet::Drawing, traceFlags);
 
-    // Only populate for the primary display.
-    if (device) {
-        const Hwc2::IComposerClient::Composition compositionType = getCompositionType(device);
-        layerProto->set_hwc_composition_type(static_cast<HwcCompositionType>(compositionType));
+    if (traceFlags & SurfaceTracing::TRACE_COMPOSITION) {
+        // Only populate for the primary display.
+        if (device) {
+            const Hwc2::IComposerClient::Composition compositionType = getCompositionType(device);
+            layerProto->set_hwc_composition_type(static_cast<HwcCompositionType>(compositionType));
+        }
     }
 
     for (const sp<Layer>& layer : mDrawingChildren) {
@@ -2180,8 +2182,10 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags)
         LayerProtoHelper::writePositionToProto(transform.tx(), transform.ty(),
                                                [&]() { return layerInfo->mutable_position(); });
         LayerProtoHelper::writeToProto(mBounds, [&]() { return layerInfo->mutable_bounds(); });
-        LayerProtoHelper::writeToProto(debugGetVisibleRegionOnDefaultDisplay(),
-                                       [&]() { return layerInfo->mutable_visible_region(); });
+        if (traceFlags & SurfaceTracing::TRACE_COMPOSITION) {
+            LayerProtoHelper::writeToProto(debugGetVisibleRegionOnDefaultDisplay(),
+                                           [&]() { return layerInfo->mutable_visible_region(); });
+        }
         LayerProtoHelper::writeToProto(surfaceDamageRegion,
                                        [&]() { return layerInfo->mutable_damage_region(); });
 
@@ -2191,15 +2195,13 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags)
         }
     }
 
-    if (traceFlags & SurfaceTracing::TRACE_EXTRA) {
-        LayerProtoHelper::writeToProto(mSourceBounds,
-                                       [&]() { return layerInfo->mutable_source_bounds(); });
-        LayerProtoHelper::writeToProto(mScreenBounds,
-                                       [&]() { return layerInfo->mutable_screen_bounds(); });
-        LayerProtoHelper::writeToProto(getRoundedCornerState().cropRect,
-                                       [&]() { return layerInfo->mutable_corner_radius_crop(); });
-        layerInfo->set_shadow_radius(mEffectiveShadowRadius);
-    }
+    LayerProtoHelper::writeToProto(mSourceBounds,
+                                   [&]() { return layerInfo->mutable_source_bounds(); });
+    LayerProtoHelper::writeToProto(mScreenBounds,
+                                   [&]() { return layerInfo->mutable_screen_bounds(); });
+    LayerProtoHelper::writeToProto(getRoundedCornerState().cropRect,
+                                   [&]() { return layerInfo->mutable_corner_radius_crop(); });
+    layerInfo->set_shadow_radius(mEffectiveShadowRadius);
 }
 
 void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet stateSet,
