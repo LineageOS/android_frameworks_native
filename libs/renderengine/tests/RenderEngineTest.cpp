@@ -298,7 +298,7 @@ struct RenderEngineTest : public ::testing::Test {
     void fillBufferPhysicalOffset();
 
     template <typename SourceVariant>
-    void fillBufferCheckers(mat4 transform);
+    void fillBufferCheckers(uint32_t rotation);
 
     template <typename SourceVariant>
     void fillBufferCheckersRotate0();
@@ -509,12 +509,12 @@ void RenderEngineTest::fillBufferPhysicalOffset() {
 }
 
 template <typename SourceVariant>
-void RenderEngineTest::fillBufferCheckers(mat4 transform) {
+void RenderEngineTest::fillBufferCheckers(uint32_t orientationFlag) {
     renderengine::DisplaySettings settings;
     settings.physicalDisplay = fullscreenRect();
     // Here logical space is 2x2
     settings.clip = Rect(2, 2);
-    settings.globalTransform = transform;
+    settings.orientation = orientationFlag;
 
     std::vector<const renderengine::LayerSettings*> layers;
 
@@ -545,7 +545,7 @@ void RenderEngineTest::fillBufferCheckers(mat4 transform) {
 
 template <typename SourceVariant>
 void RenderEngineTest::fillBufferCheckersRotate0() {
-    fillBufferCheckers<SourceVariant>(mat4());
+    fillBufferCheckers<SourceVariant>(ui::Transform::ROT_0);
     expectBufferColor(Rect(0, 0, DEFAULT_DISPLAY_WIDTH / 2, DEFAULT_DISPLAY_HEIGHT / 2), 255, 0, 0,
                       255);
     expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH / 2, 0, DEFAULT_DISPLAY_WIDTH,
@@ -561,8 +561,7 @@ void RenderEngineTest::fillBufferCheckersRotate0() {
 
 template <typename SourceVariant>
 void RenderEngineTest::fillBufferCheckersRotate90() {
-    mat4 matrix = mat4(0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1, 0, 2, 0, 0, 1);
-    fillBufferCheckers<SourceVariant>(matrix);
+    fillBufferCheckers<SourceVariant>(ui::Transform::ROT_90);
     expectBufferColor(Rect(0, 0, DEFAULT_DISPLAY_WIDTH / 2, DEFAULT_DISPLAY_HEIGHT / 2), 0, 255, 0,
                       255);
     expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH / 2, 0, DEFAULT_DISPLAY_WIDTH,
@@ -578,8 +577,7 @@ void RenderEngineTest::fillBufferCheckersRotate90() {
 
 template <typename SourceVariant>
 void RenderEngineTest::fillBufferCheckersRotate180() {
-    mat4 matrix = mat4(-1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 2, 2, 0, 1);
-    fillBufferCheckers<SourceVariant>(matrix);
+    fillBufferCheckers<SourceVariant>(ui::Transform::ROT_180);
     expectBufferColor(Rect(0, 0, DEFAULT_DISPLAY_WIDTH / 2, DEFAULT_DISPLAY_HEIGHT / 2), 0, 0, 0,
                       0);
     expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH / 2, 0, DEFAULT_DISPLAY_WIDTH,
@@ -595,8 +593,7 @@ void RenderEngineTest::fillBufferCheckersRotate180() {
 
 template <typename SourceVariant>
 void RenderEngineTest::fillBufferCheckersRotate270() {
-    mat4 matrix = mat4(0, -1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 1);
-    fillBufferCheckers<SourceVariant>(matrix);
+    fillBufferCheckers<SourceVariant>(ui::Transform::ROT_270);
     expectBufferColor(Rect(0, 0, DEFAULT_DISPLAY_WIDTH / 2, DEFAULT_DISPLAY_HEIGHT / 2), 0, 0, 255,
                       255);
     expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH / 2, 0, DEFAULT_DISPLAY_WIDTH,
@@ -928,7 +925,7 @@ void RenderEngineTest::clearLeftRegion() {
     // Here logical space is 4x4
     settings.clip = Rect(4, 4);
     settings.globalTransform = mat4::scale(vec4(2, 4, 0, 1));
-    settings.clearRegion = Region(Rect(1, 1));
+    settings.clearRegion = Region(Rect(2, 4));
     std::vector<const renderengine::LayerSettings*> layers;
     // dummy layer, without bounds should not render anything
     renderengine::LayerSettings layer;
