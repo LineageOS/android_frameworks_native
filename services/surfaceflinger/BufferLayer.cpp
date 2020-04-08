@@ -618,6 +618,39 @@ bool BufferLayer::needsFiltering(const sp<const DisplayDevice>& displayDevice) c
             sourceCrop.getWidth() != displayFrame.getWidth();
 }
 
+bool BufferLayer::needsFilteringForScreenshots(const sp<const DisplayDevice>& displayDevice,
+                                               const ui::Transform& inverseParentTransform) const {
+    // If we are not capturing based on the state of a known display device,
+    // just return false.
+    if (displayDevice == nullptr) {
+        return false;
+    }
+
+    const auto outputLayer = findOutputLayerForDisplay(displayDevice);
+    if (outputLayer == nullptr) {
+        return false;
+    }
+
+    // We need filtering if the sourceCrop rectangle size does not match the
+    // viewport rectangle size (not a 1:1 render)
+    const auto& compositionState = outputLayer->getState();
+    const ui::Transform& displayTransform = displayDevice->getTransform();
+    const ui::Transform inverseTransform = inverseParentTransform * displayTransform.inverse();
+    // Undo the transformation of the displayFrame so that we're back into
+    // layer-stack space.
+    const Rect frame = inverseTransform.transform(compositionState.displayFrame);
+    const FloatRect sourceCrop = compositionState.sourceCrop;
+
+    int32_t frameHeight = frame.getHeight();
+    int32_t frameWidth = frame.getWidth();
+    // If the display transform had a rotational component then undo the
+    // rotation so that the orientation matches the source crop.
+    if (displayTransform.getOrientation() & ui::Transform::ROT_90) {
+        std::swap(frameHeight, frameWidth);
+    }
+    return sourceCrop.getHeight() != frameHeight || sourceCrop.getWidth() != frameWidth;
+}
+
 uint64_t BufferLayer::getHeadFrameNumber(nsecs_t expectedPresentTime) const {
     if (hasFrameUpdate()) {
         return getFrameNumber(expectedPresentTime);
