@@ -5366,7 +5366,6 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
 
     DisplayRenderArea renderArea(display, sourceCrop, reqWidth, reqHeight, reqDataspace,
                                  renderAreaRotation, captureSecureLayers);
-
     auto traverseLayers = std::bind(&SurfaceFlinger::traverseLayersInDisplay, this, display,
                                     std::placeholders::_1);
     return captureScreenCommon(renderArea, traverseLayers, outBuffer, reqPixelFormat,
@@ -5494,10 +5493,7 @@ status_t SurfaceFlinger::captureLayers(
                 mFlinger(flinger),
                 mChildrenOnly(childrenOnly) {}
         const ui::Transform& getTransform() const override { return mTransform; }
-        Rect getBounds() const override {
-            const Layer::State& layerState(mLayer->getDrawingState());
-            return mLayer->getBufferSize(layerState);
-        }
+        Rect getBounds() const override { return mLayer->getBufferSize(mLayer->getDrawingState()); }
         int getHeight() const override {
             return mLayer->getBufferSize(mLayer->getDrawingState()).getHeight();
         }
@@ -5540,9 +5536,8 @@ status_t SurfaceFlinger::captureLayers(
                 mTransform = mLayer->getTransform().inverse();
                 drawLayers();
             } else {
-                Rect bounds = getBounds();
-                uint32_t w = static_cast<uint32_t>(bounds.getWidth());
-                uint32_t h = static_cast<uint32_t>(bounds.getHeight());
+                uint32_t w = static_cast<uint32_t>(getWidth());
+                uint32_t h = static_cast<uint32_t>(getHeight());
                 // In the "childrenOnly" case we reparent the children to a screenshot
                 // layer which has no properties set and which does not draw.
                 sp<ContainerLayer> screenshotParentLayer =
@@ -5757,9 +5752,9 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
 
     const auto reqWidth = renderArea.getReqWidth();
     const auto reqHeight = renderArea.getReqHeight();
-    const auto rotation = renderArea.getRotationFlags();
-    const auto transform = renderArea.getTransform();
     const auto sourceCrop = renderArea.getSourceCrop();
+    const auto transform = renderArea.getTransform();
+    const auto rotation = renderArea.getRotationFlags();
     const auto& displayViewport = renderArea.getDisplayViewport();
 
     renderengine::DisplaySettings clientCompositionDisplay;
@@ -5769,55 +5764,8 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     // buffer bounds.
     clientCompositionDisplay.physicalDisplay = Rect(reqWidth, reqHeight);
     clientCompositionDisplay.clip = sourceCrop;
-    clientCompositionDisplay.globalTransform = transform.asMatrix4();
-
-    // Now take into account the rotation flag. We append a transform that
-    // rotates the layer stack about the origin, then translate by buffer
-    // boundaries to be in the right quadrant.
-    mat4 rotMatrix;
-    int displacementX = 0;
-    int displacementY = 0;
-    float rot90InRadians = 2.0f * static_cast<float>(M_PI) / 4.0f;
-    switch (rotation) {
-        case ui::Transform::ROT_90:
-            rotMatrix = mat4::rotate(rot90InRadians, vec3(0, 0, 1));
-            displacementX = renderArea.getBounds().getHeight();
-            break;
-        case ui::Transform::ROT_180:
-            rotMatrix = mat4::rotate(rot90InRadians * 2.0f, vec3(0, 0, 1));
-            displacementY = renderArea.getBounds().getWidth();
-            displacementX = renderArea.getBounds().getHeight();
-            break;
-        case ui::Transform::ROT_270:
-            rotMatrix = mat4::rotate(rot90InRadians * 3.0f, vec3(0, 0, 1));
-            displacementY = renderArea.getBounds().getWidth();
-            break;
-        default:
-            break;
-    }
-
-    // We need to transform the clipping window into the right spot.
-    // First, rotate the clipping rectangle by the rotation hint to get the
-    // right orientation
-    const vec4 clipTL = vec4(sourceCrop.left, sourceCrop.top, 0, 1);
-    const vec4 clipBR = vec4(sourceCrop.right, sourceCrop.bottom, 0, 1);
-    const vec4 rotClipTL = rotMatrix * clipTL;
-    const vec4 rotClipBR = rotMatrix * clipBR;
-    const int newClipLeft = std::min(rotClipTL[0], rotClipBR[0]);
-    const int newClipTop = std::min(rotClipTL[1], rotClipBR[1]);
-    const int newClipRight = std::max(rotClipTL[0], rotClipBR[0]);
-    const int newClipBottom = std::max(rotClipTL[1], rotClipBR[1]);
-
-    // Now reposition the clipping rectangle with the displacement vector
-    // computed above.
-    const mat4 displacementMat = mat4::translate(vec4(displacementX, displacementY, 0, 1));
-    clientCompositionDisplay.clip =
-            Rect(newClipLeft + displacementX, newClipTop + displacementY,
-                 newClipRight + displacementX, newClipBottom + displacementY);
-
-    mat4 clipTransform = displacementMat * rotMatrix;
-    clientCompositionDisplay.globalTransform =
-            clipTransform * clientCompositionDisplay.globalTransform;
+    clientCompositionDisplay.globalTransform = mat4();
+    clientCompositionDisplay.orientation = rotation;
 
     clientCompositionDisplay.outputDataspace = renderArea.getReqDataSpace();
     clientCompositionDisplay.maxLuminance = DisplayDevice::sDefaultMaxLumiance;
@@ -5827,7 +5775,8 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     compositionengine::LayerFE::LayerSettings fillLayer;
     fillLayer.source.buffer.buffer = nullptr;
     fillLayer.source.solidColor = half3(0.0, 0.0, 0.0);
-    fillLayer.geometry.boundaries = FloatRect(0.0, 0.0, 1.0, 1.0);
+    fillLayer.geometry.boundaries =
+            FloatRect(sourceCrop.left, sourceCrop.top, sourceCrop.right, sourceCrop.bottom);
     fillLayer.alpha = half(alpha);
     clientCompositionLayers.push_back(fillLayer);
 
@@ -5839,7 +5788,8 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
         compositionengine::LayerFE::ClientCompositionTargetSettings targetSettings{
                 clip,
                 useIdentityTransform,
-                layer->needsFiltering(renderArea.getDisplayDevice()) || renderArea.needsFiltering(),
+                layer->needsFilteringForScreenshots(renderArea.getDisplayDevice(), transform) ||
+                        renderArea.needsFiltering(),
                 renderArea.isSecure(),
                 supportProtectedContent,
                 clearRegion,
@@ -5851,6 +5801,10 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
         std::vector<compositionengine::LayerFE::LayerSettings> results =
                 layer->prepareClientCompositionList(targetSettings);
         if (results.size() > 0) {
+            for (auto& settings : results) {
+                settings.geometry.positionTransform =
+                        transform.asMatrix4() * settings.geometry.positionTransform;
+            }
             clientCompositionLayers.insert(clientCompositionLayers.end(),
                                            std::make_move_iterator(results.begin()),
                                            std::make_move_iterator(results.end()));
