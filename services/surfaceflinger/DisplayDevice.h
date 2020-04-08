@@ -244,14 +244,12 @@ public:
                       uint32_t reqHeight, ui::Dataspace reqDataSpace, RotationFlags rotation,
                       bool allowSecureLayers = true)
           : RenderArea(reqWidth, reqHeight, CaptureFill::OPAQUE, reqDataSpace,
-                       display->getViewport(),
-                       applyInversePhysicalOrientation(rotation,
-                                                       display->getPhysicalOrientation())),
+                       display->getViewport(), applyDeviceOrientation(rotation, display)),
             mDisplay(std::move(display)),
             mSourceCrop(sourceCrop),
             mAllowSecureLayers(allowSecureLayers) {}
 
-    const ui::Transform& getTransform() const override { return mDisplay->getTransform(); }
+    const ui::Transform& getTransform() const override { return mTransform; }
     Rect getBounds() const override { return mDisplay->getBounds(); }
     int getHeight() const override { return mDisplay->getHeight(); }
     int getWidth() const override { return mDisplay->getWidth(); }
@@ -259,15 +257,9 @@ public:
     sp<const DisplayDevice> getDisplayDevice() const override { return mDisplay; }
 
     bool needsFiltering() const override {
-        // check if the projection from the logical display to the physical
-        // display needs filtering
-        if (mDisplay->needsFiltering()) {
-            return true;
-        }
-
-        // check if the projection from the logical render area (i.e., the
-        // physical display) to the physical render area requires filtering
-        const Rect sourceCrop = getSourceCrop();
+        // check if the projection from the logical render area
+        // to the physical render area requires filtering
+        const Rect& sourceCrop = getSourceCrop();
         int width = sourceCrop.width();
         int height = sourceCrop.height();
         if (getRotationFlags() & ui::Transform::ROT_90) {
@@ -282,36 +274,44 @@ public:
             return mDisplay->getSourceClip();
         }
 
-        // Recompute the device transformation for the source crop.
+        // If there is a source crop provided then it is assumed that the device
+        // was in portrait orientation. This may not logically be true, so
+        // correct for the orientation error by undoing the rotation
+
+        ui::Rotation logicalOrientation = mDisplay->getOrientation();
+        if (logicalOrientation == ui::Rotation::Rotation90) {
+            logicalOrientation = ui::Rotation::Rotation270;
+        } else if (logicalOrientation == ui::Rotation::Rotation270) {
+            logicalOrientation = ui::Rotation::Rotation90;
+        }
+
+        const auto flags = ui::Transform::toRotationFlags(logicalOrientation);
+        int width = mDisplay->getSourceClip().getWidth();
+        int height = mDisplay->getSourceClip().getHeight();
         ui::Transform rotation;
-        ui::Transform translatePhysical;
-        ui::Transform translateLogical;
-        ui::Transform scale;
-        const Rect& viewport = mDisplay->getViewport();
-        const Rect& sourceClip = mDisplay->getSourceClip();
-        const Rect& frame = mDisplay->getFrame();
-
-        const auto flags = ui::Transform::toRotationFlags(mDisplay->getPhysicalOrientation());
-        rotation.set(flags, getWidth(), getHeight());
-
-        translateLogical.set(-viewport.left, -viewport.top);
-        translatePhysical.set(sourceClip.left, sourceClip.top);
-        scale.set(frame.getWidth() / float(viewport.getWidth()), 0, 0,
-                  frame.getHeight() / float(viewport.getHeight()));
-        const ui::Transform finalTransform =
-                rotation * translatePhysical * scale * translateLogical;
-        return finalTransform.transform(mSourceCrop);
+        rotation.set(flags, width, height);
+        return rotation.transform(mSourceCrop);
     }
 
 private:
-    static RotationFlags applyInversePhysicalOrientation(RotationFlags orientation,
-                                                         ui::Rotation physicalOrientation) {
+    static RotationFlags applyDeviceOrientation(RotationFlags orientationFlag,
+                                                const sp<const DisplayDevice>& device) {
         uint32_t inverseRotate90 = 0;
         uint32_t inverseReflect = 0;
 
-        switch (physicalOrientation) {
+        // Reverse the logical orientation.
+        ui::Rotation logicalOrientation = device->getOrientation();
+        if (logicalOrientation == ui::Rotation::Rotation90) {
+            logicalOrientation = ui::Rotation::Rotation270;
+        } else if (logicalOrientation == ui::Rotation::Rotation270) {
+            logicalOrientation = ui::Rotation::Rotation90;
+        }
+
+        const ui::Rotation orientation = device->getPhysicalOrientation() + logicalOrientation;
+
+        switch (orientation) {
             case ui::ROTATION_0:
-                return orientation;
+                return orientationFlag;
 
             case ui::ROTATION_90:
                 inverseRotate90 = ui::Transform::ROT_90;
@@ -327,8 +327,8 @@ private:
                 break;
         }
 
-        const uint32_t rotate90 = orientation & ui::Transform::ROT_90;
-        uint32_t reflect = orientation & ui::Transform::ROT_180;
+        const uint32_t rotate90 = orientationFlag & ui::Transform::ROT_90;
+        uint32_t reflect = orientationFlag & ui::Transform::ROT_180;
 
         // Apply reflection for double rotation.
         if (rotate90 & inverseRotate90) {
@@ -342,6 +342,7 @@ private:
     const sp<const DisplayDevice> mDisplay;
     const Rect mSourceCrop;
     const bool mAllowSecureLayers;
+    const ui::Transform mTransform = ui::Transform();
 };
 
 } // namespace android

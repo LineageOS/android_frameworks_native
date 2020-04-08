@@ -41,6 +41,13 @@ struct DisplaySettings {
     Rect clip = Rect::INVALID_RECT;
 
     // Global transform to apply to all layers.
+    // The global transform is assumed to automatically apply when projecting
+    // the clip rectangle onto the physical display; however, this should be
+    // explicitly provided to perform CPU-side optimizations such as computing
+    // scissor rectangles for rounded corners which require transformation to
+    // the phsical display space.
+    //
+    // This transform is also assumed to include the orientation flag below.
     mat4 globalTransform = mat4();
 
     // Maximum luminance pulled from the display's HDR capabilities.
@@ -60,7 +67,10 @@ struct DisplaySettings {
     // rendered layers.
     Region clearRegion = Region::INVALID_REGION;
 
-    // The orientation of the physical display.
+    // An additional orientation flag to be applied after clipping the output.
+    // By way of example, this may be used for supporting fullscreen screenshot
+    // capture of a device in landscape while the buffer is in portrait
+    // orientation.
     uint32_t orientation = ui::Transform::ROT_0;
 };
 
