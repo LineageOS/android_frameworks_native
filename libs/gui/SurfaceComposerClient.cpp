@@ -560,6 +560,11 @@ void SurfaceComposerClient::Transaction::cacheBuffers() {
         layer_state_t* s = getLayerState(handle);
         if (!(s->what & layer_state_t::eBufferChanged)) {
             continue;
+        } else if (s->what & layer_state_t::eCachedBufferChanged) {
+            // If eBufferChanged and eCachedBufferChanged are both trued then that means
+            // we already cached the buffer in a previous call to cacheBuffers, perhaps
+            // from writeToParcel on a Transaction that was merged in to this one.
+            continue;
         }
 
         // Don't try to cache a null buffer. Sending null buffers is cheap so we shouldn't waste
