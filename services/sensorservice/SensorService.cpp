@@ -316,6 +316,9 @@ void SensorService::setSensorAccess(uid_t uid, bool hasAccess) {
             conn->setSensorAccess(hasAccess);
         }
     }
+
+    // Lock the mutex again for clean shutdown
+    mLock.lock();
 }
 
 const Sensor& SensorService::registerSensor(SensorInterface* s, bool isDebug, bool isVirtual) {

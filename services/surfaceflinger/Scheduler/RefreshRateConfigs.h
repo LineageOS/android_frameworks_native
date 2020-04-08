@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <numeric>
+#include <optional>
 #include <type_traits>
 
 #include "DisplayHardware/HWComposer.h"
@@ -90,14 +91,47 @@ public:
     using AllRefreshRatesMapType =
             std::unordered_map<HwcConfigIndexType, std::unique_ptr<const RefreshRate>>;
 
-    // Sets the current policy to choose refresh rates. Returns NO_ERROR if the requested policy is
-    // valid, or a negative error value otherwise. policyChanged, if non-null, will be set to true
-    // if the new policy is different from the old policy.
-    status_t setPolicy(HwcConfigIndexType defaultConfigId, float minRefreshRate,
-                       float maxRefreshRate, bool* policyChanged) EXCLUDES(mLock);
-    // Gets the current policy.
-    void getPolicy(HwcConfigIndexType* defaultConfigId, float* minRefreshRate,
-                   float* maxRefreshRate) const EXCLUDES(mLock);
+    struct Policy {
+        // The default config, used to ensure we only initiate display config switches within the
+        // same config group as defaultConfigId's group.
+        HwcConfigIndexType defaultConfig;
+        // The min and max FPS allowed by the policy.
+        float minRefreshRate = 0;
+        float maxRefreshRate = std::numeric_limits<float>::max();
+        // Whether or not we switch config groups to get the best frame rate. Only used by tests.
+        bool allowGroupSwitching = false;
+
+        bool operator==(const Policy& other) const {
+            return defaultConfig == other.defaultConfig && minRefreshRate == other.minRefreshRate &&
+                    maxRefreshRate == other.maxRefreshRate &&
+                    allowGroupSwitching == other.allowGroupSwitching;
+        }
+
+        bool operator!=(const Policy& other) const { return !(*this == other); }
+    };
+
+    // Return code set*Policy() to indicate the current policy is unchanged.
+    static constexpr int CURRENT_POLICY_UNCHANGED = 1;
+
+    // We maintain the display manager policy and the override policy separately. The override
+    // policy is used by CTS tests to get a consistent device state for testing. While the override
+    // policy is set, it takes precedence over the display manager policy. Once the override policy
+    // is cleared, we revert to using the display manager policy.
+
+    // Sets the display manager policy to choose refresh rates. The return value will be:
+    //   - A negative value if the policy is invalid or another error occurred.
+    //   - NO_ERROR if the policy was successfully updated, and the current policy is different from
+    //     what it was before the call.
+    //   - CURRENT_POLICY_UNCHANGED if the policy was successfully updated, but the current policy
+    //     is the same as it was before the call.
+    status_t setDisplayManagerPolicy(const Policy& policy) EXCLUDES(mLock);
+    // Sets the override policy. See setDisplayManagerPolicy() for the meaning of the return value.
+    status_t setOverridePolicy(const std::optional<Policy>& policy) EXCLUDES(mLock);
+    // Gets the current policy, which will be the override policy if active, and the display manager
+    // policy otherwise.
+    Policy getCurrentPolicy() const EXCLUDES(mLock);
+    // Gets the display manager policy, regardless of whether an override policy is active.
+    Policy getDisplayManagerPolicy() const EXCLUDES(mLock);
 
     // Returns true if config is allowed by the current policy.
     bool isConfigAllowed(HwcConfigIndexType config) const EXCLUDES(mLock);
@@ -208,6 +242,9 @@ private:
     // the policy.
     const RefreshRate& getCurrentRefreshRateByPolicyLocked() const REQUIRES(mLock);
 
+    const Policy* getCurrentPolicyLocked() const REQUIRES(mLock);
+    bool isPolicyValid(const Policy& policy);
+
     // The list of refresh rates, indexed by display config ID. This must not change after this
     // object is initialized.
     AllRefreshRatesMapType mRefreshRates;
@@ -220,14 +257,10 @@ private:
     // the main thread, and read by the Scheduler (and other objects) on other threads.
     const RefreshRate* mCurrentRefreshRate GUARDED_BY(mLock);
 
-    // The default config. This will change at runtime. This is set by SurfaceFlinger on
-    // the main thread, and read by the Scheduler (and other objects) on other threads.
-    HwcConfigIndexType mDefaultConfig GUARDED_BY(mLock);
-
-    // The min and max FPS allowed by the policy. This will change at runtime and set by
-    // SurfaceFlinger on the main thread.
-    float mMinRefreshRateFps GUARDED_BY(mLock) = 0;
-    float mMaxRefreshRateFps GUARDED_BY(mLock) = std::numeric_limits<float>::max();
+    // The policy values will change at runtime. They're set by SurfaceFlinger on the main thread,
+    // and read by the Scheduler (and other objects) on other threads.
+    Policy mDisplayManagerPolicy GUARDED_BY(mLock);
+    std::optional<Policy> mOverridePolicy GUARDED_BY(mLock);
 
     // The min and max refresh rates supported by the device.
     // This will not change at runtime.

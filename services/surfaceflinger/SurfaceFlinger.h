@@ -407,7 +407,8 @@ private:
      */
     status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags) override;
     status_t dump(int fd, const Vector<String16>& args) override { return priorityDump(fd, args); }
-    bool callingThreadHasUnscopedSurfaceFlingerAccess() EXCLUDES(mStateLock);
+    bool callingThreadHasUnscopedSurfaceFlingerAccess(bool usePermissionCache = true)
+            EXCLUDES(mStateLock);
 
     /* ------------------------------------------------------------------------
      * ISurfaceComposer interface
@@ -503,6 +504,7 @@ private:
                                      float lightPosY, float lightPosZ, float lightRadius) override;
     status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
                           int8_t compatibility) override;
+    status_t acquireFrameRateFlexibilityToken(sp<IBinder>* outToken) override;
     /* ------------------------------------------------------------------------
      * DeathRecipient interface
      */
@@ -574,9 +576,9 @@ private:
     void setPowerModeInternal(const sp<DisplayDevice>& display, int mode) REQUIRES(mStateLock);
 
     // Sets the desired display configs.
-    status_t setDesiredDisplayConfigSpecsInternal(const sp<DisplayDevice>& display,
-                                                  HwcConfigIndexType defaultConfig,
-                                                  float minRefreshRate, float maxRefreshRate)
+    status_t setDesiredDisplayConfigSpecsInternal(
+            const sp<DisplayDevice>& display,
+            const std::optional<scheduler::RefreshRateConfigs::Policy>& policy, bool overridePolicy)
             EXCLUDES(mStateLock);
 
     // called on the main thread in response to setAutoLowLatencyMode()
@@ -968,6 +970,8 @@ private:
         return doDump(fd, args, asProto);
     }
 
+    void onFrameRateFlexibilityTokenReleased();
+
     /* ------------------------------------------------------------------------
      * VrFlinger
      */
@@ -1077,6 +1081,7 @@ private:
     std::unique_ptr<SurfaceInterceptor> mInterceptor;
     SurfaceTracing mTracing{*this};
     bool mTracingEnabled = false;
+    bool mAddCompositionStateToTrace = false;
     bool mTracingEnabledChanged GUARDED_BY(mStateLock) = false;
     const std::shared_ptr<TimeStats> mTimeStats;
     const std::unique_ptr<FrameTracer> mFrameTracer;
@@ -1279,6 +1284,8 @@ private:
     std::atomic<bool> mInputDirty = true;
     void dirtyInput() { mInputDirty = true; }
     bool inputDirty() { return mInputDirty; }
+
+    int mFrameRateFlexibilityTokenCount = 0;
 };
 
 } // namespace android
