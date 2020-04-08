@@ -45,8 +45,8 @@ public:
 class PhaseDurationTest : public testing::Test {
 protected:
     PhaseDurationTest()
-          : mPhaseDurations(60.0f, 10'500'000, 20'500'000, 16'000'000, 33'500'000, 13'500'000,
-                            38'000'000) {}
+          : mPhaseDurations(60.0f, 10'500'000, 20'500'000, 16'000'000, 16'500'000, 13'500'000,
+                            21'000'000) {}
 
     ~PhaseDurationTest() = default;
 
@@ -69,11 +69,11 @@ TEST_F(PhaseDurationTest, getOffsetsForRefreshRate_60Hz) {
 
     EXPECT_EQ(offsets.early.sf, 666'667);
 
-    EXPECT_EQ(offsets.early.app, 500'001);
+    EXPECT_EQ(offsets.early.app, 833'334);
 
     EXPECT_EQ(offsets.earlyGl.sf, 3'166'667);
 
-    EXPECT_EQ(offsets.earlyGl.app, 15'166'668);
+    EXPECT_EQ(offsets.earlyGl.app, 15'500'001);
 }
 
 TEST_F(PhaseDurationTest, getOffsetsForRefreshRate_90Hz) {
@@ -88,11 +88,11 @@ TEST_F(PhaseDurationTest, getOffsetsForRefreshRate_90Hz) {
 
     EXPECT_EQ(offsets.early.sf, -4'888'889);
 
-    EXPECT_EQ(offsets.early.app, 6'055'555);
+    EXPECT_EQ(offsets.early.app, 833'333);
 
     EXPECT_EQ(offsets.earlyGl.sf, -2'388'889);
 
-    EXPECT_EQ(offsets.earlyGl.app, 4'055'555);
+    EXPECT_EQ(offsets.earlyGl.app, 9'944'444);
 }
 
 TEST_F(PhaseDurationTest, getOffsetsForRefreshRate_DefaultOffsets) {
@@ -134,11 +134,11 @@ TEST_F(PhaseDurationTest, getOffsetsForRefreshRate_unknownRefreshRate) {
 
     EXPECT_EQ(offsets.early.sf, 52'027'208);
 
-    EXPECT_EQ(offsets.early.app, 18'527'208);
+    EXPECT_EQ(offsets.early.app, 35'527'208);
 
     EXPECT_EQ(offsets.earlyGl.sf, 54'527'208);
 
-    EXPECT_EQ(offsets.earlyGl.app, 16'527'208);
+    EXPECT_EQ(offsets.earlyGl.app, 33'527'208);
 }
 
 } // namespace
