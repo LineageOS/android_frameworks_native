@@ -220,13 +220,11 @@ void DisplayDevice::setProjection(ui::Rotation orientation, Rect viewport, Rect 
     const bool needsFiltering =
             (!globalTransform.preserveRects() || (type >= ui::Transform::SCALE));
 
-    Rect sourceClip = globalTransform.transform(viewport);
-    if (sourceClip.isEmpty()) {
-        sourceClip = displayBounds;
+    const Rect& sourceClip = viewport;
+    Rect destinationClip = globalTransform.transform(viewport);
+    if (destinationClip.isEmpty()) {
+        destinationClip = displayBounds;
     }
-    // For normal display use we always set the source and destination clip
-    // rectangles to the same values.
-    const Rect& destinationClip = sourceClip;
 
     uint32_t transformOrientation;
 

@@ -535,6 +535,19 @@ public:
     }
     virtual Rect getCrop(const Layer::State& s) const { return s.crop_legacy; }
     virtual bool needsFiltering(const sp<const DisplayDevice>&) const { return false; }
+    // True if this layer requires filtering
+    // This method is distinct from needsFiltering() in how the filter
+    // requirement is computed. needsFiltering() compares displayFrame and crop,
+    // where as this method transforms the displayFrame to layer-stack space
+    // first. This method should be used if there is no physical display to
+    // project onto when taking screenshots, as the filtering requirements are
+    // different.
+    // If the parent transform needs to be undone when capturing the layer, then
+    // the inverse parent transform is also required.
+    virtual bool needsFilteringForScreenshots(const sp<const DisplayDevice>&,
+                                              const ui::Transform&) const {
+        return false;
+    }
 
     // This layer is not a clone, but it's the parent to the cloned hierarchy. The
     // variable mClonedChild represents the top layer that will be cloned so this

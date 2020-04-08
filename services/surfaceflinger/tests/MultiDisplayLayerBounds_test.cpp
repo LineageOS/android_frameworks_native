@@ -104,7 +104,7 @@ TEST_F(MultiDisplayLayerBoundsTest, RenderLayerInVirtualDisplay) {
     // Verify color layer renders correctly on virtual display.
     ScreenCapture::captureScreen(&sc, mVirtualDisplay);
     sc->expectColor(Rect(10, 10, 40, 50), mExpectedColor);
-    sc->expectColor(Rect(1, 1, 9, 9), {0, 0, 0, 0});
+    sc->expectColor(Rect(1, 1, 9, 9), {0, 0, 0, 255});
 }
 
 TEST_F(MultiDisplayLayerBoundsTest, RenderLayerInMirroredVirtualDisplay) {
