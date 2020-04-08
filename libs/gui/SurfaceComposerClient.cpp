@@ -430,6 +430,19 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
 }
 
 status_t SurfaceComposerClient::Transaction::writeToParcel(Parcel* parcel) const {
+    // If we write the Transaction to a parcel, we want to ensure the Buffers are cached
+    // before crossing the IPC boundary. Otherwise the receiving party will cache the buffers
+    // but is unlikely to use them again as they are owned by the other process.
+    // You may be asking yourself, is this const cast safe? Const cast is safe up
+    // until the point where you try and write to an object that was originally const at which
+    // point we enter undefined behavior. In this case we are safe though, because there are
+    // two possibilities:
+    //    1. The SurfaceComposerClient::Transaction was originally non-const. Safe.
+    //    2. It was originall const! In this case not only was it useless, but it by definition
+    //       contains no composer states and so cacheBuffers will not perform any writes.
+
+    const_cast<SurfaceComposerClient::Transaction*>(this)->cacheBuffers();
+
     parcel->writeUint32(mForceSynchronous);
     parcel->writeUint32(mTransactionNestCount);
     parcel->writeBool(mAnimation);
