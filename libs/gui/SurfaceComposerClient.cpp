@@ -507,7 +507,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Tr
 
     mInputWindowCommands.merge(other.mInputWindowCommands);
 
-    mContainsBuffer = other.mContainsBuffer;
+    mContainsBuffer |= other.mContainsBuffer;
     mEarlyWakeup = mEarlyWakeup || other.mEarlyWakeup;
     other.clear();
     return *this;
