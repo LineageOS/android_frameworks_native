@@ -170,7 +170,7 @@ bool RefreshRateOverlay::createLayer() {
 void RefreshRateOverlay::primeCache() {
     auto& allRefreshRates = mFlinger.mRefreshRateConfigs->getAllRefreshRates();
     if (allRefreshRates.size() == 1) {
-        auto fps = allRefreshRates.begin()->second->fps;
+        auto fps = allRefreshRates.begin()->second->getFps();
         half4 color = {LOW_FPS_COLOR, ALPHA};
         mBufferCache.emplace(fps, SevenSegmentDrawer::drawNumber(fps, color));
         return;
@@ -179,7 +179,7 @@ void RefreshRateOverlay::primeCache() {
     std::vector<uint32_t> supportedFps;
     supportedFps.reserve(allRefreshRates.size());
     for (auto& [ignored, refreshRate] : allRefreshRates) {
-        supportedFps.push_back(refreshRate->fps);
+        supportedFps.push_back(refreshRate->getFps());
     }
 
     std::sort(supportedFps.begin(), supportedFps.end());
@@ -207,7 +207,7 @@ void RefreshRateOverlay::changeRefreshRate(const RefreshRate& refreshRate) {
     const int32_t right = left + display->getWidth() / 8;
     const int32_t buttom = top + display->getHeight() / 32;
 
-    auto buffer = mBufferCache[refreshRate.fps];
+    auto buffer = mBufferCache[refreshRate.getFps()];
     mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, {});
 
     mLayer->setFrame(Rect(left, top, right, buttom));
