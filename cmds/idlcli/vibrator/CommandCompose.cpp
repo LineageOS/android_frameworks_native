@@ -28,10 +28,13 @@ using aidl::CompositeEffect;
 class CommandCompose : public Command {
     std::string getDescription() const override { return "Compose vibration."; }
 
-    std::string getUsageSummary() const override { return "<delay> <primitive> <scale> ..."; }
+    std::string getUsageSummary() const override {
+        return "[options] <delay> <primitive> <scale> ...";
+    }
 
     UsageDetails getUsageDetails() const override {
         UsageDetails details{
+                {"-b", {"Block for duration of vibration."}},
                 {"<delay>", {"In milliseconds"}},
                 {"<primitive>", {"Primitive ID."}},
                 {"<scale>", {"0.0 (exclusive) - 1.0 (inclusive)."}},
@@ -41,6 +44,17 @@ class CommandCompose : public Command {
     }
 
     Status doArgs(Args &args) override {
+        while (args.get<std::string>().value_or("").find("-") == 0) {
+            auto opt = *args.pop<std::string>();
+            if (opt == "--") {
+                break;
+            } else if (opt == "-b") {
+                mBlocking = true;
+            } else {
+                std::cerr << "Invalid Option '" << opt << "'!" << std::endl;
+                return USAGE;
+            }
+        }
         while (!args.empty()) {
             CompositeEffect effect;
             if (auto delay = args.pop<decltype(effect.delayMs)>()) {
@@ -76,21 +90,33 @@ class CommandCompose : public Command {
     }
 
     Status doMain(Args && /*args*/) override {
-        std::string statusStr;
-        Status ret;
-        if (auto hal = getHal<aidl::IVibrator>()) {
-            auto status = hal->call(&aidl::IVibrator::compose, mComposite, nullptr);
-            statusStr = status.getDescription();
-            ret = status.isOk() ? OK : ERROR;
-        } else {
+        auto hal = getHal<aidl::IVibrator>();
+
+        if (!hal) {
             return UNAVAILABLE;
         }
 
-        std::cout << "Status: " << statusStr << std::endl;
+        ABinderProcess_setThreadPoolMaxThreadCount(1);
+        ABinderProcess_startThreadPool();
 
-        return ret;
+        std::shared_ptr<VibratorCallback> callback;
+
+        if (mBlocking) {
+            callback = ndk::SharedRefBase::make<VibratorCallback>();
+        }
+
+        auto status = hal->call(&aidl::IVibrator::compose, mComposite, callback);
+
+        if (status.isOk() && callback) {
+            callback->waitForComplete();
+        }
+
+        std::cout << "Status: " << status.getDescription() << std::endl;
+
+        return status.isOk() ? OK : ERROR;
     }
 
+    bool mBlocking;
     std::vector<CompositeEffect> mComposite;
 };
 
