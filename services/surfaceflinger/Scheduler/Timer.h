@@ -34,18 +34,27 @@ public:
     //     Most users will want to serialize thes calls so as to be aware of the timer state.
     void alarmIn(std::function<void()> const& cb, nsecs_t fireIn) final;
     void alarmCancel() final;
+    void dump(std::string& result) const final;
 
 private:
-    int const mTimerFd;
-    int const mEpollFd;
-    std::array<int, 2> mPipes;
+    enum class DebugState { Reset, Running, Waiting, Reading, InCallback, Terminated };
+    void reset();
+    void cleanup();
+    void setDebugState(DebugState state) EXCLUDES(mMutex);
+    const char* strDebugState(DebugState state) const;
+
+    int mTimerFd = -1;
+    int mEpollFd = -1;
+    std::array<int, 2> mPipes = {-1, -1};
 
     std::thread mDispatchThread;
-    void dispatch();
+    void threadMain();
+    bool dispatch();
     void endDispatch();
 
-    std::mutex mMutex;
+    mutable std::mutex mMutex;
     std::function<void()> mCallback GUARDED_BY(mMutex);
+    DebugState mDebugState GUARDED_BY(mMutex);
 };
 
 } // namespace android::scheduler
