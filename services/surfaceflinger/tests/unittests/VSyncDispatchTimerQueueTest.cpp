@@ -71,6 +71,7 @@ public:
     MOCK_CONST_METHOD0(now, nsecs_t());
     MOCK_METHOD2(alarmIn, void(std::function<void()> const&, nsecs_t time));
     MOCK_METHOD0(alarmCancel, void());
+    MOCK_CONST_METHOD1(dump, void(std::string&));
 
     void alarmInDefaultBehavior(std::function<void()> const& callback, nsecs_t time) {
         mCallback = callback;
@@ -188,6 +189,7 @@ protected:
             }
             void alarmCancel() final { mControllableClock.alarmCancel(); }
             nsecs_t now() const final { return mControllableClock.now(); }
+            void dump(std::string&) const final {}
 
         private:
             TimeKeeper& mControllableClock;
