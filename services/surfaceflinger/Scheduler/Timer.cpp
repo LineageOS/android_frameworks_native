@@ -17,6 +17,7 @@
 #undef LOG_TAG
 #define LOG_TAG "SchedulerTimer"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
+#include <android-base/stringprintf.h>
 #include <log/log.h>
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
@@ -29,28 +30,53 @@
 #include "Timer.h"
 
 namespace android::scheduler {
+using base::StringAppendF;
 
 static constexpr size_t kReadPipe = 0;
 static constexpr size_t kWritePipe = 1;
 
-Timer::Timer()
-      : mTimerFd(timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK)),
-        mEpollFd(epoll_create1(EPOLL_CLOEXEC)) {
-    if (pipe2(mPipes.data(), O_CLOEXEC | O_NONBLOCK)) {
-        ALOGE("could not create TimerDispatch mPipes");
-    };
-
-    mDispatchThread = std::thread(std::bind(&Timer::dispatch, this));
+Timer::Timer() {
+    reset();
+    mDispatchThread = std::thread([this]() { threadMain(); });
 }
 
 Timer::~Timer() {
     endDispatch();
     mDispatchThread.join();
+    cleanup();
+}
 
-    close(mPipes[kWritePipe]);
-    close(mPipes[kReadPipe]);
-    close(mEpollFd);
-    close(mTimerFd);
+void Timer::reset() {
+    cleanup();
+    mTimerFd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
+    mEpollFd = epoll_create1(EPOLL_CLOEXEC);
+    if (pipe2(mPipes.data(), O_CLOEXEC | O_NONBLOCK)) {
+        ALOGE("could not create TimerDispatch mPipes");
+        return;
+    };
+    setDebugState(DebugState::Reset);
+}
+
+void Timer::cleanup() {
+    if (mTimerFd != -1) {
+        close(mTimerFd);
+        mTimerFd = -1;
+    }
+
+    if (mEpollFd != -1) {
+        close(mEpollFd);
+        mEpollFd = -1;
+    }
+
+    if (mPipes[kReadPipe] != -1) {
+        close(mPipes[kReadPipe]);
+        mPipes[kReadPipe] = -1;
+    }
+
+    if (mPipes[kWritePipe] != -1) {
+        close(mPipes[kWritePipe]);
+        mPipes[kWritePipe] = -1;
+    }
 }
 
 void Timer::endDispatch() {
@@ -99,7 +125,14 @@ void Timer::alarmCancel() {
     }
 }
 
-void Timer::dispatch() {
+void Timer::threadMain() {
+    while (dispatch()) {
+        reset();
+    }
+}
+
+bool Timer::dispatch() {
+    setDebugState(DebugState::Running);
     struct sched_param param = {0};
     param.sched_priority = 2;
     if (pthread_setschedparam(pthread_self(), SCHED_FIFO, &param) != 0) {
@@ -116,7 +149,7 @@ void Timer::dispatch() {
     timerEvent.data.u32 = DispatchType::TIMER;
     if (epoll_ctl(mEpollFd, EPOLL_CTL_ADD, mTimerFd, &timerEvent) == -1) {
         ALOGE("Error adding timer fd to epoll dispatch loop");
-        return;
+        return true;
     }
 
     epoll_event terminateEvent;
@@ -124,18 +157,20 @@ void Timer::dispatch() {
     terminateEvent.data.u32 = DispatchType::TERMINATE;
     if (epoll_ctl(mEpollFd, EPOLL_CTL_ADD, mPipes[kReadPipe], &terminateEvent) == -1) {
         ALOGE("Error adding control fd to dispatch loop");
-        return;
+        return true;
     }
 
     uint64_t iteration = 0;
     char const traceNamePrefix[] = "TimerIteration #";
     static constexpr size_t maxlen = arrayLen(traceNamePrefix) + max64print;
     std::array<char, maxlen> str_buffer;
-    auto timing = true;
-    while (timing) {
+
+    while (true) {
+        setDebugState(DebugState::Waiting);
         epoll_event events[DispatchType::MAX_DISPATCH_TYPE];
         int nfds = epoll_wait(mEpollFd, events, DispatchType::MAX_DISPATCH_TYPE, -1);
 
+        setDebugState(DebugState::Running);
         if (ATRACE_ENABLED()) {
             snprintf(str_buffer.data(), str_buffer.size(), "%s%" PRIu64, traceNamePrefix,
                      iteration++);
@@ -144,29 +179,62 @@ void Timer::dispatch() {
 
         if (nfds == -1) {
             if (errno != EINTR) {
-                timing = false;
-                continue;
+                ALOGE("Error waiting on epoll: %s", strerror(errno));
+                return true;
             }
         }
 
         for (auto i = 0; i < nfds; i++) {
             if (events[i].data.u32 == DispatchType::TIMER) {
                 static uint64_t mIgnored = 0;
+                setDebugState(DebugState::Reading);
                 read(mTimerFd, &mIgnored, sizeof(mIgnored));
+                setDebugState(DebugState::Running);
                 std::function<void()> cb;
                 {
                     std::lock_guard<decltype(mMutex)> lk(mMutex);
                     cb = mCallback;
                 }
                 if (cb) {
+                    setDebugState(DebugState::InCallback);
                     cb();
+                    setDebugState(DebugState::Running);
                 }
             }
             if (events[i].data.u32 == DispatchType::TERMINATE) {
-                timing = false;
+                ALOGE("Terminated");
+                setDebugState(DebugState::Running);
+                return false;
             }
         }
     }
+}
+
+void Timer::setDebugState(DebugState state) {
+    std::lock_guard lk(mMutex);
+    mDebugState = state;
+}
+
+const char* Timer::strDebugState(DebugState state) const {
+    switch (state) {
+        case DebugState::Reset:
+            return "Reset";
+        case DebugState::Running:
+            return "Running";
+        case DebugState::Waiting:
+            return "Waiting";
+        case DebugState::Reading:
+            return "Reading";
+        case DebugState::InCallback:
+            return "InCallback";
+        case DebugState::Terminated:
+            return "Terminated";
+    }
+}
+
+void Timer::dump(std::string& result) const {
+    std::lock_guard lk(mMutex);
+    StringAppendF(&result, "\t\tDebugState: %s\n", strDebugState(mDebugState));
 }
 
 } // namespace android::scheduler
