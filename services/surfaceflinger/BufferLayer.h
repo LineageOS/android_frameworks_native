@@ -208,6 +208,8 @@ protected:
 private:
     // Returns true if this layer requires filtering
     bool needsFiltering(const sp<const DisplayDevice>& displayDevice) const override;
+    bool needsFilteringForScreenshots(const sp<const DisplayDevice>& displayDevice,
+                                      const ui::Transform& inverseParentTransform) const override;
 
     // BufferStateLayers can return Rect::INVALID_RECT if the layer does not have a display frame
     // and its parent layer is not bounded

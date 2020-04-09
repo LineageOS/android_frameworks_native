@@ -61,10 +61,9 @@ public:
     // render area.  It can be larger than the logical render area.  It can
     // also be optionally rotated.
     //
-    // Layers are first clipped to the source crop (in addition to being
-    // clipped to the logical render area already).  The source crop and the
-    // layers are then rotated around the center of the source crop, and
-    // scaled to the physical render area linearly.
+    // The source crop is specified in layer space (when rendering a layer and
+    // its children), or in layer-stack space (when rendering all layers visible
+    // on the display).
     virtual Rect getSourceCrop() const = 0;
 
     // Returns the rotation of the source crop and the layers.
