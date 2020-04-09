@@ -90,7 +90,7 @@ private:
     };
 
     void mainLoop();
-    void addFirstEntry();
+    bool addFirstEntry();
     LayersTraceProto traceWhenNotified();
     LayersTraceProto traceLayersLocked(const char* where,
                                        const sp<const DisplayDevice>& displayDevice)
