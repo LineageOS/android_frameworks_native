@@ -795,6 +795,7 @@ void GLESRenderEngine::handleRoundedCorners(const DisplaySettings& display,
 
     // Firstly, we need to convert the coordination from layer native coordination space to
     // device coordination space.
+    // TODO(143929254): Verify that this transformation is correct
     const auto transformMatrix = display.globalTransform * layer.geometry.positionTransform;
     const vec4 leftTopCoordinate(bounds.left, bounds.top, 1.0, 1.0);
     const vec4 rightBottomCoordinate(bounds.right, bounds.bottom, 1.0, 1.0);
@@ -1015,8 +1016,8 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
     setOutputDataSpace(display.outputDataspace);
     setDisplayMaxLuminance(display.maxLuminance);
 
-    mat4 projectionMatrix = mState.projectionMatrix * display.globalTransform;
-    mState.projectionMatrix = projectionMatrix;
+    const mat4 projectionMatrix =
+            ui::Transform(display.orientation).asMatrix4() * mState.projectionMatrix;
     if (!display.clearRegion.isEmpty()) {
         glDisable(GL_BLEND);
         fillRegionWithColor(display.clearRegion, 0.0, 0.0, 0.0, 1.0);

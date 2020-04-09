@@ -69,6 +69,8 @@ public:
     binder::Status destroyAppDataSnapshot(const std::unique_ptr<std::string> &volumeUuid,
             const std::string& packageName, const int32_t user, const int64_t ceSnapshotInode,
             const int32_t snapshotId, int32_t storageFlags);
+    binder::Status destroyCeSnapshotsNotSpecified(const std::unique_ptr<std::string> &volumeUuid,
+            const int32_t userId, const std::vector<int32_t>& retainSnapshotIds);
 
     binder::Status getAppSize(const std::unique_ptr<std::string>& uuid,
             const std::vector<std::string>& packageNames, int32_t userId, int32_t flags,
