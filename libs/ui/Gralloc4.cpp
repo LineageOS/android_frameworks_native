@@ -202,7 +202,7 @@ status_t Gralloc4Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, cons
     std::vector<ui::PlaneLayout> planeLayouts;
     status_t err = getPlaneLayouts(bufferHandle, &planeLayouts);
 
-    if (err != NO_ERROR && !planeLayouts.empty()) {
+    if (err == NO_ERROR && !planeLayouts.empty()) {
         if (outBytesPerPixel) {
             int32_t bitsPerPixel = planeLayouts.front().sampleIncrementInBits;
             for (const auto& planeLayout : planeLayouts) {
