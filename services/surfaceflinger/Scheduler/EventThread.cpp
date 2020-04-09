@@ -429,7 +429,13 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
                     ALOGW("Faking VSYNC due to driver stall for thread %s", mThreadName);
                     std::string debugInfo = "VsyncSource debug info:\n";
                     mVSyncSource->dump(debugInfo);
-                    ALOGW("%s", debugInfo.c_str());
+                    // Log the debug info line-by-line to avoid logcat overflow
+                    auto pos = debugInfo.find('\n');
+                    while (pos != std::string::npos) {
+                        ALOGW("%s", debugInfo.substr(0, pos).c_str());
+                        debugInfo = debugInfo.substr(pos + 1);
+                        pos = debugInfo.find('\n');
+                    }
                 }
 
                 LOG_FATAL_IF(!mVSyncState);
