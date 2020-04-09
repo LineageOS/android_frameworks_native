@@ -152,6 +152,10 @@ private:
         std::array<char, maxlen> str_buffer;
         void note(std::string_view name, nsecs_t in, nsecs_t vs);
     } mTraceBuffer GUARDED_BY(mMutex);
+
+    // For debugging purposes
+    nsecs_t mLastTimerCallback GUARDED_BY(mMutex) = kInvalidTime;
+    nsecs_t mLastTimerSchedule GUARDED_BY(mMutex) = kInvalidTime;
 };
 
 } // namespace android::scheduler

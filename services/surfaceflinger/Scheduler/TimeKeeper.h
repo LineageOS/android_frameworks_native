@@ -53,6 +53,8 @@ public:
      */
     virtual void alarmCancel() = 0;
 
+    virtual void dump(std::string& result) const = 0;
+
 protected:
     TimeKeeper(TimeKeeper const&) = delete;
     TimeKeeper& operator=(TimeKeeper const&) = delete;

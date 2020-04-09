@@ -4413,6 +4413,7 @@ void SurfaceFlinger::dumpVSync(std::string& result) const {
                   mDebugDisplayConfigSetByBackdoor ? "yes" : "no");
 
     mScheduler->dump(mAppConnectionHandle, result);
+    mScheduler->getPrimaryDispSync().dump(result);
 }
 
 void SurfaceFlinger::dumpStaticScreenStats(std::string& result) const {
