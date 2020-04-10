@@ -268,12 +268,9 @@ void Display::chooseCompositionStrategy() {
 }
 
 bool Display::getSkipColorTransform() const {
-    if (!mId) {
-        return false;
-    }
-
-    auto& hwc = getCompositionEngine().getHwComposer();
-    return hwc.hasDisplayCapability(*mId, HWC2::DisplayCapability::SkipClientColorTransform);
+    const auto& hwc = getCompositionEngine().getHwComposer();
+    return mId ? hwc.hasDisplayCapability(*mId, HWC2::DisplayCapability::SkipClientColorTransform)
+               : hwc.hasCapability(HWC2::Capability::SkipClientColorTransform);
 }
 
 bool Display::anyLayersRequireClientComposition() const {
