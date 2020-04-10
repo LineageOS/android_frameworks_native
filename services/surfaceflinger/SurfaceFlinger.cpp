@@ -1217,7 +1217,7 @@ status_t SurfaceFlinger::getAutoLowLatencyModeSupport(const sp<IBinder>& display
               displayToken.get());
         return NAME_NOT_FOUND;
     }
-    *outSupport = getHwComposer().hasDisplayCapability(displayId,
+    *outSupport = getHwComposer().hasDisplayCapability(*displayId,
                                                        HWC2::DisplayCapability::AutoLowLatencyMode);
     return NO_ERROR;
 }
@@ -1488,7 +1488,7 @@ status_t SurfaceFlinger::getDisplayBrightnessSupport(const sp<IBinder>& displayT
         return NAME_NOT_FOUND;
     }
     *outSupport =
-            getHwComposer().hasDisplayCapability(displayId, HWC2::DisplayCapability::Brightness);
+            getHwComposer().hasDisplayCapability(*displayId, HWC2::DisplayCapability::Brightness);
     return NO_ERROR;
 }
 
