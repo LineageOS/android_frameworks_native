@@ -215,4 +215,10 @@ cc_library_shared {
     defaults: ["libgui_defaults"]
 }
 
+cc_library_shared {
+    name: "libgui_vendor_overlay",
+    vendor_overlay: true,
+    defaults: ["libgui_defaults"]
+}
+
 subdirs = ["tests"]
