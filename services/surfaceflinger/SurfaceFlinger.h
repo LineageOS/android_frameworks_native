@@ -931,8 +931,7 @@ private:
     void dumpDisplayIdentificationData(std::string& result) const;
     void dumpRawDisplayIdentificationData(const DumpArgs&, std::string& result) const;
     void dumpWideColorInfo(std::string& result) const;
-    LayersProto dumpDrawingStateProto(uint32_t traceFlags = SurfaceTracing::TRACE_ALL,
-                                      const sp<const DisplayDevice>& displayDevice = nullptr) const;
+    LayersProto dumpDrawingStateProto(uint32_t traceFlags) const;
     void dumpOffscreenLayersProto(LayersProto& layersProto,
                                   uint32_t traceFlags = SurfaceTracing::TRACE_ALL) const;
     // Dumps state from HW Composer
@@ -940,7 +939,6 @@ private:
     LayersProto dumpProtoFromMainThread(uint32_t traceFlags = SurfaceTracing::TRACE_ALL)
             EXCLUDES(mStateLock);
     void dumpOffscreenLayers(std::string& result) EXCLUDES(mStateLock);
-    void withTracingLock(std::function<void()> operation) REQUIRES(mStateLock);
 
     bool isLayerTripleBufferingDisabled() const {
         return this->mLayerTripleBufferingDisabled;
@@ -981,9 +979,6 @@ private:
     bool mAnimTransactionPending = false;
     SortedVector<sp<Layer>> mLayersPendingRemoval;
     bool mTraversalNeededMainThread = false;
-
-    // guards access to the mDrawing state if tracing is enabled.
-    mutable std::mutex mDrawingStateLock;
 
     // global color transform states
     Daltonizer mDaltonizer;
@@ -1059,10 +1054,13 @@ private:
     bool mPropagateBackpressure = true;
     bool mPropagateBackpressureClientComposition = false;
     std::unique_ptr<SurfaceInterceptor> mInterceptor;
+
     SurfaceTracing mTracing{*this};
+    std::mutex mTracingLock;
     bool mTracingEnabled = false;
     bool mAddCompositionStateToTrace = false;
-    bool mTracingEnabledChanged GUARDED_BY(mStateLock) = false;
+    std::atomic<bool> mTracingEnabledChanged = false;
+
     const std::shared_ptr<TimeStats> mTimeStats;
     const std::unique_ptr<FrameTracer> mFrameTracer;
     bool mUseHwcVirtualDisplays = false;
