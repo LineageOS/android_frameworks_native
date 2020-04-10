@@ -125,7 +125,6 @@ public:
             int32_t uid);
     binder::Status removeIdmap(const std::string& overlayApkPath);
     binder::Status rmPackageDir(const std::string& packageDir);
-    binder::Status markBootComplete(const std::string& instructionSet);
     binder::Status freeCache(const std::optional<std::string>& uuid, int64_t targetFreeBytes,
             int64_t cacheReservedBytes, int32_t flags);
     binder::Status linkNativeLibraryDirectory(const std::optional<std::string>& uuid,

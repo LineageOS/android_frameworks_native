@@ -25,7 +25,6 @@ cc_test {
         "libutils",
         "libhardware",
         "libhardware_legacy",
-        "libhidlbase",
         "libui",
         "libinput",
         "libinputflinger",

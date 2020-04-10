@@ -46,7 +46,6 @@ cc_library_shared {
         "liblog",
         "libutils",
         "libui",
-        "server_configurable_flags",
     ],
 
     static_libs: [
