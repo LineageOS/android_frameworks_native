@@ -70,7 +70,7 @@ public:
                                               DisplayIdentificationData* outData) const = 0;
 
     virtual bool hasCapability(HWC2::Capability capability) const = 0;
-    virtual bool hasDisplayCapability(const std::optional<DisplayId>& displayId,
+    virtual bool hasDisplayCapability(DisplayId displayId,
                                       HWC2::DisplayCapability capability) const = 0;
 
     // Attempts to allocate a virtual display and returns its ID if created on the HWC device.
@@ -234,7 +234,7 @@ public:
                                       DisplayIdentificationData* outData) const override;
 
     bool hasCapability(HWC2::Capability capability) const override;
-    bool hasDisplayCapability(const std::optional<DisplayId>& displayId,
+    bool hasDisplayCapability(DisplayId displayId,
                               HWC2::DisplayCapability capability) const override;
 
     // Attempts to allocate a virtual display and returns its ID if created on the HWC device.
