@@ -829,7 +829,6 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     renderengine::DisplaySettings clientCompositionDisplay;
     clientCompositionDisplay.physicalDisplay = outputState.destinationClip;
     clientCompositionDisplay.clip = outputState.sourceClip;
-    clientCompositionDisplay.globalTransform = outputState.transform.asMatrix4();
     clientCompositionDisplay.orientation = outputState.orientation;
     clientCompositionDisplay.outputDataspace = mDisplayColorProfile->hasWideColorGamut()
             ? outputState.dataspace
