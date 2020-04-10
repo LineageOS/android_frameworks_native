@@ -793,34 +793,65 @@ void GLESRenderEngine::handleRoundedCorners(const DisplaySettings& display,
     // top rectangle and the bottom rectangle, and turn off blending for the middle rectangle.
     FloatRect bounds = layer.geometry.roundedCornersCrop;
 
-    // Firstly, we need to convert the coordination from layer native coordination space to
-    // device coordination space.
-    // TODO(143929254): Verify that this transformation is correct
-    const auto transformMatrix = display.globalTransform * layer.geometry.positionTransform;
-    const vec4 leftTopCoordinate(bounds.left, bounds.top, 1.0, 1.0);
-    const vec4 rightBottomCoordinate(bounds.right, bounds.bottom, 1.0, 1.0);
-    const vec4 leftTopCoordinateInBuffer = transformMatrix * leftTopCoordinate;
-    const vec4 rightBottomCoordinateInBuffer = transformMatrix * rightBottomCoordinate;
-    bounds = FloatRect(leftTopCoordinateInBuffer[0], leftTopCoordinateInBuffer[1],
-                       rightBottomCoordinateInBuffer[0], rightBottomCoordinateInBuffer[1]);
-
-    // Secondly, if the display is rotated, we need to undo the rotation on coordination and
-    // align the (left, top) and (right, bottom) coordination with the device coordination
-    // space.
+    // Explicitly compute the transform from the clip rectangle to the physical
+    // display. Normally, this is done in glViewport but we explicitly compute
+    // it here so that we can get the scissor bounds correct.
+    const Rect& source = display.clip;
+    const Rect& destination = display.physicalDisplay;
+    // Here we compute the following transform:
+    // 1. Translate the top left corner of the source clip to (0, 0)
+    // 2. Rotate the clip rectangle about the origin in accordance with the
+    // orientation flag
+    // 3. Translate the top left corner back to the origin.
+    // 4. Scale the clip rectangle to the destination rectangle dimensions
+    // 5. Translate the top left corner to the destination rectangle's top left
+    // corner.
+    const mat4 translateSource = mat4::translate(vec4(-source.left, -source.top, 0, 1));
+    mat4 rotation;
+    int displacementX = 0;
+    int displacementY = 0;
+    float destinationWidth = static_cast<float>(destination.getWidth());
+    float destinationHeight = static_cast<float>(destination.getHeight());
+    float sourceWidth = static_cast<float>(source.getWidth());
+    float sourceHeight = static_cast<float>(source.getHeight());
+    const float rot90InRadians = 2.0f * static_cast<float>(M_PI) / 4.0f;
     switch (display.orientation) {
         case ui::Transform::ROT_90:
-            std::swap(bounds.left, bounds.right);
+            rotation = mat4::rotate(rot90InRadians, vec3(0, 0, 1));
+            displacementX = source.getHeight();
+            std::swap(sourceHeight, sourceWidth);
             break;
         case ui::Transform::ROT_180:
-            std::swap(bounds.left, bounds.right);
-            std::swap(bounds.top, bounds.bottom);
+            rotation = mat4::rotate(rot90InRadians * 2.0f, vec3(0, 0, 1));
+            displacementY = source.getHeight();
+            displacementX = source.getWidth();
             break;
         case ui::Transform::ROT_270:
-            std::swap(bounds.top, bounds.bottom);
+            rotation = mat4::rotate(rot90InRadians * 3.0f, vec3(0, 0, 1));
+            displacementY = source.getWidth();
+            std::swap(sourceHeight, sourceWidth);
             break;
         default:
             break;
     }
+
+    const mat4 intermediateTranslation = mat4::translate(vec4(displacementX, displacementY, 0, 1));
+    const mat4 scale = mat4::scale(
+            vec4(destinationWidth / sourceWidth, destinationHeight / sourceHeight, 1, 1));
+    const mat4 translateDestination =
+            mat4::translate(vec4(destination.left, destination.top, 0, 1));
+    const mat4 globalTransform =
+            translateDestination * scale * intermediateTranslation * rotation * translateSource;
+
+    const mat4 transformMatrix = globalTransform * layer.geometry.positionTransform;
+    const vec4 leftTopCoordinate(bounds.left, bounds.top, 1.0, 1.0);
+    const vec4 rightBottomCoordinate(bounds.right, bounds.bottom, 1.0, 1.0);
+    const vec4 leftTopCoordinateInBuffer = transformMatrix * leftTopCoordinate;
+    const vec4 rightBottomCoordinateInBuffer = transformMatrix * rightBottomCoordinate;
+    bounds = FloatRect(std::min(leftTopCoordinateInBuffer[0], rightBottomCoordinateInBuffer[0]),
+                       std::min(leftTopCoordinateInBuffer[1], rightBottomCoordinateInBuffer[1]),
+                       std::max(leftTopCoordinateInBuffer[0], rightBottomCoordinateInBuffer[0]),
+                       std::max(leftTopCoordinateInBuffer[1], rightBottomCoordinateInBuffer[1]));
 
     // Finally, we cut the layer into 3 parts, with top and bottom parts having rounded corners
     // and the middle part without rounded corners.
