@@ -56,8 +56,8 @@ static_assert(static_cast<uint8_t>(V1_3::Effect::RINGTONE_15) ==
 static_assert(static_cast<uint8_t>(V1_3::Effect::TEXTURE_TICK) ==
               static_cast<uint8_t>(aidl::Effect::TEXTURE_TICK));
 
-using V1_0::EffectStrength;
-using V1_3::Effect;
+using aidl::Effect;
+using aidl::EffectStrength;
 
 class CommandPerform : public Command {
     std::string getDescription() const override { return "Perform vibration effect."; }
@@ -124,8 +124,7 @@ class CommandPerform : public Command {
             }
 
             int32_t aidlLengthMs;
-            auto status = hal->call(&aidl::IVibrator::perform, static_cast<aidl::Effect>(mEffect),
-                                    static_cast<aidl::EffectStrength>(mStrength), callback,
+            auto status = hal->call(&aidl::IVibrator::perform, mEffect, mStrength, callback,
                                     &aidlLengthMs);
 
             statusStr = status.getDescription();
@@ -140,17 +139,20 @@ class CommandPerform : public Command {
             };
 
             if (auto hal = getHal<V1_3::IVibrator>()) {
-                hidlRet = hal->call(&V1_3::IVibrator::perform_1_3,
-                                    static_cast<V1_3::Effect>(mEffect), mStrength, callback);
+                hidlRet =
+                        hal->call(&V1_3::IVibrator::perform_1_3, static_cast<V1_3::Effect>(mEffect),
+                                  static_cast<V1_0::EffectStrength>(mStrength), callback);
             } else if (auto hal = getHal<V1_2::IVibrator>()) {
-                hidlRet = hal->call(&V1_2::IVibrator::perform_1_2,
-                                    static_cast<V1_2::Effect>(mEffect), mStrength, callback);
+                hidlRet =
+                        hal->call(&V1_2::IVibrator::perform_1_2, static_cast<V1_2::Effect>(mEffect),
+                                  static_cast<V1_0::EffectStrength>(mStrength), callback);
             } else if (auto hal = getHal<V1_1::IVibrator>()) {
                 hidlRet = hal->call(&V1_1::IVibrator::perform_1_1,
-                                    static_cast<V1_1::Effect_1_1>(mEffect), mStrength, callback);
+                                    static_cast<V1_1::Effect_1_1>(mEffect),
+                                    static_cast<V1_0::EffectStrength>(mStrength), callback);
             } else if (auto hal = getHal<V1_0::IVibrator>()) {
                 hidlRet = hal->call(&V1_0::IVibrator::perform, static_cast<V1_0::Effect>(mEffect),
-                                    mStrength, callback);
+                                    static_cast<V1_0::EffectStrength>(mStrength), callback);
             } else {
                 return UNAVAILABLE;
             }

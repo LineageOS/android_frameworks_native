@@ -64,9 +64,8 @@ class CommandCompose : public Command {
                 std::cerr << "Missing or Invalid Delay!" << std::endl;
                 return USAGE;
             }
-            // TODO: Use range validation when supported by AIDL
-            if (auto primitive = args.pop<std::underlying_type_t<decltype(effect.primitive)>>()) {
-                effect.primitive = static_cast<decltype(effect.primitive)>(*primitive);
+            if (auto primitive = args.pop<decltype(effect.primitive)>()) {
+                effect.primitive = *primitive;
                 std::cout << "Primitive: " << toString(effect.primitive) << std::endl;
             } else {
                 std::cerr << "Missing or Invalid Primitive!" << std::endl;
