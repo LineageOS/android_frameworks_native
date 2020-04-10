@@ -25,6 +25,7 @@
 #include <aidl/android/hardware/graphics/common/Interlaced.h>
 #include <aidl/android/hardware/graphics/common/PlaneLayout.h>
 #include <aidl/android/hardware/graphics/common/PlaneLayoutComponentType.h>
+#include <aidl/android/hardware/graphics/common/Rect.h>
 #include <aidl/android/hardware/graphics/common/Smpte2086.h>
 #include <aidl/android/hardware/graphics/common/StandardMetadataType.h>
 #include <aidl/android/hardware/graphics/common/XyColor.h>
