@@ -924,7 +924,6 @@ void RenderEngineTest::clearLeftRegion() {
     settings.physicalDisplay = fullscreenRect();
     // Here logical space is 4x4
     settings.clip = Rect(4, 4);
-    settings.globalTransform = mat4::scale(vec4(2, 4, 0, 1));
     settings.clearRegion = Region(Rect(2, 4));
     std::vector<const renderengine::LayerSettings*> layers;
     // dummy layer, without bounds should not render anything
