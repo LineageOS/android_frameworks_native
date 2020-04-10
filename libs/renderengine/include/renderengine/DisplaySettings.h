@@ -40,16 +40,6 @@ struct DisplaySettings {
     // z=1.
     Rect clip = Rect::INVALID_RECT;
 
-    // Global transform to apply to all layers.
-    // The global transform is assumed to automatically apply when projecting
-    // the clip rectangle onto the physical display; however, this should be
-    // explicitly provided to perform CPU-side optimizations such as computing
-    // scissor rectangles for rounded corners which require transformation to
-    // the phsical display space.
-    //
-    // This transform is also assumed to include the orientation flag below.
-    mat4 globalTransform = mat4();
-
     // Maximum luminance pulled from the display's HDR capabilities.
     float maxLuminance = 1.0f;
 
@@ -62,9 +52,7 @@ struct DisplaySettings {
     mat4 colorTransform = mat4();
 
     // Region that will be cleared to (0, 0, 0, 1) prior to rendering.
-    // RenderEngine will transform the clearRegion passed in here, by
-    // globalTransform, so that it will be in the same coordinate space as the
-    // rendered layers.
+    // This is specified in layer-stack space.
     Region clearRegion = Region::INVALID_REGION;
 
     // An additional orientation flag to be applied after clipping the output.
@@ -76,8 +64,7 @@ struct DisplaySettings {
 
 static inline bool operator==(const DisplaySettings& lhs, const DisplaySettings& rhs) {
     return lhs.physicalDisplay == rhs.physicalDisplay && lhs.clip == rhs.clip &&
-            lhs.globalTransform == rhs.globalTransform && lhs.maxLuminance == rhs.maxLuminance &&
-            lhs.outputDataspace == rhs.outputDataspace &&
+            lhs.maxLuminance == rhs.maxLuminance && lhs.outputDataspace == rhs.outputDataspace &&
             lhs.colorTransform == rhs.colorTransform &&
             lhs.clearRegion.hasSameRects(rhs.clearRegion) && lhs.orientation == rhs.orientation;
 }
@@ -89,7 +76,6 @@ static inline void PrintTo(const DisplaySettings& settings, ::std::ostream* os) 
     PrintTo(settings.physicalDisplay, os);
     *os << "\n    .clip = ";
     PrintTo(settings.clip, os);
-    *os << "\n    .globalTransform = " << settings.globalTransform;
     *os << "\n    .maxLuminance = " << settings.maxLuminance;
     *os << "\n    .outputDataspace = ";
     PrintTo(settings.outputDataspace, os);
