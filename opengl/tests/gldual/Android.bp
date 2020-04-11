@@ -20,6 +20,7 @@ cc_library_shared {
         "-Werror",
         "-Wno-error=unused-parameter",
     ],
+    header_libs: ["jni_headers"],
     srcs: ["jni/gl_code.cpp"],
     shared_libs: [
         "liblog",
