@@ -43,7 +43,7 @@ std::vector<float> getRefreshRatesFromConfigs(
     refreshRates.reserve(allRefreshRates.size());
 
     for (const auto& [ignored, refreshRate] : allRefreshRates) {
-        refreshRates.emplace_back(refreshRate->fps);
+        refreshRates.emplace_back(refreshRate->getFps());
     }
 
     return refreshRates;
@@ -59,7 +59,7 @@ namespace impl {
 
 PhaseOffsets::PhaseOffsets(const scheduler::RefreshRateConfigs& refreshRateConfigs)
       : PhaseOffsets(getRefreshRatesFromConfigs(refreshRateConfigs),
-                     refreshRateConfigs.getCurrentRefreshRate().fps,
+                     refreshRateConfigs.getCurrentRefreshRate().getFps(),
                      // Below defines the threshold when an offset is considered to be negative,
                      // i.e. targeting for the N+2 vsync instead of N+1. This means that: For offset
                      // < threshold, SF wake up (vsync_duration - offset) before HW vsync. For
@@ -275,7 +275,7 @@ std::unordered_map<float, PhaseDurations::Offsets> PhaseDurations::initializeOff
 
 PhaseDurations::PhaseDurations(const scheduler::RefreshRateConfigs& refreshRateConfigs)
       : PhaseDurations(getRefreshRatesFromConfigs(refreshRateConfigs),
-                       refreshRateConfigs.getCurrentRefreshRate().fps,
+                       refreshRateConfigs.getCurrentRefreshRate().getFps(),
                        getProperty("debug.sf.late.sf.duration").value_or(-1),
                        getProperty("debug.sf.late.app.duration").value_or(-1),
                        getProperty("debug.sf.early.sf.duration").value_or(mSfDuration),

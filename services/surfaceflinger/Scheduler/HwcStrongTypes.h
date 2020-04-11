@@ -22,6 +22,5 @@ namespace android {
 
 // Strong types for the different indexes as they are referring to a different base.
 using HwcConfigIndexType = StrongTyping<int, struct HwcConfigIndexTypeTag, Compare, Add, Hash>;
-using HwcConfigGroupType = StrongTyping<int, struct HwcConfigGroupTypeTag, Compare>;
 
 } // namespace android

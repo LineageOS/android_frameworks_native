@@ -29,6 +29,8 @@
 #include "Scheduler/StrongTyping.h"
 
 namespace android::scheduler {
+class RefreshRateConfigsTest;
+
 using namespace std::chrono_literals;
 
 enum class RefreshRateConfigEvent : unsigned { None = 0b0, Changed = 0b1 };
@@ -49,30 +51,27 @@ public:
     static constexpr nsecs_t MARGIN_FOR_PERIOD_CALCULATION =
         std::chrono::nanoseconds(800us).count();
 
-    struct RefreshRate {
-        // The tolerance within which we consider FPS approximately equals.
-        static constexpr float FPS_EPSILON = 0.001f;
+    class RefreshRate {
+    private:
+        // Effectively making the constructor private while allowing
+        // std::make_unique to create the object
+        struct ConstructorTag {
+            explicit ConstructorTag(int) {}
+        };
 
-        RefreshRate(HwcConfigIndexType configId, nsecs_t vsyncPeriod,
-                    HwcConfigGroupType configGroup, std::string name, float fps)
-              : configId(configId),
-                vsyncPeriod(vsyncPeriod),
-                configGroup(configGroup),
-                name(std::move(name)),
-                fps(fps) {}
+    public:
+        RefreshRate(HwcConfigIndexType configId,
+                    std::shared_ptr<const HWC2::Display::Config> config, std::string name,
+                    float fps, ConstructorTag)
+              : configId(configId), hwcConfig(config), name(std::move(name)), fps(fps) {}
 
         RefreshRate(const RefreshRate&) = delete;
-        // This config ID corresponds to the position of the config in the vector that is stored
-        // on the device.
-        const HwcConfigIndexType configId;
-        // Vsync period in nanoseconds.
-        const nsecs_t vsyncPeriod;
-        // This configGroup for the config.
-        const HwcConfigGroupType configGroup;
-        // Human readable name of the refresh rate.
-        const std::string name;
-        // Refresh rate in frames per second
-        const float fps = 0;
+
+        HwcConfigIndexType getConfigId() const { return configId; }
+        nsecs_t getVsyncPeriod() const { return hwcConfig->getVsyncPeriod(); }
+        int32_t getConfigGroup() const { return hwcConfig->getConfigGroup(); }
+        const std::string& getName() const { return name; }
+        float getFps() const { return fps; }
 
         // Checks whether the fps of this RefreshRate struct is within a given min and max refresh
         // rate passed in. FPS_EPSILON is applied to the boundaries for approximation.
@@ -81,11 +80,27 @@ public:
         }
 
         bool operator!=(const RefreshRate& other) const {
-            return configId != other.configId || vsyncPeriod != other.vsyncPeriod ||
-                    configGroup != other.configGroup;
+            return configId != other.configId || hwcConfig != other.hwcConfig;
         }
 
         bool operator==(const RefreshRate& other) const { return !(*this != other); }
+
+    private:
+        friend RefreshRateConfigs;
+        friend RefreshRateConfigsTest;
+
+        // The tolerance within which we consider FPS approximately equals.
+        static constexpr float FPS_EPSILON = 0.001f;
+
+        // This config ID corresponds to the position of the config in the vector that is stored
+        // on the device.
+        const HwcConfigIndexType configId;
+        // The config itself
+        std::shared_ptr<const HWC2::Display::Config> hwcConfig;
+        // Human readable name of the refresh rate.
+        const std::string name;
+        // Refresh rate in frames per second
+        const float fps = 0;
     };
 
     using AllRefreshRatesMapType =
@@ -208,20 +223,10 @@ public:
     // Stores the current configId the device operates at
     void setCurrentConfigId(HwcConfigIndexType configId) EXCLUDES(mLock);
 
-    struct InputConfig {
-        HwcConfigIndexType configId = HwcConfigIndexType(0);
-        HwcConfigGroupType configGroup = HwcConfigGroupType(0);
-        nsecs_t vsyncPeriod = 0;
-    };
-
-    RefreshRateConfigs(const std::vector<InputConfig>& configs,
-                       HwcConfigIndexType currentHwcConfig);
     RefreshRateConfigs(const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs,
                        HwcConfigIndexType currentConfigId);
 
 private:
-    void init(const std::vector<InputConfig>& configs, HwcConfigIndexType currentHwcConfig);
-
     void constructAvailableRefreshRates() REQUIRES(mLock);
 
     void getSortedRefreshRateList(
