@@ -53,7 +53,7 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContent(
     if (explicitContentFramerate != 0) {
         contentFramerate = explicitContentFramerate;
     } else if (contentFramerate == 0) {
-        contentFramerate = round<int>(mMaxSupportedRefreshRate->fps);
+        contentFramerate = round<int>(mMaxSupportedRefreshRate->getFps());
     }
     ATRACE_INT("ContentFPS", contentFramerate);
 
@@ -177,7 +177,7 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
                 continue;
             }
 
-            const auto displayPeriod = scores[i].first->vsyncPeriod;
+            const auto displayPeriod = scores[i].first->hwcConfig->getVsyncPeriod();
             const auto layerPeriod = round<nsecs_t>(1e9f / layer.desiredRefreshRate);
             if (layer.vote == LayerVoteType::ExplicitDefault) {
                 const auto layerScore = [&]() {
@@ -309,21 +309,30 @@ void RefreshRateConfigs::setCurrentConfigId(HwcConfigIndexType configId) {
     mCurrentRefreshRate = mRefreshRates.at(configId).get();
 }
 
-RefreshRateConfigs::RefreshRateConfigs(const std::vector<InputConfig>& configs,
-                                       HwcConfigIndexType currentHwcConfig) {
-    init(configs, currentHwcConfig);
-}
-
 RefreshRateConfigs::RefreshRateConfigs(
         const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs,
         HwcConfigIndexType currentConfigId) {
-    std::vector<InputConfig> inputConfigs;
-    for (size_t configId = 0; configId < configs.size(); ++configId) {
-        auto configGroup = HwcConfigGroupType(configs[configId]->getConfigGroup());
-        inputConfigs.push_back({HwcConfigIndexType(static_cast<int>(configId)), configGroup,
-                                configs[configId]->getVsyncPeriod()});
+    LOG_ALWAYS_FATAL_IF(configs.empty());
+    LOG_ALWAYS_FATAL_IF(currentConfigId.value() >= configs.size());
+
+    for (auto configId = HwcConfigIndexType(0); configId.value() < configs.size(); configId++) {
+        const auto& config = configs.at(static_cast<size_t>(configId.value()));
+        const float fps = 1e9f / config->getVsyncPeriod();
+        mRefreshRates.emplace(configId,
+                              std::make_unique<RefreshRate>(configId, config,
+                                                            base::StringPrintf("%2.ffps", fps), fps,
+                                                            RefreshRate::ConstructorTag(0)));
+        if (configId == currentConfigId) {
+            mCurrentRefreshRate = mRefreshRates.at(configId).get();
+        }
     }
-    init(inputConfigs, currentConfigId);
+
+    std::vector<const RefreshRate*> sortedConfigs;
+    getSortedRefreshRateList([](const RefreshRate&) { return true; }, &sortedConfigs);
+    mDisplayManagerPolicy.defaultConfig = currentConfigId;
+    mMinSupportedRefreshRate = sortedConfigs.front();
+    mMaxSupportedRefreshRate = sortedConfigs.back();
+    constructAvailableRefreshRates();
 }
 
 bool RefreshRateConfigs::isPolicyValid(const Policy& policy) {
@@ -406,10 +415,13 @@ void RefreshRateConfigs::getSortedRefreshRateList(
 
     std::sort(outRefreshRates->begin(), outRefreshRates->end(),
               [](const auto refreshRate1, const auto refreshRate2) {
-                  if (refreshRate1->vsyncPeriod != refreshRate2->vsyncPeriod) {
-                      return refreshRate1->vsyncPeriod > refreshRate2->vsyncPeriod;
+                  if (refreshRate1->hwcConfig->getVsyncPeriod() !=
+                      refreshRate2->hwcConfig->getVsyncPeriod()) {
+                      return refreshRate1->hwcConfig->getVsyncPeriod() >
+                              refreshRate2->hwcConfig->getVsyncPeriod();
                   } else {
-                      return refreshRate1->configGroup > refreshRate2->configGroup;
+                      return refreshRate1->hwcConfig->getConfigGroup() >
+                              refreshRate2->hwcConfig->getConfigGroup();
                   }
               });
 }
@@ -417,13 +429,20 @@ void RefreshRateConfigs::getSortedRefreshRateList(
 void RefreshRateConfigs::constructAvailableRefreshRates() {
     // Filter configs based on current policy and sort based on vsync period
     const Policy* policy = getCurrentPolicyLocked();
-    HwcConfigGroupType group = mRefreshRates.at(policy->defaultConfig)->configGroup;
+    const auto& defaultConfig = mRefreshRates.at(policy->defaultConfig)->hwcConfig;
     ALOGV("constructAvailableRefreshRates: default %d group %d min %.2f max %.2f",
-          policy->defaultConfig.value(), group.value(), policy->minRefreshRate,
+          policy->defaultConfig.value(), defaultConfig->getConfigGroup(), policy->minRefreshRate,
           policy->maxRefreshRate);
     getSortedRefreshRateList(
             [&](const RefreshRate& refreshRate) REQUIRES(mLock) {
-                return (policy->allowGroupSwitching || refreshRate.configGroup == group) &&
+                const auto& hwcConfig = refreshRate.hwcConfig;
+
+                return hwcConfig->getHeight() == defaultConfig->getHeight() &&
+                        hwcConfig->getWidth() == defaultConfig->getWidth() &&
+                        hwcConfig->getDpiX() == defaultConfig->getDpiX() &&
+                        hwcConfig->getDpiY() == defaultConfig->getDpiY() &&
+                        (policy->allowGroupSwitching ||
+                         hwcConfig->getConfigGroup() == defaultConfig->getConfigGroup()) &&
                         refreshRate.inPolicy(policy->minRefreshRate, policy->maxRefreshRate);
             },
             &mAvailableRefreshRates);
@@ -438,32 +457,6 @@ void RefreshRateConfigs::constructAvailableRefreshRates() {
                         "No compatible display configs for default=%d min=%.0f max=%.0f",
                         policy->defaultConfig.value(), policy->minRefreshRate,
                         policy->maxRefreshRate);
-}
-
-// NO_THREAD_SAFETY_ANALYSIS since this is called from the constructor
-void RefreshRateConfigs::init(const std::vector<InputConfig>& configs,
-                              HwcConfigIndexType currentHwcConfig) NO_THREAD_SAFETY_ANALYSIS {
-    LOG_ALWAYS_FATAL_IF(configs.empty());
-    LOG_ALWAYS_FATAL_IF(currentHwcConfig.value() >= configs.size());
-
-    for (const auto& config : configs) {
-        const float fps = 1e9f / config.vsyncPeriod;
-        mRefreshRates.emplace(config.configId,
-                              std::make_unique<RefreshRate>(config.configId, config.vsyncPeriod,
-                                                            config.configGroup,
-                                                            base::StringPrintf("%2.ffps", fps),
-                                                            fps));
-        if (config.configId == currentHwcConfig) {
-            mCurrentRefreshRate = mRefreshRates.at(config.configId).get();
-        }
-    }
-
-    std::vector<const RefreshRate*> sortedConfigs;
-    getSortedRefreshRateList([](const RefreshRate&) { return true; }, &sortedConfigs);
-    mDisplayManagerPolicy.defaultConfig = currentHwcConfig;
-    mMinSupportedRefreshRate = sortedConfigs.front();
-    mMaxSupportedRefreshRate = sortedConfigs.back();
-    constructAvailableRefreshRates();
 }
 
 } // namespace android::scheduler

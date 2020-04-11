@@ -29,6 +29,9 @@ namespace mock {
 
 class Display : public HWC2::Display {
 public:
+    using Error = ::Error;
+    using Layer = ::Layer;
+
     Display();
     ~Display();
 
@@ -80,6 +83,16 @@ public:
     MOCK_METHOD4(presentOrValidate,
                  Error(uint32_t*, uint32_t*, android::sp<android::Fence>*, uint32_t*));
     MOCK_CONST_METHOD1(setDisplayBrightness, Error(float));
+    MOCK_CONST_METHOD1(getDisplayVsyncPeriod, Error(nsecs_t*));
+    MOCK_METHOD3(setActiveConfigWithConstraints,
+                 Error(const std::shared_ptr<const HWC2::Display::Config>&,
+                       const HWC2::VsyncPeriodChangeConstraints&,
+                       HWC2::VsyncPeriodChangeTimeline*));
+    MOCK_CONST_METHOD1(setAutoLowLatencyMode, Error(bool on));
+    MOCK_CONST_METHOD1(getSupportedContentTypes, Error(std::vector<HWC2::ContentType>*));
+    MOCK_CONST_METHOD1(setContentType, Error(HWC2::ContentType));
+    MOCK_CONST_METHOD1(getConnectionType, Error(android::DisplayConnectionType*));
+    MOCK_CONST_METHOD0(isVsyncPeriodSwitchSupported, bool());
 };
 
 } // namespace mock

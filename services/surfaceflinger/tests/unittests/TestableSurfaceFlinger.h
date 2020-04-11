@@ -39,6 +39,7 @@
 #include "SurfaceFlingerDefaultFactory.h"
 #include "SurfaceInterceptor.h"
 #include "TestableScheduler.h"
+#include "mock/DisplayHardware/MockDisplay.h"
 
 namespace android {
 
@@ -198,8 +199,12 @@ public:
                         std::unique_ptr<EventThread> appEventThread,
                         std::unique_ptr<EventThread> sfEventThread,
                         bool useContentDetectionV2 = false) {
-        std::vector<scheduler::RefreshRateConfigs::InputConfig> configs{
-                {{HwcConfigIndexType(0), HwcConfigGroupType(0), 16666667}}};
+        std::vector<std::shared_ptr<const HWC2::Display::Config>> configs{
+                HWC2::Display::Config::Builder(mDisplay, 0)
+                        .setVsyncPeriod(int32_t(16666667))
+                        .setConfigGroup(0)
+                        .build()};
+
         mFlinger->mRefreshRateConfigs = std::make_unique<
                 scheduler::RefreshRateConfigs>(configs, /*currentConfig=*/HwcConfigIndexType(0));
         mFlinger->mRefreshRateStats = std::make_unique<
@@ -648,6 +653,7 @@ public:
     surfaceflinger::test::Factory mFactory;
     sp<SurfaceFlinger> mFlinger = new SurfaceFlinger(mFactory, SurfaceFlinger::SkipInitialization);
     TestableScheduler* mScheduler = nullptr;
+    Hwc2::mock::Display mDisplay;
 };
 
 } // namespace android

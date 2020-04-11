@@ -45,6 +45,7 @@ using android::hardware::graphics::composer::V2_4::IComposerClient;
 
 class Composer : public Hwc2::Composer {
 public:
+    using Display = android::hardware::graphics::composer::V2_1::Display;
     Composer();
     ~Composer() override;
 

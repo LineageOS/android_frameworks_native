@@ -927,7 +927,7 @@ int SurfaceFlinger::getActiveConfig(const sp<IBinder>& displayToken) {
 void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
     ATRACE_CALL();
     auto& refreshRate = mRefreshRateConfigs->getRefreshRateFromConfigId(info.configId);
-    ALOGV("setDesiredActiveConfig(%s)", refreshRate.name.c_str());
+    ALOGV("setDesiredActiveConfig(%s)", refreshRate.getName().c_str());
 
     std::lock_guard<std::mutex> lock(mActiveConfigLock);
     if (mDesiredActiveConfigChanged) {
@@ -939,7 +939,7 @@ void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
     } else {
         // Check is we are already at the desired config
         const auto display = getDefaultDisplayDeviceLocked();
-        if (!display || display->getActiveConfig() == refreshRate.configId) {
+        if (!display || display->getActiveConfig() == refreshRate.getConfigId()) {
             return;
         }
 
@@ -951,12 +951,12 @@ void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
         repaintEverythingForHWC();
         // Start receiving vsync samples now, so that we can detect a period
         // switch.
-        mScheduler->resyncToHardwareVsync(true, refreshRate.vsyncPeriod);
+        mScheduler->resyncToHardwareVsync(true, refreshRate.getVsyncPeriod());
         // As we called to set period, we will call to onRefreshRateChangeCompleted once
         // DispSync model is locked.
         mVSyncModulator->onRefreshRateChangeInitiated();
 
-        mPhaseConfiguration->setRefreshRateFps(refreshRate.fps);
+        mPhaseConfiguration->setRefreshRateFps(refreshRate.getFps());
         mVSyncModulator->setPhaseOffsets(mPhaseConfiguration->getCurrentOffsets());
     }
 
@@ -988,8 +988,9 @@ status_t SurfaceFlinger::setActiveConfig(const sp<IBinder>& displayToken, int mo
             const auto& refreshRate = mRefreshRateConfigs->getRefreshRateFromConfigId(config);
             result = setDesiredDisplayConfigSpecsInternal(display,
                                                           scheduler::RefreshRateConfigs::
-                                                                  Policy{config, refreshRate.fps,
-                                                                         refreshRate.fps},
+                                                                  Policy{config,
+                                                                         refreshRate.getFps(),
+                                                                         refreshRate.getFps()},
                                                           /*overridePolicy=*/false);
         }
     }));
@@ -1015,17 +1016,17 @@ void SurfaceFlinger::setActiveConfigInternal() {
 
     auto& refreshRate =
             mRefreshRateConfigs->getRefreshRateFromConfigId(mUpcomingActiveConfig.configId);
-    if (refreshRate.vsyncPeriod != oldRefreshRate.vsyncPeriod) {
+    if (refreshRate.getVsyncPeriod() != oldRefreshRate.getVsyncPeriod()) {
         mTimeStats->incrementRefreshRateSwitches();
     }
-    mPhaseConfiguration->setRefreshRateFps(refreshRate.fps);
+    mPhaseConfiguration->setRefreshRateFps(refreshRate.getFps());
     mVSyncModulator->setPhaseOffsets(mPhaseConfiguration->getCurrentOffsets());
-    ATRACE_INT("ActiveConfigFPS", refreshRate.fps);
+    ATRACE_INT("ActiveConfigFPS", refreshRate.getFps());
 
     if (mUpcomingActiveConfig.event != Scheduler::ConfigEvent::None) {
         const nsecs_t vsyncPeriod =
                 mRefreshRateConfigs->getRefreshRateFromConfigId(mUpcomingActiveConfig.configId)
-                        .vsyncPeriod;
+                        .getVsyncPeriod();
         mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value,
                                     mUpcomingActiveConfig.configId, vsyncPeriod);
     }
@@ -1038,8 +1039,8 @@ void SurfaceFlinger::desiredActiveConfigChangeDone() {
 
     const auto& refreshRate =
             mRefreshRateConfigs->getRefreshRateFromConfigId(mDesiredActiveConfig.configId);
-    mScheduler->resyncToHardwareVsync(true, refreshRate.vsyncPeriod);
-    mPhaseConfiguration->setRefreshRateFps(refreshRate.fps);
+    mScheduler->resyncToHardwareVsync(true, refreshRate.getVsyncPeriod());
+    mPhaseConfiguration->setRefreshRateFps(refreshRate.getFps());
     mVSyncModulator->setPhaseOffsets(mPhaseConfiguration->getCurrentOffsets());
 }
 
@@ -1071,8 +1072,8 @@ bool SurfaceFlinger::performSetActiveConfig() {
 
     auto& refreshRate =
             mRefreshRateConfigs->getRefreshRateFromConfigId(desiredActiveConfig.configId);
-    ALOGV("performSetActiveConfig changing active config to %d(%s)", refreshRate.configId.value(),
-          refreshRate.name.c_str());
+    ALOGV("performSetActiveConfig changing active config to %d(%s)",
+          refreshRate.getConfigId().value(), refreshRate.getName().c_str());
     const auto display = getDefaultDisplayDeviceLocked();
     if (!display || display->getActiveConfig() == desiredActiveConfig.configId) {
         // display is not valid or we are already in the requested mode
@@ -1093,7 +1094,7 @@ bool SurfaceFlinger::performSetActiveConfig() {
     const auto displayId = display->getId();
     LOG_ALWAYS_FATAL_IF(!displayId);
 
-    ATRACE_INT("ActiveConfigFPS_HWC", refreshRate.fps);
+    ATRACE_INT("ActiveConfigFPS_HWC", refreshRate.getFps());
 
     // TODO(b/142753666) use constrains
     HWC2::VsyncPeriodChangeConstraints constraints;
@@ -1621,13 +1622,13 @@ void SurfaceFlinger::changeRefreshRateLocked(const RefreshRate& refreshRate,
     ATRACE_CALL();
 
     // Don't do any updating if the current fps is the same as the new one.
-    if (!isDisplayConfigAllowed(refreshRate.configId)) {
+    if (!isDisplayConfigAllowed(refreshRate.getConfigId())) {
         ALOGV("Skipping config %d as it is not part of allowed configs",
-              refreshRate.configId.value());
+              refreshRate.getConfigId().value());
         return;
     }
 
-    setDesiredActiveConfig({refreshRate.configId, event});
+    setDesiredActiveConfig({refreshRate.getConfigId(), event});
 }
 
 void SurfaceFlinger::onHotplugReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId,
@@ -2977,7 +2978,7 @@ void SurfaceFlinger::initScheduler(DisplayId primaryDisplayId) {
     // classes from EventThread, and there should be no run-time binder cost
     // anyway since there are no connected apps at this point.
     const nsecs_t vsyncPeriod =
-            mRefreshRateConfigs->getRefreshRateFromConfigId(currentConfig).vsyncPeriod;
+            mRefreshRateConfigs->getRefreshRateFromConfigId(currentConfig).getVsyncPeriod();
     mScheduler->onConfigChanged(mAppConnectionHandle, primaryDisplayId.value, currentConfig,
                                 vsyncPeriod);
 }
@@ -5958,7 +5959,8 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(
     // that listeners that care about a change in allowed configs can get the notification.
     // Giving current ActiveConfig so that most other listeners would just drop the event
     const nsecs_t vsyncPeriod =
-            mRefreshRateConfigs->getRefreshRateFromConfigId(display->getActiveConfig()).vsyncPeriod;
+            mRefreshRateConfigs->getRefreshRateFromConfigId(display->getActiveConfig())
+                    .getVsyncPeriod();
     mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value,
                                 display->getActiveConfig(), vsyncPeriod);
 
@@ -5968,13 +5970,16 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(
             // NOTE: Choose the default config ID, if Scheduler doesn't have one in mind.
             : mRefreshRateConfigs->getRefreshRateFromConfigId(currentPolicy.defaultConfig);
     ALOGV("trying to switch to Scheduler preferred config %d (%s)",
-          preferredRefreshRate.configId.value(), preferredRefreshRate.name.c_str());
+          preferredRefreshRate.getConfigId().value(), preferredRefreshRate.getName().c_str());
 
-    if (isDisplayConfigAllowed(preferredRefreshRate.configId)) {
-        ALOGV("switching to Scheduler preferred config %d", preferredRefreshRate.configId.value());
-        setDesiredActiveConfig({preferredRefreshRate.configId, Scheduler::ConfigEvent::Changed});
+    if (isDisplayConfigAllowed(preferredRefreshRate.getConfigId())) {
+        ALOGV("switching to Scheduler preferred config %d",
+              preferredRefreshRate.getConfigId().value());
+        setDesiredActiveConfig(
+                {preferredRefreshRate.getConfigId(), Scheduler::ConfigEvent::Changed});
     } else {
-        LOG_ALWAYS_FATAL("Desired config not allowed: %d", preferredRefreshRate.configId.value());
+        LOG_ALWAYS_FATAL("Desired config not allowed: %d",
+                         preferredRefreshRate.getConfigId().value());
     }
 
     return NO_ERROR;
