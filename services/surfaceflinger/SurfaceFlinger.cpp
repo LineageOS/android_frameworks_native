@@ -175,6 +175,12 @@
 #include "Utils/Dumper.h"
 #include "WindowInfosListenerInvoker.h"
 
+#if __has_include("QtiGralloc.h")
+#include "QtiGralloc.h"
+#else
+#include "gralloc_priv.h"
+#endif
+
 #include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 #include <aidl/android/hardware/graphics/composer3/OutputType.h>
@@ -4464,6 +4470,7 @@ void SurfaceFlinger::decRefreshableDisplays() {
 
 void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
                                          const DisplayDeviceState& state) {
+    bool canAllocateHwcForVDS = false;
     ui::Size resolution(0, 0);
     ui::PixelFormat pixelFormat = static_cast<ui::PixelFormat>(PIXEL_FORMAT_UNKNOWN);
     if (state.isPhysical()) {
@@ -4479,6 +4486,20 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
         status = surface->query(NATIVE_WINDOW_FORMAT, &format);
         ALOGE_IF(status != NO_ERROR, "Unable to query format (%d)", status);
         pixelFormat = static_cast<ui::PixelFormat>(format);
+        if (mUseHwcVirtualDisplays || getHwComposer().isUsingVrComposer()) {
+            if (maxVirtualDisplaySize == 0 ||
+                ((uint64_t)width <= maxVirtualDisplaySize &&
+                (uint64_t)height <= maxVirtualDisplaySize)) {
+                uint64_t usage = 0;
+                // Replace with native_window_get_consumer_usage ?
+                status = state .surface->getConsumerUsage(&usage);
+                ALOGW_IF(status != NO_ERROR, "Unable to query usage (%d)", status);
+                if ((status == NO_ERROR) && canAllocateHwcDisplayIdForVDS(usage)) {
+                   canAllocateHwcForVDS = true;
+               }
+            }
+        }
+
     } else {
         // Virtual displays without a surface are dormant:
         // they have external state (layer stack, projection,
@@ -4524,7 +4545,8 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
             auto surface =
                     sp<LegacyVirtualDisplaySurface>::make(getHwComposer(),
                                                           *virtualDisplayIdVariantOpt,
-                                                          virtualState.surface, state.displayName);
+                                                          virtualState.surface, state.displayName,
+                                                          state.isSecure);
             displaySurface = surface;
             compositionSurface = sp<Surface>::make(std::move(surface));
         }
@@ -9104,6 +9126,20 @@ void SurfaceFlinger::updateWorkDuration(const sp<DisplayDevice>& display,
                                              Duration::fromNs(workDuration->maxSfDurationNanos),
                                              Duration::fromNs(workDuration->appDurationNanos));
     }
+}
+
+bool SurfaceFlinger::canAllocateHwcDisplayIdForVDS(uint64_t usage) {
+    uint64_t flag_mask_pvt_wfd = ~0;
+    uint64_t flag_mask_hw_video = ~0;
+    char value[PROPERTY_VALUE_MAX] = {};
+    property_get("vendor.display.vds_allow_hwc", value, "0");
+    int allowHwcForVDS = atoi(value);
+    // Reserve hardware acceleration for WFD use-case
+    // GRALLOC_USAGE_PRIVATE_WFD + GRALLOC_USAGE_HW_VIDEO_ENCODER = WFD using HW composer.
+    flag_mask_pvt_wfd = GRALLOC_USAGE_PRIVATE_WFD;
+    flag_mask_hw_video = GRALLOC_USAGE_HW_VIDEO_ENCODER;
+    return (allowHwcForVDS || ((usage & flag_mask_pvt_wfd) &&
+            (usage & flag_mask_hw_video)));
 }
 
 status_t SurfaceFlinger::setDesiredDisplayModeSpecs(

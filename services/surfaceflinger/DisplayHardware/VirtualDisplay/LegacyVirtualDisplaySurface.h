@@ -90,7 +90,8 @@ public:
 
 private:
     LegacyVirtualDisplaySurface(HWComposer&, VirtualDisplayIdVariant, const sp<Surface>& sink,
-                                const std::string& name);
+                                const std::string& name,
+                                bool secure);
 
     friend class sp<LegacyVirtualDisplaySurface>;
 
@@ -137,6 +138,7 @@ private:
                                          float outTransformMatrix[16]) override;
     virtual status_t getUniqueId(uint64_t* outId) const override;
     virtual status_t getConsumerUsage(uint64_t* outUsage) const override;
+    virtual void setOutputUsage(uint64_t flag);
 
     //
     // Utility methods
@@ -269,6 +271,8 @@ private:
     bool mMustRecompose = false;
 
     bool mForceHwcCopy;
+    bool mSecure;
+    int mSinkUsage;
 };
 
 } // namespace android
