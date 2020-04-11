@@ -20,11 +20,6 @@ cc_library_static {
     vendor_available: true,
     host_supported: true,
 
-    apex_available: [
-        "//apex_available:platform",
-        "com.android.media",
-    ],
-
     shared_libs: [
         "libbinder",
         "libhidlbase",  // libhwbinder is in here
