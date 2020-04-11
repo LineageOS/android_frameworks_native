@@ -31,6 +31,7 @@
 #include "Scheduler/EventThread.h"
 #include "Scheduler/RefreshRateConfigs.h"
 #include "TestableScheduler.h"
+#include "mock/DisplayHardware/MockDisplay.h"
 #include "mock/MockEventThread.h"
 
 using testing::_;
@@ -63,6 +64,7 @@ protected:
     Scheduler::ConnectionHandle mConnectionHandle;
     mock::EventThread* mEventThread;
     sp<MockEventThreadConnection> mEventThreadConnection;
+    Hwc2::mock::Display mDisplay;
 };
 
 SchedulerTest::SchedulerTest() {
@@ -70,8 +72,11 @@ SchedulerTest::SchedulerTest() {
             ::testing::UnitTest::GetInstance()->current_test_info();
     ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
 
-    std::vector<scheduler::RefreshRateConfigs::InputConfig> configs{
-            {{HwcConfigIndexType(0), HwcConfigGroupType(0), 16666667}}};
+    std::vector<std::shared_ptr<const HWC2::Display::Config>> configs{
+            HWC2::Display::Config::Builder(mDisplay, 0)
+                    .setVsyncPeriod(int32_t(16666667))
+                    .setConfigGroup(0)
+                    .build()};
     mRefreshRateConfigs = std::make_unique<
             scheduler::RefreshRateConfigs>(configs, /*currentConfig=*/HwcConfigIndexType(0));
 
