@@ -1221,7 +1221,7 @@ status_t SurfaceFlinger::getAutoLowLatencyModeSupport(const sp<IBinder>& display
               displayToken.get());
         return NAME_NOT_FOUND;
     }
-    *outSupport = getHwComposer().hasDisplayCapability(displayId,
+    *outSupport = getHwComposer().hasDisplayCapability(*displayId,
                                                        HWC2::DisplayCapability::AutoLowLatencyMode);
     return NO_ERROR;
 }
@@ -1492,7 +1492,7 @@ status_t SurfaceFlinger::getDisplayBrightnessSupport(const sp<IBinder>& displayT
         return NAME_NOT_FOUND;
     }
     *outSupport =
-            getHwComposer().hasDisplayCapability(displayId, HWC2::DisplayCapability::Brightness);
+            getHwComposer().hasDisplayCapability(*displayId, HWC2::DisplayCapability::Brightness);
     return NO_ERROR;
 }
 
@@ -5765,7 +5765,6 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     // buffer bounds.
     clientCompositionDisplay.physicalDisplay = Rect(reqWidth, reqHeight);
     clientCompositionDisplay.clip = sourceCrop;
-    clientCompositionDisplay.globalTransform = mat4();
     clientCompositionDisplay.orientation = rotation;
 
     clientCompositionDisplay.outputDataspace = renderArea.getReqDataSpace();
