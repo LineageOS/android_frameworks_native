@@ -26,6 +26,7 @@
 #include <thread>
 
 #include "Scheduler/RefreshRateStats.h"
+#include "mock/DisplayHardware/MockDisplay.h"
 #include "mock/MockTimeStats.h"
 
 using namespace std::chrono_literals;
@@ -39,14 +40,14 @@ class RefreshRateStatsTest : public testing::Test {
 protected:
     static inline const auto CONFIG_ID_0 = HwcConfigIndexType(0);
     static inline const auto CONFIG_ID_1 = HwcConfigIndexType(1);
-    static inline const auto CONFIG_GROUP_0 = HwcConfigGroupType(0);
+    static inline const auto CONFIG_GROUP_0 = 0;
     static constexpr int64_t VSYNC_90 = 11111111;
     static constexpr int64_t VSYNC_60 = 16666667;
 
     RefreshRateStatsTest();
     ~RefreshRateStatsTest();
 
-    void init(const std::vector<RefreshRateConfigs::InputConfig>& configs) {
+    void init(const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs) {
         mRefreshRateConfigs =
                 std::make_unique<RefreshRateConfigs>(configs, /*currentConfig=*/CONFIG_ID_0);
         mRefreshRateStats =
@@ -55,9 +56,14 @@ protected:
                                                    /*currentPowerMode=*/HWC_POWER_MODE_OFF);
     }
 
+    Hwc2::mock::Display mDisplay;
     mock::TimeStats mTimeStats;
     std::unique_ptr<RefreshRateConfigs> mRefreshRateConfigs;
     std::unique_ptr<RefreshRateStats> mRefreshRateStats;
+
+    std::shared_ptr<const HWC2::Display::Config> createConfig(HwcConfigIndexType configId,
+                                                              int32_t configGroup,
+                                                              int64_t vsyncPeriod);
 };
 
 RefreshRateStatsTest::RefreshRateStatsTest() {
@@ -72,12 +78,20 @@ RefreshRateStatsTest::~RefreshRateStatsTest() {
     ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
 }
 
+std::shared_ptr<const HWC2::Display::Config> RefreshRateStatsTest::createConfig(
+        HwcConfigIndexType configId, int32_t configGroup, int64_t vsyncPeriod) {
+    return HWC2::Display::Config::Builder(mDisplay, hwc2_config_t(configId.value()))
+            .setVsyncPeriod(int32_t(vsyncPeriod))
+            .setConfigGroup(configGroup)
+            .build();
+}
+
 namespace {
 /* ------------------------------------------------------------------------
  * Test cases
  */
 TEST_F(RefreshRateStatsTest, oneConfigTest) {
-    init({{{CONFIG_ID_0, CONFIG_GROUP_0, VSYNC_90}}});
+    init({createConfig(CONFIG_ID_0, CONFIG_GROUP_0, VSYNC_90)});
 
     EXPECT_CALL(mTimeStats, recordRefreshRate(0, _)).Times(AtLeast(1));
     EXPECT_CALL(mTimeStats, recordRefreshRate(90, _)).Times(AtLeast(1));
@@ -123,7 +137,8 @@ TEST_F(RefreshRateStatsTest, oneConfigTest) {
 }
 
 TEST_F(RefreshRateStatsTest, twoConfigsTest) {
-    init({{{CONFIG_ID_0, CONFIG_GROUP_0, VSYNC_90}, {CONFIG_ID_1, CONFIG_GROUP_0, VSYNC_60}}});
+    init({createConfig(CONFIG_ID_0, CONFIG_GROUP_0, VSYNC_90),
+          createConfig(CONFIG_ID_1, CONFIG_GROUP_0, VSYNC_60)});
 
     EXPECT_CALL(mTimeStats, recordRefreshRate(0, _)).Times(AtLeast(1));
     EXPECT_CALL(mTimeStats, recordRefreshRate(60, _)).Times(AtLeast(1));
