@@ -78,10 +78,10 @@ public:
         // Multiple configs may map to the same name, e.g. "60fps". Add the
         // times for such configs together.
         for (const auto& [configId, time] : mConfigModesTotalTime) {
-            totalTime[mRefreshRateConfigs.getRefreshRateFromConfigId(configId).name] = 0;
+            totalTime[mRefreshRateConfigs.getRefreshRateFromConfigId(configId).getName()] = 0;
         }
         for (const auto& [configId, time] : mConfigModesTotalTime) {
-            totalTime[mRefreshRateConfigs.getRefreshRateFromConfigId(configId).name] += time;
+            totalTime[mRefreshRateConfigs.getRefreshRateFromConfigId(configId).getName()] += time;
         }
         totalTime["ScreenOff"] = mScreenOffTime;
         return totalTime;
@@ -115,7 +115,7 @@ private:
             }
             mConfigModesTotalTime[mCurrentConfigMode] += timeElapsedMs;
             fps = static_cast<uint32_t>(std::round(
-                    mRefreshRateConfigs.getRefreshRateFromConfigId(mCurrentConfigMode).fps));
+                    mRefreshRateConfigs.getRefreshRateFromConfigId(mCurrentConfigMode).getFps()));
         } else {
             mScreenOffTime += timeElapsedMs;
         }
