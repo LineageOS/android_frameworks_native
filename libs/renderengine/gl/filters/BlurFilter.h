@@ -38,7 +38,7 @@ public:
     // Downsample FBO to improve performance
     static constexpr float kFboScale = 0.25f;
     // Maximum number of render passes
-    static constexpr uint32_t kMaxPasses = 6;
+    static constexpr uint32_t kMaxPasses = 4;
     // To avoid downscaling artifacts, we interpolate the blurred fbo with the full composited
     // image, up to this radius.
     static constexpr float kMaxCrossFadeRadius = 30.0f;
