@@ -80,7 +80,8 @@ class VirtualDisplaySurface : public compositionengine::DisplaySurface,
 public:
     VirtualDisplaySurface(HWComposer&, VirtualDisplayId, const sp<IGraphicBufferProducer>& sink,
                           const sp<IGraphicBufferProducer>& bqProducer,
-                          const sp<IGraphicBufferConsumer>& bqConsumer, const std::string& name);
+                          const sp<IGraphicBufferConsumer>& bqConsumer,
+                          const std::string& name, bool secure);
 
     //
     // DisplaySurface interface
@@ -128,6 +129,7 @@ private:
             sp<Fence>* outFence, float outTransformMatrix[16]) override;
     virtual status_t getUniqueId(uint64_t* outId) const override;
     virtual status_t getConsumerUsage(uint64_t* outUsage) const override;
+    virtual void setOutputUsage(uint64_t flag);
 
     //
     // Utility methods
@@ -256,6 +258,8 @@ private:
     compositionengine::impl::HwcBufferCache mHwcBufferCache;
 
     bool mForceHwcCopy;
+    bool mSecure;
+    int mSinkUsage;
 };
 
 // ---------------------------------------------------------------------------
