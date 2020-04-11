@@ -934,6 +934,8 @@ private:
             std::vector<std::pair<Layer*, sp<LayerFE>>>& layers,
             std::vector<sp<LayerFE>>& layerFEs);
 
+    bool canAllocateHwcDisplayIdForVDS(uint64_t usage);
+
     // If the uid provided is not UNSET_UID, the traverse will skip any layers that don't have a
     // matching ownerUid
     void traverseLayersInLayerStack(ui::LayerStack, const int32_t uid,
