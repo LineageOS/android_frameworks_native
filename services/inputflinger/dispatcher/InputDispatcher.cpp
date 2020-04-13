@@ -4101,6 +4101,9 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                     dump += StringPrintf(", ownerPid=%d, ownerUid=%d, dispatchingTimeout=%0.3fms\n",
                                          windowInfo->ownerPid, windowInfo->ownerUid,
                                          windowInfo->dispatchingTimeout / 1000000.0);
+                    dump += StringPrintf(INDENT4 "    flags: %s\n",
+                                         inputWindowFlagsToString(windowInfo->layoutParamsFlags)
+                                                 .c_str());
                 }
             } else {
                 dump += INDENT2 "Windows: <none>\n";
