@@ -44,7 +44,7 @@ cc_test {
         "libGLESv2",
         "libgui",
         "libhardware",
-        "libhwui",
+        "libjnigraphics",
         "liblog",
         "libsync",
         "libui",
