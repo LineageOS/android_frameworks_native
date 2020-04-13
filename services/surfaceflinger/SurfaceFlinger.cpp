@@ -1044,53 +1044,44 @@ void SurfaceFlinger::desiredActiveConfigChangeDone() {
     mVSyncModulator->setPhaseOffsets(mPhaseConfiguration->getCurrentOffsets());
 }
 
-bool SurfaceFlinger::performSetActiveConfig() {
+void SurfaceFlinger::performSetActiveConfig() {
     ATRACE_CALL();
     ALOGV("performSetActiveConfig");
-    if (mCheckPendingFence) {
-        if (previousFramePending()) {
-            // fence has not signaled yet. wait for the next invalidate
-            mEventQueue->invalidate();
-            return true;
-        }
-
-        // We received the present fence from the HWC, so we assume it successfully updated
-        // the config, hence we update SF.
-        mCheckPendingFence = false;
-        setActiveConfigInternal();
-    }
-
     // Store the local variable to release the lock.
-    ActiveConfigInfo desiredActiveConfig;
-    {
+    const auto desiredActiveConfig = [&]() -> std::optional<ActiveConfigInfo> {
         std::lock_guard<std::mutex> lock(mActiveConfigLock);
-        if (!mDesiredActiveConfigChanged) {
-            return false;
+        if (mDesiredActiveConfigChanged) {
+            return mDesiredActiveConfig;
         }
-        desiredActiveConfig = mDesiredActiveConfig;
+        return std::nullopt;
+    }();
+
+    if (!desiredActiveConfig) {
+        // No desired active config pending to be applied
+        return;
     }
 
     auto& refreshRate =
-            mRefreshRateConfigs->getRefreshRateFromConfigId(desiredActiveConfig.configId);
+            mRefreshRateConfigs->getRefreshRateFromConfigId(desiredActiveConfig->configId);
     ALOGV("performSetActiveConfig changing active config to %d(%s)",
           refreshRate.getConfigId().value(), refreshRate.getName().c_str());
     const auto display = getDefaultDisplayDeviceLocked();
-    if (!display || display->getActiveConfig() == desiredActiveConfig.configId) {
+    if (!display || display->getActiveConfig() == desiredActiveConfig->configId) {
         // display is not valid or we are already in the requested mode
         // on both cases there is nothing left to do
         desiredActiveConfigChangeDone();
-        return false;
+        return;
     }
 
     // Desired active config was set, it is different than the config currently in use, however
     // allowed configs might have change by the time we process the refresh.
     // Make sure the desired config is still allowed
-    if (!isDisplayConfigAllowed(desiredActiveConfig.configId)) {
+    if (!isDisplayConfigAllowed(desiredActiveConfig->configId)) {
         desiredActiveConfigChangeDone();
-        return false;
+        return;
     }
 
-    mUpcomingActiveConfig = desiredActiveConfig;
+    mUpcomingActiveConfig = *desiredActiveConfig;
     const auto displayId = display->getId();
     LOG_ALWAYS_FATAL_IF(!displayId);
 
@@ -1110,13 +1101,12 @@ bool SurfaceFlinger::performSetActiveConfig() {
         // setActiveConfigWithConstraints may fail if a hotplug event is just about
         // to be sent. We just log the error in this case.
         ALOGW("setActiveConfigWithConstraints failed: %d", status);
-        return false;
+        return;
     }
 
     mScheduler->onNewVsyncPeriodChangeTimeline(outTimeline);
     // Scheduler will submit an empty frame to HWC if needed.
-    mCheckPendingFence = true;
-    return false;
+    mSetActiveConfigPending = true;
 }
 
 status_t SurfaceFlinger::getDisplayColorModes(const sp<IBinder>& displayToken,
@@ -1901,6 +1891,20 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
                 mGpuFrameMissedCount++;
             }
 
+            // If we are in the middle of a config change and the fence hasn't
+            // fired yet just wait for the next invalidate
+            if (mSetActiveConfigPending) {
+                if (framePending) {
+                    mEventQueue->invalidate();
+                    break;
+                }
+
+                // We received the present fence from the HWC, so we assume it successfully updated
+                // the config, hence we update SF.
+                mSetActiveConfigPending = false;
+                setActiveConfigInternal();
+            }
+
             if (framePending && mPropagateBackpressure) {
                 if ((hwcFrameMissed && !gpuFrameMissed) ||
                     mPropagateBackpressureClientComposition) {
@@ -1970,9 +1974,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
                 mScheduler->chooseRefreshRateForContent();
             }
 
-            if (performSetActiveConfig()) {
-                break;
-            }
+            performSetActiveConfig();
 
             updateCursorAsync();
             updateInputFlinger();
