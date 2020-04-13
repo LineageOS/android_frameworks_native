@@ -565,11 +565,9 @@ private:
     // Once HWC has returned the present fence, this sets the active config and a new refresh
     // rate in SF.
     void setActiveConfigInternal() REQUIRES(mStateLock);
-    // Active config is updated on INVALIDATE call in a state machine-like manner. When the
-    // desired config was set, HWC needs to update the panel on the next refresh, and when
-    // we receive the fence back, we know that the process was complete. It returns whether
-    // we need to wait for the next invalidate
-    bool performSetActiveConfig() REQUIRES(mStateLock);
+    // Calls to setActiveConfig on the main thread if there is a pending config
+    // that needs to be applied.
+    void performSetActiveConfig() REQUIRES(mStateLock);
     // Called when active config is no longer is progress
     void desiredActiveConfigChangeDone() REQUIRES(mStateLock);
     // called on the main thread in response to setPowerMode()
@@ -1229,7 +1227,7 @@ private:
     // below flags are set by main thread only
     TracedOrdinal<bool> mDesiredActiveConfigChanged
             GUARDED_BY(mActiveConfigLock) = {"DesiredActiveConfigChanged", false};
-    bool mCheckPendingFence = false;
+    bool mSetActiveConfigPending = false;
 
     bool mLumaSampling = true;
     sp<RegionSamplingThread> mRegionSamplingThread;
