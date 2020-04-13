@@ -138,7 +138,6 @@ private:
     status_t updateActiveBuffer() override;
     status_t updateFrameNumber(nsecs_t latchTime) override;
 
-    void preparePerFrameCompositionState() override;
     sp<Layer> createClone() override;
 
     // Crop that applies to the buffer

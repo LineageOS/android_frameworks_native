@@ -631,19 +631,6 @@ status_t BufferStateLayer::updateFrameNumber(nsecs_t latchTime) {
     return NO_ERROR;
 }
 
-void BufferStateLayer::preparePerFrameCompositionState() {
-    BufferLayer::preparePerFrameCompositionState();
-
-    auto* compositionState = editCompositionState();
-    if (compositionState->compositionType == Hwc2::IComposerClient::Composition::SIDEBAND) {
-        return;
-    }
-
-    compositionState->buffer = mBufferInfo.mBuffer;
-    compositionState->bufferSlot = mBufferInfo.mBufferSlot;
-    compositionState->acquireFence = mBufferInfo.mFence;
-}
-
 void BufferStateLayer::HwcSlotGenerator::bufferErased(const client_cache_t& clientCacheId) {
     std::lock_guard lock(mMutex);
     if (!clientCacheId.isValid()) {
