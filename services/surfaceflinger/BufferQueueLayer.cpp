@@ -365,21 +365,6 @@ status_t BufferQueueLayer::updateFrameNumber(nsecs_t latchTime) {
     return NO_ERROR;
 }
 
-void BufferQueueLayer::preparePerFrameCompositionState() {
-    BufferLayer::preparePerFrameCompositionState();
-
-    auto* compositionState = editCompositionState();
-    if (compositionState->compositionType == Hwc2::IComposerClient::Composition::SIDEBAND) {
-        return;
-    }
-
-    compositionState->buffer = mBufferInfo.mBuffer;
-    compositionState->bufferSlot = (mBufferInfo.mBufferSlot == BufferQueue::INVALID_BUFFER_SLOT)
-            ? 0
-            : mBufferInfo.mBufferSlot;
-    compositionState->acquireFence = mBufferInfo.mFence;
-}
-
 // -----------------------------------------------------------------------
 // Interface implementation for BufferLayerConsumer::ContentsChangedListener
 // -----------------------------------------------------------------------
