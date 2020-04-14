@@ -93,9 +93,6 @@ cc_library_shared {
     },
 
     srcs: [
-        "BufferHubBuffer.cpp",
-        "BufferHubEventFd.cpp",
-        "BufferHubMetadata.cpp",
         "DebugUtils.cpp",
         "DeviceProductInfo.cpp",
         "DisplayInfo.cpp",
@@ -134,7 +131,6 @@ cc_library_shared {
     ],
 
     shared_libs: [
-        "android.frameworks.bufferhub@1.0",
         "android.hardware.graphics.allocator@2.0",
         "android.hardware.graphics.allocator@3.0",
         "android.hardware.graphics.allocator@4.0",
@@ -175,30 +171,20 @@ cc_library_shared {
         vendor: {
             cflags: ["-DLIBUI_IN_VNDK"],
             exclude_srcs: [
-                "BufferHubBuffer.cpp",
-                "BufferHubEventFd.cpp",
-                "BufferHubMetadata.cpp",
             ],
             exclude_header_libs: [
-                "libbufferhub_headers",
-                "libdvr_headers",
             ],
             exclude_shared_libs: [
-                "android.frameworks.bufferhub@1.0",
-                "libpdx_default_transport",
             ],
         },
     },
 
     header_libs: [
         "libbase_headers",
-        "libbufferhub_headers",
-        "libdvr_headers",
         "libnativebase_headers",
         "libnativewindow_headers",
         "libhardware_headers",
         "libui_headers",
-        "libpdx_headers",
     ],
 
     export_static_lib_headers: [
