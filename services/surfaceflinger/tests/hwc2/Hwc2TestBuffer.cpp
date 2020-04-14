@@ -28,11 +28,10 @@
 
 #include <ui/GraphicBuffer.h>
 #include <android/hardware/graphics/common/1.0/types.h>
+#include <android/bitmap.h>
 #include <math/vec4.h>
 
 #include <GLES3/gl3.h>
-#include <SkImageEncoder.h>
-#include <SkStream.h>
 #include "Hwc2TestBuffer.h"
 #include "Hwc2TestLayers.h"
 
@@ -727,21 +726,37 @@ void Hwc2TestVirtualBuffer::updateBufferArea(const Area& bufferArea)
 
 bool Hwc2TestVirtualBuffer::writeBufferToFile(std::string path)
 {
-    SkFILEWStream file(path.c_str());
-    const SkImageInfo info = SkImageInfo::Make(mBufferArea.width,
-            mBufferArea.height, SkColorType::kRGBA_8888_SkColorType,
-            SkAlphaType::kPremul_SkAlphaType);
+    int fd = open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0664);
+    if (fd == -1) {
+        ALOGW("Error opening file: %s (%s)\n", path.c_str(), strerror(errno));
+        return false;
+    }
 
     uint8_t* img;
-    mGraphicBuffer->lock(static_cast<uint32_t>(BufferUsage::CPU_WRITE_OFTEN),
-            (void**)(&img));
+    mGraphicBuffer->lock(static_cast<uint32_t>(BufferUsage::CPU_WRITE_OFTEN), (void**)(&img));
 
-    SkPixmap pixmap(info, img, mGraphicBuffer->getStride());
-    bool result = file.isValid() && SkEncodeImage(&file, pixmap,
-            SkEncodedImageFormat::kPNG, 100);
+    AndroidBitmapInfo info;
+    info.format = ANDROID_BITMAP_FORMAT_RGBA_8888;
+    info.flags = ANDROID_BITMAP_FLAGS_ALPHA_PREMUL;
+    info.width = mBufferArea.width;
+    info.height = mBufferArea.height;
+    info.stride = mGraphicBuffer->getStride() * bytesPerPixel(ANDROID_BITMAP_FORMAT_RGBA_8888);
+
+    int result = AndroidBitmap_compress(&info, ADATASPACE_SRGB, img,
+                                        ANDROID_BITMAP_COMPRESS_FORMAT_PNG, 100, &fd,
+                                        [](void* fdPtr, const void* data, size_t size) -> bool {
+                                            size_t bytesWritten =
+                                                    write(*static_cast<int*>(fdPtr), data, size);
+                                            return bytesWritten == size;
+                                        });
+
+    if (result != ANDROID_BITMAP_RESULT_SUCCESS) {
+        ALOGW("Failed to compress PNG (error code: %d)\n", result);
+    }
 
     mGraphicBuffer->unlock();
-    return result;
+    close(fd);
+    return result == ANDROID_BITMAP_RESULT_SUCCESS;
 }
 
 /* Generates a buffer that holds the expected result of compositing all of our
