@@ -146,13 +146,7 @@ private:
     sp<SensorService> const mService;
     sp<BitTube> mChannel;
     uid_t mUid;
-
-    // A lock that should be used when modifying mSensorInfo
-    mutable std::mutex mConnectionLock;
-
-    // A lock that should be used when modifying mSensorInfoBackup
-    mutable std::recursive_mutex mBackupLock;
-
+    mutable std::recursive_mutex mConnectionLock;
     // Number of events from wake up sensors which are still pending and haven't been delivered to
     // the corresponding application. It is incremented by one unit for each write to the socket.
     uint32_t mWakeLockRefCount;
