@@ -38,10 +38,6 @@
 
 namespace android {
 
-#ifndef LIBUI_IN_VNDK
-class BufferHubBuffer;
-#endif // LIBUI_IN_VNDK
-
 class GraphicBufferMapper;
 
 using GraphicBufferDeathCallback = std::function<void(void* /*context*/, uint64_t bufferId)>;
@@ -147,11 +143,6 @@ public:
     GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
             uint32_t inUsage, std::string requestorName = "<Unknown>");
 
-#ifndef LIBUI_IN_VNDK
-    // Create a GraphicBuffer from an existing BufferHubBuffer.
-    GraphicBuffer(std::unique_ptr<BufferHubBuffer> buffer);
-#endif // LIBUI_IN_VNDK
-
     // return status
     status_t initCheck() const;
 
@@ -163,7 +154,6 @@ public:
     uint32_t getLayerCount() const      { return static_cast<uint32_t>(layerCount); }
     Rect getBounds() const              { return Rect(width, height); }
     uint64_t getId() const              { return mId; }
-    int32_t getBufferId() const { return mBufferId; }
 
     uint32_t getGenerationNumber() const { return mGenerationNumber; }
     void setGenerationNumber(uint32_t generation) {
@@ -225,11 +215,6 @@ public:
 
     void addDeathCallback(GraphicBufferDeathCallback deathCallback, void* context);
 
-#ifndef LIBUI_IN_VNDK
-    // Returns whether this GraphicBuffer is backed by BufferHubBuffer.
-    bool isBufferHubBuffer() const;
-#endif // LIBUI_IN_VNDK
-
 private:
     ~GraphicBuffer();
 
@@ -275,12 +260,6 @@ private:
 
     uint64_t mId;
 
-    // System unique buffer ID. Note that this is different from mId, which is process unique. For
-    // GraphicBuffer backed by BufferHub, the mBufferId is a system unique identifier that stays the
-    // same cross process for the same chunck of underlying memory. Also note that this only applies
-    // to GraphicBuffers that are backed by BufferHub.
-    int32_t mBufferId = -1;
-
     // Stores the generation number of this buffer. If this number does not
     // match the BufferQueue's internal generation number (set through
     // IGBP::setGenerationNumber), attempts to attach the buffer will fail.
@@ -299,22 +278,6 @@ private:
     // and informs SurfaceFlinger that it should drop its strong pointer reference to the buffer.
     std::vector<std::pair<GraphicBufferDeathCallback, void* /*mDeathCallbackContext*/>>
             mDeathCallbacks;
-
-#ifndef LIBUI_IN_VNDK
-    // Flatten this GraphicBuffer object if backed by BufferHubBuffer.
-    status_t flattenBufferHubBuffer(void*& buffer, size_t& size) const;
-
-    // Unflatten into BufferHubBuffer backed GraphicBuffer.
-    // Unflatten will fail if the original GraphicBuffer object is destructed. For instance, a
-    // GraphicBuffer backed by BufferHubBuffer_1 flatten in process/thread A, transport the token
-    // to process/thread B through a socket, BufferHubBuffer_1 dies and bufferhub invalidated the
-    // token. Race condition occurs between the invalidation of the token in bufferhub process and
-    // process/thread B trying to unflatten and import the buffer with that token.
-    status_t unflattenBufferHubBuffer(void const*& buffer, size_t& size);
-
-    // Stores a BufferHubBuffer that handles buffer signaling, identification.
-    std::unique_ptr<BufferHubBuffer> mBufferHubBuffer;
-#endif // LIBUI_IN_VNDK
 };
 
 }; // namespace android
