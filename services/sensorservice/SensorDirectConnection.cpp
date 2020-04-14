@@ -93,23 +93,6 @@ sp<BitTube> SensorService::SensorDirectConnection::getSensorChannel() const {
     return nullptr;
 }
 
-void SensorService::SensorDirectConnection::updateSensorSubscriptions() {
-    if (!hasSensorAccess()) {
-        stopAll(true /* backupRecord */);
-    } else {
-        recoverAll();
-    }
-}
-
-void SensorService::SensorDirectConnection::setSensorAccess(bool hasAccess) {
-    mHasSensorAccess = hasAccess;
-    updateSensorSubscriptions();
-}
-
-bool SensorService::SensorDirectConnection::hasSensorAccess() const {
-    return mHasSensorAccess && !mService->mSensorPrivacyPolicy->isSensorPrivacyEnabled();
-}
-
 status_t SensorService::SensorDirectConnection::enableDisable(
         int handle, bool enabled, nsecs_t samplingPeriodNs, nsecs_t maxBatchReportLatencyNs,
         int reservedFlags) {
