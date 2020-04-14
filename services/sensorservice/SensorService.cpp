@@ -302,16 +302,9 @@ void SensorService::onFirstRef() {
 void SensorService::setSensorAccess(uid_t uid, bool hasAccess) {
     ConnectionSafeAutolock connLock = mConnectionHolder.lock(mLock);
     const auto& connections = connLock.getActiveConnections();
-    const auto& directConnections = connLock.getDirectConnections();
 
     mLock.unlock();
     for (const sp<SensorEventConnection>& conn : connections) {
-        if (conn->getUid() == uid) {
-            conn->setSensorAccess(hasAccess);
-        }
-    }
-
-    for (const sp<SensorDirectConnection>& conn : directConnections) {
         if (conn->getUid() == uid) {
             conn->setSensorAccess(hasAccess);
         }
@@ -652,7 +645,7 @@ void SensorService::disableAllSensorsLocked(ConnectionSafeAutolock* connLock) {
         connection->updateSensorSubscriptions();
     }
     for (const sp<SensorDirectConnection>& connection : connLock->getDirectConnections()) {
-        connection->updateSensorSubscriptions();
+        connection->stopAll(true /* backupRecord */);
     }
     dev.disableAllSensors();
     // Clear all pending flush connections for all active sensors. If one of the active
@@ -683,7 +676,7 @@ void SensorService::enableAllSensorsLocked(ConnectionSafeAutolock* connLock) {
         connection->updateSensorSubscriptions();
     }
     for (const sp<SensorDirectConnection>& connection : connLock->getDirectConnections()) {
-        connection->updateSensorSubscriptions();
+        connection->recoverAll();
     }
 }
 
