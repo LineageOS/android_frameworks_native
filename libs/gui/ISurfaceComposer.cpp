@@ -795,8 +795,7 @@ public:
     }
 
     virtual status_t setDisplayContentSamplingEnabled(const sp<IBinder>& display, bool enable,
-                                                      uint8_t componentMask,
-                                                      uint64_t maxFrames) const {
+                                                      uint8_t componentMask, uint64_t maxFrames) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(display);
@@ -1038,7 +1037,7 @@ public:
         return NO_ERROR;
     }
 
-    virtual status_t setDisplayBrightness(const sp<IBinder>& displayToken, float brightness) const {
+    virtual status_t setDisplayBrightness(const sp<IBinder>& displayToken, float brightness) {
         Parcel data, reply;
         status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (error != NO_ERROR) {
