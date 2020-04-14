@@ -367,11 +367,8 @@ private:
                                            nsecs_t* nextWakeupTime,
                                            bool* outConflictingPointerActions) REQUIRES(mLock);
     std::vector<TouchedMonitor> findTouchedGestureMonitorsLocked(
-            int32_t displayId, const std::vector<sp<InputWindowHandle>>& portalWindows)
+            int32_t displayId, const std::vector<sp<InputWindowHandle>>& portalWindows) const
             REQUIRES(mLock);
-    void addGestureMonitors(const std::vector<Monitor>& monitors,
-                            std::vector<TouchedMonitor>& outTouchedMonitors, float xOffset = 0,
-                            float yOffset = 0);
 
     void addWindowTargetLocked(const sp<InputWindowHandle>& windowHandle, int32_t targetFlags,
                                BitSet32 pointerIds, std::vector<InputTarget>& inputTargets)
