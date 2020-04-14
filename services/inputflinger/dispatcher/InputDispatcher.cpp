@@ -1988,18 +1988,49 @@ bool InputDispatcher::checkInjectionPermission(const sp<InputWindowHandle>& wind
     return true;
 }
 
+/**
+ * Indicate whether one window handle should be considered as obscuring
+ * another window handle. We only check a few preconditions. Actually
+ * checking the bounds is left to the caller.
+ */
+static bool canBeObscuredBy(const sp<InputWindowHandle>& windowHandle,
+                            const sp<InputWindowHandle>& otherHandle) {
+    // Compare by token so cloned layers aren't counted
+    if (haveSameToken(windowHandle, otherHandle)) {
+        return false;
+    }
+    auto info = windowHandle->getInfo();
+    auto otherInfo = otherHandle->getInfo();
+    if (!otherInfo->visible) {
+        return false;
+    } else if (info->ownerPid == otherInfo->ownerPid && otherHandle->getToken() == nullptr) {
+      // In general, if ownerPid is the same we don't want to generate occlusion
+      // events. This line is now necessary since we are including all Surfaces
+      // in occlusion calculation, so if we didn't check PID like this SurfaceView
+      // would occlude their parents. On the other hand before we started including
+      // all surfaces in occlusion calculation and had this line, we would count
+      // windows with an input channel from the same PID as occluding, and so we
+      // preserve this behavior with the getToken() == null check.
+        return false;
+    } else if (otherInfo->isTrustedOverlay()) {
+        return false;
+    } else if (otherInfo->displayId != info->displayId) {
+        return false;
+    }
+    return true;
+}
+
 bool InputDispatcher::isWindowObscuredAtPointLocked(const sp<InputWindowHandle>& windowHandle,
                                                     int32_t x, int32_t y) const {
     int32_t displayId = windowHandle->getInfo()->displayId;
     const std::vector<sp<InputWindowHandle>> windowHandles = getWindowHandlesLocked(displayId);
     for (const sp<InputWindowHandle>& otherHandle : windowHandles) {
-        if (otherHandle == windowHandle) {
-            break;
+        if (windowHandle == otherHandle) {
+            break; // All future windows are below us. Exit early.
         }
-
         const InputWindowInfo* otherInfo = otherHandle->getInfo();
-        if (otherInfo->displayId == displayId && otherInfo->visible &&
-            !otherInfo->isTrustedOverlay() && otherInfo->frameContainsPoint(x, y)) {
+          if (canBeObscuredBy(windowHandle, otherHandle) &&
+            otherInfo->frameContainsPoint(x, y)) {
             return true;
         }
     }
@@ -2011,13 +2042,13 @@ bool InputDispatcher::isWindowObscuredLocked(const sp<InputWindowHandle>& window
     const std::vector<sp<InputWindowHandle>> windowHandles = getWindowHandlesLocked(displayId);
     const InputWindowInfo* windowInfo = windowHandle->getInfo();
     for (const sp<InputWindowHandle>& otherHandle : windowHandles) {
-        if (otherHandle == windowHandle) {
-            break;
+        if (windowHandle == otherHandle) {
+            break; // All future windows are below us. Exit early.
         }
 
         const InputWindowInfo* otherInfo = otherHandle->getInfo();
-        if (otherInfo->displayId == displayId && otherInfo->visible &&
-            !otherInfo->isTrustedOverlay() && otherInfo->overlaps(windowInfo)) {
+        if (canBeObscuredBy(windowHandle, otherHandle) &&
+            otherInfo->overlaps(windowInfo)) {
             return true;
         }
     }
