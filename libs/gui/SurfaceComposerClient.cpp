@@ -241,8 +241,31 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
 
 // ---------------------------------------------------------------------------
 
-void bufferCacheCallback(void* /*context*/, uint64_t graphicBufferId);
+void removeDeadBufferCallback(void* /*context*/, uint64_t graphicBufferId);
 
+/**
+ * We use the BufferCache to reduce the overhead of exchanging GraphicBuffers with
+ * the server. If we were to simply parcel the GraphicBuffer we would pay two overheads
+ *     1. Cost of sending the FD
+ *     2. Cost of importing the GraphicBuffer with the mapper in the receiving process.
+ * To ease this cost we implement the following scheme of caching buffers to integers,
+ * or said-otherwise, naming them with integers. This is the scheme known as slots in
+ * the legacy BufferQueue system.
+ *     1. When sending Buffers to SurfaceFlinger we look up the Buffer in the cache.
+ *     2. If there is a cache-hit we remove the Buffer from the Transaction and instead
+ *        send the cached integer.
+ *     3. If there is a cache miss, we cache the new buffer and send the integer
+ *        along with the Buffer, SurfaceFlinger on it's side creates a new cache
+ *        entry, and we use the integer for further communication.
+ * A few details about lifetime:
+ *     1. The cache evicts by LRU. The server side cache is keyed by BufferCache::getToken
+ *        which is per process Unique. The server side cache is larger than the client side
+ *        cache so that the server will never evict entries before the client.
+ *     2. When the client evicts an entry it notifies the server via an uncacheBuffer
+ *        transaction.
+ *     3. The client only references the Buffers by ID, and uses buffer->addDeathCallback
+ *        to auto-evict destroyed buffers.
+ */
 class BufferCache : public Singleton<BufferCache> {
 public:
     BufferCache() : token(new BBinder()) {}
@@ -270,7 +293,7 @@ public:
             evictLeastRecentlyUsedBuffer();
         }
 
-        buffer->addDeathCallback(bufferCacheCallback, nullptr);
+        buffer->addDeathCallback(removeDeadBufferCallback, nullptr);
 
         mBuffers[buffer->getId()] = getCounter();
         return buffer->getId();
@@ -318,7 +341,7 @@ private:
 
 ANDROID_SINGLETON_STATIC_INSTANCE(BufferCache);
 
-void bufferCacheCallback(void* /*context*/, uint64_t graphicBufferId) {
+void removeDeadBufferCallback(void* /*context*/, uint64_t graphicBufferId) {
     // GraphicBuffer id's are used as the cache ids.
     BufferCache::getInstance().uncache(graphicBufferId);
 }
@@ -576,9 +599,11 @@ void SurfaceComposerClient::Transaction::cacheBuffers() {
         uint64_t cacheId = 0;
         status_t ret = BufferCache::getInstance().getCacheId(s->buffer, &cacheId);
         if (ret == NO_ERROR) {
+            // Cache-hit. Strip the buffer and send only the id.
             s->what &= ~static_cast<uint64_t>(layer_state_t::eBufferChanged);
             s->buffer = nullptr;
         } else {
+            // Cache-miss. Include the buffer and send the new cacheId.
             cacheId = BufferCache::getInstance().cache(s->buffer);
         }
         s->what |= layer_state_t::eCachedBufferChanged;
