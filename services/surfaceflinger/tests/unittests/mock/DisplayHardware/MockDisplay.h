@@ -20,78 +20,80 @@
 
 #include "DisplayHardware/HWC2.h"
 
-using HWC2::Error;
-using HWC2::Layer;
+using android::HWC2::Layer;
 
 namespace android {
 namespace Hwc2 {
 namespace mock {
 
+namespace hal = android::hardware::graphics::composer::hal;
+
 class Display : public HWC2::Display {
 public:
-    using Error = ::Error;
     using Layer = ::Layer;
 
     Display();
     ~Display();
 
-    MOCK_CONST_METHOD0(getId, hwc2_layer_t());
+    MOCK_CONST_METHOD0(getId, hal::HWDisplayId());
     MOCK_CONST_METHOD0(isConnected, bool());
     MOCK_METHOD1(setConnected, void(bool));
-    MOCK_CONST_METHOD0(getCapabilities, const std::unordered_set<HWC2::DisplayCapability>&());
+    MOCK_CONST_METHOD0(getCapabilities, const std::unordered_set<hal::DisplayCapability>&());
 
-    MOCK_METHOD0(acceptChanges, Error());
-    MOCK_METHOD1(createLayer, Error(Layer**));
-    MOCK_METHOD1(destroyLayer, Error(Layer*));
-    MOCK_CONST_METHOD1(getActiveConfig, Error(std::shared_ptr<const Config>*));
-    MOCK_CONST_METHOD1(getActiveConfigIndex, Error(int* outIndex));
-    MOCK_METHOD1(getChangedCompositionTypes, Error(std::unordered_map<Layer*, HWC2::Composition>*));
-    MOCK_CONST_METHOD1(getColorModes, Error(std::vector<android::ui::ColorMode>*));
+    MOCK_METHOD0(acceptChanges, hal::Error());
+    MOCK_METHOD1(createLayer, hal::Error(Layer**));
+    MOCK_METHOD1(destroyLayer, hal::Error(Layer*));
+    MOCK_CONST_METHOD1(getActiveConfig, hal::Error(std::shared_ptr<const Config>*));
+    MOCK_CONST_METHOD1(getActiveConfigIndex, hal::Error(int* outIndex));
+    MOCK_METHOD1(getChangedCompositionTypes,
+                 hal::Error(std::unordered_map<Layer*, hal::Composition>*));
+    MOCK_CONST_METHOD1(getColorModes, hal::Error(std::vector<hal::ColorMode>*));
 
     MOCK_CONST_METHOD0(getSupportedPerFrameMetadata, int32_t());
     MOCK_CONST_METHOD2(getRenderIntents,
-                       Error(android::ui::ColorMode, std::vector<android::ui::RenderIntent>*));
-    MOCK_METHOD2(getDataspaceSaturationMatrix, Error(android::ui::Dataspace, android::mat4*));
+                       hal::Error(hal::ColorMode, std::vector<hal::RenderIntent>*));
+    MOCK_METHOD2(getDataspaceSaturationMatrix, hal::Error(hal::Dataspace, android::mat4*));
     MOCK_CONST_METHOD0(getConfigs, std::vector<std::shared_ptr<const Config>>());
 
-    MOCK_CONST_METHOD1(getName, Error(std::string*));
+    MOCK_CONST_METHOD1(getName, hal::Error(std::string*));
     MOCK_METHOD2(getRequests,
-                 Error(HWC2::DisplayRequest*, std::unordered_map<Layer*, HWC2::LayerRequest>*));
-    MOCK_CONST_METHOD1(getType, Error(HWC2::DisplayType*));
-    MOCK_CONST_METHOD1(supportsDoze, Error(bool*));
-    MOCK_CONST_METHOD1(getHdrCapabilities, Error(android::HdrCapabilities*));
+                 hal::Error(hal::DisplayRequest*, std::unordered_map<Layer*, hal::LayerRequest>*));
+    MOCK_CONST_METHOD1(getType, hal::Error(hal::DisplayType*));
+    MOCK_CONST_METHOD1(supportsDoze, hal::Error(bool*));
+    MOCK_CONST_METHOD1(getHdrCapabilities, hal::Error(android::HdrCapabilities*));
     MOCK_CONST_METHOD3(getDisplayedContentSamplingAttributes,
-                       Error(android::ui::PixelFormat*, android::ui::Dataspace*, uint8_t*));
-    MOCK_CONST_METHOD3(setDisplayContentSamplingEnabled, Error(bool, uint8_t, uint64_t));
+                       hal::Error(hal::PixelFormat*, hal::Dataspace*, uint8_t*));
+    MOCK_CONST_METHOD3(setDisplayContentSamplingEnabled, hal::Error(bool, uint8_t, uint64_t));
     MOCK_CONST_METHOD3(getDisplayedContentSample,
-                       Error(uint64_t, uint64_t, android::DisplayedFrameStats*));
-    MOCK_CONST_METHOD1(getReleaseFences,
-                       Error(std::unordered_map<Layer*, android::sp<android::Fence>>* outFences));
-    MOCK_METHOD1(present, Error(android::sp<android::Fence>*));
-    MOCK_METHOD1(setActiveConfig, Error(const std::shared_ptr<const HWC2::Display::Config>&));
+                       hal::Error(uint64_t, uint64_t, android::DisplayedFrameStats*));
+    MOCK_CONST_METHOD1(
+            getReleaseFences,
+            hal::Error(std::unordered_map<Layer*, android::sp<android::Fence>>* outFences));
+    MOCK_METHOD1(present, hal::Error(android::sp<android::Fence>*));
+    MOCK_METHOD1(setActiveConfig, hal::Error(const std::shared_ptr<const HWC2::Display::Config>&));
     MOCK_METHOD4(setClientTarget,
-                 Error(uint32_t, const android::sp<android::GraphicBuffer>&,
-                       const android::sp<android::Fence>&, android::ui::Dataspace));
-    MOCK_METHOD2(setColorMode, Error(android::ui::ColorMode, android::ui::RenderIntent));
-    MOCK_METHOD2(setColorTransform, Error(const android::mat4&, android_color_transform_t));
+                 hal::Error(uint32_t, const android::sp<android::GraphicBuffer>&,
+                            const android::sp<android::Fence>&, hal::Dataspace));
+    MOCK_METHOD2(setColorMode, hal::Error(hal::ColorMode, hal::RenderIntent));
+    MOCK_METHOD2(setColorTransform, hal::Error(const android::mat4&, hal::ColorTransform));
     MOCK_METHOD2(setOutputBuffer,
-                 Error(const android::sp<android::GraphicBuffer>&,
-                       const android::sp<android::Fence>&));
-    MOCK_METHOD1(setPowerMode, Error(HWC2::PowerMode));
-    MOCK_METHOD1(setVsyncEnabled, Error(HWC2::Vsync));
-    MOCK_METHOD2(validate, Error(uint32_t*, uint32_t*));
+                 hal::Error(const android::sp<android::GraphicBuffer>&,
+                            const android::sp<android::Fence>&));
+    MOCK_METHOD1(setPowerMode, hal::Error(hal::PowerMode));
+    MOCK_METHOD1(setVsyncEnabled, hal::Error(hal::Vsync));
+    MOCK_METHOD2(validate, hal::Error(uint32_t*, uint32_t*));
     MOCK_METHOD4(presentOrValidate,
-                 Error(uint32_t*, uint32_t*, android::sp<android::Fence>*, uint32_t*));
-    MOCK_CONST_METHOD1(setDisplayBrightness, Error(float));
-    MOCK_CONST_METHOD1(getDisplayVsyncPeriod, Error(nsecs_t*));
+                 hal::Error(uint32_t*, uint32_t*, android::sp<android::Fence>*, uint32_t*));
+    MOCK_CONST_METHOD1(setDisplayBrightness, hal::Error(float));
+    MOCK_CONST_METHOD1(getDisplayVsyncPeriod, hal::Error(nsecs_t*));
     MOCK_METHOD3(setActiveConfigWithConstraints,
-                 Error(const std::shared_ptr<const HWC2::Display::Config>&,
-                       const HWC2::VsyncPeriodChangeConstraints&,
-                       HWC2::VsyncPeriodChangeTimeline*));
-    MOCK_CONST_METHOD1(setAutoLowLatencyMode, Error(bool on));
-    MOCK_CONST_METHOD1(getSupportedContentTypes, Error(std::vector<HWC2::ContentType>*));
-    MOCK_CONST_METHOD1(setContentType, Error(HWC2::ContentType));
-    MOCK_CONST_METHOD1(getConnectionType, Error(android::DisplayConnectionType*));
+                 hal::Error(const std::shared_ptr<const HWC2::Display::Config>&,
+                            const hal::VsyncPeriodChangeConstraints&,
+                            hal::VsyncPeriodChangeTimeline*));
+    MOCK_CONST_METHOD1(setAutoLowLatencyMode, hal::Error(bool on));
+    MOCK_CONST_METHOD1(getSupportedContentTypes, hal::Error(std::vector<hal::ContentType>*));
+    MOCK_CONST_METHOD1(setContentType, hal::Error(hal::ContentType));
+    MOCK_CONST_METHOD1(getConnectionType, hal::Error(android::DisplayConnectionType*));
     MOCK_CONST_METHOD0(isVsyncPeriodSwitchSupported, bool());
 };
 

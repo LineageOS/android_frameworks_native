@@ -17,18 +17,13 @@
 #pragma once
 
 #include <chrono>
-#include <gtest/gtest.h>
 
 #include <android/native_window.h>
-#include <hardware/hwcomposer_defs.h>
-
 #include <binder/IPCThreadState.h>
-
+#include <gtest/gtest.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
-
 #include <private/gui/ComposerService.h>
-
 #include <ui/GraphicBuffer.h>
 #include <ui/Rect.h>
 
