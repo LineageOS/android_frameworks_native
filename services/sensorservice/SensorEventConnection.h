@@ -57,8 +57,7 @@ public:
     bool hasSensor(int32_t handle) const;
     bool hasAnySensor() const;
     bool hasOneShotSensors() const;
-    bool addSensor(
-        int32_t handle, nsecs_t samplingPeriodNs, nsecs_t maxBatchReportLatencyNs, int reservedFlags);
+    bool addSensor(int32_t handle);
     bool removeSensor(int32_t handle);
     std::vector<int32_t> getActiveSensorHandles() const;
     void setFirstFlushPending(int32_t handle, bool value);
@@ -71,7 +70,7 @@ public:
     uid_t getUid() const { return mUid; }
 
     void setSensorAccess(const bool hasAccess);
-    void updateSensorSubscriptions();
+
 private:
     virtual ~SensorEventConnection();
     virtual void onFirstRef();
@@ -137,16 +136,13 @@ private:
     // privacy not being enabled.
     bool hasSensorAccess();
 
-    void stopAll();
-    void recoverAll();
-
     // Call noteOp for the sensor if the sensor requires a permission
     bool noteOpIfRequired(const sensors_event_t& event);
 
     sp<SensorService> const mService;
     sp<BitTube> mChannel;
     uid_t mUid;
-    mutable std::recursive_mutex mConnectionLock;
+    mutable Mutex mConnectionLock;
     // Number of events from wake up sensors which are still pending and haven't been delivered to
     // the corresponding application. It is incremented by one unit for each write to the socket.
     uint32_t mWakeLockRefCount;
@@ -173,17 +169,8 @@ private:
 
         FlushInfo() : mPendingFlushEventsToSend(0), mFirstFlushPending(false) {}
     };
-
-    struct SensorRequest {
-      nsecs_t samplingPeriodNs;
-      nsecs_t maxBatchReportLatencyNs;
-      int reservedFlags;
-      FlushInfo flushInfo;
-    };
-
     // protected by SensorService::mLock. Key for this map is the sensor handle.
-    std::unordered_map<int32_t, SensorRequest> mSensorInfo;
-    std::unordered_map<int32_t, SensorRequest> mSensorInfoBackup;
+    std::unordered_map<int32_t, FlushInfo> mSensorInfo;
 
     sensors_event_t *mEventCache;
     int mCacheSize, mMaxCacheSize;
@@ -198,7 +185,7 @@ private:
 
     mutable Mutex mDestroyLock;
     bool mDestroyed;
-    std::atomic_bool mHasSensorAccess;
+    bool mHasSensorAccess;
 
     // Store a mapping of sensor handles to required AppOp for a sensor. This map only contains a
     // valid mapping for sensors that require a permission in order to reduce the lookup time.
