@@ -2164,6 +2164,9 @@ void SurfaceFlinger::postComposition()
         }
     });
 
+    mTransactionCompletedThread.addPresentFence(mPreviousPresentFences[0]);
+    mTransactionCompletedThread.sendCallbacks();
+
     if (displayDevice && displayDevice->isPrimary() &&
         displayDevice->getPowerMode() == HWC_POWER_MODE_NORMAL && presentFenceTime->isValid()) {
         mScheduler->addPresentFence(presentFenceTime);
@@ -2243,9 +2246,6 @@ void SurfaceFlinger::postComposition()
             ATRACE_INT("TexturePoolSize", mTexturePool.size());
         }
     }
-
-    mTransactionCompletedThread.addPresentFence(mPreviousPresentFences[0]);
-    mTransactionCompletedThread.sendCallbacks();
 
     if (mLumaSampling && mRegionSamplingThread) {
         mRegionSamplingThread->notifyNewContent();
