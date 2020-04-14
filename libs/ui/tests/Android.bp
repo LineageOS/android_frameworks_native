@@ -31,7 +31,6 @@ cc_test {
 cc_test {
     name: "GraphicBufferAllocator_test",
     header_libs: [
-        "libdvr_headers",
         "libnativewindow_headers",
     ],
     static_libs: [
@@ -52,11 +51,9 @@ cc_test {
 cc_test {
     name: "GraphicBuffer_test",
     header_libs: [
-        "libdvr_headers",
         "libnativewindow_headers",
     ],
     shared_libs: [
-        "android.frameworks.bufferhub@1.0",
         "libcutils",
         "libhidlbase",
         "libui",
@@ -71,42 +68,13 @@ cc_test {
     name: "GraphicBufferOverBinder_test",
     srcs: ["GraphicBufferOverBinder_test.cpp"],
     cflags: ["-Wall", "-Werror"],
-    header_libs: [
-        "libdvr_headers",
-    ],
     shared_libs: [
-        "android.frameworks.bufferhub@1.0",
         "libbinder",
         "libgui",
         "liblog",
         "libui",
         "libutils",
     ],
-}
-
-cc_test {
-    name: "BufferHub_test",
-    header_libs: [
-        "libdvr_headers",
-        "libnativewindow_headers",
-    ],
-    static_libs: [
-        "libgmock",
-    ],
-    shared_libs: [
-        "android.frameworks.bufferhub@1.0",
-        "libcutils",
-        "libhidlbase",
-        "liblog",
-        "libui",
-        "libutils"
-    ],
-    srcs: [
-        "BufferHubBuffer_test.cpp",
-        "BufferHubEventFd_test.cpp",
-        "BufferHubMetadata_test.cpp",
-    ],
-    cflags: ["-Wall", "-Werror"],
 }
 
 cc_test {

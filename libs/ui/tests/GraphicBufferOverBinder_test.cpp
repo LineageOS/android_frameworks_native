@@ -23,7 +23,6 @@
 #include <gui/BufferQueue.h>
 #include <gui/IGraphicBufferConsumer.h>
 #include <gui/IGraphicBufferProducer.h>
-#include <ui/BufferHubBuffer.h>
 #include <ui/GraphicBuffer.h>
 #include <utils/Log.h>
 
@@ -37,7 +36,6 @@ constexpr uint64_t kTestUsage = GraphicBuffer::USAGE_SW_WRITE_OFTEN;
 static const String16 kTestServiceName = String16("GraphicBufferOverBinderTestService");
 enum GraphicBufferOverBinderTestServiceCode {
     GRAPHIC_BUFFER = IBinder::FIRST_CALL_TRANSACTION,
-    GRAPHIC_BUFFER_FROM_BUFFER_HUB_BUFFER,
 };
 
 class GraphicBufferOverBinderTestService : public BBinder {
@@ -46,21 +44,6 @@ public:
         // GraphicBuffer
         mGraphicBuffer = new GraphicBuffer(kTestWidth, kTestHeight, kTestFormat, kTestLayerCount,
                                            kTestUsage);
-        ALOGI("mGraphicBuffer id %" PRIi32, mGraphicBuffer->getBufferId());
-
-        // BufferHub-backed GraphicBuffer
-        std::unique_ptr<BufferHubBuffer> bufferHubBuffer =
-                BufferHubBuffer::create(kTestWidth, kTestHeight, kTestLayerCount, kTestFormat,
-                                        kTestUsage, /*userMetadataSize=*/0);
-        mBufferhubBackedGraphicBuffer = new GraphicBuffer(std::move(bufferHubBuffer));
-        if (!mBufferhubBackedGraphicBuffer->isBufferHubBuffer()) {
-            ALOGE("Failed to back GraphicBuffer with BufferHub.");
-        }
-        if (bufferHubBuffer != nullptr) {
-            ALOGE("Failed to move BufferHubBuffer to GraphicBuffer");
-        }
-        ALOGI("mBufferhubBackedGraphicBuffer id %" PRIi32,
-              mBufferhubBackedGraphicBuffer->getBufferId());
     }
 
     ~GraphicBufferOverBinderTestService() = default;
@@ -71,9 +54,6 @@ public:
             case GRAPHIC_BUFFER: {
                 return reply->write(*mGraphicBuffer);
             }
-            case GRAPHIC_BUFFER_FROM_BUFFER_HUB_BUFFER: {
-                return reply->write(*mBufferhubBackedGraphicBuffer);
-            }
             default:
                 return UNKNOWN_TRANSACTION;
         };
@@ -81,7 +61,6 @@ public:
 
 protected:
     sp<GraphicBuffer> mGraphicBuffer;
-    sp<GraphicBuffer> mBufferhubBackedGraphicBuffer;
 };
 
 static int runBinderServer() {
@@ -138,17 +117,6 @@ TEST_F(GraphicBufferOverBinderTest, SendGraphicBufferOverBinder) {
     sp<GraphicBuffer> gb;
     EXPECT_EQ(GetGraphicBuffer(&gb, GRAPHIC_BUFFER), OK);
     EXPECT_NE(gb, nullptr);
-    EXPECT_FALSE(gb->isBufferHubBuffer());
-    void* vaddr;
-    EXPECT_EQ(gb->lock(kTestUsage, &vaddr), OK);
-    EXPECT_EQ(gb->unlock(), OK);
-}
-
-TEST_F(GraphicBufferOverBinderTest, SendGraphicBufferFromBufferHubBufferOverBinder) {
-    sp<GraphicBuffer> gb;
-    EXPECT_EQ(GetGraphicBuffer(&gb, GRAPHIC_BUFFER_FROM_BUFFER_HUB_BUFFER), NO_ERROR);
-    EXPECT_NE(gb, nullptr);
-    EXPECT_TRUE(gb->isBufferHubBuffer());
     void* vaddr;
     EXPECT_EQ(gb->lock(kTestUsage, &vaddr), OK);
     EXPECT_EQ(gb->unlock(), OK);
