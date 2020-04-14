@@ -383,7 +383,7 @@ public:
      */
     virtual status_t setDisplayContentSamplingEnabled(const sp<IBinder>& display, bool enable,
                                                       uint8_t componentMask,
-                                                      uint64_t maxFrames) const = 0;
+                                                      uint64_t maxFrames) = 0;
 
     /* Returns statistics on the color profile of the last frame displayed for a given display
      *
@@ -468,8 +468,7 @@ public:
      *      BAD_VALUE         if the brightness is invalid, or
      *      INVALID_OPERATION if brightness operations are not supported.
      */
-    virtual status_t setDisplayBrightness(const sp<IBinder>& displayToken,
-                                          float brightness) const = 0;
+    virtual status_t setDisplayBrightness(const sp<IBinder>& displayToken, float brightness) = 0;
 
     /*
      * Sends a power hint to the composer. This function is asynchronous.
