@@ -722,5 +722,8 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_Basic) {
     ASSERT_EQ(2, events->frameNumber);
     ASSERT_EQ(requestedPresentTimeB, events->requestedPresentTime);
     ASSERT_GE(events->postedTime, postedTimeB);
+
+    // wait for any callbacks that have not been received
+    adapter.waitForCallbacks();
 }
 } // namespace android
