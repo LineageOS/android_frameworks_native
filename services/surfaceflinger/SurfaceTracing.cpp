@@ -33,7 +33,7 @@
 namespace android {
 
 SurfaceTracing::SurfaceTracing(SurfaceFlinger& flinger)
-      : mFlinger(flinger), mSfLock(flinger.mDrawingStateLock) {}
+      : mFlinger(flinger), mSfLock(flinger.mTracingLock) {}
 
 void SurfaceTracing::mainLoop() {
     bool enabled = addFirstEntry();
@@ -44,21 +44,19 @@ void SurfaceTracing::mainLoop() {
 }
 
 bool SurfaceTracing::addFirstEntry() {
-    const auto displayDevice = mFlinger.getDefaultDisplayDevice();
     LayersTraceProto entry;
     {
         std::scoped_lock lock(mSfLock);
-        entry = traceLayersLocked("tracing.enable", displayDevice);
+        entry = traceLayersLocked("tracing.enable");
     }
     return addTraceToBuffer(entry);
 }
 
 LayersTraceProto SurfaceTracing::traceWhenNotified() {
-    const auto displayDevice = mFlinger.getDefaultDisplayDevice();
     std::unique_lock<std::mutex> lock(mSfLock);
     mCanStartTrace.wait(lock);
     android::base::ScopedLockAssertion assumeLock(mSfLock);
-    LayersTraceProto entry = traceLayersLocked(mWhere, displayDevice);
+    LayersTraceProto entry = traceLayersLocked(mWhere);
     mTracingInProgress = false;
     mMissedTraceEntries = 0;
     lock.unlock();
@@ -126,15 +124,17 @@ void SurfaceTracing::LayersTraceBuffer::flush(LayersTraceFileProto* fileProto) {
     }
 }
 
-void SurfaceTracing::enable() {
+bool SurfaceTracing::enable() {
     std::scoped_lock lock(mTraceLock);
 
     if (mEnabled) {
-        return;
+        return false;
     }
+
     mBuffer.reset(mBufferSize);
     mEnabled = true;
     mThread = std::thread(&SurfaceTracing::mainLoop, this);
+    return true;
 }
 
 status_t SurfaceTracing::writeToFile() {
@@ -176,14 +176,13 @@ void SurfaceTracing::setTraceFlags(uint32_t flags) {
     mTraceFlags = flags;
 }
 
-LayersTraceProto SurfaceTracing::traceLayersLocked(const char* where,
-                                                   const sp<const DisplayDevice>& displayDevice) {
+LayersTraceProto SurfaceTracing::traceLayersLocked(const char* where) {
     ATRACE_CALL();
 
     LayersTraceProto entry;
     entry.set_elapsed_realtime_nanos(elapsedRealtimeNano());
     entry.set_where(where);
-    LayersProto layers(mFlinger.dumpDrawingStateProto(mTraceFlags, displayDevice));
+    LayersProto layers(mFlinger.dumpDrawingStateProto(mTraceFlags));
 
     if (flagIsSetLocked(SurfaceTracing::TRACE_EXTRA)) {
         mFlinger.dumpOffscreenLayersProto(layers);
