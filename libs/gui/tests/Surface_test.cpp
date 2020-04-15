@@ -804,7 +804,7 @@ public:
     }
     status_t setDisplayContentSamplingEnabled(const sp<IBinder>& /*display*/, bool /*enable*/,
                                               uint8_t /*componentMask*/,
-                                              uint64_t /*maxFrames*/) const override {
+                                              uint64_t /*maxFrames*/) override {
         return NO_ERROR;
     }
     status_t getDisplayedContentSample(const sp<IBinder>& /*display*/, uint64_t /*maxFrames*/,
@@ -822,7 +822,7 @@ public:
         return NO_ERROR;
     }
     status_t setDisplayBrightness(const sp<IBinder>& /*displayToken*/,
-                                  float /*brightness*/) const override {
+                                  float /*brightness*/) override {
         return NO_ERROR;
     }
 

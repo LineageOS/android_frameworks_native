@@ -209,12 +209,11 @@ TEST(DisplayIdentificationTest, parseEdid) {
     EXPECT_EQ(41, edid->manufactureWeek);
     ASSERT_TRUE(edid->cea861Block);
     ASSERT_TRUE(edid->cea861Block->hdmiVendorDataBlock);
-    ASSERT_TRUE(edid->cea861Block->hdmiVendorDataBlock->physicalAddress);
     auto physicalAddress = edid->cea861Block->hdmiVendorDataBlock->physicalAddress;
-    EXPECT_EQ(2, physicalAddress->a);
-    EXPECT_EQ(0, physicalAddress->b);
-    EXPECT_EQ(0, physicalAddress->c);
-    EXPECT_EQ(0, physicalAddress->d);
+    EXPECT_EQ(2, physicalAddress.a);
+    EXPECT_EQ(0, physicalAddress.b);
+    EXPECT_EQ(0, physicalAddress.c);
+    EXPECT_EQ(0, physicalAddress.d);
 
     edid = parseEdid(getPanasonicTvEdid());
     ASSERT_TRUE(edid);
@@ -227,12 +226,11 @@ TEST(DisplayIdentificationTest, parseEdid) {
     EXPECT_EQ(0, edid->manufactureWeek);
     ASSERT_TRUE(edid->cea861Block);
     ASSERT_TRUE(edid->cea861Block->hdmiVendorDataBlock);
-    ASSERT_TRUE(edid->cea861Block->hdmiVendorDataBlock->physicalAddress);
     physicalAddress = edid->cea861Block->hdmiVendorDataBlock->physicalAddress;
-    EXPECT_EQ(2, physicalAddress->a);
-    EXPECT_EQ(0, physicalAddress->b);
-    EXPECT_EQ(0, physicalAddress->c);
-    EXPECT_EQ(0, physicalAddress->d);
+    EXPECT_EQ(2, physicalAddress.a);
+    EXPECT_EQ(0, physicalAddress.b);
+    EXPECT_EQ(0, physicalAddress.c);
+    EXPECT_EQ(0, physicalAddress.d);
 
     edid = parseEdid(getHisenseTvEdid());
     ASSERT_TRUE(edid);
@@ -245,12 +243,11 @@ TEST(DisplayIdentificationTest, parseEdid) {
     EXPECT_EQ(18, edid->manufactureWeek);
     ASSERT_TRUE(edid->cea861Block);
     ASSERT_TRUE(edid->cea861Block->hdmiVendorDataBlock);
-    ASSERT_TRUE(edid->cea861Block->hdmiVendorDataBlock->physicalAddress);
     physicalAddress = edid->cea861Block->hdmiVendorDataBlock->physicalAddress;
-    EXPECT_EQ(1, physicalAddress->a);
-    EXPECT_EQ(2, physicalAddress->b);
-    EXPECT_EQ(3, physicalAddress->c);
-    EXPECT_EQ(4, physicalAddress->d);
+    EXPECT_EQ(1, physicalAddress.a);
+    EXPECT_EQ(2, physicalAddress.b);
+    EXPECT_EQ(3, physicalAddress.c);
+    EXPECT_EQ(4, physicalAddress.d);
 
     edid = parseEdid(getCtlDisplayEdid());
     ASSERT_TRUE(edid);
@@ -315,6 +312,7 @@ TEST(DisplayIdentificationTest, deviceProductInfo) {
     using ManufactureYear = DeviceProductInfo::ManufactureYear;
     using ManufactureWeekAndYear = DeviceProductInfo::ManufactureWeekAndYear;
     using ModelYear = DeviceProductInfo::ModelYear;
+    using RelativeAddress = DeviceProductInfo::RelativeAddress;
 
     {
         const auto displayIdInfo = parseDisplayIdentificationData(0, getInternalEdid());
@@ -326,6 +324,7 @@ TEST(DisplayIdentificationTest, deviceProductInfo) {
         EXPECT_STREQ("12610", info.productId.data());
         ASSERT_TRUE(std::holds_alternative<ManufactureYear>(info.manufactureOrModelDate));
         EXPECT_EQ(2011, std::get<ManufactureYear>(info.manufactureOrModelDate).year);
+        EXPECT_EQ(DeviceProductInfo::NO_RELATIVE_ADDRESS, info.relativeAddress);
     }
     {
         const auto displayIdInfo = parseDisplayIdentificationData(0, getExternalEdid());
@@ -339,6 +338,7 @@ TEST(DisplayIdentificationTest, deviceProductInfo) {
         const auto& date = std::get<ManufactureWeekAndYear>(info.manufactureOrModelDate);
         EXPECT_EQ(2012, date.year);
         EXPECT_EQ(2, date.week);
+        EXPECT_EQ(DeviceProductInfo::NO_RELATIVE_ADDRESS, info.relativeAddress);
     }
     {
         const auto displayIdInfo = parseDisplayIdentificationData(0, getExternalEedid());
@@ -352,6 +352,7 @@ TEST(DisplayIdentificationTest, deviceProductInfo) {
         const auto& date = std::get<ManufactureWeekAndYear>(info.manufactureOrModelDate);
         EXPECT_EQ(2011, date.year);
         EXPECT_EQ(41, date.week);
+        EXPECT_EQ((RelativeAddress{{2, 0, 0, 0}}), info.relativeAddress);
     }
     {
         const auto displayIdInfo = parseDisplayIdentificationData(0, getPanasonicTvEdid());
@@ -364,6 +365,7 @@ TEST(DisplayIdentificationTest, deviceProductInfo) {
         ASSERT_TRUE(std::holds_alternative<ManufactureYear>(info.manufactureOrModelDate));
         const auto& date = std::get<ManufactureYear>(info.manufactureOrModelDate);
         EXPECT_EQ(2019, date.year);
+        EXPECT_EQ((RelativeAddress{{2, 0, 0, 0}}), info.relativeAddress);
     }
     {
         const auto displayIdInfo = parseDisplayIdentificationData(0, getHisenseTvEdid());
@@ -377,6 +379,7 @@ TEST(DisplayIdentificationTest, deviceProductInfo) {
         const auto& date = std::get<ManufactureWeekAndYear>(info.manufactureOrModelDate);
         EXPECT_EQ(2019, date.year);
         EXPECT_EQ(18, date.week);
+        EXPECT_EQ((RelativeAddress{{1, 2, 3, 4}}), info.relativeAddress);
     }
     {
         const auto displayIdInfo = parseDisplayIdentificationData(0, getCtlDisplayEdid());
@@ -388,6 +391,7 @@ TEST(DisplayIdentificationTest, deviceProductInfo) {
         EXPECT_STREQ("9373", info.productId.data());
         ASSERT_TRUE(std::holds_alternative<ModelYear>(info.manufactureOrModelDate));
         EXPECT_EQ(2013, std::get<ModelYear>(info.manufactureOrModelDate).year);
+        EXPECT_EQ(DeviceProductInfo::NO_RELATIVE_ADDRESS, info.relativeAddress);
     }
 }
 
