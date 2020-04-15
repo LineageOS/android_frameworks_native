@@ -420,6 +420,32 @@ static bool prepare_app_profile_dir(const std::string& packageName, int32_t appI
     return true;
 }
 
+binder::Status InstalldNativeService::createAppDataBatched(
+        const std::unique_ptr<std::vector<std::unique_ptr<std::string>>>& uuids,
+        const std::unique_ptr<std::vector<std::unique_ptr<std::string>>>& packageNames,
+        int32_t userId, int32_t flags, const std::vector<int32_t>& appIds,
+        const std::vector<std::string>& seInfos, const std::vector<int32_t>& targetSdkVersions,
+        int64_t* _aidl_return) {
+    ENFORCE_UID(AID_SYSTEM);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
+    ATRACE_BEGIN("createAppDataBatched");
+    binder::Status ret;
+    for (size_t i = 0; i < uuids->size(); i++) {
+        if (!packageNames->at(i)) {
+            continue;
+        }
+        ret = createAppData(uuids->at(i), *packageNames->at(i), userId, flags, appIds[i],
+                seInfos[i], targetSdkVersions[i], _aidl_return);
+        if (!ret.isOk()) {
+            ATRACE_END();
+            return ret;
+        }
+    }
+    ATRACE_END();
+    return ok();
+}
+
 binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::string>& uuid,
         const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
         const std::string& seInfo, int32_t targetSdkVersion, int64_t* _aidl_return) {
