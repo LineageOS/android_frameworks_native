@@ -19,7 +19,6 @@
 #include <inttypes.h>
 #include <log/log.h>
 #include <system/window.h>
-#include <ui/BufferHubBuffer.h>
 
 namespace android {
 

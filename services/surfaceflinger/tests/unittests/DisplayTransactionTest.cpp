@@ -1731,7 +1731,8 @@ TEST_F(GetDisplayNativePrimaries, notInternalDisplayToken) {
 
     ui::DisplayPrimaries primaries;
     populateDummyDisplayNativePrimaries(primaries);
-    EXPECT_EQ(BAD_VALUE, mFlinger.getDisplayNativePrimaries(notInternalDisplayToken, primaries));
+    EXPECT_EQ(NAME_NOT_FOUND,
+              mFlinger.getDisplayNativePrimaries(notInternalDisplayToken, primaries));
 
     // Check primaries argument wasn't modified in case of failure
     checkDummyDisplayNativePrimaries(primaries);

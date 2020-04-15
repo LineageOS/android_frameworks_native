@@ -491,7 +491,7 @@ TEST_F(InputDispatcherTest, NotifySwitch_CallsPolicy) {
 
 // --- InputDispatcherTest SetInputWindowTest ---
 static constexpr int32_t INJECT_EVENT_TIMEOUT = 500;
-static constexpr int32_t DISPATCHING_TIMEOUT = 100;
+static constexpr nsecs_t DISPATCHING_TIMEOUT = seconds_to_nanoseconds(5);
 
 class FakeApplicationHandle : public InputApplicationHandle {
 public:
@@ -1852,6 +1852,7 @@ TEST_F(InputDispatcherOnPointerDownOutsideFocus, OnPointerDownOutsideFocus_Succe
     ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectMotionDown(mDispatcher,
             AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT, 20, 20))
             << "Inject motion event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    mUnfocusedWindow->consumeMotionDown();
 
     ASSERT_TRUE(mDispatcher->waitForIdle());
     mFakePolicy->assertOnPointerDownEquals(mUnfocusedWindow->getToken());
@@ -1864,6 +1865,7 @@ TEST_F(InputDispatcherOnPointerDownOutsideFocus, OnPointerDownOutsideFocus_NonPo
     ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectMotionDown(mDispatcher,
             AINPUT_SOURCE_TRACKBALL, ADISPLAY_ID_DEFAULT, 20, 20))
             << "Inject motion event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    mFocusedWindow->consumeMotionDown();
 
     ASSERT_TRUE(mDispatcher->waitForIdle());
     mFakePolicy->assertOnPointerDownWasNotCalled();
@@ -1874,6 +1876,7 @@ TEST_F(InputDispatcherOnPointerDownOutsideFocus, OnPointerDownOutsideFocus_NonPo
 TEST_F(InputDispatcherOnPointerDownOutsideFocus, OnPointerDownOutsideFocus_NonMotionFailure) {
     ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher, ADISPLAY_ID_DEFAULT))
             << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    mFocusedWindow->consumeKeyDown(ADISPLAY_ID_DEFAULT);
 
     ASSERT_TRUE(mDispatcher->waitForIdle());
     mFakePolicy->assertOnPointerDownWasNotCalled();
@@ -1888,6 +1891,7 @@ TEST_F(InputDispatcherOnPointerDownOutsideFocus,
               injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
                                mFocusedWindowTouchPoint, mFocusedWindowTouchPoint))
             << "Inject motion event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    mFocusedWindow->consumeMotionDown();
 
     ASSERT_TRUE(mDispatcher->waitForIdle());
     mFakePolicy->assertOnPointerDownWasNotCalled();
