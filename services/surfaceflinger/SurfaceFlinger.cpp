@@ -169,18 +169,21 @@ bool isWideColorMode(const ColorMode colorMode) {
 
 #pragma clang diagnostic pop
 
-class ConditionalLock {
-public:
-    ConditionalLock(Mutex& mutex, bool lock) : mMutex(mutex), mLocked(lock) {
-        if (lock) {
-            mMutex.lock();
-        }
+template <typename Mutex>
+struct ConditionalLockGuard {
+    ConditionalLockGuard(Mutex& mutex, bool lock) : mutex(mutex), lock(lock) {
+        if (lock) mutex.lock();
     }
-    ~ConditionalLock() { if (mLocked) mMutex.unlock(); }
-private:
-    Mutex& mMutex;
-    bool mLocked;
+
+    ~ConditionalLockGuard() {
+        if (lock) mutex.unlock();
+    }
+
+    Mutex& mutex;
+    const bool lock;
 };
+
+using ConditionalLock = ConditionalLockGuard<Mutex>;
 
 // TODO(b/141333600): Consolidate with HWC2::Display::Config::Builder::getDefaultDensity.
 constexpr float FALLBACK_DENSITY = ACONFIGURATION_DENSITY_TV / 160.f;
@@ -1953,8 +1956,15 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
             // potentially trigger a display handoff.
             updateVrFlinger();
 
+            if (mTracingEnabledChanged) {
+                mTracingEnabled = mTracing.isEnabled();
+                mTracingEnabledChanged = false;
+            }
+
             bool refreshNeeded;
-            withTracingLock([&]() {
+            {
+                ConditionalLockGuard<std::mutex> lock(mTracingLock, mTracingEnabled);
+
                 refreshNeeded = handleMessageTransaction();
                 refreshNeeded |= handleMessageInvalidate();
                 if (mTracingEnabled) {
@@ -1964,7 +1974,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
                         mTracing.notifyLocked("visibleRegionsDirty");
                     }
                 }
-            });
+            }
 
             // Layers need to get updated (in the previous line) before we can use them for
             // choosing the refresh rate.
@@ -3035,26 +3045,6 @@ void SurfaceFlinger::commitTransactionLocked() {
 
     commitOffscreenLayers();
     mDrawingState.traverse([&](Layer* layer) { layer->updateMirrorInfo(); });
-}
-
-void SurfaceFlinger::withTracingLock(std::function<void()> lockedOperation) {
-    if (mTracingEnabledChanged) {
-        mTracingEnabled = mTracing.isEnabled();
-        mTracingEnabledChanged = false;
-    }
-
-    // Synchronize with Tracing thread
-    std::unique_lock<std::mutex> lock;
-    if (mTracingEnabled) {
-        lock = std::unique_lock<std::mutex>(mDrawingStateLock);
-    }
-
-    lockedOperation();
-
-    // Synchronize with Tracing thread
-    if (mTracingEnabled) {
-        lock.unlock();
-    }
 }
 
 void SurfaceFlinger::commitOffscreenLayers() {
@@ -4563,11 +4553,13 @@ void SurfaceFlinger::dumpWideColorInfo(std::string& result) const {
     result.append("\n");
 }
 
-LayersProto SurfaceFlinger::dumpDrawingStateProto(
-        uint32_t traceFlags, const sp<const DisplayDevice>& displayDevice) const {
+LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
+    // If context is SurfaceTracing thread, mTracingLock blocks display transactions on main thread.
+    const auto display = getDefaultDisplayDeviceLocked();
+
     LayersProto layersProto;
     for (const sp<Layer>& layer : mDrawingState.layersSortedByZ) {
-        layer->writeToProto(layersProto, traceFlags, displayDevice);
+        layer->writeToProto(layersProto, traceFlags, display);
     }
 
     return layersProto;
@@ -4599,10 +4591,7 @@ void SurfaceFlinger::dumpOffscreenLayersProto(LayersProto& layersProto, uint32_t
 
 LayersProto SurfaceFlinger::dumpProtoFromMainThread(uint32_t traceFlags) {
     LayersProto layersProto;
-    postMessageSync(new LambdaMessage([&]() {
-        const auto& displayDevice = getDefaultDisplayDeviceLocked();
-        layersProto = dumpDrawingStateProto(traceFlags, displayDevice);
-    }));
+    postMessageSync(new LambdaMessage([&] { layersProto = dumpDrawingStateProto(traceFlags); }));
     return layersProto;
 }
 
@@ -5129,20 +5118,12 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 n = data.readInt32();
                 if (n) {
                     ALOGD("LayerTracing enabled");
-                    Mutex::Autolock lock(mStateLock);
-                    mTracingEnabledChanged = true;
-                    mTracing.enable();
+                    mTracingEnabledChanged = mTracing.enable();
                     reply->writeInt32(NO_ERROR);
                 } else {
                     ALOGD("LayerTracing disabled");
-                    bool writeFile = false;
-                    {
-                        Mutex::Autolock lock(mStateLock);
-                        mTracingEnabledChanged = true;
-                        writeFile = mTracing.disable();
-                    }
-
-                    if (writeFile) {
+                    mTracingEnabledChanged = mTracing.disable();
+                    if (mTracingEnabledChanged) {
                         reply->writeInt32(mTracing.writeToFile());
                     } else {
                         reply->writeInt32(NO_ERROR);
