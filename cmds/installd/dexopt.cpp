@@ -262,6 +262,17 @@ static std::string MapPropertyToArg(const std::string& property,
   return "";
 }
 
+static std::string MapPropertyToArgWithBackup(const std::string& property,
+                                              const std::string& backupProperty,
+                                              const std::string& format,
+                                              const std::string& default_value = "") {
+  std::string value = GetProperty(property, default_value);
+  if (!value.empty()) {
+    return StringPrintf(format.c_str(), value.c_str());
+  }
+  return MapPropertyToArg(backupProperty, format, default_value);
+}
+
 // Determines which binary we should use for execution (the debug or non-debug version).
 // e.g. dex2oatd vs dex2oat
 static const char* select_execution_binary(const char* binary, const char* debug_binary,
@@ -321,6 +332,7 @@ class RunDex2Oat : public ExecVHelper {
                const char* compiler_filter,
                bool debuggable,
                bool post_bootcomplete,
+               bool for_restore,
                bool background_job_compile,
                int profile_fd,
                const char* class_loader_context,
@@ -336,14 +348,24 @@ class RunDex2Oat : public ExecVHelper {
         std::string dex2oat_Xms_arg = MapPropertyToArg("dalvik.vm.dex2oat-Xms", "-Xms%s");
         std::string dex2oat_Xmx_arg = MapPropertyToArg("dalvik.vm.dex2oat-Xmx", "-Xmx%s");
 
-        const char* threads_property = post_bootcomplete
-                ? "dalvik.vm.dex2oat-threads"
-                : "dalvik.vm.boot-dex2oat-threads";
-        std::string dex2oat_threads_arg = MapPropertyToArg(threads_property, "-j%s");
-        const char* cpu_set_property = post_bootcomplete
-                ? "dalvik.vm.dex2oat-cpu-set"
-                : "dalvik.vm.boot-dex2oat-cpu-set";
-        std::string dex2oat_cpu_set_arg = MapPropertyToArg(cpu_set_property, "--cpu-set=%s");
+        std::string threads_format = "-j%s";
+        std::string dex2oat_threads_arg = post_bootcomplete
+                ? (for_restore
+                    ? MapPropertyToArgWithBackup(
+                            "dalvik.vm.restore-dex2oat-threads",
+                            "dalvik.vm.dex2oat-threads",
+                            threads_format)
+                    : MapPropertyToArg("dalvik.vm.dex2oat-threads", threads_format))
+                : MapPropertyToArg("dalvik.vm.boot-dex2oat-threads", threads_format);
+        std::string cpu_set_format = "--cpu-set=%s";
+        std::string dex2oat_cpu_set_arg = post_bootcomplete
+                ? (for_restore
+                    ? MapPropertyToArgWithBackup(
+                            "dalvik.vm.restore-dex2oat-cpu-set",
+                            "dalvik.vm.dex2oat-cpu-set",
+                            cpu_set_format)
+                    : MapPropertyToArg("dalvik.vm.dex2oat-cpu-set", cpu_set_format))
+                : MapPropertyToArg("dalvik.vm.boot-dex2oat-cpu-set", cpu_set_format);
 
         std::string bootclasspath;
         char* dex2oat_bootclasspath = getenv("DEX2OATBOOTCLASSPATH");
@@ -2066,6 +2088,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     bool enable_hidden_api_checks = (dexopt_flags & DEXOPT_ENABLE_HIDDEN_API_CHECKS) != 0;
     bool generate_compact_dex = (dexopt_flags & DEXOPT_GENERATE_COMPACT_DEX) != 0;
     bool generate_app_image = (dexopt_flags & DEXOPT_GENERATE_APP_IMAGE) != 0;
+    bool for_restore = (dexopt_flags & DEXOPT_FOR_RESTORE) != 0;
 
     // Check if we're dealing with a secondary dex file and if we need to compile it.
     std::string oat_dir_str;
@@ -2182,6 +2205,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
                       compiler_filter,
                       debuggable,
                       boot_complete,
+                      for_restore,
                       background_job_compile,
                       reference_profile_fd.get(),
                       class_loader_context,
