@@ -178,10 +178,10 @@ void SetFrameRateTest::setupScheduler() {
 
     auto primaryDispSync = std::make_unique<mock::DispSync>();
 
-    EXPECT_CALL(*primaryDispSync, computeNextRefresh(0)).WillRepeatedly(Return(0));
+    EXPECT_CALL(*primaryDispSync, computeNextRefresh(0, _)).WillRepeatedly(Return(0));
     EXPECT_CALL(*primaryDispSync, getPeriod())
             .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_REFRESH_RATE));
-    EXPECT_CALL(*primaryDispSync, expectedPresentTime()).WillRepeatedly(Return(0));
+    EXPECT_CALL(*primaryDispSync, expectedPresentTime(_)).WillRepeatedly(Return(0));
     mFlinger.setupScheduler(std::move(primaryDispSync),
                             std::make_unique<mock::EventControlThread>(), std::move(eventThread),
                             std::move(sfEventThread));

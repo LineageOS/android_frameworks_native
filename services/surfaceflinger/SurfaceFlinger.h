@@ -316,7 +316,7 @@ public:
     // called on the main thread by MessageQueue when an internal message
     // is received
     // TODO: this should be made accessible only to MessageQueue
-    void onMessageReceived(int32_t what);
+    void onMessageReceived(int32_t what, nsecs_t when);
 
     renderengine::RenderEngine& getRenderEngine() const;
 
@@ -849,7 +849,7 @@ private:
 
     // Populates the expected present time for this frame. For negative offsets, performs a
     // correction using the predicted vsync for the next frame instead.
-    void populateExpectedPresentTime();
+    void populateExpectedPresentTime(nsecs_t now);
 
     /*
      * Display identification
