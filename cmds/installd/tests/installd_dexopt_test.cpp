@@ -759,6 +759,36 @@ TEST_F(DexoptTest, ResolveStartupConstStrings) {
     EXPECT_TRUE(found_enable);
 }
 
+TEST_F(DexoptTest, DexoptDex2oat64Enabled) {
+    LOG(INFO) << "DexoptDex2oat64Enabled";
+    const std::string property = "dalvik.vm.dex2oat64.enabled";
+    const std::string previous_value = android::base::GetProperty(property, "");
+    auto restore_property = android::base::make_scope_guard([=]() {
+        android::base::SetProperty(property, previous_value);
+    });
+    std::string odex = GetPrimaryDexArtifact(app_oat_dir_.c_str(), apk_path_, "odex");
+    // Disable the property and use dex2oat32.
+    ASSERT_TRUE(android::base::SetProperty(property, "false")) << property;
+    CompilePrimaryDexOk("speed-profile",
+                        DEXOPT_IDLE_BACKGROUND_JOB | DEXOPT_PROFILE_GUIDED |
+                                DEXOPT_GENERATE_APP_IMAGE,
+                        app_oat_dir_.c_str(),
+                        kTestAppGid,
+                        DEX2OAT_FROM_SCRATCH,
+                        /*binder_result=*/nullptr,
+                        empty_dm_file_.c_str());
+    // Enable the property and use dex2oat64.
+    ASSERT_TRUE(android::base::SetProperty(property, "true")) << property;
+    CompilePrimaryDexOk("speed-profile",
+                        DEXOPT_IDLE_BACKGROUND_JOB | DEXOPT_PROFILE_GUIDED |
+                                DEXOPT_GENERATE_APP_IMAGE,
+                        app_oat_dir_.c_str(),
+                        kTestAppGid,
+                        DEX2OAT_FROM_SCRATCH,
+                        /*binder_result=*/nullptr,
+                        empty_dm_file_.c_str());
+}
+
 class PrimaryDexReCompilationTest : public DexoptTest {
   public:
     virtual void SetUp() {
