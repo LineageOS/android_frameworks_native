@@ -55,6 +55,8 @@
 namespace android {
 namespace {
 
+namespace hal = android::hardware::graphics::composer::hal;
+
 using testing::_;
 using testing::AnyNumber;
 using testing::DoAll;
@@ -65,13 +67,18 @@ using testing::ReturnRefOfCopy;
 using testing::SetArgPointee;
 using testing::StrictMock;
 
-using android::Hwc2::ColorMode;
-using android::Hwc2::Error;
-using android::Hwc2::Hdr;
-using android::Hwc2::IComposer;
-using android::Hwc2::IComposerClient;
-using android::Hwc2::PerFrameMetadataKey;
-using android::Hwc2::RenderIntent;
+using hal::ColorMode;
+using hal::Connection;
+using hal::DisplayCapability;
+using hal::DisplayType;
+using hal::Error;
+using hal::Hdr;
+using hal::HWDisplayId;
+using hal::IComposer;
+using hal::IComposerClient;
+using hal::PerFrameMetadataKey;
+using hal::PowerMode;
+using hal::RenderIntent;
 
 using FakeDisplayDeviceInjector = TestableSurfaceFlinger::FakeDisplayDeviceInjector;
 using FakeHwcDisplayInjector = TestableSurfaceFlinger::FakeHwcDisplayInjector;
@@ -120,7 +127,7 @@ public:
     // --------------------------------------------------------------------
     // Postcondition helpers
 
-    bool hasPhysicalHwcDisplay(hwc2_display_t hwcDisplayId);
+    bool hasPhysicalHwcDisplay(HWDisplayId hwcDisplayId);
     bool hasTransactionFlagSet(int flag);
     bool hasDisplayDevice(sp<IBinder> displayToken);
     sp<DisplayDevice> getDisplayDevice(sp<IBinder> displayToken);
@@ -246,7 +253,7 @@ sp<DisplayDevice> DisplayTransactionTest::injectDefaultInternalDisplay(
     constexpr DisplayId DEFAULT_DISPLAY_ID = DisplayId{777};
     constexpr int DEFAULT_DISPLAY_WIDTH = 1080;
     constexpr int DEFAULT_DISPLAY_HEIGHT = 1920;
-    constexpr hwc2_display_t DEFAULT_DISPLAY_HWC_DISPLAY_ID = 0;
+    constexpr HWDisplayId DEFAULT_DISPLAY_HWC_DISPLAY_ID = 0;
 
     // The DisplayDevice is required to have a framebuffer (behind the
     // ANativeWindow interface) which uses the actual hardware display
@@ -285,7 +292,7 @@ sp<DisplayDevice> DisplayTransactionTest::injectDefaultInternalDisplay(
     return displayDevice;
 }
 
-bool DisplayTransactionTest::hasPhysicalHwcDisplay(hwc2_display_t hwcDisplayId) {
+bool DisplayTransactionTest::hasPhysicalHwcDisplay(HWDisplayId hwcDisplayId) {
     return mFlinger.mutableHwcPhysicalDisplayIdMap().count(hwcDisplayId) == 1;
 }
 
@@ -376,19 +383,19 @@ struct DisplayConnectionTypeGetter<PhysicalDisplayId<PhysicalDisplay>> {
 
 template <typename>
 struct HwcDisplayIdGetter {
-    static constexpr std::optional<hwc2_display_t> value;
+    static constexpr std::optional<HWDisplayId> value;
 };
 
-constexpr hwc2_display_t HWC_VIRTUAL_DISPLAY_HWC_DISPLAY_ID = 1010;
+constexpr HWDisplayId HWC_VIRTUAL_DISPLAY_HWC_DISPLAY_ID = 1010;
 
 template <DisplayId::Type displayId>
 struct HwcDisplayIdGetter<VirtualDisplayId<displayId>> {
-    static constexpr std::optional<hwc2_display_t> value = HWC_VIRTUAL_DISPLAY_HWC_DISPLAY_ID;
+    static constexpr std::optional<HWDisplayId> value = HWC_VIRTUAL_DISPLAY_HWC_DISPLAY_ID;
 };
 
 template <typename PhysicalDisplay>
 struct HwcDisplayIdGetter<PhysicalDisplayId<PhysicalDisplay>> {
-    static constexpr std::optional<hwc2_display_t> value = PhysicalDisplay::HWC_DISPLAY_ID;
+    static constexpr std::optional<HWDisplayId> value = PhysicalDisplay::HWC_DISPLAY_ID;
 };
 
 // DisplayIdType can be:
@@ -497,21 +504,20 @@ struct DisplayVariant {
     }
 };
 
-template <hwc2_display_t hwcDisplayId, HWC2::DisplayType hwcDisplayType, typename DisplayVariant,
+template <HWDisplayId hwcDisplayId, DisplayType hwcDisplayType, typename DisplayVariant,
           typename PhysicalDisplay = void>
 struct HwcDisplayVariant {
     // The display id supplied by the HWC
-    static constexpr hwc2_display_t HWC_DISPLAY_ID = hwcDisplayId;
+    static constexpr HWDisplayId HWC_DISPLAY_ID = hwcDisplayId;
 
     // The HWC display type
-    static constexpr HWC2::DisplayType HWC_DISPLAY_TYPE = hwcDisplayType;
+    static constexpr DisplayType HWC_DISPLAY_TYPE = hwcDisplayType;
 
     // The HWC active configuration id
     static constexpr int HWC_ACTIVE_CONFIG_ID = 2001;
     static constexpr int INIT_POWER_MODE = HWC_POWER_MODE_NORMAL;
 
-    static void injectPendingHotplugEvent(DisplayTransactionTest* test,
-                                          HWC2::Connection connection) {
+    static void injectPendingHotplugEvent(DisplayTransactionTest* test, Connection connection) {
         test->mFlinger.mutablePendingHotplugEvents().emplace_back(
                 HotplugEvent{HWC_DISPLAY_ID, connection});
     }
@@ -533,11 +539,10 @@ struct HwcDisplayVariant {
     // Called by tests to inject a HWC display setup
     static void injectHwcDisplay(DisplayTransactionTest* test) {
         EXPECT_CALL(*test->mComposer, getDisplayCapabilities(HWC_DISPLAY_ID, _))
-                .WillOnce(DoAll(SetArgPointee<1>(std::vector<Hwc2::DisplayCapability>({})),
+                .WillOnce(DoAll(SetArgPointee<1>(std::vector<DisplayCapability>({})),
                                 Return(Error::NONE)));
         EXPECT_CALL(*test->mComposer,
-                    setPowerMode(HWC_DISPLAY_ID,
-                                 static_cast<Hwc2::IComposerClient::PowerMode>(INIT_POWER_MODE)))
+                    setPowerMode(HWC_DISPLAY_ID, static_cast<PowerMode>(INIT_POWER_MODE)))
                 .WillOnce(Return(Error::NONE));
         injectHwcDisplayWithNoDefaultCapabilities(test);
     }
@@ -568,10 +573,10 @@ struct HwcDisplayVariant {
                 : IComposerClient::DisplayConnectionType::EXTERNAL;
 
         EXPECT_CALL(*test->mComposer, getDisplayConnectionType(HWC_DISPLAY_ID, _))
-                .WillOnce(
-                        DoAll(SetArgPointee<1>(CONNECTION_TYPE), Return(Hwc2::V2_4::Error::NONE)));
+                .WillOnce(DoAll(SetArgPointee<1>(CONNECTION_TYPE), Return(hal::V2_4::Error::NONE)));
 
-        EXPECT_CALL(*test->mComposer, setClientTargetSlotCount(_)).WillOnce(Return(Error::NONE));
+        EXPECT_CALL(*test->mComposer, setClientTargetSlotCount(_))
+                .WillOnce(Return(hal::Error::NONE));
         EXPECT_CALL(*test->mComposer, getDisplayConfigs(HWC_DISPLAY_ID, _))
                 .WillOnce(DoAll(SetArgPointee<1>(std::vector<unsigned>{HWC_ACTIVE_CONFIG_ID}),
                                 Return(Error::NONE)));
@@ -626,7 +631,7 @@ template <typename PhysicalDisplay, int width, int height, Critical critical>
 struct PhysicalDisplayVariant
       : DisplayVariant<PhysicalDisplayId<PhysicalDisplay>, width, height, critical, Async::FALSE,
                        Secure::TRUE, PhysicalDisplay::PRIMARY, GRALLOC_USAGE_PHYSICAL_DISPLAY>,
-        HwcDisplayVariant<PhysicalDisplay::HWC_DISPLAY_ID, HWC2::DisplayType::Physical,
+        HwcDisplayVariant<PhysicalDisplay::HWC_DISPLAY_ID, DisplayType::PHYSICAL,
                           DisplayVariant<PhysicalDisplayId<PhysicalDisplay>, width, height,
                                          critical, Async::FALSE, Secure::TRUE,
                                          PhysicalDisplay::PRIMARY, GRALLOC_USAGE_PHYSICAL_DISPLAY>,
@@ -637,7 +642,7 @@ struct PrimaryDisplay {
     static constexpr auto CONNECTION_TYPE = DisplayConnectionType::Internal;
     static constexpr Primary PRIMARY = Primary::TRUE;
     static constexpr uint8_t PORT = 255;
-    static constexpr hwc2_display_t HWC_DISPLAY_ID = 1001;
+    static constexpr HWDisplayId HWC_DISPLAY_ID = 1001;
     static constexpr bool HAS_IDENTIFICATION_DATA = hasIdentificationData;
     static constexpr auto GET_IDENTIFICATION_DATA = getInternalEdid;
 };
@@ -647,7 +652,7 @@ struct ExternalDisplay {
     static constexpr auto CONNECTION_TYPE = DisplayConnectionType::External;
     static constexpr Primary PRIMARY = Primary::FALSE;
     static constexpr uint8_t PORT = 254;
-    static constexpr hwc2_display_t HWC_DISPLAY_ID = 1002;
+    static constexpr HWDisplayId HWC_DISPLAY_ID = 1002;
     static constexpr bool HAS_IDENTIFICATION_DATA = hasIdentificationData;
     static constexpr auto GET_IDENTIFICATION_DATA = getExternalEdid;
 };
@@ -655,7 +660,7 @@ struct ExternalDisplay {
 struct TertiaryDisplay {
     static constexpr Primary PRIMARY = Primary::FALSE;
     static constexpr uint8_t PORT = 253;
-    static constexpr hwc2_display_t HWC_DISPLAY_ID = 1003;
+    static constexpr HWDisplayId HWC_DISPLAY_ID = 1003;
     static constexpr auto GET_IDENTIFICATION_DATA = getExternalEdid;
 };
 
@@ -716,7 +721,7 @@ struct HwcVirtualDisplayVariant
       : DisplayVariant<VirtualDisplayId<42>, width, height, Critical::FALSE, Async::TRUE, secure,
                        Primary::FALSE, GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY>,
         HwcDisplayVariant<
-                HWC_VIRTUAL_DISPLAY_HWC_DISPLAY_ID, HWC2::DisplayType::Virtual,
+                HWC_VIRTUAL_DISPLAY_HWC_DISPLAY_ID, DisplayType::VIRTUAL,
                 DisplayVariant<VirtualDisplayId<42>, width, height, Critical::FALSE, Async::TRUE,
                                secure, Primary::FALSE, GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY>> {
     using Base = DisplayVariant<VirtualDisplayId<42>, width, height, Critical::FALSE, Async::TRUE,
@@ -1046,8 +1051,8 @@ using HdrCta861_3_DisplayCase =
 
 TEST_F(DisplayTransactionTest, hotplugEnqueuesEventsForDisplayTransaction) {
     constexpr int currentSequenceId = 123;
-    constexpr hwc2_display_t hwcDisplayId1 = 456;
-    constexpr hwc2_display_t hwcDisplayId2 = 654;
+    constexpr HWDisplayId hwcDisplayId1 = 456;
+    constexpr HWDisplayId hwcDisplayId2 = 654;
 
     // --------------------------------------------------------------------
     // Preconditions
@@ -1070,8 +1075,8 @@ TEST_F(DisplayTransactionTest, hotplugEnqueuesEventsForDisplayTransaction) {
     // Invocation
 
     // Simulate two hotplug events (a connect and a disconnect)
-    mFlinger.onHotplugReceived(currentSequenceId, hwcDisplayId1, HWC2::Connection::Connected);
-    mFlinger.onHotplugReceived(currentSequenceId, hwcDisplayId2, HWC2::Connection::Disconnected);
+    mFlinger.onHotplugReceived(currentSequenceId, hwcDisplayId1, Connection::CONNECTED);
+    mFlinger.onHotplugReceived(currentSequenceId, hwcDisplayId2, Connection::DISCONNECTED);
 
     // --------------------------------------------------------------------
     // Postconditions
@@ -1083,15 +1088,15 @@ TEST_F(DisplayTransactionTest, hotplugEnqueuesEventsForDisplayTransaction) {
     const auto& pendingEvents = mFlinger.mutablePendingHotplugEvents();
     ASSERT_EQ(2u, pendingEvents.size());
     EXPECT_EQ(hwcDisplayId1, pendingEvents[0].hwcDisplayId);
-    EXPECT_EQ(HWC2::Connection::Connected, pendingEvents[0].connection);
+    EXPECT_EQ(Connection::CONNECTED, pendingEvents[0].connection);
     EXPECT_EQ(hwcDisplayId2, pendingEvents[1].hwcDisplayId);
-    EXPECT_EQ(HWC2::Connection::Disconnected, pendingEvents[1].connection);
+    EXPECT_EQ(Connection::DISCONNECTED, pendingEvents[1].connection);
 }
 
 TEST_F(DisplayTransactionTest, hotplugDiscardsUnexpectedEvents) {
     constexpr int currentSequenceId = 123;
     constexpr int otherSequenceId = 321;
-    constexpr hwc2_display_t displayId = 456;
+    constexpr HWDisplayId displayId = 456;
 
     // --------------------------------------------------------------------
     // Preconditions
@@ -1113,7 +1118,7 @@ TEST_F(DisplayTransactionTest, hotplugDiscardsUnexpectedEvents) {
     // Invocation
 
     // Call with an unexpected sequence id
-    mFlinger.onHotplugReceived(otherSequenceId, displayId, HWC2::Connection::Invalid);
+    mFlinger.onHotplugReceived(otherSequenceId, displayId, Connection::INVALID);
 
     // --------------------------------------------------------------------
     // Postconditions
@@ -1127,7 +1132,7 @@ TEST_F(DisplayTransactionTest, hotplugDiscardsUnexpectedEvents) {
 
 TEST_F(DisplayTransactionTest, hotplugProcessesEnqueuedEventsIfCalledOnMainThread) {
     constexpr int currentSequenceId = 123;
-    constexpr hwc2_display_t displayId1 = 456;
+    constexpr HWDisplayId displayId1 = 456;
 
     // --------------------------------------------------------------------
     // Note:
@@ -1161,7 +1166,7 @@ TEST_F(DisplayTransactionTest, hotplugProcessesEnqueuedEventsIfCalledOnMainThrea
     // Simulate a disconnect on a display id that is not connected. This should
     // be enqueued by onHotplugReceived(), and dequeued by
     // processDisplayHotplugEventsLocked(), but then ignored as invalid.
-    mFlinger.onHotplugReceived(currentSequenceId, displayId1, HWC2::Connection::Disconnected);
+    mFlinger.onHotplugReceived(currentSequenceId, displayId1, Connection::DISCONNECTED);
 
     // --------------------------------------------------------------------
     // Postconditions
@@ -2010,7 +2015,7 @@ void HandleTransactionLockedTest::processesHotplugConnectCommon() {
     setupCommonPreconditions<Case>();
 
     // A hotplug connect event is enqueued for a display
-    Case::Display::injectPendingHotplugEvent(this, HWC2::Connection::Connected);
+    Case::Display::injectPendingHotplugEvent(this, Connection::CONNECTED);
 
     // --------------------------------------------------------------------
     // Call Expectations
@@ -2046,7 +2051,7 @@ void HandleTransactionLockedTest::ignoresHotplugConnectCommon() {
     setupCommonPreconditions<Case>();
 
     // A hotplug connect event is enqueued for a display
-    Case::Display::injectPendingHotplugEvent(this, HWC2::Connection::Connected);
+    Case::Display::injectPendingHotplugEvent(this, Connection::CONNECTED);
 
     // --------------------------------------------------------------------
     // Invocation
@@ -2068,7 +2073,7 @@ void HandleTransactionLockedTest::processesHotplugDisconnectCommon() {
     setupCommonPreconditions<Case>();
 
     // A hotplug disconnect event is enqueued for a display
-    Case::Display::injectPendingHotplugEvent(this, HWC2::Connection::Disconnected);
+    Case::Display::injectPendingHotplugEvent(this, Connection::DISCONNECTED);
 
     // The display is already completely set up.
     Case::Display::injectHwcDisplay(this);
@@ -2166,9 +2171,9 @@ TEST_F(HandleTransactionLockedTest, processesHotplugConnectThenDisconnectPrimary
     setupCommonPreconditions<Case>();
 
     // A hotplug connect event is enqueued for a display
-    Case::Display::injectPendingHotplugEvent(this, HWC2::Connection::Connected);
+    Case::Display::injectPendingHotplugEvent(this, Connection::CONNECTED);
     // A hotplug disconnect event is also enqueued for the same display
-    Case::Display::injectPendingHotplugEvent(this, HWC2::Connection::Disconnected);
+    Case::Display::injectPendingHotplugEvent(this, Connection::DISCONNECTED);
 
     // --------------------------------------------------------------------
     // Call Expectations
@@ -2214,9 +2219,9 @@ TEST_F(HandleTransactionLockedTest, processesHotplugDisconnectThenConnectPrimary
     existing.inject();
 
     // A hotplug disconnect event is enqueued for a display
-    Case::Display::injectPendingHotplugEvent(this, HWC2::Connection::Disconnected);
+    Case::Display::injectPendingHotplugEvent(this, Connection::DISCONNECTED);
     // A hotplug connect event is also enqueued for the same display
-    Case::Display::injectPendingHotplugEvent(this, HWC2::Connection::Connected);
+    Case::Display::injectPendingHotplugEvent(this, Connection::CONNECTED);
 
     // --------------------------------------------------------------------
     // Call Expectations
@@ -3156,8 +3161,8 @@ struct DozeIsSupportedVariant {
 
     static void setupComposerCallExpectations(DisplayTransactionTest* test) {
         EXPECT_CALL(*test->mComposer, getDisplayCapabilities(Display::HWC_DISPLAY_ID, _))
-                .WillOnce(DoAll(SetArgPointee<1>(std::vector<Hwc2::DisplayCapability>(
-                                        {Hwc2::DisplayCapability::DOZE})),
+                .WillOnce(DoAll(SetArgPointee<1>(
+                                        std::vector<DisplayCapability>({DisplayCapability::DOZE})),
                                 Return(Error::NONE)));
     }
 };
@@ -3173,7 +3178,7 @@ struct DozeNotSupportedVariant {
 
     static void setupComposerCallExpectations(DisplayTransactionTest* test) {
         EXPECT_CALL(*test->mComposer, getDisplayCapabilities(Display::HWC_DISPLAY_ID, _))
-                .WillOnce(DoAll(SetArgPointee<1>(std::vector<Hwc2::DisplayCapability>({})),
+                .WillOnce(DoAll(SetArgPointee<1>(std::vector<DisplayCapability>({})),
                                 Return(Error::NONE)));
     }
 };
