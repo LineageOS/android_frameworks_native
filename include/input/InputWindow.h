@@ -222,7 +222,7 @@ public:
     }
 
     inline std::string getName() const {
-        return mInfo.token ? mInfo.name : "<invalid>";
+        return !mInfo.name.empty() ? mInfo.name : "<invalid>";
     }
 
     inline nsecs_t getDispatchingTimeout(nsecs_t defaultValue) const {
