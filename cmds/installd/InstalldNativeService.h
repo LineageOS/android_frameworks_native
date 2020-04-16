@@ -44,7 +44,12 @@ public:
             int32_t userSerial, int32_t flags);
     binder::Status destroyUserData(const std::optional<std::string>& uuid, int32_t userId,
             int32_t flags);
-
+    binder::Status createAppDataBatched(
+            const std::optional<std::vector<std::optional<std::string>>>& uuids,
+            const std::optional<std::vector<std::optional<std::string>>>& packageNames,
+            int32_t userId, int32_t flags, const std::vector<int32_t>& appIds,
+            const std::vector<std::string>& seInfos, const std::vector<int32_t>& targetSdkVersions,
+            int64_t* _aidl_return);
     binder::Status createAppData(const std::optional<std::string>& uuid,
             const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
             const std::string& seInfo, int32_t targetSdkVersion, int64_t* _aidl_return);
