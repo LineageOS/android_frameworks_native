@@ -2098,6 +2098,8 @@ void SurfaceFlinger::handleMessageRefresh() {
     postFrame();
     postComposition();
 
+    const bool prevFrameHadDeviceComposition = mHadDeviceComposition;
+
     mHadClientComposition =
             std::any_of(mDisplays.cbegin(), mDisplays.cend(), [](const auto& tokenDisplayPair) {
                 auto& displayDevice = tokenDisplayPair.second;
@@ -2114,6 +2116,11 @@ void SurfaceFlinger::handleMessageRefresh() {
                 auto& displayDevice = tokenDisplayPair.second;
                 return displayDevice->getCompositionDisplay()->getState().reusedClientComposition;
             });
+
+    // Only report a strategy change if we move in and out of composition with hw overlays
+    if (prevFrameHadDeviceComposition != mHadDeviceComposition) {
+        mTimeStats->incrementCompositionStrategyChanges();
+    }
 
     mVSyncModulator->onRefreshed(mHadClientComposition);
 
