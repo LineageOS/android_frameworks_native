@@ -31,11 +31,11 @@
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion"
 
+namespace android {
+
 namespace HWC2 {
 class Layer;
 } // namespace HWC2
-
-namespace android {
 
 namespace compositionengine {
 
