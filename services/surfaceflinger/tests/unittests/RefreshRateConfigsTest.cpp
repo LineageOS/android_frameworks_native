@@ -32,6 +32,8 @@ using testing::_;
 namespace android {
 namespace scheduler {
 
+namespace hal = android::hardware::graphics::composer::hal;
+
 using RefreshRate = RefreshRateConfigs::RefreshRate;
 using LayerVoteType = RefreshRateConfigs::LayerVoteType;
 using LayerRequirement = RefreshRateConfigs::LayerRequirement;
@@ -142,7 +144,7 @@ RefreshRateConfigsTest::~RefreshRateConfigsTest() {
 std::shared_ptr<const HWC2::Display::Config> RefreshRateConfigsTest::createConfig(
         HwcConfigIndexType configId, int32_t configGroup, int64_t vsyncPeriod, int32_t hight,
         int32_t width) {
-    return HWC2::Display::Config::Builder(mDisplay, hwc2_config_t(configId.value()))
+    return HWC2::Display::Config::Builder(mDisplay, hal::HWConfigId(configId.value()))
             .setVsyncPeriod(int32_t(vsyncPeriod))
             .setConfigGroup(configGroup)
             .setHeight(hight)
