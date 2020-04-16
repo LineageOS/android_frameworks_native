@@ -65,7 +65,7 @@ bool InputWindowInfo::overlaps(const InputWindowInfo* other) const {
 }
 
 status_t InputWindowInfo::write(Parcel& output) const {
-    if (token == nullptr) {
+    if (name.empty()) {
         output.writeInt32(0);
         return OK;
     }
@@ -110,12 +110,7 @@ InputWindowInfo InputWindowInfo::read(const Parcel& from) {
         return ret;
     }
 
-    sp<IBinder> token = from.readStrongBinder();
-    if (token == nullptr) {
-        return ret;
-    }
-
-    ret.token = token;
+    ret.token = from.readStrongBinder();
     ret.id = from.readInt32();
     ret.name = from.readString8().c_str();
     ret.layoutParamsFlags = from.readInt32();
