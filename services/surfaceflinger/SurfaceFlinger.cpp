@@ -4398,11 +4398,19 @@ void SurfaceFlinger::dumpVSync(std::string& result) const {
 
     scheduler::RefreshRateConfigs::Policy policy = mRefreshRateConfigs->getDisplayManagerPolicy();
     StringAppendF(&result,
-                  "DesiredDisplayConfigSpecs: default config ID: %d"
+                  "DesiredDisplayConfigSpecs (DisplayManager): default config ID: %d"
                   ", min: %.2f Hz, max: %.2f Hz",
                   policy.defaultConfig.value(), policy.minRefreshRate, policy.maxRefreshRate);
     StringAppendF(&result, "(config override by backdoor: %s)\n\n",
                   mDebugDisplayConfigSetByBackdoor ? "yes" : "no");
+    scheduler::RefreshRateConfigs::Policy currentPolicy = mRefreshRateConfigs->getCurrentPolicy();
+    if (currentPolicy != policy) {
+        StringAppendF(&result,
+                      "DesiredDisplayConfigSpecs (Override): default config ID: %d"
+                      ", min: %.2f Hz, max: %.2f Hz\n\n",
+                      currentPolicy.defaultConfig.value(), currentPolicy.minRefreshRate,
+                      currentPolicy.maxRefreshRate);
+    }
 
     mScheduler->dump(mAppConnectionHandle, result);
     mScheduler->getPrimaryDispSync().dump(result);
@@ -4927,9 +4935,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         code == IBinder::SYSPROPS_TRANSACTION) {
         return OK;
     }
-    // Numbers from 1000 to 1034 are currently used for backdoors. The code
+    // Numbers from 1000 to 1036 are currently used for backdoors. The code
     // in onTransact verifies that the user is root, and has access to use SF.
-    if (code >= 1000 && code <= 1035) {
+    if (code >= 1000 && code <= 1036) {
         ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
         return OK;
     }
@@ -5255,6 +5263,18 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                         return result;
                     }
                     mDebugDisplayConfigSetByBackdoor = true;
+                }
+                return NO_ERROR;
+            }
+            case 1036: {
+                if (data.readInt32() > 0) {
+                    status_t result =
+                            acquireFrameRateFlexibilityToken(&mDebugFrameRateFlexibilityToken);
+                    if (result != NO_ERROR) {
+                        return result;
+                    }
+                } else {
+                    mDebugFrameRateFlexibilityToken = nullptr;
                 }
                 return NO_ERROR;
             }
