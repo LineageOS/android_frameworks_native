@@ -19,7 +19,6 @@
 #include <gtest/gtest.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
-#include <hardware/hwcomposer_defs.h>
 #include <private/gui/ComposerService.h>
 #include <ui/DisplayConfig.h>
 

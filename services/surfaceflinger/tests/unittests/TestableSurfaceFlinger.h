@@ -57,6 +57,8 @@ class Composer;
 
 } // namespace Hwc2
 
+namespace hal = android::hardware::graphics::composer::hal;
+
 namespace surfaceflinger::test {
 
 class Factory final : public surfaceflinger::Factory {
@@ -257,12 +259,12 @@ public:
         layer->editCompositionState()->sidebandStream = sidebandStream;
     }
 
-    void setLayerCompositionType(sp<Layer> layer, HWC2::Composition type) {
+    void setLayerCompositionType(sp<Layer> layer, hal::Composition type) {
         auto outputLayer = layer->findOutputLayerForDisplay(mFlinger->getDefaultDisplayDevice());
         LOG_ALWAYS_FATAL_IF(!outputLayer);
         auto& state = outputLayer->editState();
         LOG_ALWAYS_FATAL_IF(!outputLayer->getState().hwc);
-        (*state.hwc).hwcCompositionType = static_cast<Hwc2::IComposerClient::Composition>(type);
+        (*state.hwc).hwcCompositionType = type;
     };
 
     void setLayerPotentialCursor(sp<Layer> layer, bool potentialCursor) {
@@ -298,8 +300,8 @@ public:
         return mFlinger->handleTransactionLocked(transactionFlags);
     }
 
-    auto onHotplugReceived(int32_t sequenceId, hwc2_display_t display,
-                           HWC2::Connection connection) {
+    auto onHotplugReceived(int32_t sequenceId, hal::HWDisplayId display,
+                           hal::Connection connection) {
         return mFlinger->onHotplugReceived(sequenceId, display, connection);
     }
 
@@ -428,12 +430,12 @@ public:
      */
     struct HWC2Display : public HWC2::impl::Display {
         HWC2Display(Hwc2::Composer& composer,
-                    const std::unordered_set<HWC2::Capability>& capabilities, hwc2_display_t id,
-                    HWC2::DisplayType type)
+                    const std::unordered_set<hal::Capability>& capabilities, hal::HWDisplayId id,
+                    hal::DisplayType type)
               : HWC2::impl::Display(composer, capabilities, id, type) {}
         ~HWC2Display() {
             // Prevents a call to disable vsyncs.
-            mType = HWC2::DisplayType::Invalid;
+            mType = hal::DisplayType::INVALID;
         }
 
         auto& mutableIsConnected() { return this->mIsConnected; }
@@ -443,20 +445,19 @@ public:
 
     class FakeHwcDisplayInjector {
     public:
-        static constexpr hwc2_display_t DEFAULT_HWC_DISPLAY_ID = 1000;
+        static constexpr hal::HWDisplayId DEFAULT_HWC_DISPLAY_ID = 1000;
         static constexpr int32_t DEFAULT_WIDTH = 1920;
         static constexpr int32_t DEFAULT_HEIGHT = 1280;
         static constexpr int32_t DEFAULT_REFRESH_RATE = 16'666'666;
         static constexpr int32_t DEFAULT_CONFIG_GROUP = 7;
         static constexpr int32_t DEFAULT_DPI = 320;
-        static constexpr hwc2_config_t DEFAULT_ACTIVE_CONFIG = 0;
+        static constexpr hal::HWConfigId DEFAULT_ACTIVE_CONFIG = 0;
         static constexpr int32_t DEFAULT_POWER_MODE = 2;
 
-        FakeHwcDisplayInjector(DisplayId displayId, HWC2::DisplayType hwcDisplayType,
-                               bool isPrimary)
+        FakeHwcDisplayInjector(DisplayId displayId, hal::DisplayType hwcDisplayType, bool isPrimary)
               : mDisplayId(displayId), mHwcDisplayType(hwcDisplayType), mIsPrimary(isPrimary) {}
 
-        auto& setHwcDisplayId(hwc2_display_t displayId) {
+        auto& setHwcDisplayId(hal::HWDisplayId displayId) {
             mHwcDisplayId = displayId;
             return *this;
         }
@@ -486,12 +487,12 @@ public:
             return *this;
         }
 
-        auto& setActiveConfig(hwc2_config_t config) {
+        auto& setActiveConfig(hal::HWConfigId config) {
             mActiveConfig = config;
             return *this;
         }
 
-        auto& setCapabilities(const std::unordered_set<HWC2::Capability>* capabilities) {
+        auto& setCapabilities(const std::unordered_set<hal::Capability>* capabilities) {
             mCapabilities = capabilities;
             return *this;
         }
@@ -502,7 +503,7 @@ public:
         }
 
         void inject(TestableSurfaceFlinger* flinger, Hwc2::Composer* composer) {
-            static const std::unordered_set<HWC2::Capability> defaultCapabilities;
+            static const std::unordered_set<hal::Capability> defaultCapabilities;
             if (mCapabilities == nullptr) mCapabilities = &defaultCapabilities;
 
             // Caution - Make sure that any values passed by reference here do
@@ -521,11 +522,11 @@ public:
             config.setConfigGroup(mConfigGroup);
             display->mutableConfigs().emplace(static_cast<int32_t>(mActiveConfig), config.build());
             display->mutableIsConnected() = true;
-            display->setPowerMode(static_cast<HWC2::PowerMode>(mPowerMode));
+            display->setPowerMode(static_cast<hal::PowerMode>(mPowerMode));
 
             flinger->mutableHwcDisplayData()[mDisplayId].hwcDisplay = std::move(display);
 
-            if (mHwcDisplayType == HWC2::DisplayType::Physical) {
+            if (mHwcDisplayType == hal::DisplayType::PHYSICAL) {
                 flinger->mutableHwcPhysicalDisplayIdMap().emplace(mHwcDisplayId, mDisplayId);
                 (mIsPrimary ? flinger->mutableInternalHwcDisplayId()
                             : flinger->mutableExternalHwcDisplayId()) = mHwcDisplayId;
@@ -534,19 +535,19 @@ public:
 
     private:
         const DisplayId mDisplayId;
-        const HWC2::DisplayType mHwcDisplayType;
+        const hal::DisplayType mHwcDisplayType;
         const bool mIsPrimary;
 
-        hwc2_display_t mHwcDisplayId = DEFAULT_HWC_DISPLAY_ID;
+        hal::HWDisplayId mHwcDisplayId = DEFAULT_HWC_DISPLAY_ID;
         int32_t mWidth = DEFAULT_WIDTH;
         int32_t mHeight = DEFAULT_HEIGHT;
         int32_t mRefreshRate = DEFAULT_REFRESH_RATE;
         int32_t mDpiX = DEFAULT_DPI;
         int32_t mConfigGroup = DEFAULT_CONFIG_GROUP;
         int32_t mDpiY = DEFAULT_DPI;
-        hwc2_config_t mActiveConfig = DEFAULT_ACTIVE_CONFIG;
+        hal::HWConfigId mActiveConfig = DEFAULT_ACTIVE_CONFIG;
         int32_t mPowerMode = DEFAULT_POWER_MODE;
-        const std::unordered_set<HWC2::Capability>* mCapabilities = nullptr;
+        const std::unordered_set<hal::Capability>* mCapabilities = nullptr;
     };
 
     class FakeDisplayDeviceInjector {
@@ -554,7 +555,7 @@ public:
         FakeDisplayDeviceInjector(TestableSurfaceFlinger& flinger,
                                   std::shared_ptr<compositionengine::Display> compositionDisplay,
                                   std::optional<DisplayConnectionType> connectionType,
-                                  std::optional<hwc2_display_t> hwcDisplayId, bool isPrimary)
+                                  std::optional<hal::HWDisplayId> hwcDisplayId, bool isPrimary)
               : mFlinger(flinger),
                 mCreationArgs(flinger.mFlinger.get(), mDisplayToken, compositionDisplay),
                 mHwcDisplayId(hwcDisplayId) {
@@ -647,7 +648,7 @@ public:
         TestableSurfaceFlinger& mFlinger;
         sp<BBinder> mDisplayToken = new BBinder();
         DisplayDeviceCreationArgs mCreationArgs;
-        const std::optional<hwc2_display_t> mHwcDisplayId;
+        const std::optional<hal::HWDisplayId> mHwcDisplayId;
     };
 
     surfaceflinger::test::Factory mFactory;

@@ -20,7 +20,6 @@
 #include <ui/Fence.h>
 #include <ui/FloatRect.h>
 #include <ui/GraphicBuffer.h>
-
 #include <ui/Rect.h>
 #include <ui/Region.h>
 #include <ui/Transform.h>
@@ -35,31 +34,36 @@
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion"
 
+namespace android {
 namespace HWC2 {
 namespace mock {
+
+namespace hal = android::hardware::graphics::composer::hal;
+
+using Error = hal::Error;
 
 class Layer : public HWC2::Layer {
 public:
     Layer();
     ~Layer() override;
 
-    MOCK_CONST_METHOD0(getId, hwc2_layer_t());
+    MOCK_CONST_METHOD0(getId, hal::HWLayerId());
 
     MOCK_METHOD2(setCursorPosition, Error(int32_t, int32_t));
     MOCK_METHOD3(setBuffer,
                  Error(uint32_t, const android::sp<android::GraphicBuffer>&,
                        const android::sp<android::Fence>&));
     MOCK_METHOD1(setSurfaceDamage, Error(const android::Region&));
-    MOCK_METHOD1(setBlendMode, Error(BlendMode));
-    MOCK_METHOD1(setColor, Error(hwc_color_t));
-    MOCK_METHOD1(setCompositionType, Error(Composition));
+    MOCK_METHOD1(setBlendMode, Error(hal::BlendMode));
+    MOCK_METHOD1(setColor, Error(hal::Color));
+    MOCK_METHOD1(setCompositionType, Error(hal::Composition));
     MOCK_METHOD1(setDataspace, Error(android::ui::Dataspace));
     MOCK_METHOD2(setPerFrameMetadata, Error(const int32_t, const android::HdrMetadata&));
     MOCK_METHOD1(setDisplayFrame, Error(const android::Rect&));
     MOCK_METHOD1(setPlaneAlpha, Error(float));
     MOCK_METHOD1(setSidebandStream, Error(const native_handle_t*));
     MOCK_METHOD1(setSourceCrop, Error(const android::FloatRect&));
-    MOCK_METHOD1(setTransform, Error(Transform));
+    MOCK_METHOD1(setTransform, Error(hal::Transform));
     MOCK_METHOD1(setVisibleRegion, Error(const android::Region&));
     MOCK_METHOD1(setZOrder, Error(uint32_t));
     MOCK_METHOD2(setInfo, Error(uint32_t, uint32_t));
@@ -71,3 +75,4 @@ public:
 
 } // namespace mock
 } // namespace HWC2
+} // namespace android
