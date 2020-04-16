@@ -27,6 +27,7 @@ cc_library_headers {
         "android.hardware.graphics.bufferqueue@1.0",
         "android.hardware.graphics.bufferqueue@2.0",
     ],
+    min_sdk_version: "29",
 }
 
 cc_library_shared {

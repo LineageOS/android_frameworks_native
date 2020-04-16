@@ -35,4 +35,5 @@ cc_library_static {
             enabled: true,
         },
     },
+    min_sdk_version: "29",
 }

@@ -25,6 +25,7 @@ cc_library_headers {
     name: "libnativewindow_headers",
     export_include_dirs: ["include"],
     vendor_available: true,
+    min_sdk_version: "29",
 }
 
 ndk_library {
