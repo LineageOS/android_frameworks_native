@@ -36,6 +36,8 @@
 namespace android {
 namespace {
 
+namespace hal = android::hardware::graphics::composer::hal;
+
 using ::testing::_;
 using ::testing::DoAll;
 using ::testing::ElementsAreArray;
@@ -47,15 +49,15 @@ struct MockHWC2ComposerCallback : public HWC2::ComposerCallback {
     ~MockHWC2ComposerCallback() = default;
 
     MOCK_METHOD3(onHotplugReceived,
-                 void(int32_t sequenceId, hwc2_display_t display, HWC2::Connection connection));
-    MOCK_METHOD2(onRefreshReceived, void(int32_t sequenceId, hwc2_display_t display));
+                 void(int32_t sequenceId, hal::HWDisplayId display, hal::Connection connection));
+    MOCK_METHOD2(onRefreshReceived, void(int32_t sequenceId, hal::HWDisplayId display));
     MOCK_METHOD4(onVsyncReceived,
-                 void(int32_t sequenceId, hwc2_display_t display, int64_t timestamp,
-                      std::optional<hwc2_vsync_period_t> vsyncPeriod));
+                 void(int32_t sequenceId, hal::HWDisplayId display, int64_t timestamp,
+                      std::optional<hal::VsyncPeriodNanos> vsyncPeriod));
     MOCK_METHOD3(onVsyncPeriodTimingChangedReceived,
-                 void(int32_t sequenceId, hwc2_display_t display,
-                      const hwc_vsync_period_change_timeline_t& updatedTimeline));
-    MOCK_METHOD2(onSeamlessPossible, void(int32_t sequenceId, hwc2_display_t display));
+                 void(int32_t sequenceId, hal::HWDisplayId display,
+                      const hal::VsyncPeriodChangeTimeline& updatedTimeline));
+    MOCK_METHOD2(onSeamlessPossible, void(int32_t sequenceId, hal::HWDisplayId display));
 };
 
 struct HWComposerTest : public testing::Test {
@@ -73,14 +75,12 @@ TEST_F(HWComposerSetConfigurationTest, loadsLayerMetadataSupport) {
     constexpr bool kMetadata2Mandatory = true;
 
     EXPECT_CALL(*mHal, getMaxVirtualDisplayCount()).WillOnce(Return(0));
-    EXPECT_CALL(*mHal, getCapabilities())
-            .WillOnce(Return(std::vector<Hwc2::IComposer::Capability>{}));
+    EXPECT_CALL(*mHal, getCapabilities()).WillOnce(Return(std::vector<hal::Capability>{}));
     EXPECT_CALL(*mHal, getLayerGenericMetadataKeys(_))
-            .WillOnce(DoAll(SetArgPointee<0>(
-                                    std::vector<Hwc2::IComposerClient::LayerGenericMetadataKey>{
-                                            {kMetadata1Name, kMetadata1Mandatory},
-                                            {kMetadata2Name, kMetadata2Mandatory},
-                                    }),
+            .WillOnce(DoAll(SetArgPointee<0>(std::vector<hal::LayerGenericMetadataKey>{
+                                    {kMetadata1Name, kMetadata1Mandatory},
+                                    {kMetadata2Name, kMetadata2Mandatory},
+                            }),
                             Return(hardware::graphics::composer::V2_4::Error::NONE)));
     EXPECT_CALL(*mHal, registerCallback(_));
     EXPECT_CALL(*mHal, isVsyncPeriodSwitchSupported()).WillOnce(Return(false));
@@ -98,8 +98,7 @@ TEST_F(HWComposerSetConfigurationTest, loadsLayerMetadataSupport) {
 
 TEST_F(HWComposerSetConfigurationTest, handlesUnsupportedCallToGetLayerGenericMetadataKeys) {
     EXPECT_CALL(*mHal, getMaxVirtualDisplayCount()).WillOnce(Return(0));
-    EXPECT_CALL(*mHal, getCapabilities())
-            .WillOnce(Return(std::vector<Hwc2::IComposer::Capability>{}));
+    EXPECT_CALL(*mHal, getCapabilities()).WillOnce(Return(std::vector<hal::Capability>{}));
     EXPECT_CALL(*mHal, getLayerGenericMetadataKeys(_))
             .WillOnce(Return(hardware::graphics::composer::V2_4::Error::UNSUPPORTED));
     EXPECT_CALL(*mHal, registerCallback(_));
@@ -113,16 +112,16 @@ TEST_F(HWComposerSetConfigurationTest, handlesUnsupportedCallToGetLayerGenericMe
 }
 
 struct HWComposerLayerTest : public testing::Test {
-    static constexpr hwc2_display_t kDisplayId = static_cast<hwc2_display_t>(1001);
-    static constexpr hwc2_layer_t kLayerId = static_cast<hwc2_layer_t>(1002);
+    static constexpr hal::HWDisplayId kDisplayId = static_cast<hal::HWDisplayId>(1001);
+    static constexpr hal::HWLayerId kLayerId = static_cast<hal::HWLayerId>(1002);
 
-    HWComposerLayerTest(const std::unordered_set<HWC2::Capability>& capabilities)
+    HWComposerLayerTest(const std::unordered_set<hal::Capability>& capabilities)
           : mCapabilies(capabilities) {}
 
     ~HWComposerLayerTest() override { EXPECT_CALL(*mHal, destroyLayer(kDisplayId, kLayerId)); }
 
     std::unique_ptr<Hwc2::mock::Composer> mHal{new StrictMock<Hwc2::mock::Composer>()};
-    const std::unordered_set<HWC2::Capability> mCapabilies;
+    const std::unordered_set<hal::Capability> mCapabilies;
     HWC2::impl::Layer mLayer{*mHal, mCapabilies, kDisplayId, kLayerId};
 };
 
@@ -159,7 +158,7 @@ TEST_F(HWComposerLayerGenericMetadataTest, forwardsSupportedMetadata) {
     auto result = mLayer.setLayerGenericMetadata(kLayerGenericMetadata1Name,
                                                  kLayerGenericMetadata1Mandatory,
                                                  kLayerGenericMetadata1Value);
-    EXPECT_EQ(HWC2::Error::None, result);
+    EXPECT_EQ(hal::Error::NONE, result);
 
     EXPECT_CALL(*mHal,
                 setLayerGenericMetadata(kDisplayId, kLayerId, kLayerGenericMetadata2Name,
@@ -169,7 +168,7 @@ TEST_F(HWComposerLayerGenericMetadataTest, forwardsSupportedMetadata) {
     result = mLayer.setLayerGenericMetadata(kLayerGenericMetadata2Name,
                                             kLayerGenericMetadata2Mandatory,
                                             kLayerGenericMetadata2Value);
-    EXPECT_EQ(HWC2::Error::Unsupported, result);
+    EXPECT_EQ(hal::Error::UNSUPPORTED, result);
 }
 
 } // namespace

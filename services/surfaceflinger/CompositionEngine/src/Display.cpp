@@ -269,8 +269,8 @@ void Display::chooseCompositionStrategy() {
 
 bool Display::getSkipColorTransform() const {
     const auto& hwc = getCompositionEngine().getHwComposer();
-    return mId ? hwc.hasDisplayCapability(*mId, HWC2::DisplayCapability::SkipClientColorTransform)
-               : hwc.hasCapability(HWC2::Capability::SkipClientColorTransform);
+    return mId ? hwc.hasDisplayCapability(*mId, hal::DisplayCapability::SKIP_CLIENT_COLOR_TRANSFORM)
+               : hwc.hasCapability(hal::Capability::SKIP_CLIENT_COLOR_TRANSFORM);
 }
 
 bool Display::anyLayersRequireClientComposition() const {
@@ -306,7 +306,7 @@ void Display::applyChangedTypesToLayers(const ChangedTypes& changedTypes) {
 void Display::applyDisplayRequests(const DisplayRequests& displayRequests) {
     auto& state = editState();
     state.flipClientTarget = (static_cast<uint32_t>(displayRequests) &
-                              static_cast<uint32_t>(HWC2::DisplayRequest::FlipClientTarget)) != 0;
+                              static_cast<uint32_t>(hal::DisplayRequest::FLIP_CLIENT_TARGET)) != 0;
     // Note: HWC2::DisplayRequest::WriteClientTargetToOutput is currently ignored.
 }
 
