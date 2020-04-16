@@ -27,8 +27,6 @@
 #include <queue>
 #include <thread>
 
-#include "DisplayDevice.h"
-
 using namespace android::surfaceflinger;
 
 namespace android {
@@ -44,7 +42,7 @@ constexpr auto operator""_MB(unsigned long long const num) {
 class SurfaceTracing {
 public:
     explicit SurfaceTracing(SurfaceFlinger& flinger);
-    void enable();
+    bool enable();
     bool disable();
     status_t writeToFile();
     bool isEnabled() const;
@@ -92,9 +90,7 @@ private:
     void mainLoop();
     bool addFirstEntry();
     LayersTraceProto traceWhenNotified();
-    LayersTraceProto traceLayersLocked(const char* where,
-                                       const sp<const DisplayDevice>& displayDevice)
-            REQUIRES(mSfLock);
+    LayersTraceProto traceLayersLocked(const char* where) REQUIRES(mSfLock);
 
     // Returns true if trace is enabled.
     bool addTraceToBuffer(LayersTraceProto& entry);

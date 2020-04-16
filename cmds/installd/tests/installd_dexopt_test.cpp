@@ -653,6 +653,15 @@ TEST_F(DexoptTest, DexoptPrimaryPublicCreateOatDir) {
                         DEX2OAT_FROM_SCRATCH);
 }
 
+TEST_F(DexoptTest, DexoptPrimaryPublicRestore) {
+    LOG(INFO) << "DexoptPrimaryPublicRestore";
+    CompilePrimaryDexOk("verify",
+                        DEXOPT_FOR_RESTORE | DEXOPT_BOOTCOMPLETE | DEXOPT_PUBLIC,
+                        app_oat_dir_.c_str(),
+                        kTestAppGid,
+                        DEX2OAT_FROM_SCRATCH);
+}
+
 TEST_F(DexoptTest, DexoptPrimaryFailedInvalidFilter) {
     LOG(INFO) << "DexoptPrimaryFailedInvalidFilter";
     binder::Status status;
