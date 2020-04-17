@@ -1,0 +1,10 @@
+{
+  "presubmit": [
+    {
+      "name": "powermanager_test"
+    },
+    {
+      "name": "thermalmanager_test"
+    }
+  ]
+}
