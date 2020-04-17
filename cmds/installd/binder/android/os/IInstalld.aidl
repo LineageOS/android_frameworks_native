@@ -23,6 +23,9 @@ interface IInstalld {
 
     long createAppData(@nullable @utf8InCpp String uuid, in @utf8InCpp String packageName,
             int userId, int flags, int appId, in @utf8InCpp String seInfo, int targetSdkVersion);
+    long createAppDataBatched(in @nullable @utf8InCpp String[] uuids,
+        in @nullable @utf8InCpp String[] packageNames, in int userId, int flags, in int[] appIds,
+        in @utf8InCpp String[] seInfos, in int[] targetSdkVersions);
     void restoreconAppData(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
             int userId, int flags, int appId, @utf8InCpp String seInfo);
     void migrateAppData(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
