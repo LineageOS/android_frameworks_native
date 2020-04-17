@@ -768,9 +768,8 @@ void DispSync::resetErrorLocked() {
     }
 }
 
-nsecs_t DispSync::computeNextRefresh(int periodOffset) const {
+nsecs_t DispSync::computeNextRefresh(int periodOffset, nsecs_t now) const {
     Mutex::Autolock lock(mMutex);
-    nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
     nsecs_t phase = mReferenceTime + mPhase;
     if (mPeriod == 0) {
         return 0;
@@ -837,7 +836,7 @@ void DispSync::dump(std::string& result) const {
     StringAppendF(&result, "current monotonic time: %" PRId64 "\n", now);
 }
 
-nsecs_t DispSync::expectedPresentTime() {
+nsecs_t DispSync::expectedPresentTime(nsecs_t now) {
     // The HWC doesn't currently have a way to report additional latency.
     // Assume that whatever we submit now will appear right after the flip.
     // For a smart panel this might be 1.  This is expressed in frames,
@@ -846,7 +845,7 @@ nsecs_t DispSync::expectedPresentTime() {
     const uint32_t hwcLatency = 0;
 
     // Ask DispSync when the next refresh will be (CLOCK_MONOTONIC).
-    return computeNextRefresh(hwcLatency);
+    return computeNextRefresh(hwcLatency, now);
 }
 
 } // namespace impl

@@ -58,9 +58,9 @@ public:
                                       nsecs_t lastCallbackTime) = 0;
     virtual status_t removeEventListener(Callback* callback, nsecs_t* outLastCallback) = 0;
     virtual status_t changePhaseOffset(Callback* callback, nsecs_t phase) = 0;
-    virtual nsecs_t computeNextRefresh(int periodOffset) const = 0;
+    virtual nsecs_t computeNextRefresh(int periodOffset, nsecs_t now) const = 0;
     virtual void setIgnorePresentFences(bool ignore) = 0;
-    virtual nsecs_t expectedPresentTime() = 0;
+    virtual nsecs_t expectedPresentTime(nsecs_t now) = 0;
 
     virtual void dump(std::string& result) const = 0;
 
@@ -167,7 +167,7 @@ public:
     // The periodOffset value can be used to move forward or backward; an
     // offset of zero is the next refresh, -1 is the previous refresh, 1 is
     // the refresh after next. etc.
-    nsecs_t computeNextRefresh(int periodOffset) const override;
+    nsecs_t computeNextRefresh(int periodOffset, nsecs_t now) const override;
 
     // In certain situations the present fences aren't a good indicator of vsync
     // time, e.g. when vr flinger is active, or simply aren't available,
@@ -178,7 +178,7 @@ public:
     void setIgnorePresentFences(bool ignore) override;
 
     // Determine the expected present time when a buffer acquired now will be displayed.
-    nsecs_t expectedPresentTime();
+    nsecs_t expectedPresentTime(nsecs_t now);
 
     // dump appends human-readable debug info to the result string.
     void dump(std::string& result) const override;
