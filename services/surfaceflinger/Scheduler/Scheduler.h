@@ -114,7 +114,7 @@ public:
                          bool* periodFlushed);
     void addPresentFence(const std::shared_ptr<FenceTime>&);
     void setIgnorePresentFences(bool ignore);
-    nsecs_t getDispSyncExpectedPresentTime();
+    nsecs_t getDispSyncExpectedPresentTime(nsecs_t now);
 
     // Layers are registered on creation, and unregistered when the weak reference expires.
     void registerLayer(Layer*);
