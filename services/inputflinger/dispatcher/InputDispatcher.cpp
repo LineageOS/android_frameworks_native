@@ -364,18 +364,16 @@ std::array<uint8_t, 32> HmacKeyManager::sign(const VerifiedInputEvent& event) co
             break;
         }
     }
-    std::vector<uint8_t> data;
     const uint8_t* start = reinterpret_cast<const uint8_t*>(&event);
-    data.assign(start, start + size);
-    return sign(data);
+    return sign(start, size);
 }
 
-std::array<uint8_t, 32> HmacKeyManager::sign(const std::vector<uint8_t>& data) const {
+std::array<uint8_t, 32> HmacKeyManager::sign(const uint8_t* data, size_t size) const {
     // SHA256 always generates 32-bytes result
     std::array<uint8_t, 32> hash;
     unsigned int hashLen = 0;
-    uint8_t* result = HMAC(EVP_sha256(), mHmacKey.data(), mHmacKey.size(), data.data(), data.size(),
-                           hash.data(), &hashLen);
+    uint8_t* result =
+            HMAC(EVP_sha256(), mHmacKey.data(), mHmacKey.size(), data, size, hash.data(), &hashLen);
     if (result == nullptr) {
         ALOGE("Could not sign the data using HMAC");
         return INVALID_HMAC;
@@ -2444,11 +2442,8 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
         EventEntry* eventEntry = dispatchEntry->eventEntry;
         switch (eventEntry->type) {
             case EventEntry::Type::KEY: {
-                KeyEntry* keyEntry = static_cast<KeyEntry*>(eventEntry);
-                VerifiedKeyEvent verifiedEvent = verifiedKeyEventFromKeyEntry(*keyEntry);
-                verifiedEvent.flags = dispatchEntry->resolvedFlags & VERIFIED_KEY_EVENT_FLAGS;
-                verifiedEvent.action = dispatchEntry->resolvedAction;
-                std::array<uint8_t, 32> hmac = mHmacKeyManager.sign(verifiedEvent);
+                const KeyEntry* keyEntry = static_cast<KeyEntry*>(eventEntry);
+                std::array<uint8_t, 32> hmac = getSignature(*keyEntry, *dispatchEntry);
 
                 // Publish the key event.
                 status =
@@ -2500,12 +2495,8 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                         usingCoords = scaledCoords;
                     }
                 }
-                VerifiedMotionEvent verifiedEvent =
-                        verifiedMotionEventFromMotionEntry(*motionEntry);
-                verifiedEvent.actionMasked =
-                        dispatchEntry->resolvedAction & AMOTION_EVENT_ACTION_MASK;
-                verifiedEvent.flags = dispatchEntry->resolvedFlags & VERIFIED_MOTION_EVENT_FLAGS;
-                std::array<uint8_t, 32> hmac = mHmacKeyManager.sign(verifiedEvent);
+
+                std::array<uint8_t, 32> hmac = getSignature(*motionEntry, *dispatchEntry);
 
                 // Publish the motion event.
                 status = connection->inputPublisher
@@ -2583,6 +2574,28 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
         connection->waitQueue.push_back(dispatchEntry);
         traceWaitQueueLength(connection);
     }
+}
+
+const std::array<uint8_t, 32> InputDispatcher::getSignature(
+        const MotionEntry& motionEntry, const DispatchEntry& dispatchEntry) const {
+    int32_t actionMasked = dispatchEntry.resolvedAction & AMOTION_EVENT_ACTION_MASK;
+    if ((actionMasked == AMOTION_EVENT_ACTION_UP) || (actionMasked == AMOTION_EVENT_ACTION_DOWN)) {
+        // Only sign events up and down events as the purely move events
+        // are tied to their up/down counterparts so signing would be redundant.
+        VerifiedMotionEvent verifiedEvent = verifiedMotionEventFromMotionEntry(motionEntry);
+        verifiedEvent.actionMasked = actionMasked;
+        verifiedEvent.flags = dispatchEntry.resolvedFlags & VERIFIED_MOTION_EVENT_FLAGS;
+        return mHmacKeyManager.sign(verifiedEvent);
+    }
+    return INVALID_HMAC;
+}
+
+const std::array<uint8_t, 32> InputDispatcher::getSignature(
+        const KeyEntry& keyEntry, const DispatchEntry& dispatchEntry) const {
+    VerifiedKeyEvent verifiedEvent = verifiedKeyEventFromKeyEntry(keyEntry);
+    verifiedEvent.flags = dispatchEntry.resolvedFlags & VERIFIED_KEY_EVENT_FLAGS;
+    verifiedEvent.action = dispatchEntry.resolvedAction;
+    return mHmacKeyManager.sign(verifiedEvent);
 }
 
 void InputDispatcher::finishDispatchCycleLocked(nsecs_t currentTime,
