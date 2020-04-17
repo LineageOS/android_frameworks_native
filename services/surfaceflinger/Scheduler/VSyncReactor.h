@@ -42,8 +42,8 @@ public:
     bool addPresentFence(const std::shared_ptr<FenceTime>& fence) final;
     void setIgnorePresentFences(bool ignoration) final;
 
-    nsecs_t computeNextRefresh(int periodOffset) const final;
-    nsecs_t expectedPresentTime() final;
+    nsecs_t computeNextRefresh(int periodOffset, nsecs_t now) const final;
+    nsecs_t expectedPresentTime(nsecs_t now) final;
 
     void setPeriod(nsecs_t period) final;
     nsecs_t getPeriod() final;
