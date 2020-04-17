@@ -3098,7 +3098,7 @@ TEST_F(DisplayTransactionTest, onInitializeDisplaysSetsUpPrimaryDisplay) {
     // processing.
     EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
 
-    EXPECT_CALL(*mPrimaryDispSync, expectedPresentTime()).WillRepeatedly(Return(0));
+    EXPECT_CALL(*mPrimaryDispSync, expectedPresentTime(_)).WillRepeatedly(Return(0));
 
     // --------------------------------------------------------------------
     // Invocation
