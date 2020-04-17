@@ -80,7 +80,7 @@ RefreshRateStatsTest::~RefreshRateStatsTest() {
 
 std::shared_ptr<const HWC2::Display::Config> RefreshRateStatsTest::createConfig(
         HwcConfigIndexType configId, int32_t configGroup, int64_t vsyncPeriod) {
-    return HWC2::Display::Config::Builder(mDisplay, hwc2_config_t(configId.value()))
+    return HWC2::Display::Config::Builder(mDisplay, configId.value())
             .setVsyncPeriod(int32_t(vsyncPeriod))
             .setConfigGroup(configGroup)
             .build();

@@ -190,6 +190,7 @@ private:
     EventEntry* mNextUnblockedEvent GUARDED_BY(mLock);
 
     sp<InputWindowHandle> findTouchedWindowAtLocked(int32_t displayId, int32_t x, int32_t y,
+                                                    TouchState* touchState,
                                                     bool addOutsideTargets = false,
                                                     bool addPortalWindows = false) REQUIRES(mLock);
 
@@ -302,7 +303,6 @@ private:
             GUARDED_BY(mLock);
 
     std::unordered_map<int32_t, TouchState> mTouchStatesByDisplay GUARDED_BY(mLock);
-    TouchState mTempTouchState GUARDED_BY(mLock);
 
     // Focused applications.
     std::unordered_map<int32_t, sp<InputApplicationHandle>> mFocusedApplicationHandlesByDisplay
