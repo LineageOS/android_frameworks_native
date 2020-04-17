@@ -270,7 +270,7 @@ TEST_F(VSyncReactorTest, queriesTrackerForNextRefreshNow) {
             .Times(1)
             .WillOnce(Return(fakeTimestamp));
 
-    EXPECT_THAT(mReactor.computeNextRefresh(0), Eq(fakeTimestamp));
+    EXPECT_THAT(mReactor.computeNextRefresh(0, mMockClock->now()), Eq(fakeTimestamp));
 }
 
 TEST_F(VSyncReactorTest, queriesTrackerForExpectedPresentTime) {
@@ -280,7 +280,7 @@ TEST_F(VSyncReactorTest, queriesTrackerForExpectedPresentTime) {
             .Times(1)
             .WillOnce(Return(fakeTimestamp));
 
-    EXPECT_THAT(mReactor.expectedPresentTime(), Eq(fakeTimestamp));
+    EXPECT_THAT(mReactor.expectedPresentTime(mMockClock->now()), Eq(fakeTimestamp));
 }
 
 TEST_F(VSyncReactorTest, queriesTrackerForNextRefreshFuture) {
@@ -292,7 +292,7 @@ TEST_F(VSyncReactorTest, queriesTrackerForNextRefreshFuture) {
     EXPECT_CALL(*mMockTracker, currentPeriod()).WillOnce(Return(fakePeriod));
     EXPECT_CALL(*mMockTracker, nextAnticipatedVSyncTimeFrom(mFakeNow + numPeriodsOut * fakePeriod))
             .WillOnce(Return(fakeTimestamp));
-    EXPECT_THAT(mReactor.computeNextRefresh(numPeriodsOut), Eq(fakeTimestamp));
+    EXPECT_THAT(mReactor.computeNextRefresh(numPeriodsOut, mMockClock->now()), Eq(fakeTimestamp));
 }
 
 TEST_F(VSyncReactorTest, getPeriod) {

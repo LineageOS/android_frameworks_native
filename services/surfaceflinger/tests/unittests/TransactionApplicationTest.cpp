@@ -76,7 +76,7 @@ public:
                         new EventThreadConnection(sfEventThread.get(), ResyncCallback(),
                                                   ISurfaceComposer::eConfigChangedSuppress)));
 
-        EXPECT_CALL(*mPrimaryDispSync, computeNextRefresh(0)).WillRepeatedly(Return(0));
+        EXPECT_CALL(*mPrimaryDispSync, computeNextRefresh(0, _)).WillRepeatedly(Return(0));
         EXPECT_CALL(*mPrimaryDispSync, getPeriod())
                 .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_REFRESH_RATE));
 
@@ -126,7 +126,7 @@ public:
         ASSERT_EQ(0, mFlinger.getTransactionQueue().size());
         // called in SurfaceFlinger::signalTransaction
         EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
-        EXPECT_CALL(*mPrimaryDispSync, expectedPresentTime()).WillOnce(Return(systemTime()));
+        EXPECT_CALL(*mPrimaryDispSync, expectedPresentTime(_)).WillOnce(Return(systemTime()));
         TransactionInfo transaction;
         setupSingle(transaction, flags, syncInputWindows,
                     /*desiredPresentTime*/ -1);
@@ -159,7 +159,7 @@ public:
         // first check will see desired present time has not passed,
         // but afterwards it will look like the desired present time has passed
         nsecs_t time = systemTime();
-        EXPECT_CALL(*mPrimaryDispSync, expectedPresentTime())
+        EXPECT_CALL(*mPrimaryDispSync, expectedPresentTime(_))
                 .WillOnce(Return(time + nsecs_t(5 * 1e8)));
         TransactionInfo transaction;
         setupSingle(transaction, flags, syncInputWindows,
@@ -182,7 +182,7 @@ public:
         // called in SurfaceFlinger::signalTransaction
         nsecs_t time = systemTime();
         EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
-        EXPECT_CALL(*mPrimaryDispSync, expectedPresentTime())
+        EXPECT_CALL(*mPrimaryDispSync, expectedPresentTime(_))
                 .WillOnce(Return(time + nsecs_t(5 * 1e8)));
         // transaction that should go on the pending thread
         TransactionInfo transactionA;
@@ -247,7 +247,7 @@ TEST_F(TransactionApplicationTest, Flush_RemovesFromQueue) {
     EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
 
     // nsecs_t time = systemTime();
-    EXPECT_CALL(*mPrimaryDispSync, expectedPresentTime())
+    EXPECT_CALL(*mPrimaryDispSync, expectedPresentTime(_))
             .WillOnce(Return(nsecs_t(5 * 1e8)))
             .WillOnce(Return(s2ns(2)));
     TransactionInfo transactionA; // transaction to go on pending queue
