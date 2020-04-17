@@ -3591,8 +3591,8 @@ void InputDispatcher::updateWindowHandlesForDisplayLocked(
             if (canReceiveInput && !noInputChannel) {
                 ALOGV("Window handle %s has no registered input channel",
                       handle->getName().c_str());
+                continue;
             }
-            continue;
         }
 
         if (info->displayId != displayId) {
