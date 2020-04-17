@@ -54,6 +54,10 @@ public:
     virtual void incrementClientCompositionReusedFrames() = 0;
     // Increments the number of times the display refresh rate changed.
     virtual void incrementRefreshRateSwitches() = 0;
+    // Increments the number of changes in composition strategy
+    // The intention is to reflect the number of changes between hwc and gpu
+    // composition, where "gpu composition" may also include mixed composition.
+    virtual void incrementCompositionStrategyChanges() = 0;
     // Records the most up-to-date count of display event connections.
     // The stored count will be the maximum ever recoded.
     virtual void recordDisplayEventConnectionCount(int32_t count) = 0;
@@ -218,6 +222,7 @@ public:
     void incrementClientCompositionFrames() override;
     void incrementClientCompositionReusedFrames() override;
     void incrementRefreshRateSwitches() override;
+    void incrementCompositionStrategyChanges() override;
     void recordDisplayEventConnectionCount(int32_t count) override;
 
     void recordFrameDuration(nsecs_t startTime, nsecs_t endTime) override;

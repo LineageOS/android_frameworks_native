@@ -377,6 +377,21 @@ TEST_F(TimeStatsTest, canIncreaseRefreshRateSwitches) {
     EXPECT_THAT(result, HasSubstr(expectedResult));
 }
 
+TEST_F(TimeStatsTest, canIncreaseCompositionStrategyChanges) {
+    // this stat is not in the proto so verify by checking the string dump
+    constexpr size_t COMPOSITION_STRATEGY_CHANGES = 2;
+
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+    for (size_t i = 0; i < COMPOSITION_STRATEGY_CHANGES; i++) {
+        ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementCompositionStrategyChanges());
+    }
+
+    const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
+    const std::string expectedResult =
+            "compositionStrategyChanges = " + std::to_string(COMPOSITION_STRATEGY_CHANGES);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+}
+
 TEST_F(TimeStatsTest, canAverageFrameDuration) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
     mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL);
@@ -760,6 +775,7 @@ TEST_F(TimeStatsTest, canClearDumpOnlyTimeStats) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
     ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementClientCompositionReusedFrames());
     ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementRefreshRateSwitches());
+    ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementCompositionStrategyChanges());
     mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL);
     mTimeStats
             ->recordFrameDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count(),
@@ -776,6 +792,7 @@ TEST_F(TimeStatsTest, canClearDumpOnlyTimeStats) {
     const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
     EXPECT_THAT(result, HasSubstr("clientCompositionReusedFrames = 0"));
     EXPECT_THAT(result, HasSubstr("refreshRateSwitches = 0"));
+    EXPECT_THAT(result, HasSubstr("compositionStrategyChanges = 0"));
     EXPECT_THAT(result, HasSubstr("averageFrameDuration = 0.000 ms"));
     EXPECT_THAT(result, HasSubstr("averageRenderEngineTiming = 0.000 ms"));
 }
