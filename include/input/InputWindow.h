@@ -131,17 +131,17 @@ struct InputWindowInfo {
     // input windows that have the same token.
     sp<IBinder> token;
     // This uniquely identifies the input window.
-    int32_t id = 0;
+    int32_t id = -1;
     std::string name;
-    int32_t layoutParamsFlags;
-    int32_t layoutParamsType;
-    nsecs_t dispatchingTimeout;
+    int32_t layoutParamsFlags = 0;
+    int32_t layoutParamsType = 0;
+    nsecs_t dispatchingTimeout = -1;
 
     /* These values are filled in by SurfaceFlinger. */
-    int32_t frameLeft;
-    int32_t frameTop;
-    int32_t frameRight;
-    int32_t frameBottom;
+    int32_t frameLeft = -1;
+    int32_t frameTop = -1;
+    int32_t frameRight = -1;
+    int32_t frameBottom = -1;
 
     /*
      * SurfaceFlinger consumes this value to shrink the computed frame. This is
@@ -153,7 +153,7 @@ struct InputWindowInfo {
 
     // A global scaling factor for all windows. Unlike windowScaleX/Y this results
     // in scaling of the TOUCH_MAJOR/TOUCH_MINOR axis.
-    float globalScaleFactor;
+    float globalScaleFactor = 1.0f;
 
     // Scaling factors applied to individual windows.
     float windowXScale = 1.0f;
@@ -164,18 +164,18 @@ struct InputWindowInfo {
      * to absolute coordinates by SurfaceFlinger once the frame is computed.
      */
     Region touchableRegion;
-    bool visible;
-    bool canReceiveKeys;
-    bool hasFocus;
-    bool hasWallpaper;
-    bool paused;
-    int32_t ownerPid;
-    int32_t ownerUid;
-    int32_t inputFeatures;
-    int32_t displayId;
+    bool visible = false;
+    bool canReceiveKeys = false;
+    bool hasFocus = false;
+    bool hasWallpaper = false;
+    bool paused = false;
+    int32_t ownerPid = -1;
+    int32_t ownerUid = -1;
+    int32_t inputFeatures = 0;
+    int32_t displayId = ADISPLAY_ID_NONE;
     int32_t portalToDisplayId = ADISPLAY_ID_NONE;
     InputApplicationInfo applicationInfo;
-    bool replaceTouchableRegionWithCrop;
+    bool replaceTouchableRegionWithCrop = false;
     wp<IBinder> touchableRegionCropHandle;
 
     void addTouchableRegion(const Rect& region);
@@ -222,7 +222,7 @@ public:
     }
 
     inline std::string getName() const {
-        return mInfo.token ? mInfo.name : "<invalid>";
+        return !mInfo.name.empty() ? mInfo.name : "<invalid>";
     }
 
     inline nsecs_t getDispatchingTimeout(nsecs_t defaultValue) const {
