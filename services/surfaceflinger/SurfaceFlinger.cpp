@@ -2901,19 +2901,6 @@ void SurfaceFlinger::updateInputFlinger() {
 void SurfaceFlinger::updateInputWindowInfo() {
     std::vector<InputWindowInfo> inputHandles;
 
-    // We use a simple caching algorithm here. mInputDirty begins as true,
-    // after we call setInputWindows we set it to false, so
-    // in the future we wont call it again.. We set input dirty to true again
-    // when any layer that hasInput() has a transaction performed on it
-    // or when any parent or relative parent of such a layer has a transaction
-    // performed on it. Not all of these transactions will really result in
-    // input changes but all input changes will spring from these transactions
-    // so the cache is safe but not optimal. It seems like it might be annoyingly
-    // costly to cache and comapre the actual InputWindowHandle vector though.
-    if (!mInputDirty && !mInputWindowCommands.syncInputWindows) {
-        return;
-    }
-
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
         if (layer->hasInput()) {
             // When calculating the screen bounds we ignore the transparent region since it may
@@ -2925,8 +2912,6 @@ void SurfaceFlinger::updateInputWindowInfo() {
     mInputFlinger->setInputWindows(inputHandles,
                                    mInputWindowCommands.syncInputWindows ? mSetInputWindowsListener
                                                                          : nullptr);
-
-    mInputDirty = false;
 }
 
 void SurfaceFlinger::commitInputWindowCommands() {
