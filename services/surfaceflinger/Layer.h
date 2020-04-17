@@ -1015,10 +1015,6 @@ protected:
     // Window types from WindowManager.LayoutParams
     const int mWindowType;
 
-    // Called when mDrawingState has changed. If we or one of our children/relatives hasInput()
-    // then we will dirty the setInputWindows cache.
-    bool maybeDirtyInput();
-
 private:
     /**
      * Returns an unsorted vector of all layers that are part of this tree.
