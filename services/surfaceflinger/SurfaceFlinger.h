@@ -1265,6 +1265,8 @@ private:
     bool inputDirty() { return mInputDirty; }
 
     int mFrameRateFlexibilityTokenCount = 0;
+
+    sp<IBinder> mDebugFrameRateFlexibilityToken;
 };
 
 } // namespace android
