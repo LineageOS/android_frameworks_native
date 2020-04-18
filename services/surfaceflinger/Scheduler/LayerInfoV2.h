@@ -64,8 +64,6 @@ public:
     // updated time, the updated time is the present time.
     void setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now);
 
-    bool isRecentlyActive(nsecs_t now) const;
-
     // Sets an explicit layer vote. This usually comes directly from the application via
     // ANativeWindow_setFrameRate API
     void setLayerVote(LayerHistory::LayerVoteType type, float fps) { mLayerVote = {type, fps}; }
