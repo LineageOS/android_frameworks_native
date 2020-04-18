@@ -45,15 +45,6 @@ void LayerInfoV2::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now) {
     }
 }
 
-// Returns whether the earliest present time is within the active threshold.
-bool LayerInfoV2::isRecentlyActive(nsecs_t now) const {
-    if (mFrameTimes.empty()) {
-        return false;
-    }
-
-    return mFrameTimes.back().queueTime >= getActiveLayerThreshold(now);
-}
-
 bool LayerInfoV2::isFrameTimeValid(const FrameTimeData& frameTime) const {
     return frameTime.queueTime >= std::chrono::duration_cast<std::chrono::nanoseconds>(
                                           mFrameTimeValidSince.time_since_epoch())

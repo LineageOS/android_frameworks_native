@@ -250,7 +250,7 @@ void Scheduler::setPhaseOffset(ConnectionHandle handle, nsecs_t phaseOffset) {
 }
 
 void Scheduler::getDisplayStatInfo(DisplayStatInfo* stats) {
-    stats->vsyncTime = mPrimaryDispSync->computeNextRefresh(0);
+    stats->vsyncTime = mPrimaryDispSync->computeNextRefresh(0, systemTime());
     stats->vsyncPeriod = mPrimaryDispSync->getPeriod();
 }
 
@@ -378,8 +378,8 @@ void Scheduler::setIgnorePresentFences(bool ignore) {
     mPrimaryDispSync->setIgnorePresentFences(ignore);
 }
 
-nsecs_t Scheduler::getDispSyncExpectedPresentTime() {
-    return mPrimaryDispSync->expectedPresentTime();
+nsecs_t Scheduler::getDispSyncExpectedPresentTime(nsecs_t now) {
+    return mPrimaryDispSync->expectedPresentTime(now);
 }
 
 void Scheduler::registerLayer(Layer* layer) {
