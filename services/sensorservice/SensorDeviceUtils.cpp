@@ -17,16 +17,112 @@
 #include "SensorDeviceUtils.h"
 
 #include <android/hardware/sensors/1.0/ISensors.h>
+#include <android/hardware/sensors/2.1/ISensors.h>
 #include <utils/Log.h>
 
 #include <chrono>
+#include <cmath>
 #include <thread>
 
 using ::android::hardware::Void;
+using SensorTypeV2_1 = android::hardware::sensors::V2_1::SensorType;
 using namespace android::hardware::sensors::V1_0;
 
 namespace android {
 namespace SensorDeviceUtils {
+namespace {
+
+inline void quantizeValue(float *value, double resolution) {
+    // Increase the value of the sensor's nominal resolution to ensure that
+    // sensor accuracy improvements, like runtime calibration, are not masked
+    // during requantization.
+    double incRes = 0.25 * resolution;
+    *value = round(static_cast<double>(*value) / incRes) * incRes;
+}
+
+}  // namespace
+
+void quantizeSensorEventValues(sensors_event_t *event, float resolution) {
+    LOG_FATAL_IF(resolution == 0, "Resolution must be specified for all sensors!");
+    if (resolution == 0) {
+        return;
+    }
+
+    size_t axes = 0;
+    switch ((SensorTypeV2_1)event->type) {
+        case SensorTypeV2_1::ACCELEROMETER:
+        case SensorTypeV2_1::MAGNETIC_FIELD:
+        case SensorTypeV2_1::ORIENTATION:
+        case SensorTypeV2_1::GYROSCOPE:
+        case SensorTypeV2_1::GRAVITY:
+        case SensorTypeV2_1::LINEAR_ACCELERATION:
+        case SensorTypeV2_1::MAGNETIC_FIELD_UNCALIBRATED:
+        case SensorTypeV2_1::GYROSCOPE_UNCALIBRATED:
+        case SensorTypeV2_1::ACCELEROMETER_UNCALIBRATED:
+            axes = 3;
+            break;
+        case SensorTypeV2_1::GAME_ROTATION_VECTOR:
+            axes = 4;
+            break;
+        case SensorTypeV2_1::ROTATION_VECTOR:
+        case SensorTypeV2_1::GEOMAGNETIC_ROTATION_VECTOR:
+            axes = 5;
+            break;
+        case SensorTypeV2_1::DEVICE_ORIENTATION:
+        case SensorTypeV2_1::LIGHT:
+        case SensorTypeV2_1::PRESSURE:
+        case SensorTypeV2_1::TEMPERATURE:
+        case SensorTypeV2_1::PROXIMITY:
+        case SensorTypeV2_1::RELATIVE_HUMIDITY:
+        case SensorTypeV2_1::AMBIENT_TEMPERATURE:
+        case SensorTypeV2_1::SIGNIFICANT_MOTION:
+        case SensorTypeV2_1::STEP_DETECTOR:
+        case SensorTypeV2_1::TILT_DETECTOR:
+        case SensorTypeV2_1::WAKE_GESTURE:
+        case SensorTypeV2_1::GLANCE_GESTURE:
+        case SensorTypeV2_1::PICK_UP_GESTURE:
+        case SensorTypeV2_1::WRIST_TILT_GESTURE:
+        case SensorTypeV2_1::STATIONARY_DETECT:
+        case SensorTypeV2_1::MOTION_DETECT:
+        case SensorTypeV2_1::HEART_BEAT:
+        case SensorTypeV2_1::LOW_LATENCY_OFFBODY_DETECT:
+        case SensorTypeV2_1::HINGE_ANGLE:
+            axes = 1;
+            break;
+        case SensorTypeV2_1::POSE_6DOF:
+            axes = 15;
+            break;
+        default:
+            // No other sensors have data that needs to be rounded.
+            break;
+    }
+
+    // sensor_event_t is a union so we're able to perform the same quanitization action for most
+    // sensors by only knowing the number of axes their output data has.
+    for (size_t i = 0; i < axes; i++) {
+        quantizeValue(&event->data[i], resolution);
+    }
+}
+
+float defaultResolutionForType(int type) {
+    switch ((SensorTypeV2_1)type) {
+        case SensorTypeV2_1::SIGNIFICANT_MOTION:
+        case SensorTypeV2_1::STEP_DETECTOR:
+        case SensorTypeV2_1::STEP_COUNTER:
+        case SensorTypeV2_1::TILT_DETECTOR:
+        case SensorTypeV2_1::WAKE_GESTURE:
+        case SensorTypeV2_1::GLANCE_GESTURE:
+        case SensorTypeV2_1::PICK_UP_GESTURE:
+        case SensorTypeV2_1::WRIST_TILT_GESTURE:
+        case SensorTypeV2_1::STATIONARY_DETECT:
+        case SensorTypeV2_1::MOTION_DETECT:
+            return 1.0f;
+        default:
+            // fall through and return 0 for all other types
+            break;
+    }
+    return 0.0f;
+}
 
 HidlServiceRegistrationWaiter::HidlServiceRegistrationWaiter() {
 }
