@@ -111,6 +111,14 @@ public:
     // Returns NO_ERROR when binds successfully, NO_MEMORY when there's no memory for allocation.
     virtual status_t bindFrameBuffer(Framebuffer* framebuffer) = 0;
     virtual void unbindFrameBuffer(Framebuffer* framebuffer) = 0;
+    // Clean-up method that should be called on the main thread after the
+    // drawFence returned by drawLayers fires. This method will free up
+    // resources used by the most recently drawn frame. If the frame is still
+    // being drawn, then this call is silently ignored.
+    //
+    // Returns true if resources were cleaned up, and false if we didn't need to
+    // do any work.
+    virtual bool cleanupPostRender() = 0;
 
     // queries
     virtual size_t getMaxTextureSize() const = 0;
