@@ -40,9 +40,11 @@ namespace android::scheduler::impl {
 namespace {
 
 bool isLayerActive(const Layer& layer, const LayerInfoV2& info, nsecs_t threshold) {
+    // Layers with an explicit vote are always kept active
     if (layer.getFrameRateForLayerTree().rate > 0) {
-        return layer.isVisible();
+        return true;
     }
+
     return layer.isVisible() && info.getLastUpdatedTime() >= threshold;
 }
 
@@ -127,29 +129,24 @@ LayerHistoryV2::Summary LayerHistoryV2::summarize(nsecs_t now) {
         //  an additional parameter.
         ALOGV("Layer has priority: %d", strong->getFrameRateSelectionPriority());
 
-        const bool recent = info->isRecentlyActive(now);
-        if (recent) {
-            const auto [type, refreshRate] = info->getRefreshRate(now);
-            // Skip NoVote layer as those don't have any requirements
-            if (type == LayerHistory::LayerVoteType::NoVote) {
-                continue;
-            }
+        const auto [type, refreshRate] = info->getRefreshRate(now);
+        // Skip NoVote layer as those don't have any requirements
+        if (type == LayerHistory::LayerVoteType::NoVote) {
+            continue;
+        }
 
-            // Compute the layer's position on the screen
-            const Rect bounds = Rect(strong->getBounds());
-            const ui::Transform transform = strong->getTransform();
-            constexpr bool roundOutwards = true;
-            Rect transformed = transform.transform(bounds, roundOutwards);
+        // Compute the layer's position on the screen
+        const Rect bounds = Rect(strong->getBounds());
+        const ui::Transform transform = strong->getTransform();
+        constexpr bool roundOutwards = true;
+        Rect transformed = transform.transform(bounds, roundOutwards);
 
-            const float layerArea = transformed.getWidth() * transformed.getHeight();
-            float weight = mDisplayArea ? layerArea / mDisplayArea : 0.0f;
-            summary.push_back({strong->getName(), type, refreshRate, weight});
+        const float layerArea = transformed.getWidth() * transformed.getHeight();
+        float weight = mDisplayArea ? layerArea / mDisplayArea : 0.0f;
+        summary.push_back({strong->getName(), type, refreshRate, weight});
 
-            if (CC_UNLIKELY(mTraceEnabled)) {
-                trace(layer, type, static_cast<int>(std::round(refreshRate)));
-            }
-        } else if (CC_UNLIKELY(mTraceEnabled)) {
-            trace(layer, LayerHistory::LayerVoteType::NoVote, 0);
+        if (CC_UNLIKELY(mTraceEnabled)) {
+            trace(layer, type, static_cast<int>(std::round(refreshRate)));
         }
     }
 
@@ -177,7 +174,7 @@ void LayerHistoryV2::partitionLayers(nsecs_t now) {
                         return LayerVoteType::NoVote;
                 }
             }();
-            if (frameRate.rate > 0 || voteType == LayerVoteType::NoVote) {
+            if (layer->isVisible() && (frameRate.rate > 0 || voteType == LayerVoteType::NoVote)) {
                 info->setLayerVote(voteType, frameRate.rate);
             } else {
                 info->resetLayerVote();

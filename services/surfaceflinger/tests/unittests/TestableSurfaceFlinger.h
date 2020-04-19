@@ -321,7 +321,7 @@ public:
         return mFlinger->setPowerModeInternal(display, mode);
     }
 
-    auto onMessageReceived(int32_t what) { return mFlinger->onMessageReceived(what); }
+    auto onMessageReceived(int32_t what) { return mFlinger->onMessageReceived(what, systemTime()); }
 
     auto captureScreenImplLocked(const RenderArea& renderArea,
                                  SurfaceFlinger::TraverseLayersFunction traverseLayers,

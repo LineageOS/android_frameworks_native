@@ -1828,16 +1828,16 @@ nsecs_t SurfaceFlinger::previousFramePresentTime() NO_THREAD_SAFETY_ANALYSIS {
     return fence->getSignalTime();
 }
 
-void SurfaceFlinger::populateExpectedPresentTime() {
+void SurfaceFlinger::populateExpectedPresentTime(nsecs_t wakeupTime) {
     DisplayStatInfo stats;
     mScheduler->getDisplayStatInfo(&stats);
-    const nsecs_t presentTime = mScheduler->getDispSyncExpectedPresentTime();
+    const nsecs_t presentTime = mScheduler->getDispSyncExpectedPresentTime(wakeupTime);
     // Inflate the expected present time if we're targetting the next vsync.
     mExpectedPresentTime.store(
             mVSyncModulator->getOffsets().sf > 0 ? presentTime : presentTime + stats.vsyncPeriod);
 }
 
-void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
+void SurfaceFlinger::onMessageReceived(int32_t what, nsecs_t when) NO_THREAD_SAFETY_ANALYSIS {
     ATRACE_CALL();
     switch (what) {
         case MessageQueue::INVALIDATE: {
@@ -1846,7 +1846,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
             // value throughout this frame to make sure all layers are
             // seeing this same value.
             const nsecs_t lastExpectedPresentTime = mExpectedPresentTime.load();
-            populateExpectedPresentTime();
+            populateExpectedPresentTime(when);
 
             // When Backpressure propagation is enabled we want to give a small grace period
             // for the present fence to fire instead of just giving up on this frame to handle cases
@@ -2333,6 +2333,9 @@ void SurfaceFlinger::postComposition()
         getBE().mTotalTime += elapsedTime;
     }
     getBE().mLastSwapTime = currentTime;
+
+    // Cleanup any outstanding resources due to rendering a prior frame.
+    getRenderEngine().cleanupPostRender();
 
     {
         std::lock_guard lock(mTexturePoolMutex);
@@ -2901,19 +2904,6 @@ void SurfaceFlinger::updateInputFlinger() {
 void SurfaceFlinger::updateInputWindowInfo() {
     std::vector<InputWindowInfo> inputHandles;
 
-    // We use a simple caching algorithm here. mInputDirty begins as true,
-    // after we call setInputWindows we set it to false, so
-    // in the future we wont call it again.. We set input dirty to true again
-    // when any layer that hasInput() has a transaction performed on it
-    // or when any parent or relative parent of such a layer has a transaction
-    // performed on it. Not all of these transactions will really result in
-    // input changes but all input changes will spring from these transactions
-    // so the cache is safe but not optimal. It seems like it might be annoyingly
-    // costly to cache and comapre the actual InputWindowHandle vector though.
-    if (!mInputDirty && !mInputWindowCommands.syncInputWindows) {
-        return;
-    }
-
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
         if (layer->hasInput()) {
             // When calculating the screen bounds we ignore the transparent region since it may
@@ -2925,8 +2915,6 @@ void SurfaceFlinger::updateInputWindowInfo() {
     mInputFlinger->setInputWindows(inputHandles,
                                    mInputWindowCommands.syncInputWindows ? mSetInputWindowsListener
                                                                          : nullptr);
-
-    mInputDirty = false;
 }
 
 void SurfaceFlinger::commitInputWindowCommands() {
@@ -3297,8 +3285,7 @@ bool SurfaceFlinger::transactionFlushNeeded() {
 bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
                                                    bool useCachedExpectedPresentTime,
                                                    const Vector<ComposerState>& states) {
-    if (!useCachedExpectedPresentTime)
-        populateExpectedPresentTime();
+    if (!useCachedExpectedPresentTime) populateExpectedPresentTime(systemTime());
 
     const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
     // Do not present if the desiredPresentTime has not passed unless it is more than one second
@@ -4409,11 +4396,19 @@ void SurfaceFlinger::dumpVSync(std::string& result) const {
 
     scheduler::RefreshRateConfigs::Policy policy = mRefreshRateConfigs->getDisplayManagerPolicy();
     StringAppendF(&result,
-                  "DesiredDisplayConfigSpecs: default config ID: %d"
+                  "DesiredDisplayConfigSpecs (DisplayManager): default config ID: %d"
                   ", min: %.2f Hz, max: %.2f Hz",
                   policy.defaultConfig.value(), policy.minRefreshRate, policy.maxRefreshRate);
     StringAppendF(&result, "(config override by backdoor: %s)\n\n",
                   mDebugDisplayConfigSetByBackdoor ? "yes" : "no");
+    scheduler::RefreshRateConfigs::Policy currentPolicy = mRefreshRateConfigs->getCurrentPolicy();
+    if (currentPolicy != policy) {
+        StringAppendF(&result,
+                      "DesiredDisplayConfigSpecs (Override): default config ID: %d"
+                      ", min: %.2f Hz, max: %.2f Hz\n\n",
+                      currentPolicy.defaultConfig.value(), currentPolicy.minRefreshRate,
+                      currentPolicy.maxRefreshRate);
+    }
 
     mScheduler->dump(mAppConnectionHandle, result);
     mScheduler->getPrimaryDispSync().dump(result);
@@ -4938,9 +4933,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         code == IBinder::SYSPROPS_TRANSACTION) {
         return OK;
     }
-    // Numbers from 1000 to 1034 are currently used for backdoors. The code
+    // Numbers from 1000 to 1036 are currently used for backdoors. The code
     // in onTransact verifies that the user is root, and has access to use SF.
-    if (code >= 1000 && code <= 1035) {
+    if (code >= 1000 && code <= 1036) {
         ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
         return OK;
     }
@@ -5266,6 +5261,18 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                         return result;
                     }
                     mDebugDisplayConfigSetByBackdoor = true;
+                }
+                return NO_ERROR;
+            }
+            case 1036: {
+                if (data.readInt32() > 0) {
+                    status_t result =
+                            acquireFrameRateFlexibilityToken(&mDebugFrameRateFlexibilityToken);
+                    if (result != NO_ERROR) {
+                        return result;
+                    }
+                } else {
+                    mDebugFrameRateFlexibilityToken = nullptr;
                 }
                 return NO_ERROR;
             }
