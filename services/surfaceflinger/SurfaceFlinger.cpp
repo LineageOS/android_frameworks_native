@@ -1731,7 +1731,7 @@ void SurfaceFlinger::updateVrFlinger() {
     sp<DisplayDevice> display = getDefaultDisplayDeviceLocked();
     LOG_ALWAYS_FATAL_IF(!display);
 
-    const int currentDisplayPowerMode = display->getPowerMode();
+    const hal::PowerMode currentDisplayPowerMode = display->getPowerMode();
 
     // Clear out all the output layers from the composition engine for all
     // displays before destroying the hardware composer interface. This ensures
@@ -1933,7 +1933,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what) NO_THREAD_SAFETY_ANALYSIS {
                 // power mode may operate at a different frame rate than is
                 // reported in their config, which causes noticeable (but less
                 // severe) jank.
-                if (displayDevice && displayDevice->getPowerMode() == HWC_POWER_MODE_NORMAL) {
+                if (displayDevice && displayDevice->getPowerMode() == hal::PowerMode::ON) {
                     const nsecs_t currentTime = systemTime();
                     const nsecs_t jankDuration = currentTime - mMissedFrameJankStart;
                     if (jankDuration > kMinJankyDuration && jankDuration < kMaxJankyDuration) {
@@ -2268,7 +2268,7 @@ void SurfaceFlinger::postComposition()
     mTransactionCompletedThread.sendCallbacks();
 
     if (displayDevice && displayDevice->isPrimary() &&
-        displayDevice->getPowerMode() == HWC_POWER_MODE_NORMAL && presentFenceTime->isValid()) {
+        displayDevice->getPowerMode() == hal::PowerMode::ON && presentFenceTime->isValid()) {
         mScheduler->addPresentFence(presentFenceTime);
     }
 
@@ -2531,7 +2531,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
             isInternalDisplay ? internalDisplayOrientation : ui::ROTATION_0;
 
     // virtual displays are always considered enabled
-    creationArgs.initialPowerMode = state.isVirtual() ? HWC_POWER_MODE_NORMAL : HWC_POWER_MODE_OFF;
+    creationArgs.initialPowerMode = state.isVirtual() ? hal::PowerMode::ON : hal::PowerMode::OFF;
 
     sp<DisplayDevice> display = getFactory().createDisplayDevice(creationArgs);
 
@@ -2967,7 +2967,7 @@ void SurfaceFlinger::initScheduler(DisplayId primaryDisplayId) {
                                                             currentConfig);
     mRefreshRateStats =
             std::make_unique<scheduler::RefreshRateStats>(*mRefreshRateConfigs, *mTimeStats,
-                                                          currentConfig, HWC_POWER_MODE_OFF);
+                                                          currentConfig, hal::PowerMode::OFF);
     mRefreshRateStats->setConfigMode(currentConfig);
 
     mPhaseConfiguration = getFactory().createPhaseConfiguration(*mRefreshRateConfigs);
@@ -4126,7 +4126,7 @@ void SurfaceFlinger::onInitializeDisplays() {
     setTransactionState(state, displays, 0, nullptr, mPendingInputWindowCommands, -1, {}, false,
                         {});
 
-    setPowerModeInternal(display, HWC_POWER_MODE_NORMAL);
+    setPowerModeInternal(display, hal::PowerMode::ON);
 
     const nsecs_t vsyncPeriod = getVsyncPeriod();
     mAnimFrameTracker.setDisplayRefreshPeriod(vsyncPeriod);
@@ -4150,7 +4150,7 @@ void SurfaceFlinger::setVsyncEnabledInHWC(DisplayId displayId, hal::Vsync enable
     }
 }
 
-void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int mode) {
+void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode) {
     if (display->isVirtual()) {
         ALOGE("%s: Invalid operation on virtual display", __FUNCTION__);
         return;
@@ -4161,7 +4161,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
 
     ALOGD("Setting power mode %d on display %s", mode, to_string(*displayId).c_str());
 
-    int currentMode = display->getPowerMode();
+    const hal::PowerMode currentMode = display->getPowerMode();
     if (mode == currentMode) {
         return;
     }
@@ -4169,15 +4169,15 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
     display->setPowerMode(mode);
 
     if (mInterceptor->isEnabled()) {
-        mInterceptor->savePowerModeUpdate(display->getSequenceId(), mode);
+        mInterceptor->savePowerModeUpdate(display->getSequenceId(), static_cast<int32_t>(mode));
     }
 
-    if (currentMode == HWC_POWER_MODE_OFF) {
+    if (currentMode == hal::PowerMode::OFF) {
         if (SurfaceFlinger::setSchedFifo(true) != NO_ERROR) {
             ALOGW("Couldn't set SCHED_FIFO on display on: %s\n", strerror(errno));
         }
         getHwComposer().setPowerMode(*displayId, mode);
-        if (display->isPrimary() && mode != HWC_POWER_MODE_DOZE_SUSPEND) {
+        if (display->isPrimary() && mode != hal::PowerMode::DOZE_SUSPEND) {
             setVsyncEnabledInHWC(*displayId, mHWCVsyncPendingState);
             mScheduler->onScreenAcquired(mAppConnectionHandle);
             mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
@@ -4186,12 +4186,12 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
         mVisibleRegionsDirty = true;
         mHasPoweredOff = true;
         repaintEverything();
-    } else if (mode == HWC_POWER_MODE_OFF) {
+    } else if (mode == hal::PowerMode::OFF) {
         // Turn off the display
         if (SurfaceFlinger::setSchedFifo(false) != NO_ERROR) {
             ALOGW("Couldn't set SCHED_OTHER on display off: %s\n", strerror(errno));
         }
-        if (display->isPrimary() && currentMode != HWC_POWER_MODE_DOZE_SUSPEND) {
+        if (display->isPrimary() && currentMode != hal::PowerMode::DOZE_SUSPEND) {
             mScheduler->disableHardwareVsync(true);
             mScheduler->onScreenReleased(mAppConnectionHandle);
         }
@@ -4202,15 +4202,14 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
         getHwComposer().setPowerMode(*displayId, mode);
         mVisibleRegionsDirty = true;
         // from this point on, SF will stop drawing on this display
-    } else if (mode == HWC_POWER_MODE_DOZE ||
-               mode == HWC_POWER_MODE_NORMAL) {
+    } else if (mode == hal::PowerMode::DOZE || mode == hal::PowerMode::ON) {
         // Update display while dozing
         getHwComposer().setPowerMode(*displayId, mode);
-        if (display->isPrimary() && currentMode == HWC_POWER_MODE_DOZE_SUSPEND) {
+        if (display->isPrimary() && currentMode == hal::PowerMode::DOZE_SUSPEND) {
             mScheduler->onScreenAcquired(mAppConnectionHandle);
             mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
         }
-    } else if (mode == HWC_POWER_MODE_DOZE_SUSPEND) {
+    } else if (mode == hal::PowerMode::DOZE_SUSPEND) {
         // Leave display going to doze
         if (display->isPrimary()) {
             mScheduler->disableHardwareVsync(true);
@@ -4225,7 +4224,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
     if (display->isPrimary()) {
         mTimeStats->setPowerMode(mode);
         mRefreshRateStats->setPowerMode(mode);
-        mScheduler->setDisplayPowerState(mode == HWC_POWER_MODE_NORMAL);
+        mScheduler->setDisplayPowerState(mode == hal::PowerMode::ON);
     }
 
     ALOGD("Finished setting power mode %d on display %s", mode, to_string(*displayId).c_str());
@@ -4240,7 +4239,7 @@ void SurfaceFlinger::setPowerMode(const sp<IBinder>& displayToken, int mode) {
         } else if (display->isVirtual()) {
             ALOGW("Attempt to set power mode %d for virtual display", mode);
         } else {
-            setPowerModeInternal(display, mode);
+            setPowerModeInternal(display, static_cast<hal::PowerMode>(mode));
         }
     }));
 }

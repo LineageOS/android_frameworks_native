@@ -26,6 +26,9 @@
 #include <ui/DeviceProductInfo.h>
 #include <ui/PhysicalDisplayId.h>
 
+#define LEGACY_DISPLAY_TYPE_PRIMARY 0
+#define LEGACY_DISPLAY_TYPE_EXTERNAL 1
+
 namespace android {
 
 struct DisplayId {
