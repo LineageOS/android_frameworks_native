@@ -90,7 +90,7 @@ private:
     BLASTBufferQueue& operator = (const BLASTBufferQueue& rhs);
     BLASTBufferQueue(const BLASTBufferQueue& rhs);
 
-    void processNextBufferLocked() REQUIRES(mMutex);
+    void processNextBufferLocked(bool useNextTransaction) REQUIRES(mMutex);
     Rect computeCrop(const BufferItem& item);
 
     sp<SurfaceControl> mSurfaceControl;
@@ -123,8 +123,6 @@ private:
     sp<BLASTBufferItemConsumer> mBufferItemConsumer;
 
     SurfaceComposerClient::Transaction* mNextTransaction GUARDED_BY(mMutex);
-
-    bool mUseNextTransaction = false;
 };
 
 } // namespace android
