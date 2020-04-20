@@ -655,8 +655,9 @@ status_t BufferQueueProducer::detachBuffer(int slot) {
         }
 
         listener = mCore->mConsumerListener;
-        if (listener != nullptr) {
-            listener->onFrameDetached(mSlots[slot].mGraphicBuffer->getId());
+        auto gb = mSlots[slot].mGraphicBuffer;
+        if (listener != nullptr && gb != nullptr) {
+            listener->onFrameDetached(gb->getId());
         }
         mSlots[slot].mBufferState.detachProducer();
         mCore->mActiveBuffers.erase(slot);
