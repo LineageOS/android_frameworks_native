@@ -39,6 +39,7 @@ hidl_package_root {
 
 aidl_interface {
     name: "binderthreadstateutilstest.aidl",
+    unstable: true,
     srcs: ["IAidlStuff.aidl"],
 }
 
