@@ -116,7 +116,7 @@ public:
     virtual status_t presentAndGetReleaseFences(DisplayId displayId) = 0;
 
     // set power mode
-    virtual status_t setPowerMode(DisplayId displayId, int mode) = 0;
+    virtual status_t setPowerMode(DisplayId displayId, hal::PowerMode mode) = 0;
 
     // Sets a color transform to be applied to the result of composition
     virtual status_t setColorTransform(DisplayId displayId, const mat4& transform) = 0;
@@ -263,7 +263,7 @@ public:
     status_t presentAndGetReleaseFences(DisplayId displayId) override;
 
     // set power mode
-    status_t setPowerMode(DisplayId displayId, int mode) override;
+    status_t setPowerMode(DisplayId displayId, hal::PowerMode mode) override;
 
     // Sets a color transform to be applied to the result of composition
     status_t setColorTransform(DisplayId displayId, const mat4& transform) override;
