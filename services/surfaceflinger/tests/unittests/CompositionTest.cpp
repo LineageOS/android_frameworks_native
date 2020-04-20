@@ -52,6 +52,12 @@ namespace {
 
 namespace hal = android::hardware::graphics::composer::hal;
 
+using hal::Error;
+using hal::IComposer;
+using hal::IComposerClient;
+using hal::PowerMode;
+using hal::Transform;
+
 using testing::_;
 using testing::AtLeast;
 using testing::Between;
@@ -66,11 +72,6 @@ using testing::Ref;
 using testing::Return;
 using testing::ReturnRef;
 using testing::SetArgPointee;
-
-using android::Hwc2::Error;
-using android::Hwc2::IComposer;
-using android::Hwc2::IComposerClient;
-using android::Hwc2::Transform;
 
 using FakeHwcDisplayInjector = TestableSurfaceFlinger::FakeHwcDisplayInjector;
 using FakeDisplayDeviceInjector = TestableSurfaceFlinger::FakeDisplayDeviceInjector;
@@ -265,13 +266,10 @@ void CompositionTest::captureScreenComposition() {
 template <typename Derived>
 struct BaseDisplayVariant {
     static constexpr bool IS_SECURE = true;
-    static constexpr int INIT_POWER_MODE = HWC_POWER_MODE_NORMAL;
+    static constexpr hal::PowerMode INIT_POWER_MODE = hal::PowerMode::ON;
 
     static void setupPreconditions(CompositionTest* test) {
-        EXPECT_CALL(*test->mComposer,
-                    setPowerMode(HWC_DISPLAY,
-                                 static_cast<Hwc2::IComposerClient::PowerMode>(
-                                         Derived::INIT_POWER_MODE)))
+        EXPECT_CALL(*test->mComposer, setPowerMode(HWC_DISPLAY, Derived::INIT_POWER_MODE))
                 .WillOnce(Return(Error::NONE));
 
         FakeHwcDisplayInjector(DEFAULT_DISPLAY_ID, hal::DisplayType::PHYSICAL, true /* isPrimary */)
@@ -438,7 +436,7 @@ struct InsecureDisplaySetupVariant : public BaseDisplayVariant<InsecureDisplaySe
 };
 
 struct PoweredOffDisplaySetupVariant : public BaseDisplayVariant<PoweredOffDisplaySetupVariant> {
-    static constexpr int INIT_POWER_MODE = HWC_POWER_MODE_OFF;
+    static constexpr hal::PowerMode INIT_POWER_MODE = hal::PowerMode::OFF;
 
     template <typename Case>
     static void setupPreconditionCallExpectations(CompositionTest*) {}
