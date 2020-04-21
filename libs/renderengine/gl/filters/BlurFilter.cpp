@@ -261,15 +261,6 @@ string BlurFilter::getMixFragShader() const {
     return shader;
 }
 
-void BlurFilter::blit(GLFramebuffer& read, GLFramebuffer& draw) const {
-    ATRACE_NAME("BlurFilter::blit");
-    read.bindAsReadBuffer();
-    draw.bindAsDrawBuffer();
-    glBlitFramebuffer(0, 0, read.getBufferWidth(), read.getBufferHeight(), 0, 0,
-                      draw.getBufferWidth(), draw.getBufferHeight(), GL_COLOR_BUFFER_BIT,
-                      GL_LINEAR);
-}
-
 } // namespace gl
 } // namespace renderengine
 } // namespace android
