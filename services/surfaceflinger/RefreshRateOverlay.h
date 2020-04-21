@@ -13,19 +13,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #pragma once
 
-#include "SurfaceFlinger.h"
+#include <unordered_map>
+
+#include <math/vec4.h>
+#include <ui/Rect.h>
+#include <ui/Size.h>
+#include <utils/StrongPointer.h>
+
+#include "Scheduler/RefreshRateConfigs.h"
 
 namespace android {
+
+class Client;
+class GraphicBuffer;
+class IBinder;
+class IGraphicBufferProducer;
+class Layer;
+class SurfaceFlinger;
 
 using RefreshRate = scheduler::RefreshRateConfigs::RefreshRate;
 
 class RefreshRateOverlay {
 public:
-    RefreshRateOverlay(SurfaceFlinger& flinger);
+    explicit RefreshRateOverlay(SurfaceFlinger&);
 
-    void changeRefreshRate(const RefreshRate& refreshRate);
+    void setViewport(ui::Size);
+    void changeRefreshRate(const RefreshRate&);
 
 private:
     class SevenSegmentDrawer {
@@ -56,7 +72,7 @@ private:
     void primeCache();
 
     SurfaceFlinger& mFlinger;
-    sp<Client> mClient;
+    const sp<Client> mClient;
     sp<Layer> mLayer;
     sp<IBinder> mIBinder;
     sp<IGraphicBufferProducer> mGbp;
@@ -68,4 +84,4 @@ private:
     const half3 HIGH_FPS_COLOR = half3(0.0f, 1.0f, 0.0f);
 };
 
-}; // namespace android
+} // namespace android
