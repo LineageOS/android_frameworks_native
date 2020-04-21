@@ -18,7 +18,6 @@
 #define ANDROID_SENSOR_DEVICE_UTIL
 
 #include <android/hidl/manager/1.0/IServiceNotification.h>
-#include <hardware/sensors.h>
 
 #include <condition_variable>
 #include <thread>
@@ -29,12 +28,6 @@ using ::android::hidl::manager::V1_0::IServiceNotification;
 
 namespace android {
 namespace SensorDeviceUtils {
-
-// Ensures a sensor event doesn't provide values finer grained than its sensor resolution allows.
-void quantizeSensorEventValues(sensors_event_t *event, float resolution);
-
-// Provides a default resolution for simple sensor types if one wasn't provided by the HAL.
-float defaultResolutionForType(int type);
 
 class HidlServiceRegistrationWaiter : public IServiceNotification {
 public:
