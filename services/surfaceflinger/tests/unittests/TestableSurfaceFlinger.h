@@ -289,14 +289,14 @@ public:
         return mFlinger->destroyDisplay(displayToken);
     }
 
-    auto resetDisplayState() { return mFlinger->resetDisplayState(); }
+    auto resetDisplayState() NO_THREAD_SAFETY_ANALYSIS { return mFlinger->resetDisplayState(); }
 
     auto setupNewDisplayDeviceInternal(
             const wp<IBinder>& displayToken,
             std::shared_ptr<compositionengine::Display> compositionDisplay,
             const DisplayDeviceState& state,
             const sp<compositionengine::DisplaySurface>& dispSurface,
-            const sp<IGraphicBufferProducer>& producer) {
+            const sp<IGraphicBufferProducer>& producer) NO_THREAD_SAFETY_ANALYSIS {
         return mFlinger->setupNewDisplayDeviceInternal(displayToken, compositionDisplay, state,
                                                        dispSurface, producer);
     }
