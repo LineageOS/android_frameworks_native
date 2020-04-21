@@ -430,7 +430,8 @@ void RegionSamplingThread::captureSample() {
     }
 
     bool ignored;
-    mFlinger.captureScreenCommon(renderArea, traverseLayers, buffer, false, ignored);
+    mFlinger.captureScreenCommon(renderArea, traverseLayers, buffer, false /* identityTransform */,
+                                 true /* regionSampling */, ignored);
 
     std::vector<Descriptor> activeDescriptors;
     for (const auto& descriptor : descriptors) {
