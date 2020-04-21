@@ -51,6 +51,8 @@ using testing::SizeIs;
 using testing::StrEq;
 using testing::UnorderedElementsAre;
 
+using PowerMode = hardware::graphics::composer::V2_4::IComposerClient::PowerMode;
+
 // clang-format off
 #define FMT_PROTO          true
 #define FMT_STRING         false
@@ -394,7 +396,7 @@ TEST_F(TimeStatsTest, canIncreaseCompositionStrategyChanges) {
 
 TEST_F(TimeStatsTest, canAverageFrameDuration) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
-    mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL);
+    mTimeStats->setPowerMode(PowerMode::ON);
     mTimeStats
             ->recordFrameDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count(),
                                   std::chrono::duration_cast<std::chrono::nanoseconds>(6ms)
@@ -423,7 +425,7 @@ TEST_F(TimeStatsTest, canAverageRenderEngineTimings) {
                                                    .count());
 
     // Push a dummy present fence to trigger flushing the RenderEngine timings.
-    mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL);
+    mTimeStats->setPowerMode(PowerMode::ON);
     mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(
             std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count()));
 
@@ -439,13 +441,13 @@ TEST_F(TimeStatsTest, canInsertGlobalPresentToPresent) {
     ASSERT_NO_FATAL_FAILURE(
             mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(2000000)));
 
-    ASSERT_NO_FATAL_FAILURE(mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL));
+    ASSERT_NO_FATAL_FAILURE(mTimeStats->setPowerMode(PowerMode::ON));
     ASSERT_NO_FATAL_FAILURE(
             mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(3000000)));
     ASSERT_NO_FATAL_FAILURE(
             mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(5000000)));
 
-    ASSERT_NO_FATAL_FAILURE(mTimeStats->setPowerMode(HWC_POWER_MODE_OFF));
+    ASSERT_NO_FATAL_FAILURE(mTimeStats->setPowerMode(PowerMode::OFF));
     ASSERT_NO_FATAL_FAILURE(
             mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(6000000)));
     ASSERT_NO_FATAL_FAILURE(
@@ -463,12 +465,12 @@ TEST_F(TimeStatsTest, canInsertGlobalPresentToPresent) {
 TEST_F(TimeStatsTest, canInsertGlobalFrameDuration) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
 
-    mTimeStats->setPowerMode(HWC_POWER_MODE_OFF);
+    mTimeStats->setPowerMode(PowerMode::OFF);
     mTimeStats
             ->recordFrameDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count(),
                                   std::chrono::duration_cast<std::chrono::nanoseconds>(5ms)
                                           .count());
-    mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL);
+    mTimeStats->setPowerMode(PowerMode::ON);
     mTimeStats
             ->recordFrameDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(3ms).count(),
                                   std::chrono::duration_cast<std::chrono::nanoseconds>(6ms)
@@ -504,7 +506,7 @@ TEST_F(TimeStatsTest, canInsertGlobalRenderEngineTiming) {
     ASSERT_EQ(0, preFlushProto.render_engine_timing_size());
 
     // Push a dummy present fence to trigger flushing the RenderEngine timings.
-    mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL);
+    mTimeStats->setPowerMode(PowerMode::ON);
     mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(
             std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count()));
 
@@ -739,7 +741,7 @@ TEST_F(TimeStatsTest, canClearTimeStats) {
     ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementTotalFrames());
     ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementMissedFrames());
     ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementClientCompositionFrames());
-    ASSERT_NO_FATAL_FAILURE(mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL));
+    ASSERT_NO_FATAL_FAILURE(mTimeStats->setPowerMode(PowerMode::ON));
 
     mTimeStats
             ->recordFrameDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(3ms).count(),
@@ -776,7 +778,7 @@ TEST_F(TimeStatsTest, canClearDumpOnlyTimeStats) {
     ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementClientCompositionReusedFrames());
     ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementRefreshRateSwitches());
     ASSERT_NO_FATAL_FAILURE(mTimeStats->incrementCompositionStrategyChanges());
-    mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL);
+    mTimeStats->setPowerMode(PowerMode::ON);
     mTimeStats
             ->recordFrameDuration(std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count(),
                                   std::chrono::duration_cast<std::chrono::nanoseconds>(5ms)
@@ -894,7 +896,7 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
     }
 
     mTimeStats->recordDisplayEventConnectionCount(DISPLAY_EVENT_CONNECTIONS);
-    mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL);
+    mTimeStats->setPowerMode(PowerMode::ON);
     mTimeStats->recordFrameDuration(1000000, 3000000);
     mTimeStats->recordRenderEngineDuration(2000000, 4000000);
     mTimeStats->recordRenderEngineDuration(2000000, std::make_shared<FenceTime>(3000000));
@@ -1074,7 +1076,7 @@ TEST_F(TimeStatsTest, layerStatsCallback_pullsMultipleBuckets) {
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 4, 5000000);
 
     // Now make sure that TimeStats flushes global stats to set the callback.
-    mTimeStats->setPowerMode(HWC_POWER_MODE_NORMAL);
+    mTimeStats->setPowerMode(PowerMode::ON);
     mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(3000000));
     mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(5000000));
     EXPECT_THAT(mDelegate->mAtomTags,

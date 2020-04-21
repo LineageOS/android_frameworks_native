@@ -30,6 +30,7 @@
 #include "mock/MockTimeStats.h"
 
 using namespace std::chrono_literals;
+using android::hardware::graphics::composer::hal::PowerMode;
 using testing::_;
 using testing::AtLeast;
 
@@ -50,10 +51,9 @@ protected:
     void init(const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs) {
         mRefreshRateConfigs =
                 std::make_unique<RefreshRateConfigs>(configs, /*currentConfig=*/CONFIG_ID_0);
-        mRefreshRateStats =
-                std::make_unique<RefreshRateStats>(*mRefreshRateConfigs, mTimeStats,
-                                                   /*currentConfigId=*/CONFIG_ID_0,
-                                                   /*currentPowerMode=*/HWC_POWER_MODE_OFF);
+        mRefreshRateStats = std::make_unique<RefreshRateStats>(*mRefreshRateConfigs, mTimeStats,
+                                                               /*currentConfigId=*/CONFIG_ID_0,
+                                                               /*currentPowerMode=*/PowerMode::OFF);
     }
 
     Hwc2::mock::Display mDisplay;
@@ -111,7 +111,7 @@ TEST_F(RefreshRateStatsTest, oneConfigTest) {
     EXPECT_EQ(0u, times.count("90fps"));
 
     mRefreshRateStats->setConfigMode(CONFIG_ID_0);
-    mRefreshRateStats->setPowerMode(HWC_POWER_MODE_NORMAL);
+    mRefreshRateStats->setPowerMode(PowerMode::ON);
     screenOff = mRefreshRateStats->getTotalTimes()["ScreenOff"];
     std::this_thread::sleep_for(std::chrono::milliseconds(2));
     times = mRefreshRateStats->getTotalTimes();
@@ -119,7 +119,7 @@ TEST_F(RefreshRateStatsTest, oneConfigTest) {
     ASSERT_EQ(1u, times.count("90fps"));
     EXPECT_LT(0, times["90fps"]);
 
-    mRefreshRateStats->setPowerMode(HWC_POWER_MODE_DOZE);
+    mRefreshRateStats->setPowerMode(PowerMode::DOZE);
     int ninety = mRefreshRateStats->getTotalTimes()["90fps"];
     std::this_thread::sleep_for(std::chrono::milliseconds(2));
     times = mRefreshRateStats->getTotalTimes();
@@ -130,7 +130,7 @@ TEST_F(RefreshRateStatsTest, oneConfigTest) {
     screenOff = mRefreshRateStats->getTotalTimes()["ScreenOff"];
     std::this_thread::sleep_for(std::chrono::milliseconds(2));
     times = mRefreshRateStats->getTotalTimes();
-    // Because the power mode is not HWC_POWER_MODE_NORMAL, switching the config
+    // Because the power mode is not PowerMode::ON, switching the config
     // does not update refresh rates that come from the config.
     EXPECT_LT(screenOff, times["ScreenOff"]);
     EXPECT_EQ(ninety, times["90fps"]);
@@ -158,7 +158,7 @@ TEST_F(RefreshRateStatsTest, twoConfigsTest) {
     EXPECT_LT(screenOff, times["ScreenOff"]);
 
     mRefreshRateStats->setConfigMode(CONFIG_ID_0);
-    mRefreshRateStats->setPowerMode(HWC_POWER_MODE_NORMAL);
+    mRefreshRateStats->setPowerMode(PowerMode::ON);
     screenOff = mRefreshRateStats->getTotalTimes()["ScreenOff"];
     std::this_thread::sleep_for(std::chrono::milliseconds(2));
     times = mRefreshRateStats->getTotalTimes();
@@ -192,9 +192,9 @@ TEST_F(RefreshRateStatsTest, twoConfigsTest) {
     EXPECT_EQ(ninety, times["90fps"]);
     EXPECT_LT(sixty, times["60fps"]);
 
-    // Because the power mode is not HWC_POWER_MODE_NORMAL, switching the config
+    // Because the power mode is not PowerMode::ON, switching the config
     // does not update refresh rates that come from the config.
-    mRefreshRateStats->setPowerMode(HWC_POWER_MODE_DOZE);
+    mRefreshRateStats->setPowerMode(PowerMode::DOZE);
     mRefreshRateStats->setConfigMode(CONFIG_ID_0);
     sixty = mRefreshRateStats->getTotalTimes()["60fps"];
     std::this_thread::sleep_for(std::chrono::milliseconds(2));
