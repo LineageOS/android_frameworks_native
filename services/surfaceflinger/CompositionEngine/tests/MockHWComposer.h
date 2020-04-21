@@ -56,7 +56,7 @@ public:
                  status_t(DisplayId, uint32_t, const sp<Fence>&, const sp<GraphicBuffer>&,
                           ui::Dataspace));
     MOCK_METHOD1(presentAndGetReleaseFences, status_t(DisplayId));
-    MOCK_METHOD2(setPowerMode, status_t(DisplayId, int));
+    MOCK_METHOD2(setPowerMode, status_t(DisplayId, hal::PowerMode));
     MOCK_METHOD2(setActiveConfig, status_t(DisplayId, size_t));
     MOCK_METHOD2(setColorTransform, status_t(DisplayId, const mat4&));
     MOCK_METHOD1(disconnectDisplay, void(DisplayId));
