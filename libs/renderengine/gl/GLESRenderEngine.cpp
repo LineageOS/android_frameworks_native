@@ -147,52 +147,6 @@ static status_t selectConfigForAttribute(EGLDisplay dpy, EGLint const* attrs, EG
     return NAME_NOT_FOUND;
 }
 
-class EGLAttributeVector {
-    struct Attribute;
-    class Adder;
-    friend class Adder;
-    KeyedVector<Attribute, EGLint> mList;
-    struct Attribute {
-        Attribute() : v(0){};
-        explicit Attribute(EGLint v) : v(v) {}
-        EGLint v;
-        bool operator<(const Attribute& other) const {
-            // this places EGL_NONE at the end
-            EGLint lhs(v);
-            EGLint rhs(other.v);
-            if (lhs == EGL_NONE) lhs = 0x7FFFFFFF;
-            if (rhs == EGL_NONE) rhs = 0x7FFFFFFF;
-            return lhs < rhs;
-        }
-    };
-    class Adder {
-        friend class EGLAttributeVector;
-        EGLAttributeVector& v;
-        EGLint attribute;
-        Adder(EGLAttributeVector& v, EGLint attribute) : v(v), attribute(attribute) {}
-
-    public:
-        void operator=(EGLint value) {
-            if (attribute != EGL_NONE) {
-                v.mList.add(Attribute(attribute), value);
-            }
-        }
-        operator EGLint() const { return v.mList[attribute]; }
-    };
-
-public:
-    EGLAttributeVector() { mList.add(Attribute(EGL_NONE), EGL_NONE); }
-    void remove(EGLint attribute) {
-        if (attribute != EGL_NONE) {
-            mList.removeItem(Attribute(attribute));
-        }
-    }
-    Adder operator[](EGLint attribute) { return Adder(*this, attribute); }
-    EGLint operator[](EGLint attribute) const { return mList[attribute]; }
-    // cast-operator to (EGLint const*)
-    operator EGLint const*() const { return &mList.keyAt(0).v; }
-};
-
 static status_t selectEGLConfig(EGLDisplay display, EGLint format, EGLint renderableType,
                                 EGLConfig* config) {
     // select our EGLConfig. It must support EGL_RECORDABLE_ANDROID if
@@ -201,16 +155,33 @@ static status_t selectEGLConfig(EGLDisplay display, EGLint format, EGLint render
     EGLint wantedAttribute;
     EGLint wantedAttributeValue;
 
-    EGLAttributeVector attribs;
+    std::vector<EGLint> attribs;
     if (renderableType) {
-        attribs[EGL_RENDERABLE_TYPE] = renderableType;
-        attribs[EGL_RECORDABLE_ANDROID] = EGL_TRUE;
-        attribs[EGL_SURFACE_TYPE] = EGL_WINDOW_BIT | EGL_PBUFFER_BIT;
-        attribs[EGL_FRAMEBUFFER_TARGET_ANDROID] = EGL_TRUE;
-        attribs[EGL_RED_SIZE] = 8;
-        attribs[EGL_GREEN_SIZE] = 8;
-        attribs[EGL_BLUE_SIZE] = 8;
-        attribs[EGL_ALPHA_SIZE] = 8;
+        const ui::PixelFormat pixelFormat = static_cast<ui::PixelFormat>(format);
+        const bool is1010102 = pixelFormat == ui::PixelFormat::RGBA_1010102;
+
+        // Default to 8 bits per channel.
+        const EGLint tmpAttribs[] = {
+                EGL_RENDERABLE_TYPE,
+                renderableType,
+                EGL_RECORDABLE_ANDROID,
+                EGL_TRUE,
+                EGL_SURFACE_TYPE,
+                EGL_WINDOW_BIT | EGL_PBUFFER_BIT,
+                EGL_FRAMEBUFFER_TARGET_ANDROID,
+                EGL_TRUE,
+                EGL_RED_SIZE,
+                is1010102 ? 10 : 8,
+                EGL_GREEN_SIZE,
+                is1010102 ? 10 : 8,
+                EGL_BLUE_SIZE,
+                is1010102 ? 10 : 8,
+                EGL_ALPHA_SIZE,
+                is1010102 ? 2 : 8,
+                EGL_NONE,
+        };
+        std::copy(tmpAttribs, tmpAttribs + (sizeof(tmpAttribs) / sizeof(EGLint)),
+                  std::back_inserter(attribs));
         wantedAttribute = EGL_NONE;
         wantedAttributeValue = EGL_NONE;
     } else {
@@ -219,7 +190,8 @@ static status_t selectEGLConfig(EGLDisplay display, EGLint format, EGLint render
         wantedAttributeValue = format;
     }
 
-    err = selectConfigForAttribute(display, attribs, wantedAttribute, wantedAttributeValue, config);
+    err = selectConfigForAttribute(display, attribs.data(), wantedAttribute, wantedAttributeValue,
+                                   config);
     if (err == NO_ERROR) {
         EGLint caveat;
         if (eglGetConfigAttrib(display, *config, EGL_CONFIG_CAVEAT, &caveat))
