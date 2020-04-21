@@ -143,14 +143,6 @@ void SensorDevice::initializeSensorList() {
                 for (size_t i=0 ; i < count; i++) {
                     sensor_t sensor;
                     convertToSensor(convertToOldSensorInfo(list[i]), &sensor);
-
-                    if (sensor.resolution == 0) {
-                        // Don't crash here or the device will go into a crashloop.
-                        ALOGE("%s must have a non-zero resolution", sensor.name);
-                        // For simple algos, map their resolution to 1 if it's not specified
-                        sensor.resolution = SensorDeviceUtils::defaultResolutionForType(sensor.type);
-                    }
-
                     // Sanity check and clamp power if it is 0 (or close)
                     if (sensor.power < minPowerMa) {
                         ALOGI("Reported power %f not deemed sane, clamping to %f",
@@ -516,7 +508,7 @@ ssize_t SensorDevice::pollHal(sensors_event_t* buffer, size_t count) {
                     const auto &events,
                     const auto &dynamicSensorsAdded) {
                     if (result == Result::OK) {
-                        convertToSensorEventsAndQuantize(convertToNewEvents(events),
+                        convertToSensorEvents(convertToNewEvents(events),
                                 convertToNewSensorInfos(dynamicSensorsAdded), buffer);
                         err = (ssize_t)events.size();
                     } else {
@@ -579,8 +571,6 @@ ssize_t SensorDevice::pollFmq(sensors_event_t* buffer, size_t maxNumEventsToRead
 
             for (size_t i = 0; i < eventsToRead; i++) {
                 convertToSensorEvent(mEventBuffer[i], &buffer[i]);
-                android::SensorDeviceUtils::quantizeSensorEventValues(&buffer[i],
-                        getResolutionForSensor(buffer[i].sensor));
             }
             eventsRead = eventsToRead;
         } else {
@@ -1087,7 +1077,7 @@ void SensorDevice::convertToSensorEvent(
     }
 }
 
-void SensorDevice::convertToSensorEventsAndQuantize(
+void SensorDevice::convertToSensorEvents(
         const hidl_vec<Event> &src,
         const hidl_vec<SensorInfo> &dynamicSensorsAdded,
         sensors_event_t *dst) {
@@ -1098,24 +1088,7 @@ void SensorDevice::convertToSensorEventsAndQuantize(
 
     for (size_t i = 0; i < src.size(); ++i) {
         V2_1::implementation::convertToSensorEvent(src[i], &dst[i]);
-        android::SensorDeviceUtils::quantizeSensorEventValues(&dst[i],
-                getResolutionForSensor(dst[i].sensor));
     }
-}
-
-float SensorDevice::getResolutionForSensor(int sensorHandle) {
-    for (size_t i = 0; i < mSensorList.size(); i++) {
-      if (sensorHandle == mSensorList[i].handle) {
-        return mSensorList[i].resolution;
-      }
-    }
-
-    auto it = mConnectedDynamicSensors.find(sensorHandle);
-    if (it != mConnectedDynamicSensors.end()) {
-      return it->second->resolution;
-    }
-
-    return 0;
 }
 
 void SensorDevice::handleHidlDeath(const std::string & detail) {
