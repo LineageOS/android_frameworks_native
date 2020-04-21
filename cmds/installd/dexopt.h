@@ -36,8 +36,10 @@ static constexpr int DEX2OAT_FOR_FILTER          = 3;
 
 #define ANDROID_ART_APEX_BIN "/apex/com.android.art/bin"
 // Location of binaries in the Android Runtime APEX.
-static constexpr const char* kDex2oatPath = ANDROID_ART_APEX_BIN "/dex2oat";
-static constexpr const char* kDex2oatDebugPath = ANDROID_ART_APEX_BIN "/dex2oatd";
+static constexpr const char* kDex2oat32Path = ANDROID_ART_APEX_BIN "/dex2oat32";
+static constexpr const char* kDex2oat64Path = ANDROID_ART_APEX_BIN "/dex2oat64";
+static constexpr const char* kDex2oatDebug32Path = ANDROID_ART_APEX_BIN "/dex2oatd32";
+static constexpr const char* kDex2oatDebug64Path = ANDROID_ART_APEX_BIN "/dex2oatd64";
 static constexpr const char* kProfmanPath = ANDROID_ART_APEX_BIN "/profman";
 static constexpr const char* kProfmanDebugPath = ANDROID_ART_APEX_BIN "/profmand";
 static constexpr const char* kDexoptanalyzerPath = ANDROID_ART_APEX_BIN "/dexoptanalyzer";
