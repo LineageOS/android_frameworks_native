@@ -23,7 +23,6 @@ cc_test {
         "libcutils",
         "libfmq",
         "libgui",
-        "libhardware",
         "libhidlbase",
         "liblayers_proto",
         "liblog",
