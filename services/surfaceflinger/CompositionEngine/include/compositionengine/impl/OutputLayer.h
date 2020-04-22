@@ -39,7 +39,8 @@ public:
 
     void setHwcLayer(std::shared_ptr<HWC2::Layer>) override;
 
-    void updateCompositionState(bool includeGeometry, bool forceClientComposition) override;
+    void updateCompositionState(bool includeGeometry, bool forceClientComposition,
+                                ui::Transform::RotationFlags) override;
     void writeStateToHWC(bool) override;
     void writeCursorPositionToHWC() const override;
 
@@ -55,7 +56,8 @@ public:
 
     virtual FloatRect calculateOutputSourceCrop() const;
     virtual Rect calculateOutputDisplayFrame() const;
-    virtual uint32_t calculateOutputRelativeBufferTransform() const;
+    virtual uint32_t calculateOutputRelativeBufferTransform(
+            uint32_t internalDisplayRotationFlags) const;
 
 protected:
     // Implemented by the final implementation for the final state it uses.
