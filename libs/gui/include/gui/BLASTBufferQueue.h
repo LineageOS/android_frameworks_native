@@ -66,7 +66,9 @@ class BLASTBufferQueue
     : public ConsumerBase::FrameAvailableListener, public BufferItemConsumer::BufferFreedListener
 {
 public:
-    BLASTBufferQueue(const sp<SurfaceControl>& surface, int width, int height);
+    BLASTBufferQueue(const sp<SurfaceControl>& surface, int width, int height,
+                     bool enableTripleBuffering = true);
+
     sp<IGraphicBufferProducer> getIGraphicBufferProducer() const {
         return mProducer;
     }
