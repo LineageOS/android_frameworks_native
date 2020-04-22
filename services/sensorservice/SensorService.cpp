@@ -308,6 +308,24 @@ void SensorService::onUidStateChanged(uid_t uid, UidState state) {
             dev.setUidStateForConnection(conn.get(), state);
         }
     }
+
+    for (const sp<SensorDirectConnection>& conn : connLock.getDirectConnections()) {
+        if (conn->getUid() == uid) {
+            // Update sensor subscriptions if needed
+            bool hasAccess = hasSensorAccessLocked(conn->getUid(), conn->getOpPackageName());
+            conn->onSensorAccessChanged(hasAccess);
+        }
+    }
+}
+
+bool SensorService::hasSensorAccess(uid_t uid, const String16& opPackageName) {
+    Mutex::Autolock _l(mLock);
+    return hasSensorAccessLocked(uid, opPackageName);
+}
+
+bool SensorService::hasSensorAccessLocked(uid_t uid, const String16& opPackageName) {
+    return !mSensorPrivacyPolicy->isSensorPrivacyEnabled()
+        && isUidActive(uid) && !isOperationRestrictedLocked(opPackageName);
 }
 
 const Sensor& SensorService::registerSensor(SensorInterface* s, bool isDebug, bool isVirtual) {
@@ -640,8 +658,9 @@ void SensorService::disableAllSensors() {
 
 void SensorService::disableAllSensorsLocked(ConnectionSafeAutolock* connLock) {
     SensorDevice& dev(SensorDevice::getInstance());
-    for (const sp<SensorDirectConnection>& connection : connLock->getDirectConnections()) {
-        connection->stopAll(true /* backupRecord */);
+    for (const sp<SensorDirectConnection>& conn : connLock->getDirectConnections()) {
+        bool hasAccess = hasSensorAccessLocked(conn->getUid(), conn->getOpPackageName());
+        conn->onSensorAccessChanged(hasAccess);
     }
     dev.disableAllSensors();
     // Clear all pending flush connections for all active sensors. If one of the active
@@ -668,8 +687,9 @@ void SensorService::enableAllSensorsLocked(ConnectionSafeAutolock* connLock) {
     }
     SensorDevice& dev(SensorDevice::getInstance());
     dev.enableAllSensors();
-    for (const sp<SensorDirectConnection>& connection : connLock->getDirectConnections()) {
-        connection->recoverAll();
+    for (const sp<SensorDirectConnection>& conn : connLock->getDirectConnections()) {
+        bool hasAccess = hasSensorAccessLocked(conn->getUid(), conn->getOpPackageName());
+        conn->onSensorAccessChanged(hasAccess);
     }
 }
 
@@ -1888,13 +1908,12 @@ bool SensorService::isWhiteListedPackage(const String8& packageName) {
     return (packageName.contains(mWhiteListedPackage.string()));
 }
 
-bool SensorService::isOperationPermitted(const String16& opPackageName) {
-    Mutex::Autolock _l(mLock);
+bool SensorService::isOperationRestrictedLocked(const String16& opPackageName) {
     if (mCurrentOperatingMode == RESTRICTED) {
         String8 package(opPackageName);
-        return isWhiteListedPackage(package);
+        return !isWhiteListedPackage(package);
     }
-    return true;
+    return false;
 }
 
 void SensorService::UidPolicy::registerSelf() {
