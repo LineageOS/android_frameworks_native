@@ -322,7 +322,7 @@ TEST_F(TransactionApplicationTest, BlockWithPriorTransaction_SyncInputWindows) {
 TEST_F(TransactionApplicationTest, FromHandle) {
     sp<IBinder> badHandle;
     auto ret = mFlinger.fromHandle(badHandle);
-    EXPECT_EQ(nullptr, ret.get());
+    EXPECT_EQ(nullptr, ret.promote().get());
 }
 } // namespace android
 

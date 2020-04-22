@@ -332,7 +332,12 @@ public:
         return mTransactionCompletedThread;
     }
 
-    sp<Layer> fromHandle(const sp<IBinder>& handle) REQUIRES(mStateLock);
+    // Converts from a binder handle to a Layer
+    // Returns nullptr if the handle does not point to an existing layer.
+    // Otherwise, returns a weak reference so that callers off the main-thread
+    // won't accidentally hold onto the last strong reference.
+    wp<Layer> fromHandle(const sp<IBinder>& handle);
+    wp<Layer> fromHandleLocked(const sp<IBinder>& handle) REQUIRES(mStateLock);
 
     // Inherit from ClientCache::ErasedRecipient
     void bufferErased(const client_cache_t& clientCacheId) override;

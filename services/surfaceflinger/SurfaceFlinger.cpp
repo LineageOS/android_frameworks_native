@@ -1449,7 +1449,9 @@ status_t SurfaceFlinger::addRegionSamplingListener(const Rect& samplingArea,
     if (!listener || samplingArea == Rect::INVALID_RECT) {
         return BAD_VALUE;
     }
-    mRegionSamplingThread->addListener(samplingArea, stopLayerHandle, listener);
+
+    const wp<Layer> stopLayer = fromHandle(stopLayerHandle);
+    mRegionSamplingThread->addListener(samplingArea, stopLayer, listener);
     return NO_ERROR;
 }
 
@@ -3173,7 +3175,7 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
         Mutex::Autolock _l(mStateLock);
         sp<Layer> parent;
         if (parentHandle != nullptr) {
-            parent = fromHandle(parentHandle);
+            parent = fromHandleLocked(parentHandle).promote();
             if (parent == nullptr) {
                 return NAME_NOT_FOUND;
             }
@@ -3548,7 +3550,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
 
     sp<Layer> layer = nullptr;
     if (s.surface) {
-        layer = fromHandle(s.surface);
+        layer = fromHandleLocked(s.surface).promote();
     } else {
         // The client may provide us a null handle. Treat it as if the layer was removed.
         ALOGW("Attempt to set client state with a null layer handle");
@@ -3864,7 +3866,7 @@ status_t SurfaceFlinger::mirrorLayer(const sp<Client>& client, const sp<IBinder>
 
     {
         Mutex::Autolock _l(mStateLock);
-        mirrorFrom = fromHandle(mirrorFromHandle);
+        mirrorFrom = fromHandleLocked(mirrorFromHandle).promote();
         if (!mirrorFrom) {
             return NAME_NOT_FOUND;
         }
@@ -5566,7 +5568,7 @@ status_t SurfaceFlinger::captureLayers(
     {
         Mutex::Autolock lock(mStateLock);
 
-        parent = fromHandle(layerHandleBinder);
+        parent = fromHandleLocked(layerHandleBinder).promote();
         if (parent == nullptr || parent->isRemovedFromCurrentState()) {
             ALOGE("captureLayers called with an invalid or removed parent");
             return NAME_NOT_FOUND;
@@ -5599,7 +5601,7 @@ status_t SurfaceFlinger::captureLayers(
         reqHeight = crop.height() * frameScale;
 
         for (const auto& handle : excludeHandles) {
-            sp<Layer> excludeLayer = fromHandle(handle);
+            sp<Layer> excludeLayer = fromHandleLocked(handle).promote();
             if (excludeLayer != nullptr) {
                 excludeLayers.emplace(excludeLayer);
             } else {
@@ -6062,7 +6064,12 @@ void SurfaceFlinger::SetInputWindowsListener::onSetInputWindowsFinished() {
     mFlinger->setInputWindowsFinished();
 }
 
-sp<Layer> SurfaceFlinger::fromHandle(const sp<IBinder>& handle) {
+wp<Layer> SurfaceFlinger::fromHandle(const sp<IBinder>& handle) {
+    Mutex::Autolock _l(mStateLock);
+    return fromHandleLocked(handle);
+}
+
+wp<Layer> SurfaceFlinger::fromHandleLocked(const sp<IBinder>& handle) {
     BBinder* b = nullptr;
     if (handle) {
         b = handle->localBinder();
@@ -6072,7 +6079,7 @@ sp<Layer> SurfaceFlinger::fromHandle(const sp<IBinder>& handle) {
     }
     auto it = mLayersByLocalBinderToken.find(b);
     if (it != mLayersByLocalBinderToken.end()) {
-        return it->second.promote();
+        return it->second;
     }
     return nullptr;
 }
