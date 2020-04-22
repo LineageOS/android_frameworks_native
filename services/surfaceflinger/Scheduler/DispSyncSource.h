@@ -40,7 +40,7 @@ public:
 
 private:
     // The following method is the implementation of the DispSync::Callback.
-    virtual void onDispSyncEvent(nsecs_t when);
+    void onDispSyncEvent(nsecs_t when, nsecs_t expectedVSyncTimestamp) override;
 
     const char* const mName;
     TracedOrdinal<int> mValue;

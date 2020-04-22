@@ -276,12 +276,12 @@ Scheduler::ConnectionHandle Scheduler::enableVSyncInjection(bool enable) {
     return mInjectorConnectionHandle;
 }
 
-bool Scheduler::injectVSync(nsecs_t when) {
+bool Scheduler::injectVSync(nsecs_t when, nsecs_t expectedVSyncTime) {
     if (!mInjectVSyncs || !mVSyncInjector) {
         return false;
     }
 
-    mVSyncInjector->onInjectSyncEvent(when);
+    mVSyncInjector->onInjectSyncEvent(when, expectedVSyncTime);
     return true;
 }
 

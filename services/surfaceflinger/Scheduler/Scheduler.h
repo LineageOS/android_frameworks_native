@@ -95,7 +95,7 @@ public:
     ConnectionHandle enableVSyncInjection(bool enable);
 
     // Returns false if injection is disabled.
-    bool injectVSync(nsecs_t when);
+    bool injectVSync(nsecs_t when, nsecs_t expectedVSyncTime);
 
     void enableHardwareVsync();
     void disableHardwareVsync(bool makeUnavailable);

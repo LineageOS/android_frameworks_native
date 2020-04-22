@@ -130,7 +130,7 @@ private:
         mVsyncListening = false;
     }
 
-    void onDispSyncEvent(nsecs_t /* when */) final {
+    void onDispSyncEvent(nsecs_t /*when*/, nsecs_t /*expectedVSyncTimestamp*/) final {
         std::unique_lock<decltype(mMutex)> lock(mMutex);
 
         if (mPhaseIntervalSetting == Phase::ZERO) {
