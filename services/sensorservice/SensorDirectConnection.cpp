@@ -93,6 +93,18 @@ sp<BitTube> SensorService::SensorDirectConnection::getSensorChannel() const {
     return nullptr;
 }
 
+void SensorService::SensorDirectConnection::onSensorAccessChanged(bool hasAccess) {
+    if (!hasAccess) {
+        stopAll(true /* backupRecord */);
+    } else {
+        recoverAll();
+    }
+}
+
+bool SensorService::SensorDirectConnection::hasSensorAccess() const {
+    return mService->hasSensorAccess(mUid, mOpPackageName);
+}
+
 status_t SensorService::SensorDirectConnection::enableDisable(
         int handle, bool enabled, nsecs_t samplingPeriodNs, nsecs_t maxBatchReportLatencyNs,
         int reservedFlags) {
@@ -125,7 +137,7 @@ int32_t SensorService::SensorDirectConnection::configureChannel(int handle, int 
         return NO_ERROR;
     }
 
-    if (!mService->isOperationPermitted(mOpPackageName)) {
+    if (!hasSensorAccess()) {
         return PERMISSION_DENIED;
     }
 
@@ -169,12 +181,15 @@ int32_t SensorService::SensorDirectConnection::configureChannel(int handle, int 
 }
 
 void SensorService::SensorDirectConnection::stopAll(bool backupRecord) {
+    Mutex::Autolock _l(mConnectionLock);
+    stopAllLocked(backupRecord);
+}
 
+void SensorService::SensorDirectConnection::stopAllLocked(bool backupRecord) {
     struct sensors_direct_cfg_t config = {
         .rate_level = SENSOR_DIRECT_RATE_STOP
     };
 
-    Mutex::Autolock _l(mConnectionLock);
     SensorDevice& dev(SensorDevice::getInstance());
     for (auto &i : mActivated) {
         dev.configureDirectChannel(i.first, getHalChannelHandle(), &config);
@@ -187,21 +202,25 @@ void SensorService::SensorDirectConnection::stopAll(bool backupRecord) {
 }
 
 void SensorService::SensorDirectConnection::recoverAll() {
-    stopAll(false);
-
     Mutex::Autolock _l(mConnectionLock);
-    SensorDevice& dev(SensorDevice::getInstance());
+    if (!mActivatedBackup.empty()) {
+        stopAllLocked(false);
 
-    // recover list of report from backup
-    mActivated = mActivatedBackup;
-    mActivatedBackup.clear();
+        SensorDevice& dev(SensorDevice::getInstance());
 
-    // re-enable them
-    for (auto &i : mActivated) {
-        struct sensors_direct_cfg_t config = {
-            .rate_level = i.second
-        };
-        dev.configureDirectChannel(i.first, getHalChannelHandle(), &config);
+        // recover list of report from backup
+        ALOG_ASSERT(mActivated.empty(),
+                    "mActivated must be empty if mActivatedBackup was non-empty");
+        mActivated = mActivatedBackup;
+        mActivatedBackup.clear();
+
+        // re-enable them
+        for (auto &i : mActivated) {
+            struct sensors_direct_cfg_t config = {
+                .rate_level = i.second
+            };
+            dev.configureDirectChannel(i.first, getHalChannelHandle(), &config);
+        }
     }
 }
 
