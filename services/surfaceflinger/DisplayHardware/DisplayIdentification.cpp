@@ -92,6 +92,10 @@ DeviceProductInfo buildDeviceProductInfo(const Edid& edid) {
         info.manufactureOrModelDate = date;
     }
 
+    if (edid.cea861Block && edid.cea861Block->hdmiVendorDataBlock) {
+        const auto& address = edid.cea861Block->hdmiVendorDataBlock->physicalAddress;
+        info.relativeAddress = {address.a, address.b, address.c, address.d};
+    }
     return info;
 }
 
