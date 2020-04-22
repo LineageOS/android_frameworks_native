@@ -339,7 +339,11 @@ private:
     // allowed to register for or call flush on sensors. Typically only cts test packages are
     // allowed.
     bool isWhiteListedPackage(const String8& packageName);
-    bool isOperationPermitted(const String16& opPackageName);
+
+    // Returns true if a connection with the specified opPackageName has no access to sensors
+    // in the RESTRICTED mode (i.e. the service is in RESTRICTED mode, and the package is not
+    // whitelisted). mLock must be held to invoke this method.
+    bool isOperationRestrictedLocked(const String16& opPackageName);
 
     // Reset the state of SensorService to NORMAL mode.
     status_t resetToNormalMode();
@@ -357,6 +361,12 @@ private:
 
     // Sets whether the given UID can get sensor data
     void onUidStateChanged(uid_t uid, UidState state);
+
+    // Returns true if a connection with the given uid and opPackageName
+    // currently has access to sensors.
+    bool hasSensorAccess(uid_t uid, const String16& opPackageName);
+    // Same as hasSensorAccess but with mLock held.
+    bool hasSensorAccessLocked(uid_t uid, const String16& opPackageName);
 
     // Overrides the UID state as if it is idle
     status_t handleSetUidState(Vector<String16>& args, int err);
