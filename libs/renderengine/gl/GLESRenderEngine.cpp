@@ -869,11 +869,30 @@ status_t GLESRenderEngine::bindFrameBuffer(Framebuffer* framebuffer) {
     return glStatus == GL_FRAMEBUFFER_COMPLETE_OES ? NO_ERROR : BAD_VALUE;
 }
 
-void GLESRenderEngine::unbindFrameBuffer(Framebuffer* /* framebuffer */) {
+void GLESRenderEngine::unbindFrameBuffer(Framebuffer* /*framebuffer*/) {
     ATRACE_CALL();
 
     // back to main framebuffer
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+bool GLESRenderEngine::cleanupPostRender() {
+    ATRACE_CALL();
+
+    if (mPriorResourcesCleaned ||
+        (mLastDrawFence != nullptr && mLastDrawFence->getStatus() != Fence::Status::Signaled)) {
+        // If we don't have a prior frame needing cleanup, then don't do anything.
+        return false;
+    }
+
+    // Bind the texture to dummy data so that backing image data can be freed.
+    GLFramebuffer* glFramebuffer = static_cast<GLFramebuffer*>(getFramebufferForDrawing());
+    glFramebuffer->allocateBuffers(1, 1, mPlaceholderDrawBuffer);
+    // Release the cached fence here, so that we don't churn reallocations when
+    // we could no-op repeated calls of this method instead.
+    mLastDrawFence = nullptr;
+    mPriorResourcesCleaned = true;
+    return true;
 }
 
 void GLESRenderEngine::checkErrors() const {
@@ -1161,7 +1180,13 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
             // us bad parameters, or we messed up our shader generation).
             return INVALID_OPERATION;
         }
+        mLastDrawFence = nullptr;
+    } else {
+        // The caller takes ownership of drawFence, so we need to duplicate the
+        // fd here.
+        mLastDrawFence = new Fence(dup(drawFence->get()));
     }
+    mPriorResourcesCleaned = false;
 
     checkErrors();
     return NO_ERROR;
