@@ -32,7 +32,8 @@ protected:
     virtual ~TestInputListener();
 
 public:
-    TestInputListener(const std::chrono::milliseconds timeout = 5ms);
+    TestInputListener(std::chrono::milliseconds eventHappenedTimeout = 0ms,
+                      std::chrono::milliseconds eventDidNotHappenTimeout = 0ms);
 
     void assertNotifyConfigurationChangedWasCalled(
             NotifyConfigurationChangedArgs* outEventArgs = nullptr);
@@ -75,7 +76,8 @@ private:
 
     std::mutex mLock;
     std::condition_variable mCondition;
-    const std::chrono::milliseconds mTimeout;
+    const std::chrono::milliseconds mEventHappenedTimeout;
+    const std::chrono::milliseconds mEventDidNotHappenTimeout;
 
     std::tuple<std::vector<NotifyConfigurationChangedArgs>, //
                std::vector<NotifyDeviceResetArgs>,          //
