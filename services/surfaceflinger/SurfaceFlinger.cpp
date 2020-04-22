@@ -2092,6 +2092,16 @@ void SurfaceFlinger::postComposition()
         }
     });
 
+    mTransactionCompletedThread.addPresentFence(mPreviousPresentFences[0]);
+
+    // Lock the mStateLock in case SurfaceFlinger is in the middle of applying a transaction.
+    // If we do not lock here, a callback could be sent without all of its SurfaceControls and
+    // metrics.
+    {
+        Mutex::Autolock _l(mStateLock);
+        mTransactionCompletedThread.sendCallbacks();
+    }
+
     if (presentFenceTime->isValid()) {
         mScheduler->addPresentFence(presentFenceTime);
     }
@@ -2161,16 +2171,6 @@ void SurfaceFlinger::postComposition()
             mTexturePool.resize(mTexturePoolSize);
             ATRACE_INT("TexturePoolSize", mTexturePool.size());
         }
-    }
-
-    mTransactionCompletedThread.addPresentFence(mPreviousPresentFences[0]);
-
-    // Lock the mStateLock in case SurfaceFlinger is in the middle of applying a transaction.
-    // If we do not lock here, a callback could be sent without all of its SurfaceControls and
-    // metrics.
-    {
-        Mutex::Autolock _l(mStateLock);
-        mTransactionCompletedThread.sendCallbacks();
     }
 
     if (mLumaSampling && mRegionSamplingThread) {
