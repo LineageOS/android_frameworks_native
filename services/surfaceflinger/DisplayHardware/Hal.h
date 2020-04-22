@@ -152,12 +152,14 @@ inline std::string to_string(hardware::graphics::composer::hal::PowerMode mode) 
     switch (mode) {
         case hardware::graphics::composer::hal::PowerMode::OFF:
             return "Off";
-        case hardware::graphics::composer::hal::PowerMode::DOZE_SUSPEND:
-            return "DozeSuspend";
         case hardware::graphics::composer::hal::PowerMode::DOZE:
             return "Doze";
         case hardware::graphics::composer::hal::PowerMode::ON:
             return "On";
+        case hardware::graphics::composer::hal::PowerMode::DOZE_SUSPEND:
+            return "DozeSuspend";
+        case hardware::graphics::composer::hal::PowerMode::ON_SUSPEND:
+            return "OnSuspend";
         default:
             return "Unknown";
     }

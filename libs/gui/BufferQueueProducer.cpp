@@ -655,8 +655,9 @@ status_t BufferQueueProducer::detachBuffer(int slot) {
         }
 
         listener = mCore->mConsumerListener;
-        if (listener != nullptr) {
-            listener->onFrameDetached(mSlots[slot].mGraphicBuffer->getId());
+        auto gb = mSlots[slot].mGraphicBuffer;
+        if (listener != nullptr && gb != nullptr) {
+            listener->onFrameDetached(gb->getId());
         }
         mSlots[slot].mBufferState.detachProducer();
         mCore->mActiveBuffers.erase(slot);
@@ -1120,8 +1121,9 @@ status_t BufferQueueProducer::cancelBuffer(int slot, const sp<Fence>& fence) {
         mCore->mFreeBuffers.push_back(slot);
     }
 
-    if (mCore->mConsumerListener != nullptr) {
-        mCore->mConsumerListener->onFrameCancelled(mSlots[slot].mGraphicBuffer->getId());
+    auto gb = mSlots[slot].mGraphicBuffer;
+    if (mCore->mConsumerListener != nullptr && gb != nullptr) {
+        mCore->mConsumerListener->onFrameCancelled(gb->getId());
     }
     mSlots[slot].mFence = fence;
     mCore->mDequeueCondition.notify_all();

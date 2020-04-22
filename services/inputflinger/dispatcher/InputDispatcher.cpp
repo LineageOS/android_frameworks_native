@@ -3273,9 +3273,8 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
             KeyEntry* injectedEntry =
                     new KeyEntry(incomingKey.getId(), incomingKey.getEventTime(),
                                  VIRTUAL_KEYBOARD_ID, incomingKey.getSource(),
-                                 incomingKey.getDisplayId(), policyFlags, action, flags,
-                                 incomingKey.getKeyCode(), incomingKey.getScanCode(),
-                                 incomingKey.getMetaState(), incomingKey.getRepeatCount(),
+                                 incomingKey.getDisplayId(), policyFlags, action, flags, keyCode,
+                                 incomingKey.getScanCode(), metaState, incomingKey.getRepeatCount(),
                                  incomingKey.getDownTime());
             injectedEntries.push(injectedEntry);
             break;
