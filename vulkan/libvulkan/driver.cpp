@@ -165,7 +165,7 @@ void* LoadLibrary(const android_dlextinfo& dlextinfo,
 }
 
 const std::array<const char*, 2> HAL_SUBNAME_KEY_PROPERTIES = {{
-    "ro.hardware." HWVULKAN_HARDWARE_MODULE_ID,
+    "ro.hardware.vulkan",
     "ro.board.platform",
 }};
 
