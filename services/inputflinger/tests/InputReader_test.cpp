@@ -1748,7 +1748,8 @@ protected:
 
     virtual void SetUp() override {
         mFakePolicy = new FakeInputReaderPolicy();
-        mTestListener = new TestInputListener(50ms);
+        mTestListener = new TestInputListener(2000ms /*eventHappenedTimeout*/,
+                                              30ms /*eventDidNotHappenTimeout*/);
 
         mReader = new InputReader(std::make_shared<EventHub>(), mFakePolicy, mTestListener);
         ASSERT_EQ(mReader->start(), OK);
