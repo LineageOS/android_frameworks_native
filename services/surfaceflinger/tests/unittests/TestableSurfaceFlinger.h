@@ -212,7 +212,7 @@ public:
         mFlinger->mRefreshRateStats = std::make_unique<
                 scheduler::RefreshRateStats>(*mFlinger->mRefreshRateConfigs, *mFlinger->mTimeStats,
                                              /*currentConfig=*/HwcConfigIndexType(0),
-                                             /*powerMode=*/HWC_POWER_MODE_OFF);
+                                             /*powerMode=*/hal::PowerMode::OFF);
         mFlinger->mPhaseConfiguration =
                 mFactory.createPhaseConfiguration(*mFlinger->mRefreshRateConfigs);
 
@@ -317,7 +317,7 @@ public:
 
     // Allow reading display state without locking, as if called on the SF main thread.
     auto setPowerModeInternal(const sp<DisplayDevice>& display,
-                              int mode) NO_THREAD_SAFETY_ANALYSIS {
+                              hal::PowerMode mode) NO_THREAD_SAFETY_ANALYSIS {
         return mFlinger->setPowerModeInternal(display, mode);
     }
 
@@ -453,7 +453,7 @@ public:
         static constexpr int32_t DEFAULT_CONFIG_GROUP = 7;
         static constexpr int32_t DEFAULT_DPI = 320;
         static constexpr hal::HWConfigId DEFAULT_ACTIVE_CONFIG = 0;
-        static constexpr int32_t DEFAULT_POWER_MODE = 2;
+        static constexpr hal::PowerMode DEFAULT_POWER_MODE = hal::PowerMode::ON;
 
         FakeHwcDisplayInjector(DisplayId displayId, hal::DisplayType hwcDisplayType, bool isPrimary)
               : mDisplayId(displayId), mHwcDisplayType(hwcDisplayType), mIsPrimary(isPrimary) {}
@@ -498,7 +498,7 @@ public:
             return *this;
         }
 
-        auto& setPowerMode(int mode) {
+        auto& setPowerMode(hal::PowerMode mode) {
             mPowerMode = mode;
             return *this;
         }
@@ -523,7 +523,7 @@ public:
             config.setConfigGroup(mConfigGroup);
             display->mutableConfigs().emplace(static_cast<int32_t>(mActiveConfig), config.build());
             display->mutableIsConnected() = true;
-            display->setPowerMode(static_cast<hal::PowerMode>(mPowerMode));
+            display->setPowerMode(mPowerMode);
 
             flinger->mutableHwcDisplayData()[mDisplayId].hwcDisplay = std::move(display);
 
@@ -547,7 +547,7 @@ public:
         int32_t mConfigGroup = DEFAULT_CONFIG_GROUP;
         int32_t mDpiY = DEFAULT_DPI;
         hal::HWConfigId mActiveConfig = DEFAULT_ACTIVE_CONFIG;
-        int32_t mPowerMode = DEFAULT_POWER_MODE;
+        hal::PowerMode mPowerMode = DEFAULT_POWER_MODE;
         const std::unordered_set<hal::Capability>* mCapabilities = nullptr;
     };
 
@@ -599,7 +599,7 @@ public:
             return *this;
         }
 
-        auto& setPowerMode(int mode) {
+        auto& setPowerMode(hal::PowerMode mode) {
             mCreationArgs.initialPowerMode = mode;
             return *this;
         }
