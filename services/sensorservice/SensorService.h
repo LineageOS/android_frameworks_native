@@ -75,6 +75,11 @@ class SensorService :
     class SensorDirectConnection;
 
 public:
+    enum UidState {
+      UID_STATE_ACTIVE = 0,
+      UID_STATE_IDLE,
+    };
+
     void cleanupConnection(SensorEventConnection* connection);
     void cleanupConnection(SensorDirectConnection* c);
 
@@ -193,6 +198,8 @@ private:
             std::unordered_set<uid_t> mActiveUids;
             std::unordered_map<uid_t, bool> mOverrideUids;
     };
+
+    bool isUidActive(uid_t uid);
 
     // Sensor privacy allows a user to disable access to all sensors on the device. When
     // enabled sensor privacy will prevent all apps, including active apps, from accessing
@@ -349,7 +356,7 @@ private:
     void enableSchedFifoMode();
 
     // Sets whether the given UID can get sensor data
-    void setSensorAccess(uid_t uid, bool hasAccess);
+    void onUidStateChanged(uid_t uid, UidState state);
 
     // Overrides the UID state as if it is idle
     status_t handleSetUidState(Vector<String16>& args, int err);
