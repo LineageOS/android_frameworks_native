@@ -299,11 +299,13 @@ void SensorService::onFirstRef() {
     }
 }
 
-void SensorService::setSensorAccess(uid_t uid, bool hasAccess) {
+void SensorService::onUidStateChanged(uid_t uid, UidState state) {
+    SensorDevice& dev(SensorDevice::getInstance());
+
     ConnectionSafeAutolock connLock = mConnectionHolder.lock(mLock);
     for (const sp<SensorEventConnection>& conn : connLock.getActiveConnections()) {
         if (conn->getUid() == uid) {
-            conn->setSensorAccess(hasAccess);
+            dev.setUidStateForConnection(conn.get(), state);
         }
     }
 }
@@ -1234,9 +1236,8 @@ sp<ISensorEventConnection> SensorService::createSensorEventConnection(const Stri
             (packageName == "") ? String8::format("unknown_package_pid_%d", pid) : packageName;
     String16 connOpPackageName =
             (opPackageName == String16("")) ? String16(connPackageName) : opPackageName;
-    bool hasSensorAccess = mUidPolicy->isUidActive(uid);
     sp<SensorEventConnection> result(new SensorEventConnection(this, uid, connPackageName,
-            requestedMode == DATA_INJECTION, connOpPackageName, hasSensorAccess));
+            requestedMode == DATA_INJECTION, connOpPackageName));
     if (requestedMode == DATA_INJECTION) {
         mConnectionHolder.addEventConnectionIfNotPresent(result);
         // Add the associated file descriptor to the Looper for polling whenever there is data to
@@ -1921,7 +1922,7 @@ void SensorService::UidPolicy::onUidActive(uid_t uid) {
     }
     sp<SensorService> service = mService.promote();
     if (service != nullptr) {
-        service->setSensorAccess(uid, true);
+        service->onUidStateChanged(uid, UID_STATE_ACTIVE);
     }
 }
 
@@ -1936,7 +1937,7 @@ void SensorService::UidPolicy::onUidIdle(uid_t uid, __unused bool disabled) {
     if (deleted) {
         sp<SensorService> service = mService.promote();
         if (service != nullptr) {
-            service->setSensorAccess(uid, false);
+            service->onUidStateChanged(uid, UID_STATE_IDLE);
         }
     }
 }
@@ -1964,7 +1965,7 @@ void SensorService::UidPolicy::updateOverrideUid(uid_t uid, bool active, bool in
     if (wasActive != isActive) {
         sp<SensorService> service = mService.promote();
         if (service != nullptr) {
-            service->setSensorAccess(uid, isActive);
+            service->onUidStateChanged(uid, isActive ? UID_STATE_ACTIVE : UID_STATE_IDLE);
         }
     }
 }
@@ -1988,6 +1989,10 @@ bool SensorService::UidPolicy::isUidActiveLocked(uid_t uid) {
         return it->second;
     }
     return mActiveUids.find(uid) != mActiveUids.end();
+}
+
+bool SensorService::isUidActive(uid_t uid) {
+    return mUidPolicy->isUidActive(uid);
 }
 
 void SensorService::SensorPrivacyPolicy::registerSelf() {
