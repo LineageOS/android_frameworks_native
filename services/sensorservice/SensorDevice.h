@@ -267,10 +267,12 @@ private:
 
     void convertToSensorEvent(const Event &src, sensors_event_t *dst);
 
-    void convertToSensorEvents(
+    void convertToSensorEventsAndQuantize(
             const hardware::hidl_vec<Event> &src,
             const hardware::hidl_vec<SensorInfo> &dynamicSensorsAdded,
             sensors_event_t *dst);
+
+    float getResolutionForSensor(int sensorHandle);
 
     bool mIsDirectReportSupported;
 
