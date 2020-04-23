@@ -128,7 +128,7 @@ private:
             mLastCallTime = vsynctime;
         }
 
-        mCallback->onDispSyncEvent(wakeupTime);
+        mCallback->onDispSyncEvent(wakeupTime, vsynctime);
 
         {
             std::lock_guard<std::mutex> lk(mMutex);

@@ -315,7 +315,7 @@ public:
     // called on the main thread by MessageQueue when an internal message
     // is received
     // TODO: this should be made accessible only to MessageQueue
-    void onMessageReceived(int32_t what, nsecs_t when);
+    void onMessageReceived(int32_t what, nsecs_t expectedVSyncTime);
 
     renderengine::RenderEngine& getRenderEngine() const;
 
@@ -630,7 +630,6 @@ private:
     void commitTransaction() REQUIRES(mStateLock);
     void commitOffscreenLayers();
     bool transactionIsReadyToBeApplied(int64_t desiredPresentTime,
-                                       bool useCachedExpectedPresentTime,
                                        const Vector<ComposerState>& states);
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
     uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands)
@@ -853,9 +852,9 @@ private:
     // Must be called on the main thread.
     nsecs_t previousFramePresentTime();
 
-    // Populates the expected present time for this frame. For negative offsets, performs a
+    // Calculates the expected present time for this frame. For negative offsets, performs a
     // correction using the predicted vsync for the next frame instead.
-    void populateExpectedPresentTime(nsecs_t now);
+    nsecs_t calculateExpectedPresentTime(nsecs_t now) const;
 
     /*
      * Display identification
