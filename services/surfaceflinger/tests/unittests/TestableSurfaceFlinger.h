@@ -405,7 +405,6 @@ public:
     auto& mutableUseFrameRateApi() { return mFlinger->useFrameRateApi; }
 
     auto fromHandle(const sp<IBinder>& handle) {
-        Mutex::Autolock _l(mFlinger->mStateLock);
         return mFlinger->fromHandle(handle);
     }
 
