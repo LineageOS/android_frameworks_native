@@ -5668,13 +5668,13 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
                                              usage, "screenshot");
 
     return captureScreenCommon(renderArea, traverseLayers, *outBuffer, useIdentityTransform,
-                               outCapturedSecureLayers);
+                               false /* regionSampling */, outCapturedSecureLayers);
 }
 
 status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
                                              TraverseLayersFunction traverseLayers,
                                              const sp<GraphicBuffer>& buffer,
-                                             bool useIdentityTransform,
+                                             bool useIdentityTransform, bool regionSampling,
                                              bool& outCapturedSecureLayers) {
     // This mutex protects syncFd and captureResult for communication of the return values from the
     // main thread back to this Binder thread
@@ -5705,7 +5705,7 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
             renderArea.render([&] {
                 result = captureScreenImplLocked(renderArea, traverseLayers, buffer.get(),
                                                  useIdentityTransform, forSystem, &fd,
-                                                 outCapturedSecureLayers);
+                                                 regionSampling, outCapturedSecureLayers);
             });
         }
 
@@ -5742,7 +5742,7 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
 void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
                                             TraverseLayersFunction traverseLayers,
                                             ANativeWindowBuffer* buffer, bool useIdentityTransform,
-                                            int* outSyncFd) {
+                                            bool regionSampling, int* outSyncFd) {
     ATRACE_CALL();
 
     const auto reqWidth = renderArea.getReqWidth();
@@ -5798,6 +5798,12 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
             for (auto& settings : results) {
                 settings.geometry.positionTransform =
                         transform.asMatrix4() * settings.geometry.positionTransform;
+                // There's no need to process blurs when we're executing region sampling,
+                // we're just trying to understand what we're drawing, and doing so without
+                // blurs is already a pretty good approximation.
+                if (regionSampling) {
+                    settings.backgroundBlurRadius = 0;
+                }
             }
             clientCompositionLayers.insert(clientCompositionLayers.end(),
                                            std::make_move_iterator(results.begin()),
@@ -5835,7 +5841,8 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
                                                  TraverseLayersFunction traverseLayers,
                                                  ANativeWindowBuffer* buffer,
                                                  bool useIdentityTransform, bool forSystem,
-                                                 int* outSyncFd, bool& outCapturedSecureLayers) {
+                                                 int* outSyncFd, bool regionSampling,
+                                                 bool& outCapturedSecureLayers) {
     ATRACE_CALL();
 
     traverseLayers([&](Layer* layer) {
@@ -5850,7 +5857,8 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
         ALOGW("FB is protected: PERMISSION_DENIED");
         return PERMISSION_DENIED;
     }
-    renderScreenImplLocked(renderArea, traverseLayers, buffer, useIdentityTransform, outSyncFd);
+    renderScreenImplLocked(renderArea, traverseLayers, buffer, useIdentityTransform, regionSampling,
+                           outSyncFd);
     return NO_ERROR;
 }
 
