@@ -73,7 +73,7 @@ struct HdmiPhysicalAddress {
 };
 
 struct HdmiVendorDataBlock {
-    std::optional<HdmiPhysicalAddress> physicalAddress;
+    HdmiPhysicalAddress physicalAddress;
 };
 
 struct Cea861ExtensionBlock : ExtensionBlock {

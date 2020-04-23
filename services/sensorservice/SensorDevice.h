@@ -18,6 +18,7 @@
 #define ANDROID_SENSOR_DEVICE_H
 
 #include "SensorDeviceUtils.h"
+#include "SensorService.h"
 #include "SensorServiceUtils.h"
 #include "ISensorsWrapper.h"
 
@@ -116,6 +117,8 @@ public:
     hardware::Return<void> onDynamicSensorsDisconnected(
             const hardware::hidl_vec<int32_t> &dynamicSensorHandlesRemoved);
 
+    void setUidStateForConnection(void* ident, SensorService::UidState state);
+
     bool isReconnecting() const {
         return mReconnecting;
     }
@@ -179,6 +182,13 @@ private:
         // the removed ident. If index >=0, ident is present and successfully removed.
         ssize_t removeBatchParamsForIdent(void* ident);
 
+        bool hasBatchParamsForIdent(void* ident) const {
+            return batchParams.indexOfKey(ident) >= 0;
+        }
+
+        /**
+         * @return The number of active clients of this sensor.
+         */
         int numActiveClients() const;
     };
     DefaultKeyedVector<int, Info> mActivationCount;
@@ -187,8 +197,26 @@ private:
     SensorServiceUtil::RingBuffer<HidlTransportErrorLog> mHidlTransportErrors;
     int mTotalHidlTransportErrors;
 
-    // Use this vector to determine which client is activated or deactivated.
-    SortedVector<void *> mDisabledClients;
+    /**
+     * Enums describing the reason why a client was disabled.
+     */
+    enum DisabledReason : uint8_t {
+        // UID becomes idle (e.g. app goes to background).
+        DISABLED_REASON_UID_IDLE = 0,
+
+        // Sensors are restricted for all clients.
+        DISABLED_REASON_SERVICE_RESTRICTED,
+        DISABLED_REASON_MAX,
+    };
+
+    static_assert(DisabledReason::DISABLED_REASON_MAX < sizeof(uint8_t) * CHAR_BIT);
+
+    // Use this map to determine which client is activated or deactivated.
+    std::unordered_map<void *, uint8_t> mDisabledClients;
+
+    void addDisabledReasonForIdentLocked(void* ident, DisabledReason reason);
+    void removeDisabledReasonForIdentLocked(void* ident, DisabledReason reason);
+
     SensorDevice();
     bool connectHidlService();
     void initializeSensorList();
@@ -214,6 +242,9 @@ private:
     status_t batchLocked(void* ident, int handle, int flags, int64_t samplingPeriodNs,
                          int64_t maxBatchReportLatencyNs);
 
+    status_t updateBatchParamsLocked(int handle, Info& info);
+    status_t doActivateHardwareLocked(int handle, bool enable);
+
     void handleHidlDeath(const std::string &detail);
     template<typename T>
     void checkReturn(const Return<T>& ret) {
@@ -225,8 +256,11 @@ private:
     //TODO(b/67425500): remove waiter after bug is resolved.
     sp<SensorDeviceUtils::HidlServiceRegistrationWaiter> mRestartWaiter;
 
-    bool isClientDisabled(void* ident);
-    bool isClientDisabledLocked(void* ident);
+    bool isClientDisabled(void* ident) const;
+    bool isClientDisabledLocked(void* ident) const;
+    std::vector<void *> getDisabledClientsLocked() const;
+
+    bool clientHasNoAccessLocked(void* ident) const;
 
     using Event = hardware::sensors::V2_1::Event;
     using SensorInfo = hardware::sensors::V2_1::SensorInfo;
