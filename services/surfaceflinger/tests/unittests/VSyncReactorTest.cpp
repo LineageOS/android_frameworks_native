@@ -135,7 +135,7 @@ std::shared_ptr<FenceTime> generateSignalledFenceWithTime(nsecs_t time) {
 
 class StubCallback : public DispSync::Callback {
 public:
-    void onDispSyncEvent(nsecs_t when) final {
+    void onDispSyncEvent(nsecs_t when, nsecs_t /*expectedVSyncTimestamp*/) final {
         std::lock_guard<std::mutex> lk(mMutex);
         mLastCallTime = when;
     }
@@ -544,7 +544,9 @@ TEST_F(VSyncReactorTest, selfRemovingEventListenerStopsCallbacks) {
     class SelfRemovingCallback : public DispSync::Callback {
     public:
         SelfRemovingCallback(VSyncReactor& vsr) : mVsr(vsr) {}
-        void onDispSyncEvent(nsecs_t when) final { mVsr.removeEventListener(this, &when); }
+        void onDispSyncEvent(nsecs_t when, nsecs_t /*expectedVSyncTimestamp*/) final {
+            mVsr.removeEventListener(this, &when);
+        }
 
     private:
         VSyncReactor& mVsr;

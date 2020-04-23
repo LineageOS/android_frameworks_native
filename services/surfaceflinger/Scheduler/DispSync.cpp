@@ -200,7 +200,8 @@ public:
                     }
                 }
 
-                callbackInvocations = gatherCallbackInvocationsLocked(now);
+                callbackInvocations =
+                        gatherCallbackInvocationsLocked(now, computeNextRefreshLocked(0, now));
             }
 
             if (callbackInvocations.size() > 0) {
@@ -303,6 +304,11 @@ public:
         return BAD_VALUE;
     }
 
+    nsecs_t computeNextRefresh(int periodOffset, nsecs_t now) const {
+        Mutex::Autolock lock(mMutex);
+        return computeNextRefreshLocked(periodOffset, now);
+    }
+
 private:
     struct EventListener {
         const char* mName;
@@ -315,6 +321,7 @@ private:
     struct CallbackInvocation {
         DispSync::Callback* mCallback;
         nsecs_t mEventTime;
+        nsecs_t mExpectedVSyncTime;
     };
 
     nsecs_t computeNextEventTimeLocked(nsecs_t now) {
@@ -340,7 +347,8 @@ private:
         return duration < (3 * mPeriod) / 5;
     }
 
-    std::vector<CallbackInvocation> gatherCallbackInvocationsLocked(nsecs_t now) {
+    std::vector<CallbackInvocation> gatherCallbackInvocationsLocked(nsecs_t now,
+                                                                    nsecs_t expectedVSyncTime) {
         if (mTraceDetailedInfo) ATRACE_CALL();
         ALOGV("[%s] gatherCallbackInvocationsLocked @ %" PRId64, mName, ns2us(now));
 
@@ -361,6 +369,10 @@ private:
                 CallbackInvocation ci;
                 ci.mCallback = eventListener.mCallback;
                 ci.mEventTime = t;
+                ci.mExpectedVSyncTime = expectedVSyncTime;
+                if (eventListener.mPhase < 0) {
+                    ci.mExpectedVSyncTime += mPeriod;
+                }
                 ALOGV("[%s] [%s] Preparing to fire, latency: %" PRId64, mName, eventListener.mName,
                       t - eventListener.mLastEventTime);
                 callbackInvocations.push_back(ci);
@@ -426,8 +438,17 @@ private:
     void fireCallbackInvocations(const std::vector<CallbackInvocation>& callbacks) {
         if (mTraceDetailedInfo) ATRACE_CALL();
         for (size_t i = 0; i < callbacks.size(); i++) {
-            callbacks[i].mCallback->onDispSyncEvent(callbacks[i].mEventTime);
+            callbacks[i].mCallback->onDispSyncEvent(callbacks[i].mEventTime,
+                                                    callbacks[i].mExpectedVSyncTime);
         }
+    }
+
+    nsecs_t computeNextRefreshLocked(int periodOffset, nsecs_t now) const {
+        nsecs_t phase = mReferenceTime + mPhase;
+        if (mPeriod == 0) {
+            return 0;
+        }
+        return (((now - phase) / mPeriod) + periodOffset + 1) * mPeriod + phase;
     }
 
     const char* const mName;
@@ -444,7 +465,7 @@ private:
 
     std::vector<EventListener> mEventListeners;
 
-    Mutex mMutex;
+    mutable Mutex mMutex;
     Condition mCond;
 
     // Flag to turn on logging in systrace.
@@ -458,7 +479,7 @@ class ZeroPhaseTracer : public DispSync::Callback {
 public:
     ZeroPhaseTracer() : mParity("ZERO_PHASE_VSYNC", false) {}
 
-    virtual void onDispSyncEvent(nsecs_t /*when*/) {
+    virtual void onDispSyncEvent(nsecs_t /*when*/, nsecs_t /*expectedVSyncTimestamp*/) {
         mParity = !mParity;
     }
 
@@ -845,7 +866,7 @@ nsecs_t DispSync::expectedPresentTime(nsecs_t now) {
     const uint32_t hwcLatency = 0;
 
     // Ask DispSync when the next refresh will be (CLOCK_MONOTONIC).
-    return computeNextRefresh(hwcLatency, now);
+    return mThread->computeNextRefresh(hwcLatency, now);
 }
 
 } // namespace impl

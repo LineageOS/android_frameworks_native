@@ -116,9 +116,13 @@ sp<GraphicBuffer> RefreshRateOverlay::SevenSegmentDrawer::drawNumber(int number,
 
     sp<GraphicBuffer> buffer =
             new GraphicBuffer(BUFFER_WIDTH, BUFFER_HEIGHT, HAL_PIXEL_FORMAT_RGBA_8888, 1,
-                              GRALLOC_USAGE_SW_WRITE_RARELY, "RefreshRateOverlayBuffer");
+                              GRALLOC_USAGE_SW_WRITE_RARELY | GRALLOC_USAGE_HW_COMPOSER |
+                                      GRALLOC_USAGE_HW_TEXTURE,
+                              "RefreshRateOverlayBuffer");
     uint8_t* pixels;
     buffer->lock(GRALLOC_USAGE_SW_WRITE_RARELY, reinterpret_cast<void**>(&pixels));
+    // Clear buffer content
+    drawRect(Rect(BUFFER_WIDTH, BUFFER_HEIGHT), half4(0), buffer, pixels);
     int left = 0;
     if (hundreds != 0) {
         drawDigit(hundreds, left, color, buffer, pixels);
