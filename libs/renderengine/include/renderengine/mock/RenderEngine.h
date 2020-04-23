@@ -22,7 +22,6 @@
 #include <renderengine/Mesh.h>
 #include <renderengine/RenderEngine.h>
 #include <renderengine/Texture.h>
-#include <ui/Fence.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/Region.h>
 
@@ -56,7 +55,6 @@ public:
     MOCK_CONST_METHOD0(isProtected, bool());
     MOCK_CONST_METHOD0(supportsProtectedContent, bool());
     MOCK_METHOD1(useProtectedContext, bool(bool));
-    MOCK_METHOD0(cleanupPostRender, bool());
     MOCK_METHOD6(drawLayers,
                  status_t(const DisplaySettings&, const std::vector<const LayerSettings*>&,
                           const sp<GraphicBuffer>&, const bool, base::unique_fd&&,
