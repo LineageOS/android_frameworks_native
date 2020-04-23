@@ -65,6 +65,7 @@ public:
 
         struct VSync {
             uint32_t count;
+            nsecs_t expectedVSyncTimestamp;
         };
 
         struct Hotplug {
