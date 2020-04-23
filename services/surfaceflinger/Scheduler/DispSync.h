@@ -36,7 +36,7 @@ public:
     public:
         Callback() = default;
         virtual ~Callback();
-        virtual void onDispSyncEvent(nsecs_t when) = 0;
+        virtual void onDispSyncEvent(nsecs_t when, nsecs_t expectedVSyncTimestamp) = 0;
 
     protected:
         Callback(Callback const&) = delete;
