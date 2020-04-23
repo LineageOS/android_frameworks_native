@@ -43,7 +43,7 @@ protected:
     void createDispSync();
     void createDispSyncSource();
 
-    void onVSyncEvent(nsecs_t when) override;
+    void onVSyncEvent(nsecs_t when, nsecs_t expectedVSyncTimestamp) override;
 
     std::unique_ptr<mock::DispSync> mDispSync;
     std::unique_ptr<DispSyncSource> mDispSyncSource;
@@ -66,7 +66,7 @@ DispSyncSourceTest::~DispSyncSourceTest() {
     ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
 }
 
-void DispSyncSourceTest::onVSyncEvent(nsecs_t when) {
+void DispSyncSourceTest::onVSyncEvent(nsecs_t when, nsecs_t /*expectedVSyncTimestamp*/) {
     ALOGD("onVSyncEvent: %" PRId64, when);
 
     mVSyncEventCallRecorder.recordCall(when);

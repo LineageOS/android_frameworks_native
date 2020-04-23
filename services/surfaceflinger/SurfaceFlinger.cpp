@@ -1415,7 +1415,7 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
 
 status_t SurfaceFlinger::injectVSync(nsecs_t when) {
     Mutex::Autolock lock(mStateLock);
-    return mScheduler->injectVSync(when) ? NO_ERROR : BAD_VALUE;
+    return mScheduler->injectVSync(when, calculateExpectedPresentTime(when)) ? NO_ERROR : BAD_VALUE;
 }
 
 status_t SurfaceFlinger::getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const
@@ -1826,16 +1826,16 @@ nsecs_t SurfaceFlinger::previousFramePresentTime() NO_THREAD_SAFETY_ANALYSIS {
     return fence->getSignalTime();
 }
 
-void SurfaceFlinger::populateExpectedPresentTime(nsecs_t wakeupTime) {
+nsecs_t SurfaceFlinger::calculateExpectedPresentTime(nsecs_t now) const {
     DisplayStatInfo stats;
     mScheduler->getDisplayStatInfo(&stats);
-    const nsecs_t presentTime = mScheduler->getDispSyncExpectedPresentTime(wakeupTime);
+    const nsecs_t presentTime = mScheduler->getDispSyncExpectedPresentTime(now);
     // Inflate the expected present time if we're targetting the next vsync.
-    mExpectedPresentTime.store(
-            mVSyncModulator->getOffsets().sf > 0 ? presentTime : presentTime + stats.vsyncPeriod);
+    return mVSyncModulator->getOffsets().sf > 0 ? presentTime : presentTime + stats.vsyncPeriod;
 }
 
-void SurfaceFlinger::onMessageReceived(int32_t what, nsecs_t when) NO_THREAD_SAFETY_ANALYSIS {
+void SurfaceFlinger::onMessageReceived(int32_t what,
+                                       nsecs_t expectedVSyncTime) NO_THREAD_SAFETY_ANALYSIS {
     ATRACE_CALL();
     switch (what) {
         case MessageQueue::INVALIDATE: {
@@ -1844,7 +1844,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what, nsecs_t when) NO_THREAD_SAF
             // value throughout this frame to make sure all layers are
             // seeing this same value.
             const nsecs_t lastExpectedPresentTime = mExpectedPresentTime.load();
-            populateExpectedPresentTime(when);
+            mExpectedPresentTime = expectedVSyncTime;
 
             // When Backpressure propagation is enabled we want to give a small grace period
             // for the present fence to fire instead of just giving up on this frame to handle cases
@@ -3244,7 +3244,6 @@ bool SurfaceFlinger::flushTransactionQueues() {
             while (!transactionQueue.empty()) {
                 const auto& transaction = transactionQueue.front();
                 if (!transactionIsReadyToBeApplied(transaction.desiredPresentTime,
-                                                   true /* useCachedExpectedPresentTime */,
                                                    transaction.states)) {
                     setTransactionFlags(eTransactionFlushNeeded);
                     break;
@@ -3276,9 +3275,7 @@ bool SurfaceFlinger::transactionFlushNeeded() {
 
 
 bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
-                                                   bool useCachedExpectedPresentTime,
                                                    const Vector<ComposerState>& states) {
-    if (!useCachedExpectedPresentTime) populateExpectedPresentTime(systemTime());
 
     const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
     // Do not present if the desiredPresentTime has not passed unless it is more than one second
@@ -3330,9 +3327,13 @@ void SurfaceFlinger::setTransactionState(
         }
     }
 
+    const bool pendingTransactions = itr != mTransactionQueues.end();
     // Expected present time is computed and cached on invalidate, so it may be stale.
-    if (itr != mTransactionQueues.end() || !transactionIsReadyToBeApplied(
-            desiredPresentTime, false /* useCachedExpectedPresentTime */, states)) {
+    if (!pendingTransactions) {
+        mExpectedPresentTime = calculateExpectedPresentTime(systemTime());
+    }
+
+    if (pendingTransactions || !transactionIsReadyToBeApplied(desiredPresentTime, states)) {
         mTransactionQueues[applyToken].emplace(states, displays, flags, desiredPresentTime,
                                                uncacheBuffer, postTime, privileged,
                                                hasListenerCallbacks, listenerCallbacks);

@@ -35,10 +35,10 @@ public:
         mCallback = callback;
     }
 
-    void onInjectSyncEvent(nsecs_t when) {
+    void onInjectSyncEvent(nsecs_t when, nsecs_t expectedVSyncTimestamp) {
         std::lock_guard<std::mutex> lock(mCallbackMutex);
         if (mCallback) {
-            mCallback->onVSyncEvent(when);
+            mCallback->onVSyncEvent(when, expectedVSyncTimestamp);
         }
     }
 
