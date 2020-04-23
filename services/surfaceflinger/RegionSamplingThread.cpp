@@ -199,13 +199,8 @@ RegionSamplingThread::~RegionSamplingThread() {
     }
 }
 
-void RegionSamplingThread::addListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
+void RegionSamplingThread::addListener(const Rect& samplingArea, const wp<Layer>& stopLayer,
                                        const sp<IRegionSamplingListener>& listener) {
-    wp<Layer> stopLayer;
-    if (stopLayerHandle != nullptr && stopLayerHandle->localBinder() != nullptr) {
-        stopLayer = static_cast<Layer::Handle*>(stopLayerHandle.get())->owner;
-    }
-
     sp<IBinder> asBinder = IInterface::asBinder(listener);
     asBinder->linkToDeath(this);
     std::lock_guard lock(mSamplingMutex);
