@@ -240,6 +240,19 @@ protected:
     float const luma_gray = 0.50;
 };
 
+TEST_F(RegionSamplingTest, invalidLayerHandle_doesNotCrash) {
+    sp<ISurfaceComposer> composer = ComposerService::getComposerService();
+    sp<Listener> listener = new Listener();
+    const Rect sampleArea{100, 100, 200, 200};
+    // Passing in composer service as the layer handle should not crash, we'll
+    // treat it as a layer that no longer exists and silently allow sampling to
+    // occur.
+    status_t status = composer->addRegionSamplingListener(sampleArea,
+                                                          IInterface::asBinder(composer), listener);
+    ASSERT_EQ(NO_ERROR, status);
+    composer->removeRegionSamplingListener(listener);
+}
+
 TEST_F(RegionSamplingTest, DISABLED_CollectsLuma) {
     fill_render(rgba_green);
 
