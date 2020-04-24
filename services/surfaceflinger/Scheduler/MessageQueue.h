@@ -101,13 +101,13 @@ class MessageQueue final : public android::MessageQueue {
         enum { eventMaskInvalidate = 0x1, eventMaskRefresh = 0x2, eventMaskTransaction = 0x4 };
         MessageQueue& mQueue;
         int32_t mEventMask;
-        std::atomic<nsecs_t> mLastVsyncTime;
+        std::atomic<nsecs_t> mExpectedVSyncTime;
 
     public:
         explicit Handler(MessageQueue& queue) : mQueue(queue), mEventMask(0) {}
         virtual void handleMessage(const Message& message);
         void dispatchRefresh();
-        void dispatchInvalidate(nsecs_t timestamp);
+        void dispatchInvalidate(nsecs_t expectedVSyncTimestamp);
     };
 
     friend class Handler;
