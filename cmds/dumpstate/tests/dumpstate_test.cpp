@@ -66,6 +66,8 @@ class DumpstateListenerMock : public IDumpstateListener {
     MOCK_METHOD1(onError, binder::Status(int32_t error_code));
     MOCK_METHOD0(onFinished, binder::Status());
     MOCK_METHOD1(onScreenshotTaken, binder::Status(bool success));
+    MOCK_METHOD1(onUiIntensiveBugreportDumpsFinished,
+        binder::Status(const android::String16& callingpackage));
 
   protected:
     MOCK_METHOD0(onAsBinder, IBinder*());
