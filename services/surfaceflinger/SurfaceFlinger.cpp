@@ -2364,6 +2364,10 @@ void SurfaceFlinger::postComposition()
     }
 }
 
+FloatRect SurfaceFlinger::getLayerClipBoundsForDisplay(const DisplayDevice& displayDevice) const {
+    return displayDevice.getViewport().toFloatRect();
+}
+
 void SurfaceFlinger::computeLayerBounds() {
     for (const auto& pair : mDisplays) {
         const auto& displayDevice = pair.second;
@@ -2374,7 +2378,7 @@ void SurfaceFlinger::computeLayerBounds() {
                 continue;
             }
 
-            layer->computeBounds(displayDevice->getViewport().toFloatRect(), ui::Transform(),
+            layer->computeBounds(getLayerClipBoundsForDisplay(*displayDevice), ui::Transform(),
                                  0.f /* shadowRadius */);
         }
     }
