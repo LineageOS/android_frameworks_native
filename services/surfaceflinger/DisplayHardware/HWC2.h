@@ -27,6 +27,7 @@
 #include <utils/Timers.h>
 
 #include <functional>
+#include <future>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -221,18 +222,18 @@ public:
     [[clang::warn_unused_result]] virtual hal::Error presentOrValidate(
             uint32_t* outNumTypes, uint32_t* outNumRequests,
             android::sp<android::Fence>* outPresentFence, uint32_t* state) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setDisplayBrightness(
-            float brightness) const = 0;
+    [[clang::warn_unused_result]] virtual std::future<hal::Error> setDisplayBrightness(
+            float brightness) = 0;
     [[clang::warn_unused_result]] virtual hal::Error getDisplayVsyncPeriod(
             nsecs_t* outVsyncPeriod) const = 0;
     [[clang::warn_unused_result]] virtual hal::Error setActiveConfigWithConstraints(
             const std::shared_ptr<const HWC2::Display::Config>& config,
             const hal::VsyncPeriodChangeConstraints& constraints,
             hal::VsyncPeriodChangeTimeline* outTimeline) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setAutoLowLatencyMode(bool on) const = 0;
+    [[clang::warn_unused_result]] virtual hal::Error setAutoLowLatencyMode(bool on) = 0;
     [[clang::warn_unused_result]] virtual hal::Error getSupportedContentTypes(
             std::vector<hal::ContentType>*) const = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setContentType(hal::ContentType) const = 0;
+    [[clang::warn_unused_result]] virtual hal::Error setContentType(hal::ContentType) = 0;
 };
 
 namespace impl {
@@ -294,16 +295,16 @@ public:
     hal::Error presentOrValidate(uint32_t* outNumTypes, uint32_t* outNumRequests,
                                  android::sp<android::Fence>* outPresentFence,
                                  uint32_t* state) override;
-    hal::Error setDisplayBrightness(float brightness) const override;
+    std::future<hal::Error> setDisplayBrightness(float brightness) override;
     hal::Error getDisplayVsyncPeriod(nsecs_t* outVsyncPeriod) const override;
     hal::Error setActiveConfigWithConstraints(
             const std::shared_ptr<const HWC2::Display::Config>& config,
             const hal::VsyncPeriodChangeConstraints& constraints,
             hal::VsyncPeriodChangeTimeline* outTimeline) override;
-    hal::Error setAutoLowLatencyMode(bool on) const override;
+    hal::Error setAutoLowLatencyMode(bool on) override;
     hal::Error getSupportedContentTypes(
             std::vector<hal::ContentType>* outSupportedContentTypes) const override;
-    hal::Error setContentType(hal::ContentType contentType) const override;
+    hal::Error setContentType(hal::ContentType) override;
     // Other Display methods
     hal::HWDisplayId getId() const override { return mId; }
     bool isConnected() const override { return mIsConnected; }

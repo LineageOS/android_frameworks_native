@@ -108,6 +108,7 @@
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
 #include "NativeWindowSurface.h"
+#include "Promise.h"
 #include "RefreshRateOverlay.h"
 #include "RegionSamplingThread.h"
 #include "Scheduler/DispSync.h"
@@ -1491,14 +1492,15 @@ status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken, f
         return BAD_VALUE;
     }
 
-    return schedule([=]() -> status_t {
+    return promise::chain(schedule([=] {
                if (const auto displayId = getPhysicalDisplayIdLocked(displayToken)) {
                    return getHwComposer().setDisplayBrightness(*displayId, brightness);
                } else {
                    ALOGE("%s: Invalid display token %p", __FUNCTION__, displayToken.get());
-                   return NAME_NOT_FOUND;
+                   return promise::yield<status_t>(NAME_NOT_FOUND);
                }
-           })
+           }))
+            .then([](std::future<status_t> task) { return task; })
             .get();
 }
 
