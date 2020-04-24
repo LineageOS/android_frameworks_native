@@ -1239,12 +1239,12 @@ TEST_F(RenderEngineTest, drawLayers_fillsBufferAndCachesImages) {
     EXPECT_EQ(NO_ERROR, barrier->result);
 }
 
-TEST_F(RenderEngineTest, bindExternalBuffer_withNullBuffer) {
+TEST_F(RenderEngineTest, drawLayers_bindExternalBufferWithNullBuffer) {
     status_t result = sRE->bindExternalTextureBuffer(0, nullptr, nullptr);
     ASSERT_EQ(BAD_VALUE, result);
 }
 
-TEST_F(RenderEngineTest, bindExternalBuffer_cachesImages) {
+TEST_F(RenderEngineTest, drawLayers_bindExternalBufferCachesImages) {
     sp<GraphicBuffer> buf = allocateSourceBuffer(1, 1);
     uint32_t texName;
     sRE->genTextures(1, &texName);
@@ -1264,7 +1264,7 @@ TEST_F(RenderEngineTest, bindExternalBuffer_cachesImages) {
     EXPECT_FALSE(sRE->isImageCachedForTesting(bufferId));
 }
 
-TEST_F(RenderEngineTest, cacheExternalBuffer_withNullBuffer) {
+TEST_F(RenderEngineTest, drawLayers_cacheExternalBufferWithNullBuffer) {
     std::shared_ptr<renderengine::gl::ImageManager::Barrier> barrier =
             sRE->cacheExternalTextureBufferForTesting(nullptr);
     std::lock_guard<std::mutex> lock(barrier->mutex);
@@ -1276,7 +1276,7 @@ TEST_F(RenderEngineTest, cacheExternalBuffer_withNullBuffer) {
     EXPECT_EQ(BAD_VALUE, barrier->result);
 }
 
-TEST_F(RenderEngineTest, cacheExternalBuffer_cachesImages) {
+TEST_F(RenderEngineTest, drawLayers_cacheExternalBufferCachesImages) {
     sp<GraphicBuffer> buf = allocateSourceBuffer(1, 1);
     uint64_t bufferId = buf->getId();
     std::shared_ptr<renderengine::gl::ImageManager::Barrier> barrier =
@@ -1397,33 +1397,6 @@ TEST_F(RenderEngineTest, drawLayers_fillShadow_translucentCasterWithAlpha) {
     const Region backgroundRegion = Region(fullscreenRect()).subtractSelf(casterWithShadow);
     expectBufferColor(backgroundRegion, backgroundColor.r, backgroundColor.g, backgroundColor.b,
                       backgroundColor.a);
-}
-
-TEST_F(RenderEngineTest, cleanupPostRender_cleansUpOnce) {
-    renderengine::DisplaySettings settings;
-    settings.physicalDisplay = fullscreenRect();
-    settings.clip = fullscreenRect();
-
-    std::vector<const renderengine::LayerSettings*> layers;
-    renderengine::LayerSettings layer;
-    layer.geometry.boundaries = fullscreenRect().toFloatRect();
-    BufferSourceVariant<ForceOpaqueBufferVariant>::fillColor(layer, 1.0f, 0.0f, 0.0f, this);
-    layer.alpha = 1.0;
-    layers.push_back(&layer);
-
-    base::unique_fd fenceOne;
-    sRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd(), &fenceOne);
-    base::unique_fd fenceTwo;
-    sRE->drawLayers(settings, layers, mBuffer, true, std::move(fenceOne), &fenceTwo);
-
-    const int fd = fenceTwo.get();
-    if (fd >= 0) {
-        sync_wait(fd, -1);
-    }
-
-    // Only cleanup the first time.
-    EXPECT_TRUE(sRE->cleanupPostRender());
-    EXPECT_FALSE(sRE->cleanupPostRender());
 }
 
 } // namespace android

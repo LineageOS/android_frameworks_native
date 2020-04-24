@@ -326,11 +326,11 @@ public:
     auto captureScreenImplLocked(const RenderArea& renderArea,
                                  SurfaceFlinger::TraverseLayersFunction traverseLayers,
                                  const sp<GraphicBuffer>& buffer, bool useIdentityTransform,
-                                 bool forSystem, int* outSyncFd) {
+                                 bool forSystem, int* outSyncFd, bool regionSampling) {
         bool ignored;
         return mFlinger->captureScreenImplLocked(renderArea, traverseLayers, buffer,
                                                  useIdentityTransform, forSystem, outSyncFd,
-                                                 ignored);
+                                                 regionSampling, ignored);
     }
 
     auto traverseLayersInDisplay(const sp<const DisplayDevice>& display,
@@ -405,7 +405,6 @@ public:
     auto& mutableUseFrameRateApi() { return mFlinger->useFrameRateApi; }
 
     auto fromHandle(const sp<IBinder>& handle) {
-        Mutex::Autolock _l(mFlinger->mStateLock);
         return mFlinger->fromHandle(handle);
     }
 

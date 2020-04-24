@@ -299,13 +299,33 @@ void SensorService::onFirstRef() {
     }
 }
 
-void SensorService::setSensorAccess(uid_t uid, bool hasAccess) {
+void SensorService::onUidStateChanged(uid_t uid, UidState state) {
+    SensorDevice& dev(SensorDevice::getInstance());
+
     ConnectionSafeAutolock connLock = mConnectionHolder.lock(mLock);
     for (const sp<SensorEventConnection>& conn : connLock.getActiveConnections()) {
         if (conn->getUid() == uid) {
-            conn->setSensorAccess(hasAccess);
+            dev.setUidStateForConnection(conn.get(), state);
         }
     }
+
+    for (const sp<SensorDirectConnection>& conn : connLock.getDirectConnections()) {
+        if (conn->getUid() == uid) {
+            // Update sensor subscriptions if needed
+            bool hasAccess = hasSensorAccessLocked(conn->getUid(), conn->getOpPackageName());
+            conn->onSensorAccessChanged(hasAccess);
+        }
+    }
+}
+
+bool SensorService::hasSensorAccess(uid_t uid, const String16& opPackageName) {
+    Mutex::Autolock _l(mLock);
+    return hasSensorAccessLocked(uid, opPackageName);
+}
+
+bool SensorService::hasSensorAccessLocked(uid_t uid, const String16& opPackageName) {
+    return !mSensorPrivacyPolicy->isSensorPrivacyEnabled()
+        && isUidActive(uid) && !isOperationRestrictedLocked(opPackageName);
 }
 
 const Sensor& SensorService::registerSensor(SensorInterface* s, bool isDebug, bool isVirtual) {
@@ -638,8 +658,9 @@ void SensorService::disableAllSensors() {
 
 void SensorService::disableAllSensorsLocked(ConnectionSafeAutolock* connLock) {
     SensorDevice& dev(SensorDevice::getInstance());
-    for (const sp<SensorDirectConnection>& connection : connLock->getDirectConnections()) {
-        connection->stopAll(true /* backupRecord */);
+    for (const sp<SensorDirectConnection>& conn : connLock->getDirectConnections()) {
+        bool hasAccess = hasSensorAccessLocked(conn->getUid(), conn->getOpPackageName());
+        conn->onSensorAccessChanged(hasAccess);
     }
     dev.disableAllSensors();
     // Clear all pending flush connections for all active sensors. If one of the active
@@ -666,8 +687,9 @@ void SensorService::enableAllSensorsLocked(ConnectionSafeAutolock* connLock) {
     }
     SensorDevice& dev(SensorDevice::getInstance());
     dev.enableAllSensors();
-    for (const sp<SensorDirectConnection>& connection : connLock->getDirectConnections()) {
-        connection->recoverAll();
+    for (const sp<SensorDirectConnection>& conn : connLock->getDirectConnections()) {
+        bool hasAccess = hasSensorAccessLocked(conn->getUid(), conn->getOpPackageName());
+        conn->onSensorAccessChanged(hasAccess);
     }
 }
 
@@ -1234,9 +1256,8 @@ sp<ISensorEventConnection> SensorService::createSensorEventConnection(const Stri
             (packageName == "") ? String8::format("unknown_package_pid_%d", pid) : packageName;
     String16 connOpPackageName =
             (opPackageName == String16("")) ? String16(connPackageName) : opPackageName;
-    bool hasSensorAccess = mUidPolicy->isUidActive(uid);
     sp<SensorEventConnection> result(new SensorEventConnection(this, uid, connPackageName,
-            requestedMode == DATA_INJECTION, connOpPackageName, hasSensorAccess));
+            requestedMode == DATA_INJECTION, connOpPackageName));
     if (requestedMode == DATA_INJECTION) {
         mConnectionHolder.addEventConnectionIfNotPresent(result);
         // Add the associated file descriptor to the Looper for polling whenever there is data to
@@ -1887,13 +1908,12 @@ bool SensorService::isWhiteListedPackage(const String8& packageName) {
     return (packageName.contains(mWhiteListedPackage.string()));
 }
 
-bool SensorService::isOperationPermitted(const String16& opPackageName) {
-    Mutex::Autolock _l(mLock);
+bool SensorService::isOperationRestrictedLocked(const String16& opPackageName) {
     if (mCurrentOperatingMode == RESTRICTED) {
         String8 package(opPackageName);
-        return isWhiteListedPackage(package);
+        return !isWhiteListedPackage(package);
     }
-    return true;
+    return false;
 }
 
 void SensorService::UidPolicy::registerSelf() {
@@ -1921,7 +1941,7 @@ void SensorService::UidPolicy::onUidActive(uid_t uid) {
     }
     sp<SensorService> service = mService.promote();
     if (service != nullptr) {
-        service->setSensorAccess(uid, true);
+        service->onUidStateChanged(uid, UID_STATE_ACTIVE);
     }
 }
 
@@ -1936,7 +1956,7 @@ void SensorService::UidPolicy::onUidIdle(uid_t uid, __unused bool disabled) {
     if (deleted) {
         sp<SensorService> service = mService.promote();
         if (service != nullptr) {
-            service->setSensorAccess(uid, false);
+            service->onUidStateChanged(uid, UID_STATE_IDLE);
         }
     }
 }
@@ -1964,7 +1984,7 @@ void SensorService::UidPolicy::updateOverrideUid(uid_t uid, bool active, bool in
     if (wasActive != isActive) {
         sp<SensorService> service = mService.promote();
         if (service != nullptr) {
-            service->setSensorAccess(uid, isActive);
+            service->onUidStateChanged(uid, isActive ? UID_STATE_ACTIVE : UID_STATE_IDLE);
         }
     }
 }
@@ -1988,6 +2008,10 @@ bool SensorService::UidPolicy::isUidActiveLocked(uid_t uid) {
         return it->second;
     }
     return mActiveUids.find(uid) != mActiveUids.end();
+}
+
+bool SensorService::isUidActive(uid_t uid) {
+    return mUidPolicy->isUidActive(uid);
 }
 
 void SensorService::SensorPrivacyPolicy::registerSelf() {

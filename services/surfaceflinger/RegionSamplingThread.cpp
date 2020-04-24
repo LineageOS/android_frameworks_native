@@ -130,7 +130,7 @@ private:
         mVsyncListening = false;
     }
 
-    void onDispSyncEvent(nsecs_t /* when */) final {
+    void onDispSyncEvent(nsecs_t /*when*/, nsecs_t /*expectedVSyncTimestamp*/) final {
         std::unique_lock<decltype(mMutex)> lock(mMutex);
 
         if (mPhaseIntervalSetting == Phase::ZERO) {
@@ -199,13 +199,8 @@ RegionSamplingThread::~RegionSamplingThread() {
     }
 }
 
-void RegionSamplingThread::addListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
+void RegionSamplingThread::addListener(const Rect& samplingArea, const wp<Layer>& stopLayer,
                                        const sp<IRegionSamplingListener>& listener) {
-    wp<Layer> stopLayer;
-    if (stopLayerHandle != nullptr && stopLayerHandle->localBinder() != nullptr) {
-        stopLayer = static_cast<Layer::Handle*>(stopLayerHandle.get())->owner;
-    }
-
     sp<IBinder> asBinder = IInterface::asBinder(listener);
     asBinder->linkToDeath(this);
     std::lock_guard lock(mSamplingMutex);
@@ -430,7 +425,8 @@ void RegionSamplingThread::captureSample() {
     }
 
     bool ignored;
-    mFlinger.captureScreenCommon(renderArea, traverseLayers, buffer, false, ignored);
+    mFlinger.captureScreenCommon(renderArea, traverseLayers, buffer, false /* identityTransform */,
+                                 true /* regionSampling */, ignored);
 
     std::vector<Descriptor> activeDescriptors;
     for (const auto& descriptor : descriptors) {
