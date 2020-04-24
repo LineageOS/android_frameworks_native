@@ -509,6 +509,9 @@ class Dumpstate {
 
     void MaybeTakeEarlyScreenshot();
 
+    void onUiIntensiveBugreportDumpsFinished(int32_t calling_uid,
+                                             const std::string& calling_package);
+
     void MaybeCheckUserConsent(int32_t calling_uid, const std::string& calling_package);
 
     // Removes the in progress files output files (tmp file, zip/txt file, screenshot),
