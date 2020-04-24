@@ -1621,7 +1621,23 @@ INCLUDE_FILE_PATTERNS  =
 # undefined via #undef or recursively expanded use the := operator
 # instead of the = operator.
 
-PREDEFINED             = __attribute__(x)=
+PREDEFINED             = \
+    "__ANDROID_API__=10000" \
+    "__BEGIN_DECLS=" \
+    "__END_DECLS=" \
+    "__INTRODUCED_IN(x)=" \
+    "__INTRODUCED_IN_32(x)=" \
+    "__INTRODUCED_IN_64(x)=" \
+    "__RENAME(x)=" \
+    "__RENAME_LDBL(x,y,z)=" \
+    "__printflike(x,y)=" \
+    "__attribute__(x)=" \
+    "__wur=" \
+    "__mallocfunc=" \
+    "__attribute_pure__=" \
+    "__attribute__(x)=" \
+    __ANDROID__ \
+    __BIONIC__ \
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then
 # this tag can be used to specify a list of macro names that should be expanded.
