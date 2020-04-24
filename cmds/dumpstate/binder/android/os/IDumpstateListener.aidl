@@ -68,4 +68,9 @@ interface IDumpstateListener {
      * Called when screenshot is taken.
      */
     oneway void onScreenshotTaken(boolean success);
+
+    /**
+     * Called when ui intensive bugreport dumps are finished.
+     */
+    oneway void onUiIntensiveBugreportDumpsFinished(String callingPackage);
 }
