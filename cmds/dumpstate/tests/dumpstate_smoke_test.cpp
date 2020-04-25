@@ -173,6 +173,15 @@ class DumpstateListener : public BnDumpstateListener {
         return binder::Status::ok();
     }
 
+    binder::Status onUiIntensiveBugreportDumpsFinished(const android::String16& callingpackage)
+        override {
+        std::lock_guard <std::mutex> lock(lock_);
+        std::string callingpackageUtf8 = std::string(String8(callingpackage).string());
+        dprintf(out_fd_, "\rCalling package of ui intensive bugreport dumps finished: %s",
+                callingpackageUtf8.c_str());
+        return binder::Status::ok();
+    }
+
     bool getIsFinished() {
         std::lock_guard<std::mutex> lock(lock_);
         return is_finished_;

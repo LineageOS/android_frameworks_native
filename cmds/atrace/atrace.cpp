@@ -237,6 +237,7 @@ static const TracingCategory k_categories[] = {
         { OPT,      "events/kmem/rss_stat/enable" },
         { OPT,      "events/kmem/ion_heap_grow/enable" },
         { OPT,      "events/kmem/ion_heap_shrink/enable" },
+        { OPT,      "events/ion/ion_stat/enable" },
     } },
 };
 
