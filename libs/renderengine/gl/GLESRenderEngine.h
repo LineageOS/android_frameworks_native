@@ -17,7 +17,6 @@
 #ifndef SF_GLESRENDERENGINE_H_
 #define SF_GLESRENDERENGINE_H_
 
-#include <stdint.h>
 #include <condition_variable>
 #include <deque>
 #include <mutex>
@@ -76,6 +75,7 @@ public:
                         const std::vector<const LayerSettings*>& layers,
                         const sp<GraphicBuffer>& buffer, const bool useFramebufferCache,
                         base::unique_fd&& bufferFence, base::unique_fd* drawFence) override;
+    bool cleanupPostRender() override;
 
     EGLDisplay getEGLDisplay() const { return mEGLDisplay; }
     // Creates an output image for rendering to
@@ -231,6 +231,17 @@ private:
     std::mutex mRenderingMutex;
 
     std::unique_ptr<Framebuffer> mDrawingBuffer;
+    // this is a 1x1 RGB buffer, but over-allocate in case a driver wants more
+    // memory or if it needs to satisfy alignment requirements. In this case:
+    // assume that each channel requires 4 bytes, and add 3 additional bytes to
+    // ensure that we align on a word. Allocating 16 bytes will provide a
+    // guarantee that we don't clobber memory.
+    uint32_t mPlaceholderDrawBuffer[4];
+    sp<Fence> mLastDrawFence;
+    // Store a separate boolean checking if prior resources were cleaned up, as
+    // devices that don't support native sync fences can't rely on a last draw
+    // fence that doesn't exist.
+    bool mPriorResourcesCleaned = true;
 
     // Blur effect processor, only instantiated when a layer requests it.
     BlurFilter* mBlurFilter = nullptr;
