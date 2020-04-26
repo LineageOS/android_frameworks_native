@@ -2336,6 +2336,9 @@ void SurfaceFlinger::postComposition()
     }
     getBE().mLastSwapTime = currentTime;
 
+    // Cleanup any outstanding resources due to rendering a prior frame.
+    getRenderEngine().cleanupPostRender();
+
     {
         std::lock_guard lock(mTexturePoolMutex);
         if (mTexturePool.size() < mTexturePoolSize) {
@@ -2365,6 +2368,10 @@ void SurfaceFlinger::postComposition()
     }
 }
 
+FloatRect SurfaceFlinger::getLayerClipBoundsForDisplay(const DisplayDevice& displayDevice) const {
+    return displayDevice.getViewport().toFloatRect();
+}
+
 void SurfaceFlinger::computeLayerBounds() {
     for (const auto& pair : mDisplays) {
         const auto& displayDevice = pair.second;
@@ -2375,7 +2382,7 @@ void SurfaceFlinger::computeLayerBounds() {
                 continue;
             }
 
-            layer->computeBounds(displayDevice->getViewport().toFloatRect(), ui::Transform(),
+            layer->computeBounds(getLayerClipBoundsForDisplay(*displayDevice), ui::Transform(),
                                  0.f /* shadowRadius */);
         }
     }
