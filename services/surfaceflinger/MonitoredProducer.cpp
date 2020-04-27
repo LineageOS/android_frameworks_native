@@ -38,13 +38,7 @@ MonitoredProducer::~MonitoredProducer() {
     // because we don't know where this destructor is called from. It could be
     // called with the mStateLock held, leading to a dead-lock (it actually
     // happens).
-    sp<LambdaMessage> cleanUpListMessage =
-            new LambdaMessage([flinger = mFlinger, asBinder = wp<IBinder>(onAsBinder())]() {
-                Mutex::Autolock lock(flinger->mStateLock);
-                flinger->mGraphicBufferProducerList.erase(asBinder);
-            });
-
-    mFlinger->postMessageAsync(cleanUpListMessage);
+    mFlinger->removeGraphicBufferProducerAsync(onAsBinder());
 }
 
 status_t MonitoredProducer::requestBuffer(int slot, sp<GraphicBuffer>* buf) {
