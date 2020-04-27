@@ -82,8 +82,6 @@ struct egl_connection_t {
 
     bool                systemDriverUnloaded;
     bool                useAngle;       // Was ANGLE successfully loaded
-    EGLint              angleBackend;
-    void*               vendorEGL;
 };
 // clang-format on
 
