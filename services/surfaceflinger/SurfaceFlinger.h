@@ -68,6 +68,7 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
+#include <future>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -276,12 +277,9 @@ public:
     // starts SurfaceFlinger main loop in the current thread
     void run() ANDROID_API;
 
-    // post an asynchronous message to the main thread
-    status_t postMessageAsync(const sp<MessageBase>& msg, nsecs_t reltime = 0, uint32_t flags = 0);
-
-    // post a synchronous message to the main thread
-    status_t postMessageSync(const sp<MessageBase>& msg, nsecs_t reltime = 0, uint32_t flags = 0)
-            EXCLUDES(mStateLock);
+    // Schedule an asynchronous or synchronous task on the main thread.
+    template <typename F, typename T = std::invoke_result_t<F>>
+    [[nodiscard]] std::future<T> schedule(F&&);
 
     // force full composition on all displays
     void repaintEverything();
@@ -542,7 +540,6 @@ private:
     /* ------------------------------------------------------------------------
      * Message handling
      */
-    void waitForEvent();
     // Can only be called from the main thread or with mStateLock held
     void signalTransaction();
     // Can only be called from the main thread or with mStateLock held
@@ -998,6 +995,8 @@ private:
     // Can't be unordered_set because wp<> isn't hashable
     std::set<wp<IBinder>> mGraphicBufferProducerList;
     size_t mMaxGraphicBufferProducerListSize = ISurfaceComposer::MAX_LAYERS;
+
+    void removeGraphicBufferProducerAsync(const wp<IBinder>&);
 
     // protected by mStateLock (but we could use another lock)
     bool mLayersRemoved = false;
