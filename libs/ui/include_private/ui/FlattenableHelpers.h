@@ -50,18 +50,20 @@ struct FlattenableHelpers {
     }
 
     // Helpers for reading and writing std::string
-    static size_t getFlattenedSize(const std::string& str) { return sizeof(size_t) + str.length(); }
+    static size_t getFlattenedSize(const std::string& str) {
+        return sizeof(uint64_t) + str.length();
+    }
 
     static status_t flatten(void** buffer, size_t* size, const std::string& str) {
         if (*size < getFlattenedSize(str)) return NO_MEMORY;
-        flatten(buffer, size, str.length());
+        flatten(buffer, size, (uint64_t)str.length());
         memcpy(reinterpret_cast<char*>(*buffer), str.c_str(), str.length());
         FlattenableUtils::advance(*buffer, *size, str.length());
         return OK;
     }
 
     static status_t unflatten(const void** buffer, size_t* size, std::string* str) {
-        size_t length;
+        uint64_t length;
         RETURN_IF_ERROR(unflatten(buffer, size, &length));
         if (*size < length) return NO_MEMORY;
         str->assign(reinterpret_cast<const char*>(*buffer), length);
@@ -122,7 +124,7 @@ struct FlattenableHelpers {
     // Helpers for reading and writing std::vector
     template <class T>
     static size_t getFlattenedSize(const std::vector<T>& value) {
-        return std::accumulate(value.begin(), value.end(), sizeof(size_t),
+        return std::accumulate(value.begin(), value.end(), sizeof(uint64_t),
                                [](size_t sum, const T& element) {
                                    return sum + getFlattenedSize(element);
                                });
@@ -130,7 +132,7 @@ struct FlattenableHelpers {
 
     template <class T>
     static status_t flatten(void** buffer, size_t* size, const std::vector<T>& value) {
-        RETURN_IF_ERROR(flatten(buffer, size, value.size()));
+        RETURN_IF_ERROR(flatten(buffer, size, (uint64_t)value.size()));
         for (const auto& element : value) {
             RETURN_IF_ERROR(flatten(buffer, size, element));
         }
@@ -139,7 +141,7 @@ struct FlattenableHelpers {
 
     template <class T>
     static status_t unflatten(const void** buffer, size_t* size, std::vector<T>* value) {
-        size_t numElements;
+        uint64_t numElements;
         RETURN_IF_ERROR(unflatten(buffer, size, &numElements));
         // We don't need an extra size check since each iteration of the loop does that
         std::vector<T> elements;
