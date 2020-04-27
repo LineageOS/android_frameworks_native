@@ -95,7 +95,8 @@ void BLASTBufferItemConsumer::getConnectionEvents(uint64_t frameNumber, bool* ne
     if (needsDisconnect != nullptr) *needsDisconnect = disconnect;
 }
 
-BLASTBufferQueue::BLASTBufferQueue(const sp<SurfaceControl>& surface, int width, int height)
+BLASTBufferQueue::BLASTBufferQueue(const sp<SurfaceControl>& surface, int width, int height,
+                                   bool enableTripleBuffering)
       : mSurfaceControl(surface),
         mWidth(width),
         mHeight(height),
@@ -105,8 +106,7 @@ BLASTBufferQueue::BLASTBufferQueue(const sp<SurfaceControl>& surface, int width,
     // explicitly so that dequeueBuffer will block
     mProducer->setDequeueTimeout(std::numeric_limits<int64_t>::max());
 
-    int8_t disableTripleBuffer = property_get_bool("ro.sf.disable_triple_buffer", 0);
-    if (!disableTripleBuffer) {
+    if (enableTripleBuffering) {
         mProducer->setMaxDequeuedBufferCount(2);
     }
     mBufferItemConsumer =
