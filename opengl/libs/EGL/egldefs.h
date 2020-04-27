@@ -81,8 +81,6 @@ struct egl_connection_t {
     void*               libGles2;
 
     bool                systemDriverUnloaded;
-    bool                shouldUseAngle; // Should we attempt to load ANGLE
-    bool                angleDecided;   // Have we tried to load ANGLE
     bool                useAngle;       // Was ANGLE successfully loaded
     EGLint              angleBackend;
     void*               vendorEGL;
