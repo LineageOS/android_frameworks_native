@@ -407,8 +407,17 @@ Rect BufferLayerConsumer::getCurrentCrop() const {
 }
 
 Rect BufferLayerConsumer::getCurrentCropLocked() const {
+    uint32_t width = mDefaultWidth;
+    uint32_t height = mDefaultHeight;
+    // If the buffer comes with a rotated bit for 90 (or 270) degrees, switch width/height in order
+    // to scale and crop correctly.
+    if (mCurrentTransform & NATIVE_WINDOW_TRANSFORM_ROT_90) {
+        width = mDefaultHeight;
+        height = mDefaultWidth;
+    }
+
     return (mCurrentScalingMode == NATIVE_WINDOW_SCALING_MODE_SCALE_CROP)
-            ? GLConsumer::scaleDownCrop(mCurrentCrop, mDefaultWidth, mDefaultHeight)
+            ? GLConsumer::scaleDownCrop(mCurrentCrop, width, height)
             : mCurrentCrop;
 }
 
