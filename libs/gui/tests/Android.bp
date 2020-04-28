@@ -39,6 +39,7 @@ cc_test {
     shared_libs: [
         "android.hardware.configstore@1.0",
         "android.hardware.configstore-utils",
+        "libSurfaceFlingerProp",
         "libbase",
         "liblog",
         "libEGL",
@@ -53,6 +54,8 @@ cc_test {
         "libutils",
         "libnativewindow"
     ],
+
+    header_libs: ["libsurfaceflinger_headers"],
 }
 
 // Build a separate binary to $(TARGET_OUT_DATA_NATIVE_TESTS)/$(LOCAL_MODULE)
