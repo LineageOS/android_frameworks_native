@@ -2748,7 +2748,10 @@ int InputDispatcher::handleReceiveCallback(int fd, int events, void* data) {
             // Monitor channels are never explicitly unregistered.
             // We do it automatically when the remote endpoint is closed so don't warn
             // about them.
-            notify = !connection->monitor;
+            const bool stillHaveWindowHandle =
+                    d->getWindowHandleLocked(connection->inputChannel->getConnectionToken()) !=
+                    nullptr;
+            notify = !connection->monitor && stillHaveWindowHandle;
             if (notify) {
                 ALOGW("channel '%s' ~ Consumer closed input channel or an error occurred.  "
                       "events=0x%x",
