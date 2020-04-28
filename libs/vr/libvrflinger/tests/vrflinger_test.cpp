@@ -1,3 +1,4 @@
+#include <SurfaceFlingerProperties.h>
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/types.h>
 #include <android/hardware_buffer.h>
@@ -147,9 +148,7 @@ TEST(VrFlingerTest, ActivateDeactivate) {
   // Exit immediately if the device doesn't support vr flinger. This ConfigStore
   // check is the same mechanism used by surface flinger to decide if it should
   // initialize vr flinger.
-  bool vr_flinger_enabled =
-      getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::useVrFlinger>(
-          false);
+  bool vr_flinger_enabled = android::sysprop::use_vr_flinger(false);
   if (!vr_flinger_enabled) {
     return;
   }
