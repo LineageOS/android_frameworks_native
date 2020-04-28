@@ -48,6 +48,7 @@ cc_test {
         "LayerHistoryTestV2.cpp",
         "LayerMetadataTest.cpp",
         "PhaseOffsetsTest.cpp",
+        "PromiseTest.cpp",
         "SchedulerTest.cpp",
         "SchedulerUtilsTest.cpp",
         "SetFrameRateTest.cpp",
