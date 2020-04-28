@@ -62,7 +62,7 @@ public:
     std::array<uint8_t, 32> sign(const VerifiedInputEvent& event) const;
 
 private:
-    std::array<uint8_t, 32> sign(const std::vector<uint8_t>& data) const;
+    std::array<uint8_t, 32> sign(const uint8_t* data, size_t size) const;
     const std::array<uint8_t, 128> mHmacKey;
 };
 
@@ -219,7 +219,11 @@ private:
     // the pointer stream in order to claim it for a system gesture.
     std::unordered_map<int32_t, std::vector<Monitor>> mGestureMonitorsByDisplay GUARDED_BY(mLock);
 
-    HmacKeyManager mHmacKeyManager;
+    const HmacKeyManager mHmacKeyManager;
+    const std::array<uint8_t, 32> getSignature(const MotionEntry& motionEntry,
+                                               const DispatchEntry& dispatchEntry) const;
+    const std::array<uint8_t, 32> getSignature(const KeyEntry& keyEntry,
+                                               const DispatchEntry& dispatchEntry) const;
 
     // Event injection and synchronization.
     std::condition_variable mInjectionResultAvailable;
