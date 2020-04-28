@@ -271,6 +271,12 @@ void* Loader::open(egl_connection_t* cnx)
     if (!hnd) {
         android::GraphicsEnv::getInstance().setDriverLoaded(android::GpuStatsInfo::Api::API_GL,
                                                             false, systemTime() - openTime);
+    } else {
+        // init_angle_backend will check if loaded driver is ANGLE or not,
+        // will set cnx->useAngle appropriately.
+        // Do this here so that we use ANGLE path when driver is ANGLE (e.g. loaded as native),
+        // not just loading ANGLE as option.
+        init_angle_backend(hnd->dso[0], cnx);
     }
 
     LOG_ALWAYS_FATAL_IF(!hnd,
@@ -311,11 +317,6 @@ void Loader::close(egl_connection_t* cnx)
     cnx->dso = nullptr;
 
     cnx->useAngle = false;
-
-    if (cnx->vendorEGL) {
-        dlclose(cnx->vendorEGL);
-        cnx->vendorEGL = nullptr;
-    }
 }
 
 void Loader::init_api(void* dso,
@@ -482,7 +483,7 @@ static void* load_system_driver(const char* kind, const char* suffix, const bool
     return dso;
 }
 
-static void* load_angle_from_namespace(const char* kind, android_namespace_t* ns) {
+static void* load_angle(const char* kind, android_namespace_t* ns) {
     const android_dlextinfo dlextinfo = {
             .flags = ANDROID_DLEXT_USE_NAMESPACE,
             .library_namespace = ns,
@@ -500,61 +501,6 @@ static void* load_angle_from_namespace(const char* kind, android_namespace_t* ns
     }
 
     return nullptr;
-}
-
-static void* load_angle(const char* kind, android_namespace_t* ns, egl_connection_t* cnx) {
-    void* so = load_angle_from_namespace(kind, ns);
-
-    if (so) {
-        ALOGV("Loaded ANGLE %s library for '%s' (instead of native)", kind,
-            android::GraphicsEnv::getInstance().getAngleAppName().c_str());
-        cnx->useAngle = true;
-
-        char prop[PROPERTY_VALUE_MAX];
-
-        property_get("debug.hwui.renderer", prop, "UNSET");
-        ALOGV("Skia's renderer set to %s", prop);
-
-        EGLint angleBackendDefault = EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE;
-        property_get("debug.angle.backend", prop, "0");
-        switch (atoi(prop)) {
-            case 1:
-                ALOGV("%s: Requesting OpenGLES back-end", __FUNCTION__);
-                angleBackendDefault = EGL_PLATFORM_ANGLE_TYPE_OPENGLES_ANGLE;
-                break;
-            case 2:
-                ALOGV("%s: Requesting Vulkan back-end", __FUNCTION__);
-                angleBackendDefault = EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE;
-                break;
-            default:
-                break;
-        }
-
-        cnx->angleBackend = angleBackendDefault;
-        if (!cnx->vendorEGL && (cnx->angleBackend == EGL_PLATFORM_ANGLE_TYPE_OPENGLES_ANGLE)) {
-            // Find and load vendor libEGL for ANGLE's GL back-end to use.
-            char prop[PROPERTY_VALUE_MAX + 1];
-            for (auto key : HAL_SUBNAME_KEY_PROPERTIES) {
-                if (property_get(key, prop, nullptr) <= 0) {
-                    continue;
-                }
-                void* dso = load_system_driver("EGL", prop, true);
-                if (dso) {
-                    cnx->vendorEGL = dso;
-                    break;
-                }
-            }
-            if (!cnx->vendorEGL) {
-                cnx->vendorEGL = load_system_driver("EGL", nullptr, true);
-            }
-        }
-    } else {
-        ALOGV("Loaded native %s library for '%s' (instead of ANGLE)", kind,
-            android::GraphicsEnv::getInstance().getAngleAppName().c_str());
-        cnx->useAngle = false;
-    }
-
-    return so;
 }
 
 static void* load_updated_driver(const char* kind, android_namespace_t* ns) {
@@ -594,20 +540,35 @@ Loader::driver_t* Loader::attempt_to_load_angle(egl_connection_t* cnx) {
     driver_t* hnd = nullptr;
 
     // ANGLE doesn't ship with GLES library, and thus we skip GLES driver.
-    void* dso = load_angle("EGL", ns, cnx);
+    void* dso = load_angle("EGL", ns);
     if (dso) {
         initialize_api(dso, cnx, EGL);
         hnd = new driver_t(dso);
 
-        dso = load_angle("GLESv1_CM", ns, cnx);
+        dso = load_angle("GLESv1_CM", ns);
         initialize_api(dso, cnx, GLESv1_CM);
         hnd->set(dso, GLESv1_CM);
 
-        dso = load_angle("GLESv2", ns, cnx);
+        dso = load_angle("GLESv2", ns);
         initialize_api(dso, cnx, GLESv2);
         hnd->set(dso, GLESv2);
     }
     return hnd;
+}
+
+void Loader::init_angle_backend(void* dso, egl_connection_t* cnx) {
+    void* eglCreateDeviceANGLE = nullptr;
+
+    ALOGV("dso: %p", dso);
+    eglCreateDeviceANGLE = dlsym(dso, "eglCreateDeviceANGLE");
+    ALOGV("eglCreateDeviceANGLE: %p", eglCreateDeviceANGLE);
+    if (eglCreateDeviceANGLE) {
+        ALOGV("ANGLE GLES library in use");
+        cnx->useAngle = true;
+    } else {
+        ALOGV("Native GLES library in use");
+        cnx->useAngle = false;
+    }
 }
 
 Loader::driver_t* Loader::attempt_to_load_updated_driver(egl_connection_t* cnx) {
