@@ -468,7 +468,7 @@ status_t InputPublisher::publishKeyEvent(uint32_t seq, int32_t eventId, int32_t 
     msg.body.key.deviceId = deviceId;
     msg.body.key.source = source;
     msg.body.key.displayId = displayId;
-    msg.body.key.hmac = hmac;
+    msg.body.key.hmac = std::move(hmac);
     msg.body.key.action = action;
     msg.body.key.flags = flags;
     msg.body.key.keyCode = keyCode;
@@ -526,7 +526,7 @@ status_t InputPublisher::publishMotionEvent(
     msg.body.motion.deviceId = deviceId;
     msg.body.motion.source = source;
     msg.body.motion.displayId = displayId;
-    msg.body.motion.hmac = hmac;
+    msg.body.motion.hmac = std::move(hmac);
     msg.body.motion.action = action;
     msg.body.motion.actionButton = actionButton;
     msg.body.motion.flags = flags;
