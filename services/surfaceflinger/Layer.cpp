@@ -2176,6 +2176,7 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags)
         layerInfo->set_effective_scaling_mode(getEffectiveScalingMode());
 
         layerInfo->set_corner_radius(getRoundedCornerState().radius);
+        layerInfo->set_background_blur_radius(getBackgroundBlurRadius());
         LayerProtoHelper::writeToProto(transform, layerInfo->mutable_transform());
         LayerProtoHelper::writePositionToProto(transform.tx(), transform.ty(),
                                                [&]() { return layerInfo->mutable_position(); });

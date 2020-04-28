@@ -18,10 +18,6 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 
-#include <errno.h>
-#include <stdint.h>
-#include <sys/types.h>
-
 #include <binder/IPCThreadState.h>
 
 #include <utils/Log.h>
@@ -35,26 +31,7 @@
 #include "MessageQueue.h"
 #include "SurfaceFlinger.h"
 
-namespace android {
-
-// ---------------------------------------------------------------------------
-
-MessageBase::MessageBase() : MessageHandler() {}
-
-MessageBase::~MessageBase() {}
-
-void MessageBase::handleMessage(const Message&) {
-    this->handler();
-    barrier.open();
-};
-
-// ---------------------------------------------------------------------------
-
-MessageQueue::~MessageQueue() = default;
-
-// ---------------------------------------------------------------------------
-
-namespace impl {
+namespace android::impl {
 
 void MessageQueue::Handler::dispatchRefresh() {
     if ((android_atomic_or(eventMaskRefresh, &mEventMask) & eventMaskRefresh) == 0) {
@@ -123,14 +100,8 @@ void MessageQueue::waitMessage() {
     } while (true);
 }
 
-status_t MessageQueue::postMessage(const sp<MessageBase>& messageHandler, nsecs_t relTime) {
-    const Message dummyMessage;
-    if (relTime > 0) {
-        mLooper->sendMessageDelayed(relTime, messageHandler, dummyMessage);
-    } else {
-        mLooper->sendMessage(messageHandler, dummyMessage);
-    }
-    return NO_ERROR;
+void MessageQueue::postMessage(sp<MessageHandler>&& handler) {
+    mLooper->sendMessage(handler, Message());
 }
 
 void MessageQueue::invalidate() {
@@ -160,10 +131,7 @@ int MessageQueue::eventReceiver(int /*fd*/, int /*events*/) {
     return 1;
 }
 
-// ---------------------------------------------------------------------------
-
-} // namespace impl
-} // namespace android
+} // namespace android::impl
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion"

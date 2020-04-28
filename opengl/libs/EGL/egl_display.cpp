@@ -133,45 +133,6 @@ EGLDisplay egl_display_t::getFromNativeDisplay(EGLNativeDisplayType disp,
     return sDisplay[uintptr_t(disp)].getPlatformDisplay(disp, attrib_list);
 }
 
-static bool addAnglePlatformAttributes(egl_connection_t* const cnx,
-                                       std::vector<EGLAttrib>& attrs) {
-    intptr_t vendorEGL = (intptr_t)cnx->vendorEGL;
-
-    attrs.reserve(4 * 2);
-
-    attrs.push_back(EGL_PLATFORM_ANGLE_TYPE_ANGLE);
-    attrs.push_back(cnx->angleBackend);
-
-    switch (cnx->angleBackend) {
-        case EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE:
-            ALOGV("%s: Requesting Vulkan ANGLE back-end", __FUNCTION__);
-            char prop[PROPERTY_VALUE_MAX];
-            property_get("debug.angle.validation", prop, "0");
-            attrs.push_back(EGL_PLATFORM_ANGLE_DEBUG_LAYERS_ENABLED_ANGLE);
-            attrs.push_back(atoi(prop));
-            break;
-        case EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE:
-            ALOGV("%s: Requesting Default ANGLE back-end", __FUNCTION__);
-            break;
-        case EGL_PLATFORM_ANGLE_TYPE_OPENGLES_ANGLE:
-            ALOGV("%s: Requesting OpenGL ES ANGLE back-end", __FUNCTION__);
-            // NOTE: This is only valid if the backend is OpenGL
-            attrs.push_back(EGL_PLATFORM_ANGLE_EGL_HANDLE_ANGLE);
-            attrs.push_back(vendorEGL);
-
-            // Context virtualization is only available on GL back-end.
-            // Needed to support threading with GL back-end
-            attrs.push_back(EGL_PLATFORM_ANGLE_CONTEXT_VIRTUALIZATION_ANGLE);
-            attrs.push_back(EGL_FALSE);
-            break;
-        default:
-            ALOGE("%s: Requesting Unknown (%d) ANGLE back-end", __FUNCTION__, cnx->angleBackend);
-            break;
-    }
-
-    return true;
-}
-
 static EGLDisplay getPlatformDisplayAngle(EGLNativeDisplayType display, egl_connection_t* const cnx,
                                           const EGLAttrib* attrib_list, EGLint* error) {
     EGLDisplay dpy = EGL_NO_DISPLAY;
@@ -186,11 +147,14 @@ static EGLDisplay getPlatformDisplayAngle(EGLNativeDisplayType display, egl_conn
             }
         }
 
-        if (!addAnglePlatformAttributes(cnx, attrs)) {
-            ALOGE("eglGetDisplay(%p) failed: Mismatch display request", display);
-            *error = EGL_BAD_PARAMETER;
-            return EGL_NO_DISPLAY;
-        }
+        attrs.push_back(EGL_PLATFORM_ANGLE_TYPE_ANGLE);
+        attrs.push_back(EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE);
+
+        char prop[PROPERTY_VALUE_MAX];
+        property_get("debug.angle.validation", prop, "0");
+        attrs.push_back(EGL_PLATFORM_ANGLE_DEBUG_LAYERS_ENABLED_ANGLE);
+        attrs.push_back(atoi(prop));
+
         attrs.push_back(EGL_NONE);
 
         dpy = cnx->egl.eglGetPlatformDisplay(EGL_PLATFORM_ANGLE_ANGLE,
