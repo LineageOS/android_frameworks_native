@@ -721,7 +721,7 @@ EGLSurface eglCreateWindowSurfaceTmpl(egl_display_ptr dp, egl_connection_t* cnx,
 
     // NOTE: When using Vulkan backend, the Vulkan runtime makes all the
     // native_window_* calls, so don't do them here.
-    if (cnx->angleBackend != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE) {
+    if (!cnx->useAngle) {
         int result = native_window_api_connect(window, NATIVE_WINDOW_API_EGL);
         if (result < 0) {
             ALOGE("eglCreateWindowSurface: native_window_api_connect (win=%p) "
@@ -740,14 +740,14 @@ EGLSurface eglCreateWindowSurfaceTmpl(egl_display_ptr dp, egl_connection_t* cnx,
     std::vector<AttrType> strippedAttribList;
     if (!processAttributes<AttrType>(dp, window, attrib_list, &colorSpace, &strippedAttribList)) {
         ALOGE("error invalid colorspace: %d", colorSpace);
-        if (cnx->angleBackend != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE) {
+        if (!cnx->useAngle) {
             native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
         }
         return EGL_NO_SURFACE;
     }
     attrib_list = strippedAttribList.data();
 
-    if (cnx->angleBackend != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE) {
+    if (!cnx->useAngle) {
         int err = native_window_set_buffers_format(window, format);
         if (err != 0) {
             ALOGE("error setting native window pixel format: %s (%d)", strerror(-err), err);
@@ -779,7 +779,7 @@ EGLSurface eglCreateWindowSurfaceTmpl(egl_display_ptr dp, egl_connection_t* cnx,
     }
 
     // EGLSurface creation failed
-    if (cnx->angleBackend != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE) {
+    if (!cnx->useAngle) {
         native_window_set_buffers_format(window, 0);
         native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
     }
@@ -1419,7 +1419,7 @@ EGLBoolean eglSwapBuffersWithDamageKHRImpl(EGLDisplay dpy, EGLSurface draw,
         }
     }
 
-    if (s->cnx->angleBackend != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE) {
+    if (!s->cnx->useAngle) {
         if (!sendSurfaceMetadata(s)) {
             native_window_api_disconnect(s->getNativeWindow(), NATIVE_WINDOW_API_EGL);
             return setError(EGL_BAD_NATIVE_WINDOW, (EGLBoolean)EGL_FALSE);
@@ -1444,7 +1444,7 @@ EGLBoolean eglSwapBuffersWithDamageKHRImpl(EGLDisplay dpy, EGLSurface draw,
         androidRect.bottom = y;
         androidRects.push_back(androidRect);
     }
-    if (s->cnx->angleBackend != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE) {
+    if (!s->cnx->useAngle) {
         native_window_set_surface_damage(s->getNativeWindow(), androidRects.data(),
                                          androidRects.size());
     }
