@@ -23,9 +23,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <SurfaceFlingerProperties.h>
+#include <android-base/properties.h>
 #include <android/dlext.h>
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
-#include <android-base/properties.h>
 #include <configstore/Utils.h>
 #include <cutils/properties.h>
 #include <graphicsenv/GraphicsEnv.h>
@@ -959,9 +960,7 @@ VkResult EnumerateDeviceExtensionProperties(
         VK_KHR_INCREMENTAL_PRESENT_EXTENSION_NAME,
         VK_KHR_INCREMENTAL_PRESENT_SPEC_VERSION});
 
-    bool hdrBoardConfig =
-        getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasHDRDisplay>(
-            false);
+    bool hdrBoardConfig = android::sysprop::has_HDR_display(false);
     if (hdrBoardConfig) {
         loader_extensions.push_back({VK_EXT_HDR_METADATA_EXTENSION_NAME,
                                      VK_EXT_HDR_METADATA_SPEC_VERSION});
