@@ -79,10 +79,9 @@ status_t DisplayEventReceiver::requestNextVsync() {
     return NO_INIT;
 }
 
-status_t DisplayEventReceiver::toggleConfigEvents(
-        ISurfaceComposer::ConfigChanged configChangeFlag) {
+status_t DisplayEventReceiver::requestLatestConfig() {
     if (mEventConnection != nullptr) {
-        mEventConnection->toggleConfigEvents(configChangeFlag);
+        mEventConnection->requestLatestConfig();
         return NO_ERROR;
     }
     return NO_INIT;

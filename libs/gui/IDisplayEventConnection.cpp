@@ -26,8 +26,8 @@ enum class Tag : uint32_t {
     STEAL_RECEIVE_CHANNEL = IBinder::FIRST_CALL_TRANSACTION,
     SET_VSYNC_RATE,
     REQUEST_NEXT_VSYNC,
-    TOGGLE_CONFIG_EVENTS,
-    LAST = TOGGLE_CONFIG_EVENTS,
+    REQUEST_LATEST_CONFIG,
+    LAST = REQUEST_LATEST_CONFIG,
 };
 
 } // Anonymous namespace
@@ -55,10 +55,9 @@ public:
                 Tag::REQUEST_NEXT_VSYNC);
     }
 
-    void toggleConfigEvents(ISurfaceComposer::ConfigChanged configChangeFlag) override {
-        callRemoteAsync<decltype(
-                &IDisplayEventConnection::toggleConfigEvents)>(Tag::TOGGLE_CONFIG_EVENTS,
-                                                               configChangeFlag);
+    void requestLatestConfig() override {
+        callRemoteAsync<decltype(&IDisplayEventConnection::requestLatestConfig)>(
+                Tag::REQUEST_LATEST_CONFIG);
     }
 };
 
@@ -81,8 +80,8 @@ status_t BnDisplayEventConnection::onTransact(uint32_t code, const Parcel& data,
             return callLocal(data, reply, &IDisplayEventConnection::setVsyncRate);
         case Tag::REQUEST_NEXT_VSYNC:
             return callLocalAsync(data, reply, &IDisplayEventConnection::requestNextVsync);
-        case Tag::TOGGLE_CONFIG_EVENTS:
-            return callLocalAsync(data, reply, &IDisplayEventConnection::toggleConfigEvents);
+        case Tag::REQUEST_LATEST_CONFIG:
+            return callLocalAsync(data, reply, &IDisplayEventConnection::requestLatestConfig);
     }
 }
 
