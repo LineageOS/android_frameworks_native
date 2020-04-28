@@ -1782,11 +1782,10 @@ bool SurfaceFlinger::previousFramePending(int graceTimeMs) NO_THREAD_SAFETY_ANAL
         return false;
     }
 
-    if (graceTimeMs > 0 && fence->getStatus() == Fence::Status::Unsignaled) {
-        fence->wait(graceTimeMs);
-    }
-
-    return (fence->getStatus() == Fence::Status::Unsignaled);
+    const status_t status = fence->wait(graceTimeMs);
+    // This is the same as Fence::Status::Unsignaled, but it saves a getStatus() call,
+    // which calls wait(0) again internally
+    return status == -ETIME;
 }
 
 nsecs_t SurfaceFlinger::previousFramePresentTime() NO_THREAD_SAFETY_ANALYSIS {
