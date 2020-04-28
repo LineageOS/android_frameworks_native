@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <SurfaceFlingerProperties.h>
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 
 #include <configstore/Utils.h>
@@ -52,11 +53,9 @@ using namespace android::hardware::configstore::V1_0;
 
 #define METADATA_SCALE(x) (static_cast<EGLint>(x * EGL_METADATA_SCALING_EXT))
 
-static bool hasWideColorDisplay =
-        getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(false);
+static bool hasWideColorDisplay = android::sysprop::has_wide_color_display(false);
 
-static bool hasHdrDisplay =
-        getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasHDRDisplay>(false);
+static bool hasHdrDisplay = android::sysprop::has_HDR_display(false);
 
 class EGLTest : public ::testing::Test {
 public:
