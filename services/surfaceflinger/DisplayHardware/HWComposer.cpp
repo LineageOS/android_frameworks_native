@@ -36,6 +36,7 @@
 #include <utils/Trace.h>
 
 #include "../Layer.h" // needed only for debugging
+#include "../Promise.h"
 #include "../SurfaceFlinger.h"
 #include "ComposerHal.h"
 #include "HWC2.h"
@@ -794,17 +795,21 @@ status_t HWComposer::getDisplayedContentSample(DisplayId displayId, uint64_t max
     return NO_ERROR;
 }
 
-status_t HWComposer::setDisplayBrightness(DisplayId displayId, float brightness) {
-    RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
-    const auto error = mDisplayData[displayId].hwcDisplay->setDisplayBrightness(brightness);
-    if (error == hal::Error::UNSUPPORTED) {
-        RETURN_IF_HWC_ERROR(error, displayId, INVALID_OPERATION);
-    }
-    if (error == hal::Error::BAD_PARAMETER) {
-        RETURN_IF_HWC_ERROR(error, displayId, BAD_VALUE);
-    }
-    RETURN_IF_HWC_ERROR(error, displayId, UNKNOWN_ERROR);
-    return NO_ERROR;
+std::future<status_t> HWComposer::setDisplayBrightness(DisplayId displayId, float brightness) {
+    RETURN_IF_INVALID_DISPLAY(displayId, promise::yield<status_t>(BAD_INDEX));
+    auto& display = mDisplayData[displayId].hwcDisplay;
+
+    return promise::chain(display->setDisplayBrightness(brightness))
+            .then([displayId](hal::Error error) -> status_t {
+                if (error == hal::Error::UNSUPPORTED) {
+                    RETURN_IF_HWC_ERROR(error, displayId, INVALID_OPERATION);
+                }
+                if (error == hal::Error::BAD_PARAMETER) {
+                    RETURN_IF_HWC_ERROR(error, displayId, BAD_VALUE);
+                }
+                RETURN_IF_HWC_ERROR(error, displayId, UNKNOWN_ERROR);
+                return NO_ERROR;
+            });
 }
 
 bool HWComposer::isUsingVrComposer() const {
