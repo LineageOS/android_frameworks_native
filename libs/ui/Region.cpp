@@ -306,6 +306,10 @@ void Region::addRectUnchecked(int l, int t, int r, int b)
 // ----------------------------------------------------------------------------
 
 Region& Region::orSelf(const Rect& r) {
+    if (isEmpty()) {
+        set(r);
+        return *this;
+    }
     return operationSelf(r, op_or);
 }
 Region& Region::xorSelf(const Rect& r) {
@@ -326,6 +330,10 @@ Region& Region::operationSelf(const Rect& r, uint32_t op) {
 // ----------------------------------------------------------------------------
 
 Region& Region::orSelf(const Region& rhs) {
+    if (isEmpty()) {
+        *this = rhs;
+        return *this;
+    }
     return operationSelf(rhs, op_or);
 }
 Region& Region::xorSelf(const Region& rhs) {
