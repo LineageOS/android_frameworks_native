@@ -69,6 +69,9 @@ public:
 protected:
     // Used for unit tests
     PhaseOffsets(const std::vector<float>& refreshRates, float currentFps,
+                 nsecs_t vsyncPhaseOffsetNs, nsecs_t sfVSyncPhaseOffsetNs,
+                 std::optional<nsecs_t> earlySfOffsetNs, std::optional<nsecs_t> earlyGlSfOffsetNs,
+                 std::optional<nsecs_t> earlyAppOffsetNs, std::optional<nsecs_t> earlyGlAppOffsetNs,
                  nsecs_t thresholdForNextVsync);
     std::unordered_map<float, Offsets> initializeOffsets(
             const std::vector<float>& refreshRates) const;
@@ -76,6 +79,12 @@ protected:
     Offsets getHighFpsOffsets(nsecs_t vsyncPeriod) const;
     Offsets getPhaseOffsets(float fps, nsecs_t vsyncPeriod) const;
 
+    const nsecs_t mVSyncPhaseOffsetNs;
+    const nsecs_t mSfVSyncPhaseOffsetNs;
+    const std::optional<nsecs_t> mEarlySfOffsetNs;
+    const std::optional<nsecs_t> mEarlyGlSfOffsetNs;
+    const std::optional<nsecs_t> mEarlyAppOffsetNs;
+    const std::optional<nsecs_t> mEarlyGlAppOffsetNs;
     const nsecs_t mThresholdForNextVsync;
     const std::unordered_map<float, Offsets> mOffsets;
 
