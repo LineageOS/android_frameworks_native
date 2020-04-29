@@ -74,7 +74,7 @@ public:
     MOCK_METHOD4(setDisplayContentSamplingEnabled, status_t(DisplayId, bool, uint8_t, uint64_t));
     MOCK_METHOD4(getDisplayedContentSample,
                  status_t(DisplayId, uint64_t, uint64_t, DisplayedFrameStats*));
-    MOCK_METHOD2(setDisplayBrightness, status_t(DisplayId, float));
+    MOCK_METHOD2(setDisplayBrightness, std::future<status_t>(DisplayId, float));
     MOCK_METHOD2(getDisplayBrightnessSupport, status_t(DisplayId, bool*));
 
     MOCK_METHOD2(onHotplug,
