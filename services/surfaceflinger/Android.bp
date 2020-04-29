@@ -286,6 +286,7 @@ cc_library_shared {
     export_shared_lib_headers: [
         "android.hardware.graphics.common@1.2",
         "libhidlbase",
+        "libui",
     ],
     export_static_lib_headers: [
         "SurfaceFlingerProperties",
