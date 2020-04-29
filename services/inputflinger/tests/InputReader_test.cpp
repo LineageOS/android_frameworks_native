@@ -7082,6 +7082,76 @@ TEST_F(MultiTouchInputMapperTest, Process_ShouldHandlePalmToolType) {
     ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
 }
 
+/**
+ * Test multi-touch should be canceled when received the MT_TOOL_PALM event from some finger,
+ * and could be allowed again after all non-MT_TOOL_PALM is release and the new point is
+ * MT_TOOL_FINGER.
+ */
+TEST_F(MultiTouchInputMapperTest, Process_ShouldHandlePalmToolType2) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION | ID | SLOT | TOOL_TYPE);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    NotifyMotionArgs motionArgs;
+
+    // default tool type is finger
+    constexpr int32_t x1 = 100, y1 = 200, x2 = 120, y2 = 220, x3 = 140, y3 = 240;
+    processId(mapper, 1);
+    processPosition(mapper, x1, y1);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+
+    // Second finger down.
+    processSlot(mapper, 1);
+    processPosition(mapper, x2, y2);
+    processId(mapper, 2);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_DOWN | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+              motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+
+    // If the tool type of the first pointer changes to MT_TOOL_PALM,
+    // the entire gesture should be aborted, so we expect to receive ACTION_CANCEL.
+    processSlot(mapper, 0);
+    processId(mapper, 1);
+    processToolType(mapper, MT_TOOL_PALM);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_CANCEL, motionArgs.action);
+
+    // Ignore the following MOVE and UP events if had detect a palm event.
+    processSlot(mapper, 1);
+    processId(mapper, 2);
+    processPosition(mapper, x3, y3);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+
+    // second finger up.
+    processId(mapper, -1);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+
+    // first finger move, but still in palm
+    processSlot(mapper, 0);
+    processId(mapper, 1);
+    processPosition(mapper, x1 - 1, y1 - 1);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+
+    // second finger down, expect as new finger down.
+    processSlot(mapper, 1);
+    processId(mapper, 2);
+    processPosition(mapper, x2, y2);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+}
+
 // --- MultiTouchInputMapperTest_ExternalDevice ---
 
 class MultiTouchInputMapperTest_ExternalDevice : public MultiTouchInputMapperTest {

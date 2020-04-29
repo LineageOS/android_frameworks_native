@@ -255,6 +255,7 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
                       getDeviceName().c_str());
                 cancelTouch(when);
             }
+            continue;
         }
 
         if (outCount >= MAX_POINTERS) {

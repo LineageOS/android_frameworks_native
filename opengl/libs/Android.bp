@@ -154,6 +154,7 @@ cc_library_shared {
         "libnativebridge_lazy",
         "libnativeloader_lazy",
         "libutils",
+        "libSurfaceFlingerProp",
     ],
     static_libs: [
         "libEGL_getProcAddress",
@@ -165,6 +166,7 @@ cc_library_shared {
         symbol_file: "libEGL.map.txt",
         versions: ["29"],
     },
+    header_libs: ["libsurfaceflinger_headers"],
 }
 
 cc_test {
