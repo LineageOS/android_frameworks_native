@@ -276,7 +276,7 @@ void* Loader::open(egl_connection_t* cnx)
         // will set cnx->useAngle appropriately.
         // Do this here so that we use ANGLE path when driver is ANGLE (e.g. loaded as native),
         // not just loading ANGLE as option.
-        init_angle_backend(hnd->dso[0], cnx);
+        init_angle_backend(hnd->dso[2], cnx);
     }
 
     LOG_ALWAYS_FATAL_IF(!hnd,
@@ -557,12 +557,8 @@ Loader::driver_t* Loader::attempt_to_load_angle(egl_connection_t* cnx) {
 }
 
 void Loader::init_angle_backend(void* dso, egl_connection_t* cnx) {
-    void* eglCreateDeviceANGLE = nullptr;
-
-    ALOGV("dso: %p", dso);
-    eglCreateDeviceANGLE = dlsym(dso, "eglCreateDeviceANGLE");
-    ALOGV("eglCreateDeviceANGLE: %p", eglCreateDeviceANGLE);
-    if (eglCreateDeviceANGLE) {
+    void* pANGLEGetDisplayPlatform = dlsym(dso, "ANGLEGetDisplayPlatform");
+    if (pANGLEGetDisplayPlatform) {
         ALOGV("ANGLE GLES library in use");
         cnx->useAngle = true;
     } else {
