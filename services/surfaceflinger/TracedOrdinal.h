@@ -16,9 +16,12 @@
 
 #pragma once
 #include <android-base/stringprintf.h>
+#include <cutils/compiler.h>
 #include <utils/Trace.h>
 #include <cmath>
 #include <string>
+
+namespace android {
 
 template <typename T>
 class TracedOrdinal {
@@ -27,9 +30,8 @@ public:
                   "Type is not supported. Please test it with systrace before adding "
                   "it to the list.");
 
-    TracedOrdinal(const std::string& name, T initialValue)
-          : mName(name),
-            mNameNegative(android::base::StringPrintf("%sNegative", name.c_str())),
+    TracedOrdinal(std::string name, T initialValue)
+          : mName(std::move(name)),
             mHasGoneNegative(std::signbit(initialValue)),
             mData(initialValue) {
         trace();
@@ -46,6 +48,14 @@ public:
 
 private:
     void trace() {
+        if (CC_LIKELY(!ATRACE_ENABLED())) {
+            return;
+        }
+
+        if (mNameNegative.empty()) {
+            mNameNegative = base::StringPrintf("%sNegative", mName.c_str());
+        }
+
         if (!std::signbit(mData)) {
             ATRACE_INT64(mName.c_str(), int64_t(mData));
             if (mHasGoneNegative) {
@@ -58,7 +68,9 @@ private:
     }
 
     const std::string mName;
-    const std::string mNameNegative;
+    std::string mNameNegative;
     bool mHasGoneNegative;
     T mData;
 };
+
+} // namespace android
