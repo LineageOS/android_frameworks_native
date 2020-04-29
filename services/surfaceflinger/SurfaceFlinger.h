@@ -580,13 +580,19 @@ private:
             const std::optional<scheduler::RefreshRateConfigs::Policy>& policy, bool overridePolicy)
             EXCLUDES(mStateLock);
 
+    // Handle the INVALIDATE message queue event, latching new buffers and applying
+    // incoming transactions
+    void onMessageInvalidate(nsecs_t expectedVSyncTime);
+
     // Returns whether the transaction actually modified any state
     bool handleMessageTransaction();
 
+    // Handle the REFRESH message queue event, sending the current frame down to RenderEngine and
+    // the Composer HAL for presentation
+    void onMessageRefresh();
+
     // Returns whether a new buffer has been latched (see handlePageFlip())
     bool handleMessageInvalidate();
-
-    void handleMessageRefresh();
 
     void handleTransaction(uint32_t transactionFlags);
     void handleTransactionLocked(uint32_t transactionFlags) REQUIRES(mStateLock);
