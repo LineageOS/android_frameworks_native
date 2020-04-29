@@ -542,7 +542,7 @@ struct BaseLayerProperties {
 
         EXPECT_CALL(*test->mMessageQueue, invalidate()).Times(1);
         enqueueBuffer(test, layer);
-        Mock::VerifyAndClear(test->mMessageQueue);
+        Mock::VerifyAndClearExpectations(test->mMessageQueue);
 
         EXPECT_CALL(*test->mRenderEngine, useNativeFenceSync()).WillRepeatedly(Return(true));
         bool ignoredRecomputeVisibleRegions;
@@ -834,7 +834,7 @@ template <typename LayerProperties>
 struct BaseLayerVariant {
     template <typename L, typename F>
     static sp<L> createLayerWithFactory(CompositionTest* test, F factory) {
-        EXPECT_CALL(*test->mMessageQueue, postMessage(_, 0)).Times(0);
+        EXPECT_CALL(*test->mMessageQueue, postMessage(_)).Times(0);
 
         sp<L> layer = factory();
 
@@ -843,7 +843,7 @@ struct BaseLayerVariant {
 
         Mock::VerifyAndClear(test->mComposer);
         Mock::VerifyAndClear(test->mRenderEngine);
-        Mock::VerifyAndClear(test->mMessageQueue);
+        Mock::VerifyAndClearExpectations(test->mMessageQueue);
 
         auto& layerDrawingState = test->mFlinger.mutableLayerDrawingState(layer);
         layerDrawingState.layerStack = DEFAULT_LAYER_STACK;
@@ -944,7 +944,7 @@ struct BufferLayerVariant : public BaseLayerVariant<LayerProperties> {
     }
 
     static void cleanupInjectedLayers(CompositionTest* test) {
-        EXPECT_CALL(*test->mMessageQueue, postMessage(_, 0)).Times(1);
+        EXPECT_CALL(*test->mMessageQueue, postMessage(_)).Times(1);
         Base::cleanupInjectedLayers(test);
     }
 

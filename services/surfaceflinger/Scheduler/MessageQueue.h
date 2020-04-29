@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_MESSAGE_QUEUE_H
-#define ANDROID_MESSAGE_QUEUE_H
+#pragma once
 
-#include <errno.h>
-#include <stdint.h>
-#include <sys/types.h>
+#include <cstdint>
+#include <future>
+#include <type_traits>
+#include <utility>
 
 #include <utils/Looper.h>
 #include <utils/Timers.h>
@@ -28,52 +28,30 @@
 #include <gui/IDisplayEventConnection.h>
 #include <private/gui/BitTube.h>
 
-#include "Barrier.h"
 #include "EventThread.h"
-
-#include <functional>
 
 namespace android {
 
 class SurfaceFlinger;
 
-// ---------------------------------------------------------------------------
+template <typename F>
+class Task : public MessageHandler {
+    template <typename G>
+    friend auto makeTask(G&&);
 
-class MessageBase : public MessageHandler {
-public:
-    MessageBase();
+    explicit Task(F&& f) : mTask(std::move(f)) {}
 
-    // return true if message has a handler
-    virtual bool handler() = 0;
+    void handleMessage(const Message&) override { mTask(); }
 
-    // waits for the handler to be processed
-    void wait() const { barrier.wait(); }
-
-protected:
-    virtual ~MessageBase();
-
-private:
-    virtual void handleMessage(const Message& message);
-
-    mutable Barrier barrier;
+    using T = std::invoke_result_t<F>;
+    std::packaged_task<T()> mTask;
 };
 
-class LambdaMessage : public MessageBase {
-public:
-    explicit LambdaMessage(std::function<void()> handler)
-          : MessageBase(), mHandler(std::move(handler)) {}
-
-    bool handler() override {
-        mHandler();
-        // This return value is no longer checked, so it's always safe to return true
-        return true;
-    }
-
-private:
-    const std::function<void()> mHandler;
-};
-
-// ---------------------------------------------------------------------------
+template <typename F>
+inline auto makeTask(F&& f) {
+    sp<Task<F>> task = new Task<F>(std::move(f));
+    return std::make_pair(task, task->mTask.get_future());
+}
 
 class MessageQueue {
 public:
@@ -82,12 +60,12 @@ public:
         REFRESH = 1,
     };
 
-    virtual ~MessageQueue();
+    virtual ~MessageQueue() = default;
 
     virtual void init(const sp<SurfaceFlinger>& flinger) = 0;
     virtual void setEventConnection(const sp<EventThreadConnection>& connection) = 0;
     virtual void waitMessage() = 0;
-    virtual status_t postMessage(const sp<MessageBase>& message, nsecs_t reltime = 0) = 0;
+    virtual void postMessage(sp<MessageHandler>&&) = 0;
     virtual void invalidate() = 0;
     virtual void refresh() = 0;
 };
@@ -127,7 +105,7 @@ public:
     void setEventConnection(const sp<EventThreadConnection>& connection) override;
 
     void waitMessage() override;
-    status_t postMessage(const sp<MessageBase>& message, nsecs_t reltime = 0) override;
+    void postMessage(sp<MessageHandler>&&) override;
 
     // sends INVALIDATE message at next VSYNC
     void invalidate() override;
@@ -136,9 +114,5 @@ public:
     void refresh() override;
 };
 
-// ---------------------------------------------------------------------------
-
 } // namespace impl
 } // namespace android
-
-#endif /* ANDROID_MESSAGE_QUEUE_H */

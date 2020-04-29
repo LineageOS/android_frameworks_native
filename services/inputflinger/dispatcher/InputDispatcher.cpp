@@ -364,18 +364,16 @@ std::array<uint8_t, 32> HmacKeyManager::sign(const VerifiedInputEvent& event) co
             break;
         }
     }
-    std::vector<uint8_t> data;
     const uint8_t* start = reinterpret_cast<const uint8_t*>(&event);
-    data.assign(start, start + size);
-    return sign(data);
+    return sign(start, size);
 }
 
-std::array<uint8_t, 32> HmacKeyManager::sign(const std::vector<uint8_t>& data) const {
+std::array<uint8_t, 32> HmacKeyManager::sign(const uint8_t* data, size_t size) const {
     // SHA256 always generates 32-bytes result
     std::array<uint8_t, 32> hash;
     unsigned int hashLen = 0;
-    uint8_t* result = HMAC(EVP_sha256(), mHmacKey.data(), mHmacKey.size(), data.data(), data.size(),
-                           hash.data(), &hashLen);
+    uint8_t* result =
+            HMAC(EVP_sha256(), mHmacKey.data(), mHmacKey.size(), data, size, hash.data(), &hashLen);
     if (result == nullptr) {
         ALOGE("Could not sign the data using HMAC");
         return INVALID_HMAC;
@@ -1981,17 +1979,48 @@ bool InputDispatcher::checkInjectionPermission(const sp<InputWindowHandle>& wind
     return true;
 }
 
+/**
+ * Indicate whether one window handle should be considered as obscuring
+ * another window handle. We only check a few preconditions. Actually
+ * checking the bounds is left to the caller.
+ */
+static bool canBeObscuredBy(const sp<InputWindowHandle>& windowHandle,
+                            const sp<InputWindowHandle>& otherHandle) {
+    // Compare by token so cloned layers aren't counted
+    if (haveSameToken(windowHandle, otherHandle)) {
+        return false;
+    }
+    auto info = windowHandle->getInfo();
+    auto otherInfo = otherHandle->getInfo();
+    if (!otherInfo->visible) {
+        return false;
+    } else if (info->ownerPid == otherInfo->ownerPid && otherHandle->getToken() == nullptr) {
+      // In general, if ownerPid is the same we don't want to generate occlusion
+      // events. This line is now necessary since we are including all Surfaces
+      // in occlusion calculation, so if we didn't check PID like this SurfaceView
+      // would occlude their parents. On the other hand before we started including
+      // all surfaces in occlusion calculation and had this line, we would count
+      // windows with an input channel from the same PID as occluding, and so we
+      // preserve this behavior with the getToken() == null check.
+        return false;
+    } else if (otherInfo->isTrustedOverlay()) {
+        return false;
+    } else if (otherInfo->displayId != info->displayId) {
+        return false;
+    }
+    return true;
+}
+
 bool InputDispatcher::isWindowObscuredAtPointLocked(const sp<InputWindowHandle>& windowHandle,
                                                     int32_t x, int32_t y) const {
     int32_t displayId = windowHandle->getInfo()->displayId;
     const std::vector<sp<InputWindowHandle>> windowHandles = getWindowHandlesLocked(displayId);
     for (const sp<InputWindowHandle>& otherHandle : windowHandles) {
-        if (haveSameToken(otherHandle, windowHandle)) {
-            break;
+        if (windowHandle == otherHandle) {
+            break; // All future windows are below us. Exit early.
         }
-
         const InputWindowInfo* otherInfo = otherHandle->getInfo();
-        if (otherInfo->visible && !otherInfo->isTrustedOverlay() &&
+        if (canBeObscuredBy(windowHandle, otherHandle) &&
             otherInfo->frameContainsPoint(x, y)) {
             return true;
         }
@@ -2004,12 +2033,11 @@ bool InputDispatcher::isWindowObscuredLocked(const sp<InputWindowHandle>& window
     const std::vector<sp<InputWindowHandle>> windowHandles = getWindowHandlesLocked(displayId);
     const InputWindowInfo* windowInfo = windowHandle->getInfo();
     for (const sp<InputWindowHandle>& otherHandle : windowHandles) {
-        if (haveSameToken(otherHandle, windowHandle)) {
-            break;
+        if (windowHandle == otherHandle) {
+            break; // All future windows are below us. Exit early.
         }
-
         const InputWindowInfo* otherInfo = otherHandle->getInfo();
-        if (otherInfo->visible && !otherInfo->isTrustedOverlay() &&
+        if (canBeObscuredBy(windowHandle, otherHandle) &&
             otherInfo->overlaps(windowInfo)) {
             return true;
         }
@@ -2444,11 +2472,8 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
         EventEntry* eventEntry = dispatchEntry->eventEntry;
         switch (eventEntry->type) {
             case EventEntry::Type::KEY: {
-                KeyEntry* keyEntry = static_cast<KeyEntry*>(eventEntry);
-                VerifiedKeyEvent verifiedEvent = verifiedKeyEventFromKeyEntry(*keyEntry);
-                verifiedEvent.flags = dispatchEntry->resolvedFlags & VERIFIED_KEY_EVENT_FLAGS;
-                verifiedEvent.action = dispatchEntry->resolvedAction;
-                std::array<uint8_t, 32> hmac = mHmacKeyManager.sign(verifiedEvent);
+                const KeyEntry* keyEntry = static_cast<KeyEntry*>(eventEntry);
+                std::array<uint8_t, 32> hmac = getSignature(*keyEntry, *dispatchEntry);
 
                 // Publish the key event.
                 status =
@@ -2500,12 +2525,8 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                         usingCoords = scaledCoords;
                     }
                 }
-                VerifiedMotionEvent verifiedEvent =
-                        verifiedMotionEventFromMotionEntry(*motionEntry);
-                verifiedEvent.actionMasked =
-                        dispatchEntry->resolvedAction & AMOTION_EVENT_ACTION_MASK;
-                verifiedEvent.flags = dispatchEntry->resolvedFlags & VERIFIED_MOTION_EVENT_FLAGS;
-                std::array<uint8_t, 32> hmac = mHmacKeyManager.sign(verifiedEvent);
+
+                std::array<uint8_t, 32> hmac = getSignature(*motionEntry, *dispatchEntry);
 
                 // Publish the motion event.
                 status = connection->inputPublisher
@@ -2583,6 +2604,28 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
         connection->waitQueue.push_back(dispatchEntry);
         traceWaitQueueLength(connection);
     }
+}
+
+const std::array<uint8_t, 32> InputDispatcher::getSignature(
+        const MotionEntry& motionEntry, const DispatchEntry& dispatchEntry) const {
+    int32_t actionMasked = dispatchEntry.resolvedAction & AMOTION_EVENT_ACTION_MASK;
+    if ((actionMasked == AMOTION_EVENT_ACTION_UP) || (actionMasked == AMOTION_EVENT_ACTION_DOWN)) {
+        // Only sign events up and down events as the purely move events
+        // are tied to their up/down counterparts so signing would be redundant.
+        VerifiedMotionEvent verifiedEvent = verifiedMotionEventFromMotionEntry(motionEntry);
+        verifiedEvent.actionMasked = actionMasked;
+        verifiedEvent.flags = dispatchEntry.resolvedFlags & VERIFIED_MOTION_EVENT_FLAGS;
+        return mHmacKeyManager.sign(verifiedEvent);
+    }
+    return INVALID_HMAC;
+}
+
+const std::array<uint8_t, 32> InputDispatcher::getSignature(
+        const KeyEntry& keyEntry, const DispatchEntry& dispatchEntry) const {
+    VerifiedKeyEvent verifiedEvent = verifiedKeyEventFromKeyEntry(keyEntry);
+    verifiedEvent.flags = dispatchEntry.resolvedFlags & VERIFIED_KEY_EVENT_FLAGS;
+    verifiedEvent.action = dispatchEntry.resolvedAction;
+    return mHmacKeyManager.sign(verifiedEvent);
 }
 
 void InputDispatcher::finishDispatchCycleLocked(nsecs_t currentTime,
