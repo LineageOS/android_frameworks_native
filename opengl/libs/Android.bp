@@ -75,7 +75,6 @@ cc_defaults {
         "bionic_libc_platform_headers",
         "gl_headers",
         "libsystem_headers",
-        "libhardware_headers",
         "libnativebase_headers",
     ],
     export_header_lib_headers: ["gl_headers"],
