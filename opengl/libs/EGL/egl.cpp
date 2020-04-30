@@ -16,8 +16,6 @@
 
 #include <stdlib.h>
 
-#include <hardware/gralloc.h>
-
 #include <EGL/egl.h>
 
 #include <cutils/properties.h>
