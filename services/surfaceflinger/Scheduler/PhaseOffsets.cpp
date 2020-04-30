@@ -60,6 +60,12 @@ namespace impl {
 PhaseOffsets::PhaseOffsets(const scheduler::RefreshRateConfigs& refreshRateConfigs)
       : PhaseOffsets(getRefreshRatesFromConfigs(refreshRateConfigs),
                      refreshRateConfigs.getCurrentRefreshRate().getFps(),
+                     sysprop::vsync_event_phase_offset_ns(1000000),
+                     sysprop::vsync_sf_event_phase_offset_ns(1000000),
+                     getProperty("debug.sf.early_phase_offset_ns"),
+                     getProperty("debug.sf.early_gl_phase_offset_ns"),
+                     getProperty("debug.sf.early_app_phase_offset_ns"),
+                     getProperty("debug.sf.early_gl_app_phase_offset_ns"),
                      // Below defines the threshold when an offset is considered to be negative,
                      // i.e. targeting for the N+2 vsync instead of N+1. This means that: For offset
                      // < threshold, SF wake up (vsync_duration - offset) before HW vsync. For
@@ -69,8 +75,18 @@ PhaseOffsets::PhaseOffsets(const scheduler::RefreshRateConfigs& refreshRateConfi
                              .value_or(std::numeric_limits<nsecs_t>::max())) {}
 
 PhaseOffsets::PhaseOffsets(const std::vector<float>& refreshRates, float currentFps,
-                           nsecs_t thresholdForNextVsync)
-      : mThresholdForNextVsync(thresholdForNextVsync),
+                           nsecs_t vsyncPhaseOffsetNs, nsecs_t sfVSyncPhaseOffsetNs,
+                           std::optional<nsecs_t> earlySfOffsetNs,
+                           std::optional<nsecs_t> earlyGlSfOffsetNs,
+                           std::optional<nsecs_t> earlyAppOffsetNs,
+                           std::optional<nsecs_t> earlyGlAppOffsetNs, nsecs_t thresholdForNextVsync)
+      : mVSyncPhaseOffsetNs(vsyncPhaseOffsetNs),
+        mSfVSyncPhaseOffsetNs(sfVSyncPhaseOffsetNs),
+        mEarlySfOffsetNs(earlySfOffsetNs),
+        mEarlyGlSfOffsetNs(earlyGlSfOffsetNs),
+        mEarlyAppOffsetNs(earlyAppOffsetNs),
+        mEarlyGlAppOffsetNs(earlyGlAppOffsetNs),
+        mThresholdForNextVsync(thresholdForNextVsync),
         mOffsets(initializeOffsets(refreshRates)),
         mRefreshRateFps(currentFps) {}
 
@@ -106,35 +122,27 @@ PhaseOffsets::Offsets PhaseOffsets::getPhaseOffsets(float fps, nsecs_t vsyncPeri
 }
 
 PhaseOffsets::Offsets PhaseOffsets::getDefaultOffsets(nsecs_t vsyncDuration) const {
-    const int64_t vsyncPhaseOffsetNs = sysprop::vsync_event_phase_offset_ns(1000000);
-    const int64_t sfVsyncPhaseOffsetNs = sysprop::vsync_sf_event_phase_offset_ns(1000000);
-
-    const auto earlySfOffsetNs = getProperty("debug.sf.early_phase_offset_ns");
-    const auto earlyGlSfOffsetNs = getProperty("debug.sf.early_gl_phase_offset_ns");
-    const auto earlyAppOffsetNs = getProperty("debug.sf.early_app_phase_offset_ns");
-    const auto earlyGlAppOffsetNs = getProperty("debug.sf.early_gl_app_phase_offset_ns");
-
     return {
             {
-                    earlySfOffsetNs.value_or(sfVsyncPhaseOffsetNs) < mThresholdForNextVsync
-                            ? earlySfOffsetNs.value_or(sfVsyncPhaseOffsetNs)
-                            : earlySfOffsetNs.value_or(sfVsyncPhaseOffsetNs) - vsyncDuration,
+                    mEarlySfOffsetNs.value_or(mSfVSyncPhaseOffsetNs) < mThresholdForNextVsync
+                            ? mEarlySfOffsetNs.value_or(mSfVSyncPhaseOffsetNs)
+                            : mEarlySfOffsetNs.value_or(mSfVSyncPhaseOffsetNs) - vsyncDuration,
 
-                    earlyAppOffsetNs.value_or(vsyncPhaseOffsetNs),
+                    mEarlyAppOffsetNs.value_or(mVSyncPhaseOffsetNs),
             },
             {
-                    earlyGlSfOffsetNs.value_or(sfVsyncPhaseOffsetNs) < mThresholdForNextVsync
-                            ? earlyGlSfOffsetNs.value_or(sfVsyncPhaseOffsetNs)
-                            : earlyGlSfOffsetNs.value_or(sfVsyncPhaseOffsetNs) - vsyncDuration,
+                    mEarlyGlSfOffsetNs.value_or(mSfVSyncPhaseOffsetNs) < mThresholdForNextVsync
+                            ? mEarlyGlSfOffsetNs.value_or(mSfVSyncPhaseOffsetNs)
+                            : mEarlyGlSfOffsetNs.value_or(mSfVSyncPhaseOffsetNs) - vsyncDuration,
 
-                    earlyGlAppOffsetNs.value_or(vsyncPhaseOffsetNs),
+                    mEarlyGlAppOffsetNs.value_or(mVSyncPhaseOffsetNs),
             },
             {
-                    sfVsyncPhaseOffsetNs < mThresholdForNextVsync
-                            ? sfVsyncPhaseOffsetNs
-                            : sfVsyncPhaseOffsetNs - vsyncDuration,
+                    mSfVSyncPhaseOffsetNs < mThresholdForNextVsync
+                            ? mSfVSyncPhaseOffsetNs
+                            : mSfVSyncPhaseOffsetNs - vsyncDuration,
 
-                    vsyncPhaseOffsetNs,
+                    mVSyncPhaseOffsetNs,
             },
     };
 }

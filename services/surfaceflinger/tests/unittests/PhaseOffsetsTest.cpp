@@ -145,7 +145,9 @@ TEST_F(PhaseDurationTest, getOffsetsForRefreshRate_unknownRefreshRate) {
 
 class TestablePhaseOffsets : public impl::PhaseOffsets {
 public:
-    TestablePhaseOffsets() : impl::PhaseOffsets({60.0f, 90.0f}, 60.0f, 10'000'000) {}
+    TestablePhaseOffsets()
+          : impl::PhaseOffsets({60.0f, 90.0f}, 60.0f, 1'000'000, 1'000'000, {}, {}, {}, {},
+                               10'000'000) {}
 };
 
 class PhaseOffsetsTest : public testing::Test {
