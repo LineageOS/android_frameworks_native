@@ -774,7 +774,7 @@ private:
         return nullptr;
     }
 
-    std::optional<DeviceProductInfo> getDeviceProductInfoLocked(const DisplayDevice&) const;
+    std::optional<DeviceProductInfo> getDeviceProductInfoLocked(DisplayId) const;
 
     // mark a region of a layer stack dirty. this updates the dirty
     // region of all screens presenting this layer stack.

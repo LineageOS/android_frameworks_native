@@ -68,6 +68,8 @@ struct DeviceProductInfo : LightFlattenable<DeviceProductInfo> {
     size_t getFlattenedSize() const;
     status_t flatten(void* buffer, size_t size) const;
     status_t unflatten(void const* buffer, size_t size);
+
+    void dump(std::string& result) const;
 };
 
 } // namespace android

@@ -836,7 +836,7 @@ status_t SurfaceFlinger::getDisplayInfo(const sp<IBinder>& displayToken, Display
     }
 
     info->secure = display->isSecure();
-    info->deviceProductInfo = getDeviceProductInfoLocked(*display);
+    info->deviceProductInfo = display->getDeviceProductInfo();
 
     return NO_ERROR;
 }
@@ -1310,13 +1310,8 @@ status_t SurfaceFlinger::getHdrCapabilities(const sp<IBinder>& displayToken,
 }
 
 std::optional<DeviceProductInfo> SurfaceFlinger::getDeviceProductInfoLocked(
-        const DisplayDevice& display) const {
-    // TODO(b/149075047): Populate DeviceProductInfo on hotplug and store it in DisplayDevice to
-    // avoid repetitive HAL IPC and EDID parsing.
-    const auto displayId = display.getId();
-    LOG_FATAL_IF(!displayId);
-
-    const auto hwcDisplayId = getHwComposer().fromPhysicalDisplayId(*displayId);
+        DisplayId displayId) const {
+    const auto hwcDisplayId = getHwComposer().fromPhysicalDisplayId(displayId);
     LOG_FATAL_IF(!hwcDisplayId);
 
     uint8_t port;
@@ -2544,6 +2539,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         LOG_ALWAYS_FATAL_IF(!displayId);
         auto activeConfigId = HwcConfigIndexType(getHwComposer().getActiveConfigIndex(*displayId));
         display->setActiveConfig(activeConfigId);
+        display->setDeviceProductInfo(getDeviceProductInfoLocked(*displayId));
     }
 
     display->setLayerStack(state.layerStack);

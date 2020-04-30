@@ -116,6 +116,10 @@ void DisplayDevice::setDisplayName(const std::string& displayName) {
     }
 }
 
+void DisplayDevice::setDeviceProductInfo(std::optional<DeviceProductInfo> info) {
+    mDeviceProductInfo = std::move(info);
+}
+
 uint32_t DisplayDevice::getPageFlipCount() const {
     return mCompositionDisplay->getRenderSurface()->getPageFlipCount();
 }
@@ -267,6 +271,12 @@ void DisplayDevice::dump(std::string& result) const {
     StringAppendF(&result, "powerMode=%s (%d), ", to_string(mPowerMode).c_str(),
                   static_cast<int32_t>(mPowerMode));
     StringAppendF(&result, "activeConfig=%d, ", mActiveConfig.value());
+    StringAppendF(&result, "deviceProductInfo=");
+    if (mDeviceProductInfo) {
+        mDeviceProductInfo->dump(result);
+    } else {
+        result.append("{}");
+    }
     getCompositionDisplay()->dump(result);
 }
 

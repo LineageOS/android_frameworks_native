@@ -132,6 +132,11 @@ public:
     void setDisplayName(const std::string& displayName);
     const std::string& getDisplayName() const { return mDisplayName; }
 
+    void setDeviceProductInfo(std::optional<DeviceProductInfo> info);
+    const std::optional<DeviceProductInfo>& getDeviceProductInfo() const {
+        return mDeviceProductInfo;
+    }
+
     /* ------------------------------------------------------------------------
      * Display power mode management.
      */
@@ -178,6 +183,8 @@ private:
 
     // TODO(b/74619554): Remove special cases for primary display.
     const bool mIsPrimary;
+
+    std::optional<DeviceProductInfo> mDeviceProductInfo;
 };
 
 struct DisplayDeviceState {

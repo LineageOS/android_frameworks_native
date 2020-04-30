@@ -609,12 +609,13 @@ struct HwcDisplayVariant {
 
         if (PhysicalDisplay::HAS_IDENTIFICATION_DATA) {
             EXPECT_CALL(*test->mComposer, getDisplayIdentificationData(HWC_DISPLAY_ID, _, _))
-                    .WillOnce(DoAll(SetArgPointee<1>(PhysicalDisplay::PORT),
-                                    SetArgPointee<2>(PhysicalDisplay::GET_IDENTIFICATION_DATA()),
-                                    Return(Error::NONE)));
+                    .WillRepeatedly(
+                            DoAll(SetArgPointee<1>(PhysicalDisplay::PORT),
+                                  SetArgPointee<2>(PhysicalDisplay::GET_IDENTIFICATION_DATA()),
+                                  Return(Error::NONE)));
         } else {
             EXPECT_CALL(*test->mComposer, getDisplayIdentificationData(HWC_DISPLAY_ID, _, _))
-                    .WillOnce(Return(Error::UNSUPPORTED));
+                    .WillRepeatedly(Return(Error::UNSUPPORTED));
         }
     }
 
