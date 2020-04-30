@@ -84,15 +84,15 @@ public:
     MOCK_METHOD2(validate, hal::Error(uint32_t*, uint32_t*));
     MOCK_METHOD4(presentOrValidate,
                  hal::Error(uint32_t*, uint32_t*, android::sp<android::Fence>*, uint32_t*));
-    MOCK_CONST_METHOD1(setDisplayBrightness, hal::Error(float));
+    MOCK_METHOD1(setDisplayBrightness, std::future<hal::Error>(float));
     MOCK_CONST_METHOD1(getDisplayVsyncPeriod, hal::Error(nsecs_t*));
     MOCK_METHOD3(setActiveConfigWithConstraints,
                  hal::Error(const std::shared_ptr<const HWC2::Display::Config>&,
                             const hal::VsyncPeriodChangeConstraints&,
                             hal::VsyncPeriodChangeTimeline*));
-    MOCK_CONST_METHOD1(setAutoLowLatencyMode, hal::Error(bool on));
+    MOCK_METHOD1(setAutoLowLatencyMode, hal::Error(bool on));
     MOCK_CONST_METHOD1(getSupportedContentTypes, hal::Error(std::vector<hal::ContentType>*));
-    MOCK_CONST_METHOD1(setContentType, hal::Error(hal::ContentType));
+    MOCK_METHOD1(setContentType, hal::Error(hal::ContentType));
     MOCK_CONST_METHOD1(getConnectionType, hal::Error(android::DisplayConnectionType*));
     MOCK_CONST_METHOD0(isVsyncPeriodSwitchSupported, bool());
 };

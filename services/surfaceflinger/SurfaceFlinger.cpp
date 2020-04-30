@@ -108,6 +108,7 @@
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
 #include "NativeWindowSurface.h"
+#include "Promise.h"
 #include "RefreshRateOverlay.h"
 #include "RegionSamplingThread.h"
 #include "Scheduler/DispSync.h"
@@ -1495,14 +1496,15 @@ status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken, f
         return BAD_VALUE;
     }
 
-    return schedule([=]() -> status_t {
+    return promise::chain(schedule([=] {
                if (const auto displayId = getPhysicalDisplayIdLocked(displayToken)) {
                    return getHwComposer().setDisplayBrightness(*displayId, brightness);
                } else {
                    ALOGE("%s: Invalid display token %p", __FUNCTION__, displayToken.get());
-                   return NAME_NOT_FOUND;
+                   return promise::yield<status_t>(NAME_NOT_FOUND);
                }
-           })
+           }))
+            .then([](std::future<status_t> task) { return task; })
             .get();
 }
 
@@ -1786,11 +1788,10 @@ bool SurfaceFlinger::previousFramePending(int graceTimeMs) NO_THREAD_SAFETY_ANAL
         return false;
     }
 
-    if (graceTimeMs > 0 && fence->getStatus() == Fence::Status::Unsignaled) {
-        fence->wait(graceTimeMs);
-    }
-
-    return (fence->getStatus() == Fence::Status::Unsignaled);
+    const status_t status = fence->wait(graceTimeMs);
+    // This is the same as Fence::Status::Unsignaled, but it saves a getStatus() call,
+    // which calls wait(0) again internally
+    return status == -ETIME;
 }
 
 nsecs_t SurfaceFlinger::previousFramePresentTime() NO_THREAD_SAFETY_ANALYSIS {
@@ -1816,181 +1817,185 @@ void SurfaceFlinger::onMessageReceived(int32_t what,
     ATRACE_CALL();
     switch (what) {
         case MessageQueue::INVALIDATE: {
-            const nsecs_t frameStart = systemTime();
-            // calculate the expected present time once and use the cached
-            // value throughout this frame to make sure all layers are
-            // seeing this same value.
-            const nsecs_t lastExpectedPresentTime = mExpectedPresentTime.load();
-            mExpectedPresentTime = expectedVSyncTime;
-
-            // When Backpressure propagation is enabled we want to give a small grace period
-            // for the present fence to fire instead of just giving up on this frame to handle cases
-            // where present fence is just about to get signaled.
-            const int graceTimeForPresentFenceMs =
-                    (mPropagateBackpressure &&
-                     (mPropagateBackpressureClientComposition || !mHadClientComposition))
-                    ? 1
-                    : 0;
-
-            // Pending frames may trigger backpressure propagation.
-            const TracedOrdinal<bool> framePending = {"PrevFramePending",
-                                                      previousFramePending(
-                                                              graceTimeForPresentFenceMs)};
-
-            // Frame missed counts for metrics tracking.
-            // A frame is missed if the prior frame is still pending. If no longer pending,
-            // then we still count the frame as missed if the predicted present time
-            // was further in the past than when the fence actually fired.
-
-            // Add some slop to correct for drift. This should generally be
-            // smaller than a typical frame duration, but should not be so small
-            // that it reports reasonable drift as a missed frame.
-            DisplayStatInfo stats;
-            mScheduler->getDisplayStatInfo(&stats);
-            const nsecs_t frameMissedSlop = stats.vsyncPeriod / 2;
-            const nsecs_t previousPresentTime = previousFramePresentTime();
-            const TracedOrdinal<bool> frameMissed =
-                    {"PrevFrameMissed",
-                     framePending ||
-                             (previousPresentTime >= 0 &&
-                              (lastExpectedPresentTime < previousPresentTime - frameMissedSlop))};
-            const TracedOrdinal<bool> hwcFrameMissed = {"PrevHwcFrameMissed",
-                                                        mHadDeviceComposition && frameMissed};
-            const TracedOrdinal<bool> gpuFrameMissed = {"PrevGpuFrameMissed",
-                                                        mHadClientComposition && frameMissed};
-
-            if (frameMissed) {
-                mFrameMissedCount++;
-                mTimeStats->incrementMissedFrames();
-                if (mMissedFrameJankCount == 0) {
-                    mMissedFrameJankStart = systemTime();
-                }
-                mMissedFrameJankCount++;
-            }
-
-            if (hwcFrameMissed) {
-                mHwcFrameMissedCount++;
-            }
-
-            if (gpuFrameMissed) {
-                mGpuFrameMissedCount++;
-            }
-
-            // If we are in the middle of a config change and the fence hasn't
-            // fired yet just wait for the next invalidate
-            if (mSetActiveConfigPending) {
-                if (framePending) {
-                    mEventQueue->invalidate();
-                    break;
-                }
-
-                // We received the present fence from the HWC, so we assume it successfully updated
-                // the config, hence we update SF.
-                mSetActiveConfigPending = false;
-                setActiveConfigInternal();
-            }
-
-            if (framePending && mPropagateBackpressure) {
-                if ((hwcFrameMissed && !gpuFrameMissed) ||
-                    mPropagateBackpressureClientComposition) {
-                    signalLayerUpdate();
-                    break;
-                }
-            }
-
-            // Our jank window is always at least 100ms since we missed a
-            // frame...
-            static constexpr nsecs_t kMinJankyDuration =
-                    std::chrono::duration_cast<std::chrono::nanoseconds>(100ms).count();
-            // ...but if it's larger than 1s then we missed the trace cutoff.
-            static constexpr nsecs_t kMaxJankyDuration =
-                    std::chrono::duration_cast<std::chrono::nanoseconds>(1s).count();
-            // If we're in a user build then don't push any atoms
-            if (!mIsUserBuild && mMissedFrameJankCount > 0) {
-                const auto displayDevice = getDefaultDisplayDeviceLocked();
-                // Only report jank when the display is on, as displays in DOZE
-                // power mode may operate at a different frame rate than is
-                // reported in their config, which causes noticeable (but less
-                // severe) jank.
-                if (displayDevice && displayDevice->getPowerMode() == hal::PowerMode::ON) {
-                    const nsecs_t currentTime = systemTime();
-                    const nsecs_t jankDuration = currentTime - mMissedFrameJankStart;
-                    if (jankDuration > kMinJankyDuration && jankDuration < kMaxJankyDuration) {
-                        ATRACE_NAME("Jank detected");
-                        ALOGD("Detected janky event. Missed frames: %d", mMissedFrameJankCount);
-                        const int32_t jankyDurationMillis = jankDuration / (1000 * 1000);
-                        android::util::stats_write(android::util::DISPLAY_JANK_REPORTED,
-                                                   jankyDurationMillis, mMissedFrameJankCount);
-                    }
-
-                    // We either reported a jank event or we missed the trace
-                    // window, so clear counters here.
-                    if (jankDuration > kMinJankyDuration) {
-                        mMissedFrameJankCount = 0;
-                        mMissedFrameJankStart = 0;
-                    }
-                }
-            }
-
-            // Now that we're going to make it to the handleMessageTransaction()
-            // call below it's safe to call updateVrFlinger(), which will
-            // potentially trigger a display handoff.
-            updateVrFlinger();
-
-            if (mTracingEnabledChanged) {
-                mTracingEnabled = mTracing.isEnabled();
-                mTracingEnabledChanged = false;
-            }
-
-            bool refreshNeeded;
-            {
-                ConditionalLockGuard<std::mutex> lock(mTracingLock, mTracingEnabled);
-
-                refreshNeeded = handleMessageTransaction();
-                refreshNeeded |= handleMessageInvalidate();
-                if (mTracingEnabled) {
-                    mAddCompositionStateToTrace =
-                            mTracing.flagIsSetLocked(SurfaceTracing::TRACE_COMPOSITION);
-                    if (mVisibleRegionsDirty && !mAddCompositionStateToTrace) {
-                        mTracing.notifyLocked("visibleRegionsDirty");
-                    }
-                }
-            }
-
-            // Layers need to get updated (in the previous line) before we can use them for
-            // choosing the refresh rate.
-            // Hold mStateLock as chooseRefreshRateForContent promotes wp<Layer> to sp<Layer>
-            // and may eventually call to ~Layer() if it holds the last reference
-            {
-                Mutex::Autolock _l(mStateLock);
-                mScheduler->chooseRefreshRateForContent();
-            }
-
-            performSetActiveConfig();
-
-            updateCursorAsync();
-            updateInputFlinger();
-
-            refreshNeeded |= mRepaintEverything;
-            if (refreshNeeded && CC_LIKELY(mBootStage != BootStage::BOOTLOADER)) {
-                // Signal a refresh if a transaction modified the window state,
-                // a new buffer was latched, or if HWC has requested a full
-                // repaint
-                if (mFrameStartTime <= 0) {
-                    // We should only use the time of the first invalidate
-                    // message that signals a refresh as the beginning of the
-                    // frame. Otherwise the real frame time will be
-                    // underestimated.
-                    mFrameStartTime = frameStart;
-                }
-                signalRefresh();
-            }
+            onMessageInvalidate(expectedVSyncTime);
             break;
         }
         case MessageQueue::REFRESH: {
-            handleMessageRefresh();
+            onMessageRefresh();
             break;
         }
+    }
+}
+
+void SurfaceFlinger::onMessageInvalidate(nsecs_t expectedVSyncTime) NO_THREAD_SAFETY_ANALYSIS {
+    ATRACE_CALL();
+
+    const nsecs_t frameStart = systemTime();
+    // calculate the expected present time once and use the cached
+    // value throughout this frame to make sure all layers are
+    // seeing this same value.
+    const nsecs_t lastExpectedPresentTime = mExpectedPresentTime.load();
+    mExpectedPresentTime = expectedVSyncTime;
+
+    // When Backpressure propagation is enabled we want to give a small grace period
+    // for the present fence to fire instead of just giving up on this frame to handle cases
+    // where present fence is just about to get signaled.
+    const int graceTimeForPresentFenceMs =
+            (mPropagateBackpressure &&
+             (mPropagateBackpressureClientComposition || !mHadClientComposition))
+            ? 1
+            : 0;
+
+    // Pending frames may trigger backpressure propagation.
+    const TracedOrdinal<bool> framePending = {"PrevFramePending",
+                                              previousFramePending(graceTimeForPresentFenceMs)};
+
+    // Frame missed counts for metrics tracking.
+    // A frame is missed if the prior frame is still pending. If no longer pending,
+    // then we still count the frame as missed if the predicted present time
+    // was further in the past than when the fence actually fired.
+
+    // Add some slop to correct for drift. This should generally be
+    // smaller than a typical frame duration, but should not be so small
+    // that it reports reasonable drift as a missed frame.
+    DisplayStatInfo stats;
+    mScheduler->getDisplayStatInfo(&stats);
+    const nsecs_t frameMissedSlop = stats.vsyncPeriod / 2;
+    const nsecs_t previousPresentTime = previousFramePresentTime();
+    const TracedOrdinal<bool> frameMissed = {"PrevFrameMissed",
+                                             framePending ||
+                                                     (previousPresentTime >= 0 &&
+                                                      (lastExpectedPresentTime <
+                                                       previousPresentTime - frameMissedSlop))};
+    const TracedOrdinal<bool> hwcFrameMissed = {"PrevHwcFrameMissed",
+                                                mHadDeviceComposition && frameMissed};
+    const TracedOrdinal<bool> gpuFrameMissed = {"PrevGpuFrameMissed",
+                                                mHadClientComposition && frameMissed};
+
+    if (frameMissed) {
+        mFrameMissedCount++;
+        mTimeStats->incrementMissedFrames();
+        if (mMissedFrameJankCount == 0) {
+            mMissedFrameJankStart = systemTime();
+        }
+        mMissedFrameJankCount++;
+    }
+
+    if (hwcFrameMissed) {
+        mHwcFrameMissedCount++;
+    }
+
+    if (gpuFrameMissed) {
+        mGpuFrameMissedCount++;
+    }
+
+    // If we are in the middle of a config change and the fence hasn't
+    // fired yet just wait for the next invalidate
+    if (mSetActiveConfigPending) {
+        if (framePending) {
+            mEventQueue->invalidate();
+            return;
+        }
+
+        // We received the present fence from the HWC, so we assume it successfully updated
+        // the config, hence we update SF.
+        mSetActiveConfigPending = false;
+        setActiveConfigInternal();
+    }
+
+    if (framePending && mPropagateBackpressure) {
+        if ((hwcFrameMissed && !gpuFrameMissed) || mPropagateBackpressureClientComposition) {
+            signalLayerUpdate();
+            return;
+        }
+    }
+
+    // Our jank window is always at least 100ms since we missed a
+    // frame...
+    static constexpr nsecs_t kMinJankyDuration =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(100ms).count();
+    // ...but if it's larger than 1s then we missed the trace cutoff.
+    static constexpr nsecs_t kMaxJankyDuration =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(1s).count();
+    // If we're in a user build then don't push any atoms
+    if (!mIsUserBuild && mMissedFrameJankCount > 0) {
+        const auto displayDevice = getDefaultDisplayDeviceLocked();
+        // Only report jank when the display is on, as displays in DOZE
+        // power mode may operate at a different frame rate than is
+        // reported in their config, which causes noticeable (but less
+        // severe) jank.
+        if (displayDevice && displayDevice->getPowerMode() == hal::PowerMode::ON) {
+            const nsecs_t currentTime = systemTime();
+            const nsecs_t jankDuration = currentTime - mMissedFrameJankStart;
+            if (jankDuration > kMinJankyDuration && jankDuration < kMaxJankyDuration) {
+                ATRACE_NAME("Jank detected");
+                ALOGD("Detected janky event. Missed frames: %d", mMissedFrameJankCount);
+                const int32_t jankyDurationMillis = jankDuration / (1000 * 1000);
+                android::util::stats_write(android::util::DISPLAY_JANK_REPORTED,
+                                           jankyDurationMillis, mMissedFrameJankCount);
+            }
+
+            // We either reported a jank event or we missed the trace
+            // window, so clear counters here.
+            if (jankDuration > kMinJankyDuration) {
+                mMissedFrameJankCount = 0;
+                mMissedFrameJankStart = 0;
+            }
+        }
+    }
+
+    // Now that we're going to make it to the handleMessageTransaction()
+    // call below it's safe to call updateVrFlinger(), which will
+    // potentially trigger a display handoff.
+    updateVrFlinger();
+
+    if (mTracingEnabledChanged) {
+        mTracingEnabled = mTracing.isEnabled();
+        mTracingEnabledChanged = false;
+    }
+
+    bool refreshNeeded;
+    {
+        ConditionalLockGuard<std::mutex> lock(mTracingLock, mTracingEnabled);
+
+        refreshNeeded = handleMessageTransaction();
+        refreshNeeded |= handleMessageInvalidate();
+        if (mTracingEnabled) {
+            mAddCompositionStateToTrace =
+                    mTracing.flagIsSetLocked(SurfaceTracing::TRACE_COMPOSITION);
+            if (mVisibleRegionsDirty && !mAddCompositionStateToTrace) {
+                mTracing.notifyLocked("visibleRegionsDirty");
+            }
+        }
+    }
+
+    // Layers need to get updated (in the previous line) before we can use them for
+    // choosing the refresh rate.
+    // Hold mStateLock as chooseRefreshRateForContent promotes wp<Layer> to sp<Layer>
+    // and may eventually call to ~Layer() if it holds the last reference
+    {
+        Mutex::Autolock _l(mStateLock);
+        mScheduler->chooseRefreshRateForContent();
+    }
+
+    performSetActiveConfig();
+
+    updateCursorAsync();
+    updateInputFlinger();
+
+    refreshNeeded |= mRepaintEverything;
+    if (refreshNeeded && CC_LIKELY(mBootStage != BootStage::BOOTLOADER)) {
+        // Signal a refresh if a transaction modified the window state,
+        // a new buffer was latched, or if HWC has requested a full
+        // repaint
+        if (mFrameStartTime <= 0) {
+            // We should only use the time of the first invalidate
+            // message that signals a refresh as the beginning of the
+            // frame. Otherwise the real frame time will be
+            // underestimated.
+            mFrameStartTime = frameStart;
+        }
+        signalRefresh();
     }
 }
 
@@ -2016,7 +2021,7 @@ bool SurfaceFlinger::handleMessageTransaction() {
     return runHandleTransaction;
 }
 
-void SurfaceFlinger::handleMessageRefresh() {
+void SurfaceFlinger::onMessageRefresh() {
     ATRACE_CALL();
 
     mRefreshPending = false;
@@ -2113,7 +2118,6 @@ void SurfaceFlinger::handleMessageRefresh() {
         signalLayerUpdate();
     }
 }
-
 
 bool SurfaceFlinger::handleMessageInvalidate() {
     ATRACE_CALL();
