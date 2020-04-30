@@ -3420,17 +3420,25 @@ void SurfaceFlinger::applyTransactionState(
                                                   : Scheduler::TransactionStart::NORMAL;
         setTransactionFlags(transactionFlags, start);
 
-        // if this is a synchronous transaction, wait for it to take effect
-        // before returning.
-        if (flags & eSynchronous) {
-            mTransactionPending = true;
-        }
         if (flags & eAnimation) {
             mAnimTransactionPending = true;
         }
-        if (mPendingInputWindowCommands.syncInputWindows) {
+
+        // if this is a synchronous transaction, wait for it to take effect
+        // before returning.
+        const bool synchronous = flags & eSynchronous;
+        const bool syncInput = inputWindowCommands.syncInputWindows;
+        if (!synchronous && !syncInput) {
+            return;
+        }
+
+        if (synchronous) {
+            mTransactionPending = true;
+        }
+        if (syncInput) {
             mPendingSyncInputWindows = true;
         }
+
 
         // applyTransactionState can be called by either the main SF thread or by
         // another process through setTransactionState.  While a given process may wish
