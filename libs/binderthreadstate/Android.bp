@@ -22,7 +22,7 @@ cc_library_static {
 
     shared_libs: [
         "libbinder",
-        "libhidlbase",  // libhwbinder is in here
+        "libhidlbase", // libhwbinder is in here
     ],
 
     export_include_dirs: ["include"],
@@ -31,6 +31,7 @@ cc_library_static {
         "-Wall",
         "-Werror",
     ],
+    min_sdk_version: "29",
 }
 
 hidl_package_root {
