@@ -49,14 +49,28 @@ static bool isVintfDeclared(const std::string& name) {
     const std::string iface = name.substr(lastDot+1, firstSlash-lastDot-1);
     const std::string instance = name.substr(firstSlash+1);
 
-    for (const auto& manifest : {
-            vintf::VintfObject::GetDeviceHalManifest(),
-            vintf::VintfObject::GetFrameworkHalManifest()
+    struct ManifestWithDescription {
+        std::shared_ptr<const vintf::HalManifest> manifest;
+        const char* description;
+    };
+    for (const ManifestWithDescription& mwd : {
+            ManifestWithDescription{ vintf::VintfObject::GetDeviceHalManifest(), "device" },
+            ManifestWithDescription{ vintf::VintfObject::GetFrameworkHalManifest(), "framework" },
         }) {
-        if (manifest != nullptr && manifest->hasAidlInstance(package, iface, instance)) {
+        if (mwd.manifest == nullptr) {
+          LOG(ERROR) << "NULL VINTF MANIFEST!: " << mwd.description;
+          // note, we explicitly do not retry here, so that we can detect VINTF
+          // or other bugs (b/151696835)
+          continue;
+        }
+        if (mwd.manifest->hasAidlInstance(package, iface, instance)) {
+            LOG(INFO) << "Found " << name << " in " << mwd.description << " VINTF manifest.";
             return true;
         }
     }
+
+    // Although it is tested, explicitly rebuilding qualified name, in case it
+    // becomes something unexpected.
     LOG(ERROR) << "Could not find " << package << "." << iface << "/" << instance
                << " in the VINTF manifest.";
     return false;
