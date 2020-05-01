@@ -115,7 +115,7 @@ void ATrace_setCounter(const char* counterName, int64_t counterValue) __INTRODUC
 #endif /* __ANDROID_API__ >= 29 */
 
 #ifdef __cplusplus
-};
+}
 #endif
 
 #endif // ANDROID_NATIVE_TRACE_H
