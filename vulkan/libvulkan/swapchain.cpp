@@ -1478,7 +1478,7 @@ VkResult AcquireNextImageKHR(VkDevice device,
     ANativeWindowBuffer* buffer;
     int fence_fd;
     err = window->dequeueBuffer(window, &buffer, &fence_fd);
-    if (err == android::TIMED_OUT) {
+    if (err == android::TIMED_OUT || err == android::INVALID_OPERATION) {
         ALOGW("dequeueBuffer timed out: %s (%d)", strerror(-err), err);
         return timeout ? VK_TIMEOUT : VK_NOT_READY;
     } else if (err != android::OK) {
