@@ -49,14 +49,28 @@ static bool isVintfDeclared(const std::string& name) {
     const std::string iface = name.substr(lastDot+1, firstSlash-lastDot-1);
     const std::string instance = name.substr(firstSlash+1);
 
-    for (const auto& manifest : {
-            vintf::VintfObject::GetDeviceHalManifest(),
-            vintf::VintfObject::GetFrameworkHalManifest()
+    struct ManifestWithDescription {
+        std::shared_ptr<const vintf::HalManifest> manifest;
+        const char* description;
+    };
+    for (const ManifestWithDescription& mwd : {
+            ManifestWithDescription{ vintf::VintfObject::GetDeviceHalManifest(), "device" },
+            ManifestWithDescription{ vintf::VintfObject::GetFrameworkHalManifest(), "framework" },
         }) {
-        if (manifest != nullptr && manifest->hasAidlInstance(package, iface, instance)) {
+        if (mwd.manifest == nullptr) {
+          LOG(ERROR) << "NULL VINTF MANIFEST!: " << mwd.description;
+          // note, we explicitly do not retry here, so that we can detect VINTF
+          // or other bugs (b/151696835)
+          continue;
+        }
+        if (mwd.manifest->hasAidlInstance(package, iface, instance)) {
+            LOG(INFO) << "Found " << name << " in " << mwd.description << " VINTF manifest.";
             return true;
         }
     }
+
+    // Although it is tested, explicitly rebuilding qualified name, in case it
+    // becomes something unexpected.
     LOG(ERROR) << "Could not find " << package << "." << iface << "/" << instance
                << " in the VINTF manifest.";
     return false;
@@ -72,13 +86,20 @@ static bool meetsDeclarationRequirements(const sp<IBinder>& binder, const std::s
 #endif  // !VENDORSERVICEMANAGER
 
 ServiceManager::ServiceManager(std::unique_ptr<Access>&& access) : mAccess(std::move(access)) {
-#ifndef VENDORSERVICEMANAGER
-    // can process these at any times, don't want to delay first VINTF client
-    std::thread([] {
-        vintf::VintfObject::GetDeviceHalManifest();
-        vintf::VintfObject::GetFrameworkHalManifest();
-    }).detach();
-#endif  // !VENDORSERVICEMANAGER
+// TODO(b/151696835): reenable performance hack when we solve bug, since with
+//     this hack and other fixes, it is unlikely we will see even an ephemeral
+//     failure when the manifest parse fails. The goal is that the manifest will
+//     be read incorrectly and cause the process trying to register a HAL to
+//     fail. If this is in fact an early boot kernel contention issue, then we
+//     will get no failure, and by its absence, be signalled to invest more
+//     effort in re-adding this performance hack.
+// #ifndef VENDORSERVICEMANAGER
+//     // can process these at any times, don't want to delay first VINTF client
+//     std::thread([] {
+//         vintf::VintfObject::GetDeviceHalManifest();
+//         vintf::VintfObject::GetFrameworkHalManifest();
+//     }).detach();
+// #endif  // !VENDORSERVICEMANAGER
 }
 ServiceManager::~ServiceManager() {
     // this should only happen in tests
