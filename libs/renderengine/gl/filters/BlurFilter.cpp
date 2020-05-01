@@ -68,6 +68,8 @@ BlurFilter::BlurFilter(GLESRenderEngine& engine)
 status_t BlurFilter::setAsDrawTarget(const DisplaySettings& display, uint32_t radius) {
     ATRACE_NAME("BlurFilter::setAsDrawTarget");
     mRadius = radius;
+    mDisplayX = display.physicalDisplay.left;
+    mDisplayY = display.physicalDisplay.top;
 
     if (mDisplayWidth < display.physicalDisplay.width() ||
         mDisplayHeight < display.physicalDisplay.height()) {
@@ -182,8 +184,8 @@ status_t BlurFilter::render(bool multiPass) {
     if (mix >= 1 || multiPass) {
         mLastDrawTarget->bindAsReadBuffer();
         glBlitFramebuffer(0, 0, mLastDrawTarget->getBufferWidth(),
-                          mLastDrawTarget->getBufferHeight(), 0, 0, mDisplayWidth, mDisplayHeight,
-                          GL_COLOR_BUFFER_BIT, GL_LINEAR);
+                          mLastDrawTarget->getBufferHeight(), mDisplayX, mDisplayY, mDisplayWidth,
+                          mDisplayHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
         return NO_ERROR;
     }
 
