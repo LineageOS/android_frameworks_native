@@ -17,4 +17,5 @@ cc_library_headers {
         "libutils_headers",
         "libstagefright_foundation_headers",
     ],
+    min_sdk_version: "29",
 }
