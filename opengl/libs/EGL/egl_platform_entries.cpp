@@ -23,8 +23,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <hardware/gralloc1.h>
-
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <EGL/eglext_angle.h>
