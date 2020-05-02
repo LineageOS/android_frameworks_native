@@ -426,19 +426,36 @@ public:
      */
     virtual status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) = 0;
 
-    /*
-     * Sets the refresh rate boundaries for display configuration.
-     * For all other parameters, default configuration is used. The index for the default is
-     * corresponding to the configs returned from getDisplayConfigs().
+    /* Sets the refresh rate boundaries for the display.
+     *
+     * The primary refresh rate range represents display manager's general guidance on the display
+     * configs we'll consider when switching refresh rates. Unless we get an explicit signal from an
+     * app, we should stay within this range.
+     *
+     * The app request refresh rate range allows us to consider more display configs when switching
+     * refresh rates. Although we should generally stay within the primary range, specific
+     * considerations, such as layer frame rate settings specified via the setFrameRate() api, may
+     * cause us to go outside the primary range. We never go outside the app request range. The app
+     * request range will be greater than or equal to the primary refresh rate range, never smaller.
+     *
+     * defaultConfig is used to narrow the list of display configs SurfaceFlinger will consider
+     * switching between. Only configs with a config group and resolution matching defaultConfig
+     * will be considered for switching. The defaultConfig index corresponds to the list of configs
+     * returned from getDisplayConfigs().
      */
     virtual status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                  int32_t defaultConfig, float minRefreshRate,
-                                                  float maxRefreshRate) = 0;
+                                                  int32_t defaultConfig,
+                                                  float primaryRefreshRateMin,
+                                                  float primaryRefreshRateMax,
+                                                  float appRequestRefreshRateMin,
+                                                  float appRequestRefreshRateMax) = 0;
 
     virtual status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
                                                   int32_t* outDefaultConfig,
-                                                  float* outMinRefreshRate,
-                                                  float* outMaxRefreshRate) = 0;
+                                                  float* outPrimaryRefreshRateMin,
+                                                  float* outPrimaryRefreshRateMax,
+                                                  float* outAppRequestRefreshRateMin,
+                                                  float* outAppRequestRefreshRateMax) = 0;
     /*
      * Gets whether brightness operations are supported on a display.
      *

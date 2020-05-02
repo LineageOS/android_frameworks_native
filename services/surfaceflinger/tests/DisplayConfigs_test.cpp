@@ -39,11 +39,16 @@ protected:
 
 TEST_F(RefreshRateRangeTest, setAllConfigs) {
     int32_t initialDefaultConfig;
-    float initialMin;
-    float initialMax;
+    float initialPrimaryMin;
+    float initialPrimaryMax;
+    float initialAppRequestMin;
+    float initialAppRequestMax;
     status_t res = SurfaceComposerClient::getDesiredDisplayConfigSpecs(mDisplayToken,
                                                                        &initialDefaultConfig,
-                                                                       &initialMin, &initialMax);
+                                                                       &initialPrimaryMin,
+                                                                       &initialPrimaryMax,
+                                                                       &initialAppRequestMin,
+                                                                       &initialAppRequestMax);
     ASSERT_EQ(res, NO_ERROR);
 
     Vector<DisplayConfig> configs;
@@ -53,22 +58,33 @@ TEST_F(RefreshRateRangeTest, setAllConfigs) {
     for (size_t i = 0; i < configs.size(); i++) {
         res = SurfaceComposerClient::setDesiredDisplayConfigSpecs(mDisplayToken, i,
                                                                   configs[i].refreshRate,
+                                                                  configs[i].refreshRate,
+                                                                  configs[i].refreshRate,
                                                                   configs[i].refreshRate);
         ASSERT_EQ(res, NO_ERROR);
 
         int defaultConfig;
-        float minRefreshRate;
-        float maxRefreshRate;
+        float primaryRefreshRateMin;
+        float primaryRefreshRateMax;
+        float appRequestRefreshRateMin;
+        float appRequestRefreshRateMax;
         res = SurfaceComposerClient::getDesiredDisplayConfigSpecs(mDisplayToken, &defaultConfig,
-                                                                  &minRefreshRate, &maxRefreshRate);
+                                                                  &primaryRefreshRateMin,
+                                                                  &primaryRefreshRateMax,
+                                                                  &appRequestRefreshRateMin,
+                                                                  &appRequestRefreshRateMax);
         ASSERT_EQ(res, NO_ERROR);
         ASSERT_EQ(defaultConfig, i);
-        ASSERT_EQ(minRefreshRate, configs[i].refreshRate);
-        ASSERT_EQ(maxRefreshRate, configs[i].refreshRate);
+        ASSERT_EQ(primaryRefreshRateMin, configs[i].refreshRate);
+        ASSERT_EQ(primaryRefreshRateMax, configs[i].refreshRate);
+        ASSERT_EQ(appRequestRefreshRateMin, configs[i].refreshRate);
+        ASSERT_EQ(appRequestRefreshRateMax, configs[i].refreshRate);
     }
 
     res = SurfaceComposerClient::setDesiredDisplayConfigSpecs(mDisplayToken, initialDefaultConfig,
-                                                              initialMin, initialMax);
+                                                              initialPrimaryMin, initialPrimaryMax,
+                                                              initialAppRequestMin,
+                                                              initialAppRequestMax);
     ASSERT_EQ(res, NO_ERROR);
 }
 
