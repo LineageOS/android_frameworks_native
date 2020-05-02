@@ -19,8 +19,6 @@
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include <cutils/properties.h>
-
 #include <gui/BLASTBufferQueue.h>
 #include <gui/BufferItemConsumer.h>
 #include <gui/GLConsumer.h>
