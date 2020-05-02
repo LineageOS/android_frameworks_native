@@ -574,10 +574,8 @@ void Scheduler::handleTimerStateChanged(T* currentState, T newState, bool eventO
 HwcConfigIndexType Scheduler::calculateRefreshRateConfigIndexType() {
     ATRACE_CALL();
 
-    // NOTE: If we remove the kernel idle timer, and use our internal idle timer, this
-    // code will have to be refactored. If Display Power is not in normal operation we want to be in
-    // performance mode. When coming back to normal mode, a grace period is given with
-    // DisplayPowerTimer.
+    // If Display Power is not in normal operation we want to be in performance mode. When coming
+    // back to normal mode, a grace period is given with DisplayPowerTimer.
     if (mDisplayPowerTimer &&
         (!mFeatures.isDisplayPowerStateNormal ||
          mFeatures.displayPowerTimer == TimerState::Reset)) {

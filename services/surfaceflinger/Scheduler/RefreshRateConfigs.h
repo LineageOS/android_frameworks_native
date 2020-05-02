@@ -107,18 +107,46 @@ public:
             std::unordered_map<HwcConfigIndexType, std::unique_ptr<const RefreshRate>>;
 
     struct Policy {
+        struct Range {
+            float min = 0;
+            float max = std::numeric_limits<float>::max();
+
+            bool operator==(const Range& other) const {
+                return min == other.min && max == other.max;
+            }
+
+            bool operator!=(const Range& other) const { return !(*this == other); }
+        };
+
         // The default config, used to ensure we only initiate display config switches within the
         // same config group as defaultConfigId's group.
         HwcConfigIndexType defaultConfig;
-        // The min and max FPS allowed by the policy.
-        float minRefreshRate = 0;
-        float maxRefreshRate = std::numeric_limits<float>::max();
+        // The primary refresh rate range represents display manager's general guidance on the
+        // display configs we'll consider when switching refresh rates. Unless we get an explicit
+        // signal from an app, we should stay within this range.
+        Range primaryRange;
+        // The app request refresh rate range allows us to consider more display configs when
+        // switching refresh rates. Although we should generally stay within the primary range,
+        // specific considerations, such as layer frame rate settings specified via the
+        // setFrameRate() api, may cause us to go outside the primary range. We never go outside the
+        // app request range. The app request range will be greater than or equal to the primary
+        // refresh rate range, never smaller.
+        Range appRequestRange;
         // Whether or not we switch config groups to get the best frame rate. Only used by tests.
         bool allowGroupSwitching = false;
 
+        Policy() = default;
+        Policy(HwcConfigIndexType defaultConfig, const Range& range)
+              : Policy(defaultConfig, range, range) {}
+        Policy(HwcConfigIndexType defaultConfig, const Range& primaryRange,
+               const Range& appRequestRange)
+              : defaultConfig(defaultConfig),
+                primaryRange(primaryRange),
+                appRequestRange(appRequestRange) {}
+
         bool operator==(const Policy& other) const {
-            return defaultConfig == other.defaultConfig && minRefreshRate == other.minRefreshRate &&
-                    maxRefreshRate == other.maxRefreshRate &&
+            return defaultConfig == other.defaultConfig && primaryRange == other.primaryRange &&
+                    appRequestRange == other.appRequestRange &&
                     allowGroupSwitching == other.allowGroupSwitching;
         }
 
@@ -198,13 +226,15 @@ public:
     // Returns the lowest refresh rate supported by the device. This won't change at runtime.
     const RefreshRate& getMinRefreshRate() const { return *mMinSupportedRefreshRate; }
 
-    // Returns the lowest refresh rate according to the current policy. May change in runtime.
+    // Returns the lowest refresh rate according to the current policy. May change at runtime. Only
+    // uses the primary range, not the app request range.
     const RefreshRate& getMinRefreshRateByPolicy() const EXCLUDES(mLock);
 
     // Returns the highest refresh rate supported by the device. This won't change at runtime.
     const RefreshRate& getMaxRefreshRate() const { return *mMaxSupportedRefreshRate; }
 
-    // Returns the highest refresh rate according to the current policy. May change in runtime.
+    // Returns the highest refresh rate according to the current policy. May change at runtime. Only
+    // uses the primary range, not the app request range.
     const RefreshRate& getMaxRefreshRateByPolicy() const EXCLUDES(mLock);
 
     // Returns the current refresh rate
@@ -243,6 +273,14 @@ private:
     // display refresh period.
     std::pair<nsecs_t, nsecs_t> getDisplayFrames(nsecs_t layerPeriod, nsecs_t displayPeriod) const;
 
+    // Returns the lowest refresh rate according to the current policy. May change at runtime. Only
+    // uses the primary range, not the app request range.
+    const RefreshRate& getMinRefreshRateByPolicyLocked() const REQUIRES(mLock);
+
+    // Returns the highest refresh rate according to the current policy. May change at runtime. Only
+    // uses the primary range, not the app request range.
+    const RefreshRate& getMaxRefreshRateByPolicyLocked() const REQUIRES(mLock);
+
     // Returns the current refresh rate, if allowed. Otherwise the default that is allowed by
     // the policy.
     const RefreshRate& getCurrentRefreshRateByPolicyLocked() const REQUIRES(mLock);
@@ -254,9 +292,13 @@ private:
     // object is initialized.
     AllRefreshRatesMapType mRefreshRates;
 
-    // The list of refresh rates which are available in the current policy, ordered by vsyncPeriod
-    // (the first element is the lowest refresh rate)
-    std::vector<const RefreshRate*> mAvailableRefreshRates GUARDED_BY(mLock);
+    // The list of refresh rates in the primary range of the current policy, ordered by vsyncPeriod
+    // (the first element is the lowest refresh rate).
+    std::vector<const RefreshRate*> mPrimaryRefreshRates GUARDED_BY(mLock);
+
+    // The list of refresh rates in the app request range of the current policy, ordered by
+    // vsyncPeriod (the first element is the lowest refresh rate).
+    std::vector<const RefreshRate*> mAppRequestRefreshRates GUARDED_BY(mLock);
 
     // The current config. This will change at runtime. This is set by SurfaceFlinger on
     // the main thread, and read by the Scheduler (and other objects) on other threads.
