@@ -166,8 +166,8 @@ TEST_F(RefreshRateConfigsTest, invalidPolicy) {
     auto refreshRateConfigs =
             std::make_unique<RefreshRateConfigs>(m60OnlyConfigDevice,
                                                  /*currentConfigId=*/HWC_CONFIG_ID_60);
-    ASSERT_LT(refreshRateConfigs->setDisplayManagerPolicy({HwcConfigIndexType(10), 60, 60}), 0);
-    ASSERT_LT(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, 20, 40}), 0);
+    ASSERT_LT(refreshRateConfigs->setDisplayManagerPolicy({HwcConfigIndexType(10), {60, 60}}), 0);
+    ASSERT_LT(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, {20, 40}}), 0);
 }
 
 TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_storesFullRefreshRateMap) {
@@ -201,7 +201,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_storesFullRefreshRateMap_differe
     ASSERT_EQ(mExpected60Config, minRate60);
     ASSERT_EQ(mExpected60Config, performanceRate60);
 
-    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_90, 60, 90}), 0);
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_90, {60, 90}}), 0);
     refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
 
     const auto& minRate90 = refreshRateConfigs->getMinRefreshRateByPolicy();
@@ -226,7 +226,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_storesFullRefreshRateMap_differe
     ASSERT_EQ(mExpected60Config, minRate60);
     ASSERT_EQ(mExpected60Config, performanceRate60);
 
-    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_90, 60, 90}), 0);
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_90, {60, 90}}), 0);
     refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
 
     const auto& minRate90 = refreshRateConfigs->getMinRefreshRateByPolicy();
@@ -248,7 +248,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_policyChange) {
     ASSERT_EQ(mExpected60Config, minRate);
     ASSERT_EQ(mExpected90Config, performanceRate);
 
-    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, 60, 60}), 0);
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, {60, 60}}), 0);
 
     auto& minRate60 = refreshRateConfigs->getMinRefreshRateByPolicy();
     auto& performanceRate60 = refreshRateConfigs->getMaxRefreshRateByPolicy();
@@ -271,7 +271,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getCurrentRefreshRate) {
         EXPECT_EQ(current.getConfigId(), HWC_CONFIG_ID_90);
     }
 
-    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_90, 90, 90}), 0);
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_90, {90, 90}}), 0);
     {
         auto& current = refreshRateConfigs->getCurrentRefreshRate();
         EXPECT_EQ(current.getConfigId(), HWC_CONFIG_ID_90);
@@ -298,7 +298,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContent) {
     EXPECT_EQ(mExpected60Config,
               refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(24.0f)));
 
-    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, 60, 60}), 0);
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, {60, 60}}), 0);
     EXPECT_EQ(mExpected60Config,
               refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(90.0f)));
     EXPECT_EQ(mExpected60Config,
@@ -310,7 +310,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContent) {
     EXPECT_EQ(mExpected60Config,
               refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(24.0f)));
 
-    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_90, 90, 90}), 0);
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_90, {90, 90}}), 0);
     EXPECT_EQ(mExpected90Config,
               refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(90.0f)));
     EXPECT_EQ(mExpected90Config,
@@ -321,7 +321,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContent) {
               refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(30.0f)));
     EXPECT_EQ(mExpected90Config,
               refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(24.0f)));
-    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, 0, 120}), 0);
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, {0, 120}}), 0);
     EXPECT_EQ(mExpected90Config,
               refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(90.0f)));
     EXPECT_EQ(mExpected60Config,
@@ -407,7 +407,7 @@ TEST_F(RefreshRateConfigsTest, getRefreshRateForContentV2_60_90) {
                                                              &ignored));
 
     lr.name = "";
-    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, 60, 60}), 0);
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, {60, 60}}), 0);
 
     lr.vote = LayerVoteType::Min;
     EXPECT_EQ(mExpected60Config,
@@ -445,7 +445,7 @@ TEST_F(RefreshRateConfigsTest, getRefreshRateForContentV2_60_90) {
               refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false,
                                                              &ignored));
 
-    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_90, 90, 90}), 0);
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_90, {90, 90}}), 0);
 
     lr.vote = LayerVoteType::Min;
     EXPECT_EQ(mExpected90Config,
@@ -483,7 +483,7 @@ TEST_F(RefreshRateConfigsTest, getRefreshRateForContentV2_60_90) {
               refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false,
                                                              &ignored));
 
-    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, 0, 120}), 0);
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, {0, 120}}), 0);
     lr.vote = LayerVoteType::Min;
     EXPECT_EQ(mExpected60Config,
               refreshRateConfigs->getRefreshRateForContentV2(layers, /*touchActive*/ false,
@@ -1130,7 +1130,8 @@ TEST_F(RefreshRateConfigsTest, touchConsidered) {
     lr1.desiredRefreshRate = 60.0f;
     lr1.name = "60Hz ExplicitExactOrMultiple";
     lr2.vote = LayerVoteType::Heuristic;
-    lr2.name = "NoVote";
+    lr2.desiredRefreshRate = 60.0f;
+    lr2.name = "60Hz Heuristic";
     refreshRateConfigs->getRefreshRateForContentV2(layers, true, &touchConsidered);
     EXPECT_EQ(true, touchConsidered);
 
@@ -1138,7 +1139,8 @@ TEST_F(RefreshRateConfigsTest, touchConsidered) {
     lr1.desiredRefreshRate = 60.0f;
     lr1.name = "60Hz ExplicitExactOrMultiple";
     lr2.vote = LayerVoteType::Heuristic;
-    lr2.name = "NoVote";
+    lr2.desiredRefreshRate = 60.0f;
+    lr2.name = "60Hz Heuristic";
     refreshRateConfigs->getRefreshRateForContentV2(layers, true, &touchConsidered);
     EXPECT_EQ(false, touchConsidered);
 
@@ -1146,15 +1148,17 @@ TEST_F(RefreshRateConfigsTest, touchConsidered) {
     lr1.desiredRefreshRate = 60.0f;
     lr1.name = "60Hz ExplicitExactOrMultiple";
     lr2.vote = LayerVoteType::Heuristic;
-    lr2.name = "NoVote";
+    lr2.desiredRefreshRate = 60.0f;
+    lr2.name = "60Hz Heuristic";
     refreshRateConfigs->getRefreshRateForContentV2(layers, true, &touchConsidered);
     EXPECT_EQ(true, touchConsidered);
 
     lr1.vote = LayerVoteType::ExplicitDefault;
     lr1.desiredRefreshRate = 60.0f;
-    lr1.name = "60Hz ExplicitExactrMultiple";
+    lr1.name = "60Hz ExplicitExactOrMultiple";
     lr2.vote = LayerVoteType::Heuristic;
-    lr2.name = "NoVote";
+    lr2.desiredRefreshRate = 60.0f;
+    lr2.name = "60Hz Heuristic";
     refreshRateConfigs->getRefreshRateForContentV2(layers, true, &touchConsidered);
     EXPECT_EQ(false, touchConsidered);
 }
@@ -1225,6 +1229,59 @@ TEST_F(RefreshRateConfigsTest, groupSwitching) {
     ASSERT_EQ(HWC_CONFIG_ID_90,
               refreshRateConfigs->getRefreshRateForContentV2(layers, false, &touchConsidered)
                       .getConfigId());
+}
+
+TEST_F(RefreshRateConfigsTest, primaryVsAppRequestPolicy) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m60_90Device,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
+    layers[0].name = "Test layer";
+
+    // Return the config ID from calling getRefreshRateForContentV2() for a single layer with the
+    // given voteType and fps.
+    auto getFrameRate = [&](LayerVoteType voteType, float fps,
+                            bool touchActive = false) -> HwcConfigIndexType {
+        layers[0].vote = voteType;
+        layers[0].desiredRefreshRate = fps;
+        bool touchConsidered;
+        return refreshRateConfigs->getRefreshRateForContentV2(layers, touchActive, &touchConsidered)
+                .getConfigId();
+    };
+
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(
+                      {HWC_CONFIG_ID_60, {60.f, 60.f}, {60.f, 90.f}}),
+              0);
+    bool touchConsidered;
+    EXPECT_EQ(HWC_CONFIG_ID_60,
+              refreshRateConfigs
+                      ->getRefreshRateForContentV2({}, /*touchActive=*/false, &touchConsidered)
+                      .getConfigId());
+    EXPECT_EQ(HWC_CONFIG_ID_60, getFrameRate(LayerVoteType::NoVote, 90.f));
+    EXPECT_EQ(HWC_CONFIG_ID_60, getFrameRate(LayerVoteType::Min, 90.f));
+    EXPECT_EQ(HWC_CONFIG_ID_60, getFrameRate(LayerVoteType::Max, 90.f));
+    EXPECT_EQ(HWC_CONFIG_ID_60, getFrameRate(LayerVoteType::Heuristic, 90.f));
+    EXPECT_EQ(HWC_CONFIG_ID_90, getFrameRate(LayerVoteType::ExplicitDefault, 90.f));
+    EXPECT_EQ(HWC_CONFIG_ID_90, getFrameRate(LayerVoteType::ExplicitExactOrMultiple, 90.f));
+
+    // Touch boost should be restricted to the primary range.
+    EXPECT_EQ(HWC_CONFIG_ID_60, getFrameRate(LayerVoteType::Max, 90.f, /*touch=*/true));
+    // When we're higher than the primary range max due to a layer frame rate setting, touch boost
+    // shouldn't drag us back down to the primary range max.
+    EXPECT_EQ(HWC_CONFIG_ID_90, getFrameRate(LayerVoteType::ExplicitDefault, 90.f, /*touch=*/true));
+    EXPECT_EQ(HWC_CONFIG_ID_90,
+              getFrameRate(LayerVoteType::ExplicitExactOrMultiple, 90.f, /*touch=*/true));
+
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(
+                      {HWC_CONFIG_ID_60, {60.f, 60.f}, {60.f, 60.f}}),
+              0);
+    EXPECT_EQ(HWC_CONFIG_ID_60, getFrameRate(LayerVoteType::NoVote, 90.f));
+    EXPECT_EQ(HWC_CONFIG_ID_60, getFrameRate(LayerVoteType::Min, 90.f));
+    EXPECT_EQ(HWC_CONFIG_ID_60, getFrameRate(LayerVoteType::Max, 90.f));
+    EXPECT_EQ(HWC_CONFIG_ID_60, getFrameRate(LayerVoteType::Heuristic, 90.f));
+    EXPECT_EQ(HWC_CONFIG_ID_60, getFrameRate(LayerVoteType::ExplicitDefault, 90.f));
+    EXPECT_EQ(HWC_CONFIG_ID_60, getFrameRate(LayerVoteType::ExplicitExactOrMultiple, 90.f));
 }
 
 } // namespace
