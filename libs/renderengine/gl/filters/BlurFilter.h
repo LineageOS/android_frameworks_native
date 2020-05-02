@@ -68,6 +68,8 @@ private:
     GLFramebuffer mPongFbo;
     uint32_t mDisplayWidth = 0;
     uint32_t mDisplayHeight = 0;
+    uint32_t mDisplayX = 0;
+    uint32_t mDisplayY = 0;
     // Buffer holding the final blur pass.
     GLFramebuffer* mLastDrawTarget;
 
