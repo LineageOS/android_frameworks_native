@@ -443,6 +443,8 @@ protected:
                 EXPECT_EQ(NO_ERROR,
                           SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, i,
                                                                               config.refreshRate,
+                                                                              config.refreshRate,
+                                                                              config.refreshRate,
                                                                               config.refreshRate));
                 waitForDisplayTransaction();
                 EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
@@ -546,6 +548,8 @@ protected:
             if (config.refreshRate == 1e9f / 11'111'111) {
                 EXPECT_EQ(NO_ERROR,
                           SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, i,
+                                                                              config.refreshRate,
+                                                                              config.refreshRate,
                                                                               config.refreshRate,
                                                                               config.refreshRate));
                 waitForDisplayTransaction();
@@ -659,9 +663,11 @@ protected:
             const auto& config = configs[i];
             if (config.resolution.getWidth() == 800 && config.refreshRate == 1e9f / 11'111'111) {
                 EXPECT_EQ(NO_ERROR,
-                          SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, i,
-                                                                              configs[i].refreshRate,
-                                                                              configs[i].refreshRate));
+                          SurfaceComposerClient::
+                                  setDesiredDisplayConfigSpecs(display, i, configs[i].refreshRate,
+                                                               configs[i].refreshRate,
+                                                               configs[i].refreshRate,
+                                                               configs[i].refreshRate));
                 waitForDisplayTransaction();
                 EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
                 break;
@@ -705,6 +711,8 @@ protected:
             if (config.refreshRate == 1e9f / 8'333'333) {
                 EXPECT_EQ(NO_ERROR,
                           SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, i,
+                                                                              config.refreshRate,
+                                                                              config.refreshRate,
                                                                               config.refreshRate,
                                                                               config.refreshRate));
                 waitForDisplayTransaction();
@@ -750,6 +758,8 @@ protected:
             if (config.resolution.getWidth() == 1600 && config.refreshRate == 1e9f / 11'111'111) {
                 EXPECT_EQ(NO_ERROR,
                           SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, i,
+                                                                              config.refreshRate,
+                                                                              config.refreshRate,
                                                                               config.refreshRate,
                                                                               config.refreshRate));
                 waitForDisplayTransaction();

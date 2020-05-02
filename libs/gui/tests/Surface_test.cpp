@@ -22,7 +22,6 @@
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <binder/ProcessState.h>
 #include <configstore/Utils.h>
-#include <cutils/properties.h>
 #include <gui/BufferItemConsumer.h>
 #include <gui/IDisplayEventConnection.h>
 #include <gui/IProducerListener.h>
@@ -835,14 +834,19 @@ public:
         return NO_ERROR;
     }
     status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& /*displayToken*/,
-                                          int32_t /*defaultConfig*/, float /*minRefreshRate*/,
-                                          float /*maxRefreshRate*/) {
+                                          int32_t /*defaultConfig*/,
+                                          float /*primaryRefreshRateMin*/,
+                                          float /*primaryRefreshRateMax*/,
+                                          float /*appRequestRefreshRateMin*/,
+                                          float /*appRequestRefreshRateMax*/) {
         return NO_ERROR;
     }
     status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& /*displayToken*/,
                                           int32_t* /*outDefaultConfig*/,
-                                          float* /*outMinRefreshRate*/,
-                                          float* /*outMaxRefreshRate*/) override {
+                                          float* /*outPrimaryRefreshRateMin*/,
+                                          float* /*outPrimaryRefreshRateMax*/,
+                                          float* /*outAppRequestRefreshRateMin*/,
+                                          float* /*outAppRequestRefreshRateMax*/) override {
         return NO_ERROR;
     };
     status_t notifyPowerHint(int32_t /*hintId*/) override { return NO_ERROR; }
