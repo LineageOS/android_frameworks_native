@@ -118,21 +118,19 @@ public:
     // Shorthand for getDisplayConfigs element at getActiveConfig index.
     static status_t getActiveDisplayConfig(const sp<IBinder>& display, DisplayConfig*);
 
-    // Sets the refresh rate boundaries for display configuration.
-    // For all other parameters, default configuration is used. The index for the default is
-    // corresponting to the configs returned from getDisplayConfigs().
+    // Sets the refresh rate boundaries for the display.
     static status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                 int32_t defaultConfig, float minRefreshRate,
-                                                 float maxRefreshRate);
-    // Gets the refresh rate boundaries for display configuration.
-    // For all other parameters, default configuration is used. The index for the default is
-    // corresponting to the configs returned from getDisplayConfigs().
-    // The reason is passed in for telemetry tracking, and it corresponds to the list of all
-    // the policy rules that were used.
+                                                 int32_t defaultConfig, float primaryRefreshRateMin,
+                                                 float primaryRefreshRateMax,
+                                                 float appRequestRefreshRateMin,
+                                                 float appRequestRefreshRateMax);
+    // Gets the refresh rate boundaries for the display.
     static status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
                                                  int32_t* outDefaultConfig,
-                                                 float* outMinRefreshRate,
-                                                 float* outMaxRefreshRate);
+                                                 float* outPrimaryRefreshRateMin,
+                                                 float* outPrimaryRefreshRateMax,
+                                                 float* outAppRequestRefreshRateMin,
+                                                 float* outAppRequestRefreshRateMax);
 
     // Gets the list of supported color modes for the given display
     static status_t getDisplayColorModes(const sp<IBinder>& display,
