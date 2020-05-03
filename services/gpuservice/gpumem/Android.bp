@@ -1,4 +1,4 @@
-// Copyright (C) 2017 The Android Open Source Project
+// Copyright 2020 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,19 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-cc_library_headers {
-    name: "libnativebase_headers",
-    vendor_available: true,
-    host_supported: true,
+cc_library_shared {
+    name: "libgpumem",
+    srcs: [
+        "GpuMem.cpp",
+    ],
+    shared_libs: [
+        "libbase",
+        "libbpf",
+        "libbpf_android",
+        "libcutils",
+        "liblog",
+        "libutils",
+    ],
     export_include_dirs: ["include"],
-
-    target: {
-        linux_bionic: {
-            enabled: true,
-        },
-        windows: {
-            enabled: true,
-        },
-    },
-    min_sdk_version: "29",
+    export_shared_lib_headers: [
+        "libbase",
+        "libbpf_android",
+    ],
+    cppflags: [
+        "-Wall",
+        "-Werror",
+        "-Wformat",
+        "-Wthread-safety",
+        "-Wunused",
+        "-Wunreachable-code",
+    ],
 }

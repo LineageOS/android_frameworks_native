@@ -4,4 +4,7 @@ sysprop_library {
     api_packages: ["android.sysprop"],
     property_owner: "Platform",
     vendor_available: true,
+    cpp: {
+        min_sdk_version: "29",
+    },
 }
