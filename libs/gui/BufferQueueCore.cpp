@@ -28,7 +28,6 @@
 
 #include <inttypes.h>
 
-#include <cutils/properties.h>
 #include <cutils/atomic.h>
 
 #include <gui/BufferItem.h>
