@@ -224,6 +224,11 @@ Region& Region::operator = (const Region& rhs)
     validate(*this, "this->operator=");
     validate(rhs, "rhs.operator=");
 #endif
+    if (this == &rhs) {
+        // Already equal to itself
+        return *this;
+    }
+
     mStorage.clear();
     mStorage.insert(mStorage.begin(), rhs.mStorage.begin(), rhs.mStorage.end());
     return *this;
