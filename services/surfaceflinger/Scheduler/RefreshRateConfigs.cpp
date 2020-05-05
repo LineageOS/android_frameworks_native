@@ -97,22 +97,14 @@ std::pair<nsecs_t, nsecs_t> RefreshRateConfigs::getDisplayFrames(nsecs_t layerPe
     return {displayFramesQuot, displayFramesRem};
 }
 
-const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
-        const std::vector<LayerRequirement>& layers, bool touchActive,
+const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
+        const std::vector<LayerRequirement>& layers, bool touchActive, bool idle,
         bool* touchConsidered) const {
     ATRACE_CALL();
     ALOGV("getRefreshRateForContent %zu layers", layers.size());
 
     *touchConsidered = false;
     std::lock_guard lock(mLock);
-
-    // If there are not layers, there is not content detection, so return the current
-    // refresh rate.
-    if (layers.empty()) {
-        *touchConsidered = touchActive;
-        return touchActive ? getMaxRefreshRateByPolicyLocked()
-                           : getCurrentRefreshRateByPolicyLocked();
-    }
 
     int noVoteLayers = 0;
     int minVoteLayers = 0;
@@ -141,6 +133,14 @@ const RefreshRate& RefreshRateConfigs::getRefreshRateForContentV2(
     if (touchActive && explicitDefaultVoteLayers == 0 && explicitExactOrMultipleVoteLayers == 0) {
         *touchConsidered = true;
         return getMaxRefreshRateByPolicyLocked();
+    }
+
+    if (!touchActive && idle) {
+        return getMinRefreshRateByPolicyLocked();
+    }
+
+    if (layers.empty()) {
+        return getCurrentRefreshRateByPolicyLocked();
     }
 
     // Only if all layers want Min we should return Min
