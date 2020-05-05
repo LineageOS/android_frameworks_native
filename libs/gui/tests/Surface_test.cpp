@@ -849,7 +849,7 @@ public:
                                           float* /*outAppRequestRefreshRateMax*/) override {
         return NO_ERROR;
     };
-    status_t notifyPowerHint(int32_t /*hintId*/) override { return NO_ERROR; }
+    status_t notifyPowerBoost(int32_t /*boostId*/) override { return NO_ERROR; }
 
     status_t setGlobalShadowSettings(const half4& /*ambientColor*/, const half4& /*spotColor*/,
                                      float /*lightPosY*/, float /*lightPosZ*/,

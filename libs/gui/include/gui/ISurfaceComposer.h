@@ -488,14 +488,14 @@ public:
     virtual status_t setDisplayBrightness(const sp<IBinder>& displayToken, float brightness) = 0;
 
     /*
-     * Sends a power hint to the composer. This function is asynchronous.
+     * Sends a power boost to the composer. This function is asynchronous.
      *
-     * hintId
-     *      hint id according to android::hardware::power::V1_0::PowerHint
+     * boostId
+     *      boost id according to android::hardware::power::Boost
      *
      * Returns NO_ERROR upon success.
      */
-    virtual status_t notifyPowerHint(int32_t hintId) = 0;
+    virtual status_t notifyPowerBoost(int32_t boostId) = 0;
 
     /*
      * Sets the global configuration for all the shadows drawn by SurfaceFlinger. Shadow follows
@@ -583,7 +583,7 @@ public:
         GET_DISPLAY_BRIGHTNESS_SUPPORT,
         SET_DISPLAY_BRIGHTNESS,
         CAPTURE_SCREEN_BY_ID,
-        NOTIFY_POWER_HINT,
+        NOTIFY_POWER_BOOST,
         SET_GLOBAL_SHADOW_SETTINGS,
         GET_AUTO_LOW_LATENCY_MODE_SUPPORT,
         SET_AUTO_LOW_LATENCY_MODE,
