@@ -469,7 +469,7 @@ void Scheduler::notifyTouchEvent() {
     // that is currently on top. b/142507166 will give us this capability.
     std::lock_guard<std::mutex> lock(mFeatureStateLock);
     if (mLayerHistory) {
-        // Layer History will be cleared based on RefreshRateConfigs::getRefreshRateForContentV2
+        // Layer History will be cleared based on RefreshRateConfigs::getBestRefreshRate
 
         mTouchTimer->reset();
 
@@ -582,19 +582,20 @@ HwcConfigIndexType Scheduler::calculateRefreshRateConfigIndexType() {
         return mRefreshRateConfigs.getMaxRefreshRateByPolicy().getConfigId();
     }
 
+    const bool touchActive = mTouchTimer && mFeatures.touch == TouchState::Active;
+    const bool idle = mIdleTimer && mFeatures.idleTimer == TimerState::Expired;
+
     if (!mUseContentDetectionV2) {
         // As long as touch is active we want to be in performance mode.
-        if (mTouchTimer && mFeatures.touch == TouchState::Active) {
+        if (touchActive) {
             return mRefreshRateConfigs.getMaxRefreshRateByPolicy().getConfigId();
         }
-    }
 
-    // If timer has expired as it means there is no new content on the screen.
-    if (mIdleTimer && mFeatures.idleTimer == TimerState::Expired) {
-        return mRefreshRateConfigs.getMinRefreshRateByPolicy().getConfigId();
-    }
+        // If timer has expired as it means there is no new content on the screen.
+        if (idle) {
+            return mRefreshRateConfigs.getMinRefreshRateByPolicy().getConfigId();
+        }
 
-    if (!mUseContentDetectionV2) {
         // If content detection is off we choose performance as we don't know the content fps.
         if (mFeatures.contentDetectionV1 == ContentDetectionState::Off) {
             // NOTE: V1 always calls this, but this is not a default behavior for V2.
@@ -607,13 +608,10 @@ HwcConfigIndexType Scheduler::calculateRefreshRateConfigIndexType() {
     }
 
     bool touchConsidered;
-    const auto& ret =
-            mRefreshRateConfigs
-                    .getRefreshRateForContentV2(mFeatures.contentRequirements,
-                                                mTouchTimer &&
-                                                        mFeatures.touch == TouchState::Active,
-                                                &touchConsidered)
-                    .getConfigId();
+    const auto& ret = mRefreshRateConfigs
+                              .getBestRefreshRate(mFeatures.contentRequirements, touchActive, idle,
+                                                  &touchConsidered)
+                              .getConfigId();
     if (touchConsidered) {
         // Clear layer history if refresh rate was selected based on touch to allow
         // the hueristic to pick up with the new rate.
