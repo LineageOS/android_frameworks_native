@@ -72,11 +72,29 @@ public:
     auto& mutableEventControlThread() { return mEventControlThread; }
     auto& mutablePrimaryDispSync() { return mPrimaryDispSync; }
     auto& mutableHWVsyncAvailable() { return mHWVsyncAvailable; }
+
     auto mutableLayerHistory() {
         return static_cast<scheduler::impl::LayerHistory*>(mLayerHistory.get());
     }
+
     auto mutableLayerHistoryV2() {
         return static_cast<scheduler::impl::LayerHistoryV2*>(mLayerHistory.get());
+    }
+
+    void replaceTouchTimer(int64_t millis) {
+        if (mTouchTimer) {
+            mTouchTimer.reset();
+        }
+        mTouchTimer.emplace(
+                std::chrono::milliseconds(millis),
+                [this] { touchTimerCallback(TimerState::Reset); },
+                [this] { touchTimerCallback(TimerState::Expired); });
+        mTouchTimer->start();
+    }
+
+    bool isTouchActive() {
+        std::lock_guard<std::mutex> lock(mFeatureStateLock);
+        return mFeatures.touch == Scheduler::TouchState::Active;
     }
 
     ~TestableScheduler() {

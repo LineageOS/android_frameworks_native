@@ -1092,22 +1092,22 @@ public:
         return NO_ERROR;
     }
 
-    virtual status_t notifyPowerHint(int32_t hintId) {
+    virtual status_t notifyPowerBoost(int32_t boostId) {
         Parcel data, reply;
         status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (error != NO_ERROR) {
-            ALOGE("notifyPowerHint: failed to write interface token: %d", error);
+            ALOGE("notifyPowerBoost: failed to write interface token: %d", error);
             return error;
         }
-        error = data.writeInt32(hintId);
+        error = data.writeInt32(boostId);
         if (error != NO_ERROR) {
-            ALOGE("notifyPowerHint: failed to write hintId: %d", error);
+            ALOGE("notifyPowerBoost: failed to write boostId: %d", error);
             return error;
         }
-        error = remote()->transact(BnSurfaceComposer::NOTIFY_POWER_HINT, data, &reply,
+        error = remote()->transact(BnSurfaceComposer::NOTIFY_POWER_BOOST, data, &reply,
                                    IBinder::FLAG_ONEWAY);
         if (error != NO_ERROR) {
-            ALOGE("notifyPowerHint: failed to transact: %d", error);
+            ALOGE("notifyPowerBoost: failed to transact: %d", error);
             return error;
         }
         return NO_ERROR;
@@ -1986,15 +1986,15 @@ status_t BnSurfaceComposer::onTransact(
             }
             return setDisplayBrightness(displayToken, brightness);
         }
-        case NOTIFY_POWER_HINT: {
+        case NOTIFY_POWER_BOOST: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            int32_t hintId;
-            status_t error = data.readInt32(&hintId);
+            int32_t boostId;
+            status_t error = data.readInt32(&boostId);
             if (error != NO_ERROR) {
-                ALOGE("notifyPowerHint: failed to read hintId: %d", error);
+                ALOGE("notifyPowerBoost: failed to read boostId: %d", error);
                 return error;
             }
-            return notifyPowerHint(hintId);
+            return notifyPowerBoost(boostId);
         }
         case SET_GLOBAL_SHADOW_SETTINGS: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
