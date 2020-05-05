@@ -1532,17 +1532,33 @@ LayerDebugInfo Layer::getLayerDebugInfo() const {
 void Layer::miniDumpHeader(std::string& result) {
     result.append("-------------------------------");
     result.append("-------------------------------");
-    result.append("-----------------------------\n");
+    result.append("-------------------------------");
+    result.append("-------------------------------");
+    result.append("---------\n");
     result.append(" Layer name\n");
     result.append("           Z | ");
     result.append(" Window Type | ");
     result.append(" Comp Type | ");
     result.append(" Transform | ");
     result.append("  Disp Frame (LTRB) | ");
-    result.append("         Source Crop (LTRB)\n");
+    result.append("         Source Crop (LTRB) | ");
+    result.append("    Frame Rate (Explicit)\n");
     result.append("-------------------------------");
     result.append("-------------------------------");
-    result.append("-----------------------------\n");
+    result.append("-------------------------------");
+    result.append("-------------------------------");
+    result.append("---------\n");
+}
+
+std::string Layer::frameRateCompatibilityString(Layer::FrameRateCompatibility compatibility) {
+    switch (compatibility) {
+        case FrameRateCompatibility::Default:
+            return "Default";
+        case FrameRateCompatibility::ExactOrMultiple:
+            return "ExactOrMultiple";
+        case FrameRateCompatibility::NoVote:
+            return "NoVote";
+    }
 }
 
 void Layer::miniDump(std::string& result, const sp<DisplayDevice>& displayDevice) const {
@@ -1578,12 +1594,21 @@ void Layer::miniDump(std::string& result, const sp<DisplayDevice>& displayDevice
     const Rect& frame = outputLayerState.displayFrame;
     StringAppendF(&result, "%4d %4d %4d %4d | ", frame.left, frame.top, frame.right, frame.bottom);
     const FloatRect& crop = outputLayerState.sourceCrop;
-    StringAppendF(&result, "%6.1f %6.1f %6.1f %6.1f\n", crop.left, crop.top, crop.right,
+    StringAppendF(&result, "%6.1f %6.1f %6.1f %6.1f | ", crop.left, crop.top, crop.right,
                   crop.bottom);
+    if (layerState.frameRate.rate != 0 ||
+        layerState.frameRate.type != FrameRateCompatibility::Default) {
+        StringAppendF(&result, "% 6.2ffps %15s\n", layerState.frameRate.rate,
+                      frameRateCompatibilityString(layerState.frameRate.type).c_str());
+    } else {
+        StringAppendF(&result, "\n");
+    }
 
-    result.append("- - - - - - - - - - - - - - - -");
-    result.append("- - - - - - - - - - - - - - - -");
-    result.append("- - - - - - - - - - - - - - -\n");
+    result.append("- - - - - - - - - - - - - - - - ");
+    result.append("- - - - - - - - - - - - - - - - ");
+    result.append("- - - - - - - - - - - - - - - - ");
+    result.append("- - - - - - - - - - - - - - - - ");
+    result.append("- - -\n");
 }
 
 void Layer::dumpFrameStats(std::string& result) const {
