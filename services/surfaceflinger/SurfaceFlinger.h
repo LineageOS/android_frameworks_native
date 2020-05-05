@@ -493,10 +493,15 @@ private:
                                        const sp<IRegionSamplingListener>& listener) override;
     status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) override;
     status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken, int32_t displayModeId,
-                                          float minRefreshRate, float maxRefreshRate) override;
+                                          float primaryRefreshRateMin, float primaryRefreshRateMax,
+                                          float appRequestRefreshRateMin,
+                                          float appRequestRefreshRateMax) override;
     status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                          int32_t* outDefaultConfig, float* outMinRefreshRate,
-                                          float* outMaxRefreshRate) override;
+                                          int32_t* outDefaultConfig,
+                                          float* outPrimaryRefreshRateMin,
+                                          float* outPrimaryRefreshRateMax,
+                                          float* outAppRequestRefreshRateMin,
+                                          float* outAppRequestRefreshRateMax) override;
     status_t getDisplayBrightnessSupport(const sp<IBinder>& displayToken,
                                          bool* outSupport) const override;
     status_t setDisplayBrightness(const sp<IBinder>& displayToken, float brightness) override;

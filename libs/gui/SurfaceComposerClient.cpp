@@ -1698,22 +1698,26 @@ int SurfaceComposerClient::getActiveConfig(const sp<IBinder>& display) {
 
 status_t SurfaceComposerClient::setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
                                                              int32_t defaultConfig,
-                                                             float minRefreshRate,
-                                                             float maxRefreshRate) {
-    return ComposerService::getComposerService()->setDesiredDisplayConfigSpecs(displayToken,
-                                                                               defaultConfig,
-                                                                               minRefreshRate,
-                                                                               maxRefreshRate);
+                                                             float primaryRefreshRateMin,
+                                                             float primaryRefreshRateMax,
+                                                             float appRequestRefreshRateMin,
+                                                             float appRequestRefreshRateMax) {
+    return ComposerService::getComposerService()
+            ->setDesiredDisplayConfigSpecs(displayToken, defaultConfig, primaryRefreshRateMin,
+                                           primaryRefreshRateMax, appRequestRefreshRateMin,
+                                           appRequestRefreshRateMax);
 }
 
 status_t SurfaceComposerClient::getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
                                                              int32_t* outDefaultConfig,
-                                                             float* outMinRefreshRate,
-                                                             float* outMaxRefreshRate) {
-    return ComposerService::getComposerService()->getDesiredDisplayConfigSpecs(displayToken,
-                                                                               outDefaultConfig,
-                                                                               outMinRefreshRate,
-                                                                               outMaxRefreshRate);
+                                                             float* outPrimaryRefreshRateMin,
+                                                             float* outPrimaryRefreshRateMax,
+                                                             float* outAppRequestRefreshRateMin,
+                                                             float* outAppRequestRefreshRateMax) {
+    return ComposerService::getComposerService()
+            ->getDesiredDisplayConfigSpecs(displayToken, outDefaultConfig, outPrimaryRefreshRateMin,
+                                           outPrimaryRefreshRateMax, outAppRequestRefreshRateMin,
+                                           outAppRequestRefreshRateMax);
 }
 
 status_t SurfaceComposerClient::getDisplayColorModes(const sp<IBinder>& display,

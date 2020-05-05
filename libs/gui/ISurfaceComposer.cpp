@@ -929,8 +929,11 @@ public:
     }
 
     virtual status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                  int32_t defaultConfig, float minRefreshRate,
-                                                  float maxRefreshRate) {
+                                                  int32_t defaultConfig,
+                                                  float primaryRefreshRateMin,
+                                                  float primaryRefreshRateMax,
+                                                  float appRequestRefreshRateMin,
+                                                  float appRequestRefreshRateMax) {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
@@ -947,14 +950,26 @@ public:
             ALOGE("setDesiredDisplayConfigSpecs failed to write defaultConfig: %d", result);
             return result;
         }
-        result = data.writeFloat(minRefreshRate);
+        result = data.writeFloat(primaryRefreshRateMin);
         if (result != NO_ERROR) {
-            ALOGE("setDesiredDisplayConfigSpecs failed to write minRefreshRate: %d", result);
+            ALOGE("setDesiredDisplayConfigSpecs failed to write primaryRefreshRateMin: %d", result);
             return result;
         }
-        result = data.writeFloat(maxRefreshRate);
+        result = data.writeFloat(primaryRefreshRateMax);
         if (result != NO_ERROR) {
-            ALOGE("setDesiredDisplayConfigSpecs failed to write maxRefreshRate: %d", result);
+            ALOGE("setDesiredDisplayConfigSpecs failed to write primaryRefreshRateMax: %d", result);
+            return result;
+        }
+        result = data.writeFloat(appRequestRefreshRateMin);
+        if (result != NO_ERROR) {
+            ALOGE("setDesiredDisplayConfigSpecs failed to write appRequestRefreshRateMin: %d",
+                  result);
+            return result;
+        }
+        result = data.writeFloat(appRequestRefreshRateMax);
+        if (result != NO_ERROR) {
+            ALOGE("setDesiredDisplayConfigSpecs failed to write appRequestRefreshRateMax: %d",
+                  result);
             return result;
         }
 
@@ -969,9 +984,14 @@ public:
 
     virtual status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
                                                   int32_t* outDefaultConfig,
-                                                  float* outMinRefreshRate,
-                                                  float* outMaxRefreshRate) {
-        if (!outDefaultConfig || !outMinRefreshRate || !outMaxRefreshRate) return BAD_VALUE;
+                                                  float* outPrimaryRefreshRateMin,
+                                                  float* outPrimaryRefreshRateMax,
+                                                  float* outAppRequestRefreshRateMin,
+                                                  float* outAppRequestRefreshRateMax) {
+        if (!outDefaultConfig || !outPrimaryRefreshRateMin || !outPrimaryRefreshRateMax ||
+            !outAppRequestRefreshRateMin || !outAppRequestRefreshRateMax) {
+            return BAD_VALUE;
+        }
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
@@ -994,14 +1014,26 @@ public:
             ALOGE("getDesiredDisplayConfigSpecs failed to read defaultConfig: %d", result);
             return result;
         }
-        result = reply.readFloat(outMinRefreshRate);
+        result = reply.readFloat(outPrimaryRefreshRateMin);
         if (result != NO_ERROR) {
-            ALOGE("getDesiredDisplayConfigSpecs failed to read minRefreshRate: %d", result);
+            ALOGE("getDesiredDisplayConfigSpecs failed to read primaryRefreshRateMin: %d", result);
             return result;
         }
-        result = reply.readFloat(outMaxRefreshRate);
+        result = reply.readFloat(outPrimaryRefreshRateMax);
         if (result != NO_ERROR) {
-            ALOGE("getDesiredDisplayConfigSpecs failed to read maxRefreshRate: %d", result);
+            ALOGE("getDesiredDisplayConfigSpecs failed to read primaryRefreshRateMax: %d", result);
+            return result;
+        }
+        result = reply.readFloat(outAppRequestRefreshRateMin);
+        if (result != NO_ERROR) {
+            ALOGE("getDesiredDisplayConfigSpecs failed to read appRequestRefreshRateMin: %d",
+                  result);
+            return result;
+        }
+        result = reply.readFloat(outAppRequestRefreshRateMax);
+        if (result != NO_ERROR) {
+            ALOGE("getDesiredDisplayConfigSpecs failed to read appRequestRefreshRateMax: %d",
+                  result);
             return result;
         }
         return reply.readInt32();
@@ -1831,20 +1863,38 @@ status_t BnSurfaceComposer::onTransact(
                 ALOGE("setDesiredDisplayConfigSpecs: failed to read defaultConfig: %d", result);
                 return result;
             }
-            float minRefreshRate;
-            result = data.readFloat(&minRefreshRate);
+            float primaryRefreshRateMin;
+            result = data.readFloat(&primaryRefreshRateMin);
             if (result != NO_ERROR) {
-                ALOGE("setDesiredDisplayConfigSpecs: failed to read minRefreshRate: %d", result);
+                ALOGE("setDesiredDisplayConfigSpecs: failed to read primaryRefreshRateMin: %d",
+                      result);
                 return result;
             }
-            float maxRefreshRate;
-            result = data.readFloat(&maxRefreshRate);
+            float primaryRefreshRateMax;
+            result = data.readFloat(&primaryRefreshRateMax);
             if (result != NO_ERROR) {
-                ALOGE("setDesiredDisplayConfigSpecs: failed to read maxRefreshRate: %d", result);
+                ALOGE("setDesiredDisplayConfigSpecs: failed to read primaryRefreshRateMax: %d",
+                      result);
                 return result;
             }
-            result = setDesiredDisplayConfigSpecs(displayToken, defaultConfig, minRefreshRate,
-                                                  maxRefreshRate);
+            float appRequestRefreshRateMin;
+            result = data.readFloat(&appRequestRefreshRateMin);
+            if (result != NO_ERROR) {
+                ALOGE("setDesiredDisplayConfigSpecs: failed to read appRequestRefreshRateMin: %d",
+                      result);
+                return result;
+            }
+            float appRequestRefreshRateMax;
+            result = data.readFloat(&appRequestRefreshRateMax);
+            if (result != NO_ERROR) {
+                ALOGE("setDesiredDisplayConfigSpecs: failed to read appRequestRefreshRateMax: %d",
+                      result);
+                return result;
+            }
+            result =
+                    setDesiredDisplayConfigSpecs(displayToken, defaultConfig, primaryRefreshRateMin,
+                                                 primaryRefreshRateMax, appRequestRefreshRateMin,
+                                                 appRequestRefreshRateMax);
             if (result != NO_ERROR) {
                 ALOGE("setDesiredDisplayConfigSpecs: failed to call setDesiredDisplayConfigSpecs: "
                       "%d",
@@ -1858,11 +1908,16 @@ status_t BnSurfaceComposer::onTransact(
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             sp<IBinder> displayToken = data.readStrongBinder();
             int32_t defaultConfig;
-            float minRefreshRate;
-            float maxRefreshRate;
+            float primaryRefreshRateMin;
+            float primaryRefreshRateMax;
+            float appRequestRefreshRateMin;
+            float appRequestRefreshRateMax;
 
-            status_t result = getDesiredDisplayConfigSpecs(displayToken, &defaultConfig,
-                                                           &minRefreshRate, &maxRefreshRate);
+            status_t result =
+                    getDesiredDisplayConfigSpecs(displayToken, &defaultConfig,
+                                                 &primaryRefreshRateMin, &primaryRefreshRateMax,
+                                                 &appRequestRefreshRateMin,
+                                                 &appRequestRefreshRateMax);
             if (result != NO_ERROR) {
                 ALOGE("getDesiredDisplayConfigSpecs: failed to get getDesiredDisplayConfigSpecs: "
                       "%d",
@@ -1875,14 +1930,28 @@ status_t BnSurfaceComposer::onTransact(
                 ALOGE("getDesiredDisplayConfigSpecs: failed to write defaultConfig: %d", result);
                 return result;
             }
-            result = reply->writeFloat(minRefreshRate);
+            result = reply->writeFloat(primaryRefreshRateMin);
             if (result != NO_ERROR) {
-                ALOGE("getDesiredDisplayConfigSpecs: failed to write minRefreshRate: %d", result);
+                ALOGE("getDesiredDisplayConfigSpecs: failed to write primaryRefreshRateMin: %d",
+                      result);
                 return result;
             }
-            result = reply->writeFloat(maxRefreshRate);
+            result = reply->writeFloat(primaryRefreshRateMax);
             if (result != NO_ERROR) {
-                ALOGE("getDesiredDisplayConfigSpecs: failed to write maxRefreshRate: %d", result);
+                ALOGE("getDesiredDisplayConfigSpecs: failed to write primaryRefreshRateMax: %d",
+                      result);
+                return result;
+            }
+            result = reply->writeFloat(appRequestRefreshRateMin);
+            if (result != NO_ERROR) {
+                ALOGE("getDesiredDisplayConfigSpecs: failed to write appRequestRefreshRateMin: %d",
+                      result);
+                return result;
+            }
+            result = reply->writeFloat(appRequestRefreshRateMax);
+            if (result != NO_ERROR) {
+                ALOGE("getDesiredDisplayConfigSpecs: failed to write appRequestRefreshRateMax: %d",
+                      result);
                 return result;
             }
             reply->writeInt32(result);
