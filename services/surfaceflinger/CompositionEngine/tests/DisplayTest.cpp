@@ -30,6 +30,7 @@
 #include <compositionengine/mock/OutputLayer.h>
 #include <compositionengine/mock/RenderSurface.h>
 #include <gtest/gtest.h>
+#include <renderengine/mock/RenderEngine.h>
 #include <ui/DisplayInfo.h>
 #include <ui/Rect.h>
 
@@ -156,6 +157,8 @@ struct DisplayTestCommon : public testing::Test {
 
     DisplayTestCommon() {
         EXPECT_CALL(mCompositionEngine, getHwComposer()).WillRepeatedly(ReturnRef(mHwComposer));
+        EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
+        EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
     }
 
     DisplayCreationArgs getDisplayCreationArgsForPhysicalHWCDisplay() {
@@ -182,6 +185,7 @@ struct DisplayTestCommon : public testing::Test {
 
     StrictMock<android::mock::HWComposer> mHwComposer;
     StrictMock<Hwc2::mock::PowerAdvisor> mPowerAdvisor;
+    StrictMock<renderengine::mock::RenderEngine> mRenderEngine;
     StrictMock<mock::CompositionEngine> mCompositionEngine;
     sp<mock::NativeWindow> mNativeWindow = new StrictMock<mock::NativeWindow>();
 };
