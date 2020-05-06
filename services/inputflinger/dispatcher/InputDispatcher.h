@@ -314,7 +314,7 @@ private:
     int32_t mFocusedDisplayId GUARDED_BY(mLock);
 
     // Dispatcher state at time of last ANR.
-    std::string mLastANRState GUARDED_BY(mLock);
+    std::string mLastAnrState GUARDED_BY(mLock);
 
     // Dispatch inbound events.
     bool dispatchConfigurationChangedLocked(nsecs_t currentTime, ConfigurationChangedEntry* entry)
@@ -360,7 +360,7 @@ private:
                                                  const sp<IBinder>& inputConnectionToken)
             REQUIRES(mLock);
     nsecs_t getTimeSpentWaitingForApplicationLocked(nsecs_t currentTime) REQUIRES(mLock);
-    void resetANRTimeoutsLocked() REQUIRES(mLock);
+    void resetAnrTimeoutsLocked() REQUIRES(mLock);
 
     int32_t getTargetDisplayId(const EventEntry& entry);
     int32_t findFocusedWindowTargetsLocked(nsecs_t currentTime, const EventEntry& entry,
@@ -468,7 +468,7 @@ private:
             REQUIRES(mLock);
     void onFocusChangedLocked(const sp<InputWindowHandle>& oldFocus,
                               const sp<InputWindowHandle>& newFocus) REQUIRES(mLock);
-    void onANRLocked(nsecs_t currentTime, const sp<InputApplicationHandle>& applicationHandle,
+    void onAnrLocked(nsecs_t currentTime, const sp<InputApplicationHandle>& applicationHandle,
                      const sp<InputWindowHandle>& windowHandle, nsecs_t eventTime,
                      nsecs_t waitStartTime, const char* reason) REQUIRES(mLock);
 
@@ -477,7 +477,7 @@ private:
             REQUIRES(mLock);
     void doNotifyInputChannelBrokenLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     void doNotifyFocusChangedLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
-    void doNotifyANRLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
+    void doNotifyAnrLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     void doInterceptKeyBeforeDispatchingLockedInterruptible(CommandEntry* commandEntry)
             REQUIRES(mLock);
     void doDispatchCycleFinishedLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
