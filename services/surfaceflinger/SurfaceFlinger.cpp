@@ -1309,25 +1309,6 @@ status_t SurfaceFlinger::getHdrCapabilities(const sp<IBinder>& displayToken,
     return NO_ERROR;
 }
 
-std::optional<DeviceProductInfo> SurfaceFlinger::getDeviceProductInfoLocked(
-        DisplayId displayId) const {
-    const auto hwcDisplayId = getHwComposer().fromPhysicalDisplayId(displayId);
-    LOG_FATAL_IF(!hwcDisplayId);
-
-    uint8_t port;
-    DisplayIdentificationData data;
-    if (!getHwComposer().getDisplayIdentificationData(*hwcDisplayId, &port, &data)) {
-        ALOGV("%s: No identification data.", __FUNCTION__);
-        return {};
-    }
-
-    const auto info = parseDisplayIdentificationData(port, data);
-    if (!info) {
-        return {};
-    }
-    return info->deviceProductInfo;
-}
-
 status_t SurfaceFlinger::getDisplayedContentSamplingAttributes(const sp<IBinder>& displayToken,
                                                                ui::PixelFormat* outFormat,
                                                                ui::Dataspace* outDataspace,
@@ -2422,8 +2403,10 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
                 }
 
                 DisplayDeviceState state;
-                state.physical = {displayId, getHwComposer().getDisplayConnectionType(displayId),
-                                  event.hwcDisplayId};
+                state.physical = {.id = displayId,
+                                  .type = getHwComposer().getDisplayConnectionType(displayId),
+                                  .hwcDisplayId = event.hwcDisplayId,
+                                  .deviceProductInfo = info->deviceProductInfo};
                 state.isSecure = true; // All physical displays are currently considered secure.
                 state.displayName = info->name;
 
@@ -2539,7 +2522,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         LOG_ALWAYS_FATAL_IF(!displayId);
         auto activeConfigId = HwcConfigIndexType(getHwComposer().getActiveConfigIndex(*displayId));
         display->setActiveConfig(activeConfigId);
-        display->setDeviceProductInfo(getDeviceProductInfoLocked(*displayId));
+        display->setDeviceProductInfo(state.physical->deviceProductInfo);
     }
 
     display->setLayerStack(state.layerStack);

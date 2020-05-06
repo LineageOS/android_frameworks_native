@@ -609,13 +609,12 @@ struct HwcDisplayVariant {
 
         if (PhysicalDisplay::HAS_IDENTIFICATION_DATA) {
             EXPECT_CALL(*test->mComposer, getDisplayIdentificationData(HWC_DISPLAY_ID, _, _))
-                    .WillRepeatedly(
-                            DoAll(SetArgPointee<1>(PhysicalDisplay::PORT),
-                                  SetArgPointee<2>(PhysicalDisplay::GET_IDENTIFICATION_DATA()),
-                                  Return(Error::NONE)));
+                    .WillOnce(DoAll(SetArgPointee<1>(PhysicalDisplay::PORT),
+                                    SetArgPointee<2>(PhysicalDisplay::GET_IDENTIFICATION_DATA()),
+                                    Return(Error::NONE)));
         } else {
             EXPECT_CALL(*test->mComposer, getDisplayIdentificationData(HWC_DISPLAY_ID, _, _))
-                    .WillRepeatedly(Return(Error::UNSUPPORTED));
+                    .WillOnce(Return(Error::UNSUPPORTED));
         }
     }
 
@@ -1822,7 +1821,7 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
         ASSERT_TRUE(displayId);
         const auto hwcDisplayId = Case::Display::HWC_DISPLAY_ID_OPT::value;
         ASSERT_TRUE(hwcDisplayId);
-        state.physical = {*displayId, *connectionType, *hwcDisplayId};
+        state.physical = {.id = *displayId, .type = *connectionType, .hwcDisplayId = *hwcDisplayId};
     }
 
     state.isSecure = static_cast<bool>(Case::Display::SECURE);
@@ -1998,7 +1997,9 @@ void HandleTransactionLockedTest::verifyDisplayIsConnected(const sp<IBinder>& di
         ASSERT_TRUE(displayId);
         const auto hwcDisplayId = Case::Display::HWC_DISPLAY_ID_OPT::value;
         ASSERT_TRUE(hwcDisplayId);
-        expectedPhysical = {*displayId, *connectionType, *hwcDisplayId};
+        expectedPhysical = {.id = *displayId,
+                            .type = *connectionType,
+                            .hwcDisplayId = *hwcDisplayId};
     }
 
     // The display should have been set up in the current display state
