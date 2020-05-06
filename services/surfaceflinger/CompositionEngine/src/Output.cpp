@@ -588,7 +588,8 @@ void Output::updateAndWriteCompositionState(
     for (auto* layer : getOutputLayersOrderedByZ()) {
         layer->updateCompositionState(refreshArgs.updatingGeometryThisFrame,
                                       refreshArgs.devOptForceClientComposition ||
-                                              forceClientComposition);
+                                              forceClientComposition,
+                                      refreshArgs.internalDisplayRotationFlags);
 
         if (mLayerRequestingBackgroundBlur == layer) {
             forceClientComposition = false;

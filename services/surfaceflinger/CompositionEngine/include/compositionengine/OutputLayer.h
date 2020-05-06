@@ -19,6 +19,7 @@
 #include <optional>
 #include <string>
 
+#include <ui/Transform.h>
 #include <utils/StrongPointer.h>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
@@ -77,7 +78,12 @@ public:
 
     // Recalculates the state of the output layer from the output-independent
     // layer. If includeGeometry is false, the geometry state can be skipped.
-    virtual void updateCompositionState(bool includeGeometry, bool forceClientComposition) = 0;
+    // internalDisplayRotationFlags must be set to the rotation flags for the
+    // internal display, and is used to properly compute the inverse-display
+    // transform, if needed.
+    virtual void updateCompositionState(
+            bool includeGeometry, bool forceClientComposition,
+            ui::Transform::RotationFlags internalDisplayRotationFlags) = 0;
 
     // Writes the geometry state to the HWC, or does nothing if this layer does
     // not use the HWC. If includeGeometry is false, the geometry state can be
