@@ -2797,6 +2797,7 @@ struct OutputComposeSurfacesTest : public testing::Test {
         mOutput.mState.usesClientComposition = true;
         mOutput.mState.usesDeviceComposition = false;
         mOutput.mState.reusedClientComposition = false;
+        mOutput.mState.flipClientTarget = false;
 
         EXPECT_CALL(mOutput, getCompositionEngine()).WillRepeatedly(ReturnRef(mCompositionEngine));
         EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
@@ -2868,19 +2869,40 @@ const HdrCapabilities OutputComposeSurfacesTest::
 TEST_F(OutputComposeSurfacesTest, doesNothingButSignalNoExpensiveRenderingIfNoClientComposition) {
     mOutput.mState.usesClientComposition = false;
 
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
+
     EXPECT_CALL(mOutput, setExpensiveRenderingExpected(false));
 
     verify().execute().expectAFenceWasReturned();
 }
 
-TEST_F(OutputComposeSurfacesTest, doesMinimalWorkIfDequeueBufferFails) {
-    EXPECT_CALL(mOutput, getSkipColorTransform()).WillRepeatedly(Return(false));
-    EXPECT_CALL(*mDisplayColorProfile, hasWideColorGamut()).WillRepeatedly(Return(true));
+TEST_F(OutputComposeSurfacesTest,
+       dequeuesABufferIfNoClientCompositionButFlipClientTargetRequested) {
+    mOutput.mState.usesClientComposition = false;
+    mOutput.mState.flipClientTarget = true;
+
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
-    EXPECT_CALL(mOutput, generateClientCompositionRequests(_, _, kDefaultOutputDataspace))
-            .WillRepeatedly(Return(std::vector<LayerFE::LayerSettings>{}));
-    EXPECT_CALL(mOutput, appendRegionFlashRequests(RegionEq(kDebugRegion), _))
-            .WillRepeatedly(Return());
+
+    EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillOnce(Return(mOutputBuffer));
+    EXPECT_CALL(mOutput, setExpensiveRenderingExpected(false));
+
+    verify().execute().expectAFenceWasReturned();
+}
+
+TEST_F(OutputComposeSurfacesTest, doesMinimalWorkIfDequeueBufferFailsForClientComposition) {
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
+
+    EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillOnce(Return(nullptr));
+
+    verify().execute().expectNoFenceWasReturned();
+}
+
+TEST_F(OutputComposeSurfacesTest,
+       doesMinimalWorkIfDequeueBufferFailsForNoClientCompositionButFlipClientTargetRequested) {
+    mOutput.mState.usesClientComposition = false;
+    mOutput.mState.flipClientTarget = true;
+
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
 
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillOnce(Return(nullptr));
 
