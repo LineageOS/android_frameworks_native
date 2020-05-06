@@ -634,7 +634,7 @@ public:
         mInfo.applicationInfo = *inputApplicationHandle->getInfo();
 
         mInfo.token = token;
-        mInfo.id = 0;
+        mInfo.id = sId++;
         mInfo.name = name;
         mInfo.layoutParamsFlags = 0;
         mInfo.layoutParamsType = InputWindowInfo::TYPE_APPLICATION;
@@ -671,8 +671,6 @@ public:
     }
 
     void setLayoutParamFlags(int32_t flags) { mInfo.layoutParamsFlags = flags; }
-
-    void setId(int32_t id) { mInfo.id = id; }
 
     void setWindowScale(float xScale, float yScale) {
         mInfo.windowXScale = xScale;
@@ -755,7 +753,10 @@ public:
 private:
     const std::string mName;
     std::unique_ptr<FakeInputReceiver> mInputReceiver;
+    static std::atomic<int32_t> sId; // each window gets a unique id, like in surfaceflinger
 };
+
+std::atomic<int32_t> FakeWindowHandle::sId{1};
 
 static int32_t injectKeyDown(const sp<InputDispatcher>& dispatcher,
         int32_t displayId = ADISPLAY_ID_NONE) {
@@ -1910,14 +1911,12 @@ class InputDispatcherMultiWindowSameTokenTests : public InputDispatcherTest {
         // We also need FLAG_SPLIT_TOUCH or we won't be able to get touches for both windows.
         mWindow1->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL |
                                       InputWindowInfo::FLAG_SPLIT_TOUCH);
-        mWindow1->setId(0);
         mWindow1->setFrame(Rect(0, 0, 100, 100));
 
         mWindow2 = new FakeWindowHandle(application, mDispatcher, "Fake Window 2",
                                         ADISPLAY_ID_DEFAULT, mWindow1->getToken());
         mWindow2->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL |
                                       InputWindowInfo::FLAG_SPLIT_TOUCH);
-        mWindow2->setId(1);
         mWindow2->setFrame(Rect(100, 100, 200, 200));
 
         mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow1, mWindow2}}});
