@@ -156,17 +156,16 @@ bool InputWindowInfo::frameContainsPoint(int32_t x, int32_t y) const {
 }
 
 bool InputWindowInfo::isTrustedOverlay() const {
-    return layoutParamsType == TYPE_ACCESSIBILITY_MAGNIFICATION_OVERLAY
-            || layoutParamsType == TYPE_INPUT_METHOD
-            || layoutParamsType == TYPE_INPUT_METHOD_DIALOG
-            || layoutParamsType == TYPE_MAGNIFICATION_OVERLAY
-            || layoutParamsType == TYPE_STATUS_BAR
-            || layoutParamsType == TYPE_NAVIGATION_BAR
-            || layoutParamsType == TYPE_NAVIGATION_BAR_PANEL
-            || layoutParamsType == TYPE_SECURE_SYSTEM_OVERLAY
-            || layoutParamsType == TYPE_DOCK_DIVIDER
-            || layoutParamsType == TYPE_ACCESSIBILITY_OVERLAY
-            || layoutParamsType == TYPE_INPUT_CONSUMER;
+    return layoutParamsType == TYPE_ACCESSIBILITY_MAGNIFICATION_OVERLAY ||
+            layoutParamsType == TYPE_INPUT_METHOD || layoutParamsType == TYPE_INPUT_METHOD_DIALOG ||
+            layoutParamsType == TYPE_MAGNIFICATION_OVERLAY || layoutParamsType == TYPE_STATUS_BAR ||
+            layoutParamsType == TYPE_NOTIFICATION_SHADE ||
+            layoutParamsType == TYPE_NAVIGATION_BAR ||
+            layoutParamsType == TYPE_NAVIGATION_BAR_PANEL ||
+            layoutParamsType == TYPE_SECURE_SYSTEM_OVERLAY ||
+            layoutParamsType == TYPE_DOCK_DIVIDER ||
+            layoutParamsType == TYPE_ACCESSIBILITY_OVERLAY ||
+            layoutParamsType == TYPE_INPUT_CONSUMER;
 }
 
 bool InputWindowInfo::supportsSplitTouch() const {
