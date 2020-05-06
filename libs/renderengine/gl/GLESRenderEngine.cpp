@@ -208,9 +208,20 @@ std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(const RenderEngineCre
         LOG_ALWAYS_FATAL("failed to initialize EGL");
     }
 
+    const auto eglVersion = eglQueryStringImplementationANDROID(display, EGL_VERSION);
+    if (!eglVersion) {
+        checkGlError(__FUNCTION__, __LINE__);
+        LOG_ALWAYS_FATAL("eglQueryStringImplementationANDROID(EGL_VERSION) failed");
+    }
+
+    const auto eglExtensions = eglQueryStringImplementationANDROID(display, EGL_EXTENSIONS);
+    if (!eglExtensions) {
+        checkGlError(__FUNCTION__, __LINE__);
+        LOG_ALWAYS_FATAL("eglQueryStringImplementationANDROID(EGL_EXTENSIONS) failed");
+    }
+
     GLExtensions& extensions = GLExtensions::getInstance();
-    extensions.initWithEGLStrings(eglQueryStringImplementationANDROID(display, EGL_VERSION),
-                                  eglQueryStringImplementationANDROID(display, EGL_EXTENSIONS));
+    extensions.initWithEGLStrings(eglVersion, eglExtensions);
 
     // The code assumes that ES2 or later is available if this extension is
     // supported.
