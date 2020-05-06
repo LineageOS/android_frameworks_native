@@ -223,7 +223,8 @@ Rect OutputLayer::calculateOutputDisplayFrame() const {
     return displayTransform.transform(frame);
 }
 
-uint32_t OutputLayer::calculateOutputRelativeBufferTransform() const {
+uint32_t OutputLayer::calculateOutputRelativeBufferTransform(
+        uint32_t internalDisplayRotationFlags) const {
     const auto& layerState = *getLayerFE().getCompositionState();
     const auto& outputState = getOutput().getState();
 
@@ -241,10 +242,11 @@ uint32_t OutputLayer::calculateOutputRelativeBufferTransform() const {
 
     if (layerState.geomBufferUsesDisplayInverseTransform) {
         /*
-         * the code below applies the primary display's inverse transform to the
-         * buffer
+         * We must apply the internal display's inverse transform to the buffer
+         * transform, and not the one for the output this layer is on.
          */
-        uint32_t invTransform = outputState.orientation;
+        uint32_t invTransform = internalDisplayRotationFlags;
+
         // calculate the inverse transform
         if (invTransform & HAL_TRANSFORM_ROT_90) {
             invTransform ^= HAL_TRANSFORM_FLIP_V | HAL_TRANSFORM_FLIP_H;
@@ -261,9 +263,11 @@ uint32_t OutputLayer::calculateOutputRelativeBufferTransform() const {
 
     // this gives us only the "orientation" component of the transform
     return transform.getOrientation();
-} // namespace impl
+}
 
-void OutputLayer::updateCompositionState(bool includeGeometry, bool forceClientComposition) {
+void OutputLayer::updateCompositionState(
+        bool includeGeometry, bool forceClientComposition,
+        ui::Transform::RotationFlags internalDisplayRotationFlags) {
     const auto* layerFEState = getLayerFE().getCompositionState();
     if (!layerFEState) {
         return;
@@ -283,8 +287,8 @@ void OutputLayer::updateCompositionState(bool includeGeometry, bool forceClientC
 
         state.displayFrame = calculateOutputDisplayFrame();
         state.sourceCrop = calculateOutputSourceCrop();
-        state.bufferTransform =
-                static_cast<Hwc2::Transform>(calculateOutputRelativeBufferTransform());
+        state.bufferTransform = static_cast<Hwc2::Transform>(
+                calculateOutputRelativeBufferTransform(internalDisplayRotationFlags));
 
         if ((layerFEState->isSecure && !outputState.isSecure) ||
             (state.bufferTransform & ui::Transform::ROT_INVALID)) {
