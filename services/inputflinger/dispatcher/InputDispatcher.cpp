@@ -543,7 +543,7 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
         }
 
         // Get ready to dispatch the event.
-        resetANRTimeoutsLocked();
+        resetAnrTimeoutsLocked();
     }
 
     // Now we have an event to dispatch.
@@ -893,7 +893,7 @@ void InputDispatcher::drainInboundQueueLocked() {
 
 void InputDispatcher::releasePendingEventLocked() {
     if (mPendingEvent) {
-        resetANRTimeoutsLocked();
+        resetAnrTimeoutsLocked();
         releaseInboundEventLocked(mPendingEvent);
         mPendingEvent = nullptr;
     }
@@ -1303,7 +1303,7 @@ int32_t InputDispatcher::handleTargetsNotReadyLocked(
     }
 
     if (currentTime >= mInputTargetWaitTimeoutTime) {
-        onANRLocked(currentTime, applicationHandle, windowHandle, entry.eventTime,
+        onAnrLocked(currentTime, applicationHandle, windowHandle, entry.eventTime,
                     mInputTargetWaitStartTime, reason);
 
         // Force poll loop to wake up immediately on next iteration once we get the
@@ -1356,7 +1356,7 @@ nsecs_t InputDispatcher::getTimeSpentWaitingForApplicationLocked(nsecs_t current
     return 0;
 }
 
-void InputDispatcher::resetANRTimeoutsLocked() {
+void InputDispatcher::resetAnrTimeoutsLocked() {
     if (DEBUG_FOCUS) {
         ALOGD("Resetting ANR timeouts.");
     }
@@ -3793,12 +3793,12 @@ void InputDispatcher::setFocusedApplication(
         if (inputApplicationHandle != nullptr && inputApplicationHandle->updateInfo()) {
             if (oldFocusedApplicationHandle != inputApplicationHandle) {
                 if (oldFocusedApplicationHandle != nullptr) {
-                    resetANRTimeoutsLocked();
+                    resetAnrTimeoutsLocked();
                 }
                 mFocusedApplicationHandlesByDisplay[displayId] = inputApplicationHandle;
             }
         } else if (oldFocusedApplicationHandle != nullptr) {
-            resetANRTimeoutsLocked();
+            resetAnrTimeoutsLocked();
             oldFocusedApplicationHandle.clear();
             mFocusedApplicationHandlesByDisplay.erase(displayId);
         }
@@ -3879,7 +3879,7 @@ void InputDispatcher::setInputDispatchMode(bool enabled, bool frozen) {
 
         if (mDispatchEnabled != enabled || mDispatchFrozen != frozen) {
             if (mDispatchFrozen && !frozen) {
-                resetANRTimeoutsLocked();
+                resetAnrTimeoutsLocked();
             }
 
             if (mDispatchEnabled && !enabled) {
@@ -4019,7 +4019,7 @@ void InputDispatcher::resetAndDropEverythingLocked(const char* reason) {
     resetKeyRepeatLocked();
     releasePendingEventLocked();
     drainInboundQueueLocked();
-    resetANRTimeoutsLocked();
+    resetAnrTimeoutsLocked();
 
     mTouchStatesByDisplay.clear();
     mLastHoverWindowHandle.clear();
@@ -4523,7 +4523,7 @@ void InputDispatcher::onFocusChangedLocked(const sp<InputWindowHandle>& oldFocus
     postCommandLocked(std::move(commandEntry));
 }
 
-void InputDispatcher::onANRLocked(nsecs_t currentTime,
+void InputDispatcher::onAnrLocked(nsecs_t currentTime,
                                   const sp<InputApplicationHandle>& applicationHandle,
                                   const sp<InputWindowHandle>& windowHandle, nsecs_t eventTime,
                                   nsecs_t waitStartTime, const char* reason) {
@@ -4540,19 +4540,19 @@ void InputDispatcher::onANRLocked(nsecs_t currentTime,
     localtime_r(&t, &tm);
     char timestr[64];
     strftime(timestr, sizeof(timestr), "%F %T", &tm);
-    mLastANRState.clear();
-    mLastANRState += INDENT "ANR:\n";
-    mLastANRState += StringPrintf(INDENT2 "Time: %s\n", timestr);
-    mLastANRState +=
+    mLastAnrState.clear();
+    mLastAnrState += INDENT "ANR:\n";
+    mLastAnrState += StringPrintf(INDENT2 "Time: %s\n", timestr);
+    mLastAnrState +=
             StringPrintf(INDENT2 "Window: %s\n",
                          getApplicationWindowLabel(applicationHandle, windowHandle).c_str());
-    mLastANRState += StringPrintf(INDENT2 "DispatchLatency: %0.1fms\n", dispatchLatency);
-    mLastANRState += StringPrintf(INDENT2 "WaitDuration: %0.1fms\n", waitDuration);
-    mLastANRState += StringPrintf(INDENT2 "Reason: %s\n", reason);
-    dumpDispatchStateLocked(mLastANRState);
+    mLastAnrState += StringPrintf(INDENT2 "DispatchLatency: %0.1fms\n", dispatchLatency);
+    mLastAnrState += StringPrintf(INDENT2 "WaitDuration: %0.1fms\n", waitDuration);
+    mLastAnrState += StringPrintf(INDENT2 "Reason: %s\n", reason);
+    dumpDispatchStateLocked(mLastAnrState);
 
     std::unique_ptr<CommandEntry> commandEntry =
-            std::make_unique<CommandEntry>(&InputDispatcher::doNotifyANRLockedInterruptible);
+            std::make_unique<CommandEntry>(&InputDispatcher::doNotifyAnrLockedInterruptible);
     commandEntry->inputApplicationHandle = applicationHandle;
     commandEntry->inputChannel =
             windowHandle != nullptr ? getInputChannelLocked(windowHandle->getToken()) : nullptr;
@@ -4588,13 +4588,13 @@ void InputDispatcher::doNotifyFocusChangedLockedInterruptible(CommandEntry* comm
     mLock.lock();
 }
 
-void InputDispatcher::doNotifyANRLockedInterruptible(CommandEntry* commandEntry) {
+void InputDispatcher::doNotifyAnrLockedInterruptible(CommandEntry* commandEntry) {
     sp<IBinder> token =
             commandEntry->inputChannel ? commandEntry->inputChannel->getConnectionToken() : nullptr;
     mLock.unlock();
 
     nsecs_t newTimeout =
-            mPolicy->notifyANR(commandEntry->inputApplicationHandle, token, commandEntry->reason);
+            mPolicy->notifyAnr(commandEntry->inputApplicationHandle, token, commandEntry->reason);
 
     mLock.lock();
 
@@ -4955,9 +4955,9 @@ void InputDispatcher::dump(std::string& dump) {
     dump += "Input Dispatcher State:\n";
     dumpDispatchStateLocked(dump);
 
-    if (!mLastANRState.empty()) {
+    if (!mLastAnrState.empty()) {
         dump += "\nInput Dispatcher State at time of last ANR:\n";
-        dump += mLastANRState;
+        dump += mLastAnrState;
     }
 }
 
