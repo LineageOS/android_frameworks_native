@@ -47,7 +47,7 @@ protected:
 private:
     virtual void notifyConfigurationChanged(nsecs_t) override {}
 
-    virtual nsecs_t notifyANR(const sp<InputApplicationHandle>&, const sp<IBinder>&,
+    virtual nsecs_t notifyAnr(const sp<InputApplicationHandle>&, const sp<IBinder>&,
                               const std::string& name) override {
         ALOGE("The window is not responding : %s", name.c_str());
         return 0;
