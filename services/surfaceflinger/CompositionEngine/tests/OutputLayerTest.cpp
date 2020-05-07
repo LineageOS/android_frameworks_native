@@ -361,7 +361,7 @@ TEST_F(OutputLayerTest, calculateOutputRelativeBufferTransformTestsNeeded) {
         mOutputState.orientation = entry.display;
         mOutputState.transform = ui::Transform{entry.display};
 
-        auto actual = mOutputLayer.calculateOutputRelativeBufferTransform();
+        const auto actual = mOutputLayer.calculateOutputRelativeBufferTransform(entry.display);
         EXPECT_EQ(entry.expected, actual) << "entry " << i;
     }
 }
@@ -371,56 +371,109 @@ TEST_F(OutputLayerTest,
     mLayerFEState.geomBufferUsesDisplayInverseTransform = true;
 
     struct Entry {
-        uint32_t layer;
+        uint32_t layer; /* shouldn't affect the result, so we just use arbitrary values */
         uint32_t buffer;
         uint32_t display;
+        uint32_t internal;
         uint32_t expected;
     };
-    // Not an exhaustive list of cases, but hopefully enough.
-    const std::array<Entry, 24> testData = {
+    const std::array<Entry, 64> testData = {
             // clang-format off
-            //             layer       buffer      display     expected
-            /*  0 */ Entry{TR_IDENT,   TR_IDENT,   TR_IDENT,   TR_IDENT},
-            /*  1 */ Entry{TR_IDENT,   TR_IDENT,   TR_ROT_90,  TR_IDENT},
-            /*  2 */ Entry{TR_IDENT,   TR_IDENT,   TR_ROT_180, TR_IDENT},
-            /*  3 */ Entry{TR_IDENT,   TR_IDENT,   TR_ROT_270, TR_IDENT},
+            //    layer       buffer      display     internal    expected
+            Entry{TR_IDENT,   TR_IDENT,   TR_IDENT,   TR_IDENT,   TR_IDENT},
+            Entry{TR_IDENT,   TR_IDENT,   TR_IDENT,   TR_ROT_90,  TR_ROT_270},
+            Entry{TR_IDENT,   TR_IDENT,   TR_IDENT,   TR_ROT_180, TR_ROT_180},
+            Entry{TR_IDENT,   TR_IDENT,   TR_IDENT,   TR_ROT_270, TR_ROT_90},
 
-            /*  4 */ Entry{TR_IDENT,   TR_FLP_H,   TR_IDENT,   TR_FLP_H},
-            /*  5 */ Entry{TR_IDENT,   TR_FLP_H,   TR_ROT_90,  TR_FLP_H},
-            /*  6 */ Entry{TR_IDENT,   TR_FLP_H,   TR_ROT_180, TR_FLP_H},
-            /*  7 */ Entry{TR_IDENT,   TR_FLP_H,   TR_ROT_270, TR_FLP_H},
+            Entry{TR_IDENT,   TR_IDENT,   TR_ROT_90,  TR_IDENT,   TR_ROT_90},
+            Entry{TR_ROT_90,  TR_IDENT,   TR_ROT_90,  TR_ROT_90,  TR_IDENT},
+            Entry{TR_ROT_180, TR_IDENT,   TR_ROT_90,  TR_ROT_180, TR_ROT_270},
+            Entry{TR_ROT_90,  TR_IDENT,   TR_ROT_90,  TR_ROT_270, TR_ROT_180},
 
-            /*  8 */ Entry{TR_IDENT,   TR_FLP_V,   TR_IDENT,   TR_FLP_V},
-            /*  9 */ Entry{TR_IDENT,   TR_ROT_90,  TR_ROT_90,  TR_ROT_90},
-            /* 10 */ Entry{TR_IDENT,   TR_ROT_180, TR_ROT_180, TR_ROT_180},
-            /* 11 */ Entry{TR_IDENT,   TR_ROT_270, TR_ROT_270, TR_ROT_270},
+            Entry{TR_ROT_180, TR_IDENT,   TR_ROT_180, TR_IDENT,   TR_ROT_180},
+            Entry{TR_ROT_90,  TR_IDENT,   TR_ROT_180, TR_ROT_90,  TR_ROT_90},
+            Entry{TR_ROT_180, TR_IDENT,   TR_ROT_180, TR_ROT_180, TR_IDENT},
+            Entry{TR_ROT_270, TR_IDENT,   TR_ROT_180, TR_ROT_270, TR_ROT_270},
 
-            /* 12 */ Entry{TR_ROT_90,  TR_IDENT,   TR_IDENT,   TR_IDENT},
-            /* 13 */ Entry{TR_ROT_90,  TR_FLP_H,   TR_ROT_90,  TR_FLP_H},
-            /* 14 */ Entry{TR_ROT_90,  TR_IDENT,   TR_ROT_180, TR_IDENT},
-            /* 15 */ Entry{TR_ROT_90,  TR_FLP_H,   TR_ROT_270, TR_FLP_H},
+            Entry{TR_ROT_270, TR_IDENT,   TR_ROT_270, TR_IDENT,   TR_ROT_270},
+            Entry{TR_ROT_270, TR_IDENT,   TR_ROT_270, TR_ROT_90,  TR_ROT_180},
+            Entry{TR_ROT_180, TR_IDENT,   TR_ROT_270, TR_ROT_180, TR_ROT_90},
+            Entry{TR_IDENT,   TR_IDENT,   TR_ROT_270, TR_ROT_270, TR_IDENT},
 
-            /* 16 */ Entry{TR_ROT_180, TR_FLP_H,   TR_IDENT,   TR_FLP_H},
-            /* 17 */ Entry{TR_ROT_180, TR_IDENT,   TR_ROT_90,  TR_IDENT},
-            /* 18 */ Entry{TR_ROT_180, TR_FLP_H,   TR_ROT_180, TR_FLP_H},
-            /* 19 */ Entry{TR_ROT_180, TR_IDENT,   TR_ROT_270, TR_IDENT},
+            //    layer       buffer      display     internal    expected
+            Entry{TR_IDENT,   TR_ROT_90,  TR_IDENT,   TR_IDENT,   TR_ROT_90},
+            Entry{TR_ROT_90,  TR_ROT_90,  TR_IDENT,   TR_ROT_90,  TR_IDENT},
+            Entry{TR_ROT_180, TR_ROT_90,  TR_IDENT,   TR_ROT_180, TR_ROT_270},
+            Entry{TR_ROT_270, TR_ROT_90,  TR_IDENT,   TR_ROT_270, TR_ROT_180},
 
-            /* 20 */ Entry{TR_ROT_270, TR_IDENT,   TR_IDENT,   TR_IDENT},
-            /* 21 */ Entry{TR_ROT_270, TR_FLP_H,   TR_ROT_90,  TR_FLP_H},
-            /* 22 */ Entry{TR_ROT_270, TR_FLP_H,   TR_ROT_180, TR_FLP_H},
-            /* 23 */ Entry{TR_ROT_270, TR_IDENT,   TR_ROT_270, TR_IDENT},
+            Entry{TR_ROT_90,  TR_ROT_90,  TR_ROT_90,  TR_IDENT,   TR_ROT_180},
+            Entry{TR_ROT_90,  TR_ROT_90,  TR_ROT_90,  TR_ROT_90,  TR_ROT_90},
+            Entry{TR_ROT_90,  TR_ROT_90,  TR_ROT_90,  TR_ROT_180, TR_IDENT},
+            Entry{TR_ROT_270, TR_ROT_90,  TR_ROT_90,  TR_ROT_270, TR_ROT_270},
+
+            Entry{TR_IDENT,   TR_ROT_90,  TR_ROT_180, TR_IDENT,   TR_ROT_270},
+            Entry{TR_ROT_90,  TR_ROT_90,  TR_ROT_180, TR_ROT_90,  TR_ROT_180},
+            Entry{TR_ROT_180, TR_ROT_90,  TR_ROT_180, TR_ROT_180, TR_ROT_90},
+            Entry{TR_ROT_90,  TR_ROT_90,  TR_ROT_180, TR_ROT_270, TR_IDENT},
+
+            Entry{TR_IDENT,   TR_ROT_90,  TR_ROT_270, TR_IDENT,   TR_IDENT},
+            Entry{TR_ROT_270, TR_ROT_90,  TR_ROT_270, TR_ROT_90,  TR_ROT_270},
+            Entry{TR_ROT_180, TR_ROT_90,  TR_ROT_270, TR_ROT_180, TR_ROT_180},
+            Entry{TR_ROT_270, TR_ROT_90,  TR_ROT_270, TR_ROT_270, TR_ROT_90},
+
+            //    layer       buffer      display     internal    expected
+            Entry{TR_IDENT,   TR_ROT_180, TR_IDENT,   TR_IDENT,   TR_ROT_180},
+            Entry{TR_IDENT,   TR_ROT_180, TR_IDENT,   TR_ROT_90,  TR_ROT_90},
+            Entry{TR_ROT_180, TR_ROT_180, TR_IDENT,   TR_ROT_180, TR_IDENT},
+            Entry{TR_ROT_270, TR_ROT_180, TR_IDENT,   TR_ROT_270, TR_ROT_270},
+
+            Entry{TR_IDENT,   TR_ROT_180, TR_ROT_90,  TR_IDENT,   TR_ROT_270},
+            Entry{TR_ROT_90,  TR_ROT_180, TR_ROT_90,  TR_ROT_90,  TR_ROT_180},
+            Entry{TR_ROT_180, TR_ROT_180, TR_ROT_90,  TR_ROT_180, TR_ROT_90},
+            Entry{TR_ROT_180, TR_ROT_180, TR_ROT_90,  TR_ROT_270, TR_IDENT},
+
+            Entry{TR_IDENT,   TR_ROT_180, TR_ROT_180, TR_IDENT,   TR_IDENT},
+            Entry{TR_ROT_180, TR_ROT_180, TR_ROT_180, TR_ROT_90,  TR_ROT_270},
+            Entry{TR_ROT_180, TR_ROT_180, TR_ROT_180, TR_ROT_180, TR_ROT_180},
+            Entry{TR_ROT_270, TR_ROT_180, TR_ROT_180, TR_ROT_270, TR_ROT_90},
+
+            Entry{TR_ROT_270, TR_ROT_180, TR_ROT_270, TR_IDENT,   TR_ROT_90},
+            Entry{TR_ROT_180, TR_ROT_180, TR_ROT_270, TR_ROT_90,  TR_IDENT},
+            Entry{TR_ROT_180, TR_ROT_180, TR_ROT_270, TR_ROT_180, TR_ROT_270},
+            Entry{TR_ROT_270, TR_ROT_180, TR_ROT_270, TR_ROT_270, TR_ROT_180},
+
+            //    layer       buffer      display     internal    expected
+            Entry{TR_IDENT,   TR_ROT_270, TR_IDENT,   TR_IDENT,   TR_ROT_270},
+            Entry{TR_ROT_90,  TR_ROT_270, TR_IDENT,   TR_ROT_90,  TR_ROT_180},
+            Entry{TR_ROT_270, TR_ROT_270, TR_IDENT,   TR_ROT_180, TR_ROT_90},
+            Entry{TR_IDENT,   TR_ROT_270, TR_IDENT,   TR_ROT_270, TR_IDENT},
+
+            Entry{TR_ROT_270, TR_ROT_270, TR_ROT_90,  TR_IDENT,   TR_IDENT},
+            Entry{TR_ROT_90,  TR_ROT_270, TR_ROT_90,  TR_ROT_90,  TR_ROT_270},
+            Entry{TR_ROT_180, TR_ROT_270, TR_ROT_90,  TR_ROT_180, TR_ROT_180},
+            Entry{TR_ROT_90,  TR_ROT_270, TR_ROT_90,  TR_ROT_270, TR_ROT_90},
+
+            Entry{TR_IDENT,   TR_ROT_270, TR_ROT_180, TR_IDENT,   TR_ROT_90},
+            Entry{TR_ROT_270, TR_ROT_270, TR_ROT_180, TR_ROT_90,  TR_IDENT},
+            Entry{TR_ROT_180, TR_ROT_270, TR_ROT_180, TR_ROT_180, TR_ROT_270},
+            Entry{TR_ROT_270, TR_ROT_270, TR_ROT_180, TR_ROT_270, TR_ROT_180},
+
+            Entry{TR_IDENT,   TR_ROT_270, TR_ROT_270, TR_IDENT,   TR_ROT_180},
+            Entry{TR_ROT_90,  TR_ROT_270, TR_ROT_270, TR_ROT_90,  TR_ROT_90},
+            Entry{TR_ROT_270, TR_ROT_270, TR_ROT_270, TR_ROT_180, TR_IDENT},
+            Entry{TR_ROT_270, TR_ROT_270, TR_ROT_270, TR_ROT_270, TR_ROT_270},
             // clang-format on
     };
 
     for (size_t i = 0; i < testData.size(); i++) {
         const auto& entry = testData[i];
 
-        mLayerFEState.geomLayerTransform = ui::Transform{entry.layer};
+        mLayerFEState.geomLayerTransform.set(entry.layer, 1920, 1080);
         mLayerFEState.geomBufferTransform = entry.buffer;
         mOutputState.orientation = entry.display;
         mOutputState.transform = ui::Transform{entry.display};
 
-        auto actual = mOutputLayer.calculateOutputRelativeBufferTransform();
+        const auto actual = mOutputLayer.calculateOutputRelativeBufferTransform(entry.internal);
         EXPECT_EQ(entry.expected, actual) << "entry " << i;
     }
 }
@@ -436,7 +489,7 @@ struct OutputLayerPartialMockForUpdateCompositionState : public impl::OutputLaye
     // Mock everything called by updateCompositionState to simplify testing it.
     MOCK_CONST_METHOD0(calculateOutputSourceCrop, FloatRect());
     MOCK_CONST_METHOD0(calculateOutputDisplayFrame, Rect());
-    MOCK_CONST_METHOD0(calculateOutputRelativeBufferTransform, uint32_t());
+    MOCK_CONST_METHOD1(calculateOutputRelativeBufferTransform, uint32_t(uint32_t));
 
     // compositionengine::OutputLayer overrides
     const compositionengine::Output& getOutput() const override { return mOutput; }
@@ -463,10 +516,11 @@ public:
 
     ~OutputLayerUpdateCompositionStateTest() = default;
 
-    void setupGeometryChildCallValues() {
+    void setupGeometryChildCallValues(ui::Transform::RotationFlags internalDisplayRotationFlags) {
         EXPECT_CALL(mOutputLayer, calculateOutputSourceCrop()).WillOnce(Return(kSourceCrop));
         EXPECT_CALL(mOutputLayer, calculateOutputDisplayFrame()).WillOnce(Return(kDisplayFrame));
-        EXPECT_CALL(mOutputLayer, calculateOutputRelativeBufferTransform())
+        EXPECT_CALL(mOutputLayer,
+                    calculateOutputRelativeBufferTransform(internalDisplayRotationFlags))
                 .WillOnce(Return(mBufferTransform));
     }
 
@@ -489,7 +543,7 @@ public:
 TEST_F(OutputLayerUpdateCompositionStateTest, doesNothingIfNoFECompositionState) {
     EXPECT_CALL(*mLayerFE, getCompositionState()).WillOnce(Return(nullptr));
 
-    mOutputLayer.updateCompositionState(true, false);
+    mOutputLayer.updateCompositionState(true, false, ui::Transform::RotationFlags::ROT_90);
 }
 
 TEST_F(OutputLayerUpdateCompositionStateTest, setsStateNormally) {
@@ -497,9 +551,9 @@ TEST_F(OutputLayerUpdateCompositionStateTest, setsStateNormally) {
     mOutputState.isSecure = true;
     mOutputLayer.editState().forceClientComposition = true;
 
-    setupGeometryChildCallValues();
+    setupGeometryChildCallValues(ui::Transform::RotationFlags::ROT_90);
 
-    mOutputLayer.updateCompositionState(true, false);
+    mOutputLayer.updateCompositionState(true, false, ui::Transform::RotationFlags::ROT_90);
 
     validateComputedGeometryState();
 
@@ -511,9 +565,9 @@ TEST_F(OutputLayerUpdateCompositionStateTest,
     mLayerFEState.isSecure = true;
     mOutputState.isSecure = false;
 
-    setupGeometryChildCallValues();
+    setupGeometryChildCallValues(ui::Transform::RotationFlags::ROT_0);
 
-    mOutputLayer.updateCompositionState(true, false);
+    mOutputLayer.updateCompositionState(true, false, ui::Transform::RotationFlags::ROT_0);
 
     validateComputedGeometryState();
 
@@ -527,9 +581,9 @@ TEST_F(OutputLayerUpdateCompositionStateTest,
 
     mBufferTransform = ui::Transform::ROT_INVALID;
 
-    setupGeometryChildCallValues();
+    setupGeometryChildCallValues(ui::Transform::RotationFlags::ROT_0);
 
-    mOutputLayer.updateCompositionState(true, false);
+    mOutputLayer.updateCompositionState(true, false, ui::Transform::RotationFlags::ROT_0);
 
     validateComputedGeometryState();
 
@@ -544,7 +598,7 @@ TEST_F(OutputLayerUpdateCompositionStateTest, setsOutputLayerColorspaceCorrectly
     // should use the layers requested colorspace.
     mLayerFEState.isColorspaceAgnostic = false;
 
-    mOutputLayer.updateCompositionState(false, false);
+    mOutputLayer.updateCompositionState(false, false, ui::Transform::RotationFlags::ROT_0);
 
     EXPECT_EQ(ui::Dataspace::DISPLAY_P3, mOutputLayer.getState().dataspace);
 
@@ -552,7 +606,7 @@ TEST_F(OutputLayerUpdateCompositionStateTest, setsOutputLayerColorspaceCorrectly
     // should use the colorspace chosen for the whole output.
     mLayerFEState.isColorspaceAgnostic = true;
 
-    mOutputLayer.updateCompositionState(false, false);
+    mOutputLayer.updateCompositionState(false, false, ui::Transform::RotationFlags::ROT_0);
 
     EXPECT_EQ(ui::Dataspace::V0_SCRGB, mOutputLayer.getState().dataspace);
 }
@@ -560,7 +614,7 @@ TEST_F(OutputLayerUpdateCompositionStateTest, setsOutputLayerColorspaceCorrectly
 TEST_F(OutputLayerUpdateCompositionStateTest, doesNotRecomputeGeometryIfNotRequested) {
     mOutputLayer.editState().forceClientComposition = false;
 
-    mOutputLayer.updateCompositionState(false, false);
+    mOutputLayer.updateCompositionState(false, false, ui::Transform::RotationFlags::ROT_0);
 
     EXPECT_EQ(false, mOutputLayer.getState().forceClientComposition);
 }
@@ -569,7 +623,7 @@ TEST_F(OutputLayerUpdateCompositionStateTest,
        doesNotClearForceClientCompositionIfNotDoingGeometry) {
     mOutputLayer.editState().forceClientComposition = true;
 
-    mOutputLayer.updateCompositionState(false, false);
+    mOutputLayer.updateCompositionState(false, false, ui::Transform::RotationFlags::ROT_0);
 
     EXPECT_EQ(true, mOutputLayer.getState().forceClientComposition);
 }
@@ -578,7 +632,7 @@ TEST_F(OutputLayerUpdateCompositionStateTest, clientCompositionForcedFromFrontEn
     mLayerFEState.forceClientComposition = true;
     mOutputLayer.editState().forceClientComposition = false;
 
-    mOutputLayer.updateCompositionState(false, false);
+    mOutputLayer.updateCompositionState(false, false, ui::Transform::RotationFlags::ROT_0);
 
     EXPECT_EQ(true, mOutputLayer.getState().forceClientComposition);
 }
@@ -588,7 +642,7 @@ TEST_F(OutputLayerUpdateCompositionStateTest,
     mOutputLayer.editState().forceClientComposition = false;
     EXPECT_CALL(mDisplayColorProfile, isDataspaceSupported(_)).WillRepeatedly(Return(false));
 
-    mOutputLayer.updateCompositionState(false, false);
+    mOutputLayer.updateCompositionState(false, false, ui::Transform::RotationFlags::ROT_0);
 
     EXPECT_EQ(true, mOutputLayer.getState().forceClientComposition);
 }
@@ -597,15 +651,15 @@ TEST_F(OutputLayerUpdateCompositionStateTest, clientCompositionForcedFromArgumen
     mLayerFEState.forceClientComposition = false;
     mOutputLayer.editState().forceClientComposition = false;
 
-    mOutputLayer.updateCompositionState(false, true);
+    mOutputLayer.updateCompositionState(false, true, ui::Transform::RotationFlags::ROT_0);
 
     EXPECT_EQ(true, mOutputLayer.getState().forceClientComposition);
 
     mOutputLayer.editState().forceClientComposition = false;
 
-    setupGeometryChildCallValues();
+    setupGeometryChildCallValues(ui::Transform::RotationFlags::ROT_0);
 
-    mOutputLayer.updateCompositionState(true, true);
+    mOutputLayer.updateCompositionState(true, true, ui::Transform::RotationFlags::ROT_0);
 
     EXPECT_EQ(true, mOutputLayer.getState().forceClientComposition);
 }
@@ -810,7 +864,7 @@ TEST_F(OutputLayerTest, displayInstallOrientationBufferTransformSetTo90) {
     // geomBufferTransform is set to the inverse transform.
     mLayerFEState.geomBufferTransform = TR_ROT_270;
 
-    EXPECT_EQ(TR_IDENT, mOutputLayer.calculateOutputRelativeBufferTransform());
+    EXPECT_EQ(TR_IDENT, mOutputLayer.calculateOutputRelativeBufferTransform(ui::Transform::ROT_90));
 }
 
 TEST_F(OutputLayerWriteStateToHWCTest, canSetPerFrameStateForSolidColor) {
