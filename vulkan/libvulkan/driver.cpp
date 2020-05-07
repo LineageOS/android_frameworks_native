@@ -252,18 +252,6 @@ bool Hal::Open() {
     result = LoadUpdatedDriver(&module);
     if (result == -ENOENT) {
         result = LoadBuiltinDriver(&module);
-        if (result != 0) {
-            // -ENOENT means the sphal namespace doesn't exist, not that there
-            // is a problem with the driver.
-            ALOGW_IF(
-                result != -ENOENT,
-                "Failed to load Vulkan driver into sphal namespace. This "
-                "usually means the driver has forbidden library dependencies."
-                "Please fix, this will soon stop working.");
-            result =
-                hw_get_module(HWVULKAN_HARDWARE_MODULE_ID,
-                              reinterpret_cast<const hw_module_t**>(&module));
-        }
     }
     if (result != 0) {
         android::GraphicsEnv::getInstance().setDriverLoaded(
