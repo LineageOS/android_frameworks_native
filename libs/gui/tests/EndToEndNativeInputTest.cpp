@@ -178,7 +178,7 @@ private:
         mInputInfo.name = "Test info";
         mInputInfo.layoutParamsFlags = InputWindowInfo::FLAG_NOT_TOUCH_MODAL;
         mInputInfo.layoutParamsType = InputWindowInfo::TYPE_BASE_APPLICATION;
-        mInputInfo.dispatchingTimeout = 100000;
+        mInputInfo.dispatchingTimeout = seconds_to_nanoseconds(5);
         mInputInfo.globalScaleFactor = 1.0;
         mInputInfo.canReceiveKeys = true;
         mInputInfo.hasFocus = true;
@@ -196,7 +196,7 @@ private:
         InputApplicationInfo aInfo;
         aInfo.token = new BBinder();
         aInfo.name = "Test app info";
-        aInfo.dispatchingTimeout = 100000;
+        aInfo.dispatchingTimeout = seconds_to_nanoseconds(5);
 
         mInputInfo.applicationInfo = aInfo;
     }

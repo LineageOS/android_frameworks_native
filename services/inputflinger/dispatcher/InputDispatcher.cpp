@@ -3273,14 +3273,14 @@ void InputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
 
 int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injectorPid,
                                           int32_t injectorUid, int32_t syncMode,
-                                          int32_t timeoutMillis, uint32_t policyFlags) {
+                                          std::chrono::milliseconds timeout, uint32_t policyFlags) {
 #if DEBUG_INBOUND_EVENT_DETAILS
     ALOGD("injectInputEvent - eventType=%d, injectorPid=%d, injectorUid=%d, "
-          "syncMode=%d, timeoutMillis=%d, policyFlags=0x%08x",
-          event->getType(), injectorPid, injectorUid, syncMode, timeoutMillis, policyFlags);
+          "syncMode=%d, timeout=%lld, policyFlags=0x%08x",
+          event->getType(), injectorPid, injectorUid, syncMode, timeout.count(), policyFlags);
 #endif
 
-    nsecs_t endTime = now() + milliseconds_to_nanoseconds(timeoutMillis);
+    nsecs_t endTime = now() + std::chrono::duration_cast<std::chrono::nanoseconds>(timeout).count();
 
     policyFlags |= POLICY_FLAG_INJECTED;
     if (hasInjectionPermission(injectorPid, injectorUid)) {
@@ -3467,8 +3467,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
     } // release lock
 
 #if DEBUG_INJECTION
-    ALOGD("injectInputEvent - Finished with result %d.  "
-          "injectorPid=%d, injectorUid=%d",
+    ALOGD("injectInputEvent - Finished with result %d. injectorPid=%d, injectorUid=%d",
           injectionResult, injectorPid, injectorUid);
 #endif
 
