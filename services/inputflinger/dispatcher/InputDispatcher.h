@@ -103,7 +103,8 @@ public:
     virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) override;
 
     virtual int32_t injectInputEvent(const InputEvent* event, int32_t injectorPid,
-                                     int32_t injectorUid, int32_t syncMode, int32_t timeoutMillis,
+                                     int32_t injectorUid, int32_t syncMode,
+                                     std::chrono::milliseconds timeout,
                                      uint32_t policyFlags) override;
 
     virtual std::unique_ptr<VerifiedInputEvent> verifyInputEvent(const InputEvent& event) override;
