@@ -386,6 +386,9 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     property_get("debug.sf.luma_sampling", value, "1");
     mLumaSampling = atoi(value);
 
+    property_get("ro.sf.force_light_brightness", value, "0");
+    mForceLightBrightness = atoi(value);
+
     const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
     mVsyncModulator.setPhaseOffsets(early, gl, late,
                                     mPhaseOffsets->getOffsetThresholdForNextVsync());
@@ -1377,6 +1380,10 @@ status_t SurfaceFlinger::getDisplayBrightnessSupport(const sp<IBinder>& displayT
     const auto displayId = getPhysicalDisplayIdLocked(displayToken);
     if (!displayId) {
         return NAME_NOT_FOUND;
+    }
+    if (mForceLightBrightness) {
+        *outSupport = false;
+        return NO_ERROR;
     }
     *outSupport =
             getHwComposer().hasDisplayCapability(displayId, HWC2::DisplayCapability::Brightness);
