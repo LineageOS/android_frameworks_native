@@ -90,8 +90,8 @@ public:
      * This method may be called on any thread (usually by the input manager).
      */
     virtual int32_t injectInputEvent(const InputEvent* event, int32_t injectorPid,
-                                     int32_t injectorUid, int32_t syncMode, int32_t timeoutMillis,
-                                     uint32_t policyFlags) = 0;
+                                     int32_t injectorUid, int32_t syncMode,
+                                     std::chrono::milliseconds timeout, uint32_t policyFlags) = 0;
 
     /*
      * Check whether InputEvent actually happened by checking the signature of the event.
