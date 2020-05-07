@@ -28,8 +28,8 @@ static const int32_t DEVICE_ID = 1;
 static const int32_t INJECTOR_PID = 999;
 static const int32_t INJECTOR_UID = 1001;
 
-static const int32_t INJECT_EVENT_TIMEOUT = 5000;
-static const int32_t DISPATCHING_TIMEOUT = 100000;
+static constexpr std::chrono::duration INJECT_EVENT_TIMEOUT = 5s;
+static constexpr std::chrono::nanoseconds DISPATCHING_TIMEOUT = 100ms;
 
 static nsecs_t now() {
     return systemTime(SYSTEM_TIME_MONOTONIC);
@@ -98,7 +98,7 @@ public:
     virtual ~FakeApplicationHandle() {}
 
     virtual bool updateInfo() {
-        mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT;
+        mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT.count();
         return true;
     }
 };
@@ -163,7 +163,7 @@ public:
         mInfo.name = "FakeWindowHandle";
         mInfo.layoutParamsFlags = 0;
         mInfo.layoutParamsType = InputWindowInfo::TYPE_APPLICATION;
-        mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT;
+        mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT.count();
         mInfo.frameLeft = mFrame.left;
         mInfo.frameTop = mFrame.top;
         mInfo.frameRight = mFrame.right;
