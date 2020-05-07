@@ -127,19 +127,16 @@ private:
         mConfigurationChangedTime = when;
     }
 
-    virtual nsecs_t notifyANR(const sp<InputApplicationHandle>&,
-            const sp<IBinder>&,
-            const std::string&) {
+    virtual nsecs_t notifyAnr(const sp<InputApplicationHandle>&, const sp<IBinder>&,
+                              const std::string&) override {
         return 0;
     }
 
-    virtual void notifyInputChannelBroken(const sp<IBinder>&) {
-    }
+    virtual void notifyInputChannelBroken(const sp<IBinder>&) override {}
 
-    virtual void notifyFocusChanged(const sp<IBinder>&, const sp<IBinder>&) {
-    }
+    virtual void notifyFocusChanged(const sp<IBinder>&, const sp<IBinder>&) override {}
 
-    virtual void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) {
+    virtual void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) override {
         *outConfig = mConfig;
     }
 
@@ -160,19 +157,17 @@ private:
         return true;
     }
 
-    virtual void interceptKeyBeforeQueueing(const KeyEvent*, uint32_t&) {
-    }
+    virtual void interceptKeyBeforeQueueing(const KeyEvent*, uint32_t&) override {}
 
-    virtual void interceptMotionBeforeQueueing(int32_t, nsecs_t, uint32_t&) {
-    }
+    virtual void interceptMotionBeforeQueueing(int32_t, nsecs_t, uint32_t&) override {}
 
-    virtual nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>&,
-            const KeyEvent*, uint32_t) {
+    virtual nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>&, const KeyEvent*,
+                                                  uint32_t) override {
         return 0;
     }
 
-    virtual bool dispatchUnhandledKey(const sp<IBinder>&,
-            const KeyEvent*, uint32_t, KeyEvent*) {
+    virtual bool dispatchUnhandledKey(const sp<IBinder>&, const KeyEvent*, uint32_t,
+                                      KeyEvent*) override {
         return false;
     }
 
@@ -184,14 +179,13 @@ private:
         mLastNotifySwitch = NotifySwitchArgs(1 /*id*/, when, policyFlags, switchValues, switchMask);
     }
 
-    virtual void pokeUserActivity(nsecs_t, int32_t) {
-    }
+    virtual void pokeUserActivity(nsecs_t, int32_t) override {}
 
-    virtual bool checkInjectEventsPermissionNonReentrant(int32_t, int32_t) {
+    virtual bool checkInjectEventsPermissionNonReentrant(int32_t, int32_t) override {
         return false;
     }
 
-    virtual void onPointerDownOutsideFocus(const sp<IBinder>& newToken) {
+    virtual void onPointerDownOutsideFocus(const sp<IBinder>& newToken) override {
         mOnPointerDownToken = newToken;
     }
 
