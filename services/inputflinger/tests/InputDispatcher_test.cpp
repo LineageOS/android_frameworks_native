@@ -805,13 +805,15 @@ static int32_t injectMotionEvent(const sp<InputDispatcher>& dispatcher, int32_t 
 }
 
 static int32_t injectMotionDown(const sp<InputDispatcher>& dispatcher, int32_t source,
-                                int32_t displayId, int32_t x = 100, int32_t y = 200) {
-    return injectMotionEvent(dispatcher, AMOTION_EVENT_ACTION_DOWN, source, displayId, x, y);
+                                int32_t displayId, const PointF& location = {100, 200}) {
+    return injectMotionEvent(dispatcher, AMOTION_EVENT_ACTION_DOWN, source, displayId, location.x,
+                             location.y);
 }
 
 static int32_t injectMotionUp(const sp<InputDispatcher>& dispatcher, int32_t source,
-                              int32_t displayId, int32_t x = 100, int32_t y = 200) {
-    return injectMotionEvent(dispatcher, AMOTION_EVENT_ACTION_UP, source, displayId, x, y);
+                              int32_t displayId, const PointF& location = {100, 200}) {
+    return injectMotionEvent(dispatcher, AMOTION_EVENT_ACTION_UP, source, displayId, location.x,
+                             location.y);
 }
 
 static NotifyKeyArgs generateKeyArgs(int32_t action, int32_t displayId = ADISPLAY_ID_NONE) {
@@ -869,6 +871,55 @@ TEST_F(InputDispatcherTest, SetInputWindow_SingleWindowTouch) {
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectMotionDown(mDispatcher,
             AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT))
+            << "Inject motion event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+
+    // Window should receive motion event.
+    window->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+}
+
+/**
+ * Calling setInputWindows once with FLAG_NOT_TOUCH_MODAL should not cause any issues.
+ * To ensure that window receives only events that were directly inside of it, add
+ * FLAG_NOT_TOUCH_MODAL. This will enforce using the touchableRegion of the input
+ * when finding touched windows.
+ * This test serves as a sanity check for the next test, where setInputWindows is
+ * called twice.
+ */
+TEST_F(InputDispatcherTest, SetInputWindowOnce_SingleWindowTouch) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 100, 100));
+    window->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL);
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               {50, 50}))
+            << "Inject motion event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+
+    // Window should receive motion event.
+    window->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+}
+
+/**
+ * Calling setInputWindows twice, with the same info, should not cause any issues.
+ * To ensure that window receives only events that were directly inside of it, add
+ * FLAG_NOT_TOUCH_MODAL. This will enforce using the touchableRegion of the input
+ * when finding touched windows.
+ */
+TEST_F(InputDispatcherTest, SetInputWindowTwice_SingleWindowTouch) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 100, 100));
+    window->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL);
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               {50, 50}))
             << "Inject motion event should return INPUT_EVENT_INJECTION_SUCCEEDED";
 
     // Window should receive motion event.
@@ -1816,7 +1867,6 @@ class InputDispatcherOnPointerDownOutsideFocus : public InputDispatcherTest {
                 new FakeWindowHandle(application, mDispatcher, "Second", ADISPLAY_ID_DEFAULT);
         mFocusedWindow->setFrame(Rect(50, 50, 100, 100));
         mFocusedWindow->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL);
-        mFocusedWindowTouchPoint = 60;
 
         // Set focused application.
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
@@ -1837,15 +1887,16 @@ class InputDispatcherOnPointerDownOutsideFocus : public InputDispatcherTest {
 protected:
     sp<FakeWindowHandle> mUnfocusedWindow;
     sp<FakeWindowHandle> mFocusedWindow;
-    int32_t mFocusedWindowTouchPoint;
+    static constexpr PointF FOCUSED_WINDOW_TOUCH_POINT = {60, 60};
 };
 
 // Have two windows, one with focus. Inject MotionEvent with source TOUCHSCREEN and action
 // DOWN on the window that doesn't have focus. Ensure the window that didn't have focus received
 // the onPointerDownOutsideFocus callback.
 TEST_F(InputDispatcherOnPointerDownOutsideFocus, OnPointerDownOutsideFocus_Success) {
-    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectMotionDown(mDispatcher,
-            AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT, 20, 20))
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               {20, 20}))
             << "Inject motion event should return INPUT_EVENT_INJECTION_SUCCEEDED";
     mUnfocusedWindow->consumeMotionDown();
 
@@ -1857,8 +1908,8 @@ TEST_F(InputDispatcherOnPointerDownOutsideFocus, OnPointerDownOutsideFocus_Succe
 // DOWN on the window that doesn't have focus. Ensure no window received the
 // onPointerDownOutsideFocus callback.
 TEST_F(InputDispatcherOnPointerDownOutsideFocus, OnPointerDownOutsideFocus_NonPointerSource) {
-    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectMotionDown(mDispatcher,
-            AINPUT_SOURCE_TRACKBALL, ADISPLAY_ID_DEFAULT, 20, 20))
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TRACKBALL, ADISPLAY_ID_DEFAULT, {20, 20}))
             << "Inject motion event should return INPUT_EVENT_INJECTION_SUCCEEDED";
     mFocusedWindow->consumeMotionDown();
 
@@ -1884,7 +1935,7 @@ TEST_F(InputDispatcherOnPointerDownOutsideFocus,
         OnPointerDownOutsideFocus_OnAlreadyFocusedWindow) {
     ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
               injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
-                               mFocusedWindowTouchPoint, mFocusedWindowTouchPoint))
+                               FOCUSED_WINDOW_TOUCH_POINT))
             << "Inject motion event should return INPUT_EVENT_INJECTION_SUCCEEDED";
     mFocusedWindow->consumeMotionDown();
 
