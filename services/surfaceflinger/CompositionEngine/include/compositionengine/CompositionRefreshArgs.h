@@ -24,6 +24,7 @@
 #include <compositionengine/LayerFE.h>
 #include <compositionengine/OutputColorSetting.h>
 #include <math/mat4.h>
+#include <ui/Transform.h>
 
 namespace android::compositionengine {
 
@@ -56,6 +57,9 @@ struct CompositionRefreshArgs {
 
     // Forces a color mode on the outputs being refreshed
     ui::ColorMode forceOutputColorMode{ui::ColorMode::NATIVE};
+
+    // Used to correctly apply an inverse-display buffer transform if applicable
+    ui::Transform::RotationFlags internalDisplayRotationFlags{ui::Transform::ROT_0};
 
     // If true, GPU clocks will be increased when rendering blurs
     bool blursAreExpensive{false};
