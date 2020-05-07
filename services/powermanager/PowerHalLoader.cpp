@@ -21,14 +21,13 @@
 #include <binder/IServiceManager.h>
 #include <hardware/power.h>
 #include <hardware_legacy/power.h>
-
 #include <powermanager/PowerHalLoader.h>
 
-using IPowerV1_1 = android::hardware::power::V1_1::IPower;
-using IPowerV1_0 = android::hardware::power::V1_0::IPower;
-using IPowerAidl = android::hardware::power::IPower;
+using namespace android::hardware::power;
 
 namespace android {
+
+namespace power {
 
 // -------------------------------------------------------------------------------------------------
 
@@ -53,9 +52,9 @@ sp<T> loadHal(bool& exists, sp<T>& hal, F& loadFn, const char* halName) {
 // -------------------------------------------------------------------------------------------------
 
 std::mutex PowerHalLoader::gHalMutex;
-sp<IPowerAidl> PowerHalLoader::gHalAidl = nullptr;
-sp<IPowerV1_0> PowerHalLoader::gHalHidlV1_0 = nullptr;
-sp<IPowerV1_1> PowerHalLoader::gHalHidlV1_1 = nullptr;
+sp<IPower> PowerHalLoader::gHalAidl = nullptr;
+sp<V1_0::IPower> PowerHalLoader::gHalHidlV1_0 = nullptr;
+sp<V1_1::IPower> PowerHalLoader::gHalHidlV1_1 = nullptr;
 
 void PowerHalLoader::unloadAll() {
     std::lock_guard<std::mutex> lock(gHalMutex);
@@ -64,31 +63,33 @@ void PowerHalLoader::unloadAll() {
     gHalHidlV1_1 = nullptr;
 }
 
-sp<IPowerAidl> PowerHalLoader::loadAidl() {
+sp<IPower> PowerHalLoader::loadAidl() {
     std::lock_guard<std::mutex> lock(gHalMutex);
     static bool gHalExists = true;
-    static auto loadFn = []() { return waitForVintfService<IPowerAidl>(); };
-    return loadHal<IPowerAidl>(gHalExists, gHalAidl, loadFn, "AIDL");
+    static auto loadFn = []() { return waitForVintfService<IPower>(); };
+    return loadHal<IPower>(gHalExists, gHalAidl, loadFn, "AIDL");
 }
 
-sp<IPowerV1_0> PowerHalLoader::loadHidlV1_0() {
+sp<V1_0::IPower> PowerHalLoader::loadHidlV1_0() {
     std::lock_guard<std::mutex> lock(gHalMutex);
     return loadHidlV1_0Locked();
 }
 
-sp<IPowerV1_1> PowerHalLoader::loadHidlV1_1() {
+sp<V1_1::IPower> PowerHalLoader::loadHidlV1_1() {
     std::lock_guard<std::mutex> lock(gHalMutex);
     static bool gHalExists = true;
-    static auto loadFn = []() { return IPowerV1_1::castFrom(loadHidlV1_0Locked()); };
-    return loadHal<IPowerV1_1>(gHalExists, gHalHidlV1_1, loadFn, "HIDL v1.1");
+    static auto loadFn = []() { return V1_1::IPower::castFrom(loadHidlV1_0Locked()); };
+    return loadHal<V1_1::IPower>(gHalExists, gHalHidlV1_1, loadFn, "HIDL v1.1");
 }
 
-sp<IPowerV1_0> PowerHalLoader::loadHidlV1_0Locked() {
+sp<V1_0::IPower> PowerHalLoader::loadHidlV1_0Locked() {
     static bool gHalExists = true;
-    static auto loadFn = []() { return IPowerV1_0::getService(); };
-    return loadHal<IPowerV1_0>(gHalExists, gHalHidlV1_0, loadFn, "HIDL v1.0");
+    static auto loadFn = []() { return V1_0::IPower::getService(); };
+    return loadHal<V1_0::IPower>(gHalExists, gHalHidlV1_0, loadFn, "HIDL v1.0");
 }
 
 // -------------------------------------------------------------------------------------------------
+
+} // namespace power
 
 } // namespace android

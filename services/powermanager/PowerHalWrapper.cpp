@@ -14,159 +14,162 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "PowerHalWrapper"
-#include <utils/Log.h>
-
+#define LOG_TAG "HalWrapper"
 #include <android/hardware/power/Boost.h>
 #include <android/hardware/power/Mode.h>
-
 #include <powermanager/PowerHalWrapper.h>
+#include <utils/Log.h>
 
-using android::hardware::power::Boost;
-using android::hardware::power::Mode;
-using android::hardware::power::V1_0::Feature;
-using android::hardware::power::V1_0::PowerHint;
+using namespace android::hardware::power;
 
 namespace android {
 
+namespace power {
+
 // -------------------------------------------------------------------------------------------------
 
-PowerHalResult EmptyPowerHalWrapper::setBoost(Boost boost, int32_t durationMs) {
+inline HalResult toHalResult(const binder::Status& result) {
+    return result.isOk() ? HalResult::SUCCESSFUL : HalResult::FAILED;
+}
+
+template <typename T>
+inline HalResult toHalResult(const hardware::Return<T>& result) {
+    return result.isOk() ? HalResult::SUCCESSFUL : HalResult::FAILED;
+}
+
+// -------------------------------------------------------------------------------------------------
+
+HalResult EmptyHalWrapper::setBoost(Boost boost, int32_t durationMs) {
     ALOGV("Skipped setBoost %s with duration %dms because Power HAL not available",
-        toString(boost).c_str(), durationMs);
-    return PowerHalResult::UNSUPPORTED;
+          toString(boost).c_str(), durationMs);
+    return HalResult::UNSUPPORTED;
 }
 
-PowerHalResult EmptyPowerHalWrapper::setMode(Mode mode, bool enabled) {
-    ALOGV("Skipped setMode %s to %s because Power HAL not available",
-        toString(mode).c_str(), enabled ? "true" : "false");
-    return PowerHalResult::UNSUPPORTED;
+HalResult EmptyHalWrapper::setMode(Mode mode, bool enabled) {
+    ALOGV("Skipped setMode %s to %s because Power HAL not available", toString(mode).c_str(),
+          enabled ? "true" : "false");
+    return HalResult::UNSUPPORTED;
 }
 
 // -------------------------------------------------------------------------------------------------
 
-PowerHalResult HidlPowerHalWrapperV1_0::setBoost(Boost boost, int32_t durationMs) {
+HalResult HidlHalWrapperV1_0::setBoost(Boost boost, int32_t durationMs) {
     if (boost == Boost::INTERACTION) {
-        return sendPowerHint(PowerHint::INTERACTION, durationMs);
+        return sendPowerHint(V1_0::PowerHint::INTERACTION, durationMs);
     } else {
-        ALOGV("Skipped setBoost %s because Power HAL AIDL not available",
-            toString(boost).c_str());
-        return PowerHalResult::UNSUPPORTED;
+        ALOGV("Skipped setBoost %s because Power HAL AIDL not available", toString(boost).c_str());
+        return HalResult::UNSUPPORTED;
     }
 }
 
-PowerHalResult HidlPowerHalWrapperV1_0::setMode(Mode mode, bool enabled) {
+HalResult HidlHalWrapperV1_0::setMode(Mode mode, bool enabled) {
     uint32_t data = enabled ? 1 : 0;
     switch (mode) {
         case Mode::LAUNCH:
-            return sendPowerHint(PowerHint::LAUNCH, data);
+            return sendPowerHint(V1_0::PowerHint::LAUNCH, data);
         case Mode::LOW_POWER:
-            return sendPowerHint(PowerHint::LOW_POWER, data);
+            return sendPowerHint(V1_0::PowerHint::LOW_POWER, data);
         case Mode::SUSTAINED_PERFORMANCE:
-            return sendPowerHint(PowerHint::SUSTAINED_PERFORMANCE, data);
+            return sendPowerHint(V1_0::PowerHint::SUSTAINED_PERFORMANCE, data);
         case Mode::VR:
-            return sendPowerHint(PowerHint::VR_MODE, data);
+            return sendPowerHint(V1_0::PowerHint::VR_MODE, data);
         case Mode::INTERACTIVE:
             return setInteractive(enabled);
         case Mode::DOUBLE_TAP_TO_WAKE:
-            return setFeature(Feature::POWER_FEATURE_DOUBLE_TAP_TO_WAKE, enabled);
+            return setFeature(V1_0::Feature::POWER_FEATURE_DOUBLE_TAP_TO_WAKE, enabled);
         default:
             ALOGV("Skipped setMode %s because Power HAL AIDL not available",
-                toString(mode).c_str());
-            return PowerHalResult::UNSUPPORTED;
+                  toString(mode).c_str());
+            return HalResult::UNSUPPORTED;
     }
 }
 
-PowerHalResult HidlPowerHalWrapperV1_0::sendPowerHint(PowerHint hintId, uint32_t data) {
-    auto ret = handleV1_0->powerHint(hintId, data);
-    return ret.isOk() ? PowerHalResult::SUCCESSFUL : PowerHalResult::FAILED;
+HalResult HidlHalWrapperV1_0::sendPowerHint(V1_0::PowerHint hintId, uint32_t data) {
+    return toHalResult(mHandleV1_0->powerHint(hintId, data));
 }
 
-PowerHalResult HidlPowerHalWrapperV1_0::setInteractive(bool enabled) {
-    auto ret = handleV1_0->setInteractive(enabled);
-    return ret.isOk() ? PowerHalResult::SUCCESSFUL : PowerHalResult::FAILED;
+HalResult HidlHalWrapperV1_0::setInteractive(bool enabled) {
+    return toHalResult(mHandleV1_0->setInteractive(enabled));
 }
 
-PowerHalResult HidlPowerHalWrapperV1_0::setFeature(Feature feature, bool enabled) {
-    auto ret = handleV1_0->setFeature(feature, enabled);
-    return ret.isOk() ? PowerHalResult::SUCCESSFUL : PowerHalResult::FAILED;
+HalResult HidlHalWrapperV1_0::setFeature(V1_0::Feature feature, bool enabled) {
+    return toHalResult(mHandleV1_0->setFeature(feature, enabled));
 }
 
 // -------------------------------------------------------------------------------------------------
 
-PowerHalResult HidlPowerHalWrapperV1_1::sendPowerHint(PowerHint hintId, uint32_t data) {
-    auto ret = handleV1_1->powerHintAsync(hintId, data);
-    return ret.isOk() ? PowerHalResult::SUCCESSFUL : PowerHalResult::FAILED;
+HalResult HidlHalWrapperV1_1::sendPowerHint(V1_0::PowerHint hintId, uint32_t data) {
+    return toHalResult(mHandleV1_1->powerHintAsync(hintId, data));
 }
 
 // -------------------------------------------------------------------------------------------------
 
-PowerHalResult AidlPowerHalWrapper::setBoost(Boost boost, int32_t durationMs) {
+HalResult AidlHalWrapper::setBoost(Boost boost, int32_t durationMs) {
     std::unique_lock<std::mutex> lock(mBoostMutex);
     // Quick return if boost is not supported by HAL
     if (boost > Boost::DISPLAY_UPDATE_IMMINENT ||
-        boostSupportedArray[static_cast<int32_t>(boost)] == PowerHalSupport::OFF) {
-        ALOGV("Skipped setBoost %s because Power HAL doesn't support it",
-            toString(boost).c_str());
-        return PowerHalResult::UNSUPPORTED;
+        mBoostSupportedArray[static_cast<int32_t>(boost)] == HalSupport::OFF) {
+        ALOGV("Skipped setBoost %s because Power HAL doesn't support it", toString(boost).c_str());
+        return HalResult::UNSUPPORTED;
     }
 
-    if (boostSupportedArray[static_cast<int32_t>(boost)] == PowerHalSupport::UNKNOWN) {
+    if (mBoostSupportedArray[static_cast<int32_t>(boost)] == HalSupport::UNKNOWN) {
         bool isSupported = false;
-        auto isSupportedRet = handle->isBoostSupported(boost, &isSupported);
+        auto isSupportedRet = mHandle->isBoostSupported(boost, &isSupported);
         if (!isSupportedRet.isOk()) {
-            ALOGV("Skipped setBoost %s because Power HAL is not available to check support",
-                toString(boost).c_str());
-            return PowerHalResult::FAILED;
+            ALOGV("Skipped setBoost %s because Power HAL is not available to check "
+                  "support",
+                  toString(boost).c_str());
+            return HalResult::FAILED;
         }
 
-        boostSupportedArray[static_cast<int32_t>(boost)] =
-            isSupported ? PowerHalSupport::ON : PowerHalSupport::OFF;
+        mBoostSupportedArray[static_cast<int32_t>(boost)] =
+                isSupported ? HalSupport::ON : HalSupport::OFF;
         if (!isSupported) {
             ALOGV("Skipped setBoost %s because Power HAL doesn't support it",
-                toString(boost).c_str());
-            return PowerHalResult::UNSUPPORTED;
+                  toString(boost).c_str());
+            return HalResult::UNSUPPORTED;
         }
     }
     lock.unlock();
 
-    auto ret = handle->setBoost(boost, durationMs);
-    return ret.isOk() ? PowerHalResult::SUCCESSFUL : PowerHalResult::FAILED;
+    return toHalResult(mHandle->setBoost(boost, durationMs));
 }
 
-PowerHalResult AidlPowerHalWrapper::setMode(Mode mode, bool enabled) {
+HalResult AidlHalWrapper::setMode(Mode mode, bool enabled) {
     std::unique_lock<std::mutex> lock(mModeMutex);
     // Quick return if mode is not supported by HAL
     if (mode > Mode::DISPLAY_INACTIVE ||
-        modeSupportedArray[static_cast<int32_t>(mode)] == PowerHalSupport::OFF) {
-        ALOGV("Skipped setMode %s because Power HAL doesn't support it",
-            toString(mode).c_str());
-        return PowerHalResult::UNSUPPORTED;
+        mModeSupportedArray[static_cast<int32_t>(mode)] == HalSupport::OFF) {
+        ALOGV("Skipped setMode %s because Power HAL doesn't support it", toString(mode).c_str());
+        return HalResult::UNSUPPORTED;
     }
 
-    if (modeSupportedArray[static_cast<int32_t>(mode)] == PowerHalSupport::UNKNOWN) {
+    if (mModeSupportedArray[static_cast<int32_t>(mode)] == HalSupport::UNKNOWN) {
         bool isSupported = false;
-        auto isSupportedRet = handle->isModeSupported(mode, &isSupported);
+        auto isSupportedRet = mHandle->isModeSupported(mode, &isSupported);
         if (!isSupportedRet.isOk()) {
-            ALOGV("Skipped setMode %s because Power HAL is not available to check support",
-                toString(mode).c_str());
-            return PowerHalResult::FAILED;
+            ALOGV("Skipped setMode %s because Power HAL is not available to check "
+                  "support",
+                  toString(mode).c_str());
+            return HalResult::FAILED;
         }
 
-        modeSupportedArray[static_cast<int32_t>(mode)] =
-            isSupported ? PowerHalSupport::ON : PowerHalSupport::OFF;
+        mModeSupportedArray[static_cast<int32_t>(mode)] =
+                isSupported ? HalSupport::ON : HalSupport::OFF;
         if (!isSupported) {
-                ALOGV("Skipped setMode %s because Power HAL doesn't support it",
-                    toString(mode).c_str());
-                return PowerHalResult::UNSUPPORTED;
+            ALOGV("Skipped setMode %s because Power HAL doesn't support it",
+                  toString(mode).c_str());
+            return HalResult::UNSUPPORTED;
         }
     }
     lock.unlock();
 
-    auto ret = handle->setMode(mode, enabled);
-    return ret.isOk() ? PowerHalResult::SUCCESSFUL : PowerHalResult::FAILED;
+    return toHalResult(mHandle->setMode(mode, enabled));
 }
 
 // -------------------------------------------------------------------------------------------------
 
-}; // namespace android
+} // namespace power
+
+} // namespace android

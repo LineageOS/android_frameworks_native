@@ -19,17 +19,18 @@
 #include <android-base/logging.h>
 #include <android/hardware/power/1.1/IPower.h>
 #include <android/hardware/power/IPower.h>
+#include <gtest/gtest.h>
+#include <powermanager/PowerHalLoader.h>
 
 #include <future>
-#include <gtest/gtest.h>
-
-#include <powermanager/PowerHalLoader.h>
 
 using IPowerV1_0 = android::hardware::power::V1_0::IPower;
 using IPowerV1_1 = android::hardware::power::V1_1::IPower;
 using IPowerAidl = android::hardware::power::IPower;
 
 using namespace android;
+using namespace android::power;
+using namespace testing;
 
 // -------------------------------------------------------------------------------------------------
 
@@ -54,14 +55,10 @@ sp<IPowerV1_1> loadHal<IPowerV1_1>() {
 // -------------------------------------------------------------------------------------------------
 
 template <typename T>
-class PowerHalLoaderTest : public testing::Test {
+class PowerHalLoaderTest : public Test {
 public:
-    sp<T> load() {
-        return ::loadHal<T>();
-    }
-    void unload() {
-        PowerHalLoader::unloadAll();
-    }
+    sp<T> load() { return ::loadHal<T>(); }
+    void unload() { PowerHalLoader::unloadAll(); }
 };
 
 // -------------------------------------------------------------------------------------------------
@@ -95,7 +92,7 @@ TYPED_TEST(PowerHalLoaderTest, TestLoadMultiThreadLoadsOnlyOnce) {
     std::vector<std::future<sp<TypeParam>>> futures;
     for (int i = 0; i < 10; i++) {
         futures.push_back(
-            std::async(std::launch::async, &PowerHalLoaderTest<TypeParam>::load, this));
+                std::async(std::launch::async, &PowerHalLoaderTest<TypeParam>::load, this));
     }
 
     futures[0].wait();
