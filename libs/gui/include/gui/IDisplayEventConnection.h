@@ -53,11 +53,9 @@ public:
     virtual void requestNextVsync() = 0; // Asynchronous
 
     /*
-     * togglesConfigEvents() configures whether or not display config changes
-     * should be propagated.
+     * requestLatestConfig() requests the config for the primary display.
      */
-    virtual void toggleConfigEvents(
-            ISurfaceComposer::ConfigChanged configChangeFlag) = 0; // Asynchronous
+    virtual void requestLatestConfig() = 0; // Asynchronous
 };
 
 class BnDisplayEventConnection : public SafeBnInterface<IDisplayEventConnection> {

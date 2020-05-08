@@ -152,16 +152,9 @@ void EventThreadConnection::requestNextVsync() {
     mEventThread->requestNextVsync(this);
 }
 
-void EventThreadConnection::toggleConfigEvents(ISurfaceComposer::ConfigChanged configChangeFlag) {
-    ATRACE_NAME("enableConfigEvents");
-    mConfigChanged = configChangeFlag;
-
-    // In principle it's possible for rapidly toggling config events to drop an
-    // event here, but it's unlikely in practice.
-    if (configChangeFlag == ISurfaceComposer::eConfigChangedDispatch) {
-        mForcedConfigChangeDispatch = true;
-        mEventThread->requestLatestConfig();
-    }
+void EventThreadConnection::requestLatestConfig() {
+    ATRACE_NAME("requestLatestConfig");
+    mEventThread->requestLatestConfig(this);
 }
 
 status_t EventThreadConnection::postEvent(const DisplayEventReceiver::Event& event) {
@@ -276,8 +269,12 @@ void EventThread::requestNextVsync(const sp<EventThreadConnection>& connection) 
     }
 }
 
-void EventThread::requestLatestConfig() {
+void EventThread::requestLatestConfig(const sp<EventThreadConnection>& connection) {
     std::lock_guard<std::mutex> lock(mMutex);
+    if (connection->mForcedConfigChangeDispatch) {
+        return;
+    }
+    connection->mForcedConfigChangeDispatch = true;
     auto pendingConfigChange =
             std::find_if(std::begin(mPendingEvents), std::end(mPendingEvents),
                          [&](const DisplayEventReceiver::Event& event) {
@@ -384,6 +381,10 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
                 vsyncRequested |= connection->vsyncRequest != VSyncRequest::None;
 
                 if (event && shouldConsumeEvent(*event, connection)) {
+                    if (event->header.type == DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED &&
+                        connection->mForcedConfigChangeDispatch) {
+                        connection->mForcedConfigChangeDispatch = false;
+                    }
                     consumers.push_back(connection);
                 }
 
@@ -459,8 +460,8 @@ bool EventThread::shouldConsumeEvent(const DisplayEventReceiver::Event& event,
             return true;
 
         case DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED: {
-            const bool forcedDispatch = connection->mForcedConfigChangeDispatch.exchange(false);
-            return forcedDispatch ||
+            const bool oneTimeDispatch = connection->mForcedConfigChangeDispatch;
+            return oneTimeDispatch ||
                     connection->mConfigChanged == ISurfaceComposer::eConfigChangedDispatch;
         }
 
