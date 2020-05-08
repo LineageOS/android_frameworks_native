@@ -650,6 +650,7 @@ TEST_F(DisplayChooseCompositionStrategyTest, normalOperationWithChanges) {
             {{nullptr, hal::Composition::CLIENT}},
             hal::DisplayRequest::FLIP_CLIENT_TARGET,
             {{nullptr, hal::LayerRequest::CLEAR_CLIENT_TARGET}},
+            {hal::PixelFormat::RGBA_8888, hal::Dataspace::UNKNOWN},
     };
 
     // Since two calls are made to anyLayersRequireClientComposition with different return
