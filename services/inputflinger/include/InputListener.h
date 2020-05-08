@@ -22,7 +22,6 @@
 #include <input/Input.h>
 #include <input/TouchVideoFrame.h>
 #include <utils/RefBase.h>
-#include <utils/Vector.h>
 
 namespace android {
 
