@@ -623,8 +623,7 @@ android_namespace_t* GraphicsEnv::getAngleNamespace() {
     mAngleNamespace = android_create_namespace("ANGLE",
                                                nullptr,            // ld_library_path
                                                mAnglePath.c_str(), // default_library_path
-                                               ANDROID_NAMESPACE_TYPE_SHARED |
-                                                       ANDROID_NAMESPACE_TYPE_ISOLATED,
+                                               ANDROID_NAMESPACE_TYPE_SHARED_ISOLATED,
                                                nullptr, // permitted_when_isolated_path
                                                nullptr);
 
