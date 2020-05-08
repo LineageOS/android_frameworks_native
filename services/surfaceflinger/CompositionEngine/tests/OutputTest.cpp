@@ -696,11 +696,11 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, updatesLayerContentForAllLayers
     InjectedLayer layer2;
     InjectedLayer layer3;
 
-    EXPECT_CALL(*layer1.outputLayer, updateCompositionState(false, false));
+    EXPECT_CALL(*layer1.outputLayer, updateCompositionState(false, false, ui::Transform::ROT_180));
     EXPECT_CALL(*layer1.outputLayer, writeStateToHWC(false));
-    EXPECT_CALL(*layer2.outputLayer, updateCompositionState(false, false));
+    EXPECT_CALL(*layer2.outputLayer, updateCompositionState(false, false, ui::Transform::ROT_180));
     EXPECT_CALL(*layer2.outputLayer, writeStateToHWC(false));
-    EXPECT_CALL(*layer3.outputLayer, updateCompositionState(false, false));
+    EXPECT_CALL(*layer3.outputLayer, updateCompositionState(false, false, ui::Transform::ROT_180));
     EXPECT_CALL(*layer3.outputLayer, writeStateToHWC(false));
 
     injectOutputLayer(layer1);
@@ -712,6 +712,7 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, updatesLayerContentForAllLayers
     CompositionRefreshArgs args;
     args.updatingGeometryThisFrame = false;
     args.devOptForceClientComposition = false;
+    args.internalDisplayRotationFlags = ui::Transform::ROT_180;
     mOutput->updateAndWriteCompositionState(args);
 }
 
@@ -720,11 +721,11 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, updatesLayerGeometryAndContentF
     InjectedLayer layer2;
     InjectedLayer layer3;
 
-    EXPECT_CALL(*layer1.outputLayer, updateCompositionState(true, false));
+    EXPECT_CALL(*layer1.outputLayer, updateCompositionState(true, false, ui::Transform::ROT_0));
     EXPECT_CALL(*layer1.outputLayer, writeStateToHWC(true));
-    EXPECT_CALL(*layer2.outputLayer, updateCompositionState(true, false));
+    EXPECT_CALL(*layer2.outputLayer, updateCompositionState(true, false, ui::Transform::ROT_0));
     EXPECT_CALL(*layer2.outputLayer, writeStateToHWC(true));
-    EXPECT_CALL(*layer3.outputLayer, updateCompositionState(true, false));
+    EXPECT_CALL(*layer3.outputLayer, updateCompositionState(true, false, ui::Transform::ROT_0));
     EXPECT_CALL(*layer3.outputLayer, writeStateToHWC(true));
 
     injectOutputLayer(layer1);
@@ -744,11 +745,11 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, forcesClientCompositionForAllLa
     InjectedLayer layer2;
     InjectedLayer layer3;
 
-    EXPECT_CALL(*layer1.outputLayer, updateCompositionState(false, true));
+    EXPECT_CALL(*layer1.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
     EXPECT_CALL(*layer1.outputLayer, writeStateToHWC(false));
-    EXPECT_CALL(*layer2.outputLayer, updateCompositionState(false, true));
+    EXPECT_CALL(*layer2.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
     EXPECT_CALL(*layer2.outputLayer, writeStateToHWC(false));
-    EXPECT_CALL(*layer3.outputLayer, updateCompositionState(false, true));
+    EXPECT_CALL(*layer3.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
     EXPECT_CALL(*layer3.outputLayer, writeStateToHWC(false));
 
     injectOutputLayer(layer1);
@@ -2797,6 +2798,7 @@ struct OutputComposeSurfacesTest : public testing::Test {
         mOutput.mState.usesClientComposition = true;
         mOutput.mState.usesDeviceComposition = false;
         mOutput.mState.reusedClientComposition = false;
+        mOutput.mState.flipClientTarget = false;
 
         EXPECT_CALL(mOutput, getCompositionEngine()).WillRepeatedly(ReturnRef(mCompositionEngine));
         EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
@@ -2868,19 +2870,40 @@ const HdrCapabilities OutputComposeSurfacesTest::
 TEST_F(OutputComposeSurfacesTest, doesNothingButSignalNoExpensiveRenderingIfNoClientComposition) {
     mOutput.mState.usesClientComposition = false;
 
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
+
     EXPECT_CALL(mOutput, setExpensiveRenderingExpected(false));
 
     verify().execute().expectAFenceWasReturned();
 }
 
-TEST_F(OutputComposeSurfacesTest, doesMinimalWorkIfDequeueBufferFails) {
-    EXPECT_CALL(mOutput, getSkipColorTransform()).WillRepeatedly(Return(false));
-    EXPECT_CALL(*mDisplayColorProfile, hasWideColorGamut()).WillRepeatedly(Return(true));
+TEST_F(OutputComposeSurfacesTest,
+       dequeuesABufferIfNoClientCompositionButFlipClientTargetRequested) {
+    mOutput.mState.usesClientComposition = false;
+    mOutput.mState.flipClientTarget = true;
+
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
-    EXPECT_CALL(mOutput, generateClientCompositionRequests(_, _, kDefaultOutputDataspace))
-            .WillRepeatedly(Return(std::vector<LayerFE::LayerSettings>{}));
-    EXPECT_CALL(mOutput, appendRegionFlashRequests(RegionEq(kDebugRegion), _))
-            .WillRepeatedly(Return());
+
+    EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillOnce(Return(mOutputBuffer));
+    EXPECT_CALL(mOutput, setExpensiveRenderingExpected(false));
+
+    verify().execute().expectAFenceWasReturned();
+}
+
+TEST_F(OutputComposeSurfacesTest, doesMinimalWorkIfDequeueBufferFailsForClientComposition) {
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
+
+    EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillOnce(Return(nullptr));
+
+    verify().execute().expectNoFenceWasReturned();
+}
+
+TEST_F(OutputComposeSurfacesTest,
+       doesMinimalWorkIfDequeueBufferFailsForNoClientCompositionButFlipClientTargetRequested) {
+    mOutput.mState.usesClientComposition = false;
+    mOutput.mState.flipClientTarget = true;
+
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
 
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillOnce(Return(nullptr));
 
@@ -3315,7 +3338,7 @@ struct OutputComposeSurfacesTest_SetsExpensiveRendering_ForBlur
         mLayer.layerFEState.backgroundBlurRadius = 10;
         mOutput.editState().isEnabled = true;
 
-        EXPECT_CALL(mLayer.outputLayer, updateCompositionState(false, true));
+        EXPECT_CALL(mLayer.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
         EXPECT_CALL(mLayer.outputLayer, writeStateToHWC(false));
         EXPECT_CALL(mOutput, generateClientCompositionRequests(_, _, kDefaultOutputDataspace))
                 .WillOnce(Return(std::vector<LayerFE::LayerSettings>{}));
@@ -3894,11 +3917,11 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, handlesBackgroundBlurRequests) 
     InjectedLayer layer3;
 
     // Layer requesting blur, or below, should request client composition.
-    EXPECT_CALL(*layer1.outputLayer, updateCompositionState(false, true));
+    EXPECT_CALL(*layer1.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
     EXPECT_CALL(*layer1.outputLayer, writeStateToHWC(false));
-    EXPECT_CALL(*layer2.outputLayer, updateCompositionState(false, true));
+    EXPECT_CALL(*layer2.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
     EXPECT_CALL(*layer2.outputLayer, writeStateToHWC(false));
-    EXPECT_CALL(*layer3.outputLayer, updateCompositionState(false, false));
+    EXPECT_CALL(*layer3.outputLayer, updateCompositionState(false, false, ui::Transform::ROT_0));
     EXPECT_CALL(*layer3.outputLayer, writeStateToHWC(false));
 
     layer2.layerFEState.backgroundBlurRadius = 10;
