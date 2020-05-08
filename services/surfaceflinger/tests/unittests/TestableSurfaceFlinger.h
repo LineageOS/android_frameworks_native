@@ -629,7 +629,7 @@ public:
             if (const auto type = mCreationArgs.connectionType) {
                 LOG_ALWAYS_FATAL_IF(!displayId);
                 LOG_ALWAYS_FATAL_IF(!mHwcDisplayId);
-                state.physical = {*displayId, *type, *mHwcDisplayId};
+                state.physical = {.id = *displayId, .type = *type, .hwcDisplayId = *mHwcDisplayId};
             }
 
             state.isSecure = mCreationArgs.isSecure;
