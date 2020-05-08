@@ -189,7 +189,7 @@ struct ConditionalLockGuard {
 using ConditionalLock = ConditionalLockGuard<Mutex>;
 
 // TODO(b/141333600): Consolidate with HWC2::Display::Config::Builder::getDefaultDensity.
-constexpr float FALLBACK_DENSITY = ACONFIGURATION_DENSITY_TV / 160.f;
+constexpr float FALLBACK_DENSITY = ACONFIGURATION_DENSITY_TV;
 
 float getDensityFromProperty(const char* property, bool required) {
     char value[PROPERTY_VALUE_MAX];
@@ -198,7 +198,7 @@ float getDensityFromProperty(const char* property, bool required) {
         ALOGE("%s must be defined as a build property", property);
         return FALLBACK_DENSITY;
     }
-    return density / 160.f;
+    return density;
 }
 
 // Currently we only support V0_SRGB and DISPLAY_P3 as composition preference.
@@ -830,6 +830,7 @@ status_t SurfaceFlinger::getDisplayInfo(const sp<IBinder>& displayToken, Display
                 ? mInternalDisplayDensity
                 : FALLBACK_DENSITY;
     }
+    info->density /= ACONFIGURATION_DENSITY_MEDIUM;
 
     info->secure = display->isSecure();
     info->deviceProductInfo = getDeviceProductInfoLocked(*display);
