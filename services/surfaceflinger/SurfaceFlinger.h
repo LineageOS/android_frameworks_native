@@ -829,13 +829,13 @@ private:
             const DisplayDeviceState& state,
             const sp<compositionengine::DisplaySurface>& displaySurface,
             const sp<IGraphicBufferProducer>& producer);
-    void processDisplayChangesLocked();
+    void processDisplayChangesLocked() REQUIRES(mStateLock);
     void processDisplayAdded(const wp<IBinder>& displayToken, const DisplayDeviceState& state);
     void processDisplayRemoved(const wp<IBinder>& displayToken);
     void processDisplayChanged(const wp<IBinder>& displayToken,
                                const DisplayDeviceState& currentState,
-                               const DisplayDeviceState& drawingState);
-    void processDisplayHotplugEventsLocked();
+                               const DisplayDeviceState& drawingState) REQUIRES(mStateLock);
+    void processDisplayHotplugEventsLocked() REQUIRES(mStateLock);
 
     void dispatchDisplayHotplugEvent(PhysicalDisplayId displayId, bool connected);
 
@@ -1216,6 +1216,12 @@ private:
      * Misc
      */
 
+    std::optional<ActiveConfigInfo> getDesiredActiveConfig() EXCLUDES(mActiveConfigLock) {
+        std::lock_guard<std::mutex> lock(mActiveConfigLock);
+        if (mDesiredActiveConfigChanged) return mDesiredActiveConfig;
+        return std::nullopt;
+    }
+
     std::mutex mActiveConfigLock;
     // This bit is set once we start setting the config. We read from this bit during the
     // process. If at the end, this bit is different than mDesiredActiveConfig, we restart
@@ -1258,7 +1264,8 @@ private:
     // This should only be accessed on the main thread.
     nsecs_t mFrameStartTime = 0;
 
-    std::unique_ptr<RefreshRateOverlay> mRefreshRateOverlay;
+    void enableRefreshRateOverlay(bool enable);
+    std::unique_ptr<RefreshRateOverlay> mRefreshRateOverlay GUARDED_BY(mStateLock);
 
     // Flag used to set override allowed display configs from backdoor
     bool mDebugDisplayConfigSetByBackdoor = false;

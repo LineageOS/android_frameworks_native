@@ -57,7 +57,8 @@ bool isInterceptorRegistrationOp(int op) {
     return op == NATIVE_WINDOW_SET_CANCEL_INTERCEPTOR ||
             op == NATIVE_WINDOW_SET_DEQUEUE_INTERCEPTOR ||
             op == NATIVE_WINDOW_SET_PERFORM_INTERCEPTOR ||
-            op == NATIVE_WINDOW_SET_QUEUE_INTERCEPTOR;
+            op == NATIVE_WINDOW_SET_QUEUE_INTERCEPTOR ||
+            op == NATIVE_WINDOW_SET_QUERY_INTERCEPTOR;
 }
 
 } // namespace
@@ -500,6 +501,19 @@ int Surface::performInternal(ANativeWindow* window, int operation, va_list args)
 }
 
 int Surface::hook_query(const ANativeWindow* window, int what, int* value) {
+    const Surface* c = getSelf(window);
+    {
+        std::shared_lock<std::shared_mutex> lock(c->mInterceptorMutex);
+        if (c->mQueryInterceptor != nullptr) {
+            auto interceptor = c->mQueryInterceptor;
+            auto data = c->mQueryInterceptorData;
+            return interceptor(window, Surface::queryInternal, data, what, value);
+        }
+    }
+    return c->query(what, value);
+}
+
+int Surface::queryInternal(const ANativeWindow* window, int what, int* value) {
     const Surface* c = getSelf(window);
     return c->query(what, value);
 }
@@ -1177,6 +1191,9 @@ int Surface::perform(int operation, va_list args)
     case NATIVE_WINDOW_SET_QUEUE_INTERCEPTOR:
         res = dispatchAddQueueInterceptor(args);
         break;
+    case NATIVE_WINDOW_SET_QUERY_INTERCEPTOR:
+        res = dispatchAddQueryInterceptor(args);
+        break;
     case NATIVE_WINDOW_ALLOCATE_BUFFERS:
         allocateBuffers();
         res = NO_ERROR;
@@ -1454,6 +1471,15 @@ int Surface::dispatchAddQueueInterceptor(va_list args) {
     std::lock_guard<std::shared_mutex> lock(mInterceptorMutex);
     mQueueInterceptor = interceptor;
     mQueueInterceptorData = data;
+    return NO_ERROR;
+}
+
+int Surface::dispatchAddQueryInterceptor(va_list args) {
+    ANativeWindow_queryInterceptor interceptor = va_arg(args, ANativeWindow_queryInterceptor);
+    void* data = va_arg(args, void*);
+    std::lock_guard<std::shared_mutex> lock(mInterceptorMutex);
+    mQueryInterceptor = interceptor;
+    mQueryInterceptorData = data;
     return NO_ERROR;
 }
 
