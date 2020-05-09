@@ -117,6 +117,10 @@ public:
 
     sp<GraphicBuffer> getBuffer() const override;
 
+    ui::Transform::RotationFlags getTransformHint() const override { return mTransformHint; }
+
+    void setTransformHint(ui::Transform::RotationFlags displayTransformHint) const override;
+
     // -----------------------------------------------------------------------
 
     // -----------------------------------------------------------------------
@@ -204,6 +208,10 @@ protected:
     uint64_t mPreviousFrameNumber = 0;
 
     virtual uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const;
+
+    // Transform hint provided to the producer. This must be accessed holding
+    /// the mStateLock.
+    mutable ui::Transform::RotationFlags mTransformHint = ui::Transform::ROT_0;
 
 private:
     // Returns true if this layer requires filtering

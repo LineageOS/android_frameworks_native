@@ -2764,7 +2764,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
         processDisplayHotplugEventsLocked();
     }
 
-    if (transactionFlags & (eDisplayLayerStackChanged|eDisplayTransactionNeeded)) {
+    if (transactionFlags & (eTransformHintUpdateNeeded | eDisplayTransactionNeeded)) {
         // The transform hint might have changed for some layers
         // (either because a display has changed, or because a layer
         // as changed).
@@ -2831,7 +2831,6 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
             first = false;
         });
     }
-
 
     /*
      * Perform our own transaction if needed
@@ -3137,7 +3136,8 @@ void SurfaceFlinger::invalidateHwcGeometry()
 status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
                                         const sp<IGraphicBufferProducer>& gbc, const sp<Layer>& lbc,
                                         const sp<IBinder>& parentHandle,
-                                        const sp<Layer>& parentLayer, bool addToCurrentState) {
+                                        const sp<Layer>& parentLayer, bool addToCurrentState,
+                                        uint32_t* outTransformHint) {
     // add this layer to the current state list
     {
         Mutex::Autolock _l(mStateLock);
@@ -3178,6 +3178,14 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
                                 mGraphicBufferProducerList.size(),
                                 mMaxGraphicBufferProducerListSize, mNumLayers.load());
         }
+
+        if (const auto display = getDefaultDisplayDeviceLocked()) {
+            lbc->updateTransformHint(display);
+        }
+        if (outTransformHint) {
+            *outTransformHint = lbc->getTransformHint();
+        }
+
         mLayersAdded = true;
     }
 
@@ -3679,7 +3687,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             mCurrentState.layersSortedByZ.add(layer);
             // we need traversal (state changed)
             // AND transaction (list changed)
-            flags |= eTransactionNeeded|eTraversalNeeded|eDisplayLayerStackChanged;
+            flags |= eTransactionNeeded | eTraversalNeeded | eTransformHintUpdateNeeded;
         }
     }
     if (what & layer_state_t::eDeferTransaction_legacy) {
@@ -3776,6 +3784,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             flags |= eTraversalNeeded;
         }
     }
+    if (what & layer_state_t::eFixedTransformHintChanged) {
+        if (layer->setFixedTransformHint(s.fixedTransformHint)) {
+            flags |= eTraversalNeeded | eTransformHintUpdateNeeded;
+        }
+    }
     // This has to happen after we reparent children because when we reparent to null we remove
     // child layers from current state and remove its relative z. If the children are reparented in
     // the same transaction, then we have to make sure we reparent the children first so we do not
@@ -3863,7 +3876,8 @@ status_t SurfaceFlinger::mirrorLayer(const sp<Client>& client, const sp<IBinder>
         mirrorLayer->mClonedChild = mirrorFrom->createClone();
     }
 
-    return addClientLayer(client, *outHandle, nullptr, mirrorLayer, nullptr, nullptr, false);
+    return addClientLayer(client, *outHandle, nullptr, mirrorLayer, nullptr, nullptr, false,
+                          nullptr /* outTransformHint */);
 }
 
 status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& client, uint32_t w,
@@ -3908,7 +3922,7 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
             break;
         case ISurfaceComposerClient::eFXSurfaceBufferState:
             result = createBufferStateLayer(client, std::move(uniqueName), w, h, flags,
-                                            std::move(metadata), handle, outTransformHint, &layer);
+                                            std::move(metadata), handle, &layer);
             break;
         case ISurfaceComposerClient::eFXSurfaceEffect:
             // check if buffer size is set for color layer.
@@ -3946,7 +3960,7 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
 
     bool addToCurrentState = callingThreadHasUnscopedSurfaceFlingerAccess();
     result = addClientLayer(client, *handle, *gbp, layer, parentHandle, parentLayer,
-                            addToCurrentState);
+                            addToCurrentState, outTransformHint);
     if (result != NO_ERROR) {
         return result;
     }
@@ -4023,14 +4037,11 @@ status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, std::s
 status_t SurfaceFlinger::createBufferStateLayer(const sp<Client>& client, std::string name,
                                                 uint32_t w, uint32_t h, uint32_t flags,
                                                 LayerMetadata metadata, sp<IBinder>* handle,
-                                                uint32_t* outTransformHint, sp<Layer>* outLayer) {
+                                                sp<Layer>* outLayer) {
     LayerCreationArgs args(this, client, std::move(name), w, h, flags, std::move(metadata));
     args.displayDevice = getDefaultDisplayDevice();
     args.textureName = getNewTexture();
     sp<BufferStateLayer> layer = getFactory().createBufferStateLayer(args);
-    if (outTransformHint) {
-        *outTransformHint = layer->getTransformHint();
-    }
     *handle = layer->getHandle();
     *outLayer = layer;
 

@@ -51,9 +51,6 @@ BufferStateLayer::BufferStateLayer(const LayerCreationArgs& args)
       : BufferLayer(args), mHwcSlotGenerator(new HwcSlotGenerator()) {
     mOverrideScalingMode = NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
     mCurrentState.dataspace = ui::Dataspace::V0_SRGB;
-    if (const auto display = args.displayDevice) {
-        updateTransformHint(display);
-    }
 }
 
 BufferStateLayer::~BufferStateLayer() {
@@ -106,10 +103,6 @@ void BufferStateLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
                                            FrameTracer::FrameEvent::RELEASE_FENCE);
         mPreviousReleasedFrameNumber = mPreviousFrameNumber;
     }
-}
-
-void BufferStateLayer::setTransformHint(uint32_t orientation) const {
-    mTransformHint = orientation;
 }
 
 void BufferStateLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
