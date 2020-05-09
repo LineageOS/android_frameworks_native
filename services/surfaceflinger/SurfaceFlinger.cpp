@@ -836,7 +836,7 @@ status_t SurfaceFlinger::getDisplayInfo(const sp<IBinder>& displayToken, Display
     }
 
     info->secure = display->isSecure();
-    info->deviceProductInfo = getDeviceProductInfoLocked(*display);
+    info->deviceProductInfo = display->getDeviceProductInfo();
 
     return NO_ERROR;
 }
@@ -1307,30 +1307,6 @@ status_t SurfaceFlinger::getHdrCapabilities(const sp<IBinder>& displayToken,
                                        capabilities.getDesiredMinLuminance());
 
     return NO_ERROR;
-}
-
-std::optional<DeviceProductInfo> SurfaceFlinger::getDeviceProductInfoLocked(
-        const DisplayDevice& display) const {
-    // TODO(b/149075047): Populate DeviceProductInfo on hotplug and store it in DisplayDevice to
-    // avoid repetitive HAL IPC and EDID parsing.
-    const auto displayId = display.getId();
-    LOG_FATAL_IF(!displayId);
-
-    const auto hwcDisplayId = getHwComposer().fromPhysicalDisplayId(*displayId);
-    LOG_FATAL_IF(!hwcDisplayId);
-
-    uint8_t port;
-    DisplayIdentificationData data;
-    if (!getHwComposer().getDisplayIdentificationData(*hwcDisplayId, &port, &data)) {
-        ALOGV("%s: No identification data.", __FUNCTION__);
-        return {};
-    }
-
-    const auto info = parseDisplayIdentificationData(port, data);
-    if (!info) {
-        return {};
-    }
-    return info->deviceProductInfo;
 }
 
 status_t SurfaceFlinger::getDisplayedContentSamplingAttributes(const sp<IBinder>& displayToken,
@@ -2427,8 +2403,10 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
                 }
 
                 DisplayDeviceState state;
-                state.physical = {displayId, getHwComposer().getDisplayConnectionType(displayId),
-                                  event.hwcDisplayId};
+                state.physical = {.id = displayId,
+                                  .type = getHwComposer().getDisplayConnectionType(displayId),
+                                  .hwcDisplayId = event.hwcDisplayId,
+                                  .deviceProductInfo = info->deviceProductInfo};
                 state.isSecure = true; // All physical displays are currently considered secure.
                 state.displayName = info->name;
 
@@ -2544,6 +2522,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         LOG_ALWAYS_FATAL_IF(!displayId);
         auto activeConfigId = HwcConfigIndexType(getHwComposer().getActiveConfigIndex(*displayId));
         display->setActiveConfig(activeConfigId);
+        display->setDeviceProductInfo(state.physical->deviceProductInfo);
     }
 
     display->setLayerStack(state.layerStack);

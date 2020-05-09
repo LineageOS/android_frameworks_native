@@ -207,7 +207,7 @@ void RefreshRateOverlay::changeRefreshRate(const RefreshRate& refreshRate) {
     }
 
     const int32_t left = display->getWidth() / 32;
-    const int32_t top = display->getHeight() / 32;
+    const int32_t top = display->getHeight() / 16;
     const int32_t right = left + display->getWidth() / 8;
     const int32_t buttom = top + display->getHeight() / 32;
 

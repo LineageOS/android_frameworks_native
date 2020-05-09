@@ -104,107 +104,73 @@ static std::string matrixToString(const float* a, uint32_t m, uint32_t n, bool r
 
 // --- VelocityTracker ---
 
-// The default velocity tracker strategy.
-// Although other strategies are available for testing and comparison purposes,
-// this is the strategy that applications will actually use.  Be very careful
-// when adjusting the default strategy because it can dramatically affect
-// (often in a bad way) the user experience.
-const char* VelocityTracker::DEFAULT_STRATEGY = "lsq2";
-
-VelocityTracker::VelocityTracker(const char* strategy) :
-        mLastEventTime(0), mCurrentPointerIdBits(0), mActivePointerId(-1) {
-    char value[PROPERTY_VALUE_MAX];
-
-    // Allow the default strategy to be overridden using a system property for debugging.
-    if (!strategy) {
-        int length = property_get("persist.input.velocitytracker.strategy", value, nullptr);
-        if (length > 0) {
-            strategy = value;
-        } else {
-            strategy = DEFAULT_STRATEGY;
-        }
-    }
-
+VelocityTracker::VelocityTracker(const Strategy strategy)
+      : mLastEventTime(0), mCurrentPointerIdBits(0), mActivePointerId(-1) {
     // Configure the strategy.
     if (!configureStrategy(strategy)) {
-        ALOGD("Unrecognized velocity tracker strategy name '%s'.", strategy);
-        if (!configureStrategy(DEFAULT_STRATEGY)) {
-            LOG_ALWAYS_FATAL("Could not create the default velocity tracker strategy '%s'!",
-                    strategy);
+        ALOGE("Unrecognized velocity tracker strategy %" PRId32 ".", strategy);
+        if (!configureStrategy(VelocityTracker::DEFAULT_STRATEGY)) {
+            LOG_ALWAYS_FATAL("Could not create the default velocity tracker strategy '%" PRId32
+                             "'!",
+                             strategy);
         }
     }
 }
 
 VelocityTracker::~VelocityTracker() {
-    delete mStrategy;
 }
 
-bool VelocityTracker::configureStrategy(const char* strategy) {
-    mStrategy = createStrategy(strategy);
+bool VelocityTracker::configureStrategy(Strategy strategy) {
+    if (strategy == VelocityTracker::Strategy::DEFAULT) {
+        mStrategy = createStrategy(VelocityTracker::DEFAULT_STRATEGY);
+    } else {
+        mStrategy = createStrategy(strategy);
+    }
     return mStrategy != nullptr;
 }
 
-VelocityTrackerStrategy* VelocityTracker::createStrategy(const char* strategy) {
-    if (!strcmp("impulse", strategy)) {
-        // Physical model of pushing an object.  Quality: VERY GOOD.
-        // Works with duplicate coordinates, unclean finger liftoff.
-        return new ImpulseVelocityTrackerStrategy();
-    }
-    if (!strcmp("lsq1", strategy)) {
-        // 1st order least squares.  Quality: POOR.
-        // Frequently underfits the touch data especially when the finger accelerates
-        // or changes direction.  Often underestimates velocity.  The direction
-        // is overly influenced by historical touch points.
-        return new LeastSquaresVelocityTrackerStrategy(1);
-    }
-    if (!strcmp("lsq2", strategy)) {
-        // 2nd order least squares.  Quality: VERY GOOD.
-        // Pretty much ideal, but can be confused by certain kinds of touch data,
-        // particularly if the panel has a tendency to generate delayed,
-        // duplicate or jittery touch coordinates when the finger is released.
-        return new LeastSquaresVelocityTrackerStrategy(2);
-    }
-    if (!strcmp("lsq3", strategy)) {
-        // 3rd order least squares.  Quality: UNUSABLE.
-        // Frequently overfits the touch data yielding wildly divergent estimates
-        // of the velocity when the finger is released.
-        return new LeastSquaresVelocityTrackerStrategy(3);
-    }
-    if (!strcmp("wlsq2-delta", strategy)) {
-        // 2nd order weighted least squares, delta weighting.  Quality: EXPERIMENTAL
-        return new LeastSquaresVelocityTrackerStrategy(2,
-                LeastSquaresVelocityTrackerStrategy::WEIGHTING_DELTA);
-    }
-    if (!strcmp("wlsq2-central", strategy)) {
-        // 2nd order weighted least squares, central weighting.  Quality: EXPERIMENTAL
-        return new LeastSquaresVelocityTrackerStrategy(2,
-                LeastSquaresVelocityTrackerStrategy::WEIGHTING_CENTRAL);
-    }
-    if (!strcmp("wlsq2-recent", strategy)) {
-        // 2nd order weighted least squares, recent weighting.  Quality: EXPERIMENTAL
-        return new LeastSquaresVelocityTrackerStrategy(2,
-                LeastSquaresVelocityTrackerStrategy::WEIGHTING_RECENT);
-    }
-    if (!strcmp("int1", strategy)) {
-        // 1st order integrating filter.  Quality: GOOD.
-        // Not as good as 'lsq2' because it cannot estimate acceleration but it is
-        // more tolerant of errors.  Like 'lsq1', this strategy tends to underestimate
-        // the velocity of a fling but this strategy tends to respond to changes in
-        // direction more quickly and accurately.
-        return new IntegratingVelocityTrackerStrategy(1);
-    }
-    if (!strcmp("int2", strategy)) {
-        // 2nd order integrating filter.  Quality: EXPERIMENTAL.
-        // For comparison purposes only.  Unlike 'int1' this strategy can compensate
-        // for acceleration but it typically overestimates the effect.
-        return new IntegratingVelocityTrackerStrategy(2);
-    }
-    if (!strcmp("legacy", strategy)) {
-        // Legacy velocity tracker algorithm.  Quality: POOR.
-        // For comparison purposes only.  This algorithm is strongly influenced by
-        // old data points, consistently underestimates velocity and takes a very long
-        // time to adjust to changes in direction.
-        return new LegacyVelocityTrackerStrategy();
+std::unique_ptr<VelocityTrackerStrategy> VelocityTracker::createStrategy(
+        VelocityTracker::Strategy strategy) {
+    switch (strategy) {
+        case VelocityTracker::Strategy::IMPULSE:
+            return std::make_unique<ImpulseVelocityTrackerStrategy>();
+
+        case VelocityTracker::Strategy::LSQ1:
+            return std::make_unique<LeastSquaresVelocityTrackerStrategy>(1);
+
+        case VelocityTracker::Strategy::LSQ2:
+            return std::make_unique<LeastSquaresVelocityTrackerStrategy>(2);
+
+        case VelocityTracker::Strategy::LSQ3:
+            return std::make_unique<LeastSquaresVelocityTrackerStrategy>(3);
+
+        case VelocityTracker::Strategy::WLSQ2_DELTA:
+            return std::make_unique<
+                    LeastSquaresVelocityTrackerStrategy>(2,
+                                                         LeastSquaresVelocityTrackerStrategy::
+                                                                 WEIGHTING_DELTA);
+        case VelocityTracker::Strategy::WLSQ2_CENTRAL:
+            return std::make_unique<
+                    LeastSquaresVelocityTrackerStrategy>(2,
+                                                         LeastSquaresVelocityTrackerStrategy::
+                                                                 WEIGHTING_CENTRAL);
+        case VelocityTracker::Strategy::WLSQ2_RECENT:
+            return std::make_unique<
+                    LeastSquaresVelocityTrackerStrategy>(2,
+                                                         LeastSquaresVelocityTrackerStrategy::
+                                                                 WEIGHTING_RECENT);
+
+        case VelocityTracker::Strategy::INT1:
+            return std::make_unique<IntegratingVelocityTrackerStrategy>(1);
+
+        case VelocityTracker::Strategy::INT2:
+            return std::make_unique<IntegratingVelocityTrackerStrategy>(2);
+
+        case VelocityTracker::Strategy::LEGACY:
+            return std::make_unique<LegacyVelocityTrackerStrategy>();
+
+        default:
+            break;
     }
     return nullptr;
 }
