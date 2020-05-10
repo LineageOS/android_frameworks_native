@@ -209,6 +209,7 @@ private:
                                      int* fenceFd);
     static int performInternal(ANativeWindow* window, int operation, va_list args);
     static int queueBufferInternal(ANativeWindow* window, ANativeWindowBuffer* buffer, int fenceFd);
+    static int queryInternal(const ANativeWindow* window, int what, int* value);
 
     static int hook_cancelBuffer_DEPRECATED(ANativeWindow* window,
             ANativeWindowBuffer* buffer);
@@ -261,6 +262,7 @@ private:
     int dispatchAddDequeueInterceptor(va_list args);
     int dispatchAddPerformInterceptor(va_list args);
     int dispatchAddQueueInterceptor(va_list args);
+    int dispatchAddQueryInterceptor(va_list args);
     int dispatchGetLastQueuedBuffer(va_list args);
     bool transformToDisplayInverse();
 
@@ -468,7 +470,7 @@ protected:
     mutable Mutex mMutex;
 
     // mInterceptorMutex is the mutex guarding interceptors.
-    std::shared_mutex mInterceptorMutex;
+    mutable std::shared_mutex mInterceptorMutex;
 
     ANativeWindow_cancelBufferInterceptor mCancelInterceptor = nullptr;
     void* mCancelInterceptorData = nullptr;
@@ -478,6 +480,8 @@ protected:
     void* mPerformInterceptorData = nullptr;
     ANativeWindow_queueBufferInterceptor mQueueInterceptor = nullptr;
     void* mQueueInterceptorData = nullptr;
+    ANativeWindow_queryInterceptor mQueryInterceptor = nullptr;
+    void* mQueryInterceptorData = nullptr;
 
     // must be used from the lock/unlock thread
     sp<GraphicBuffer>           mLockedBuffer;
