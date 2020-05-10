@@ -16,12 +16,16 @@
 
 #include <ui/DeviceProductInfo.h>
 
+#include <android-base/stringprintf.h>
 #include <ui/FlattenableHelpers.h>
+#include <utils/Log.h>
 
 #define RETURN_IF_ERROR(op) \
     if (const status_t status = (op); status != OK) return status;
 
 namespace android {
+
+using base::StringAppendF;
 
 size_t DeviceProductInfo::getFlattenedSize() const {
     return FlattenableHelpers::getFlattenedSize(name) +
@@ -50,6 +54,34 @@ status_t DeviceProductInfo::unflatten(void const* buffer, size_t size) {
     RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &manufactureOrModelDate));
     RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &relativeAddress));
     return OK;
+}
+
+void DeviceProductInfo::dump(std::string& result) const {
+    StringAppendF(&result, "{name=%s, ", name.c_str());
+    StringAppendF(&result, "manufacturerPnpId=%s, ", manufacturerPnpId.data());
+    StringAppendF(&result, "productId=%s, ", productId.c_str());
+
+    if (const auto* model = std::get_if<ModelYear>(&manufactureOrModelDate)) {
+        StringAppendF(&result, "modelYear=%u, ", model->year);
+    } else if (const auto* manufactureWeekAndYear =
+                       std::get_if<ManufactureWeekAndYear>(&manufactureOrModelDate)) {
+        StringAppendF(&result, "manufactureWeek=%u, ", manufactureWeekAndYear->week);
+        StringAppendF(&result, "manufactureYear=%d, ", manufactureWeekAndYear->year);
+    } else if (const auto* manufactureYear =
+                       std::get_if<ManufactureYear>(&manufactureOrModelDate)) {
+        StringAppendF(&result, "manufactureYear=%d, ", manufactureYear->year);
+    } else {
+        ALOGE("Unknown alternative for variant DeviceProductInfo::ManufactureOrModelDate");
+    }
+
+    result.append("relativeAddress=[");
+    for (size_t i = 0; i < relativeAddress.size(); i++) {
+        if (i != 0) {
+            result.append(", ");
+        }
+        StringAppendF(&result, "%u", relativeAddress[i]);
+    }
+    result.append("]}");
 }
 
 } // namespace android
