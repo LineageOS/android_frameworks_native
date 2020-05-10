@@ -36,10 +36,7 @@ static const size_t EVENT_BUFFER_SIZE = 100;
 DisplayEventDispatcher::DisplayEventDispatcher(const sp<Looper>& looper,
                                                ISurfaceComposer::VsyncSource vsyncSource,
                                                ISurfaceComposer::ConfigChanged configChanged)
-      : mLooper(looper),
-        mReceiver(vsyncSource, configChanged),
-        mWaitingForVsync(false),
-        mConfigChangeFlag(configChanged) {
+      : mLooper(looper), mReceiver(vsyncSource, configChanged), mWaitingForVsync(false) {
     ALOGV("dispatcher %p ~ Initializing display event dispatcher.", this);
 }
 
@@ -92,16 +89,12 @@ status_t DisplayEventDispatcher::scheduleVsync() {
     return OK;
 }
 
-void DisplayEventDispatcher::toggleConfigEvents(ISurfaceComposer::ConfigChanged configChangeFlag) {
-    if (mConfigChangeFlag == configChangeFlag) {
-        return;
-    }
-    status_t status = mReceiver.toggleConfigEvents(configChangeFlag);
+void DisplayEventDispatcher::requestLatestConfig() {
+    status_t status = mReceiver.requestLatestConfig();
     if (status) {
         ALOGW("Failed enable config events, status=%d", status);
         return;
     }
-    mConfigChangeFlag = configChangeFlag;
 }
 
 int DisplayEventDispatcher::getFd() const {

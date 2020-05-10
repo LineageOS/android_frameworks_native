@@ -12,23 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-ndk_headers {
-    name: "libnativedisplay_ndk_headers",
-    from: "include/android",
-    to: "android",
-    srcs: ["include/android/*.h"],
-    license: "NOTICE",
-}
-
 cc_library_headers {
     name: "libnativedisplay_headers",
-    export_include_dirs: ["include"],
+    export_include_dirs: ["include",],
 }
 
-cc_library {
+cc_library_shared {
     name: "libnativedisplay",
     export_include_dirs: [
         "include",
+        "include-private",
     ],
 
     clang: true,
@@ -60,6 +53,10 @@ cc_library {
         "libcutils",
         "libEGL",
         "libGLESv2",
+        "libnativehelper",
+    ],
+
+    export_shared_lib_headers: [
         "libnativehelper",
     ],
 
