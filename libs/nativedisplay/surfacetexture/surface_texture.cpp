@@ -149,6 +149,37 @@ int64_t ASurfaceTexture_getTimestamp(ASurfaceTexture* st) {
 
 // The following functions are private/unstable API.
 namespace android {
+ANativeWindow* ASurfaceTexture_routeAcquireANativeWindow(ASurfaceTexture* st) {
+    return ASurfaceTexture_acquireANativeWindow(st);
+}
+
+int ASurfaceTexture_routeAttachToGLContext(ASurfaceTexture* st, uint32_t texName) {
+    return ASurfaceTexture_attachToGLContext(st, texName);
+}
+
+void ASurfaceTexture_routeRelease(ASurfaceTexture* st) {
+    return ASurfaceTexture_release(st);
+}
+
+int ASurfaceTexture_routeDetachFromGLContext(ASurfaceTexture* st) {
+    return ASurfaceTexture_detachFromGLContext(st);
+}
+
+int ASurfaceTexture_routeUpdateTexImage(ASurfaceTexture* st) {
+    return ASurfaceTexture_updateTexImage(st);
+}
+
+void ASurfaceTexture_routeGetTransformMatrix(ASurfaceTexture* st, float mtx[16]) {
+    return ASurfaceTexture_getTransformMatrix(st, mtx);
+}
+
+int64_t ASurfaceTexture_routeGetTimestamp(ASurfaceTexture* st) {
+    return ASurfaceTexture_getTimestamp(st);
+}
+
+ASurfaceTexture* ASurfaceTexture_routeFromSurfaceTexture(JNIEnv* env, jobject surfacetexture) {
+    return ASurfaceTexture_fromSurfaceTexture(env, surfacetexture);
+}
 
 unsigned int ASurfaceTexture_getCurrentTextureTarget(ASurfaceTexture* st) {
     return st->consumer->getCurrentTextureTarget();
