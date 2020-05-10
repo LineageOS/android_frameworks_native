@@ -1899,8 +1899,11 @@ void SurfaceFlinger::onMessageInvalidate(nsecs_t expectedVSyncTime) NO_THREAD_SA
                 ATRACE_NAME("Jank detected");
                 ALOGD("Detected janky event. Missed frames: %d", mMissedFrameJankCount);
                 const int32_t jankyDurationMillis = jankDuration / (1000 * 1000);
-                android::util::stats_write(android::util::DISPLAY_JANK_REPORTED,
-                                           jankyDurationMillis, mMissedFrameJankCount);
+                {
+                    ATRACE_NAME("Pushing to statsd");
+                    android::util::stats_write(android::util::DISPLAY_JANK_REPORTED,
+                                               jankyDurationMillis, mMissedFrameJankCount);
+                }
             }
 
             // We either reported a jank event or we missed the trace
