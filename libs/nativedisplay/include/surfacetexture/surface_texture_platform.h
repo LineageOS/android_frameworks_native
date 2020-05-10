@@ -19,7 +19,7 @@
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
-
+#include <nativehelper/JNIHelp.h>
 #include <system/graphics.h>
 
 // This file provides a facade API on top of SurfaceTexture, which avoids using
@@ -29,6 +29,20 @@
 struct ASurfaceTexture;
 
 namespace android {
+
+// Trampoline functions allowing libandroid.so to define the NDK symbols without including
+// the entirety of libnativedisplay as a whole static lib. As libnativedisplay
+// maintains global state, libnativedisplay can never be directly statically
+// linked so that global state won't be duplicated. This way libandroid.so can
+// reroute the NDK methods into the implementations defined by libnativedisplay
+ANativeWindow* ASurfaceTexture_routeAcquireANativeWindow(ASurfaceTexture* st);
+int ASurfaceTexture_routeAttachToGLContext(ASurfaceTexture* st, uint32_t texName);
+int ASurfaceTexture_routeDetachFromGLContext(ASurfaceTexture* st);
+void ASurfaceTexture_routeRelease(ASurfaceTexture* st);
+int ASurfaceTexture_routeUpdateTexImage(ASurfaceTexture* st);
+void ASurfaceTexture_routeGetTransformMatrix(ASurfaceTexture* st, float mtx[16]);
+int64_t ASurfaceTexture_routeGetTimestamp(ASurfaceTexture* st);
+ASurfaceTexture* ASurfaceTexture_routeFromSurfaceTexture(JNIEnv* env, jobject surfacetexture);
 
 /**
  * ASurfaceTexture_getCurrentTextureTarget returns the texture target of the
