@@ -2094,7 +2094,7 @@ static bool canBeObscuredBy(const sp<InputWindowHandle>& windowHandle,
         // If ownerPid is the same we don't generate occlusion events as there
         // is no in-process security boundary.
         return false;
-    } else if (otherInfo->isTrustedOverlay()) {
+    } else if (otherInfo->trustedOverlay) {
         return false;
     } else if (otherInfo->displayId != info->displayId) {
         return false;
