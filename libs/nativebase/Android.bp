@@ -25,5 +25,6 @@ cc_library_headers {
         windows: {
             enabled: true,
         },
-    }
+    },
+    min_sdk_version: "29",
 }
