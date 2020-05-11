@@ -42,7 +42,6 @@ public:
     const char* getType() const override { return "BufferStateLayer"; }
 
     void onLayerDisplayed(const sp<Fence>& releaseFence) override;
-    void setTransformHint(uint32_t orientation) const override;
     void releasePendingBuffer(nsecs_t dequeueReadyTime) override;
 
     void finalizeFrameEventHistory(const std::shared_ptr<FenceTime>& glDoneFence,
@@ -68,7 +67,6 @@ public:
     }
     Rect getCrop(const Layer::State& s) const;
 
-    uint32_t getTransformHint() const { return mTransformHint; }
     bool setTransform(uint32_t transform) override;
     bool setTransformToDisplayInverse(bool transformToDisplayInverse) override;
     bool setCrop(const Rect& crop) override;
@@ -163,8 +161,6 @@ private:
     mutable bool mCurrentStateModified = false;
     bool mReleasePreviousBuffer = false;
     nsecs_t mCallbackHandleAcquireTime = -1;
-
-    mutable uint32_t mTransformHint = 0;
 
     // TODO(marissaw): support sticky transform for LEGACY camera mode
 
