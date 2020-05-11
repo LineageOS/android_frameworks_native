@@ -470,7 +470,7 @@ Error Display::getName(std::string* outName) const
 
 Error Display::getRequests(HWC2::DisplayRequest* outDisplayRequests,
                            std::unordered_map<HWC2::Layer*, LayerRequest>* outLayerRequests) {
-    uint32_t intDisplayRequests;
+    uint32_t intDisplayRequests = 0;
     std::vector<Hwc2::Layer> layerIds;
     std::vector<uint32_t> layerRequests;
     auto intError = mComposer.getDisplayRequests(

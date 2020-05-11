@@ -3415,6 +3415,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
     const Region bounds(displayState.bounds);
     const DisplayRenderArea renderArea(displayDevice);
     const bool hasClientComposition = getHwComposer().hasClientComposition(displayId);
+    const bool hasFlipClientTargetRequest = getHwComposer().hasFlipClientTargetRequest(displayId);
     ATRACE_INT("hasClientComposition", hasClientComposition);
 
     bool applyColorMatrix = false;
@@ -3479,6 +3480,15 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
         applyColorMatrix = !hasDeviceComposition && !skipClientColorTransform;
         if (applyColorMatrix) {
             clientCompositionDisplay.colorTransform = displayState.colorTransformMat;
+        }
+    } else if (hasFlipClientTargetRequest) {
+        buf = display->getRenderSurface()->dequeueBuffer(&fd);
+
+        if (buf == nullptr) {
+            ALOGW("Dequeuing buffer for display [%s] failed, bailing out of "
+                  "client composition for this frame",
+                  displayDevice->getDisplayName().c_str());
+            return false;
         }
     }
 
