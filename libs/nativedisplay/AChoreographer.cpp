@@ -250,12 +250,12 @@ void Choreographer::registerRefreshRateCallback(AChoreographer_refreshRateCallba
     }
     if (needsRegistration) {
         JNIEnv* env = getJniEnv();
-        jobject dmg = env->CallStaticObjectMethod(gJni.displayManagerGlobal.clazz,
-                                                  gJni.displayManagerGlobal.getInstance);
         if (env == nullptr) {
-            ALOGW("JNI environment is unavailable, skipping registeration");
+            ALOGW("JNI environment is unavailable, skipping registration");
             return;
         }
+        jobject dmg = env->CallStaticObjectMethod(gJni.displayManagerGlobal.clazz,
+                                                  gJni.displayManagerGlobal.getInstance);
         if (dmg == nullptr) {
             ALOGW("DMS is not initialized yet: skipping registration");
             return;
