@@ -35,6 +35,7 @@
 #include <ui/Rect.h>
 #include <ui/Region.h>
 #include <ui/Rotation.h>
+#include <ui/Transform.h>
 #include <utils/Errors.h>
 
 namespace android {
@@ -103,6 +104,7 @@ struct layer_state_t {
         eFrameRateChanged = 0x40'00000000,
         eBackgroundBlurRadiusChanged = 0x80'00000000,
         eProducerDisconnect = 0x100'00000000,
+        eFixedTransformHintChanged = 0x200'00000000,
     };
 
     layer_state_t()
@@ -136,7 +138,8 @@ struct layer_state_t {
             shadowRadius(0.0f),
             frameRateSelectionPriority(-1),
             frameRate(0.0f),
-            frameRateCompatibility(ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT) {
+            frameRateCompatibility(ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT),
+            fixedTransformHint(ui::Transform::ROT_INVALID) {
         matrix.dsdx = matrix.dtdy = 1.0f;
         matrix.dsdy = matrix.dtdx = 0.0f;
         hdrMetadata.validTypes = 0;
@@ -225,6 +228,15 @@ struct layer_state_t {
     // Layer frame rate and compatibility. See ANativeWindow_setFrameRate().
     float frameRate;
     int8_t frameRateCompatibility;
+
+    // Set by window manager indicating the layer and all its children are
+    // in a different orientation than the display. The hint suggests that
+    // the graphic producers should receive a transform hint as if the
+    // display was in this orientation. When the display changes to match
+    // the layer orientation, the graphic producer may not need to allocate
+    // a buffer of a different size. -1 means the transform hint is not set,
+    // otherwise the value will be a valid ui::Rotation.
+    ui::Transform::RotationFlags fixedTransformHint;
 };
 
 struct ComposerState {
