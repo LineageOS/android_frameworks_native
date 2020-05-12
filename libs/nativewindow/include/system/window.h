@@ -254,6 +254,7 @@ enum {
     NATIVE_WINDOW_SET_QUEUE_INTERCEPTOR           = 44,    /* private */
     NATIVE_WINDOW_ALLOCATE_BUFFERS                = 45,    /* private */
     NATIVE_WINDOW_GET_LAST_QUEUED_BUFFER          = 46,    /* private */
+    NATIVE_WINDOW_SET_QUERY_INTERCEPTOR           = 47,    /* private */
     // clang-format on
 };
 
@@ -1060,6 +1061,40 @@ static inline int64_t ANativeWindow_getNextFrameId(ANativeWindow* window) {
     int64_t value;
     window->perform(window, NATIVE_WINDOW_GET_NEXT_FRAME_ID, &value);
     return value;
+}
+
+/**
+ * Prototype of the function that an ANativeWindow implementation would call
+ * when ANativeWindow_query is called.
+ */
+typedef int (*ANativeWindow_queryFn)(const ANativeWindow* window, int what, int* value);
+
+/**
+ * Prototype of the function that intercepts an invocation of
+ * ANativeWindow_queryFn, along with a data pointer that's passed by the
+ * caller who set the interceptor, as well as arguments that would be
+ * passed to ANativeWindow_queryFn if it were to be called.
+ */
+typedef int (*ANativeWindow_queryInterceptor)(const ANativeWindow* window,
+                                                ANativeWindow_queryFn perform, void* data,
+                                                int what, int* value);
+
+/**
+ * Registers an interceptor for ANativeWindow_query. Instead of calling
+ * the underlying query function, instead the provided interceptor is
+ * called, which may optionally call the underlying query function. An
+ * optional data pointer is also provided to side-channel additional arguments.
+ *
+ * Note that usage of this should only be used for specialized use-cases by
+ * either the system partition or to Mainline modules. This should never be
+ * exposed to NDK or LL-NDK.
+ *
+ * Returns NO_ERROR on success, -errno if registration failed.
+ */
+static inline int ANativeWindow_setQueryInterceptor(ANativeWindow* window,
+                                            ANativeWindow_queryInterceptor interceptor,
+                                            void* data) {
+    return window->perform(window, NATIVE_WINDOW_SET_QUERY_INTERCEPTOR, interceptor, data);
 }
 
 __END_DECLS
