@@ -1437,6 +1437,22 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrame
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFixedTransformHint(
+        const sp<SurfaceControl>& sc, int32_t fixedTransformHint) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+
+    const ui::Transform::RotationFlags transform = fixedTransformHint == -1
+            ? ui::Transform::ROT_INVALID
+            : ui::Transform::toRotationFlags(static_cast<ui::Rotation>(fixedTransformHint));
+    s->what |= layer_state_t::eFixedTransformHintChanged;
+    s->fixedTransformHint = transform;
+    return *this;
+}
+
 // ---------------------------------------------------------------------------
 
 DisplayState& SurfaceComposerClient::Transaction::getDisplayState(const sp<IBinder>& token) {

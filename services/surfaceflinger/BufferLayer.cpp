@@ -843,6 +843,13 @@ void BufferLayer::updateCloneBufferInfo() {
     mDrawingState.inputInfo = tmpInputInfo;
 }
 
+void BufferLayer::setTransformHint(ui::Transform::RotationFlags displayTransformHint) const {
+    mTransformHint = getFixedTransformHint();
+    if (mTransformHint == ui::Transform::ROT_INVALID) {
+        mTransformHint = displayTransformHint;
+    }
+}
+
 } // namespace android
 
 #if defined(__gl_h_)
