@@ -116,6 +116,7 @@ status_t layer_state_t::write(Parcel& output) const
     output.writeInt32(frameRateSelectionPriority);
     output.writeFloat(frameRate);
     output.writeByte(frameRateCompatibility);
+    output.writeUint32(fixedTransformHint);
     return NO_ERROR;
 }
 
@@ -198,6 +199,7 @@ status_t layer_state_t::read(const Parcel& input)
     frameRateSelectionPriority = input.readInt32();
     frameRate = input.readFloat();
     frameRateCompatibility = input.readByte();
+    fixedTransformHint = static_cast<ui::Transform::RotationFlags>(input.readUint32());
     return NO_ERROR;
 }
 
@@ -432,6 +434,10 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eFrameRateChanged;
         frameRate = other.frameRate;
         frameRateCompatibility = other.frameRateCompatibility;
+    }
+    if (other.what & eFixedTransformHintChanged) {
+        what |= eFixedTransformHintChanged;
+        fixedTransformHint = other.fixedTransformHint;
     }
     if ((other.what & what) != other.what) {
         ALOGE("Unmerged SurfaceComposer Transaction properties. LayerState::merge needs updating? "
