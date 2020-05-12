@@ -17,24 +17,63 @@
 #define LOG_TAG "Choreographer"
 //#define LOG_NDEBUG 0
 
-#include <apex/choreographer.h>
+#include <android-base/thread_annotations.h>
 #include <gui/DisplayEventDispatcher.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
+#include <nativehelper/JNIHelp.h>
+#include <private/android/choreographer.h>
 #include <utils/Looper.h>
-#include <utils/Mutex.h>
 #include <utils/Timers.h>
 
 #include <cinttypes>
+#include <mutex>
 #include <optional>
 #include <queue>
 #include <thread>
 
-namespace android {
+namespace {
+struct {
+    // Global JVM that is provided by zygote
+    JavaVM* jvm = nullptr;
+    struct {
+        jclass clazz;
+        jmethodID getInstance;
+        jmethodID registerNativeChoreographerForRefreshRateCallbacks;
+        jmethodID unregisterNativeChoreographerForRefreshRateCallbacks;
+    } displayManagerGlobal;
+} gJni;
 
-static inline const char* toString(bool value) {
+// Gets the JNIEnv* for this thread, and performs one-off initialization if we
+// have never retrieved a JNIEnv* pointer before.
+JNIEnv* getJniEnv() {
+    if (gJni.jvm == nullptr) {
+        ALOGW("AChoreographer: No JVM provided!");
+        return nullptr;
+    }
+
+    JNIEnv* env = nullptr;
+    if (gJni.jvm->GetEnv((void**)&env, JNI_VERSION_1_4) != JNI_OK) {
+        ALOGD("Attaching thread to JVM for AChoreographer");
+        JavaVMAttachArgs args = {JNI_VERSION_1_4, "AChoreographer_env", NULL};
+        jint attachResult = gJni.jvm->AttachCurrentThreadAsDaemon(&env, (void*)&args);
+        if (attachResult != JNI_OK) {
+            ALOGE("Unable to attach thread. Error: %d", attachResult);
+            return nullptr;
+        }
+    }
+    if (env == nullptr) {
+        ALOGW("AChoreographer: No JNI env available!");
+    }
+    return env;
+}
+
+inline const char* toString(bool value) {
     return value ? "true" : "false";
 }
+} // namespace
+
+namespace android {
 
 struct FrameCallback {
     AChoreographer_frameCallback callback;
@@ -52,24 +91,43 @@ struct FrameCallback {
 struct RefreshRateCallback {
     AChoreographer_refreshRateCallback callback;
     void* data;
+    bool firstCallbackFired = false;
 };
+
+class Choreographer;
+
+struct {
+    std::mutex lock;
+    std::vector<Choreographer*> ptrs GUARDED_BY(lock);
+    bool registeredToDisplayManager GUARDED_BY(lock) = false;
+
+    std::atomic<nsecs_t> mLastKnownVsync = -1;
+} gChoreographers;
 
 class Choreographer : public DisplayEventDispatcher, public MessageHandler {
 public:
-    explicit Choreographer(const sp<Looper>& looper);
+    explicit Choreographer(const sp<Looper>& looper) EXCLUDES(gChoreographers.lock);
     void postFrameCallbackDelayed(AChoreographer_frameCallback cb,
                                   AChoreographer_frameCallback64 cb64, void* data, nsecs_t delay);
-    void registerRefreshRateCallback(AChoreographer_refreshRateCallback cb, void* data);
+    void registerRefreshRateCallback(AChoreographer_refreshRateCallback cb, void* data)
+            EXCLUDES(gChoreographers.lock);
     void unregisterRefreshRateCallback(AChoreographer_refreshRateCallback cb, void* data);
+    // Drains the queue of pending vsync periods and dispatches refresh rate
+    // updates to callbacks.
+    // The assumption is that this method is only called on a single
+    // processing thread, either by looper or by AChoreographer_handleEvents
+    void handleRefreshRateUpdates();
+    void scheduleLatestConfigRequest();
 
     enum {
         MSG_SCHEDULE_CALLBACKS = 0,
-        MSG_SCHEDULE_VSYNC = 1
+        MSG_SCHEDULE_VSYNC = 1,
+        MSG_HANDLE_REFRESH_RATE_UPDATES = 2,
     };
     virtual void handleMessage(const Message& message) override;
 
     static Choreographer* getForThread();
-    virtual ~Choreographer() = default;
+    virtual ~Choreographer() override EXCLUDES(gChoreographers.lock);
 
 private:
     Choreographer(const Choreographer&) = delete;
@@ -81,20 +139,16 @@ private:
 
     void scheduleCallbacks();
 
+    std::mutex mLock;
     // Protected by mLock
     std::priority_queue<FrameCallback> mFrameCallbacks;
-
-    // Protected by mLock
     std::vector<RefreshRateCallback> mRefreshRateCallbacks;
-    nsecs_t mVsyncPeriod = 0;
 
-    mutable Mutex mLock;
+    nsecs_t mLatestVsyncPeriod = -1;
 
     const sp<Looper> mLooper;
     const std::thread::id mThreadId;
-    const std::optional<PhysicalDisplayId> mInternalDisplayId;
 };
-
 
 static thread_local Choreographer* gChoreographer;
 Choreographer* Choreographer::getForThread() {
@@ -115,17 +169,47 @@ Choreographer* Choreographer::getForThread() {
 }
 
 Choreographer::Choreographer(const sp<Looper>& looper)
-      : DisplayEventDispatcher(looper),
+      : DisplayEventDispatcher(looper, ISurfaceComposer::VsyncSource::eVsyncSourceApp,
+                               ISurfaceComposer::ConfigChanged::eConfigChangedDispatch),
         mLooper(looper),
-        mThreadId(std::this_thread::get_id()),
-        mInternalDisplayId(SurfaceComposerClient::getInternalDisplayId()) {}
+        mThreadId(std::this_thread::get_id()) {
+    std::lock_guard<std::mutex> _l(gChoreographers.lock);
+    gChoreographers.ptrs.push_back(this);
+}
+
+Choreographer::~Choreographer() {
+    std::lock_guard<std::mutex> _l(gChoreographers.lock);
+    gChoreographers.ptrs.erase(std::remove_if(gChoreographers.ptrs.begin(),
+                                              gChoreographers.ptrs.end(),
+                                              [=](Choreographer* c) { return c == this; }),
+                               gChoreographers.ptrs.end());
+    // Only poke DisplayManagerGlobal to unregister if we previously registered
+    // callbacks.
+    if (gChoreographers.ptrs.empty() && gChoreographers.registeredToDisplayManager) {
+        JNIEnv* env = getJniEnv();
+        if (env == nullptr) {
+            ALOGW("JNI environment is unavailable, skipping choreographer cleanup");
+            return;
+        }
+        jobject dmg = env->CallStaticObjectMethod(gJni.displayManagerGlobal.clazz,
+                                                  gJni.displayManagerGlobal.getInstance);
+        if (dmg == nullptr) {
+            ALOGW("DMS is not initialized yet, skipping choreographer cleanup");
+        } else {
+            env->CallVoidMethod(dmg,
+                                gJni.displayManagerGlobal
+                                        .unregisterNativeChoreographerForRefreshRateCallbacks);
+            env->DeleteLocalRef(dmg);
+        }
+    }
+}
 
 void Choreographer::postFrameCallbackDelayed(
         AChoreographer_frameCallback cb, AChoreographer_frameCallback64 cb64, void* data, nsecs_t delay) {
     nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
     FrameCallback callback{cb, cb64, data, now + delay};
     {
-        AutoMutex _l{mLock};
+        std::lock_guard<std::mutex> _l{mLock};
         mFrameCallbacks.push(callback);
     }
     if (callback.dueTime <= now) {
@@ -150,37 +234,68 @@ void Choreographer::postFrameCallbackDelayed(
 }
 
 void Choreographer::registerRefreshRateCallback(AChoreographer_refreshRateCallback cb, void* data) {
+    std::lock_guard<std::mutex> _l{mLock};
+    for (const auto& callback : mRefreshRateCallbacks) {
+        // Don't re-add callbacks.
+        if (cb == callback.callback && data == callback.data) {
+            return;
+        }
+    }
+    mRefreshRateCallbacks.emplace_back(
+            RefreshRateCallback{.callback = cb, .data = data, .firstCallbackFired = false});
+    bool needsRegistration = false;
     {
-        AutoMutex _l{mLock};
-        for (const auto& callback : mRefreshRateCallbacks) {
-            // Don't re-add callbacks.
-            if (cb == callback.callback && data == callback.data) {
-                return;
+        std::lock_guard<std::mutex> _l2(gChoreographers.lock);
+        needsRegistration = !gChoreographers.registeredToDisplayManager;
+    }
+    if (needsRegistration) {
+        JNIEnv* env = getJniEnv();
+        if (env == nullptr) {
+            ALOGW("JNI environment is unavailable, skipping registration");
+            return;
+        }
+        jobject dmg = env->CallStaticObjectMethod(gJni.displayManagerGlobal.clazz,
+                                                  gJni.displayManagerGlobal.getInstance);
+        if (dmg == nullptr) {
+            ALOGW("DMS is not initialized yet: skipping registration");
+            return;
+        } else {
+            env->CallVoidMethod(dmg,
+                                gJni.displayManagerGlobal
+                                        .registerNativeChoreographerForRefreshRateCallbacks,
+                                reinterpret_cast<int64_t>(this));
+            env->DeleteLocalRef(dmg);
+            {
+                std::lock_guard<std::mutex> _l2(gChoreographers.lock);
+                gChoreographers.registeredToDisplayManager = true;
             }
         }
-        mRefreshRateCallbacks.emplace_back(RefreshRateCallback{cb, data});
-        toggleConfigEvents(ISurfaceComposer::ConfigChanged::eConfigChangedDispatch);
+    } else {
+        scheduleLatestConfigRequest();
     }
 }
 
 void Choreographer::unregisterRefreshRateCallback(AChoreographer_refreshRateCallback cb,
                                                   void* data) {
-    {
-        AutoMutex _l{mLock};
-        mRefreshRateCallbacks.erase(std::remove_if(mRefreshRateCallbacks.begin(),
-                                                   mRefreshRateCallbacks.end(),
-                                                   [&](const RefreshRateCallback& callback) {
-                                                       return cb == callback.callback &&
-                                                               data == callback.data;
-                                                   }),
-                                    mRefreshRateCallbacks.end());
-        if (mRefreshRateCallbacks.empty()) {
-            toggleConfigEvents(ISurfaceComposer::ConfigChanged::eConfigChangedSuppress);
-            // If callbacks are empty then clear out the most recently seen
-            // vsync period so that when another callback is registered then the
-            // up-to-date refresh rate can be communicated to the app again.
-            mVsyncPeriod = 0;
-        }
+    std::lock_guard<std::mutex> _l{mLock};
+    mRefreshRateCallbacks.erase(std::remove_if(mRefreshRateCallbacks.begin(),
+                                               mRefreshRateCallbacks.end(),
+                                               [&](const RefreshRateCallback& callback) {
+                                                   return cb == callback.callback &&
+                                                           data == callback.data;
+                                               }),
+                                mRefreshRateCallbacks.end());
+}
+
+void Choreographer::scheduleLatestConfigRequest() {
+    if (mLooper != nullptr) {
+        Message m{MSG_HANDLE_REFRESH_RATE_UPDATES};
+        mLooper->sendMessage(this, m);
+    } else {
+        // If the looper thread is detached from Choreographer, then refresh rate
+        // changes will be handled in AChoreographer_handlePendingEvents, so we
+        // need to redispatch a config from SF
+        requestLatestConfig();
     }
 }
 
@@ -188,7 +303,7 @@ void Choreographer::scheduleCallbacks() {
     const nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
     nsecs_t dueTime;
     {
-        AutoMutex _{mLock};
+        std::lock_guard<std::mutex> _l{mLock};
         // If there are no pending callbacks then don't schedule a vsync
         if (mFrameCallbacks.empty()) {
             return;
@@ -203,13 +318,35 @@ void Choreographer::scheduleCallbacks() {
     }
 }
 
+void Choreographer::handleRefreshRateUpdates() {
+    std::vector<RefreshRateCallback> callbacks{};
+    const nsecs_t pendingPeriod = gChoreographers.mLastKnownVsync.load();
+    const nsecs_t lastPeriod = mLatestVsyncPeriod;
+    if (pendingPeriod > 0) {
+        mLatestVsyncPeriod = pendingPeriod;
+    }
+    {
+        std::lock_guard<std::mutex> _l{mLock};
+        for (auto& cb : mRefreshRateCallbacks) {
+            callbacks.push_back(cb);
+            cb.firstCallbackFired = true;
+        }
+    }
+
+    for (auto& cb : callbacks) {
+        if (!cb.firstCallbackFired || (pendingPeriod > 0 && pendingPeriod != lastPeriod)) {
+            cb.callback(pendingPeriod, cb.data);
+        }
+    }
+}
+
 // TODO(b/74619554): The PhysicalDisplayId is ignored because SF only emits VSYNC events for the
 // internal display and DisplayEventReceiver::requestNextVsync only allows requesting VSYNC for
 // the internal display implicitly.
 void Choreographer::dispatchVsync(nsecs_t timestamp, PhysicalDisplayId, uint32_t) {
     std::vector<FrameCallback> callbacks{};
     {
-        AutoMutex _l{mLock};
+        std::lock_guard<std::mutex> _l{mLock};
         nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
         while (!mFrameCallbacks.empty() && mFrameCallbacks.top().dueTime < now) {
             callbacks.push_back(mFrameCallbacks.top());
@@ -236,20 +373,29 @@ void Choreographer::dispatchHotplug(nsecs_t, PhysicalDisplayId displayId, bool c
 // display, so as such Choreographer does not support the notion of multiple
 // displays. When multi-display choreographer is properly supported, then
 // PhysicalDisplayId should no longer be ignored.
-void Choreographer::dispatchConfigChanged(nsecs_t, PhysicalDisplayId, int32_t,
+void Choreographer::dispatchConfigChanged(nsecs_t, PhysicalDisplayId displayId, int32_t configId,
                                           nsecs_t vsyncPeriod) {
+    ALOGV("choreographer %p ~ received config change event "
+          "(displayId=%" ANDROID_PHYSICAL_DISPLAY_ID_FORMAT ", configId=%d).",
+          this, displayId, configId);
+
+    const nsecs_t lastPeriod = mLatestVsyncPeriod;
+    std::vector<RefreshRateCallback> callbacks{};
     {
-        AutoMutex _l{mLock};
-        for (const auto& cb : mRefreshRateCallbacks) {
-            // Only perform the callback when the old refresh rate is different
-            // from the new refresh rate, so that we don't dispatch the callback
-            // on every single configuration change.
-            if (mVsyncPeriod != vsyncPeriod) {
-                cb.callback(vsyncPeriod, cb.data);
-            }
+        std::lock_guard<std::mutex> _l{mLock};
+        for (auto& cb : mRefreshRateCallbacks) {
+            callbacks.push_back(cb);
+            cb.firstCallbackFired = true;
         }
-        mVsyncPeriod = vsyncPeriod;
     }
+
+    for (auto& cb : callbacks) {
+        if (!cb.firstCallbackFired || (vsyncPeriod > 0 && vsyncPeriod != lastPeriod)) {
+            cb.callback(vsyncPeriod, cb.data);
+        }
+    }
+
+    mLatestVsyncPeriod = vsyncPeriod;
 }
 
 void Choreographer::handleMessage(const Message& message) {
@@ -260,18 +406,79 @@ void Choreographer::handleMessage(const Message& message) {
     case MSG_SCHEDULE_VSYNC:
         scheduleVsync();
         break;
+    case MSG_HANDLE_REFRESH_RATE_UPDATES:
+        handleRefreshRateUpdates();
+        break;
     }
 }
 
-}
-
-/* Glue for the NDK interface */
-
+} // namespace android
 using namespace android;
 
 static inline Choreographer* AChoreographer_to_Choreographer(AChoreographer* choreographer) {
     return reinterpret_cast<Choreographer*>(choreographer);
 }
+
+// Glue for private C api
+namespace android {
+void AChoreographer_signalRefreshRateCallbacks(nsecs_t vsyncPeriod) EXCLUDES(gChoreographers.lock) {
+    std::lock_guard<std::mutex> _l(gChoreographers.lock);
+    gChoreographers.mLastKnownVsync.store(vsyncPeriod);
+    for (auto c : gChoreographers.ptrs) {
+        c->scheduleLatestConfigRequest();
+    }
+}
+
+void AChoreographer_initJVM(JNIEnv* env) {
+    env->GetJavaVM(&gJni.jvm);
+    // Now we need to find the java classes.
+    jclass dmgClass = env->FindClass("android/hardware/display/DisplayManagerGlobal");
+    gJni.displayManagerGlobal.clazz = static_cast<jclass>(env->NewGlobalRef(dmgClass));
+    gJni.displayManagerGlobal.getInstance =
+            env->GetStaticMethodID(dmgClass, "getInstance",
+                                   "()Landroid/hardware/display/DisplayManagerGlobal;");
+    gJni.displayManagerGlobal.registerNativeChoreographerForRefreshRateCallbacks =
+            env->GetMethodID(dmgClass, "registerNativeChoreographerForRefreshRateCallbacks", "()V");
+    gJni.displayManagerGlobal.unregisterNativeChoreographerForRefreshRateCallbacks =
+            env->GetMethodID(dmgClass, "unregisterNativeChoreographerForRefreshRateCallbacks",
+                             "()V");
+}
+
+AChoreographer* AChoreographer_routeGetInstance() {
+    return AChoreographer_getInstance();
+}
+void AChoreographer_routePostFrameCallback(AChoreographer* choreographer,
+                                           AChoreographer_frameCallback callback, void* data) {
+    return AChoreographer_postFrameCallback(choreographer, callback, data);
+}
+void AChoreographer_routePostFrameCallbackDelayed(AChoreographer* choreographer,
+                                                  AChoreographer_frameCallback callback, void* data,
+                                                  long delayMillis) {
+    return AChoreographer_postFrameCallbackDelayed(choreographer, callback, data, delayMillis);
+}
+void AChoreographer_routePostFrameCallback64(AChoreographer* choreographer,
+                                             AChoreographer_frameCallback64 callback, void* data) {
+    return AChoreographer_postFrameCallback64(choreographer, callback, data);
+}
+void AChoreographer_routePostFrameCallbackDelayed64(AChoreographer* choreographer,
+                                                    AChoreographer_frameCallback64 callback,
+                                                    void* data, uint32_t delayMillis) {
+    return AChoreographer_postFrameCallbackDelayed64(choreographer, callback, data, delayMillis);
+}
+void AChoreographer_routeRegisterRefreshRateCallback(AChoreographer* choreographer,
+                                                     AChoreographer_refreshRateCallback callback,
+                                                     void* data) {
+    return AChoreographer_registerRefreshRateCallback(choreographer, callback, data);
+}
+void AChoreographer_routeUnregisterRefreshRateCallback(AChoreographer* choreographer,
+                                                       AChoreographer_refreshRateCallback callback,
+                                                       void* data) {
+    return AChoreographer_unregisterRefreshRateCallback(choreographer, callback, data);
+}
+
+} // namespace android
+
+/* Glue for the NDK interface */
 
 static inline const Choreographer* AChoreographer_to_Choreographer(
         const AChoreographer* choreographer) {
@@ -343,5 +550,6 @@ void AChoreographer_handlePendingEvents(AChoreographer* choreographer, void* dat
     // Pass dummy fd and events args to handleEvent, since the underlying
     // DisplayEventDispatcher doesn't need them outside of validating that a
     // Looper instance didn't break, but these args circumvent those checks.
-    AChoreographer_to_Choreographer(choreographer)->handleEvent(-1, Looper::EVENT_INPUT, data);
+    Choreographer* impl = AChoreographer_to_Choreographer(choreographer);
+    impl->handleEvent(-1, Looper::EVENT_INPUT, data);
 }

@@ -111,24 +111,35 @@ std::optional<float> LayerInfoV2::calculateRefreshRateIfPossible() {
 
     // Calculate the refresh rate by finding the average delta between frames
     nsecs_t totalPresentTimeDeltas = 0;
+    int numFrames = 0;
     for (auto it = mFrameTimes.begin(); it != mFrameTimes.end() - 1; ++it) {
         // If there are no presentation timestamp provided we can't calculate the refresh rate
         if (it->presetTime == 0 || (it + 1)->presetTime == 0) {
-            return std::nullopt;
+            continue;
         }
 
         totalPresentTimeDeltas +=
                 std::max(((it + 1)->presetTime - it->presetTime), mHighRefreshRatePeriod);
+        numFrames++;
     }
-    const float averageFrameTime =
-            static_cast<float>(totalPresentTimeDeltas) / (mFrameTimes.size() - 1);
+    if (numFrames == 0) {
+        return std::nullopt;
+    }
+    const float averageFrameTime = static_cast<float>(totalPresentTimeDeltas) / numFrames;
 
     // Now once we calculated the refresh rate we need to make sure that all the frames we captured
     // are evenly distributed and we don't calculate the average across some burst of frames.
     for (auto it = mFrameTimes.begin(); it != mFrameTimes.end() - 1; ++it) {
-        const nsecs_t presentTimeDeltas =
-                std::max(((it + 1)->presetTime - it->presetTime), mHighRefreshRatePeriod);
-        if (std::abs(presentTimeDeltas - averageFrameTime) > 2 * averageFrameTime) {
+        const nsecs_t frameTimeDeltas = [&] {
+            nsecs_t delta;
+            if (it->presetTime == 0 || (it + 1)->presetTime == 0) {
+                delta = (it + 1)->queueTime - it->queueTime;
+            } else {
+                delta = (it + 1)->presetTime - it->presetTime;
+            }
+            return std::max(delta, mHighRefreshRatePeriod);
+        }();
+        if (std::abs(frameTimeDeltas - averageFrameTime) > 2 * averageFrameTime) {
             return std::nullopt;
         }
     }
