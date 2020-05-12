@@ -424,6 +424,7 @@ GLESRenderEngine::GLESRenderEngine(uint32_t featureFlags, EGLDisplay display, EG
         mFlushTracer = std::make_unique<FlushTracer>(this);
     }
     mImageManager = std::make_unique<ImageManager>(this);
+    mImageManager->initThread();
     mDrawingBuffer = createFramebuffer();
 }
 

@@ -39,6 +39,10 @@ public:
     };
     ImageManager(GLESRenderEngine* engine);
     ~ImageManager();
+    // Starts the background thread for the ImageManager
+    // We need this to guarantee that the class is fully-constructed before the
+    // thread begins running.
+    void initThread();
     void cacheAsync(const sp<GraphicBuffer>& buffer, const std::shared_ptr<Barrier>& barrier)
             EXCLUDES(mMutex);
     status_t cache(const sp<GraphicBuffer>& buffer);
@@ -57,7 +61,7 @@ private:
     void queueOperation(const QueueEntry&& entry);
     void threadMain();
     GLESRenderEngine* const mEngine;
-    std::thread mThread = std::thread([this]() { threadMain(); });
+    std::thread mThread;
     std::condition_variable_any mCondition;
     std::mutex mMutex;
     std::queue<QueueEntry> mQueue GUARDED_BY(mMutex);
