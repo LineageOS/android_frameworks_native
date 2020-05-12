@@ -262,6 +262,15 @@ public:
 
         // Indicates whether parents / children of this layer had set FrameRate
         bool treeHasFrameRateVote;
+
+        // Set by window manager indicating the layer and all its children are
+        // in a different orientation than the display. The hint suggests that
+        // the graphic producers should receive a transform hint as if the
+        // display was in this orientation. When the display changes to match
+        // the layer orientation, the graphic producer may not need to allocate
+        // a buffer of a different size. ui::Transform::ROT_INVALID means the
+        // a fixed transform hint is not set.
+        ui::Transform::RotationFlags fixedTransformHint;
     };
 
     explicit Layer(const LayerCreationArgs& args);
@@ -388,6 +397,7 @@ public:
     virtual bool setColorSpaceAgnostic(const bool agnostic);
     bool setShadowRadius(float shadowRadius);
     virtual bool setFrameRateSelectionPriority(int32_t priority);
+    virtual bool setFixedTransformHint(ui::Transform::RotationFlags fixedTransformHint);
     //  If the variable is not set on the layer, it traverses up the tree to inherit the frame
     //  rate priority from its parent.
     virtual int32_t getFrameRateSelectionPriority() const;
@@ -611,7 +621,7 @@ public:
     bool getClearClientTarget(const sp<const DisplayDevice>& display) const;
 
     virtual bool shouldPresentNow(nsecs_t /*expectedPresentTime*/) const { return false; }
-    virtual void setTransformHint(uint32_t /*orientation*/) const { }
+    virtual void setTransformHint(ui::Transform::RotationFlags /*transformHint*/) const {}
 
     /*
      * called after composition.
@@ -689,6 +699,8 @@ public:
 
     virtual sp<GraphicBuffer> getBuffer() const { return nullptr; }
 
+    virtual ui::Transform::RotationFlags getTransformHint() const { return ui::Transform::ROT_0; }
+
     /*
      * Returns if a frame is ready
      */
@@ -732,6 +744,12 @@ public:
     half4 getColor() const;
     int32_t getBackgroundBlurRadius() const;
     bool drawShadows() const { return mEffectiveShadowRadius > 0.f; };
+
+    // Returns the transform hint set by Window Manager on the layer or one of its parents.
+    // This traverses the current state because the data is needed when creating
+    // the layer(off drawing thread) and the hint should be available before the producer
+    // is ready to acquire a buffer.
+    ui::Transform::RotationFlags getFixedTransformHint() const;
 
     // Returns how rounded corners should be drawn for this layer.
     // This will traverse the hierarchy until it reaches its root, finding topmost rounded
