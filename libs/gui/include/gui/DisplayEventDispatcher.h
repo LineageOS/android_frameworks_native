@@ -31,7 +31,7 @@ public:
     status_t initialize();
     void dispose();
     status_t scheduleVsync();
-    void toggleConfigEvents(ISurfaceComposer::ConfigChanged configChangeFlag);
+    void requestLatestConfig();
     int getFd() const;
     virtual int handleEvent(int receiveFd, int events, void* data);
 
@@ -42,7 +42,6 @@ private:
     sp<Looper> mLooper;
     DisplayEventReceiver mReceiver;
     bool mWaitingForVsync;
-    ISurfaceComposer::ConfigChanged mConfigChangeFlag;
 
     virtual void dispatchVsync(nsecs_t timestamp, PhysicalDisplayId displayId, uint32_t count) = 0;
     virtual void dispatchHotplug(nsecs_t timestamp, PhysicalDisplayId displayId,
