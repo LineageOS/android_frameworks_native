@@ -200,26 +200,22 @@ void RefreshRateOverlay::primeCache() {
     }
 }
 
-void RefreshRateOverlay::changeRefreshRate(const RefreshRate& refreshRate) {
-    const auto display = mFlinger.getDefaultDisplayDeviceLocked();
-    if (!display) {
-        return;
-    }
-
-    const int32_t left = display->getWidth() / 32;
-    const int32_t top = display->getHeight() / 16;
-    const int32_t right = left + display->getWidth() / 8;
-    const int32_t buttom = top + display->getHeight() / 32;
-
-    auto buffer = mBufferCache[refreshRate.getFps()];
-    mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, {});
-
-    mLayer->setFrame(Rect(left, top, right, buttom));
+void RefreshRateOverlay::setViewport(ui::Size viewport) {
+    Rect frame(viewport.width >> 3, viewport.height >> 5);
+    frame.offsetBy(viewport.width >> 5, viewport.height >> 4);
+    mLayer->setFrame(frame);
 
     mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
 }
 
-}; // namespace android
+void RefreshRateOverlay::changeRefreshRate(const RefreshRate& refreshRate) {
+    auto buffer = mBufferCache[refreshRate.getFps()];
+    mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, {});
+
+    mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
+}
+
+} // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion"
