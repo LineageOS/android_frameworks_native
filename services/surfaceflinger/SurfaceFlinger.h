@@ -117,7 +117,7 @@ enum {
     eTransactionNeeded = 0x01,
     eTraversalNeeded = 0x02,
     eDisplayTransactionNeeded = 0x04,
-    eDisplayLayerStackChanged = 0x08,
+    eTransformHintUpdateNeeded = 0x08,
     eTransactionFlushNeeded = 0x10,
     eTransactionMask = 0x1f,
 };
@@ -675,8 +675,7 @@ private:
 
     status_t createBufferStateLayer(const sp<Client>& client, std::string name, uint32_t w,
                                     uint32_t h, uint32_t flags, LayerMetadata metadata,
-                                    sp<IBinder>* outHandle, uint32_t* outTransformHint,
-                                    sp<Layer>* outLayer);
+                                    sp<IBinder>* outHandle, sp<Layer>* outLayer);
 
     status_t createEffectLayer(const sp<Client>& client, std::string name, uint32_t w, uint32_t h,
                                uint32_t flags, LayerMetadata metadata, sp<IBinder>* outHandle,
@@ -701,7 +700,7 @@ private:
     status_t addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
                             const sp<IGraphicBufferProducer>& gbc, const sp<Layer>& lbc,
                             const sp<IBinder>& parentHandle, const sp<Layer>& parentLayer,
-                            bool addToCurrentState);
+                            bool addToCurrentState, uint32_t* outTransformHint);
 
     // Traverse through all the layers and compute and cache its bounds.
     void computeLayerBounds();
