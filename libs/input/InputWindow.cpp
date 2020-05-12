@@ -42,6 +42,7 @@ bool InputWindowInfo::frameContainsPoint(int32_t x, int32_t y) const {
             && y >= frameTop && y < frameBottom;
 }
 
+// TODO(b/155781676): Remove and replace call points with trustedOverlay when that is ready.
 bool InputWindowInfo::isTrustedOverlay() const {
     return layoutParamsType == TYPE_INPUT_METHOD || layoutParamsType == TYPE_INPUT_METHOD_DIALOG ||
             layoutParamsType == TYPE_MAGNIFICATION_OVERLAY || layoutParamsType == TYPE_STATUS_BAR ||
@@ -51,7 +52,8 @@ bool InputWindowInfo::isTrustedOverlay() const {
             layoutParamsType == TYPE_SECURE_SYSTEM_OVERLAY ||
             layoutParamsType == TYPE_DOCK_DIVIDER ||
             layoutParamsType == TYPE_ACCESSIBILITY_OVERLAY ||
-            layoutParamsType == TYPE_INPUT_CONSUMER;
+            layoutParamsType == TYPE_INPUT_CONSUMER ||
+            layoutParamsType == TYPE_TRUSTED_APPLICATION_OVERLAY;
 }
 
 bool InputWindowInfo::supportsSplitTouch() const {
