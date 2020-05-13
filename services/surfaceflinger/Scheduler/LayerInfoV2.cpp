@@ -130,16 +130,12 @@ std::optional<float> LayerInfoV2::calculateRefreshRateIfPossible() {
     // Now once we calculated the refresh rate we need to make sure that all the frames we captured
     // are evenly distributed and we don't calculate the average across some burst of frames.
     for (auto it = mFrameTimes.begin(); it != mFrameTimes.end() - 1; ++it) {
-        const nsecs_t frameTimeDeltas = [&] {
-            nsecs_t delta;
-            if (it->presetTime == 0 || (it + 1)->presetTime == 0) {
-                delta = (it + 1)->queueTime - it->queueTime;
-            } else {
-                delta = (it + 1)->presetTime - it->presetTime;
-            }
-            return std::max(delta, mHighRefreshRatePeriod);
-        }();
-        if (std::abs(frameTimeDeltas - averageFrameTime) > 2 * averageFrameTime) {
+        if (it->presetTime == 0 || (it + 1)->presetTime == 0) {
+            continue;
+        }
+        const nsecs_t presentTimeDeltas =
+                std::max(((it + 1)->presetTime - it->presetTime), mHighRefreshRatePeriod);
+        if (std::abs(presentTimeDeltas - averageFrameTime) > 2 * averageFrameTime) {
             return std::nullopt;
         }
     }
