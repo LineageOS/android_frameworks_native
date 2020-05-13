@@ -88,6 +88,7 @@ public:
         // buffer as Max as we don't know anything about this layer or Min as this layer is
         // posting infrequent updates.
         mFrameTimeValidSince = std::chrono::steady_clock::now();
+        mLastReportedRefreshRate = 0.0f;
     }
 
 private:
