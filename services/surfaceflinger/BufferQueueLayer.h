@@ -43,8 +43,6 @@ public:
 
     void onLayerDisplayed(const sp<Fence>& releaseFence) override;
 
-    void setTransformHint(ui::Transform::RotationFlags displayTransformHint) const override;
-
     std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool forceFlush) override;
 
     // If a buffer was replaced this frame, release the former buffer
@@ -72,6 +70,7 @@ private:
     bool getSidebandStreamChanged() const override;
 
     bool latchSidebandStream(bool& recomputeVisibleRegions) override;
+    void setTransformHint(ui::Transform::RotationFlags displayTransformHint) override;
 
     bool hasFrameUpdate() const override;
 
