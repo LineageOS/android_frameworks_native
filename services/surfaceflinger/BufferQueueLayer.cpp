@@ -58,7 +58,7 @@ void BufferQueueLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
     }
 }
 
-void BufferQueueLayer::setTransformHint(ui::Transform::RotationFlags displayTransformHint) const {
+void BufferQueueLayer::setTransformHint(ui::Transform::RotationFlags displayTransformHint) {
     BufferLayer::setTransformHint(displayTransformHint);
     mConsumer->setTransformHint(mTransformHint);
 }

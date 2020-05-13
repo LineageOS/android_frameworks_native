@@ -319,7 +319,7 @@ bool BufferLayer::onPreComposition(nsecs_t refreshStartTime) {
     return hasReadyFrame();
 }
 
-bool BufferLayer::onPostComposition(sp<const DisplayDevice> displayDevice,
+bool BufferLayer::onPostComposition(const DisplayDevice* display,
                                     const std::shared_ptr<FenceTime>& glDoneFence,
                                     const std::shared_ptr<FenceTime>& presentFence,
                                     const CompositorTiming& compositorTiming) {
@@ -342,7 +342,7 @@ bool BufferLayer::onPostComposition(sp<const DisplayDevice> displayDevice,
     const int32_t layerId = getSequence();
     mFlinger->mTimeStats->setDesiredTime(layerId, mCurrentFrameNumber, desiredPresentTime);
 
-    const auto outputLayer = findOutputLayerForDisplay(displayDevice);
+    const auto outputLayer = findOutputLayerForDisplay(display);
     if (outputLayer && outputLayer->requiresClientComposition()) {
         nsecs_t clientCompositionTimestamp = outputLayer->getState().clientCompositionTimestamp;
         mFlinger->mFrameTracer->traceTimestamp(layerId, getCurrentBufferId(), mCurrentFrameNumber,
@@ -359,13 +359,15 @@ bool BufferLayer::onPostComposition(sp<const DisplayDevice> displayDevice,
         mFrameTracker.setFrameReadyTime(desiredPresentTime);
     }
 
-    const auto displayId = displayDevice->getId();
     if (presentFence->isValid()) {
         mFlinger->mTimeStats->setPresentFence(layerId, mCurrentFrameNumber, presentFence);
         mFlinger->mFrameTracer->traceFence(layerId, getCurrentBufferId(), mCurrentFrameNumber,
                                            presentFence, FrameTracer::FrameEvent::PRESENT_FENCE);
         mFrameTracker.setActualPresentFence(std::shared_ptr<FenceTime>(presentFence));
-    } else if (displayId && mFlinger->getHwComposer().isConnected(*displayId)) {
+    } else if (!display) {
+        // Do nothing.
+    } else if (const auto displayId = display->getId();
+               displayId && mFlinger->getHwComposer().isConnected(*displayId)) {
         // The HWC doesn't support present fences, so use the refresh
         // timestamp instead.
         const nsecs_t actualPresentTime = mFlinger->getHwComposer().getRefreshTimestamp(*displayId);
@@ -600,14 +602,8 @@ bool BufferLayer::getOpacityForFormat(uint32_t format) {
     return true;
 }
 
-bool BufferLayer::needsFiltering(const sp<const DisplayDevice>& displayDevice) const {
-    // If we are not capturing based on the state of a known display device,
-    // just return false.
-    if (displayDevice == nullptr) {
-        return false;
-    }
-
-    const auto outputLayer = findOutputLayerForDisplay(displayDevice);
+bool BufferLayer::needsFiltering(const DisplayDevice* display) const {
+    const auto outputLayer = findOutputLayerForDisplay(display);
     if (outputLayer == nullptr) {
         return false;
     }
@@ -621,15 +617,9 @@ bool BufferLayer::needsFiltering(const sp<const DisplayDevice>& displayDevice) c
             sourceCrop.getWidth() != displayFrame.getWidth();
 }
 
-bool BufferLayer::needsFilteringForScreenshots(const sp<const DisplayDevice>& displayDevice,
+bool BufferLayer::needsFilteringForScreenshots(const DisplayDevice* display,
                                                const ui::Transform& inverseParentTransform) const {
-    // If we are not capturing based on the state of a known display device,
-    // just return false.
-    if (displayDevice == nullptr) {
-        return false;
-    }
-
-    const auto outputLayer = findOutputLayerForDisplay(displayDevice);
+    const auto outputLayer = findOutputLayerForDisplay(display);
     if (outputLayer == nullptr) {
         return false;
     }
@@ -637,7 +627,7 @@ bool BufferLayer::needsFilteringForScreenshots(const sp<const DisplayDevice>& di
     // We need filtering if the sourceCrop rectangle size does not match the
     // viewport rectangle size (not a 1:1 render)
     const auto& compositionState = outputLayer->getState();
-    const ui::Transform& displayTransform = displayDevice->getTransform();
+    const ui::Transform& displayTransform = display->getTransform();
     const ui::Transform inverseTransform = inverseParentTransform * displayTransform.inverse();
     // Undo the transformation of the displayFrame so that we're back into
     // layer-stack space.
@@ -843,7 +833,7 @@ void BufferLayer::updateCloneBufferInfo() {
     mDrawingState.inputInfo = tmpInputInfo;
 }
 
-void BufferLayer::setTransformHint(ui::Transform::RotationFlags displayTransformHint) const {
+void BufferLayer::setTransformHint(ui::Transform::RotationFlags displayTransformHint) {
     mTransformHint = getFixedTransformHint();
     if (mTransformHint == ui::Transform::ROT_INVALID) {
         mTransformHint = displayTransformHint;
