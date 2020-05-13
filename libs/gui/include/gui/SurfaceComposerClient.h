@@ -519,6 +519,14 @@ public:
         Transaction& setFrameRate(const sp<SurfaceControl>& sc, float frameRate,
                                   int8_t compatibility);
 
+        // Set by window manager indicating the layer and all its children are
+        // in a different orientation than the display. The hint suggests that
+        // the graphic producers should receive a transform hint as if the
+        // display was in this orientation. When the display changes to match
+        // the layer orientation, the graphic producer may not need to allocate
+        // a buffer of a different size.
+        Transaction& setFixedTransformHint(const sp<SurfaceControl>& sc, int32_t transformHint);
+
         status_t setDisplaySurface(const sp<IBinder>& token,
                 const sp<IGraphicBufferProducer>& bufferProducer);
 
