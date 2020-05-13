@@ -512,5 +512,34 @@ TEST_F(LayerHistoryTestV2, inactiveLayers) {
     EXPECT_EQ(1, frequentLayerCount(time));
 }
 
+TEST_F(LayerHistoryTestV2, invisibleExplicitLayer) {
+    auto explicitVisiblelayer = createLayer();
+    auto explicitInvisiblelayer = createLayer();
+
+    EXPECT_CALL(*explicitVisiblelayer, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*explicitVisiblelayer, getFrameRateForLayerTree())
+            .WillRepeatedly(Return(
+                    Layer::FrameRate(60.0f, Layer::FrameRateCompatibility::ExactOrMultiple)));
+
+    EXPECT_CALL(*explicitInvisiblelayer, isVisible()).WillRepeatedly(Return(false));
+    EXPECT_CALL(*explicitInvisiblelayer, getFrameRateForLayerTree())
+            .WillRepeatedly(Return(
+                    Layer::FrameRate(90.0f, Layer::FrameRateCompatibility::ExactOrMultiple)));
+
+    nsecs_t time = systemTime();
+
+    // Post a buffer to the layers to make them active
+    history().record(explicitVisiblelayer.get(), time, time);
+    history().record(explicitInvisiblelayer.get(), time, time);
+
+    EXPECT_EQ(2, layerCount());
+    ASSERT_EQ(1, history().summarize(time).size());
+    EXPECT_EQ(LayerHistory::LayerVoteType::ExplicitExactOrMultiple,
+              history().summarize(time)[0].vote);
+    EXPECT_FLOAT_EQ(60.0f, history().summarize(time)[0].desiredRefreshRate);
+    EXPECT_EQ(2, activeLayerCount());
+    EXPECT_EQ(2, frequentLayerCount(time));
+}
+
 } // namespace
 } // namespace android::scheduler
