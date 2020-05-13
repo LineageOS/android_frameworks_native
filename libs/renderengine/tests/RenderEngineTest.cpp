@@ -22,12 +22,13 @@
 #include <condition_variable>
 #include <fstream>
 
-#include <gtest/gtest.h>
 #include <cutils/properties.h>
+#include <gtest/gtest.h>
 #include <renderengine/RenderEngine.h>
 #include <sync/sync.h>
 #include <ui/PixelFormat.h>
 #include "../gl/GLESRenderEngine.h"
+#include "../threaded/RenderEngineThreaded.h"
 
 constexpr int DEFAULT_DISPLAY_WIDTH = 128;
 constexpr int DEFAULT_DISPLAY_HEIGHT = 256;
@@ -40,14 +41,15 @@ struct RenderEngineTest : public ::testing::Test {
     static void SetUpTestSuite() {
         sRE = renderengine::gl::GLESRenderEngine::create(
                 renderengine::RenderEngineCreationArgs::Builder()
-                    .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
-                    .setImageCacheSize(1)
-                    .setUseColorManagerment(false)
-                    .setEnableProtectedContext(false)
-                    .setPrecacheToneMapperShaderOnly(false)
-                    .setSupportsBackgroundBlur(true)
-                    .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
-        .build());
+                        .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
+                        .setImageCacheSize(1)
+                        .setUseColorManagerment(false)
+                        .setEnableProtectedContext(false)
+                        .setPrecacheToneMapperShaderOnly(false)
+                        .setSupportsBackgroundBlur(true)
+                        .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
+                        .setRenderEngineType(renderengine::RenderEngine::RenderEngineType::GLES)
+                        .build());
     }
 
     static void TearDownTestSuite() {

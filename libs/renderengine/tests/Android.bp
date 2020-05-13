@@ -18,10 +18,12 @@ cc_test {
     test_suites: ["device-tests"],
     srcs: [
         "RenderEngineTest.cpp",
+        "RenderEngineThreadedTest.cpp",
     ],
     static_libs: [
         "libgmock",
         "librenderengine",
+        "librenderengine_mocks",
     ],
     shared_libs: [
         "libbase",
