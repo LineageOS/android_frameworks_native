@@ -93,6 +93,10 @@ public:
 
     static ui::Transform::RotationFlags getPrimaryDisplayRotationFlags();
 
+    ui::Transform::RotationFlags getTransformHint() const {
+        return static_cast<ui::Transform::RotationFlags>(getTransform().getOrientation());
+    }
+
     const ui::Transform& getTransform() const;
     const Rect& getViewport() const;
     const Rect& getFrame() const;
