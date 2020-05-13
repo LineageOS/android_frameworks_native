@@ -79,10 +79,9 @@ public:
 
     bool isHdrY410() const override;
 
-    bool onPostComposition(sp<const DisplayDevice> displayDevice,
-                           const std::shared_ptr<FenceTime>& glDoneFence,
+    bool onPostComposition(const DisplayDevice*, const std::shared_ptr<FenceTime>& glDoneFence,
                            const std::shared_ptr<FenceTime>& presentFence,
-                           const CompositorTiming& compositorTiming) override;
+                           const CompositorTiming&) override;
 
     // latchBuffer - called each time the screen is redrawn and returns whether
     // the visible regions need to be recomputed (this is a fairly heavy
@@ -118,10 +117,6 @@ public:
     sp<GraphicBuffer> getBuffer() const override;
 
     ui::Transform::RotationFlags getTransformHint() const override { return mTransformHint; }
-
-    void setTransformHint(ui::Transform::RotationFlags displayTransformHint) const override;
-
-    // -----------------------------------------------------------------------
 
     // -----------------------------------------------------------------------
     // Functions that must be implemented by derived classes
@@ -209,14 +204,16 @@ protected:
 
     virtual uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const;
 
+    void setTransformHint(ui::Transform::RotationFlags displayTransformHint) override;
+
     // Transform hint provided to the producer. This must be accessed holding
     /// the mStateLock.
-    mutable ui::Transform::RotationFlags mTransformHint = ui::Transform::ROT_0;
+    ui::Transform::RotationFlags mTransformHint = ui::Transform::ROT_0;
 
 private:
     // Returns true if this layer requires filtering
-    bool needsFiltering(const sp<const DisplayDevice>& displayDevice) const override;
-    bool needsFilteringForScreenshots(const sp<const DisplayDevice>& displayDevice,
+    bool needsFiltering(const DisplayDevice*) const override;
+    bool needsFilteringForScreenshots(const DisplayDevice*,
                                       const ui::Transform& inverseParentTransform) const override;
 
     // BufferStateLayers can return Rect::INVALID_RECT if the layer does not have a display frame
