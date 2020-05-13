@@ -83,9 +83,13 @@ public:
                                         args.displayId);
     }
 
-    void assertFilterInputEventWasNotCalled() { ASSERT_EQ(nullptr, mFilteredEvent); }
+    void assertFilterInputEventWasNotCalled() {
+        std::scoped_lock lock(mLock);
+        ASSERT_EQ(nullptr, mFilteredEvent);
+    }
 
     void assertNotifyConfigurationChangedWasCalled(nsecs_t when) {
+        std::scoped_lock lock(mLock);
         ASSERT_TRUE(mConfigurationChangedTime)
                 << "Timed out waiting for configuration changed call";
         ASSERT_EQ(*mConfigurationChangedTime, when);
@@ -93,6 +97,7 @@ public:
     }
 
     void assertNotifySwitchWasCalled(const NotifySwitchArgs& args) {
+        std::scoped_lock lock(mLock);
         ASSERT_TRUE(mLastNotifySwitch);
         // We do not check id because it is not exposed to the policy
         EXPECT_EQ(args.eventTime, mLastNotifySwitch->eventTime);
@@ -103,11 +108,13 @@ public:
     }
 
     void assertOnPointerDownEquals(const sp<IBinder>& touchedToken) {
+        std::scoped_lock lock(mLock);
         ASSERT_EQ(touchedToken, mOnPointerDownToken);
         mOnPointerDownToken.clear();
     }
 
     void assertOnPointerDownWasNotCalled() {
+        std::scoped_lock lock(mLock);
         ASSERT_TRUE(mOnPointerDownToken == nullptr)
                 << "Expected onPointerDownOutsideFocus to not have been called";
     }
@@ -118,12 +125,14 @@ public:
     }
 
 private:
-    std::unique_ptr<InputEvent> mFilteredEvent;
-    std::optional<nsecs_t> mConfigurationChangedTime;
-    sp<IBinder> mOnPointerDownToken;
-    std::optional<NotifySwitchArgs> mLastNotifySwitch;
+    std::mutex mLock;
+    std::unique_ptr<InputEvent> mFilteredEvent GUARDED_BY(mLock);
+    std::optional<nsecs_t> mConfigurationChangedTime GUARDED_BY(mLock);
+    sp<IBinder> mOnPointerDownToken GUARDED_BY(mLock);
+    std::optional<NotifySwitchArgs> mLastNotifySwitch GUARDED_BY(mLock);
 
     virtual void notifyConfigurationChanged(nsecs_t when) override {
+        std::scoped_lock lock(mLock);
         mConfigurationChangedTime = when;
     }
 
@@ -141,6 +150,7 @@ private:
     }
 
     virtual bool filterInputEvent(const InputEvent* inputEvent, uint32_t policyFlags) override {
+        std::scoped_lock lock(mLock);
         switch (inputEvent->getType()) {
             case AINPUT_EVENT_TYPE_KEY: {
                 const KeyEvent* keyEvent = static_cast<const KeyEvent*>(inputEvent);
@@ -173,6 +183,7 @@ private:
 
     virtual void notifySwitch(nsecs_t when, uint32_t switchValues, uint32_t switchMask,
                               uint32_t policyFlags) override {
+        std::scoped_lock lock(mLock);
         /** We simply reconstruct NotifySwitchArgs in policy because InputDispatcher is
          * essentially a passthrough for notifySwitch.
          */
@@ -186,11 +197,13 @@ private:
     }
 
     virtual void onPointerDownOutsideFocus(const sp<IBinder>& newToken) override {
+        std::scoped_lock lock(mLock);
         mOnPointerDownToken = newToken;
     }
 
     void assertFilterInputEventWasCalled(int type, nsecs_t eventTime, int32_t action,
                                          int32_t displayId) {
+        std::scoped_lock lock(mLock);
         ASSERT_NE(nullptr, mFilteredEvent) << "Expected filterInputEvent() to have been called.";
         ASSERT_EQ(mFilteredEvent->getType(), type);
 
@@ -485,7 +498,7 @@ TEST_F(InputDispatcherTest, NotifySwitch_CallsPolicy) {
 
 // --- InputDispatcherTest SetInputWindowTest ---
 static constexpr std::chrono::duration INJECT_EVENT_TIMEOUT = 500ms;
-static constexpr std::chrono::duration DISPATCHING_TIMEOUT = 5s;
+static constexpr std::chrono::nanoseconds DISPATCHING_TIMEOUT = 5s;
 
 class FakeApplicationHandle : public InputApplicationHandle {
 public:
