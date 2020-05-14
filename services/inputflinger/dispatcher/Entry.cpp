@@ -37,6 +37,8 @@ static std::string motionActionToString(int32_t action) {
             return "MOVE";
         case AMOTION_EVENT_ACTION_UP:
             return "UP";
+        case AMOTION_EVENT_ACTION_CANCEL:
+            return "CANCEL";
         case AMOTION_EVENT_ACTION_POINTER_DOWN:
             return "POINTER_DOWN";
         case AMOTION_EVENT_ACTION_POINTER_UP:
@@ -57,6 +59,7 @@ static std::string keyActionToString(int32_t action) {
     }
     return StringPrintf("%" PRId32, action);
 }
+
 VerifiedKeyEvent verifiedKeyEventFromKeyEntry(const KeyEntry& entry) {
     return {{VerifiedInputEvent::Type::KEY, entry.deviceId, entry.eventTime, entry.source,
              entry.displayId},

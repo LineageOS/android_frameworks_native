@@ -512,45 +512,33 @@ TEST_F(LayerHistoryTestV2, inactiveLayers) {
     EXPECT_EQ(1, frequentLayerCount(time));
 }
 
-TEST_F(LayerHistoryTestV2, calculateRefreshRate30Hz) {
-    const auto layer = createLayer();
-    EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
-    EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
+TEST_F(LayerHistoryTestV2, invisibleExplicitLayer) {
+    auto explicitVisiblelayer = createLayer();
+    auto explicitInvisiblelayer = createLayer();
 
-    EXPECT_EQ(1, layerCount());
-    EXPECT_EQ(0, activeLayerCount());
+    EXPECT_CALL(*explicitVisiblelayer, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*explicitVisiblelayer, getFrameRateForLayerTree())
+            .WillRepeatedly(Return(
+                    Layer::FrameRate(60.0f, Layer::FrameRateCompatibility::ExactOrMultiple)));
 
-    nsecs_t time = systemTime();
-    const nsecs_t frameTime = 33'333'333;
-
-    for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        time += frameTime;
-        history().record(layer.get(), time, time);
-    }
-    ASSERT_EQ(1, history().summarize(time).size());
-    EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, history().summarize(time)[0].vote);
-    EXPECT_FLOAT_EQ(30.f, history().summarize(time)[0].desiredRefreshRate);
-}
-
-TEST_F(LayerHistoryTestV2, calculateRefreshRate30HzSkipTimestamp) {
-    const auto layer = createLayer();
-    EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
-    EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
-
-    EXPECT_EQ(1, layerCount());
-    EXPECT_EQ(0, activeLayerCount());
+    EXPECT_CALL(*explicitInvisiblelayer, isVisible()).WillRepeatedly(Return(false));
+    EXPECT_CALL(*explicitInvisiblelayer, getFrameRateForLayerTree())
+            .WillRepeatedly(Return(
+                    Layer::FrameRate(90.0f, Layer::FrameRateCompatibility::ExactOrMultiple)));
 
     nsecs_t time = systemTime();
-    const nsecs_t frameTime = 33'333'333;
 
-    for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        time += frameTime;
-        const auto timestamp = (i == PRESENT_TIME_HISTORY_SIZE / 2) ? 0 : time;
-        history().record(layer.get(), timestamp, time);
-    }
+    // Post a buffer to the layers to make them active
+    history().record(explicitVisiblelayer.get(), time, time);
+    history().record(explicitInvisiblelayer.get(), time, time);
+
+    EXPECT_EQ(2, layerCount());
     ASSERT_EQ(1, history().summarize(time).size());
-    EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, history().summarize(time)[0].vote);
-    EXPECT_FLOAT_EQ(30.f, history().summarize(time)[0].desiredRefreshRate);
+    EXPECT_EQ(LayerHistory::LayerVoteType::ExplicitExactOrMultiple,
+              history().summarize(time)[0].vote);
+    EXPECT_FLOAT_EQ(60.0f, history().summarize(time)[0].desiredRefreshRate);
+    EXPECT_EQ(2, activeLayerCount());
+    EXPECT_EQ(2, frequentLayerCount(time));
 }
 
 } // namespace

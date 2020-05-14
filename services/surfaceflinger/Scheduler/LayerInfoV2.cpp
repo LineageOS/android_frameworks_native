@@ -111,35 +111,47 @@ std::optional<float> LayerInfoV2::calculateRefreshRateIfPossible() {
 
     // Calculate the refresh rate by finding the average delta between frames
     nsecs_t totalPresentTimeDeltas = 0;
-    int numFrames = 0;
+    nsecs_t totalQueueTimeDeltas = 0;
+    auto missingPresentTime = false;
     for (auto it = mFrameTimes.begin(); it != mFrameTimes.end() - 1; ++it) {
-        // If there are no presentation timestamp provided we can't calculate the refresh rate
+        totalQueueTimeDeltas +=
+                std::max(((it + 1)->queueTime - it->queueTime), mHighRefreshRatePeriod);
+
         if (it->presetTime == 0 || (it + 1)->presetTime == 0) {
+            missingPresentTime = true;
             continue;
         }
 
         totalPresentTimeDeltas +=
                 std::max(((it + 1)->presetTime - it->presetTime), mHighRefreshRatePeriod);
-        numFrames++;
     }
-    if (numFrames == 0) {
+
+    // If there are no presentation timestamps provided we can't calculate the refresh rate
+    if (missingPresentTime && mLastReportedRefreshRate == 0) {
         return std::nullopt;
     }
-    const float averageFrameTime = static_cast<float>(totalPresentTimeDeltas) / numFrames;
+
+    // Calculate the average frame time based on presentation timestamps. If those
+    // doesn't exist, we look at the time the buffer was queued only. We can do that only if
+    // we calculated a refresh rate based on presentation timestamps in the past. The reason
+    // we look at the queue time is to handle cases where hwui attaches presentation timestamps
+    // when implementing render ahead for specific refresh rates. When hwui no longer provides
+    // presentation timestamps we look at the queue time to see if the current refresh rate still
+    // matches the content.
+    const float averageFrameTime =
+            static_cast<float>(missingPresentTime ? totalQueueTimeDeltas : totalPresentTimeDeltas) /
+            (mFrameTimes.size() - 1);
 
     // Now once we calculated the refresh rate we need to make sure that all the frames we captured
     // are evenly distributed and we don't calculate the average across some burst of frames.
     for (auto it = mFrameTimes.begin(); it != mFrameTimes.end() - 1; ++it) {
-        const nsecs_t frameTimeDeltas = [&] {
-            nsecs_t delta;
-            if (it->presetTime == 0 || (it + 1)->presetTime == 0) {
-                delta = (it + 1)->queueTime - it->queueTime;
-            } else {
-                delta = (it + 1)->presetTime - it->presetTime;
-            }
+        const auto presentTimeDeltas = [&] {
+            const auto delta = missingPresentTime ? (it + 1)->queueTime - it->queueTime
+                                                  : (it + 1)->presetTime - it->presetTime;
             return std::max(delta, mHighRefreshRatePeriod);
         }();
-        if (std::abs(frameTimeDeltas - averageFrameTime) > 2 * averageFrameTime) {
+
+        if (std::abs(presentTimeDeltas - averageFrameTime) > 2 * averageFrameTime) {
             return std::nullopt;
         }
     }
