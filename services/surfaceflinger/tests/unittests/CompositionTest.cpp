@@ -1073,7 +1073,8 @@ struct RECompositionResultVariant : public CompositionResultBaseVariant {
 
 struct ForcedClientCompositionResultVariant : public CompositionResultBaseVariant {
     static void setupLayerState(CompositionTest* test, sp<Layer> layer) {
-        const auto outputLayer = layer->findOutputLayerForDisplay(test->mDisplay);
+        const auto outputLayer =
+                TestableSurfaceFlinger::findOutputLayerForDisplay(layer, test->mDisplay);
         LOG_FATAL_IF(!outputLayer);
         outputLayer->editState().forceClientComposition = true;
     }
