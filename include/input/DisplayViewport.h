@@ -74,36 +74,40 @@ struct DisplayViewport {
     int32_t physicalBottom;
     int32_t deviceWidth;
     int32_t deviceHeight;
+    bool isActive;
     std::string uniqueId;
     // The actual (hardware) port that the associated display is connected to.
     // Not all viewports will have this specified.
     std::optional<uint8_t> physicalPort;
     ViewportType type;
 
-    DisplayViewport() :
-            displayId(ADISPLAY_ID_NONE), orientation(DISPLAY_ORIENTATION_0),
-            logicalLeft(0), logicalTop(0), logicalRight(0), logicalBottom(0),
-            physicalLeft(0), physicalTop(0), physicalRight(0), physicalBottom(0),
-            deviceWidth(0), deviceHeight(0), uniqueId(), physicalPort(std::nullopt),
-            type(ViewportType::VIEWPORT_INTERNAL) {
-    }
+    DisplayViewport()
+          : displayId(ADISPLAY_ID_NONE),
+            orientation(DISPLAY_ORIENTATION_0),
+            logicalLeft(0),
+            logicalTop(0),
+            logicalRight(0),
+            logicalBottom(0),
+            physicalLeft(0),
+            physicalTop(0),
+            physicalRight(0),
+            physicalBottom(0),
+            deviceWidth(0),
+            deviceHeight(0),
+            isActive(false),
+            uniqueId(),
+            physicalPort(std::nullopt),
+            type(ViewportType::VIEWPORT_INTERNAL) {}
 
     bool operator==(const DisplayViewport& other) const {
-        return displayId == other.displayId
-                && orientation == other.orientation
-                && logicalLeft == other.logicalLeft
-                && logicalTop == other.logicalTop
-                && logicalRight == other.logicalRight
-                && logicalBottom == other.logicalBottom
-                && physicalLeft == other.physicalLeft
-                && physicalTop == other.physicalTop
-                && physicalRight == other.physicalRight
-                && physicalBottom == other.physicalBottom
-                && deviceWidth == other.deviceWidth
-                && deviceHeight == other.deviceHeight
-                && uniqueId == other.uniqueId
-                && physicalPort == other.physicalPort
-                && type == other.type;
+        return displayId == other.displayId && orientation == other.orientation &&
+                logicalLeft == other.logicalLeft && logicalTop == other.logicalTop &&
+                logicalRight == other.logicalRight && logicalBottom == other.logicalBottom &&
+                physicalLeft == other.physicalLeft && physicalTop == other.physicalTop &&
+                physicalRight == other.physicalRight && physicalBottom == other.physicalBottom &&
+                deviceWidth == other.deviceWidth && deviceHeight == other.deviceHeight &&
+                isActive == other.isActive && uniqueId == other.uniqueId &&
+                physicalPort == other.physicalPort && type == other.type;
     }
 
     bool operator!=(const DisplayViewport& other) const {
@@ -127,6 +131,7 @@ struct DisplayViewport {
         physicalBottom = height;
         deviceWidth = width;
         deviceHeight = height;
+        isActive = false;
         uniqueId.clear();
         physicalPort = std::nullopt;
         type = ViewportType::VIEWPORT_INTERNAL;
@@ -134,18 +139,16 @@ struct DisplayViewport {
 
     std::string toString() const {
         return StringPrintf("Viewport %s: displayId=%d, uniqueId=%s, port=%s, orientation=%d, "
-            "logicalFrame=[%d, %d, %d, %d], "
-            "physicalFrame=[%d, %d, %d, %d], "
-            "deviceSize=[%d, %d]",
-            viewportTypeToString(type), displayId,
-            uniqueId.c_str(),
-            physicalPort ? StringPrintf("%" PRIu8, *physicalPort).c_str() : "<none>",
-            orientation,
-            logicalLeft, logicalTop,
-            logicalRight, logicalBottom,
-            physicalLeft, physicalTop,
-            physicalRight, physicalBottom,
-            deviceWidth, deviceHeight);
+                            "logicalFrame=[%d, %d, %d, %d], "
+                            "physicalFrame=[%d, %d, %d, %d], "
+                            "deviceSize=[%d, %d], "
+                            "isActive=[%d]",
+                            viewportTypeToString(type), displayId, uniqueId.c_str(),
+                            physicalPort ? StringPrintf("%" PRIu8, *physicalPort).c_str()
+                                         : "<none>",
+                            orientation, logicalLeft, logicalTop, logicalRight, logicalBottom,
+                            physicalLeft, physicalTop, physicalRight, physicalBottom, deviceWidth,
+                            deviceHeight, isActive);
     }
 };
 

@@ -145,11 +145,10 @@ Layer::~Layer() {
     mFlinger->onLayerDestroyed(this);
 }
 
-LayerCreationArgs::LayerCreationArgs(SurfaceFlinger* flinger, const sp<Client> client,
-                                     std::string name, uint32_t w, uint32_t h, uint32_t flags,
-                                     LayerMetadata metadata)
+LayerCreationArgs::LayerCreationArgs(SurfaceFlinger* flinger, sp<Client> client, std::string name,
+                                     uint32_t w, uint32_t h, uint32_t flags, LayerMetadata metadata)
       : flinger(flinger),
-        client(client),
+        client(std::move(client)),
         name(std::move(name)),
         w(w),
         h(h),
@@ -718,9 +717,8 @@ std::vector<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCompo
     return {*shadowSettings};
 }
 
-Hwc2::IComposerClient::Composition Layer::getCompositionType(
-        const sp<const DisplayDevice>& display) const {
-    const auto outputLayer = findOutputLayerForDisplay(display);
+Hwc2::IComposerClient::Composition Layer::getCompositionType(const DisplayDevice& display) const {
+    const auto outputLayer = findOutputLayerForDisplay(&display);
     if (outputLayer == nullptr) {
         return Hwc2::IComposerClient::Composition::INVALID;
     }
@@ -729,12 +727,6 @@ Hwc2::IComposerClient::Composition Layer::getCompositionType(
     } else {
         return Hwc2::IComposerClient::Composition::CLIENT;
     }
-}
-
-bool Layer::getClearClientTarget(const sp<const DisplayDevice>& display) const {
-    const auto outputLayer = findOutputLayerForDisplay(display);
-    LOG_FATAL_IF(!outputLayer);
-    return outputLayer->getState().clearClientTarget;
 }
 
 bool Layer::addSyncPoint(const std::shared_ptr<SyncPoint>& point) {
@@ -1472,19 +1464,11 @@ uint32_t Layer::getEffectiveUsage(uint32_t usage) const {
     return usage;
 }
 
-void Layer::updateTransformHint(const sp<const DisplayDevice>& display) const {
-    ui::Transform::RotationFlags transformHint = ui::Transform::ROT_0;
-    // Disable setting transform hint if the debug flag is set.
-    if (!mFlinger->mDebugDisableTransformHint) {
-        // The transform hint is used to improve performance, but we can
-        // only have a single transform hint, it cannot
-        // apply to all displays.
-        const ui::Transform& planeTransform = display->getTransform();
-        transformHint = static_cast<ui::Transform::RotationFlags>(planeTransform.getOrientation());
-        if (transformHint & ui::Transform::ROT_INVALID) {
-            transformHint = ui::Transform::ROT_0;
-        }
+void Layer::updateTransformHint(ui::Transform::RotationFlags transformHint) {
+    if (mFlinger->mDebugDisableTransformHint || transformHint & ui::Transform::ROT_INVALID) {
+        transformHint = ui::Transform::ROT_0;
     }
+
     setTransformHint(transformHint);
 }
 
@@ -1493,7 +1477,7 @@ void Layer::updateTransformHint(const sp<const DisplayDevice>& display) const {
 // ----------------------------------------------------------------------------
 
 // TODO(marissaw): add new layer state info to layer debugging
-LayerDebugInfo Layer::getLayerDebugInfo() const {
+LayerDebugInfo Layer::getLayerDebugInfo(const DisplayDevice* display) const {
     using namespace std::string_literals;
 
     LayerDebugInfo info;
@@ -1504,7 +1488,7 @@ LayerDebugInfo Layer::getLayerDebugInfo() const {
     info.mType = getType();
     info.mTransparentRegion = ds.activeTransparentRegion_legacy;
 
-    info.mVisibleRegion = debugGetVisibleRegionOnDefaultDisplay();
+    info.mVisibleRegion = getVisibleRegion(display);
     info.mSurfaceDamageRegion = surfaceDamageRegion;
     info.mLayerStack = getLayerStack();
     info.mX = ds.active_legacy.transform.tx();
@@ -1574,8 +1558,8 @@ std::string Layer::frameRateCompatibilityString(Layer::FrameRateCompatibility co
     }
 }
 
-void Layer::miniDump(std::string& result, const sp<DisplayDevice>& displayDevice) const {
-    auto outputLayer = findOutputLayerForDisplay(displayDevice);
+void Layer::miniDump(std::string& result, const DisplayDevice& display) const {
+    const auto outputLayer = findOutputLayerForDisplay(&display);
     if (!outputLayer) {
         return;
     }
@@ -1602,7 +1586,7 @@ void Layer::miniDump(std::string& result, const sp<DisplayDevice>& displayDevice
         StringAppendF(&result, "  %10d | ", layerState.z);
     }
     StringAppendF(&result, "  %10d | ", mWindowType);
-    StringAppendF(&result, "%10s | ", toString(getCompositionType(displayDevice)).c_str());
+    StringAppendF(&result, "%10s | ", toString(getCompositionType(display)).c_str());
     StringAppendF(&result, "%10s | ", toString(outputLayerState.bufferTransform).c_str());
     const Rect& frame = outputLayerState.displayFrame;
     StringAppendF(&result, "%4d %4d %4d %4d | ", frame.left, frame.top, frame.right, frame.bottom);
@@ -2175,27 +2159,28 @@ void Layer::setInputInfo(const InputWindowInfo& info) {
 }
 
 LayerProto* Layer::writeToProto(LayersProto& layersProto, uint32_t traceFlags,
-                                const sp<const DisplayDevice>& device) const {
+                                const DisplayDevice* display) const {
     LayerProto* layerProto = layersProto.add_layers();
-    writeToProtoDrawingState(layerProto, traceFlags);
+    writeToProtoDrawingState(layerProto, traceFlags, display);
     writeToProtoCommonState(layerProto, LayerVector::StateSet::Drawing, traceFlags);
 
     if (traceFlags & SurfaceTracing::TRACE_COMPOSITION) {
         // Only populate for the primary display.
-        if (device) {
-            const Hwc2::IComposerClient::Composition compositionType = getCompositionType(device);
+        if (display) {
+            const Hwc2::IComposerClient::Composition compositionType = getCompositionType(*display);
             layerProto->set_hwc_composition_type(static_cast<HwcCompositionType>(compositionType));
         }
     }
 
     for (const sp<Layer>& layer : mDrawingChildren) {
-        layer->writeToProto(layersProto, traceFlags, device);
+        layer->writeToProto(layersProto, traceFlags, display);
     }
 
     return layerProto;
 }
 
-void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags) const {
+void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
+                                     const DisplayDevice* display) const {
     ui::Transform transform = getTransform();
 
     if (traceFlags & SurfaceTracing::TRACE_CRITICAL) {
@@ -2230,7 +2215,7 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags)
                                                [&]() { return layerInfo->mutable_position(); });
         LayerProtoHelper::writeToProto(mBounds, [&]() { return layerInfo->mutable_bounds(); });
         if (traceFlags & SurfaceTracing::TRACE_COMPOSITION) {
-            LayerProtoHelper::writeToProto(debugGetVisibleRegionOnDefaultDisplay(),
+            LayerProtoHelper::writeToProto(getVisibleRegion(display),
                                            [&]() { return layerInfo->mutable_visible_region(); });
         }
         LayerProtoHelper::writeToProto(surfaceDamageRegion,
@@ -2429,22 +2414,14 @@ bool Layer::canReceiveInput() const {
 }
 
 compositionengine::OutputLayer* Layer::findOutputLayerForDisplay(
-        const sp<const DisplayDevice>& display) const {
+        const DisplayDevice* display) const {
+    if (!display) return nullptr;
     return display->getCompositionDisplay()->getOutputLayerForLayer(getCompositionEngineLayerFE());
 }
 
-Region Layer::debugGetVisibleRegionOnDefaultDisplay() const {
-    sp<DisplayDevice> displayDevice = mFlinger->getDefaultDisplayDeviceLocked();
-    if (displayDevice == nullptr) {
-        return {};
-    }
-
-    auto outputLayer = findOutputLayerForDisplay(displayDevice);
-    if (outputLayer == nullptr) {
-        return {};
-    }
-
-    return outputLayer->getState().visibleRegion;
+Region Layer::getVisibleRegion(const DisplayDevice* display) const {
+    const auto outputLayer = findOutputLayerForDisplay(display);
+    return outputLayer ? outputLayer->getState().visibleRegion : Region();
 }
 
 void Layer::setInitialValuesForClone(const sp<Layer>& clonedFrom) {

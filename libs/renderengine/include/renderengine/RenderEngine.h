@@ -50,6 +50,10 @@ class Mesh;
 class Texture;
 struct RenderEngineCreationArgs;
 
+namespace threaded {
+class RenderEngineThreaded;
+}
+
 namespace impl {
 class RenderEngine;
 }
@@ -65,6 +69,11 @@ public:
         LOW = 1,
         MEDIUM = 2,
         HIGH = 3,
+    };
+
+    enum class RenderEngineType {
+        GLES = 1,
+        THREADED = 2,
     };
 
     static std::unique_ptr<impl::RenderEngine> create(const RenderEngineCreationArgs& args);
@@ -174,6 +183,7 @@ protected:
     // live longer than RenderEngine.
     virtual Framebuffer* getFramebufferForDrawing() = 0;
     friend class BindNativeBufferAsFramebuffer;
+    friend class threaded::RenderEngineThreaded;
 };
 
 struct RenderEngineCreationArgs {
@@ -184,26 +194,25 @@ struct RenderEngineCreationArgs {
     bool precacheToneMapperShaderOnly;
     bool supportsBackgroundBlur;
     RenderEngine::ContextPriority contextPriority;
+    RenderEngine::RenderEngineType renderEngineType;
 
     struct Builder;
 
 private:
     // must be created by Builder via constructor with full argument list
-    RenderEngineCreationArgs(
-            int _pixelFormat,
-            uint32_t _imageCacheSize,
-            bool _useColorManagement,
-            bool _enableProtectedContext,
-            bool _precacheToneMapperShaderOnly,
-            bool _supportsBackgroundBlur,
-            RenderEngine::ContextPriority _contextPriority)
-        : pixelFormat(_pixelFormat)
-        , imageCacheSize(_imageCacheSize)
-        , useColorManagement(_useColorManagement)
-        , enableProtectedContext(_enableProtectedContext)
-        , precacheToneMapperShaderOnly(_precacheToneMapperShaderOnly)
-        , supportsBackgroundBlur(_supportsBackgroundBlur)
-        , contextPriority(_contextPriority) {}
+    RenderEngineCreationArgs(int _pixelFormat, uint32_t _imageCacheSize, bool _useColorManagement,
+                             bool _enableProtectedContext, bool _precacheToneMapperShaderOnly,
+                             bool _supportsBackgroundBlur,
+                             RenderEngine::ContextPriority _contextPriority,
+                             RenderEngine::RenderEngineType _renderEngineType)
+          : pixelFormat(_pixelFormat),
+            imageCacheSize(_imageCacheSize),
+            useColorManagement(_useColorManagement),
+            enableProtectedContext(_enableProtectedContext),
+            precacheToneMapperShaderOnly(_precacheToneMapperShaderOnly),
+            supportsBackgroundBlur(_supportsBackgroundBlur),
+            contextPriority(_contextPriority),
+            renderEngineType(_renderEngineType) {}
     RenderEngineCreationArgs() = delete;
 };
 
@@ -238,10 +247,14 @@ struct RenderEngineCreationArgs::Builder {
         this->contextPriority = contextPriority;
         return *this;
     }
+    Builder& setRenderEngineType(RenderEngine::RenderEngineType renderEngineType) {
+        this->renderEngineType = renderEngineType;
+        return *this;
+    }
     RenderEngineCreationArgs build() const {
         return RenderEngineCreationArgs(pixelFormat, imageCacheSize, useColorManagement,
                                         enableProtectedContext, precacheToneMapperShaderOnly,
-                                        supportsBackgroundBlur, contextPriority);
+                                        supportsBackgroundBlur, contextPriority, renderEngineType);
     }
 
 private:
@@ -253,6 +266,7 @@ private:
     bool precacheToneMapperShaderOnly = false;
     bool supportsBackgroundBlur = false;
     RenderEngine::ContextPriority contextPriority = RenderEngine::ContextPriority::MEDIUM;
+    RenderEngine::RenderEngineType renderEngineType = RenderEngine::RenderEngineType::GLES;
 };
 
 class BindNativeBufferAsFramebuffer {

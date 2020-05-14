@@ -64,6 +64,13 @@ filegroup {
     ],
 }
 
+filegroup {
+    name: "librenderengine_threaded_sources",
+    srcs: [
+        "threaded/RenderEngineThreaded.cpp",
+    ],
+}
+
 cc_library_static {
     name: "librenderengine",
     defaults: ["librenderengine_defaults"],
@@ -80,6 +87,7 @@ cc_library_static {
     srcs: [
         ":librenderengine_sources",
         ":librenderengine_gl_sources",
+        ":librenderengine_threaded_sources",
     ],
     lto: {
         thin: true,

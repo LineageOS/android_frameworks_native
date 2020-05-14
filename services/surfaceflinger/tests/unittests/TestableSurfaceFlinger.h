@@ -177,6 +177,8 @@ public:
 
 class TestableSurfaceFlinger {
 public:
+    using HotplugEvent = SurfaceFlinger::HotplugEvent;
+
     SurfaceFlinger* flinger() { return mFlinger.get(); }
     TestableScheduler* scheduler() { return mScheduler; }
 
@@ -246,28 +248,32 @@ public:
         memcpy(&mFlinger->mInternalDisplayPrimaries, &primaries, sizeof(ui::DisplayPrimaries));
     }
 
-    using HotplugEvent = SurfaceFlinger::HotplugEvent;
-
-    auto& mutableLayerCurrentState(sp<Layer> layer) { return layer->mCurrentState; }
-    auto& mutableLayerDrawingState(sp<Layer> layer) { return layer->mDrawingState; }
+    static auto& mutableLayerCurrentState(const sp<Layer>& layer) { return layer->mCurrentState; }
+    static auto& mutableLayerDrawingState(const sp<Layer>& layer) { return layer->mDrawingState; }
 
     auto& mutableStateLock() { return mFlinger->mStateLock; }
 
-    void setLayerSidebandStream(sp<Layer> layer, sp<NativeHandle> sidebandStream) {
+    static auto findOutputLayerForDisplay(const sp<Layer>& layer,
+                                          const sp<const DisplayDevice>& display) {
+        return layer->findOutputLayerForDisplay(display.get());
+    }
+
+    static void setLayerSidebandStream(const sp<Layer>& layer,
+                                       const sp<NativeHandle>& sidebandStream) {
         layer->mDrawingState.sidebandStream = sidebandStream;
         layer->mSidebandStream = sidebandStream;
         layer->editCompositionState()->sidebandStream = sidebandStream;
     }
 
-    void setLayerCompositionType(sp<Layer> layer, hal::Composition type) {
-        auto outputLayer = layer->findOutputLayerForDisplay(mFlinger->getDefaultDisplayDevice());
+    void setLayerCompositionType(const sp<Layer>& layer, hal::Composition type) {
+        auto outputLayer = findOutputLayerForDisplay(layer, mFlinger->getDefaultDisplayDevice());
         LOG_ALWAYS_FATAL_IF(!outputLayer);
         auto& state = outputLayer->editState();
         LOG_ALWAYS_FATAL_IF(!outputLayer->getState().hwc);
         (*state.hwc).hwcCompositionType = type;
-    };
+    }
 
-    void setLayerPotentialCursor(sp<Layer> layer, bool potentialCursor) {
+    static void setLayerPotentialCursor(const sp<Layer>& layer, bool potentialCursor) {
         layer->mPotentialCursor = potentialCursor;
     }
 
