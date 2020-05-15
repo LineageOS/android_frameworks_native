@@ -24,7 +24,6 @@
 #include <EGL/eglext_angle.h>
 #include <private/EGL/display.h>
 
-#include <cutils/properties.h>
 #include "Loader.h"
 #include "egl_angle_platform.h"
 #include "egl_cache.h"
@@ -32,6 +31,7 @@
 #include "egl_tls.h"
 
 #include <SurfaceFlingerProperties.h>
+#include <android-base/properties.h>
 #include <android/dlext.h>
 #include <dlfcn.h>
 #include <graphicsenv/GraphicsEnv.h>
@@ -73,7 +73,7 @@ bool findExtension(const char* exts, const char* name, size_t nameLen) {
 }
 
 bool needsAndroidPEglMitigation() {
-    static const int32_t vndk_version = property_get_int32("ro.vndk.version", -1);
+    static const int32_t vndk_version = base::GetIntProperty("ro.vndk.version", -1);
     return vndk_version <= 28;
 }
 
@@ -151,10 +151,8 @@ static EGLDisplay getPlatformDisplayAngle(EGLNativeDisplayType display, egl_conn
         attrs.push_back(EGL_PLATFORM_ANGLE_TYPE_ANGLE);
         attrs.push_back(EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE);
 
-        char prop[PROPERTY_VALUE_MAX];
-        property_get("debug.angle.validation", prop, "0");
         attrs.push_back(EGL_PLATFORM_ANGLE_DEBUG_LAYERS_ENABLED_ANGLE);
-        attrs.push_back(atoi(prop));
+        attrs.push_back(base::GetBoolProperty("debug.angle.validation", false));
 
         attrs.push_back(EGL_NONE);
 
@@ -372,16 +370,8 @@ EGLBoolean egl_display_t::initialize(EGLint *major, EGLint *minor) {
 
         egl_cache_t::get()->initialize(this);
 
-        char value[PROPERTY_VALUE_MAX];
-        property_get("debug.egl.finish", value, "0");
-        if (atoi(value)) {
-            finishOnSwap = true;
-        }
-
-        property_get("debug.egl.traceGpuCompletion", value, "0");
-        if (atoi(value)) {
-            traceGpuCompletion = true;
-        }
+        finishOnSwap = base::GetBoolProperty("debug.egl.finish", false);
+        traceGpuCompletion = base::GetBoolProperty("debug.egl.traceGpuCompletion", false);
 
         // TODO: If device doesn't provide 1.4 or 1.5 then we'll be
         // changing the behavior from the past where we always advertise
