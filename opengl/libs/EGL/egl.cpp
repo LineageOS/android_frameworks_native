@@ -18,7 +18,7 @@
 
 #include <EGL/egl.h>
 
-#include <cutils/properties.h>
+#include <android-base/properties.h>
 
 #include <log/log.h>
 
@@ -58,9 +58,7 @@ static int gl_no_context() {
         } else {
             LOG_ALWAYS_FATAL(error);
         }
-        char value[PROPERTY_VALUE_MAX];
-        property_get("debug.egl.callstack", value, "0");
-        if (atoi(value)) {
+        if (base::GetBoolProperty("debug.egl.callstack", false)) {
             CallStack::log(LOG_TAG);
         }
     }
@@ -224,9 +222,7 @@ void gl_unimplemented() {
     pthread_mutex_unlock(&sLogPrintMutex);
     if (printLog) {
         ALOGE("called unimplemented OpenGL ES API");
-        char value[PROPERTY_VALUE_MAX];
-        property_get("debug.egl.callstack", value, "0");
-        if (atoi(value)) {
+        if (base::GetBoolProperty("debug.egl.callstack", false)) {
             CallStack::log(LOG_TAG);
         }
     }
