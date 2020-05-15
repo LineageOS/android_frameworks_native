@@ -3,16 +3,11 @@ service servicemanager /system/bin/servicemanager
     user system
     group system readproc
     critical
-    onrestart restart healthd
-    onrestart restart zygote
+    onrestart restart apexd
     onrestart restart audioserver
-    onrestart restart media
-    onrestart restart surfaceflinger
-    onrestart restart inputflinger
-    onrestart restart drm
-    onrestart restart cameraserver
-    onrestart restart keystore
     onrestart restart gatekeeperd
-    onrestart restart thermalservice
+    onrestart class_restart main
+    onrestart class_restart hal
+    onrestart class_restart early_hal
     writepid /dev/cpuset/system-background/tasks
     shutdown critical
