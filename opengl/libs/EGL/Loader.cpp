@@ -24,8 +24,8 @@
 #include <dirent.h>
 #include <dlfcn.h>
 
+#include <android-base/properties.h>
 #include <android/dlext.h>
-#include <cutils/properties.h>
 #include <log/log.h>
 #include <utils/Timers.h>
 
@@ -241,12 +241,12 @@ void* Loader::open(egl_connection_t* cnx)
         // i.e.:
         //      libGLES_${prop}.so, or:
         //      libEGL_${prop}.so, libGLESv1_CM_${prop}.so, libGLESv2_${prop}.so
-        char prop[PROPERTY_VALUE_MAX + 1];
         for (auto key : HAL_SUBNAME_KEY_PROPERTIES) {
-            if (property_get(key, prop, nullptr) <= 0) {
+            auto prop = base::GetProperty(key, "");
+            if (prop.empty()) {
                 continue;
             }
-            hnd = attempt_to_load_system_driver(cnx, prop, true);
+            hnd = attempt_to_load_system_driver(cnx, prop.c_str(), true);
             if (hnd) {
                 break;
             } else if (strcmp(key, DRIVER_SUFFIX_PROPERTY) == 0) {
@@ -510,9 +510,9 @@ static void* load_updated_driver(const char* kind, android_namespace_t* ns) {
         .library_namespace = ns,
     };
     void* so = nullptr;
-    char prop[PROPERTY_VALUE_MAX + 1];
     for (auto key : HAL_SUBNAME_KEY_PROPERTIES) {
-        if (property_get(key, prop, nullptr) <= 0) {
+        auto prop = base::GetProperty(key, "");
+        if (prop.empty()) {
             continue;
         }
         std::string name = std::string("lib") + kind + "_" + prop + ".so";
