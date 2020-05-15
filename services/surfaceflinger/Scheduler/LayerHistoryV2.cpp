@@ -174,8 +174,10 @@ void LayerHistoryV2::partitionLayers(nsecs_t now) {
                         return LayerVoteType::NoVote;
                 }
             }();
-            if (layer->isVisible() && (frameRate.rate > 0 || voteType == LayerVoteType::NoVote)) {
-                info->setLayerVote(voteType, frameRate.rate);
+
+            if (frameRate.rate > 0 || voteType == LayerVoteType::NoVote) {
+                const auto type = layer->isVisible() ? voteType : LayerVoteType::NoVote;
+                info->setLayerVote(type, frameRate.rate);
             } else {
                 info->resetLayerVote();
             }
