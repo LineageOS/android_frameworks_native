@@ -158,19 +158,19 @@ void DisplayDevice::setProjection(ui::Rotation orientation, Rect viewport, Rect 
     mOrientation = orientation;
 
     const Rect& displayBounds = getCompositionDisplay()->getState().bounds;
-    const int w = displayBounds.width();
-    const int h = displayBounds.height();
+    const int displayWidth = displayBounds.width();
+    const int displayHeight = displayBounds.height();
 
-    ui::Transform R;
+    ui::Transform rotation;
     if (const auto flags = ui::Transform::toRotationFlags(orientation);
         flags != ui::Transform::ROT_INVALID) {
-        R.set(flags, w, h);
+        rotation.set(flags, displayWidth, displayHeight);
     }
 
     if (!frame.isValid()) {
         // the destination frame can be invalid if it has never been set,
         // in that case we assume the whole display frame.
-        frame = Rect(w, h);
+        frame = Rect(displayWidth, displayHeight);
     }
 
     if (viewport.isEmpty()) {
@@ -178,45 +178,45 @@ void DisplayDevice::setProjection(ui::Rotation orientation, Rect viewport, Rect 
         // we assume the whole display size.
         // it's also invalid to have an empty viewport, so we handle that
         // case in the same way.
-        viewport = Rect(w, h);
-        if (R.getOrientation() & ui::Transform::ROT_90) {
+        viewport = Rect(displayWidth, displayHeight);
+        if (rotation.getOrientation() & ui::Transform::ROT_90) {
             // viewport is always specified in the logical orientation
             // of the display (ie: post-rotation).
             std::swap(viewport.right, viewport.bottom);
         }
     }
 
-    ui::Transform TL, TP, S;
-    float src_width  = viewport.width();
-    float src_height = viewport.height();
-    float dst_width  = frame.width();
-    float dst_height = frame.height();
-    if (src_width != dst_width || src_height != dst_height) {
-        float sx = dst_width  / src_width;
-        float sy = dst_height / src_height;
-        S.set(sx, 0, 0, sy);
+    ui::Transform logicalTranslation, physicalTranslation, scale;
+    const float sourceWidth = viewport.width();
+    const float sourceHeight = viewport.height();
+    const float destWidth = frame.width();
+    const float destHeight = frame.height();
+    if (sourceWidth != destWidth || sourceHeight != destHeight) {
+        const float scaleX = destWidth / sourceWidth;
+        const float scaleY = destHeight / sourceHeight;
+        scale.set(scaleX, 0, 0, scaleY);
     }
 
-    float src_x = viewport.left;
-    float src_y = viewport.top;
-    float dst_x = frame.left;
-    float dst_y = frame.top;
-    TL.set(-src_x, -src_y);
-    TP.set(dst_x, dst_y);
+    const float sourceX = viewport.left;
+    const float sourceY = viewport.top;
+    const float destX = frame.left;
+    const float destY = frame.top;
+    logicalTranslation.set(-sourceX, -sourceY);
+    physicalTranslation.set(destX, destY);
 
     // need to take care of primary display rotation for globalTransform
     // for case if the panel is not installed aligned with device orientation
     if (isPrimary()) {
         if (const auto flags = ui::Transform::toRotationFlags(orientation + mPhysicalOrientation);
             flags != ui::Transform::ROT_INVALID) {
-            R.set(flags, w, h);
+            rotation.set(flags, displayWidth, displayHeight);
         }
     }
 
     // The viewport and frame are both in the logical orientation.
     // Apply the logical translation, scale to physical size, apply the
     // physical translation and finally rotate to the physical orientation.
-    ui::Transform globalTransform = R * TP * S * TL;
+    ui::Transform globalTransform = rotation * physicalTranslation * scale * logicalTranslation;
 
     const uint8_t type = globalTransform.getType();
     const bool needsFiltering =
