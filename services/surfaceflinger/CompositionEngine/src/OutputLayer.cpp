@@ -149,9 +149,9 @@ FloatRect OutputLayer::calculateOutputSourceCrop() const {
         // a modification of the axes of rotation. To account for this we
         // need to reorient the inverse rotation in terms of the current
         // axes of rotation.
-        bool is_h_flipped = (invTransform & HAL_TRANSFORM_FLIP_H) != 0;
-        bool is_v_flipped = (invTransform & HAL_TRANSFORM_FLIP_V) != 0;
-        if (is_h_flipped == is_v_flipped) {
+        bool isHFlipped = (invTransform & HAL_TRANSFORM_FLIP_H) != 0;
+        bool isVFlipped = (invTransform & HAL_TRANSFORM_FLIP_V) != 0;
+        if (isHFlipped == isVFlipped) {
             invTransform ^= HAL_TRANSFORM_FLIP_V | HAL_TRANSFORM_FLIP_H;
         }
         std::swap(winWidth, winHeight);
@@ -160,18 +160,18 @@ FloatRect OutputLayer::calculateOutputSourceCrop() const {
             activeCrop.transform(invTransform, bufferSize.getWidth(), bufferSize.getHeight());
 
     // below, crop is intersected with winCrop expressed in crop's coordinate space
-    float xScale = crop.getWidth() / float(winWidth);
-    float yScale = crop.getHeight() / float(winHeight);
+    const float xScale = crop.getWidth() / float(winWidth);
+    const float yScale = crop.getHeight() / float(winHeight);
 
-    float insetL = winCrop.left * xScale;
-    float insetT = winCrop.top * yScale;
-    float insetR = (winWidth - winCrop.right) * xScale;
-    float insetB = (winHeight - winCrop.bottom) * yScale;
+    const float insetLeft = winCrop.left * xScale;
+    const float insetTop = winCrop.top * yScale;
+    const float insetRight = (winWidth - winCrop.right) * xScale;
+    const float insetBottom = (winHeight - winCrop.bottom) * yScale;
 
-    crop.left += insetL;
-    crop.top += insetT;
-    crop.right -= insetR;
-    crop.bottom -= insetB;
+    crop.left += insetLeft;
+    crop.top += insetTop;
+    crop.right -= insetRight;
+    crop.bottom -= insetBottom;
 
     return crop;
 }
