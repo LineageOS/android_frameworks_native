@@ -970,7 +970,6 @@ VkResult GetPhysicalDevicePresentRectanglesKHR(VkPhysicalDevice,
                   strerror(-err), err);
         }
 
-        // TODO(b/143294545): Return something better than "whole window"
         pRects[0].offset.x = 0;
         pRects[0].offset.y = 0;
         pRects[0].extent = VkExtent2D{static_cast<uint32_t>(width),
