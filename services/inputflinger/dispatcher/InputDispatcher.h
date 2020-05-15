@@ -497,8 +497,8 @@ private:
     LatencyStatistics mTouchStatistics{TOUCH_STATS_REPORT_PERIOD};
 
     void reportTouchEventForStatistics(const MotionEntry& entry);
-    void updateDispatchStatistics(nsecs_t currentTime, const EventEntry& entry,
-                                  int32_t injectionResult, nsecs_t timeSpentWaitingForApplication);
+    void reportDispatchStatistics(std::chrono::nanoseconds eventDuration,
+                                  const Connection& connection, bool handled);
     void traceInboundQueueLengthLocked() REQUIRES(mLock);
     void traceOutboundQueueLength(const sp<Connection>& connection);
     void traceWaitQueueLength(const sp<Connection>& connection);
