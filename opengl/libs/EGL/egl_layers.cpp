@@ -18,9 +18,9 @@
 
 #include <EGL/egl.h>
 #include <android-base/file.h>
+#include <android-base/properties.h>
 #include <android-base/strings.h>
 #include <android/dlext.h>
-#include <cutils/properties.h>
 #include <dlfcn.h>
 #include <graphicsenv/GraphicsEnv.h>
 #include <log/log.h>
@@ -157,9 +157,7 @@ std::string LayerLoader::GetDebugLayers() {
 
     if (debug_layers.empty()) {
         // Only check system properties if Java settings are empty
-        char prop[PROPERTY_VALUE_MAX];
-        property_get("debug.gles.layers", prop, "");
-        debug_layers = prop;
+        debug_layers = base::GetProperty("debug.gles.layers", "");
     }
 
     return debug_layers;
