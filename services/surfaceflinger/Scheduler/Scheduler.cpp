@@ -66,15 +66,15 @@ std::unique_ptr<DispSync> createDispSync() {
     // TODO (140302863) remove this and use the vsync_reactor system.
     if (property_get_bool("debug.sf.vsync_reactor", true)) {
         // TODO (144707443) tune Predictor tunables.
-        static constexpr int default_rate = 60;
-        static constexpr auto initial_period =
-                std::chrono::duration<nsecs_t, std::ratio<1, default_rate>>(1);
+        static constexpr int defaultRate = 60;
+        static constexpr auto initialPeriod =
+                std::chrono::duration<nsecs_t, std::ratio<1, defaultRate>>(1);
         static constexpr size_t vsyncTimestampHistorySize = 20;
         static constexpr size_t minimumSamplesForPrediction = 6;
         static constexpr uint32_t discardOutlierPercent = 20;
         auto tracker = std::make_unique<
                 scheduler::VSyncPredictor>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                                   initial_period)
+                                                   initialPeriod)
                                                    .count(),
                                            vsyncTimestampHistorySize, minimumSamplesForPrediction,
                                            discardOutlierPercent);
