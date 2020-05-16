@@ -108,6 +108,16 @@ private:
     UinputHomeKey();
 };
 
+// A joystick device that sends a BTN_GEAR_DOWN / BTN_WHEEL key.
+class UinputSteamController : public UinputKeyboard {
+public:
+    template <class D, class... Ts>
+    friend std::unique_ptr<D> createUinputDevice(Ts... args);
+
+private:
+    UinputSteamController();
+};
+
 // --- UinputTouchScreen ---
 // A touch screen device with specific size.
 class UinputTouchScreen : public UinputDevice {
