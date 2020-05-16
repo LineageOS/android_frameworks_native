@@ -1848,6 +1848,28 @@ TEST_F(InputReaderIntegrationTest, SendsEventsToInputListener) {
     ASSERT_LE(prevTimestamp, keyArgs.eventTime);
 }
 
+/**
+ * The Steam controller sends BTN_GEAR_DOWN and BTN_GEAR_UP for the two "paddle" buttons
+ * on the back. In this test, we make sure that BTN_GEAR_DOWN / BTN_WHEEL and BTN_GEAR_UP
+ * are passed to the listener.
+ */
+static_assert(BTN_GEAR_DOWN == BTN_WHEEL);
+TEST_F(InputReaderIntegrationTest, SendsGearDownAndUpToInputListener) {
+    std::unique_ptr<UinputSteamController> controller = createUinputDevice<UinputSteamController>();
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+    NotifyKeyArgs keyArgs;
+
+    controller->pressAndReleaseKey(BTN_GEAR_DOWN);
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(&keyArgs)); // ACTION_DOWN
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(&keyArgs)); // ACTION_UP
+    ASSERT_EQ(BTN_GEAR_DOWN, keyArgs.scanCode);
+
+    controller->pressAndReleaseKey(BTN_GEAR_UP);
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(&keyArgs)); // ACTION_DOWN
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(&keyArgs)); // ACTION_UP
+    ASSERT_EQ(BTN_GEAR_UP, keyArgs.scanCode);
+}
+
 // --- TouchProcessTest ---
 class TouchIntegrationTest : public InputReaderIntegrationTest {
 protected:
