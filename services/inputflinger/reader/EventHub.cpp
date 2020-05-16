@@ -1318,7 +1318,7 @@ status_t EventHub::openDeviceLocked(const char* devicePath) {
     // joystick and gamepad buttons which are handled like keyboards for the most part.
     bool haveKeyboardKeys =
             containsNonZeroByte(device->keyBitmask, 0, sizeof_bit_array(BTN_MISC)) ||
-            containsNonZeroByte(device->keyBitmask, sizeof_bit_array(KEY_OK),
+            containsNonZeroByte(device->keyBitmask, sizeof_bit_array(BTN_WHEEL),
                                 sizeof_bit_array(KEY_MAX + 1));
     bool haveGamepadButtons = containsNonZeroByte(device->keyBitmask, sizeof_bit_array(BTN_MISC),
                                                   sizeof_bit_array(BTN_MOUSE)) ||
