@@ -125,6 +125,9 @@ void UinputHomeKey::pressAndReleaseHomeKey() {
     pressAndReleaseKey(KEY_HOME);
 }
 
+// --- UinputSteamController
+UinputSteamController::UinputSteamController() : UinputKeyboard({BTN_GEAR_DOWN, BTN_GEAR_UP}) {}
+
 // --- UinputTouchScreen ---
 UinputTouchScreen::UinputTouchScreen(const Rect* size)
       : UinputDevice(UinputTouchScreen::DEVICE_NAME), mSize(*size) {}
