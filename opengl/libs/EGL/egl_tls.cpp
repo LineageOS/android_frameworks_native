@@ -18,7 +18,7 @@
 
 #include <stdlib.h>
 
-#include <cutils/properties.h>
+#include <android-base/properties.h>
 #include <log/log.h>
 #include "CallStack.h"
 #include "egl_platform_entries.h"
@@ -96,9 +96,7 @@ void egl_tls_t::setErrorEtcImpl(
         if (!quiet) {
             ALOGE("%s:%d error %x (%s)",
                     caller, line, error, egl_strerror(error));
-            char value[PROPERTY_VALUE_MAX];
-            property_get("debug.egl.callstack", value, "0");
-            if (atoi(value)) {
+            if (base::GetBoolProperty("debug.egl.callstack", false)) {
                 CallStack::log(LOG_TAG);
             }
         }
