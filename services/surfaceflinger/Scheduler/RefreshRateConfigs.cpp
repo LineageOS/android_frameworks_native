@@ -140,8 +140,8 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
         return getMinRefreshRateByPolicyLocked();
     }
 
-    if (layers.empty()) {
-        return getCurrentRefreshRateByPolicyLocked();
+    if (layers.empty() || noVoteLayers == layers.size()) {
+        return getMaxRefreshRateByPolicyLocked();
     }
 
     // Only if all layers want Min we should return Min
