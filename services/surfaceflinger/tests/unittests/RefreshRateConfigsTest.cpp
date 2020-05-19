@@ -340,15 +340,14 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_noLayers) {
             std::make_unique<RefreshRateConfigs>(m60_72_90Device, /*currentConfigId=*/
                                                  HWC_CONFIG_ID_72);
 
-    // If there are not layers, there is not content detection, so return the current
-    // refresh rate.
+    // If there are no layers we select the default frame rate, which is the max of the primary
+    // range.
     auto layers = std::vector<LayerRequirement>{};
-    EXPECT_EQ(mExpected72Config,
+    EXPECT_EQ(mExpected90Config,
               refreshRateConfigs->getBestRefreshRate(layers, /*touchActive*/
                                                      false, /*idle*/ false, &ignored));
 
-    // Current refresh rate can always be changed.
-    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_60);
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, {60, 60}}), 0);
     EXPECT_EQ(mExpected60Config,
               refreshRateConfigs->getBestRefreshRate(layers, /*touchActive*/
                                                      false, /*idle*/ false, &ignored));
