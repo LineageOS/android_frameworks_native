@@ -38,7 +38,6 @@ cc_defaults {
         "libbinder",
         "libbufferhubqueue",
         "libcutils",
-        "libdl",
         "libEGL",
         "libfmq",
         "libGLESv1_CM",
@@ -73,7 +72,6 @@ cc_defaults {
         "librenderengine",
         "libserviceutils",
         "libtrace_proto",
-        "libvr_manager",
         "libvrflinger",
     ],
     header_libs: [
