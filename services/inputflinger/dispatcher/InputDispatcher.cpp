@@ -1969,7 +1969,7 @@ static bool canBeObscuredBy(const sp<InputWindowHandle>& windowHandle,
       // windows with an input channel from the same PID as occluding, and so we
       // preserve this behavior with the getToken() == null check.
         return false;
-    } else if (otherInfo->isTrustedOverlay()) {
+    } else if (otherInfo->trustedOverlay) {
         return false;
     } else if (otherInfo->displayId != info->displayId) {
         return false;
