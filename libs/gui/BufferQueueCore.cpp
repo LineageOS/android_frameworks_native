@@ -75,10 +75,12 @@ static status_t getProcessName(int pid, String8& name) {
     if (NULL != fp) {
         const size_t size = 64;
         char proc_name[size];
-        fgets(proc_name, size, fp);
+        char* result = fgets(proc_name, size, fp);
         fclose(fp);
-        name = proc_name;
-        return NO_ERROR;
+        if (result != nullptr) {
+            name = proc_name;
+            return NO_ERROR;
+        }
     }
     return INVALID_OPERATION;
 }
