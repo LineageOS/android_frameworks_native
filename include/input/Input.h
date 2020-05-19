@@ -280,9 +280,9 @@ private:
 public:
     // Used to divide integer space to ensure no conflict among these sources./
     enum class Source : int32_t {
-        INPUT_READER = 0x0 << SOURCE_SHIFT,
-        INPUT_DISPATCHER = 0x1 << SOURCE_SHIFT,
-        OTHER = 0x3 << SOURCE_SHIFT, // E.g. app injected events
+        INPUT_READER = static_cast<int32_t>(0x0u << SOURCE_SHIFT),
+        INPUT_DISPATCHER = static_cast<int32_t>(0x1u << SOURCE_SHIFT),
+        OTHER = static_cast<int32_t>(0x3u << SOURCE_SHIFT), // E.g. app injected events
     };
     IdGenerator(Source source);
 
@@ -294,7 +294,7 @@ public:
 private:
     const Source mSource;
 
-    static constexpr int32_t SOURCE_MASK = 0x3 << SOURCE_SHIFT;
+    static constexpr int32_t SOURCE_MASK = static_cast<int32_t>(0x3u << SOURCE_SHIFT);
 };
 
 /**
