@@ -54,7 +54,8 @@ class LayerInfoV2 {
     friend class LayerHistoryTestV2;
 
 public:
-    LayerInfoV2(nsecs_t highRefreshRatePeriod, LayerHistory::LayerVoteType defaultVote);
+    LayerInfoV2(const std::string& name, nsecs_t highRefreshRatePeriod,
+                LayerHistory::LayerVoteType defaultVote);
 
     LayerInfoV2(const LayerInfo&) = delete;
     LayerInfoV2& operator=(const LayerInfoV2&) = delete;
@@ -83,11 +84,7 @@ public:
     nsecs_t getLastUpdatedTime() const { return mLastUpdatedTime; }
 
     void clearHistory() {
-        // Mark mFrameTimeValidSince to now to ignore all previous frame times.
-        // We are not deleting the old frame to keep track of whether we should treat the first
-        // buffer as Max as we don't know anything about this layer or Min as this layer is
-        // posting infrequent updates.
-        mFrameTimeValidSince = std::chrono::steady_clock::now();
+        mFrameTimes.clear();
         mLastReportedRefreshRate = 0.0f;
     }
 
@@ -101,7 +98,8 @@ private:
     bool isFrequent(nsecs_t now) const;
     bool hasEnoughDataForHeuristic() const;
     std::optional<float> calculateRefreshRateIfPossible();
-    bool isFrameTimeValid(const FrameTimeData&) const;
+
+    const std::string mName;
 
     // Used for sanitizing the heuristic data
     const nsecs_t mHighRefreshRatePeriod;
@@ -118,8 +116,6 @@ private:
     } mLayerVote;
 
     std::deque<FrameTimeData> mFrameTimes;
-    std::chrono::time_point<std::chrono::steady_clock> mFrameTimeValidSince =
-            std::chrono::steady_clock::now();
     static constexpr size_t HISTORY_SIZE = 90;
     static constexpr std::chrono::nanoseconds HISTORY_TIME = 1s;
 };
