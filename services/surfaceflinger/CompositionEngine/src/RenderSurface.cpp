@@ -28,7 +28,6 @@
 
 #include <log/log.h>
 #include <renderengine/RenderEngine.h>
-#include <sync/sync.h>
 #include <system/window.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/Rect.h>
