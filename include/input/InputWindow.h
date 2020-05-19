@@ -116,7 +116,6 @@ struct InputWindowInfo {
         TYPE_DOCK_DIVIDER = FIRST_SYSTEM_WINDOW + 34,
         TYPE_ACCESSIBILITY_MAGNIFICATION_OVERLAY = FIRST_SYSTEM_WINDOW + 39,
         TYPE_NOTIFICATION_SHADE = FIRST_SYSTEM_WINDOW + 40,
-        TYPE_TRUSTED_APPLICATION_OVERLAY = FIRST_SYSTEM_WINDOW + 42,
         LAST_SYSTEM_WINDOW = 2999,
     };
 
@@ -171,6 +170,12 @@ struct InputWindowInfo {
     bool hasFocus = false;
     bool hasWallpaper = false;
     bool paused = false;
+    /* This flag is set when the window is of a trusted type that is allowed to silently
+     * overlay other windows for the purpose of implementing the secure views feature.
+     * Trusted overlays, such as IME windows, can partly obscure other windows without causing
+     * motion events to be delivered to them with AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED.
+     */
+    bool trustedOverlay = false;
     int32_t ownerPid = -1;
     int32_t ownerUid = -1;
     int32_t inputFeatures = 0;
@@ -183,20 +188,15 @@ struct InputWindowInfo {
     void addTouchableRegion(const Rect& region);
 
     bool touchableRegionContainsPoint(int32_t x, int32_t y) const;
-    bool frameContainsPoint(int32_t x, int32_t y) const;
 
-    /* Returns true if the window is of a trusted type that is allowed to silently
-     * overlay other windows for the purpose of implementing the secure views feature.
-     * Trusted overlays, such as IME windows, can partly obscure other windows without causing
-     * motion events to be delivered to them with AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED.
-     */
-    bool isTrustedOverlay() const;
+    bool frameContainsPoint(int32_t x, int32_t y) const;
 
     bool supportsSplitTouch() const;
 
     bool overlaps(const InputWindowInfo* other) const;
 
     status_t write(Parcel& output) const;
+
     static InputWindowInfo read(const Parcel& from);
 };
 
