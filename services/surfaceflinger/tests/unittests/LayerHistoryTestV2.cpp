@@ -103,12 +103,22 @@ TEST_F(LayerHistoryTestV2, oneLayer) {
     EXPECT_TRUE(history().summarize(time).empty());
     EXPECT_EQ(0, activeLayerCount());
 
+    // The first few updates are considered infrequent
+    for (int i = 0; i < FREQUENT_LAYER_WINDOW_SIZE - 1; i++) {
+        history().record(layer.get(), 0, time);
+        ASSERT_EQ(1, history().summarize(time).size());
+        EXPECT_EQ(LayerHistory::LayerVoteType::Min, history().summarize(time)[0].vote);
+        EXPECT_EQ(1, activeLayerCount());
+        EXPECT_EQ(0, frequentLayerCount(time));
+    }
+
     // Max returned if active layers have insufficient history.
-    for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE - 1; i++) {
+    for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE - FREQUENT_LAYER_WINDOW_SIZE - 1; i++) {
         history().record(layer.get(), 0, time);
         ASSERT_EQ(1, history().summarize(time).size());
         EXPECT_EQ(LayerHistory::LayerVoteType::Max, history().summarize(time)[0].vote);
         EXPECT_EQ(1, activeLayerCount());
+        EXPECT_EQ(1, frequentLayerCount(time));
     }
 
     // Max is returned since we have enough history but there is no timestamp votes.
@@ -117,6 +127,7 @@ TEST_F(LayerHistoryTestV2, oneLayer) {
         ASSERT_EQ(1, history().summarize(time).size());
         EXPECT_EQ(LayerHistory::LayerVoteType::Max, history().summarize(time)[0].vote);
         EXPECT_EQ(1, activeLayerCount());
+        EXPECT_EQ(1, frequentLayerCount(time));
     }
 }
 
@@ -134,7 +145,7 @@ TEST_F(LayerHistoryTestV2, oneInvisibleLayer) {
     auto summary = history().summarize(time);
     ASSERT_EQ(1, history().summarize(time).size());
     // Layer is still considered inactive so we expect to get Min
-    EXPECT_EQ(LayerHistory::LayerVoteType::Max, history().summarize(time)[0].vote);
+    EXPECT_EQ(LayerHistory::LayerVoteType::Min, history().summarize(time)[0].vote);
     EXPECT_EQ(1, activeLayerCount());
 
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(false));
@@ -464,27 +475,14 @@ TEST_F(LayerHistoryTestV2, inactiveLayers) {
 
     nsecs_t time = systemTime();
 
-    // the very first updates makes the layer frequent
+    // The first few updates are considered infrequent
     for (int i = 0; i < FREQUENT_LAYER_WINDOW_SIZE - 1; i++) {
-        history().record(layer.get(), time, time);
-        time += MAX_FREQUENT_LAYER_PERIOD_NS.count();
-
-        EXPECT_EQ(1, layerCount());
+        history().record(layer.get(), 0, time);
         ASSERT_EQ(1, history().summarize(time).size());
-        EXPECT_EQ(LayerHistory::LayerVoteType::Max, history().summarize(time)[0].vote);
+        EXPECT_EQ(LayerHistory::LayerVoteType::Min, history().summarize(time)[0].vote);
         EXPECT_EQ(1, activeLayerCount());
-        EXPECT_EQ(1, frequentLayerCount(time));
+        EXPECT_EQ(0, frequentLayerCount(time));
     }
-
-    // the next update with the MAX_FREQUENT_LAYER_PERIOD_NS will get us to infrequent
-    history().record(layer.get(), time, time);
-    time += MAX_FREQUENT_LAYER_PERIOD_NS.count();
-
-    EXPECT_EQ(1, layerCount());
-    ASSERT_EQ(1, history().summarize(time).size());
-    EXPECT_EQ(LayerHistory::LayerVoteType::Min, history().summarize(time)[0].vote);
-    EXPECT_EQ(1, activeLayerCount());
-    EXPECT_EQ(0, frequentLayerCount(time));
 
     // advance the time for the previous frame to be inactive
     time += MAX_ACTIVE_LAYER_PERIOD_NS.count();
@@ -528,9 +526,11 @@ TEST_F(LayerHistoryTestV2, invisibleExplicitLayer) {
 
     nsecs_t time = systemTime();
 
-    // Post a buffer to the layers to make them active
-    history().record(explicitVisiblelayer.get(), time, time);
-    history().record(explicitInvisiblelayer.get(), time, time);
+    // Post a few buffers to the layers to make them active
+    for (int i = 0; i < FREQUENT_LAYER_WINDOW_SIZE; i++) {
+        history().record(explicitVisiblelayer.get(), time, time);
+        history().record(explicitInvisiblelayer.get(), time, time);
+    }
 
     EXPECT_EQ(2, layerCount());
     ASSERT_EQ(1, history().summarize(time).size());
