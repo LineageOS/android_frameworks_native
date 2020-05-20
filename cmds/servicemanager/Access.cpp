@@ -31,7 +31,7 @@ constexpr bool kIsVendor = false;
 #endif
 
 static std::string getPidcon(pid_t pid) {
-    android_errorWriteLog(0x534e4554, "121035042");
+    if (pid != getpid()) return "";
 
     char* lookup = nullptr;
     if (getpidcon(pid, &lookup) < 0) {
