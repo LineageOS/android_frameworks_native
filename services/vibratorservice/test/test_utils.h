@@ -28,6 +28,20 @@ namespace vibrator {
 using ::android::hardware::vibrator::CompositeEffect;
 using ::android::hardware::vibrator::CompositePrimitive;
 
+// -------------------------------------------------------------------------------------------------
+
+class MockCallbackScheduler : public vibrator::CallbackScheduler {
+public:
+    MOCK_METHOD(void, schedule, (std::function<void()> callback, std::chrono::milliseconds delay),
+                (override));
+};
+
+ACTION(TriggerSchedulerCallback) {
+    arg0();
+}
+
+// -------------------------------------------------------------------------------------------------
+
 class TestFactory {
 public:
     static CompositeEffect createCompositeEffect(CompositePrimitive primitive,
@@ -47,6 +61,8 @@ private:
     TestFactory() = delete;
     ~TestFactory() = delete;
 };
+
+// -------------------------------------------------------------------------------------------------
 
 } // namespace vibrator
 
