@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "5d0b898f_56165899",
+        "filename": "services/surfaceflinger/Android.bp",
+        "patchSetId": 1
+      },
+      "lineNbr": 74,
+      "author": {
+        "id": 10258
+      },
+      "writtenOn": "2020-05-20T08:51:17Z",
+      "side": 1,
+      "message": "FIXME",
+      "range": {
+        "startLine": 74,
+        "startChar": 7,
+        "endLine": 74,
+        "endChar": 59
+      },
+      "revId": "00bffc5b356c6b2bdc5780a5a9c344665217307e",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
+    }
+  ]
+}
