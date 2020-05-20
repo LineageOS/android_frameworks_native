@@ -21,7 +21,6 @@ cc_defaults {
         "liblog",
         "libnativewindow",
         "libprotobuf-cpp-lite",
-        "libsync",
         "libtimestats",
         "libui",
         "libutils",
