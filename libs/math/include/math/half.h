@@ -82,6 +82,7 @@ class half {
     };
 
 public:
+    CONSTEXPR half() noexcept { }
     CONSTEXPR half(float v) noexcept : mBits(ftoh(v)) { }
     CONSTEXPR operator float() const noexcept { return htof(mBits); }
 
