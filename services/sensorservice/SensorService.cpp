@@ -699,6 +699,9 @@ status_t SensorService::shellCommand(int in, int out, int err, Vector<String16>&
     if (!checkCallingPermission(sManageSensorsPermission, nullptr, nullptr)) {
         return PERMISSION_DENIED;
     }
+    if (args.size() == 0) {
+      return BAD_INDEX;
+    }
     if (in == BAD_TYPE || out == BAD_TYPE || err == BAD_TYPE) {
         return BAD_VALUE;
     }
