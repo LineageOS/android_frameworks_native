@@ -152,7 +152,9 @@ def _intercept_instance_proc_addr(f):
     if (instance == VK_NULL_HANDLE) {\n""")
 
   for cmd in gencom.command_list:
-    if gencom.is_globally_dispatched(cmd):
+    # vkGetInstanceProcAddr(nullptr, "vkGetInstanceProcAddr") is effectively
+    # globally dispatched
+    if gencom.is_globally_dispatched(cmd) or cmd == 'vkGetInstanceProcAddr':
       f.write(gencom.indent(2) +
               'if (strcmp(pName, \"' + cmd +
               '\") == 0) return reinterpret_cast<PFN_vkVoidFunction>(' +
