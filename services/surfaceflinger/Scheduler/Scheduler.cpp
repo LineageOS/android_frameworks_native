@@ -385,38 +385,33 @@ nsecs_t Scheduler::getDispSyncExpectedPresentTime(nsecs_t now) {
 void Scheduler::registerLayer(Layer* layer) {
     if (!mLayerHistory) return;
 
-    // If the content detection feature is off, all layers are registered at NoVote. We still
-    // keep the layer history, since we use it for other features (like Frame Rate API), so layers
-    // still need to be registered.
-    if (!mUseContentDetection) {
-        mLayerHistory->registerLayer(layer, mRefreshRateConfigs.getMinRefreshRate().getFps(),
-                                     mRefreshRateConfigs.getMaxRefreshRate().getFps(),
+    const auto minFps = mRefreshRateConfigs.getMinRefreshRate().getFps();
+    const auto maxFps = mRefreshRateConfigs.getMaxRefreshRate().getFps();
+
+    if (layer->getWindowType() == InputWindowInfo::TYPE_STATUS_BAR) {
+        mLayerHistory->registerLayer(layer, minFps, maxFps,
                                      scheduler::LayerHistory::LayerVoteType::NoVote);
-        return;
-    }
+    } else if (!mUseContentDetection) {
+        // If the content detection feature is off, all layers are registered at Max. We still keep
+        // the layer history, since we use it for other features (like Frame Rate API), so layers
+        // still need to be registered.
+        mLayerHistory->registerLayer(layer, minFps, maxFps,
+                                     scheduler::LayerHistory::LayerVoteType::Max);
+    } else if (!mUseContentDetectionV2) {
+        // In V1 of content detection, all layers are registered as Heuristic (unless it's
+        // wallpaper).
+        const auto highFps =
+                layer->getWindowType() == InputWindowInfo::TYPE_WALLPAPER ? minFps : maxFps;
 
-    // In V1 of content detection, all layers are registered as Heuristic (unless it's wallpaper).
-    if (!mUseContentDetectionV2) {
-        const auto lowFps = mRefreshRateConfigs.getMinRefreshRate().getFps();
-        const auto highFps = layer->getWindowType() == InputWindowInfo::TYPE_WALLPAPER
-                ? lowFps
-                : mRefreshRateConfigs.getMaxRefreshRate().getFps();
-
-        mLayerHistory->registerLayer(layer, lowFps, highFps,
+        mLayerHistory->registerLayer(layer, minFps, highFps,
                                      scheduler::LayerHistory::LayerVoteType::Heuristic);
     } else {
         if (layer->getWindowType() == InputWindowInfo::TYPE_WALLPAPER) {
             // Running Wallpaper at Min is considered as part of content detection.
-            mLayerHistory->registerLayer(layer, mRefreshRateConfigs.getMinRefreshRate().getFps(),
-                                         mRefreshRateConfigs.getMaxRefreshRate().getFps(),
+            mLayerHistory->registerLayer(layer, minFps, maxFps,
                                          scheduler::LayerHistory::LayerVoteType::Min);
-        } else if (layer->getWindowType() == InputWindowInfo::TYPE_STATUS_BAR) {
-            mLayerHistory->registerLayer(layer, mRefreshRateConfigs.getMinRefreshRate().getFps(),
-                                         mRefreshRateConfigs.getMaxRefreshRate().getFps(),
-                                         scheduler::LayerHistory::LayerVoteType::NoVote);
         } else {
-            mLayerHistory->registerLayer(layer, mRefreshRateConfigs.getMinRefreshRate().getFps(),
-                                         mRefreshRateConfigs.getMaxRefreshRate().getFps(),
+            mLayerHistory->registerLayer(layer, minFps, maxFps,
                                          scheduler::LayerHistory::LayerVoteType::Heuristic);
         }
     }
