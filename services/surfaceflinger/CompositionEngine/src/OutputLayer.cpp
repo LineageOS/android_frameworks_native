@@ -261,7 +261,7 @@ uint32_t OutputLayer::calculateOutputRelativeBufferTransform() const {
      * (NOTE: the matrices are multiplied in reverse order)
      */
     const ui::Transform& layerTransform = layerState.geomLayerTransform;
-    const ui::Transform displayTransform{outputState.orientation};
+    const ui::Transform displayTransform{outputState.transform};
     const ui::Transform bufferTransform{layerState.geomBufferTransform};
     ui::Transform transform(displayTransform * layerTransform * bufferTransform);
 
