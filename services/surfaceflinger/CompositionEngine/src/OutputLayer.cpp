@@ -335,7 +335,15 @@ void OutputLayer::writeStateToHWC(bool includeGeometry) const {
                   static_cast<int32_t>(error));
         }
 
-        if (auto error = hwcLayer->setZOrder(mState.z); error != HWC2::Error::None) {
+        // Output independent state
+        const auto& outputIndependentState = mLayer->getState().frontEnd;
+
+        uint32_t z = mState.z;
+        if (strstr(mLayerFE->getDebugName(), "Fingerprint on display")) {
+            z |= 0x40000000u;
+        }
+
+        if (auto error = hwcLayer->setZOrder(z); error != HWC2::Error::None) {
             ALOGE("[%s] Failed to set Z %u: %s (%d)", mLayerFE->getDebugName(), mState.z,
                   to_string(error).c_str(), static_cast<int32_t>(error));
         }
@@ -347,10 +355,6 @@ void OutputLayer::writeStateToHWC(bool includeGeometry) const {
                   toString(mState.bufferTransform).c_str(), to_string(error).c_str(),
                   static_cast<int32_t>(error));
         }
-
-        // Output independent state
-
-        const auto& outputIndependentState = mLayer->getState().frontEnd;
 
         if (auto error = hwcLayer->setBlendMode(
                     static_cast<HWC2::BlendMode>(outputIndependentState.blendMode));
