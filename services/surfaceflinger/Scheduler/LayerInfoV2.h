@@ -63,7 +63,7 @@ public:
     // Records the last requested present time. It also stores information about when
     // the layer was last updated. If the present time is farther in the future than the
     // updated time, the updated time is the present time.
-    void setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now);
+    void setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now, bool pendingConfigChange);
 
     // Sets an explicit layer vote. This usually comes directly from the application via
     // ANativeWindow_setFrameRate API
@@ -93,11 +93,14 @@ private:
     struct FrameTimeData {
         nsecs_t presetTime; // desiredPresentTime, if provided
         nsecs_t queueTime;  // buffer queue time
+        bool pendingConfigChange;
     };
 
     bool isFrequent(nsecs_t now) const;
     bool hasEnoughDataForHeuristic() const;
     std::optional<float> calculateRefreshRateIfPossible();
+    std::pair<nsecs_t, bool> calculateAverageFrameTime() const;
+    bool isRefreshRateStable(nsecs_t averageFrameTime, bool missingPresentTime) const;
 
     const std::string mName;
 
