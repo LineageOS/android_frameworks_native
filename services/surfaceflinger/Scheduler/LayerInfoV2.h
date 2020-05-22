@@ -94,7 +94,7 @@ private:
         bool pendingConfigChange;
     };
 
-    bool isFrequent(nsecs_t now) const;
+    bool isFrequent(nsecs_t now);
     bool hasEnoughDataForHeuristic() const;
     std::optional<float> calculateRefreshRateIfPossible();
     std::pair<nsecs_t, bool> calculateAverageFrameTime() const;
@@ -109,6 +109,13 @@ private:
     nsecs_t mLastUpdatedTime = 0;
 
     float mLastReportedRefreshRate = 0.0f;
+
+    // Used to determine whether a layer should be considered frequent or
+    // not when we don't have enough frames. This member will not be cleared
+    // as part of clearHistory() to remember whether this layer was frequent
+    // or not before we processed touch boost (or anything else that would
+    // clear layer history).
+    bool mLastReportedIsFrequent = true;
 
     // Holds information about the layer vote
     struct {
