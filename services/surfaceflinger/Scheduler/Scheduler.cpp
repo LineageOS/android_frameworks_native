@@ -423,6 +423,12 @@ void Scheduler::recordLayerHistory(Layer* layer, nsecs_t presentTime) {
     }
 }
 
+void Scheduler::setConfigChangePending(bool pending) {
+    if (mLayerHistory) {
+        mLayerHistory->setConfigChangePending(pending);
+    }
+}
+
 void Scheduler::chooseRefreshRateForContent() {
     if (!mLayerHistory) return;
 
