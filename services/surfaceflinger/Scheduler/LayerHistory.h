@@ -52,6 +52,8 @@ public:
     // Sets the display size. Client is responsible for synchronization.
     virtual void setDisplayArea(uint32_t displayArea) = 0;
 
+    virtual void setConfigChangePending(bool pending) = 0;
+
     // Marks the layer as active, and records the given state to its history.
     virtual void record(Layer*, nsecs_t presentTime, nsecs_t now) = 0;
 
@@ -77,6 +79,8 @@ public:
                        LayerVoteType type) override;
 
     void setDisplayArea(uint32_t /*displayArea*/) override {}
+
+    void setConfigChangePending(bool /*pending*/) override {}
 
     // Marks the layer as active, and records the given state to its history.
     void record(Layer*, nsecs_t presentTime, nsecs_t now) override;
@@ -134,6 +138,8 @@ public:
     // Sets the display size. Client is responsible for synchronization.
     void setDisplayArea(uint32_t displayArea) override { mDisplayArea = displayArea; }
 
+    void setConfigChangePending(bool pending) override { mConfigChangePending = pending; }
+
     // Marks the layer as active, and records the given state to its history.
     void record(Layer*, nsecs_t presentTime, nsecs_t now) override;
 
@@ -178,6 +184,9 @@ private:
 
     // Whether to use priority sent from WindowManager to determine the relevancy of the layer.
     const bool mUseFrameRatePriority;
+
+    // Whether a config change is in progress or not
+    std::atomic<bool> mConfigChangePending = false;
 };
 
 } // namespace impl
