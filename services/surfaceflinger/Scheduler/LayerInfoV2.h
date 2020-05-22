@@ -47,9 +47,7 @@ class LayerInfoV2 {
     // is within a threshold. If a layer is infrequent, its average refresh rate is disregarded in
     // favor of a low refresh rate.
     static constexpr size_t FREQUENT_LAYER_WINDOW_SIZE = 3;
-    static constexpr float MIN_FPS_FOR_FREQUENT_LAYER = 10.0f;
-    static constexpr auto MAX_FREQUENT_LAYER_PERIOD_NS =
-            std::chrono::nanoseconds(static_cast<nsecs_t>(1e9f / MIN_FPS_FOR_FREQUENT_LAYER)) + 1ms;
+    static constexpr std::chrono::nanoseconds MAX_FREQUENT_LAYER_PERIOD_NS = 150ms;
 
     friend class LayerHistoryTestV2;
 
