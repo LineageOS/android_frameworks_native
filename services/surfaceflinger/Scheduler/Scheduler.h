@@ -119,6 +119,7 @@ public:
     // Layers are registered on creation, and unregistered when the weak reference expires.
     void registerLayer(Layer*);
     void recordLayerHistory(Layer*, nsecs_t presentTime);
+    void setConfigChangePending(bool pending);
 
     // Detects content using layer history, and selects a matching refresh rate.
     void chooseRefreshRateForContent();

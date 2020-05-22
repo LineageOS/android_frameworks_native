@@ -34,12 +34,15 @@ LayerInfoV2::LayerInfoV2(const std::string& name, nsecs_t highRefreshRatePeriod,
         mDefaultVote(defaultVote),
         mLayerVote({defaultVote, 0.0f}) {}
 
-void LayerInfoV2::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now) {
+void LayerInfoV2::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now,
+                                     bool pendingConfigChange) {
     lastPresentTime = std::max(lastPresentTime, static_cast<nsecs_t>(0));
 
     mLastUpdatedTime = std::max(lastPresentTime, now);
 
-    FrameTimeData frameTime = {.presetTime = lastPresentTime, .queueTime = mLastUpdatedTime};
+    FrameTimeData frameTime = {.presetTime = lastPresentTime,
+                               .queueTime = mLastUpdatedTime,
+                               .pendingConfigChange = pendingConfigChange};
 
     mFrameTimes.push_back(frameTime);
     if (mFrameTimes.size() > HISTORY_SIZE) {
@@ -80,21 +83,20 @@ bool LayerInfoV2::hasEnoughDataForHeuristic() const {
     return true;
 }
 
-std::optional<float> LayerInfoV2::calculateRefreshRateIfPossible() {
-    static constexpr float MARGIN = 1.0f; // 1Hz
-
-    if (!hasEnoughDataForHeuristic()) {
-        ALOGV("Not enough data");
-        return std::nullopt;
-    }
-
-    // Calculate the refresh rate by finding the average delta between frames
+std::pair<nsecs_t, bool> LayerInfoV2::calculateAverageFrameTime() const {
     nsecs_t totalPresentTimeDeltas = 0;
     nsecs_t totalQueueTimeDeltas = 0;
-    auto missingPresentTime = false;
+    bool missingPresentTime = false;
+    int numFrames = 0;
     for (auto it = mFrameTimes.begin(); it != mFrameTimes.end() - 1; ++it) {
+        // Ignore frames captured during a config change
+        if (it->pendingConfigChange || (it + 1)->pendingConfigChange) {
+            continue;
+        }
+
         totalQueueTimeDeltas +=
                 std::max(((it + 1)->queueTime - it->queueTime), mHighRefreshRatePeriod);
+        numFrames++;
 
         if (it->presetTime == 0 || (it + 1)->presetTime == 0) {
             missingPresentTime = true;
@@ -105,11 +107,6 @@ std::optional<float> LayerInfoV2::calculateRefreshRateIfPossible() {
                 std::max(((it + 1)->presetTime - it->presetTime), mHighRefreshRatePeriod);
     }
 
-    // If there are no presentation timestamps provided we can't calculate the refresh rate
-    if (missingPresentTime && mLastReportedRefreshRate == 0) {
-        return std::nullopt;
-    }
-
     // Calculate the average frame time based on presentation timestamps. If those
     // doesn't exist, we look at the time the buffer was queued only. We can do that only if
     // we calculated a refresh rate based on presentation timestamps in the past. The reason
@@ -117,13 +114,18 @@ std::optional<float> LayerInfoV2::calculateRefreshRateIfPossible() {
     // when implementing render ahead for specific refresh rates. When hwui no longer provides
     // presentation timestamps we look at the queue time to see if the current refresh rate still
     // matches the content.
-    const float averageFrameTime =
+    const auto averageFrameTime =
             static_cast<float>(missingPresentTime ? totalQueueTimeDeltas : totalPresentTimeDeltas) /
-            (mFrameTimes.size() - 1);
+            numFrames;
+    return {static_cast<nsecs_t>(averageFrameTime), missingPresentTime};
+}
 
-    // Now once we calculated the refresh rate we need to make sure that all the frames we captured
-    // are evenly distributed and we don't calculate the average across some burst of frames.
+bool LayerInfoV2::isRefreshRateStable(nsecs_t averageFrameTime, bool missingPresentTime) const {
     for (auto it = mFrameTimes.begin(); it != mFrameTimes.end() - 1; ++it) {
+        // Ignore frames captured during a config change
+        if (it->pendingConfigChange || (it + 1)->pendingConfigChange) {
+            continue;
+        }
         const auto presentTimeDeltas = [&] {
             const auto delta = missingPresentTime ? (it + 1)->queueTime - it->queueTime
                                                   : (it + 1)->presetTime - it->presetTime;
@@ -131,8 +133,30 @@ std::optional<float> LayerInfoV2::calculateRefreshRateIfPossible() {
         }();
 
         if (std::abs(presentTimeDeltas - averageFrameTime) > 2 * averageFrameTime) {
-            return std::nullopt;
+            return false;
         }
+    }
+
+    return true;
+}
+
+std::optional<float> LayerInfoV2::calculateRefreshRateIfPossible() {
+    static constexpr float MARGIN = 1.0f; // 1Hz
+
+    if (!hasEnoughDataForHeuristic()) {
+        ALOGV("Not enough data");
+        return std::nullopt;
+    }
+
+    const auto [averageFrameTime, missingPresentTime] = calculateAverageFrameTime();
+
+    // If there are no presentation timestamps provided we can't calculate the refresh rate
+    if (missingPresentTime && mLastReportedRefreshRate == 0) {
+        return std::nullopt;
+    }
+
+    if (!isRefreshRateStable(averageFrameTime, missingPresentTime)) {
+        return std::nullopt;
     }
 
     const auto refreshRate = 1e9f / averageFrameTime;
