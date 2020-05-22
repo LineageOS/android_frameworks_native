@@ -1353,8 +1353,15 @@ void Layer::updateTreeHasFrameRateVote() {
     // First traverse the tree and count how many layers has votes
     int layersWithVote = 0;
     traverseTree([&layersWithVote](Layer* layer) {
-        if (layer->mCurrentState.frameRate.rate > 0 ||
-            layer->mCurrentState.frameRate.type == FrameRateCompatibility::NoVote) {
+        const auto layerVotedWithDefaultCompatibility = layer->mCurrentState.frameRate.rate > 0 &&
+                layer->mCurrentState.frameRate.type == FrameRateCompatibility::Default;
+        const auto layerVotedWithNoVote =
+                layer->mCurrentState.frameRate.type == FrameRateCompatibility::NoVote;
+
+        // We do not count layers that are ExactOrMultiple for the same reason
+        // we are allowing touch boost for those layers. See
+        // RefreshRateConfigs::getBestRefreshRate for more details.
+        if (layerVotedWithDefaultCompatibility || layerVotedWithNoVote) {
             layersWithVote++;
         }
     });
