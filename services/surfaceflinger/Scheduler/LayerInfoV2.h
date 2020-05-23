@@ -47,9 +47,7 @@ class LayerInfoV2 {
     // is within a threshold. If a layer is infrequent, its average refresh rate is disregarded in
     // favor of a low refresh rate.
     static constexpr size_t FREQUENT_LAYER_WINDOW_SIZE = 3;
-    static constexpr float MIN_FPS_FOR_FREQUENT_LAYER = 10.0f;
-    static constexpr auto MAX_FREQUENT_LAYER_PERIOD_NS =
-            std::chrono::nanoseconds(static_cast<nsecs_t>(1e9f / MIN_FPS_FOR_FREQUENT_LAYER)) + 1ms;
+    static constexpr std::chrono::nanoseconds MAX_FREQUENT_LAYER_PERIOD_NS = 150ms;
 
     friend class LayerHistoryTestV2;
 
@@ -63,7 +61,7 @@ public:
     // Records the last requested present time. It also stores information about when
     // the layer was last updated. If the present time is farther in the future than the
     // updated time, the updated time is the present time.
-    void setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now);
+    void setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now, bool pendingConfigChange);
 
     // Sets an explicit layer vote. This usually comes directly from the application via
     // ANativeWindow_setFrameRate API
@@ -93,11 +91,14 @@ private:
     struct FrameTimeData {
         nsecs_t presetTime; // desiredPresentTime, if provided
         nsecs_t queueTime;  // buffer queue time
+        bool pendingConfigChange;
     };
 
-    bool isFrequent(nsecs_t now) const;
+    bool isFrequent(nsecs_t now);
     bool hasEnoughDataForHeuristic() const;
     std::optional<float> calculateRefreshRateIfPossible();
+    std::pair<nsecs_t, bool> calculateAverageFrameTime() const;
+    bool isRefreshRateStable(nsecs_t averageFrameTime, bool missingPresentTime) const;
 
     const std::string mName;
 
@@ -108,6 +109,13 @@ private:
     nsecs_t mLastUpdatedTime = 0;
 
     float mLastReportedRefreshRate = 0.0f;
+
+    // Used to determine whether a layer should be considered frequent or
+    // not when we don't have enough frames. This member will not be cleared
+    // as part of clearHistory() to remember whether this layer was frequent
+    // or not before we processed touch boost (or anything else that would
+    // clear layer history).
+    bool mLastReportedIsFrequent = true;
 
     // Holds information about the layer vote
     struct {
