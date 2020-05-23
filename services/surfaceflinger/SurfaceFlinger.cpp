@@ -1010,6 +1010,7 @@ void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
 
         mPhaseConfiguration->setRefreshRateFps(refreshRate.getFps());
         mVSyncModulator->setPhaseOffsets(mPhaseConfiguration->getCurrentOffsets());
+        mScheduler->setConfigChangePending(true);
     }
 
     if (mRefreshRateOverlay) {
@@ -1090,6 +1091,7 @@ void SurfaceFlinger::desiredActiveConfigChangeDone() {
     mScheduler->resyncToHardwareVsync(true, refreshRate.getVsyncPeriod());
     mPhaseConfiguration->setRefreshRateFps(refreshRate.getFps());
     mVSyncModulator->setPhaseOffsets(mPhaseConfiguration->getCurrentOffsets());
+    mScheduler->setConfigChangePending(false);
 }
 
 void SurfaceFlinger::performSetActiveConfig() {
