@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "bbecf82a_340869d4",
+        "filename": "services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp",
+        "patchSetId": 5
+      },
+      "lineNbr": 340,
+      "author": {
+        "id": 11801
+      },
+      "writtenOn": "2020-05-24T19:29:08Z",
+      "side": 1,
+      "message": "define magic numbers somewhere.",
+      "revId": "1a248bdeedd146a8c818f37d1124e8ca56ceb58b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
+    }
+  ]
+}
