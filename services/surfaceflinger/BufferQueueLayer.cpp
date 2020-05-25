@@ -18,6 +18,7 @@
 #define LOG_TAG "BufferQueueLayer"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 #include <compositionengine/Display.h>
+#include <compositionengine/FodExtension.h>
 #include <compositionengine/Layer.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/LayerCompositionState.h>
@@ -560,11 +561,19 @@ status_t BufferQueueLayer::setDefaultBufferProperties(uint32_t w, uint32_t h, Pi
         return BAD_VALUE;
     }
 
+    uint32_t usageBits = 0;
+
+    if (mName == FOD_LAYER_NAME) {
+        usageBits = getFodUsageBits(usageBits, false);
+    } else if (mName == FOD_TOUCHED_LAYER_NAME) {
+        usageBits = getFodUsageBits(usageBits, true);
+    }
+
     mFormat = format;
 
     setDefaultBufferSize(w, h);
     mConsumer->setDefaultBufferFormat(format);
-    mConsumer->setConsumerUsageBits(getEffectiveUsage(0));
+    mConsumer->setConsumerUsageBits(getEffectiveUsage(usageBits));
 
     return NO_ERROR;
 }
