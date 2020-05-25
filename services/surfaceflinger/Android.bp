@@ -71,8 +71,15 @@ cc_defaults {
         "android.hardware.graphics.composer@2.1-command-buffer",
         "android.hardware.graphics.composer@2.2-command-buffer",
         "android.hardware.graphics.composer@2.3-command-buffer",
-        "display_intf_headers",
     ],
+    product_variables: {
+        lineage: {
+            qcom_um_soong_namespace: {
+                cflags: ["-DQCOM_UM_FAMILY"],
+                header_libs: ["//%s:display_intf_headers"],
+            },
+        },
+    },
     export_static_lib_headers: [
         "libcompositionengine",
         "librenderengine",
