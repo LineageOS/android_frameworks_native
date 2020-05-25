@@ -1,3 +1,15 @@
+soong_config_module_type_import {
+    from: "vendor/lineage/build/soong/Android.bp",
+    module_types: ["surfaceflinger_fod_lib"],
+}
+
+cc_library_static {
+    name: "surfaceflinger_fod_lib",
+    srcs: [
+        "src/FodExtension.cpp",
+    ],
+}
+
 cc_defaults {
     name: "libcompositionengine_defaults",
     defaults: ["surfaceflinger_defaults"],
@@ -41,7 +53,10 @@ cc_defaults {
 
 cc_library {
     name: "libcompositionengine",
-    defaults: ["libcompositionengine_defaults"],
+    defaults: [
+        "libcompositionengine_defaults",
+        "surfaceflinger_fod_lib_defaults",
+    ],
     srcs: [
         "src/ClientCompositionRequestCache.cpp",
         "src/CompositionEngine.cpp",
