@@ -24,6 +24,7 @@
 #include "BufferQueueLayer.h"
 
 #include <compositionengine/LayerFECompositionState.h>
+#include <compositionengine/FodExtension.h>
 #include <gui/BufferQueueConsumer.h>
 #include <system/window.h>
 
@@ -509,9 +510,17 @@ status_t BufferQueueLayer::setDefaultBufferProperties(uint32_t w, uint32_t h, Pi
         return BAD_VALUE;
     }
 
+    uint64_t usageBits = getEffectiveUsage(0);
+
+    if (mName == FOD_LAYER_NAME) {
+        usageBits = getFodUsageBits(usageBits, false);
+    } else if (mName == FOD_TOUCHED_LAYER_NAME) {
+        usageBits = getFodUsageBits(usageBits, true);
+    }
+
     setDefaultBufferSize(w, h);
     mConsumer->setDefaultBufferFormat(format);
-    mConsumer->setConsumerUsageBits(getEffectiveUsage(0));
+    mConsumer->setConsumerUsageBits(usageBits);
 
     return NO_ERROR;
 }
