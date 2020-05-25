@@ -56,6 +56,14 @@ cc_library {
     ],
     local_include_dirs: ["include"],
     export_include_dirs: ["include"],
+    product_variables: {
+        lineage: {
+            target_surfaceflinger_fod_lib: {
+                whole_static_libs: ["%s"],
+            },
+        },
+    },
+
 }
 
 cc_library {
