@@ -49,6 +49,7 @@ cc_library {
         "src/DisplayColorProfile.cpp",
         "src/DisplaySurface.cpp",
         "src/DumpHelpers.cpp",
+        "src/FodExtension.cpp",
         "src/HwcBufferCache.cpp",
         "src/LayerFECompositionState.cpp",
         "src/Output.cpp",
@@ -59,6 +60,14 @@ cc_library {
     ],
     local_include_dirs: ["include"],
     export_include_dirs: ["include"],
+    product_variables: {
+        lineage: {
+            target_surfaceflinger_fod_lib: {
+                cflags: ["-DTARGET_PROVIDES_FOD_LIB"],
+                whole_static_libs: ["%s"],
+            },
+        },
+    },
 }
 
 cc_library {
