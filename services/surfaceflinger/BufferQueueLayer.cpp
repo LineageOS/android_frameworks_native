@@ -25,6 +25,7 @@
 #include "BufferQueueLayer.h"
 
 #include <compositionengine/LayerFECompositionState.h>
+#include <compositionengine/UdfpsExtension.h>
 #include <gui/BufferQueueConsumer.h>
 #include <system/window.h>
 
@@ -521,10 +522,17 @@ status_t BufferQueueLayer::setDefaultBufferProperties(uint32_t w, uint32_t h, Pi
         ALOGE("dimensions too large %" PRIu32 " x %" PRIu32, w, h);
         return BAD_VALUE;
     }
+    uint64_t usageBits = getEffectiveUsage(0);
+
+    if (mName == UDFPS_LAYER_NAME || mName == UDFPS_BIOMETRIC_PROMPT_LAYER_NAME) {
+        usageBits = getUdfpsUsageBits(usageBits, false);
+    } else if (mName == UDFPS_TOUCHED_LAYER_NAME) {
+        usageBits = getUdfpsUsageBits(usageBits, true);
+    }
 
     setDefaultBufferSize(w, h);
     mConsumer->setDefaultBufferFormat(format);
-    mConsumer->setConsumerUsageBits(getEffectiveUsage(0));
+    mConsumer->setConsumerUsageBits(usageBits);
 
     return NO_ERROR;
 }
