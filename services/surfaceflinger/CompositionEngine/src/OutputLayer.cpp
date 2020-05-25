@@ -16,6 +16,7 @@
 
 #include <android-base/stringprintf.h>
 #include <compositionengine/DisplayColorProfile.h>
+#include <compositionengine/FodExtension.h>
 #include <compositionengine/LayerFE.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/Output.h>
@@ -370,7 +371,14 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(
               static_cast<int32_t>(error));
     }
 
-    if (auto error = hwcLayer->setZOrder(outputDependentState.z); error != hal::Error::NONE) {
+    uint32_t z = outputDependentState.z;
+    if (strcmp(getLayerFE().getDebugName(), FOD_LAYER_NAME) == 0) {
+        z = getFodZOrder(z, false);
+    } else if (strcmp(getLayerFE().getDebugName(), FOD_TOUCHED_LAYER_NAME) == 0) {
+        z = getFodZOrder(z, true);
+    }
+
+    if (auto error = hwcLayer->setZOrder(z); error != hal::Error::NONE) {
         ALOGE("[%s] Failed to set Z %u: %s (%d)", getLayerFE().getDebugName(),
               outputDependentState.z, to_string(error).c_str(), static_cast<int32_t>(error));
     }
