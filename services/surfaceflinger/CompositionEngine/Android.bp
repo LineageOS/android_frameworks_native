@@ -85,6 +85,7 @@ filegroup {
         "src/OutputLayer.cpp",
         "src/OutputLayerCompositionState.cpp",
         "src/RenderSurface.cpp",
+        "src/UdfpsExtension.cpp",
     ],
 }
 
@@ -93,6 +94,7 @@ cc_library {
     defaults: [
         "libcompositionengine_defaults",
         "libsurfaceflinger_common_deps",
+        "surfaceflinger_udfps_lib_defaults",
     ],
     srcs: [
         ":libcompositionengine_sources",
@@ -124,6 +126,14 @@ cc_library {
         "libcompositionengine",
     ],
     local_include_dirs: ["include"],
+    export_include_dirs: ["include"],
+}
+
+cc_library_static {
+    name: "surfaceflinger_udfps_lib",
+    srcs: [
+        "src/UdfpsExtension.cpp",
+    ],
     export_include_dirs: ["include"],
 }
 
