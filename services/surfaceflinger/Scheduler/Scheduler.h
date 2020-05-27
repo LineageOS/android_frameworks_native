@@ -205,14 +205,14 @@ private:
 
     std::atomic<nsecs_t> mLastResyncTime = 0;
 
+    // Whether to use idle timer callbacks that support the kernel timer.
+    const bool mSupportKernelTimer;
+
     std::unique_ptr<DispSync> mPrimaryDispSync;
     std::unique_ptr<EventControlThread> mEventControlThread;
 
     // Used to choose refresh rate if content detection is enabled.
     std::unique_ptr<scheduler::LayerHistory> mLayerHistory;
-
-    // Whether to use idle timer callbacks that support the kernel timer.
-    const bool mSupportKernelTimer;
 
     // Timer that records time between requests for next vsync.
     std::optional<scheduler::OneShotTimer> mIdleTimer;

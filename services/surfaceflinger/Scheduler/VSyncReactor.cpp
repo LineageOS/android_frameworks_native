@@ -56,14 +56,16 @@ private:
 };
 
 VSyncReactor::VSyncReactor(std::unique_ptr<Clock> clock, std::unique_ptr<VSyncDispatch> dispatch,
-                           std::unique_ptr<VSyncTracker> tracker, size_t pendingFenceLimit)
+                           std::unique_ptr<VSyncTracker> tracker, size_t pendingFenceLimit,
+                           bool supportKernelIdleTimer)
       : mClock(std::move(clock)),
         mTracker(std::move(tracker)),
         mDispatch(std::move(dispatch)),
         mPendingLimit(pendingFenceLimit),
         mPredictedVsyncTracer(property_get_bool("debug.sf.show_predicted_vsync", false)
                                       ? std::make_unique<PredictedVsyncTracer>(*mDispatch)
-                                      : nullptr) {}
+                                      : nullptr),
+        mSupportKernelIdleTimer(supportKernelIdleTimer) {}
 
 VSyncReactor::~VSyncReactor() = default;
 
@@ -249,7 +251,8 @@ void VSyncReactor::setPeriod(nsecs_t period) {
     ATRACE_INT64("VSR-setPeriod", period);
     std::lock_guard lk(mMutex);
     mLastHwVsync.reset();
-    if (period == getPeriod()) {
+
+    if (!mSupportKernelIdleTimer && period == getPeriod()) {
         endPeriodTransition();
     } else {
         startPeriodTransition(period);
@@ -273,6 +276,11 @@ bool VSyncReactor::periodConfirmed(nsecs_t vsync_timestamp, std::optional<nsecs_
 
     if (!mLastHwVsync && !HwcVsyncPeriod) {
         return false;
+    }
+
+    if (mSupportKernelIdleTimer) {
+        // Clear out the Composer-provided period and use the allowance logic below
+        HwcVsyncPeriod = {};
     }
 
     auto const period = mPeriodTransitioningTo ? *mPeriodTransitioningTo : getPeriod();
