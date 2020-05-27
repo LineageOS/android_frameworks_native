@@ -347,6 +347,8 @@ private:
     bool mInputTargetWaitTimeoutExpired GUARDED_BY(mLock);
     sp<IBinder> mInputTargetWaitApplicationToken GUARDED_BY(mLock);
 
+    bool shouldPruneInboundQueueLocked(const MotionEntry& motionEntry) REQUIRES(mLock);
+
     // Contains the last window which received a hover event.
     sp<InputWindowHandle> mLastHoverWindowHandle GUARDED_BY(mLock);
 
