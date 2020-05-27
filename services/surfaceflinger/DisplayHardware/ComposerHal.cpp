@@ -1354,6 +1354,12 @@ V2_4::Error Composer::getLayerGenericMetadataKeys(
     return error;
 }
 
+Error Composer::getClientTargetProperty(
+        Display display, IComposerClient::ClientTargetProperty* outClientTargetProperty) {
+    mReader.takeClientTargetProperty(display, outClientTargetProperty);
+    return Error::NONE;
+}
+
 CommandReader::~CommandReader()
 {
     resetData();
@@ -1662,10 +1668,22 @@ void CommandReader::takePresentOrValidateStage(Display display, uint32_t* state)
     *state = data.presentOrValidateState;
 }
 
+void CommandReader::takeClientTargetProperty(
+        Display display, IComposerClient::ClientTargetProperty* outClientTargetProperty) {
+    auto found = mReturnData.find(display);
+
+    // If not found, return the default values.
+    if (found == mReturnData.end()) {
+        outClientTargetProperty->pixelFormat = PixelFormat::RGBA_8888;
+        outClientTargetProperty->dataspace = Dataspace::UNKNOWN;
+    }
+
+    ReturnData& data = found->second;
+    *outClientTargetProperty = data.clientTargetProperty;
+}
+
 } // namespace impl
-
 } // namespace Hwc2
-
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
