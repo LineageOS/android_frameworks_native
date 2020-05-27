@@ -50,28 +50,23 @@ void LayerInfoV2::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now,
     }
 }
 
-bool LayerInfoV2::isFrequent(nsecs_t now) {
-    mLastReportedIsFrequent = [&] {
-        for (auto it = mFrameTimes.crbegin(); it != mFrameTimes.crend(); ++it) {
-            if (now - it->queueTime >= MAX_FREQUENT_LAYER_PERIOD_NS.count()) {
-                ALOGV("%s infrequent (last frame is %.2fms ago)", mName.c_str(),
-                      (now - mFrameTimes.back().queueTime) / 1e6f);
-                return false;
-            }
-
-            const auto numFrames = std::distance(mFrameTimes.crbegin(), it + 1);
-            if (numFrames >= FREQUENT_LAYER_WINDOW_SIZE) {
-                ALOGV("%s frequent (burst of %zu frames)", mName.c_str(), numFrames);
-                return true;
-            }
+bool LayerInfoV2::isFrequent(nsecs_t now) const {
+    for (auto it = mFrameTimes.crbegin(); it != mFrameTimes.crend(); ++it) {
+        if (now - it->queueTime >= MAX_FREQUENT_LAYER_PERIOD_NS.count()) {
+            ALOGV("%s infrequent (last frame is %.2fms ago", mName.c_str(),
+                  (now - mFrameTimes.back().queueTime) / 1e6f);
+            return false;
         }
 
-        ALOGV("%s %sfrequent (not enough frames %zu)", mName.c_str(),
-              mLastReportedIsFrequent ? "" : "in", mFrameTimes.size());
-        return mLastReportedIsFrequent;
-    }();
+        const auto numFrames = std::distance(mFrameTimes.crbegin(), it + 1);
+        if (numFrames >= FREQUENT_LAYER_WINDOW_SIZE) {
+            ALOGV("%s frequent (burst of %zu frames", mName.c_str(), numFrames);
+            return true;
+        }
+    }
 
-    return mLastReportedIsFrequent;
+    ALOGV("%s infrequent (not enough frames %zu)", mName.c_str(), mFrameTimes.size());
+    return false;
 }
 
 bool LayerInfoV2::hasEnoughDataForHeuristic() const {
