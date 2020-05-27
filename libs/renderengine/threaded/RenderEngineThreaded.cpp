@@ -23,6 +23,7 @@
 #include <future>
 
 #include <android-base/stringprintf.h>
+#include <private/gui/SyncFeatures.h>
 #include <utils/Trace.h>
 
 #include "gl/GLESRenderEngine.h"
@@ -33,36 +34,15 @@ namespace android {
 namespace renderengine {
 namespace threaded {
 
-std::unique_ptr<RenderEngineThreaded> RenderEngineThreaded::create(
-        const RenderEngineCreationArgs& args) {
-    return std::make_unique<RenderEngineThreaded>(args);
+std::unique_ptr<RenderEngineThreaded> RenderEngineThreaded::create(CreateInstanceFactory factory) {
+    return std::make_unique<RenderEngineThreaded>(std::move(factory));
 }
 
-void RenderEngineThreaded::setRenderEngine(
-        std::unique_ptr<renderengine::RenderEngine> renderEngine) {
-    ATRACE_CALL();
-    // In order to ensure this is a thread safe call, it also needs to be put on a stack.
-    std::promise<void> resultPromise;
-    std::future<void> resultFuture = resultPromise.get_future();
-    {
-        std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push(
-                [this, &resultPromise, &renderEngine](renderengine::RenderEngine& /*instance*/) {
-                    ATRACE_NAME("REThreaded::setRenderEngine");
-                    mRenderEngine = std::move(renderEngine);
-                    resultPromise.set_value();
-                });
-    }
-    mCondition.notify_one();
-    resultFuture.wait();
-}
-
-RenderEngineThreaded::RenderEngineThreaded(const RenderEngineCreationArgs& args)
-      : renderengine::impl::RenderEngine(args) {
+RenderEngineThreaded::RenderEngineThreaded(CreateInstanceFactory factory) {
     ATRACE_CALL();
 
     std::lock_guard lockThread(mThreadMutex);
-    mThread = std::thread(&RenderEngineThreaded::threadMain, this, args);
+    mThread = std::thread(&RenderEngineThreaded::threadMain, this, factory);
 }
 
 RenderEngineThreaded::~RenderEngineThreaded() {
@@ -78,8 +58,7 @@ RenderEngineThreaded::~RenderEngineThreaded() {
 }
 
 // NO_THREAD_SAFETY_ANALYSIS is because std::unique_lock presently lacks thread safety annotations.
-void RenderEngineThreaded::threadMain(const RenderEngineCreationArgs& args)
-        NO_THREAD_SAFETY_ANALYSIS {
+void RenderEngineThreaded::threadMain(CreateInstanceFactory factory) NO_THREAD_SAFETY_ANALYSIS {
     ATRACE_CALL();
 
     struct sched_param param = {0};
@@ -88,7 +67,7 @@ void RenderEngineThreaded::threadMain(const RenderEngineCreationArgs& args)
         ALOGE("Couldn't set SCHED_FIFO");
     }
 
-    mRenderEngine = renderengine::gl::GLESRenderEngine::create(args);
+    mRenderEngine = factory();
 
     std::unique_lock<std::mutex> lock(mThreadMutex);
     pthread_setname_np(pthread_self(), mThreadName);
@@ -135,6 +114,36 @@ void RenderEngineThreaded::dump(std::string& result) {
     mCondition.notify_one();
     // Note: This is an rvalue.
     result.assign(resultFuture.get());
+}
+
+bool RenderEngineThreaded::useNativeFenceSync() const {
+    std::promise<bool> resultPromise;
+    std::future<bool> resultFuture = resultPromise.get_future();
+    {
+        std::lock_guard lock(mThreadMutex);
+        mFunctionCalls.push([&resultPromise](renderengine::RenderEngine& /*instance*/) {
+            ATRACE_NAME("REThreaded::useNativeFenceSync");
+            bool returnValue = SyncFeatures::getInstance().useNativeFenceSync();
+            resultPromise.set_value(returnValue);
+        });
+    }
+    mCondition.notify_one();
+    return resultFuture.get();
+}
+
+bool RenderEngineThreaded::useWaitSync() const {
+    std::promise<bool> resultPromise;
+    std::future<bool> resultFuture = resultPromise.get_future();
+    {
+        std::lock_guard lock(mThreadMutex);
+        mFunctionCalls.push([&resultPromise](renderengine::RenderEngine& /*instance*/) {
+            ATRACE_NAME("REThreaded::useWaitSync");
+            bool returnValue = SyncFeatures::getInstance().useWaitSync();
+            resultPromise.set_value(returnValue);
+        });
+    }
+    mCondition.notify_one();
+    return resultFuture.get();
 }
 
 void RenderEngineThreaded::genTextures(size_t count, uint32_t* names) {
