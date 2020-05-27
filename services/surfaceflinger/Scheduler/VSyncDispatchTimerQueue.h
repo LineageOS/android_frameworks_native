@@ -64,6 +64,13 @@ public:
     // This moves the state from armed->running.
     // Store the timestamp that this was intended for as the last called timestamp.
     nsecs_t executing();
+
+    // Adds a pending upload of the earliestVSync and workDuration that will be applied on the next
+    // call to update()
+    void addPendingWorkloadUpdate(nsecs_t workDuration, nsecs_t earliestVsync);
+
+    // Checks if there is a pending update to the workload, returning true if so.
+    bool hasPendingWorkloadUpdate() const;
     // End: functions that are not threadsafe.
 
     // Invoke the callback with the two given timestamps, moving the state from running->disarmed.
@@ -87,6 +94,12 @@ private:
     };
     std::optional<ArmingInfo> mArmedInfo;
     std::optional<nsecs_t> mLastDispatchTime;
+
+    struct WorkloadUpdateInfo {
+        nsecs_t duration;
+        nsecs_t earliestVsync;
+    };
+    std::optional<WorkloadUpdateInfo> mWorkloadUpdateInfo;
 
     mutable std::mutex mRunningMutex;
     std::condition_variable mCv;
