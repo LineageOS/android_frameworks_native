@@ -1205,6 +1205,121 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_ExplicitDefault) {
     }
 }
 
+TEST_F(RefreshRateConfigsTest,
+       getBestRefreshRate_withDisplayManagerRequestingSingleRate_ignoresTouchFlag) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m60_90Device,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_90);
+
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(
+                      {HWC_CONFIG_ID_90, {90.f, 90.f}, {60.f, 90.f}}),
+              0);
+
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
+    auto& lr = layers[0];
+
+    bool touchConsidered = false;
+    lr.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr.desiredRefreshRate = 60.0f;
+    lr.name = "60Hz ExplicitExactOrMultiple";
+    EXPECT_EQ(mExpected60Config,
+              refreshRateConfigs->getBestRefreshRate(layers, /*touchActive*/ true, /*idle*/ false,
+                                                     &touchConsidered));
+    EXPECT_EQ(false, touchConsidered);
+
+    lr.vote = LayerVoteType::ExplicitDefault;
+    lr.desiredRefreshRate = 60.0f;
+    lr.name = "60Hz ExplicitDefault";
+    EXPECT_EQ(mExpected60Config,
+              refreshRateConfigs->getBestRefreshRate(layers, /*touchActive*/ true, /*idle*/ false,
+                                                     &touchConsidered));
+    EXPECT_EQ(false, touchConsidered);
+}
+
+TEST_F(RefreshRateConfigsTest,
+       getBestRefreshRate_withDisplayManagerRequestingSingleRate_ignoresIdleFlag) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m60_90Device,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(
+                      {HWC_CONFIG_ID_60, {60.f, 60.f}, {60.f, 90.f}}),
+              0);
+
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
+    auto& lr = layers[0];
+
+    bool touchConsidered = false;
+    lr.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr.desiredRefreshRate = 90.0f;
+    lr.name = "90Hz ExplicitExactOrMultiple";
+    EXPECT_EQ(mExpected90Config,
+              refreshRateConfigs->getBestRefreshRate(layers, /*touchActive*/ false, /*idle*/ true,
+                                                     &touchConsidered));
+
+    lr.vote = LayerVoteType::ExplicitDefault;
+    lr.desiredRefreshRate = 90.0f;
+    lr.name = "90Hz ExplicitDefault";
+    EXPECT_EQ(mExpected90Config,
+              refreshRateConfigs->getBestRefreshRate(layers, /*touchActive*/ false, /*idle*/ true,
+                                                     &touchConsidered));
+}
+
+TEST_F(RefreshRateConfigsTest,
+       getBestRefreshRate_withDisplayManagerRequestingSingleRate_onlySwitchesRatesForExplicitLayers) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m60_90Device,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_90);
+
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(
+                      {HWC_CONFIG_ID_90, {90.f, 90.f}, {60.f, 90.f}}),
+              0);
+
+    bool touchConsidered = false;
+    EXPECT_EQ(mExpected90Config,
+              refreshRateConfigs->getBestRefreshRate({}, /*touchActive*/ false, /*idle*/ false,
+                                                     &touchConsidered));
+    EXPECT_EQ(false, touchConsidered);
+
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
+    auto& lr = layers[0];
+
+    lr.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr.desiredRefreshRate = 60.0f;
+    lr.name = "60Hz ExplicitExactOrMultiple";
+    EXPECT_EQ(mExpected60Config,
+              refreshRateConfigs->getBestRefreshRate(layers, /*touchActive*/ false, /*idle*/ false,
+                                                     &touchConsidered));
+
+    lr.vote = LayerVoteType::ExplicitDefault;
+    lr.desiredRefreshRate = 60.0f;
+    lr.name = "60Hz ExplicitDefault";
+    EXPECT_EQ(mExpected60Config,
+              refreshRateConfigs->getBestRefreshRate(layers, /*touchActive*/ false, /*idle*/ false,
+                                                     &touchConsidered));
+
+    lr.vote = LayerVoteType::Heuristic;
+    lr.desiredRefreshRate = 60.0f;
+    lr.name = "60Hz Heuristic";
+    EXPECT_EQ(mExpected90Config,
+              refreshRateConfigs->getBestRefreshRate(layers, /*touchActive*/ false, /*idle*/ false,
+                                                     &touchConsidered));
+
+    lr.vote = LayerVoteType::Max;
+    lr.desiredRefreshRate = 60.0f;
+    lr.name = "60Hz Max";
+    EXPECT_EQ(mExpected90Config,
+              refreshRateConfigs->getBestRefreshRate(layers, /*touchActive*/ false, /*idle*/ false,
+                                                     &touchConsidered));
+
+    lr.vote = LayerVoteType::Min;
+    lr.desiredRefreshRate = 60.0f;
+    lr.name = "60Hz Min";
+    EXPECT_EQ(mExpected90Config,
+              refreshRateConfigs->getBestRefreshRate(layers, /*touchActive*/ false, /*idle*/ false,
+                                                     &touchConsidered));
+}
+
 TEST_F(RefreshRateConfigsTest, groupSwitching) {
     auto refreshRateConfigs =
             std::make_unique<RefreshRateConfigs>(m60_90DeviceWithDifferentGroups,
@@ -1234,7 +1349,7 @@ TEST_F(RefreshRateConfigsTest, groupSwitching) {
 
 TEST_F(RefreshRateConfigsTest, primaryVsAppRequestPolicy) {
     auto refreshRateConfigs =
-            std::make_unique<RefreshRateConfigs>(m60_90Device,
+            std::make_unique<RefreshRateConfigs>(m30_60_90Device,
                                                  /*currentConfigId=*/HWC_CONFIG_ID_60);
 
     auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
@@ -1253,7 +1368,7 @@ TEST_F(RefreshRateConfigsTest, primaryVsAppRequestPolicy) {
     };
 
     ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(
-                      {HWC_CONFIG_ID_60, {60.f, 60.f}, {60.f, 90.f}}),
+                      {HWC_CONFIG_ID_60, {30.f, 60.f}, {30.f, 90.f}}),
               0);
     bool touchConsidered;
     EXPECT_EQ(HWC_CONFIG_ID_60,
@@ -1262,7 +1377,7 @@ TEST_F(RefreshRateConfigsTest, primaryVsAppRequestPolicy) {
                                            &touchConsidered)
                       .getConfigId());
     EXPECT_EQ(HWC_CONFIG_ID_60, getFrameRate(LayerVoteType::NoVote, 90.f));
-    EXPECT_EQ(HWC_CONFIG_ID_60, getFrameRate(LayerVoteType::Min, 90.f));
+    EXPECT_EQ(HWC_CONFIG_ID_30, getFrameRate(LayerVoteType::Min, 90.f));
     EXPECT_EQ(HWC_CONFIG_ID_60, getFrameRate(LayerVoteType::Max, 90.f));
     EXPECT_EQ(HWC_CONFIG_ID_60, getFrameRate(LayerVoteType::Heuristic, 90.f));
     EXPECT_EQ(HWC_CONFIG_ID_90, getFrameRate(LayerVoteType::ExplicitDefault, 90.f));
