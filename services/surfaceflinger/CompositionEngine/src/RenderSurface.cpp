@@ -104,6 +104,10 @@ void RenderSurface::setBufferDataspace(ui::Dataspace dataspace) {
                                          static_cast<android_dataspace>(dataspace));
 }
 
+void RenderSurface::setBufferPixelFormat(ui::PixelFormat pixelFormat) {
+    native_window_set_buffers_format(mNativeWindow.get(), static_cast<int32_t>(pixelFormat));
+}
+
 void RenderSurface::setProtected(bool useProtected) {
     uint64_t usageFlags = GRALLOC_USAGE_HW_RENDER;
     if (useProtected) {
