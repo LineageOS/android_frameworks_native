@@ -36,6 +36,7 @@ public:
     MOCK_METHOD1(setDisplaySize, void(const ui::Size&));
     MOCK_METHOD1(setProtected, void(bool));
     MOCK_METHOD1(setBufferDataspace, void(ui::Dataspace));
+    MOCK_METHOD1(setBufferPixelFormat, void(ui::PixelFormat));
     MOCK_METHOD1(beginFrame, status_t(bool mustRecompose));
     MOCK_METHOD2(prepareFrame, void(bool, bool));
     MOCK_METHOD1(dequeueBuffer, sp<GraphicBuffer>(base::unique_fd*));
