@@ -38,6 +38,7 @@ void OutputCompositionState::dump(std::string& out) const {
 
     out.append("\n   ");
 
+    dumpVal(out, "bounds", bounds);
     dumpVal(out, "frame", frame);
     dumpVal(out, "viewport", viewport);
     dumpVal(out, "sourceClip", sourceClip);
