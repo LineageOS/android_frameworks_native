@@ -54,7 +54,8 @@ class LayerInfoV2 {
     friend class LayerHistoryTestV2;
 
 public:
-    LayerInfoV2(nsecs_t highRefreshRatePeriod, LayerHistory::LayerVoteType defaultVote);
+    LayerInfoV2(const std::string& name, nsecs_t highRefreshRatePeriod,
+                LayerHistory::LayerVoteType defaultVote);
 
     LayerInfoV2(const LayerInfo&) = delete;
     LayerInfoV2& operator=(const LayerInfoV2&) = delete;
@@ -105,6 +106,8 @@ private:
     std::pair<nsecs_t, bool> calculateAverageFrameTime() const;
     bool isRefreshRateStable(nsecs_t averageFrameTime, bool missingPresentTime) const;
     bool isFrameTimeValid(const FrameTimeData&) const;
+
+    const std::string mName;
 
     // Used for sanitizing the heuristic data
     const nsecs_t mHighRefreshRatePeriod;

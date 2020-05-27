@@ -31,6 +31,23 @@ namespace android::scheduler {
 using AllRefreshRatesMapType = RefreshRateConfigs::AllRefreshRatesMapType;
 using RefreshRate = RefreshRateConfigs::RefreshRate;
 
+std::string RefreshRateConfigs::layerVoteTypeString(LayerVoteType vote) {
+    switch (vote) {
+        case LayerVoteType::NoVote:
+            return "NoVote";
+        case LayerVoteType::Min:
+            return "Min";
+        case LayerVoteType::Max:
+            return "Max";
+        case LayerVoteType::Heuristic:
+            return "Heuristic";
+        case LayerVoteType::ExplicitDefault:
+            return "ExplicitDefault";
+        case LayerVoteType::ExplicitExactOrMultiple:
+            return "ExplicitExactOrMultiple";
+    }
+}
+
 const RefreshRate& RefreshRateConfigs::getRefreshRateForContent(
         const std::vector<LayerRequirement>& layers) const {
     std::lock_guard lock(mLock);
@@ -103,7 +120,7 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
     ATRACE_CALL();
     ALOGV("getRefreshRateForContent %zu layers", layers.size());
 
-    *touchConsidered = false;
+    if (touchConsidered) *touchConsidered = false;
     std::lock_guard lock(mLock);
 
     int noVoteLayers = 0;
@@ -134,7 +151,8 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
     // Consider the touch event if there are no Explicit* layers. Otherwise wait until after we've
     // selected a refresh rate to see if we should apply touch boost.
     if (touchActive && !hasExplicitVoteLayers) {
-        *touchConsidered = true;
+        ALOGV("TouchBoost - choose %s", getMaxRefreshRateByPolicyLocked().getName().c_str());
+        if (touchConsidered) *touchConsidered = true;
         return getMaxRefreshRateByPolicyLocked();
     }
 
@@ -145,6 +163,7 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
     const bool primaryRangeIsSingleRate = policy->primaryRange.min == policy->primaryRange.max;
 
     if (!touchActive && idle && !(primaryRangeIsSingleRate && hasExplicitVoteLayers)) {
+        ALOGV("Idle - choose %s", getMinRefreshRateByPolicyLocked().getName().c_str());
         return getMinRefreshRateByPolicyLocked();
     }
 
@@ -154,6 +173,7 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
 
     // Only if all layers want Min we should return Min
     if (noVoteLayers + minVoteLayers == layers.size()) {
+        ALOGV("all layers Min - choose %s", getMinRefreshRateByPolicyLocked().getName().c_str());
         return getMinRefreshRateByPolicyLocked();
     }
 
@@ -166,7 +186,8 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
     }
 
     for (const auto& layer : layers) {
-        ALOGV("Calculating score for %s (type: %d)", layer.name.c_str(), layer.vote);
+        ALOGV("Calculating score for %s (%s, weight %.2f)", layer.name.c_str(),
+              layerVoteTypeString(layer.vote).c_str(), layer.weight);
         if (layer.vote == LayerVoteType::NoVote || layer.vote == LayerVoteType::Min) {
             continue;
         }
@@ -251,9 +272,9 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
 
                     return 1.0f / iter;
                 }();
-                ALOGV("%s (ExplicitExactOrMultiple, weight %.2f) %.2fHz gives %s score of %.2f",
-                      layer.name.c_str(), weight, 1e9f / layerPeriod, scores[i].first->name.c_str(),
-                      layerScore);
+                ALOGV("%s (%s, weight %.2f) %.2fHz gives %s score of %.2f", layer.name.c_str(),
+                      layerVoteTypeString(layer.vote).c_str(), weight, 1e9f / layerPeriod,
+                      scores[i].first->name.c_str(), layerScore);
                 scores[i].second += weight * layerScore;
                 continue;
             }
@@ -272,6 +293,8 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
         // range instead of picking a random score from the app range.
         if (std::all_of(scores.begin(), scores.end(),
                         [](std::pair<const RefreshRate*, float> p) { return p.second == 0; })) {
+            ALOGV("layers not scored - choose %s",
+                  getMaxRefreshRateByPolicyLocked().getName().c_str());
             return getMaxRefreshRateByPolicyLocked();
         } else {
             return *bestRefreshRate;
@@ -286,7 +309,8 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
 
     if (touchActive && explicitDefaultVoteLayers == 0 &&
         bestRefreshRate->fps < touchRefreshRate.fps) {
-        *touchConsidered = true;
+        if (touchConsidered) *touchConsidered = true;
+        ALOGV("TouchBoost - choose %s", touchRefreshRate.getName().c_str());
         return touchRefreshRate;
     }
 

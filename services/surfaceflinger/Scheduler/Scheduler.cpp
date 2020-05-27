@@ -527,7 +527,9 @@ void Scheduler::idleTimerCallback(TimerState state) {
 
 void Scheduler::touchTimerCallback(TimerState state) {
     const TouchState touch = state == TimerState::Reset ? TouchState::Active : TouchState::Inactive;
-    handleTimerStateChanged(&mFeatures.touch, touch, true /* eventOnContentDetection */);
+    if (handleTimerStateChanged(&mFeatures.touch, touch, true /* eventOnContentDetection */)) {
+        mLayerHistory->clear();
+    }
     ATRACE_INT("TouchState", static_cast<int>(touch));
 }
 
@@ -550,18 +552,19 @@ void Scheduler::dump(std::string& result) const {
 }
 
 template <class T>
-void Scheduler::handleTimerStateChanged(T* currentState, T newState, bool eventOnContentDetection) {
+bool Scheduler::handleTimerStateChanged(T* currentState, T newState, bool eventOnContentDetection) {
     ConfigEvent event = ConfigEvent::None;
     HwcConfigIndexType newConfigId;
+    bool touchConsidered = false;
     {
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
         if (*currentState == newState) {
-            return;
+            return touchConsidered;
         }
         *currentState = newState;
-        newConfigId = calculateRefreshRateConfigIndexType();
+        newConfigId = calculateRefreshRateConfigIndexType(&touchConsidered);
         if (mFeatures.configId == newConfigId) {
-            return;
+            return touchConsidered;
         }
         mFeatures.configId = newConfigId;
         if (eventOnContentDetection && !mFeatures.contentRequirements.empty()) {
@@ -570,10 +573,12 @@ void Scheduler::handleTimerStateChanged(T* currentState, T newState, bool eventO
     }
     const RefreshRate& newRefreshRate = mRefreshRateConfigs.getRefreshRateFromConfigId(newConfigId);
     mSchedulerCallback.changeRefreshRate(newRefreshRate, event);
+    return touchConsidered;
 }
 
-HwcConfigIndexType Scheduler::calculateRefreshRateConfigIndexType() {
+HwcConfigIndexType Scheduler::calculateRefreshRateConfigIndexType(bool* touchConsidered) {
     ATRACE_CALL();
+    if (touchConsidered) *touchConsidered = false;
 
     // If Display Power is not in normal operation we want to be in performance mode. When coming
     // back to normal mode, a grace period is given with DisplayPowerTimer.
@@ -608,18 +613,9 @@ HwcConfigIndexType Scheduler::calculateRefreshRateConfigIndexType() {
                 .getConfigId();
     }
 
-    bool touchConsidered;
-    const auto& ret = mRefreshRateConfigs
-                              .getBestRefreshRate(mFeatures.contentRequirements, touchActive, idle,
-                                                  &touchConsidered)
-                              .getConfigId();
-    if (touchConsidered) {
-        // Clear layer history if refresh rate was selected based on touch to allow
-        // the hueristic to pick up with the new rate.
-        mLayerHistory->clear();
-    }
-
-    return ret;
+    return mRefreshRateConfigs
+            .getBestRefreshRate(mFeatures.contentRequirements, touchActive, idle, touchConsidered)
+            .getConfigId();
 }
 
 std::optional<HwcConfigIndexType> Scheduler::getPreferredConfigId() {

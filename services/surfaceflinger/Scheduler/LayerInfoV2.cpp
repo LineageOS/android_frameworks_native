@@ -27,8 +27,10 @@
 
 namespace android::scheduler {
 
-LayerInfoV2::LayerInfoV2(nsecs_t highRefreshRatePeriod, LayerHistory::LayerVoteType defaultVote)
-      : mHighRefreshRatePeriod(highRefreshRatePeriod),
+LayerInfoV2::LayerInfoV2(const std::string& name, nsecs_t highRefreshRatePeriod,
+                         LayerHistory::LayerVoteType defaultVote)
+      : mName(name),
+        mHighRefreshRatePeriod(highRefreshRatePeriod),
         mDefaultVote(defaultVote),
         mLayerVote({defaultVote, 0.0f}) {}
 
@@ -191,18 +193,22 @@ std::optional<float> LayerInfoV2::calculateRefreshRateIfPossible() {
 
 std::pair<LayerHistory::LayerVoteType, float> LayerInfoV2::getRefreshRate(nsecs_t now) {
     if (mLayerVote.type != LayerHistory::LayerVoteType::Heuristic) {
+        ALOGV("%s voted %d ", mName.c_str(), static_cast<int>(mLayerVote.type));
         return {mLayerVote.type, mLayerVote.fps};
     }
 
     if (!isFrequent(now)) {
+        ALOGV("%s is infrequent", mName.c_str());
         return {LayerHistory::LayerVoteType::Min, 0};
     }
 
     auto refreshRate = calculateRefreshRateIfPossible();
     if (refreshRate.has_value()) {
+        ALOGV("%s calculated refresh rate: %.2f", mName.c_str(), refreshRate.value());
         return {LayerHistory::LayerVoteType::Heuristic, refreshRate.value()};
     }
 
+    ALOGV("%s Max (can't resolve refresh rate)", mName.c_str());
     return {LayerHistory::LayerVoteType::Max, 0};
 }
 
