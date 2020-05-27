@@ -102,6 +102,12 @@ EventEntry::~EventEntry() {
     releaseInjectionState();
 }
 
+std::string EventEntry::getDescription() const {
+    std::string result;
+    appendDescription(result);
+    return result;
+}
+
 void EventEntry::release() {
     refCount -= 1;
     if (refCount == 0) {
