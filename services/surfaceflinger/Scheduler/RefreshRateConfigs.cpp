@@ -103,7 +103,7 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
     ATRACE_CALL();
     ALOGV("getRefreshRateForContent %zu layers", layers.size());
 
-    if (touchConsidered) *touchConsidered = false;
+    *touchConsidered = false;
     std::lock_guard lock(mLock);
 
     int noVoteLayers = 0;
@@ -134,8 +134,7 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
     // Consider the touch event if there are no Explicit* layers. Otherwise wait until after we've
     // selected a refresh rate to see if we should apply touch boost.
     if (touchActive && !hasExplicitVoteLayers) {
-        ALOGV("TouchBoost - choose %s", getMaxRefreshRateByPolicyLocked().getName().c_str());
-        if (touchConsidered) *touchConsidered = true;
+        *touchConsidered = true;
         return getMaxRefreshRateByPolicyLocked();
     }
 
@@ -155,7 +154,6 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
 
     // Only if all layers want Min we should return Min
     if (noVoteLayers + minVoteLayers == layers.size()) {
-        ALOGV("all layers Min - choose %s", getMinRefreshRateByPolicyLocked().getName().c_str());
         return getMinRefreshRateByPolicyLocked();
     }
 
@@ -253,11 +251,9 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
 
                     return 1.0f / iter;
                 }();
-                ALOGV("%s (%s, weight %.2f) %.2fHz gives %s score of %.2f", layer.name.c_str(),
-                      layer.vote == LayerVoteType::ExplicitExactOrMultiple
-                              ? "ExplicitExactOrMultiple"
-                              : "Heuristic",
-                      weight, 1e9f / layerPeriod, scores[i].first->name.c_str(), layerScore);
+                ALOGV("%s (ExplicitExactOrMultiple, weight %.2f) %.2fHz gives %s score of %.2f",
+                      layer.name.c_str(), weight, 1e9f / layerPeriod, scores[i].first->name.c_str(),
+                      layerScore);
                 scores[i].second += weight * layerScore;
                 continue;
             }
@@ -290,8 +286,7 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
 
     if (touchActive && explicitDefaultVoteLayers == 0 &&
         bestRefreshRate->fps < touchRefreshRate.fps) {
-        if (touchConsidered) *touchConsidered = true;
-        ALOGV("TouchBoost - choose %s", touchRefreshRate.getName().c_str());
+        *touchConsidered = true;
         return touchRefreshRate;
     }
 

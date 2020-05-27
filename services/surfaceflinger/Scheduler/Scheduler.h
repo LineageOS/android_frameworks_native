@@ -178,15 +178,14 @@ private:
 
     // handles various timer features to change the refresh rate.
     template <class T>
-    bool handleTimerStateChanged(T* currentState, T newState, bool eventOnContentDetection);
+    void handleTimerStateChanged(T* currentState, T newState, bool eventOnContentDetection);
 
     void setVsyncPeriod(nsecs_t period);
 
     // This function checks whether individual features that are affecting the refresh rate
     // selection were initialized, prioritizes them, and calculates the HwcConfigIndexType
     // for the suggested refresh rate.
-    HwcConfigIndexType calculateRefreshRateConfigIndexType(bool* touchConsidered = nullptr)
-            REQUIRES(mFeatureStateLock);
+    HwcConfigIndexType calculateRefreshRateConfigIndexType() REQUIRES(mFeatureStateLock);
 
     // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
     struct Connection {
