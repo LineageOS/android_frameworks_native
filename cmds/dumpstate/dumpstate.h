@@ -377,6 +377,8 @@ class Dumpstate {
         bool do_start_service = false;
         bool telephony_only = false;
         bool wifi_only = false;
+        // Trimmed-down version of dumpstate to only include whitelisted logs.
+        bool limited_only = false;
         // Whether progress updates should be published.
         bool do_progress_updates = false;
         // The mode we'll use when calling IDumpstateDevice::dumpstateBoard.
