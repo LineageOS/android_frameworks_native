@@ -76,7 +76,7 @@ public:
         THREADED = 2,
     };
 
-    static std::unique_ptr<impl::RenderEngine> create(const RenderEngineCreationArgs& args);
+    static std::unique_ptr<RenderEngine> create(const RenderEngineCreationArgs& args);
 
     virtual ~RenderEngine() = 0;
 

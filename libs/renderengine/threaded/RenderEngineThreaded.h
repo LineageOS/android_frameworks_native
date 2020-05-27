@@ -28,21 +28,25 @@ namespace android {
 namespace renderengine {
 namespace threaded {
 
+using CreateInstanceFactory = std::function<std::unique_ptr<renderengine::RenderEngine>()>;
+
 /**
  * This class extends a basic RenderEngine class. It contains a thread. Each time a function of
  * this class is called, we create a lambda function that is put on a queue. The main thread then
  * executes the functions in order.
  */
-class RenderEngineThreaded : public impl::RenderEngine {
+class RenderEngineThreaded : public RenderEngine {
 public:
-    static std::unique_ptr<RenderEngineThreaded> create(const RenderEngineCreationArgs& args);
+    static std::unique_ptr<RenderEngineThreaded> create(CreateInstanceFactory factory);
 
-    RenderEngineThreaded(const RenderEngineCreationArgs& args);
+    RenderEngineThreaded(CreateInstanceFactory factory);
     ~RenderEngineThreaded() override;
     void primeCache() const override;
 
     void dump(std::string& result) override;
 
+    bool useNativeFenceSync() const override;
+    bool useWaitSync() const override;
     void genTextures(size_t count, uint32_t* names) override;
     void deleteTextures(size_t count, uint32_t const* names) override;
     void bindExternalTextureImage(uint32_t texName, const Image& image) override;
@@ -64,13 +68,12 @@ public:
                         const std::vector<const LayerSettings*>& layers,
                         const sp<GraphicBuffer>& buffer, const bool useFramebufferCache,
                         base::unique_fd&& bufferFence, base::unique_fd* drawFence) override;
-    void setRenderEngine(std::unique_ptr<renderengine::RenderEngine>);
 
 protected:
     Framebuffer* getFramebufferForDrawing() override;
 
 private:
-    void threadMain(const RenderEngineCreationArgs& args);
+    void threadMain(CreateInstanceFactory factory);
 
     /* ------------------------------------------------------------------------
      * Threading
