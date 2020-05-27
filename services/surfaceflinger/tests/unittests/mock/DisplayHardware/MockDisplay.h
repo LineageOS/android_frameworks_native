@@ -93,6 +93,7 @@ public:
     MOCK_METHOD1(setAutoLowLatencyMode, hal::Error(bool on));
     MOCK_CONST_METHOD1(getSupportedContentTypes, hal::Error(std::vector<hal::ContentType>*));
     MOCK_METHOD1(setContentType, hal::Error(hal::ContentType));
+    MOCK_METHOD1(getClientTargetProperty, hal::Error(hal::ClientTargetProperty*));
     MOCK_CONST_METHOD1(getConnectionType, hal::Error(android::DisplayConnectionType*));
     MOCK_CONST_METHOD0(isVsyncPeriodSwitchSupported, bool());
 };
