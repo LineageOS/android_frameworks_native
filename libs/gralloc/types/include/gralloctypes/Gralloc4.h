@@ -431,6 +431,12 @@ static const aidl::android::hardware::graphics::common::ExtendableType PlaneLayo
          static_cast<int64_t>(
                  aidl::android::hardware::graphics::common::PlaneLayoutComponentType::A)};
 
+static const aidl::android::hardware::graphics::common::ExtendableType
+        PlaneLayoutComponentType_RAW =
+                {GRALLOC4_STANDARD_PLANE_LAYOUT_COMPONENT_TYPE,
+                 static_cast<int64_t>(
+                         aidl::android::hardware::graphics::common::PlaneLayoutComponentType::RAW)};
+
 /*---------------------------------------------------------------------------------------------*/
 
 /**
