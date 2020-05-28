@@ -66,6 +66,18 @@ struct KnownHWCGenericLayerMetadata {
 
 class HWComposer {
 public:
+    struct DeviceRequestedChanges {
+        using ChangedTypes = std::unordered_map<HWC2::Layer*, hal::Composition>;
+        using ClientTargetProperty = hal::ClientTargetProperty;
+        using DisplayRequests = hal::DisplayRequest;
+        using LayerRequests = std::unordered_map<HWC2::Layer*, hal::LayerRequest>;
+
+        ChangedTypes changedTypes;
+        DisplayRequests displayRequests;
+        LayerRequests layerRequests;
+        ClientTargetProperty clientTargetProperty;
+    };
+
     virtual ~HWComposer();
 
     virtual void setConfiguration(HWC2::ComposerCallback* callback, int32_t sequenceId) = 0;
@@ -87,16 +99,6 @@ public:
     virtual HWC2::Layer* createLayer(DisplayId displayId) = 0;
     // Destroy a previously created layer
     virtual void destroyLayer(DisplayId displayId, HWC2::Layer* layer) = 0;
-
-    struct DeviceRequestedChanges {
-        using ChangedTypes = std::unordered_map<HWC2::Layer*, hal::Composition>;
-        using DisplayRequests = hal::DisplayRequest;
-        using LayerRequests = std::unordered_map<HWC2::Layer*, hal::LayerRequest>;
-
-        ChangedTypes changedTypes;
-        DisplayRequests displayRequests;
-        LayerRequests layerRequests;
-    };
 
     // Gets any required composition change requests from the HWC device.
     //
