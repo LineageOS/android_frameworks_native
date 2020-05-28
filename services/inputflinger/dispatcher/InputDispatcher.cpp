@@ -620,6 +620,33 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
     }
 }
 
+/**
+ * Return true if the events preceding this incoming motion event should be dropped
+ * Return false otherwise (the default behaviour)
+ */
+bool InputDispatcher::shouldPruneInboundQueueLocked(const MotionEntry& motionEntry) {
+    bool isPointerDownEvent = motionEntry.action == AMOTION_EVENT_ACTION_DOWN &&
+            (motionEntry.source & AINPUT_SOURCE_CLASS_POINTER);
+    if (isPointerDownEvent &&
+        mInputTargetWaitCause == INPUT_TARGET_WAIT_CAUSE_APPLICATION_NOT_READY &&
+        mInputTargetWaitApplicationToken != nullptr) {
+        int32_t displayId = motionEntry.displayId;
+        int32_t x = static_cast<int32_t>(
+                motionEntry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X));
+        int32_t y = static_cast<int32_t>(
+                motionEntry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y));
+        sp<InputWindowHandle> touchedWindowHandle = findTouchedWindowAtLocked(displayId, x, y);
+        if (touchedWindowHandle != nullptr &&
+            touchedWindowHandle->getApplicationToken() != mInputTargetWaitApplicationToken) {
+            // User touched a different application than the one we are waiting on.
+            // Flag the event, and start pruning the input queue.
+            ALOGI("Pruning input queue because user touched a different application");
+            return true;
+        }
+    }
+    return false;
+}
+
 bool InputDispatcher::enqueueInboundEventLocked(EventEntry* entry) {
     bool needWake = mInboundQueue.empty();
     mInboundQueue.push_back(entry);
@@ -653,32 +680,18 @@ bool InputDispatcher::enqueueInboundEventLocked(EventEntry* entry) {
             // decides to touch a window in a different application.
             // If the application takes too long to catch up then we drop all events preceding
             // the touch into the other window.
-            MotionEntry* motionEntry = static_cast<MotionEntry*>(entry);
-            if (motionEntry->action == AMOTION_EVENT_ACTION_DOWN &&
-                (motionEntry->source & AINPUT_SOURCE_CLASS_POINTER) &&
-                mInputTargetWaitCause == INPUT_TARGET_WAIT_CAUSE_APPLICATION_NOT_READY &&
-                mInputTargetWaitApplicationToken != nullptr) {
-                int32_t displayId = motionEntry->displayId;
-                int32_t x =
-                        int32_t(motionEntry->pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X));
-                int32_t y =
-                        int32_t(motionEntry->pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y));
-                sp<InputWindowHandle> touchedWindowHandle =
-                        findTouchedWindowAtLocked(displayId, x, y);
-                if (touchedWindowHandle != nullptr &&
-                    touchedWindowHandle->getApplicationToken() !=
-                            mInputTargetWaitApplicationToken) {
-                    // User touched a different application than the one we are waiting on.
-                    // Flag the event, and start pruning the input queue.
-                    mNextUnblockedEvent = motionEntry;
-                    needWake = true;
-                }
+            if (shouldPruneInboundQueueLocked(static_cast<MotionEntry&>(*entry))) {
+                mNextUnblockedEvent = entry;
+                needWake = true;
             }
             break;
         }
-        case EventEntry::Type::CONFIGURATION_CHANGED:
-        case EventEntry::Type::DEVICE_RESET:
         case EventEntry::Type::FOCUS: {
+            LOG_ALWAYS_FATAL("Focus events should be inserted using enqueueFocusEventLocked");
+            break;
+        }
+        case EventEntry::Type::CONFIGURATION_CHANGED:
+        case EventEntry::Type::DEVICE_RESET: {
             // nothing to do
             break;
         }
@@ -980,9 +993,24 @@ bool InputDispatcher::dispatchDeviceResetLocked(nsecs_t currentTime, DeviceReset
 }
 
 void InputDispatcher::enqueueFocusEventLocked(const InputWindowHandle& window, bool hasFocus) {
+    if (mPendingEvent != nullptr) {
+        // Move the pending event to the front of the queue. This will give the chance
+        // for the pending event to get dispatched to the newly focused window
+        mInboundQueue.push_front(mPendingEvent);
+        mPendingEvent = nullptr;
+    }
+
     FocusEntry* focusEntry =
             new FocusEntry(mIdGenerator.nextId(), now(), window.getToken(), hasFocus);
-    enqueueInboundEventLocked(focusEntry);
+
+    // This event should go to the front of the queue, but behind all other focus events
+    // Find the last focus event, and insert right after it
+    std::deque<EventEntry*>::reverse_iterator it =
+            std::find_if(mInboundQueue.rbegin(), mInboundQueue.rend(),
+                         [](EventEntry* event) { return event->type == EventEntry::Type::FOCUS; });
+
+    // Maintain the order of focus events. Insert the entry after all other focus events.
+    mInboundQueue.insert(it.base(), focusEntry);
 }
 
 void InputDispatcher::dispatchFocusLocked(nsecs_t currentTime, FocusEntry* entry) {
@@ -2108,15 +2136,12 @@ std::string InputDispatcher::getApplicationWindowLabel(
         const sp<InputWindowHandle>& windowHandle) {
     if (applicationHandle != nullptr) {
         if (windowHandle != nullptr) {
-            std::string label(applicationHandle->getName());
-            label += " - ";
-            label += windowHandle->getName();
-            return label;
+            return applicationHandle->getName() + " - " + windowHandle->getName();
         } else {
             return applicationHandle->getName();
         }
     } else if (windowHandle != nullptr) {
-        return windowHandle->getName();
+        return windowHandle->getInfo()->applicationInfo.name + " - " + windowHandle->getName();
     } else {
         return "<unknown application or window>";
     }
@@ -4620,7 +4645,7 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(CommandEntry* c
     }
     DispatchEntry* dispatchEntry = *dispatchEntryIt;
 
-    nsecs_t eventDuration = finishTime - dispatchEntry->deliveryTime;
+    const nsecs_t eventDuration = finishTime - dispatchEntry->deliveryTime;
     if (eventDuration > SLOW_EVENT_PROCESSING_WARNING_TIMEOUT) {
         std::string msg =
                 StringPrintf("Window '%s' spent %0.1fms processing the last input event: ",
@@ -4644,7 +4669,7 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(CommandEntry* c
     }
 
     // Dequeue the event and start the next cycle.
-    // Note that because the lock might have been released, it is possible that the
+    // Because the lock might have been released, it is possible that the
     // contents of the wait queue to have been drained, so we need to double-check
     // a few things.
     dispatchEntryIt = connection->findWaitQueueEntry(seq);
