@@ -70,11 +70,13 @@ public:
     using ChangedTypes = android::HWComposer::DeviceRequestedChanges::ChangedTypes;
     using DisplayRequests = android::HWComposer::DeviceRequestedChanges::DisplayRequests;
     using LayerRequests = android::HWComposer::DeviceRequestedChanges::LayerRequests;
+    using ClientTargetProperty = android::HWComposer::DeviceRequestedChanges::ClientTargetProperty;
     virtual bool anyLayersRequireClientComposition() const;
     virtual bool allLayersRequireClientComposition() const;
     virtual void applyChangedTypesToLayers(const ChangedTypes&);
     virtual void applyDisplayRequests(const DisplayRequests&);
     virtual void applyLayerRequestsToLayers(const LayerRequests&);
+    virtual void applyClientTargetRequests(const ClientTargetProperty&);
 
     // Internal
     virtual void setConfiguration(const compositionengine::DisplayCreationArgs&);

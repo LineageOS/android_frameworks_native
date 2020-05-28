@@ -49,6 +49,7 @@ public:
 
     const sp<Fence>& getClientTargetAcquireFence() const override;
     void setBufferDataspace(ui::Dataspace) override;
+    void setBufferPixelFormat(ui::PixelFormat) override;
     void setDisplaySize(const ui::Size&) override;
     void setProtected(bool useProtected) override;
     status_t beginFrame(bool mustRecompose) override;
