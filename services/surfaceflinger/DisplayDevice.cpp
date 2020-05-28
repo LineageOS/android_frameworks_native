@@ -227,6 +227,8 @@ void DisplayDevice::setProjection(ui::Rotation orientation, Rect viewport, Rect 
     if (destinationClip.isEmpty()) {
         destinationClip = displayBounds;
     }
+    // Make sure the destination clip is contained in the display bounds
+    destinationClip.intersect(displayBounds, &destinationClip);
 
     uint32_t transformOrientation;
 
