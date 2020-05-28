@@ -57,21 +57,14 @@ bool LayerInfoV2::isFrameTimeValid(const FrameTimeData& frameTime) const {
 }
 
 bool LayerInfoV2::isFrequent(nsecs_t now) const {
-    // Find the first valid frame time
-    auto it = mFrameTimes.begin();
-    for (; it != mFrameTimes.end(); ++it) {
-        if (isFrameTimeValid(*it)) {
-            break;
-        }
-    }
-
     // If we know nothing about this layer we consider it as frequent as it might be the start
     // of an animation.
-    if (std::distance(it, mFrameTimes.end()) < FREQUENT_LAYER_WINDOW_SIZE) {
+    if (mFrameTimes.size() < FREQUENT_LAYER_WINDOW_SIZE) {
         return true;
     }
 
     // Find the first active frame
+    auto it = mFrameTimes.begin();
     for (; it != mFrameTimes.end(); ++it) {
         if (it->queueTime >= getActiveLayerThreshold(now)) {
             break;
