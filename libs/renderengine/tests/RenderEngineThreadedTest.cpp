@@ -28,56 +28,44 @@ using testing::Mock;
 using testing::Return;
 
 struct RenderEngineThreadedTest : public ::testing::Test {
-    RenderEngineThreadedTest() {
-        sThreadedRE->setRenderEngine(std::unique_ptr<renderengine::RenderEngine>(mRenderEngine));
-    }
-
     ~RenderEngineThreadedTest() {}
 
-    static void SetUpTestSuite() {
-        sThreadedRE = renderengine::threaded::RenderEngineThreaded::create(
-                renderengine::RenderEngineCreationArgs::Builder()
-                        .setRenderEngineType(renderengine::RenderEngine::RenderEngineType::THREADED)
-                        .build());
+    void SetUp() override {
+        mThreadedRE = renderengine::threaded::RenderEngineThreaded::create(
+                [this]() { return std::unique_ptr<renderengine::RenderEngine>(mRenderEngine); });
     }
 
-    static void TearDownTestSuite() { sThreadedRE = nullptr; }
-
-    // To avoid creating RE on every instantiation of the test, it is kept as a static variable.
-    static std::unique_ptr<renderengine::threaded::RenderEngineThreaded> sThreadedRE;
+    std::unique_ptr<renderengine::threaded::RenderEngineThreaded> mThreadedRE;
     renderengine::mock::RenderEngine* mRenderEngine = new renderengine::mock::RenderEngine();
 };
-
-std::unique_ptr<renderengine::threaded::RenderEngineThreaded>
-        RenderEngineThreadedTest::sThreadedRE = nullptr;
 
 TEST_F(RenderEngineThreadedTest, dump) {
     std::string testString = "XYZ";
     EXPECT_CALL(*mRenderEngine, dump(_));
-    sThreadedRE->dump(testString);
+    mThreadedRE->dump(testString);
 }
 
 TEST_F(RenderEngineThreadedTest, primeCache) {
     EXPECT_CALL(*mRenderEngine, primeCache());
-    sThreadedRE->primeCache();
+    mThreadedRE->primeCache();
 }
 
 TEST_F(RenderEngineThreadedTest, genTextures) {
     uint32_t texName;
     EXPECT_CALL(*mRenderEngine, genTextures(1, &texName));
-    sThreadedRE->genTextures(1, &texName);
+    mThreadedRE->genTextures(1, &texName);
 }
 
 TEST_F(RenderEngineThreadedTest, deleteTextures) {
     uint32_t texName;
     EXPECT_CALL(*mRenderEngine, deleteTextures(1, &texName));
-    sThreadedRE->deleteTextures(1, &texName);
+    mThreadedRE->deleteTextures(1, &texName);
 }
 
 TEST_F(RenderEngineThreadedTest, bindExternalBuffer_nullptrBuffer) {
     EXPECT_CALL(*mRenderEngine, bindExternalTextureBuffer(0, Eq(nullptr), Eq(nullptr)))
             .WillOnce(Return(BAD_VALUE));
-    status_t result = sThreadedRE->bindExternalTextureBuffer(0, nullptr, nullptr);
+    status_t result = mThreadedRE->bindExternalTextureBuffer(0, nullptr, nullptr);
     ASSERT_EQ(BAD_VALUE, result);
 }
 
@@ -85,119 +73,119 @@ TEST_F(RenderEngineThreadedTest, bindExternalBuffer_withBuffer) {
     sp<GraphicBuffer> buf = new GraphicBuffer();
     EXPECT_CALL(*mRenderEngine, bindExternalTextureBuffer(0, buf, Eq(nullptr)))
             .WillOnce(Return(NO_ERROR));
-    status_t result = sThreadedRE->bindExternalTextureBuffer(0, buf, nullptr);
+    status_t result = mThreadedRE->bindExternalTextureBuffer(0, buf, nullptr);
     ASSERT_EQ(NO_ERROR, result);
 }
 
 TEST_F(RenderEngineThreadedTest, cacheExternalTextureBuffer_nullptr) {
     EXPECT_CALL(*mRenderEngine, cacheExternalTextureBuffer(Eq(nullptr)));
-    sThreadedRE->cacheExternalTextureBuffer(nullptr);
+    mThreadedRE->cacheExternalTextureBuffer(nullptr);
 }
 
 TEST_F(RenderEngineThreadedTest, cacheExternalTextureBuffer_withBuffer) {
     sp<GraphicBuffer> buf = new GraphicBuffer();
     EXPECT_CALL(*mRenderEngine, cacheExternalTextureBuffer(buf));
-    sThreadedRE->cacheExternalTextureBuffer(buf);
+    mThreadedRE->cacheExternalTextureBuffer(buf);
 }
 
 TEST_F(RenderEngineThreadedTest, unbindExternalTextureBuffer) {
     EXPECT_CALL(*mRenderEngine, unbindExternalTextureBuffer(0x0));
-    sThreadedRE->unbindExternalTextureBuffer(0x0);
+    mThreadedRE->unbindExternalTextureBuffer(0x0);
 }
 
 TEST_F(RenderEngineThreadedTest, bindFrameBuffer_returnsBadValue) {
     std::unique_ptr<renderengine::Framebuffer> framebuffer;
     EXPECT_CALL(*mRenderEngine, bindFrameBuffer(framebuffer.get())).WillOnce(Return(BAD_VALUE));
-    status_t result = sThreadedRE->bindFrameBuffer(framebuffer.get());
+    status_t result = mThreadedRE->bindFrameBuffer(framebuffer.get());
     ASSERT_EQ(BAD_VALUE, result);
 }
 
 TEST_F(RenderEngineThreadedTest, bindFrameBuffer_returnsNoError) {
     std::unique_ptr<renderengine::Framebuffer> framebuffer;
     EXPECT_CALL(*mRenderEngine, bindFrameBuffer(framebuffer.get())).WillOnce(Return(NO_ERROR));
-    status_t result = sThreadedRE->bindFrameBuffer(framebuffer.get());
+    status_t result = mThreadedRE->bindFrameBuffer(framebuffer.get());
     ASSERT_EQ(NO_ERROR, result);
 }
 
 TEST_F(RenderEngineThreadedTest, unbindFrameBuffer) {
     std::unique_ptr<renderengine::Framebuffer> framebuffer;
     EXPECT_CALL(*mRenderEngine, unbindFrameBuffer(framebuffer.get()));
-    sThreadedRE->unbindFrameBuffer(framebuffer.get());
+    mThreadedRE->unbindFrameBuffer(framebuffer.get());
 }
 
 TEST_F(RenderEngineThreadedTest, getMaxTextureSize_returns20) {
     size_t size = 20;
     EXPECT_CALL(*mRenderEngine, getMaxTextureSize()).WillOnce(Return(size));
-    size_t result = sThreadedRE->getMaxTextureSize();
+    size_t result = mThreadedRE->getMaxTextureSize();
     ASSERT_EQ(size, result);
 }
 
 TEST_F(RenderEngineThreadedTest, getMaxTextureSize_returns0) {
     size_t size = 0;
     EXPECT_CALL(*mRenderEngine, getMaxTextureSize()).WillOnce(Return(size));
-    size_t result = sThreadedRE->getMaxTextureSize();
+    size_t result = mThreadedRE->getMaxTextureSize();
     ASSERT_EQ(size, result);
 }
 
 TEST_F(RenderEngineThreadedTest, getMaxViewportDims_returns20) {
     size_t dims = 20;
     EXPECT_CALL(*mRenderEngine, getMaxViewportDims()).WillOnce(Return(dims));
-    size_t result = sThreadedRE->getMaxViewportDims();
+    size_t result = mThreadedRE->getMaxViewportDims();
     ASSERT_EQ(dims, result);
 }
 
 TEST_F(RenderEngineThreadedTest, getMaxViewportDims_returns0) {
     size_t dims = 0;
     EXPECT_CALL(*mRenderEngine, getMaxViewportDims()).WillOnce(Return(dims));
-    size_t result = sThreadedRE->getMaxViewportDims();
+    size_t result = mThreadedRE->getMaxViewportDims();
     ASSERT_EQ(dims, result);
 }
 
 TEST_F(RenderEngineThreadedTest, isProtected_returnsFalse) {
     EXPECT_CALL(*mRenderEngine, isProtected()).WillOnce(Return(false));
-    status_t result = sThreadedRE->isProtected();
+    status_t result = mThreadedRE->isProtected();
     ASSERT_EQ(false, result);
 }
 
 TEST_F(RenderEngineThreadedTest, isProtected_returnsTrue) {
     EXPECT_CALL(*mRenderEngine, isProtected()).WillOnce(Return(true));
-    size_t result = sThreadedRE->isProtected();
+    size_t result = mThreadedRE->isProtected();
     ASSERT_EQ(true, result);
 }
 
 TEST_F(RenderEngineThreadedTest, supportsProtectedContent_returnsFalse) {
     EXPECT_CALL(*mRenderEngine, supportsProtectedContent()).WillOnce(Return(false));
-    status_t result = sThreadedRE->supportsProtectedContent();
+    status_t result = mThreadedRE->supportsProtectedContent();
     ASSERT_EQ(false, result);
 }
 
 TEST_F(RenderEngineThreadedTest, supportsProtectedContent_returnsTrue) {
     EXPECT_CALL(*mRenderEngine, supportsProtectedContent()).WillOnce(Return(true));
-    status_t result = sThreadedRE->supportsProtectedContent();
+    status_t result = mThreadedRE->supportsProtectedContent();
     ASSERT_EQ(true, result);
 }
 
 TEST_F(RenderEngineThreadedTest, useProtectedContext_returnsFalse) {
     EXPECT_CALL(*mRenderEngine, useProtectedContext(false)).WillOnce(Return(false));
-    status_t result = sThreadedRE->useProtectedContext(false);
+    status_t result = mThreadedRE->useProtectedContext(false);
     ASSERT_EQ(false, result);
 }
 
 TEST_F(RenderEngineThreadedTest, useProtectedContext_returnsTrue) {
     EXPECT_CALL(*mRenderEngine, useProtectedContext(false)).WillOnce(Return(true));
-    status_t result = sThreadedRE->useProtectedContext(false);
+    status_t result = mThreadedRE->useProtectedContext(false);
     ASSERT_EQ(true, result);
 }
 
 TEST_F(RenderEngineThreadedTest, cleanupPostRender_returnsFalse) {
     EXPECT_CALL(*mRenderEngine, cleanupPostRender()).WillOnce(Return(false));
-    status_t result = sThreadedRE->cleanupPostRender();
+    status_t result = mThreadedRE->cleanupPostRender();
     ASSERT_EQ(false, result);
 }
 
 TEST_F(RenderEngineThreadedTest, cleanupPostRender_returnsTrue) {
     EXPECT_CALL(*mRenderEngine, cleanupPostRender()).WillOnce(Return(true));
-    status_t result = sThreadedRE->cleanupPostRender();
+    status_t result = mThreadedRE->cleanupPostRender();
     ASSERT_EQ(true, result);
 }
 
@@ -214,7 +202,7 @@ TEST_F(RenderEngineThreadedTest, drawLayers) {
                          const sp<GraphicBuffer>&, const bool, base::unique_fd&&,
                          base::unique_fd*) -> status_t { return NO_ERROR; });
 
-    status_t result = sThreadedRE->drawLayers(settings, layers, buffer, false,
+    status_t result = mThreadedRE->drawLayers(settings, layers, buffer, false,
                                               std::move(bufferFence), &drawFence);
     ASSERT_EQ(NO_ERROR, result);
 }

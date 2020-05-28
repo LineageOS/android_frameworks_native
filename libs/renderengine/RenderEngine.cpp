@@ -25,7 +25,7 @@
 namespace android {
 namespace renderengine {
 
-std::unique_ptr<impl::RenderEngine> RenderEngine::create(const RenderEngineCreationArgs& args) {
+std::unique_ptr<RenderEngine> RenderEngine::create(const RenderEngineCreationArgs& args) {
     RenderEngineType renderEngineType = args.renderEngineType;
 
     // Keep the ability to override by PROPERTIES:
@@ -41,7 +41,9 @@ std::unique_ptr<impl::RenderEngine> RenderEngine::create(const RenderEngineCreat
     switch (renderEngineType) {
         case RenderEngineType::THREADED:
             ALOGD("Threaded RenderEngine with GLES Backend");
-            return renderengine::threaded::RenderEngineThreaded::create(args);
+            return renderengine::threaded::RenderEngineThreaded::create([&args]() {
+                return android::renderengine::gl::GLESRenderEngine::create(args);
+            });
         case RenderEngineType::GLES:
         default:
             ALOGD("RenderEngine with GLES Backend");
