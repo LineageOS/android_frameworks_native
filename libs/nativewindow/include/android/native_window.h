@@ -236,7 +236,11 @@ int32_t ANativeWindow_getBuffersDataSpace(ANativeWindow* window) __INTRODUCED_IN
 /** Compatibility value for ANativeWindow_setFrameRate. */
 enum ANativeWindow_FrameRateCompatibility {
     /**
-     * There are no inherent restrictions on the frame rate of this window.
+     * There are no inherent restrictions on the frame rate of this window. When
+     * the system selects a frame rate other than what the app requested, the
+     * app will be able to run at the system frame rate without requiring pull
+     * down. This value should be used when displaying game content, UIs, and
+     * anything that isn't video.
      */
     ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT = 0,
     /**
@@ -246,7 +250,7 @@ enum ANativeWindow_FrameRateCompatibility {
      * to do pull down or use some other technique to adapt to the system's
      * frame rate. The user experience is likely to be worse (e.g. more frame
      * stuttering) than it would be if the system had chosen the app's requested
-     * frame rate.
+     * frame rate. This value should be used for video content.
      */
     ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE = 1
 };
