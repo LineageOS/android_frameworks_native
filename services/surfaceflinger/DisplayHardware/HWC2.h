@@ -234,6 +234,8 @@ public:
     [[clang::warn_unused_result]] virtual hal::Error getSupportedContentTypes(
             std::vector<hal::ContentType>*) const = 0;
     [[clang::warn_unused_result]] virtual hal::Error setContentType(hal::ContentType) = 0;
+    [[clang::warn_unused_result]] virtual hal::Error getClientTargetProperty(
+            hal::ClientTargetProperty* outClientTargetProperty) = 0;
 };
 
 namespace impl {
@@ -305,6 +307,8 @@ public:
     hal::Error getSupportedContentTypes(
             std::vector<hal::ContentType>* outSupportedContentTypes) const override;
     hal::Error setContentType(hal::ContentType) override;
+    hal::Error getClientTargetProperty(hal::ClientTargetProperty* outClientTargetProperty) override;
+
     // Other Display methods
     hal::HWDisplayId getId() const override { return mId; }
     bool isConnected() const override { return mIsConnected; }
