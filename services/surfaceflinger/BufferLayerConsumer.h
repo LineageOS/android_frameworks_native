@@ -331,8 +331,8 @@ private:
     // construction time.
     const uint32_t mTexName;
 
-    // The layer for this BufferLayerConsumer
-    Layer* mLayer;
+    // The layer for this BufferLayerConsumer. Always check mAbandoned before accessing.
+    Layer* mLayer GUARDED_BY(mMutex);
 
     wp<ContentsChangedListener> mContentsChangedListener;
 
