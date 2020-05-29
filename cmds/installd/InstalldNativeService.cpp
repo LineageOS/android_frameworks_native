@@ -1064,6 +1064,7 @@ binder::Status InstalldNativeService::restoreAppDataSnapshot(
             res = error(rc, "Failed copying " + from_ce + " to " + to_ce);
             return res;
         }
+        delete_dir_contents_and_dir(from_ce, true /* ignore_if_missing */);
     }
 
     if (needs_de_rollback) {
@@ -1080,6 +1081,7 @@ binder::Status InstalldNativeService::restoreAppDataSnapshot(
             res = error(rc, "Failed copying " + from_de + " to " + to_de);
             return res;
         }
+        delete_dir_contents_and_dir(from_de, true /* ignore_if_missing */);
     }
 
     // Finally, restore the SELinux label on the app data.
