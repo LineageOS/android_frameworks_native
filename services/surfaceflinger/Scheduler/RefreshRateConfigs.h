@@ -255,6 +255,9 @@ public:
     // Stores the current configId the device operates at
     void setCurrentConfigId(HwcConfigIndexType configId) EXCLUDES(mLock);
 
+    // Returns a string that represents the layer vote type
+    static std::string layerVoteTypeString(LayerVoteType vote);
+
     RefreshRateConfigs(const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs,
                        HwcConfigIndexType currentConfigId);
 
