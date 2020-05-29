@@ -848,11 +848,14 @@ bool Layer::applyPendingStates(State* stateToCommit) {
         }
     }
 
-    // If we still have pending updates, wake SurfaceFlinger back up and point
-    // it at this layer so we can process them
+    // If we still have pending updates, we need to ensure SurfaceFlinger
+    // will keep calling doTransaction, and so we set the transaction flags.
+    // However, our pending states won't clear until a frame is available,
+    // and so there is no need to specifically trigger a wakeup. Rather
+    // we set the flags and wait for something else to wake us up.
     if (!mPendingStates.empty()) {
         setTransactionFlags(eTransactionNeeded);
-        mFlinger->setTransactionFlags(eTraversalNeeded);
+        mFlinger->setTransactionFlagsNoWake(eTraversalNeeded);
     }
 
     mCurrentState.modified = false;
