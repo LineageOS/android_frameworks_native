@@ -99,6 +99,16 @@ std::optional<DisplayViewport> InputReaderConfiguration::getDisplayViewportByPor
     return std::nullopt;
 }
 
+std::optional<DisplayViewport> InputReaderConfiguration::getDisplayViewportById(
+        int32_t displayId) const {
+    for (const DisplayViewport& currentViewport : mDisplays) {
+        if (currentViewport.displayId == displayId) {
+            return std::make_optional(currentViewport);
+        }
+    }
+    return std::nullopt;
+}
+
 void InputReaderConfiguration::setDisplayViewports(const std::vector<DisplayViewport>& viewports) {
     mDisplays = viewports;
 }
