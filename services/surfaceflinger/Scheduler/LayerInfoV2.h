@@ -43,6 +43,8 @@ constexpr nsecs_t getActiveLayerThreshold(nsecs_t now) {
 
 // Stores history of present times and refresh rates for a layer.
 class LayerInfoV2 {
+    using LayerUpdateType = LayerHistory::LayerUpdateType;
+
     // Layer is considered frequent if the earliest value in the window of most recent present times
     // is within a threshold. If a layer is infrequent, its average refresh rate is disregarded in
     // favor of a low refresh rate.
@@ -63,7 +65,8 @@ public:
     // Records the last requested present time. It also stores information about when
     // the layer was last updated. If the present time is farther in the future than the
     // updated time, the updated time is the present time.
-    void setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now, bool pendingConfigChange);
+    void setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now, LayerUpdateType updateType,
+                            bool pendingConfigChange);
 
     // Sets an explicit layer vote. This usually comes directly from the application via
     // ANativeWindow_setFrameRate API
@@ -107,6 +110,7 @@ private:
     };
 
     bool isFrequent(nsecs_t now) const;
+    bool isAnimating(nsecs_t now) const;
     bool hasEnoughDataForHeuristic() const;
     std::optional<float> calculateRefreshRateIfPossible();
     std::pair<nsecs_t, bool> calculateAverageFrameTime() const;
@@ -120,6 +124,8 @@ private:
     LayerHistory::LayerVoteType mDefaultVote;
 
     nsecs_t mLastUpdatedTime = 0;
+
+    nsecs_t mLastAnimationTime = 0;
 
     float mLastReportedRefreshRate = 0.0f;
 
