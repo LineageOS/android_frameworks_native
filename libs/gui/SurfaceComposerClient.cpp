@@ -701,14 +701,15 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setLayer
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setMetadata(
-        const sp<SurfaceControl>& sc, uint32_t key, std::vector<uint8_t> data) {
+        const sp<SurfaceControl>& sc, uint32_t key, const Parcel& p) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
     }
     s->what |= layer_state_t::eMetadataChanged;
-    s->metadata.mMap[key] = std::move(data);
+
+    s->metadata.mMap[key] = {p.data(), p.data() + p.dataSize()};
 
     registerSurfaceControlForCallback(sc);
     return *this;

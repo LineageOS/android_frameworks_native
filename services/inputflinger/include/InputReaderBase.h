@@ -172,6 +172,9 @@ struct InputReaderConfiguration {
     // Used to determine which DisplayViewport should be tied to which InputDevice.
     std::unordered_map<std::string, uint8_t> portAssociations;
 
+    // The suggested display ID to show the cursor.
+    int32_t defaultPointerDisplayId;
+
     // Velocity control parameters for mouse pointer movements.
     VelocityControlParameters pointerVelocityControlParameters;
 
@@ -274,6 +277,7 @@ struct InputReaderConfiguration {
     std::optional<DisplayViewport> getDisplayViewportByUniqueId(const std::string& uniqueDisplayId)
             const;
     std::optional<DisplayViewport> getDisplayViewportByPort(uint8_t physicalPort) const;
+    std::optional<DisplayViewport> getDisplayViewportById(int32_t displayId) const;
     void setDisplayViewports(const std::vector<DisplayViewport>& viewports);
 
 
