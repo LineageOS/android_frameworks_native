@@ -362,8 +362,7 @@ public:
         Transaction& setCrop_legacy(const sp<SurfaceControl>& sc, const Rect& crop);
         Transaction& setCornerRadius(const sp<SurfaceControl>& sc, float cornerRadius);
         Transaction& setLayerStack(const sp<SurfaceControl>& sc, uint32_t layerStack);
-        Transaction& setMetadata(const sp<SurfaceControl>& sc, uint32_t key,
-                                 std::vector<uint8_t> data);
+        Transaction& setMetadata(const sp<SurfaceControl>& sc, uint32_t key, const Parcel& p);
         // Defers applying any changes made in this transaction until the Layer
         // identified by handle reaches the given frameNumber. If the Layer identified
         // by handle is removed, then we will apply this transaction regardless of
