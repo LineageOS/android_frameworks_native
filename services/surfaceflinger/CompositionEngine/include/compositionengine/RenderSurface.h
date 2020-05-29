@@ -63,6 +63,12 @@ public:
     // Sets the dataspace used for rendering the surface
     virtual void setBufferDataspace(ui::Dataspace) = 0;
 
+    // Sets the pixel format used for rendering the surface.
+    // Changing the pixel format of the buffer will result in buffer
+    // reallocation as well as some reconfiguration of the graphics context,
+    // which are both expensive operations.
+    virtual void setBufferPixelFormat(ui::PixelFormat) = 0;
+
     // Configures the protected rendering on the surface
     virtual void setProtected(bool useProtected) = 0;
 
