@@ -83,13 +83,19 @@ public:
     // updated time, the updated time is the present time.
     nsecs_t getLastUpdatedTime() const { return mLastUpdatedTime; }
 
-    void clearHistory() {
+    void onLayerInactive(nsecs_t now) {
         // Mark mFrameTimeValidSince to now to ignore all previous frame times.
         // We are not deleting the old frame to keep track of whether we should treat the first
         // buffer as Max as we don't know anything about this layer or Min as this layer is
         // posting infrequent updates.
-        mFrameTimeValidSince = std::chrono::steady_clock::now();
+        const auto timePoint = std::chrono::nanoseconds(now);
+        mFrameTimeValidSince = std::chrono::time_point<std::chrono::steady_clock>(timePoint);
         mLastReportedRefreshRate = 0.0f;
+    }
+
+    void clearHistory(nsecs_t now) {
+        onLayerInactive(now);
+        mFrameTimes.clear();
     }
 
 private:
