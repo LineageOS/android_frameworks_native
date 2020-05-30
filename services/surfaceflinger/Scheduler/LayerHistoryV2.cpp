@@ -192,7 +192,7 @@ void LayerHistoryV2::partitionLayers(nsecs_t now) {
             trace(weak, LayerHistory::LayerVoteType::NoVote, 0);
         }
 
-        info->clearHistory();
+        info->onLayerInactive(now);
         std::swap(mLayerInfos[i], mLayerInfos[--mActiveLayersEnd]);
     }
 
@@ -213,7 +213,7 @@ void LayerHistoryV2::clear() {
     std::lock_guard lock(mLock);
 
     for (const auto& [layer, info] : activeLayers()) {
-        info->clearHistory();
+        info->clearHistory(systemTime());
     }
 }
 } // namespace android::scheduler::impl
