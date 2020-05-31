@@ -24,8 +24,9 @@ namespace android::mock {
 
 class MockLayer : public Layer {
 public:
-    explicit MockLayer(SurfaceFlinger* flinger)
-          : Layer(LayerCreationArgs(flinger, nullptr, "TestLayer", 800, 600, 0, {})) {}
+    MockLayer(SurfaceFlinger* flinger, std::string name)
+          : Layer(LayerCreationArgs(flinger, nullptr, std::move(name), 800, 600, 0, {})) {}
+    explicit MockLayer(SurfaceFlinger* flinger) : MockLayer(flinger, "TestLayer") {}
 
     MOCK_CONST_METHOD0(getType, const char*());
     MOCK_METHOD0(getFrameSelectionPriority, int32_t());

@@ -47,7 +47,9 @@ class LayerInfoV2 {
     // is within a threshold. If a layer is infrequent, its average refresh rate is disregarded in
     // favor of a low refresh rate.
     static constexpr size_t FREQUENT_LAYER_WINDOW_SIZE = 3;
-    static constexpr std::chrono::nanoseconds MAX_FREQUENT_LAYER_PERIOD_NS = 150ms;
+    static constexpr float MIN_FPS_FOR_FREQUENT_LAYER = 10.0f;
+    static constexpr auto MAX_FREQUENT_LAYER_PERIOD_NS =
+            std::chrono::nanoseconds(static_cast<nsecs_t>(1e9f / MIN_FPS_FOR_FREQUENT_LAYER)) + 1ms;
 
     friend class LayerHistoryTestV2;
 
@@ -81,9 +83,19 @@ public:
     // updated time, the updated time is the present time.
     nsecs_t getLastUpdatedTime() const { return mLastUpdatedTime; }
 
-    void clearHistory() {
-        mFrameTimes.clear();
+    void onLayerInactive(nsecs_t now) {
+        // Mark mFrameTimeValidSince to now to ignore all previous frame times.
+        // We are not deleting the old frame to keep track of whether we should treat the first
+        // buffer as Max as we don't know anything about this layer or Min as this layer is
+        // posting infrequent updates.
+        const auto timePoint = std::chrono::nanoseconds(now);
+        mFrameTimeValidSince = std::chrono::time_point<std::chrono::steady_clock>(timePoint);
         mLastReportedRefreshRate = 0.0f;
+    }
+
+    void clearHistory(nsecs_t now) {
+        onLayerInactive(now);
+        mFrameTimes.clear();
     }
 
 private:
@@ -94,11 +106,12 @@ private:
         bool pendingConfigChange;
     };
 
-    bool isFrequent(nsecs_t now);
+    bool isFrequent(nsecs_t now) const;
     bool hasEnoughDataForHeuristic() const;
     std::optional<float> calculateRefreshRateIfPossible();
     std::pair<nsecs_t, bool> calculateAverageFrameTime() const;
     bool isRefreshRateStable(nsecs_t averageFrameTime, bool missingPresentTime) const;
+    bool isFrameTimeValid(const FrameTimeData&) const;
 
     const std::string mName;
 
@@ -110,13 +123,6 @@ private:
 
     float mLastReportedRefreshRate = 0.0f;
 
-    // Used to determine whether a layer should be considered frequent or
-    // not when we don't have enough frames. This member will not be cleared
-    // as part of clearHistory() to remember whether this layer was frequent
-    // or not before we processed touch boost (or anything else that would
-    // clear layer history).
-    bool mLastReportedIsFrequent = true;
-
     // Holds information about the layer vote
     struct {
         LayerHistory::LayerVoteType type;
@@ -124,6 +130,8 @@ private:
     } mLayerVote;
 
     std::deque<FrameTimeData> mFrameTimes;
+    std::chrono::time_point<std::chrono::steady_clock> mFrameTimeValidSince =
+            std::chrono::steady_clock::now();
     static constexpr size_t HISTORY_SIZE = 90;
     static constexpr std::chrono::nanoseconds HISTORY_TIME = 1s;
 };

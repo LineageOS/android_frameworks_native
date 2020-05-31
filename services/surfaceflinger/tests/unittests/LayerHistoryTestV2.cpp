@@ -37,6 +37,7 @@ protected:
     static constexpr auto PRESENT_TIME_HISTORY_SIZE = LayerInfoV2::HISTORY_SIZE;
     static constexpr auto MAX_FREQUENT_LAYER_PERIOD_NS = LayerInfoV2::MAX_FREQUENT_LAYER_PERIOD_NS;
     static constexpr auto FREQUENT_LAYER_WINDOW_SIZE = LayerInfoV2::FREQUENT_LAYER_WINDOW_SIZE;
+    static constexpr auto PRESENT_TIME_HISTORY_TIME = LayerInfoV2::HISTORY_TIME;
 
     static constexpr float LO_FPS = 30.f;
     static constexpr auto LO_FPS_PERIOD = static_cast<nsecs_t>(1e9f / LO_FPS);
@@ -71,6 +72,9 @@ protected:
     }
 
     auto createLayer() { return sp<mock::MockLayer>(new mock::MockLayer(mFlinger.flinger())); }
+    auto createLayer(std::string name) {
+        return sp<mock::MockLayer>(new mock::MockLayer(mFlinger.flinger(), std::move(name)));
+    }
 
     Hwc2::mock::Display mDisplay;
     RefreshRateConfigs mConfigs{{HWC2::Display::Config::Builder(mDisplay, 0)
@@ -103,13 +107,12 @@ TEST_F(LayerHistoryTestV2, oneLayer) {
     EXPECT_TRUE(history().summarize(time).empty());
     EXPECT_EQ(0, activeLayerCount());
 
-    // The first few updates are considered frequent
+    // Max returned if active layers have insufficient history.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE - 1; i++) {
         history().record(layer.get(), 0, time);
         ASSERT_EQ(1, history().summarize(time).size());
         EXPECT_EQ(LayerHistory::LayerVoteType::Max, history().summarize(time)[0].vote);
         EXPECT_EQ(1, activeLayerCount());
-        EXPECT_EQ(1, frequentLayerCount(time));
     }
 
     // Max is returned since we have enough history but there is no timestamp votes.
@@ -118,7 +121,6 @@ TEST_F(LayerHistoryTestV2, oneLayer) {
         ASSERT_EQ(1, history().summarize(time).size());
         EXPECT_EQ(LayerHistory::LayerVoteType::Max, history().summarize(time)[0].vote);
         EXPECT_EQ(1, activeLayerCount());
-        EXPECT_EQ(1, frequentLayerCount(time));
     }
 }
 
@@ -135,7 +137,7 @@ TEST_F(LayerHistoryTestV2, oneInvisibleLayer) {
     history().record(layer.get(), 0, time);
     auto summary = history().summarize(time);
     ASSERT_EQ(1, history().summarize(time).size());
-    // Layer is still considered active so we expect to get Max
+    // Layer is still considered inactive so we expect to get Min
     EXPECT_EQ(LayerHistory::LayerVoteType::Max, history().summarize(time)[0].vote);
     EXPECT_EQ(1, activeLayerCount());
 
@@ -466,14 +468,27 @@ TEST_F(LayerHistoryTestV2, inactiveLayers) {
 
     nsecs_t time = systemTime();
 
-    // The first few updates are considered frequent
-    for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE - 1; i++) {
-        history().record(layer.get(), 0, time);
+    // the very first updates makes the layer frequent
+    for (int i = 0; i < FREQUENT_LAYER_WINDOW_SIZE - 1; i++) {
+        history().record(layer.get(), time, time);
+        time += MAX_FREQUENT_LAYER_PERIOD_NS.count();
+
+        EXPECT_EQ(1, layerCount());
         ASSERT_EQ(1, history().summarize(time).size());
         EXPECT_EQ(LayerHistory::LayerVoteType::Max, history().summarize(time)[0].vote);
         EXPECT_EQ(1, activeLayerCount());
         EXPECT_EQ(1, frequentLayerCount(time));
     }
+
+    // the next update with the MAX_FREQUENT_LAYER_PERIOD_NS will get us to infrequent
+    history().record(layer.get(), time, time);
+    time += MAX_FREQUENT_LAYER_PERIOD_NS.count();
+
+    EXPECT_EQ(1, layerCount());
+    ASSERT_EQ(1, history().summarize(time).size());
+    EXPECT_EQ(LayerHistory::LayerVoteType::Min, history().summarize(time)[0].vote);
+    EXPECT_EQ(1, activeLayerCount());
+    EXPECT_EQ(0, frequentLayerCount(time));
 
     // advance the time for the previous frame to be inactive
     time += MAX_ACTIVE_LAYER_PERIOD_NS.count();
@@ -499,36 +514,6 @@ TEST_F(LayerHistoryTestV2, inactiveLayers) {
     EXPECT_EQ(LayerHistory::LayerVoteType::Max, history().summarize(time)[0].vote);
     EXPECT_EQ(1, activeLayerCount());
     EXPECT_EQ(1, frequentLayerCount(time));
-
-    // advance the time for the previous frame to be inactive
-    time += MAX_ACTIVE_LAYER_PERIOD_NS.count();
-
-    // Now event if we post a quick few frame we should stay infrequent
-    for (int i = 0; i < FREQUENT_LAYER_WINDOW_SIZE - 1; i++) {
-        history().record(layer.get(), time, time);
-        time += HI_FPS_PERIOD;
-
-        EXPECT_EQ(1, layerCount());
-        ASSERT_EQ(1, history().summarize(time).size());
-        EXPECT_EQ(LayerHistory::LayerVoteType::Min, history().summarize(time)[0].vote);
-        EXPECT_EQ(1, activeLayerCount());
-        EXPECT_EQ(0, frequentLayerCount(time));
-    }
-
-    // clear the history
-    history().clear();
-
-    // Now event if we post a quick few frame we should stay infrequent
-    for (int i = 0; i < FREQUENT_LAYER_WINDOW_SIZE - 1; i++) {
-        history().record(layer.get(), time, time);
-        time += HI_FPS_PERIOD;
-
-        EXPECT_EQ(1, layerCount());
-        ASSERT_EQ(1, history().summarize(time).size());
-        EXPECT_EQ(LayerHistory::LayerVoteType::Min, history().summarize(time)[0].vote);
-        EXPECT_EQ(1, activeLayerCount());
-        EXPECT_EQ(0, frequentLayerCount(time));
-    }
 }
 
 TEST_F(LayerHistoryTestV2, invisibleExplicitLayer) {
@@ -547,11 +532,9 @@ TEST_F(LayerHistoryTestV2, invisibleExplicitLayer) {
 
     nsecs_t time = systemTime();
 
-    // Post a few buffers to the layers to make them active
-    for (int i = 0; i < FREQUENT_LAYER_WINDOW_SIZE; i++) {
-        history().record(explicitVisiblelayer.get(), time, time);
-        history().record(explicitInvisiblelayer.get(), time, time);
-    }
+    // Post a buffer to the layers to make them active
+    history().record(explicitVisiblelayer.get(), time, time);
+    history().record(explicitInvisiblelayer.get(), time, time);
 
     EXPECT_EQ(2, layerCount());
     ASSERT_EQ(1, history().summarize(time).size());
@@ -561,6 +544,76 @@ TEST_F(LayerHistoryTestV2, invisibleExplicitLayer) {
     EXPECT_EQ(2, activeLayerCount());
     EXPECT_EQ(2, frequentLayerCount(time));
 }
+
+class LayerHistoryTestV2Parameterized
+      : public LayerHistoryTestV2,
+        public testing::WithParamInterface<std::chrono::nanoseconds> {};
+
+TEST_P(LayerHistoryTestV2Parameterized, HeuristicLayerWithInfrequentLayer) {
+    std::chrono::nanoseconds infrequentUpdateDelta = GetParam();
+    auto heuristicLayer = createLayer("HeuristicLayer");
+
+    EXPECT_CALL(*heuristicLayer, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*heuristicLayer, getFrameRateForLayerTree())
+            .WillRepeatedly(Return(Layer::FrameRate()));
+
+    auto infrequentLayer = createLayer("InfrequentLayer");
+    EXPECT_CALL(*infrequentLayer, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*infrequentLayer, getFrameRateForLayerTree())
+            .WillRepeatedly(Return(Layer::FrameRate()));
+
+    const nsecs_t startTime = systemTime();
+
+    const std::chrono::nanoseconds heuristicUpdateDelta = 41'666'667ns;
+    history().record(heuristicLayer.get(), startTime, startTime);
+    history().record(infrequentLayer.get(), startTime, startTime);
+
+    nsecs_t time = startTime;
+    nsecs_t lastInfrequentUpdate = startTime;
+    const int totalInfrequentLayerUpdates = FREQUENT_LAYER_WINDOW_SIZE * 5;
+    int infrequentLayerUpdates = 0;
+    while (infrequentLayerUpdates <= totalInfrequentLayerUpdates) {
+        time += heuristicUpdateDelta.count();
+        history().record(heuristicLayer.get(), time, time);
+
+        if (time - lastInfrequentUpdate >= infrequentUpdateDelta.count()) {
+            ALOGI("submitting infrequent frame [%d/%d]", infrequentLayerUpdates,
+                  totalInfrequentLayerUpdates);
+            lastInfrequentUpdate = time;
+            history().record(infrequentLayer.get(), time, time);
+            infrequentLayerUpdates++;
+        }
+
+        if (time - startTime > PRESENT_TIME_HISTORY_TIME.count()) {
+            ASSERT_NE(0, history().summarize(time).size());
+            ASSERT_GE(2, history().summarize(time).size());
+
+            bool max = false;
+            bool min = false;
+            float heuristic = 0;
+            for (const auto& layer : history().summarize(time)) {
+                if (layer.vote == LayerHistory::LayerVoteType::Heuristic) {
+                    heuristic = layer.desiredRefreshRate;
+                } else if (layer.vote == LayerHistory::LayerVoteType::Max) {
+                    max = true;
+                } else if (layer.vote == LayerHistory::LayerVoteType::Min) {
+                    min = true;
+                }
+            }
+
+            if (infrequentLayerUpdates > FREQUENT_LAYER_WINDOW_SIZE) {
+                EXPECT_FLOAT_EQ(24.0f, heuristic);
+                EXPECT_FALSE(max);
+                if (history().summarize(time).size() == 2) {
+                    EXPECT_TRUE(min);
+                }
+            }
+        }
+    }
+}
+
+INSTANTIATE_TEST_CASE_P(LeapYearTests, LayerHistoryTestV2Parameterized,
+                        ::testing::Values(1s, 2s, 3s, 4s, 5s));
 
 } // namespace
 } // namespace android::scheduler

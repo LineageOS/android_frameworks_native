@@ -31,6 +31,23 @@ namespace android::scheduler {
 using AllRefreshRatesMapType = RefreshRateConfigs::AllRefreshRatesMapType;
 using RefreshRate = RefreshRateConfigs::RefreshRate;
 
+std::string RefreshRateConfigs::layerVoteTypeString(LayerVoteType vote) {
+    switch (vote) {
+        case LayerVoteType::NoVote:
+            return "NoVote";
+        case LayerVoteType::Min:
+            return "Min";
+        case LayerVoteType::Max:
+            return "Max";
+        case LayerVoteType::Heuristic:
+            return "Heuristic";
+        case LayerVoteType::ExplicitDefault:
+            return "ExplicitDefault";
+        case LayerVoteType::ExplicitExactOrMultiple:
+            return "ExplicitExactOrMultiple";
+    }
+}
+
 const RefreshRate& RefreshRateConfigs::getRefreshRateForContent(
         const std::vector<LayerRequirement>& layers) const {
     std::lock_guard lock(mLock);
@@ -146,6 +163,7 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
     const bool primaryRangeIsSingleRate = policy->primaryRange.min == policy->primaryRange.max;
 
     if (!touchActive && idle && !(primaryRangeIsSingleRate && hasExplicitVoteLayers)) {
+        ALOGV("Idle - choose %s", getMinRefreshRateByPolicyLocked().getName().c_str());
         return getMinRefreshRateByPolicyLocked();
     }
 
@@ -168,7 +186,8 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
     }
 
     for (const auto& layer : layers) {
-        ALOGV("Calculating score for %s (type: %d)", layer.name.c_str(), layer.vote);
+        ALOGV("Calculating score for %s (%s, weight %.2f)", layer.name.c_str(),
+              layerVoteTypeString(layer.vote).c_str(), layer.weight);
         if (layer.vote == LayerVoteType::NoVote || layer.vote == LayerVoteType::Min) {
             continue;
         }
@@ -254,10 +273,8 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
                     return 1.0f / iter;
                 }();
                 ALOGV("%s (%s, weight %.2f) %.2fHz gives %s score of %.2f", layer.name.c_str(),
-                      layer.vote == LayerVoteType::ExplicitExactOrMultiple
-                              ? "ExplicitExactOrMultiple"
-                              : "Heuristic",
-                      weight, 1e9f / layerPeriod, scores[i].first->name.c_str(), layerScore);
+                      layerVoteTypeString(layer.vote).c_str(), weight, 1e9f / layerPeriod,
+                      scores[i].first->name.c_str(), layerScore);
                 scores[i].second += weight * layerScore;
                 continue;
             }
@@ -276,6 +293,8 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
         // range instead of picking a random score from the app range.
         if (std::all_of(scores.begin(), scores.end(),
                         [](std::pair<const RefreshRate*, float> p) { return p.second == 0; })) {
+            ALOGV("layers not scored - choose %s",
+                  getMaxRefreshRateByPolicyLocked().getName().c_str());
             return getMaxRefreshRateByPolicyLocked();
         } else {
             return *bestRefreshRate;

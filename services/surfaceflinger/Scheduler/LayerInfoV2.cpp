@@ -50,33 +50,44 @@ void LayerInfoV2::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now,
     }
 }
 
-bool LayerInfoV2::isFrequent(nsecs_t now) {
-    mLastReportedIsFrequent = [&] {
-        for (auto it = mFrameTimes.crbegin(); it != mFrameTimes.crend(); ++it) {
-            if (now - it->queueTime >= MAX_FREQUENT_LAYER_PERIOD_NS.count()) {
-                ALOGV("%s infrequent (last frame is %.2fms ago)", mName.c_str(),
-                      (now - mFrameTimes.back().queueTime) / 1e6f);
-                return false;
-            }
+bool LayerInfoV2::isFrameTimeValid(const FrameTimeData& frameTime) const {
+    return frameTime.queueTime >= std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                          mFrameTimeValidSince.time_since_epoch())
+                                          .count();
+}
 
-            const auto numFrames = std::distance(mFrameTimes.crbegin(), it + 1);
-            if (numFrames >= FREQUENT_LAYER_WINDOW_SIZE) {
-                ALOGV("%s frequent (burst of %zu frames)", mName.c_str(), numFrames);
-                return true;
-            }
+bool LayerInfoV2::isFrequent(nsecs_t now) const {
+    // If we know nothing about this layer we consider it as frequent as it might be the start
+    // of an animation.
+    if (mFrameTimes.size() < FREQUENT_LAYER_WINDOW_SIZE) {
+        return true;
+    }
+
+    // Find the first active frame
+    auto it = mFrameTimes.begin();
+    for (; it != mFrameTimes.end(); ++it) {
+        if (it->queueTime >= getActiveLayerThreshold(now)) {
+            break;
         }
+    }
 
-        ALOGV("%s %sfrequent (not enough frames %zu)", mName.c_str(),
-              mLastReportedIsFrequent ? "" : "in", mFrameTimes.size());
-        return mLastReportedIsFrequent;
-    }();
+    const auto numFrames = std::distance(it, mFrameTimes.end());
+    if (numFrames < FREQUENT_LAYER_WINDOW_SIZE) {
+        return false;
+    }
 
-    return mLastReportedIsFrequent;
+    // Layer is considered frequent if the average frame rate is higher than the threshold
+    const auto totalTime = mFrameTimes.back().queueTime - it->queueTime;
+    return (1e9f * (numFrames - 1)) / totalTime >= MIN_FPS_FOR_FREQUENT_LAYER;
 }
 
 bool LayerInfoV2::hasEnoughDataForHeuristic() const {
     // The layer had to publish at least HISTORY_SIZE or HISTORY_TIME of updates
     if (mFrameTimes.size() < 2) {
+        return false;
+    }
+
+    if (!isFrameTimeValid(mFrameTimes.front())) {
         return false;
     }
 
@@ -190,7 +201,7 @@ std::pair<LayerHistory::LayerVoteType, float> LayerInfoV2::getRefreshRate(nsecs_
         return {LayerHistory::LayerVoteType::Heuristic, refreshRate.value()};
     }
 
-    ALOGV("%s Max (can't resolve refresh rate", mName.c_str());
+    ALOGV("%s Max (can't resolve refresh rate)", mName.c_str());
     return {LayerHistory::LayerVoteType::Max, 0};
 }
 
