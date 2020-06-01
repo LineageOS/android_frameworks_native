@@ -78,7 +78,7 @@ namespace android::inputdispatcher {
 
 // Default input dispatching timeout if there is no focused application or paused window
 // from which to determine an appropriate dispatching timeout.
-constexpr nsecs_t DEFAULT_INPUT_DISPATCHING_TIMEOUT = 5000 * 1000000LL; // 5 sec
+constexpr std::chrono::nanoseconds DEFAULT_INPUT_DISPATCHING_TIMEOUT = 5s;
 
 // Amount of time to allow for all pending events to be processed when an app switch
 // key is on the way.  This is used to preempt input dispatch and drop input events
@@ -1295,11 +1295,9 @@ int32_t InputDispatcher::handleTargetsNotReadyLocked(
         }
     } else {
         if (mInputTargetWaitCause != INPUT_TARGET_WAIT_CAUSE_APPLICATION_NOT_READY) {
-            if (DEBUG_FOCUS) {
-                ALOGD("Waiting for application to become ready for input: %s.  Reason: %s",
-                      getApplicationWindowLabel(applicationHandle, windowHandle).c_str(), reason);
-            }
-            nsecs_t timeout;
+            ALOGI("Waiting for application to become ready for input: %s.  Reason: %s",
+                  getApplicationWindowLabel(applicationHandle, windowHandle).c_str(), reason);
+            std::chrono::nanoseconds timeout;
             if (windowHandle != nullptr) {
                 timeout = windowHandle->getDispatchingTimeout(DEFAULT_INPUT_DISPATCHING_TIMEOUT);
             } else if (applicationHandle != nullptr) {
@@ -1311,7 +1309,7 @@ int32_t InputDispatcher::handleTargetsNotReadyLocked(
 
             mInputTargetWaitCause = INPUT_TARGET_WAIT_CAUSE_APPLICATION_NOT_READY;
             mInputTargetWaitStartTime = currentTime;
-            mInputTargetWaitTimeoutTime = currentTime + timeout;
+            mInputTargetWaitTimeoutTime = currentTime + timeout.count();
             mInputTargetWaitTimeoutExpired = false;
             mInputTargetWaitApplicationToken.clear();
 
@@ -1353,10 +1351,10 @@ void InputDispatcher::removeWindowByTokenLocked(const sp<IBinder>& token) {
 }
 
 void InputDispatcher::resumeAfterTargetsNotReadyTimeoutLocked(
-        nsecs_t newTimeout, const sp<IBinder>& inputConnectionToken) {
-    if (newTimeout > 0) {
+        nsecs_t timeoutExtension, const sp<IBinder>& inputConnectionToken) {
+    if (timeoutExtension > 0) {
         // Extend the timeout.
-        mInputTargetWaitTimeoutTime = now() + newTimeout;
+        mInputTargetWaitTimeoutTime = now() + timeoutExtension;
     } else {
         // Give up.
         mInputTargetWaitTimeoutExpired = true;
@@ -4048,11 +4046,12 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
             const int32_t displayId = it.first;
             const sp<InputApplicationHandle>& applicationHandle = it.second;
             dump += StringPrintf(INDENT2 "displayId=%" PRId32
-                                         ", name='%s', dispatchingTimeout=%0.3fms\n",
+                                         ", name='%s', dispatchingTimeout=%" PRId64 "ms\n",
                                  displayId, applicationHandle->getName().c_str(),
-                                 applicationHandle->getDispatchingTimeout(
-                                         DEFAULT_INPUT_DISPATCHING_TIMEOUT) /
-                                         1000000.0);
+                                 ns2ms(applicationHandle
+                                               ->getDispatchingTimeout(
+                                                       DEFAULT_INPUT_DISPATCHING_TIMEOUT)
+                                               .count()));
         }
     } else {
         dump += StringPrintf(INDENT "FocusedApplications: <none>\n");
@@ -4132,9 +4131,10 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                          windowInfo->windowXScale, windowInfo->windowYScale);
                     dumpRegion(dump, windowInfo->touchableRegion);
                     dump += StringPrintf(", inputFeatures=0x%08x", windowInfo->inputFeatures);
-                    dump += StringPrintf(", ownerPid=%d, ownerUid=%d, dispatchingTimeout=%0.3fms\n",
+                    dump += StringPrintf(", ownerPid=%d, ownerUid=%d, dispatchingTimeout=%" PRId64
+                                         "ms\n",
                                          windowInfo->ownerPid, windowInfo->ownerUid,
-                                         windowInfo->dispatchingTimeout / 1000000.0);
+                                         ns2ms(windowInfo->dispatchingTimeout));
                 }
             } else {
                 dump += INDENT2 "Windows: <none>\n";
@@ -4167,7 +4167,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
         for (EventEntry* entry : mRecentQueue) {
             dump += INDENT2;
             entry->appendDescription(dump);
-            dump += StringPrintf(", age=%0.1fms\n", (currentTime - entry->eventTime) * 0.000001f);
+            dump += StringPrintf(", age=%" PRId64 "ms\n", ns2ms(currentTime - entry->eventTime));
         }
     } else {
         dump += INDENT "RecentQueue: <empty>\n";
@@ -4178,8 +4178,8 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
         dump += INDENT "PendingEvent:\n";
         dump += INDENT2;
         mPendingEvent->appendDescription(dump);
-        dump += StringPrintf(", age=%0.1fms\n",
-                             (currentTime - mPendingEvent->eventTime) * 0.000001f);
+        dump += StringPrintf(", age=%" PRId64 "ms\n",
+                             ns2ms(currentTime - mPendingEvent->eventTime));
     } else {
         dump += INDENT "PendingEvent: <none>\n";
     }
@@ -4190,7 +4190,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
         for (EventEntry* entry : mInboundQueue) {
             dump += INDENT2;
             entry->appendDescription(dump);
-            dump += StringPrintf(", age=%0.1fms\n", (currentTime - entry->eventTime) * 0.000001f);
+            dump += StringPrintf(", age=%" PRId64 "ms\n", ns2ms(currentTime - entry->eventTime));
         }
     } else {
         dump += INDENT "InboundQueue: <empty>\n";
@@ -4225,9 +4225,10 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                 for (DispatchEntry* entry : connection->outboundQueue) {
                     dump.append(INDENT4);
                     entry->eventEntry->appendDescription(dump);
-                    dump += StringPrintf(", targetFlags=0x%08x, resolvedAction=%d, age=%0.1fms\n",
+                    dump += StringPrintf(", targetFlags=0x%08x, resolvedAction=%d, age=%" PRId64
+                                         "ms\n",
                                          entry->targetFlags, entry->resolvedAction,
-                                         (currentTime - entry->eventEntry->eventTime) * 0.000001f);
+                                         ns2ms(currentTime - entry->eventEntry->eventTime));
                 }
             } else {
                 dump += INDENT3 "OutboundQueue: <empty>\n";
@@ -4240,10 +4241,10 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                     dump += INDENT4;
                     entry->eventEntry->appendDescription(dump);
                     dump += StringPrintf(", targetFlags=0x%08x, resolvedAction=%d, "
-                                         "age=%0.1fms, wait=%0.1fms\n",
+                                         "age=%" PRId64 "ms, wait=%" PRId64 "ms\n",
                                          entry->targetFlags, entry->resolvedAction,
-                                         (currentTime - entry->eventEntry->eventTime) * 0.000001f,
-                                         (currentTime - entry->deliveryTime) * 0.000001f);
+                                         ns2ms(currentTime - entry->eventEntry->eventTime),
+                                         ns2ms(currentTime - entry->deliveryTime));
                 }
             } else {
                 dump += INDENT3 "WaitQueue: <empty>\n";
@@ -4254,16 +4255,16 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
     }
 
     if (isAppSwitchPendingLocked()) {
-        dump += StringPrintf(INDENT "AppSwitch: pending, due in %0.1fms\n",
-                             (mAppSwitchDueTime - now()) / 1000000.0);
+        dump += StringPrintf(INDENT "AppSwitch: pending, due in %" PRId64 "ms\n",
+                             ns2ms(mAppSwitchDueTime - now()));
     } else {
         dump += INDENT "AppSwitch: not pending\n";
     }
 
     dump += INDENT "Configuration:\n";
-    dump += StringPrintf(INDENT2 "KeyRepeatDelay: %0.1fms\n", mConfig.keyRepeatDelay * 0.000001f);
-    dump += StringPrintf(INDENT2 "KeyRepeatTimeout: %0.1fms\n",
-                         mConfig.keyRepeatTimeout * 0.000001f);
+    dump += StringPrintf(INDENT2 "KeyRepeatDelay: %" PRId64 "ms\n", ns2ms(mConfig.keyRepeatDelay));
+    dump += StringPrintf(INDENT2 "KeyRepeatTimeout: %" PRId64 "ms\n",
+                         ns2ms(mConfig.keyRepeatTimeout));
 }
 
 void InputDispatcher::dumpMonitors(std::string& dump, const std::vector<Monitor>& monitors) {
@@ -4365,8 +4366,7 @@ status_t InputDispatcher::unregisterInputChannelLocked(const sp<InputChannel>& i
         return BAD_VALUE;
     }
 
-    [[maybe_unused]] const bool removed = removeByValue(mConnectionsByFd, connection);
-    ALOG_ASSERT(removed);
+    removeConnectionLocked(connection);
     mInputChannelsByToken.erase(inputChannel->getConnectionToken());
 
     if (connection->monitor) {
@@ -4468,7 +4468,7 @@ std::optional<int32_t> InputDispatcher::findGestureMonitorDisplayByTokenLocked(
     return std::nullopt;
 }
 
-sp<Connection> InputDispatcher::getConnectionLocked(const sp<IBinder>& inputConnectionToken) {
+sp<Connection> InputDispatcher::getConnectionLocked(const sp<IBinder>& inputConnectionToken) const {
     if (inputConnectionToken == nullptr) {
         return nullptr;
     }
@@ -4481,6 +4481,10 @@ sp<Connection> InputDispatcher::getConnectionLocked(const sp<IBinder>& inputConn
     }
 
     return nullptr;
+}
+
+void InputDispatcher::removeConnectionLocked(const sp<Connection>& connection) {
+    removeByValue(mConnectionsByFd, connection);
 }
 
 void InputDispatcher::onDispatchCycleFinishedLocked(nsecs_t currentTime,
@@ -4587,12 +4591,12 @@ void InputDispatcher::doNotifyAnrLockedInterruptible(CommandEntry* commandEntry)
             commandEntry->inputChannel ? commandEntry->inputChannel->getConnectionToken() : nullptr;
     mLock.unlock();
 
-    nsecs_t newTimeout =
+    const nsecs_t timeoutExtension =
             mPolicy->notifyAnr(commandEntry->inputApplicationHandle, token, commandEntry->reason);
 
     mLock.lock();
 
-    resumeAfterTargetsNotReadyTimeoutLocked(newTimeout, token);
+    resumeAfterTargetsNotReadyTimeoutLocked(timeoutExtension, token);
 }
 
 void InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible(
@@ -4647,11 +4651,8 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(CommandEntry* c
 
     const nsecs_t eventDuration = finishTime - dispatchEntry->deliveryTime;
     if (eventDuration > SLOW_EVENT_PROCESSING_WARNING_TIMEOUT) {
-        std::string msg =
-                StringPrintf("Window '%s' spent %0.1fms processing the last input event: ",
-                             connection->getWindowName().c_str(), eventDuration * 0.000001f);
-        dispatchEntry->eventEntry->appendDescription(msg);
-        ALOGI("%s", msg.c_str());
+        ALOGI("%s spent %" PRId64 "ms processing %s", connection->getWindowName().c_str(),
+              ns2ms(eventDuration), dispatchEntry->eventEntry->getDescription().c_str());
     }
     reportDispatchStatistics(std::chrono::nanoseconds(eventDuration), *connection, handled);
 

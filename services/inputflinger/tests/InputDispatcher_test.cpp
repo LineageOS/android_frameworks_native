@@ -17,12 +17,14 @@
 #include "../dispatcher/InputDispatcher.h"
 
 #include <android-base/stringprintf.h>
+#include <android-base/thread_annotations.h>
 #include <binder/Binder.h>
 #include <input/Input.h>
 
 #include <gtest/gtest.h>
 #include <linux/input.h>
 #include <cinttypes>
+#include <thread>
 #include <unordered_set>
 #include <vector>
 
@@ -119,6 +121,33 @@ public:
                 << "Expected onPointerDownOutsideFocus to not have been called";
     }
 
+    // This function must be called soon after the expected ANR timer starts,
+    // because we are also checking how much time has passed.
+    void assertNotifyAnrWasCalled(std::chrono::nanoseconds timeout,
+                                  const sp<InputApplicationHandle>& expectedApplication,
+                                  const sp<IBinder>& expectedToken) {
+        const std::chrono::time_point start = std::chrono::steady_clock::now();
+        std::unique_lock lock(mLock);
+        std::chrono::duration timeToWait = timeout + 100ms; // provide some slack
+        android::base::ScopedLockAssertion assumeLocked(mLock);
+
+        // If there is an ANR, Dispatcher won't be idle because there are still events
+        // in the waitQueue that we need to check on. So we can't wait for dispatcher to be idle
+        // before checking if ANR was called.
+        // Since dispatcher is not guaranteed to call notifyAnr right away, we need to provide
+        // it some time to act. 100ms seems reasonable.
+        mNotifyAnr.wait_for(lock, timeToWait,
+                            [this]() REQUIRES(mLock) { return mNotifyAnrWasCalled; });
+        const std::chrono::duration waited = std::chrono::steady_clock::now() - start;
+        ASSERT_TRUE(mNotifyAnrWasCalled);
+        // Ensure that the ANR didn't get raised too early. We can't be too strict here because
+        // the dispatcher started counting before this function was called
+        ASSERT_TRUE(timeout - 100ms < waited); // check (waited < timeout + 100ms) done by wait_for
+        mNotifyAnrWasCalled = false;
+        ASSERT_EQ(expectedApplication, mLastAnrApplication);
+        ASSERT_EQ(expectedToken, mLastAnrWindowToken);
+    }
+
     void setKeyRepeatConfiguration(nsecs_t timeout, nsecs_t delay) {
         mConfig.keyRepeatTimeout = timeout;
         mConfig.keyRepeatDelay = delay;
@@ -131,14 +160,26 @@ private:
     sp<IBinder> mOnPointerDownToken GUARDED_BY(mLock);
     std::optional<NotifySwitchArgs> mLastNotifySwitch GUARDED_BY(mLock);
 
+    // ANR handling
+    bool mNotifyAnrWasCalled GUARDED_BY(mLock) = false;
+    sp<InputApplicationHandle> mLastAnrApplication GUARDED_BY(mLock);
+    sp<IBinder> mLastAnrWindowToken GUARDED_BY(mLock);
+    std::condition_variable mNotifyAnr;
+    std::chrono::nanoseconds mAnrTimeout = 0ms;
+
     virtual void notifyConfigurationChanged(nsecs_t when) override {
         std::scoped_lock lock(mLock);
         mConfigurationChangedTime = when;
     }
 
-    virtual nsecs_t notifyAnr(const sp<InputApplicationHandle>&, const sp<IBinder>&,
-                              const std::string&) override {
-        return 0;
+    virtual nsecs_t notifyAnr(const sp<InputApplicationHandle>& application,
+                              const sp<IBinder>& windowToken, const std::string&) override {
+        std::scoped_lock lock(mLock);
+        mLastAnrApplication = application;
+        mLastAnrWindowToken = windowToken;
+        mNotifyAnrWasCalled = true;
+        mNotifyAnr.notify_all();
+        return mAnrTimeout.count();
     }
 
     virtual void notifyInputChannelBroken(const sp<IBinder>&) override {}
@@ -308,6 +349,20 @@ protected:
         ASSERT_EQ(OK, mDispatcher->stop());
         mFakePolicy.clear();
         mDispatcher.clear();
+    }
+
+    /**
+     * Used for debugging when writing the test
+     */
+    void dumpDispatcherState() {
+        std::string dump;
+        mDispatcher->dump(dump);
+        std::stringstream ss(dump);
+        std::string to;
+
+        while (std::getline(ss, to, '\n')) {
+            ALOGE("%s", to.c_str());
+        }
     }
 };
 
@@ -502,12 +557,19 @@ static constexpr std::chrono::nanoseconds DISPATCHING_TIMEOUT = 5s;
 
 class FakeApplicationHandle : public InputApplicationHandle {
 public:
-    FakeApplicationHandle() {}
+    FakeApplicationHandle() {
+        mInfo.name = "Fake Application";
+        mInfo.token = new BBinder();
+        mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT.count();
+    }
     virtual ~FakeApplicationHandle() {}
 
     virtual bool updateInfo() override {
-        mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT.count();
         return true;
+    }
+
+    void setDispatchingTimeout(std::chrono::nanoseconds timeout) {
+        mInfo.dispatchingTimeout = timeout.count();
     }
 };
 
@@ -519,6 +581,20 @@ public:
     }
 
     InputEvent* consume() {
+        InputEvent* event;
+        std::optional<uint32_t> consumeSeq = receiveEvent(&event);
+        if (!consumeSeq) {
+            return nullptr;
+        }
+        finishEvent(*consumeSeq);
+        return event;
+    }
+
+    /**
+     * Receive an event without acknowledging it.
+     * Return the sequence number that could later be used to send finished signal.
+     */
+    std::optional<uint32_t> receiveEvent(InputEvent** outEvent = nullptr) {
         uint32_t consumeSeq;
         InputEvent* event;
 
@@ -535,23 +611,29 @@ public:
 
         if (status == WOULD_BLOCK) {
             // Just means there's no event available.
-            return nullptr;
+            return std::nullopt;
         }
 
         if (status != OK) {
             ADD_FAILURE() << mName.c_str() << ": consumer consume should return OK.";
-            return nullptr;
+            return std::nullopt;
         }
         if (event == nullptr) {
             ADD_FAILURE() << "Consumed correctly, but received NULL event from consumer";
-            return nullptr;
+            return std::nullopt;
         }
+        if (outEvent != nullptr) {
+            *outEvent = event;
+        }
+        return consumeSeq;
+    }
 
-        status = mConsumer->sendFinishedSignal(consumeSeq, true);
-        if (status != OK) {
-            ADD_FAILURE() << mName.c_str() << ": consumer sendFinishedSignal should return OK.";
-        }
-        return event;
+    /**
+     * To be used together with "receiveEvent" to complete the consumption of an event.
+     */
+    void finishEvent(uint32_t consumeSeq) {
+        const status_t status = mConsumer->sendFinishedSignal(consumeSeq, true);
+        ASSERT_EQ(OK, status) << mName.c_str() << ": consumer sendFinishedSignal should return OK.";
     }
 
     void consumeEvent(int32_t expectedEventType, int32_t expectedAction, int32_t expectedDisplayId,
@@ -668,6 +750,10 @@ public:
 
     void setFocus(bool hasFocus) { mInfo.hasFocus = hasFocus; }
 
+    void setDispatchingTimeout(std::chrono::nanoseconds timeout) {
+        mInfo.dispatchingTimeout = timeout.count();
+    }
+
     void setFrame(const Rect& frame) {
         mInfo.frameLeft = frame.left;
         mInfo.frameTop = frame.top;
@@ -740,6 +826,19 @@ public:
                                      expectedFlags);
     }
 
+    std::optional<uint32_t> receiveEvent() {
+        if (mInputReceiver == nullptr) {
+            ADD_FAILURE() << "Invalid receive event on window with no receiver";
+            return std::nullopt;
+        }
+        return mInputReceiver->receiveEvent();
+    }
+
+    void finishEvent(uint32_t sequenceNum) {
+        ASSERT_NE(mInputReceiver, nullptr) << "Invalid receive event on window with no receiver";
+        mInputReceiver->finishEvent(sequenceNum);
+    }
+
     InputEvent* consume() {
         if (mInputReceiver == nullptr) {
             return nullptr;
@@ -765,16 +864,15 @@ private:
 
 std::atomic<int32_t> FakeWindowHandle::sId{1};
 
-static int32_t injectKeyDown(const sp<InputDispatcher>& dispatcher,
-        int32_t displayId = ADISPLAY_ID_NONE) {
+static int32_t injectKey(const sp<InputDispatcher>& dispatcher, int32_t action, int32_t repeatCount,
+                         int32_t displayId = ADISPLAY_ID_NONE) {
     KeyEvent event;
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
 
     // Define a valid key down event.
     event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_KEYBOARD, displayId,
-                     INVALID_HMAC, AKEY_EVENT_ACTION_DOWN, /* flags */ 0, AKEYCODE_A, KEY_A,
-                     AMETA_NONE,
-                     /* repeatCount */ 0, currentTime, currentTime);
+                     INVALID_HMAC, action, /* flags */ 0, AKEYCODE_A, KEY_A, AMETA_NONE,
+                     repeatCount, currentTime, currentTime);
 
     // Inject event until dispatch out.
     return dispatcher->injectInputEvent(
@@ -783,10 +881,16 @@ static int32_t injectKeyDown(const sp<InputDispatcher>& dispatcher,
             INJECT_EVENT_TIMEOUT, POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER);
 }
 
-static int32_t injectMotionEvent(const sp<InputDispatcher>& dispatcher, int32_t action,
-                                 int32_t source, int32_t displayId, int32_t x, int32_t y,
-                                 int32_t xCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                                 int32_t yCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION) {
+static int32_t injectKeyDown(const sp<InputDispatcher>& dispatcher,
+                             int32_t displayId = ADISPLAY_ID_NONE) {
+    return injectKey(dispatcher, AKEY_EVENT_ACTION_DOWN, /* repeatCount */ 0, displayId);
+}
+
+static int32_t injectMotionEvent(
+        const sp<InputDispatcher>& dispatcher, int32_t action, int32_t source, int32_t displayId,
+        const PointF& position,
+        const PointF& cursorPosition = {AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                        AMOTION_EVENT_INVALID_CURSOR_POSITION}) {
     MotionEvent event;
     PointerProperties pointerProperties[1];
     PointerCoords pointerCoords[1];
@@ -796,8 +900,8 @@ static int32_t injectMotionEvent(const sp<InputDispatcher>& dispatcher, int32_t 
     pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
 
     pointerCoords[0].clear();
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, x);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, y);
+    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, position.x);
+    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, position.y);
 
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
     // Define a valid motion down event.
@@ -806,7 +910,7 @@ static int32_t injectMotionEvent(const sp<InputDispatcher>& dispatcher, int32_t 
                      /* flags */ 0,
                      /* edgeFlags */ 0, AMETA_NONE, /* buttonState */ 0, MotionClassification::NONE,
                      /* xScale */ 1, /* yScale */ 1, /* xOffset */ 0, /* yOffset */ 0,
-                     /* xPrecision */ 0, /* yPrecision */ 0, xCursorPosition, yCursorPosition,
+                     /* xPrecision */ 0, /* yPrecision */ 0, cursorPosition.x, cursorPosition.y,
                      currentTime, currentTime,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
 
@@ -819,14 +923,12 @@ static int32_t injectMotionEvent(const sp<InputDispatcher>& dispatcher, int32_t 
 
 static int32_t injectMotionDown(const sp<InputDispatcher>& dispatcher, int32_t source,
                                 int32_t displayId, const PointF& location = {100, 200}) {
-    return injectMotionEvent(dispatcher, AMOTION_EVENT_ACTION_DOWN, source, displayId, location.x,
-                             location.y);
+    return injectMotionEvent(dispatcher, AMOTION_EVENT_ACTION_DOWN, source, displayId, location);
 }
 
 static int32_t injectMotionUp(const sp<InputDispatcher>& dispatcher, int32_t source,
                               int32_t displayId, const PointF& location = {100, 200}) {
-    return injectMotionEvent(dispatcher, AMOTION_EVENT_ACTION_UP, source, displayId, location.x,
-                             location.y);
+    return injectMotionEvent(dispatcher, AMOTION_EVENT_ACTION_UP, source, displayId, location);
 }
 
 static NotifyKeyArgs generateKeyArgs(int32_t action, int32_t displayId = ADISPLAY_ID_NONE) {
@@ -1051,7 +1153,7 @@ TEST_F(InputDispatcherTest, DispatchMouseEventsUnderCursor) {
     // left window. This event should be dispatched to the left window.
     ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
               injectMotionEvent(mDispatcher, AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_MOUSE,
-                                ADISPLAY_ID_DEFAULT, 610, 400, 599, 400));
+                                ADISPLAY_ID_DEFAULT, {610, 400}, {599, 400}));
     windowLeft->consumeMotionDown(ADISPLAY_ID_DEFAULT);
     windowRight->assertNoEvents();
 }
@@ -2183,6 +2285,84 @@ TEST_F(InputDispatcherMultiWindowSameTokenTests, MultipleWindowsFirstTouchWithSc
     mDispatcher->notifyMotion(&motionArgs);
 
     consumeMotionEvent(mWindow1, AMOTION_EVENT_ACTION_MOVE, expectedPoints);
+}
+
+class InputDispatcherSingleWindowAnr : public InputDispatcherTest {
+    virtual void SetUp() override {
+        InputDispatcherTest::SetUp();
+
+        mApplication = new FakeApplicationHandle();
+        mApplication->setDispatchingTimeout(20ms);
+        mWindow =
+                new FakeWindowHandle(mApplication, mDispatcher, "TestWindow", ADISPLAY_ID_DEFAULT);
+        mWindow->setFrame(Rect(0, 0, 30, 30));
+        mWindow->setDispatchingTimeout(10ms);
+        mWindow->setFocus(true);
+        // Adding FLAG_NOT_TOUCH_MODAL to ensure taps outside this window are not sent to this
+        // window.
+        mWindow->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL);
+
+        // Set focused application.
+        mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, mApplication);
+
+        mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow}}});
+        mWindow->consumeFocusEvent(true);
+    }
+
+    virtual void TearDown() override {
+        InputDispatcherTest::TearDown();
+        mWindow.clear();
+    }
+
+protected:
+    sp<FakeApplicationHandle> mApplication;
+    sp<FakeWindowHandle> mWindow;
+    static constexpr PointF WINDOW_LOCATION = {20, 20};
+
+    void tapOnWindow() {
+        ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+                  injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                                   WINDOW_LOCATION));
+        ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+                  injectMotionUp(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                                 WINDOW_LOCATION));
+    }
+};
+
+// Send an event to the app and have the app not respond right away.
+// Make sure that ANR is raised
+TEST_F(InputDispatcherSingleWindowAnr, OnPointerDown_BasicAnr) {
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               WINDOW_LOCATION));
+
+    // Also, overwhelm the socket to make sure ANR starts
+    for (size_t i = 0; i < 100; i++) {
+        injectMotionEvent(mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
+                          ADISPLAY_ID_DEFAULT, {WINDOW_LOCATION.x, WINDOW_LOCATION.y + i});
+    }
+
+    std::optional<uint32_t> sequenceNum = mWindow->receiveEvent(); // ACTION_DOWN
+    ASSERT_TRUE(sequenceNum);
+    const std::chrono::duration timeout = mWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
+    mFakePolicy->assertNotifyAnrWasCalled(timeout, nullptr /*application*/, mWindow->getToken());
+    ASSERT_TRUE(mDispatcher->waitForIdle());
+}
+
+// Send a key to the app and have the app not respond right away.
+TEST_F(InputDispatcherSingleWindowAnr, OnKeyDown_BasicAnr) {
+    // Inject a key, and don't respond - expect that ANR is called.
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher));
+    std::optional<uint32_t> sequenceNum = mWindow->receiveEvent();
+    ASSERT_TRUE(sequenceNum);
+
+    // Start ANR process by sending a 2nd key, which would trigger the check for whether
+    // waitQueue is empty
+    injectKey(mDispatcher, AKEY_EVENT_ACTION_DOWN, /* repeatCount */ 1);
+
+    const std::chrono::duration timeout = mWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
+    mFakePolicy->assertNotifyAnrWasCalled(timeout, mApplication, mWindow->getToken());
+    ASSERT_TRUE(mDispatcher->waitForIdle());
 }
 
 } // namespace android::inputdispatcher
