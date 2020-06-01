@@ -197,6 +197,11 @@ private:
     // All registered connections mapped by channel file descriptor.
     std::unordered_map<int, sp<Connection>> mConnectionsByFd GUARDED_BY(mLock);
 
+    sp<Connection> getConnectionLocked(const sp<IBinder>& inputConnectionToken) const
+            REQUIRES(mLock);
+
+    void removeConnectionLocked(const sp<Connection>& connection) REQUIRES(mLock);
+
     struct IBinderHash {
         std::size_t operator()(const sp<IBinder>& b) const {
             return std::hash<IBinder*>{}(b.get());
@@ -209,7 +214,6 @@ private:
     std::optional<int32_t> findGestureMonitorDisplayByTokenLocked(const sp<IBinder>& token)
             REQUIRES(mLock);
 
-    sp<Connection> getConnectionLocked(const sp<IBinder>& inputConnectionToken) REQUIRES(mLock);
 
     // Input channels that will receive a copy of all input events sent to the provided display.
     std::unordered_map<int32_t, std::vector<Monitor>> mGlobalMonitorsByDisplay GUARDED_BY(mLock);
