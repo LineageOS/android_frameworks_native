@@ -41,9 +41,8 @@ std::unique_ptr<RenderEngine> RenderEngine::create(const RenderEngineCreationArg
     switch (renderEngineType) {
         case RenderEngineType::THREADED:
             ALOGD("Threaded RenderEngine with GLES Backend");
-            return renderengine::threaded::RenderEngineThreaded::create([&args]() {
-                return android::renderengine::gl::GLESRenderEngine::create(args);
-            });
+            return renderengine::threaded::RenderEngineThreaded::create(
+                    [args]() { return android::renderengine::gl::GLESRenderEngine::create(args); });
         case RenderEngineType::GLES:
         default:
             ALOGD("RenderEngine with GLES Backend");
