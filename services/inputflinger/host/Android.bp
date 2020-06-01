@@ -21,6 +21,7 @@ cc_library_shared {
         "InputHost.cpp",
     ],
 
+    header_libs: ["jni_headers"],
     shared_libs: [
         "libbinder",
         "libcrypto",
@@ -42,6 +43,7 @@ cc_library_shared {
         //-fvisibility=hidden
     ],
 
+    export_header_lib_headers: ["jni_headers"],
     export_include_dirs: ["."],
 }
 
