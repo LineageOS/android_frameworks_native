@@ -83,6 +83,8 @@ struct EventEntry {
 
     virtual void appendDescription(std::string& msg) const = 0;
 
+    std::string getDescription() const;
+
 protected:
     EventEntry(int32_t id, Type type, nsecs_t eventTime, uint32_t policyFlags);
     virtual ~EventEntry();
