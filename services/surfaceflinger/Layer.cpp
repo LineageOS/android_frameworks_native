@@ -119,6 +119,13 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.treeHasFrameRateVote = false;
     mCurrentState.fixedTransformHint = ui::Transform::ROT_INVALID;
 
+    if (args.flags & ISurfaceComposerClient::eNoColorFill) {
+        // Set an invalid color so there is no color fill.
+        mCurrentState.color.r = -1.0_hf;
+        mCurrentState.color.g = -1.0_hf;
+        mCurrentState.color.b = -1.0_hf;
+    }
+
     // drawing state & current state are identical
     mDrawingState = mCurrentState;
 
