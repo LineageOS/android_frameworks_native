@@ -44,6 +44,18 @@ namespace vibrator {
 // -------------------------------------------------------------------------------------------------
 
 template <class T>
+HalResult<T> loadCached(const std::function<HalResult<T>()>& loadFn, std::optional<T>& cache) {
+    if (cache.has_value()) {
+        return HalResult<T>::ok(cache.value());
+    }
+    HalResult<T> ret = loadFn();
+    if (ret.isOk()) {
+        cache.emplace(ret.value());
+    }
+    return ret;
+}
+
+template <class T>
 bool isStaticCastValid(Effect effect) {
     T castEffect = static_cast<T>(effect);
     auto iter = hardware::hidl_enum_range<T>();
@@ -214,15 +226,23 @@ HalResult<void> AidlHalWrapper::alwaysOnDisable(int32_t id) {
 }
 
 HalResult<Capabilities> AidlHalWrapper::getCapabilities() {
-    int32_t capabilities = 0;
-    auto result = mHandle->getCapabilities(&capabilities);
-    return HalResult<Capabilities>::fromStatus(result, static_cast<Capabilities>(capabilities));
+    std::lock_guard<std::mutex> lock(mCapabilitiesMutex);
+    static auto loadFn = [this]() {
+        int32_t capabilities = 0;
+        auto result = mHandle->getCapabilities(&capabilities);
+        return HalResult<Capabilities>::fromStatus(result, static_cast<Capabilities>(capabilities));
+    };
+    return loadCached<Capabilities>(loadFn, mCapabilities);
 }
 
 HalResult<std::vector<Effect>> AidlHalWrapper::getSupportedEffects() {
-    std::vector<Effect> supportedEffects;
-    auto result = mHandle->getSupportedEffects(&supportedEffects);
-    return HalResult<std::vector<Effect>>::fromStatus(result, supportedEffects);
+    std::lock_guard<std::mutex> lock(mSupportedEffectsMutex);
+    static auto loadFn = [this]() {
+        std::vector<Effect> supportedEffects;
+        auto result = mHandle->getSupportedEffects(&supportedEffects);
+        return HalResult<std::vector<Effect>>::fromStatus(result, supportedEffects);
+    };
+    return loadCached<std::vector<Effect>>(loadFn, mSupportedEffects);
 }
 
 HalResult<milliseconds> AidlHalWrapper::performEffect(
@@ -279,10 +299,9 @@ HalResult<void> HidlHalWrapperV1_0::alwaysOnDisable(int32_t) {
 }
 
 HalResult<Capabilities> HidlHalWrapperV1_0::getCapabilities() {
-    hardware::Return<bool> result = mHandleV1_0->supportsAmplitudeControl();
-    Capabilities capabilities =
-            result.withDefault(false) ? Capabilities::AMPLITUDE_CONTROL : Capabilities::NONE;
-    return HalResult<Capabilities>::fromReturn(result, capabilities);
+    std::lock_guard<std::mutex> lock(mCapabilitiesMutex);
+    return loadCached<Capabilities>(std::bind(&HidlHalWrapperV1_0::getCapabilitiesInternal, this),
+                                    mCapabilities);
 }
 
 HalResult<std::vector<Effect>> HidlHalWrapperV1_0::getSupportedEffects() {
@@ -306,6 +325,13 @@ HalResult<void> HidlHalWrapperV1_0::performComposedEffect(const std::vector<Comp
                                                           const std::function<void()>&) {
     ALOGV("Skipped composed effect because Vibrator HAL AIDL is not available");
     return HalResult<void>::unsupported();
+}
+
+HalResult<Capabilities> HidlHalWrapperV1_0::getCapabilitiesInternal() {
+    hardware::Return<bool> result = mHandleV1_0->supportsAmplitudeControl();
+    Capabilities capabilities =
+            result.withDefault(false) ? Capabilities::AMPLITUDE_CONTROL : Capabilities::NONE;
+    return HalResult<Capabilities>::fromReturn(result, capabilities);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -355,19 +381,6 @@ HalResult<void> HidlHalWrapperV1_3::setExternalControl(bool enabled) {
     return HalResult<void>::fromStatus(result.withDefault(V1_0::Status::UNKNOWN_ERROR));
 }
 
-HalResult<Capabilities> HidlHalWrapperV1_3::getCapabilities() {
-    HalResult<Capabilities> parentResult = HidlHalWrapperV1_2::getCapabilities();
-    if (!parentResult.isOk()) {
-        // Loading for versions up to v1.2 already failed, so propagate failure.
-        return parentResult;
-    }
-
-    Capabilities capabilities = parentResult.value();
-    auto result = mHandleV1_3->supportsExternalControl();
-    capabilities |= result.withDefault(false) ? Capabilities::EXTERNAL_CONTROL : Capabilities::NONE;
-    return HalResult<Capabilities>::fromReturn(result, capabilities);
-}
-
 HalResult<milliseconds> HidlHalWrapperV1_3::performEffect(Effect effect, EffectStrength strength,
                                                           const std::function<void()>&) {
     if (isStaticCastValid<V1_0::Effect>(effect)) {
@@ -390,6 +403,19 @@ HalResult<milliseconds> HidlHalWrapperV1_3::performEffect(Effect effect, EffectS
     ALOGV("Skipped performEffect because Vibrator HAL does not support effect %s",
           Aidl::toString(effect).c_str());
     return HalResult<milliseconds>::unsupported();
+}
+
+HalResult<Capabilities> HidlHalWrapperV1_3::getCapabilitiesInternal() {
+    HalResult<Capabilities> parentResult = HidlHalWrapperV1_2::getCapabilitiesInternal();
+    if (!parentResult.isOk()) {
+        // Loading for previous HAL versions already failed, so propagate failure.
+        return parentResult;
+    }
+
+    Capabilities capabilities = parentResult.value();
+    auto result = mHandleV1_3->supportsExternalControl();
+    capabilities |= result.withDefault(false) ? Capabilities::EXTERNAL_CONTROL : Capabilities::NONE;
+    return HalResult<Capabilities>::fromReturn(result, capabilities);
 }
 
 // -------------------------------------------------------------------------------------------------
