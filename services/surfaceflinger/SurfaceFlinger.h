@@ -628,6 +628,12 @@ private:
     uint32_t peekTransactionFlags();
     // Can only be called from the main thread or with mStateLock held
     uint32_t setTransactionFlags(uint32_t flags);
+    // Set the transaction flags, but don't trigger a wakeup! We use this cases where
+    // there are still pending transactions but we know they won't be ready until a frame
+    // arrives from a different layer. So we need to ensure we performTransaction from invalidate
+    // but there is no need to try and wake up immediately to do it. Rather we rely on
+    // onFrameAvailable to wake us up.
+    uint32_t setTransactionFlagsNoWake(uint32_t flags);
     uint32_t setTransactionFlags(uint32_t flags, Scheduler::TransactionStart transactionStart);
     void commitTransaction() REQUIRES(mStateLock);
     void commitOffscreenLayers();
