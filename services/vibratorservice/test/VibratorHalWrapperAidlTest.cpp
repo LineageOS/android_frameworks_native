@@ -22,6 +22,7 @@
 #include <gtest/gtest.h>
 
 #include <utils/Log.h>
+#include <thread>
 
 #include <vibratorservice/VibratorHalWrapper.h>
 
@@ -243,38 +244,76 @@ TEST_F(VibratorHalWrapperAidlTest, TestAlwaysOnDisable) {
     ASSERT_TRUE(mWrapper->alwaysOnDisable(3).isFailed());
 }
 
-TEST_F(VibratorHalWrapperAidlTest, TestGetCapabilities) {
+TEST_F(VibratorHalWrapperAidlTest, TestGetCapabilitiesDoesNotCacheFailedResult) {
     EXPECT_CALL(*mMockHal.get(), getCapabilities(_))
             .Times(Exactly(3))
-            .WillOnce(DoAll(SetArgPointee<0>(IVibrator::CAP_ON_CALLBACK), Return(Status())))
             .WillOnce(
                     Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)))
-            .WillRepeatedly(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)));
+            .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
+            .WillRepeatedly(DoAll(SetArgPointee<0>(IVibrator::CAP_ON_CALLBACK), Return(Status())));
+
+    ASSERT_TRUE(mWrapper->getCapabilities().isUnsupported());
+    ASSERT_TRUE(mWrapper->getCapabilities().isFailed());
 
     auto result = mWrapper->getCapabilities();
     ASSERT_TRUE(result.isOk());
     ASSERT_EQ(vibrator::Capabilities::ON_CALLBACK, result.value());
-    ASSERT_TRUE(mWrapper->getCapabilities().isUnsupported());
-    ASSERT_TRUE(mWrapper->getCapabilities().isFailed());
 }
 
-TEST_F(VibratorHalWrapperAidlTest, TestGetSupportedEffects) {
+TEST_F(VibratorHalWrapperAidlTest, TestGetCapabilitiesCachesResult) {
+    EXPECT_CALL(*mMockHal.get(), getCapabilities(_))
+            .Times(Exactly(1))
+            .WillRepeatedly(DoAll(SetArgPointee<0>(IVibrator::CAP_ON_CALLBACK), Return(Status())));
+
+    std::vector<std::thread> threads;
+    for (int i = 0; i < 10; i++) {
+        threads.push_back(std::thread([&]() {
+            auto result = mWrapper->getCapabilities();
+            ASSERT_TRUE(result.isOk());
+            ASSERT_EQ(vibrator::Capabilities::ON_CALLBACK, result.value());
+        }));
+    }
+    std::for_each(threads.begin(), threads.end(), [](std::thread& t) { t.join(); });
+}
+
+TEST_F(VibratorHalWrapperAidlTest, TestGetSupportedEffectsDoesNotCacheFailedResult) {
     std::vector<Effect> supportedEffects;
     supportedEffects.push_back(Effect::CLICK);
     supportedEffects.push_back(Effect::TICK);
 
     EXPECT_CALL(*mMockHal.get(), getSupportedEffects(_))
             .Times(Exactly(3))
-            .WillOnce(DoAll(SetArgPointee<0>(supportedEffects), Return(Status())))
             .WillOnce(
                     Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)))
-            .WillRepeatedly(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)));
+            .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
+            .WillRepeatedly(DoAll(SetArgPointee<0>(supportedEffects), Return(Status())));
+
+    ASSERT_TRUE(mWrapper->getSupportedEffects().isUnsupported());
+    ASSERT_TRUE(mWrapper->getSupportedEffects().isFailed());
 
     auto result = mWrapper->getSupportedEffects();
     ASSERT_TRUE(result.isOk());
     ASSERT_EQ(supportedEffects, result.value());
-    ASSERT_TRUE(mWrapper->getSupportedEffects().isUnsupported());
-    ASSERT_TRUE(mWrapper->getSupportedEffects().isFailed());
+}
+
+TEST_F(VibratorHalWrapperAidlTest, TestGetSupportedEffectsCachesResult) {
+    std::vector<Effect> supportedEffects;
+    supportedEffects.push_back(Effect::CLICK);
+    supportedEffects.push_back(Effect::TICK);
+
+    EXPECT_CALL(*mMockHal.get(), getSupportedEffects(_))
+            .Times(Exactly(1))
+            .WillRepeatedly(DoAll(SetArgPointee<0>(supportedEffects), Return(Status())));
+
+    std::vector<std::thread> threads;
+    for (int i = 0; i < 10; i++) {
+        threads.push_back(std::thread([&]() {
+            auto result = mWrapper->getSupportedEffects();
+            ASSERT_TRUE(result.isOk());
+            ASSERT_EQ(supportedEffects, result.value());
+        }));
+    }
+    std::for_each(threads.begin(), threads.end(), [](std::thread& t) { t.join(); });
 }
 
 TEST_F(VibratorHalWrapperAidlTest, TestPerformEffect) {

@@ -22,6 +22,7 @@
 #include <gtest/gtest.h>
 
 #include <utils/Log.h>
+#include <thread>
 
 #include <vibratorservice/VibratorHalWrapper.h>
 
@@ -186,29 +187,48 @@ TEST_F(VibratorHalWrapperHidlV1_0Test, TestAlwaysOnDisableUnsupported) {
     ASSERT_TRUE(mWrapper->alwaysOnDisable(1).isUnsupported());
 }
 
-TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetCapabilities) {
+TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetCapabilitiesDoesNotCacheFailedResult) {
     EXPECT_CALL(*mMockHal.get(), supportsAmplitudeControl())
-            .Times(Exactly(3))
-            .WillOnce([]() { return hardware::Return<bool>(true); })
-            .WillOnce([]() { return hardware::Return<bool>(false); })
-            .WillRepeatedly([]() {
+            .Times(Exactly(2))
+            .WillOnce([]() {
                 return hardware::Return<bool>(hardware::Status::fromExceptionCode(-1));
-            });
+            })
+            .WillRepeatedly([]() { return hardware::Return<bool>(true); });
 
-    // Amplitude control enabled.
+    ASSERT_TRUE(mWrapper->getCapabilities().isFailed());
+
     auto result = mWrapper->getCapabilities();
     ASSERT_TRUE(result.isOk());
     ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL, result.value());
-
-    // Amplitude control disabled.
-    result = mWrapper->getCapabilities();
-    ASSERT_TRUE(result.isOk());
-    ASSERT_EQ(vibrator::Capabilities::NONE, result.value());
-
-    ASSERT_TRUE(mWrapper->getCapabilities().isFailed());
 }
 
-TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetSupportedEffects) {
+TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetCapabilitiesWithoutAmplitudeControl) {
+    EXPECT_CALL(*mMockHal.get(), supportsAmplitudeControl()).Times(Exactly(1)).WillRepeatedly([]() {
+        return hardware::Return<bool>(false);
+    });
+
+    auto result = mWrapper->getCapabilities();
+    ASSERT_TRUE(result.isOk());
+    ASSERT_EQ(vibrator::Capabilities::NONE, result.value());
+}
+
+TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetCapabilitiesCachesResult) {
+    EXPECT_CALL(*mMockHal.get(), supportsAmplitudeControl()).Times(Exactly(1)).WillRepeatedly([]() {
+        return hardware::Return<bool>(true);
+    });
+
+    std::vector<std::thread> threads;
+    for (int i = 0; i < 10; i++) {
+        threads.push_back(std::thread([&]() {
+            auto result = mWrapper->getCapabilities();
+            ASSERT_TRUE(result.isOk());
+            ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL, result.value());
+        }));
+    }
+    std::for_each(threads.begin(), threads.end(), [](std::thread& t) { t.join(); });
+}
+
+TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetSupportedEffectsUnsupported) {
     ASSERT_TRUE(mWrapper->getSupportedEffects().isUnsupported());
 }
 
