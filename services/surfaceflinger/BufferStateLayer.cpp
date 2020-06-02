@@ -283,7 +283,8 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence
     desiredPresentTime = desiredPresentTime <= 0 ? 0 : desiredPresentTime;
     mCurrentState.desiredPresentTime = desiredPresentTime;
 
-    mFlinger->mScheduler->recordLayerHistory(this, desiredPresentTime);
+    mFlinger->mScheduler->recordLayerHistory(this, desiredPresentTime,
+                                             LayerHistory::LayerUpdateType::Buffer);
 
     addFrameEvent(acquireFence, postTime, desiredPresentTime);
     return true;
