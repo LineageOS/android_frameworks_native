@@ -40,21 +40,11 @@ void quantizeSensorEventValues(sensors_event_t *event, float resolution) {
     switch ((SensorTypeV2_1)event->type) {
         case SensorTypeV2_1::ACCELEROMETER:
         case SensorTypeV2_1::MAGNETIC_FIELD:
-        case SensorTypeV2_1::ORIENTATION:
         case SensorTypeV2_1::GYROSCOPE:
-        case SensorTypeV2_1::GRAVITY:
-        case SensorTypeV2_1::LINEAR_ACCELERATION:
         case SensorTypeV2_1::MAGNETIC_FIELD_UNCALIBRATED:
         case SensorTypeV2_1::GYROSCOPE_UNCALIBRATED:
         case SensorTypeV2_1::ACCELEROMETER_UNCALIBRATED:
             axes = 3;
-            break;
-        case SensorTypeV2_1::GAME_ROTATION_VECTOR:
-            axes = 4;
-            break;
-        case SensorTypeV2_1::ROTATION_VECTOR:
-        case SensorTypeV2_1::GEOMAGNETIC_ROTATION_VECTOR:
-            axes = 5;
             break;
         case SensorTypeV2_1::DEVICE_ORIENTATION:
         case SensorTypeV2_1::LIGHT:
@@ -77,11 +67,8 @@ void quantizeSensorEventValues(sensors_event_t *event, float resolution) {
         case SensorTypeV2_1::HINGE_ANGLE:
             axes = 1;
             break;
-        case SensorTypeV2_1::POSE_6DOF:
-            axes = 15;
-            break;
         default:
-            // No other sensors have data that needs to be rounded.
+            // No other sensors have data that needs to be quantized.
             break;
     }
 
