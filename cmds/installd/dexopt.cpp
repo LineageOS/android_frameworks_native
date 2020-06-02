@@ -336,6 +336,10 @@ class RunDex2Oat : public ExecVHelper {
                 ? "dalvik.vm.dex2oat-threads"
                 : "dalvik.vm.boot-dex2oat-threads";
         std::string dex2oat_threads_arg = MapPropertyToArg(threads_property, "-j%s");
+        const char* cpu_set_property = post_bootcomplete
+                ? "dalvik.vm.dex2oat-cpu-set"
+                : "dalvik.vm.boot-dex2oat-cpu-set";
+        std::string dex2oat_cpu_set_arg = MapPropertyToArg(cpu_set_property, "--cpu-set=%s");
 
         std::string bootclasspath;
         char* dex2oat_bootclasspath = getenv("DEX2OATBOOTCLASSPATH");
@@ -507,6 +511,7 @@ class RunDex2Oat : public ExecVHelper {
         AddArg(image_block_size_arg);
         AddArg(dex2oat_compiler_filter_arg);
         AddArg(dex2oat_threads_arg);
+        AddArg(dex2oat_cpu_set_arg);
         AddArg(dex2oat_swap_fd);
         AddArg(dex2oat_image_fd);
 

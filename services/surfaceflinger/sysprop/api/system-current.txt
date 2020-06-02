@@ -17,6 +17,7 @@ package android.sysprop {
     method public static java.util.Optional<java.lang.Long> max_virtual_display_dimension();
     method public static java.util.Optional<java.lang.Long> present_time_offset_from_vsync_ns();
     method public static java.util.Optional<android.sysprop.SurfaceFlingerProperties.primary_display_orientation_values> primary_display_orientation();
+    method public static java.util.Optional<java.lang.Boolean> refresh_rate_switching();
     method public static java.util.Optional<java.lang.Boolean> running_without_sync_framework();
     method public static java.util.Optional<java.lang.Integer> set_display_power_timer_ms();
     method public static java.util.Optional<java.lang.Integer> set_idle_timer_ms();

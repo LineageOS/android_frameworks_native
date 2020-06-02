@@ -139,12 +139,8 @@ static const std::string getSystemNativeLibraries(NativeLibrary type) {
     return env;
 }
 
-int GraphicsEnv::getCanLoadSystemLibraries() {
-    if (property_get_bool("ro.debuggable", false) && prctl(PR_GET_DUMPABLE, 0, 0, 0, 0)) {
-        // Return an integer value since this crosses library boundaries
-        return 1;
-    }
-    return 0;
+bool GraphicsEnv::isDebuggable() {
+    return prctl(PR_GET_DUMPABLE, 0, 0, 0, 0) > 0;
 }
 
 void GraphicsEnv::setDriverPathAndSphalLibraries(const std::string path,

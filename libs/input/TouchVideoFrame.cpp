@@ -42,13 +42,13 @@ const struct timeval& TouchVideoFrame::getTimestamp() const { return mTimestamp;
 void TouchVideoFrame::rotate(int32_t orientation) {
     switch (orientation) {
         case DISPLAY_ORIENTATION_90:
-            rotateQuarterTurn(true /*clockwise*/);
+            rotateQuarterTurn(false /*clockwise*/);
             break;
         case DISPLAY_ORIENTATION_180:
             rotate180();
             break;
         case DISPLAY_ORIENTATION_270:
-            rotateQuarterTurn(false /*clockwise*/);
+            rotateQuarterTurn(true /*clockwise*/);
             break;
     }
 }
