@@ -1399,7 +1399,8 @@ bool Layer::setFrameRate(FrameRate frameRate) {
     }
 
     // Activate the layer in Scheduler's LayerHistory
-    mFlinger->mScheduler->recordLayerHistory(this, systemTime());
+    mFlinger->mScheduler->recordLayerHistory(this, systemTime(),
+                                             LayerHistory::LayerUpdateType::SetFrameRate);
 
     mCurrentState.sequence++;
     mCurrentState.frameRate = frameRate;

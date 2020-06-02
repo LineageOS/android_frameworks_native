@@ -79,7 +79,8 @@ void LayerHistory::registerLayer(Layer* layer, float lowRefreshRate, float highR
     mLayerInfos.emplace_back(layer, std::move(info));
 }
 
-void LayerHistory::record(Layer* layer, nsecs_t presentTime, nsecs_t now) {
+void LayerHistory::record(Layer* layer, nsecs_t presentTime, nsecs_t now,
+                          LayerUpdateType /*updateType*/) {
     std::lock_guard lock(mLock);
 
     const auto it = std::find_if(mLayerInfos.begin(), mLayerInfos.end(),

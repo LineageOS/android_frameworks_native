@@ -99,7 +99,8 @@ void LayerHistoryV2::registerLayer(Layer* layer, float /*lowRefreshRate*/, float
     mLayerInfos.emplace_back(layer, std::move(info));
 }
 
-void LayerHistoryV2::record(Layer* layer, nsecs_t presentTime, nsecs_t now) {
+void LayerHistoryV2::record(Layer* layer, nsecs_t presentTime, nsecs_t now,
+                            LayerUpdateType updateType) {
     std::lock_guard lock(mLock);
 
     const auto it = std::find_if(mLayerInfos.begin(), mLayerInfos.end(),
@@ -107,7 +108,7 @@ void LayerHistoryV2::record(Layer* layer, nsecs_t presentTime, nsecs_t now) {
     LOG_FATAL_IF(it == mLayerInfos.end(), "%s: unknown layer %p", __FUNCTION__, layer);
 
     const auto& info = it->second;
-    info->setLastPresentTime(presentTime, now, mConfigChangePending);
+    info->setLastPresentTime(presentTime, now, updateType, mConfigChangePending);
 
     // Activate layer if inactive.
     if (const auto end = activeLayers().end(); it >= end) {
