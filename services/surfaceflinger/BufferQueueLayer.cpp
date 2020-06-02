@@ -31,6 +31,7 @@
 #include "SurfaceInterceptor.h"
 
 #include "FrameTracer/FrameTracer.h"
+#include "Scheduler/LayerHistory.h"
 #include "TimeStats/TimeStats.h"
 
 namespace android {
@@ -399,7 +400,8 @@ void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
     // Add this buffer from our internal queue tracker
     { // Autolock scope
         const nsecs_t presentTime = item.mIsAutoTimestamp ? 0 : item.mTimestamp;
-        mFlinger->mScheduler->recordLayerHistory(this, presentTime);
+        mFlinger->mScheduler->recordLayerHistory(this, presentTime,
+                                                 LayerHistory::LayerUpdateType::Buffer);
 
         Mutex::Autolock lock(mQueueItemLock);
         // Reset the frame number tracker when we receive the first buffer after

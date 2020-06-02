@@ -417,9 +417,10 @@ void Scheduler::registerLayer(Layer* layer) {
     }
 }
 
-void Scheduler::recordLayerHistory(Layer* layer, nsecs_t presentTime) {
+void Scheduler::recordLayerHistory(Layer* layer, nsecs_t presentTime,
+                                   LayerHistory::LayerUpdateType updateType) {
     if (mLayerHistory) {
-        mLayerHistory->record(layer, presentTime, systemTime());
+        mLayerHistory->record(layer, presentTime, systemTime(), updateType);
     }
 }
 
