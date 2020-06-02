@@ -96,14 +96,14 @@ TEST_F(LayerHistoryTest, oneLayer) {
 
     // no layers are returned if active layers have insufficient history.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE - 1; i++) {
-        history().record(layer.get(), 0, mTime);
+        history().record(layer.get(), 0, mTime, LayerHistory::LayerUpdateType::Buffer);
         ASSERT_TRUE(history().summarize(mTime).empty());
         EXPECT_EQ(1, activeLayerCount());
     }
 
     // High FPS is returned once enough history has been recorded.
     for (int i = 0; i < 10; i++) {
-        history().record(layer.get(), 0, mTime);
+        history().record(layer.get(), 0, mTime, LayerHistory::LayerUpdateType::Buffer);
         ASSERT_EQ(1, history().summarize(mTime).size());
         EXPECT_FLOAT_EQ(HI_FPS, history().summarize(mTime)[0].desiredRefreshRate);
         EXPECT_EQ(1, activeLayerCount());
@@ -121,7 +121,7 @@ TEST_F(LayerHistoryTest, explicitTimestamp) {
 
     nsecs_t time = mTime;
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer.get(), time, time);
+        history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
         time += LO_FPS_PERIOD;
     }
 
@@ -155,7 +155,7 @@ TEST_F(LayerHistoryTest, multipleLayers) {
 
     // layer1 is active but infrequent.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer1.get(), time, time);
+        history().record(layer1.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
         time += MAX_FREQUENT_LAYER_PERIOD_NS.count();
     }
 
@@ -166,12 +166,12 @@ TEST_F(LayerHistoryTest, multipleLayers) {
 
     // layer2 is frequent and has high refresh rate.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer2.get(), time, time);
+        history().record(layer2.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
         time += HI_FPS_PERIOD;
     }
 
     // layer1 is still active but infrequent.
-    history().record(layer1.get(), time, time);
+    history().record(layer1.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
 
     ASSERT_EQ(2, history().summarize(time).size());
     EXPECT_FLOAT_EQ(LO_FPS, history().summarize(time)[0].desiredRefreshRate);
@@ -182,7 +182,7 @@ TEST_F(LayerHistoryTest, multipleLayers) {
     // layer1 is no longer active.
     // layer2 is frequent and has low refresh rate.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer2.get(), time, time);
+        history().record(layer2.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
         time += LO_FPS_PERIOD;
     }
 
@@ -196,10 +196,10 @@ TEST_F(LayerHistoryTest, multipleLayers) {
     constexpr int RATIO = LO_FPS_PERIOD / HI_FPS_PERIOD;
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE - 1; i++) {
         if (i % RATIO == 0) {
-            history().record(layer2.get(), time, time);
+            history().record(layer2.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
         }
 
-        history().record(layer3.get(), time, time);
+        history().record(layer3.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
         time += HI_FPS_PERIOD;
     }
 
@@ -209,7 +209,7 @@ TEST_F(LayerHistoryTest, multipleLayers) {
     EXPECT_EQ(2, frequentLayerCount(time));
 
     // layer3 becomes recently active.
-    history().record(layer3.get(), time, time);
+    history().record(layer3.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
     ASSERT_EQ(2, history().summarize(time).size());
     EXPECT_FLOAT_EQ(LO_FPS, history().summarize(time)[0].desiredRefreshRate);
     EXPECT_FLOAT_EQ(HI_FPS, history().summarize(time)[1].desiredRefreshRate);
@@ -228,7 +228,7 @@ TEST_F(LayerHistoryTest, multipleLayers) {
     // layer2 still has low refresh rate.
     // layer3 becomes inactive.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer2.get(), time, time);
+        history().record(layer2.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
         time += LO_FPS_PERIOD;
     }
 
@@ -246,7 +246,7 @@ TEST_F(LayerHistoryTest, multipleLayers) {
 
     // layer3 becomes active and has high refresh rate.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer3.get(), time, time);
+        history().record(layer3.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
         time += HI_FPS_PERIOD;
     }
 
