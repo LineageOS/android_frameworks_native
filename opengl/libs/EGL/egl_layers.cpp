@@ -337,7 +337,7 @@ void LayerLoader::LoadLayers() {
 
     // Only enable the system search path for non-user builds
     std::string system_path;
-    if (property_get_bool("ro.debuggable", false) && prctl(PR_GET_DUMPABLE, 0, 0, 0, 0)) {
+    if (android::GraphicsEnv::getInstance().isDebuggable()) {
         system_path = kSystemLayerLibraryDir;
     }
 
