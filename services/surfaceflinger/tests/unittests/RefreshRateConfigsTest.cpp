@@ -43,6 +43,14 @@ protected:
     RefreshRateConfigsTest();
     ~RefreshRateConfigsTest();
 
+    float findClosestKnownFrameRate(const RefreshRateConfigs& refreshRateConfigs, float frameRate) {
+        return refreshRateConfigs.findClosestKnownFrameRate(frameRate);
+    }
+
+    std::vector<float> getKnownFrameRate(const RefreshRateConfigs& refreshRateConfigs) {
+        return refreshRateConfigs.mKnownFrameRates;
+    }
+
     // Test config IDs
     static inline const HwcConfigIndexType HWC_CONFIG_ID_60 = HwcConfigIndexType(0);
     static inline const HwcConfigIndexType HWC_CONFIG_ID_90 = HwcConfigIndexType(1);
@@ -902,8 +910,7 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_24FpsVideo) {
         const auto& refreshRate =
                 refreshRateConfigs->getBestRefreshRate(layers, /*touchActive*/ false,
                                                        /*idle*/ false, &ignored);
-        printf("%.2fHz chooses %s\n", fps, refreshRate.getName().c_str());
-        EXPECT_EQ(mExpected60Config, refreshRate);
+        EXPECT_EQ(mExpected60Config, refreshRate) << fps << "Hz chooses " << refreshRate.getName();
     }
 }
 
@@ -989,8 +996,7 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_75HzContent) {
         const auto& refreshRate =
                 refreshRateConfigs->getBestRefreshRate(layers, /*touchActive*/ false,
                                                        /*idle*/ false, &ignored);
-        printf("%.2fHz chooses %s\n", fps, refreshRate.getName().c_str());
-        EXPECT_EQ(mExpected90Config, refreshRate);
+        EXPECT_EQ(mExpected90Config, refreshRate) << fps << "Hz chooses " << refreshRate.getName();
     }
 }
 
@@ -1454,6 +1460,73 @@ TEST_F(RefreshRateConfigsTest, idle) {
                       ->getBestRefreshRate({}, /*touchActive=*/false, /*idle=*/true,
                                            &touchConsidered)
                       .getConfigId());
+}
+
+TEST_F(RefreshRateConfigsTest, findClosestKnownFrameRate) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m60_90Device,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    for (float fps = 1.0f; fps <= 120.0f; fps += 0.1f) {
+        const auto knownFrameRate = findClosestKnownFrameRate(*refreshRateConfigs, fps);
+        float expectedFrameRate;
+        if (fps < 26.91f) {
+            expectedFrameRate = 24.0f;
+        } else if (fps < 37.51f) {
+            expectedFrameRate = 30.0f;
+        } else if (fps < 52.51f) {
+            expectedFrameRate = 45.0f;
+        } else if (fps < 66.01f) {
+            expectedFrameRate = 60.0f;
+        } else if (fps < 81.01f) {
+            expectedFrameRate = 72.0f;
+        } else {
+            expectedFrameRate = 90.0f;
+        }
+        EXPECT_FLOAT_EQ(expectedFrameRate, knownFrameRate)
+                << "findClosestKnownFrameRate(" << fps << ") = " << knownFrameRate;
+    }
+}
+
+TEST_F(RefreshRateConfigsTest, getBestRefreshRate_KnownFrameRate) {
+    bool ignored;
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m60_90Device,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    struct ExpectedRate {
+        float rate;
+        const RefreshRate& expected;
+    };
+
+    /* clang-format off */
+    std::vector<ExpectedRate> knownFrameRatesExpectations = {
+        {24.0f, mExpected60Config},
+        {30.0f, mExpected60Config},
+        {45.0f, mExpected90Config},
+        {60.0f, mExpected60Config},
+        {72.0f, mExpected90Config},
+        {90.0f, mExpected90Config},
+    };
+    /* clang-format on */
+
+    // Make sure the test tests all the known frame rate
+    const auto knownFrameRateList = getKnownFrameRate(*refreshRateConfigs);
+    const auto equal = std::equal(knownFrameRateList.begin(), knownFrameRateList.end(),
+                                  knownFrameRatesExpectations.begin(),
+                                  [](float a, const ExpectedRate& b) { return a == b.rate; });
+    EXPECT_TRUE(equal);
+
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
+    auto& layer = layers[0];
+    layer.vote = LayerVoteType::Heuristic;
+    for (const auto& expectedRate : knownFrameRatesExpectations) {
+        layer.desiredRefreshRate = expectedRate.rate;
+        const auto& refreshRate = refreshRateConfigs->getBestRefreshRate(layers,
+                                                                         /*touchActive*/ false,
+                                                                         /*idle*/ false, &ignored);
+        EXPECT_EQ(expectedRate.expected, refreshRate);
+    }
 }
 
 } // namespace

@@ -56,6 +56,10 @@ class LayerInfoV2 {
     friend class LayerHistoryTestV2;
 
 public:
+    static void setRefreshRateConfigs(const RefreshRateConfigs& refreshRateConfigs) {
+        sRefreshRateConfigs = &refreshRateConfigs;
+    }
+
     LayerInfoV2(const std::string& name, nsecs_t highRefreshRatePeriod,
                 LayerHistory::LayerVoteType defaultVote);
 
@@ -93,7 +97,7 @@ public:
         // posting infrequent updates.
         const auto timePoint = std::chrono::nanoseconds(now);
         mFrameTimeValidSince = std::chrono::time_point<std::chrono::steady_clock>(timePoint);
-        mLastReportedRefreshRate = 0.0f;
+        mLastRefreshRate = {};
     }
 
     void clearHistory(nsecs_t now) {
@@ -127,7 +131,13 @@ private:
 
     nsecs_t mLastAnimationTime = 0;
 
-    float mLastReportedRefreshRate = 0.0f;
+    // Holds information about the calculated and reported refresh rate
+    struct RefreshRateHeuristicData {
+        float calculated = 0.0f; // Rate calculated on the layer
+        float reported = 0.0f;   // Last reported rate for LayerInfoV2::getRefreshRate()
+    };
+
+    RefreshRateHeuristicData mLastRefreshRate;
 
     // Holds information about the layer vote
     struct {
@@ -140,6 +150,9 @@ private:
             std::chrono::steady_clock::now();
     static constexpr size_t HISTORY_SIZE = 90;
     static constexpr std::chrono::nanoseconds HISTORY_TIME = 1s;
+
+    // Shared for all LayerInfo instances
+    static const RefreshRateConfigs* sRefreshRateConfigs;
 };
 
 } // namespace scheduler

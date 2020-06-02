@@ -27,6 +27,8 @@
 
 namespace android::scheduler {
 
+const RefreshRateConfigs* LayerInfoV2::sRefreshRateConfigs = nullptr;
+
 LayerInfoV2::LayerInfoV2(const std::string& name, nsecs_t highRefreshRatePeriod,
                          LayerHistory::LayerVoteType defaultVote)
       : mName(name),
@@ -168,7 +170,6 @@ bool LayerInfoV2::isRefreshRateStable(nsecs_t averageFrameTime, bool missingPres
 
 std::optional<float> LayerInfoV2::calculateRefreshRateIfPossible() {
     static constexpr float MARGIN = 1.0f; // 1Hz
-
     if (!hasEnoughDataForHeuristic()) {
         ALOGV("Not enough data");
         return std::nullopt;
@@ -177,7 +178,7 @@ std::optional<float> LayerInfoV2::calculateRefreshRateIfPossible() {
     const auto [averageFrameTime, missingPresentTime] = calculateAverageFrameTime();
 
     // If there are no presentation timestamps provided we can't calculate the refresh rate
-    if (missingPresentTime && mLastReportedRefreshRate == 0) {
+    if (missingPresentTime && mLastRefreshRate.reported == 0) {
         return std::nullopt;
     }
 
@@ -186,12 +187,16 @@ std::optional<float> LayerInfoV2::calculateRefreshRateIfPossible() {
     }
 
     const auto refreshRate = 1e9f / averageFrameTime;
-    if (std::abs(refreshRate - mLastReportedRefreshRate) > MARGIN) {
-        mLastReportedRefreshRate = refreshRate;
+    const auto knownRefreshRate = sRefreshRateConfigs->findClosestKnownFrameRate(refreshRate);
+    if (std::abs(mLastRefreshRate.calculated - refreshRate) > MARGIN &&
+        mLastRefreshRate.reported != knownRefreshRate) {
+        mLastRefreshRate.calculated = refreshRate;
+        mLastRefreshRate.reported = knownRefreshRate;
     }
 
-    ALOGV("Refresh rate: %.2f", mLastReportedRefreshRate);
-    return mLastReportedRefreshRate;
+    ALOGV("%s %.2fHz rounded to nearest known frame rate %.2fHz", mName.c_str(), refreshRate,
+          mLastRefreshRate.reported);
+    return mLastRefreshRate.reported;
 }
 
 std::pair<LayerHistory::LayerVoteType, float> LayerInfoV2::getRefreshRate(nsecs_t now) {

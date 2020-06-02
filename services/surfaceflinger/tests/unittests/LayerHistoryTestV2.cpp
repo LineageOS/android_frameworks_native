@@ -84,6 +84,22 @@ protected:
         return sp<mock::MockLayer>(new mock::MockLayer(mFlinger.flinger(), std::move(name)));
     }
 
+    void recordFramesAndExpect(const sp<mock::MockLayer>& layer, float frameRate,
+                               float desiredRefreshRate) {
+        nsecs_t time = systemTime();
+        const nsecs_t framePeriod = static_cast<nsecs_t>(1e9f / frameRate);
+
+        for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
+            history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+            time += framePeriod;
+        }
+
+        ASSERT_EQ(1, history().summarize(time).size());
+        EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, history().summarize(time)[0].vote);
+        EXPECT_FLOAT_EQ(desiredRefreshRate, history().summarize(time)[0].desiredRefreshRate)
+                << "Frame rate is " << frameRate;
+    }
+
     Hwc2::mock::Display mDisplay;
     RefreshRateConfigs mConfigs{{HWC2::Display::Config::Builder(mDisplay, 0)
                                          .setVsyncPeriod(int32_t(LO_FPS_PERIOD))
@@ -598,6 +614,28 @@ TEST_F(LayerHistoryTestV2, infrequentAnimatingLayer) {
     EXPECT_EQ(1, activeLayerCount());
     EXPECT_EQ(0, frequentLayerCount(time));
     EXPECT_EQ(1, animatingLayerCount(time));
+}
+
+TEST_F(LayerHistoryTestV2, heuristicLayer60Hz) {
+    const auto layer = createLayer();
+    EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
+
+    for (float fps = 54.0f; fps < 65.0f; fps += 0.1f) {
+        recordFramesAndExpect(layer, fps, 60.0f);
+    }
+}
+
+TEST_F(LayerHistoryTestV2, heuristicLayerNotOscillating) {
+    const auto layer = createLayer();
+    EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
+
+    recordFramesAndExpect(layer, 27.10f, 30.0f);
+    recordFramesAndExpect(layer, 26.50f, 30.0f);
+    recordFramesAndExpect(layer, 25.90f, 24.0f);
+    recordFramesAndExpect(layer, 26.50f, 24.0f);
+    recordFramesAndExpect(layer, 27.10f, 30.0f);
 }
 
 class LayerHistoryTestV2Parameterized

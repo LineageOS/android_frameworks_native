@@ -87,8 +87,11 @@ void trace(const wp<Layer>& weak, LayerHistory::LayerVoteType type, int fps) {
 }
 } // namespace
 
-LayerHistoryV2::LayerHistoryV2()
-      : mTraceEnabled(traceEnabled()), mUseFrameRatePriority(useFrameRatePriority()) {}
+LayerHistoryV2::LayerHistoryV2(const scheduler::RefreshRateConfigs& refreshRateConfigs)
+      : mTraceEnabled(traceEnabled()), mUseFrameRatePriority(useFrameRatePriority()) {
+    LayerInfoV2::setRefreshRateConfigs(refreshRateConfigs);
+}
+
 LayerHistoryV2::~LayerHistoryV2() = default;
 
 void LayerHistoryV2::registerLayer(Layer* layer, float /*lowRefreshRate*/, float highRefreshRate,
