@@ -157,7 +157,8 @@ protected:
             mMockClock(std::make_shared<NiceMock<MockClock>>()),
             mReactor(std::make_unique<ClockWrapper>(mMockClock),
                      std::make_unique<VSyncDispatchWrapper>(mMockDispatch),
-                     std::make_unique<VSyncTrackerWrapper>(mMockTracker), kPendingLimit) {
+                     std::make_unique<VSyncTrackerWrapper>(mMockTracker), kPendingLimit,
+                     false /* supportKernelIdleTimer */) {
         ON_CALL(*mMockClock, now()).WillByDefault(Return(mFakeNow));
         ON_CALL(*mMockTracker, currentPeriod()).WillByDefault(Return(period));
     }
@@ -661,6 +662,28 @@ TEST_F(VSyncReactorTest, periodChangeWithGivenVsyncPeriod) {
     EXPECT_TRUE(periodFlushed);
 
     EXPECT_TRUE(mReactor.addPresentFence(generateSignalledFenceWithTime(0)));
+}
+
+TEST_F(VSyncReactorTest, periodIsMeasuredIfIgnoringComposer) {
+    // Create a reactor which supports the kernel idle timer
+    auto idleReactor = VSyncReactor(std::make_unique<ClockWrapper>(mMockClock),
+                                    std::make_unique<VSyncDispatchWrapper>(mMockDispatch),
+                                    std::make_unique<VSyncTrackerWrapper>(mMockTracker),
+                                    kPendingLimit, true /* supportKernelIdleTimer */);
+
+    bool periodFlushed = true;
+    EXPECT_CALL(*mMockTracker, addVsyncTimestamp(_)).Times(2);
+    idleReactor.setIgnorePresentFences(true);
+
+    nsecs_t const newPeriod = 5000;
+    idleReactor.setPeriod(newPeriod);
+
+    EXPECT_TRUE(idleReactor.addResyncSample(0, 0, &periodFlushed));
+    EXPECT_FALSE(periodFlushed);
+    EXPECT_FALSE(idleReactor.addResyncSample(newPeriod, 0, &periodFlushed));
+    EXPECT_TRUE(periodFlushed);
+
+    EXPECT_TRUE(idleReactor.addPresentFence(generateSignalledFenceWithTime(0)));
 }
 
 using VSyncReactorDeathTest = VSyncReactorTest;
