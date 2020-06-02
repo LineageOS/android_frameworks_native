@@ -231,6 +231,11 @@ public:
         return mInfo.token ? mInfo.dispatchingTimeout : defaultValue;
     }
 
+    inline std::chrono::nanoseconds getDispatchingTimeout(
+            std::chrono::nanoseconds defaultValue) const {
+        return mInfo.token ? std::chrono::nanoseconds(mInfo.dispatchingTimeout) : defaultValue;
+    }
+
     /**
      * Requests that the state of this object be updated to reflect
      * the most current available information about the application.
