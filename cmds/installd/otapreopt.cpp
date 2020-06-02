@@ -478,6 +478,10 @@ private:
                 "-j",
                 false,
                 cmd);
+        AddCompilerOptionFromSystemProperty("dalvik.vm.image-dex2oat-cpu-set",
+                "--cpu-set=",
+                false,
+                cmd);
         AddCompilerOptionFromSystemProperty(
                 StringPrintf("dalvik.vm.isa.%s.variant", isa).c_str(),
                 "--instruction-set-variant=",
