@@ -60,8 +60,6 @@
 extern "C" {
 #endif
 
-#if __ANDROID_API__ >= 30
-
 enum AThermalStatus {
     /** Error in thermal status. */
     ATHERMAL_STATUS_ERROR = -1,
@@ -111,35 +109,44 @@ typedef struct AThermalManager AThermalManager;
  */
 typedef void (*AThermal_StatusCallback)(void *data, AThermalStatus status);
 
+#if __ANDROID_API__ >= 30
+
 /**
   * Acquire an instance of the thermal manager. This must be freed using
   * {@link AThermal_releaseManager}.
   *
+  * Available since API level 30.
+  *
   * @return manager instance on success, nullptr on failure.
- */
-AThermalManager* AThermal_acquireManager();
+  */
+AThermalManager* AThermal_acquireManager() __INTRODUCED_IN(30);
 
 /**
  * Release the thermal manager pointer acquired via
  * {@link AThermal_acquireManager}.
  *
- * @param manager The manager to be released.
+ * Available since API level 30.
  *
+ * @param manager The manager to be released.
  */
-void AThermal_releaseManager(AThermalManager *manager);
+void AThermal_releaseManager(AThermalManager *manager) __INTRODUCED_IN(30);
 
 /**
   * Gets the current thermal status.
+  *
+  * Available since API level 30.
   *
   * @param manager The manager instance to use to query the thermal status.
   * Acquired via {@link AThermal_acquireManager}.
   *
   * @return current thermal status, ATHERMAL_STATUS_ERROR on failure.
-*/
-AThermalStatus AThermal_getCurrentThermalStatus(AThermalManager *manager);
+  */
+AThermalStatus AThermal_getCurrentThermalStatus(AThermalManager *manager) __INTRODUCED_IN(30);
 
 /**
  * Register the thermal status listener for thermal status change.
+ *
+ * Available since API level 30.
  *
  * @param manager The manager instance to use to register.
  * Acquired via {@link AThermal_acquireManager}.
@@ -152,10 +159,12 @@ AThermalStatus AThermal_getCurrentThermalStatus(AThermalManager *manager);
  *         EPIPE if communication with the system service has failed.
  */
 int AThermal_registerThermalStatusListener(AThermalManager *manager,
-        AThermal_StatusCallback callback, void *data);
+        AThermal_StatusCallback callback, void *data) __INTRODUCED_IN(30);
 
 /**
  * Unregister the thermal status listener previously resgistered.
+ *
+ * Available since API level 30.
  *
  * @param manager The manager instance to use to unregister.
  * Acquired via {@link AThermal_acquireManager}.
@@ -168,8 +177,7 @@ int AThermal_registerThermalStatusListener(AThermalManager *manager,
  *         EPIPE if communication with the system service has failed.
  */
 int AThermal_unregisterThermalStatusListener(AThermalManager *manager,
-        AThermal_StatusCallback callback, void *data);
-
+        AThermal_StatusCallback callback, void *data) __INTRODUCED_IN(30);
 
 #endif  //  __ANDROID_API__ >= 30
 
