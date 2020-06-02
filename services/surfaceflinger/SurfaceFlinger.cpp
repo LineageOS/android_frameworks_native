@@ -115,6 +115,7 @@
 #include "Scheduler/DispSyncSource.h"
 #include "Scheduler/EventControlThread.h"
 #include "Scheduler/EventThread.h"
+#include "Scheduler/LayerHistory.h"
 #include "Scheduler/MessageQueue.h"
 #include "Scheduler/PhaseOffsets.h"
 #include "Scheduler/Scheduler.h"
@@ -3401,6 +3402,12 @@ void SurfaceFlinger::applyTransactionState(
     for (const ComposerState& state : states) {
         clientStateFlags |= setClientStateLocked(state, desiredPresentTime, postTime, privileged,
                                                  listenerCallbacksWithSurfaces);
+        if ((flags & eAnimation) && state.state.surface) {
+            if (const auto layer = fromHandleLocked(state.state.surface).promote(); layer) {
+                mScheduler->recordLayerHistory(layer.get(), desiredPresentTime,
+                                               LayerHistory::LayerUpdateType::AnimationTX);
+            }
+        }
     }
 
     for (const auto& listenerCallback : listenerCallbacksWithSurfaces) {
