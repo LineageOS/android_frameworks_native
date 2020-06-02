@@ -3231,6 +3231,10 @@ uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags,
     return old;
 }
 
+uint32_t SurfaceFlinger::setTransactionFlagsNoWake(uint32_t flags) {
+    return mTransactionFlags.fetch_or(flags);
+}
+
 bool SurfaceFlinger::flushTransactionQueues() {
     // to prevent onHandleDestroyed from being called while the lock is held,
     // we must keep a copy of the transactions (specifically the composer
