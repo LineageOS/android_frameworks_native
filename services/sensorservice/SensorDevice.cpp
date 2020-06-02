@@ -820,7 +820,7 @@ status_t SensorDevice::updateBatchParamsLocked(int handle, Info &info) {
 
     status_t err(NO_ERROR);
     // If the min period or min timeout has changed since the last batch call, call batch.
-    if (prevBestBatchParams != info.bestBatchParams) {
+    if (prevBestBatchParams != info.bestBatchParams && info.numActiveClients() > 0) {
         ALOGD_IF(DEBUG_CONNECTIONS, "\t>>> actuating h/w BATCH 0x%08x %" PRId64 " %" PRId64, handle,
                  info.bestBatchParams.mTSample, info.bestBatchParams.mTBatch);
         err = checkReturnAndGetStatus(mSensors->batch(
@@ -890,14 +890,13 @@ void SensorDevice::setUidStateForConnection(void* ident, SensorService::UidState
         Info& info = mActivationCount.editValueAt(i);
 
         if (info.hasBatchParamsForIdent(ident)) {
-            if (updateBatchParamsLocked(handle, info) != NO_ERROR) {
-                bool enable = info.numActiveClients() == 0 && info.isActive;
-                bool disable = info.numActiveClients() > 0 && !info.isActive;
+            updateBatchParamsLocked(handle, info);
+            bool disable = info.numActiveClients() == 0 && info.isActive;
+            bool enable = info.numActiveClients() > 0 && !info.isActive;
 
-                if ((enable || disable) &&
-                    doActivateHardwareLocked(handle, enable) == NO_ERROR) {
-                    info.isActive = enable;
-                }
+            if ((enable || disable) &&
+                doActivateHardwareLocked(handle, enable) == NO_ERROR) {
+                info.isActive = enable;
             }
         }
     }
