@@ -22,6 +22,7 @@ cc_test {
         "Credentials_test.cpp",
         "DereferenceSurfaceControl_test.cpp",
         "DisplayConfigs_test.cpp",
+        "EffectLayer_test.cpp",
         "InvalidHandles_test.cpp",
         "LayerCallback_test.cpp",
         "LayerRenderTypeTransaction_test.cpp",

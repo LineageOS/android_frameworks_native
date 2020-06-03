@@ -62,7 +62,7 @@
 
 namespace android {
 
-std::unique_ptr<DispSync> createDispSync() {
+std::unique_ptr<DispSync> createDispSync(bool supportKernelTimer) {
     // TODO (140302863) remove this and use the vsync_reactor system.
     if (property_get_bool("debug.sf.vsync_reactor", true)) {
         // TODO (144707443) tune Predictor tunables.
@@ -90,7 +90,7 @@ std::unique_ptr<DispSync> createDispSync() {
         static constexpr size_t pendingFenceLimit = 20;
         return std::make_unique<scheduler::VSyncReactor>(std::make_unique<scheduler::SystemClock>(),
                                                          std::move(dispatch), std::move(tracker),
-                                                         pendingFenceLimit);
+                                                         pendingFenceLimit, supportKernelTimer);
     } else {
         return std::make_unique<impl::DispSync>("SchedulerDispSync",
                                                 sysprop::running_without_sync_framework(true));
@@ -101,9 +101,9 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
                      const scheduler::RefreshRateConfigs& refreshRateConfig,
                      ISchedulerCallback& schedulerCallback, bool useContentDetectionV2,
                      bool useContentDetection)
-      : mPrimaryDispSync(createDispSync()),
+      : mSupportKernelTimer(sysprop::support_kernel_idle_timer(false)),
+        mPrimaryDispSync(createDispSync(mSupportKernelTimer)),
         mEventControlThread(new impl::EventControlThread(std::move(function))),
-        mSupportKernelTimer(sysprop::support_kernel_idle_timer(false)),
         mSchedulerCallback(schedulerCallback),
         mRefreshRateConfigs(refreshRateConfig),
         mUseContentDetection(useContentDetection),
@@ -151,9 +151,9 @@ Scheduler::Scheduler(std::unique_ptr<DispSync> primaryDispSync,
                      const scheduler::RefreshRateConfigs& configs,
                      ISchedulerCallback& schedulerCallback, bool useContentDetectionV2,
                      bool useContentDetection)
-      : mPrimaryDispSync(std::move(primaryDispSync)),
+      : mSupportKernelTimer(false),
+        mPrimaryDispSync(std::move(primaryDispSync)),
         mEventControlThread(std::move(eventControlThread)),
-        mSupportKernelTimer(false),
         mSchedulerCallback(schedulerCallback),
         mRefreshRateConfigs(configs),
         mUseContentDetection(useContentDetection),
@@ -417,9 +417,10 @@ void Scheduler::registerLayer(Layer* layer) {
     }
 }
 
-void Scheduler::recordLayerHistory(Layer* layer, nsecs_t presentTime) {
+void Scheduler::recordLayerHistory(Layer* layer, nsecs_t presentTime,
+                                   LayerHistory::LayerUpdateType updateType) {
     if (mLayerHistory) {
-        mLayerHistory->record(layer, presentTime, systemTime());
+        mLayerHistory->record(layer, presentTime, systemTime(), updateType);
     }
 }
 

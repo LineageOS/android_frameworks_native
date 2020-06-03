@@ -35,18 +35,24 @@ LayerInfoV2::LayerInfoV2(const std::string& name, nsecs_t highRefreshRatePeriod,
         mLayerVote({defaultVote, 0.0f}) {}
 
 void LayerInfoV2::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now,
-                                     bool pendingConfigChange) {
+                                     LayerUpdateType updateType, bool pendingConfigChange) {
     lastPresentTime = std::max(lastPresentTime, static_cast<nsecs_t>(0));
 
     mLastUpdatedTime = std::max(lastPresentTime, now);
-
-    FrameTimeData frameTime = {.presetTime = lastPresentTime,
-                               .queueTime = mLastUpdatedTime,
-                               .pendingConfigChange = pendingConfigChange};
-
-    mFrameTimes.push_back(frameTime);
-    if (mFrameTimes.size() > HISTORY_SIZE) {
-        mFrameTimes.pop_front();
+    switch (updateType) {
+        case LayerUpdateType::AnimationTX:
+            mLastAnimationTime = std::max(lastPresentTime, now);
+            break;
+        case LayerUpdateType::SetFrameRate:
+        case LayerUpdateType::Buffer:
+            FrameTimeData frameTime = {.presetTime = lastPresentTime,
+                                       .queueTime = mLastUpdatedTime,
+                                       .pendingConfigChange = pendingConfigChange};
+            mFrameTimes.push_back(frameTime);
+            if (mFrameTimes.size() > HISTORY_SIZE) {
+                mFrameTimes.pop_front();
+            }
+            break;
     }
 }
 
@@ -79,6 +85,10 @@ bool LayerInfoV2::isFrequent(nsecs_t now) const {
     // Layer is considered frequent if the average frame rate is higher than the threshold
     const auto totalTime = mFrameTimes.back().queueTime - it->queueTime;
     return (1e9f * (numFrames - 1)) / totalTime >= MIN_FPS_FOR_FREQUENT_LAYER;
+}
+
+bool LayerInfoV2::isAnimating(nsecs_t now) const {
+    return mLastAnimationTime >= getActiveLayerThreshold(now);
 }
 
 bool LayerInfoV2::hasEnoughDataForHeuristic() const {
@@ -188,6 +198,11 @@ std::pair<LayerHistory::LayerVoteType, float> LayerInfoV2::getRefreshRate(nsecs_
     if (mLayerVote.type != LayerHistory::LayerVoteType::Heuristic) {
         ALOGV("%s voted %d ", mName.c_str(), static_cast<int>(mLayerVote.type));
         return {mLayerVote.type, mLayerVote.fps};
+    }
+
+    if (isAnimating(now)) {
+        ALOGV("%s is animating", mName.c_str());
+        return {LayerHistory::LayerVoteType::Max, 0};
     }
 
     if (!isFrequent(now)) {
