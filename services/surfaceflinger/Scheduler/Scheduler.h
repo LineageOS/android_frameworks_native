@@ -39,6 +39,7 @@
 namespace android {
 
 using namespace std::chrono_literals;
+using scheduler::LayerHistory;
 
 class DispSync;
 class FenceTime;
@@ -118,7 +119,7 @@ public:
 
     // Layers are registered on creation, and unregistered when the weak reference expires.
     void registerLayer(Layer*);
-    void recordLayerHistory(Layer*, nsecs_t presentTime);
+    void recordLayerHistory(Layer*, nsecs_t presentTime, LayerHistory::LayerUpdateType updateType);
     void setConfigChangePending(bool pending);
 
     // Detects content using layer history, and selects a matching refresh rate.
@@ -207,14 +208,14 @@ private:
 
     std::atomic<nsecs_t> mLastResyncTime = 0;
 
+    // Whether to use idle timer callbacks that support the kernel timer.
+    const bool mSupportKernelTimer;
+
     std::unique_ptr<DispSync> mPrimaryDispSync;
     std::unique_ptr<EventControlThread> mEventControlThread;
 
     // Used to choose refresh rate if content detection is enabled.
-    std::unique_ptr<scheduler::LayerHistory> mLayerHistory;
-
-    // Whether to use idle timer callbacks that support the kernel timer.
-    const bool mSupportKernelTimer;
+    std::unique_ptr<LayerHistory> mLayerHistory;
 
     // Timer that records time between requests for next vsync.
     std::optional<scheduler::OneShotTimer> mIdleTimer;
@@ -236,7 +237,7 @@ private:
         TimerState displayPowerTimer = TimerState::Expired;
 
         std::optional<HwcConfigIndexType> configId;
-        scheduler::LayerHistory::Summary contentRequirements;
+        LayerHistory::Summary contentRequirements;
 
         bool isDisplayPowerStateNormal = true;
     } mFeatures GUARDED_BY(mFeatureStateLock);

@@ -181,6 +181,11 @@ public:
 
 private:
     const sp<hardware::vibrator::IVibrator> mHandle;
+    std::mutex mCapabilitiesMutex;
+    std::mutex mSupportedEffectsMutex;
+    std::optional<Capabilities> mCapabilities GUARDED_BY(mCapabilitiesMutex);
+    std::optional<std::vector<hardware::vibrator::Effect>> mSupportedEffects
+            GUARDED_BY(mSupportedEffectsMutex);
 };
 
 // Wrapper for the HDIL Vibrator HAL v1.0.
@@ -215,6 +220,11 @@ public:
 
 protected:
     const sp<hardware::vibrator::V1_0::IVibrator> mHandleV1_0;
+    std::mutex mCapabilitiesMutex;
+    std::optional<Capabilities> mCapabilities GUARDED_BY(mCapabilitiesMutex);
+
+    // Loads directly from IVibrator handle, skipping the mCapabilities cache.
+    virtual HalResult<Capabilities> getCapabilitiesInternal();
 };
 
 // Wrapper for the HDIL Vibrator HAL v1.1.
@@ -255,7 +265,6 @@ public:
             mHandleV1_3(hardware::vibrator::V1_3::IVibrator::castFrom(handleV1_0)) {}
 
     virtual HalResult<void> setExternalControl(bool enabled) override;
-    virtual HalResult<Capabilities> getCapabilities() override;
 
     virtual HalResult<std::chrono::milliseconds> performEffect(
             hardware::vibrator::Effect effect, hardware::vibrator::EffectStrength strength,
@@ -263,6 +272,8 @@ public:
 
 protected:
     const sp<hardware::vibrator::V1_3::IVibrator> mHandleV1_3;
+
+    virtual HalResult<Capabilities> getCapabilitiesInternal() override;
 };
 
 // -------------------------------------------------------------------------------------------------
