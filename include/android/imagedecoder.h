@@ -133,6 +133,8 @@ typedef struct AImageDecoder AImageDecoder;
 /**
  * Create a new {@link AImageDecoder} from an {@link AAsset}.
  *
+ * Available since API level 30.
+ *
  * @param asset {@link AAsset} containing encoded image data. Client is still
  *              responsible for calling {@link AAsset_close} on it, which may be
  *              done after deleting the returned {@link AImageDecoder}.
@@ -162,6 +164,8 @@ int AImageDecoder_createFromAAsset(struct AAsset* asset, AImageDecoder** outDeco
 /**
  * Create a new {@link AImageDecoder} from a file descriptor.
  *
+ * Available since API level 30.
+ *
  * @param fd Seekable, readable, open file descriptor for encoded data.
  *           Client is still responsible for closing it, which may be done
  *           after deleting the returned {@link AImageDecoder}.
@@ -190,6 +194,8 @@ int AImageDecoder_createFromFd(int fd, AImageDecoder** outDecoder) __INTRODUCED_
 /**
  * Create a new AImageDecoder from a buffer.
  *
+ * Available since API level 30.
+ *
  * @param buffer Pointer to encoded data. Must be valid for the entire time
  *               the {@link AImageDecoder} is used.
  * @param length Byte length of buffer.
@@ -217,11 +223,15 @@ int AImageDecoder_createFromBuffer(const void* buffer, size_t length,
 
 /**
  * Delete the AImageDecoder.
+ *
+ * Available since API level 30.
  */
 void AImageDecoder_delete(AImageDecoder* decoder) __INTRODUCED_IN(30);
 
 /**
  * Choose the desired output format.
+ *
+ * Available since API level 30.
  *
  * @param format {@link AndroidBitmapFormat} to use for the output.
  * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or a value
@@ -247,6 +257,8 @@ int AImageDecoder_setAndroidBitmapFormat(AImageDecoder*,
  * Pass true to this method to leave them unpremultiplied. This has no effect on an
  * opaque image.
  *
+ * Available since API level 30.
+ *
  * @param unpremultipliedRequired Pass true to leave the pixels unpremultiplied.
  * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or a value
  *         indicating the reason for the failure.
@@ -266,6 +278,8 @@ int AImageDecoder_setUnpremultipliedRequired(AImageDecoder*,
  *
  * Ignored by {@link ANDROID_BITMAP_FORMAT_A_8}, which does not support
  * an {@link ADataSpace}.
+ *
+ * Available since API level 30.
  *
  * @param dataspace The {@link ADataSpace} to decode into. An ADataSpace
  *                  specifies how to interpret the colors. By default,
@@ -291,6 +305,8 @@ int AImageDecoder_setDataSpace(AImageDecoder*, int32_t dataspace) __INTRODUCED_I
  * {@link AImageDecoder_setCrop}), it must be contained within the dimensions
  * specified by width and height, and the output image will be the size of the
  * crop rect.
+ *
+ * Available since API level 30.
  *
  * @param width Width of the output (prior to cropping).
  *              This will affect future calls to
@@ -319,6 +335,8 @@ int AImageDecoder_setTargetSize(AImageDecoder*, int32_t width, int32_t height) _
  * others. This computes the most efficient target size to use to reach a
  * particular sampleSize.
  *
+ * Available since API level 30.
+ *
  * @param sampleSize A subsampling rate of the original image. Must be greater
  *                   than or equal to 1. A sampleSize of 2 means to skip every
  *                   other pixel/line, resulting in a width and height that are
@@ -343,6 +361,8 @@ int AImageDecoder_computeSampledSize(const AImageDecoder*, int sampleSize,
  * Future calls to {@link AImageDecoder_decodeImage} will crop their output to
  * the specified {@link ARect}. Clients will only need to allocate enough memory
  * for the cropped ARect.
+ *
+ * Available since API level 30.
  *
  * @param crop Rectangle describing a crop of the decode. It must be contained inside of
  *             the (possibly scaled, by {@link AImageDecoder_setTargetSize})
@@ -376,6 +396,8 @@ typedef struct AImageDecoderHeaderInfo AImageDecoderHeaderInfo;
  *
  * This is owned by the {@link AImageDecoder} and will be destroyed when the
  * AImageDecoder is destroyed via {@link AImageDecoder_delete}.
+ *
+ * Available since API level 30.
  */
 const AImageDecoderHeaderInfo* AImageDecoder_getHeaderInfo(
         const AImageDecoder*) __INTRODUCED_IN(30);
@@ -385,6 +407,8 @@ const AImageDecoderHeaderInfo* AImageDecoder_getHeaderInfo(
  * pixel width of the output, unless {@link AImageDecoder_setTargetSize} is
  * used to choose a different size or {@link AImageDecoder_setCrop} is used to
  * set a crop rect.
+ *
+ * Available since API level 30.
  */
 int32_t AImageDecoderHeaderInfo_getWidth(const AImageDecoderHeaderInfo*) __INTRODUCED_IN(30);
 
@@ -393,11 +417,15 @@ int32_t AImageDecoderHeaderInfo_getWidth(const AImageDecoderHeaderInfo*) __INTRO
  * pixel height of the output, unless {@link AImageDecoder_setTargetSize} is
  * used to choose a different size or {@link AImageDecoder_setCrop} is used to
  * set a crop rect.
+ *
+ * Available since API level 30.
  */
 int32_t AImageDecoderHeaderInfo_getHeight(const AImageDecoderHeaderInfo*) __INTRODUCED_IN(30);
 
 /**
  * Report the mimeType of the encoded image.
+ *
+ * Available since API level 30.
  *
  * @return a string literal describing the mime type.
  */
@@ -409,6 +437,8 @@ const char* AImageDecoderHeaderInfo_getMimeType(
  * by default. {@link AImageDecoder} will try to choose one that is sensible
  * for the image and the system. Note that this does not indicate the
  * encoded format of the image.
+ *
+ * Available since API level 30.
  */
 int32_t AImageDecoderHeaderInfo_getAndroidBitmapFormat(
         const AImageDecoderHeaderInfo*) __INTRODUCED_IN(30);
@@ -419,6 +449,8 @@ int32_t AImageDecoderHeaderInfo_getAndroidBitmapFormat(
  * {@link ANDROID_BITMAP_FLAGS_ALPHA_OPAQUE}. If the image may contain alpha,
  * this returns {@link ANDROID_BITMAP_FLAGS_ALPHA_PREMUL}, because
  * {@link AImageDecoder_decodeImage} will premultiply pixels by default.
+ *
+ * Available since API level 30.
  */
 int AImageDecoderHeaderInfo_getAlphaFlags(
         const AImageDecoderHeaderInfo*) __INTRODUCED_IN(30);
@@ -428,6 +460,8 @@ int AImageDecoderHeaderInfo_getAlphaFlags(
  *
  * By default, {@link AImageDecoder_decodeImage} will not do any color
  * conversion.
+ *
+ * Available since API level 30.
  *
  * @return The {@link ADataSpace} representing the way the colors
  *         are encoded (or {@link ADATASPACE_UNKNOWN} if there is not a
@@ -452,11 +486,15 @@ int32_t AImageDecoderHeaderInfo_getDataSpace(
  *
  * If the output is scaled (via {@link AImageDecoder_setTargetSize}) and/or
  * cropped (via {@link AImageDecoder_setCrop}), this takes those into account.
+ *
+ * Available since API level 30.
  */
 size_t AImageDecoder_getMinimumStride(AImageDecoder*) __INTRODUCED_IN(30);
 
 /**
  * Decode the image into pixels, using the settings of the {@link AImageDecoder}.
+ *
+ * Available since API level 30.
  *
  * @param decoder Opaque object representing the decoder.
  * @param pixels On success, will be filled with the result
