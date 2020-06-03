@@ -21,11 +21,11 @@
 
 #include <binder/IBinder.h>
 #include <input/Input.h>
+#include <input/InputApplication.h>
 #include <utils/RefBase.h>
 
 namespace android {
 
-class InputApplicationHandle;
 
 /*
  * Input dispatcher policy interface.

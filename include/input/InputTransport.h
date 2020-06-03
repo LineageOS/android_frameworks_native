@@ -34,7 +34,9 @@
 #include <android-base/chrono_utils.h>
 
 #include <binder/IBinder.h>
+#include <binder/Parcelable.h>
 #include <input/Input.h>
+#include <sys/stat.h>
 #include <utils/BitSet.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
@@ -174,6 +176,18 @@ struct InputMessage {
     void getSanitizedCopy(InputMessage* msg) const;
 };
 
+struct InputChannelInfo : public Parcelable {
+    std::string mName;
+    android::base::unique_fd mFd;
+    sp<IBinder> mToken;
+
+    InputChannelInfo() = default;
+    InputChannelInfo(const std::string& name, android::base::unique_fd fd, sp<IBinder> token)
+          : mName(name), mFd(std::move(fd)), mToken(token){};
+    status_t readFromParcel(const android::Parcel* parcel) override;
+    status_t writeToParcel(android::Parcel* parcel) const override;
+};
+
 /*
  * An input channel consists of a local unix domain socket used to send and receive
  * input messages across processes.  Each channel has a descriptive name for debugging purposes.
@@ -183,10 +197,10 @@ struct InputMessage {
  * The input channel is closed when all references to it are released.
  */
 class InputChannel : public RefBase {
-protected:
+public:
+    InputChannel();
     virtual ~InputChannel();
 
-public:
     static sp<InputChannel> create(const std::string& name, android::base::unique_fd fd,
                                    sp<IBinder> token);
 
@@ -200,8 +214,10 @@ public:
     static status_t openInputChannelPair(const std::string& name,
             sp<InputChannel>& outServerChannel, sp<InputChannel>& outClientChannel);
 
-    inline std::string getName() const { return mName; }
-    inline int getFd() const { return mFd.get(); }
+    inline std::string getName() const { return mInfo.mName; }
+    inline int getFd() const { return mInfo.mFd.get(); }
+    inline sp<IBinder> getToken() const { return mInfo.mToken; }
+    inline InputChannelInfo& getInfo() { return mInfo; }
 
     /* Send a message to the other endpoint.
      *
@@ -231,8 +247,9 @@ public:
     /* Return a new object that has a duplicate of this channel's fd. */
     sp<InputChannel> dup() const;
 
-    status_t write(Parcel& out) const;
-    static sp<InputChannel> read(const Parcel& from);
+    status_t readFromParcel(const android::Parcel* parcel);
+
+    status_t writeToParcel(android::Parcel* parcel) const;
 
     /**
      * The connection token is used to identify the input connection, i.e.
@@ -248,12 +265,23 @@ public:
      */
     sp<IBinder> getConnectionToken() const;
 
+    bool operator==(const InputChannel& inputChannel) const {
+        struct stat lhsInfo, rhsInfo;
+        if (fstat(mInfo.mFd.get(), &lhsInfo) != 0) {
+            return false;
+        }
+        if (fstat(inputChannel.getFd(), &rhsInfo) != 0) {
+            return false;
+        }
+        // If file descriptors are pointing to same inode they are duplicated fds.
+        return inputChannel.getName() == getName() &&
+                inputChannel.getConnectionToken() == mInfo.mToken &&
+                lhsInfo.st_ino == rhsInfo.st_ino;
+    }
+
 private:
     InputChannel(const std::string& name, android::base::unique_fd fd, sp<IBinder> token);
-    std::string mName;
-    android::base::unique_fd mFd;
-
-    sp<IBinder> mToken;
+    InputChannelInfo mInfo;
 };
 
 /*
@@ -325,7 +353,6 @@ public:
     status_t receiveFinishedSignal(uint32_t* outSeq, bool* outHandled);
 
 private:
-
     sp<InputChannel> mChannel;
 };
 

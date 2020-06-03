@@ -28,13 +28,13 @@ namespace android {
 namespace test {
 
 TEST(InputWindowInfo, ParcellingWithoutToken) {
-    InputWindowInfo i;
+    InputWindowInfo i, i2;
     i.token = nullptr;
 
     Parcel p;
-    ASSERT_EQ(OK, i.write(p));
+    ASSERT_EQ(OK, i.writeToParcel(&p));
     p.setDataPosition(0);
-    InputWindowInfo i2 = InputWindowInfo::read(p);
+    i2.readFromParcel(&p);
     ASSERT_TRUE(i2.token == nullptr);
 }
 
@@ -69,10 +69,10 @@ TEST(InputWindowInfo, Parcelling) {
     i.touchableRegionCropHandle = touchableRegionCropHandle;
 
     Parcel p;
-    i.write(p);
-
+    i.writeToParcel(&p);
     p.setDataPosition(0);
-    InputWindowInfo i2 = InputWindowInfo::read(p);
+    InputWindowInfo i2;
+    i2.readFromParcel(&p);
     ASSERT_EQ(i.token, i2.token);
     ASSERT_EQ(i.id, i2.id);
     ASSERT_EQ(i.name, i2.name);
