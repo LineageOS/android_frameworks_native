@@ -1493,7 +1493,7 @@ int Surface::dispatchGetLastQueuedBuffer(va_list args) {
     int result = mGraphicBufferProducer->getLastQueuedBuffer(&graphicBuffer, &spFence, matrix);
 
     if (graphicBuffer != nullptr) {
-        *buffer = reinterpret_cast<AHardwareBuffer*>(graphicBuffer.get());
+        *buffer = graphicBuffer->toAHardwareBuffer();
         AHardwareBuffer_acquire(*buffer);
     } else {
         *buffer = nullptr;

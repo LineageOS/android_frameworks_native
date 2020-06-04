@@ -125,6 +125,8 @@ int AndroidBitmap_getInfo(JNIEnv* env, jobject jbitmap,
  * Note that {@link ADataSpace} only exposes a few values. This may return
  * {@link ADATASPACE_UNKNOWN}, even for Named ColorSpaces, if they have no
  * corresponding ADataSpace.
+ *
+ * Available since API level 30.
  */
 int32_t AndroidBitmap_getDataSpace(JNIEnv* env, jobject jbitmap)  __INTRODUCED_IN(30);
 
@@ -189,6 +191,8 @@ enum AndroidBitmapCompressFormat {
 /**
  *  User-defined function for writing the output of compression.
  *
+ *  Available since API level 30.
+ *
  *  @param userContext Pointer to user-defined data passed to
  *         {@link AndroidBitmap_compress}.
  *  @param data Compressed data of |size| bytes to write.
@@ -201,6 +205,8 @@ typedef bool (*AndroidBitmap_CompressWriteFunc)(void* userContext,
 
 /**
  *  Compress |pixels| as described by |info|.
+ *
+ *  Available since API level 30.
  *
  *  @param info Description of the pixels to compress.
  *  @param dataspace {@link ADataSpace} describing the color space of the
@@ -233,6 +239,8 @@ typedef struct AHardwareBuffer AHardwareBuffer;
  *  Retrieve the native object associated with a HARDWARE Bitmap.
  *
  *  Client must not modify it while a Bitmap is wrapping it.
+ *
+ *  Available since API level 30.
  *
  *  @param bitmap Handle to an android.graphics.Bitmap.
  *  @param outBuffer On success, is set to a pointer to the
