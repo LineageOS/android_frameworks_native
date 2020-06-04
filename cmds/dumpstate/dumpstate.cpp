@@ -305,8 +305,9 @@ static const CommandOptions AS_ROOT_20 = CommandOptions::WithTimeout(20).AsRoot(
 
 /*
  * Returns a vector of dump fds under |dir_path| with a given |file_prefix|.
- * The returned vector is sorted by the mtimes of the dumps. If |limit_by_mtime|
- * is set, the vector only contains files that were written in the last 30 minutes.
+ * The returned vector is sorted by the mtimes of the dumps with descending
+ * order. If |limit_by_mtime| is set, the vector only contains files that
+ * were written in the last 30 minutes.
  */
 static std::vector<DumpData> GetDumpFds(const std::string& dir_path,
                                         const std::string& file_prefix,
@@ -352,6 +353,10 @@ static std::vector<DumpData> GetDumpFds(const std::string& dir_path,
         }
 
         dump_data.emplace_back(DumpData{abs_path, std::move(fd), st.st_mtime});
+    }
+    if (!dump_data.empty()) {
+        std::sort(dump_data.begin(), dump_data.end(),
+            [](const auto& a, const auto& b) { return a.mtime > b.mtime; });
     }
 
     return dump_data;
