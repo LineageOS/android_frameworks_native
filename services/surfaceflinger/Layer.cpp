@@ -2122,7 +2122,9 @@ Layer::RoundedCornerState Layer::getRoundedCornerState() const {
             // but a transform matrix can define horizontal and vertical scales.
             // Let's take the average between both of them and pass into the shader, practically we
             // never do this type of transformation on windows anyway.
-            parentState.radius *= (t[0][0] + t[1][1]) / 2.0f;
+            auto scaleX = sqrtf(t[0][0] * t[0][0] + t[0][1] * t[0][1]);
+            auto scaleY = sqrtf(t[1][0] * t[1][0] + t[1][1] * t[1][1]);
+            parentState.radius *= (scaleX + scaleY) / 2.0f;
             return parentState;
         }
     }
