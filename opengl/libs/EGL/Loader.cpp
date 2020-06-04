@@ -30,10 +30,10 @@
 
 #include <string>
 
+#include "EGL/eglext_angle.h"
 #include "egl_platform_entries.h"
 #include "egl_trace.h"
 #include "egldefs.h"
-#include "EGL/eglext_angle.h"
 
 namespace android {
 
