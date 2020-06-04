@@ -33,9 +33,9 @@ namespace vibrator {
 template <typename T>
 class HalResult {
 public:
-    static HalResult<T> ok(T value);
-    static HalResult<T> failed();
-    static HalResult<T> unsupported();
+    static HalResult<T> ok(T value) { return HalResult(value); }
+    static HalResult<T> failed() { return HalResult(/* unsupported= */ false); }
+    static HalResult<T> unsupported() { return HalResult(/* unsupported= */ true); }
 
     static HalResult<T> fromStatus(binder::Status status, T data);
     static HalResult<T> fromStatus(hardware::vibrator::V1_0::Status status, T data);
@@ -65,9 +65,11 @@ private:
 template <>
 class HalResult<void> {
 public:
-    static HalResult<void> ok();
-    static HalResult<void> failed();
-    static HalResult<void> unsupported();
+    static HalResult<void> ok() { return HalResult(); }
+    static HalResult<void> failed() { return HalResult(/* failed= */ true); }
+    static HalResult<void> unsupported() {
+        return HalResult(/* failed= */ false, /* unsupported= */ true);
+    }
 
     static HalResult<void> fromStatus(binder::Status status);
     static HalResult<void> fromStatus(hardware::vibrator::V1_0::Status status);
@@ -262,9 +264,8 @@ protected:
 class HidlHalWrapperV1_1 : public HidlHalWrapperV1_0 {
 public:
     HidlHalWrapperV1_1(std::shared_ptr<CallbackScheduler> scheduler,
-                       sp<hardware::vibrator::V1_0::IVibrator> handleV1_0)
-          : HidlHalWrapperV1_0(std::move(scheduler), handleV1_0),
-            mHandleV1_1(hardware::vibrator::V1_1::IVibrator::castFrom(handleV1_0)) {}
+                       sp<hardware::vibrator::V1_1::IVibrator> handle)
+          : HidlHalWrapperV1_0(std::move(scheduler), handle), mHandleV1_1(handle) {}
     virtual ~HidlHalWrapperV1_1() = default;
 
     virtual HalResult<std::chrono::milliseconds> performEffect(
@@ -283,9 +284,8 @@ protected:
 class HidlHalWrapperV1_2 : public HidlHalWrapperV1_1 {
 public:
     HidlHalWrapperV1_2(std::shared_ptr<CallbackScheduler> scheduler,
-                       sp<hardware::vibrator::V1_0::IVibrator> handleV1_0)
-          : HidlHalWrapperV1_1(std::move(scheduler), handleV1_0),
-            mHandleV1_2(hardware::vibrator::V1_2::IVibrator::castFrom(handleV1_0)) {}
+                       sp<hardware::vibrator::V1_2::IVibrator> handle)
+          : HidlHalWrapperV1_1(std::move(scheduler), handle), mHandleV1_2(handle) {}
     virtual ~HidlHalWrapperV1_2() = default;
 
     virtual HalResult<std::chrono::milliseconds> performEffect(
@@ -304,9 +304,8 @@ protected:
 class HidlHalWrapperV1_3 : public HidlHalWrapperV1_2 {
 public:
     HidlHalWrapperV1_3(std::shared_ptr<CallbackScheduler> scheduler,
-                       sp<hardware::vibrator::V1_0::IVibrator> handleV1_0)
-          : HidlHalWrapperV1_2(std::move(scheduler), handleV1_0),
-            mHandleV1_3(hardware::vibrator::V1_3::IVibrator::castFrom(handleV1_0)) {}
+                       sp<hardware::vibrator::V1_3::IVibrator> handle)
+          : HidlHalWrapperV1_2(std::move(scheduler), handle), mHandleV1_3(handle) {}
     virtual ~HidlHalWrapperV1_3() = default;
 
     virtual HalResult<void> setExternalControl(bool enabled) override;
