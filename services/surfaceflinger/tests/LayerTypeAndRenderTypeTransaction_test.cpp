@@ -220,6 +220,51 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadius) {
         shot->expectColor(Rect(size - testArea, 0, right, testArea), Color::BLACK);
         shot->expectColor(Rect(0, bottom - testArea, testArea, bottom), Color::BLACK);
         shot->expectColor(Rect(size - testArea, bottom - testArea, right, bottom), Color::BLACK);
+        // Solid center
+        shot->expectColor(Rect(size / 2 - testArea / 2, size / 2 - testArea / 2,
+                               size / 2 + testArea / 2, size / 2 + testArea / 2),
+                          Color::RED);
+    }
+}
+
+TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadiusRotated) {
+    sp<SurfaceControl> parent;
+    sp<SurfaceControl> child;
+    const uint8_t size = 64;
+    const uint8_t testArea = 4;
+    const float cornerRadius = 20.0f;
+    ASSERT_NO_FATAL_FAILURE(parent = createLayer("parent", size, size));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(parent, Color::RED, size, size));
+    ASSERT_NO_FATAL_FAILURE(child = createLayer("child", size, size));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(child, Color::GREEN, size, size));
+
+    auto transaction = Transaction()
+                               .setCornerRadius(parent, cornerRadius)
+                               .setCrop_legacy(parent, Rect(0, 0, size, size))
+                               .reparent(child, parent->getHandle())
+                               .setPosition(child, 0, size)
+                               // Rotate by half PI
+                               .setMatrix(child, 0.0f, -1.0f, 1.0f, 0.0f);
+    if (mLayerType == ISurfaceComposerClient::eFXSurfaceBufferQueue) {
+        transaction.setCrop_legacy(parent, Rect(0, 0, size, size));
+    } else {
+        transaction.setFrame(parent, Rect(0, 0, size, size));
+    }
+    transaction.apply();
+
+    {
+        const uint8_t bottom = size - 1;
+        const uint8_t right = size - 1;
+        auto shot = getScreenCapture();
+        // Edges are transparent
+        shot->expectColor(Rect(0, 0, testArea, testArea), Color::BLACK);
+        shot->expectColor(Rect(size - testArea, 0, right, testArea), Color::BLACK);
+        shot->expectColor(Rect(0, bottom - testArea, testArea, bottom - testArea), Color::BLACK);
+        shot->expectColor(Rect(right - testArea, bottom - testArea, right, bottom), Color::BLACK);
+        // Solid center
+        shot->expectColor(Rect(size / 2 - testArea / 2, size / 2 - testArea / 2,
+                               size / 2 + testArea / 2, size / 2 + testArea / 2),
+                          Color::GREEN);
     }
 }
 
