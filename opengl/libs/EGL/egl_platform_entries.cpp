@@ -2248,15 +2248,8 @@ EGLBoolean eglPresentationTimeANDROIDImpl(EGLDisplay dpy, EGLSurface surface,
 }
 
 EGLClientBuffer eglGetNativeClientBufferANDROIDImpl(const AHardwareBuffer *buffer) {
-    // AHardwareBuffer_to_ANativeWindowBuffer is a platform-only symbol and thus
-    // this function cannot be implemented when this libEGL is built for
-    // vendors.
-#ifndef __ANDROID_VNDK__
     if (!buffer) return setError(EGL_BAD_PARAMETER, (EGLClientBuffer) nullptr);
     return const_cast<ANativeWindowBuffer *>(AHardwareBuffer_to_ANativeWindowBuffer(buffer));
-#else
-    return setError(EGL_BAD_PARAMETER, (EGLClientBuffer) nullptr);
-#endif
 }
 
 // ----------------------------------------------------------------------------
