@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <mutex>
 
 #include "Scheduler.h"
@@ -110,6 +111,8 @@ private:
     std::atomic<bool> mRefreshRateChangePending = false;
     std::atomic<int> mRemainingEarlyFrameCount = 0;
     std::atomic<int> mRemainingRenderEngineUsageCount = 0;
+    std::atomic<std::chrono::steady_clock::time_point> mEarlyTxnStartTime = {};
+    std::atomic<std::chrono::steady_clock::time_point> mTxnAppliedTime = {};
 
     bool mTraceDetailedInfo = false;
 };
