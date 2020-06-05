@@ -48,6 +48,8 @@ cc_library_static {
         "//apex_available:anyapex",
         "//apex_available:platform",
     ],
+    min_sdk_version: "apex_inherit",
+
     shared_libs: [
         "libutils",
     ],
