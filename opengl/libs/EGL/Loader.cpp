@@ -17,27 +17,23 @@
 //#define LOG_NDEBUG 0
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include <EGL/Loader.h>
-
-#include <string>
-
-#include <dirent.h>
-#include <dlfcn.h>
+#include "EGL/Loader.h"
 
 #include <android-base/properties.h>
 #include <android/dlext.h>
+#include <dirent.h>
+#include <dlfcn.h>
+#include <graphicsenv/GraphicsEnv.h>
 #include <log/log.h>
 #include <utils/Timers.h>
-
-#ifndef __ANDROID_VNDK__
-#include <graphicsenv/GraphicsEnv.h>
-#endif
 #include <vndksupport/linker.h>
 
+#include <string>
+
+#include "EGL/eglext_angle.h"
 #include "egl_platform_entries.h"
 #include "egl_trace.h"
 #include "egldefs.h"
-#include <EGL/eglext_angle.h>
 
 namespace android {
 
@@ -159,13 +155,11 @@ static bool should_unload_system_driver(egl_connection_t* cnx) {
         return true;
     }
 
-#ifndef __ANDROID_VNDK__
     // Return true if updated driver namespace is set.
     ns = android::GraphicsEnv::getInstance().getDriverNamespace();
     if (ns) {
         return true;
     }
-#endif
 
     return false;
 }
@@ -569,7 +563,7 @@ void Loader::init_angle_backend(void* dso, egl_connection_t* cnx) {
 
 Loader::driver_t* Loader::attempt_to_load_updated_driver(egl_connection_t* cnx) {
     ATRACE_CALL();
-#ifndef __ANDROID_VNDK__
+
     android_namespace_t* ns = android::GraphicsEnv::getInstance().getDriverNamespace();
     if (!ns) {
         return nullptr;
@@ -599,9 +593,6 @@ Loader::driver_t* Loader::attempt_to_load_updated_driver(egl_connection_t* cnx) 
         hnd->set(dso, GLESv2);
     }
     return hnd;
-#else
-    return nullptr;
-#endif
 }
 
 Loader::driver_t* Loader::attempt_to_load_system_driver(egl_connection_t* cnx, const char* suffix,

@@ -18,36 +18,32 @@
 
 #include "egl_platform_entries.h"
 
-#include <ctype.h>
-#include <dlfcn.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-#include <EGL/eglext_angle.h>
-
 #include <android-base/properties.h>
 #include <android-base/strings.h>
 #include <android/hardware_buffer.h>
-#include <graphicsenv/GraphicsEnv.h>
-#include <private/android/AHardwareBufferHelpers.h>
-
+#include <ctype.h>
 #include <cutils/compiler.h>
+#include <dlfcn.h>
+#include <graphicsenv/GraphicsEnv.h>
 #include <log/log.h>
+#include <private/android/AHardwareBufferHelpers.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include <condition_variable>
 #include <deque>
 #include <mutex>
-#include <unordered_map>
 #include <string>
 #include <thread>
+#include <unordered_map>
 
 #include "../egl_impl.h"
-
+#include "EGL/egl.h"
+#include "EGL/eglext.h"
+#include "EGL/eglext_angle.h"
 #include "egl_display.h"
-#include "egl_object.h"
 #include "egl_layers.h"
+#include "egl_object.h"
 #include "egl_tls.h"
 #include "egl_trace.h"
 
@@ -2248,15 +2244,8 @@ EGLBoolean eglPresentationTimeANDROIDImpl(EGLDisplay dpy, EGLSurface surface,
 }
 
 EGLClientBuffer eglGetNativeClientBufferANDROIDImpl(const AHardwareBuffer *buffer) {
-    // AHardwareBuffer_to_ANativeWindowBuffer is a platform-only symbol and thus
-    // this function cannot be implemented when this libEGL is built for
-    // vendors.
-#ifndef __ANDROID_VNDK__
     if (!buffer) return setError(EGL_BAD_PARAMETER, (EGLClientBuffer) nullptr);
     return const_cast<ANativeWindowBuffer *>(AHardwareBuffer_to_ANativeWindowBuffer(buffer));
-#else
-    return setError(EGL_BAD_PARAMETER, (EGLClientBuffer) nullptr);
-#endif
 }
 
 // ----------------------------------------------------------------------------
