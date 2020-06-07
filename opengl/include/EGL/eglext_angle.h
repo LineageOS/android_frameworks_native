@@ -4,11 +4,11 @@
 // found in the LICENSE file.
 //
 // eglext_angle.h: ANGLE modifications to the eglext.h header file.
-//   Currently we don't include this file directly, we patch eglext.h
-//   to include it implicitly so it is visible throughout our code.
 
 #ifndef INCLUDE_EGL_EGLEXT_ANGLE_
 #define INCLUDE_EGL_EGLEXT_ANGLE_
+
+#include <EGL/eglext.h>
 
 // clang-format off
 

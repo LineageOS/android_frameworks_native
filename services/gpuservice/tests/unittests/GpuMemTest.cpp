@@ -1,0 +1,133 @@
+/*
+ * Copyright 2020 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#undef LOG_TAG
+#define LOG_TAG "gpuservice_unittest"
+
+#include <android-base/stringprintf.h>
+#include <bpf/BpfMap.h>
+#include <gmock/gmock.h>
+#include <gpumem/GpuMem.h>
+#include <gtest/gtest.h>
+#include <inttypes.h>
+#include <utils/String16.h>
+#include <utils/Vector.h>
+
+#include "TestableGpuMem.h"
+
+namespace android {
+namespace {
+
+using base::StringPrintf;
+using testing::HasSubstr;
+
+constexpr uint32_t TEST_MAP_SIZE = 10;
+constexpr uint64_t TEST_GLOBAL_KEY = 0;
+constexpr uint64_t TEST_GLOBAL_VAL = 123;
+constexpr uint64_t TEST_PROC_KEY_1 = 1;
+constexpr uint64_t TEST_PROC_VAL_1 = 234;
+constexpr uint64_t TEST_PROC_KEY_2 = 4294967298; // (1 << 32) + 2
+constexpr uint64_t TEST_PROC_VAL_2 = 345;
+
+class GpuMemTest : public testing::Test {
+public:
+    GpuMemTest() {
+        const ::testing::TestInfo* const test_info =
+                ::testing::UnitTest::GetInstance()->current_test_info();
+        ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
+    }
+
+    ~GpuMemTest() {
+        const ::testing::TestInfo* const test_info =
+                ::testing::UnitTest::GetInstance()->current_test_info();
+        ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
+    }
+
+    void SetUp() override {
+        mGpuMem = std::make_unique<GpuMem>();
+        mTestableGpuMem = TestableGpuMem(mGpuMem.get());
+        mTestMap = bpf::BpfMap<uint64_t, uint64_t>(BPF_MAP_TYPE_HASH, TEST_MAP_SIZE,
+                                                   BPF_F_NO_PREALLOC);
+
+        EXPECT_LE(0, mTestMap.getMap().get());
+        EXPECT_TRUE(mTestMap.isValid());
+    }
+
+    std::string dumpsys() {
+        std::string result;
+        Vector<String16> args;
+        mGpuMem->dump(args, &result);
+        return result;
+    }
+
+    std::unique_ptr<GpuMem> mGpuMem;
+    TestableGpuMem mTestableGpuMem;
+    bpf::BpfMap<uint64_t, uint64_t> mTestMap;
+};
+
+TEST_F(GpuMemTest, validGpuMemTotalBpfPaths) {
+    EXPECT_EQ(mTestableGpuMem.getGpuMemTraceGroup(), "gpu_mem");
+    EXPECT_EQ(mTestableGpuMem.getGpuMemTotalTracepoint(), "gpu_mem_total");
+    EXPECT_EQ(mTestableGpuMem.getGpuMemTotalProgPath(),
+              "/sys/fs/bpf/prog_gpu_mem_tracepoint_gpu_mem_gpu_mem_total");
+    EXPECT_EQ(mTestableGpuMem.getGpuMemTotalMapPath(), "/sys/fs/bpf/map_gpu_mem_gpu_mem_total_map");
+}
+
+TEST_F(GpuMemTest, bpfInitializationFailed) {
+    EXPECT_EQ(dumpsys(), "Failed to initialize GPU memory eBPF\n");
+}
+
+TEST_F(GpuMemTest, gpuMemTotalMapEmpty) {
+    mTestableGpuMem.setGpuMemTotalMap(mTestMap);
+
+    EXPECT_EQ(dumpsys(), "GPU memory total usage map is empty\n");
+}
+
+TEST_F(GpuMemTest, globalMemTotal) {
+    ASSERT_RESULT_OK(mTestMap.writeValue(TEST_GLOBAL_KEY, TEST_GLOBAL_VAL, BPF_ANY));
+    mTestableGpuMem.setGpuMemTotalMap(mTestMap);
+
+    EXPECT_THAT(dumpsys(), HasSubstr(StringPrintf("Global total: %" PRIu64 "\n", TEST_GLOBAL_VAL)));
+}
+
+TEST_F(GpuMemTest, missingGlobalMemTotal) {
+    ASSERT_RESULT_OK(mTestMap.writeValue(TEST_PROC_KEY_1, TEST_PROC_VAL_1, BPF_ANY));
+    mTestableGpuMem.setGpuMemTotalMap(mTestMap);
+
+    EXPECT_THAT(dumpsys(), HasSubstr("Global total: N/A"));
+}
+
+TEST_F(GpuMemTest, procMemTotal) {
+    ASSERT_RESULT_OK(mTestMap.writeValue(TEST_PROC_KEY_1, TEST_PROC_VAL_1, BPF_ANY));
+    ASSERT_RESULT_OK(mTestMap.writeValue(TEST_PROC_KEY_2, TEST_PROC_VAL_2, BPF_ANY));
+    mTestableGpuMem.setGpuMemTotalMap(mTestMap);
+
+    EXPECT_THAT(dumpsys(),
+                HasSubstr(StringPrintf("Memory snapshot for GPU %u:\n",
+                                       (uint32_t)(TEST_PROC_KEY_1 >> 32))));
+    EXPECT_THAT(dumpsys(),
+                HasSubstr(StringPrintf("Proc %u total: %" PRIu64 "\n", (uint32_t)TEST_PROC_KEY_1,
+                                       TEST_PROC_VAL_1)));
+    EXPECT_THAT(dumpsys(),
+                HasSubstr(StringPrintf("Memory snapshot for GPU %u:\n",
+                                       (uint32_t)(TEST_PROC_KEY_2 >> 32))));
+    EXPECT_THAT(dumpsys(),
+                HasSubstr(StringPrintf("Proc %u total: %" PRIu64 "\n", (uint32_t)TEST_PROC_KEY_2,
+                                       TEST_PROC_VAL_2)));
+}
+
+} // namespace
+} // namespace android
