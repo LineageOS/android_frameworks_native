@@ -2675,7 +2675,8 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
         }
         processDisplayAdded(displayToken, currentState);
         if (currentState.physical) {
-            initializeDisplays();
+            const auto display = getDisplayDeviceLocked(displayToken);
+            setPowerModeInternal(display, hal::PowerMode::ON);
         }
         return;
     }
