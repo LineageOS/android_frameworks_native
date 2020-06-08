@@ -771,7 +771,11 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
         (mDeviceMode == DEVICE_MODE_DIRECT && mConfig.showTouches)) {
         if (mPointerController == nullptr || viewportChanged) {
             mPointerController = getPolicy()->obtainPointerController(getDeviceId());
-            mPointerController->setDisplayViewport(mViewport);
+            // Set the DisplayViewport for the PointerController to the default pointer display
+            // that is recommended by the configuration before using it.
+            std::optional<DisplayViewport> defaultViewport =
+                    mConfig.getDisplayViewportById(mConfig.defaultPointerDisplayId);
+            mPointerController->setDisplayViewport(defaultViewport.value_or(mViewport));
         }
     } else {
         mPointerController.clear();
