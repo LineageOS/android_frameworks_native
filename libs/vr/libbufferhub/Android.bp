@@ -16,6 +16,12 @@ cc_library_headers {
     name: "libbufferhub_headers",
     export_include_dirs: ["include"],
     vendor_available: true,  // TODO(b/112338314): Does shouldn't be available to vendor.
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.media",
+        "com.android.media.swcodec",
+    ],
+    min_sdk_version: "29",
 }
 
 sourceFiles = [
