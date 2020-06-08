@@ -1429,17 +1429,14 @@ status_t SurfaceFlinger::injectVSync(nsecs_t when) {
     return mScheduler->injectVSync(when, calculateExpectedPresentTime(when)) ? NO_ERROR : BAD_VALUE;
 }
 
-status_t SurfaceFlinger::getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const {
-    TimedLock lock(mStateLock, s2ns(1), __FUNCTION__);
-    if (!lock.locked()) {
-        return TIMED_OUT;
-    }
-
-    const auto display = getDefaultDisplayDeviceLocked();
+status_t SurfaceFlinger::getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) {
     outLayers->clear();
-    mCurrentState.traverseInZOrder(
-            [&](Layer* layer) { outLayers->push_back(layer->getLayerDebugInfo(display.get())); });
-
+    schedule([=] {
+        const auto display = ON_MAIN_THREAD(getDefaultDisplayDeviceLocked());
+        mDrawingState.traverseInZOrder([&](Layer* layer) {
+            outLayers->push_back(layer->getLayerDebugInfo(display.get()));
+        });
+    }).wait();
     return NO_ERROR;
 }
 
