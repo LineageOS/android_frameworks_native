@@ -89,15 +89,18 @@ public:
 
     void advanceBy(nsecs_t advancement) {
         mCurrentTime += advancement;
-        if (mCurrentTime >= mNextCallbackTime && mCallback) {
+        if (mCurrentTime >= (mNextCallbackTime + mLag) && mCallback) {
             mCallback();
         }
     };
+
+    void setLag(nsecs_t lag) { mLag = lag; }
 
 private:
     std::function<void()> mCallback;
     nsecs_t mNextCallbackTime = 0;
     nsecs_t mCurrentTime = 0;
+    nsecs_t mLag = 0;
 };
 
 class CountingCallback {
@@ -658,6 +661,46 @@ TEST_F(VSyncDispatchTimerQueueTest, helperMoveAssign) {
     cb1.cancel();
 }
 
+// b/154303580
+TEST_F(VSyncDispatchTimerQueueTest, skipsSchedulingIfTimerReschedulingIsImminent) {
+    Sequence seq;
+    EXPECT_CALL(mMockClock, alarmIn(_, 600)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 1200)).InSequence(seq);
+    CountingCallback cb1(mDispatch);
+    CountingCallback cb2(mDispatch);
+
+    EXPECT_EQ(mDispatch.schedule(cb1, 400, 1000), ScheduleResult::Scheduled);
+
+    mMockClock.setLag(100);
+    mMockClock.advanceBy(620);
+
+    EXPECT_EQ(mDispatch.schedule(cb2, 100, 2000), ScheduleResult::Scheduled);
+    mMockClock.advanceBy(80);
+
+    EXPECT_THAT(cb1.mCalls.size(), Eq(1));
+    EXPECT_THAT(cb2.mCalls.size(), Eq(0));
+}
+
+// b/154303580.
+// If the same callback tries to reschedule itself after it's too late, timer opts to apply the
+// update later, as opposed to blocking the calling thread.
+TEST_F(VSyncDispatchTimerQueueTest, skipsSchedulingIfTimerReschedulingIsImminentSameCallback) {
+    Sequence seq;
+    EXPECT_CALL(mMockClock, alarmIn(_, 600)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 930)).InSequence(seq);
+    CountingCallback cb(mDispatch);
+
+    EXPECT_EQ(mDispatch.schedule(cb, 400, 1000), ScheduleResult::Scheduled);
+
+    mMockClock.setLag(100);
+    mMockClock.advanceBy(620);
+
+    EXPECT_EQ(mDispatch.schedule(cb, 370, 2000), ScheduleResult::Scheduled);
+    mMockClock.advanceBy(80);
+
+    EXPECT_THAT(cb.mCalls.size(), Eq(1));
+}
+
 class VSyncDispatchTimerQueueEntryTest : public testing::Test {
 protected:
     nsecs_t const mPeriod = 1000;
@@ -815,6 +858,19 @@ TEST_F(VSyncDispatchTimerQueueEntryTest, reportsScheduledIfStillTime) {
     EXPECT_THAT(entry.schedule(200, 500, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
     EXPECT_THAT(entry.schedule(50, 500, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
     EXPECT_THAT(entry.schedule(1200, 500, mStubTracker, 0), Eq(ScheduleResult::Scheduled));
+}
+
+TEST_F(VSyncDispatchTimerQueueEntryTest, storesPendingUpdatesUntilUpdate) {
+    static constexpr auto effectualOffset = 200;
+    VSyncDispatchTimerQueueEntry entry(
+            "test", [](auto, auto) {}, mVsyncMoveThreshold);
+    EXPECT_FALSE(entry.hasPendingWorkloadUpdate());
+    entry.addPendingWorkloadUpdate(100, 400);
+    entry.addPendingWorkloadUpdate(effectualOffset, 700);
+    EXPECT_TRUE(entry.hasPendingWorkloadUpdate());
+    entry.update(mStubTracker, 0);
+    EXPECT_FALSE(entry.hasPendingWorkloadUpdate());
+    EXPECT_THAT(*entry.wakeupTime(), Eq(mPeriod - effectualOffset));
 }
 
 } // namespace android::scheduler
