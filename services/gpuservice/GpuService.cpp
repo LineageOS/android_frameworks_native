@@ -94,7 +94,6 @@ status_t GpuService::doDump(int fd, const Vector<String16>& args, bool /*asProto
         size_t numArgs = args.size();
 
         if (numArgs) {
-            dumpAll = false;
             for (size_t index = 0; index < numArgs; ++index) {
                 if (args[index] == String16("--gpustats")) {
                     dumpStats = true;
@@ -102,6 +101,7 @@ status_t GpuService::doDump(int fd, const Vector<String16>& args, bool /*asProto
                     dumpDriverInfo = true;
                 }
             }
+            dumpAll = !(dumpDriverInfo || dumpStats);
         }
 
         if (dumpAll || dumpDriverInfo) {
