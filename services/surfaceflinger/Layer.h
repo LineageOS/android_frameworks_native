@@ -1088,6 +1088,10 @@ private:
     // Find the root of the cloned hierarchy, this means the first non cloned parent.
     // This will return null if first non cloned parent is not found.
     sp<Layer> getClonedRoot();
+
+    // Finds the top most layer in the hierarchy. This will find the root Layer where the parent is
+    // null.
+    sp<Layer> getRootLayer();
 };
 
 } // namespace android
