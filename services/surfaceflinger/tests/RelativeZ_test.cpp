@@ -207,6 +207,71 @@ TEST_F(RelativeZTest, LayerAndRelativeRemoved) {
         sc->checkPixel(1, 1, Color::BLUE.r, Color::BLUE.g, Color::BLUE.b);
     }
 }
+
+// Preserve the relative z order when a layer is reparented to a layer that's already offscreen
+TEST_F(RelativeZTest, LayerWithRelativeReparentedToOffscreen) {
+    std::unique_ptr<ScreenCapture> sc;
+
+    Color testLayerColor = {255, 100, 0, 255};
+
+    // Background layer (RED)
+    // Foregroud layer (GREEN)
+    //   child level 1a (testLayerColor) (relative to child level 2b)
+    //   child level 1b (WHITE)
+    //     child level 2a (BLUE)
+    //     child level 2b (BLACK)
+    sp<SurfaceControl> childLevel1a =
+            createColorLayer("child level 1a", testLayerColor, mForegroundLayer.get());
+    sp<SurfaceControl> childLevel1b =
+            createColorLayer("child level 1b", Color::WHITE, mForegroundLayer.get());
+    sp<SurfaceControl> childLevel2a =
+            createColorLayer("child level 2a", Color::BLUE, childLevel1b.get());
+    sp<SurfaceControl> childLevel2b =
+            createColorLayer("child level 2b", Color::BLACK, childLevel1b.get());
+
+    Transaction{}
+            .setRelativeLayer(childLevel1a, childLevel2b->getHandle(), 1)
+            .show(childLevel1a)
+            .show(childLevel1b)
+            .show(childLevel2a)
+            .show(childLevel2b)
+            .apply();
+
+    {
+        // The childLevel1a should be in front of childLevel2b.
+        ScreenCapture::captureScreen(&sc);
+        sc->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), testLayerColor);
+    }
+
+    // Background layer (RED)
+    // Foregroud layer (GREEN)
+    //   child level 1a (testLayerColor) (relative to child level 2b)
+    Transaction{}.reparent(childLevel1b, nullptr).apply();
+
+    // // Background layer (RED)
+    // // Foregroud layer (GREEN)
+    Transaction{}.reparent(childLevel1a, childLevel2a->getHandle()).apply();
+
+    {
+        // The childLevel1a and childLevel1b are no longer on screen
+        ScreenCapture::captureScreen(&sc);
+        sc->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::GREEN);
+    }
+
+    // Background layer (RED)
+    // Foregroud layer (GREEN)
+    //   child level 1b (WHITE)
+    //     child level 2a (BLUE)
+    //       child level 1a (testLayerColor) (relative to child level 2b)
+    //     child level 2b (BLACK)
+    Transaction{}.reparent(childLevel1b, mForegroundLayer->getHandle()).apply();
+
+    {
+        // Nothing should change at this point since relative z info was preserved.
+        ScreenCapture::captureScreen(&sc);
+        sc->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), testLayerColor);
+    }
+}
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
