@@ -229,13 +229,23 @@ void Layer::removeFromCurrentState() {
     mFlinger->markLayerPendingRemovalLocked(this);
 }
 
+sp<Layer> Layer::getRootLayer() {
+    sp<Layer> parent = getParent();
+    if (parent == nullptr) {
+        return this;
+    }
+    return parent->getRootLayer();
+}
+
 void Layer::onRemovedFromCurrentState() {
-    auto layersInTree = getLayersInTree(LayerVector::StateSet::Current);
+    // Use the root layer since we want to maintain the hierarchy for the entire subtree.
+    auto layersInTree = getRootLayer()->getLayersInTree(LayerVector::StateSet::Current);
     std::sort(layersInTree.begin(), layersInTree.end());
-    for (const auto& layer : layersInTree) {
+
+    traverse(LayerVector::StateSet::Current, [&](Layer* layer) {
         layer->removeFromCurrentState();
         layer->removeRelativeZ(layersInTree);
-    }
+    });
 }
 
 void Layer::addToCurrentState() {
