@@ -2884,7 +2884,7 @@ void SurfaceFlinger::updateInputWindowInfo() {
     std::vector<InputWindowInfo> inputHandles;
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
-        if (layer->hasInput()) {
+        if (layer->needsInputInfo()) {
             // When calculating the screen bounds we ignore the transparent region since it may
             // result in an unwanted offset.
             inputHandles.push_back(layer->fillInputInfo());
