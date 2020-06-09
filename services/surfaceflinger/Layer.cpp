@@ -1501,7 +1501,7 @@ LayerDebugInfo Layer::getLayerDebugInfo(const DisplayDevice* display) const {
     LayerDebugInfo info;
     const State& ds = getDrawingState();
     info.mName = getName();
-    sp<Layer> parent = getParent();
+    sp<Layer> parent = mDrawingParent.promote();
     info.mParentName = parent ? parent->getName() : "none"s;
     info.mType = getType();
     info.mTransparentRegion = ds.activeTransparentRegion_legacy;
