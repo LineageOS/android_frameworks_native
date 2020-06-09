@@ -208,13 +208,17 @@ Error Display::getDisplayVsyncPeriod(nsecs_t* outVsyncPeriod) const {
         *outVsyncPeriod = static_cast<nsecs_t>(vsyncPeriodNanos);
     } else {
         // Get the default vsync period
-        HWConfigId configId = 0;
-        auto intError_2_1 = mComposer.getActiveConfig(mId, &configId);
-        error = static_cast<Error>(intError_2_1);
-        if (error == Error::NONE) {
-            auto config = mConfigs.at(configId);
-            *outVsyncPeriod = config->getVsyncPeriod();
+        std::shared_ptr<const Display::Config> config;
+        error = getActiveConfig(&config);
+        if (error != Error::NONE) {
+            return error;
         }
+        if (!config) {
+            // HWC has updated the display modes and hasn't notified us yet.
+            return Error::BAD_CONFIG;
+        }
+
+        *outVsyncPeriod = config->getVsyncPeriod();
     }
 
     return error;
