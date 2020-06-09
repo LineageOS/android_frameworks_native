@@ -33,7 +33,6 @@
 #include <renderengine/Image.h>
 
 #include "EffectLayer.h"
-#include "FrameTracer/FrameTracer.h"
 #include "TimeStats/TimeStats.h"
 
 namespace android {
@@ -98,9 +97,6 @@ void BufferStateLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
 
     // Prevent tracing the same release multiple times.
     if (mPreviousFrameNumber != mPreviousReleasedFrameNumber) {
-        mFlinger->mFrameTracer->traceFence(getSequence(), mPreviousBufferId, mPreviousFrameNumber,
-                                           std::make_shared<FenceTime>(releaseFence),
-                                           FrameTracer::FrameEvent::RELEASE_FENCE);
         mPreviousReleasedFrameNumber = mPreviousFrameNumber;
     }
 }
@@ -277,9 +273,6 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence
     const int32_t layerId = getSequence();
     mFlinger->mTimeStats->setPostTime(layerId, mCurrentState.frameNumber, getName().c_str(),
                                       postTime);
-    mFlinger->mFrameTracer->traceNewLayer(layerId, getName().c_str());
-    mFlinger->mFrameTracer->traceTimestamp(layerId, buffer->getId(), mCurrentState.frameNumber,
-                                           postTime, FrameTracer::FrameEvent::POST);
     desiredPresentTime = desiredPresentTime <= 0 ? 0 : desiredPresentTime;
     mCurrentState.desiredPresentTime = desiredPresentTime;
 
@@ -580,20 +573,13 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         status_t err = bindTextureImage();
         if (err != NO_ERROR) {
             mFlinger->mTimeStats->onDestroy(layerId);
-            mFlinger->mFrameTracer->onDestroy(layerId);
             return BAD_VALUE;
         }
     }
 
-    const uint64_t bufferID = getCurrentBufferId();
     mFlinger->mTimeStats->setAcquireFence(layerId, mDrawingState.frameNumber,
                                           mBufferInfo.mFenceTime);
-    mFlinger->mFrameTracer->traceFence(layerId, bufferID, mDrawingState.frameNumber,
-                                       mBufferInfo.mFenceTime,
-                                       FrameTracer::FrameEvent::ACQUIRE_FENCE);
     mFlinger->mTimeStats->setLatchTime(layerId, mDrawingState.frameNumber, latchTime);
-    mFlinger->mFrameTracer->traceTimestamp(layerId, bufferID, mDrawingState.frameNumber, latchTime,
-                                           FrameTracer::FrameEvent::LATCH);
 
     mCurrentStateModified = false;
 
