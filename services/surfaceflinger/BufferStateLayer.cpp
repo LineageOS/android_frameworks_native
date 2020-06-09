@@ -578,7 +578,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
     }
 
     mFlinger->mTimeStats->setAcquireFence(layerId, mDrawingState.frameNumber,
-                                          mBufferInfo.mFenceTime);
+                                          std::make_shared<FenceTime>(mDrawingState.acquireFence));
     mFlinger->mTimeStats->setLatchTime(layerId, mDrawingState.frameNumber, latchTime);
 
     mCurrentStateModified = false;
