@@ -3640,7 +3640,8 @@ void InputDispatcher::updateWindowHandlesForDisplayLocked(
             continue;
         }
 
-        if (oldHandlesById.find(handle->getId()) != oldHandlesById.end()) {
+        if ((oldHandlesById.find(handle->getId()) != oldHandlesById.end()) &&
+                (oldHandlesById.at(handle->getId())->getToken() == handle->getToken())) {
             const sp<InputWindowHandle>& oldHandle = oldHandlesById.at(handle->getId());
             oldHandle->updateFrom(handle);
             newHandles.push_back(oldHandle);
