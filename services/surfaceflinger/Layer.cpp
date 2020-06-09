@@ -2343,6 +2343,16 @@ bool Layer::isRemovedFromCurrentState() const  {
 }
 
 InputWindowInfo Layer::fillInputInfo() {
+    if (!hasInputInfo()) {
+        mDrawingState.inputInfo.name = getName();
+        mDrawingState.inputInfo.ownerUid = mCallingUid;
+        mDrawingState.inputInfo.ownerPid = mCallingPid;
+        mDrawingState.inputInfo.inputFeatures =
+            InputWindowInfo::INPUT_FEATURE_NO_INPUT_CHANNEL;
+        mDrawingState.inputInfo.layoutParamsFlags = InputWindowInfo::FLAG_NOT_TOUCH_MODAL;
+        mDrawingState.inputInfo.displayId = getLayerStack();
+    }
+
     InputWindowInfo info = mDrawingState.inputInfo;
     info.id = sequence;
 
@@ -2424,7 +2434,7 @@ sp<Layer> Layer::getClonedRoot() {
     return mDrawingParent.promote()->getClonedRoot();
 }
 
-bool Layer::hasInput() const {
+bool Layer::hasInputInfo() const {
     return mDrawingState.inputInfo.token != nullptr;
 }
 
