@@ -27,11 +27,18 @@
 // dumpstate, then connect to the dumpstate local client to read the
 // output. All of the dumpstate output is written to stdout, including
 // any errors encountered while reading/writing the output.
-int main() {
-
+int main(int argc, char* /*argv*/[]) {
   fprintf(stderr, "=============================================================================\n");
-  fprintf(stderr, "WARNING: flat bugreports are deprecated, use adb bugreport <zip_file> instead\n");
+  fprintf(stderr, "WARNING: Flat (text file, non-zipped) bugreports are deprecated.\n");
+  fprintf(stderr, "WARNING: Please generate zipped bugreports instead.\n");
+  fprintf(stderr, "WARNING: On the host use: adb bugreport filename.zip\n");
+  fprintf(stderr, "WARNING: On the device use: bugreportz filename.zip\n");
   fprintf(stderr, "=============================================================================\n\n\n");
+
+  if (argc != 1) {
+    fprintf(stderr, "usage: bugreport\n");
+    exit(1);
+  }
 
   // Start the dumpstate service.
   property_set("ctl.start", "dumpstate");
