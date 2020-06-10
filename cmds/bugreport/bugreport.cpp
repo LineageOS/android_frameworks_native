@@ -32,7 +32,8 @@ int main(int argc, char* /*argv*/[]) {
   fprintf(stderr, "WARNING: Flat (text file, non-zipped) bugreports are deprecated.\n");
   fprintf(stderr, "WARNING: Please generate zipped bugreports instead.\n");
   fprintf(stderr, "WARNING: On the host use: adb bugreport filename.zip\n");
-  fprintf(stderr, "WARNING: On the device use: bugreportz filename.zip\n");
+  fprintf(stderr, "WARNING: On the device use: bugreportz\n");
+  fprintf(stderr, "WARNING: bugreportz will output the filename to use with adb pull.\n");
   fprintf(stderr, "=============================================================================\n\n\n");
 
   if (argc != 1) {
