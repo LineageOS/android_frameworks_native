@@ -15,26 +15,31 @@
  */
 
 // #define LOG_NDEBUG 0
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "LayerInfoV2.h"
 
 #include <algorithm>
 #include <utility>
 
+#include <cutils/compiler.h>
+#include <cutils/trace.h>
+
 #undef LOG_TAG
 #define LOG_TAG "LayerInfoV2"
-#define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 namespace android::scheduler {
 
 const RefreshRateConfigs* LayerInfoV2::sRefreshRateConfigs = nullptr;
+bool LayerInfoV2::sTraceEnabled = false;
 
 LayerInfoV2::LayerInfoV2(const std::string& name, nsecs_t highRefreshRatePeriod,
                          LayerHistory::LayerVoteType defaultVote)
       : mName(name),
         mHighRefreshRatePeriod(highRefreshRatePeriod),
         mDefaultVote(defaultVote),
-        mLayerVote({defaultVote, 0.0f}) {}
+        mLayerVote({defaultVote, 0.0f}),
+        mRefreshRateHistory(name) {}
 
 void LayerInfoV2::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now,
                                      LayerUpdateType updateType, bool pendingConfigChange) {
@@ -94,24 +99,28 @@ bool LayerInfoV2::isAnimating(nsecs_t now) const {
 }
 
 bool LayerInfoV2::hasEnoughDataForHeuristic() const {
-    // The layer had to publish at least HISTORY_SIZE or HISTORY_TIME of updates
+    // The layer had to publish at least HISTORY_SIZE or HISTORY_DURATION of updates
     if (mFrameTimes.size() < 2) {
+        ALOGV("fewer than 2 frames recorded: %zu", mFrameTimes.size());
         return false;
     }
 
     if (!isFrameTimeValid(mFrameTimes.front())) {
+        ALOGV("stale frames still captured");
         return false;
     }
 
-    if (mFrameTimes.size() < HISTORY_SIZE &&
-        mFrameTimes.back().queueTime - mFrameTimes.front().queueTime < HISTORY_TIME.count()) {
+    const auto totalDuration = mFrameTimes.back().queueTime - mFrameTimes.front().queueTime;
+    if (mFrameTimes.size() < HISTORY_SIZE && totalDuration < HISTORY_DURATION.count()) {
+        ALOGV("not enough frames captured: %zu | %.2f seconds", mFrameTimes.size(),
+              totalDuration / 1e9f);
         return false;
     }
 
     return true;
 }
 
-std::pair<nsecs_t, bool> LayerInfoV2::calculateAverageFrameTime() const {
+std::optional<nsecs_t> LayerInfoV2::calculateAverageFrameTime() const {
     nsecs_t totalPresentTimeDeltas = 0;
     nsecs_t totalQueueTimeDeltas = 0;
     bool missingPresentTime = false;
@@ -119,15 +128,20 @@ std::pair<nsecs_t, bool> LayerInfoV2::calculateAverageFrameTime() const {
     for (auto it = mFrameTimes.begin(); it != mFrameTimes.end() - 1; ++it) {
         // Ignore frames captured during a config change
         if (it->pendingConfigChange || (it + 1)->pendingConfigChange) {
-            continue;
+            return std::nullopt;
         }
 
         totalQueueTimeDeltas +=
                 std::max(((it + 1)->queueTime - it->queueTime), mHighRefreshRatePeriod);
         numFrames++;
 
-        if (it->presetTime == 0 || (it + 1)->presetTime == 0) {
+        if (!missingPresentTime && (it->presetTime == 0 || (it + 1)->presetTime == 0)) {
             missingPresentTime = true;
+            // If there are no presentation timestamps and we haven't calculated
+            // one in the past then we can't calculate the refresh rate
+            if (mLastRefreshRate.reported == 0) {
+                return std::nullopt;
+            }
             continue;
         }
 
@@ -142,61 +156,46 @@ std::pair<nsecs_t, bool> LayerInfoV2::calculateAverageFrameTime() const {
     // when implementing render ahead for specific refresh rates. When hwui no longer provides
     // presentation timestamps we look at the queue time to see if the current refresh rate still
     // matches the content.
+
     const auto averageFrameTime =
             static_cast<float>(missingPresentTime ? totalQueueTimeDeltas : totalPresentTimeDeltas) /
             numFrames;
-    return {static_cast<nsecs_t>(averageFrameTime), missingPresentTime};
+    return static_cast<nsecs_t>(averageFrameTime);
 }
 
-bool LayerInfoV2::isRefreshRateStable(nsecs_t averageFrameTime, bool missingPresentTime) const {
-    for (auto it = mFrameTimes.begin(); it != mFrameTimes.end() - 1; ++it) {
-        // Ignore frames captured during a config change
-        if (it->pendingConfigChange || (it + 1)->pendingConfigChange) {
-            continue;
-        }
-        const auto presentTimeDeltas = [&] {
-            const auto delta = missingPresentTime ? (it + 1)->queueTime - it->queueTime
-                                                  : (it + 1)->presetTime - it->presetTime;
-            return std::max(delta, mHighRefreshRatePeriod);
-        }();
-
-        if (std::abs(presentTimeDeltas - averageFrameTime) > 2 * averageFrameTime) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-std::optional<float> LayerInfoV2::calculateRefreshRateIfPossible() {
+std::optional<float> LayerInfoV2::calculateRefreshRateIfPossible(nsecs_t now) {
     static constexpr float MARGIN = 1.0f; // 1Hz
     if (!hasEnoughDataForHeuristic()) {
         ALOGV("Not enough data");
         return std::nullopt;
     }
 
-    const auto [averageFrameTime, missingPresentTime] = calculateAverageFrameTime();
+    const auto averageFrameTime = calculateAverageFrameTime();
+    if (averageFrameTime.has_value()) {
+        const auto refreshRate = 1e9f / *averageFrameTime;
+        const bool refreshRateConsistent = mRefreshRateHistory.add(refreshRate, now);
+        if (refreshRateConsistent) {
+            const auto knownRefreshRate =
+                    sRefreshRateConfigs->findClosestKnownFrameRate(refreshRate);
 
-    // If there are no presentation timestamps provided we can't calculate the refresh rate
-    if (missingPresentTime && mLastRefreshRate.reported == 0) {
-        return std::nullopt;
+            // To avoid oscillation, use the last calculated refresh rate if it is
+            // close enough
+            if (std::abs(mLastRefreshRate.calculated - refreshRate) > MARGIN &&
+                mLastRefreshRate.reported != knownRefreshRate) {
+                mLastRefreshRate.calculated = refreshRate;
+                mLastRefreshRate.reported = knownRefreshRate;
+            }
+
+            ALOGV("%s %.2fHz rounded to nearest known frame rate %.2fHz", mName.c_str(),
+                  refreshRate, mLastRefreshRate.reported);
+        } else {
+            ALOGV("%s Not stable (%.2fHz) returning last known frame rate %.2fHz", mName.c_str(),
+                  refreshRate, mLastRefreshRate.reported);
+        }
     }
 
-    if (!isRefreshRateStable(averageFrameTime, missingPresentTime)) {
-        return std::nullopt;
-    }
-
-    const auto refreshRate = 1e9f / averageFrameTime;
-    const auto knownRefreshRate = sRefreshRateConfigs->findClosestKnownFrameRate(refreshRate);
-    if (std::abs(mLastRefreshRate.calculated - refreshRate) > MARGIN &&
-        mLastRefreshRate.reported != knownRefreshRate) {
-        mLastRefreshRate.calculated = refreshRate;
-        mLastRefreshRate.reported = knownRefreshRate;
-    }
-
-    ALOGV("%s %.2fHz rounded to nearest known frame rate %.2fHz", mName.c_str(), refreshRate,
-          mLastRefreshRate.reported);
-    return mLastRefreshRate.reported;
+    return mLastRefreshRate.reported == 0 ? std::nullopt
+                                          : std::make_optional(mLastRefreshRate.reported);
 }
 
 std::pair<LayerHistory::LayerVoteType, float> LayerInfoV2::getRefreshRate(nsecs_t now) {
@@ -207,15 +206,24 @@ std::pair<LayerHistory::LayerVoteType, float> LayerInfoV2::getRefreshRate(nsecs_
 
     if (isAnimating(now)) {
         ALOGV("%s is animating", mName.c_str());
+        mLastRefreshRate.animatingOrInfrequent = true;
         return {LayerHistory::LayerVoteType::Max, 0};
     }
 
     if (!isFrequent(now)) {
         ALOGV("%s is infrequent", mName.c_str());
+        mLastRefreshRate.animatingOrInfrequent = true;
         return {LayerHistory::LayerVoteType::Min, 0};
     }
 
-    auto refreshRate = calculateRefreshRateIfPossible();
+    // If the layer was previously tagged as animating or infrequent, we clear
+    // the history as it is likely the layer just changed its behavior
+    // and we should not look at stale data
+    if (mLastRefreshRate.animatingOrInfrequent) {
+        clearHistory(now);
+    }
+
+    auto refreshRate = calculateRefreshRateIfPossible(now);
     if (refreshRate.has_value()) {
         ALOGV("%s calculated refresh rate: %.2f", mName.c_str(), refreshRate.value());
         return {LayerHistory::LayerVoteType::Heuristic, refreshRate.value()};
@@ -223,6 +231,67 @@ std::pair<LayerHistory::LayerVoteType, float> LayerInfoV2::getRefreshRate(nsecs_
 
     ALOGV("%s Max (can't resolve refresh rate)", mName.c_str());
     return {LayerHistory::LayerVoteType::Max, 0};
+}
+
+const char* LayerInfoV2::getTraceTag(android::scheduler::LayerHistory::LayerVoteType type) const {
+    if (mTraceTags.count(type) == 0) {
+        const auto tag = "LFPS " + mName + " " + RefreshRateConfigs::layerVoteTypeString(type);
+        mTraceTags.emplace(type, tag);
+    }
+
+    return mTraceTags.at(type).c_str();
+}
+
+LayerInfoV2::RefreshRateHistory::HeuristicTraceTagData
+LayerInfoV2::RefreshRateHistory::makeHeuristicTraceTagData() const {
+    const std::string prefix = "LFPS ";
+    const std::string suffix = "Heuristic ";
+    return {.min = prefix + mName + suffix + "min",
+            .max = prefix + mName + suffix + "max",
+            .consistent = prefix + mName + suffix + "consistent",
+            .average = prefix + mName + suffix + "average"};
+}
+
+void LayerInfoV2::RefreshRateHistory::clear() {
+    mRefreshRates.clear();
+}
+
+bool LayerInfoV2::RefreshRateHistory::add(float refreshRate, nsecs_t now) {
+    mRefreshRates.push_back({refreshRate, now});
+    while (mRefreshRates.size() >= HISTORY_SIZE ||
+           now - mRefreshRates.front().timestamp > HISTORY_DURATION.count()) {
+        mRefreshRates.pop_front();
+    }
+
+    if (CC_UNLIKELY(sTraceEnabled)) {
+        if (!mHeuristicTraceTagData.has_value()) {
+            mHeuristicTraceTagData = makeHeuristicTraceTagData();
+        }
+
+        ATRACE_INT(mHeuristicTraceTagData->average.c_str(), static_cast<int>(refreshRate));
+    }
+
+    return isConsistent();
+}
+
+bool LayerInfoV2::RefreshRateHistory::isConsistent() const {
+    if (mRefreshRates.empty()) return true;
+
+    const auto max = std::max_element(mRefreshRates.begin(), mRefreshRates.end());
+    const auto min = std::min_element(mRefreshRates.begin(), mRefreshRates.end());
+    const auto consistent = max->refreshRate - min->refreshRate <= MARGIN_FPS;
+
+    if (CC_UNLIKELY(sTraceEnabled)) {
+        if (!mHeuristicTraceTagData.has_value()) {
+            mHeuristicTraceTagData = makeHeuristicTraceTagData();
+        }
+
+        ATRACE_INT(mHeuristicTraceTagData->max.c_str(), static_cast<int>(max->refreshRate));
+        ATRACE_INT(mHeuristicTraceTagData->min.c_str(), static_cast<int>(min->refreshRate));
+        ATRACE_INT(mHeuristicTraceTagData->consistent.c_str(), consistent);
+    }
+
+    return consistent;
 }
 
 } // namespace android::scheduler

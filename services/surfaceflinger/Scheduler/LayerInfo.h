@@ -98,9 +98,9 @@ class LayerInfo {
                 return false;
             }
 
-            // The layer had to publish at least HISTORY_SIZE or HISTORY_TIME of updates
+            // The layer had to publish at least HISTORY_SIZE or HISTORY_DURATION of updates
             if (mElements.size() < HISTORY_SIZE &&
-                mElements.back() - mElements.front() < HISTORY_TIME.count()) {
+                mElements.back() - mElements.front() < HISTORY_DURATION.count()) {
                 return false;
             }
 
@@ -124,7 +124,7 @@ class LayerInfo {
 
     private:
         std::deque<nsecs_t> mElements;
-        static constexpr std::chrono::nanoseconds HISTORY_TIME = 1s;
+        static constexpr std::chrono::nanoseconds HISTORY_DURATION = 1s;
     };
 
     friend class LayerHistoryTest;

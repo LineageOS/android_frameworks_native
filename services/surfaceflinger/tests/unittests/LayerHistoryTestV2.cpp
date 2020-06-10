@@ -38,7 +38,9 @@ protected:
     static constexpr auto PRESENT_TIME_HISTORY_SIZE = LayerInfoV2::HISTORY_SIZE;
     static constexpr auto MAX_FREQUENT_LAYER_PERIOD_NS = LayerInfoV2::MAX_FREQUENT_LAYER_PERIOD_NS;
     static constexpr auto FREQUENT_LAYER_WINDOW_SIZE = LayerInfoV2::FREQUENT_LAYER_WINDOW_SIZE;
-    static constexpr auto PRESENT_TIME_HISTORY_TIME = LayerInfoV2::HISTORY_TIME;
+    static constexpr auto PRESENT_TIME_HISTORY_DURATION = LayerInfoV2::HISTORY_DURATION;
+    static constexpr auto REFRESH_RATE_AVERAGE_HISTORY_DURATION =
+            LayerInfoV2::RefreshRateHistory::HISTORY_DURATION;
 
     static constexpr float LO_FPS = 30.f;
     static constexpr auto LO_FPS_PERIOD = static_cast<nsecs_t>(1e9f / LO_FPS);
@@ -84,19 +86,20 @@ protected:
         return sp<mock::MockLayer>(new mock::MockLayer(mFlinger.flinger(), std::move(name)));
     }
 
-    void recordFramesAndExpect(const sp<mock::MockLayer>& layer, float frameRate,
-                               float desiredRefreshRate) {
-        nsecs_t time = systemTime();
+    void recordFramesAndExpect(const sp<mock::MockLayer>& layer, nsecs_t& time, float frameRate,
+                               float desiredRefreshRate, int numFrames) {
         const nsecs_t framePeriod = static_cast<nsecs_t>(1e9f / frameRate);
-
-        for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
+        impl::LayerHistoryV2::Summary summary;
+        for (int i = 0; i < numFrames; i++) {
             history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
             time += framePeriod;
+
+            summary = history().summarize(time);
         }
 
-        ASSERT_EQ(1, history().summarize(time).size());
-        EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, history().summarize(time)[0].vote);
-        EXPECT_FLOAT_EQ(desiredRefreshRate, history().summarize(time)[0].desiredRefreshRate)
+        ASSERT_EQ(1, summary.size());
+        ASSERT_EQ(LayerHistory::LayerVoteType::Heuristic, summary[0].vote);
+        ASSERT_FLOAT_EQ(desiredRefreshRate, summary[0].desiredRefreshRate)
                 << "Frame rate is " << frameRate;
     }
 
@@ -362,14 +365,17 @@ TEST_F(LayerHistoryTestV2, multipleLayers) {
     EXPECT_EQ(0, activeLayerCount());
     EXPECT_EQ(0, frequentLayerCount(time));
 
+    impl::LayerHistoryV2::Summary summary;
+
     // layer1 is active but infrequent.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
         history().record(layer1.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
         time += MAX_FREQUENT_LAYER_PERIOD_NS.count();
+        summary = history().summarize(time);
     }
 
-    ASSERT_EQ(1, history().summarize(time).size());
-    EXPECT_EQ(LayerHistory::LayerVoteType::Min, history().summarize(time)[0].vote);
+    ASSERT_EQ(1, summary.size());
+    EXPECT_EQ(LayerHistory::LayerVoteType::Min, summary[0].vote);
     EXPECT_EQ(1, activeLayerCount());
     EXPECT_EQ(0, frequentLayerCount(time));
 
@@ -377,28 +383,30 @@ TEST_F(LayerHistoryTestV2, multipleLayers) {
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
         history().record(layer2.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
         time += HI_FPS_PERIOD;
+        summary = history().summarize(time);
     }
 
     // layer1 is still active but infrequent.
     history().record(layer1.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
 
-    ASSERT_EQ(2, history().summarize(time).size());
-    EXPECT_EQ(LayerHistory::LayerVoteType::Min, history().summarize(time)[0].vote);
-    ASSERT_EQ(LayerHistory::LayerVoteType::Heuristic, history().summarize(time)[1].vote);
+    ASSERT_EQ(2, summary.size());
+    EXPECT_EQ(LayerHistory::LayerVoteType::Min, summary[0].vote);
+    ASSERT_EQ(LayerHistory::LayerVoteType::Heuristic, summary[1].vote);
     EXPECT_FLOAT_EQ(HI_FPS, history().summarize(time)[1].desiredRefreshRate);
     EXPECT_EQ(2, activeLayerCount());
     EXPECT_EQ(1, frequentLayerCount(time));
 
     // layer1 is no longer active.
     // layer2 is frequent and has low refresh rate.
-    for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
+    for (int i = 0; i < 2 * PRESENT_TIME_HISTORY_SIZE; i++) {
         history().record(layer2.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
         time += LO_FPS_PERIOD;
+        summary = history().summarize(time);
     }
 
-    ASSERT_EQ(1, history().summarize(time).size());
-    EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, history().summarize(time)[0].vote);
-    EXPECT_FLOAT_EQ(LO_FPS, history().summarize(time)[0].desiredRefreshRate);
+    ASSERT_EQ(1, summary.size());
+    EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, summary[0].vote);
+    EXPECT_FLOAT_EQ(LO_FPS, summary[0].desiredRefreshRate);
     EXPECT_EQ(1, activeLayerCount());
     EXPECT_EQ(1, frequentLayerCount(time));
 
@@ -412,33 +420,36 @@ TEST_F(LayerHistoryTestV2, multipleLayers) {
 
         history().record(layer3.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
         time += HI_FPS_PERIOD;
+        summary = history().summarize(time);
     }
 
-    ASSERT_EQ(2, history().summarize(time).size());
-    EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, history().summarize(time)[0].vote);
-    EXPECT_FLOAT_EQ(LO_FPS, history().summarize(time)[0].desiredRefreshRate);
-    EXPECT_EQ(LayerHistory::LayerVoteType::Max, history().summarize(time)[1].vote);
+    ASSERT_EQ(2, summary.size());
+    EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, summary[0].vote);
+    EXPECT_FLOAT_EQ(LO_FPS, summary[0].desiredRefreshRate);
+    EXPECT_EQ(LayerHistory::LayerVoteType::Max, summary[1].vote);
     EXPECT_EQ(2, activeLayerCount());
     EXPECT_EQ(2, frequentLayerCount(time));
 
     // layer3 becomes recently active.
     history().record(layer3.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
-    ASSERT_EQ(2, history().summarize(time).size());
-    EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, history().summarize(time)[0].vote);
-    EXPECT_FLOAT_EQ(LO_FPS, history().summarize(time)[0].desiredRefreshRate);
-    EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, history().summarize(time)[1].vote);
-    EXPECT_FLOAT_EQ(HI_FPS, history().summarize(time)[1].desiredRefreshRate);
+    summary = history().summarize(time);
+    ASSERT_EQ(2, summary.size());
+    EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, summary[0].vote);
+    EXPECT_FLOAT_EQ(LO_FPS, summary[0].desiredRefreshRate);
+    EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, summary[1].vote);
+    EXPECT_FLOAT_EQ(HI_FPS, summary[1].desiredRefreshRate);
     EXPECT_EQ(2, activeLayerCount());
     EXPECT_EQ(2, frequentLayerCount(time));
 
     // layer1 expires.
     layer1.clear();
-    ASSERT_EQ(2, history().summarize(time).size());
-    EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, history().summarize(time)[0].vote);
-    EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, history().summarize(time)[0].vote);
-    EXPECT_FLOAT_EQ(LO_FPS, history().summarize(time)[0].desiredRefreshRate);
-    EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, history().summarize(time)[1].vote);
-    EXPECT_FLOAT_EQ(HI_FPS, history().summarize(time)[1].desiredRefreshRate);
+    summary = history().summarize(time);
+    ASSERT_EQ(2, summary.size());
+    EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, summary[0].vote);
+    EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, summary[0].vote);
+    EXPECT_FLOAT_EQ(LO_FPS, summary[0].desiredRefreshRate);
+    EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, summary[1].vote);
+    EXPECT_FLOAT_EQ(HI_FPS, summary[1].desiredRefreshRate);
     EXPECT_EQ(2, layerCount());
     EXPECT_EQ(2, activeLayerCount());
     EXPECT_EQ(2, frequentLayerCount(time));
@@ -448,37 +459,41 @@ TEST_F(LayerHistoryTestV2, multipleLayers) {
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
         history().record(layer2.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
         time += LO_FPS_PERIOD;
+        summary = history().summarize(time);
     }
 
-    ASSERT_EQ(1, history().summarize(time).size());
-    EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, history().summarize(time)[0].vote);
-    EXPECT_FLOAT_EQ(LO_FPS, history().summarize(time)[0].desiredRefreshRate);
+    ASSERT_EQ(1, summary.size());
+    EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, summary[0].vote);
+    EXPECT_FLOAT_EQ(LO_FPS, summary[0].desiredRefreshRate);
     EXPECT_EQ(1, activeLayerCount());
     EXPECT_EQ(1, frequentLayerCount(time));
 
     // layer2 expires.
     layer2.clear();
-    EXPECT_TRUE(history().summarize(time).empty());
+    summary = history().summarize(time);
+    EXPECT_TRUE(summary.empty());
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(0, activeLayerCount());
     EXPECT_EQ(0, frequentLayerCount(time));
 
     // layer3 becomes active and has high refresh rate.
-    for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
+    for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE + FREQUENT_LAYER_WINDOW_SIZE + 1; i++) {
         history().record(layer3.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
         time += HI_FPS_PERIOD;
+        summary = history().summarize(time);
     }
 
-    ASSERT_EQ(1, history().summarize(time).size());
-    EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, history().summarize(time)[0].vote);
-    EXPECT_FLOAT_EQ(HI_FPS, history().summarize(time)[0].desiredRefreshRate);
+    ASSERT_EQ(1, summary.size());
+    EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, summary[0].vote);
+    EXPECT_FLOAT_EQ(HI_FPS, summary[0].desiredRefreshRate);
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(1, activeLayerCount());
     EXPECT_EQ(1, frequentLayerCount(time));
 
     // layer3 expires.
     layer3.clear();
-    EXPECT_TRUE(history().summarize(time).empty());
+    summary = history().summarize(time);
+    EXPECT_TRUE(summary.empty());
     EXPECT_EQ(0, layerCount());
     EXPECT_EQ(0, activeLayerCount());
     EXPECT_EQ(0, frequentLayerCount(time));
@@ -621,9 +636,25 @@ TEST_F(LayerHistoryTestV2, heuristicLayer60Hz) {
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
 
+    nsecs_t time = systemTime();
     for (float fps = 54.0f; fps < 65.0f; fps += 0.1f) {
-        recordFramesAndExpect(layer, fps, 60.0f);
+        recordFramesAndExpect(layer, time, fps, 60.0f, PRESENT_TIME_HISTORY_SIZE);
     }
+}
+
+TEST_F(LayerHistoryTestV2, heuristicLayer60_30Hz) {
+    const auto layer = createLayer();
+    EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
+
+    nsecs_t time = systemTime();
+    recordFramesAndExpect(layer, time, 60.0f, 60.0f, PRESENT_TIME_HISTORY_SIZE);
+
+    recordFramesAndExpect(layer, time, 60.0f, 60.0f, PRESENT_TIME_HISTORY_SIZE);
+    recordFramesAndExpect(layer, time, 30.0f, 60.0f, PRESENT_TIME_HISTORY_SIZE);
+    recordFramesAndExpect(layer, time, 30.0f, 30.0f, PRESENT_TIME_HISTORY_SIZE);
+    recordFramesAndExpect(layer, time, 60.0f, 30.0f, PRESENT_TIME_HISTORY_SIZE);
+    recordFramesAndExpect(layer, time, 60.0f, 60.0f, PRESENT_TIME_HISTORY_SIZE);
 }
 
 TEST_F(LayerHistoryTestV2, heuristicLayerNotOscillating) {
@@ -631,11 +662,13 @@ TEST_F(LayerHistoryTestV2, heuristicLayerNotOscillating) {
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
 
-    recordFramesAndExpect(layer, 27.10f, 30.0f);
-    recordFramesAndExpect(layer, 26.50f, 30.0f);
-    recordFramesAndExpect(layer, 25.90f, 24.0f);
-    recordFramesAndExpect(layer, 26.50f, 24.0f);
-    recordFramesAndExpect(layer, 27.10f, 30.0f);
+    nsecs_t time = systemTime();
+
+    recordFramesAndExpect(layer, time, 27.10f, 30.0f, PRESENT_TIME_HISTORY_SIZE);
+    recordFramesAndExpect(layer, time, 26.90f, 30.0f, PRESENT_TIME_HISTORY_SIZE);
+    recordFramesAndExpect(layer, time, 26.00f, 24.0f, PRESENT_TIME_HISTORY_SIZE);
+    recordFramesAndExpect(layer, time, 26.90f, 24.0f, PRESENT_TIME_HISTORY_SIZE);
+    recordFramesAndExpect(layer, time, 27.10f, 30.0f, PRESENT_TIME_HISTORY_SIZE);
 }
 
 class LayerHistoryTestV2Parameterized
@@ -680,7 +713,7 @@ TEST_P(LayerHistoryTestV2Parameterized, HeuristicLayerWithInfrequentLayer) {
             infrequentLayerUpdates++;
         }
 
-        if (time - startTime > PRESENT_TIME_HISTORY_TIME.count()) {
+        if (time - startTime > PRESENT_TIME_HISTORY_DURATION.count()) {
             ASSERT_NE(0, history().summarize(time).size());
             ASSERT_GE(2, history().summarize(time).size());
 
