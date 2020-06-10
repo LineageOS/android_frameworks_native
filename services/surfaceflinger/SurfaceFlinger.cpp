@@ -1077,8 +1077,8 @@ void SurfaceFlinger::setActiveConfigInternal() {
         const nsecs_t vsyncPeriod =
                 mRefreshRateConfigs->getRefreshRateFromConfigId(mUpcomingActiveConfig.configId)
                         .getVsyncPeriod();
-        mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value,
-                                    mUpcomingActiveConfig.configId, vsyncPeriod);
+        mScheduler->onPrimaryDisplayConfigChanged(mAppConnectionHandle, display->getId()->value,
+                                                  mUpcomingActiveConfig.configId, vsyncPeriod);
     }
 }
 
@@ -2991,8 +2991,8 @@ void SurfaceFlinger::initScheduler(DisplayId primaryDisplayId) {
     // anyway since there are no connected apps at this point.
     const nsecs_t vsyncPeriod =
             mRefreshRateConfigs->getRefreshRateFromConfigId(currentConfig).getVsyncPeriod();
-    mScheduler->onConfigChanged(mAppConnectionHandle, primaryDisplayId.value, currentConfig,
-                                vsyncPeriod);
+    mScheduler->onPrimaryDisplayConfigChanged(mAppConnectionHandle, primaryDisplayId.value,
+                                              currentConfig, vsyncPeriod);
 }
 
 void SurfaceFlinger::commitTransaction()
@@ -5939,8 +5939,8 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(
         const nsecs_t vsyncPeriod = getHwComposer()
                                             .getConfigs(*displayId)[policy->defaultConfig.value()]
                                             ->getVsyncPeriod();
-        mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value,
-                                    policy->defaultConfig, vsyncPeriod);
+        mScheduler->onNonPrimaryDisplayConfigChanged(mAppConnectionHandle, display->getId()->value,
+                                                     policy->defaultConfig, vsyncPeriod);
         return NO_ERROR;
     }
 
@@ -5972,8 +5972,8 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(
     const nsecs_t vsyncPeriod =
             mRefreshRateConfigs->getRefreshRateFromConfigId(display->getActiveConfig())
                     .getVsyncPeriod();
-    mScheduler->onConfigChanged(mAppConnectionHandle, display->getId()->value,
-                                display->getActiveConfig(), vsyncPeriod);
+    mScheduler->onPrimaryDisplayConfigChanged(mAppConnectionHandle, display->getId()->value,
+                                              display->getActiveConfig(), vsyncPeriod);
 
     auto configId = mScheduler->getPreferredConfigId();
     auto& preferredRefreshRate = configId
