@@ -1911,6 +1911,7 @@ void SurfaceFlinger::onMessageInvalidate(nsecs_t expectedVSyncTime) {
     // ...but if it's larger than 1s then we missed the trace cutoff.
     static constexpr nsecs_t kMaxJankyDuration =
             std::chrono::duration_cast<std::chrono::nanoseconds>(1s).count();
+    nsecs_t jankDurationToUpload = -1;
     // If we're in a user build then don't push any atoms
     if (!mIsUserBuild && mMissedFrameJankCount > 0) {
         const auto display = ON_MAIN_THREAD(getDefaultDisplayDeviceLocked());
@@ -1922,10 +1923,7 @@ void SurfaceFlinger::onMessageInvalidate(nsecs_t expectedVSyncTime) {
             const nsecs_t currentTime = systemTime();
             const nsecs_t jankDuration = currentTime - mMissedFrameJankStart;
             if (jankDuration > kMinJankyDuration && jankDuration < kMaxJankyDuration) {
-                ATRACE_NAME("Jank detected");
-                const int32_t jankyDurationMillis = jankDuration / (1000 * 1000);
-                android::util::stats_write(android::util::DISPLAY_JANK_REPORTED,
-                                           jankyDurationMillis, mMissedFrameJankCount);
+                jankDurationToUpload = jankDuration;
             }
 
             // We either reported a jank event or we missed the trace
@@ -1978,6 +1976,7 @@ void SurfaceFlinger::onMessageInvalidate(nsecs_t expectedVSyncTime) {
 
     refreshNeeded |= mRepaintEverything;
     if (refreshNeeded && CC_LIKELY(mBootStage != BootStage::BOOTLOADER)) {
+        mLastJankDuration = jankDurationToUpload;
         // Signal a refresh if a transaction modified the window state,
         // a new buffer was latched, or if HWC has requested a full
         // repaint
@@ -2283,6 +2282,14 @@ void SurfaceFlinger::postComposition()
     const size_t sfConnections = mScheduler->getEventThreadConnectionCount(mSfConnectionHandle);
     const size_t appConnections = mScheduler->getEventThreadConnectionCount(mAppConnectionHandle);
     mTimeStats->recordDisplayEventConnectionCount(sfConnections + appConnections);
+
+    if (mLastJankDuration > 0) {
+        ATRACE_NAME("Jank detected");
+        const int32_t jankyDurationMillis = mLastJankDuration / (1000 * 1000);
+        android::util::stats_write(android::util::DISPLAY_JANK_REPORTED, jankyDurationMillis,
+                                   mMissedFrameJankCount);
+        mLastJankDuration = -1;
+    }
 
     if (isDisplayConnected && !display->isPoweredOn()) {
         return;
