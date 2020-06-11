@@ -1,0 +1,19 @@
+cc_fuzz {
+    name: "libpdx_fuzz",
+    clang: true,
+    srcs: [
+        "service_dispatcher_fuzzer.cpp",
+    ],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    static_libs: [
+        "libpdx",
+    ],
+    shared_libs: [
+        "libutils",
+        "liblog",
+    ],
+}
