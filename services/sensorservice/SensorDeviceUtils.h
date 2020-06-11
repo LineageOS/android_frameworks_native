@@ -36,7 +36,7 @@ inline void quantizeValue(float *value, double resolution) {
     // Increase the value of the sensor's nominal resolution to ensure that
     // sensor accuracy improvements, like runtime calibration, are not masked
     // during requantization.
-    double incRes = 0.25 * resolution;
+    double incRes = 0.125 * resolution;
     *value = round(static_cast<double>(*value) / incRes) * incRes;
 }
 
