@@ -179,7 +179,6 @@ TEST_F(DumpOptionsTest, InitializeNone) {
     EXPECT_FALSE(options_.do_screenshot);
     EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.is_remote_mode);
-    EXPECT_FALSE(options_.arc_only);
     EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::DEFAULT);
 }
 
@@ -207,7 +206,6 @@ TEST_F(DumpOptionsTest, InitializeAdbBugreport) {
     EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.is_remote_mode);
     EXPECT_FALSE(options_.use_socket);
-    EXPECT_FALSE(options_.arc_only);
     EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::DEFAULT);
 }
 
@@ -233,7 +231,6 @@ TEST_F(DumpOptionsTest, InitializeAdbShellBugreport) {
     EXPECT_FALSE(options_.do_screenshot);
     EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.is_remote_mode);
-    EXPECT_FALSE(options_.arc_only);
     EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::DEFAULT);
 }
 
@@ -252,7 +249,6 @@ TEST_F(DumpOptionsTest, InitializeFullBugReport) {
     EXPECT_FALSE(options_.is_remote_mode);
     EXPECT_FALSE(options_.use_socket);
     EXPECT_FALSE(options_.do_start_service);
-    EXPECT_FALSE(options_.arc_only);
 }
 
 TEST_F(DumpOptionsTest, InitializeInteractiveBugReport) {
@@ -270,7 +266,6 @@ TEST_F(DumpOptionsTest, InitializeInteractiveBugReport) {
     EXPECT_FALSE(options_.show_header_only);
     EXPECT_FALSE(options_.is_remote_mode);
     EXPECT_FALSE(options_.use_socket);
-    EXPECT_FALSE(options_.arc_only);
 }
 
 TEST_F(DumpOptionsTest, InitializeRemoteBugReport) {
@@ -287,7 +282,6 @@ TEST_F(DumpOptionsTest, InitializeRemoteBugReport) {
     EXPECT_FALSE(options_.show_header_only);
     EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.use_socket);
-    EXPECT_FALSE(options_.arc_only);
 }
 
 TEST_F(DumpOptionsTest, InitializeWearBugReport) {
@@ -305,7 +299,6 @@ TEST_F(DumpOptionsTest, InitializeWearBugReport) {
     EXPECT_FALSE(options_.show_header_only);
     EXPECT_FALSE(options_.is_remote_mode);
     EXPECT_FALSE(options_.use_socket);
-    EXPECT_FALSE(options_.arc_only);
 }
 
 TEST_F(DumpOptionsTest, InitializeTelephonyBugReport) {
@@ -323,7 +316,6 @@ TEST_F(DumpOptionsTest, InitializeTelephonyBugReport) {
     EXPECT_FALSE(options_.show_header_only);
     EXPECT_FALSE(options_.is_remote_mode);
     EXPECT_FALSE(options_.use_socket);
-    EXPECT_FALSE(options_.arc_only);
 }
 
 TEST_F(DumpOptionsTest, InitializeWifiBugReport) {
@@ -341,37 +333,6 @@ TEST_F(DumpOptionsTest, InitializeWifiBugReport) {
     EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.is_remote_mode);
     EXPECT_FALSE(options_.use_socket);
-    EXPECT_FALSE(options_.arc_only);
-}
-
-TEST_F(DumpOptionsTest, InitializeArcOnlyBugreport) {
-    // clang-format off
-    char* argv[] = {
-        const_cast<char*>("dumpstatez"),
-        const_cast<char*>("-S"),
-        const_cast<char*>("-d"),
-        const_cast<char*>("-z"),
-        const_cast<char*>("-q"),
-        const_cast<char*>("-A")
-    };
-    // clang-format on
-
-    Dumpstate::RunStatus status = options_.Initialize(ARRAY_SIZE(argv), argv);
-
-    EXPECT_EQ(status, Dumpstate::RunStatus::OK);
-    EXPECT_TRUE(options_.do_add_date);
-    EXPECT_TRUE(options_.do_zip_file);
-    EXPECT_TRUE(options_.use_control_socket);
-    EXPECT_FALSE(options_.do_vibrate);
-    EXPECT_TRUE(options_.arc_only);
-
-    // Other options retain default values
-    EXPECT_FALSE(options_.show_header_only);
-    EXPECT_FALSE(options_.do_screenshot);
-    EXPECT_FALSE(options_.do_progress_updates);
-    EXPECT_FALSE(options_.is_remote_mode);
-    EXPECT_FALSE(options_.use_socket);
-    EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::DEFAULT);
 }
 
 TEST_F(DumpOptionsTest, InitializeDefaultBugReport) {
@@ -400,7 +361,6 @@ TEST_F(DumpOptionsTest, InitializeDefaultBugReport) {
     EXPECT_FALSE(options_.is_remote_mode);
     EXPECT_FALSE(options_.use_socket);
     EXPECT_FALSE(options_.wifi_only);
-    EXPECT_FALSE(options_.arc_only);
 }
 
 TEST_F(DumpOptionsTest, InitializePartial1) {
@@ -430,7 +390,6 @@ TEST_F(DumpOptionsTest, InitializePartial1) {
     EXPECT_FALSE(options_.do_screenshot);
     EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.is_remote_mode);
-    EXPECT_FALSE(options_.arc_only);
     EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::DEFAULT);
 }
 
@@ -460,7 +419,6 @@ TEST_F(DumpOptionsTest, InitializePartial2) {
     EXPECT_FALSE(options_.do_zip_file);
     EXPECT_FALSE(options_.use_socket);
     EXPECT_FALSE(options_.use_control_socket);
-    EXPECT_FALSE(options_.arc_only);
     EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::DEFAULT);
 }
 
