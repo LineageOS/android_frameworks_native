@@ -25,6 +25,7 @@
 #include <cutils/properties.h>
 #include <utils/Trace.h>
 
+#include <chrono>
 #include <cinttypes>
 #include <mutex>
 
@@ -52,6 +53,7 @@ void VSyncModulator::setPhaseOffsets(const OffsetsConfig& config) {
 void VSyncModulator::setTransactionStart(Scheduler::TransactionStart transactionStart) {
     if (transactionStart == Scheduler::TransactionStart::EARLY) {
         mRemainingEarlyFrameCount = MIN_EARLY_FRAME_COUNT_TRANSACTION;
+        mEarlyTxnStartTime = std::chrono::steady_clock::now();
     }
 
     // An early transaction stays an early transaction.
@@ -64,6 +66,7 @@ void VSyncModulator::setTransactionStart(Scheduler::TransactionStart transaction
 }
 
 void VSyncModulator::onTransactionHandled() {
+    mTxnAppliedTime = std::chrono::steady_clock::now();
     if (mTransactionStart == Scheduler::TransactionStart::NORMAL) return;
     mTransactionStart = Scheduler::TransactionStart::NORMAL;
     updateOffsets();
@@ -87,9 +90,16 @@ void VSyncModulator::onRefreshRateChangeCompleted() {
 
 void VSyncModulator::onRefreshed(bool usedRenderEngine) {
     bool updateOffsetsNeeded = false;
-    if (mRemainingEarlyFrameCount > 0) {
-        mRemainingEarlyFrameCount--;
-        updateOffsetsNeeded = true;
+
+    // Apply a 1ms margin to account for potential data races
+    // This might make us stay in early offsets for one
+    // additional frame but it's better to be conservative here.
+    static const constexpr std::chrono::nanoseconds kMargin = 1ms;
+    if ((mEarlyTxnStartTime.load() + kMargin) < mTxnAppliedTime.load()) {
+        if (mRemainingEarlyFrameCount > 0) {
+            mRemainingEarlyFrameCount--;
+            updateOffsetsNeeded = true;
+        }
     }
     if (usedRenderEngine) {
         mRemainingRenderEngineUsageCount = MIN_EARLY_GL_FRAME_COUNT_TRANSACTION;
