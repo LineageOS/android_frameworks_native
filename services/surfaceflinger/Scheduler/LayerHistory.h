@@ -136,7 +136,7 @@ private:
 
 class LayerHistoryV2 : public android::scheduler::LayerHistory {
 public:
-    LayerHistoryV2();
+    LayerHistoryV2(const scheduler::RefreshRateConfigs&);
     virtual ~LayerHistoryV2();
 
     // Layers are unregistered when the weak reference expires.
