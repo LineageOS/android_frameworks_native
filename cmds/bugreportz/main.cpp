@@ -30,7 +30,7 @@ static constexpr char VERSION[] = "1.1";
 
 static void show_usage() {
     fprintf(stderr,
-            "usage: bugreportz [-h | -v]\n"
+            "usage: bugreportz [-hpv]\n"
             "  -h: to display this help message\n"
             "  -p: display progress\n"
             "  -v: to display the version\n"
@@ -62,6 +62,12 @@ int main(int argc, char* argv[]) {
                     return EXIT_FAILURE;
             }
         }
+    }
+
+    // We don't support any non-option arguments.
+    if (optind != argc) {
+        show_usage();
+        return EXIT_FAILURE;
     }
 
     // TODO: code below was copy-and-pasted from bugreport.cpp (except by the

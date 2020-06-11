@@ -1289,6 +1289,8 @@ private:
     // janky frames there are.
     nsecs_t mMissedFrameJankStart = 0;
     int32_t mMissedFrameJankCount = 0;
+    // Positive if jank should be uploaded in postComposition
+    nsecs_t mLastJankDuration = -1;
 
     int mFrameRateFlexibilityTokenCount = 0;
 
