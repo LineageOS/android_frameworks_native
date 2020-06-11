@@ -278,7 +278,9 @@ bool VSyncReactor::periodConfirmed(nsecs_t vsync_timestamp, std::optional<nsecs_
         return false;
     }
 
-    if (mSupportKernelIdleTimer) {
+    const bool periodIsChanging =
+            mPeriodTransitioningTo && (*mPeriodTransitioningTo != getPeriod());
+    if (mSupportKernelIdleTimer && !periodIsChanging) {
         // Clear out the Composer-provided period and use the allowance logic below
         HwcVsyncPeriod = {};
     }
