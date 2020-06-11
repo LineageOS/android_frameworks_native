@@ -711,16 +711,17 @@ private:
     void startBootAnim();
 
     using TraverseLayersFunction = std::function<void(const LayerVector::Visitor&)>;
+    using RenderAreaFuture = std::future<std::unique_ptr<RenderArea>>;
 
     void renderScreenImplLocked(const RenderArea& renderArea, TraverseLayersFunction traverseLayers,
                                 const sp<GraphicBuffer>& buffer, bool useIdentityTransform,
                                 bool regionSampling, int* outSyncFd);
-    status_t captureScreenCommon(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
-                                 sp<GraphicBuffer>* outBuffer, const ui::PixelFormat reqPixelFormat,
+    status_t captureScreenCommon(RenderAreaFuture, TraverseLayersFunction, ui::Size bufferSize,
+                                 sp<GraphicBuffer>* outBuffer, ui::PixelFormat,
                                  bool useIdentityTransform, bool& outCapturedSecureLayers);
-    status_t captureScreenCommon(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
-                                 const sp<GraphicBuffer>& buffer, bool useIdentityTransform,
-                                 bool regionSampling, bool& outCapturedSecureLayers);
+    status_t captureScreenCommon(RenderAreaFuture, TraverseLayersFunction, const sp<GraphicBuffer>&,
+                                 bool useIdentityTransform, bool regionSampling,
+                                 bool& outCapturedSecureLayers);
     sp<DisplayDevice> getDisplayByIdOrLayerStack(uint64_t displayOrLayerStack) REQUIRES(mStateLock);
     sp<DisplayDevice> getDisplayByLayerStack(uint64_t layerStack) REQUIRES(mStateLock);
     status_t captureScreenImplLocked(const RenderArea& renderArea,
@@ -728,8 +729,7 @@ private:
                                      const sp<GraphicBuffer>& buffer, bool useIdentityTransform,
                                      bool forSystem, int* outSyncFd, bool regionSampling,
                                      bool& outCapturedSecureLayers);
-    void traverseLayersInDisplay(const sp<const DisplayDevice>& display,
-                                 const LayerVector::Visitor& visitor);
+    void traverseLayersInLayerStack(ui::LayerStack, const LayerVector::Visitor&);
 
     sp<StartPropertySetThread> mStartPropertySetThread;
 

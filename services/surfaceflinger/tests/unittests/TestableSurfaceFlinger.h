@@ -341,9 +341,9 @@ public:
                                                  regionSampling, ignored);
     }
 
-    auto traverseLayersInDisplay(const sp<const DisplayDevice>& display,
-                                 const LayerVector::Visitor& visitor) {
-        return mFlinger->SurfaceFlinger::traverseLayersInDisplay(display, visitor);
+    auto traverseLayersInLayerStack(ui::LayerStack layerStack,
+                                    const LayerVector::Visitor& visitor) {
+        return mFlinger->SurfaceFlinger::traverseLayersInLayerStack(layerStack, visitor);
     }
 
     auto getDisplayNativePrimaries(const sp<IBinder>& displayToken,
