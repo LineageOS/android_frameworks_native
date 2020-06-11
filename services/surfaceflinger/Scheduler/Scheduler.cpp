@@ -111,7 +111,7 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
     using namespace sysprop;
 
     if (mUseContentDetectionV2) {
-        mLayerHistory = std::make_unique<scheduler::impl::LayerHistoryV2>();
+        mLayerHistory = std::make_unique<scheduler::impl::LayerHistoryV2>(refreshRateConfig);
     } else {
         mLayerHistory = std::make_unique<scheduler::impl::LayerHistory>();
     }
